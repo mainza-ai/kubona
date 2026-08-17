@@ -28,9 +28,15 @@ by the same operator ("Mainza"). Not Kubona code, but directly de-risking for it
 
 ## How to treat these claims
 
-> ⚑ Single-source claims. All of the above comes only from the gap-analysis document's
-> passing references; the specifics (repo locations, licenses, API shapes) have not been
-> verified against the actual Mainza/Milimo codebases. Confirm before building on them.
+> ⚑ Single-source origin, now repo-verified at the surface level (2026-08-16): the referenced
+> repositories are public and confirm the headline claims — `mainza-ai/milimoquantum`
+> (README: "Qiskit 2.x", 17 specialized agents, VQE-based drug discovery MQDD, an
+> `autoresearch-mlx` module on Apple-Silicon MLX, IBM/D-Wave/Braket targets),
+> `mainza-ai/MilimoClaw` (README: the Stage 1 REVIEW → Stage 2 HOLD gate for agent-initiated
+> spend — the claimed two-stage approval pattern), and `mainza-ai/afreval`
+> (an `afreval-context-score` service — the Context Score primitive). Deeper code-level
+> specifics (exact Qiskit version, HAL internals, agent-mesh API shapes, licenses) still
+> need inspection before any pattern is lifted into Kubona.
 
 ## Relevance to Kubona
 

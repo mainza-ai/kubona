@@ -90,8 +90,9 @@ experiments and return organized, reproducible results — see [[science-discove
   Phase 5 ([[risks]]).
 - **When to activate x402**: designed for in Phase 1, activated Phase 5+; the "functional
   product first" sequencing is deliberate (source-gap-analysis-plan).
-- **Mainza/Milimo reuse claims** are single-source and unverified — validate before building
-  on them ([[mainza-milimo-foundation]]).
+- **Mainza/Milimo reuse claims** — repo-level verified 2026-08-16 ([[mainza-milimo-foundation]]:
+  milimoquantum, MilimoClaw, afreval are public and match the headline claims); code-level
+  specifics still need inspection before lifting patterns.
 - **User/agent-created workflows widen the trust surface** — how much autonomy do
   agent-created agents get, and who approves capability changes? See the §13.4-style safety
   rail in [[workflows-and-agent-authoring]].
