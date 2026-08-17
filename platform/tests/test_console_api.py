@@ -66,14 +66,12 @@ def test_approval_flow_over_rest():
     s = gov.sessions.create("api-test", "researcher", budget_ceiling_usd=100.0)
     a = gov.request_approval(s.session_id, 42.0, "paid run")
 
-    # API can read it (fresh process state shares the same default stores)
-    approvals = client.get("/api/approvals", headers=_h()).json()["approvals"]
-    # (the API service has its own store instance in this dev wiring; fall back)
-    aid = approvals[0]["approval_id"] if approvals else a.approval_id
-
-    r = client.post(f"/api/approvals/{aid}/hold", headers=_h())
+    # The API service and this test share the same KUBONA_STATE_DIR store, so the
+    # seeded approval is visible to the API; use its id directly (deterministic
+    # regardless of other tests' approvals in the shared store).
+    r = client.post(f"/api/approvals/{a.approval_id}/hold", headers=_h())
     assert r.status_code == 200 and r.json()["ok"] is True
-    r = client.post(f"/api/approvals/{aid}/approve", headers=_h())
+    r = client.post(f"/api/approvals/{a.approval_id}/approve", headers=_h())
     assert r.json()["state"] == "APPROVED"
-    r = client.post(f"/api/approvals/{aid}/reject", headers=_h())
+    r = client.post(f"/api/approvals/{a.approval_id}/reject", headers=_h())
     assert r.json()["ok"] is False  # already approved -> governance error surfaced

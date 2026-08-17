@@ -13,6 +13,8 @@ import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+
+from kubona.config import state_path
 from typing import Any
 
 
@@ -36,7 +38,7 @@ class MetaLoop:
     """Reflection tier: studies history, compares strategies in shadow mode, proposes."""
 
     def __init__(self, store_path: str | Path | None = None):
-        self.path = Path(store_path) if store_path else Path("/tmp/kubona-state/meta-proposals.json")
+        self.path = Path(store_path) if store_path else state_path("meta-proposals.json")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._proposals: list[ReflectionProposal] = []
         if self.path.exists():

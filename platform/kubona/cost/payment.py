@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Callable
 
 
 @dataclass(frozen=True)
@@ -54,23 +54,28 @@ class FreeTierPayments(PaymentInterface):
 class X402Payments(PaymentInterface):
     """x402 rail: HTTP 402 semantics — quote, pay, retry-with-proof, edge verifies.
 
-    Phase 5+ activation; the flow below is the design, implemented as a stub so
-    the cost server's interface never needs to change.
+    Phase 5+ activation. CRITICAL production posture: the rail FAILS CLOSED by
+    default — no proof is ever accepted unless a real `verifier` callable is
+    injected (a cryptographically-verifying edge). This prevents an open x402
+    endpoint from becoming a free-spend hole while the protocol is stub-stage.
     """
 
-    def __init__(self, issuer: str = "https://pay.kubona.local"):
+    def __init__(self, issuer: str = "https://pay.kubona.local",
+                 verifier: "Callable[[str, Quote], dict[str, Any]] | None" = None):
         self.issuer = issuer
+        self._verifier = verifier  # None -> fail closed, never accept a proof
 
     def quote(self, job_ref: str, amount_usd: float) -> Quote:
         return Quote(job_ref=job_ref, amount_usd=round(amount_usd, 6),
                      required=True, flow="http-402")
 
     def verify(self, proof: str, quote: Quote) -> dict[str, Any]:
-        # Stub: accept a well-formed proof for the exact quote amount.
-        # Real verification (cryptographic proof, edge check) is Phase 5+.
-        if proof.startswith("x402:") and quote.amount_usd > 0:
-            return {"ok": True, "reason": f"proof accepted for ${quote.amount_usd} (stub verifier)"}
-        return {"ok": False, "reason": "invalid x402 proof"}
+        if self._verifier is None:
+            return {"ok": False,
+                    "reason": "x402 verification is not activated (Phase 5+); no verifier configured — failing closed"}
+        if quote.amount_usd <= 0:
+            return {"ok": False, "reason": "x402 requires a positive amount"}
+        return self._verifier(proof, quote)
 
 
 def payments_for(amount_usd: float) -> PaymentInterface:

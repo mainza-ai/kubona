@@ -10,6 +10,7 @@ Auth: bearer token via the same DevAuthProvider (OAuth 2.1 hardens this in Phase
 
 from __future__ import annotations
 
+import hmac
 import os
 from typing import Any
 
@@ -20,29 +21,32 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
+from kubona import config
 from kubona.control import LoopSupervisor
 from kubona.cost.governance import CostGovernanceService
-from kubona.mcp.auth import DevAuthProvider
 from kubona.providers import list_providers
 from kubona.session import SessionStore
 
 _sessions = SessionStore()
 _gov = CostGovernanceService(_sessions)
 _loops = LoopSupervisor(_sessions)
-_auth = DevAuthProvider()
+# console auth is constant-time comparison against DEV_TOKEN (config.console_token())
 
-DEV_TOKEN = os.environ.get("KUBONA_CONSOLE_TOKEN", "dev-token")
+# Fail-closed: in KUBONA_ENV=production the token MUST be configured; otherwise
+# every request is unauthorized. Outside production the dev token is the local/CI default.
+DEV_TOKEN = config.console_token()
 
 
 def _authed(request: Request) -> bool:
+    if DEV_TOKEN is None:
+        return False  # production fail-closed: no configured token, no access
     if not request.headers.get("authorization", "").startswith("Bearer "):
         return False
     token = request.headers["authorization"][len("Bearer "):]
-    try:
-        _auth.verify(token)
+    # constant-time compare against the configured operator token
+    if hmac.compare_digest(token, DEV_TOKEN):
         return True
-    except Exception:
-        return False
+    return False
 
 
 def _auth_error() -> JSONResponse:

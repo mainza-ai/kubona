@@ -18,14 +18,15 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from kubona.config import state_path
+
 
 def _tenant_dir(tenant: str) -> str:
     return "".join(ch for ch in tenant if ch.isalnum() or ch in "-_")
 
 
-def _state_dir() -> Path:
-    d = os.environ.get("KUBONA_STATE_DIR")
-    return Path(d) if d else Path(tempfile.gettempdir()) / "kubona-state"
+def _state_dir() -> str | os.PathLike:
+    return state_path("sessions.jsonl").parent
 
 
 @dataclass

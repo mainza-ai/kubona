@@ -50,9 +50,9 @@ class Approval:
 class CostGovernanceService:
     def __init__(self, sessions: SessionStore, store_path: str | os.PathLike | None = None):
         self.sessions = sessions
-        base = Path(store_path) if store_path else (
-            Path(os.environ["KUBONA_STATE_DIR"]) if os.environ.get("KUBONA_STATE_DIR")
-            else Path(tempfile.gettempdir()) / "kubona-state")
+        from kubona.config import state_path
+
+        base = Path(store_path) if store_path else state_path("governance.jsonl").parent
         base.mkdir(parents=True, exist_ok=True)
         self.path = base / "governance.jsonl"
 

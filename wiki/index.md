@@ -14,6 +14,7 @@ read this first to find relevant pages, then drill in.
 
 | Page | Summary |
 |---|---|
+| [[implementation-gaps]] | Production gap register: what the platform has vs. needs (M0 closures / open structural gaps). |
 | [[overview]] | Synthesis: what Kubona is and where it stands. |
 | [[roadmap]] | Phased implementation plan (0–5): gates, dependencies, team loading, tracking. |
 | [[log]] | Append-only chronological changelog. |

@@ -7,6 +7,8 @@ import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+
+from kubona.config import state_path
 from typing import Any
 
 from .engine import Workflow, WorkflowError
@@ -26,7 +28,7 @@ class WorkflowDef:
 
 class WorkflowLibrary:
     def __init__(self, path: str | Path | None = None):
-        self.path = Path(path) if path else Path("/tmp/kubona-state/workflows.json")
+        self.path = Path(path) if path else state_path("workflows.json")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._items: list[WorkflowDef] = []
         if self.path.exists():

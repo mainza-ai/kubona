@@ -1,0 +1,33 @@
+name: Nightly Canary
+
+on:
+  schedule:
+    - cron: "17 3 * * *"   # nightly
+
+jobs:
+  canary:
+    name: Nightly hardware canary + correctness regression
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev,qiskit]"
+      - name: Run canary with ledger record
+        run: |
+          mkdir -p state
+          KUBONA_STATE_DIR="$PWD/state" python -m kubona.canary
+      - name: Correctness-regression harness
+        run: |
+          KUBONA_STATE_DIR="$PWD/state" python -m pytest tests/test_autoresearch.py -k correctness -q
+      - name: Upload canary ledger
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: canary-ledger
+          path: platform/state/
+          if-no-files-found: ignore

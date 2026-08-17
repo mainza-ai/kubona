@@ -130,12 +130,16 @@ repo `github.com/mainza-ai/kubona`, currently private per maintainer decision):
   notebook, scholarly integrations, full discovery loop — **P6 gate passes**
   (a tenant-scoped lab runs the loop; every claim traces to a ledger/citation).
 
-**Remaining (human / deployment / hardening gates, not core-engine):** live
-OAuth 2.1 IdP token issuance + ML-KEM on the HTTP wire; volume eval corpora
-(QuantumKatas/HumanEval/PennyLang); a real third-party provider PR merged; the
-third-party gateway security review; real provider credentials (IBM/Quantinuum/
-Rigetti/neutral-atom/Xanadu/D-Wave) + SDK wiring; real x402 on a payment rail;
-GQE/Unsloth retraining on a GPU host. *See also the hardening closures below the
-roadmap status: OAuth-shaped token issuance, ML-KEM secure RPC, routing enforcement
-in execution, 7-task eval corpus, and the 6-tab console (now incl. experiment
-notebook + labs/workflows views).*
+**Remaining (production / hardening, not core-engine):** the async persistent
+job model; real provider SDK execution (IBM Runtime, pytket, pyquil, dimod+Leap,
+strawberryfields) — only local-simulator + qiskit-aer execute today; the Rust
+`qir-core` core on the compiler call path; streamable-HTTP MCP + ML-KEM on the
+wire + secrets management; volume eval corpora (QuantumKatas/HumanEval/
+PennyLang); a real third-party provider PR merged; the third-party gateway
+security review; real x402 on a payment rail; GQE/Unsloth retraining on a GPU
+host. **M0 closures landed:** a single non-`/tmp` state root (all stores via
+`kubona/config.py`), production fail-closed token auth (`KUBONA_ENV=production`
++ `aud`/`nbf` signed tokens via `kubona/run.py`), `kubona serve`/`doctor`
+entrypoints, CI (`ci.yml` python/rust/canary-correctness-gate/Flutter +
+`nightly-canary.yml`), and x402 **fail-closed** unless a real verifier is
+injected. Full register: [[implementation-gaps]].

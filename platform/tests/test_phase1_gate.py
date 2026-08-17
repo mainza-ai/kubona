@@ -120,6 +120,7 @@ async def test_phase1_paid_gate_requires_approval():
     quote = await _call("kubona.mcp.servers.cost", "quote_payment",
                         {"session_id": sid, "amount_usd": 0.25})
     assert quote["flow"] == "http-402" and quote["required"] is True
+    # x402 fails-closed by default: without a configured verifier, no proof is accepted
     verified = await _call("kubona.mcp.servers.cost", "verify_payment",
                            {"session_id": sid, "proof": "x402:p", "amount_usd": 0.25})
-    assert verified["ok"] is True
+    assert verified["ok"] is False

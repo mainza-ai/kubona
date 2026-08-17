@@ -11,12 +11,17 @@ status: living
 > ## 🟢 Overall status (2026-08-16)
 > **Phases 0–6 are implemented at the skeleton/engine level** under `platform/` and each
 > phase's gate is proven by an automated test (see the per-phase status blocks below and
-> [[overview]]). Green: 105 Python + 3 Rust + 1 Flutter widget tests. Repo
+> [[overview]]). Green: 122 Python + 3 Rust + 1 Flutter widget test. Repo
 > `github.com/mainza-ai/kubona` (private until the P0-era gate decision flips; a working
-> core now exists — a maintainer decision pending on going public). Remaining work is the
-> **human / deployment / hardening gates** (OAuth IdP on the wire, ML-KEM over HTTP, volume
-> corpora, a merged third-party provider, the security review, provider credentials, real
-> x402, GPU-hosted Unsloth retraining, and the two Phase-6 console surfaces).
+> core now exists — a maintainer decision pending on going public). **M0 hardened:**
+> single non-`/tmp` state root, production fail-closed auth (`kubona/run.py`), `kubona
+> serve`/`doctor` entrypoints, CI scaffold (`ci.yml` + `nightly-canary.yml`), x402
+> fail-closed. Remaining work is the **production / deployment / hardening gates**
+> (async persistent job model; real provider SDK execution — only 2 of 9 providers
+> execute today; the Rust QIR core on the compiler path; ML-KEM/streamable-HTTP on the
+> wire; volume corpora; a merged third-party provider; the security review; real x402
+> on a rail; GPU-hosted Unsloth retraining; and the two Phase-6 console surfaces).
+> Full register: [[implementation-gaps]].
 
 The working implementation plan for Kubona. Phase content, exit criteria, and team shape
 trace to §§7–8 of [[source-gap-analysis-plan]], with the §11.5 (autoresearch engine) and
