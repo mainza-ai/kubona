@@ -23,5 +23,6 @@
     "braket"
   ],
   "status": "registered",
-  "execution_plugin": "kubona.providers.pulser_provider.PulserProvider"
+  "execution_plugin": "kubona.providers.pulser_provider.PulserProvider",
+  "backend": "aquila"
 }

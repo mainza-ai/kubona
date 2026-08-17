@@ -25,5 +25,6 @@
     "pennylane"
   ],
   "status": "registered",
-  "execution_plugin": "kubona.providers.strawberry_fields_provider.StrawberryFieldsProvider"
+  "execution_plugin": "kubona.providers.strawberry_fields_provider.StrawberryFieldsProvider",
+  "backend": "borealis"
 }
