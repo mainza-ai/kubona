@@ -114,6 +114,32 @@ Run everything: `uv run --project . pytest -q` or `.venv/bin/python -m pytest -q
 - **Security review package** — `docs/security-review.md` (threat model, controls
   map, third-party checklist, known gaps).
 
+## Phase 4 additions (evaluation + autoresearch engine + release prep)
+
+- **Autoresearch engine** (`kubona/autoresearch/`) — the four-part harness
+  contract (§11.2) + Orchestrator loop: keep-or-discard, structural write-scope,
+  simulator-only, with a coarse-to-fine search (exploration + golden-section
+  refinement). Three harnesses ship (§11.5): **VQE ansatz**, **mitigation
+  (ZNE config)**, **correctness regression** (no mutation; gates releases).
+  QAOA + compilation-pass follow once the engine is proven.
+- **Search Mode (§11.4)** — `run_search_mode` autonomously finds an ansatz
+  **beating a hand-designed baseline** (tested); files the result into the library.
+- **GQE harness (4th, v2)** — `kubona/autoresearch/gqe.py`, same four-part
+  contract with an n-gram proposal (transformer via Unsloth is the production path).
+- **Algorithm library** (`kubona/library/`) — provenance-backed entries; the
+  simulator -> cost-approved -> library pipeline is tested.
+- **Meta-loop (§13, stretch)** — `kubona/autoresearch/meta.py`: propose-only
+  strategy changes, shadow-tested, human-approved; write scope stops at search
+  strategy (never platform code).
+- **Evals** (`kubona/eval/`) — built-in code-gen corpus (bell/ghz3/qft2) with
+  invariant checks, + agent-behavior evals (budget compliance, simulator-first,
+  WBP-detection response). QuantumKatas/HumanEval/PennyLang plug into the same contract.
+- **Canary now gates releases** — the correctness-regression harness runs in
+  `canary.run_all` (a failing correctness check blocks).
+- **Provider-registration SDK** (`kubona/sdk/register_provider`) — schema
+  validate + sandbox smoke-test + data write; `docs/contribution-governance.md`
+  (tool-surface security boundary). The Phase-4 gate's third-party-merge proof.
+
 ## Phase boundaries (honest stubs)
 
 - Compiler: validates + canonicalizes QASM 2 (real QIR/MLIR lowering = Phase 1, Rust core).

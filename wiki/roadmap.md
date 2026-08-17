@@ -162,6 +162,21 @@ one real provider-side regression **in staging** before it reaches an agent.
 
 ## Phase 4 — Evaluation, autoresearch engine, release prep (Weeks 23–30) → gate P4
 
+> **Status (2026-08-16):** implemented under `platform/` — the four-part harness
+> contract + Orchestrator (keep-or-discard, write-scope, simulator-only,
+> coarse-to-fine search); three harnesses ship (VQE ansatz, mitigation/ZNE,
+> correctness-regression which now **gates the canary/release**); **Search Mode
+> beats a hand-designed baseline** (tested) and files to the library; GQE as the
+> 4th harness (n-gram proposal; Unsloth transformer is the production path);
+> provenance-backed algorithm library (simulator → cost-approved → library
+> pipeline tested); **§13 meta-loop** (propose-only, shadow-tested, human-gated);
+> eval corpus (bell/ghz3/qft2 invariants) + agent-behavior evals (budget,
+> simulator-first, WBP-response); provider-registration SDK +
+> `docs/contribution-governance.md`. **84 Python tests + widget test green.**
+> Remaining Phase-4 gate items: QuantumKatas/HumanEval/PennyLang volume corpora,
+> a *real* third-party provider PR merged, and the human review — plus the P4
+> stretch (GQE retraining pipeline via Unsloth) once a GPU/cloud host exists.
+
 - Eval corpora: QuantumKatas + Qiskit HumanEval + PennyLang; **agent-behavior evals**
   (budget compliance, simulator-first compliance, WBP-detection response)
   ([[evaluation-and-benchmarks]]).
