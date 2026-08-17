@@ -12,10 +12,12 @@ with organized, reproducible results.
 
 | Path | What it is |
 |---|---|
-| [`wiki/`](wiki/) | The living knowledge base (Obsidian vault, 55 pages): entities, concepts, sources, overview, roadmap, index, log |
-| [`dev-docs/`](dev-docs/) | The working implementation plan (rev 4) and source documents |
-| [`raw/`](raw/) | Immutable ingested source documents (read-only) |
+| [`wiki/`](wiki/) | The living knowledge base (Obsidian vault, 56 pages): entities, concepts, sources, overview, roadmap, index, log |
+| [`raw/`](raw/) | Immutable ingested source documents (read-only) — incl. the implementation plan (rev 4b) |
 | [`AGENTS.md`](AGENTS.md) | Maintainer operating rules — read before editing the wiki |
+
+*Note: `dev-docs/` and `.obsidian/` are local-only working files (gitignored); the canonical,
+versioned copies live in `raw/` and `wiki/`.*
 
 ## The plan at a glance
 
