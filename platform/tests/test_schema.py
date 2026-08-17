@@ -7,7 +7,8 @@ def test_initial_registry():
     caps = load_all_providers()
     assert set(caps) == {"local-simulator", "ibm-qiskit", "cuda-q-simulator",
                          "qiskit-aer-simulator", "quantinuum", "rigetti",
-                         "neutral-atom-quera-pasqal"}
+                         "neutral-atom-quera-pasqal", "xanadu-strawberry-fields",
+                         "dwave-annealing"}
     assert caps["local-simulator"].pricing.model == "free"
     assert caps["local-simulator"].execution_plugin == "kubona.providers.local_simulator.LocalSimulator"
     assert caps["ibm-qiskit"].pricing.model == "per_second"

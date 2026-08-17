@@ -140,6 +140,28 @@ Run everything: `uv run --project . pytest -q` or `.venv/bin/python -m pytest -q
   validate + sandbox smoke-test + data write; `docs/contribution-governance.md`
   (tool-surface security boundary). The Phase-4 gate's third-party-merge proof.
 
+## Phase 5 additions (scale & breadth)
+
+- **Breadth providers:** + `xanadu-strawberry-fields` (photonic/CV) and
+  `dwave-annealing` (annealing). Annealing is QUBO/CQM, not gate-circuit — the
+  AnnealingProvider has a separate credential-free `solve_qubo` path (small-n
+  exact, larger via dimod-simulated-annealing when available); Xanadu plugin
+  fails closed until credentials + Strawberry Fields wiring.
+- **Routing / export control** (`kubona/routing/`) — jurisdiction +
+  export-control-aware routing (`route()`), enforced at the routing layer
+  before a job reaches a provider (§2.9). 'none' jurisdiction = world-open.
+- **Multi-tenant scale** — `Ledger` and `SessionStore` accept a `tenant`
+  (per-lab sharding, no cross-tenant collisions); ledger appends are atomic
+  (O_APPEND) and hash-chain-guarded by a lock so concurrent writers are safe.
+- **x402 activation + library metering** (`kubona/cost/metering.py`) — the
+  algorithm library is a data refinery: free low-resolution summary, sub-threshold
+  x402 microtransaction for the full validated config; the ledger doubles as the
+  payment-proof ledger (payment + library_release records).
+- **Meta-loop auto-application (§13.5)** — `MetaLoop.auto_apply_candidate`:
+  an APPROVED proposal is auto-applied ONLY after the safety period elapsed AND
+  it won in shadow mode across a minimum number of runs; otherwise it stays
+  staged (never premature, never auto-applied without evidence).
+
 ## Phase boundaries (honest stubs)
 
 - Compiler: validates + canonicalizes QASM 2 (real QIR/MLIR lowering = Phase 1, Rust core).

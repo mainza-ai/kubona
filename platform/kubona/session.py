@@ -19,6 +19,10 @@ from pathlib import Path
 from typing import Any
 
 
+def _tenant_dir(tenant: str) -> str:
+    return "".join(ch for ch in tenant if ch.isalnum() or ch in "-_")
+
+
 def _state_dir() -> Path:
     d = os.environ.get("KUBONA_STATE_DIR")
     return Path(d) if d else Path(tempfile.gettempdir()) / "kubona-state"
@@ -45,10 +49,19 @@ class SessionState:
 
 
 class SessionStore:
-    """Append-only JSONL store keyed by session_id (snapshot-per-event)."""
+    """Append-only JSONL store keyed by session_id (snapshot-per-event).
 
-    def __init__(self, path: str | os.PathLike | None = None):
-        self.path = Path(path) if path else _state_dir() / "sessions.jsonl"
+    Multi-tenant (Phase 5): a `tenant` scopes sessions to a per-lab directory so
+    different laboratories never share namespace or budgets.
+    """
+
+    def __init__(self, path: str | os.PathLike | None = None, tenant: str | None = None):
+        if path is None:
+            if tenant:
+                path = _state_dir() / _tenant_dir(tenant) / "sessions.jsonl"
+            else:
+                path = _state_dir() / "sessions.jsonl"
+        self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
 
     def _load(self) -> dict[str, SessionState]:

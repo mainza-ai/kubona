@@ -82,6 +82,42 @@ class MetaLoop:
     def pending(self) -> list[ReflectionProposal]:
         return [p for p in self._proposals if p.status in ("PROPOSED", "HUMAN_REVIEW")]
 
+    # -- Phase-5: staged auto-application (§13.5) --------------------------
+    def auto_apply_candidate(self, proposal_id: str, *, shadow_scores_incumbent: list[float],
+                             shadow_scores_proposed: list[float],
+                             safety_period_elapsed: bool,
+                             min_shadow_runs: int = 4,
+                             improvement_threshold: float = 0.02) -> ReflectionProposal:
+        """Staged rollout: auto-apply an APPROVED proposal ONLY after (a) a safety
+        period has elapsed AND (b) it won in shadow mode across >= min_shadow_runs.
+        Otherwise the proposal stays APPROVED-but-not-applied (rolled back to review)."""
+        p = self._get(proposal_id)
+        if p.status != "APPROVED":
+            raise ValueError(f"proposal {proposal_id} is {p.status}, not APPROVED")
+        if not safety_period_elapsed:
+            raise ValueError("safety period not elapsed — staging window open")
+        if len(shadow_scores_incumbent) < min_shadow_runs or len(shadow_scores_proposed) < min_shadow_runs:
+            raise ValueError("too few shadow runs for auto-application")
+        inc = sum(shadow_scores_incumbent) / len(shadow_scores_incumbent)
+        prop = sum(shadow_scores_proposed) / len(shadow_scores_proposed)
+        if not self.shadow_compare(inc, prop, improvement_threshold):
+            raise ValueError(
+                f"shadow mode shows no improvement (incumbent {inc:.4f} vs proposed {prop:.4f}) — "
+                "NOT auto-applying; staged rollout aborts")
+        p = ReflectionProposal(**{**asdict(p), "status": "APPLIED",
+                                  "shadow_evidence": {**p.shadow_evidence,
+                                                      "auto_apply": {"incumbent": inc, "proposed": prop,
+                                                                     "shadow_runs": len(shadow_scores_proposed)}}})
+        self._replace(p)
+        return p
+
+    def _replace(self, proposal: ReflectionProposal) -> None:
+        for i, existing in enumerate(self._proposals):
+            if existing.proposal_id == proposal.proposal_id:
+                self._proposals[i] = proposal
+                break
+        self._save()
+
 
 def reflect_on_orchestrator(history_scores: list[float], incumbent_radius: float,
                             candidate_radius: float, meta: MetaLoop,

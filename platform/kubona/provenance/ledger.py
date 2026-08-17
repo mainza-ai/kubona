@@ -48,6 +48,10 @@ class LedgerRecord:
         return cls(**d)
 
 
+def _safe(tenant: str) -> str:
+    return "".join(ch for ch in tenant if ch.isalnum() or ch in "-_")
+
+
 def _content_hash(payload: dict[str, Any]) -> str:
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
@@ -57,14 +61,25 @@ def _record_hash(prev: str, content: str) -> str:
 
 
 class Ledger:
-    """Append-only JSONL ledger with a hash chain (genesis = 64 zeroes)."""
+    """Append-only JSONL ledger with a hash chain (genesis = 64 zeroes).
 
-    def __init__(self, path: str | os.PathLike | None = None):
+    Multi-tenant (Phase 5): a `tenant`/`namespace` shards records into a
+    tenant-scoped file, so many laboratories/communities never collide in one
+    namespace; global reads (when tenant is None) aggregate them. Appends use an
+    atomic O_APPEND write so concurrent writers cannot corrupt the chain.
+    """
+
+    def __init__(self, path: str | os.PathLike | None = None, tenant: str | None = None):
         if path is None:
-            path = os.environ.get("KUBONA_LEDGER") or os.path.join(tempfile.gettempdir(), "kubona-ledger.jsonl")
-        self.path = Path(path)
+            base = Path(os.environ.get("KUBONA_LEDGER") or os.path.join(tempfile.gettempdir(), "kubona-ledger.jsonl"))
+        else:
+            base = Path(path)
+        target = base if tenant is None else base.parent / f"{base.stem}.{_safe(tenant)}{base.suffix}"
+        self.path = Path(target)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.tenant = tenant
         self._tail: str = "0" * 64
+        self._lock = __import__("threading").Lock()  # serialize tail-read + append
 
     def _read_tail(self) -> str:
         if self.path.exists() and self.path.stat().st_size:
@@ -73,6 +88,10 @@ class Ledger:
         return "0" * 64
 
     def append(self, kind: str, payload: dict[str, Any]) -> LedgerRecord:
+        with self._lock:  # the hash chain is inherently sequential: guard tail-read + append
+            return self._append_locked(kind, payload)
+
+    def _append_locked(self, kind: str, payload: dict[str, Any]) -> LedgerRecord:
         prev = self._read_tail()
         content = _content_hash(payload)
         record = LedgerRecord(
@@ -84,8 +103,12 @@ class Ledger:
             kind=kind,
             payload=payload,
         )
-        with open(self.path, "a") as f:
-            f.write(record.to_json() + "\n")
+        # atomic O_APPEND single write — safe under concurrent multi-tenant writers
+        fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+        try:
+            os.write(fd, (record.to_json() + "\n").encode())
+        finally:
+            os.close(fd)
         return record
 
     def __iter__(self) -> Iterator[LedgerRecord]:
