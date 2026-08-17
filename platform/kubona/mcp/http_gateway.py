@@ -20,6 +20,7 @@ from __future__ import annotations
 import base64
 import json
 import os
+import time
 from typing import Any
 
 from starlette.applications import Starlette
@@ -29,6 +30,7 @@ from starlette.routing import Route
 
 from kubona.mcp.auth import AuthError
 from kubona.mcp.gateway import KubonaGateway
+from kubona.logging import get_logger, log_call
 from kubona.security.hybrid_transport import HybridSession, TransportError
 
 
@@ -41,6 +43,9 @@ def _authed(request: Request, gateway: KubonaGateway) -> bool:
         return True
     except Exception:  # noqa: BLE001
         return False
+
+
+_rpc_logger = get_logger("http")
 
 
 def _make_app(gateway: KubonaGateway, secure_session: HybridSession | None = None) -> Starlette:
@@ -58,6 +63,7 @@ def _make_app(gateway: KubonaGateway, secure_session: HybridSession | None = Non
             body = await request.json()
         except Exception:  # noqa: BLE001
             return JSONResponse({"ok": False, "error": "invalid JSON body"}, status_code=400)
+        t0 = time.time()
         try:
             if "envelope" in body and secure_session is not None:
                 ct = base64.b64decode(body["envelope"])
@@ -65,19 +71,31 @@ def _make_app(gateway: KubonaGateway, secure_session: HybridSession | None = Non
                 result = gateway.call(call["server"], call["tool"], call["args"],
                                       token=call.get("token"))
                 resp = secure_session.encrypt(json.dumps(result).encode(), aad=b"kubona-secure-rpc")
+                log_call(_rpc_logger, server=call["server"], tool=call["tool"], status=200,
+                         duration_ms=(time.time() - t0) * 1000, mode="secure")
                 return JSONResponse({"ok": True, "envelope": base64.b64encode(resp).decode()})
             # plain authenticated RPC — pass the verified bearer token so the gateway
             # re-derives the principal and applies per-call scope authorization
             result = gateway.call(body["server"], body["tool"], body.get("args", {}),
                                   token=bearer)
+            log_call(_rpc_logger, server=body["server"], tool=body["tool"], status=200,
+                     duration_ms=(time.time() - t0) * 1000, mode="plain")
             return JSONResponse({"ok": True, "result": result})
         except AuthError as e:
+            log_call(_rpc_logger, server=body.get("server", "?"), tool=body.get("tool", "?"),
+                     status=403, duration_ms=(time.time() - t0) * 1000, error=str(e))
             return JSONResponse({"ok": False, "error": f"authorization denied: {e}"}, status_code=403)
         except KeyError as e:
+            log_call(_rpc_logger, server=body.get("server", "?"), tool=body.get("tool", "?"),
+                     status=404, duration_ms=(time.time() - t0) * 1000, error=str(e))
             return JSONResponse({"ok": False, "error": f"unknown server/tool: {e}"}, status_code=404)
         except TransportError as e:
+            log_call(_rpc_logger, server="?", tool="?", status=400,
+                     duration_ms=(time.time() - t0) * 1000, error=str(e))
             return JSONResponse({"ok": False, "error": f"decryption failed: {e}"}, status_code=400)
         except Exception as e:  # noqa: BLE001
+            log_call(_rpc_logger, server=body.get("server", "?"), tool=body.get("tool", "?"),
+                     status=400, duration_ms=(time.time() - t0) * 1000, error=str(e))
             return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
 
     return Starlette(routes=[Route("/health", health), Route("/rpc", rpc, methods=["POST"])])

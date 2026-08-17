@@ -199,3 +199,13 @@ SKIP. Fixed at the root: TketProvider/PyQuilProvider treat OSError at SDK-init a
 not-ready (fails closed as a config gap, never a regression), and scripts/ci.sh now
 sets XDG_CONFIG_HOME to a writable dir (the documented deployment requirement).
 Full CI green: 151 py + 3 Rust + canary 3/3 (2 skips) + correctness release-gate.
+
+## [2026-08-17] impl-hardening | Structured logging (G11) + flaky-test fix
+
+kubona/logging.py: JSON-lines structured ops logging (lazy stream, non-fatal emit
+so logging can NEVER break the request path — the same principle as the audit
+sink); HTTP gateway emits a structured request log per /rpc (server/tool/status/
+duration/error); kubona serve/serve-gateway wire setup_logging. Full CI surfaced a
+flaky statistical cutting test (Monte Carlo shot noise, mismatched seeds) — made it
+statistically robust (consistent seed, more shots, sane tolerance). 154 py + 3 Rust
+green; full local CI green twice consecutively.

@@ -96,6 +96,8 @@ def make_gateway(*, require_auth: bool = True,
 
 def serve(*, host: str = "127.0.0.1", port: int | None = None) -> None:
     """Boot the console REST API (backed by the production-authorized gateway)."""
+    from kubona.logging import setup_logging
+    setup_logging(log_dir=None)
     if config.is_production() and config.console_token() is None:
         raise SystemExit(
             "FAIL-CLOSED: KUBONA_ENV=production requires KUBONA_CONSOLE_TOKEN to be set."
