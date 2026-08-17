@@ -29,8 +29,18 @@ def transpile_circuit(circuit_qasm: str) -> dict:
     }
 
 
+from kubona.qir import lower as qir_lower
+
+
+def lower_circuit(circuit_qasm: str) -> dict:
+    """Lower a circuit to QIR-like IR via the reference pipeline (Phase 1)."""
+    return qir_lower(circuit_qasm)
+
+
 mcp.add_tool(transpile_circuit, name="transpile_circuit",
              description="Validate and canonicalize an OpenQASM 2 circuit into Kubona's SDK-independent IR.")
+mcp.add_tool(lower_circuit, name="lower_circuit",
+             description="Lower a circuit to QIR-like IR (reference pipeline; Rust core is qir-core).")
 
 if __name__ == "__main__":
     asyncio.run(mcp.run_stdio_async())

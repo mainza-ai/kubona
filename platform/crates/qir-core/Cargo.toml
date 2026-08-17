@@ -1,0 +1,12 @@
+[package]
+name = "qir-core"
+version = "0.1.0"
+edition = "2021"
+description = "Kubona QIR/MLIR lowering core (Rust) — Phase 1 reference compiler"
+
+[[bin]]
+name = "qir-core"
+path = "src/main.rs"
+
+[lib]
+path = "src/lib.rs"

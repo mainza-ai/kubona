@@ -16,8 +16,6 @@ with organized, reproducible results.
 | [`raw/`](raw/) | Immutable ingested source documents (read-only) — incl. the implementation plan (rev 4b) |
 | [`AGENTS.md`](AGENTS.md) | Maintainer operating rules — read before editing the wiki |
 
-*Note: `dev-docs/` and `.obsidian/` are local-only working files (gitignored); the canonical,
-versioned copies live in `raw/` and `wiki/`.*
 
 ## The plan at a glance
 
