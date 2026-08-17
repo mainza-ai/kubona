@@ -13,7 +13,8 @@ status: ingested
 
 ## What it adds
 
-- Names the platform **Kubona**; commits to a fully open-source (Apache-2.0)
+- Names the platform **Kubona** (Tonga (Zambia) — *to see*) and commits to a fully
+open-source (Apache-2.0)
   posture with no closed-platform dependency.
 - **10 gap findings** (major): provider coverage 4→11+; [[qbraid]]/[[strangeworks]] prior
   art; [[security-and-pqc]] underspecified; no orchestration-compat layer; no cost
@@ -52,9 +53,8 @@ status: ingested
   [[science-discovery]]), Tier-1/Tier-2 scholarly & domain data shortlist from the
   public-apis catalog ([[science-data-integrations]]), and Unsloth as the GQE-flywheel /
   persona training substrate ([[unsloth]]). Adds Phase 6 (Weeks 37+) to the roadmap.
-- **Naming (rev 4):** the project is renamed **Kubona** (Tonga (Zambia) — *to see*);
-  QAgent is retained only as the historical working name. See [[kubona]] for the name's
-  meaning and mission fit.
+- **Naming (rev 4):** the project is named **Kubona** (Tonga (Zambia) — *to see*). See
+  [[kubona]] for the name's meaning and mission fit.
 
 ## Pages this source seeded or expanded
 
