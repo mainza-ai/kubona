@@ -221,6 +221,34 @@ async def labs(request: Request) -> JSONResponse:
     return _json({"ok": True, "labs": LabRegistry().all()})
 
 
+async def models(request: Request) -> JSONResponse:
+    """Auto-detect the host's local LLM servers (Ollama / LM Studio / MLX / etc.)."""
+    if not _authed(request):
+        return _auth_error()
+    from kubona.llm.registry import LocalModelRegistry
+
+    return _json({"ok": True, "scan": LocalModelRegistry().discover(),
+                  "ports": DEFAULT_LLM_PORTS()})
+
+
+async def settings(request: Request) -> JSONResponse:
+    if not _authed(request):
+        return _auth_error()
+    from kubona.settings import SettingsStore
+
+    store = SettingsStore()
+    if request.method == "GET":
+        return _json({"ok": True, "settings": store.public()})
+    body = await request.json()
+    return _json({"ok": True, "settings": store.update(body)})
+
+
+def DEFAULT_LLM_PORTS() -> list[int]:
+    from kubona.llm.registry import DEFAULT_PORTS as p
+
+    return p
+
+
 async def loops(request: Request) -> JSONResponse:
     if not _authed(request):
         return _auth_error()
@@ -262,6 +290,8 @@ app = Starlette(
         Route("/api/workflows", workflows),
         Route("/api/agents", agents),
         Route("/api/labs", labs),
+        Route("/api/models", models),
+        Route("/api/settings", settings, methods=["GET", "PUT"]),
         Route("/api/loops", loops),
         Route("/api/loops/{lid}/{action}", loop_action, methods=["POST"]),
     ],

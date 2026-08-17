@@ -198,6 +198,26 @@ Run everything: `uv run --project . pytest -q` or `.venv/bin/python -m pytest -q
   Workflows); `ReportStore` persists campaign notebooks; `Lab` registry.
 - ReportStore: `kubona/reports/notebook.py`; Labs: `kubona/labs.py`.
 
+## Local LLM integration (Ollama · OMLX · LM Studio · llama.cpp)
+
+- **LLM layer** (`kubona/llm/`): `AbstractLLM` + OpenAI-compatible adapter and
+  an Ollama-native adapter, with `json_mode` (forced-JSON) for reliable tool-call
+  output. Offline-tolerant with a deterministic `ScriptedLLM` fallback.
+- **Auto-detect (`LocalModelRegistry`)** scans a range of ports (incl. OMLX's
+  managed-server port **8787**, Ollama 11434, LM Studio 1234, MLX/llama.cpp 8080,
+  …) probing /v1/models (OpenAI-compat) and /api/tags (Ollama); finds the real
+  port, classifies the provider, lists the models. Override via `KUBONA_LLM_PORTS`
+  / `KUBONA_LLM_BASE_URL`. Verified live against the on-host OMLX server.
+- **LLM agent loop** (`kubona/agents/loop.py`): a governed ReAct loop — the local
+  model picks tools (exact signatures are fed), executes under the cost/capability
+  gates, with an **arg-normalization layer** that maps model-arg-synonyms onto the
+  tool's real parameters. Verified live: the OLMX Qwen model transpiled a circuit
+  and drove the gateway.
+- **Settings** (`kubona/settings.py`): persisted user settings (provider/model/
+  temperature); `GET/PUT /api/settings`; live host-model snapshot kept separate.
+- **Console**: a **Models** tab shows the models auto-detected on this host and
+  lets the user set the active provider/model/temperature (saved to settings).
+
 ## Phase boundaries (honest stubs)
 
 - Compiler: validates + canonicalizes QASM 2 (real QIR/MLIR lowering = Phase 1, Rust core).

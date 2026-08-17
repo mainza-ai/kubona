@@ -47,6 +47,8 @@ class _ConsoleHomeState extends State<ConsoleHome> {
   Future<List<Map<String, dynamic>>>? _workflows;
   Future<List<Map<String, dynamic>>>? _agents;
   Future<List<Map<String, dynamic>>>? _labs;
+  Future<Map<String, dynamic>>? _models;
+  Future<Map<String, dynamic>>? _settings;
 
   @override
   void initState() {
@@ -65,6 +67,8 @@ class _ConsoleHomeState extends State<ConsoleHome> {
       _workflows = widget.api.workflows();
       _agents = widget.api.agents();
       _labs = widget.api.labs();
+      _models = widget.api.models();
+      _settings = widget.api.settingsGet();
     });
   }
 
@@ -82,7 +86,7 @@ class _ConsoleHomeState extends State<ConsoleHome> {
         ],
       ),
       body: DefaultTabController(
-        length: 6,
+        length: 7,
         child: Column(
           children: [
             const TabBar(tabs: [
@@ -92,6 +96,7 @@ class _ConsoleHomeState extends State<ConsoleHome> {
               Tab(text: 'Fleet'),
               Tab(text: 'Notebook'),
               Tab(text: 'Labs & Workflows'),
+              Tab(text: 'Models'),
             ]),
             Expanded(
               child: TabBarView(
@@ -103,6 +108,8 @@ class _ConsoleHomeState extends State<ConsoleHome> {
                   _FleetTab(fleet: _fleet!),
                   _NotebookTab(reports: _reports!),
                   _LabsWorkflowsTab(labs: _labs!, workflows: _workflows!, agents: _agents!),
+                  _ModelsSettingsTab(api: widget.api, models: _models!, settings: _settings!,
+                      onChanged: _refresh),
                 ],
               ),
             ),
@@ -323,6 +330,109 @@ class _LabsWorkflowsTab extends StatelessWidget {
           ]);
         },
       ),
+    ]);
+  }
+}
+
+class _ModelsSettingsTab extends StatefulWidget {
+  final ConsoleApi api;
+  final Future<Map<String, dynamic>> models;
+  final Future<Map<String, dynamic>> settings;
+  final VoidCallback onChanged;
+  const _ModelsSettingsTab(
+      {required this.api, required this.models, required this.settings, required this.onChanged});
+
+  @override
+  State<_ModelsSettingsTab> createState() => _ModelsSettingsTabState();
+}
+
+class _ModelsSettingsTabState extends State<_ModelsSettingsTab> {
+  String? _provider;
+  String? _model;
+  double _temperature = 0.2;
+  String _status = '';
+
+  List<String> _modelList(Map<String, dynamic> scan) {
+    final list = <String>[];
+    scan.forEach((key, value) {
+      if (key == 'summary' || value is! Map<String, dynamic>) return;
+      final models = (value['models'] as List? ?? const []).cast<Map<String, dynamic>>();
+      for (final m in models) {
+        list.add('${key}: ${m['model_id']}  (${value['base_url']})');
+      }
+    });
+    return list;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(padding: const EdgeInsets.all(12), children: [
+      Text('Local models detected on this host', style: Theme.of(context).textTheme.titleMedium),
+      FutureBuilder<Map<String, dynamic>>(
+        future: widget.models,
+        builder: (context, snap) {
+          if (snap.hasError) return Text('error: ${snap.error}');
+          final data = snap.data ?? const {};
+          final scan = data['scan'] as Map<String, dynamic>? ?? const {};
+          final list = _modelList(scan);
+          if (list.isEmpty) {
+            return const Padding(padding: EdgeInsets.all(8), child: Text(
+                'No local LLM server detected. Start Ollama, OMLX, or LM Studio and press refresh.'));
+          }
+          return Column(children: [
+            for (final line in list.take(12))
+              ListTile(dense: true, title: Text(line)),
+          ]);
+        },
+      ),
+      const Divider(),
+      Text('Active model & generation settings', style: Theme.of(context).textTheme.titleMedium),
+      FutureBuilder<Map<String, dynamic>>(
+        future: widget.settings,
+        builder: (context, snap) {
+          final s = snap.data ?? const {};
+          final cfg = StringBuffer();
+          cfg.write('provider: ${s['llm_provider'] ?? 'scripted (fallback)'}');
+          if ((s['llm_model'] ?? '').isNotEmpty) cfg.write(' · model: ${s['llm_model']}');
+          if ((s['llm_base_url'] ?? '').isNotEmpty) cfg.write(' · ${s['llm_base_url']}');
+          cfg.write(' · host available: ${s['host_available'] ?? false}');
+          return Padding(padding: const EdgeInsets.all(8), child: Text(cfg.toString()));
+        },
+      ),
+      Row(children: [
+        const Text('Temperature'),
+        Expanded(
+          child: Slider(
+            value: _temperature,
+            onChanged: (v) => setState(() => _temperature = v),
+          ),
+        ),
+        Text(_temperature.toStringAsFixed(2)),
+      ]),
+      TextField(
+        decoration: const InputDecoration(labelText: 'Model (optional, e.g. Ollama / LM Studio / OMLX model id)'),
+        onChanged: (v) => _model = v,
+      ),
+      TextField(
+        decoration: const InputDecoration(labelText: 'Provider (ollama | lm-studio | mlx | omlx | llama.cpp)'),
+        onChanged: (v) => _provider = v,
+      ),
+      const SizedBox(height: 8),
+      FilledButton(
+        onPressed: () async {
+          setState(() => _status = 'saving…');
+          await widget.api.settingsPut({
+            'llm_temperature': _temperature,
+            if (_model != null && _model!.isNotEmpty) 'llm_model': _model,
+            if (_provider != null && _provider!.isNotEmpty) 'llm_provider': _provider,
+            'llm_base_url': 'http://127.0.0.1:8787',
+          });
+          setState(() => _status = 'saved — the console/agent uses these settings for local LLM inference');
+          widget.onChanged();
+        },
+        child: const Text('Save settings'),
+      ),
+      if (_status.isNotEmpty) Padding(padding: const EdgeInsets.all(8), child: Text(_status)),
     ]);
   }
 }

@@ -38,6 +38,20 @@ def test_read_only_surface_no_submission_endpoints():
         assert client.post(path, headers=_h()).status_code == 404
 
 
+def test_models_and_settings_endpoints():
+    # auto-detect scans ports; with nothing up it returns an honest empty scan
+    r = client.get("/api/models", headers=_h())
+    assert r.status_code == 200 and "scan" in r.json()
+    # settings GET (user choices + separate live host snapshot) + PUT round-trip
+    r = client.get("/api/settings", headers=_h())
+    assert r.status_code == 200 and "settings" in r.json()
+    r = client.put("/api/settings", json={"llm_provider": "scripted", "llm_model": "none",
+                                          "llm_temperature": 0.1}, headers=_h())
+    assert r.status_code == 200 and r.json()["ok"] is True
+    r2 = client.get("/api/settings", headers=_h())
+    assert r2.json()["settings"].get("llm_provider") == "scripted"
+
+
 def test_sessions_and_burn_rate():
     r = client.get("/api/sessions", headers=_h())
     assert r.json()["ok"] is True

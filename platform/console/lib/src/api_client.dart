@@ -158,6 +158,22 @@ class ConsoleApi {
     return list.cast<Map<String, dynamic>>().toList();
   }
 
+  Future<Map<String, dynamic>> models() async {
+    final res = await _client.get(Uri.parse('$baseUrl/api/models'), headers: _headers);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> settingsGet() async {
+    final res = await _client.get(Uri.parse('$baseUrl/api/settings'), headers: _headers);
+    return (jsonDecode(res.body) as Map<String, dynamic>)['settings'] as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> settingsPut(Map<String, dynamic> patch) async {
+    final res = await _client.put(Uri.parse('$baseUrl/api/settings'),
+        headers: _headers, body: jsonEncode(patch));
+    return (jsonDecode(res.body) as Map<String, dynamic>)['settings'] as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> provenance() async {
     final res = await _client.get(Uri.parse('$baseUrl/api/provenance'), headers: _headers);
     return jsonDecode(res.body) as Map<String, dynamic>;
