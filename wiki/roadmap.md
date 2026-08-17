@@ -56,6 +56,9 @@ business-model work.
 Ordered execution (dependencies within the phase):
 
 1. **Apache-2.0 license + public repo** — one-time decision, cheap now, expensive later (§7).
+   *(Status 2026-08-16: repo created privately at github.com/mainza-ai/kubona; kept private
+   until a working core exists — per maintainer decision. Flips public at the Phase-0 gate:
+   simulator job end-to-end via MCP with a provenance record.)*
 2. **Federated MCP server skeleton** — compiler / execution / cost-governance /
    eval-provenance, stub tool schemas ([[mcp-and-context-flooding]]).
 3. **OAuth 2.1 on the gateway**; transport layer designed **swappable from day one**
