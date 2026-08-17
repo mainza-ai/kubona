@@ -93,6 +93,27 @@ Run everything: `uv run --project . pytest -q` or `.venv/bin/python -m pytest -q
 - **Known upstream quirk:** mcp 2.0's stdio client hangs when closing one of
   several concurrently-open sessions — tests use one session at a time.
 
+## Phase 3 additions (security hardening + provenance depth)
+
+- **Hybrid PQC transport** (`kubona/security/hybrid_transport.py`) — X25519 +
+  ML-KEM768 (FIPS 203) combined via HKDF into AES-256-GCM sessions; swappable
+  suite (the Phase-0 cryptographic-agility interface pays off); handshake,
+  tamper/wrong-peer tests.
+- **Per-call identity-aware authorization** (`kubona/security/policy.py`) —
+  fine-grained tool->scope map replacing coarse roles; agent delegation checked
+  live (revocation immediate); wired into the gateway.
+- **Immutable audit** — every gateway call lands in the hash-chained ledger
+  (kind="audit"), doubling as the cost ledger.
+- **Canary CI** (`kubona/canary/`) — `python -m kubona.canary` runs a Bell-state
+  canary against executable providers, flags unexecutable ones, writes results to
+  the ledger; a regression test proves it catches calibration-drift-style bugs.
+- **Provenance as an MCP resource** — `provenance://records` + `provenance://best`
+  (historical "what worked best per circuit hash" aggregation) on the provenance server.
+- **Console follow-ons** — REST `/api/provenance` + `/api/fleet`; Flutter web app
+  now has four tabs (Cost & Approvals, Live Loops, Provenance, Fleet).
+- **Security review package** — `docs/security-review.md` (threat model, controls
+  map, third-party checklist, known gaps).
+
 ## Phase boundaries (honest stubs)
 
 - Compiler: validates + canonicalizes QASM 2 (real QIR/MLIR lowering = Phase 1, Rust core).

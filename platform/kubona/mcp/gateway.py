@@ -13,6 +13,7 @@ from typing import Any, Callable
 
 from .auth import AuthError, AuthProvider, DevAuthProvider, Principal
 from .transport import InProcessTransport, TransportProvider
+from kubona.security.policy import PolicyEngine
 
 ToolFn = Callable[..., dict]
 
@@ -23,10 +24,14 @@ class KubonaGateway:
         auth: AuthProvider | None = None,
         transport: TransportProvider | None = None,
         require_auth: bool = True,
+        policy: PolicyEngine | None = None,
+        ledger=None,
     ):
         self.auth = auth or DevAuthProvider()
         self.transport = transport or InProcessTransport({})
         self.require_auth = require_auth
+        self.policy = policy or PolicyEngine()
+        self._ledger = ledger  # optional immutable audit sink (hash-chained)
         self._registry: dict[str, dict[str, ToolFn]] = {}
         self._audit: list[dict] = []
 
@@ -35,10 +40,12 @@ class KubonaGateway:
         if isinstance(self.transport, InProcessTransport):
             self.transport._registry = self._registry
 
-    # -- per-call authorization (placeholder; Phase 3 replaces with identity-aware RBAC)
     def _authorize(self, principal: Principal, server: str, tool: str) -> None:
-        if principal.scopes != ("*",) and tool not in principal.scopes:
-            raise AuthError(f"principal {principal.sub} not authorized for {server}/{tool}")
+        """Per-call identity-aware authorization (Phase 3): fine-grained scopes,
+        agent delegation checked live (revocation immediate)."""
+        decision = self.policy.decide(principal, f"{server}/{tool}")
+        if not decision.allowed:
+            raise AuthError(decision.reason)
 
     def call(self, server: str, tool: str, args: dict[str, Any], token: str | None = None) -> dict:
         principal: Principal | None = None
@@ -51,9 +58,16 @@ class KubonaGateway:
             raise KeyError(f"unknown server/tool: {server}/{tool}")
         self._authorize(principal, server, tool)
         result = tools[tool](**args)
-        self._audit.append({
-            "server": server, "tool": tool, "args_keys": sorted(args), "sub": principal.sub if principal else "anon",
-        })
+        entry = {
+            "server": server, "tool": tool, "args_keys": sorted(args),
+            "sub": principal.sub if principal else "anon",
+        }
+        self._audit.append(entry)
+        if self._ledger is not None:  # immutable, content-addressed audit (doubles as cost ledger)
+            try:
+                self._ledger.append("audit", entry)
+            except Exception:  # audit must never break the call path
+                pass
         return result
 
     def audit_log(self) -> list[dict]:

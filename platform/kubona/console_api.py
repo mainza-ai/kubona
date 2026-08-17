@@ -146,6 +146,44 @@ async def approval_action(request: Request) -> JSONResponse:
         return _json({"ok": False, "error": str(e)}, 400)
 
 
+async def provenance(request: Request) -> JSONResponse:
+    if not _authed(request):
+        return _auth_error()
+    from kubona.provenance import Ledger
+
+    ledger = Ledger()
+    records = [r for r in ledger if r.kind in ("experiment", "vqe_step", "canary")][-50:]
+    by_hash: dict[str, dict] = {}
+    for r in records:
+        key = r.payload.get("circuit_hash") or r.payload.get("provider") or "unknown"
+        agg = by_hash.setdefault(key, {"count": 0, "providers": set()})
+        agg["count"] += 1
+        if r.payload.get("provider"):
+            agg["providers"].add(r.payload["provider"])
+    return _json({"ok": True, "recent": [r.to_json() for r in records],
+                  "aggregate": {k: {"count": v["count"], "providers": sorted(v["providers"])}
+                                for k, v in by_hash.items()}})
+
+
+async def fleet(request: Request) -> JSONResponse:
+    if not _authed(request):
+        return _auth_error()
+    from kubona.canary import canary_check
+    from kubona.providers import list_providers
+
+    reg = {}
+    for name, cap in list_providers().items():
+        entry = {"modality": cap.modality.value, "status": cap.status, "pricing": cap.pricing.model,
+                 "canary": None}
+        if cap.execution_plugin:
+            try:
+                entry["canary"] = canary_check(name, shots=1024)["ok"]
+            except Exception as e:  # noqa: BLE001 — fleet view flags unreachable providers
+                entry["canary"] = f"unreachable: {e}"
+        reg[name] = entry
+    return _json({"ok": True, "fleet": reg})
+
+
 async def loops(request: Request) -> JSONResponse:
     if not _authed(request):
         return _auth_error()
@@ -181,6 +219,8 @@ app = Starlette(
         Route("/api/sessions/{sid}", session_detail),
         Route("/api/approvals", approvals),
         Route("/api/approvals/{aid}/{action}", approval_action, methods=["POST"]),
+        Route("/api/provenance", provenance),
+        Route("/api/fleet", fleet),
         Route("/api/loops", loops),
         Route("/api/loops/{lid}/{action}", loop_action, methods=["POST"]),
     ],

@@ -41,6 +41,8 @@ class _ConsoleHomeState extends State<ConsoleHome> {
   Future<List<SessionSummary>>? _sessions;
   Future<List<ApprovalItem>>? _approvals;
   Future<List<LoopItem>>? _loops;
+  Future<Map<String, dynamic>>? _provenance;
+  Future<Map<String, dynamic>>? _fleet;
 
   @override
   void initState() {
@@ -53,6 +55,8 @@ class _ConsoleHomeState extends State<ConsoleHome> {
       _sessions = widget.api.sessions();
       _approvals = widget.api.approvals();
       _loops = widget.api.loops();
+      _provenance = widget.api.provenance();
+      _fleet = widget.api.fleet();
     });
   }
 
@@ -70,16 +74,23 @@ class _ConsoleHomeState extends State<ConsoleHome> {
         ],
       ),
       body: DefaultTabController(
-        length: 2,
+        length: 4,
         child: Column(
           children: [
-            const TabBar(tabs: [Tab(text: 'Cost & Approvals'), Tab(text: 'Live Loops')]),
+            const TabBar(tabs: [
+              Tab(text: 'Cost & Approvals'),
+              Tab(text: 'Live Loops'),
+              Tab(text: 'Provenance'),
+              Tab(text: 'Fleet'),
+            ]),
             Expanded(
               child: TabBarView(
                 children: [
                   _CostApprovalTab(api: widget.api, sessions: _sessions!, approvals: _approvals!,
                       onChanged: _refresh),
                   _LoopsTab(api: widget.api, loops: _loops!, onChanged: _refresh),
+                  _ProvenanceTab(provenance: _provenance!),
+                  _FleetTab(fleet: _fleet!),
                 ],
               ),
             ),
@@ -147,6 +158,69 @@ class _CostApprovalTab extends StatelessWidget {
         },
       ),
     ]);
+  }
+}
+
+class _ProvenanceTab extends StatelessWidget {
+  final Future<Map<String, dynamic>> provenance;
+  const _ProvenanceTab({required this.provenance});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: provenance,
+      builder: (context, snap) {
+        if (snap.hasError) return Text('error: ${snap.error}');
+        final data = snap.data ?? const {};
+        final recent = (data['recent'] as List? ?? const []);
+        final agg = (data['aggregate'] as Map? ?? const {});
+        return ListView(padding: const EdgeInsets.all(12), children: [
+          Text('What worked best (per circuit hash)', style: Theme.of(context).textTheme.titleMedium),
+          for (final entry in agg.entries.take(20))
+            ListTile(
+              dense: true,
+              title: Text('${entry.key}'),
+              subtitle: Text('${(entry.value['count'])} runs · '
+                  'providers: ${(entry.value['providers'] as List).join(', ')}'),
+            ),
+          const SizedBox(height: 16),
+          Text('Recent ledger records', style: Theme.of(context).textTheme.titleMedium),
+          for (final r in recent.take(20).toList().reversed)
+            ListTile(dense: true, title: Text(r.toString().length > 140 ? '${r.toString().substring(0, 140)}…' : r.toString())),
+        ]);
+      },
+    );
+  }
+}
+
+class _FleetTab extends StatelessWidget {
+  final Future<Map<String, dynamic>> fleet;
+  const _FleetTab({required this.fleet});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<Map<String, dynamic>>(
+      future: fleet,
+      builder: (context, snap) {
+        if (snap.hasError) return Text('error: ${snap.error}');
+        final data = snap.data ?? const {};
+        final providers = (data['fleet'] as Map? ?? const {});
+        return ListView(padding: const EdgeInsets.all(12), children: [
+          for (final entry in providers.entries)
+            Card(
+              child: ListTile(
+                title: Text(entry.key),
+                subtitle: Text('${entry.value['modality']} · ${entry.value['status']} · '
+                    '${entry.value['pricing']} · canary: ${entry.value['canary']}'),
+                trailing: Icon(
+                  entry.value['canary'] == true ? Icons.check_circle : Icons.warning,
+                  color: entry.value['canary'] == true ? Colors.green : Colors.orange,
+                ),
+              ),
+            ),
+        ]);
+      },
+    );
   }
 }
 

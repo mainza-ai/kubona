@@ -134,6 +134,16 @@ class ConsoleApi {
         .toList();
   }
 
+  Future<Map<String, dynamic>> provenance() async {
+    final res = await _client.get(Uri.parse('$baseUrl/api/provenance'), headers: _headers);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> fleet() async {
+    final res = await _client.get(Uri.parse('$baseUrl/api/fleet'), headers: _headers);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
   Future<String> approvalAction(String id, String action) async {
     final res = await _client.post(Uri.parse('$baseUrl/api/approvals/$id/$action'),
         headers: _headers);
