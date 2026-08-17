@@ -145,3 +145,12 @@ daemon is absent. pyproject gained a `providers` optional extra. 143 py green.
 tests/test_perf_guard.py guards the QIR lower + local-simulator hot paths so a
 refactor that introduces an accidental exponential blowup is caught in CI, not
 production. 145 py + 3 Rust green (with pytket+pyquil SDKs installed & validated).
+
+## [2026-08-17] impl-hardening | Production end-to-end integration test
+
+tests/test_e2e_production.py proves the M0/G5/G8 stack composes as ONE deployed
+system, not isolated units: OAuth-signed token -> HTTP /rpc (plain + real
+X25519+ML-KEM hybrid envelope) -> persistent async job farm -> provider result ->
+persisted audit -> scoped deny (403) + unauthenticated reject (401) on the same
+path. Pins the whole production wiring against composition regressions.
+147 py + 3 Rust green.
