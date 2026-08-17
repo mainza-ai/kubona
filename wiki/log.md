@@ -34,3 +34,5 @@ Append-only chronological record. Parseable with `grep "^## \[" log.md`.
 ## [2026-08-16] decision | Repo github.com/mainza-ai/kubona remains PRIVATE until the Phase-0 gate (simulator job end-to-end via MCP + provenance record) passes; roadmap Phase-0 'public repo' bullet annotated + AGENTS.md status note added
 
 ## [2026-08-16] wiki | Naming cleanup — removed all 'formerly QAgent' / historical-working-name wording (never public, so no one knew it); only remaining references are log.md/git history and the local folder path qagent/ (kept for stability). Plan doc §1/§10, source page, kubona, overview, AGENTS.md, README cleaned; raw mirrored (rev 4b)
+
+## [2026-08-16] repo | .obsidian and dev-docs removed from GitHub (local-only; gitignored) — repo now contains only raw/, wiki/, AGENTS.md, README.md, .gitignore; AGENTS.md three-layers note added

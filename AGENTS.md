@@ -12,6 +12,8 @@ a provenance record). It will be made public, Apache-2.0, once that gate passes.
 
 ## Three layers
 
+- `dev-docs/` — local working copies of source documents. **Never committed to git** (see
+  `.gitignore`); only `raw/` is ingested and versioned.
 - `raw/` — immutable source documents. **Read-only. Never edit.** You ingest from here.
 - `wiki/` — LLM-owned markdown. You create, update, and cross-link everything here.
 - `AGENTS.md` — this file. The operating rules. Co-evolve it with the human.
