@@ -7,6 +7,7 @@ whenever the SDKs are present.
 """
 
 import importlib.util
+import os
 
 import pytest
 
@@ -16,13 +17,25 @@ from kubona.schema import load_provider
 HAVE_PYTKET = importlib.util.find_spec("pytket") is not None
 HAVE_PYQUIL = importlib.util.find_spec("pyquil") is not None
 
+
+@pytest.fixture
+def writable_config(monkeypatch, tmp_path):
+    """pytket (and some SDKs) write a config under XDG_CONFIG_HOME; on hosts
+    where ~/.config is root-owned (e.g. this one) that import fails. Point it
+    at a writable temp dir so the real-SDK test is robust on any host."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path))
+    # ensure a fresh pytket import happens after the env is set
+    if "pytket" in __import__("sys").modules:
+        __import__("sys").modules.pop("pytket", None)
+    return tmp_path
+
 BELL = Circuit(name="bell", num_qubits=2, gates=[Gate("h", (0,)), Gate("cx", (0, 1))])
 VQE2 = Circuit(name="vqe", num_qubits=2,
                gates=[Gate("ry", (0,), (0.5,)), Gate("rz", (1,), (0.2,)), Gate("cx", (0, 1))])
 
 
 @pytest.mark.skipif(not HAVE_PYTKET, reason="pytket not installed")
-def test_pytket_real_conversion():
+def test_pytket_real_conversion(writable_config):
     from kubona.providers.tket_provider import TketProvider
     p = TketProvider(load_provider("quantinuum"))
     cmds = {c.op.type.name for c in p._to_tket(BELL).get_commands()}
@@ -34,7 +47,7 @@ def test_pytket_real_conversion():
 
 
 @pytest.mark.skipif(not HAVE_PYQUIL, reason="pyquil not installed")
-def test_pyquil_real_conversion():
+def test_pyquil_real_conversion(writable_config):
     from kubona.providers.pyquil_provider import PyQuilProvider
     q = PyQuilProvider(load_provider("rigetti"))
     instr = [str(i) for i in q._to_pyquil(BELL).instructions]
