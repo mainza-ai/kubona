@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# Kubona local CI — mirrors .github/workflows/ci.yml so the whole pipeline
+# (python tests, Rust core, canary + correctness release-gate) is reproducible
+# locally on any machine. Exit non-zero on any gate failure.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+export KUBONA_STATE_DIR="$(mktemp -d)"
+
+echo "== 0. compile check =="
+PY=.venv/bin/python
+[ -x "$PY" ] || PY=python3
+$PY -m compileall -q kubona
+
+echo "== 1. build Rust qir-core (production compiler core) =="
+pushd crates/qir-core >/dev/null
+cargo build --release >/dev/null
+cargo test --lib -q
+popd >/dev/null
+export KUBONA_QIR_CORE="$(pwd)/crates/qir-core/target/release/qir-core"
+
+echo "== 2. full Python suite (Rust core wired) =="
+$PY -m pytest -q
+
+echo "== 3. hardware canary (GA providers) =="
+$PY -m kubona.canary
+
+echo "== 4. correctness-regression release gate =="
+$PY - <<'PY'
+from kubona.canary.canary import run_all
+from kubona import config
+from kubona.provenance import Ledger
+results = run_all(ledger=Ledger(path=config.ledger_path()))
+ran = [r for r in results if not r.get("skip")]
+assert ran and all(r["ok"] for r in ran), [r for r in ran if not r["ok"]]
+print("release gate: OK (%d executable providers; %d skipped)" % (len(ran), len(results)-len(ran)))
+PY
+
+echo "== 5. doctor (state-root + fail-closed config) =="
+$PY -m kubona.run doctor
+KUBONA_ENV=production KUBONA_STATE_DIR="$(mktemp -d)" $PY -c \
+  'import kubona.config as c; assert c.console_token() is None; assert c.is_production()'
+
+echo "== ALL CI GATES GREEN =="
