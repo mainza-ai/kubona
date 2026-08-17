@@ -38,8 +38,14 @@ def canary_check(provider_name: str, shots: int = CANARY_SHOTS,
             "fidelity_balance": round(abs(ok00 - ok11) / max(total, 1), 6), "checks": checks}
 
 
-def run_all(ledger: Ledger | None = None, providers: list[str] | None = None) -> list[dict[str, Any]]:
-    """Canary every provider with an executable plugin; log results to the ledger."""
+def run_all(ledger: Ledger | None = None, providers: list[str] | None = None,
+           use_correctness_harness: bool = True) -> list[dict[str, Any]]:
+    """Canary every provider with an executable plugin; log results to the ledger.
+
+    With use_correctness_harness (default), each provider also runs the
+    correctness-regression harness (§11.5) — which gates releases. A canary
+    failure here blocks release.
+    """
     ledger = ledger or Ledger()
     if providers is None:
         providers = [name for name, cap in list_providers().items() if cap.execution_plugin]
@@ -47,11 +53,17 @@ def run_all(ledger: Ledger | None = None, providers: list[str] | None = None) ->
     for name in providers:
         try:
             res = canary_check(name)
+            if use_correctness_harness:
+                from kubona.autoresearch import build_correctness_harness
+                cr = build_correctness_harness(provider=name).run(None)
+                res["correctness"] = cr
+                res["ok"] = res["ok"] and cr["pass"]
         except (ProviderError, Exception) as e:  # noqa: BLE001 — canary reports, never crashes
             res = {"provider": name, "ok": False, "error": str(e), "checks": {}}
         out.append(res)
         ledger.append("canary", {"provider": name, "ok": res["ok"],
-                                 "counts": res.get("counts"), "error": res.get("error")})
+                                 "counts": res.get("counts"), "error": res.get("error"),
+                                 "correctness": res.get("correctness")})
     return out
 
 

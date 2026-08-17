@@ -49,6 +49,11 @@ _SINGLE = {
 }
 
 
+def _cp(theta: float) -> np.ndarray:
+    """Controlled-phase: diag(1,1,1,e^{i theta}) on (control, target)."""
+    return np.diag([1.0, 1.0, 1.0, np.exp(1j * theta)]).astype(complex)
+
+
 class LocalSimulator(Provider):
     """Full statevector simulation for the declared gate set."""
 
@@ -62,7 +67,7 @@ class LocalSimulator(Provider):
         if shots <= 0:
             raise ProviderError("shots must be > 0")
         for g in circuit.gates:
-            if g.name not in _SINGLE and g.name not in ("cx", "cz", "swap"):
+            if g.name not in _SINGLE and g.name not in ("cx", "cz", "swap", "cp"):
                 raise ProviderError(
                     f"gate {g.name!r} not in local simulator's native gate set; "
                     f"transpile first (compiler server) or pick another provider"
@@ -80,12 +85,14 @@ class LocalSimulator(Provider):
                 q = g.qubits[0]
                 u = _SINGLE[g.name](*g.params) if g.params else _SINGLE[g.name]
                 state = self._apply1(state, u, q, n)
-            elif g.name == "cx":
-                state = self._apply2(state, _CX, g.qubits[0], g.qubits[1], n)
-            elif g.name == "cz":
-                state = self._apply2(state, _CZ, g.qubits[0], g.qubits[1], n)
-            elif g.name == "swap":
-                state = self._apply2(state, _SWAP, g.qubits[0], g.qubits[1], n)
+            elif g.name in ("cx", "cz", "swap"):
+                state = self._apply2(state, {"cx": _CX, "cz": _CZ, "swap": _SWAP}[g.name],
+                                     g.qubits[0], g.qubits[1], n)
+            elif g.name == "cp":
+                u = _cp(*g.params)
+                state = self._apply2(state, u, g.qubits[0], g.qubits[1], n)
+            else:
+                raise ProviderError(f"gate {g.name!r} not supported by local simulator")
 
         probs = np.abs(state) ** 2
         rng = random.Random(seed)
