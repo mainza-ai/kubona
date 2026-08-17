@@ -47,16 +47,17 @@ class PyQuilProvider(Provider):
     def _to_pyquil(self, circuit: Circuit):
         """Convert a Kubona circuit to a pyQuil Program."""
         from pyquil import Program
-        from pyquil.gates import (CX, CZ, H, RX, RY, RZ, SWAP, T, X, Y, Z)
+        from pyquil.gates import (CNOT, CZ, H, RX, RY, RZ, SWAP, T, X, Y, Z)
 
+        # pyquil's controlled-X gate is CNOT (there is no CX in pyquil.gates)
         gates = {"h": H, "x": X, "y": Y, "z": Z, "s": None, "t": T,
-                 "cx": CX, "cz": CZ, "swap": SWAP, "rx": RX, "ry": RY, "rz": RZ}
+                 "cx": CNOT, "cz": CZ, "swap": SWAP, "rx": RX, "ry": RY, "rz": RZ}
         prog = Program()
         for g in circuit.gates:
             fn = gates.get(g.name)
             if fn is None:  # 's' (phase) not a native pyquil single-qubit gate
                 raise ProviderError(f"pyquil conversion: unsupported gate {g.name!r}")
-            qs = [f"q{i}" for i in g.qubits]
+            qs = list(g.qubits)  # pyquil expects integer qubit indices
             if g.params:
                 prog += fn(*g.params, *qs)
             else:
@@ -74,16 +75,27 @@ class PyQuilProvider(Provider):
         prog = self._to_pyquil(circuit)
         token = self._credential()
         if not token:
-            # open-source first: credential-free local WavefunctionSimulator dev path
+            # credential-free local path via pyquil's WavefunctionSimulator. This
+            # still needs the Rigetti `qvm` daemon running (127.0.0.1:5000) — no
+            # cloud credentials, but a local sim binary — so we fail closed with
+            # actionable guidance if the daemon is absent. (open-source first.)
             try:
                 from pyquil.api import WavefunctionSimulator
             except Exception as e:  # noqa: BLE001
                 raise ProviderError(
                     "rigetti requires KUBONA_RIGETTI_QCS_TOKEN for QPU, or pyquil's "
-                    f"WavefunctionSimulator for local dev (missing: {e})."
+                    f"WavefunctionSimulator + the local `qvm` daemon for a credential-free run "
+                    f"(missing SDK: {e})."
                 )
             wf = WavefunctionSimulator()
-            measured = wf.run_and_measure(prog, trials=shots)
+            try:
+                measured = wf.run_and_measure(prog, trials=shots)
+            except Exception as e:  # QVM daemon not reachable
+                raise ProviderError(
+                    "rigetti credential-free local run needs the `qvm` daemon at "
+                    "127.0.0.1:5000 (start qvm/quilc), or set KUBONA_RIGETTI_QCS_TOKEN "
+                    f"for QPU. (error: {e})"
+                )
             # measured: list of bitstring-rows (lists of ints), one per trial
             rows = [tuple(int(b) for b in r) for r in measured]
             renders = {row: rows.count(row) for row in set(rows)}

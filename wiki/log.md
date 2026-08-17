@@ -128,3 +128,14 @@ now gates only gate-model providers with an executable plugin and reports
 credential/SDK fail-closed as SKIP (not FAIL), so config gaps never masquerade as
 provider regressions. Canary CLI reflects PASS/SKIP. Still pending: a first hosted
 GitHub-Actions run + the DVD-external gates (real SDKs/credentials, GPU, payment, review).
+
+## [2026-08-17] impl-hardening | Real-SDK validation of Quantinuum + Rigetti connecters
+
+Installed pytket + pyquil into the dev venv and validated the actual conversion
+paths (no hardware/credentials). The real SDKs caught two stub-missed bugs and
+both were fixed: (1) pyquil controlled-X is CNOT, not CX; (2) pyquil qubit args
+must be int, not strings. pytket BELL/VQE and pyquil BELL/VQE convert correctly
+(H/CNOT/param gates + measures). Added test_g6_real_sdk.py (skip-if-SDK-absent)
+so CI exercises the real SDKs whenever installed; env-independent test_canary.
+Rigetti credential-free path fails closed with guidance when the local qvm
+daemon is absent. pyproject gained a `providers` optional extra. 143 py green.

@@ -91,7 +91,7 @@ def fake_pyquil(monkeypatch):
     mod.Program = FakeProg
     monkeypatch.setitem(sys.modules, "pyquil", mod)
     gates_mod = types.ModuleType("pyquil.gates")
-    for n in ["H","X","Y","Z","T","CX","CZ","SWAP","RX","RY","RZ"]:
+    for n in ["H","X","Y","Z","T","CNOT","CZ","SWAP","RX","RY","RZ"]:
         setattr(gates_mod, n, G())
     monkeypatch.setitem(sys.modules, "pyquil.gates", gates_mod)
     return mod
