@@ -9,8 +9,8 @@ status: living
 
 # Kubona as an AI-Enhanced Science Discovery Platform
 
-Expansion of the platform's posture (maintainer synthesis): Kubona is not just an agent
-toolset for quantum computing — it is a **core science discovery + quantum platform** where
+Kubona is defined as both an agent toolset for quantum computing **and** a **core science
+discovery platform** — where
 users and agents design, run, and archive experiments, and where the platform itself can
 conduct experiments autonomously and return results in an organized, systematic form.
 Quantum hardware ([[qir-mlir-compilation]], [[provider-capability-schema]]) is one

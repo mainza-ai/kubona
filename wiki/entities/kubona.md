@@ -15,10 +15,9 @@ runs experiments, and shows their results systematically — so the name carries
 (see [[overview]]).
 
 The platform: **the ultimate, completely open-source quantum-computing
-toolset for AI agents — and an AI-enhanced science discovery platform** (maintainer
-synthesis expansion: multi-user labs, user/agent-created workflows & agents, and
-autonomous experiments with systematic, reproducible results — see
-[[science-discovery]]) — unifying [[qiskit]], [[pennylane]], [[microsoft-azure-quantum|Q#]],
+toolset for AI agents — and an **AI-enhanced science discovery platform**: multi-user
+labs, user/agent-created workflows & agents, and autonomous experiments with systematic,
+reproducible results (see [[science-discovery]]) — unifying [[qiskit]], [[pennylane]], [[microsoft-azure-quantum|Q#]],
 [[google-cirq]], and the major quantum cloud providers behind a single, agent-native
 [[mcp-and-context-flooding|MCP]] interface (source-gap-analysis-plan).
 

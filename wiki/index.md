@@ -57,7 +57,7 @@ read this first to find relevant pages, then drill in.
 | [[arxiv-mcp-quantum]] | Prior-art paper proving MCP-for-quantum is a real, non-dependency field |
 | [[mainza-milimo-foundation]] | Existing codebase (Milimo Quantum, Finance Claw, AfrEval) cited as reusable de-risking |
 
-## Concepts (22)
+## Concepts (23)
 
 | Page | What it is |
 |---|---|
@@ -74,12 +74,13 @@ read this first to find relevant pages, then drill in.
 | [[provider-capability-schema]] | Data-driven provider onboarding; capability/json contract |
 | [[quantum-cloud-pricing]] | Provider pricing models + financial telemetry (per-second, per-shot, AQT, Program Sets) |
 | [[agent-resource-economy]] | Attention→resources reframe; 5-layer stack; startup patterns |
-| [[agent-ux-control-plane]] | Human oversight: circuit viz, loop inspector, approval console, experiment notebook, labs/workflows view |
+| [[agent-ux-control-plane]] | Human oversight: circuit viz, loop inspector, approval console, experiment notebook, labs/workflows view (→ [[ui-ux-vision]] for the full spec) |
 | [[evaluation-and-benchmarks]] | Code-gen evals + hardware canary CI + agent-behavior evals |
 | [[meta-search-and-self-evolution]] | The §13 second tier above the autoresearch loop: revises *how* Kubona searches; GQE flywheel, stricter safety gate |
 | [[science-discovery]] | Kubona as an AI-enhanced science discovery platform: the 7-stage discovery loop, self-experimentation, systematic results |
 | [[user-identity-and-profiles]] | Every actor (human or agent) is a keypair identity: profiles, labs, delegable+revocable authority |
 | [[workflows-and-agent-authoring]] | User- and agent-created workflows & agents; triggers, gates, registry, safety rail |
 | [[science-data-integrations]] | Literature & domain data (arXiv, OpenAlex, MPDS, …) as governed MCP resources |
+| [[ui-ux-vision]] | The full console/UX specification: personas, 8 surfaces, visual language, mobile, acceptance criteria |
 | [[design-evolution]] | Comparison: what the paper got right vs. what the plan expanded |
 | [[risks]] | Risk register with mitigations and sequencing decisions |

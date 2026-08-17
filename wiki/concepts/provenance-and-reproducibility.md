@@ -18,7 +18,7 @@ research and regulatory contexts (pharma, finance), and for the
 
 Every job submission writes an immutable record:
 **circuit hash → backend → noise model → mitigation technique → raw results → mitigated
-results → cost → wall-clock time.** In the science-discovery expansion
+results → cost → wall-clock time.** At the science-discovery layer
 ([[science-discovery]]) the record extends to the full experiment lifecycle: **hypothesis →
 protocol → controls → data sources fetched (with license/TOU flags, per
 [[science-data-integrations]]) → analysis → structured report reference → citations** — so

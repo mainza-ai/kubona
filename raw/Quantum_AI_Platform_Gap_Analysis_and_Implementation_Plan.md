@@ -18,8 +18,7 @@ agents can create their own workflows and agents for anything — including new 
 research — and the platform can conduct its own experiments and return results in an
 organized, systematic, reproducible form. Quantum processors remain the differentiating
 instrument, but they are one instrument family inside a full discovery loop (ground →
-hypothesize → design → experiment → analyze → report → learn). This expansion is
-designed in §14; it deliberately reuses the governance, provenance, and safety machinery of
+hypothesize → design → experiment → analyze → report → learn). The science-discovery layer is designed in §14; it deliberately reuses the governance, provenance, and safety machinery of
 §§4–5, §9, §11, and §13 instead of inventing parallel rails. Everything already planned in
 Phases 0–5 is unchanged.
 
@@ -31,7 +30,7 @@ This document is organized in five parts:
 2. **Competitive landscape** — who has already built pieces of this, and where the real whitespace is
 3. **Expanded architecture** — the missing layers, filled in
 4. **Implementation plan** — phased roadmap, team shape, and milestone criteria
-5. **Science discovery & collaboration expansion** (§14) — the human/AI workspace layer that turns Kubona into a discovery platform: identities, user/agent-created workflows and agents, the discovery loop, systematic results, and data/model integrations
+5. **Science discovery & collaboration layer** (§14) — the human/AI workspace layer of the discovery platform: identities, user/agent-created workflows and agents, the discovery loop, systematic results, and data/model integrations
 
 ---
 
