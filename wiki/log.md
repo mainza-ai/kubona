@@ -154,3 +154,13 @@ X25519+ML-KEM hybrid envelope) -> persistent async job farm -> provider result -
 persisted audit -> scoped deny (403) + unauthenticated reject (401) on the same
 path. Pins the whole production wiring against composition regressions.
 147 py + 3 Rust green.
+
+## [2026-08-17] impl-hardening | Circuit knitting: full histogram reconstruction
+
+cut_histogram() reconstructs the ENTIRE post-cut target-register distribution for
+the LOOC-Z single-CNOT wire cut — exact (Z-diagonal), numerically verified against
+the uncut simulator (Bell target = 50/50, matching uncut marginal). An attempted
+multi-qubit product-Z generalization was caught as WRONG by the same verification
+(a single-CNOT cut reaches one target qubit) and rejected — shipped only the
+correct slice. Remaining: multi-qubit-gate/product-Z cuts need full QPD / Qiskit
+Circuit Knitting Toolbox (documented). 149 py + 3 Rust green.
