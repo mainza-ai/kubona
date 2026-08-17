@@ -45,7 +45,7 @@ def test_run_all_writes_canary_ledger(tmp_path):
     assert all(r["ok"] for r in results), results
     assert sum(1 for r in ledger if r.kind == "canary") == len(providers)
 
-    # a provider without deps is FLAGGED by the canary (ok=False + reason) — the
-    # canary's job is to surface it before an agent hits it.
+    # an inaccessible provider (missing creds/SDK) is surfaced by the canary as
+    # NOT ok with a reason — the canary's job is to flag it before an agent hits it.
     flagged = run_all(providers=["quantinuum"])[0]
-    assert flagged["ok"] is False and "pytket" in flagged["error"]
+    assert flagged["ok"] is False and flagged["error"] and flagged.get("skip") is True

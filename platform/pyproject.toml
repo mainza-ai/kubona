@@ -20,6 +20,13 @@ kubona = "kubona.run:_cli"
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.24"]
 qiskit = ["qiskit>=1.0", "qiskit-aer>=0.14"]
+providers = [
+    "pytket>=0.50", "pytket-quantinuum",   # Quantinuum (real SDK conversion validated)
+    "pyquil>=3.5",                          # Rigetti (WavefunctionSimulator is credential-free w/ qvm)
+    "dimod>=0.12",                          # D-Wave annealer (credential-free QUBO solver)
+    "strawberryfields>=0.23",               # Xanadu photonic/CV (modality-gated)
+    "pulser>=0.18",                         # QuEra/Pasqal neutral atom (modality-gated)
+]
 orchestration = ["langgraph>=0.2"]
 
 [build-system]
