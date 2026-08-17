@@ -35,7 +35,7 @@ open-source dependencies.
 | `kubona/mcp/transport.py` / `kubona/mcp/http_gateway.py` | TransportProvider contract; in-process/stdio, and a real HTTP `/rpc` surface (OAuth2 bearer + X25519+ML-KEM envelope) |
 | `kubona/providers/` | Provider trait + `LocalSimulator` (pure numpy) + Qiskit adapter; Quantinuum (pytket) &
   Rigetti (pyquil) conversions are **real-SDK validated**; IBM has a Qiskit Runtime path; D-Wave a QUBO solver |
-| `kubona/schema/providers/` | Capability-schema JSON — onboarding = data + plugin (9 provider entries, backend targets set) |
+| `kubona/schema/providers/` | Capability-schema JSON — onboarding = data + plugin (8 provider entries, backend targets set) |
 | `kubona/provenance/ledger.py` | Content-addressed, hash-chained append-only ledger (tenant-sharded, atomic appends) |
 | `kubona/cost/estimator.py` | Pricing-model estimate + mandatory simulator pre-flight |
 | `kubona/circuits/` | SDK-independent circuit IR (QASM 2 subset parser); Rust `qir-core` lowers it on the compiler path |
@@ -65,12 +65,15 @@ Run everything: `uv run --project . pytest -q` or `.venv/bin/python -m pytest -q
 
 ## Phase 2 additions (multi-provider + control plane)
 
-- **Providers (9):** quantinuum (pytket), rigetti (pyQuil), neutral-atom (Pulser),
-  xanadu (Strawberry Fields), dwave (annealing), ibm-qiskit, qiskit-aer-simulator,
-  local-simulator, cuda-q. Role of the first two: **real** circuit->SDK conversions
-  validated against the installed SDKs; IBM has a Qiskit Runtime route; D-Wave a
+- **Providers (8):** local-simulator, qiskit-aer-simulator (both GA, credential-free),
+  ibm-qiskit (Qiskit Runtime route), quantinuum (pytket), rigetti (pyQuil),
+  neutral-atom (Pulser), xanadu (Strawberry Fields), dwave (annealing). The
+  first two SDK connecters have **real** circuit->SDK conversions validated
+  against the installed SDKs; IBM has a Qiskit Runtime route; D-Wave a
   credential-free QUBO solver; Pulser/SF are modality-gated (gate->AHS/CV is a
-  distinct program model) and fail closed honestly.
+  distinct program model) and fail closed honestly. (Removed the phantom
+  `cuda-q-simulator` entry — it had no execution plugin; CUDA-Q remains a
+  considered-not-integrated optional route, not a shipped provider.)
 - **Circuit cutting** (`kubona/cutting/`) — LOCC wire cut of a CNOT for
   Z-diagonal target expectations, numerically verified vs. the uncut simulator;
   production path (Qiskit Circuit Knitting Toolbox) is hardening.

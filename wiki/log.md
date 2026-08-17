@@ -180,3 +180,12 @@ ships a VERIFIED extended corpus (ghz5/ghz6/qft4) whose every task provably pass
 its invariant on the local simulator; invalid/malformed entries fail closed.
 Volume third-party datasets (QuantumKatas/HumanEval/PennyLang) now drop in via the
 loader. test_corpus_loader.py (2 tests). 151 py + 3 Rust green.
+
+## [2026-08-17] impl-hardening | Remove phantom cuda-q provider
+
+Removed the `cuda-q-simulator` capability entry — it had NO execution plugin (a
+non-functional '9th provider'); local-simulator + qiskit-aer-simulator already
+meet the local/GPU-simulator role. Registry is now 8 providers, all executable
+except the two documented modality-gated connecters (Pulser, SF). Updated
+test_schema, README (8 providers). CUDA-Q remains a considered-not-integrated
+option, not a shipped provider. 151 py + 3 Rust green.

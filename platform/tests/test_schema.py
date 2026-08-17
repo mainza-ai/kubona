@@ -5,8 +5,8 @@ from kubona.schema import load_all_providers, load_provider
 
 def test_initial_registry():
     caps = load_all_providers()
-    assert set(caps) == {"local-simulator", "ibm-qiskit", "cuda-q-simulator",
-                         "qiskit-aer-simulator", "quantinuum", "rigetti",
+    assert set(caps) == {"local-simulator", "ibm-qiskit", "qiskit-aer-simulator",
+                         "quantinuum", "rigetti",
                          "neutral-atom-quera-pasqal", "xanadu-strawberry-fields",
                          "dwave-annealing"}
     assert caps["local-simulator"].pricing.model == "free"
