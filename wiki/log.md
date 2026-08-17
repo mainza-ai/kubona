@@ -101,3 +101,10 @@ closed. Schema gained a `backend` target field; test_g6_ibm_rt.py validates the
 Runtime route against a recorded fixture (no live hardware in CI) + Aer fallback.
 Other provider connecters (pytket/pyquil/pulser/SF/dimod) remain, gated on their SDKs.
 135 py + 3 Rust tests green.
+
+## [2026-08-17] impl-hardening | Persistent gateway audit export (G11 partial)
+
+Gateway audit now persists to a restart-safe JSONL export (audit_path + audit_export());
+production gateway wires it by default under the state root. Also fixed a latent
+gateway bug: require_auth=False now skips authorization (was crashing on None principal).
+test_audit_export.py (2 tests). 137 py + 3 Rust green.

@@ -9,6 +9,9 @@ Wires the four federated servers behind one entry point with:
 
 from __future__ import annotations
 
+import json
+import os
+
 from typing import Any, Callable
 
 from .auth import AuthError, AuthProvider, DevAuthProvider, Principal
@@ -26,6 +29,7 @@ class KubonaGateway:
         require_auth: bool = True,
         policy: PolicyEngine | None = None,
         ledger=None,
+        audit_path=None,
     ):
         self.auth = auth or DevAuthProvider()
         self.transport = transport or InProcessTransport({})
@@ -34,6 +38,7 @@ class KubonaGateway:
         self._ledger = ledger  # optional immutable audit sink (hash-chained)
         self._registry: dict[str, dict[str, ToolFn]] = {}
         self._audit: list[dict] = []
+        self._audit_path = audit_path  # optional persistent JSONL audit export
 
     def mount(self, server_name: str, tools: dict[str, ToolFn]) -> None:
         self._registry[server_name] = tools
@@ -56,13 +61,20 @@ class KubonaGateway:
         tools = self._registry.get(server)
         if tools is None or tool not in tools:
             raise KeyError(f"unknown server/tool: {server}/{tool}")
-        self._authorize(principal, server, tool)
+        if self.require_auth:  # authorization is meaningless when auth is off (local/test)
+            self._authorize(principal, server, tool)
         result = tools[tool](**args)
         entry = {
             "server": server, "tool": tool, "args_keys": sorted(args),
             "sub": principal.sub if principal else "anon",
         }
         self._audit.append(entry)
+        if self._audit_path is not None:  # persistent audit export (JSONL, append-only)
+            try:
+                with open(self._audit_path, "a") as f:
+                    f.write(json.dumps(entry, sort_keys=True) + "\n")
+            except Exception:  # audit must never break the call path
+                pass
         if self._ledger is not None:  # immutable, content-addressed audit (doubles as cost ledger)
             try:
                 self._ledger.append("audit", entry)
@@ -72,6 +84,17 @@ class KubonaGateway:
 
     def audit_log(self) -> list[dict]:
         return list(self._audit)
+
+    def audit_export(self) -> list[dict]:
+        """All audit entries, including any persisted across restarts."""
+        if self._audit_path is not None and hasattr(self, "_loaded_audit"):
+            return self._loaded_audit + self._audit
+        saved = []
+        if self._audit_path is not None and os.path.exists(self._audit_path):
+            for line in open(self._audit_path).read().splitlines():
+                if line.strip():
+                    saved.append(json.loads(line))
+        return saved + self._audit
 
     def servers(self) -> list[str]:
         return sorted(self._registry)

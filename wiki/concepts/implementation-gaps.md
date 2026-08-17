@@ -35,7 +35,7 @@ status: living
 
 | Gap | Status | Note |
 |---|---|---|
-| Structured observability/metrics/audit export | 🔵 | Burn-rate is in-session; add logs + OTel/Prometheus + audit export. |
+| Structured observability/metrics/audit export | 🟢 partial | Gateway audit now persists to a JSONL export (restart-safe, `audit_export()`, wired by default in `kubona run`/`serve-gateway`). Structured logging + OTel/Prometheus metrics remain. |
 | Volume eval corpora (QuantumKatas/HumanEval/PennyLang) | 🔵 | Built-ins are 5 invariants; wire volume corpora behind the same contract. |
 | GQE transformer (Unsloth) training | 🔵 | n-gram stand-in today; drop-in `propose` replacement on a GPU host. |
 | Full circuit knitting | 🔵 | LOOC-Z only (Z-diagonal expectations); general CKT if needed. |
