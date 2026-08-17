@@ -84,6 +84,16 @@ back with a provenance record written, **using only open-source dependencies**.
 
 ## Phase 1 — Core execution + cost governance (Weeks 5–10) → gate P1
 
+> **Status (2026-08-16):** implemented under `platform/` — session abstraction
+> (persistent, budget-ceilinged), cost-governance service (hard ceilings, two-stage
+> REVIEW→HOLD→APPROVED gate, burn-rate telemetry), x402-compatible payment interface
+> (quote/verify; free tier live, x402 stub), ZNE mitigation (noise-aware backend +
+> Richardson extrapolation), QIR lowering (Python reference + Rust `qir-core` crate,
+> cargo-tested), compiler `lower_circuit` tool. **P1 gate test green** — budget-enforced
+> VQE loop with step-level provenance + paid approval flow (28 tests total). Real-QPU
+> execution still awaits provider credentials; the full mechanism is proven on the
+> simulator chain.
+
 - `job_id` session abstraction threaded through every call (§4.3).
 - [[cost-governance]] service: mandatory simulator pre-flight, hard budget ceilings,
   two-stage approval gate, real-time burn-rate telemetry.

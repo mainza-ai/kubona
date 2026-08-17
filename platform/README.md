@@ -36,6 +36,24 @@ open-source dependencies.
 | `kubona/cost/estimator.py` | Pricing-model estimate + mandatory simulator pre-flight |
 | `kubona/circuits/` | SDK-independent circuit IR (QASM 2 subset parser) |
 
+## Phase 1 additions (cost governance + sessions + ZNE + QIR)
+
+- **Session abstraction** (`kubona/session.py`) — `job_id` sessions persist to
+  `KUBONA_STATE_DIR`; jobs and spend are threaded to a session.
+- **Cost governance** (`kubona/cost/governance.py`) — hard per-session budget
+  ceilings (enforced at write time), two-stage approval gate (REVIEW -> HOLD ->
+  APPROVED/REJECTED), real-time burn-rate telemetry.
+- **x402-compatible payment interface** (`kubona/cost/payment.py`) — quote/verify
+  contract; free tier now, X402 stub (activation Phase 5+).
+- **ZNE mitigation** (`kubona/mitigation/`) — noise-aware density-matrix backend +
+  zero-noise extrapolation (unitary folding, Richardson) — the first mitigation.
+- **QIR lowering** — Python reference pipeline (`kubona/qir/`) + the **Rust core**
+  crate (`crates/qir-core`, cargo test: parse -> transpile u3/u2/u1 -> QIR-like IR).
+- **Phase 1 gate test** (`tests/test_phase1_gate.py`) — budget-enforced VQE loop
+  with step-level provenance, plus the paid-provider approval + x402 quote flows.
+
+Run everything: `uv run --project . pytest -q` or `.venv/bin/python -m pytest -q`.
+
 ## Phase boundaries (honest stubs)
 
 - Compiler: validates + canonicalizes QASM 2 (real QIR/MLIR lowering = Phase 1, Rust core).

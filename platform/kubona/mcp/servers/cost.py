@@ -1,8 +1,9 @@
-"""Cost-governance MCP server (Phase 0 stub).
+"""Cost-governance MCP server — Phase 1.
 
-Tool: estimate_cost — static pricing-model estimate + pre-flight verdict.
-The full service (burn-rate telemetry, ceilings, two-stage approval, x402-compatible
-payment interface) is Phase 1 per the roadmap.
+Tools: create_session, estimate_cost (pre-flight), request_approval /
+hold_approval / approve_approval / reject_approval (two-stage gate),
+session_burn_rate (real-time telemetry), quote_payment / verify_payment
+(x402-compatible payment interface).
 """
 
 from __future__ import annotations
@@ -12,24 +13,100 @@ import asyncio
 from mcp.server.mcpserver import MCPServer
 
 from kubona.circuits import parse_qasm2
-from kubona.cost import preflight
+from kubona.cost.governance import CostGovernanceService
+from kubona.cost.payment import payments_for
 from kubona.schema import load_provider
+from kubona.session import SessionStore
 
 mcp = MCPServer("kubona-cost")
 
+_sessions = SessionStore()
+_gov = CostGovernanceService(_sessions)
+
+
+def create_session(name: str, owner: str, budget_ceiling_usd: float | None = None) -> dict:
+    """Open a session with a hard budget ceiling (None = free-tier only enforced)."""
+    s = _sessions.create(name=name, owner=owner, budget_ceiling_usd=budget_ceiling_usd)
+    return {"ok": True, "session_id": s.session_id, "budget_ceiling_usd": s.budget_ceiling_usd}
+
 
 def estimate_cost(circuit_qasm: str, provider: str = "local-simulator", shots: int = 1024,
-                  budget_ceiling_usd: float | None = None) -> dict:
-    """Estimate the cost of running a circuit on a provider + pre-flight verdict."""
+                  session_id: str | None = None) -> dict:
+    """Estimate cost + pre-flight verdict against a session's ceiling."""
     circuit = parse_qasm2(circuit_qasm)
     capability = load_provider(provider)
-    pf = preflight(capability, circuit, shots, budget_ceiling_usd)
-    return {"provider": provider, "preflight_ok": pf["preflight_ok"], "reason": pf["reason"],
-            "estimate": pf["estimate"]}
+    if session_id:
+        session = _sessions.get(session_id)
+        pf = _gov.preflight(capability, circuit, shots, session)
+        return {"provider": provider, "session_id": session_id,
+                "preflight_ok": pf["ok"], "reason": pf["reason"], "estimate": pf["estimate"]}
+    est = capability.cost_estimate(shots)
+    return {"provider": provider, "preflight_ok": est["estimated_usd"] == 0.0,
+            "reason": "free tier" if est["estimated_usd"] == 0.0 else "session required for paid providers",
+            "estimate": est}
 
 
-mcp.add_tool(estimate_cost, name="estimate_cost",
-             description="Estimate cost + mandatory pre-flight verdict for a circuit on a provider.")
+def request_approval(session_id: str, amount_usd: float, reason: str) -> dict:
+    a = _gov.request_approval(session_id, amount_usd, reason)
+    return {"ok": True, "approval_id": a.approval_id, "state": a.state}
+
+
+def hold_approval(approval_id: str, reviewer: str = "operator") -> dict:
+    a = _gov.hold_approval(approval_id, reviewer)
+    return {"ok": True, "approval_id": a.approval_id, "state": a.state}
+
+
+def approve_approval(approval_id: str, reviewer: str = "operator", note: str | None = None) -> dict:
+    a = _gov.approve(approval_id, reviewer, note)
+    return {"ok": True, "approval_id": a.approval_id, "state": a.state}
+
+
+def reject_approval(approval_id: str, reviewer: str = "operator", note: str = "") -> dict:
+    a = _gov.reject(approval_id, reviewer, note)
+    return {"ok": True, "approval_id": a.approval_id, "state": a.state}
+
+
+def session_burn_rate(session_id: str, window_s: float = 60.0) -> dict:
+    try:
+        br = _gov.burn_rate(session_id, window_s)
+        return {"ok": True, **br}
+    except KeyError:
+        return {"ok": False, "error": f"unknown session_id {session_id!r}"}
+
+
+def quote_payment(session_id: str, amount_usd: float) -> dict:
+    """x402-compatible quote: the request IS the transaction (HTTP 402)."""
+    try:
+        _sessions.get(session_id)
+    except KeyError:
+        return {"ok": False, "error": f"unknown session_id {session_id!r}"}
+    pay = payments_for(amount_usd)
+    quote = pay.quote(job_ref=session_id, amount_usd=amount_usd)
+    return {"ok": True, **quote.to_dict()}
+
+
+def verify_payment(session_id: str, proof: str, amount_usd: float) -> dict:
+    try:
+        _sessions.get(session_id)
+    except KeyError:
+        return {"ok": False, "error": f"unknown session_id {session_id!r}"}
+    pay = payments_for(amount_usd)
+    quote = pay.quote(job_ref=session_id, amount_usd=amount_usd)
+    return pay.verify(proof, quote)
+
+
+for fn, desc in [
+    (create_session, "Open a session with a hard budget ceiling."),
+    (estimate_cost, "Estimate cost + pre-flight verdict for a circuit on a provider."),
+    (request_approval, "Request spend approval (stage 1: REVIEW)."),
+    (hold_approval, "Hold an approval for review (stage 2: HOLD)."),
+    (approve_approval, "Approve a held/requested approval."),
+    (reject_approval, "Reject an approval with a note."),
+    (session_burn_rate, "Real-time burn-rate telemetry for a session."),
+    (quote_payment, "x402-compatible price quote (the request is the transaction)."),
+    (verify_payment, "Verify an x402 payment proof."),
+]:
+    mcp.add_tool(fn, name=fn.__name__, description=desc)
 
 if __name__ == "__main__":
     asyncio.run(mcp.run_stdio_async())
