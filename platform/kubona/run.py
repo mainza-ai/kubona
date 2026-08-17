@@ -62,7 +62,9 @@ def make_gateway(*, require_auth: bool = True,
     """
     use_prod = (config.is_production() if production is None else production)
     auth = build_auth()
-    gw = KubonaGateway(auth=auth, require_auth=require_auth)
+    # persistent audit export (JSONL under the state root) so ops can review every call
+    gw = KubonaGateway(auth=auth, require_auth=require_auth,
+                       audit_path=str(config.state_path("audit.jsonl")))
     # NOTE: build_production_gateway must mount the same tool servers as build_gateway
     # re-mount by reusing the module-level builder then swapping auth is not clean,
     # so we rebuild with the production auth:
