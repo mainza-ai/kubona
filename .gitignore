@@ -5,3 +5,7 @@ __pycache__/
 .env
 .env.*
 node_modules/
+
+# Local-only working files — never pushed
+.obsidian/
+dev-docs/
