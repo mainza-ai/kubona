@@ -4,11 +4,20 @@ from __future__ import annotations
 
 from kubona.mcp.gateway import KubonaGateway
 
-from . import compiler, cost, execution, provenance
+from . import compiler, control, cost, execution, provenance
 
 
 def build_gateway(*, require_auth: bool = True) -> KubonaGateway:
     gw = KubonaGateway(require_auth=require_auth)
+    gw.mount("control", {
+        "register_loop": control.register_loop,
+        "step_loop": control.step_loop,
+        "list_loops": control.list_loops,
+        "loop_status": control.loop_status,
+        "pause_loop": control.pause_loop,
+        "resume_loop": control.resume_loop,
+        "kill_loop": control.kill_loop,
+    })
     gw.mount("compiler", {"transpile_circuit": compiler.transpile_circuit,
                           "lower_circuit": compiler.lower_circuit})
     gw.mount("execution", {
