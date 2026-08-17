@@ -232,6 +232,19 @@ build.
 
 ## Phase 6 — Science Discovery & Collaboration (Weeks 37+) *(maintainer synthesis)* → gate P6
 
+> **Status (2026-08-16):** implemented under `platform/` — workflow engine (YAML
+> DSL, gates, agent-created-requires-approval, ledger-recorded, library),
+> agent registry/personas with no-escalation creation, experiment notebook/
+> results studio (structured, claim-traceable reports), governed scholarly
+> integrations (arXiv/OpenAlex + offline mock, license/freshness provenance),
+> and the **full discovery loop — the Phase-6 gate test passes end-to-end** (a
+> tenant-scoped lab runs ground → experiment → report → library archive, every
+> claim tracing to a ledger record or citation). **105 Python tests green.**
+> Remaining Phase-6 items: live arXiv/OpenAlex network wiring into the console
+> (mock/offline path proven), the two new console surfaces (notebook + labs/
+> workflows views) in Flutter beyond the current 4 tabs, and unsloth-trained
+> personas on a GPU/cloud host.
+
 The human/AI science layer on top of the Phase-0–5 quantum core. Everything here is
 scaffolded earlier (identity in P2, engine + meta-loop in P4) and shipped only after a
 working, governed core.

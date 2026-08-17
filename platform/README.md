@@ -162,6 +162,25 @@ Run everything: `uv run --project . pytest -q` or `.venv/bin/python -m pytest -q
   it won in shadow mode across a minimum number of runs; otherwise it stays
   staged (never premature, never auto-applied without evidence).
 
+## Phase 6 additions (science discovery & collaboration)
+
+- **Workflow engine** (`kubona/workflows/`) — YAML DSL: steps -> MCP tools with
+  cost/capability gates; `{{prev.<step>.<field>}}` templating; agent-created
+  workflows require human approval (§13.4); every step ledger-recorded; workflow
+  library (user/agent-created, reusable).
+- **Agent registry & personas** (`kubona/agents/`) — agent = persona + scopes +
+  budget; **no privilege escalation** on agent-created agents (scopes must be a
+  subset of the creator's) + `create_as_agent`.
+- **Experiment notebook / results studio** (`kubona/reports/`) — structured
+  reports (objectives · methods · protocol · results · analysis · conclusions ·
+  citations · how-to-reproduce); every claim carries a ledger/citation ref.
+- **Scholarly integrations** (`kubona/integrations/`) — governed, provenance-first
+  sources (arXiv, OpenAlex, + in-repo `mock`); each fetch writes {source, license,
+  fetched_at, freshness}; offline-tolerant (never crashes a campaign).
+- **Full discovery loop** (`kubona/discovery/`) — ground → hypothesize → design →
+  experiment (Search Mode) → analyze (ZNE) → report → archive → meta-learn,
+  inside the cost gates, tenant-scoped. **The Phase-6 gate test runs it end to end.**
+
 ## Phase boundaries (honest stubs)
 
 - Compiler: validates + canonicalizes QASM 2 (real QIR/MLIR lowering = Phase 1, Rust core).
