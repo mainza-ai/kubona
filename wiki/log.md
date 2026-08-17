@@ -91,3 +91,13 @@ kubona/mcp/http_gateway.py: real uvicorn /rpc over OAuth2 bearer + a genuine
 two-party X25519+ML-KEM hybrid envelope (encrypted dispatch, tamper rejection);
 kubona serve-gateway boots it; kubona/secrets.py env-backed (KMS-ready)
 per-provider credentials that fail closed. test_http_transport.py (6 tests). 133 py + 3 Rust green.
+
+## [2026-08-17] impl-hardening | IBM/Qiskit real-hardware path (G6, partial)
+
+QiskitProvider gains a real Qiskit Runtime route: when KUBONA_IBM_QISKIT_TOKEN is
+configured it submits to the named IBM backend (SamplerV2) and returns counts +
+job_id (hardware=True); otherwise the credential-free Aer dev provider. Fails
+closed. Schema gained a `backend` target field; test_g6_ibm_rt.py validates the
+Runtime route against a recorded fixture (no live hardware in CI) + Aer fallback.
+Other provider connecters (pytket/pyquil/pulser/SF/dimod) remain, gated on their SDKs.
+135 py + 3 Rust tests green.

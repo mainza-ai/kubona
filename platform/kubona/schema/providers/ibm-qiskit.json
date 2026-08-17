@@ -25,5 +25,6 @@
     "qiskit-runtime"
   ],
   "status": "registered",
-  "execution_plugin": "kubona.providers.qiskit_provider.QiskitProvider"
+  "execution_plugin": "kubona.providers.qiskit_provider.QiskitProvider",
+  "backend": "ibm_brisbane"
 }

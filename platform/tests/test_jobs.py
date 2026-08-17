@@ -44,22 +44,34 @@ def test_async_submit_wait_false_then_poll_to_result(tmp_path):
     assert res["ok"] is True and "counts" in res["result"]
 
 
-def test_cancel_queued_or_running_job(tmp_path):
-    """cancel_job turns a queued/running job terminal and rejects cancel after."""
+def test_cancel_queued_or_running_job():
+    """Cancel a queued/running job deterministically (slow run + JobRunner)."""
+    import threading
+    import time
+
+    runner = JobRunner()  # default persistent store
+    release = threading.Event()
+    start = threading.Event()
+
+    def slow_run():
+        start.set()
+        release.wait(timeout=10)  # hold the job in 'running' so it is cancelable
+        return {"counts": {"00": 1}}
+
+    job = runner.store.create(provider="local-simulator", session_id="sess-cancel")
+    runner.enqueue(job.job_id, slow_run)
+    assert start.wait(timeout=5)  # the worker started -> job is running
+    # now cancel the running job
+    assert runner.cancel(job.job_id) is True
+    assert runner.store.get(job.job_id).status == "cancelled"
+
+    # cancelling an unknown id fails cleanly via the gateway
     from kubona.mcp.servers._mount import build_gateway
     gw = build_gateway(require_auth=True)
-    job = gw.call("execution", "submit_job",
-                  {"circuit_qasm": BELL, "provider": "local-simulator", "shots": 1024,
-                   "wait": False}, token="dev-token")
-    st = gw.call("execution", "get_job_status", {"job_id": job["job_id"]}, token="dev-token")
-    if st["status"] in ("queued", "running"):
-        out = gw.call("execution", "cancel_job", {"job_id": job["job_id"]}, token="dev-token")
-        assert out["ok"] is True and out["status"] == "cancelled"
-    # cancelling an unknown id fails cleanly
     out = gw.call("execution", "cancel_job", {"job_id": "nope"}, token="dev-token")
     assert out["ok"] is False
 
-
+    release.set()  # let the worker finish (it will not overwrite 'cancelled' terminal)
 def test_cancel_job_scoped_via_policy(tmp_path):
     """cancel_job requires execution:override; a submit-only agent is denied."""
     from kubona.mcp.auth import AuthError, Principal
