@@ -31,7 +31,7 @@ class PyQuilProvider(Provider):
         try:
             import pyquil  # noqa: F401
             self._ready, self._err = True, None
-        except ImportError as e:
+        except (ImportError, OSError) as e:
             self._ready, self._err = False, str(e)
 
     def _credential(self) -> str | None:

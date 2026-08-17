@@ -6,6 +6,9 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 export KUBONA_STATE_DIR="$(mktemp -d)"
+# SDKs (pytket) write a config under XDG_CONFIG_HOME; point it at a writable dir
+# so the pipeline is robust on hosts where ~/.config is root-owned.
+export XDG_CONFIG_HOME="$(mktemp -d)"
 
 echo "== 0. compile check =="
 PY=.venv/bin/python

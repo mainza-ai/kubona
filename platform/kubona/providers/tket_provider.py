@@ -35,7 +35,10 @@ class TketProvider(Provider):
         try:
             import pytket  # noqa: F401
             self._ready, self._err = True, None
-        except ImportError as e:
+        except (ImportError, OSError) as e:
+            # OSError covers an installed-but-unusable SDK (e.g. pytket's config
+            # dir XDG_CONFIG_HOME is not writable) -> treat as SDK-not-ready, so
+            # the canary reports it as a SKIP (config gap), never a regression.
             self._ready, self._err = False, str(e)
 
     def _credential(self) -> str | None:

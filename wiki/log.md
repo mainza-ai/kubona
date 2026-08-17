@@ -189,3 +189,13 @@ meet the local/GPU-simulator role. Registry is now 8 providers, all executable
 except the two documented modality-gated connecters (Pulser, SF). Updated
 test_schema, README (8 providers). CUDA-Q remains a considered-not-integrated
 option, not a shipped provider. 151 py + 3 Rust green.
+
+## [2026-08-17] impl-hardening | Canary regression/skip classification fix
+
+The full local CI surfaced a real bug: an SDK that is installed-but-unusable (its
+config dir XDG_CONFIG_HOME unwritable, e.g. root-owned ~/.config) raised an OSError
+during import, which the canary misclassified as a provider REGRESSION instead of a
+SKIP. Fixed at the root: TketProvider/PyQuilProvider treat OSError at SDK-init as
+not-ready (fails closed as a config gap, never a regression), and scripts/ci.sh now
+sets XDG_CONFIG_HOME to a writable dir (the documented deployment requirement).
+Full CI green: 151 py + 3 Rust + canary 3/3 (2 skips) + correctness release-gate.
