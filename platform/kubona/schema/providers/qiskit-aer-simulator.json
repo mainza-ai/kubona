@@ -1,0 +1,35 @@
+{
+  "provider": "qiskit-aer-simulator",
+  "modality": "statevector_simulator",
+  "physical_qubits": 30,
+  "native_gate_set": [
+    "h",
+    "x",
+    "y",
+    "z",
+    "s",
+    "t",
+    "rx",
+    "ry",
+    "rz",
+    "cx",
+    "cz",
+    "u1",
+    "u2",
+    "u3",
+    "measure"
+  ],
+  "queue_depth_estimate_s": 0,
+  "pricing": {
+    "model": "free",
+    "currency": "USD"
+  },
+  "jurisdiction": "none",
+  "export_control_flag": "none",
+  "sdk_bindings": [
+    "qiskit",
+    "qiskit-aer"
+  ],
+  "status": "GA",
+  "execution_plugin": "kubona.providers.qiskit_provider.QiskitProvider"
+}

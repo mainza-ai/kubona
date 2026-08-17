@@ -1,5 +1,7 @@
 /// The two Phase-2 console surfaces (plan §5.3 priorities) as data contracts.
 ///
+import 'models.dart';
+
 /// Flutter widget implementations live under lib/ui/ on a Flutter-equipped
 /// machine; these classes fix what each surface MUST show so the widget layer
 /// stays a thin renderer (per the ui-ux-vision: summaries first, drill-down).
