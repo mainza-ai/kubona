@@ -45,6 +45,7 @@ class ProviderCapability(BaseModel):
     provider: str
     modality: Modality
     physical_qubits: int = 0
+    backend: str | None = None   # target hardware backend name (IBM Runtime, etc.)
     logical_qubits_available: int | None = None
     native_gate_set: list[str] = Field(default_factory=list)
     queue_depth_estimate_s: int = 0
