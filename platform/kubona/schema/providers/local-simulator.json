@@ -1,0 +1,33 @@
+{
+  "provider": "local-simulator",
+  "modality": "statevector_simulator",
+  "physical_qubits": 24,
+  "native_gate_set": [
+    "h",
+    "x",
+    "y",
+    "z",
+    "s",
+    "sdg",
+    "t",
+    "tdg",
+    "rx",
+    "ry",
+    "rz",
+    "cx",
+    "cz",
+    "swap"
+  ],
+  "queue_depth_estimate_s": 0,
+  "pricing": {
+    "model": "free",
+    "currency": "USD"
+  },
+  "jurisdiction": "none",
+  "export_control_flag": "none",
+  "sdk_bindings": [
+    "kubona-native"
+  ],
+  "status": "GA",
+  "execution_plugin": "kubona.providers.local_simulator.LocalSimulator"
+}

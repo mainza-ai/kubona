@@ -1,0 +1,30 @@
+{
+  "provider": "cuda-q-simulator",
+  "modality": "gpu_simulator",
+  "physical_qubits": 32,
+  "native_gate_set": [
+    "h",
+    "x",
+    "y",
+    "z",
+    "rx",
+    "ry",
+    "rz",
+    "cx",
+    "cz",
+    "measure"
+  ],
+  "queue_depth_estimate_s": 0,
+  "pricing": {
+    "model": "free",
+    "currency": "USD"
+  },
+  "jurisdiction": "none",
+  "export_control_flag": "none",
+  "sdk_bindings": [
+    "cuda-q",
+    "nvidia-cuquantum"
+  ],
+  "status": "registered",
+  "execution_plugin": null
+}

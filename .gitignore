@@ -9,3 +9,7 @@ node_modules/
 # Local-only working files — never pushed
 .obsidian/
 dev-docs/
+
+# platform build/test artifacts
+.pytest_cache/
+*.egg-info/
