@@ -139,3 +139,9 @@ must be int, not strings. pytket BELL/VQE and pyquil BELL/VQE convert correctly
 so CI exercises the real SDKs whenever installed; env-independent test_canary.
 Rigetti credential-free path fails closed with guidance when the local qvm
 daemon is absent. pyproject gained a `providers` optional extra. 143 py green.
+
+## [2026-08-17] impl-hardening | Perf-regression guards (G12)
+
+tests/test_perf_guard.py guards the QIR lower + local-simulator hot paths so a
+refactor that introduces an accidental exponential blowup is caught in CI, not
+production. 145 py + 3 Rust green (with pytket+pyquil SDKs installed & validated).

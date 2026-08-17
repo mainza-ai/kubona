@@ -36,6 +36,7 @@ status: living
 | Gap | Status | Note |
 |---|---|---|
 | Structured observability/metrics/audit export | 🟢 partial | Gateway audit now persists to a JSONL export (restart-safe, `audit_export()`, wired by default in `kubona run`/`serve-gateway`). Structured logging + OTel/Prometheus metrics remain. |
+| Perf-regression guards (G12) | 🟢 | tests/test_perf_guard.py guards the lower + local-simulator hot paths against accidental O(exponential) regressions (passed in ~0.1s). |
 | Volume eval corpora (QuantumKatas/HumanEval/PennyLang) | 🔵 | Built-ins are 5 invariants; wire volume corpora behind the same contract. |
 | GQE transformer (Unsloth) training | 🔵 | n-gram stand-in today; drop-in `propose` replacement on a GPU host. |
 | Full circuit knitting | 🔵 | LOOC-Z only (Z-diagonal expectations); general CKT if needed. |
