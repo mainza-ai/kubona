@@ -1,0 +1,29 @@
+{
+  "provider": "ibm-qiskit",
+  "modality": "superconducting",
+  "physical_qubits": 127,
+  "logical_qubits_available": null,
+  "native_gate_set": [
+    "ecr",
+    "cx",
+    "x",
+    "sx",
+    "rz",
+    "measure"
+  ],
+  "queue_depth_estimate_s": 600,
+  "pricing": {
+    "model": "per_second",
+    "currency": "USD",
+    "per_second_usd": 0.0,
+    "notes": "pay-as-you-go per second of Qiskit Runtime execution; requires credentials; off-peak scheduling via Sessions"
+  },
+  "jurisdiction": "US",
+  "export_control_flag": "none",
+  "sdk_bindings": [
+    "qiskit",
+    "qiskit-runtime"
+  ],
+  "status": "registered",
+  "execution_plugin": "kubona.providers.qiskit_provider.QiskitProvider"
+}

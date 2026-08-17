@@ -54,6 +54,14 @@ layer** (maintainer synthesis).
 
 ## Phase 0 — Foundations (Weeks 1–4) → gate P0
 
+> **Status (2026-08-16):** skeleton committed under `platform/` — four MCP servers
+> (compiler/execution/cost/provenance, MCP stdio), gateway (auth + swappable transport,
+> audit), provider trait + pure-numpy local simulator + 3 capability-schema entries,
+> content-addressed hash-chained ledger, cost pre-flight, QASM2-subset IR. **P0 gate test
+> green end-to-end over stdio MCP** (`platform/tests/test_phase0_gate.py`, 13 tests).
+> Apache-2.0 LICENSE added. OAuth 2.1 interface stubbed (dev auth); real IdP wiring,
+> Qiskit adapter, and the streamable-HTTP gateway remain.
+
 Ordered execution (dependencies within the phase):
 
 1. **Apache-2.0 license + public repo** — one-time decision, cheap now, expensive later (§7).
