@@ -103,10 +103,30 @@ def serve(*, host: str = "127.0.0.1", port: int | None = None) -> None:
     main()  # console_api.main() runs uvicorn on KUBONA_CONSOLE_PORT
 
 
+def serve_gateway(*, host: str = "127.0.0.1") -> None:
+    """Boot the HTTP gateway transport (streamable-HTTP MCP surface, G8).
+
+    In production this is the network-facing entry point: OAuth2 bearer +
+    (optionally) the X25519+ML-KEM hybrid envelope on /rpc, backed by the
+    production-authorized gateway. Terminate with TLS/KEMTLS at the edge.
+    """
+    from uvicorn import Config, Server
+
+    from kubona.mcp.http_gateway import make_http_gateway
+
+    gateway = make_gateway(require_auth=True)
+    app = make_http_gateway(gateway, secure_session=None)  # TLS/KEMTLS terminates the wire
+    port = int(os.environ.get("KUBONA_GATEWAY_PORT", "8123"))
+    Server(Config(app, host=host, port=port, log_level="warning")).run()
+
+
 def _cli(argv: list[str]) -> int:
     cmd = argv[1] if len(argv) > 1 else "serve"
     if cmd == "serve":
         serve()
+        return 0
+    if cmd in ("serve-gateway", "gateway"):
+        serve_gateway()
         return 0
     if cmd == "doctor":
         print("state root:", config.state_root())

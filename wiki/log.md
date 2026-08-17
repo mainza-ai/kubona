@@ -84,3 +84,10 @@ provenance recorded on every job transition; test_jobs.py (4 tests).
 G7: kubona/qir/native.py runs `qir-core` (release build) on lower_circuit —
 compiler path is now the Rust core (engine: rust-qir-core) with a Python fallback;
 CI builds the binary and wires KUBONA_QIR_CORE. 127 py + 3 Rust tests green.
+
+## [2026-08-17] impl-hardening | HTTP gateway transport + secrets (G8)
+
+kubona/mcp/http_gateway.py: real uvicorn /rpc over OAuth2 bearer + a genuine
+two-party X25519+ML-KEM hybrid envelope (encrypted dispatch, tamper rejection);
+kubona serve-gateway boots it; kubona/secrets.py env-backed (KMS-ready)
+per-provider credentials that fail closed. test_http_transport.py (6 tests). 133 py + 3 Rust green.
