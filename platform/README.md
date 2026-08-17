@@ -54,6 +54,26 @@ open-source dependencies.
 
 Run everything: `uv run --project . pytest -q` or `.venv/bin/python -m pytest -q`.
 
+## Phase 2 additions (multi-provider + control plane)
+
+- **Providers (6):** + quantinuum (pytket), rigetti (pyQuil), neutral-atom
+  (Pulser) capability entries with optional-dependency plugins — onboarding is
+  data + plugin; registry remains honest when deps/credentials are absent.
+- **Circuit cutting** (`kubona/cutting/`) — LOCC wire cut of a CNOT for
+  Z-diagonal target expectations, numerically verified vs. the uncut simulator;
+  production path (Qiskit Circuit Knitting Toolbox) is hardening.
+- **Identity groundwork** (`kubona/identity/`) — Ed25519 keypairs, owner-delegated
+  authority with scopes/expiry, instant cascade revocation (NIP-OA pattern).
+- **Control plane backend** (`kubona/control/` + `control` MCP server) — loop
+  supervisor: register/step/list/status/pause/kill — the console's watch+interrupt.
+- **LangGraph shim** (`kubona/orchestration/`) — Kubona tools as LangGraph tools +
+  a reference VQE StateGraph (third-party framework drives Kubona; `[orchestration]` extra).
+- **Dart console scaffold** (`console/`) — models mirroring MCP payloads, gateway
+  JSON-RPC client, the two priority surface contracts; widgets build on a
+  Flutter-equipped machine.
+- **Phase 2 gate test** (`tests/test_phase2_gate.py`) — watch + interrupt a loop
+  over the control MCP server (44 tests total).
+
 ## Phase boundaries (honest stubs)
 
 - Compiler: validates + canonicalizes QASM 2 (real QIR/MLIR lowering = Phase 1, Rust core).

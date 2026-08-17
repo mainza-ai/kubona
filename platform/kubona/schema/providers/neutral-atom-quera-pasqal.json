@@ -1,0 +1,27 @@
+{
+  "provider": "neutral-atom-quera-pasqal",
+  "modality": "neutral_atom",
+  "physical_qubits": 256,
+  "native_gate_set": [
+    "rydberg_rabi",
+    "rydberg_detune",
+    "rydberg_global",
+    "rydberg_cz"
+  ],
+  "queue_depth_estimate_s": 600,
+  "pricing": {
+    "model": "per_task_plus_per_shot",
+    "currency": "USD",
+    "per_task_usd": 0.0,
+    "per_shot_usd": 0.0,
+    "notes": "Aquila via Braket; Pulser SDK; requires credentials"
+  },
+  "jurisdiction": "US/EU",
+  "export_control_flag": "none",
+  "sdk_bindings": [
+    "pulser",
+    "braket"
+  ],
+  "status": "registered",
+  "execution_plugin": "kubona.providers.pulser_provider.PulserProvider"
+}

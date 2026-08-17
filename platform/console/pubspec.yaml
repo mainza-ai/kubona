@@ -1,0 +1,14 @@
+name: kubona_console
+description: Kubona control plane (Dart/Flutter) — cost & approval console and
+  circuit visualizer first, per plan §5.3. Compiles on a Flutter-equipped machine.
+version: 0.2.0
+publish_to: none
+
+environment:
+  sdk: ^3.4.0
+
+dependencies:
+  http: ^1.2.0
+
+dev_dependencies:
+  lints: ^4.0.0

@@ -1,0 +1,26 @@
+{
+  "provider": "rigetti",
+  "modality": "superconducting",
+  "physical_qubits": 84,
+  "native_gate_set": [
+    "rx",
+    "rz",
+    "cz",
+    "xy"
+  ],
+  "queue_depth_estimate_s": 300,
+  "pricing": {
+    "model": "per_second",
+    "currency": "USD",
+    "per_second_usd": 0.0,
+    "notes": "Cepheus multi-chip; per-second metering; requires credentials"
+  },
+  "jurisdiction": "US",
+  "export_control_flag": "none",
+  "sdk_bindings": [
+    "pyquil",
+    "qiskit_via_qir"
+  ],
+  "status": "registered",
+  "execution_plugin": "kubona.providers.pyquil_provider.PyQuilProvider"
+}
