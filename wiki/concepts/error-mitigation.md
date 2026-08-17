@@ -1,0 +1,30 @@
+---
+type: concept
+name: Quantum Error Mitigation
+date: 2026-08-16
+tags: [error-mitigation, noise]
+sources: [source-architecture-paper, source-gap-analysis-plan]
+status: living
+---
+
+# Quantum Error Mitigation (QEM)
+
+Software techniques to extract accurate signals from NISQ noise without full error
+correction (source-architecture-paper). Delivered via [[mitiq]] as a compiler-level wrapper.
+
+| Technique | Mechanism | Operational cost |
+|---|---|---|
+| **ZNE** | Unitary folding amplifies noise; measure at scaled noise levels; extrapolate to zero-noise (e.g. Richardson) | Multiple depth multipliers → more QPU time + extrapolation variance |
+| **PEC** | Express ideal unitary as quasi-probability combo of known noisy ops; sample + classically re-weight | Exponentially more shots for statistical precision |
+| **CDR** | Train a regression on near-Clifford (classically simulable) circuits mapping noisy→exact output; apply to non-Clifford cases | Upfront classical simulation + training |
+
+## Kubona angle
+
+Mitigation choice is a **per-backend optimization problem**, not a default — which is why the
+[[karpathy-autoresearch]] engine runs a mitigation-strategy harness
+(mutable = ZNE fold factors / PEC budget / CDR set size; metric = distance from a
+classically-computable noiseless reference). ZNE ships first (Phase 1) as the best
+value-to-effort ratio. Budget overruns from mitigation shot amplification are caught by
+[[cost-governance]].
+
+Related: [[mitiq]] · [[barren-plateau]] · [[circuit-cutting]] · [[nisq-and-hybrid-orchestration]]
