@@ -137,6 +137,17 @@ from the Dart console.
 
 ## Phase 3 — Security hardening + provenance depth (Weeks 17–22) → gate P3
 
+> **Status (2026-08-16):** implemented under `platform/` — hybrid PQC transport
+> (X25519+ML-KEM768, HKDF-combined, AES-GCM; tested), per-call identity-aware
+> authorization (fine-grained scopes, live delegation revocation; tested),
+> immutable ledger audit of every gateway call, hardware-canary CI module
+> (CLI + ledger + regression-catch test), provenance server as MCP resource
+> (`provenance://records`, `provenance://best` aggregation), console REST
+> `/api/provenance` + `/api/fleet`, Flutter web console now 4 tabs (builds),
+> `docs/security-review.md` package for the third-party review. **65 Python tests
+> + 1 widget test green.** Real OAuth 2.1 IdP + gateway-wire ML-KEM + third-party
+> review execution remain (hardening/deployment + human gate).
+
 - Hybrid [[security-and-pqc]] transport (ML-KEM) on the gateway — the Phase-0
   swappability pays off.
 - Per-call identity-aware authorization (replacing coarse RBAC roles).
