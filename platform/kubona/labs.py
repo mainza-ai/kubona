@@ -12,6 +12,8 @@ import time
 import uuid
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+
+from kubona.config import state_path
 from typing import Any
 
 
@@ -30,7 +32,7 @@ class Lab:
 
 class LabRegistry:
     def __init__(self, path: str | Path | None = None):
-        self.path = Path(path) if path else Path("/tmp/kubona-state/labs.json")
+        self.path = Path(path) if path else state_path("labs.json")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._labs: list[Lab] = []
         if self.path.exists():

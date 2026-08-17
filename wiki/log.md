@@ -62,3 +62,15 @@ Append-only chronological record. Parseable with `grep "^## \[" log.md`.
 ## [2026-08-17] impl | Remaining-implementation closures — OAuth 2.1-shaped signed token issuer + gateway AuthProvider (expiry/tamper/scope tests); ML-KEM secure RPC envelope over the hybrid transport; routing/export-control enforcement wired into execution submit_job (blocked before execution); eval corpus expanded to 7 tasks; Phase-6 console surfaces (REST /api/reports,/workflows,/agents,/labs + ReportStore + Lab registry); Flutter web console now 6 tabs. 112 py tests + widget test + build web green.
 
 ## [2026-08-17] impl | Local LLM integration — llm/ layer (AbstractLLM, OpenAI-compat + Ollama adapters, json_mode), auto-detect LocalModelRegistry scanning ports (incl. OMLX 8787) and finding the real host port, LLM agent loop (governed ReAct w/ exact tool signatures + arg-normalization), settings store + GET/PUT /api/settings + /api/models, Flutter Models tab (7-tab console). VERIFIED LIVE against the on-host OMLX server on port 8787 (real completion + Qwen-driven transpile). 121 py tests + widget test + build web green. Addressed the overlooked local-LLM + settings/model-access gap (see overview remaining-gates update).
+
+## [2026-08-17] impl-hardening | Production M0 closures — persistence/auth/deploy/CI/x402
+
+Closed the structural, cheap-now production gaps: single non-`/tmp` state root
+(`kubona/config.py`; all 8 stores + sessions/gov/ledger unified); production
+fail-closed token auth (`KUBONA_ENV=production` requires a token; OAuth2 signed
+tokens now carry `aud`/`nbf`; console uses constant-time compare); `kubona
+serve`/`doctor` package entrypoints + starlette/uvicorn as hard deps; CI scaffold
+(`ci.yml` python/rust/canary-correctness-gate/Flutter + `nightly-canary.yml`);
+x402 **fail-closed** unless a real verifier is injected. Corrected wiki
+overstatements (canary CI, OAuth-shape, 9 providers, Rust core) and added the
+living [[implementation-gaps]] register. 122 py + 3 Rust tests green.

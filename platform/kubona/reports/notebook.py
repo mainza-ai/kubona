@@ -7,9 +7,12 @@ exportable to JSON / Markdown; credential-safe shareable.
 
 from __future__ import annotations
 
+
 import uuid
 from dataclasses import dataclass, field
 from typing import Any
+
+from kubona.config import state_path
 
 
 @dataclass
@@ -62,7 +65,7 @@ class ReportStore:
     def __init__(self, path: str | os.PathLike | None = None):
         from pathlib import Path as _P
 
-        self.path = _P(path) if path else _P("/tmp/kubona-state/reports.json")
+        self.path = _P(path) if path else state_path("reports.json")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._reports: list[dict[str, Any]] = []
         if self.path.exists():

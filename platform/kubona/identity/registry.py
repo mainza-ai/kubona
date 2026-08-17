@@ -19,6 +19,8 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import (
 from cryptography.hazmat.primitives import serialization
 from cryptography.exceptions import InvalidSignature
 
+from kubona.config import state_path
+
 
 @dataclass(frozen=True)
 class Principal:
@@ -50,7 +52,7 @@ class IdentityRegistry:
     """Persistent registry of principals and delegations (JSON file)."""
 
     def __init__(self, path: str | Path | None = None):
-        self.path = Path(path) if path else Path("/tmp/kubona-state/identity.json")
+        self.path = Path(path) if path else state_path("identity.json")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._principals: dict[str, Principal] = {}
         self._delegations: dict[str, Delegation] = {}

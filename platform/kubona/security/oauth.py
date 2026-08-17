@@ -32,8 +32,10 @@ class OAuth2TokenIssuer:
     """Issues and verifies signed access tokens (sub, role, scopes, exp)."""
 
     def __init__(self, issuer: str = "https://idp.kubona.local", ttl_s: int = 300,
+                 audience: str = "kubona-gateway",
                  signing_key: Ed25519PrivateKey | None = None):
         self.issuer = issuer
+        self.audience = audience  # tokens are bound to this audience; verified on decode
         self.ttl_s = ttl_s
         self._key = signing_key or Ed25519PrivateKey.generate()
 
@@ -45,8 +47,9 @@ class OAuth2TokenIssuer:
               ttl_s: int | None = None) -> str:
         now = int(time.time())
         header = {"alg": "EdDSA", "typ": "JWT"}
-        payload = {"iss": self.issuer, "sub": sub, "role": role, "scopes": list(scopes),
-                   "iat": now, "exp": now + (ttl_s or self.ttl_s)}
+        payload = {"iss": self.issuer, "aud": self.audience, "sub": sub, "role": role,
+                   "scopes": list(scopes), "iat": now, "nbf": now,
+                   "exp": now + (ttl_s or self.ttl_s)}
         h = _b64url(json.dumps(header, separators=(",", ":")).encode())
         p = _b64url(json.dumps(payload, separators=(",", ":")).encode())
         signing_input = f"{h}.{p}".encode()
@@ -61,10 +64,15 @@ class OAuth2TokenIssuer:
             key.verify(_b64url_decode(s), f"{h}.{p}".encode())
         except (ValueError, KeyError, json.JSONDecodeError, InvalidSignature) as e:
             raise AuthError("invalid or tampered token") from e
-        if time.time() > float(payload.get("exp", 0)):  # exp is seconds; compare against float now
+        now = time.time()
+        if now < float(payload.get("nbf", 0)):
+            raise AuthError("token not yet valid")
+        if now > float(payload.get("exp", 0)):
             raise AuthError("token expired")
         if payload.get("iss") != self.issuer:
             raise AuthError("unexpected token issuer")
+        if payload.get("aud") != self.audience:
+            raise AuthError("unexpected token audience")
         return Principal(sub=payload["sub"], role=payload.get("role", "user"),
                          scopes=tuple(payload.get("scopes", ())))
 

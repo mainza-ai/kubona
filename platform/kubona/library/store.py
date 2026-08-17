@@ -14,6 +14,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from kubona.config import state_path
+
 
 @dataclass
 class LibraryEntry:
@@ -30,7 +32,7 @@ class LibraryEntry:
 
 class AlgorithmLibrary:
     def __init__(self, path: str | Path | None = None):
-        self.path = Path(path) if path else Path("/tmp/kubona-state/library.json")
+        self.path = Path(path) if path else state_path("library.json")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._entries: list[LibraryEntry] = []
         if self.path.exists():

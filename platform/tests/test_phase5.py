@@ -7,6 +7,11 @@ import numpy as np
 
 from kubona.autoresearch.meta import MetaLoop, reflect_on_orchestrator
 from kubona.cost.metering import APPROVAL_THRESHOLD_USD, LibraryMeter, MeteringError
+from kubona.cost.payment import X402Payments
+
+def _test_verifier(proof, quote):
+    return {"ok": proof.startswith("x402:"), "reason": "edge-verified (test)"}
+
 from kubona.library import AlgorithmLibrary
 from kubona.provenance import Ledger
 from kubona.providers import get_provider, list_providers
@@ -116,18 +121,25 @@ def test_metering_free_summary_and_x402_purchase(tmp_path):
     assert quote["required"] is True and quote["flow"] == "http-402"
     assert quote["amount_usd"] <= APPROVAL_THRESHOLD_USD
 
-    result = meter.purchase(entry.entry_id, payment_proof="x402:proof-1")
+    # production posture: no injected verifier -> fail closed (never release paid config)
+    with pytest.raises(MeteringError):
+        meter.purchase(entry.entry_id, payment_proof="x402:proof-1")
+
+    # metering activates only when a real payment/verifier is injected
+    meter2 = LibraryMeter(lib, ledger=Ledger(path=str(tmp_path / "l.jsonl")),
+                          payments=X402Payments(verifier=_test_verifier))
+    result = meter2.purchase(entry.entry_id, payment_proof="x402:proof-1")
     assert result.verified and result.entry.entry_id == entry.entry_id
 
     with pytest.raises(MeteringError):
-        meter.purchase(entry.entry_id, payment_proof="bad-proof")
+        meter2.purchase(entry.entry_id, payment_proof="bad-proof")
 
 
 def test_metering_records_payment_proof_in_ledger(tmp_path):
     lib = AlgorithmLibrary(path=str(tmp_path / "lib.json"))
     entry = lib.add(harness="h", artifact="a", metric=1.0, cost_usd=0.0, ledger_ref="r")
     ledger = Ledger(path=str(tmp_path / "l.jsonl"))
-    LibraryMeter(lib, ledger=ledger).purchase(entry.entry_id, payment_proof="x402:p")
+    LibraryMeter(lib, ledger=ledger, payments=X402Payments(verifier=_test_verifier)).purchase(entry.entry_id, payment_proof="x402:p")
     kinds = [r.kind for r in ledger]
     assert "payment" in kinds and "library_release" in kinds
     assert ledger.validate_chain()[0]

@@ -6,14 +6,13 @@ import json
 from pathlib import Path
 from typing import Any
 
+from kubona.config import state_path
 from kubona.llm.registry import discovery_defaults
-
-SETTINGS_PATH = Path("/tmp/kubona-state/settings.json")
 
 
 class SettingsStore:
     def __init__(self, path: str | Path | None = None):
-        self.path = Path(path) if path else SETTINGS_PATH
+        self.path = Path(path) if path else state_path("settings.json")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._data: dict[str, Any] = {}
         if self.path.exists():

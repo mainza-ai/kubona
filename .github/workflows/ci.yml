@@ -1,0 +1,79 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  python-tests:
+    name: Python tests (121+)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev,qiskit]"
+      - run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q
+      - name: doctor (state-root + fail-closed config check)
+        run: |
+          KUBONA_STATE_DIR="$(mktemp -d)" python -m kubona.run doctor
+          KUBONA_ENV=production KUBONA_STATE_DIR="$(mktemp -d)" \
+            python -c 'import kubona.config as c; assert c.console_token() is None; assert c.is_production()'
+
+  rust-tests:
+    name: Rust qir-core tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/crates/qir-core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --lib  # 3 qir-core unit tests
+
+  canary-gate:
+    name: Canary + correctness release-gate
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev,qiskit]"
+      - name: Hardware canary (simulator/GA providers)
+        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m kubona.canary
+      - name: Correctness-regression harness (release gate)
+        run: |
+          KUBONA_STATE_DIR="$(mktemp -d)" python - <<'PY'
+          from kubona.canary.canary import run_all
+          from kubona.provenance import Ledger
+          from kubona import config
+          results = run_all(ledger=Ledger(path=config.ledger_path()),
+                            providers=[n for n, c in __import__('kubona.schema', fromlist=['load_all_providers']).load_all_providers().items() if c.execution_plugin])
+          assert all(r['ok'] for r in results), results
+          print("release gate: OK")
+          PY
+
+  flutter-console:
+    name: Flutter web console (build + widget test)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/console
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+      - run: flutter pub get
+      - run: flutter test
+      - run: flutter build web
+

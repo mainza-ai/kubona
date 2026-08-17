@@ -71,7 +71,9 @@ class Ledger:
 
     def __init__(self, path: str | os.PathLike | None = None, tenant: str | None = None):
         if path is None:
-            base = Path(os.environ.get("KUBONA_LEDGER") or os.path.join(tempfile.gettempdir(), "kubona-ledger.jsonl"))
+            from kubona.config import ledger_path
+
+            base = ledger_path()
         else:
             base = Path(path)
         target = base if tenant is None else base.parent / f"{base.stem}.{_safe(tenant)}{base.suffix}"

@@ -9,6 +9,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
+from kubona.config import state_path
 from kubona.identity import IdentityRegistry
 
 
@@ -34,7 +35,7 @@ class Agent:
 
 class AgentRegistry:
     def __init__(self, path: str | Path | None = None, identities: IdentityRegistry | None = None):
-        self.path = Path(path) if path else Path("/tmp/kubona-state/agents.json")
+        self.path = Path(path) if path else state_path("agents.json")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.identities = identities or IdentityRegistry()
         self._agents: dict[str, Agent] = {}
