@@ -66,7 +66,16 @@ def _qir_text(circuit: Circuit) -> str:
 
 
 def lower(circuit_qasm: str, native_gate_set: tuple[str, ...] = NATIVE_SET) -> dict:
-    """Parse QASM, transpile to the native set, emit QIR-like text."""
+    """Lower a circuit to QIR(s): the Rust `qir-core` core when available (production),
+    else the Python reference (offline/CI fallback). Both emit QIR-like text."""
+    from kubona.qir.native import lower_with_rust
+
+    rust = lower_with_rust(circuit_qasm)
+    if rust is not None:
+        rust_circuit = parse_qasm2(circuit_qasm)
+        rust["circuit_name"] = rust_circuit.name
+        return rust
+    # fallback: Python reference (pre-Rust-integration / no cargo-built binary)
     circuit = parse_qasm2(circuit_qasm)
     native = transpile_to_native(circuit)
     return {
@@ -78,4 +87,5 @@ def lower(circuit_qasm: str, native_gate_set: tuple[str, ...] = NATIVE_SET) -> d
         "qir_text": _qir_text(native),
         "native_gate_count": {g: sum(1 for x in native.gates if x.name == g) for g in NATIVE_SET if
                               any(x.name == g for x in native.gates)},
+        "engine": "python-reference",
     }

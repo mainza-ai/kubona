@@ -17,8 +17,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Build Rust qir-core (production compiler core)
+        run: cargo build --release --manifest-path crates/qir-core/Cargo.toml
       - run: pip install -e ".[dev,qiskit]"
-      - run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q
+      - name: Full python suite (Rust core wired; KUBONA_QIR_CORE)
+        env:
+          KUBONA_QIR_CORE: ${{ github.workspace }}/platform/crates/qir-core/target/release/qir-core
+        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q
       - name: doctor (state-root + fail-closed config check)
         run: |
           KUBONA_STATE_DIR="$(mktemp -d)" python -m kubona.run doctor
@@ -34,6 +40,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - run: cargo build --release  # production compiler core
       - run: cargo test --lib  # 3 qir-core unit tests
 
   canary-gate:

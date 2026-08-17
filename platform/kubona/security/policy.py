@@ -24,6 +24,7 @@ TOOL_SCOPES: dict[str, str] = {
     "execution/get_job_status": "execution:read",
     "execution/get_result": "execution:read",
     "execution/run_zne_job": "execution:submit",
+    "execution/cancel_job": "execution:override",
     "execution/session_status": "execution:read",
     "execution/close_session": "execution:submit",
     "execution/list_provider_registry": "providers:read",

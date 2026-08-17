@@ -18,3 +18,16 @@ def test_u3_decomposition():
     names = [g.name for g in native.gates]
     assert names == ["rz", "ry", "rz"]
     assert all(g.name in ("rx", "ry", "rz", "cx", "x", "h") for g in native.gates)
+
+
+def test_lower_uses_rust_core_when_available():
+    """The production compiler path runs on the Rust qir-core when it is built."""
+    from kubona.qir.native import rust_available
+    out = lower("OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];")
+    if rust_available():
+        assert out.get("engine") == "rust-qir-core"
+        assert "__quantum__qis__h__body" in out["qir_text"]
+        assert out["native_gate_count"].get("h") == 1 and out["native_gate_count"].get("cx") == 1
+    else:
+        assert out.get("engine") == "python-reference"
+        assert "__quantum__qis__h__body" in out["qir_text"]

@@ -25,6 +25,7 @@ def build_gateway(*, require_auth: bool = True) -> KubonaGateway:
         "get_job_status": execution.get_job_status,
         "get_result": execution.get_result,
         "run_zne_job": execution.run_zne_job,
+        "cancel_job": execution.cancel_job,
         "session_status": execution.session_status,
         "close_session": execution.close_session,
         "list_provider_registry": execution.list_provider_registry,
