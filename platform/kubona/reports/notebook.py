@@ -54,3 +54,31 @@ class ExperimentReport:
 
 def build_report(**kwargs: Any) -> ExperimentReport:
     return ExperimentReport(**{k: v for k, v in kwargs.items() if v is not None})
+
+
+class ReportStore:
+    """Persists generated experiment notebooks (the results studio's data)."""
+
+    def __init__(self, path: str | os.PathLike | None = None):
+        from pathlib import Path as _P
+
+        self.path = _P(path) if path else _P("/tmp/kubona-state/reports.json")
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._reports: list[dict[str, Any]] = []
+        if self.path.exists():
+            import json as _json
+
+            self._reports = _json.loads(self.path.read_text())
+
+    def save(self, report: ExperimentReport) -> ExperimentReport:
+        self._reports.append(report.to_dict())
+        self._save()
+        return report
+
+    def all(self) -> list[dict[str, Any]]:
+        return list(self._reports)
+
+    def _save(self) -> None:
+        import json as _json
+
+        self.path.write_text(_json.dumps(self._reports, indent=2))

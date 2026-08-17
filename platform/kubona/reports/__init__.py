@@ -5,6 +5,6 @@ results · analysis · conclusions · citations · how-to-reproduce); every sect
 links its ledger record / citation so each claim is provenance-traceable.
 """
 
-from .notebook import ExperimentReport, build_report
+from .notebook import ExperimentReport, build_report, ReportStore
 
-__all__ = ["ExperimentReport", "build_report"]
+__all__ = ["ExperimentReport", "build_report", "ReportStore"]

@@ -30,14 +30,30 @@ def _qft2_check(counts, shots) -> bool:
     return all(abs(counts.get(k, 0) - shots / 4) <= 0.12 * shots for k in ("00", "01", "10", "11"))
 
 
-def _dj2_check(counts, shots) -> bool:
-    # balanced oracle on 2 qubits: 1st register always |0> or always |1> (deterministic)
-    return len(counts) == 1 and set(counts) <= {"00", "01"}
+def _ghz4_check(counts, shots) -> bool:
+    return set(counts) <= {"0000", "1111"}
+
+
+def _bell_pairs_check(counts, shots) -> bool:
+    return set(counts) <= {"0000", "0011", "1100", "1111"}
+
+
+def _qft3_check(counts, shots) -> bool:
+    return all(k in counts for k in ("000", "001", "010", "011", "100", "101", "110", "111")) and (
+        all(abs(counts.get(k, 0) - shots / 8) <= 0.06 * shots for k in range(8) for k in ("000", "001", "010", "011", "100", "101", "110", "111")))
+
+
+def _grover2_check(counts, shots) -> bool:
+    return counts.get("11", 0) / max(shots, 1) > 0.75
 
 
 _task("bell", "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];", _bell_check)
 _task("ghz3", "OPENQASM 2.0;\nqreg q[3];\nh q[0];\ncx q[0],q[1];\ncx q[0],q[2];", _ghz3_check)
+_task("ghz4", "OPENQASM 2.0;\nqreg q[4];\nh q[0];\ncx q[0],q[1];\ncx q[0],q[2];\ncx q[0],q[3];", _ghz4_check)
+_task("bell-pairs", "OPENQASM 2.0;\nqreg q[4];\nh q[0];\ncx q[0],q[1];\nh q[2];\ncx q[2],q[3];", _bell_pairs_check)
 _task("qft2", "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncp(1.5708) q[0],q[1];\nh q[1];", _qft2_check)
+_task("qft3", "OPENQASM 2.0;\nqreg q[3];\nh q[0];\ncp(1.5708) q[0],q[1];\ncp(0.7854) q[0],q[2];\nh q[1];\ncp(1.5708) q[1],q[2];\nh q[2];\nswap q[0],q[2];", _qft3_check)
+_task("grover-2", "OPENQASM 2.0;\nqreg q[2];\nh q[0];\nh q[1];\ncz q[0],q[1];\nh q[0];\nh q[1];\nx q[0];\nx q[1];\ncz q[0],q[1];\nx q[0];\nx q[1];\nh q[0];\nh q[1];", _grover2_check)
 def evaluate_codegen(generate: "Callable[[str], str]", provider: str = "local-simulator",
                      shots: int = 4096) -> dict:
     """Run `generate(task_name) -> QASM` for every task; verify invariants on the simulator.

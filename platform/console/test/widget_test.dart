@@ -44,6 +44,34 @@ ConsoleApi _fakeApi() {
         ],
       }), 200, headers: {'content-type': 'application/json'});
     }
+    if (body.endsWith('/api/reports')) {
+      return http.Response(jsonEncode({
+        'ok': true,
+        'reports': [
+          {
+            'report_id': 'r1', 'title': 'Energetics of Z0Z1+0.5X0X1',
+            'objectives': 'find ground state', 'methods': 'VQE search',
+            'results': 'metric 1.1', 'analysis': 'ZNE recovered',
+            'conclusions': 'loop works', 'refs': [['results', 'ledger:abc']],
+          }
+        ],
+      }), 200, headers: {'content-type': 'application/json'});
+    }
+    if (body.endsWith('/api/workflows')) {
+      return http.Response(jsonEncode({'ok': true, 'workflows': [
+        {'workflow_id': 'w1', 'name': 'vqe-sweep', 'created_by': 'researcher', 'created_by_agent': false}
+      ]}), 200, headers: {'content-type': 'application/json'});
+    }
+    if (body.endsWith('/api/agents')) {
+      return http.Response(jsonEncode({'ok': true, 'agents': [
+        {'agent_id': 'a1', 'persona': 'ansatz-specialist', 'scopes': ['execution:submit'], 'created_by': null}
+      ]}), 200, headers: {'content-type': 'application/json'});
+    }
+    if (body.endsWith('/api/labs')) {
+      return http.Response(jsonEncode({'ok': true, 'labs': [
+        {'lab_id': 'l1', 'name': 'Alpha Lab', 'tenant': 'alpha-lab', 'owner': 'researcher', 'members': ['researcher', 'agent-1']}
+      ]}), 200, headers: {'content-type': 'application/json'});
+    }
     return http.Response('{"ok": true}', 200, headers: {'content-type': 'application/json'});
   });
   return ConsoleApi(baseUrl: 'http://fake', token: 'dev-token', client: client);
@@ -62,5 +90,15 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.textContaining('ansatz-search'), findsOneWidget);
     expect(find.textContaining('measure energy'), findsOneWidget);
+
+    await tester.tap(find.text('Notebook'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Energetics of Z0Z1+0.5X0X1'), findsOneWidget);
+
+    await tester.tap(find.text('Labs & Workflows'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Alpha Lab'), findsOneWidget);
+    expect(find.textContaining('vqe-sweep'), findsOneWidget);
+    expect(find.textContaining('ansatz-specialist'), findsOneWidget);
   });
 }

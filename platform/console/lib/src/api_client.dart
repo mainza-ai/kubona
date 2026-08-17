@@ -134,6 +134,30 @@ class ConsoleApi {
         .toList();
   }
 
+  Future<List<Map<String, dynamic>>> reports() async {
+    final res = await _client.get(Uri.parse('$baseUrl/api/reports'), headers: _headers);
+    final list = (jsonDecode(res.body) as Map<String, dynamic>)['reports'] as List? ?? const [];
+    return list.cast<Map<String, dynamic>>().toList();
+  }
+
+  Future<List<Map<String, dynamic>>> workflows() async {
+    final res = await _client.get(Uri.parse('$baseUrl/api/workflows'), headers: _headers);
+    final list = (jsonDecode(res.body) as Map<String, dynamic>)['workflows'] as List? ?? const [];
+    return list.cast<Map<String, dynamic>>().toList();
+  }
+
+  Future<List<Map<String, dynamic>>> agents() async {
+    final res = await _client.get(Uri.parse('$baseUrl/api/agents'), headers: _headers);
+    final list = (jsonDecode(res.body) as Map<String, dynamic>)['agents'] as List? ?? const [];
+    return list.cast<Map<String, dynamic>>().toList();
+  }
+
+  Future<List<Map<String, dynamic>>> labs() async {
+    final res = await _client.get(Uri.parse('$baseUrl/api/labs'), headers: _headers);
+    final list = (jsonDecode(res.body) as Map<String, dynamic>)['labs'] as List? ?? const [];
+    return list.cast<Map<String, dynamic>>().toList();
+  }
+
   Future<Map<String, dynamic>> provenance() async {
     final res = await _client.get(Uri.parse('$baseUrl/api/provenance'), headers: _headers);
     return jsonDecode(res.body) as Map<String, dynamic>;
