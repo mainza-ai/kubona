@@ -1,0 +1,29 @@
+{
+  "provider": "xanadu-strawberry-fields",
+  "modality": "photonic",
+  "physical_qubits": 40,
+  "native_gate_set": [
+    "sgate",
+    "bsgate",
+    "sqgate",
+    "measure_homodyne",
+    "measure_heterodyne"
+  ],
+  "queue_depth_estimate_s": 300,
+  "pricing": {
+    "model": "per_task_plus_per_shot",
+    "currency": "USD",
+    "per_task_usd": 0.0,
+    "per_shot_usd": 0.0,
+    "notes": "photonic / continuous-variable; requires credentials"
+  },
+  "jurisdiction": "CA/US",
+  "export_control_flag": "none",
+  "sdk_bindings": [
+    "strawberry-fields",
+    "sf",
+    "pennylane"
+  ],
+  "status": "registered",
+  "execution_plugin": "kubona.providers.strawberry_fields_provider.StrawberryFieldsProvider"
+}

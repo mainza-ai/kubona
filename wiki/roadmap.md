@@ -207,6 +207,17 @@ approved → real-hardware-validated** pipeline.
 
 ## Phase 5 — Scale + breadth (Weeks 31+) → gate P5, then continuous
 
+> **Status (2026-08-16):** implemented under `platform/` — breadth providers
+> (xanadu photonic + dwave-annealing with a credential-free QUBO solver);
+> jurisdiction/export-control routing enforcement (§2.9); multi-tenant scale
+> (tenant-scoped ledger + session stores, atomic+locked chain-safe appends);
+> x402 activation + algorithm-library metering (free summary + sub-threshold
+> microtransaction, ledger-as-payment-proof); meta-loop auto-application gated
+> by safety period + shadow-mode win (§13.5). **96 Python tests green.**
+> Remaining: real photonic/ocean credentials + SDK wiring, x402 off-ledger
+> crypto verification on a real rail, multi-tenant horizontal deployments, and
+> the human business-model sign-off.
+
 - [[xanadu-strawberry-fields]] photonic/CV integration; [[dwave]] Ocean SDK deepening.
 - Export-control/jurisdiction enforcement at the routing layer (§2.9; the
   [[provider-capability-schema]] jurisdiction field becomes load-bearing).
