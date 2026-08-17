@@ -29,7 +29,7 @@ status: living
 | **Async, persistent job model** | 🟢 M1 | `kubona/jobs.py`: persistent JSONL `JobStore` (status survives restart) + background `JobRunner`; `submit_job(wait=True/False)`, `cancel_job` (P2 watch-and-interrupt), scoped `execution:override`, provenance on every transition, 4 dedicated tests. |
 | **Real provider SDK execution** | 🟠 | "9 providers" = 2 execute (local-simulator, qiskit-aer) + 7 raise "not wired (needs credentials+SDK)"; IBM path only runs Aer, not Qiskit Runtime. Wire real SDK submission (IBM Runtime, pytket, pyquil, dimod+Leap, strawberryfields) with recorded-fixture tests. |
 | **Rust QIR/MLIR core on the call path** | 🟢 M1 | `kubona/qir/native.py` runs the built `qir-core` binary on `lower_circuit` (`engine: rust-qir-core`) with Python fallback; CI builds it and wires `KUBONA_QIR_CORE`; native-path test added. OpenQASM 3 + MLIR/QIR-bitcode remain. |
-| **Streamable-HTTP + ML-KEM on the wire** | 🟠 | Transport is InProcess/stdio; `secure_rpc.py` is an in-process stand-in. Ship HTTP with OAuth 2.1 bearer + hybrid TLS; secrets management. |
+| **Streamable-HTTP + ML-KEM on the wire** | 🟢 M1 | `kubona/mcp/http_gateway.py` serves `/rpc` over a real uvicorn socket with OAuth2 bearer + a real two-party X25519+ML-KEM hybrid envelope (unwrapped, dispatched, response re-encrypted; tamper-rejected). `kubona serve-gateway` boots it; `kubona/secrets.py` adds env-backed (KMS-ready) per-provider credentials that fail closed. TLS/KEMTLS termination at the edge remains for deployment. |
 
 ## Medium
 
