@@ -44,6 +44,27 @@ ConsoleApi _fakeApi() {
         ],
       }), 200, headers: {'content-type': 'application/json'});
     }
+    if (body.endsWith('/api/models')) {
+      return http.Response(jsonEncode({
+        'ok': true,
+        'scan': {
+          '8787': {'base_url': 'http://127.0.0.1:8787', 'port': 8787, 'provider': 'openai-compat',
+                   'models': [{'model_id': 'Qwen3.6-35B-A3B-UD-MLX-4bit'},
+                              {'model_id': 'Llama-3.2-3B-Instruct-bf16'}]},
+          'summary': {'8787': 'openai-compat'},
+        },
+        'ports': [11434, 8787, 1234, 8080],
+      }), 200, headers: {'content-type': 'application/json'});
+    }
+    if (body.endsWith('/api/settings')) {
+      if (request.method == 'PUT') {
+        return http.Response(jsonEncode({'ok': true, 'settings': {'llm_provider': 'omlx',
+            'llm_model': 'Qwen3.6-35B-A3B-UD-MLX-4bit', 'llm_temperature': 0.1,
+            'host_available': true}}), 200, headers: {'content-type': 'application/json'});
+      }
+      return http.Response(jsonEncode({'ok': true, 'settings': {'llm_provider': 'scripted',
+          'llm_model': '', 'host_available': true}}), 200, headers: {'content-type': 'application/json'});
+    }
     if (body.endsWith('/api/reports')) {
       return http.Response(jsonEncode({
         'ok': true,
@@ -100,5 +121,10 @@ void main() {
     expect(find.textContaining('Alpha Lab'), findsOneWidget);
     expect(find.textContaining('vqe-sweep'), findsOneWidget);
     expect(find.textContaining('ansatz-specialist'), findsOneWidget);
+
+    await tester.tap(find.text('Models'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Qwen3.6-35B-A3B-UD-MLX-4bit'), findsOneWidget);
+    expect(find.textContaining('8787'), findsWidgets);
   });
 }

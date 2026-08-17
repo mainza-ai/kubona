@@ -34,7 +34,7 @@ class DiscoveryCampaign:
     tenant: str = "default-lab"
 
     def run(self, *, ledger: Ledger | None = None, library: AlgorithmLibrary | None = None,
-            source: str = "mock", report_store=None) -> dict[str, Any]:
+            source: str = "mock", report_store=None, llm=None) -> dict[str, Any]:
         ledger = ledger or Ledger(tenant=self.tenant)
         sessions = SessionStore(tenant=self.tenant)
         gov = CostGovernanceService(sessions, store_path=ledger.path.parent)
@@ -53,6 +53,23 @@ class DiscoveryCampaign:
         circuit = parse_qasm2(DESIGN_QASM)
         pf = gov.preflight(cap, circuit, 8192, session)
         stages["design"] = {"preflight_ok": pf["ok"], "ledger_ref": None}
+
+        # 2b HYPOTHESIZE (local LLM, optional) — let the model seed the search
+        hypotheses: list[str] = []
+        if llm is not None and llm.available:
+            try:
+                hypotheses.append(llm.complete(
+                    "You are Kubona's scientific assistant.",
+                    f"Suggest one ansatz start parameter (a float near 0..4) for "
+                    f"minimizing {self.hamiltonian} in a RY-RY-CX ansatz. Reply with a single number.",
+                    temperature=0.3))
+            except Exception:  # noqa: BLE001 — LLM failure never breaks the campaign
+                hypotheses = []
+        stages["hypothesis"] = {"llm_used": bool(hypotheses), "suggestion": hypotheses[:1]}
+        stages["hypothesis"].update(
+            {"ledger_ref": ledger.append("hypothesis", {
+                "problem": self.problem, "llm_used": bool(hypotheses),
+                "suggestion": hypotheses[:1]}).record_id})
 
         # 3 EXPERIMENT — the autonomous ansatz search (Search Mode)
         harness = build_vqe_ansatz_harness()
