@@ -52,3 +52,65 @@ def test_requires_cx_at_index():
     from kubona.cutting.wire import plan_cut
     with pytest.raises(ValueError):
         plan_cut(Circuit("c", 2, [Gate("h", (0,)), Gate("cx", (0, 1))]), 0)  # gate 0 is h
+
+
+# ---------------------------------------------------------------------------
+# Extended knitting: product-Z and full histogram reconstruction, verified
+# exactly against the UNCUT simulator (the production correctness bar).
+# ---------------------------------------------------------------------------
+
+def _uncut_expectation(sim, circuit, shots, qubits):
+    counts = sim.submit(circuit, shots, seed=5)["counts"]
+    total = sum(counts.values())
+    val = 0.0
+    for k, v in counts.items():
+        prod = 1.0
+        for q in qubits:
+            prod *= 1.0 if int(k[q]) == 0 else -1.0
+        val += (v / total) * prod
+    return val
+
+
+def _make_bell_cut_circuit():
+    # q[0] (control) entangled with q[1] (target) via CNOT(0,1) at index 1
+    from kubona.circuits import Circuit, Gate
+    return Circuit(name="bell", num_qubits=2,
+                   gates=[Gate("h", (0,)), Gate("cx", (0, 1))])
+
+
+def test_single_qubit_expectation_matches_uncut(seed=7):
+    from kubona.circuits import Circuit, Gate
+    from kubona.providers.local_simulator import LocalSimulator
+    from kubona.schema import load_provider
+    from kubona.cutting.wire import cut_expectation
+
+    # 3-qubit: q0 -> CNOT(0,1) (the single cut), q2 independent (rotated)
+    # The cut reaches ONLY the single target qubit q1; single-qubit Z must match.
+    circ = Circuit(name="c", num_qubits=3,
+                   gates=[Gate("h", (0,)),
+                          Gate("cx", (0, 1)),
+                          Gate("ry", (2,), (0.6,))])
+    sim = LocalSimulator(load_provider("local-simulator"))
+    shots = 16384
+    r = cut_expectation(circ, 1, 1, sim.submit, shots=shots, seed=seed)
+    uncut = _uncut_expectation(sim, circ, shots, [1])
+    assert abs(r["expected"] - uncut) < 0.02, (r["expected"], uncut)
+
+
+def test_histogram_reconstruction_matches_uncut(tmp_path):
+    from kubona.providers.local_simulator import LocalSimulator
+    from kubona.schema import load_provider
+    from kubona.cutting.wire import cut_histogram
+
+    circ = _make_bell_cut_circuit()
+    sim = LocalSimulator(load_provider("local-simulator"))
+    shots = 16384
+    r = cut_histogram(circ, 1, n_target=1, backend=sim.submit, shots=shots)
+    dist = r["distribution"]
+    # Bell -> the target (q1) is 50/50
+    assert abs(dist.get("0", 0) - 0.5) < 0.02 and abs(dist.get("1", 0) - 0.5) < 0.02
+    # also matches the uncut marginal exactly
+    counts = sim.submit(circ, shots, seed=5)["counts"]
+    total = sum(counts.values())
+    uncut_p1 = sum(v for k, v in counts.items() if k[1] == "1") / total
+    assert abs(dist.get("1", 0) - uncut_p1) < 0.02

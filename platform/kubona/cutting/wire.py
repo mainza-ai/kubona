@@ -64,6 +64,39 @@ def _target_fragment(plan: CutPlan, outcome: int) -> Circuit:
     return Circuit(name="cut-target", num_qubits=plan.num_qubits, gates=gates)
 
 
+def _run_target_distribution(plan: CutPlan, outcome: int, backend, shots: int) -> dict[str, int]:
+    """Distribution over the target register after preparing it as |m>."""
+    return backend(_target_fragment(plan, outcome), shots)["counts"]
+
+
+def cut_histogram(
+    circuit: Circuit,
+    cnot_index: int,
+    n_target: int,
+    backend: Callable[[Circuit, int], dict],
+    shots: int = 8192,
+) -> dict:
+    """Reconstruct the FULL target-register distribution post-cut (exact for any
+    Z-diagonal protocol). p(b) = sum_m p_Z(m) * p_{B|m}(b), exact for the
+    Z-basis wire-cut — the highest-value use case (populations, histograms).
+    """
+    plan = plan_cut(circuit, cnot_index)
+    cc = backend(_control_fragment(plan), shots)["counts"]
+    total = sum(cc.values()) or 1
+    p_m = {m: sum(v for k, v in cc.items() if _bit(k, plan.control) == m) / total for m in (0, 1)}
+
+    dist: dict[str, float] = {}
+    for m in (0, 1):
+        tc = _run_target_distribution(plan, m, backend, shots)
+        ttotal = sum(tc.values()) or 1
+        for k, v in tc.items():
+            b = _mask(k, n_target)  # suffix (big-endian) target-register bitstring
+            dist[b] = dist.get(b, 0.0) + p_m[m] * (v / ttotal)
+
+    return {"distribution": {k: round(v, 6) for k, v in dist.items()},
+            "control_probs": p_m, "protocol": "LOCC-wire-cut-Z-histogram"}
+
+
 def cut_expectation(
     circuit: Circuit,
     cnot_index: int,
@@ -72,10 +105,16 @@ def cut_expectation(
     shots: int = 8192,
     seed: int | None = 7,
 ) -> dict:
-    """Reconstruct <Z_q> for the target register using the Z-basis wire cut.
+    """Reconstruct <Z_q> for the single target qubit reached by the CNOT cut.
 
-    `backend(circuit, shots)` must return {"counts": {bitstring: int}} — any
-    provider trait implementation (local simulator today, hardware later).
+    Honest scope: a single-CNOT wire cut reaches exactly ONE target wire, so a
+    Z expectation is defined on that single qubit. (A product-Z over multiple
+    qubits needs multiple cut points — the full knitting/QPD domain, documented
+    as the production toolbox path.) For the FULL post-cut marginal distribution
+    use `cut_histogram`, which is exact for Z-diagonal and strictly more
+    informative than a single ⟨Z⟩.
+
+    `backend(circuit, shots)` must return {"counts": {bitstring: int}}.
     """
     plan = plan_cut(circuit, cnot_index)
     cc = backend(_control_fragment(plan), shots)["counts"]
@@ -108,3 +147,8 @@ def _bit(bitstring: str, qubit: int) -> int:
 def _z_expectation(counts: dict[str, int], qubit: int) -> float:
     total = sum(counts.values()) or 1
     return sum(v * (1.0 if _bit(k, qubit) == 0 else -1.0) for k, v in counts.items()) / total
+
+
+def _mask(bitstring: str, n_target: int) -> str:
+    """Big-endian suffix of n_target qubits (the target register after the cut)."""
+    return bitstring[-n_target:]
