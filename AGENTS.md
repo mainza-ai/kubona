@@ -6,6 +6,10 @@
 This folder implements the "LLM Wiki" pattern. You are the permanent maintainer of
 everything under `wiki/`. Read this file at the start of every session.
 
+**Repo status (2026-08-16):** initial repo lives at github.com/mainza-ai/kubona and stays
+**private** until a working core exists (Phase-0 gate: simulator job end-to-end via MCP with
+a provenance record). It will be made public, Apache-2.0, once that gate passes.
+
 ## Three layers
 
 - `raw/` — immutable source documents. **Read-only. Never edit.** You ingest from here.
