@@ -181,6 +181,23 @@ Run everything: `uv run --project . pytest -q` or `.venv/bin/python -m pytest -q
   experiment (Search Mode) → analyze (ZNE) → report → archive → meta-learn,
   inside the cost gates, tenant-scoped. **The Phase-6 gate test runs it end to end.**
 
+## Hardening & remaining-implementation closures (2026-08-16)
+
+- **OAuth 2.1-shaped tokens** (`kubona/security/oauth.py`) — a real issuer signs
+  short-lived, scoped Ed25519 tokens; gateway verifies them (swappable with dev
+  auth). Expiry/tamper/scope tested.
+- **ML-KEM secure RPC** (`kubona/security/secure_rpc.py`) — encrypts a governed
+  gateway call envelope end-to-end over the hybrid transport; tamper rejected.
+- **Routing enforcement in execution** — `submit_job` offers
+  `caller_jurisdictions`/`caller_export_class`/`require_review`; ineligible jobs
+  are blocked before execution (the §2.9 compliance gate on the call path).
+- **Eval corpus volume** — the built-in code-gen corpus grew to **7 tasks**
+  (bell, ghz3, ghz4, bell-pairs, qft2, qft3, grover-2) with invariant checkers.
+- **Phase-6 console surfaces** — REST `/api/reports` `/api/workflows` `/api/agents`
+  `/api/labs`; the Flutter web console is now **6 tabs** (… Notebook · Labs &
+  Workflows); `ReportStore` persists campaign notebooks; `Lab` registry.
+- ReportStore: `kubona/reports/notebook.py`; Labs: `kubona/labs.py`.
+
 ## Phase boundaries (honest stubs)
 
 - Compiler: validates + canonicalizes QASM 2 (real QIR/MLIR lowering = Phase 1, Rust core).

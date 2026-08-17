@@ -184,6 +184,43 @@ async def fleet(request: Request) -> JSONResponse:
     return _json({"ok": True, "fleet": reg})
 
 
+async def reports(request: Request) -> JSONResponse:
+    if not _authed(request):
+        return _auth_error()
+    from kubona.reports.notebook import ReportStore
+
+    return _json({"ok": True, "reports": ReportStore().all()})
+
+
+async def workflows(request: Request) -> JSONResponse:
+    if not _authed(request):
+        return _auth_error()
+    from kubona.workflows.library import WorkflowLibrary
+
+    lib = WorkflowLibrary()
+    return _json({"ok": True, "workflows": [{"workflow_id": w.workflow_id,
+                                             "name": w.source.get("name"),
+                                             "created_by": w.created_by,
+                                             "created_by_agent": w.source.get("created_by_agent", False)}
+                                            for w in lib.all()]})
+
+
+async def agents(request: Request) -> JSONResponse:
+    if not _authed(request):
+        return _auth_error()
+    from kubona.agents import AgentRegistry
+
+    return _json({"ok": True, "agents": [a.to_dict() for a in AgentRegistry().all()]})
+
+
+async def labs(request: Request) -> JSONResponse:
+    if not _authed(request):
+        return _auth_error()
+    from kubona.labs import LabRegistry
+
+    return _json({"ok": True, "labs": LabRegistry().all()})
+
+
 async def loops(request: Request) -> JSONResponse:
     if not _authed(request):
         return _auth_error()
@@ -221,6 +258,10 @@ app = Starlette(
         Route("/api/approvals/{aid}/{action}", approval_action, methods=["POST"]),
         Route("/api/provenance", provenance),
         Route("/api/fleet", fleet),
+        Route("/api/reports", reports),
+        Route("/api/workflows", workflows),
+        Route("/api/agents", agents),
+        Route("/api/labs", labs),
         Route("/api/loops", loops),
         Route("/api/loops/{lid}/{action}", loop_action, methods=["POST"]),
     ],

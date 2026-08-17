@@ -43,6 +43,10 @@ class _ConsoleHomeState extends State<ConsoleHome> {
   Future<List<LoopItem>>? _loops;
   Future<Map<String, dynamic>>? _provenance;
   Future<Map<String, dynamic>>? _fleet;
+  Future<List<Map<String, dynamic>>>? _reports;
+  Future<List<Map<String, dynamic>>>? _workflows;
+  Future<List<Map<String, dynamic>>>? _agents;
+  Future<List<Map<String, dynamic>>>? _labs;
 
   @override
   void initState() {
@@ -57,6 +61,10 @@ class _ConsoleHomeState extends State<ConsoleHome> {
       _loops = widget.api.loops();
       _provenance = widget.api.provenance();
       _fleet = widget.api.fleet();
+      _reports = widget.api.reports();
+      _workflows = widget.api.workflows();
+      _agents = widget.api.agents();
+      _labs = widget.api.labs();
     });
   }
 
@@ -74,7 +82,7 @@ class _ConsoleHomeState extends State<ConsoleHome> {
         ],
       ),
       body: DefaultTabController(
-        length: 4,
+        length: 6,
         child: Column(
           children: [
             const TabBar(tabs: [
@@ -82,6 +90,8 @@ class _ConsoleHomeState extends State<ConsoleHome> {
               Tab(text: 'Live Loops'),
               Tab(text: 'Provenance'),
               Tab(text: 'Fleet'),
+              Tab(text: 'Notebook'),
+              Tab(text: 'Labs & Workflows'),
             ]),
             Expanded(
               child: TabBarView(
@@ -91,6 +101,8 @@ class _ConsoleHomeState extends State<ConsoleHome> {
                   _LoopsTab(api: widget.api, loops: _loops!, onChanged: _refresh),
                   _ProvenanceTab(provenance: _provenance!),
                   _FleetTab(fleet: _fleet!),
+                  _NotebookTab(reports: _reports!),
+                  _LabsWorkflowsTab(labs: _labs!, workflows: _workflows!, agents: _agents!),
                 ],
               ),
             ),
@@ -221,6 +233,97 @@ class _FleetTab extends StatelessWidget {
         ]);
       },
     );
+  }
+}
+
+class _NotebookTab extends StatelessWidget {
+  final Future<List<Map<String, dynamic>>> reports;
+  const _NotebookTab({required this.reports});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<List<Map<String, dynamic>>>(
+      future: reports,
+      builder: (context, snap) {
+        if (snap.hasError) return Text('error: ${snap.error}');
+        final list = snap.data ?? const [];
+        if (list.isEmpty) {
+          return const Center(child: Text('No experiment notebooks yet. Run a discovery campaign.'));
+        }
+        return ListView(padding: const EdgeInsets.all(12), children: [
+          for (final r in list.reversed)
+            Card(
+              child: ExpansionTile(
+                title: Text(r['title'] ?? 'Report ${r['report_id']}'),
+                subtitle: Text('conclusions: ${r['conclusions'] ?? ''}'.length > 0 ? '${(r['conclusions'] ?? '').toString().substring(0, 0)}refs: ${(r['refs'] as List).length}' : ''),
+                children: [
+                  for (final sec in ['objectives', 'methods', 'results', 'analysis'])
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      child: Text('${sec}: ${r[sec] ?? ''}'),
+                    ),
+                  Text('   claims traceable: ${((r['refs'] as List?)?.isNotEmpty ?? false)}',
+                      style: const TextStyle(fontStyle: FontStyle.italic)),
+                ],
+              ),
+            ),
+        ]);
+      },
+    );
+  }
+}
+
+class _LabsWorkflowsTab extends StatelessWidget {
+  final Future<List<Map<String, dynamic>>> labs;
+  final Future<List<Map<String, dynamic>>> workflows;
+  final Future<List<Map<String, dynamic>>> agents;
+  const _LabsWorkflowsTab(
+      {required this.labs, required this.workflows, required this.agents});
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(padding: const EdgeInsets.all(12), children: [
+      Text('Labs', style: Theme.of(context).textTheme.titleMedium),
+      FutureBuilder<List<Map<String, dynamic>>>(
+        future: labs,
+        builder: (context, snap) {
+          final l = snap.data ?? const [];
+          return Column(children: [
+            for (final lab in l)
+              ListTile(dense: true, title: Text('${lab['name']} (tenant ${lab['tenant']})'),
+                       subtitle: Text('owner ${lab['owner']} · ${(lab['members'] as List).length} members')),
+          ]);
+        },
+      ),
+      Text('Workflows', style: Theme.of(context).textTheme.titleMedium),
+      FutureBuilder<List<Map<String, dynamic>>>(
+        future: workflows,
+        builder: (context, snap) {
+          final w = snap.data ?? const [];
+          if (w.isEmpty) return const Padding(padding: EdgeInsets.all(8), child: Text('none saved'));
+          return Column(children: [
+            for (final wf in w)
+              ListTile(dense: true,
+                       title: Text(wf['name'] ?? ''),
+                       subtitle: Text('by ${wf['created_by']} · agent-created: ${wf['created_by_agent']}')),
+          ]);
+        },
+      ),
+      Text('Agents', style: Theme.of(context).textTheme.titleMedium),
+      FutureBuilder<List<Map<String, dynamic>>>(
+        future: agents,
+        builder: (context, snap) {
+          final a = snap.data ?? const [];
+          if (a.isEmpty) return const Padding(padding: EdgeInsets.all(8), child: Text('no agents'));
+          return Column(children: [
+            for (final ag in a)
+              ListTile(dense: true,
+                       title: Text('${ag['persona']} (${ag['agent_id']})'),
+                       subtitle: Text('scopes: ${(ag['scopes'] as List).join(', ')} · created_by ${ag['created_by'] ?? 'owner'}')),
+          ]);
+        },
+      ),
+    ]);
   }
 }
 

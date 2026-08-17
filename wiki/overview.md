@@ -105,14 +105,37 @@ See [[design-evolution]] — the full §10 "what changed" table (4→11+ provide
 +PQC, monolith→federated MCP, heuristic→hard cost governance, no provenance→content-addressed
 ledger, code-gen evals only→canary CI + behavior evals).
 
-## Next steps (see also [[roadmap]])
+## Implementation status & next steps (see also [[roadmap]])
 
-- Phase 0 foundations: federated MCP skeleton, OAuth 2.1, open-source provider
-  abstraction (Qiskit + local/GPU simulator), Apache-2.0 repo.
-- A lint pass and a first compilation-track web search for competitive signals in
-  the MCP-for-quantum space ([[arxiv-mcp-quantum]] referenced as prior art).
-- Validate the [[mainza-milimo-foundation|Mainza/Milimo]] reuse claims against the real
-  codebases before lifting HAL/agent-mesh/approval patterns.
-- Draft the workflow-authoring DSL and identity/delegation model (Phase 6 groundwork) and
-  shortlist Tier-1 scholarly integrations (arXiv, OpenAlex) — see
-  [[workflows-and-agent-authoring]] and [[science-data-integrations]].
+**As of 2026-08-16, Phases 0–6 are implemented at the skeleton/engine level**
+under `platform/` (105 Python tests + 3 Rust + 1 Flutter widget test, all green;
+repo `github.com/mainza-ai/kubona`, currently private per maintainer decision):
+
+- **P0** federated MCP servers + gateway + provider trait + local simulator +
+  capability schema + Apache-2.0 license — gate proven end-to-end over stdio MCP.
+- **P1** sessions + cost governance + x402-compatible payments + ZNE + QIR
+  (Rust `qir-core` crate) — gate proven (budget-enforced VQE loop).
+- **P2** providers to 9, wire cutting, identity/delegation, loop supervisor +
+  control MCP server, LangGraph shim, Dart/Flutter console (web) — gate proven
+  (watch + interrupt a loop over MCP).
+- **P3** hybrid PQC transport (X25519+ML-KEM768), per-call identity-aware auth,
+  immutable ledger audit, canary CI (release-gating correctness harness),
+  provenance-as-MCP-resource, 4-tab console.
+- **P4** autoresearch engine (four-part harness contract + orchestrator), Search
+  Mode (beats a hand-designed baseline), GQE 4th harness, algorithm library,
+  §13 meta-loop, eval corpus + agent-behavior evals, provider-registration SDK.
+- **P5** xanadu + dwave breadth, export-control routing, multi-tenant scale,
+  x402 activation + library metering, meta-loop auto-apply (staged).
+- **P6** workflow engine, agent registry/personas (no escalation), experiment
+  notebook, scholarly integrations, full discovery loop — **P6 gate passes**
+  (a tenant-scoped lab runs the loop; every claim traces to a ledger/citation).
+
+**Remaining (human / deployment / hardening gates, not core-engine):** live
+OAuth 2.1 IdP token issuance + ML-KEM on the HTTP wire; volume eval corpora
+(QuantumKatas/HumanEval/PennyLang); a real third-party provider PR merged; the
+third-party gateway security review; real provider credentials (IBM/Quantinuum/
+Rigetti/neutral-atom/Xanadu/D-Wave) + SDK wiring; real x402 on a payment rail;
+GQE/Unsloth retraining on a GPU host. *See also the hardening closures below the
+roadmap status: OAuth-shaped token issuance, ML-KEM secure RPC, routing enforcement
+in execution, 7-task eval corpus, and the 6-tab console (now incl. experiment
+notebook + labs/workflows views).*

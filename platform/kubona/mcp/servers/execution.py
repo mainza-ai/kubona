@@ -27,14 +27,26 @@ _gov = CostGovernanceService(_sessions)
 
 def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int = 1024,
                session_id: str | None = None, budget_ceiling_usd: float | None = None,
-               seed: int | None = 7) -> dict:
+               seed: int | None = 7,
+               caller_jurisdictions: list[str] | None = None,
+               caller_export_class: str = "any",
+               require_review: bool = False) -> dict:
     """Submit a circuit through the cost-governance gate, threaded to a session.
 
-    A session is created on first use (or supplied); every job and its spend are
-    recorded against it so burn-rate telemetry and step-level provenance work.
+    Routing enforcement (Phase 5 / §2.9): when the caller declares its
+    jurisdictions/export-control class, the provider must be ELIGIBLE or the job
+    is blocked BEFORE any execution — the compliance gate, not an afterthought.
     """
     circuit = parse_qasm2(circuit_qasm)
     capability = load_provider(provider)
+    if caller_jurisdictions:
+        from kubona.routing import ROUTE_INELIGIBLE, route
+
+        r = route(capability, caller_jurisdictions=caller_jurisdictions,
+                  caller_export_class=caller_export_class, require_review=require_review)
+        if r.verdict == ROUTE_INELIGIBLE:
+            return {"ok": False, "error": f"routing blocked: {r.reason}",
+                    "routing": r.to_dict()}
     if session_id is None:
         session = _sessions.create(name=circuit.name, owner="agent",
                                    budget_ceiling_usd=budget_ceiling_usd)

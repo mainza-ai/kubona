@@ -34,7 +34,7 @@ class DiscoveryCampaign:
     tenant: str = "default-lab"
 
     def run(self, *, ledger: Ledger | None = None, library: AlgorithmLibrary | None = None,
-            source: str = "mock") -> dict[str, Any]:
+            source: str = "mock", report_store=None) -> dict[str, Any]:
         ledger = ledger or Ledger(tenant=self.tenant)
         sessions = SessionStore(tenant=self.tenant)
         gov = CostGovernanceService(sessions, store_path=ledger.path.parent)
@@ -85,6 +85,8 @@ class DiscoveryCampaign:
         report.add_ref("ground", ground["ledger_ref"] or "n/a")
         report.add_ref("analysis", stages["analyze"]["ledger_ref"])
         stages["report"] = {"report_id": report.report_id, "n_refs": len(report.refs)}
+        if report_store is not None:
+            report_store.save(report)  # the results-studio's data
 
         # 6 ARCHIVE — library entry (the compounding asset) with the report linked
         entry = None
