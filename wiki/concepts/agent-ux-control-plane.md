@@ -22,6 +22,10 @@ Kubona's UI sits at the intersection of two disciplines that rarely meet
 
 No existing tool (quantum or agentic) covers both.
 
+> **Full specification:** the complete UI/UX vision — personas, information architecture,
+> per-surface detail, visual language, mobile, open design problems, acceptance criteria —
+> lives in [[ui-ux-vision]].
+
 ## The eight console surfaces
 
 | Surface | Purpose |

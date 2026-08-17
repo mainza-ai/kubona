@@ -36,3 +36,5 @@ Append-only chronological record. Parseable with `grep "^## \[" log.md`.
 ## [2026-08-16] wiki | Naming cleanup — removed all 'formerly QAgent' / historical-working-name wording (never public, so no one knew it); only remaining references are log.md/git history and the local folder path qagent/ (kept for stability). Plan doc §1/§10, source page, kubona, overview, AGENTS.md, README cleaned; raw mirrored (rev 4b)
 
 ## [2026-08-16] repo | .obsidian and dev-docs removed from GitHub (local-only; gitignored) — repo now contains only raw/, wiki/, AGENTS.md, README.md, .gitignore; AGENTS.md three-layers note added
+
+## [2026-08-16] wiki | UI/UX vision report filed — concepts/ui-ux-vision.md (personas, 10 design principles, workspace IA, detailed spec of the 8 console surfaces, visual language, mobile, MCP-as-agent-interface, prior art, phase mapping, open problems, acceptance criteria); agent-ux-control-plane → pointer; definitions hardened across README/wiki/plan (Kubona is now stated as 'quantum-computing and AI-enhanced science discovery platform', no 'expanding' language); plan §1/§5-list wording updated + raw mirrored; counts 56 pages / 23 concepts; repo pushed

@@ -20,10 +20,10 @@ execute quantum algorithms across a federation of hardware providers
 (IBM, IonQ, Quantinuum, Rigetti, D-Wave, Azure, Google, QuEra/Pasqal, Xanadu, and more)
 behind a single agent interface (source-gap-analysis-plan). The core ambition: turn
 quantum processors from isolated scientific instruments into co-processors that an
-AI agent can navigate directly (architecture-paper). The platform is expanding into an
-**AI-enhanced science discovery platform** (maintainer synthesis): multi-user labs,
-user- and agent-created workflows and agents, and the ability to conduct its own
-experiments and return organized, reproducible results — see [[science-discovery]].
+AI agent can navigate directly (architecture-paper). Kubona is also an **AI-enhanced
+science discovery platform**: multi-user labs, user- and agent-created workflows and
+agents, and the ability to conduct its own experiments and return organized,
+reproducible results — see [[science-discovery]].
 
 ## The three sources ingested
 

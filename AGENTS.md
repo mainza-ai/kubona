@@ -64,8 +64,8 @@ a provenance record). It will be made public, Apache-2.0, once that gate passes.
 
 ## Current state (2026-08-16)
 
-3 sources ingested (see `wiki/log.md`), 55 pages: overview/roadmap/index/log, 3 source
-pages, 26 entities, 22 concepts. Domain: Kubona — an open-source, MCP-native
-quantum-computing platform for autonomous AI agents; expanding toward an AI-enhanced
-science-discovery platform (user/agent-created workflows & agents, autonomous, systematic
-experiments — see wiki/concepts/science-discovery.md).
+3 sources ingested (see `wiki/log.md`), 56 pages: overview/roadmap/index/log, 3 source
+pages, 26 entities, 23 concepts. Domain: Kubona — an open-source, MCP-native
+quantum-computing **and AI-enhanced science-discovery platform** for autonomous AI agents:
+multi-user labs, user/agent-created workflows & agents, autonomous experiments with
+systematic results (see wiki/concepts/science-discovery.md).

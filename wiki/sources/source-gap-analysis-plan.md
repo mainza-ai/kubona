@@ -44,8 +44,8 @@ open-source (Apache-2.0)
   human sign-off distinct from the dollar gate, and write scope that never reaches the
   compiler/MCP/security layer. See [[meta-search-and-self-evolution]]; Phase 4 stretch goal
   gated on §11 shipping.
-- **Science discovery & collaboration (rev 3, §14):** the platform expands beyond a quantum
-  toolset to an **AI-enhanced science discovery platform** — keypair identities for every
+- **Science discovery & collaboration (rev 3, §14):** the platform is defined as, in
+  addition to a quantum toolset, an **AI-enhanced science discovery platform** — keypair identities for every
   actor with instantly-revocable delegated authority ([[user-identity-and-profiles]]),
   user/agent-created workflows & agents behind versioned, approval-gated authoring
   ([[workflows-and-agent-authoring]]), the 7-stage discovery loop with autonomous
