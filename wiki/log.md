@@ -171,3 +171,12 @@ Removed the dead `OAuth21VerifierStub` (superseded by the real OAuth2AccessToken
 test_gateway_auth now validates the real issuer (correct/tampered/expired/wrong-key
 tokens). Cleaned stale 'Phase 0 stub' / 'placeholder' docstrings on now-real
 components (gateway auth+authz, compiler, provenance, circuit IR). 149 py + 3 Rust green.
+
+## [2026-08-17] impl-hardening | Eval corpus loader (G13 mechanism)
+
+kubona/eval/corpus_loader.py loads declarative JSON corpora into the
+evaluate_codegen contract (ghz/uniform/wstate/grover/bell-pairs check kinds);
+ships a VERIFIED extended corpus (ghz5/ghz6/qft4) whose every task provably passes
+its invariant on the local simulator; invalid/malformed entries fail closed.
+Volume third-party datasets (QuantumKatas/HumanEval/PennyLang) now drop in via the
+loader. test_corpus_loader.py (2 tests). 151 py + 3 Rust green.
