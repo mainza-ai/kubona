@@ -16,3 +16,8 @@ dev-docs/
 
 # Rust build artifacts
 target/
+
+# Flutter console build artifacts
+platform/console/.dart_tool/
+platform/console/build/
+platform/console/pubspec.lock

@@ -37,8 +37,23 @@ class QiskitProvider(Provider):
         from qiskit import QuantumCircuit as QKCircuit
         from qiskit_aer import AerSimulator
 
-        qasm = to_qasm(circuit)
-        qc = QKCircuit.from_qasm_str(qasm)
+        qc = QKCircuit(circuit.num_qubits)
+        for g in circuit.gates:
+            qs = list(g.qubits)
+            name = g.name
+            if name == "u3":
+                qc.u(*g.params, qs[0])
+            elif name == "u2":
+                qc.u(math.pi / 2, g.params[0], g.params[1], qs[0])
+            elif name == "u1":
+                qc.p(g.params[0], qs[0])
+            elif name == "id":
+                qc.id(qs[0])
+            elif g.params:
+                getattr(qc, name)(*g.params, *qs)
+            else:
+                getattr(qc, name)(*qs)
+        qc.measure_all()  # counts require classical registers (all-qubit measurement)
         backend = AerSimulator(seed_simulator=seed)
         job = backend.run(qc, shots=shots)
         counts = job.result().get_counts()

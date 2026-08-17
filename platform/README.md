@@ -74,6 +74,25 @@ Run everything: `uv run --project . pytest -q` or `.venv/bin/python -m pytest -q
 - **Phase 2 gate test** (`tests/test_phase2_gate.py`) — watch + interrupt a loop
   over the control MCP server (44 tests total).
 
+## Qiskit-first development & the console (maintainer direction, 2026-08-16)
+
+- **Qiskit as the dev provider:** `qiskit-aer-simulator` (free, GA) runs the full
+  governed chain via Qiskit 2.x + AerSimulator — no credentials needed; real
+  hardware providers (ibm-qiskit, quantinuum, rigetti, neutral-atom) keep
+  capability entries + plugins that fail with actionable guidance until
+  credentials/SDKs exist. Open-source-first: Qiskit/Aer (Apache-2.0), Flutter (BSD-3).
+- **Console REST API** (`kubona/console_api.py`): read/approve-only surface the
+  console talks to — sessions, burn rate, approvals (hold/approve/reject), loops
+  (pause/resume/kill). **No job-submission endpoints** (ui-ux-vision hard rule #1).
+  CORS `*` is dev-only (Phase-3 hardening). Run: `uv run --project . kubona-console-api`
+  (or `python -m kubona.console_api`, default http://127.0.0.1:8000).
+- **Flutter console** (`console/`): builds for web (`flutter build web`), two
+  Phase-2 surfaces live (Cost & Approvals, Live Loops) wired to the REST API.
+  Requires Flutter SDK (installed via Homebrew 2026-08-16) and
+  `XDG_CONFIG_HOME` writable (see ~/.kubona-config on this machine).
+- **Known upstream quirk:** mcp 2.0's stdio client hangs when closing one of
+  several concurrently-open sessions — tests use one session at a time.
+
 ## Phase boundaries (honest stubs)
 
 - Compiler: validates + canonicalizes QASM 2 (real QIR/MLIR lowering = Phase 1, Rust core).

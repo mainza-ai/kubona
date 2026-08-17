@@ -108,13 +108,18 @@ budget ceiling enforced, every step provenance-logged.
 ## Phase 2 — Multi-provider + control plane (Weeks 11–16) → gate P2
 
 > **Status (2026-08-16):** implemented under `platform/` — 3 new provider capability
-> entries (quantinuum/rigetti/neutral-atom) with optional-dep plugins (registry = 6);
+> entries (quantinuum/rigetti/neutral-atom) with optional-dep plugins (registry = 7,
+> incl. executable `qiskit-aer-simulator` for credential-free Qiskit testing per
+> maintainer direction — open-source first);
 > LOCC wire cutting for Z-diagonal expectations (numerically verified vs uncut);
 > identity groundwork (Ed25519 keys, owner-delegated authority, instant cascade
 > revocation); loop supervisor + `control` MCP server (watch/pause/kill); LangGraph
 > shim with a reference VQE StateGraph; Dart console scaffold (models + gateway
 > client + two priority surface contracts — widgets require a Flutter machine).
-> **P2 gate test green** — watch + interrupt an in-flight loop over MCP (44 tests).
+> **P2 gate test green** — watch + interrupt an in-flight loop over MCP; console now
+> includes a read/approve-only REST API + a **building Flutter web app** (Cost &
+> Approvals, Live Loops) — Flutter SDK installed (Homebrew); 52 Python tests + 1
+> widget test + `flutter build web` all green.
 
 - Add [[quantinuum]] (pytket), [[rigetti]] (pyQuil), [[neutral-atom-quera-pasqal]] (Pulser)
   as direct, open-source SDK integrations — validating the P0 plugin trait.

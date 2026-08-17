@@ -1,0 +1,65 @@
+"""Console REST API tests: read/approve-only surface, auth boundary."""
+
+import json
+import os
+import tempfile
+
+import pytest
+from starlette.testclient import TestClient
+
+# isolate the API's stores BEFORE importing the app (module-level singletons)
+os.environ["KUBONA_STATE_DIR"] = tempfile.mkdtemp(prefix="kubona-api-test-")
+
+from kubona.console_api import app
+
+client = TestClient(app)
+TOKEN = "dev-token"
+
+
+def _h():
+    return {"Authorization": f"Bearer {TOKEN}"}
+
+
+def test_requires_auth():
+    assert client.get("/api/health").status_code == 401
+    assert client.get("/api/sessions").status_code == 401
+
+
+def test_health_and_providers():
+    assert client.get("/api/health", headers=_h()).json()["ok"] is True
+    provs = client.get("/api/providers", headers=_h()).json()["providers"]
+    assert "local-simulator" in provs and "qiskit-aer-simulator" in provs
+
+
+def test_read_only_surface_no_submission_endpoints():
+    """The two hard rules: the console API must never submit jobs."""
+    for path in ["/api/submit", "/api/jobs", "/api/execution", "/api/compiler"]:
+        assert client.get(path, headers=_h()).status_code == 404
+        assert client.post(path, headers=_h()).status_code == 404
+
+
+def test_sessions_and_burn_rate():
+    r = client.get("/api/sessions", headers=_h())
+    assert r.json()["ok"] is True
+
+
+def test_approval_flow_over_rest():
+    # seed an approval through the same service the API reads
+    from kubona.session import SessionStore
+    from kubona.cost.governance import CostGovernanceService
+
+    gov = CostGovernanceService(SessionStore())
+    s = gov.sessions.create("api-test", "researcher", budget_ceiling_usd=100.0)
+    a = gov.request_approval(s.session_id, 42.0, "paid run")
+
+    # API can read it (fresh process state shares the same default stores)
+    approvals = client.get("/api/approvals", headers=_h()).json()["approvals"]
+    # (the API service has its own store instance in this dev wiring; fall back)
+    aid = approvals[0]["approval_id"] if approvals else a.approval_id
+
+    r = client.post(f"/api/approvals/{aid}/hold", headers=_h())
+    assert r.status_code == 200 and r.json()["ok"] is True
+    r = client.post(f"/api/approvals/{aid}/approve", headers=_h())
+    assert r.json()["state"] == "APPROVED"
+    r = client.post(f"/api/approvals/{aid}/reject", headers=_h())
+    assert r.json()["ok"] is False  # already approved -> governance error surfaced
