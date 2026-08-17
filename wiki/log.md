@@ -28,3 +28,5 @@ Append-only chronological record. Parseable with `grep "^## \[" log.md`.
 
 ## [2026-08-16] ingest | Kubona: Gap Analysis, Architectural Expansion, and Implementation Plan (rev 4 — project renamed QAgent → Kubona, Tonga (Zambia): to see; historical footnote retained in §1; §10 naming bullet)
 ## [2026-08-16] wiki | Project rename executed — entities/qagent.md → entities/kubona.md (etymology + former-name footnote added); corrected all 48 wiki pages + AGENTS.md (title, domain, current state); index/counts recomputed; source-gap-analysis-plan title + summary updated; 'QAgent' now appears only in log.md history and explicit historical footnotes
+
+## [2026-08-16] wiki | Repo pushed to github.com/mainza-ai/kubona (init commit ab4d831 + README); Mainza/Milimo claims repo-verified at surface level (milimoquantum: Qiskit 2.x, 17 agents, VQE, autoresearch-mlx; MilimoClaw: REVIEW→HOLD gate; afreval: context-score) — mainza-milimo-foundation + overview updated from 'unverified' to 'repo-level verified 2026-08-16'
