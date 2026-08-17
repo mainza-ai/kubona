@@ -1,9 +1,12 @@
-# Kubona Platform — Phase 0 Skeleton
+# Kubona Platform — production-hardened (Phases 0-6 + M0/M1 hardening)
 
-The four federated MCP servers (compiler · execution · cost-governance ·
-eval-provenance), gateway, provider trait, and provenance ledger — a runnable
-Phase-0 skeleton. See `../wiki/roadmap.md` for the phase plan and `../wiki/overview.md`
-for the architecture.
+The federated MCP servers (compiler · execution · cost-governance ·
+eval-provenance), gateway, provider trait, provenance ledger, plus the production
+hardening: a single state root, fail-closed OAuth2 auth, package entrypoints
+(`kubona serve`/`doctor`/`serve-gateway`), a persistent async job farm, the Rust
+`qir-core` on the compiler path, an HTTP/ML-KEM transport, persistent audit, and
+a reproducible CI pipeline. See `../wiki/roadmap.md` for the phase plan and
+`../wiki/overview.md` for the architecture.
 
 ## Quick start
 
@@ -27,14 +30,19 @@ open-source dependencies.
 | Path | What it is |
 |---|---|
 | `kubona/mcp/servers/` | The four MCP servers (each runnable: `python -m kubona.mcp.servers.execution`) |
-| `kubona/mcp/gateway.py` | Gateway: auth + transport interfaces, per-call dispatch, audit |
-| `kubona/mcp/auth.py` | AuthProvider contract; DevAuthProvider; OAuth 2.1 stub (Phase 3) |
-| `kubona/mcp/transport.py` | TransportProvider contract; in-process + stdio |
-| `kubona/providers/` | Provider trait + `LocalSimulator` (pure numpy) + optional Qiskit adapter |
-| `kubona/schema/providers/` | Capability-schema JSON — onboarding = data + plugin (3 initial entries) |
-| `kubona/provenance/ledger.py` | Content-addressed, hash-chained append-only ledger |
+| `kubona/mcp/gateway.py` | Gateway: auth + per-call authz + dispatch + audit (in-memory + persistent JSONL export) |
+| `kubona/mcp/auth.py` | AuthProvider contract + DevAuthProvider (local/CI; the real OAuth2 issuer is `security/oauth.py`) |
+| `kubona/mcp/transport.py` / `kubona/mcp/http_gateway.py` | TransportProvider contract; in-process/stdio, and a real HTTP `/rpc` surface (OAuth2 bearer + X25519+ML-KEM envelope) |
+| `kubona/providers/` | Provider trait + `LocalSimulator` (pure numpy) + Qiskit adapter; Quantinuum (pytket) &
+  Rigetti (pyquil) conversions are **real-SDK validated**; IBM has a Qiskit Runtime path; D-Wave a QUBO solver |
+| `kubona/schema/providers/` | Capability-schema JSON — onboarding = data + plugin (9 provider entries, backend targets set) |
+| `kubona/provenance/ledger.py` | Content-addressed, hash-chained append-only ledger (tenant-sharded, atomic appends) |
 | `kubona/cost/estimator.py` | Pricing-model estimate + mandatory simulator pre-flight |
-| `kubona/circuits/` | SDK-independent circuit IR (QASM 2 subset parser) |
+| `kubona/circuits/` | SDK-independent circuit IR (QASM 2 subset parser); Rust `qir-core` lowers it on the compiler path |
+| `kubona/config.py` / `run.py` | Single state root + `kubona serve`/`doctor`/`serve-gateway` package entrypoints |
+| `kubona/jobs.py` | Persistent async job farm (restart-safe, `cancel_job`) |
+| `kubona/secrets.py` | Per-provider credential store (env-backed, KMS-ready), fails closed |
+| `kubona/eval/corpus_loader.py` | Declarative JSON eval-corpus loader (volume corpora drop in) |
 
 ## Phase 1 additions (cost governance + sessions + ZNE + QIR)
 
@@ -44,7 +52,8 @@ open-source dependencies.
   ceilings (enforced at write time), two-stage approval gate (REVIEW -> HOLD ->
   APPROVED/REJECTED), real-time burn-rate telemetry.
 - **x402-compatible payment interface** (`kubona/cost/payment.py`) — quote/verify
-  contract; free tier now, X402 stub (activation Phase 5+).
+  contract; free tier live, X402 **fails closed** (no proof accepted unless a real
+  verifier is injected; activation Phase 5+).
 - **ZNE mitigation** (`kubona/mitigation/`) — noise-aware density-matrix backend +
   zero-noise extrapolation (unitary folding, Richardson) — the first mitigation.
 - **QIR lowering** — Python reference pipeline (`kubona/qir/`) + the **Rust core**
@@ -56,9 +65,12 @@ Run everything: `uv run --project . pytest -q` or `.venv/bin/python -m pytest -q
 
 ## Phase 2 additions (multi-provider + control plane)
 
-- **Providers (6):** + quantinuum (pytket), rigetti (pyQuil), neutral-atom
-  (Pulser) capability entries with optional-dependency plugins — onboarding is
-  data + plugin; registry remains honest when deps/credentials are absent.
+- **Providers (9):** quantinuum (pytket), rigetti (pyQuil), neutral-atom (Pulser),
+  xanadu (Strawberry Fields), dwave (annealing), ibm-qiskit, qiskit-aer-simulator,
+  local-simulator, cuda-q. Role of the first two: **real** circuit->SDK conversions
+  validated against the installed SDKs; IBM has a Qiskit Runtime route; D-Wave a
+  credential-free QUBO solver; Pulser/SF are modality-gated (gate->AHS/CV is a
+  distinct program model) and fail closed honestly.
 - **Circuit cutting** (`kubona/cutting/`) — LOCC wire cut of a CNOT for
   Z-diagonal target expectations, numerically verified vs. the uncut simulator;
   production path (Qiskit Circuit Knitting Toolbox) is hardening.
@@ -72,7 +84,7 @@ Run everything: `uv run --project . pytest -q` or `.venv/bin/python -m pytest -q
   JSON-RPC client, the two priority surface contracts; widgets build on a
   Flutter-equipped machine.
 - **Phase 2 gate test** (`tests/test_phase2_gate.py`) — watch + interrupt a loop
-  over the control MCP server (44 tests total).
+  over the control MCP server.
 
 ## Qiskit-first development & the console (maintainer direction, 2026-08-16)
 
@@ -197,6 +209,38 @@ Run everything: `uv run --project . pytest -q` or `.venv/bin/python -m pytest -q
   `/api/labs`; the Flutter web console is now **6 tabs** (… Notebook · Labs &
   Workflows); `ReportStore` persists campaign notebooks; `Lab` registry.
 - ReportStore: `kubona/reports/notebook.py`; Labs: `kubona/labs.py`.
+
+
+## Production hardening (M0/M1 closures)
+
+- **Single non-`/tmp` state root** — `kubona/config.py`: `state_root()` (default
+  `~/.kubona`, or `KUBONA_STATE_DIR`); sessions, ledger, governance, identity,
+  agents, the algorithm library, reports, labs, workflows, settings, meta-proposals
+  all persist under one env-configurable root. **No more data loss on reboot.**
+- **Fail-closed production auth** — OAuth2 signed tokens carry `aud`/`nbf`
+  (verified); `KUBONA_ENV=production` requires `KUBONA_CONSOLE_TOKEN` (else
+  every request is unauthorized); console uses constant-time token compare; the
+  `kubona run`/`serve-gateway` gateway wires the real issuer.
+- **Package entrypoints** — `kubona serve / doctor / serve-gateway`
+  (`[project.scripts]`); starlette + uvicorn are hard deps.
+- **Persistent async job farm** — `kubona/jobs.py`: `JobStore` (JSONL,
+  restart-safe) + background `JobRunner`; `submit_job(wait=True/False)`,
+  `cancel_job` (scoped to `execution:override`); provenance on every transition.
+- **Rust QIR core on the compiler path** — `lower_circuit` runs `qir-core`
+  (`engine: rust-qir-core`) with a Python fallback; CI builds + wires
+  `KUBONA_QIR_CORE`.
+- **HTTP transport + secrets** — `kubona/mcp/http_gateway.py` (real uvicorn `/rpc`
+  with OAuth2 bearer + a genuine two-party X25519+ML-KEM envelope, tamper-rejected);
+  `kubona/secrets.py` per-provider credentials that fail closed.
+- **x402 fail-closed** — no proof is ever accepted unless a real verifier is injected.
+- **Persistent audit** — gateway audit writes a restart-safe JSONL export by default.
+- **CI reproducible & green locally** — `platform/scripts/ci.sh` runs the entire
+  pipeline (compile, Rust build+`--lib`, pytest, canary, correctness release-gate,
+  doctor + fail-closed check); `.github/workflows/ci.yml` + `nightly-canary.yml`.
+  The canary treats credential/SDK gaps as SKIP, never a provider regression.
+- **Production end-to-end test** — `tests/test_e2e_production.py` proves OAuth →
+  HTTP/ML-KEM → job farm → provider → result → audit → scoped-deny composes as
+  ONE system.
 
 ## Local LLM integration (Ollama · OMLX · LM Studio · llama.cpp)
 
