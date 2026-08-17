@@ -37,7 +37,7 @@ status: living
 |---|---|---|
 | Structured observability/metrics/audit export | 🟢 partial | Gateway audit now persists to a JSONL export (restart-safe, `audit_export()`, wired by default in `kubona run`/`serve-gateway`). Structured logging + OTel/Prometheus metrics remain. |
 | Perf-regression guards (G12) | 🟢 | tests/test_perf_guard.py guards the lower + local-simulator hot paths against accidental O(exponential) regressions (passed in ~0.1s). |
-| Volume eval corpora (QuantumKatas/HumanEval/PennyLang) | 🔵 | Built-ins are 5 invariants; wire volume corpora behind the same contract. |
+| Volume eval corpora (QuantumKatas/HumanEval/PennyLang) | 🟡 mechanism-ready | `kubona/eval/corpus_loader.py` loads declarative JSON corpora (ghz/uniform/grover/bell check-kinds) into the evaluate_codegen contract; ships a verified extended corpus (ghz5/ghz6/qft4) whose every task passes its invariant on the simulator, and rejects bad entries fail-closed. The third-party datasets (QuantumKatas/HumanEval/PennyLang) are the external ingredient that drop in via this loader. |
 | GQE transformer (Unsloth) training | 🔵 | n-gram stand-in today; drop-in `propose` replacement on a GPU host. |
 | Full circuit knitting | 🟡 partial | LOOC-Z single-CNOT wire cut now additionally reconstructs the **full post-cut target distribution** (`cut_histogram`, exact Z-diagonal, verified against uncut — strictly more informative than a single ⟨Z⟩). Honest scope: a single-CNOT cut reaches one target qubit, so multi-qubit-gate/product-Z cuts still need the full QPD/Qiskit-CKT integration (documented; that is the remaining piece). |
 | Perf/load baselines | 🔵 | Pure-numpy simulator; add perf regression + memory guards. |
