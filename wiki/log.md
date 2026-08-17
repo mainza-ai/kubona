@@ -108,3 +108,13 @@ Gateway audit now persists to a restart-safe JSONL export (audit_path + audit_ex
 production gateway wires it by default under the state root. Also fixed a latent
 gateway bug: require_auth=False now skips authorization (was crashing on None principal).
 test_audit_export.py (2 tests). 137 py + 3 Rust green.
+
+## [2026-08-17] impl-hardening | G6 connecters: pytket (Quantinuum) + pyquil (Rigetti) real paths
+
+TketProvider: real Kubona-Circuit -> pytket Circuit conversion (native-set directed),
+credential fail-closed (KUBONA_QUANTINUUM_API_KEY), recorded-fixture submission via
+pytket-quantinuum. PyQuilProvider: real Circuit -> pyQuil Program conversion +
+credential-free WavefunctionSimulator local path + QPU seam, recorded-fixture tests.
+Pulser/StrawberryFields stay honestly fail-closed (gate->AHS/CV is modality-different,
+not a generic conversion). Capability schema backend targets set for all providers.
+test_g6_connecters.py (4 tests). 141 py + 3 Rust green.

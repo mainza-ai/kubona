@@ -22,5 +22,6 @@
     "qiskit_via_qir"
   ],
   "status": "registered",
-  "execution_plugin": "kubona.providers.pyquil_provider.PyQuilProvider"
+  "execution_plugin": "kubona.providers.pyquil_provider.PyQuilProvider",
+  "backend": "Aspen-M-3"
 }

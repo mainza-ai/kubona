@@ -23,5 +23,6 @@
     "qiskit_via_qir"
   ],
   "status": "registered",
-  "execution_plugin": "kubona.providers.tket_provider.TketProvider"
+  "execution_plugin": "kubona.providers.tket_provider.TketProvider",
+  "backend": "H1-1"
 }
