@@ -17,8 +17,10 @@ status: living
 > single non-`/tmp` state root, production fail-closed auth (`kubona/run.py`), `kubona
 > serve`/`doctor` entrypoints, CI scaffold (`ci.yml` + `nightly-canary.yml`), x402
 > fail-closed. Remaining work is the **production / deployment / hardening gates**
-> (async persistent job model; real provider SDK execution — only 2 of 9 providers
-> execute today; the Rust QIR core on the compiler path; ML-KEM/streamable-HTTP on the
+> (async persistent job model; real provider SDK execution — 2 fully-credential-free
+> providers execute today (local-simulator, qiskit-aer), IBM/Quantinuum/Rigetti/D-Wave
+> have real SDK paths gated on credentials, Pulser/SF are modality-gated; the Rust
+> QIR core on the compiler path; ML-KEM/streamable-HTTP on the
 > wire; volume corpora; a merged third-party provider; the security review; real x402
 > on a rail; GPU-hosted Unsloth retraining; and the two Phase-6 console surfaces).
 > Full register: [[implementation-gaps]].

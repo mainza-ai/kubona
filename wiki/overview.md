@@ -115,7 +115,7 @@ repo `github.com/mainza-ai/kubona`, currently private per maintainer decision):
   capability schema + Apache-2.0 license — gate proven end-to-end over stdio MCP.
 - **P1** sessions + cost governance + x402-compatible payments + ZNE + QIR
   (Rust `qir-core` crate) — gate proven (budget-enforced VQE loop).
-- **P2** providers to 9, wire cutting, identity/delegation, loop supervisor +
+- **P2** providers to 8 (a phantom no-plugin `cuda-q` entry was later removed), wire cutting, identity/delegation, loop supervisor +
   control MCP server, LangGraph shim, Dart/Flutter console (web) — gate proven
   (watch + interrupt a loop over MCP).
 - **P3** hybrid PQC transport (X25519+ML-KEM768), per-call identity-aware auth,
