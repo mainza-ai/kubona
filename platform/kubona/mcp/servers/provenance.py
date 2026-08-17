@@ -1,7 +1,7 @@
-"""Eval/provenance MCP server (Phase 0 stub).
+"""Eval/provenance MCP server.
 
-Tools: write_record (append the content-addressed experiment record) and
-query_records (read back; Phase 3 makes the ledger an MCP *resource*).
+Exposes the content-addressed, hash-chained provenance ledger as an
+agent-queryable MCP resource: write_record / query_records (+ best aggregation).
 """
 
 from __future__ import annotations

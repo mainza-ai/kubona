@@ -1,10 +1,12 @@
-"""MCP gateway skeleton (Phase 0).
+"""MCP gateway.
 
-Wires the four federated servers behind one entry point with:
-  - an AuthProvider (verify bearer -> principal)       [OAuth 2.1 stub / dev]
-  - a TransportProvider (swappable)                    [in-process / stdio]
-  - per-call identity-aware authorization placeholder  [Phase 3 hardens]
-  - an audit note per call                             [doubles as ledger input]
+Wires the federated servers behind one entry point with:
+  - an AuthProvider (verify bearer -> principal)  [dev for local; real OAuth2
+    issuer for production via kubona.run.build_auth]
+  - a TransportProvider (swappable)               [in-process / stdio / HTTP]
+  - per-call identity-aware authorization         [fine-grained scopes, live
+    agent delegation; kubona.security.policy]
+  - an audit note per call (in-memory + optional persistent JSONL export)
 """
 
 from __future__ import annotations

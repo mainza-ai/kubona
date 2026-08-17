@@ -164,3 +164,10 @@ multi-qubit product-Z generalization was caught as WRONG by the same verificatio
 (a single-CNOT cut reaches one target qubit) and rejected — shipped only the
 correct slice. Remaining: multi-qubit-gate/product-Z cuts need full QPD / Qiskit
 Circuit Knitting Toolbox (documented). 149 py + 3 Rust green.
+
+## [2026-08-17] impl-hardening | Dead-code + stale-doc cleanup
+
+Removed the dead `OAuth21VerifierStub` (superseded by the real OAuth2AccessTokenProvider);
+test_gateway_auth now validates the real issuer (correct/tampered/expired/wrong-key
+tokens). Cleaned stale 'Phase 0 stub' / 'placeholder' docstrings on now-real
+components (gateway auth+authz, compiler, provenance, circuit IR). 149 py + 3 Rust green.
