@@ -26,9 +26,9 @@ status: living
 | **Deployment entrypoint** | 🟢 M0 | No `[project.scripts]`, no way to boot the system. Now: `kubona serve` / `kubona doctor` (package entrypoint + `run.py`), starlette/uvicorn are hard deps. |
 | **CI / release-gate** | 🟢 M0 (scaffold) | No `.github/` at all; "canary CI gates releases" was a module you ran by hand. Now: `ci.yml` (python tests, Rust `--lib`, flake-free canary + correctness gate, Flutter) + `nightly-canary.yml`. First real run still pending a hosted runner. |
 | **x402 fail-closed** | 🟢 M0 | The stub verifier accepted any `x402:`-prefixed proof (free-spend hole if enabled). Now `X402Payments` rejects every proof unless a real `verifier` is injected; metering/payment + P1 gate updated to assert fail-closed. |
-| **Async, persistent job model** | 🟠 | `execution.submit_job` runs synchronously in-request and keeps results in an in-memory dict (lost on restart). Build the async job farm + status provenance. |
+| **Async, persistent job model** | 🟢 M1 | `kubona/jobs.py`: persistent JSONL `JobStore` (status survives restart) + background `JobRunner`; `submit_job(wait=True/False)`, `cancel_job` (P2 watch-and-interrupt), scoped `execution:override`, provenance on every transition, 4 dedicated tests. |
 | **Real provider SDK execution** | 🟠 | "9 providers" = 2 execute (local-simulator, qiskit-aer) + 7 raise "not wired (needs credentials+SDK)"; IBM path only runs Aer, not Qiskit Runtime. Wire real SDK submission (IBM Runtime, pytket, pyquil, dimod+Leap, strawberryfields) with recorded-fixture tests. |
-| **Rust QIR/MLIR core on the call path** | 🟠 | `qir-core` is a standalone CLI; `lower_circuit` uses the Python reference. Put the Rust core on the compiler path; add OpenQASM 3 + MLIR/QIR-bitcode + topology-aware routing. |
+| **Rust QIR/MLIR core on the call path** | 🟢 M1 | `kubona/qir/native.py` runs the built `qir-core` binary on `lower_circuit` (`engine: rust-qir-core`) with Python fallback; CI builds it and wires `KUBONA_QIR_CORE`; native-path test added. OpenQASM 3 + MLIR/QIR-bitcode remain. |
 | **Streamable-HTTP + ML-KEM on the wire** | 🟠 | Transport is InProcess/stdio; `secure_rpc.py` is an in-process stand-in. Ship HTTP with OAuth 2.1 bearer + hybrid TLS; secrets management. |
 
 ## Medium

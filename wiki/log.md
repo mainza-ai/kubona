@@ -74,3 +74,13 @@ serve`/`doctor` package entrypoints + starlette/uvicorn as hard deps; CI scaffol
 x402 **fail-closed** unless a real verifier is injected. Corrected wiki
 overstatements (canary CI, OAuth-shape, 9 providers, Rust core) and added the
 living [[implementation-gaps]] register. 122 py + 3 Rust tests green.
+
+## [2026-08-17] impl-hardening | Async persistent job farm (G5) + Rust QIR core on compiler path (G7)
+
+G5: kubona/jobs.py — persistent JSONL JobStore (survives restart) + background
+JobRunner; execution.submit_job now routes through the farm with wait=True/False;
+cancel_job added (P2 watch-and-interrupt primitive) gated by execution:override;
+provenance recorded on every job transition; test_jobs.py (4 tests).
+G7: kubona/qir/native.py runs `qir-core` (release build) on lower_circuit —
+compiler path is now the Rust core (engine: rust-qir-core) with a Python fallback;
+CI builds the binary and wires KUBONA_QIR_CORE. 127 py + 3 Rust tests green.
