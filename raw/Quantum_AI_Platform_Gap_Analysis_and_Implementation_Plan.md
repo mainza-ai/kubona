@@ -248,6 +248,10 @@ Kubona's control plane has to do *both* — visualize a fundamentally non-classi
 
 ### 5.3 Kubona UI surfaces (replacing the single "observability dashboard" line item)
 
+This section specifies the six Phase-2–4 surfaces. Two further surfaces — the **experiment
+notebook & results studio** and the **lab/workflows & agents view** — are specified in §14.4
+as the Phase-6 science-discovery layer.
+
 | Surface | Purpose | Key interactions |
 |---|---|---|
 | **Circuit visualizer** | Platform-agnostic rendering of any Kubona-compiled circuit (post-QIR-lowering, so it's SDK-independent by construction) | Bidirectional code↔diagram sync, transpiled-vs-original comparison, Q-sphere/statevector/histogram views backed by local simulation |

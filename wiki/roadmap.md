@@ -13,7 +13,8 @@ trace to §§7–8 of [[source-gap-analysis-plan]], with the §11.5 (autoresearc
 §12.7 (x402) roadmap revisions folded in. **Task ordering, dependency chains, gate
 structure, and tracking mechanics below are maintainer synthesis** derived from those
 sections. Total ~30 weeks to Phase 4 release-readiness; Phase 5+ is continuous scale +
-business-model work.
+business-model work, and **Phase 6 (Weeks 37+) adds the Science Discovery & Collaboration
+layer** (maintainer synthesis).
 
 ## How to use this page
 
@@ -49,7 +50,7 @@ business-model work.
 | **P3 gate** | Week 22 | Third-party gateway security review passes; canary CI caught a real regression in staging |
 | **P4 gate** | Week 30 | Public repo + documented plugin API; third-party provider integration merged; Search Mode beats a hand-designed baseline (in simulation) |
 | **P5 gate** | 31+ | Multi-tenant scale + monetization rail live (business-model exploration, §12.7) |
-| **P6 gate** *(synthesis)* | 37+ | A lab runs the full discovery loop — literature ground → experiment → structured report → archived library entry — with user- and agent-created workflows |
+| **P6 gate** *(synthesis)* | 37+ | A lab runs the full discovery loop — literature ground → experiment → structured report → archived library entry — using user- and agent-created workflows, every claim tracing to a ledger record or citation |
 
 ## Phase 0 — Foundations (Weeks 1–4) → gate P0
 
