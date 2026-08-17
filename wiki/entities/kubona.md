@@ -9,8 +9,7 @@ status: concept-stage
 
 # Kubona
 
-**Kubona** — from Tonga (Zambia), *"to see"* — is the name of the platform (formerly
-**QAgent**, retained only as the historical working name). To see is the founding act of
+**Kubona** — from Tonga (Zambia), *"to see"* — is the name of the platform. To see is the founding act of
 science: observe, measure, record, understand. The platform surfaces quantum phenomena,
 runs experiments, and shows their results systematically — so the name carries the mission
 (see [[overview]]).

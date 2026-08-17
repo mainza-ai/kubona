@@ -1,7 +1,7 @@
 # Kubona Wiki — Maintainer Instructions (Schema)
 
-> **Project name:** Kubona (Tonga (Zambia) — *to see*), formerly **QAgent** (historical
-> working name only). The repo/folder path `qagent/` is retained for stability.
+> **Project name:** Kubona (Tonga (Zambia) — *to see*). The repo/folder path `qagent/` is
+> retained for stability.
 
 This folder implements the "LLM Wiki" pattern. You are the permanent maintainer of
 everything under `wiki/`. Read this file at the start of every session.

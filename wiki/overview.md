@@ -14,9 +14,8 @@ status: living
 
 ## What Kubona is
 
-Kubona — Tonga (Zambia), *"to see"*; formerly **QAgent** (historical working name) — is the
-name for an **open-source, MCP-native quantum-computing platform
-for autonomous AI agents** — a toolset that lets an LLM agent author, optimize, and
+Kubona — Tonga (Zambia), *"to see"* — is the name for an **open-source, MCP-native
+quantum-computing platform for autonomous AI agents** — a toolset that lets an LLM agent author, optimize, and
 execute quantum algorithms across a federation of hardware providers
 (IBM, IonQ, Quantinuum, Rigetti, D-Wave, Azure, Google, QuEra/Pasqal, Xanadu, and more)
 behind a single agent interface (source-gap-analysis-plan). The core ambition: turn

@@ -1,6 +1,6 @@
 # Kubona
 
-**Kubona** — Tonga (Zambia), *"to see"* — formerly **QAgent** — is an open-source,
+**Kubona** — Tonga (Zambia), *"to see"* — is an open-source,
 MCP-native quantum-computing platform for autonomous AI agents, expanding into an
 **AI-enhanced science discovery platform**: multi-user labs, user- and agent-created
 workflows and agents, and autonomous experiments with organized, reproducible results.
