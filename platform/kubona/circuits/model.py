@@ -1,8 +1,8 @@
 """Minimal, SDK-independent circuit IR.
 
-Phase 0 scope: a small gate model + canonical serialization. QIR/MLIR lowering
-(Rust core) is Phase 1 per the roadmap; this IR is the stub the compiler server
-transpiles against today.
+A small, SDK-independent gate model + canonical serialization. This is the input
+IR the compiler server transpiles (and lowers to QIR via the Rust `qir-core`
+core); the canonical hash is the ledger's content address for circuits.
 """
 
 from __future__ import annotations

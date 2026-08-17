@@ -1,8 +1,9 @@
-"""Compiler MCP server (Phase 0 stub).
+"""Compiler MCP server.
 
-Tool: transpile_circuit — validates QASM 2, builds the SDK-independent IR, and
-returns the canonical (content-addressed) form. Real QIR/MLIR lowering is Phase 1
-(Rust core); this stub fixes the tool schema and the pre-transpile validation.
+Tools: transpile_circuit (validates QASM 2, builds the SDK-independent IR, returns
+the canonical content-addressed form) and lower_circuit — which lowers to QIR via
+the Rust `qir-core` core (falling back to the Python reference when the binary
+isn't built).
 """
 
 from __future__ import annotations
