@@ -118,3 +118,13 @@ credential-free WavefunctionSimulator local path + QPU seam, recorded-fixture te
 Pulser/StrawberryFields stay honestly fail-closed (gate->AHS/CV is modality-different,
 not a generic conversion). Capability schema backend targets set for all providers.
 test_g6_connecters.py (4 tests). 141 py + 3 Rust green.
+
+## [2026-08-17] impl-hardening | Reproducible local CI + canary regression/skip semantics
+
+platform/scripts/ci.sh mirrors ci.yml and runs the ENTIRE pipeline green locally
+(compile, Rust qir-core build+--lib, 141 pytest wired to KUBONA_QIR_CORE, canary,
+correctness release-gate, doctor + fail-closed config). Canary run_all corrected:
+now gates only gate-model providers with an executable plugin and reports
+credential/SDK fail-closed as SKIP (not FAIL), so config gaps never masquerade as
+provider regressions. Canary CLI reflects PASS/SKIP. Still pending: a first hosted
+GitHub-Actions run + the DVD-external gates (real SDKs/credentials, GPU, payment, review).
