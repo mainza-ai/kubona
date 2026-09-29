@@ -389,3 +389,62 @@ broken page (all fired, exit 1; clean again after removal). `type: source` pages
 the invariant that actually matters: **no `path:line` anchor may resolve into scratch space**.
 `implementation-gaps` gained a *Blueprint integrity* section; `[[implementation-gaps]]` itself
 reclassified `adopted → tracked` (a gap register is not a decided approach).
+
+## [2026-09-27] decision | Q-25 closed — privacy is a design posture, not repository drift
+
+The operator settled the posture contradiction raised during the reframe. The rule on [[kubona]]
+("public repo from Phase 0") and the observed state (`isPrivate: true` weeks after that gate
+passed) were both recorded and flagged as a conflict; the intent behind the gap is now stated:
+**the repository stays private while the blueprint is being designed, because a public repo
+without a settled direction attracts contributions the project cannot direct anyone into.**
+
+Two consequences for the blueprint, not just the repo setting:
+
+1. **The flip condition changed shape.** It is no longer "gate passed" or a date but a property
+   of the wiki itself — the blueprint must become *contributor-legible*: Q-01 answered (what
+   `platform/` is for) and enough of the method layer resolved to say what to build first. That
+   makes publication a **symptom of blueprint completeness**, so it moves as Q-01/Q-02/Q-04–Q-06
+   move. Census at the time of the ruling: 1 `settled` against 24 `adopted`.
+2. **Privacy is now load-bearing, so it needs no apology in the record.** The Apache-2.0
+   commitment is unaffected; only its timing tracks the condition above.
+
+Residual mechanical work (`dev-docs/` + `.obsidian/` sitting in pushed history) was split out as
+**Q-27**, because it is an option-set — publish as-is / `filter-repo` / fresh public history —
+and not part of the posture decision. Answer recorded on [[kubona]] §Posture; also updated:
+[[overview]] §Repo posture, [[roadmap]] prototype-state block, `AGENTS.md`.
+
+## [2026-09-27] verification | the release gate failed for a month because its rule existed twice
+
+`ci.yml`'s push pipeline had **never** been green (17 recorded runs, 17 failures — re-counted
+with `gh run list`; the "26" figure circulating in this session's notes counted jobs, not runs),
+while `platform/scripts/ci.sh` reproduced the same pipeline locally and passed.
+
+> ⚑ Correction: the cause recorded earlier on [[implementation-gaps]] and in [[roadmap]] — that
+> `run_all()` returns `ok=False, skipped=None`, i.e. that skip classification was missing from
+> `run_all()` — is **wrong**. Reproducing the hosted step verbatim locally showed `run_all()`
+> already returns `skip=True` for every fail-closed provider. The real defect is duplication:
+> `ci.sh` filtered skips before asserting, `ci.yml:68` asserted `all(r['ok'] …)` over all 8
+> plugin-bearing providers, so the 5 legitimate skips (no credentials, no local `qvm`, optional
+> SDK absent, annealing/AHS/CV program model) failed a build whose own log line read
+> `canary summary: 3/3 passed`. One gate, two incompatible definitions of "pass".
+
+Fixed by deleting the duplication instead of patching a copy: `release_gate()` in
+`kubona/canary/canary.py` is now the single verdict, reached through `python -m kubona.canary
+--gate`, and **both** the hosted job and `ci.sh` call it. Two properties were chosen deliberately:
+an all-skip run is a **failure** (a gate that executed nothing has proven nothing — otherwise
+deleting the last executable plugin would silence the gate), and non-gate modalities are probed
+and reported as skips rather than filtered out of the selection, so coverage stays legible in the
+log. 5 tests added, including the negative case: an injected calibration-drift regression still
+exits 1, which is what proves this was a correctness fix and not a silencing. `nightly-canary.yml`
+had been green the whole time — the mechanism was never in doubt, only the arithmetic around it.
+
+**Blast radius check before claiming the fix:** `gh run view --json jobs` showed exactly one red
+job (`Canary + correctness release-gate`); Rust, Python and Flutter jobs already passed. Local
+`scripts/ci.sh` after the change: 159 pytest + 3 Rust passed, `release gate: OK (3 executable
+providers; 5 skipped)`, `== ALL CI GATES GREEN ==`.
+
+**Unblocked by the fix:** `scripts/wiki-lint.py --strict` is now a CI step (*Wiki structural
+lint* in the `python-tests` job). It was withheld until now on the reasoning above — a step in a
+pipeline that fails 17/17 adds no signal. Verified CI-safe by inspecting the check: it globs
+`wiki/**` text only (no `dev-docs/`, no toolchain), and `PyYAML` arrives via the package's own
+dependencies, not the `dev` extra.
