@@ -1,7 +1,7 @@
 ---
 type: roadmap
 date: 2026-08-16
-updated: 2026-09-27
+updated: 2026-09-29
 tags: [kubona, plan]
 sources: [source-gap-analysis-plan]
 status: living
@@ -28,7 +28,13 @@ status: living
 > here was wrong: `run_all()` classified skips correctly — the gate's *rule* was written twice,
 > once filtering skips (`ci.sh`) and once not (`ci.yml:68`), so legitimate fail-closed providers
 > failed the build. The rule now lives in one function, `release_gate()`, run by both paths as
-> `python -m kubona.canary --gate`. ([[implementation-gaps]])
+> `python -m kubona.canary --gate`. **Verified green on the hosted runner** (first green in the
+> pipeline's history): the gate step reports `release gate: OK (3 executable providers; 5 skipped)`
+> — it really executed providers rather than passing on nothing. CI counts differ from local:
+> **156 passed + 3 skipped on the runner, 159 passed locally**, so "N tests green" must always
+> name the environment. CI had also been watching only `main`, which this repo advances by
+> fast-forwarding develop onto it, so no commit was ever gated as it landed; `develop` and
+> `workflow_dispatch` are triggers now. ([[implementation-gaps]])
 > Credential-free execution: local-simulator, qiskit-aer, dwave-annealing (QUBO);
 > IBM/Quantinuum/Rigetti have real SDK paths validated against the real SDKs but need creds;
 > Pulser/StrawberryFields are modality-gated and fail closed.

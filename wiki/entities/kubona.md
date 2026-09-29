@@ -2,7 +2,7 @@
 type: entity
 name: Kubona
 date: 2026-08-16
-updated: 2026-09-27
+updated: 2026-09-29
 tags: [kubona, platform]
 sources: [source-gap-analysis-plan]
 status: open-question

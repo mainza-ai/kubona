@@ -13,7 +13,7 @@ design — `platform/` is a prototype scaffold written before most insights exis
 passing test there answers "is this mechanism feasible", never "is this the right design".
 The work-list is `wiki/questions.md`, not a task tracker.
 
-**Repo status (2026-09-27):** the repo lives at github.com/mainza-ai/kubona and is **private by
+**Repo status (2026-09-29):** the repo lives at github.com/mainza-ai/kubona and is **private by
 decision**: while the blueprint is still being designed, going public would invite contributions
 the project has no settled direction to direct them into. Publication is gated on the blueprint
 becoming **contributor-legible** — Q-01 answered (what `platform/` is for) plus enough of the
@@ -119,10 +119,11 @@ the mechanical precondition (`dev-docs/` + `.obsidian/` residue in pushed histor
   missing `raw:`/`origin:`, and `path:line` anchors that resolve into `dev-docs/` scratch
   instead of a live URL. Clean (exit 0) as of 2026-09-27; checks were negative-tested against
   a deliberately broken page. **Wired into CI on 2026-09-27** as a *Wiki structural lint* step in
-  `ci.yml`'s `python-tests` job — added only after the release-gate bug was fixed, because a step
-  in a pipeline that already failed 17/17 adds no signal.
+  `ci.yml`'s `python-tests` job, green in CI since 2026-09-29 (run 36508507064) — added only after
+  the release-gate bug was fixed, because a step in a pipeline that already failed 17/17 adds no
+  signal. It is text-only over `wiki/**`, so it needs neither `dev-docs/` nor the toolchain.
 
-## Current state (2026-09-27)
+## Current state (2026-09-29)
 
 **Purpose:** the wiki is Kubona's **blueprint** — insight gathered so the platform can be
 shaped before it is implemented. Implementation is deliberately *not* the current activity;
@@ -157,6 +158,9 @@ between publishing as-is, rewriting with `filter-repo`, or starting a clean publ
 (`chickensoup`, `milimoquantum`, `Milimo-QDD`) are **insight material, not supply** — unfinished
 personal WIP mined for method; there is no licence task, only a release-time check if a derived
 artefact ever ships inside the Apache-2.0 core. Prototype note: the hosted `ci.yml` push pipeline had **never**
-passed (all 17 recorded runs failed) while `scripts/ci.sh` was green locally — fixed 2026-09-27
-by collapsing the duplicated gate rule into one function (`release_gate()`), which is also what
-unblocked running the wiki lint there. See [[implementation-gaps]].
+passed (all 17 recorded runs failed) while `scripts/ci.sh` was green locally — fixed 2026-09-29,
+first green in the pipeline's history, by collapsing the duplicated gate rule into one function
+(`release_gate()`) that both CI paths call; that fix is also what unblocked the wiki lint there.
+The same investigation found CI triggering only on `main`, which this repo advances by
+fast-forwarding develop onto it — so no commit was ever gated as it landed, and `develop` +
+`workflow_dispatch` were added as triggers. See [[implementation-gaps]].
