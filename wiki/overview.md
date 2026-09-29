@@ -1,7 +1,7 @@
 ---
 type: overview
 date: 2026-08-16
-updated: 2026-09-27
+updated: 2026-09-29
 tags: [kubona, synthesis]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-cloudflare-economy,
   source-frontier-repo-audit-2026]
@@ -186,13 +186,15 @@ still mostly "understood", not "chosen".
 
 These need a human, a wallet, or the outside world — which is why the roadmap's remaining
 work is not "finishing the code": a **real QPU run** (P1/P2 gates say *real QPU*); a
-**third-party security review** (P3); a **public repo plus a merged outside PR** (P4);
+**third-party security review** (P3); a **public repo plus a merged outside PR** (P4 — which the Q-25 ruling now also defers, since it
+cannot be satisfied while the repository is private by decision);
 **business sign-off** on monetization (P5); and the **human surface**, whose spec is 8
 surfaces and whose build is 4 tabs (P6, [[questions]] Q-22). Also outstanding: volume eval
-corpora, a real payment rail, GQE retraining on a GPU host, and a `ci.yml` push pipeline
-that has **never passed** (all 17 recorded runs fail, HEAD included) while `scripts/ci.sh`
-runs green locally — so the release gate the roadmap treats as load-bearing is decorative
-on the machine that ships code
+corpora, a real payment rail, GQE retraining on a GPU host, and a `ci.yml` push pipeline that
+had **never passed** (17 recorded runs, every one a failure) while `scripts/ci.sh` ran green
+locally — the release gate the roadmap treats as load-bearing was decorative on the machine that
+ships code. It went green for the first time on 2026-09-29: the gate's pass/fail rule existed in
+two files and had silently diverged, and one function (`release_gate()`) now decides
 ([[implementation-gaps]]). **M0 closures landed:** single non-`/tmp` state root,
 fail-closed production auth, `kubona serve`/`doctor` entrypoints, x402 fail-closed unless
 a real verifier is injected. Full register: [[implementation-gaps]].
