@@ -99,6 +99,10 @@ Ordered execution (dependencies within the phase):
    *(Status 2026-08-16: repo created privately at github.com/mainza-ai/kubona; kept private
    until a working core exists — per maintainer decision. Flips public at the Phase-0 gate:
    simulator job end-to-end via MCP with a provenance record.)*
+   > ⚑ Correction (2026-09-29): that flip condition is superseded. The Phase-0 gate passed and the
+   > repo did **not** go public — [[questions]] Q-25 ruled the timing turns on the blueprint
+   > becoming contributor-legible, not on a gate passing. The Apache-2.0 decision stands; only the
+   > trigger moved. See [[kubona]] §Posture.
 2. **Federated MCP server skeleton** — compiler / execution / cost-governance /
    eval-provenance, stub tool schemas ([[mcp-and-context-flooding]]).
 3. **OAuth 2.1 on the gateway**; transport layer designed **swappable from day one**
