@@ -30,7 +30,7 @@ jobs:
       - name: Full python suite (Rust core wired; KUBONA_QIR_CORE)
         env:
           KUBONA_QIR_CORE: ${{ github.workspace }}/platform/crates/qir-core/target/release/qir-core
-        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q
+        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q -rs
       - name: doctor (state-root + fail-closed config check)
         run: |
           KUBONA_STATE_DIR="$(mktemp -d)" python -m kubona.run doctor
