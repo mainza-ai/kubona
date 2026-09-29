@@ -448,3 +448,47 @@ lint* in the `python-tests` job). It was withheld until now on the reasoning abo
 pipeline that fails 17/17 adds no signal. Verified CI-safe by inspecting the check: it globs
 `wiki/**` text only (no `dev-docs/`, no toolchain), and `PyYAML` arrives via the package's own
 dependencies, not the `dev` extra.
+
+## [2026-09-29] verification | the gate went green on the runner, and two claims in this session were wrong
+
+`ci.yml` run **36508507064** (push on `main`) and **36508321976** (push on `develop`) both
+completed **success** — the first green the push pipeline has ever recorded, after 17 failures.
+Verified at step level rather than by the badge, because a green job whose interesting step was
+skipped is the exact failure this incident is about:
+
+* *Correctness-regression harness (release gate)* → 3 `[PASS]` (`ibm-qiskit`, `local-simulator`,
+  `qiskit-aer-simulator`), 5 `[SKIP]` each with its reason, then `release gate: OK (3 executable
+  providers; 5 skipped)`. The gate executed real providers on the runner; it did not pass by
+  measuring nothing.
+* *Wiki structural lint (blueprint invariants)* → `wiki lint · 82 pages … ✅ clean`, in CI's
+  pristine checkout — confirming the check never depended on gitignored `dev-docs/`.
+* Two claims corrected on [[implementation-gaps]] and [[roadmap]] while writing this entry:
+  1. **The runner is not local.** CI reports **156 passed + 3 skipped**; my local figure of 159
+     passed was written onto three pages as though it were the pipeline's number. Environment-free
+     test counts are the kind of number that quietly becomes a promise, so the pages now name the
+     environment wherever the count appears.
+  2. **CI was not watching the branch where work happens.** `on.push.branches` was `[main]`, and
+     this repo advances `main` by fast-forwarding develop onto it. All 17 failures were pushes on
+     `main`; `develop` had *zero* runs. So the pipeline did not fail 17 times — it detected one
+     class of breakage 17 times, late, because commits were never gated as they landed. A gate
+     that observes only a branch someone advances by hand is a delay, not a check. `develop` and
+     `workflow_dispatch` are triggers now.
+* **History corroborates the root cause.** `17dc27f` ("Canary regression/skip classification fix +
+  CI robustness") patched the `ci.sh` copy of the rule and left `ci.yml` alone — and failed at
+  *this identical step*. That is the duplication thesis confirmed by the record rather than by my
+  reading of it, and it is why the fix moved the rule into the package instead of editing either
+  copy.
+* **One consequence for the roadmap:** P4's acceptance criterion is "public repo + a merged
+  outside PR". The Q-25 ruling (private by decision, until the blueprint is contributor-legible)
+  does not contradict P4 but *defers* it — P4 cannot be met while private. Recorded on
+  [[overview]] so the dependency is visible instead of latent.
+
+> ⚑ Provenance note on dates. This session opened under a stale date banner reading
+> **2026-09-27**, and work written under it — including two entries above this one, and the
+> "ruled/closed/fixed 2026-09-27" phrasing on [[kubona]], [[roadmap]] and
+> [[implementation-gaps]] — carries that date. The operator's own clock now reports
+> `2026-09-29T01:46Z` and GitHub's Actions timestamps agree (`2026-09-29T01:33Z`), so the true
+> date of this work is **2026-09-29**. Earlier `2026-09-27` entries elsewhere in this file are
+> left as they are: some were genuinely written that day and the record cannot distinguish them
+> retrospectively, so re-dating all of them would invent precision. Anything load-bearing should
+> cite the Actions **run IDs and UTC timestamps**, which are clock-independent.
