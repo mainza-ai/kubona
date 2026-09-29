@@ -18,15 +18,17 @@ status: living
 > QPU, a third-party reviewer, a public repo, or a human surface — see
 > [[questions]] §"Surface, ecosystem, operations".
 >
-> **Prototype state** (evidence, not decisions): `platform/` — 154 Python + 3 Rust +
+> **Prototype state** (evidence, not decisions): `platform/` — 159 Python + 3 Rust +
 > 1 Flutter widget test green locally as of 2026-09-27. Repo `github.com/mainza-ai/kubona`,
-> still private (pending decision, [[questions]] Q-25). **M0 hardened:** single non-`/tmp`
+> **private by decision** until the blueprint is legible enough to direct contributors
+> ([[questions]] Q-25, closed; residual history work in Q-27). **M0 hardened:** single non-`/tmp`
 > state root, production fail-closed auth, `kubona serve`/`doctor` entrypoints, CI scaffold,
-> x402 fail-closed. Known regression: the hosted `ci.yml` push pipeline has **never been
-> green — all 17 recorded runs fail**, HEAD included, while `scripts/ci.sh` passes locally.
-> Cause: the canary's skip semantics live in the test/`ci.sh` layer, so `run_all()` reports
-> non-executable providers (`ok=False, skipped=None`) as failures and `ci.yml:68` asserts
-> `all(r['ok'] …)`. `nightly-canary.yml` passes daily. ([[implementation-gaps]])
+> x402 fail-closed. The hosted `ci.yml` push pipeline had **never been green (all 17 recorded
+> runs failed)** while `scripts/ci.sh` passed locally; fixed 2026-09-27. The earlier diagnosis
+> here was wrong: `run_all()` classified skips correctly — the gate's *rule* was written twice,
+> once filtering skips (`ci.sh`) and once not (`ci.yml:68`), so legitimate fail-closed providers
+> failed the build. The rule now lives in one function, `release_gate()`, run by both paths as
+> `python -m kubona.canary --gate`. ([[implementation-gaps]])
 > Credential-free execution: local-simulator, qiskit-aer, dwave-annealing (QUBO);
 > IBM/Quantinuum/Rigetti have real SDK paths validated against the real SDKs but need creds;
 > Pulser/StrawberryFields are modality-gated and fail closed.

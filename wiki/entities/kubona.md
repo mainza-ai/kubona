@@ -25,12 +25,20 @@ reproducible results (see [[science-discovery]]) — unifying [[qiskit]], [[penn
 ## Posture
 
 - Greenfield build, licensed **Apache-2.0**.
+- **Private by decision, not by accident** (ruled 2026-09-27). While the blueprint is being
+  designed, opening the repository invites contributions before the project has anything to
+  direct them into — so privacy is *load-bearing design protection*, not an unmet gate. The
+  flip is gated on the blueprint becoming **contributor-legible** (a stated role for `platform/`
+  per [[questions]] Q-01, and a method layer that says what to build first), not on a date.
 
-> ⚑ Conflict (open): this page said "public repo from Phase 0". The Phase-0 gate passed
-> weeks ago and the repo is still **private** (verified `private = true`, 2026-09-27). Both
-> statements are kept because the second is newer than the rule; the contradiction is
-> tracked as [[questions]] Q-25, not resolved silently. Until a date is set, read the
-> Apache-2.0 commitment as decided and the *timing* of publication as undecided.
+> ⚑ Correction: this page previously carried "public repo from Phase 0" as a live rule with an
+> ⚑ *Conflict* block, because the Phase-0 gate passed weeks ago and the repository stayed
+> private — which read as drift. The operator has since stated the intent, and it was never
+> "public when tests pass": the trigger is **direction legible enough to onboard strangers**,
+> which the blueprint does not yet have (1 `settled` page against 24 `adopted`). The Apache-2.0
+> commitment stands; its timing follows the condition above. Residual hygiene work before any
+> flip (pushed `dev-docs/` + `.obsidian/` history) is tracked as [[questions]] Q-27; see
+> [[implementation-gaps]] and [[risks]].
 
 - Closed platforms ([[qbraid]], [[strangeworks]]) are design references and *optional,
   swappable* interop connectors — **never** load-bearing dependencies.

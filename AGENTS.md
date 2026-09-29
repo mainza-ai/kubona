@@ -13,12 +13,13 @@ design — `platform/` is a prototype scaffold written before most insights exis
 passing test there answers "is this mechanism feasible", never "is this the right design".
 The work-list is `wiki/questions.md`, not a task tracker.
 
-**Repo status (2026-09-27):** initial repo lives at github.com/mainza-ai/kubona and stays
-**private**. Its original trigger — "public once the Phase-0 gate passes" — was met weeks
-ago and the flip has *not* happened, so going public is now an explicit open decision, not
-a pending event: see `[[questions]]` Q-25 (prerequisites: the `dev-docs/` + `.obsidian/`
-residue in pushed history, and a live GitHub OAuth token in `~/.git-credentials` on the
-operator machine).
+**Repo status (2026-09-27):** the repo lives at github.com/mainza-ai/kubona and is **private by
+decision**: while the blueprint is still being designed, going public would invite contributions
+the project has no settled direction to direct them into. Publication is gated on the blueprint
+becoming **contributor-legible** — Q-01 answered (what `platform/` is for) plus enough of the
+method layer to say what to build first — *not* on the Phase-0 gate, which passed weeks ago, and
+not on a date. The old "public once Phase 0 passes" trigger is superseded: Q-25 is closed, and
+the mechanical precondition (`dev-docs/` + `.obsidian/` residue in pushed history) is Q-27.
 
 ## Three layers
 
@@ -117,9 +118,9 @@ operator machine).
   dangling wikilinks, pages absent from `index.md`/`questions.md`, `type: source` pages
   missing `raw:`/`origin:`, and `path:line` anchors that resolve into `dev-docs/` scratch
   instead of a live URL. Clean (exit 0) as of 2026-09-27; checks were negative-tested against
-  a deliberately broken page. **Not yet wired into CI** — see [[implementation-gaps]]: it goes
-  into `ci.yml` once that pipeline's skip-classification bug is fixed, since adding a step to a
-  pipeline that already fails 17/17 produces no signal.
+  a deliberately broken page. **Wired into CI on 2026-09-27** as a *Wiki structural lint* step in
+  `ci.yml`'s `python-tests` job — added only after the release-gate bug was fixed, because a step
+  in a pipeline that already failed 17/17 adds no signal.
 
 ## Current state (2026-09-27)
 
@@ -150,10 +151,12 @@ question may be answered.
 **Hygiene (tracked in [[risks]]):** the `ghp_…` PAT in a scratch clone is verified dead (401),
 but `credential.helper=store` leaves a **live** `gho_…` token in plaintext in
 `~/.git-credentials` (revoke the stale grant, drop the `store` helper). `dev-docs/` and
-`.obsidian/` sit in *pushed history* although untracked today (no secrets found; decide before
-going public). Citation provenance (URL + SHA + line) must stay honest. The audited own-repos
+`.obsidian/` sit in *pushed history* although untracked today (no secrets found); the choice
+between publishing as-is, rewriting with `filter-repo`, or starting a clean public history is
+[[questions]] Q-27. Citation provenance (URL + SHA + line) must stay honest. The audited own-repos
 (`chickensoup`, `milimoquantum`, `Milimo-QDD`) are **insight material, not supply** — unfinished
 personal WIP mined for method; there is no licence task, only a release-time check if a derived
-artefact ever ships inside the Apache-2.0 core. Prototype defect worth noting: the hosted
-`ci.yml` push pipeline has never passed (all 17 recorded runs fail) while `scripts/ci.sh` is
-green locally — see [[implementation-gaps]].
+artefact ever ships inside the Apache-2.0 core. Prototype note: the hosted `ci.yml` push pipeline had **never**
+passed (all 17 recorded runs failed) while `scripts/ci.sh` was green locally — fixed 2026-09-27
+by collapsing the duplicated gate rule into one function (`release_gate()`), which is also what
+unblocked running the wiki lint there. See [[implementation-gaps]].
