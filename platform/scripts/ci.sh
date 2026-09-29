@@ -23,7 +23,10 @@ popd >/dev/null
 export KUBONA_QIR_CORE="$(pwd)/crates/qir-core/target/release/qir-core"
 
 echo "== 2. full Python suite (Rust core wired) =="
-$PY -m pytest -q
+# -rs: report skip reasons. A count of "N passed, M skipped" without the reasons is
+# how a suite stops covering things unnoticed -- the same legibility rule release_gate()
+# applies to providers applies here to tests.
+$PY -m pytest -q -rs
 
 echo "== 3. hardware canary (GA providers) =="
 $PY -m kubona.canary
