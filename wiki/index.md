@@ -34,7 +34,7 @@ arrives, place it here first and it will find its page.
 
 | Page | Summary |
 |---|---|
-| [[questions]] | **The work-list.** 26 ranked open questions — what is known, what is missing, what the answer unblocks. Read first. |
+| [[questions]] | **The work-list.** 25 open questions (Q-01–Q-27, Q-25 closed) — what is known, what is missing, what the answer unblocks. Read first. |
 | [[overview]] | Synthesis: what Kubona is, what is decided, and what the prototype has actually answered. |
 | [[roadmap]] | Phases 0–6 read as **acceptance criteria**, not progress: gates, dependencies, team loading. |
 | [[implementation-gaps]] | Prototype gap register: what the scaffold does vs. what production requires. Code facts only. |

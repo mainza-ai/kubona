@@ -197,8 +197,11 @@ on the machine that ships code
 fail-closed production auth, `kubona serve`/`doctor` entrypoints, x402 fail-closed unless
 a real verifier is injected. Full register: [[implementation-gaps]].
 
-**Repo posture.** `github.com/mainza-ai/kubona`, **private**, Apache-2.0 planned at the
-Phase-0 gate. That gate passed weeks ago and the flip has not happened — an open decision,
-not an oversight, with two prerequisites: the `dev-docs/` + `.obsidian/` residue in pushed
-history, and a live GitHub token in `~/.git-credentials` on the operator machine
-([[questions]] Q-25, [[risks]]).
+**Repo posture.** `github.com/mainza-ai/kubona`, **private by decision**: the operator keeps it
+closed while the blueprint is still being designed, because a public repo without a settled
+direction attracts contributions the project cannot direct. The flip is therefore gated on the
+blueprint becoming *contributor-legible* — Q-01 answered (what `platform/` is for) plus enough
+of the method layer to say what to build first — not on a date and not on Phase 0, which passed
+weeks ago. Apache-2.0 at publication remains committed; the residue in pushed history
+(`dev-docs/`, `.obsidian/`) is the last mechanical prerequisite ([[questions]] Q-27,
+[[risks]]).
