@@ -2,8 +2,14 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # `develop` belongs here: the gate previously observed only `main`, which this repo
+    # advances by fast-forwarding develop onto it. Net effect was that no commit was ever
+    # gated *as it landed* -- a broken gate stayed green-looking for as long as nobody
+    # advanced main. `workflow_dispatch` exists so a suspect gate can be re-run against the
+    # current HEAD without inventing a push to force it.
+    branches: [main, develop]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   python-tests:
