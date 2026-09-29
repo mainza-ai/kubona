@@ -2,9 +2,10 @@
 type: concept
 name: Provenance & Reproducibility
 date: 2026-08-16
+updated: 2026-09-27
 tags: [provenance, reproducibility, ledger]
 sources: [source-gap-analysis-plan]
-status: living
+status: adopted
 ---
 
 # Provenance & Reproducibility

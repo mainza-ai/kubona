@@ -2,9 +2,10 @@
 type: concept
 name: Science Discovery Platform
 date: 2026-08-16
+updated: 2026-09-27
 tags: [kubona, science, discovery, experiments]
 sources: [source-gap-analysis-plan, source-architecture-paper]
-status: living
+status: adopted
 ---
 
 # Kubona as an AI-Enhanced Science Discovery Platform

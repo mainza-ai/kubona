@@ -2,6 +2,7 @@
 type: entity
 name: Strangeworks
 date: 2026-08-16
+updated: 2026-09-27
 tags: [platform, competitor, commercial]
 sources: [source-gap-analysis-plan]
 status: tracked

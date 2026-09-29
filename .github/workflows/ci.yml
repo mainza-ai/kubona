@@ -30,6 +30,9 @@ jobs:
           KUBONA_STATE_DIR="$(mktemp -d)" python -m kubona.run doctor
           KUBONA_ENV=production KUBONA_STATE_DIR="$(mktemp -d)" \
             python -c 'import kubona.config as c; assert c.console_token() is None; assert c.is_production()'
+      - name: Wiki structural lint (blueprint invariants)
+        working-directory: .
+        run: python scripts/wiki-lint.py --strict
 
   rust-tests:
     name: Rust qir-core tests
@@ -59,15 +62,7 @@ jobs:
         run: KUBONA_STATE_DIR="$(mktemp -d)" python -m kubona.canary
       - name: Correctness-regression harness (release gate)
         run: |
-          KUBONA_STATE_DIR="$(mktemp -d)" python - <<'PY'
-          from kubona.canary.canary import run_all
-          from kubona.provenance import Ledger
-          from kubona import config
-          results = run_all(ledger=Ledger(path=config.ledger_path()),
-                            providers=[n for n, c in __import__('kubona.schema', fromlist=['load_all_providers']).load_all_providers().items() if c.execution_plugin])
-          assert all(r['ok'] for r in results), results
-          print("release gate: OK")
-          PY
+          KUBONA_STATE_DIR="$(mktemp -d)" python -m kubona.canary --gate
 
   flutter-console:
     name: Flutter web console (build + widget test)

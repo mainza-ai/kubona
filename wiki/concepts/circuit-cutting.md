@@ -2,9 +2,10 @@
 type: concept
 name: Circuit Cutting
 date: 2026-08-16
+updated: 2026-09-27
 tags: [circuit-cutting, distributed, scaling]
 sources: [source-architecture-paper, source-gap-analysis-plan]
-status: living
+status: adopted
 ---
 
 # Circuit Cutting (Circuit Knitting)

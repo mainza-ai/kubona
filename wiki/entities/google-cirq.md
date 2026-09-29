@@ -2,6 +2,7 @@
 type: entity
 name: Google Cirq
 date: 2026-08-16
+updated: 2026-09-27
 tags: [sdk, google, framework]
 sources: [source-architecture-paper]
 status: tracked

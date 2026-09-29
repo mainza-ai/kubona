@@ -2,9 +2,10 @@
 type: concept
 name: The Agent Resource Economy
 date: 2026-08-16
+updated: 2026-09-27
 tags: [economy, agents, monetization]
 sources: [source-cloudflare-economy, source-gap-analysis-plan]
-status: living
+status: adopted
 ---
 
 # The Agent Resource Economy

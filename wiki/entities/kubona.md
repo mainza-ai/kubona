@@ -2,9 +2,10 @@
 type: entity
 name: Kubona
 date: 2026-08-16
+updated: 2026-09-27
 tags: [kubona, platform]
 sources: [source-gap-analysis-plan]
-status: concept-stage
+status: open-question
 ---
 
 # Kubona
@@ -23,12 +24,22 @@ reproducible results (see [[science-discovery]]) — unifying [[qiskit]], [[penn
 
 ## Posture
 
-- Greenfield build, licensed **Apache-2.0**, public repo from Phase 0.
+- Greenfield build, licensed **Apache-2.0**.
+
+> ⚑ Conflict (open): this page said "public repo from Phase 0". The Phase-0 gate passed
+> weeks ago and the repo is still **private** (verified `private = true`, 2026-09-27). Both
+> statements are kept because the second is newer than the rule; the contradiction is
+> tracked as [[questions]] Q-25, not resolved silently. Until a date is set, read the
+> Apache-2.0 commitment as decided and the *timing* of publication as undecided.
+
 - Closed platforms ([[qbraid]], [[strangeworks]]) are design references and *optional,
   swappable* interop connectors — **never** load-bearing dependencies.
 - Defensible product = the **agentic control/governance layer** (cost governance,
   provenance, per-call auth, routing) nobody else has shipped; the hardware-abstraction
   foundation underneath it must be genuinely open source.
+- **`status: open-question` is deliberate for this page.** The platform's own definition is
+  the least-settled page in the wiki: scope, the discovery-layer commitment, and the
+  autonomy model are all still being shaped. See [[questions]] Q-17, Q-10, Q-01.
 
 ## Architecture at a glance
 

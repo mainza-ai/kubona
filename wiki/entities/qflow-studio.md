@@ -2,6 +2,7 @@
 type: entity
 name: QFlow Studio
 date: 2026-08-16
+updated: 2026-09-27
 tags: [tool, ui, prior-art]
 sources: [source-gap-analysis-plan]
 status: tracked

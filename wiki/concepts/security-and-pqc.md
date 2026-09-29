@@ -2,9 +2,10 @@
 type: concept
 name: Security & PQC
 date: 2026-08-16
+updated: 2026-09-27
 tags: [security, pqc, oauth, mcp]
 sources: [source-gap-analysis-plan, source-architecture-paper]
-status: living
+status: adopted
 ---
 
 # Security Model & Post-Quantum Transport

@@ -2,6 +2,7 @@
 type: entity
 name: arXiv 2604.08318 (Shiraishi et al., 2026)
 date: 2026-08-16
+updated: 2026-09-27
 tags: [prior-art, research, mcp]
 sources: [source-gap-analysis-plan]
 status: tracked

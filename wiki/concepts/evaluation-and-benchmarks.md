@@ -2,9 +2,10 @@
 type: concept
 name: Evaluation & Benchmarks
 date: 2026-08-16
+updated: 2026-09-27
 tags: [evals, testing, benchmarks]
 sources: [source-architecture-paper, source-gap-analysis-plan]
-status: living
+status: adopted
 ---
 
 # Evaluation Framework & Benchmarks

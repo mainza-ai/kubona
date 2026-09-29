@@ -2,9 +2,10 @@
 type: entity
 name: Mainza / Milimo Foundation (existing codebase)
 date: 2026-08-16
+updated: 2026-09-27
 tags: [foundation, prior-work, reuse]
 sources: [source-gap-analysis-plan]
-status: cross-project-reference
+status: reference
 ---
 
 # Mainza / Milimo Foundation

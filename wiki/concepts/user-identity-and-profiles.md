@@ -2,9 +2,10 @@
 type: concept
 name: User & Agent Identity and Profiles
 date: 2026-08-16
+updated: 2026-09-27
 tags: [identity, users, agents, profiles, labs]
 sources: [source-gap-analysis-plan, source-architecture-paper]
-status: living
+status: adopted
 ---
 
 # User & Agent Identity and Profiles

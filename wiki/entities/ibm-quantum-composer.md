@@ -2,6 +2,7 @@
 type: entity
 name: IBM Quantum Composer
 date: 2026-08-16
+updated: 2026-09-27
 tags: [ui, prior-art, tool]
 sources: [source-gap-analysis-plan]
 status: tracked

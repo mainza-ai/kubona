@@ -2,6 +2,7 @@
 type: entity
 name: AWS Braket
 date: 2026-08-16
+updated: 2026-09-27
 tags: [provider-access, aws, cloud]
 sources: [source-architecture-paper, source-gap-analysis-plan]
 status: tracked

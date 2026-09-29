@@ -2,6 +2,7 @@
 type: entity
 name: Qiskit Circuit Knitting Toolbox
 date: 2026-08-16
+updated: 2026-09-27
 tags: [tool, circuit-cutting, open-source]
 sources: [source-architecture-paper, source-gap-analysis-plan]
 status: tracked

@@ -2,9 +2,10 @@
 type: concept
 name: Cost Governance
 date: 2026-08-16
+updated: 2026-09-27
 tags: [cost, budget, governance]
 sources: [source-gap-analysis-plan, source-architecture-paper]
-status: living
+status: adopted
 ---
 
 # Cost Governance

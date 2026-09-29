@@ -2,9 +2,10 @@
 type: concept
 name: Meta-Search & True Self-Evolution
 date: 2026-08-16
+updated: 2026-09-27
 tags: [kubona, autoresearch, self-evolution]
 sources: [source-gap-analysis-plan]
-status: living
+status: adopted
 ---
 
 # Meta-Search & Self-Evolution (§13)

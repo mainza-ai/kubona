@@ -2,9 +2,10 @@
 type: concept
 name: Agent UX & the Control Plane
 date: 2026-08-16
+updated: 2026-09-27
 tags: [ux, control-plane, hitl]
 sources: [source-gap-analysis-plan]
-status: living
+status: adopted
 ---
 
 # Agent UX & the Kubona Control Plane

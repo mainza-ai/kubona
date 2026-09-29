@@ -2,9 +2,10 @@
 type: concept
 name: VQAs & VQE
 date: 2026-08-16
+updated: 2026-09-27
 tags: [algorithms, variational]
 sources: [source-architecture-paper, source-gap-analysis-plan]
-status: living
+status: adopted
 ---
 
 # Variational Quantum Algorithms (VQAs) & VQE
