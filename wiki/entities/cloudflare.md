@@ -2,6 +2,7 @@
 type: entity
 name: Cloudflare
 date: 2026-08-16
+updated: 2026-09-27
 tags: [vendor, economy, infrastructure]
 sources: [source-cloudflare-economy]
 status: tracked

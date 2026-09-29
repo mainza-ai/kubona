@@ -1,8 +1,9 @@
 ---
 type: log
 date: 2026-08-16
+updated: 2026-09-27
 tags: [log]
-status: append-only
+status: living
 ---
 
 # Log
@@ -209,3 +210,182 @@ duration/error); kubona serve/serve-gateway wire setup_logging. Full CI surfaced
 flaky statistical cutting test (Monte Carlo shot noise, mismatched seeds) — made it
 statistically robust (consistent seed, more shots, sane tolerance). 154 py + 3 Rust
 green; full local CI green twice consecutively.
+
+## [2026-09-27] lint+audit | Provenance hardening of the frontier audit (+ 8 entity pages, 1 concept page)
+
+- **Trigger:** re-verification pass over [[source-frontier-repo-audit-2026]] after the
+  `dev-docs/` clones were re-cloned; every repo URL, HEAD date and licence re-checked via
+  `git remote get-url origin` / `git log -1` / `LICENSE*` scan.
+- **Provenance defect found:** the folder named `milimo-quantum-drug-discovery` has
+  `origin = git@github.com:mainza-ai/kubona.git` and no such upstream exists (GitHub 404) — it is
+  our own tree, **not** prior art. Flagged inline in the audit matrix + a ⚑ block, and
+  [[quantum-domain-packs]] no longer cites it as external evidence.
+- **URL discipline:** audit matrix Remote column re-filled from live remotes (11 rows were `·`),
+  plus a "URL convention" note; all `dev-docs/…` citation paths in concept pages replaced by
+  `owner/repo` + `path:line` (dev-docs refs in wiki down from 43 → 12, remaining ones are the
+  scratch-folder explainer and the PAT incident's *original* location).
+- **Factual corrections** (wrong file/symbol claims from the first drafting pass):
+  [[buzz]] (`crates/ifc-core` `can_flow_to`/`ConfidentialityLabel`, `ARCHITECTURE.md:503` hash-chained
+  log; upstream `block/buzz`, `mainza-ai/buzz` fork **deleted 2026-09-27** — page + index updated);
+  [[paperclip]] (four-plane MCP governance, low-trust presets, task-watchdog trigger shape,
+  `case-guard`-style unforceable gate from `zhaoxuya520/reverse-skill`); [[pennylane]] modules
+  (`noise/`, `qcut/`, `resource/mlir_specs.py`, `devices/{capabilities,toml_check}.py`, `liealg/`,
+  `labs/` — **not** `workflows/vqe/dataset.py`, `qmc/`, `cutqc/`, `.autopilot/`);
+  [[model-optimizer]] (schema-pinned `modelopt_recipes/` YAML + dotlist overrides — **not**
+  `configurators/kits/registry.py` or `experimental/ControlNetToolkit`; ⚑ correction kept in page).
+- **New pages:** entities [[hindsight]], [[paperclip]], [[gods-eye-view]], [[chickensoup]],
+  [[mainza-consciousness]], [[openqasm]], [[openbao]], [[univer]]; concept
+  [[quantum-advantage-realism]] (anti-quantum-washing policy: backend-that-actually-ran recorded
+  verbatim, mandatory classical anchor, intervals-not-claims, overclaiming as an eval metric).
+- **Topology rule added** to [[integration-topology-and-licence-discipline]]: *"submodule is a
+  shipping decision, not a compliment"* — reference/blueprint material yields a citation +
+  independent implementation, never a dependency; candidate-submodule table with live URLs.
+- **Security:** [[risks]] gains 4 rows — live `ghp_…` PAT (**revoke immediately**), unlicensed
+  owner repos, citation-provenance drift, dependency-graph sprawl.
+- **Index:** Sources 3→4, Entities 26→34, Concepts 23→38; dangling-wikilink sweep clean (0).
+
+
+## [2026-09-27] decision | Own repos are insight material, not supply
+
+Maintainer ruling that re-scope three audit conclusions — the audited `dev-docs/` corpus exists to
+**gather insights and ideas for implementation**, and several of those repos are the maintainer's own
+**unfinished** work:
+
+- **No licence task.** `chickensoup`, `milimoquantum`, `Milimo-QDD` have no `LICENSE`, but there is
+  one rights-holder on both sides, so mining them needs no grant. `risks` row demoted from
+  "Active — 3 LICENSE files pending" to **Closed by decision**; the surviving control is a
+  release-time check *if* a derived artefact ships inside the Apache-2.0 core. Rewrote the framing on
+  [[integration-topology-and-licence-discipline]], [[source-frontier-repo-audit-2026]] (ownership
+  note + "unlicensed rule"), [[chickensoup]], [[mainza-consciousness]], `overview` item 7 and
+  `AGENTS.md` current-state.
+- **The rule that survives is about third parties** — where it always mattered: unlicensed ⇒
+  all-rights-reserved ⇒ never vendored; MPL-2.0 ⇒ sidecar ([[openbao]]).
+- **arXiv:2506.01536 (*Quantum Agents*) is bibliography, not an ingest gap.** It is reference 16 of
+  [[source-architecture-paper]] and we have never read it. Reframed in
+  [[quantum-domain-packs]] as an ambition with a citation; it enters `raw/` only if a design decision
+  comes to depend on it.
+- **Still open, and the only real one:** the `ghp_…` PAT in
+  `dev-docs/gather_insights_from/mainza-consciousness/.git/config` — re-confirmed present on
+  2026-09-27 (file is gitignored, value never written into the wiki). Revocation is the maintainer's
+  action; `risks` stays **Open — revoke immediately** until confirmed, then it closes with the clone
+  folder's deletion.
+
+
+## [2026-09-27] verification | PAT exposure re-checked: dead token, live sink elsewhere
+
+Re-checked the audit's headline security finding instead of repeating it (headers only; no token
+value written anywhere in this repo):
+
+- `ghp_…` in `dev-docs/gather_insights_from/mainza-consciousness/.git/config` (remote URL) →
+  **HTTP 401 from `api.github.com/user`** ⇒ already revoked/expired. `git log --all -S"ghp_"` in that
+  clone → empty ⇒ never committed. Only artefact left is the string in the local URL, which dies with
+  the scratch folder. `risks` row: **Open → Closed by verification**.
+- Root cause of the *live* exposure, found while checking: **`credential.helper=store` set globally**
+  ⇒ `~/.git-credentials` holds a **live `gho_…` GitHub CLI OAuth token**, scopes
+  `read:user, repo, user:email, workflow`, and **a different token** than the one `gh` keeps in the
+  keyring (hash mismatch) ⇒ a stale `gh` login nobody cleans up. New `risks` row, **Open**: unset the
+  `store` helper, revoke the grant in GitHub → Settings → Applications → GitHub CLI *before* deleting
+  the file, rotate the Hugging Face token the same file also stores.
+- Framing corrected on [[secrets-and-workload-isolation]], [[mainza-consciousness]] (⚑ block kept),
+  [[source-frontier-repo-audit-2026]] finding 1 and `overview`. The lesson generalises: a secret
+  written by an *ambient* tool (git helper, clone URL, IDE) is the same defect class as an agent that
+  pastes a token into a config — which is why Kubona's rule is "no secret is ever written outside the
+  vault", not merely "not sent to the model".
+
+
+## [2026-09-27] guardrail | dev-docs/ is never pushed — verified, then enforced
+
+Re-verified the invariant instead of trusting `.gitignore`: 0 tracked files under `dev-docs/`, 0 in
+the staged set, no `.gitmodules`, no embedded-repo gitlinks (mode `160000`) tracked or staged, and
+`git check-ignore -v` resolves nested clones (incl. `dev-docs/gather_insights_from/*/.git/config`) to
+`.gitignore:11`. So nothing *new* can be pushed.
+
+Two honest caveats:
+
+1. **History.** `dev-docs/` and `.obsidian/` were tracked in the initial commit (`ab4d831`) and
+   untracked the same day (`2650fe6`), so those paths exist in **pushed** history (repo is private,
+   `private = true`). Content check: 2 of the 3 `dev-docs/` blobs are byte-identical to the `raw/`
+   mirrors published on purpose, the third differs by 13 lines (earlier revision of the same plan),
+   and a scan of all of them for tokens, emails, `/Users/mck`, `sk-`, `AKIA` found nothing. Left as a
+   decision for the public flip: accept, or `git filter-repo --path dev-docs/ --path .obsidian/
+   --invert-paths` + force-push.
+2. **Ignore rules are advisory.** `git add -f` defeats `.gitignore`, so the rule is now enforced, not
+   remembered: local `.git/hooks/pre-commit` refuses staged `dev-docs/`/`.obsidian/` paths. Proven by
+   attempting a commit of a force-added `dev-docs/` file → refused, HEAD unchanged. Hook lives in
+   `.git/` (never committed), so it is per-clone; CI should repeat the check.
+
+Aside that cost three probes to settle: `git log --all -S"ghp_"` matched 10 commits, which looks
+alarming and is not — they are Cline checkpoint refs (`refs/cline/checkpoints/session_…/N`) holding
+my own `ghp_…` **placeholder** text from the pages above. The pushable-ref test
+(`git log --branches --tags --remotes -S"ghp_[A-Za-z0-9]"`) is empty: no credential has ever been on
+a branch, tag, or remote.
+
+## [2026-09-27] cleanup | blueprint reframe + taxonomy + status sweep (81 → 82 pages)
+
+**The reframe (maintainer decision).** The wiki's purpose was restated: it is the **blueprint**
+— insight gathered so Kubona can be *shaped* — and implementation is deliberately not the
+current activity. `platform/` is a **prototype scaffold** written before most insights existed.
+That made a class of sentences wrong: pages describing phase gates as "implemented" were
+mixing two registers, because a passing prototype test answers *is this feasible*, never
+*is this the design*. Rewritten, not deleted, so the reasoning stays legible.
+
+**What changed**
+1. **New page [[questions]]** — 26 ranked open questions (P0 shape-changing / P1 subsystem /
+   P2 deferrable), each with *Known*, *Missing*, and what the answer unblocks. This is the
+   work-list a blueprint needs and the wiki did not have: 13 `open-question` pages previously
+   had nowhere to accumulate. Q-01 (what is the prototype *for*) gates all others.
+2. **Status vocabulary rebuilt.** The old 15 values (`living`, `tracked`, `proposed`,
+   `experimental`, `accepted`, `blueprint-caution`, `blueprint-owner-relicensable`,
+   `concept-stage`, `emerging-standard`, `append-only`, `ingested`, …) encoded *build* state and
+   were unmaintainable. Replaced with 8 values describing **decidedness**:
+   `settled · adopted · open-question · candidate · tracked · reference · source · living`
+   (definitions in [[index]] §Status legend, rules in `AGENTS.md`). Mechanical sweep hit 81/81
+   pages: `living→adopted` 25, `proposed→open-question` 11, `prior-art-reference→reference` 4,
+   `integration-candidate→candidate` 4, `ingested→source` 3, plus 1 each. Result: `settled` 1 ·
+   `adopted` 25 · `open-question` 13 · `candidate` 6 · `tracked` 23 · `reference` 5 ·
+   `source` 4 · `living` 5.
+3. **`updated:` stamped on all 81 pages**; `sources:` keys normalised to the 4 canonical
+   basenames (75 pages touched — `repo-audit-2026`→`source-frontier-repo-audit-2026`,
+   `architecture-paper`→`source-architecture-paper`, stray `security-pqc`/`karpathy-autoresearch`
+   resolved to their real sources, and `local-dev-docs` deleted as a source key: a gitignored
+   scratch path can never be a source of record).
+4. **[[index]] gained a layer map** — L0 Method · L1 Control · L2 Compute · L3 Research ·
+   L4 Surface · L5 Ecosystem — with each layer's decidedness, so a new idea can be *placed*
+   before it is written.
+5. **[[overview]]**: intro now says blueprint, not build log; "Open questions / tensions" →
+   "Where the blueprint is unsettled"; "Implementation status" → **"Blueprint status &
+   prototype evidence"**, split into what the prototype *has* answered and what no prototype
+   test can answer (real QPU, third-party review, public repo + outside PR, business sign-off,
+   the human surface).
+6. **[[roadmap]]** retitled *Phases & Acceptance Gates* with a "how to read this" block: gates
+   are acceptance criteria, and simulator-proven is a weaker evidence class than the gate text
+   demands.
+7. **[[implementation-gaps]]** retitled *Prototype Gap Register* (code facts, not design), and
+   the CI row corrected — see below.
+
+> ⚑ Correction: `implementation-gaps` claimed the CI/release-gate was 🟢 with "first hosted run
+> still pending". Verified 2026-09-27 with `gh run list`: **all 17 recorded `ci.yml` runs fail,
+> HEAD `6970127` included — the push pipeline has never been green** — while
+> `platform/scripts/ci.sh` passes locally. `run_all()` returns `ok=False, skipped=None` for
+> providers that cannot run in that environment (skip classification lives in the test layer, not
+> in `run_all()`), and `ci.yml:68` asserts `all(r['ok'] …)`. `nightly-canary.yml` passes daily, so
+> the schedule is healthy and the *gate* is not. Marked 🔴. Also corrected: the "six-language
+> stack" tension (tree contains Python/Rust/Dart only), and four divergent test counts (105/122/141)
+> replaced with the measured 154.
+
+**Posture contradiction surfaced, not silenced.** [[kubona]] said "public repo from Phase 0"; the
+gate passed and `gh repo view` confirms `isPrivate: true`. Kept both as a ⚑ Conflict block →
+[[questions]] Q-25, since the Apache-2.0 commitment is decided and only its *timing* is not.
+
+**Checks after the sweep (all zero):** dangling wikilinks · pages absent from `index.md` ·
+`status` outside vocabulary · non-canonical `sources` keys · missing `updated:`. Frontmatter
+intact on 82/82.
+
+**Follow-on in the same sitting:** added `scripts/wiki-lint.py` — the checks above are now a
+command instead of an anecdote. Seven check classes, negative-tested against a deliberately
+broken page (all fired, exit 1; clean again after removal). `type: source` pages gained
+`raw:` / `origin:` provenance instead of a self-referential `sources:` list, and the
+`dev-docs` check was narrowed from "any mention" (21 false positives in historical prose) to
+the invariant that actually matters: **no `path:line` anchor may resolve into scratch space**.
+`implementation-gaps` gained a *Blueprint integrity* section; `[[implementation-gaps]]` itself
+reclassified `adopted → tracked` (a gap register is not a decided approach).

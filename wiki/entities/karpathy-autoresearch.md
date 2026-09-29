@@ -2,6 +2,7 @@
 type: entity
 name: karpathy/autoresearch
 date: 2026-08-16
+updated: 2026-09-27
 tags: [repository, pattern, llm-training]
 sources: [source-gap-analysis-plan]
 status: tracked

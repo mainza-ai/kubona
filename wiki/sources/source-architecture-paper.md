@@ -1,9 +1,11 @@
 ---
 type: source
+raw: 'raw/Quantum AI Platform Architecture.md'
 title: The Ultimate AI-Quantum Agentic Platform — Architectural Design and Integration Strategy
 date: 2026-08-16
+updated: 2026-09-27
 tags: [source, architecture]
-status: ingested
+status: source
 ---
 
 # Source: Platform Architecture Design

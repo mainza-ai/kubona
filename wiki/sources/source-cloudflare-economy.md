@@ -1,9 +1,11 @@
 ---
 type: source
+raw: 'raw/Cloudflare_Agent_Economy_Insights.md'
 title: Insights Extracted — Cloudflare, x402, and the Agent Resource Economy
 date: 2026-08-16
+updated: 2026-09-27
 tags: [source, economy]
-status: ingested
+status: source
 ---
 
 # Source: Cloudflare Agent Economy Insights

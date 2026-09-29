@@ -1,20 +1,29 @@
 ---
 type: entity
-name: Buzz (Block Inc.; Mainza fork)
+name: Buzz (Block Inc.)
 date: 2026-08-16
+updated: 2026-09-27
 tags: [workspace, nostr, prior-art, collaboration]
 sources: [source-gap-analysis-plan]
-status: prior-art-reference
+status: reference
 ---
 
 # Buzz — "a hive mind communication platform"
 
-Open-source (Apache-2.0, Rust) workspace where humans and AI agents collaborate in shared
+Open-source (**Apache-2.0**, Rust) workspace where humans and AI agents collaborate in shared
 rooms, built on a **Nostr relay**: every message, workflow step, approval, and git event
 is a signed event in one log — the same identity model and audit trail whether the author
-is a person or a process. The repo at `mainza-ai/buzz` (fork of Block, Inc.'s
-`block/buzz`) is maintained by the same operator as the Mainza/Milimo codebase referenced
-in [[mainza-milimo-foundation]] — flagged as a **design reference, not a dependency**.
+is a person or a process. Upstream — and the **only** Buzz repository — is
+**https://github.com/block/buzz** (Block, Inc.). A former fork at `mainza-ai/buzz` was
+**deleted on 2026-09-27** to remove ambiguity; nothing in this wiki refers to it, and any older
+note mentioning a "Mainza fork of buzz" is stale (GitHub now returns 404 for it). Cite the upstream
+URL, never a local clone path. Verified 2026-09-27 at HEAD 2026-09-26:
+`crates/ifc-core/src/lib.rs` exposes the confidentiality lattice (`can_flow_to` :53/:172/:364,
+`ConfidentialityLabel<Universe, Principal>` :107) and `ARCHITECTURE.md:503` states the storage
+property Kubona needs verbatim — *"Tamper-evident append-only log with SHA-256 hash chaining"*.
+Integration class: **reference / blueprint-grade** — nothing from buzz is vendored today; if a
+relay is ever run it runs as a sidecar for identity reasons
+([[integration-topology-and-licence-discipline]]).
 
 ## Ideas that transfer directly to Kubona
 

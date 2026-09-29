@@ -2,6 +2,7 @@
 type: entity
 name: Rigetti
 date: 2026-08-16
+updated: 2026-09-27
 tags: [provider, superconducting]
 sources: [source-gap-analysis-plan, source-architecture-paper]
 status: tracked

@@ -2,9 +2,10 @@
 type: concept
 name: MCP & Context Flooding
 date: 2026-08-16
+updated: 2026-09-27
 tags: [mcp, agent-integration]
 sources: [source-architecture-paper, source-gap-analysis-plan]
-status: living
+status: adopted
 ---
 
 # Model Context Protocol (MCP) & Context Flooding

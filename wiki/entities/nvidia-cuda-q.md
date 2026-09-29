@@ -2,6 +2,7 @@
 type: entity
 name: NVIDIA CUDA-Q / cuQuantum
 date: 2026-08-16
+updated: 2026-09-27
 tags: [tool, simulator, gpu]
 sources: [source-gap-analysis-plan]
 status: tracked

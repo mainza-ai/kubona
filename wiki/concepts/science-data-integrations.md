@@ -2,9 +2,10 @@
 type: concept
 name: Science Data Integrations
 date: 2026-08-16
+updated: 2026-09-27
 tags: [data, science, literature, apis]
 sources: [source-gap-analysis-plan]
-status: living
+status: adopted
 ---
 
 # Science Data Integrations (literature + domain data)

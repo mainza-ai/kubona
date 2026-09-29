@@ -2,9 +2,10 @@
 type: concept
 name: Workflows & Agent Authoring
 date: 2026-08-16
+updated: 2026-09-27
 tags: [workflows, agents, authoring, science]
 sources: [source-gap-analysis-plan]
-status: living
+status: adopted
 ---
 
 # Workflows & Agent Authoring (user-created *and* agent-created)

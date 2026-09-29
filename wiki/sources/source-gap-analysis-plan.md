@@ -1,9 +1,11 @@
 ---
 type: source
+raw: 'raw/Quantum_AI_Platform_Gap_Analysis_and_Implementation_Plan.md'
 title: Kubona — Gap Analysis, Architectural Expansion, and Implementation Plan
 date: 2026-08-16
+updated: 2026-09-27
 tags: [source, plan]
-status: ingested
+status: source
 ---
 
 # Source: Gap Analysis & Implementation Plan

@@ -2,9 +2,10 @@
 type: concept
 name: Quantum Cloud Pricing & Financial Telemetry
 date: 2026-08-16
+updated: 2026-09-27
 tags: [pricing, cost, cloud, telemetry]
 sources: [source-architecture-paper, source-gap-analysis-plan]
-status: living
+status: adopted
 ---
 
 # Quantum Cloud Pricing & Financial Telemetry

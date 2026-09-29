@@ -2,6 +2,7 @@
 type: entity
 name: Unsloth
 date: 2026-08-16
+updated: 2026-09-27
 tags: [ml, fine-tuning, tool, open-source]
 sources: [source-gap-analysis-plan]
 status: tracked

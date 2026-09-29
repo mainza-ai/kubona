@@ -2,9 +2,10 @@
 type: concept
 name: Quantum Error Mitigation
 date: 2026-08-16
+updated: 2026-09-27
 tags: [error-mitigation, noise]
 sources: [source-architecture-paper, source-gap-analysis-plan]
-status: living
+status: adopted
 ---
 
 # Quantum Error Mitigation (QEM)

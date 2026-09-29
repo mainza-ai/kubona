@@ -2,6 +2,7 @@
 type: entity
 name: IonQ
 date: 2026-08-16
+updated: 2026-09-27
 tags: [provider, trapped-ion]
 sources: [source-architecture-paper, source-gap-analysis-plan]
 status: tracked

@@ -2,9 +2,10 @@
 type: concept
 name: Provider Capability Schema
 date: 2026-08-16
+updated: 2026-09-27
 tags: [providers, schema, routing]
 sources: [source-gap-analysis-plan]
-status: living
+status: adopted
 ---
 
 # Provider Capability Schema

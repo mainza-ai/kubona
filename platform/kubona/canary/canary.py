@@ -83,6 +83,36 @@ def run_all(ledger: Ledger | None = None, providers: list[str] | None = None,
     return out
 
 
+def release_gate(results: list[dict[str, Any]]) -> dict[str, Any]:
+    """Turn raw canary results into a release-gate verdict.
+
+    This is the ONLY place the gate rule lives: CI (hosted and local) calls it
+    through `python -m kubona.canary --gate` instead of re-deriving an assertion,
+    because two copies of the rule are how the gate went red for a month while
+    being green locally.
+
+    A result marked `skip` failed *closed* on configuration (missing
+    credentials/SDK) or runs a program model the Bell circuit cannot probe
+    (annealing QUBO, neutral-atom AHS, photonic CV). That is a provider-registry
+    fact, not an execution regression, so it does not block release. A provider
+    that actually ran and came back unhealthy always blocks release.
+
+    An all-skip run is deliberately NOT a pass: a gate that executed nothing has
+    proven nothing, and would go green if the last executable plugin were removed.
+    """
+    ran = [r for r in results if not r.get("skip")]
+    skipped = [r for r in results if r.get("skip")]
+    failures = [r for r in ran if not r["ok"]]
+    return {
+        "ok": bool(ran) and not failures,
+        "ran": len(ran),
+        "skipped": len(skipped),
+        "failures": [{"provider": r["provider"], "error": r.get("error"),
+                      "checks": r.get("checks")} for r in failures],
+        "skip_reasons": {r["provider"]: r.get("error", "fail-closed") for r in skipped},
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     import argparse
 
@@ -90,10 +120,21 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--provider", default=None, help="canary a single provider")
     ap.add_argument("--shots", type=int, default=CANARY_SHOTS)
     ap.add_argument("--tolerance", type=float, default=0.05)
+    ap.add_argument("--gate", action="store_true",
+                    help="evaluate the release gate over every provider with an execution "
+                         "plugin (modality-blind): fail-closed config/program-model gaps are "
+                         "skips, genuine execution regressions fail the build")
     args = ap.parse_args(argv)
 
     if args.provider:
         results = [canary_check(args.provider, args.shots, args.tolerance)]
+    elif args.gate:
+        # Canonical gate selection: every plugin-bearing provider, modality-blind.
+        # Non-gate modalities report skip=True rather than being hidden from the run,
+        # so the gate's coverage is visible in the log instead of filtered away.
+        results = run_all(providers=[
+            name for name, cap in list_providers().items() if cap.execution_plugin
+        ])
     else:
         results = run_all()  # gate-model executable providers; credential/SDK gaps are skips
 
@@ -109,6 +150,16 @@ def main(argv: list[str] | None = None) -> int:
         failures += 0 if r["ok"] else 1
     ran = len(results) - skipped
     print(f"canary summary: {ran - failures}/{ran} passed ({skipped} skipped, no credentials)")
+
+    if args.gate:
+        verdict = release_gate(results)
+        for f in verdict["failures"]:
+            print(f"[GATE-FAIL] {f['provider']}: {f.get('error') or f.get('checks')}")
+        if verdict["ran"] == 0:
+            print("[GATE-FAIL] no executable provider ran — the gate proved nothing")
+        print(f"release gate: {'OK' if verdict['ok'] else 'FAIL'} "
+              f"({verdict['ran']} executable providers; {verdict['skipped']} skipped)")
+        return 0 if verdict["ok"] else 1
     return 1 if failures else 0
 
 

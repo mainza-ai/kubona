@@ -1,29 +1,35 @@
 ---
 type: roadmap
 date: 2026-08-16
+updated: 2026-09-27
 tags: [kubona, plan]
 sources: [source-gap-analysis-plan]
 status: living
 ---
 
-# Roadmap — Kubona Implementation Plan
+# Roadmap — Kubona Phases & Acceptance Gates
 
-> ## 🟢 Overall status (2026-08-16)
-> **Phases 0–6 are implemented at the skeleton/engine level** under `platform/` and each
-> phase's gate is proven by an automated test (see the per-phase status blocks below and
-> [[overview]]). Green: 122 Python + 3 Rust + 1 Flutter widget test. Repo
-> `github.com/mainza-ai/kubona` (private until the P0-era gate decision flips; a working
-> core now exists — a maintainer decision pending on going public). **M0 hardened:**
-> single non-`/tmp` state root, production fail-closed auth (`kubona/run.py`), `kubona
-> serve`/`doctor` entrypoints, CI scaffold (`ci.yml` + `nightly-canary.yml`), x402
-> fail-closed. Remaining work is the **production / deployment / hardening gates**
-> (async persistent job model; real provider SDK execution — 2 fully-credential-free
-> providers execute today (local-simulator, qiskit-aer), IBM/Quantinuum/Rigetti/D-Wave
-> have real SDK paths gated on credentials, Pulser/SF are modality-gated; the Rust
-> QIR core on the compiler path; ML-KEM/streamable-HTTP on the
-> wire; volume corpora; a merged third-party provider; the security review; real x402
-> on a rail; GPU-hosted Unsloth retraining; and the two Phase-6 console surfaces).
-> Full register: [[implementation-gaps]].
+> ## How to read this page (2026-09-27)
+> **These are acceptance criteria for the blueprint, not a progress bar.** A phase gate
+> marked *proven* means a prototype test exercises that mechanism and passes — most of
+> them on simulators, which is a weaker evidence class than the gate text demands. The
+> blueprint itself is still mostly undecided: 1 `settled` page against 25 `adopted` and 13
+> `open-question` ([[questions]]). Building further will not close a gate that needs a real
+> QPU, a third-party reviewer, a public repo, or a human surface — see
+> [[questions]] §"Surface, ecosystem, operations".
+>
+> **Prototype state** (evidence, not decisions): `platform/` — 154 Python + 3 Rust +
+> 1 Flutter widget test green locally as of 2026-09-27. Repo `github.com/mainza-ai/kubona`,
+> still private (pending decision, [[questions]] Q-25). **M0 hardened:** single non-`/tmp`
+> state root, production fail-closed auth, `kubona serve`/`doctor` entrypoints, CI scaffold,
+> x402 fail-closed. Known regression: the hosted `ci.yml` push pipeline has **never been
+> green — all 17 recorded runs fail**, HEAD included, while `scripts/ci.sh` passes locally.
+> Cause: the canary's skip semantics live in the test/`ci.sh` layer, so `run_all()` reports
+> non-executable providers (`ok=False, skipped=None`) as failures and `ci.yml:68` asserts
+> `all(r['ok'] …)`. `nightly-canary.yml` passes daily. ([[implementation-gaps]])
+> Credential-free execution: local-simulator, qiskit-aer, dwave-annealing (QUBO);
+> IBM/Quantinuum/Rigetti have real SDK paths validated against the real SDKs but need creds;
+> Pulser/StrawberryFields are modality-gated and fail closed.
 
 The working implementation plan for Kubona. Phase content, exit criteria, and team shape
 trace to §§7–8 of [[source-gap-analysis-plan]], with the §11.5 (autoresearch engine) and

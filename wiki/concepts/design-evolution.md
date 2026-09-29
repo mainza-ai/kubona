@@ -2,9 +2,10 @@
 type: concept
 name: Design Evolution (paper → plan)
 date: 2026-08-16
+updated: 2026-09-27
 tags: [kubona, synthesis, decisions]
 sources: [source-architecture-paper, source-gap-analysis-plan]
-status: living
+status: adopted
 ---
 
 # Design Evolution — From White Paper to Buildable Plan

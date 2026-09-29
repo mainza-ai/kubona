@@ -2,9 +2,10 @@
 type: concept
 name: NISQ & Hybrid Orchestration
 date: 2026-08-16
+updated: 2026-09-27
 tags: [nisq, orchestration, hybrid]
 sources: [source-architecture-paper, source-gap-analysis-plan]
-status: living
+status: adopted
 ---
 
 # NISQ Reality & Hybrid Quantum–Classical Orchestration
