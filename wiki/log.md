@@ -492,3 +492,25 @@ skipped is the exact failure this incident is about:
 > left as they are: some were genuinely written that day and the record cannot distinguish them
 > retrospectively, so re-dating all of them would invent precision. Anything load-bearing should
 > cite the Actions **run IDs and UTC timestamps**, which are clock-independent.
+
+## [2026-09-29] cleanup | the gate ran green twice more, and one commit of mine lies about its size
+
+* **Skips confirmed by the runner, not by me.** `pytest -q -rs` (added in `582418a`) makes run
+  36511131388 print its own reasons: `SKIPPED [1] tests/test_g6_real_sdk.py:37 pytket not
+  installed`, `…:49 pyquil not installed`, `tests/test_langgraph_shim.py:5 could not import
+  'langgraph'`. So "156 + 3" vs the local "159" is three optional-SDK tests absent on a clean
+  runner — no coverage lost, and [[implementation-gaps]] now cites the run id instead of my
+  arithmetic. Runs 36510074709 / 36510281352 / 36510634573 / 36510721879 / 36511129301 /
+  36511131388 all completed **success**: the pipeline is now green on both `develop` and `main`.
+* **⚑ Disclosure: `3e24487` ("fix(ci): one release-gate verdict…") is a mixed commit.** It carries
+  **89 files / +2876** — the CI fix *and* the entire previous session's uncommitted wiki ingest,
+  including `sources/source-frontier-repo-audit-2026.md` (+197), `index.md`, `overview.md`,
+  `questions.md` and ~35 entity pages. The content is all legitimately the project's (it is the
+  fourth-source ingest this file already describes), nothing sensitive entered the tree —
+  `git ls-files` confirms no `dev-docs/`, `.obsidian/` or `.DS_Store` path is tracked — but the
+  message describes ~5 files while the diff is 89, so the history understates itself.
+  Not rewritten: the SHAs are already cited in this wiki and in Actions run correspondence, and
+  [[questions]] Q-27 may rewrite this history anyway before publication — splitting `3e24487`
+  belongs in that work if it happens. Cause recorded so it repeats as a mistake I noticed rather
+  than one I made twice: `git add <dir>/` after a session that left a large body of work
+  uncommitted. Stage by path, or check `git diff --cached --stat` before every commit.
