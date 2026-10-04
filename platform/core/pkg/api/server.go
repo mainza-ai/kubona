@@ -699,7 +699,7 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 		req.Prompt = "Investigate H2 molecular ground state energy at equilibrium bond distance 0.7414 A"
 	}
 
-	res, err := s.collective.ExecuteTribunal(r.Context(), s.llmClient, req.Prompt)
+	res, err := s.collective.ExecuteTribunal(r.Context(), s.llmClient, s.jobRunner.BridgeClient(), req.Prompt)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

@@ -2,11 +2,13 @@ package api_test
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/api"
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
@@ -123,7 +125,9 @@ func TestAPIRoutes(t *testing.T) {
 		"prompt":     "Investigate LiH ground state dissociation VQE",
 	}
 	body, _ = json.Marshal(tribunalPayload)
-	req = httptest.NewRequest(http.MethodPost, "/api/chat/tribunal", bytes.NewReader(body))
+	testCtx, testCancel := context.WithTimeout(t.Context(), 1*time.Second)
+	defer testCancel()
+	req = httptest.NewRequest(http.MethodPost, "/api/chat/tribunal", bytes.NewReader(body)).WithContext(testCtx)
 	w = httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	t.Logf("Tribunal response code: %d, body: %q", w.Code, w.Body.String())
