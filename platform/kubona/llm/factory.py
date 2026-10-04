@@ -12,6 +12,8 @@ MODEL_SOURCES = {
     "ollama": lambda base, model, key: OllamaLLM(base_url=base, default_model=model),
     "lm-studio": lambda base, model, key: OpenAICompatLLM(base, default_model=model, provider="lm-studio", api_key=key),
     "mlx": lambda base, model, key: OpenAICompatLLM(base, default_model=model, provider="mlx", api_key=key),
+    "omlx": lambda base, model, key: OpenAICompatLLM(base, default_model=model, provider="omlx", api_key=key),
+    "openai-compat": lambda base, model, key: OpenAICompatLLM(base, default_model=model, provider="openai-compat", api_key=key),
     "llama.cpp": lambda base, model, key: OpenAICompatLLM(base, default_model=model, provider="llama.cpp", api_key=key),
     "scripted": lambda base, model, key: ScriptedLLM(),
 }

@@ -209,4 +209,14 @@ class ConsoleApi {
     }
     return body['status'] as String;
   }
+
+  Future<Map<String, dynamic>> loopHistory(String id) async {
+    final res = await _client.get(Uri.parse('$baseUrl/api/loops/$id/history'),
+        headers: _headers);
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    if (body['ok'] != true) {
+      throw Exception(body['error']);
+    }
+    return body;
+  }
 }
