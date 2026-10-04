@@ -8,11 +8,14 @@ fully offline (scholarly sources degrade to a 'citation needed' record).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any
-
+from kubona.anchors.chemistry import MolecularAnchorEngine
 from kubona.autoresearch import Orchestrator, build_vqe_ansatz_harness
 from kubona.circuits import parse_qasm2
 from kubona.cost.governance import CostGovernanceService
+from kubona.epistemics.wavefunction import (
+    ClaimCredibilityWavefunction,
+    EvidenceSignal,
+)
 from kubona.integrations import ground_literature
 from kubona.library import AlgorithmLibrary
 from kubona.mitigation import run_zne
@@ -86,6 +89,45 @@ class DiscoveryCampaign:
             "mitigated": zne.mitigated_value, "raw": zne.raw_value,
             "ledger_ref": ledger.append("analysis", {"mitigated": zne.mitigated_value}).record_id}
 
+        # 4b CLASSICAL ANCHOR & EPISTEMIC GATING (Ring 1 & 2)
+        mol_engine = MolecularAnchorEngine()
+        anchor = mol_engine.compute_anchor(self.hamiltonian)
+        variational_energy = -best.metric  # harness metric is -energy (higher is better)
+        anchor_eval = mol_engine.evaluate_advantage_claim(variational_energy, anchor)
+
+        wavefunction = ClaimCredibilityWavefunction()
+        signals = [
+            EvidenceSignal(
+                source_id="vqe_ansatz_search",
+                source_type="experiment",
+                supports=True,
+                confidence=0.95,
+                engagement=1.0,
+                ledger_ref=best.ledger_ref,
+            ),
+            EvidenceSignal(
+                source_id="classical_anchor_fci",
+                source_type="reproduction",
+                supports=anchor_eval["chemical_accuracy_achieved"],
+                confidence=1.0,
+                engagement=1.0,
+            ),
+            EvidenceSignal(
+                source_id="zne_mitigation",
+                source_type="qpu_canary",
+                supports=abs(zne.mitigated_value - 1.0) < 0.2,
+                confidence=0.85,
+                engagement=0.5,
+                ledger_ref=stages["analyze"]["ledger_ref"],
+            ),
+        ]
+        wf_state = wavefunction.evaluate(signals)
+        claim_text = (
+            f"VQE variational energy {variational_energy:.4f} reproduces ground-state energetics of {self.hamiltonian} "
+            f"against classical FCI anchor ({anchor.fci_energy_hartree:.4f} Ha)."
+        )
+        asserted_claim = wavefunction.assert_claim(claim_text, wf_state)
+
         # 5 REPORT — structured notebook; every claim -> ref
         report = ExperimentReport(
             title=f"Energetics of {self.hamiltonian}",
@@ -94,14 +136,17 @@ class DiscoveryCampaign:
             protocol=f"Budget {self.budget_steps} search steps; backend local-simulator.",
             results=f"Best energy metric {best.metric:.4f} at theta {best.artifact:.4f}.",
             analysis=f"ZNE recovered <Z> to {zne.mitigated_value:.4f} from raw {zne.raw_value:.4f}.",
-            conclusions="The discovery loop runs end-to-end on the simulator tier within the cost gate.",
+            conclusions=f"{asserted_claim}. {anchor_eval['honest_verdict']}.",
             citations=ground["citations"],
             how_to_reproduce=f"session={session.session_id}; ledger tenant-scoped; result archived in the library",
+            classical_anchor=anchor.to_dict(),
         )
+        report.add_claim(claim_text, wf_state.to_dict())
         report.add_ref("methods", stages["experiment"]["ledger_ref"] or "n/a")
         report.add_ref("ground", ground["ledger_ref"] or "n/a")
         report.add_ref("analysis", stages["analyze"]["ledger_ref"])
-        stages["report"] = {"report_id": report.report_id, "n_refs": len(report.refs)}
+        stages["epistemics"] = {"wavefunction": wf_state.to_dict(), "anchor": anchor.to_dict()}
+        stages["report"] = {"report_id": report.report_id, "n_refs": len(report.refs), "collapsed": wf_state.collapsed}
         if report_store is not None:
             report_store.save(report)  # the results-studio's data
 

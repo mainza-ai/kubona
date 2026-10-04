@@ -75,3 +75,13 @@ def test_approval_flow_over_rest():
     assert r.json()["state"] == "APPROVED"
     r = client.post(f"/api/approvals/{a.approval_id}/reject", headers=_h())
     assert r.json()["ok"] is False  # already approved -> governance error surfaced
+
+
+def test_events_stream():
+    """Asserts /api/events SSE returns event-stream and telemetry events."""
+    r = client.get("/api/events", headers=_h())
+    assert r.status_code == 200
+    assert "text/event-stream" in r.headers["content-type"]
+    assert "event: telemetry" in r.text
+    assert "approvals" in r.text
+    assert "loops" in r.text
