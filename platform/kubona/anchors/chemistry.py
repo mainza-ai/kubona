@@ -78,8 +78,9 @@ class MolecularAnchorEngine:
 
     def compute_anchor(self, molecule: str, bond_distance: float | None = None) -> MolecularAnchor:
         """Solves RHF and exact full configuration interaction (FCI) for the target system."""
-        mol = molecule.upper()
-        if mol not in self.BENCHMARKS:
+        bench_keys = {k.upper(): k for k in self.BENCHMARKS}
+        mol_upper = molecule.upper()
+        if mol_upper not in bench_keys:
             # Fallback model for general 2-qubit dimer systems
             r = bond_distance or 1.0
             rhf = -1.0 / r - 0.5
@@ -93,7 +94,7 @@ class MolecularAnchorEngine:
                 active_space_qubits=2,
             )
 
-        data = self.BENCHMARKS[mol]
+        data = self.BENCHMARKS[bench_keys[mol_upper]]
         r = bond_distance or data["r"]
         qubits = data["qubits"]
 
@@ -120,9 +121,10 @@ class MolecularAnchorEngine:
             rhf_energy = float(data["rhf_energy"])
             fci_energy = rhf_energy - 0.042
 
+        mol_canonical = bench_keys[mol_upper]
         return MolecularAnchor(
-            system_name=mol,
-            geometry_description=f"{mol} R={r:.4f}A",
+            system_name=mol_canonical,
+            geometry_description=f"{mol_canonical} R={r:.4f}A",
             basis="STO-3G",
             rhf_energy_hartree=rhf_energy,
             fci_energy_hartree=fci_energy,
