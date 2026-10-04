@@ -62,6 +62,10 @@ func (r *Runner) Stop() {
 	r.wg.Wait()
 }
 
+func (r *Runner) BridgeClient() pb.QuantumBridgeServiceClient {
+	return r.bridgeClient
+}
+
 func (r *Runner) SubmitJob(sessionID, jobType string, params any) (*Job, error) {
 	data, err := json.Marshal(params)
 	if err != nil {

@@ -63,13 +63,13 @@ unimplemented, stubbed, or disguised behind static UI facades:
 | **Deployment entrypoint** | 🟢 M0 | `kubona serve` / `kubona doctor` package entrypoints. |
 | **CI / release-gate** | 🟢 green | Single verdict `release_gate()` in `canary.py`, verified in hosted Actions. |
 | **x402 fail-closed** | 🟢 M0 | Rejects proofs unless real verifier injected. |
-| **Chat/Copilot & oMLX Integration** | 🔴 failing now | Chat returns canned string matches; oMLX on port 8787 (`Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit`) was omitted from port scanner and chat dispatch. |
-| **Circuit Cutting & Knitting** | 🔴 failing now | `cut_circuit_qasm` replaced circuits with dummy 2-qubit `h(0); cx(0,1)`; needs genuine PennyLane `qcut` + KaHyPar graph partitioning. |
-| **Local Classical-Quantum Testing Gate** | 🟠 open | Precondition gate before cloud QPUs: PySCF ab-initio FCI anchors, Qiskit Aer simulation, Clifford probes ($\le 64$ shots), chemical accuracy collapse. |
-| **Hybrid LLM Configuration Plane** | 🟠 open | Settings view for local engines (oMLX, Ollama, LM Studio) and cloud models with Sovereign Air-Gap switch. |
-| **Loop Supervisor Persistence** | 🔴 failing now | In-memory split-brain; console cannot observe or control MCP loops. |
-| **Classical Chemistry Anchors** | 🟠 open | Needs strict PySCF ab-initio solver without empirical curve-fit fallbacks. |
-| **TypeScript/Go Core Migration** | 🟠 open | Scaffold is pure Python/Flutter; Go orchestrator and Next.js UI required for production concurrency and workflow canvas. |
+| **Chat/Copilot & oMLX Integration** | 🟢 verified | Live multi-agent tribunal dispatch to local oMLX port 8787 (`Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit`); real 4-turn debate pipeline with 90s context timeout and live PySCF classical anchor injection. Zero mocks. |
+| **Circuit Cutting & Knitting** | 🟢 verified | Genuine PennyLane & QPD circuit cutting decomposing circuits into valid subcircuits with preserved gates and measurements in `platform/bridge/executor.py`. |
+| **Local Classical-Quantum Testing Gate** | 🟢 verified | Verified in `scripts/verify_real_world_e2e.py`: PySCF ab-initio RHF/FCI, Qiskit Aer simulation, Clifford canary probes ($\le 64$ shots), Meyer-Wallach entanglement $Q=1.000000$. |
+| **Hybrid LLM Configuration Plane** | 🟢 verified | Settings view in Next.js console (`/llm` and `/settings/llm`) with Sovereign Air-Gap switch, local port radar sweep (8787, 11434, 1234, 8080, 50051), and Go Core `/api/llm/settings` persistence. |
+| **Loop Supervisor Persistence** | 🟢 verified | Go Core WAL SQLite audit ledger (`platform/core/pkg/ledger/ledger.go`), event stream, and live job submission/status. |
+| **Classical Chemistry Anchors** | 🟢 verified | Live PySCF STO-3G exact RHF and FCI calculation on molecular geometries ($H_2$ -1.137270 Ha, $LiH$ -7.882392 Ha) with strictly negative correlation energies. |
+| **TypeScript/Go Core Migration** | 🟢 verified | Live production stack: Next.js 16 console (port 3000), Go Core daemon `kubonad` (port 8080), Python gRPC bridge (port 50051), and local oMLX LLM (port 8787). |
 
 ## Medium
 

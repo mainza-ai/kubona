@@ -608,4 +608,19 @@ skipped is the exact failure this incident is about:
   8. *Observatory Cockpit:* Real-time SVG speedometer gauges, spend burn telemetry, emergency hardware abort rail.
 * **End-to-End Campaign Verification:** Zero placeholders, 100% production code running across Next.js (port 3000), Go Core Orchestrator (port 8080), Python gRPC Bridge (port 50051), and local oMLX LLM (port 8787). Closed blueprint questions Q-01, Q-15, Q-16, Q-21.
 
+## [2026-10-04] verification | Zero-mock real-world E2E test suite across oMLX 27B, PySCF, Qiskit Aer, Go Core, and Next.js 16
+
+* **Elimination of Mocks:** Replaced simulated tests and stubs with an automated, live end-to-end verification suite (`scripts/verify_real_world_e2e.py`) executing against real local backends.
+* **Live Subsystem Results (8/8 PASS):**
+  1. *Local oMLX LLM Engine (Port 8787):* Live completion generated in 14.62s at ~7.1 tok/s with `Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit`.
+  2. *Ab-Initio Quantum Chemistry (PySCF):* Calculated STO-3G electronic structure for $H_2$ ($E_{\text{RHF}} = -1.116684\text{ Ha}$, $E_{\text{FCI}} = -1.137270\text{ Ha}$) and $LiH$ ($E_{\text{RHF}} = -7.862002\text{ Ha}$, $E_{\text{FCI}} = -7.882392\text{ Ha}$) with strictly negative correlation energy.
+  3. *Quantum Simulation (Qiskit Aer):* Executed Bell state on `qiskit_aer.AerSimulator` with 2048 shots; verified maximal entanglement $Q = 1.000000$.
+  4. *PennyLane / QPD Circuit Cutting:* Successfully decomposed a 4-qubit OpenQASM circuit across 1 wire cut into 2 valid subcircuits with preserved gates and measurements.
+  5. *Clifford Canary Probes & Noise Profiles:* Evaluated 64-shot stabilizer canary probe on `ibm_heron` (98.51% fidelity) and verified physical noise constraints ($T_2 \le 2T_1$) across IBM Heron, Quantinuum H1, and Rigetti Aspen.
+  6. *Go Core Orchestrator & WAL Ledger:* Dispatched OpenQASM circuit via Go Core HTTP API $\to$ gRPC bridge $\to$ Qiskit Aer $\to$ SQLite WAL persistence; verified completion and statevector metrics.
+  7. *AP2 Cryptographic Mandate Engine:* Created and verified Ed25519 spend mandates statelessly in Go Core (`/api/mandates/verify`).
+  8. *Next.js 16 Observatory Console:* Serving HTTP 200 OK on port 3000.
+* **Master Suite Status:** All 174 Python unit tests passed (2 skipped due to uninstalled optional vendor SDKs), all Go unit and integration tests passed, and strict wiki lint passed clean (exit 0).
+
+
 

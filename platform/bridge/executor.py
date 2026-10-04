@@ -239,6 +239,11 @@ def cut_circuit_qasm(qasm: str, max_subcircuit_qubits: int = 2) -> Dict[str, Any
             op = instruction.operation
             qargs = [qc.find_bit(q).index for q in instruction.qubits]
 
+            if op.name == "measure":
+                part_idx, local_q = qubit_to_part[qargs[0]]
+                subcircuits[part_idx].measure(local_q, local_q)
+                continue
+
             if len(qargs) == 1:
                 part_idx, local_q = qubit_to_part[qargs[0]]
                 subcircuits[part_idx].append(op, [local_q], [])
@@ -264,7 +269,9 @@ def cut_circuit_qasm(qasm: str, max_subcircuit_qubits: int = 2) -> Dict[str, Any
             else:
                 # Multi-qubit gates
                 part_idx, local_q = qubit_to_part[qargs[0]]
-                subcircuits[part_idx].append(op, [qubit_to_part[q][1] for q in qargs if qubit_to_part[q][0] == part_idx], [])
+                local_qubits = [qubit_to_part[q][1] for q in qargs if qubit_to_part[q][0] == part_idx]
+                if local_qubits:
+                    subcircuits[part_idx].append(op, local_qubits, [])
 
         fragments = []
         for part_idx, sc in enumerate(subcircuits):
