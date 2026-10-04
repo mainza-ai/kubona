@@ -27,18 +27,17 @@ No existing tool (quantum or agentic) covers both.
 > per-surface detail, visual language, mobile, open design problems, acceptance criteria —
 > lives in [[ui-ux-vision]].
 
-## The eight console surfaces
-
+## The seven core observatory surfaces
+ 
 | Surface | Purpose |
 |---|---|
-| **Circuit visualizer** | Renders any post-QIR circuit (SDK-independent); bidirectional code↔diagram sync; Q-sphere/statevector/histogram on local sim |
-| **Cost & approval console** | Human side of the [[cost-governance]] gate: burn-rate, pending-approval queue, budget ceilings, spend history |
-| **Live session / loop inspector** | Watch/interrupt a multi-hour VQE loop: replay/scrub, parameter trace, pause/override/kill, barren-plateau & WBP alerts inline |
-| **Provenance / experiment browser** | Search ledger by circuit-hash/backend/mitigation; side-by-side comparison; credential-safe evidence export (à la [[qflow-studio]]) |
-| **Provider / fleet status** | Queue depth, fidelity trend, canary-CI pass/fail, jurisdiction/export-control flags |
-| **Plugin/provider registration console** (Phase 4+) | Register & test new provider integrations against the capability contract |
-| **Experiment notebook & results studio** (Phase 6) | Structured reports — objectives/methods/protocol/results/analysis/conclusions/citations + *how to reproduce*; every section links ledger records; frame-level annotation of figures (à la [[buzz]]) |
-| **Lab, workflows & agents view** (Phase 6) | Author/approve [[workflows-and-agent-authoring|workflows & agents]], agent registry, delegation & revocation, lab/team membership ([[user-identity-and-profiles]]) |
+| **Spatial research canvas** | Infinite zoomable canvas (Galaxy to Surface); agent co-presence cursors (Buzz pattern); SDK-independent post-QIR universal glyphs & ghost circuits |
+| **4D flight recorder** | Replay/scrub multi-hour VQE loops; counterfactual branching ("what-if" forks); Ring 0 reflex watchdog events pinned to timeline |
+| **Epistemic manifold & classical anchor** | Tripartite credibility wavefunction rings (`{corroborated, contested, unverified}`); inline DMRG/tensor network classical anchors; stagnation meters ($\kappa$) |
+| **Autonomy cockpit & AP2 spend surface** | Cryptographic AP2 spend mandates (`{tenant_id, job_hash, max_budget_usd, expiry}`); one-glance action gate cards; A2A delegation trees |
+| **Execution fleet radar** | Real-time multi-modality fleet status (local simulator, ZNE, IBM, Quantinuum, QuEra, D-Wave); jurisdiction & export-control shield (`policy.py`) |
+| **Cognitive LLM mesh** | Zero-config local host port radar (Ollama, OMLX, LM Studio, MLX); sovereign air-gap switch; tiered persona model assignment; arg normalization inspector |
+| **Results studio & notebook** | Systematic citable reports with frame-anchored media comments (Buzz pattern); 100% provenance verification links; first-class negative results repository |
 
 ## Interaction principles
 
