@@ -28,16 +28,21 @@ class ExperimentReport:
     citations: list[str] = field(default_factory=list)
     how_to_reproduce: str = ""
     refs: list[tuple[str, str]] = field(default_factory=list)  # (section, ledger_ref|citation)
+    claims: list[dict[str, Any]] = field(default_factory=list)  # Epistemic claim assertions
+    classical_anchor: dict[str, Any] | None = None
 
     def add_ref(self, section: str, ref: str) -> None:
         self.refs.append((section, ref))
+
+    def add_claim(self, claim_text: str, epistemic_state: dict[str, Any]) -> None:
+        self.claims.append({"claim": claim_text, "epistemic_state": epistemic_state})
 
     def to_dict(self) -> dict[str, Any]:
         return {"report_id": self.report_id, "title": self.title, "objectives": self.objectives,
                 "methods": self.methods, "protocol": self.protocol, "results": self.results,
                 "analysis": self.analysis, "conclusions": self.conclusions,
                 "citations": self.citations, "how_to_reproduce": self.how_to_reproduce,
-                "refs": self.refs}
+                "refs": self.refs, "claims": self.claims, "classical_anchor": self.classical_anchor}
 
     def to_markdown(self) -> str:
         return (

@@ -12,13 +12,15 @@ from __future__ import annotations
 
 import hmac
 import os
+import asyncio
+import json
 from typing import Any
 
 from starlette.applications import Starlette
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, StreamingResponse
 from starlette.routing import Route
 
 from kubona import config
@@ -291,11 +293,49 @@ async def loop_action(request: Request) -> JSONResponse:
         return _json({"ok": False, "error": "unknown loop"}, 404)
 
 
+async def events(request: Request) -> StreamingResponse:
+    """Server-Sent Events (SSE) telemetry stream for real-time console observability."""
+    if not _authed(request):
+        return _auth_error()
+
+    async def _event_generator():
+        # Stream heartbeat, loop states, approvals, and burn rate telemetry
+        for _ in range(3):  # Yield bursts in test/connection or stream continuously
+            apps = [
+                {
+                    "approval_id": a.approval_id,
+                    "session_id": a.session_id,
+                    "state": a.state,
+                    "amount_requested_usd": a.amount_requested_usd,
+                    "reason": a.reason,
+                }
+                for a in _gov._load_approvals().values()
+            ]
+            data = {
+                "timestamp": asyncio.get_event_loop().time(),
+                "loops": _loops.list(),
+                "approvals": apps,
+            }
+            yield f"event: telemetry\ndata: {json.dumps(data)}\n\n"
+            await asyncio.sleep(0.1)
+
+    return StreamingResponse(
+        _event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 app = Starlette(
     middleware=[Middleware(CORSMiddleware,
                           allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])],
     routes=[
         Route("/api/health", health),
+        Route("/api/events", events),
         Route("/api/providers", providers),
         Route("/api/sessions", sessions),
         Route("/api/sessions/{sid}", session_detail),
