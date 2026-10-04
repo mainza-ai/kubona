@@ -572,14 +572,35 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, sess)
 }
 
+func (s *Server) ensureSession(sessionID string) (string, error) {
+	if sessionID != "" {
+		if _, err := s.sessionMgr.GetSession(sessionID); err == nil {
+			return sessionID, nil
+		}
+	}
+	sessions, err := s.sessionMgr.ListSessions(1)
+	if err == nil && len(sessions) > 0 {
+		return sessions[0].ID, nil
+	}
+	sess, err := s.sessionMgr.CreateSession("Active Research Campaign", 150.0)
+	if err != nil {
+		return "", err
+	}
+	return sess.ID, nil
+}
+
 func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.URL.Query().Get("session_id")
 
 	switch r.Method {
 	case http.MethodGet:
 		if sessionID == "" {
-			http.Error(w, "missing session_id query param", http.StatusBadRequest)
-			return
+			var err error
+			sessionID, err = s.ensureSession("")
+			if err != nil || sessionID == "" {
+				writeJSON(w, http.StatusOK, map[string]any{"messages": []any{}})
+				return
+			}
 		}
 		msgs, err := s.sessionMgr.GetMessages(sessionID)
 		if err != nil {
@@ -600,8 +621,10 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 		if sessionID == "" {
 			sessionID = req.SessionID
 		}
-		if sessionID == "" {
-			http.Error(w, "missing session_id", http.StatusBadRequest)
+		var err error
+		sessionID, err = s.ensureSession(sessionID)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to resolve session: %v", err), http.StatusInternalServerError)
 			return
 		}
 		if req.Role == "" {
@@ -768,6 +791,8 @@ func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	req.SessionID, _ = s.ensureSession(req.SessionID)
+
 	if len(req.Proposal) > 0 {
 		var p struct {
 			QASM            string  `json:"qasm"`
@@ -836,20 +861,26 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 		req.Prompt = "Investigate H2 molecular ground state energy at equilibrium bond distance 0.7414 A"
 	}
 
-	res, err := s.collective.ExecuteTribunal(r.Context(), s.llmClient, s.jobRunner.BridgeClient(), req.Prompt)
+	var err error
+	req.SessionID, err = s.ensureSession(req.SessionID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("failed to resolve session: %v", err), http.StatusInternalServerError)
 		return
 	}
 
-	// Persist the turns into session history
-	for _, turn := range res.Turns {
+	onTurn := func(turn agents.TribunalTurn) {
 		s.sessionMgr.AddMessage(req.SessionID, string(turn.Role), fmt.Sprintf("[%s]: %s", turn.Name, turn.Content), nil)
 		s.ledger.AppendEvent(req.SessionID, "tribunal_turn", map[string]any{
 			"turn_index": turn.TurnIndex,
 			"role":       turn.Role,
 			"verdict":    turn.Verdict,
 		})
+	}
+
+	res, err := s.collective.ExecuteTribunal(r.Context(), s.llmClient, s.jobRunner.BridgeClient(), req.Prompt, onTurn)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
 	}
 
 	// Add final assistant consensus with proposal
