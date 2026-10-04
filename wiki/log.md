@@ -514,3 +514,53 @@ skipped is the exact failure this incident is about:
   belongs in that work if it happens. Cause recorded so it repeats as a mistake I noticed rather
   than one I made twice: `git add <dir>/` after a session that left a large body of work
   uncommitted. Stage by path, or check `git diff --cached --stat` before every commit.
+
+## [2026-10-03] ingest | agent-protocol landscape & capability core decoupling
+
+* **Fifth source ingested:** [[source-agent-protocol-landscape-2026]] — comprehensive primary-source
+  audit of MCP (spec 2026-07-28, Python SDK 2.x), Linux Foundation AAIF (2025-12-09), A2A (Google contribution;
+  IBM ACP absorption verified and legacy ACP repo archived), AP2 signed mandates (Google, Sept 2025),
+  Stripe/OpenAI ACP (commerce checkout disambiguated from legacy ACP), Stripe/Tempo MPP (HTTP 402 IETF draft),
+  x402 Foundation, and IBM's official `Qiskit/mcp-servers` suite.
+* **Architectural strategy decided:** [[protocol-strategy]] establishes that MCP and A2A are thin,
+  replaceable edge adapters sitting on top of a protocol-neutral **Capability Core**. The core owns
+  cost governance, hardware federation, QIR compilation, and the immutable ledger.
+* **Empirical context overhead:** Documented code-execution mode metrics from Anthropic (up to 98.7%
+  token overhead reduction) and Cloudflare Code Mode (collapsing a 2,500-endpoint catalog from >2M tokens
+  to ~1,000 tokens), validating Kubona's sandboxed execution direction for frontier AGI/ASI models.
+* **Prototype audit & namespace defect identified:** Verified that tool functions in `platform/kubona/mcp/servers/`
+  are already 95% protocol-neutral, taking and returning plain Python types. However, `KubonaGateway` and
+  `Principal`/`AuthError` sit inside `kubona/mcp/`, coupling non-MCP systems (agents, workflows, security policy)
+  to the MCP namespace. Refactor tracked in [[questions]] Q-28.
+* **IBM Qiskit MCP Servers evaluated:** [[qiskit-mcp-servers]] audited against Kubona. IBM's suite covers
+  low-level Qiskit transpile and raw runtime execution, but lacks multi-provider federation, budget limits,
+  cost pre-flight, and classical anchors. Kubona's role confirmed as the multi-provider, cost-governed
+  control plane.
+* **New concept and entity pages:**
+  - Concepts: [[protocol-strategy]], [[spend-mandates-and-delegation]]; updated [[mcp-and-context-flooding]]
+    with 2026-07-28 spec corrections (stateless core, tasks extension, MRTR pattern).
+  - Entities: [[aaif]], [[a2a]], [[ap2]], [[qiskit-mcp-servers]]; updated [[x402]].
+  - Open questions: added Q-28 (Capability Core contract), Q-29 (MCP spec/extension target), Q-30 (vendor
+    quantum MCP integration posture); cross-linked Q-10, Q-11, Q-12.
+* **Status census:** 89 pages (`settled` 1 · `adopted` 28 · `open-question` 13 · `candidate` 6 · `tracked` 26 ·
+  `reference` 5 · `source` 5 · `living` 5). Strict wiki lint clean.
+
+## [2026-10-04] question | Q-22 — Human surface binds as The Quantum Epistemic Observatory
+* **Question closed:** [[questions]] Q-22 ("Does the human surface carry the vision?") closed as **adopted**.
+* **Decision:** The console specification is **binding** and directly drives the roadmap. Adopted the
+  breakthrough architecture **The Quantum Epistemic Observatory** across 7 core surfaces:
+  1. *Spatial Research Canvas & "The Living Lab"* (Multi-scale canvas, Buzz first-class agent identities,
+     post-QIR universal glyphs, ghost circuits, wire-cut boundaries).
+  2. *4D Flight Recorder* (Scrubbable loop inspector, counterfactual branching, Ring 0 reflex watchdog pins).
+  3. *Epistemic Manifold & Classical Anchor Horizon* (Tripartite credibility wavefunction rings,
+     inline DMRG/tensor network anchors, $\kappa$ stagnation diagnostics).
+  4. *Autonomy Cockpit & AP2 Spend Surface* (Cryptographic AP2 spend mandates, one-glance action cards, A2A delegation trees).
+  5. *Execution Tier & Hardware Fleet Radar* (Real-time multi-modality fleet status, ITAR/EAR export-control
+     routing shields, pre-flight Clifford canary fidelity predictors).
+  6. *Cognitive LLM Mesh & Sovereign Model Deck* (Zero-config local host port radar across Ollama/OMLX/LM Studio/MLX,
+     hardware air-gap switch, tiered persona model assignment, arg normalization inspector).
+  7. *Citable Results Studio & Frame-Anchored Notebook* (Systematic reports, frame-level annotations, immutable
+     negative results repository).
+* **Continuum formalised:** 4-tier execution continuum (Classical Anchors $\to$ Local Emulation $\to$ Managed Simulators $\to$ Real Cloud QPUs)
+  and dual-mode mobile biometric AP2 signing (Secure Enclave) integrated into [[ui-ux-vision]] and [[agent-ux-control-plane]].
+

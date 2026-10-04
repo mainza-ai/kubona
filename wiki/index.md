@@ -1,14 +1,14 @@
 ---
 type: catalog
 date: 2026-08-16
-updated: 2026-09-29
+updated: 2026-10-03
 tags: [index]
 status: living
 ---
 
 # Index
 
-Catalog of every page in the wiki (82 pages), updated on every ingest. When answering a
+Catalog of every page in the wiki (89 pages), updated on every ingest. When answering a
 query, read this first to find relevant pages, then drill in.
 
 > **What this wiki is.** The **blueprint** for Kubona — the accumulated insight used to
@@ -24,17 +24,17 @@ arrives, place it here first and it will find its page.
 | Layer | What belongs | Pages | Decidedness |
 |---|---|---|---|
 | **L0 · Method** | How Kubona is allowed to *know* and *claim*: evidence classes, anchors, credibility | [[quantum-advantage-realism]], [[evaluation-and-benchmarks]], [[provenance-and-reproducibility]], [[claim-credibility-wavefunctions]], [[epistemic-curvature]], [[fidelity-accounting]] | mostly `open-question` — the least grounded, most differentiating layer |
-| **L1 · Control** | The governance rail that makes agent spend survivable | [[cost-governance]], [[security-and-pqc]], [[secrets-and-workload-isolation]], [[user-identity-and-profiles]], [[provider-capability-schema]], [[quantum-cloud-pricing]] | `adopted`, but the autonomy ladder is undefined ([[questions]] Q-10) |
-| **L2 · Compute** | Compilation, providers, mitigation, the machine itself | [[qir-mlir-compilation]], [[mcp-and-context-flooding]], [[nisq-and-hybrid-orchestration]], [[error-mitigation]], [[circuit-cutting]], [[vqa-vqe]], [[barren-plateau]] + provider entities | `adopted` mechanisms, `tracked` vendors |
+| **L1 · Control** | The governance rail that makes agent spend survivable | [[cost-governance]], [[spend-mandates-and-delegation]], [[security-and-pqc]], [[secrets-and-workload-isolation]], [[user-identity-and-profiles]], [[provider-capability-schema]], [[quantum-cloud-pricing]] | `adopted`, with AP2 mandates anchoring the approval gate |
+| **L2 · Compute** | Compilation, providers, mitigation, the machine itself | [[qir-mlir-compilation]], [[protocol-strategy]], [[mcp-and-context-flooding]], [[nisq-and-hybrid-orchestration]], [[error-mitigation]], [[circuit-cutting]], [[vqa-vqe]], [[barren-plateau]] + provider entities, [[qiskit-mcp-servers]] | `adopted` mechanisms, `tracked` vendors |
 | **L3 · Research** | Autonomy that compounds: search, meta-search, packs, the discovery loop | [[science-discovery]], [[karpathy-autoresearch]], [[meta-search-and-self-evolution]], [[five-ring-research-loop]], [[multi-agent-research-collective]], [[quantum-domain-packs]], [[agentic-memory-and-observability]], [[autonomous-ansatz-optimization]], [[differentiable-quantum-stack]] | mostly `open-question` |
 | **L4 · Surface** | Where a human sees and limits the agent | [[ui-ux-vision]], [[agent-ux-control-plane]], [[workflows-and-agent-authoring]], [[confidentiality-lattice-provenance]] | `open-question` — spec far ahead of build |
-| **L5 · Ecosystem** | How it gets used, funded, and extended by others | [[agent-resource-economy]], [[x402]], [[cloudflare]], [[integration-topology-and-licence-discipline]] | 1 `settled` policy; monetization dormant |
+| **L5 · Ecosystem** | How it gets used, funded, and extended by others | [[agent-resource-economy]], [[x402]], [[cloudflare]], [[aaif]], [[a2a]], [[ap2]], [[integration-topology-and-licence-discipline]] | 1 `settled` policy; standard delegation and payment rails |
 
 ## Overview & meta
 
 | Page | Summary |
 |---|---|
-| [[questions]] | **The work-list.** 25 open questions (Q-01–Q-27, Q-25 closed) — what is known, what is missing, what the answer unblocks. Read first. |
+| [[questions]] | **The work-list.** 27 open questions (Q-01–Q-30, Q-25 closed) — what is known, what is missing, what the answer unblocks. Read first. |
 | [[overview]] | Synthesis: what Kubona is, what is decided, and what the prototype has actually answered. |
 | [[roadmap]] | Phases 0–6 read as **acceptance criteria**, not progress: gates, dependencies, team loading. |
 | [[implementation-gaps]] | Prototype gap register: what the scaffold does vs. what production requires. Code facts only. |
@@ -50,14 +50,14 @@ Describes **how decided** something is — never how finished.
 | `adopted` | Understood and relied upon; we would build this way today. Weaker than `settled` — the cost may not be known yet. | core mechanism concepts |
 | `open-question` | The insight is incomplete or the fork is undecided. Indexed in [[questions]]. | philosophy pages, autonomy model, discovery layer |
 | `candidate` | Proposed for integration or reuse; integration topology not yet committed. | [[openbao]], [[univer]], [[openqasm]], [[model-optimizer]], own repos |
-| `tracked` | External landscape (vendor, SDK, standard) observed for change. No position taken. | provider entities, [[x402]] |
+| `tracked` | External landscape (vendor, SDK, standard) observed for change. No position taken. | provider entities, [[x402]], [[aaif]], [[qiskit-mcp-servers]] |
 | `reference` | Prior art or another project mined for *method* only. Never load-bearing supply. | [[qbraid]], [[strangeworks]], [[hindsight]], own WIP |
-| `source` | An ingested source record. Immutable once written. | the 4 pages under `sources/` |
+| `source` | An ingested source record. Immutable once written. | the 5 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (82 pages = 35 entities · 38 concepts · 4 sources · 5 meta):**
-`settled` 1 · `adopted` 24 · `open-question` 13 · `candidate` 6 · `tracked` 24 ·
-`reference` 5 · `source` 4 · `living` 5. One `settled` against 24 `adopted` is the honest
+**Census (89 pages = 39 entities · 40 concepts · 5 sources · 5 meta):**
+`settled` 1 · `adopted` 28 · `open-question` 13 · `candidate` 6 · `tracked` 26 ·
+`reference` 5 · `source` 5 · `living` 5. One `settled` against 28 `adopted` is the honest
 reading: the method is **understood**, not yet **chosen**. `settled` is meant to stay small —
 if it grows much faster than `adopted`, check that constraints are being recorded as `settled`
 correctly rather than decisions being rushed into it.
@@ -66,7 +66,7 @@ correctly rather than decisions being rushed into it.
 canonical `sources` keys, link and index integrity, and the no-`dev-docs`-anchors rule.
 Run it after any batch edit; exit 0 as of 2026-09-27.
 
-## Sources (4)
+## Sources (5)
 
 | Page | Source doc | Sources this touched |
 |---|---|---|
@@ -74,13 +74,15 @@ Run it after any batch edit; exit 0 as of 2026-09-27.
 | [[source-gap-analysis-plan]] | *Gap Analysis, Architectural Expansion, and Implementation Plan* — companion plan | Everything; the operational blueprint (+ §13 self-evolution) |
 | [[source-cloudflare-economy]] | *Cloudflare, x402, and the Agent Resource Economy* — podcast insights | [[agent-resource-economy]], [[x402]], startup patterns |
 | [[source-frontier-repo-audit-2026]] | *Frontier repository audit* — 25 live repos read end-to-end (remote · HEAD · licence · path:line) | Integration classes, licences, prior-art primitives |
+| [[source-agent-protocol-landscape-2026]] | *Agent Protocol Landscape & Standards Audit* — 2026 primary-source audit of MCP, A2A, AAIF, AP2, Qiskit MCP | [[protocol-strategy]], [[spend-mandates-and-delegation]], [[mcp-and-context-flooding]] |
 
-## Entities (35)
+## Entities (39)
 
 | Page | What it is |
 |---|---|
 | [[kubona]] | The platform itself — scope, posture, naming |
-| [[buzz]] | Block/Mainza open-source hive-mind workspace — identities, event log, workflow triggers (design reference) || [[hindsight]] | vectorize-io memory sidecar: banks, retain/recall/reflect, budgeted recall over MCP |
+| [[buzz]] | Block/Mainza open-source hive-mind workspace — identities, event log, workflow triggers (design reference) |
+| [[hindsight]] | vectorize-io memory sidecar: banks, retain/recall/reflect, budgeted recall over MCP |
 | [[paperclip]] | paperclipai: four-plane MCP access governance, low-trust presets, task watchdog |
 | [[gods-eye-view]] | bilawalsidhu: per-layer policy modules with machine-checked import/package boundaries |
 | [[chickensoup]] | Maintainer's own credibility-wavefunction + real-Qiskit VQE repo — own WIP, mined for method and honest-degradation habit |
@@ -95,7 +97,11 @@ Run it after any batch edit; exit 0 as of 2026-09-27.
 | [[nvidia-cuda-q]] | GPU-accelerated simulator; open-source components usable as default backend |
 | [[aws-braket]] | AWS's managed quantum cloud; access path to IonQ/QuEra + SV1/DM1 simulators; Program Sets |
 | [[cloudflare]] | The agent-economy infrastructure vendor (Crawl Control, Monetization Gateway) |
-| [[x402]] | Payment rail on HTTP 402; sets a price, agent pays, edge verifies |
+| [[x402]] | Payment rail on HTTP 402; sets a price, agent pays, edge verifies; x402 Foundation |
+| [[aaif]] | Agentic AI Foundation: Linux Foundation body stewarding MCP, goose, AGENTS.md |
+| [[a2a]] | Agent2Agent protocol: Linux Foundation standard for opaque inter-agent delegation |
+| [[ap2]] | Agent Payments Protocol: Google/industry open standard for signed spending mandates |
+| [[qiskit-mcp-servers]] | IBM's official MCP server collection for Qiskit and IBM Quantum |
 | [[qiskit]] | IBM's SDK; V2 primitives (Sampler/Estimator), transpilation to ISA, runtime |
 | [[pennylane]] | Quantum ML / VQA framework; differentiable circuits, parameter-shift |
 | [[microsoft-azure-quantum]] | Q# language + QDK + Resource Estimator; topo/Majorana target |
@@ -114,10 +120,12 @@ Run it after any batch edit; exit 0 as of 2026-09-27.
 | [[arxiv-mcp-quantum]] | Prior-art paper proving MCP-for-quantum is a real, non-dependency field |
 | [[mainza-milimo-foundation]] | Existing codebase (Milimo Quantum, Finance Claw, AfrEval) cited as reusable de-risking |
 
-## Concepts (38)
+## Concepts (40)
 
 | Page | What it is |
 |---|---|
+| [[protocol-strategy]] | Decoupling the Capability Core from peripheral edge adapters (MCP, A2A); code mode vs tool calls |
+| [[spend-mandates-and-delegation]] | AP2-style signed mandates for QPU spend authorization and A2A inter-agent delegation |
 | [[mcp-and-context-flooding]] | Model Context Protocol; Tools/Resources/Prompts; code-execution mode |
 | [[qir-mlir-compilation]] | Hardware-agnostic intermediate representation & LLVM-based pipeline |
 | [[vqa-vqe]] | Variational algorithms; hybrid classical–quantum training loops |
