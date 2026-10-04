@@ -12,8 +12,7 @@ import random
 import time
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Callable
-
+from kubona.control.watchdog import Ring0Watchdog, WatchdogVerdict
 from kubona.provenance import Ledger
 
 Score = float
@@ -74,13 +73,14 @@ class Orchestrator:
 
     def __init__(self, harness: Harness, *, budget_steps: int = 40, seed: int = 7,
                  ledger: Ledger | None = None, mutation_radius: float = 0.5,
-                 resample_prob: float = 0.1):
+                 resample_prob: float = 0.1, watchdog: Ring0Watchdog | None = None):
         self.harness = harness
         self.budget_steps = budget_steps
         self.rng = random.Random(seed)
         self.ledger = ledger
         self.mutation_radius = mutation_radius
         self.resample_prob = resample_prob
+        self.watchdog = watchdog or Ring0Watchdog()
         self.setup = harness.fixed_setup()
 
     # -- proposal strategy (the §13 meta-loop may revise THIS, not the harness) --
@@ -141,12 +141,25 @@ class Orchestrator:
         """Run the keep-or-discard loop for `budget_steps`; returns all trials (sorted best first via history)."""
         current = initial if initial is not None else self.harness.mutable_artifact()
         history: list[Trial] = []
-        for _ in range(self.budget_steps):
+        for step_idx in range(self.budget_steps):
             trial = self.run_trial(current)
             history.append(trial)
+
+            # Ring 0 Autonomous Watchdog evaluation
+            verdict = self.watchdog.record_step(step_idx, trial.metric, trial.artifact)
+            trial.meta["watchdog"] = verdict.to_dict()
+
             if on_step:
                 on_step(trial)
-            if not trial.valid:
+
+            if verdict.action == "ABORT_TO_SNAPSHOT":
+                break
+            elif verdict.action == "PAUSE":
+                break
+            elif verdict.action == "RE_SCOPE":
+                # Barren plateau hit: re-seed from clean artifact to escape barren manifold
+                current = self.harness.mutable_artifact()
+            elif not trial.valid:
                 current = self.harness.mutable_artifact()
             else:
                 current = self.propose(current)
