@@ -258,17 +258,20 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
             Displays concurrent multi-agent campaigns, meta-loop branches, and cross-session active space explorations across the entire laboratory.
           </p>
           <div className="grid grid-cols-3 gap-4 text-xs font-mono">
-            <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg">
-              <div className="text-slate-500">Campaign 1</div>
-              <div className="text-cyan-300 font-bold">H2 Dissociation</div>
+            <div className="p-3 bg-slate-900 border border-cyan-800/60 rounded-lg">
+              <div className="text-slate-500">Active Campaign</div>
+              <div className="text-cyan-300 font-bold truncate">{campaign?.target_system || 'H2 Ground State'}</div>
+              <div className="text-[10px] text-slate-400 mt-1">{campaign?.quantum_factors?.qubit_count ?? 2} Qubits</div>
             </div>
-            <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg">
-              <div className="text-slate-500">Campaign 2</div>
-              <div className="text-emerald-300 font-bold">LiH Ground State</div>
+            <div className="p-3 bg-slate-900 border border-emerald-800/60 rounded-lg">
+              <div className="text-slate-500">Physics Anchor</div>
+              <div className="text-emerald-300 font-bold truncate">PySCF FCI</div>
+              <div className="text-[10px] text-slate-400 mt-1">{campaign?.classical_anchor?.fci_exact_energy ? `${campaign.classical_anchor.fci_exact_energy.toFixed(3)} Ha` : '-1.137 Ha'}</div>
             </div>
-            <div className="p-3 bg-slate-900 border border-slate-800 rounded-lg">
-              <div className="text-slate-500">Campaign 3</div>
-              <div className="text-purple-300 font-bold">BeH2 Linear PES</div>
+            <div className="p-3 bg-slate-900 border border-purple-800/60 rounded-lg">
+              <div className="text-slate-500">Ansatz Topology</div>
+              <div className="text-purple-300 font-bold truncate">{campaign?.quantum_factors?.ansatz_family || 'UCCSD'}</div>
+              <div className="text-[10px] text-slate-400 mt-1">Depth: {campaign?.quantum_factors?.circuit_depth ?? 4}</div>
             </div>
           </div>
         </div>
@@ -291,18 +294,29 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
             </span>
           </div>
 
-          {/* Qubit Coupling Lattice Grid */}
+          {/* Qubit Coupling Lattice Grid with active campaign qubits highlighted */}
           <div className="grid grid-cols-8 gap-3 p-4 bg-[#0A0D14] border border-slate-800 rounded-xl">
-            {Array.from({ length: 16 }).map((_, i) => (
-              <div
-                key={i}
-                className="p-3 rounded-lg bg-slate-900/90 border border-cyan-500/30 text-center space-y-1 group hover:border-cyan-400 transition-all cursor-pointer"
-              >
-                <div className="text-[10px] font-mono text-cyan-400 font-bold">Q[{i}]</div>
-                <div className="text-[9px] font-mono text-slate-400">T₁: 175µs</div>
-                <div className="text-[9px] font-mono text-emerald-400">ε: 0.12%</div>
-              </div>
-            ))}
+            {Array.from({ length: 16 }).map((_, i) => {
+              const activeQubits = campaign?.quantum_factors?.qubit_count ?? 2;
+              const isAllocated = i < activeQubits;
+
+              return (
+                <div
+                  key={i}
+                  className={`p-3 rounded-lg border text-center space-y-1 transition-all cursor-pointer ${
+                    isAllocated
+                      ? 'bg-cyan-950/40 border-cyan-400/80 shadow-[0_0_10px_rgba(0,240,255,0.2)]'
+                      : 'bg-slate-900/90 border-slate-800 text-slate-500 hover:border-slate-700'
+                  }`}
+                >
+                  <div className={`text-[10px] font-mono font-bold ${isAllocated ? 'text-cyan-300' : 'text-slate-500'}`}>
+                    Q[{i}] {isAllocated ? '★' : ''}
+                  </div>
+                  <div className="text-[9px] font-mono text-slate-400">T₁: {175 + (i * 2)}µs</div>
+                  <div className="text-[9px] font-mono text-emerald-400">ε: {(0.10 + (i * 0.01)).toFixed(2)}%</div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -311,11 +325,11 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
       <div className="absolute bottom-4 left-4 glass-panel p-3 rounded-xl text-xs space-y-1.5 pointer-events-none">
         <div className="flex items-center space-x-2 text-slate-300">
           <Scissors className="w-3.5 h-3.5 text-amber-400" />
-          <span>PennyLane QPD Cut Overhead: <strong className="text-white font-mono">4.0x</strong></span>
+          <span>PennyLane QPD Cut Overhead: <strong className="text-white font-mono">{Math.pow(4, campaign?.quantum_factors?.wire_cuts?.length || 1).toFixed(1)}x</strong></span>
         </div>
         <div className="flex items-center space-x-2 text-slate-300">
           <Cpu className="w-3.5 h-3.5 text-emerald-400" />
-          <span>Subcircuits partitioned across: <strong className="text-emerald-300">2 Qubits Max</strong></span>
+          <span>Subcircuits partitioned across: <strong className="text-emerald-300">{Math.max(1, Math.ceil((campaign?.quantum_factors?.qubit_count || 4) / 2))} Qubits Max</strong></span>
         </div>
         <div className="flex items-center space-x-2 text-slate-300">
           <ShieldCheck className="w-3.5 h-3.5 text-indigo-400" />
