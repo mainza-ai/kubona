@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"time"
@@ -149,6 +151,10 @@ func (s *Server) registerRoutes() {
 
 	// Vault Dynamic Leases (OpenBao sidecar bridge)
 	s.mux.HandleFunc("/api/vault/leases", s.handleVaultLeases)
+
+	// Molecular Science & 12-Agent Drug Discovery Pipeline
+	s.mux.HandleFunc("/api/chemistry/admet", s.handleChemistryADMET)
+	s.mux.HandleFunc("/api/discovery/pipeline", s.handleDiscoveryPipeline)
 }
 
 func writeJSON(w http.ResponseWriter, status int, data any) {
@@ -1131,3 +1137,138 @@ func (s *Server) handleVaultLeases(w http.ResponseWriter, r *http.Request) {
 		"expires_at":      expiresAt.Format(time.RFC3339),
 	})
 }
+
+func findPythonVenv() (string, string) {
+	candidates := []struct{ bin, dir string }{
+		{"../.venv/bin/python3", "../bridge"},
+		{"platform/.venv/bin/python3", "platform/bridge"},
+		{".venv/bin/python3", "bridge"},
+	}
+	for _, c := range candidates {
+		if _, err := os.Stat(c.bin); err == nil {
+			return c.bin, c.dir
+		}
+	}
+	return "python3", "platform/bridge"
+}
+
+func (s *Server) handleChemistryADMET(w http.ResponseWriter, r *http.Request) {
+	smiles := r.URL.Query().Get("smiles")
+	if smiles == "" && (r.Method == http.MethodPost || r.Method == http.MethodPut) {
+		var req struct {
+			SMILES string `json:"smiles"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err == nil {
+			smiles = req.SMILES
+		}
+	}
+	if smiles == "" {
+		smiles = "CC(=O)Oc1ccccc1C(=O)O" // Default Aspirin benchmark
+	}
+
+	bin, dir := findPythonVenv()
+	script := `import json, sys
+from chemistry import evaluate_molecular_admet
+try:
+    res = evaluate_molecular_admet(sys.argv[1])
+    print(json.dumps(res))
+except Exception as e:
+    print(json.dumps({"error": str(e)}))
+`
+	cmd := exec.Command(bin, "-c", script, smiles)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "PYTHONPATH=.")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		cmdHost := exec.Command("python3", "-c", script, smiles)
+		cmdHost.Dir = "platform/bridge"
+		cmdHost.Env = append(os.Environ(), "PYTHONPATH=platform/bridge")
+		if hostOut, hostErr := cmdHost.CombinedOutput(); hostErr == nil {
+			out = hostOut
+			err = nil
+		}
+	}
+
+	var parsed map[string]any
+	if json.Unmarshal(out, &parsed) == nil {
+		s.ledger.AppendEvent("system", "molecular_admet_profiled", map[string]any{
+			"smiles": smiles,
+			"mw":     parsed["molecular_weight"],
+			"logp":   parsed["clogp"],
+			"qed":    parsed["qed"],
+		})
+		writeJSON(w, http.StatusOK, parsed)
+		return
+	}
+
+	http.Error(w, fmt.Sprintf("failed to evaluate ADMET: %v, out: %s", err, string(out)), http.StatusInternalServerError)
+}
+
+func (s *Server) handleDiscoveryPipeline(w http.ResponseWriter, r *http.Request) {
+	type CandReq struct {
+		Name   string `json:"name"`
+		SMILES string `json:"smiles"`
+	}
+	var req struct {
+		Target     string    `json:"target"`
+		Candidates []CandReq `json:"candidates"`
+	}
+
+	if r.Method == http.MethodPost || r.Method == http.MethodPut {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+	}
+
+	if req.Target == "" {
+		req.Target = "COX-2"
+	}
+	if len(req.Candidates) == 0 {
+		req.Candidates = []CandReq{
+			{Name: "Aspirin", SMILES: "CC(=O)Oc1ccccc1C(=O)O"},
+			{Name: "Paracetamol", SMILES: "CC(=O)Nc1ccc(O)cc1"},
+			{Name: "Ibuprofen", SMILES: "CC(C)Cc1ccc(cc1)C(C)C(=O)O"},
+		}
+	}
+
+	candsJSON, _ := json.Marshal(req.Candidates)
+
+	bin, dir := findPythonVenv()
+	script := `import json, sys
+from chemistry import evaluate_candidate_pipeline
+try:
+    cands = json.loads(sys.argv[2])
+    res = evaluate_candidate_pipeline(sys.argv[1], cands)
+    print(json.dumps(res))
+except Exception as e:
+    print(json.dumps({"error": str(e)}))
+`
+	cmd := exec.Command(bin, "-c", script, req.Target, string(candsJSON))
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "PYTHONPATH=.")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		cmdHost := exec.Command("python3", "-c", script, req.Target, string(candsJSON))
+		cmdHost.Dir = "platform/bridge"
+		cmdHost.Env = append(os.Environ(), "PYTHONPATH=platform/bridge")
+		if hostOut, hostErr := cmdHost.CombinedOutput(); hostErr == nil {
+			out = hostOut
+			err = nil
+		}
+	}
+
+	var parsed map[string]any
+	if json.Unmarshal(out, &parsed) == nil {
+		s.ledger.AppendEvent("system", "discovery_pipeline_evaluated", map[string]any{
+			"target":          req.Target,
+			"total_evaluated": len(req.Candidates),
+			"top_lead":        parsed["top_lead"],
+		})
+		writeJSON(w, http.StatusOK, parsed)
+		return
+	}
+
+	http.Error(w, fmt.Sprintf("failed to evaluate discovery pipeline: %v, out: %s", err, string(out)), http.StatusInternalServerError)
+}
+
