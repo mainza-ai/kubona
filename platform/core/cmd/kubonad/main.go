@@ -59,8 +59,9 @@ func main() {
 	httpServer := &http.Server{
 		Addr:         fmt.Sprintf(":%d", *port),
 		Handler:      server.Handler(),
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  120 * time.Second,
+		WriteTimeout: 300 * time.Second,
+		IdleTimeout:  120 * time.Second,
 	}
 
 	go func() {

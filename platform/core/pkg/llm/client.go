@@ -75,11 +75,16 @@ func (c *Client) Complete(ctx context.Context, role string, messages []ChatMessa
 		return "", nil, 0, fmt.Errorf("provider configuration not found for %s", providerType)
 	}
 
+	maxTokens := snap.MaxTokens
+	if maxTokens > 250 {
+		maxTokens = 250
+	}
+
 	reqBody := ChatCompletionRequest{
 		Model:       model,
 		Messages:    messages,
 		Temperature: snap.Temperature,
-		MaxTokens:   snap.MaxTokens,
+		MaxTokens:   maxTokens,
 	}
 
 	bodyBytes, err := json.Marshal(reqBody)

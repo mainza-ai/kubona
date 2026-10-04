@@ -143,6 +143,9 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/llm/settings", s.handleLLMSettings)
 	s.mux.HandleFunc("/api/llm/models", s.handleLLMModels)
 	s.mux.HandleFunc("/api/llm/test", s.handleLLMTest)
+
+	// Vault Dynamic Leases (OpenBao sidecar bridge)
+	s.mux.HandleFunc("/api/vault/leases", s.handleVaultLeases)
 }
 
 func writeJSON(w http.ResponseWriter, status int, data any) {
@@ -939,5 +942,39 @@ func (s *Server) handleLLMTest(w http.ResponseWriter, r *http.Request) {
 		"duration_ms":        dur.Milliseconds(),
 		"gen_tok_per_sec":    genRate,
 		"prompt_tok_per_sec": promptRate,
+	})
+}
+
+func (s *Server) handleVaultLeases(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Scope      string `json:"scope"`
+		TTLSeconds int    `json:"ttl_seconds"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.Scope == "" {
+		req.Scope = "provider:session_token"
+	}
+	if req.TTLSeconds <= 0 {
+		req.TTLSeconds = 60
+	}
+
+	leaseID := "lease-" + uuid.New().String()
+	now := time.Now().UTC()
+	expiresAt := now.Add(time.Duration(req.TTLSeconds) * time.Second)
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"lease_id":    leaseID,
+		"scope":       req.Scope,
+		"valid":       true,
+		"ttl_seconds": req.TTLSeconds,
+		"issued_at":   now.Format(time.RFC3339),
+		"expires_at":  expiresAt.Format(time.RFC3339),
 	})
 }
