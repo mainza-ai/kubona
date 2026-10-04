@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { KeyRound, ShieldCheck, DollarSign, Clock, Check, CheckCircle2, AlertOctagon, GitMerge, ArrowDownRight, RefreshCw, XCircle } from 'lucide-react';
-import { WebCryptoKeyring } from '../common/WebCryptoKeyring';
+import { KeyRound, ShieldCheck, DollarSign, Clock, Check, CheckCircle2, AlertOctagon, GitMerge, ArrowDownRight, RefreshCw, XCircle, Terminal } from 'lucide-react';
+import { WebCryptoKeyring, signSpendMandate } from '../common/WebCryptoKeyring';
 
 export function AutonomyCockpit() {
   const [signed, setSigned] = useState(false);
@@ -10,63 +10,77 @@ export function AutonomyCockpit() {
   const [verificationResult, setVerificationResult] = useState<any>(null);
   const [budgetUSD, setBudgetUSD] = useState(25.0);
   const [actionVerdict, setActionVerdict] = useState<string>('');
+  const [actionDetails, setActionDetails] = useState<string>('');
+  const [executingAction, setExecutingAction] = useState<string | null>(null);
+
+  const tenantId = 'tenant-quantum-lab-1';
+  const jobHash = 'sha256:88fa29810bce328a994781dfa98e21';
 
   const handleClientSign = async () => {
     setSigning(true);
+    setActionDetails('');
     try {
-      const pubKey = localStorage.getItem('kubona_ed25519_pub') || 'a9f8e7d6c5b4a321a9f8e7d6c5b4a321a9f8e7d6c5b4a321a9f8e7d6c5b4a321';
-      const tenantId = 'tenant-quantum-lab-1';
-      const jobHash = 'sha256:88fa29810bce328a994781dfa98e21';
-      const expiry = new Date(Date.now() + 7200 * 1000).toISOString();
+      const expiry = new Date(Date.now() + 7200 * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+      
+      // Sign the mandate client-side in browser memory with RFC 8032 Ed25519
+      const mandatePayload = signSpendMandate(tenantId, jobHash, budgetUSD, expiry);
 
-      // Sign the mandate client-side using browser Ed25519 or high-entropy signature
-      const clientSignature = 'f8a7b6c5d4e3f2a1'.repeat(8);
-
-      // Verify the client's signature with the Go backend
+      // Verify the client's signature with Go Core backend
       const res = await fetch('http://localhost:8080/api/mandates/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: JSON.stringify(mandatePayload),
+      });
+
+      const data = await res.json();
+      if (data.valid) {
+        setSigned(true);
+        setActionVerdict('MANDATE_AUTHORIZED_CLIENT_SIGNED');
+        setActionDetails(`Ed25519 signature verified by Go Core backend. Envelope recorded in SQLite WAL ledger at ${data.verified_at}`);
+        setVerificationResult({
           tenant_id: tenantId,
           job_hash: jobHash,
           max_budget_usd: budgetUSD,
-          expiry_timestamp: expiry,
-          public_key_hex: pubKey,
-          signature_hex: clientSignature,
-        }),
-      });
-
-      // Even if mock signature, verify endpoint accepts and logs
-      setSigned(true);
-      setActionVerdict('MANDATE_AUTHORIZED_CLIENT_SIGNED');
-      setVerificationResult({
-        tenant_id: tenantId,
-        job_hash: jobHash,
-        max_budget_usd: budgetUSD,
-        public_key_hex: pubKey,
-        signed_at: new Date().toISOString(),
-        verified: true,
-      });
-    } catch (err) {
+          public_key_hex: mandatePayload.public_key_hex,
+          signature_hex: mandatePayload.signature_hex,
+          signed_at: data.verified_at,
+          verified: true,
+        });
+      } else {
+        setActionVerdict('MANDATE_VERIFICATION_REJECTED');
+        setActionDetails(`Verification error: ${data.error}`);
+      }
+    } catch (err: any) {
       console.error('Failed to verify client mandate:', err);
+      setActionVerdict('MANDATE_DISPATCH_FAILED');
+      setActionDetails(`Connection error: ${err?.message || err}`);
     } finally {
       setSigning(false);
     }
   };
 
-  const handleDowngrade = () => {
-    setActionVerdict('DOWNGRADED_TO_LOCAL_AER_SIM');
-    alert('Action Gate: Re-routed experiment to zero-cost local Aer Simulator ($0.00).');
-  };
-
-  const handleRescope = () => {
-    setActionVerdict('ANSATZ_RESCOPED_SHALLOW');
-    alert('Action Gate: Truncated 2-qubit entangling gates. Depth reduced from 6 to 3.');
-  };
-
-  const handleAbort = () => {
-    setActionVerdict('RING0_ABORT_TRIGGERED');
-    alert('Action Gate: Ring 0 emergency abort dispatched. Loop execution killed.');
+  const executeActionGate = async (action: 'downgrade' | 'rescope' | 'kill', label: string) => {
+    setExecutingAction(action);
+    setActionDetails('');
+    try {
+      const res = await fetch(`http://localhost:8080/api/loops/loop-vqe-active/${action}`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      setActionVerdict(label);
+      if (action === 'downgrade') {
+        setActionDetails('Action Gate 2 executed: Quantum circuit re-routed to sovereign local Aer statevector simulator ($0.00 spend). Spend ceiling bypassed.');
+      } else if (action === 'rescope') {
+        setActionDetails('Action Gate 3 executed: Ring 0 Supervisor re-scoped variational ansatz. 2-qubit entangling layer depth halved to 3 layers, step budget clamped to 50.');
+      } else if (action === 'kill') {
+        setActionDetails('Action Gate 4 executed: Ring 0 emergency abort sequence initiated. Loop killed and QPU queue reservation cancelled.');
+      }
+    } catch (err: any) {
+      setActionVerdict(`${label}_ERROR`);
+      setActionDetails(`Failed to dispatch loop action: ${err?.message || err}`);
+    } finally {
+      setExecutingAction(null);
+    }
   };
 
   return (
@@ -102,7 +116,7 @@ export function AutonomyCockpit() {
             <div>
               <div className="text-sm font-bold text-white">Cloud QPU Spend Mandate Envelope</div>
               <div className="text-xs text-slate-400 font-mono">
-                Tenant: tenant-quantum-lab-1 | Target: IBM Heron (133 Qubits)
+                Tenant: {tenantId} | Target: IBM Heron (133 Qubits)
               </div>
             </div>
           </div>
@@ -144,12 +158,13 @@ export function AutonomyCockpit() {
                 <KeyRound className="w-3.5 h-3.5 text-cyan-400" />
               </div>
               <span className="text-[10px] text-slate-400 mt-2">
-                {signed ? 'Signed with WebCrypto' : 'Sign mandate & dispatch QPU'}
+                {signing ? 'Signing RFC 8032...' : signed ? 'Signed & Verified' : 'Sign mandate & dispatch QPU'}
               </span>
             </button>
 
             <button
-              onClick={handleDowngrade}
+              onClick={() => executeActionGate('downgrade', 'DOWNGRADED_TO_LOCAL_AER_SIM')}
+              disabled={executingAction !== null}
               className="p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-left flex flex-col justify-between transition-all text-slate-200"
             >
               <div className="flex items-center justify-between">
@@ -160,7 +175,8 @@ export function AutonomyCockpit() {
             </button>
 
             <button
-              onClick={handleRescope}
+              onClick={() => executeActionGate('rescope', 'ANSATZ_RESCOPED_SHALLOW')}
+              disabled={executingAction !== null}
               className="p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-left flex flex-col justify-between transition-all text-slate-200"
             >
               <div className="flex items-center justify-between">
@@ -171,7 +187,8 @@ export function AutonomyCockpit() {
             </button>
 
             <button
-              onClick={handleAbort}
+              onClick={() => executeActionGate('kill', 'RING0_ABORT_TRIGGERED')}
+              disabled={executingAction !== null}
               className="p-3 rounded-xl bg-red-950/20 hover:bg-red-950/30 border border-red-800/40 text-left flex flex-col justify-between transition-all text-red-300"
             >
               <div className="flex items-center justify-between">
@@ -184,9 +201,38 @@ export function AutonomyCockpit() {
         </div>
 
         {actionVerdict && (
-          <div className="p-3 bg-emerald-950/20 border border-emerald-800/50 rounded-xl text-xs font-mono text-emerald-300 flex items-center space-x-2">
-            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-            <span>Action Executed: <strong>{actionVerdict}</strong></span>
+          <div className="p-3 bg-emerald-950/20 border border-emerald-800/50 rounded-xl space-y-1">
+            <div className="text-xs font-mono text-emerald-300 flex items-center space-x-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>Action Verdict: <strong>{actionVerdict}</strong></span>
+            </div>
+            {actionDetails && (
+              <div className="text-[11px] text-slate-400 font-mono pl-6">
+                {actionDetails}
+              </div>
+            )}
+          </div>
+        )}
+
+        {verificationResult && (
+          <div className="p-3.5 bg-[#0A0D14] border border-cyan-900/40 rounded-xl space-y-2 text-xs font-mono">
+            <div className="flex items-center justify-between text-cyan-300 font-bold border-b border-cyan-900/30 pb-1.5">
+              <span className="flex items-center space-x-1.5">
+                <ShieldCheck className="w-4 h-4 text-cyan-400" />
+                <span>Cryptographic Mandate Proof (Go Verified)</span>
+              </span>
+              <span className="text-[10px] text-emerald-400">STATUS: ED25519_VALID</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] text-slate-400 pt-1">
+              <div>
+                <span className="text-slate-500">Signer PubKey:</span>
+                <div className="truncate text-slate-300">{verificationResult.public_key_hex}</div>
+              </div>
+              <div>
+                <span className="text-slate-500">Signature:</span>
+                <div className="truncate text-indigo-300">{verificationResult.signature_hex}</div>
+              </div>
+            </div>
           </div>
         )}
       </div>
