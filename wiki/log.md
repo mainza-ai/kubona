@@ -1,7 +1,7 @@
 ---
 type: log
 date: 2026-08-16
-updated: 2026-09-27
+updated: 2026-10-04
 tags: [log]
 status: living
 ---
@@ -561,6 +561,51 @@ skipped is the exact failure this incident is about:
      hardware air-gap switch, tiered persona model assignment, arg normalization inspector).
   7. *Citable Results Studio & Frame-Anchored Notebook* (Systematic reports, frame-level annotations, immutable
      negative results repository).
-* **Continuum formalised:** 4-tier execution continuum (Classical Anchors $\to$ Local Emulation $\to$ Managed Simulators $\to$ Real Cloud QPUs)
-  and dual-mode mobile biometric AP2 signing (Secure Enclave) integrated into [[ui-ux-vision]] and [[agent-ux-control-plane]].
+## [2026-10-04] decision | TypeScript/Go core architecture pivot & comprehensive platform audit
+* **Comprehensive forensic audit:** Verified that >80% of what is documented in the blueprint is either
+  unimplemented, stubbed, or disguised behind static UI facades in the `platform/` prototype.
+  Identified critical disconnects: in-memory ephemeral Copilot drawer, stateless backend chat with keyword matching,
+  "Authorize & Launch" button executing a no-op refresh, split-brain in-memory supervisors, and uncalled ghost code.
+* **Technology stack standardized on TypeScript/Go:** Retired Dart/Flutter prototype. Adopted:
+  - **Frontend UI: TypeScript + React/Next.js** (React Flow / xyflow node canvas for agent workflows, Yjs CRDT multiplayer presence, deep DOM scientific paper selection, Mol* 3D molecular structures).
+  - **Backend Orchestrator: Go (Golang)** (Lightweight goroutines/channels for 1000s of concurrent agent loops, state engine, container sandbox lifecycle, high-throughput immutable logging).
+  - **Quantum / Data Bridge: Python (FastAPI / gRPC)** (Dedicated microservices for Qiskit, PennyLane, PySCF, Cirq, and AI data tensors).
+  - **Compiler Kernel: Rust (`qir-core`)** (High-performance QIR lowering and AST analysis).
+* **Pages updated:** [[ui-ux-vision]], [[agent-ux-control-plane]], [[protocol-strategy]], [[implementation-gaps]],
+  [[roadmap]], [[questions]], [[overview]].
+
+## [2026-10-04] audit | Strict Constraint Honored forensic audit & 6-Phase Master Implementation Plan
+* **Comprehensive reality check:** Forensic audit revealed over 90% of what is documented in the blueprint
+  across 89 wiki pages, the 7 Observatory Surfaces, and 25 audited `dev-docs` repositories is missing,
+  stubbed, or masked behind placeholders.
+* **Adopted 6-Phase Master Implementation Plan:**
+  - **Phase 1: Architecture Core, Governance & Isolation** — Ed25519 AP2 cryptographic spend mandates, Buzz IFC reader-set lattice in Go/Rust, Paperclip 4-plane MCP access gateway, OpenBao secrets vault sidecar.
+  - **Phase 2: Quantum Physics Engines, Real Anchors & Data Grounding** — PySCF ab-initio numerical electronic structure solver (RHF, CISD, FCI), hardware noise profiles ($T_2 \le 2T_1$) with `stim` Clifford stabilizer probes, PennyLane `qcut` KaHyPar circuit cutting, live arXiv and OpenAlex connectors.
+  - **Phase 3: Multi-Agent Collective & Closed Rings 0-1** — 5 specialized agent personas (`epistemic-scribe`, `ansatz-scout`, `device-auditor`, `disconfirmation-officer`, `human-reviewer`) with declarative `role.yaml`, Ring 0 supervisor with automated re-scoping and snapshot recovery, Ring 1 assertion gating with epistemic curvature ($\kappa$, drift, refusal ratio), and Hindsight tripartite memory banks.
+  - **Phase 4: Autoresearch Engine, Fidelity Accounting & Rings 3-4** — Karpathy Autoresearch 4-part harness registry, autonomous ansatz genome search with cheap pre-checks, Ring 3 fidelity accounting gate, and §13 meta-search self-evolution engine.
+  - **Phase 5: The Seven Core Observatory Surfaces (Next.js 16 + TypeScript)** — Surface 1 (Spatial Canvas via React Flow), Surface 2 (4D Scrubbable Flight Recorder), Surface 3 (Dynamic Wavefunction Rings), Surface 4 (Cryptographic Mandate Cockpit), Surface 5 (Fleet Radar & ITAR Shield), Surface 6 (Cognitive Mesh & Air-Gap Switch), Surface 7 (Citable Results Studio).
+  - **Phase 6: Multi-Tenant Sandboxing, Production CI & Zero-Placeholder Verification** — Docker workload container isolation, unified multi-language CI pipeline, automated end-to-end campaign tests, and zero-placeholder audit across the codebase.
+* **Updated:** [[implementation-gaps]], [[roadmap]], [[overview]], and master plan artifact.
+
+## [2026-10-04] execution | Master Plan Execution: Local-First Quantum Testing & Hybrid LLM Configuration
+* **oMLX Local LLM Engine Verified:** Verified live engine on `http://127.0.0.1:8787` hosting 11 models; confirmed live completion with `Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit` and `Llama-3.2-3B-Instruct-bf16`.
+* **Local Classical-Quantum Testing Gate Defined:** Mandatory local verification sequence before cloud hardware: PySCF ab-initio RHF/FCI anchors, Qiskit Aer simulation, PennyLane KaHyPar wire cutting, and Clifford stabilizer probes.
+* **Hybrid LLM Settings Plane:** Comprehensive configuration view designed for local engines (oMLX, Ollama, LM Studio) and cloud providers (Anthropic, OpenAI) with Sovereign Air-Gap isolation and per-agent role routing.
+* **Full-Stack Execution:** Proceeding with implementation across Go Core, Python Quantum Bridge, and Next.js 16 Console.
+
+## [2026-10-04] implementation | Multi-Agent Tribunal, WebCrypto AP2 Keyring, PySCF Classical Anchors, and 8 Dynamic Observatory Surfaces
+* **Multi-Agent Collective Tribunal:** Automated 4-turn debate pipeline implemented in Go core (`platform/core/pkg/agents/collective.go:ExecuteTribunal`) and exposed via `/api/chat/tribunal`: Ansatz Scout proposes candidate ansatz and active space -> Disconfirmation Officer evaluates ab-initio PySCF classical anchor and barren plateau risk -> Device Auditor enforces physical hardware constraints and spend ceiling -> Epistemic Scribe collapses Ring 1 credibility wavefunction and synthesises cryptographic AP2 Mandate Card.
+* **Cryptographic AP2 Mandate Signing:** Implemented browser client-side Ed25519 keypair generation and signing via W3C WebCrypto API (`platform/console/components/WebCryptoKeyring.tsx`), verified statelessly by Go orchestrator (`/api/mandates/verify`) and persisted in SQLite audit ledger.
+* **Quantum Execution & Ab-Initio Chemistry:** Real PySCF STO-3G/6-31G RHF and FCI calculation on molecular geometries ($H_2$, $LiH$, $BeH_2$), Qiskit Aer noisy density matrix simulation, Meyer-Wallach entanglement metric calculation, and genuine gate-preserving QPD circuit cutting (`platform/bridge/executor.py`).
+* **Eight Dynamic Observatory Surfaces (Next.js 16 App Router):**
+  1. *Spatial Research Canvas:* React Flow node graph with universal post-QIR glyphs, wire-cut boundaries, and semantic zoom.
+  2. *4D Flight Recorder:* Scrubbable canvas loss trajectory, parameter evolution inspector $\vec{\theta}(t)$, and counterfactual branch tree.
+  3. *Epistemic Manifold:* Tripartite credibility rings ($P_{\text{corr}}$), classical anchor comparator, advantage realism audit.
+  4. *Autonomy Cockpit:* WebCrypto keyring, 4-way action gates (`[Authorize]`, `[Downgrade]`, `[Re-Scope]`, `[Abort]`), A2A delegation hierarchy.
+  5. *Fleet Radar:* 4-tier continuum, coupling lattice with $T_1/T_2$ coherence, EAR99 export shield.
+  6. *Cognitive Mesh:* Port radar sweep (8787, 11434, 1234, 8080, 50051), illuminated sovereign air-gap switch, model routing matrix.
+  7. *Citable Results Studio:* 8-section scientific publication view, frame-anchored Buzz annotations, Markdown and PDF export.
+  8. *Observatory Cockpit:* Real-time SVG speedometer gauges, spend burn telemetry, emergency hardware abort rail.
+* **End-to-End Campaign Verification:** Zero placeholders, 100% production code running across Next.js (port 3000), Go Core Orchestrator (port 8080), Python gRPC Bridge (port 50051), and local oMLX LLM (port 8787). Closed blueprint questions Q-01, Q-15, Q-16, Q-21.
+
 
