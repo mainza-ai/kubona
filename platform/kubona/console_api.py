@@ -350,12 +350,24 @@ async def events(request: Request) -> StreamingResponse:
     )
 
 
+async def chat_messages(request: Request) -> JSONResponse:
+    if not _authed(request):
+        return _auth_error()
+    from kubona.chat.dialogue import ResearchDialogueEngine, ChatMessage
+    body = await request.json()
+    prompt = body.get("prompt", "")
+    engine = ResearchDialogueEngine()
+    reply = engine.process_turn(prompt)
+    return _json({"ok": True, "message": reply.model_dump()})
+
+
 app = Starlette(
     middleware=[Middleware(CORSMiddleware,
                           allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])],
     routes=[
         Route("/api/health", health),
         Route("/api/events", events),
+        Route("/api/chat/messages", chat_messages, methods=["POST"]),
         Route("/api/providers", providers),
         Route("/api/sessions", sessions),
         Route("/api/sessions/{sid}", session_detail),

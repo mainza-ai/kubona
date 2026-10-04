@@ -219,4 +219,17 @@ class ConsoleApi {
     }
     return body;
   }
+
+  Future<Map<String, dynamic>> chatMessages(String prompt) async {
+    final res = await _client.post(
+      Uri.parse('$baseUrl/api/chat/messages'),
+      headers: _headers,
+      body: jsonEncode({'prompt': prompt}),
+    );
+    final body = jsonDecode(res.body) as Map<String, dynamic>;
+    if (body['ok'] != true) {
+      throw Exception(body['error'] ?? 'Chat request failed');
+    }
+    return body['message'] as Map<String, dynamic>;
+  }
 }

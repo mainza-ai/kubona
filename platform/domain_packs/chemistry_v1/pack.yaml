@@ -1,0 +1,16 @@
+author: Kubona Quantum Epistemic Core
+benchmark_systems:
+- H2
+- LiH
+- BeH2
+classical_anchor_methods:
+- RHF
+- Exact-Diagonalization-FCI
+- DMRG
+description: Standard STO-3G minimal basis molecular Hamiltonian pack with FCI/RHF
+  anchors.
+domain_category: chemistry
+hamiltonian_generator: kubona.anchors.chemistry.MolecularAnchorEngine
+min_qubit_support: 2
+name: quantum-molecular-chemistry
+version: 1.0.0
