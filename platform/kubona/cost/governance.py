@@ -45,6 +45,8 @@ class Approval:
     note: str | None = None
     created_at: float = field(default_factory=time.time)
     reviewed_at: float | None = None
+    mandate_token: str | None = None
+    mandate_digest: str | None = None
 
 
 class CostGovernanceService:
@@ -90,6 +92,8 @@ class CostGovernanceService:
         return a
 
     def approve(self, approval_id: str, reviewer: str, note: str | None = None) -> Approval:
+        from kubona.cost.mandate import create_mandate
+
         a = self._load_approvals()[approval_id]
         if a.state not in ("REVIEW", "HOLD"):
             raise GovernanceError(f"approval {approval_id} is {a.state}")
@@ -97,6 +101,18 @@ class CostGovernanceService:
         a.reviewed_by = reviewer
         a.note = note
         a.reviewed_at = time.time()
+        # Generate cryptographic AP2 spend mandate token upon approval
+        m = create_mandate(
+            mandate_id=a.approval_id,
+            tenant_id="default-tenant",
+            session_id=a.session_id,
+            job_hash=f"job-{a.approval_id}",
+            max_budget_usd=a.amount_requested_usd,
+            ttl_seconds=3600.0,
+            approved_by=reviewer,
+        )
+        a.mandate_token = m.mandate_id
+        a.mandate_digest = m.digest()
         self._save_approval(a)
         return a
 

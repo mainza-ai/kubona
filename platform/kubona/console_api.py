@@ -122,9 +122,16 @@ async def approvals(request: Request) -> JSONResponse:
     out = []
     for a in _gov._load_approvals().values():
         if state is None or a.state == state:
-            out.append({"approval_id": a.approval_id, "session_id": a.session_id, "state": a.state,
-                        "amount_requested_usd": a.amount_requested_usd, "reason": a.reason,
-                        "requested_by": a.requested_by})
+            out.append({
+                "approval_id": a.approval_id,
+                "session_id": a.session_id,
+                "state": a.state,
+                "amount_requested_usd": a.amount_requested_usd,
+                "reason": a.reason,
+                "requested_by": a.requested_by,
+                "mandate_token": a.mandate_token,
+                "mandate_digest": a.mandate_digest,
+            })
     return _json({"ok": True, "approvals": out})
 
 
@@ -143,7 +150,13 @@ async def approval_action(request: Request) -> JSONResponse:
             a = _gov.reject(aid, reviewer, note=request.query_params.get("note") or "rejected from console")
         else:
             return _json({"ok": False, "error": f"unknown action {action}"}, 400)
-        return _json({"ok": True, "approval_id": a.approval_id, "state": a.state})
+        return _json({
+            "ok": True,
+            "approval_id": a.approval_id,
+            "state": a.state,
+            "mandate_token": a.mandate_token,
+            "mandate_digest": a.mandate_digest,
+        })
     except KeyError:
         return _json({"ok": False, "error": "unknown approval"}, 404)
     except Exception as e:

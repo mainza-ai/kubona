@@ -48,6 +48,8 @@ class ApprovalItem {
   final String state;
   final double amountUsd;
   final String reason;
+  final String? mandateToken;
+  final String? mandateDigest;
 
   const ApprovalItem({
     required this.approvalId,
@@ -55,6 +57,8 @@ class ApprovalItem {
     required this.state,
     required this.amountUsd,
     required this.reason,
+    this.mandateToken,
+    this.mandateDigest,
   });
 
   factory ApprovalItem.fromJson(Map<String, dynamic> j) => ApprovalItem(
@@ -63,6 +67,8 @@ class ApprovalItem {
         state: j['state'] as String,
         amountUsd: (j['amount_requested_usd'] as num).toDouble(),
         reason: j['reason'] as String,
+        mandateToken: j['mandate_token'] as String?,
+        mandateDigest: j['mandate_digest'] as String?,
       );
 }
 
