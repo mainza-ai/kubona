@@ -274,6 +274,26 @@ async def loops(request: Request) -> JSONResponse:
     return _json({"ok": True, "loops": _loops.list()})
 
 
+async def loop_history(request: Request) -> JSONResponse:
+    """Returns 4D flight recorder history and trajectory for a given loop."""
+    if not _authed(request):
+        return _auth_error()
+    lid = request.path_params["lid"]
+    try:
+        h = _loops.get(lid)
+        return _json({
+            "ok": True,
+            "loop_id": lid,
+            "name": h.name,
+            "status": h.status,
+            "step": h.step,
+            "total_steps": h.total_steps,
+            "history": h.history,
+        })
+    except KeyError:
+        return _json({"ok": False, "error": "unknown loop"}, 404)
+
+
 async def loop_action(request: Request) -> JSONResponse:
     if not _authed(request):
         return _auth_error()
@@ -350,6 +370,7 @@ app = Starlette(
         Route("/api/models", models),
         Route("/api/settings", settings, methods=["GET", "PUT"]),
         Route("/api/loops", loops),
+        Route("/api/loops/{lid}/history", loop_history),
         Route("/api/loops/{lid}/{action}", loop_action, methods=["POST"]),
     ],
 )
