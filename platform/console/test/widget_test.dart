@@ -103,7 +103,7 @@ void main() {
     await tester.pumpWidget(KubonaConsole(api: _fakeApi()));
     await tester.pumpAndSettle();
 
-    expect(find.text('Kubona Console'), findsOneWidget);
+    expect(find.text('Kubona Observatory'), findsOneWidget);
     expect(find.textContaining('vqe-h2'), findsOneWidget);
     expect(find.textContaining('paid provider run'), findsOneWidget);
 

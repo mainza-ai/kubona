@@ -76,7 +76,17 @@ class _ConsoleHomeState extends State<ConsoleHome> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Kubona Console'),
+        title: Row(
+          children: [
+            Image.asset(
+              'assets/images/logo.png',
+              height: 32,
+              errorBuilder: (context, error, stackTrace) => const Icon(Icons.remove_red_eye_outlined),
+            ),
+            const SizedBox(width: 10),
+            const Text('Kubona Observatory'),
+          ],
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.refresh),
@@ -154,23 +164,57 @@ class _CostApprovalTab extends StatelessWidget {
           return Column(children: [
             for (final a in list)
               Card(
-                child: ListTile(
-                  title: Text('${a.reason} — \$${a.amountUsd.toStringAsFixed(2)}'),
-                  subtitle: Text('${a.sessionId} · ${a.state}'),
-                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                    IconButton(
-                        icon: const Icon(Icons.check, color: Colors.green),
-                        onPressed: () async {
-                          await api.approvalAction(a.approvalId, 'approve');
-                          onChanged();
-                        }),
-                    IconButton(
-                        icon: const Icon(Icons.close, color: Colors.red),
-                        onPressed: () async {
-                          await api.approvalAction(a.approvalId, 'reject');
-                          onChanged();
-                        }),
-                  ]),
+                elevation: 2,
+                margin: const EdgeInsets.symmetric(vertical: 6),
+                child: Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: ListTile(
+                    leading: const Icon(Icons.shield_outlined, color: Colors.blueAccent),
+                    title: Text('${a.reason} — \$${a.amountUsd.toStringAsFixed(2)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const SizedBox(height: 4),
+                        Text('Session: ${a.sessionId} · State: ${a.state}'),
+                        const SizedBox(height: 2),
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.blue.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Text('AP2 Mandate Protected',
+                                  style: TextStyle(fontSize: 11, color: Colors.blue)),
+                            ),
+                            if (a.mandateDigest != null) ...[
+                              const SizedBox(width: 8),
+                              Text('sig: ${a.mandateDigest!.substring(0, 8)}…',
+                                  style: const TextStyle(fontSize: 11, fontFamily: 'monospace')),
+                            ],
+                          ],
+                        ),
+                      ],
+                    ),
+                    trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                      IconButton(
+                          icon: const Icon(Icons.check_circle_outline, color: Colors.green),
+                          tooltip: 'Authorize AP2 Spend Mandate',
+                          onPressed: () async {
+                            await api.approvalAction(a.approvalId, 'approve');
+                            onChanged();
+                          }),
+                      IconButton(
+                          icon: const Icon(Icons.cancel_outlined, color: Colors.red),
+                          tooltip: 'Reject & Abort Job',
+                          onPressed: () async {
+                            await api.approvalAction(a.approvalId, 'reject');
+                            onChanged();
+                          }),
+                    ]),
+                  ),
                 ),
               ),
           ]);
