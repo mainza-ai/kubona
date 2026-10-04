@@ -67,14 +67,34 @@ def run_e2e_verification():
     print(f"  FCI Anchor: {nb['classical_energy']} Ha | VQE: {nb['quantum_energy']} Ha | Delta: {nb['delta_mha']} mHa")
     print(f"  Chemical Accuracy: {nb['chemical_accuracy']} | Merkle Hash: {nb['provenance_hash'][:24]}...")
 
-    print("[6/6] Verifying SQLite WAL Cryptographic Ledger...")
+    print("[6/7] Verifying SQLite WAL Cryptographic Ledger...")
     events = get("http://localhost:8080/api/events?limit=10")
     recorded = events.get("events", [])
     print(f"  Recorded events in SQLite WAL: {len(recorded)}")
     for ev in recorded[:3]:
         print(f"    - Event #{ev['id']}: {ev['event_type']} | Timestamp: {ev['timestamp']}")
 
-    print("\n🚀 ALL 6 LIVE END-TO-END SUBSYSTEM TESTS PASSED WITH 100% REAL EXECUTION!")
+    print("[7/7] Testing RDKit Molecular ADMET & 12-Agent Candidate Pipeline...")
+    admet = get("http://localhost:8080/api/chemistry/admet?smiles=CC(=O)Oc1ccccc1C(=O)O")
+    print(f"  Aspirin MW: {admet.get('molecular_weight', 0):.1f} Da | cLogP: {admet.get('clogp', 0):.2f} | QED: {admet.get('qed', 0):.2f}")
+    assert admet.get("lipinski", {}).get("pass") is True
+    assert admet.get("sa_score", 10.0) < 3.5
+
+    pipeline = post("http://localhost:8080/api/discovery/pipeline", {
+        "target": "COX-2",
+        "candidates": [
+            {"name": "Aspirin", "smiles": "CC(=O)Oc1ccccc1C(=O)O"},
+            {"name": "Paracetamol", "smiles": "CC(=O)Nc1ccc(O)cc1"}
+        ]
+    })
+    total_eval = pipeline.get("total_evaluated", 0)
+    top_lead = pipeline.get("top_lead", {}).get("name", "")
+    print(f"  Target: {pipeline.get('target')} | Evaluated: {total_eval} | Top Lead: {top_lead}")
+    assert total_eval == 2
+    assert top_lead != ""
+
+    print("\n🚀 ALL 7 LIVE END-TO-END SUBSYSTEM TESTS PASSED WITH 100% REAL EXECUTION!")
 
 if __name__ == "__main__":
     run_e2e_verification()
+

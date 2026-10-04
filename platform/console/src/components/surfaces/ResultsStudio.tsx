@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { BookOpen, FileCheck, ExternalLink, Download, MessageSquare, CheckCircle, ShieldCheck, Printer } from 'lucide-react';
+import { BookOpen, FileCheck, ExternalLink, Download, MessageSquare, CheckCircle, ShieldCheck, Printer, FlaskConical, Atom, Sparkles } from 'lucide-react';
 import { MathText } from '../common/MathText';
+import { fetchMolecularADMET, evaluateDiscoveryPipeline } from '@/lib/api';
 
 interface Notebook {
   id: string;
@@ -26,16 +27,51 @@ export function ResultsStudio() {
     { section: 1, text: 'PySCF FCI integrals verified against STO-3G benchmark curve. Chemical accuracy passed.', author: 'Human Reviewer' },
   ]);
 
+  // Phase 5 Molecular ADMET & Pipeline State
+  const [smilesInput, setSmilesInput] = useState('CC(=O)Oc1ccccc1C(=O)O');
+  const [admetProfile, setAdmetProfile] = useState<any>(null);
+  const [pipelineData, setPipelineData] = useState<any>(null);
+  const [evaluatingChemistry, setEvaluatingChemistry] = useState(false);
+
   useEffect(() => {
     fetch('http://localhost:8080/api/results/notebooks')
       .then((res) => res.json())
       .then((data) => setNotebooks(data.notebooks || []))
       .catch((err) => console.error('Failed to load notebooks:', err));
+
+    // Load initial ADMET and candidate pipeline data
+    loadChemistryData('CC(=O)Oc1ccccc1C(=O)O');
   }, []);
+
+  const loadChemistryData = async (smiles: string) => {
+    setEvaluatingChemistry(true);
+    try {
+      const [admet, pipeline] = await Promise.all([
+        fetchMolecularADMET(smiles),
+        evaluateDiscoveryPipeline('COX-2', [
+          { name: 'Aspirin', smiles: 'CC(=O)Oc1ccccc1C(=O)O' },
+          { name: 'Paracetamol', smiles: 'CC(=O)Nc1ccc(O)cc1' },
+          { name: 'Ibuprofen', smiles: 'CC(C)Cc1ccc(cc1)C(C)C(=O)O' },
+        ]),
+      ]);
+      if (admet) setAdmetProfile(admet);
+      if (pipeline) setPipelineData(pipeline);
+    } catch (err) {
+      console.error('Failed to load chemistry data:', err);
+    } finally {
+      setEvaluatingChemistry(false);
+    }
+  };
+
+  const handleCustomSmilesEval = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!smilesInput.trim()) return;
+    loadChemistryData(smilesInput);
+  };
 
   const nb = notebooks[0] || {
     id: 'nb-canon-01',
-    title: 'H2 Molecular Potential Energy Surface VQE vs FCI',
+    title: 'H2 Molecular Potential Energy Surface VQE vs PySCF FCI',
     created_at: new Date().toISOString(),
     classical_anchor: 'PySCF STO-3G Full Configuration Interaction',
     quantum_energy: -1.1368,
@@ -238,6 +274,100 @@ ${annotations.map((a) => `- [Section ${a.section + 1}] (${a.author}): ${a.text}`
               </button>
             </div>
           </div>
+        </div>
+
+        {/* Phase 5 Molecular Discovery & 12-Agent Drug Scorecard */}
+        <div className="pt-6 border-t border-slate-800 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-2">
+              <FlaskConical className="w-5 h-5 text-emerald-400" />
+              <h3 className="text-sm font-bold text-white">
+                Molecular Discovery &amp; 12-Agent Drug Candidate Scorecard (RDKit)
+              </h3>
+            </div>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
+              TARGET: {pipelineData?.target || 'COX-2'}
+            </span>
+          </div>
+
+          {/* Interactive SMILES Evaluator */}
+          <form onSubmit={handleCustomSmilesEval} className="flex items-center space-x-2">
+            <input
+              type="text"
+              value={smilesInput}
+              onChange={(e) => setSmilesInput(e.target.value)}
+              placeholder="Enter candidate SMILES (e.g. CC(=O)Oc1ccccc1C(=O)O)..."
+              className="flex-1 bg-[#0A0D14] border border-slate-800 rounded-lg p-2 text-xs font-mono text-cyan-300 focus:outline-none focus:border-cyan-500"
+            />
+            <button
+              type="submit"
+              disabled={evaluatingChemistry}
+              className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg transition-colors flex items-center space-x-1.5"
+            >
+              <Atom className={`w-3.5 h-3.5 ${evaluatingChemistry ? 'animate-spin' : ''}`} />
+              <span>{evaluatingChemistry ? 'Evaluating...' : 'Profile ADMET'}</span>
+            </button>
+          </form>
+
+          {admetProfile && (
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3 text-xs font-mono">
+              <div className="p-3 bg-[#0A0D14] border border-slate-800 rounded-lg text-center">
+                <div className="text-[10px] text-slate-500">Mol Weight</div>
+                <div className="text-sm font-bold text-slate-200">{admetProfile.molecular_weight?.toFixed(1)} Da</div>
+              </div>
+              <div className="p-3 bg-[#0A0D14] border border-slate-800 rounded-lg text-center">
+                <div className="text-[10px] text-slate-500">cLogP</div>
+                <div className="text-sm font-bold text-cyan-300">{admetProfile.clogp?.toFixed(2)}</div>
+              </div>
+              <div className="p-3 bg-[#0A0D14] border border-slate-800 rounded-lg text-center">
+                <div className="text-[10px] text-slate-500">TPSA</div>
+                <div className="text-sm font-bold text-slate-200">{admetProfile.tpsa?.toFixed(1)} Å²</div>
+              </div>
+              <div className="p-3 bg-[#0A0D14] border border-slate-800 rounded-lg text-center">
+                <div className="text-[10px] text-slate-500">QED Score</div>
+                <div className="text-sm font-bold text-emerald-400">{admetProfile.qed?.toFixed(2)}</div>
+              </div>
+              <div className="p-3 bg-[#0A0D14] border border-slate-800 rounded-lg text-center">
+                <div className="text-[10px] text-slate-500">SA Score</div>
+                <div className="text-sm font-bold text-indigo-300">{admetProfile.sa_score?.toFixed(2)} / 10</div>
+              </div>
+              <div className="p-3 bg-[#0A0D14] border border-slate-800 rounded-lg text-center">
+                <div className="text-[10px] text-slate-500">Lipinski R5</div>
+                <div className={`text-sm font-bold ${admetProfile.lipinski?.pass ? 'text-emerald-400' : 'text-red-400'}`}>
+                  {admetProfile.lipinski?.pass ? 'PASS (0 viol)' : 'FAIL'}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 12-Agent Candidate Pipeline Ranking */}
+          {pipelineData?.candidates && (
+            <div className="p-4 bg-[#0A0D14] border border-slate-800 rounded-xl space-y-2">
+              <div className="text-xs font-bold text-slate-300 flex items-center justify-between">
+                <span>12-Agent Lead Optimization Ranking ({pipelineData.total_evaluated} Candidates)</span>
+                <span className="text-[10px] text-slate-500 font-mono">Ranked by Composite Drug-Likeness</span>
+              </div>
+              <div className="space-y-1.5 pt-1">
+                {pipelineData.candidates.map((c: any, i: number) => (
+                  <div
+                    key={i}
+                    className="p-2.5 rounded-lg bg-[#05070B] border border-slate-800/80 flex items-center justify-between text-xs font-mono"
+                  >
+                    <div className="flex items-center space-x-3">
+                      <span className="text-indigo-400 font-bold">#{i + 1}</span>
+                      <span className="text-white font-bold">{c.name}</span>
+                      <span className="text-slate-500 text-[11px] truncate max-w-xs">{c.smiles}</span>
+                    </div>
+                    <div className="flex items-center space-x-4">
+                      <span className="text-slate-400">QED: <strong className="text-slate-200">{c.qed?.toFixed(2)}</strong></span>
+                      <span className="text-slate-400">SA: <strong className="text-indigo-300">{c.sa_score?.toFixed(1)}</strong></span>
+                      <span className="text-emerald-400 font-bold">Score: {c.composite_score?.toFixed(3)}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
