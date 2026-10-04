@@ -90,6 +90,13 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 		payload TEXT
 	);
 
+	CREATE TABLE IF NOT EXISTS campaign_states (
+		session_id TEXT PRIMARY KEY,
+		state_json TEXT NOT NULL,
+		updated_at DATETIME NOT NULL,
+		FOREIGN KEY (session_id) REFERENCES sessions(id)
+	);
+
 	CREATE INDEX IF NOT EXISTS idx_chat_session ON chat_messages(session_id);
 	CREATE INDEX IF NOT EXISTS idx_jobs_session ON jobs(session_id);
 	CREATE INDEX IF NOT EXISTS idx_ledger_session ON ledger_events(session_id);
@@ -145,8 +152,33 @@ func (l *Ledger) GetRecentEvents(sessionID string, limit int) ([]EventRecord, er
 	return events, nil
 }
 
+func (l *Ledger) SaveCampaignState(sessionID string, stateJSON []byte) error {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+
+	query := `INSERT INTO campaign_states (session_id, state_json, updated_at) VALUES (?, ?, ?)
+		ON CONFLICT(session_id) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at`
+	_, err := l.db.Exec(query, sessionID, string(stateJSON), time.Now().UTC().Format(time.RFC3339))
+	return err
+}
+
+func (l *Ledger) GetCampaignState(sessionID string) ([]byte, error) {
+	l.lock.RLock()
+	defer l.lock.RUnlock()
+
+	query := `SELECT state_json FROM campaign_states WHERE session_id = ?`
+	row := l.db.QueryRow(query, sessionID)
+
+	var stateStr string
+	if err := row.Scan(&stateStr); err != nil {
+		return nil, err
+	}
+	return []byte(stateStr), nil
+}
+
 func (l *Ledger) Close() error {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 	return l.db.Close()
 }
+

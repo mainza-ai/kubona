@@ -16,16 +16,17 @@ import {
   Clock,
   CheckCircle2,
 } from 'lucide-react';
-import { ChatMessage, Proposal } from '@/types';
-import { fetchMessages, sendChatMessage, launchProposal, createSession } from '@/lib/api';
+import { ChatMessage, Proposal, CampaignState } from '@/types';
+import { fetchMessages, sendChatMessage, launchProposal, createSession, fetchCampaignState } from '@/lib/api';
 import { MathText } from './common/MathText';
 
 interface CopilotDrawerProps {
   sessionId: string;
   onExperimentLaunched: () => void;
+  onCampaignUpdated?: (campaign: CampaignState) => void;
 }
 
-export function CopilotDrawer({ sessionId, onExperimentLaunched }: CopilotDrawerProps) {
+export function CopilotDrawer({ sessionId, onExperimentLaunched, onCampaignUpdated }: CopilotDrawerProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -110,6 +111,11 @@ export function CopilotDrawer({ sessionId, onExperimentLaunched }: CopilotDrawer
           const filtered = prev.filter((m) => m.id !== tempUserMsg.id);
           return [...filtered, res.user, res.assistant];
         });
+        if (onCampaignUpdated) {
+          fetchCampaignState(activeSessionId).then((c) => {
+            if (c) onCampaignUpdated(c);
+          });
+        }
       } else {
         setErrorMessage('Failed to receive response from oMLX engine. Please check port 8787.');
       }
@@ -170,6 +176,11 @@ export function CopilotDrawer({ sessionId, onExperimentLaunched }: CopilotDrawer
       if (res.ok) {
         const updated = await fetchMessages(activeSessionId);
         setMessages(updated);
+        if (onCampaignUpdated) {
+          fetchCampaignState(activeSessionId).then((c) => {
+            if (c) onCampaignUpdated(c);
+          });
+        }
       } else {
         const errText = await res.text();
         setErrorMessage(`Tribunal execution failed: ${errText}`);
@@ -184,6 +195,11 @@ export function CopilotDrawer({ sessionId, onExperimentLaunched }: CopilotDrawer
       }
       setRunningTribunal(false);
       setTribunalStage('');
+      if (onCampaignUpdated) {
+        fetchCampaignState(activeSessionId).then((c) => {
+          if (c) onCampaignUpdated(c);
+        });
+      }
     }
   };
 
@@ -195,6 +211,11 @@ export function CopilotDrawer({ sessionId, onExperimentLaunched }: CopilotDrawer
     if (res) {
       onExperimentLaunched();
       fetchMessages(activeSessionId).then(setMessages);
+      if (onCampaignUpdated) {
+        fetchCampaignState(activeSessionId).then((c) => {
+          if (c) onCampaignUpdated(c);
+        });
+      }
     } else {
       setErrorMessage('Failed to authorize and launch proposal.');
     }

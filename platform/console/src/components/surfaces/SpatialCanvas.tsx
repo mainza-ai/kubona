@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ReactFlow,
   Controls,
@@ -113,23 +113,51 @@ const initialEdges: Edge[] = [
   { id: 'e-cut-sub2', source: 'cut-1', target: 'sub-2', animated: true, style: { stroke: '#8a2be2' } },
 ];
 
-export function SpatialCanvas() {
-  const [nodes, setNodes] = useState<Node[]>(initialNodes);
-  const [edges, setEdges] = useState<Edge[]>(initialEdges);
+import { CampaignState } from '@/types';
+
+interface SpatialCanvasProps {
+  campaign?: CampaignState | null;
+}
+
+export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
+  const [nodes, setNodes] = useState<Node[]>(
+    campaign?.quantum_factors?.dag_nodes && campaign.quantum_factors.dag_nodes.length > 0
+      ? campaign.quantum_factors.dag_nodes
+      : initialNodes
+  );
+  const [edges, setEdges] = useState<Edge[]>(
+    campaign?.quantum_factors?.dag_edges && campaign.quantum_factors.dag_edges.length > 0
+      ? campaign.quantum_factors.dag_edges
+      : initialEdges
+  );
   const [viewMode, setViewMode] = useState<'circuit' | 'galaxy' | 'qpu'>('circuit');
   const [executing, setExecuting] = useState(false);
   const [lastExecution, setLastExecution] = useState<{ id: string; status: string; shots: number } | null>(null);
 
+  useEffect(() => {
+    if (campaign?.quantum_factors?.dag_nodes && campaign.quantum_factors.dag_nodes.length > 0) {
+      setNodes(campaign.quantum_factors.dag_nodes);
+    }
+    if (campaign?.quantum_factors?.dag_edges && campaign.quantum_factors.dag_edges.length > 0) {
+      setEdges(campaign.quantum_factors.dag_edges);
+    }
+  }, [campaign]);
+
   const handleExecute = async () => {
     setExecuting(true);
+    const qasmToRun =
+      campaign?.quantum_factors?.qasm ||
+      'OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[2];\ncreg c[2];\nh q[0];\ncx q[0], q[1];\nmeasure q[0] -> c[0];\nmeasure q[1] -> c[1];\n';
+    const sessId = campaign?.session_id || 'spatial-canvas-session';
+
     try {
       const res = await fetch('http://localhost:8080/api/jobs', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          session_id: 'spatial-canvas-session',
-          qasm: 'OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[2];\ncreg c[2];\nh q[0];\ncx q[0], q[1];\nmeasure q[0] -> c[0];\nmeasure q[1] -> c[1];\n',
-          backend: 'local_simulator',
+          session_id: sessId,
+          qasm: qasmToRun,
+          backend: campaign?.quantum_factors?.recommended_backend || 'local_simulator',
           shots: 1024,
           budget_usd: 0.0,
         }),
@@ -152,10 +180,12 @@ export function SpatialCanvas() {
         <div className="flex items-center space-x-3">
           <div className="flex items-center space-x-1.5 font-bold text-white">
             <Sparkles className="w-4 h-4 text-cyan-400" />
-            <span>Surface 1: Spatial Living Lab Canvas</span>
+            <span className="truncate max-w-sm">
+              Surface 1: Spatial Canvas — {campaign?.target_system || 'Quantum VQE Architecture'}
+            </span>
           </div>
           <span className="px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 text-[10px] font-mono">
-            React Flow @xyflow/react
+            {campaign?.quantum_factors?.ansatz_family || 'UCCSD'} ({campaign?.quantum_factors?.qubit_count ?? 2}Q)
           </span>
           {lastExecution && (
             <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 text-[10px] font-mono">
