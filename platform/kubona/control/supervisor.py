@@ -28,6 +28,7 @@ class LoopHandle:
     started_at: float = field(default_factory=time.time)
     paused_at: float | None = None
     heartbeat: float = field(default_factory=time.time)
+    history: list[dict[str, Any]] = field(default_factory=list)  # 4D flight recorder trajectory
     meta: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -35,7 +36,7 @@ class LoopHandle:
 
 
 class LoopSupervisor:
-    """Tracks loops; runs one step at a time with pause/kill checks."""
+    """Tracks loops; runs one step at a time with pause/kill checks and flight recorder history."""
 
     def __init__(self, sessions: SessionStore | None = None):
         self._loops: dict[str, LoopHandle] = {}
@@ -55,7 +56,8 @@ class LoopSupervisor:
         return [h.to_dict() for h in self._loops.values()]
 
     # -- step gate: called by the loop before each step -------------------
-    def step(self, loop_id: str, step_desc: str) -> bool:
+    def step(self, loop_id: str, step_desc: str, metric: float | None = None,
+             params: Any = None, watchdog_verdict: str | None = None) -> bool:
         """Advance the loop if it should run; False means paused/killed -> stop."""
         h = self._loops[loop_id]
         h.heartbeat = time.time()
@@ -65,6 +67,15 @@ class LoopSupervisor:
             return False
         h.step += 1
         h.current_step_desc = step_desc
+        # Append to 4D flight recorder history
+        h.history.append({
+            "step": h.step,
+            "desc": step_desc,
+            "metric": metric,
+            "params": params,
+            "watchdog": watchdog_verdict,
+            "timestamp": time.time(),
+        })
         return True
 
     def pause(self, loop_id: str) -> LoopHandle:

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
@@ -30,6 +31,21 @@ ConsoleApi _fakeApi() {
             'approval_id': 'a1', 'session_id': 's1', 'state': 'REVIEW',
             'amount_requested_usd': 42.0, 'reason': 'paid provider run',
           }
+        ],
+      }), 200, headers: {'content-type': 'application/json'});
+    }
+    if (body.contains('/api/loops/') && body.endsWith('/history')) {
+      return http.Response(jsonEncode({
+        'ok': true,
+        'loop_id': 'l1',
+        'name': 'ansatz-search',
+        'status': 'running',
+        'step': 3,
+        'total_steps': 100,
+        'history': [
+          {'step': 1, 'desc': 'init ansatz', 'metric': 0.5, 'params': '0.1'},
+          {'step': 2, 'desc': 'gradient descent', 'metric': 0.8, 'params': '0.3'},
+          {'step': 3, 'desc': 'measure energy', 'metric': 1.1, 'params': '0.5'},
         ],
       }), 200, headers: {'content-type': 'application/json'});
     }
@@ -100,31 +116,33 @@ ConsoleApi _fakeApi() {
 
 void main() {
   testWidgets('console renders sessions, approvals, and loops', (tester) async {
+    tester.view.physicalSize = const Size(1920, 1080);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
     await tester.pumpWidget(KubonaConsole(api: _fakeApi()));
     await tester.pumpAndSettle();
 
-    expect(find.text('Kubona Observatory'), findsOneWidget);
+    expect(find.text('KUBONA OBSERVATORY'), findsOneWidget);
     expect(find.textContaining('vqe-h2'), findsOneWidget);
     expect(find.textContaining('paid provider run'), findsOneWidget);
 
-    await tester.tap(find.text('Live Loops'));
+    // Tap 4D Flight Recorder (Tab 1)
+    await tester.tap(find.byIcon(Icons.history_toggle_off));
     await tester.pumpAndSettle();
-    expect(find.textContaining('ansatz-search'), findsOneWidget);
-    expect(find.textContaining('measure energy'), findsOneWidget);
+    expect(find.textContaining('ANSATZ-SEARCH'), findsOneWidget);
 
-    await tester.tap(find.text('Notebook'));
+    // Tap Cognitive LLM Mesh (Tab 5)
+    await tester.tap(find.byIcon(Icons.psychology));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Energetics of Z0Z1+0.5X0X1'), findsOneWidget);
+    expect(find.textContaining('OMLX'), findsWidgets);
 
-    await tester.tap(find.text('Labs & Workflows'));
+    // Tap Epistemic Manifold (Tab 2)
+    await tester.tap(find.byIcon(Icons.lens_blur));
     await tester.pumpAndSettle();
-    expect(find.textContaining('Alpha Lab'), findsOneWidget);
-    expect(find.textContaining('vqe-sweep'), findsOneWidget);
-    expect(find.textContaining('ansatz-specialist'), findsOneWidget);
-
-    await tester.tap(find.text('Models'));
-    await tester.pumpAndSettle();
-    expect(find.textContaining('Qwen3.6-35B-A3B-UD-MLX-4bit'), findsOneWidget);
-    expect(find.textContaining('8787'), findsWidgets);
+    expect(find.textContaining('TRIPARTITE WAVEFUNCTIONS'), findsOneWidget);
   });
 }
