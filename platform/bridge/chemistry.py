@@ -37,12 +37,36 @@ def solve_classical_anchor(molecule: str, bond_distance_angstrom: float, basis: 
         atom_str = f"O 0 0 0; H {x} {y} 0; H -{x} {y} 0"
     elif mol_upper in ("N2", "N_2"):
         atom_str = f"N 0 0 0; N 0 0 {r}"
+    elif mol_upper in ("CO", "C_O"):
+        atom_str = f"C 0 0 0; O 0 0 {r}"
+    elif mol_upper in ("HF", "H_F"):
+        atom_str = f"F 0 0 0; H 0 0 {r}"
+    elif mol_upper in ("CO2", "CO_2"):
+        atom_str = f"C 0 0 0; O 0 0 -{r}; O 0 0 {r}"
+    elif mol_upper in ("NH3", "NH_3"):
+        atom_str = f"N 0 0 0; H 0 0.94 0.38; H 0.81 -0.47 0.38; H -0.81 -0.47 0.38"
+    elif mol_upper in ("CH4", "CH_4"):
+        d = r * 0.57735
+        atom_str = f"C 0 0 0; H {d} {d} {d}; H -{d} -{d} {d}; H -{d} {d} -{d}; H {d} -{d} -{d}"
     else:
-        # Default to diatomic hydrogen chain with specified bond length
-        atom_str = f"H 0 0 0; H 0 0 {r}"
+        # Attempt RDKit conformer from SMILES or fall back to diatomic chain
+        try:
+            from rdkit import Chem
+            from rdkit.Chem import AllChem
+            rd_mol = Chem.MolFromSmiles(molecule.strip())
+            if rd_mol is not None:
+                rd_mol = Chem.AddHs(rd_mol)
+                AllChem.EmbedMolecule(rd_mol, randomSeed=42)
+                conf = rd_mol.GetConformer()
+                coords = [f"{a.GetSymbol()} {conf.GetAtomPosition(i).x:.4f} {conf.GetAtomPosition(i).y:.4f} {conf.GetAtomPosition(i).z:.4f}" for i, a in enumerate(rd_mol.GetAtoms())]
+                atom_str = "; ".join(coords)
+            else:
+                atom_str = f"H 0 0 0; H 0 0 {r}"
+        except Exception:
+            atom_str = f"H 0 0 0; H 0 0 {r}"
 
     try:
-        from pyscf import gto, scf, fci
+        from pyscf import gto, scf, fci, mcscf
 
         mol = gto.M(atom=atom_str, basis=basis, verbose=0)
         e_nuc = float(mol.energy_nuc())
@@ -52,10 +76,22 @@ def solve_classical_anchor(molecule: str, bond_distance_angstrom: float, basis: 
         e_rhf = float(mf.e_tot)
         mo_energies = [float(x) for x in mf.mo_energy]
 
-        # Full Configuration Interaction
-        cisolver = fci.FCI(mf)
-        e_fci, _ = cisolver.kernel()
-        e_fci = float(e_fci)
+        # Full Configuration Interaction (FCI) or Active Space CASCI
+        num_orbitals = int(mol.nao_nr())
+        num_electrons = int(mol.nelectron)
+
+        if num_orbitals <= 6:
+            cisolver = fci.FCI(mf)
+            e_fci, _ = cisolver.kernel()
+            e_fci = float(e_fci)
+        else:
+            # Active space CASCI for larger systems
+            ncas = min(6, num_orbitals)
+            nelecas = min(6, num_electrons)
+            if nelecas % 2 != 0:
+                nelecas -= 1
+            cas = mcscf.CASCI(mf, ncas, nelecas)
+            e_fci = float(cas.kernel()[0])
 
     except Exception as e:
         raise RuntimeError(f"PySCF ab-initio electronic structure calculation failed for {mol_upper} (basis={basis}, R={r}): {e}")

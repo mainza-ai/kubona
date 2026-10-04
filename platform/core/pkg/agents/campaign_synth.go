@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"log"
 	"math"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -124,7 +126,7 @@ func SynthesizeCampaignState(
 	gradVar := 3.4e-3
 	rhfDefault := -1.11668
 	fciDefault := -1.13727
-	smiles := ""
+	smiles := "[H][H]"
 
 	if strings.Contains(upper, "LIH") || strings.Contains(upper, "LITHIUM") {
 		mol = "LiH"
@@ -168,6 +170,118 @@ func SynthesizeCampaignState(
 		rhfDefault = -75.9890
 		fciDefault = -76.0125
 		smiles = "O"
+	} else if strings.Contains(upper, "N2") || strings.Contains(upper, "NITROGEN") {
+		mol = "N2"
+		formula = "N2"
+		bondDist = 1.0977
+		target = "N2 Triple Bond Dissociation"
+		qubits = 6
+		depth = 12
+		twoQGates = 5
+		ansatz = "UCCSD Active-Space Transpiled"
+		mwQ = 0.89
+		gradVar = 1.4e-3
+		rhfDefault = -108.98
+		fciDefault = -109.11
+		smiles = "N#N"
+	} else if strings.Contains(upper, "CO2") {
+		mol = "CO2"
+		formula = "CO2"
+		bondDist = 1.1620
+		target = "CO2 Symmetric Stretch Linear Mode"
+		qubits = 8
+		depth = 16
+		twoQGates = 8
+		ansatz = "RealAmplitudes Hardware-Efficient"
+		mwQ = 0.92
+		gradVar = 1.1e-3
+		rhfDefault = -187.65
+		fciDefault = -187.82
+		smiles = "O=C=O"
+	} else if strings.Contains(upper, "CO") || strings.Contains(upper, "CARBON MONOXIDE") {
+		mol = "CO"
+		formula = "CO"
+		bondDist = 1.1283
+		target = "CO Dipole Ground State VQE"
+		qubits = 6
+		depth = 12
+		twoQGates = 5
+		ansatz = "UCCSD Parameterized"
+		mwQ = 0.87
+		gradVar = 1.5e-3
+		rhfDefault = -112.78
+		fciDefault = -112.91
+		smiles = "[C-]#[O+]"
+	} else if strings.Contains(upper, "HF") || strings.Contains(upper, "FLUORIDE") {
+		mol = "HF"
+		formula = "HF"
+		bondDist = 0.9168
+		target = "HF Polar Ground State VQE"
+		qubits = 4
+		depth = 8
+		twoQGates = 3
+		ansatz = "TwoLocal / RyRz Entangling"
+		mwQ = 0.81
+		gradVar = 2.2e-3
+		rhfDefault = -99.98
+		fciDefault = -100.07
+		smiles = "F"
+	} else if strings.Contains(upper, "NH3") || strings.Contains(upper, "AMMONIA") {
+		mol = "NH3"
+		formula = "NH3"
+		bondDist = 1.0124
+		target = "NH3 Pyramidal Inversion Active Space"
+		qubits = 8
+		depth = 14
+		twoQGates = 7
+		ansatz = "UCCSD Active-Space Transpiled"
+		mwQ = 0.88
+		gradVar = 1.3e-3
+		rhfDefault = -56.18
+		fciDefault = -56.29
+		smiles = "N"
+	} else if strings.Contains(upper, "CH4") || strings.Contains(upper, "METHANE") {
+		mol = "CH4"
+		formula = "CH4"
+		bondDist = 1.0870
+		target = "CH4 Tetrahedral Equilibrium VQE"
+		qubits = 8
+		depth = 16
+		twoQGates = 8
+		ansatz = "TwoLocal / RyRz Entangling"
+		mwQ = 0.86
+		gradVar = 1.5e-3
+		rhfDefault = -39.724
+		fciDefault = -39.752
+		smiles = "C"
+	} else if strings.Contains(upper, "BENZENE") {
+		mol = "Benzene"
+		formula = "C6H6"
+		bondDist = 1.3970
+		target = "Benzene Pi-Electron Active Space CAS(6,6)"
+		qubits = 6
+		depth = 14
+		twoQGates = 6
+		ansatz = "Pi-Space Complete Active Space VQE"
+		mwQ = 0.91
+		gradVar = 1.6e-3
+		rhfDefault = -230.70
+		fciDefault = -230.82
+		smiles = "c1ccccc1"
+	} else if strings.Contains(upper, "CAFFEINE") {
+		mol = "Caffeine"
+		formula = "C8H10N4O2"
+		bondDist = 1.3800
+		target = "Caffeine Fragment Active Orbitals"
+		qubits = 4
+		depth = 8
+		twoQGates = 4
+		ansatz = "Fragment Molecular Orbital VQE"
+		mwQ = 0.84
+		gradVar = 2.1e-3
+		rhfDefault = -675.20
+		fciDefault = -675.35
+		smiles = "CN1C=NC2=C1C(=O)N(C(=O)N2C)C"
 	} else if strings.Contains(upper, "ASPIRIN") {
 		mol = "Aspirin"
 		formula = "C9H8O4"
@@ -196,6 +310,15 @@ func SynthesizeCampaignState(
 		rhfDefault = -151.10
 		fciDefault = -151.18
 		smiles = "CC(=O)Nc1ccc(O)cc1"
+	}
+
+	// Dynamically extract user-specified bond distance if provided in the prompt (e.g. R=1.2 A)
+	bondRegex := regexp.MustCompile(`(?i)(?:R\s*=\s*|BOND\s*(?:LENGTH|DISTANCE)\s*(?:OF\s*)?)([0-9]+\.?[0-9]*)`)
+	if m := bondRegex.FindStringSubmatch(prompt); len(m) > 1 {
+		if parsedDist, err := strconv.ParseFloat(m[1], 64); err == nil && parsedDist >= 0.3 && parsedDist <= 10.0 {
+			bondDist = parsedDist
+			log.Printf("[CampaignSynth] User specified custom bond distance: R=%.4f A", bondDist)
+		}
 	}
 
 	// 1. Calculate genuine PySCF ab-initio classical anchor via bridge
