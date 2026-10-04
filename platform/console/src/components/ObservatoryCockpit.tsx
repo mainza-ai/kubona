@@ -33,6 +33,8 @@ interface ObservatoryCockpitProps {
   loops: Loop[];
   events: LedgerEvent[];
   activeMolecule?: string;
+  activeTab?: SurfaceTab;
+  onTabChange?: (tab: SurfaceTab) => void;
 }
 
 export type SurfaceTab =
@@ -46,20 +48,35 @@ export type SurfaceTab =
   | 'surface7'
   | 'settings';
 
-export function ObservatoryCockpit({ loops, events, activeMolecule = 'H2' }: ObservatoryCockpitProps) {
-  const [activeTab, setActiveTab] = useState<SurfaceTab>('overview');
+export function ObservatoryCockpit({
+  loops,
+  events,
+  activeMolecule = 'H2',
+  activeTab: externalTab,
+  onTabChange,
+}: ObservatoryCockpitProps) {
+  const [internalTab, setInternalTab] = useState<SurfaceTab>('overview');
   const [copiedId, setCopiedId] = useState<number | null>(null);
 
+  const activeTab = externalTab ?? internalTab;
+  const handleTabChange = (tab: SurfaceTab) => {
+    if (onTabChange) {
+      onTabChange(tab);
+    } else {
+      setInternalTab(tab);
+    }
+  };
+
   const tabs = [
-    { id: 'overview', label: 'Observatory Cockpit', icon: LayoutDashboard },
-    { id: 'surface1', label: '1. Spatial Canvas', icon: Sparkles },
-    { id: 'surface2', label: '2. 4D Flight Recorder', icon: PlayCircle },
-    { id: 'surface3', label: '3. Epistemic Manifold', icon: Compass },
-    { id: 'surface4', label: '4. Autonomy Cockpit', icon: KeyRound },
-    { id: 'surface5', label: '5. Fleet Radar', icon: Radio },
-    { id: 'surface6', label: '6. Cognitive Mesh', icon: Network },
-    { id: 'surface7', label: '7. Results Studio', icon: BookOpen },
-    { id: 'settings', label: '8. LLM Mesh & Air-Gap', icon: Sliders },
+    { id: 'overview', label: 'Observatory Cockpit', shortcut: '⌘0', icon: LayoutDashboard },
+    { id: 'surface1', label: '1. Spatial Canvas', shortcut: '⌘1', icon: Sparkles },
+    { id: 'surface2', label: '2. 4D Flight Recorder', shortcut: '⌘2', icon: PlayCircle },
+    { id: 'surface3', label: '3. Epistemic Manifold', shortcut: '⌘3', icon: Compass },
+    { id: 'surface4', label: '4. Autonomy Cockpit', shortcut: '⌘4', icon: KeyRound },
+    { id: 'surface5', label: '5. Fleet Radar', shortcut: '⌘5', icon: Radio },
+    { id: 'surface6', label: '6. Cognitive Mesh', shortcut: '⌘6', icon: Network },
+    { id: 'surface7', label: '7. Results Studio', shortcut: '⌘7', icon: BookOpen },
+    { id: 'settings', label: '8. LLM Mesh & Air-Gap', shortcut: '⌘8', icon: Sliders },
   ];
 
   const handleCopyEvent = (id: number, payload: unknown) => {
@@ -72,37 +89,59 @@ export function ObservatoryCockpit({ loops, events, activeMolecule = 'H2' }: Obs
 
   return (
     <div className="space-y-6">
-      {/* Top Surface Switcher Tabs */}
-      <div className="flex items-center space-x-2 overflow-x-auto pb-2 border-b border-slate-800 scrollbar-none">
-        {tabs.map((t) => {
-          const Icon = t.icon;
-          const isActive = activeTab === t.id;
-          return (
-            <button
-              key={t.id}
-              onClick={() => setActiveTab(t.id as SurfaceTab)}
-              className={`px-3.5 py-2 rounded-xl text-xs font-medium flex items-center space-x-2 shrink-0 transition-all ${
-                isActive
-                  ? 'bg-gradient-to-r from-indigo-600 to-cyan-600 text-white shadow-lg glow-cyan font-bold border border-cyan-400/30'
-                  : 'bg-[#0A0D14]/80 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800/80'
-              }`}
-            >
-              <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-cyan-200' : 'text-slate-400'}`} />
-              <span>{t.label}</span>
-            </button>
-          );
-        })}
+      {/* Apple-grade Segmented Control Surface Switcher */}
+      <div className="flex items-center justify-between pb-1 border-b border-white/[0.08]">
+        <div
+          role="tablist"
+          aria-label="Observatory Surfaces"
+          className="p-1 rounded-2xl bg-black/60 border border-white/[0.08] backdrop-blur-xl shadow-inner flex items-center space-x-1 overflow-x-auto max-w-full scrollbar-none"
+        >
+          {tabs.map((t) => {
+            const Icon = t.icon;
+            const isActive = activeTab === t.id;
+            return (
+              <button
+                key={t.id}
+                role="tab"
+                id={`tab-${t.id}`}
+                aria-selected={isActive}
+                aria-controls={`panel-${t.id}`}
+                tabIndex={isActive ? 0 : -1}
+                onClick={() => handleTabChange(t.id as SurfaceTab)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center space-x-2 shrink-0 transition-all select-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none ${
+                  isActive
+                    ? 'bg-gradient-to-b from-white/[0.16] to-white/[0.05] text-white border border-white/20 shadow-md shadow-black/50 font-semibold'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04] border border-transparent'
+                }`}
+              >
+                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-cyan-300' : 'text-slate-400'}`} />
+                <span>{t.label}</span>
+                <span
+                  className={`text-[9px] font-mono px-1 py-0.2 rounded border transition-colors ${
+                    isActive
+                      ? 'bg-cyan-500/20 text-cyan-200 border-cyan-400/30'
+                      : 'bg-white/[0.03] text-slate-500 border-white/[0.06]'
+                  }`}
+                >
+                  {t.shortcut}
+                </span>
+              </button>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Surface Render Switching */}
-      {activeTab === 'surface1' && <SpatialCanvas />}
-      {activeTab === 'surface2' && <FlightRecorder loops={loops} events={events} />}
-      {activeTab === 'surface3' && <EpistemicManifold />}
-      {activeTab === 'surface4' && <AutonomyCockpit />}
-      {activeTab === 'surface5' && <FleetRadar />}
-      {activeTab === 'surface6' && <CognitiveMesh />}
-      {activeTab === 'surface7' && <ResultsStudio />}
-      {activeTab === 'settings' && <LLMSettings />}
+      {/* Surface Render Switching with accessible panel containers */}
+      <div role="tabpanel" id={`panel-${activeTab}`} aria-labelledby={`tab-${activeTab}`}>
+        {activeTab === 'surface1' && <SpatialCanvas />}
+        {activeTab === 'surface2' && <FlightRecorder loops={loops} events={events} />}
+        {activeTab === 'surface3' && <EpistemicManifold />}
+        {activeTab === 'surface4' && <AutonomyCockpit />}
+        {activeTab === 'surface5' && <FleetRadar />}
+        {activeTab === 'surface6' && <CognitiveMesh />}
+        {activeTab === 'surface7' && <ResultsStudio />}
+        {activeTab === 'settings' && <LLMSettings />}
+      </div>
 
       {/* Default Overview Dashboard */}
       {activeTab === 'overview' && (
@@ -156,7 +195,7 @@ export function ObservatoryCockpit({ loops, events, activeMolecule = 'H2' }: Obs
                   <span>Surface 1: Spatial Living Lab</span>
                 </h3>
                 <button
-                  onClick={() => setActiveTab('surface1')}
+                  onClick={() => handleTabChange('surface1')}
                   className="text-xs text-cyan-400 hover:text-cyan-300 font-medium"
                 >
                   Open Canvas →
@@ -174,7 +213,7 @@ export function ObservatoryCockpit({ loops, events, activeMolecule = 'H2' }: Obs
                   <span>Surface 3: Epistemic Horizon</span>
                 </h3>
                 <button
-                  onClick={() => setActiveTab('surface3')}
+                  onClick={() => handleTabChange('surface3')}
                   className="text-xs text-emerald-400 hover:text-emerald-300 font-medium"
                 >
                   Wavefunction →
@@ -192,7 +231,7 @@ export function ObservatoryCockpit({ loops, events, activeMolecule = 'H2' }: Obs
                   <span>Surface 4: Autonomy Cockpit</span>
                 </h3>
                 <button
-                  onClick={() => setActiveTab('surface4')}
+                  onClick={() => handleTabChange('surface4')}
                   className="text-xs text-amber-400 hover:text-amber-300 font-medium"
                 >
                   Keyring →
