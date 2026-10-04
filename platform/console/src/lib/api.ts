@@ -99,3 +99,35 @@ export async function fetchEvents(sessionId?: string): Promise<LedgerEvent[]> {
     return [];
   }
 }
+
+export async function fetchMolecularADMET(smiles: string): Promise<any | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/chemistry/admet?smiles=${encodeURIComponent(smiles)}`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to fetch ADMET profile:', err);
+    return null;
+  }
+}
+
+export async function evaluateDiscoveryPipeline(
+  target: string,
+  candidates: Array<{ name: string; smiles: string }>
+): Promise<any | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/discovery/pipeline`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target, candidates }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to evaluate discovery pipeline:', err);
+    return null;
+  }
+}
+
