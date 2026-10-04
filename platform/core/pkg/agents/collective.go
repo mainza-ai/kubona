@@ -182,7 +182,11 @@ type TribunalResult struct {
 // Turn 2: Disconfirmation Officer checks classical anchor (PySCF FCI/RHF) & barren plateau risks.
 // Turn 3: Device Auditor evaluates hardware noise, Clifford stabilizer fidelity, and cost ceilings.
 // Turn 4: Epistemic Scribe collapses credibility state, verifies consensus, and emits structured AP2 proposal.
-func (ac *AgentCollective) ExecuteTribunal(ctx context.Context, llmClient *llm.Client, bridgeClient pb.QuantumBridgeServiceClient, userPrompt string) (*TribunalResult, error) {
+func (ac *AgentCollective) ExecuteTribunal(ctx context.Context, llmClient *llm.Client, bridgeClient pb.QuantumBridgeServiceClient, userPrompt string, onTurn ...func(TribunalTurn)) (*TribunalResult, error) {
+	var turnCb func(TribunalTurn)
+	if len(onTurn) > 0 && onTurn[0] != nil {
+		turnCb = onTurn[0]
+	}
 	upper := strings.ToUpper(userPrompt)
 	mol := "H2"
 	bondDist := 0.7414
@@ -247,14 +251,18 @@ func (ac *AgentCollective) ExecuteTribunal(ctx context.Context, llmClient *llm.C
 			log.Printf("[Tribunal] Turn 1 LLM fallback notice: %v", err)
 		}
 	}
-	result.Turns = append(result.Turns, TribunalTurn{
+	t1 := TribunalTurn{
 		TurnIndex: 1,
 		Role:      RoleAnsatzScout,
 		Name:      "Ansatz Scout",
 		Content:   scoutContent,
 		Verdict:   "PROPOSED",
 		Timestamp: time.Now().UTC(),
-	})
+	}
+	result.Turns = append(result.Turns, t1)
+	if turnCb != nil {
+		turnCb(t1)
+	}
 
 	// Turn 2: Disconfirmation Officer
 	turn2Prompt := fmt.Sprintf("Scout proposed ansatz for %s:\n%s\nClassical anchor computed via ab-initio %s. Evaluate whether quantum advantage can be claimed and check barren plateau risk. Enforce Quantum Advantage Realism.", target, scoutContent, fciAnchor)
@@ -273,14 +281,18 @@ func (ac *AgentCollective) ExecuteTribunal(ctx context.Context, llmClient *llm.C
 			log.Printf("[Tribunal] Turn 2 LLM fallback notice: %v", err)
 		}
 	}
-	result.Turns = append(result.Turns, TribunalTurn{
+	t2 := TribunalTurn{
 		TurnIndex: 2,
 		Role:      RoleDisconfirmationOfficer,
 		Name:      "Disconfirmation Officer",
 		Content:   discContent,
 		Verdict:   "ANCHORED",
 		Timestamp: time.Now().UTC(),
-	})
+	}
+	result.Turns = append(result.Turns, t2)
+	if turnCb != nil {
+		turnCb(t2)
+	}
 
 	// Turn 3: Device Auditor
 	turn3Prompt := fmt.Sprintf("Auditing proposed execution for %s on %s. Hardware constraints: T2 <= 2*T1, Clifford canary probe fidelity >= 95%%, cost estimate %s <= $150.00. State approval status.", target, tier, budget)
@@ -299,14 +311,18 @@ func (ac *AgentCollective) ExecuteTribunal(ctx context.Context, llmClient *llm.C
 			log.Printf("[Tribunal] Turn 3 LLM fallback notice: %v", err)
 		}
 	}
-	result.Turns = append(result.Turns, TribunalTurn{
+	t3 := TribunalTurn{
 		TurnIndex: 3,
 		Role:      RoleDeviceAuditor,
 		Name:      "Device Auditor",
 		Content:   auditContent,
 		Verdict:   "AUDITED",
 		Timestamp: time.Now().UTC(),
-	})
+	}
+	result.Turns = append(result.Turns, t3)
+	if turnCb != nil {
+		turnCb(t3)
+	}
 
 	// Turn 4: Epistemic Scribe
 	escapedQASM := strings.ReplaceAll(qasm, "\n", "\\n")
@@ -326,14 +342,18 @@ func (ac *AgentCollective) ExecuteTribunal(ctx context.Context, llmClient *llm.C
 			log.Printf("[Tribunal] Turn 4 LLM fallback notice: %v", err)
 		}
 	}
-	result.Turns = append(result.Turns, TribunalTurn{
+	t4 := TribunalTurn{
 		TurnIndex: 4,
 		Role:      RoleEpistemicScribe,
 		Name:      "Epistemic Scribe",
 		Content:   scribeContent,
 		Verdict:   "COLLAPSED",
 		Timestamp: time.Now().UTC(),
-	})
+	}
+	result.Turns = append(result.Turns, t4)
+	if turnCb != nil {
+		turnCb(t4)
+	}
 
 	// Extract or synthesize valid proposal JSON
 	propMap := map[string]string{

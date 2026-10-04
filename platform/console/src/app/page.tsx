@@ -51,9 +51,17 @@ export default function Home() {
       fetchEvents(),
     ]);
     setLatencyMs(Math.round(performance.now() - t0));
-    setSessions(sessList);
-    if (sessList.length > 0 && !currentSessionId) {
-      setCurrentSessionId(sessList[0].id);
+    if (sessList.length === 0) {
+      const firstSess = await createSession('Quantum Research Campaign #1', 150.0);
+      if (firstSess) {
+        setSessions([firstSess]);
+        setCurrentSessionId(firstSess.id);
+      }
+    } else {
+      setSessions(sessList);
+      if (!currentSessionId) {
+        setCurrentSessionId(sessList[0].id);
+      }
     }
     setLoops(loopList);
     setEvents(evtList);
