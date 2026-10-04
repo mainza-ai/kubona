@@ -36,3 +36,17 @@ func TestAgentCollectiveManifests(t *testing.T) {
 		t.Fatalf("expected disconfirmation-officer to be authorized for compute_classical_anchor")
 	}
 }
+
+func TestExecuteTribunal(t *testing.T) {
+	ac := NewAgentCollective()
+	res, err := ac.ExecuteTribunal(t.Context(), nil, nil, "Investigate H2 ground state")
+	if err != nil {
+		t.Fatalf("ExecuteTribunal failed: %v", err)
+	}
+	if len(res.Turns) != 4 {
+		t.Fatalf("expected 4 turns, got %d", len(res.Turns))
+	}
+	if !res.ConsensusPassed {
+		t.Fatalf("expected consensus to pass")
+	}
+}

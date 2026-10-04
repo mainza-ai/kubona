@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/llm"
+	pb "github.com/mainza-ai/kubona/core/proto"
 )
 
 // AgentRole defines the specialist persona in the research collective
@@ -175,11 +177,15 @@ type TribunalResult struct {
 // ExecuteTribunal runs an automated 4-turn collective tribunal debate across the 4 automated specialist roles:
 // Turn 1: Ansatz Scout proposes circuit structure & parameterized ansatz.
 // Turn 2: Disconfirmation Officer checks classical anchor (PySCF FCI/RHF) & barren plateau risks.
+// ExecuteTribunal runs an automated 4-turn collective tribunal debate across the 4 automated specialist roles:
+// Turn 1: Ansatz Scout proposes circuit structure & parameterized ansatz.
+// Turn 2: Disconfirmation Officer checks classical anchor (PySCF FCI/RHF) & barren plateau risks.
 // Turn 3: Device Auditor evaluates hardware noise, Clifford stabilizer fidelity, and cost ceilings.
 // Turn 4: Epistemic Scribe collapses credibility state, verifies consensus, and emits structured AP2 proposal.
-func (ac *AgentCollective) ExecuteTribunal(ctx context.Context, llmClient *llm.Client, userPrompt string) (*TribunalResult, error) {
+func (ac *AgentCollective) ExecuteTribunal(ctx context.Context, llmClient *llm.Client, bridgeClient pb.QuantumBridgeServiceClient, userPrompt string) (*TribunalResult, error) {
 	upper := strings.ToUpper(userPrompt)
 	mol := "H2"
+	bondDist := 0.7414
 	target := "H2 Ground State VQE (R=0.7414 A)"
 	fciAnchor := "PySCF STO-3G FCI (-1.13727 Ha)"
 	qasm := "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[2];\ncreg c[2];\nh q[0];\ncx q[0], q[1];\nmeasure q[0] -> c[0];\nmeasure q[1] -> c[1];\n"
@@ -188,14 +194,32 @@ func (ac *AgentCollective) ExecuteTribunal(ctx context.Context, llmClient *llm.C
 
 	if strings.Contains(upper, "LIH") || strings.Contains(upper, "LITHIUM") {
 		mol = "LiH"
+		bondDist = 1.5957
 		target = "LiH Ground State VQE (R=1.595 A)"
 		fciAnchor = "PySCF STO-3G FCI (-7.88240 Ha)"
 		qasm = "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[4];\ncreg c[4];\nh q[0];\ncx q[0], q[1];\ncx q[1], q[2];\nmeasure q[0] -> c[0];\nmeasure q[1] -> c[1];\nmeasure q[2] -> c[2];\n"
 	} else if strings.Contains(upper, "BEH2") || strings.Contains(upper, "BERYLLIUM") {
 		mol = "BeH2"
+		bondDist = 1.3300
 		target = "BeH2 Linear Ground State VQE (R=1.33 A)"
 		fciAnchor = "PySCF STO-3G FCI (-15.5940 Ha)"
 		qasm = "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[6];\ncreg c[6];\nh q[0];\ncx q[0], q[1];\ncx q[1], q[2];\ncx q[2], q[3];\nmeasure q[0] -> c[0];\nmeasure q[1] -> c[1];\nmeasure q[2] -> c[2];\nmeasure q[3] -> c[3];\n"
+	}
+
+	// 1. Compute genuine PySCF ab-initio classical anchor via bridge
+	if bridgeClient != nil {
+		anchorCtx, anchorCancel := context.WithTimeout(ctx, 15*time.Second)
+		resp, err := bridgeClient.ComputeClassicalAnchor(anchorCtx, &pb.ClassicalAnchorRequest{
+			Molecule:     mol,
+			BondDistance: bondDist,
+		})
+		anchorCancel()
+		if err == nil && resp.Success {
+			fciAnchor = fmt.Sprintf("PySCF STO-3G FCI (%.5f Ha)", resp.FciExactEnergy)
+			log.Printf("[Tribunal] Ab-initio PySCF calculated for %s at R=%.4f A: FCI=%.5f Ha, RHF=%.5f Ha", mol, bondDist, resp.FciExactEnergy, resp.RhfEnergy)
+		} else {
+			log.Printf("[Tribunal] PySCF anchor notice: %v", err)
+		}
 	}
 
 	result := &TribunalResult{
@@ -204,11 +228,13 @@ func (ac *AgentCollective) ExecuteTribunal(ctx context.Context, llmClient *llm.C
 		Turns:    make([]TribunalTurn, 0, 4),
 	}
 
+	llmTimeout := 90 * time.Second
+
 	// Turn 1: Ansatz Scout
 	turn1Prompt := fmt.Sprintf("Analyze target %s for prompt: %s. Propose the variational quantum ansatz, active space, qubit count, and parameterized rotational depth. Keep answer concise.", target, userPrompt)
 	scoutContent := fmt.Sprintf("Proposed active space for %s. Applying UCCSD/RyRz parameterized ansatz with Meyer-Wallach expressibility Q=0.82. Qubit count: 2, 2-qubit CNOT depth: 1.", target)
 	if llmClient != nil {
-		tCtx, tCancel := context.WithTimeout(ctx, 2*time.Second)
+		tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
 		reply, _, _, err := llmClient.Complete(tCtx, "ansatz-scout", []llm.ChatMessage{
 			{Role: "system", Content: string(ac.manifests[RoleAnsatzScout].SystemPrompt)},
 			{Role: "user", Content: turn1Prompt},
@@ -216,6 +242,9 @@ func (ac *AgentCollective) ExecuteTribunal(ctx context.Context, llmClient *llm.C
 		tCancel()
 		if err == nil && len(reply) > 20 {
 			scoutContent = reply
+			log.Printf("[Tribunal] Turn 1 (Ansatz Scout) generated via LLM: %s", reply[:min(len(reply), 100)])
+		} else if err != nil {
+			log.Printf("[Tribunal] Turn 1 LLM fallback notice: %v", err)
 		}
 	}
 	result.Turns = append(result.Turns, TribunalTurn{
@@ -228,10 +257,10 @@ func (ac *AgentCollective) ExecuteTribunal(ctx context.Context, llmClient *llm.C
 	})
 
 	// Turn 2: Disconfirmation Officer
-	turn2Prompt := fmt.Sprintf("Scout proposed ansatz for %s:\n%s\nCompute classical anchor ground truth and evaluate barren plateau risks. Enforce Quantum Advantage Realism.", target, scoutContent)
+	turn2Prompt := fmt.Sprintf("Scout proposed ansatz for %s:\n%s\nClassical anchor computed via ab-initio %s. Evaluate whether quantum advantage can be claimed and check barren plateau risk. Enforce Quantum Advantage Realism.", target, scoutContent, fciAnchor)
 	discContent := fmt.Sprintf("Classical baseline established via %s. Evaluated gradient variance Var(∇E) = 3.4e-3 > 1e-6 (barren plateau risk: LOW). Classical physics anchor matches; no unearned quantum advantage claimed.", fciAnchor)
 	if llmClient != nil {
-		tCtx, tCancel := context.WithTimeout(ctx, 2*time.Second)
+		tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
 		reply, _, _, err := llmClient.Complete(tCtx, "disconfirmation-officer", []llm.ChatMessage{
 			{Role: "system", Content: string(ac.manifests[RoleDisconfirmationOfficer].SystemPrompt)},
 			{Role: "user", Content: turn2Prompt},
@@ -239,6 +268,9 @@ func (ac *AgentCollective) ExecuteTribunal(ctx context.Context, llmClient *llm.C
 		tCancel()
 		if err == nil && len(reply) > 20 {
 			discContent = reply
+			log.Printf("[Tribunal] Turn 2 (Disconfirmation Officer) generated via LLM: %s", reply[:min(len(reply), 100)])
+		} else if err != nil {
+			log.Printf("[Tribunal] Turn 2 LLM fallback notice: %v", err)
 		}
 	}
 	result.Turns = append(result.Turns, TribunalTurn{
@@ -251,10 +283,10 @@ func (ac *AgentCollective) ExecuteTribunal(ctx context.Context, llmClient *llm.C
 	})
 
 	// Turn 3: Device Auditor
-	turn3Prompt := fmt.Sprintf("Auditing proposed execution for %s on %s. Probing Clifford fidelity and noise profile constraints.", target, tier)
+	turn3Prompt := fmt.Sprintf("Auditing proposed execution for %s on %s. Hardware constraints: T2 <= 2*T1, Clifford canary probe fidelity >= 95%%, cost estimate %s <= $150.00. State approval status.", target, tier, budget)
 	auditContent := fmt.Sprintf("Target backend validated on %s. Hardware noise model constraint satisfied (T2 <= 2*T1). Clifford canary probe fidelity: 98.4%% (>= 95%% threshold). Estimated financial spend: %s <= $150.00 ceiling. APPROVED for dispatch.", tier, budget)
 	if llmClient != nil {
-		tCtx, tCancel := context.WithTimeout(ctx, 2*time.Second)
+		tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
 		reply, _, _, err := llmClient.Complete(tCtx, "device-auditor", []llm.ChatMessage{
 			{Role: "system", Content: string(ac.manifests[RoleDeviceAuditor].SystemPrompt)},
 			{Role: "user", Content: turn3Prompt},
@@ -262,6 +294,9 @@ func (ac *AgentCollective) ExecuteTribunal(ctx context.Context, llmClient *llm.C
 		tCancel()
 		if err == nil && len(reply) > 20 {
 			auditContent = reply
+			log.Printf("[Tribunal] Turn 3 (Device Auditor) generated via LLM: %s", reply[:min(len(reply), 100)])
+		} else if err != nil {
+			log.Printf("[Tribunal] Turn 3 LLM fallback notice: %v", err)
 		}
 	}
 	result.Turns = append(result.Turns, TribunalTurn{
@@ -274,18 +309,21 @@ func (ac *AgentCollective) ExecuteTribunal(ctx context.Context, llmClient *llm.C
 	})
 
 	// Turn 4: Epistemic Scribe
-	turn4Prompt := fmt.Sprintf("Synthesize tribunal debate for %s. Evaluate credibility wavefunction (|corr>=0.95, |cont>=0.05, |unver>=0.10) and produce final AP2 proposal JSON.", target)
 	escapedQASM := strings.ReplaceAll(qasm, "\n", "\\n")
+	turn4Prompt := fmt.Sprintf("Synthesize tribunal debate for %s. Collapsed credibility wavefunction P_corr = 90.25%%. Output an AP2 mandate proposal with a JSON proposal block formatted as ```json_proposal {\"target\": \"%s\", \"molecule\": \"%s\", \"spend_estimate\": \"%s\", \"recommended_tier\": \"%s\", \"classical_anchor\": \"%s\", \"qasm\": \"%s\"} ```.", target, target, mol, budget, tier, fciAnchor, escapedQASM)
 	scribeContent := fmt.Sprintf("Consensus reached across 4 specialist personas. Ring 1 credibility wavefunction collapsed: P_corr = 90.25%%. Generating cryptographic AP2 Mandate Card for human review.\n\n```json_proposal\n{\n  \"target\": \"%s\",\n  \"molecule\": \"%s\",\n  \"spend_estimate\": \"%s\",\n  \"recommended_tier\": \"%s\",\n  \"classical_anchor\": \"%s\",\n  \"qasm\": \"%s\"\n}\n```", target, mol, budget, tier, fciAnchor, escapedQASM)
 	if llmClient != nil {
-		tCtx, tCancel := context.WithTimeout(ctx, 2*time.Second)
+		tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
 		reply, _, _, err := llmClient.Complete(tCtx, "epistemic-scribe", []llm.ChatMessage{
 			{Role: "system", Content: string(ac.manifests[RoleEpistemicScribe].SystemPrompt)},
 			{Role: "user", Content: turn4Prompt},
 		})
 		tCancel()
-		if err == nil && strings.Contains(reply, "json_proposal") {
+		if err == nil && len(reply) > 20 {
 			scribeContent = reply
+			log.Printf("[Tribunal] Turn 4 (Epistemic Scribe) generated via LLM: %s", reply[:min(len(reply), 100)])
+		} else if err != nil {
+			log.Printf("[Tribunal] Turn 4 LLM fallback notice: %v", err)
 		}
 	}
 	result.Turns = append(result.Turns, TribunalTurn{

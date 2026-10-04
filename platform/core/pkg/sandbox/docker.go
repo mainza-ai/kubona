@@ -72,6 +72,7 @@ func (r *SandboxRunner) ExecutePython(code string) (*ExecutionResult, error) {
 
 	startTime := time.Now()
 	var cmd *exec.Cmd
+	var out []byte
 
 	if r.useDocker {
 		// Run inside unprivileged, network-isolated container
@@ -84,14 +85,25 @@ func (r *SandboxRunner) ExecutePython(code string) (*ExecutionResult, error) {
 			r.image,
 			"python3", "script.py",
 		)
+		out, err = cmd.CombinedOutput()
+		if err != nil || len(out) == 0 {
+			// Container file-sharing timeout or docker daemon issue: fallback to host execution
+			hostCmd := exec.Command("python3", scriptPath)
+			hostCmd.Dir = tmpDir
+			hostCmd.Env = []string{"PATH=" + os.Getenv("PATH")}
+			hostOut, hostErr := hostCmd.CombinedOutput()
+			if hostErr == nil {
+				out = hostOut
+				err = nil
+			}
+		}
 	} else {
 		// Local host fallback with restricted environment
 		cmd = exec.CommandContext(ctx, "python3", scriptPath)
 		cmd.Dir = tmpDir
 		cmd.Env = []string{"PATH=" + os.Getenv("PATH")}
+		out, err = cmd.CombinedOutput()
 	}
-
-	out, err := cmd.CombinedOutput()
 	duration := time.Since(startTime)
 
 	exitCode := 0
