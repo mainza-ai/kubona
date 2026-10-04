@@ -18,8 +18,8 @@ import {
   DollarSign,
   ChevronRight,
 } from 'lucide-react';
-import { Session, Loop, LedgerEvent } from '@/types';
-import { fetchSessions, createSession, fetchLoops, fetchEvents } from '@/lib/api';
+import { Session, Loop, LedgerEvent, CampaignState } from '@/types';
+import { fetchSessions, createSession, fetchLoops, fetchEvents, fetchCampaignState } from '@/lib/api';
 import { CopilotDrawer } from '@/components/CopilotDrawer';
 import { ObservatoryCockpit, SurfaceTab } from '@/components/ObservatoryCockpit';
 import { AboutLabModal } from '@/components/AboutLabModal';
@@ -29,6 +29,7 @@ import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal';
 export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
+  const [campaign, setCampaign] = useState<CampaignState | null>(null);
   const [loops, setLoops] = useState<Loop[]>([]);
   const [events, setEvents] = useState<LedgerEvent[]>([]);
   const [latencyMs, setLatencyMs] = useState<number>(4);
@@ -56,16 +57,24 @@ export default function Home() {
       if (firstSess) {
         setSessions([firstSess]);
         setCurrentSessionId(firstSess.id);
+        fetchCampaignState(firstSess.id).then(setCampaign);
       }
     } else {
       setSessions(sessList);
       if (!currentSessionId) {
         setCurrentSessionId(sessList[0].id);
+        fetchCampaignState(sessList[0].id).then(setCampaign);
       }
     }
     setLoops(loopList);
     setEvents(evtList);
   };
+
+  useEffect(() => {
+    if (currentSessionId) {
+      fetchCampaignState(currentSessionId).then(setCampaign);
+    }
+  }, [currentSessionId]);
 
   useEffect(() => {
     loadData();
@@ -364,6 +373,7 @@ export default function Home() {
             events={events}
             activeTab={activeTab}
             onTabChange={setActiveTab}
+            campaign={campaign}
           />
         </main>
       </div>
@@ -378,7 +388,9 @@ export default function Home() {
             sessionId={currentSessionId}
             onExperimentLaunched={() => {
               loadData();
+              if (currentSessionId) fetchCampaignState(currentSessionId).then(setCampaign);
             }}
+            onCampaignUpdated={(c) => setCampaign(c)}
           />
         </aside>
       )}

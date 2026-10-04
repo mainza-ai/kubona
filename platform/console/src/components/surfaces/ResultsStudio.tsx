@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { BookOpen, FileCheck, ExternalLink, Download, MessageSquare, CheckCircle, ShieldCheck, Printer, FlaskConical, Atom, Sparkles } from 'lucide-react';
 import { MathText } from '../common/MathText';
 import { fetchMolecularADMET, evaluateDiscoveryPipeline } from '@/lib/api';
+import { CampaignState } from '@/types';
 
 interface Notebook {
   id: string;
@@ -19,7 +20,11 @@ interface Notebook {
   sections: string[];
 }
 
-export function ResultsStudio() {
+interface ResultsStudioProps {
+  campaign?: CampaignState | null;
+}
+
+export function ResultsStudio({ campaign }: ResultsStudioProps) {
   const [notebooks, setNotebooks] = useState<Notebook[]>([]);
   const [activeSection, setActiveSection] = useState<number>(0);
   const [annotation, setAnnotation] = useState<string>('');
@@ -28,8 +33,9 @@ export function ResultsStudio() {
   ]);
 
   // Phase 5 Molecular ADMET & Pipeline State
-  const [smilesInput, setSmilesInput] = useState('CC(=O)Oc1ccccc1C(=O)O');
-  const [admetProfile, setAdmetProfile] = useState<any>(null);
+  const initialSmiles = campaign?.admet?.smiles || 'CC(=O)Oc1ccccc1C(=O)O';
+  const [smilesInput, setSmilesInput] = useState(initialSmiles);
+  const [admetProfile, setAdmetProfile] = useState<any>(campaign?.admet || null);
   const [pipelineData, setPipelineData] = useState<any>(null);
   const [evaluatingChemistry, setEvaluatingChemistry] = useState(false);
 
@@ -39,9 +45,10 @@ export function ResultsStudio() {
       .then((data) => setNotebooks(data.notebooks || []))
       .catch((err) => console.error('Failed to load notebooks:', err));
 
-    // Load initial ADMET and candidate pipeline data
-    loadChemistryData('CC(=O)Oc1ccccc1C(=O)O');
-  }, []);
+    const s = campaign?.admet?.smiles || 'CC(=O)Oc1ccccc1C(=O)O';
+    setSmilesInput(s);
+    loadChemistryData(s);
+  }, [campaign?.target_system]);
 
   const loadChemistryData = async (smiles: string) => {
     setEvaluatingChemistry(true);
@@ -69,7 +76,7 @@ export function ResultsStudio() {
     loadChemistryData(smilesInput);
   };
 
-  const nb = notebooks[0] || {
+  const nb: Notebook = campaign?.notebook || notebooks[0] || {
     id: 'nb-canon-01',
     title: 'H2 Molecular Potential Energy Surface VQE vs PySCF FCI',
     created_at: new Date().toISOString(),

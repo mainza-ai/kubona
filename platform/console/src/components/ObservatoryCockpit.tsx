@@ -17,7 +17,7 @@ import {
   Copy,
   Check,
 } from 'lucide-react';
-import { Loop, LedgerEvent } from '@/types';
+import { Loop, LedgerEvent, CampaignState } from '@/types';
 import { SpeedometerGauge } from './common/SpeedometerGauge';
 import { MathText } from './common/MathText';
 import { SpatialCanvas } from './surfaces/SpatialCanvas';
@@ -35,6 +35,7 @@ interface ObservatoryCockpitProps {
   activeMolecule?: string;
   activeTab?: SurfaceTab;
   onTabChange?: (tab: SurfaceTab) => void;
+  campaign?: CampaignState | null;
 }
 
 export type SurfaceTab =
@@ -54,6 +55,7 @@ export function ObservatoryCockpit({
   activeMolecule = 'H2',
   activeTab: externalTab,
   onTabChange,
+  campaign,
 }: ObservatoryCockpitProps) {
   const [internalTab, setInternalTab] = useState<SurfaceTab>('overview');
   const [copiedId, setCopiedId] = useState<number | null>(null);
@@ -133,20 +135,20 @@ export function ObservatoryCockpit({
 
       {/* Surface Render Switching with accessible panel containers */}
       <div role="tabpanel" id={`panel-${activeTab}`} aria-labelledby={`tab-${activeTab}`}>
-        {activeTab === 'surface1' && <SpatialCanvas />}
-        {activeTab === 'surface2' && <FlightRecorder loops={loops} events={events} />}
-        {activeTab === 'surface3' && <EpistemicManifold />}
-        {activeTab === 'surface4' && <AutonomyCockpit />}
-        {activeTab === 'surface5' && <FleetRadar />}
-        {activeTab === 'surface6' && <CognitiveMesh />}
-        {activeTab === 'surface7' && <ResultsStudio />}
+        {activeTab === 'surface1' && <SpatialCanvas campaign={campaign} />}
+        {activeTab === 'surface2' && <FlightRecorder loops={loops} events={events} campaign={campaign} />}
+        {activeTab === 'surface3' && <EpistemicManifold campaign={campaign} />}
+        {activeTab === 'surface4' && <AutonomyCockpit campaign={campaign} />}
+        {activeTab === 'surface5' && <FleetRadar campaign={campaign} />}
+        {activeTab === 'surface6' && <CognitiveMesh campaign={campaign} />}
+        {activeTab === 'surface7' && <ResultsStudio campaign={campaign} />}
         {activeTab === 'settings' && <LLMSettings />}
       </div>
 
       {/* Default Overview Dashboard */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          {/* Real-time High-Refresh Speedometers */}
+          {/* Real-time Dynamic High-Refresh Speedometers */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             <SpeedometerGauge
               label="Active Goroutine Loops"
@@ -159,30 +161,30 @@ export function ObservatoryCockpit({
             />
             <SpeedometerGauge
               label="Epistemic Credibility (P_corr)"
-              value={90.25}
+              value={campaign?.epistemics?.p_correlated ?? 90.25}
               min={0}
               max={100}
               unit="%"
               colorScheme="emerald"
-              subtext="Wavefunction Collapsed"
+              subtext={campaign?.epistemics?.status ?? "Wavefunction Collapsed"}
             />
             <SpeedometerGauge
               label="PySCF Anchor Discrepancy (Δ)"
-              value={0.47}
+              value={campaign?.classical_anchor?.discrepancy_mha ?? 0.47}
               min={0}
               max={2.0}
               unit="mHa"
               colorScheme="amber"
-              subtext="Chemical Accuracy OK"
+              subtext={campaign?.classical_anchor?.chemical_accuracy_passed ? "Chemical Accuracy OK" : "Contested"}
             />
             <SpeedometerGauge
               label="Barren Plateau Var(∇E)"
-              value={3.4}
+              value={campaign?.quantum_factors?.gradient_variance ? campaign.quantum_factors.gradient_variance * 1000.0 : 3.4}
               min={0}
               max={10}
               unit="x10⁻³"
               colorScheme="violet"
-              subtext="Gradient Variance OK"
+              subtext={campaign?.quantum_factors?.barren_plateau_risk === "LOW" ? "Gradient Variance OK" : "Barren Plateau Risk"}
             />
           </div>
 

@@ -3,8 +3,13 @@
 import React, { useState } from 'react';
 import { KeyRound, ShieldCheck, DollarSign, Clock, Check, CheckCircle2, AlertOctagon, GitMerge, ArrowDownRight, RefreshCw, XCircle, Terminal } from 'lucide-react';
 import { WebCryptoKeyring, signSpendMandate } from '../common/WebCryptoKeyring';
+import { CampaignState } from '@/types';
 
-export function AutonomyCockpit() {
+interface AutonomyCockpitProps {
+  campaign?: CampaignState | null;
+}
+
+export function AutonomyCockpit({ campaign }: AutonomyCockpitProps) {
   const [signed, setSigned] = useState(false);
   const [signing, setSigning] = useState(false);
   const [verificationResult, setVerificationResult] = useState<any>(null);
@@ -14,7 +19,9 @@ export function AutonomyCockpit() {
   const [executingAction, setExecutingAction] = useState<string | null>(null);
 
   const tenantId = 'tenant-quantum-lab-1';
-  const jobHash = 'sha256:88fa29810bce328a994781dfa98e21';
+  const jobHash = campaign?.notebook?.provenance_hash
+    ? campaign.notebook.provenance_hash.slice(0, 39)
+    : 'sha256:88fa29810bce328a994781dfa98e21';
 
   const handleClientSign = async () => {
     setSigning(true);
@@ -116,7 +123,7 @@ export function AutonomyCockpit() {
             <div>
               <div className="text-sm font-bold text-white">Cloud QPU Spend Mandate Envelope</div>
               <div className="text-xs text-slate-400 font-mono">
-                Tenant: {tenantId} | Target: IBM Heron (133 Qubits)
+                Tenant: {tenantId} | Target: {campaign?.quantum_factors?.recommended_backend || 'IBM Heron (133 Qubits)'} | System: {campaign?.target_system || 'H2'} ({campaign?.quantum_factors?.qubit_count || 4} Qubits)
               </div>
             </div>
           </div>
@@ -128,10 +135,10 @@ export function AutonomyCockpit() {
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs bg-[#0A0D14] p-3.5 rounded-lg border border-slate-800 font-mono">
           <div>
-            <span className="text-slate-500">Predicted Shots:</span> <strong className="text-slate-200">2048</strong>
+            <span className="text-slate-500">Predicted Shots:</span> <strong className="text-slate-200">{(campaign?.quantum_factors?.circuit_depth || 8) * 256}</strong>
           </div>
           <div>
-            <span className="text-slate-500">Clifford Fidelity:</span> <strong className="text-emerald-400">98.4%</strong>
+            <span className="text-slate-500">Clifford Fidelity:</span> <strong className="text-emerald-400">{((campaign?.quantum_factors?.clifford_fidelity ?? 0.984) * 100).toFixed(1)}%</strong>
           </div>
           <div>
             <span className="text-slate-500">Lease Expiry:</span> <strong className="text-cyan-400">2 Hours (7200s)</strong>
