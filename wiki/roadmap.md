@@ -1,7 +1,7 @@
 ---
 type: roadmap
 date: 2026-08-16
-updated: 2026-09-29
+updated: 2026-10-04
 tags: [kubona, plan]
 sources: [source-gap-analysis-plan]
 status: living
@@ -322,26 +322,25 @@ The chain that must not slip — and the debt that must not be left unpaid:
 
 ## Team loading (§8)
 
+> ⚑ Architectural Standardization (2026-10-04): The production engineering stack is standardized on
+> **Go (Backend Orchestrator)** + **TypeScript/Next.js (Frontend UI)** + **Python (Quantum/Data Bridge)** +
+> **Rust (Compiler Kernel)**, retiring Dart/Flutter.
+
 | Role | Phases | Notes |
 |---|---|---|
-| Rust systems engineer (compiler/WASM/cost-gov) | 0–5 | Highest-leverage single hire; QIR/MLIR + cost-gov correctness is the core defensibility |
-| TS/Node MCP platform engineer | 0–3 | Gateway, federated server topology, OAuth/PQC |
-| Python quantum SDK integration engineer | 0–5 | Direct Qiskit/PennyLane/Q#/Cirq/pyQuil/tket/Pulser bindings, CUDA-Q open components, eval harnesses |
-| Dart/Flutter engineer | 2–5 | Console surfaces; part-time/contract OK given narrower scope |
-| Security reviewer (contract) | 3 | PQC + MCP threat-model review — don't skip given the credential/spend blast radius |
+| Go systems engineer (Orchestrator/Agent engine) | 0–5 | Core backend: lightweight goroutines/channels for 1000s of agent loops, state engine, Docker/K8s sandbox lifecycle |
+| TypeScript / Next.js frontend engineer | 1–5 | Control plane: React Flow / xyflow node workflow builder, Yjs multiplayer presence, deep DOM paper/math viz |
+| Python quantum & data bridge engineer | 0–5 | Direct Qiskit/PennyLane/PySCF/Cirq/Pulser bindings via gRPC microservices |
+| Rust systems engineer (compiler/QIR core) | 0–5 | High-performance QIR lowering, OpenQASM AST parsing, PyO3/IPC bindings |
+| Security reviewer (contract) | 3 | PQC + MCP + AP2 mandate threat-model review |
 
-Go optional — Rust can absorb the canary/ledger roles. Phase 6 adds *(synthesis)*: a
-workflow-DSL/UX engineer (authoring surfaces, experiment notebook) and a
-fine-tuning/ML engineer ([[unsloth]] GQE retraining, personas) — both part-time/contract
-options given the narrower, post-core scope. **De-risking note (§8):** the Milimo
-Quantum foundation (Qiskit v2.2, 14+ agents, VQE, Apple Silicon/CUDA HAL) and Finance Claw
-approval pattern make P0–P1 substantially de-risked — validate the claims against the real
-codebases before lifting HAL/agent-mesh/approval patterns ([[mainza-milimo-foundation]]).
+**Stack rationale:** Dart/Flutter falls short for deep DOM scientific paper selection, WebGL molecular embedding (Mol*),
+and node-based visual workflow canvases (React Flow). Go handles concurrent autonomous agent loops with minimal memory
+overhead and manages sandbox infrastructure natively.
 
 ## Schedule risks to watch
 
-- Recruiting the six-language stack (Rust/TS/Dart/Py/JS/±Go) — Go optional, Rust absorbs
-  ([[risks]]).
+- Managing gRPC IPC contracts between the Go orchestrator and Python quantum runtimes.
 - Provider queue times/availability during P1–P3 hardware work — off-peak scheduling and
   Sessions ([[quantum-cloud-pricing]]).
 - Single-source Milimo reuse claims may not survive validation — plan P0–P1 as if they
@@ -355,6 +354,30 @@ codebases before lifting HAL/agent-mesh/approval patterns ([[mainza-milimo-found
   update this page and note it in [[log]].
 - Phase transitions are recorded in [[log]] as `roadmap | gate P<n> <pass|fail> — <reason>`.
 - This page stays `status: living`; [[log]] is append-only.
+
+## Post-Audit Modern Implementation Roadmap (2026-10-04)
+
+Following the forensic gap audit of the 25 source repositories in `dev-docs/`, the roadmap
+prioritizes eliminating all shims and establishing local verification before cloud hardware:
+
+### The Local Classical-Quantum Testing Gate (Precondition to Cloud Hardware)
+Before any job is dispatched to paid cloud QPUs (IBM, Quantinuum, QuEra, D-Wave):
+1. **Classical Anchor Verification:** Calculate exact ground state and dissociation curves using ab-initio
+   Restricted Hartree-Fock (RHF) and Full Configuration Interaction (FCI) via PySCF.
+2. **Local Simulation & Transpilation:** Execute circuits on `qiskit_aer.AerSimulator` and `Statevector`,
+   evaluating Meyer-Wallach expressibility $Q$, 2-qubit gate depth, and Clifford fidelity probes.
+3. **Graph-Partitioned Wire Cutting:** Partition circuits exceeding local qubit capacities using PennyLane
+   `qcut` and KaHyPar graph partitioning, reconstructing distributions via Quasi-Probability Decomposition (QPD).
+4. **Ring 1 Claim Collapse:** Verify whether energy errors fall within chemical accuracy ($|E_{\text{VQE}} - E_{\text{FCI}}| \le 1.6\text{ mHa}$)
+   and assert claims only when corroborated ($P_{\text{corr}} \ge 0.75$).
+
+### The Hybrid LLM Configuration Plane
+A unified settings engine in Go and Next.js manages:
+- **Local Engines:** Automatic zero-config discovery for oMLX (port 8787 hosting `Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit`,
+  `Llama-3.2-3B-Instruct-bf16`, and `Qwen3.6-35B-A3B-UD-MLX-4bit`), Ollama (port 11434), and LM Studio (port 1234).
+- **Cloud Providers:** Configurable endpoints and API keys for Anthropic Claude and OpenAI.
+- **Sovereign Air-Gap Switch:** Physical toggle in the control plane that severs external egress and enforces 100% local inference.
+- **Agent Persona Routing:** Assigning distinct models to individual roles (`ansatz-scout`, `device-auditor`, `disconfirmation-officer`).
 
 ---
 

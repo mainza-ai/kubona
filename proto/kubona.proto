@@ -1,0 +1,133 @@
+syntax = "proto3";
+
+package kubona;
+
+option go_package = "github.com/mainza-ai/kubona/core/pkg/proto;kubonaproto";
+
+// Job & Execution State
+enum JobStatus {
+  JOB_STATUS_UNSPECIFIED = 0;
+  JOB_STATUS_QUEUED = 1;
+  JOB_STATUS_RUNNING = 2;
+  JOB_STATUS_COMPLETED = 3;
+  JOB_STATUS_FAILED = 4;
+  JOB_STATUS_PAUSED = 5;
+  JOB_STATUS_CANCELLED = 6;
+}
+
+enum DegradationLevel {
+  DEGRADATION_UNSPECIFIED = 0;
+  DEGRADATION_QPU_HARDWARE = 1;
+  DEGRADATION_AER_NOISE_SIM = 2;
+  DEGRADATION_STATEVECTOR_SIM = 3;
+  DEGRADATION_CLASSICAL_FALLBACK = 4;
+}
+
+message CircuitExecutionRequest {
+  string job_id = 1;
+  string session_id = 2;
+  string qasm = 3;
+  int32 shots = 4;
+  string requested_backend = 5;
+  bool allow_classical_fallback = 6;
+}
+
+message CircuitExecutionResponse {
+  string job_id = 1;
+  bool success = 2;
+  string resolved_backend = 3;
+  DegradationLevel degradation_level = 4;
+  string degradation_reason = 5;
+  map<string, int64> counts = 6;
+  repeated double statevector_real = 7;
+  repeated double statevector_imag = 8;
+  double meyer_wallach_entanglement = 9;
+  double execution_time_ms = 10;
+  string error_message = 11;
+}
+
+message CircuitCutRequest {
+  string qasm = 1;
+  int32 max_subcircuit_qubits = 2;
+}
+
+message SubcircuitFragment {
+  int32 fragment_id = 1;
+  string qasm = 2;
+  repeated int32 cut_qubits = 3;
+}
+
+message CircuitCutResponse {
+  bool success = 1;
+  repeated SubcircuitFragment fragments = 2;
+  int32 total_cuts = 3;
+  string error_message = 4;
+}
+
+message ClassicalAnchorRequest {
+  string molecule = 1; // "H2", "LiH", "BeH2", "H4"
+  double bond_distance = 2;
+  string basis_set = 3;
+}
+
+message ClassicalAnchorResponse {
+  string molecule = 1;
+  double bond_distance = 2;
+  double rhf_energy = 3;
+  double fci_exact_energy = 4;
+  double nuclear_repulsion = 5;
+  repeated double orbital_energies = 6;
+  bool success = 7;
+  string error_message = 8;
+}
+
+message ClaimEvaluationRequest {
+  string claim_id = 1;
+  string statement = 2;
+  double quantum_value = 3;
+  double classical_anchor_value = 4;
+  repeated string source_platforms = 5;
+  int64 total_engagement = 6;
+  double contradiction_signal = 7;
+}
+
+message ClaimEvaluationResponse {
+  string claim_id = 1;
+  double corroborated_amplitude = 2;
+  double contested_amplitude = 3;
+  double unverified_amplitude = 4;
+  bool passes_chemical_accuracy = 5;
+  double delta_mha = 6;
+  bool quantum_advantage_claimed = 7;
+  bool quantum_advantage_verified = 8;
+  string verdict_reason = 9;
+}
+
+message LiteratureGroundingRequest {
+  string query = 1;
+  int32 limit = 2;
+}
+
+message LiteratureRecord {
+  string id = 1;
+  string title = 2;
+  string authors = 3;
+  string abstract_text = 4;
+  string url = 5;
+  int32 publication_year = 6;
+  int32 citation_count = 7;
+}
+
+message LiteratureGroundingResponse {
+  repeated LiteratureRecord records = 1;
+  bool cached = 2;
+}
+
+// Quantum and Data Bridge Service
+service QuantumBridgeService {
+  rpc ExecuteCircuit(CircuitExecutionRequest) returns (CircuitExecutionResponse);
+  rpc CutCircuit(CircuitCutRequest) returns (CircuitCutResponse);
+  rpc ComputeClassicalAnchor(ClassicalAnchorRequest) returns (ClassicalAnchorResponse);
+  rpc EvaluateWavefunction(ClaimEvaluationRequest) returns (ClaimEvaluationResponse);
+  rpc GroundLiterature(LiteratureGroundingRequest) returns (LiteratureGroundingResponse);
+}

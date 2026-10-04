@@ -17,7 +17,18 @@ dev-docs/
 # Rust build artifacts
 target/
 
-# Flutter console build artifacts
+# Database and runtime logs
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+platform/core/*.db
+platform/core/*.db-shm
+platform/core/*.db-wal
+
+# Console build artifacts
+platform/console/.next/
+platform/console/out/
 platform/console/.dart_tool/
 platform/console/build/
 platform/console/pubspec.lock
