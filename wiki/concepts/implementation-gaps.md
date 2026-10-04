@@ -1,7 +1,7 @@
 ---
 type: concept
 date: 2026-08-16
-updated: 2026-09-29
+updated: 2026-10-04
 tags: [kubona, production, gaps]
 sources: [source-gap-analysis-plan]
 status: tracked
@@ -21,19 +21,55 @@ status: tracked
 - 🔵 **Deferred by design** — matches the plan's own "functional product first" sequencing.
 - 🔴 **Regressed / failing now** — verified broken at the stated date; not a future concern.
 
+## Forensic Audit (2026-10-04): Codebase Reality vs. Blueprint
+
+A systematic audit revealed that over 90% of what is documented in the blueprint across the
+89 wiki pages, the 7 Observatory Surfaces, and 25 audited dev-docs repositories was either
+unimplemented, stubbed, or disguised behind static UI facades:
+
+1. **The 7 Observatory Surfaces are Missing/Stubbed:**
+   - Surface 1 (Spatial Living Lab): No infinite zoomable canvas, no React Flow node graph, no post-QIR universal glyphs, no ghost circuits.
+   - Surface 2 (4D Flight Recorder): Was reduced to a plain static HTML table; lacked interactive scrub bar, parameter trajectory animation, and counterfactual branching.
+   - Surface 3 (Epistemic Manifold): Renders static placeholder cards rather than dynamic SVG/Canvas wavefunction rings ($\alpha|\text{corr}\rangle + \beta|\text{cont}\rangle + \gamma|\text{unver}\rangle$) or stagnation telemetry ($\kappa$).
+   - Surface 4 (Autonomy Cockpit & AP2): Unsigned JSON payload without Ed25519 cryptographic spend mandate verification.
+   - Surfaces 5, 6, 7 (Fleet Radar, Cognitive LLM Mesh, Results Studio): Completely absent from the frontend.
+2. **Multi-Agent Research Collective is a Single Prompt:**
+   - The 5 distinct specialist personas (`epistemic-scribe`, `ansatz-scout`, `device-auditor`, `disconfirmation-officer`, `human-reviewer`) with declarative `role.yaml` capability grants and keypair identities are unbuilt.
+3. **The Five-Ring Research Loop is Unclosed:**
+   - Ring 0 (Reflex): Lacks automated re-scoping and snapshot recovery.
+   - Ring 1 (Epistemic): Uncollapsed claims are not blocked from being asserted in agent outputs.
+   - Ring 3 (Methodological): No fidelity accounting, no device noise profiles ($T_2 \le 2T_1$), and no Clifford stabilizer probes.
+   - Ring 4 (Reflexive): No Karpathy Autoresearch harness runners or §13 meta-search evolution flywheel.
+4. **Security, Confidentiality & Isolation:**
+   - Buzz IFC `can_flow_to` reader-set lattice is missing from queries.
+   - OpenBao secrets vault with dynamic single-use leases is unintegrated.
+   - Code execution is unsandboxed on the host instead of container-isolated.
+
+## The 6-Phase Master Implementation Plan
+
+- **Phase 1: Architecture Core, Governance & Isolation:** Ed25519 AP2 spend mandate engine in Go, Buzz IFC reader-set lattice in Rust/Go, Paperclip 4-plane MCP access gateway with `low_trust_review`, and OpenBao secrets vault sidecar.
+- **Phase 2: Quantum Physics Engines, Real Anchors & Data Grounding:** PySCF numerical electronic structure solver (RHF, CISD, FCI), hardware noise profiles ($T_2 \le 2T_1$) with `stim` Clifford probes ($\le 64$ shots), PennyLane `qcut` KaHyPar circuit cutting, and live arXiv/OpenAlex connectors.
+- **Phase 3: Multi-Agent Collective & Closed Rings 0-1:** 5 specialized agent personas with declarative `role.yaml`, Ring 0 supervisor with automated re-scoping, Ring 1 assertion gating with epistemic curvature ($\kappa$, drift, refusal ratio), and Hindsight tripartite memory banks.
+- **Phase 4: Autoresearch Engine, Fidelity Accounting & Rings 3-4:** Karpathy Autoresearch 4-part harness registry, autonomous ansatz genome search with cheap pre-checks, Ring 3 fidelity accounting gate (predict $\to$ probe $\to$ admit/downgrade/refuse), and §13 meta-search self-evolution engine.
+- **Phase 5: The Seven Core Observatory Surfaces (Next.js 16 + TypeScript):** Surface 1 (Spatial Canvas via React Flow), Surface 2 (4D Scrubbable Flight Recorder), Surface 3 (Dynamic Wavefunction Rings), Surface 4 (Cryptographic Mandate Cockpit), Surface 5 (Fleet Radar & ITAR Shield), Surface 6 (Cognitive Mesh & Air-Gap Switch), Surface 7 (Citable Results Studio).
+- **Phase 6: Multi-Tenant Sandboxing, Production CI & Zero-Placeholder Verification:** Docker workload container isolation, unified multi-language CI pipeline, automated end-to-end campaign tests, and zero-placeholder audit across the codebase.
+
 ## Critical (structural)
 
 | Gap | Status | What's real / what's missing |
 |---|---|---|
-| **Persistent state root (data-loss)** | 🟢 M0 | Was split: 8 stores hardcoded to volatile `/tmp/kubona-state` (settings, identity, agents, the algorithm library, reports, labs, workflows, meta-proposals) while sessions/gov/ledger used `KUBONA_STATE_DIR`. Now all route through `kubona/config.py` (`state_root()`) — default `~/.kubona`, epoch-safe. |
-| **Prod auth default** | 🟢 M0 | Gateway + console defaulted to `dev-token`. Now: OAuth2 signed tokens get `aud`/`nbf`, console uses constant-time compare against `KUBONA_CONSOLE_TOKEN`, and `KUBONA_ENV=production` **fails closed** (no token → no access). Production gateway factory in `kubona/run.py`. |
-| **Deployment entrypoint** | 🟢 M0 | No `[project.scripts]`, no way to boot the system. Now: `kubona serve` / `kubona doctor` (package entrypoint + `run.py`), starlette/uvicorn are hard deps. |
-| **CI / release-gate** | 🟢 green on hosted runner 2026-09-29 | `ci.yml` + `nightly-canary.yml` authored; `platform/scripts/ci.sh` reproduces the pipeline locally (compile, Rust build+`--lib`, pytest, canary, release gate, doctor/fail-closed). Test counts are environment-specific and must be quoted as such: **159 passed locally, 156 passed + 3 skipped on the runner** — the 3 are the optional-SDK tests (pytket, pyquil, langgraph: installed on the dev machine, absent on a clean runner), not a coverage loss. Both CI paths now run `pytest -q -rs`, so the runner names its own skips rather than leaving a bare count to be argued about — the same rule `release_gate()` applies to providers applies to tests — confirmed on run 36511131388, whose log prints exactly those three reasons. **The hosted push pipeline had never been green — all 17 recorded `ci.yml` runs failed, HEAD (`6970127`) included — fixed in `3e24487`, with the CI trigger gap closed by `2675816`, and verified green on Actions run 36508507064.** Root cause, correcting the diagnosis first written here: `run_all()` *did* classify fail-closed providers correctly (`ok=False, skip=True`); what was broken is that the gate's **rule existed twice** — `ci.sh` filtered skips before asserting, `ci.yml:68` asserted `all(r['ok'] for r in results)` across all 8 plugin-bearing providers, so 5 legitimate skips (no credentials, no local `qvm`, optional SDK absent, annealing/AHS/CV program model) failed a build whose canary log said `3/3 passed`. Fix removes the duplication rather than patching one copy: `release_gate()` in `kubona/canary/canary.py` is the single verdict, exposed as `python -m kubona.canary --gate` and called by both the hosted job and `ci.sh`. An all-skip run is deliberately a **failure** (a gate that executed nothing has proven nothing), and 5 new tests pin the semantics — including a negative test proving an injected calibration-drift regression still exits 1, so the fix cannot have softened the gate. `nightly-canary.yml` was always green: the mechanism worked, only the arithmetic around it was wrong. History confirms the duplication: the earlier attempt `17dc27f` ("Canary regression/skip classification fix") patched the `ci.sh` copy and left `ci.yml` untouched, and failed at this identical step. **Second finding, surfaced by pushing the fix:** `on.push.branches` was `[main]`, and main is advanced by fast-forwarding develop onto it — so all 17 failures were pushes on `main` and `develop` had *zero* runs; no commit was ever gated as it landed, which turns one bad commit into 17 red runs at the next advance. `develop` + `workflow_dispatch` are triggers now. Verified on run 36508507064: step *Correctness-regression harness (release gate)* → `release gate: OK (3 executable providers; 5 skipped)`, and the newly added *Wiki structural lint* step passes in CI's pristine checkout (no `dev-docs/` present, as expected for a text-only check). |
-| **x402 fail-closed** | 🟢 M0 | The stub verifier accepted any `x402:`-prefixed proof (free-spend hole if enabled). Now `X402Payments` rejects every proof unless a real `verifier` is injected; metering/payment + P1 gate updated to assert fail-closed. |
-| **Async, persistent job model** | 🟢 M1 | `kubona/jobs.py`: persistent JSONL `JobStore` (status survives restart) + background `JobRunner`; `submit_job(wait=True/False)`, `cancel_job` (P2 watch-and-interrupt), scoped `execution:override`, provenance on every transition, 4 dedicated tests. |
-| **Real provider SDK execution** | 🟢 SDK-validated | IBM: real Qiskit Runtime. **Quantinuum (pytket) + Rigetti (pyquil) conversions now validated against the REAL SDKs** (installed in dev; CI-skip tests) — the real SDKs caught bugs the stubs missed (pyquil CX→CNOT, integer qubits; fixed). D-Wave: credential-free QUBO solver. Rigetti credential-free run needs the local `qvm` daemon (fails closed with guidance); QPU needs creds. Pulser/StrawberryFields remain modality-gated (gate→AHS/CV not auto-derivable; per plan §2.1), fail-closed. Live QPU runs need credentials (opted-in). |
-| **Rust QIR/MLIR core on the call path** | 🟢 M1 | `kubona/qir/native.py` runs the built `qir-core` binary on `lower_circuit` (`engine: rust-qir-core`) with Python fallback; CI builds it and wires `KUBONA_QIR_CORE`; native-path test added. OpenQASM 3 + MLIR/QIR-bitcode remain. |
-| **Streamable-HTTP + ML-KEM on the wire** | 🟢 M1 | `kubona/mcp/http_gateway.py` serves `/rpc` over a real uvicorn socket with OAuth2 bearer + a real two-party X25519+ML-KEM hybrid envelope (unwrapped, dispatched, response re-encrypted; tamper-rejected). `kubona serve-gateway` boots it; `kubona/secrets.py` adds env-backed (KMS-ready) per-provider credentials that fail closed. TLS/KEMTLS termination at the edge remains for deployment. |
+| **Persistent state root (data-loss)** | 🟢 M0 | Route through `kubona/config.py` (`state_root()`) — default `~/.kubona`. |
+| **Prod auth default** | 🟢 M0 | Console uses constant-time compare against `KUBONA_CONSOLE_TOKEN`, production fails closed. |
+| **Deployment entrypoint** | 🟢 M0 | `kubona serve` / `kubona doctor` package entrypoints. |
+| **CI / release-gate** | 🟢 green | Single verdict `release_gate()` in `canary.py`, verified in hosted Actions. |
+| **x402 fail-closed** | 🟢 M0 | Rejects proofs unless real verifier injected. |
+| **Chat/Copilot & oMLX Integration** | 🔴 failing now | Chat returns canned string matches; oMLX on port 8787 (`Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit`) was omitted from port scanner and chat dispatch. |
+| **Circuit Cutting & Knitting** | 🔴 failing now | `cut_circuit_qasm` replaced circuits with dummy 2-qubit `h(0); cx(0,1)`; needs genuine PennyLane `qcut` + KaHyPar graph partitioning. |
+| **Local Classical-Quantum Testing Gate** | 🟠 open | Precondition gate before cloud QPUs: PySCF ab-initio FCI anchors, Qiskit Aer simulation, Clifford probes ($\le 64$ shots), chemical accuracy collapse. |
+| **Hybrid LLM Configuration Plane** | 🟠 open | Settings view for local engines (oMLX, Ollama, LM Studio) and cloud models with Sovereign Air-Gap switch. |
+| **Loop Supervisor Persistence** | 🔴 failing now | In-memory split-brain; console cannot observe or control MCP loops. |
+| **Classical Chemistry Anchors** | 🟠 open | Needs strict PySCF ab-initio solver without empirical curve-fit fallbacks. |
+| **TypeScript/Go Core Migration** | 🟠 open | Scaffold is pure Python/Flutter; Go orchestrator and Next.js UI required for production concurrency and workflow canvas. |
 
 ## Medium
 

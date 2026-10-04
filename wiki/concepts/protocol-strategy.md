@@ -2,7 +2,7 @@
 type: concept
 name: Protocol Strategy & Capability Core Decoupling
 date: 2026-10-03
-updated: 2026-10-03
+updated: 2026-10-04
 tags: [protocols, mcp, a2a, architecture, capability-core, agi-robustness]
 sources: [source-agent-protocol-landscape-2026, source-architecture-paper]
 status: adopted
@@ -13,35 +13,33 @@ status: adopted
 Kubona's architectural boundary separating external interaction protocols from internal
 quantum execution, cost governance, and verification primitives (source-agent-protocol-landscape-2026).
 
-## The Core Thesis: Protocols as Peripherals
+## The Core Thesis: Protocols as Peripherals & The TypeScript/Go Backbone
 
 In the rapidly shifting landscape leading toward AGI/ASI, interaction protocols evolve on
 12–18 month cycles (e.g. MCP's complete 2026 overhaul, ACP's absorption into A2A). In contrast,
 quantum intermediate representations ([[qir-mlir-compilation]], OpenQASM 3) and verification
 physics remain durable across decades.
 
-Kubona treats all agent protocols—including [[mcp-and-context-flooding|MCP]] and [[a2a|A2A]]—as
-**thin, replaceable edge adapters**. The core assets of the platform (cost governance, immutable
-ledger, provider federation, ansatz optimization, classical anchors) reside in a protocol-neutral
-**Capability Core**.
+To run thousands of concurrent autonomous agent loops, maintain real-time multiplayer lab states,
+and interface cleanly with quantum runtimes, the platform divides into four specialized tiers:
 
 ```
- agents / hosts / humans
-   │   MCP (tool/data access)     A2A (delegation)     HTTP/WS (approval console)
-   ▼
- ┌────────────── Protocol Adapters (thin, swappable) ────────────────┐
- │  MCP Server (JSON-RPC)       A2A Agent Card (RPC)   REST Gateway  │
- └───────────────────────────────┬───────────────────────────────────┘
-                                 ▼
- ┌───────────────────────────────────────────────────────────────────┐
- │                   Kubona Capability Core                          │
- │  • Gateway dispatch & authorization (Principal, Scopes)          │
- │  • Hardware Cost Governance (Pre-flight, ceilings, approval gate) │
- │  • Execution & Federation (Provider abstraction, session handles) │
- │  • Provenance & Epistemics (Content-addressed ledger, anchors)    │
- └───────────────────────────────┬───────────────────────────────────┘
-                                 ▼
-                  QIR / OpenQASM 3 / MLIR  →  Provider SDKs / QPUs
+ [ FRONTEND UI: TypeScript + React/Next.js ]
+        │  (WebSockets / gRPC-Web / Yjs CRDTs)
+        ▼
+ [ BACKEND ORCHESTRATOR: Go (Golang) ]
+        ├── Protocol Edges: MCP Gateway, A2A Agent Cards, AP2 Mandates
+        ├── Agent Loop Concurrency: Goroutines & channels, state engine
+        ├── Cloud/Sandbox Control: Container lifecycle (Docker/K8s) for agent code
+        └── Immutable Ledger & Session Store: High-throughput audit logging
+        │
+        ├── (gRPC / Unix Socket IPC) ──────► [ COMPILER KERNEL: Rust ]
+        │                                       • QIR Lowering, AST analysis
+        ▼ (gRPC / Streaming IPC)
+ [ DATA / QUANTUM BRIDGE: Python (FastAPI / gRPC) ]
+        • Quantum SDKs: Qiskit, PennyLane, Cirq, pyQuil, pytket, Pulser
+        • Classical Physics Anchors: PySCF, FCI/RHF numerical active-space solvers
+        • AI Data Analysis & Scientific Integrations: arXiv, OpenAlex, ChEMBL
 ```
 
 ## Protocol Layer Map

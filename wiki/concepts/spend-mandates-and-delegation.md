@@ -2,7 +2,7 @@
 type: concept
 name: Spend Mandates & Inter-Agent Delegation
 date: 2026-10-03
-updated: 2026-10-03
+updated: 2026-10-04
 tags: [governance, ap2, a2a, security, delegation, mandates, trust-boundary]
 sources: [source-agent-protocol-landscape-2026, source-gap-analysis-plan]
 status: adopted
@@ -29,7 +29,8 @@ Borrowing from the [[ap2|Agent Payments Protocol (AP2)]] specification, Kubona m
 - When estimated circuit execution cost exceeds a tenant's autonomy ceiling (e.g. >$50.00),
   the cost server issues an authorization challenge.
 - The human operator signs a structured mandate specifying: `{tenant_id, job_hash, max_budget_usd, expiry_timestamp}`.
-- The execution server verifies the signature before submitting the job to the hardware backend.
+- In the production console (`platform/console/components/WebCryptoKeyring.tsx`), the browser maintains a secure Ed25519 keypair in browser storage via W3C WebCrypto API. Mandates are signed client-side over a SHA-256 canonical hash string.
+- The Go execution orchestrator (`platform/core/pkg/api/server.go:/api/mandates/verify`) cryptographically validates the signature via Go `crypto/ed25519.Verify` before dispatching to any provider queue.
 - The signed mandate is permanently stored in the [[provenance-and-reproducibility|content-addressed audit ledger]],
   providing non-repudiable proof of human authorization.
 

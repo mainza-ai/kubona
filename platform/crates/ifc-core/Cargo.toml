@@ -1,0 +1,8 @@
+[package]
+name = "ifc-core"
+version = "0.1.0"
+edition = "2021"
+description = "Generic reader-set information-flow control primitives for Kubona"
+license = "Apache-2.0"
+
+[dependencies]

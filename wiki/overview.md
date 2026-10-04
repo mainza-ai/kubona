@@ -1,7 +1,7 @@
 ---
 type: overview
 date: 2026-08-16
-updated: 2026-10-03
+updated: 2026-10-04
 tags: [kubona, synthesis]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-cloudflare-economy,
   source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026]
@@ -74,10 +74,13 @@ reproducible results — see [[science-discovery]].
    sign-off beyond the dollar gate, no write access to platform code). See
    [[meta-search-and-self-evolution]].
 
-5. **The human-facing surface is a read/approve-only control plane** — circuit
-   visualizer, cost/approval console, live loop inspector — grounded in both
-   [[agent-ux-control-plane|agent UX]] practice — including the
-   circuit-visualization design space.
+5. **The production architecture standardizes on Go + TypeScript/Next.js + Python + Rust:**
+   The human-facing surface is a read/approve-only control plane implemented in **TypeScript + React/Next.js**
+   (with node-based workflow canvases via React Flow, multiplayer presence via Yjs, and deep DOM paper selection),
+   talking via WebSockets/gRPC-Web to a high-throughput **Go Backend Orchestrator** (managing thousands of concurrent
+   agent loops via goroutines/channels and container sandbox lifecycles). Heavy quantum execution (Qiskit, PennyLane,
+   PySCF) runs in dedicated **Python gRPC microservices**, while high-performance compilation runs in a **Rust core**.
+   See [[ui-ux-vision]], [[protocol-strategy]], and [[agent-ux-control-plane]].
 
 6. **Kubona is also a science discovery platform.** The same governance rail that makes
    hardware spend safe makes literature grounding, experiment design, and structured
@@ -95,6 +98,16 @@ reproducible results — see [[science-discovery]].
    dependency ([[integration-topology-and-licence-discipline]]). The audit's real subject is
    *third-party* code: the three unlicensed repos it found are the maintainer's own unfinished WIP,
    which is insight material rather than a licence problem. MPL-2.0's file-level copyleft is
+   cleanly compatible with an Apache-2.0 container as long as its files stay distinct.
+
+8. **Cognitive Mesh, Sovereign Air-Gap, and Local-First Quantum Validation:**
+   The multi-agent research collective operates across a hybrid LLM fabric configured through a comprehensive
+   settings plane: local inference engines (oMLX on port 8787 hosting models like `Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit`
+   and Llama-3.2, Ollama on 11434, LM Studio on 1234) alongside cloud frontier models (Anthropic Claude, OpenAI).
+   A Sovereign Air-Gap hardware toggle guarantees zero outbound network egress. Every quantum algorithm and ansatz
+   must pass a strict **local classical-quantum testing gate** (classical ab-initio PySCF RHF/FCI anchors, Qiskit Aer
+   simulation, PennyLane KaHyPar circuit cutting, and Clifford fidelity probes) before cloud QPU execution is authorized.
+   See [[ui-ux-vision]], [[fidelity-accounting]], and [[implementation-gaps]].
    precisely why [[openbao]] runs as a sidecar. Paired with [[quantum-advantage-realism]]: the
    platform records the backend that actually ran, always computes a classical anchor, and never
    claims advantage.

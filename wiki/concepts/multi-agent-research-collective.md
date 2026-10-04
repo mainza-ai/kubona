@@ -3,8 +3,8 @@ name: The Multi-Agent Research Collective
 type: concept
 tags: [frontier, multi-agent, governance, roles, trust, orchestration]
 date: 2026-09-27
-updated: 2026-09-27
-status: open-question
+updated: 2026-10-04
+status: adopted
 sources: [source-frontier-repo-audit-2026]
 ---
 
@@ -102,6 +102,15 @@ one serialised per campaign.
 No emergent-hive-mind language; no unbounded agent spawning (spawns are budget events —
 [[agent-resource-economy]]); no role may edit its own grant; no agent may self-attest
 ([[confidentiality-lattice-provenance]] and [[user-identity-and-profiles]] carry attribution).
+
+## Production Implementation (2026-10-04)
+
+The collective tribunal is implemented as an automated 4-turn debate pipeline in the Go core orchestrator
+(`platform/core/pkg/agents/collective.go:ExecuteTribunal`) backed by `/api/chat/tribunal`:
+1. **Turn 1 (Ansatz Scout):** Proposes active space and parameterised ansatz topology with Meyer-Wallach expressibility $Q \ge 0.8$.
+2. **Turn 2 (Disconfirmation Officer):** Evaluates classical anchor (e.g. ab-initio PySCF STO-3G/6-31G FCI/RHF) and barren plateau gradient variance $\text{Var}(\nabla E) > 10^{-6}$.
+3. **Turn 3 (Device Auditor):** Checks physical constraints on target backend (e.g. $T_2 \le 2T_1$, Clifford canary probe fidelity $\ge 95\%$, spend ceiling $\le \$150.00$).
+4. **Turn 4 (Epistemic Scribe):** Collapses Ring 1 credibility wavefunction ($P_{\text{corr}} > 80\%$) and synthesises structured AP2 Mandate Card for client-side cryptographic authorization.
 
 See also [[workflows-and-agent-authoring]], [[quantum-domain-packs]],
 [[agentic-memory-and-observability]], [[mcp-and-context-flooding]].

@@ -2,7 +2,7 @@
 type: concept
 name: Kubona UI/UX Vision & Console Specification
 date: 2026-08-16
-updated: 2026-09-27
+updated: 2026-10-04
 tags: [ux, ui, control-plane, console, report]
 sources: [source-gap-analysis-plan, source-architecture-paper]
 status: adopted
@@ -155,12 +155,22 @@ The interface unifies four distinct execution tiers:
 - **Motion:** Subtle and functional; reserved for state transitions and scrubbable timeline playback.
 - **Accessibility:** WCAG 2.1 AA, keyboard-first approval shortcuts, dual-encoded indicators (never color alone).
 
-## 7. Mobile presence (Flutter Companion)
+## 7. Frontend Technology Architecture: TypeScript + React/Next.js
 
+> ⚑ Architectural Decision (2026-10-04): The console runtime is standardized on **TypeScript + React/Next.js**,
+> retiring the earlier Dart/Flutter prototype scaffold.
+
+### Why Dart/Flutter was retired for the Scientific Control Plane
+- **Canvas Rendering vs. Scientific DOM:** Flutter for Web renders via CanvasKit/HTML canvas. This cripples standard web browser developer tools, deep DOM accessibility, native browser text selection of dense scientific papers/equations (LaTeX/KaTeX), and embedding heavy DOM/WebGL-based visualizers (such as Mol* / 3Dmol.js for molecular structures and complex vector diagrams).
+- **Interactive Multi-Agent Canvas Ecosystem:** An autonomous science discovery platform requires interactive, node-based visual workflows (agent-authored experiment loops, Hamiltonian wiring). The TypeScript ecosystem provides mature, production-grade node canvas engines (**React Flow / xyflow**, Rete.js) that have no equivalent in Dart.
+- **Real-Time Multiplayer Presence (CRDTs):** Implementing multiplayer human-agent collaboration (shared lab spaces, co-presence cursors, live concurrent workflow mutation) is solved in TypeScript via CRDT frameworks (**Yjs**, Automerge) over WebSockets.
+- **Ecosystem Depth:** TypeScript provides native, actively maintained client libraries for gRPC-Web, streaming WebSockets, LLM token streaming, and scientific data manipulation.
+
+### Responsive Web & Mobile Presence
+- **Responsive Next.js Interface:** Desktop-first high-density scientific cockpit; mobile-responsive layout for on-the-go review.
 - **Calm Check-in Mode:** Glanceable burn-rate meter, active ring status, and anomaly notifications.
-- **Tactile Biometric Action Cards:** Push notifications for spend gates exceeding autonomy ceilings,
-  allowing one-touch biometric authorization (FaceID/Fingerprint) signing AP2 mandates via local Secure Enclave.
-- **No Heavy CAD:** Deep circuit editing and canvas manipulation remain desktop-exclusive.
+- **WebAuthn / Passkey Biometric Action Cards:** Push notifications for spend gates exceeding autonomy ceilings, signed via browser-native WebAuthn / Passkeys for AP2 mandate authorizations.
+- **No Heavy CAD on Mobile:** Deep circuit topology editing and spatial canvas manipulation remain desktop-exclusive.
 
 ## 8. The agent-facing "interface" (MCP & A2A, not console)
 

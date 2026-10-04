@@ -2,7 +2,7 @@
 type: concept
 name: Agent UX & the Control Plane
 date: 2026-08-16
-updated: 2026-09-27
+updated: 2026-10-04
 tags: [ux, control-plane, hitl]
 sources: [source-gap-analysis-plan]
 status: adopted
@@ -26,6 +26,10 @@ No existing tool (quantum or agentic) covers both.
 > **Full specification:** the complete UI/UX vision — personas, information architecture,
 > per-surface detail, visual language, mobile, open design problems, acceptance criteria —
 > lives in [[ui-ux-vision]].
+>
+> **Implementation stack:** The control plane is implemented in **TypeScript + React/Next.js**
+> talking via WebSockets and gRPC-Web to a high-throughput **Go backend orchestrator**, while
+> quantum execution runs via isolated **Python gRPC microservices**.
 
 ## The seven core observatory surfaces
  

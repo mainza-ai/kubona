@@ -41,16 +41,17 @@ jobs:
         run: python scripts/wiki-lint.py --strict
 
   rust-tests:
-    name: Rust qir-core tests
+    name: Rust crates (qir-core + ifc-core)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: platform/crates/qir-core
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
-      - run: cargo build --release  # production compiler core
-      - run: cargo test --lib  # 3 qir-core unit tests
+      - name: Test qir-core
+        working-directory: platform/crates/qir-core
+        run: cargo test --lib
+      - name: Test ifc-core
+        working-directory: platform/crates/ifc-core
+        run: cargo test --lib
 
   canary-gate:
     name: Canary + correctness release-gate
@@ -70,18 +71,35 @@ jobs:
         run: |
           KUBONA_STATE_DIR="$(mktemp -d)" python -m kubona.canary --gate
 
-  flutter-console:
-    name: Flutter web console (build + widget test)
+  go-core-tests:
+    name: Go Orchestrator Core (tests + race detector)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform/core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+      - run: go test -v -race ./...
+
+  nextjs-console-build:
+    name: Next.js Observatory Console (TypeScript build)
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: platform/console
     steps:
       - uses: actions/checkout@v4
-      - uses: subosito/flutter-action@v2
+      - uses: pnpm/action-setup@v4
         with:
-          channel: stable
-      - run: flutter pub get
-      - run: flutter test
-      - run: flutter build web
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "pnpm"
+          cache-dependency-path: platform/console/pnpm-lock.yaml
+      - run: pnpm install
+      - run: pnpm build
 

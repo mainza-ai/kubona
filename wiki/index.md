@@ -1,7 +1,7 @@
 ---
 type: catalog
 date: 2026-08-16
-updated: 2026-10-03
+updated: 2026-10-04
 tags: [index]
 status: living
 ---
@@ -34,7 +34,7 @@ arrives, place it here first and it will find its page.
 
 | Page | Summary |
 |---|---|
-| [[questions]] | **The work-list.** 27 open questions (Q-01–Q-30, Q-25 closed) — what is known, what is missing, what the answer unblocks. Read first. |
+| [[questions]] | **The work-list.** Open questions and design forks (Q-01, Q-15, Q-16, Q-21, Q-22, Q-25 closed) — what is known, what is missing, what the answer unblocks. Read first. |
 | [[overview]] | Synthesis: what Kubona is, what is decided, and what the prototype has actually answered. |
 | [[roadmap]] | Phases 0–6 read as **acceptance criteria**, not progress: gates, dependencies, team loading. |
 | [[implementation-gaps]] | Prototype gap register: what the scaffold does vs. what production requires. Code facts only. |
@@ -56,8 +56,8 @@ Describes **how decided** something is — never how finished.
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
 **Census (89 pages = 39 entities · 40 concepts · 5 sources · 5 meta):**
-`settled` 1 · `adopted` 28 · `open-question` 13 · `candidate` 6 · `tracked` 26 ·
-`reference` 5 · `source` 5 · `living` 5. One `settled` against 28 `adopted` is the honest
+`settled` 1 · `adopted` 29 · `open-question` 12 · `candidate` 6 · `tracked` 26 ·
+`reference` 5 · `source` 5 · `living` 5. One `settled` against 29 `adopted` is the honest
 reading: the method is **understood**, not yet **chosen**. `settled` is meant to stay small —
 if it grows much faster than `adopted`, check that constraints are being recorded as `settled`
 correctly rather than decisions being rushed into it.
