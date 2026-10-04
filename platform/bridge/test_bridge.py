@@ -148,3 +148,31 @@ def test_ansatz_genome_search_and_prechecks():
     mps = estimate_mps_bond_dimension(genome)
     assert mps["estimated_bond_dimension"] <= 64
     assert mps["classical_mps_sufficient"] is True
+
+
+def test_molecular_admet_profiling():
+    from chemistry import evaluate_molecular_admet, evaluate_candidate_pipeline
+
+    # Aspirin
+    aspirin = evaluate_molecular_admet("CC(=O)Oc1ccccc1C(=O)O")
+    assert aspirin["molecular_weight"] == pytest.approx(180.16, 0.1)
+    assert aspirin["clogp"] == pytest.approx(1.31, 0.1)
+    assert aspirin["lipinski"]["pass"] is True
+    assert aspirin["lipinski"]["violations"] == 0
+    assert aspirin["admet"]["solubility_class"] in ("Soluble", "Moderately Soluble")
+    assert aspirin["admet"]["caco2_permeability"] == "High"
+    assert len(aspirin["pains_alerts"]) == 0
+    assert aspirin["sa_score"] < 3.5
+
+    # 12-Agent Candidate Pipeline
+    candidates = [
+        {"name": "Aspirin", "smiles": "CC(=O)Oc1ccccc1C(=O)O"},
+        {"name": "Paracetamol", "smiles": "CC(=O)Nc1ccc(O)cc1"},
+        {"name": "Ibuprofen", "smiles": "CC(C)Cc1ccc(cc1)C(C)C(=O)O"},
+    ]
+    res = evaluate_candidate_pipeline("COX-2", candidates)
+    assert res["target"] == "COX-2"
+    assert res["total_evaluated"] == 3
+    assert res["top_lead"] is not None
+    assert res["top_lead"]["composite_score"] > 0.0
+

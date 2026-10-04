@@ -1,13 +1,88 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { KeyRound, ShieldCheck, Download, Upload, CheckCircle2, AlertCircle, Copy, Check } from 'lucide-react';
+import { KeyRound, ShieldCheck, Download, Upload, CheckCircle2, AlertCircle, Copy, Check, RefreshCw } from 'lucide-react';
+import { ed25519 } from '@noble/curves/ed25519.js';
 
 interface KeyringState {
   hasKey: boolean;
   publicKeyHex: string;
   keyFingerprint: string;
   createdAt: string;
+}
+
+// Convert Uint8Array to Hex string
+export const toHex = (buf: Uint8Array): string => {
+  return Array.from(buf)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+};
+
+// Convert Hex string to Uint8Array
+export const fromHex = (hex: string): Uint8Array => {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+  }
+  return bytes;
+};
+
+export function getStoredKeypair(): { pubHex: string; privHex: string } | null {
+  if (typeof window === 'undefined') return null;
+  const pub = localStorage.getItem('kubona_ed25519_pub');
+  const priv = localStorage.getItem('kubona_ed25519_priv');
+  if (pub && priv && pub.length === 64 && priv.length === 64) {
+    return { pubHex: pub, privHex: priv };
+  }
+  return null;
+}
+
+export function generateAndStoreKeypair(): { pubHex: string; privHex: string; createdAt: string } {
+  const priv = ed25519.utils.randomSecretKey();
+  const pub = ed25519.getPublicKey(priv);
+  const pubHex = toHex(pub);
+  const privHex = toHex(priv);
+  const createdAt = new Date().toISOString();
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('kubona_ed25519_pub', pubHex);
+    localStorage.setItem('kubona_ed25519_priv', privHex);
+    localStorage.setItem('kubona_ed25519_date', createdAt);
+  }
+  return { pubHex, privHex, createdAt };
+}
+
+export function signSpendMandate(
+  tenantId: string,
+  jobHash: string,
+  maxBudgetUSD: number,
+  expiryIso: string
+): {
+  tenant_id: string;
+  job_hash: string;
+  max_budget_usd: number;
+  expiry_timestamp: string;
+  public_key_hex: string;
+  signature_hex: string;
+} {
+  let kp = getStoredKeypair();
+  if (!kp) {
+    kp = generateAndStoreKeypair();
+  }
+  const cleanExpiry = expiryIso.replace(/\.\d{3}Z$/, 'Z');
+  const canonical = `${tenantId}:${jobHash}:${maxBudgetUSD.toFixed(4)}:${cleanExpiry}`;
+  const privBytes = fromHex(kp.privHex);
+  const msgBytes = new TextEncoder().encode(canonical);
+  const sigBytes = ed25519.sign(msgBytes, privBytes);
+  const sigHex = toHex(sigBytes);
+
+  return {
+    tenant_id: tenantId,
+    job_hash: jobHash,
+    max_budget_usd: maxBudgetUSD,
+    expiry_timestamp: cleanExpiry,
+    public_key_hex: kp.pubHex,
+    signature_hex: sigHex,
+  };
 }
 
 export function WebCryptoKeyring({ onSigned }: { onSigned?: (sig: string, pubKey: string) => void }) {
@@ -20,80 +95,35 @@ export function WebCryptoKeyring({ onSigned }: { onSigned?: (sig: string, pubKey
   const [copied, setCopied] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
 
-  // Convert ArrayBuffer to Hex String
-  const buf2hex = (buffer: ArrayBuffer) => {
-    return Array.from(new Uint8Array(buffer))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
-  };
-
-  // Convert Hex String to Uint8Array
-  const hex2buf = (hex: string) => {
-    const bytes = new Uint8Array(hex.length / 2);
-    for (let i = 0; i < hex.length; i += 2) {
-      bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
-    }
-    return bytes.buffer;
-  };
-
   // Load existing key from localStorage
   useEffect(() => {
-    const storedPub = localStorage.getItem('kubona_ed25519_pub');
+    const kp = getStoredKeypair();
     const storedDate = localStorage.getItem('kubona_ed25519_date');
-    if (storedPub) {
-      const fp = storedPub.slice(0, 8) + '...' + storedPub.slice(-8);
+    if (kp) {
+      const fp = kp.pubHex.slice(0, 8) + '...' + kp.pubHex.slice(-8);
       setKeyring({
         hasKey: true,
-        publicKeyHex: storedPub,
+        publicKeyHex: kp.pubHex,
         keyFingerprint: fp,
-        createdAt: storedDate || 'Previous Session',
+        createdAt: storedDate || 'Active Session',
       });
     }
   }, []);
 
-  // Generate genuine in-browser Ed25519 keypair via WebCrypto Subtle API
-  const generateNewKeypair = async () => {
+  const handleGenerate = () => {
     try {
-      setStatusMsg('Generating WebCrypto Ed25519 keypair in browser memory...');
-      // Check if Ed25519 is supported natively in this browser's WebCrypto
-      let pubHex = '';
-      let privHex = '';
-
-      if (window.crypto && window.crypto.subtle) {
-        try {
-          const keyPair = await (window.crypto.subtle as any).generateKey(
-            { name: 'Ed25519' },
-            true,
-            ['sign', 'verify']
-          );
-          const rawPub = await window.crypto.subtle.exportKey('raw', keyPair.publicKey);
-          const pkcs8Priv = await window.crypto.subtle.exportKey('pkcs8', keyPair.privateKey);
-          pubHex = buf2hex(rawPub);
-          privHex = buf2hex(pkcs8Priv);
-        } catch {
-          // Fallback to high-entropy 32-byte Ed25519 seed if standard Ed25519 Subtle algorithm is experimental
-          const seed = new Uint8Array(32);
-          window.crypto.getRandomValues(seed);
-          pubHex = buf2hex(seed.buffer);
-          privHex = buf2hex(seed.buffer);
-        }
-      }
-
-      const now = new Date().toISOString();
-      localStorage.setItem('kubona_ed25519_pub', pubHex);
-      localStorage.setItem('kubona_ed25519_priv', privHex);
-      localStorage.setItem('kubona_ed25519_date', now);
-
+      setStatusMsg('Deriving RFC 8032 Ed25519 keypair in browser memory...');
+      const { pubHex, createdAt } = generateAndStoreKeypair();
       const fp = pubHex.slice(0, 8) + '...' + pubHex.slice(-8);
       setKeyring({
         hasKey: true,
         publicKeyHex: pubHex,
         keyFingerprint: fp,
-        createdAt: now,
+        createdAt,
       });
-      setStatusMsg('✅ Genuine WebCrypto Ed25519 Keypair generated & stored in browser memory.');
-    } catch (err) {
-      setStatusMsg(`❌ Key generation error: ${err}`);
+      setStatusMsg('✅ Genuine RFC 8032 Ed25519 Keypair generated & stored in browser memory.');
+    } catch (err: any) {
+      setStatusMsg(`❌ Key generation error: ${err?.message || err}`);
     }
   };
 
@@ -107,7 +137,7 @@ export function WebCryptoKeyring({ onSigned }: { onSigned?: (sig: string, pubKey
     const data = JSON.stringify({
       public_key_hex: keyring.publicKeyHex,
       created_at: keyring.createdAt,
-      client: 'Kubona WebCrypto AP2 Keyring v1.0',
+      client: 'Kubona WebCrypto AP2 Keyring v1.0 (RFC 8032 Ed25519)',
     }, null, 2);
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -124,7 +154,7 @@ export function WebCryptoKeyring({ onSigned }: { onSigned?: (sig: string, pubKey
         <div className="flex items-center space-x-2">
           <KeyRound className="w-5 h-5 text-amber-400" />
           <h3 className="text-sm font-bold text-white tracking-wide">
-            Client-Side Browser WebCrypto AP2 Keyring
+            Client-Side Browser WebCrypto AP2 Keyring (RFC 8032 Ed25519)
           </h3>
         </div>
         <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
@@ -133,7 +163,7 @@ export function WebCryptoKeyring({ onSigned }: { onSigned?: (sig: string, pubKey
       </div>
 
       <p className="text-xs text-slate-400 leading-relaxed">
-        AP2 spend mandates are signed <strong>directly inside this browser window</strong> using W3C WebCrypto.
+        AP2 spend mandates are signed <strong>directly inside this browser window</strong> using RFC 8032 Ed25519.
         Your private key never leaves local storage or travels across the network to the server.
       </p>
 
@@ -172,7 +202,7 @@ export function WebCryptoKeyring({ onSigned }: { onSigned?: (sig: string, pubKey
                 <span>Backup JSON</span>
               </button>
               <button
-                onClick={generateNewKeypair}
+                onClick={handleGenerate}
                 className="px-2.5 py-1 text-[11px] font-medium bg-indigo-600 hover:bg-indigo-700 text-white rounded transition-colors"
               >
                 Rotate Key
@@ -187,7 +217,7 @@ export function WebCryptoKeyring({ onSigned }: { onSigned?: (sig: string, pubKey
             No active Ed25519 keypair found in this browser.
           </div>
           <button
-            onClick={generateNewKeypair}
+            onClick={handleGenerate}
             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow transition-colors"
           >
             Generate Ed25519 WebCrypto Keypair

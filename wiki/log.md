@@ -661,7 +661,25 @@ skipped is the exact failure this incident is about:
   - *Keyboard Accessibility (`?`):* Global listener supporting `⌘0`–`⌘8`, `⌘K`, `⌘B` (sidebar collapse), `⌘J` (copilot collapse), `⌘I` (about modal), and `⌘N` (new campaign).
   - *WCAG 2.1 AA/AAA Compliance:* Standardized focus-visible rings (`focus-visible:ring-cyan-400`), 18:1 text contrast on dark materials, and ARIA dialog semantics.
 
+## [2026-10-04] decision | Master Gap Remediation: Full 7-Phase Implementation Completed & Verified Live
 
-
-
-
+* **Phase 1: Local Cognitive Brain & Multi-Agent Tribunal Wiring:**
+  - Configured oMLX Qwen-27B (`Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit`) on local port 8787 as permanent reasoning engine.
+  - Wired live 4-turn Multi-Agent Tribunal debate (Ansatz Scout, Disconfirmation Officer, Device Auditor, Epistemic Scribe) directly into Go Core (`/api/chat/tribunal`), eliminating all static string matches.
+* **Phase 2: True Quantum Stack, KaHyPar Wire Cutting & PySCF Anchors:**
+  - Upgraded Python bridge circuit cutter with Quasi-Probability Decomposition (QPD) channel expansion inserting Pauli measurements ($I, X, Y, Z$) and eigenstate preparations ($|0\rangle, |1\rangle, |+\rangle, |+i\rangle$), exact sampling overhead $\kappa = 4^K$.
+  - Integrated PySCF ab-initio ground state RHF and Full Configuration Interaction (FCI) solvers for genuine molecular baselines ($H_2$ FCI: -1.13727 Ha, $LiH$ FCI: -7.88240 Ha).
+* **Phase 3: Persistent Hindsight Memory & Sandboxed Autoresearch:**
+  - Connected SQLite WAL cryptographic ledger with live event streaming and SHA-256 Merkle DAG root calculations.
+  - Linked Autoresearch harnesses with ab-initio ground truth calculation over gRPC.
+* **Phase 4: Client-Side WebCrypto AP2 Keyring & Ring Watchdogs:**
+  - Integrated `@noble/curves/ed25519` for mathematically genuine RFC 8032 Ed25519 client-side browser key generation and spend mandate signing with zero server private key exposure.
+  - Wired all 4 action gates (Authorize, Downgrade to Aer, Re-Scope Ansatz, Abort Execution) to live Go Core endpoints (`/api/loops/...`).
+* **Phase 5: Molecular Science Discovery & 12-Agent Drug Pipeline:**
+  - Expanded `platform/bridge/chemistry.py` with RDKit ADMET, Lipinski Rule of 5, Delaney ESOL aqueous solubility, Caco-2 permeability, PAINS filter alerts, reactive toxicophores, hERG cardiotoxicity risk, and Synthetic Accessibility (SA Score).
+  - Implemented 12-agent drug candidate ranking pipeline with composite drug-likeness scoring.
+* **Phase 6: Apple-Class UI/UX Overhaul Across 8 Surfaces:**
+  - Polished Spatial Canvas, Flight Recorder, Epistemic Manifold, Autonomy Cockpit, Fleet Radar, Results Studio, and Copilot Drawer with Apple HIG standards, real SVG waveforms, zero alert dialogues, and live API subscriptions.
+* **Phase 7: Comprehensive Verification & CI Enforcement:**
+  - Ran `platform/test_live_e2e.py` verifying all 6 subsystems live: Fleet status, Multi-Agent Tribunal with Qwen-27B and PySCF, Qiskit Aer circuit execution, RFC 8032 Ed25519 mandate verification, Results Studio publication generation, and SQLite WAL ledger integrity.
+  - All Go packages, Rust crates (`ifc-core`, `qir-core`), Python test suites (`test_bridge.py`), and Next.js builds passing with 100% green status.
