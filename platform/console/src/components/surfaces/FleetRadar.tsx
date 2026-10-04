@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Radio, ShieldAlert, Cpu, Activity, Clock, CheckCircle2, Layers, Globe, Zap } from 'lucide-react';
+import { Radio, ShieldAlert, Cpu, Activity, Clock, CheckCircle2, Layers, Globe, Zap, Star } from 'lucide-react';
+import { CampaignState } from '@/types';
 
 interface BackendInfo {
   name: string;
@@ -15,7 +16,11 @@ interface BackendInfo {
   itar_ear: string;
 }
 
-export function FleetRadar() {
+interface FleetRadarProps {
+  campaign?: CampaignState | null;
+}
+
+export function FleetRadar({ campaign }: FleetRadarProps) {
   const [backends, setBackends] = useState<BackendInfo[]>([]);
   const [activeTier, setActiveTier] = useState<number | 'all'>('all');
 
@@ -75,7 +80,7 @@ export function FleetRadar() {
             <div className="text-slate-300">
               <div className="font-bold text-white">Clifford Stabilizer Canary Probes</div>
               <div className="text-[11px] text-slate-400">
-                Pre-flight RB canary fidelity: <strong className="font-mono text-cyan-300">F = 98.4%</strong> (≥ 95% threshold).
+                Pre-flight RB canary fidelity: <strong className="font-mono text-cyan-300">F = {((campaign?.quantum_factors?.clifford_fidelity ?? 0.984) * 100).toFixed(1)}%</strong> (≥ 95% threshold).
               </div>
             </div>
           </div>
@@ -114,12 +119,28 @@ export function FleetRadar() {
 
       {/* Fleet Multi-Modality Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {backends.map((b) => (
-          <div key={b.name} className="p-4 bg-[#05070B] border border-slate-800 rounded-xl space-y-3 shadow-lg">
+        {backends.map((b) => {
+          const isRecommended = campaign?.quantum_factors?.recommended_backend &&
+            (b.name.toLowerCase().includes('aer') && campaign.quantum_factors.recommended_backend.toLowerCase().includes('aer') ||
+             b.name.toLowerCase().includes('heron') && campaign.quantum_factors.recommended_backend.toLowerCase().includes('heron'));
+
+          return (
+          <div
+            key={b.name}
+            className={`p-4 bg-[#05070B] border rounded-xl space-y-3 shadow-lg transition-all ${
+              isRecommended ? 'border-cyan-500/60 ring-1 ring-cyan-500/30' : 'border-slate-800'
+            }`}
+          >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2.5">
-                <Cpu className="w-4 h-4 text-cyan-400" />
+                <Cpu className={`w-4 h-4 ${isRecommended ? 'text-cyan-300 animate-pulse' : 'text-cyan-400'}`} />
                 <span className="font-bold text-white text-sm font-mono">{b.name}</span>
+                {isRecommended && (
+                  <span className="px-2 py-0.5 rounded-md bg-cyan-950 text-cyan-300 border border-cyan-800 text-[9px] font-mono font-bold flex items-center space-x-1">
+                    <Star className="w-2.5 h-2.5 fill-cyan-400" />
+                    <span>RECOMMENDED FOR {campaign?.target_system || 'TARGET'}</span>
+                  </span>
+                )}
               </div>
               <span
                 className={`px-2.5 py-0.5 rounded text-[10px] font-mono font-bold border ${
@@ -151,7 +172,7 @@ export function FleetRadar() {
               <span>Jurisdiction: <strong className="text-slate-300">{b.jurisdiction}</strong></span>
             </div>
           </div>
-        ))}
+        ); })}
       </div>
     </div>
   );

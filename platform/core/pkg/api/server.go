@@ -203,30 +203,49 @@ func (s *Server) handleFidelity(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleEpistemics(w http.ResponseWriter, r *http.Request) {
-	kappa, drift := epistemics.ComputeEpistemicCurvature(0.12, -1.13727, -1.1365)
+	sessionID := r.URL.Query().Get("session_id")
+	if sessionID == "" {
+		sessionID, _ = s.ensureSession("")
+	}
+
+	alpha := 0.95
+	beta := 0.05
+	gamma := 0.10
+	anchor := -1.13727
+	drift := 0.47
+	statement := "H2 ground state equilibrium at 0.7414 A"
+	claimID := "claim-h2-ground"
+	status := "COLLAPSED_VERIFIED"
+
+	if raw, err := s.ledger.GetCampaignState(sessionID); err == nil && len(raw) > 0 {
+		var cs agents.CampaignState
+		if json.Unmarshal(raw, &cs) == nil {
+			alpha = cs.Epistemics.AlphaCorroborated
+			beta = cs.Epistemics.BetaContested
+			gamma = cs.Epistemics.GammaUnverified
+			anchor = cs.ClassicalAnchor.FciExactEnergy
+			drift = cs.ClassicalAnchor.DiscrepancyMHa
+			statement = cs.Epistemics.Statement
+			claimID = fmt.Sprintf("claim-%s", strings.ToLower(cs.QuantumFactors.TargetMolecule))
+			status = cs.Epistemics.Status
+		}
+	}
+
+	kappa, _ := epistemics.ComputeEpistemicCurvature(0.12, anchor, anchor+drift/1000.0)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"refusal_ratio":         s.epistemicGate.RefusalRatio(),
-		"stagnation_kappa":      kappa,
-		"literature_drift_mha":  drift * 1000.0,
-		"canonical_anchor":      -1.13727,
+		"refusal_ratio":        s.epistemicGate.RefusalRatio(),
+		"stagnation_kappa":     kappa,
+		"literature_drift_mha": drift,
+		"canonical_anchor":     anchor,
 		"active_wavefunctions": []map[string]any{
 			{
-				"claim_id":   "claim-h2-ground",
-				"statement":  "H2 ground state equilibrium at 0.7414 A",
-				"alpha_corr": 0.95,
-				"beta_cont":  0.05,
-				"gamma_unv":  0.10,
-				"collapsed":  true,
-				"status":     "COLLAPSED_VERIFIED",
-			},
-			{
-				"claim_id":   "claim-lih-dissociation",
-				"statement":  "LiH strong multi-reference correlation at 2.5 A",
-				"alpha_corr": 0.65,
-				"beta_cont":  0.45,
-				"gamma_unv":  0.30,
-				"collapsed":  false,
-				"status":     "UNCOLLAPSED_ACTIVE",
+				"claim_id":   claimID,
+				"statement":  statement,
+				"alpha_corr": alpha,
+				"beta_cont":  beta,
+				"gamma_unv":  gamma,
+				"collapsed":  status == "COLLAPSED_VERIFIED",
+				"status":     status,
 			},
 		},
 	})
@@ -426,7 +445,17 @@ func (s *Server) handleHarnesses(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleNotebooks(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.URL.Query().Get("session_id")
 	if sessionID == "" {
-		sessionID = "session-default"
+		sessionID, _ = s.ensureSession("")
+	}
+
+	if raw, err := s.ledger.GetCampaignState(sessionID); err == nil && len(raw) > 0 {
+		var cs agents.CampaignState
+		if json.Unmarshal(raw, &cs) == nil && cs.Notebook.Title != "" {
+			writeJSON(w, http.StatusOK, map[string]any{
+				"notebooks": []any{cs.Notebook},
+			})
+			return
+		}
 	}
 
 	// 1. Check if jobs exist for session
@@ -542,6 +571,12 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		// Synthesize dynamic campaign state for new session
+		campState, _ := agents.SynthesizeCampaignState(r.Context(), sess.ID, sess.Title, s.llmClient, s.jobRunner.BridgeClient())
+		if campState != nil {
+			campBytes, _ := json.Marshal(campState)
+			s.ledger.SaveCampaignState(sess.ID, campBytes)
+		}
 		writeJSON(w, http.StatusCreated, sess)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -558,6 +593,59 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"messages": msgs})
+		return
+	}
+	if strings.HasSuffix(id, "/campaign/synthesize") {
+		sessionID := strings.TrimSuffix(id, "/campaign/synthesize")
+		var req struct {
+			Prompt string `json:"prompt"`
+		}
+		json.NewDecoder(r.Body).Decode(&req)
+		sess, err := s.sessionMgr.GetSession(sessionID)
+		if err != nil {
+			http.Error(w, "session not found", http.StatusNotFound)
+			return
+		}
+		prompt := req.Prompt
+		if prompt == "" {
+			prompt = sess.Title
+		}
+		state, err := agents.SynthesizeCampaignState(r.Context(), sessionID, prompt, s.llmClient, s.jobRunner.BridgeClient())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		stateBytes, _ := json.Marshal(state)
+		s.ledger.SaveCampaignState(sessionID, stateBytes)
+		s.ledger.AppendEvent(sessionID, "campaign_synthesized", map[string]any{
+			"target": state.TargetSystem,
+			"prompt": prompt,
+		})
+		writeJSON(w, http.StatusOK, state)
+		return
+	}
+	if strings.HasSuffix(id, "/campaign") {
+		sessionID := strings.TrimSuffix(id, "/campaign")
+		rawState, err := s.ledger.GetCampaignState(sessionID)
+		if err == nil && len(rawState) > 0 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write(rawState)
+			return
+		}
+		sess, err := s.sessionMgr.GetSession(sessionID)
+		if err != nil {
+			http.Error(w, "session not found", http.StatusNotFound)
+			return
+		}
+		state, err := agents.SynthesizeCampaignState(r.Context(), sessionID, sess.Title, s.llmClient, s.jobRunner.BridgeClient())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		stateBytes, _ := json.Marshal(state)
+		s.ledger.SaveCampaignState(sessionID, stateBytes)
+		writeJSON(w, http.StatusOK, state)
 		return
 	}
 	if id == "" {
@@ -643,6 +731,13 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 			botReply = fmt.Sprintf("⚠️ [oMLX Engine Notice]: %v", err)
 		}
 		assistantMsg, _ := s.sessionMgr.AddMessage(sessionID, "assistant", botReply, proposalJSON)
+
+		// Dynamically update campaign state for session
+		campState, _ := agents.SynthesizeCampaignState(r.Context(), sessionID, req.Content, s.llmClient, s.jobRunner.BridgeClient())
+		if campState != nil {
+			campBytes, _ := json.Marshal(campState)
+			s.ledger.SaveCampaignState(sessionID, campBytes)
+		}
 
 		writeJSON(w, http.StatusCreated, map[string]any{
 			"user_message":      userMsg,
@@ -886,9 +981,17 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 	// Add final assistant consensus with proposal
 	assistantMsg, _ := s.sessionMgr.AddMessage(req.SessionID, "assistant", res.Synthesis, res.ProposalJSON)
 
+	// Dynamically update campaign state for session
+	campState, _ := agents.SynthesizeCampaignState(r.Context(), req.SessionID, req.Prompt, s.llmClient, s.jobRunner.BridgeClient())
+	if campState != nil {
+		campBytes, _ := json.Marshal(campState)
+		s.ledger.SaveCampaignState(req.SessionID, campBytes)
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"tribunal":          res,
 		"assistant_message": assistantMsg,
+		"campaign":          campState,
 	})
 }
 

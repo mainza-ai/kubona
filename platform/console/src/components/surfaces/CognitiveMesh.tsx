@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { Network, ShieldCheck, Power, RefreshCw, Cpu, CheckCircle, Lock, Globe, Terminal, Sliders } from 'lucide-react';
+import { CampaignState } from '@/types';
 
 interface RadarEndpoint {
   port: number;
@@ -11,7 +12,11 @@ interface RadarEndpoint {
   is_local_ip: boolean;
 }
 
-export function CognitiveMesh() {
+interface CognitiveMeshProps {
+  campaign?: CampaignState | null;
+}
+
+export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
   const [endpoints, setEndpoints] = useState<RadarEndpoint[]>([]);
   const [airGapped, setAirGapped] = useState(true);
   const [loading, setLoading] = useState(false);

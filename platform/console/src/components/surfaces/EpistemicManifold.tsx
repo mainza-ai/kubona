@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { Compass, Sparkles, CheckCircle2, AlertCircle, ShieldCheck, Scale, BarChart3 } from 'lucide-react';
 import { MathText } from '../common/MathText';
+import { CampaignState } from '@/types';
 
 interface WavefunctionState {
   refusal_ratio: number;
@@ -20,7 +21,11 @@ interface WavefunctionState {
   }>;
 }
 
-export function EpistemicManifold() {
+interface EpistemicManifoldProps {
+  campaign?: CampaignState | null;
+}
+
+export function EpistemicManifold({ campaign }: EpistemicManifoldProps) {
   const [data, setData] = useState<WavefunctionState | null>(null);
 
   useEffect(() => {
@@ -30,7 +35,15 @@ export function EpistemicManifold() {
       .catch((err) => console.error('Failed to load epistemics data:', err));
   }, []);
 
-  const active = data?.active_wavefunctions?.[0] || {
+  const active = campaign?.epistemics ? {
+    claim_id: `claim-${campaign.target_system.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+    statement: campaign.epistemics.statement,
+    alpha_corr: campaign.epistemics.alpha_corroborated,
+    beta_cont: campaign.epistemics.beta_contested,
+    gamma_unv: campaign.epistemics.gamma_unverified,
+    collapsed: campaign.epistemics.status === 'COLLAPSED_VERIFIED',
+    status: campaign.epistemics.status,
+  } : (data?.active_wavefunctions?.[0] || {
     claim_id: 'claim-h2-ground',
     statement: 'H2 equilibrium ground state energy is -1.13727 Ha at R=0.7414 A',
     alpha_corr: 0.95,
@@ -38,7 +51,7 @@ export function EpistemicManifold() {
     gamma_unv: 0.1,
     collapsed: true,
     status: 'COLLAPSED_VERIFIED',
-  };
+  });
 
   const alpha = active.alpha_corr;
   const beta = active.beta_cont;
@@ -157,7 +170,7 @@ export function EpistemicManifold() {
           <div className="flex items-center space-x-2">
             <Scale className="w-4 h-4 text-cyan-400" />
             <h3 className="font-bold text-white text-xs uppercase tracking-wider">
-              Classical Anchor Ground-Truth Ladder (Hartrees)
+              Classical Anchor Ground-Truth Ladder ({campaign?.target_system || 'H2'} Hartrees)
             </h3>
           </div>
           <span className="px-2.5 py-0.5 rounded bg-slate-800 text-cyan-300 text-[10px] font-bold border border-slate-700">
@@ -168,19 +181,29 @@ export function EpistemicManifold() {
         <div className="space-y-2.5">
           <div className="flex items-center justify-between p-2 bg-[#0A0D14] rounded-lg border border-slate-800">
             <span className="text-slate-400">Classical STO-3G RHF Mean-Field:</span>
-            <span className="text-slate-200 font-bold">-1.116698 Ha</span>
+            <span className="text-slate-200 font-bold">
+              {campaign?.classical_anchor ? `${campaign.classical_anchor.rhf_mean_field_energy.toFixed(6)} Ha` : '-1.116698 Ha'}
+            </span>
           </div>
           <div className="flex items-center justify-between p-2 bg-emerald-950/20 rounded-lg border border-emerald-800/40">
             <span className="text-emerald-400 font-bold">Classical PySCF Exact FCI Anchor:</span>
-            <span className="text-emerald-300 font-bold">-1.137270 Ha</span>
+            <span className="text-emerald-300 font-bold">
+              {campaign?.classical_anchor ? `${campaign.classical_anchor.fci_exact_energy.toFixed(6)} Ha` : '-1.137270 Ha'}
+            </span>
           </div>
           <div className="flex items-center justify-between p-2 bg-cyan-950/20 rounded-lg border border-cyan-800/40">
             <span className="text-cyan-400">Quantum VQE Aer Execution:</span>
-            <span className="text-cyan-300 font-bold">-1.136800 Ha</span>
+            <span className="text-cyan-300 font-bold">
+              {campaign?.classical_anchor ? `${campaign.classical_anchor.vqe_expectation_energy.toFixed(6)} Ha` : '-1.136800 Ha'}
+            </span>
           </div>
           <div className="flex items-center justify-between p-2 bg-slate-900 rounded-lg border border-slate-800 text-slate-400 text-[11px]">
             <span>Chemical Accuracy Discrepancy (Δ):</span>
-            <span className="text-emerald-400 font-bold">0.47 mHa &lt; 1.6 mHa (PASS)</span>
+            <span className="text-emerald-400 font-bold">
+              {campaign?.classical_anchor
+                ? `${campaign.classical_anchor.discrepancy_mha.toFixed(3)} mHa < 1.6 mHa (${campaign.classical_anchor.chemical_accuracy_passed ? 'PASS' : 'FAIL'})`
+                : '0.470 mHa < 1.6 mHa (PASS)'}
+            </span>
           </div>
         </div>
       </div>
@@ -190,7 +213,9 @@ export function EpistemicManifold() {
         <div className="p-4 bg-[#05070B] border border-slate-800 rounded-xl space-y-1">
           <div className="text-[11px] text-slate-400 font-medium">HYPOTHESIS CONCENTRATION (κ)</div>
           <div className="text-2xl font-mono font-bold text-cyan-400">
-            {data?.stagnation_kappa?.toFixed(4) || '0.8928'}
+            {campaign?.quantum_factors
+              ? (1 / (1 + (campaign.quantum_factors.gradient_variance * 1000))).toFixed(4)
+              : (data?.stagnation_kappa?.toFixed(4) || '0.8928')}
           </div>
           <div className="text-[10px] text-slate-500 font-mono">Curvature κ = 1 / (1 + |Var|)</div>
         </div>
@@ -198,7 +223,9 @@ export function EpistemicManifold() {
         <div className="p-4 bg-[#05070B] border border-slate-800 rounded-xl space-y-1">
           <div className="text-[11px] text-slate-400 font-medium">LITERATURE DRIFT d(E_canon, E_live)</div>
           <div className="text-2xl font-mono font-bold text-amber-400">
-            {data?.literature_drift_mha?.toFixed(2) || '0.47'} mHa
+            {campaign?.classical_anchor
+              ? campaign.classical_anchor.discrepancy_mha.toFixed(2)
+              : (data?.literature_drift_mha?.toFixed(2) || '0.47')} mHa
           </div>
           <div className="text-[10px] text-emerald-400 font-medium">&lt; 1.6 mHa (Chemical Accuracy Satisfied)</div>
         </div>
@@ -206,7 +233,9 @@ export function EpistemicManifold() {
         <div className="p-4 bg-[#05070B] border border-slate-800 rounded-xl space-y-1">
           <div className="text-[11px] text-slate-400 font-medium">RING 1 REFUSAL RATIO</div>
           <div className="text-2xl font-mono font-bold text-indigo-400">
-            {((data?.refusal_ratio || 0.0) * 100).toFixed(1)}%
+            {campaign?.epistemics
+              ? ((campaign.epistemics.beta_contested + campaign.epistemics.gamma_unverified) * 100).toFixed(1)
+              : (((data?.refusal_ratio || 0.0) * 100).toFixed(1))}%
           </div>
           <div className="text-[10px] text-slate-500 font-mono">Uncollapsed assertions blocked fail-closed</div>
         </div>

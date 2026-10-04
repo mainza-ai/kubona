@@ -131,3 +131,32 @@ export async function evaluateDiscoveryPipeline(
   }
 }
 
+export async function fetchCampaignState(sessionId: string): Promise<import('@/types').CampaignState | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/campaign`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to fetch campaign state:', err);
+    return null;
+  }
+}
+
+export async function synthesizeCampaign(sessionId: string, prompt: string): Promise<import('@/types').CampaignState | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/campaign/synthesize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to synthesize campaign:', err);
+    return null;
+  }
+}
+
+
