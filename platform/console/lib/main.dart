@@ -17,6 +17,7 @@ import 'package:flutter/material.dart';
 import 'src/api_client.dart';
 import 'src/theme/observatory_theme.dart';
 import 'src/widgets/circuit_canvas.dart';
+import 'src/widgets/copilot_drawer.dart';
 import 'src/widgets/flight_recorder.dart';
 import 'src/widgets/wavefunction_ring_gauge.dart';
 
@@ -143,6 +144,13 @@ class _ConsoleHomeState extends State<ConsoleHome> {
           ],
         ),
         actions: [
+          Builder(
+            builder: (ctx) => IconButton(
+              icon: const Icon(Icons.chat_bubble_outline, color: ObservatoryTheme.electricViolet),
+              tooltip: 'Open Research Copilot Dialogue',
+              onPressed: () => Scaffold.of(ctx).openEndDrawer(),
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.refresh, color: ObservatoryTheme.cyanCoherence),
             tooltip: 'Synchronize Observatory State',
@@ -150,6 +158,10 @@ class _ConsoleHomeState extends State<ConsoleHome> {
           ),
           const SizedBox(width: 8),
         ],
+      ),
+      endDrawer: CopilotDrawer(
+        api: widget.api,
+        onExperimentTriggered: _refresh,
       ),
       body: DefaultTabController(
         length: 7,
