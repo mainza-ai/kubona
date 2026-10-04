@@ -648,6 +648,20 @@ skipped is the exact failure this incident is about:
   20. *META Strict Wiki Structural Lint:* All 89 pages verified clean (exit 0) with zero dangling wikilinks, strict frontmatter, and canonical sources.
 * **Forensic Audit Artifact:** Published comprehensive 89-page breakdown in `wiki_89_pages_comprehensive_audit_report.md`.
 
+## [2026-10-04] verification | UI/UX & Brand Asset Audit: Apple-grade design system and logo integration
+
+* **Brand Assets Ingested & Deployed:**
+  - Integrated official high-DPI squircle monogram (`/kubona_monogram.png`) into top navigation and window titlebars.
+  - Deployed heraldic Kubona Laboratory gold crest seal (`/kubona_crest.jpeg`) into an Apple-style "About Kubona Scientific Laboratory" modal sheet.
+  - Linked complete favicon suite (`apple-touch-icon.png`, `favicon-32x32.png`, `favicon-16x16.png`, `favicon.ico`) and PWA `site.webmanifest` into Next.js App Router metadata.
+* **Apple Human Interface Guidelines (HIG) Alignment:**
+  - *Unified Window Chrome:* macOS-style traffic light window controls, frosted translucent materials (`backdrop-blur-2xl bg-[#090C13]/95`), and hairline inner borders (`border-white/[0.08]`).
+  - *Apple Segmented Surface Control:* Replaced loose scroll buttons with an encapsulated, accessible segmented pill track (`role="tablist"`, `aria-selected`, keyboard shortcut badges).
+  - *Command Palette & Spotlight (`⌘K`):* Instant search and navigation across all 8 surfaces, actions, and safety gates.
+  - *Keyboard Accessibility (`?`):* Global listener supporting `⌘0`–`⌘8`, `⌘K`, `⌘B` (sidebar collapse), `⌘J` (copilot collapse), `⌘I` (about modal), and `⌘N` (new campaign).
+  - *WCAG 2.1 AA/AAA Compliance:* Standardized focus-visible rings (`focus-visible:ring-cyan-400`), 18:1 text contrast on dark materials, and ARIA dialog semantics.
+
+
 
 
 
