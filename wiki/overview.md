@@ -1,10 +1,10 @@
 ---
 type: overview
 date: 2026-08-16
-updated: 2026-09-29
+updated: 2026-10-03
 tags: [kubona, synthesis]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-cloudflare-economy,
-  source-frontier-repo-audit-2026]
+  source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026]
 status: living
 ---
 
@@ -32,7 +32,7 @@ science discovery platform**: multi-user labs, user- and agent-created workflows
 agents, and the ability to conduct its own experiments and return organized,
 reproducible results — see [[science-discovery]].
 
-## The four sources ingested
+## The five sources ingested
 
 | Source | What it provides |
 |---|---|
@@ -40,6 +40,7 @@ reproducible results — see [[science-discovery]].
 | [[source-gap-analysis-plan]] | Buildable plan: gaps, prior art, federated architecture, phases 0–5, [[karpathy-autoresearch]] engine, x402 monetization |
 | [[source-cloudflare-economy]] | The agent resource economy: why Kubona's outputs are monetizable, [[x402]] rail, startup patterns |
 | [[source-frontier-repo-audit-2026]] | 25 live repos read end-to-end (remote · HEAD · licence · `path:line`): [[integration-topology-and-licence-discipline]], [[quantum-advantage-realism]], prior-art primitives for memory, governance and packs |
+| [[source-agent-protocol-landscape-2026]] | 2026 standards audit: MCP 2026-07-28 & SDK 2.x, AAIF, A2A delegation, AP2 mandates, Qiskit MCP servers, [[protocol-strategy]] |
 
 ## The synthesis (current best understanding)
 
@@ -50,11 +51,12 @@ reproducible results — see [[science-discovery]].
    is the **agentic control/governance layer** — nobody has shipped agent-facing cost
    governance, provenance, or per-call auth for quantum hardware yet.
 
-2. **The architecture is four federated MCP servers** — compiler, execution,
-   cost-governance, eval/provenance — behind an [[mcp-and-context-flooding|MCP Gateway]]
-   with OAuth 2.1 + PQC transport, a `job_id` session abstraction, and a data-driven
-   [[provider-capability-schema]]. Compilation standardizes on [[qir-mlir-compilation]]
-   with a Rust core.
+2. **The architecture decouples peripheral protocols from a Capability Core** — [[protocol-strategy]]:
+   the core houses hardware cost governance, provider federation, QIR compilation, and the
+   provenance ledger. External access is provided via thin edge adapters: [[mcp-and-context-flooding|MCP]]
+   (2026-07-28 stateless core) for host/tool invocation, [[a2a|A2A]] for inter-agent delegation, and
+   [[ap2|AP2]] signed mandates for hardware spend authorization. In code-execution mode, agents write
+   Python/Rust scripts against the Capability Core inside a sandbox, reducing token overhead by up to 98.7%.
 
 3. **Cost governance and provenance are non-optional rail, not add-ons.** A single
    mis-configured VQE run can burn thousands of dollars in minutes. Mandatory simulator
@@ -153,10 +155,10 @@ evidence that a design decision has been made. [[questions]] Q-01 asks what the
 prototype's role should be; until that is answered, no phase gate here counts as a
 blueprint milestone.
 
-**Status census (mechanical, 2026-09-27).** 82 pages: `settled` 1 · `adopted` 25 ·
-`open-question` 13 · `candidate` 6 · `tracked` 23 · `reference` 5 · `source` 4 ·
+**Status census (mechanical, 2026-10-03).** 89 pages: `settled` 1 · `adopted` 28 ·
+`open-question` 13 · `candidate` 6 · `tracked` 26 · `reference` 5 · `source` 5 ·
 `living` 5 (meta). Vocabulary: [[index]] §status legend. Read it as *decidedness*, never
-as completion: one settled policy against 25 adopted mechanisms means the blueprint is
+as completion: one settled policy against 28 adopted mechanisms means the blueprint is
 still mostly "understood", not "chosen".
 
 ### What the prototype has empirically answered

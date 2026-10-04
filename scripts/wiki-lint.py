@@ -21,7 +21,8 @@ import sys
 VOCAB = {"settled", "adopted", "open-question", "candidate",
          "tracked", "reference", "source", "living"}
 SOURCE_KEYS = {"source-architecture-paper", "source-gap-analysis-plan",
-               "source-cloudflare-economy", "source-frontier-repo-audit-2026"}
+               "source-cloudflare-economy", "source-frontier-repo-audit-2026",
+               "source-agent-protocol-landscape-2026"}
 META_PAGES = {"index", "log"}
 REQUIRED = ("type", "tags", "date", "updated", "status")
 WIKI = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "wiki")
