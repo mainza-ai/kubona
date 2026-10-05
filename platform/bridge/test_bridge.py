@@ -176,3 +176,39 @@ def test_molecular_admet_profiling():
     assert res["top_lead"] is not None
     assert res["top_lead"]["composite_score"] > 0.0
 
+
+def test_simulation_preflight_memory_clamp():
+    from executor import check_circuit_memory_bounds, execute_qasm
+    from qiskit import QuantumCircuit
+
+    # 1. Bounds calculation
+    qc_small = QuantumCircuit(4)
+    bounds_small = check_circuit_memory_bounds(qc_small)
+    assert bounds_small["num_qubits"] == 4
+    assert bounds_small["required_mb"] < 1.0
+    assert bounds_small["exceeds_statevector_limit"] is False
+    assert bounds_small["exceeds_aer_limit"] is False
+
+    qc_32 = QuantumCircuit(32)
+    bounds_32 = check_circuit_memory_bounds(qc_32)
+    assert bounds_32["num_qubits"] == 32
+    assert bounds_32["required_mb"] > 60000.0  # ~64 GB
+    assert bounds_32["exceeds_statevector_limit"] is True
+    assert bounds_32["exceeds_aer_limit"] is True
+
+    # 2. Strict fail-closed execution without fallback on 32-qubit circuit
+    qasm_32 = "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[32];\nh q[0];\ncx q[0], q[1];\n"
+    res_strict = execute_qasm(qasm_32, requested_backend="aer_simulator", allow_fallback=False)
+    assert res_strict["success"] is False
+    assert "PREFLIGHT_RAM_EXCEEDED" in res_strict["error_message"]
+    assert "exceeding safe host simulation limit" in res_strict["error_message"]
+
+    # 3. Honest auto-partition degradation when allow_fallback=True
+    res_partition = execute_qasm(qasm_32, requested_backend="aer_simulator", allow_fallback=True)
+    assert res_partition["success"] is True
+    assert res_partition["degradation_level"] == 4
+    assert "circuit-partition" in res_partition["resolved_backend"]
+    assert "Pre-flight RAM limit exceeded" in res_partition["degradation_reason"]
+    assert len(res_partition["partition_fragments"]) > 0
+
+

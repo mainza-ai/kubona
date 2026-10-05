@@ -176,3 +176,107 @@ func TestAPIRoutes(t *testing.T) {
 		t.Fatalf("expected 200 for /api/mandates/verify, got %d", w.Code)
 	}
 }
+
+func TestAutoresearchAndMetasearchAPIs(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	handler := srv.Handler()
+
+	// 1. Get Harnesses
+	req := httptest.NewRequest(http.MethodGet, "/api/autoresearch/harnesses", nil)
+	w := httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for /api/autoresearch/harnesses, got %d", w.Code)
+	}
+	var harnessResp struct {
+		Harnesses []struct {
+			ID string `json:"id"`
+		} `json:"harnesses"`
+		DockerRunner struct {
+			Image string `json:"image"`
+		} `json:"docker_runner"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&harnessResp); err != nil {
+		t.Fatalf("decode harnesses error: %v", err)
+	}
+	if len(harnessResp.Harnesses) != 5 {
+		t.Fatalf("expected 5 shipping harnesses, got %d", len(harnessResp.Harnesses))
+	}
+	if harnessResp.DockerRunner.Image != "kubona/quantum-runner:latest" {
+		t.Fatalf("expected docker runner image kubona/quantum-runner:latest, got %s", harnessResp.DockerRunner.Image)
+	}
+
+	// 2. Start Loop
+	startPayload := map[string]any{
+		"harness_id":     "ansatz-search",
+		"max_iterations": 10,
+	}
+	body, _ := json.Marshal(startPayload)
+	req = httptest.NewRequest(http.MethodPost, "/api/autoresearch/start", bytes.NewReader(body))
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated && w.Code != http.StatusOK {
+		t.Fatalf("expected 201 for /api/autoresearch/start, got %d: %s", w.Code, w.Body.String())
+	}
+	var startResp struct {
+		ID        string `json:"id"`
+		Status    string `json:"status"`
+		HarnessID string `json:"harness_id"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&startResp); err != nil {
+		t.Fatalf("decode start loop error: %v", err)
+	}
+	if startResp.ID == "" || startResp.HarnessID != "ansatz-search" {
+		t.Fatalf("invalid started loop: %+v", startResp)
+	}
+
+	// 3. List Loops
+	req = httptest.NewRequest(http.MethodGet, "/api/autoresearch/loops", nil)
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for /api/autoresearch/loops, got %d", w.Code)
+	}
+
+	// 4. Step Loop
+	req = httptest.NewRequest(http.MethodPost, "/api/autoresearch/loops/"+startResp.ID+"/step", nil)
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for stepping loop, got %d: %s", w.Code, w.Body.String())
+	}
+
+	// 5. Pause & Resume
+	req = httptest.NewRequest(http.MethodPost, "/api/autoresearch/loops/"+startResp.ID+"/pause", nil)
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for pause loop, got %d", w.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/autoresearch/loops/"+startResp.ID+"/resume", nil)
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for resume loop, got %d", w.Code)
+	}
+
+	// 6. Stop
+	req = httptest.NewRequest(http.MethodPost, "/api/autoresearch/loops/"+startResp.ID+"/stop", nil)
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for stop loop, got %d", w.Code)
+	}
+
+	// 7. Metasearch Proposals
+	req = httptest.NewRequest(http.MethodGet, "/api/metasearch/proposals", nil)
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for /api/metasearch/proposals, got %d", w.Code)
+	}
+}
+

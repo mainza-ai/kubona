@@ -1,0 +1,24 @@
+version: '3.8'
+
+services:
+  kubona-pgvector:
+    image: pgvector/pgvector:pg16
+    container_name: kubona-pgvector
+    environment:
+      POSTGRES_DB: kubona_memory
+      POSTGRES_USER: kubona
+      POSTGRES_PASSWORD: kubona_dev_secret
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./sql/init_hindsight.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kubona -d kubona_memory"]
+      interval: 5s
+      timeout: 3s
+      retries: 5

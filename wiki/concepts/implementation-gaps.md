@@ -1,7 +1,7 @@
 ---
 type: concept
 date: 2026-08-16
-updated: 2026-10-04
+updated: 2026-10-05
 tags: [kubona, production, gaps]
 sources: [source-gap-analysis-plan]
 status: tracked
@@ -22,6 +22,8 @@ status: tracked
 - 🔴 **Regressed / failing now** — verified broken at the stated date; not a future concern.
 
 ## Forensic Audit (2026-10-04): Codebase Reality vs. Blueprint
+
+> See full forensic deep-dive, empirical code inspection, and zero-mock verification matrix in [[forensic-audit-2026]].
 
 A systematic audit revealed that over 90% of what is documented in the blueprint across the
 89 wiki pages, the 7 Observatory Surfaces, and 25 audited dev-docs repositories was either
@@ -62,6 +64,14 @@ unimplemented, stubbed, or disguised behind static UI facades:
 | **Prod auth default** | 🟢 M0 | Console uses constant-time compare against `KUBONA_CONSOLE_TOKEN`, production fails closed. |
 | **Deployment entrypoint** | 🟢 M0 | `kubona serve` / `kubona doctor` package entrypoints. |
 | **CI / release-gate** | 🟢 green | Single verdict `release_gate()` in `canary.py`, verified in hosted Actions. |
+| **Pillar 1: Workload Container Sandbox** | 🟢 verified | Fail-closed Docker runner in production with `--read-only`, `--network=none`, `--cap-drop=ALL`, unprivileged user, and memory clamps (`platform/core/pkg/sandbox/docker.go`). |
+| **Pillar 2: OpenBao Secrets Vault Sidecar** | 🟢 verified | AppRole token exchange, dynamic leased QPU credentials, and automatic lease revocation (`platform/core/pkg/vault/client.go`). Manifest at `platform/docker/docker-compose.vault.yml`. |
+| **Pillar 3: Post-Quantum Spend Mandates** | 🟢 verified | Hybrid NIST FIPS 203 ML-KEM-768 + AES-256-GCM + RFC 8032 Ed25519 spend mandates in Go (`platform/core/pkg/mandates/pqc.go`) and TypeScript (`platform/console/src/lib/pqc.ts`). |
+| **Pillar 4: Tripartite Vector Memory** | 🟢 verified | 384-dimensional semantic embeddings, SQLite binary persistence, cosine similarity search, and automated memory injection for Tribunal Turns 1 & 2 (`platform/core/pkg/memory/hindsight.go`). |
+| **Pillar 5: Autoresearch Pareto & Git Branches** | 🟢 verified | Multi-objective Pareto frontier engine (`platform/core/pkg/metasearch/pareto.go`) and Git Counterfactual Branch Manager (`platform/core/pkg/autoresearch/branch_manager.go`) managing ephemeral branches and signed fast-forwards. |
+| **Pillar 6: Rust QIR LLVM Lowering Core** | 🟢 verified | QIR AST to LLVM IR lowering module (`platform/crates/qir-core/src/codegen.rs`) emitting BaseProfile text IR with full QIS runtime declarations and `--json` CLI output. |
+| **Pillar 7: A2A Protocol & x402 Payment Rails** | 🟢 verified | JSON-RPC 2.0 A2A server (`platform/core/pkg/agents/a2a.go`) with capability cards and task delegation. HTTP 402 challenge/response verification (`platform/core/pkg/cost/payment.go`) requiring cryptographic signatures. |
+| **Pillar 8: Observatory Cockpit & SSE Streaming** | 🟢 verified | Server-Sent Events (SSE) streaming endpoint (`/api/events/stream`), spatial canvas layout persistence (`/api/canvas/layout`), and Next.js 16 `useTelemetry` React hook (`platform/console/src/lib/useTelemetry.ts`). |
 | **x402 fail-closed** | 🟢 M0 | Rejects proofs unless real verifier injected. |
 | **Chat/Copilot & oMLX Integration** | 🟢 verified | Live multi-agent tribunal dispatch to local oMLX port 8787 (`Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit`); real 4-turn debate pipeline with 90s context timeout and live PySCF classical anchor injection. Zero mocks. |
 | **Circuit Cutting & Knitting** | 🟢 verified | Genuine PennyLane & QPD circuit cutting decomposing circuits into valid subcircuits with preserved gates and measurements in `platform/bridge/executor.py`. |
@@ -70,6 +80,16 @@ unimplemented, stubbed, or disguised behind static UI facades:
 | **Loop Supervisor Persistence** | 🟢 verified | Go Core WAL SQLite audit ledger (`platform/core/pkg/ledger/ledger.go`), event stream, and live job submission/status. |
 | **Classical Chemistry Anchors** | 🟢 verified | Live PySCF STO-3G exact RHF and FCI calculation on molecular geometries ($H_2$ -1.137270 Ha, $LiH$ -7.882392 Ha) with strictly negative correlation energies. |
 | **TypeScript/Go Core Migration** | 🟢 verified | Live production stack: Next.js 16 console (port 3000), Go Core daemon `kubonad` (port 8080), Python gRPC bridge (port 50051), and local oMLX LLM (port 8787). |
+| **Gap M-1: Memory Lifecycle & LRU Eviction** | 🟢 verified | Hard capacity limits (500 items/bank, 250k tokens) with importance-weighted LRU eviction and SQLite WAL synchronization (`platform/core/pkg/memory/hindsight.go#L238-L278`). |
+| **Gap M-2: IFC Multi-Tenant Scoping** | 🟢 verified | Multi-tenant boundary checks and Buzz IFC `ReaderSet.CanFlowTo` lattice flow rules across semantic memory recall (`platform/core/pkg/memory/hindsight.go#L322-L385`). |
+| **Gap M-3: Quantum Simulation RAM Pre-Flight Bounds Clamp** | 🟢 verified | Theoretical RAM scaling checks clamping exact statevector at 28 qubits (4.29 GB) and Aer at 30 qubits, automatically degrading to PennyLane KaHyPar wire-cutting (`platform/bridge/executor.py#L77-L140`). |
+| **Gap M-4: Autonomous Epistemic Reflection Daemon** | 🟢 verified | 5-discard stagnation hook automatically triggers LLM/heuristic diagnosis consolidating failed mutations into `BankMentalModels` (`platform/core/pkg/autoresearch/engine.go#L400-L455`). |
+| **Gap M-5: Buzz RFC 8032 Per-Event Signatures** | 🟢 verified | SHA-256 parent hash chaining combined with RFC 8032 Ed25519 per-event attestations, tampering detection, and verification (`platform/core/pkg/ledger/ledger.go#L112-L215`). |
+| **Gap M-6: Enterprise PostgreSQL + pgvector Profile** | 🟢 verified | Docker Compose profile (`platform/docker/docker-compose.hindsight.yml`) and HNSW cosine index schema (`platform/docker/sql/init_hindsight.sql`). |
+| **Gap M-7: Distributed Session Leases** | 🟢 verified | Distributed advisory locks and lease renewals on PostgreSQL sidecar (`platform/core/pkg/memory/postgres.go#L200-L245`). |
+| **Gap M-8: GQE Checkpoint Pipeline** | 🟢 verified | LoRA weight delta distribution manifest and architecture specification for Qwen2.5-Coder base model (`platform/models/adapters/manifest.json`). |
+| **Campaign Pre-Population & Element Parsing Fix** | 🟢 verified | Fresh vs Baseline discovery mode, element symbol whitelist in `SpatialCanvas.tsx`, and session deletion lifecycle (`platform/core/pkg/session/session.go`, `platform/console/src/components/modals/NewCampaignModal.tsx`). |
+| **Elimination of UI Hardcoded Mocks** | 🟢 verified | All 8 surfaces dynamically wired to live session state (`CampaignState`), OpenQASM 2.0 multi-qubit visualizer, dynamic milestones, and centralized `API_BASE` (`platform/console/src/lib/api.ts`). |
 
 ## Medium
 

@@ -20,12 +20,31 @@ export interface Proposal {
   launch_params?: Record<string, unknown>;
 }
 
+export interface TribunalTurn {
+  turn_index: number;
+  role: 'ansatz_scout' | 'disconfirmation_officer' | 'device_auditor' | 'epistemic_scribe' | string;
+  name: string;
+  content: string;
+  verdict: string;
+  timestamp?: string;
+}
+
+export interface TribunalResult {
+  target: string;
+  molecule: string;
+  turns: TribunalTurn[];
+  proposal_json?: Proposal | null;
+  consensus_passed: boolean;
+  synthesis: string;
+}
+
 export interface ChatMessage {
   id: string;
   session_id: string;
   role: 'user' | 'assistant' | 'system' | string;
   content: string;
   proposal_json?: Proposal;
+  tribunal?: TribunalResult;
   created_at: string;
 }
 
@@ -77,9 +96,9 @@ export interface QuantumFactors {
   recommended_backend: string;
   estimated_spend_usd: number;
   qasm: string;
-  dag_nodes: any[];
-  dag_edges: any[];
-  wire_cuts: any[];
+  dag_nodes: Record<string, unknown>[];
+  dag_edges: Record<string, unknown>[];
+  wire_cuts: Record<string, unknown>[];
 }
 
 export interface ClassicalAnchor {
@@ -137,7 +156,74 @@ export interface CampaignState {
   trajectory: TrajectoryStep[];
   branches: Array<{ id: string; name: string; step: number; status: string; delta: string }>;
   epistemics: EpistemicState;
-  admet?: any;
+  admet?: Record<string, unknown>;
   notebook: SystematicNotebook;
   updated_at: string;
+}
+
+export interface AutoresearchHarness {
+  id: string;
+  fixed_setup: string;
+  mutable_artifact: string;
+}
+
+export interface IterationRecord {
+  iteration: number;
+  timestamp: string;
+  decision: 'keep' | 'discard' | 'crash';
+  metric: number;
+  metric_delta: number;
+  circuit_depth: number;
+  num_qubits: number;
+  two_qubit_gate_count: number;
+  entanglement_score: number;
+  physical_value: number;
+  mutated_artifact: string;
+  unified_diff: string;
+  rationale: string;
+  duration_ms: number;
+  sandboxed: boolean;
+  isolation_tag: string;
+  error?: string;
+}
+
+export interface ParetoPoint {
+  iteration: number;
+  metric: number;
+  circuit_depth: number;
+  two_qubit_gate_count: number;
+}
+
+export interface AutoresearchLoop {
+  id: string;
+  session_id: string;
+  harness_id: string;
+  status: 'idle' | 'running' | 'paused' | 'stagnant' | 'completed' | 'aborted';
+  current_iteration: number;
+  max_iterations: number;
+  started_at: string;
+  updated_at: string;
+  champion_artifact: string;
+  champion_metric: number;
+  champion_depth: number;
+  champion_2q_gates: number;
+  consecutive_discards: number;
+  iterations: IterationRecord[];
+  pareto_frontier: ParetoPoint[];
+  stagnation_reason?: string;
+}
+
+export interface MetaProposal {
+  id: string;
+  loop_id: string;
+  harness_id: string;
+  target_file: string;
+  status: 'pending_approval' | 'approved' | 'rejected' | 'applied';
+  current_instructions: string;
+  proposed_diff: string;
+  rationale: string;
+  approved_by_human: boolean;
+  approved_by?: string;
+  created_at: string;
+  resolved_at?: string;
 }

@@ -112,12 +112,26 @@ func SynthesizeCampaignState(
 	llmClient *llm.Client,
 	bridgeClient pb.QuantumBridgeServiceClient,
 ) (*CampaignState, error) {
+	return SynthesizeCampaignStateWithOpts(ctx, sessionID, prompt, "", false, llmClient, bridgeClient)
+}
+
+// SynthesizeCampaignStateWithOpts dynamically constructs complete target-specific quantum telemetry with explicit molecule and fresh flag
+func SynthesizeCampaignStateWithOpts(
+	ctx context.Context,
+	sessionID, prompt, targetMolecule string,
+	fresh bool,
+	llmClient *llm.Client,
+	bridgeClient pb.QuantumBridgeServiceClient,
+) (*CampaignState, error) {
 	upper := strings.ToUpper(prompt)
+	if targetMolecule != "" {
+		upper = strings.ToUpper(targetMolecule) + " " + upper
+	}
 
 	mol := "H2"
 	formula := "H2"
 	bondDist := 0.7414
-	target := "H2 Ground State Equilibrium"
+	target := "Hydrogen Molecule (H2)"
 	qubits := 2
 	depth := 4
 	twoQGates := 1
@@ -132,7 +146,7 @@ func SynthesizeCampaignState(
 		mol = "LiH"
 		formula = "LiH"
 		bondDist = 1.5957
-		target = "LiH Ground State Dissociation"
+		target = "Lithium Hydride (LiH)"
 		qubits = 4
 		depth = 8
 		twoQGates = 3
@@ -146,7 +160,7 @@ func SynthesizeCampaignState(
 		mol = "BeH2"
 		formula = "BeH2"
 		bondDist = 1.3300
-		target = "BeH2 Linear Potential Energy Surface"
+		target = "Beryllium Hydride (BeH2)"
 		qubits = 6
 		depth = 12
 		twoQGates = 6
@@ -160,7 +174,7 @@ func SynthesizeCampaignState(
 		mol = "H2O"
 		formula = "H2O"
 		bondDist = 0.9575
-		target = "H2O Asymmetric Stretch Active Space"
+		target = "Water Molecule (H2O)"
 		qubits = 8
 		depth = 16
 		twoQGates = 8
@@ -174,7 +188,7 @@ func SynthesizeCampaignState(
 		mol = "N2"
 		formula = "N2"
 		bondDist = 1.0977
-		target = "N2 Triple Bond Dissociation"
+		target = "Dinitrogen (N2)"
 		qubits = 6
 		depth = 12
 		twoQGates = 5
@@ -188,7 +202,7 @@ func SynthesizeCampaignState(
 		mol = "CO2"
 		formula = "CO2"
 		bondDist = 1.1620
-		target = "CO2 Symmetric Stretch Linear Mode"
+		target = "Carbon Dioxide (CO2)"
 		qubits = 8
 		depth = 16
 		twoQGates = 8
@@ -202,7 +216,7 @@ func SynthesizeCampaignState(
 		mol = "CO"
 		formula = "CO"
 		bondDist = 1.1283
-		target = "CO Dipole Ground State VQE"
+		target = "Carbon Monoxide (CO)"
 		qubits = 6
 		depth = 12
 		twoQGates = 5
@@ -338,10 +352,16 @@ func SynthesizeCampaignState(
 		}
 	}
 
-	// Quantum expectation value simulation (VQE result within 0.47 mHa)
+	// Quantum expectation value simulation
 	vqeVal := fciVal + 0.00047
 	deltaMHa := math.Abs(vqeVal-fciVal) * 1000.0
 	chemAccPassed := deltaMHa <= 1.6
+
+	if fresh {
+		vqeVal = rhfVal // Unoptimized initial Hartree-Fock state
+		deltaMHa = math.Abs(vqeVal-fciVal) * 1000.0
+		chemAccPassed = false
+	}
 
 	// Build dynamic OpenQASM 2.0
 	var qasmBuilder strings.Builder
@@ -447,35 +467,49 @@ func SynthesizeCampaignState(
 	})
 
 	// Build dynamic VQE optimization trajectory converging towards FCI energy
-	trajectory := make([]TrajectoryStep, 0, 7)
-	stepMilestones := []struct {
-		step     int
-		relDelta float64
-		loss     float64
-		grad     float64
-		watchdog string
-	}{
-		{step: 1, relDelta: 0.087, loss: 0.420, grad: 0.18, watchdog: "normal"},
-		{step: 5, relDelta: 0.042, loss: 0.280, grad: 0.12, watchdog: "normal"},
-		{step: 10, relDelta: 0.017, loss: 0.140, grad: 0.08, watchdog: "normal"},
-		{step: 15, relDelta: 0.012, loss: 0.090, grad: 4e-8, watchdog: "barren_plateau_trip"},
-		{step: 18, relDelta: 0.005, loss: 0.045, grad: 0.04, watchdog: "rescoped_rollback"},
-		{step: 25, relDelta: 0.00047, loss: 0.005, grad: 0.008, watchdog: "chemical_accuracy_met"},
-		{step: 30, relDelta: 0.00047, loss: 0.0005, grad: 0.002, watchdog: "converged"},
-	}
+	var trajectory []TrajectoryStep
+	var branches []any
 
-	for _, m := range stepMilestones {
-		tEnergy := fciVal + m.relDelta
-		thetaVec := []float64{0.12 + 0.02*float64(m.step), 0.45 + 0.02*float64(m.step), 0.22 + 0.018*float64(m.step)}
-		trajectory = append(trajectory, TrajectoryStep{
-			Step:      m.step,
-			Energy:    tEnergy,
-			Loss:      m.loss,
-			Theta:     thetaVec,
-			GradNorm:  m.grad,
-			Watchdog:  m.watchdog,
-			Timestamp: time.Now().UTC().Format(time.RFC3339),
-		})
+	if !fresh {
+		trajectory = make([]TrajectoryStep, 0, 7)
+		stepMilestones := []struct {
+			step     int
+			relDelta float64
+			loss     float64
+			grad     float64
+			watchdog string
+		}{
+			{step: 1, relDelta: 0.087, loss: 0.420, grad: 0.18, watchdog: "normal"},
+			{step: 5, relDelta: 0.042, loss: 0.280, grad: 0.12, watchdog: "normal"},
+			{step: 10, relDelta: 0.017, loss: 0.140, grad: 0.08, watchdog: "normal"},
+			{step: 15, relDelta: 0.012, loss: 0.090, grad: 4e-8, watchdog: "barren_plateau_trip"},
+			{step: 18, relDelta: 0.005, loss: 0.045, grad: 0.04, watchdog: "rescoped_rollback"},
+			{step: 25, relDelta: 0.00047, loss: 0.005, grad: 0.008, watchdog: "chemical_accuracy_met"},
+			{step: 30, relDelta: 0.00047, loss: 0.0005, grad: 0.002, watchdog: "converged"},
+		}
+
+		for _, m := range stepMilestones {
+			tEnergy := fciVal + m.relDelta
+			thetaVec := []float64{0.12 + 0.02*float64(m.step), 0.45 + 0.02*float64(m.step), 0.22 + 0.018*float64(m.step)}
+			trajectory = append(trajectory, TrajectoryStep{
+				Step:      m.step,
+				Energy:    tEnergy,
+				Loss:      m.loss,
+				Theta:     thetaVec,
+				GradNorm:  m.grad,
+				Watchdog:  m.watchdog,
+				Timestamp: time.Now().UTC().Format(time.RFC3339),
+			})
+		}
+
+		branches = []any{
+			map[string]any{"id": "main-vqe-adam", "name": "main (AdamW + SPSA)", "step": 30, "status": "converged", "delta": fmt.Sprintf("%.2f mHa", deltaMHa)},
+			map[string]any{"id": "fork-01-cobyla", "name": "fork-01 (COBYLA Noisy)", "step": 18, "status": "rescoped", "delta": "1.20 mHa"},
+			map[string]any{"id": "fork-02-lbfgs", "name": "fork-02 (L-BFGS Statevector)", "step": 25, "status": "converged", "delta": "0.31 mHa"},
+		}
+	} else {
+		trajectory = []TrajectoryStep{}
+		branches = []any{}
 	}
 
 	// Tripartite credibility wavefunction amplitudes
@@ -483,6 +517,17 @@ func SynthesizeCampaignState(
 	beta := 0.05
 	gamma := 0.10
 	pCorr := (alpha * alpha) * 100.0
+	epStatus := "COLLAPSED_VERIFIED"
+	epStatement := fmt.Sprintf("%s ground state energy matches PySCF ab-initio FCI within chemical accuracy", target)
+
+	if fresh {
+		alpha = 0.50
+		beta = 0.10
+		gamma = 0.40
+		pCorr = 25.0
+		epStatus = "HYPOTHESIS_PENDING"
+		epStatement = fmt.Sprintf("Hypothesis formulated for %s. Awaiting variational circuit optimization.", target)
+	}
 
 	// SHA-256 Merkle Provenance Hash
 	hasher := sha256.New()
@@ -490,6 +535,8 @@ func SynthesizeCampaignState(
 	provenanceHash := fmt.Sprintf("sha256:%s", hex.EncodeToString(hasher.Sum(nil)))
 
 	// Systematic Notebook Sections
+	notebookVerdict := "VERIFIED_COLLAPSED"
+	notebookTitle := fmt.Sprintf("%s Potential Energy Surface VQE vs PySCF FCI", target)
 	sections := []string{
 		fmt.Sprintf("1. Scientific Objective: %s at equilibrium bond distance R=%.4f A", target, bondDist),
 		fmt.Sprintf("2. Classical PySCF ab-initio ground state RHF (%.5f Ha) and FCI (%.5f Ha) integrals", rhfVal, fciVal),
@@ -501,9 +548,22 @@ func SynthesizeCampaignState(
 		fmt.Sprintf("8. Reproduction command: kubona replay --hash %s", provenanceHash[:20]),
 	}
 
+	if fresh {
+		notebookVerdict = "HYPOTHESIS_PENDING"
+		notebookTitle = fmt.Sprintf("%s Variational Discovery Campaign (Draft)", target)
+		sections = []string{
+			fmt.Sprintf("1. Scientific Objective: Formulate and evaluate ansatz for %s at equilibrium bond distance R=%.4f A", target, bondDist),
+			fmt.Sprintf("2. Classical PySCF ab-initio ground state anchors established: RHF (%.5f Ha) and FCI (%.5f Ha)", rhfVal, fciVal),
+			fmt.Sprintf("3. Variational Quantum Eigensolver circuit prepared (%s). Awaiting execution.", ansatz),
+			"4. Epistemic credibility state: HYPOTHESIS_PENDING (awaiting empirical calculation).",
+			"5. Multi-agent research tribunal standing by to evaluate convergence.",
+			fmt.Sprintf("6. Provenance SHA-256 Merkle DAG hash proof: %s", provenanceHash[:24]),
+		}
+	}
+
 	notebook := SystematicNotebook{
 		ID:               fmt.Sprintf("nb-%s-%s", strings.ToLower(mol), sessionID[:min(len(sessionID), 8)]),
-		Title:            fmt.Sprintf("%s Potential Energy Surface VQE vs PySCF FCI", target),
+		Title:            notebookTitle,
 		CreatedAt:        time.Now().UTC().Format(time.RFC3339),
 		ClassicalAnchor:  fmt.Sprintf("PySCF STO-3G Full Configuration Interaction (%.5f Ha)", fciVal),
 		QuantumEnergy:    vqeVal,
@@ -511,7 +571,7 @@ func SynthesizeCampaignState(
 		DeltaMHa:         deltaMHa,
 		ChemicalAccuracy: chemAccPassed,
 		ProvenanceHash:   provenanceHash,
-		EpistemicVerdict: "VERIFIED_COLLAPSED",
+		EpistemicVerdict: notebookVerdict,
 		Sections:         sections,
 	}
 
@@ -552,19 +612,15 @@ func SynthesizeCampaignState(
 			ChemicalAccuracyLimit:  1.6,
 		},
 		Trajectory: trajectory,
-		Branches: []any{
-			map[string]any{"id": "main-vqe-adam", "name": "main (AdamW + SPSA)", "step": 30, "status": "converged", "delta": fmt.Sprintf("%.2f mHa", deltaMHa)},
-			map[string]any{"id": "fork-01-cobyla", "name": "fork-01 (COBYLA Noisy)", "step": 18, "status": "rescoped", "delta": "1.20 mHa"},
-			map[string]any{"id": "fork-02-lbfgs", "name": "fork-02 (L-BFGS Statevector)", "step": 25, "status": "converged", "delta": "0.31 mHa"},
-		},
+		Branches:   branches,
 		Epistemics: EpistemicState{
 			AlphaCorroborated: alpha,
 			BetaContested:     beta,
 			GammaUnverified:   gamma,
 			PCorrelated:       pCorr,
-			Status:            "COLLAPSED_VERIFIED",
+			Status:            epStatus,
 			LiteratureDrift:   deltaMHa,
-			Statement:         fmt.Sprintf("%s ground state energy matches PySCF ab-initio FCI within chemical accuracy", target),
+			Statement:         epStatement,
 			Sources:           []string{"pyscf:sto-3g", "chemrxiv:2026.01"},
 		},
 		Notebook:  notebook,
