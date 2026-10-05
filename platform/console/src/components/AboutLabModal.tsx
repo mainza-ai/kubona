@@ -92,80 +92,80 @@ export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
 
           {/* System Architecture Specifications Grid */}
           <div className="grid grid-cols-2 gap-3 text-xs">
-            <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-1">
-              <div className="flex items-center space-x-1.5 text-slate-400 font-medium">
+            <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-1">
+              <div className="flex items-center space-x-1.5 text-slate-200 font-semibold">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Cryptographic Posture</span>
               </div>
-              <div className="font-mono text-[11px] text-slate-200">
+              <div className="font-mono text-xs text-slate-200 font-medium">
                 ML-KEM-768 + X25519 PQC
               </div>
-              <div className="text-[10px] text-slate-400">
+              <div className="text-[11px] text-slate-300">
                 Stateless Ed25519 AP2 Mandates
               </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-1">
-              <div className="flex items-center space-x-1.5 text-slate-400 font-medium">
+            <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-1">
+              <div className="flex items-center space-x-1.5 text-slate-200 font-semibold">
                 <Lock className="w-3.5 h-3.5 text-amber-400" />
                 <span>Workload &amp; Secrets</span>
               </div>
-              <div className="font-mono text-[11px] text-slate-200">
+              <div className="font-mono text-xs text-slate-200 font-medium">
                 OpenBao Dynamic TTL Leases
               </div>
-              <div className="text-[10px] text-slate-400">
+              <div className="text-[11px] text-slate-300">
                 Buzz Information Flow Control
               </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-1">
-              <div className="flex items-center space-x-1.5 text-slate-400 font-medium">
+            <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-1">
+              <div className="flex items-center space-x-1.5 text-slate-200 font-semibold">
                 <Cpu className="w-3.5 h-3.5 text-cyan-400" />
                 <span>Quantum &amp; Classical Engines</span>
               </div>
-              <div className="font-mono text-[11px] text-slate-200">
+              <div className="font-mono text-xs text-slate-200 font-medium">
                 PySCF FCI + Qiskit Aer
               </div>
-              <div className="text-[10px] text-slate-400">
+              <div className="text-[11px] text-slate-300">
                 PennyLane QPD &amp; Mitiq ZNE
               </div>
             </div>
 
-            <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-1">
-              <div className="flex items-center space-x-1.5 text-slate-400 font-medium">
+            <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-1">
+              <div className="flex items-center space-x-1.5 text-slate-200 font-semibold">
                 <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
                 <span>Cognitive Intelligence</span>
               </div>
-              <div className="font-mono text-[11px] text-slate-200">
+              <div className="font-mono text-xs text-slate-200 font-medium">
                 oMLX 27B Local Neural Engine
               </div>
-              <div className="text-[10px] text-slate-400">
+              <div className="text-[11px] text-slate-300">
                 4-Turn Epistemic Tribunal Loop
               </div>
             </div>
           </div>
 
           {/* Version & Build Bar */}
-          <div className="p-3 rounded-xl bg-black/40 border border-white/[0.06] flex items-center justify-between text-[11px] font-mono text-slate-400">
+          <div className="p-3.5 rounded-xl bg-black/60 border border-white/10 flex items-center justify-between text-xs font-mono text-slate-300">
             <div>
-              <span className="text-slate-500">Core Daemon:</span>{' '}
-              <strong className="text-white">v0.2.0-ts-go</strong> (Port 8080)
+              <span className="text-slate-300 font-medium">Core Daemon:</span>{' '}
+              <strong className="text-white font-bold">v0.2.0-ts-go</strong> (Port 8080)
             </div>
             <div>
-              <span className="text-slate-500">Bridge:</span>{' '}
-              <strong className="text-cyan-300">gRPC</strong> (Port 50051)
+              <span className="text-slate-300 font-medium">Bridge:</span>{' '}
+              <strong className="text-cyan-300 font-bold">gRPC</strong> (Port 50051)
             </div>
             <div>
-              <span className="text-slate-500">License:</span>{' '}
-              <strong className="text-emerald-400">Apache-2.0</strong>
+              <span className="text-slate-300 font-medium">License:</span>{' '}
+              <strong className="text-emerald-300 font-bold">Apache-2.0</strong>
             </div>
           </div>
         </div>
 
         {/* Modal Footer */}
         <div className="h-12 px-6 border-t border-white/[0.08] bg-white/[0.02] flex items-center justify-between">
-          <span className="text-[11px] text-slate-400">
-            Press <kbd className="px-1.5 py-0.5 rounded bg-white/10 font-mono text-[10px] text-slate-300">Esc</kbd> to dismiss
+          <span className="text-xs text-slate-300">
+            Press <kbd className="px-1.5 py-0.5 rounded bg-white/10 font-mono text-[10px] text-slate-200 border border-white/15">Esc</kbd> to dismiss
           </span>
           <button
             onClick={onClose}

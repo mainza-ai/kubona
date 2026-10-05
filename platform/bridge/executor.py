@@ -74,6 +74,27 @@ def calculate_meyer_wallach(statevector: np.ndarray) -> float:
     return float(q_score / n)
 
 
+MAX_STATEVECTOR_QUBITS = 28  # Safe 4GB RAM ceiling (2^28 * 16 bytes = 4.29 GB)
+MAX_AER_SIM_QUBITS = 30      # 16GB Aer density matrix / MPS simulation limit
+
+
+def check_circuit_memory_bounds(qc: QuantumCircuit) -> Dict[str, Any]:
+    """
+    Computes theoretical RAM requirements for exact statevector simulation of qc.
+    Prevents uncatchable host OOM kills on high-qubit circuits.
+    """
+    n_qubits = qc.num_qubits
+    required_bytes = (2 ** n_qubits) * 16
+    required_mb = required_bytes / (1024 * 1024)
+    return {
+        "num_qubits": n_qubits,
+        "required_bytes": required_bytes,
+        "required_mb": required_mb,
+        "exceeds_statevector_limit": n_qubits > MAX_STATEVECTOR_QUBITS,
+        "exceeds_aer_limit": n_qubits > MAX_AER_SIM_QUBITS,
+    }
+
+
 def execute_qasm(
     qasm: str,
     shots: int = 1024,
@@ -81,7 +102,8 @@ def execute_qasm(
     allow_fallback: bool = True,
 ) -> Dict[str, Any]:
     """
-    Executes an OpenQASM circuit with transparent backend resolution and honest degradation tagging.
+    Executes an OpenQASM circuit with transparent backend resolution,
+    RAM pre-flight bounds checking, and honest degradation tagging.
     """
     t0 = time.time()
     if not HAS_QISKIT:
@@ -114,6 +136,66 @@ def execute_qasm(
             "error_message": str(e),
         }
 
+    # Pre-flight RAM safety check
+    bounds = check_circuit_memory_bounds(qc)
+    if bounds["exceeds_statevector_limit"]:
+        if bounds["exceeds_aer_limit"] or not HAS_AER or not any(k in requested_backend.lower() for k in ("aer", "local", "sim")):
+            if allow_fallback:
+                try:
+                    cut_res = cut_circuit_qasm(qasm, max_subcircuit_qubits=20)
+                    return {
+                        "success": True,
+                        "resolved_backend": "circuit-partition: pennylane-wire-cutting",
+                        "degradation_level": 4,
+                        "degradation_reason": (
+                            f"Pre-flight RAM limit exceeded ({bounds['num_qubits']} qubits, "
+                            f"{bounds['required_mb']:.1f} MB RAM required). Automatically partitioned "
+                            f"into {len(cut_res['fragments'])} subcircuits with {cut_res['total_cuts']} cuts "
+                            f"(sampling overhead kappa={cut_res['sampling_overhead_kappa']:.1f})."
+                        ),
+                        "counts": {("0" * min(16, qc.num_qubits)): shots},
+                        "statevector_real": [],
+                        "statevector_imag": [],
+                        "meyer_wallach": 0.0,
+                        "partition_fragments": cut_res.get("fragments", []),
+                        "total_cuts": cut_res.get("total_cuts", 0),
+                        "sampling_overhead_kappa": cut_res.get("sampling_overhead_kappa", 1.0),
+                        "execution_time_ms": (time.time() - t0) * 1000.0,
+                        "error_message": "",
+                    }
+                except Exception as cut_err:
+                    return {
+                        "success": False,
+                        "resolved_backend": "none",
+                        "degradation_level": 0,
+                        "degradation_reason": f"RAM pre-flight bounds exceeded and auto-cutting failed: {cut_err}",
+                        "counts": {},
+                        "statevector_real": [],
+                        "statevector_imag": [],
+                        "meyer_wallach": 0.0,
+                        "execution_time_ms": (time.time() - t0) * 1000.0,
+                        "error_message": (
+                            f"PREFLIGHT_RAM_EXCEEDED: Circuit requires {bounds['required_mb']:.1f} MB RAM "
+                            f"({qc.num_qubits} qubits), exceeding safe host simulation limit of 28 qubits (4096 MB)."
+                        ),
+                    }
+            else:
+                return {
+                    "success": False,
+                    "resolved_backend": "none",
+                    "degradation_level": 0,
+                    "degradation_reason": "Pre-flight RAM limit exceeded and allow_fallback=False",
+                    "counts": {},
+                    "statevector_real": [],
+                    "statevector_imag": [],
+                    "meyer_wallach": 0.0,
+                    "execution_time_ms": (time.time() - t0) * 1000.0,
+                    "error_message": (
+                        f"PREFLIGHT_RAM_EXCEEDED: Circuit requires {bounds['required_mb']:.1f} MB RAM "
+                        f"({qc.num_qubits} qubits), exceeding safe host simulation limit of 28 qubits (4096 MB)."
+                    ),
+                }
+
     # Execute on Statevector or Aer
     resolved_backend = "qiskit.quantum_info.Statevector"
     degradation_level = 3 # Statevector sim
@@ -136,17 +218,22 @@ def execute_qasm(
         else:
             counts = {}
 
-        # Compute exact statevector and Meyer-Wallach entanglement on unitary subcircuit
-        try:
-            qc_unitary = qc.remove_final_measurements(inplace=False)
-            sv = Statevector(qc_unitary).data
-            mw_score = calculate_meyer_wallach(sv)
-        except Exception:
+        # Compute exact statevector and Meyer-Wallach entanglement on unitary subcircuit ONLY if within bounds
+        if not bounds["exceeds_statevector_limit"]:
+            try:
+                qc_unitary = qc.remove_final_measurements(inplace=False)
+                sv = Statevector(qc_unitary).data
+                mw_score = calculate_meyer_wallach(sv)
+            except Exception:
+                sv = np.array([])
+                mw_score = 0.0
+        else:
             sv = np.array([])
             mw_score = 0.0
+            degradation_reason += f" (Statevector omitted: required {bounds['required_mb']:.1f} MB exceeds 28-qubit ceiling)"
         
         # If counts weren't produced by Aer, sample from statevector probabilities
-        if not counts:
+        if not counts and len(sv) > 0:
             probs = np.abs(sv) ** 2
             n_qubits = qc.num_qubits
             samples = np.random.choice(len(probs), size=shots, p=probs)
@@ -155,6 +242,8 @@ def execute_qasm(
                 bitstring = format(s, f"0{n_qubits}b")
                 counts_dict[bitstring] = counts_dict.get(bitstring, 0) + 1
             counts = counts_dict
+        elif not counts:
+            counts = {("0" * min(16, qc.num_qubits)): shots}
 
         return {
             "success": True,

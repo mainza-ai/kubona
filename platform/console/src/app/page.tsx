@@ -17,14 +17,17 @@ import {
   Clock,
   DollarSign,
   ChevronRight,
+  Sparkles,
+  Trash2,
 } from 'lucide-react';
 import { Session, Loop, LedgerEvent, CampaignState } from '@/types';
-import { fetchSessions, createSession, fetchLoops, fetchEvents, fetchCampaignState } from '@/lib/api';
+import { fetchSessions, createSession, deleteSession, fetchLoops, fetchEvents, fetchCampaignState } from '@/lib/api';
 import { CopilotDrawer } from '@/components/CopilotDrawer';
 import { ObservatoryCockpit, SurfaceTab } from '@/components/ObservatoryCockpit';
 import { AboutLabModal } from '@/components/AboutLabModal';
 import { CommandPalette } from '@/components/CommandPalette';
 import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal';
+import { NewCampaignModal } from '@/components/modals/NewCampaignModal';
 
 export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -41,10 +44,12 @@ export default function Home() {
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
+  const [isNewCampaignModalOpen, setIsNewCampaignModalOpen] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);
   const [showCopilot, setShowCopilot] = useState(true);
+  const [isCopilotExpanded, setIsCopilotExpanded] = useState(false);
 
-  const loadData = async () => {
+  const refreshData = useCallback(async () => {
     const t0 = performance.now();
     const [sessList, loopList, evtList] = await Promise.all([
       fetchSessions(),
@@ -52,23 +57,12 @@ export default function Home() {
       fetchEvents(),
     ]);
     setLatencyMs(Math.round(performance.now() - t0));
-    if (sessList.length === 0) {
-      const firstSess = await createSession('Quantum Research Campaign #1', 150.0);
-      if (firstSess) {
-        setSessions([firstSess]);
-        setCurrentSessionId(firstSess.id);
-        fetchCampaignState(firstSess.id).then(setCampaign);
-      }
-    } else {
+    if (sessList.length > 0) {
       setSessions(sessList);
-      if (!currentSessionId) {
-        setCurrentSessionId(sessList[0].id);
-        fetchCampaignState(sessList[0].id).then(setCampaign);
-      }
     }
     setLoops(loopList);
     setEvents(evtList);
-  };
+  }, []);
 
   useEffect(() => {
     if (currentSessionId) {
@@ -77,21 +71,107 @@ export default function Home() {
   }, [currentSessionId]);
 
   useEffect(() => {
-    loadData();
+    let mounted = true;
+    (async () => {
+      const t0 = performance.now();
+      const [sessList, loopList, evtList] = await Promise.all([
+        fetchSessions(),
+        fetchLoops(),
+        fetchEvents(),
+      ]);
+      if (!mounted) return;
+      setLatencyMs(Math.round(performance.now() - t0));
+      if (sessList.length === 0) {
+        const firstSess = await createSession('Quantum Research Campaign #1', 150.0);
+        if (firstSess && mounted) {
+          setSessions([firstSess]);
+          setCurrentSessionId(firstSess.id);
+          fetchCampaignState(firstSess.id).then((c) => {
+            if (mounted) setCampaign(c);
+          });
+        }
+      } else {
+        setSessions(sessList);
+        if (!currentSessionId) {
+          setCurrentSessionId(sessList[0].id);
+          fetchCampaignState(sessList[0].id).then((c) => {
+            if (mounted) setCampaign(c);
+          });
+        }
+      }
+      setLoops(loopList);
+      setEvents(evtList);
+    })();
+
     const timer = setInterval(() => {
-      fetchLoops().then(setLoops);
-      fetchEvents().then(setEvents);
+      fetchLoops().then((l) => { if (mounted) setLoops(l); });
+      fetchEvents().then((e) => { if (mounted) setEvents(e); });
     }, 3500);
-    return () => clearInterval(timer);
+    return () => {
+      mounted = false;
+      clearInterval(timer);
+    };
   }, []);
 
-  const handleCreateSession = useCallback(async () => {
-    const newSess = await createSession(`Quantum Lab Session #${sessions.length + 1}`, 150.0);
-    if (newSess) {
-      setSessions((prev) => [newSess, ...prev]);
-      setCurrentSessionId(newSess.id);
-    }
-  }, [sessions.length]);
+  const handleCreateSession = useCallback(() => {
+    setIsNewCampaignModalOpen(true);
+  }, []);
+
+  const handleConfirmCreateCampaign = useCallback(
+    async (params: {
+      title: string;
+      targetMolecule: string;
+      spendLimitUSD: number;
+      fresh: boolean;
+    }) => {
+      const newSess = await createSession(
+        params.title,
+        params.spendLimitUSD,
+        params.targetMolecule,
+        params.fresh
+      );
+      if (newSess) {
+        setSessions((prev) => [newSess, ...prev]);
+        setCurrentSessionId(newSess.id);
+        const newCamp = await fetchCampaignState(newSess.id);
+        if (newCamp) {
+          setCampaign(newCamp);
+        }
+      }
+    },
+    []
+  );
+
+  const handleDeleteSession = useCallback(
+    async (e: React.MouseEvent, sessionId: string) => {
+      e.stopPropagation();
+      const sessionToDelete = sessions.find((s) => s.id === sessionId);
+      const name = sessionToDelete?.title || 'this campaign';
+      if (!confirm(`Delete "${name}"? This will permanently remove its state and transcripts.`)) {
+        return;
+      }
+      const success = await deleteSession(sessionId);
+      if (success) {
+        setSessions((prev) => {
+          const filtered = prev.filter((s) => s.id !== sessionId);
+          if (currentSessionId === sessionId) {
+            const nextSession = filtered[0];
+            if (nextSession) {
+              setCurrentSessionId(nextSession.id);
+              fetchCampaignState(nextSession.id).then((c) => {
+                if (c) setCampaign(c);
+              });
+            } else {
+              setCurrentSessionId('');
+              setCampaign(null);
+            }
+          }
+          return filtered;
+        });
+      }
+    },
+    [sessions, currentSessionId]
+  );
 
   const handleEmergencyAbort = useCallback(() => {
     if (confirm('EMERGENCY ABORT: Trigger Ring 0 watchdog intercept on all active loops?')) {
@@ -147,7 +227,7 @@ export default function Home() {
   }, [handleCreateSession, handleEmergencyAbort]);
 
   return (
-    <div className="flex h-screen bg-[#05070B] text-slate-100 overflow-hidden font-sans select-none">
+    <div className="flex h-screen w-screen bg-[#05070B] text-slate-100 overflow-hidden font-sans select-none">
       {/* Modals & Dialogs */}
       <AboutLabModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
       <CommandPalette
@@ -161,6 +241,11 @@ export default function Home() {
       <KeyboardShortcutsModal
         isOpen={isShortcutsOpen}
         onClose={() => setIsShortcutsOpen(false)}
+      />
+      <NewCampaignModal
+        isOpen={isNewCampaignModalOpen}
+        onClose={() => setIsNewCampaignModalOpen(false)}
+        onCreate={handleConfirmCreateCampaign}
       />
 
       {/* Left Sidebar: Multi-Session Navigation & Brand Lockup */}
@@ -207,12 +292,12 @@ export default function Home() {
                     PRO
                   </span>
                 </div>
-                <span className="text-[10px] text-slate-400 font-sans tracking-wide truncate">
+                <span className="text-[11px] text-slate-300 font-sans tracking-wide truncate">
                   Scientific Laboratory
                 </span>
               </div>
 
-              <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-colors" />
+              <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-cyan-300 transition-colors" />
             </div>
           </div>
 
@@ -232,7 +317,7 @@ export default function Home() {
 
           {/* Active Campaigns List */}
           <div className="flex-1 overflow-y-auto p-2 space-y-1.5">
-            <div className="px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider flex justify-between items-center font-mono">
+            <div className="px-2 py-1 text-[10px] font-bold text-slate-300 uppercase tracking-wider flex justify-between items-center font-mono">
               <span>Active Campaigns ({sessions.length})</span>
             </div>
 
@@ -243,39 +328,48 @@ export default function Home() {
               const pct = Math.min(100, Math.round((spend / limit) * 100));
 
               return (
-                <button
-                  key={s.id}
-                  onClick={() => setCurrentSessionId(s.id)}
-                  className={`w-full text-left p-3 rounded-xl text-xs transition-all flex flex-col space-y-1.5 border select-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none ${
-                    isSelected
-                      ? 'bg-cyan-500/10 border-cyan-500/40 text-white shadow-md'
-                      : 'bg-[#080B11]/80 border-white/[0.04] text-slate-300 hover:bg-white/[0.04] hover:text-white'
-                  }`}
-                >
-                  <div className="font-semibold text-slate-100 truncate">{s.title}</div>
-                  <div className="text-[10px] text-slate-400 flex justify-between font-mono">
-                    <span className="flex items-center space-x-1">
-                      <Clock className="w-3 h-3 text-slate-500" />
-                      <span>{new Date(s.created_at).toLocaleDateString()}</span>
-                    </span>
-                    <span className="text-emerald-400 font-bold font-mono">
-                      ${limit.toFixed(2)} Cap
-                    </span>
-                  </div>
-                  {/* Spend Progress Bar */}
-                  <div className="w-full bg-black/60 rounded-full h-1 overflow-hidden border border-white/[0.04]">
-                    <div
-                      className="bg-gradient-to-r from-cyan-400 to-indigo-500 h-1 rounded-full"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                </button>
+                <div key={s.id} className="relative group">
+                  <button
+                    onClick={() => setCurrentSessionId(s.id)}
+                    className={`w-full text-left p-3 pr-8 rounded-xl text-xs transition-all flex flex-col space-y-1.5 border select-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none ${
+                      isSelected
+                        ? 'bg-cyan-500/10 border-cyan-500/40 text-white shadow-md'
+                        : 'bg-[#080B11]/80 border-white/[0.04] text-slate-300 hover:bg-white/[0.04] hover:text-white'
+                    }`}
+                  >
+                    <div className="font-semibold text-slate-100 truncate">{s.title}</div>
+                    <div className="text-[11px] text-slate-300 flex justify-between font-mono">
+                      <span className="flex items-center space-x-1">
+                        <Clock className="w-3 h-3 text-slate-400" />
+                        <span>{new Date(s.created_at).toLocaleDateString()}</span>
+                      </span>
+                      <span className="text-emerald-400 font-bold font-mono">
+                        ${limit.toFixed(2)} Cap
+                      </span>
+                    </div>
+                    {/* Spend Progress Bar */}
+                    <div className="w-full bg-black/60 rounded-full h-1 overflow-hidden border border-white/[0.04]">
+                      <div
+                        className="bg-gradient-to-r from-cyan-400 to-indigo-500 h-1 rounded-full"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </button>
+                  <button
+                    onClick={(e) => handleDeleteSession(e, s.id)}
+                    title={`Delete "${s.title}"`}
+                    aria-label={`Delete ${s.title}`}
+                    className="absolute top-2.5 right-2 p-1.5 rounded-lg text-slate-500 hover:text-rose-400 hover:bg-rose-500/15 opacity-0 group-hover:opacity-100 transition-all focus:opacity-100 focus-visible:ring-1 focus-visible:ring-rose-400"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               );
             })}
           </div>
 
           {/* Sidebar Footer with Lab Info Trigger & Shortcuts */}
-          <div className="p-3 border-t border-white/[0.08] bg-white/[0.01] flex items-center justify-between text-xs text-slate-400">
+          <div className="p-3 border-t border-white/[0.08] bg-white/[0.01] flex items-center justify-between text-xs text-slate-300 font-medium">
             <button
               onClick={() => setIsAboutOpen(true)}
               className="flex items-center space-x-1.5 hover:text-white transition-colors"
@@ -323,7 +417,7 @@ export default function Home() {
             <div className="flex items-center space-x-1.5 text-xs text-slate-300 font-mono">
               <Activity className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
               <span>Go Core Live</span>
-              <span className="text-slate-600">|</span>
+              <span className="text-slate-400">|</span>
               <span className="text-cyan-400">{latencyMs}ms ping</span>
             </div>
           </div>
@@ -332,11 +426,11 @@ export default function Home() {
             {/* Quick Spotlight Search Trigger */}
             <button
               onClick={() => setIsCommandPaletteOpen(true)}
-              className="px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/[0.08] text-xs text-slate-400 hover:text-slate-200 flex items-center space-x-2 transition-all shadow-sm focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
+              className="px-3 py-1.5 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-xs text-slate-300 hover:text-white flex items-center space-x-2 transition-all shadow-sm focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
             >
-              <Search className="w-3.5 h-3.5 text-slate-400" />
+              <Search className="w-3.5 h-3.5 text-slate-300" />
               <span>Search surfaces...</span>
-              <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-[10px] font-mono text-slate-300">
+              <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-[10px] font-mono text-slate-200 border border-white/10">
                 ⌘K
               </kbd>
             </button>
@@ -374,25 +468,51 @@ export default function Home() {
             activeTab={activeTab}
             onTabChange={setActiveTab}
             campaign={campaign}
+            session={sessions.find((s) => s.id === currentSessionId) || null}
           />
         </main>
       </div>
 
       {/* Right Drawer: Persistent Research Copilot & Tribunal */}
-      {showCopilot && (
+      {showCopilot ? (
         <aside
           aria-label="Research Copilot and Tribunal"
-          className="w-96 flex shrink-0 border-l border-white/[0.08] bg-[#090C13]/95 backdrop-blur-2xl transition-all duration-200 shadow-2xl"
+          className={`${
+            isCopilotExpanded ? 'w-[640px] xl:w-[700px]' : 'w-[380px] lg:w-[420px]'
+          } flex flex-col shrink-0 border-l border-white/[0.08] bg-[#090C13]/95 backdrop-blur-2xl transition-all duration-300 shadow-2xl overflow-hidden`}
         >
           <CopilotDrawer
             sessionId={currentSessionId}
+            campaign={campaign}
+            isExpanded={isCopilotExpanded}
+            onToggleExpand={() => setIsCopilotExpanded((prev) => !prev)}
             onExperimentLaunched={() => {
-              loadData();
+              refreshData();
               if (currentSessionId) fetchCampaignState(currentSessionId).then(setCampaign);
             }}
             onCampaignUpdated={(c) => setCampaign(c)}
+            onSelectSurface={(surf) => setActiveTab(surf as SurfaceTab)}
+            onClose={() => setShowCopilot(false)}
           />
         </aside>
+      ) : (
+        /* Ambient Floating Island (Meta Muse / Apple Intelligence style) */
+        <button
+          onClick={() => setShowCopilot(true)}
+          className="fixed bottom-6 right-6 z-40 px-4 py-2.5 rounded-full bg-gradient-to-r from-[#0C101A] to-[#121826] border border-cyan-500/40 hover:border-cyan-400 text-white shadow-2xl backdrop-blur-2xl flex items-center space-x-2.5 group transition-all duration-200 hover:scale-105 active:scale-95"
+          title="Open Kubona Companion (⌘J)"
+        >
+          <div className="relative">
+            <Sparkles className="w-4 h-4 text-cyan-400 animate-float-gentle" />
+            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          </div>
+          <span className="text-xs font-semibold text-slate-200 group-hover:text-white">
+            Kubona Companion
+          </span>
+          <kbd className="px-1.5 py-0.2 rounded bg-black/50 text-[10px] font-mono text-cyan-300 border border-white/10">
+            ⌘J
+          </kbd>
+        </button>
       )}
     </div>
   );

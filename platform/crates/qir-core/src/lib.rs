@@ -133,6 +133,9 @@ pub fn emit_qir(c: &Circuit) -> String {
     out
 }
 
+pub mod codegen;
+pub use codegen::{analyze_circuit, emit_llvm_ir, QirAnalysisSummary};
+
 impl fmt::Display for Circuit {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{} qubits, {} gates", self.num_qubits, self.gates.len())
@@ -171,5 +174,35 @@ mod tests {
         assert!(text.contains("@__quantum__qis__cx__body"));
         assert!(text.contains("@__quantum__rt__qubit_allocate"));
         assert!(text.contains("@__quantum__rt__record_output"));
+    }
+
+    #[test]
+    fn test_qft_4qubit_lowering_and_analysis() {
+        // 4-qubit Quantum Fourier Transform circuit subset
+        let qft_src = "OPENQASM 2.0;\nqreg q[4];\nh q[0];\nrz(1.570796) q[0];\ncx q[1],q[0];\nh q[1];\nrz(0.785398) q[0];\ncx q[2],q[0];\nh q[2];\nh q[3];";
+        let c = parse(qft_src).unwrap();
+        assert_eq!(c.num_qubits, 4);
+
+        let summary = analyze_circuit(&c);
+        assert_eq!(summary.qubit_allocations, 4);
+        assert_eq!(summary.total_gates, 8);
+        assert_eq!(summary.two_qubit_gates, 2);
+        assert_eq!(summary.single_qubit_gates, 6);
+        assert!(summary.gate_depth > 0);
+        assert!(summary.instruction_count > 0);
+
+        let llvm_ir = emit_llvm_ir(&c);
+        assert!(llvm_ir.contains("target datalayout"));
+        assert!(llvm_ir.contains("%Qubit = type opaque"));
+        assert!(llvm_ir.contains("@__quantum__qis__h__body"));
+        assert!(llvm_ir.contains("@__quantum__qis__cnot__body"));
+        assert!(llvm_ir.contains("@__quantum__qis__rz__body"));
+        assert!(llvm_ir.contains("@__quantum__rt__qubit_release"));
+        assert!(llvm_ir.contains("\"qir_profiles\"=\"BaseProfile\""));
+        assert!(llvm_ir.contains("qir_major_version"));
+
+        let json_str = summary.to_json();
+        assert!(json_str.contains("\"qubit_allocations\":4"));
+        assert!(json_str.contains("\"two_qubit_gates\":2"));
     }
 }

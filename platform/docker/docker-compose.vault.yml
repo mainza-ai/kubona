@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  openbao:
+    image: openbao/openbao:latest
+    container_name: kubona-openbao
+    environment:
+      BAO_DEV_ROOT_TOKEN_ID: "root-token-dev"
+      BAO_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+    ports:
+      - "8200:8200"
+    cap_add:
+      - IPC_LOCK
+    command: ["server", "-dev"]
+    healthcheck:
+      test: ["CMD", "bao", "status", "-address=http://127.0.0.1:8200"]
+      interval: 5s
+      timeout: 3s
+      retries: 3

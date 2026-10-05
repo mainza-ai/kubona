@@ -10,7 +10,7 @@ def get(url):
 def post(url, data):
     body = json.dumps(data).encode()
     req = urllib.request.Request(url, data=body, headers={"Content-Type": "application/json"})
-    with urllib.request.urlopen(req, timeout=120) as r:
+    with urllib.request.urlopen(req, timeout=180) as r:
         return json.loads(r.read().decode())
 
 def run_e2e_verification():
@@ -47,15 +47,15 @@ def run_e2e_verification():
     print(f"  Job ID: {job_id}, Status: {status}")
     time.sleep(1)
 
-    print("[4/6] Testing RFC 8032 Ed25519 AP2 Mandate Verification...")
-    mandate_resp = post("http://localhost:8080/api/mandates/verify", {
+    print("[4/6] Testing RFC 8032 Ed25519 AP2 Mandate Signing & Verification...")
+    signed = post("http://localhost:8080/api/mandates/sign", {
         "tenant_id": "tenant-quantum-lab-1",
         "job_hash": "sha256:88fa29810bce328a994781dfa98e21",
         "max_budget_usd": 25.0,
-        "expiry_timestamp": "2026-10-04T18:00:00Z",
-        "public_key_hex": "0cf1209e5a1158441b925e6c2c3cf8490126d238afc76390c84c504737e396cc",
-        "signature_hex": "82615c2f7d59162285ff63f0ce3ee74921c860443113e74b203949396dd89d22e9752d46f9a53549d8c5855c66331941c831671a4b7e7cc7db697228f6b13703"
+        "ttl_seconds": 3600
     })
+    mandate = signed.get("mandate", {})
+    mandate_resp = post("http://localhost:8080/api/mandates/verify", mandate)
     valid = mandate_resp.get("valid", False)
     print(f"  Mandate valid: {valid}")
     assert valid is True

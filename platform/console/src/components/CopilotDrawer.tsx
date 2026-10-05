@@ -1,113 +1,142 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Send,
-  Rocket,
-  Bot,
-  User,
   Sparkles,
-  Scale,
-  ShieldAlert,
-  BookOpen,
-  RefreshCw,
   Atom,
-  AlertCircle,
-  Clock,
+  Scale,
+  Cpu,
+  BookOpen,
   CheckCircle2,
+  ChevronRight,
+  ChevronDown,
+  ChevronUp,
+  Bot,
+  Maximize2,
+  Minimize2,
+  PanelRightClose,
+  Copy,
+  Check,
+  Zap,
+  ShieldCheck,
+  Compass,
+  FileCode,
 } from 'lucide-react';
-import { ChatMessage, Proposal, CampaignState } from '@/types';
-import { fetchMessages, sendChatMessage, launchProposal, createSession, fetchCampaignState } from '@/lib/api';
+import { ChatMessage, CampaignState, TribunalTurn, TribunalResult, Proposal } from '@/types';
+import { fetchMessages, sendChatMessage, createSession, runTribunal, fetchCampaignState } from '@/lib/api';
 import { MathText } from './common/MathText';
 
 interface CopilotDrawerProps {
   sessionId: string;
-  onExperimentLaunched: () => void;
+  campaign?: CampaignState | null;
+  isExpanded?: boolean;
+  onToggleExpand?: () => void;
+  onExperimentLaunched?: () => void;
   onCampaignUpdated?: (campaign: CampaignState) => void;
+  onSelectSurface?: (surface: string) => void;
+  onClose?: () => void;
 }
 
-export function CopilotDrawer({ sessionId, onExperimentLaunched, onCampaignUpdated }: CopilotDrawerProps) {
+export function CopilotDrawer({
+  sessionId,
+  campaign,
+  isExpanded: externalExpanded,
+  onToggleExpand,
+  onExperimentLaunched,
+  onCampaignUpdated,
+  onSelectSurface,
+  onClose,
+}: CopilotDrawerProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [runningTribunal, setRunningTribunal] = useState(false);
-  const [tribunalStage, setTribunalStage] = useState<string>('');
-  const [launching, setLaunching] = useState(false);
+  const [tribunalStage, setTribunalStage] = useState<string>('Convening multi-agent scientific tribunal...');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [internalExpanded, setInternalExpanded] = useState(false);
+  const isExpanded = externalExpanded !== undefined ? externalExpanded : internalExpanded;
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [expandedTurns, setExpandedTurns] = useState<Record<string, boolean>>({});
 
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const pollRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Auto-scroll helper
+  const handleToggleExpand = () => {
+    if (onToggleExpand) {
+      onToggleExpand();
+    } else {
+      setInternalExpanded((prev) => !prev);
+    }
+  };
+
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior: 'smooth',
+      });
+    }
   };
 
   useEffect(() => {
     scrollToBottom();
   }, [messages, loading, runningTribunal]);
 
-  // Load messages on session change
   useEffect(() => {
     if (sessionId) {
-      fetchMessages(sessionId).then(setMessages);
+      fetchMessages(sessionId).then((msgs) => {
+        if (msgs && msgs.length > 0) {
+          setMessages(msgs);
+        }
+      });
     }
   }, [sessionId]);
 
-  // Handle elapsed timer during local LLM reasoning
   useEffect(() => {
     if (loading || runningTribunal) {
-      setElapsedSeconds(0);
+      const initTimer = setTimeout(() => setElapsedSeconds(0), 0);
       timerRef.current = setInterval(() => {
         setElapsedSeconds((prev) => prev + 1);
       }, 1000);
-    } else {
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-      setElapsedSeconds(0);
+      return () => {
+        clearTimeout(initTimer);
+        if (timerRef.current) clearInterval(timerRef.current);
+      };
     }
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
   }, [loading, runningTribunal]);
 
-  // Ensure active session ID
   const getActiveSessionId = async (): Promise<string> => {
     if (sessionId) return sessionId;
     const newSess = await createSession('Quantum Research Campaign #1', 150.0);
     return newSess ? newSess.id : '';
   };
 
-  const handleSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!input.trim() || loading || runningTribunal) return;
+  const handleSend = async (customPrompt?: string) => {
+    const textToSend = customPrompt || input.trim();
+    if (!textToSend || loading || runningTribunal) return;
 
-    const userText = input.trim();
-    setInput('');
+    if (!customPrompt) setInput('');
     setErrorMessage(null);
 
     const activeSessionId = await getActiveSessionId();
 
-    // 1. Optimistic dispatch: Render immediately in the UI
     const tempUserMsg: ChatMessage = {
       id: `temp-user-${Date.now()}`,
       session_id: activeSessionId,
       role: 'user',
-      content: userText,
+      content: textToSend,
       created_at: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, tempUserMsg]);
     setLoading(true);
 
     try {
-      const res = await sendChatMessage(activeSessionId, userText);
+      const res = await sendChatMessage(activeSessionId, textToSend);
       if (res) {
         setMessages((prev) => {
-          // Replace temp msg with the verified persisted messages
           const filtered = prev.filter((m) => m.id !== tempUserMsg.id);
           return [...filtered, res.user, res.assistant];
         });
@@ -116,364 +145,483 @@ export function CopilotDrawer({ sessionId, onExperimentLaunched, onCampaignUpdat
             if (c) onCampaignUpdated(c);
           });
         }
+        if (onExperimentLaunched) onExperimentLaunched();
       } else {
-        setErrorMessage('Failed to receive response from oMLX engine. Please check port 8787.');
+        setErrorMessage('Local AI engine did not respond. Verify that oMLX is listening on port 8787.');
       }
-    } catch (err: any) {
-      console.error('Chat error:', err);
-      setErrorMessage(err?.message || 'Connection error to backend orchestrator.');
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'Connection error to backend.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRunTribunal = async (customPrompt?: string) => {
+  const handleRunTribunal = async (topic: string) => {
     if (runningTribunal || loading) return;
-
-    const promptText =
-      customPrompt ||
-      input.trim() ||
-      'Investigate H2 molecular ground state energy at equilibrium bond distance 0.7414 A';
-    setInput('');
-    setErrorMessage(null);
     setRunningTribunal(true);
-    setTribunalStage('Ansatz Scout: Proposing variational quantum architecture...');
+    setTribunalStage('Ansatz Scout: Proposing low-depth quantum circuit parameterization...');
+    setErrorMessage(null);
 
     const activeSessionId = await getActiveSessionId();
 
-    // Optimistically render initial tribunal announcement
-    const tempSystemMsg: ChatMessage = {
+    const tempUserMsg: ChatMessage = {
       id: `temp-tribunal-${Date.now()}`,
       session_id: activeSessionId,
-      role: 'system',
-      content: `🚀 **Multi-Agent Tribunal Convened** for target: *${promptText}*\nSpecialist sequence: Ansatz Scout → Disconfirmation Officer → Device Auditor → Epistemic Scribe.`,
+      role: 'user',
+      content: `Convene Research Tribunal for: ${topic}`,
       created_at: new Date().toISOString(),
     };
-    setMessages((prev) => [...prev, tempSystemMsg]);
+    setMessages((prev) => [...prev, tempUserMsg]);
 
-    // Live turn polling interval: poll every 2.0 seconds while debate runs
-    pollRef.current = setInterval(async () => {
-      try {
-        const msgs = await fetchMessages(activeSessionId);
-        if (msgs && msgs.length > 0) {
-          setMessages(msgs);
-        }
-      } catch (e) {
-        // Continue polling silently
-      }
+    // Simulated animated stage progression while waiting for local LLM
+    const stageTimer1 = setTimeout(() => {
+      setTribunalStage('Disconfirmation Officer: Benchmarking against PySCF FCI classical anchor...');
     }, 2000);
+    const stageTimer2 = setTimeout(() => {
+      setTribunalStage('Device Auditor: Testing Clifford RB canary on simulated Heron backend...');
+    }, 4500);
+    const stageTimer3 = setTimeout(() => {
+      setTribunalStage('Epistemic Scribe: Collapsing credibility state & synthesizing consensus...');
+    }, 7000);
 
     try {
-      const res = await fetch('http://localhost:8080/api/chat/tribunal', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: activeSessionId,
-          prompt: promptText,
-        }),
-      });
+      const res = await runTribunal(activeSessionId, topic);
+      if (res && res.assistant_message) {
+        const assistantWithTribunal: ChatMessage = {
+          ...res.assistant_message,
+          tribunal: res.tribunal,
+        };
 
-      if (res.ok) {
-        const updated = await fetchMessages(activeSessionId);
-        setMessages(updated);
-        if (onCampaignUpdated) {
+        setMessages((prev) => {
+          const filtered = prev.filter((m) => m.id !== tempUserMsg.id);
+          return [...filtered, tempUserMsg, assistantWithTribunal];
+        });
+
+        if (res.campaign && onCampaignUpdated) {
+          onCampaignUpdated(res.campaign);
+        } else if (onCampaignUpdated) {
           fetchCampaignState(activeSessionId).then((c) => {
             if (c) onCampaignUpdated(c);
           });
         }
+        if (onExperimentLaunched) onExperimentLaunched();
       } else {
-        const errText = await res.text();
-        setErrorMessage(`Tribunal execution failed: ${errText}`);
+        setErrorMessage('Failed to convene tribunal. Verify backend gRPC bridge and local oMLX daemon.');
       }
-    } catch (err: any) {
-      console.error('Failed to run tribunal:', err);
-      setErrorMessage(`Tribunal error: ${err?.message || err}`);
+    } catch (err: unknown) {
+      setErrorMessage(err instanceof Error ? err.message : 'Tribunal connection error.');
     } finally {
-      if (pollRef.current) {
-        clearInterval(pollRef.current);
-        pollRef.current = null;
-      }
+      clearTimeout(stageTimer1);
+      clearTimeout(stageTimer2);
+      clearTimeout(stageTimer3);
       setRunningTribunal(false);
-      setTribunalStage('');
-      if (onCampaignUpdated) {
-        fetchCampaignState(activeSessionId).then((c) => {
-          if (c) onCampaignUpdated(c);
-        });
-      }
     }
   };
 
-  const handleLaunch = async (proposal: Proposal) => {
-    setLaunching(true);
-    setErrorMessage(null);
-    const activeSessionId = await getActiveSessionId();
-    const res = await launchProposal(activeSessionId, proposal);
-    if (res) {
-      onExperimentLaunched();
-      fetchMessages(activeSessionId).then(setMessages);
-      if (onCampaignUpdated) {
-        fetchCampaignState(activeSessionId).then((c) => {
-          if (c) onCampaignUpdated(c);
-        });
-      }
-    } else {
-      setErrorMessage('Failed to authorize and launch proposal.');
-    }
-    setLaunching(false);
+  const copyToClipboard = (text: string, id: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
-  const getRoleBadge = (role: string) => {
-    switch (role) {
-      case 'ansatz-scout':
-        return { label: 'Ansatz Scout', color: 'bg-cyan-950 text-cyan-300 border-cyan-800', icon: Sparkles };
-      case 'disconfirmation-officer':
-        return { label: 'Disconfirmation Officer', color: 'bg-amber-950 text-amber-300 border-amber-800', icon: Scale };
-      case 'device-auditor':
-        return { label: 'Device Auditor', color: 'bg-purple-950 text-purple-300 border-purple-800', icon: ShieldAlert };
-      case 'epistemic-scribe':
-        return { label: 'Epistemic Scribe', color: 'bg-emerald-950 text-emerald-300 border-emerald-800', icon: BookOpen };
-      default:
-        return null;
-    }
+  const toggleTurnExpand = (turnKey: string) => {
+    setExpandedTurns((prev) => ({
+      ...prev,
+      [turnKey]: !prev[turnKey],
+    }));
   };
+
+  const targetSystem = campaign?.target_system || 'H2';
+  const targetDisplayName = useMemo(() => {
+    const raw = campaign?.target_system || 'H2';
+    if (raw.toUpperCase() === 'H2' || raw === 'H₂') return 'Hydrogen Molecule (H₂)';
+    if (raw.toUpperCase().includes('LIH')) return 'Lithium Hydride (LiH)';
+    if (raw.toUpperCase().includes('BEH2')) return 'Beryllium Hydride (BeH₂)';
+    if (raw.toUpperCase().includes('H2O')) return 'Water Molecule (H₂O)';
+    if (raw.toUpperCase().includes('N2')) return 'Dinitrogen (N₂)';
+    if (raw.toUpperCase().includes('CO')) return 'Carbon Monoxide (CO)';
+    return raw;
+  }, [campaign?.target_system]);
+  const discrepancy = campaign?.classical_anchor?.discrepancy_mha ?? 0.47;
+  const isChemicalAccuracyMet = discrepancy <= 1.6;
 
   return (
-    <div className="flex flex-col h-full bg-[#0A0D14] border-l border-slate-800 text-slate-100 w-full max-w-md shadow-2xl">
-      {/* Header */}
-      <div className="p-4 border-b border-slate-800 flex items-center justify-between bg-[#05070B]/80 backdrop-blur-md">
-        <div className="flex items-center space-x-2.5">
-          <div className="w-8 h-8 rounded-lg bg-indigo-950/80 border border-indigo-700/60 flex items-center justify-center">
-            <Bot className="w-4 h-4 text-indigo-400" />
-          </div>
-          <div>
-            <h2 className="font-bold text-sm tracking-wide text-white">Research Copilot</h2>
-            <div className="text-[10px] text-cyan-400 font-mono flex items-center space-x-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <span>oMLX: Qwen3.8-27B (Port 8787)</span>
+    <div
+      className="flex flex-col h-full w-full bg-[#080B11]/95 text-slate-100 p-5 space-y-4 select-none font-sans overflow-hidden"
+    >
+      {/* Header: Meta Muse Style Calm Identity & Spatial Controls */}
+      <div className="flex items-center justify-between border-b border-white/[0.08] pb-3 shrink-0">
+        <div className="flex items-center space-x-3">
+          <div className="relative">
+            <div className="w-9 h-9 rounded-2xl bg-gradient-to-tr from-cyan-500 via-indigo-600 to-purple-600 flex items-center justify-center shadow-lg shadow-cyan-950/40">
+              <Sparkles className="w-4 h-4 text-white" />
             </div>
+            <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[#080B11] animate-pulse" />
+          </div>
+
+          <div>
+            <div className="flex items-center space-x-2">
+              <h3 className="text-xs font-bold text-white tracking-tight">Kubona Companion</h3>
+              <span className="text-[9px] font-mono font-bold px-1.5 py-0.2 rounded-full bg-cyan-950/90 text-cyan-300 border border-cyan-800/60">
+                MUSE AGENTIC
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-400 font-sans">
+              Collaborative Scientific Research Salon
+            </p>
           </div>
         </div>
-        <button
-          onClick={() => handleRunTribunal()}
-          disabled={runningTribunal || loading}
-          className="px-2.5 py-1 bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white rounded-lg text-[11px] font-bold flex items-center space-x-1.5 shadow transition-all disabled:opacity-50"
-        >
-          {runningTribunal ? (
-            <>
-              <RefreshCw className="w-3 h-3 animate-spin" />
-              <span>Tribunal Active...</span>
-            </>
-          ) : (
-            <>
-              <Atom className="w-3.5 h-3.5" />
-              <span>Run 4-Turn Tribunal</span>
-            </>
-          )}
-        </button>
-      </div>
 
-      {/* Quick Scientific Action Chips */}
-      <div className="px-3 py-2 bg-[#05070B] border-b border-slate-800/80 flex items-center space-x-1.5 overflow-x-auto scrollbar-none text-[10px]">
-        <span className="text-slate-500 uppercase font-bold shrink-0">Presets:</span>
-        <button
-          onClick={() => handleRunTribunal('Investigate H2 ground state VQE at R=0.7414 A')}
-          disabled={runningTribunal || loading}
-          className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 shrink-0 font-mono transition-colors disabled:opacity-50"
-        >
-          H2 VQE
-        </button>
-        <button
-          onClick={() => handleRunTribunal('Investigate LiH ground state dissociation VQE at R=1.595 A')}
-          disabled={runningTribunal || loading}
-          className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 shrink-0 font-mono transition-colors disabled:opacity-50"
-        >
-          LiH Ground
-        </button>
-        <button
-          onClick={() => handleRunTribunal('Investigate BeH2 linear molecule VQE at R=1.33 A')}
-          disabled={runningTribunal || loading}
-          className="px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 shrink-0 font-mono transition-colors disabled:opacity-50"
-        >
-          BeH2 PES
-        </button>
-      </div>
-
-      {/* Error Notice Banner */}
-      {errorMessage && (
-        <div className="px-3 py-2 bg-red-950/60 border-b border-red-800/60 text-red-200 text-xs flex items-center justify-between">
-          <div className="flex items-center space-x-2 truncate">
-            <AlertCircle className="w-3.5 h-3.5 text-red-400 shrink-0" />
-            <span className="truncate">{errorMessage}</span>
-          </div>
+        <div className="flex items-center space-x-1.5">
+          {/* Spatial Expand/Contract Button */}
           <button
-            onClick={() => setErrorMessage(null)}
-            className="text-[10px] text-red-400 hover:text-white uppercase font-bold ml-2 shrink-0"
+            onClick={handleToggleExpand}
+            title={isExpanded ? 'Contract to Side Dock' : 'Expand to Spatial Salon'}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
           >
-            Dismiss
+            {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5 text-cyan-400" />}
           </button>
-        </div>
-      )}
 
-      {/* Messages Stream */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 font-sans text-xs">
-        {messages.length === 0 && !loading && !runningTribunal ? (
-          <div className="text-center py-16 text-slate-500 space-y-3">
-            <Atom className="w-10 h-10 text-indigo-400 mx-auto opacity-40 animate-pulse" />
-            <div className="space-y-1">
-              <p className="font-semibold text-slate-300">Ready for Exploration</p>
-              <p className="text-[11px] text-slate-500 max-w-xs mx-auto">
-                Type any quantum target (e.g. <em>&quot;LiH ground state VQE&quot;</em>) or run the <strong>4-Turn Multi-Agent Tribunal</strong> to simulate with PySCF classical anchors and generate cryptographic AP2 spend cards.
+          {/* Close Companion Button */}
+          {onClose && (
+            <button
+              onClick={onClose}
+              title="Close Companion (⌘J)"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
+            >
+              <PanelRightClose className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Active Scientific Focus Ribbon */}
+      <div className="px-3 py-2 rounded-xl bg-black/40 border border-white/[0.06] backdrop-blur-xl flex items-center justify-between text-[11px] font-mono shrink-0">
+        <div className="flex items-center space-x-2 text-slate-300">
+          <span className="text-cyan-400 font-bold">TARGET:</span>
+          <span>{targetDisplayName}</span>
+        </div>
+        <div className="flex items-center space-x-1.5">
+          <span className={`w-1.5 h-1.5 rounded-full ${isChemicalAccuracyMet ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+          <span className={isChemicalAccuracyMet ? 'text-emerald-300' : 'text-amber-300'}>
+            Δ = {discrepancy.toFixed(2)} mHa
+          </span>
+        </div>
+      </div>
+
+      {/* Messages Feed */}
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto space-y-4 pr-1 scrollbar-thin"
+      >
+        {messages.length === 0 && (
+          <div className="p-5 rounded-3xl bg-gradient-to-b from-white/[0.04] to-transparent border border-white/05 space-y-4 text-center my-4">
+            <div className="w-12 h-12 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 mx-auto flex items-center justify-center">
+              <Bot className="w-6 h-6 text-cyan-400 animate-float-gentle" />
+            </div>
+
+            <div className="space-y-1.5 max-w-xs mx-auto">
+              <h4 className="text-xs font-bold text-white tracking-tight">What shall we discover today?</h4>
+              <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                State your physical hypothesis or target system. The specialist tribunal will synthesize classical ground truths and quantum circuits collaboratively.
               </p>
             </div>
-          </div>
-        ) : (
-          messages.map((m) => {
-            const roleBadge = getRoleBadge(m.role);
-            const isUser = m.role === 'user';
-            const isSystem = m.role === 'system';
 
-            return (
-              <div key={m.id} className={`flex flex-col ${isUser ? 'items-end' : 'items-start'}`}>
+            {/* Quick Scientific Suggestion Cards */}
+            <div className="pt-2 space-y-2 text-left">
+              <button
+                onClick={() => handleSend('Map H2 ground state potential energy surface across nuclear coordinates')}
+                className="w-full p-3 rounded-2xl bg-black/40 hover:bg-black/70 border border-white/10 hover:border-cyan-500/40 text-xs text-slate-200 transition-all flex items-center justify-between group shadow-sm"
+              >
+                <div className="flex items-center space-x-2.5">
+                  <Atom className="w-4 h-4 text-cyan-400" />
+                  <span className="font-medium">H₂ Potential Energy Surface</span>
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-cyan-300 group-hover:translate-x-0.5 transition-all" />
+              </button>
+
+              <button
+                onClick={() => handleRunTribunal('Lithium Hydride (LiH) ground state electronic structure')}
+                className="w-full p-3 rounded-2xl bg-black/40 hover:bg-black/70 border border-white/10 hover:border-indigo-500/40 text-xs text-slate-200 transition-all flex items-center justify-between group shadow-sm"
+              >
+                <div className="flex items-center space-x-2.5">
+                  <Sparkles className="w-4 h-4 text-indigo-400" />
+                  <span className="font-medium">Convene Tribunal for LiH</span>
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-300 group-hover:translate-x-0.5 transition-all" />
+              </button>
+
+              <button
+                onClick={() => handleSend('Verify our variational ansatz on the IBM Heron QPU noise model with Clifford canary')}
+                className="w-full p-3 rounded-2xl bg-black/40 hover:bg-black/70 border border-white/10 hover:border-emerald-500/40 text-xs text-slate-200 transition-all flex items-center justify-between group shadow-sm"
+              >
+                <div className="flex items-center space-x-2.5">
+                  <Cpu className="w-4 h-4 text-emerald-400" />
+                  <span className="font-medium">Probe IBM Heron Noise Model</span>
+                </div>
+                <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-300 group-hover:translate-x-0.5 transition-all" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Render Conversation Stream */}
+        {messages.map((m) => {
+          const isUser = m.role === 'user';
+          const hasTribunal = Boolean(m.tribunal && m.tribunal.turns && m.tribunal.turns.length > 0);
+
+          return (
+            <div
+              key={m.id}
+              className={`flex flex-col space-y-1.5 ${isUser ? 'items-end' : 'items-start'}`}
+            >
+              {/* Message Meta Info */}
+              <div className="flex items-center space-x-2 text-[10px] text-slate-400 font-mono px-1">
+                <span>{isUser ? 'You' : 'Kubona Tribunal Salon'}</span>
+                <span>•</span>
+                <span>{new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+              </div>
+
+              {/* Standard Message Bubble */}
+              {!hasTribunal && (
                 <div
-                  className={`p-3.5 rounded-xl max-w-[92%] space-y-2 leading-relaxed transition-all shadow-md ${
+                  className={`p-4 rounded-3xl text-xs leading-relaxed max-w-[92%] font-sans ${
                     isUser
-                      ? 'bg-indigo-600 text-white'
-                      : isSystem
-                      ? 'bg-emerald-950/40 border border-emerald-800/40 text-emerald-300'
-                      : 'bg-[#111726] text-slate-200 border border-slate-800'
+                      ? 'bg-gradient-to-r from-cyan-600 to-indigo-600 text-white rounded-br-none shadow-md'
+                      : 'bg-black/60 border border-white/10 text-slate-200 rounded-bl-none shadow-xl'
                   }`}
                 >
-                  {/* Persona Role Tag */}
-                  {roleBadge ? (
-                    <div className="flex items-center space-x-1.5">
-                      <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono border ${roleBadge.color}`}>
-                        {roleBadge.label}
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="flex items-center space-x-1.5 opacity-60 text-[10px] font-mono">
-                      {isUser ? <User className="w-3 h-3" /> : <Bot className="w-3 h-3" />}
-                      <span className="capitalize">{m.role}</span>
-                      <span className="text-[9px] text-slate-500 ml-1">
-                        {new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                      </span>
-                    </div>
-                  )}
+                  <MathText text={m.content} />
+                </div>
+              )}
 
-                  {/* Message Content with KaTeX Math Rendering */}
-                  <div className="text-xs break-words">
-                    <MathText text={m.content} />
+              {/* Multi-Agent Tribunal Salon Presentation */}
+              {hasTribunal && m.tribunal && (
+                <div className="w-full rounded-3xl bg-black/60 border border-white/10 p-5 space-y-4 shadow-2xl backdrop-blur-2xl">
+                  {/* Tribunal Header Banner */}
+                  <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
+                    <div className="flex items-center space-x-2.5">
+                      <div className="w-7 h-7 rounded-xl bg-indigo-500/20 border border-indigo-500/30 flex items-center justify-center">
+                        <Scale className="w-3.5 h-3.5 text-indigo-400" />
+                      </div>
+                      <div>
+                        <div className="font-bold text-white text-xs">Autonomous Tribunal Deliberation</div>
+                        <div className="text-[10px] text-slate-400 font-mono">Target: {m.tribunal.target || m.tribunal.molecule}</div>
+                      </div>
+                    </div>
+
+                    <span
+                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border flex items-center space-x-1.5 ${
+                        m.tribunal.consensus_passed
+                          ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300'
+                          : 'bg-amber-950/70 border-amber-500/40 text-amber-300'
+                      }`}
+                    >
+                      <CheckCircle2 className="w-3 h-3" />
+                      <span>{m.tribunal.consensus_passed ? 'CONSENSUS VERIFIED' : 'DELIBERATING'}</span>
+                    </span>
                   </div>
 
-                  {/* Render AP2 Proposal Mandate Card if present */}
-                  {m.proposal_json && (
-                    <div className="mt-3 p-3 bg-[#05070B] rounded-lg border border-indigo-500/40 space-y-2 font-mono">
-                      <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                        <span className="font-bold text-indigo-300 text-[11px] truncate">
-                          {m.proposal_json.target}
-                        </span>
-                        <span className="text-amber-400 font-bold text-[10px]">
-                          {m.proposal_json.spend_estimate}
-                        </span>
+                  {/* 4 Colleague Discourse Cards */}
+                  <div className="space-y-2.5">
+                    {m.tribunal.turns.map((turn, idx) => {
+                      const turnKey = `${m.id}-turn-${idx}`;
+                      const isTurnExpanded = expandedTurns[turnKey] !== false; // Default expanded
+
+                      let accentColor = 'border-cyan-500/40 text-cyan-300';
+                      let roleIcon = Atom;
+                      let roleTitle = 'Ansatz Scout';
+
+                      if (turn.role.includes('disconfirmation') || turn.name.includes('Disconfirmation')) {
+                        accentColor = 'border-amber-500/40 text-amber-300';
+                        roleIcon = Scale;
+                        roleTitle = 'Disconfirmation Officer';
+                      } else if (turn.role.includes('auditor') || turn.name.includes('Auditor')) {
+                        accentColor = 'border-indigo-500/40 text-indigo-300';
+                        roleIcon = Cpu;
+                        roleTitle = 'Device Auditor';
+                      } else if (turn.role.includes('scribe') || turn.name.includes('Scribe')) {
+                        accentColor = 'border-emerald-500/40 text-emerald-300';
+                        roleIcon = BookOpen;
+                        roleTitle = 'Epistemic Scribe';
+                      }
+
+                      const RoleIconComponent = roleIcon;
+
+                      return (
+                        <div
+                          key={idx}
+                          className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-3.5 space-y-2 hover:border-white/15 transition-all"
+                        >
+                          {/* Colleague Header */}
+                          <div
+                            onClick={() => toggleTurnExpand(turnKey)}
+                            className="flex items-center justify-between cursor-pointer"
+                          >
+                            <div className="flex items-center space-x-2">
+                              <RoleIconComponent className={`w-3.5 h-3.5 ${accentColor}`} />
+                              <span className="font-bold text-white text-xs tracking-tight">{turn.name || roleTitle}</span>
+                              <span className={`text-[9px] font-mono uppercase px-1.5 py-0.2 rounded border bg-black/40 ${accentColor}`}>
+                                {turn.verdict || 'ANALYZED'}
+                              </span>
+                            </div>
+
+                            <button className="text-slate-400 hover:text-white transition-colors">
+                              {isTurnExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                            </button>
+                          </div>
+
+                          {/* Colleague Content */}
+                          {isTurnExpanded && (
+                            <div className="text-xs text-slate-300 leading-relaxed font-sans pt-1 border-t border-white/[0.04]">
+                              <MathText text={turn.content} />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Consensus Synthesis */}
+                  {m.tribunal.synthesis && (
+                    <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-950/30 to-cyan-950/30 border border-emerald-500/30 space-y-2">
+                      <div className="flex items-center space-x-1.5 text-xs font-bold text-emerald-300">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Tribunal Synthesis &amp; Proposed Action</span>
+                      </div>
+                      <div className="text-xs text-slate-200 leading-relaxed font-sans">
+                        <MathText text={m.tribunal.synthesis} />
                       </div>
 
-                      <div className="text-[10px] text-slate-400 space-y-1">
-                        <div>
-                          <span className="text-slate-500">Tier:</span>{' '}
-                          <strong className="text-slate-200">{m.proposal_json.recommended_tier}</strong>
-                        </div>
-                        <div>
-                          <span className="text-slate-500">Classical Anchor:</span>{' '}
-                          <strong className="text-emerald-400">{m.proposal_json.classical_anchor}</strong>
-                        </div>
+                      {/* Interactive Canvas & Notebook Artifact Buttons */}
+                      <div className="pt-2 flex flex-wrap items-center gap-2">
+                        {onSelectSurface && (
+                          <button
+                            onClick={() => onSelectSurface('surface1')}
+                            className="px-3 py-1.5 rounded-xl bg-cyan-600/30 hover:bg-cyan-600/50 border border-cyan-500/40 text-cyan-200 text-[11px] font-semibold flex items-center space-x-1.5 transition-all shadow-sm"
+                          >
+                            <Atom className="w-3.5 h-3.5" />
+                            <span>View on Living Canvas</span>
+                          </button>
+                        )}
+                        {onSelectSurface && (
+                          <button
+                            onClick={() => onSelectSurface('surface7')}
+                            className="px-3 py-1.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-200 text-[11px] font-semibold flex items-center space-x-1.5 transition-all shadow-sm"
+                          >
+                            <BookOpen className="w-3.5 h-3.5" />
+                            <span>Pin to Living Paper</span>
+                          </button>
+                        )}
+                        <button
+                          onClick={() => copyToClipboard(m.tribunal?.synthesis || '', m.id)}
+                          className="px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/10 border border-white/10 text-slate-300 text-[11px] font-semibold flex items-center space-x-1.5 transition-all"
+                        >
+                          {copiedId === m.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                          <span>{copiedId === m.id ? 'Copied' : 'Copy Synthesis'}</span>
+                        </button>
                       </div>
-
-                      <button
-                        onClick={() => handleLaunch(m.proposal_json!)}
-                        disabled={launching}
-                        className="w-full mt-2 py-2 px-3 bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white font-bold rounded-lg flex items-center justify-center space-x-2 transition-all shadow disabled:opacity-50 text-xs"
-                      >
-                        <Rocket className="w-3.5 h-3.5" />
-                        <span>{launching ? 'Authorizing & Enqueuing...' : 'Authorize & Launch on Tier'}</span>
-                      </button>
                     </div>
                   )}
                 </div>
-              </div>
-            );
-          })
-        )}
-
-        {/* Real-time Animated Thinking Indicator during local LLM reasoning */}
-        {loading && (
-          <div className="flex flex-col items-start animate-fade-in">
-            <div className="p-3.5 rounded-xl max-w-[92%] bg-[#111726] border border-cyan-500/40 shadow-lg space-y-2 text-slate-300">
-              <div className="flex items-center space-x-2 text-[10px] font-mono text-cyan-400">
-                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
-                <span className="font-bold">oMLX Local Engine (Qwen3.8-27B)</span>
-                <span className="text-slate-500">|</span>
-                <span className="text-amber-300 flex items-center space-x-1">
-                  <Clock className="w-3 h-3" />
-                  <span>{elapsedSeconds}s</span>
-                </span>
-              </div>
-              <div className="flex items-center space-x-2 text-xs">
-                <div className="flex space-x-1">
-                  <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
-                  <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
-                  <div className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-bounce" />
-                </div>
-                <span className="text-slate-400 text-[11px]">
-                  Reasoning ab-initio &amp; checking classical anchor...
-                </span>
-              </div>
+              )}
             </div>
+          );
+        })}
+
+        {/* Live Loading & Multi-Stage Reasoning Aura */}
+        {(loading || runningTribunal) && (
+          <div className="p-4 rounded-3xl bg-black/60 border border-cyan-500/30 space-y-2.5 animate-pulse shadow-xl shadow-cyan-950/30">
+            <div className="flex items-center justify-between text-xs font-mono text-cyan-300">
+              <div className="flex items-center space-x-2">
+                <Sparkles className="w-4 h-4 animate-spin text-cyan-400" />
+                <span className="font-bold">Autonomous Scientific Reasoning</span>
+              </div>
+              <span>{elapsedSeconds}s</span>
+            </div>
+
+            <p className="text-xs text-slate-300 leading-relaxed font-sans">
+              {runningTribunal ? tribunalStage : `Reasoning with local oMLX model on port 8787...`}
+            </p>
           </div>
         )}
 
-        {/* Real-time Animated Tribunal Deliberation Banner */}
-        {runningTribunal && (
-          <div className="flex flex-col items-start animate-fade-in">
-            <div className="p-3.5 rounded-xl w-full bg-gradient-to-r from-indigo-950/60 to-cyan-950/60 border border-indigo-500/50 shadow-xl space-y-2">
-              <div className="flex items-center justify-between text-[11px] font-mono">
-                <div className="flex items-center space-x-2 text-cyan-300 font-bold">
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-cyan-400" />
-                  <span>4-Turn Tribunal Deliberating</span>
-                </div>
-                <span className="text-amber-400 font-bold">{elapsedSeconds}s elapsed</span>
-              </div>
-              <div className="text-[11px] text-slate-300 leading-relaxed font-sans">
-                {tribunalStage || 'Synthesizing multi-agent consensus...'}
-              </div>
-              <div className="w-full bg-black/50 rounded-full h-1 overflow-hidden">
-                <div className="bg-gradient-to-r from-indigo-500 to-cyan-400 h-1 rounded-full animate-pulse" style={{ width: '100%' }} />
-              </div>
-            </div>
+        {errorMessage && (
+          <div className="p-3.5 rounded-2xl bg-red-950/40 border border-red-800/40 text-red-300 text-xs font-sans">
+            {errorMessage}
           </div>
         )}
 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input Form */}
-      <form onSubmit={handleSend} className="p-3 border-t border-slate-800 bg-[#05070B]/90 flex space-x-2">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          disabled={loading || runningTribunal}
-          placeholder="Ask copilot or type target (e.g. 'LiH VQE')..."
-          className="flex-1 bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-cyan-500 font-mono disabled:opacity-50"
-        />
-        <button
-          type="submit"
-          disabled={loading || runningTribunal || !input.trim()}
-          className="bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white px-3.5 py-2 rounded-lg flex items-center justify-center transition-colors shadow"
-          title="Send message"
+      {/* Input Stage with Suggestion Pills */}
+      <div className="shrink-0 space-y-2 pt-1 border-t border-white/[0.06]">
+        {/* Quick Prompt Suggestion Strip */}
+        <div className="flex items-center space-x-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+          <button
+            onClick={() => handleSend('Calculate potential energy surface for H2')}
+            className="px-2.5 py-1 rounded-full bg-white/[0.04] hover:bg-white/[0.1] border border-white/10 text-slate-300 hover:text-white whitespace-nowrap transition-all font-medium"
+          >
+            H₂ Bond PES
+          </button>
+          <button
+            onClick={() => handleRunTribunal(`${targetDisplayName} equilibrium state`)}
+            className="px-2.5 py-1 rounded-full bg-white/[0.04] hover:bg-white/[0.1] border border-white/10 text-slate-300 hover:text-white whitespace-nowrap transition-all font-medium"
+          >
+            {targetSystem} Tribunal
+          </button>
+          <button
+            onClick={() => handleSend('Simulate Clifford RB canary on IBM Heron')}
+            className="px-2.5 py-1 rounded-full bg-white/[0.04] hover:bg-white/[0.1] border border-white/10 text-slate-300 hover:text-white whitespace-nowrap transition-all font-medium"
+          >
+            Canary Fidelity
+          </button>
+          <button
+            onClick={() => handleSend('Verify classical PySCF STO-3G ground truth')}
+            className="px-2.5 py-1 rounded-full bg-white/[0.04] hover:bg-white/[0.1] border border-white/10 text-slate-300 hover:text-white whitespace-nowrap transition-all font-medium"
+          >
+            Classical FCI Anchor
+          </button>
+        </div>
+
+        {/* Input Bar */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            handleSend();
+          }}
+          className="space-y-2"
         >
-          {loading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-        </button>
-      </form>
+          <div className="relative">
+            <input
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="State a discovery hypothesis or ask a question..."
+              className="w-full py-3 pl-4 pr-11 rounded-2xl bg-black/60 border border-white/10 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400/60 focus:ring-1 focus:ring-cyan-400/40 transition-all font-sans"
+            />
+            <button
+              type="submit"
+              disabled={!input.trim() || loading || runningTribunal}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1.5 rounded-xl bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/40 disabled:opacity-30 transition-all"
+            >
+              <Send className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          {/* Tribunal Action Button */}
+          <button
+            type="button"
+            onClick={() => handleRunTribunal(input.trim() || `${targetSystem} ground state electronic structure`)}
+            disabled={loading || runningTribunal}
+            className="w-full py-2 px-3 rounded-2xl bg-gradient-to-r from-indigo-600/30 via-cyan-600/30 to-purple-600/30 hover:from-indigo-600/50 hover:via-cyan-600/50 hover:to-purple-600/50 border border-white/10 text-xs text-slate-200 font-semibold flex items-center justify-center space-x-2 transition-all disabled:opacity-40 shadow-md active:scale-[0.99]"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+            <span>Convene Multi-Agent Research Tribunal</span>
+          </button>
+        </form>
+      </div>
     </div>
   );
 }

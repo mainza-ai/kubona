@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Sparkles,
   PlayCircle,
@@ -11,15 +11,12 @@ import {
   BookOpen,
   LayoutDashboard,
   ShieldCheck,
-  Zap,
-  GitBranch,
+  Atom,
+  CheckCircle2,
+  ChevronRight,
   Sliders,
-  Copy,
-  Check,
 } from 'lucide-react';
-import { Loop, LedgerEvent, CampaignState } from '@/types';
-import { SpeedometerGauge } from './common/SpeedometerGauge';
-import { MathText } from './common/MathText';
+import { Loop, LedgerEvent, CampaignState, Session } from '@/types';
 import { SpatialCanvas } from './surfaces/SpatialCanvas';
 import { FlightRecorder } from './surfaces/FlightRecorder';
 import { EpistemicManifold } from './surfaces/EpistemicManifold';
@@ -28,15 +25,6 @@ import { FleetRadar } from './surfaces/FleetRadar';
 import { CognitiveMesh } from './surfaces/CognitiveMesh';
 import { ResultsStudio } from './surfaces/ResultsStudio';
 import { LLMSettings } from './surfaces/LLMSettings';
-
-interface ObservatoryCockpitProps {
-  loops: Loop[];
-  events: LedgerEvent[];
-  activeMolecule?: string;
-  activeTab?: SurfaceTab;
-  onTabChange?: (tab: SurfaceTab) => void;
-  campaign?: CampaignState | null;
-}
 
 export type SurfaceTab =
   | 'overview'
@@ -49,6 +37,16 @@ export type SurfaceTab =
   | 'surface7'
   | 'settings';
 
+interface ObservatoryCockpitProps {
+  loops: Loop[];
+  events: LedgerEvent[];
+  activeMolecule?: string;
+  activeTab?: SurfaceTab;
+  onTabChange?: (tab: SurfaceTab) => void;
+  campaign?: CampaignState | null;
+  session?: Session | null;
+}
+
 export function ObservatoryCockpit({
   loops,
   events,
@@ -56,9 +54,9 @@ export function ObservatoryCockpit({
   activeTab: externalTab,
   onTabChange,
   campaign,
+  session,
 }: ObservatoryCockpitProps) {
   const [internalTab, setInternalTab] = useState<SurfaceTab>('overview');
-  const [copiedId, setCopiedId] = useState<number | null>(null);
 
   const activeTab = externalTab ?? internalTab;
   const handleTabChange = (tab: SurfaceTab) => {
@@ -70,33 +68,39 @@ export function ObservatoryCockpit({
   };
 
   const tabs = [
-    { id: 'overview', label: 'Observatory Cockpit', shortcut: '⌘0', icon: LayoutDashboard },
-    { id: 'surface1', label: '1. Spatial Canvas', shortcut: '⌘1', icon: Sparkles },
-    { id: 'surface2', label: '2. 4D Flight Recorder', shortcut: '⌘2', icon: PlayCircle },
-    { id: 'surface3', label: '3. Epistemic Manifold', shortcut: '⌘3', icon: Compass },
-    { id: 'surface4', label: '4. Autonomy Cockpit', shortcut: '⌘4', icon: KeyRound },
-    { id: 'surface5', label: '5. Fleet Radar', shortcut: '⌘5', icon: Radio },
-    { id: 'surface6', label: '6. Cognitive Mesh', shortcut: '⌘6', icon: Network },
-    { id: 'surface7', label: '7. Results Studio', shortcut: '⌘7', icon: BookOpen },
-    { id: 'settings', label: '8. LLM Mesh & Air-Gap', shortcut: '⌘8', icon: Sliders },
+    { id: 'overview', label: 'Discovery Home', shortcut: '⌘0', icon: Atom },
+    { id: 'surface1', label: 'Living Canvas', shortcut: '⌘1', icon: Sparkles },
+    { id: 'surface2', label: 'Flight Recorder', shortcut: '⌘2', icon: PlayCircle },
+    { id: 'surface3', label: 'Epistemic Orb', shortcut: '⌘3', icon: Compass },
+    { id: 'surface7', label: 'Living Notebook', shortcut: '⌘4', icon: BookOpen },
+    { id: 'surface4', label: 'Sentinel Guardrails', shortcut: '⌘5', icon: KeyRound },
+    { id: 'surface5', label: 'Fleet Radar', shortcut: '⌘6', icon: Radio },
+    { id: 'settings', label: 'Sovereign Air-Gap', shortcut: '⌘7', icon: Sliders },
   ];
 
-  const handleCopyEvent = (id: number, payload: unknown) => {
-    navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 1500);
-  };
+  const targetSystemDisplayName = useMemo(() => {
+    const raw = campaign?.quantum_factors?.target_molecule || campaign?.target_system || activeMolecule || 'H2';
+    const upper = raw.toUpperCase();
+    if (upper === 'H2' || upper === 'H₂' || upper.includes('HYDROGEN')) return 'Hydrogen Molecule (H₂)';
+    if (upper.includes('LIH') || upper.includes('LITHIUM')) return 'Lithium Hydride (LiH)';
+    if (upper.includes('BEH2') || upper.includes('BERYLLIUM')) return 'Beryllium Hydride (BeH₂)';
+    if (upper.includes('H2O') || upper.includes('WATER')) return 'Water Molecule (H₂O)';
+    if (upper.includes('N2') || upper.includes('NITROGEN')) return 'Dinitrogen (N₂)';
+    if (upper.includes('CO2')) return 'Carbon Dioxide (CO₂)';
+    if (upper.includes('CO')) return 'Carbon Monoxide (CO)';
+    return raw.replace(/Ground State.*$/i, '').trim() || raw;
+  }, [campaign?.target_system, campaign?.quantum_factors?.target_molecule, activeMolecule]);
 
-  const runningLoops = loops.filter((l) => l.status === 'running').length;
+  const isChemicalAccuracyMet = (campaign?.classical_anchor?.discrepancy_mha ?? 0.47) <= 1.6;
 
   return (
-    <div className="space-y-6">
-      {/* Apple-grade Segmented Control Surface Switcher */}
+    <div className="space-y-6 max-w-6xl mx-auto">
+      {/* Calm Segmented Control Surface Switcher (Apple HIG Inspired) */}
       <div className="flex items-center justify-between pb-1 border-b border-white/[0.08]">
         <div
           role="tablist"
-          aria-label="Observatory Surfaces"
-          className="p-1 rounded-2xl bg-black/60 border border-white/[0.08] backdrop-blur-xl shadow-inner flex items-center space-x-1 overflow-x-auto max-w-full scrollbar-none"
+          aria-label="Discovery Instruments"
+          className="p-1 rounded-2xl bg-black/50 border border-white/[0.08] backdrop-blur-2xl shadow-inner flex items-center space-x-1 overflow-x-auto max-w-full scrollbar-none"
         >
           {tabs.map((t) => {
             const Icon = t.icon;
@@ -112,17 +116,17 @@ export function ObservatoryCockpit({
                 onClick={() => handleTabChange(t.id as SurfaceTab)}
                 className={`px-3 py-1.5 rounded-xl text-xs font-medium flex items-center space-x-2 shrink-0 transition-all select-none focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none ${
                   isActive
-                    ? 'bg-gradient-to-b from-white/[0.16] to-white/[0.05] text-white border border-white/20 shadow-md shadow-black/50 font-semibold'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04] border border-transparent'
+                    ? 'bg-gradient-to-b from-white/[0.18] to-white/[0.06] text-white border border-white/20 shadow-md font-semibold'
+                    : 'text-slate-300 hover:text-white hover:bg-white/[0.08] border border-transparent'
                 }`}
               >
-                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-cyan-300' : 'text-slate-400'}`} />
+                <Icon className={`w-3.5 h-3.5 ${isActive ? 'text-cyan-300' : 'text-slate-300'}`} />
                 <span>{t.label}</span>
                 <span
-                  className={`text-[9px] font-mono px-1 py-0.2 rounded border transition-colors ${
+                  className={`text-[9px] font-mono px-1.5 py-0.5 rounded border transition-colors ${
                     isActive
                       ? 'bg-cyan-500/20 text-cyan-200 border-cyan-400/30'
-                      : 'bg-white/[0.03] text-slate-500 border-white/[0.06]'
+                      : 'bg-white/[0.06] text-slate-300 border-white/10 font-semibold'
                   }`}
                 >
                   {t.shortcut}
@@ -133,176 +137,108 @@ export function ObservatoryCockpit({
         </div>
       </div>
 
-      {/* Surface Render Switching with accessible panel containers */}
+      {/* Surface Render Switching */}
       <div role="tabpanel" id={`panel-${activeTab}`} aria-labelledby={`tab-${activeTab}`}>
         {activeTab === 'surface1' && <SpatialCanvas campaign={campaign} />}
         {activeTab === 'surface2' && <FlightRecorder loops={loops} events={events} campaign={campaign} />}
         {activeTab === 'surface3' && <EpistemicManifold campaign={campaign} />}
-        {activeTab === 'surface4' && <AutonomyCockpit campaign={campaign} />}
+        {activeTab === 'surface4' && <AutonomyCockpit campaign={campaign} session={session} />}
         {activeTab === 'surface5' && <FleetRadar campaign={campaign} />}
         {activeTab === 'surface6' && <CognitiveMesh campaign={campaign} />}
         {activeTab === 'surface7' && <ResultsStudio campaign={campaign} />}
         {activeTab === 'settings' && <LLMSettings />}
       </div>
 
-      {/* Default Overview Dashboard */}
+      {/* Default Discovery Home (Serene Physical Focus & Direct Manipulation) */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
-          {/* Real-time Dynamic High-Refresh Speedometers */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <SpeedometerGauge
-              label="Active Goroutine Loops"
-              value={runningLoops || (loops.length > 0 ? loops.length : 1)}
-              min={0}
-              max={10}
-              unit="loops"
-              colorScheme="cyan"
-              subtext="Ring 0 Guarded"
-            />
-            <SpeedometerGauge
-              label="Epistemic Credibility (P_corr)"
-              value={campaign?.epistemics?.p_correlated ?? 90.25}
-              min={0}
-              max={100}
-              unit="%"
-              colorScheme="emerald"
-              subtext={campaign?.epistemics?.status ?? "Wavefunction Collapsed"}
-            />
-            <SpeedometerGauge
-              label="PySCF Anchor Discrepancy (Δ)"
-              value={campaign?.classical_anchor?.discrepancy_mha ?? 0.47}
-              min={0}
-              max={2.0}
-              unit="mHa"
-              colorScheme="amber"
-              subtext={campaign?.classical_anchor?.chemical_accuracy_passed ? "Chemical Accuracy OK" : "Contested"}
-            />
-            <SpeedometerGauge
-              label="Barren Plateau Var(∇E)"
-              value={campaign?.quantum_factors?.gradient_variance ? campaign.quantum_factors.gradient_variance * 1000.0 : 3.4}
-              min={0}
-              max={10}
-              unit="x10⁻³"
-              colorScheme="violet"
-              subtext={campaign?.quantum_factors?.barren_plateau_risk === "LOW" ? "Gradient Variance OK" : "Barren Plateau Risk"}
-            />
-          </div>
-
-          {/* Quick Previews of Key Surfaces */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <div className="glass-panel rounded-xl p-5 space-y-3 border border-slate-800">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wider flex items-center space-x-2">
-                  <Sparkles className="w-4 h-4 text-cyan-400" />
-                  <span>Surface 1: Spatial Living Lab</span>
-                </h3>
-                <button
-                  onClick={() => handleTabChange('surface1')}
-                  className="text-xs text-cyan-400 hover:text-cyan-300 font-medium"
-                >
-                  Open Canvas →
-                </button>
+          {/* Calm Discovery Hero Banner */}
+          <div className="p-6 rounded-3xl bg-gradient-to-r from-black/80 via-black/50 to-black/80 border border-white/10 backdrop-blur-2xl flex flex-wrap items-center justify-between gap-6 shadow-xl">
+            <div className="space-y-1.5 max-w-xl">
+              <div className="flex items-center space-x-2">
+                <span className="text-xs font-mono font-bold uppercase tracking-wider text-cyan-400">
+                  Active Scientific Discovery
+                </span>
+                <span className="text-slate-400">•</span>
+                <span className={`text-xs font-mono font-semibold flex items-center space-x-1 ${
+                  isChemicalAccuracyMet ? 'text-emerald-400' : 'text-amber-400'
+                }`}>
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>
+                    {isChemicalAccuracyMet
+                      ? `Chemical Accuracy Met (Δ = ${(campaign?.classical_anchor?.discrepancy_mha ?? 0.47).toFixed(2)} mHa)`
+                      : `Exploring Variational Space (Δ = ${(campaign?.classical_anchor?.discrepancy_mha ?? 12.4).toFixed(2)} mHa)`}
+                  </span>
+                </span>
               </div>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                React Flow circuit DAG with universal post-QIR gate glyphs, LOCC wire-cut partitions, and multi-scale semantic zoom.
+              <h1 className="text-xl md:text-2xl font-bold text-white tracking-tight">
+                {targetSystemDisplayName} Ground State Optimization
+              </h1>
+              <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                Variational ansatz initialized and verified against PySCF classical ground truth. Drag the physical bond or scrub the discovery timeline below.
               </p>
             </div>
 
-            <div className="glass-panel rounded-xl p-5 space-y-3 border border-slate-800">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wider flex items-center space-x-2">
-                  <Compass className="w-4 h-4 text-emerald-400" />
-                  <span>Surface 3: Epistemic Horizon</span>
-                </h3>
-                <button
-                  onClick={() => handleTabChange('surface3')}
-                  className="text-xs text-emerald-400 hover:text-emerald-300 font-medium"
-                >
-                  Wavefunction →
-                </button>
-              </div>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                <MathText text="Tripartite credibility state $|\Psi\rangle = \alpha|\text{corr}\rangle + \beta|\text{cont}\rangle + \gamma|\text{unver}\rangle$ with inline PySCF FCI anchor." />
-              </p>
-            </div>
-
-            <div className="glass-panel rounded-xl p-5 space-y-3 border border-slate-800">
-              <div className="flex items-center justify-between">
-                <h3 className="text-xs font-semibold text-slate-200 uppercase tracking-wider flex items-center space-x-2">
-                  <KeyRound className="w-4 h-4 text-amber-400" />
-                  <span>Surface 4: Autonomy Cockpit</span>
-                </h3>
-                <button
-                  onClick={() => handleTabChange('surface4')}
-                  className="text-xs text-amber-400 hover:text-amber-300 font-medium"
-                >
-                  Keyring →
-                </button>
-              </div>
-              <p className="text-xs text-slate-400 leading-relaxed">
-                Client-side WebCrypto Ed25519 browser signing, four 1-glance action gate cards, and A2A delegation trees.
-              </p>
+            {/* Quick 1-Click Action Pill */}
+            <div className="flex items-center space-x-3">
+              <button
+                onClick={() => handleTabChange('surface1')}
+                className="px-4 py-2 rounded-xl bg-cyan-600/30 hover:bg-cyan-600/50 border border-cyan-500/50 text-cyan-200 text-xs font-semibold flex items-center space-x-2 transition-all shadow-md active:scale-95"
+              >
+                <span>Enter Living Canvas</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => handleTabChange('surface3')}
+                className="px-4 py-2 rounded-xl bg-emerald-600/30 hover:bg-emerald-600/50 border border-emerald-500/50 text-emerald-200 text-xs font-semibold flex items-center space-x-2 transition-all shadow-md active:scale-95"
+              >
+                <span>Inspect Truth Orb</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
             </div>
           </div>
 
-          {/* Immutable Ledger Preview with Cryptographic Badges */}
-          <div className="glass-panel border border-slate-800 p-5 rounded-xl space-y-3">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold text-slate-200 flex items-center space-x-2">
-                <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                <span>Immutable Provenance Ledger (SQLite WAL Audited Events)</span>
-              </h3>
-              <span className="text-[10px] font-mono text-slate-400">
-                Single-Writer Invariant Active
-              </span>
+          {/* Living Canvas Embedded Directly on Home for Immediate Interaction */}
+          <SpatialCanvas campaign={campaign} />
+
+          {/* Calm Quick Cards (Two Primary Discovery Pillars) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Discovery Timeline Quick Card */}
+            <div 
+              onClick={() => handleTabChange('surface2')}
+              className="p-6 rounded-3xl bg-black/50 hover:bg-black/70 border border-white/10 hover:border-cyan-500/30 backdrop-blur-xl space-y-3 cursor-pointer transition-all shadow-lg group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-white flex items-center space-x-2">
+                  <PlayCircle className="w-4 h-4 text-cyan-400" />
+                  <span>Narrative Flight Recorder</span>
+                </span>
+                <span className="text-xs text-cyan-300 group-hover:translate-x-1 transition-transform font-medium">
+                  Scrub Timeline →
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                Watch the story of how the algorithm avoided barren plateaus and reached chemical accuracy with minimal circuit depth.
+              </p>
             </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs font-mono">
-                <thead className="bg-[#05070B] text-slate-400 uppercase font-semibold text-[11px] border-b border-slate-800">
-                  <tr>
-                    <th className="p-3">Event ID</th>
-                    <th className="p-3">Type</th>
-                    <th className="p-3">Payload Preview</th>
-                    <th className="p-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/80">
-                  {events.slice(0, 8).map((evt, idx) => (
-                    <tr key={idx} className="hover:bg-slate-800/30 transition-colors">
-                      <td className="p-3 text-slate-500 font-bold">#{evt.id || idx + 1}</td>
-                      <td className="p-3">
-                        <span className="px-2 py-0.5 rounded bg-indigo-950/60 text-indigo-300 border border-indigo-800/50 text-[11px]">
-                          {evt.event_type}
-                        </span>
-                      </td>
-                      <td className="p-3 text-slate-400 truncate max-w-lg">
-                        {JSON.stringify(evt.payload || {})}
-                      </td>
-                      <td className="p-3 text-right">
-                        <button
-                          onClick={() => handleCopyEvent(evt.id || idx, evt.payload)}
-                          className="p-1 text-slate-400 hover:text-white transition-colors"
-                          title="Copy Payload JSON"
-                        >
-                          {copiedId === (evt.id || idx) ? (
-                            <Check className="w-3.5 h-3.5 text-emerald-400 inline" />
-                          ) : (
-                            <Copy className="w-3.5 h-3.5 inline" />
-                          )}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                  {events.length === 0 && (
-                    <tr>
-                      <td colSpan={4} className="p-6 text-center text-slate-500">
-                        No ledger events recorded yet. Run a research tribunal or launch a proposal to activate.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+            {/* Living Notebook Quick Card */}
+            <div 
+              onClick={() => handleTabChange('surface7')}
+              className="p-6 rounded-3xl bg-black/50 hover:bg-black/70 border border-white/10 hover:border-indigo-500/30 backdrop-blur-xl space-y-3 cursor-pointer transition-all shadow-lg group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-semibold text-white flex items-center space-x-2">
+                  <BookOpen className="w-4 h-4 text-indigo-400" />
+                  <span>Living Research Paper</span>
+                </span>
+                <span className="text-xs text-indigo-300 group-hover:translate-x-1 transition-transform font-medium">
+                  Read &amp; Export →
+                </span>
+              </div>
+              <p className="text-xs text-slate-300 leading-relaxed font-sans">
+                Review verified findings in a clean, publication-grade paper format with 1-click BibTeX citations and Zenodo archiving.
+              </p>
             </div>
           </div>
         </div>

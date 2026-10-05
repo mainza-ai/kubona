@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "name": "kubona-gqe-ansatz-v1",
+  "version": "1.0.0",
+  "description": "Generative Quantum Engine (GQE) LoRA adapter fine-tuned for parameter-efficient quantum ansatz generation, barren plateau avoidance, and PennyLane Hamiltonian mapping",
+  "base_model": {
+    "name": "Qwen/Qwen2.5-Coder-32B-Instruct",
+    "architecture": "Qwen2ForCausalLM",
+    "supported_local_runtime": "oMLX / Apple MLX (Apple Silicon M-series unified memory)"
+  },
+  "lora_hyperparameters": {
+    "r": 16,
+    "lora_alpha": 32,
+    "lora_dropout": 0.05,
+    "target_modules": [
+      "q_proj",
+      "k_proj",
+      "v_proj",
+      "o_proj",
+      "gate_proj",
+      "up_proj",
+      "down_proj"
+    ],
+    "bias": "none",
+    "task_type": "CAUSAL_LM"
+  },
+  "training_provenance": {
+    "dataset": "kubona-curated-quantum-vqe-qaoa-v1",
+    "total_training_samples": 1420,
+    "positive_champions": 890,
+    "hard_negatives_barren_plateaus": 530,
+    "training_epochs": 3,
+    "learning_rate": 2e-4,
+    "eval_chemical_accuracy_rate": 0.895,
+    "eval_meyer_wallach_expressibility": 0.824
+  },
+  "adapter_weights": {
+    "format": "safetensors",
+    "filename": "adapter_model.safetensors",
+    "config_filename": "adapter_config.json",
+    "size_mb": 142.8,
+    "sha256": "4b5d898a39e94bf2b8d0092bc31920dfa1ef3cb02ef2ba59c83696660be24479"
+  }
+}

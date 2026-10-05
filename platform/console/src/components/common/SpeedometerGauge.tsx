@@ -91,17 +91,17 @@ export function SpeedometerGauge({
         <div className="absolute inset-0 flex flex-col items-center justify-center text-center pt-2">
           <span className={`text-xl font-mono font-bold ${scheme.text} tracking-tight`}>
             {typeof value === 'number' && !Number.isInteger(value) ? value.toFixed(2) : value}
-            {unit && <span className="text-[11px] text-slate-400 ml-0.5">{unit}</span>}
+            {unit && <span className="text-[11px] text-slate-300 ml-0.5 font-medium">{unit}</span>}
           </span>
           {subtext && (
-            <span className="text-[9px] text-slate-500 font-mono mt-0.5 max-w-[90px] truncate">
+            <span className="text-[10px] text-slate-300 font-mono font-medium mt-0.5 max-w-[90px] truncate">
               {subtext}
             </span>
           )}
         </div>
       </div>
 
-      <div className="flex justify-between w-full px-2 text-[9px] text-slate-500 font-mono -mt-1">
+      <div className="flex justify-between w-full px-2 text-[10px] text-slate-300 font-mono font-medium -mt-1">
         <span>{min}</span>
         <span>{max}</span>
       </div>

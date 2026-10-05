@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/llm"
+	"github.com/mainza-ai/kubona/core/pkg/memory"
 	pb "github.com/mainza-ai/kubona/core/proto"
 )
 
@@ -183,6 +184,10 @@ type TribunalResult struct {
 // Turn 3: Device Auditor evaluates hardware noise, Clifford stabilizer fidelity, and cost ceilings.
 // Turn 4: Epistemic Scribe collapses credibility state, verifies consensus, and emits structured AP2 proposal.
 func (ac *AgentCollective) ExecuteTribunal(ctx context.Context, llmClient *llm.Client, bridgeClient pb.QuantumBridgeServiceClient, userPrompt string, onTurn ...func(TribunalTurn)) (*TribunalResult, error) {
+	return ac.ExecuteTribunalWithMemory(ctx, llmClient, bridgeClient, nil, userPrompt, onTurn...)
+}
+
+func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmClient *llm.Client, bridgeClient pb.QuantumBridgeServiceClient, store *memory.HindsightStore, userPrompt string, onTurn ...func(TribunalTurn)) (*TribunalResult, error) {
 	var turnCb func(TribunalTurn)
 	if len(onTurn) > 0 && onTurn[0] != nil {
 		turnCb = onTurn[0]
@@ -234,8 +239,21 @@ func (ac *AgentCollective) ExecuteTribunal(ctx context.Context, llmClient *llm.C
 
 	llmTimeout := 90 * time.Second
 
+	// Associative memory recall via Hindsight
+	var memoryContext string
+	if store != nil {
+		recalled := store.SemanticRecall(memory.BankExperiences, userPrompt+" "+mol+" ansatz barren plateau", 250, 0.35)
+		if len(recalled) > 0 {
+			var snippets []string
+			for _, r := range recalled {
+				snippets = append(snippets, fmt.Sprintf("- Prior experience (sim=%.2f): %s", r.Similarity, r.Item.Content))
+			}
+			memoryContext = "\nPrior Relevant Laboratory Memory:\n" + strings.Join(snippets, "\n")
+		}
+	}
+
 	// Turn 1: Ansatz Scout
-	turn1Prompt := fmt.Sprintf("Analyze target %s for prompt: %s. Propose the variational quantum ansatz, active space, qubit count, and parameterized rotational depth. Keep answer concise.", target, userPrompt)
+	turn1Prompt := fmt.Sprintf("Analyze target %s for prompt: %s.%s Propose the variational quantum ansatz, active space, qubit count, and parameterized rotational depth. Keep answer concise.", target, userPrompt, memoryContext)
 	scoutContent := fmt.Sprintf("Proposed active space for %s. Applying UCCSD/RyRz parameterized ansatz with Meyer-Wallach expressibility Q=0.82. Qubit count: 2, 2-qubit CNOT depth: 1.", target)
 	if llmClient != nil {
 		tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
@@ -384,6 +402,10 @@ func (ac *AgentCollective) ExecuteTribunal(ctx context.Context, llmClient *llm.C
 
 	result.ConsensusPassed = true
 	result.Synthesis = fmt.Sprintf("Multi-Agent Tribunal concluded with unanimous consensus for %s. Classical anchor: %s.", target, fciAnchor)
+
+	if store != nil {
+		store.Retain(memory.BankExperiences, fmt.Sprintf("Tribunal consensus for %s (%s): %s. Spend: %s on %s.", target, mol, fciAnchor, budget, tier), 0.85)
+	}
 
 	return result, nil
 }

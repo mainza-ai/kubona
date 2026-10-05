@@ -16,6 +16,7 @@ import {
   Info,
   ShieldCheck,
   Command,
+  Atom,
 } from 'lucide-react';
 
 interface CommandPaletteProps {
@@ -41,8 +42,16 @@ export function CommandPalette({
 
   const items = [
     {
+      id: 'overview',
+      title: 'Discovery Home (Target Focus & Active Bond)',
+      category: 'Surfaces',
+      shortcut: '⌘0',
+      icon: Atom,
+      action: () => onSelectSurface('overview'),
+    },
+    {
       id: 'surface1',
-      title: '1. Spatial Research Canvas',
+      title: 'Living Canvas (Direct Molecular Manipulation)',
       category: 'Surfaces',
       shortcut: '⌘1',
       icon: Sparkles,
@@ -50,7 +59,7 @@ export function CommandPalette({
     },
     {
       id: 'surface2',
-      title: '2. 4D Flight Recorder & Trajectory Inspector',
+      title: 'Narrative Flight Recorder (Scrub Discovery Story)',
       category: 'Surfaces',
       shortcut: '⌘2',
       icon: PlayCircle,
@@ -58,47 +67,47 @@ export function CommandPalette({
     },
     {
       id: 'surface3',
-      title: '3. Epistemic Manifold & Classical Anchor',
+      title: 'Epistemic Truth Orb & Consensus Gauge',
       category: 'Surfaces',
       shortcut: '⌘3',
       icon: Compass,
       action: () => onSelectSurface('surface3'),
     },
     {
-      id: 'surface4',
-      title: '4. Autonomy Cockpit & WebCrypto AP2 Keyring',
+      id: 'surface7',
+      title: 'Living Research Notebook (Citable Paper & Zenodo)',
       category: 'Surfaces',
       shortcut: '⌘4',
+      icon: BookOpen,
+      action: () => onSelectSurface('surface7'),
+    },
+    {
+      id: 'surface4',
+      title: 'Sentinel Guardrails & Spend Protection',
+      category: 'Surfaces',
+      shortcut: '⌘5',
       icon: KeyRound,
       action: () => onSelectSurface('surface4'),
     },
     {
       id: 'surface5',
-      title: '5. Execution Fleet Radar & QPU Shield',
+      title: 'Ambient Hardware Radar (4-Tier Continuum)',
       category: 'Surfaces',
-      shortcut: '⌘5',
+      shortcut: '⌘6',
       icon: Radio,
       action: () => onSelectSurface('surface5'),
     },
     {
       id: 'surface6',
-      title: '6. Cognitive Mesh & Sovereign Port Sweep',
+      title: 'Sovereign Cognitive Mesh & Multi-Agent Matrix',
       category: 'Surfaces',
-      shortcut: '⌘6',
+      shortcut: '⌘7',
       icon: Network,
       action: () => onSelectSurface('surface6'),
     },
     {
-      id: 'surface7',
-      title: '7. Citable Results Studio & Merkle DAG',
-      category: 'Surfaces',
-      shortcut: '⌘7',
-      icon: BookOpen,
-      action: () => onSelectSurface('surface7'),
-    },
-    {
       id: 'settings',
-      title: '8. Local LLM Mesh & Sovereign Air-Gap',
+      title: 'Sovereign Intelligence Configuration & Air-Gap',
       category: 'Surfaces',
       shortcut: '⌘8',
       icon: Sliders,
@@ -137,9 +146,12 @@ export function CommandPalette({
 
   useEffect(() => {
     if (isOpen) {
-      setQuery('');
-      setSelectedIndex(0);
-      setTimeout(() => inputRef.current?.focus(), 50);
+      const timer = setTimeout(() => {
+        setQuery('');
+        setSelectedIndex(0);
+        inputRef.current?.focus();
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, [isOpen]);
 
@@ -204,7 +216,7 @@ export function CommandPalette({
         {/* Results List */}
         <div className="max-h-80 overflow-y-auto p-2 space-y-1">
           {filtered.length === 0 ? (
-            <div className="py-8 text-center text-xs text-slate-500 font-medium">
+            <div className="py-8 text-center text-xs text-slate-300 font-medium">
               No matching surfaces or commands found
             </div>
           ) : (
@@ -228,18 +240,18 @@ export function CommandPalette({
                   <div className="flex items-center space-x-3">
                     <div
                       className={`p-1.5 rounded-lg ${
-                        isSelected ? 'bg-cyan-500 text-black' : 'bg-white/5 text-slate-400'
+                        isSelected ? 'bg-cyan-500 text-black' : 'bg-white/5 text-slate-300'
                       }`}
                     >
                       <Icon className="w-4 h-4" />
                     </div>
                     <div>
                       <div className="font-medium text-slate-100">{item.title}</div>
-                      <div className="text-[10px] text-slate-500">{item.category}</div>
+                      <div className="text-[11px] text-slate-300 font-medium">{item.category}</div>
                     </div>
                   </div>
                   {item.shortcut && (
-                    <kbd className="px-2 py-0.5 rounded bg-white/5 text-[10px] font-mono text-slate-400 border border-white/10">
+                    <kbd className="px-2 py-0.5 rounded bg-white/10 text-[10px] font-mono text-slate-200 border border-white/15 font-semibold">
                       {item.shortcut}
                     </kbd>
                   )}
@@ -250,10 +262,10 @@ export function CommandPalette({
         </div>
 
         {/* Footer with Hint */}
-        <div className="h-9 px-4 border-t border-white/[0.08] bg-white/[0.02] flex items-center justify-between text-[11px] text-slate-500">
+        <div className="h-9 px-4 border-t border-white/[0.08] bg-white/[0.03] flex items-center justify-between text-xs text-slate-300 font-medium">
           <span>Navigate with ↑ ↓ · Select with ↵</span>
-          <span className="flex items-center space-x-1">
-            <Command className="w-3 h-3" />
+          <span className="flex items-center space-x-1.5">
+            <Command className="w-3.5 h-3.5 text-slate-300" />
             <span>K to toggle</span>
           </span>
         </div>

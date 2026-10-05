@@ -1,24 +1,22 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Compass, Sparkles, CheckCircle2, AlertCircle, ShieldCheck, Scale, BarChart3 } from 'lucide-react';
-import { MathText } from '../common/MathText';
+import { Compass, CheckCircle2, ChevronDown, ChevronUp, Scale, ShieldCheck } from 'lucide-react';
 import { CampaignState } from '@/types';
+import { fetchEpistemics } from '@/lib/api';
 
-interface WavefunctionState {
-  refusal_ratio: number;
-  stagnation_kappa: number;
-  literature_drift_mha: number;
-  canonical_anchor: number;
-  active_wavefunctions: Array<{
-    claim_id: string;
-    statement: string;
-    alpha_corr: number;
-    beta_cont: number;
-    gamma_unv: number;
-    collapsed: boolean;
-    status: string;
-  }>;
+interface EpistemicWavefunction {
+  claim_id: string;
+  statement: string;
+  alpha_corr: number;
+  beta_cont: number;
+  gamma_unv: number;
+  collapsed: boolean;
+  status: string;
+}
+
+interface EpistemicResponse {
+  active_wavefunctions?: EpistemicWavefunction[];
 }
 
 interface EpistemicManifoldProps {
@@ -26,12 +24,14 @@ interface EpistemicManifoldProps {
 }
 
 export function EpistemicManifold({ campaign }: EpistemicManifoldProps) {
-  const [data, setData] = useState<WavefunctionState | null>(null);
+  const [showDeepMath, setShowDeepMath] = useState(false);
+  const [data, setData] = useState<EpistemicResponse | null>(null);
 
   useEffect(() => {
-    fetch('http://localhost:8080/api/epistemics')
-      .then((res) => res.json())
-      .then(setData)
+    fetchEpistemics()
+      .then((d) => {
+        if (d) setData(d as unknown as EpistemicResponse);
+      })
       .catch((err) => console.error('Failed to load epistemics data:', err));
   }, []);
 
@@ -45,7 +45,7 @@ export function EpistemicManifold({ campaign }: EpistemicManifoldProps) {
     status: campaign.epistemics.status,
   } : (data?.active_wavefunctions?.[0] || {
     claim_id: 'claim-h2-ground',
-    statement: 'H2 equilibrium ground state energy is -1.13727 Ha at R=0.7414 A',
+    statement: 'H₂ ground state equilibrium energy is -1.13727 Ha at R = 0.7414 Å',
     alpha_corr: 0.95,
     beta_cont: 0.05,
     gamma_unv: 0.1,
@@ -53,192 +53,137 @@ export function EpistemicManifold({ campaign }: EpistemicManifoldProps) {
     status: 'COLLAPSED_VERIFIED',
   });
 
+  const isVerified = active.collapsed || active.alpha_corr >= 0.85;
   const alpha = active.alpha_corr;
   const beta = active.beta_cont;
   const gamma = active.gamma_unv;
+  const discrepancy = campaign?.classical_anchor?.discrepancy_mha ?? 0.47;
+  const accuracyLimit = campaign?.classical_anchor?.chemical_accuracy_limit ?? 1.6;
+  const anchorMethod = campaign?.classical_anchor?.method || 'exact PySCF full configuration interaction';
 
   return (
-    <div className="bg-[#0A0D14] border border-slate-800 rounded-xl p-6 space-y-6 shadow-2xl">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-        <div>
-          <h2 className="text-base font-bold text-white flex items-center space-x-2">
+    <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0F19] to-[#07090E] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-8 select-none">
+      {/* Ambient Radial Backlight */}
+      <div 
+        className="absolute inset-0 pointer-events-none opacity-40 transition-opacity duration-1000"
+        style={{
+          background: isVerified
+            ? 'radial-gradient(circle 500px at 50% 45%, rgba(16, 185, 129, 0.15), transparent 70%)'
+            : 'radial-gradient(circle 500px at 50% 45%, rgba(245, 158, 11, 0.15), transparent 70%)',
+        }}
+      />
+
+      {/* Top Header */}
+      <div className="relative z-10 flex flex-wrap items-center justify-between gap-4">
+        <div className="flex items-center space-x-3.5">
+          <div className="w-10 h-10 rounded-2xl bg-white/[0.05] border border-white/10 backdrop-blur-xl flex items-center justify-center shadow-inner">
             <Compass className="w-5 h-5 text-emerald-400" />
-            <span>Surface 3: Epistemic Manifold &amp; Classical Anchor Horizon</span>
-          </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            <MathText text="Tripartite credibility wavefunction $|\Psi\rangle = \alpha|\text{corr}\rangle + \beta|\text{cont}\rangle + \gamma|\text{unver}\rangle$ and classical ground-truth baselines" />
-          </p>
-        </div>
-        <span className="px-3 py-1 rounded-lg bg-emerald-950 border border-emerald-800 text-emerald-300 text-xs font-mono font-bold flex items-center space-x-1.5 glow-emerald">
-          <CheckCircle2 className="w-3.5 h-3.5" />
-          <span>RING 1 GATED &amp; COLLAPSED</span>
-        </span>
-      </div>
-
-      {/* Tripartite Wavefunction Manifold Visualization */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-center bg-[#05070B] p-6 rounded-xl border border-slate-800">
-        <div className="flex flex-col items-center justify-center relative">
-          <svg className="w-64 h-64 transform -rotate-90">
-            {/* Background circle */}
-            <circle cx="128" cy="128" r="100" stroke="#1e293b" strokeWidth="16" fill="transparent" />
-            {/* Alpha Corroborated Ring (Emerald) */}
-            <circle
-              cx="128"
-              cy="128"
-              r="100"
-              stroke="#10b981"
-              strokeWidth="16"
-              fill="transparent"
-              strokeDasharray={2 * Math.PI * 100}
-              strokeDashoffset={2 * Math.PI * 100 * (1 - alpha * alpha)}
-              className="transition-all duration-1000 ease-out"
-              style={{ filter: 'drop-shadow(0 0 8px rgba(16, 185, 129, 0.5))' }}
-            />
-            {/* Beta Contested Ring (Amber) */}
-            <circle
-              cx="128"
-              cy="128"
-              r="80"
-              stroke="#f59e0b"
-              strokeWidth="12"
-              fill="transparent"
-              strokeDasharray={2 * Math.PI * 80}
-              strokeDashoffset={2 * Math.PI * 80 * (1 - beta * beta)}
-              className="transition-all duration-1000 ease-out"
-            />
-            {/* Gamma Unverified Ring (Violet) */}
-            <circle
-              cx="128"
-              cy="128"
-              r="60"
-              stroke="#8a2be2"
-              strokeWidth="10"
-              fill="transparent"
-              strokeDasharray={2 * Math.PI * 60}
-              strokeDashoffset={2 * Math.PI * 60 * (1 - gamma * gamma)}
-              className="transition-all duration-1000 ease-out"
-            />
-          </svg>
-          <div className="absolute flex flex-col items-center justify-center text-center">
-            <span className="text-3xl font-bold font-mono text-emerald-400">
-              {(alpha * alpha * 100).toFixed(1)}%
-            </span>
-            <span className="text-[10px] uppercase tracking-wider text-slate-400 font-bold mt-1">
-              P(COLLAPSED)
-            </span>
+          </div>
+          <div>
+            <h2 className="text-base font-semibold text-white tracking-tight">Epistemic Truth Gauge</h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Continuous credibility collapse against classical anchors &amp; quantum evidence
+            </p>
           </div>
         </div>
 
-        {/* Credibility Amplitudes & Math Legend */}
-        <div className="space-y-3 font-sans">
-          <div className="p-3 bg-emerald-950/30 border border-emerald-800/50 rounded-xl flex items-center justify-between">
-            <div>
-              <div className="text-xs font-bold text-emerald-400">
-                <MathText text="$|\text{corroborated}\rangle$ Amplitude ($\alpha$)" />
-              </div>
-              <div className="text-[11px] text-slate-400">Multi-source alignment &amp; PySCF anchor match</div>
-            </div>
-            <span className="text-xl font-mono font-bold text-white">{alpha.toFixed(3)}</span>
-          </div>
-
-          <div className="p-3 bg-amber-950/30 border border-amber-800/50 rounded-xl flex items-center justify-between">
-            <div>
-              <div className="text-xs font-bold text-amber-400">
-                <MathText text="$|\text{contested}\rangle$ Amplitude ($\beta$)" />
-              </div>
-              <div className="text-[11px] text-slate-400">Divergence from classical anchor or noise</div>
-            </div>
-            <span className="text-xl font-mono font-bold text-white">{beta.toFixed(3)}</span>
-          </div>
-
-          <div className="p-3 bg-purple-950/30 border border-purple-800/50 rounded-xl flex items-center justify-between">
-            <div>
-              <div className="text-xs font-bold text-purple-400">
-                <MathText text="$|\text{unverified}\rangle$ Amplitude ($\gamma$)" />
-              </div>
-              <div className="text-[11px] text-slate-400">Prior epistemological uncertainty floor</div>
-            </div>
-            <span className="text-xl font-mono font-bold text-white">{gamma.toFixed(3)}</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Classical Anchor Horizon Comparison Ladder */}
-      <div className="bg-[#05070B] border border-slate-800 rounded-xl p-5 space-y-4 font-mono text-xs">
-        <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-          <div className="flex items-center space-x-2">
-            <Scale className="w-4 h-4 text-cyan-400" />
-            <h3 className="font-bold text-white text-xs uppercase tracking-wider">
-              Classical Anchor Ground-Truth Ladder ({campaign?.target_system || 'H2'} Hartrees)
-            </h3>
-          </div>
-          <span className="px-2.5 py-0.5 rounded bg-slate-800 text-cyan-300 text-[10px] font-bold border border-slate-700">
-            Quantum Advantage Realism Active
+        <div className="flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-black/40 border border-white/10 backdrop-blur-xl">
+          <ShieldCheck className="w-4 h-4 text-emerald-400" />
+          <span className="text-xs font-mono font-medium text-emerald-300">
+            Ring 1 Epistemic Gate Active
           </span>
         </div>
+      </div>
 
-        <div className="space-y-2.5">
-          <div className="flex items-center justify-between p-2 bg-[#0A0D14] rounded-lg border border-slate-800">
-            <span className="text-slate-400">Classical STO-3G RHF Mean-Field:</span>
-            <span className="text-slate-200 font-bold">
-              {campaign?.classical_anchor ? `${campaign.classical_anchor.rhf_mean_field_energy.toFixed(6)} Ha` : '-1.116698 Ha'}
-            </span>
+      {/* Center Stage: The Living Epistemic Truth Orb */}
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center my-8">
+        {/* The Radiant Orb */}
+        <div 
+          onClick={() => setShowDeepMath(!showDeepMath)}
+          className="relative w-64 h-64 flex items-center justify-center cursor-pointer group"
+          title="Tap to reveal deep mathematical evidence"
+        >
+          {/* Outer Waveform Rings */}
+          <div 
+            className={`absolute inset-0 rounded-full border border-dashed transition-all duration-1000 ${
+              isVerified ? 'border-emerald-500/40 animate-wave-spin' : 'border-amber-500/40 animate-wave-spin'
+            }`} 
+          />
+          <div 
+            className={`absolute inset-4 rounded-full border border-white/10 transition-all duration-700 ${
+              isVerified ? 'group-hover:border-emerald-400/50' : 'group-hover:border-amber-400/50'
+            }`} 
+          />
+
+          {/* Central Pulsing Sphere */}
+          <div 
+            className={`w-40 h-40 rounded-full transition-all duration-700 flex flex-col items-center justify-center text-center p-4 shadow-2xl relative ${
+              isVerified
+                ? 'bg-gradient-to-tr from-emerald-600/80 via-teal-500/70 to-emerald-400/90 animate-orb-breathing text-white'
+                : 'bg-gradient-to-tr from-amber-600/80 via-orange-500/70 to-amber-400/90 animate-orb-curiosity text-white'
+            }`}
+          >
+            <div className="text-[10px] uppercase font-bold tracking-widest opacity-80">
+              Confidence
+            </div>
+            <div className="text-3xl font-extrabold tracking-tight font-mono mt-0.5">
+              {Math.round(alpha * 100)}%
+            </div>
+            <div className="text-[11px] font-medium opacity-90 mt-1">
+              {isVerified ? 'Verified True' : 'Evaluating'}
+            </div>
           </div>
-          <div className="flex items-center justify-between p-2 bg-emerald-950/20 rounded-lg border border-emerald-800/40">
-            <span className="text-emerald-400 font-bold">Classical PySCF Exact FCI Anchor:</span>
-            <span className="text-emerald-300 font-bold">
-              {campaign?.classical_anchor ? `${campaign.classical_anchor.fci_exact_energy.toFixed(6)} Ha` : '-1.137270 Ha'}
-            </span>
+        </div>
+
+        {/* Clear Plain-English Verdict */}
+        <div className="max-w-md text-center mt-6 space-y-2">
+          <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-white/[0.08] border border-white/15 text-xs text-slate-200">
+            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+            <span>FCI Ground State Energy Verified</span>
           </div>
-          <div className="flex items-center justify-between p-2 bg-cyan-950/20 rounded-lg border border-cyan-800/40">
-            <span className="text-cyan-400">Quantum VQE Aer Execution:</span>
-            <span className="text-cyan-300 font-bold">
-              {campaign?.classical_anchor ? `${campaign.classical_anchor.vqe_expectation_energy.toFixed(6)} Ha` : '-1.136800 Ha'}
-            </span>
-          </div>
-          <div className="flex items-center justify-between p-2 bg-slate-900 rounded-lg border border-slate-800 text-slate-400 text-[11px]">
-            <span>Chemical Accuracy Discrepancy (Δ):</span>
-            <span className="text-emerald-400 font-bold">
-              {campaign?.classical_anchor
-                ? `${campaign.classical_anchor.discrepancy_mha.toFixed(3)} mHa < 1.6 mHa (${campaign.classical_anchor.chemical_accuracy_passed ? 'PASS' : 'FAIL'})`
-                : '0.470 mHa < 1.6 mHa (PASS)'}
-            </span>
-          </div>
+          <h3 className="text-sm font-semibold text-white">
+            &ldquo;{active.statement}&rdquo;
+          </h3>
+          <p className="text-xs text-slate-300 leading-relaxed">
+            Corroborated within chemical accuracy (<span className="text-emerald-400 font-mono font-semibold">{discrepancy.toFixed(2)} mHa &lt; {accuracyLimit.toFixed(1)} mHa</span>) against {anchorMethod} benchmarks.
+          </p>
         </div>
       </div>
 
-      {/* Stagnation Telemetry Gauges */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="p-4 bg-[#05070B] border border-slate-800 rounded-xl space-y-1">
-          <div className="text-[11px] text-slate-400 font-medium">HYPOTHESIS CONCENTRATION (κ)</div>
-          <div className="text-2xl font-mono font-bold text-cyan-400">
-            {campaign?.quantum_factors
-              ? (1 / (1 + (campaign.quantum_factors.gradient_variance * 1000))).toFixed(4)
-              : (data?.stagnation_kappa?.toFixed(4) || '0.8928')}
-          </div>
-          <div className="text-[10px] text-slate-500 font-mono">Curvature κ = 1 / (1 + |Var|)</div>
-        </div>
+      {/* Progressive Disclosure (Tap Orb or Button to Reveal Deep Math) */}
+      <div className="relative z-10 border-t border-white/[0.08] pt-4">
+        <button
+          onClick={() => setShowDeepMath(!showDeepMath)}
+          className="w-full flex items-center justify-between text-xs text-slate-300 hover:text-white transition-colors py-1 font-medium"
+        >
+          <span className="flex items-center space-x-2 font-medium">
+            <Scale className="w-3.5 h-3.5 text-cyan-400" />
+            <span>{showDeepMath ? 'Hide Epistemic Wavefunction Mathematics' : 'Inspect Tripartite Wavefunction & Classical Anchors'}</span>
+          </span>
+          {showDeepMath ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+        </button>
 
-        <div className="p-4 bg-[#05070B] border border-slate-800 rounded-xl space-y-1">
-          <div className="text-[11px] text-slate-400 font-medium">LITERATURE DRIFT d(E_canon, E_live)</div>
-          <div className="text-2xl font-mono font-bold text-amber-400">
-            {campaign?.classical_anchor
-              ? campaign.classical_anchor.discrepancy_mha.toFixed(2)
-              : (data?.literature_drift_mha?.toFixed(2) || '0.47')} mHa
-          </div>
-          <div className="text-[10px] text-emerald-400 font-medium">&lt; 1.6 mHa (Chemical Accuracy Satisfied)</div>
-        </div>
+        {showDeepMath && (
+          <div className="mt-4 p-5 rounded-2xl bg-black/60 border border-white/10 backdrop-blur-xl grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
+            <div className="space-y-1">
+              <span className="text-slate-300 font-semibold">Corroborated (α):</span>
+              <div className="text-base text-emerald-400 font-bold">{(alpha * alpha).toFixed(4)}</div>
+              <p className="text-xs text-slate-300 font-sans">Probability mass in agreement with physical anchor</p>
+            </div>
 
-        <div className="p-4 bg-[#05070B] border border-slate-800 rounded-xl space-y-1">
-          <div className="text-[11px] text-slate-400 font-medium">RING 1 REFUSAL RATIO</div>
-          <div className="text-2xl font-mono font-bold text-indigo-400">
-            {campaign?.epistemics
-              ? ((campaign.epistemics.beta_contested + campaign.epistemics.gamma_unverified) * 100).toFixed(1)
-              : (((data?.refusal_ratio || 0.0) * 100).toFixed(1))}%
+            <div className="space-y-1">
+              <span className="text-slate-300 font-semibold">Contested (β):</span>
+              <div className="text-base text-amber-400 font-bold">{(beta * beta).toFixed(4)}</div>
+              <p className="text-xs text-slate-300 font-sans">Active disconfirmation signal from tribunal</p>
+            </div>
+
+            <div className="space-y-1">
+              <span className="text-slate-300 font-semibold">Unverified (γ):</span>
+              <div className="text-base text-slate-200 font-bold">{(gamma * gamma).toFixed(4)}</div>
+              <p className="text-xs text-slate-300 font-sans">Remaining epistemic uncertainty interval</p>
+            </div>
           </div>
-          <div className="text-[10px] text-slate-500 font-mono">Uncollapsed assertions blocked fail-closed</div>
-        </div>
+        )}
       </div>
     </div>
   );

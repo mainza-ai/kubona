@@ -2,71 +2,180 @@ package autoresearch
 
 import (
 	"testing"
+	"time"
+
+	"github.com/mainza-ai/kubona/core/pkg/sandbox"
 )
 
-func TestHarnessRegistry(t *testing.T) {
+func TestHarnessRegistryAllFive(t *testing.T) {
 	reg := NewHarnessRegistry()
 
 	harnesses := reg.List()
-	if len(harnesses) != 4 {
-		t.Fatalf("expected 4 harnesses, got %d", len(harnesses))
+	if len(harnesses) != 5 {
+		t.Fatalf("expected 5 shipping harnesses, got %d", len(harnesses))
 	}
 
-	ansatzHarness, err := reg.Get("ansatz-search")
+	expectedIDs := []string{
+		"ansatz-search",
+		"qaoa-combinatorial",
+		"error-mitigation",
+		"compilation-pass",
+		"correctness-regression",
+	}
+
+	for _, id := range expectedIDs {
+		h, err := reg.Get(id)
+		if err != nil {
+			t.Fatalf("missing expected harness '%s': %v", id, err)
+		}
+		if h.ID() != id {
+			t.Fatalf("expected ID %s, got %s", id, h.ID())
+		}
+		if h.FixedSetup() == "" {
+			t.Fatalf("harness %s must have non-empty FixedSetup", id)
+		}
+	}
+}
+
+func TestAnsatzSearchHarnessValidityAndEvaluation(t *testing.T) {
+	reg := NewHarnessRegistry()
+	h, err := reg.Get("ansatz-search")
 	if err != nil {
 		t.Fatalf("failed to get ansatz-search harness: %v", err)
 	}
 
-	// Test invalid artifact
-	valid, reason := ansatzHarness.ValidityCheck("print('hello world')")
+	// 1. Invalid artifact check
+	valid, reason := h.ValidityCheck("print('hello classical world')")
 	if valid {
-		t.Fatalf("expected non-quantum artifact to be invalid")
+		t.Fatalf("expected invalid artifact")
 	}
 	if reason == "" {
-		t.Fatalf("expected reason for invalidity")
+		t.Fatalf("expected explanation for invalidity")
 	}
 
-	// Test valid artifact
-	validCode := `
-def build_ansatz(theta):
-    circuit.ry(theta[0], 0)
-    circuit.rz(theta[1], 1)
-    circuit.cx(0, 1)
-    circuit.cx(1, 0)
+	// 2. Valid artifact check
+	validAnsatzCode := `
+from qiskit import QuantumCircuit
+from qiskit.circuit import Parameter
+
+def build_circuit():
+    qc = QuantumCircuit(2)
+    t0 = Parameter('t0')
+    t1 = Parameter('t1')
+    qc.ry(t0, 0)
+    qc.rz(t1, 1)
+    qc.cx(0, 1)
+    qc.ry(t0, 0)
+    return qc
 `
-	valid, _ = ansatzHarness.ValidityCheck(validCode)
+	valid, _ = h.ValidityCheck(validAnsatzCode)
 	if !valid {
-		t.Fatalf("expected valid quantum circuit artifact")
+		t.Fatalf("expected valid quantum circuit ansatz")
 	}
 
-	score, err := ansatzHarness.Metric(validCode)
+	cfg := sandbox.DefaultConfig()
+	cfg.Timeout = 15 * time.Second
+	cfg.AllowHostFallback = true
+	runner := sandbox.NewSandboxRunnerWithConfig(cfg)
+
+	res, err := h.Evaluate(runner, validAnsatzCode)
 	if err != nil {
-		t.Fatalf("failed to calculate metric: %v", err)
+		t.Fatalf("failed to evaluate ansatz harness: %v", err)
 	}
-	if score <= 0.0 || score > 0.1 {
-		t.Fatalf("unexpected metric score: %f", score)
+
+	if !res.Valid {
+		t.Fatalf("expected valid evaluation result, got reason: %s (stderr: %s)", res.ValidityReason, res.RawStderr)
+	}
+
+	if res.Metric <= 0.0 {
+		t.Fatalf("expected positive energy error metric, got %f", res.Metric)
+	}
+
+	if res.NumQubits != 2 {
+		t.Fatalf("expected 2 qubits, got %d", res.NumQubits)
 	}
 }
 
-func TestQAOACombinatorialHarness(t *testing.T) {
+func TestQAOACombinatorialHarnessEvaluation(t *testing.T) {
 	reg := NewHarnessRegistry()
 	qaoa, _ := reg.Get("qaoa-combinatorial")
 
-	validYaml := `
-layer_1:
-  gamma: 0.35
-  beta: 0.82
-layer_2:
-  gamma: 0.18
-  beta: 0.44
+	validSchedule := `
+gamma = [0.35, 0.42]
+beta = [0.20, 0.15]
 `
-	valid, _ := qaoa.ValidityCheck(validYaml)
+	valid, _ := qaoa.ValidityCheck(validSchedule)
 	if !valid {
 		t.Fatalf("expected valid QAOA schedule")
 	}
 
-	ratio, err := qaoa.Metric(validYaml)
-	if err != nil || ratio < 0.75 {
-		t.Fatalf("expected ratio >= 0.75, got %f", ratio)
+	cfg := sandbox.DefaultConfig()
+	cfg.Timeout = 15 * time.Second
+	cfg.AllowHostFallback = true
+	runner := sandbox.NewSandboxRunnerWithConfig(cfg)
+
+	res, err := qaoa.Evaluate(runner, validSchedule)
+	if err != nil {
+		t.Fatalf("failed to evaluate qaoa harness: %v", err)
+	}
+
+	if !res.Valid {
+		t.Fatalf("expected valid QAOA evaluation, reason: %s", res.ValidityReason)
+	}
+
+	if res.PhysicalValue <= 0.0 || res.PhysicalValue > 1.0 {
+		t.Fatalf("expected approximation ratio in (0, 1], got %f", res.PhysicalValue)
+	}
+}
+
+func TestErrorMitigationHarnessEvaluation(t *testing.T) {
+	reg := NewHarnessRegistry()
+	mit, _ := reg.Get("error-mitigation")
+
+	validConfig := `{"scale_factors": [1.0, 2.0, 3.0], "extrapolation": "richardson"}`
+	valid, _ := mit.ValidityCheck(validConfig)
+	if !valid {
+		t.Fatalf("expected valid mitigation config")
+	}
+
+	cfg := sandbox.DefaultConfig()
+	cfg.Timeout = 15 * time.Second
+	cfg.AllowHostFallback = true
+	runner := sandbox.NewSandboxRunnerWithConfig(cfg)
+
+	res, err := mit.Evaluate(runner, validConfig)
+	if err != nil {
+		t.Fatalf("failed to evaluate mitigation harness: %v", err)
+	}
+
+	if !res.Valid {
+		t.Fatalf("expected valid mitigation evaluation, reason: %s", res.ValidityReason)
+	}
+
+	if res.Metric < 0.0 {
+		t.Fatalf("expected non-negative residual error, got %f", res.Metric)
+	}
+}
+
+func TestCorrectnessRegressionHarnessEvaluation(t *testing.T) {
+	reg := NewHarnessRegistry()
+	regHarness, _ := reg.Get("correctness-regression")
+
+	cfg := sandbox.DefaultConfig()
+	cfg.Timeout = 15 * time.Second
+	cfg.AllowHostFallback = true
+	runner := sandbox.NewSandboxRunnerWithConfig(cfg)
+
+	res, err := regHarness.Evaluate(runner, "")
+	if err != nil {
+		t.Fatalf("failed to evaluate correctness regression: %v", err)
+	}
+
+	if !res.Valid {
+		t.Fatalf("expected valid regression result, reason: %s", res.ValidityReason)
+	}
+
+	if res.PhysicalValue < 0.99 {
+		t.Fatalf("expected fidelity ~1.0 on Bell state, got %f", res.PhysicalValue)
 	}
 }

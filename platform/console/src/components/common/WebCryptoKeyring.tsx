@@ -101,12 +101,15 @@ export function WebCryptoKeyring({ onSigned }: { onSigned?: (sig: string, pubKey
     const storedDate = localStorage.getItem('kubona_ed25519_date');
     if (kp) {
       const fp = kp.pubHex.slice(0, 8) + '...' + kp.pubHex.slice(-8);
-      setKeyring({
-        hasKey: true,
-        publicKeyHex: kp.pubHex,
-        keyFingerprint: fp,
-        createdAt: storedDate || 'Active Session',
-      });
+      const timer = setTimeout(() => {
+        setKeyring({
+          hasKey: true,
+          publicKeyHex: kp.pubHex,
+          keyFingerprint: fp,
+          createdAt: storedDate || 'Active Session',
+        });
+      }, 0);
+      return () => clearTimeout(timer);
     }
   }, []);
 
@@ -122,8 +125,8 @@ export function WebCryptoKeyring({ onSigned }: { onSigned?: (sig: string, pubKey
         createdAt,
       });
       setStatusMsg('✅ Genuine RFC 8032 Ed25519 Keypair generated & stored in browser memory.');
-    } catch (err: any) {
-      setStatusMsg(`❌ Key generation error: ${err?.message || err}`);
+    } catch (err: unknown) {
+      setStatusMsg(`❌ Key generation error: ${err instanceof Error ? err.message : String(err)}`);
     }
   };
 
@@ -162,7 +165,7 @@ export function WebCryptoKeyring({ onSigned }: { onSigned?: (sig: string, pubKey
         </span>
       </div>
 
-      <p className="text-xs text-slate-400 leading-relaxed">
+      <p className="text-xs text-slate-300 leading-relaxed">
         AP2 spend mandates are signed <strong>directly inside this browser window</strong> using RFC 8032 Ed25519.
         Your private key never leaves local storage or travels across the network to the server.
       </p>
@@ -170,14 +173,14 @@ export function WebCryptoKeyring({ onSigned }: { onSigned?: (sig: string, pubKey
       {keyring.hasKey ? (
         <div className="space-y-3 bg-[#05070B] p-4 rounded-lg border border-slate-800">
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-400 font-medium">Public Key Fingerprint:</span>
+            <span className="text-xs text-slate-200 font-medium">Public Key Fingerprint:</span>
             <div className="flex items-center space-x-2">
               <span className="text-xs font-mono font-bold text-cyan-300 bg-cyan-950/40 px-2 py-0.5 rounded border border-cyan-800/40">
                 {keyring.keyFingerprint}
               </span>
               <button
                 onClick={copyPublicKey}
-                className="p-1 text-slate-400 hover:text-white transition-colors"
+                className="p-1 text-slate-300 hover:text-white transition-colors"
                 title="Copy Full Public Key"
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -185,12 +188,12 @@ export function WebCryptoKeyring({ onSigned }: { onSigned?: (sig: string, pubKey
             </div>
           </div>
 
-          <div className="text-[11px] font-mono text-slate-500 truncate">
+          <div className="text-xs font-mono text-slate-300 truncate">
             Full Hex: {keyring.publicKeyHex}
           </div>
 
           <div className="flex items-center justify-between pt-2 border-t border-slate-800/80">
-            <span className="text-[10px] text-slate-500 font-mono">
+            <span className="text-[11px] text-slate-300 font-mono font-medium">
               Created: {new Date(keyring.createdAt).toLocaleDateString()}
             </span>
             <div className="flex space-x-2">

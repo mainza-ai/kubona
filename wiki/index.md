@@ -1,14 +1,14 @@
 ---
 type: catalog
 date: 2026-08-16
-updated: 2026-10-04
+updated: 2026-10-05
 tags: [index]
 status: living
 ---
 
 # Index
 
-Catalog of every page in the wiki (89 pages), updated on every ingest. When answering a
+Catalog of every page in the wiki (90 pages), updated on every ingest. When answering a
 query, read this first to find relevant pages, then drill in.
 
 > **What this wiki is.** The **blueprint** for Kubona — the accumulated insight used to
@@ -23,7 +23,7 @@ arrives, place it here first and it will find its page.
 
 | Layer | What belongs | Pages | Decidedness |
 |---|---|---|---|
-| **L0 · Method** | How Kubona is allowed to *know* and *claim*: evidence classes, anchors, credibility | [[quantum-advantage-realism]], [[evaluation-and-benchmarks]], [[provenance-and-reproducibility]], [[claim-credibility-wavefunctions]], [[epistemic-curvature]], [[fidelity-accounting]] | mostly `open-question` — the least grounded, most differentiating layer |
+| **L0 · Method** | How Kubona is allowed to *know* and *claim*: evidence classes, anchors, credibility | [[quantum-advantage-realism]], [[evaluation-and-benchmarks]], [[provenance-and-reproducibility]], [[claim-credibility-wavefunctions]], [[epistemic-curvature]], [[fidelity-accounting]], [[forensic-audit-2026]] | mostly `open-question` — the least grounded, most differentiating layer |
 | **L1 · Control** | The governance rail that makes agent spend survivable | [[cost-governance]], [[spend-mandates-and-delegation]], [[security-and-pqc]], [[secrets-and-workload-isolation]], [[user-identity-and-profiles]], [[provider-capability-schema]], [[quantum-cloud-pricing]] | `adopted`, with AP2 mandates anchoring the approval gate |
 | **L2 · Compute** | Compilation, providers, mitigation, the machine itself | [[qir-mlir-compilation]], [[protocol-strategy]], [[mcp-and-context-flooding]], [[nisq-and-hybrid-orchestration]], [[error-mitigation]], [[circuit-cutting]], [[vqa-vqe]], [[barren-plateau]] + provider entities, [[qiskit-mcp-servers]] | `adopted` mechanisms, `tracked` vendors |
 | **L3 · Research** | Autonomy that compounds: search, meta-search, packs, the discovery loop | [[science-discovery]], [[karpathy-autoresearch]], [[meta-search-and-self-evolution]], [[five-ring-research-loop]], [[multi-agent-research-collective]], [[quantum-domain-packs]], [[agentic-memory-and-observability]], [[autonomous-ansatz-optimization]], [[differentiable-quantum-stack]] | mostly `open-question` |
@@ -55,8 +55,8 @@ Describes **how decided** something is — never how finished.
 | `source` | An ingested source record. Immutable once written. | the 5 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (89 pages = 39 entities · 40 concepts · 5 sources · 5 meta):**
-`settled` 1 · `adopted` 29 · `open-question` 12 · `candidate` 6 · `tracked` 26 ·
+**Census (90 pages = 39 entities · 41 concepts · 5 sources · 5 meta):**
+`settled` 1 · `adopted` 29 · `open-question` 12 · `candidate` 6 · `tracked` 27 ·
 `reference` 5 · `source` 5 · `living` 5. One `settled` against 29 `adopted` is the honest
 reading: the method is **understood**, not yet **chosen**. `settled` is meant to stay small —
 if it grows much faster than `adopted`, check that constraints are being recorded as `settled`
@@ -120,7 +120,7 @@ Run it after any batch edit; exit 0 as of 2026-09-27.
 | [[arxiv-mcp-quantum]] | Prior-art paper proving MCP-for-quantum is a real, non-dependency field |
 | [[mainza-milimo-foundation]] | Existing codebase (Milimo Quantum, Finance Claw, AfrEval) cited as reusable de-risking |
 
-## Concepts (40)
+## Concepts (41)
 
 | Page | What it is |
 |---|---|
@@ -163,3 +163,4 @@ Run it after any batch edit; exit 0 as of 2026-09-27.
 | [[confidentiality-lattice-provenance]] | Labels that flow with data: information-flow control as part of the provenance record |
 | [[secrets-and-workload-isolation]] | Vault sidecar, scoped tokens, sandboxed workloads — and the credential incidents that taught us why |
 | [[integration-topology-and-licence-discipline]] | Submodule / sidecar / blueprint / reference + licence rules; submodule is a shipping decision, not a compliment |
+| [[forensic-audit-2026]] | Comprehensive forensic code audit and empirical verification matrix across all 89 pages & platform tiers |
