@@ -146,3 +146,27 @@ func (m *Manager) GetMessages(sessionID string) ([]ChatMessage, error) {
 	}
 	return msgs, nil
 }
+
+func (m *Manager) DeleteSession(id string) error {
+	tx, err := m.ledger.DB().Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.Exec(`DELETE FROM chat_messages WHERE session_id = ?`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM campaign_states WHERE session_id = ?`, id); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(`DELETE FROM sessions WHERE id = ?`, id); err != nil {
+		return err
+	}
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	m.ledger.AppendEvent(id, "session_deleted", map[string]string{"id": id})
+	return nil
+}

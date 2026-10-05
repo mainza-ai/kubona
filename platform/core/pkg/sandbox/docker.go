@@ -1,46 +1,122 @@
 package sandbox
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
+var (
+	ErrSandboxExecutionFailed = errors.New("sandbox execution failed")
+	ErrDockerNotAvailable     = errors.New("docker daemon not available")
+	ErrExecutionTimeout       = errors.New("execution timed out in sandbox")
+	ErrDevModeInProduction    = errors.New("KUBONA_DEV_MODE is strictly prohibited in production")
+)
+
+// ExecutionResult captures the output, metrics, and security attributes of a run
 type ExecutionResult struct {
-	Stdout   string        `json:"stdout"`
-	Stderr   string        `json:"stderr"`
-	ExitCode int           `json:"exit_code"`
-	Duration time.Duration `json:"duration"`
-	Sandboxed bool         `json:"sandboxed"`
+	Stdout       string        `json:"stdout"`
+	Stderr       string        `json:"stderr"`
+	ExitCode     int           `json:"exit_code"`
+	Duration     time.Duration `json:"duration"`
+	Sandboxed    bool          `json:"sandboxed"`
+	IsolationTag string        `json:"isolation_tag"`
+	MemoryMB     float64       `json:"memory_mb"`
+	Error        string        `json:"error,omitempty"`
 }
 
+// Config declares the security profile and resource clamps (Tier B Sandbox)
+type Config struct {
+	Image             string        `json:"image"`
+	Timeout           time.Duration `json:"timeout"`
+	CPULimit          string        `json:"cpu_limit"`
+	MemoryLimit       string        `json:"memory_limit"`
+	MemorySwap        string        `json:"memory_swap"`
+	PidsLimit         int           `json:"pids_limit"`
+	Network           string        `json:"network"`
+	User              string        `json:"user"`
+	AllowHostFallback bool          `json:"allow_host_fallback"`
+}
+
+// DefaultConfig provides production-grade NemoClaw/OpenClaw security parameters
+func DefaultConfig() Config {
+	return Config{
+		Image:             "kubona/quantum-runner:latest",
+		Timeout:           60 * time.Second,
+		CPULimit:          "2.0",
+		MemoryLimit:       "4g",
+		MemorySwap:        "4g",
+		PidsLimit:         128,
+		Network:           "none",
+		User:              "1000:1000",
+		AllowHostFallback: false,
+	}
+}
+
+// SandboxRunner coordinates execution inside hardened ephemeral containers
 type SandboxRunner struct {
+	cfg       Config
 	useDocker bool
-	image     string
-	timeout   time.Duration
 }
 
+// NewSandboxRunner instantiates a sandbox runner verifying Docker availability
 func NewSandboxRunner(image string, timeout time.Duration) *SandboxRunner {
-	if image == "" {
-		image = "python:3.12-slim"
+	cfg := DefaultConfig()
+	if image != "" {
+		cfg.Image = image
 	}
-	if timeout <= 0 {
-		timeout = 15 * time.Second
+	if timeout > 0 {
+		cfg.Timeout = timeout
+	}
+	return NewSandboxRunnerWithConfig(cfg)
+}
+
+// NewSandboxRunnerWithConfig creates a runner with custom security configurations
+func NewSandboxRunnerWithConfig(cfg Config) *SandboxRunner {
+	if cfg.Image == "" {
+		cfg.Image = "kubona/quantum-runner:latest"
+	}
+	if cfg.Timeout <= 0 {
+		cfg.Timeout = 60 * time.Second
+	}
+	if cfg.CPULimit == "" {
+		cfg.CPULimit = "2.0"
+	}
+	if cfg.MemoryLimit == "" {
+		cfg.MemoryLimit = "4g"
+	}
+	if cfg.MemorySwap == "" {
+		cfg.MemorySwap = "4g"
+	}
+	if cfg.PidsLimit <= 0 {
+		cfg.PidsLimit = 128
+	}
+	if cfg.Network == "" {
+		cfg.Network = "none"
+	}
+	if cfg.User == "" {
+		cfg.User = "1000:1000"
 	}
 
-	// Probe if docker is installed, daemon running, and requested image exists locally
+	if os.Getenv("KUBONA_ENV") == "production" {
+		cfg.AllowHostFallback = false
+	}
+
 	useDocker := false
 	if exec.Command("docker", "info").Run() == nil {
-		if exec.Command("docker", "image", "inspect", image).Run() == nil {
+		// Check primary image or fallback images
+		if exec.Command("docker", "image", "inspect", cfg.Image).Run() == nil {
 			useDocker = true
 		} else {
-			// Check if any standard lightweight python image is already cached
-			for _, alt := range []string{"python:3.11-slim", "python:3.12-alpine", "python:3.10-slim", "python:alpine"} {
+			for _, alt := range []string{"python:3.11-slim", "python:3.12-slim", "python:3.12-alpine"} {
 				if exec.Command("docker", "image", "inspect", alt).Run() == nil {
-					image = alt
+					cfg.Image = alt
 					useDocker = true
 					break
 				}
@@ -48,78 +124,192 @@ func NewSandboxRunner(image string, timeout time.Duration) *SandboxRunner {
 		}
 	}
 
+	if useDocker {
+		_ = EnsureWarmRunner(cfg.Image)
+	}
+
 	return &SandboxRunner{
+		cfg:       cfg,
 		useDocker: useDocker,
-		image:     image,
-		timeout:   timeout,
 	}
 }
 
+// EnsureWarmRunner ensures that a persistent warm runner container is active in Docker Desktop
+func EnsureWarmRunner(image string) error {
+	out, err := exec.Command("docker", "ps", "--filter", "name=kubona-quantum-runner", "--format", "{{.Names}}").Output()
+	if err == nil && strings.TrimSpace(string(out)) == "kubona-quantum-runner" {
+		return nil
+	}
+	_ = exec.Command("docker", "rm", "-f", "kubona-quantum-runner").Run()
+	cmd := exec.Command("docker", "run", "-d", "--name", "kubona-quantum-runner", "--restart", "unless-stopped", "--entrypoint", "tail", image, "-f", "/dev/null")
+	return cmd.Run()
+}
+
+// Config returns the active runner configuration
+func (r *SandboxRunner) Config() Config {
+	return r.cfg
+}
+
+// IsDockerAvailable indicates if the Docker container runtime is active
+func (r *SandboxRunner) IsDockerAvailable() bool {
+	return r.useDocker
+}
+
+// ExecutePython executes an ad-hoc python script in the hardened sandbox
 func (r *SandboxRunner) ExecutePython(code string) (*ExecutionResult, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), r.timeout)
+	return r.ExecuteHarness(code, "script.py", "")
+}
+
+// ExecuteHarness implements dual-mount isolation:
+// - /benchmark: read-only evaluation code
+// - /workspace: read-write isolated directory for the mutable artifact
+func (r *SandboxRunner) ExecuteHarness(benchmarkScript, mutableArtifactName, mutableArtifactContent string) (*ExecutionResult, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), r.cfg.Timeout)
 	defer cancel()
 
 	tmpDir, err := os.MkdirTemp("", "kubona-sandbox-*")
 	if err != nil {
-		return nil, fmt.Errorf("failed to create scratch dir: %w", err)
+		return nil, fmt.Errorf("failed to create sandbox scratch dir: %w", err)
 	}
 	defer os.RemoveAll(tmpDir)
 
-	scriptPath := filepath.Join(tmpDir, "script.py")
-	if err := os.WriteFile(scriptPath, []byte(code), 0600); err != nil {
-		return nil, fmt.Errorf("failed to write script: %w", err)
+	benchmarkDir := filepath.Join(tmpDir, "benchmark")
+	workspaceDir := filepath.Join(tmpDir, "workspace")
+	if err := os.MkdirAll(benchmarkDir, 0755); err != nil {
+		return nil, err
+	}
+	if err := os.MkdirAll(workspaceDir, 0777); err != nil {
+		return nil, err
+	}
+
+	evalPath := filepath.Join(benchmarkDir, "eval.py")
+	if err := os.WriteFile(evalPath, []byte(benchmarkScript), 0644); err != nil {
+		return nil, fmt.Errorf("failed to write evaluation script: %w", err)
+	}
+
+	if mutableArtifactName != "" && mutableArtifactContent != "" {
+		artPath := filepath.Join(workspaceDir, mutableArtifactName)
+		if err := os.WriteFile(artPath, []byte(mutableArtifactContent), 0666); err != nil {
+			return nil, fmt.Errorf("failed to write mutable artifact: %w", err)
+		}
 	}
 
 	startTime := time.Now()
-	var cmd *exec.Cmd
-	var out []byte
 
 	if r.useDocker {
-		// Run inside unprivileged, network-isolated container
-		cmd = exec.CommandContext(ctx, "docker", "run", "--rm",
-			"--network", "none",
-			"--memory", "512m",
-			"--cpus", "1.0",
-			"-v", fmt.Sprintf("%s:/app:ro", tmpDir),
-			"-w", "/app",
-			r.image,
-			"python3", "script.py",
-		)
-		out, err = cmd.CombinedOutput()
-		if err != nil || len(out) == 0 {
-			// Container file-sharing timeout or docker daemon issue: fallback to host execution
-			hostCmd := exec.Command("python3", scriptPath)
-			hostCmd.Dir = tmpDir
-			hostCmd.Env = []string{"PATH=" + os.Getenv("PATH")}
-			hostOut, hostErr := hostCmd.CombinedOutput()
-			if hostErr == nil {
-				out = hostOut
-				err = nil
+		// Strict hardened container invocation compliant with NemoClaw / OpenClaw
+		args := []string{
+			"run", "--rm",
+			"--read-only",
+			"--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",
+			"--cap-drop=ALL",
+			"--security-opt=no-new-privileges",
+			"--network", r.cfg.Network,
+			"--memory", r.cfg.MemoryLimit,
+			"--memory-swap", r.cfg.MemorySwap,
+			"--cpus", r.cfg.CPULimit,
+			fmt.Sprintf("--pids-limit=%d", r.cfg.PidsLimit),
+			"-v", fmt.Sprintf("%s:/benchmark:ro", benchmarkDir),
+			"-v", fmt.Sprintf("%s:/workspace:rw", workspaceDir),
+			"-w", "/workspace",
+			"-e", "PYTHONPATH=/workspace",
+			"-e", "PYTHONUNBUFFERED=1",
+		}
+
+		if r.cfg.User != "" && r.cfg.User != "root" {
+			args = append(args, "--user", r.cfg.User)
+		}
+
+		args = append(args, "--entrypoint", "python3", r.cfg.Image, "/benchmark/eval.py")
+
+		cmd := exec.CommandContext(ctx, "docker", args...)
+		var stdoutBuf, stderrBuf bytes.Buffer
+		cmd.Stdout = &stdoutBuf
+		cmd.Stderr = &stderrBuf
+
+		runErr := cmd.Run()
+		duration := time.Since(startTime)
+
+		exitCode := 0
+		if runErr != nil {
+			if exitErr, ok := runErr.(*exec.ExitError); ok {
+				exitCode = exitErr.ExitCode()
+			} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				return &ExecutionResult{
+					Stderr:       "Execution timed out in sandbox",
+					ExitCode:     124,
+					Duration:     duration,
+					Sandboxed:    true,
+					IsolationTag: "docker-hardened",
+					Error:        ErrExecutionTimeout.Error(),
+				}, ErrExecutionTimeout
+			} else {
+				exitCode = 1
 			}
 		}
-	} else {
-		// Local host fallback with restricted environment
-		cmd = exec.CommandContext(ctx, "python3", scriptPath)
-		cmd.Dir = tmpDir
-		cmd.Env = []string{"PATH=" + os.Getenv("PATH")}
-		out, err = cmd.CombinedOutput()
+
+		return &ExecutionResult{
+			Stdout:       stdoutBuf.String(),
+			Stderr:       stderrBuf.String(),
+			ExitCode:     exitCode,
+			Duration:     duration,
+			Sandboxed:    true,
+			IsolationTag: fmt.Sprintf("docker:%s (net=%s, cpus=%s, mem=%s)", r.cfg.Image, r.cfg.Network, r.cfg.CPULimit, r.cfg.MemoryLimit),
+			Error:        "",
+		}, nil
 	}
+
+	// Docker unavailable: strictly refuse unless explicit AllowHostFallback or KUBONA_DEV_MODE is configured
+	isProd := os.Getenv("KUBONA_ENV") == "production"
+	devMode := os.Getenv("KUBONA_DEV_MODE") == "1"
+
+	if isProd && devMode {
+		return nil, ErrDevModeInProduction
+	}
+
+	if isProd || (!r.cfg.AllowHostFallback && !devMode) {
+		return nil, fmt.Errorf("%w: Docker daemon or required image '%s' is not accessible and sandbox isolation is required", ErrDockerNotAvailable, r.cfg.Image)
+	}
+
+	fmt.Fprintln(os.Stderr, "⚠️  WARNING: Running un-sandboxed host execution fallback (KUBONA_DEV_MODE or AllowHostFallback enabled). NEVER use in production!")
+
+	// Explicit development host execution with restricted environment and clear un-sandboxed tag
+	cmd := exec.CommandContext(ctx, "python3", evalPath)
+	cmd.Dir = workspaceDir
+	cmd.Env = []string{
+		"PATH=" + os.Getenv("PATH"),
+		"PYTHONPATH=" + workspaceDir,
+		"PYTHONUNBUFFERED=1",
+	}
+
+	var stdoutBuf, stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+
+	runErr := cmd.Run()
 	duration := time.Since(startTime)
 
 	exitCode := 0
-	if err != nil {
-		if exitErr, ok := err.(*exec.ExitError); ok {
+	if runErr != nil {
+		if exitErr, ok := runErr.(*exec.ExitError); ok {
 			exitCode = exitErr.ExitCode()
 		} else {
 			exitCode = 1
 		}
 	}
 
+	tag := "host-fallback (UNSANDBOXED)"
+	if devMode {
+		tag = "host-fallback (UNSANDBOXED - DEV MODE)"
+	}
+
 	return &ExecutionResult{
-		Stdout:    string(out),
-		Stderr:    "",
-		ExitCode:  exitCode,
-		Duration:  duration,
-		Sandboxed: r.useDocker,
+		Stdout:       stdoutBuf.String(),
+		Stderr:       stderrBuf.String(),
+		ExitCode:     exitCode,
+		Duration:     duration,
+		Sandboxed:    false, // Explicitly false! Never deceive caller.
+		IsolationTag: tag,
+		Error:        "",
 	}, nil
 }

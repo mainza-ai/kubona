@@ -1,14 +1,27 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Radio, ShieldAlert, Cpu, Activity, Clock, CheckCircle2, Layers, Globe, Zap, Star } from 'lucide-react';
+import {
+  Radio,
+  ShieldCheck,
+  Cpu,
+  Lock,
+  Globe,
+  Star,
+  ChevronDown,
+  ChevronUp,
+  MapPin,
+} from 'lucide-react';
 import { CampaignState } from '@/types';
+import { fetchFleet } from '@/lib/api';
 
 interface BackendInfo {
   name: string;
   type: string;
   qubits: number;
   t1_us: string;
+  avg_t1_us?: number;
+  avg_t2_us?: number;
   status: string;
   queue_depth: number;
   cost_per_shot: number;
@@ -22,157 +35,206 @@ interface FleetRadarProps {
 
 export function FleetRadar({ campaign }: FleetRadarProps) {
   const [backends, setBackends] = useState<BackendInfo[]>([]);
-  const [activeTier, setActiveTier] = useState<number | 'all'>('all');
+  const [sovereignOnly, setSovereignOnly] = useState(false);
+  const [expandedBackend, setExpandedBackend] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch('http://localhost:8080/api/fleet')
-      .then((res) => res.json())
-      .then((data) => setBackends(data.backends || []))
+    fetchFleet()
+      .then((data) => setBackends((data.backends as BackendInfo[]) || []))
       .catch((err) => console.error('Failed to load fleet data:', err));
   }, []);
 
+  const filteredBackends = sovereignOnly
+    ? backends.filter((b) => b.jurisdiction === 'LOCAL_SOVEREIGN' || b.name.includes('local'))
+    : backends;
+
   const tiers = [
-    { tier: 0, title: 'Tier 0 · Classical Physics Anchors', desc: 'PySCF FCI/RHF ab-initio ground truth' },
-    { tier: 1, title: 'Tier 1 · Local Sovereign Emulation', desc: 'Qiskit Aer CPU/GPU, ZNE, Wire-Cutting' },
-    { tier: 2, title: 'Tier 2 · Managed Cloud Simulators', desc: 'AWS Braket SV1/TN1, CUDA-Q' },
-    { tier: 3, title: 'Tier 3 · Physical QPUs', desc: 'IBM Heron, Rigetti, Quantinuum, QuEra' },
+    { tier: 0, title: 'Tier 0 · Classical Physics Ground Truth', desc: 'PySCF FCI / RHF ab-initio exact anchor' },
+    { tier: 1, title: 'Tier 1 · Sovereign Local Emulation', desc: 'Qiskit Aer GPU/MPS, ZNE, Wire-Cutting' },
+    { tier: 2, title: 'Tier 2 · Managed Cloud Simulators', desc: 'AWS Braket SV1/TN1, CUDA-Q accelerated' },
+    { tier: 3, title: 'Tier 3 · Physical QPUs', desc: 'IBM Heron (156q), Quantinuum H1 (20q), Rigetti' },
   ];
 
   return (
-    <div className="bg-[#0A0D14] border border-slate-800 rounded-xl p-6 space-y-6 shadow-2xl">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-        <div>
-          <h2 className="text-base font-bold text-white flex items-center space-x-2">
+    <div className="relative rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0E17] to-[#06080D] border border-white/[0.08] shadow-2xl p-7 space-y-6 select-none">
+      {/* Serene Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-5">
+        <div className="flex items-center space-x-3.5">
+          <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 backdrop-blur-xl flex items-center justify-center shadow-inner">
             <Radio className="w-5 h-5 text-cyan-400" />
-            <span>Surface 5: Execution Fleet Radar &amp; Hardware Tier Shield</span>
-          </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            4-Tier classical-quantum continuum, QPU coherence calibration ($T_1/T_2$), and EAR99 jurisdiction routing
-          </p>
-        </div>
-        <span className="px-3 py-1 rounded-lg bg-cyan-950 border border-cyan-800 text-cyan-300 text-xs font-mono font-bold flex items-center space-x-1.5 glow-cyan">
-          <Activity className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-          <span>RADAR SWEEP ONLINE</span>
-        </span>
-      </div>
-
-      {/* Jurisdiction Shield & Clifford Canary Banner */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="p-4 bg-[#05070B] border border-slate-800 rounded-xl flex items-center justify-between text-xs">
-          <div className="flex items-center space-x-3">
-            <ShieldAlert className="w-5 h-5 text-emerald-400 shrink-0" />
-            <div className="text-slate-300">
-              <div className="font-bold text-white">ITAR/EAR Export-Control Policy Shield</div>
-              <div className="text-[11px] text-slate-400">
-                Enforcing <strong className="font-mono text-emerald-300">policy.py</strong> rules: Cloud traffic filtered for EAR99 compliance.
-              </div>
-            </div>
           </div>
-          <span className="px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800 font-mono text-[10px] font-bold">
-            ACTIVE SHIELD
-          </span>
-        </div>
-
-        <div className="p-4 bg-[#05070B] border border-slate-800 rounded-xl flex items-center justify-between text-xs">
-          <div className="flex items-center space-x-3">
-            <Zap className="w-5 h-5 text-cyan-400 shrink-0" />
-            <div className="text-slate-300">
-              <div className="font-bold text-white">Clifford Stabilizer Canary Probes</div>
-              <div className="text-[11px] text-slate-400">
-                Pre-flight RB canary fidelity: <strong className="font-mono text-cyan-300">F = {((campaign?.quantum_factors?.clifford_fidelity ?? 0.984) * 100).toFixed(1)}%</strong> (≥ 95% threshold).
-              </div>
-            </div>
+          <div>
+            <h2 className="text-base font-semibold text-white tracking-tight flex items-center space-x-2">
+              <span>Ambient Hardware Radar</span>
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              4-Tier classical-quantum continuum with real-time coherence calibration and sovereign routing
+            </p>
           </div>
-          <span className="px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800 font-mono text-[10px] font-bold">
-            PROBES VERIFIED
-          </span>
         </div>
-      </div>
 
-      {/* 4-Tier Continuum Filter Chips */}
-      <div className="flex items-center space-x-2 overflow-x-auto pb-1 text-xs">
-        <button
-          onClick={() => setActiveTier('all')}
-          className={`px-3 py-1.5 rounded-lg border font-mono transition-colors ${
-            activeTier === 'all'
-              ? 'bg-indigo-600 text-white border-indigo-500 font-bold'
-              : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
-          }`}
-        >
-          All Continuum Tiers
-        </button>
-        {tiers.map((t) => (
+        {/* 100% Sovereign Air-Gap Toggle Switch */}
+        <div className="flex items-center space-x-3">
           <button
-            key={t.tier}
-            onClick={() => setActiveTier(t.tier)}
-            className={`px-3 py-1.5 rounded-lg border font-mono transition-colors shrink-0 ${
-              activeTier === t.tier
-                ? 'bg-indigo-600 text-white border-indigo-500 font-bold'
-                : 'bg-slate-900 text-slate-400 border-slate-800 hover:text-white'
+            onClick={() => setSovereignOnly(!sovereignOnly)}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center space-x-2 border transition-all shadow-sm active:scale-95 ${
+              sovereignOnly
+                ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300 ring-1 ring-emerald-500/20'
+                : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-300'
             }`}
           >
-            Tier {t.tier}
+            {sovereignOnly ? (
+              <>
+                <Lock className="w-3.5 h-3.5 text-emerald-400" />
+                <span>100% Sovereign Air-Gap (Local Mac Only)</span>
+              </>
+            ) : (
+              <>
+                <Globe className="w-3.5 h-3.5 text-slate-400" />
+                <span>Global Fleet Available</span>
+              </>
+            )}
           </button>
-        ))}
+        </div>
       </div>
 
-      {/* Fleet Multi-Modality Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {backends.map((b) => {
-          const isRecommended = campaign?.quantum_factors?.recommended_backend &&
-            (b.name.toLowerCase().includes('aer') && campaign.quantum_factors.recommended_backend.toLowerCase().includes('aer') ||
-             b.name.toLowerCase().includes('heron') && campaign.quantum_factors.recommended_backend.toLowerCase().includes('heron'));
+      {/* Continuum Radar Strip */}
+      <div className="p-4 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl space-y-3">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-semibold text-slate-300 uppercase tracking-wider font-mono text-[11px]">
+            Quantum Execution Continuum
+          </span>
+          <span className="text-slate-400 font-mono text-[10px] flex items-center space-x-1.5">
+            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <span>EAR99 Export-Controlled Cloud Filtering Active</span>
+          </span>
+        </div>
 
-          return (
-          <div
-            key={b.name}
-            className={`p-4 bg-[#05070B] border rounded-xl space-y-3 shadow-lg transition-all ${
-              isRecommended ? 'border-cyan-500/60 ring-1 ring-cyan-500/30' : 'border-slate-800'
-            }`}
-          >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2.5">
-                <Cpu className={`w-4 h-4 ${isRecommended ? 'text-cyan-300 animate-pulse' : 'text-cyan-400'}`} />
-                <span className="font-bold text-white text-sm font-mono">{b.name}</span>
-                {isRecommended && (
-                  <span className="px-2 py-0.5 rounded-md bg-cyan-950 text-cyan-300 border border-cyan-800 text-[9px] font-mono font-bold flex items-center space-x-1">
-                    <Star className="w-2.5 h-2.5 fill-cyan-400" />
-                    <span>RECOMMENDED FOR {campaign?.target_system || 'TARGET'}</span>
-                  </span>
-                )}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
+          {tiers.map((t) => (
+            <div
+              key={t.tier}
+              className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.05] space-y-1 hover:border-cyan-500/30 transition-all"
+            >
+              <div className="text-xs font-bold text-white flex items-center space-x-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
+                <span>Tier {t.tier}</span>
               </div>
-              <span
-                className={`px-2.5 py-0.5 rounded text-[10px] font-mono font-bold border ${
-                  b.status === 'ONLINE' || b.status === 'READY'
-                    ? 'bg-emerald-950 text-emerald-300 border-emerald-800'
-                    : 'bg-amber-950 text-amber-300 border-amber-800'
+              <p className="text-[11px] text-slate-400 leading-tight font-sans">
+                {t.desc}
+              </p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Backend Devices: Clean Minimal Cards with Progressive Disclosure */}
+      <div className="space-y-3">
+        <div className="text-xs font-semibold text-slate-300 font-mono uppercase tracking-wider">
+          Available Devices &amp; Simulators ({filteredBackends.length})
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {filteredBackends.map((b) => {
+            const isRecommended =
+              campaign?.quantum_factors?.recommended_backend &&
+              ((b.name.toLowerCase().includes('aer') && campaign.quantum_factors.recommended_backend.toLowerCase().includes('aer')) ||
+                (b.name.toLowerCase().includes('heron') && campaign.quantum_factors.recommended_backend.toLowerCase().includes('heron')));
+
+            const isExpanded = expandedBackend === b.name;
+            const isOnline = b.status === 'ONLINE' || b.status === 'READY';
+
+            return (
+              <div
+                key={b.name}
+                className={`p-5 rounded-2xl bg-black/40 border transition-all backdrop-blur-xl space-y-3.5 ${
+                  isRecommended
+                    ? 'border-cyan-500/50 ring-1 ring-cyan-500/30 shadow-lg shadow-cyan-950/20'
+                    : 'border-white/[0.07] hover:border-white/15'
                 }`}
               >
-                {b.status}
-              </span>
-            </div>
+                {/* Device Title & Status Pill */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-2.5">
+                    <Cpu className={`w-4 h-4 ${isRecommended ? 'text-cyan-300' : 'text-slate-400'}`} />
+                    <span className="font-bold text-sm text-white font-mono tracking-tight">{b.name}</span>
+                    {isRecommended && (
+                      <span className="px-2 py-0.5 rounded-md bg-cyan-950/80 text-cyan-300 border border-cyan-800 text-[9px] font-mono font-bold flex items-center space-x-1">
+                        <Star className="w-2.5 h-2.5 fill-cyan-400 text-cyan-400" />
+                        <span>RECOMMENDED</span>
+                      </span>
+                    )}
+                  </div>
 
-            <div className="text-xs text-slate-400">{b.type}</div>
+                  <span
+                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-semibold flex items-center space-x-1.5 border ${
+                      isOnline
+                        ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60'
+                        : 'bg-amber-950/60 text-amber-300 border-amber-800/60'
+                    }`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                    <span>{b.status}</span>
+                  </span>
+                </div>
 
-            <div className="grid grid-cols-3 gap-2 text-xs font-mono bg-[#0A0D14] p-2.5 rounded-lg border border-slate-800">
-              <div>
-                <span className="text-slate-500">Qubits:</span> <strong className="text-white">{b.qubits}</strong>
-              </div>
-              <div>
-                <span className="text-slate-500">T₁:</span> <strong className="text-cyan-400">{b.t1_us} µs</strong>
-              </div>
-              <div>
-                <span className="text-slate-500">Queue:</span> <strong className="text-amber-400">{b.queue_depth}</strong>
-              </div>
-            </div>
+                <div className="text-xs text-slate-300 font-sans">{b.type}</div>
 
-            <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 pt-2 border-t border-slate-800">
-              <span>Cost/Shot: <strong className="text-emerald-400">${b.cost_per_shot}</strong></span>
-              <span>Jurisdiction: <strong className="text-slate-300">{b.jurisdiction}</strong></span>
-            </div>
-          </div>
-        ); })}
+                {/* Depth 1: Essential Metrics */}
+                <div className="grid grid-cols-3 gap-2 text-xs font-mono bg-white/[0.03] p-3 rounded-xl border border-white/10">
+                  <div>
+                    <span className="text-slate-300 block text-[11px] font-medium">Capacity</span>
+                    <strong className="text-white text-xs font-bold">{b.qubits} Qubits</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-300 block text-[11px] font-medium">Coherence T₁</span>
+                    <strong className="text-cyan-300 text-xs font-bold">{b.t1_us} µs</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-300 block text-[11px] font-medium">Queue</span>
+                    <strong className="text-amber-300 text-xs font-bold">{b.queue_depth} jobs</strong>
+                  </div>
+                </div>
+
+                {/* Progressive Disclosure Toggle */}
+                <button
+                  onClick={() => setExpandedBackend(isExpanded ? null : b.name)}
+                  className="w-full flex items-center justify-between text-xs text-slate-300 hover:text-white font-medium transition-colors pt-2 border-t border-white/[0.08]"
+                >
+                  <span className="flex items-center space-x-1.5">
+                    <MapPin className="w-3.5 h-3.5 text-slate-300" />
+                    <span>{b.jurisdiction} ({b.itar_ear})</span>
+                  </span>
+                  <span className="flex items-center space-x-1 font-mono text-cyan-300">
+                    <span>{isExpanded ? 'Hide Specs' : 'Deep Physics & Pricing'}</span>
+                    {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </span>
+                </button>
+
+                {/* Depth 2 & 3: Physics & Cost Specs */}
+                {isExpanded && (
+                  <div className="p-3.5 rounded-xl bg-black/70 border border-white/10 space-y-2 text-xs font-mono animate-fadeIn">
+                    <div className="flex justify-between text-slate-300 font-medium">
+                      <span>Cost per Shot:</span>
+                      <strong className="text-emerald-300">${b.cost_per_shot.toFixed(4)}</strong>
+                    </div>
+                    {b.avg_t2_us !== undefined && b.avg_t2_us > 0 && (
+                      <div className="flex justify-between text-slate-300 font-medium">
+                        <span>Coherence T₂ (Dephasing):</span>
+                        <strong className="text-cyan-300">{b.avg_t2_us} µs</strong>
+                      </div>
+                    )}
+                    <div className="flex justify-between text-slate-300 font-medium">
+                      <span>Jurisdiction Policy:</span>
+                      <span className="text-white font-semibold">{b.jurisdiction} · {b.itar_ear}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

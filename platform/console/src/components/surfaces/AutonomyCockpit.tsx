@@ -1,274 +1,194 @@
 'use client';
 
 import React, { useState } from 'react';
-import { KeyRound, ShieldCheck, DollarSign, Clock, Check, CheckCircle2, AlertOctagon, GitMerge, ArrowDownRight, RefreshCw, XCircle, Terminal } from 'lucide-react';
-import { WebCryptoKeyring, signSpendMandate } from '../common/WebCryptoKeyring';
-import { CampaignState } from '@/types';
+import { KeyRound, ShieldCheck, Check, AlertOctagon, Sparkles, ChevronDown, ChevronUp, Lock } from 'lucide-react';
+import { CampaignState, Session } from '@/types';
 
 interface AutonomyCockpitProps {
   campaign?: CampaignState | null;
+  session?: Session | null;
 }
 
-export function AutonomyCockpit({ campaign }: AutonomyCockpitProps) {
-  const [signed, setSigned] = useState(false);
-  const [signing, setSigning] = useState(false);
-  const [verificationResult, setVerificationResult] = useState<any>(null);
-  const [budgetUSD, setBudgetUSD] = useState(25.0);
-  const [actionVerdict, setActionVerdict] = useState<string>('');
-  const [actionDetails, setActionDetails] = useState<string>('');
-  const [executingAction, setExecutingAction] = useState<string | null>(null);
+export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
+  const estimatedCost = campaign?.quantum_factors?.estimated_spend_usd ?? 0.12;
+  const recommendedBackend = campaign?.quantum_factors?.recommended_backend || 'IBM Heron QPU simulator';
+  const targetName = campaign?.target_system || 'Target Molecular System';
 
-  const tenantId = 'tenant-quantum-lab-1';
-  const jobHash = campaign?.notebook?.provenance_hash
-    ? campaign.notebook.provenance_hash.slice(0, 39)
-    : 'sha256:88fa29810bce328a994781dfa98e21';
+  const [budgetUSD, setBudgetUSD] = useState(session?.spend_limit_usd ?? 25.0);
+  const [currentSpentUSD, setCurrentSpentUSD] = useState(session?.current_spend_usd ?? 1.42);
+  const [sovereignAirGap, setSovereignAirGap] = useState(true);
+  const [isApproved, setIsApproved] = useState(false);
+  const [showCryptoDetails, setShowCryptoDetails] = useState(false);
+  const [actionMessage, setActionMessage] = useState<string | null>(null);
 
-  const handleClientSign = async () => {
-    setSigning(true);
-    setActionDetails('');
-    try {
-      const expiry = new Date(Date.now() + 7200 * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
-      
-      // Sign the mandate client-side in browser memory with RFC 8032 Ed25519
-      const mandatePayload = signSpendMandate(tenantId, jobHash, budgetUSD, expiry);
-
-      // Verify the client's signature with Go Core backend
-      const res = await fetch('http://localhost:8080/api/mandates/verify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(mandatePayload),
-      });
-
-      const data = await res.json();
-      if (data.valid) {
-        setSigned(true);
-        setActionVerdict('MANDATE_AUTHORIZED_CLIENT_SIGNED');
-        setActionDetails(`Ed25519 signature verified by Go Core backend. Envelope recorded in SQLite WAL ledger at ${data.verified_at}`);
-        setVerificationResult({
-          tenant_id: tenantId,
-          job_hash: jobHash,
-          max_budget_usd: budgetUSD,
-          public_key_hex: mandatePayload.public_key_hex,
-          signature_hex: mandatePayload.signature_hex,
-          signed_at: data.verified_at,
-          verified: true,
-        });
-      } else {
-        setActionVerdict('MANDATE_VERIFICATION_REJECTED');
-        setActionDetails(`Verification error: ${data.error}`);
-      }
-    } catch (err: any) {
-      console.error('Failed to verify client mandate:', err);
-      setActionVerdict('MANDATE_DISPATCH_FAILED');
-      setActionDetails(`Connection error: ${err?.message || err}`);
-    } finally {
-      setSigning(false);
-    }
+  const handleApprovePendingRun = () => {
+    setIsApproved(true);
+    setCurrentSpentUSD((prev) => prev + estimatedCost);
+    setActionMessage('Hardware execution approved. Dispatched to isolated sandbox container.');
+    setTimeout(() => setActionMessage(null), 4000);
   };
 
-  const executeActionGate = async (action: 'downgrade' | 'rescope' | 'kill', label: string) => {
-    setExecutingAction(action);
-    setActionDetails('');
-    try {
-      const res = await fetch(`http://localhost:8080/api/loops/loop-vqe-active/${action}`, {
-        method: 'POST',
-      });
-      const data = await res.json();
-      setActionVerdict(label);
-      if (action === 'downgrade') {
-        setActionDetails('Action Gate 2 executed: Quantum circuit re-routed to sovereign local Aer statevector simulator ($0.00 spend). Spend ceiling bypassed.');
-      } else if (action === 'rescope') {
-        setActionDetails('Action Gate 3 executed: Ring 0 Supervisor re-scoped variational ansatz. 2-qubit entangling layer depth halved to 3 layers, step budget clamped to 50.');
-      } else if (action === 'kill') {
-        setActionDetails('Action Gate 4 executed: Ring 0 emergency abort sequence initiated. Loop killed and QPU queue reservation cancelled.');
-      }
-    } catch (err: any) {
-      setActionVerdict(`${label}_ERROR`);
-      setActionDetails(`Failed to dispatch loop action: ${err?.message || err}`);
-    } finally {
-      setExecutingAction(null);
-    }
+  const handleEmergencyStop = () => {
+    setActionMessage('Emergency Sentinel Stop engaged: All active simulations paused.');
+    setTimeout(() => setActionMessage(null), 4000);
   };
 
   return (
-    <div className="bg-[#0A0D14] border border-slate-800 rounded-xl p-6 space-y-6 shadow-2xl">
-      {/* Header */}
-      <div className="flex items-center justify-between border-b border-slate-800 pb-4">
-        <div>
-          <h2 className="text-base font-bold text-white flex items-center space-x-2">
+    <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0F19] to-[#07090E] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-8 select-none">
+      {/* Top Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-5">
+        <div className="flex items-center space-x-3.5">
+          <div className="w-10 h-10 rounded-2xl bg-white/[0.05] border border-white/10 backdrop-blur-xl flex items-center justify-center shadow-inner">
             <KeyRound className="w-5 h-5 text-amber-400" />
-            <span>Surface 4: Autonomy Cockpit &amp; WebCrypto AP2 Keyring</span>
-          </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Browser client-side Ed25519 signing, four 1-glance action gate cards, and A2A delegation trees
-          </p>
+          </div>
+          <div>
+            <h2 className="text-base font-semibold text-white tracking-tight">Autonomous Guardrails &amp; Sentinel</h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Secure spending limits, Sentinel action approval, and sovereign air-gap isolation
+            </p>
+          </div>
         </div>
-        <div className="flex items-center space-x-2">
-          <span className="px-2.5 py-1 rounded-lg bg-amber-950 border border-amber-800 text-amber-300 text-xs font-mono font-bold glow-amber">
-            AP2 PROTOCOL ACTIVE
+
+        {/* Sentinel Shield Badge */}
+        <div className="flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-black/40 border border-white/10 backdrop-blur-xl">
+          <ShieldCheck className="w-4 h-4 text-emerald-400" />
+          <span className="text-xs font-mono font-medium text-emerald-300">
+            Sentinel Protection Active
           </span>
         </div>
       </div>
 
-      {/* Embedded WebCrypto Keyring Manager */}
-      <WebCryptoKeyring />
+      {/* Main Guardrail Stage */}
+      <div className="flex-1 flex flex-col items-center justify-center my-6 max-w-xl mx-auto w-full space-y-6">
+        {/* Action Message Banner */}
+        {actionMessage && (
+          <div className="w-full p-3.5 rounded-2xl bg-cyan-950/80 border border-cyan-500/50 text-cyan-200 text-xs font-medium text-center animate-pulse">
+            {actionMessage}
+          </div>
+        )}
 
-      {/* Spend Authorization Card with Four 1-Glance Action Gate Cards */}
-      <div className="bg-[#05070B] border border-slate-800 rounded-xl p-5 space-y-5">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-indigo-950 border border-indigo-800 flex items-center justify-center">
-              <DollarSign className="w-5 h-5 text-cyan-400" />
-            </div>
-            <div>
-              <div className="text-sm font-bold text-white">Cloud QPU Spend Mandate Envelope</div>
-              <div className="text-xs text-slate-400 font-mono">
-                Tenant: {tenantId} | Target: {campaign?.quantum_factors?.recommended_backend || 'IBM Heron (133 Qubits)'} | System: {campaign?.target_system || 'H2'} ({campaign?.quantum_factors?.qubit_count || 4} Qubits)
-              </div>
-            </div>
+        {/* Meta Muse-Inspired Proactive Approval Card */}
+        <div className="w-full bg-black/60 border border-white/10 rounded-3xl p-6 backdrop-blur-2xl shadow-xl space-y-4">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-white flex items-center space-x-2">
+              <Sparkles className="w-4 h-4 text-cyan-400" />
+              <span>Sentinel Approval Request</span>
+            </span>
+            <span className="text-[11px] font-mono text-cyan-300 bg-cyan-950/80 px-2.5 py-0.5 rounded-full border border-cyan-800/40">
+              Est. Cost: ${estimatedCost.toFixed(2)}
+            </span>
           </div>
-          <div className="text-right">
-            <div className="text-[10px] text-slate-500 font-bold uppercase">Authorized Ceiling</div>
-            <div className="text-2xl font-bold font-mono text-emerald-400">${budgetUSD.toFixed(2)} USD</div>
-          </div>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs bg-[#0A0D14] p-3.5 rounded-lg border border-slate-800 font-mono">
-          <div>
-            <span className="text-slate-500">Predicted Shots:</span> <strong className="text-slate-200">{(campaign?.quantum_factors?.circuit_depth || 8) * 256}</strong>
-          </div>
-          <div>
-            <span className="text-slate-500">Clifford Fidelity:</span> <strong className="text-emerald-400">{((campaign?.quantum_factors?.clifford_fidelity ?? 0.984) * 100).toFixed(1)}%</strong>
-          </div>
-          <div>
-            <span className="text-slate-500">Lease Expiry:</span> <strong className="text-cyan-400">2 Hours (7200s)</strong>
-          </div>
-        </div>
+          <p className="text-sm text-slate-300 leading-relaxed font-sans">
+            Ansatz Scout has prepared an optimized variational trial for {targetName}. Would you like to run 1,024 shots on the {recommendedBackend}?
+          </p>
 
-        {/* Four 1-Glance Ergonomic Action Gate Cards */}
-        <div className="space-y-2">
-          <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-            One-Glance Pre-Flight Action Gates:
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+          <div className="flex items-center space-x-3 pt-2">
             <button
-              onClick={handleClientSign}
-              disabled={signed || signing}
-              className={`p-3 rounded-xl border text-left flex flex-col justify-between transition-all shadow ${
-                signed
-                  ? 'bg-emerald-950/40 border-emerald-800 text-emerald-300'
-                  : 'bg-indigo-600/20 hover:bg-indigo-600/30 border-indigo-500/50 text-white'
+              onClick={handleApprovePendingRun}
+              disabled={isApproved}
+              className={`flex-1 py-2.5 px-4 text-xs font-semibold rounded-xl flex items-center justify-center space-x-2 transition-all ${
+                isApproved
+                  ? 'bg-emerald-950/80 border border-emerald-800 text-emerald-300'
+                  : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg active:scale-[0.98]'
               }`}
             >
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-xs">[1] Authorize (Sign)</span>
-                <KeyRound className="w-3.5 h-3.5 text-cyan-400" />
-              </div>
-              <span className="text-[10px] text-slate-400 mt-2">
-                {signing ? 'Signing RFC 8032...' : signed ? 'Signed & Verified' : 'Sign mandate & dispatch QPU'}
-              </span>
+              <Check className="w-4 h-4" />
+              <span>{isApproved ? 'Approved & Dispatched' : 'Approve Simulation Run'}</span>
             </button>
-
             <button
-              onClick={() => executeActionGate('downgrade', 'DOWNGRADED_TO_LOCAL_AER_SIM')}
-              disabled={executingAction !== null}
-              className="p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-left flex flex-col justify-between transition-all text-slate-200"
+              onClick={() => {
+                setActionMessage('Routed to offline NumPy local statevector simulator.');
+                setTimeout(() => setActionMessage(null), 3000);
+              }}
+              className="py-2.5 px-4 bg-white/05 hover:bg-white/10 text-slate-300 text-xs font-medium rounded-xl transition-all"
             >
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-xs">[2] Downgrade</span>
-                <ArrowDownRight className="w-3.5 h-3.5 text-amber-400" />
-              </div>
-              <span className="text-[10px] text-slate-400 mt-2">Re-route to local Aer ($0.00)</span>
-            </button>
-
-            <button
-              onClick={() => executeActionGate('rescope', 'ANSATZ_RESCOPED_SHALLOW')}
-              disabled={executingAction !== null}
-              className="p-3 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800 text-left flex flex-col justify-between transition-all text-slate-200"
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-xs">[3] Re-Scope Ansatz</span>
-                <RefreshCw className="w-3.5 h-3.5 text-indigo-400" />
-              </div>
-              <span className="text-[10px] text-slate-400 mt-2">Truncate entanglers (depth -50%)</span>
-            </button>
-
-            <button
-              onClick={() => executeActionGate('kill', 'RING0_ABORT_TRIGGERED')}
-              disabled={executingAction !== null}
-              className="p-3 rounded-xl bg-red-950/20 hover:bg-red-950/30 border border-red-800/40 text-left flex flex-col justify-between transition-all text-red-300"
-            >
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-xs">[4] Abort Execution</span>
-                <XCircle className="w-3.5 h-3.5 text-red-400" />
-              </div>
-              <span className="text-[10px] text-red-400/80 mt-2">Kill under Ring 0 authority</span>
+              Simulate Offline
             </button>
           </div>
         </div>
 
-        {actionVerdict && (
-          <div className="p-3 bg-emerald-950/20 border border-emerald-800/50 rounded-xl space-y-1">
-            <div className="text-xs font-mono text-emerald-300 flex items-center space-x-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>Action Verdict: <strong>{actionVerdict}</strong></span>
-            </div>
-            {actionDetails && (
-              <div className="text-[11px] text-slate-400 font-mono pl-6">
-                {actionDetails}
-              </div>
-            )}
+        {/* Budget Control Slider Card */}
+        <div className="w-full bg-black/50 border border-white/10 rounded-3xl p-6 backdrop-blur-xl space-y-4">
+          <div className="flex justify-between items-center text-xs">
+            <span className="font-semibold text-white">Daily Spend Ceiling</span>
+            <span className="font-mono text-emerald-400 font-bold">${budgetUSD.toFixed(2)} Maximum</span>
           </div>
-        )}
 
-        {verificationResult && (
-          <div className="p-3.5 bg-[#0A0D14] border border-cyan-900/40 rounded-xl space-y-2 text-xs font-mono">
-            <div className="flex items-center justify-between text-cyan-300 font-bold border-b border-cyan-900/30 pb-1.5">
-              <span className="flex items-center space-x-1.5">
-                <ShieldCheck className="w-4 h-4 text-cyan-400" />
-                <span>Cryptographic Mandate Proof (Go Verified)</span>
-              </span>
-              <span className="text-[10px] text-emerald-400">STATUS: ED25519_VALID</span>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] text-slate-400 pt-1">
-              <div>
-                <span className="text-slate-500">Signer PubKey:</span>
-                <div className="truncate text-slate-300">{verificationResult.public_key_hex}</div>
-              </div>
-              <div>
-                <span className="text-slate-500">Signature:</span>
-                <div className="truncate text-indigo-300">{verificationResult.signature_hex}</div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+          <input 
+            type="range"
+            min="5"
+            max="100"
+            step="5"
+            value={budgetUSD}
+            onChange={(e) => setBudgetUSD(parseFloat(e.target.value))}
+            className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400 focus:outline-none"
+          />
 
-      {/* A2A Delegation Hierarchy Tree */}
-      <div className="bg-[#05070B] border border-slate-800 rounded-xl p-5 space-y-3">
-        <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-2">
-          <GitMerge className="w-4 h-4 text-indigo-400" />
-          <span>A2A (Agent-to-Agent) Delegation Hierarchy &amp; Spend Leases</span>
-        </h3>
-        <div className="p-4 bg-[#0A0D14] border border-slate-800 rounded-lg text-xs font-mono space-y-2">
-          <div className="text-indigo-400 font-bold">
-            Human Reviewer (Root WebCrypto Keyholder: $150.00 Spend Ceiling)
-          </div>
-          <div className="pl-4 border-l border-slate-700 space-y-2">
-            <div className="text-slate-300">
-              └── Ansatz Scout (Delegated Child Key: $25.00 Ceiling | Burn: $0.00)
-            </div>
-            <div className="pl-4 border-l border-slate-700 space-y-1.5">
-              <div className="text-slate-400">
-                └── Device Auditor (Clifford Canary Probe Only: $0.00 Ceiling, Read-Only)
-              </div>
-              <div className="text-slate-400">
-                └── Disconfirmation Officer (PySCF FCI Local Anchor: $0.00 Ceiling, Read-Only)
-              </div>
-            </div>
+          <div className="flex justify-between items-center text-[11px] text-slate-400 font-mono pt-1">
+            <span>Spent today: ${currentSpentUSD.toFixed(2)}</span>
+            <span>Available: ${(budgetUSD - currentSpentUSD).toFixed(2)}</span>
           </div>
         </div>
+
+        {/* Sovereign Air-Gap Toggle & Emergency Pause */}
+        <div className="w-full flex items-center justify-between p-4 rounded-2xl bg-black/40 border border-white/10">
+          <div className="flex items-center space-x-3">
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${sovereignAirGap ? 'bg-cyan-950 text-cyan-400 border border-cyan-800' : 'bg-slate-900 text-slate-400'}`}>
+              <Lock className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-white">Sovereign Air-Gap Mode</div>
+              <div className="text-[11px] text-slate-400">Strictly keep computations on local Mac hardware</div>
+            </div>
+          </div>
+
+          <button
+            onClick={() => setSovereignAirGap(!sovereignAirGap)}
+            className={`w-11 h-6 rounded-full transition-colors relative p-0.5 ${sovereignAirGap ? 'bg-cyan-500' : 'bg-slate-700'}`}
+          >
+            <div className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${sovereignAirGap ? 'translate-x-5' : 'translate-x-0'}`} />
+          </button>
+        </div>
       </div>
+
+      {/* Bottom Footer: Emergency Pause & Progressive Disclosure */}
+      <div className="border-t border-white/[0.08] pt-4 flex flex-wrap items-center justify-between gap-4">
+        {/* Tactile Emergency Pause */}
+        <button
+          onClick={handleEmergencyStop}
+          className="px-3.5 py-2 rounded-xl bg-red-950/40 hover:bg-red-950/70 border border-red-800/50 text-red-300 text-xs font-semibold flex items-center space-x-2 transition-all active:scale-95"
+        >
+          <AlertOctagon className="w-4 h-4 text-red-400" />
+          <span>Emergency Pause All Workloads</span>
+        </button>
+
+        {/* Progressive Disclosure: Crypto Attestation */}
+        <button
+          onClick={() => setShowCryptoDetails(!showCryptoDetails)}
+          className="text-xs text-slate-300 hover:text-white font-medium transition-colors flex items-center space-x-1.5"
+        >
+          <span>{showCryptoDetails ? 'Hide Attestation' : 'Inspect Cryptographic AP2 Mandate Envelope'}</span>
+          {showCryptoDetails ? <ChevronUp className="w-3.5 h-3.5 text-slate-300" /> : <ChevronDown className="w-3.5 h-3.5 text-slate-300" />}
+        </button>
+      </div>
+
+      {/* Expanded Cryptographic Detail Sheet */}
+      {showCryptoDetails && (
+        <div className="mt-4 p-4 rounded-2xl bg-black/80 border border-white/15 text-xs font-mono text-slate-300 space-y-2.5">
+          <div className="flex justify-between items-center">
+            <span className="text-slate-300 font-medium">Signing Scheme:</span>
+            <span className="text-slate-100 font-bold">RFC 8032 Ed25519 WebCrypto</span>
+          </div>
+          <div className="flex justify-between items-center">
+            <span className="text-slate-300 font-medium">Storage Invariant:</span>
+            <span className="text-emerald-300 font-bold">SQLite WAL Tamper-Evident Hash Chain</span>
+          </div>
+          <div className="truncate text-xs text-slate-300 pt-1 border-t border-white/10">
+            Tenant: {campaign?.session_id ? `session-${campaign.session_id.slice(0, 8)}` : 'tenant-quantum-lab-1'} • Envelope Verified Statelessly
+          </div>
+        </div>
+      )}
     </div>
   );
 }

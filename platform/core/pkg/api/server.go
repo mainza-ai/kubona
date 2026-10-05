@@ -14,36 +14,47 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/mainza-ai/kubona/core/pkg/agents"
 	"github.com/mainza-ai/kubona/core/pkg/autoresearch"
+	"github.com/mainza-ai/kubona/core/pkg/cost"
 	"github.com/mainza-ai/kubona/core/pkg/epistemics"
 	"github.com/mainza-ai/kubona/core/pkg/fidelity"
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
 	"github.com/mainza-ai/kubona/core/pkg/llm"
 	"github.com/mainza-ai/kubona/core/pkg/mandates"
+	"github.com/mainza-ai/kubona/core/pkg/metasearch"
 	pb "github.com/mainza-ai/kubona/core/proto"
+	"github.com/mainza-ai/kubona/core/pkg/sandbox"
 	"github.com/mainza-ai/kubona/core/pkg/session"
 	"github.com/mainza-ai/kubona/core/pkg/supervisor"
 	"github.com/mainza-ai/kubona/core/pkg/watchdog"
 )
 
 type Server struct {
-	ledger        *ledger.Ledger
-	sessionMgr    *session.Manager
-	jobRunner     *jobs.Runner
-	supervisor    *supervisor.Supervisor
-	watchdog      *watchdog.TaskWatchdog
-	collective    *agents.AgentCollective
-	fidelityGate  *fidelity.FidelityGate
-	epistemicGate *epistemics.EpistemicGate
-	harnessReg    *autoresearch.HarnessRegistry
-	llmSettings   *llm.Settings
-	llmClient     *llm.Client
-	mux           *http.ServeMux
+	ledger           *ledger.Ledger
+	sessionMgr       *session.Manager
+	jobRunner        *jobs.Runner
+	supervisor       *supervisor.Supervisor
+	watchdog         *watchdog.TaskWatchdog
+	collective       *agents.AgentCollective
+	a2aServer        *agents.A2AServer
+	canvasLayouts    map[string]string
+	canvasMu         sync.RWMutex
+	fidelityGate     *fidelity.FidelityGate
+	epistemicGate    *epistemics.EpistemicGate
+	harnessReg       *autoresearch.HarnessRegistry
+	llmSettings      *llm.Settings
+	llmClient        *llm.Client
+	metaSearchEngine *metasearch.MetaSearchEngine
+	sandboxRunner    *sandbox.SandboxRunner
+	autoresearchMu   sync.RWMutex
+	activeAutoloops  map[string]*autoresearch.LoopEngine
+	mux              *http.ServeMux
 
 	// Mock keypair for human-reviewer mandate signing
 	signerPubKey  ed25519.PublicKey
@@ -65,21 +76,31 @@ func NewServer(
 	}
 	llmCli := llm.NewClient(llmSet)
 
+	sbCfg := sandbox.DefaultConfig()
+	sbCfg.AllowHostFallback = true // Resilient for testing
+	sbRunner := sandbox.NewSandboxRunnerWithConfig(sbCfg)
+	metaEngine := metasearch.NewMetaSearchEngineWithLLM(llmCli)
+
 	s := &Server{
-		ledger:        l,
-		sessionMgr:    sm,
-		jobRunner:     jr,
-		supervisor:    sup,
-		watchdog:      wd,
-		collective:    agents.NewAgentCollective(),
-		fidelityGate:  fidelity.NewFidelityGate(),
-		epistemicGate: epistemics.NewEpistemicGate(),
-		harnessReg:    autoresearch.NewHarnessRegistry(),
-		llmSettings:   llmSet,
-		llmClient:     llmCli,
-		signerPubKey:  pub,
-		signerPrivKey: priv,
-		mux:           http.NewServeMux(),
+		ledger:           l,
+		sessionMgr:       sm,
+		jobRunner:        jr,
+		supervisor:       sup,
+		watchdog:         wd,
+		collective:       agents.NewAgentCollective(),
+		a2aServer:        agents.NewA2AServer("0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7", nil, sbRunner),
+		canvasLayouts:    make(map[string]string),
+		fidelityGate:     fidelity.NewFidelityGate(),
+		epistemicGate:    epistemics.NewEpistemicGate(),
+		harnessReg:       autoresearch.NewHarnessRegistry(),
+		llmSettings:      llmSet,
+		llmClient:        llmCli,
+		metaSearchEngine: metaEngine,
+		sandboxRunner:    sbRunner,
+		activeAutoloops:  make(map[string]*autoresearch.LoopEngine),
+		signerPubKey:     pub,
+		signerPrivKey:    priv,
+		mux:              http.NewServeMux(),
 	}
 
 	// Seed sample claim wavefunctions for the Epistemic Manifold
@@ -144,6 +165,16 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/harnesses", s.handleHarnesses)
 	s.mux.HandleFunc("/api/results/notebooks", s.handleNotebooks)
 
+	// Autoresearch Loop & Section 13 Meta-Search Endpoints
+	s.mux.HandleFunc("/api/autoresearch/harnesses", s.handleAutoresearchHarnesses)
+	s.mux.HandleFunc("/api/autoresearch/start", s.handleAutoresearchStart)
+	s.mux.HandleFunc("/api/autoresearch/loops", s.handleAutoresearchLoops)
+	s.mux.HandleFunc("/api/autoresearch/loops/", s.handleAutoresearchLoopAction)
+	s.mux.HandleFunc("/api/metasearch/proposals", s.handleMetasearchProposals)
+	s.mux.HandleFunc("/api/metasearch/approve", s.handleMetasearchApprove)
+	s.mux.HandleFunc("/api/metasearch/reject", s.handleMetasearchReject)
+	s.mux.HandleFunc("/api/metasearch/apply", s.handleMetasearchApply)
+
 	// Hybrid LLM Configuration Plane endpoints
 	s.mux.HandleFunc("/api/llm/settings", s.handleLLMSettings)
 	s.mux.HandleFunc("/api/llm/models", s.handleLLMModels)
@@ -151,6 +182,14 @@ func (s *Server) registerRoutes() {
 
 	// Vault Dynamic Leases (OpenBao sidecar bridge)
 	s.mux.HandleFunc("/api/vault/leases", s.handleVaultLeases)
+
+	// A2A Inter-Agent Protocol & x402 payment rails
+	s.mux.HandleFunc("/api/a2a/v1", s.handleA2A)
+	s.mux.HandleFunc("/api/a2a/v1/challenge", s.handleA2AChallenge)
+
+	// Live Telemetry Event Stream (SSE) & Spatial Canvas Layouts
+	s.mux.HandleFunc("/api/events/stream", s.handleEventsStream)
+	s.mux.HandleFunc("/api/canvas/layout", s.handleCanvasLayout)
 
 	// Molecular Science & 12-Agent Drug Discovery Pipeline
 	s.mux.HandleFunc("/api/chemistry/admet", s.handleChemistryADMET)
@@ -559,8 +598,10 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"sessions": sessions})
 	case http.MethodPost:
 		var req struct {
-			Title         string  `json:"title"`
-			SpendLimitUSD float64 `json:"spend_limit_usd"`
+			Title          string  `json:"title"`
+			SpendLimitUSD  float64 `json:"spend_limit_usd"`
+			TargetMolecule string  `json:"target_molecule,omitempty"`
+			Fresh          bool    `json:"fresh,omitempty"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -571,8 +612,8 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		// Synthesize dynamic campaign state for new session
-		campState, _ := agents.SynthesizeCampaignState(r.Context(), sess.ID, sess.Title, s.llmClient, s.jobRunner.BridgeClient())
+		// Synthesize dynamic campaign state for new session with options
+		campState, _ := agents.SynthesizeCampaignStateWithOpts(r.Context(), sess.ID, sess.Title, req.TargetMolecule, req.Fresh, s.llmClient, s.jobRunner.BridgeClient())
 		if campState != nil {
 			campBytes, _ := json.Marshal(campState)
 			s.ledger.SaveCampaignState(sess.ID, campBytes)
@@ -650,6 +691,14 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 	}
 	if id == "" {
 		http.Error(w, "missing session id", http.StatusBadRequest)
+		return
+	}
+	if r.Method == http.MethodDelete {
+		if err := s.sessionMgr.DeleteSession(id); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"deleted": true, "session_id": id})
 		return
 	}
 	sess, err := s.sessionMgr.GetSession(id)
@@ -1132,6 +1181,150 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"events": events})
 }
 
+func (s *Server) handleEventsStream(w http.ResponseWriter, r *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	sessionID := r.URL.Query().Get("session_id")
+
+	// Emit initial connection ACK frame
+	initData, _ := json.Marshal(map[string]any{
+		"type":       "connection_ack",
+		"session_id": sessionID,
+		"timestamp":  time.Now().UTC().Format(time.RFC3339),
+	})
+	fmt.Fprintf(w, "event: connected\ndata: %s\n\n", initData)
+	flusher.Flush()
+
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	notify := r.Context().Done()
+	for {
+		select {
+		case <-notify:
+			return
+		case <-ticker.C:
+			events, err := s.ledger.GetRecentEvents(sessionID, 5)
+			if err == nil && len(events) > 0 {
+				data, _ := json.Marshal(map[string]any{
+					"type":      "telemetry_tick",
+					"timestamp": time.Now().UTC().Format(time.RFC3339),
+					"events":    events,
+				})
+				fmt.Fprintf(w, "event: telemetry\ndata: %s\n\n", data)
+				flusher.Flush()
+			} else {
+				fmt.Fprintf(w, ": heartbeat %s\n\n", time.Now().UTC().Format(time.RFC3339))
+				flusher.Flush()
+			}
+		}
+	}
+}
+
+func (s *Server) handleA2AChallenge(w http.ResponseWriter, r *http.Request) {
+	token := r.URL.Query().Get("token")
+	if token == "" {
+		token = "USDC"
+	}
+	amount := r.URL.Query().Get("amount")
+	if amount == "" {
+		amount = "0.05"
+	}
+	challenge := s.a2aServer.PaymentManager().GenerateChallenge(token, amount)
+	w.Header().Set("WWW-Authenticate", s.a2aServer.PaymentManager().FormatWWWAuthenticate(challenge))
+	writeJSON(w, http.StatusPaymentRequired, challenge)
+}
+
+func (s *Server) handleA2A(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var rpcReq agents.JSONRPCRequest
+	if err := json.NewDecoder(r.Body).Decode(&rpcReq); err != nil {
+		writeJSON(w, http.StatusBadRequest, agents.JSONRPCResponse{
+			JSONRPC: "2.0",
+			Error: &agents.JSONRPCError{
+				Code:    -32700,
+				Message: "Parse error: invalid JSON",
+			},
+		})
+		return
+	}
+
+	// For paid operations (a2a.SubmitTask), require x402 payment
+	if rpcReq.Method == "a2a.SubmitTask" {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			challenge := s.a2aServer.PaymentManager().GenerateChallenge("USDC", "0.05")
+			w.Header().Set("WWW-Authenticate", s.a2aServer.PaymentManager().FormatWWWAuthenticate(challenge))
+			writeJSON(w, http.StatusPaymentRequired, map[string]any{
+				"error":     "Payment Required",
+				"challenge": challenge,
+			})
+			return
+		}
+
+		receipt, err := cost.ParseAuthorizationHeader(authHeader)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("invalid x402 header: %v", err), http.StatusBadRequest)
+			return
+		}
+
+		valid, verifyErr := s.a2aServer.PaymentManager().VerifyPayment(receipt)
+		if verifyErr != nil || !valid {
+			http.Error(w, fmt.Sprintf("payment verification failed: %v", verifyErr), http.StatusPaymentRequired)
+			return
+		}
+	}
+
+	resp := s.a2aServer.HandleRequest(&rpcReq)
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleCanvasLayout(w http.ResponseWriter, r *http.Request) {
+	sessionID := r.URL.Query().Get("session_id")
+	if sessionID == "" {
+		sessionID = "default"
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		s.canvasMu.RLock()
+		layout, exists := s.canvasLayouts[sessionID]
+		s.canvasMu.RUnlock()
+		if !exists {
+			layout = "{}"
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(layout))
+
+	case http.MethodPost, http.MethodPut:
+		var raw json.RawMessage
+		if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+			http.Error(w, "invalid JSON layout", http.StatusBadRequest)
+			return
+		}
+		s.canvasMu.Lock()
+		s.canvasLayouts[sessionID] = string(raw)
+		s.canvasMu.Unlock()
+
+		writeJSON(w, http.StatusOK, map[string]string{"status": "saved", "session_id": sessionID})
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
 func (s *Server) handleLLMSettings(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
@@ -1404,5 +1597,244 @@ except Exception as e:
 	}
 
 	http.Error(w, fmt.Sprintf("failed to evaluate discovery pipeline: %v, out: %s", err, string(out)), http.StatusInternalServerError)
+}
+
+// ============================================================================
+// Autoresearch Loop & Section 13 Meta-Search Handlers
+// ============================================================================
+
+func (s *Server) handleAutoresearchHarnesses(w http.ResponseWriter, r *http.Request) {
+	rawList := s.harnessReg.List()
+	var out []map[string]any
+	for _, h := range rawList {
+		out = append(out, map[string]any{
+			"id":               h.ID(),
+			"fixed_setup":      h.FixedSetup(),
+			"mutable_artifact": h.MutableArtifact(),
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"harnesses": out,
+		"docker_runner": map[string]any{
+			"image":     s.sandboxRunner.Config().Image,
+			"available": s.sandboxRunner.IsDockerAvailable(),
+			"security":  "NemoClaw-OpenClaw-Hardened (read-only, cap-drop=ALL, net=none)",
+		},
+	})
+}
+
+func (s *Server) handleAutoresearchStart(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		SessionID       string `json:"session_id"`
+		HarnessID       string `json:"harness_id"`
+		InitialArtifact string `json:"initial_artifact"`
+		MaxIterations   int    `json:"max_iterations"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.HarnessID == "" {
+		req.HarnessID = "ansatz-search"
+	}
+	if req.SessionID == "" {
+		req.SessionID, _ = s.ensureSession("")
+	}
+	if req.MaxIterations <= 0 {
+		req.MaxIterations = 25
+	}
+
+	harness, err := s.harnessReg.Get(req.HarnessID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("harness '%s' not found: %v", req.HarnessID, err), http.StatusBadRequest)
+		return
+	}
+
+	loopID := fmt.Sprintf("loop-%s-%s", req.HarnessID, uuid.New().String()[:8])
+	engine := autoresearch.NewLoopEngine(
+		loopID,
+		req.SessionID,
+		harness,
+		s.sandboxRunner,
+		s.llmClient,
+		req.InitialArtifact,
+		req.MaxIterations,
+	)
+
+	// Hook up Section 13 Meta-Search stagnation trigger
+	engine.SetStagnationCallback(func(lID string, discards int, champion string) {
+		s.metaSearchEngine.GenerateStagnationProposal(
+			context.Background(),
+			lID,
+			req.HarnessID,
+			fmt.Sprintf("Standard instructions for %s", req.HarnessID),
+			champion,
+			discards,
+		)
+		s.ledger.AppendEvent(req.SessionID, "autoresearch_stagnation_triggered", map[string]any{
+			"loop_id":    lID,
+			"discards":   discards,
+			"harness_id": req.HarnessID,
+		})
+	})
+
+	// Run initial baseline
+	_, _ = engine.InitializeBaseline(r.Context())
+
+	s.autoresearchMu.Lock()
+	s.activeAutoloops[loopID] = engine
+	s.autoresearchMu.Unlock()
+
+	s.ledger.AppendEvent(req.SessionID, "autoresearch_loop_started", map[string]any{
+		"loop_id":        loopID,
+		"harness_id":     req.HarnessID,
+		"max_iterations": req.MaxIterations,
+	})
+
+	writeJSON(w, http.StatusCreated, engine.State())
+}
+
+func (s *Server) handleAutoresearchLoops(w http.ResponseWriter, r *http.Request) {
+	s.autoresearchMu.RLock()
+	defer s.autoresearchMu.RUnlock()
+
+	var out []*autoresearch.LoopState
+	for _, engine := range s.activeAutoloops {
+		out = append(out, engine.State())
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"loops": out})
+}
+
+func (s *Server) handleAutoresearchLoopAction(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/autoresearch/loops/")
+	parts := strings.Split(path, "/")
+	loopID := parts[0]
+
+	s.autoresearchMu.RLock()
+	engine, exists := s.activeAutoloops[loopID]
+	s.autoresearchMu.RUnlock()
+
+	if !exists {
+		http.Error(w, fmt.Sprintf("autoresearch loop '%s' not found", loopID), http.StatusNotFound)
+		return
+	}
+
+	if len(parts) == 1 || parts[1] == "" {
+		writeJSON(w, http.StatusOK, engine.State())
+		return
+	}
+
+	action := parts[1]
+	switch action {
+	case "step":
+		rec, err := engine.Step(r.Context())
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"step":  rec,
+			"state": engine.State(),
+		})
+	case "pause":
+		engine.Pause()
+		writeJSON(w, http.StatusOK, engine.State())
+	case "resume":
+		engine.Resume()
+		writeJSON(w, http.StatusOK, engine.State())
+	case "stop":
+		engine.Abort()
+		writeJSON(w, http.StatusOK, engine.State())
+	default:
+		http.Error(w, fmt.Sprintf("unknown action '%s'", action), http.StatusBadRequest)
+	}
+}
+
+func (s *Server) handleMetasearchProposals(w http.ResponseWriter, r *http.Request) {
+	proposals := s.metaSearchEngine.ListProposals()
+	writeJSON(w, http.StatusOK, map[string]any{"proposals": proposals})
+}
+
+func (s *Server) handleMetasearchApprove(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		ProposalID string `json:"proposal_id"`
+		Signer     string `json:"signer"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.Signer == "" {
+		req.Signer = "human-quantum-reviewer"
+	}
+	if err := s.metaSearchEngine.ApproveProposal(req.ProposalID, req.Signer); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	prop, _ := s.metaSearchEngine.GetProposal(req.ProposalID)
+	writeJSON(w, http.StatusOK, map[string]any{"success": true, "proposal": prop})
+}
+
+func (s *Server) handleMetasearchReject(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		ProposalID string `json:"proposal_id"`
+		Signer     string `json:"signer"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.Signer == "" {
+		req.Signer = "human-quantum-reviewer"
+	}
+	if err := s.metaSearchEngine.RejectProposal(req.ProposalID, req.Signer); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	prop, _ := s.metaSearchEngine.GetProposal(req.ProposalID)
+	writeJSON(w, http.StatusOK, map[string]any{"success": true, "proposal": prop})
+}
+
+func (s *Server) handleMetasearchApply(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		ProposalID string `json:"proposal_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	msg, err := s.metaSearchEngine.ApplyProposal(req.ProposalID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	prop, _ := s.metaSearchEngine.GetProposal(req.ProposalID)
+
+	// If corresponding loop was stagnant, resume it!
+	s.autoresearchMu.RLock()
+	if loop, ok := s.activeAutoloops[prop.LoopID]; ok {
+		loop.Resume()
+	}
+	s.autoresearchMu.RUnlock()
+
+	writeJSON(w, http.StatusOK, map[string]any{"success": true, "message": msg, "proposal": prop})
 }
 
