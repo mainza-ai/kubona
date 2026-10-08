@@ -15,6 +15,7 @@ import {
   CheckCircle2,
   ChevronRight,
   Sliders,
+  Database,
 } from 'lucide-react';
 import { Loop, LedgerEvent, CampaignState, Session } from '@/types';
 import { SpatialCanvas } from './surfaces/SpatialCanvas';
@@ -25,6 +26,7 @@ import { FleetRadar } from './surfaces/FleetRadar';
 import { CognitiveMesh } from './surfaces/CognitiveMesh';
 import { ResultsStudio } from './surfaces/ResultsStudio';
 import { LLMSettings } from './surfaces/LLMSettings';
+import { HuggingFaceModelHub } from './surfaces/HuggingFaceModelHub';
 
 export type SurfaceTab =
   | 'overview'
@@ -35,6 +37,7 @@ export type SurfaceTab =
   | 'surface5'
   | 'surface6'
   | 'surface7'
+  | 'hf_hub'
   | 'settings';
 
 interface ObservatoryCockpitProps {
@@ -75,7 +78,9 @@ export function ObservatoryCockpit({
     { id: 'surface7', label: 'Living Notebook', shortcut: '⌘4', icon: BookOpen },
     { id: 'surface4', label: 'Sentinel Guardrails', shortcut: '⌘5', icon: KeyRound },
     { id: 'surface5', label: 'Fleet Radar', shortcut: '⌘6', icon: Radio },
-    { id: 'settings', label: 'Sovereign Air-Gap', shortcut: '⌘7', icon: Sliders },
+    { id: 'surface6', label: 'Cognitive Mesh', shortcut: '⌘7', icon: Network },
+    { id: 'hf_hub', label: 'Hugging Face Hub', shortcut: '⌘8', icon: Database },
+    { id: 'settings', label: 'Sovereign Air-Gap', shortcut: '⌘9', icon: Sliders },
   ];
 
   const targetSystemDisplayName = useMemo(() => {
@@ -146,6 +151,7 @@ export function ObservatoryCockpit({
         {activeTab === 'surface5' && <FleetRadar campaign={campaign} />}
         {activeTab === 'surface6' && <CognitiveMesh campaign={campaign} />}
         {activeTab === 'surface7' && <ResultsStudio campaign={campaign} />}
+        {activeTab === 'hf_hub' && <HuggingFaceModelHub />}
         {activeTab === 'settings' && <LLMSettings />}
       </div>
 
