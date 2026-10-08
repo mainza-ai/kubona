@@ -2,9 +2,9 @@
 type: concept
 name: Kubona UI/UX Vision & Console Specification
 date: 2026-08-16
-updated: 2026-10-04
+updated: 2026-10-08
 tags: [ux, ui, control-plane, console, report]
-sources: [source-gap-analysis-plan, source-architecture-paper]
+sources: [source-gap-analysis-plan, source-architecture-paper, source-openai-math-corpus]
 status: adopted
 ---
 
@@ -96,28 +96,39 @@ The interface unifies four distinct execution tiers:
 - **Post-QIR Glyphs & Ghost Circuits:** Universal post-QIR gate glyphs independent of SDK; translucent
   ghost circuits displaying parallel simulator trials and LOCC wire-cut boundaries.
 
-### 5.2 4D Flight Recorder & Scrubbable Loop Inspector (Surface 2)
-- **Views:** Time-travel scrub bar spanning hours of execution; parameter update traces, fidelity
-  gradient trajectories, and agent thought streams animated synchronously in reverse.
+### 5.2 4D Flight Recorder & Scrubbable Cognitive Timeline (Surface 2)
+- **Views:** Time-travel scrub bar spanning multi-hour execution trajectories; animated parameter
+  update traces, fidelity gradient trajectories, and agent thought streams.
+- **Cognitive Bifurcation & Cavity Replay:** Renders extended-horizon search dynamics derived from
+  [[source-openai-math-corpus]]: isolates cavity expansions (Family 221), tree depth shifts (Family 271),
+  backtracking from non-constructive dead ends, and Lean 4 `comparator` validation steps.
 - **Interactions:** Pause, counterfactual branching ("what-if" forks with altered optimizers or
-  regularization parameters), snapshot restoration.
+  regularization parameters), snapshot restoration, and speculative branch diffing.
 - **Ring 0 Telemetry:** Non-LLM watchdog triggers (divergence, vanishing gradient, barren plateau)
   pinned directly to the scrub timeline.
 
-### 5.3 Epistemic Manifold & Classical Anchor Horizon (Surface 3)
+### 5.3 Epistemic Manifold & Analytical Anchor Horizon (Surface 3)
 - **Views:** Tripartite credibility wavefunction rings ($\alpha |\text{corr}\rangle + \beta |\text{cont}\rangle + \gamma |\text{unver}\rangle$);
   soft amber halos for uncollapsed hypotheses.
+- **Deductive Boundary:** Visualizes the epistemic spectrum from machine-checked formal proof
+  ($\rho = 1.0000$ via Lean 4) through exact analytical anchors ([[mathematical-physics-anchors]] Families 271, 281, 268, 278)
+  down to empirical QPU runs.
+- **Riemannian Belief Geometry:** Renders the 3D Fisher–Rao curvature landscape $R_{\mu\nu}$; regions of high
+  curvature highlight volatile scientific claims where autonomous curiosity yields maximal entropy reduction.
 - **Classical Anchor Baseline:** Inline DMRG / tensor network benchmarks displayed beside any quantum
   expectation value $\langle H \rangle$. Unadvantaged runs visibly badged as "No Advantage Claimed".
 - **Stagnation Meters:** Live telemetry for hypothesis concentration $\kappa$, literature drift
   $d(E_{\text{canon}}, E_{\text{live}})$, and refusal ratio.
 
-### 5.4 Autonomy Cockpit & Cryptographic Spend Surface (Surface 4)
+### 5.4 Autonomy Cockpit & Calibrated Friction Spend Cards (Surface 4)
 - **Views:** Active AP2 spend mandate envelopes (`{tenant_id, job_hash, max_budget_usd, expiry}`),
   burn-rate speedometer, and A2A delegation hierarchy tree.
+- **Calibrated Friction Architecture:** Low-friction autonomous execution for local simulation, Lean 4
+  typechecking, and literature retrieval; high-friction cryptographic gates for expensive QPU jobs
+  (neutral-atom / superconducting) or ledger state commits.
 - **Action Gate Cards:** One-glance pre-flight cards showing why the backend was chosen, predicted
-  Clifford fidelity, and estimated cost with one-click actions: [Authorize (Signed)], [Downgrade to Aer Sim],
-  [Re-Scope Ansatz], [Abort].
+  Clifford fidelity, and estimated cost with one-click actions: [Authorize (WebCrypto Ed25519)],
+  [Downgrade to Aer Sim], [Re-Scope Ansatz], [Abort].
 
 ### 5.5 Execution Tier & Hardware Fleet Radar (Surface 5)
 - **Views:** Real-time multi-modality fleet status across local simulators and cloud QPUs (IBM,
@@ -143,6 +154,23 @@ The interface unifies four distinct execution tiers:
 - **Frame-Anchored Annotations:** Pinned, threaded discussions attached directly to figure regions,
   circuit subgraphs, or convergence plots.
 - **Negative Results Repository:** Immutable archival of refuted hypotheses and non-advantaged experiments.
+
+### 5.8 Epistemic Tribunal Room & Swarm Deliberation Surface (Surface 8)
+- **Views:** Dedicated adversarial deliberation chamber where specialized agent personas
+  (`theorist`, `proof_engineer`, `anchor_solver`, `quantum_compiler`, `falsification_critic`, `sentinel_governor`)
+  debate candidate discoveries.
+- **Quorum Gauges:** Real-time visual consensus bar showing corroboration amplitudes ($\rho$), dissenting
+  rebuttals, and formal AST verification hashes.
+- **Adversarial Red-Team Feed:** Side-by-side stream of the Critic attempting to construct counterexamples or
+  detect barren plateaus while the Prover isolates Lean 4 lemmas.
+
+### 5.9 Generative Scientific UI / A2UI Component Specification (Surface 9)
+- **Dynamic Widget Injection:** Agents stream typed, interactive React components directly into the view:
+  1. *3D Molecular Active Space Viewer:* Interactive Mol*/Three.js visualization highlighting active orbitals
+     vs. frozen core electrons.
+  2. *Quantum Circuit & QIR Editor:* Interactive schematic with gate depth, $T$-count, and wire-cut boundaries.
+  3. *Lean 4 Goal Tree Inspector:* Visual proof tree displaying open hypotheses, active goals, and tactic state.
+  4. *Classical Shadow Tomography Radar:* 3D Bloch sphere projections and randomized Clifford shadow convergence bounds.
 
 ## 6. Visual language
 

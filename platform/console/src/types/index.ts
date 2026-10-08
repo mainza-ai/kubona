@@ -227,3 +227,96 @@ export interface MetaProposal {
   created_at: string;
   resolved_at?: string;
 }
+
+// -----------------------------------------------------------------------------
+// Frontier Scientific Agentic Experience (AX) & Multi-Agent Interface Types
+// -----------------------------------------------------------------------------
+
+export type AgentRoleType =
+  | 'lead_theorist'
+  | 'lean4_proof_engineer'
+  | 'classical_anchor_solver'
+  | 'quantum_circuit_compiler'
+  | 'adversarial_falsification_critic'
+  | 'sentinel_spend_governor';
+
+export interface AgentPersona {
+  id: string;
+  name: string;
+  role: AgentRoleType;
+  avatar_emoji: string;
+  badge_color: string;
+  description: string;
+  active_subagent_task?: string;
+  thinking_horizon_seconds: number;
+}
+
+export interface EpistemicTribunalVote {
+  turn_index: number;
+  persona_id: string;
+  role: AgentRoleType;
+  name: string;
+  verdict: 'corroborated' | 'contested' | 'falsified' | 'abstain';
+  confidence_rho: number; // 0.000 to 1.000
+  rationale: string;
+  formal_ast_hash?: string;
+  dissenting_argument?: string;
+  timestamp: string;
+}
+
+export interface FlightRecorderBranchPoint {
+  branch_id: string;
+  parent_id?: string;
+  timestamp: string;
+  step_index: number;
+  event_type:
+    | 'conjecture_init'
+    | 'cavity_expansion'
+    | 'tree_depth_shift'
+    | 'backtrack_prune'
+    | 'comparator_check'
+    | 'qpu_dispatch'
+    | 'ledger_commit';
+  cognitive_label: string;
+  inner_monologue_snippet: string;
+  duration_seconds: number;
+  fork_available: boolean;
+  active_cavity_lemma?: string;
+}
+
+export type GenerativeUIWidgetType =
+  | 'molecular_active_space_3d'
+  | 'quantum_circuit_qir_editor'
+  | 'epistemic_manifold_surface'
+  | 'lean4_goal_tree_inspector'
+  | 'shadow_tomography_radar'
+  | 'cryptographic_mandate_card';
+
+export interface GenerativeUIWidget {
+  widget_id: string;
+  widget_type: GenerativeUIWidgetType;
+  title: string;
+  summary: string;
+  interactive: boolean;
+  payload: Record<string, unknown>;
+  allowed_actions: Array<{
+    action_id: string;
+    label: string;
+    variant: 'primary' | 'secondary' | 'danger';
+    requires_ed25519_signature?: boolean;
+  }>;
+}
+
+export interface CryptographicMandate {
+  mandate_id: string;
+  signer_public_key: string;
+  session_id: string;
+  target_system: string;
+  max_spend_usd: number;
+  max_qpu_shots: number;
+  allowed_backends: string[];
+  axiom_whitelist: string[];
+  expiration_iso: string;
+  signature_hex: string;
+  verified: boolean;
+}
