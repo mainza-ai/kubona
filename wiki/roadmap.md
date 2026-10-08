@@ -1,9 +1,9 @@
 ---
 type: roadmap
 date: 2026-08-16
-updated: 2026-10-04
+updated: 2026-10-08
 tags: [kubona, plan]
-sources: [source-gap-analysis-plan]
+sources: [source-gap-analysis-plan, source-openai-math-corpus]
 status: living
 ---
 
@@ -297,6 +297,10 @@ working, governed core.
 - **Full discovery loop:** the platform runs autonomous experiment campaigns — literature
   ground → hypothesis → experiment → analysis → report → library → meta-learn —
   inside the existing cost/capability gates.
+- **Formal verification & mathematical discovery anchors:** [[openai-math]] integrated as
+  adopted submodule (`submodules/math`, Apache-2.0, 372 families); [[lean4]] / [[comparator]]
+  formal verification challenge evaluator; exact analytical baselines ([[mathematical-physics-anchors]])
+  grounding quantum discovery campaigns with $\rho = 1.0$ epistemic certainty.
 - **Personas & fine-tuned domain models** via [[unsloth]] (private, local; ties to the
   Milimo Apple-Silicon HAL, [[mainza-milimo-foundation]]).
 

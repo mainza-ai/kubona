@@ -943,4 +943,26 @@ skipped is the exact failure this incident is about:
   - Daemon and console servers live on `:8080` and `:3000`.
   - Strict wiki lint (`python3 scripts/wiki-lint.py --strict`): 90 pages exit 0.
 
+## [2026-10-08] ingest | openai/math — 722 manuscripts, 372 families, Lean 4 formalization & reasoning traces
+
+* **Repository Ingest:**
+  - Ingested `https://github.com/openai/math` at pinned commit `adc7f1241b42e322a6451854ab7e4b4c146bf78a` (Apache-2.0, dated 2026-10-06).
+  - Adopted as git submodule at `submodules/math` per [[integration-topology-and-licence-discipline]].
+  - Catalog includes 722 mathematical research manuscripts across 372 result families and 17 mathematical disciplines.
+  - Formal verification layer: Lean 4 (`leanprover/lean4:v4.34.1`), `formalization.yaml` (schema v0.4) cataloging 162 formalized papers, 811 [[comparator]] challenge specs, and 235 documentation pages.
+  - 10 comprehensive reasoning traces (`reasoning_traces/`) documenting ~3 hours of ChatGPT Pro thinking compute per problem across ~4,000 posed open research problems.
+* **Platform Implementations (`platform/`):**
+  - `platform/kubona/science/math_catalog.py`: Structured in-memory query and discovery engine indexing all 372 families, 17 disciplines, and quantum-relevant problems.
+  - `platform/kubona/anchors/math_physics.py`: Exact analytical anchors from `openai/math` (Heisenberg ferromagnet spontaneous magnetization, QAOA optimality on SK spin glass, Haldane gap, MUB-6, Laughlin fractional Hall state) enforcing [[quantum-advantage-realism]].
+  - `platform/kubona/eval/comparator_eval.py`: Lean 4 Comparator challenge evaluator enforcing strict axiom integrity (`propext`, `Quot.sound`, `Classical.choice`), rejecting cheat axioms, and logging to the provenance ledger.
+  - `platform/domain_packs/math_physics_v1/pack.yaml`: Registered science domain pack for mathematical physics.
+  - `platform/kubona/console_api.py`: Exposing `/api/science/math/families` and `/api/science/math/anchors` endpoints for the observatory surface.
+  - `platform/tests/test_math_corpus.py` & `platform/tests/test_math_anchors.py`: 8 new pytest unit tests, 100% pass.
+* **Wiki Blueprint Additions:**
+  - Source page: `wiki/sources/source-openai-math-corpus.md`.
+  - Entities: `wiki/entities/openai-math.md`, `wiki/entities/lean4.md`, `wiki/entities/comparator.md`.
+  - Concepts: `wiki/concepts/autonomous-mathematical-discovery.md`, `wiki/concepts/formal-proof-verification-lean-comparator.md`, `wiki/concepts/mathematical-physics-anchors.md`, `wiki/concepts/frontier-benchmark-saturation.md`.
+  - Updated: `overview.md` (6 sources, synthesis item 9), `index.md` (census 98 pages), `roadmap.md` (Phase 6 criteria), `questions.md` (Q-31 added), `integration-topology-and-licence-discipline.md` (`openai/math` adopted submodule).
+
+
 

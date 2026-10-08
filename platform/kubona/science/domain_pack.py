@@ -69,7 +69,24 @@ class DomainPackLoader:
         with open(mat_dir / "pack.yaml", "w", encoding="utf-8") as f:
             yaml.safe_dump(mat_manifest, f)
 
+        math_dir = self.packs_dir / "math_physics_v1"
+        math_dir.mkdir(parents=True, exist_ok=True)
+        math_manifest = {
+            "name": "mathematical-physics-frontier",
+            "version": "1.0.0",
+            "domain_category": "mathematical_physics",
+            "description": "Rigorous analytical ground truth baselines and exact proofs from openai/math.",
+            "author": "Kubona Quantum Epistemic Core",
+            "classical_anchor_methods": ["Analytical-Math-Proof", "Bloch-Spin-Wave", "Parisi-RSB", "Haldane-Gap-Proof"],
+            "benchmark_systems": ["Heisenberg_Ferromagnet_3D", "SK_Spin_Glass_Ground_State", "Haldane_Spin_1_Chain"],
+            "hamiltonian_generator": "kubona.anchors.math_physics.MathPhysicsAnchorEngine",
+            "min_qubit_support": 2,
+        }
+        with open(math_dir / "pack.yaml", "w", encoding="utf-8") as f:
+            yaml.safe_dump(math_manifest, f)
+
         return [
             self.load_pack(chem_dir / "pack.yaml"),
             self.load_pack(mat_dir / "pack.yaml"),
+            self.load_pack(math_dir / "pack.yaml"),
         ]
