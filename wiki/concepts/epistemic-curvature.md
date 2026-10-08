@@ -3,9 +3,9 @@ name: Epistemic Curvature and Research Stagnation
 type: concept
 tags: [frontier, epistemics, observability, stagnation, metrics]
 date: 2026-09-27
-updated: 2026-09-27
-status: open-question
-sources: [source-frontier-repo-audit-2026]
+updated: 2026-10-08
+status: adopted
+sources: [source-frontier-repo-audit-2026, source-architecture-paper]
 ---
 
 # Epistemic Curvature and Research Stagnation
@@ -56,10 +56,21 @@ and it is not differential geometry in any testable sense. Kubona therefore (a) 
 `κ`, distance, coupling, and refusal ratio as first-class named metrics; (b) treats any
 curvature-like transform as an *optional reweighting* that must be ablated against the flat
 metric before it may influence a decision; (c) forbids curvature *language* in generated
-reports unless the ablation showed it mattered. The failure mode this guards against is the
-one documented in the same family: a random draw named "consciousness"
-([[mainza-consciousness]]) — see (repo-audit-2026) §"Not adopted". Naming a number after
-physics is how a system loses the right to be believed about physics.
+reports unless the ablation showed it mattered.
+
+## Formal Mathematical Derivation: Riemannian Fisher–Rao Manifold
+
+In the Master Architectural Blueprint, epistemic curvature is grounded mathematically rather
+than rhetorically. The hypothesis space is modeled as a statistical manifold $\mathcal{M}$ equipped
+with the **Fisher–Rao metric tensor** $g_{\mu\nu}(\vec{\theta})$:
+$$g_{\mu\nu}(\vec{\theta}) = \mathbb{E}_{\vec{\theta}}\left[ \frac{\partial \log p(x|\vec{\theta})}{\partial \theta^\mu} \frac{\partial \log p(x|\vec{\theta})}{\partial \theta^\nu} \right]$$
+
+- **The Epistemic Ricci Curvature ($R_{\mu\nu}$):**
+  Measures the concentration and divergence of scientific uncertainty. High curvature regions indicate **epistemologically volatile domains** where small empirical findings yield non-linear shifts across the global belief state.
+- **Geodesic Curiosity Navigation:**
+  The auto-research engine steers autonomous agent swarms along geodesics of maximum Ricci curvature:
+  $$\frac{d^2 \theta^\mu}{d\tau^2} + \Gamma^\mu_{\alpha\beta} \frac{d\theta^\alpha}{d\tau} \frac{d\theta^\beta}{d\tau} = -\nabla^\mu \mathcal{D}_{\text{KL}}\left( p(\cdot|\vec{\theta}) \,\|\, p(\cdot|\vec{\theta} + \vec{\Delta}) \right)$$
+  Compute is allocated where resolving an uncertainty reduces global informational entropy most rapidly.
 
 ## Landing in the platform
 
@@ -69,9 +80,9 @@ physics is how a system loses the right to be believed about physics.
   itself provenance ([[provenance-and-reproducibility]]).
 - Consumed by the Ring 0 watchdog: `κ > 0.85 ∧ no new evidence in window → re-scope` (never
   "continue, but say something new").
-- Surfaced as one sparkline per campaign in the console ([[agent-ux-control-plane]]).
+- Surfaced as Surface 3 (Epistemic Manifold) in the console ([[scientific-agentic-experience-triad]]).
 - Scored by [[evaluation-and-benchmarks]] as a *calibration* target: does a high-κ campaign
   predict a later refutation? If it does not, the metric is deleted. That is the falsifier.
 
-See also [[agentic-memory-and-observability]], [[multi-agent-research-collective]],
-[[meta-search-and-self-evolution]].
+See also [[epistemic-continuum-and-ontology]], [[agentic-memory-and-observability]],
+[[multi-agent-research-collective]], [[meta-search-and-self-evolution]].

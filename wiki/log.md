@@ -1,7 +1,7 @@
 ---
 type: log
 date: 2026-08-16
-updated: 2026-10-05
+updated: 2026-10-08
 tags: [log]
 status: living
 ---
@@ -989,6 +989,20 @@ skipped is the exact failure this incident is about:
   - Concept: `wiki/concepts/multimodal-mission-control-and-custom-agents.md`.
   - Index updated to 100 pages (43 entities, 46 concepts).
 
+## [2026-10-08] blueprint | Full Master Scientific Discovery Platform Blueprint Wiki Ingestion
 
+* **Complete Master Architectural Alignment:**
+  - Synchronized all 14 sections of `master_scientific_discovery_platform_blueprint.md` directly into the permanent wiki knowledge base.
+  - Formulated 6 new dedicated concept pages covering the epistemic continuum, quantum frontiers, triage mechanisms, manuscript synthesis, agentic experience triad, and memory lifecycle:
+    1. `wiki/concepts/epistemic-continuum-and-ontology.md`: The 5-level epistemic continuum ($\rho = 1.0$ in Lean 4 to $\rho < 0.90$ on QPUs), computational hypothesis tuples $\mathcal{H}$, automated experiment pipelines $\mathcal{E}$, Fisher information stopping rules, and first-class negative certificates.
+    2. `wiki/concepts/early-fault-tolerant-quantum-and-subspace-methods.md`: The demise of heuristic NISQ VQE and barren plateau crises, Quantum Krylov Subspace Diagonalization (QKSD), classical shadow tomography, reconfigurable neutral-atom arrays (Harvard/QuEra 48 logical qubits), and bivariate bicycle qLDPC gross codes (IBM \[144, 12, 12\]).
+    3. `wiki/concepts/quantum-triage-engine.md`: Mathematical triage routing using Family 278 (provable failure of Kohn–Sham representations for Coulomb molecules) and Family 275 (continuum Coulomb QMA-hardness) to route only multi-reference systems to QPUs while keeping single-reference systems on classical DFT.
+    4. `wiki/concepts/autonomous-manuscript-synthesis-and-peer-review.md`: Bilingual formal Lean 4 AST $\leftrightarrow$ modular arXiv LaTeX preprint synthesis (`main.tex`, `sections/`, `references.bib`, vector figures) with 5-dimensional automated adversarial peer review (Rigor, Novelty, Grounding, Hygiene, Reproducibility) and frame-anchored human review.
+    5. `wiki/concepts/scientific-agentic-experience-triad.md`: The 3-axis AX Triad (User $\leftrightarrow$ Agent, Agent $\leftrightarrow$ Agent tribunal protocol, Agent $\leftrightarrow$ Interface A2UI generative widgets) and the Nine Core Observatory Surfaces of the Cognitive Cockpit.
+    6. `wiki/concepts/epistemic-information-lifecycle-and-memory.md`: The 4-tier storage architecture (Tier 0 transient NVMe tmpfs, Tier 1 Merkle DAG ledger, Tier 2 HippoRAG GraphRAG associative network, Tier 3 reflective strategy bank), refutation index, and Reinforcement Learning with Verifiable Rewards (RLVR).
+  - Updated `wiki/overview.md` with synthesis points 10, 11, and 12.
+  - Updated `wiki/index.md` layer map to 106 pages (43 entities, 52 concepts, 6 sources, 5 living meta pages).
+## [2026-10-08] question | Q-06 — Mathematics: Riemannian Fisher-Rao metric tensor and geodesic curiosity navigation
+## [2026-10-08] question | Q-18 — Experiment formalized as typed hypothesis tuple H, 5-stage pipeline, stopping rule, negative certs
 
 
