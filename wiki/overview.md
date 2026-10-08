@@ -120,6 +120,34 @@ reproducible results — see [[science-discovery]].
    pathway for autonomous scientific exploration ([[autonomous-mathematical-discovery]],
    [[formal-proof-verification-lean-comparator]], [[frontier-benchmark-saturation]]).
 
+10. **The Epistemic Continuum, Quantum Triage, and Post-NISQ Krylov Methods:**
+    Scientific truth is modeled along an **Epistemic Continuum** parameterized by confidence $\rho \in [0, 1]$,
+    synthesizing formal machine proof ($\rho = 1.0$) with certified classical bounds ($\rho \to 1.0^-$) and
+    stochastic QPU execution ($\rho < 0.90$) ([[epistemic-continuum-and-ontology]]). The platform navigates the
+    demise of heuristic NISQ VQE by pivoting to **Quantum Krylov Subspace Diagonalization (QKSD)**, classical
+    shadow tomography, reconfigurable neutral-atom arrays (Harvard/QuEra 48 logical qubits), and high-rate
+    bivariate bicycle qLDPC gross codes (IBM \[144, 12, 12\]) ([[early-fault-tolerant-quantum-and-subspace-methods]]).
+    The automated [[quantum-triage-engine]] uses Family 278 (provable Kohn–Sham representability failure) and
+    Family 275 (continuum Coulomb QMA-hardness) to mathematically route only multi-reference, strongly correlated
+    systems to paid QPUs, preventing wasteful quantum-washing.
+
+11. **Bilingual Manuscript Synthesis, Verified Peer Review, and Knowledge Lifecycle:**
+    Scientific discoveries are synthesized into both machine-checked Lean 4 code and publication-grade modular
+    arXiv LaTeX preprints, graded by an automated adversarial peer-review tribunal across mathematical rigor,
+    novelty, empirical grounding, axiomatic hygiene, and reproducibility ([[autonomous-manuscript-synthesis-and-peer-review]]).
+    High-throughput scientific data is governed by a **4-tier storage architecture** (Tier 0 transient tmpfs,
+    Tier 1 Merkle DAG ledger, Tier 2 HippoRAG GraphRAG associative network, Tier 3 reflective strategy bank)
+    with first-class negative certificates and an RLVR verifiable flywheel ([[epistemic-information-lifecycle-and-memory]]).
+
+12. **The Scientific Agentic Experience (AX) Triad and Multimodal Mission Control:**
+    A comprehensive 3-axis interaction architecture: User $\leftrightarrow$ Agent (calibrated friction Ed25519 cards,
+    flight recorder scrubbing, counterfactual forking), Agent $\leftrightarrow$ Agent (Epistemic Tribunal Protocol with
+    quorum voting), and Agent $\leftrightarrow$ Interface (A2UI generative scientific widgets) across nine core
+    observatory surfaces ([[scientific-agentic-experience-triad]]). Local-first multimodal mission control operates
+    with 0 outbound bytes by default while permitting cryptographically budgeted cloud escalations, complemented
+    by an in-platform model explorer and direct streaming downloader via [[hugging-face-hub]]
+    ([[multimodal-mission-control-and-custom-agents]]).
+
 - **Provenance hygiene (2026-09-27):** the `ghp_…` PAT in a gitignored clone's remote URL is
   **verified dead** (401), but the same sweep found a *live* `gho_…` token sitting in plaintext in
   `~/.git-credentials` because `credential.helper=store` is set globally — an operator-machine
