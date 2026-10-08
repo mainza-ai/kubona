@@ -27,6 +27,8 @@ import { CognitiveMesh } from './surfaces/CognitiveMesh';
 import { ResultsStudio } from './surfaces/ResultsStudio';
 import { LLMSettings } from './surfaces/LLMSettings';
 import { HuggingFaceModelHub } from './surfaces/HuggingFaceModelHub';
+import { GenerativeUIStudio } from './surfaces/GenerativeUIStudio';
+import { Code2 } from 'lucide-react';
 
 export type SurfaceTab =
   | 'overview'
@@ -37,6 +39,7 @@ export type SurfaceTab =
   | 'surface5'
   | 'surface6'
   | 'surface7'
+  | 'surface9'
   | 'hf_hub'
   | 'settings';
 
@@ -79,8 +82,9 @@ export function ObservatoryCockpit({
     { id: 'surface4', label: 'Sentinel Guardrails', shortcut: '⌘5', icon: KeyRound },
     { id: 'surface5', label: 'Fleet Radar', shortcut: '⌘6', icon: Radio },
     { id: 'surface6', label: 'Cognitive Mesh', shortcut: '⌘7', icon: Network },
-    { id: 'hf_hub', label: 'Hugging Face Hub', shortcut: '⌘8', icon: Database },
-    { id: 'settings', label: 'Sovereign Air-Gap', shortcut: '⌘9', icon: Sliders },
+    { id: 'surface9', label: 'A2UI Studio', shortcut: '⌘8', icon: Code2 },
+    { id: 'hf_hub', label: 'Hugging Face Hub', shortcut: '⌘9', icon: Database },
+    { id: 'settings', label: 'Sovereign Air-Gap', shortcut: '⌘S', icon: Sliders },
   ];
 
   const targetSystemDisplayName = useMemo(() => {
@@ -151,6 +155,7 @@ export function ObservatoryCockpit({
         {activeTab === 'surface5' && <FleetRadar campaign={campaign} />}
         {activeTab === 'surface6' && <CognitiveMesh campaign={campaign} />}
         {activeTab === 'surface7' && <ResultsStudio campaign={campaign} />}
+        {activeTab === 'surface9' && <GenerativeUIStudio />}
         {activeTab === 'hf_hub' && <HuggingFaceModelHub />}
         {activeTab === 'settings' && <LLMSettings />}
       </div>
