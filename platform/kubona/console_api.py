@@ -505,6 +505,137 @@ async def mesh_route(request: Request) -> JSONResponse:
     return _json({"ok": True, "decision": decision.to_dict()})
 
 
+async def science_triage(request: Request) -> JSONResponse:
+    if not _authed(request):
+        return _auth_error()
+    from kubona.science.triage import QuantumTriageEngine, MolecularSystem
+    body = await request.json()
+    system = MolecularSystem(
+        molecule_id=body.get("molecule_id", "mol_custom"),
+        formula=body.get("formula", "H2"),
+        num_electrons=int(body.get("num_electrons", 2)),
+        nuclear_charges=body.get("nuclear_charges", [1, 1]),
+        is_multi_reference=bool(body.get("is_multi_reference", False)),
+        coulomb_continuum=bool(body.get("coulomb_continuum", True)),
+        estimated_active_space_orbitals=int(body.get("estimated_active_space_orbitals", 4)),
+    )
+    res = QuantumTriageEngine.triage(system)
+    return _json({"ok": True, "triage": res})
+
+
+async def science_krylov(request: Request) -> JSONResponse:
+    if not _authed(request):
+        return _auth_error()
+    from kubona.circuits.krylov import QKSDSolver
+    import numpy as np
+    body = await request.json()
+    subspace_dim = int(body.get("subspace_dim", 4))
+    dt = float(body.get("time_step", 0.2))
+
+    if "hamiltonian" in body:
+        H = np.array(body["hamiltonian"], dtype=complex)
+    else:
+        Z = np.array([[1, 0], [0, -1]], dtype=complex)
+        X = np.array([[0, 1], [1, 0]], dtype=complex)
+        I = np.eye(2, dtype=complex)
+        H = -np.kron(Z, Z) - 0.5 * (np.kron(X, I) + np.kron(I, X))
+
+    result = QKSDSolver.solve(H, subspace_dim=subspace_dim, time_step=dt)
+    return _json({"ok": True, "result": result.to_dict()})
+
+
+async def science_shadows(request: Request) -> JSONResponse:
+    if not _authed(request):
+        return _auth_error()
+    from kubona.circuits.shadows import ClassicalShadowEngine
+    import numpy as np
+    body = await request.json()
+    num_qubits = int(body.get("num_qubits", 2))
+    num_snapshots = int(body.get("num_snapshots", 400))
+    observables = body.get("observables", ["ZZ", "XX", "YY"])
+
+    state = np.zeros(2**num_qubits, dtype=complex)
+    state[0] = 1.0 / np.sqrt(2)
+    state[-1] = 1.0 / np.sqrt(2)
+
+    snapshots = ClassicalShadowEngine.sample_shadows_from_state(
+        state, num_qubits=num_qubits, num_snapshots=num_snapshots
+    )
+    estimates = {}
+    for obs in observables:
+        estimates[obs] = ClassicalShadowEngine.estimate_observable_from_snapshots(snapshots, obs)
+    return _json({"ok": True, "num_snapshots": num_snapshots, "estimates": estimates})
+
+
+async def science_manuscript_create(request: Request) -> JSONResponse:
+    if not _authed(request):
+        return _auth_error()
+    from kubona.science.manuscript import ManuscriptGenerator
+    body = await request.json()
+    ms = ManuscriptGenerator.create_discovery_manuscript(
+        title=body.get("title", "Quantum Subspace Discovery"),
+        target_system=body.get("target_system", "H2"),
+        authors=body.get("authors", ["Kubona Autonomous Theorist"]),
+        abstract=body.get("abstract", "Automated epistemic discovery."),
+        analytical_anchor_name=body.get("anchor_name", "Heisenberg_Ferromagnet_3D"),
+        analytical_anchor_val=float(body.get("anchor_val", -1.5)),
+        measured_val=float(body.get("measured_val", -1.498)),
+        lean4_proof_hash=body.get("lean4_hash"),
+        negative_certificates=body.get("negative_certs"),
+    )
+    review = ManuscriptGenerator.automated_peer_review(ms)
+    return _json({
+        "ok": True,
+        "manuscript_id": ms.manuscript_id,
+        "latex_main": ms.compile_latex(),
+        "bibtex": ms.compile_bibtex(),
+        "peer_review": {
+            "reviewer": review.reviewer_persona,
+            "rigor": review.mathematical_rigor_score,
+            "novelty": review.novelty_score,
+            "grounding": review.empirical_grounding_score,
+            "hygiene": review.axiomatic_hygiene_score,
+            "recommendation": review.overall_recommendation,
+            "summary": review.summary,
+            "critiques": review.actionable_critiques,
+        }
+    })
+
+
+async def science_memory_query(request: Request) -> JSONResponse:
+    if not _authed(request):
+        return _auth_error()
+    from kubona.memory.tiered_storage import TieredStorageManager
+    from kubona.science.memory import KnowledgeEntity, KnowledgeRelation
+    body = await request.json()
+    mgr = TieredStorageManager()
+
+    e1 = KnowledgeEntity("ent_femoco", "molecule", "FeMoco Nitrogenase Active Cluster", {"coulomb_continuum": True})
+    e2 = KnowledgeEntity("ent_family278", "theorem", "Family 278 KS Representability Failure", {"family_id": 278})
+    mgr.index_entity(e1)
+    mgr.index_entity(e2)
+    mgr.index_relation(KnowledgeRelation("ent_femoco", "ent_family278", "FAILS_ON", 1.0))
+
+    start_id = body.get("start_id", "ent_femoco")
+    max_hops = int(body.get("max_hops", 2))
+    recall = mgr.associative_recall(start_id, max_hops=max_hops)
+    ppr = mgr.personalized_pagerank([start_id])
+    formatted_recall = []
+    for item in recall:
+        target = item["target_entity"]
+        formatted_recall.append({
+            "hop_depth": item["hop_depth"],
+            "target_entity": {
+                "entity_id": target.entity_id,
+                "entity_type": target.entity_type,
+                "name": target.name,
+                "properties": target.properties,
+            },
+            "path": item["path"],
+        })
+    return _json({"ok": True, "start_id": start_id, "recall": formatted_recall, "pagerank": ppr})
+
+
 app = Starlette(
     middleware=[Middleware(CORSMiddleware,
                           allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])],
@@ -514,6 +645,11 @@ app = Starlette(
         Route("/api/chat/messages", chat_messages, methods=["POST"]),
         Route("/api/science/math/families", math_families),
         Route("/api/science/math/anchors", math_anchors),
+        Route("/api/science/triage", science_triage, methods=["POST"]),
+        Route("/api/science/krylov", science_krylov, methods=["POST"]),
+        Route("/api/science/shadows", science_shadows, methods=["POST"]),
+        Route("/api/science/manuscripts", science_manuscript_create, methods=["POST"]),
+        Route("/api/science/memory/query", science_memory_query, methods=["POST"]),
         Route("/api/providers", providers),
         Route("/api/sessions", sessions),
         Route("/api/sessions/{sid}", session_detail),

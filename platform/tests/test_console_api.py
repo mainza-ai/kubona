@@ -85,3 +85,75 @@ def test_events_stream():
     assert "event: telemetry" in r.text
     assert "approvals" in r.text
     assert "loops" in r.text
+
+
+def test_science_discovery_endpoints():
+    """Validates the 5 dedicated science discovery REST endpoints."""
+    # 1. Quantum Triage
+    triage_payload = {
+        "molecule_id": "FeMoco",
+        "formula": "Fe7MoS9C",
+        "num_electrons": 54,
+        "is_multi_reference": True,
+        "coulomb_continuum": True,
+        "estimated_active_space_orbitals": 54,
+    }
+    r = client.post("/api/science/triage", json=triage_payload, headers=_h())
+    assert r.status_code == 200
+    res = r.json()
+    assert res["ok"] is True
+    assert res["triage"]["target"] == "FEDERATED_QUANTUM_QPU"
+    assert res["triage"]["requires_qpu"] is True
+
+    # 2. Quantum Krylov Subspace Diagonalization
+    krylov_payload = {
+        "subspace_dim": 3,
+        "time_step": 0.1,
+    }
+    r = client.post("/api/science/krylov", json=krylov_payload, headers=_h())
+    assert r.status_code == 200
+    k_res = r.json()
+    assert k_res["ok"] is True
+    assert "ground_state_energy" in k_res["result"]
+
+    # 3. Classical Shadow Tomography
+    shadow_payload = {
+        "num_qubits": 2,
+        "num_snapshots": 150,
+        "observables": ["ZZ", "XX"],
+    }
+    r = client.post("/api/science/shadows", json=shadow_payload, headers=_h())
+    assert r.status_code == 200
+    s_res = r.json()
+    assert s_res["ok"] is True
+    assert "ZZ" in s_res["estimates"]
+
+    # 4. Bilingual Manuscript Synthesis & Peer Review Tribunal
+    ms_payload = {
+        "title": "Quantum Krylov Resolution of FeMoco Ground State",
+        "target_system": "FeMoco",
+        "anchor_name": "Heisenberg_Ferromagnet_3D",
+        "anchor_val": -1.5,
+        "measured_val": -1.499,
+        "lean4_hash": "a1b2c3d4e5f67890",
+    }
+    r = client.post("/api/science/manuscripts", json=ms_payload, headers=_h())
+    assert r.status_code == 200
+    m_res = r.json()
+    assert m_res["ok"] is True
+    assert "latex_main" in m_res
+    assert "bibtex" in m_res
+    assert m_res["peer_review"]["rigor"] >= 0.0
+
+    # 5. HippoRAG / Tiered Epistemic Memory Associative Query
+    mem_payload = {
+        "start_id": "ent_femoco",
+        "max_hops": 2,
+    }
+    r = client.post("/api/science/memory/query", json=mem_payload, headers=_h())
+    assert r.status_code == 200
+    mem_res = r.json()
+    assert mem_res["ok"] is True
+    assert "recall" in mem_res
+    assert "pagerank" in mem_res
+
