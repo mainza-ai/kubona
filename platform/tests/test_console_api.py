@@ -157,3 +157,34 @@ def test_science_discovery_endpoints():
     assert "recall" in mem_res
     assert "pagerank" in mem_res
 
+    # 6. Epistemic Tribunal Swarm Deliberation & Quorum Consensus
+    tribunal_payload = {
+        "hypothesis_id": "hyp-qksd-femoco-01",
+        "target_system": "FeMoco",
+        "lean4_verified": True,
+        "zero_axiom_cheating": True,
+        "gradient_variance": 0.082,
+    }
+    r = client.post("/api/science/tribunal/deliberate", json=tribunal_payload, headers=_h())
+    assert r.status_code == 200
+    trib_res = r.json()
+    assert trib_res["ok"] is True
+    assert trib_res["quorum_percentage"] >= 75.0
+    assert trib_res["verdict"] == "COMMITTED_TO_LEDGER"
+    assert len(trib_res["votes"]) == 6
+
+    # 7. QEC Hardware Resource Estimator (Neutral Atom & IBM Gross Code)
+    qec_payload = {
+        "num_logical_qubits": 12,
+        "logical_clifford_count": 2000,
+        "logical_t_count": 500,
+        "physical_error_rate": 0.001,
+    }
+    r = client.post("/api/science/qec/estimate", json=qec_payload, headers=_h())
+    assert r.status_code == 200
+    qec_res = r.json()
+    assert qec_res["ok"] is True
+    assert qec_res["architectures"]["neutral_atom_quera"]["supported"] is True
+    assert qec_res["architectures"]["bivariate_bicycle_qldpc_ibm"]["physical_qubits_total"] == 288
+
+

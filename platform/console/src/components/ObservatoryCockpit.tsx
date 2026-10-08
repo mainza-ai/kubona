@@ -28,7 +28,8 @@ import { ResultsStudio } from './surfaces/ResultsStudio';
 import { LLMSettings } from './surfaces/LLMSettings';
 import { HuggingFaceModelHub } from './surfaces/HuggingFaceModelHub';
 import { GenerativeUIStudio } from './surfaces/GenerativeUIStudio';
-import { Code2 } from 'lucide-react';
+import { EpistemicTribunalRoom } from './surfaces/EpistemicTribunalRoom';
+import { Code2, Scale } from 'lucide-react';
 
 export type SurfaceTab =
   | 'overview'
@@ -39,6 +40,7 @@ export type SurfaceTab =
   | 'surface5'
   | 'surface6'
   | 'surface7'
+  | 'surface8'
   | 'surface9'
   | 'hf_hub'
   | 'settings';
@@ -79,6 +81,7 @@ export function ObservatoryCockpit({
     { id: 'surface2', label: 'Flight Recorder', shortcut: '⌘2', icon: PlayCircle },
     { id: 'surface3', label: 'Epistemic Orb', shortcut: '⌘3', icon: Compass },
     { id: 'surface7', label: 'Living Notebook', shortcut: '⌘4', icon: BookOpen },
+    { id: 'surface8', label: 'Tribunal Room', shortcut: '⌘T', icon: Scale },
     { id: 'surface4', label: 'Sentinel Guardrails', shortcut: '⌘5', icon: KeyRound },
     { id: 'surface5', label: 'Fleet Radar', shortcut: '⌘6', icon: Radio },
     { id: 'surface6', label: 'Cognitive Mesh', shortcut: '⌘7', icon: Network },
@@ -155,6 +158,7 @@ export function ObservatoryCockpit({
         {activeTab === 'surface5' && <FleetRadar campaign={campaign} />}
         {activeTab === 'surface6' && <CognitiveMesh campaign={campaign} />}
         {activeTab === 'surface7' && <ResultsStudio campaign={campaign} />}
+        {activeTab === 'surface8' && <EpistemicTribunalRoom />}
         {activeTab === 'surface9' && <GenerativeUIStudio />}
         {activeTab === 'hf_hub' && <HuggingFaceModelHub />}
         {activeTab === 'settings' && <LLMSettings />}
