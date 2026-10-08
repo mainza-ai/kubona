@@ -1,14 +1,14 @@
 ---
 type: catalog
 date: 2026-08-16
-updated: 2026-10-05
+updated: 2026-10-08
 tags: [index]
 status: living
 ---
 
 # Index
 
-Catalog of every page in the wiki (90 pages), updated on every ingest. When answering a
+Catalog of every page in the wiki (106 pages), updated on every ingest. When answering a
 query, read this first to find relevant pages, then drill in.
 
 > **What this wiki is.** The **blueprint** for Kubona — the accumulated insight used to
@@ -23,18 +23,18 @@ arrives, place it here first and it will find its page.
 
 | Layer | What belongs | Pages | Decidedness |
 |---|---|---|---|
-| **L0 · Method** | How Kubona is allowed to *know* and *claim*: evidence classes, anchors, credibility | [[quantum-advantage-realism]], [[evaluation-and-benchmarks]], [[provenance-and-reproducibility]], [[claim-credibility-wavefunctions]], [[epistemic-curvature]], [[fidelity-accounting]], [[forensic-audit-2026]], [[mathematical-physics-anchors]], [[formal-proof-verification-lean-comparator]] | mostly `open-question` — the least grounded, most differentiating layer |
+| **L0 · Method** | How Kubona is allowed to *know* and *claim*: evidence classes, anchors, credibility, ontology | [[quantum-advantage-realism]], [[evaluation-and-benchmarks]], [[provenance-and-reproducibility]], [[claim-credibility-wavefunctions]], [[epistemic-curvature]], [[fidelity-accounting]], [[forensic-audit-2026]], [[mathematical-physics-anchors]], [[formal-proof-verification-lean-comparator]], [[epistemic-continuum-and-ontology]], [[quantum-triage-engine]] | mostly `adopted` with mathematical grounding |
 | **L1 · Control** | The governance rail that makes agent spend survivable | [[cost-governance]], [[spend-mandates-and-delegation]], [[security-and-pqc]], [[secrets-and-workload-isolation]], [[user-identity-and-profiles]], [[provider-capability-schema]], [[quantum-cloud-pricing]] | `adopted`, with AP2 mandates anchoring the approval gate |
-| **L2 · Compute** | Compilation, providers, mitigation, the machine itself | [[qir-mlir-compilation]], [[protocol-strategy]], [[mcp-and-context-flooding]], [[nisq-and-hybrid-orchestration]], [[error-mitigation]], [[circuit-cutting]], [[vqa-vqe]], [[barren-plateau]] + provider entities, [[qiskit-mcp-servers]] | `adopted` mechanisms, `tracked` vendors |
-| **L3 · Research** | Autonomy that compounds: search, meta-search, packs, the discovery loop | [[science-discovery]], [[karpathy-autoresearch]], [[meta-search-and-self-evolution]], [[five-ring-research-loop]], [[multi-agent-research-collective]], [[quantum-domain-packs]], [[agentic-memory-and-observability]], [[autonomous-ansatz-optimization]], [[differentiable-quantum-stack]], [[autonomous-mathematical-discovery]], [[frontier-benchmark-saturation]] | mostly `open-question` |
-| **L4 · Surface** | Where a human sees and limits the agent | [[ui-ux-vision]], [[agent-ux-control-plane]], [[workflows-and-agent-authoring]], [[confidentiality-lattice-provenance]] | `open-question` — spec far ahead of build |
-| **L5 · Ecosystem** | How it gets used, funded, and extended by others | [[agent-resource-economy]], [[x402]], [[cloudflare]], [[aaif]], [[a2a]], [[ap2]], [[integration-topology-and-licence-discipline]], [[openai-math]] | 1 `settled` policy; standard delegation and payment rails |
+| **L2 · Compute** | Compilation, providers, mitigation, the machine itself | [[qir-mlir-compilation]], [[protocol-strategy]], [[mcp-and-context-flooding]], [[nisq-and-hybrid-orchestration]], [[error-mitigation]], [[circuit-cutting]], [[vqa-vqe]], [[barren-plateau]] + provider entities, [[qiskit-mcp-servers]], [[early-fault-tolerant-quantum-and-subspace-methods]] | `adopted` mechanisms, `tracked` vendors |
+| **L3 · Research** | Autonomy that compounds: search, meta-search, packs, the discovery loop, memory | [[science-discovery]], [[karpathy-autoresearch]], [[meta-search-and-self-evolution]], [[five-ring-research-loop]], [[multi-agent-research-collective]], [[quantum-domain-packs]], [[agentic-memory-and-observability]], [[autonomous-ansatz-optimization]], [[differentiable-quantum-stack]], [[autonomous-mathematical-discovery]], [[frontier-benchmark-saturation]], [[epistemic-information-lifecycle-and-memory]], [[autonomous-manuscript-synthesis-and-peer-review]], [[multimodal-mission-control-and-custom-agents]] | `adopted` core research mechanisms |
+| **L4 · Surface** | Where a human sees and limits the agent | [[ui-ux-vision]], [[agent-ux-control-plane]], [[workflows-and-agent-authoring]], [[confidentiality-lattice-provenance]], [[scientific-agentic-experience-triad]] | `adopted` cognitive cockpit & AX triad |
+| **L5 · Ecosystem** | How it gets used, funded, and extended by others | [[agent-resource-economy]], [[x402]], [[cloudflare]], [[aaif]], [[a2a]], [[ap2]], [[integration-topology-and-licence-discipline]], [[openai-math]], [[hugging-face-hub]] | 1 `settled` policy; standard delegation, model hub, and payment rails |
 
 ## Overview & meta
 
 | Page | Summary |
 |---|---|
-| [[questions]] | **The work-list.** Open questions and design forks (Q-01, Q-15, Q-16, Q-21, Q-22, Q-25 closed) — what is known, what is missing, what the answer unblocks. Read first. |
+| [[questions]] | **The work-list.** Open questions and design forks (Q-01, Q-06, Q-15, Q-16, Q-18, Q-21, Q-22, Q-25 closed) — what is known, what is missing, what the answer unblocks. Read first. |
 | [[overview]] | Synthesis: what Kubona is, what is decided, and what the prototype has actually answered. |
 | [[roadmap]] | Phases 0–6 read as **acceptance criteria**, not progress: gates, dependencies, team loading. |
 | [[implementation-gaps]] | Prototype gap register: what the scaffold does vs. what production requires. Code facts only. |
@@ -52,12 +52,12 @@ Describes **how decided** something is — never how finished.
 | `candidate` | Proposed for integration or reuse; integration topology not yet committed. | [[openbao]], [[univer]], [[openqasm]], [[model-optimizer]], own repos |
 | `tracked` | External landscape (vendor, SDK, standard) observed for change. No position taken. | provider entities, [[x402]], [[aaif]], [[qiskit-mcp-servers]] |
 | `reference` | Prior art or another project mined for *method* only. Never load-bearing supply. | [[qbraid]], [[strangeworks]], [[hindsight]], own WIP |
-| `source` | An ingested source record. Immutable once written. | the 5 pages under `sources/` |
+| `source` | An ingested source record. Immutable once written. | the 6 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (98 pages = 42 entities · 45 concepts · 6 sources · 5 meta):**
-`settled` 1 · `adopted` 36 · `open-question` 12 · `candidate` 6 · `tracked` 27 ·
-`reference` 5 · `source` 6 · `living` 5. One `settled` against 36 `adopted` is the honest
+**Census (106 pages = 43 entities · 52 concepts · 6 sources · 5 meta):**
+`settled` 1 · `adopted` 45 · `open-question` 11 · `candidate` 6 · `tracked` 27 ·
+`reference` 5 · `source` 6 · `living` 5. One `settled` against 45 `adopted` is the honest
 reading: the method is **understood**, not yet **chosen**. `settled` is meant to stay small —
 if it grows much faster than `adopted`, check that constraints are being recorded as `settled`
 correctly rather than decisions being rushed into it.
@@ -125,7 +125,7 @@ Run it after any batch edit; exit 0 as of 2026-09-27.
 | [[comparator]] | Automated formal verification challenge harness for Lean 4 enforcing strict axiom integrity |
 | [[hugging-face-hub]] | Open-weights repository & API; in-platform GGUF/MLX quantization search and direct air-gapped downloader |
 
-## Concepts (46)
+## Concepts (52)
 
 | Page | What it is |
 |---|---|
@@ -174,3 +174,9 @@ Run it after any batch edit; exit 0 as of 2026-09-27.
 | [[mathematical-physics-anchors]] | Analytical ground-truth baselines from `openai/math` (Heisenberg ferromagnet, SK model, Haldane gap, MUB-6) enforcing quantum realism |
 | [[frontier-benchmark-saturation]] | Transition from saturated synthetic benchmarks (GSM8K/MATH) to open research problems as autonomous evaluators |
 | [[multimodal-mission-control-and-custom-agents]] | LLMs as central mission control, local-first air-gap default, cloud escalation, and declarative custom agent framework |
+| [[epistemic-continuum-and-ontology]] | Synthesis of formal deduction (ρ=1.0) and empirical sampling (ρ<1.0), hypothesis tuples, stopping rules, negative certs |
+| [[early-fault-tolerant-quantum-and-subspace-methods]] | Post-NISQ quantum Krylov subspace diagonalization, classical shadows, neutral atoms, and bivariate bicycle qLDPC gross codes |
+| [[quantum-triage-engine]] | Mathematical triage routing via Family 278 Kohn-Sham representability failure and Family 275 continuum Coulomb QMA-hardness |
+| [[autonomous-manuscript-synthesis-and-peer-review]] | Bilingual formal Lean 4 AST to modular arXiv LaTeX preprint synthesis and automated 5-dimensional adversarial peer review |
+| [[scientific-agentic-experience-triad]] | The AX triad: User ↔ Agent, Agent ↔ Agent tribunal protocol, Agent ↔ Interface (A2UI), and 9 cognitive observatory surfaces |
+| [[epistemic-information-lifecycle-and-memory]] | 4-tier storage (tmpfs, Merkle ledger, HippoRAG GraphRAG, strategy bank), refutation index, and RLVR flywheel |
