@@ -23,12 +23,12 @@ arrives, place it here first and it will find its page.
 
 | Layer | What belongs | Pages | Decidedness |
 |---|---|---|---|
-| **L0 · Method** | How Kubona is allowed to *know* and *claim*: evidence classes, anchors, credibility | [[quantum-advantage-realism]], [[evaluation-and-benchmarks]], [[provenance-and-reproducibility]], [[claim-credibility-wavefunctions]], [[epistemic-curvature]], [[fidelity-accounting]], [[forensic-audit-2026]] | mostly `open-question` — the least grounded, most differentiating layer |
+| **L0 · Method** | How Kubona is allowed to *know* and *claim*: evidence classes, anchors, credibility | [[quantum-advantage-realism]], [[evaluation-and-benchmarks]], [[provenance-and-reproducibility]], [[claim-credibility-wavefunctions]], [[epistemic-curvature]], [[fidelity-accounting]], [[forensic-audit-2026]], [[mathematical-physics-anchors]], [[formal-proof-verification-lean-comparator]] | mostly `open-question` — the least grounded, most differentiating layer |
 | **L1 · Control** | The governance rail that makes agent spend survivable | [[cost-governance]], [[spend-mandates-and-delegation]], [[security-and-pqc]], [[secrets-and-workload-isolation]], [[user-identity-and-profiles]], [[provider-capability-schema]], [[quantum-cloud-pricing]] | `adopted`, with AP2 mandates anchoring the approval gate |
 | **L2 · Compute** | Compilation, providers, mitigation, the machine itself | [[qir-mlir-compilation]], [[protocol-strategy]], [[mcp-and-context-flooding]], [[nisq-and-hybrid-orchestration]], [[error-mitigation]], [[circuit-cutting]], [[vqa-vqe]], [[barren-plateau]] + provider entities, [[qiskit-mcp-servers]] | `adopted` mechanisms, `tracked` vendors |
-| **L3 · Research** | Autonomy that compounds: search, meta-search, packs, the discovery loop | [[science-discovery]], [[karpathy-autoresearch]], [[meta-search-and-self-evolution]], [[five-ring-research-loop]], [[multi-agent-research-collective]], [[quantum-domain-packs]], [[agentic-memory-and-observability]], [[autonomous-ansatz-optimization]], [[differentiable-quantum-stack]] | mostly `open-question` |
+| **L3 · Research** | Autonomy that compounds: search, meta-search, packs, the discovery loop | [[science-discovery]], [[karpathy-autoresearch]], [[meta-search-and-self-evolution]], [[five-ring-research-loop]], [[multi-agent-research-collective]], [[quantum-domain-packs]], [[agentic-memory-and-observability]], [[autonomous-ansatz-optimization]], [[differentiable-quantum-stack]], [[autonomous-mathematical-discovery]], [[frontier-benchmark-saturation]] | mostly `open-question` |
 | **L4 · Surface** | Where a human sees and limits the agent | [[ui-ux-vision]], [[agent-ux-control-plane]], [[workflows-and-agent-authoring]], [[confidentiality-lattice-provenance]] | `open-question` — spec far ahead of build |
-| **L5 · Ecosystem** | How it gets used, funded, and extended by others | [[agent-resource-economy]], [[x402]], [[cloudflare]], [[aaif]], [[a2a]], [[ap2]], [[integration-topology-and-licence-discipline]] | 1 `settled` policy; standard delegation and payment rails |
+| **L5 · Ecosystem** | How it gets used, funded, and extended by others | [[agent-resource-economy]], [[x402]], [[cloudflare]], [[aaif]], [[a2a]], [[ap2]], [[integration-topology-and-licence-discipline]], [[openai-math]] | 1 `settled` policy; standard delegation and payment rails |
 
 ## Overview & meta
 
@@ -55,9 +55,9 @@ Describes **how decided** something is — never how finished.
 | `source` | An ingested source record. Immutable once written. | the 5 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (90 pages = 39 entities · 41 concepts · 5 sources · 5 meta):**
-`settled` 1 · `adopted` 29 · `open-question` 12 · `candidate` 6 · `tracked` 27 ·
-`reference` 5 · `source` 5 · `living` 5. One `settled` against 29 `adopted` is the honest
+**Census (98 pages = 42 entities · 45 concepts · 6 sources · 5 meta):**
+`settled` 1 · `adopted` 36 · `open-question` 12 · `candidate` 6 · `tracked` 27 ·
+`reference` 5 · `source` 6 · `living` 5. One `settled` against 36 `adopted` is the honest
 reading: the method is **understood**, not yet **chosen**. `settled` is meant to stay small —
 if it grows much faster than `adopted`, check that constraints are being recorded as `settled`
 correctly rather than decisions being rushed into it.
@@ -66,7 +66,7 @@ correctly rather than decisions being rushed into it.
 canonical `sources` keys, link and index integrity, and the no-`dev-docs`-anchors rule.
 Run it after any batch edit; exit 0 as of 2026-09-27.
 
-## Sources (5)
+## Sources (6)
 
 | Page | Source doc | Sources this touched |
 |---|---|---|
@@ -75,8 +75,9 @@ Run it after any batch edit; exit 0 as of 2026-09-27.
 | [[source-cloudflare-economy]] | *Cloudflare, x402, and the Agent Resource Economy* — podcast insights | [[agent-resource-economy]], [[x402]], startup patterns |
 | [[source-frontier-repo-audit-2026]] | *Frontier repository audit* — 25 live repos read end-to-end (remote · HEAD · licence · path:line) | Integration classes, licences, prior-art primitives |
 | [[source-agent-protocol-landscape-2026]] | *Agent Protocol Landscape & Standards Audit* — 2026 primary-source audit of MCP, A2A, AAIF, AP2, Qiskit MCP | [[protocol-strategy]], [[spend-mandates-and-delegation]], [[mcp-and-context-flooding]] |
+| [[source-openai-math-corpus]] | *OpenAI Math Manuscript Collection & Formal Proofs* — 722 manuscripts in 372 families, 162 Lean 4 formalizations, 811 challenges | [[autonomous-mathematical-discovery]], [[formal-proof-verification-lean-comparator]], [[mathematical-physics-anchors]], [[openai-math]] |
 
-## Entities (39)
+## Entities (42)
 
 | Page | What it is |
 |---|---|
@@ -119,8 +120,11 @@ Run it after any batch edit; exit 0 as of 2026-09-27.
 | [[ibm-quantum-composer]] | Reference circuit-editor UI; bidirectional code↔diagram sync |
 | [[arxiv-mcp-quantum]] | Prior-art paper proving MCP-for-quantum is a real, non-dependency field |
 | [[mainza-milimo-foundation]] | Existing codebase (Milimo Quantum, Finance Claw, AfrEval) cited as reusable de-risking |
+| [[openai-math]] | Adopted submodule (`submodules/math`, Apache-2.0): 372 result families, Lean formalizations, reasoning traces |
+| [[lean4]] | Interactive theorem prover and functional language; formal verification engine in `openai/math` |
+| [[comparator]] | Automated formal verification challenge harness for Lean 4 enforcing strict axiom integrity |
 
-## Concepts (41)
+## Concepts (45)
 
 | Page | What it is |
 |---|---|
@@ -164,3 +168,7 @@ Run it after any batch edit; exit 0 as of 2026-09-27.
 | [[secrets-and-workload-isolation]] | Vault sidecar, scoped tokens, sandboxed workloads — and the credential incidents that taught us why |
 | [[integration-topology-and-licence-discipline]] | Submodule / sidecar / blueprint / reference + licence rules; submodule is a shipping decision, not a compliment |
 | [[forensic-audit-2026]] | Comprehensive forensic code audit and empirical verification matrix across all 89 pages & platform tiers |
+| [[autonomous-mathematical-discovery]] | Multi-hour thinking compute search dynamics over open conjectures, counterexample isolation, and proof refactoring |
+| [[formal-proof-verification-lean-comparator]] | Axiomatic formal verification ($\rho = 1.0$) vs empirical simulation, anti-cheating axiom sets, and ledger receipts |
+| [[mathematical-physics-anchors]] | Analytical ground-truth baselines from `openai/math` (Heisenberg ferromagnet, SK model, Haldane gap, MUB-6) enforcing quantum realism |
+| [[frontier-benchmark-saturation]] | Transition from saturated synthetic benchmarks (GSM8K/MATH) to open research problems as autonomous evaluators |

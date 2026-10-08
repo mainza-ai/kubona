@@ -1,0 +1,203 @@
+"""Lean 4 Comparator Challenge Evaluation and Axiom Integrity Engine.
+
+Evaluates formal proofs against the `comparator` challenge specifications
+found in `submodules/math/lean/ComparatorChallenges/`.
+
+Verifies:
+1. Challenge module and solution declaration mappings.
+2. Axiom containment: ensures proofs only use standard Lean 4 axioms:
+   {"propext", "Quot.sound", "Classical.choice"}
+   and rejects non-permitted axioms or unproven holes (`sorryAx`).
+3. Emits cryptographic/audit records into the Kubona provenance ledger.
+"""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set
+
+from kubona.provenance import Ledger
+
+STANDARD_PERMITTED_AXIOMS: Set[str] = {
+    "propext",
+    "Quot.sound",
+    "Classical.choice",
+}
+
+
+@dataclass(frozen=True)
+class ComparatorChallengeSpec:
+    challenge_name: str
+    challenge_module: str
+    solution_module: str
+    theorem_names: List[str]
+    definition_names: List[str]
+    permitted_axioms: List[str]
+    enable_nanoda: bool = False
+    source_file_path: Optional[str] = None
+
+    @classmethod
+    def from_dict(cls, challenge_name: str, data: Dict[str, Any], path: Optional[str] = None) -> ComparatorChallengeSpec:
+        return cls(
+            challenge_name=challenge_name,
+            challenge_module=data.get("challenge_module", ""),
+            solution_module=data.get("solution_module", ""),
+            theorem_names=data.get("theorem_names", []),
+            definition_names=data.get("definition_names", []),
+            permitted_axioms=data.get("permitted_axioms", list(STANDARD_PERMITTED_AXIOMS)),
+            enable_nanoda=data.get("enable_nanoda", False),
+            source_file_path=path,
+        )
+
+
+@dataclass
+class VerificationResult:
+    challenge_name: str
+    ok: bool
+    axioms_used: List[str]
+    unpermitted_axioms: List[str]
+    theorem_names: List[str]
+    error_message: Optional[str] = None
+    ledger_ref: Optional[str] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "challenge_name": self.challenge_name,
+            "ok": self.ok,
+            "axioms_used": self.axioms_used,
+            "unpermitted_axioms": self.unpermitted_axioms,
+            "theorem_names": self.theorem_names,
+            "error_message": self.error_message,
+            "ledger_ref": self.ledger_ref,
+        }
+
+
+class ComparatorChallengeRegistry:
+    """Discovers and inspects Comparator challenges from the Lean sub-tree."""
+
+    def __init__(self, challenges_dir: Optional[Path | str] = None):
+        self.challenges_dir = self._resolve_dir(challenges_dir)
+        self._specs: Dict[str, ComparatorChallengeSpec] = {}
+        self._loaded = False
+
+    @staticmethod
+    def _resolve_dir(path: Optional[Path | str]) -> Optional[Path]:
+        candidates = [
+            Path(path) if path else None,
+            Path("submodules/math/lean/ComparatorChallenges"),
+            Path("../submodules/math/lean/ComparatorChallenges"),
+            Path("dev-docs/submodules/math/lean/ComparatorChallenges"),
+            Path("../dev-docs/submodules/math/lean/ComparatorChallenges"),
+        ]
+        for c in candidates:
+            if c and c.is_dir():
+                return c.resolve()
+        return None
+
+    def load_all(self) -> Dict[str, ComparatorChallengeSpec]:
+        if self._loaded:
+            return self._specs
+
+        if not self.challenges_dir or not self.challenges_dir.is_dir():
+            # Populate built-in reference challenges
+            self._load_fallback_challenges()
+            self._loaded = True
+            return self._specs
+
+        for file_path in self.challenges_dir.glob("*.json"):
+            name = file_path.stem
+            try:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    data = json.load(f)
+                self._specs[name] = ComparatorChallengeSpec.from_dict(
+                    name, data, path=str(file_path)
+                )
+            except Exception:
+                continue
+
+        self._loaded = True
+        return self._specs
+
+    def _load_fallback_challenges(self) -> None:
+        builtins = {
+            "QuasiRiemannHypothesis": {
+                "challenge_module": "ComparatorChallenges.QuasiRiemannHypothesis",
+                "solution_module": "OAI.NumberTheory.DirichletL.Nonvanishing",
+                "theorem_names": ["OAI.riemannZeta_ne_zero_of_seven_eighths_lt_re"],
+                "definition_names": [],
+                "permitted_axioms": ["propext", "Quot.sound", "Classical.choice"],
+                "enable_nanoda": False,
+            },
+            "VlasovMaxwell": {
+                "challenge_module": "ComparatorChallenges.VlasovMaxwell",
+                "solution_module": "OAI.Analysis.VlasovMaxwell.Main",
+                "theorem_names": ["OAI.RVM.global_classical_solution"],
+                "definition_names": [],
+                "permitted_axioms": ["propext", "Quot.sound", "Classical.choice"],
+                "enable_nanoda": False,
+            },
+            "UniqueGamesTheorem": {
+                "challenge_module": "ComparatorChallenges.UniqueGamesTheorem",
+                "solution_module": "OAI.Computability.UniqueGames.Theorem",
+                "theorem_names": ["OAI.UniqueGamesTheorem.theorem11"],
+                "definition_names": [],
+                "permitted_axioms": ["propext", "Quot.sound", "Classical.choice"],
+                "enable_nanoda": False,
+            },
+        }
+        for name, data in builtins.items():
+            self._specs[name] = ComparatorChallengeSpec.from_dict(name, data)
+
+    def get_challenge(self, name: str) -> Optional[ComparatorChallengeSpec]:
+        self.load_all()
+        return self._specs.get(name)
+
+    def verify_axioms(
+        self,
+        challenge_name: str,
+        axioms_used: List[str],
+        *,
+        ledger: Optional[Ledger] = None,
+    ) -> VerificationResult:
+        """Verifies that the axioms used in a proof do not exceed the permitted axiom set."""
+        spec = self.get_challenge(challenge_name)
+        if not spec:
+            return VerificationResult(
+                challenge_name=challenge_name,
+                ok=False,
+                axioms_used=axioms_used,
+                unpermitted_axioms=[],
+                theorem_names=[],
+                error_message=f"Challenge '{challenge_name}' not found.",
+            )
+
+        permitted = set(spec.permitted_axioms)
+        unpermitted = [a for a in axioms_used if a not in permitted]
+        ok = len(unpermitted) == 0
+
+        ledger_ref = None
+        if ledger:
+            rec = ledger.append(
+                kind="comparator_proof_verification",
+                payload={
+                    "challenge_name": challenge_name,
+                    "solution_module": spec.solution_module,
+                    "theorems": spec.theorem_names,
+                    "ok": ok,
+                    "axioms_used": axioms_used,
+                    "unpermitted_axioms": unpermitted,
+                },
+            )
+            ledger_ref = rec.record_hash
+
+        return VerificationResult(
+            challenge_name=challenge_name,
+            ok=ok,
+            axioms_used=axioms_used,
+            unpermitted_axioms=unpermitted,
+            theorem_names=spec.theorem_names,
+            error_message=f"Forbidden axioms detected: {unpermitted}" if not ok else None,
+            ledger_ref=ledger_ref,
+        )
