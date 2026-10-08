@@ -99,6 +99,11 @@ QUANTUM_PHYSICS_FAMILIES: Dict[int, Dict[str, Any]] = {
         "title": "The entropy photon-number inequality",
         "tags": ["continuous-variable-quantum", "bosonic-entropy", "beam-splitter", "quantum-channels"],
     },
+    274: {
+        "discipline": "Mathematical physics",
+        "title": "Parity is not in QAC0",
+        "tags": ["parity-circuits", "qac0-lower-bounds", "quantum-circuit-complexity", "unbounded-toffoli"],
+    },
     275: {
         "discipline": "Mathematical physics",
         "title": "QMA-hardness of continuum Coulomb energy",
