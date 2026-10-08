@@ -2,9 +2,9 @@
 type: concept
 name: Agent UX & the Control Plane
 date: 2026-08-16
-updated: 2026-10-04
+updated: 2026-10-08
 tags: [ux, control-plane, hitl]
-sources: [source-gap-analysis-plan]
+sources: [source-gap-analysis-plan, source-openai-math-corpus]
 status: adopted
 ---
 
@@ -31,17 +31,19 @@ No existing tool (quantum or agentic) covers both.
 > talking via WebSockets and gRPC-Web to a high-throughput **Go backend orchestrator**, while
 > quantum execution runs via isolated **Python gRPC microservices**.
 
-## The seven core observatory surfaces
+## The nine core observatory surfaces
  
 | Surface | Purpose |
 |---|---|
 | **Spatial research canvas** | Infinite zoomable canvas (Galaxy to Surface); agent co-presence cursors (Buzz pattern); SDK-independent post-QIR universal glyphs & ghost circuits |
-| **4D flight recorder** | Replay/scrub multi-hour VQE loops; counterfactual branching ("what-if" forks); Ring 0 reflex watchdog events pinned to timeline |
-| **Epistemic manifold & classical anchor** | Tripartite credibility wavefunction rings (`{corroborated, contested, unverified}`); inline DMRG/tensor network classical anchors; stagnation meters ($\kappa$) |
-| **Autonomy cockpit & AP2 spend surface** | Cryptographic AP2 spend mandates (`{tenant_id, job_hash, max_budget_usd, expiry}`); one-glance action gate cards; A2A delegation trees |
+| **4D flight recorder** | Replay/scrub multi-hour trajectories; cavity expansion & tree shift replay ([[source-openai-math-corpus]]); speculative counterfactual branching |
+| **Epistemic manifold & analytical anchors** | Tripartite credibility wavefunction rings (`{corroborated, contested, unverified}`); deductive certitude ($\rho = 1.0$); inline DMRG / exact analytical anchors |
+| **Autonomy cockpit & spend cards** | Calibrated friction architecture; WebCrypto Ed25519 spend mandates (`{tenant_id, job_hash, max_budget_usd, expiry}`); one-glance action gate cards |
 | **Execution fleet radar** | Real-time multi-modality fleet status (local simulator, ZNE, IBM, Quantinuum, QuEra, D-Wave); jurisdiction & export-control shield (`policy.py`) |
 | **Cognitive LLM mesh** | Zero-config local host port radar (Ollama, OMLX, LM Studio, MLX); sovereign air-gap switch; tiered persona model assignment; arg normalization inspector |
 | **Results studio & notebook** | Systematic citable reports with frame-anchored media comments (Buzz pattern); 100% provenance verification links; first-class negative results repository |
+| **Epistemic tribunal room** | Dedicated adversarial deliberation chamber; real-time quorum consensus gauges, dissenting arguments, and formal Lean 4 AST citations |
+| **Generative scientific UI (A2UI)** | Agent-streamed interactive components: 3D molecular active space (Mol*/Three.js), QIR circuit editor, Lean 4 goal tree, shadow tomography radar |
 
 ## Interaction principles
 
