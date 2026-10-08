@@ -3,9 +3,9 @@ name: Integration Topology and Licence Discipline
 type: concept
 tags: [frontier, governance, licensing, supply-chain, submodules, architecture]
 date: 2026-09-27
-updated: 2026-09-27
+updated: 2026-10-08
 status: settled
-sources: [source-frontier-repo-audit-2026]
+sources: [source-frontier-repo-audit-2026, source-openai-math-corpus]
 ---
 
 # Integration Topology and Licence Discipline
@@ -26,19 +26,20 @@ derivative is not a style violation — it is an unfixable defect in the artifac
 
 Full assignment table: [[source-frontier-repo-audit-2026]].
 
-**"Submodule" is a shipping decision, not a compliment.** Most of the 25 audited repos will never
+**"Submodule" is a shipping decision, not a compliment.** Most of the audited repos will never
 appear in `.gitmodules` — they are **reference** material, and the correct output of borrowing an
 idea from them is a *citation plus an independent implementation*, not a dependency. Keeping those
 two categories apart is what stops the dependency graph growing to the size of the reading list.
-The candidate submodule list is deliberately short, and each entry points at its **live GitHub
+The submodule and candidate list is deliberately short, and each entry points at its **live GitHub
 URL** (the local clone under `dev-docs/submodules/` is a temporary read mirror that is deleted when
 development ends, so the URL is the durable reference):
 
-| Candidate | Live URL | Licence | Why it earns submodule status |
+| Submodule / Candidate | Live URL | Licence | Status & Why it earns submodule status |
 |---|---|---|---|
-| PennyLane | `github.com/PennyLaneAI/pennylane` | Apache-2.0 | the differentiable engine itself; we ship against it, not a fork ([[differentiable-quantum-stack]]) |
-| QASM3 grammar | `github.com/openqasm/openqasm` | Apache-2.0 | `source/grammar/qasm3{Lexer,Parser}.g4` is the parse contract we validate front-ends against |
-| LLVM/MLIR | `github.com/llvm/llvm-project` | Apache-2.0 + LLVM exception | **external binary**, not a submodule — the monorepo is never vendored |
+| [[openai-math]] | `github.com/openai/math` | Apache-2.0 | **Adopted submodule** (`submodules/math`, SHA `adc7f1241`); provides 372 mathematical discovery families, 162 Lean 4 formalizations, 811 Comparator challenges, and analytical physics anchors |
+| PennyLane | `github.com/PennyLaneAI/pennylane` | Apache-2.0 | Candidate; the differentiable engine itself; we ship against it, not a fork ([[differentiable-quantum-stack]]) |
+| QASM3 grammar | `github.com/openqasm/openqasm` | Apache-2.0 | Candidate; `source/grammar/qasm3{Lexer,Parser}.g4` is the parse contract we validate front-ends against |
+| LLVM/MLIR | `github.com/llvm/llvm-project` | Apache-2.0 + LLVM exception | **External binary**, not a submodule — the monorepo is never vendored |
 
 Everything else in `dev-docs/submodules/` (`NVIDIA/Model-Optimizer`, `dream-num/univer`,
 `actions/runner-images`, `tt-a1i/archify`, …) is currently **reference-grade**: we read the pattern,

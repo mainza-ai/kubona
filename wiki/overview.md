@@ -1,10 +1,10 @@
 ---
 type: overview
 date: 2026-08-16
-updated: 2026-10-04
+updated: 2026-10-08
 tags: [kubona, synthesis]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-cloudflare-economy,
-  source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026]
+  source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026, source-openai-math-corpus]
 status: living
 ---
 
@@ -32,7 +32,7 @@ science discovery platform**: multi-user labs, user- and agent-created workflows
 agents, and the ability to conduct its own experiments and return organized,
 reproducible results — see [[science-discovery]].
 
-## The five sources ingested
+## The six sources ingested
 
 | Source | What it provides |
 |---|---|
@@ -41,6 +41,7 @@ reproducible results — see [[science-discovery]].
 | [[source-cloudflare-economy]] | The agent resource economy: why Kubona's outputs are monetizable, [[x402]] rail, startup patterns |
 | [[source-frontier-repo-audit-2026]] | 25 live repos read end-to-end (remote · HEAD · licence · `path:line`): [[integration-topology-and-licence-discipline]], [[quantum-advantage-realism]], prior-art primitives for memory, governance and packs |
 | [[source-agent-protocol-landscape-2026]] | 2026 standards audit: MCP 2026-07-28 & SDK 2.x, AAIF, A2A delegation, AP2 mandates, Qiskit MCP servers, [[protocol-strategy]] |
+| [[source-openai-math-corpus]] | 722 manuscripts in 372 families, 162 Lean 4 formalizations, 811 Comparator challenges: [[autonomous-mathematical-discovery]], [[formal-proof-verification-lean-comparator]], [[mathematical-physics-anchors]] |
 
 ## The synthesis (current best understanding)
 
@@ -106,11 +107,18 @@ reproducible results — see [[science-discovery]].
    and Llama-3.2, Ollama on 11434, LM Studio on 1234) alongside cloud frontier models (Anthropic Claude, OpenAI).
    A Sovereign Air-Gap hardware toggle guarantees zero outbound network egress. Every quantum algorithm and ansatz
    must pass a strict **local classical-quantum testing gate** (classical ab-initio PySCF RHF/FCI anchors, Qiskit Aer
-   simulation, PennyLane KaHyPar circuit cutting, and Clifford fidelity probes) before cloud QPU execution is authorized.
-   See [[ui-ux-vision]], [[fidelity-accounting]], and [[implementation-gaps]].
-   precisely why [[openbao]] runs as a sidecar. Paired with [[quantum-advantage-realism]]: the
-   platform records the backend that actually ran, always computes a classical anchor, and never
-   claims advantage.
+      See [[ui-ux-vision]], [[fidelity-accounting]], and [[implementation-gaps]].
+   Paired with [[quantum-advantage-realism]]: the platform records the backend that actually ran,
+   always computes a classical anchor, and never claims advantage.
+
+9. **Autonomous Mathematical Discovery and Formal Verification Anchors:**
+   The sixth source, [[source-openai-math-corpus]], provides 372 result families, 162 [[lean4]] formalizations,
+   and 811 [[comparator]] challenges integrated as an adopted submodule ([[openai-math]], `submodules/math`,
+   Apache-2.0). Mathematical physics proofs (Heisenberg ferromagnet spontaneous magnetization, QAOA optimality on
+   the SK spin glass, Haldane gap, MUB dimension 6) establish exact analytical anchors for quantum simulation
+   ([[mathematical-physics-anchors]]), while formal proof verification provides an epistemic confidence $\rho = 1.0$
+   pathway for autonomous scientific exploration ([[autonomous-mathematical-discovery]],
+   [[formal-proof-verification-lean-comparator]], [[frontier-benchmark-saturation]]).
 
 - **Provenance hygiene (2026-09-27):** the `ghp_…` PAT in a gitignored clone's remote URL is
   **verified dead** (401), but the same sweep found a *live* `gho_…` token sitting in plaintext in

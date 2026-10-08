@@ -1,0 +1,19 @@
+name: mathematical-physics-frontier
+version: 1.0.0
+domain_category: mathematical_physics
+description: Rigorous analytical ground truth baselines and exact proofs from the openai/math collection for quantum many-body systems and optimization.
+author: Kubona Quantum Epistemic Core
+classical_anchor_methods:
+  - Analytical-Math-Proof
+  - Bloch-Spin-Wave
+  - Parisi-RSB
+  - Haldane-Gap-Proof
+  - MUB-Dimension-6
+benchmark_systems:
+  - Heisenberg_Ferromagnet_3D
+  - SK_Spin_Glass_Ground_State
+  - Haldane_Spin_1_Chain
+  - MUB_Dimension_6_Overlap
+  - Laughlin_Fractional_Hall_Gap
+hamiltonian_generator: kubona.anchors.math_physics.MathPhysicsAnchorEngine
+min_qubit_support: 2

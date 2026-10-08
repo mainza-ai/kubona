@@ -361,6 +361,26 @@ async def chat_messages(request: Request) -> JSONResponse:
     return _json({"ok": True, "message": reply.model_dump()})
 
 
+async def math_families(request: Request) -> JSONResponse:
+    if not _authed(request):
+        return _auth_error()
+    from kubona.science.math_catalog import MathCatalog
+    discipline = request.query_params.get("discipline")
+    quantum_only = request.query_params.get("quantum_only", "").lower() in ("true", "1")
+    catalog = MathCatalog()
+    families = catalog.list_families(discipline=discipline, quantum_only=quantum_only)
+    return _json({"ok": True, "families": [f.to_dict() for f in families], "stats": catalog.summary_stats()})
+
+
+async def math_anchors(request: Request) -> JSONResponse:
+    if not _authed(request):
+        return _auth_error()
+    from kubona.anchors.math_physics import MathPhysicsAnchorEngine
+    benchmarks = MathPhysicsAnchorEngine.list_benchmarks()
+    anchors = [MathPhysicsAnchorEngine.get_anchor(b).to_dict() for b in benchmarks]
+    return _json({"ok": True, "benchmarks": benchmarks, "anchors": anchors})
+
+
 app = Starlette(
     middleware=[Middleware(CORSMiddleware,
                           allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])],
@@ -368,6 +388,8 @@ app = Starlette(
         Route("/api/health", health),
         Route("/api/events", events),
         Route("/api/chat/messages", chat_messages, methods=["POST"]),
+        Route("/api/science/math/families", math_families),
+        Route("/api/science/math/anchors", math_anchors),
         Route("/api/providers", providers),
         Route("/api/sessions", sessions),
         Route("/api/sessions/{sid}", session_detail),
