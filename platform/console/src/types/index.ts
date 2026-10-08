@@ -320,3 +320,103 @@ export interface CryptographicMandate {
   signature_hex: string;
   verified: boolean;
 }
+
+// -----------------------------------------------------------------------------
+// Multimodal Mission Control & Hybrid Routing Types
+// -----------------------------------------------------------------------------
+
+export type ModalityType =
+  | 'text'
+  | 'image'
+  | 'molecule_3d'
+  | 'circuit_qir'
+  | 'spectroscopy'
+  | 'audio'
+  | 'lean4_ast';
+
+export interface MultimodalItem {
+  modality: ModalityType;
+  data: string;
+  mime_type?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface MultimodalPayload {
+  prompt: string;
+  system_prompt?: string;
+  items?: MultimodalItem[];
+  role_hint?: string;
+  preferred_model?: string;
+  max_tokens?: number;
+  temperature?: number;
+  spend_budget_usd?: number;
+  has_ed25519_mandate?: boolean;
+}
+
+export interface RoutingDecision {
+  provider: string;
+  model: string;
+  is_local: boolean;
+  air_gap_enforced: boolean;
+  estimated_cost_usd: number;
+  explanation: string;
+  modalities_supported: string[];
+}
+
+export interface CustomAgentManifest {
+  id: string;
+  name: string;
+  role: string;
+  description: string;
+  system_prompt: string;
+  avatar_emoji: string;
+  badge_color: string;
+  capabilities: string[];
+  modalities: string[];
+  preferred_model: string;
+  mcp_tools: string[];
+  spend_budget_usd: number;
+  memory_scopes: string[];
+  is_system_agent?: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+// -----------------------------------------------------------------------------
+// Hugging Face Model Hub & In-Platform Downloader Types
+// -----------------------------------------------------------------------------
+
+export interface HFModelQuantization {
+  filename: string;
+  size_bytes?: number;
+  quant_type: string;
+  download_url: string;
+}
+
+export interface HFModelSummary {
+  id: string;
+  author: string;
+  downloads: number;
+  likes: number;
+  pipeline_tag: string;
+  tags: string[];
+  quantizations: HFModelQuantization[];
+  description?: string;
+}
+
+export interface HFDownloadTask {
+  task_id: string;
+  repo_id: string;
+  filename: string;
+  status: 'pending' | 'downloading' | 'completed' | 'failed' | 'cancelled';
+  bytes_downloaded: number;
+  total_bytes: number;
+  progress_percent: number;
+  speed_mb_s: number;
+  local_path: string;
+  error?: string;
+  sha256?: string;
+  started_at: number;
+  completed_at?: number;
+}
+
