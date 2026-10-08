@@ -5,6 +5,21 @@ results · analysis · conclusions · citations · how-to-reproduce); every sect
 links its ledger record / citation so each claim is provenance-traceable.
 """
 
-from .notebook import ExperimentReport, build_report, ReportStore
+from .notebook import ExperimentReport, ReportStore, build_report
+from kubona.science.manuscript import (
+    ManuscriptGenerator,
+    ManuscriptSection,
+    PeerReviewReport,
+    ScientificManuscript,
+)
 
-__all__ = ["ExperimentReport", "build_report", "ReportStore"]
+__all__ = [
+    "ExperimentReport",
+    "ManuscriptGenerator",
+    "ManuscriptSection",
+    "PeerReviewReport",
+    "ReportStore",
+    "ScientificManuscript",
+    "build_report",
+]
+
