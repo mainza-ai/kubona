@@ -964,5 +964,31 @@ skipped is the exact failure this incident is about:
   - Concepts: `wiki/concepts/autonomous-mathematical-discovery.md`, `wiki/concepts/formal-proof-verification-lean-comparator.md`, `wiki/concepts/mathematical-physics-anchors.md`, `wiki/concepts/frontier-benchmark-saturation.md`.
   - Updated: `overview.md` (6 sources, synthesis item 9), `index.md` (census 98 pages), `roadmap.md` (Phase 6 criteria), `questions.md` (Q-31 added), `integration-topology-and-licence-discipline.md` (`openai/math` adopted submodule).
 
+## [2026-10-08] feature | Multimodal Mission Control, Custom Agent Ecosystem & In-Platform Hugging Face Hub
+
+* **Multimodal Mission Control (`platform/kubona/mesh/model_router.py`):**
+  - Architected LLMs as the driving operational engine / Mission Control for scientific discovery.
+  - Multi-modal representation ingestion: text manuscripts, 3D molecular coordinates (PDB/CIF/SMILES), quantum circuits (QIR/QASM), spectroscopic visual plots, and audio telemetry.
+  - Local-first sovereign air-gap invariant: when `air_gapped: true`, 0 outbound bytes are permitted; queries targeting cloud models are automatically intercepted and routed to the strongest local multimodal runtime (MLX, Ollama, vLLM).
+  - Cryptographically provisioned cloud escalation: Anthropic Claude 3.7 Sonnet, OpenAI o-series/o3, and Gemini 2.5 Pro gated via Ed25519 spend cards.
+* **Declarative Custom Agent Framework (`platform/kubona/agents/user_defined.py`):**
+  - Declarative `UserDefinedAgentManifest` schema: system prompt, tool capability whitelists, preferred local/cloud model, spend budgets, memory scopes, and multimodal constraints.
+  - Agent registry with validation against overwriting standard system roles and local JSON persistence (`~/.kubona/custom_agents.json`).
+  - Standard system agent roster: `lead_theorist`, `lean4_proof_engineer`, `classical_anchor_solver`, `quantum_circuit_compiler`, `adversarial_falsification_critic`, `sentinel_spend_governor`, `multimodal_spectroscopist`.
+* **In-Platform Hugging Face Model Hub & Downloader (`platform/kubona/mesh/hf_hub.py` & `HuggingFaceModelHub.tsx`):**
+  - Integrated search and query of Hugging Face Hub API (`api/models`) filtered by GGUF, MLX, and Safetensors.
+  - In-platform quantization inspection: lists `.gguf` variants (`Q4_K_M`, `Q5_K_M`, `Q8_0`, `MLX-4bit`, `FP16`) with sizes and RAM estimates.
+  - Direct background streaming downloader with real-time transfer speed (MB/s), live progress percentage, cancellation, and SHA-256 hash calculation.
+  - Sovereign storage at `~/.kubona/models/` for immediate local air-gapped execution.
+* **Observatory Console Integration (`platform/console/`):**
+  - Added Hugging Face Model Hub surface (`HuggingFaceModelHub.tsx`) and enhanced `CognitiveMesh.tsx` with Custom Agent creation modal and multimodal routing evaluator.
+  - Wired into `ObservatoryCockpit.tsx` navigation bar with dedicated tab (`⌘8`) and shortcuts.
+  - Verified with `pnpm run build` (Turbopack static pages 100% green) and 24 passing unit tests in `pytest`.
+* **Wiki Blueprint Additions:**
+  - Entity: `wiki/entities/hugging-face-hub.md`.
+  - Concept: `wiki/concepts/multimodal-mission-control-and-custom-agents.md`.
+  - Index updated to 100 pages (43 entities, 46 concepts).
+
+
 
 

@@ -381,6 +381,130 @@ async def math_anchors(request: Request) -> JSONResponse:
     return _json({"ok": True, "benchmarks": benchmarks, "anchors": anchors})
 
 
+async def hf_search(request: Request) -> JSONResponse:
+    if not _authed(request):
+        return _auth_error()
+    from kubona.mesh.hf_hub import HuggingFaceHubClient
+    client = HuggingFaceHubClient()
+    q = request.query_params.get("q", "")
+    lib = request.query_params.get("library", "gguf")
+    limit = int(request.query_params.get("limit", "15"))
+    results = await client.search_models(query=q, library=lib, limit=limit)
+    return _json({"ok": True, "models": [m.to_dict() for m in results]})
+
+
+async def hf_model_detail(request: Request) -> JSONResponse:
+    if not _authed(request):
+        return _auth_error()
+    from kubona.mesh.hf_hub import HuggingFaceHubClient
+    client = HuggingFaceHubClient()
+    repo_id = request.path_params["repo_id"]
+    detail = await client.get_model_details(repo_id)
+    if not detail:
+        return _json({"ok": False, "error": "model not found"}, 404)
+    return _json({"ok": True, "model": detail.to_dict()})
+
+
+async def hf_download_start(request: Request) -> JSONResponse:
+    if not _authed(request):
+        return _auth_error()
+    from kubona.mesh.hf_hub import HFDownloadManager
+    mgr = HFDownloadManager()
+    body = await request.json()
+    repo_id = body.get("repo_id", "")
+    filename = body.get("filename", "")
+    if not repo_id or not filename:
+        return _json({"ok": False, "error": "repo_id and filename required"}, 400)
+    task = await mgr.start_download(repo_id, filename)
+    return _json({"ok": True, "task": task.to_dict()})
+
+
+async def hf_downloads_list(request: Request) -> JSONResponse:
+    if not _authed(request):
+        return _auth_error()
+    from kubona.mesh.hf_hub import HFDownloadManager
+    mgr = HFDownloadManager()
+    tasks = mgr.list_tasks()
+    return _json({"ok": True, "downloads": [t.to_dict() for t in tasks]})
+
+
+async def hf_download_cancel(request: Request) -> JSONResponse:
+    if not _authed(request):
+        return _auth_error()
+    from kubona.mesh.hf_hub import HFDownloadManager
+    mgr = HFDownloadManager()
+    task_id = request.path_params["task_id"]
+    success = mgr.cancel_task(task_id)
+    return _json({"ok": success, "task_id": task_id})
+
+
+async def custom_agents_list(request: Request) -> JSONResponse:
+    if not _authed(request):
+        return _auth_error()
+    from kubona.agents.user_defined import AgentRegistry
+    reg = AgentRegistry()
+    agents = reg.list_all(include_system=True)
+    return _json({"ok": True, "agents": [a.to_dict() for a in agents]})
+
+
+async def custom_agent_create(request: Request) -> JSONResponse:
+    if not _authed(request):
+        return _auth_error()
+    from kubona.agents.user_defined import AgentRegistry, UserDefinedAgentManifest
+    reg = AgentRegistry()
+    body = await request.json()
+    try:
+        manifest = UserDefinedAgentManifest.from_dict(body)
+        registered = reg.register_custom_agent(manifest)
+        return _json({"ok": True, "agent": registered.to_dict()})
+    except ValueError as e:
+        return _json({"ok": False, "error": str(e)}, 400)
+
+
+async def custom_agent_delete(request: Request) -> JSONResponse:
+    if not _authed(request):
+        return _auth_error()
+    from kubona.agents.user_defined import AgentRegistry
+    reg = AgentRegistry()
+    agent_id = request.path_params["agent_id"]
+    try:
+        deleted = reg.delete_custom_agent(agent_id)
+        return _json({"ok": deleted, "agent_id": agent_id})
+    except ValueError as e:
+        return _json({"ok": False, "error": str(e)}, 400)
+
+
+async def mesh_route(request: Request) -> JSONResponse:
+    if not _authed(request):
+        return _auth_error()
+    from kubona.settings import SettingsStore
+    from kubona.mesh.model_router import HybridModelRouter, MultimodalPayload, MultimodalItem, Modality
+    store = SettingsStore()
+    router = HybridModelRouter(default_air_gapped=store.public().get("air_gapped", True))
+    body = await request.json()
+    items = []
+    for it in body.get("items", []):
+        items.append(MultimodalItem(
+            modality=Modality(it.get("modality", "text")),
+            data=it.get("data", ""),
+            mime_type=it.get("mime_type", "text/plain"),
+            metadata=it.get("metadata", {}),
+        ))
+    payload = MultimodalPayload(
+        prompt=body.get("prompt", ""),
+        system_prompt=body.get("system_prompt", ""),
+        items=items,
+        role_hint=body.get("role_hint", "lead_theorist"),
+        preferred_model=body.get("preferred_model"),
+        max_tokens=body.get("max_tokens", 1024),
+        temperature=body.get("temperature", 0.2),
+    )
+    spend_budget = float(body.get("spend_budget_usd", 0.0))
+    has_mandate = bool(body.get("has_ed25519_mandate", False))
+    decision = router.route(payload, spend_budget_usd=spend_budget, has_ed25519_mandate=has_mandate)
+    return _json({"ok": True, "decision": decision.to_dict()})
+
+
 app = Starlette(
     middleware=[Middleware(CORSMiddleware,
                           allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])],
@@ -406,6 +530,15 @@ app = Starlette(
         Route("/api/loops", loops),
         Route("/api/loops/{lid}/history", loop_history),
         Route("/api/loops/{lid}/{action}", loop_action, methods=["POST"]),
+        Route("/api/hf/search", hf_search),
+        Route("/api/hf/models/{repo_id:path}", hf_model_detail),
+        Route("/api/hf/download", hf_download_start, methods=["POST"]),
+        Route("/api/hf/downloads", hf_downloads_list),
+        Route("/api/hf/downloads/{task_id}/cancel", hf_download_cancel, methods=["POST"]),
+        Route("/api/agents/custom", custom_agents_list),
+        Route("/api/agents/custom", custom_agent_create, methods=["POST"]),
+        Route("/api/agents/custom/{agent_id}", custom_agent_delete, methods=["DELETE"]),
+        Route("/api/mesh/route", mesh_route, methods=["POST"]),
     ],
 )
 

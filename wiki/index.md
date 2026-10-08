@@ -77,7 +77,7 @@ Run it after any batch edit; exit 0 as of 2026-09-27.
 | [[source-agent-protocol-landscape-2026]] | *Agent Protocol Landscape & Standards Audit* — 2026 primary-source audit of MCP, A2A, AAIF, AP2, Qiskit MCP | [[protocol-strategy]], [[spend-mandates-and-delegation]], [[mcp-and-context-flooding]] |
 | [[source-openai-math-corpus]] | *OpenAI Math Manuscript Collection & Formal Proofs* — 722 manuscripts in 372 families, 162 Lean 4 formalizations, 811 challenges | [[autonomous-mathematical-discovery]], [[formal-proof-verification-lean-comparator]], [[mathematical-physics-anchors]], [[openai-math]] |
 
-## Entities (42)
+## Entities (43)
 
 | Page | What it is |
 |---|---|
@@ -123,8 +123,9 @@ Run it after any batch edit; exit 0 as of 2026-09-27.
 | [[openai-math]] | Adopted submodule (`submodules/math`, Apache-2.0): 372 result families, Lean formalizations, reasoning traces |
 | [[lean4]] | Interactive theorem prover and functional language; formal verification engine in `openai/math` |
 | [[comparator]] | Automated formal verification challenge harness for Lean 4 enforcing strict axiom integrity |
+| [[hugging-face-hub]] | Open-weights repository & API; in-platform GGUF/MLX quantization search and direct air-gapped downloader |
 
-## Concepts (45)
+## Concepts (46)
 
 | Page | What it is |
 |---|---|
@@ -172,3 +173,4 @@ Run it after any batch edit; exit 0 as of 2026-09-27.
 | [[formal-proof-verification-lean-comparator]] | Axiomatic formal verification ($\rho = 1.0$) vs empirical simulation, anti-cheating axiom sets, and ledger receipts |
 | [[mathematical-physics-anchors]] | Analytical ground-truth baselines from `openai/math` (Heisenberg ferromagnet, SK model, Haldane gap, MUB-6) enforcing quantum realism |
 | [[frontier-benchmark-saturation]] | Transition from saturated synthetic benchmarks (GSM8K/MATH) to open research problems as autonomous evaluators |
+| [[multimodal-mission-control-and-custom-agents]] | LLMs as central mission control, local-first air-gap default, cloud escalation, and declarative custom agent framework |

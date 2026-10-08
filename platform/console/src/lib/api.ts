@@ -423,5 +423,148 @@ export async function testLLM(prompt: string, role: string = 'copilot'): Promise
   }
 }
 
+// -----------------------------------------------------------------------------
+// Hugging Face Hub & In-Platform Downloader API
+// -----------------------------------------------------------------------------
+
+export async function searchHFModels(
+  query: string = '',
+  library: string = 'gguf',
+  limit: number = 15
+): Promise<import('@/types').HFModelSummary[]> {
+  try {
+    const url = `${API_BASE}/api/hf/search?q=${encodeURIComponent(query)}&library=${encodeURIComponent(library)}&limit=${limit}`;
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.models || [];
+  } catch (err) {
+    console.error('Failed to search Hugging Face models:', err);
+    return [];
+  }
+}
+
+export async function getHFModelDetails(
+  repoId: string
+): Promise<import('@/types').HFModelSummary | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/hf/models/${encodeURIComponent(repoId)}`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.model || null;
+  } catch (err) {
+    console.error('Failed to fetch HF model details:', err);
+    return null;
+  }
+}
+
+export async function startHFDownload(
+  repoId: string,
+  filename: string
+): Promise<import('@/types').HFDownloadTask | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/hf/download`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ repo_id: repoId, filename }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.task || null;
+  } catch (err) {
+    console.error('Failed to start HF download:', err);
+    return null;
+  }
+}
+
+export async function listHFDownloads(): Promise<import('@/types').HFDownloadTask[]> {
+  try {
+    const res = await fetch(`${API_BASE}/api/hf/downloads`, { cache: 'no-store' });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.downloads || [];
+  } catch (err) {
+    console.error('Failed to list HF downloads:', err);
+    return [];
+  }
+}
+
+export async function cancelHFDownload(taskId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/api/hf/downloads/${encodeURIComponent(taskId)}/cancel`, {
+      method: 'POST',
+    });
+    return res.ok;
+  } catch (err) {
+    console.error('Failed to cancel HF download:', err);
+    return false;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Custom Agents API
+// -----------------------------------------------------------------------------
+
+export async function fetchCustomAgents(): Promise<import('@/types').CustomAgentManifest[]> {
+  try {
+    const res = await fetch(`${API_BASE}/api/agents/custom`, { cache: 'no-store' });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.agents || [];
+  } catch (err) {
+    console.error('Failed to fetch custom agents:', err);
+    return [];
+  }
+}
+
+export async function createCustomAgent(
+  manifest: import('@/types').CustomAgentManifest
+): Promise<import('@/types').CustomAgentManifest | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/agents/custom`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(manifest),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.agent || null;
+  } catch (err) {
+    console.error('Failed to create custom agent:', err);
+    return null;
+  }
+}
+
+export async function deleteCustomAgent(agentId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/api/agents/custom/${encodeURIComponent(agentId)}`, {
+      method: 'DELETE',
+    });
+    return res.ok;
+  } catch (err) {
+    console.error('Failed to delete custom agent:', err);
+    return false;
+  }
+}
+
+export async function routeMultimodalPayload(
+  payload: import('@/types').MultimodalPayload
+): Promise<import('@/types').RoutingDecision | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/mesh/route`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.decision || null;
+  } catch (err) {
+    console.error('Failed to route multimodal payload:', err);
+    return null;
+  }
+}
+
+
 
 
