@@ -18,6 +18,16 @@ sources: [source-gap-analysis-plan, source-frontier-repo-audit-2026]
 > **design/blueprint** specifies versus what the **platform code** actually implements. Every claim
 > is grounded in concrete file paths, line numbers, and verifiable test executions.
 
+> ⚑ Correction (2026-10-09): several `file:line` anchors below no longer resolve — the tree was
+> restructured after this audit (2026-10-05 → 2026-10-09 implementation passes):
+> `platform/core/pkg/auth/ap2.go` → `platform/core/pkg/mandates/` (+ `pkg/cost/payment.go`);
+> `platform/core/pkg/agents/tribunal.go` → `platform/core/pkg/agents/collective.go` +
+> `a2a.go`; `platform/core/pkg/loops/engine.go` → supervisor + jobs runner
+> (`platform/core/pkg/supervisor/`, `platform/core/pkg/jobs/`). Verdicts (REAL vs PARTIAL)
+> predate the punch-list execution of 2026-10-08/09 (fail-closed bridge, queued A2A,
+> tenant model, admission gate — see [[log]]); re-baseline this page before citing it for
+> build decisions. The `dev-docs/`-anchored evidence convention is unchanged.
+
 ---
 
 ## Executive Summary & Audit Methodology

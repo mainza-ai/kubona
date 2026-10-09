@@ -2,7 +2,7 @@
 type: concept
 name: User & Agent Identity and Profiles
 date: 2026-08-16
-updated: 2026-09-27
+updated: 2026-10-09
 tags: [identity, users, agents, profiles, labs]
 sources: [source-gap-analysis-plan, source-architecture-paper]
 status: adopted
@@ -46,3 +46,20 @@ profile, scoped access, and a signed audit trail.
   authorization beneath the existing OAuth/PQC layer ([[security-and-pqc]]).
 - Phase 6: full profiles, labs, personas, and the agent registry — see
   [[workflows-and-agent-authoring]] and [[roadmap]].
+
+## Tenancy model (Q-13, closed 2026-10-09; operator ruling: tenant := lab)
+
+A **tenant is a lab**: the billing, credential, and ceiling boundary. The admin is the
+lab operator's Ed25519 key (local keypairs first — no OAuth/OIDC until Phase 4
+multi-tenant, per ruling; an IdP would punch egress against Q-16).
+
+- `Tenant{id, display_name, admin_pubkey_hex, autonomy_level, spend_ceiling_usd, status}`
+  (`platform/core/pkg/tenants`); `tenants` table seeded with `default`; sessions and
+  ledger events carry `tenant_id` (backfilled); memory recall, mandate clamps, job
+  admission, ledger export, and A2A dispatch all resolve the lab tenant live.
+- Admin bootstrap is first-write-wins (ledger-sealed); rotation, ceiling changes, and
+  autonomy grants are admin-signed `AdminAction` envelopes (params-bound, 5-minute TTL).
+- Vault leases scope to `tenant/<id>` (`SecretLease.tenant_id`; OpenBao namespaces
+  per tenant at multi-tenant scale).
+- Human membership inside a lab (join/invite/roles) is Phase-4 work; agents are never
+  tenants — they carry owner delegation attestations with budget envelopes.

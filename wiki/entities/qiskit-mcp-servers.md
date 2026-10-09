@@ -2,10 +2,10 @@
 type: entity
 name: Qiskit MCP Servers
 date: 2026-10-03
-updated: 2026-10-03
+updated: 2026-10-09
 tags: [ibm, qiskit, mcp, vendor-tooling, execution]
 sources: [source-agent-protocol-landscape-2026]
-status: tracked
+status: adopted
 ---
 
 # Qiskit MCP Servers
@@ -34,5 +34,15 @@ architectural differences from Kubona's [[protocol-strategy|Capability Core]]:
 
 **Kubona Integration Posture:** Tracked as an optional downstream execution target or provider plugin.
 Kubona sits above vendor MCP suites as the multi-provider governance and provenance control plane.
+
+## Decided posture (Q-30, closed 2026-10-09): encapsulate, never consume raw
+
+Vendor MCP servers become **downstream provider plugins beneath Kubona's governance plane**:
+credentials stay vault-leased (never ambient env passthrough), every dispatch passes the
+pre-QPU admission gate (triage → anchor → fidelity → preflight → mandate), results land with
+classical anchors and ledger receipts. Direct agent→vendor-MCP paths are refused by design —
+raw consumption would reintroduce exactly the deficits audited above (ambient credentials,
+unbounded spend, anchorless results). Interop surface: provider-capability JSON +
+execution-plugin trait; no other coupling.
 
 Related: [[qiskit]] · [[mcp-and-context-flooding]] · [[protocol-strategy]] · [[cost-governance]] · [[quantum-advantage-realism]]
