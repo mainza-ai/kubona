@@ -23,9 +23,9 @@ var (
 // HybridSpendMandate wraps a signed SpendMandate in an ML-KEM-768 post-quantum envelope
 type HybridSpendMandate struct {
 	RecipientFingerprint string `json:"recipient_fingerprint"` // SHA-256 hex of recipient encapsulation key
-	EncapsulatedKeyHex   string `json:"encapsulated_key_hex"`   // Hex-encoded ML-KEM-768 ciphertext (1088 bytes)
-	NonceHex             string `json:"nonce_hex"`              // Hex-encoded AES-GCM 12-byte nonce
-	EncryptedPayloadHex  string `json:"encrypted_payload_hex"`  // Hex-encoded AES-GCM ciphertext of canonical JSON SpendMandate
+	EncapsulatedKeyHex   string `json:"encapsulated_key_hex"`  // Hex-encoded ML-KEM-768 ciphertext (1088 bytes)
+	NonceHex             string `json:"nonce_hex"`             // Hex-encoded AES-GCM 12-byte nonce
+	EncryptedPayloadHex  string `json:"encrypted_payload_hex"` // Hex-encoded AES-GCM ciphertext of canonical JSON SpendMandate
 }
 
 // RecipientKeypair holds server-side ML-KEM-768 keys
@@ -44,6 +44,11 @@ func GenerateRecipientKeypair() (*RecipientKeypair, error) {
 		DecapsulationKey: dk,
 		EncapsulationKey: dk.EncapsulationKey(),
 	}, nil
+}
+
+// ParseEncapsulationKey parses a 1184-byte ML-KEM-768 public key
+func ParseEncapsulationKey(keyBytes []byte) (*mlkem.EncapsulationKey768, error) {
+	return mlkem.NewEncapsulationKey768(keyBytes)
 }
 
 // Fingerprint returns the SHA-256 hex fingerprint of the public encapsulation key

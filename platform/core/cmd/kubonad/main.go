@@ -23,6 +23,12 @@ import (
 )
 
 func main() {
+	// Operator subcommands run before flag parsing: `kubonad grants ...`
+	// mints/attenuates/verifies cross-lab UCAN grants with operator-held keys.
+	if len(os.Args) > 1 && os.Args[1] == "grants" {
+		os.Exit(runGrants(os.Args[2:]))
+	}
+
 	port := flag.Int("port", 8080, "HTTP API gateway port")
 	dbPath := flag.String("db", "kubona.db", "Path to SQLite WAL ledger")
 	bridgeAddr := flag.String("bridge", "localhost:50051", "Python gRPC bridge address")
