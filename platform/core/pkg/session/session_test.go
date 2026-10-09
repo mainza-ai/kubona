@@ -21,7 +21,7 @@ func TestSessionLifecycleAndDelete(t *testing.T) {
 	mgr := session.NewManager(l)
 
 	// Create a session
-	sess, err := mgr.CreateSession("H2 PES Exploration", 120.0)
+	sess, err := mgr.CreateSession("H2 PES Exploration", 120.0, "default")
 	if err != nil {
 		t.Fatalf("failed to create session: %v", err)
 	}
@@ -71,5 +71,36 @@ func TestSessionLifecycleAndDelete(t *testing.T) {
 	}
 	if len(msgsAfter) != 0 {
 		t.Fatalf("expected 0 messages after deletion, got %d", len(msgsAfter))
+	}
+}
+
+func TestSessionTenantBinding(t *testing.T) {
+	dbPath := "test_session_tenant.db"
+	defer os.Remove(dbPath)
+
+	l, err := ledger.OpenLedger(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open ledger: %v", err)
+	}
+	defer l.Close()
+
+	mgr := session.NewManager(l)
+
+	// Unknown tenant must refuse: sessions belong to registered lab tenants.
+	if _, err := mgr.CreateSession("Rogue", 10.0, "no-such-lab"); err == nil {
+		t.Fatalf("expected refusal for unknown tenant")
+	}
+
+	// Empty tenant normalizes to the seeded default lab.
+	sess, err := mgr.CreateSession("Default lab work", 10.0, "")
+	if err != nil {
+		t.Fatalf("failed to create session: %v", err)
+	}
+	if sess.TenantID != "default" {
+		t.Fatalf("expected default tenant, got %q", sess.TenantID)
+	}
+	fetched, err := mgr.GetSession(sess.ID)
+	if err != nil || fetched.TenantID != "default" {
+		t.Fatalf("tenant not round-tripped: %+v err=%v", fetched, err)
 	}
 }

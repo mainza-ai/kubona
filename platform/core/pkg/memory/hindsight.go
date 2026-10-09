@@ -348,8 +348,19 @@ func (s *HindsightStore) SemanticRecallScoped(
 			continue
 		}
 
-		// 1. Enforce strict tenant isolation boundary
-		if item.TenantID != "" && item.TenantID != "default" && requesterTenant != "" && item.TenantID != requesterTenant {
+		// 1. Enforce strict tenant isolation boundary: an item is visible
+		// only inside its own lab tenant. Empty tenant normalizes to
+		// 'default' on both sides so single-tenant behavior is preserved
+		// without a bypass any tenant can claim.
+		itemTenant := item.TenantID
+		if itemTenant == "" {
+			itemTenant = "default"
+		}
+		reqTenant := requesterTenant
+		if reqTenant == "" {
+			reqTenant = "default"
+		}
+		if itemTenant != reqTenant {
 			continue // Cross-tenant context leak blocked
 		}
 

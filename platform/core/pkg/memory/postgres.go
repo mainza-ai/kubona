@@ -179,8 +179,17 @@ func (s *PostgresVectorStore) SemanticRecall(
 		}
 		item.Bank = MemoryBank(bankStr)
 
-		// 1. Tenant boundary
-		if item.TenantID != "" && item.TenantID != "default" && requesterTenant != "" && item.TenantID != requesterTenant {
+		// 1. Strict tenant boundary (same rule as hindsight recall: no
+		// 'default' bypass; empty normalizes to 'default' on both sides).
+		itemTenant := item.TenantID
+		if itemTenant == "" {
+			itemTenant = "default"
+		}
+		reqTenant := requesterTenant
+		if reqTenant == "" {
+			reqTenant = "default"
+		}
+		if itemTenant != reqTenant {
 			continue
 		}
 

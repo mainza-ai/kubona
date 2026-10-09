@@ -14,11 +14,11 @@ import (
 // PaymentChallenge represents an HTTP 402 challenge issued to an agent
 type PaymentChallenge struct {
 	ChallengeID string    `json:"challenge_id"`
-	Token       string    `json:"token"`       // e.g. "USDC"
-	Amount      string    `json:"amount"`      // e.g. "0.05"
-	Recipient   string    `json:"recipient"`   // Escrow address
+	Token       string    `json:"token"`     // e.g. "USDC"
+	Amount      string    `json:"amount"`    // e.g. "0.05"
+	Recipient   string    `json:"recipient"` // Escrow address
 	ExpiresAt   time.Time `json:"expires_at"`
-	Payload     string    `json:"payload"`     // Hashable challenge string
+	Payload     string    `json:"payload"` // Hashable challenge string
 }
 
 // PaymentReceipt represents the signed authorization submitted by a paying agent
@@ -158,4 +158,38 @@ func ParseAuthorizationHeader(header string) (*PaymentReceipt, error) {
 	}
 
 	return receipt, nil
+}
+
+// Settlement records the outcome of finalizing a verified payment. Until a
+// live chain broadcaster is injected (Phase 5 x402 rail), settlements are
+// local-only: Simulated is always true and Reference is a content hash, NOT a
+// chain transaction hash. The flag exists so no consumer can mistake a local
+// receipt for an on-chain settlement.
+type Settlement struct {
+	Reference string `json:"reference"`
+	Network   string `json:"network"`
+	Simulated bool   `json:"simulated"`
+	Settled   bool   `json:"settled"`
+}
+
+// SettlePayment finalizes payment against an escrow ledger or payment network
+func (m *PaymentManager) SettlePayment(receipt *PaymentReceipt, network string) (*Settlement, error) {
+	ok, err := m.VerifyPayment(receipt)
+	if !ok || err != nil {
+		return nil, fmt.Errorf("payment verification failed: %w", err)
+	}
+
+	if network == "" {
+		network = "base-sepolia"
+	}
+
+	txData := fmt.Sprintf("%s:%s:%s:%s:%s:%d", network, receipt.ChallengeID, receipt.Token, receipt.Amount, receipt.PayerPubHex, receipt.Timestamp)
+	txHash := sha256.Sum256([]byte(txData))
+	ref := "local:" + hex.EncodeToString(txHash[:])
+
+	m.mu.Lock()
+	m.settled[receipt.ChallengeID] = true
+	m.mu.Unlock()
+
+	return &Settlement{Reference: ref, Network: network, Simulated: true, Settled: true}, nil
 }

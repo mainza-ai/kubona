@@ -13,6 +13,7 @@ import (
 type Session struct {
 	ID              string    `json:"id"`
 	Title           string    `json:"title"`
+	TenantID        string    `json:"tenant_id"`
 	CreatedAt       time.Time `json:"created_at"`
 	UpdatedAt       time.Time `json:"updated_at"`
 	Status          string    `json:"status"` // "active", "idle", "archived"
@@ -37,13 +38,21 @@ func NewManager(l *ledger.Ledger) *Manager {
 	return &Manager{ledger: l}
 }
 
-func (m *Manager) CreateSession(title string, spendLimitUSD float64) (*Session, error) {
+func (m *Manager) CreateSession(title string, spendLimitUSD float64, tenantID string) (*Session, error) {
 	if spendLimitUSD <= 0 {
 		spendLimitUSD = 100.0 // Default budget mandate
+	}
+	if tenantID == "" {
+		tenantID = "default"
+	}
+	var exists string
+	if err := m.ledger.DB().QueryRow(`SELECT id FROM tenants WHERE id = ?`, tenantID).Scan(&exists); err != nil {
+		return nil, fmt.Errorf("unknown tenant %q: sessions must belong to a registered lab tenant", tenantID)
 	}
 	s := &Session{
 		ID:              uuid.New().String(),
 		Title:           title,
+		TenantID:        tenantID,
 		CreatedAt:       time.Now().UTC(),
 		UpdatedAt:       time.Now().UTC(),
 		Status:          "active",
@@ -51,8 +60,8 @@ func (m *Manager) CreateSession(title string, spendLimitUSD float64) (*Session, 
 		CurrentSpendUSD: 0.0,
 	}
 
-	query := `INSERT INTO sessions (id, title, created_at, updated_at, status, spend_limit_usd, current_spend_usd) VALUES (?, ?, ?, ?, ?, ?, ?)`
-	_, err := m.ledger.DB().Exec(query, s.ID, s.Title, s.CreatedAt, s.UpdatedAt, s.Status, s.SpendLimitUSD, s.CurrentSpendUSD)
+	query := `INSERT INTO sessions (id, title, tenant_id, created_at, updated_at, status, spend_limit_usd, current_spend_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err := m.ledger.DB().Exec(query, s.ID, s.Title, s.TenantID, s.CreatedAt, s.UpdatedAt, s.Status, s.SpendLimitUSD, s.CurrentSpendUSD)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
@@ -61,12 +70,52 @@ func (m *Manager) CreateSession(title string, spendLimitUSD float64) (*Session, 
 	return s, nil
 }
 
+// EnsureSessionWithID returns the session with the exact id, creating it
+// under the given tenant when absent. Used for deterministic system sessions
+// (e.g. per-tenant A2A delegation) whose ids are derived, not minted.
+func (m *Manager) EnsureSessionWithID(id, title string, spendLimitUSD float64, tenantID string) (*Session, error) {
+	if s, err := m.GetSession(id); err == nil {
+		return s, nil
+	}
+	if spendLimitUSD <= 0 {
+		spendLimitUSD = 100.0
+	}
+	if tenantID == "" {
+		tenantID = "default"
+	}
+	var exists string
+	if err := m.ledger.DB().QueryRow(`SELECT id FROM tenants WHERE id = ?`, tenantID).Scan(&exists); err != nil {
+		return nil, fmt.Errorf("unknown tenant %q: sessions must belong to a registered lab tenant", tenantID)
+	}
+	now := time.Now().UTC()
+	s := &Session{
+		ID:              id,
+		Title:           title,
+		TenantID:        tenantID,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+		Status:          "active",
+		SpendLimitUSD:   spendLimitUSD,
+		CurrentSpendUSD: 0.0,
+	}
+	query := `INSERT INTO sessions (id, title, tenant_id, created_at, updated_at, status, spend_limit_usd, current_spend_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	if _, err := m.ledger.DB().Exec(query, s.ID, s.Title, s.TenantID, s.CreatedAt, s.UpdatedAt, s.Status, s.SpendLimitUSD, s.CurrentSpendUSD); err != nil {
+		// Lost a creation race: re-read whatever is there now.
+		if existing, rerr := m.GetSession(id); rerr == nil {
+			return existing, nil
+		}
+		return nil, fmt.Errorf("failed to create session: %w", err)
+	}
+	m.ledger.AppendEvent(s.ID, "session_created", s)
+	return s, nil
+}
+
 func (m *Manager) GetSession(id string) (*Session, error) {
-	query := `SELECT id, title, created_at, updated_at, status, spend_limit_usd, current_spend_usd FROM sessions WHERE id = ?`
+	query := `SELECT id, title, tenant_id, created_at, updated_at, status, spend_limit_usd, current_spend_usd FROM sessions WHERE id = ?`
 	row := m.ledger.DB().QueryRow(query, id)
 
 	var s Session
-	if err := row.Scan(&s.ID, &s.Title, &s.CreatedAt, &s.UpdatedAt, &s.Status, &s.SpendLimitUSD, &s.CurrentSpendUSD); err != nil {
+	if err := row.Scan(&s.ID, &s.Title, &s.TenantID, &s.CreatedAt, &s.UpdatedAt, &s.Status, &s.SpendLimitUSD, &s.CurrentSpendUSD); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("session not found: %s", id)
 		}
@@ -79,7 +128,7 @@ func (m *Manager) ListSessions(limit int) ([]Session, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	query := `SELECT id, title, created_at, updated_at, status, spend_limit_usd, current_spend_usd FROM sessions ORDER BY updated_at DESC LIMIT ?`
+	query := `SELECT id, title, tenant_id, created_at, updated_at, status, spend_limit_usd, current_spend_usd FROM sessions ORDER BY updated_at DESC LIMIT ?`
 	rows, err := m.ledger.DB().Query(query, limit)
 	if err != nil {
 		return nil, err
@@ -89,7 +138,7 @@ func (m *Manager) ListSessions(limit int) ([]Session, error) {
 	var sessions []Session
 	for rows.Next() {
 		var s Session
-		if err := rows.Scan(&s.ID, &s.Title, &s.CreatedAt, &s.UpdatedAt, &s.Status, &s.SpendLimitUSD, &s.CurrentSpendUSD); err != nil {
+		if err := rows.Scan(&s.ID, &s.Title, &s.TenantID, &s.CreatedAt, &s.UpdatedAt, &s.Status, &s.SpendLimitUSD, &s.CurrentSpendUSD); err != nil {
 			return nil, err
 		}
 		sessions = append(sessions, s)

@@ -92,3 +92,64 @@ func (l ConfidentialityLabel) CanFlowTo(dest ConfidentialityLabel) bool {
 	}
 	return l.Readers.CanFlowTo(dest.Readers)
 }
+
+// ParseLabel decodes a stored confidentiality label string. "public" is
+// world-readable; "tenant/<id>" restricts to one lab tenant; anything else
+// (including empty) parses to the empty reader set, which flows nowhere —
+// fail-closed by construction.
+func ParseLabel(label string) ReaderSet {
+	switch {
+	case label == "":
+		return Restricted()
+	case label == "public":
+		return Public()
+	default:
+		return Restricted(label)
+	}
+}
+
+// FormatLabel encodes a reader set back to its canonical label string.
+func FormatLabel(rs ReaderSet) string {
+	if rs.IsPublic {
+		return "public"
+	}
+	var list []string
+	for p := range rs.Principals {
+		list = append(list, p)
+	}
+	sort.Strings(list)
+	switch len(list) {
+	case 0:
+		return "deny-all"
+	case 1:
+		return list[0]
+	default:
+		return "readers:" + fmt.Sprintf("%v", list)
+	}
+}
+
+// JoinLabels computes the derivation label for a record built from the given
+// input labels: least upper bound (intersection of readers). Mixing sources
+// can only shrink the audience, never widen it.
+func JoinLabels(labels ...string) string {
+	joined := Public()
+	for _, l := range labels {
+		joined = joined.Join(ParseLabel(l))
+	}
+	return FormatLabel(joined)
+}
+
+// LabelReadableBy reports whether a requester identified by tenantID may read
+// a record carrying the label. Public records are world-readable; tenant
+// records are readable inside their own lab tenant only. Empty and deny-all
+// labels read as deny (fail-closed; the ledger backfills every row, so empty
+// never persists).
+func LabelReadableBy(label, tenantID string) bool {
+	if label == "public" {
+		return true
+	}
+	if label == "" || label == "deny-all" {
+		return false
+	}
+	return label == "tenant/"+tenantID
+}

@@ -273,14 +273,25 @@ func (r *SandboxRunner) ExecuteHarness(benchmarkScript, mutableArtifactName, mut
 
 	fmt.Fprintln(os.Stderr, "⚠️  WARNING: Running un-sandboxed host execution fallback (KUBONA_DEV_MODE or AllowHostFallback enabled). NEVER use in production!")
 
-	// Explicit development host execution with restricted environment and clear un-sandboxed tag
-	cmd := exec.CommandContext(ctx, "python3", evalPath)
+	// Resolve the most specific Python interpreter available (KUBONA_PYTHON, VIRTUAL_ENV, or local .venv)
+	pyBin, extraEnv := resolvePythonInterpreter(workspaceDir)
+
+	cmd := exec.CommandContext(ctx, pyBin, evalPath)
 	cmd.Dir = workspaceDir
-	cmd.Env = []string{
-		"PATH=" + os.Getenv("PATH"),
+
+	pathEnv := os.Getenv("PATH")
+	if pyBin != "python3" {
+		binDir := filepath.Dir(pyBin)
+		pathEnv = binDir + string(os.PathListSeparator) + pathEnv
+	}
+
+	envVars := []string{
+		"PATH=" + pathEnv,
 		"PYTHONPATH=" + workspaceDir,
 		"PYTHONUNBUFFERED=1",
 	}
+	envVars = append(envVars, extraEnv...)
+	cmd.Env = envVars
 
 	var stdoutBuf, stderrBuf bytes.Buffer
 	cmd.Stdout = &stdoutBuf
@@ -312,4 +323,47 @@ func (r *SandboxRunner) ExecuteHarness(benchmarkScript, mutableArtifactName, mut
 		IsolationTag: tag,
 		Error:        "",
 	}, nil
+}
+
+// resolvePythonInterpreter searches for a suitable Python 3 executable in virtual environments
+// before falling back to system "python3".
+func resolvePythonInterpreter(workspaceDir string) (string, []string) {
+	// 1. Explicit environment override
+	if p := os.Getenv("KUBONA_PYTHON"); p != "" {
+		if _, err := os.Stat(p); err == nil {
+			venvDir := filepath.Dir(filepath.Dir(p))
+			return p, []string{"VIRTUAL_ENV=" + venvDir}
+		}
+	}
+
+	// 2. Active virtual environment
+	if venv := os.Getenv("VIRTUAL_ENV"); venv != "" {
+		p := filepath.Join(venv, "bin", "python3")
+		if _, err := os.Stat(p); err == nil {
+			return p, []string{"VIRTUAL_ENV=" + venv}
+		}
+	}
+
+	// 3. Search common project locations walking up from workspace and current working directory
+	cwd, _ := os.Getwd()
+	searchRoots := []string{workspaceDir, cwd}
+	for _, base := range searchRoots {
+		if base == "" {
+			continue
+		}
+		for dir := base; dir != "/" && dir != "."; dir = filepath.Dir(dir) {
+			candidates := []string{
+				filepath.Join(dir, "platform", ".venv", "bin", "python3"),
+				filepath.Join(dir, ".venv", "bin", "python3"),
+			}
+			for _, cand := range candidates {
+				if stat, err := os.Stat(cand); err == nil && !stat.IsDir() {
+					venvDir := filepath.Dir(filepath.Dir(cand))
+					return cand, []string{"VIRTUAL_ENV=" + venvDir}
+				}
+			}
+		}
+	}
+
+	return "python3", nil
 }

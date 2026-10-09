@@ -1,10 +1,15 @@
 package agents
 
 import (
+	"context"
+	"crypto/ed25519"
 	"encoding/json"
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/cost"
+	"github.com/mainza-ai/kubona/core/pkg/mandates"
 	"github.com/mainza-ai/kubona/core/pkg/sandbox"
 )
 
@@ -65,8 +70,10 @@ func TestA2AServer_TaskSubmissionAndStatus(t *testing.T) {
 		t.Fatalf("result is not *A2ATask: %T", subResp.Result)
 	}
 
-	if task.ID == "" || task.Status != TaskStatusCompleted {
-		t.Fatalf("unexpected task state: %+v", task)
+	// Without an executor attached, the task must honestly remain queued —
+	// never completed with an invented result.
+	if task.ID == "" || task.Status != TaskStatusQueued {
+		t.Fatalf("expected queued task without executor, got: %+v", task)
 	}
 
 	// 2. Query task status
@@ -100,5 +107,261 @@ func TestA2AServer_MethodNotFound(t *testing.T) {
 	resp := server.HandleRequest(req)
 	if resp.Error == nil || resp.Error.Code != -32601 {
 		t.Fatalf("expected MethodNotFound error (-32601), got %+v", resp.Error)
+	}
+}
+
+// fakeExecutor is a deterministic stand-in for the ledger-bound backend.
+type fakeExecutor struct {
+	result map[string]any
+	err    error
+}
+
+func (f *fakeExecutor) ExecuteTask(ctx context.Context, taskType string, payload json.RawMessage, tenantID string) (map[string]any, error) {
+	return f.result, f.err
+}
+
+func submitTask(t *testing.T, server *A2AServer, params TaskSubmitParams, id any) *A2ATask {
+	t.Helper()
+	raw, _ := json.Marshal(params)
+	resp := server.HandleRequest(&JSONRPCRequest{JSONRPC: "2.0", ID: id, Method: "a2a.SubmitTask", Params: raw})
+	if resp.Error != nil {
+		t.Fatalf("SubmitTask error: %+v", resp.Error)
+	}
+	task, ok := resp.Result.(*A2ATask)
+	if !ok {
+		t.Fatalf("result is not *A2ATask: %T", resp.Result)
+	}
+	return task
+}
+
+func pollTaskStatus(t *testing.T, server *A2AServer, taskID string) *A2ATask {
+	t.Helper()
+	raw, _ := json.Marshal(TaskStatusParams{TaskID: taskID})
+	for i := 0; i < 100; i++ {
+		resp := server.HandleRequest(&JSONRPCRequest{JSONRPC: "2.0", ID: 1000 + i, Method: "a2a.GetTaskStatus", Params: raw})
+		if resp.Error != nil {
+			t.Fatalf("GetTaskStatus error: %+v", resp.Error)
+		}
+		task := resp.Result.(*A2ATask)
+		if task.Status == TaskStatusCompleted || task.Status == TaskStatusFailed {
+			return task
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	t.Fatalf("task %s never settled", taskID)
+	return nil
+}
+
+func TestA2AServer_AsyncExecutionThroughExecutor(t *testing.T) {
+	server := NewA2AServer("0x123", nil, nil)
+	server.SetTaskExecutor(&fakeExecutor{result: map[string]any{"energy_hartree": -1.13727, "computed": true}})
+
+	task := submitTask(t, server, TaskSubmitParams{
+		TaskType: "molecular_ground_state_pyscf",
+		Payload:  json.RawMessage(`{"molecule":"H2"}`),
+	}, 10)
+	if task.Status != TaskStatusQueued {
+		t.Fatalf("expected queued on submit, got %s", task.Status)
+	}
+
+	settled := pollTaskStatus(t, server, task.ID)
+	if settled.Status != TaskStatusCompleted {
+		t.Fatalf("expected completed, got %+v", settled)
+	}
+	if settled.Result["energy_hartree"] != -1.13727 {
+		t.Fatalf("executor result not propagated: %+v", settled.Result)
+	}
+}
+
+func TestA2AServer_ExecutorFailureMarksFailed(t *testing.T) {
+	server := NewA2AServer("0x123", nil, nil)
+	server.SetTaskExecutor(&fakeExecutor{err: errors.New("bridge unavailable")})
+
+	task := submitTask(t, server, TaskSubmitParams{
+		TaskType: "zne_error_mitigation",
+		Payload:  json.RawMessage(`{"qasm":"OPENQASM 2.0;"}`),
+	}, 11)
+	settled := pollTaskStatus(t, server, task.ID)
+	if settled.Status != TaskStatusFailed || settled.Error == "" {
+		t.Fatalf("expected failed with error, got %+v", settled)
+	}
+}
+
+func TestA2AServer_SubMandateCapEnforced(t *testing.T) {
+	server := NewA2AServer("0x123", nil, nil)
+	server.SetTaskExecutor(&fakeExecutor{result: map[string]any{"ok": true}})
+
+	pub, priv, _ := ed25519.GenerateKey(nil)
+	_ = pub
+	parent, err := mandates.SignMandate(priv, "tenant-a", "jobhash-parent", 50.0, time.Now().UTC().Add(time.Hour))
+	if err != nil {
+		t.Fatalf("sign parent: %v", err)
+	}
+
+	// Within budget: accepted and bound recorded.
+	task := submitTask(t, server, TaskSubmitParams{
+		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
+		MaxBudgetUSD: 25.0, ParentMandate: parent,
+	}, 12)
+	if task.MaxBudgetUSD != 25.0 || task.ParentJobHash != "jobhash-parent" {
+		t.Fatalf("sub-mandate bound not recorded: %+v", task)
+	}
+
+	// Over budget: refused at submit time.
+	overRaw, _ := json.Marshal(TaskSubmitParams{
+		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
+		MaxBudgetUSD: 75.0, ParentMandate: parent,
+	})
+	resp := server.HandleRequest(&JSONRPCRequest{JSONRPC: "2.0", ID: 13, Method: "a2a.SubmitTask", Params: overRaw})
+	if resp.Error == nil {
+		t.Fatalf("expected sub-mandate refusal over parent ceiling, got %+v", resp.Result)
+	}
+
+	// Tampered parent signature: refused.
+	tampered := *parent
+	tampered.SignatureHex = parent.SignatureHex[:len(parent.SignatureHex)-2] + "ff"
+	tampRaw, _ := json.Marshal(TaskSubmitParams{
+		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
+		MaxBudgetUSD: 10.0, ParentMandate: &tampered,
+	})
+	resp = server.HandleRequest(&JSONRPCRequest{JSONRPC: "2.0", ID: 14, Method: "a2a.SubmitTask", Params: tampRaw})
+	if resp.Error == nil {
+		t.Fatalf("expected refusal for tampered parent mandate, got %+v", resp.Result)
+	}
+}
+
+func submitRaw(t *testing.T, server *A2AServer, method string, params any, id any) *JSONRPCResponse {
+	t.Helper()
+	raw, _ := json.Marshal(params)
+	return server.HandleRequest(&JSONRPCRequest{JSONRPC: "2.0", ID: id, Method: method, Params: raw})
+}
+
+func TestA2ADelegationDepthAndScopes(t *testing.T) {
+	server := NewA2AServer("0x123", nil, nil)
+	server.SetTaskExecutor(&fakeExecutor{result: map[string]any{"ok": true}})
+
+	root := submitTask(t, server, TaskSubmitParams{
+		TaskType: "molecular_ground_state_pyscf",
+		Payload:  json.RawMessage(`{"molecule":"H2"}`),
+	}, 20)
+	if root.Depth != 0 || len(root.Scopes) == 0 {
+		t.Fatalf("root must be depth 0 with full capabilities: %+v", root)
+	}
+
+	// Narrowing scopes down the chain is allowed.
+	child := submitTask(t, server, TaskSubmitParams{
+		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
+		ParentTaskID: root.ID, Scopes: []string{"molecular_ground_state_pyscf"},
+	}, 21)
+	if child.Depth != 1 {
+		t.Fatalf("child must be depth 1: %+v", child)
+	}
+	grandchild := submitTask(t, server, TaskSubmitParams{
+		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
+		ParentTaskID: child.ID,
+	}, 22)
+	if grandchild.Depth != 2 || len(grandchild.Scopes) != 1 {
+		t.Fatalf("grandchild must inherit narrowed scopes at depth 2: %+v", grandchild)
+	}
+
+	// Depth 3 refused.
+	resp := submitRaw(t, server, "a2a.SubmitTask", TaskSubmitParams{
+		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
+		ParentTaskID: grandchild.ID,
+	}, 23)
+	if resp.Error == nil {
+		t.Fatalf("depth-3 delegation must refuse")
+	}
+
+	// Scope widening refused (grandchild only holds one scope).
+	resp = submitRaw(t, server, "a2a.SubmitTask", TaskSubmitParams{
+		TaskType: "zne_error_mitigation", Payload: json.RawMessage(`{"qasm":"q;"}`),
+		ParentTaskID: grandchild.ID, Scopes: []string{"zne_error_mitigation", "qir_llvm_lowering"},
+	}, 24)
+	if resp.Error == nil {
+		t.Fatalf("scope escalation must refuse")
+	}
+
+	// Unknown parent refused.
+	resp = submitRaw(t, server, "a2a.SubmitTask", TaskSubmitParams{
+		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
+		ParentTaskID: "task-nonexistent",
+	}, 25)
+	if resp.Error == nil {
+		t.Fatalf("unknown parent must refuse")
+	}
+}
+
+func TestA2ARevokePropagates(t *testing.T) {
+	server := NewA2AServer("0x123", nil, nil)
+	server.SetTaskExecutor(&fakeExecutor{result: map[string]any{"ok": true}})
+
+	root := submitTask(t, server, TaskSubmitParams{
+		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
+	}, 30)
+	if err := server.RevokeTask(root.ID); err != nil {
+		t.Fatalf("revoke queued task: %v", err)
+	}
+
+	// Children of a revoked parent are refused.
+	resp := submitRaw(t, server, "a2a.SubmitTask", TaskSubmitParams{
+		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
+		ParentTaskID: root.ID,
+	}, 31)
+	if resp.Error == nil {
+		t.Fatalf("child of revoked parent must refuse")
+	}
+
+	// Revoking a settled task refuses (history is immutable).
+	done := submitTask(t, server, TaskSubmitParams{
+		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
+	}, 32)
+	settled := pollTaskStatus(t, server, done.ID)
+	if settled.Status != TaskStatusCompleted {
+		t.Fatalf("expected completed: %+v", settled)
+	}
+	if err := server.RevokeTask(done.ID); err == nil {
+		t.Fatalf("revoking completed history must refuse")
+	}
+
+	// RPC surface mirrors the method.
+	rpcResp := submitRaw(t, server, "a2a.RevokeTask", TaskStatusParams{TaskID: "task-nope"}, 33)
+	if rpcResp.Error == nil {
+		t.Fatalf("revoking unknown task must error")
+	}
+}
+
+func TestA2AL0TenantRefusesDispatch(t *testing.T) {
+	server := NewA2AServer("0x123", nil, nil)
+	server.SetTaskExecutor(&fakeExecutor{result: map[string]any{"ok": true}})
+	server.SetAutonomyChecker(func(tenantID string) (string, error) {
+		return "L0", nil
+	})
+
+	task := submitTask(t, server, TaskSubmitParams{
+		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
+	}, 40)
+	settled := pollTaskStatus(t, server, task.ID)
+	if settled.Status != TaskStatusFailed {
+		t.Fatalf("L0 tenant must settle failed, got %+v", settled)
+	}
+	if settled.Error == "" {
+		t.Fatalf("L0 refusal must carry a reason")
+	}
+}
+
+func TestA2AUnknownTenantFailsClosed(t *testing.T) {
+	server := NewA2AServer("0x123", nil, nil)
+	server.SetTaskExecutor(&fakeExecutor{result: map[string]any{"ok": true}})
+	server.SetAutonomyChecker(func(tenantID string) (string, error) {
+		return "", errors.New("no such tenant")
+	})
+
+	task := submitTask(t, server, TaskSubmitParams{
+		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
+	}, 41)
+	settled := pollTaskStatus(t, server, task.ID)
+	if settled.Status != TaskStatusFailed {
+		t.Fatalf("unknown tenant must settle failed, got %+v", settled)
 	}
 }

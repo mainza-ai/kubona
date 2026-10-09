@@ -324,3 +324,32 @@ func TestHindsightDecayPersistence(t *testing.T) {
 		t.Fatalf("persisted score %f does not match memory score %f", persistedScore, item.EffectiveScore)
 	}
 }
+
+func TestTenantIsolationHasNoDefaultBypass(t *testing.T) {
+	store := NewHindsightStore()
+
+	// Same content retained in two lab tenants.
+	store.RetainScoped("lab-a", "public", BankExperiences, "Acme proprietary ansatz calibration secret", 0.9, nil)
+	store.RetainScoped("lab-b", "public", BankExperiences, "Acme proprietary ansatz calibration secret", 0.9, nil)
+
+	// Each lab sees exactly its own copy — no cross-tenant leak.
+	gotA := store.SemanticRecallScoped(BankExperiences, "Acme proprietary ansatz calibration", 10000, 0.0, "lab-a", []string{"lab-a"})
+	if len(gotA) != 1 || gotA[0].Item.TenantID != "lab-a" {
+		t.Fatalf("lab-a must see exactly its own item: %+v", gotA)
+	}
+	gotB := store.SemanticRecallScoped(BankExperiences, "Acme proprietary ansatz calibration", 10000, 0.0, "lab-b", []string{"lab-b"})
+	if len(gotB) != 1 || gotB[0].Item.TenantID != "lab-b" {
+		t.Fatalf("lab-b must see exactly its own item: %+v", gotB)
+	}
+
+	// A third lab sees nothing; the old 'default' bypass would have leaked
+	// items tenants marked default, so also assert a default-tenant item is
+	// invisible to other labs.
+	store.Retain(BankExperiences, "Default-bank shared calibration note", 0.5)
+	gotC := store.SemanticRecallScoped(BankExperiences, "calibration", 10000, 0.0, "lab-c", []string{"lab-c"})
+	for _, it := range gotC {
+		if it.Item.TenantID != "lab-c" {
+			t.Fatalf("lab-c must not see foreign items: %+v", it.Item)
+		}
+	}
+}

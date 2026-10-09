@@ -31,7 +31,7 @@ func TestEndToEndScientificCampaign(t *testing.T) {
 
 	// 1. Session Setup
 	sm := session.NewManager(l)
-	sess, err := sm.CreateSession("VQE Ground State Discovery for Molecular Hydrogen", 100.0)
+	sess, err := sm.CreateSession("VQE Ground State Discovery for Molecular Hydrogen", 100.0, "default")
 	if err != nil {
 		t.Fatalf("failed to create session: %v", err)
 	}

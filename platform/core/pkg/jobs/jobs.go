@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/tenants"
 	pb "github.com/mainza-ai/kubona/core/proto"
 )
 
@@ -32,6 +33,13 @@ type Runner struct {
 	wg           sync.WaitGroup
 	ctx          context.Context
 	cancel       context.CancelFunc
+	// aborted marks job IDs a supervisor abort settled as failed. Workers
+	// consult it at execution entry and after bridge calls so an abort that
+	// lands mid-flight still wins over a late completion.
+	mu      sync.Mutex
+	aborted map[string]bool
+	// tenantMgr enforces lab-tenant autonomy and spend ceilings at admission.
+	tenantMgr *tenants.Manager
 }
 
 func NewRunner(l *ledger.Ledger, bridgeClient pb.QuantumBridgeServiceClient, workers int) *Runner {
@@ -46,6 +54,8 @@ func NewRunner(l *ledger.Ledger, bridgeClient pb.QuantumBridgeServiceClient, wor
 		workers:      workers,
 		ctx:          ctx,
 		cancel:       cancel,
+		aborted:      make(map[string]bool),
+		tenantMgr:    tenants.NewManager(l),
 	}
 }
 
@@ -66,10 +76,21 @@ func (r *Runner) BridgeClient() pb.QuantumBridgeServiceClient {
 	return r.bridgeClient
 }
 
+func (r *Runner) tenantStore() *tenants.Manager {
+	return r.tenantMgr
+}
+
 func (r *Runner) SubmitJob(sessionID, jobType string, params any) (*Job, error) {
 	data, err := json.Marshal(params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal params: %w", err)
+	}
+
+	// Pre-QPU admission gate: autonomy + hardware/mandate rules. Refusals
+	// happen here, before any queue or ledger write, so rejected jobs leave
+	// no residue and cost nothing.
+	if err := r.admitJob(sessionID, jobType, data); err != nil {
+		return nil, err
 	}
 
 	j := &Job{
@@ -108,6 +129,11 @@ func (r *Runner) workerLoop() {
 }
 
 func (r *Runner) executeJob(j *Job) {
+	if r.isAborted(j.ID) {
+		r.failJob(j, "aborted by supervisor before execution")
+		return
+	}
+
 	// Update status to running
 	j.Status = pb.JobStatus_JOB_STATUS_RUNNING
 	r.ledger.DB().Exec(`UPDATE jobs SET status = ? WHERE id = ?`, j.Status.String(), j.ID)
@@ -116,71 +142,111 @@ func (r *Runner) executeJob(j *Job) {
 	var resultData []byte
 	var execErr error
 
-	switch j.JobType {
-	case "circuit_run":
-		var req pb.CircuitExecutionRequest
-		if err := json.Unmarshal(j.ParamsJSON, &req); err != nil {
-			execErr = err
-			break
-		}
-		req.JobId = j.ID
-		req.SessionId = j.SessionID
-		resp, err := r.bridgeClient.ExecuteCircuit(r.ctx, &req)
-		if err != nil {
-			execErr = err
-		} else {
-			resultData, _ = json.Marshal(resp)
-		}
+	if r.bridgeClient == nil {
+		execErr = fmt.Errorf("bridge client unavailable: no %s computation performed", j.JobType)
+	} else {
+		switch j.JobType {
+		case "circuit_run":
+			var req pb.CircuitExecutionRequest
+			if err := json.Unmarshal(j.ParamsJSON, &req); err != nil {
+				execErr = err
+				break
+			}
+			req.JobId = j.ID
+			req.SessionId = j.SessionID
+			resp, err := r.bridgeClient.ExecuteCircuit(r.ctx, &req)
+			if err != nil {
+				execErr = err
+			} else {
+				resultData, _ = json.Marshal(resp)
+			}
 
-	case "circuit_cut":
-		var req pb.CircuitCutRequest
-		if err := json.Unmarshal(j.ParamsJSON, &req); err != nil {
-			execErr = err
-			break
-		}
-		resp, err := r.bridgeClient.CutCircuit(r.ctx, &req)
-		if err != nil {
-			execErr = err
-		} else {
-			resultData, _ = json.Marshal(resp)
-		}
+		case "circuit_cut":
+			var req pb.CircuitCutRequest
+			if err := json.Unmarshal(j.ParamsJSON, &req); err != nil {
+				execErr = err
+				break
+			}
+			resp, err := r.bridgeClient.CutCircuit(r.ctx, &req)
+			if err != nil {
+				execErr = err
+			} else {
+				resultData, _ = json.Marshal(resp)
+			}
 
-	case "classical_anchor":
-		var req pb.ClassicalAnchorRequest
-		if err := json.Unmarshal(j.ParamsJSON, &req); err != nil {
-			execErr = err
-			break
-		}
-		resp, err := r.bridgeClient.ComputeClassicalAnchor(r.ctx, &req)
-		if err != nil {
-			execErr = err
-		} else {
-			resultData, _ = json.Marshal(resp)
-		}
+		case "classical_anchor":
+			var req pb.ClassicalAnchorRequest
+			if err := json.Unmarshal(j.ParamsJSON, &req); err != nil {
+				execErr = err
+				break
+			}
+			resp, err := r.bridgeClient.ComputeClassicalAnchor(r.ctx, &req)
+			if err != nil {
+				execErr = err
+			} else {
+				resultData, _ = json.Marshal(resp)
+			}
 
-	case "claim_eval":
-		var req pb.ClaimEvaluationRequest
-		if err := json.Unmarshal(j.ParamsJSON, &req); err != nil {
-			execErr = err
-			break
-		}
-		resp, err := r.bridgeClient.EvaluateWavefunction(r.ctx, &req)
-		if err != nil {
-			execErr = err
-		} else {
-			resultData, _ = json.Marshal(resp)
-		}
+		case "claim_eval":
+			var req pb.ClaimEvaluationRequest
+			if err := json.Unmarshal(j.ParamsJSON, &req); err != nil {
+				execErr = err
+				break
+			}
+			resp, err := r.bridgeClient.EvaluateWavefunction(r.ctx, &req)
+			if err != nil {
+				execErr = err
+			} else {
+				resultData, _ = json.Marshal(resp)
+			}
 
-	default:
-		execErr = fmt.Errorf("unknown job type: %s", j.JobType)
+		case "krylov_solve":
+			var req pb.QuantumKrylovRequest
+			if err := json.Unmarshal(j.ParamsJSON, &req); err != nil {
+				execErr = err
+				break
+			}
+			resp, err := r.bridgeClient.ExecuteQuantumKrylov(r.ctx, &req)
+			if err != nil {
+				execErr = err
+			} else {
+				resultData, _ = json.Marshal(resp)
+			}
+
+		case "mitigate":
+			var req pb.MitigationRequest
+			if err := json.Unmarshal(j.ParamsJSON, &req); err != nil {
+				execErr = err
+				break
+			}
+			resp, err := r.bridgeClient.MitigateCircuit(r.ctx, &req)
+			if err != nil {
+				execErr = err
+			} else {
+				resultData, _ = json.Marshal(resp)
+			}
+
+		default:
+			execErr = fmt.Errorf("unknown job type: %s", j.JobType)
+		}
 	}
 
 	now := time.Now().UTC()
 	j.CompletedAt = &now
 	if execErr != nil {
+		r.failJob(j, execErr.Error())
+		return
+	}
+	// An abort that landed mid-flight wins over the late completion, but the
+	// computed result is preserved for provenance instead of being dropped.
+	if r.isAborted(j.ID) {
 		j.Status = pb.JobStatus_JOB_STATUS_FAILED
-		errRes, _ := json.Marshal(map[string]string{"error": execErr.Error()})
-		j.ResultJSON = errRes
+		if len(resultData) > 0 {
+			j.ResultJSON = resultData
+		} else {
+			errRes, _ := json.Marshal(map[string]string{"error": "aborted by supervisor during execution"})
+			j.ResultJSON = errRes
+		}
 	} else {
 		j.Status = pb.JobStatus_JOB_STATUS_COMPLETED
 		j.ResultJSON = resultData
@@ -191,6 +257,111 @@ func (r *Runner) executeJob(j *Job) {
 		j.Status.String(), string(j.ResultJSON), j.CompletedAt, j.ID,
 	)
 	r.ledger.AppendEvent(j.SessionID, "job_settled", j)
+}
+
+// failJob records a failed job with a reason string.
+func (r *Runner) failJob(j *Job, reason string) {
+	now := time.Now().UTC()
+	j.CompletedAt = &now
+	j.Status = pb.JobStatus_JOB_STATUS_FAILED
+	errRes, _ := json.Marshal(map[string]string{"error": reason})
+	j.ResultJSON = errRes
+	r.ledger.DB().Exec(
+		`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ?`,
+		j.Status.String(), string(j.ResultJSON), j.CompletedAt, j.ID,
+	)
+	r.ledger.AppendEvent(j.SessionID, "job_settled", j)
+}
+
+func (r *Runner) isAborted(id string) bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.aborted[id]
+}
+
+// CancelTenantJobs aborts every unsettled job belonging to any session of a
+// lab tenant (revocation propagation for tenant autonomy revocation). It
+// shares the abort-registry semantics of CancelSessionJobs.
+func (r *Runner) CancelTenantJobs(tenantID, reason string) (int, error) {
+	rows, err := r.ledger.DB().Query(
+		`SELECT jobs.id FROM jobs JOIN sessions ON jobs.session_id = sessions.id WHERE sessions.tenant_id = ? AND jobs.status IN ('JOB_STATUS_QUEUED', 'JOB_STATUS_RUNNING')`,
+		tenantID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+
+	now := time.Now().UTC()
+	errRes, _ := json.Marshal(map[string]string{"error": reason})
+	for _, id := range ids {
+		r.mu.Lock()
+		r.aborted[id] = true
+		r.mu.Unlock()
+		r.ledger.DB().Exec(
+			`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ? AND status IN ('JOB_STATUS_QUEUED', 'JOB_STATUS_RUNNING')`,
+			pb.JobStatus_JOB_STATUS_FAILED.String(), string(errRes), now, id,
+		)
+	}
+	r.ledger.AppendEvent(tenantID, "tenant_jobs_aborted", map[string]any{
+		"tenant_id":     tenantID,
+		"aborted_jobs":  ids,
+		"aborted_count": len(ids),
+		"reason":        reason,
+	})
+	return len(ids), nil
+}
+
+// CancelSessionJobs aborts every unsettled job for a session (Ring-0 reflex
+// intercept). It marks the rows failed with the given reason, registers the
+// IDs so in-flight workers settle failed rather than completed, and seals a
+// supervisor_abort receipt in the ledger. It returns the aborted count.
+func (r *Runner) CancelSessionJobs(sessionID, reason string) (int, error) {
+	rows, err := r.ledger.DB().Query(
+		`SELECT id FROM jobs WHERE session_id = ? AND status IN ('JOB_STATUS_QUEUED', 'JOB_STATUS_RUNNING')`,
+		sessionID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return 0, err
+		}
+		ids = append(ids, id)
+	}
+	rows.Close()
+
+	now := time.Now().UTC()
+	errRes, _ := json.Marshal(map[string]string{"error": reason})
+	for _, id := range ids {
+		r.mu.Lock()
+		r.aborted[id] = true
+		r.mu.Unlock()
+		r.ledger.DB().Exec(
+			`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ? AND status IN ('JOB_STATUS_QUEUED', 'JOB_STATUS_RUNNING')`,
+			pb.JobStatus_JOB_STATUS_FAILED.String(), string(errRes), now, id,
+		)
+	}
+	r.ledger.AppendEvent(sessionID, "supervisor_abort", map[string]any{
+		"session_id":    sessionID,
+		"aborted_jobs":  ids,
+		"aborted_count": len(ids),
+		"reason":        reason,
+	})
+	return len(ids), nil
 }
 
 func (r *Runner) GetJob(id string) (*Job, error) {
