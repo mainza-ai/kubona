@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.12
 // 	protoc        v7.35.1
-// source: proto/kubona.proto
+// source: kubona.proto
 
 package kubonaproto
 
@@ -67,11 +67,11 @@ func (x JobStatus) String() string {
 }
 
 func (JobStatus) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_kubona_proto_enumTypes[0].Descriptor()
+	return file_kubona_proto_enumTypes[0].Descriptor()
 }
 
 func (JobStatus) Type() protoreflect.EnumType {
-	return &file_proto_kubona_proto_enumTypes[0]
+	return &file_kubona_proto_enumTypes[0]
 }
 
 func (x JobStatus) Number() protoreflect.EnumNumber {
@@ -80,7 +80,7 @@ func (x JobStatus) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use JobStatus.Descriptor instead.
 func (JobStatus) EnumDescriptor() ([]byte, []int) {
-	return file_proto_kubona_proto_rawDescGZIP(), []int{0}
+	return file_kubona_proto_rawDescGZIP(), []int{0}
 }
 
 type DegradationLevel int32
@@ -122,11 +122,11 @@ func (x DegradationLevel) String() string {
 }
 
 func (DegradationLevel) Descriptor() protoreflect.EnumDescriptor {
-	return file_proto_kubona_proto_enumTypes[1].Descriptor()
+	return file_kubona_proto_enumTypes[1].Descriptor()
 }
 
 func (DegradationLevel) Type() protoreflect.EnumType {
-	return &file_proto_kubona_proto_enumTypes[1]
+	return &file_kubona_proto_enumTypes[1]
 }
 
 func (x DegradationLevel) Number() protoreflect.EnumNumber {
@@ -135,7 +135,7 @@ func (x DegradationLevel) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use DegradationLevel.Descriptor instead.
 func (DegradationLevel) EnumDescriptor() ([]byte, []int) {
-	return file_proto_kubona_proto_rawDescGZIP(), []int{1}
+	return file_kubona_proto_rawDescGZIP(), []int{1}
 }
 
 type CircuitExecutionRequest struct {
@@ -152,7 +152,7 @@ type CircuitExecutionRequest struct {
 
 func (x *CircuitExecutionRequest) Reset() {
 	*x = CircuitExecutionRequest{}
-	mi := &file_proto_kubona_proto_msgTypes[0]
+	mi := &file_kubona_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -164,7 +164,7 @@ func (x *CircuitExecutionRequest) String() string {
 func (*CircuitExecutionRequest) ProtoMessage() {}
 
 func (x *CircuitExecutionRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kubona_proto_msgTypes[0]
+	mi := &file_kubona_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -177,7 +177,7 @@ func (x *CircuitExecutionRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CircuitExecutionRequest.ProtoReflect.Descriptor instead.
 func (*CircuitExecutionRequest) Descriptor() ([]byte, []int) {
-	return file_proto_kubona_proto_rawDescGZIP(), []int{0}
+	return file_kubona_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *CircuitExecutionRequest) GetJobId() string {
@@ -241,7 +241,7 @@ type CircuitExecutionResponse struct {
 
 func (x *CircuitExecutionResponse) Reset() {
 	*x = CircuitExecutionResponse{}
-	mi := &file_proto_kubona_proto_msgTypes[1]
+	mi := &file_kubona_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -253,7 +253,7 @@ func (x *CircuitExecutionResponse) String() string {
 func (*CircuitExecutionResponse) ProtoMessage() {}
 
 func (x *CircuitExecutionResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kubona_proto_msgTypes[1]
+	mi := &file_kubona_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -266,7 +266,7 @@ func (x *CircuitExecutionResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CircuitExecutionResponse.ProtoReflect.Descriptor instead.
 func (*CircuitExecutionResponse) Descriptor() ([]byte, []int) {
-	return file_proto_kubona_proto_rawDescGZIP(), []int{1}
+	return file_kubona_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *CircuitExecutionResponse) GetJobId() string {
@@ -356,7 +356,7 @@ type CircuitCutRequest struct {
 
 func (x *CircuitCutRequest) Reset() {
 	*x = CircuitCutRequest{}
-	mi := &file_proto_kubona_proto_msgTypes[2]
+	mi := &file_kubona_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -368,7 +368,7 @@ func (x *CircuitCutRequest) String() string {
 func (*CircuitCutRequest) ProtoMessage() {}
 
 func (x *CircuitCutRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kubona_proto_msgTypes[2]
+	mi := &file_kubona_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -381,7 +381,7 @@ func (x *CircuitCutRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CircuitCutRequest.ProtoReflect.Descriptor instead.
 func (*CircuitCutRequest) Descriptor() ([]byte, []int) {
-	return file_proto_kubona_proto_rawDescGZIP(), []int{2}
+	return file_kubona_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *CircuitCutRequest) GetQasm() string {
@@ -409,7 +409,7 @@ type SubcircuitFragment struct {
 
 func (x *SubcircuitFragment) Reset() {
 	*x = SubcircuitFragment{}
-	mi := &file_proto_kubona_proto_msgTypes[3]
+	mi := &file_kubona_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -421,7 +421,7 @@ func (x *SubcircuitFragment) String() string {
 func (*SubcircuitFragment) ProtoMessage() {}
 
 func (x *SubcircuitFragment) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kubona_proto_msgTypes[3]
+	mi := &file_kubona_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -434,7 +434,7 @@ func (x *SubcircuitFragment) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SubcircuitFragment.ProtoReflect.Descriptor instead.
 func (*SubcircuitFragment) Descriptor() ([]byte, []int) {
-	return file_proto_kubona_proto_rawDescGZIP(), []int{3}
+	return file_kubona_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *SubcircuitFragment) GetFragmentId() int32 {
@@ -470,7 +470,7 @@ type CircuitCutResponse struct {
 
 func (x *CircuitCutResponse) Reset() {
 	*x = CircuitCutResponse{}
-	mi := &file_proto_kubona_proto_msgTypes[4]
+	mi := &file_kubona_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -482,7 +482,7 @@ func (x *CircuitCutResponse) String() string {
 func (*CircuitCutResponse) ProtoMessage() {}
 
 func (x *CircuitCutResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kubona_proto_msgTypes[4]
+	mi := &file_kubona_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -495,7 +495,7 @@ func (x *CircuitCutResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CircuitCutResponse.ProtoReflect.Descriptor instead.
 func (*CircuitCutResponse) Descriptor() ([]byte, []int) {
-	return file_proto_kubona_proto_rawDescGZIP(), []int{4}
+	return file_kubona_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *CircuitCutResponse) GetSuccess() bool {
@@ -537,7 +537,7 @@ type ClassicalAnchorRequest struct {
 
 func (x *ClassicalAnchorRequest) Reset() {
 	*x = ClassicalAnchorRequest{}
-	mi := &file_proto_kubona_proto_msgTypes[5]
+	mi := &file_kubona_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -549,7 +549,7 @@ func (x *ClassicalAnchorRequest) String() string {
 func (*ClassicalAnchorRequest) ProtoMessage() {}
 
 func (x *ClassicalAnchorRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kubona_proto_msgTypes[5]
+	mi := &file_kubona_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -562,7 +562,7 @@ func (x *ClassicalAnchorRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClassicalAnchorRequest.ProtoReflect.Descriptor instead.
 func (*ClassicalAnchorRequest) Descriptor() ([]byte, []int) {
-	return file_proto_kubona_proto_rawDescGZIP(), []int{5}
+	return file_kubona_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ClassicalAnchorRequest) GetMolecule() string {
@@ -602,7 +602,7 @@ type ClassicalAnchorResponse struct {
 
 func (x *ClassicalAnchorResponse) Reset() {
 	*x = ClassicalAnchorResponse{}
-	mi := &file_proto_kubona_proto_msgTypes[6]
+	mi := &file_kubona_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -614,7 +614,7 @@ func (x *ClassicalAnchorResponse) String() string {
 func (*ClassicalAnchorResponse) ProtoMessage() {}
 
 func (x *ClassicalAnchorResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kubona_proto_msgTypes[6]
+	mi := &file_kubona_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -627,7 +627,7 @@ func (x *ClassicalAnchorResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClassicalAnchorResponse.ProtoReflect.Descriptor instead.
 func (*ClassicalAnchorResponse) Descriptor() ([]byte, []int) {
-	return file_proto_kubona_proto_rawDescGZIP(), []int{6}
+	return file_kubona_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *ClassicalAnchorResponse) GetMolecule() string {
@@ -701,7 +701,7 @@ type ClaimEvaluationRequest struct {
 
 func (x *ClaimEvaluationRequest) Reset() {
 	*x = ClaimEvaluationRequest{}
-	mi := &file_proto_kubona_proto_msgTypes[7]
+	mi := &file_kubona_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -713,7 +713,7 @@ func (x *ClaimEvaluationRequest) String() string {
 func (*ClaimEvaluationRequest) ProtoMessage() {}
 
 func (x *ClaimEvaluationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kubona_proto_msgTypes[7]
+	mi := &file_kubona_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -726,7 +726,7 @@ func (x *ClaimEvaluationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClaimEvaluationRequest.ProtoReflect.Descriptor instead.
 func (*ClaimEvaluationRequest) Descriptor() ([]byte, []int) {
-	return file_proto_kubona_proto_rawDescGZIP(), []int{7}
+	return file_kubona_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *ClaimEvaluationRequest) GetClaimId() string {
@@ -795,7 +795,7 @@ type ClaimEvaluationResponse struct {
 
 func (x *ClaimEvaluationResponse) Reset() {
 	*x = ClaimEvaluationResponse{}
-	mi := &file_proto_kubona_proto_msgTypes[8]
+	mi := &file_kubona_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -807,7 +807,7 @@ func (x *ClaimEvaluationResponse) String() string {
 func (*ClaimEvaluationResponse) ProtoMessage() {}
 
 func (x *ClaimEvaluationResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kubona_proto_msgTypes[8]
+	mi := &file_kubona_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -820,7 +820,7 @@ func (x *ClaimEvaluationResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ClaimEvaluationResponse.ProtoReflect.Descriptor instead.
 func (*ClaimEvaluationResponse) Descriptor() ([]byte, []int) {
-	return file_proto_kubona_proto_rawDescGZIP(), []int{8}
+	return file_kubona_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *ClaimEvaluationResponse) GetClaimId() string {
@@ -896,7 +896,7 @@ type LiteratureGroundingRequest struct {
 
 func (x *LiteratureGroundingRequest) Reset() {
 	*x = LiteratureGroundingRequest{}
-	mi := &file_proto_kubona_proto_msgTypes[9]
+	mi := &file_kubona_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -908,7 +908,7 @@ func (x *LiteratureGroundingRequest) String() string {
 func (*LiteratureGroundingRequest) ProtoMessage() {}
 
 func (x *LiteratureGroundingRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kubona_proto_msgTypes[9]
+	mi := &file_kubona_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -921,7 +921,7 @@ func (x *LiteratureGroundingRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LiteratureGroundingRequest.ProtoReflect.Descriptor instead.
 func (*LiteratureGroundingRequest) Descriptor() ([]byte, []int) {
-	return file_proto_kubona_proto_rawDescGZIP(), []int{9}
+	return file_kubona_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *LiteratureGroundingRequest) GetQuery() string {
@@ -953,7 +953,7 @@ type LiteratureRecord struct {
 
 func (x *LiteratureRecord) Reset() {
 	*x = LiteratureRecord{}
-	mi := &file_proto_kubona_proto_msgTypes[10]
+	mi := &file_kubona_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -965,7 +965,7 @@ func (x *LiteratureRecord) String() string {
 func (*LiteratureRecord) ProtoMessage() {}
 
 func (x *LiteratureRecord) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kubona_proto_msgTypes[10]
+	mi := &file_kubona_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -978,7 +978,7 @@ func (x *LiteratureRecord) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LiteratureRecord.ProtoReflect.Descriptor instead.
 func (*LiteratureRecord) Descriptor() ([]byte, []int) {
-	return file_proto_kubona_proto_rawDescGZIP(), []int{10}
+	return file_kubona_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *LiteratureRecord) GetId() string {
@@ -1040,7 +1040,7 @@ type LiteratureGroundingResponse struct {
 
 func (x *LiteratureGroundingResponse) Reset() {
 	*x = LiteratureGroundingResponse{}
-	mi := &file_proto_kubona_proto_msgTypes[11]
+	mi := &file_kubona_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1052,7 +1052,7 @@ func (x *LiteratureGroundingResponse) String() string {
 func (*LiteratureGroundingResponse) ProtoMessage() {}
 
 func (x *LiteratureGroundingResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_kubona_proto_msgTypes[11]
+	mi := &file_kubona_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1065,7 +1065,7 @@ func (x *LiteratureGroundingResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LiteratureGroundingResponse.ProtoReflect.Descriptor instead.
 func (*LiteratureGroundingResponse) Descriptor() ([]byte, []int) {
-	return file_proto_kubona_proto_rawDescGZIP(), []int{11}
+	return file_kubona_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *LiteratureGroundingResponse) GetRecords() []*LiteratureRecord {
@@ -1082,11 +1082,347 @@ func (x *LiteratureGroundingResponse) GetCached() bool {
 	return false
 }
 
-var File_proto_kubona_proto protoreflect.FileDescriptor
+type QuantumKrylovRequest struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Molecule          string                 `protobuf:"bytes,1,opt,name=molecule,proto3" json:"molecule,omitempty"` // e.g. "H2", "LiH", "BeH2"
+	BondDistance      float64                `protobuf:"fixed64,2,opt,name=bond_distance,json=bondDistance,proto3" json:"bond_distance,omitempty"`
+	SubspaceDimension int32                  `protobuf:"varint,3,opt,name=subspace_dimension,json=subspaceDimension,proto3" json:"subspace_dimension,omitempty"` // e.g. 3, 4, 5
+	TimeStep          float64                `protobuf:"fixed64,4,opt,name=time_step,json=timeStep,proto3" json:"time_step,omitempty"`                           // tau
+	Shots             int32                  `protobuf:"varint,5,opt,name=shots,proto3" json:"shots,omitempty"`
+	RequestedBackend  string                 `protobuf:"bytes,6,opt,name=requested_backend,json=requestedBackend,proto3" json:"requested_backend,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
 
-const file_proto_kubona_proto_rawDesc = "" +
+func (x *QuantumKrylovRequest) Reset() {
+	*x = QuantumKrylovRequest{}
+	mi := &file_kubona_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QuantumKrylovRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QuantumKrylovRequest) ProtoMessage() {}
+
+func (x *QuantumKrylovRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_kubona_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QuantumKrylovRequest.ProtoReflect.Descriptor instead.
+func (*QuantumKrylovRequest) Descriptor() ([]byte, []int) {
+	return file_kubona_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *QuantumKrylovRequest) GetMolecule() string {
+	if x != nil {
+		return x.Molecule
+	}
+	return ""
+}
+
+func (x *QuantumKrylovRequest) GetBondDistance() float64 {
+	if x != nil {
+		return x.BondDistance
+	}
+	return 0
+}
+
+func (x *QuantumKrylovRequest) GetSubspaceDimension() int32 {
+	if x != nil {
+		return x.SubspaceDimension
+	}
+	return 0
+}
+
+func (x *QuantumKrylovRequest) GetTimeStep() float64 {
+	if x != nil {
+		return x.TimeStep
+	}
+	return 0
+}
+
+func (x *QuantumKrylovRequest) GetShots() int32 {
+	if x != nil {
+		return x.Shots
+	}
+	return 0
+}
+
+func (x *QuantumKrylovRequest) GetRequestedBackend() string {
+	if x != nil {
+		return x.RequestedBackend
+	}
+	return ""
+}
+
+type QuantumKrylovResponse struct {
+	state                    protoimpl.MessageState `protogen:"open.v1"`
+	Success                  bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	GroundStateEnergy        float64                `protobuf:"fixed64,2,opt,name=ground_state_energy,json=groundStateEnergy,proto3" json:"ground_state_energy,omitempty"`
+	ClassicalFciEnergy       float64                `protobuf:"fixed64,3,opt,name=classical_fci_energy,json=classicalFciEnergy,proto3" json:"classical_fci_energy,omitempty"`
+	SubspaceEigenvalues      []float64              `protobuf:"fixed64,4,rep,packed,name=subspace_eigenvalues,json=subspaceEigenvalues,proto3" json:"subspace_eigenvalues,omitempty"`
+	SubspaceDimension        int32                  `protobuf:"varint,5,opt,name=subspace_dimension,json=subspaceDimension,proto3" json:"subspace_dimension,omitempty"`
+	MeyerWallachEntanglement float64                `protobuf:"fixed64,6,opt,name=meyer_wallach_entanglement,json=meyerWallachEntanglement,proto3" json:"meyer_wallach_entanglement,omitempty"`
+	ExecutionTimeMs          float64                `protobuf:"fixed64,7,opt,name=execution_time_ms,json=executionTimeMs,proto3" json:"execution_time_ms,omitempty"`
+	ErrorMessage             string                 `protobuf:"bytes,8,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
+}
+
+func (x *QuantumKrylovResponse) Reset() {
+	*x = QuantumKrylovResponse{}
+	mi := &file_kubona_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QuantumKrylovResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QuantumKrylovResponse) ProtoMessage() {}
+
+func (x *QuantumKrylovResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_kubona_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QuantumKrylovResponse.ProtoReflect.Descriptor instead.
+func (*QuantumKrylovResponse) Descriptor() ([]byte, []int) {
+	return file_kubona_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *QuantumKrylovResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *QuantumKrylovResponse) GetGroundStateEnergy() float64 {
+	if x != nil {
+		return x.GroundStateEnergy
+	}
+	return 0
+}
+
+func (x *QuantumKrylovResponse) GetClassicalFciEnergy() float64 {
+	if x != nil {
+		return x.ClassicalFciEnergy
+	}
+	return 0
+}
+
+func (x *QuantumKrylovResponse) GetSubspaceEigenvalues() []float64 {
+	if x != nil {
+		return x.SubspaceEigenvalues
+	}
+	return nil
+}
+
+func (x *QuantumKrylovResponse) GetSubspaceDimension() int32 {
+	if x != nil {
+		return x.SubspaceDimension
+	}
+	return 0
+}
+
+func (x *QuantumKrylovResponse) GetMeyerWallachEntanglement() float64 {
+	if x != nil {
+		return x.MeyerWallachEntanglement
+	}
+	return 0
+}
+
+func (x *QuantumKrylovResponse) GetExecutionTimeMs() float64 {
+	if x != nil {
+		return x.ExecutionTimeMs
+	}
+	return 0
+}
+
+func (x *QuantumKrylovResponse) GetErrorMessage() string {
+	if x != nil {
+		return x.ErrorMessage
+	}
+	return ""
+}
+
+type MitigationRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Qasm          string                 `protobuf:"bytes,1,opt,name=qasm,proto3" json:"qasm,omitempty"`
+	Method        string                 `protobuf:"bytes,2,opt,name=method,proto3" json:"method,omitempty"`                                          // "ZNE", "PEC", "CDR"
+	ScaleFactors  []float64              `protobuf:"fixed64,3,rep,packed,name=scale_factors,json=scaleFactors,proto3" json:"scale_factors,omitempty"` // e.g. [1.0, 1.5, 2.0]
+	Shots         int32                  `protobuf:"varint,4,opt,name=shots,proto3" json:"shots,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MitigationRequest) Reset() {
+	*x = MitigationRequest{}
+	mi := &file_kubona_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MitigationRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MitigationRequest) ProtoMessage() {}
+
+func (x *MitigationRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_kubona_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MitigationRequest.ProtoReflect.Descriptor instead.
+func (*MitigationRequest) Descriptor() ([]byte, []int) {
+	return file_kubona_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *MitigationRequest) GetQasm() string {
+	if x != nil {
+		return x.Qasm
+	}
+	return ""
+}
+
+func (x *MitigationRequest) GetMethod() string {
+	if x != nil {
+		return x.Method
+	}
+	return ""
+}
+
+func (x *MitigationRequest) GetScaleFactors() []float64 {
+	if x != nil {
+		return x.ScaleFactors
+	}
+	return nil
+}
+
+func (x *MitigationRequest) GetShots() int32 {
+	if x != nil {
+		return x.Shots
+	}
+	return 0
+}
+
+type MitigationResponse struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	Success          bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	UnmitigatedValue float64                `protobuf:"fixed64,2,opt,name=unmitigated_value,json=unmitigatedValue,proto3" json:"unmitigated_value,omitempty"`
+	MitigatedValue   float64                `protobuf:"fixed64,3,opt,name=mitigated_value,json=mitigatedValue,proto3" json:"mitigated_value,omitempty"`
+	ErrorBound       float64                `protobuf:"fixed64,4,opt,name=error_bound,json=errorBound,proto3" json:"error_bound,omitempty"`
+	MethodUsed       string                 `protobuf:"bytes,5,opt,name=method_used,json=methodUsed,proto3" json:"method_used,omitempty"`
+	ErrorMessage     string                 `protobuf:"bytes,6,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *MitigationResponse) Reset() {
+	*x = MitigationResponse{}
+	mi := &file_kubona_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MitigationResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MitigationResponse) ProtoMessage() {}
+
+func (x *MitigationResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_kubona_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MitigationResponse.ProtoReflect.Descriptor instead.
+func (*MitigationResponse) Descriptor() ([]byte, []int) {
+	return file_kubona_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *MitigationResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *MitigationResponse) GetUnmitigatedValue() float64 {
+	if x != nil {
+		return x.UnmitigatedValue
+	}
+	return 0
+}
+
+func (x *MitigationResponse) GetMitigatedValue() float64 {
+	if x != nil {
+		return x.MitigatedValue
+	}
+	return 0
+}
+
+func (x *MitigationResponse) GetErrorBound() float64 {
+	if x != nil {
+		return x.ErrorBound
+	}
+	return 0
+}
+
+func (x *MitigationResponse) GetMethodUsed() string {
+	if x != nil {
+		return x.MethodUsed
+	}
+	return ""
+}
+
+func (x *MitigationResponse) GetErrorMessage() string {
+	if x != nil {
+		return x.ErrorMessage
+	}
+	return ""
+}
+
+var File_kubona_proto protoreflect.FileDescriptor
+
+const file_kubona_proto_rawDesc = "" +
 	"\n" +
-	"\x12proto/kubona.proto\x12\x06kubona\"\xe0\x01\n" +
+	"\fkubona.proto\x12\x06kubona\"\xe0\x01\n" +
 	"\x17CircuitExecutionRequest\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x1d\n" +
 	"\n" +
@@ -1171,7 +1507,37 @@ const file_proto_kubona_proto_rawDesc = "" +
 	"\x0ecitation_count\x18\a \x01(\x05R\rcitationCount\"i\n" +
 	"\x1bLiteratureGroundingResponse\x122\n" +
 	"\arecords\x18\x01 \x03(\v2\x18.kubona.LiteratureRecordR\arecords\x12\x16\n" +
-	"\x06cached\x18\x02 \x01(\bR\x06cached*\xb8\x01\n" +
+	"\x06cached\x18\x02 \x01(\bR\x06cached\"\xe6\x01\n" +
+	"\x14QuantumKrylovRequest\x12\x1a\n" +
+	"\bmolecule\x18\x01 \x01(\tR\bmolecule\x12#\n" +
+	"\rbond_distance\x18\x02 \x01(\x01R\fbondDistance\x12-\n" +
+	"\x12subspace_dimension\x18\x03 \x01(\x05R\x11subspaceDimension\x12\x1b\n" +
+	"\ttime_step\x18\x04 \x01(\x01R\btimeStep\x12\x14\n" +
+	"\x05shots\x18\x05 \x01(\x05R\x05shots\x12+\n" +
+	"\x11requested_backend\x18\x06 \x01(\tR\x10requestedBackend\"\x84\x03\n" +
+	"\x15QuantumKrylovResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12.\n" +
+	"\x13ground_state_energy\x18\x02 \x01(\x01R\x11groundStateEnergy\x120\n" +
+	"\x14classical_fci_energy\x18\x03 \x01(\x01R\x12classicalFciEnergy\x121\n" +
+	"\x14subspace_eigenvalues\x18\x04 \x03(\x01R\x13subspaceEigenvalues\x12-\n" +
+	"\x12subspace_dimension\x18\x05 \x01(\x05R\x11subspaceDimension\x12<\n" +
+	"\x1ameyer_wallach_entanglement\x18\x06 \x01(\x01R\x18meyerWallachEntanglement\x12*\n" +
+	"\x11execution_time_ms\x18\a \x01(\x01R\x0fexecutionTimeMs\x12#\n" +
+	"\rerror_message\x18\b \x01(\tR\ferrorMessage\"z\n" +
+	"\x11MitigationRequest\x12\x12\n" +
+	"\x04qasm\x18\x01 \x01(\tR\x04qasm\x12\x16\n" +
+	"\x06method\x18\x02 \x01(\tR\x06method\x12#\n" +
+	"\rscale_factors\x18\x03 \x03(\x01R\fscaleFactors\x12\x14\n" +
+	"\x05shots\x18\x04 \x01(\x05R\x05shots\"\xeb\x01\n" +
+	"\x12MitigationResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12+\n" +
+	"\x11unmitigated_value\x18\x02 \x01(\x01R\x10unmitigatedValue\x12'\n" +
+	"\x0fmitigated_value\x18\x03 \x01(\x01R\x0emitigatedValue\x12\x1f\n" +
+	"\verror_bound\x18\x04 \x01(\x01R\n" +
+	"errorBound\x12\x1f\n" +
+	"\vmethod_used\x18\x05 \x01(\tR\n" +
+	"methodUsed\x12#\n" +
+	"\rerror_message\x18\x06 \x01(\tR\ferrorMessage*\xb8\x01\n" +
 	"\tJobStatus\x12\x1a\n" +
 	"\x16JOB_STATUS_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11JOB_STATUS_QUEUED\x10\x01\x12\x16\n" +
@@ -1185,30 +1551,32 @@ const file_proto_kubona_proto_rawDesc = "" +
 	"\x18DEGRADATION_QPU_HARDWARE\x10\x01\x12\x1d\n" +
 	"\x19DEGRADATION_AER_NOISE_SIM\x10\x02\x12\x1f\n" +
 	"\x1bDEGRADATION_STATEVECTOR_SIM\x10\x03\x12\"\n" +
-	"\x1eDEGRADATION_CLASSICAL_FALLBACK\x10\x042\xc1\x03\n" +
+	"\x1eDEGRADATION_CLASSICAL_FALLBACK\x10\x042\xe0\x04\n" +
 	"\x14QuantumBridgeService\x12S\n" +
 	"\x0eExecuteCircuit\x12\x1f.kubona.CircuitExecutionRequest\x1a .kubona.CircuitExecutionResponse\x12C\n" +
 	"\n" +
 	"CutCircuit\x12\x19.kubona.CircuitCutRequest\x1a\x1a.kubona.CircuitCutResponse\x12Y\n" +
 	"\x16ComputeClassicalAnchor\x12\x1e.kubona.ClassicalAnchorRequest\x1a\x1f.kubona.ClassicalAnchorResponse\x12W\n" +
 	"\x14EvaluateWavefunction\x12\x1e.kubona.ClaimEvaluationRequest\x1a\x1f.kubona.ClaimEvaluationResponse\x12[\n" +
-	"\x10GroundLiterature\x12\".kubona.LiteratureGroundingRequest\x1a#.kubona.LiteratureGroundingResponseB8Z6github.com/mainza-ai/kubona/core/pkg/proto;kubonaprotob\x06proto3"
+	"\x10GroundLiterature\x12\".kubona.LiteratureGroundingRequest\x1a#.kubona.LiteratureGroundingResponse\x12S\n" +
+	"\x14ExecuteQuantumKrylov\x12\x1c.kubona.QuantumKrylovRequest\x1a\x1d.kubona.QuantumKrylovResponse\x12H\n" +
+	"\x0fMitigateCircuit\x12\x19.kubona.MitigationRequest\x1a\x1a.kubona.MitigationResponseB8Z6github.com/mainza-ai/kubona/core/pkg/proto;kubonaprotob\x06proto3"
 
 var (
-	file_proto_kubona_proto_rawDescOnce sync.Once
-	file_proto_kubona_proto_rawDescData []byte
+	file_kubona_proto_rawDescOnce sync.Once
+	file_kubona_proto_rawDescData []byte
 )
 
-func file_proto_kubona_proto_rawDescGZIP() []byte {
-	file_proto_kubona_proto_rawDescOnce.Do(func() {
-		file_proto_kubona_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_proto_kubona_proto_rawDesc), len(file_proto_kubona_proto_rawDesc)))
+func file_kubona_proto_rawDescGZIP() []byte {
+	file_kubona_proto_rawDescOnce.Do(func() {
+		file_kubona_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_kubona_proto_rawDesc), len(file_kubona_proto_rawDesc)))
 	})
-	return file_proto_kubona_proto_rawDescData
+	return file_kubona_proto_rawDescData
 }
 
-var file_proto_kubona_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_proto_kubona_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
-var file_proto_kubona_proto_goTypes = []any{
+var file_kubona_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+var file_kubona_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_kubona_proto_goTypes = []any{
 	(JobStatus)(0),                      // 0: kubona.JobStatus
 	(DegradationLevel)(0),               // 1: kubona.DegradationLevel
 	(*CircuitExecutionRequest)(nil),     // 2: kubona.CircuitExecutionRequest
@@ -1223,11 +1591,15 @@ var file_proto_kubona_proto_goTypes = []any{
 	(*LiteratureGroundingRequest)(nil),  // 11: kubona.LiteratureGroundingRequest
 	(*LiteratureRecord)(nil),            // 12: kubona.LiteratureRecord
 	(*LiteratureGroundingResponse)(nil), // 13: kubona.LiteratureGroundingResponse
-	nil,                                 // 14: kubona.CircuitExecutionResponse.CountsEntry
+	(*QuantumKrylovRequest)(nil),        // 14: kubona.QuantumKrylovRequest
+	(*QuantumKrylovResponse)(nil),       // 15: kubona.QuantumKrylovResponse
+	(*MitigationRequest)(nil),           // 16: kubona.MitigationRequest
+	(*MitigationResponse)(nil),          // 17: kubona.MitigationResponse
+	nil,                                 // 18: kubona.CircuitExecutionResponse.CountsEntry
 }
-var file_proto_kubona_proto_depIdxs = []int32{
+var file_kubona_proto_depIdxs = []int32{
 	1,  // 0: kubona.CircuitExecutionResponse.degradation_level:type_name -> kubona.DegradationLevel
-	14, // 1: kubona.CircuitExecutionResponse.counts:type_name -> kubona.CircuitExecutionResponse.CountsEntry
+	18, // 1: kubona.CircuitExecutionResponse.counts:type_name -> kubona.CircuitExecutionResponse.CountsEntry
 	5,  // 2: kubona.CircuitCutResponse.fragments:type_name -> kubona.SubcircuitFragment
 	12, // 3: kubona.LiteratureGroundingResponse.records:type_name -> kubona.LiteratureRecord
 	2,  // 4: kubona.QuantumBridgeService.ExecuteCircuit:input_type -> kubona.CircuitExecutionRequest
@@ -1235,39 +1607,43 @@ var file_proto_kubona_proto_depIdxs = []int32{
 	7,  // 6: kubona.QuantumBridgeService.ComputeClassicalAnchor:input_type -> kubona.ClassicalAnchorRequest
 	9,  // 7: kubona.QuantumBridgeService.EvaluateWavefunction:input_type -> kubona.ClaimEvaluationRequest
 	11, // 8: kubona.QuantumBridgeService.GroundLiterature:input_type -> kubona.LiteratureGroundingRequest
-	3,  // 9: kubona.QuantumBridgeService.ExecuteCircuit:output_type -> kubona.CircuitExecutionResponse
-	6,  // 10: kubona.QuantumBridgeService.CutCircuit:output_type -> kubona.CircuitCutResponse
-	8,  // 11: kubona.QuantumBridgeService.ComputeClassicalAnchor:output_type -> kubona.ClassicalAnchorResponse
-	10, // 12: kubona.QuantumBridgeService.EvaluateWavefunction:output_type -> kubona.ClaimEvaluationResponse
-	13, // 13: kubona.QuantumBridgeService.GroundLiterature:output_type -> kubona.LiteratureGroundingResponse
-	9,  // [9:14] is the sub-list for method output_type
-	4,  // [4:9] is the sub-list for method input_type
+	14, // 9: kubona.QuantumBridgeService.ExecuteQuantumKrylov:input_type -> kubona.QuantumKrylovRequest
+	16, // 10: kubona.QuantumBridgeService.MitigateCircuit:input_type -> kubona.MitigationRequest
+	3,  // 11: kubona.QuantumBridgeService.ExecuteCircuit:output_type -> kubona.CircuitExecutionResponse
+	6,  // 12: kubona.QuantumBridgeService.CutCircuit:output_type -> kubona.CircuitCutResponse
+	8,  // 13: kubona.QuantumBridgeService.ComputeClassicalAnchor:output_type -> kubona.ClassicalAnchorResponse
+	10, // 14: kubona.QuantumBridgeService.EvaluateWavefunction:output_type -> kubona.ClaimEvaluationResponse
+	13, // 15: kubona.QuantumBridgeService.GroundLiterature:output_type -> kubona.LiteratureGroundingResponse
+	15, // 16: kubona.QuantumBridgeService.ExecuteQuantumKrylov:output_type -> kubona.QuantumKrylovResponse
+	17, // 17: kubona.QuantumBridgeService.MitigateCircuit:output_type -> kubona.MitigationResponse
+	11, // [11:18] is the sub-list for method output_type
+	4,  // [4:11] is the sub-list for method input_type
 	4,  // [4:4] is the sub-list for extension type_name
 	4,  // [4:4] is the sub-list for extension extendee
 	0,  // [0:4] is the sub-list for field type_name
 }
 
-func init() { file_proto_kubona_proto_init() }
-func file_proto_kubona_proto_init() {
-	if File_proto_kubona_proto != nil {
+func init() { file_kubona_proto_init() }
+func file_kubona_proto_init() {
+	if File_kubona_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_kubona_proto_rawDesc), len(file_proto_kubona_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kubona_proto_rawDesc), len(file_kubona_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   13,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_proto_kubona_proto_goTypes,
-		DependencyIndexes: file_proto_kubona_proto_depIdxs,
-		EnumInfos:         file_proto_kubona_proto_enumTypes,
-		MessageInfos:      file_proto_kubona_proto_msgTypes,
+		GoTypes:           file_kubona_proto_goTypes,
+		DependencyIndexes: file_kubona_proto_depIdxs,
+		EnumInfos:         file_kubona_proto_enumTypes,
+		MessageInfos:      file_kubona_proto_msgTypes,
 	}.Build()
-	File_proto_kubona_proto = out.File
-	file_proto_kubona_proto_goTypes = nil
-	file_proto_kubona_proto_depIdxs = nil
+	File_kubona_proto = out.File
+	file_kubona_proto_goTypes = nil
+	file_kubona_proto_depIdxs = nil
 }

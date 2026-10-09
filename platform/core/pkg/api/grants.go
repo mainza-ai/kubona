@@ -1,0 +1,157 @@
+package api
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+
+	"github.com/mainza-ai/kubona/core/pkg/grants"
+	"github.com/mainza-ai/kubona/core/pkg/tenants"
+)
+
+// trustRoots builds the did:key -> tenant map from registered lab admin keys.
+func (s *Server) trustRoots() (map[string]string, error) {
+	all, err := s.tenantMgr.ListTenants()
+	if err != nil {
+		return nil, err
+	}
+	admins := make([]grants.AdminDID, 0, len(all))
+	for _, t := range all {
+		admins = append(admins, grants.AdminDID{TenantID: t.ID, AdminPubkeyHex: t.AdminPubkeyHex, Status: t.Status})
+	}
+	return grants.TrustRootsForTenants(admins), nil
+}
+
+// handleGrantRegister verifies a presented cross-lab UCAN grant chain and
+// seals it as a grant_issued ledger event. Registration is what makes the
+// chain's CIDs discoverable for revocation; verification here is identical
+// to dispatch-time verification (same function, no second rule).
+func (s *Server) handleGrantRegister(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Chain []string `json:"chain"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	chain, err := grants.DecodeChainB64(req.Chain)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	roots, err := s.trustRoots()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	vg, err := grants.VerifyChain(chain, grants.VerifyOptions{
+		TrustedRoots: roots,
+		Revoked:      grants.RevokedCIDs(s.ledger.DB()),
+	})
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+	rec, err := s.ledger.AppendSignedEvent(vg.TargetTenant, "grant_issued", map[string]any{
+		"root_cid": vg.RootCID, "leaf_cid": vg.LeafCID,
+		"granting_tenant": vg.GrantingTenant, "target_tenant": vg.TargetTenant,
+		"max_budget_usd": vg.MaxBudgetUSD, "scopes": vg.Scopes, "command": vg.Command,
+	}, s.signerPrivKey)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok": true, "root_cid": vg.RootCID, "leaf_cid": vg.LeafCID,
+		"granting_tenant": vg.GrantingTenant, "target_tenant": vg.TargetTenant,
+		"max_budget_usd": vg.MaxBudgetUSD, "scopes": vg.Scopes,
+		"ledger_receipt": rec.EntryHash,
+	})
+}
+
+// handleGrantRevoke revokes a grant chain by root CID. Authorization: the
+// caller must present a valid admin envelope for the GRANTING tenant (looked
+// up from the stored grant_issued event) — only the lab that issued a grant
+// can revoke it. Revocation is a ledger event, effective on next dispatch.
+func (s *Server) handleGrantRevoke(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		RootCID string              `json:"root_cid"`
+		Reason  string              `json:"reason"`
+		Action  tenants.AdminAction `json:"action"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.RootCID == "" {
+		http.Error(w, "root_cid is required", http.StatusBadRequest)
+		return
+	}
+	granting, err := s.grantingTenantFor(req.RootCID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusNotFound)
+		return
+	}
+	bound, err := bindAdminAction(granting, "revoke_grant",
+		map[string]string{"root_cid": req.RootCID, "reason": req.Reason}, req.Action)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+	// Cryptographic verification against the granting lab's CURRENT admin key
+	// (rotation-safe): envelope must be signed by the key on the tenant row.
+	verified, err := s.tenantMgr.VerifyAdminAction(bound)
+	if err != nil || verified.ID != granting {
+		msg := "admin signature verification failed"
+		if err != nil {
+			msg = err.Error()
+		}
+		http.Error(w, msg, http.StatusForbidden)
+		return
+	}
+	rec, err := s.ledger.AppendSignedEvent(granting, "grant_revoked", map[string]any{
+		"root_cid": req.RootCID, "reason": req.Reason, "revoked_by": req.Action.PubkeyHex,
+	}, s.signerPrivKey)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok": true, "root_cid": req.RootCID, "ledger_receipt": rec.EntryHash,
+	})
+}
+
+// grantingTenantFor resolves which lab issued a registered grant chain.
+func (s *Server) grantingTenantFor(rootCID string) (string, error) {
+	rows, err := s.ledger.DB().Query(
+		`SELECT payload FROM ledger_events WHERE event_type = 'grant_issued' ORDER BY id DESC LIMIT 50`)
+	if err != nil {
+		return "", err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var payloadStr string
+		var rec struct {
+			RootCID        string `json:"root_cid"`
+			GrantingTenant string `json:"granting_tenant"`
+		}
+		if err := rows.Scan(&payloadStr); err != nil {
+			continue
+		}
+		if err := json.Unmarshal([]byte(payloadStr), &rec); err != nil {
+			continue
+		}
+		if rec.RootCID == rootCID {
+			return rec.GrantingTenant, nil
+		}
+	}
+	return "", fmt.Errorf("no registered grant with root %s", rootCID)
+}

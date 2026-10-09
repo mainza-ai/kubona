@@ -12,20 +12,22 @@ import (
 type TriageTarget string
 
 const (
-	TargetClassicalDFTHPC    TriageTarget = "CLASSICAL_DFT_HPC"
+	TargetClassicalDFTHPC     TriageTarget = "CLASSICAL_DFT_HPC"
 	TargetClassicalDMRGTensor TriageTarget = "CLASSICAL_DMRG_TENSOR"
 	TargetFederatedQuantumQPU TriageTarget = "FEDERATED_QUANTUM_QPU"
 )
 
 // MolecularSystemSpec defines chemical and quantum mechanics parameters
 type MolecularSystemSpec struct {
-	MoleculeID                  string `json:"molecule_id"`
-	Formula                     string `json:"formula"`
-	NumElectrons                int    `json:"num_electrons"`
-	NuclearCharges              []int  `json:"nuclear_charges"`
-	IsMultiReference            bool   `json:"is_multi_reference"`
-	CoulombContinuum            bool   `json:"coulomb_continuum"`
-	EstimatedActiveSpaceOrbitals int    `json:"estimated_active_space_orbitals"`
+	MoleculeID                   string  `json:"molecule_id"`
+	Formula                      string  `json:"formula"`
+	NumElectrons                 int     `json:"num_electrons"`
+	NuclearCharges               []int   `json:"nuclear_charges"`
+	IsMultiReference             bool    `json:"is_multi_reference"`
+	CoulombContinuum             bool    `json:"coulomb_continuum"`
+	EstimatedActiveSpaceOrbitals int     `json:"estimated_active_space_orbitals"`
+	HOMOLUMOGap                  float64 `json:"homo_lumo_gap,omitempty"`
+	RadicalIndex                 float64 `json:"radical_index,omitempty"`
 }
 
 // TriageDecision captures the mathematically grounded routing result
@@ -67,8 +69,12 @@ func (e *QuantumTriageEngine) Evaluate(system MolecularSystemSpec) (*TriageDecis
 		DecisionTimestamp: time.Now(),
 	}
 
+	isMultiRef := system.IsMultiReference ||
+		(system.HOMOLUMOGap > 0.0 && system.HOMOLUMOGap < 0.1) ||
+		(system.RadicalIndex >= 0.05)
+
 	// Family 278: Multi-reference Coulomb molecules provably lack non-interacting KS representation
-	if system.IsMultiReference && system.CoulombContinuum {
+	if isMultiRef && system.CoulombContinuum {
 		if system.EstimatedActiveSpaceOrbitals > e.ActiveSpaceDMRGCeiling {
 			// Active space exceeds classical Full Configuration Interaction / DMRG bounds
 			decision.Target = TargetFederatedQuantumQPU

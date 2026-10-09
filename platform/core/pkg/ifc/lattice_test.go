@@ -38,3 +38,36 @@ func TestIFCInformationFlow(t *testing.T) {
 		t.Errorf("expected join to intersect to {alice}, got %v", joined)
 	}
 }
+
+func TestJoinLabelsShrinksAudience(t *testing.T) {
+	if got := ifc.JoinLabels("public", "public"); got != "public" {
+		t.Fatalf("public+public must stay public, got %q", got)
+	}
+	if got := ifc.JoinLabels("public", "tenant/lab-a"); got != "tenant/lab-a" {
+		t.Fatalf("public+tenant must narrow to tenant, got %q", got)
+	}
+	if got := ifc.JoinLabels("tenant/lab-a", "tenant/lab-b"); got != "deny-all" {
+		t.Fatalf("mixed tenants must deny all, got %q", got)
+	}
+	if got := ifc.JoinLabels("tenant/lab-a", "tenant/lab-a"); got != "tenant/lab-a" {
+		t.Fatalf("same tenant must stay, got %q", got)
+	}
+}
+
+func TestLabelReadableBy(t *testing.T) {
+	if !ifc.LabelReadableBy("public", "lab-x") {
+		t.Fatalf("public must be world-readable")
+	}
+	if !ifc.LabelReadableBy("tenant/lab-a", "lab-a") {
+		t.Fatalf("own tenant must read")
+	}
+	if ifc.LabelReadableBy("tenant/lab-a", "lab-b") {
+		t.Fatalf("foreign tenant must not read")
+	}
+	if ifc.LabelReadableBy("deny-all", "lab-a") {
+		t.Fatalf("deny-all must not read")
+	}
+	if ifc.LabelReadableBy("", "lab-a") {
+		t.Fatalf("empty label must fail closed (deny)")
+	}
+}

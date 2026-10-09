@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.2
 // - protoc             v7.35.1
-// source: proto/kubona.proto
+// source: kubona.proto
 
 package kubonaproto
 
@@ -24,6 +24,8 @@ const (
 	QuantumBridgeService_ComputeClassicalAnchor_FullMethodName = "/kubona.QuantumBridgeService/ComputeClassicalAnchor"
 	QuantumBridgeService_EvaluateWavefunction_FullMethodName   = "/kubona.QuantumBridgeService/EvaluateWavefunction"
 	QuantumBridgeService_GroundLiterature_FullMethodName       = "/kubona.QuantumBridgeService/GroundLiterature"
+	QuantumBridgeService_ExecuteQuantumKrylov_FullMethodName   = "/kubona.QuantumBridgeService/ExecuteQuantumKrylov"
+	QuantumBridgeService_MitigateCircuit_FullMethodName        = "/kubona.QuantumBridgeService/MitigateCircuit"
 )
 
 // QuantumBridgeServiceClient is the client API for QuantumBridgeService service.
@@ -37,6 +39,8 @@ type QuantumBridgeServiceClient interface {
 	ComputeClassicalAnchor(ctx context.Context, in *ClassicalAnchorRequest, opts ...grpc.CallOption) (*ClassicalAnchorResponse, error)
 	EvaluateWavefunction(ctx context.Context, in *ClaimEvaluationRequest, opts ...grpc.CallOption) (*ClaimEvaluationResponse, error)
 	GroundLiterature(ctx context.Context, in *LiteratureGroundingRequest, opts ...grpc.CallOption) (*LiteratureGroundingResponse, error)
+	ExecuteQuantumKrylov(ctx context.Context, in *QuantumKrylovRequest, opts ...grpc.CallOption) (*QuantumKrylovResponse, error)
+	MitigateCircuit(ctx context.Context, in *MitigationRequest, opts ...grpc.CallOption) (*MitigationResponse, error)
 }
 
 type quantumBridgeServiceClient struct {
@@ -97,6 +101,26 @@ func (c *quantumBridgeServiceClient) GroundLiterature(ctx context.Context, in *L
 	return out, nil
 }
 
+func (c *quantumBridgeServiceClient) ExecuteQuantumKrylov(ctx context.Context, in *QuantumKrylovRequest, opts ...grpc.CallOption) (*QuantumKrylovResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QuantumKrylovResponse)
+	err := c.cc.Invoke(ctx, QuantumBridgeService_ExecuteQuantumKrylov_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *quantumBridgeServiceClient) MitigateCircuit(ctx context.Context, in *MitigationRequest, opts ...grpc.CallOption) (*MitigationResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(MitigationResponse)
+	err := c.cc.Invoke(ctx, QuantumBridgeService_MitigateCircuit_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // QuantumBridgeServiceServer is the server API for QuantumBridgeService service.
 // All implementations must embed UnimplementedQuantumBridgeServiceServer
 // for forward compatibility.
@@ -108,6 +132,8 @@ type QuantumBridgeServiceServer interface {
 	ComputeClassicalAnchor(context.Context, *ClassicalAnchorRequest) (*ClassicalAnchorResponse, error)
 	EvaluateWavefunction(context.Context, *ClaimEvaluationRequest) (*ClaimEvaluationResponse, error)
 	GroundLiterature(context.Context, *LiteratureGroundingRequest) (*LiteratureGroundingResponse, error)
+	ExecuteQuantumKrylov(context.Context, *QuantumKrylovRequest) (*QuantumKrylovResponse, error)
+	MitigateCircuit(context.Context, *MitigationRequest) (*MitigationResponse, error)
 	mustEmbedUnimplementedQuantumBridgeServiceServer()
 }
 
@@ -132,6 +158,12 @@ func (UnimplementedQuantumBridgeServiceServer) EvaluateWavefunction(context.Cont
 }
 func (UnimplementedQuantumBridgeServiceServer) GroundLiterature(context.Context, *LiteratureGroundingRequest) (*LiteratureGroundingResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GroundLiterature not implemented")
+}
+func (UnimplementedQuantumBridgeServiceServer) ExecuteQuantumKrylov(context.Context, *QuantumKrylovRequest) (*QuantumKrylovResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method ExecuteQuantumKrylov not implemented")
+}
+func (UnimplementedQuantumBridgeServiceServer) MitigateCircuit(context.Context, *MitigationRequest) (*MitigationResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method MitigateCircuit not implemented")
 }
 func (UnimplementedQuantumBridgeServiceServer) mustEmbedUnimplementedQuantumBridgeServiceServer() {}
 func (UnimplementedQuantumBridgeServiceServer) testEmbeddedByValue()                              {}
@@ -244,6 +276,42 @@ func _QuantumBridgeService_GroundLiterature_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _QuantumBridgeService_ExecuteQuantumKrylov_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QuantumKrylovRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QuantumBridgeServiceServer).ExecuteQuantumKrylov(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QuantumBridgeService_ExecuteQuantumKrylov_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QuantumBridgeServiceServer).ExecuteQuantumKrylov(ctx, req.(*QuantumKrylovRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _QuantumBridgeService_MitigateCircuit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MitigationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QuantumBridgeServiceServer).MitigateCircuit(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QuantumBridgeService_MitigateCircuit_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QuantumBridgeServiceServer).MitigateCircuit(ctx, req.(*MitigationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // QuantumBridgeService_ServiceDesc is the grpc.ServiceDesc for QuantumBridgeService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -271,7 +339,15 @@ var QuantumBridgeService_ServiceDesc = grpc.ServiceDesc{
 			MethodName: "GroundLiterature",
 			Handler:    _QuantumBridgeService_GroundLiterature_Handler,
 		},
+		{
+			MethodName: "ExecuteQuantumKrylov",
+			Handler:    _QuantumBridgeService_ExecuteQuantumKrylov_Handler,
+		},
+		{
+			MethodName: "MitigateCircuit",
+			Handler:    _QuantumBridgeService_MitigateCircuit_Handler,
+		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "proto/kubona.proto",
+	Metadata: "kubona.proto",
 }

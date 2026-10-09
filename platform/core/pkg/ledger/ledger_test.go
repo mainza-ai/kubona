@@ -112,3 +112,53 @@ func TestSignedLedgerEventsAndTamperDetection(t *testing.T) {
 		t.Fatalf("expected distinct public key for unauthorized actor")
 	}
 }
+
+func TestLedgerConfidentialityLabels(t *testing.T) {
+	dbPath := "test_ledger_labels.db"
+	defer os.Remove(dbPath)
+	defer os.Remove(dbPath + "-wal")
+	defer os.Remove(dbPath + "-shm")
+
+	l, err := ledger.OpenLedger(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open ledger: %v", err)
+	}
+	defer l.Close()
+
+	// Default appends land in the session tenant's label.
+	rec, err := l.AppendSignedEvent("sess-lab", "job_settled", map[string]string{"ok": "true"}, nil)
+	if err != nil {
+		t.Fatalf("append: %v", err)
+	}
+	if rec.TenantID != "default" || rec.ConfLabel != "tenant/default" {
+		t.Fatalf("default label wrong: %+v", rec)
+	}
+
+	// Explicit public label allowed.
+	pub, err := l.AppendLabeledEvent("sess-lab", "announcement", map[string]string{"m": "1"}, nil, "public")
+	if err != nil || pub.ConfLabel != "public" {
+		t.Fatalf("public label must be writable: %+v err=%v", pub, err)
+	}
+
+	// Cross-tenant and empty labels refused.
+	if _, err := l.AppendLabeledEvent("sess-lab", "x", map[string]string{}, nil, "tenant/lab-other"); err == nil {
+		t.Fatalf("cross-tenant label must refuse")
+	}
+	if _, err := l.AppendLabeledEvent("sess-lab", "x", map[string]string{}, nil, ""); err == nil {
+		t.Fatalf("empty label must refuse")
+	}
+	if _, err := l.AppendLabeledEvent("sess-lab", "x", map[string]string{}, nil, "deny-all"); err == nil {
+		t.Fatalf("deny-all label must refuse")
+	}
+
+	// Reads carry labels; migration backfills tenant-scoped defaults.
+	events, err := l.GetRecentEvents("sess-lab", 10)
+	if err != nil || len(events) != 2 {
+		t.Fatalf("expected 2 events, got %d err=%v", len(events), err)
+	}
+	for _, e := range events {
+		if e.ConfLabel == "" {
+			t.Fatalf("no event may read back unlabeled: %+v", e)
+		}
+	}
+}

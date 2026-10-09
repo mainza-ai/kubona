@@ -19,6 +19,8 @@ import (
 )
 
 func setupTestServer(t *testing.T) (*api.Server, func()) {
+	// Tests exercise the human-reviewer sign endpoint with an ephemeral key.
+	t.Setenv("KUBONA_ALLOW_EPHEMERAL_SIGNER", "1")
 	dbPath := "test_api.db"
 	l, err := ledger.OpenLedger(dbPath)
 	if err != nil {
@@ -96,7 +98,14 @@ func TestAPIRoutes(t *testing.T) {
 		t.Fatalf("expected 200 for /api/radar, got %d", w.Code)
 	}
 
-	// 7. Mandate Signing
+	// 7. Mandate Signing (tenant registered first: mandates bind lab tenants)
+	tenantBody, _ := json.Marshal(map[string]any{"id": "tenant-lab-alpha", "display_name": "Lab Alpha"})
+	req = httptest.NewRequest(http.MethodPost, "/api/tenants", bytes.NewReader(tenantBody))
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for /api/tenants, got %d", w.Code)
+	}
 	signPayload := map[string]any{
 		"tenant_id":      "tenant-lab-alpha",
 		"job_hash":       "job-sha256-test",
@@ -174,6 +183,16 @@ func TestAPIRoutes(t *testing.T) {
 	handler.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200 for /api/mandates/verify, got %d", w.Code)
+	}
+	var verifyResp struct {
+		Valid bool   `json:"valid"`
+		Error string `json:"error"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&verifyResp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	if !verifyResp.Valid {
+		t.Fatalf("registered-tenant mandate must verify valid: %+v", verifyResp)
 	}
 }
 
@@ -279,4 +298,3 @@ func TestAutoresearchAndMetasearchAPIs(t *testing.T) {
 		t.Fatalf("expected 200 for /api/metasearch/proposals, got %d", w.Code)
 	}
 }
-

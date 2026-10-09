@@ -23,21 +23,25 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/cost"
 	"github.com/mainza-ai/kubona/core/pkg/epistemics"
 	"github.com/mainza-ai/kubona/core/pkg/fidelity"
+	"github.com/mainza-ai/kubona/core/pkg/hf"
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
 	"github.com/mainza-ai/kubona/core/pkg/llm"
 	"github.com/mainza-ai/kubona/core/pkg/mandates"
 	"github.com/mainza-ai/kubona/core/pkg/metasearch"
-	pb "github.com/mainza-ai/kubona/core/proto"
+	"github.com/mainza-ai/kubona/core/pkg/qir"
 	"github.com/mainza-ai/kubona/core/pkg/sandbox"
 	"github.com/mainza-ai/kubona/core/pkg/session"
 	"github.com/mainza-ai/kubona/core/pkg/supervisor"
+	"github.com/mainza-ai/kubona/core/pkg/tenants"
 	"github.com/mainza-ai/kubona/core/pkg/watchdog"
+	pb "github.com/mainza-ai/kubona/core/proto"
 )
 
 type Server struct {
 	ledger           *ledger.Ledger
 	sessionMgr       *session.Manager
+	tenantMgr        *tenants.Manager
 	jobRunner        *jobs.Runner
 	supervisor       *supervisor.Supervisor
 	watchdog         *watchdog.TaskWatchdog
@@ -56,9 +60,48 @@ type Server struct {
 	activeAutoloops  map[string]*autoresearch.LoopEngine
 	mux              *http.ServeMux
 
-	// Mock keypair for human-reviewer mandate signing
-	signerPubKey  ed25519.PublicKey
-	signerPrivKey ed25519.PrivateKey
+	// Hugging Face Hub client & Custom Agent Registry
+	hfClient     *hf.HubClient
+	customAgents *agents.CustomAgentRegistry
+
+	// Post-quantum cryptography keypair & QIR compiler
+	pqcKeypair  *mandates.RecipientKeypair
+	qirCompiler *qir.Compiler
+
+	// Human-reviewer mandate signing key. In production this MUST be loaded from
+	// KUBONA_REVIEWER_PRIVKEY_HEX (see loadReviewerKey); reviewerKeyConfigured
+	// reports whether the key came from the environment. An ephemeral dev key is
+	// generated otherwise and handleMandateSign refuses to use it unless
+	// KUBONA_ALLOW_EPHEMERAL_SIGNER=1 (tests / local dev only).
+	signerPubKey          ed25519.PublicKey
+	signerPrivKey         ed25519.PrivateKey
+	reviewerKeyConfigured bool
+}
+
+// loadReviewerKey returns the human-reviewer ed25519 keypair for mandate
+// signing. Production deployments MUST set KUBONA_REVIEWER_PRIVKEY_HEX to the
+// hex encoding of either the 64-byte private key or the 32-byte seed. When the
+// variable is absent or malformed an ephemeral key is generated for local
+// development and configured=false, in which case handleMandateSign refuses to
+// sign unless KUBONA_ALLOW_EPHEMERAL_SIGNER=1.
+func loadReviewerKey() (ed25519.PublicKey, ed25519.PrivateKey, bool) {
+	if hexKey := strings.TrimSpace(os.Getenv("KUBONA_REVIEWER_PRIVKEY_HEX")); hexKey != "" {
+		raw, err := hex.DecodeString(hexKey)
+		if err == nil {
+			switch len(raw) {
+			case ed25519.PrivateKeySize:
+				priv := ed25519.PrivateKey(append([]byte(nil), raw...))
+				if pub, ok := priv.Public().(ed25519.PublicKey); ok {
+					return pub, priv, true
+				}
+			case ed25519.SeedSize:
+				priv := ed25519.NewKeyFromSeed(raw)
+				return priv.Public().(ed25519.PublicKey), priv, true
+			}
+		}
+	}
+	pub, priv, _ := ed25519.GenerateKey(nil)
+	return pub, priv, false
 }
 
 func NewServer(
@@ -68,7 +111,7 @@ func NewServer(
 	sup *supervisor.Supervisor,
 	wd *watchdog.TaskWatchdog,
 ) *Server {
-	pub, priv, _ := ed25519.GenerateKey(nil)
+	pub, priv, configured := loadReviewerKey()
 
 	llmSet, err := llm.LoadSettings(l.DB())
 	if err != nil {
@@ -80,27 +123,56 @@ func NewServer(
 	sbCfg.AllowHostFallback = true // Resilient for testing
 	sbRunner := sandbox.NewSandboxRunnerWithConfig(sbCfg)
 	metaEngine := metasearch.NewMetaSearchEngineWithLLM(llmCli)
+	pqcKey, _ := mandates.GenerateRecipientKeypair()
+	qirComp := qir.NewCompiler()
 
 	s := &Server{
-		ledger:           l,
-		sessionMgr:       sm,
-		jobRunner:        jr,
-		supervisor:       sup,
-		watchdog:         wd,
-		collective:       agents.NewAgentCollective(),
-		a2aServer:        agents.NewA2AServer("0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7", nil, sbRunner),
-		canvasLayouts:    make(map[string]string),
-		fidelityGate:     fidelity.NewFidelityGate(),
-		epistemicGate:    epistemics.NewEpistemicGate(),
-		harnessReg:       autoresearch.NewHarnessRegistry(),
-		llmSettings:      llmSet,
-		llmClient:        llmCli,
-		metaSearchEngine: metaEngine,
-		sandboxRunner:    sbRunner,
-		activeAutoloops:  make(map[string]*autoresearch.LoopEngine),
-		signerPubKey:     pub,
-		signerPrivKey:    priv,
-		mux:              http.NewServeMux(),
+		ledger:                l,
+		sessionMgr:            sm,
+		tenantMgr:             tenants.NewManager(l),
+		jobRunner:             jr,
+		supervisor:            sup,
+		watchdog:              wd,
+		collective:            agents.NewAgentCollective(),
+		a2aServer:             agents.NewA2AServer("0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7", nil, sbRunner),
+		canvasLayouts:         make(map[string]string),
+		fidelityGate:          fidelity.NewFidelityGate(),
+		epistemicGate:         epistemics.NewEpistemicGate(),
+		harnessReg:            autoresearch.NewHarnessRegistry(),
+		llmSettings:           llmSet,
+		llmClient:             llmCli,
+		metaSearchEngine:      metaEngine,
+		sandboxRunner:         sbRunner,
+		activeAutoloops:       make(map[string]*autoresearch.LoopEngine),
+		hfClient:              hf.NewHubClient(""),
+		customAgents:          agents.NewCustomAgentRegistry(),
+		pqcKeypair:            pqcKey,
+		qirCompiler:           qirComp,
+		signerPubKey:          pub,
+		signerPrivKey:         priv,
+		reviewerKeyConfigured: configured,
+		mux:                   http.NewServeMux(),
+	}
+
+	// Ledger-bound A2A execution: delegated tasks run on the jobs runner (one
+	// budget rail), never on invented results.
+	s.a2aServer.SetTaskExecutor(&bridgeTaskExecutor{runner: jr, sessions: sm, ledger: l, harness: s.harnessReg, sandbox: sbRunner, qir: qirComp})
+	// Live tenant autonomy at A2A dispatch (same rule as HTTP dispatch).
+	s.a2aServer.SetAutonomyChecker(func(tenantID string) (string, error) {
+		t, err := s.tenantMgr.GetTenant(tenantID)
+		if err != nil {
+			return "", err
+		}
+		return t.AutonomyLevel, nil
+	})
+
+	// Bootstrap the default lab tenant's admin key from the environment when
+	// provided (first-write-wins; sealed in the ledger). The private key never
+	// touches the server: only the admin *public* key is configured here.
+	// Already-bootstrapped tenants ignore this (rotation needs the current
+	// admin's signature via /api/tenants/admin-key).
+	if adminHex := strings.TrimSpace(os.Getenv("KUBONA_TENANT_ADMIN_PUBKEY_HEX")); adminHex != "" {
+		_, _ = s.tenantMgr.SetAdminKey(tenants.DefaultTenantID, adminHex, nil)
 	}
 
 	// Seed sample claim wavefunctions for the Epistemic Manifold
@@ -194,6 +266,76 @@ func (s *Server) registerRoutes() {
 	// Molecular Science & 12-Agent Drug Discovery Pipeline
 	s.mux.HandleFunc("/api/chemistry/admet", s.handleChemistryADMET)
 	s.mux.HandleFunc("/api/discovery/pipeline", s.handleDiscoveryPipeline)
+
+	// Post-Quantum Cryptography Spend Mandates (ML-KEM-768 + AES-256-GCM)
+	s.mux.HandleFunc("/api/mandates/pqc-key", s.handlePQCPublicKey)
+	s.mux.HandleFunc("/api/mandates/pqc-verify", s.handlePQCVerify)
+
+	// QIR Compilation & Lowering
+	s.mux.HandleFunc("/api/qir/compile", s.handleQIRCompile)
+
+	// Quantum Krylov Subspace & Mitigation Endpoints
+	s.mux.HandleFunc("/api/krylov/solve", s.handleKrylovSolve)
+	s.mux.HandleFunc("/api/mitigation/apply", s.handleMitigationApply)
+	s.mux.HandleFunc("/api/cost/settle", s.handlePaymentSettle)
+
+	// Hugging Face Model Hub & In-Platform Downloader
+	s.mux.HandleFunc("/api/hf/search", s.handleHFSearch)
+	s.mux.HandleFunc("/api/hf/models/", s.handleHFModelDetails)
+	s.mux.HandleFunc("/api/hf/download", s.handleHFDownload)
+	s.mux.HandleFunc("/api/hf/downloads", s.handleHFDownloads)
+	s.mux.HandleFunc("/api/hf/downloads/", s.handleHFDownloadAction)
+
+	// Custom Agents & Multimodal Mesh Router
+	s.mux.HandleFunc("/api/agents/custom", s.handleCustomAgents)
+	s.mux.HandleFunc("/api/agents/custom/", s.handleCustomAgentByID)
+	s.mux.HandleFunc("/api/mesh/route", s.handleMeshRoute)
+	s.mux.HandleFunc("/api/ledger/append", s.handleLedgerAppend)
+	s.mux.HandleFunc("/api/ledger/export", s.handleLedgerExport)
+	s.mux.HandleFunc("/api/supervisor/abort", s.handleSupervisorAbort)
+	s.mux.HandleFunc("/api/tenants", s.handleTenants)
+	s.mux.HandleFunc("/api/tenants/", s.handleTenantByID)
+	s.mux.HandleFunc("/api/grants/register", s.handleGrantRegister)
+	s.mux.HandleFunc("/api/grants/revoke", s.handleGrantRevoke)
+	s.mux.HandleFunc("/api/tenants/admin-key", s.handleTenantAdminKey)
+	s.mux.HandleFunc("/api/tenants/ceiling", s.handleTenantCeiling)
+	s.mux.HandleFunc("/api/tenants/autonomy", s.handleTenantAutonomy)
+	s.mux.HandleFunc("/api/tenants/revoke", s.handleTenantRevoke)
+}
+
+func (s *Server) PQCKeypair() *mandates.RecipientKeypair {
+	return s.pqcKeypair
+}
+
+func (s *Server) A2AServer() *agents.A2AServer {
+	return s.a2aServer
+}
+
+func (s *Server) TenantManager() *tenants.Manager {
+	return s.tenantMgr
+}
+
+// requireDispatchAutonomy enforces live tenant autonomy at every dispatch
+// entry point. L0 (observe/suggest only), suspended, or unknown tenants
+// refuse job submission; backend-level gating (simulator vs QPU) happens in
+// the admission stage. Revocation takes effect on the next call — no grants
+// are cached.
+func (s *Server) requireDispatchAutonomy(sessionID string) error {
+	sess, err := s.sessionMgr.GetSession(sessionID)
+	if err != nil {
+		return fmt.Errorf("unknown session %q: dispatch refused", sessionID)
+	}
+	t, err := s.tenantMgr.GetTenant(sess.TenantID)
+	if err != nil {
+		return fmt.Errorf("unknown tenant %q: dispatch refused", sess.TenantID)
+	}
+	if t.Status != "active" {
+		return fmt.Errorf("tenant %q is %s: dispatch refused", t.ID, t.Status)
+	}
+	if t.AutonomyLevel == tenants.LevelL0 {
+		return fmt.Errorf("tenant %q autonomy L0 (observe/suggest only): dispatch refused", t.ID)
+	}
+	return nil
 }
 
 func writeJSON(w http.ResponseWriter, status int, data any) {
@@ -417,6 +559,14 @@ func (s *Server) handleMandateSign(w http.ResponseWriter, r *http.Request) {
 	if req.TtlSeconds <= 0 {
 		req.TtlSeconds = 3600
 	}
+	if !s.reviewerKeyConfigured && os.Getenv("KUBONA_ALLOW_EPHEMERAL_SIGNER") != "1" {
+		writeJSON(w, http.StatusForbidden, map[string]any{
+			"error": "reviewer signing key not configured: set KUBONA_REVIEWER_PRIVKEY_HEX " +
+				"(or KUBONA_ALLOW_EPHEMERAL_SIGNER=1 for local dev only)",
+			"reviewer_key_configured": false,
+		})
+		return
+	}
 	expiry := time.Now().UTC().Add(time.Duration(req.TtlSeconds) * time.Second)
 
 	mandate, err := mandates.SignMandate(s.signerPrivKey, req.TenantID, req.JobHash, req.MaxBudgetUSD, expiry)
@@ -427,9 +577,10 @@ func (s *Server) handleMandateSign(w http.ResponseWriter, r *http.Request) {
 
 	verifiedErr := mandate.Verify(req.TenantID, req.JobHash, req.MaxBudgetUSD)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"mandate":    mandate,
-		"public_key": hex.EncodeToString(s.signerPubKey),
-		"verified":   verifiedErr == nil,
+		"mandate":                 mandate,
+		"public_key":              hex.EncodeToString(s.signerPubKey),
+		"verified":                verifiedErr == nil,
+		"reviewer_key_configured": s.reviewerKeyConfigured,
 	})
 }
 
@@ -454,12 +605,25 @@ func (s *Server) handleMandateVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.ledger.AppendEvent(req.TenantID, "mandate_verified_client", map[string]any{
-		"tenant_id":      req.TenantID,
-		"job_hash":       req.JobHash,
-		"public_key_hex": req.PublicKeyHex,
-		"max_budget_usd": req.MaxBudgetUSD,
-	})
+	// AP2 Spend Ceiling Clamping against the LAB TENANT ceiling (not the
+	// session: mandate.TenantID names a tenant since the tenancy model
+	// landed; the old session-id-as-tenant conflation is removed).
+	if err := s.tenantMgr.CheckSpend(req.TenantID, req.MaxBudgetUSD); err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"valid": false,
+			"error": err.Error(),
+		})
+		return
+	}
+
+	s.ledger.AppendExternalEvent(req.TenantID, "mandate_verified_client", map[string]any{
+		"tenant_id":        req.TenantID,
+		"job_hash":         req.JobHash,
+		"public_key_hex":   req.PublicKeyHex,
+		"signature_hex":    req.SignatureHex,
+		"max_budget_usd":   req.MaxBudgetUSD,
+		"expiry_timestamp": req.ExpiryTimestamp.UTC().Format(time.RFC3339),
+	}, req.PublicKeyHex, req.SignatureHex)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"valid":       true,
@@ -561,17 +725,17 @@ func (s *Server) handleNotebooks(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"notebooks": []map[string]any{
 			{
-				"title":              targetTitle,
-				"id":                 notebookID,
-				"created_at":         time.Now().UTC().Format(time.RFC3339),
-				"classical_anchor":   classicalAnchorName,
-				"quantum_energy":     qEnergy,
-				"classical_energy":   fciEnergy,
-				"rhf_energy":         rhfEnergy,
-				"delta_mha":          deltaMHa,
-				"chemical_accuracy":  chemAccuracy,
-				"provenance_hash":    merkleHash,
-				"epistemic_verdict":  verdict,
+				"title":             targetTitle,
+				"id":                notebookID,
+				"created_at":        time.Now().UTC().Format(time.RFC3339),
+				"classical_anchor":  classicalAnchorName,
+				"quantum_energy":    qEnergy,
+				"classical_energy":  fciEnergy,
+				"rhf_energy":        rhfEnergy,
+				"delta_mha":         deltaMHa,
+				"chemical_accuracy": chemAccuracy,
+				"provenance_hash":   merkleHash,
+				"epistemic_verdict": verdict,
 				"sections": []string{
 					fmt.Sprintf("1. Scientific Objective & Active-Space Configuration (%s at R=%.4f A)", mol, bondDist),
 					fmt.Sprintf("2. Classical PySCF ab-initio ground state RHF (%.5f Ha) and FCI (%.5f Ha) integrals", rhfEnergy, fciEnergy),
@@ -599,6 +763,7 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 	case http.MethodPost:
 		var req struct {
 			Title          string  `json:"title"`
+			TenantID       string  `json:"tenant_id"`
 			SpendLimitUSD  float64 `json:"spend_limit_usd"`
 			TargetMolecule string  `json:"target_molecule,omitempty"`
 			Fresh          bool    `json:"fresh,omitempty"`
@@ -607,9 +772,9 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-		sess, err := s.sessionMgr.CreateSession(req.Title, req.SpendLimitUSD)
+		sess, err := s.sessionMgr.CreateSession(req.Title, req.SpendLimitUSD, req.TenantID)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		// Synthesize dynamic campaign state for new session with options
@@ -719,7 +884,7 @@ func (s *Server) ensureSession(sessionID string) (string, error) {
 	if err == nil && len(sessions) > 0 {
 		return sessions[0].ID, nil
 	}
-	sess, err := s.sessionMgr.CreateSession("Active Research Campaign", 150.0)
+	sess, err := s.sessionMgr.CreateSession("Active Research Campaign", 150.0, tenants.DefaultTenantID)
 	if err != nil {
 		return "", err
 	}
@@ -937,12 +1102,17 @@ func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
 
 	req.SessionID, _ = s.ensureSession(req.SessionID)
 
+	if err := s.requireDispatchAutonomy(req.SessionID); err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
 	if len(req.Proposal) > 0 {
 		var p struct {
-			QASM            string  `json:"qasm"`
-			RecommendedTier string  `json:"recommended_tier"`
-			SpendEstimate   string  `json:"spend_estimate"`
-			Target          string  `json:"target"`
+			QASM            string `json:"qasm"`
+			RecommendedTier string `json:"recommended_tier"`
+			SpendEstimate   string `json:"spend_estimate"`
+			Target          string `json:"target"`
 		}
 		if json.Unmarshal(req.Proposal, &p) == nil {
 			if p.QASM != "" {
@@ -1056,14 +1226,24 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{"jobs": jobsList})
 	case http.MethodPost:
 		var req struct {
-			SessionID string  `json:"session_id"`
-			QASM      string  `json:"qasm"`
-			Backend   string  `json:"backend"`
-			Shots     int     `json:"shots"`
-			BudgetUSD float64 `json:"budget_usd"`
+			SessionID   string   `json:"session_id"`
+			QASM        string   `json:"qasm"`
+			Backend     string   `json:"backend"`
+			Shots       int      `json:"shots"`
+			BudgetUSD   float64  `json:"budget_usd"`
+			MandateRef  string   `json:"mandate_ref"`
+			GrantChain  []string `json:"grant_chain"`
+			InputLabels []string `json:"input_labels"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		// Dispatch is always attributed to a real session (tenant
+		// attribution for autonomy checks); missing ids resolve like chat.
+		req.SessionID, _ = s.ensureSession(req.SessionID)
+		if err := s.requireDispatchAutonomy(req.SessionID); err != nil {
+			http.Error(w, err.Error(), http.StatusForbidden)
 			return
 		}
 		if req.Shots <= 0 {
@@ -1074,6 +1254,9 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 			"requested_backend": req.Backend,
 			"shots":             req.Shots,
 			"max_cost_usd":      req.BudgetUSD,
+			"mandate_ref":       req.MandateRef,
+			"grant_chain":       req.GrantChain,
+			"input_labels":      req.InputLabels,
 		}
 		job, err := s.jobRunner.SubmitJob(req.SessionID, "circuit_run", jobParams)
 		if err != nil {
@@ -1838,3 +2021,485 @@ func (s *Server) handleMetasearchApply(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"success": true, "message": msg, "proposal": prop})
 }
 
+func (s *Server) handlePQCPublicKey(w http.ResponseWriter, r *http.Request) {
+	if s.pqcKeypair == nil {
+		s.pqcKeypair, _ = mandates.GenerateRecipientKeypair()
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"fingerprint":           s.pqcKeypair.Fingerprint(),
+		"encapsulation_key_hex": hex.EncodeToString(s.pqcKeypair.EncapsulationKey.Bytes()),
+		"algorithm":             "ML-KEM-768",
+		"standard":              "NIST FIPS 203",
+	})
+}
+
+func (s *Server) handlePQCVerify(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var hybrid mandates.HybridSpendMandate
+	if err := json.NewDecoder(r.Body).Decode(&hybrid); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if s.pqcKeypair == nil {
+		s.pqcKeypair, _ = mandates.GenerateRecipientKeypair()
+	}
+
+	mandate, err := s.pqcKeypair.DecapsulateAndVerify(&hybrid, "", "", 0)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"valid": false,
+			"error": err.Error(),
+		})
+		return
+	}
+
+	// Bind the decapsulated mandate to its own fields (no wildcard
+	// expectations) and clamp against the lab tenant ceiling.
+	if err := mandate.Verify(mandate.TenantID, mandate.JobHash, mandate.MaxBudgetUSD); err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"valid": false,
+			"error": err.Error(),
+		})
+		return
+	}
+
+	// AP2 Spend Ceiling Clamping against the lab tenant (see above).
+	if err := s.tenantMgr.CheckSpend(mandate.TenantID, mandate.MaxBudgetUSD); err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"valid": false,
+			"error": err.Error(),
+		})
+		return
+	}
+
+	s.ledger.AppendExternalEvent(mandate.TenantID, "mandate_verified_pqc_mlkem768", map[string]any{
+		"tenant_id":             mandate.TenantID,
+		"job_hash":              mandate.JobHash,
+		"public_key_hex":        mandate.PublicKeyHex,
+		"recipient_fingerprint": hybrid.RecipientFingerprint,
+		"algorithm":             "ML-KEM-768+AES-GCM+Ed25519",
+		"max_budget_usd":        mandate.MaxBudgetUSD,
+		"expiry_timestamp":      mandate.ExpiryTimestamp.UTC().Format(time.RFC3339),
+	}, mandate.PublicKeyHex, mandate.SignatureHex)
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"valid":                 true,
+		"tenant_id":             mandate.TenantID,
+		"job_hash":              mandate.JobHash,
+		"pqc_verified":          true,
+		"recipient_fingerprint": hybrid.RecipientFingerprint,
+	})
+}
+
+func (s *Server) handleQIRCompile(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		QASM string `json:"qasm"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if s.qirCompiler == nil {
+		s.qirCompiler = qir.NewCompiler()
+	}
+
+	summary, err := s.qirCompiler.Analyze(req.QASM)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, summary)
+}
+
+// cachedH2FCIAnchor is a labeled reference value, NOT a computed result. It may
+// be returned alongside an explicit failure so clients can still display the
+// classical baseline — it must never be presented with success:true.
+const cachedH2FCIAnchor = -1.13727
+
+// writeBridgeUnavailable is the single fail-closed envelope for quantum-bridge
+// outages (quantum-advantage-realism policy: never silently return a canned
+// number as a measurement). Callers pass the computation name; the response is
+// HTTP 503 with success:false and result_computed:false plus the labeled
+// cached anchor for reference only.
+func writeBridgeUnavailable(w http.ResponseWriter, computation, detail string) {
+	writeJSON(w, http.StatusServiceUnavailable, map[string]any{
+		"success":         false,
+		"result_computed": false,
+		"computation":     computation,
+		"error_message":   "quantum bridge unavailable: no " + computation + " computation performed. " + detail,
+		"backend":         "classical-fallback: bridge unavailable — cached anchor below is a reference value, not a computed result",
+		"classical_anchor": map[string]any{
+			"method":             "PySCF STO-3G FCI (cached)",
+			"fci_energy_hartree": cachedH2FCIAnchor,
+		},
+	})
+}
+
+func (s *Server) handleKrylovSolve(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Molecule          string  `json:"molecule"`
+		BondDistance      float64 `json:"bond_distance"`
+		SubspaceDimension int     `json:"subspace_dimension"`
+		TimeStep          float64 `json:"time_step"`
+		Shots             int     `json:"shots"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Molecule == "" {
+		req.Molecule = "H2"
+	}
+	if req.BondDistance <= 0 {
+		req.BondDistance = 0.7414
+	}
+	if req.SubspaceDimension <= 0 {
+		req.SubspaceDimension = 4
+	}
+	if req.TimeStep <= 0 {
+		req.TimeStep = 0.2
+	}
+	if req.Shots <= 0 {
+		req.Shots = 1024
+	}
+
+	bridge := s.jobRunner.BridgeClient()
+	if bridge != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		defer cancel()
+		resp, err := bridge.ExecuteQuantumKrylov(ctx, &pb.QuantumKrylovRequest{
+			Molecule:          req.Molecule,
+			BondDistance:      req.BondDistance,
+			SubspaceDimension: int32(req.SubspaceDimension),
+			TimeStep:          req.TimeStep,
+			Shots:             int32(req.Shots),
+		})
+		if err == nil && resp != nil {
+			writeJSON(w, http.StatusOK, map[string]any{
+				"success":                    resp.Success,
+				"ground_state_energy":        resp.GroundStateEnergy,
+				"classical_fci_energy":       resp.ClassicalFciEnergy,
+				"subspace_eigenvalues":       resp.SubspaceEigenvalues,
+				"subspace_dimension":         resp.SubspaceDimension,
+				"meyer_wallach_entanglement": resp.MeyerWallachEntanglement,
+				"execution_time_ms":          resp.ExecutionTimeMs,
+				"error_message":              resp.ErrorMessage,
+			})
+			return
+		}
+	}
+
+	writeBridgeUnavailable(w, "krylov_solve", "bridge client is nil or the ExecuteQuantumKrylov RPC failed.")
+}
+
+func (s *Server) handleMitigationApply(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		QASM         string    `json:"qasm"`
+		Method       string    `json:"method"`
+		ScaleFactors []float64 `json:"scale_factors"`
+		Shots        int       `json:"shots"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Method == "" {
+		req.Method = "ZNE"
+	}
+	if len(req.ScaleFactors) == 0 {
+		req.ScaleFactors = []float64{1.0, 1.5, 2.0}
+	}
+	if req.Shots <= 0 {
+		req.Shots = 1024
+	}
+
+	bridge := s.jobRunner.BridgeClient()
+	if bridge != nil {
+		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		defer cancel()
+		resp, err := bridge.MitigateCircuit(ctx, &pb.MitigationRequest{
+			Qasm:         req.QASM,
+			Method:       req.Method,
+			ScaleFactors: req.ScaleFactors,
+			Shots:        int32(req.Shots),
+		})
+		if err == nil && resp != nil {
+			writeJSON(w, http.StatusOK, map[string]any{
+				"success":           resp.Success,
+				"unmitigated_value": resp.UnmitigatedValue,
+				"mitigated_value":   resp.MitigatedValue,
+				"error_bound":       resp.ErrorBound,
+				"method_used":       resp.MethodUsed,
+				"error_message":     resp.ErrorMessage,
+			})
+			return
+		}
+	}
+
+	writeBridgeUnavailable(w, "mitigation_apply", "bridge client is nil or the MitigateCircuit RPC failed.")
+}
+
+func (s *Server) handlePaymentSettle(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Receipt cost.PaymentReceipt `json:"receipt"`
+		Network string              `json:"network"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	pm := s.a2aServer.PaymentManager()
+	settlement, err := pm.SettlePayment(&req.Receipt, req.Network)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"settled": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	s.ledger.AppendExternalEvent("payment-settlement", "x402_payment_settled", map[string]any{
+		"challenge_id": req.Receipt.ChallengeID,
+		"reference":    settlement.Reference,
+		"simulated":    settlement.Simulated,
+		"network":      settlement.Network,
+		"token":        req.Receipt.Token,
+		"amount":       req.Receipt.Amount,
+		"payer":        req.Receipt.PayerPubHex,
+	}, req.Receipt.PayerPubHex, req.Receipt.Signature)
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"settled":   settlement.Settled,
+		"simulated": settlement.Simulated,
+		"reference": settlement.Reference,
+		"network":   settlement.Network,
+	})
+}
+
+func (s *Server) handleHFSearch(w http.ResponseWriter, r *http.Request) {
+	q := r.URL.Query().Get("q")
+	library := r.URL.Query().Get("library")
+	limitStr := r.URL.Query().Get("limit")
+	limit := 15
+	if limitStr != "" {
+		fmt.Sscanf(limitStr, "%d", &limit)
+	}
+
+	if s.hfClient == nil {
+		s.hfClient = hf.NewHubClient("")
+	}
+
+	models, err := s.hfClient.SearchModels(r.Context(), q, library, limit)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "models": []any{}, "error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":     true,
+		"models": models,
+	})
+}
+
+func (s *Server) handleHFModelDetails(w http.ResponseWriter, r *http.Request) {
+	repoID := strings.TrimPrefix(r.URL.Path, "/api/hf/models/")
+	if repoID == "" {
+		http.Error(w, "missing repo_id", http.StatusBadRequest)
+		return
+	}
+
+	if s.hfClient == nil {
+		s.hfClient = hf.NewHubClient("")
+	}
+
+	model, err := s.hfClient.GetModelDetails(r.Context(), repoID)
+	if err != nil {
+		writeJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":    true,
+		"model": model,
+	})
+}
+
+func (s *Server) handleHFDownload(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		RepoID   string `json:"repo_id"`
+		Filename string `json:"filename"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if s.hfClient == nil {
+		s.hfClient = hf.NewHubClient("")
+	}
+
+	task, err := s.hfClient.StartDownload(req.RepoID, req.Filename)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]any{"ok": false, "error": err.Error()})
+		return
+	}
+
+	s.ledger.AppendEvent("global", "hf_download_started", map[string]any{
+		"task_id":  task.TaskID,
+		"repo_id":  req.RepoID,
+		"filename": req.Filename,
+	})
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":   true,
+		"task": task,
+	})
+}
+
+func (s *Server) handleHFDownloads(w http.ResponseWriter, r *http.Request) {
+	if s.hfClient == nil {
+		s.hfClient = hf.NewHubClient("")
+	}
+
+	downloads := s.hfClient.ListDownloads()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":        true,
+		"downloads": downloads,
+	})
+}
+
+func (s *Server) handleHFDownloadAction(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/hf/downloads/")
+	if strings.HasSuffix(path, "/cancel") {
+		taskID := strings.TrimSuffix(path, "/cancel")
+		if s.hfClient == nil {
+			s.hfClient = hf.NewHubClient("")
+		}
+		err := s.hfClient.CancelDownload(taskID)
+		if err != nil {
+			writeJSON(w, http.StatusNotFound, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "task_id": taskID, "status": "cancelled"})
+		return
+	}
+	http.Error(w, "unknown download action", http.StatusNotFound)
+}
+
+func (s *Server) handleCustomAgents(w http.ResponseWriter, r *http.Request) {
+	if s.customAgents == nil {
+		s.customAgents = agents.NewCustomAgentRegistry()
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":     true,
+			"agents": s.customAgents.List(),
+		})
+	case http.MethodPost:
+		var manifest agents.CustomAgentManifest
+		if err := json.NewDecoder(r.Body).Decode(&manifest); err != nil {
+			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		registered := s.customAgents.Register(manifest)
+		s.ledger.AppendEvent("global", "custom_agent_registered", map[string]any{
+			"agent_id": registered.ID,
+			"name":     registered.Name,
+			"role":     registered.Role,
+		})
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":    true,
+			"agent": registered,
+		})
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+func (s *Server) handleCustomAgentByID(w http.ResponseWriter, r *http.Request) {
+	if s.customAgents == nil {
+		s.customAgents = agents.NewCustomAgentRegistry()
+	}
+
+	id := strings.TrimPrefix(r.URL.Path, "/api/agents/custom/")
+	if id == "" {
+		http.Error(w, "missing agent id", http.StatusBadRequest)
+		return
+	}
+
+	if r.Method == http.MethodDelete {
+		err := s.customAgents.Delete(id)
+		if err != nil {
+			writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
+			return
+		}
+		s.ledger.AppendEvent("global", "custom_agent_deleted", map[string]any{
+			"agent_id": id,
+		})
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "agent_id": id})
+		return
+	}
+
+	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+}
+
+func (s *Server) handleMeshRoute(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req agents.MultimodalPayload
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	airGapped := false
+	if s.llmSettings != nil {
+		airGapped = s.llmSettings.AirGapped
+	}
+
+	decision := agents.RouteMultimodal(req, airGapped)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":       true,
+		"decision": decision,
+	})
+}
