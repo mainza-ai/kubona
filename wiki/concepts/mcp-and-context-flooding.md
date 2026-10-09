@@ -2,7 +2,7 @@
 type: concept
 name: MCP & Context Flooding
 date: 2026-08-16
-updated: 2026-09-27
+updated: 2026-10-09
 tags: [mcp, agent-integration]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-agent-protocol-landscape-2026]
 status: adopted
@@ -51,6 +51,23 @@ Four **federated, scoped** servers — compiler, execution, cost-governance, eva
 mounted behind a unified gateway. Per [[protocol-strategy]], the servers are thin adapters
 delegating to Kubona's protocol-neutral Capability Core; capability functions accept and return
 native Python data structures uncoupled from MCP SDK types.
+
+## Target revision & extension policy (Q-29, closed 2026-10-09)
+
+- **Target: MCP spec 2026-07-28.** Verified consequences already in the tree: protocol-level
+  sessions/`Mcp-Session-Id` removed from core (handles pass as tool arguments), Tasks out of
+  core into `io.modelcontextprotocol/tasks`, Roots/Sampling/Logging deprecated. The venv
+  already runs SDK 2.3.0, so the "2.0.0 vs 2.3.0" fork is moot (deltas verified against the
+  5 stdio servers + Streamable HTTP gateway).
+- **Tasks extension: opportunistic, never mandatory (progressive enhancement).** Every flow
+  must work on request/response + polling — true today (console polls on 3.5s/1s cadences,
+  Go serves a tested SSE stream at `/api/events/stream`). `tasks/get` may be adopted for
+  long jobs; MRTR formalizes approvals without held connections (fits the mandate gate).
+  REST polling is the normative console transport; the `useTelemetry` SSE hook is staged
+  for fleet-radar only, pending load measurement (`platform/console/src/lib/useTelemetry.ts`).
+- **A2A adapter ships first** (ledger-bound delegation already on the jobs rail);
+  MCP tasks-extension second. Enforcement lives in the Go core rail, never in adapters
+  (contract-tested: unmapped capabilities refuse, underspecified physics refuses).
 
 ### Independent validation of "MCP for quantum"
 

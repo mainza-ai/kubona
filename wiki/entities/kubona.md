@@ -2,7 +2,7 @@
 type: entity
 name: Kubona
 date: 2026-08-16
-updated: 2026-09-29
+updated: 2026-10-09
 tags: [kubona, platform]
 sources: [source-gap-analysis-plan]
 status: open-question
@@ -37,7 +37,7 @@ reproducible results (see [[science-discovery]]) — unifying [[qiskit]], [[penn
 > "public when tests pass": the trigger is **direction legible enough to onboard strangers**,
 > which the blueprint does not yet have (1 `settled` page against 24 `adopted`). The Apache-2.0
 > commitment stands; its timing follows the condition above. Residual hygiene work before any
-> flip (pushed `dev-docs/` + `.obsidian/` history) is tracked as [[questions]] Q-27; see
+> flip (private-remote, never-public `dev-docs/` + `.obsidian/` history) is tracked as [[questions]] Q-27; see
 > [[implementation-gaps]] and [[risks]].
 
 - Closed platforms ([[qbraid]], [[strangeworks]]) are design references and *optional,

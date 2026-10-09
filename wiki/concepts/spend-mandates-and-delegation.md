@@ -2,7 +2,7 @@
 type: concept
 name: Spend Mandates & Inter-Agent Delegation
 date: 2026-10-03
-updated: 2026-10-04
+updated: 2026-10-09
 tags: [governance, ap2, a2a, security, delegation, mandates, trust-boundary]
 sources: [source-agent-protocol-landscape-2026, source-gap-analysis-plan]
 status: adopted
@@ -41,5 +41,25 @@ exposing internal tool credentials violates the principle of least privilege. Un
 - Tasks are delegated asynchronously using formal state transitions (`submitted` → `working` → `input-required` → `completed`).
 - **Autonomy Inheritance:** A child agent does not inherit the parent's spend ceiling; it receives
   an explicitly bounded sub-mandate that cannot exceed the parent's authorized budget.
+
+## Delegation chain rules (Q-12, closed 2026-10-09)
+
+Budget was already bounded (above); the remaining semantics are now decided and implemented
+(`platform/core/pkg/agents/a2a.go`, `platform/core/pkg/jobs/jobs.go`):
+
+1. **Scope narrowing only.** A child's scopes must be a subset of its parent's scopes
+   (server-resolved from the stored parent task, never client-claimed). Widening refuses.
+   Root delegations start with the collective's advertised capabilities.
+2. **Depth cap 2.** Root = depth 0, child = 1, grandchild = 2; deeper chains refuse.
+   Chains, not just edges, are bounded.
+3. **Revocation propagates.** `RevokeTask` settles queued/running tasks as revoked (completed
+   history is immutable); children of revoked/failed parents cannot be created; in-flight runs
+   fence on the flag. Tenant autonomy revocation (`POST /api/tenants/revoke`) additionally
+   aborts every unsettled job in the tenant's sessions (`CancelTenantJobs`) and L0 tenants
+   refuse all new dispatch (checked live in `runTask`, `handleJobs`, `handleChatLaunch` —
+   no cached grants).
+4. **Tenant attribution.** Delegated execution runs in a per-tenant `a2a-delegation-<tenant>`
+   session derived from the parent mandate's tenant, so spend and autonomy resolve against
+   the delegating lab — never a shared pseudo-session.
 
 Related: [[cost-governance]] · [[protocol-strategy]] · [[user-identity-and-profiles]] · [[workflows-and-agent-authoring]]

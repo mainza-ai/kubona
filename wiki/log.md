@@ -1025,3 +1025,96 @@ skipped is the exact failure this incident is about:
 
 
 
+
+## [2026-10-09] correction | Private-remote history wording — repo never public
+  Operator stated the repo has never been made public (private `origin`, branches `main`/`develop` only).
+  Qualified every "pushed history" claim so no reader can infer public exposure: AGENTS.md repo-status +
+  hygiene notes, Q-27 row, overview posture, kubona §Posture, risks history row now read
+  "private-remote history (never public)". Verified: `dev-docs/`+`.obsidian/` residue is in commits
+  `ab4d831`→`2650fe6` on the private remote only; no external clones exist, so Q-27 rewrite options
+  cost at most a collaborator re-clone. Pre-commit guard + secrets posture unchanged.
+
+## [2026-10-09] implementation | Production punch-list execution (D-01–D-08 + tribunal honesty)
+  Closed every code item from the forensic audit's defect register, no simplifications:
+  fail-closed bridge envelope (Krylov/mitigation 503 + labeled cached anchor, `server.go`);
+  reviewer key from `KUBONA_REVIEWER_PRIVKEY_HEX` with 403 refusal otherwise; queued async A2A
+  with ledger-bound executor (`task_executor.go`), sub-mandate cap + tamper refusal, race-safe
+  status copies; jobs runner gains krylov_solve/mitigate cases, nil-bridge guard, session abort
+  with mid-flight fencing; real HF downloads (streamed bytes, SHA, .part+rename, traversal
+  rejection, 404 honesty) replacing synthetic chunks; settlement returns explicit local-only
+  `Settlement{simulated:true}`; `/api/ledger/append` (allowlisted, server-signed receipts,
+  chaining-tested) + `/api/supervisor/abort` wired to console (receipt UI, abort receipts);
+  bridge mock fallback removed; tribunal deliberate endpoint reworked to attested-evidence
+  quorum (fixed-weight denominator, fail-closed defaults, mode-labeled prover rationale);
+  QIR summaries labeled by backend (`FallbackEstimate`, real qubit counts); MW heuristic
+  renamed to `heuristic_entanglement_prior`. Tests: new jobs/watchdog suites, A2A async +
+  sub-mandate suite, HF real-bytes/traversal suite, ledger-chain + abort suites, bilateral
+  TS/Go mandate vector (noble bytes verify under crypto/ed25519), console vitest (4/4).
+  Gates: go 24 pkgs ok · pytest 213 passed/2 skipped · console build + vitest green · lint clean.
+  Not committed (operator to review). Still open by design: tenancy/autonomy/MCP-target/Core-
+  contract decisions (Q-10–13, Q-28, Q-29), pre-QPU gate orchestrator, IFC 3-seam wiring,
+  third-party review, Q-27 history choice, public flip.
+
+## [2026-10-09] decision | Operator rulings: tenant := lab, local keypairs (IdP to P4), filter-repo for Q-27, review scope fixed
+  Deep-dive deliberation locked four forks: tenancy unit is the lab (billing/credential/ceiling
+  boundary, admin = operator Ed25519 key); auth stays local-keypair (WebCrypto/reviewer-key
+  pattern extended, OAuth/OIDC deferred to Phase 4 to protect the air-gap default); Q-27 history
+  choice is filter-repo rewrite (secret-free residue, no external clones); third-party review
+  scope fixed now (PQC/authz/ledger/sandbox + IdP wiring), reviewer model chosen after Phase 2.
+
+## [2026-10-09] question | Q-10 — Autonomy ladder L0-L3, default L1, live enforcement + sealed grants
+## [2026-10-09] question | Q-12 — Delegation chain: narrowing scopes, depth cap 2, revocation propagation
+## [2026-10-09] question | Q-13 — Tenant := lab, admin = operator key, membership Phase-4
+## [2026-10-09] question | Q-29 — MCP spec 2026-07-28 target, tasks-extension opportunistic, polling normative
+## [2026-10-09] question | Q-30 — Vendor MCP posture: encapsulate as downstream plugins, never raw
+
+## [2026-10-09] implementation | Governance/admission/confidentiality/publication execution (Phases 2-4)
+  Tenants package (record, L0-L3 ladder, admin envelopes with TTL + params binding, ceilings,
+  grant/revoke events); tenant_id through sessions/ledger_events/memory with strict isolation;
+  session-tenant conflation removed from mandate clamps (tenant ceilings enforced); PQC
+  expectations self-bound. Delegation: scope-subset, depth-2 cap, RevokeTask + RPC, tenant
+  abort cascade (CancelTenantJobs), L0 refusal at HTTP/A2A dispatch, per-tenant delegation
+  sessions. Sim-mode mandate bypass removed (hard refusal). Admission gate in SubmitJob
+  (autonomy + QPU mandate_ref receipts + input-label confinement) + campaign anchor-first
+  reorder + mock-source default flipped to arxiv. IFC: conf_label column + join codec +
+  export gate + Python ledger labels with tamper-bound hashes + query pre-filter.
+  Manuscript: evidence-driven review (REJECT on sorryAx, static capped, wiki-exact ACCEPT),
+  NaCl sign-off, staged Zenodo deposits; ResultsStudio UNVERIFIED-draft gating, DOI removed.
+  Providers: attestation schema + canary qubit-count verification. A2A residue wired
+  (harness + QIR executors with receipts). Console vitest bilateral mandate vector.
+  forensic-audit-2026 annotated for stale paths. Not committed (operator to review).
+
+## [2026-10-09] question | Q-11 — Burden-scaled approval packets via MRTR retry + console card
+## [2026-10-09] question | Q-28 — No namespace move; Core contract enforced by fitness tests
+## [2026-10-09] implementation | UCAN grants, MRTR approvals, fitness functions (frontier round)
+  Cross-lab UCAN 1.0 grants (pkg/grants: mint/attenuate/verify over sealed DAG-CBOR,
+  command+meta narrowing, ledger CID revocation registry, did:key from mandate keys);
+  admission honors grant chains (QPU scope, budget vs granting ceiling, read-scope input
+  labels); /api/grants/register|revoke (admin-signed revocation); kubonad grants
+  mint|attenuate|verify|did CLI e2e-verified (CIDs verify). Browser minting deliberately
+  absent: @ucans/ucans is UCAN 0.x JWT, wire-incompatible with the 1.0 verifier, and
+  operator keys belong in key files, not browsers. MRTR approval retry in the Python
+  gateway (form-mode elicitation, HMAC state, single-use nonces, 6 tests) + ApprovalPacketCard
+  wired into AutonomyCockpit with pure buildApprovalPacketFromCampaign (8 vitest).
+  Architectural fitness tests lock Q-28 both tiers. Not committed (operator to review).
+
+## [2026-10-09] fix | Brokenness sweep: honesty fallbacks, lint zero, hermetic venv, component tests
+  Found and fixed, verified by gates (no new features):
+  - Console invented-constant fallbacks removed (same class as ResultsStudio): `?? 0.47`
+    discrepancy in CopilotDrawer/ObservatoryCockpit/EpistemicManifold and `?? 12.4` in the
+    Exploring branch now render UNVERIFIED; anchor-method fallback claim removed; empty flight
+    recorder shows one UNVERIFIED placeholder instead of curated fiction (invented metrics
+    0.1240/12.4 etc. deleted); header loop/event counts no longer default to 4/18; dead QIR
+    sample `gates` data deleted; "Simulate step" comment corrected to playback.
+  - ESLint 81 warnings -> 0 (unused imports removed mechanically, dead props/state removed,
+    campaign prop genuinely used, mount effect made exhaustive-deps-clean with once-guard).
+  - Vitest React dual-instance diagnosed (vite-node ESM/CJS split under pnpm symlinks;
+    react-dom externalizes where RTR shares the component graph): component tests rewritten
+    on react-test-renderer + act (12/12 green); pure packet-builder unit tests added.
+  - Pytest logfire/opentelemetry warning root-caused to stray conda.pth leaking 1691 system
+    packages into the venv (logfire unused by any code): conda.pth removed (backup in /tmp),
+    venv hermetic; pynacl installed + pinned in pyproject (real dep of manuscript sign-off);
+    stale `-p no:logfire` pytest flag removed. Suite: 230 passed, 3 honest optional-dep skips,
+    zero warnings.
+  - Go: gofmt clean on all touched files (pre-existing style debt elsewhere untouched);
+    go vet clean. No TODO/FIXME in non-test code; bridge compiles clean.

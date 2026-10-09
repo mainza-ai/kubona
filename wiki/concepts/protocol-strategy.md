@@ -2,7 +2,7 @@
 type: concept
 name: Protocol Strategy & Capability Core Decoupling
 date: 2026-10-03
-updated: 2026-10-04
+updated: 2026-10-09
 tags: [protocols, mcp, a2a, architecture, capability-core, agi-robustness]
 sources: [source-agent-protocol-landscape-2026, source-architecture-paper]
 status: adopted
@@ -66,3 +66,23 @@ As agent reasoning capabilities advance:
    Core's budget rails before jobs hit physical QPUs.
 
 Related: [[mcp-and-context-flooding]] · [[spend-mandates-and-delegation]] · [[cost-governance]] · [[integration-topology-and-licence-discipline]]
+
+## Contract enforcement (Q-28 closed 2026-10-09: no namespace move)
+
+Coupling measured, not asserted: the knowledge-graph call clusters separate Go enforcement
+(ledger/tenants/jobs, API handlers, A2A, memory) from edges, and zero files under
+`circuits/anchors/epistemics/science/canary/providers` import MCP — coupling is
+one-directional (edge → core), which is the ports-and-adapters shape. Verdict: keep
+`KubonaGateway`/`Principal` where they are; moving them churns imports for zero seam change.
+
+Instead the contract is mechanical — architectural fitness functions in CI:
+
+- Go (`platform/core/pkg/architecture_test.go`): core packages
+  (ledger/jobs/triage/mandates/epistemics/fidelity/ifc/qec/session/tenants/watchdog/cost/
+  memory/qir/sandbox/vault/metasearch/autoresearch/llm/supervisor) must not import
+  `pkg/api|agents|mcp|hf` (parsed with go/parser, no toolchain needed).
+- Python (`platform/tests/test_architecture.py`): compute packages must not import
+  `kubona.mcp`/MCP-SDK modules (parsed with ast).
+- Direction rule: adapters may call core; core never imports adapters. Enforcement
+  (Verify/budget/lattice/admission) lives in the core rail — asserted per-subsystem by
+  the refusal tests, not duplicated in adapters.
