@@ -67,7 +67,7 @@ export function FlightRecorder({ loops = [], events = [], campaign }: FlightReco
 
         const thetaStr = t.theta && t.theta.length > 0
           ? t.theta.map((v) => v.toFixed(3)).join(', ')
-          : '0.125, 0.430';
+          : 'not recorded';
 
         const codeDiff = isBaseline
           ? `+ # Initial Ansatz: ${ansatzFamily}\n+ theta = [${thetaStr}]\n+ E_init = ${t.energy.toFixed(5)} Ha`
@@ -87,59 +87,37 @@ export function FlightRecorder({ loops = [], events = [], campaign }: FlightReco
       });
     }
 
-    // Fresh campaign with no optimization steps executed yet
+    // Fresh campaign with no optimization steps executed yet: state what
+    // exists (the anchor, if computed) and nothing else.
     if (trajectory !== undefined && trajectory.length === 0) {
+      const anchorKnown = fciEnergy != null;
       return [
         {
           step: 0,
           title: `Initial ${targetSystem} Hypothesis`,
           verdict: 'baseline',
-          summary: `Campaign initialized for ${targetSystem}. Classical anchor established. Awaiting first variational trial or Research Tribunal deliberation.`,
+          summary: anchorKnown
+            ? `Campaign initialized for ${targetSystem}. Classical anchor established at ${fciEnergy.toFixed(5)} Ha. Awaiting first variational trial or Research Tribunal deliberation.`
+            : `Campaign initialized for ${targetSystem}. No anchor computed and no trials run yet — nothing measured.`,
           metric: 0.0,
-          deltaMHa: Math.abs((campaign?.classical_anchor?.vqe_expectation_energy ?? -1.11668) - (fciEnergy ?? -1.13727)) * 1000,
-          codeDiff: `+ # Target Molecule: ${targetSystem}\n+ # Classical FCI Anchor: ${(fciEnergy ?? -1.13727).toFixed(5)} Ha\n+ # Status: Initial Hypothesis Formulated (Awaiting First Step)`,
+          deltaMHa: -1,
+          codeDiff: `+ # Target Molecule: ${targetSystem}\n+ # Classical FCI Anchor: ${anchorKnown ? fciEnergy.toFixed(5) + ' Ha' : 'UNVERIFIED'}\n+ # Status: Initial Hypothesis Formulated (Awaiting First Step)`,
         },
       ];
     }
 
-    // Default curated narrative milestones if no campaign object exists
-    const fci = fciEnergy ?? -1.13727;
+    // No campaign and no trajectory: a single explicitly UNVERIFIED
+    // placeholder. Curated fiction (invented energies, metrics, verdicts)
+    // is forbidden here — an empty recorder states that it is empty.
     return [
       {
-        step: 1,
-        title: `Baseline ${targetSystem} Hypothesis Formed`,
+        step: 0,
+        title: 'No telemetry recorded',
         verdict: 'baseline',
-        summary: `Initial parameterized ansatz synthesized with minimal depth for ${targetSystem}. Baseline energy calculated via PySCF classical anchor.`,
-        metric: 0.1240,
-        deltaMHa: 12.4,
-        codeDiff: '+ qc.ry(theta[0], 0)\n+ qc.ry(theta[1], 1)\n+ qc.cx(0, 1)',
-      },
-      {
-        step: 2,
-        title: 'Entangler Mutation Discarded',
-        verdict: 'discard',
-        summary: 'Ansatz Scout added redundant entangler layer. Disconfirmation Officer detected vanishing cost gradients (barren plateau risk).',
-        metric: 0.1850,
-        deltaMHa: 18.5,
-        codeDiff: '+ qc.cx(1, 0) # Redundant entangler dropped\n- Cost gradient variance dropped below 1e-5',
-      },
-      {
-        step: 3,
-        title: 'Noise-Mitigated Calibration',
-        verdict: 'keep',
-        summary: 'Optimized rotation angles near zero initialization. Clifford canary probe confirmed fidelity on simulated hardware backend.',
-        metric: 0.0410,
-        deltaMHa: 4.1,
-        codeDiff: '  # Rotational parameters recalibrated\n- theta = [0.85, 1.20]\n+ theta = [0.12, 0.35]',
-      },
-      {
-        step: 4,
-        title: 'Breakthrough: Chemical Accuracy Achieved',
-        verdict: 'keep',
-        summary: `Energy converged to ${fci.toFixed(5)} Ha. Discrepancy against exact FCI is within the 1.6 mHa chemical accuracy threshold.`,
-        metric: 0.0047,
-        deltaMHa: 0.47,
-        codeDiff: `+ # Optimal variational ground state reached\n+ Final energy: ${fci.toFixed(5)} Ha (Delta: 0.47 mHa)`,
+        summary: 'No campaign is attached: no trials ran, no anchor computed, no verdicts rendered. Run a campaign to populate this recorder.',
+        metric: 0.0,
+        deltaMHa: -1,
+        codeDiff: '+ # Status: UNVERIFIED — awaiting first campaign',
       },
     ];
   }, [trajectory, fciEnergy, chemLimit, targetSystem, ansatzFamily]);
@@ -167,7 +145,7 @@ export function FlightRecorder({ loops = [], events = [], campaign }: FlightReco
   const handleStepAutonomous = async () => {
     setIsStepping(true);
     try {
-      // Simulate step progress cleanly
+      // Advance narrative playback cleanly (scrubs existing milestones only)
       await new Promise((r) => setTimeout(r, 1200));
       if (currentStepIndex < milestones.length - 1) {
         setCurrentStepIndex((prev) => prev + 1);
@@ -190,7 +168,7 @@ export function FlightRecorder({ loops = [], events = [], campaign }: FlightReco
               Discovery Flight Recorder · {campaign?.target_system || 'H₂'}
             </h2>
             <p className="text-xs text-slate-300 mt-0.5">
-              Narrative playback of autonomous hypothesis evolution ({loops.length || 4} loops, {events.length || 18} ledger events)
+              Narrative playback of autonomous hypothesis evolution ({loops.length} loops, {events.length} ledger events)
             </p>
           </div>
         </div>
@@ -236,9 +214,13 @@ export function FlightRecorder({ loops = [], events = [], campaign }: FlightReco
           {/* Key physical metric readout */}
           <div className="flex items-center justify-between pt-3 border-t border-white/[0.08] text-xs font-mono">
             <span className="text-slate-300 font-medium">Chemical Discrepancy:</span>
-            <span className={`font-bold ${activeMilestone.deltaMHa <= 1.6 ? 'text-emerald-400' : 'text-amber-400'}`}>
-              Δ = {activeMilestone.deltaMHa.toFixed(2)} mHa {activeMilestone.deltaMHa <= 1.6 ? '(Accuracy Met)' : '(Exploring)'}
-            </span>
+            {activeMilestone.deltaMHa < 0 ? (
+              <span className="font-bold text-slate-400">Δ = UNVERIFIED (no measurement)</span>
+            ) : (
+              <span className={`font-bold ${activeMilestone.deltaMHa <= 1.6 ? 'text-emerald-400' : 'text-amber-400'}`}>
+                Δ = {activeMilestone.deltaMHa.toFixed(2)} mHa {activeMilestone.deltaMHa <= 1.6 ? '(Accuracy Met)' : '(Exploring)'}
+              </span>
+            )}
           </div>
 
           {/* Progressive Disclosure Code Diff */}

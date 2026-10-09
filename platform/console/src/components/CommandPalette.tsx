@@ -14,7 +14,7 @@ import {
   Plus,
   Zap,
   Info,
-  ShieldCheck,
+  
   Command,
   Atom,
 } from 'lucide-react';

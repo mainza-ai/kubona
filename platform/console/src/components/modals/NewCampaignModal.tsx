@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Sparkles, Atom, ShieldCheck, DollarSign, Check, HelpCircle } from 'lucide-react';
+import { X, Sparkles, Atom,  DollarSign, Check } from 'lucide-react';
 
 interface NewCampaignModalProps {
   isOpen: boolean;
