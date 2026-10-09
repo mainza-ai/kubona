@@ -3,7 +3,7 @@
 import grpc
 import warnings
 
-from proto import kubona_pb2 as proto_dot_kubona__pb2
+import kubona_pb2 as kubona__pb2
 
 GRPC_GENERATED_VERSION = '1.71.2'
 GRPC_VERSION = grpc.__version__
@@ -18,7 +18,7 @@ except ImportError:
 if _version_not_supported:
     raise RuntimeError(
         f'The grpc package installed is at version {GRPC_VERSION},'
-        + f' but the generated code in proto/kubona_pb2_grpc.py depends on'
+        + f' but the generated code in kubona_pb2_grpc.py depends on'
         + f' grpcio>={GRPC_GENERATED_VERSION}.'
         + f' Please upgrade your grpc module to grpcio>={GRPC_GENERATED_VERSION}'
         + f' or downgrade your generated code using grpcio-tools<={GRPC_VERSION}.'
@@ -37,28 +37,38 @@ class QuantumBridgeServiceStub(object):
         """
         self.ExecuteCircuit = channel.unary_unary(
                 '/kubona.QuantumBridgeService/ExecuteCircuit',
-                request_serializer=proto_dot_kubona__pb2.CircuitExecutionRequest.SerializeToString,
-                response_deserializer=proto_dot_kubona__pb2.CircuitExecutionResponse.FromString,
+                request_serializer=kubona__pb2.CircuitExecutionRequest.SerializeToString,
+                response_deserializer=kubona__pb2.CircuitExecutionResponse.FromString,
                 _registered_method=True)
         self.CutCircuit = channel.unary_unary(
                 '/kubona.QuantumBridgeService/CutCircuit',
-                request_serializer=proto_dot_kubona__pb2.CircuitCutRequest.SerializeToString,
-                response_deserializer=proto_dot_kubona__pb2.CircuitCutResponse.FromString,
+                request_serializer=kubona__pb2.CircuitCutRequest.SerializeToString,
+                response_deserializer=kubona__pb2.CircuitCutResponse.FromString,
                 _registered_method=True)
         self.ComputeClassicalAnchor = channel.unary_unary(
                 '/kubona.QuantumBridgeService/ComputeClassicalAnchor',
-                request_serializer=proto_dot_kubona__pb2.ClassicalAnchorRequest.SerializeToString,
-                response_deserializer=proto_dot_kubona__pb2.ClassicalAnchorResponse.FromString,
+                request_serializer=kubona__pb2.ClassicalAnchorRequest.SerializeToString,
+                response_deserializer=kubona__pb2.ClassicalAnchorResponse.FromString,
                 _registered_method=True)
         self.EvaluateWavefunction = channel.unary_unary(
                 '/kubona.QuantumBridgeService/EvaluateWavefunction',
-                request_serializer=proto_dot_kubona__pb2.ClaimEvaluationRequest.SerializeToString,
-                response_deserializer=proto_dot_kubona__pb2.ClaimEvaluationResponse.FromString,
+                request_serializer=kubona__pb2.ClaimEvaluationRequest.SerializeToString,
+                response_deserializer=kubona__pb2.ClaimEvaluationResponse.FromString,
                 _registered_method=True)
         self.GroundLiterature = channel.unary_unary(
                 '/kubona.QuantumBridgeService/GroundLiterature',
-                request_serializer=proto_dot_kubona__pb2.LiteratureGroundingRequest.SerializeToString,
-                response_deserializer=proto_dot_kubona__pb2.LiteratureGroundingResponse.FromString,
+                request_serializer=kubona__pb2.LiteratureGroundingRequest.SerializeToString,
+                response_deserializer=kubona__pb2.LiteratureGroundingResponse.FromString,
+                _registered_method=True)
+        self.ExecuteQuantumKrylov = channel.unary_unary(
+                '/kubona.QuantumBridgeService/ExecuteQuantumKrylov',
+                request_serializer=kubona__pb2.QuantumKrylovRequest.SerializeToString,
+                response_deserializer=kubona__pb2.QuantumKrylovResponse.FromString,
+                _registered_method=True)
+        self.MitigateCircuit = channel.unary_unary(
+                '/kubona.QuantumBridgeService/MitigateCircuit',
+                request_serializer=kubona__pb2.MitigationRequest.SerializeToString,
+                response_deserializer=kubona__pb2.MitigationResponse.FromString,
                 _registered_method=True)
 
 
@@ -96,33 +106,55 @@ class QuantumBridgeServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def ExecuteQuantumKrylov(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def MitigateCircuit(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_QuantumBridgeServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
             'ExecuteCircuit': grpc.unary_unary_rpc_method_handler(
                     servicer.ExecuteCircuit,
-                    request_deserializer=proto_dot_kubona__pb2.CircuitExecutionRequest.FromString,
-                    response_serializer=proto_dot_kubona__pb2.CircuitExecutionResponse.SerializeToString,
+                    request_deserializer=kubona__pb2.CircuitExecutionRequest.FromString,
+                    response_serializer=kubona__pb2.CircuitExecutionResponse.SerializeToString,
             ),
             'CutCircuit': grpc.unary_unary_rpc_method_handler(
                     servicer.CutCircuit,
-                    request_deserializer=proto_dot_kubona__pb2.CircuitCutRequest.FromString,
-                    response_serializer=proto_dot_kubona__pb2.CircuitCutResponse.SerializeToString,
+                    request_deserializer=kubona__pb2.CircuitCutRequest.FromString,
+                    response_serializer=kubona__pb2.CircuitCutResponse.SerializeToString,
             ),
             'ComputeClassicalAnchor': grpc.unary_unary_rpc_method_handler(
                     servicer.ComputeClassicalAnchor,
-                    request_deserializer=proto_dot_kubona__pb2.ClassicalAnchorRequest.FromString,
-                    response_serializer=proto_dot_kubona__pb2.ClassicalAnchorResponse.SerializeToString,
+                    request_deserializer=kubona__pb2.ClassicalAnchorRequest.FromString,
+                    response_serializer=kubona__pb2.ClassicalAnchorResponse.SerializeToString,
             ),
             'EvaluateWavefunction': grpc.unary_unary_rpc_method_handler(
                     servicer.EvaluateWavefunction,
-                    request_deserializer=proto_dot_kubona__pb2.ClaimEvaluationRequest.FromString,
-                    response_serializer=proto_dot_kubona__pb2.ClaimEvaluationResponse.SerializeToString,
+                    request_deserializer=kubona__pb2.ClaimEvaluationRequest.FromString,
+                    response_serializer=kubona__pb2.ClaimEvaluationResponse.SerializeToString,
             ),
             'GroundLiterature': grpc.unary_unary_rpc_method_handler(
                     servicer.GroundLiterature,
-                    request_deserializer=proto_dot_kubona__pb2.LiteratureGroundingRequest.FromString,
-                    response_serializer=proto_dot_kubona__pb2.LiteratureGroundingResponse.SerializeToString,
+                    request_deserializer=kubona__pb2.LiteratureGroundingRequest.FromString,
+                    response_serializer=kubona__pb2.LiteratureGroundingResponse.SerializeToString,
+            ),
+            'ExecuteQuantumKrylov': grpc.unary_unary_rpc_method_handler(
+                    servicer.ExecuteQuantumKrylov,
+                    request_deserializer=kubona__pb2.QuantumKrylovRequest.FromString,
+                    response_serializer=kubona__pb2.QuantumKrylovResponse.SerializeToString,
+            ),
+            'MitigateCircuit': grpc.unary_unary_rpc_method_handler(
+                    servicer.MitigateCircuit,
+                    request_deserializer=kubona__pb2.MitigationRequest.FromString,
+                    response_serializer=kubona__pb2.MitigationResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -151,8 +183,8 @@ class QuantumBridgeService(object):
             request,
             target,
             '/kubona.QuantumBridgeService/ExecuteCircuit',
-            proto_dot_kubona__pb2.CircuitExecutionRequest.SerializeToString,
-            proto_dot_kubona__pb2.CircuitExecutionResponse.FromString,
+            kubona__pb2.CircuitExecutionRequest.SerializeToString,
+            kubona__pb2.CircuitExecutionResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -178,8 +210,8 @@ class QuantumBridgeService(object):
             request,
             target,
             '/kubona.QuantumBridgeService/CutCircuit',
-            proto_dot_kubona__pb2.CircuitCutRequest.SerializeToString,
-            proto_dot_kubona__pb2.CircuitCutResponse.FromString,
+            kubona__pb2.CircuitCutRequest.SerializeToString,
+            kubona__pb2.CircuitCutResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -205,8 +237,8 @@ class QuantumBridgeService(object):
             request,
             target,
             '/kubona.QuantumBridgeService/ComputeClassicalAnchor',
-            proto_dot_kubona__pb2.ClassicalAnchorRequest.SerializeToString,
-            proto_dot_kubona__pb2.ClassicalAnchorResponse.FromString,
+            kubona__pb2.ClassicalAnchorRequest.SerializeToString,
+            kubona__pb2.ClassicalAnchorResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -232,8 +264,8 @@ class QuantumBridgeService(object):
             request,
             target,
             '/kubona.QuantumBridgeService/EvaluateWavefunction',
-            proto_dot_kubona__pb2.ClaimEvaluationRequest.SerializeToString,
-            proto_dot_kubona__pb2.ClaimEvaluationResponse.FromString,
+            kubona__pb2.ClaimEvaluationRequest.SerializeToString,
+            kubona__pb2.ClaimEvaluationResponse.FromString,
             options,
             channel_credentials,
             insecure,
@@ -259,8 +291,62 @@ class QuantumBridgeService(object):
             request,
             target,
             '/kubona.QuantumBridgeService/GroundLiterature',
-            proto_dot_kubona__pb2.LiteratureGroundingRequest.SerializeToString,
-            proto_dot_kubona__pb2.LiteratureGroundingResponse.FromString,
+            kubona__pb2.LiteratureGroundingRequest.SerializeToString,
+            kubona__pb2.LiteratureGroundingResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def ExecuteQuantumKrylov(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/kubona.QuantumBridgeService/ExecuteQuantumKrylov',
+            kubona__pb2.QuantumKrylovRequest.SerializeToString,
+            kubona__pb2.QuantumKrylovResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def MitigateCircuit(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/kubona.QuantumBridgeService/MitigateCircuit',
+            kubona__pb2.MitigationRequest.SerializeToString,
+            kubona__pb2.MitigationResponse.FromString,
             options,
             channel_credentials,
             insecure,

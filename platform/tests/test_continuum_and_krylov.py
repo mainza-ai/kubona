@@ -171,3 +171,106 @@ def test_tiered_storage_and_hipporag():
     strats = storage.query_strategies("quantum_spin_glass")
     assert len(strats) == 1
     assert strats[0]["heuristic_name"] == "Mezard_Parisi_Diluted_Cavity"
+
+
+def test_fisher_rao_credibility_manifold_and_geodesics():
+    from kubona.epistemics.curvature import FisherRaoCredibilityManifold
+
+    manifold = FisherRaoCredibilityManifold(dimension=2)
+    theta = np.array([1.0, 0.5])
+    
+    # 1. Metric tensor
+    g = manifold.compute_metric_tensor(theta)
+    assert g.shape == (2, 2)
+    assert np.all(np.linalg.eigvals(g) > 0)  # Positive definite
+
+    # 2. Christoffel symbols
+    gamma = manifold.compute_christoffel_symbols(theta)
+    assert gamma.shape == (2, 2, 2)
+    # Torsion-free (symmetric in lower indices)
+    assert np.allclose(gamma[:, 0, 1], gamma[:, 1, 0], atol=1e-5)
+
+    # 3. Ricci curvature
+    ricci_tensor, ricci_scalar = manifold.compute_ricci_curvature(theta)
+    assert ricci_tensor.shape == (2, 2)
+    assert isinstance(ricci_scalar, float)
+
+    # 4. Geodesic step & trajectory
+    vel = np.array([0.1, -0.05])
+    delta = np.array([0.02, 0.01])
+    theta_next, vel_next, r = manifold.geodesic_step(theta, vel, dtau=0.05, delta_perturbation=delta)
+    assert theta_next.shape == (2,)
+    assert vel_next.shape == (2,)
+
+    traj = manifold.integrate_geodesic(theta, vel, steps=5, dtau=0.02, delta_perturbation=delta)
+    assert len(traj.points) == 6
+    assert len(traj.curvatures) == 5
+    d = traj.to_dict()
+    assert d["trajectory_steps"] == 6
+
+
+def test_orthogonal_qksd_solver():
+    from kubona.circuits.krylov import OrthogonalQKSDSolver, QKSDSolver
+
+    # 4x4 Heisenberg dimer Hamiltonian
+    # H = J (X1 X2 + Y1 Y2 + Z1 Z2)
+    s_x = np.array([[0, 1], [1, 0]], dtype=complex)
+    s_y = np.array([[0, -1j], [1j, 0]], dtype=complex)
+    s_z = np.array([[1, 0], [0, -1]], dtype=complex)
+    H = np.kron(s_x, s_x) + np.kron(s_y, s_y) + np.kron(s_z, s_z)
+
+    # True exact ground energy is -3.0 (singlet state)
+    exact_ground = float(np.min(np.linalg.eigvalsh(H)))
+    assert abs(exact_ground - (-3.0)) < 1e-6
+
+    # Initial state with non-zero overlap on singlet (|01> - |10>)
+    psi_0 = np.array([0.2, 0.8, 0.1, 0.3], dtype=complex)
+    psi_0 = psi_0 / np.linalg.norm(psi_0)
+
+    # Test standard QKSD
+    res_qksd = QKSDSolver.solve(H, initial_state=psi_0, subspace_dim=4, time_step=0.2)
+    assert abs(res_qksd.ground_state_energy - exact_ground) < 0.2
+
+    # Test Orthogonal QKSD (OQKD)
+    res_oqkd = OrthogonalQKSDSolver.solve(H, initial_state=psi_0, subspace_dim=4)
+    assert abs(res_oqkd.ground_state_energy - exact_ground) < 1e-4
+    assert res_oqkd.condition_number == 1.0  # Orthonormal basis
+    assert len(res_oqkd.eigenvalues) <= 4
+
+    # Also test via QKSDSolver wrapper
+    res_wrap = QKSDSolver.solve_orthogonal_qksd(H, initial_state=psi_0, subspace_dim=4)
+    assert abs(res_wrap.ground_state_energy - exact_ground) < 1e-4
+
+
+def test_classical_shadow_matrix_reconstruction_and_bounds():
+    # 2-qubit Bell state |Phi+> = (|00> + |11>) / sqrt(2)
+    bell = np.array([1.0, 0, 0, 1.0], dtype=complex) / np.sqrt(2.0)
+    snapshots = ClassicalShadowEngine.sample_shadows_from_state(
+        bell, num_qubits=2, num_snapshots=800, rng=np.random.default_rng(42)
+    )
+
+    # Reconstruct single snapshot matrix
+    rho_hat = ClassicalShadowEngine.reconstruct_snapshot_matrix(snapshots[0])
+    assert rho_hat.shape == (4, 4)
+    # Trace of unbiased inverted channel snapshot is 1
+    assert abs(np.trace(rho_hat) - 1.0) < 1e-5
+
+    # Estimate ZZ observable expectation (should be +1 for |Phi+>)
+    est_zz = ClassicalShadowEngine.estimate_observable_from_snapshots(snapshots, "ZZ", num_chunks=5)
+    assert abs(est_zz - 1.0) < 0.35
+
+    # Matrix observable estimation
+    obs_zz = np.kron(
+        np.array([[1, 0], [0, -1]], dtype=complex),
+        np.array([[1, 0], [0, -1]], dtype=complex),
+    )
+    est_matrix_zz = ClassicalShadowEngine.estimate_matrix_observable(snapshots, obs_zz, num_chunks=5)
+    assert abs(est_matrix_zz - 1.0) < 0.35
+
+    # Shadow norm and sample complexity
+    norm_2_local = ClassicalShadowEngine.compute_shadow_norm(pauli_weight=2)
+    assert norm_2_local == 9.0  # 3^2
+    n_samples = ClassicalShadowEngine.sample_complexity_bound(num_observables_m=100, epsilon=0.1)
+    assert n_samples > 0
+
+

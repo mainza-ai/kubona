@@ -42,11 +42,28 @@ def circuit_to_qasm(qc: QuantumCircuit) -> str:
 
 def circuit_from_qasm(qasm: str) -> QuantumCircuit:
     """Parses OpenQASM 2.0 string into a QuantumCircuit."""
+    qasm_str = qasm
+    if 'include "qelib1.inc";' not in qasm_str:
+        lines = qasm_str.splitlines()
+        norm_lines = []
+        inserted = False
+        for line in lines:
+            norm_lines.append(line)
+            if not inserted and line.strip().startswith("OPENQASM"):
+                norm_lines.append('include "qelib1.inc";')
+                inserted = True
+        if not inserted:
+            norm_lines.insert(0, 'include "qelib1.inc";')
+        qasm_str = "\n".join(norm_lines)
+
     try:
         from qiskit.qasm2 import loads
-        return loads(qasm)
+        return loads(qasm_str)
     except Exception:
-        return QuantumCircuit.from_qasm_str(qasm)
+        try:
+            return QuantumCircuit.from_qasm_str(qasm_str)
+        except Exception:
+            return QuantumCircuit.from_qasm_str(qasm)
 
 
 
