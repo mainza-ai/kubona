@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Radio, RefreshCw, BarChart2, ShieldCheck } from 'lucide-react';
+import { Radio, RefreshCw } from 'lucide-react';
 
 interface ShadowTomographyRadarWidgetProps {
   numQubits?: number;

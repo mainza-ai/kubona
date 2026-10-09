@@ -18,7 +18,7 @@ export function MathText({ math, text, block = false, className = '' }: MathText
           displayMode: block,
           throwOnError: false,
         });
-      } catch (e) {
+      } catch {
         return `<span class="text-red-400">${math}</span>`;
       }
     }

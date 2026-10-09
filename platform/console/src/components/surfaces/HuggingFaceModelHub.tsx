@@ -6,19 +6,19 @@ import {
   Download,
   Database,
   CheckCircle2,
-  AlertCircle,
-  HardDrive,
-  Cpu,
+  
+  
+  
   Layers,
-  Sparkles,
+  
   ExternalLink,
   X,
   RefreshCw,
-  Sliders,
+  
   ShieldCheck,
-  ChevronDown,
-  ChevronRight,
-  Eye,
+  
+  
+  
   FileCode,
 } from 'lucide-react';
 import {
@@ -28,7 +28,7 @@ import {
   listHFDownloads,
   cancelHFDownload,
 } from '@/lib/api';
-import { HFModelSummary, HFModelQuantization, HFDownloadTask } from '@/types';
+import { HFModelSummary,  HFDownloadTask } from '@/types';
 
 export function HuggingFaceModelHub() {
   const [query, setQuery] = useState('qwen2.5-coder');
@@ -62,11 +62,32 @@ export function HuggingFaceModelHub() {
   }, []);
 
   useEffect(() => {
-    performSearch('qwen2.5-coder', 'gguf');
-    refreshDownloads();
-    const interval = setInterval(refreshDownloads, 3000);
-    return () => clearInterval(interval);
-  }, [performSearch, refreshDownloads]);
+    let mounted = true;
+    searchHFModels('qwen2.5-coder', 'gguf', 16)
+      .then((results) => {
+        if (mounted) setModels(results);
+      })
+      .catch((err) => console.error('Failed to search Hugging Face:', err));
+
+    listHFDownloads()
+      .then((tasks) => {
+        if (mounted) setDownloads(tasks);
+      })
+      .catch((err) => console.error('Failed to refresh downloads:', err));
+
+    const interval = setInterval(() => {
+      listHFDownloads()
+        .then((tasks) => {
+          if (mounted) setDownloads(tasks);
+        })
+        .catch((err) => console.error('Failed to refresh downloads:', err));
+    }, 3000);
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
 
   const handleSelectModel = async (model: HFModelSummary) => {
     setSelectedModel(model);

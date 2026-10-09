@@ -565,6 +565,67 @@ export async function routeMultimodalPayload(
   }
 }
 
+// ==========================================
+// AP2 SPEND MANDATE CLIENT METHODS
+// ==========================================
+
+export interface SpendMandateSignRequest {
+  tenant_id: string;
+  job_hash: string;
+  max_budget_usd: number;
+  ttl_seconds?: number;
+}
+
+export interface SpendMandateSignResponse {
+  mandate: import('./mandates').SpendMandate;
+  public_key: string;
+  verified: boolean;
+}
+
+export interface SpendMandateVerifyResponse {
+  valid: boolean;
+  mandate?: import('./mandates').SpendMandate;
+  error?: string;
+  verified_at?: string;
+}
+
+export async function requestServerSignedMandate(
+  req: SpendMandateSignRequest
+): Promise<SpendMandateSignResponse | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/mandates/sign`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to request server signed mandate:', err);
+    return null;
+  }
+}
+
+export async function verifySpendMandate(
+  mandate: import('./mandates').SpendMandate
+): Promise<SpendMandateVerifyResponse> {
+  try {
+    const res = await fetch(`${API_BASE}/api/mandates/verify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(mandate),
+    });
+    if (!res.ok) {
+      return { valid: false, error: `HTTP ${res.status}: ${res.statusText}` };
+    }
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to verify spend mandate:', err);
+    return { valid: false, error: String(err) };
+  }
+}
+
+
 
 
 

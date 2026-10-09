@@ -20,12 +20,12 @@ import {
   CryptographicMandateCardWidget,
 } from '../widgets';
 
-export function GenerativeUIStudio() {
-  const [activeWidgetTab, setActiveWidgetTab] = useState<
-    'all' | 'molecule' | 'circuit' | 'lean4' | 'shadows' | 'manifold' | 'mandate'
-  >('all');
+type WidgetTab = 'all' | 'molecule' | 'circuit' | 'lean4' | 'shadows' | 'manifold' | 'mandate';
 
-  const tabs = [
+export function GenerativeUIStudio() {
+  const [activeWidgetTab, setActiveWidgetTab] = useState<WidgetTab>('all');
+
+  const tabs: { id: WidgetTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'all', label: 'All Widgets', icon: Sparkles },
     { id: 'molecule', label: '3D Active Space', icon: Atom },
     { id: 'circuit', label: 'Circuit QIR', icon: Cpu },
@@ -63,7 +63,7 @@ export function GenerativeUIStudio() {
             return (
               <button
                 key={t.id}
-                onClick={() => setActiveWidgetTab(t.id as any)}
+                onClick={() => setActiveWidgetTab(t.id)}
                 className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs transition ${
                   isSelected
                     ? 'bg-purple-600/30 border border-purple-500/50 text-white font-medium shadow'

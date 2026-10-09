@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Atom, Sliders, Eye, Layers, Sparkles } from 'lucide-react';
+import { Atom, Sliders } from 'lucide-react';
 
 interface MolecularActiveSpaceWidgetProps {
   moleculeName?: string;

@@ -1,8 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { KeyRound, ShieldCheck, Check, AlertOctagon, Sparkles, ChevronDown, ChevronUp, Lock } from 'lucide-react';
+import { KeyRound, ShieldCheck, AlertOctagon, Sparkles, ChevronDown, ChevronUp, Lock } from 'lucide-react';
 import { CampaignState, Session } from '@/types';
+import { createSignedSpendMandate } from '@/lib/mandates';
+import { verifySpendMandate } from '@/lib/api';
+import { ApprovalPacketCard } from '@/components/common/ApprovalPacketCard';
+import { buildApprovalPacketFromCampaign } from '@/lib/approvalPacket';
 
 interface AutonomyCockpitProps {
   campaign?: CampaignState | null;
@@ -17,15 +21,43 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
   const [budgetUSD, setBudgetUSD] = useState(session?.spend_limit_usd ?? 25.0);
   const [currentSpentUSD, setCurrentSpentUSD] = useState(session?.current_spend_usd ?? 1.42);
   const [sovereignAirGap, setSovereignAirGap] = useState(true);
-  const [isApproved, setIsApproved] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCryptoDetails, setShowCryptoDetails] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
-  const handleApprovePendingRun = () => {
-    setIsApproved(true);
-    setCurrentSpentUSD((prev) => prev + estimatedCost);
-    setActionMessage('Hardware execution approved. Dispatched to isolated sandbox container.');
-    setTimeout(() => setActionMessage(null), 4000);
+  const handleApprovePendingRun = async () => {
+    setIsSubmitting(true);
+    try {
+      // 1. Generate authentic AP2 Ed25519 SpendMandate
+      const mandate = createSignedSpendMandate({
+        tenantId: session?.id || 'tenant-default',
+        jobHash: 'vqe-' + (campaign?.session_id || Date.now().toString(16)),
+        maxBudgetUsd: estimatedCost,
+        ttlSeconds: 3600,
+      });
+
+      // 2. Submit to Go backend for verification and Merkle DAG ledger recording.
+      // Hard refusal: an invalid mandate halts here. There is no simulation
+      // bypass — proceeding on a failed verification would let unverified
+      // spend claims dispatch.
+      const verifyRes = await verifySpendMandate(mandate);
+
+      if (!verifyRes.valid) {
+        setActionMessage(`Mandate REJECTED by verifier (${verifyRes.error || 'invalid'}). Action halted fail-closed — nothing dispatched, nothing spent.`);
+        setTimeout(() => setActionMessage(null), 6000);
+        return;
+      }
+      setCurrentSpentUSD((prev) => prev + estimatedCost);
+      const sigPreview = mandate.signature_hex.slice(0, 16);
+      setActionMessage(`Mandate verified & recorded to DAG ledger (Sig: ${sigPreview}...). Dispatched to sandbox.`);
+      setTimeout(() => setActionMessage(null), 5000);
+    } catch (err) {
+      console.error('Failed to authorize run:', err);
+      setActionMessage('Failed to sign mandate envelope. Action halted fail-closed.');
+      setTimeout(() => setActionMessage(null), 4000);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleEmergencyStop = () => {
@@ -83,25 +115,29 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
             Ansatz Scout has prepared an optimized variational trial for {targetName}. Would you like to run 1,024 shots on the {recommendedBackend}?
           </p>
 
+          <ApprovalPacketCard
+            packet={buildApprovalPacketFromCampaign(
+              campaign ?? null,
+              session?.id || '',
+              estimatedCost,
+              budgetUSD,
+              currentSpentUSD
+            )}
+            isSubmitting={isSubmitting}
+            onApproveOnce={handleApprovePendingRun}
+            onApproveUpToMax={handleApprovePendingRun}
+            onDeny={(reason) => {
+              setActionMessage(`Run denied (${reason}). Halted fail-closed — nothing dispatched, nothing spent.`);
+              setTimeout(() => setActionMessage(null), 5000);
+            }}
+          />
           <div className="flex items-center space-x-3 pt-2">
-            <button
-              onClick={handleApprovePendingRun}
-              disabled={isApproved}
-              className={`flex-1 py-2.5 px-4 text-xs font-semibold rounded-xl flex items-center justify-center space-x-2 transition-all ${
-                isApproved
-                  ? 'bg-emerald-950/80 border border-emerald-800 text-emerald-300'
-                  : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg active:scale-[0.98]'
-              }`}
-            >
-              <Check className="w-4 h-4" />
-              <span>{isApproved ? 'Approved & Dispatched' : 'Approve Simulation Run'}</span>
-            </button>
             <button
               onClick={() => {
                 setActionMessage('Routed to offline NumPy local statevector simulator.');
                 setTimeout(() => setActionMessage(null), 3000);
               }}
-              className="py-2.5 px-4 bg-white/05 hover:bg-white/10 text-slate-300 text-xs font-medium rounded-xl transition-all"
+              className="flex-1 py-2.5 px-4 bg-white/05 hover:bg-white/10 text-slate-300 text-xs font-medium rounded-xl transition-all"
             >
               Simulate Offline
             </button>

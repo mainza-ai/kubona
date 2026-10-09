@@ -10,18 +10,18 @@ import {
   Users,
   Plus,
   Trash2,
-  Cpu,
-  ShieldCheck,
+  
+  
   Zap,
-  Sliders,
-  Layers,
-  ChevronRight,
-  Eye,
-  FileCode,
-  Atom,
-  CheckCircle2,
+  
+  
+  
+  
+  
+  
+  
   X,
-  Radio,
+  
 } from 'lucide-react';
 import { CampaignState, CustomAgentManifest, RoutingDecision, ModalityType } from '@/types';
 import {
@@ -59,7 +59,6 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
   const [newAgentDesc, setNewAgentDesc] = useState('');
   const [newAgentPrompt, setNewAgentPrompt] = useState('');
   const [newAgentModel, setNewAgentModel] = useState('local/qwen2.5-coder:32b');
-  const [newAgentModalities, setNewAgentModalities] = useState<string[]>(['text', 'molecule_3d']);
   const [newAgentBudget, setNewAgentBudget] = useState('5.0');
   const [newAgentEmoji, setNewAgentEmoji] = useState('🧪');
 
@@ -118,12 +117,18 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
       })
       .catch((err) => console.error('Failed to load LLM settings:', err));
 
-    loadAgents();
+    fetchCustomAgents()
+      .then((list) => {
+        if (mounted) {
+          setAgents(list);
+        }
+      })
+      .catch((err) => console.error('Failed to load agents:', err));
 
     return () => {
       mounted = false;
     };
-  }, [loadAgents]);
+  }, []);
 
   const handleSaveCustomAgent = async () => {
     if (!newAgentName.trim() || !newAgentPrompt.trim()) return;
@@ -137,7 +142,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
       avatar_emoji: newAgentEmoji,
       badge_color: 'cyan',
       capabilities: ['custom_reasoning'],
-      modalities: newAgentModalities,
+      modalities: ['text', 'molecule_3d'],
       preferred_model: newAgentModel,
       mcp_tools: ['pyscf', 'lean4'],
       spend_budget_usd: parseFloat(newAgentBudget) || 0.0,
@@ -202,6 +207,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
               Multimodal model routing, local zero-config discovery, and declarative agent orchestration
+              {campaign?.target_system ? ` — active campaign: ${campaign.target_system}` : ''}
             </p>
           </div>
         </div>

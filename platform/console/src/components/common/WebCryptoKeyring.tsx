@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { KeyRound, ShieldCheck, Download, Upload, CheckCircle2, AlertCircle, Copy, Check, RefreshCw } from 'lucide-react';
+import { KeyRound,  Download,   AlertCircle, Copy, Check } from 'lucide-react';
 import { ed25519 } from '@noble/curves/ed25519.js';
 
 interface KeyringState {
@@ -85,7 +85,7 @@ export function signSpendMandate(
   };
 }
 
-export function WebCryptoKeyring({ onSigned }: { onSigned?: (sig: string, pubKey: string) => void }) {
+export function WebCryptoKeyring() {
   const [keyring, setKeyring] = useState<KeyringState>({
     hasKey: false,
     publicKeyHex: '',
