@@ -1,7 +1,7 @@
 ---
 type: overview
 date: 2026-08-16
-updated: 2026-10-08
+updated: 2026-10-09
 tags: [kubona, synthesis]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-cloudflare-economy,
   source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026, source-openai-math-corpus]
@@ -177,6 +177,11 @@ Three tensions are worth naming here because they are strategic rather than tech
 > the tree are venv and Flutter build artefacts. The stack collapsed to three without a
 > decision being recorded, which is a win the wiki never claimed. Recorded here so the
 > reversal stays visible.
+>
+> ⚑ Resolution (2026-10-08): Superseded by concrete implementation. The prototype
+> has expanded to include the Go 1.24 core orchestrator (`platform/core/`, 24 packages,
+> 58 tests) and the Next.js 16 / TypeScript 5.8+ console (`platform/console/`, 9 observatory
+> surfaces), concretely realizing the production tripartite architecture described in §5.
 
 - **Mainza/Milimo reuse claims** — repo-level verified 2026-08-16 ([[mainza-milimo-foundation]]:
   milimoquantum, MilimoClaw, afreval are public and match the headline claims); code-level
@@ -212,8 +217,7 @@ still mostly "understood", not "chosen".
 
 ### What the prototype has empirically answered
 
-`platform/` — 154 Python + 3 Rust + 1 Flutter widget test, all green locally as of
-2026-09-27. Each phase below had a gate test, and each passes **on simulators**:
+`platform/` — 213 Python tests (pytest) + 58 Go tests (`platform/core/`, 24 packages) + Next.js 16 production build + 3 Rust + 1 Flutter test, all green locally and in CI as of 2026-10-08. Each phase below had a gate test, and each passes **on simulators**:
 
 - **P0** federated MCP servers + gateway + provider trait + local simulator + capability
   schema + Apache-2.0 → the four-server split is workable over stdio MCP.
@@ -255,6 +259,6 @@ closed while the blueprint is still being designed, because a public repo withou
 direction attracts contributions the project cannot direct. The flip is therefore gated on the
 blueprint becoming *contributor-legible* — Q-01 answered (what `platform/` is for) plus enough
 of the method layer to say what to build first — not on a date and not on Phase 0, which passed
-weeks ago. Apache-2.0 at publication remains committed; the residue in pushed history
-(`dev-docs/`, `.obsidian/`) is the last mechanical prerequisite ([[questions]] Q-27,
+weeks ago. Apache-2.0 at publication remains committed; the residue in private-remote history
+(the repo has never been public: `dev-docs/`, `.obsidian/`) is the last mechanical prerequisite ([[questions]] Q-27,
 [[risks]]).
