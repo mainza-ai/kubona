@@ -7,7 +7,10 @@ an agent.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import sys
+from datetime import datetime, timezone
 from typing import Any
 
 from kubona.circuits import parse_qasm2
@@ -34,8 +37,49 @@ def canary_check(provider_name: str, shots: int = CANARY_SHOTS,
         "balanced_50_50": abs(ok00 - ok11) / max(total, 1) <= tolerance,
     }
     ok = all(checks.values())
+    attestation = attest_capacity(provider_name, ok)
     return {"provider": provider_name, "ok": ok, "counts": counts,
-            "fidelity_balance": round(abs(ok00 - ok11) / max(total, 1), 6), "checks": checks}
+            "fidelity_balance": round(abs(ok00 - ok11) / max(total, 1), 6), "checks": checks,
+            "attestation": attestation}
+
+
+def attest_capacity(provider_name: str, canary_ok: bool) -> dict[str, Any]:
+    """Measured-vs-declared qubit attestation (Q-14).
+
+    Compares the plugin's live `health()["measured_qubits"]` against the
+    capability JSON's declared `physical_qubits`. A mismatch is a failed
+    attestation (the schema lied); an unmeasurable plugin yields
+    `qubit_count_ok=None` labeled unknown — never a pass. The snapshot hash
+    seals the attestation for ledger admission checks.
+    """
+    from kubona.schema import load_provider
+    cap = load_provider(provider_name)
+    measured: int | None = None
+    try:
+        plugin = get_provider(provider_name)
+        reported = plugin.health().get("measured_qubits")
+        if isinstance(reported, bool):
+            measured = None
+        elif isinstance(reported, int):
+            measured = reported
+    except Exception:
+        measured = None
+    if measured is None:
+        verdict: bool | None = None
+    else:
+        verdict = (measured == cap.physical_qubits)
+    checked_at = datetime.now(timezone.utc).isoformat()
+    snapshot = {
+        "provider": provider_name,
+        "declared_qubits": cap.physical_qubits,
+        "measured_qubits": measured,
+        "qubit_count_ok": verdict,
+        "canary_ok": bool(canary_ok),
+        "checked_at": checked_at,
+    }
+    snapshot["snapshot_hash"] = hashlib.sha256(
+        json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
+    return snapshot
 
 
 # Gate-model modalities that a Bell-state canary circuit can actually exercise.
@@ -79,7 +123,8 @@ def run_all(ledger: Ledger | None = None, providers: list[str] | None = None,
         out.append(res)
         ledger.append("canary", {"provider": name, "ok": res["ok"], "skip": res.get("skip", False),
                                  "counts": res.get("counts"), "error": res.get("error"),
-                                 "correctness": res.get("correctness")})
+                                 "correctness": res.get("correctness"),
+                                 "attestation": res.get("attestation")})
     return out
 
 

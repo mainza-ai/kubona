@@ -6,7 +6,13 @@ from .continuum import (
     EpistemicLevel,
     NegativeCertificate,
 )
-from .curvature import CurvatureMetrics, EpistemicCurvatureEngine
+from .curvature import (
+    CurvatureMetrics,
+    EpistemicCurvatureEngine,
+    FisherRaoCredibilityManifold,
+    GeodesicTrajectory,
+    ManifoldPoint,
+)
 from .wavefunction import (
     BASIS_STATES,
     ClaimCredibilityWavefunction,
@@ -29,6 +35,9 @@ __all__ = [
     "EpistemicGateError",
     "EpistemicLevel",
     "EvidenceSignal",
+    "FisherRaoCredibilityManifold",
+    "GeodesicTrajectory",
+    "ManifoldPoint",
     "NegativeCertificate",
     "WavefunctionState",
 ]

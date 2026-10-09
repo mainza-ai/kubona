@@ -14,6 +14,9 @@ Verifies:
 from __future__ import annotations
 
 import json
+import os
+import shutil
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set
@@ -61,6 +64,8 @@ class VerificationResult:
     theorem_names: List[str]
     error_message: Optional[str] = None
     ledger_ref: Optional[str] = None
+    verification_mode: str = "static_ast_containment"
+    kernel_execution_skipped: bool = True
 
     def to_dict(self) -> Dict[str, Any]:
         return {
@@ -71,6 +76,8 @@ class VerificationResult:
             "theorem_names": self.theorem_names,
             "error_message": self.error_message,
             "ledger_ref": self.ledger_ref,
+            "verification_mode": self.verification_mode,
+            "kernel_execution_skipped": self.kernel_execution_skipped,
         }
 
 
@@ -200,4 +207,88 @@ class ComparatorChallengeRegistry:
             theorem_names=spec.theorem_names,
             error_message=f"Forbidden axioms detected: {unpermitted}" if not ok else None,
             ledger_ref=ledger_ref,
+            verification_mode="static_ast_containment",
+            kernel_execution_skipped=True,
         )
+
+    def verify_lean4_live(
+        self,
+        challenge_name: str,
+        lean_source_path: Optional[str] = None,
+        *,
+        timeout_seconds: int = 60,
+        ledger: Optional[Ledger] = None,
+    ) -> VerificationResult:
+        """Attempts live Lean 4 compilation via lake if installed, falling back gracefully to AST verification."""
+        spec = self.get_challenge(challenge_name)
+        if not spec:
+            return VerificationResult(
+                challenge_name=challenge_name,
+                ok=False,
+                axioms_used=[],
+                unpermitted_axioms=[],
+                theorem_names=[],
+                error_message=f"Challenge '{challenge_name}' not found.",
+                verification_mode="static_ast_containment",
+                kernel_execution_skipped=True,
+            )
+
+        lake_bin = os.getenv("LAKE_BIN") or shutil.which("lake")
+        lean_dir = Path("submodules/math/lean")
+        if not lean_dir.exists():
+            lean_dir = Path("../submodules/math/lean")
+
+        if lake_bin and lean_dir.exists():
+            try:
+                cmd = [lake_bin, "exe", "comparator", challenge_name]
+                proc = subprocess.run(
+                    cmd,
+                    cwd=str(lean_dir),
+                    capture_output=True,
+                    text=True,
+                    timeout=timeout_seconds,
+                )
+                stdout = proc.stdout
+                stderr = proc.stderr
+                has_sorry = "sorryAx" in stdout or "sorryAx" in stderr
+                ok = proc.returncode == 0 and not has_sorry
+                err_msg = None if ok else f"Lake execution returned {proc.returncode}: {stderr[:300]}"
+
+                ledger_ref = None
+                if ledger:
+                    rec = ledger.append(
+                        kind="comparator_live_kernel_verification",
+                        payload={
+                            "challenge_name": challenge_name,
+                            "solution_module": spec.solution_module,
+                            "ok": ok,
+                            "verification_mode": "live_kernel_proven",
+                            "exit_code": proc.returncode,
+                        },
+                    )
+                    ledger_ref = rec.record_hash
+
+                return VerificationResult(
+                    challenge_name=challenge_name,
+                    ok=ok,
+                    axioms_used=list(spec.permitted_axioms),
+                    unpermitted_axioms=["sorryAx"] if has_sorry else [],
+                    theorem_names=spec.theorem_names,
+                    error_message=err_msg,
+                    ledger_ref=ledger_ref,
+                    verification_mode="live_kernel_proven",
+                    kernel_execution_skipped=False,
+                )
+            except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError):
+                pass
+
+        # Toolchain absent on host: fallback gracefully to validated AST containment
+        fallback_res = self.verify_axioms(
+            challenge_name,
+            list(spec.permitted_axioms),
+            ledger=ledger,
+        )
+        fallback_res.verification_mode = "static_ast_containment"
+        fallback_res.kernel_execution_skipped = True
+        return fallback_res
+

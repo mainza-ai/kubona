@@ -130,3 +130,81 @@ class ClassicalShadowEngine:
                 chunk_means.append(float(np.mean(chunk)))
 
         return float(np.median(chunk_means)) if chunk_means else 0.0
+
+    @staticmethod
+    def reconstruct_snapshot_matrix(snapshot: ShadowSnapshot) -> np.ndarray:
+        """Inverted quantum channel snapshot: rho_hat = \\bigotimes_{i=1}^n (3 |b_i><b_i| - I)."""
+        rho_hat = np.array([[1.0]], dtype=complex)
+        for b, bit in zip(snapshot.bases, snapshot.outcomes):
+            # Compute state vector |b_i> for basis and outcome
+            if b == "Z":
+                state = np.array([1, 0], dtype=complex) if bit == 0 else np.array([0, 1], dtype=complex)
+            elif b == "X":
+                # |+> or |->
+                state = (1.0 / np.sqrt(2)) * (np.array([1, 1], dtype=complex) if bit == 0 else np.array([1, -1], dtype=complex))
+            elif b == "Y":
+                # |+i> or |-i>
+                state = (1.0 / np.sqrt(2)) * (np.array([1, 1j], dtype=complex) if bit == 0 else np.array([1, -1j], dtype=complex))
+            else:
+                state = np.array([1, 0], dtype=complex)
+
+            proj = np.outer(state, state.conj())
+            single_qubit_rho_hat = 3.0 * proj - SIGMA_I
+            rho_hat = np.kron(rho_hat, single_qubit_rho_hat)
+
+        return rho_hat
+
+    @classmethod
+    def estimate_matrix_observable(
+        cls,
+        snapshots: List[ShadowSnapshot],
+        observable: np.ndarray,
+        num_chunks: int = 5,
+    ) -> float:
+        """Estimates Tr(O * rho) for an arbitrary Hermitian matrix observable via median-of-means."""
+        estimates = []
+        for s in snapshots:
+            rho_hat = cls.reconstruct_snapshot_matrix(s)
+            val = float(np.real(np.trace(observable @ rho_hat)))
+            estimates.append(val)
+
+        if not estimates:
+            return 0.0
+
+        chunk_size = max(1, len(estimates) // num_chunks)
+        chunk_means = []
+        for c in range(num_chunks):
+            start = c * chunk_size
+            end = start + chunk_size if c < num_chunks - 1 else len(estimates)
+            chunk = estimates[start:end]
+            if chunk:
+                chunk_means.append(float(np.mean(chunk)))
+
+        return float(np.median(chunk_means)) if chunk_means else 0.0
+
+    @staticmethod
+    def compute_shadow_norm(pauli_weight: int) -> float:
+        """Computes the shadow norm bound: ||O||_shadow^2 = 3^k for k-local Pauli operator."""
+        return float(3.0 ** pauli_weight)
+
+    @classmethod
+    def sample_complexity_bound(
+        cls,
+        num_observables_m: int,
+        epsilon: float,
+        max_pauli_weight: int = 2,
+        failure_prob_delta: float = 0.01,
+    ) -> int:
+        """Computes Huang-Kueng-Preskill sample complexity guarantee:
+
+        N ~ O( (log M / epsilon^2) * max_i ||O_i||_shadow^2 )
+        """
+        shadow_norm_sq = cls.compute_shadow_norm(max_pauli_weight)
+        eps = max(1e-6, epsilon)
+        m = max(1, num_observables_m)
+        delta = max(1e-6, min(0.5, failure_prob_delta))
+
+        # Constant 2 * ln(2M / delta) / eps^2 * ||O||_shadow^2
+        n_samples = math.ceil((2.0 * math.log(2.0 * m / delta) / (eps ** 2)) * shadow_norm_sq)
+        return n_samples
+

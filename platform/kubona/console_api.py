@@ -570,20 +570,34 @@ async def science_shadows(request: Request) -> JSONResponse:
 async def science_manuscript_create(request: Request) -> JSONResponse:
     if not _authed(request):
         return _auth_error()
-    from kubona.science.manuscript import ManuscriptGenerator
+    from kubona.science.manuscript import ManuscriptGenerator, ReviewEvidence
     body = await request.json()
+    anchor_val = float(body.get("anchor_val", -1.5))
+    measured_val = float(body.get("measured_val", -1.498))
     ms = ManuscriptGenerator.create_discovery_manuscript(
         title=body.get("title", "Quantum Subspace Discovery"),
         target_system=body.get("target_system", "H2"),
         authors=body.get("authors", ["Kubona Autonomous Theorist"]),
         abstract=body.get("abstract", "Automated epistemic discovery."),
         analytical_anchor_name=body.get("anchor_name", "Heisenberg_Ferromagnet_3D"),
-        analytical_anchor_val=float(body.get("anchor_val", -1.5)),
-        measured_val=float(body.get("measured_val", -1.498)),
+        analytical_anchor_val=anchor_val,
+        measured_val=measured_val,
         lean4_proof_hash=body.get("lean4_hash"),
         negative_certificates=body.get("negative_certs"),
     )
-    review = ManuscriptGenerator.automated_peer_review(ms)
+    # Evidence is caller-attested and fail-closed: unattested dimensions
+    # falsify (REVISE/REJECT), never default to ACCEPT. The discrepancy is
+    # derived server-side from the submitted numbers, not caller-asserted.
+    sorry_raw = body.get("sorry_ax_count")
+    evidence = ReviewEvidence(
+        comparator_verdict=body.get("verification_mode"),
+        sorry_ax_count=int(sorry_raw) if sorry_raw is not None else None,
+        anchor_discrepancy_mha=abs(measured_val - anchor_val) * 1000.0,
+        provenance_receipts=[r for r in body.get("provenance_receipts", []) if r] + (
+            [body["lean4_hash"]] if body.get("lean4_hash") else []),
+        citation_distance=body.get("citation_distance"),
+    )
+    review = ManuscriptGenerator.automated_peer_review(ms, evidence)
     return _json({
         "ok": True,
         "manuscript_id": ms.manuscript_id,
@@ -596,6 +610,8 @@ async def science_manuscript_create(request: Request) -> JSONResponse:
             "grounding": review.empirical_grounding_score,
             "hygiene": review.axiomatic_hygiene_score,
             "recommendation": review.overall_recommendation,
+            "mean_score": review.mean_score(),
+            "acceptable": review.is_acceptable(),
             "summary": review.summary,
             "critiques": review.actionable_critiques,
         }
@@ -637,28 +653,72 @@ async def science_memory_query(request: Request) -> JSONResponse:
 
 
 async def science_tribunal_deliberate(request: Request) -> JSONResponse:
+    """Weighted-quorum recorder over caller-attested evidence.
+
+    This endpoint does NOT verify anything itself: it records the weighted
+    votes of the six tribunal personas over evidence the caller attests to
+    (comparator outcome, gradient variance, anchor/mandate ledger refs) and
+    computes whether the supermajority rule is met. Fail-closed defaults apply:
+    unattested verification inputs falsify the prover vote, and the prover
+    rationale always states the verification mode (live kernel proof vs static
+    AST containment) so readers can never mistake one for the other.
+    """
     if not _authed(request):
         return _auth_error()
     body = await request.json()
     hyp_id = body.get("hypothesis_id", "hyp-femoco-001")
     target_system = body.get("target_system", "FeMoco")
-    lean4_verified = bool(body.get("lean4_verified", True))
-    zero_axiom_cheating = bool(body.get("zero_axiom_cheating", True))
-    gradient_variance = float(body.get("gradient_variance", 0.082))
+    # Fail-closed attestations: absence of evidence is evidence of absence.
+    lean4_verified = bool(body.get("lean4_verified", False))
+    zero_axiom_cheating = bool(body.get("zero_axiom_cheating", False))
+    verification_mode = str(body.get("verification_mode", "unattested"))
+    comparator_ledger_ref = body.get("comparator_ledger_ref")
+    gradient_variance = float(body.get("gradient_variance", 0.0))
+    anchor_ledger_ref = body.get("anchor_ledger_ref")
+    mandate_ledger_ref = body.get("mandate_ledger_ref")
+    krylov_ledger_ref = body.get("krylov_ledger_ref")
+    qir_ledger_ref = body.get("qir_ledger_ref")
+
+    # Each persona carries a fixed voting weight (its potential contribution).
+    # The quorum denominator is the sum of ALL weights, so a falsified vote
+    # always dilutes consensus — unattested evidence can never silently pass.
+    theorist_ok = bool(krylov_ledger_ref)
+    compiler_ok = bool(qir_ledger_ref)
+    anchor_ok = bool(anchor_ledger_ref)
+    sentinel_ok = bool(mandate_ledger_ref)
+    prover_weight = 1.0 if verification_mode == "live_kernel_proven" else 0.90
+
+    prover_ok = bool(lean4_verified and zero_axiom_cheating and verification_mode in (
+        "live_kernel_proven", "static_ast_containment"))
+    if verification_mode == "live_kernel_proven":
+        prover_rho, prover_claim = 1.0, "machine-checked kernel proof"
+    elif verification_mode == "static_ast_containment":
+        # Static containment is weaker than a kernel proof: cap the vote
+        # weight below 1.0 and say so in the rationale.
+        prover_rho, prover_claim = 0.90, "static AST containment (not kernel-proved)"
+    else:
+        prover_rho, prover_claim = 0.0, "no verified attestation supplied"
 
     votes = [
         {
             "persona_id": "theorist-01",
             "role": "lead_theorist",
             "name": "Lead Polymath Theorist",
-            "verdict": "corroborated",
-            "confidence_rho": 0.96,
-            "rationale": "Quantum Krylov monotonic convergence validated",
+            "weight": 0.96,
+            "verdict": "corroborated" if theorist_ok else "falsified",
+            "confidence_rho": 0.96 if theorist_ok else 0.0,
+            "rationale": (
+                "Quantum Krylov monotonic convergence validated against ledger record"
+                if theorist_ok else
+                "No Krylov ledger reference supplied; convergence claim unattested"
+            ),
+            "evidence_ref": krylov_ledger_ref,
         },
         {
             "persona_id": "critic-01",
             "role": "adversarial_falsification_critic",
             "name": "Adversarial Falsification Critic",
+            "weight": 0.92,
             "verdict": "corroborated" if gradient_variance >= 1e-4 else "falsified",
             "confidence_rho": 0.92 if gradient_variance >= 1e-4 else 0.99,
             "rationale": f"Variance of gradients Var[∇H] = {gradient_variance:.4f}",
@@ -667,41 +727,70 @@ async def science_tribunal_deliberate(request: Request) -> JSONResponse:
             "persona_id": "prover-01",
             "role": "lean4_proof_engineer",
             "name": "Lean 4 Proof Engineer",
-            "verdict": "corroborated" if (lean4_verified and zero_axiom_cheating) else "falsified",
-            "confidence_rho": 1.0 if (lean4_verified and zero_axiom_cheating) else 0.0,
-            "rationale": "Comparator check: standard axioms only, 0 sorryAx" if zero_axiom_cheating else "Axiomatic cheating detected",
+            "weight": prover_weight,
+            "verdict": "corroborated" if prover_ok else "falsified",
+            "confidence_rho": prover_rho if prover_ok else 0.0,
+            "rationale": (
+                f"Comparator check: standard axioms only, 0 sorryAx ({prover_claim})"
+                if prover_ok else
+                f"Unverified proof attestation ({prover_claim}); falsified pending evidence"
+            ),
+            "evidence_ref": comparator_ledger_ref,
+            "verification_mode": verification_mode,
         },
         {
             "persona_id": "anchor-01",
             "role": "classical_anchor_solver",
             "name": "Classical Anchor Solver",
-            "verdict": "corroborated",
-            "confidence_rho": 0.94,
-            "rationale": "Consistent with Family 271 ferromagnetic exact bounds within chemical precision (1.6 mHa)",
+            "weight": 0.94,
+            "verdict": "corroborated" if anchor_ok else "falsified",
+            "confidence_rho": 0.94 if anchor_ok else 0.0,
+            "rationale": (
+                "Consistent with Family 271 ferromagnetic exact bounds within chemical precision (1.6 mHa)"
+                if anchor_ok else
+                "No classical-anchor ledger reference supplied; anchor claim unattested"
+            ),
+            "evidence_ref": anchor_ledger_ref,
         },
         {
             "persona_id": "compiler-01",
             "role": "quantum_circuit_compiler",
             "name": "Quantum Circuit Compiler",
-            "verdict": "corroborated",
-            "confidence_rho": 0.89,
-            "rationale": "QIR compilation mapped to [[144, 12, 12]] gross code; T-depth within budget",
+            "weight": 0.89,
+            "verdict": "corroborated" if compiler_ok else "falsified",
+            "confidence_rho": 0.89 if compiler_ok else 0.0,
+            "rationale": (
+                "QIR compilation mapped to [[144, 12, 12]] gross code; T-depth within budget"
+                if compiler_ok else
+                "No QIR lowering ledger reference supplied; compilation claim unattested"
+            ),
+            "evidence_ref": qir_ledger_ref,
         },
         {
             "persona_id": "sentinel-01",
             "role": "sentinel_spend_governor",
             "name": "Sentinel Spend Governor",
-            "verdict": "corroborated",
-            "confidence_rho": 1.0,
-            "rationale": "AP2 spend authorization signed with Ed25519; air-gap egress zero bytes",
+            "weight": 1.0,
+            "verdict": "corroborated" if sentinel_ok else "falsified",
+            "confidence_rho": 1.0 if sentinel_ok else 0.0,
+            "rationale": (
+                "AP2 spend authorization signed with Ed25519; air-gap egress zero bytes"
+                if sentinel_ok else
+                "No spend-mandate ledger reference supplied; authorization claim unattested"
+            ),
+            "evidence_ref": mandate_ledger_ref,
         },
     ]
 
-    total_weight = sum(v["confidence_rho"] for v in votes)
-    corrob_weight = sum(v["confidence_rho"] for v in votes if v["verdict"] == "corroborated")
+    total_weight = sum(v["weight"] for v in votes)
+    corrob_weight = sum(v["weight"] for v in votes if v["verdict"] == "corroborated")
     quorum_pct = (corrob_weight / total_weight * 100.0) if total_weight > 0 else 0.0
 
-    supermajority_met = quorum_pct >= 75.0 and zero_axiom_cheating and (gradient_variance >= 1e-4)
+    supermajority_met = (
+        quorum_pct >= 75.0
+        and prover_ok
+        and (gradient_variance >= 1e-4)
+    )
     verdict = "COMMITTED_TO_LEDGER" if supermajority_met else "FALSIFIED_OR_REJECTED"
 
     return _json({

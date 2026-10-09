@@ -38,7 +38,7 @@ class AnsatzGenome:
 @dataclass
 class GenomePrecheckResult:
     passed: bool
-    meyer_wallach_q: float
+    expressibility_q: float
     trainability_ok: bool
     estimated_mps_bond_dim: int
     rejection_reason: Optional[str] = None
@@ -48,8 +48,14 @@ class AutonomousAnsatzOptimizer:
     def __init__(self, min_expressibility_q: float = 0.25):
         self.min_expressibility_q = min_expressibility_q
 
-    def compute_meyer_wallach_prior(self, genome: AnsatzGenome) -> float:
-        """Computes Meyer-Wallach entanglement/expressibility prior Q in [0, 1]."""
+    def heuristic_entanglement_prior(self, genome: AnsatzGenome) -> float:
+        """Heuristic entanglement/expressibility proxy Q in [0, 1].
+        This is NOT the Meyer-Wallach integral (which requires integrating
+        linear entropies over the Haar distribution or a measured
+        statevector); it is a cheap structural prior from depth and
+        entangler topology used only to triage ansatz genomes before any
+        real evaluation. Measured MW values come from statevector runs
+        (autoresearch harness / QKSD responses)."""
         # Shallow depth (<2) or disjoint topology has low expressibility
         if genome.depth < 1:
             return 0.05
@@ -61,13 +67,13 @@ class AutonomousAnsatzOptimizer:
         return min(0.95, base_q)
 
     def precheck_genome(self, genome: AnsatzGenome) -> GenomePrecheckResult:
-        q = self.compute_meyer_wallach_prior(genome)
+        q = self.heuristic_entanglement_prior(genome)
         
         # 1. Expressibility pre-check
         if q < self.min_expressibility_q:
             return GenomePrecheckResult(
                 passed=False,
-                meyer_wallach_q=q,
+                expressibility_q=q,
                 trainability_ok=True,
                 estimated_mps_bond_dim=2,
                 rejection_reason=f"Insufficient expressibility (Q={q:.2f} < {self.min_expressibility_q:.2f}). Cannot express target ground state.",
@@ -78,7 +84,7 @@ class AutonomousAnsatzOptimizer:
         if not trainable:
             return GenomePrecheckResult(
                 passed=False,
-                meyer_wallach_q=q,
+                expressibility_q=q,
                 trainability_ok=False,
                 estimated_mps_bond_dim=16,
                 rejection_reason=f"Ansatz depth ({genome.depth}) exceeds trainability bounds; vulnerable to barren plateaus.",
@@ -90,7 +96,7 @@ class AutonomousAnsatzOptimizer:
 
         return GenomePrecheckResult(
             passed=True,
-            meyer_wallach_q=q,
+            expressibility_q=q,
             trainability_ok=True,
             estimated_mps_bond_dim=mps_chi,
             rejection_reason=None,

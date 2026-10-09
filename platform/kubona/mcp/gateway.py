@@ -19,8 +19,14 @@ from typing import Any, Callable
 from .auth import AuthError, AuthProvider, DevAuthProvider, Principal
 from .transport import InProcessTransport, TransportProvider
 from kubona.security.policy import PolicyEngine
+from .approval import (
+    ApprovalPacket, ApprovalRegistry, elicitation_form, open_state, seal_state,
+)
 
 ToolFn = Callable[..., dict]
+# PacketBuilder(principal, args) -> ApprovalPacket | None.
+# Return None to auto-allow (e.g. simulator backends); raise to refuse.
+ApprovalPacketBuilder = Callable[..., ApprovalPacket | None]
 
 
 class KubonaGateway:
@@ -39,6 +45,9 @@ class KubonaGateway:
         self.policy = policy or PolicyEngine()
         self._ledger = ledger  # optional immutable audit sink (hash-chained)
         self._registry: dict[str, dict[str, ToolFn]] = {}
+        self._approval: dict[str, ApprovalPacketBuilder] = {}
+        self._approval_secret: bytes | None = None
+        self._nonces = ApprovalRegistry()
         self._audit: list[dict] = []
         self._audit_path = audit_path  # optional persistent JSONL audit export
 
@@ -54,7 +63,18 @@ class KubonaGateway:
         if not decision.allowed:
             raise AuthError(decision.reason)
 
-    def call(self, server: str, tool: str, args: dict[str, Any], token: str | None = None) -> dict:
+    def require_approval(self, server: str, tool: str, builder: ApprovalPacketBuilder,
+                         secret: bytes | None = None) -> None:
+        """Gate a tool behind human approval (Q-11/MRTR). builder(principal,
+        args) returns a packet, None to auto-allow, or raises to refuse.
+        secret seals requestState; without it approval flows refuse to arm."""
+        if secret is not None:
+            self._approval_secret = secret
+        self._approval[f"{server}/{tool}"] = builder
+
+    def call(self, server: str, tool: str, args: dict[str, Any], token: str | None = None,
+             approval_response: dict[str, Any] | None = None,
+             request_state: str | None = None) -> dict:
         principal: Principal | None = None
         if self.require_auth:
             if token is None:
@@ -65,6 +85,20 @@ class KubonaGateway:
             raise KeyError(f"unknown server/tool: {server}/{tool}")
         if self.require_auth:  # authorization is meaningless when auth is off (local/test)
             self._authorize(principal, server, tool)
+        builder = self._approval.get(f"{server}/{tool}")
+        if builder is not None:
+            if self._approval_secret is None:
+                raise AuthError("approval gate armed without a state secret: refusing to run")
+            sub = principal.sub if principal else "anon"
+            if approval_response is None:
+                packet = builder(principal, dict(args))
+                if packet is None:
+                    pass  # auto-allowed below
+                else:
+                    return self._request_approval(sub, packet)
+            else:
+                return self._resolve_approval(sub, server, tool, args, tools[tool],
+                                              approval_response, request_state)
         result = tools[tool](**args)
         entry = {
             "server": server, "tool": tool, "args_keys": sorted(args),
@@ -83,6 +117,69 @@ class KubonaGateway:
             except Exception:  # audit must never break the call path
                 pass
         return result
+
+    def _request_approval(self, sub: str, packet: ApprovalPacket) -> dict:
+        """First MRTR round: no execution, no side effects — only the ask."""
+        from .approval import elicitation_form, seal_state
+        form = elicitation_form(packet)
+        state = seal_state(packet, sub, self._approval_secret)
+        self._audit_event({"packet_id": packet.packet_id, "phase": "approval_requested",
+                           "server": packet.server, "tool": packet.tool, "sub": sub,
+                           "cost_max_usd": packet.cost_max_usd})
+        return {"resultType": "input_required",
+                "inputRequests": {"approval": form},
+                "requestState": state}
+
+    def _resolve_approval(self, sub: str, server: str, tool: str, args: dict[str, Any],
+                          fn: ToolFn, response: dict[str, Any],
+                          request_state: str | None) -> dict:
+        """Second MRTR round: verify everything, then execute exactly once."""
+        from .approval import open_state
+        if not request_state:
+            raise AuthError("approval retry without requestState: refused")
+        try:
+            state = open_state(request_state, self._approval_secret)
+        except ValueError as e:
+            raise AuthError(f"approval state invalid: {e}")
+        if state["sub"] != sub:
+            raise AuthError("approval principal mismatch: refused")
+        if state["server"] != server or state["tool"] != tool:
+            raise AuthError("approval target mismatch: refused")
+        try:
+            self._nonces.consume(state["nonce"])
+        except ValueError as e:
+            raise AuthError(f"approval replay refused: {e}")
+        action = response.get("action", "cancel")
+        if action != "accept":
+            reason = str(response.get("reason", response.get("content", "")))[:280]
+            self._audit_event({"packet_id": state["packet_id"], "phase": "approval_denied",
+                               "server": server, "tool": tool, "sub": sub, "reason": reason})
+            return {"resultType": "refused", "ok": False,
+                    "rejection_message": reason or "human denied the action"}
+        content = response.get("content", {}) or {}
+        if content.get("decision") not in ("approve_once", "approve_up_to_max"):
+            raise AuthError("approval decision not affirmative: refused")
+        try:
+            ack = float(content.get("cost_ack_usd"))
+        except (TypeError, ValueError):
+            raise AuthError("cost acknowledgement missing or invalid: refused")
+        if abs(ack - float(state["cost_max_usd"])) > 1e-9:
+            raise AuthError("cost acknowledgement mismatch: refused")
+        self._audit_event({"packet_id": state["packet_id"], "phase": "approval_granted",
+                           "server": server, "tool": tool, "sub": sub,
+                           "decision": content["decision"]})
+        result = fn(**args)
+        self._audit.append({"server": server, "tool": tool, "args_keys": sorted(args),
+                            "sub": sub, "via": "approved:" + state["packet_id"]})
+        return result
+
+    def _audit_event(self, entry: dict[str, Any]) -> None:
+        self._audit.append(entry)
+        if self._ledger is not None:
+            try:
+                self._ledger.append("approval", entry)
+            except Exception:
+                pass
 
     def audit_log(self) -> list[dict]:
         return list(self._audit)

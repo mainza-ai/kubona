@@ -158,11 +158,20 @@ def test_science_discovery_endpoints():
     assert "pagerank" in mem_res
 
     # 6. Epistemic Tribunal Swarm Deliberation & Quorum Consensus
+    # Fully attested evidence must commit; the refs below stand in for ledger
+    # record hashes issued by the comparator, anchor solver, jobs runner,
+    # QIR compiler and mandate verifier.
     tribunal_payload = {
         "hypothesis_id": "hyp-qksd-femoco-01",
         "target_system": "FeMoco",
         "lean4_verified": True,
         "zero_axiom_cheating": True,
+        "verification_mode": "static_ast_containment",
+        "comparator_ledger_ref": "ledger:comparator:abc123",
+        "anchor_ledger_ref": "ledger:anchor:def456",
+        "krylov_ledger_ref": "ledger:krylov:ghi789",
+        "qir_ledger_ref": "ledger:qir:jkl012",
+        "mandate_ledger_ref": "ledger:mandate:mno345",
         "gradient_variance": 0.082,
     }
     r = client.post("/api/science/tribunal/deliberate", json=tribunal_payload, headers=_h())
@@ -172,6 +181,25 @@ def test_science_discovery_endpoints():
     assert trib_res["quorum_percentage"] >= 75.0
     assert trib_res["verdict"] == "COMMITTED_TO_LEDGER"
     assert len(trib_res["votes"]) == 6
+    prover = next(v for v in trib_res["votes"] if v["persona_id"] == "prover-01")
+    assert prover["verification_mode"] == "static_ast_containment"
+    assert "not kernel-proved" in prover["rationale"]
+
+    # 6b. Unattested evidence must falsify, never silently commit: the same
+    # hypothesis with no refs must come back below quorum and rejected.
+    unattested_payload = {
+        "hypothesis_id": "hyp-qksd-femoco-01",
+        "target_system": "FeMoco",
+        "gradient_variance": 0.082,
+    }
+    r = client.post("/api/science/tribunal/deliberate", json=unattested_payload, headers=_h())
+    assert r.status_code == 200
+    unatt = r.json()
+    assert unatt["ok"] is True
+    assert unatt["verdict"] == "FALSIFIED_OR_REJECTED"
+    assert unatt["quorum_percentage"] < 75.0
+    falsified = [v for v in unatt["votes"] if v["verdict"] == "falsified"]
+    assert len(falsified) >= 5, unatt["votes"]
 
     # 7. QEC Hardware Resource Estimator (Neutral Atom & IBM Gross Code)
     qec_payload = {

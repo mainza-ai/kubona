@@ -27,6 +27,10 @@ class LedgerRecord:
     ts: float
     kind: str
     payload: dict[str, Any]
+    # Confidentiality label: "public" or "tenant/<id>". Defaults to "" for
+    # pre-label rows, which read as the file's own tenant (files are already
+    # sharded per tenant). Use derive_label() for derived records.
+    label: str = ""
 
     def to_json(self) -> str:
         return json.dumps(
@@ -38,6 +42,7 @@ class LedgerRecord:
                 "ts": self.ts,
                 "kind": self.kind,
                 "payload": self.payload,
+                "label": self.label,
             },
             sort_keys=True,
         )
@@ -52,7 +57,14 @@ def _safe(tenant: str) -> str:
     return "".join(ch for ch in tenant if ch.isalnum() or ch in "-_")
 
 
-def _content_hash(payload: dict[str, Any]) -> str:
+def _content_hash(payload: dict[str, Any], label: str = "") -> str:
+    # Versioned binding: pre-label rows hash the payload alone (chain stays
+    # valid for every existing file); labeled rows bind payload+label so a
+    # forged label breaks validation exactly like forged content.
+    if label:
+        return hashlib.sha256(
+            (json.dumps(payload, sort_keys=True) + "\nlabel:" + label).encode()
+        ).hexdigest()
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
 
 
@@ -89,13 +101,16 @@ class Ledger:
             return LedgerRecord.from_json(last).record_hash
         return "0" * 64
 
-    def append(self, kind: str, payload: dict[str, Any]) -> LedgerRecord:
+    def append(self, kind: str, payload: dict[str, Any], label: str | None = None) -> LedgerRecord:
         with self._lock:  # the hash chain is inherently sequential: guard tail-read + append
-            return self._append_locked(kind, payload)
+            return self._append_locked(kind, payload, label)
 
-    def _append_locked(self, kind: str, payload: dict[str, Any]) -> LedgerRecord:
+    def _append_locked(self, kind: str, payload: dict[str, Any], label: str | None = None) -> LedgerRecord:
         prev = self._read_tail()
-        content = _content_hash(payload)
+        # Default label is the file's own lab tenant (files are sharded per
+        # tenant); explicit "public" is the only way to widen readership.
+        resolved = label if label else f"tenant/{self.tenant or 'default'}"
+        content = _content_hash(payload, resolved)
         record = LedgerRecord(
             record_id=uuid.uuid4().hex[:16],
             prev_hash=prev,
@@ -104,6 +119,7 @@ class Ledger:
             ts=time.time(),
             kind=kind,
             payload=payload,
+            label=resolved,
         )
         # atomic O_APPEND single write — safe under concurrent multi-tenant writers
         fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
@@ -127,7 +143,7 @@ class Ledger:
                 return False, f"chain broken at {rec.record_id}: prev mismatch"
             if rec.record_hash != _record_hash(rec.prev_hash, rec.content_hash):
                 return False, f"chain broken at {rec.record_id}: record hash mismatch"
-            if rec.content_hash != _content_hash(rec.payload):
+            if rec.content_hash != _content_hash(rec.payload, rec.label):
                 return False, f"chain broken at {rec.record_id}: content hash mismatch"
             prev = rec.record_hash
         return True, f"{sum(1 for _ in self)} records, chain intact"
@@ -137,3 +153,38 @@ class Ledger:
 
     def count(self) -> int:
         return sum(1 for _ in self)
+
+
+def readable(record: LedgerRecord, requester: str | None) -> bool:
+    """Pre-serialization readership check (IFC seam 1 of 3).
+
+    Public and pre-label ("") records are world-readable; tenant records are
+    readable inside their own lab tenant only. requester None means
+    unauthenticated ambient access: public rows only... except pre-label rows,
+    which predate labels and read as their file's tenant context. Callers that
+    know their tenant must pass it; ambient MCP resources pass None and see
+    public rows (never another tenant's).
+    """
+    label = record.label
+    if label == "public":
+        return True
+    if not label:
+        # Legacy pre-label rows: files are sharded per tenant, so the file
+        # itself is the boundary. Preserves exact pre-label behavior.
+        return True
+    if requester is None:
+        return False
+    return label == f"tenant/{requester}"
+
+
+def derive_label(input_labels: list[str], ctx_tenant: str) -> str:
+    """Derivation label for a record built from inputs (IFC join, v1).
+
+    All-public inputs stay public; any tenant-scoped input restricts the
+    derivative to the deriving tenant's label. Cross-tenant derivation is
+    refused upstream (no grant model yet) — this function never widens.
+    """
+    labels = [l for l in input_labels if l]
+    if not labels or all(l == "public" for l in labels):
+        return "public"
+    return f"tenant/{ctx_tenant}"

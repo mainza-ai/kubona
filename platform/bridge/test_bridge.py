@@ -212,3 +212,37 @@ def test_simulation_preflight_memory_clamp():
     assert len(res_partition["partition_fragments"]) > 0
 
 
+def test_quantum_krylov_subspace_diagonalization():
+    from krylov import solve_quantum_krylov
+    res = solve_quantum_krylov("H2", bond_distance=0.7414, subspace_dim=4, time_step=0.2)
+    assert res["success"] is True
+    assert res["ground_state_energy"] < -1.13
+    assert res["ground_state_energy"] <= res["classical_fci_energy"] + 0.005
+    assert len(res["subspace_eigenvalues"]) == res["subspace_dimension"]
+    assert res["subspace_dimension"] >= 2
+    assert res["meyer_wallach"] >= 0.0
+
+
+def test_circuit_error_mitigation_suite():
+    from mitigation import mitigate_circuit
+    bell_qasm = """OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[2];
+creg c[2];
+h q[0];
+cx q[0], q[1];
+"""
+    res_zne = mitigate_circuit(bell_qasm, method="ZNE", scale_factors=[1.0, 1.5, 2.0], shots=500)
+    assert res_zne["success"] is True
+    assert res_zne["method_used"] == "ZNE"
+    assert -1.0 <= res_zne["mitigated_value"] <= 1.0
+
+    res_pec = mitigate_circuit(bell_qasm, method="PEC", shots=500)
+    assert res_pec["success"] is True
+    assert res_pec["method_used"] == "PEC"
+
+    res_cdr = mitigate_circuit(bell_qasm, method="CDR", shots=500)
+    assert res_cdr["success"] is True
+    assert res_cdr["method_used"] == "CDR"
+
+

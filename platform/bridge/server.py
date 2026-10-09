@@ -7,8 +7,15 @@ from __future__ import annotations
 
 import logging
 import sys
+from pathlib import Path
 from concurrent import futures
 import grpc
+
+_DIR = Path(__file__).resolve().parent
+if str(_DIR) not in sys.path:
+    sys.path.insert(0, str(_DIR))
+if str(_DIR / "proto") not in sys.path:
+    sys.path.insert(0, str(_DIR / "proto"))
 
 from proto import kubona_pb2, kubona_pb2_grpc
 from chemistry import solve_classical_anchor
@@ -16,6 +23,8 @@ from epistemics import evaluate_claim_credibility
 from executor import execute_qasm, cut_circuit_qasm
 from literature import search_arxiv, search_openalex
 from fidelity import predict_fidelity, probe_clifford_fidelity
+from krylov import solve_quantum_krylov
+from mitigation import mitigate_circuit
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("kubona-bridge")
@@ -129,6 +138,44 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             )
 
         return kubona_pb2.LiteratureGroundingResponse(records=records, cached=True)
+
+    def ExecuteQuantumKrylov(self, request, context):
+        logger.info(f"ExecuteQuantumKrylov called for {request.molecule} at R={request.bond_distance}")
+        res = solve_quantum_krylov(
+            molecule=request.molecule if request.molecule else "H2",
+            bond_distance=request.bond_distance if request.bond_distance > 0 else 0.7414,
+            subspace_dim=request.subspace_dimension if request.subspace_dimension > 0 else 4,
+            time_step=request.time_step if request.time_step > 0 else 0.2,
+            shots=request.shots if request.shots > 0 else 1024,
+        )
+        return kubona_pb2.QuantumKrylovResponse(
+            success=res["success"],
+            ground_state_energy=res["ground_state_energy"],
+            classical_fci_energy=res["classical_fci_energy"],
+            subspace_eigenvalues=res["subspace_eigenvalues"],
+            subspace_dimension=res["subspace_dimension"],
+            meyer_wallach_entanglement=res["meyer_wallach"],
+            execution_time_ms=res["execution_time_ms"],
+            error_message=res["error_message"],
+        )
+
+    def MitigateCircuit(self, request, context):
+        logger.info(f"MitigateCircuit called with method={request.method}")
+        scales = list(request.scale_factors) if request.scale_factors else [1.0, 1.5, 2.0]
+        res = mitigate_circuit(
+            qasm=request.qasm,
+            method=request.method if request.method else "ZNE",
+            scale_factors=scales,
+            shots=request.shots if request.shots > 0 else 1024,
+        )
+        return kubona_pb2.MitigationResponse(
+            success=res["success"],
+            unmitigated_value=res["unmitigated_value"],
+            mitigated_value=res["mitigated_value"],
+            error_bound=res["error_bound"],
+            method_used=res["method_used"],
+            error_message=res["error_message"],
+        )
 
 
 def serve(port: int = 50051):

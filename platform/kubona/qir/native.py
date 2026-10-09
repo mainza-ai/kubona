@@ -57,11 +57,13 @@ def lower_with_rust(qasm: str, bin_path: Path | None = None) -> dict[str, Any] |
     num_qubits = 0
     native_gate_count: dict[str, int] = {}
     for line in qir_text.splitlines():
-        if "qubit_allocate" in line:
+        if "call %Qubit* @__quantum__rt__qubit_allocate" in line:
             num_qubits += 1
-        qm = __import__("re").search(r"@__quantum__qis__(\w+)__body", line)
+        qm = __import__("re").search(r"call void @__quantum__qis__(\w+)__body", line)
         if qm:
             g = qm.group(1)
+            if g == "cnot":
+                g = "cx"
             native_gate_count[g] = native_gate_count.get(g, 0) + 1
     return {
         "ok": True,

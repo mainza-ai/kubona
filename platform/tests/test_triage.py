@@ -56,3 +56,26 @@ def test_large_multireference_routes_to_qpu():
     assert result["family_id"] == 278
     assert "Quantum_Krylov_Subspace_Diagonalization" in result["algorithm_recommendation"]
     assert result["complexity_regime"] == "QMA_Hard_Family_275"
+    assert "receipt_hash" in result
+    assert len(result["receipt_hash"]) == 64
+
+
+def test_small_gap_and_high_radical_index_routes_to_dmrg():
+    # Diradical polyene: single reference flag false, but homo_lumo_gap < 0.1 triggers multi-ref
+    polyene = MolecularSystem(
+        molecule_id="polyene_diradical",
+        formula="C8H8",
+        num_electrons=16,
+        nuclear_charges=[6] * 8,
+        is_multi_reference=False,
+        coulomb_continuum=True,
+        estimated_active_space_orbitals=12,
+        homo_lumo_gap=0.04,  # Small gap triggers multi-reference routing (Rule 1/2)
+        radical_index=0.08,   # High radical character
+    )
+    result = QuantumTriageEngine.triage(polyene)
+    assert result["target"] == TriageTarget.CLASSICAL_DMRG_TENSOR.value
+    assert not result["requires_qpu"]
+    assert "receipt_hash" in result
+    assert len(result["receipt_hash"]) == 64
+
