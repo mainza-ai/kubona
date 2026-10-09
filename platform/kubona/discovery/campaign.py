@@ -8,6 +8,7 @@ fully offline (scholarly sources degrade to a 'citation needed' record).
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 from kubona.anchors.chemistry import MolecularAnchorEngine
 from kubona.autoresearch import Orchestrator, build_vqe_ansatz_harness
 from kubona.circuits import parse_qasm2
@@ -37,7 +38,7 @@ class DiscoveryCampaign:
     tenant: str = "default-lab"
 
     def run(self, *, ledger: Ledger | None = None, library: AlgorithmLibrary | None = None,
-            source: str = "mock", report_store=None, llm=None) -> dict[str, Any]:
+            source: str = "arxiv", report_store=None, llm=None) -> dict[str, Any]:
         ledger = ledger or Ledger(tenant=self.tenant)
         sessions = SessionStore(tenant=self.tenant)
         gov = CostGovernanceService(sessions, store_path=ledger.path.parent)
@@ -74,24 +75,32 @@ class DiscoveryCampaign:
                 "problem": self.problem, "llm_used": bool(hypotheses),
                 "suggestion": hypotheses[:1]}).record_id})
 
-        # 3 EXPERIMENT — the autonomous ansatz search (Search Mode)
+        # 3 CLASSICAL ANCHOR FIRST — the classical bound precedes any
+        # experiment: no variational number is interpreted without its anchor
+        # in hand (quantum-advantage-realism: anchor before claim, always).
+        mol_engine = MolecularAnchorEngine()
+        anchor = mol_engine.compute_anchor(self.hamiltonian)
+        anchor_ref = ledger.append("analytical_anchor", anchor.to_dict()).record_id
+        stages["anchor"] = {"anchor": anchor.to_dict(), "ledger_ref": anchor_ref}
+
+        # 4 EXPERIMENT — the autonomous ansatz search (Search Mode), scored
+        # against the anchor computed above.
         harness = build_vqe_ansatz_harness()
         orch = Orchestrator(harness, budget_steps=self.budget_steps, seed=7, ledger=ledger)
         history = orch.search()
         best = orch.best(history)
         stages["experiment"] = {"best_theta": best.artifact, "best_metric": best.metric,
-                                "ledger_ref": best.ledger_ref, "steps": len(history)}
+                                "ledger_ref": best.ledger_ref, "steps": len(history),
+                                "anchor_ref": anchor_ref}
 
-        # 4 ANALYZE — ZNE error-mitigation sanity check
+        # 5 ANALYZE — ZNE error-mitigation sanity check
         zne = run_zne(parse_qasm2("OPENQASM 2.0;\nqreg q[1];\nx q[0];"), shots=8000,
                       noise_rate=0.05, scales=(1, 3, 5), seed=11)
         stages["analyze"] = {
             "mitigated": zne.mitigated_value, "raw": zne.raw_value,
             "ledger_ref": ledger.append("analysis", {"mitigated": zne.mitigated_value}).record_id}
 
-        # 4b CLASSICAL ANCHOR & EPISTEMIC GATING (Ring 1 & 2)
-        mol_engine = MolecularAnchorEngine()
-        anchor = mol_engine.compute_anchor(self.hamiltonian)
+        # 5b EPISTEMIC GATING (Ring 1 & 2) — over the precomputed anchor.
         variational_energy = -best.metric  # harness metric is -energy (higher is better)
         anchor_eval = mol_engine.evaluate_advantage_claim(variational_energy, anchor)
 

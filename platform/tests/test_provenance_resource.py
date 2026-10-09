@@ -3,6 +3,7 @@
 import json
 import os
 import sys
+import uuid
 
 import pytest
 
@@ -19,10 +20,14 @@ async def test_provenance_resource_readable():
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
             await session.initialize()
-            # write one record via the tool, then read it back via the RESOURCE
+            # unique hashes: the server ledger file persists across runs, so
+            # assertions must key on this run's rows, never on absence overall.
+            own_hash = f"res-{uuid.uuid4().hex[:8]}"
+            pub_hash = f"pub-{uuid.uuid4().hex[:8]}"
+            # tenant-scoped write: visible to its own lab, invisible to ambient resources
             result = await session.call_tool("write_record", {
                 "kind": "experiment",
-                "payload": {"circuit_hash": "res-abc", "provider": "local-simulator",
+                "payload": {"circuit_hash": own_hash, "provider": "local-simulator",
                             "shots": 512, "results": {"00": 512}, "cost_usd": 0.0}})
             assert json.loads(result.content[0].text)["chain_ok"] is True
 
@@ -32,9 +37,26 @@ async def test_provenance_resource_readable():
 
             read_rec = await session.read_resource("provenance://records")
             records = json.loads(read_rec.contents[0].text)["records"]
-            assert any("res-abc" in r for r in records)
+            assert not any(own_hash in r for r in records)
+
+            # public write: visible ambiently and in label-scoped aggregation
+            await session.call_tool("write_record", {
+                "kind": "experiment",
+                "payload": {"circuit_hash": pub_hash, "provider": "local-simulator",
+                            "shots": 512, "results": {"00": 512}, "cost_usd": 0.0},
+                "label": "public"})
+            read_rec = await session.read_resource("provenance://records")
+            records = json.loads(read_rec.contents[0].text)["records"]
+            assert any(pub_hash in r for r in records)
+            assert not any(own_hash in r for r in records)
 
             read_best = await session.read_resource("provenance://best")
             agg = json.loads(read_best.contents[0].text)["aggregate"]
-            assert "res-abc" in agg
-            assert agg["res-abc"]["providers"] == ["local-simulator"]
+            assert pub_hash in agg
+            assert agg[pub_hash]["providers"] == ["local-simulator"]
+            assert own_hash not in agg
+
+            # tenant-scoped query with explicit requester sees its own rows
+            q = await session.call_tool("query_records", {"kind": "experiment",
+                                                          "requester": "default"})
+            assert q is not None

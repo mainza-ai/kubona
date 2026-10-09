@@ -77,3 +77,19 @@ def test_comparator_axiom_verification(tmp_path):
     assert "sorryAx" in res_invalid.unpermitted_axioms
     assert "arbitrary_magic_axiom" in res_invalid.unpermitted_axioms
     assert "Forbidden axioms detected" in (res_invalid.error_message or "")
+
+
+def test_comparator_live_or_fallback(tmp_path):
+    registry = ComparatorChallengeRegistry()
+    ledger = Ledger(path=str(tmp_path / "ledger_live.jsonl"))
+
+    # When lake is absent (standard host), verify_lean4_live falls back gracefully to AST containment
+    res = registry.verify_lean4_live("QuasiRiemannHypothesis", ledger=ledger)
+    assert res.ok
+    assert res.verification_mode in ("live_kernel_proven", "static_ast_containment")
+    if res.verification_mode == "static_ast_containment":
+        assert res.kernel_execution_skipped is True
+    else:
+        assert res.kernel_execution_skipped is False
+    assert res.ledger_ref is not None
+

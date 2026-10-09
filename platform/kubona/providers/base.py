@@ -30,6 +30,11 @@ class Provider(ABC):
         deterministic under a given seed (reproducibility via the ledger)."""
 
     def health(self) -> dict[str, Any]:
+        """Liveness report. MAY include `measured_qubits` (int) when the
+        plugin can report a live capacity bound (backend properties or a
+        hard-coded cap). The canary treats a missing value as unknown —
+        never as a pass — and a mismatch against the declared capability
+        as a failed attestation (Q-14)."""
         return {"provider": self.capability.provider, "status": "ok"}
 
 

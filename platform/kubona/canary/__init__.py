@@ -5,6 +5,6 @@ results within tolerance, before an agent hits a broken backend mid-workflow.
 Results are written to the provenance ledger (kind="canary").
 """
 
-from .canary import CANARY_QASM, canary_check, release_gate, run_all, main
+from .canary import CANARY_QASM, attest_capacity, canary_check, release_gate, run_all, main
 
-__all__ = ["CANARY_QASM", "canary_check", "release_gate", "run_all", "main"]
+__all__ = ["CANARY_QASM", "attest_capacity", "canary_check", "release_gate", "run_all", "main"]

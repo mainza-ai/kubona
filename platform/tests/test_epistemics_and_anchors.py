@@ -80,7 +80,7 @@ def test_molecular_anchor_engine():
 
 def test_discovery_campaign_with_epistemics_and_anchors(tmp_path):
     campaign = DiscoveryCampaign(problem="H2-dissociation", hamiltonian="H2", ground_state=-1.137, budget_steps=10)
-    result = campaign.run()
+    result = campaign.run(source="mock")
     assert result["stages"]["report"]["collapsed"]
     assert "epistemics" in result["stages"]
     assert "anchor" in result["stages"]["epistemics"]
@@ -89,3 +89,41 @@ def test_discovery_campaign_with_epistemics_and_anchors(tmp_path):
     # The claim was evaluated by the gate and collapsed into a rigorous verdict
     assert any(tag in result["report"]["conclusions"] for tag in ("[CORROBORATED]", "[CONTESTED]"))
     assert "Does not surpass classical benchmark" in result["report"]["conclusions"]
+
+
+def test_fisher_rao_credibility_manifold():
+    import numpy as np
+    from kubona.epistemics.curvature import FisherRaoCredibilityManifold
+
+    manifold = FisherRaoCredibilityManifold(dimension=2)
+    theta = np.array([1.5, 2.0])
+
+    # 1. Metric tensor: symmetric, positive definite
+    g = manifold.compute_metric_tensor(theta)
+    assert g.shape == (2, 2)
+    assert np.allclose(g, g.T)
+    eigenvalues = np.linalg.eigvalsh(g)
+    assert np.all(eigenvalues > 0)
+
+    # 2. Christoffel symbols
+    gamma = manifold.compute_christoffel_symbols(theta)
+    assert gamma.shape == (2, 2, 2)
+    # Torsion-free connection: Γ^μ_αβ = Γ^μ_βα
+    for mu in range(2):
+        assert np.allclose(gamma[mu], gamma[mu].T, atol=1e-5)
+
+    # 3. Ricci curvature tensor and scalar
+    ricci_tensor, ricci_scalar = manifold.compute_ricci_curvature(theta)
+    assert ricci_tensor.shape == (2, 2)
+    assert isinstance(ricci_scalar, float)
+
+    # 4. Geodesic integration
+    v0 = np.array([0.1, -0.05])
+    trajectory = manifold.integrate_geodesic(theta, v0, steps=5, dtau=0.02)
+    assert len(trajectory.points) == 6
+    assert len(trajectory.velocities) == 6
+    assert len(trajectory.curvatures) == 5
+    summary = trajectory.to_dict()
+    assert summary["trajectory_steps"] == 6
+    assert "endpoints" in summary
+

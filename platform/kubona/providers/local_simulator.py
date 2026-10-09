@@ -113,6 +113,16 @@ class LocalSimulator(Provider):
             "statevector_norm_sq": float(np.sum(probs)),
         }
 
+    def health(self) -> dict[str, Any]:
+        # Attested capacity bound (Q-14): the statevector cap is a hard-coded
+        # safety limit, so it is a genuine measurement of what this plugin
+        # can execute — the canary verifies it against the declared JSON.
+        return {
+            "provider": self.capability.provider,
+            "status": "ok",
+            "measured_qubits": self._max_qubits,
+        }
+
     @staticmethod
     def _apply1(state: np.ndarray, u: np.ndarray, q: int, n: int) -> np.ndarray:
         stride = 1 << (n - 1 - q)

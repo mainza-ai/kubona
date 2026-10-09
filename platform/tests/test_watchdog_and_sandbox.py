@@ -95,3 +95,40 @@ def test_orchestrator_runs_with_active_watchdog():
     # Verify trials carry watchdog metadata
     assert "watchdog" in history[0].meta
     assert history[0].meta["watchdog"]["action"] in ("CONTINUE", "RE_SCOPE", "PAUSE", "ABORT_TO_SNAPSHOT")
+
+
+def test_mcclean_cerezo_barren_plateau_detector_and_negative_certificate():
+    import numpy as np
+    from kubona.watchdog.barren_plateau import McCleanCerezoBarrenPlateauDetector
+
+    # Case 1: Trapped barren plateau with near-constant function
+    flat_cost_fn = lambda theta: 1.0 + 1e-6 * float(np.sum(np.sin(theta)))
+    detector = McCleanCerezoBarrenPlateauDetector(num_qubits=8, variance_floor=1e-5)
+    params = np.zeros(8)
+
+    tripped, cert, metrics = detector.check_and_certify(
+        flat_cost_fn,
+        params,
+        ansatz_pattern="HardwareEfficient_DeepAnsatz_CZ",
+        hypothesis_hash="0xabcdef1234567890",
+        target_system="FeMoco",
+    )
+    assert tripped is True
+    assert cert is not None
+    assert cert.refutation_type == "BARREN_PLATEAU"
+    assert "HardwareEfficient_DeepAnsatz_CZ" in cert.properties["ansatz_pattern"]
+    assert metrics["is_barren_plateau"] is True
+    assert metrics["mean_variance"] < 1e-5
+
+    # Case 2: Healthy trainable landscape with significant gradient variance
+    steep_cost_fn = lambda theta: float(np.sum(theta ** 2))
+    tripped_2, cert_2, metrics_2 = detector.check_and_certify(
+        steep_cost_fn,
+        np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]),
+        ansatz_pattern="QuantumKrylovSubspace",
+    )
+    assert tripped_2 is False
+    assert cert_2 is None
+    assert metrics_2["is_barren_plateau"] is False
+    assert metrics_2["mean_variance"] > 1e-3
+

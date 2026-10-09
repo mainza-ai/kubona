@@ -100,3 +100,35 @@ def test_gate_cli_exit_code_is_the_verdict(tmp_path, monkeypatch):
     """The CLI exit code IS the gate verdict — this is what ci.yml now runs."""
     monkeypatch.setenv("KUBONA_STATE_DIR", str(tmp_path))
     assert main(["--gate"]) == 0
+
+
+def test_canary_attests_declared_qubits():
+    """Q-14: the canary verifies the schema's declared qubit count against the
+    plugin's live health report and seals the attestation."""
+    from kubona.canary import attest_capacity
+    att = attest_capacity("local-simulator", True)
+    assert att["declared_qubits"] == 24, att
+    assert att["measured_qubits"] == 24, att
+    assert att["qubit_count_ok"] is True, att
+    assert len(att["snapshot_hash"]) == 64, att
+
+
+def test_canary_flags_schema_lie():
+    """Q-14: a mismatch between measured and declared qubits fails attestation."""
+    import kubona.schema as schema_pkg
+
+    real_load = schema_pkg.load_provider
+    cap = real_load("local-simulator").model_copy(update={"physical_qubits": 999})
+    schema_pkg.load_provider = lambda name: cap
+    try:
+        from kubona.canary import attest_capacity
+        att = attest_capacity("local-simulator", True)
+        assert att["qubit_count_ok"] is False, att
+    finally:
+        schema_pkg.load_provider = real_load
+
+
+def test_canary_check_carries_attestation():
+    res = canary_check("local-simulator", shots=4096)
+    assert res["ok"] is True, res
+    assert res["attestation"]["qubit_count_ok"] is True, res
