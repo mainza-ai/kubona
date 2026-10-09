@@ -93,6 +93,7 @@ pub fn emit_llvm_ir(c: &Circuit) -> String {
     out.push_str("declare void @__quantum__qis__z__body(%Qubit*)\n");
     out.push_str("declare void @__quantum__qis__s__body(%Qubit*)\n");
     out.push_str("declare void @__quantum__qis__t__body(%Qubit*)\n");
+    out.push_str("declare void @__quantum__qis__cx__body(%Qubit*, %Qubit*)\n");
     out.push_str("declare void @__quantum__qis__cnot__body(%Qubit*, %Qubit*)\n");
     out.push_str("declare void @__quantum__qis__cz__body(%Qubit*, %Qubit*)\n");
     out.push_str("declare void @__quantum__qis__swap__body(%Qubit*, %Qubit*)\n");
@@ -112,10 +113,7 @@ pub fn emit_llvm_ir(c: &Circuit) -> String {
 
     // Gate invocations
     for (idx, g) in c.gates.iter().enumerate() {
-        let gate_name = match g.name.as_str() {
-            "cx" => "cnot",
-            other => other,
-        };
+        let gate_name = g.name.as_str();
 
         if g.params.is_empty() {
             let qs: Vec<String> = g.qubits.iter().map(|q| format!("%Qubit* %q{q}")).collect();
