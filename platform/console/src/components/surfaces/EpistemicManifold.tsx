@@ -57,9 +57,10 @@ export function EpistemicManifold({ campaign }: EpistemicManifoldProps) {
   const alpha = active.alpha_corr;
   const beta = active.beta_cont;
   const gamma = active.gamma_unv;
-  const discrepancy = campaign?.classical_anchor?.discrepancy_mha ?? 0.47;
+  const discrepancy = campaign?.classical_anchor?.discrepancy_mha;
   const accuracyLimit = campaign?.classical_anchor?.chemical_accuracy_limit ?? 1.6;
-  const anchorMethod = campaign?.classical_anchor?.method || 'exact PySCF full configuration interaction';
+  const anchorMethod = campaign?.classical_anchor?.method;
+  const anchorStated = discrepancy != null && anchorMethod != null;
 
   return (
     <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0F19] to-[#07090E] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-8 select-none">
@@ -145,7 +146,11 @@ export function EpistemicManifold({ campaign }: EpistemicManifoldProps) {
             &ldquo;{active.statement}&rdquo;
           </h3>
           <p className="text-xs text-slate-300 leading-relaxed">
-            Corroborated within chemical accuracy (<span className="text-emerald-400 font-mono font-semibold">{discrepancy.toFixed(2)} mHa &lt; {accuracyLimit.toFixed(1)} mHa</span>) against {anchorMethod} benchmarks.
+            {anchorStated ? (
+              <>Corroborated within chemical accuracy (<span className="text-emerald-400 font-mono font-semibold">{discrepancy!.toFixed(2)} mHa &lt; {accuracyLimit.toFixed(1)} mHa</span>) against {anchorMethod} benchmarks.</>
+            ) : (
+              <>No anchor measured for this session — corroboration unattested.</>
+            )}
           </p>
         </div>
       </div>

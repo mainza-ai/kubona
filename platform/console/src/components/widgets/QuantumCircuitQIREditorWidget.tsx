@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Cpu, Scissors, Code2, Layers, Check, Copy } from 'lucide-react';
+import { Cpu, Scissors,   Check, Copy } from 'lucide-react';
 
 interface QuantumCircuitQIREditorWidgetProps {
   qubits?: number;
@@ -49,19 +49,6 @@ entry:
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
-
-  const gates = [
-    { id: 1, type: 'H', qubit: 0, col: 0, isT: false },
-    { id: 2, type: 'CX_CTRL', qubit: 0, col: 1, isT: false },
-    { id: 3, type: 'CX_TGT', qubit: 1, col: 1, isT: false },
-    { id: 4, type: 'T', qubit: 0, col: 2, isT: true },
-    { id: 5, type: 'RZ', qubit: 1, col: 2, isT: false },
-    { id: 6, type: 'CUT', qubit: 1, col: 3, isCut: true },
-    { id: 7, type: 'T', qubit: 2, col: 0, isT: true },
-    { id: 8, type: 'H', qubit: 3, col: 0, isT: false },
-    { id: 9, type: 'CX_CTRL', qubit: 2, col: 2, isT: false },
-    { id: 10, type: 'CX_TGT', qubit: 3, col: 2, isT: false },
-  ];
 
   return (
     <div className="rounded-2xl border border-white/[0.08] bg-black/60 p-5 backdrop-blur-xl text-white space-y-4">

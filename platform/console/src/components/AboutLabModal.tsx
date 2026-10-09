@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import Image from 'next/image';
-import { X, ShieldCheck, Cpu, KeyRound, Lock, Activity, Sparkles, Terminal } from 'lucide-react';
+import { X, ShieldCheck, Cpu,  Lock,  Sparkles } from 'lucide-react';
 
 interface AboutLabModalProps {
   isOpen: boolean;

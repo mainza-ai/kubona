@@ -9,8 +9,8 @@ import {
   Radio,
   Network,
   BookOpen,
-  LayoutDashboard,
-  ShieldCheck,
+  
+  
   Atom,
   CheckCircle2,
   ChevronRight,
@@ -103,7 +103,8 @@ export function ObservatoryCockpit({
     return raw.replace(/Ground State.*$/i, '').trim() || raw;
   }, [campaign?.target_system, campaign?.quantum_factors?.target_molecule, activeMolecule]);
 
-  const isChemicalAccuracyMet = (campaign?.classical_anchor?.discrepancy_mha ?? 0.47) <= 1.6;
+  const anchorDiscrepancy = campaign?.classical_anchor?.discrepancy_mha;
+  const isChemicalAccuracyMet = anchorDiscrepancy != null && anchorDiscrepancy <= 1.6;
 
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
@@ -158,7 +159,7 @@ export function ObservatoryCockpit({
         {activeTab === 'surface5' && <FleetRadar campaign={campaign} />}
         {activeTab === 'surface6' && <CognitiveMesh campaign={campaign} />}
         {activeTab === 'surface7' && <ResultsStudio campaign={campaign} />}
-        {activeTab === 'surface8' && <EpistemicTribunalRoom />}
+        {activeTab === 'surface8' && <EpistemicTribunalRoom sessionId={session?.id ?? ''} />}
         {activeTab === 'surface9' && <GenerativeUIStudio />}
         {activeTab === 'hf_hub' && <HuggingFaceModelHub />}
         {activeTab === 'settings' && <LLMSettings />}
@@ -181,8 +182,10 @@ export function ObservatoryCockpit({
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>
                     {isChemicalAccuracyMet
-                      ? `Chemical Accuracy Met (Δ = ${(campaign?.classical_anchor?.discrepancy_mha ?? 0.47).toFixed(2)} mHa)`
-                      : `Exploring Variational Space (Δ = ${(campaign?.classical_anchor?.discrepancy_mha ?? 12.4).toFixed(2)} mHa)`}
+                      ? `Chemical Accuracy Met (Δ = ${anchorDiscrepancy!.toFixed(2)} mHa)`
+                      : anchorDiscrepancy != null
+                        ? `Exploring Variational Space (Δ = ${anchorDiscrepancy.toFixed(2)} mHa)`
+                        : 'Exploring Variational Space (Δ = UNVERIFIED — no anchor measured)'}
                   </span>
                 </span>
               </div>

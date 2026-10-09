@@ -12,6 +12,14 @@ export interface TelemetryState {
   lastHeartbeat: string | null;
 }
 
+// Transport decision (Q-29 follow-up, recorded 2026-10-09): REST polling is
+// the normative console transport (page-level 3.5s loops + radar 1s poll).
+// Rationale: oversight cadence needs no sub-second push; polling has no
+// sticky connections through proxies and degrades obviously. This SSE hook
+// against /api/events/stream is retained as progressive enhancement for the
+// fleet radar ONLY, pending a load measurement (concurrent EventSource
+// connections, proxy buffering behavior) — it is staged, not supported, and
+// no surface may depend on it until that measurement lands.
 export function useTelemetry(sessionId?: string, options: { enabled?: boolean } = {}) {
   const { enabled = true } = options;
   const [state, setState] = useState<TelemetryState>({

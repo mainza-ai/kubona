@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { KeyRound, ShieldAlert, CheckCircle2, XCircle, ArrowDownCircle } from 'lucide-react';
+import { KeyRound,  CheckCircle2, XCircle, ArrowDownCircle } from 'lucide-react';
+import { createSignedSpendMandate } from '@/lib/mandates';
 
 interface CryptographicMandateCardWidgetProps {
   actionDescription?: string;
@@ -26,17 +27,28 @@ export function CryptographicMandateCardWidget({
   const handleSign = async () => {
     setIsSigning(true);
     try {
-      // Generate WebCrypto Ed25519 or SHA-256 signature token
-      const msg = new TextEncoder().encode(`${actionDescription}-${estimatedCostUsd}-${Date.now()}`);
-      const digest = await window.crypto.subtle.digest('SHA-256', msg);
-      const hex = Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
-      const sig = `ed25519_sig_${hex.slice(0, 32)}`;
-      setSignedToken(sig);
-      onAuthorize?.(sig);
-    } catch {
-      const fallback = `ed25519_sig_${Math.random().toString(36).substring(2, 18)}`;
-      setSignedToken(fallback);
-      onAuthorize?.(fallback);
+      // Deterministically hash the action description for the job hash
+      const encoder = new TextEncoder();
+      const digestBuffer = await window.crypto.subtle.digest(
+        'SHA-256',
+        encoder.encode(`${actionDescription}-${estimatedCostUsd}`)
+      );
+      const jobHashHex = Array.from(new Uint8Array(digestBuffer))
+        .map((b) => b.toString(16).padStart(2, '0'))
+        .join('');
+
+      // Generate authentic AP2 Ed25519 SpendMandate
+      const mandate = createSignedSpendMandate({
+        tenantId: 'tenant-default',
+        jobHash: jobHashHex,
+        maxBudgetUsd: estimatedCostUsd,
+        ttlSeconds: 3600,
+      });
+
+      setSignedToken(mandate.signature_hex);
+      onAuthorize?.(mandate.signature_hex);
+    } catch (err) {
+      console.error('Failed to cryptographically sign mandate:', err);
     } finally {
       setIsSigning(false);
     }

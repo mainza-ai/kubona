@@ -13,7 +13,15 @@ import {
   MapPin,
 } from 'lucide-react';
 import { CampaignState } from '@/types';
-import { fetchFleet } from '@/lib/api';
+import { fetchFleet, fetchRadar } from '@/lib/api';
+
+interface RadarEndpoint {
+  port: number;
+  listening: boolean;
+  service: string;
+  sovereign: boolean;
+  is_local_ip: boolean;
+}
 
 interface BackendInfo {
   name: string;
@@ -35,6 +43,7 @@ interface FleetRadarProps {
 
 export function FleetRadar({ campaign }: FleetRadarProps) {
   const [backends, setBackends] = useState<BackendInfo[]>([]);
+  const [radarEndpoints, setRadarEndpoints] = useState<RadarEndpoint[]>([]);
   const [sovereignOnly, setSovereignOnly] = useState(false);
   const [expandedBackend, setExpandedBackend] = useState<string | null>(null);
 
@@ -42,6 +51,24 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
     fetchFleet()
       .then((data) => setBackends((data.backends as BackendInfo[]) || []))
       .catch((err) => console.error('Failed to load fleet data:', err));
+
+    let active = true;
+    const pollRadar = async () => {
+      try {
+        const data = await fetchRadar();
+        if (active && data?.radar_endpoints) {
+          setRadarEndpoints(data.radar_endpoints as RadarEndpoint[]);
+        }
+      } catch (err) {
+        console.error('Radar poll error:', err);
+      }
+    };
+    pollRadar();
+    const interval = setInterval(pollRadar, 1000);
+    return () => {
+      active = false;
+      clearInterval(interval);
+    };
   }, []);
 
   const filteredBackends = sovereignOnly
@@ -126,6 +153,99 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
               </p>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Real-Time Host Daemon Telemetry (Ports 8080 & 50051) */}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between text-xs font-semibold text-slate-300 font-mono uppercase tracking-wider">
+          <span>Host Daemon Telemetry &amp; Gateway Links</span>
+          <span className="text-[10px] text-cyan-400 font-mono flex items-center space-x-1.5">
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+            <span>1000ms Live Telemetry Radar</span>
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {/* Port 8080 Go Core Orchestrator Gateway */}
+          {(() => {
+            const ep8080 = radarEndpoints.find((e) => e.port === 8080);
+            const isListening = ep8080 ? ep8080.listening : true;
+            return (
+              <div
+                data-testid="radar-endpoint-8080"
+                className="p-4 rounded-2xl bg-black/40 border border-white/[0.08] backdrop-blur-xl flex items-center justify-between transition-all"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2 h-2 rounded-full bg-cyan-400" />
+                    <span className="text-xs font-mono font-bold text-white">Port 8080</span>
+                    <span className="text-[10px] font-mono text-cyan-300 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-800/40">
+                      HTTP / REST
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 font-sans">
+                    Kubona Go Core Gateway (Daemon: kubonad)
+                  </p>
+                </div>
+                <div
+                  data-testid="status-indicator-8080"
+                  className={`px-3 py-1 rounded-full text-[11px] font-mono font-semibold flex items-center space-x-1.5 border transition-all ${
+                    isListening
+                      ? 'bg-emerald-950/70 text-emerald-300 border-emerald-700/60'
+                      : 'bg-rose-950/70 text-rose-300 border-rose-700/60'
+                  }`}
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      isListening ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'
+                    }`}
+                  />
+                  <span>{isListening ? 'LISTENING / SOVEREIGN' : 'OFFLINE / DISCONNECTED'}</span>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Port 50051 Python Quantum Bridge */}
+          {(() => {
+            const ep50051 = radarEndpoints.find((e) => e.port === 50051);
+            const isListening = ep50051 ? ep50051.listening : false;
+            return (
+              <div
+                data-testid="radar-endpoint-50051"
+                className="p-4 rounded-2xl bg-black/40 border border-white/[0.08] backdrop-blur-xl flex items-center justify-between transition-all"
+              >
+                <div className="space-y-1">
+                  <div className="flex items-center space-x-2">
+                    <span className="w-2 h-2 rounded-full bg-indigo-400" />
+                    <span className="text-xs font-mono font-bold text-white">Port 50051</span>
+                    <span className="text-[10px] font-mono text-indigo-300 bg-indigo-950/80 px-2 py-0.5 rounded border border-indigo-800/40">
+                      gRPC
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 font-sans">
+                    Kubona Python Quantum Bridge (Daemon: server.py)
+                  </p>
+                </div>
+                <div
+                  data-testid="status-indicator-50051"
+                  className={`px-3 py-1 rounded-full text-[11px] font-mono font-semibold flex items-center space-x-1.5 border transition-all ${
+                    isListening
+                      ? 'bg-emerald-950/70 text-emerald-300 border-emerald-700/60'
+                      : 'bg-rose-950/70 text-rose-300 border-rose-700/60'
+                  }`}
+                >
+                  <span
+                    className={`w-2 h-2 rounded-full ${
+                      isListening ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'
+                    }`}
+                  />
+                  <span>{isListening ? 'LISTENING / SOVEREIGN' : 'OFFLINE / DISCONNECTED'}</span>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       </div>
 

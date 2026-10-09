@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Compass, TrendingUp, Sparkles, AlertCircle, Anchor } from 'lucide-react';
+import { Compass,    Anchor } from 'lucide-react';
 
 interface EpistemicManifoldSurfaceWidgetProps {
   currentCurvatureScalar?: number;

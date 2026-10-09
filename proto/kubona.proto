@@ -123,6 +123,42 @@ message LiteratureGroundingResponse {
   bool cached = 2;
 }
 
+message QuantumKrylovRequest {
+  string molecule = 1; // e.g. "H2", "LiH", "BeH2"
+  double bond_distance = 2;
+  int32 subspace_dimension = 3; // e.g. 3, 4, 5
+  double time_step = 4; // tau
+  int32 shots = 5;
+  string requested_backend = 6;
+}
+
+message QuantumKrylovResponse {
+  bool success = 1;
+  double ground_state_energy = 2;
+  double classical_fci_energy = 3;
+  repeated double subspace_eigenvalues = 4;
+  int32 subspace_dimension = 5;
+  double meyer_wallach_entanglement = 6;
+  double execution_time_ms = 7;
+  string error_message = 8;
+}
+
+message MitigationRequest {
+  string qasm = 1;
+  string method = 2; // "ZNE", "PEC", "CDR"
+  repeated double scale_factors = 3; // e.g. [1.0, 1.5, 2.0]
+  int32 shots = 4;
+}
+
+message MitigationResponse {
+  bool success = 1;
+  double unmitigated_value = 2;
+  double mitigated_value = 3;
+  double error_bound = 4;
+  string method_used = 5;
+  string error_message = 6;
+}
+
 // Quantum and Data Bridge Service
 service QuantumBridgeService {
   rpc ExecuteCircuit(CircuitExecutionRequest) returns (CircuitExecutionResponse);
@@ -130,4 +166,6 @@ service QuantumBridgeService {
   rpc ComputeClassicalAnchor(ClassicalAnchorRequest) returns (ClassicalAnchorResponse);
   rpc EvaluateWavefunction(ClaimEvaluationRequest) returns (ClaimEvaluationResponse);
   rpc GroundLiterature(LiteratureGroundingRequest) returns (LiteratureGroundingResponse);
+  rpc ExecuteQuantumKrylov(QuantumKrylovRequest) returns (QuantumKrylovResponse);
+  rpc MitigateCircuit(MitigationRequest) returns (MitigationResponse);
 }

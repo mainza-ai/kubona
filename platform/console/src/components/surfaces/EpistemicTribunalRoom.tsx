@@ -1,29 +1,31 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
-  Users,
-  ShieldCheck,
+  
+  
   CheckCircle2,
   AlertTriangle,
   Scale,
-  Brain,
-  Cpu,
-  Flame,
-  Binary,
-  Scroll,
+  
+  
+  
+  
+  
   FileCheck,
   Play,
   RotateCcw,
   Sparkles,
-  ExternalLink,
-  ChevronRight,
+  
+  
 } from 'lucide-react';
-import { EpistemicTribunalVote, AgentPersona, AgentRoleType } from '@/types';
+import {  AgentPersona } from '@/types';
+import { API_BASE } from '@/lib/api';
 
 interface TribunalRoomProps {
   hypothesisId?: string;
   targetSystem?: string;
+  sessionId?: string;
   onCommitToLedger?: (receipt: Record<string, unknown>) => void;
 }
 
@@ -39,12 +41,15 @@ interface PersonaState {
 export function EpistemicTribunalRoom({
   hypothesisId = 'hyp-qksd-femoco-01',
   targetSystem = 'FeMoco Nitrogenase Cluster',
+  sessionId = '',
   onCommitToLedger,
 }: TribunalRoomProps) {
   const [currentPhase, setCurrentPhase] = useState<number>(5); // 1 to 5
   const [quorumPercent, setQuorumPercent] = useState<number>(94.5);
   const [committedReceipt, setCommittedReceipt] = useState<string | null>(null);
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
+  const [isCommitting, setIsCommitting] = useState<boolean>(false);
+  const [commitError, setCommitError] = useState<string | null>(null);
 
   const personas: PersonaState[] = [
     {
@@ -175,19 +180,49 @@ export function EpistemicTribunalRoom({
     }, 700);
   };
 
-  const handleCommitLedger = () => {
-    const receiptHash = `0x${Array.from({ length: 64 }, () =>
-      Math.floor(Math.random() * 16).toString(16)
-    ).join('')}`;
-    setCommittedReceipt(receiptHash);
-    if (onCommitToLedger) {
-      onCommitToLedger({
-        receipt_hash: receiptHash,
-        hypothesis_id: hypothesisId,
-        target_system: targetSystem,
-        quorum_percent: quorumPercent,
-        timestamp: new Date().toISOString(),
+  const handleCommitLedger = async () => {
+    if (!sessionId) {
+      setCommitError('No active session: open or create a session before committing.');
+      return;
+    }
+    setIsCommitting(true);
+    setCommitError(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/ledger/append`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sessionId,
+          event_type: 'tribunal_commit',
+          payload: {
+            hypothesis_id: hypothesisId,
+            target_system: targetSystem,
+            quorum_percent: quorumPercent,
+          },
+        }),
       });
+      if (!res.ok) {
+        throw new Error(`ledger refused the commit (HTTP ${res.status})`);
+      }
+      const data = await res.json();
+      if (!data.ok || !data.record_hash) {
+        throw new Error(data.error || 'ledger returned no record hash');
+      }
+      setCommittedReceipt(data.record_hash);
+      if (onCommitToLedger) {
+        onCommitToLedger({
+          receipt_hash: data.record_hash,
+          event_id: data.event_id,
+          hypothesis_id: hypothesisId,
+          target_system: targetSystem,
+          quorum_percent: quorumPercent,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    } catch (err) {
+      setCommitError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsCommitting(false);
     }
   };
 
@@ -234,7 +269,7 @@ export function EpistemicTribunalRoom({
 
           <button
             onClick={handleCommitLedger}
-            disabled={quorumPercent < 75.0 || committedReceipt !== null}
+            disabled={quorumPercent < 75.0 || committedReceipt !== null || isCommitting}
             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
               committedReceipt
                 ? 'bg-emerald-950/40 text-emerald-400 border-emerald-500/40 cursor-default'
@@ -244,7 +279,7 @@ export function EpistemicTribunalRoom({
             }`}
           >
             <FileCheck className="w-4 h-4" />
-            <span>{committedReceipt ? 'Committed to Ledger' : 'Commit Discovery to Merkle Ledger'}</span>
+            <span>{committedReceipt ? 'Committed to Ledger' : isCommitting ? 'Committing…' : 'Commit Discovery to Merkle Ledger'}</span>
           </button>
         </div>
       </div>
@@ -345,7 +380,17 @@ export function EpistemicTribunalRoom({
             </span>
           </div>
           <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-emerald-900/60 text-emerald-300 border border-emerald-500/30">
-            Immutable ρ=1.000000
+            Quorum-sealed · server receipt
+          </span>
+        </div>
+      )}
+
+      {/* Commit Failure Notice */}
+      {commitError && !committedReceipt && (
+        <div className="p-3.5 bg-rose-950/30 border border-rose-500/40 rounded-xl flex items-center gap-2">
+          <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+          <span className="text-xs text-rose-300">
+            <strong>Ledger commit failed:</strong> {commitError} Nothing was recorded.
           </span>
         </div>
       )}

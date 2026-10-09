@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Image from 'next/image';
 import {
   Plus,
   Activity,
   Zap,
   Search,
-  Command,
+  
   HelpCircle,
   PanelLeftClose,
   PanelLeft,
@@ -15,13 +15,13 @@ import {
   PanelRight,
   Info,
   Clock,
-  DollarSign,
+  
   ChevronRight,
   Sparkles,
   Trash2,
 } from 'lucide-react';
 import { Session, Loop, LedgerEvent, CampaignState } from '@/types';
-import { fetchSessions, createSession, deleteSession, fetchLoops, fetchEvents, fetchCampaignState } from '@/lib/api';
+import { fetchSessions, createSession, deleteSession, fetchLoops, fetchEvents, fetchCampaignState, API_BASE } from '@/lib/api';
 import { CopilotDrawer } from '@/components/CopilotDrawer';
 import { ObservatoryCockpit, SurfaceTab } from '@/components/ObservatoryCockpit';
 import { AboutLabModal } from '@/components/AboutLabModal';
@@ -32,6 +32,7 @@ import { NewCampaignModal } from '@/components/modals/NewCampaignModal';
 export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
+  const bootstrappedSession = useRef(false);
   const [campaign, setCampaign] = useState<CampaignState | null>(null);
   const [loops, setLoops] = useState<Loop[]>([]);
   const [events, setEvents] = useState<LedgerEvent[]>([]);
@@ -82,13 +83,18 @@ export default function Home() {
       if (!mounted) return;
       setLatencyMs(Math.round(performance.now() - t0));
       if (sessList.length === 0) {
-        const firstSess = await createSession('Quantum Research Campaign #1', 150.0);
-        if (firstSess && mounted) {
-          setSessions([firstSess]);
-          setCurrentSessionId(firstSess.id);
-          fetchCampaignState(firstSess.id).then((c) => {
-            if (mounted) setCampaign(c);
-          });
+        // Bootstrap exactly once: the effect re-runs when the session
+        // changes (exhaustive-deps), but must never mint a second session.
+        if (!bootstrappedSession.current) {
+          bootstrappedSession.current = true;
+          const firstSess = await createSession('Quantum Research Campaign #1', 150.0);
+          if (firstSess && mounted) {
+            setSessions([firstSess]);
+            setCurrentSessionId(firstSess.id);
+            fetchCampaignState(firstSess.id).then((c) => {
+              if (mounted) setCampaign(c);
+            });
+          }
         }
       } else {
         setSessions(sessList);
@@ -111,7 +117,7 @@ export default function Home() {
       mounted = false;
       clearInterval(timer);
     };
-  }, []);
+  }, [currentSessionId]);
 
   const handleCreateSession = useCallback(() => {
     setIsNewCampaignModalOpen(true);
@@ -173,11 +179,30 @@ export default function Home() {
     [sessions, currentSessionId]
   );
 
-  const handleEmergencyAbort = useCallback(() => {
-    if (confirm('EMERGENCY ABORT: Trigger Ring 0 watchdog intercept on all active loops?')) {
-      alert('Ring 0 Reflex Intercept triggered. All goroutines safely paused.');
+  const handleEmergencyAbort = useCallback(async () => {
+    if (!currentSessionId) {
+      alert('No active session: open or create a session before triggering an abort.');
+      return;
     }
-  }, []);
+    if (confirm('EMERGENCY ABORT: Settle every unsettled job in this session as failed?')) {
+      try {
+        const res = await fetch(`${API_BASE}/api/supervisor/abort`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ session_id: currentSessionId }),
+        });
+        if (!res.ok) {
+          throw new Error(`supervisor refused the abort (HTTP ${res.status})`);
+        }
+        const data = await res.json();
+        alert(
+          `Ring 0 Reflex Intercept complete: ${data.aborted_count} job(s) settled failed.\nAbort receipt: ${data.abort_receipt}`
+        );
+      } catch (err) {
+        alert(`Abort failed and nothing was settled: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+  }, [currentSessionId]);
 
   // Global Keyboard Shortcuts (Apple HIG compliance)
   useEffect(() => {

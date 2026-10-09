@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { CheckCircle2, ShieldCheck, GitBranch, Terminal, FileCode2 } from 'lucide-react';
+import { CheckCircle2, ShieldCheck, GitBranch, Terminal } from 'lucide-react';
 
 interface Lean4GoalTreeInspectorWidgetProps {
   theoremName?: string;

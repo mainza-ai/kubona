@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef,  useMemo } from 'react';
 import {
   Send,
   Sparkles,
@@ -18,12 +18,12 @@ import {
   PanelRightClose,
   Copy,
   Check,
-  Zap,
-  ShieldCheck,
-  Compass,
-  FileCode,
+  
+  
+  
+  
 } from 'lucide-react';
-import { ChatMessage, CampaignState, TribunalTurn, TribunalResult, Proposal } from '@/types';
+import { ChatMessage, CampaignState } from '@/types';
 import { fetchMessages, sendChatMessage, createSession, runTribunal, fetchCampaignState } from '@/lib/api';
 import { MathText } from './common/MathText';
 
@@ -242,8 +242,8 @@ export function CopilotDrawer({
     if (raw.toUpperCase().includes('CO')) return 'Carbon Monoxide (CO)';
     return raw;
   }, [campaign?.target_system]);
-  const discrepancy = campaign?.classical_anchor?.discrepancy_mha ?? 0.47;
-  const isChemicalAccuracyMet = discrepancy <= 1.6;
+  const discrepancy = campaign?.classical_anchor?.discrepancy_mha;
+  const isChemicalAccuracyMet = discrepancy != null && discrepancy <= 1.6;
 
   return (
     <div
@@ -304,7 +304,7 @@ export function CopilotDrawer({
         <div className="flex items-center space-x-1.5">
           <span className={`w-1.5 h-1.5 rounded-full ${isChemicalAccuracyMet ? 'bg-emerald-400' : 'bg-amber-400'}`} />
           <span className={isChemicalAccuracyMet ? 'text-emerald-300' : 'text-amber-300'}>
-            Δ = {discrepancy.toFixed(2)} mHa
+            Δ = {discrepancy != null ? `${discrepancy.toFixed(2)} mHa` : 'UNVERIFIED'}
           </span>
         </div>
       </div>

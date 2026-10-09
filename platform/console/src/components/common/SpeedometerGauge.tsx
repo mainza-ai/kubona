@@ -23,16 +23,12 @@ export function SpeedometerGauge({
   max = 100,
   label,
   unit = '',
-  thresholds,
   colorScheme = 'cyan',
   size = 140,
   subtext,
 }: SpeedometerGaugeProps) {
   const clamped = Math.max(min, Math.min(max, value));
   const fraction = (clamped - min) / (max - min || 1);
-
-  // Gauge sweeps 220 degrees (-110 deg to +110 deg)
-  const angle = -110 + fraction * 220;
 
   const colorMap = {
     cyan: { stroke: '#00f0ff', glow: 'rgba(0, 240, 255, 0.4)', text: 'text-cyan-400' },
