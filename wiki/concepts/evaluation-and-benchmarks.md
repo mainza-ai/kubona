@@ -21,6 +21,20 @@ evaluation into four complementary tracks (source-gap-analysis-plan).
 - **PennyLang** ([[pennylane]]) — 3,000+ curated samples; RAG-enhanced generation lifts QML
   code-gen success from single digits to ~84%.
 
+> ⚑ Volume-corpus status (2026-10-10): **QuantumKatas — transcribing (done:
+> 13 tasks).** 8 MIT-licensed kata exercises transcribed into QASM
+> satisfiability tasks (`quantum_katas_volume.json`, kata provenance per
+> entry); all 16 corpus tasks score 1.0 on the simulator. Katas without a
+> strongly-checkable invariant (Deutsch-Jozsa, teleportation, arithmetic)
+> are excluded by design. **HumanEval / PennyLang — deferred, new harness
+> required.** Both are *code* corpora (Python codegen + unit tests / QML
+> samples for RAG), not circuits: they cannot drop into the {qasm, check}
+> registry without misrepresenting the benchmark. Ingesting them means a
+> sandboxed code-execution harness (untrusted generated code + test runner),
+> a security-sensitive build tracked as P4 follow-up work — not a corpus
+> file. Faking it via QASM transcription would corrupt every claim built
+> on the score.
+
 ## 2. Platform integration/regression (new)
 
 - Does the [[qir-mlir-compilation|QIR lowering]] pipeline still produce correct bitcode after
