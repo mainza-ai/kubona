@@ -1363,3 +1363,9 @@ skipped is the exact failure this incident is about:
   dev-docs/.obsidian paths, no files >1MB, tree clean, local gates green.
   Blockers remain operator-side: explicit push order + origin CI red since
   Oct 4-5 (pre-existing, predates this work).
+
+## [2026-10-10] verification | CI green on develop (first time this week)
+  Push triaged 4 red causes across 3 runs: A2A/HF task-snapshot races
+  (copies under lock + GetDownload), pnpm-workspace packages field,
+  undeclared protobuf dep (+ pure to_records), Go-job numpy/qiskit env.
+  All 5 jobs success on run 38022483715. Origin red since Oct 4-5 resolved.
