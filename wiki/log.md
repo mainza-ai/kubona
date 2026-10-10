@@ -1286,3 +1286,10 @@ skipped is the exact failure this incident is about:
   toolchain/drift facts, all named in humaneval.excluded.json. Corpus +
   loader (humaneval.py) + 4 tests committed; suite 292 passed, 3 skipped.
   Image 1.1.0 (runtime 0.36.1 + matplotlib pinned). PennyLang still pending.
+
+## [2026-10-10] decision | PennyLang refused under Q-26 (licence audit)
+  eBrain4Everyone/Pennylang dataset.json audited: 3,347 {instruction,
+  response} pairs, zero per-sample provenance; 1,952 unofficial-repo +
+  21 textbook samples per the paper; repo MIT cannot relicense scraped
+  code. Whole-dataset refusal recorded (plus wrong-shape-for-execution).
+  First live fire of the licence gate. P4 eval front closed.

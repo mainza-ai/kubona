@@ -61,6 +61,29 @@ Reproducer (outside the hermetic venv): HF `Qiskit/qiskit_humaneval` parquet
 golden runs (48+48+40/42 passes across three batches; the 6 failures became
 the named exclusions above). PennyLang samples still pending (per-file
 licence metadata).
+
+## PennyLang refused under Q-26 (licence audit 2026-10-10)
+
+Source: `eBrain4Everyone/Pennylang` (`dataset.json`, 49MB, 3,347 samples;
+repo LICENSE is MIT). Audited against the Q-26 rule — **refused, whole
+dataset**, for two independent reasons:
+1. **No per-sample provenance.** Entries carry only `{instruction,
+   response}` — no source URL, no licence, nothing to verify. Per the paper
+   (arXiv 2503.02497) composition: 1,952 samples from *unofficial* GitHub
+   repos (licences unknown), 21 from *textbooks* (presumptively
+   copyrighted), annotations GPT-4o-generated. A curator's repo-level MIT
+   cannot relicense scraped third-party code or textbook excerpts, and
+   without provenance no licence-clean subset is identifiable — filtering
+   is impossible, not just unimplemented.
+2. **Wrong shape for execution.** Instruction–response RAG pairs with no
+   tests; running them in `codeexec` would require synthesized tests, i.e.
+   grading our own invention.
+
+This is the exact corruption class the licence gate exists to catch, and
+the refusal is its first live fire. Path back, if ever wanted: re-derive
+from PennyLaneAI-official sources (Apache-2.0) with per-sample provenance
+— a new curation build, not an import. P4 eval front is therefore closed:
+Katas ✓, HumanEval ✓ (136), harness ✓, PennyLang refused-named.
 **Threat model.** The harness runs *untrusted generated Python* (HumanEval
 completions, PennyLang-style samples): arbitrary code that may attempt
 exfiltration, fork bombs, miners, or payload-bearing task text. It is
