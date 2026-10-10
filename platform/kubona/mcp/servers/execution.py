@@ -102,6 +102,14 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
     """
     circuit = parse_qasm2(circuit_qasm)
     capability = load_provider(provider)
+    # P5 §2.9: routing declarations are mandatory for anything beyond local
+    # simulators (jurisdiction "none"). Undeclared callers must not reach for
+    # hardware through this path either — the executor gate is the second rail.
+    if capability.jurisdiction != "none" and not caller_jurisdictions:
+        return {"ok": False,
+                "error": f"provider {provider!r} is not local-only: caller_jurisdictions "
+                         "must declare at least one jurisdiction (routing cannot be "
+                         "verified undeclared)"}
     if caller_jurisdictions:
         from kubona.routing import ROUTE_INELIGIBLE, route
 

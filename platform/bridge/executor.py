@@ -127,6 +127,47 @@ def route_backend(requested_backend: str) -> str:
     return f"unknown-hardware:{requested_backend}"
 
 
+def _route_hardware(provider_name: str, caller_jurisdictions: list | None,
+                    caller_export_class: str, export_reviewed: bool,
+                    t0: float) -> Dict[str, Any] | None:
+    """P5 §2.9 compliance gate for hardware execution.
+
+    Returns None when routing passes (caller proceeds to the plugin).
+    Returns an honest failure dict — never simulation — when the caller
+    declared nothing or route() rules INELIGIBLE. Zero spend, zero network.
+    """
+    def _refuse(reason: str) -> Dict[str, Any]:
+        return {
+            "success": False,
+            "resolved_backend": "none",
+            "degradation_level": 0,
+            "degradation_reason": f"routing refused: {reason}",
+            "counts": {},
+            "statevector_real": [],
+            "statevector_imag": [],
+            "meyer_wallach": 0.0,
+            "execution_time_ms": (time.time() - t0) * 1000.0,
+            "error_message": f"routing refused: {reason}",
+        }
+    if not caller_jurisdictions:
+        return _refuse(
+            f"hardware provider {provider_name!r} requires declared "
+            "caller_jurisdictions (routing cannot be verified undeclared)")
+    try:
+        from kubona.routing import ROUTE_INELIGIBLE, route
+        from kubona.schema import load_provider
+        r = route(load_provider(provider_name),
+                  caller_jurisdictions=caller_jurisdictions,
+                  caller_export_class=caller_export_class or "any",
+                  require_review=export_reviewed)
+    except Exception as e:
+        return _refuse(f"routing evaluation failed closed: {e}")
+    if r.verdict == ROUTE_INELIGIBLE:
+        return _refuse(f"{provider_name}: {r.reason} "
+                       f"(caller={caller_jurisdictions}, class={caller_export_class})")
+    return None
+
+
 def _execute_ibm_hardware(qasm: str, shots: int, requested_backend: str) -> Dict[str, Any] | None:
     """Real IBM Quantum hardware via the provider plugin, or None to fall
     through to labeled simulation when credentials/SDK are absent.
@@ -195,10 +236,18 @@ def execute_qasm(
     shots: int = 1024,
     requested_backend: str = "aer_simulator",
     allow_fallback: bool = True,
+    caller_jurisdictions: list | None = None,
+    caller_export_class: str = "any",
+    export_reviewed: bool = False,
 ) -> Dict[str, Any]:
     """
     Executes an OpenQASM circuit with transparent backend resolution,
     RAM pre-flight bounds checking, and honest degradation tagging.
+
+    P5 §2.9 routing: hardware execution requires caller_jurisdictions and a
+    route() ELIGIBLE verdict against the provider capability. A refusal
+    returns immediately (success False) — it never degrades into simulation,
+    which would make the gate theater.
     """
     t0 = time.time()
     if not HAS_QISKIT:
@@ -303,6 +352,11 @@ def execute_qasm(
         # fail-closed degradation — never as hardware counts.
         route = route_backend(requested_backend)
         if route == "hardware:ibm-qiskit":
+            routed = _route_hardware(
+                "ibm-qiskit", caller_jurisdictions,
+                caller_export_class, export_reviewed, t0)
+            if routed is not None:
+                return routed
             hw = _execute_ibm_hardware(qasm, shots, requested_backend)
             if hw is not None:
                 hw["execution_time_ms"] = (time.time() - t0) * 1000.0

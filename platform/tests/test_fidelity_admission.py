@@ -18,13 +18,13 @@ def test_simulator_skips_fidelity_gate():
 
 def test_shallow_qpu_circuit_admitted_with_verdict():
     out = exec_server.submit_job(BELL, provider="ibm-qiskit", shots=100,
-                                     budget_ceiling_usd=150.0)
+                                     budget_ceiling_usd=150.0, caller_jurisdictions=["US"])
     assert out["ok"] is True, out
 
 
 def test_deep_circuit_refused_with_receipt_not_remediation():
     out = exec_server.submit_job(_deep_qasm(), provider="ibm-qiskit", shots=100,
-                                     budget_ceiling_usd=150.0)
+                                     budget_ceiling_usd=150.0, caller_jurisdictions=["US"])
     assert out["ok"] is False, out
     assert "fidelity" in out and out["fidelity"]["fidelity_receipt"], out
     assert out["fidelity"]["recommended_action"] in (
@@ -33,6 +33,7 @@ def test_deep_circuit_refused_with_receipt_not_remediation():
 
 def test_unknown_device_refuses_as_unpredictable():
     out = exec_server.submit_job(BELL, provider="quantinuum", shots=100,
-                                     budget_ceiling_usd=150.0)
+                                     budget_ceiling_usd=150.0, caller_jurisdictions=["US", "UK"],
+                                     caller_export_class="allied")
     assert out["ok"] is False, out
     assert "no fidelity profile" in out["error"], out

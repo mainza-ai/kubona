@@ -5,7 +5,7 @@ import warnings
 
 import kubona_pb2 as kubona__pb2
 
-GRPC_GENERATED_VERSION = '1.71.2'
+GRPC_GENERATED_VERSION = '1.71.0'
 GRPC_VERSION = grpc.__version__
 _version_not_supported = False
 
@@ -26,8 +26,7 @@ if _version_not_supported:
 
 
 class QuantumBridgeServiceStub(object):
-    """Quantum and Data Bridge Service
-    """
+    """Missing associated documentation comment in .proto file."""
 
     def __init__(self, channel):
         """Constructor.
@@ -73,8 +72,7 @@ class QuantumBridgeServiceStub(object):
 
 
 class QuantumBridgeServiceServicer(object):
-    """Quantum and Data Bridge Service
-    """
+    """Missing associated documentation comment in .proto file."""
 
     def ExecuteCircuit(self, request, context):
         """Missing associated documentation comment in .proto file."""
@@ -165,8 +163,7 @@ def add_QuantumBridgeServiceServicer_to_server(servicer, server):
 
  # This class is part of an EXPERIMENTAL API.
 class QuantumBridgeService(object):
-    """Quantum and Data Bridge Service
-    """
+    """Missing associated documentation comment in .proto file."""
 
     @staticmethod
     def ExecuteCircuit(request,

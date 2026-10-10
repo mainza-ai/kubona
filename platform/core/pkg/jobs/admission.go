@@ -34,6 +34,13 @@ type circuitRunParams struct {
 	MaxCostUSD       float64  `json:"max_cost_usd"`
 	InputLabels      []string `json:"input_labels"`
 	GrantChain       []string `json:"grant_chain"`
+	// P5 §2.9 routing: caller-declared jurisdictions + export-control class.
+	// Presence is enforced here at admission; the semantic route() verdict
+	// (intersection against the provider capability) is enforced by the
+	// Python executor holding the schemas, fed through the bridge wire.
+	CallerJurisdictions []string `json:"caller_jurisdictions"`
+	CallerExportClass   string   `json:"caller_export_class"`
+	ExportReviewed      bool     `json:"export_reviewed"`
 }
 
 type mandateReceipt struct {
@@ -112,6 +119,12 @@ func (r *Runner) admitJob(sessionID, jobType string, paramsJSON []byte) error {
 	}
 	if isSimulatorBackend(p.RequestedBackend) {
 		return nil
+	}
+	// Routing declaration (P5 §2.9): metered hardware without declared caller
+	// jurisdictions refuses here — the executor cannot verify a route it was
+	// never told, and undeclared callers must not reach for hardware.
+	if len(p.CallerJurisdictions) == 0 {
+		return fmt.Errorf("backend %q is metered hardware: caller_jurisdictions must declare at least one jurisdiction (routing cannot be verified undeclared)", p.RequestedBackend)
 	}
 	// Fidelity gate (Ring 3, second rail beside money): predict whether this
 	// run can produce a publishable number BEFORE spending. Physics does not
