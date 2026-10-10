@@ -3,7 +3,7 @@ name: Lean 4
 type: entity
 tags: [entity, tool, formal-verification, theorem-prover, programming-language]
 date: 2026-10-08
-updated: 2026-10-08
+updated: 2026-10-10
 status: adopted
 sources: [source-openai-math-corpus]
 ---
@@ -43,3 +43,23 @@ Within Kubona's [[epistemic-curvature]] and [[science-discovery]] stack:
 - **Epistemic Weight:** Claims accompanied by a verified Lean 4 proof achieve an epistemic confidence $\rho = 1.0$ on the [[claim-credibility-wavefunctions|credibility curve]], serving as immutable anchor points for scientific discovery campaigns.
 
 See also [[comparator]], [[openai-math]], [[formal-proof-verification-lean-comparator]], [[claim-credibility-wavefunctions]].
+
+## Resource containment (Q-31, closed 2026-10-10)
+
+Sandbox execution above is now a mechanism, not an aspiration
+(`platform/kubona/eval/comparator_eval.py`, `platform/docker/Dockerfile.lean`):
+
+- **Image:** `kubona-lean:4.34.1` from `leanprover/lean4:v4.34.1`, unprivileged user,
+  `MALLOC_ARENA_MAX=2`; source stays vendored and is mounted at runtime (image
+  carries the toolchain only). Build cache must be warmed at image-build time —
+  runtime runs `--network none`, so an unwarned first build would fail offline.
+- **Caps on every run** (`LeanSandboxConfig`, unit-tested flag-for-flag):
+  `--read-only`, `--network none`, `--cap-drop ALL`, `--memory/--memory-swap 4g`,
+  `--cpus 2.0`, `--pids-limit 256`, `--tmpfs /tmp`, 600s timeout.
+- **Precedence:** containerized lake → host lake → fail-closed AST containment
+  with the reason recorded. Infra breakdowns (daemon/image/runtime) fall back;
+  genuine proof failures NEVER degrade into a passing AST result (masked-failure
+  guard on docker-level markers) — verified by test.
+- **Host prerequisites (operator):** raise `vm.max_map_count` on Linux hosts
+  (containers cannot raise it themselves); image build + one warm run before
+  any production verification.
