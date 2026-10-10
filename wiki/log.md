@@ -1310,3 +1310,12 @@ skipped is the exact failure this incident is about:
   write-refusal) and proven against a live daemon DB. Per-tenant sharding
   recorded as operator decision (audit-semantics change), not built.
   Go suite green.
+
+## [2026-10-10] implementation | gitignore swallowed cmd/kubonad — rescued
+  Bare `kubonad` ignore pattern hid the entire source dir: grants.go was
+  never in history (fresh clones cannot build kubonad; next push would
+  have shipped a broken tree). Anchored binary patterns to paths, rescued
+  grants.go + verify.go, ignored build output dir. Audited all other
+  ignored paths: only artifacts/caches/DBs. Note: origin/develop CI was
+  already red Oct 4-5 (Go+Python+console) and 36 commits sit unpushed —
+  push needs an explicit operator order and a green CI reckoning first.
