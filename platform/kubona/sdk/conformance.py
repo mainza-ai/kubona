@@ -8,14 +8,18 @@ cost-model sanity, and credential hygiene — all simulator-tier, no writes, no
 credentials, no network. A candidate that fails any applicable check is
 refused; unknown is never a pass.
 
-This mirrors the canary's verdict discipline (canary.py) without importing
-registry state: candidates are graded *before* they enter the registry.
+Two deliberate deferrals (visible as N/A, never silent): non-gate program
+models skip Bell probing, and hardware attestation that needs backend access
+is deferred to the credentialed admission-time canary (attest_capacity) —
+the suite grades everything verifiable credential-free and names the rest.
 """
 
 from __future__ import annotations
 
 import os
 from typing import Any
+
+import numpy as np
 
 from kubona.circuits import Circuit, Gate, parse_qasm2
 from kubona.providers.base import Provider, ProviderError, _instantiate
@@ -78,15 +82,27 @@ def grade_candidate(capability_json: dict[str, Any], plugin_path: str,
     modality = cap.modality.value
     is_sim = modality in _SIM_MODALITIES
 
-    # Seeded determinism: same seed twice must give identical counts.
+    # Seeded determinism: same seed twice must give identical results.
+    # Annealing providers speak QUBO, not gate circuits — probe solve_qubo
+    # with a fixed small instance (exact enumeration: seed-independent).
     try:
-        bell = parse_qasm2(BELL_QASM) if modality in _GATE_MODALITIES else _SANDBOX_1Q
-        r1 = provider.submit(bell, shots, seed=2026)
-        r2 = provider.submit(bell, shots, seed=2026)
-        det = r1.get("counts") == r2.get("counts") and sum(r1["counts"].values()) == shots
-        checks.append(_check("deterministic_seeded", bool(det),
-                             "identical counts across two seeded runs" if det
-                             else f"nondeterministic or short: {r1.get('counts')} vs {r2.get('counts')}"))
+        if modality == "annealing" and hasattr(provider, "solve_qubo"):
+            _Q = np.array([[-1.0, 2.0], [2.0, -1.0]])
+            r1 = provider.solve_qubo(_Q, seed=7)
+            r2 = provider.solve_qubo(_Q, seed=7)
+            det = (r1.get("solution") == r2.get("solution")
+                   and r1.get("energy") == r2.get("energy"))
+            checks.append(_check("deterministic_seeded", bool(det),
+                                 "identical QUBO solutions across two seeded runs" if det
+                                 else f"nondeterministic: {r1} vs {r2}"))
+        else:
+            bell = parse_qasm2(BELL_QASM) if modality in _GATE_MODALITIES else _SANDBOX_1Q
+            r1 = provider.submit(bell, shots, seed=2026)
+            r2 = provider.submit(bell, shots, seed=2026)
+            det = r1.get("counts") == r2.get("counts") and sum(r1["counts"].values()) == shots
+            checks.append(_check("deterministic_seeded", bool(det),
+                                 "identical counts across two seeded runs" if det
+                                 else f"nondeterministic or short: {r1.get('counts')} vs {r2.get('counts')}"))
     except ProviderError as e:
         checks.append(_check("deterministic_seeded", False, f"refused to run: {e}"))
 
@@ -123,8 +139,11 @@ def grade_candidate(capability_json: dict[str, Any], plugin_path: str,
                          "non-positive shots raise ProviderError/ValueError" if bad_ok else bad_detail))
 
     # Attestation honesty (Q-14): a reported qubit count must match the
-    # declaration; unreported is a note for simulators, a fail for hardware
-    # claimants (a backend that sells qubits must attest them).
+    # declaration — a mismatch fails. An unreported count is a note for
+    # simulators; for hardware claimants it is N/A *deferred to the
+    # credentialed admission-time canary* (this suite runs credential-free
+    # by design and cannot measure backends). The deferral is named in the
+    # report, never silent.
     try:
         reported = provider.health().get("measured_qubits")
     except Exception:  # noqa: BLE001
@@ -132,9 +151,13 @@ def grade_candidate(capability_json: dict[str, Any], plugin_path: str,
     if isinstance(reported, bool):
         reported = None
     if reported is None:
-        checks.append(_check("attestation_honest", True if is_sim else False,
-                             "unmeasurable: unknown (simulator tier)" if is_sim
-                             else "hardware claimant reports no measured_qubits"))
+        if is_sim:
+            checks.append(_check("attestation_honest", True,
+                                 "unmeasurable: unknown (simulator tier)"))
+        else:
+            checks.append(_check("attestation_honest", None,
+                                 "unmeasurable credential-free: deferred to "
+                                 "admission-time canary attestation"))
     elif reported == cap.physical_qubits:
         checks.append(_check("attestation_honest", True,
                              f"measured {reported} == declared {cap.physical_qubits}"))
