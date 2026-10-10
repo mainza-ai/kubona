@@ -1,7 +1,7 @@
 ---
 type: roadmap
 date: 2026-08-16
-updated: 2026-10-08
+updated: 2026-10-10
 tags: [kubona, plan]
 sources: [source-gap-analysis-plan, source-openai-math-corpus]
 status: living
@@ -211,6 +211,20 @@ one real provider-side regression **in staging** before it reaches an agent.
 > Remaining Phase-4 gate items: QuantumKatas/HumanEval/PennyLang volume corpora,
 > a *real* third-party provider PR merged, and the human review — plus the P4
 > stretch (GQE retraining pipeline via Unsloth) once a GPU/cloud host exists.
+>
+> ⚑ Q-24 decision (2026-10-10, **operator chose C**): the gate
+> demands a merged outside PR with zero contributors and one maintainer. Four
+> ways out — **A.** narrow the gate (an outside *identity*, e.g. a contracted
+> reviewer or second operator identity, counts as outside eyes instead of a
+> community); **B.** grow the team plan (recruit 1–2 external provider
+> reviewers before Phase 4); **C.** vendor-maintained providers — third-party
+> code lives in sidecar repos, core reviews only the registration interface,
+> and the SDK conformance suite becomes the gate artifact (consistent with the
+> settled sidecar discipline in
+> [[integration-topology-and-licence-discipline]]); **D.** defer (drop the
+> outside-PR requirement to Phase 6). **Recommendation: C**, with A as
+> fallback — the only option that works with a one-maintainer team and
+> strengthens the supply-chain boundary instead of weakening the gate. Chose C: vendor-maintained sidecars; SDK conformance suite is the gate artifact.
 
 - Eval corpora: QuantumKatas + Qiskit HumanEval + PennyLang; **agent-behavior evals**
   (budget compliance, simulator-first compliance, WBP-detection response)
