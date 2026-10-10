@@ -1352,3 +1352,8 @@ skipped is the exact failure this incident is about:
   real years + citation counts) via the bridge path; second identical
   call served from cache with zero network (cached True). Smoke cache
   kept in tmp; ~/.kubona untouched (pre-existing Oct-8 cache intact).
+
+## [2026-10-10] verification | Full 4-gate certification green (2nd today)
+  Wiki lint clean; Go test ./... green; Python 303 passed, 3 skipped;
+  console build + 17 vitest + eslint green. Covers spend rails, Labs
+  surface, literature wiring, routing, ledger verify, eval batches.
