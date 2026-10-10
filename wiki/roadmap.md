@@ -208,7 +208,7 @@ one real provider-side regression **in staging** before it reaches an agent.
 > eval corpus (bell/ghz3/qft2 invariants) + agent-behavior evals (budget,
 > simulator-first, WBP-response); provider-registration SDK +
 > `docs/contribution-governance.md`. **84 Python tests + widget test green.**
-> Remaining Phase-4 gate items: PennyLang sample ingestion (HumanEval done: 136 golden-verified + 15 excluded-named 2026-10-10; QuantumKatas 13 tasks at 1.0),
+> Remaining Phase-4 gate items: human review (evals done: QuantumKatas 13 at 1.0, HumanEval 136 golden + 15 excluded-named, harness live-proven, PennyLang refused-named under Q-26 — 2026-10-10),
 > a first graded sidecar provider (SDK conformance suite built 2026-10-10: 9 checks, fail-closed grading — the Q-24 gate artifact), and the human review — plus the P4
 > stretch (GQE retraining pipeline via Unsloth) once a GPU/cloud host exists.
 >
