@@ -2,7 +2,7 @@
 type: concept
 name: Evaluation & Benchmarks
 date: 2026-08-16
-updated: 2026-09-27
+updated: 2026-10-10
 tags: [evals, testing, benchmarks]
 sources: [source-architecture-paper, source-gap-analysis-plan]
 status: adopted
@@ -42,3 +42,17 @@ evaluation into four complementary tracks (source-gap-analysis-plan).
 
 Related: [[karpathy-autoresearch]] · [[qir-mlir-compilation]] · [[barren-plateau]] ·
 [[cost-governance]] · [[qiskit]]
+
+## Admissible corpora (Q-26, closed 2026-10-10)
+
+- **Licence-clean only.** Every corpus file carries `_meta: {license, source_url,
+  retrieved_at}`; the loader admits in-repo authored, CC0/CC-BY(+SA),
+  Apache-2.0, MIT/BSD, Unlicense — and refuses whole files that are
+  proprietary, unknown, or unlabelled, with a per-file reason
+  (`load_corpus_dir_with_report`). An unlicensed benchmark laundered into evals
+  corrupts every claim built on it, so the gate is fail-closed, not advisory.
+- **Good-answer criterion.** A good answer is QASM satisfying the task's
+  *declared invariant* on the simulator (score = fraction passing). No
+  LLM judging, no vibes — satisfiability is the entire criterion, verified by
+  `evaluate_codegen` (in-repo corpora additionally prove satisfiability at
+  load-test time).
