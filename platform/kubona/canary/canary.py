@@ -38,6 +38,8 @@ def canary_check(provider_name: str, shots: int = CANARY_SHOTS,
     }
     ok = all(checks.values())
     attestation = attest_capacity(provider_name, ok)
+    if attestation.get("calibration", {}).get("calibration_ok") is False:
+        ok = False  # Q-14: a lying schema fails the canary, not just the attestation
     return {"provider": provider_name, "ok": ok, "counts": counts,
             "fidelity_balance": round(abs(ok00 - ok11) / max(total, 1), 6), "checks": checks,
             "attestation": attestation}
@@ -79,7 +81,64 @@ def attest_capacity(provider_name: str, canary_ok: bool) -> dict[str, Any]:
     }
     snapshot["snapshot_hash"] = hashlib.sha256(
         json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
+    snapshot["calibration"] = attest_calibration(provider_name)
+    # A lying schema fails the canary: measured calibration outside tolerance
+    # of the declared numbers is a rejected claim (Q-14), not a warning.
+    if snapshot["calibration"].get("calibration_ok") is False:
+        snapshot["calibration_rejection"] = snapshot["calibration"].get("mismatches")
     return snapshot
+
+
+# Relative tolerance per calibration field. Zeros compare exact within an
+# absolute epsilon (a noiseless claim must actually be noiseless).
+_CALIBRATION_TOL = {
+    "t1_us": 0.25, "t2_us": 0.25,
+    "single_qubit_error": 0.25, "two_qubit_error": 0.25,
+    "readout_error": 0.25,
+}
+_CALIBRATION_ABS_EPS = 1e-9
+
+
+def attest_calibration(provider_name: str) -> dict[str, Any]:
+    """Q-14: compare measured vs declared calibration.
+
+    Returns {compared: bool, calibration_ok: True|False|None, mismatches: []}.
+    None = unmeasurable or undeclared (unknown, never a pass, never a fail).
+    False = measured outside tolerance of declared (schema lied → canary fails).
+    """
+    from kubona.schema import load_provider
+    try:
+        cap = load_provider(provider_name)
+    except KeyError:
+        return {"compared": False, "calibration_ok": None,
+                "reason": "no capability schema"}
+    declared = cap.declared_calibration
+    if declared is None:
+        return {"compared": False, "calibration_ok": None,
+                "reason": "no declared calibration to verify against"}
+    try:
+        from kubona.providers import get_provider
+        measured = get_provider(provider_name).calibration_snapshot()
+    except Exception:
+        measured = None
+    if not measured:
+        return {"compared": False, "calibration_ok": None,
+                "reason": "unmeasurable without credentials/backend access"}
+    mismatches = []
+    for field, tol in _CALIBRATION_TOL.items():
+        d = getattr(declared, field, None)
+        m = measured.get(field)
+        if d is None or m is None:
+            continue  # only compare what both sides state
+        if abs(d) <= _CALIBRATION_ABS_EPS and abs(m) <= _CALIBRATION_ABS_EPS:
+            continue
+        denom = abs(d) if abs(d) > _CALIBRATION_ABS_EPS else _CALIBRATION_ABS_EPS
+        if abs(m - d) / denom > tol:
+            mismatches.append({"field": field, "declared": d, "measured": m})
+    return {"compared": True,
+            "calibration_ok": not mismatches,
+            "mismatches": mismatches,
+            "measured_source": measured.get("source")}
 
 
 # Gate-model modalities that a Bell-state canary circuit can actually exercise.

@@ -2,7 +2,7 @@
 type: concept
 name: Provider Capability Schema
 date: 2026-08-16
-updated: 2026-09-27
+updated: 2026-10-10
 tags: [providers, schema, routing]
 sources: [source-gap-analysis-plan]
 status: adopted
@@ -40,3 +40,19 @@ a data change, not a code change (source-gap-analysis-plan).
   restrictions, not just tool-level permissions) — the answer to the compliance gap raised
   in the source plan (§2.9).
 - Service that generalizes "agent readiness" audits the platform could sell to providers.
+
+## Attestation: probing back (Q-14, closed 2026-10-10)
+
+Yes — where measurement is possible, and honestly unknown where it is not
+(`platform/kubona/canary/canary.py`, `schema/provider.py`, plugin
+`calibration_snapshot()` contract):
+
+- **Qubit counts**: plugin `health()["measured_qubits"]` (live property or hard-coded
+  bound) vs declared `physical_qubits`; mismatch fails attestation.
+- **Calibration**: `declared_calibration` (T1/T2, gate/readout errors; unsound
+  declarations refuse to load) vs measured snapshot (local-sim zeros by construction;
+  IBM live backend properties when credentialed), compared within 25% tolerance.
+  Mismatch **fails the canary** (`ok=False`), not just the attestation.
+- **Unknown stays unknown**: unmeasurable plugins and undeclared fields yield
+  `None` — never a pass, never a fail. Pricing and queue depth remain
+  declared-until-metered (only qubit capacity and calibration are attested).

@@ -132,3 +132,48 @@ def test_canary_check_carries_attestation():
     res = canary_check("local-simulator", shots=4096)
     assert res["ok"] is True, res
     assert res["attestation"]["qubit_count_ok"] is True, res
+
+
+def test_canary_attests_declared_calibration():
+    from kubona.canary import attest_calibration
+    att = attest_calibration("local-simulator")
+    assert att["compared"] is True, att
+    assert att["calibration_ok"] is True, att
+    assert att["mismatches"] == [], att
+
+
+def test_canary_rejects_lying_calibration():
+    import kubona.schema as schema_pkg
+    from kubona.canary import attest_calibration
+    real_load = schema_pkg.load_provider
+    from kubona.schema.provider import CalibrationSnapshot
+    cap = real_load("local-simulator").model_copy(
+        update={"declared_calibration": CalibrationSnapshot(
+            t1_us=10.0, t2_us=10.0, single_qubit_error=0.0,
+            two_qubit_error=0.0, readout_error=0.0, source="fabricated")})
+    schema_pkg.load_provider = lambda name: cap
+    try:
+        att = attest_calibration("local-simulator")
+        assert att["calibration_ok"] is False, att
+        assert any(m["field"] == "t1_us" for m in att["mismatches"]), att
+    finally:
+        schema_pkg.load_provider = real_load
+
+
+def test_canary_unmeasurable_calibration_is_unknown_not_pass():
+    from kubona.canary import attest_calibration
+    att = attest_calibration("ibm-qiskit")
+    assert att["calibration_ok"] is None, att
+    assert att["compared"] is False, att
+
+
+def test_unsound_declared_calibration_refuses_to_load(tmp_path):
+    import json
+    import pytest
+    from kubona.schema.provider import ProviderCapability
+    bad = {"provider": "x", "modality": "gate_model", "physical_qubits": 2,
+           "declared_calibration": {"t1_us": 10.0, "t2_us": 100.0,
+            "single_qubit_error": 0.0, "two_qubit_error": 0.0,
+            "readout_error": 0.0, "source": "fabricated"}}
+    with pytest.raises(Exception, match="unsound"):
+        ProviderCapability.model_validate(bad)

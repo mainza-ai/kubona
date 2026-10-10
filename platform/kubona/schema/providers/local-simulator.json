@@ -29,5 +29,14 @@
     "kubona-native"
   ],
   "status": "GA",
-  "execution_plugin": "kubona.providers.local_simulator.LocalSimulator"
+  "execution_plugin": "kubona.providers.local_simulator.LocalSimulator",
+  "declared_calibration": {
+    "t1_us": 1000000.0,
+    "t2_us": 1000000.0,
+    "single_qubit_error": 0.0,
+    "two_qubit_error": 0.0,
+    "readout_error": 0.0,
+    "measured_at": "",
+    "source": "construction"
+  }
 }
