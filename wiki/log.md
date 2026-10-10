@@ -1326,3 +1326,9 @@ skipped is the exact failure this incident is about:
   (idempotent, floored). Tests: cumulative refusal, release + double-release,
   10-way concurrent exactness (7 win/140), old-schema migration. Go suite
   green incl. -race. Session limits deferred (recorded).
+
+## [2026-10-10] implementation | Session spend limits enforced (inner rail)
+  Same reserve/release discipline as tenants (atomic CAS, <=0 uncapped,
+  unwound tenant on session refusal, released together). Tests: session
+  binds tighter end-to-end, uncapped legacy rows unaffected, release.
+  Full Go suite green. Spend picture complete: tenant outer, session inner.

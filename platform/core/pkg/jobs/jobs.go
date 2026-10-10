@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mainza-ai/kubona/core/pkg/fidelity"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/session"
 	"github.com/mainza-ai/kubona/core/pkg/tenants"
 	pb "github.com/mainza-ai/kubona/core/proto"
 )
@@ -45,6 +46,9 @@ type Runner struct {
 	aborted map[string]bool
 	// tenantMgr enforces lab-tenant autonomy and spend ceilings at admission.
 	tenantMgr *tenants.Manager
+	// sessionMgr enforces per-session spend limits at admission (same ledger,
+	// constructed here so the Runner signature stays stable).
+	sessionMgr *session.Manager
 	// fidelityGate predicts whether a hardware run can produce a publishable
 	// number before spending (Ring 3 second rail beside money).
 	fidelityGate *fidelity.FidelityGate
@@ -64,6 +68,7 @@ func NewRunner(l *ledger.Ledger, bridgeClient pb.QuantumBridgeServiceClient, wor
 		cancel:       cancel,
 		aborted:      make(map[string]bool),
 		tenantMgr:    tenants.NewManager(l),
+		sessionMgr:   session.NewManager(l),
 		fidelityGate: fidelity.NewFidelityGate(),
 	}
 }
@@ -281,10 +286,10 @@ func (r *Runner) executeJob(j *Job) {
 // worker settlement) can never mint spend back twice. Completed jobs never
 // call this — kept reservations are the spend.
 func (r *Runner) releaseReservation(jobID string) {
-	var tenant string
+	var tenant, sessionID string
 	var amount float64
 	err := r.ledger.DB().QueryRow(
-		`SELECT reserved_tenant, reserved_amount FROM jobs WHERE id = ?`, jobID).Scan(&tenant, &amount)
+		`SELECT reserved_tenant, reserved_amount, session_id FROM jobs WHERE id = ?`, jobID).Scan(&tenant, &amount, &sessionID)
 	if err != nil || tenant == "" || amount <= 0 {
 		return
 	}
@@ -297,6 +302,7 @@ func (r *Runner) releaseReservation(jobID string) {
 		return // already released
 	}
 	_ = r.tenantStore().ReleaseSpend(tenant, amount)
+	_ = r.sessionMgr.ReleaseSpend(sessionID, amount)
 }
 
 // failJob records a failed job with a reason string.

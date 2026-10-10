@@ -144,6 +144,10 @@ func (r *Runner) admitJob(sessionID, jobType string, paramsJSON []byte) (string,
 		if err := r.tenantStore().ReserveSpend(grant.GrantingTenant, p.MaxCostUSD); err != nil {
 			return "", 0, err
 		}
+		if err := r.sessionMgr.ReserveSpend(sessionID, p.MaxCostUSD); err != nil {
+			_ = r.tenantStore().ReleaseSpend(grant.GrantingTenant, p.MaxCostUSD)
+			return "", 0, err
+		}
 		return grant.GrantingTenant, p.MaxCostUSD, nil
 	}
 	if p.MandateRef == "" {
@@ -153,6 +157,10 @@ func (r *Runner) admitJob(sessionID, jobType string, paramsJSON []byte) (string,
 		return "", 0, err
 	}
 	if err := r.tenantStore().ReserveSpend(tenantID, p.MaxCostUSD); err != nil {
+		return "", 0, err
+	}
+	if err := r.sessionMgr.ReserveSpend(sessionID, p.MaxCostUSD); err != nil {
+		_ = r.tenantStore().ReleaseSpend(tenantID, p.MaxCostUSD)
 		return "", 0, err
 	}
 	return tenantID, p.MaxCostUSD, nil
