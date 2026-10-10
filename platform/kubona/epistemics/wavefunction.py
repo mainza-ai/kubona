@@ -73,6 +73,68 @@ class WavefunctionState:
         return asdict(self)
 
 
+@dataclass
+class ClaimRecord:
+    """Q-05: the stored form of a credibility evaluation.
+
+    Axes: the three basis states (corroborated/contested/unverified).
+    Computed by: ClaimCredibilityWavefunction.evaluate over EvidenceSignals.
+    Stored where: the provenance ledger as a `claim` record (same store as
+    provenance-and-reproducibility, never a side DB) via to_ledger_payload().
+    Consumers do: gate assertion on (collapsed, rho); cite evidence_refs,
+    never the score. rho IS P(collapsed-state): the corroborated probability
+    when collapsed, else 0.0 (an uncollapsed claim has no usable credibility).
+    """
+
+    claim_id: str
+    statement: str
+    state: WavefunctionState
+    computed_by: str = "ClaimCredibilityWavefunction"
+    computed_at: str = ""
+    evidence_refs: list[str] = field(default_factory=list)
+
+    @property
+    def rho(self) -> float:
+        if not self.state.collapsed:
+            return 0.0
+        return float(self.state.probabilities.get(self.state.verdict, 0.0))
+
+    def to_ledger_payload(self) -> dict[str, Any]:
+        return {
+            "claim_id": self.claim_id,
+            "statement": self.statement,
+            "rho": round(self.rho, 6),
+            "verdict": self.state.verdict,
+            "collapsed": self.state.collapsed,
+            "probabilities": self.state.probabilities,
+            "evidence_count": self.state.evidence_count,
+            "diversity_score": self.state.diversity_score,
+            "entropy": self.state.entropy,
+            "policy_digest": self.state.policy_digest,
+            "quantum_provenance": self.state.quantum_provenance,
+            "computed_by": self.computed_by,
+            "computed_at": self.computed_at,
+            "evidence_refs": self.evidence_refs,
+        }
+
+
+def build_claim_record(
+    statement: str,
+    state: WavefunctionState,
+    evidence: Sequence[EvidenceSignal],
+    *,
+    computed_at: str = "",
+) -> ClaimRecord:
+    """Assemble a ledger-ready claim record from an evaluated state."""
+    return ClaimRecord(
+        claim_id=f"claim-{uuid.uuid4().hex[:12]}",
+        statement=statement,
+        state=state,
+        computed_at=computed_at,
+        evidence_refs=[e.ledger_ref for e in evidence if e.ledger_ref],
+    )
+
+
 class EpistemicGateError(ValueError):
     """Raised when an uncollapsed claim is asserted as a verified fact."""
     pass

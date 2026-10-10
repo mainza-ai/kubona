@@ -3,8 +3,8 @@ name: The Five-Ring Research Loop
 type: concept
 tags: [frontier, autonomy, closed-loop, orchestration, architecture]
 date: 2026-09-27
-updated: 2026-09-27
-status: open-question
+updated: 2026-10-10
+status: adopted
 sources: [source-frontier-repo-audit-2026, source-architecture-paper, source-gap-analysis-plan]
 ---
 
@@ -14,6 +14,22 @@ sources: [source-frontier-repo-audit-2026, source-architecture-paper, source-gap
 metric, budget, and hard stop. Kubona closes Ring 2 today; the frontier is Rings 0, 1, 3, 4.
 The discipline binding them: **no ring closes on an LLM's confidence** — each closes on a
 measured quantity.
+
+## Canonical ruling (Q-08, closed 2026-10-10): three models, three axes
+
+The three loop descriptions are not competitors — they answer different questions:
+
+| Model | Answers | Status |
+|---|---|---|
+| **Five rings** (this page) | *Architecture*: the nested control loops and their stop conditions | **canonical** |
+| **Discovery 7-stage** ([[science-discovery]]) | *Lifecycle*: one campaign traversal, Ground → Learn, passing through Rings 1→2→3 | a pass through the rings, not a rival loop |
+| **§11 object / §13 meta** ([[meta-search-and-self-evolution]]) | *Mechanism*: the §11 object loop is Ring 2's engine; the §13 meta-loop is Ring 4's engine | the two engines inside the architecture |
+
+Mapping: Ground/Hypothesize (stages 1–2) run inside Ring 1 (only collapsed claims enter
+Design); Design/Experiment/Analyze (3–5) run inside Rings 2–3 (ledger-bound runs, cost +
+fidelity gates); Report (6) asserts only collapsed claims; Learn (7) feeds Ring 4 reflection.
+No new loop may be introduced without stating which ring(s) it traverses — that is how
+"three loops for one system" stops becoming an API problem.
 
 Why five and not one: these systems fail when exactly one loop is closed. Execution without
 epistemics yields confident noise (Milimo-QDD's LLM-generated binding energies,

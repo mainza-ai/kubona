@@ -3,8 +3,8 @@ name: Claim Credibility Wavefunctions
 type: concept
 tags: [frontier, epistemics, provenance, literature, assertion-gating]
 date: 2026-09-27
-updated: 2026-09-27
-status: open-question
+updated: 2026-10-10
+status: adopted
 sources: [source-frontier-repo-audit-2026]
 ---
 
@@ -92,6 +92,30 @@ information. It is falsifiable in the only way that matters: given a labelled ev
 multi-source agreement? Those are unit tests, not vibes. Nothing here licenses "quantum
 cognition" language; the mechanism earns its keep by refusing outputs, and any report that
 uses a collapsed claim still cites the underlying evidence records, not the score.
+
+## Operational definition (Q-05, closed 2026-10-10)
+
+- **Axes:** the three basis states `{corroborated, contested, unverified}` — amplitudes
+  normalize to probabilities by the Born rule (analytical default; opt-in 2-qubit
+  Statevector path with labelled fallback).
+- **Who computes:** `ClaimCredibilityWavefunction.evaluate(evidence: EvidenceSignal[])`
+  (`platform/kubona/epistemics/wavefunction.py`) — source diversity, support/contest
+  weights, engagement, optional market prior — under the versioned `CredibilityPolicy`
+  (thresholds hashed into every record via `policy_digest`, so "collapsed" is reproducible).
+- **Where stored:** `ClaimRecord.to_ledger_payload()` — claim_id, statement, rho, verdict,
+  probabilities, evidence_count, diversity, entropy, policy digest, quantum provenance,
+  `evidence_refs` — written as a `claim` record in the provenance ledger (same store,
+  never a side DB).
+- **What consumers do:** gate assertion on `(collapsed, rho)` — `assert_claim` raises
+  `EpistemicGateError` on uncollapsed states; reports cite `evidence_refs`, never the score.
+  `rho = P(corroborated)` when collapsed, else `0.0`.
+- **Worked VQE example** (`platform/tests/test_claim_grammar.py::test_worked_vqe_credibility_example`):
+  real H2 STO-3G FCI anchor from `MolecularAnchorEngine` (FCI −1.0718 < RHF −1.05),
+  simulated VQE measurement +1.0 mHa (inside chemical accuracy), three signals
+  (anchor reproduction 1.0, experiment 0.95, ZNE canary 0.85) → collapsed `corroborated`,
+  rho > 0.75, ledger payload with all three refs; the rho flows into a
+  `ScientificClaim` credibility field rendered as `[ρ=… L2 refs=3]`. A lone-blog
+  variant stays uncollapsed with rho 0.0 and `assert_claim` refuses it.
 
 See also [[epistemic-curvature]] (stagnation), [[agentic-memory-and-observability]]
 (memory of claims), [[science-discovery]] (claim → hypothesis → run).

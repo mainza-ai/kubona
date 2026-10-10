@@ -32,10 +32,7 @@ These come first, because they change how every other question gets answered.
 
 | # | Question | Rank | Known | Missing |
 |---|---|---|---|---|
-| **Q-04** | **What is the allowed public vocabulary for results?** [[quantum-advantage-realism]] forbids advantage claims and mandates a classical anchor + recorded backend. What is the *positive* claim Kubona may make about its own output? Without it, every generated report needs a wording review. | **P0** | The prohibition (never claim advantage; always anchor) | A claim grammar for generated reports: permitted verbs, required qualifiers, what a credibility field holds |
-| **Q-05** | **What is a credibility wavefunction, operationally?** [[claim-credibility-wavefunctions]] is the most distinctive idea in the wiki and the least shaped for implementation. What are the axes, who computes them, where are they stored, what does a consumer *do* with the value? | **P0** | Motivation + prior art ([[chickensoup]]'s honest-degradation habit) | A concrete data structure and one worked example on a real VQE result |
 | **Q-07** | **What does "fidelity accounting" add over error mitigation + provenance?** [[fidelity-accounting]] overlaps [[error-mitigation]] and [[provenance-and-reproducibility]]. Either it is a distinct ledger of fidelity assumptions per claim, or it is those two renamed. | **P1** | Both neighbours are well specified | A one-line difference, or a merge |
-| **Q-08** | **Is the five-ring loop the architecture or a metaphor?** [[five-ring-research-loop]], the plan's §13 meta-loop and [[science-discovery]]'s staged loop describe overlapping cycles. Three loop models for one system is a naming problem waiting to become an API problem. | **P0** | Three loop descriptions, differing stage counts and vocabularies | One canonical loop; the others rewritten as views of it |
 | **Q-09** | **What may the meta-loop change, unattended?** [[meta-search-and-self-evolution]] §13 is propose-only in the prototype. Where is the line — search space, budget, safety rails? Auto-apply is named as a stage but never bounded. | **P0** | Propose-only today; staged auto-apply planned | The mutable/immutable config set, and who may widen it |
 
 ## C · Governance & the trust boundary
@@ -82,6 +79,9 @@ These come first, because they change how every other question gets answered.
 | **Q-30** | 2026-10-09 | Posture: **encapsulate** vendor MCP suites as downstream provider plugins beneath the governance plane (vault-leased creds, admission gate, anchored results); raw agent→vendor paths refused by design. | [[qiskit-mcp-servers]] |
 | **Q-11** | 2026-10-09 | Burden-scaled approval packets: full schema (cost bound + budget left, blast radius, reversibility, evidence, alternatives, expiry, single-use nonce) via MRTR elicitation retry in the gateway plus ApprovalPacketCard in the console approve flow; risk-tiered prompting rules. | [[cost-governance]] |
 | **Q-28** | 2026-10-09 | No namespace move: coupling measured one-directional (edge → core); contract enforced mechanically by Go + Python architectural fitness tests in CI. | [[protocol-strategy]] |
+| **Q-04** | 2026-10-10 | Allowed vocabulary: 12 permitted reporting verbs, banned hype terms, required qualifiers (anchor, provenance, falsification criteria), credibility field {rho, tier, refs}; enforced fail-closed in `ScientificClaim`. | [[quantum-advantage-realism]] |
+| **Q-05** | 2026-10-10 | Operational: 3-state axes, `ClaimCredibilityWavefunction.evaluate` over evidence signals, `ClaimRecord` ledger payloads, rho-gated assertion; worked H2 VQE example with real anchor numbers green. | [[claim-credibility-wavefunctions]] |
+| **Q-08** | 2026-10-10 | Not competitors but axes: five rings = architecture, discovery 7-stage = lifecycle traversal, §11/§13 = Ring-2/Ring-4 engines; new loops must state traversed rings. | [[five-ring-research-loop]] |
 
 ## Reading order for a new session
 

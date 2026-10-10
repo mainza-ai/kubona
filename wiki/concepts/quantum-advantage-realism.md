@@ -2,7 +2,7 @@
 type: concept
 name: Quantum Advantage Realism
 date: 2026-09-27
-updated: 2026-09-27
+updated: 2026-10-10
 tags: [credibility, evaluation, risks, governance]
 sources: [source-frontier-repo-audit-2026, source-gap-analysis-plan]
 status: adopted
@@ -72,6 +72,23 @@ Realism is not caution theatre either: a platform that can only report negatives
 generator. The policy constrains *claims*, not *experiments* — agents may run, discard, and relabel
 freely; what is gated is the moment a result is asserted as better. Sequencing and the register entry
 live in [[risks]].
+
+## Claim grammar (Q-04, closed 2026-10-10)
+
+The positive vocabulary — what Kubona *may* say, enforced at construction in
+`platform/kubona/epistemics/claim_grammar.py` (`ScientificClaim`, fail-closed pydantic):
+
+- **Permitted verbs** (predicate must contain one): measured, reproduced, bounded, refuted,
+  converged, estimated, computed, observed, verified, rejected, matched, reached. Reports state
+  measurements, never achievements. Banned hype terms (`quantum supremacy`, `unmatched speedup`,
+  `miraculous`, `quantum leap`) refuse alongside verb-less predicates.
+- **Required qualifiers**: category, hardware provenance (backend verbatim + tier + shots +
+  seed), classical anchor name/value, measured value, delta, uncertainty σ with 95% CI,
+  falsification criteria (≥1), ledger ref. An advantage claim additionally requires chemical
+  accuracy + |Δ| ≤ 1.6 mHa + ≥15-char justification + a credibility field at ρ ≥ 0.90, tier L4/L3.
+- **Credibility field**: `{rho, tier, evidence_refs}` — rho IS P(collapsed-state) (0.0 when
+  uncollapsed), tier is the continuum level, and the score is never cited without its refs.
+  Rendered as `[ρ=0.950 L3 refs=1]` in `formatted_statement`.
 
 **Links:** [[claim-credibility-wavefunctions]] · [[evaluation-and-benchmarks]] ·
 [[fidelity-accounting]] · [[quantum-domain-packs]] · [[provenance-and-reproducibility]] ·
