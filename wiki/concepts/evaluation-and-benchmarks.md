@@ -35,8 +35,14 @@ evaluation into four complementary tracks (source-gap-analysis-plan).
 > file. Faking it via QASM transcription would corrupt every claim built
 >   on the score.
 
-## Code-execution harness scope (specified 2026-10-10, unbuilt — P4 follow-up)
+## Code-execution harness (scoped then built 2026-10-10 — live-proven)
 
+> Update: `kubona/eval/codeexec.py` implements this scope the same day.
+> 10 tests green including a live-container test: golden completion passes,
+> socket attempt fails closed with `Network is unreachable` named in the
+> ledger record. An image ENTRYPOINT trap (`python3 python ...`) was caught
+> live and fixed by pinning `--entrypoint`. HumanEval/PennyLang sample
+> ingestion (licence-gated) remains the follow-up, not the harness.
 **Threat model.** The harness runs *untrusted generated Python* (HumanEval
 completions, PennyLang-style samples): arbitrary code that may attempt
 exfiltration, fork bombs, miners, or payload-bearing task text. It is

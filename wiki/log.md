@@ -1270,3 +1270,11 @@ skipped is the exact failure this incident is about:
   task protocol with ledger records, licence-gate-first rule, three
   acceptance criteria (golden pass / malicious fail-closed / infra named),
   explicit non-goals. Wiki-only; no code.
+
+## [2026-10-10] implementation | Code-execution harness built + live-proven
+  New kubona/eval/codeexec.py (PyexecSandboxConfig, task contract, ledger
+  records with hashes; suite refuses all-skip). 10 tests green incl. live
+  container test: golden passes, socket attempt fails closed with evidence
+  named. ENTRYPOINT trap caught live, fixed via --entrypoint pin. Image
+  kubona-quantum-runner:1.0.0 built locally (1.23GB, operator machine only).
+  Suite 288 passed, 3 skipped. Remaining: licence-gated sample ingestion.
