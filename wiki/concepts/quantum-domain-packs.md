@@ -3,8 +3,8 @@ name: Quantum Domain Packs
 type: concept
 tags: [frontier, plugins, domain-packs, vqe, qml, workflows, dft]
 date: 2026-09-27
-updated: 2026-09-27
-status: open-question
+updated: 2026-10-10
+status: adopted
 sources: [source-frontier-repo-audit-2026]
 ---
 
@@ -124,3 +124,26 @@ drug-discovery repo turned out to be **a clone of Kubona's own repository**
 external evidence never. Graphical pack authoring
 must round-trip losslessly through JSON or every pack edit silently corrupts
 ([[agent-ux-control-plane]], [[univer]]).
+
+## Manifest, trust, and revocation (Q-20, closed 2026-10-10)
+
+- **Manifest** (`schema_version: kubona-pack/v1`): name, X.Y.Z semver version,
+  domain, description, author, `classical_anchor_methods` (required — a pack
+  that cannot state its anchor does not load), benchmark systems, generator
+  path, qubit floor, `capabilities`, `evidence_requirements` (min shots,
+  collapse mode, fidelity floor), `entry_points`. Enforced by pydantic in
+  `platform/kubona/science/domain_pack.py` (`DomainPackManifest`).
+- **Versioning**: strict semver, fail-closed on mismatch (`"v1"` / `"1.0"`
+  refuse); schema pin refuses unknown schema versions.
+- **Correctness ownership**: optional Ed25519 owner signature over the canonical
+  manifest bytes (`owner_pubkey_hex` + `signature_hex`, NaCl-verified).
+  Unsigned packs load (author is an unattested claim); signed-but-invalid
+  packs refuse (forgery is worse than anonymity).
+- **Trust boundary**: `resolve_generator` allowlists `kubona.*` only — packs
+  declare capabilities, never supply chains. Unresolvable generators refuse at
+  resolve time (this caught the materials pack's phantom
+  `kubona.science.lattice.HubbardModel`, which does not exist: its manifest
+  data stays valid, but nothing can execute it until implemented).
+- **Revocation**: `PackRegistry` with a `revoked.json` file (`revoke(pack_id,
+  reason)` requires a non-blank reason); `load_all` refuses revoked packs
+  everywhere. Revocation lives in the registry, never in the pack.
