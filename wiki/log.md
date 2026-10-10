@@ -1258,3 +1258,15 @@ skipped is the exact failure this incident is about:
   HumanEval/PennyLang honestly deferred: code corpora needing a sandboxed
   execution harness (P4 follow-up), not transcribable without corrupting
   the benchmark. Wiki-only otherwise; full suite re-run below.
+
+## [2026-10-10] verification | Full 4-gate certification green
+  Wiki lint clean; Go test ./... exit 0; Python 278 passed, 3 skipped;
+  console build + vitest + eslint all green. Tree certified after the
+  conformance-suite + volume-corpora batches (commits 9451e41, volume).
+
+## [2026-10-10] implementation | Code-execution harness scoped (unbuilt, P4 follow-up)
+  Scope memo on evaluation-and-benchmarks: threat model (untrusted generated
+  Python), reuse of Dockerfile.quantum-runner + Lean-sandbox discipline,
+  task protocol with ledger records, licence-gate-first rule, three
+  acceptance criteria (golden pass / malicious fail-closed / infra named),
+  explicit non-goals. Wiki-only; no code.
