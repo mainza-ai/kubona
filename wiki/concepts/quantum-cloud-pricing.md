@@ -2,7 +2,7 @@
 type: concept
 name: Quantum Cloud Pricing & Financial Telemetry
 date: 2026-08-16
-updated: 2026-09-27
+updated: 2026-10-10
 tags: [pricing, cost, cloud, telemetry]
 sources: [source-architecture-paper, source-gap-analysis-plan]
 status: adopted
@@ -41,3 +41,19 @@ table row).
 
 Related: [[cost-governance]] · [[provider-capability-schema]] · [[qiskit]] ·
 [[ionq]] · [[neutral-atom-quera-pasqal]] · [[microsoft-azure-quantum]]
+
+## First paid QPU runbook (prepared 2026-10-10, P1-real live-fire)
+
+Verified rate (2026-10-10): IBM PAYG **$96/min billed per second ($1.60/s)**,
+1s minimum. Default target `ibm_brisbane` pending operator confirmation.
+Code guardrails confirmed in place: conservative estimator
+(`estimate_qpu_seconds`, overestimates by construction, refuses non-positive
+shots), `MaxCostUSD`-vs-grant-budget refusal, mandate receipt must cover cost,
+per-tenant `CheckSpend`.
+
+Operator checklist (smallest receipt first — Bell pair, low shots):
+1. `KUBONA_IBM_QISKIT_TOKEN` in env (never committed); `KUBONA_REVIEWER_PRIVKEY_HEX` set for mandate signing.
+2. IBM-side instance cost limit set on the dashboard (second rail beyond code guards).
+3. Confirm backend (`ibm_brisbane` vs Heron/Nighthawk).
+4. Mint grant (`kubonad grants mint --scope qpu/submit --budget <USD> --ttl …`), sign mandate (`POST /api/mandates/sign`), submit with `MandateRef` + `MaxCostUSD`.
+5. Record backend that ran + receipt hash + classical anchor per [[quantum-advantage-realism]] before claiming anything.
