@@ -358,3 +358,129 @@ func TestCountQasmGates(t *testing.T) {
 		t.Fatalf("got qubits=%d depth=%d twoQ=%d", q, d, q2)
 	}
 }
+
+func TestCumulativeCeilingAcrossJobs(t *testing.T) {
+	dbPath := "test_jobs_spend.db"
+	os.Remove(dbPath)
+	l, err := ledger.OpenLedger(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open ledger: %v", err)
+	}
+	defer func() {
+		l.Close()
+		os.Remove(dbPath)
+		os.Remove(dbPath + "-wal")
+		os.Remove(dbPath + "-shm")
+	}()
+	sm := session.NewManager(l)
+	if _, err := sm.EnsureSessionWithID("sess-spend", "spend drill", 500.0, "default"); err != nil {
+		t.Fatalf("seed session: %v", err)
+	}
+	r := NewRunner(l, &fakeBridge{}, 1)
+	r.Start()
+	defer r.Stop()
+
+	// Deep receipt budget so only the tenant ceiling binds (default 150).
+	payload := `{"tenant_id":"default","job_hash":"job-spend","max_budget_usd":10000,"expiry_timestamp":"2030-01-01T00:00:00Z"}`
+	if _, err := l.DB().Exec(
+		`INSERT INTO ledger_events (timestamp, session_id, tenant_id, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"2026-10-09T00:00:00Z", "sess-spend", "default", "mandate_verified_client", payload,
+		"0", "receipt-spend-1", "pub", "sig",
+	); err != nil {
+		t.Fatalf("seed receipt: %v", err)
+	}
+	qpu := func(cost float64) map[string]any {
+		return map[string]any{"qasm": "q;", "requested_backend": "ibm_brisbane",
+			"shots": 100, "max_cost_usd": cost, "mandate_ref": "receipt-spend-1",
+			"caller_jurisdictions": []string{"US"}}
+	}
+
+	// $100 admitted and kept on completion: spent is now 100, not 0.
+	j1, err := r.SubmitJob("sess-spend", "circuit_run", qpu(100))
+	if err != nil {
+		t.Fatalf("first $100 job must admit: %v", err)
+	}
+	s1 := pollJob(t, r, j1.ID)
+	if s1.Status != pb.JobStatus_JOB_STATUS_COMPLETED {
+		t.Fatalf("first job must complete: %+v", s1)
+	}
+
+	// A second $100 job fits no ceiling math ($100+$100 > $150): refused,
+	// even though each job alone is under the ceiling.
+	if _, err := r.SubmitJob("sess-spend", "circuit_run", qpu(100)); err == nil {
+		t.Fatal("second $100 job on a $150 ceiling must refuse (cumulative)")
+	} else if !strings.Contains(err.Error(), "ceiling") {
+		t.Fatalf("refusal must name the ceiling, got: %v", err)
+	}
+
+	// A $50 job still fits ($100+$50 <= $150): admitted.
+	if _, err := r.SubmitJob("sess-spend", "circuit_run", qpu(50)); err != nil {
+		t.Fatalf("$50 job within remaining budget must admit: %v", err)
+	}
+}
+
+func TestFailedJobReleasesReservation(t *testing.T) {
+	dbPath := "test_jobs_release.db"
+	os.Remove(dbPath)
+	l, err := ledger.OpenLedger(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open ledger: %v", err)
+	}
+	defer func() {
+		l.Close()
+		os.Remove(dbPath)
+		os.Remove(dbPath + "-wal")
+		os.Remove(dbPath + "-shm")
+	}()
+	sm := session.NewManager(l)
+	if _, err := sm.EnsureSessionWithID("sess-rel", "release drill", 500.0, "default"); err != nil {
+		t.Fatalf("seed session: %v", err)
+	}
+	r := NewRunner(l, &fakeBridge{}, 1)
+	// No r.Start(): the worker must not settle the job first — this test owns
+	// the terminal transition via failJob directly (deterministic, no race).
+	defer r.Stop()
+
+	payload := `{"tenant_id":"default","job_hash":"job-rel","max_budget_usd":10000,"expiry_timestamp":"2030-01-01T00:00:00Z"}`
+	if _, err := l.DB().Exec(
+		`INSERT INTO ledger_events (timestamp, session_id, tenant_id, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"2026-10-09T00:00:00Z", "sess-rel", "default", "mandate_verified_client", payload,
+		"0", "receipt-rel-1", "pub", "sig",
+	); err != nil {
+		t.Fatalf("seed receipt: %v", err)
+	}
+	qpu := map[string]any{"qasm": "q;", "requested_backend": "ibm_brisbane",
+		"shots": 100, "max_cost_usd": 100, "mandate_ref": "receipt-rel-1",
+		"caller_jurisdictions": []string{"US"}}
+
+	j1, err := r.SubmitJob("sess-rel", "circuit_run", qpu)
+	if err != nil {
+		t.Fatalf("first job must admit: %v", err)
+	}
+	// The worker will settle it completed; force-fail first to test release.
+	// (failJob directly: terminal-failed paths must unwind spend.)
+	stored, err := r.GetJob(j1.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.failJob(stored, "drill failure")
+	spent := 0.0
+	if err := l.DB().QueryRow(`SELECT spent_usd FROM tenants WHERE id = 'default'`).Scan(&spent); err != nil {
+		t.Fatal(err)
+	}
+	if spent != 0 {
+		t.Fatalf("failed job must release its reservation, spent=%v", spent)
+	}
+	// Double-release is a no-op: refusing nothing, minting nothing.
+	r.failJob(stored, "drill failure again")
+	if err := l.DB().QueryRow(`SELECT spent_usd FROM tenants WHERE id = 'default'`).Scan(&spent); err != nil {
+		t.Fatal(err)
+	}
+	if spent != 0 {
+		t.Fatalf("double release must stay floored at 0, spent=%v", spent)
+	}
+	// Budget is whole again: a fresh $100 job admits.
+	if _, err := r.SubmitJob("sess-rel", "circuit_run", qpu); err != nil {
+		t.Fatalf("job after release must admit: %v", err)
+	}
+}

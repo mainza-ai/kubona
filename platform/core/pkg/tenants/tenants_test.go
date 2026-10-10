@@ -154,3 +154,71 @@ func signed(t *testing.T, priv ed25519.PrivateKey, pubHexStr, tenantID, action s
 	a.SignatureHex = hex.EncodeToString(sig)
 	return a
 }
+
+func TestReserveSpendCumulativeCeiling(t *testing.T) {
+	m, cleanup := setupManager(t)
+	defer cleanup()
+
+	// Default ceiling is 150: two $100 reservations must not both succeed.
+	if err := m.ReserveSpend("default", 100); err != nil {
+		t.Fatalf("first reservation must succeed: %v", err)
+	}
+	if err := m.ReserveSpend("default", 100); err == nil {
+		t.Fatal("second $100 reservation on a $150 ceiling must refuse (cumulative)")
+	} else if err != ErrCeilingExceeded {
+		t.Fatalf("refusal must be the ceiling error, got: %v", err)
+	}
+	got, err := m.GetTenant("default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.SpentUSD != 100 {
+		t.Fatalf("spent must be 100 after one kept reservation, got %v", got.SpentUSD)
+	}
+	// Release returns the budget: a new $100 reservation passes again.
+	if err := m.ReleaseSpend("default", 100); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.ReserveSpend("default", 100); err != nil {
+		t.Fatalf("reservation after release must succeed: %v", err)
+	}
+	// Release floors at zero: double-release never mints negative spend.
+	if err := m.ReleaseSpend("default", 100); err != nil {
+		t.Fatal(err)
+	}
+	if err := m.ReleaseSpend("default", 100); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = m.GetTenant("default")
+	if got.SpentUSD != 0 {
+		t.Fatalf("spent must floor at 0, got %v", got.SpentUSD)
+	}
+}
+
+func TestReserveSpendConcurrentNoOverspend(t *testing.T) {
+	m, cleanup := setupManager(t)
+	defer cleanup()
+
+	// 10 concurrent $20 reservations on a $150 ceiling: exactly 7 win (140),
+	// 3 refuse. The atomic compare-and-set admits no joint overspend.
+	const workers, amount = 10, 20.0
+	won := make(chan bool, workers)
+	for i := 0; i < workers; i++ {
+		go func() {
+			won <- (m.ReserveSpend("default", amount) == nil)
+		}()
+	}
+	succeeded := 0
+	for i := 0; i < workers; i++ {
+		if <-won {
+			succeeded++
+		}
+	}
+	if succeeded != 7 {
+		t.Fatalf("exactly 7 of 10 concurrent $20 reservations must win, got %d", succeeded)
+	}
+	got, _ := m.GetTenant("default")
+	if got.SpentUSD != 140 {
+		t.Fatalf("spent must be exactly 140, got %v", got.SpentUSD)
+	}
+}

@@ -2,6 +2,7 @@ package ledger_test
 
 import (
 	"crypto/ed25519"
+	"database/sql"
 	"encoding/hex"
 	"os"
 	"testing"
@@ -160,5 +161,46 @@ func TestLedgerConfidentialityLabels(t *testing.T) {
 		if e.ConfLabel == "" {
 			t.Fatalf("no event may read back unlabeled: %+v", e)
 		}
+	}
+}
+
+func TestMigrationAddsSpendColumns(t *testing.T) {
+	// Simulate a pre-spend-tracking database: old tenants/jobs shapes.
+	dbPath := "test_ledger_migrate.db"
+	os.Remove(dbPath)
+	defer func() {
+		os.Remove(dbPath)
+		os.Remove(dbPath + "-wal")
+		os.Remove(dbPath + "-shm")
+	}()
+	raw, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`CREATE TABLE tenants (id TEXT PRIMARY KEY, display_name TEXT, admin_pubkey_hex TEXT NOT NULL DEFAULT '', autonomy_level TEXT NOT NULL DEFAULT 'L1', spend_ceiling_usd REAL NOT NULL DEFAULT 150.0, status TEXT NOT NULL DEFAULT 'active', created_at DATETIME)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`INSERT INTO tenants (id, spend_ceiling_usd, status) VALUES ('old-lab', 150.0, 'active')`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`CREATE TABLE jobs (id TEXT PRIMARY KEY, session_id TEXT, status TEXT, job_type TEXT, params_json TEXT, result_json TEXT, created_at DATETIME, completed_at DATETIME)`); err != nil {
+		t.Fatal(err)
+	}
+	raw.Close()
+
+	l, err := ledger.OpenLedger(dbPath)
+	if err != nil {
+		t.Fatalf("open must migrate, not fail: %v", err)
+	}
+	defer l.Close()
+	var spent float64
+	if err := l.DB().QueryRow(`SELECT spent_usd FROM tenants WHERE id = 'old-lab'`).Scan(&spent); err != nil {
+		t.Fatalf("migrated spent_usd must read: %v", err)
+	}
+	if spent != 0 {
+		t.Fatalf("pre-tracking spend backfills 0, got %v", spent)
+	}
+	if _, err := l.DB().Exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount) VALUES ('j1','s','x','circuit_run','{}',CURRENT_TIMESTAMP,'old-lab',25.0)`); err != nil {
+		t.Fatalf("migrated jobs columns must accept reservations: %v", err)
 	}
 }

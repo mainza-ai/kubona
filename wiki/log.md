@@ -1319,3 +1319,10 @@ skipped is the exact failure this incident is about:
   ignored paths: only artifacts/caches/DBs. Note: origin/develop CI was
   already red Oct 4-5 (Go+Python+console) and 36 commits sit unpushed —
   push needs an explicit operator order and a green CI reckoning first.
+
+## [2026-10-10] implementation | Cumulative tenant spend (reserve/release)
+  Ceilings were per-job-only: now atomic reserve-at-admission (CAS UPDATE,
+  race-proof), kept on completion, released on every terminal-failed path
+  (idempotent, floored). Tests: cumulative refusal, release + double-release,
+  10-way concurrent exactness (7 win/140), old-schema migration. Go suite
+  green incl. -race. Session limits deferred (recorded).
