@@ -1207,3 +1207,12 @@ skipped is the exact failure this incident is about:
   x402 rail status recorded as dormant (designed, fail-closed, unstaffed);
   activation gated on a Phase-5 staffing + chain/facilitator decision.
   Wiki-only change.
+
+## [2026-10-10] question | Q-24 — Options tabled, awaiting operator choice
+## [2026-10-10] implementation | Q-24 decision memo on roadmap Phase 4 (wiki-only)
+  Four options tabled (A narrow gate / B grow team / C vendor sidecars /
+  D defer); recommendation C with A fallback. Q-24 stays open until the
+  operator picks; gate text frozen meanwhile.
+
+## [2026-10-10] decision | Q-24 — Operator chose C (vendor-maintained sidecars)
+## [2026-10-10] question | Q-24 — Closed: SDK conformance suite is the gate artifact

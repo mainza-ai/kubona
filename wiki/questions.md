@@ -46,7 +46,6 @@ These come first, because they change how every other question gets answered.
 
 | # | Question | Rank | Known | Missing |
 |---|---|---|---|---|
-| **Q-24** | **Who could review a third-party provider PR?** Phase 4's gate needs a public repo *and* a merged outside PR; there are no contributors and one maintainer, while [[roadmap]] loads 5 roles for the remaining work. Either the gate changes or the team plan does. | **P1** | Gate requires external contribution; a provider-registration SDK exists | A realistic contributor model, or a different Phase-4 gate |
 | **Q-27** | **What must the git history look like before the repo can go public?** The posture question is now *decided* (private by design — [[kubona]] §Posture); what remains is the mechanical precondition. `dev-docs/` + `.obsidian/` sit in **private-remote history (the repo has never been public)** though untracked today; no secret has been found in pushable refs. Options: publish as-is, rewrite with `git filter-repo`, or start a clean public history and keep this one as the private archive. | **P1** | 0 secrets in pushable refs; a pre-commit guard refuses newly staged `dev-docs/`/`.obsidian/` paths; the residue is source-document mirrors already present in `raw/` | One of the three chosen before the Apache-2.0 flip (and the operator's `credential.helper=store` token rotated — [[risks]]) |
 
 ## Closed
@@ -68,6 +67,7 @@ These come first, because they change how every other question gets answered.
 | **Q-30** | 2026-10-09 | Posture: **encapsulate** vendor MCP suites as downstream provider plugins beneath the governance plane (vault-leased creds, admission gate, anchored results); raw agent→vendor paths refused by design. | [[qiskit-mcp-servers]] |
 | **Q-11** | 2026-10-09 | Burden-scaled approval packets: full schema (cost bound + budget left, blast radius, reversibility, evidence, alternatives, expiry, single-use nonce) via MRTR elicitation retry in the gateway plus ApprovalPacketCard in the console approve flow; risk-tiered prompting rules. | [[cost-governance]] |
 | **Q-28** | 2026-10-09 | No namespace move: coupling measured one-directional (edge → core); contract enforced mechanically by Go + Python architectural fitness tests in CI. | [[protocol-strategy]] |
+| **Q-24** | 2026-10-10 | Operator chose C: vendor-maintained sidecar providers; SDK conformance suite is the Phase-4 gate artifact. | [[roadmap]] |
 | **Q-23** | 2026-10-10 | Dormant by design: x402 machinery exists but settlement is local-only and unstaffed; activation needs a Phase-5 staffing + chain decision recorded here. | [[agent-resource-economy]] |
 | **Q-17** | 2026-10-10 | CORE, not v2: loop runs green + 3 surfaces exist; every discovery page assigned CORE-SURFACED / CORE-ENGINE / VISION in place, no file moves. | [[science-discovery]] |
 | **Q-26** | 2026-10-10 | Licence-clean only (_meta licence gate, fail-closed with per-file reasons); good answer = declared invariant satisfied on simulator, no LLM judging. | [[evaluation-and-benchmarks]] |
