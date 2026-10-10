@@ -17,7 +17,8 @@ INVARIANT on the simulator (score = fraction passing). No LLM judging, no
 vibes — satisfiability is the entire criterion, verified by evaluate_codegen.
 
 Declarative check kinds (verified against the simulator):
-  bell      entangled 2-qubit 50/50 -> {00,11}, balanced
+   bell      entangled 2-qubit 50/50 -> {00,11}, balanced
+   psi       entangled 2-qubit 50/50 -> {01,10}, balanced (Psi+/- Bell pair)
   ghz       all-or-nothing GHZ on N qubits -> {0...0, 1...1}
   wstate    3-qubit W-state -> {001,010,100}, near-uniform
   uniform   flat superposition over all N-qubit states (e.g. QFT)
@@ -37,6 +38,10 @@ from kubona.eval.corpora import TASKS
 
 def _bell_check(counts, shots):
     return set(counts) <= {"00", "11"} and abs(counts.get("00", 0) - counts.get("11", 0)) <= 0.1 * shots
+
+
+def _psi_check(counts, shots):
+    return set(counts) <= {"01", "10"} and abs(counts.get("01", 0) - counts.get("10", 0)) <= 0.1 * shots
 
 
 def _ghz_check(n):
@@ -64,6 +69,7 @@ def _grover_majority_check(counts, shots):
 
 _CHECKS: dict[str, Callable[[dict, int], bool] | Callable[..., Callable]] = {
     "bell": _bell_check,
+    "psi": _psi_check,
     "ghz": _ghz_check,
     "wstate": _wstate_check,
     "uniform": _uniform_check,

@@ -1250,3 +1250,11 @@ skipped is the exact failure this incident is about:
   credential-free hardware attestation is N/A deferred to the admission-time
   canary (named, never silent). Gate still open: no true external sidecar
   graded yet. Suite 278 passed, 3 skipped; lint clean.
+
+## [2026-10-10] implementation | QuantumKatas volume transcription (8 tasks)
+  New quantum_katas_volume.json (MIT meta, per-entry kata provenance):
+  plus/minus, phi-minus, psi-plus/minus (new psi check kind), ghz3/ghz8,
+  uniform4. Existing corpus gate proves all 16 tasks at score 1.0.
+  HumanEval/PennyLang honestly deferred: code corpora needing a sandboxed
+  execution harness (P4 follow-up), not transcribable without corrupting
+  the benchmark. Wiki-only otherwise; full suite re-run below.
