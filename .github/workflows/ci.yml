@@ -82,6 +82,12 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23"
+      # Harness tests shell out to host python3 for embedded eval scripts
+      # (numpy+qiskit): without them every harness test fails on import.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install numpy "qiskit>=1.0" "qiskit-aer>=0.14"
       - run: go test -v -race ./...
 
   nextjs-console-build:
