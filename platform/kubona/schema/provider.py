@@ -11,7 +11,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 SCHEMA_DIR = Path(__file__).parent / "providers"
 
@@ -56,6 +56,31 @@ class ProviderAttestation(BaseModel):
     canary_ok: bool = False
     snapshot_hash: str = ""
     ledger_ref: str | None = None
+
+
+class CalibrationSnapshot(BaseModel):
+    """Q-14: measured or declared device calibration numbers.
+
+    `source` is "construction" (hard-coded safety bound), "backend-properties"
+    (live read), or "declared" (schema claim awaiting measurement). Physical
+    soundness (t2 <= 2*t1) is enforced at validation: an unsound declaration
+    refuses to load rather than poisoning predictions downstream.
+    """
+
+    t1_us: float = Field(ge=0.0)
+    t2_us: float = Field(ge=0.0)
+    single_qubit_error: float = Field(ge=0.0, le=1.0)
+    two_qubit_error: float = Field(ge=0.0, le=1.0)
+    readout_error: float = Field(ge=0.0, le=1.0)
+    measured_at: str = ""
+    source: str = "declared"
+
+    @model_validator(mode="after")
+    def _check_soundness(self) -> "CalibrationSnapshot":
+        if self.t2_us > 2.0 * self.t1_us + 1e-6:
+            raise ValueError(
+                f"physically unsound calibration: t2 ({self.t2_us}) > 2*t1 ({self.t1_us})")
+        return self
 
 
 # Time-model constants for per-second QPU billing (v1, documented assumptions —
@@ -122,6 +147,12 @@ class ProviderCapability(BaseModel):
         default=None,
         description="Latest measured-vs-declared attestation (Q-14). Pricing and queue "
                     "depth remain declared-until-metered; only qubit capacity is attested.",
+    )
+    declared_calibration: CalibrationSnapshot | None = Field(
+        default=None,
+        description="Q-14: declared device calibration (T1/T2, gate/readout errors). "
+                    "A claim the canary verifies against live measurement; unsound "
+                    "declarations refuse to load.",
     )
 
     def cost_estimate(self, shots: int, circuit: Any = None) -> dict[str, Any]:

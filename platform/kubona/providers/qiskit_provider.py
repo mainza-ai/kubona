@@ -123,3 +123,38 @@ class QiskitProvider(Provider):
     def health(self) -> dict[str, Any]:
         return {"provider": self.capability.provider, "ready": self._ready,
                 "hardware_ready": self._credential() is not None and bool(self.backend_name)}
+
+    def calibration_snapshot(self) -> dict[str, Any] | None:
+        """Live backend calibration medians (Q-14), or None when unmeasurable.
+
+        Best-effort read of backend.properties(); any failure (no credential,
+        stale backend name, network error, missing package) returns None —
+        unknown, never a fabricated number.
+        """
+        try:
+            token = self._credential()
+            if not token or not self.backend_name:
+                return None
+            from qiskit_ibm_runtime import QiskitRuntimeService
+            service = QiskitRuntimeService(channel="ibm_quantum", token=token)
+            props = service.backend(self.backend_name).properties()
+            if props is None:
+                return None
+            import statistics
+            t1 = statistics.median([q.t1 for q in props.qubits])
+            t2 = statistics.median([q.t2 for q in props.qubits])
+            ro = statistics.median([q.readout_error for q in props.qubits])
+            twoq = [g.parameters[0].value for g in props.gates if len(getattr(g, "qubits", [])) == 2]
+            oneq = [g.parameters[0].value for g in props.gates if len(getattr(g, "qubits", [])) == 1]
+            snap: dict[str, Any] = {
+                "t1_us": float(t1 * 1e6), "t2_us": float(t2 * 1e6),
+                "readout_error": float(ro), "source": "backend-properties"}
+            # Only report what was actually measured; absent keys compare as
+            # unknown downstream, never as fabricated zeros.
+            if oneq:
+                snap["single_qubit_error"] = float(statistics.median(oneq))
+            if twoq:
+                snap["two_qubit_error"] = float(statistics.median(twoq))
+            return snap
+        except Exception:
+            return None
