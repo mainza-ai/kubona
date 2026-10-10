@@ -1118,3 +1118,13 @@ skipped is the exact failure this incident is about:
     zero warnings.
   - Go: gofmt clean on all touched files (pre-existing style debt elsewhere untouched);
     go vet clean. No TODO/FIXME in non-test code; bridge compiles clean.
+
+## [2026-10-10] question | Q-04 — Claim grammar: permitted verbs, required qualifiers, credibility field
+## [2026-10-10] question | Q-05 — Credibility operational: axes, compute, store, consume + worked VQE
+## [2026-10-10] question | Q-08 — Three loop models ruled as axes (architecture × lifecycle × mechanism)
+## [2026-10-10] implementation | Method-layer close-out (Q-04/Q-05/Q-08)
+  claim_grammar.py: permitted-verb allowlist + CredibilityField + advantage credibility
+  rule (rho>=0.90, L4/L3); wavefunction.py: ClaimRecord/build_claim_record with
+  rho semantics + ledger payload; test_claim_grammar.py (8 tests incl. real-number
+  H2 worked example — engine FCI -1.0718 used, not recalled constants). Wiki answers
+  filed on their pages; five-ring + credibility pages adopted. Not committed yet.
