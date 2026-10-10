@@ -15,8 +15,8 @@
   "pricing": {
     "model": "per_second",
     "currency": "USD",
-    "per_second_usd": 0.0,
-    "notes": "pay-as-you-go per second of Qiskit Runtime execution; requires credentials; off-peak scheduling via Sessions"
+    "per_second_usd": 1.6,
+    "notes": "IBM Quantum Pay-As-You-Go: $96/min billed per second ($1.60/s), 1-second minimum, no commitment. Verified 2026-10-10 against ibm.com/quantum/pricing. Open Plan (10 min/month free) and Flex/Premium tiers are separate plans, not this rate."
   },
   "jurisdiction": "US",
   "export_control_flag": "none",

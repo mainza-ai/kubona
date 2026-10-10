@@ -40,7 +40,7 @@ def estimate_cost(circuit_qasm: str, provider: str = "local-simulator", shots: i
         pf = _gov.preflight(capability, circuit, shots, session)
         return {"provider": provider, "session_id": session_id,
                 "preflight_ok": pf["ok"], "reason": pf["reason"], "estimate": pf["estimate"]}
-    est = capability.cost_estimate(shots)
+    est = capability.cost_estimate(shots, circuit)
     return {"provider": provider, "preflight_ok": est["estimated_usd"] == 0.0,
             "reason": "free tier" if est["estimated_usd"] == 0.0 else "session required for paid providers",
             "estimate": est}

@@ -13,7 +13,7 @@ from kubona.schema import ProviderCapability
 
 
 def estimate(capability: ProviderCapability, circuit: Circuit, shots: int) -> dict[str, Any]:
-    est = capability.cost_estimate(shots)
+    est = capability.cost_estimate(shots, circuit)
     est.update({"circuit_name": circuit.name, "circuit_depth": circuit.depth()})
     return est
 
