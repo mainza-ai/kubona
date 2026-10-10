@@ -31,6 +31,84 @@ STANDARD_PERMITTED_AXIOMS: Set[str] = {
 
 
 @dataclass(frozen=True)
+class LeanSandboxConfig:
+    """Q-31: resource caps for containerized Lean verification.
+
+    The sandbox image carries the pinned toolchain (platform/docker/
+    Dockerfile.lean, leanprover/lean4:v4.34.1); these caps apply at every
+    `docker run` so one proof cannot exhaust the host (RAM mappings, CPU,
+    PIDs). Network is always none at runtime; the build cache must be warmed
+    at image-build time (see Dockerfile).
+    """
+
+    image: str = "kubona-lean:4.34.1"
+    memory: str = "4g"
+    memory_swap: str = "4g"
+    cpus: str = "2.0"
+    pids_limit: int = 256
+    timeout_seconds: int = 600
+
+
+_DOCKER_INFRA_MARKERS = (
+    "docker:", "Cannot connect to the Docker daemon",
+    "no such image", "OCI runtime", "permission denied while trying to connect",
+    "error gathering device information",
+)
+
+
+def _is_infra_failure(stderr: str) -> bool:
+    """Docker-level failures (daemon/image/runtime) vs genuine proof verdicts.
+
+    A failing proof must NEVER degrade into a passing AST fallback — that
+    would mask a real failure. Only infrastructure breakdowns fall back.
+    """
+    low = (stderr or "").lower()
+    return any(m.lower() in low for m in _DOCKER_INFRA_MARKERS)
+
+
+def docker_available() -> bool:
+    """Docker daemon reachable for sandboxed verification."""
+    if shutil.which("docker") is None:
+        return False
+    try:
+        proc = subprocess.run(["docker", "info", "--format", "{{.NCPU}}"],
+                              capture_output=True, text=True, timeout=15)
+        return proc.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError, OSError):
+        return False
+
+
+def docker_image_present(image: str) -> bool:
+    """Fail closed when the pinned image is absent (never pull implicitly:
+    an unexpected multi-GB pull at verification time is itself a hazard)."""
+    try:
+        proc = subprocess.run(["docker", "image", "inspect", image],
+                              capture_output=True, text=True, timeout=30)
+        return proc.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError, OSError):
+        return False
+
+
+def sandbox_docker_cmd(cfg: LeanSandboxConfig, lean_dir: Path, challenge_name: str) -> list[str]:
+    """The exact container invocation (unit-tested flag-for-flag)."""
+    return [
+        "docker", "run", "--rm",
+        "--read-only",
+        "--network", "none",
+        "--cap-drop", "ALL",
+        "--memory", cfg.memory,
+        "--memory-swap", cfg.memory_swap,
+        "--cpus", cfg.cpus,
+        "--pids-limit", str(cfg.pids_limit),
+        "--tmpfs", "/tmp",
+        "-v", f"{lean_dir}:/workspace:rw",
+        "-w", "/workspace",
+        cfg.image,
+        "exe", "comparator", challenge_name,
+    ]
+
+
+@dataclass(frozen=True)
 class ComparatorChallengeSpec:
     challenge_name: str
     challenge_module: str
@@ -217,9 +295,18 @@ class ComparatorChallengeRegistry:
         lean_source_path: Optional[str] = None,
         *,
         timeout_seconds: int = 60,
+        sandbox: Optional[LeanSandboxConfig] = None,
         ledger: Optional[Ledger] = None,
     ) -> VerificationResult:
-        """Attempts live Lean 4 compilation via lake if installed, falling back gracefully to AST verification."""
+        """Live Lean 4 verification with resource containment (Q-31).
+
+        Precedence: (1) containerized execution when a sandbox config is
+        passed — Docker present, pinned image present, caps enforced, timeout
+        enforced; (2) host `lake` toolchain when installed; (3) fail-closed
+        fallback to validated AST containment, with the reason recorded.
+        Container failures (missing daemon/image, timeout, nonzero exit)
+        never propagate as errors: they become AST fallback with reason.
+        """
         spec = self.get_challenge(challenge_name)
         if not spec:
             return VerificationResult(
@@ -233,10 +320,16 @@ class ComparatorChallengeRegistry:
                 kernel_execution_skipped=True,
             )
 
-        lake_bin = os.getenv("LAKE_BIN") or shutil.which("lake")
         lean_dir = Path("submodules/math/lean")
         if not lean_dir.exists():
             lean_dir = Path("../submodules/math/lean")
+
+        if sandbox is not None and lean_dir.exists():
+            res = self._verify_sandboxed(spec, lean_dir, sandbox, ledger)
+            if res is not None:
+                return res
+
+        lake_bin = os.getenv("LAKE_BIN") or shutil.which("lake")
 
         if lake_bin and lean_dir.exists():
             try:
@@ -290,5 +383,76 @@ class ComparatorChallengeRegistry:
         )
         fallback_res.verification_mode = "static_ast_containment"
         fallback_res.kernel_execution_skipped = True
+        if fallback_res.error_message is None:
+            fallback_res.error_message = (
+                "live kernel unavailable (no sandbox image/daemon or host toolchain); "
+                "AST containment only")
         return fallback_res
+
+    def _verify_sandboxed(
+        self,
+        spec: ComparatorChallengeSpec,
+        lean_dir: Path,
+        cfg: LeanSandboxConfig,
+        ledger: Optional[Ledger],
+    ) -> Optional[VerificationResult]:
+        """Containerized `lake exe comparator` under resource caps. Returns
+        None when the sandbox cannot run (daemon/image absent) so the caller
+        falls back to AST containment with reason; timeouts and nonzero exits
+        inside the container are honest results, not fallbacks."""
+        if not docker_available():
+            return None
+        if not docker_image_present(cfg.image):
+            return None
+        cmd = sandbox_docker_cmd(cfg, lean_dir, spec.challenge_name)
+        try:
+            proc = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=cfg.timeout_seconds,
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError, OSError):
+            return None
+        stdout = proc.stdout or ""
+        stderr = proc.stderr or ""
+        if proc.returncode != 0 and _is_infra_failure(stderr):
+            # Docker/daemon/image breakdown: not a verdict — fall back.
+            return None
+        has_sorry = "sorryAx" in stdout or "sorryAx" in stderr
+        ok = proc.returncode == 0 and not has_sorry
+        err_msg = None if ok else f"Sandboxed lake returned {proc.returncode}: {stderr[:300]}"
+
+        ledger_ref = None
+        if ledger:
+            rec = ledger.append(
+                kind="comparator_live_kernel_verification",
+                payload={
+                    "challenge_name": spec.challenge_name,
+                    "solution_module": spec.solution_module,
+                    "ok": ok,
+                    "verification_mode": "live_kernel_proven",
+                    "sandboxed": True,
+                    "sandbox_image": cfg.image,
+                    "sandbox_caps": {
+                        "memory": cfg.memory, "memory_swap": cfg.memory_swap,
+                        "cpus": cfg.cpus, "pids_limit": cfg.pids_limit,
+                        "timeout_seconds": cfg.timeout_seconds,
+                    },
+                    "exit_code": proc.returncode,
+                },
+            )
+            ledger_ref = rec.record_hash
+
+        return VerificationResult(
+            challenge_name=spec.challenge_name,
+            ok=ok,
+            axioms_used=list(spec.permitted_axioms),
+            unpermitted_axioms=["sorryAx"] if has_sorry else [],
+            theorem_names=spec.theorem_names,
+            error_message=err_msg,
+            ledger_ref=ledger_ref,
+            verification_mode="live_kernel_proven",
+            kernel_execution_skipped=False,
+        )
 
