@@ -13,6 +13,16 @@ import (
 // empty admin key. The first SetAdminKey wins (ledger-sealed bootstrap);
 // every mutation after that requires the admin's signature.
 func (s *Server) handleTenants(w http.ResponseWriter, r *http.Request) {
+	if r.Method == http.MethodGet {
+		// Labs view: every registered lab with ceiling, spent, autonomy.
+		all, err := s.tenantMgr.ListTenants()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"tenants": all})
+		return
+	}
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
