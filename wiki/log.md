@@ -1201,3 +1201,9 @@ skipped is the exact failure this incident is about:
   CORE-SURFACED / CORE-ENGINE (gap named) / VISION on science-discovery;
   graduation rule recorded (table updates same-PR as code). No file moves.
   Wiki-only change; gates unaffected.
+
+## [2026-10-10] question | Q-23 — Monetization labeled dormant by design
+## [2026-10-10] implementation | Q-23 status label (no code change)
+  x402 rail status recorded as dormant (designed, fail-closed, unstaffed);
+  activation gated on a Phase-5 staffing + chain/facilitator decision.
+  Wiki-only change.

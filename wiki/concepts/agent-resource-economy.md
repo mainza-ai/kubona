@@ -2,7 +2,7 @@
 type: concept
 name: The Agent Resource Economy
 date: 2026-08-16
-updated: 2026-09-27
+updated: 2026-10-10
 tags: [economy, agents, monetization]
 sources: [source-cloudflare-economy, source-gap-analysis-plan]
 status: adopted
@@ -43,6 +43,16 @@ microtransaction unlocks the full validated config with provenance — mirroring
 free-for-distribution/paid-for-value split.
 First payers expected: orchestration-framework vendors, quantum-consulting shops,
 MCP-native platforms (not individual researchers).
+
+## Monetization status (Q-23, closed 2026-10-10): dormant by design
+
+**Status: dormant.** The x402 challenge/verify/settle machinery exists
+(`platform/core/pkg/cost/payment.go`) but settlement is explicitly local-only
+(`Settlement{simulated:true}`, no chain broadcast) and unstaffed — the rail
+refuses real money paths by construction until a Phase-5 activation decision
+(staffing, chain + facilitator choice, metering policy) is taken and recorded
+here. Dormant is a legitimate third state, not neglect: the design is complete,
+the switch is deliberately off.
 
 ## The three startup patterns (in detail)
 
