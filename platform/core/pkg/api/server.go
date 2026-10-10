@@ -236,6 +236,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/mandates/verify", s.handleMandateVerify)
 	s.mux.HandleFunc("/api/harnesses", s.handleHarnesses)
 	s.mux.HandleFunc("/api/results/notebooks", s.handleNotebooks)
+	s.mux.HandleFunc("/api/literature", s.handleLiterature)
 
 	// Autoresearch Loop & Section 13 Meta-Search Endpoints
 	s.mux.HandleFunc("/api/autoresearch/harnesses", s.handleAutoresearchHarnesses)
@@ -643,6 +644,54 @@ func (s *Server) handleHarnesses(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"harnesses": out})
+}
+
+// handleLiterature wires live arXiv/OpenAlex grounding into the console
+// (P6): the bridge searches live with an offline-cache fallback, and every
+// record carries real year/citation values — never placeholders.
+func (s *Server) handleLiterature(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	query := r.URL.Query().Get("query")
+	if query == "" {
+		http.Error(w, "query is required", http.StatusBadRequest)
+		return
+	}
+	limit := 5
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		if n, err := strconv.Atoi(raw); err == nil && n > 0 && n <= 25 {
+			limit = n
+		}
+	}
+	bridge := s.jobRunner.BridgeClient()
+	if bridge == nil {
+		writeBridgeUnavailable(w, "literature_grounding", "bridge client is nil.")
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+	defer cancel()
+	resp, err := bridge.GroundLiterature(ctx, &pb.LiteratureGroundingRequest{
+		Query: query,
+		Limit: int32(limit),
+	})
+	if err != nil {
+		writeBridgeUnavailable(w, "literature_grounding", "GroundLiterature RPC failed: "+err.Error())
+		return
+	}
+	records := make([]any, 0, len(resp.Records))
+	for _, rec := range resp.Records {
+		records = append(records, map[string]any{
+			"id": rec.Id, "title": rec.Title, "authors": rec.Authors,
+			"abstract": rec.AbstractText, "url": rec.Url,
+			"publication_year": rec.PublicationYear,
+			"citation_count": rec.CitationCount,
+		})
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"records": records, "cached": resp.Cached, "query": query,
+	})
 }
 
 func (s *Server) handleNotebooks(w http.ResponseWriter, r *http.Request) {

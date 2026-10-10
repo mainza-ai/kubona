@@ -1339,3 +1339,10 @@ skipped is the exact failure this incident is about:
   /api/tenants added (list, incl. spent_usd). 3 vitest green; console
   15/15, eslint + build clean; Go suite green. Workflows view deferred:
   library behind unserved Python console_api — needs serving decision.
+
+## [2026-10-10] implementation | Literature live-wiring (P6)
+  GET /api/literature -> bridge GroundLiterature -> Literature tab in
+  ResultsStudio (query, records with year/citations, live-vs-cache label).
+  Fixed invented metadata (year 2026, citations 10, cached=True) to real
+  passthrough. Tests: Go route guards, 4 bridge tests (parse/cache/cite/
+  mapping), 2 console tests. Go + Python (303) + console (17) green.

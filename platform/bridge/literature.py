@@ -48,7 +48,10 @@ def search_arxiv(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
         cursor.execute("SELECT payload_json FROM literature_cache WHERE query_hash = ?", (query_hash,))
         row = cursor.fetchone()
         if row:
-            return json.loads(row[0])
+            hit = json.loads(row[0])
+            for r in hit:
+                r["cached"] = True
+            return hit
 
     # Live query
     url = f"https://export.arxiv.org/api/query?search_query=all:{query}&max_results={max_results}&sortBy=relevance"
@@ -66,8 +69,15 @@ def search_arxiv(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
                 authors = [a.find("atom:name", ns).text for a in entry.findall("atom:author", ns) if a.find("atom:name", ns) is not None]
 
                 title = title_elem.text.strip().replace("\n", " ") if title_elem is not None and title_elem.text else "Untitled"
-                summary = summary_elem.text.strip().replace("\n", " ") if summary_elem is not None and summary_elem.text else ""
+                summary = summary_elem.text.strip().replace("\n", " ") if summary_elem.text else ""
                 paper_id = id_elem.text.strip() if id_elem is not None and id_elem.text else ""
+                pub_elem = entry.find("atom:published", ns)
+                year = 0
+                if pub_elem is not None and pub_elem.text and len(pub_elem.text) >= 4:
+                    try:
+                        year = int(pub_elem.text[:4])
+                    except ValueError:
+                        year = 0
 
                 results.append({
                     "id": paper_id,
@@ -77,6 +87,11 @@ def search_arxiv(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
                     "source": "arXiv",
                     "license": "arXiv.org perpetual non-exclusive license",
                     "provenance_verified": True,
+                    "year": year,
+                    # arXiv exposes no citation counts: 0 means "no data",
+                    # never an invented count.
+                    "cited_by_count": 0,
+                    "cached": False,
                 })
     except Exception:
         # Graceful offline / fallback scientific corpus
@@ -89,6 +104,9 @@ def search_arxiv(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
                 "source": "arXiv (offline cache)",
                 "license": "arXiv perpetual non-exclusive license",
                 "provenance_verified": True,
+                "year": 2013,
+                "cited_by_count": 0,
+                "cached": False,
             },
             {
                 "id": "https://arxiv.org/abs/2001.05983",
@@ -98,6 +116,9 @@ def search_arxiv(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
                 "source": "arXiv (offline cache)",
                 "license": "CC-BY-4.0",
                 "provenance_verified": True,
+                "year": 2020,
+                "cited_by_count": 0,
+                "cached": False,
             }
         ]
 
@@ -125,7 +146,10 @@ def search_openalex(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
         cursor.execute("SELECT payload_json FROM literature_cache WHERE query_hash = ?", (query_hash,))
         row = cursor.fetchone()
         if row:
-            return json.loads(row[0])
+            hit = json.loads(row[0])
+            for r in hit:
+                r["cached"] = True
+            return hit
 
     url = f"https://api.openalex.org/works?search={query}&per-page={max_results}"
     results = []
@@ -148,6 +172,9 @@ def search_openalex(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
                     "source": "OpenAlex",
                     "license": f"Open Access ({oa_status})" if oa_status != "closed" else "Proprietary",
                     "provenance_verified": True,
+                    "year": work.get("publication_year", 0) or 0,
+                    "cited_by_count": work.get("cited_by_count", 0) or 0,
+                    "cached": False,
                 })
     except Exception:
         results = [
@@ -159,6 +186,9 @@ def search_openalex(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
                 "source": "OpenAlex (offline cache)",
                 "license": "Open Access (CC-BY-4.0)",
                 "provenance_verified": True,
+                "year": 2014,
+                "cited_by_count": 0,
+                "cached": False,
             }
         ]
 
