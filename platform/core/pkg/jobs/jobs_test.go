@@ -484,3 +484,54 @@ func TestFailedJobReleasesReservation(t *testing.T) {
 		t.Fatalf("job after release must admit: %v", err)
 	}
 }
+
+func TestSessionLimitBindsEndToEnd(t *testing.T) {
+	dbPath := "test_jobs_sesslimit.db"
+	os.Remove(dbPath)
+	l, err := ledger.OpenLedger(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open ledger: %v", err)
+	}
+	defer func() {
+		l.Close()
+		os.Remove(dbPath)
+		os.Remove(dbPath + "-wal")
+		os.Remove(dbPath + "-shm")
+	}()
+	sm := session.NewManager(l)
+	// Tighter than the $150 tenant ceiling: the session rail must bind first.
+	if _, err := sm.EnsureSessionWithID("sess-cap", "capped drill", 120.0, "default"); err != nil {
+		t.Fatalf("seed session: %v", err)
+	}
+	r := NewRunner(l, &fakeBridge{}, 1)
+	r.Start()
+	defer r.Stop()
+
+	payload := `{"tenant_id":"default","job_hash":"job-cap","max_budget_usd":10000,"expiry_timestamp":"2030-01-01T00:00:00Z"}`
+	if _, err := l.DB().Exec(
+		`INSERT INTO ledger_events (timestamp, session_id, tenant_id, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"2026-10-09T00:00:00Z", "sess-cap", "default", "mandate_verified_client", payload,
+		"0", "receipt-cap-1", "pub", "sig",
+	); err != nil {
+		t.Fatalf("seed receipt: %v", err)
+	}
+	qpu := func(cost float64) map[string]any {
+		return map[string]any{"qasm": "q;", "requested_backend": "ibm_brisbane",
+			"shots": 100, "max_cost_usd": cost, "mandate_ref": "receipt-cap-1",
+			"caller_jurisdictions": []string{"US"}}
+	}
+	j1, err := r.SubmitJob("sess-cap", "circuit_run", qpu(70))
+	if err != nil {
+		t.Fatalf("first $70 job must admit: %v", err)
+	}
+	if s := pollJob(t, r, j1.ID); s.Status != pb.JobStatus_JOB_STATUS_COMPLETED {
+		t.Fatalf("first job must complete: %+v", s)
+	}
+	// $70+$70=140 fits the $150 tenant ceiling but breaks the $120 session:
+	// the session rail must be the one that refuses.
+	if _, err := r.SubmitJob("sess-cap", "circuit_run", qpu(70)); err == nil {
+		t.Fatal("second $70 job on a $120 session must refuse")
+	} else if !strings.Contains(err.Error(), "session") {
+		t.Fatalf("refusal must name the session rail, got: %v", err)
+	}
+}
