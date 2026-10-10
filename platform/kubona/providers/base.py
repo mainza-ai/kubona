@@ -37,6 +37,17 @@ class Provider(ABC):
         as a failed attestation (Q-14)."""
         return {"provider": self.capability.provider, "status": "ok"}
 
+    def calibration_snapshot(self) -> dict[str, Any] | None:
+        """Measured calibration numbers, or None when unmeasurable.
+
+        Returned dict uses CalibrationSnapshot field names (t1_us, t2_us,
+        single_qubit_error, two_qubit_error, readout_error). The canary
+        compares against the declared calibration (when the schema states
+        one) within tolerance; mismatch fails attestation, absence reads as
+        unknown. Base implementation: unmeasurable.
+        """
+        return None
+
 
 def _instantiate(plugin_path: str, capability: ProviderCapability) -> Provider:
     mod_name, cls_name = plugin_path.rsplit(".", 1)

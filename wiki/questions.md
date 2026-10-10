@@ -35,7 +35,6 @@ These come first, because they change how every other question gets answered.
 
 | # | Question | Rank | Known | Missing |
 |---|---|---|---|---|
-| **Q-14** | **Can a provider capability schema lie?** [[provider-capability-schema]] is data self-described by whoever registers a provider. A wrong qubit count or fidelity corrupts both the optimizer and the price estimate. [[model-optimizer]]'s schema-pinned recipes are the nearest prior art — and still self-authored. | **P1** | Schema-as-data; shape validation | Attestation or measurement: can Kubona probe a backend and reject false claims? |
 
 
 ## D · Science discovery (≈40% of concepts, least surfaced)
@@ -75,6 +74,7 @@ These come first, because they change how every other question gets answered.
 | **Q-30** | 2026-10-09 | Posture: **encapsulate** vendor MCP suites as downstream provider plugins beneath the governance plane (vault-leased creds, admission gate, anchored results); raw agent→vendor paths refused by design. | [[qiskit-mcp-servers]] |
 | **Q-11** | 2026-10-09 | Burden-scaled approval packets: full schema (cost bound + budget left, blast radius, reversibility, evidence, alternatives, expiry, single-use nonce) via MRTR elicitation retry in the gateway plus ApprovalPacketCard in the console approve flow; risk-tiered prompting rules. | [[cost-governance]] |
 | **Q-28** | 2026-10-09 | No namespace move: coupling measured one-directional (edge → core); contract enforced mechanically by Go + Python architectural fitness tests in CI. | [[protocol-strategy]] |
+| **Q-14** | 2026-10-10 | Yes where measurable: canary verifies declared qubits + calibration against live plugin reports within tolerance; mismatch fails the canary; unmeasurable reads unknown, never pass. | [[provider-capability-schema]] |
 | **Q-02** | 2026-10-10 | Five load-bearing constraints marked `settled` with written rationale (licence, advantage-realism, mandates, cost-governance, continuum); criterion: test-enforced + depended upon. | [[overview]] |
 | **Q-03** | 2026-10-10 | No new `claim` page type: claims live as concept sections backed by ledger claim records + ScientificClaim schema; taxonomy cost exceeds benefit. | [[index]] |
 | **Q-07** | 2026-10-10 | Kept distinct, not merged: money-gate vs result-repair vs publishability-prediction; fidelity refusal now enforced in both admission paths. | [[fidelity-accounting]] |

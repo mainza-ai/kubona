@@ -1149,3 +1149,11 @@ skipped is the exact failure this incident is about:
   as unpredictable). Tests: 4 Python + 6 Go, incl. order proof (fidelity passes,
   mandate still refuses). Wiki: settled×5 with criterion, census recounted
   (5/45/8/6/26/5/6/5), taxonomy note. Not committed yet.
+
+## [2026-10-10] question | Q-14 — Probe-and-reject attestation for qubit counts + calibration
+## [2026-10-10] implementation | Q-14 calibration attestation (schema, plugins, canary)
+  CalibrationSnapshot model (soundness-validated) + declared_calibration field;
+  plugin calibration_snapshot() contract (local-sim zeros, IBM live properties
+  best-effort, else None); canary compares within 25% tolerance with mismatch
+  failing the run; unsound declarations refuse to load. Tests: match, lie,
+  unknown, unsound-load. Page already adopted; row closed.

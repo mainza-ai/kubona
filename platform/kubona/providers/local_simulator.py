@@ -123,6 +123,12 @@ class LocalSimulator(Provider):
             "measured_qubits": self._max_qubits,
         }
 
+    def calibration_snapshot(self) -> dict[str, Any] | None:
+        # Noiseless by construction: exact zeros are the measurement.
+        return {"t1_us": 1e6, "t2_us": 1e6, "single_qubit_error": 0.0,
+                "two_qubit_error": 0.0, "readout_error": 0.0,
+                "source": "construction"}
+
     @staticmethod
     def _apply1(state: np.ndarray, u: np.ndarray, q: int, n: int) -> np.ndarray:
         stride = 1 << (n - 1 - q)
