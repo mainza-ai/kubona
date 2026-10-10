@@ -1,7 +1,11 @@
 """Tiny OpenQASM 2.0 subset parser (for the Phase-0 skeleton).
 
 Supports: qreg, u1/u2/u3, and the gate set the local simulator implements.
-Unknown gates raise a clear error -> the compiler server surfaces it as guidance.
+Structural directives (include, creg, measure, barrier, reset, opaque gate
+definitions) are skipped by design: measurement is a backend concern
+(simulators append measure_all; hardware measures natively), and classical
+registers carry no quantum semantics. Unknown *gates* raise a clear error ->
+the compiler server surfaces it as guidance.
 """
 
 from __future__ import annotations
@@ -20,6 +24,9 @@ def parse_qasm2(source: str) -> Circuit:
     name = "untitled"
     for ln in lines:
         if ln.startswith("OPENQASM"):
+            continue
+        first = ln.split()[0].rstrip(";") if ln.split() else ""
+        if first in ("include", "creg", "measure", "barrier", "reset", "opaque"):
             continue
         if ln.startswith("qreg"):
             m = re.match(r"qreg\s+\w+\[(\d+)\];", ln)

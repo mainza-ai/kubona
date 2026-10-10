@@ -39,6 +39,8 @@ class QiskitProvider(Provider):
         import math
         from qiskit import QuantumCircuit as QKCircuit
 
+        from .base import ProviderError
+
         qc = QKCircuit(circuit.num_qubits)
         for g in circuit.gates:
             qs = list(g.qubits)
@@ -51,6 +53,11 @@ class QiskitProvider(Provider):
                 qc.p(g.params[0], qs[0])
             elif name == "id":
                 qc.id(qs[0])
+            elif not hasattr(qc, name):
+                raise ProviderError(
+                    f"gate {name!r} has no Qiskit mapping in this provider; "
+                    f"transpile first (compiler server) or pick another provider"
+                )
             elif g.params:
                 getattr(qc, name)(*g.params, *qs)
             else:
