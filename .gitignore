@@ -33,6 +33,9 @@ platform/console/.dart_tool/
 platform/console/build/
 platform/console/pubspec.lock
 
-# Go binaries
-kubonad
+# Go binaries (path-anchored: a bare `kubonad` pattern once silently
+# swallowed the whole platform/core/cmd/kubonad source dir, hiding
+# grants.go from history since 2026-10-09 — never match source dirs again)
+/kubonad
 platform/core/kubonad
+platform/core/bin/

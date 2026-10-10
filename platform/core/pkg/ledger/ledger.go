@@ -34,11 +34,30 @@ type Ledger struct {
 	lock sync.RWMutex
 }
 
+func OpenLedgerReadOnly(dbPath string) (*Ledger, error) {
+	// Read-replica handle for scaled deployments: WAL allows concurrent
+	// readers (even cross-process) while the single writer appends. Never
+	// creates the file; writes through this handle fail at the driver.
+	// Verify the file exists first so a typo fails here, not at first read.
+	if _, err := os.Stat(dbPath); err != nil {
+		return nil, fmt.Errorf("read-only open: %w", err)
+	}
+	dsn := fmt.Sprintf("file:%s?mode=ro&_journal_mode=WAL&_busy_timeout=5000", dbPath)
+	db, err := sql.Open("sqlite3", dsn)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open sqlite db read-only: %w", err)
+	}
+	if err := db.Ping(); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("read-only open ping failed: %w", err)
+	}
+	return &Ledger{db: db}, nil
+}
+
 func OpenLedger(dbPath string) (*Ledger, error) {
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
 		return nil, fmt.Errorf("failed to create db dir: %w", err)
 	}
-
 	// Open with SQLite WAL mode and busy timeout for high-throughput concurrent writes
 	dsn := fmt.Sprintf("%s?_journal_mode=WAL&_busy_timeout=5000&_synchronous=NORMAL", dbPath)
 	db, err := sql.Open("sqlite3", dsn)
