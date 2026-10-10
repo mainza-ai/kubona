@@ -279,6 +279,15 @@ approved → real-hardware-validated** pipeline.
   simulation, zero spend attempt. Split documented: Go enforces presence,
   Python enforces semantics (schemas live there).
 - Horizontal scaling of the provenance ledger + cost-governance for multi-tenant/enterprise.
+  **Shipped 2026-10-10 (single-writer scale-out):** `VerifyChain`
+  (linkage + hash + signature audit, per-session or global),
+  `OpenLedgerReadOnly` (WAL read-replica handle; writes fail, missing
+  file fails instead of creating), and `kubonad verify --db` (exit 0
+  clean / 1 with fault list) — proven on a live daemon DB. A hash chain
+  has one writer per chain, period: multi-writer is not on the table.
+  Per-tenant DB sharding (matches tenant:=lab) is the coherent next step
+  but changes audit semantics (today's chain interleaves tenants), so it
+  needs operator sign-off first — recorded, not unilaterally built.
 - Activate [[x402]] for sub-threshold transactions and algorithm-library metering (§12.7).
 - Auto-application of meta-loop changes via the shadow-mode staged rollout (§13.5) — only
   after the Phase-4 propose-and-review tier has run safely.
