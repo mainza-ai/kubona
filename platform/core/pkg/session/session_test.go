@@ -104,3 +104,69 @@ func TestSessionTenantBinding(t *testing.T) {
 		t.Fatalf("tenant not round-tripped: %+v err=%v", fetched, err)
 	}
 }
+
+func TestSessionReserveBindsTighterThanTenant(t *testing.T) {
+	dbPath := "test_session_spend.db"
+	defer func() {
+		os.Remove(dbPath)
+		os.Remove(dbPath + "-wal")
+		os.Remove(dbPath + "-shm")
+	}()
+	l, err := ledger.OpenLedger(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	mgr := session.NewManager(l)
+
+	sess, err := mgr.CreateSession("capped", 120.0, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := mgr.ReserveSpend(sess.ID, 100); err != nil {
+		t.Fatalf("first $100 on a $120 session must pass: %v", err)
+	}
+	if err := mgr.ReserveSpend(sess.ID, 100); err == nil {
+		t.Fatal("second $100 on a $120 session must refuse")
+	}
+	if err := mgr.ReserveSpend(sess.ID, 20); err != nil {
+		t.Fatalf("$20 within remaining budget must pass: %v", err)
+	}
+	if err := mgr.ReleaseSpend(sess.ID, 120); err != nil {
+		t.Fatal(err)
+	}
+	got, err := mgr.GetSession(sess.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.CurrentSpendUSD != 0 {
+		t.Fatalf("spend must release to 0, got %v", got.CurrentSpendUSD)
+	}
+}
+
+func TestSessionUncappedLimitUnaffected(t *testing.T) {
+	dbPath := "test_session_nolimit.db"
+	defer func() {
+		os.Remove(dbPath)
+		os.Remove(dbPath + "-wal")
+		os.Remove(dbPath + "-shm")
+	}()
+	l, err := ledger.OpenLedger(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	mgr := session.NewManager(l)
+
+	// Limit 0 = uncapped (legacy rows; CreateSession normalizes to 100):
+	// pre-enforcement sessions keep working exactly.
+	if _, err := l.DB().Exec(`INSERT INTO sessions (id, title, tenant_id, created_at, updated_at, status, spend_limit_usd, current_spend_usd) VALUES ('legacy-nolimit','t','default',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'active',0,0)`); err != nil {
+		t.Fatal(err)
+	}
+	if err := mgr.ReserveSpend("legacy-nolimit", 1000000); err != nil {
+		t.Fatalf("uncapped session must admit any amount: %v", err)
+	}
+	if err := mgr.ReserveSpend("no-such-session", 10); err == nil {
+		t.Fatal("unknown session must refuse, not pass open")
+	}
+}

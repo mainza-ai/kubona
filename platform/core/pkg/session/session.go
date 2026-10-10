@@ -219,3 +219,49 @@ func (m *Manager) DeleteSession(id string) error {
 	m.ledger.AppendEvent(id, "session_deleted", map[string]string{"id": id})
 	return nil
 }
+
+// ReserveSpend atomically reserves amountUSD against the session's spend
+// limit (same CAS discipline as the tenant ceiling). A limit <= 0 means
+// uncapped — sessions created without a budget keep working exactly as
+// before enforcement existed. Sealed as a ledger event on success.
+func (m *Manager) ReserveSpend(sessionID string, amountUSD float64) error {
+	if amountUSD <= 0 {
+		return nil
+	}
+	res, err := m.ledger.DB().Exec(
+		`UPDATE sessions SET current_spend_usd = current_spend_usd + ? WHERE id = ? AND (spend_limit_usd <= 0 OR current_spend_usd + ? <= spend_limit_usd)`,
+		amountUSD, sessionID, amountUSD)
+	if err != nil {
+		return fmt.Errorf("session spend reservation failed: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("session spend reservation failed: %w", err)
+	}
+	if n == 0 {
+		var exists string
+		if err := m.ledger.DB().QueryRow(`SELECT id FROM sessions WHERE id = ?`, sessionID).Scan(&exists); err != nil {
+			return fmt.Errorf("unknown session %q: dispatch refused", sessionID)
+		}
+		return fmt.Errorf("session %q spend limit exceeded: dispatch refused", sessionID)
+	}
+	m.ledger.AppendEvent(sessionID, "session_spend_reserved", map[string]any{
+		"session_id": sessionID, "amount_usd": amountUSD})
+	return nil
+}
+
+// ReleaseSpend returns a session reservation (terminal-failed jobs only).
+// Floored at zero; callers zero the job row first for idempotence.
+func (m *Manager) ReleaseSpend(sessionID string, amountUSD float64) error {
+	if amountUSD <= 0 {
+		return nil
+	}
+	if _, err := m.ledger.DB().Exec(
+		`UPDATE sessions SET current_spend_usd = MAX(0, current_spend_usd - ?) WHERE id = ?`,
+		amountUSD, sessionID); err != nil {
+		return fmt.Errorf("session spend release failed: %w", err)
+	}
+	m.ledger.AppendEvent(sessionID, "session_spend_released", map[string]any{
+		"session_id": sessionID, "amount_usd": amountUSD})
+	return nil
+}

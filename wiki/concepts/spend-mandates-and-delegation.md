@@ -72,8 +72,10 @@ jobs keep the reservation (the authorized amount *is* the spend; provider
 true-ups out of scope). Every terminal-failed path — `failJob`,
 mid-flight abort, tenant/session cancels — **releases** it (idempotent via
 row zeroing; releases floor at zero). Ceiling reductions freeze the lab,
-even for $0 jobs. Session-level `spend_limit_usd` stays unenforced as
-before (recorded, not silently half-wired): the tenant is the billing
-boundary.
+even for $0 jobs. Session-level `spend_limit_usd` enforces on the same rail
+(same day: atomic reserve, uncapped when ≤0 so legacy sessions keep working,
+released alongside the tenant share) — tenant first, session second, tenant
+unwound if the session refuses. The tenant remains the billing boundary;
+the session is the tighter inner rail.
 
 Related: [[cost-governance]] · [[protocol-strategy]] · [[user-identity-and-profiles]] · [[workflows-and-agent-authoring]]
