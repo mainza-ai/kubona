@@ -1346,3 +1346,9 @@ skipped is the exact failure this incident is about:
   Fixed invented metadata (year 2026, citations 10, cached=True) to real
   passthrough. Tests: Go route guards, 4 bridge tests (parse/cache/cite/
   mapping), 2 console tests. Go + Python (303) + console (17) green.
+
+## [2026-10-10] verification | Literature live smoke (both sources)
+  Real arXiv (3 hits, years parsed, cached False) + OpenAlex (3 hits,
+  real years + citation counts) via the bridge path; second identical
+  call served from cache with zero network (cached True). Smoke cache
+  kept in tmp; ~/.kubona untouched (pre-existing Oct-8 cache intact).
