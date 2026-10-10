@@ -209,7 +209,7 @@ one real provider-side regression **in staging** before it reaches an agent.
 > simulator-first, WBP-response); provider-registration SDK +
 > `docs/contribution-governance.md`. **84 Python tests + widget test green.**
 > Remaining Phase-4 gate items: QuantumKatas/HumanEval/PennyLang volume corpora,
-> a *real* third-party provider PR merged, and the human review — plus the P4
+> a first graded sidecar provider (SDK conformance suite built 2026-10-10: 9 checks, fail-closed grading — the Q-24 gate artifact), and the human review — plus the P4
 > stretch (GQE retraining pipeline via Unsloth) once a GPU/cloud host exists.
 >
 > ⚑ Q-24 decision (2026-10-10, **operator chose C**): the gate

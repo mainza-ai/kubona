@@ -1222,3 +1222,20 @@ skipped is the exact failure this incident is about:
   operator checklist recorded (token, reviewer key, instance limit, backend
   confirm, grant+mandate flow, realism recording rule). No spend yet — token
   and backend confirmation still operator-side. Wiki-only change.
+
+## [2026-10-10] verification | Q-27 filter-repo dry run passed on scratch clone
+  Cloned to scratch, ran invert-paths rewrite for dev-docs/ + .obsidian/:
+  89/89 develop commits preserved (rewritten, none emptied), 0 residual
+  path objects, branches + wiki lint clean on rewritten tree. The 170->89
+  delta is stale origin/* remote-tracking refs only (source develop was
+  already 89). Source repo untouched (status clean, remote intact).
+  Flip-time command + token-first ordering recorded on the Q-27 row.
+
+## [2026-10-10] implementation | SDK conformance suite (Q-24 gate artifact)
+  New kubona/sdk/conformance.py: grade_candidate runs 9 fail-closed checks
+  (schema, trait, seeded determinism, Bell correctness, bad-shot refusal,
+  attestation honesty Q-14, calibration, cost-model basis, credential hygiene)
+  with N/A-not-fail for non-gate modalities; conformance_gate refuses empty
+  runs. 9 tests green (incl. lying-attestation, bad-shots, unpriced-rail
+  rejections); full Python suite 276 passed, 3 skipped. First graded sidecar
+  still pending — suite is the artifact, not the grading.
