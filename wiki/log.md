@@ -1216,3 +1216,9 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-10] decision | Q-24 — Operator chose C (vendor-maintained sidecars)
 ## [2026-10-10] question | Q-24 — Closed: SDK conformance suite is the gate artifact
+
+## [2026-10-10] implementation | First paid QPU runbook on quantum-cloud-pricing
+  Guardrails re-verified (conservative estimator, budget/mandate/spend checks);
+  operator checklist recorded (token, reviewer key, instance limit, backend
+  confirm, grant+mandate flow, realism recording rule). No spend yet — token
+  and backend confirmation still operator-side. Wiki-only change.
