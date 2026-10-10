@@ -15,7 +15,10 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from kubona.config import state_path
-from typing import Any
+from typing import Any, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from kubona.autoresearch.meta_scope import MetaScope
 
 
 @dataclass
@@ -37,7 +40,9 @@ class ReflectionProposal:
 class MetaLoop:
     """Reflection tier: studies history, compares strategies in shadow mode, proposes."""
 
-    def __init__(self, store_path: str | Path | None = None):
+    def __init__(self, store_path: str | Path | None = None, scope: MetaScope | None = None):
+        from kubona.autoresearch.meta_scope import MetaScope as _DefaultScope
+        self.scope = scope or _DefaultScope.default()
         self.path = Path(store_path) if store_path else state_path("meta-proposals.json")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._proposals: list[ReflectionProposal] = []
@@ -53,7 +58,8 @@ class MetaLoop:
         return proposed_score > incumbent_score * (1 + improvement_threshold)
 
     def propose_strategy_change(self, kind: str, incumbent: Any, proposed: Any,
-                                rationale: str, shadow_evidence: dict[str, Any]) -> ReflectionProposal:
+                                 rationale: str, shadow_evidence: dict[str, Any]) -> ReflectionProposal:
+        self.scope.check(kind)  # Q-09: fail closed outside the write scope
         p = ReflectionProposal(proposal_id=uuid.uuid4().hex[:16], kind=kind,
                                incumbent=incumbent, proposed=proposed,
                                rationale=rationale, shadow_evidence=shadow_evidence)
