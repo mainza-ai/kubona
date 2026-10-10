@@ -46,7 +46,7 @@ These come first, because they change how every other question gets answered.
 
 | # | Question | Rank | Known | Missing |
 |---|---|---|---|---|
-| **Q-27** | **What must the git history look like before the repo can go public?** The posture question is now *decided* (private by design — [[kubona]] §Posture); what remains is the mechanical precondition. `dev-docs/` + `.obsidian/` sit in **private-remote history (the repo has never been public)** though untracked today; no secret has been found in pushable refs. Options: publish as-is, rewrite with `git filter-repo`, or start a clean public history and keep this one as the private archive. | **P1** | 0 secrets in pushable refs; a pre-commit guard refuses newly staged `dev-docs/`/`.obsidian/` paths; the residue is source-document mirrors already present in `raw/` | One of the three chosen before the Apache-2.0 flip (and the operator's `credential.helper=store` token rotated — [[risks]]) |
+| **Q-27** | **What must the git history look like before the repo can go public?** Dry-run passed 2026-10-10 on a scratch clone (source untouched): `git filter-repo --path dev-docs --path .obsidian --invert-paths` rewrites 89/89 develop commits, 0 residual objects, both branches + lint clean; stale origin/* refs drop with the remote as expected. Flip-time: rotate the `store` token first, then run the same command, force-push, re-clone. Still operator-gated.
 
 ## Closed
 
