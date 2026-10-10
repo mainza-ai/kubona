@@ -34,7 +34,7 @@ def test_docker_cmd_hardened_flag_for_flag(tmp_path):
                   "--tmpfs", "/tmp"]):
         assert flag in cmd, flag
     assert cmd[-4:] == ["--entrypoint", "python3",
-                        "kubona-quantum-runner:1.0.0", "test_main.py"]
+                        "kubona-quantum-runner:1.1.0", "test_main.py"]
     assert f"{tmp_path}:/workspace:rw" in cmd
 
 

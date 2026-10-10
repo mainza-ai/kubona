@@ -43,6 +43,24 @@ evaluation into four complementary tracks (source-gap-analysis-plan).
 > ledger record. An image ENTRYPOINT trap (`python3 python ...`) was caught
 > live and fixed by pinning `--entrypoint`. HumanEval/PennyLang sample
 > ingestion (licence-gated) remains the follow-up, not the harness.
+
+## HumanEval ingested (2026-10-10): 136 golden-verified, 15 excluded-named
+
+`kubona/eval/corpora/humaneval.json` (Apache-2.0 meta with source URL, terms
+pointer, and parquet SHA) + `humaneval.excluded.json`. Every admitted task
+was golden-verified live the same day: its reference passes its tests inside
+`kubona-quantum-runner:1.1.0` (image extended with pinned
+qiskit-ibm-runtime + matplotlib for fake-provider tasks; `codeexec` default
+bumped 1.0.0 → 1.1.0 by version, never silently). Exclusion taxonomy, nothing
+dropped silently: 9 touch live IBM credentials (unverifiable without the
+operator token, which never enters a sandbox); 6 are toolchain/drift facts
+(version-brittle transpiler assertion, seaborn/Graphviz/pylatexenc drawer
+deps deliberately unbaked, transpiler kwarg drift, qiskit_qasm3_import).
+Reproducer (outside the hermetic venv): HF `Qiskit/qiskit_humaneval` parquet
+→ records JSON → `ingest_humaneval` tiering → per-task `run_codeexec_task`
+golden runs (48+48+40/42 passes across three batches; the 6 failures became
+the named exclusions above). PennyLang samples still pending (per-file
+licence metadata).
 **Threat model.** The harness runs *untrusted generated Python* (HumanEval
 completions, PennyLang-style samples): arbitrary code that may attempt
 exfiltration, fork bombs, miners, or payload-bearing task text. It is

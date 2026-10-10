@@ -1278,3 +1278,11 @@ skipped is the exact failure this incident is about:
   named. ENTRYPOINT trap caught live, fixed via --entrypoint pin. Image
   kubona-quantum-runner:1.0.0 built locally (1.23GB, operator machine only).
   Suite 288 passed, 3 skipped. Remaining: licence-gated sample ingestion.
+
+## [2026-10-10] implementation | HumanEval ingested: 136 golden, 15 excluded-named
+  Qiskit/qiskit_humaneval (Apache-2.0, parquet SHA pinned in meta): 142
+  admitted after 9 credential-touching exclusions, then live golden-verified
+  in three batches (48/50, 48/50, 40/42); the 6 failures investigated, all
+  toolchain/drift facts, all named in humaneval.excluded.json. Corpus +
+  loader (humaneval.py) + 4 tests committed; suite 292 passed, 3 skipped.
+  Image 1.1.0 (runtime 0.36.1 + matplotlib pinned). PennyLang still pending.

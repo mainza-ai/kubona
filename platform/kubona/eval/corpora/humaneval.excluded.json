@@ -1,0 +1,17 @@
+{
+ "qiskitHumanEval_43": "touches live IBM credentials (service/backend run); cannot golden-verify credential-free",
+ "qiskitHumanEval_97": "touches live IBM credentials (service/backend run); cannot golden-verify credential-free",
+ "qiskitHumanEval_98": "touches live IBM credentials (service/backend run); cannot golden-verify credential-free",
+ "qiskitHumanEval_122": "touches live IBM credentials (service/backend run); cannot golden-verify credential-free",
+ "qiskitHumanEval_129": "touches live IBM credentials (service/backend run); cannot golden-verify credential-free",
+ "qiskitHumanEval_133": "touches live IBM credentials (service/backend run); cannot golden-verify credential-free",
+ "qiskitHumanEval_134": "touches live IBM credentials (service/backend run); cannot golden-verify credential-free",
+ "qiskitHumanEval_146": "touches live IBM credentials (service/backend run); cannot golden-verify credential-free",
+ "qiskitHumanEval_148": "touches live IBM credentials (service/backend run); cannot golden-verify credential-free",
+ "qiskitHumanEval_104": "version-brittle: transpiler complexity asserted 189-191, pinned qiskit yields 217 (benchmark-vs-toolchain drift)",
+ "qiskitHumanEval_123": "optional viz dep seaborn required by plot_error_map, deliberately not baked into the lean image",
+ "qiskitHumanEval_29": "Graphviz system binaries required by circuit drawer, not baked into the image",
+ "qiskitHumanEval_3": "optional dep pylatexenc required by MatplotlibDrawer, not baked into the image",
+ "qiskitHumanEval_86": "transpiler API drift: CollectLinearFunctions() rejects max_block_width kwarg on pinned qiskit",
+ "qiskitHumanEval_94": "optional dep qiskit_qasm3_import required for OpenQASM-3 loading, not baked into the image"
+}
