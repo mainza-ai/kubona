@@ -308,9 +308,13 @@ build.
 > tenant-scoped lab runs ground → experiment → report → library archive, every
 > claim tracing to a ledger record or citation). **105 Python tests green.**
 > Remaining Phase-6 items: live arXiv/OpenAlex network wiring into the console
-> (mock/offline path proven), the two new console surfaces (notebook + labs/
-> workflows views) in Flutter beyond the current 4 tabs, and unsloth-trained
-> personas on a GPU/cloud host.
+> (mock/offline path proven), the workflows view, and unsloth-trained
+> personas on a GPU/cloud host. Notebook exists (ResultsStudio + Living
+> Notebook tab + `/api/results/notebooks`); **Labs view built 2026-10-10**
+> (labs with ceiling/spent/autonomy + per-lab sessions, `GET /api/tenants`
+> added). Workflows view deferred with reason: the library lives behind the
+> Python `console_api` which the console (Go :8080 only) never calls —
+> needs a production-serving decision or a Go workflow registry first.
 
 The human/AI science layer on top of the Phase-0–5 quantum core. Everything here is
 scaffolded earlier (identity in P2, engine + meta-loop in P4) and shipped only after a

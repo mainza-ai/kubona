@@ -1332,3 +1332,10 @@ skipped is the exact failure this incident is about:
   unwound tenant on session refusal, released together). Tests: session
   binds tighter end-to-end, uncapped legacy rows unaffected, release.
   Full Go suite green. Spend picture complete: tenant outer, session inner.
+
+## [2026-10-10] implementation | Labs console surface (P6)
+  LabsView: lab cards (ceiling/spent bar, autonomy + status badges,
+  expandable sessions with limits) on new Laboratories tab (⌘L); GET
+  /api/tenants added (list, incl. spent_usd). 3 vitest green; console
+  15/15, eslint + build clean; Go suite green. Workflows view deferred:
+  library behind unserved Python console_api — needs serving decision.

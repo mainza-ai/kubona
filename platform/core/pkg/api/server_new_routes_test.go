@@ -889,3 +889,51 @@ func TestCrossTenantGrantFlow(t *testing.T) {
 		t.Fatalf("revoked grant must refuse dispatch")
 	}
 }
+
+func TestTenantsListForLabsView(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+
+	post := func(body map[string]any) int {
+		raw, _ := json.Marshal(body)
+		req := httptest.NewRequest(http.MethodPost, "/api/tenants", bytes.NewReader(raw))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		return w.Code
+	}
+	if code := post(map[string]any{"id": "lab-a", "display_name": "Lab A"}); code != http.StatusCreated {
+		t.Fatalf("create lab-a, got %d", code)
+	}
+	if code := post(map[string]any{"id": "lab-b", "display_name": "Lab B"}); code != http.StatusCreated {
+		t.Fatalf("create lab-b, got %d", code)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/tenants", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("GET /api/tenants, got %d", w.Code)
+	}
+	var resp struct {
+		Tenants []struct {
+			ID              string  `json:"id"`
+			DisplayName     string  `json:"display_name"`
+			AutonomyLevel   string  `json:"autonomy_level"`
+			SpendCeilingUSD float64 `json:"spend_ceiling_usd"`
+			SpentUSD        float64 `json:"spent_usd"`
+			Status          string  `json:"status"`
+		} `json:"tenants"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Tenants) < 3 { // default + lab-a + lab-b
+		t.Fatalf("expected at least 3 labs, got %d", len(resp.Tenants))
+	}
+	for _, lab := range resp.Tenants {
+		if lab.AutonomyLevel == "" || lab.Status == "" {
+			t.Fatalf("lab row must carry autonomy + status: %+v", lab)
+		}
+	}
+}

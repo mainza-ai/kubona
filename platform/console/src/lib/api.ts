@@ -1,4 +1,4 @@
-import { Session, ChatMessage, Job, Loop, LedgerEvent } from '@/types';
+import { Session, ChatMessage, Job, Loop, LedgerEvent, Lab } from '@/types';
 
 export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
@@ -629,3 +629,15 @@ export async function verifySpendMandate(
 
 
 
+
+export async function fetchLabs(): Promise<Lab[]> {
+  try {
+    const res = await fetch(`${API_BASE}/api/tenants`, { cache: 'no-store' });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.tenants || [];
+  } catch (err) {
+    console.error('Failed to fetch labs:', err);
+    return [];
+  }
+}

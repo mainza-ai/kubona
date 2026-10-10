@@ -1,11 +1,21 @@
 export interface Session {
   id: string;
   title: string;
+  tenant_id?: string;
   created_at: string;
   updated_at: string;
   status: string;
   spend_limit_usd: number;
   current_spend_usd: number;
+}
+
+export interface Lab {
+  id: string;
+  display_name: string;
+  autonomy_level: string;
+  spend_ceiling_usd: number;
+  spent_usd: number;
+  status: string;
 }
 
 export interface Proposal {

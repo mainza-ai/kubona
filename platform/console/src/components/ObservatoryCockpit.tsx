@@ -29,7 +29,8 @@ import { LLMSettings } from './surfaces/LLMSettings';
 import { HuggingFaceModelHub } from './surfaces/HuggingFaceModelHub';
 import { GenerativeUIStudio } from './surfaces/GenerativeUIStudio';
 import { EpistemicTribunalRoom } from './surfaces/EpistemicTribunalRoom';
-import { Code2, Scale } from 'lucide-react';
+import { LabsView } from './surfaces/LabsView';
+import { Code2, Scale, FlaskConical } from 'lucide-react';
 
 export type SurfaceTab =
   | 'overview'
@@ -42,6 +43,7 @@ export type SurfaceTab =
   | 'surface7'
   | 'surface8'
   | 'surface9'
+  | 'labs'
   | 'hf_hub'
   | 'settings';
 
@@ -86,6 +88,7 @@ export function ObservatoryCockpit({
     { id: 'surface5', label: 'Fleet Radar', shortcut: '⌘6', icon: Radio },
     { id: 'surface6', label: 'Cognitive Mesh', shortcut: '⌘7', icon: Network },
     { id: 'surface9', label: 'A2UI Studio', shortcut: '⌘8', icon: Code2 },
+    { id: 'labs', label: 'Laboratories', shortcut: '⌘L', icon: FlaskConical },
     { id: 'hf_hub', label: 'Hugging Face Hub', shortcut: '⌘9', icon: Database },
     { id: 'settings', label: 'Sovereign Air-Gap', shortcut: '⌘S', icon: Sliders },
   ];
@@ -161,6 +164,7 @@ export function ObservatoryCockpit({
         {activeTab === 'surface7' && <ResultsStudio campaign={campaign} />}
         {activeTab === 'surface8' && <EpistemicTribunalRoom sessionId={session?.id ?? ''} />}
         {activeTab === 'surface9' && <GenerativeUIStudio />}
+        {activeTab === 'labs' && <LabsView />}
         {activeTab === 'hf_hub' && <HuggingFaceModelHub />}
         {activeTab === 'settings' && <LLMSettings />}
       </div>
