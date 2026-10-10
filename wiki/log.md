@@ -1303,3 +1303,10 @@ skipped is the exact failure this incident is about:
   gate with immediate refusal (tested: no spend attempt, no sim fallback).
   submit_job mandates declarations for non-local providers. Go green,
   Python 299 passed. Console untouched (no /api/jobs callers).
+
+## [2026-10-10] implementation | Ledger scale-out: verify + read replicas
+  VerifyChain (link/hash/signature faults), OpenLedgerReadOnly, kubonad
+  verify CLI — all tested (tamper, broken link, bad sig, replica read +
+  write-refusal) and proven against a live daemon DB. Per-tenant sharding
+  recorded as operator decision (audit-semantics change), not built.
+  Go suite green.

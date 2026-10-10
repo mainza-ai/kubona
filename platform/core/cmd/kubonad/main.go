@@ -28,6 +28,9 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "grants" {
 		os.Exit(runGrants(os.Args[2:]))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "verify" {
+		os.Exit(runVerify(os.Args[2:]))
+	}
 
 	port := flag.Int("port", 8080, "HTTP API gateway port")
 	dbPath := flag.String("db", "kubona.db", "Path to SQLite WAL ledger")
