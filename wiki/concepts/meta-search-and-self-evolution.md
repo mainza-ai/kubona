@@ -2,7 +2,7 @@
 type: concept
 name: Meta-Search & True Self-Evolution
 date: 2026-08-16
-updated: 2026-09-27
+updated: 2026-10-10
 tags: [kubona, autoresearch, self-evolution]
 sources: [source-gap-analysis-plan]
 status: adopted
@@ -61,6 +61,24 @@ mechanism of self-improvement.**
 - **The write scope stops at search strategy, instruction files, and harness definitions** —
   the meta-loop never edits Kubona's compiler, MCP servers, or security layer. Self-evolution
   here means Kubona gets better at *searching*, not open-ended self-rewriting.
+
+## Write-scope registry (Q-09, closed 2026-10-10)
+
+Who may widen the mutable set: **a trusted human admin signature, and only for
+widenable scopes** — enforced in `platform/kubona/autoresearch/meta_scope.py`
+(`MetaScope`), checked at propose time by `MetaLoop` (unknown/immutable kinds
+refuse before any proposal exists):
+
+- **Mutable v1** (the §13 write scope, nothing else): `mutation_radius`,
+  `resample_prob`, `search_md_patch`, `new_harness_draft`.
+- **Unwidenable by design** (refuse for ANY signer — changing them is a code
+  change with human review, never a runtime grant): `compiler`, `mcp_servers`,
+  `security_layer`, `ledger_schema`, `cost_rail`, `admission_policy`.
+- **Widening rule:** admin signs `meta-scope-widen:<version>:<kind>:<expiry>`
+  (Ed25519, 5-min default TTL) with a key in the registry's `trust_roots`;
+  success bumps the version and appends history (registries are immutable
+  values; `digest()` pins the exact set into every proposal). The registry
+  persists as JSON and round-trips with digest equality.
 
 ## Roadmap placement (§13.5)
 

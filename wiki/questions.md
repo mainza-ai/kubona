@@ -33,7 +33,6 @@ These come first, because they change how every other question gets answered.
 | # | Question | Rank | Known | Missing |
 |---|---|---|---|---|
 | **Q-07** | **What does "fidelity accounting" add over error mitigation + provenance?** [[fidelity-accounting]] overlaps [[error-mitigation]] and [[provenance-and-reproducibility]]. Either it is a distinct ledger of fidelity assumptions per claim, or it is those two renamed. | **P1** | Both neighbours are well specified | A one-line difference, or a merge |
-| **Q-09** | **What may the meta-loop change, unattended?** [[meta-search-and-self-evolution]] §13 is propose-only in the prototype. Where is the line — search space, budget, safety rails? Auto-apply is named as a stage but never bounded. | **P0** | Propose-only today; staged auto-apply planned | The mutable/immutable config set, and who may widen it |
 
 ## C · Governance & the trust boundary
 
@@ -79,6 +78,7 @@ These come first, because they change how every other question gets answered.
 | **Q-30** | 2026-10-09 | Posture: **encapsulate** vendor MCP suites as downstream provider plugins beneath the governance plane (vault-leased creds, admission gate, anchored results); raw agent→vendor paths refused by design. | [[qiskit-mcp-servers]] |
 | **Q-11** | 2026-10-09 | Burden-scaled approval packets: full schema (cost bound + budget left, blast radius, reversibility, evidence, alternatives, expiry, single-use nonce) via MRTR elicitation retry in the gateway plus ApprovalPacketCard in the console approve flow; risk-tiered prompting rules. | [[cost-governance]] |
 | **Q-28** | 2026-10-09 | No namespace move: coupling measured one-directional (edge → core); contract enforced mechanically by Go + Python architectural fitness tests in CI. | [[protocol-strategy]] |
+| **Q-09** | 2026-10-10 | Mutable set = §13 write scope only, enforced by a versioned registry checked at propose time; widening needs a trusted admin signature, and compiler/MCP/security/ledger are unwidenable by any signer. | [[meta-search-and-self-evolution]] |
 | **Q-04** | 2026-10-10 | Allowed vocabulary: 12 permitted reporting verbs, banned hype terms, required qualifiers (anchor, provenance, falsification criteria), credibility field {rho, tier, refs}; enforced fail-closed in `ScientificClaim`. | [[quantum-advantage-realism]] |
 | **Q-05** | 2026-10-10 | Operational: 3-state axes, `ClaimCredibilityWavefunction.evaluate` over evidence signals, `ClaimRecord` ledger payloads, rho-gated assertion; worked H2 VQE example with real anchor numbers green. | [[claim-credibility-wavefunctions]] |
 | **Q-08** | 2026-10-10 | Not competitors but axes: five rings = architecture, discovery 7-stage = lifecycle traversal, §11/§13 = Ring-2/Ring-4 engines; new loops must state traversed rings. | [[five-ring-research-loop]] |

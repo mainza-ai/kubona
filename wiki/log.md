@@ -1128,3 +1128,12 @@ skipped is the exact failure this incident is about:
   rho semantics + ledger payload; test_claim_grammar.py (8 tests incl. real-number
   H2 worked example — engine FCI -1.0718 used, not recalled constants). Wiki answers
   filed on their pages; five-ring + credibility pages adopted. Not committed yet.
+
+## [2026-10-10] question | Q-09 — Meta-loop write-scope registry with signed widening rule
+## [2026-10-10] implementation | Q-09 scope registry (meta_scope.py + propose-time gate)
+  MetaScope: versioned mutable set (v1 = mutation_radius, resample_prob,
+  search_md_patch, new_harness_draft), unwidenable core (compiler, MCP,
+  security, ledger, cost rail, admission), Ed25519 admin widening with TTL,
+  digest-pinned proposals, JSON persistence. MetaLoop.propose_strategy_change
+  refuses out-of-scope kinds. Tests: gate, widen/trust/expiry/unwidenable
+  refusals, persistence round-trip. Not committed yet.
