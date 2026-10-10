@@ -1369,3 +1369,10 @@ skipped is the exact failure this incident is about:
   (copies under lock + GetDownload), pnpm-workspace packages field,
   undeclared protobuf dep (+ pure to_records), Go-job numpy/qiskit env.
   All 5 jobs success on run 38022483715. Origin red since Oct 4-5 resolved.
+
+## [2026-10-10] implementation | Error-bounded truncation eval (chemistry)
+  kubona/eval/truncation.py: coefficient-ordered truncation with measured
+  observable error + epsilon-threshold selection (fail-closed); H2 JW build
+  from PySCF verified to FCI anchor exact. Anchor caught a sign error and
+  a missing nuclear shift in development. 6 tests green; suite 309 passed.
+  Framed as internal mechanism; no external attribution.

@@ -121,6 +121,21 @@ anything that cannot run containerized does not run.
 - Does the [[qir-mlir-compilation|QIR lowering]] pipeline still produce correct bitcode after
   a compiler change?
 
+## 2b. Approximation quality — error-bounded truncation (built 2026-10-10)
+
+Depth-cutting is only honest with a measured error bound
+(`kubona/eval/truncation.py`): drop smallest-|coefficient| Pauli terms
+progressively and report the observable error against the full Hamiltonian
+at each step; the ε-threshold point (smallest kept set with error ≤ ε)
+governs the trade, and unmeetable thresholds refuse rather than guess.
+Chemistry grounding without new dependencies: H2 STO-3G terms from PySCF
+integrals through an explicit Jordan-Wigner mapping, verified to the FCI
+anchor (-1.137284 Ha exact). The anchor caught two silent bugs in
+development (a two-body sign flip and a missing nuclear-repulsion shift)
+— the eval exists because of what verification found, not the other way
+around. H2 curve (15 terms, 36 est. CNOTs): 80%-kept errs 0.019 Ha;
+ε=0.01 admits only the full set — reported, not rounded away.
+
 ## 3. Hardware-in-the-loop CI (new)
 
 - **Hardware-canary** — nightly run of a canary circuit against *every* connected backend to
