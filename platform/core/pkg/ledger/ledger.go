@@ -72,6 +72,7 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 		admin_pubkey_hex TEXT NOT NULL DEFAULT '',
 		autonomy_level TEXT NOT NULL DEFAULT 'L1',
 		spend_ceiling_usd REAL NOT NULL DEFAULT 150.0,
+		spent_usd REAL NOT NULL DEFAULT 0,
 		status TEXT NOT NULL DEFAULT 'active',
 		created_at DATETIME
 	);
@@ -106,6 +107,8 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 		result_json TEXT,
 		created_at DATETIME,
 		completed_at DATETIME,
+		reserved_tenant TEXT NOT NULL DEFAULT '',
+		reserved_amount REAL NOT NULL DEFAULT 0,
 		FOREIGN KEY (session_id) REFERENCES sessions(id)
 	);
 
@@ -157,6 +160,9 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 		_, _ = db.Exec(fmt.Sprintf("ALTER TABLE ledger_events ADD COLUMN %s TEXT NOT NULL DEFAULT ''", col))
 	}
 	_, _ = db.Exec(`ALTER TABLE sessions ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`)
+	_, _ = db.Exec(`ALTER TABLE tenants ADD COLUMN spent_usd REAL NOT NULL DEFAULT 0`)
+	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN reserved_tenant TEXT NOT NULL DEFAULT ''`)
+	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN reserved_amount REAL NOT NULL DEFAULT 0`)
 	// Normalize pre-migration rows (ALTER ... DEFAULT '' backfills '').
 	_, _ = db.Exec(`UPDATE ledger_events SET tenant_id = 'default' WHERE tenant_id = ''`)
 	_, _ = db.Exec(`UPDATE sessions SET tenant_id = 'default' WHERE tenant_id = ''`)

@@ -54,35 +54,39 @@ type mandateReceipt struct {
 // first (L0/suspended/unknown refuse everything), then the hardware rule:
 // simulator-class backends proceed, QPU-destined jobs must cite a verified,
 // unexpired, budget-covering spend-mandate ledger receipt.
-func (r *Runner) admitJob(sessionID, jobType string, paramsJSON []byte) error {
+// On success it returns the spend reservation (bound tenant + authorized
+// amount), already debited: SubmitJob persists it on the job row, and every
+// terminal-failed path releases it. Completed jobs keep it — the authorized
+// amount is the spend.
+func (r *Runner) admitJob(sessionID, jobType string, paramsJSON []byte) (string, float64, error) {
 	var tenantID string
 	err := r.ledger.DB().QueryRow(`SELECT tenant_id FROM sessions WHERE id = ?`, sessionID).Scan(&tenantID)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return fmt.Errorf("unknown session %q: dispatch refused", sessionID)
+			return "", 0, fmt.Errorf("unknown session %q: dispatch refused", sessionID)
 		}
-		return fmt.Errorf("session lookup failed: %w", err)
+		return "", 0, fmt.Errorf("session lookup failed: %w", err)
 	}
 	if tenantID == "" {
 		tenantID = tenants.DefaultTenantID
 	}
 	t, err := r.tenantStore().GetTenant(tenantID)
 	if err != nil {
-		return fmt.Errorf("unknown tenant %q: dispatch refused", tenantID)
+		return "", 0, fmt.Errorf("unknown tenant %q: dispatch refused", tenantID)
 	}
 	if t.Status != "active" {
-		return fmt.Errorf("tenant %q is %s: dispatch refused", t.ID, t.Status)
+		return "", 0, fmt.Errorf("tenant %q is %s: dispatch refused", t.ID, t.Status)
 	}
 	if t.AutonomyLevel == tenants.LevelL0 {
-		return fmt.Errorf("tenant %q autonomy L0 (observe/suggest only): dispatch refused", t.ID)
+		return "", 0, fmt.Errorf("tenant %q autonomy L0 (observe/suggest only): dispatch refused", t.ID)
 	}
 
 	if jobType != "circuit_run" {
-		return nil
+		return "", 0, nil
 	}
 	var p circuitRunParams
 	if err := json.Unmarshal(paramsJSON, &p); err != nil {
-		return fmt.Errorf("invalid circuit_run params: %w", err)
+		return "", 0, fmt.Errorf("invalid circuit_run params: %w", err)
 	}
 	// Cross-lab UCAN grant path: a verified chain authorizing this tenant
 	// replaces the mandate receipt and admits foreign-tenant input labels it
@@ -92,13 +96,13 @@ func (r *Runner) admitJob(sessionID, jobType string, paramsJSON []byte) error {
 		var err error
 		grant, err = r.verifyGrantChain(p.GrantChain, tenantID, grants.ScopeQPUSubmit)
 		if err != nil {
-			return fmt.Errorf("grant rejected: %w", err)
+			return "", 0, fmt.Errorf("grant rejected: %w", err)
 		}
 		if err := r.tenantStore().CheckSpend(grant.GrantingTenant, p.MaxCostUSD); err != nil {
-			return fmt.Errorf("granting lab ceiling: %w", err)
+			return "", 0, fmt.Errorf("granting lab ceiling: %w", err)
 		}
 		if p.MaxCostUSD > grant.MaxBudgetUSD {
-			return fmt.Errorf("job cost %.4f exceeds grant budget %.4f: dispatch refused", p.MaxCostUSD, grant.MaxBudgetUSD)
+			return "", 0, fmt.Errorf("job cost %.4f exceeds grant budget %.4f: dispatch refused", p.MaxCostUSD, grant.MaxBudgetUSD)
 		}
 	}
 	// Confidential-input admission: every cited input label must already be
@@ -114,17 +118,17 @@ func (r *Runner) admitJob(sessionID, jobType string, paramsJSON []byte) error {
 			admitted = foreign == grant.TargetTenant || foreign == grant.GrantingTenant
 		}
 		if !admitted {
-			return fmt.Errorf("input label %q not readable by tenant %q: dispatch refused", label, tenantID)
+			return "", 0, fmt.Errorf("input label %q not readable by tenant %q: dispatch refused", label, tenantID)
 		}
 	}
 	if isSimulatorBackend(p.RequestedBackend) {
-		return nil
+		return "", 0, nil
 	}
 	// Routing declaration (P5 §2.9): metered hardware without declared caller
 	// jurisdictions refuses here — the executor cannot verify a route it was
 	// never told, and undeclared callers must not reach for hardware.
 	if len(p.CallerJurisdictions) == 0 {
-		return fmt.Errorf("backend %q is metered hardware: caller_jurisdictions must declare at least one jurisdiction (routing cannot be verified undeclared)", p.RequestedBackend)
+		return "", 0, fmt.Errorf("backend %q is metered hardware: caller_jurisdictions must declare at least one jurisdiction (routing cannot be verified undeclared)", p.RequestedBackend)
 	}
 	// Fidelity gate (Ring 3, second rail beside money): predict whether this
 	// run can produce a publishable number BEFORE spending. Physics does not
@@ -133,15 +137,25 @@ func (r *Runner) admitJob(sessionID, jobType string, paramsJSON []byte) error {
 	// action stated — remediation changes what was approved and must be
 	// resubmitted explicitly, never applied silently.
 	if err := r.admitFidelity(p.RequestedBackend, p.QASM); err != nil {
-		return err
+		return "", 0, err
 	}
 	if grant != nil {
-		return nil
+		// Spend binds to the granting lab's ceiling: reserve before admitting.
+		if err := r.tenantStore().ReserveSpend(grant.GrantingTenant, p.MaxCostUSD); err != nil {
+			return "", 0, err
+		}
+		return grant.GrantingTenant, p.MaxCostUSD, nil
 	}
 	if p.MandateRef == "" {
-		return fmt.Errorf("backend %q is metered hardware: a verified spend-mandate receipt (mandate_ref) is required", p.RequestedBackend)
+		return "", 0, fmt.Errorf("backend %q is metered hardware: a verified spend-mandate receipt (mandate_ref) is required", p.RequestedBackend)
 	}
-	return r.verifyMandateReceipt(p.MandateRef, tenantID, p.MaxCostUSD)
+	if err := r.verifyMandateReceipt(p.MandateRef, tenantID, p.MaxCostUSD); err != nil {
+		return "", 0, err
+	}
+	if err := r.tenantStore().ReserveSpend(tenantID, p.MaxCostUSD); err != nil {
+		return "", 0, err
+	}
+	return tenantID, p.MaxCostUSD, nil
 }
 
 // verifyMandateReceipt checks a cited mandate verification event: right
