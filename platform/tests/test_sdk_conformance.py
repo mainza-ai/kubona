@@ -107,3 +107,31 @@ def test_conformance_gate_requires_graded_candidates():
     assert conformance_gate([ok_report])["ok"] is True
     bad_report = grade_candidate({"provider": 42}, _SIM_PLUGIN)
     assert conformance_gate([ok_report, bad_report])["ok"] is False
+
+
+def test_annealing_graded_on_qubo_not_bell():
+    """Annealing speaks QUBO: determinism probed via solve_qubo, Bell is N/A,
+    hardware attestation deferred to the admission-time canary."""
+    import json
+    from pathlib import Path
+    cap = json.loads(Path("kubona/schema/providers/dwave-annealing.json").read_text())
+    report = grade_candidate(
+        cap, "kubona.providers.annealing_provider.AnnealingProvider")
+    passed = _passes(report)
+    assert passed["deterministic_seeded"] is True
+    assert passed["bell_correct"] is None  # N/A, not fail
+    assert passed["attestation_honest"] is None  # deferred, named
+    assert "bell_correct" in report["na"] and "attestation_honest" in report["na"]
+    assert report["pass"] is True, report
+
+
+def test_unpriced_hardware_rail_still_fails():
+    """rigetti.json declares per-second billing with no rate: the gate must
+    refuse (a $0.00 default would read as a free tier downstream)."""
+    import json
+    from pathlib import Path
+    cap = json.loads(Path("kubona/schema/providers/rigetti.json").read_text())
+    report = grade_candidate(
+        cap, "kubona.providers.pyquil_provider.PyQuilProvider")
+    assert "cost_model_sane" in report["failures"]
+    assert report["pass"] is False
