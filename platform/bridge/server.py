@@ -121,9 +121,10 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
 
     def GroundLiterature(self, request, context):
         logger.info(f"GroundLiterature called for query '{request.query}'")
-        raw_results = search_arxiv(request.query, max_results=5)
+        limit = request.limit if request.limit > 0 else 5
+        raw_results = search_arxiv(request.query, max_results=limit)
         if not raw_results:
-            raw_results = search_openalex(request.query, max_results=5)
+            raw_results = search_openalex(request.query, max_results=limit)
 
         records = []
         for r in raw_results:
@@ -135,12 +136,15 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     authors=authors_str,
                     abstract_text=r.get("abstract", ""),
                     url=r.get("id", ""),
-                    publication_year=2026,
-                    citation_count=10,
+                    publication_year=int(r.get("year", 0) or 0),
+                    citation_count=int(r.get("cited_by_count", 0) or 0),
                 )
             )
 
-        return kubona_pb2.LiteratureGroundingResponse(records=records, cached=True)
+        # cached=True only when every record came from the local cache —
+        # a live or fallback fetch is never labeled cached.
+        all_cached = bool(records) and all(bool(r.get("cached", False)) for r in raw_results)
+        return kubona_pb2.LiteratureGroundingResponse(records=records, cached=all_cached)
 
     def ExecuteQuantumKrylov(self, request, context):
         logger.info(f"ExecuteQuantumKrylov called for {request.molecule} at R={request.bond_distance}")

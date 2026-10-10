@@ -18,6 +18,7 @@ import {
   
 } from 'lucide-react';
 import { CampaignState } from '@/types';
+import { LiteraturePanel } from './LiteraturePanel';
 
 interface ResultsStudioProps {
   campaign?: CampaignState | null;
@@ -35,7 +36,7 @@ interface FrameAnnotation {
 export function ResultsStudio({ campaign }: ResultsStudioProps) {
   const [copiedBibtex, setCopiedBibtex] = useState(false);
   const [exported, setExported] = useState(false);
-  const [activeTab, setActiveTab] = useState<'manuscript' | 'latex' | 'lean4'>('manuscript');
+  const [activeTab, setActiveTab] = useState<'manuscript' | 'latex' | 'lean4' | 'literature'>('manuscript');
   const [selectedAnchor, setSelectedAnchor] = useState<string>('§Abstract');
   const [newComment, setNewComment] = useState('');
   const [annotations, setAnnotations] = useState<FrameAnnotation[]>([
@@ -230,6 +231,14 @@ ${bibtex}
             >
               Lean 4 Proof AST
             </button>
+            <button
+              onClick={() => setActiveTab('literature')}
+              className={`px-3 py-1 rounded-lg text-xs font-medium transition ${
+                activeTab === 'literature' ? 'bg-indigo-600 text-white font-semibold' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Literature
+            </button>
           </div>
 
           <button
@@ -373,6 +382,10 @@ ${bibtex}
                 {lean4Code}
               </pre>
             </div>
+          )}
+
+          {activeTab === 'literature' && (
+            <LiteraturePanel initialQuery={target} />
           )}
         </div>
 

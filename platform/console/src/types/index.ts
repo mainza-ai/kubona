@@ -18,6 +18,16 @@ export interface Lab {
   status: string;
 }
 
+export interface LiteratureRecord {
+  id: string;
+  title: string;
+  authors: string;
+  abstract: string;
+  url: string;
+  publication_year: number;
+  citation_count: number;
+}
+
 export interface Proposal {
   target: string;
   molecule?: string;
