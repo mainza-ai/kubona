@@ -38,6 +38,9 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             shots=request.shots if request.shots > 0 else 1024,
             requested_backend=request.requested_backend,
             allow_fallback=request.allow_classical_fallback,
+            caller_jurisdictions=list(request.caller_jurisdictions),
+            caller_export_class=request.caller_export_class or "any",
+            export_reviewed=request.export_reviewed,
         )
         return kubona_pb2.CircuitExecutionResponse(
             job_id=request.job_id,

@@ -1293,3 +1293,13 @@ skipped is the exact failure this incident is about:
   21 textbook samples per the paper; repo MIT cannot relicense scraped
   code. Whole-dataset refusal recorded (plus wrong-shape-for-execution).
   First live fire of the licence gate. P4 eval front closed.
+
+## [2026-10-10] implementation | P5 routing wired end-to-end (§2.9)
+  kubona.proto reconstructed from the live descriptor (round-trip verified
+  modulo null jsonNames) and committed; +3 routing fields regen'd both
+  sides (Python grpcio-tools pinned to runtime 5.29.6 after a gencode
+  mismatch; Go protoc-gen-go v1.36.12 exact). Enforcement: Go admission
+  presence-check, /api/jobs forwards declarations, bridge executor route()
+  gate with immediate refusal (tested: no spend attempt, no sim fallback).
+  submit_job mandates declarations for non-local providers. Go green,
+  Python 299 passed. Console untouched (no /api/jobs callers).
