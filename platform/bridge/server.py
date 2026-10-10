@@ -21,7 +21,7 @@ from proto import kubona_pb2, kubona_pb2_grpc
 from chemistry import solve_classical_anchor
 from epistemics import evaluate_claim_credibility
 from executor import execute_qasm, cut_circuit_qasm
-from literature import search_arxiv, search_openalex
+from literature import search_arxiv, search_openalex, to_records
 from fidelity import predict_fidelity, probe_clifford_fidelity
 from krylov import solve_quantum_krylov
 from mitigation import mitigate_circuit
@@ -126,20 +126,18 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
         if not raw_results:
             raw_results = search_openalex(request.query, max_results=limit)
 
-        records = []
-        for r in raw_results:
-            authors_str = ", ".join(r.get("authors", [])) if isinstance(r.get("authors"), list) else str(r.get("authors", "Unknown"))
-            records.append(
-                kubona_pb2.LiteratureRecord(
-                    id=r.get("id", ""),
-                    title=r.get("title", ""),
-                    authors=authors_str,
-                    abstract_text=r.get("abstract", ""),
-                    url=r.get("id", ""),
-                    publication_year=int(r.get("year", 0) or 0),
-                    citation_count=int(r.get("cited_by_count", 0) or 0),
-                )
+        records = [
+            kubona_pb2.LiteratureRecord(
+                id=rec["id"],
+                title=rec["title"],
+                authors=rec["authors"],
+                abstract_text=rec["abstract"],
+                url=rec["url"],
+                publication_year=rec["year"],
+                citation_count=rec["cited_by_count"],
             )
+            for rec in to_records(raw_results)
+        ]
 
         # cached=True only when every record came from the local cache —
         # a live or fallback fetch is never labeled cached.

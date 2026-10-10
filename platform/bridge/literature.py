@@ -200,3 +200,30 @@ def search_openalex(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
         conn.commit()
 
     return results
+
+
+def to_records(raw_results):
+    """Map raw search dicts to wire-ready record dicts (pure, no grpc).
+
+    Centralizes the year/citation passthrough so the bridge handler stays
+    thin — and so the no-placeholder rule is unit-testable without the
+    protobuf runtime: year/cited default to 0 (no data), never invented.
+    """
+    records = []
+    for r in raw_results or []:
+        authors = r.get("authors", [])
+        if isinstance(authors, str):
+            authors_str = authors or "Unknown"
+        else:
+            authors_str = ", ".join(authors) if authors else "Unknown"
+        records.append({
+            "id": r.get("id", ""),
+            "title": r.get("title", ""),
+            "authors": authors_str,
+            "abstract": r.get("abstract", ""),
+            "url": r.get("id", ""),
+            "year": int(r.get("year", 0) or 0),
+            "cited_by_count": int(r.get("cited_by_count", 0) or 0),
+            "cached": bool(r.get("cached", False)),
+        })
+    return records

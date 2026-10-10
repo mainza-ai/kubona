@@ -333,6 +333,9 @@ func (s *A2AServer) HandleRequest(req *JSONRPCRequest) *JSONRPCResponse {
 		s.mu.Lock()
 		s.tasks[taskID] = task
 		exec := s.executor
+		// Snapshot before runTask can mutate: the response must never share
+		// memory with the stored task (race detector proved it does).
+		taskCopy := *task
 		s.mu.Unlock()
 
 		// Asynchronous ledger-bound execution. Without an executor the task
@@ -344,7 +347,7 @@ func (s *A2AServer) HandleRequest(req *JSONRPCRequest) *JSONRPCResponse {
 		return &JSONRPCResponse{
 			JSONRPC: "2.0",
 			ID:      req.ID,
-			Result:  task,
+			Result:  &taskCopy,
 		}
 
 	case "a2a.GetTaskStatus":
@@ -362,6 +365,11 @@ func (s *A2AServer) HandleRequest(req *JSONRPCRequest) *JSONRPCResponse {
 
 		s.mu.RLock()
 		task, exists := s.tasks[params.TaskID]
+		// Copy under the lock: runTask may be writing this instant.
+		var taskCopy A2ATask
+		if exists {
+			taskCopy = *task
+		}
 		s.mu.RUnlock()
 
 		if !exists {
@@ -375,8 +383,6 @@ func (s *A2AServer) HandleRequest(req *JSONRPCRequest) *JSONRPCResponse {
 			}
 		}
 
-		// Return a copy: the stored task may be updated concurrently by runTask.
-		taskCopy := *task
 		return &JSONRPCResponse{
 			JSONRPC: "2.0",
 			ID:      req.ID,

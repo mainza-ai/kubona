@@ -71,8 +71,13 @@ func TestHubClientDownloads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to cancel download: %v", err)
 	}
-	if task.Status != "cancelled" {
-		t.Fatalf("expected cancelled status, got %s", task.Status)
+	// Re-fetch: the StartDownload snapshot predates cancellation.
+	current, err := client.GetDownload(task.TaskID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if current.Status != "cancelled" {
+		t.Fatalf("expected cancelled status, got %s", current.Status)
 	}
 }
 
@@ -102,23 +107,33 @@ func TestHubClientRealDownloadBytes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartDownload failed: %v", err)
 	}
+	// Poll snapshots: the StartDownload return predates worker writes.
+	var settled *HFDownloadTask
 	deadline := time.Now().Add(15 * time.Second)
-	for task.Status == "downloading" || task.Status == "pending" {
+	for {
+		var err error
+		settled, err = client.GetDownload(task.TaskID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if settled.Status != "downloading" && settled.Status != "pending" {
+			break
+		}
 		if time.Now().After(deadline) {
-			t.Fatalf("download never settled: %+v", task)
+			t.Fatalf("download never settled: %+v", settled)
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	if task.Status != "completed" {
-		t.Fatalf("expected completed, got %+v", task)
+	if settled.Status != "completed" {
+		t.Fatalf("expected completed, got %+v", settled)
 	}
-	if task.SHA256 != wantSHA {
-		t.Fatalf("SHA mismatch: got %s want %s", task.SHA256, wantSHA)
+	if settled.SHA256 != wantSHA {
+		t.Fatalf("SHA mismatch: got %s want %s", settled.SHA256, wantSHA)
 	}
-	if task.BytesDownloaded != int64(len(payload)) {
-		t.Fatalf("byte count mismatch: got %d want %d", task.BytesDownloaded, len(payload))
+	if settled.BytesDownloaded != int64(len(payload)) {
+		t.Fatalf("byte count mismatch: got %d want %d", settled.BytesDownloaded, len(payload))
 	}
-	if got, err := os.ReadFile(task.LocalPath); err != nil || len(got) != len(payload) {
+	if got, err := os.ReadFile(settled.LocalPath); err != nil || len(got) != len(payload) {
 		t.Fatalf("local file missing or truncated: %v", err)
 	}
 }
@@ -138,17 +153,26 @@ func TestHubClientDownload404FailsHonestly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("StartDownload failed: %v", err)
 	}
+	var settled *HFDownloadTask
 	deadline := time.Now().Add(15 * time.Second)
-	for task.Status == "downloading" || task.Status == "pending" {
+	for {
+		var err error
+		settled, err = client.GetDownload(task.TaskID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if settled.Status != "downloading" && settled.Status != "pending" {
+			break
+		}
 		if time.Now().After(deadline) {
-			t.Fatalf("download never settled: %+v", task)
+			t.Fatalf("download never settled: %+v", settled)
 		}
 		time.Sleep(20 * time.Millisecond)
 	}
-	if task.Status != "failed" || task.Error == "" {
-		t.Fatalf("404 must fail honestly with an error: %+v", task)
+	if settled.Status != "failed" || settled.Error == "" {
+		t.Fatalf("404 must fail honestly with an error: %+v", settled)
 	}
-	if _, statErr := os.Stat(task.LocalPath); !os.IsNotExist(statErr) {
+	if _, statErr := os.Stat(settled.LocalPath); !os.IsNotExist(statErr) {
 		t.Fatalf("failed download must not leave a weight file behind")
 	}
 }

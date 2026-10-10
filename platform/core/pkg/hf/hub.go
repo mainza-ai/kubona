@@ -382,10 +382,14 @@ func (c *HubClient) StartDownload(repoID, filename string) (*HFDownloadTask, err
 
 	c.tasks[taskID] = task
 
+	// Snapshot before the worker can mutate: callers must never share
+	// memory with the stored task (race detector proved they do).
+	taskCopy := *task
+
 	// Run background download worker (real bytes, see runDownload).
 	go c.runDownload(ctx, task)
 
-	return task, nil
+	return &taskCopy, nil
 }
 
 // validateDownloadTarget refuses path-traversal and empty inputs before any
@@ -527,16 +531,32 @@ func (c *HubClient) runDownload(ctx context.Context, task *HFDownloadTask) {
 	c.setTerminal(task, "completed", "")
 }
 
-// ListDownloads returns all active and historical download tasks
+// ListDownloads returns snapshots of all active and historical download
+// tasks — copies, never the live structs the workers mutate.
 func (c *HubClient) ListDownloads() []*HFDownloadTask {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 
 	list := make([]*HFDownloadTask, 0, len(c.tasks))
 	for _, t := range c.tasks {
-		list = append(list, t)
+		cp := *t
+		list = append(list, &cp)
 	}
 	return list
+}
+
+// GetDownload returns a snapshot copy of one task for status polling.
+// Polling the StartDownload return value directly races the worker.
+func (c *HubClient) GetDownload(taskID string) (*HFDownloadTask, error) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	t, exists := c.tasks[taskID]
+	if !exists {
+		return nil, fmt.Errorf("task %s not found", taskID)
+	}
+	cp := *t
+	return &cp, nil
 }
 
 // CancelDownload cancels a currently executing download task
