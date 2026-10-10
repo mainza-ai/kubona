@@ -62,4 +62,18 @@ Budget was already bounded (above); the remaining semantics are now decided and 
    session derived from the parent mandate's tenant, so spend and autonomy resolve against
    the delegating lab — never a shared pseudo-session.
 
+## Cumulative spend (shipped 2026-10-10): ceilings are billing boundaries
+
+The ceiling was per-job-only (ten $149 jobs against a $150 ceiling) — now
+cumulative: admission **reserves** `MaxCostUSD` against the bound lab via an
+atomic compare-and-set (`UPDATE ... WHERE spent+amount <= ceiling`, no
+read-check-write race across workers), persisted on the job row. Completed
+jobs keep the reservation (the authorized amount *is* the spend; provider
+true-ups out of scope). Every terminal-failed path — `failJob`,
+mid-flight abort, tenant/session cancels — **releases** it (idempotent via
+row zeroing; releases floor at zero). Ceiling reductions freeze the lab,
+even for $0 jobs. Session-level `spend_limit_usd` stays unenforced as
+before (recorded, not silently half-wired): the tenant is the billing
+boundary.
+
 Related: [[cost-governance]] · [[protocol-strategy]] · [[user-identity-and-profiles]] · [[workflows-and-agent-authoring]]

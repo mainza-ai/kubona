@@ -24,6 +24,10 @@ type Job struct {
 	ResultJSON  json.RawMessage `json:"result_json,omitempty"`
 	CreatedAt   time.Time       `json:"created_at"`
 	CompletedAt *time.Time      `json:"completed_at,omitempty"`
+	// Spend reservation bound at admission (tenant + authorized USD).
+	// Completed jobs keep it; every terminal-failed path releases it.
+	ReservedTenant string  `json:"reserved_tenant,omitempty"`
+	ReservedAmount float64 `json:"reserved_amount,omitempty"`
 }
 
 type Runner struct {
@@ -93,23 +97,30 @@ func (r *Runner) SubmitJob(sessionID, jobType string, params any) (*Job, error) 
 
 	// Pre-QPU admission gate: autonomy + hardware/mandate rules. Refusals
 	// happen here, before any queue or ledger write, so rejected jobs leave
-	// no residue and cost nothing.
-	if err := r.admitJob(sessionID, jobType, data); err != nil {
+	// no residue and cost nothing. Success reserves spend against the bound
+	// lab's ceiling (persisted on the job row; released on terminal failure,
+	// kept on completion).
+	resTenant, resAmount, err := r.admitJob(sessionID, jobType, data)
+	if err != nil {
 		return nil, err
 	}
 
 	j := &Job{
-		ID:         uuid.New().String(),
-		SessionID:  sessionID,
-		Status:     pb.JobStatus_JOB_STATUS_QUEUED,
-		JobType:    jobType,
-		ParamsJSON: data,
-		CreatedAt:  time.Now().UTC(),
+		ID:             uuid.New().String(),
+		SessionID:      sessionID,
+		Status:         pb.JobStatus_JOB_STATUS_QUEUED,
+		JobType:        jobType,
+		ParamsJSON:     data,
+		CreatedAt:      time.Now().UTC(),
+		ReservedTenant: resTenant,
+		ReservedAmount: resAmount,
 	}
 
-	query := `INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at) VALUES (?, ?, ?, ?, ?, ?)`
-	_, err = r.ledger.DB().Exec(query, j.ID, j.SessionID, j.Status.String(), j.JobType, string(j.ParamsJSON), j.CreatedAt)
+	query := `INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err = r.ledger.DB().Exec(query, j.ID, j.SessionID, j.Status.String(), j.JobType, string(j.ParamsJSON), j.CreatedAt, j.ReservedTenant, j.ReservedAmount)
 	if err != nil {
+		// The job never queued (no row to release from): unwind directly.
+		_ = r.tenantStore().ReleaseSpend(resTenant, resAmount)
 		return nil, fmt.Errorf("failed to save job to db: %w", err)
 	}
 
@@ -252,6 +263,7 @@ func (r *Runner) executeJob(j *Job) {
 			errRes, _ := json.Marshal(map[string]string{"error": "aborted by supervisor during execution"})
 			j.ResultJSON = errRes
 		}
+		r.releaseReservation(j.ID)
 	} else {
 		j.Status = pb.JobStatus_JOB_STATUS_COMPLETED
 		j.ResultJSON = resultData
@@ -262,6 +274,29 @@ func (r *Runner) executeJob(j *Job) {
 		j.Status.String(), string(j.ResultJSON), j.CompletedAt, j.ID,
 	)
 	r.ledger.AppendEvent(j.SessionID, "job_settled", j)
+}
+
+// releaseReservation returns a job's bound spend to its lab. Idempotent:
+// it zeroes the row's reserved_amount first, so double-release (cancel racing
+// worker settlement) can never mint spend back twice. Completed jobs never
+// call this — kept reservations are the spend.
+func (r *Runner) releaseReservation(jobID string) {
+	var tenant string
+	var amount float64
+	err := r.ledger.DB().QueryRow(
+		`SELECT reserved_tenant, reserved_amount FROM jobs WHERE id = ?`, jobID).Scan(&tenant, &amount)
+	if err != nil || tenant == "" || amount <= 0 {
+		return
+	}
+	res, err := r.ledger.DB().Exec(
+		`UPDATE jobs SET reserved_amount = 0 WHERE id = ? AND reserved_amount > 0`, jobID)
+	if err != nil {
+		return
+	}
+	if n, _ := res.RowsAffected(); n == 0 {
+		return // already released
+	}
+	_ = r.tenantStore().ReleaseSpend(tenant, amount)
 }
 
 // failJob records a failed job with a reason string.
@@ -276,6 +311,7 @@ func (r *Runner) failJob(j *Job, reason string) {
 		j.Status.String(), string(j.ResultJSON), j.CompletedAt, j.ID,
 	)
 	r.ledger.AppendEvent(j.SessionID, "job_settled", j)
+	r.releaseReservation(j.ID)
 }
 
 func (r *Runner) isAborted(id string) bool {
@@ -312,10 +348,13 @@ func (r *Runner) CancelTenantJobs(tenantID, reason string) (int, error) {
 		r.mu.Lock()
 		r.aborted[id] = true
 		r.mu.Unlock()
-		r.ledger.DB().Exec(
+		res, _ := r.ledger.DB().Exec(
 			`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ? AND status IN ('JOB_STATUS_QUEUED', 'JOB_STATUS_RUNNING')`,
 			pb.JobStatus_JOB_STATUS_FAILED.String(), string(errRes), now, id,
 		)
+		if n, _ := res.RowsAffected(); n > 0 {
+			r.releaseReservation(id) // terminal-failed here: unwind spend
+		}
 	}
 	r.ledger.AppendEvent(tenantID, "tenant_jobs_aborted", map[string]any{
 		"tenant_id":     tenantID,
@@ -355,10 +394,13 @@ func (r *Runner) CancelSessionJobs(sessionID, reason string) (int, error) {
 		r.mu.Lock()
 		r.aborted[id] = true
 		r.mu.Unlock()
-		r.ledger.DB().Exec(
+		res, _ := r.ledger.DB().Exec(
 			`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ? AND status IN ('JOB_STATUS_QUEUED', 'JOB_STATUS_RUNNING')`,
 			pb.JobStatus_JOB_STATUS_FAILED.String(), string(errRes), now, id,
 		)
+		if n, _ := res.RowsAffected(); n > 0 {
+			r.releaseReservation(id) // terminal-failed here: unwind spend
+		}
 	}
 	r.ledger.AppendEvent(sessionID, "supervisor_abort", map[string]any{
 		"session_id":    sessionID,

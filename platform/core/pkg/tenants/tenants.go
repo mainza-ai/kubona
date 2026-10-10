@@ -47,6 +47,7 @@ type Tenant struct {
 	AdminPubkeyHex  string    `json:"admin_pubkey_hex"`
 	AutonomyLevel   string    `json:"autonomy_level"`
 	SpendCeilingUSD float64   `json:"spend_ceiling_usd"`
+	SpentUSD        float64   `json:"spent_usd"`
 	Status          string    `json:"status"` // "active" | "suspended"
 	CreatedAt       time.Time `json:"created_at"`
 }
@@ -132,9 +133,9 @@ func (m *Manager) CreateTenant(id, displayName string) (*Tenant, error) {
 // GetTenant loads a tenant by id.
 func (m *Manager) GetTenant(id string) (*Tenant, error) {
 	row := m.ledger.DB().QueryRow(
-		`SELECT id, display_name, admin_pubkey_hex, autonomy_level, spend_ceiling_usd, status, created_at FROM tenants WHERE id = ?`, id)
+		`SELECT id, display_name, admin_pubkey_hex, autonomy_level, spend_ceiling_usd, spent_usd, status, created_at FROM tenants WHERE id = ?`, id)
 	var t Tenant
-	if err := row.Scan(&t.ID, &t.DisplayName, &t.AdminPubkeyHex, &t.AutonomyLevel, &t.SpendCeilingUSD, &t.Status, &t.CreatedAt); err != nil {
+	if err := row.Scan(&t.ID, &t.DisplayName, &t.AdminPubkeyHex, &t.AutonomyLevel, &t.SpendCeilingUSD, &t.SpentUSD, &t.Status, &t.CreatedAt); err != nil {
 		return nil, ErrTenantNotFound
 	}
 	return &t, nil
@@ -260,7 +261,7 @@ func (m *Manager) RevokeAutonomy(action *AdminAction, reason string) (*Tenant, e
 // trust roots from admin keys).
 func (m *Manager) ListTenants() ([]Tenant, error) {
 	rows, err := m.ledger.DB().Query(
-		`SELECT id, display_name, admin_pubkey_hex, autonomy_level, spend_ceiling_usd, status, created_at FROM tenants ORDER BY id`)
+		`SELECT id, display_name, admin_pubkey_hex, autonomy_level, spend_ceiling_usd, spent_usd, status, created_at FROM tenants ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -268,7 +269,7 @@ func (m *Manager) ListTenants() ([]Tenant, error) {
 	var out []Tenant
 	for rows.Next() {
 		var t Tenant
-		if err := rows.Scan(&t.ID, &t.DisplayName, &t.AdminPubkeyHex, &t.AutonomyLevel, &t.SpendCeilingUSD, &t.Status, &t.CreatedAt); err != nil {
+		if err := rows.Scan(&t.ID, &t.DisplayName, &t.AdminPubkeyHex, &t.AutonomyLevel, &t.SpendCeilingUSD, &t.SpentUSD, &t.Status, &t.CreatedAt); err != nil {
 			return nil, err
 		}
 		out = append(out, t)
@@ -277,6 +278,8 @@ func (m *Manager) ListTenants() ([]Tenant, error) {
 }
 
 // CheckSpend refuses amounts above the tenant ceiling (live check at dispatch).
+// Cumulative: already-reserved spend counts, so ten $14 jobs exhaust a $150
+// ceiling — the ceiling is a billing boundary, not a per-job suggestion.
 func (m *Manager) CheckSpend(tenantID string, amountUSD float64) error {
 	t, err := m.GetTenant(tenantID)
 	if err != nil {
@@ -285,9 +288,62 @@ func (m *Manager) CheckSpend(tenantID string, amountUSD float64) error {
 	if t.Status != "active" {
 		return ErrTenantSuspended
 	}
-	if amountUSD > t.SpendCeilingUSD {
+	if amountUSD > t.SpendCeilingUSD || t.SpentUSD+amountUSD > t.SpendCeilingUSD {
 		return ErrCeilingExceeded
 	}
+	return nil
+}
+
+// ReserveSpend atomically reserves amountUSD against the tenant ceiling.
+// The compare-and-set runs inside one UPDATE so concurrent dispatches cannot
+// jointly overspend (no read-check-write race across workers). On success the
+// reservation is sealed as a ledger event; the caller releases it when the
+// job settles terminal-failed, and keeps it when the job completes (the
+// authorized amount is the spend — provider true-ups are out of scope).
+func (m *Manager) ReserveSpend(tenantID string, amountUSD float64) error {
+	if amountUSD <= 0 {
+		return m.CheckSpend(tenantID, 0)
+	}
+	res, err := m.ledger.DB().Exec(
+		`UPDATE tenants SET spent_usd = spent_usd + ? WHERE id = ? AND status = 'active' AND spent_usd + ? <= spend_ceiling_usd AND ? <= spend_ceiling_usd`,
+		amountUSD, tenantID, amountUSD, amountUSD)
+	if err != nil {
+		return fmt.Errorf("spend reservation failed: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("spend reservation failed: %w", err)
+	}
+	if n == 0 {
+		// Name the reason without leaking more than the refusal already does.
+		if _, gerr := m.GetTenant(tenantID); gerr != nil {
+			return gerr
+		}
+		t, _ := m.GetTenant(tenantID)
+		if t.Status != "active" {
+			return ErrTenantSuspended
+		}
+		return ErrCeilingExceeded
+	}
+	m.ledger.AppendEvent(tenantID, "tenant_spend_reserved", map[string]any{
+		"tenant_id": tenantID, "amount_usd": amountUSD})
+	return nil
+}
+
+// ReleaseSpend returns a reservation (terminal-failed jobs only). Floored at
+// zero so double-release can never mint negative spend; callers additionally
+// zero the job's reserved_amount for idempotence.
+func (m *Manager) ReleaseSpend(tenantID string, amountUSD float64) error {
+	if amountUSD <= 0 {
+		return nil
+	}
+	if _, err := m.ledger.DB().Exec(
+		`UPDATE tenants SET spent_usd = MAX(0, spent_usd - ?) WHERE id = ?`,
+		amountUSD, tenantID); err != nil {
+		return fmt.Errorf("spend release failed: %w", err)
+	}
+	m.ledger.AppendEvent(tenantID, "tenant_spend_released", map[string]any{
+		"tenant_id": tenantID, "amount_usd": amountUSD})
 	return nil
 }
 

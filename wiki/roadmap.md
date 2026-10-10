@@ -279,6 +279,7 @@ approved → real-hardware-validated** pipeline.
   simulation, zero spend attempt. Split documented: Go enforces presence,
   Python enforces semantics (schemas live there).
 - Horizontal scaling of the provenance ledger + cost-governance for multi-tenant/enterprise.
+  **Cumulative spend shipped 2026-10-10** ([[spend-mandates-and-delegation]]): atomic reserve-at-admission, release-on-terminal-failure, migration-covered; session limits recorded as remaining.
   **Shipped 2026-10-10 (single-writer scale-out):** `VerifyChain`
   (linkage + hash + signature audit, per-session or global),
   `OpenLedgerReadOnly` (WAL read-replica handle; writes fail, missing
