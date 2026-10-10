@@ -93,3 +93,64 @@ def test_comparator_live_or_fallback(tmp_path):
         assert res.kernel_execution_skipped is False
     assert res.ledger_ref is not None
 
+
+
+def test_lean_sandbox_cmd_flags(tmp_path):
+    """Q-31: the exact container invocation carries every resource cap."""
+    from kubona.eval.comparator_eval import LeanSandboxConfig, sandbox_docker_cmd
+    cfg = LeanSandboxConfig()
+    cmd = sandbox_docker_cmd(cfg, tmp_path, "QuasiRiemannHypothesis")
+    for flag in ["--read-only", "--network", "none", "--cap-drop", "ALL",
+                 "--memory", "4g", "--memory-swap", "4g", "--cpus", "2.0",
+                 "--pids-limit", "256", "--tmpfs", "/tmp"]:
+        assert flag in cmd, (flag, cmd)
+    assert cmd[-1] == "QuasiRiemannHypothesis"
+    assert "kubona-lean:4.34.1" in cmd
+
+
+def test_lean_sandbox_absent_daemon_falls_back(tmp_path):
+    """Q-31: no daemon/image means AST fallback with reason, never an error."""
+    from kubona.eval import comparator_eval as ce
+    from kubona.eval.comparator_eval import (
+        ComparatorChallengeRegistry, LeanSandboxConfig)
+    from kubona.provenance import Ledger
+    orig_avail, orig_present = ce.docker_available, ce.docker_image_present
+    ce.docker_available = lambda: False
+    ce.docker_image_present = lambda image: False
+    try:
+        registry = ComparatorChallengeRegistry()
+        ledger = Ledger(path=str(tmp_path / "ledger_sandbox.jsonl"))
+        res = registry.verify_lean4_live(
+            "QuasiRiemannHypothesis", sandbox=LeanSandboxConfig(), ledger=ledger)
+        assert res.verification_mode == "static_ast_containment"
+        assert res.kernel_execution_skipped is True
+        assert res.error_message is not None and "sandbox" in res.error_message
+    finally:
+        ce.docker_available, ce.docker_image_present = orig_avail, orig_present
+
+
+def test_lean_sandbox_real_flag_execution():
+    """Q-31: the exact sandbox flag set executes against the live daemon
+    (busybox stands in for the Lean image, which needs a GB build)."""
+    import shutil
+    import subprocess
+    from kubona.eval.comparator_eval import LeanSandboxConfig
+    if shutil.which("docker") is None:
+        pytest = __import__("pytest")
+        pytest.skip("no docker daemon")
+    cfg = LeanSandboxConfig(image="busybox:latest")
+    cmd = ["docker", "run", "--rm", "--read-only", "--network", "none",
+           "--cap-drop", "ALL", "--memory", cfg.memory,
+           "--memory-swap", cfg.memory_swap, "--cpus", cfg.cpus,
+           "--pids-limit", str(cfg.pids_limit), "--tmpfs", "/tmp",
+           cfg.image, "true"]
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+    assert proc.returncode == 0, proc.stderr[:500]
+
+
+def test_infra_failure_detector():
+    from kubona.eval.comparator_eval import _is_infra_failure
+    assert _is_infra_failure("docker: Cannot connect to the Docker daemon") is True
+    assert _is_infra_failure("Error: no such image") is True
+    assert _is_infra_failure("error: unknown tactic 'sorryAx', sorry") is False
+    assert _is_infra_failure("") is False

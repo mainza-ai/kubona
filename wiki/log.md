@@ -1157,3 +1157,14 @@ skipped is the exact failure this incident is about:
   best-effort, else None); canary compares within 25% tolerance with mismatch
   failing the run; unsound declarations refuse to load. Tests: match, lie,
   unknown, unsound-load. Page already adopted; row closed.
+
+## [2026-10-10] question | Q-31 — Lean sandbox caps: pinned image, resource controls, timeouts
+## [2026-10-10] implementation | Q-31 sandboxed Lean verification (comparator_eval + Dockerfile)
+  LeanSandboxConfig (4g/4g swap, 2 CPU, 256 PIDs, 600s timeout, read-only,
+  net-none, cap-drop ALL, tmpfs) enforced on every containerized lake run;
+  Dockerfile.lean pins leanprover/lean4:v4.34.1 with unprivileged user;
+  precedence container -> host lake -> AST fallback with reason; infra vs
+  proof-failure discrimination guard (no masking); flag set proven live
+  against the daemon via busybox. Tests: cmd flags, fallback, live flags,
+  infra detector. Image build + cache warm + vm.max_map_count are operator
+  steps (documented, not executed here). Not committed yet.
