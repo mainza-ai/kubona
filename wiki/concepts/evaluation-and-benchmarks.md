@@ -122,7 +122,6 @@ anything that cannot run containerized does not run.
   a compiler change?
 
 ## 2b. Approximation quality — error-bounded truncation (built 2026-10-10)
-
 Depth-cutting is only honest with a measured error bound
 (`kubona/eval/truncation.py`): drop smallest-|coefficient| Pauli terms
 progressively and report the observable error against the full Hamiltonian
@@ -135,6 +134,20 @@ development (a two-body sign flip and a missing nuclear-repulsion shift)
 — the eval exists because of what verification found, not the other way
 around. H2 curve (15 terms, 36 est. CNOTs): 80%-kept errs 0.019 Ha;
 ε=0.01 admits only the full set — reported, not rounded away.
+
+## 2c. Check-discrimination critics (built 2026-10-10)
+
+A check that cannot fail is theater (`kubona/eval/check_critic.py`): every
+corpus invariant is run against mutated copies of its reference QASM —
+breaking mutants (dropped entanglers, flipped outcomes) must be rejected,
+preserving ones (relative phases, permutations) must still pass. Theory-first
+pairs, confirmed by execution; every check kind has locked breaking
+coverage. It already earned its keep twice: a W-state mutant that still
+yields weight-1 states is correctly *accepted* (preserving, not a gap),
+and it exposed that no corpus task exercised `bell-pairs` at all — fixed
+with a verified `bell_pairs_4q` task. Known weakness recorded in the
+module: the `wstate` check asserts support but not balance (2740/1356
+passes) — future hardening, not a silent change.
 
 ## 3. Hardware-in-the-loop CI (new)
 

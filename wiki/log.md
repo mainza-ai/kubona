@@ -1376,3 +1376,10 @@ skipped is the exact failure this incident is about:
   from PySCF verified to FCI anchor exact. Anchor caught a sign error and
   a missing nuclear shift in development. 6 tests green; suite 309 passed.
   Framed as internal mechanism; no external attribution.
+
+## [2026-10-10] implementation | Check-discrimination critics + bell_pairs task
+  kubona/eval/check_critic.py: breaking mutants must fail, preserving must
+  pass; per-kind breaking coverage locked by test. Critic distinguished a
+  truly-preserving W mutant and exposed the uncovered bell-pairs kind
+  (new verified task; corpus now 17 at 1.0). wstate balance weakness
+  recorded. Suite 312 passed. No external attribution.

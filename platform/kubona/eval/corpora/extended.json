@@ -1,29 +1,34 @@
 {
-  "_meta": {
-    "license": "Apache-2.0 (in-repo authored)",
-    "source_url": "kubona-platform (original QASM, standard textbook circuits)",
-    "description": "In-repo authored simulator-satisfiability tasks (GHZ/QFT ladders)",
-    "retrieved_at": "2026-10-10"
-  },
-  "ghz5": {
-    "qasm": "OPENQASM 2.0;\nqreg q[5];\nh q[0];\ncx q[0],q[1];\ncx q[0],q[2];\ncx q[0],q[3];\ncx q[0],q[4];",
-    "check": "ghz",
-    "check_params": {
-      "n": 5
-    }
-  },
-  "qft4": {
-    "qasm": "OPENQASM 2.0;\nqreg q[4];\nh q[0];\ncp(1.5708) q[0],q[1];\ncp(0.7854) q[0],q[2];\ncp(0.3927) q[0],q[3];\nh q[1];\ncp(1.5708) q[1],q[2];\ncp(0.7854) q[1],q[3];\nh q[2];\ncp(1.5708) q[2],q[3];\nh q[3];\nswap q[0],q[3];\nswap q[1],q[2];",
-    "check": "uniform",
-    "check_params": {
-      "n": 4
-    }
-  },
-  "ghz6": {
-    "qasm": "OPENQASM 2.0;\nqreg q[6];\nh q[0];\ncx q[0],q[1];\ncx q[0],q[2];\ncx q[0],q[3];\ncx q[0],q[4];\ncx q[0],q[5];",
-    "check": "ghz",
-    "check_params": {
-      "n": 6
-    }
+ "_meta": {
+  "license": "Apache-2.0 (in-repo authored)",
+  "source_url": "kubona-platform (original QASM, standard textbook circuits)",
+  "description": "In-repo authored simulator-satisfiability tasks (GHZ/QFT ladders)",
+  "retrieved_at": "2026-10-10"
+ },
+ "ghz5": {
+  "qasm": "OPENQASM 2.0;\nqreg q[5];\nh q[0];\ncx q[0],q[1];\ncx q[0],q[2];\ncx q[0],q[3];\ncx q[0],q[4];",
+  "check": "ghz",
+  "check_params": {
+   "n": 5
   }
+ },
+ "qft4": {
+  "qasm": "OPENQASM 2.0;\nqreg q[4];\nh q[0];\ncp(1.5708) q[0],q[1];\ncp(0.7854) q[0],q[2];\ncp(0.3927) q[0],q[3];\nh q[1];\ncp(1.5708) q[1],q[2];\ncp(0.7854) q[1],q[3];\nh q[2];\ncp(1.5708) q[2],q[3];\nh q[3];\nswap q[0],q[3];\nswap q[1],q[2];",
+  "check": "uniform",
+  "check_params": {
+   "n": 4
+  }
+ },
+ "ghz6": {
+  "qasm": "OPENQASM 2.0;\nqreg q[6];\nh q[0];\ncx q[0],q[1];\ncx q[0],q[2];\ncx q[0],q[3];\ncx q[0],q[4];\ncx q[0],q[5];",
+  "check": "ghz",
+  "check_params": {
+   "n": 6
+  }
+ },
+ "bell_pairs_4q": {
+  "qasm": "OPENQASM 2.0;\nqreg q[4];\nh q[0];\ncx q[0], q[1];\nh q[2];\ncx q[2], q[3];",
+  "check": "bell-pairs",
+  "check_params": {}
+ }
 }
