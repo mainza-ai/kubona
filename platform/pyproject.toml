@@ -13,6 +13,7 @@ dependencies = [
     "PyYAML>=6.0",
     "starlette>=0.37",
     "uvicorn>=0.29",
+    "grpcio>=1.60",
 ]
 
 [project.scripts]
@@ -20,7 +21,8 @@ kubona = "kubona.run:_cli"
 
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.24"]
-qiskit = ["qiskit>=1.0", "qiskit-aer>=0.14"]
+qiskit = ["qiskit>=1.0", "qiskit-aer>=0.14", "qiskit-ibm-runtime>=0.30"]
+chemistry = ["pyscf>=2.0", "rdkit>=2023.03"]
 providers = [
     "pytket>=0.50", "pytket-quantinuum",   # Quantinuum (real SDK conversion validated)
     "pyquil>=3.5",                          # Rigetti (WavefunctionSimulator is credential-free w/ qvm)
