@@ -6,6 +6,16 @@ plug in through this loader: a directory of JSON files whose entries map
   task_name -> {"qasm": "...", "check": <kind>, **params}
 into that same registry, so more corpora never require code changes.
 
+Q-26 admissibility: every corpus FILE carries `_meta: {license, source_url,
+retrieved_at}`. Only licence-clean sources load (in-repo authored, CC0/CC-BY
+(+SA), Apache-2.0, MIT/BSD, Unlicense). Anything else — proprietary, unknown,
+or missing license — refuses the whole file with a reason (fail-closed: an
+unlicensed benchmark laundered into evals corrupts every claim built on it).
+
+Good-answer criterion: a good answer is QASM satisfying the task's DECLARED
+INVARIANT on the simulator (score = fraction passing). No LLM judging, no
+vibes — satisfiability is the entire criterion, verified by evaluate_codegen.
+
 Declarative check kinds (verified against the simulator):
   bell      entangled 2-qubit 50/50 -> {00,11}, balanced
   ghz       all-or-nothing GHZ on N qubits -> {0...0, 1...1}
@@ -64,11 +74,45 @@ _CHECKS: dict[str, Callable[[dict, int], bool] | Callable[..., Callable]] = {
 
 def load_corpus_dir(path: str | Path) -> dict[str, dict]:
     """Register every task in a directory of JSON corpus files; returns new tasks."""
+    added, _ = load_corpus_dir_with_report(path)
+    return added
+
+
+# Licence tokens admissible for eval corpora (Q-26). Matched case-insensitively
+# as substrings so "Apache-2.0 (in-repo authored)" and "CC0" both pass while
+# "proprietary", "unknown", or absent licenses refuse.
+ADMISSIBLE_LICENSE_TOKENS = frozenset({
+    "apache-2.0", "mit", "bsd-2-clause", "bsd-3-clause", "unlicense",
+    "cc0", "cc-by", "cc-by-sa", "in-repo",
+})
+
+
+def license_admissible(license_str: str | None) -> bool:
+    """Fail-closed licence check for a corpus file's declared license."""
+    if not license_str:
+        return False
+    lowered = license_str.lower()
+    if "proprietary" in lowered or "unknown" in lowered:
+        return False
+    return any(tok in lowered for tok in ADMISSIBLE_LICENSE_TOKENS)
+
+
+def load_corpus_dir_with_report(path: str | Path) -> tuple[dict[str, dict], dict[str, str]]:
+    """Like load_corpus_dir, plus per-file skip reasons (licence refusals)."""
     added: dict[str, dict] = {}
+    skipped: dict[str, str] = {}
     path = Path(path)
     for f in sorted(path.glob("*.json")):
         data = json.loads(f.read_text())
+        meta = data.get("_meta", {}) if isinstance(data, dict) else {}
+        if not license_admissible(meta.get("license") if isinstance(meta, dict) else None):
+            skipped[f.name] = (
+                f"licence not admissible ({(meta.get('license') if isinstance(meta, dict) else None)!r}): "
+                "refusing file (Q-26)")
+            continue
         for name, spec in data.items():
+            if name.startswith("_"):
+                continue
             if not isinstance(spec, dict) or "qasm" not in spec or "check" not in spec:
                 continue
             kind = spec["check"]
@@ -88,4 +132,4 @@ def load_corpus_dir(path: str | Path) -> dict[str, dict]:
                 continue
             TASKS[name] = {"qasm": spec["qasm"], "check": check}
             added[name] = TASKS[name]
-    return added
+    return added, skipped

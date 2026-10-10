@@ -1186,3 +1186,10 @@ skipped is the exact failure this incident is about:
   ledger records. Tests: 4 (throttle math, endpoint, mailto opt-in, license
   presence). Permission table filed with primary-source verification dates.
   Not committed yet.
+
+## [2026-10-10] question | Q-26 — Admissible corpora: licence gate + satisfiability criterion
+## [2026-10-10] implementation | Q-26 corpus admissibility (loader gate + _meta stamps)
+  load_corpus_dir_with_report: per-file licence allowlist (proprietary/unknown/
+  missing refuse with reason); in-repo corpora stamped Apache-2.0 authored;
+  good-answer criterion documented (declared-invariant satisfiability).
+  Tests: licence matrix (CC0/MIT pass, proprietary/missing refuse). Not committed yet.
