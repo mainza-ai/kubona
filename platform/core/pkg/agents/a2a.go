@@ -264,19 +264,25 @@ func (s *A2AServer) HandleRequest(req *JSONRPCRequest) *JSONRPCResponse {
 		if params.ParentTaskID != "" {
 			s.mu.RLock()
 			pt, ok := s.tasks[params.ParentTaskID]
+			// Snapshot under the lock: runTask may settle the parent
+			// this instant (same race class as the submit path).
+			var parent A2ATask
+			if ok {
+				parent = *pt
+			}
 			s.mu.RUnlock()
 			if !ok {
 				return rpcError(req.ID, -32001, fmt.Sprintf("parent task not found: %s", params.ParentTaskID))
 			}
-			if pt.Status == TaskStatusFailed || pt.Status == TaskStatusRevoked {
-				return rpcError(req.ID, -32602, fmt.Sprintf("parent task %s is %s: delegation refused", pt.ID, pt.Status))
+			if parent.Status == TaskStatusFailed || parent.Status == TaskStatusRevoked {
+				return rpcError(req.ID, -32602, fmt.Sprintf("parent task %s is %s: delegation refused", parent.ID, parent.Status))
 			}
-			depth = pt.Depth + 1
+			depth = parent.Depth + 1
 			if depth > MaxDelegationDepth {
 				return rpcError(req.ID, -32602, fmt.Sprintf("delegation depth %d exceeds maximum %d", depth, MaxDelegationDepth))
 			}
-			parentScopes = append([]string(nil), pt.Scopes...)
-			parentTaskID = pt.ID
+			parentScopes = append([]string(nil), parent.Scopes...)
+			parentTaskID = parent.ID
 		}
 		scopes := params.Scopes
 		if len(scopes) == 0 {
