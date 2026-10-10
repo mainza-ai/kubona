@@ -2,10 +2,10 @@
 type: concept
 name: Spend Mandates & Inter-Agent Delegation
 date: 2026-10-03
-updated: 2026-10-09
+updated: 2026-10-10
 tags: [governance, ap2, a2a, security, delegation, mandates, trust-boundary]
 sources: [source-agent-protocol-landscape-2026, source-gap-analysis-plan]
-status: adopted
+status: settled
 ---
 
 # Spend Mandates & Inter-Agent Delegation

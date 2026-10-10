@@ -16,21 +16,21 @@ const (
 )
 
 type DeviceProfile struct {
-	Name            string  `json:"name"`
-	Qubits          int     `json:"qubits"`
-	T1Us            float64 `json:"t1_us"`
-	T2Us            float64 `json:"t2_us"`
-	SingleQubitErr  float64 `json:"single_qubit_error"`
-	TwoQubitErr     float64 `json:"two_qubit_error"`
+	Name           string  `json:"name"`
+	Qubits         int     `json:"qubits"`
+	T1Us           float64 `json:"t1_us"`
+	T2Us           float64 `json:"t2_us"`
+	SingleQubitErr float64 `json:"single_qubit_error"`
+	TwoQubitErr    float64 `json:"two_qubit_error"`
 }
 
 type FidelityAssessment struct {
-	DeviceName         string            `json:"device_name"`
-	PredictedFidelity  float64           `json:"predicted_fidelity"`
-	MeasuredClifford   float64           `json:"measured_clifford"`
-	Decision           AdmissionDecision `json:"decision"`
-	Reason             string            `json:"reason"`
-	RecommendedAction  string            `json:"recommended_action"`
+	DeviceName        string            `json:"device_name"`
+	PredictedFidelity float64           `json:"predicted_fidelity"`
+	MeasuredClifford  float64           `json:"measured_clifford"`
+	Decision          AdmissionDecision `json:"decision"`
+	Reason            string            `json:"reason"`
+	RecommendedAction string            `json:"recommended_action"`
 }
 
 type FidelityGate struct {
@@ -89,6 +89,39 @@ func (fg *FidelityGate) PredictFidelity(deviceName string, depth, twoQubitGates 
 	p1 := math.Pow(1.0-prof.SingleQubitErr, float64(depth))
 	p2 := math.Pow(1.0-prof.TwoQubitErr, float64(twoQubitGates))
 	return math.Max(0.01, math.Min(1.0, p1*p2)), nil
+}
+
+// EvaluateAdmissionFloorOnly applies the floor + known-device rules without a
+// Clifford probe result. Used at dispatch admission where no probe has run:
+// unknown devices refuse (unpredictable), below-floor refuses or mitigates,
+// everything else admits. Probe-gated drift checks belong to paths that
+// actually ran a probe (see EvaluateAdmission).
+func (fg *FidelityGate) EvaluateAdmissionFloorOnly(deviceName string, depth, twoQubitGates int) FidelityAssessment {
+	fPred, err := fg.PredictFidelity(deviceName, depth, twoQubitGates)
+	if err != nil {
+		return FidelityAssessment{
+			DeviceName:        deviceName,
+			Decision:          DecisionRefuse,
+			Reason:            fmt.Sprintf("no fidelity profile for device: %v (unpredictable — refused, never simulated silently)", err),
+			RecommendedAction: "Register a calibrated device profile or route to a simulator backend",
+		}
+	}
+	if fPred < fg.floorThreshold {
+		return FidelityAssessment{
+			DeviceName:        deviceName,
+			PredictedFidelity: fPred,
+			Decision:          DecisionMitigate,
+			Reason:            fmt.Sprintf("Predicted fidelity %.3f below floor threshold %.3f", fPred, fg.floorThreshold),
+			RecommendedAction: "Resubmit explicitly with mitigation (ZNE/cutting) — never applied silently",
+		}
+	}
+	return FidelityAssessment{
+		DeviceName:        deviceName,
+		PredictedFidelity: fPred,
+		Decision:          DecisionAdmit,
+		Reason:            "Predicted fidelity meets floor on a calibrated device profile",
+		RecommendedAction: "Proceed to spend authorization",
+	}
 }
 
 func (fg *FidelityGate) EvaluateAdmission(deviceName string, depth, twoQubitGates int, measuredClifford float64) FidelityAssessment {

@@ -1,7 +1,7 @@
 ---
 type: catalog
 date: 2026-08-16
-updated: 2026-10-08
+updated: 2026-10-10
 tags: [index]
 status: living
 ---
@@ -46,25 +46,38 @@ Describes **how decided** something is — never how finished.
 
 | Value | Meaning | Used by |
 |---|---|---|
-| `settled` | A decision or standing policy. Treat it as a constraint; changing it needs a new decision and a log entry. | [[integration-topology-and-licence-discipline]] |
+| `settled` | A decision or standing policy. Treat it as a constraint; changing it needs a new decision and a log entry. | [[integration-topology-and-licence-discipline]], [[quantum-advantage-realism]], [[spend-mandates-and-delegation]], [[cost-governance]], [[epistemic-continuum-and-ontology]] |
 | `adopted` | Understood and relied upon; we would build this way today. Weaker than `settled` — the cost may not be known yet. | core mechanism concepts |
 | `open-question` | The insight is incomplete or the fork is undecided. Indexed in [[questions]]. | philosophy pages, autonomy model, discovery layer |
 | `candidate` | Proposed for integration or reuse; integration topology not yet committed. | [[openbao]], [[univer]], [[openqasm]], [[model-optimizer]], own repos |
-| `tracked` | External landscape (vendor, SDK, standard) observed for change. No position taken. | provider entities, [[x402]], [[aaif]], [[qiskit-mcp-servers]] |
+| `tracked` | External landscape (vendor, SDK, standard) observed for change. No position taken. | provider entities, [[x402]], [[aaif]] |
 | `reference` | Prior art or another project mined for *method* only. Never load-bearing supply. | [[qbraid]], [[strangeworks]], [[hindsight]], own WIP |
 | `source` | An ingested source record. Immutable once written. | the 6 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (106 pages = 43 entities · 52 concepts · 6 sources · 5 meta):**
-`settled` 1 · `adopted` 45 · `open-question` 11 · `candidate` 6 · `tracked` 27 ·
-`reference` 5 · `source` 6 · `living` 5. One `settled` against 45 `adopted` is the honest
-reading: the method is **understood**, not yet **chosen**. `settled` is meant to stay small —
-if it grows much faster than `adopted`, check that constraints are being recorded as `settled`
-correctly rather than decisions being rushed into it.
+**Census (106 pages = 43 entities · 52 concepts · 6 sources · 5 meta), 2026-10-10:**
+`settled` 5 · `adopted` 45 · `open-question` 8 · `candidate` 6 · `tracked` 26 ·
+`reference` 5 · `source` 6 · `living` 5. Five `settled` against 45 `adopted` keeps the honest
+reading: the load-bearing constraints are **chosen**, everything else remains **understood**.
+`settled` stays small by rule — each entry needed test enforcement plus dependents
+([[overview]] §Settled constraints); new candidates must meet the same bar.
 
 **Machine-checkable:** `python3 scripts/wiki-lint.py --strict` enforces this vocabulary, the
 canonical `sources` keys, link and index integrity, and the no-`dev-docs`-anchors rule.
 Run it after any batch edit; exit 0 as of 2026-09-27.
+
+## Taxonomy note (Q-03, closed 2026-10-10): no `claim` page type
+
+Q-03 asked whether the wiki needs a `claim {claim, evidence-class, conditions,
+falsifier}` type alongside entities/concepts/sources. Decision: **no new type.**
+Rationale: every claim-shaped insight filed so far fits an existing concept page
+plus a machine-readable counterpart that already exists — the ledger `claim`
+record (`ClaimRecord.to_ledger_payload`: rho, verdict, probabilities, evidence
+refs, policy digest) and the `ScientificClaim` schema (vocabulary + provenance +
+credibility field). A fourth page type would add taxonomy cost (lint rules, index
+mapping, author guidance) for no new expressiveness; claims live as concept
+sections backed by ledger records, and the falsifier lives in the linked tests.
+Revisit only with a concrete claim that fits nowhere.
 
 ## Sources (6)
 
