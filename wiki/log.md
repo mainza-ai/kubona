@@ -1168,3 +1168,12 @@ skipped is the exact failure this incident is about:
   against the daemon via busybox. Tests: cmd flags, fallback, live flags,
   infra detector. Image build + cache warm + vm.max_map_count are operator
   steps (documented, not executed here). Not committed yet.
+
+## [2026-10-10] question | Q-20 — Pack manifest, trust, and revocation model
+## [2026-10-10] implementation | Q-20 pack contract (manifest, allowlist, revocation)
+  DomainPackManifest: schema pin, strict semver, anchor-required, capabilities,
+  evidence requirements, entry points; NaCl owner signatures (invalid refuses,
+  unsigned loads); resolve_generator kubona.*-only (caught phantom HubbardModel);
+  PackRegistry with revoked.json (reason-required). Tests: 8 (load, semver,
+  anchor, schema, allowlist, phantom, signature, revocation). Page adopted.
+  Not committed yet.
