@@ -22,6 +22,36 @@ class ClaimCategory(str, enum.Enum):
     HYPOTHESIS_REFUTED = "HYPOTHESIS_REFUTED"
 
 
+# Q-04: permitted claim verbs. A predicate must contain one of these —
+# reports may only *report what was done*, never what was achieved in the
+# abstract. Anything else (proves, guarantees, solves, unlocks, ...) fails
+# validation with guidance, at construction time (fail-closed).
+PERMITTED_PREDICATE_VERBS = (
+    "measured",
+    "reproduced",
+    "bounded",
+    "refuted",
+    "converged",
+    "estimated",
+    "computed",
+    "observed",
+    "verified",
+    "rejected",
+    "matched",
+    "reached",
+)
+
+
+class CredibilityField(BaseModel):
+    """What a credibility field holds (Q-04/Q-05): the collapse probability
+    rho, the epistemic tier, and the ledger references backing it. Consumers
+    gate assertion on rho + tier; the score is never cited without the refs."""
+
+    rho: float = Field(ge=0.0, le=1.0)
+    tier: str  # L4 (proof) | L3 (anchor) | L2 (classical baseline) | L1 (QPU run) | L0 (generative)
+    evidence_refs: List[str] = Field(min_length=1)
+
+
 class HardwareProvenance(BaseModel):
     backend_name: str
     backend_tier: str  # "T0_ANCHOR", "T1_LOCAL_EMU", "T2_CLOUD_SIM", "T3_CLOUD_QPU"
@@ -54,6 +84,7 @@ class ScientificClaim(BaseModel):
     ledger_ref: Optional[str] = None
     claims_advantage: bool = False
     advantage_justification: Optional[str] = None
+    credibility: Optional[CredibilityField] = None
 
     @field_validator("predicate")
     @classmethod
@@ -64,6 +95,13 @@ class ScientificClaim(BaseModel):
         for term in forbidden:
             if term in lowered:
                 raise ValueError(f"Forbidden ungrounded term '{term}' in claim predicate.")
+        # Q-04: permitted verbs only — the predicate must state what was done.
+        if not any(verb in lowered for verb in PERMITTED_PREDICATE_VERBS):
+            raise ValueError(
+                "Claim predicate must contain a permitted reporting verb "
+                f"{sorted(PERMITTED_PREDICATE_VERBS)}; got no permitted verb. "
+                "Reports state measurements, never achievements."
+            )
         return v
 
     @model_validator(mode="after")
@@ -84,9 +122,24 @@ class ScientificClaim(BaseModel):
                 raise ValueError(
                     "Claims of advantage require rigorous mathematical or algorithmic justification."
                 )
+            # Q-04: advantage claims must carry a credibility field — the score
+            # is never cited without its refs — at rho >= 0.90, tier L4/L3.
+            if self.credibility is None:
+                raise ValueError(
+                    "Claims of advantage require a credibility field (rho, tier, evidence_refs)."
+                )
+            if self.credibility.rho < 0.90 or self.credibility.tier not in ("L4", "L3"):
+                raise ValueError(
+                    f"Advantage requires credibility rho >= 0.90 at tier L4/L3; got "
+                    f"rho={self.credibility.rho}, tier={self.credibility.tier}."
+                )
         return self
 
     def formatted_statement(self) -> str:
         tag = f"[{self.category.value}]"
         adv_tag = "[ADVANTAGE GROUNDED]" if self.claims_advantage else "[NO ADVANTAGE CLAIMED]"
-        return f"{tag} {adv_tag} {self.predicate} (Δ={self.delta_hartree:.4f} Ha, σ={self.uncertainty_sigma:.4f})"
+        base = f"{tag} {adv_tag} {self.predicate} (Δ={self.delta_hartree:.4f} Ha, σ={self.uncertainty_sigma:.4f})"
+        if self.credibility is not None:
+            c = self.credibility
+            base += f" [ρ={c.rho:.3f} {c.tier} refs={len(c.evidence_refs)}]"
+        return base
