@@ -937,3 +937,33 @@ func TestTenantsListForLabsView(t *testing.T) {
 		}
 	}
 }
+
+func TestLiteratureRouteGuards(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+
+	// Missing query: 400, never a bridge call.
+	req := httptest.NewRequest(http.MethodGet, "/api/literature", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("queryless literature request must 400, got %d", w.Code)
+	}
+
+	// Wrong method: 405.
+	req = httptest.NewRequest(http.MethodPost, "/api/literature?query=vqe", nil)
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("POST literature must 405, got %d", w.Code)
+	}
+
+	// Nil bridge test double: honest 503, never silent data.
+	req = httptest.NewRequest(http.MethodGet, "/api/literature?query=vqe&limit=3", nil)
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusServiceUnavailable {
+		t.Fatalf("bridgeless literature must 503, got %d", w.Code)
+	}
+}

@@ -641,3 +641,18 @@ export async function fetchLabs(): Promise<Lab[]> {
     return [];
   }
 }
+
+export async function searchLiterature(query: string, limit = 5): Promise<{ records: import('@/types').LiteratureRecord[]; cached: boolean }> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/literature?query=${encodeURIComponent(query)}&limit=${limit}`,
+      { cache: 'no-store' }
+    );
+    if (!res.ok) return { records: [], cached: false };
+    const data = await res.json();
+    return { records: data.records || [], cached: !!data.cached };
+  } catch (err) {
+    console.error('Failed to search literature:', err);
+    return { records: [], cached: false };
+  }
+}
