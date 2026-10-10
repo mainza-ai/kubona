@@ -246,3 +246,33 @@ cx q[0], q[1];
     assert res_cdr["method_used"] == "CDR"
 
 
+
+
+def test_route_backend_classification():
+    from executor import route_backend
+    assert route_backend("aer_simulator") == "aer"
+    assert route_backend("local_simulator") == "aer"
+    assert route_backend("ibm_brisbane") == "hardware:ibm-qiskit"
+    assert route_backend("ibm_kyiv") == "hardware:ibm-qiskit"
+    assert route_backend("quantinuum_h1").startswith("unknown-hardware")
+
+
+def test_qpu_request_without_credential_fails_closed_to_labeled_sim():
+    """No token/SDK: an ibm_brisbane request must NOT claim hardware. It
+    resolves to labeled simulation with an explicit fail-closed reason and
+    performs zero network I/O (asserted by absence of token)."""
+    import os
+    assert "KUBONA_IBM_QISKIT_TOKEN" not in os.environ
+    from executor import execute_qasm
+    bell_qasm = """OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[2];
+creg c[2];
+h q[0];
+cx q[0], q[1];
+"""
+    res = execute_qasm(bell_qasm, shots=100, requested_backend="ibm_brisbane")
+    assert res["success"] is True
+    assert "hardware_job_id" not in res
+    assert "Statevector" in res["resolved_backend"] or "Aer" in res["resolved_backend"]
+    assert "fail-closed" in res["degradation_reason"]

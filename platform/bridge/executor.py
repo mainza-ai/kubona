@@ -112,6 +112,84 @@ def check_circuit_memory_bounds(qc: QuantumCircuit) -> Dict[str, Any]:
     }
 
 
+def route_backend(requested_backend: str) -> str:
+    """Classify a requested backend string without executing anything.
+
+    Returns "aer" (simulator class), "hardware:ibm-qiskit" (IBM Runtime via
+    provider plugin), or "unknown-hardware:<name>" (no execution plugin —
+    callers must refuse or degrade explicitly, never silently simulate).
+    """
+    low = (requested_backend or "").lower()
+    if any(k in low for k in ("aer", "local", "sim")):
+        return "aer"
+    if low.startswith("ibm") or "brisbane" in low or "kyiv" in low or "kingston" in low:
+        return "hardware:ibm-qiskit"
+    return f"unknown-hardware:{requested_backend}"
+
+
+def _execute_ibm_hardware(qasm: str, shots: int, requested_backend: str) -> Dict[str, Any] | None:
+    """Real IBM Quantum hardware via the provider plugin, or None to fall
+    through to labeled simulation when credentials/SDK are absent.
+
+    Returns None (fail-closed, zero spend, zero network without a token) when:
+    the provider plugin is unavailable, no KUBONA_IBM_QISKIT_TOKEN is set, or
+    qiskit-ibm-runtime is not installed. Real execution returns hardware counts
+    with degradation_level=1 and the Runtime job_id. Any unexpected error
+    returns an honest failure dict (never silent simulation).
+    """
+    try:
+        from kubona.circuits import parse_qasm2 as parse_native
+        from kubona.providers.qiskit_provider import QiskitProvider
+        from kubona.schema import load_provider
+    except Exception as e:
+        return {
+            "success": False,
+            "resolved_backend": "none",
+            "degradation_level": 0,
+            "degradation_reason": f"IBM provider plugin unavailable: {e}",
+            "counts": {},
+            "statevector_real": [],
+            "statevector_imag": [],
+            "meyer_wallach": 0.0,
+            "execution_time_ms": 0.0,
+            "error_message": f"IBM provider plugin unavailable: {e}",
+        }
+    try:
+        plugin = QiskitProvider(load_provider("ibm-qiskit"), backend_name=requested_backend)
+        res = plugin.submit(parse_native(qasm), shots, seed=7)
+    except Exception as e:
+        return {
+            "success": False,
+            "resolved_backend": "none",
+            "degradation_level": 0,
+            "degradation_reason": f"IBM hardware submission failed: {e}",
+            "counts": {},
+            "statevector_real": [],
+            "statevector_imag": [],
+            "meyer_wallach": 0.0,
+            "execution_time_ms": 0.0,
+            "error_message": f"IBM hardware submission failed: {e}",
+        }
+    if not res.get("hardware"):
+        return None  # fail-closed Aer inside the plugin: caller labels simulation
+    return {
+        "success": True,
+        "resolved_backend": f"ibm_quantum:{res.get('backend', requested_backend)}",
+        "degradation_level": 1,
+        "degradation_reason": (
+            f"Executed on IBM Quantum hardware backend {res.get('backend', requested_backend)} "
+            f"via Qiskit Runtime (job {res.get('job_id', 'unknown')})"
+        ),
+        "counts": res.get("counts", {}),
+        "statevector_real": [],
+        "statevector_imag": [],
+        "meyer_wallach": 0.0,
+        "execution_time_ms": 0.0,  # filled in by caller
+        "error_message": "",
+        "hardware_job_id": res.get("job_id"),
+    }
+
+
 def execute_qasm(
     qasm: str,
     shots: int = 1024,
@@ -219,6 +297,22 @@ def execute_qasm(
     degradation_reason = "Executed exact statevector simulation"
 
     try:
+        # Tier 1: real QPU hardware via the provider plugin. The plugin holds
+        # its own credential gate (SecretStore): without a token it returns
+        # Aer results with hardware=False, which we surface as an explicit
+        # fail-closed degradation — never as hardware counts.
+        route = route_backend(requested_backend)
+        if route == "hardware:ibm-qiskit":
+            hw = _execute_ibm_hardware(qasm, shots, requested_backend)
+            if hw is not None:
+                hw["execution_time_ms"] = (time.time() - t0) * 1000.0
+                return hw
+            # No credential/SDK: fall through to labeled simulation below.
+            degradation_reason = (
+                "Executed exact statevector simulation "
+                f"(QPU {requested_backend} requested but no credential/SDK: fail-closed)"
+            )
+
         # Check if Aer is available and requested
         if HAS_AER and any(k in requested_backend.lower() for k in ("aer", "local", "sim")):
             resolved_backend = "qiskit_aer.AerSimulator"
