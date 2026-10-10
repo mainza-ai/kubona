@@ -1357,3 +1357,9 @@ skipped is the exact failure this incident is about:
   Wiki lint clean; Go test ./... green; Python 303 passed, 3 skipped;
   console build + 17 vitest + eslint green. Covers spend rails, Labs
   surface, literature wiring, routing, ledger verify, eval batches.
+
+## [2026-10-10] verification | Push-readiness audit (read-only, no push)
+  43 unpushed commits (251 files, +30k): secret scan clean, no
+  dev-docs/.obsidian paths, no files >1MB, tree clean, local gates green.
+  Blockers remain operator-side: explicit push order + origin CI red since
+  Oct 4-5 (pre-existing, predates this work).
