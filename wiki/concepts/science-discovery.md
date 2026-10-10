@@ -2,7 +2,7 @@
 type: concept
 name: Science Discovery Platform
 date: 2026-08-16
-updated: 2026-09-27
+updated: 2026-10-10
 tags: [kubona, science, discovery, experiments]
 sources: [source-gap-analysis-plan, source-architecture-paper]
 status: adopted
@@ -50,7 +50,25 @@ Every experiment yields two artifacts, both keyed by the same content address:
 
 ## What this adds to the roadmap
 
-Multi-user labs, user/agent-created workflows and agents, and the result-reporting layer
+Multi-user labs, user/agent-created workflows & agents, and the result-reporting layer
 are scoped as **Phase 6 (Science Discovery & Collaboration)** — see [[roadmap]]; identity
 groundwork lands earlier (Phase 2). Related: [[user-identity-and-profiles]] ·
 [[workflows-and-agent-authoring]] · [[science-data-integrations]] · [[buzz]] · [[unsloth]]
+
+## Layer assignment (Q-17, closed 2026-10-10): CORE, in three sub-layers
+
+Ruling: science-discovery is **core, not v2**. The "no human surface" premise is
+stale — the loop runs end-to-end green (campaign gate test) and three console
+surfaces exist (ResultsStudio 7, Tribunal Room 8, GenerativeUIStudio 9). No pages
+move (links and lint stay stable); instead every discovery-family page carries an
+explicit layer, so the blueprint no longer reads as uniformly near-term:
+
+| Layer | Meaning | Pages |
+|---|---|---|
+| **CORE-SURFACED** | engine green + console surface + tests | [[science-discovery]], [[autonomous-manuscript-synthesis-and-peer-review]], [[multi-agent-research-collective]], [[epistemic-information-lifecycle-and-memory]], [[evaluation-and-benchmarks]], [[science-data-integrations]], [[quantum-domain-packs]] |
+| **CORE-ENGINE** | engine green, no full surface yet; the gap is named | [[autonomous-ansatz-optimization]] (harness engine green; GQE retrain pending), [[meta-search-and-self-evolution]] (propose-only by design), [[autonomous-mathematical-discovery]] (corpus ingested, static comparator; live-kernel proving needs toolchain), [[agentic-memory-and-observability]] (pieces live across ledger/hindsight/FlightRecorder, no unified surface), [[frontier-benchmark-saturation]] |
+| **VISION (Phase 5+)** | designed, not built | multi-user lab collaboration surfaces, autonomous proposing beyond human grant, [[unsloth]] GQE flywheel retrain |
+
+Rule going forward: a discovery page that graduates a layer updates this table
+same-PR as the code. The console is therefore **not** an emergency — but any
+CORE-ENGINE item promoted to surfaced must arrive with its surface tests.

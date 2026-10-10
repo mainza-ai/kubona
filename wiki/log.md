@@ -1193,3 +1193,11 @@ skipped is the exact failure this incident is about:
   missing refuse with reason); in-repo corpora stamped Apache-2.0 authored;
   good-answer criterion documented (declared-invariant satisfiability).
   Tests: licence matrix (CC0/MIT pass, proprietary/missing refuse). Not committed yet.
+
+## [2026-10-10] question | Q-17 — Discovery is CORE with recorded sub-layers, no moves
+## [2026-10-10] implementation | Q-17 layer assignment (15 pages tabled)
+  Ruled CORE on evidence (end-to-end campaign green, Surfaces 7/8/9 live);
+  the no-surface premise was stale. Every discovery-family page assigned
+  CORE-SURFACED / CORE-ENGINE (gap named) / VISION on science-discovery;
+  graduation rule recorded (table updates same-PR as code). No file moves.
+  Wiki-only change; gates unaffected.

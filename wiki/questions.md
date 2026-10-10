@@ -41,7 +41,6 @@ These come first, because they change how every other question gets answered.
 
 | # | Question | Rank | Known | Missing |
 |---|---|---|---|---|
-| **Q-17** | **Is science-discovery core or v2?** It is ~15 concept pages and 1 of 6 phases, and has no human surface. If core, the console is the emergency. If v2, move those pages to a `vision/` layer so the blueprint stops reading as uniformly near-term. | **P0** | The loop runs end-to-end as an engine-level test | A layer assignment for every discovery page |
 
 ## E · Surface, ecosystem, operations
 
@@ -70,6 +69,7 @@ These come first, because they change how every other question gets answered.
 | **Q-30** | 2026-10-09 | Posture: **encapsulate** vendor MCP suites as downstream provider plugins beneath the governance plane (vault-leased creds, admission gate, anchored results); raw agent→vendor paths refused by design. | [[qiskit-mcp-servers]] |
 | **Q-11** | 2026-10-09 | Burden-scaled approval packets: full schema (cost bound + budget left, blast radius, reversibility, evidence, alternatives, expiry, single-use nonce) via MRTR elicitation retry in the gateway plus ApprovalPacketCard in the console approve flow; risk-tiered prompting rules. | [[cost-governance]] |
 | **Q-28** | 2026-10-09 | No namespace move: coupling measured one-directional (edge → core); contract enforced mechanically by Go + Python architectural fitness tests in CI. | [[protocol-strategy]] |
+| **Q-17** | 2026-10-10 | CORE, not v2: loop runs green + 3 surfaces exist; every discovery page assigned CORE-SURFACED / CORE-ENGINE / VISION in place, no file moves. | [[science-discovery]] |
 | **Q-26** | 2026-10-10 | Licence-clean only (_meta licence gate, fail-closed with per-file reasons); good answer = declared invariant satisfied on simulator, no LLM judging. | [[evaluation-and-benchmarks]] |
 | **Q-19** | 2026-10-10 | Per-source fetch/cache/quote/redistribute table verified against primary TOUs; arXiv 3s throttle + export host + polite-pool mailto enforced in fetchers; licenses flow into ledger records. | [[science-data-integrations]] |
 | **Q-20** | 2026-10-10 | Manifest kubona-pack/v1 (semver, anchor-required, capabilities, evidence reqs); Ed25519 owner signatures; kubona.*-only generator allowlist; registry-file revocation. | [[quantum-domain-packs]] |
