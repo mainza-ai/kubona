@@ -37,9 +37,44 @@ class AbstractSource:
         raise NotImplementedError
 
 
+# arXiv TOU (info.arxiv.org/help/api/tou.html, verified 2026-10-10): at most
+# one request every three seconds across ALL machines under our control, one
+# connection at a time. Enforced client-side so autonomous loops cannot
+# violate it by concurrency.
+_ARXIV_MIN_INTERVAL_S = 3.0
+_arxiv_last_call: float = 0.0
+
+import threading as _threading
+
+_arxiv_lock = _threading.Lock()
+
+
+def _respect_arxiv_rate_limit(now: float | None = None,
+                              sleep: Callable[[float], None] | None = None) -> None:
+    """Block until 3s elapsed since the last arXiv call (process-wide)."""
+    import time as _time
+    global _arxiv_last_call
+    with _arxiv_lock:
+        t = now if now is not None else _time.time()
+        wait = _ARXIV_MIN_INTERVAL_S - (t - _arxiv_last_call)
+        if wait > 0:
+            (sleep or _time.sleep)(wait)
+            t = t + wait
+        _arxiv_last_call = t
+
+
+def _contact_email() -> str | None:
+    """Optional polite-pool contact (OpenAlex mailto). Set KUBONA_CONTACT_EMAIL
+    in deployment; never invent an address."""
+    import os
+    v = (os.environ.get("KUBONA_CONTACT_EMAIL") or "").strip()
+    return v or None
+
+
 class _HTTPArxivSource(AbstractSource):
     name = "arxiv"
-    license = "CC-BY / arXiv terms of use"
+    # Metadata CC0; e-prints mostly default-license: link back, never serve.
+    license = "CC0 metadata; e-print redistribution requires holder permission"
 
     def fetch(self, query: str, _http=None) -> SourceResult:
         out: list[dict[str, str]] = []
@@ -47,6 +82,7 @@ class _HTTPArxivSource(AbstractSource):
         try:
             import httpx
 
+            _respect_arxiv_rate_limit()
             client = _http or httpx.Client(timeout=10)
             r = client.get("https://export.arxiv.org/api/query",
                            params={"search_query": f"all:{query}", "max_results": 3})
@@ -75,9 +111,12 @@ class _HTTPOpenAlexSource(AbstractSource):
         try:
             import httpx
 
+            params: dict[str, Any] = {"search": query, "per-page": 3}
+            contact = _contact_email()
+            if contact:
+                params["mailto"] = contact  # polite pool: 10/s vs 1/s anonymous
             client = _http or httpx.Client(timeout=10)
-            r = client.get("https://api.openalex.org/works",
-                           params={"search": query, "per-page": 3})
+            r = client.get("https://api.openalex.org/works", params=params)
             r.raise_for_status()
             for w in r.json().get("results", []):
                 out.append({"title": (w.get("display_name") or "")[:120],

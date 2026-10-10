@@ -1177,3 +1177,12 @@ skipped is the exact failure this incident is about:
   PackRegistry with revoked.json (reason-required). Tests: 8 (load, semver,
   anchor, schema, allowlist, phantom, signature, revocation). Page adopted.
   Not committed yet.
+
+## [2026-10-10] question | Q-19 — Scholarly source permission table, verified + enforced
+## [2026-10-10] implementation | Q-19 source compliance (throttle, mailto, license flags)
+  arXiv 1-req/3s process-wide throttle + export.arxiv.org host; OpenAlex
+  polite-pool mailto from KUBONA_CONTACT_EMAIL (never invented); license flags
+  corrected (CC0 metadata vs holder-only redistribution) and asserted into
+  ledger records. Tests: 4 (throttle math, endpoint, mailto opt-in, license
+  presence). Permission table filed with primary-source verification dates.
+  Not committed yet.

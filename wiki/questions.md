@@ -42,7 +42,6 @@ These come first, because they change how every other question gets answered.
 | # | Question | Rank | Known | Missing |
 |---|---|---|---|---|
 | **Q-17** | **Is science-discovery core or v2?** It is ~15 concept pages and 1 of 6 phases, and has no human surface. If core, the console is the emergency. If v2, move those pages to a `vision/` layer so the blueprint stops reading as uniformly near-term. | **P0** | The loop runs end-to-end as an engine-level test | A layer assignment for every discovery page |
-| **Q-19** | **Which scholarly sources are free enough for autonomous ingestion?** [[science-data-integrations]] lists arXiv, OpenAlex, Semantic Scholar and others. Each constrains bulk fetch, redistribution and derivative indexing. Autonomous fetch is a licensing question, not an HTTP one. | **P1** | Integration candidates enumerated | A per-source permission table (fetch / cache / quote / redistribute) |
 
 ## E · Surface, ecosystem, operations
 
@@ -72,6 +71,7 @@ These come first, because they change how every other question gets answered.
 | **Q-30** | 2026-10-09 | Posture: **encapsulate** vendor MCP suites as downstream provider plugins beneath the governance plane (vault-leased creds, admission gate, anchored results); raw agent→vendor paths refused by design. | [[qiskit-mcp-servers]] |
 | **Q-11** | 2026-10-09 | Burden-scaled approval packets: full schema (cost bound + budget left, blast radius, reversibility, evidence, alternatives, expiry, single-use nonce) via MRTR elicitation retry in the gateway plus ApprovalPacketCard in the console approve flow; risk-tiered prompting rules. | [[cost-governance]] |
 | **Q-28** | 2026-10-09 | No namespace move: coupling measured one-directional (edge → core); contract enforced mechanically by Go + Python architectural fitness tests in CI. | [[protocol-strategy]] |
+| **Q-19** | 2026-10-10 | Per-source fetch/cache/quote/redistribute table verified against primary TOUs; arXiv 3s throttle + export host + polite-pool mailto enforced in fetchers; licenses flow into ledger records. | [[science-data-integrations]] |
 | **Q-20** | 2026-10-10 | Manifest kubona-pack/v1 (semver, anchor-required, capabilities, evidence reqs); Ed25519 owner signatures; kubona.*-only generator allowlist; registry-file revocation. | [[quantum-domain-packs]] |
 | **Q-31** | 2026-10-10 | Containerized lake under memory/swap/CPU/PID caps + timeouts, pinned toolchain image, AST fallback with reason; proof failures never mask as AST passes. | [[lean4]] |
 | **Q-14** | 2026-10-10 | Yes where measurable: canary verifies declared qubits + calibration against live plugin reports within tolerance; mismatch fails the canary; unmeasurable reads unknown, never pass. | [[provider-capability-schema]] |
