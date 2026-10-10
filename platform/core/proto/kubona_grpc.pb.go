@@ -31,8 +31,6 @@ const (
 // QuantumBridgeServiceClient is the client API for QuantumBridgeService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-//
-// Quantum and Data Bridge Service
 type QuantumBridgeServiceClient interface {
 	ExecuteCircuit(ctx context.Context, in *CircuitExecutionRequest, opts ...grpc.CallOption) (*CircuitExecutionResponse, error)
 	CutCircuit(ctx context.Context, in *CircuitCutRequest, opts ...grpc.CallOption) (*CircuitCutResponse, error)
@@ -124,8 +122,6 @@ func (c *quantumBridgeServiceClient) MitigateCircuit(ctx context.Context, in *Mi
 // QuantumBridgeServiceServer is the server API for QuantumBridgeService service.
 // All implementations must embed UnimplementedQuantumBridgeServiceServer
 // for forward compatibility.
-//
-// Quantum and Data Bridge Service
 type QuantumBridgeServiceServer interface {
 	ExecuteCircuit(context.Context, *CircuitExecutionRequest) (*CircuitExecutionResponse, error)
 	CutCircuit(context.Context, *CircuitCutRequest) (*CircuitCutResponse, error)

@@ -246,11 +246,19 @@ func TestAdmissionQPUNeedsMandateReceipt(t *testing.T) {
 	r.Start()
 	defer r.Stop()
 
-	qpu := map[string]any{"qasm": "q;", "requested_backend": "ibm_brisbane", "shots": 100, "max_cost_usd": 25.0}
+	qpu := map[string]any{"qasm": "q;", "requested_backend": "ibm_brisbane", "shots": 100, "max_cost_usd": 25.0, "caller_jurisdictions": []string{"US"}}
 
 	// No receipt: refused, nothing queued.
 	if _, err := r.SubmitJob("sess-qpu", "circuit_run", qpu); err == nil {
 		t.Fatalf("QPU job without mandate receipt must refuse")
+	}
+
+	// No declared jurisdictions: refused at routing before mandate checks.
+	nojur := map[string]any{"qasm": "q;", "requested_backend": "ibm_brisbane", "shots": 100, "max_cost_usd": 25.0, "mandate_ref": "receipt-hash-1"}
+	if _, err := r.SubmitJob("sess-qpu", "circuit_run", nojur); err == nil {
+		t.Fatalf("QPU job without caller_jurisdictions must refuse")
+	} else if !strings.Contains(err.Error(), "caller_jurisdictions") {
+		t.Fatalf("refusal must name the routing declaration, got: %v", err)
 	}
 
 	// Simulator backend on the same session: admitted.
@@ -317,12 +325,14 @@ func TestAdmissionFidelityRefusesDeepCircuit(t *testing.T) {
 	_, err := r.SubmitJob("sess-1", "circuit_run", map[string]any{
 		"qasm":              "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0], q[1];",
 		"requested_backend": "ibm_brisbane", "shots": 100,
+		"caller_jurisdictions": []string{"US"},
 	})
 	if err == nil || !strings.Contains(err.Error(), "mandate_ref") {
 		t.Fatalf("shallow QPU job must reach (and fail) the mandate check, got: %v", err)
 	}
 	_, err = r.SubmitJob("sess-1", "circuit_run", map[string]any{
 		"qasm": qasm, "requested_backend": "ibm_brisbane", "shots": 100,
+		"caller_jurisdictions": []string{"US"},
 	})
 	if err == nil {
 		t.Fatalf("400-CX circuit must refuse at the fidelity floor")

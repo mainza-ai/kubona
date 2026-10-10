@@ -1234,6 +1234,11 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 			MandateRef  string   `json:"mandate_ref"`
 			GrantChain  []string `json:"grant_chain"`
 			InputLabels []string `json:"input_labels"`
+			// P5 §2.9 routing: QPU-destined jobs must declare these;
+			// admission refuses hardware without them.
+			CallerJurisdictions []string `json:"caller_jurisdictions"`
+			CallerExportClass   string   `json:"caller_export_class"`
+			ExportReviewed      bool     `json:"export_reviewed"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -1250,13 +1255,16 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 			req.Shots = 1024
 		}
 		jobParams := map[string]any{
-			"qasm":              req.QASM,
-			"requested_backend": req.Backend,
-			"shots":             req.Shots,
-			"max_cost_usd":      req.BudgetUSD,
-			"mandate_ref":       req.MandateRef,
-			"grant_chain":       req.GrantChain,
-			"input_labels":      req.InputLabels,
+			"qasm":                 req.QASM,
+			"requested_backend":    req.Backend,
+			"shots":                req.Shots,
+			"max_cost_usd":         req.BudgetUSD,
+			"mandate_ref":          req.MandateRef,
+			"grant_chain":          req.GrantChain,
+			"input_labels":         req.InputLabels,
+			"caller_jurisdictions": req.CallerJurisdictions,
+			"caller_export_class":  req.CallerExportClass,
+			"export_reviewed":      req.ExportReviewed,
 		}
 		job, err := s.jobRunner.SubmitJob(req.SessionID, "circuit_run", jobParams)
 		if err != nil {

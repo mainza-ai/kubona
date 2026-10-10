@@ -270,6 +270,14 @@ approved → real-hardware-validated** pipeline.
 - [[xanadu-strawberry-fields]] photonic/CV integration; [[dwave]] Ocean SDK deepening.
 - Export-control/jurisdiction enforcement at the routing layer (§2.9; the
   [[provider-capability-schema]] jurisdiction field becomes load-bearing).
+  **Wired 2026-10-10:** `kubona.proto` source reconstructed (was
+  generated-only) + `caller_jurisdictions` / `caller_export_class` /
+  `export_reviewed` on `CircuitExecutionRequest`; Go admission refuses
+  undeclared QPU jobs and the HTTP surface forwards declarations; the
+  bridge executor runs `route()` before any hardware plugin call —
+  INELIGIBLE or undeclared returns immediately, never degrades into
+  simulation, zero spend attempt. Split documented: Go enforces presence,
+  Python enforces semantics (schemas live there).
 - Horizontal scaling of the provenance ledger + cost-governance for multi-tenant/enterprise.
 - Activate [[x402]] for sub-threshold transactions and algorithm-library metering (§12.7).
 - Auto-application of meta-loop changes via the shadow-mode staged rollout (§13.5) — only

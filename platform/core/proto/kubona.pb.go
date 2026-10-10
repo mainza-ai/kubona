@@ -21,7 +21,6 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// Job & Execution State
 type JobStatus int32
 
 const (
@@ -146,8 +145,14 @@ type CircuitExecutionRequest struct {
 	Shots                  int32                  `protobuf:"varint,4,opt,name=shots,proto3" json:"shots,omitempty"`
 	RequestedBackend       string                 `protobuf:"bytes,5,opt,name=requested_backend,json=requestedBackend,proto3" json:"requested_backend,omitempty"`
 	AllowClassicalFallback bool                   `protobuf:"varint,6,opt,name=allow_classical_fallback,json=allowClassicalFallback,proto3" json:"allow_classical_fallback,omitempty"`
-	unknownFields          protoimpl.UnknownFields
-	sizeCache              protoimpl.SizeCache
+	// P5 §2.9 routing: caller-declared jurisdictions + export-control class.
+	// The bridge refuses hardware execution when these are absent or the
+	// route() verdict is INELIGIBLE — compliance gate, not afterthought.
+	CallerJurisdictions []string `protobuf:"bytes,7,rep,name=caller_jurisdictions,json=callerJurisdictions,proto3" json:"caller_jurisdictions,omitempty"`
+	CallerExportClass   string   `protobuf:"bytes,8,opt,name=caller_export_class,json=callerExportClass,proto3" json:"caller_export_class,omitempty"`
+	ExportReviewed      bool     `protobuf:"varint,9,opt,name=export_reviewed,json=exportReviewed,proto3" json:"export_reviewed,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *CircuitExecutionRequest) Reset() {
@@ -218,6 +223,27 @@ func (x *CircuitExecutionRequest) GetRequestedBackend() string {
 func (x *CircuitExecutionRequest) GetAllowClassicalFallback() bool {
 	if x != nil {
 		return x.AllowClassicalFallback
+	}
+	return false
+}
+
+func (x *CircuitExecutionRequest) GetCallerJurisdictions() []string {
+	if x != nil {
+		return x.CallerJurisdictions
+	}
+	return nil
+}
+
+func (x *CircuitExecutionRequest) GetCallerExportClass() string {
+	if x != nil {
+		return x.CallerExportClass
+	}
+	return ""
+}
+
+func (x *CircuitExecutionRequest) GetExportReviewed() bool {
+	if x != nil {
+		return x.ExportReviewed
 	}
 	return false
 }
@@ -528,7 +554,7 @@ func (x *CircuitCutResponse) GetErrorMessage() string {
 
 type ClassicalAnchorRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
-	Molecule      string                 `protobuf:"bytes,1,opt,name=molecule,proto3" json:"molecule,omitempty"` // "H2", "LiH", "BeH2", "H4"
+	Molecule      string                 `protobuf:"bytes,1,opt,name=molecule,proto3" json:"molecule,omitempty"`
 	BondDistance  float64                `protobuf:"fixed64,2,opt,name=bond_distance,json=bondDistance,proto3" json:"bond_distance,omitempty"`
 	BasisSet      string                 `protobuf:"bytes,3,opt,name=basis_set,json=basisSet,proto3" json:"basis_set,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1084,10 +1110,10 @@ func (x *LiteratureGroundingResponse) GetCached() bool {
 
 type QuantumKrylovRequest struct {
 	state             protoimpl.MessageState `protogen:"open.v1"`
-	Molecule          string                 `protobuf:"bytes,1,opt,name=molecule,proto3" json:"molecule,omitempty"` // e.g. "H2", "LiH", "BeH2"
+	Molecule          string                 `protobuf:"bytes,1,opt,name=molecule,proto3" json:"molecule,omitempty"`
 	BondDistance      float64                `protobuf:"fixed64,2,opt,name=bond_distance,json=bondDistance,proto3" json:"bond_distance,omitempty"`
-	SubspaceDimension int32                  `protobuf:"varint,3,opt,name=subspace_dimension,json=subspaceDimension,proto3" json:"subspace_dimension,omitempty"` // e.g. 3, 4, 5
-	TimeStep          float64                `protobuf:"fixed64,4,opt,name=time_step,json=timeStep,proto3" json:"time_step,omitempty"`                           // tau
+	SubspaceDimension int32                  `protobuf:"varint,3,opt,name=subspace_dimension,json=subspaceDimension,proto3" json:"subspace_dimension,omitempty"`
+	TimeStep          float64                `protobuf:"fixed64,4,opt,name=time_step,json=timeStep,proto3" json:"time_step,omitempty"`
 	Shots             int32                  `protobuf:"varint,5,opt,name=shots,proto3" json:"shots,omitempty"`
 	RequestedBackend  string                 `protobuf:"bytes,6,opt,name=requested_backend,json=requestedBackend,proto3" json:"requested_backend,omitempty"`
 	unknownFields     protoimpl.UnknownFields
@@ -1269,8 +1295,8 @@ func (x *QuantumKrylovResponse) GetErrorMessage() string {
 type MitigationRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Qasm          string                 `protobuf:"bytes,1,opt,name=qasm,proto3" json:"qasm,omitempty"`
-	Method        string                 `protobuf:"bytes,2,opt,name=method,proto3" json:"method,omitempty"`                                          // "ZNE", "PEC", "CDR"
-	ScaleFactors  []float64              `protobuf:"fixed64,3,rep,packed,name=scale_factors,json=scaleFactors,proto3" json:"scale_factors,omitempty"` // e.g. [1.0, 1.5, 2.0]
+	Method        string                 `protobuf:"bytes,2,opt,name=method,proto3" json:"method,omitempty"`
+	ScaleFactors  []float64              `protobuf:"fixed64,3,rep,packed,name=scale_factors,json=scaleFactors,proto3" json:"scale_factors,omitempty"`
 	Shots         int32                  `protobuf:"varint,4,opt,name=shots,proto3" json:"shots,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1422,7 +1448,7 @@ var File_kubona_proto protoreflect.FileDescriptor
 
 const file_kubona_proto_rawDesc = "" +
 	"\n" +
-	"\fkubona.proto\x12\x06kubona\"\xe0\x01\n" +
+	"\fkubona.proto\x12\x06kubona\"\xec\x02\n" +
 	"\x17CircuitExecutionRequest\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x1d\n" +
 	"\n" +
@@ -1430,7 +1456,10 @@ const file_kubona_proto_rawDesc = "" +
 	"\x04qasm\x18\x03 \x01(\tR\x04qasm\x12\x14\n" +
 	"\x05shots\x18\x04 \x01(\x05R\x05shots\x12+\n" +
 	"\x11requested_backend\x18\x05 \x01(\tR\x10requestedBackend\x128\n" +
-	"\x18allow_classical_fallback\x18\x06 \x01(\bR\x16allowClassicalFallback\"\xd2\x04\n" +
+	"\x18allow_classical_fallback\x18\x06 \x01(\bR\x16allowClassicalFallback\x121\n" +
+	"\x14caller_jurisdictions\x18\a \x03(\tR\x13callerJurisdictions\x12.\n" +
+	"\x13caller_export_class\x18\b \x01(\tR\x11callerExportClass\x12'\n" +
+	"\x0fexport_reviewed\x18\t \x01(\bR\x0eexportReviewed\"\xd2\x04\n" +
 	"\x18CircuitExecutionResponse\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x18\n" +
 	"\asuccess\x18\x02 \x01(\bR\asuccess\x12)\n" +
@@ -1560,7 +1589,7 @@ const file_kubona_proto_rawDesc = "" +
 	"\x14EvaluateWavefunction\x12\x1e.kubona.ClaimEvaluationRequest\x1a\x1f.kubona.ClaimEvaluationResponse\x12[\n" +
 	"\x10GroundLiterature\x12\".kubona.LiteratureGroundingRequest\x1a#.kubona.LiteratureGroundingResponse\x12S\n" +
 	"\x14ExecuteQuantumKrylov\x12\x1c.kubona.QuantumKrylovRequest\x1a\x1d.kubona.QuantumKrylovResponse\x12H\n" +
-	"\x0fMitigateCircuit\x12\x19.kubona.MitigationRequest\x1a\x1a.kubona.MitigationResponseB8Z6github.com/mainza-ai/kubona/core/pkg/proto;kubonaprotob\x06proto3"
+	"\x0fMitigateCircuit\x12\x19.kubona.MitigationRequest\x1a\x1a.kubona.MitigationResponseB4Z2github.com/mainza-ai/kubona/core/proto;kubonaprotob\x06proto3"
 
 var (
 	file_kubona_proto_rawDescOnce sync.Once

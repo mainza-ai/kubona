@@ -859,7 +859,8 @@ func TestCrossTenantGrantFlow(t *testing.T) {
 
 	// QPU job citing the grant: admitted (201, queued — no workers in tests).
 	qpu := map[string]any{"session_id": sessResp.ID, "qasm": "OPENQASM 2.0;",
-		"backend": "ibm_brisbane", "shots": 100, "max_cost_usd": 25.0, "grant_chain": chain}
+		"backend": "ibm_brisbane", "shots": 100, "max_cost_usd": 25.0, "grant_chain": chain,
+		"caller_jurisdictions": []string{"US"}}
 	rawQ, _ := json.Marshal(qpu)
 	dbgReq := httptest.NewRequest(http.MethodPost, "/api/jobs", bytes.NewReader(rawQ))
 	dbgW := httptest.NewRecorder()
