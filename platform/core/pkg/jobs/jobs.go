@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/mainza-ai/kubona/core/pkg/fidelity"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
 	"github.com/mainza-ai/kubona/core/pkg/tenants"
 	pb "github.com/mainza-ai/kubona/core/proto"
@@ -40,6 +41,9 @@ type Runner struct {
 	aborted map[string]bool
 	// tenantMgr enforces lab-tenant autonomy and spend ceilings at admission.
 	tenantMgr *tenants.Manager
+	// fidelityGate predicts whether a hardware run can produce a publishable
+	// number before spending (Ring 3 second rail beside money).
+	fidelityGate *fidelity.FidelityGate
 }
 
 func NewRunner(l *ledger.Ledger, bridgeClient pb.QuantumBridgeServiceClient, workers int) *Runner {
@@ -56,6 +60,7 @@ func NewRunner(l *ledger.Ledger, bridgeClient pb.QuantumBridgeServiceClient, wor
 		cancel:       cancel,
 		aborted:      make(map[string]bool),
 		tenantMgr:    tenants.NewManager(l),
+		fidelityGate: fidelity.NewFidelityGate(),
 	}
 }
 

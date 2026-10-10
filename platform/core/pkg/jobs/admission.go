@@ -4,9 +4,11 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
+	"github.com/mainza-ai/kubona/core/pkg/fidelity"
 	"github.com/mainza-ai/kubona/core/pkg/grants"
 	"github.com/mainza-ai/kubona/core/pkg/tenants"
 )
@@ -26,6 +28,7 @@ func isSimulatorBackend(backend string) bool {
 }
 
 type circuitRunParams struct {
+	QASM             string   `json:"qasm"`
 	RequestedBackend string   `json:"requested_backend"`
 	MandateRef       string   `json:"mandate_ref"`
 	MaxCostUSD       float64  `json:"max_cost_usd"`
@@ -110,6 +113,15 @@ func (r *Runner) admitJob(sessionID, jobType string, paramsJSON []byte) error {
 	if isSimulatorBackend(p.RequestedBackend) {
 		return nil
 	}
+	// Fidelity gate (Ring 3, second rail beside money): predict whether this
+	// run can produce a publishable number BEFORE spending. Physics does not
+	// care who pays, so this runs before grant/mandate checks. Only ADMIT
+	// proceeds; mitigate/downgrade verdicts refuse with the recommended
+	// action stated — remediation changes what was approved and must be
+	// resubmitted explicitly, never applied silently.
+	if err := r.admitFidelity(p.RequestedBackend, p.QASM); err != nil {
+		return err
+	}
 	if grant != nil {
 		return nil
 	}
@@ -158,6 +170,72 @@ func hasScope(scopes []string, want string) bool {
 		}
 	}
 	return false
+}
+
+// fidelityDeviceForBackend maps a requested backend to a calibrated fidelity
+// profile. Unknown hardware refuses as unpredictable — it must never inherit
+// a simulator profile (which would admit everything at fidelity ~1.0).
+func fidelityDeviceForBackend(backend string) (string, error) {
+	low := strings.ToLower(strings.TrimSpace(backend))
+	switch {
+	case strings.HasPrefix(low, "ibm"):
+		return "ibm_heron", nil
+	case strings.HasPrefix(low, "rigetti"):
+		return "rigetti_aspen", nil
+	case strings.HasPrefix(low, "quantinuum"):
+		return "quantinuum_h1", nil
+	default:
+		return "", fmt.Errorf("no fidelity profile for backend %q: unpredictable on this device — refused (register a calibrated profile first)", backend)
+	}
+}
+
+var (
+	qasmQregRe = regexp.MustCompile(`qreg\s+\w+\[(\d+)\]`)
+	qasmTwoQRe = regexp.MustCompile(`^(cx|cz|swap|cp|ecr|rzz)\b`)
+	qasmSkipRe = regexp.MustCompile(`^(OPENQASM|include|qreg|creg|measure|barrier|reset|opaque|//|$)`)
+)
+
+// countQasmGates estimates (qubits, serial depth, two-qubit count) from
+// OpenQASM 2.0 source. Serial depth overestimates parallel circuits, which is
+// the safe direction for a fidelity floor (predicts lower, refuses earlier).
+func countQasmGates(qasm string) (qubits, depth, twoQ int) {
+	for _, line := range strings.Split(qasm, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || qasmSkipRe.MatchString(line) {
+			if m := qasmQregRe.FindStringSubmatch(line); len(m) > 1 {
+				var n int
+				fmt.Sscanf(m[1], "%d", &n)
+				if n > qubits {
+					qubits = n
+				}
+			}
+			continue
+		}
+		if !strings.HasSuffix(line, ";") {
+			continue
+		}
+		depth++
+		if qasmTwoQRe.MatchString(line) {
+			twoQ++
+		}
+	}
+	return qubits, depth, twoQ
+}
+
+// admitFidelity enforces the fidelity floor for metered-hardware jobs.
+func (r *Runner) admitFidelity(backend, qasm string) error {
+	device, err := fidelityDeviceForBackend(backend)
+	if err != nil {
+		return err
+	}
+	qubits, depth, twoQ := countQasmGates(qasm)
+	assessment := r.fidelityGate.EvaluateAdmissionFloorOnly(device, depth, twoQ)
+	if assessment.Decision != fidelity.DecisionAdmit {
+		return fmt.Errorf("fidelity gate: %s (predicted %.3f on %s, %d qubits, depth %d, %d 2q gates; %s)",
+			assessment.Reason, assessment.PredictedFidelity, device, qubits, depth, twoQ,
+			assessment.RecommendedAction)
+	}
+	return nil
 }
 
 // verifyGrantChain decodes, verifies, and binds a presented UCAN grant chain

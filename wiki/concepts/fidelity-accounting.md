@@ -3,8 +3,8 @@ name: Fidelity Accounting
 type: concept
 tags: [frontier, noise, mitigation, governance, hardware]
 date: 2026-09-27
-updated: 2026-09-27
-status: open-question
+updated: 2026-10-10
+status: adopted
 sources: [source-frontier-repo-audit-2026, source-architecture-paper]
 ---
 
@@ -16,6 +16,14 @@ that prediction with a cheap probe. Jobs are then admitted, downgraded, or refus
 *physical expected value*, not on price. Nobody asks for a quantum-advantage claim; the
 question is whether a given run can produce a publishable number at all, and today Kubona
 cannot answer that before spending.
+
+> Decided (Q-07, closed 2026-10-10): **kept distinct, not merged.** One line:
+> cost-governance gates *money*, error-mitigation *repairs results*, fidelity-accounting
+> *predicts whether a run can produce a publishable number and refuses it upfront*.
+> Enforced in both admission paths (`FidelityGate.EvaluateAdmissionFloorOnly` in Go
+> dispatch; `evaluate_admission` in the Python execution server): unknown devices refuse
+> as unpredictable, below-floor refuses with the recommended action stated, remediation
+> is never applied silently (it changes what was approved).
 
 ## Why it is a gate, not a report
 

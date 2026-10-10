@@ -7,12 +7,15 @@ get_result, run_zne_job (first mitigation), session_status, close_session.
 from __future__ import annotations
 
 import asyncio
+import hashlib
+import json
 import uuid
 
 from mcp.server.mcpserver import MCPServer
 
 from kubona.circuits import canonical_hash, parse_qasm2
 from kubona.cost.governance import CostGovernanceService
+from kubona.fidelity.accounting import FidelityAccountingEngine
 from kubona.jobs import JobRunner
 from kubona.mitigation import run_zne
 from kubona.providers import get_provider, list_providers
@@ -24,6 +27,59 @@ mcp = MCPServer("kubona-execution")
 _sessions = SessionStore()
 _gov = CostGovernanceService(_sessions)
 _runner = JobRunner()  # persistent, async job farm (production §4.3 abstraction)
+_fidelity = FidelityAccountingEngine()
+
+# Provider -> fidelity device profile. Simulators skip the gate (nothing to
+# predict); every other backend must be catalogued or the job refuses as
+# unpredictable — unknown devices never inherit the perfect simulator profile.
+_FIDELITY_DEVICE_FOR_PROVIDER = {
+    "ibm-qiskit": "ibm-heron",
+    "rigetti": "rigetti-aspen",
+}
+_SIMULATOR_MODALITIES = {"statevector_simulator", "gpu_simulator"}
+_TWO_QUBIT_GATES = frozenset({"cx", "cz", "swap", "cp", "ecr", "rzz"})
+
+
+def _fidelity_gate(capability, circuit) -> dict:
+    """Predict-then-admit fidelity check. Returns a verdict dict with
+    admitted: bool. Refusals carry the reason + receipt hash (reusable
+    negative result), never a silent downgrade."""
+    modality = getattr(capability.modality, "value", str(capability.modality))
+    if modality in _SIMULATOR_MODALITIES:
+        return {"admitted": True, "skipped": "simulator-class backend",
+                "provider": capability.provider}
+    device_name = _FIDELITY_DEVICE_FOR_PROVIDER.get(capability.provider)
+    if device_name is None:
+        verdict = {"admitted": False,
+                   "rejection_reason": (
+                       f"no fidelity profile for provider {capability.provider!r}: "
+                       "unpredictable on this device — refused (no silent simulation)"),
+                   "provider": capability.provider}
+    else:
+        gates = list(getattr(circuit, "gates", []) or [])
+        n_2q = sum(1 for g in gates if getattr(g, "name", "") in _TWO_QUBIT_GATES)
+        n_1q = len(gates) - n_2q
+        v = _fidelity.evaluate_admission(
+            device_name,
+            n_qubits=getattr(circuit, "num_qubits", 0),
+            n_single_qubit_gates=n_1q,
+            n_two_qubit_gates=n_2q,
+        )
+        verdict = {"admitted": v.admitted and v.recommended_action == "EXECUTE_DIRECT",
+                   "predicted_fidelity": v.predicted_fidelity,
+                   "fidelity_floor": v.fidelity_floor,
+                   "calibration_fresh": v.calibration_fresh,
+                   "recommended_action": v.recommended_action,
+                   "rejection_reason": v.rejection_reason,
+                   "provider": capability.provider,
+                   "device": device_name}
+        if verdict["admitted"] is False and v.rejection_reason is None:
+            verdict["rejection_reason"] = (
+                f"fidelity gate recommends {v.recommended_action}: resubmit explicitly "
+                "with mitigation — never applied silently")
+    verdict["fidelity_receipt"] = hashlib.sha256(
+        json.dumps(verdict, sort_keys=True, default=str).encode()).hexdigest()[:16]
+    return verdict
 
 
 def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int = 1024,
@@ -68,6 +124,18 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
     if not pf["ok"]:
         return {"ok": False, "error": pf["reason"], "estimate": pf["estimate"],
                 "session_id": session_id}
+
+    # Fidelity gate (Ring 3, second rail beside money): predict whether this
+    # run can produce a publishable number BEFORE spending. Simulator-class
+    # backends skip (no noise to predict); QPU backends need a catalogued
+    # device profile, else the device is unpredictable and the job refuses.
+    # Non-EXECUTE_DIRECT verdicts also refuse: remediation (ZNE/downgrade)
+    # changes what was approved and must be resubmitted explicitly, never
+    # applied silently. The verdict doubles as the refusal receipt.
+    fidelity = _fidelity_gate(capability, circuit)
+    if not fidelity["admitted"]:
+        return {"ok": False, "error": fidelity["rejection_reason"],
+                "fidelity": fidelity, "session_id": session_id}
 
     exec_plugin = get_provider(provider)  # ProviderError if data-only
     circuit_hash = canonical_hash(circuit)

@@ -25,14 +25,11 @@ These come first, because they change how every other question gets answered.
 
 | # | Question | Rank | Known | Missing | Pages |
 |---|---|---|---|---|---|
-| **Q-02** | **Which claims here are decisions and which are merely plausible?** Only one page is `settled`. Most are *understood and adopted*, which is weaker: adopted means "we would build this way today", not "we chose this and know its cost". | **P0** | 24 `adopted`, 13 `open-question`, 1 `settled` | A pass marking the 5–7 genuinely load-bearing commitments as `settled` with written rationale | [[overview]] |
-| **Q-03** | **Is the wiki's unit of insight right?** Today: entities (things), concepts (mechanisms), sources (records). Missing: *claims* ("X yields Y under Z") and *option-sets* (alternatives with a pending choice). Most P0 questions are option-sets, not mechanisms. | **P1** | The 8 philosophy pages resist the concept/entity split | Whether to add a `claim` type carrying `{claim, evidence-class, conditions, falsifier}` | [[quantum-advantage-realism]], [[evaluation-and-benchmarks]] |
 
 ## B · Method & epistemics (the differentiator, least grounded)
 
 | # | Question | Rank | Known | Missing |
 |---|---|---|---|---|
-| **Q-07** | **What does "fidelity accounting" add over error mitigation + provenance?** [[fidelity-accounting]] overlaps [[error-mitigation]] and [[provenance-and-reproducibility]]. Either it is a distinct ledger of fidelity assumptions per claim, or it is those two renamed. | **P1** | Both neighbours are well specified | A one-line difference, or a merge |
 
 ## C · Governance & the trust boundary
 
@@ -78,6 +75,9 @@ These come first, because they change how every other question gets answered.
 | **Q-30** | 2026-10-09 | Posture: **encapsulate** vendor MCP suites as downstream provider plugins beneath the governance plane (vault-leased creds, admission gate, anchored results); raw agent→vendor paths refused by design. | [[qiskit-mcp-servers]] |
 | **Q-11** | 2026-10-09 | Burden-scaled approval packets: full schema (cost bound + budget left, blast radius, reversibility, evidence, alternatives, expiry, single-use nonce) via MRTR elicitation retry in the gateway plus ApprovalPacketCard in the console approve flow; risk-tiered prompting rules. | [[cost-governance]] |
 | **Q-28** | 2026-10-09 | No namespace move: coupling measured one-directional (edge → core); contract enforced mechanically by Go + Python architectural fitness tests in CI. | [[protocol-strategy]] |
+| **Q-02** | 2026-10-10 | Five load-bearing constraints marked `settled` with written rationale (licence, advantage-realism, mandates, cost-governance, continuum); criterion: test-enforced + depended upon. | [[overview]] |
+| **Q-03** | 2026-10-10 | No new `claim` page type: claims live as concept sections backed by ledger claim records + ScientificClaim schema; taxonomy cost exceeds benefit. | [[index]] |
+| **Q-07** | 2026-10-10 | Kept distinct, not merged: money-gate vs result-repair vs publishability-prediction; fidelity refusal now enforced in both admission paths. | [[fidelity-accounting]] |
 | **Q-09** | 2026-10-10 | Mutable set = §13 write scope only, enforced by a versioned registry checked at propose time; widening needs a trusted admin signature, and compiler/MCP/security/ledger are unwidenable by any signer. | [[meta-search-and-self-evolution]] |
 | **Q-04** | 2026-10-10 | Allowed vocabulary: 12 permitted reporting verbs, banned hype terms, required qualifiers (anchor, provenance, falsification criteria), credibility field {rho, tier, refs}; enforced fail-closed in `ScientificClaim`. | [[quantum-advantage-realism]] |
 | **Q-05** | 2026-10-10 | Operational: 3-state axes, `ClaimCredibilityWavefunction.evaluate` over evidence signals, `ClaimRecord` ledger payloads, rho-gated assertion; worked H2 VQE example with real anchor numbers green. | [[claim-credibility-wavefunctions]] |

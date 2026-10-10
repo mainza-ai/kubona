@@ -5,7 +5,7 @@ date: 2026-09-27
 updated: 2026-10-10
 tags: [credibility, evaluation, risks, governance]
 sources: [source-frontier-repo-audit-2026, source-gap-analysis-plan]
-status: adopted
+status: settled
 ---
 
 # Quantum Advantage Realism

@@ -1137,3 +1137,15 @@ skipped is the exact failure this incident is about:
   digest-pinned proposals, JSON persistence. MetaLoop.propose_strategy_change
   refuses out-of-scope kinds. Tests: gate, widen/trust/expiry/unwidenable
   refusals, persistence round-trip. Not committed yet.
+
+## [2026-10-10] question | Q-02 — Five settled constraints with rationale (test-enforced + depended upon)
+## [2026-10-10] question | Q-03 — No claim page type; ledger records + schema are the machine form
+## [2026-10-10] question | Q-07 — Fidelity kept distinct; refusal enforced in both admission paths
+## [2026-10-10] implementation | Fidelity wiring + Q-02/Q-03/Q-07 close-out
+  FidelityAccountingEngine.evaluate_admission wired into Python submit_job (after
+  cost pre-flight, before enqueue); Go FidelityGate.EvaluateAdmissionFloorOnly +
+  backend→profile map + QASM gate counter wired into jobs/admission.go (only ADMIT
+  proceeds; mitigation/downgrade refuse with stated action; unknown hardware refuses
+  as unpredictable). Tests: 4 Python + 6 Go, incl. order proof (fidelity passes,
+  mandate still refuses). Wiki: settled×5 with criterion, census recounted
+  (5/45/8/6/26/5/6/5), taxonomy note. Not committed yet.

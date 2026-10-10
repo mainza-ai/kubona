@@ -1,7 +1,7 @@
 ---
 type: overview
 date: 2026-08-16
-updated: 2026-10-09
+updated: 2026-10-10
 tags: [kubona, synthesis]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-cloudflare-economy,
   source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026, source-openai-math-corpus]
@@ -170,6 +170,20 @@ Three tensions are worth naming here because they are strategic rather than tech
 - **Core vs. v2 for science discovery.** Roughly 40% of the concept pages describe the
   discovery platform; roughly one phase and no human surface does. That mismatch is
   [[questions]] Q-17, and it is the single largest shape decision left.
+
+## Settled constraints (Q-02, closed 2026-10-10)
+
+Five load-bearing commitments, each enforced by tests and depended on by other
+subsystems — changing any of them needs a new decision and a log entry:
+
+1. [[integration-topology-and-licence-discipline]] — submodule/sidecar/blueprint/reference topology; nothing unlicensed crosses into the core.
+2. [[quantum-advantage-realism]] — never claim advantage; every artefact carries backend, classical anchor, and receipts (enforced: claim grammar validators, tribunal attestation rules).
+3. [[spend-mandates-and-delegation]] — no spend without a verified mandate; sub-mandates bounded; revocation propagates (enforced at every dispatch entry).
+4. [[cost-governance]] — ceilings, pre-flight, and the L0–L3 ladder with live grant/revoke checks (enforced in Go admission and Python preflight).
+5. [[epistemic-continuum-and-ontology]] — tier thresholds and the collapse gate (enforced in both epistemics implementations with tests).
+
+Criterion used: *settled = invariant enforced by tests + depended on by other subsystems*.
+Everything else stays `adopted` deliberately — understood, not yet chosen.
 
 > ⚑ Correction: this page previously listed *"six-language stack risk
 > (Rust/TS/Dart/Py/JS/±Go)"* as live. Verified 2026-09-27: the prototype contains

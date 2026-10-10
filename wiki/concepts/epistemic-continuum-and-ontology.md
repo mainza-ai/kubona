@@ -2,8 +2,8 @@
 type: concept
 tags: [epistemics, continuum, lean4, ontology, stopping-rule, negative-results]
 date: 2026-10-07
-updated: 2026-10-07
-status: adopted
+updated: 2026-10-10
+status: settled
 sources:
   - source-architecture-paper
   - source-openai-math-corpus
