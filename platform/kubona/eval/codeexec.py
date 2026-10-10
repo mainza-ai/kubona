@@ -47,7 +47,7 @@ class PyexecSandboxConfig:
     at image-build time.
     """
 
-    image: str = "kubona-quantum-runner:1.0.0"
+    image: str = "kubona-quantum-runner:1.1.0"
     memory: str = "2g"
     memory_swap: str = "2g"
     cpus: str = "1.0"
