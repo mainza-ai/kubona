@@ -3,6 +3,7 @@ package jobs
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -301,5 +302,49 @@ func TestAdmissionQPUNeedsMandateReceipt(t *testing.T) {
 	qpu["max_cost_usd"] = 25.0
 	if _, err := r.SubmitJob("sess-qpu", "circuit_run", qpu); err == nil {
 		t.Fatalf("foreign-tenant receipt must refuse")
+	}
+}
+
+func TestAdmissionFidelityRefusesDeepCircuit(t *testing.T) {
+	r, cleanup := setupRunner(t, &fakeBridge{})
+	defer cleanup()
+
+	qasm := "OPENQASM 2.0;\nqreg q[2];\nh q[0];\n"
+	for i := 0; i < 400; i++ {
+		qasm += "cx q[0], q[1];\n"
+	}
+	// Shallow circuit passes fidelity but still needs spend authorization.
+	_, err := r.SubmitJob("sess-1", "circuit_run", map[string]any{
+		"qasm":              "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0], q[1];",
+		"requested_backend": "ibm_brisbane", "shots": 100,
+	})
+	if err == nil || !strings.Contains(err.Error(), "mandate_ref") {
+		t.Fatalf("shallow QPU job must reach (and fail) the mandate check, got: %v", err)
+	}
+	_, err = r.SubmitJob("sess-1", "circuit_run", map[string]any{
+		"qasm": qasm, "requested_backend": "ibm_brisbane", "shots": 100,
+	})
+	if err == nil {
+		t.Fatalf("400-CX circuit must refuse at the fidelity floor")
+	}
+}
+
+func TestAdmissionFidelityRefusesUnknownHardware(t *testing.T) {
+	r, cleanup := setupRunner(t, &fakeBridge{})
+	defer cleanup()
+
+	_, err := r.SubmitJob("sess-1", "circuit_run", map[string]any{
+		"qasm":              "OPENQASM 2.0;\nqreg q[2];\nh q[0];",
+		"requested_backend": "mystery_qpu_9000", "shots": 100,
+	})
+	if err == nil {
+		t.Fatalf("unknown hardware backend must refuse as unpredictable")
+	}
+}
+
+func TestCountQasmGates(t *testing.T) {
+	q, d, q2 := countQasmGates("OPENQASM 2.0;\nqreg q[3];\nh q[0];\ncx q[0], q[1];\nrz(0.5) q[2];\n")
+	if q != 3 || d != 3 || q2 != 1 {
+		t.Fatalf("got qubits=%d depth=%d twoQ=%d", q, d, q2)
 	}
 }

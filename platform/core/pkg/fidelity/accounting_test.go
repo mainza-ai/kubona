@@ -31,3 +31,30 @@ func TestFidelityAccountingAdmission(t *testing.T) {
 		t.Fatalf("expected REFUSE for unknown device, got %s", unknown.Decision)
 	}
 }
+
+func TestFloorOnlyUnknownDeviceRefuses(t *testing.T) {
+	fg := NewFidelityGate()
+	a := fg.EvaluateAdmissionFloorOnly("mystery_qpu", 4, 1)
+	if a.Decision != DecisionRefuse {
+		t.Fatalf("unknown device must refuse: %+v", a)
+	}
+}
+
+func TestFloorOnlyDeepCircuitMitigates(t *testing.T) {
+	fg := NewFidelityGate()
+	a := fg.EvaluateAdmissionFloorOnly("ibm_heron", 400, 400)
+	if a.Decision != DecisionMitigate {
+		t.Fatalf("deep circuit must mitigate, got %+v", a)
+	}
+	if a.PredictedFidelity >= 0.60 {
+		t.Fatalf("400x2q must be below floor: %f", a.PredictedFidelity)
+	}
+}
+
+func TestFloorOnlyShallowAdmits(t *testing.T) {
+	fg := NewFidelityGate()
+	a := fg.EvaluateAdmissionFloorOnly("ibm_heron", 2, 1)
+	if a.Decision != DecisionAdmit {
+		t.Fatalf("shallow circuit must admit: %+v", a)
+	}
+}
