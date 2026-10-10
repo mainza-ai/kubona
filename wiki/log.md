@@ -1239,3 +1239,14 @@ skipped is the exact failure this incident is about:
   runs. 9 tests green (incl. lying-attestation, bad-shots, unpriced-rail
   rejections); full Python suite 276 passed, 3 skipped. First graded sidecar
   still pending — suite is the artifact, not the grading.
+
+## [2026-10-10] verification | First conformance grading run (Q-24 gate)
+  Graded 5 in-repo candidates: PASS local-simulator (9/9) and dwave-annealing
+  (QUBO determinism; Bell/attestation/calibration N/A-named). FAIL xanadu
+  (missing optional dep), rigetti (missing pyquil AND unpriced per-second
+  rail — genuine schema gap, gate working), quantinuum (no creds). All
+  failures are environment/data facts, fail-closed, none are code bugs.
+  Two grader refinements from the run: annealing probed via solve_qubo, and
+  credential-free hardware attestation is N/A deferred to the admission-time
+  canary (named, never silent). Gate still open: no true external sidecar
+  graded yet. Suite 278 passed, 3 skipped; lint clean.
