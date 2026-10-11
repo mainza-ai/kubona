@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { KeyRound, ShieldCheck, AlertOctagon, Sparkles, ChevronDown, ChevronUp, Lock } from 'lucide-react';
 import { CampaignState, Session } from '@/types';
 import { createSignedSpendMandate } from '@/lib/mandates';
-import { verifySpendMandate } from '@/lib/api';
+import { verifySpendMandate, emergencyAbort } from '@/lib/api';
 import { ApprovalPacketCard } from '@/components/common/ApprovalPacketCard';
 import { buildApprovalPacketFromCampaign } from '@/lib/approvalPacket';
 
@@ -19,7 +19,8 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
   const targetName = campaign?.target_system || 'Target Molecular System';
 
   const [budgetUSD, setBudgetUSD] = useState(session?.spend_limit_usd ?? 25.0);
-  const [currentSpentUSD, setCurrentSpentUSD] = useState(session?.current_spend_usd ?? 1.42);
+  // Honest zero: no session means no recorded spend, not $1.42 of it.
+  const [currentSpentUSD, setCurrentSpentUSD] = useState(session?.current_spend_usd ?? 0);
   const [sovereignAirGap, setSovereignAirGap] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCryptoDetails, setShowCryptoDetails] = useState(false);
@@ -60,9 +61,21 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
     }
   };
 
-  const handleEmergencyStop = () => {
-    setActionMessage('Emergency Sentinel Stop engaged: All active simulations paused.');
-    setTimeout(() => setActionMessage(null), 4000);
+  const handleEmergencyStop = async () => {
+    const sid = session?.id || campaign?.session_id || '';
+    if (!sid) {
+      setActionMessage('No active session: open a campaign before triggering an abort.');
+      setTimeout(() => setActionMessage(null), 4000);
+      return;
+    }
+    if (!confirm('EMERGENCY ABORT: Settle every unsettled job in this session as failed?')) return;
+    const res = await emergencyAbort(sid, 'emergency pause from guardrails');
+    if (res) {
+      setActionMessage(`Ring 0 Intercept complete: ${res.aborted_count} job(s) settled failed. Receipt: ${res.abort_receipt}`);
+    } else {
+      setActionMessage('Abort refused or failed — nothing was settled. Retry or use ⌘. from the arena.');
+    }
+    setTimeout(() => setActionMessage(null), 6000);
   };
 
   return (
@@ -144,10 +157,10 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
           </div>
         </div>
 
-        {/* Budget Control Slider Card */}
+        {/* Budget Planning View (local sketch — enforcement lives in the session cap) */}
         <div className="w-full bg-black/50 border border-white/10 rounded-3xl p-6 backdrop-blur-xl space-y-4">
           <div className="flex justify-between items-center text-xs">
-            <span className="font-semibold text-white">Daily Spend Ceiling</span>
+            <span className="font-semibold text-white">Planning Ceiling <span className="text-slate-500 font-normal">(local view)</span></span>
             <span className="font-mono text-emerald-400 font-bold">${budgetUSD.toFixed(2)} Maximum</span>
           </div>
 

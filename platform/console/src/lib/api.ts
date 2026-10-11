@@ -723,8 +723,27 @@ export async function fetchLabs(): Promise<Lab[]> {
   }
 }
 
-export async function searchLiterature(query: string, limit = 5): Promise<{ records: import('@/types').LiteratureRecord[]; cached: boolean }> {
+// Ring-0 reflex intercept: settles every unsettled job in the session as
+// failed and seals the abort in the ledger. Returns count + receipt.
+export async function emergencyAbort(
+  sessionId: string,
+  reason = 'emergency abort from console'
+): Promise<{ aborted_count: number; abort_receipt: string } | null> {
   try {
+    const res = await fetch(`${API_BASE}/api/supervisor/abort`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ session_id: sessionId, reason }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.error('Abort failed and nothing was settled:', err);
+    return null;
+  }
+}
+
+export async function searchLiterature(query: string, limit = 5): Promise<{ records: import('@/types').LiteratureRecord[]; cached: boolean }> {  try {
     const res = await fetch(
       `${API_BASE}/api/literature?query=${encodeURIComponent(query)}&limit=${limit}`,
       { cache: 'no-store', headers: authHeaders() }
