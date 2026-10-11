@@ -1465,3 +1465,9 @@ skipped is the exact failure this incident is about:
   Functions path). Verdict: operator-gated (account, vault-leased key,
   entitlement, dep approval); conflict rule recorded (never pre-transpile,
   never double-suppress unmeasured). No code without credentials.
+
+## [2026-10-11] verification | Lambda fit calibrated on Stim+Pymatching
+  Repetition memory d=3/5/7 at p=0.008 gives Λ=14.4 through FitLambda's
+  formula (d=9 unresolvable at 100k shots). Validates fit machinery, not
+  vendor constants. Two harness bugs caught (rounds confounding, broadcast
+  shape). Deltakit full package uninstallable on py3.14; Stim-direct used.
