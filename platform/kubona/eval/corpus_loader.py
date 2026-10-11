@@ -103,6 +103,29 @@ def license_admissible(license_str: str | None) -> bool:
     return any(tok in lowered for tok in ADMISSIBLE_LICENSE_TOKENS)
 
 
+# Provenance tokens: every corpus file must declare how its content came
+# to be (quarantine rule). `generated` content (model-written annotations,
+# tasks, or solutions) is admissible ONLY with the declaration present —
+# undeclared provenance refuses the file, because unverifiable origins
+# corrupt every claim built on the score. Generated tasks additionally
+# require execution verification (the corpus satisfiability gate); the
+# declaration is what makes that requirement auditable.
+ADMISSIBLE_PROVENANCE_TOKENS = frozenset({
+    "authored", "transcribed", "curated", "generated", "upstream",
+})
+
+
+def provenance_declared(meta: dict[str, Any] | None) -> bool:
+    """Fail-closed provenance check for a corpus file's _meta block."""
+    if not isinstance(meta, dict):
+        return False
+    prov = meta.get("provenance")
+    if not isinstance(prov, str):
+        return False
+    lowered = prov.lower()
+    return any(tok in lowered for tok in ADMISSIBLE_PROVENANCE_TOKENS)
+
+
 def load_corpus_dir_with_report(path: str | Path) -> tuple[dict[str, dict], dict[str, str]]:
     """Like load_corpus_dir, plus per-file skip reasons (licence refusals)."""
     added: dict[str, dict] = {}
@@ -115,6 +138,11 @@ def load_corpus_dir_with_report(path: str | Path) -> tuple[dict[str, dict], dict
             skipped[f.name] = (
                 f"licence not admissible ({(meta.get('license') if isinstance(meta, dict) else None)!r}): "
                 "refusing file (Q-26)")
+            continue
+        if not provenance_declared(meta if isinstance(meta, dict) else None):
+            skipped[f.name] = (
+                "provenance undeclared: refusing file (quarantine rule — "
+                "state authored/transcribed/curated/generated/upstream)")
             continue
         for name, spec in data.items():
             if name.startswith("_"):

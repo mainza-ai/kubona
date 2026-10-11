@@ -28,7 +28,7 @@ def test_corpus_loader_rejects_invalid_entries(tmp_path):
     # a corpus with a bad-QASM entry and an unknown check kind is skipped cleanly
     d = tmp_path / "bad.json"
     d.write_text(json.dumps({
-        "_meta": {"license": "Apache-2.0 (in-repo authored)", "source_url": "test-fixture"},
+        "_meta": {"license": "Apache-2.0 (in-repo authored)", "source_url": "test-fixture", "provenance": "authored"},
         "good-ghz2": {"qasm": "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];", "check": "ghz", "check_params": {"n": 2}},
         "bad-qasm": {"qasm": "this is not qasm", "check": "ghz", "check_params": {"n": 2}},
         "bad-check": {"qasm": "OPENQASM 2.0;\nqreg q[1];", "check": "nonexistent"},
@@ -43,7 +43,7 @@ def test_corpus_licence_gate(tmp_path):
     import json
     from kubona.eval.corpus_loader import load_corpus_dir_with_report
 
-    good = {"_meta": {"license": "CC0", "source_url": "test"},
+    good = {"_meta": {"license": "CC0", "source_url": "test", "provenance": "authored"},
             "t1": {"qasm": "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];",
                    "check": "ghz", "check_params": {"n": 2}}}
     (tmp_path / "good.json").write_text(json.dumps(good))
@@ -52,10 +52,29 @@ def test_corpus_licence_gate(tmp_path):
         "t2": dict(good["t1"])}))
     (tmp_path / "nometa.json").write_text(json.dumps({"t3": dict(good["t1"])}))
     (tmp_path / "mit.json").write_text(json.dumps(
-        {"_meta": {"license": "MIT"}, "t4": dict(good["t1"])}))
+        {"_meta": {"license": "MIT", "provenance": "upstream"}, "t4": dict(good["t1"])}))
 
     added, skipped = load_corpus_dir_with_report(tmp_path)
     assert "t1" in added and "t4" in added
     assert "t2" not in added and "t3" not in added
     assert "prop.json" in skipped and "nometa.json" in skipped
     assert "proprietary" in skipped["prop.json"]
+
+
+def test_corpus_quarantine_rule(tmp_path):
+    """Undeclared provenance refuses the file even with a clean licence;
+    declared generated content loads (declaration is what makes the
+    execution-verification requirement auditable)."""
+    from kubona.eval.corpus_loader import load_corpus_dir_with_report
+
+    base_task = {"qasm": "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];",
+                 "check": "ghz", "check_params": {"n": 2}}
+    (tmp_path / "noprov.json").write_text(json.dumps(
+        {"_meta": {"license": "CC0"}, "t1": dict(base_task)}))
+    (tmp_path / "gen.json").write_text(json.dumps(
+        {"_meta": {"license": "CC0", "provenance": "generated"},
+         "t2": dict(base_task)}))
+    added, skipped = load_corpus_dir_with_report(tmp_path)
+    assert "t1" not in added and "noprov.json" in skipped
+    assert "quarantine" in skipped["noprov.json"]
+    assert "t2" in added

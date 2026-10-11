@@ -45,3 +45,15 @@ def test_licence_gate_refuses_code_corpus(tmp_path):
                                      "reference": "r", "entry_point": "f"}}))
     with pytest.raises(ValueError, match="refused"):
         load_code_tasks(bad)
+
+
+def test_humaneval_quarantine_refuses_undeclared(tmp_path):
+    import json as _json
+    from kubona.eval.humaneval import load_code_tasks
+    bad = tmp_path / "nometa.json"
+    bad.write_text(_json.dumps({"_meta": {"license": "Apache-2.0"},
+                                "t": {"prompt": "p", "tests": "t",
+                                      "reference": "r", "entry_point": "f"}}))
+    import pytest as _pytest
+    with _pytest.raises(ValueError, match="quarantine"):
+        load_code_tasks(bad)
