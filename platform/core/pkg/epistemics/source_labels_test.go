@@ -60,12 +60,47 @@ func TestSeedClaimsResolve(t *testing.T) {
 	}
 	gate := NewEpistemicGate()
 	for _, seed := range SeedClaims() {
-		gate.RegisterClaim(seed)
+		if err := gate.RegisterClaim(seed); err != nil {
+			t.Fatalf("valid seed refused: %v", err)
+		}
 	}
 	if ok, _ := gate.CanAssert("claim-h2-ground"); !ok {
 		t.Error("H2 seed (paper + computed anchor) must stay assertable")
 	}
 	if ok, _ := gate.CanAssert("claim-lih-dissociation"); ok {
 		t.Error("LiH seed (single pending-review source) must never assert")
+	}
+}
+
+// Registration enforces the vocabulary: invented citations refuse with the
+// claim left unrecorded, so CanAssert can never bless them afterwards.
+func TestRegisterClaimRefusesInventedSources(t *testing.T) {
+	gate := NewEpistemicGate()
+	err := gate.RegisterClaim(&ClaimWavefunction{
+		ClaimID:                  "claim-invented",
+		Statement:                "Something with made-up backing",
+		AlphaCorroborated:        0.99,
+		BetaContested:            0.01,
+		GammaUnverified:          0.01,
+		Sources:                  []string{"arxiv:1304.3061", "JACS:2014"},
+		ChemicalAccuracyDeltaMHa: 0.1,
+	})
+	if err == nil {
+		t.Fatal("invented citation must refuse registration")
+	}
+	if ok, _ := gate.CanAssert("claim-invented"); ok {
+		t.Fatal("refused claim must never assert")
+	}
+	// Empty sources remain legal: unattested is not the same as invented.
+	if err := gate.RegisterClaim(&ClaimWavefunction{
+		ClaimID:                  "claim-unattested",
+		Statement:                "No evidence yet",
+		AlphaCorroborated:        0.5,
+		BetaContested:            0.2,
+		GammaUnverified:          0.8,
+		Sources:                  nil,
+		ChemicalAccuracyDeltaMHa: 0.5,
+	}); err != nil {
+		t.Fatalf("empty sources must stay legal: %v", err)
 	}
 }

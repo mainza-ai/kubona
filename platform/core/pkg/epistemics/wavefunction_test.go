@@ -14,7 +14,7 @@ func TestEpistemicGateAssertion(t *testing.T) {
 		AlphaCorroborated:        0.5,
 		BetaContested:            0.2,
 		GammaUnverified:          0.8,
-		Sources:                  []string{"arxiv"},
+		Sources:                  []string{"arxiv:1304.3061"},
 		ChemicalAccuracyDeltaMHa: 0.5,
 	}
 	gate.RegisterClaim(weak)
@@ -34,7 +34,7 @@ func TestEpistemicGateAssertion(t *testing.T) {
 		AlphaCorroborated:        0.98,
 		BetaContested:            0.05,
 		GammaUnverified:          0.05,
-		Sources:                  []string{"nature-paper"},
+		Sources:                  []string{"doi:10.1038/ncomms5213"},
 		ChemicalAccuracyDeltaMHa: 0.4,
 	}
 	gate.RegisterClaim(singleSource)
@@ -50,7 +50,7 @@ func TestEpistemicGateAssertion(t *testing.T) {
 		AlphaCorroborated:        0.95,
 		BetaContested:            0.05,
 		GammaUnverified:          0.1,
-		Sources:                  []string{"arxiv", "jacs"},
+		Sources:                  []string{"arxiv:1304.3061", "pyscf:sto-3g:fci"},
 		ChemicalAccuracyDeltaMHa: 0.8,
 	}
 	gate.RegisterClaim(solid)
