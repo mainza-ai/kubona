@@ -164,6 +164,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[user-identity-and-profiles]] | Every actor (human or agent) is a keypair identity: profiles, labs, delegable+revocable authority |
 | [[workflows-and-agent-authoring]] | User- and agent-created workflows & agents; triggers, gates, registry, safety rail |
 | [[science-data-integrations]] | Literature & domain data (arXiv, OpenAlex, MPDS, …) as governed MCP resources |
+| [[market-intelligence-capability]] | Gather→curate→store ecosystem intelligence (TQI-model report, 2026-10-11): entity schema, ER, tiered validation, versioned snapshots — `candidate` |
 | [[ui-ux-vision]] | The full console/UX specification: personas, 8 surfaces, visual language, mobile, acceptance criteria |
 | [[design-evolution]] | Comparison: what the paper got right vs. what the plan expanded |
 | [[risks]] | Risk register with mitigations and sequencing decisions |
