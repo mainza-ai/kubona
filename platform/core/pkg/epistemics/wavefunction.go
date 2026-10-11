@@ -8,9 +8,9 @@ import (
 )
 
 var (
-	ErrUncollapsedClaim   = errors.New("cannot assert uncollapsed claim: P_corr < 0.75")
+	ErrUncollapsedClaim    = errors.New("cannot assert uncollapsed claim: P_corr < 0.75")
 	ErrInsufficientSources = errors.New("cannot assert claim: requires at least 2 independent sources")
-	ErrAccuracyExceeded   = errors.New("quantum-classical discrepancy exceeds chemical accuracy threshold (1.6 mHa)")
+	ErrAccuracyExceeded    = errors.New("quantum-classical discrepancy exceeds chemical accuracy threshold (1.6 mHa)")
 )
 
 // ClaimWavefunction represents the tripartite credibility state
@@ -46,8 +46,17 @@ func NewEpistemicGate() *EpistemicGate {
 	}
 }
 
-// RegisterClaim stores or updates a scientific hypothesis claim wavefunction
-func (g *EpistemicGate) RegisterClaim(cw *ClaimWavefunction) {
+// RegisterClaim stores or updates a scientific hypothesis claim wavefunction.
+// Sources are validated against the evidence vocabulary: an unresolvable
+// citation refuses registration outright, so invented evidence can never
+// enter the gate. An empty source list is legal (unattested claim); every
+// listed source must resolve.
+func (g *EpistemicGate) RegisterClaim(cw *ClaimWavefunction) error {
+	for _, src := range cw.Sources {
+		if !ValidSourceLabel(src) {
+			return fmt.Errorf("unresolvable source label %q on claim %q: refused, not recorded", src, cw.ClaimID)
+		}
+	}
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
@@ -67,6 +76,7 @@ func (g *EpistemicGate) RegisterClaim(cw *ClaimWavefunction) {
 	cw.Collapsed = (pCorr >= 0.75 && len(cw.Sources) >= 2 && cw.ChemicalAccuracyDeltaMHa <= 1.6)
 
 	g.claims[cw.ClaimID] = cw
+	return nil
 }
 
 // CanAssert determines whether an agent is mathematically allowed to assert the claim as established truth
