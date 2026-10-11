@@ -44,6 +44,13 @@ evaluation into four complementary tracks (source-gap-analysis-plan).
 > live and fixed by pinning `--entrypoint`. HumanEval/PennyLang sample
 > ingestion (licence-gated) remains the follow-up, not the harness.
 
+> Update 2026-10-11 — static gate + dependency pre-flight: unparseable
+> tasks refuse before any container spins up; tasks declaring `requires`
+> get closed-world import checks (stdlib + declared + solution) plus an
+> in-container probe that skips with the missing set *named* (the precise
+> shopping list for the next image revision) instead of dying as
+> ModuleNotFoundError. Undeclared tasks stay open-world.
+
 ## HumanEval ingested (2026-10-10): 136 golden-verified, 15 excluded-named
 
 `kubona/eval/corpora/humaneval.json` (Apache-2.0 meta with source URL, terms
