@@ -44,4 +44,20 @@ a real QEC run to consume it — building the pipeline with no producer
 would be speculative scaffolding. The re-fit discipline above is the
 down payment: when syndromes arrive, they land in records shaped like this.
 
+## Assessed, operator-gated: commercial suppression wrapper (2026-10-11)
+
+Vendor suppression API studied (docs): `execute`/`iterate` over abstract
+circuits with QASM input, `validate` compatibility checks, Qiskit-Function
+path on Premium/Flex plans. Integration verdict:
+
+- **Conflict rule (binding):** the wrapper does its own transpilation —
+  never pre-transpile before it, and never stack it with ZNE on the same
+  run without measuring the interaction. Double compilation and double
+  suppression are both silent budget burns.
+- **Gated on:** vendor account + API key (vault-leased, M2M-style — never
+  interactive), IBM Premium/Flex entitlement, third-party client dep
+  approval. Nothing in the API is exercisable credential-free (even
+  `validate` needs an account), so no code ships until the credentials
+  exist — a stub would be untestable theater.
+
 Related: [[mitiq]] · [[barren-plateau]] · [[circuit-cutting]] · [[nisq-and-hybrid-orchestration]]
