@@ -1490,3 +1490,9 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-11] verification | CI green on intelligence-report batch
   All 5 jobs success on run 38117115673. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | Intelligence entity core (phase-1 build)
+  kubona/intelligence/entities.py: 7 kinds + 5 rel kinds, deterministic-ID
+  upsert capped at T3, T2/T1 promotion ladder, alias-conflict refusal,
+  chained corrections, id-preserving retractions, citable snapshots.
+  8 stub tests green; candidate page updated (prototype register noted).
