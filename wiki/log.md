@@ -1534,3 +1534,8 @@ skipped is the exact failure this incident is about:
   props; spend card read-only, defers to Action Gate (own-signing widget
   refused: verifies nothing). Icon-only de-wording. Build + 26 vitest +
   eslint zero-warning + empty-stage smoke proven. Spec on [[ui-ux-vision]] s14.
+
+## [2026-10-11] question | Local-sim test scenarios filed + READMEs
+  Adopted [[local-simulation-test-scenarios]] (10 copy-paste co-pilot runs,
+  local-sim only, stack verified live before filing). Root + console READMEs
+  now carry real run/test instructions (Go core, dev token, gates).
