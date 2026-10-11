@@ -73,7 +73,6 @@ Everything runs inside the existing `Harness`/`Orchestrator` contract
    dialect must not loosen the equivalence gate.
 
 ## First equivalence-gated pass (built 2026-10-10)
-
 `circuits/schedule.py` implements fragile-late scheduling on the Python IR:
 non-Clifford gates drift right past provably-commuting neighbors (conservative
 rules: disjoint, diagonal-diagonal, same-axis rotations — everything else
@@ -84,6 +83,18 @@ The build caught three author errors live (non-terminating swap loop,
 inverted direction, misnormalized equivalence metric), all via the pass's
 own verification. Metric: first-non-Clifford index; termination argued by
 strictly-increasing position sum, tested by idempotence.
+
+## Pass portfolio (built 2026-10-11)
+
+`qir/portfolio.py` selects passes by circuit features (decompose when
+exotic gates present, fragile-late when non-Clifford present) instead of
+running one fixed pipeline, and emits the chained compile receipt the
+page specifies — input hash → per-pass hashes with evidence → output
+hash + output QASM. Evidence tiers apply per pass (exact equality where
+measurable, construction argument above 8 qubits); noise context is
+recorded but honestly marked unconsumed (no mapping pass exists yet).
+Exposed as the `compile_circuit` MCP tool, additive beside the existing
+two. Pass-sequence transfer caching (item 2 above) remains future.
 
 ## Boundary conditions
 
