@@ -864,7 +864,7 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		campState, _ := agents.SynthesizeCampaignStateWithOpts(r.Context(), sess.ID, sess.Title, req.TargetMolecule, req.Fresh, s.llmClient, s.jobRunner.BridgeClient())
 		if campState != nil {
 			campBytes, _ := json.Marshal(campState)
-			s.ledger.SaveCampaignState(sess.ID, campBytes)
+			s.ledger.SaveCampaignStateWithTrigger(sess.ID, campBytes, "session-create")
 		}
 		writeJSON(w, http.StatusCreated, sess)
 	default:
@@ -916,12 +916,31 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		stateBytes, _ := json.Marshal(state)
-		s.ledger.SaveCampaignState(sessionID, stateBytes)
+		s.ledger.SaveCampaignStateWithTrigger(sessionID, stateBytes, triggerLabel("synthesize", prompt))
 		s.ledger.AppendEvent(sessionID, "campaign_synthesized", map[string]any{
 			"target": state.TargetSystem,
 			"prompt": prompt,
 		})
 		writeJSON(w, http.StatusOK, state)
+		return
+	}
+	if strings.HasSuffix(id, "/campaign/versions") {
+		sessionID := strings.TrimSuffix(id, "/campaign/versions")
+		limit := 50
+		if raw := r.URL.Query().Get("limit"); raw != "" {
+			if n, err := strconv.Atoi(raw); err == nil && n > 0 {
+				limit = n
+			}
+		}
+		versions, err := s.ledger.GetCampaignVersions(sessionID, limit)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if versions == nil {
+			versions = []ledger.CampaignVersion{}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"versions": versions})
 		return
 	}
 	if strings.HasSuffix(id, "/campaign") {
@@ -944,7 +963,7 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		stateBytes, _ := json.Marshal(state)
-		s.ledger.SaveCampaignState(sessionID, stateBytes)
+		s.ledger.SaveCampaignStateWithTrigger(sessionID, stateBytes, "campaign-fetch")
 		writeJSON(w, http.StatusOK, state)
 		return
 	}
@@ -1051,7 +1070,7 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 		campState, _ := agents.SynthesizeCampaignState(r.Context(), sessionID, req.Content, s.llmClient, s.jobRunner.BridgeClient())
 		if campState != nil {
 			campBytes, _ := json.Marshal(campState)
-			s.ledger.SaveCampaignState(sessionID, campBytes)
+			s.ledger.SaveCampaignStateWithTrigger(sessionID, campBytes, triggerLabel("chat", req.Content))
 		}
 
 		writeJSON(w, http.StatusCreated, map[string]any{
@@ -1179,7 +1198,7 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 	var campState any
 	if cs, _ := agents.SynthesizeCampaignState(r.Context(), sessionID, req.Content, s.llmClient, s.jobRunner.BridgeClient()); cs != nil {
 		if campBytes, merr := json.Marshal(cs); merr == nil {
-			s.ledger.SaveCampaignState(sessionID, campBytes)
+			s.ledger.SaveCampaignStateWithTrigger(sessionID, campBytes, triggerLabel("chat-stream", req.Content))
 		}
 		campState = cs
 	}
@@ -1231,7 +1250,7 @@ func (s *Server) handleChatRegenerate(w http.ResponseWriter, r *http.Request) {
 	_, servedModel, _ := s.llmSettings.GetModelForRole("copilot")
 	if campState, _ := agents.SynthesizeCampaignState(r.Context(), sessionID, prompt, s.llmClient, s.jobRunner.BridgeClient()); campState != nil {
 		if campBytes, merr := json.Marshal(campState); merr == nil {
-			s.ledger.SaveCampaignState(sessionID, campBytes)
+			s.ledger.SaveCampaignStateWithTrigger(sessionID, campBytes, "regenerate")
 		}
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{
@@ -1316,6 +1335,20 @@ func (s *Server) handleChatRewrite(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"rewritten": true, "message": msg})
+}
+
+// triggerLabel builds a bounded trigger string for campaign versions:
+// kind plus up to 120 runes of source text. Prompts can be long; the
+// trigger names the cause, it never stores the whole prompt.
+func triggerLabel(kind, text string) string {
+	t := strings.TrimSpace(text)
+	if len([]rune(t)) > 120 {
+		t = string([]rune(t)[:120]) + "…"
+	}
+	if t == "" {
+		return kind
+	}
+	return kind + ":" + t
 }
 
 func (s *Server) generateCopilotResponse(ctx context.Context, sessionID, content string) (string, *json.RawMessage, error) { // 1. Fetch recent messages for session context
@@ -1568,7 +1601,7 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 	campState, _ := agents.SynthesizeCampaignState(r.Context(), req.SessionID, req.Prompt, s.llmClient, s.jobRunner.BridgeClient())
 	if campState != nil {
 		campBytes, _ := json.Marshal(campState)
-		s.ledger.SaveCampaignState(req.SessionID, campBytes)
+		s.ledger.SaveCampaignStateWithTrigger(req.SessionID, campBytes, triggerLabel("tribunal", req.Prompt))
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{

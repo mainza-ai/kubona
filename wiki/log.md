@@ -1622,3 +1622,8 @@ skipped is the exact failure this incident is about:
   QASM gate broke 7 tests on stub programs; fixtures now submit minimal
   valid QASM (dispatch requires a program — doctrine, not breakage).
   All 5 jobs success on run 38161426719, race-clean locally.
+
+## [2026-10-11] implementation | Versioned campaigns + history endpoint
+  campaign_versions table (cap 50, rowid versions, triggers); all 7
+  writers labeled; GET .../campaign/versions. Live: session-create +
+  chat triggers recorded. Full Go suite green.

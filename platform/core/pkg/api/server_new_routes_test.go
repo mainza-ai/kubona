@@ -967,3 +967,49 @@ func TestLiteratureRouteGuards(t *testing.T) {
 		t.Fatalf("bridgeless literature must 503, got %d", w.Code)
 	}
 }
+
+func TestCampaignVersionsEndpoint(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+
+	sessBody, _ := json.Marshal(map[string]any{"title": "versions drill"})
+	sessReq := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewReader(sessBody))
+	sessW := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(sessW, sessReq)
+	if sessW.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for session, got %d", sessW.Code)
+	}
+	var sessResp struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(sessW.Body).Decode(&sessResp); err != nil {
+		t.Fatal(err)
+	}
+
+	getReq := httptest.NewRequest(http.MethodGet, "/api/sessions/"+sessResp.ID+"/campaign/versions?limit=10", nil)
+	getW := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(getW, getReq)
+	if getW.Code != http.StatusOK {
+		t.Fatalf("expected 200 for versions, got %d", getW.Code)
+	}
+	var out struct {
+		Versions []struct {
+			Version int64  `json:"version"`
+			Trigger string `json:"trigger"`
+		} `json:"versions"`
+	}
+	if err := json.NewDecoder(getW.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Versions) != 1 || out.Versions[0].Trigger != "session-create" {
+		t.Errorf("expected single session-create version, got %+v", out.Versions)
+	}
+
+	// Unknown session: empty list, never an error shell.
+	missReq := httptest.NewRequest(http.MethodGet, "/api/sessions/missing/campaign/versions", nil)
+	missW := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(missW, missReq)
+	if missW.Code != http.StatusOK {
+		t.Fatalf("expected 200 for unknown session versions, got %d", missW.Code)
+	}
+}

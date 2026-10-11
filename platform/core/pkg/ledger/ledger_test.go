@@ -204,3 +204,68 @@ func TestMigrationAddsSpendColumns(t *testing.T) {
 		t.Fatalf("migrated jobs columns must accept reservations: %v", err)
 	}
 }
+
+func TestCampaignVersions(t *testing.T) {
+	dbPath := "test_campaign_versions.db"
+	defer os.Remove(dbPath)
+
+	l, err := ledger.OpenLedger(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open ledger: %v", err)
+	}
+	defer l.Close()
+
+	sid := "sess-versions"
+	for i, trigger := range []string{"session-create", "chat:first", "chat:second"} {
+		if err := l.SaveCampaignStateWithTrigger(sid, []byte(`{"v":`+itoaTest(i)+`}`), trigger); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Live row holds the latest.
+	raw, err := l.GetCampaignState(sid)
+	if err != nil || string(raw) != `{"v":2}` {
+		t.Errorf("live row must hold latest, got %s / %v", raw, err)
+	}
+	versions, err := l.GetCampaignVersions(sid, 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(versions) != 3 {
+		t.Fatalf("expected 3 versions, got %d", len(versions))
+	}
+	for i, v := range versions {
+		if v.Version <= 0 {
+			t.Errorf("version %d has no rowid version", i)
+		}
+	}
+	if versions[0].Trigger != "session-create" || versions[2].Trigger != "chat:second" {
+		t.Errorf("triggers out of order: %+v", versions)
+	}
+	// Cap enforcement: push 60 more, oldest must fall off at 50.
+	for i := 0; i < 60; i++ {
+		if err := l.SaveCampaignStateWithTrigger(sid, []byte(`{"v":"x"}`), "flood"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	versions, _ = l.GetCampaignVersions(sid, 100)
+	if len(versions) != 50 {
+		t.Errorf("expected capped history of 50, got %d", len(versions))
+	}
+	if versions[0].Trigger != "flood" {
+		t.Errorf("oldest rows must fall off first, oldest trigger is %q", versions[0].Trigger)
+	}
+}
+
+func itoaTest(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	var buf [20]byte
+	i := len(buf)
+	for n > 0 {
+		i--
+		buf[i] = byte('0' + n%10)
+		n /= 10
+	}
+	return string(buf[i:])
+}

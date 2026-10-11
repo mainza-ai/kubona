@@ -145,6 +145,15 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 		FOREIGN KEY (session_id) REFERENCES sessions(id)
 	);
 
+	CREATE TABLE IF NOT EXISTS campaign_versions (
+		session_id TEXT NOT NULL,
+		state_json TEXT NOT NULL,
+		trigger TEXT NOT NULL DEFAULT '',
+		created_at DATETIME NOT NULL,
+		FOREIGN KEY (session_id) REFERENCES sessions(id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_campaign_versions_session ON campaign_versions(session_id);
+
 	CREATE INDEX IF NOT EXISTS idx_chat_session ON chat_messages(session_id);
 	CREATE INDEX IF NOT EXISTS idx_jobs_session ON jobs(session_id);
 	CREATE INDEX IF NOT EXISTS idx_ledger_session ON ledger_events(session_id);
@@ -435,13 +444,73 @@ func (l *Ledger) GetRecentEvents(sessionID string, limit int) ([]EventRecord, er
 }
 
 func (l *Ledger) SaveCampaignState(sessionID string, stateJSON []byte) error {
+	return l.SaveCampaignStateWithTrigger(sessionID, stateJSON, "")
+}
+
+// maxCampaignVersions bounds per-session history. Versions are small JSON
+// snapshots; the cap prevents unbounded growth while keeping a useful
+// audit trail of how the campaign evolved.
+const maxCampaignVersions = 50
+
+// SaveCampaignStateWithTrigger upserts the live row and appends an
+// immutable version row recording what triggered the write (e.g. the chat
+// prompt, "tribunal", "launch"). The live row stays the fast path;
+// the versions table is the audit trail — state evolution, not just state.
+func (l *Ledger) SaveCampaignStateWithTrigger(sessionID string, stateJSON []byte, trigger string) error {
 	l.lock.Lock()
 	defer l.lock.Unlock()
 
+	now := time.Now().UTC().Format(time.RFC3339)
 	query := `INSERT INTO campaign_states (session_id, state_json, updated_at) VALUES (?, ?, ?)
 		ON CONFLICT(session_id) DO UPDATE SET state_json = excluded.state_json, updated_at = excluded.updated_at`
-	_, err := l.db.Exec(query, sessionID, string(stateJSON), time.Now().UTC().Format(time.RFC3339))
-	return err
+	if _, err := l.db.Exec(query, sessionID, string(stateJSON), now); err != nil {
+		return err
+	}
+	if _, err := l.db.Exec(
+		`INSERT INTO campaign_versions (session_id, state_json, trigger, created_at) VALUES (?, ?, ?, ?)`,
+		sessionID, string(stateJSON), trigger, now); err != nil {
+		return err
+	}
+	// Bound history: drop oldest beyond the cap (by rowid, never by time).
+	_, _ = l.db.Exec(
+		`DELETE FROM campaign_versions WHERE session_id = ? AND rowid NOT IN (
+			SELECT rowid FROM campaign_versions WHERE session_id = ? ORDER BY rowid DESC LIMIT ?)`,
+		sessionID, sessionID, maxCampaignVersions)
+	return nil
+}
+
+// CampaignVersion is one immutable snapshot of a session's campaign.
+type CampaignVersion struct {
+	Version   int64  `json:"version"`
+	StateJSON string `json:"state_json"`
+	Trigger   string `json:"trigger"`
+	CreatedAt string `json:"created_at"`
+}
+
+// GetCampaignVersions returns the session's campaign history, oldest first.
+func (l *Ledger) GetCampaignVersions(sessionID string, limit int) ([]CampaignVersion, error) {
+	if limit <= 0 || limit > maxCampaignVersions {
+		limit = maxCampaignVersions
+	}
+	l.lock.RLock()
+	defer l.lock.RUnlock()
+
+	rows, err := l.db.Query(
+		`SELECT rowid, state_json, trigger, created_at FROM campaign_versions WHERE session_id = ? ORDER BY rowid ASC LIMIT ?`,
+		sessionID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []CampaignVersion
+	for rows.Next() {
+		var v CampaignVersion
+		if err := rows.Scan(&v.Version, &v.StateJSON, &v.Trigger, &v.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
 }
 
 func (l *Ledger) GetCampaignState(sessionID string) ([]byte, error) {
