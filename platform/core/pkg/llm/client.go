@@ -25,7 +25,7 @@ type ChatMessage struct {
 }
 
 type ChatCompletionRequest struct {
-	Model       string `json:"model"`
+	Model string `json:"model"`
 	// Messages is the wire-ready payload: plain chat marshals identically,
 	// while tool_calls / tool results take the OpenAI function shape via
 	// withToolMessages. Callers pass ChatMessage slices through it.
@@ -181,7 +181,7 @@ func (c *Client) CompleteStream(ctx context.Context, role string, messages []Cha
 
 	body := map[string]any{
 		"model":          model,
-		"messages":       messages,
+		"messages":       withToolMessages(messages),
 		"temperature":    snap.Temperature,
 		"stream":         true,
 		"stream_options": map[string]any{"include_usage": true},

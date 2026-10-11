@@ -1748,3 +1748,11 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-11] verification | CI green on B0-3 launch honesty
   All 5 jobs success on run 38178614233. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | B0-4 tool-loop integrity
+  Stream serializes wire tool messages (pinned); observeTurn returns
+  ObservedCalls attached per turn + audited as tool_called (helper
+  tested); tribunal memory attributes real tools; dead stream
+  helpers + RoleManifest allow-list deleted; registry grant/deny
+  contract test replaces AuthorizeTool tests. Live stream turn
+  used tools + retained them. Full Go suite green.

@@ -36,12 +36,9 @@ func TestEndToEndScientificCampaign(t *testing.T) {
 		t.Fatalf("failed to create session: %v", err)
 	}
 
-	// 2. Multi-Agent Collective Engagement
-	collective := agents.NewAgentCollective()
-	auth, _ := collective.AuthorizeTool(agents.RoleEpistemicScribe, "evaluate_wavefunction")
-	if !auth {
-		t.Fatalf("Epistemic Scribe authorization failed")
-	}
+	// 2. Multi-Agent Collective Engagement (tool authorization lives in
+	// the single registry, enforced at dispatch — not in manifests)
+	_ = agents.NewAgentCollective()
 
 	// 3. Classical Anchor Baseline from PySCF STO-3G (Simulated exact value: -1.13727 Ha)
 	eFCI := -1.13727
