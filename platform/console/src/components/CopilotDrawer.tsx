@@ -638,6 +638,11 @@ export function CopilotDrawer({
         <div className="flex items-center gap-1.5 text-[10px] font-code text-cyan-400">
           <span>✦</span>
           <span>LAUNCHABLE PROPOSAL</span>
+          {p.designed_by === 'server-fallback' && (
+            <span className="ml-auto px-1.5 py-0.5 rounded bg-amber-400/15 border border-amber-400/40 text-amber-300" title="Circuit synthesized by the server as scaffolding, not designed by the model — review before launch">
+              SERVER FALLBACK
+            </span>
+          )}
         </div>
         <div className="text-xs text-white font-medium">{p.target}</div>
         <div className="grid grid-cols-2 gap-2 text-[10px] font-code text-slate-400">
