@@ -1725,3 +1725,6 @@ skipped is the exact failure this incident is about:
   statement, method, notebook verdict/sections; replan anchor
   fold promotes to pyscf-live. Live: bridge-up synthesizes
   computed:true/pyscf-live. Full Go suite green.
+
+## [2026-10-11] verification | CI green on B0-1 anchor flag
+  All 5 jobs success on run 38175615366. Tree clean, zero unpushed.
