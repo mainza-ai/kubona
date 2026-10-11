@@ -130,6 +130,12 @@ machinery:
   OAuth-from-env, 6 s rate floor, 4 GB/week quota refuse, unparseable-refuse,
   licence flag into ledger; 4 stub tests green. Live use gated on operator
   registration.
+- **Built 2026-10-11 (ER pipeline):** `intelligence/resolve.py` — pure-python
+  block→match→cluster with *verified* merges (candidate must clear the floor
+  against every member, refusing transitive chain-merges), sparsity floor
+  (thin records need an exact hit), proposals-only output with
+  validator-gated `apply_merges` (losers retracted with supersedes chains);
+  5 tests green including a chain-refusal case that naive single-link would fail.
 - **Gated (operator/business-model):** any dataset *product*, any API serving
   third parties, any paid source — needs the business-model sign-off already
   listed as blocked, plus per-source licence review.
