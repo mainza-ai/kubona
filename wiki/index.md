@@ -159,6 +159,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[agent-resource-economy]] | Attention→resources reframe; 5-layer stack; startup patterns |
 | [[agent-ux-control-plane]] | Human oversight: circuit viz, loop inspector, approval console, experiment notebook, labs/workflows view (→ [[ui-ux-vision]] for the full spec) |
 | [[evaluation-and-benchmarks]] | Code-gen evals + hardware canary CI + agent-behavior evals |
+| [[local-simulation-test-scenarios]] | 10 adopted co-pilot/console scenarios, local-sim only (2026-10-11) |
 | [[meta-search-and-self-evolution]] | The §13 second tier above the autoresearch loop: revises *how* Kubona searches; GQE flywheel, stricter safety gate |
 | [[science-discovery]] | Kubona as an AI-enhanced science discovery platform: the 7-stage discovery loop, self-experimentation, systematic results |
 | [[user-identity-and-profiles]] | Every actor (human or agent) is a keypair identity: profiles, labs, delegable+revocable authority |
