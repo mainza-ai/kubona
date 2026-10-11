@@ -124,7 +124,12 @@ machinery:
   guessing, validator-named `tag_entity()`; 4 tests green.
 - **Next (keys/approvals):** one new connector at a time with permission rows
   (patents first — highest claim value for prior art); ER pipeline on the
-  company/paper corpus behind the static gate.
+  company/paper corpus behind the static gate. **Built 2026-10-11 (patents
+  first):** `intelligence/patents.py` — EPO OPS seam with terms verified
+  against epo.org (permission row on [[science-data-integrations]]),
+  OAuth-from-env, 6 s rate floor, 4 GB/week quota refuse, unparseable-refuse,
+  licence flag into ledger; 4 stub tests green. Live use gated on operator
+  registration.
 - **Gated (operator/business-model):** any dataset *product*, any API serving
   third parties, any paid source — needs the business-model sign-off already
   listed as blocked, plus per-source licence review.

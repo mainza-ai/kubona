@@ -54,6 +54,7 @@ relevant to Kubona, ranked by leverage.
 | **OpenAlex** | ✅ search/list/singleton | ✅ CC0 data, cache encouraged | ✅ CC0, share freely | ✅ CC0 dataset + monthly snapshot | polite-pool `mailto` when `KUBONA_CONTACT_EMAIL` is set (10/s vs 1/s); search is the priciest endpoint ($1/1k) — `select`/batch filters preferred |
 | **Semantic Scholar** | ⚠️ not integrated | — | — | S2ORC bulk via dataset request only | 1000 req/s shared pool when integrated; throttled under load |
 | **mock-papers** | ✅ in-repo fixture | n/a | n/a | n/a | deterministic offline reference corpus |
+| **EPO OPS** (patents; terms verified 2026-10-11 vs epo.org) | ⚠️ registration-gated: OAuth key/secret via `KUBONA_EPO_OPS_KEY/SECRET` (operator step) | ✅ biblio/legal/full-text metadata into own DB | ✅ quote with source link | ⚠️ derived products only — never redistribute raw data as such (OPS T&C s3); no royalties on derived products | free ≤4 GB/calendar week (excess €2,800/yr); ≥6 s between searches; ~1 Mbit/s; bulk 19:00–07:00 GMT; robot access welcomed on OPS, never scrape Espacenet |
 
 Every fetch carries its license flag into the ledger (`ground_literature` writes
 `license` + `freshness` per record); no contact address is ever invented (mailto

@@ -1505,3 +1505,8 @@ skipped is the exact failure this incident is about:
 ## [2026-10-11] verification | CI green on intelligence-core batch
   All 5 jobs success on run 38119169930 (entity store + taxonomy v0).
   Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | EPO OPS patent connector (terms-verified)
+  intelligence/patents.py: OAuth-from-env, 6s floor, 4GB/week refuse,
+  licence flag to ledger; permission row added (T&C s3 derived-only,
+  fair-use limits). 4 stub tests green; live use = operator registration.
