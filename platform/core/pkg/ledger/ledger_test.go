@@ -269,3 +269,51 @@ func itoaTest(n int) string {
 	}
 	return string(buf[i:])
 }
+
+func TestMintClaimRecordRoundTrip(t *testing.T) {
+	dbPath := "test_claim_records.db"
+	defer os.Remove(dbPath)
+
+	l, err := ledger.OpenLedger(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open ledger: %v", err)
+	}
+	defer l.Close()
+
+	r1, err := l.MintClaimRecord("sess-claims", "claim_eval", "Evaluated claim: within 0.4 mHa",
+		0.97, 0.02, 0.05, "verified", `{"job_id":"j1"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(r1.ID) < 13 || r1.ID[:4] != "clm-" {
+		t.Errorf("record ID must be stable and prefixed, got %q", r1.ID)
+	}
+	r2, err := l.MintClaimRecord("sess-claims", "tribunal", "Tribunal consensus: go",
+		-1, -1, -1, "verified", `{}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r1.ID == r2.ID {
+		t.Error("per-turn IDs must differ")
+	}
+
+	list, err := l.ListClaimRecords("sess-claims", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 2 || list[0].ID != r2.ID || list[1].ID != r1.ID {
+		t.Errorf("newest-first ordering broken: %+v", list)
+	}
+	if list[1].Alpha != 0.97 || list[0].Alpha != -1 {
+		t.Error("amplitudes must round-trip, -1 sentinel preserved")
+	}
+	if empty, _ := l.ListClaimRecords("ghost", 10); len(empty) != 0 {
+		t.Error("unknown session must list nothing")
+	}
+	if _, err := l.MintClaimRecord("", "tribunal", "x", -1, -1, -1, "verified", ""); err == nil {
+		t.Error("empty session must refuse a mint")
+	}
+	if _, err := l.MintClaimRecord("s", "tribunal", "  ", -1, -1, -1, "verified", ""); err == nil {
+		t.Error("empty statement must refuse a mint")
+	}
+}

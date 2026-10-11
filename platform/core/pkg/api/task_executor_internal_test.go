@@ -25,6 +25,9 @@ func TestMapA2ATaskToJobContract(t *testing.T) {
 		{"zne_error_mitigation", `{}`},
 		{"krylov_subspace_ground_state", `{"molecule":"H2"}`},
 		{"molecular_ground_state_pyscf", `not-json`},
+		{"epistemic_claim_evaluation", `{}`},
+		{"epistemic_claim_evaluation", `{"claim_id":"c1","statement":"s"}`},
+		{"epistemic_claim_evaluation", `{"claim_id":"c1","statement":"s","quantum_value":-1.1,"classical_anchor_value":-1.13}`},
 	} {
 		if _, _, err := mapA2ATaskToJob(tc.taskType, json.RawMessage(tc.payload)); err == nil {
 			t.Fatalf("%s %s must refuse", tc.taskType, tc.payload)
@@ -37,12 +40,14 @@ func TestMapA2ATaskToJobContract(t *testing.T) {
 		"circuit_cutting_recombination": "circuit_cut",
 		"zne_error_mitigation":          "mitigate",
 		"krylov_subspace_ground_state":  "krylov_solve",
+		"epistemic_claim_evaluation":    "claim_eval",
 	}
 	payloads := map[string]string{
 		"molecular_ground_state_pyscf":  `{"molecule":"H2","bond_distance":0.7414}`,
 		"circuit_cutting_recombination": `{"qasm":"q;","max_subcircuit_qubits":2}`,
 		"zne_error_mitigation":          `{"qasm":"q;"}`,
 		"krylov_subspace_ground_state":  `{"molecule":"H2","bond_distance":0.7414}`,
+		"epistemic_claim_evaluation":    `{"claim_id":"claim-h2-ground","statement":"H2 within chemical accuracy","quantum_value":-1.1368,"classical_anchor_value":-1.13727,"source_platforms":["pyscf","aer"],"total_engagement":12}`,
 	}
 	for taskType, wantJob := range mapped {
 		jobType, _, err := mapA2ATaskToJob(taskType, json.RawMessage(payloads[taskType]))

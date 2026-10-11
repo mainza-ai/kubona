@@ -34,7 +34,7 @@ func TestReplanCircuitRun(t *testing.T) {
 	before := decodeReplan(t, raw)
 
 	updated, changed, _ := ReplanWithJobResult(raw, "job-abcdef123456", "circuit_run",
-		[]byte(`{"success":true,"resolved_backend":"local_simulator","meyer_wallach_entanglement":0.77,"counts":{"00":512,"11":512}}`))
+		[]byte(`{"success":true,"resolved_backend":"local_simulator","meyer_wallach_entanglement":0.77,"counts":{"00":512,"11":512}}`), "")
 	if !changed {
 		t.Fatal("measured entanglement must fold")
 	}
@@ -52,7 +52,7 @@ func TestReplanCircuitRun(t *testing.T) {
 
 	// success=false measures nothing: no fold, no version.
 	if _, changed, _ := ReplanWithJobResult(raw, "job-x", "circuit_run",
-		[]byte(`{"success":false,"error_message":"boom"}`)); changed {
+		[]byte(`{"success":false,"error_message":"boom"}`), ""); changed {
 		t.Error("failed run must not fold")
 	}
 }
@@ -62,7 +62,7 @@ func TestReplanKrylov(t *testing.T) {
 	before := decodeReplan(t, raw)
 
 	updated, changed, _ := ReplanWithJobResult(raw, "job-krylov1", "krylov_solve",
-		[]byte(`{"success":true,"ground_state_energy":-1.13699,"classical_fci_energy":-1.13727,"meyer_wallach_entanglement":0.81}`))
+		[]byte(`{"success":true,"ground_state_energy":-1.13699,"classical_fci_energy":-1.13727,"meyer_wallach_entanglement":0.81}`), "")
 	if !changed {
 		t.Fatal("krylov energy must fold")
 	}
@@ -87,7 +87,7 @@ func TestReplanAnchor(t *testing.T) {
 	before := decodeReplan(t, raw)
 
 	updated, changed, _ := ReplanWithJobResult(raw, "job-anchor1", "classical_anchor",
-		[]byte(`{"success":true,"molecule":"H2","bond_distance":0.7414,"rhf_energy":-1.11670,"fci_exact_energy":-1.13730}`))
+		[]byte(`{"success":true,"molecule":"H2","bond_distance":0.7414,"rhf_energy":-1.11670,"fci_exact_energy":-1.13730}`), "")
 	if !changed {
 		t.Fatal("recomputed anchor must fold")
 	}
@@ -104,7 +104,7 @@ func TestReplanAnchor(t *testing.T) {
 
 	// Wrong-molecule anchor corrupts: refuse the fold.
 	if _, changed, note := ReplanWithJobResult(raw, "job-anchor2", "classical_anchor",
-		[]byte(`{"success":true,"molecule":"LiH","bond_distance":1.5957,"rhf_energy":-7.86,"fci_exact_energy":-7.88}`)); changed {
+		[]byte(`{"success":true,"molecule":"LiH","bond_distance":1.5957,"rhf_energy":-7.86,"fci_exact_energy":-7.88}`), ""); changed {
 		t.Error("mismatched molecule must not fold")
 	} else if !strings.Contains(note, "mismatch") {
 		t.Errorf("refusal must name the cause, got %q", note)
@@ -115,7 +115,7 @@ func TestReplanClaimEval(t *testing.T) {
 	raw := replanTestState(t, "H2 ground state VQE")
 
 	updated, changed, _ := ReplanWithJobResult(raw, "job-claim1", "claim_eval",
-		[]byte(`{"claim_id":"c1","corroborated_amplitude":0.97,"contested_amplitude":0.02,"unverified_amplitude":0.05,"passes_chemical_accuracy":true,"verdict_reason":"within 0.4 mHa"}`))
+		[]byte(`{"claim_id":"c1","corroborated_amplitude":0.97,"contested_amplitude":0.02,"unverified_amplitude":0.05,"passes_chemical_accuracy":true,"verdict_reason":"within 0.4 mHa"}`), "")
 	if !changed {
 		t.Fatal("verdict must fold")
 	}
@@ -125,7 +125,7 @@ func TestReplanClaimEval(t *testing.T) {
 	}
 
 	updated, changed, _ = ReplanWithJobResult(raw, "job-claim2", "claim_eval",
-		[]byte(`{"claim_id":"c2","corroborated_amplitude":0.40,"contested_amplitude":0.50,"unverified_amplitude":0.30,"passes_chemical_accuracy":false,"verdict_reason":"3.2 mHa off"}`))
+		[]byte(`{"claim_id":"c2","corroborated_amplitude":0.40,"contested_amplitude":0.50,"unverified_amplitude":0.30,"passes_chemical_accuracy":false,"verdict_reason":"3.2 mHa off"}`), "")
 	if !changed {
 		t.Fatal("failing verdict must fold")
 	}
@@ -136,7 +136,7 @@ func TestReplanClaimEval(t *testing.T) {
 
 	// Amplitude-free payload evaluates nothing.
 	if _, changed, _ := ReplanWithJobResult(raw, "job-claim3", "claim_eval",
-		[]byte(`{"claim_id":"c3","verdict_reason":"empty"}`)); changed {
+		[]byte(`{"claim_id":"c3","verdict_reason":"empty"}`), ""); changed {
 		t.Error("verdict without amplitudes must not fold")
 	}
 }
@@ -145,7 +145,7 @@ func TestReplanNotebookOnlyAndUnknown(t *testing.T) {
 	raw := replanTestState(t, "H2 ground state VQE")
 
 	updated, changed, _ := ReplanWithJobResult(raw, "job-mit1", "mitigate",
-		[]byte(`{"success":true,"unmitigated_value":-1.135,"mitigated_value":-1.1371,"error_bound":0.001,"method_used":"ZNE"}`))
+		[]byte(`{"success":true,"unmitigated_value":-1.135,"mitigated_value":-1.1371,"error_bound":0.001,"method_used":"ZNE"}`), "")
 	if !changed {
 		t.Fatal("mitigation must record")
 	}
@@ -158,10 +158,10 @@ func TestReplanNotebookOnlyAndUnknown(t *testing.T) {
 		t.Error("mitigation must not touch state fields")
 	}
 
-	if _, changed, _ := ReplanWithJobResult(raw, "job-zzz", "teleport", []byte(`{"success":true}`)); changed {
+	if _, changed, _ := ReplanWithJobResult(raw, "job-zzz", "teleport", []byte(`{"success":true}`), ""); changed {
 		t.Error("unknown job type must not fold")
 	}
-	if _, changed, _ := ReplanWithJobResult(raw, "job-zzz", "circuit_run", []byte(`not json`)); changed {
+	if _, changed, _ := ReplanWithJobResult(raw, "job-zzz", "circuit_run", []byte(`not json`), ""); changed {
 		t.Error("undecodable result must not fold")
 	}
 }
@@ -178,7 +178,7 @@ func TestReplanNotebookCap(t *testing.T) {
 	}
 	full, _ := json.Marshal(state)
 
-	updated, changed, _ := ReplanWithJobResult(full, "job-cap1", "circuit_run", []byte(`{"success":true}`))
+	updated, changed, _ := ReplanWithJobResult(full, "job-cap1", "circuit_run", []byte(`{"success":true}`), "")
 	if !changed {
 		t.Fatal("expected fold")
 	}
@@ -198,5 +198,44 @@ func TestReplanNotebookCap(t *testing.T) {
 	}
 	if kept != narrative {
 		t.Errorf("narrative must survive the cap: kept %d of %d", kept, narrative)
+	}
+}
+
+func TestEvalClaimRecordDraft(t *testing.T) {
+	draft, ok := EvalClaimRecord([]byte(`{"claim_id":"claim-h2-ground","corroborated_amplitude":0.97,"contested_amplitude":0.02,"unverified_amplitude":0.05,"passes_chemical_accuracy":true,"verdict_reason":"within 0.4 mHa"}`))
+	if !ok {
+		t.Fatal("evaluable verdict must draft")
+	}
+	if draft.Verdict != "verified" || draft.Alpha != 0.97 || draft.ExternalID != "claim-h2-ground" {
+		t.Errorf("draft wrong: %+v", draft)
+	}
+	if _, ok := EvalClaimRecord([]byte(`{"claim_id":"c3","verdict_reason":"empty"}`)); ok {
+		t.Error("amplitude-free verdict must not draft")
+	}
+	if _, ok := EvalClaimRecord([]byte(`not json`)); ok {
+		t.Error("undecodable result must not draft")
+	}
+}
+
+func TestReplanCitesClaimRecord(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+	updated, changed, _ := ReplanWithJobResult(raw, "job-claim9", "claim_eval",
+		[]byte(`{"claim_id":"c9","corroborated_amplitude":0.9,"contested_amplitude":0.05,"unverified_amplitude":0.1,"passes_chemical_accuracy":true,"verdict_reason":"fine"}`), "clm-sessrepl-0001")
+	if !changed {
+		t.Fatal("expected fold")
+	}
+	after := decodeReplan(t, updated)
+	last := after.Notebook.Sections[len(after.Notebook.Sections)-1]
+	if !strings.Contains(last, "[clm-sessrepl-0001]") {
+		t.Errorf("notebook line must cite the record, got %q", last)
+	}
+
+	// Empty cite: no dangling brackets.
+	updated, _, _ = ReplanWithJobResult(raw, "job-claim9", "claim_eval",
+		[]byte(`{"claim_id":"c9","corroborated_amplitude":0.9,"contested_amplitude":0.05,"unverified_amplitude":0.1,"passes_chemical_accuracy":true,"verdict_reason":"fine"}`), "")
+	after = decodeReplan(t, updated)
+	last = after.Notebook.Sections[len(after.Notebook.Sections)-1]
+	if strings.Contains(last, "[") {
+		t.Errorf("empty cite must leave no brackets, got %q", last)
 	}
 }

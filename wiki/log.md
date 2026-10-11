@@ -1665,3 +1665,12 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-11] verification | CI green on semantic validator + fixture repair
   All 5 jobs success on run 38167245782. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | Claim-citation plumbing (per-turn record IDs)
+  claim_records table (clm-<sess8>-<seq04>, -1 = unevaluated);
+  EvalClaimRecord draft; replan cites record in notebook line;
+  tribunal mints consensus + returns claim_record_id; GET
+  .../claims resolves; epistemics carries record_id; console
+  caption. A2A epistemic_claim_evaluation opens the only production
+  path into claim_eval (previously test-only). Full Go suite green,
+  console 54 vitest green.
