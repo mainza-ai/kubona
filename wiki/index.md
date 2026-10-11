@@ -186,6 +186,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[agentic-memory-and-observability]] | Memory lifecycle (type, decay, consolidation) and the observability that makes agent claims checkable |
 | [[confidentiality-lattice-provenance]] | Labels that flow with data: information-flow control as part of the provenance record |
 | [[secrets-and-workload-isolation]] | Vault sidecar, scoped tokens, sandboxed workloads — and the credential incidents that taught us why |
+| [[secret-rotation-runbook]] | Secret inventory, rotation order, and verification (procedure only, no values) (`adopted`) |
 | [[integration-topology-and-licence-discipline]] | Submodule / sidecar / blueprint / reference + licence rules; submodule is a shipping decision, not a compliment |
 | [[forensic-audit-2026]] | Comprehensive forensic code audit and empirical verification matrix across all 89 pages & platform tiers |
 | [[autonomous-mathematical-discovery]] | Multi-hour thinking compute search dynamics over open conjectures, counterexample isolation, and proof refactoring |
