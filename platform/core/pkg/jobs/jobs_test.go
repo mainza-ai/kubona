@@ -93,12 +93,12 @@ func TestRunnerAllJobTypesSettle(t *testing.T) {
 		jobType string
 		params  any
 	}{
-		{"circuit_run", map[string]any{"qasm": "OPENQASM 2.0;\\nqreg q[1];\\ncreg c[1];\\n", "shots": 100}},
-		{"circuit_cut", map[string]any{"qasm": "OPENQASM 2.0;\\nqreg q[1];\\ncreg c[1];\\n", "max_subcircuit_qubits": 2}},
+		{"circuit_run", map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "shots": 100}},
+		{"circuit_cut", map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "max_subcircuit_qubits": 2}},
 		{"classical_anchor", map[string]any{"molecule": "H2", "bond_distance": 0.7414}},
 		{"claim_eval", map[string]any{"claim_id": "c1", "statement": "s"}},
 		{"krylov_solve", map[string]any{"molecule": "H2", "bond_distance": 0.7414}},
-		{"mitigate", map[string]any{"qasm": "OPENQASM 2.0;\\nqreg q[1];\\ncreg c[1];\\n", "method": "ZNE"}},
+		{"mitigate", map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "method": "ZNE"}},
 	}
 	for _, tc := range cases {
 		j, err := r.SubmitJob("sess-1", tc.jobType, tc.params)
@@ -147,7 +147,7 @@ func TestRunnerListJobs(t *testing.T) {
 	r, cleanup := setupRunner(t, &fakeBridge{})
 	defer cleanup()
 
-	if _, err := r.SubmitJob("sess-list", "mitigate", map[string]any{"qasm": "OPENQASM 2.0;\\nqreg q[1];\\ncreg c[1];\\n"}); err != nil {
+	if _, err := r.SubmitJob("sess-list", "mitigate", map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"}); err != nil {
 		t.Fatalf("SubmitJob failed: %v", err)
 	}
 	listed, err := r.ListJobs("sess-list", 10)
@@ -193,11 +193,11 @@ func TestRunnerCancelTenantJobs(t *testing.T) {
 	seedSession("sess-tenant-a1", "lab-a")
 	seedSession("sess-tenant-b1", "lab-b")
 
-	j1, err := r.SubmitJob("sess-tenant-a1", "mitigate", map[string]any{"qasm": "OPENQASM 2.0;\\nqreg q[1];\\ncreg c[1];\\n"})
+	j1, err := r.SubmitJob("sess-tenant-a1", "mitigate", map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"})
 	if err != nil {
 		t.Fatalf("submit: %v", err)
 	}
-	j2, err := r.SubmitJob("sess-tenant-b1", "mitigate", map[string]any{"qasm": "OPENQASM 2.0;\\nqreg q[1];\\ncreg c[1];\\n"})
+	j2, err := r.SubmitJob("sess-tenant-b1", "mitigate", map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"})
 	if err != nil {
 		t.Fatalf("submit: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestAdmissionRefusesUnknownSession(t *testing.T) {
 	r, cleanup := setupRunner(t, &fakeBridge{})
 	defer cleanup()
 
-	if _, err := r.SubmitJob("ghost-session", "mitigate", map[string]any{"qasm": "OPENQASM 2.0;\\nqreg q[1];\\ncreg c[1];\\n"}); err == nil {
+	if _, err := r.SubmitJob("ghost-session", "mitigate", map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"}); err == nil {
 		t.Fatalf("unknown session must refuse at admission")
 	}
 }
@@ -246,7 +246,7 @@ func TestAdmissionQPUNeedsMandateReceipt(t *testing.T) {
 	r.Start()
 	defer r.Stop()
 
-	qpu := map[string]any{"qasm": "OPENQASM 2.0;\\nqreg q[1];\\ncreg c[1];\\n", "requested_backend": "ibm_brisbane", "shots": 100, "max_cost_usd": 25.0, "caller_jurisdictions": []string{"US"}}
+	qpu := map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "requested_backend": "ibm_brisbane", "shots": 100, "max_cost_usd": 25.0, "caller_jurisdictions": []string{"US"}}
 
 	// No receipt: refused, nothing queued.
 	if _, err := r.SubmitJob("sess-qpu", "circuit_run", qpu); err == nil {
@@ -254,7 +254,7 @@ func TestAdmissionQPUNeedsMandateReceipt(t *testing.T) {
 	}
 
 	// No declared jurisdictions: refused at routing before mandate checks.
-	nojur := map[string]any{"qasm": "OPENQASM 2.0;\\nqreg q[1];\\ncreg c[1];\\n", "requested_backend": "ibm_brisbane", "shots": 100, "max_cost_usd": 25.0, "mandate_ref": "receipt-hash-1"}
+	nojur := map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "requested_backend": "ibm_brisbane", "shots": 100, "max_cost_usd": 25.0, "mandate_ref": "receipt-hash-1"}
 	if _, err := r.SubmitJob("sess-qpu", "circuit_run", nojur); err == nil {
 		t.Fatalf("QPU job without caller_jurisdictions must refuse")
 	} else if !strings.Contains(err.Error(), "caller_jurisdictions") {
@@ -262,7 +262,7 @@ func TestAdmissionQPUNeedsMandateReceipt(t *testing.T) {
 	}
 
 	// Simulator backend on the same session: admitted.
-	sim := map[string]any{"qasm": "OPENQASM 2.0;\\nqreg q[1];\\ncreg c[1];\\n", "requested_backend": "local_simulator", "shots": 100}
+	sim := map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "requested_backend": "local_simulator", "shots": 100}
 	j, err := r.SubmitJob("sess-qpu", "circuit_run", sim)
 	if err != nil {
 		t.Fatalf("simulator job must admit: %v", err)
@@ -390,7 +390,7 @@ func TestCumulativeCeilingAcrossJobs(t *testing.T) {
 		t.Fatalf("seed receipt: %v", err)
 	}
 	qpu := func(cost float64) map[string]any {
-		return map[string]any{"qasm": "OPENQASM 2.0;\\nqreg q[1];\\ncreg c[1];\\n", "requested_backend": "ibm_brisbane",
+		return map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "requested_backend": "ibm_brisbane",
 			"shots": 100, "max_cost_usd": cost, "mandate_ref": "receipt-spend-1",
 			"caller_jurisdictions": []string{"US"}}
 	}
@@ -449,7 +449,7 @@ func TestFailedJobReleasesReservation(t *testing.T) {
 	); err != nil {
 		t.Fatalf("seed receipt: %v", err)
 	}
-	qpu := map[string]any{"qasm": "OPENQASM 2.0;\\nqreg q[1];\\ncreg c[1];\\n", "requested_backend": "ibm_brisbane",
+	qpu := map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "requested_backend": "ibm_brisbane",
 		"shots": 100, "max_cost_usd": 100, "mandate_ref": "receipt-rel-1",
 		"caller_jurisdictions": []string{"US"}}
 
@@ -516,7 +516,7 @@ func TestSessionLimitBindsEndToEnd(t *testing.T) {
 		t.Fatalf("seed receipt: %v", err)
 	}
 	qpu := func(cost float64) map[string]any {
-		return map[string]any{"qasm": "OPENQASM 2.0;\\nqreg q[1];\\ncreg c[1];\\n", "requested_backend": "ibm_brisbane",
+		return map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "requested_backend": "ibm_brisbane",
 			"shots": 100, "max_cost_usd": cost, "mandate_ref": "receipt-cap-1",
 			"caller_jurisdictions": []string{"US"}}
 	}
