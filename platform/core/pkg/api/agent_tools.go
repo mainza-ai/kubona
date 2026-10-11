@@ -263,10 +263,70 @@ func (s *Server) registerAgentTools() *tools.Registry {
 		},
 	})
 
+	_ = r.Register(tools.Definition{
+		Name:        "submit_local_sim",
+		Description: "Dispatch a circuit to the LOCAL simulator only ($0.00, L1 auto-allow rail). Hardware tiers refuse here — those go through proposals and the approval gate. At most one dispatch per turn; further calls in the same turn refuse.",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"session_id": map[string]any{"type": "string"},
+				"qasm":       map[string]any{"type": "string"},
+				"shots":      map[string]any{"type": "integer"},
+			},
+			"required": []any{"session_id", "qasm"},
+		},
+		Capability: "jobs:submit-local",
+		ReadOnly:   false,
+		Handler: func(ctx context.Context, args json.RawMessage) (any, error) {
+			var a struct {
+				SessionID string `json:"session_id"`
+				QASM      string `json:"qasm"`
+				Shots     int    `json:"shots"`
+			}
+			if err := json.Unmarshal(args, &a); err != nil {
+				return nil, err
+			}
+			if strings.TrimSpace(a.QASM) == "" {
+				return nil, fmt.Errorf("qasm must not be empty")
+			}
+			if a.Shots <= 0 {
+				a.Shots = 1024
+			}
+			if a.Shots > 4096 {
+				return nil, fmt.Errorf("shots capped at 4096 for tool dispatch (got %d)", a.Shots)
+			}
+			job, err := s.jobRunner.SubmitJob(a.SessionID, "circuit_run", map[string]any{
+				"qasm":              a.QASM,
+				"requested_backend": "local_simulator",
+				"shots":             a.Shots,
+				"max_cost_usd":      0.0,
+				"requested_by":      "copilot-tool",
+			})
+			if err != nil {
+				return nil, err
+			}
+			return map[string]any{
+				"job_id":  job.ID,
+				"status":  jobStatusName(job),
+				"backend": "local_simulator",
+			}, nil
+		},
+	})
+
 	_ = r.Allow(CopilotRole,
 		"get_anchor", "get_campaign", "list_jobs", "get_job",
-		"recent_events", "query_literature",
+		"recent_events", "query_literature", "submit_local_sim",
 	)
+	// Tribunal specialist roles observe through the same read-only set.
+	// Turns never write: submit_local_sim is copilot-only.
+	for _, role := range []string{
+		"ansatz-scout", "disconfirmation-officer", "device-auditor", "epistemic-scribe",
+	} {
+		_ = r.Allow(role,
+			"get_anchor", "get_campaign", "list_jobs", "get_job",
+			"recent_events", "query_literature",
+		)
+	}
 	return r
 }
 
@@ -317,6 +377,7 @@ func (s *Server) resolveWithTools(ctx context.Context, sessionID string, base []
 	}
 	hist := append([]llm.ChatMessage(nil), base...)
 	hist = append(hist, llm.ChatMessage{Role: "system", Content: toolContextPreamble(sessionID)})
+	submits := 0
 	for round := 0; round < maxToolRounds; round++ {
 		text, calls, _, _, err := s.llmClient.CompleteWithTools(ctx, CopilotRole, hist, toolsForLLM)
 		if err != nil {
@@ -333,7 +394,21 @@ func (s *Server) resolveWithTools(ctx context.Context, sessionID string, base []
 		}
 		hist = append(hist, llm.ChatMessage{Role: "assistant", Content: "", ToolCalls: calls})
 		for _, c := range calls {
-			out, derr := s.toolRegistry.Dispatch(ctx, CopilotRole, toRegistryCall(c))
+			var out any
+			var derr error
+			// Per-turn write bound: at most one simulator dispatch per
+			// turn. Further submit calls refuse with the bound stated —
+			// the model can propose, never spam the queue.
+			if c.Name == "submit_local_sim" {
+				if submits >= 1 {
+					derr = fmt.Errorf("per-turn dispatch bound reached (1): further submits refused; batch circuits into one proposal instead")
+				} else {
+					submits++
+				}
+			}
+			if derr == nil {
+				out, derr = s.toolRegistry.Dispatch(ctx, CopilotRole, toRegistryCall(c))
+			}
 			// Audit every invocation: a tool call that is not also a
 			// ledger event is unverifiable afterwards (was it executed or
 			// confabulated?). Arguments stay out of the event; the name,
@@ -363,8 +438,10 @@ func toolContextPreamble(sessionID string) string {
 		"(get_anchor, get_campaign, list_jobs, get_job, recent_events, query_literature). " +
 		"Call get_anchor before citing any energy. Call get_campaign/list_jobs before " +
 		"describing campaign or job state. Never invent energies, fidelities, or job " +
-		"statuses — observe them. Writes (dispatch, mandates) are not tools; route " +
-		"those through proposals and the approval gate as before."
+		"statuses — observe them. The only write tool is submit_local_sim " +
+		"(local simulator, admission-enforced, one dispatch per turn); hardware " +
+		"dispatch and mandates are not tools — route those through proposals " +
+		"and the approval gate as before."
 }
 
 func errorText(err error) string {

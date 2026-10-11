@@ -174,6 +174,9 @@ func NewServer(
 	// Single tool registry: read-only observations the copilot can invoke.
 	// Writes keep flowing through the gated paths (launch, mandates).
 	s.toolRegistry = s.registerAgentTools()
+	// Tribunal turns observe through the same registry (nil-safe: turns
+	// proceed text-only when unset).
+	s.collective.Tools = s.toolRegistry
 
 	// Ledger-bound A2A execution: delegated tasks run on the jobs runner (one
 	// budget rail), never on invented results.
@@ -1122,6 +1125,7 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	history = append(history, llm.ChatMessage{Role: "user", Content: req.Content})
+	history = llm.BudgetHistory(history, 0, 0)
 
 	streamCtx, cancel := context.WithTimeout(r.Context(), 600*time.Second)
 	defer cancel()
@@ -1322,8 +1326,12 @@ func (s *Server) generateCopilotResponse(ctx context.Context, sessionID, content
 	}
 	history = append(history, llm.ChatMessage{Role: "user", Content: content})
 
-	// 2. Plan→tool→observe: let the model inspect live session state
-	// (anchors, campaign, jobs) before answering. Degrades to the base
+	// Context budget: bounded transcript for every call (system survives,
+	// newest turns win, cuts announced). Prevents unbounded spend/latency
+	// growth as sessions lengthen.
+	history = llm.BudgetHistory(history, 0, 0)
+
+	// 2. Plan→tool→observe: let the model inspect live session state	// (anchors, campaign, jobs) before answering. Degrades to the base
 	// history on any failure — never blocks the answer path.
 	history = s.resolveWithTools(ctx, sessionID, history)
 

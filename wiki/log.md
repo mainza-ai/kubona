@@ -1592,3 +1592,9 @@ skipped is the exact failure this incident is about:
 ## [2026-10-11] verification | CI green on tool-calling core batch
   Registry + protocol + DSML fallback + copilot loop + tool_called audit.
   All 5 jobs success on run 38156597060. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | Agentic core slice 2: budgeting, tribunal observe, local submit
+  BudgetHistory on both chat paths; 4 tribunal turns get one bounded
+  observe round (nil-safe); submit_local_sim (local-only, admission,
+  4096 cap, 1/turn, turns excluded). Live-proven: Bell dispatch + readback,
+  genuine counts, 3 audited calls. Go green.
