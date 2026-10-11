@@ -91,8 +91,10 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
         classical_anchor: 'session anchor',
         qasm: qf.qasm,
       });
-      if (res?.job) {
+      if (res && 'job' in res && res.job) {
         setActionMessage(`Dispatched offline: job ${String(res.job.id).slice(0, 8)} on local simulator.`);
+      } else if (res && 'error' in res) {
+        setActionMessage(`Local dispatch refused: ${res.error}`);
       } else {
         setActionMessage('Local dispatch refused — nothing dispatched, nothing spent.');
       }
