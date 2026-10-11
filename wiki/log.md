@@ -1784,3 +1784,6 @@ skipped is the exact failure this incident is about:
   failures (fallback never passes); contested verdicts retained at
   0.5 with honest text. Live: 4-turn earned pass, 10 audited tool
   events, attributed memory. Full Go suite green.
+
+## [2026-10-11] verification | CI green on B1-1 earned consensus
+  All 5 jobs success on run 38183022956. Tree clean, zero unpushed.
