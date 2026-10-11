@@ -1689,3 +1689,6 @@ skipped is the exact failure this incident is about:
   kept, JACS:2014 + chemrxiv:2026.01 unresolvable and replaced;
   synth sources now pyscf rhf+fci pair. Tests pin all three sites.
   Gate math tests keep dummy labels (RegisterClaim stays lenient).
+
+## [2026-10-11] verification | CI green on source-label vocabulary
+  All 5 jobs success on run 38170421392. Tree clean, zero unpushed.
