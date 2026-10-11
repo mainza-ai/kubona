@@ -74,7 +74,6 @@ freely; what is gated is the moment a result is asserted as better. Sequencing a
 live in [[risks]].
 
 ## Claim grammar (Q-04, closed 2026-10-10)
-
 The positive vocabulary — what Kubona *may* say, enforced at construction in
 `platform/kubona/epistemics/claim_grammar.py` (`ScientificClaim`, fail-closed pydantic):
 
@@ -89,6 +88,21 @@ The positive vocabulary — what Kubona *may* say, enforced at construction in
 - **Credibility field**: `{rho, tier, evidence_refs}` — rho IS P(collapsed-state) (0.0 when
   uncollapsed), tier is the continuum level, and the score is never cited without its refs.
   Rendered as `[ρ=0.950 L3 refs=1]` in `formatted_statement`.
+
+## Evidence tiers (enforced 2026-10-10)
+
+Every claim states how its number was earned (`EvidenceTier`, required, no
+default — a claim that will not say how it knows refuses at construction):
+
+| Tier | Meaning | Examples in this repo |
+|---|---|---|
+| **T1 verified** | mechanical, parameter-free check | unitary equality (scheduler), anchor match to tolerance, lint/type gates, proof steps |
+| **T2 consistent** | agrees under stated assumptions | model-vs-literature with assumed prefactors, fitted calibration, simulator-vs-theory |
+| **T3 sampled** | statistical interval from finite shots/runs/seeds | canary Wilson intervals, seed bands, Monte Carlo estimates |
+
+A T3 number cited without its interval, or a T2 cited without its
+assumptions, is a malformed claim — the tier names what must travel with
+the number. Rendered as `[T3_SAMPLED]` in `formatted_statement`.
 
 **Links:** [[claim-credibility-wavefunctions]] · [[evaluation-and-benchmarks]] ·
 [[fidelity-accounting]] · [[quantum-domain-packs]] · [[provenance-and-reproducibility]] ·

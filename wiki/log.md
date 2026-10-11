@@ -1408,3 +1408,8 @@ skipped is the exact failure this incident is about:
   neighbors (conservative rules); exact unitary equality as evidence;
   5 tests green. Build caught 3 author errors via its own verification
   (infinite loop, inverted direction, bad metric). Suite 324 passed.
+
+## [2026-10-10] implementation | Evidence tiers enforced on claims
+  EvidenceTier (T1 verified / T2 consistent / T3 sampled) required on
+  ScientificClaim, rendered in statements; missing/invalid refuses.
+  Defined on the realism page with in-repo mappings. Suite 327 passed.
