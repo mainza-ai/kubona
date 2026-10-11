@@ -1728,3 +1728,10 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-11] verification | CI green on B0-1 anchor flag
   All 5 jobs success on run 38175615366. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | B0-2 edge auth on spend authority
+  /api/mandates/sign needs bearer (503 fail-closed) + tenant-admin
+  envelope (403 paths for missing/tampered/foreign); per-IP buckets
+  on sign (2rps/5) + verify (20rps/50); CORS allowlist with opt-in
+  star; host fallback default false (KUBONA_ALLOW_HOST_FALLBACK=1
+  opts in). Live refusal matrix green. Full Go suite green.
