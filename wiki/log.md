@@ -1759,3 +1759,9 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-11] verification | CI green on B0-4 tool-loop integrity
   All 5 jobs success on run 38179806894. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | B0-5 compile gate on launch path
+  Runner.SetCompiler wired in daemon; SubmitJob analyzes post-QASM-gate
+  (refuse on error), persists compiler_used/fallback_estimate columns
+  (migrated), Get/List carry them to API. Live: launched Bell row
+  COMPLETED with go-fallback-estimate/1. Full Go suite green.
