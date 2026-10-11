@@ -83,7 +83,14 @@ run` (:51-:67), `Orchestrator(budget_steps=40, seed=7)` propose→refine→trial
 (:72-:159). Rings 1, 3, 4 all become harnesses **of this same class** — the whole
 integration plan in one sentence. GQE is one such harness
 ([[meta-search-and-self-evolution]]); its training substrate is in
-[[differentiable-quantum-stack]].
+[[differentiable-quantum-stack]]. Population-coordinated replica search
+(`autoresearch/population.py`, built 2026-10-10) is the newest primitive
+here: seeded replica populations sharing discoveries under identical
+sample budgets over brute-force-anchored QUBOs (n≤14), reporting gaps to
+the true optimum per seed. The suite locks mechanics (determinism,
+exact sample accounting, equal arms, gaps ≥ 0) and deliberately never
+superiority — coordination winning is landscape-dependent, and a test
+asserting it would be fitted, not verifying.
 
 ## Cross-ring rules
 

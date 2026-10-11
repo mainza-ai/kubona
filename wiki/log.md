@@ -1383,3 +1383,10 @@ skipped is the exact failure this incident is about:
   truly-preserving W mutant and exposed the uncovered bell-pairs kind
   (new verified task; corpus now 17 at 1.0). wstate balance weakness
   recorded. Suite 312 passed. No external attribution.
+
+## [2026-10-10] implementation | Population-coordinated replica search
+  kubona/autoresearch/population.py: independent vs best-share policies
+  over seeded QUBOs with brute-force optima; fixed report vocabulary
+  (gap, replicas-optimal, samples); equal-budget enforcement voids
+  mismatched comparisons. Tests lock mechanics, never superiority.
+  Suite 317 passed.
