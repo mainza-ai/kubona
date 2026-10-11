@@ -64,9 +64,13 @@ def _evidence(kind: str, detail: str) -> dict[str, str]:
 
 
 def compile(circuit_qasm: str, target: str = "local",
-            two_qubit_error: float | None = None) -> dict[str, Any]:
+            two_qubit_error: float | None = None,
+            constraints: dict[str, Any] | None = None) -> dict[str, Any]:
     """Run the selected passes with per-pass equivalence evidence.
 
+    `constraints` (optional): {"max_width": int, "max_depth": int,
+    "optimize_for": "depth" | "width"}. Violations refuse the output
+    (fail-closed at the portfolio boundary, not downstream at execution).
     Returns the compile receipt: input/output hashes, ordered pass records,
     before/after fragile metrics, and the output QASM. Invalid QASM refuses
     (fail-closed at parse, before any pass runs).
@@ -100,6 +104,11 @@ def compile(circuit_qasm: str, target: str = "local",
         records.append({"pass": name, "output_hash": canonical_hash(current),
                         "evidence": evidence})
     after = fragile_metrics(current)
+    out_qasm = to_qasm(current)
+    violations = _check_constraints(current, constraints or {})
+    if violations:
+        raise ValueError("compile refused: constraint violations: "
+                         + "; ".join(violations))
     return {
         "ok": True,
         "target": target,
@@ -108,7 +117,23 @@ def compile(circuit_qasm: str, target: str = "local",
         "pass_records": records,
         "metrics_before": before,
         "metrics_after": after,
+        "constraints": constraints or {},
         "noise_context": {"two_qubit_error": two_qubit_error,
                           "consumed_by": "none (no mapping pass yet)"},
-        "output_qasm": to_qasm(current),
+        "output_qasm": out_qasm,
     }
+
+
+def _check_constraints(circuit: Circuit, constraints: dict[str, Any]) -> list[str]:
+    """Verify width/depth ceilings on the compiled output."""
+    problems = []
+    max_width = constraints.get("max_width")
+    if isinstance(max_width, int) and circuit.num_qubits > max_width:
+        problems.append(f"width {circuit.num_qubits} exceeds max_width {max_width}")
+    max_depth = constraints.get("max_depth")
+    if isinstance(max_depth, int) and len(circuit.gates) > max_depth:
+        problems.append(f"depth {len(circuit.gates)} exceeds max_depth {max_depth}")
+    optimize_for = constraints.get("optimize_for")
+    if optimize_for is not None and optimize_for not in ("depth", "width"):
+        problems.append(f"unknown optimize_for {optimize_for!r} (want depth|width)")
+    return problems

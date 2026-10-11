@@ -96,6 +96,24 @@ recorded but honestly marked unconsumed (no mapping pass exists yet).
 Exposed as the `compile_circuit` MCP tool, additive beside the existing
 two. Pass-sequence transfer caching (item 2 above) remains future.
 
+## Constraint-first compilation (built 2026-10-11)
+
+`compile()` accepts `constraints` ({max_width, max_depth, optimize_for}):
+ceilings enforced on the compiled output with fail-closed refusal,
+recorded on the receipt. Industrial synthesis APIs converge on exactly
+this shape (declare ceilings + objective, engine must satisfy), so the
+portfolio speaks it natively — an agent states what the hardware allows,
+not how to compile.
+
+## Deferred with reason: full synthesis-SDK integration
+
+Routing synthesis through a commercial engine needs an operator account,
+machine-credentials (never interactive browser flow — only the M2M path,
+vault-leased like all provider secrets), a third-party dependency in the
+hermetic env, and a cost model for per-synthesis billing. Valuable but
+operator-gated: account + credentials + supply-chain approval, in that
+order. The constraint-first API above keeps us compatible meanwhile.
+
 ## Boundary conditions
 
 - MLIR is an **external binary** with a pinned version contract, never a vendored tree

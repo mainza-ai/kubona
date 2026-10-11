@@ -54,3 +54,16 @@ def test_select_passes_rules():
     assert select_passes({"needs_decompose": False, "n_nonclifford": 3}) == ["fragile_late"]
     feats = circuit_features(parse_qasm2(T_CIRCUIT))
     assert feats["n_nonclifford"] == 2 and feats["needs_decompose"] is False
+
+
+def test_constraints_enforced_fail_closed():
+    import pytest as _pytest
+    # Bell (2q, 2 gates) fits; a max_width of 1 refuses.
+    out = compile(BELL, constraints={"max_width": 2, "max_depth": 10})
+    assert out["ok"] is True and out["constraints"] == {"max_width": 2, "max_depth": 10}
+    with _pytest.raises(ValueError, match="max_width"):
+        compile(BELL, constraints={"max_width": 1})
+    with _pytest.raises(ValueError, match="max_depth"):
+        compile(T_CIRCUIT, constraints={"max_depth": 1})
+    with _pytest.raises(ValueError, match="optimize_for"):
+        compile(BELL, constraints={"optimize_for": "vibes"})

@@ -40,12 +40,14 @@ def lower_circuit(circuit_qasm: str) -> dict:
 
 
 def compile_circuit(circuit_qasm: str, target: str = "local",
-                    two_qubit_error: float | None = None) -> dict:
+                    two_qubit_error: float | None = None,
+                    constraints: dict | None = None) -> dict:
     """Run the compiler pass portfolio: feature-based pass selection with
     per-pass equivalence evidence and a chained compile receipt."""
     from kubona.qir.portfolio import compile as portfolio_compile
     return portfolio_compile(circuit_qasm, target=target,
-                             two_qubit_error=two_qubit_error)
+                             two_qubit_error=two_qubit_error,
+                             constraints=constraints)
 
 
 mcp.add_tool(transpile_circuit, name="transpile_circuit",
