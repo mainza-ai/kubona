@@ -1510,3 +1510,6 @@ skipped is the exact failure this incident is about:
   intelligence/patents.py: OAuth-from-env, 6s floor, 4GB/week refuse,
   licence flag to ledger; permission row added (T&C s3 derived-only,
   fair-use limits). 4 stub tests green; live use = operator registration.
+
+## [2026-10-11] verification | CI green on patent-connector batch
+  All 5 jobs success on run 38121583481. Tree clean, zero unpushed.
