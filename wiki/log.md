@@ -1756,3 +1756,6 @@ skipped is the exact failure this incident is about:
   helpers + RoleManifest allow-list deleted; registry grant/deny
   contract test replaces AuthorizeTool tests. Live stream turn
   used tools + retained them. Full Go suite green.
+
+## [2026-10-11] verification | CI green on B0-4 tool-loop integrity
+  All 5 jobs success on run 38179806894. Tree clean, zero unpushed.
