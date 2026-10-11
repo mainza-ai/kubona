@@ -1699,3 +1699,6 @@ skipped is the exact failure this incident is about:
   math tests migrated to valid labels; empty sources stay legal.
   Live: daemon boots with zero seed refusals. Refusal branch is
   unit-proven (no HTTP path registers gate claims).
+
+## [2026-10-11] verification | CI green on RegisterClaim enforcement
+  All 5 jobs success on run 38172226534. Tree clean, zero unpushed.
