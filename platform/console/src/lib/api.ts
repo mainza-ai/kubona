@@ -180,14 +180,20 @@ export async function runTribunal(
   }
 }
 
-export async function launchProposal(sessionId: string, proposal: unknown): Promise<{ job: Job; loop: Loop } | null> {
+export async function launchProposal(sessionId: string, proposal: unknown): Promise<{ job: Job; loop: Loop } | { error: string } | null> {
   try {
     const res = await fetch(`${API_BASE}/api/chat/launch`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ session_id: sessionId, proposal }),
     });
-    if (!res.ok) return null;
+    // Refusals carry the backend reason as plain text — surface it, never
+    // swallow it into a generic "refused" (2026-10-11: a tier-routing
+    // refusal was invisible in the UI).
+    if (!res.ok) {
+      const text = (await res.text()).trim().slice(0, 280);
+      return { error: text || `HTTP ${res.status}` };
+    }
     return await res.json();
   } catch (err) {
     console.error('Failed to launch proposal:', err);
