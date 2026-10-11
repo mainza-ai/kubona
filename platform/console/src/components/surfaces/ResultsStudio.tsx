@@ -39,24 +39,8 @@ export function ResultsStudio({ campaign }: ResultsStudioProps) {
   const [activeTab, setActiveTab] = useState<'manuscript' | 'latex' | 'lean4' | 'literature'>('manuscript');
   const [selectedAnchor, setSelectedAnchor] = useState<string>('§Abstract');
   const [newComment, setNewComment] = useState('');
-  const [annotations, setAnnotations] = useState<FrameAnnotation[]>([
-    {
-      id: 'anno-01',
-      targetAnchor: '§GroundStateIntegrals',
-      author: 'Dr. M. Chileshe (PI)',
-      comment: 'Ensure VQE discrepancy remains bounded by 1.6 mHa under Family 271 ferromagnetic anchor.',
-      status: 'verified',
-      timestamp: '2026-10-07 20:15 UTC',
-    },
-    {
-      id: 'anno-02',
-      targetAnchor: '§Lean4ProofAST',
-      author: 'Formal Methods Lead',
-      comment: 'Check that Lean 4 AST contains no sorryAx and whitelists only standard axioms {propext, Quot.sound, Classical.choice}.',
-      status: 'addressed',
-      timestamp: '2026-10-07 21:04 UTC',
-    },
-  ]);
+  // Annotations start empty: review history is written by reviewers, never seeded.
+  const [annotations, setAnnotations] = useState<FrameAnnotation[]>([]);
 
   const target = campaign?.target_system || 'H2';
   // Verified-data gating: when the campaign carries no notebook telemetry,
@@ -346,7 +330,7 @@ ${bibtex}
               >
                 <div className="flex items-center justify-between mb-1.5">
                   <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider font-mono">Formal Verification & Provenance</h3>
-                  <span className="text-[10px] font-mono text-emerald-400">Zero sorryAx (ρ=1.000)</span>
+                  <span className="text-[10px] font-mono text-emerald-400">{hasVerifiedData ? 'Zero sorryAx (ρ=1.000)' : 'Unverified'}</span>
                 </div>
                 <div className="space-y-1.5 font-mono text-[11px] text-slate-300">
                   <div className="bg-black/60 p-2 rounded border border-white/10 truncate">
@@ -376,7 +360,7 @@ ${bibtex}
             <div className="space-y-3 font-mono text-xs">
               <div className="flex items-center justify-between text-neutral-400 text-[11px]">
                 <span>Lean 4 Theorem Declaration (Lake Comparator Whitelist)</span>
-                <span className="text-emerald-400">Axioms ⊆ &#123;propext, Quot.sound, Classical.choice&#125;</span>
+                <span className="text-emerald-400">{hasVerifiedData ? 'Axioms ⊆ {propext, Quot.sound, Classical.choice}' : 'No verified declaration'}</span>
               </div>
               <pre className="p-4 rounded-xl bg-black/80 border border-neutral-800 text-emerald-300 overflow-x-auto leading-relaxed">
                 {lean4Code}

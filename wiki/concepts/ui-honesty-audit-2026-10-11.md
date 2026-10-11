@@ -74,9 +74,18 @@ safety). Showcases must be labeled illustrative.
 
 1. **Safety first:** wire Emergency Pause to `/api/supervisor/abort` or
    remove the button. No dead safety controls, ever.
+   ✅ **Fixed 2026-10-11:** `AutonomyCockpit` pause now confirms + POSTs the
+   real abort (count + ledger receipt in the banner, fail-closed message on
+   refusal); shared `emergencyAbort()` client helper.
 2. **Empty-state discipline:** every fallback renders `UNVERIFIED` /
    `illustrative` / `—` (EpistemicManifold orb, ResultsStudio pills,
    AutonomyCockpit spend, canvas probes already comply).
+   ✅ **Fixed 2026-10-11 (part):** manifold orb/pill/confidence gated on live
+   claim (fallback marked illustrative, `UNVERIFIED`, `—`); ResultsStudio
+   sorryAx pill + axioms line gated on `hasVerifiedData`, seeded annotations
+   removed (review history starts empty); cockpit spend defaults to honest
+   `$0.00`, ceiling relabeled local planning view (no budget endpoint exists
+   to enforce it).
 3. **Theater → real or removed:** FlightRecorder advance (drive a real loop
    step or relabel `Preview next`), Resample (recompute or remove),
    Simulate Offline (dispatch or remove), spend slider (persist or relabel),
