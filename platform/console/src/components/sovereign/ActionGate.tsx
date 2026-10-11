@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Fingerprint, ChevronDown, ChevronUp } from 'lucide-react';
+import { Fingerprint, ChevronDown, ChevronUp, ArrowDownToLine } from 'lucide-react';
+import { sha256 } from '@noble/hashes/sha2.js';
+import { bytesToHex } from '@noble/hashes/utils.js';
 import { CampaignState, Session } from '@/types';
 import { createSignedSpendMandate } from '@/lib/mandates';
 import { verifySpendMandate } from '@/lib/api';
@@ -13,15 +15,18 @@ interface ActionGateProps {
   session: Session | null;
   onAuthorized: () => void;
   onDenied: (reason: string) => void;
+  onDowngrade: () => void;
 }
 
 /**
  * Calibrated Action Gate: the single high-stakes friction point. Rendered
- * only when a dispatch awaits human authorization (parent gates visibility).
- * Approval signs a real AP2 Ed25519 SpendMandate and verifies it against the
- * Go backend — denial halts fail-closed with a required reason.
+ * ONLY while a metered-hardware dispatch awaits human authorization (parent
+ * gates visibility on backend tier — L1 simulator runs never raise it, per
+ * the anti-fatigue rule). Approval signs a real AP2 Ed25519 SpendMandate and
+ * verifies it against the Go backend — denial halts fail-closed with a
+ * required reason. Downgrade routes the intent to the local simulator rail.
  */
-export function ActionGate({ campaign, session, onAuthorized, onDenied }: ActionGateProps) {
+export function ActionGate({ campaign, session, onAuthorized, onDenied, onDowngrade }: ActionGateProps) {
   const estimatedCost = campaign?.quantum_factors?.estimated_spend_usd ?? 0.12;
   const recommendedBackend = campaign?.quantum_factors?.recommended_backend || 'Local simulator';
   const qubits = campaign?.quantum_factors?.qubit_count ?? 0;
@@ -44,9 +49,14 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied }: Action
     setIsSubmitting(true);
     setMessage(null);
     try {
+      // jobHash binds the mandate to the exact program being authorized:
+      // session + program hash + backend + cost bound. A mandate for one
+      // program cannot be replayed against another.
+      const binding = `${session?.id || 'tenant-default'}|${packet.programHash}|${packet.backend}|${packet.costMaxUsd.toFixed(4)}`;
+      const jobHash = bytesToHex(sha256(new TextEncoder().encode(binding)));
       const mandate = createSignedSpendMandate({
         tenantId: session?.id || 'tenant-default',
-        jobHash: 'vqe-' + (campaign?.session_id || Date.now().toString(16)),
+        jobHash,
         maxBudgetUsd: estimatedCost,
         ttlSeconds: 3600,
       });
@@ -82,9 +92,9 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied }: Action
       </div>
 
       <div className="mt-2.5">
-        <div className="text-xs text-white font-medium">Deploy Physical Quantum Pulse</div>
+        <div className="text-xs text-white font-medium">Authorize {recommendedBackend} Dispatch</div>
         <div className="text-[11px] text-slate-400 mt-0.5">
-          {recommendedBackend} · {qubits} Qubits · ${estimatedCost.toFixed(2)}
+          {recommendedBackend} · {qubits} Qubits · ${estimatedCost.toFixed(2)} max
         </div>
       </div>
 
@@ -103,7 +113,17 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied }: Action
             className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(255,179,0,0.3)] active:scale-[0.98] disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:outline-none"
           >
             <Fingerprint className="w-4 h-4" />
-            <span>{isSubmitting ? 'Signing mandate…' : 'Authorize Pulse (Ed25519)'}</span>
+            <span>{isSubmitting ? 'Signing mandate…' : 'Authorize (Ed25519)'}</span>
+          </button>
+          <button
+            data-testid="action-gate-downgrade"
+            onClick={onDowngrade}
+            disabled={isSubmitting}
+            title="Route this intent to the local simulator rail instead ($0.00, auto-allow)"
+            className="w-full py-2 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 font-medium text-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
+          >
+            <ArrowDownToLine className="w-4 h-4 text-cyan-300" />
+            <span>Downgrade to simulator</span>
           </button>
           <div className="flex items-center justify-between">
             <button
@@ -118,7 +138,7 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied }: Action
               disabled={isSubmitting}
               className="text-[10px] font-code text-rose-300/80 hover:text-rose-200 transition-colors disabled:opacity-50"
             >
-              Deny
+              Abort
             </button>
           </div>
         </div>

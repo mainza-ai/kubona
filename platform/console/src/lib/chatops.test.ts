@@ -77,3 +77,25 @@ describe('jobStatusLabel', () => {
     expect(isTerminalJobStatus('running')).toBe(false);
   });
 });
+
+describe('fetchJob', () => {
+  it('returns the job payload', async () => {
+    const { fetchJob } = await import('./api');
+    (globalThis as { fetch?: unknown }).fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ job: { id: 'j1', status: 3 } }),
+    });
+    await expect(fetchJob('j1')).resolves.toEqual({ id: 'j1', status: 3 });
+  });
+
+  it('returns null on 404 (never an empty shell)', async () => {
+    const { fetchJob } = await import('./api');
+    (globalThis as { fetch?: unknown }).fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => ({}),
+    });
+    await expect(fetchJob('missing')).resolves.toBeNull();
+  });
+});
