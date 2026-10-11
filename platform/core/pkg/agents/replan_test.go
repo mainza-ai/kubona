@@ -1,0 +1,202 @@
+package agents
+
+import (
+	"context"
+	"encoding/json"
+	"strings"
+	"testing"
+)
+
+func replanTestState(t *testing.T, prompt string) []byte {
+	t.Helper()
+	state, err := SynthesizeCampaignState(context.Background(), "sess-replan-test", prompt, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
+}
+
+func decodeReplan(t *testing.T, updated []byte) CampaignState {
+	t.Helper()
+	var state CampaignState
+	if err := json.Unmarshal(updated, &state); err != nil {
+		t.Fatal(err)
+	}
+	return state
+}
+
+func TestReplanCircuitRun(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+	before := decodeReplan(t, raw)
+
+	updated, changed, _ := ReplanWithJobResult(raw, "job-abcdef123456", "circuit_run",
+		[]byte(`{"success":true,"resolved_backend":"local_simulator","meyer_wallach_entanglement":0.77,"counts":{"00":512,"11":512}}`))
+	if !changed {
+		t.Fatal("measured entanglement must fold")
+	}
+	after := decodeReplan(t, updated)
+	if after.QuantumFactors.MeyerWallachQ != 0.77 {
+		t.Errorf("MW not replaced: %v", after.QuantumFactors.MeyerWallachQ)
+	}
+	if after.QuantumFactors.MeyerWallachQ == before.QuantumFactors.MeyerWallachQ {
+		t.Error("MW unchanged from synthesis estimate")
+	}
+	last := after.Notebook.Sections[len(after.Notebook.Sections)-1]
+	if !strings.HasPrefix(last, "Job job-abcd (circuit_run):") || !strings.Contains(last, "1024 shots") {
+		t.Errorf("provenance line wrong: %q", last)
+	}
+
+	// success=false measures nothing: no fold, no version.
+	if _, changed, _ := ReplanWithJobResult(raw, "job-x", "circuit_run",
+		[]byte(`{"success":false,"error_message":"boom"}`)); changed {
+		t.Error("failed run must not fold")
+	}
+}
+
+func TestReplanKrylov(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+	before := decodeReplan(t, raw)
+
+	updated, changed, _ := ReplanWithJobResult(raw, "job-krylov1", "krylov_solve",
+		[]byte(`{"success":true,"ground_state_energy":-1.13699,"classical_fci_energy":-1.13727,"meyer_wallach_entanglement":0.81}`))
+	if !changed {
+		t.Fatal("krylov energy must fold")
+	}
+	after := decodeReplan(t, updated)
+	if len(after.Trajectory) != len(before.Trajectory)+1 {
+		t.Fatalf("trajectory must grow by exactly one, was %d now %d", len(before.Trajectory), len(after.Trajectory))
+	}
+	pt := after.Trajectory[len(after.Trajectory)-1]
+	if pt.Energy != -1.13699 {
+		t.Errorf("measured energy must land exactly, got %v", pt.Energy)
+	}
+	if pt.Watchdog != "measured_krylov" {
+		t.Errorf("measurement must be tagged, got %q", pt.Watchdog)
+	}
+	if len(pt.Theta) != 0 {
+		t.Error("unrun parameters must stay empty, never carried forward")
+	}
+}
+
+func TestReplanAnchor(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+	before := decodeReplan(t, raw)
+
+	updated, changed, _ := ReplanWithJobResult(raw, "job-anchor1", "classical_anchor",
+		[]byte(`{"success":true,"molecule":"H2","bond_distance":0.7414,"rhf_energy":-1.11670,"fci_exact_energy":-1.13730}`))
+	if !changed {
+		t.Fatal("recomputed anchor must fold")
+	}
+	after := decodeReplan(t, updated)
+	if after.ClassicalAnchor.FciExactEnergy != -1.13730 {
+		t.Errorf("FCI not replaced: %v", after.ClassicalAnchor.FciExactEnergy)
+	}
+	if after.Notebook.ProvenanceHash == before.Notebook.ProvenanceHash {
+		t.Error("provenance must re-hash when FCI changes")
+	}
+	if !after.ClassicalAnchor.ChemicalAccuracyPassed {
+		t.Error("0.31 mHa discrepancy must pass chemical accuracy")
+	}
+
+	// Wrong-molecule anchor corrupts: refuse the fold.
+	if _, changed, note := ReplanWithJobResult(raw, "job-anchor2", "classical_anchor",
+		[]byte(`{"success":true,"molecule":"LiH","bond_distance":1.5957,"rhf_energy":-7.86,"fci_exact_energy":-7.88}`)); changed {
+		t.Error("mismatched molecule must not fold")
+	} else if !strings.Contains(note, "mismatch") {
+		t.Errorf("refusal must name the cause, got %q", note)
+	}
+}
+
+func TestReplanClaimEval(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+
+	updated, changed, _ := ReplanWithJobResult(raw, "job-claim1", "claim_eval",
+		[]byte(`{"claim_id":"c1","corroborated_amplitude":0.97,"contested_amplitude":0.02,"unverified_amplitude":0.05,"passes_chemical_accuracy":true,"verdict_reason":"within 0.4 mHa"}`))
+	if !changed {
+		t.Fatal("verdict must fold")
+	}
+	after := decodeReplan(t, updated)
+	if after.Epistemics.Status != "COLLAPSED_VERIFIED" || after.Epistemics.AlphaCorroborated != 0.97 {
+		t.Errorf("verdict not applied: %+v", after.Epistemics)
+	}
+
+	updated, changed, _ = ReplanWithJobResult(raw, "job-claim2", "claim_eval",
+		[]byte(`{"claim_id":"c2","corroborated_amplitude":0.40,"contested_amplitude":0.50,"unverified_amplitude":0.30,"passes_chemical_accuracy":false,"verdict_reason":"3.2 mHa off"}`))
+	if !changed {
+		t.Fatal("failing verdict must fold")
+	}
+	after = decodeReplan(t, updated)
+	if after.Epistemics.Status != "CONTESTED" || !strings.Contains(after.Epistemics.Statement, "3.2 mHa") {
+		t.Errorf("failure not recorded: %+v", after.Epistemics)
+	}
+
+	// Amplitude-free payload evaluates nothing.
+	if _, changed, _ := ReplanWithJobResult(raw, "job-claim3", "claim_eval",
+		[]byte(`{"claim_id":"c3","verdict_reason":"empty"}`)); changed {
+		t.Error("verdict without amplitudes must not fold")
+	}
+}
+
+func TestReplanNotebookOnlyAndUnknown(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+
+	updated, changed, _ := ReplanWithJobResult(raw, "job-mit1", "mitigate",
+		[]byte(`{"success":true,"unmitigated_value":-1.135,"mitigated_value":-1.1371,"error_bound":0.001,"method_used":"ZNE"}`))
+	if !changed {
+		t.Fatal("mitigation must record")
+	}
+	after := decodeReplan(t, updated)
+	if !strings.Contains(after.Notebook.Sections[len(after.Notebook.Sections)-1], "ZNE mitigation") {
+		t.Error("mitigation line missing")
+	}
+	// Mitigation measures an error bar, not the campaign: state untouched.
+	if after.QuantumFactors.MeyerWallachQ != decodeReplan(t, raw).QuantumFactors.MeyerWallachQ {
+		t.Error("mitigation must not touch state fields")
+	}
+
+	if _, changed, _ := ReplanWithJobResult(raw, "job-zzz", "teleport", []byte(`{"success":true}`)); changed {
+		t.Error("unknown job type must not fold")
+	}
+	if _, changed, _ := ReplanWithJobResult(raw, "job-zzz", "circuit_run", []byte(`not json`)); changed {
+		t.Error("undecodable result must not fold")
+	}
+}
+
+func TestReplanNotebookCap(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+	var state CampaignState
+	if err := json.Unmarshal(raw, &state); err != nil {
+		t.Fatal(err)
+	}
+	narrative := len(state.Notebook.Sections)
+	for i := 0; i < 60; i++ {
+		state.Notebook.Sections = append(state.Notebook.Sections, "Job filler: old measurement")
+	}
+	full, _ := json.Marshal(state)
+
+	updated, changed, _ := ReplanWithJobResult(full, "job-cap1", "circuit_run", []byte(`{"success":true}`))
+	if !changed {
+		t.Fatal("expected fold")
+	}
+	after := decodeReplan(t, updated)
+	if len(after.Notebook.Sections) > maxNotebookSections {
+		t.Errorf("notebook exceeds cap: %d", len(after.Notebook.Sections))
+	}
+	// Narrative sections survive; only measurement lines fall off.
+	kept := 0
+	for _, sec := range after.Notebook.Sections {
+		for _, orig := range decodeReplan(t, raw).Notebook.Sections {
+			if sec == orig {
+				kept++
+				break
+			}
+		}
+	}
+	if kept != narrative {
+		t.Errorf("narrative must survive the cap: kept %d of %d", kept, narrative)
+	}
+}

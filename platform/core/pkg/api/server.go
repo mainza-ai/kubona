@@ -182,6 +182,10 @@ func NewServer(
 	// Persistent associative memory (SQLite-backed, tenant-scoped recall).
 	// Activates the tribunal recall/retain paths and the recall_memory tool.
 	s.memoryStore = memory.NewPersistentHindsightStore(l.DB())
+	// Planner replan: settled jobs fold their measured results back into the
+	// session campaign. Runs on the job-worker goroutine — pure fold plus
+	// ledger writes only, never LLM or bridge calls.
+	jr.SetSettledHook(s.replanCampaignOnSettled)
 
 	// Ledger-bound A2A execution: delegated tasks run on the jobs runner (one
 	// budget rail), never on invented results.
