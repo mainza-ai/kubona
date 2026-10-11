@@ -583,7 +583,7 @@ export function CopilotDrawer({
     setLaunchingId(messageId);
     try {
       const res = await launchProposal(activeSessionId, proposal);
-      if (res?.job) {
+      if (res && 'job' in res && res.job) {
         const jobId = String(res.job.id);
         setLaunchedNote((prev) => ({ ...prev, [messageId]: `Launched: job ${jobId.slice(0, 8)} · tracking…` }));
         if (onExperimentLaunched) onExperimentLaunched();
@@ -597,9 +597,13 @@ export function CopilotDrawer({
           const jobs = await fetchJobs(activeSessionId);
           const hit = jobs.find((j) => String(j.id) === jobId);
           if (hit?.status) {
+            // On failure, surface the executor's reason (dynamic, from the
+            // backend) so a bad circuit is actionable, not mysterious.
+            const result = (hit as { result_json?: { error_message?: string } }).result_json;
+            const reason = result?.error_message ? ` · ${String(result.error_message).slice(0, 160)}` : '';
             setLaunchedNote((prev) => ({
               ...prev,
-              [messageId]: `Job ${jobId.slice(0, 8)} · ${hit.status}${hit.completed_at ? ` · done ${new Date(hit.completed_at).toLocaleTimeString()}` : ''}`,
+              [messageId]: `Job ${jobId.slice(0, 8)} · ${hit.status}${hit.completed_at ? ` · done ${new Date(hit.completed_at).toLocaleTimeString()}` : ''}${reason}`,
             }));
             if (terminal.has(String(hit.status).toLowerCase()) || rounds >= 8) return;
           } else if (rounds >= 8) {
@@ -609,6 +613,8 @@ export function CopilotDrawer({
           setTimeout(track, 3000);
         };
         setTimeout(track, 3000);
+      } else if (res && 'error' in res) {
+        setLaunchedNote((prev) => ({ ...prev, [messageId]: `Launch refused: ${res.error}` }));
       } else {
         setLaunchedNote((prev) => ({ ...prev, [messageId]: 'Launch refused by backend — nothing dispatched.' }));
       }

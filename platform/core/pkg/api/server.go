@@ -1437,7 +1437,23 @@ func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
 				req.QASM = p.QASM
 			}
 			if p.RecommendedTier != "" {
-				req.Backend = p.RecommendedTier
+				// Tier normalization (2026-10-11): models write free-text
+				// tiers ("starter / simulator-first ..."). Anything
+				// simulator-smelling routes local; anything else keeps its
+				// literal name so hardware admission still guards it.
+				lower := strings.ToLower(p.RecommendedTier)
+				simSmell := false
+				for _, smell := range []string{"local", "simulator", "statevector", "aer", "sim-first", "sim first", "starter", "shot-based", "numpy"} {
+					if strings.Contains(lower, smell) {
+						simSmell = true
+						break
+					}
+				}
+				if simSmell {
+					req.Backend = "local_simulator"
+				} else {
+					req.Backend = p.RecommendedTier
+				}
 			}
 		}
 	}
