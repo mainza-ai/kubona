@@ -1548,3 +1548,9 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-11] verification | CI green on streaming/P0/settings batch
   All 5 jobs success first try on run 38132561440. Zero unpushed after log.
+
+## [2026-10-11] implementation | Audit fixes #1 + #2 (part)
+  Emergency Pause wired to real Ring-0 abort (count+receipt, fail-closed).
+  Manifold orb/pills/confidence gated on live claim; ResultsStudio sorryAx
+  pill + axioms gated, seeded reviews removed; cockpit spend honest $0.00,
+  ceiling relabeled. Console 28 vitest + tsc + eslint clean.

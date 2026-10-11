@@ -35,7 +35,7 @@ export function EpistemicManifold({ campaign }: EpistemicManifoldProps) {
       .catch((err) => console.error('Failed to load epistemics data:', err));
   }, []);
 
-  const active = campaign?.epistemics ? {
+  const liveClaim = campaign?.epistemics ? {
     claim_id: `claim-${campaign.target_system.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
     statement: campaign.epistemics.statement,
     alpha_corr: campaign.epistemics.alpha_corroborated,
@@ -43,17 +43,21 @@ export function EpistemicManifold({ campaign }: EpistemicManifoldProps) {
     gamma_unv: campaign.epistemics.gamma_unverified,
     collapsed: campaign.epistemics.status === 'COLLAPSED_VERIFIED',
     status: campaign.epistemics.status,
-  } : (data?.active_wavefunctions?.[0] || {
+  } : data?.active_wavefunctions?.[0];
+  // Empty-state discipline: the hardcoded H₂ fallback below is illustrative
+  // only — it must never render verified chrome.
+  const hasLive = Boolean(liveClaim);
+  const active = liveClaim || {
     claim_id: 'claim-h2-ground',
-    statement: 'H₂ ground state equilibrium energy is -1.13727 Ha at R = 0.7414 Å',
+    statement: 'H₂ ground state equilibrium energy is -1.13727 Ha at R = 0.7414 Å (illustrative — no live claim)',
     alpha_corr: 0.95,
     beta_cont: 0.05,
     gamma_unv: 0.1,
-    collapsed: true,
-    status: 'COLLAPSED_VERIFIED',
-  });
+    collapsed: false,
+    status: 'UNVERIFIED',
+  };
 
-  const isVerified = active.collapsed || active.alpha_corr >= 0.85;
+  const isVerified = hasLive && (active.collapsed || active.alpha_corr >= 0.85);
   const alpha = active.alpha_corr;
   const beta = active.beta_cont;
   const gamma = active.gamma_unv;
@@ -128,10 +132,10 @@ export function EpistemicManifold({ campaign }: EpistemicManifoldProps) {
               Confidence
             </div>
             <div className="text-3xl font-extrabold tracking-tight font-mono mt-0.5">
-              {Math.round(alpha * 100)}%
+              {hasLive ? `${Math.round(alpha * 100)}%` : '—'}
             </div>
             <div className="text-[11px] font-medium opacity-90 mt-1">
-              {isVerified ? 'Verified True' : 'Evaluating'}
+              {hasLive ? (isVerified ? 'Verified True' : 'Evaluating') : 'Unverified'}
             </div>
           </div>
         </div>
@@ -140,7 +144,7 @@ export function EpistemicManifold({ campaign }: EpistemicManifoldProps) {
         <div className="max-w-md text-center mt-6 space-y-2">
           <div className="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-white/[0.08] border border-white/15 text-xs text-slate-200">
             <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-            <span>FCI Ground State Energy Verified</span>
+            <span>{hasLive && isVerified ? 'FCI Ground State Energy Verified' : 'No verified claim — run the swarm'}</span>
           </div>
           <h3 className="text-sm font-semibold text-white">
             &ldquo;{active.statement}&rdquo;
