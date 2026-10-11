@@ -262,3 +262,39 @@ func TestCORSAllowlist(t *testing.T) {
 		t.Errorf("configured extra must echo, got %q", got)
 	}
 }
+
+// B0-6: lease authenticity rests on an operator key, never source. Short
+// or missing keys refuse instead of minting forgeable leases.
+func TestVaultLeaseRequiresKey(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+
+	mint := func() (int, map[string]any) {
+		body, _ := json.Marshal(map[string]any{"scope": "provider:test", "ttl_seconds": 60})
+		req := httptest.NewRequest(http.MethodPost, "/api/vault/leases", bytes.NewReader(body))
+		w := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w, req)
+		var out map[string]any
+		_ = json.NewDecoder(w.Body).Decode(&out)
+		return w.Code, out
+	}
+
+	t.Setenv("KUBONA_LEASE_HMAC_KEY", "")
+	if code, _ := mint(); code != http.StatusServiceUnavailable {
+		t.Errorf("missing key must 503, got %d", code)
+	}
+	t.Setenv("KUBONA_LEASE_HMAC_KEY", "too-short")
+	if code, _ := mint(); code != http.StatusServiceUnavailable {
+		t.Errorf("short key must 503, got %d", code)
+	}
+
+	t.Setenv("KUBONA_LEASE_HMAC_KEY", "0123456789abcdef0123456789abcdef")
+	code, out := mint()
+	if code != http.StatusOK {
+		t.Fatalf("keyed mint must succeed, got %d", code)
+	}
+	sig, _ := out["lease_signature"].(string)
+	if len(sig) != 64 {
+		t.Errorf("lease must carry a 64-hex HMAC, got %q", out["lease_signature"])
+	}
+}

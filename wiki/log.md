@@ -1768,3 +1768,9 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-11] verification | CI green on B0-5 compile gate
   All 5 jobs success on run 38180654702. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | B0-6 secrets purge + rotation runbook
+  Lease HMAC env-required (min 32, 503); PG DSN env-only, hardcoded
+  password removed; secret-rotation-runbook filed (procedure, no
+  values); pre-commit secrets guard installed + tested refuse/pass.
+  Full Go suite green.

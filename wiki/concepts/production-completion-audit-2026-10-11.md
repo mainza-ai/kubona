@@ -68,8 +68,10 @@ with tests + live proof + green CI, per project rule).
   allow-list deleted, registry contract test replaces it.
 - [x] B0-5. `qir.Analyze` in `SubmitJob` circuit_run branch; record
   `compiler_used`/`fallback_estimate`; launch inherits.
-- [ ] B0-6. Secrets purge: `.env` discipline, lease HMAC + PG DSN to
-  env-required, rotation doc.
+- [x] B0-6. Secrets purge: `.env` discipline, lease HMAC + PG DSN to
+  env-required, rotation doc. — landed 2026-10-11: lease key env-required
+  (503), PG DSN env-only, `[[secret-rotation-runbook]]`, pre-commit secrets
+  guard (value patterns + .env paths, refuse/pass both tested).
 
 ## Phase B1 — real agency
 
