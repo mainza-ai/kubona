@@ -1402,3 +1402,9 @@ skipped is the exact failure this incident is about:
   Truncation module needed pyscf absent from CI env: declared it on the
   pytest install line + importorskip in tests (matches qiskit pattern).
   All 5 jobs success on run 38098623582.
+
+## [2026-10-10] implementation | Fragile-late scheduling pass (equivalence-gated)
+  circuits/schedule.py: non-Clifford gates drift right past commuting
+  neighbors (conservative rules); exact unitary equality as evidence;
+  5 tests green. Build caught 3 author errors via its own verification
+  (infinite loop, inverted direction, bad metric). Suite 324 passed.

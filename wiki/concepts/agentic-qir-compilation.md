@@ -72,6 +72,19 @@ Everything runs inside the existing `Harness`/`Orchestrator` contract
    (`examples/defcal.qasm`) are the seam where control-level lowering starts; adding a Pulse
    dialect must not loosen the equivalence gate.
 
+## First equivalence-gated pass (built 2026-10-10)
+
+`circuits/schedule.py` implements fragile-late scheduling on the Python IR:
+non-Clifford gates drift right past provably-commuting neighbors (conservative
+rules: disjoint, diagonal-diagonal, same-axis rotations — everything else
+refuses, leaving optimization on the floor rather than risking wrongness).
+Every reschedule carries exact unitary equality mod global phase as its
+equivalence evidence — the compile-receipt mechanism itemized above, working.
+The build caught three author errors live (non-terminating swap loop,
+inverted direction, misnormalized equivalence metric), all via the pass's
+own verification. Metric: first-non-Clifford index; termination argued by
+strictly-increasing position sum, tested by idempotence.
+
 ## Boundary conditions
 
 - MLIR is an **external binary** with a pinned version contract, never a vendored tree
