@@ -186,15 +186,19 @@ func mapA2ATaskToJob(taskType string, payload json.RawMessage) (string, any, err
 		v, _ := p[key].(string)
 		return v
 	}
-	numField := func(key string) float64 {
+	numFieldOK := func(key string) (float64, bool) {
 		switch v := p[key].(type) {
 		case float64:
-			return v
+			return v, true
 		case int:
-			return float64(v)
+			return float64(v), true
 		default:
-			return 0
+			return 0, false
 		}
+	}
+	numField := func(key string) float64 {
+		v, _ := numFieldOK(key)
+		return v
 	}
 
 	switch taskType {
@@ -291,6 +295,44 @@ func mapA2ATaskToJob(taskType string, payload json.RawMessage) (string, any, err
 			SubspaceDimension: dim,
 			TimeStep:          tau,
 			Shots:             shots,
+		}, nil
+
+	case "epistemic_claim_evaluation":
+		// The only production path into claim_eval jobs: without it the
+		// verdict pipeline (bridge evaluation, replan fold, claim record)
+		// is reachable only from tests. Values are caller-measured, never
+		// defaulted into existence — a verdict needs a real comparison.
+		claimID := strField("claim_id")
+		statement := strField("statement")
+		if claimID == "" || statement == "" {
+			return "", nil, fmt.Errorf("epistemic_claim_evaluation requires claim_id and statement")
+		}
+		qv, qOK := numFieldOK("quantum_value")
+		cv, cOK := numFieldOK("classical_anchor_value")
+		if !qOK || !cOK {
+			return "", nil, fmt.Errorf("epistemic_claim_evaluation requires measured quantum_value and classical_anchor_value")
+		}
+		var platforms []string
+		if raw, ok := p["source_platforms"].([]any); ok {
+			for _, s := range raw {
+				if name, ok := s.(string); ok && name != "" {
+					platforms = append(platforms, name)
+				}
+			}
+		}
+		if len(platforms) == 0 {
+			return "", nil, fmt.Errorf("epistemic_claim_evaluation requires at least one source_platform")
+		}
+		engagement := int64(numField("total_engagement"))
+		contra, _ := numFieldOK("contradiction_signal")
+		return "claim_eval", &pb.ClaimEvaluationRequest{
+			ClaimId:              claimID,
+			Statement:            statement,
+			QuantumValue:         qv,
+			ClassicalAnchorValue: cv,
+			SourcePlatforms:      platforms,
+			TotalEngagement:      engagement,
+			ContradictionSignal:  contra,
 		}, nil
 
 	default:

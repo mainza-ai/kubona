@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -153,6 +154,25 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 		FOREIGN KEY (session_id) REFERENCES sessions(id)
 	);
 	CREATE INDEX IF NOT EXISTS idx_campaign_versions_session ON campaign_versions(session_id);
+
+	-- Claim records: one immutable row per evaluated claim, giving every
+	-- verdict a stable per-turn record ID that citations resolve. Amplitudes
+	-- use -1 for "not evaluated" (tribunal consensus has no amplitudes);
+	-- only claim_eval verdicts carry measured amplitudes.
+	CREATE TABLE IF NOT EXISTS claim_records (
+		id TEXT PRIMARY KEY,
+		session_id TEXT NOT NULL,
+		turn_kind TEXT NOT NULL,
+		statement TEXT NOT NULL,
+		alpha REAL NOT NULL DEFAULT -1,
+		beta REAL NOT NULL DEFAULT -1,
+		gamma REAL NOT NULL DEFAULT -1,
+		verdict TEXT NOT NULL,
+		evidence_json TEXT NOT NULL DEFAULT '{}',
+		created_at DATETIME NOT NULL,
+		FOREIGN KEY (session_id) REFERENCES sessions(id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_claims_session ON claim_records(session_id);
 
 	CREATE INDEX IF NOT EXISTS idx_chat_session ON chat_messages(session_id);
 	CREATE INDEX IF NOT EXISTS idx_jobs_session ON jobs(session_id);
@@ -509,6 +529,83 @@ func (l *Ledger) GetCampaignVersions(sessionID string, limit int) ([]CampaignVer
 			return nil, err
 		}
 		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
+// ClaimRecord is one immutable evaluated-claim row. Amplitudes of -1 mean
+// "not evaluated" — only claim_eval verdicts carry measured amplitudes;
+// tribunal consensus records carry the verdict alone.
+type ClaimRecord struct {
+	ID        string  `json:"id"`
+	SessionID string  `json:"session_id"`
+	TurnKind  string  `json:"turn_kind"`
+	Statement string  `json:"statement"`
+	Alpha     float64 `json:"alpha"`
+	Beta      float64 `json:"beta"`
+	Gamma     float64 `json:"gamma"`
+	Verdict   string  `json:"verdict"`
+	Evidence  string  `json:"evidence_json"`
+	CreatedAt string  `json:"created_at"`
+}
+
+// MintClaimRecord stores one evaluated claim and returns its stable record
+// ID: clm-<session8>-<seq04>, ordered per session. The sequence counts under
+// the write lock so concurrent turns cannot mint the same ID twice.
+func (l *Ledger) MintClaimRecord(sessionID, turnKind, statement string, alpha, beta, gamma float64, verdict, evidenceJSON string) (*ClaimRecord, error) {
+	if strings.TrimSpace(sessionID) == "" || strings.TrimSpace(statement) == "" || strings.TrimSpace(verdict) == "" {
+		return nil, fmt.Errorf("claim record needs session, statement, and verdict")
+	}
+	if evidenceJSON == "" {
+		evidenceJSON = "{}"
+	}
+	l.lock.Lock()
+	defer l.lock.Unlock()
+
+	var seq int
+	if err := l.db.QueryRow(`SELECT COUNT(*) FROM claim_records WHERE session_id = ?`, sessionID).Scan(&seq); err != nil {
+		return nil, err
+	}
+	seq++
+	short := sessionID
+	if len(short) > 8 {
+		short = short[:8]
+	}
+	id := fmt.Sprintf("clm-%s-%04d", short, seq)
+	now := time.Now().UTC().Format(time.RFC3339)
+	if _, err := l.db.Exec(
+		`INSERT INTO claim_records (id, session_id, turn_kind, statement, alpha, beta, gamma, verdict, evidence_json, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		id, sessionID, turnKind, statement, alpha, beta, gamma, verdict, evidenceJSON, now); err != nil {
+		return nil, err
+	}
+	return &ClaimRecord{ID: id, SessionID: sessionID, TurnKind: turnKind, Statement: statement,
+		Alpha: alpha, Beta: beta, Gamma: gamma, Verdict: verdict, Evidence: evidenceJSON, CreatedAt: now}, nil
+}
+
+// ListClaimRecords returns a session's claim history, newest first.
+func (l *Ledger) ListClaimRecords(sessionID string, limit int) ([]ClaimRecord, error) {
+	if limit <= 0 || limit > 200 {
+		limit = 200
+	}
+	l.lock.RLock()
+	defer l.lock.RUnlock()
+
+	rows, err := l.db.Query(
+		`SELECT id, session_id, turn_kind, statement, alpha, beta, gamma, verdict, evidence_json, created_at
+		 FROM claim_records WHERE session_id = ? ORDER BY created_at DESC, rowid DESC LIMIT ?`,
+		sessionID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ClaimRecord
+	for rows.Next() {
+		var c ClaimRecord
+		if err := rows.Scan(&c.ID, &c.SessionID, &c.TurnKind, &c.Statement, &c.Alpha, &c.Beta, &c.Gamma, &c.Verdict, &c.Evidence, &c.CreatedAt); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
 	}
 	return out, rows.Err()
 }

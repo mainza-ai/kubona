@@ -452,6 +452,12 @@ func (s *Server) handleEpistemics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	kappa, _ := epistemics.ComputeEpistemicCurvature(0.12, anchor, anchor+drift/1000.0)
+	// Latest claim record: this is what backs the displayed verdict, when
+	// anything evaluated backs it yet. Empty means synthesis placeholders.
+	recordID := ""
+	if recs, err := s.ledger.ListClaimRecords(sessionID, 1); err == nil && len(recs) > 0 {
+		recordID = recs[0].ID
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"refusal_ratio":        s.epistemicGate.RefusalRatio(),
 		"stagnation_kappa":     kappa,
@@ -460,6 +466,7 @@ func (s *Server) handleEpistemics(w http.ResponseWriter, r *http.Request) {
 		"active_wavefunctions": []map[string]any{
 			{
 				"claim_id":   claimID,
+				"record_id":  recordID,
 				"statement":  statement,
 				"alpha_corr": alpha,
 				"beta_cont":  beta,
@@ -926,6 +933,27 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 			"prompt": prompt,
 		})
 		writeJSON(w, http.StatusOK, state)
+		return
+	}
+	// Claim history: every cited [clm-…] ID resolves here, newest first.
+	// Unknown sessions resolve to an empty list, never an error shell.
+	if strings.HasSuffix(id, "/claims") {
+		sessionID := strings.TrimSuffix(id, "/claims")
+		limit := 50
+		if raw := r.URL.Query().Get("limit"); raw != "" {
+			if n, err := strconv.Atoi(raw); err == nil && n > 0 {
+				limit = n
+			}
+		}
+		records, err := s.ledger.ListClaimRecords(sessionID, limit)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if records == nil {
+			records = []ledger.ClaimRecord{}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"claims": records})
 		return
 	}
 	if strings.HasSuffix(id, "/campaign/versions") {
@@ -1630,11 +1658,28 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 		s.ledger.SaveCampaignStateWithTrigger(req.SessionID, campBytes, triggerLabel("tribunal", req.Prompt))
 	}
 	tribOutcome := "consensus-failed"
+	tribVerdict := "contested"
 	if res.ConsensusPassed {
 		tribOutcome = "consensus-passed"
+		tribVerdict = "verified"
 	}
 	if res.ProposalJSON != nil {
 		tribOutcome += ",proposal"
+	}
+	// The consensus is an evaluated claim: mint its record so the verdict
+	// is citable. Amplitudes stay -1 (not evaluated) — the verdict alone
+	// is what the tribunal measured.
+	tribRecordID := ""
+	evBytes, _ := json.Marshal(map[string]any{
+		"turns":        len(res.Turns),
+		"consensus":    res.ConsensusPassed,
+		"has_proposal": res.ProposalJSON != nil,
+	})
+	if rec, merr := s.ledger.MintClaimRecord(req.SessionID, "tribunal",
+		"Tribunal consensus: "+boundRunes(res.Synthesis, 400),
+		-1, -1, -1, tribVerdict, string(evBytes)); merr == nil {
+		tribRecordID = rec.ID
+		tribOutcome += " [" + rec.ID + "]"
 	}
 	s.retainTurnExperience(req.SessionID, "tribunal", req.Prompt, tribOutcome, nil, 0.7)
 
@@ -1642,6 +1687,7 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 		"tribunal":          res,
 		"assistant_message": assistantMsg,
 		"campaign":          campState,
+		"claim_record_id":   tribRecordID,
 	})
 }
 

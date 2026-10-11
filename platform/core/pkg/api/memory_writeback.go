@@ -126,11 +126,29 @@ func (s *Server) replanCampaignOnSettled(j *jobs.Job) {
 	if s.ledger == nil || j == nil || len(j.ResultJSON) == 0 {
 		return
 	}
+	// claim_eval verdicts mint a claim record first, independent of any
+	// campaign: the evaluation happened, and its record exists whether or
+	// not the plan applies it. The ID then cites the replan line.
+	cite := ""
+	if j.JobType == "claim_eval" {
+		if draft, ok := agents.EvalClaimRecord(j.ResultJSON); ok {
+			evBytes, _ := json.Marshal(map[string]any{
+				"job_id":            j.ID,
+				"external_claim_id": draft.ExternalID,
+				"delta_mha":         evalDeltaMHa(j.ResultJSON),
+			})
+			if rec, merr := s.ledger.MintClaimRecord(j.SessionID, "claim_eval",
+				"Evaluated claim: "+draft.Statement,
+				draft.Alpha, draft.Beta, draft.Gamma, draft.Verdict, string(evBytes)); merr == nil {
+				cite = rec.ID
+			}
+		}
+	}
 	rawState, err := s.ledger.GetCampaignState(j.SessionID)
 	if err != nil || len(rawState) == 0 {
 		return
 	}
-	updated, changed, note := agents.ReplanWithJobResult(rawState, j.ID, j.JobType, j.ResultJSON)
+	updated, changed, note := agents.ReplanWithJobResult(rawState, j.ID, j.JobType, j.ResultJSON, cite)
 	if !changed {
 		return
 	}
@@ -144,6 +162,24 @@ func (s *Server) replanCampaignOnSettled(j *jobs.Job) {
 		"job_type": j.JobType,
 		"note":     note,
 	})
+}
+
+// evalDeltaMHa extracts the evaluated discrepancy for claim evidence.
+// Absent or undecodable means unknown — never zero-filled.
+func evalDeltaMHa(resultJSON []byte) *float64 {
+	var res map[string]json.RawMessage
+	if err := json.Unmarshal(resultJSON, &res); err != nil {
+		return nil
+	}
+	raw, ok := res["delta_mha"]
+	if !ok {
+		return nil
+	}
+	var v float64
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return nil
+	}
+	return &v
 }
 
 // retainTurnExperience stores one bounded experience for a completed model

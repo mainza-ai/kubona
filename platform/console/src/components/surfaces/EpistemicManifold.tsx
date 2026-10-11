@@ -7,6 +7,7 @@ import { fetchEpistemics } from '@/lib/api';
 
 interface EpistemicWavefunction {
   claim_id: string;
+  record_id?: string;
   statement: string;
   alpha_corr: number;
   beta_cont: number;
@@ -37,6 +38,7 @@ export function EpistemicManifold({ campaign }: EpistemicManifoldProps) {
 
   const liveClaim = campaign?.epistemics ? {
     claim_id: `claim-${campaign.target_system.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
+    record_id: (data?.active_wavefunctions?.[0] as EpistemicWavefunction | undefined)?.record_id,
     statement: campaign.epistemics.statement,
     alpha_corr: campaign.epistemics.alpha_corroborated,
     beta_cont: campaign.epistemics.beta_contested,
@@ -149,6 +151,12 @@ export function EpistemicManifold({ campaign }: EpistemicManifoldProps) {
           <h3 className="text-sm font-semibold text-white">
             &ldquo;{active.statement}&rdquo;
           </h3>
+          {/* Claim record: the evaluated verdict behind this statement, when one exists. */}
+          {active.record_id ? (
+            <p className="text-[11px] font-mono text-cyan-300/80">record {active.record_id} · resolvable under session claims</p>
+          ) : (
+            <p className="text-[11px] text-slate-500">no evaluated record yet — synthesis placeholders</p>
+          )}
           <p className="text-xs text-slate-300 leading-relaxed">
             {anchorStated ? (
               <>Corroborated within chemical accuracy (<span className="text-emerald-400 font-mono font-semibold">{discrepancy!.toFixed(2)} mHa &lt; {accuracyLimit.toFixed(1)} mHa</span>) against {anchorMethod} benchmarks.</>
