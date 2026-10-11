@@ -1583,3 +1583,8 @@ skipped is the exact failure this incident is about:
   in-DB + 6 mismatches, state-reset inventory. Same-day fixes: numeric
   status labels, error-key reasons, generic engine strings. Phased plan
   (correctness done, coherence next, agentic core, hardening).
+
+## [2026-10-11] verification | CI green on Phase-2 coherence batch
+  Gate trigger/copy/actions, idle-rest canvas, job detail route+view,
+  layered DAG, widget geometry. All 5 jobs success on run 38149382547.
+  Tree clean, zero unpushed.
