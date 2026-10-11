@@ -84,8 +84,12 @@ func EvalClaimRecord(resultJSON []byte) (*ClaimDraft, bool) {
 		return nil, false
 	}
 	var passes bool
-	if raw, ok := res["passes_chemical_accuracy"]; ok {
-		_ = json.Unmarshal(raw, &passes)
+	rawPass, ok := res["passes_chemical_accuracy"]
+	if !ok {
+		return nil, false
+	}
+	if err := json.Unmarshal(rawPass, &passes); err != nil {
+		return nil, false
 	}
 	var reason, external string
 	if raw, ok := res["verdict_reason"]; ok {
@@ -211,8 +215,24 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		if raw, ok := present("molecule"); ok {
 			_ = json.Unmarshal(raw, &mol)
 		}
-		if mol == "" || (!strings.Contains(strings.ToUpper(state.QuantumFactors.TargetMolecule), strings.ToUpper(mol)) &&
-			!strings.Contains(strings.ToUpper(mol), strings.ToUpper(state.QuantumFactors.TargetMolecule))) {
+		// Molecule identity is exact against the campaign formula
+		// ("H2" == "H2"), with substring against the display target only
+		// as a fallback for formula-less states. Substring alone
+		// mismatches ("H" would satisfy "H2") and would corrupt the
+		// anchor with the wrong molecule's physics — so codes shorter
+		// than two characters never match at all.
+		molNorm := strings.ToUpper(strings.TrimSpace(mol))
+		matched := false
+		if len(molNorm) >= 2 {
+			matched = strings.EqualFold(
+				strings.TrimSpace(state.QuantumFactors.MolecularFormula), mol)
+			if !matched {
+				targetUpper := strings.ToUpper(state.QuantumFactors.TargetMolecule)
+				matched = strings.Contains(targetUpper, molNorm) ||
+					strings.Contains(molNorm, targetUpper)
+			}
+		}
+		if !matched {
 			return nil, false, "anchor molecule mismatch"
 		}
 		rawRHF, okR := present("rhf_energy")
@@ -273,9 +293,13 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		}
 		state.Epistemics.PCorrelated = state.Epistemics.AlphaCorroborated * state.Epistemics.AlphaCorroborated * 100.0
 		passes := false
-		if raw, ok := present("passes_chemical_accuracy"); ok {
-			_ = json.Unmarshal(raw, &passes)
+		rawPass, ok := present("passes_chemical_accuracy")
+		if !ok {
+			// Absent verdict is not a failing verdict: folding
+			// "contested" here would invent an evaluation outcome.
+			return nil, false, "verdict unknown"
 		}
+		_ = json.Unmarshal(rawPass, &passes)
 		reason := ""
 		if raw, ok := present("verdict_reason"); ok {
 			_ = json.Unmarshal(raw, &reason)
@@ -305,9 +329,11 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		if raw, ok := present("unmitigated_value"); ok {
 			_ = json.Unmarshal(raw, &unmit)
 		}
-		if raw, ok := present("mitigated_value"); ok {
-			_ = json.Unmarshal(raw, &mit)
+		rawMit, ok := present("mitigated_value")
+		if !ok {
+			return nil, false, "mitigated value absent"
 		}
+		_ = json.Unmarshal(rawMit, &mit)
 		if raw, ok := present("error_bound"); ok {
 			_ = json.Unmarshal(raw, &bound)
 		}
@@ -319,9 +345,11 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			return nil, false, "cut reported success=false"
 		}
 		cuts := 0
-		if raw, ok := present("total_cuts"); ok {
-			_ = json.Unmarshal(raw, &cuts)
+		rawCuts, ok := present("total_cuts")
+		if !ok {
+			return nil, false, "cut count absent"
 		}
+		_ = json.Unmarshal(rawCuts, &cuts)
 		measureLine("cut into fragments with %d wire cuts.", cuts)
 		return marshalReplan(&state, true, "cut recorded")
 
@@ -353,8 +381,14 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		var good []okPt
 		rMin, rMax := 0.0, 0.0
 		for i, pm := range pts {
+			rawR, ok := pm["r"]
+			if !ok {
+				return nil, false, "sweep point missing geometry"
+			}
 			var r float64
-			_ = json.Unmarshal(pm["r"], &r)
+			if err := json.Unmarshal(rawR, &r); err != nil {
+				return nil, false, "sweep geometry undecodable"
+			}
 			if i == 0 {
 				rMin, rMax = r, r
 			} else {

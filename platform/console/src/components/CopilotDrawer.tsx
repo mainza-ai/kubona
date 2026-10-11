@@ -32,6 +32,7 @@ import { ChatMessage, CampaignState, RunPhase, Proposal } from '@/types';
 import { fetchMessages, sendChatMessage, streamChatMessage, createSession, runTribunal, fetchCampaignState, launchProposal, clearMessages, regenerateChat, sendFeedback, rewriteChat, fetchJobs, jobStatusLabel, isTerminalJobStatus } from '@/lib/api';
 import { MathText } from './common/MathText';
 import { Tip } from './common/Tip';
+import { MemoryPanel } from './MemoryPanel';
 import type { CanvasWidgetKind } from './sovereign/WidgetStage';
 
 interface CopilotDrawerProps {
@@ -1301,6 +1302,9 @@ export function CopilotDrawer({
             </button>
           ))}
         </div>
+
+        {/* Session memory inspector (tenant-scoped recall + retain) */}
+        <MemoryPanel sessionId={sessionId} />
 
         {/* Composer Card */}
         <form
