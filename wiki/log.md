@@ -1397,3 +1397,8 @@ skipped is the exact failure this incident is about:
   Suite 319 passed. Note: one unrelated failure mid-run traced to Docker
   Desktop being down (daemon socket gone); restarted it, re-ran green —
   environmental, not a code issue.
+
+## [2026-10-10] verification | CI green again after pyscf fix
+  Truncation module needed pyscf absent from CI env: declared it on the
+  pytest install line + importorskip in tests (matches qiskit pattern).
+  All 5 jobs success on run 38098623582.
