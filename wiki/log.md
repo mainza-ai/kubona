@@ -1630,3 +1630,9 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-11] verification | CI green on versioned campaigns
   All 5 jobs success on run 38162834450. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | Memory write-back closes the loop
+  retainTurnExperience on chat/stream/regenerate/tribunal; tool
+  attribution via ledger diff; tenant-scoped RetainScoped mirroring
+  recall IFC. Live: 0.8-rated experience with get_campaign,get_anchor.
+  Rewrite (user edit) excluded. Full Go suite green.

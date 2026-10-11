@@ -1054,6 +1054,7 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 
 		// Autonomous Epistemic Routing via the configured engine
 		genStart := time.Now()
+		turnEventsBefore := s.latestEventID(sessionID)
 		botReply, proposalJSON, err := s.generateCopilotResponse(r.Context(), sessionID, req.Content)
 		genMs := time.Since(genStart).Milliseconds()
 		if err != nil && botReply == "" {
@@ -1072,6 +1073,14 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 			campBytes, _ := json.Marshal(campState)
 			s.ledger.SaveCampaignStateWithTrigger(sessionID, campBytes, triggerLabel("chat", req.Content))
 		}
+
+		// Memory write-back: this turn's outcome becomes recallable context.
+		// One ledger read: the tool list feeds both the content and the
+		// importance rating.
+		turnTools := s.toolNamesSince(sessionID, turnEventsBefore)
+		s.retainTurnExperience(sessionID, "chat", req.Content,
+			chatOutcome(botReply, proposalJSON != nil, err), turnTools,
+			chatImportance(proposalJSON != nil, err != nil, len(turnTools) > 0))
 
 		writeJSON(w, http.StatusCreated, map[string]any{
 			"user_message":      userMsg,
@@ -1156,6 +1165,7 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 
 	// Same tool loop as the unary path: observe live state first, then
 	// stream the final answer. Degrades silently to base history.
+	streamEventsBefore := s.latestEventID(sessionID)
 	history = s.resolveWithTools(streamCtx, sessionID, history)
 
 	streamRes, streamErr := s.llmClient.CompleteStream(streamCtx, "copilot", history, func(tok string) {
@@ -1202,6 +1212,13 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 		}
 		campState = cs
 	}
+	streamOutcome := chatOutcome(display, proposalJSON != nil, streamErr)
+	if streamRes.Finish == "length" {
+		streamOutcome += " (truncated at token budget)"
+	}
+	streamTools := s.toolNamesSince(sessionID, streamEventsBefore)
+	s.retainTurnExperience(sessionID, "chat-stream", req.Content, streamOutcome, streamTools,
+		chatImportance(proposalJSON != nil, streamErr != nil, len(streamTools) > 0))
 	emit("done", map[string]any{
 		"user": userMsg, "assistant": assistantMsg,
 		"proposal": proposalJSON, "campaign": campState, "model": servedModel,
@@ -1236,6 +1253,7 @@ func (s *Server) handleChatRegenerate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	genStart := time.Now()
+	regenEventsBefore := s.latestEventID(sessionID)
 	botReply, proposalJSON, genErr := s.generateCopilotResponse(r.Context(), sessionID, prompt)
 	genMs := time.Since(genStart).Milliseconds()
 	if genErr != nil && botReply == "" {
@@ -1253,6 +1271,10 @@ func (s *Server) handleChatRegenerate(w http.ResponseWriter, r *http.Request) {
 			s.ledger.SaveCampaignStateWithTrigger(sessionID, campBytes, "regenerate")
 		}
 	}
+	regenTools := s.toolNamesSince(sessionID, regenEventsBefore)
+	s.retainTurnExperience(sessionID, "regenerate", prompt,
+		chatOutcome(botReply, proposalJSON != nil, genErr), regenTools,
+		chatImportance(proposalJSON != nil, genErr != nil, len(regenTools) > 0))
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"assistant_message": assistantMsg,
 		"assistant":         assistantMsg,
@@ -1603,6 +1625,14 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 		campBytes, _ := json.Marshal(campState)
 		s.ledger.SaveCampaignStateWithTrigger(req.SessionID, campBytes, triggerLabel("tribunal", req.Prompt))
 	}
+	tribOutcome := "consensus-failed"
+	if res.ConsensusPassed {
+		tribOutcome = "consensus-passed"
+	}
+	if res.ProposalJSON != nil {
+		tribOutcome += ",proposal"
+	}
+	s.retainTurnExperience(req.SessionID, "tribunal", req.Prompt, tribOutcome, nil, 0.7)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"tribunal":          res,
