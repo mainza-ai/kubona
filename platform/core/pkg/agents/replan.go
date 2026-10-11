@@ -320,6 +320,86 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		measureLine("cut into fragments with %d wire cuts.", cuts)
 		return marshalReplan(&state, true, "cut recorded")
 
+	case "pes_sweep":
+		// A sweep changes no reference state: the campaign anchor stays
+		// the equilibrium value, the trajectory stays optimizer output.
+		// What folds is the computed table, as one bounded section, plus
+		// the coarse FCI minimum (argmin over successful points only —
+		// a single point has no minimum to claim).
+		if !successTrue() {
+			return nil, false, "sweep reported success=false"
+		}
+		rawPts, ok := present("points")
+		if !ok {
+			return nil, false, "sweep has no points"
+		}
+		var pts []map[string]json.RawMessage
+		if err := json.Unmarshal(rawPts, &pts); err != nil || len(pts) == 0 {
+			return nil, false, "sweep points undecodable"
+		}
+		var mol string
+		if raw, ok := present("molecule"); ok {
+			_ = json.Unmarshal(raw, &mol)
+		}
+		var lines []string
+		type okPt struct {
+			r, fci float64
+		}
+		var good []okPt
+		rMin, rMax := 0.0, 0.0
+		for i, pm := range pts {
+			var r float64
+			_ = json.Unmarshal(pm["r"], &r)
+			if i == 0 {
+				rMin, rMax = r, r
+			} else {
+				if r < rMin {
+					rMin = r
+				}
+				if r > rMax {
+					rMax = r
+				}
+			}
+			var rhf, fci float64
+			rOK, fOK := false, false
+			if raw, ok := pm["rhf_energy"]; ok {
+				rOK = json.Unmarshal(raw, &rhf) == nil
+			}
+			if raw, ok := pm["fci_energy"]; ok {
+				fOK = json.Unmarshal(raw, &fci) == nil
+			}
+			if rOK && fOK {
+				good = append(good, okPt{r, fci})
+				lines = append(lines, fmt.Sprintf("  R=%.4f A  RHF=%.5f  FCI=%.5f Ha", r, rhf, fci))
+				continue
+			}
+			reason := "energies absent"
+			if raw, ok := pm["error"]; ok {
+				var e string
+				if json.Unmarshal(raw, &e) == nil && e != "" {
+					reason = boundClaim(e)
+				}
+			}
+			lines = append(lines, fmt.Sprintf("  R=%.4f A  anchor failed: %s", r, reason))
+		}
+		if len(good) == 0 {
+			return nil, false, "sweep measured no geometry"
+		}
+		head := fmt.Sprintf("%s classical PES, %d points R=%.4f..%.4f A:", mol, len(pts), rMin, rMax)
+		if len(good) >= 2 {
+			best := good[0]
+			for _, g := range good[1:] {
+				if g.fci < best.fci {
+					best = g
+				}
+			}
+			lines = append(lines, fmt.Sprintf("  coarse FCI minimum near R=%.4f A", best.r))
+		}
+		state.Notebook.Sections = append(state.Notebook.Sections,
+			"Job "+shortID+" (pes_sweep): "+head+"\n"+strings.Join(lines, "\n"))
+		trimMeasurementLines(&state)
+		return marshalReplan(&state, true, "PES table folded")
+
 	default:
 		return nil, false, "unknown job type " + jobType
 	}

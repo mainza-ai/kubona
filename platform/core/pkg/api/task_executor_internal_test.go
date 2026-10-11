@@ -28,6 +28,10 @@ func TestMapA2ATaskToJobContract(t *testing.T) {
 		{"epistemic_claim_evaluation", `{}`},
 		{"epistemic_claim_evaluation", `{"claim_id":"c1","statement":"s"}`},
 		{"epistemic_claim_evaluation", `{"claim_id":"c1","statement":"s","quantum_value":-1.1,"classical_anchor_value":-1.13}`},
+		{"potential_energy_scan", `{}`},
+		{"potential_energy_scan", `{"molecule":"H2"}`},
+		{"potential_energy_scan", `{"molecule":"H2","r_min":0.5,"r_max":1.5,"steps":1}`},
+		{"potential_energy_scan", `{"molecule":"H2","r_min":1.5,"r_max":0.5}`},
 	} {
 		if _, _, err := mapA2ATaskToJob(tc.taskType, json.RawMessage(tc.payload)); err == nil {
 			t.Fatalf("%s %s must refuse", tc.taskType, tc.payload)
@@ -41,6 +45,7 @@ func TestMapA2ATaskToJobContract(t *testing.T) {
 		"zne_error_mitigation":          "mitigate",
 		"krylov_subspace_ground_state":  "krylov_solve",
 		"epistemic_claim_evaluation":    "claim_eval",
+		"potential_energy_scan":         "pes_sweep",
 	}
 	payloads := map[string]string{
 		"molecular_ground_state_pyscf":  `{"molecule":"H2","bond_distance":0.7414}`,
@@ -48,6 +53,7 @@ func TestMapA2ATaskToJobContract(t *testing.T) {
 		"zne_error_mitigation":          `{"qasm":"q;"}`,
 		"krylov_subspace_ground_state":  `{"molecule":"H2","bond_distance":0.7414}`,
 		"epistemic_claim_evaluation":    `{"claim_id":"claim-h2-ground","statement":"H2 within chemical accuracy","quantum_value":-1.1368,"classical_anchor_value":-1.13727,"source_platforms":["pyscf","aer"],"total_engagement":12}`,
+		"potential_energy_scan":         `{"molecule":"H2","r_min":0.5,"r_max":1.5}`,
 	}
 	for taskType, wantJob := range mapped {
 		jobType, _, err := mapA2ATaskToJob(taskType, json.RawMessage(payloads[taskType]))

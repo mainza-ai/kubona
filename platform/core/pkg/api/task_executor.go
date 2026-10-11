@@ -335,6 +335,32 @@ func mapA2ATaskToJob(taskType string, payload json.RawMessage) (string, any, err
 			ContradictionSignal:  contra,
 		}, nil
 
+	case "potential_energy_scan":
+		// Classical PES sweep: the grid is caller-stated (no defaulted
+		// geometries); steps default to 5, a count, not physics. Range and
+		// step bounds enforce here and again in the worker.
+		molecule := strField("molecule")
+		if molecule == "" {
+			return "", nil, fmt.Errorf("potential_energy_scan requires molecule")
+		}
+		rMin, minOK := numFieldOK("r_min")
+		rMax, maxOK := numFieldOK("r_max")
+		if !minOK || !maxOK {
+			return "", nil, fmt.Errorf("potential_energy_scan requires r_min and r_max")
+		}
+		steps := int(numField("steps"))
+		if steps == 0 {
+			steps = 5
+		}
+		params := map[string]any{
+			"molecule": molecule, "r_min": rMin, "r_max": rMax, "steps": steps,
+		}
+		rawParams, _ := json.Marshal(params)
+		if _, err := jobs.ValidateSweepParams(rawParams); err != nil {
+			return "", nil, err
+		}
+		return "pes_sweep", params, nil
+
 	default:
 		return "", nil, fmt.Errorf("no ledger-bound executor for task_type %q: refused, not faked", taskType)
 	}
