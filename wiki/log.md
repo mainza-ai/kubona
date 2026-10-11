@@ -1419,3 +1419,8 @@ skipped is the exact failure this incident is about:
   upstream) in both loaders; undeclared refuses even with clean licence;
   generated admissible only declared. All 4 corpora stamped; existing
   fixtures updated. Suite 329 passed.
+
+## [2026-10-10] implementation | Fidelity budgets v1 (leave-one-out)
+  fidelity_budget on the accounting engine: absolute gains honest,
+  shares rank-only with documented non-additivity; ideal devices clean.
+  3 tests green; suite 332 passed.
