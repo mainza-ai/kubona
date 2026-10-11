@@ -8,6 +8,8 @@ a missing nuclear-repulsion shift, both invisible without the anchor.
 import numpy as np
 import pytest
 
+pytest.importorskip("pyscf")
+
 from kubona.eval.truncation import (
     _jw_ops,
     cnot_estimate,
