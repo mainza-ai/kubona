@@ -1608,3 +1608,7 @@ skipped is the exact failure this incident is about:
   (recall+retain live); recall_memory tenant-scoped tool for all roles.
   Live-proven: tribunal retained, recall honestly empty, no fabrication.
   Full Go suite green.
+
+## [2026-10-11] verification | CI green on memory slice
+  Store + tribunal WithMemory + recall_memory + budgeting. All 5 jobs
+  success on run 38159851942. Tree clean, zero unpushed.
