@@ -853,6 +853,37 @@ export async function rewriteChat(
   }
 }
 
+// Job status wire format (audit 2026-10-11): the backend marshals the
+// proto int32 enum (1/2/3/4…), not names. Map both numeric wire values and
+// DB/string forms (JOB_STATUS_COMPLETED) to canonical labels. Unknown
+// values pass through verbatim — never invented.
+const JOB_STATUS_LABELS: Record<number, string> = {
+  0: 'UNSPECIFIED',
+  1: 'QUEUED',
+  2: 'RUNNING',
+  3: 'COMPLETED',
+  4: 'FAILED',
+  5: 'PAUSED',
+  6: 'CANCELLED',
+};
+
+export function jobStatusLabel(status: unknown): string {
+  if (typeof status === 'number') return JOB_STATUS_LABELS[status] ?? String(status);
+  if (typeof status === 'string') {
+    const upper = status.toUpperCase().replace(/^JOB_STATUS_/, '');
+    if (['QUEUED', 'RUNNING', 'COMPLETED', 'FAILED', 'PAUSED', 'CANCELLED', 'UNSPECIFIED'].includes(upper)) {
+      return upper;
+    }
+    return status;
+  }
+  return 'UNKNOWN';
+}
+
+export function isTerminalJobStatus(status: unknown): boolean {
+  const label = jobStatusLabel(status);
+  return label === 'COMPLETED' || label === 'FAILED' || label === 'CANCELLED';
+}
+
 // Jobs: session-scoped run list for inline launch tracking.
 export async function fetchJobs(sessionId: string): Promise<import('@/types').Job[]> {
   try {
