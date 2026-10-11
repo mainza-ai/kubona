@@ -618,7 +618,7 @@ func SynthesizeCampaignStateWithOpts(
 			Status:            epStatus,
 			LiteratureDrift:   deltaMHa,
 			Statement:         epStatement,
-			Sources:           []string{"pyscf:sto-3g", "chemrxiv:2026.01"},
+			Sources:           []string{"pyscf:sto-3g:rhf", "pyscf:sto-3g:fci"},
 		},
 		Notebook:  notebook,
 		UpdatedAt: time.Now().UTC(),
