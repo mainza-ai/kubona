@@ -1487,3 +1487,6 @@ skipped is the exact failure this incident is about:
   [[market-intelligence-capability]] mapping gather/curate/store onto ledger,
   claim grammar, and approval gate. Buildable now: entity schema + upsert +
   taxonomy v0 + snapshots; gated: connectors-by-permission-row, dataset product.
+
+## [2026-10-11] verification | CI green on intelligence-report batch
+  All 5 jobs success on run 38117115673. Tree clean, zero unpushed.
