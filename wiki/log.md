@@ -1662,3 +1662,6 @@ skipped is the exact failure this incident is about:
   tests) — payloads that were never valid QASM, previously waved
   through by substring checks. Fixtures converted to real newlines;
   regression test pins it. Suite green locally; recommitting.
+
+## [2026-10-11] verification | CI green on semantic validator + fixture repair
+  All 5 jobs success on run 38167245782. Tree clean, zero unpushed.
