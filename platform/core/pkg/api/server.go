@@ -29,6 +29,7 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
 	"github.com/mainza-ai/kubona/core/pkg/llm"
 	"github.com/mainza-ai/kubona/core/pkg/mandates"
+	"github.com/mainza-ai/kubona/core/pkg/memory"
 	"github.com/mainza-ai/kubona/core/pkg/metasearch"
 	"github.com/mainza-ai/kubona/core/pkg/qir"
 	"github.com/mainza-ai/kubona/core/pkg/sandbox"
@@ -57,6 +58,7 @@ type Server struct {
 	llmSettings      *llm.Settings
 	llmClient        *llm.Client
 	toolRegistry     *tools.Registry
+	memoryStore      *memory.HindsightStore
 	metaSearchEngine *metasearch.MetaSearchEngine
 	sandboxRunner    *sandbox.SandboxRunner
 	autoresearchMu   sync.RWMutex
@@ -177,6 +179,9 @@ func NewServer(
 	// Tribunal turns observe through the same registry (nil-safe: turns
 	// proceed text-only when unset).
 	s.collective.Tools = s.toolRegistry
+	// Persistent associative memory (SQLite-backed, tenant-scoped recall).
+	// Activates the tribunal recall/retain paths and the recall_memory tool.
+	s.memoryStore = memory.NewPersistentHindsightStore(l.DB())
 
 	// Ledger-bound A2A execution: delegated tasks run on the jobs runner (one
 	// budget rail), never on invented results.
@@ -1550,7 +1555,7 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	res, err := s.collective.ExecuteTribunal(r.Context(), s.llmClient, s.jobRunner.BridgeClient(), req.Prompt, onTurn)
+	res, err := s.collective.ExecuteTribunalWithMemory(r.Context(), s.llmClient, s.jobRunner.BridgeClient(), s.memoryStore, req.Prompt, onTurn)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

@@ -1602,3 +1602,9 @@ skipped is the exact failure this incident is about:
 ## [2026-10-11] verification | CI green on agentic slice 2
   Budgeting + tribunal observe + local submit. All 5 jobs success on run
   38158807028. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | Memory wired: store, tribunal path, recall tool
+  Persistent HindsightStore on ledger DB; tribunal uses WithMemory
+  (recall+retain live); recall_memory tenant-scoped tool for all roles.
+  Live-proven: tribunal retained, recall honestly empty, no fabrication.
+  Full Go suite green.
