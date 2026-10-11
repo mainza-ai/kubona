@@ -9,6 +9,7 @@ import (
 )
 
 func TestLLMSettingsPersistenceAndAirGap(t *testing.T) {
+	t.Setenv("OPENCODE_API_KEY", "test-key")
 	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
 		t.Fatalf("failed to open in-memory db: %v", err)
@@ -20,28 +21,39 @@ func TestLLMSettingsPersistenceAndAirGap(t *testing.T) {
 		t.Fatalf("failed to load settings: %v", err)
 	}
 
-	if settings.ActiveModel != "Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit" {
-		t.Errorf("expected default model Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit, got %s", settings.ActiveModel)
+	// Development default (operator-directed 2026-10-11): cloud model for
+	// every role; oMLX stays enabled as the air-gapped fallback.
+	if settings.ActiveModel != "deepseek-v4.1-flash" {
+		t.Errorf("expected default model deepseek-v4.1-flash, got %s", settings.ActiveModel)
+	}
+	if settings.ActiveProvider != llm.ProviderOpenCode {
+		t.Errorf("expected default provider opencode, got %s", settings.ActiveProvider)
 	}
 
-	if !settings.AirGapped {
-		t.Errorf("expected air_gapped to default to true for sovereignty")
-	}
-
-	// Test Air-gap enforcement
 	prov, model, err := settings.GetModelForRole("copilot")
 	if err != nil {
 		t.Fatalf("failed to get model for copilot: %v", err)
 	}
-	if prov != llm.ProviderOMLX {
-		t.Errorf("expected provider omlx, got %s", prov)
+	if prov != llm.ProviderOpenCode {
+		t.Errorf("expected provider opencode, got %s", prov)
 	}
-	if model != "Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit" {
-		t.Errorf("expected model Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit, got %s", model)
+	if model != "deepseek-v4.1-flash" {
+		t.Errorf("expected model deepseek-v4.1-flash, got %s", model)
+	}
+
+	// Air-gap enforcement still holds when enabled: non-local blocked.
+	snap := settings.GetSnapshot()
+	snap.AirGapped = true
+	if err := settings.Update(&snap, db); err != nil {
+		t.Fatalf("failed to update settings: %v", err)
+	}
+	if _, _, err := settings.GetModelForRole("copilot"); err == nil {
+		t.Error("expected air-gap to block non-local copilot provider")
 	}
 
 	// Update settings
-	snap := settings.GetSnapshot()
+	snap = settings.GetSnapshot()
+	snap.AirGapped = false
 	snap.Temperature = 0.35
 	if err := settings.Update(&snap, db); err != nil {
 		t.Fatalf("failed to update settings: %v", err)
@@ -53,5 +65,32 @@ func TestLLMSettingsPersistenceAndAirGap(t *testing.T) {
 	}
 	if loaded.Temperature != 0.35 {
 		t.Errorf("expected persisted temperature 0.35, got %f", loaded.Temperature)
+	}
+}
+
+func TestUpdatePreservesAPIKey(t *testing.T) {
+	t.Setenv("OPENCODE_API_KEY", "env-key")
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("failed to open in-memory db: %v", err)
+	}
+	defer db.Close()
+
+	settings, err := llm.LoadSettings(db)
+	if err != nil {
+		t.Fatalf("failed to load settings: %v", err)
+	}
+	// Simulate a UI save that carries no secret: stored/env key survives.
+	snap := settings.GetSnapshot()
+	for pt, pc := range snap.Providers {
+		pc.APIKey = ""
+		snap.Providers[pt] = pc
+	}
+	if err := settings.Update(&snap, db); err != nil {
+		t.Fatalf("failed to update settings: %v", err)
+	}
+	after := settings.GetSnapshot()
+	if after.Providers[llm.ProviderOpenCode].APIKey != "env-key" {
+		t.Errorf("empty incoming APIKey wiped the stored secret")
 	}
 }

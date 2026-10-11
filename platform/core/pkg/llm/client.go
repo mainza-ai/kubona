@@ -1,12 +1,14 @@
 package llm
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -57,7 +59,10 @@ func NewClient(settings *Settings) *Client {
 	return &Client{
 		settings: settings,
 		httpCli: &http.Client{
-			Timeout: 180 * time.Second,
+			// Generous: uncapped local generations run ~6 tok/s, so a full
+			// answer can take minutes. The UI shows elapsed + overdue states;
+			// this is a backstop, not a budget (2026-10-11).
+			Timeout: 600 * time.Second,
 		},
 	}
 }
@@ -75,16 +80,17 @@ func (c *Client) Complete(ctx context.Context, role string, messages []ChatMessa
 		return "", nil, 0, fmt.Errorf("provider configuration not found for %s", providerType)
 	}
 
-	maxTokens := snap.MaxTokens
-	if maxTokens > 250 {
-		maxTokens = 250
-	}
-
+	// MaxTokens passes straight through: 0 omits the field (omitempty) and
+	// the model generates to EOS / its own context window. There is
+	// deliberately no client-side clamp — a 250-token ceiling once
+	// decapitated every reply mid-sentence (2026-10-11). Long turns are
+	// governed by the result contract (finish_reason) and the UI run-state,
+	// not by truncation here.
 	reqBody := ChatCompletionRequest{
 		Model:       model,
 		Messages:    messages,
 		Temperature: snap.Temperature,
-		MaxTokens:   maxTokens,
+		MaxTokens:   snap.MaxTokens,
 	}
 
 	bodyBytes, err := json.Marshal(reqBody)
@@ -130,6 +136,108 @@ func (c *Client) Complete(ctx context.Context, role string, messages []ChatMessa
 	}
 
 	return chatResp.Choices[0].Message.Content, &chatResp, duration, nil
+}
+
+// StreamChunk is one SSE delta from a streaming completion.
+type StreamChunk struct {
+	Content      string
+	FinishReason string
+	Done         bool
+}
+
+// CompleteStream executes a streaming chat completion, invoking onToken for
+// each content delta in arrival order. Returns the accumulated text and the
+// terminal finish reason ("stop", "length", or ""). Both oMLX and
+// OpenAI-compatible cloud endpoints speak this SSE dialect.
+func (c *Client) CompleteStream(ctx context.Context, role string, messages []ChatMessage, onToken func(string)) (string, string, time.Duration, error) {
+	providerType, model, err := c.settings.GetModelForRole(role)
+	if err != nil {
+		return "", "", 0, err
+	}
+
+	snap := c.settings.GetSnapshot()
+	provConfig, ok := snap.Providers[providerType]
+	if !ok {
+		return "", "", 0, fmt.Errorf("provider configuration not found for %s", providerType)
+	}
+
+	body := map[string]any{
+		"model":       model,
+		"messages":    messages,
+		"temperature": snap.Temperature,
+		"stream":      true,
+	}
+	if snap.MaxTokens > 0 {
+		body["max_tokens"] = snap.MaxTokens
+	}
+	bodyBytes, err := json.Marshal(body)
+	if err != nil {
+		return "", "", 0, err
+	}
+
+	endpoint := fmt.Sprintf("%s/chat/completions", provConfig.BaseURL)
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(bodyBytes))
+	if err != nil {
+		return "", "", 0, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Accept", "text/event-stream")
+	if provConfig.APIKey != "" {
+		req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", provConfig.APIKey))
+	}
+
+	start := time.Now()
+	resp, err := c.httpCli.Do(req)
+	duration := time.Since(start)
+	if err != nil {
+		return "", "", duration, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		slurp, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
+		return "", "", duration, fmt.Errorf("API error (%d) from %s: %s", resp.StatusCode, endpoint, string(slurp))
+	}
+
+	var full strings.Builder
+	finish := ""
+	sc := bufio.NewScanner(resp.Body)
+	sc.Buffer(make([]byte, 1024*1024), 1024*1024)
+	for sc.Scan() {
+		line := strings.TrimSpace(sc.Text())
+		if !strings.HasPrefix(line, "data:") {
+			continue
+		}
+		payload := strings.TrimSpace(strings.TrimPrefix(line, "data:"))
+		if payload == "[DONE]" {
+			break
+		}
+		var chunk struct {
+			Choices []struct {
+				Delta struct {
+					Content string `json:"content"`
+				} `json:"delta"`
+				FinishReason string `json:"finish_reason"`
+			} `json:"choices"`
+		}
+		if err := json.Unmarshal([]byte(payload), &chunk); err != nil || len(chunk.Choices) == 0 {
+			continue
+		}
+		ch := chunk.Choices[0]
+		if ch.Delta.Content != "" {
+			full.WriteString(ch.Delta.Content)
+			if onToken != nil {
+				onToken(ch.Delta.Content)
+			}
+		}
+		if ch.FinishReason != "" {
+			finish = ch.FinishReason
+		}
+	}
+	if err := sc.Err(); err != nil {
+		return full.String(), finish, time.Since(start), err
+	}
+	return full.String(), finish, time.Since(start), nil
 }
 
 // FetchModels queries the provider's /models endpoint to discover live available models

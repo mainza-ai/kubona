@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Sparkles, Plus, Zap, Info, HelpCircle, Trash2, Clock, Box, X } from 'lucide-react';
-import { Session, Loop, LedgerEvent, CampaignState } from '@/types';
+import { Session, Loop, LedgerEvent, CampaignState, RunPhase, ProbeId } from '@/types';
 import { fetchSessions, createSession, deleteSession, fetchLoops, fetchEvents, fetchCampaignState, API_BASE } from '@/lib/api';
 import { CopilotDrawer } from '@/components/CopilotDrawer';
 import { AboutLabModal } from '@/components/AboutLabModal';
@@ -41,6 +41,7 @@ export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
   const bootstrappedSession = useRef(false);
+  const prevPhase = useRef<RunPhase>('idle');
   const [campaign, setCampaign] = useState<CampaignState | null>(null);
   const [loops, setLoops] = useState<Loop[]>([]);
   const [events, setEvents] = useState<LedgerEvent[]>([]);
@@ -56,6 +57,14 @@ export default function Home() {
   const [gateState, setGateState] = useState<Record<string, 'authorized' | 'denied'>>({});
   const [gateNotice, setGateNotice] = useState<string | null>(null);
   const [canvasWidget, setCanvasWidget] = useState<CanvasWidgetSpec | null>(null);
+  // Run-state machine (Phase 1 awareness): what the swarm is doing right now.
+  const [runPhase, setRunPhase] = useState<RunPhase>('idle');
+  const [runDetail, setRunDetail] = useState('');
+  const [runElapsedSec, setRunElapsedSec] = useState(0);
+  const runPhaseRef = useRef<RunPhase>('idle');
+  const [toast, setToast] = useState<{ key: number; text: string } | null>(null);
+  const lastToastEventId = useRef(0);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Modals & Panels Visibility
   const [isAboutOpen, setIsAboutOpen] = useState(false);
@@ -126,16 +135,37 @@ export default function Home() {
 
     const timer = setInterval(() => {
       fetchLoops().then((l) => { if (mounted) setLoops(l); });
-      fetchEvents().then((e) => { if (mounted) setEvents(e); });
+      fetchEvents().then((e) => {
+        if (!mounted) return;
+        setEvents(e);
+        // Heartbeat toasts: while a run is live, surface fresh ledger events
+        // on the canvas (max one, auto-fading). Baseline on run start.
+        if (prevPhase.current === 'idle' && runPhase !== 'idle') {
+          if (e.length > 0) lastToastEventId.current = Math.max(...e.map((ev) => ev.id));
+        } else if (runPhase !== 'idle' && e.length > 0) {
+          const fresh = e.filter((ev) => ev.id > lastToastEventId.current);
+          if (lastToastEventId.current > 0 && fresh.length > 0) {
+            const last = fresh[fresh.length - 1];
+            const label = String(last.event_type || 'event').replace(/_/g, ' ');
+            setToast({ key: last.id, text: `${label} · recorded` });
+            if (toastTimer.current) clearTimeout(toastTimer.current);
+            toastTimer.current = setTimeout(() => setToast(null), 4000);
+          }
+          lastToastEventId.current = Math.max(...e.map((ev) => ev.id));
+        }
+        prevPhase.current = runPhase;
+      });
     }, 3500);
-    const clock = setInterval(() => setNowTick((t) => t + 1), 1000);
+    const clock = setInterval(() => {
+      setNowTick((t) => t + 1);
+      if (runPhaseRef.current !== 'idle') setRunElapsedSec((s) => s + 1);
+    }, 1000);
     return () => {
       mounted = false;
       clearInterval(timer);
       clearInterval(clock);
     };
-  }, [currentSessionId, refreshData, switchSession]);
-
+  }, [currentSessionId, refreshData, switchSession, runPhase]);
   const handleCreateSession = useCallback(() => {
     setIsNewCampaignModalOpen(true);
   }, []);
@@ -237,6 +267,27 @@ export default function Home() {
     setSurface('arena');
   }, []);
 
+  const handleRunStateChange = useCallback((phase: RunPhase, detail: string) => {
+    runPhaseRef.current = phase;
+    setRunPhase(phase);
+    setRunDetail(detail);
+    if (phase !== 'idle') setRunElapsedSec(0);
+  }, []);
+
+  // Prompt → probe mapping: the canvas lights the agent being asked.
+  const probeForText = useCallback((text: string): ProbeId | null => {
+    const t = text.toLowerCase();
+    if (/proof|lean|theorem|formal|verif/.test(t)) return 'formalist';
+    if (/circuit|qubit|backend|qasm|shots|compiler|transpil|heron|aquila/.test(t)) return 'compiler';
+    if (/risk|plateau|fidelity|canary|critic|trap|variance/.test(t)) return 'critic';
+    if (/scout/.test(t)) return 'theorist';
+    if (/auditor/.test(t)) return 'compiler';
+    if (/scribe/.test(t)) return 'formalist';
+    if (/disconfirmation|officer/.test(t)) return 'critic';
+    if (/energy|ansatz|vqe|pes|surface|molecule|h2|lih|beh2|ground state|tribunal|swarm/.test(t)) return 'theorist';
+    return null;
+  }, []);
+
   const handleAuthorizePulse = useCallback(() => {
     setGateState((g) => ({ ...g, [currentSessionId]: 'authorized' }));
     setGateNotice('Pulse authorized: mandate verified & recorded. Gate closed.');
@@ -251,6 +302,21 @@ export default function Home() {
   }, [currentSessionId]);
 
   const gateOpen = Boolean(campaign) && !gateState[currentSessionId];
+
+  // Run-state derivation: overdue, lit probe, HUD status line.
+  const runOverdue = runPhase !== 'idle' && runElapsedSec > 90;
+  const activeProbe: ProbeId | null = runPhase === 'idle'
+    ? null
+    : runOverdue
+      ? 'critic'
+      : probeForText(runDetail);
+  const runStatusText = runPhase === 'idle'
+    ? null
+    : runOverdue
+      ? `still working · ${runElapsedSec}s`
+      : runPhase === 'tribunal'
+        ? `${runDetail} · ${runElapsedSec}s`
+        : `reasoning · ${runElapsedSec}s`;
 
   const handleRequestGateFocus = useCallback(() => {
     setGateNotice(
@@ -427,11 +493,12 @@ export default function Home() {
               spendUsd={session?.current_spend_usd ?? 0}
               spendCapUsd={session?.spend_limit_usd ?? 150}
               sessionElapsed={session ? formatElapsed(session.created_at) : '00:00:00'}
+              statusText={runStatusText}
               onRecenter={() => setRecenterSignal((n) => n + 1)}
             />
 
             {arenaView === 'orbital' && !showLegacyCanvas && (
-              <SwarmUniverse campaign={campaign} recenterSignal={recenterSignal} />
+              <SwarmUniverse campaign={campaign} recenterSignal={recenterSignal} activeProbe={activeProbe} />
             )}
             {arenaView === 'proof-dag' && !showLegacyCanvas && (
               <ProofDagView campaign={campaign} />
@@ -494,6 +561,14 @@ export default function Home() {
                 {gateNotice}
               </div>
             )}
+            {toast && (
+              <div
+                key={toast.key}
+                className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-full bg-[#0E1117]/90 backdrop-blur-xl border border-cyan-400/25 text-[11px] font-code text-cyan-200 shadow-2xl animate-pulse"
+              >
+                {toast.text}
+              </div>
+            )}
           </main>
         )}
 
@@ -551,6 +626,7 @@ export default function Home() {
             onCampaignUpdated={(c) => setCampaign(c)}
             onSelectSurface={handleCopilotSurface}
             onMaterialize={handleMaterialize}
+            onRunStateChange={handleRunStateChange}
             onClose={() => setShowCopilot(false)}
           />
         </aside>

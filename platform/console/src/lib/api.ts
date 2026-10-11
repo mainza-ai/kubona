@@ -75,8 +75,7 @@ export async function fetchMessages(sessionId: string): Promise<ChatMessage[]> {
   }
 }
 
-export async function sendChatMessage(sessionId: string, content: string): Promise<{ user: ChatMessage; assistant: ChatMessage } | null> {
-  try {
+export async function sendChatMessage(sessionId: string, content: string): Promise<{ user: ChatMessage; assistant: ChatMessage } | null> {  try {
     const res = await fetch(`${API_BASE}/api/chat/messages?session_id=${encodeURIComponent(sessionId)}`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
@@ -84,14 +83,76 @@ export async function sendChatMessage(sessionId: string, content: string): Promi
     });
     if (!res.ok) return null;
     const data = await res.json();
+    const assistant = data.assistant || data.assistant_message;
+    if (assistant && data.model && !assistant.model) assistant.model = data.model;
     return {
       user: data.user || data.user_message,
-      assistant: data.assistant || data.assistant_message,
+      assistant,
     };
   } catch (err) {
     console.error('Failed to send chat message:', err);
     return null;
   }
+}
+
+export interface StreamDone {
+  user: ChatMessage;
+  assistant: ChatMessage;
+  proposal?: unknown;
+  campaign?: import('@/types').CampaignState;
+  model?: string;
+}
+
+// Streaming twin of sendChatMessage: tokens arrive live via SSE
+// (token events), then a done event carries the stored records.
+// Throws on transport failure so the caller can fall back to unary.
+export async function streamChatMessage(
+  sessionId: string,
+  content: string,
+  onToken: (text: string) => void
+): Promise<StreamDone> {
+  const res = await fetch(`${API_BASE}/api/chat/stream?session_id=${encodeURIComponent(sessionId)}`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ session_id: sessionId, role: 'user', content }),
+  });
+  if (!res.ok || !res.body) throw new Error(`stream refused (HTTP ${res.status})`);
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = '';
+  let done: StreamDone | null = null;
+  for (;;) {
+    const { value, done: readerDone } = await reader.read();
+    if (value) buf += decoder.decode(value, { stream: true });
+    let idx: number;
+    while ((idx = buf.indexOf('\n\n')) !== -1) {
+      const frame = buf.slice(0, idx);
+      buf = buf.slice(idx + 2);
+      const event = /event:\s*(\S+)/.exec(frame)?.[1] || '';
+      const dataRaw = frame
+        .split('\n')
+        .filter((l) => l.startsWith('data:'))
+        .map((l) => l.slice(5).trim())
+        .join('\n');
+      if (!dataRaw) continue;
+      if (event === 'token') {
+        try {
+          onToken((JSON.parse(dataRaw) as { text: string }).text || '');
+        } catch {
+          /* partial frame — next read completes it */
+        }
+      } else if (event === 'done') {
+        const d = JSON.parse(dataRaw) as StreamDone;
+        if (d.assistant && d.model && !d.assistant.model) d.assistant.model = d.model;
+        done = d;
+      } else if (event === 'error') {
+        throw new Error((JSON.parse(dataRaw) as { error: string }).error || 'stream error');
+      }
+    }
+    if (readerDone) break;
+  }
+  if (!done) throw new Error('stream ended without done event');
+  return done;
 }
 
 export async function runTribunal(
