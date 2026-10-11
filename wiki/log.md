@@ -1598,3 +1598,7 @@ skipped is the exact failure this incident is about:
   observe round (nil-safe); submit_local_sim (local-only, admission,
   4096 cap, 1/turn, turns excluded). Live-proven: Bell dispatch + readback,
   genuine counts, 3 audited calls. Go green.
+
+## [2026-10-11] verification | CI green on agentic slice 2
+  Budgeting + tribunal observe + local submit. All 5 jobs success on run
+  38158807028. Tree clean, zero unpushed.
