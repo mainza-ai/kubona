@@ -75,7 +75,7 @@ with tests + live proof + green CI, per project rule).
 
 ## Phase B1 — real agency
 
-- [ ] B1-1. Planner early-exit: Turn-2 anchor/gradient check → 2-turn
+- [x] B1-1. Planner early-exit: Turn-2 anchor/gradient check → 2-turn
   CONTESTED; `ConsensusPassed` wired to evidence.
 - [ ] B1-2. Hindsight HTTP (`GET recall`/`POST retain`, tenant-scoped) + one
   console caller — or formally downgrade the claim.

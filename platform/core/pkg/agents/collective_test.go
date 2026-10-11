@@ -46,8 +46,12 @@ func TestExecuteTribunal(t *testing.T) {
 	if len(res.Turns) != 4 {
 		t.Fatalf("expected 4 turns, got %d", len(res.Turns))
 	}
-	if !res.ConsensusPassed {
-		t.Fatalf("expected consensus to pass")
+	// Text-only fallback cannot corroborate: template turns never pass.
+	if res.ConsensusPassed {
+		t.Fatal("fallback tribunal must not claim consensus")
+	}
+	if !strings.Contains(res.Synthesis, "did NOT reach consensus") {
+		t.Errorf("contested synthesis must say so: %q", res.Synthesis)
 	}
 }
 
@@ -65,24 +69,24 @@ func TestExecuteTribunalWithMemory(t *testing.T) {
 	if len(res.Turns) != 4 {
 		t.Fatalf("expected 4 turns, got %d", len(res.Turns))
 	}
-	if !res.ConsensusPassed {
-		t.Fatalf("expected consensus to pass")
+	if res.ConsensusPassed {
+		t.Fatal("fallback tribunal must not claim consensus")
 	}
 
-	// Verify that the tribunal consensus was retained into Hindsight memory
-	recalled := store.SemanticRecall(memory.BankExperiences, "LiH consensus", 200, 0.3)
+	// Verify that the contested verdict was retained into Hindsight memory
+	recalled := store.SemanticRecall(memory.BankExperiences, "LiH tribunal verdict", 200, 0.3)
 	if len(recalled) == 0 {
-		t.Fatalf("expected consensus to be retained in Hindsight memory")
+		t.Fatalf("expected contested verdict to be retained in Hindsight memory")
 	}
 	foundConsensus := false
 	for _, r := range recalled {
-		if strings.Contains(r.Item.Content, "Tribunal consensus for LiH") {
+		if strings.Contains(r.Item.Content, "Tribunal contested for LiH") {
 			foundConsensus = true
 			break
 		}
 	}
 	if !foundConsensus {
-		t.Fatalf("expected to find consensus memory record in store")
+		t.Fatalf("expected to find contested memory record in store")
 	}
 }
 
@@ -181,3 +185,121 @@ func TestObserveTurnDispatches(t *testing.T) {
 		t.Errorf("expected observation carrying the tool result, got %q", out[3].Content)
 	}
 }
+
+// B1-1 planner: consensus is earned, not scheduled. A stub LLM that
+// authors the evidence turns with clean observations passes; a failing
+// tool observation in turn 1 contests at two turns.
+func stubTribunalClient(t *testing.T) *llm.Client {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		msgs, _ := body["messages"].([]any)
+		last, _ := msgs[len(msgs)-1].(map[string]any)
+		if obs, ok := last["content"].(string); ok && strings.Contains(obs, "tool_result:") {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"choices": []any{map[string]any{
+					"message":       map[string]any{"content": "Evidence weighed from the observed tool result; the anchor holds within tolerance and gradients are healthy."},
+					"finish_reason": "stop",
+				}},
+			})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []any{map[string]any{
+				"message": map[string]any{
+					"content": "",
+					"tool_calls": []any{map[string]any{
+						"id":   "call_1",
+						"type": "function",
+						"function": map[string]any{
+							"name":      "probe_tool",
+							"arguments": `{}`,
+						},
+					}},
+				},
+				"finish_reason": "tool_calls",
+			}},
+		})
+	}))
+	t.Cleanup(srv.Close)
+
+	t.Setenv("OPENCODE_API_KEY", "test-key")
+	settings := llm.DefaultSettings()
+	snap := settings.GetSnapshot()
+	pc := snap.Providers[llm.ProviderOpenCode]
+	pc.BaseURL = srv.URL
+	snap.Providers[llm.ProviderOpenCode] = pc
+	for _, role := range []string{"ansatz-scout", "disconfirmation-officer", "device-auditor", "epistemic-scribe"} {
+		snap.RoleAssignments[role] = llm.RoleModelAssignment{
+			Role: role, Provider: llm.ProviderOpenCode, Model: "stub",
+		}
+	}
+	if err := settings.Update(&snap, nil); err != nil {
+		t.Fatal(err)
+	}
+	return llm.NewClient(settings)
+}
+
+func TestTribunalPassesOnAuthoredEvidence(t *testing.T) {
+	ac := NewAgentCollective()
+	reg := tools.NewRegistry()
+	_ = reg.Register(tools.Definition{
+		Name: "probe_tool", Description: "clean probe",
+		Parameters: map[string]any{"type": "object"},
+		Capability: "test:read", ReadOnly: true,
+		Handler: func(_ context.Context, args json.RawMessage) (any, error) {
+			return map[string]any{"tool_result:": "clean"}, nil
+		},
+	})
+	for _, role := range []string{"ansatz-scout", "disconfirmation-officer", "device-auditor", "epistemic-scribe"} {
+		_ = reg.Allow(role, "probe_tool")
+	}
+	ac.Tools = reg
+
+	res, err := ac.ExecuteTribunal(t.Context(), stubTribunalClient(t), nil, "Investigate H2 ground state")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Turns) != 4 {
+		t.Fatalf("clean run must complete 4 turns, got %d", len(res.Turns))
+	}
+	if !res.ConsensusPassed {
+		t.Errorf("authored evidence with clean observations must pass: %q", res.Synthesis)
+	}
+}
+
+func TestTribunalContestsOnFailedObservation(t *testing.T) {
+	ac := NewAgentCollective()
+	reg := tools.NewRegistry()
+	_ = reg.Register(tools.Definition{
+		Name: "probe_tool", Description: "failing probe",
+		Parameters: map[string]any{"type": "object"},
+		Capability: "test:read", ReadOnly: true,
+		Handler: func(_ context.Context, args json.RawMessage) (any, error) {
+			return nil, errTestProbe("anchor unreachable")
+		},
+	})
+	for _, role := range []string{"ansatz-scout", "disconfirmation-officer", "device-auditor", "epistemic-scribe"} {
+		_ = reg.Allow(role, "probe_tool")
+	}
+	ac.Tools = reg
+
+	res, err := ac.ExecuteTribunal(t.Context(), stubTribunalClient(t), nil, "Investigate H2 ground state")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.Turns) != 2 {
+		t.Fatalf("failed evidence must end the run at 2 turns, got %d", len(res.Turns))
+	}
+	if res.ConsensusPassed {
+		t.Error("failed observation must contest")
+	}
+	if !strings.Contains(res.Synthesis, "did NOT reach consensus") || !strings.Contains(res.Synthesis, "probe_tool") {
+		t.Errorf("contested synthesis must name the failed evidence: %q", res.Synthesis)
+	}
+}
+
+type errTestProbe string
+
+func (e errTestProbe) Error() string { return string(e) }

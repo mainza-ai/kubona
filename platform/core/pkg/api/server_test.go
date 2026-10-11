@@ -187,8 +187,10 @@ func TestAPIRoutes(t *testing.T) {
 	if len(tribResp.Tribunal.Turns) != 4 {
 		t.Fatalf("expected 4 tribunal turns, got %d", len(tribResp.Tribunal.Turns))
 	}
-	if !tribResp.Tribunal.ConsensusPassed {
-		t.Fatalf("expected tribunal consensus to pass")
+	// 1s timeout forces LLM fallback: template turns cannot corroborate,
+	// so consensus must be false (B1-1 — fallback fiction no longer passes).
+	if tribResp.Tribunal.ConsensusPassed {
+		t.Fatalf("fallback tribunal must not claim consensus")
 	}
 
 	// 10. Client Mandate Verification
