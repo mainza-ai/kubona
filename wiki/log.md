@@ -1459,3 +1459,9 @@ skipped is the exact failure this incident is about:
   Portfolio compile() takes ceilings/objective with fail-closed refusal;
   full commercial-synthesis integration specified as operator-gated
   (account, M2M vault-leased creds, supply-chain approval). Tests green.
+
+## [2026-10-11] implementation | Commercial suppression wrapper assessed
+  Vendor API studied (execute/iterate/validate, QASM input, Qiskit
+  Functions path). Verdict: operator-gated (account, vault-leased key,
+  entitlement, dep approval); conflict rule recorded (never pre-transpile,
+  never double-suppress unmeasured). No code without credentials.
