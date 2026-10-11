@@ -99,6 +99,21 @@ func (ac *AgentCollective) observeTurn(ctx context.Context, llmClient *llm.Clien
 	return hist, observed
 }
 
+// firstFailedObserved names the first failed dispatch for the planner
+// check, bounding its reason. Empty means every observation succeeded
+// (or none fired — absence of evidence is not evidence of failure).
+func firstFailedObserved(calls []ObservedCall) string {
+	for _, c := range calls {
+		if !c.OK {
+			if c.Error != "" {
+				return c.Name + ": " + boundClaim(c.Error)
+			}
+			return c.Name + " failed"
+		}
+	}
+	return ""
+}
+
 func errText(err error) string {
 	if err == nil {
 		return ""
@@ -283,6 +298,7 @@ func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmCli
 
 	// Turn 1: Ansatz Scout
 	var obs1 []ObservedCall
+	var authored1 bool
 	turn1Prompt := fmt.Sprintf("Analyze target %s for prompt: %s.%s Propose the variational quantum ansatz, active space, qubit count, and parameterized rotational depth. Keep answer concise.", target, userPrompt, memoryContext)
 	scoutContent := fmt.Sprintf("Proposed active space for %s. Applying UCCSD/RyRz parameterized ansatz with Meyer-Wallach expressibility Q=0.82. Qubit count: 2, 2-qubit CNOT depth: 1.", target)
 	if llmClient != nil {
@@ -295,6 +311,7 @@ func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmCli
 		reply, _, _, err := llmClient.Complete(tCtx, "ansatz-scout", turnMsgs)
 		tCancel()
 		if err == nil && len(reply) > 20 {
+			authored1 = true
 			scoutContent = reply
 			log.Printf("[Tribunal] Turn 1 (Ansatz Scout) generated via LLM: %s", reply[:min(len(reply), 100)])
 		} else if err != nil {
@@ -317,6 +334,7 @@ func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmCli
 
 	// Turn 2: Disconfirmation Officer
 	var obs2 []ObservedCall
+	var authored2 bool
 	turn2Prompt := fmt.Sprintf("Scout proposed ansatz for %s:\n%s\nClassical anchor computed via ab-initio %s. Evaluate whether quantum advantage can be claimed and check barren plateau risk. Enforce Quantum Advantage Realism.", target, scoutContent, fciAnchor)
 	discContent := fmt.Sprintf("Classical baseline established via %s. Evaluated gradient variance Var(∇E) = 3.4e-3 > 1e-6 (barren plateau risk: LOW). Classical physics anchor matches; no unearned quantum advantage claimed.", fciAnchor)
 	if llmClient != nil {
@@ -329,6 +347,7 @@ func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmCli
 		reply, _, _, err := llmClient.Complete(tCtx, "disconfirmation-officer", turnMsgs)
 		tCancel()
 		if err == nil && len(reply) > 20 {
+			authored2 = true
 			discContent = reply
 			log.Printf("[Tribunal] Turn 2 (Disconfirmation Officer) generated via LLM: %s", reply[:min(len(reply), 100)])
 		} else if err != nil {
@@ -349,73 +368,87 @@ func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmCli
 		turnCb(t2)
 	}
 
-	// Turn 3: Device Auditor
-	var obs3 []ObservedCall
-	turn3Prompt := fmt.Sprintf("Auditing proposed execution for %s on %s. Hardware constraints: T2 <= 2*T1, Clifford canary probe fidelity >= 95%%, cost estimate %s <= $150.00. State approval status.", target, tier, budget)
-	auditContent := fmt.Sprintf("Target backend validated on %s. Hardware noise model constraint satisfied (T2 <= 2*T1). Clifford canary probe fidelity: 98.4%% (>= 95%% threshold). Estimated financial spend: %s <= $150.00 ceiling. APPROVED for dispatch.", tier, budget)
-	if llmClient != nil {
-		tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
-		turnMsgs := []llm.ChatMessage{
-			{Role: "system", Content: string(ac.manifests[RoleDeviceAuditor].SystemPrompt)},
-			{Role: "user", Content: turn3Prompt},
+	// Planner check (B1-1): measured tool failures in the evidence turns
+	// contest the run immediately. Turns 3-4 corroborate evidence; they
+	// cannot corroborate failed evidence, so the run ends at two turns.
+	contestedReason := ""
+	if bad := firstFailedObserved(append(append([]ObservedCall{}, obs1...), obs2...)); bad != "" {
+		contestedReason = "tool observation failed: " + bad
+		log.Printf("[Tribunal] Early exit after Turn 2: %s", contestedReason)
+	}
+	// scribeContent feeds the shared proposal-extraction tail; empty on
+	// early exit, where the synthesized map below stands in.
+	scribeContent := ""
+	if contestedReason == "" {
+		// Turn 3: Device Auditor
+		var obs3 []ObservedCall
+		turn3Prompt := fmt.Sprintf("Auditing proposed execution for %s on %s. Hardware constraints: T2 <= 2*T1, Clifford canary probe fidelity >= 95%%, cost estimate %s <= $150.00. State approval status.", target, tier, budget)
+		auditContent := fmt.Sprintf("Target backend validated on %s. Hardware noise model constraint satisfied (T2 <= 2*T1). Clifford canary probe fidelity: 98.4%% (>= 95%% threshold). Estimated financial spend: %s <= $150.00 ceiling. APPROVED for dispatch.", tier, budget)
+		if llmClient != nil {
+			tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
+			turnMsgs := []llm.ChatMessage{
+				{Role: "system", Content: string(ac.manifests[RoleDeviceAuditor].SystemPrompt)},
+				{Role: "user", Content: turn3Prompt},
+			}
+			turnMsgs, obs3 = ac.observeTurn(tCtx, llmClient, "device-auditor", turnMsgs)
+			reply, _, _, err := llmClient.Complete(tCtx, "device-auditor", turnMsgs)
+			tCancel()
+			if err == nil && len(reply) > 20 {
+				auditContent = reply
+				log.Printf("[Tribunal] Turn 3 (Device Auditor) generated via LLM: %s", reply[:min(len(reply), 100)])
+			} else if err != nil {
+				log.Printf("[Tribunal] Turn 3 LLM fallback notice: %v", err)
+			}
 		}
-		turnMsgs, obs3 = ac.observeTurn(tCtx, llmClient, "device-auditor", turnMsgs)
-		reply, _, _, err := llmClient.Complete(tCtx, "device-auditor", turnMsgs)
-		tCancel()
-		if err == nil && len(reply) > 20 {
-			auditContent = reply
-			log.Printf("[Tribunal] Turn 3 (Device Auditor) generated via LLM: %s", reply[:min(len(reply), 100)])
-		} else if err != nil {
-			log.Printf("[Tribunal] Turn 3 LLM fallback notice: %v", err)
+		t3 := TribunalTurn{
+			TurnIndex: 3,
+			Role:      RoleDeviceAuditor,
+			Name:      "Device Auditor",
+			Content:   auditContent,
+			Verdict:   "AUDITED",
+			Timestamp: time.Now().UTC(),
+			Observed:  obs3,
 		}
-	}
-	t3 := TribunalTurn{
-		TurnIndex: 3,
-		Role:      RoleDeviceAuditor,
-		Name:      "Device Auditor",
-		Content:   auditContent,
-		Verdict:   "AUDITED",
-		Timestamp: time.Now().UTC(),
-		Observed:  obs3,
-	}
-	result.Turns = append(result.Turns, t3)
-	if turnCb != nil {
-		turnCb(t3)
-	}
+		result.Turns = append(result.Turns, t3)
+		if turnCb != nil {
+			turnCb(t3)
+		}
 
-	// Turn 4: Epistemic Scribe
-	var obs4 []ObservedCall
-	escapedQASM := strings.ReplaceAll(qasm, "\n", "\\n")
-	turn4Prompt := fmt.Sprintf("Synthesize tribunal debate for %s. Collapsed credibility wavefunction P_corr = 90.25%%. Output an AP2 mandate proposal with a JSON proposal block formatted as ```json_proposal {\"target\": \"%s\", \"molecule\": \"%s\", \"spend_estimate\": \"%s\", \"recommended_tier\": \"%s\", \"classical_anchor\": \"%s\", \"qasm\": \"%s\"} ```.", target, target, mol, budget, tier, fciAnchor, escapedQASM)
-	scribeContent := fmt.Sprintf("Consensus reached across 4 specialist personas. Ring 1 credibility wavefunction collapsed: P_corr = 90.25%%. Generating cryptographic AP2 Mandate Card for human review.\n\n```json_proposal\n{\n  \"target\": \"%s\",\n  \"molecule\": \"%s\",\n  \"spend_estimate\": \"%s\",\n  \"recommended_tier\": \"%s\",\n  \"classical_anchor\": \"%s\",\n  \"qasm\": \"%s\"\n}\n```", target, mol, budget, tier, fciAnchor, escapedQASM)
-	if llmClient != nil {
-		tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
-		turnMsgs := []llm.ChatMessage{
-			{Role: "system", Content: string(ac.manifests[RoleEpistemicScribe].SystemPrompt)},
-			{Role: "user", Content: turn4Prompt},
+		// Turn 4: Epistemic Scribe
+		var obs4 []ObservedCall
+		escapedQASM := strings.ReplaceAll(qasm, "\n", "\\n")
+		turn4Prompt := fmt.Sprintf("Synthesize tribunal debate for %s. Collapsed credibility wavefunction P_corr = 90.25%%. Output an AP2 mandate proposal with a JSON proposal block formatted as ```json_proposal {\"target\": \"%s\", \"molecule\": \"%s\", \"spend_estimate\": \"%s\", \"recommended_tier\": \"%s\", \"classical_anchor\": \"%s\", \"qasm\": \"%s\"} ```.", target, target, mol, budget, tier, fciAnchor, escapedQASM)
+		scribeContent = fmt.Sprintf("Consensus reached across 4 specialist personas. Ring 1 credibility wavefunction collapsed: P_corr = 90.25%%. Generating cryptographic AP2 Mandate Card for human review.\n\n```json_proposal\n{\n  \"target\": \"%s\",\n  \"molecule\": \"%s\",\n  \"spend_estimate\": \"%s\",\n  \"recommended_tier\": \"%s\",\n  \"classical_anchor\": \"%s\",\n  \"qasm\": \"%s\"\n}\n```", target, mol, budget, tier, fciAnchor, escapedQASM)
+		if llmClient != nil {
+			tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
+			turnMsgs := []llm.ChatMessage{
+				{Role: "system", Content: string(ac.manifests[RoleEpistemicScribe].SystemPrompt)},
+				{Role: "user", Content: turn4Prompt},
+			}
+			turnMsgs, obs4 = ac.observeTurn(tCtx, llmClient, "epistemic-scribe", turnMsgs)
+			reply, _, _, err := llmClient.Complete(tCtx, "epistemic-scribe", turnMsgs)
+			tCancel()
+			if err == nil && len(reply) > 20 {
+				scribeContent = reply
+				log.Printf("[Tribunal] Turn 4 (Epistemic Scribe) generated via LLM: %s", reply[:min(len(reply), 100)])
+			} else if err != nil {
+				log.Printf("[Tribunal] Turn 4 LLM fallback notice: %v", err)
+			}
 		}
-		turnMsgs, obs4 = ac.observeTurn(tCtx, llmClient, "epistemic-scribe", turnMsgs)
-		reply, _, _, err := llmClient.Complete(tCtx, "epistemic-scribe", turnMsgs)
-		tCancel()
-		if err == nil && len(reply) > 20 {
-			scribeContent = reply
-			log.Printf("[Tribunal] Turn 4 (Epistemic Scribe) generated via LLM: %s", reply[:min(len(reply), 100)])
-		} else if err != nil {
-			log.Printf("[Tribunal] Turn 4 LLM fallback notice: %v", err)
+		t4 := TribunalTurn{
+			TurnIndex: 4,
+			Role:      RoleEpistemicScribe,
+			Name:      "Epistemic Scribe",
+			Content:   scribeContent,
+			Verdict:   "COLLAPSED",
+			Timestamp: time.Now().UTC(),
+			Observed:  obs4,
 		}
-	}
-	t4 := TribunalTurn{
-		TurnIndex: 4,
-		Role:      RoleEpistemicScribe,
-		Name:      "Epistemic Scribe",
-		Content:   scribeContent,
-		Verdict:   "COLLAPSED",
-		Timestamp: time.Now().UTC(),
-		Observed:  obs4,
-	}
-	result.Turns = append(result.Turns, t4)
-	if turnCb != nil {
-		turnCb(t4)
+		result.Turns = append(result.Turns, t4)
+		if turnCb != nil {
+			turnCb(t4)
+		}
+
 	}
 
 	// Extract or synthesize valid proposal JSON
@@ -446,10 +479,27 @@ func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmCli
 	}
 
 	result.ConsensusPassed = true
-	result.Synthesis = fmt.Sprintf("Multi-Agent Tribunal concluded with unanimous consensus for %s. Classical anchor: %s.", target, fciAnchor)
+	if contestedReason != "" {
+		result.ConsensusPassed = false
+	} else if !(authored1 && authored2) {
+		// Template text cannot corroborate: when the evidence turns fell
+		// back to canned content, no genuine debate happened, so no
+		// consensus may be claimed no matter what turns 3-4 say.
+		contestedReason = "evidence turns were not LLM-authored (fallback text cannot corroborate)"
+		result.ConsensusPassed = false
+	}
+	if result.ConsensusPassed {
+		result.Synthesis = fmt.Sprintf("Multi-Agent Tribunal concluded with unanimous consensus for %s. Classical anchor: %s.", target, fciAnchor)
+	} else {
+		result.Synthesis = fmt.Sprintf("Multi-Agent Tribunal did NOT reach consensus for %s: %s.", target, contestedReason)
+	}
 
 	if store != nil {
-		store.Retain(memory.BankExperiences, fmt.Sprintf("Tribunal consensus for %s (%s): %s. Spend: %s on %s.", target, mol, fciAnchor, budget, tier), 0.85)
+		if result.ConsensusPassed {
+			store.Retain(memory.BankExperiences, fmt.Sprintf("Tribunal consensus for %s (%s): %s. Spend: %s on %s.", target, mol, fciAnchor, budget, tier), 0.85)
+		} else {
+			store.Retain(memory.BankExperiences, fmt.Sprintf("Tribunal contested for %s (%s): %s.", target, mol, contestedReason), 0.5)
+		}
 	}
 
 	return result, nil
