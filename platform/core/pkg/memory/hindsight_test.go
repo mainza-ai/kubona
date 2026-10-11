@@ -353,3 +353,31 @@ func TestTenantIsolationHasNoDefaultBypass(t *testing.T) {
 		}
 	}
 }
+
+func TestListRecentInventory(t *testing.T) {
+	store := NewHindsightStore()
+	store.RetainScoped("lab-a", "lab-a", BankExperiences, "first memory", 0.5, nil)
+	time.Sleep(5 * time.Millisecond)
+	store.RetainScoped("lab-a", "lab-a", BankWorldFacts, "second memory", 0.5, nil)
+	time.Sleep(5 * time.Millisecond)
+	store.RetainScoped("lab-b", "lab-b", BankExperiences, "other tenant", 0.5, nil)
+
+	listed := store.ListRecent("", "lab-a", 1000)
+	if len(listed) != 2 {
+		t.Fatalf("expected 2 lab-a memories, got %d", len(listed))
+	}
+	if listed[0].Content != "second memory" || listed[1].Content != "first memory" {
+		t.Errorf("newest-first ordering broken: %q, %q", listed[0].Content, listed[1].Content)
+	}
+	// Bank filter narrows; tenant boundary holds.
+	if got := store.ListRecent(BankExperiences, "lab-a", 1000); len(got) != 1 || got[0].Content != "first memory" {
+		t.Errorf("bank filter wrong: %+v", got)
+	}
+	if got := store.ListRecent("", "lab-b", 1000); len(got) != 1 {
+		t.Errorf("tenant boundary wrong: %+v", got)
+	}
+	// Token budget binds the listing.
+	if got := store.ListRecent("", "lab-a", 1); len(got) != 1 {
+		t.Errorf("budget must bound listing, got %d", len(got))
+	}
+}

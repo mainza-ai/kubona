@@ -364,3 +364,40 @@ func TestReplanAnchorPromotesComputed(t *testing.T) {
 		t.Errorf("recomputed anchor must promote to computed-grade: %+v", after.ClassicalAnchor)
 	}
 }
+
+// Robustness: absent verdict/values refuse the fold instead of inventing
+// outcomes, and molecule identity is exact — "H" must never satisfy "H2".
+func TestReplanPresenceRules(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+
+	if _, changed, note := ReplanWithJobResult(raw, "job-v1", "claim_eval",
+		[]byte(`{"claim_id":"c","corroborated_amplitude":0.9,"contested_amplitude":0.05,"unverified_amplitude":0.1,"verdict_reason":"x"}`), ""); changed {
+		t.Error("verdict without passes key must not fold")
+	} else if !strings.Contains(note, "unknown") {
+		t.Errorf("refusal must name the cause, got %q", note)
+	}
+	if _, changed, _ := ReplanWithJobResult(raw, "job-v2", "mitigate",
+		[]byte(`{"success":true,"method_used":"ZNE","unmitigated_value":-1.1}`), ""); changed {
+		t.Error("mitigation without mitigated value must not fold")
+	}
+	if _, changed, _ := ReplanWithJobResult(raw, "job-v3", "circuit_cut",
+		[]byte(`{"success":true}`), ""); changed {
+		t.Error("cut without count must not fold")
+	}
+	if _, changed, _ := ReplanWithJobResult(raw, "job-v4", "pes_sweep",
+		[]byte(`{"success":true,"molecule":"H2","points":[{"rhf_energy":-1.0,"fci_energy":-1.1}]}`), ""); changed {
+		t.Error("point without geometry must not fold")
+	}
+	if _, changed, note := ReplanWithJobResult(raw, "job-v5", "classical_anchor",
+		[]byte(`{"success":true,"molecule":"H","bond_distance":0.5,"rhf_energy":-0.5,"fci_exact_energy":-0.6}`), ""); changed {
+		t.Error("H anchor must never satisfy an H2 campaign")
+	} else if !strings.Contains(note, "mismatch") {
+		t.Errorf("refusal must name the cause, got %q", note)
+	}
+}
+
+func TestEvalClaimRecordRequiresVerdict(t *testing.T) {
+	if _, ok := EvalClaimRecord([]byte(`{"claim_id":"c","corroborated_amplitude":0.9,"contested_amplitude":0.05,"unverified_amplitude":0.1,"verdict_reason":"x"}`)); ok {
+		t.Error("amplitudes without a verdict key must not draft")
+	}
+}

@@ -77,12 +77,19 @@ func corsAllowOrigin(r *http.Request) string {
 // rateLimiter is a per-key token bucket. v1 constants are deliberately
 // tight on sign (human-paced approvals) and looser on verify (called per
 // submit by admission paths); tune with production traffic, not theory.
+// The bucket map is bounded: past maxBuckets the longest-idle entry is
+// evicted to make room, so spoofed-key floods cannot grow memory without
+// bound (at the cost of sharing budget under extreme pressure — the
+// fail-open direction for availability, with 429s still biting).
 type rateLimiter struct {
 	mu      sync.Mutex
 	rate    float64 // tokens per second
 	burst   int
 	buckets map[string]*tokenBucket
 }
+
+// maxRateBuckets caps per-limiter memory.
+const maxRateBuckets = 10000
 
 type tokenBucket struct {
 	tokens float64
@@ -101,6 +108,25 @@ func (l *rateLimiter) allow(key string) bool {
 	now := time.Now()
 	b, ok := l.buckets[key]
 	if !ok {
+		if len(l.buckets) >= maxRateBuckets {
+			// Evict the longest-idle entry to bound memory. One linear
+			// scan, only on overflow — steady state never pays it. If
+			// every entry is fresh (same-instant flood), drop an
+			// arbitrary one: the bound is hard either way.
+			oldest, oldestAt := "", now
+			for k, v := range l.buckets {
+				if v.last.Before(oldestAt) {
+					oldest, oldestAt = k, v.last
+				}
+			}
+			if oldest == "" {
+				for k := range l.buckets {
+					oldest = k
+					break
+				}
+			}
+			delete(l.buckets, oldest)
+		}
 		b = &tokenBucket{tokens: float64(l.burst), last: now}
 		l.buckets[key] = b
 	}
