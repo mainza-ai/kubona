@@ -1501,3 +1501,7 @@ skipped is the exact failure this incident is about:
   kubona/intelligence/taxonomy.py: Modality-reusing technology axis +
   domain/segment/stage vocabularies, UNCLASSIFIED-on-tie suggest(),
   validator-named tagging. 4 tests green (12 with entity core).
+
+## [2026-10-11] verification | CI green on intelligence-core batch
+  All 5 jobs success on run 38119169930 (entity store + taxonomy v0).
+  Tree clean, zero unpushed.
