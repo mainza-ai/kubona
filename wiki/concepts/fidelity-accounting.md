@@ -90,6 +90,17 @@ refusal reason. No quantum-advantage claims (`wiki/concepts/risks.md`), and no
 fidelity number may appear in an artefact without its `quantum_provenance` block
 ([[claim-credibility-wavefunctions]] § provenance rule).
 
+## Per-mechanism budgets (built 2026-10-10)
+
+`FidelityAccountingEngine.fidelity_budget` attributes predicted infidelity by
+leave-one-out ablation (decoherence / 1Q / 2Q / readout toggled ideal in
+turn): absolute gains are the honest numbers, normalized shares only rank.
+Documented non-additivity — the model is multiplicative, so shares need not
+sum to total infidelity and must never be presented as a ledger. Ideal
+devices report no budget and no dominant mechanism. Bell-on-Heron example:
+readout dominates, then decoherence — the selector implications (fix
+readout first) fall out of the numbers, not from tuning a headline.
+
 ## Gate test
 
 Synthetic device with a known profile → predicted-vs-measured fidelity within tolerance on a

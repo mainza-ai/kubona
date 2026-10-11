@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import math
 import time
+import dataclasses
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 
@@ -99,6 +100,48 @@ class FidelityAccountingEngine:
 
         f_pred = decoherence_factor * gate_survival * readout_survival
         return max(0.0, min(1.0, f_pred))
+
+    def fidelity_budget(
+        self,
+        device: DeviceNoiseProfile,
+        n_qubits: int,
+        n_single_qubit_gates: int,
+        n_two_qubit_gates: int,
+        circuit_duration_us: float = 1.0,
+    ) -> dict[str, Any]:
+        """Per-mechanism infidelity budget via leave-one-out ablation.
+
+        Each mechanism is toggled to ideal in turn; the fidelity gain names
+        what that mechanism costs. Shares are normalized gains (first-order
+        attribution, NOT an additive ledger — the model is multiplicative,
+        so shares need not sum to the total infidelity; the absolute gains
+        are the honest numbers, shares are for ranking).
+        Returns predicted_fidelity, per-mechanism entries
+        {name, fidelity_without, absolute_gain, share}, and the dominant
+        mechanism (None when the device is already ideal).
+        """
+        base = self.predict_fidelity(device, n_qubits, n_single_qubit_gates,
+                                     n_two_qubit_gates, circuit_duration_us)
+        ablations = [
+            ("decoherence", {"t1_us": 1e12, "t2_us": 1e12}),
+            ("single_qubit_gates", {"single_qubit_error": 0.0}),
+            ("two_qubit_gates", {"two_qubit_error": 0.0}),
+            ("readout", {"readout_error": 0.0}),
+        ]
+        entries = []
+        for name, override in ablations:
+            improved = self.predict_fidelity(
+                dataclasses.replace(device, **override),
+                n_qubits, n_single_qubit_gates, n_two_qubit_gates,
+                circuit_duration_us)
+            entries.append({"name": name, "fidelity_without": round(improved, 6),
+                            "absolute_gain": round(max(0.0, improved - base), 6)})
+        total_gain = sum(e["absolute_gain"] for e in entries)
+        for e in entries:
+            e["share"] = round(e["absolute_gain"] / total_gain, 4) if total_gain > 0 else 0.0
+        dominant = max(entries, key=lambda e: e["absolute_gain"])["name"] if total_gain > 0 else None
+        return {"predicted_fidelity": round(base, 6), "mechanisms": entries,
+                "dominant": dominant}
 
     def evaluate_admission(
         self,
