@@ -134,6 +134,12 @@ func (r *Runner) SubmitJob(sessionID, jobType string, params any) (*Job, error) 
 			return nil, fmt.Errorf("circuit_run requires qasm")
 		}
 	}
+	// Sweep grid gate: out-of-range scans refuse with no residue, same rule.
+	if jobType == "pes_sweep" {
+		if _, err := ValidateSweepParams(data); err != nil {
+			return nil, err
+		}
+	}
 
 	// Pre-QPU admission gate: autonomy + hardware/mandate rules. Refusals
 	// happen here, before any queue or ledger write, so rejected jobs leave
@@ -281,6 +287,18 @@ func (r *Runner) executeJob(j *Job) {
 			} else {
 				resultData, _ = json.Marshal(resp)
 			}
+
+		case "pes_sweep":
+			var sp PesSweepParams
+			if err := json.Unmarshal(j.ParamsJSON, &sp); err != nil {
+				execErr = err
+				break
+			}
+			if _, err := ValidateSweepParams(j.ParamsJSON); err != nil {
+				execErr = err
+				break
+			}
+			resultData, execErr = r.executePesSweep(&sp)
 
 		default:
 			execErr = fmt.Errorf("unknown job type: %s", j.JobType)

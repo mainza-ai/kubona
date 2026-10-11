@@ -260,3 +260,45 @@ func TestSynthSourcesResolve(t *testing.T) {
 		}
 	}
 }
+
+func TestReplanPesSweep(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+	before := decodeReplan(t, raw)
+
+	updated, changed, _ := ReplanWithJobResult(raw, "job-sweep1", "pes_sweep",
+		[]byte(`{"success":true,"molecule":"H2","points":[
+			{"r":0.5,"rhf_energy":-1.06123,"fci_energy":-1.08345},
+			{"r":1.0,"rhf_energy":-1.10011,"fci_energy":-1.12000},
+			{"r":1.5,"error":"anchor reported success=false"}]}`), "")
+	if !changed {
+		t.Fatal("sweep table must fold")
+	}
+	after := decodeReplan(t, updated)
+	last := after.Notebook.Sections[len(after.Notebook.Sections)-1]
+	if !strings.Contains(last, "Job job-swee (pes_sweep): H2 classical PES, 3 points") {
+		t.Errorf("table header wrong: %q", last)
+	}
+	if !strings.Contains(last, "R=1.0000 A  RHF=-1.10011  FCI=-1.12000 Ha") {
+		t.Errorf("point line wrong: %q", last)
+	}
+	if !strings.Contains(last, "R=1.5000 A  anchor failed:") {
+		t.Errorf("failed point must stay transparent: %q", last)
+	}
+	if !strings.Contains(last, "coarse FCI minimum near R=1.0000 A") {
+		t.Errorf("argmin missing: %q", last)
+	}
+	// Reference state untouched: anchor stays equilibrium, trajectory stays
+	// optimizer output.
+	if after.ClassicalAnchor.FciExactEnergy != before.ClassicalAnchor.FciExactEnergy {
+		t.Error("sweep must not move the equilibrium anchor")
+	}
+	if len(after.Trajectory) != len(before.Trajectory) {
+		t.Error("sweep must not append trajectory points")
+	}
+
+	// A sweep that measured nothing folds nothing.
+	if _, changed, _ := ReplanWithJobResult(raw, "job-sweep2", "pes_sweep",
+		[]byte(`{"success":true,"molecule":"H2","points":[{"r":0.5,"error":"boom"}]}`), ""); changed {
+		t.Error("point-free sweep must not fold")
+	}
+}

@@ -1702,3 +1702,11 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-11] verification | CI green on RegisterClaim enforcement
   All 5 jobs success on run 38172226534. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | Classical PES sweep (pes_sweep jobs)
+  New job type: validated grid (2-12 pts, R 0.3-10) refused
+  pre-submit without residue; worker anchors each geometry via
+  bridge with per-point errors inline; replan folds one table
+  section + coarse FCI minimum, anchor/trajectory untouched.
+  A2A potential_energy_scan submit path. Live: real PySCF H2
+  3-point sweep COMPLETED (FCI min near R=1.0, coarse as labeled).
