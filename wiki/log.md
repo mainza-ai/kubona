@@ -1454,3 +1454,8 @@ skipped is the exact failure this incident is about:
   codeexec: AST parse gate + closed-world imports for declared tasks;
   in-container requires probe with named skips; humaneval requires
   validation + wrap passthrough. 4 new tests; suite 354 passed.
+
+## [2026-10-11] implementation | Constraint-first compilation + SDK verdict
+  Portfolio compile() takes ceilings/objective with fail-closed refusal;
+  full commercial-synthesis integration specified as operator-gated
+  (account, M2M vault-leased creds, supply-chain approval). Tests green.
