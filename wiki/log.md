@@ -1545,3 +1545,6 @@ skipped is the exact failure this incident is about:
   tribunal room + flight advance theatrical, Emergency Pause dead (safety),
   manifold/canvas fallbacks fake-verified. Fix list on
   [[ui-honesty-audit-2026-10-11]] — features frozen until violations clear.
+
+## [2026-10-11] verification | CI green on streaming/P0/settings batch
+  All 5 jobs success first try on run 38132561440. Zero unpushed after log.
