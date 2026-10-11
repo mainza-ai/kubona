@@ -1692,3 +1692,10 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-11] verification | CI green on source-label vocabulary
   All 5 jobs success on run 38170421392. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | RegisterClaim enforces source vocabulary
+  RegisterClaim now returns error on unresolvable labels; refused
+  claims are never recorded so CanAssert cannot bless them. Gate
+  math tests migrated to valid labels; empty sources stay legal.
+  Live: daemon boots with zero seed refusals. Refusal branch is
+  unit-proven (no HTTP path registers gate claims).

@@ -210,7 +210,9 @@ func NewServer(
 
 	// Seed sample claim wavefunctions for the Epistemic Manifold
 	for _, seed := range epistemics.SeedClaims() {
-		s.epistemicGate.RegisterClaim(seed)
+		if err := s.epistemicGate.RegisterClaim(seed); err != nil {
+			log.Printf("[Epistemics] seed claim refused: %v", err)
+		}
 	}
 
 	s.registerRoutes()
