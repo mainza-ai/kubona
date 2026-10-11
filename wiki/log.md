@@ -1428,3 +1428,9 @@ skipped is the exact failure this incident is about:
 ## [2026-10-11] verification | CI green with improvement batches
   Scheduler, tiers, quarantine, budgets pushed; all 5 jobs success on
   run 38103820390. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | Advantage-claim structural pre-checks
+  verification/advantage.py: mirror-fraction + min-cut diagnostics with
+  three-task intake (score-only refuses, mirrored/narrow flags, clean
+  passes to cost review). 10 tests green; thresholds documented v1.
+  Suite 342 passed.
