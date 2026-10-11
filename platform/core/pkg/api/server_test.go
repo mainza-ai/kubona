@@ -3,6 +3,8 @@ package api_test
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -15,12 +17,13 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
 	"github.com/mainza-ai/kubona/core/pkg/session"
 	"github.com/mainza-ai/kubona/core/pkg/supervisor"
+	"github.com/mainza-ai/kubona/core/pkg/tenants"
 	"github.com/mainza-ai/kubona/core/pkg/watchdog"
 )
 
-func setupTestServer(t *testing.T) (*api.Server, func()) {
-	// Tests exercise the human-reviewer sign endpoint with an ephemeral key.
+func setupTestServer(t *testing.T) (*api.Server, func()) { // Tests exercise the human-reviewer sign endpoint with an ephemeral key.
 	t.Setenv("KUBONA_ALLOW_EPHEMERAL_SIGNER", "1")
+	t.Setenv("KUBONA_API_TOKEN", "test-token")
 	dbPath := "test_api.db"
 	l, err := ledger.OpenLedger(dbPath)
 	if err != nil {
@@ -42,6 +45,25 @@ func setupTestServer(t *testing.T) (*api.Server, func()) {
 	}
 
 	return srv, cleanup
+}
+
+// testAdminEnvelope binds mandate-sign parameters under a tenant admin key,
+// mirroring exactly what handleMandateSign hashes (effective values,
+// JSON number semantics: float64 budget, int64 ttl).
+func testAdminEnvelope(t *testing.T, tenantID, pubHex string, priv ed25519.PrivateKey, jobHash string, budget float64, ttl int64) *tenants.AdminAction {
+	t.Helper()
+	params := map[string]any{"job_hash": jobHash, "max_budget_usd": budget, "ttl_seconds": ttl}
+	hash, err := tenants.ParamsHashOf(params)
+	if err != nil {
+		t.Fatal(err)
+	}
+	act := &tenants.AdminAction{
+		TenantID: tenantID, Action: "mandate_sign", ParamsHash: hash,
+		Expiry: time.Now().UTC().Add(time.Hour), PubkeyHex: pubHex,
+	}
+	sig := ed25519.Sign(priv, act.CanonicalPayload())
+	act.SignatureHex = hex.EncodeToString(sig)
+	return act
 }
 
 func TestAPIRoutes(t *testing.T) {
@@ -98,7 +120,9 @@ func TestAPIRoutes(t *testing.T) {
 		t.Fatalf("expected 200 for /api/radar, got %d", w.Code)
 	}
 
-	// 7. Mandate Signing (tenant registered first: mandates bind lab tenants)
+	// 7. Mandate Signing (tenant registered first: mandates bind lab tenants).
+	// Spend authority needs the tenant admin's envelope: bootstrap the admin
+	// key (first-write), then sign the exact parameters. Bearer gate first.
 	tenantBody, _ := json.Marshal(map[string]any{"id": "tenant-lab-alpha", "display_name": "Lab Alpha"})
 	req = httptest.NewRequest(http.MethodPost, "/api/tenants", bytes.NewReader(tenantBody))
 	w = httptest.NewRecorder()
@@ -106,18 +130,25 @@ func TestAPIRoutes(t *testing.T) {
 	if w.Code != http.StatusCreated {
 		t.Fatalf("expected 201 for /api/tenants, got %d", w.Code)
 	}
+	adminPub, adminPriv, _ := ed25519.GenerateKey(nil)
+	adminPubHex := hex.EncodeToString(adminPub)
+	if _, err := srv.TenantManager().SetAdminKey("tenant-lab-alpha", adminPubHex, nil); err != nil {
+		t.Fatalf("admin bootstrap: %v", err)
+	}
 	signPayload := map[string]any{
 		"tenant_id":      "tenant-lab-alpha",
 		"job_hash":       "job-sha256-test",
 		"max_budget_usd": 25.0,
-		"ttl_seconds":    3600,
+		"ttl_seconds":    int64(3600),
+		"admin_action":   testAdminEnvelope(t, "tenant-lab-alpha", adminPubHex, adminPriv, "job-sha256-test", 25.0, int64(3600)),
 	}
 	body, _ := json.Marshal(signPayload)
 	req = httptest.NewRequest(http.MethodPost, "/api/mandates/sign", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer test-token")
 	w = httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200 for /api/mandates/sign, got %d", w.Code)
+		t.Fatalf("expected 200 for /api/mandates/sign, got %d: %s", w.Code, w.Body.String())
 	}
 
 	// 8. Notebooks
@@ -173,6 +204,7 @@ func TestAPIRoutes(t *testing.T) {
 	}
 	signBytes, _ := json.Marshal(signPayload)
 	req = httptest.NewRequest(http.MethodPost, "/api/mandates/sign", bytes.NewReader(signBytes))
+	req.Header.Set("Authorization", "Bearer test-token")
 	w = httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	json.NewDecoder(w.Body).Decode(&signResp)

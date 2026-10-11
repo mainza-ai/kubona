@@ -192,12 +192,14 @@ func TestMandateSignRefusesEphemeralByDefault(t *testing.T) {
 	srv, cleanup := setupTestRoutesServer(t)
 	defer cleanup()
 	t.Setenv("KUBONA_ALLOW_EPHEMERAL_SIGNER", "")
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
 
 	signPayload := map[string]any{
 		"tenant_id": "tenant QFile", "job_hash": "abc123", "max_budget_usd": 10.0, "ttl_seconds": 60,
 	}
 	body, _ := json.Marshal(signPayload)
 	req := httptest.NewRequest(http.MethodPost, "/api/mandates/sign", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer op-token")
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 	if w.Code != http.StatusForbidden {
