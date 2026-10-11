@@ -153,7 +153,10 @@ passes) — future hardening, not a silent change.
 
 - **Hardware-canary** — nightly run of a canary circuit against *every* connected backend to
   catch silent provider API breakage / calibration drift before an agent hits it mid-workflow
-  (Phase 3; candidate home: Go service or Rust).
+  (Phase 3; candidate home: Go service or Rust). Since 2026-10-10 every
+  reported proportion carries a 95% Wilson interval (additive; verdict
+  logic untouched) — a 50/50 from 20 shots no longer reads the same as
+  one from 20,000.
 - The correctness-regression harness of the [[karpathy-autoresearch]] engine runs here and
   **gates releases**, not just logging.
 
