@@ -1646,3 +1646,6 @@ skipped is the exact failure this incident is about:
   jobs settled-hook on COMPLETED only; versions labeled
   replan:<type>:<id>. Live: Bell run MW 0.82 -> 1.0 with provenance
   line. Full Go suite green.
+
+## [2026-10-11] verification | CI green on planner replan
+  All 5 jobs success on run 38165234609. Tree clean, zero unpushed.
