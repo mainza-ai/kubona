@@ -1513,3 +1513,8 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-11] verification | CI green on patent-connector batch
   All 5 jobs success on run 38121583481. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | Intelligence ER pipeline (verified merges)
+  kubona/intelligence/resolve.py: block/match/cluster, all-pairs floor
+  refuses chain-merges, sparsity floor, proposals-only + validator-gated
+  apply with supersedes chains. 5 tests green (21 across intelligence suite).
