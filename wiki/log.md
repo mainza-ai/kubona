@@ -1765,3 +1765,6 @@ skipped is the exact failure this incident is about:
   (refuse on error), persists compiler_used/fallback_estimate columns
   (migrated), Get/List carry them to API. Live: launched Bell row
   COMPLETED with go-fallback-estimate/1. Full Go suite green.
+
+## [2026-10-11] verification | CI green on B0-5 compile gate
+  All 5 jobs success on run 38180654702. Tree clean, zero unpushed.
