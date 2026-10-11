@@ -28,4 +28,20 @@ classically-computable noiseless reference). ZNE ships first (Phase 1) as the be
 value-to-effort ratio. Budget overruns from mitigation shot amplification are caught by
 [[cost-governance]].
 
+## Re-fittable records (built 2026-10-11)
+
+`ZNEResult` archives per-scale values with shots + seed provenance, and
+`refit()` re-estimates from the *same* shots under Richardson / linear /
+exponential — no new execution. Estimator spread is reported, not hidden;
+unknown extrapolators refuse, and exponential refuses signed data (log-fit
+needs positive values) rather than inventing a number. Same shots,
+multiple estimators, zero new spend.
+
+## Deferred with reason: syndrome pipelines
+
+Syndrome archiving (records, decoders, postprocessing estimators) waits for
+a real QEC run to consume it — building the pipeline with no producer
+would be speculative scaffolding. The re-fit discipline above is the
+down payment: when syndromes arrive, they land in records shaped like this.
+
 Related: [[mitiq]] · [[barren-plateau]] · [[circuit-cutting]] · [[nisq-and-hybrid-orchestration]]
