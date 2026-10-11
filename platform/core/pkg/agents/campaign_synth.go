@@ -38,7 +38,12 @@ type QuantumFactors struct {
 	WireCuts           []any   `json:"wire_cuts"`
 }
 
-// ClassicalAnchor encapsulates the ab-initio physics baseline
+// ClassicalAnchor encapsulates the ab-initio physics baseline.
+// AnchorComputed reports whether RHF/FCI came from a live PySCF bridge
+// computation (true, AnchorSource "pyscf-live") or from hardcoded defaults
+// because the bridge was unreachable (false, "hardcoded-fallback"). A
+// fallback anchor is never verification-grade: chemical accuracy cannot
+// pass on it, and epistemics cannot collapse on it.
 type ClassicalAnchor struct {
 	Method                 string  `json:"method"`
 	RhfMeanFieldEnergy     float64 `json:"rhf_mean_field_energy"`
@@ -47,6 +52,8 @@ type ClassicalAnchor struct {
 	DiscrepancyMHa         float64 `json:"discrepancy_mha"`
 	ChemicalAccuracyPassed bool    `json:"chemical_accuracy_passed"`
 	ChemicalAccuracyLimit  float64 `json:"chemical_accuracy_limit"`
+	AnchorComputed         bool    `json:"anchor_computed"`
+	AnchorSource           string  `json:"anchor_source"`
 }
 
 // TrajectoryStep represents a single optimization point
@@ -333,9 +340,13 @@ func SynthesizeCampaignStateWithOpts(
 		}
 	}
 
-	// 1. Calculate genuine PySCF ab-initio classical anchor via bridge
+	// 1. Calculate genuine PySCF ab-initio classical anchor via bridge.
+	// When the bridge is unreachable the hardcoded defaults stand in, but
+	// they are labeled as fallback at every surface below — an uncomputed
+	// anchor must never read as a measurement.
 	rhfVal := rhfDefault
 	fciVal := fciDefault
+	anchorComputed := false
 	if bridgeClient != nil {
 		anchorCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
 		resp, err := bridgeClient.ComputeClassicalAnchor(anchorCtx, &pb.ClassicalAnchorRequest{
@@ -346,14 +357,25 @@ func SynthesizeCampaignStateWithOpts(
 		if err == nil && resp.Success {
 			rhfVal = resp.RhfEnergy
 			fciVal = resp.FciExactEnergy
+			anchorComputed = true
 			log.Printf("[CampaignSynth] Ab-initio PySCF calculated for %s at R=%.4f A: FCI=%.5f Ha, RHF=%.5f Ha", mol, bondDist, fciVal, rhfVal)
+		} else if err != nil {
+			log.Printf("[CampaignSynth] Bridge anchor failed for %s, using hardcoded fallback (labeled): %v", mol, err)
 		}
+	}
+	anchorSource := "hardcoded-fallback"
+	anchorMethod := "Hardcoded fallback (bridge unavailable)"
+	if anchorComputed {
+		anchorSource = "pyscf-live"
+		anchorMethod = "PySCF STO-3G Full Configuration Interaction"
 	}
 
 	// Quantum expectation value simulation
 	vqeVal := fciVal + 0.00047
 	deltaMHa := math.Abs(vqeVal-fciVal) * 1000.0
-	chemAccPassed := deltaMHa <= 1.6
+	// Chemical accuracy can only pass on a computed anchor: a fallback
+	// FCI is an assumption, and assumptions do not verify.
+	chemAccPassed := anchorComputed && deltaMHa <= 1.6
 
 	if fresh {
 		vqeVal = rhfVal // Unoptimized initial Hartree-Fock state
@@ -527,6 +549,21 @@ func SynthesizeCampaignStateWithOpts(
 		epStatement = fmt.Sprintf("Hypothesis formulated for %s. Awaiting variational circuit optimization.", target)
 	}
 
+	// Fallback anchors unground corroboration: without a computed FCI the
+	// 0.95 amplitude is fiction, so the campaign drops to pending weights
+	// and UNVERIFIED with the cause in the statement. Fresh campaigns keep
+	// HYPOTHESIS_PENDING (already pending) plus the same caveat.
+	if !anchorComputed {
+		alpha = 0.50
+		beta = 0.10
+		gamma = 0.40
+		pCorr = 25.0
+		if !fresh {
+			epStatus = "UNVERIFIED"
+		}
+		epStatement += " Classical anchor is a hardcoded fallback (bridge unavailable) — unverified."
+	}
+
 	// SHA-256 Merkle Provenance Hash (shared with replan: the hash must
 	// re-derive identically when a recomputed anchor changes FCI).
 	provenanceHash := provenanceHash(sessionID, mol, bondDist, fciVal, qasmCode)
@@ -534,11 +571,18 @@ func SynthesizeCampaignStateWithOpts(
 	// Systematic Notebook Sections
 	notebookVerdict := "VERIFIED_COLLAPSED"
 	notebookTitle := fmt.Sprintf("%s Potential Energy Surface VQE vs PySCF FCI", target)
+	anchorLine := fmt.Sprintf("2. Classical PySCF ab-initio ground state RHF (%.5f Ha) and FCI (%.5f Ha) integrals", rhfVal, fciVal)
+	collapseLine := fmt.Sprintf("4. Ring 1 Epistemic Wavefunction collapse (P_corr = %.2f%%) and chemical accuracy (<1.6 mHa)", pCorr)
+	if !anchorComputed {
+		notebookVerdict = "UNVERIFIED_FALLBACK"
+		anchorLine = fmt.Sprintf("2. Classical anchor UNAVAILABLE — hardcoded RHF (%.5f Ha) and FCI (%.5f Ha) assumed (bridge unreachable); no ab-initio integrals computed", rhfVal, fciVal)
+		collapseLine = fmt.Sprintf("4. Ring 1 Epistemic state UNVERIFIED (P_corr = %.2f%%): anchor is a hardcoded fallback, no collapse claimed", pCorr)
+	}
 	sections := []string{
 		fmt.Sprintf("1. Scientific Objective: %s at equilibrium bond distance R=%.4f A", target, bondDist),
-		fmt.Sprintf("2. Classical PySCF ab-initio ground state RHF (%.5f Ha) and FCI (%.5f Ha) integrals", rhfVal, fciVal),
+		anchorLine,
 		fmt.Sprintf("3. Variational Quantum Eigensolver circuit execution on Aer (%s)", ansatz),
-		fmt.Sprintf("4. Ring 1 Epistemic Wavefunction collapse (P_corr = %.2f%%) and chemical accuracy (<1.6 mHa)", pCorr),
+		collapseLine,
 		fmt.Sprintf("5. Negative results & barren plateau avoidance ledger (Var(∇E) = %.1e)", gradVar),
 		fmt.Sprintf("6. Pre-flight Clifford canary probe fidelity profile (F = %.1f%%)", 98.4),
 		fmt.Sprintf("7. Provenance SHA-256 Merkle DAG hash proof: %s", provenanceHash[:24]),
@@ -550,7 +594,12 @@ func SynthesizeCampaignStateWithOpts(
 		notebookTitle = fmt.Sprintf("%s Variational Discovery Campaign (Draft)", target)
 		sections = []string{
 			fmt.Sprintf("1. Scientific Objective: Formulate and evaluate ansatz for %s at equilibrium bond distance R=%.4f A", target, bondDist),
-			fmt.Sprintf("2. Classical PySCF ab-initio ground state anchors established: RHF (%.5f Ha) and FCI (%.5f Ha)", rhfVal, fciVal),
+			func() string {
+				if anchorComputed {
+					return fmt.Sprintf("2. Classical PySCF ab-initio ground state anchors established: RHF (%.5f Ha) and FCI (%.5f Ha)", rhfVal, fciVal)
+				}
+				return fmt.Sprintf("2. Classical anchor UNAVAILABLE — hardcoded RHF (%.5f Ha) and FCI (%.5f Ha) assumed (bridge unreachable)", rhfVal, fciVal)
+			}(),
 			fmt.Sprintf("3. Variational Quantum Eigensolver circuit prepared (%s). Awaiting execution.", ansatz),
 			"4. Epistemic credibility state: HYPOTHESIS_PENDING (awaiting empirical calculation).",
 			"5. Multi-agent research tribunal standing by to evaluate convergence.",
@@ -562,7 +611,7 @@ func SynthesizeCampaignStateWithOpts(
 		ID:               fmt.Sprintf("nb-%s-%s", strings.ToLower(mol), sessionID[:min(len(sessionID), 8)]),
 		Title:            notebookTitle,
 		CreatedAt:        time.Now().UTC().Format(time.RFC3339),
-		ClassicalAnchor:  fmt.Sprintf("PySCF STO-3G Full Configuration Interaction (%.5f Ha)", fciVal),
+		ClassicalAnchor:  fmt.Sprintf("%s (%.5f Ha)", anchorMethod, fciVal),
 		QuantumEnergy:    vqeVal,
 		ClassicalEnergy:  fciVal,
 		DeltaMHa:         deltaMHa,
@@ -600,13 +649,15 @@ func SynthesizeCampaignStateWithOpts(
 			WireCuts:           []any{map[string]any{"cut_type": "KaHyPar QPD", "overhead": "4.0x"}},
 		},
 		ClassicalAnchor: ClassicalAnchor{
-			Method:                 "PySCF STO-3G Full Configuration Interaction",
+			Method:                 anchorMethod,
 			RhfMeanFieldEnergy:     rhfVal,
 			FciExactEnergy:         fciVal,
 			VqeExpectationEnergy:   vqeVal,
 			DiscrepancyMHa:         deltaMHa,
 			ChemicalAccuracyPassed: chemAccPassed,
 			ChemicalAccuracyLimit:  1.6,
+			AnchorComputed:         anchorComputed,
+			AnchorSource:           anchorSource,
 		},
 		Trajectory: trajectory,
 		Branches:   branches,
