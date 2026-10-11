@@ -9,6 +9,12 @@ export interface Session {
   current_spend_usd: number;
 }
 
+// Canvas run-state: what the swarm is doing right now (Phase 1 awareness).
+// Every phase has a canvas manifestation; idle is the only silent state.
+export type RunPhase = 'idle' | 'thinking' | 'tribunal';
+
+export type ProbeId = 'theorist' | 'formalist' | 'compiler' | 'critic';
+
 export interface Lab {
   id: string;
   display_name: string;
@@ -66,6 +72,9 @@ export interface ChatMessage {
   proposal_json?: Proposal;
   tribunal?: TribunalResult;
   created_at: string;
+  // Model that served this reply (chat POST envelope). Shown under the
+  // bubble so a stale selection is visible, never silent.
+  model?: string;
 }
 
 export interface Job {

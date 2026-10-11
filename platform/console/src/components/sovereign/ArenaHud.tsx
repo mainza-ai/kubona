@@ -23,6 +23,7 @@ interface ArenaHudProps {
   spendUsd: number;
   spendCapUsd: number;
   sessionElapsed: string;
+  statusText?: string | null;
   onRecenter: () => void;
 }
 
@@ -34,15 +35,20 @@ export function ArenaHud({
   spendUsd,
   spendCapUsd,
   sessionElapsed,
+  statusText,
   onRecenter,
 }: ArenaHudProps) {
   return (
     <header className="absolute top-4 left-6 right-6 z-20 flex items-center justify-between pointer-events-none">
       <div className="flex items-center gap-3 pointer-events-auto bg-[#0E1117]/80 backdrop-blur-xl border border-white/10 rounded-full px-4 py-2 shadow-2xl">
-        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+        <span className={`w-2 h-2 rounded-full ${statusText ? 'bg-cyan-400 animate-ping' : 'bg-emerald-400 animate-pulse'}`} />
         <span className="font-code text-xs text-white font-medium tracking-wide">{targetLabel}</span>
         <span className="text-white/20">|</span>
-        <span className="font-code text-[11px] text-cyan-400">{swarmDetail}</span>
+        {statusText ? (
+          <span data-testid="hud-status" className="font-code text-[11px] text-cyan-300">{statusText}</span>
+        ) : (
+          <span className="font-code text-[11px] text-cyan-400">{swarmDetail}</span>
+        )}
       </div>
 
       <div

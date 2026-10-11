@@ -176,6 +176,24 @@ body {
 .animate-orbit-slow { animation: orbitRotate 90s linear infinite; }
 .animate-orbit-reverse { animation: orbitRotate 60s linear infinite reverse; }
 
+/* Radar sweep: conic beam rotating over the arena (6s, unmistakable life) */
+@keyframes sweepRotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-sweep {
+  animation: sweepRotate 6s linear infinite;
+  background: conic-gradient(from 0deg, rgba(0, 229, 255, 0.14), transparent 18%);
+}
+
+/* Resonance beams flow toward the target */
+@keyframes dashDrift {
+  to { stroke-dashoffset: -28; }
+}
+.animate-dash-drift {
+  animation: dashDrift 1.4s linear infinite;
+}
+
 /* Spring-style transitions */
 .spring-transition {
   transition: all 0.35s cubic-bezier(0.16, 1, 0.3, 1);

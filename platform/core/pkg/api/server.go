@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -117,6 +118,20 @@ func NewServer(
 	if err != nil {
 		llmSet = llm.DefaultSettings()
 	}
+	if llmSet.EnsureDefaultRoles() {
+		// Persist the backfill so next boot is clean; never overwrites a
+		// role the operator explicitly assigned.
+		_ = llmSet.Save(l.DB())
+	}
+	if llmSet.EnsureDefaultProviders() {
+		_ = llmSet.Save(l.DB())
+	}
+	// Boot visibility: the effective model/max-tokens are logged so a stale
+	// persisted selection (e.g. a model oMLX no longer serves) is caught at
+	// startup, not misdiagnosed mid-session (2026-10-11).
+	snap := llmSet.GetSnapshot()
+	log.Printf("[Kubona Core] LLM effective: provider=%s model=%s max_tokens=%d (0=server default/EOS)",
+		snap.ActiveProvider, snap.ActiveModel, snap.MaxTokens)
 	llmCli := llm.NewClient(llmSet)
 
 	sbCfg := sandbox.DefaultConfig()
@@ -219,6 +234,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/sessions", s.handleSessions)
 	s.mux.HandleFunc("/api/sessions/", s.handleSessionByID)
 	s.mux.HandleFunc("/api/chat/messages", s.handleChatMessages)
+	s.mux.HandleFunc("/api/chat/stream", s.handleChatStream)
 	s.mux.HandleFunc("/api/chat/tribunal", s.handleChatTribunal)
 	s.mux.HandleFunc("/api/chat/launch", s.handleChatLaunch)
 	s.mux.HandleFunc("/api/jobs", s.handleJobs)
@@ -988,12 +1004,17 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Autonomous Epistemic Routing via Collective & Live oMLX Engine
+		// Autonomous Epistemic Routing via the configured engine
 		botReply, proposalJSON, err := s.generateCopilotResponse(r.Context(), sessionID, req.Content)
 		if err != nil && botReply == "" {
-			botReply = fmt.Sprintf("⚠️ [oMLX Engine Notice]: %v", err)
+			prov, model, _ := s.llmSettings.GetModelForRole("copilot")
+			botReply = engineNotice(string(prov), model, err)
 		}
 		assistantMsg, _ := s.sessionMgr.AddMessage(sessionID, "assistant", botReply, proposalJSON)
+
+		// Served-model observability: the UI shows which model answered, so a
+		// stale selection is visible, never silent (2026-10-11).
+		_, servedModel, _ := s.llmSettings.GetModelForRole("copilot")
 
 		// Dynamically update campaign state for session
 		campState, _ := agents.SynthesizeCampaignState(r.Context(), sessionID, req.Content, s.llmClient, s.jobRunner.BridgeClient())
@@ -1007,10 +1028,109 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 			"assistant_message": assistantMsg,
 			"user":              userMsg,
 			"assistant":         assistantMsg,
+			"model":             servedModel,
 		})
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// handleChatStream is the streaming twin of the chat POST: provider SSE
+// tokens forward to the browser live, then the same finalization runs
+// (proposal extraction, sanitation, campaign synthesis) and a done event
+// carries the stored records. Failures arrive as error events carrying the
+// provider-aware notice — never silence.
+func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+
+	emit := func(event string, payload any) {
+		raw, _ := json.Marshal(payload)
+		fmt.Fprintf(w, "event: %s\ndata: %s\n\n", event, string(raw))
+		flusher.Flush()
+	}
+
+	sessionID := r.URL.Query().Get("session_id")
+	var req struct {
+		SessionID string `json:"session_id"`
+		Role      string `json:"role"`
+		Content   string `json:"content"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		emit("error", map[string]any{"error": "invalid request body"})
+		return
+	}
+	if sessionID == "" {
+		sessionID = req.SessionID
+	}
+	var err error
+	sessionID, err = s.ensureSession(sessionID)
+	if err != nil {
+		emit("error", map[string]any{"error": fmt.Sprintf("failed to resolve session: %v", err)})
+		return
+	}
+	if req.Role == "" {
+		req.Role = "user"
+	}
+	userMsg, err := s.sessionMgr.AddMessage(sessionID, req.Role, req.Content, nil)
+	if err != nil {
+		emit("error", map[string]any{"error": err.Error()})
+		return
+	}
+	emit("started", map[string]any{"user": userMsg})
+
+	// History mirrors generateCopilotResponse (same system contract).
+	recentMsgs, _ := s.sessionMgr.GetMessages(sessionID)
+	history := []llm.ChatMessage{{Role: "system", Content: copilotSystemPrompt}}
+	for _, m := range recentMsgs {
+		if m.Role == "user" || m.Role == "assistant" {
+			history = append(history, llm.ChatMessage{Role: m.Role, Content: m.Content})
+		}
+	}
+	history = append(history, llm.ChatMessage{Role: "user", Content: req.Content})
+
+	streamCtx, cancel := context.WithTimeout(r.Context(), 600*time.Second)
+	defer cancel()
+	raw, finish, _, streamErr := s.llmClient.CompleteStream(streamCtx, "copilot", history, func(tok string) {
+		emit("token", map[string]any{"text": tok})
+	})
+	if streamErr != nil {
+		prov, model, _ := s.llmSettings.GetModelForRole("copilot")
+		notice := engineNotice(string(prov), model, streamErr)
+		assistantMsg, _ := s.sessionMgr.AddMessage(sessionID, "assistant", notice, nil)
+		_, servedModel, _ := s.llmSettings.GetModelForRole("copilot")
+		emit("done", map[string]any{"user": userMsg, "assistant": assistantMsg, "model": servedModel})
+		return
+	}
+	if finish == "length" {
+		raw += copilotTruncationNotice
+	}
+	display, proposalJSON := extractProposal(raw)
+	display = sanitizeCopilotReply(display)
+	assistantMsg, _ := s.sessionMgr.AddMessage(sessionID, "assistant", display, proposalJSON)
+	_, servedModel, _ := s.llmSettings.GetModelForRole("copilot")
+
+	var campState any
+	if cs, _ := agents.SynthesizeCampaignState(r.Context(), sessionID, req.Content, s.llmClient, s.jobRunner.BridgeClient()); cs != nil {
+		if campBytes, merr := json.Marshal(cs); merr == nil {
+			s.ledger.SaveCampaignState(sessionID, campBytes)
+		}
+		campState = cs
+	}
+	emit("done", map[string]any{
+		"user": userMsg, "assistant": assistantMsg,
+		"proposal": proposalJSON, "campaign": campState, "model": servedModel,
+	})
 }
 
 func (s *Server) generateCopilotResponse(ctx context.Context, sessionID, content string) (string, *json.RawMessage, error) {
@@ -1018,24 +1138,7 @@ func (s *Server) generateCopilotResponse(ctx context.Context, sessionID, content
 	recentMsgs, _ := s.sessionMgr.GetMessages(sessionID)
 	var history []llm.ChatMessage
 
-	sysPrompt := `You are the Kubona Autonomous Science Copilot & Research Engine.
-You operate strictly within the Kubona Quantum Epistemic Observatory.
-Your active local LLM engine is oMLX (Apple Silicon) running Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit.
-Respond directly and concisely without meta-commentary or internal monologues.
-When the user asks about molecular simulation, quantum chemistry, VQE, ansatz design, or physics:
-1. Explain the scientific reasoning clearly and concisely (e.g., active space, PySCF STO-3G classical anchor, symmetry).
-2. If the user wants to simulate, run, or compute a molecule or circuit (e.g. H2, LiH, BeH2, Bell state), you MUST provide an AP2 Proposal JSON block at the very end enclosed in ` + "```json_proposal" + ` and ` + "```" + `:
-` + "```json_proposal" + `
-{
-  "target": "H2 Ground State VQE (R=0.7414 A)",
-  "spend_estimate": "$0.00 (Local Simulator)",
-  "recommended_tier": "Local Simulator (qiskit-aer-simulator)",
-  "classical_anchor": "PySCF STO-3G FCI (-1.13727 Ha)",
-  "qasm": "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[2];\ncreg c[2];\nh q[0];\ncx q[0], q[1];\nmeasure q[0] -> c[0];\nmeasure q[1] -> c[1];\n"
-}
-` + "```" + `
-Always specify real valid OPENQASM 2.0 circuits and real classical anchors. Never claim quantum advantage unless verified.`
-
+	sysPrompt := copilotSystemPrompt
 	history = append(history, llm.ChatMessage{Role: "system", Content: sysPrompt})
 	for _, m := range recentMsgs {
 		if m.Role == "user" || m.Role == "assistant" {
@@ -1044,29 +1147,32 @@ Always specify real valid OPENQASM 2.0 circuits and real classical anchors. Neve
 	}
 	history = append(history, llm.ChatMessage{Role: "user", Content: content})
 
-	// 2. Call live LLM (Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit on oMLX)
-	callCtx, cancel := context.WithTimeout(context.Background(), 180*time.Second)
+	// 2. Call live LLM (uncapped by default: MaxTokens 0 omits the field and
+	// the model generates to EOS; the result contract below refuses to store
+	// a severed paragraph as an answer). 600s budget: local generations run
+	// ~6 tok/s, so real answers take minutes — the UI carries elapsed/overdue
+	// states for exactly this.
+	callCtx, cancel := context.WithTimeout(context.Background(), 600*time.Second)
 	defer cancel()
-	reply, _, _, err := s.llmClient.Complete(callCtx, "copilot", history)
+	reply, chatResp, _, err := s.llmClient.Complete(callCtx, "copilot", history)
 	if err != nil {
-		return fmt.Sprintf("⚠️ [oMLX Notice]: Could not reach local engine (%v). Ensure oMLX is active on port 8787.", err), nil, err
+		prov, model, _ := s.llmSettings.GetModelForRole("copilot")
+		return engineNotice(string(prov), model, err), nil, err
 	}
-
-	// 3. Extract json_proposal if generated
-	var proposalJSON *json.RawMessage
-	startTag := "```json_proposal"
-	endTag := "```"
-	if idx := strings.Index(reply, startTag); idx != -1 {
-		rem := reply[idx+len(startTag):]
-		if endIdx := strings.Index(rem, endTag); endIdx != -1 {
-			jsonStr := strings.TrimSpace(rem[:endIdx])
-			var testObj map[string]any
-			if json.Unmarshal([]byte(jsonStr), &testObj) == nil {
-				raw := json.RawMessage(jsonStr)
-				proposalJSON = &raw
+	if chatResp != nil {
+		for _, choice := range chatResp.Choices {
+			if choice.Finish == "length" {
+				reply += copilotTruncationNotice
+				break
 			}
 		}
 	}
+
+	// 3. Extract json_proposal if generated (runs on the RAW reply: the
+	// display filter below excises the block from chat prose, but the
+	// launchable payload must survive in proposal_json).
+	display, proposalJSON := extractProposal(reply)
+	reply = sanitizeCopilotReply(display)
 
 	// If the model did not close or generate the proposal block, dynamically synthesize by computing classical anchor from Python bridge
 	if proposalJSON == nil {

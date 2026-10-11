@@ -1539,3 +1539,9 @@ skipped is the exact failure this incident is about:
   Adopted [[local-simulation-test-scenarios]] (10 copy-paste co-pilot runs,
   local-sim only, stack verified live before filing). Root + console READMEs
   now carry real run/test instructions (Go core, dev token, gates).
+
+## [2026-10-11] verification | UI honesty audit filed (tracked)
+  Contract audit 42/42 MATCH; presentation audit: 5/6 widgets violate,
+  tribunal room + flight advance theatrical, Emergency Pause dead (safety),
+  manifold/canvas fallbacks fake-verified. Fix list on
+  [[ui-honesty-audit-2026-10-11]] — features frozen until violations clear.

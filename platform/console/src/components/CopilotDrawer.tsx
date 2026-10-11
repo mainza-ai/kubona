@@ -20,8 +20,8 @@ import {
   Paperclip,
   ArrowUp,
 } from 'lucide-react';
-import { ChatMessage, CampaignState } from '@/types';
-import { fetchMessages, sendChatMessage, createSession, runTribunal, fetchCampaignState } from '@/lib/api';
+import { ChatMessage, CampaignState, RunPhase, Proposal } from '@/types';
+import { fetchMessages, sendChatMessage, streamChatMessage, createSession, runTribunal, fetchCampaignState, launchProposal } from '@/lib/api';
 import { MathText } from './common/MathText';
 import type { CanvasWidgetKind } from './sovereign/WidgetStage';
 
@@ -34,6 +34,7 @@ interface CopilotDrawerProps {
   onCampaignUpdated?: (campaign: CampaignState) => void;
   onSelectSurface?: (surface: string) => void;
   onMaterialize?: (kind: CanvasWidgetKind, title: string) => void;
+  onRunStateChange?: (phase: RunPhase, detail: string) => void;
   onClose?: () => void;
 }
 
@@ -46,6 +47,7 @@ export function CopilotDrawer({
   onCampaignUpdated,
   onSelectSurface,
   onMaterialize,
+  onRunStateChange,
   onClose,
 }: CopilotDrawerProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -59,6 +61,9 @@ export function CopilotDrawer({
   const isExpanded = externalExpanded !== undefined ? externalExpanded : internalExpanded;
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [expandedTurns, setExpandedTurns] = useState<Record<string, boolean>>({});
+  const [launchingId, setLaunchingId] = useState<string | null>(null);
+  const [launchedNote, setLaunchedNote] = useState<Record<string, string>>({});
+  const [streamingId, setStreamingId] = useState<string | null>(null);
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -133,27 +138,76 @@ export function CopilotDrawer({
     };
     setMessages((prev) => [...prev, tempUserMsg]);
     setLoading(true);
+    onRunStateChange?.('thinking', textToSend);
+
+    // Live bubble: tokens stream into it; the done event replaces it with
+    // the stored (sanitized) records. Unary fallback on stream failure.
+    const liveId = `live-assistant-${Date.now()}`;
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: liveId,
+        session_id: activeSessionId,
+        role: 'assistant',
+        content: '',
+        created_at: new Date().toISOString(),
+      },
+    ]);
+    setStreamingId(liveId);
+
+    const settleStream = (done: { user: ChatMessage; assistant: ChatMessage; proposal?: unknown; campaign?: CampaignState }) => {
+      setMessages((prev) => {
+        const filtered = prev.filter((m) => m.id !== tempUserMsg.id && m.id !== liveId);
+        const assistant: ChatMessage = { ...done.assistant };
+        if (!assistant.proposal_json && done.proposal) {
+          assistant.proposal_json = done.proposal as Proposal;
+        }
+        return [...filtered, done.user, assistant];
+      });
+      if (done.campaign && onCampaignUpdated) {
+        onCampaignUpdated(done.campaign);
+      } else if (onCampaignUpdated) {
+        fetchCampaignState(activeSessionId).then((c) => {
+          if (c) onCampaignUpdated(c);
+        });
+      }
+      if (onExperimentLaunched) onExperimentLaunched();
+    };
 
     try {
-      const res = await sendChatMessage(activeSessionId, textToSend);
-      if (res) {
-        setMessages((prev) => {
-          const filtered = prev.filter((m) => m.id !== tempUserMsg.id);
-          return [...filtered, res.user, res.assistant];
-        });
-        if (onCampaignUpdated) {
-          fetchCampaignState(activeSessionId).then((c) => {
-            if (c) onCampaignUpdated(c);
+      const done = await streamChatMessage(activeSessionId, textToSend, (tok) => {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === liveId ? { ...m, content: m.content + tok } : m))
+        );
+      });
+      settleStream(done);
+    } catch (streamErr) {
+      console.warn('Stream failed, falling back to unary chat:', streamErr);
+      try {
+        const res = await sendChatMessage(activeSessionId, textToSend);
+        if (res) {
+          setMessages((prev) => {
+            const filtered = prev.filter((m) => m.id !== tempUserMsg.id && m.id !== liveId);
+            return [...filtered, res.user, res.assistant];
           });
+          if (onCampaignUpdated) {
+            fetchCampaignState(activeSessionId).then((c) => {
+              if (c) onCampaignUpdated(c);
+            });
+          }
+          if (onExperimentLaunched) onExperimentLaunched();
+        } else {
+          setMessages((prev) => prev.filter((m) => m.id !== liveId));
+          setErrorMessage('Local AI engine did not respond. Verify that oMLX is listening on port 8787.');
         }
-        if (onExperimentLaunched) onExperimentLaunched();
-      } else {
-        setErrorMessage('Local AI engine did not respond. Verify that oMLX is listening on port 8787.');
+      } catch (err: unknown) {
+        setMessages((prev) => prev.filter((m) => m.id !== liveId));
+        setErrorMessage(err instanceof Error ? err.message : 'Connection error to backend.');
       }
-    } catch (err: unknown) {
-      setErrorMessage(err instanceof Error ? err.message : 'Connection error to backend.');
     } finally {
       setLoading(false);
+      setStreamingId(null);
+      onRunStateChange?.('idle', '');
     }
   };
 
@@ -161,6 +215,7 @@ export function CopilotDrawer({
     if (runningTribunal || loading) return;
     setRunningTribunal(true);
     setTribunalStage('Ansatz Scout: Proposing low-depth quantum circuit parameterization...');
+    onRunStateChange?.('tribunal', 'Ansatz Scout: proposing parameterization…');
     setErrorMessage(null);
 
     const activeSessionId = await getActiveSessionId();
@@ -177,12 +232,15 @@ export function CopilotDrawer({
     // Simulated animated stage progression while waiting for local LLM
     const stageTimer1 = setTimeout(() => {
       setTribunalStage('Disconfirmation Officer: Benchmarking against PySCF FCI classical anchor...');
+      onRunStateChange?.('tribunal', 'Disconfirmation Officer: benchmarking anchor…');
     }, 2000);
     const stageTimer2 = setTimeout(() => {
       setTribunalStage('Device Auditor: Testing Clifford RB canary on simulated Heron backend...');
+      onRunStateChange?.('tribunal', 'Device Auditor: canary on simulator…');
     }, 4500);
     const stageTimer3 = setTimeout(() => {
       setTribunalStage('Epistemic Scribe: Collapsing credibility state & synthesizing consensus...');
+      onRunStateChange?.('tribunal', 'Epistemic Scribe: synthesizing…');
     }, 7000);
 
     try {
@@ -216,6 +274,7 @@ export function CopilotDrawer({
       clearTimeout(stageTimer2);
       clearTimeout(stageTimer3);
       setRunningTribunal(false);
+      onRunStateChange?.('idle', '');
     }
   };
 
@@ -243,6 +302,59 @@ export function CopilotDrawer({
       ...prev,
       [turnKey]: !prev[turnKey],
     }));
+  };
+
+  const handleLaunchProposal = async (messageId: string, proposal: Proposal) => {
+    if (launchingId) return;
+    const activeSessionId = await getActiveSessionId();
+    if (!activeSessionId) return;
+    setLaunchingId(messageId);
+    try {
+      const res = await launchProposal(activeSessionId, proposal);
+      if (res?.job) {
+        setLaunchedNote((prev) => ({ ...prev, [messageId]: `Launched: job ${String(res.job.id).slice(0, 8)}` }));
+        if (onExperimentLaunched) onExperimentLaunched();
+      } else {
+        setLaunchedNote((prev) => ({ ...prev, [messageId]: 'Launch refused by backend — nothing dispatched.' }));
+      }
+    } catch {
+      setLaunchedNote((prev) => ({ ...prev, [messageId]: 'Launch failed — nothing dispatched.' }));
+    } finally {
+      setLaunchingId(null);
+    }
+  };
+
+  const renderProposalCard = (m: ChatMessage) => {
+    if (!m.proposal_json) return null;
+    const p = m.proposal_json;
+    const note = launchedNote[m.id];
+    return (
+      <div className="w-full max-w-[95%] rounded-2xl bg-black/40 border border-cyan-400/25 p-3 space-y-2">
+        <div className="flex items-center gap-1.5 text-[10px] font-code text-cyan-400">
+          <span>✦</span>
+          <span>LAUNCHABLE PROPOSAL</span>
+        </div>
+        <div className="text-xs text-white font-medium">{p.target}</div>
+        <div className="grid grid-cols-2 gap-2 text-[10px] font-code text-slate-400">
+          <div><span className="text-white/40 block">Tier</span><span className="text-cyan-200">{p.recommended_tier}</span></div>
+          <div><span className="text-white/40 block">Spend</span><span className="text-amber-300">{p.spend_estimate}</span></div>
+        </div>
+        <div className="text-[10px] font-code text-slate-500 truncate" title={p.classical_anchor}>
+          anchor · {p.classical_anchor}
+        </div>
+        {note ? (
+          <div className="text-[11px] font-code text-emerald-300">{note}</div>
+        ) : (
+          <button
+            onClick={() => handleLaunchProposal(m.id, p)}
+            disabled={launchingId === m.id}
+            className="w-full py-1.5 px-3 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/30 text-cyan-200 text-[11px] font-semibold transition-all disabled:opacity-50"
+          >
+            {launchingId === m.id ? 'Dispatching…' : 'Launch on local simulator'}
+          </button>
+        )}
+      </div>
+    );
   };
 
   const targetSystem = campaign?.target_system || 'H2';
@@ -393,8 +505,10 @@ export function CopilotDrawer({
                   }`}
                 >
                   <MathText text={m.content} />
+                  {m.id === streamingId && <span className="text-cyan-400 animate-pulse"> ▍</span>}
                 </div>
               )}
+              {!isUser && renderProposalCard(m)}
 
               {/* Multi-Agent Tribunal Salon Presentation */}
               {hasTribunal && m.tribunal && (
@@ -560,6 +674,10 @@ export function CopilotDrawer({
                     </div>
                   )}
                   </div>
+              {!isUser && renderProposalCard(m)}
+              {!isUser && m.model && (
+                <span className="text-[9px] font-code text-slate-600 px-1">served by {m.model}</span>
+              )}
                 </div>
               )}
             </div>

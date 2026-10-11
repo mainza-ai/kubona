@@ -2,11 +2,12 @@
 
 import React from 'react';
 import { Brain, ShieldCheck, CircuitBoard, Scale } from 'lucide-react';
-import { CampaignState } from '@/types';
+import { CampaignState, ProbeId } from '@/types';
 
 interface SwarmUniverseProps {
   campaign?: CampaignState | null;
   recenterSignal?: number;
+  activeProbe?: ProbeId | null;
 }
 
 function shortBackend(name: string): string {
@@ -59,7 +60,7 @@ function HoverCard({
   );
 }
 
-export function SwarmUniverse({ campaign, recenterSignal = 0 }: SwarmUniverseProps) {
+export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null }: SwarmUniverseProps) {
   const qf = campaign?.quantum_factors;
   const anchor = campaign?.classical_anchor;
 
@@ -76,11 +77,12 @@ export function SwarmUniverse({ campaign, recenterSignal = 0 }: SwarmUniversePro
       data-testid="swarm-universe"
       className="absolute inset-0 flex items-center justify-center cursor-crosshair"
     >
-      {/* Coordinate rings */}
+      {/* Coordinate rings + radar sweep */}
       <div key={recenterSignal} className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <div className="absolute w-[720px] h-[720px] max-w-[95vw] max-h-[95vw] rounded-full border border-cyan-500/10 animate-orbit-slow" />
         <div className="absolute w-[520px] h-[520px] max-w-[75vw] max-h-[75vw] rounded-full border border-dashed border-white/5 animate-orbit-reverse" />
         <div className="absolute w-[340px] h-[340px] max-w-[55vw] max-h-[55vw] rounded-full border border-amber-500/10" />
+        <div className="absolute w-[720px] h-[720px] max-w-[95vw] max-h-[95vw] rounded-full animate-sweep" />
       </div>
 
       {/* Resonance beams */}
@@ -103,9 +105,9 @@ export function SwarmUniverse({ campaign, recenterSignal = 0 }: SwarmUniversePro
             <stop offset="100%" stopColor="#00E5FF" stopOpacity="0.1" />
           </linearGradient>
         </defs>
-        <line x1="32%" y1="36%" x2="48%" y2="48%" stroke="url(#beamTheorist)" strokeWidth="1.5" strokeDasharray="4 4" className="opacity-70" />
+        <line x1="32%" y1="36%" x2="48%" y2="48%" stroke="url(#beamTheorist)" strokeWidth="1.5" strokeDasharray="4 4" className="opacity-70 animate-dash-drift" />
         <line x1="66%" y1="32%" x2="52%" y2="48%" stroke="url(#beamFormalist)" strokeWidth="1.5" className="opacity-80" />
-        <line x1="68%" y1="65%" x2="52%" y2="52%" stroke="url(#beamCompiler)" strokeWidth="1.5" strokeDasharray="6 3" className="opacity-80" />
+        <line x1="68%" y1="65%" x2="52%" y2="52%" stroke="url(#beamCompiler)" strokeWidth="1.5" strokeDasharray="6 3" className="opacity-80 animate-dash-drift" />
         <line x1="34%" y1="68%" x2="48%" y2="52%" stroke="url(#beamCritic)" strokeWidth="1" className="opacity-50" />
       </svg>
 
@@ -133,7 +135,7 @@ export function SwarmUniverse({ campaign, recenterSignal = 0 }: SwarmUniversePro
       </div>
 
       {/* Probe α · Theorist */}
-      <div data-testid="probe-theorist" className="absolute top-[32%] left-[28%] group cursor-pointer z-10 transition-transform duration-300 hover:scale-110">
+      <div data-testid="probe-theorist" data-active={activeProbe === 'theorist' ? 'true' : undefined} style={{ animationDelay: '0s' }} className={`absolute animate-float-gentle top-[32%] left-[28%] group cursor-pointer z-10 transition-transform duration-300 hover:scale-110 ${activeProbe === 'theorist' ? 'scale-110' : ''}`}>
         <div className="relative flex items-center gap-2">
           <div className="w-9 h-9 rounded-xl bg-[#141822] border border-amber-400/50 flex items-center justify-center shadow-[0_0_30px_-5px_rgba(255,179,0,0.25)] group-hover:border-amber-400">
             <Brain className="w-[18px] h-[18px] text-amber-400" />
@@ -162,7 +164,7 @@ export function SwarmUniverse({ campaign, recenterSignal = 0 }: SwarmUniversePro
       </div>
 
       {/* Probe β · Formalist */}
-      <div data-testid="probe-formalist" className="absolute top-[28%] right-[30%] group cursor-pointer z-10 transition-transform duration-300 hover:scale-110">
+      <div data-testid="probe-formalist" data-active={activeProbe === 'formalist' ? 'true' : undefined} style={{ animationDelay: '0.9s' }} className={`absolute animate-float-gentle top-[28%] right-[30%] group cursor-pointer z-10 transition-transform duration-300 hover:scale-110 ${activeProbe === 'formalist' ? 'scale-110' : ''}`}>
         <div className="relative flex items-center gap-2">
           <div className="bg-[#0D1017]/90 backdrop-blur-md border border-white/10 rounded-lg px-2.5 py-1 flex flex-col text-right">
             <div className="flex items-center justify-end gap-1.5">
@@ -193,7 +195,7 @@ export function SwarmUniverse({ campaign, recenterSignal = 0 }: SwarmUniversePro
       </div>
 
       {/* Probe γ · Compiler */}
-      <div data-testid="probe-compiler" className="absolute bottom-[30%] right-[28%] group cursor-pointer z-10 transition-transform duration-300 hover:scale-110">
+      <div data-testid="probe-compiler" data-active={activeProbe === 'compiler' ? 'true' : undefined} style={{ animationDelay: '1.8s' }} className={`absolute animate-float-gentle bottom-[30%] right-[28%] group cursor-pointer z-10 transition-transform duration-300 hover:scale-110 ${activeProbe === 'compiler' ? 'scale-110' : ''}`}>
         <div className="relative flex items-center gap-2">
           <div className="bg-[#0D1017]/90 backdrop-blur-md border border-white/10 rounded-lg px-2.5 py-1 flex flex-col text-right">
             <div className="flex items-center justify-end gap-1.5">
@@ -223,7 +225,7 @@ export function SwarmUniverse({ campaign, recenterSignal = 0 }: SwarmUniversePro
       </div>
 
       {/* Probe δ · Critic */}
-      <div data-testid="probe-critic" className="absolute bottom-[28%] left-[30%] group cursor-pointer z-10 transition-transform duration-300 hover:scale-110">
+      <div data-testid="probe-critic" data-active={activeProbe === 'critic' ? 'true' : undefined} style={{ animationDelay: '2.7s' }} className={`absolute animate-float-gentle bottom-[28%] left-[30%] group cursor-pointer z-10 transition-transform duration-300 hover:scale-110 ${activeProbe === 'critic' ? 'scale-110' : ''}`}>
         <div className="relative flex items-center gap-2">
           <div className="w-9 h-9 rounded-xl bg-[#141822] border border-rose-400/50 flex items-center justify-center shadow-xl group-hover:border-rose-400">
             <Scale className="w-[18px] h-[18px] text-rose-400" />

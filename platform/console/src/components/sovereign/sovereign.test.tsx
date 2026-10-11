@@ -117,6 +117,23 @@ describe('ArenaHud', () => {
     });
     expect(onViewChange).toHaveBeenCalledWith('proof-dag');
   });
+
+  it('shows the run status pill while the swarm is working', () => {
+    const root = render(
+      <ArenaHud
+        targetLabel="H2"
+        swarmDetail="0 Loops Live"
+        view="orbital"
+        onViewChange={() => {}}
+        spendUsd={0}
+        spendCapUsd={150}
+        sessionElapsed="00:00:01"
+        statusText="reasoning · 12s"
+        onRecenter={() => {}}
+      />
+    );
+    expect(textOf(root.findByProps({ 'data-testid': 'hud-status' }))).toContain('reasoning · 12s');
+  });
 });
 
 describe('SwarmUniverse', () => {
@@ -132,6 +149,12 @@ describe('SwarmUniverse', () => {
   it('renders placeholders without a campaign (never invented numbers)', () => {
     const root = render(<SwarmUniverse campaign={null} />);
     expect(textOf(root.findByProps({ 'data-testid': 'swarm-universe' }))).toContain('—');
+  });
+
+  it('lights the active probe and leaves the rest dark', () => {
+    const root = render(<SwarmUniverse campaign={CAMPAIGN} activeProbe="compiler" />);
+    expect(root.findByProps({ 'data-testid': 'probe-compiler' }).props['data-active']).toBe('true');
+    expect(root.findByProps({ 'data-testid': 'probe-theorist' }).props['data-active']).toBe(undefined);
   });
 });
 
