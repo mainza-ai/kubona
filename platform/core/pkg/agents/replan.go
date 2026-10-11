@@ -45,8 +45,66 @@ import (
 // sections are never dropped; oldest measurement lines fall off first.
 const maxNotebookSections = 40
 
+// ClaimDraft is an evaluated verdict awaiting a record ID. The caller mints
+// the record, then hands the ID back to the fold as cite so the notebook
+// line cites the record that backs it.
+type ClaimDraft struct {
+	Statement  string
+	Alpha      float64
+	Beta       float64
+	Gamma      float64
+	Verdict    string // "verified" or "contested"
+	ExternalID string // the submitter's claim_id, echoed back by the bridge
+	Reason     string
+}
+
+// EvalClaimRecord parses a claim_eval result into a record draft. It applies
+// the same validity rule as the fold (amplitude keys present) so a record is
+// never minted for a verdict the fold would refuse.
+func EvalClaimRecord(resultJSON []byte) (*ClaimDraft, bool) {
+	var res map[string]json.RawMessage
+	if err := json.Unmarshal(resultJSON, &res); err != nil {
+		return nil, false
+	}
+	get := func(key string) (float64, bool) {
+		raw, ok := res[key]
+		if !ok {
+			return -1, false
+		}
+		var v float64
+		if err := json.Unmarshal(raw, &v); err != nil {
+			return -1, false
+		}
+		return v, true
+	}
+	alpha, okA := get("corroborated_amplitude")
+	beta, okB := get("contested_amplitude")
+	gamma, okG := get("unverified_amplitude")
+	if !okA && !okB && !okG {
+		return nil, false
+	}
+	var passes bool
+	if raw, ok := res["passes_chemical_accuracy"]; ok {
+		_ = json.Unmarshal(raw, &passes)
+	}
+	var reason, external string
+	if raw, ok := res["verdict_reason"]; ok {
+		_ = json.Unmarshal(raw, &reason)
+	}
+	if raw, ok := res["claim_id"]; ok {
+		_ = json.Unmarshal(raw, &external)
+	}
+	verdict := "contested"
+	if passes {
+		verdict = "verified"
+	}
+	return &ClaimDraft{Statement: boundClaim(reason), Alpha: alpha, Beta: beta, Gamma: gamma,
+		Verdict: verdict, ExternalID: external, Reason: boundClaim(reason)}, true
+}
+
 // ReplanWithJobResult folds one settled job into stored campaign JSON.
-func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []byte) (updated []byte, changed bool, note string) {
+// cite carries a claim record ID for the notebook line ("" = no citation).
+func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []byte, cite string) (updated []byte, changed bool, note string) {
 	var state CampaignState
 	if err := json.Unmarshal(stateJSON, &state); err != nil {
 		return nil, false, "campaign undecodable"
@@ -219,11 +277,11 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		}
 		if passes {
 			state.Epistemics.Status = "COLLAPSED_VERIFIED"
-			measureLine("claim evaluated: chemical accuracy PASSED. %s", boundClaim(reason))
+			measureLine("claim evaluated: chemical accuracy PASSED. %s%s", boundClaim(reason), citeSuffix(cite))
 		} else {
 			state.Epistemics.Status = "CONTESTED"
 			state.Epistemics.Statement = "Evaluated claim failed chemical accuracy: " + boundClaim(reason)
-			measureLine("claim evaluated: chemical accuracy FAILED. %s", boundClaim(reason))
+			measureLine("claim evaluated: chemical accuracy FAILED. %s%s", boundClaim(reason), citeSuffix(cite))
 		}
 		return marshalReplan(&state, true, "epistemics set from evaluated verdict")
 
@@ -304,6 +362,14 @@ func provenanceHash(sessionID, mol string, bondDist, fciVal float64, qasmCode st
 	hasher := sha256.New()
 	hasher.Write([]byte(fmt.Sprintf("%s:%s:%.5f:%.5f:%s", sessionID, mol, bondDist, fciVal, qasmCode)))
 	return fmt.Sprintf("sha256:%s", hex.EncodeToString(hasher.Sum(nil)))
+}
+
+// citeSuffix renders a resolvable record citation for a notebook line.
+func citeSuffix(cite string) string {
+	if strings.TrimSpace(cite) == "" {
+		return ""
+	}
+	return " [" + strings.TrimSpace(cite) + "]"
 }
 
 func boundClaim(s string) string {

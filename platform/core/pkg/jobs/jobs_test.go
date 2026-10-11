@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -533,5 +534,49 @@ func TestSessionLimitBindsEndToEnd(t *testing.T) {
 		t.Fatal("second $70 job on a $120 session must refuse")
 	} else if !strings.Contains(err.Error(), "session") {
 		t.Fatalf("refusal must name the session rail, got: %v", err)
+	}
+}
+
+// The settled hook fires from the worker on COMPLETED with the stored
+// result attached — this is the wire the planner replan hangs on.
+func TestSettledHookFiresOnCompleted(t *testing.T) {
+	r, cleanup := setupRunner(t, &fakeBridge{})
+	defer cleanup()
+
+	var mu sync.Mutex
+	var fired []*Job
+	r.SetSettledHook(func(j *Job) {
+		mu.Lock()
+		defer mu.Unlock()
+		fired = append(fired, j)
+	})
+
+	j, err := r.SubmitJob("sess-1", "circuit_run", map[string]any{
+		"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\nh q[0];\nmeasure q[0] -> c[0];\n", "shots": 100,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	settled := pollJob(t, r, j.ID)
+	if settled.Status != pb.JobStatus_JOB_STATUS_COMPLETED {
+		t.Fatalf("want COMPLETED, got %v", settled.Status)
+	}
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		mu.Lock()
+		n := len(fired)
+		mu.Unlock()
+		if n > 0 || time.Now().After(deadline) {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(fired) != 1 || fired[0].ID != j.ID {
+		t.Errorf("hook must fire exactly once for the settled job, got %d", len(fired))
+	}
+	if len(fired[0].ResultJSON) == 0 {
+		t.Error("hooked job must carry its stored result")
 	}
 }
