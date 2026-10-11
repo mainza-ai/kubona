@@ -17,6 +17,7 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/api"
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/qir"
 	"github.com/mainza-ai/kubona/core/pkg/session"
 	"github.com/mainza-ai/kubona/core/pkg/supervisor"
 	"github.com/mainza-ai/kubona/core/pkg/watchdog"
@@ -110,6 +111,9 @@ func main() {
 	// 3. Initialize Core Subsystems
 	sessionMgr := session.NewManager(l)
 	jobRunner := jobs.NewRunner(l, bridgeClient, 4)
+	// Compile gate: every circuit_run is analyzed pre-dispatch and the
+	// provenance (compiler + fallback flag) persists on the job row.
+	jobRunner.SetCompiler(qir.NewCompiler())
 	jobRunner.Start()
 	defer jobRunner.Stop()
 
