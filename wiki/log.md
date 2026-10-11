@@ -1795,3 +1795,6 @@ skipped is the exact failure this incident is about:
   touch); MemoryPanel in copilot drawer (recall/retain/banks/weights).
   Live: retain receipt, 7-row inventory, 0.541 query hit. Go + 56
   vitest green.
+
+## [2026-10-11] verification | CI green on B1-2 + hardening pass
+  All 5 jobs success on run 38184010370. Tree clean, zero unpushed.
