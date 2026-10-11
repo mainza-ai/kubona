@@ -13,11 +13,11 @@ import (
 type EpistemicContinuumTier int
 
 const (
-	Tier5GenerativeHypothesis EpistemicContinuumTier = iota // ρ < 0.70
-	Tier4ErrorMitigatedQuantum                              // 0.70 <= ρ < 0.90
-	Tier3CertifiedClassicalBaseline                        // 0.90 <= ρ < 1.00
-	Tier2ExactAnalyticalAnchor                             // ρ -> 1.00-
-	Tier1FormalDeductive                                   // ρ = 1.000000
+	Tier5GenerativeHypothesis       EpistemicContinuumTier = iota // ρ < 0.70
+	Tier4ErrorMitigatedQuantum                                    // 0.70 <= ρ < 0.90
+	Tier3CertifiedClassicalBaseline                               // 0.90 <= ρ < 1.00
+	Tier2ExactAnalyticalAnchor                                    // ρ -> 1.00-
+	Tier1FormalDeductive                                          // ρ = 1.000000
 )
 
 func (t EpistemicContinuumTier) String() string {
