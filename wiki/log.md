@@ -1480,3 +1480,10 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-11] verification | CI green on 9-commit research batch
   All 5 jobs success first try on run 38113120983. Tree clean, zero unpushed.
+
+## [2026-10-11] question | Intelligence-capability report (TQI model)
+  Studied thequantuminsider.com/about + /editorial-standards + /data (4 pillars,
+  5-stage pipeline, trust machinery); filed candidate design
+  [[market-intelligence-capability]] mapping gather/curate/store onto ledger,
+  claim grammar, and approval gate. Buildable now: entity schema + upsert +
+  taxonomy v0 + snapshots; gated: connectors-by-permission-row, dataset product.
