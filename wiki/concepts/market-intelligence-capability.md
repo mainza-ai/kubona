@@ -117,6 +117,11 @@ machinery:
   independent-source rule, alias-conflict refusal, chained corrections,
   id-preserving retractions, citable snapshots; 8 tests green) — the prototype
   demonstrates the mechanism on stub data, per the register rule.
+- **Built 2026-10-11 (taxonomy v0):** `intelligence/taxonomy.py` — technology
+  axis reuses the provider `Modality` enum verbatim (tags and routing vocabulary
+  cannot drift), domain/segment/stage controlled vocabularies, deterministic
+  keyword `suggest()` that returns UNCLASSIFIED on ties/misses instead of
+  guessing, validator-named `tag_entity()`; 4 tests green.
 - **Next (keys/approvals):** one new connector at a time with permission rows
   (patents first — highest claim value for prior art); ER pipeline on the
   company/paper corpus behind the static gate.

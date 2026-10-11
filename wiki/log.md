@@ -1496,3 +1496,8 @@ skipped is the exact failure this incident is about:
   upsert capped at T3, T2/T1 promotion ladder, alias-conflict refusal,
   chained corrections, id-preserving retractions, citable snapshots.
   8 stub tests green; candidate page updated (prototype register noted).
+
+## [2026-10-11] implementation | Intelligence taxonomy v0
+  kubona/intelligence/taxonomy.py: Modality-reusing technology axis +
+  domain/segment/stage vocabularies, UNCLASSIFIED-on-tie suggest(),
+  validator-named tagging. 4 tests green (12 with entity core).
