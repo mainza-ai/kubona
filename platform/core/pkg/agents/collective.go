@@ -11,6 +11,7 @@ import (
 
 	"github.com/mainza-ai/kubona/core/pkg/llm"
 	"github.com/mainza-ai/kubona/core/pkg/memory"
+	"github.com/mainza-ai/kubona/core/pkg/tools"
 	pb "github.com/mainza-ai/kubona/core/proto"
 )
 
@@ -18,26 +19,72 @@ import (
 type AgentRole string
 
 const (
-	RoleEpistemicScribe       AgentRole = "epistemic-scribe"
-	RoleAnsatzScout           AgentRole = "ansatz-scout"
-	RoleDeviceAuditor         AgentRole = "device-auditor"
+	RoleEpistemicScribe        AgentRole = "epistemic-scribe"
+	RoleAnsatzScout            AgentRole = "ansatz-scout"
+	RoleDeviceAuditor          AgentRole = "device-auditor"
 	RoleDisconfirmationOfficer AgentRole = "disconfirmation-officer"
-	RoleHumanReviewer         AgentRole = "human-reviewer"
+	RoleHumanReviewer          AgentRole = "human-reviewer"
 )
 
 // RoleManifest declares the strict deny-by-default capabilities for an agent persona
 type RoleManifest struct {
-	Role            AgentRole `json:"role"`
-	Description     string    `json:"description"`
-	AllowedTools    []string  `json:"allowed_tools"`
+	Role             AgentRole `json:"role"`
+	Description      string    `json:"description"`
+	AllowedTools     []string  `json:"allowed_tools"`
 	RequiresHumanAP2 bool      `json:"requires_human_ap2"`
-	SystemPrompt    string    `json:"system_prompt"`
+	SystemPrompt     string    `json:"system_prompt"`
 }
 
 // AgentCollective manages the five specialist research personas
 type AgentCollective struct {
 	mu        sync.RWMutex
 	manifests map[AgentRole]RoleManifest
+	// Tools is the single tool registry. When set, each tribunal turn
+	// gets one bounded observe round (read-only tools) before answering.
+	// Nil preserves the legacy text-only path exactly.
+	Tools *tools.Registry
+}
+
+// observeTurn runs a single plan→tool→observe round for one tribunal turn
+// and returns the augmented history. Any failure returns base unchanged —
+// the turn then proceeds exactly as before, never blocked.
+func (ac *AgentCollective) observeTurn(ctx context.Context, llmClient *llm.Client, role string, base []llm.ChatMessage) []llm.ChatMessage {
+	if ac == nil || ac.Tools == nil || llmClient == nil {
+		return base
+	}
+	if len(ac.Tools.DefinitionsForLLM(role)) == 0 {
+		return base
+	}
+	text, calls, _, _, err := llmClient.CompleteWithTools(ctx, role, base, ac.Tools.DefinitionsForLLM(role))
+	if err != nil {
+		return base
+	}
+	if len(calls) == 0 {
+		calls = llm.ParseDSMLInvokes(text)
+		if len(calls) == 0 {
+			return base
+		}
+	}
+	hist := append([]llm.ChatMessage(nil), base...)
+	hist = append(hist, llm.ChatMessage{Role: "assistant", Content: "", ToolCalls: calls})
+	for _, c := range calls {
+		out, derr := ac.Tools.Dispatch(ctx, role, tools.Call{ID: c.ID, Name: c.Name, Arguments: c.Arguments})
+		obs, _ := json.Marshal(map[string]any{
+			"tool": c.Name, "ok": derr == nil,
+			"error": errText(derr), "data": out,
+		})
+		hist = append(hist, llm.ChatMessage{
+			Role: "tool", ToolCallID: c.ID, ToolName: c.Name, Content: string(obs),
+		})
+	}
+	return hist
+}
+
+func errText(err error) string {
+	if err == nil {
+		return ""
+	}
+	return err.Error()
 }
 
 func NewAgentCollective() *AgentCollective {
@@ -257,10 +304,12 @@ func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmCli
 	scoutContent := fmt.Sprintf("Proposed active space for %s. Applying UCCSD/RyRz parameterized ansatz with Meyer-Wallach expressibility Q=0.82. Qubit count: 2, 2-qubit CNOT depth: 1.", target)
 	if llmClient != nil {
 		tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
-		reply, _, _, err := llmClient.Complete(tCtx, "ansatz-scout", []llm.ChatMessage{
+		turnMsgs := []llm.ChatMessage{
 			{Role: "system", Content: string(ac.manifests[RoleAnsatzScout].SystemPrompt)},
 			{Role: "user", Content: turn1Prompt},
-		})
+		}
+		turnMsgs = ac.observeTurn(tCtx, llmClient, "ansatz-scout", turnMsgs)
+		reply, _, _, err := llmClient.Complete(tCtx, "ansatz-scout", turnMsgs)
 		tCancel()
 		if err == nil && len(reply) > 20 {
 			scoutContent = reply
@@ -287,10 +336,12 @@ func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmCli
 	discContent := fmt.Sprintf("Classical baseline established via %s. Evaluated gradient variance Var(∇E) = 3.4e-3 > 1e-6 (barren plateau risk: LOW). Classical physics anchor matches; no unearned quantum advantage claimed.", fciAnchor)
 	if llmClient != nil {
 		tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
-		reply, _, _, err := llmClient.Complete(tCtx, "disconfirmation-officer", []llm.ChatMessage{
+		turnMsgs := []llm.ChatMessage{
 			{Role: "system", Content: string(ac.manifests[RoleDisconfirmationOfficer].SystemPrompt)},
 			{Role: "user", Content: turn2Prompt},
-		})
+		}
+		turnMsgs = ac.observeTurn(tCtx, llmClient, "disconfirmation-officer", turnMsgs)
+		reply, _, _, err := llmClient.Complete(tCtx, "disconfirmation-officer", turnMsgs)
 		tCancel()
 		if err == nil && len(reply) > 20 {
 			discContent = reply
@@ -317,10 +368,12 @@ func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmCli
 	auditContent := fmt.Sprintf("Target backend validated on %s. Hardware noise model constraint satisfied (T2 <= 2*T1). Clifford canary probe fidelity: 98.4%% (>= 95%% threshold). Estimated financial spend: %s <= $150.00 ceiling. APPROVED for dispatch.", tier, budget)
 	if llmClient != nil {
 		tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
-		reply, _, _, err := llmClient.Complete(tCtx, "device-auditor", []llm.ChatMessage{
+		turnMsgs := []llm.ChatMessage{
 			{Role: "system", Content: string(ac.manifests[RoleDeviceAuditor].SystemPrompt)},
 			{Role: "user", Content: turn3Prompt},
-		})
+		}
+		turnMsgs = ac.observeTurn(tCtx, llmClient, "device-auditor", turnMsgs)
+		reply, _, _, err := llmClient.Complete(tCtx, "device-auditor", turnMsgs)
 		tCancel()
 		if err == nil && len(reply) > 20 {
 			auditContent = reply
@@ -348,10 +401,12 @@ func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmCli
 	scribeContent := fmt.Sprintf("Consensus reached across 4 specialist personas. Ring 1 credibility wavefunction collapsed: P_corr = 90.25%%. Generating cryptographic AP2 Mandate Card for human review.\n\n```json_proposal\n{\n  \"target\": \"%s\",\n  \"molecule\": \"%s\",\n  \"spend_estimate\": \"%s\",\n  \"recommended_tier\": \"%s\",\n  \"classical_anchor\": \"%s\",\n  \"qasm\": \"%s\"\n}\n```", target, mol, budget, tier, fciAnchor, escapedQASM)
 	if llmClient != nil {
 		tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
-		reply, _, _, err := llmClient.Complete(tCtx, "epistemic-scribe", []llm.ChatMessage{
+		turnMsgs := []llm.ChatMessage{
 			{Role: "system", Content: string(ac.manifests[RoleEpistemicScribe].SystemPrompt)},
 			{Role: "user", Content: turn4Prompt},
-		})
+		}
+		turnMsgs = ac.observeTurn(tCtx, llmClient, "epistemic-scribe", turnMsgs)
+		reply, _, _, err := llmClient.Complete(tCtx, "epistemic-scribe", turnMsgs)
 		tCancel()
 		if err == nil && len(reply) > 20 {
 			scribeContent = reply
