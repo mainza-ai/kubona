@@ -2182,8 +2182,17 @@ func (s *Server) handleVaultLeases(w http.ResponseWriter, r *http.Request) {
 	now := time.Now().UTC()
 	expiresAt := now.Add(time.Duration(req.TTLSeconds) * time.Second)
 
-	// Cryptographic HMAC-SHA256 signature guaranteeing lease authenticity and non-forgeability
-	mac := hmac.New(sha256.New, []byte("kubona-openbao-dynamic-key-2026"))
+	// Lease authenticity rests on this HMAC key: it MUST come from the
+	// environment, never source. Short/missing keys refuse (503) rather
+	// than minting forgeable leases. NOTE: issuance only — no verifier
+	// consumes these signatures yet; they are tamper-evident receipts
+	// pending a verification path, not access tokens.
+	leaseKey := os.Getenv("KUBONA_LEASE_HMAC_KEY")
+	if len(leaseKey) < 32 {
+		http.Error(w, "lease signing key not configured: set KUBONA_LEASE_HMAC_KEY (min 32 chars)", http.StatusServiceUnavailable)
+		return
+	}
+	mac := hmac.New(sha256.New, []byte(leaseKey))
 	mac.Write([]byte(fmt.Sprintf("%s:%s:%d", req.Scope, leaseID, expiresAt.Unix())))
 	leaseSignature := hex.EncodeToString(mac.Sum(nil))
 
