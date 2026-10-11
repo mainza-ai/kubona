@@ -117,3 +117,15 @@ func TestValidateQASMSemanticsRefusals(t *testing.T) {
 		}
 	}
 }
+
+func TestValidateQASMRefusesLiteralBackslashN(t *testing.T) {
+	// Wire format (JSON) decodes \n to real newlines before dispatch; a
+	// program that still carries literal backslash-n sequences is malformed
+	// text, not a program. Several fixtures made this mistake (2026-10-11).
+	qasm := "OPENQASM 2.0;\\nqreg q[1];\\ncreg c[1];\\n"
+	if err := validateQASM(qasm); err == nil {
+		t.Error("literal backslash-n program must refuse")
+	} else if !strings.Contains(err.Error(), "unrecognized statement") {
+		t.Errorf("refusal must name the statement, got: %v", err)
+	}
+}

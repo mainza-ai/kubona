@@ -453,7 +453,7 @@ func TestSupervisorAbortSettlesJobsFailed(t *testing.T) {
 
 	// Queue a job (no workers running in tests, so it stays QUEUED).
 	jobBody, _ := json.Marshal(map[string]any{
-		"session_id": sessResp.ID, "qasm": "OPENQASM 2.0;\\nqreg q[1];\\ncreg c[1];\\n", "shots": 100,
+		"session_id": sessResp.ID, "qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "shots": 100,
 	})
 	jobReq := httptest.NewRequest(http.MethodPost, "/api/jobs", bytes.NewReader(jobBody))
 	jobW := httptest.NewRecorder()
@@ -858,7 +858,7 @@ func TestCrossTenantGrantFlow(t *testing.T) {
 	}
 
 	// QPU job citing the grant: admitted (201, queued — no workers in tests).
-	qpu := map[string]any{"session_id": sessResp.ID, "qasm": "OPENQASM 2.0;\\nqreg q[1];\\ncreg c[1];\\n",
+	qpu := map[string]any{"session_id": sessResp.ID, "qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n",
 		"backend": "ibm_brisbane", "shots": 100, "max_cost_usd": 25.0, "grant_chain": chain,
 		"caller_jurisdictions": []string{"US"}}
 	rawQ, _ := json.Marshal(qpu)
