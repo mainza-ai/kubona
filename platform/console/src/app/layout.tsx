@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -10,6 +10,19 @@ const geistSans = Geist({
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
   subsets: ["latin"],
+});
+
+// Sovereign console type system (self-hosted at build — zero runtime egress).
+const jakarta = Plus_Jakarta_Sans({
+  variable: "--font-jakarta",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600", "700"],
+});
+
+const jetbrains = JetBrains_Mono({
+  variable: "--font-jetbrains",
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600"],
 });
 
 export const metadata: Metadata = {
@@ -40,9 +53,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} dark h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${jakarta.variable} ${jetbrains.variable} dark h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[#05070B] text-slate-100 font-sans selection:bg-cyan-500/30 selection:text-cyan-200">
+      <body className="min-h-full flex flex-col bg-[#07080B] text-slate-100 font-sovereign selection:bg-cyan-500/30 selection:text-cyan-200">
         {children}
       </body>
     </html>
