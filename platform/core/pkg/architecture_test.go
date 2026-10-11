@@ -22,7 +22,7 @@ func TestArchitecturalFitness(t *testing.T) {
 	corePackages := []string{
 		"ledger", "jobs", "triage", "mandates", "epistemics", "fidelity",
 		"ifc", "qec", "session", "tenants", "watchdog", "cost", "memory",
-		"qir", "sandbox", "vault", "metasearch", "autoresearch", "llm",
+		"qir", "sandbox", "vault", "metasearch", "autoresearch", "llm", "tools",
 		"supervisor",
 	}
 	adapterPrefixes := []string{

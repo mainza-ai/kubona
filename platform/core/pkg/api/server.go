@@ -35,6 +35,7 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/session"
 	"github.com/mainza-ai/kubona/core/pkg/supervisor"
 	"github.com/mainza-ai/kubona/core/pkg/tenants"
+	"github.com/mainza-ai/kubona/core/pkg/tools"
 	"github.com/mainza-ai/kubona/core/pkg/watchdog"
 	pb "github.com/mainza-ai/kubona/core/proto"
 )
@@ -55,6 +56,7 @@ type Server struct {
 	harnessReg       *autoresearch.HarnessRegistry
 	llmSettings      *llm.Settings
 	llmClient        *llm.Client
+	toolRegistry     *tools.Registry
 	metaSearchEngine *metasearch.MetaSearchEngine
 	sandboxRunner    *sandbox.SandboxRunner
 	autoresearchMu   sync.RWMutex
@@ -168,6 +170,10 @@ func NewServer(
 		reviewerKeyConfigured: configured,
 		mux:                   http.NewServeMux(),
 	}
+
+	// Single tool registry: read-only observations the copilot can invoke.
+	// Writes keep flowing through the gated paths (launch, mandates).
+	s.toolRegistry = s.registerAgentTools()
 
 	// Ledger-bound A2A execution: delegated tasks run on the jobs runner (one
 	// budget rail), never on invented results.
@@ -706,7 +712,7 @@ func (s *Server) handleLiterature(w http.ResponseWriter, r *http.Request) {
 			"id": rec.Id, "title": rec.Title, "authors": rec.Authors,
 			"abstract": rec.AbstractText, "url": rec.Url,
 			"publication_year": rec.PublicationYear,
-			"citation_count": rec.CitationCount,
+			"citation_count":   rec.CitationCount,
 		})
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -1119,6 +1125,11 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 
 	streamCtx, cancel := context.WithTimeout(r.Context(), 600*time.Second)
 	defer cancel()
+
+	// Same tool loop as the unary path: observe live state first, then
+	// stream the final answer. Degrades silently to base history.
+	history = s.resolveWithTools(streamCtx, sessionID, history)
+
 	streamRes, streamErr := s.llmClient.CompleteStream(streamCtx, "copilot", history, func(tok string) {
 		emit("token", map[string]any{"text": tok})
 	})
@@ -1298,7 +1309,7 @@ func (s *Server) handleChatRewrite(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"rewritten": true, "message": msg})
 }
 
-func (s *Server) generateCopilotResponse(ctx context.Context, sessionID, content string) (string, *json.RawMessage, error) {	// 1. Fetch recent messages for session context
+func (s *Server) generateCopilotResponse(ctx context.Context, sessionID, content string) (string, *json.RawMessage, error) { // 1. Fetch recent messages for session context
 	recentMsgs, _ := s.sessionMgr.GetMessages(sessionID)
 	var history []llm.ChatMessage
 
@@ -1311,7 +1322,12 @@ func (s *Server) generateCopilotResponse(ctx context.Context, sessionID, content
 	}
 	history = append(history, llm.ChatMessage{Role: "user", Content: content})
 
-	// 2. Call live LLM (uncapped by default: MaxTokens 0 omits the field and
+	// 2. Plan→tool→observe: let the model inspect live session state
+	// (anchors, campaign, jobs) before answering. Degrades to the base
+	// history on any failure — never blocks the answer path.
+	history = s.resolveWithTools(ctx, sessionID, history)
+
+	// 3. Call live LLM (uncapped by default: MaxTokens 0 omits the field and
 	// the model generates to EOS; the result contract below refuses to store
 	// a severed paragraph as an answer). 600s budget: local generations run
 	// ~6 tok/s, so real answers take minutes — the UI carries elapsed/overdue

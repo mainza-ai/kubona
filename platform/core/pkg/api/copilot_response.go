@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+
+	"github.com/mainza-ai/kubona/core/pkg/llm"
 )
 
 // Hardened copilot system prompt (2026-10-11): short role, hard output
@@ -65,6 +67,8 @@ var sentenceSplitRe = regexp.MustCompile(`[.!?](\s+[A-Z0-9"“\(\[]|\s*$)`)
 // nothing launchable is lost — it just stops rendering as chat prose.
 func sanitizeCopilotReply(reply string) string {
 	out := proposalBlockRe.ReplaceAllString(reply, "")
+	// DSML machine dialogue is never chat prose (see pkg/llm DSML path).
+	out = llm.StripDSML(out)
 	// Drop echo sentences (split on true sentence boundaries, keep the rest).
 	sentences := splitSentences(out)
 	if len(sentences) == 0 {

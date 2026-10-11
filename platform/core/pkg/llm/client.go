@@ -15,13 +15,23 @@ import (
 type ChatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
+	// ToolCalls carries model-requested function calls on assistant
+	// messages; ToolCallID/ToolName mark tool-result messages (role tool).
+	// Empty on plain chat; serialized to the OpenAI wire shape by the
+	// tools path, never by callers.
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string     `json:"tool_call_id,omitempty"`
+	ToolName   string     `json:"tool_name,omitempty"`
 }
 
 type ChatCompletionRequest struct {
-	Model       string        `json:"model"`
-	Messages    []ChatMessage `json:"messages"`
-	Temperature float64       `json:"temperature"`
-	MaxTokens   int           `json:"max_tokens,omitempty"`
+	Model       string `json:"model"`
+	// Messages is the wire-ready payload: plain chat marshals identically,
+	// while tool_calls / tool results take the OpenAI function shape via
+	// withToolMessages. Callers pass ChatMessage slices through it.
+	Messages    any     `json:"messages"`
+	Temperature float64 `json:"temperature"`
+	MaxTokens   int     `json:"max_tokens,omitempty"`
 }
 
 type ChatCompletionResponse struct {
@@ -88,11 +98,10 @@ func (c *Client) Complete(ctx context.Context, role string, messages []ChatMessa
 	// not by truncation here.
 	reqBody := ChatCompletionRequest{
 		Model:       model,
-		Messages:    messages,
+		Messages:    withToolMessages(messages),
 		Temperature: snap.Temperature,
 		MaxTokens:   snap.MaxTokens,
 	}
-
 	bodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
 		return "", nil, 0, err
