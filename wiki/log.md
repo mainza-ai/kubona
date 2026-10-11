@@ -1774,3 +1774,6 @@ skipped is the exact failure this incident is about:
   password removed; secret-rotation-runbook filed (procedure, no
   values); pre-commit secrets guard installed + tested refuse/pass.
   Full Go suite green.
+
+## [2026-10-11] verification | CI green on B0-6 secrets purge
+  All 5 jobs success on run 38182132137. Tree clean, zero unpushed.
