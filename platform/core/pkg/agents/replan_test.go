@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/mainza-ai/kubona/core/pkg/epistemics"
 )
 
 func replanTestState(t *testing.T, prompt string) []byte {
@@ -237,5 +239,24 @@ func TestReplanCitesClaimRecord(t *testing.T) {
 	last = after.Notebook.Sections[len(after.Notebook.Sections)-1]
 	if strings.Contains(last, "[") {
 		t.Errorf("empty cite must leave no brackets, got %q", last)
+	}
+}
+
+// Every synthesized campaign ships Sources to the UI: they must resolve
+// under the evidence vocabulary, never free text.
+func TestSynthSourcesResolve(t *testing.T) {
+	for _, prompt := range []string{"H2 ground state VQE", "LiH dissociation", "fresh water scan"} {
+		state, err := SynthesizeCampaignState(context.Background(), "sess-sources", prompt, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(state.Epistemics.Sources) < 2 {
+			t.Errorf("%q: campaign must carry at least 2 evidence sources", prompt)
+		}
+		for _, src := range state.Epistemics.Sources {
+			if !epistemics.ValidSourceLabel(src) {
+				t.Errorf("%q: unresolvable source %q", prompt, src)
+			}
+		}
 	}
 }

@@ -209,26 +209,9 @@ func NewServer(
 	}
 
 	// Seed sample claim wavefunctions for the Epistemic Manifold
-	s.epistemicGate.RegisterClaim(&epistemics.ClaimWavefunction{
-		ClaimID:                  "claim-h2-ground",
-		Statement:                "H2 equilibrium ground state energy is -1.13727 Ha at R=0.7414 A",
-		AlphaCorroborated:        0.95,
-		BetaContested:            0.05,
-		GammaUnverified:          0.10,
-		EvidenceStrength:         0.92,
-		Sources:                  []string{"arXiv:1304.3061", "JACS:2014"},
-		ChemicalAccuracyDeltaMHa: 0.8,
-	})
-	s.epistemicGate.RegisterClaim(&epistemics.ClaimWavefunction{
-		ClaimID:                  "claim-lih-dissociation",
-		Statement:                "LiH singlet-triplet gap at R=2.5 A exhibits strong multi-reference character",
-		AlphaCorroborated:        0.65,
-		BetaContested:            0.45,
-		GammaUnverified:          0.30,
-		EvidenceStrength:         0.55,
-		Sources:                  []string{"chemrxiv:2026.01"},
-		ChemicalAccuracyDeltaMHa: 2.4, // Contested / not collapsed
-	})
+	for _, seed := range epistemics.SeedClaims() {
+		s.epistemicGate.RegisterClaim(seed)
+	}
 
 	s.registerRoutes()
 	return s

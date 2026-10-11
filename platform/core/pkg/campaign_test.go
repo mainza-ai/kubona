@@ -87,7 +87,7 @@ func TestEndToEndScientificCampaign(t *testing.T) {
 		AlphaCorroborated:        0.96,
 		BetaContested:            0.04,
 		GammaUnverified:          0.05,
-		Sources:                  []string{"arXiv:1304.3061", "JACS:2014"},
+		Sources:                  []string{"arxiv:1304.3061", "pyscf:sto-3g:fci"},
 		ChemicalAccuracyDeltaMHa: deltaMHa,
 	}
 	epGate.RegisterClaim(claim)
