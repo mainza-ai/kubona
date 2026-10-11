@@ -21,6 +21,35 @@ CANARY_QASM = "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];"
 CANARY_SHOTS = 2048
 
 
+def wilson_interval(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
+    """Wilson score interval for a binomial proportion (95% by default).
+
+    A canary that reports 50/50 without an interval hides whether it ran 20
+    shots or 20,000. The interval travels with every proportion the canary
+    reports; the pass/fail verdict logic is untouched (additive fields only).
+    Edge cases are exact by construction: k=0 pins the lower bound at 0,
+    k=n pins the upper at 1.
+    """
+    if n <= 0:
+        raise ValueError("shots must be positive for an interval")
+    if not 0 <= k <= n:
+        raise ValueError(f"successes {k} outside [0, {n}]")
+    return _wilson(k, n, z)
+
+
+def _wilson(k: int, n: int, z: float) -> tuple[float, float]:
+    p = k / n
+    denom = 1 + z * z / n
+    center = (p + z * z / (2 * n)) / denom
+    half = z * ((p * (1 - p) / n + z * z / (4 * n * n)) ** 0.5) / denom
+    lo, hi = max(0.0, center - half), min(1.0, center + half)
+    if k == 0:
+        lo = 0.0
+    if k == n:
+        hi = 1.0
+    return (round(lo, 6), round(hi, 6))
+
+
 def canary_check(provider_name: str, shots: int = CANARY_SHOTS,
                  tolerance: float = 0.05) -> dict[str, Any]:
     """Run the canary circuit on one provider; return per-check verdicts."""
@@ -40,8 +69,14 @@ def canary_check(provider_name: str, shots: int = CANARY_SHOTS,
     attestation = attest_capacity(provider_name, ok)
     if attestation.get("calibration", {}).get("calibration_ok") is False:
         ok = False  # Q-14: a lying schema fails the canary, not just the attestation
+    intervals = {
+        outcome: {"k": counts.get(outcome, 0),
+                  "interval_95": wilson_interval(counts.get(outcome, 0), total)}
+        for outcome in sorted(counts)
+    }
     return {"provider": provider_name, "ok": ok, "counts": counts,
             "fidelity_balance": round(abs(ok00 - ok11) / max(total, 1), 6), "checks": checks,
+            "intervals": intervals,
             "attestation": attestation}
 
 
@@ -183,6 +218,7 @@ def run_all(ledger: Ledger | None = None, providers: list[str] | None = None,
         ledger.append("canary", {"provider": name, "ok": res["ok"], "skip": res.get("skip", False),
                                  "counts": res.get("counts"), "error": res.get("error"),
                                  "correctness": res.get("correctness"),
+                                 "intervals": res.get("intervals"),
                                  "attestation": res.get("attestation")})
     return out
 

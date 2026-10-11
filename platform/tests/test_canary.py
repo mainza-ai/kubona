@@ -177,3 +177,34 @@ def test_unsound_declared_calibration_refuses_to_load(tmp_path):
             "readout_error": 0.0, "source": "fabricated"}}
     with pytest.raises(Exception, match="unsound"):
         ProviderCapability.model_validate(bad)
+
+
+def test_wilson_interval_edges_and_width():
+    from kubona.canary.canary import wilson_interval
+    lo, hi = wilson_interval(0, 100)
+    assert lo == 0.0 and 0 < hi < 0.05
+    lo, hi = wilson_interval(100, 100)
+    assert hi == 1.0 and 0.95 < lo < 1.0
+    lo, hi = wilson_interval(50, 100)
+    assert lo < 0.5 < hi and (hi - lo) > 0.15
+    # More shots narrow the interval (width carries the sample size).
+    _, hi20 = wilson_interval(10, 20)
+    lo20, _ = wilson_interval(10, 20)
+    lo200, hi200 = wilson_interval(100, 200)
+    assert (hi200 - lo200) < (hi20 - lo20)
+    import pytest as _pytest
+    with _pytest.raises(ValueError):
+        wilson_interval(5, 0)
+    with _pytest.raises(ValueError):
+        wilson_interval(11, 10)
+
+
+def test_canary_report_carries_intervals():
+    res = canary_check("local-simulator", shots=1024)
+    assert res["ok"] is True, res
+    assert set(res["intervals"]) == set(res["counts"])
+    for outcome, entry in res["intervals"].items():
+        lo, hi = entry["interval_95"]
+        assert 0 <= lo <= hi <= 1
+        k = entry["k"]
+        assert lo <= k / 1024 <= hi or k in (0, 1024)

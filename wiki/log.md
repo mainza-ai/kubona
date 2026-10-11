@@ -1390,3 +1390,10 @@ skipped is the exact failure this incident is about:
   (gap, replicas-optimal, samples); equal-budget enforcement voids
   mismatched comparisons. Tests lock mechanics, never superiority.
   Suite 317 passed.
+
+## [2026-10-10] implementation | Wilson intervals on canary verdicts
+  Additive `intervals` (95% Wilson per outcome) on canary reports + ledger
+  records; verdict logic untouched. 2 tests (edges, widths, report shape).
+  Suite 319 passed. Note: one unrelated failure mid-run traced to Docker
+  Desktop being down (daemon socket gone); restarted it, re-ran green —
+  environmental, not a code issue.
