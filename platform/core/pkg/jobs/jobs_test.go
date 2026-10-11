@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/qir"
 	"github.com/mainza-ai/kubona/core/pkg/session"
 	"github.com/mainza-ai/kubona/core/pkg/tenants"
 	pb "github.com/mainza-ai/kubona/core/proto"
@@ -578,5 +579,67 @@ func TestSettledHookFiresOnCompleted(t *testing.T) {
 	}
 	if len(fired[0].ResultJSON) == 0 {
 		t.Error("hooked job must carry its stored result")
+	}
+}
+
+// B0-5: the compile gate analyzes pre-dispatch and persists provenance.
+// Without a Rust core the Go fallback labels honestly; without a compiler
+// the row stays empty (unanalyzed, never implied).
+func TestCompileGatePersistsProvenance(t *testing.T) {
+	r, cleanup := setupRunner(t, &fakeBridge{})
+	defer cleanup()
+	r.SetCompiler(qir.NewCompiler())
+
+	j, err := r.SubmitJob("sess-1", "circuit_run", map[string]any{
+		"qasm":  "OPENQASM 2.0;\nqreg q[2];\ncreg c[2];\nh q[0];\ncx q[0], q[1];\nmeasure q[0] -> c[0];\nmeasure q[1] -> c[1];\n",
+		"shots": 100,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.CompilerUsed == "" {
+		t.Error("analyzed submit must record compiler_used")
+	}
+	got, err := r.GetJob(j.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.CompilerUsed != j.CompilerUsed || got.FallbackEstimate != j.FallbackEstimate {
+		t.Errorf("provenance must round-trip: %+v", got)
+	}
+	if got.CompilerUsed == "rust-qir-core" && got.FallbackEstimate {
+		t.Error("rust verdict and fallback flag contradict")
+	}
+	listed, err := r.ListJobs("sess-1", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, lj := range listed {
+		if lj.ID == j.ID {
+			found = true
+			if lj.CompilerUsed != j.CompilerUsed {
+				t.Error("ListJobs must carry compile provenance")
+			}
+		}
+	}
+	if !found {
+		t.Error("submitted job missing from list")
+	}
+}
+
+func TestCompileGateAbsentWithoutCompiler(t *testing.T) {
+	r, cleanup := setupRunner(t, &fakeBridge{})
+	defer cleanup()
+
+	j, err := r.SubmitJob("sess-1", "circuit_run", map[string]any{
+		"qasm":  "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\nh q[0];\nmeasure q[0] -> c[0];\n",
+		"shots": 100,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.CompilerUsed != "" || j.FallbackEstimate {
+		t.Errorf("compiler-less runner must leave provenance empty, got %+v", j)
 	}
 }

@@ -66,7 +66,7 @@ with tests + live proof + green CI, per project rule).
   + pinned, observeTurn returns auditable calls (turn-level `observed_tools`,
   ledger `tool_called` via helper), dead stream helpers + RoleManifest
   allow-list deleted, registry contract test replaces it.
-- [ ] B0-5. `qir.Analyze` in `SubmitJob` circuit_run branch; record
+- [x] B0-5. `qir.Analyze` in `SubmitJob` circuit_run branch; record
   `compiler_used`/`fallback_estimate`; launch inherits.
 - [ ] B0-6. Secrets purge: `.env` discipline, lease HMAC + PG DSN to
   env-required, rotation doc.

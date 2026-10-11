@@ -11,6 +11,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/mainza-ai/kubona/core/pkg/fidelity"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/qir"
 	"github.com/mainza-ai/kubona/core/pkg/session"
 	"github.com/mainza-ai/kubona/core/pkg/tenants"
 	pb "github.com/mainza-ai/kubona/core/proto"
@@ -29,6 +30,11 @@ type Job struct {
 	// Completed jobs keep it; every terminal-failed path releases it.
 	ReservedTenant string  `json:"reserved_tenant,omitempty"`
 	ReservedAmount float64 `json:"reserved_amount,omitempty"`
+	// Compile provenance: which compiler analyzed the circuit pre-dispatch
+	// and whether the metrics are fallback estimates. Empty CompilerUsed
+	// means no compiler ran (runner without one) — never implied.
+	CompilerUsed     string `json:"compiler_used,omitempty"`
+	FallbackEstimate bool   `json:"fallback_estimate,omitempty"`
 }
 
 type Runner struct {
@@ -52,12 +58,31 @@ type Runner struct {
 	// fidelityGate predicts whether a hardware run can produce a publishable
 	// number before spending (Ring 3 second rail beside money).
 	fidelityGate *fidelity.FidelityGate
+	// compiler analyzes circuits pre-dispatch (see SubmitJob). Nil means
+	// no analysis runs and compile columns stay empty — the honest
+	// "unanalyzed" state, never a silent skip. Wired by the daemon; tests
+	// set it explicitly where they need it.
+	compiler *qir.Compiler
 	// settledHook fires after a job reaches COMPLETED, on the worker
 	// goroutine. It owns no job state — persistence already landed before it
 	// runs. Failed and aborted jobs never fire it: there is no measured
 	// result to fold. The hook must be fast and non-blocking (ledger writes
 	// and pure folds only); a slow hook stalls the worker pool.
 	settledHook func(*Job)
+}
+
+// SetCompiler registers the QIR compiler for pre-dispatch analysis.
+// Nil clears it. Safe to call before or after Start.
+func (r *Runner) SetCompiler(c *qir.Compiler) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.compiler = c
+}
+
+func (r *Runner) getCompiler() *qir.Compiler {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.compiler
 }
 
 // SetSettledHook registers the post-completion callback (planner replan).
@@ -122,6 +147,11 @@ func (r *Runner) SubmitJob(sessionID, jobType string, params any) (*Job, error) 
 
 	// Structural QASM gate first (cheapest check): malformed programs
 	// refuse before admission, queue, ledger, or spend moves.
+	// Compile analysis runs here too when a compiler is wired: the
+	// summary (or its fallback estimate, honestly labeled) persists on
+	// the job row, so launch inherits compilation provenance free.
+	var compilerUsed string
+	var fallbackEstimate bool
 	if jobType == "circuit_run" {
 		var qp struct {
 			QASM string `json:"qasm"`
@@ -129,6 +159,13 @@ func (r *Runner) SubmitJob(sessionID, jobType string, params any) (*Job, error) 
 		if err := json.Unmarshal(data, &qp); err == nil && qp.QASM != "" {
 			if err := validateQASM(qp.QASM); err != nil {
 				return nil, err
+			}
+			if c := r.getCompiler(); c != nil {
+				summary, aerr := c.Analyze(qp.QASM)
+				if aerr != nil {
+					return nil, fmt.Errorf("compile analysis refused: %w", aerr)
+				}
+				compilerUsed, fallbackEstimate = summary.CompilerUsed, summary.FallbackEstimate
 			}
 		} else if qp.QASM == "" {
 			return nil, fmt.Errorf("circuit_run requires qasm")
@@ -152,18 +189,24 @@ func (r *Runner) SubmitJob(sessionID, jobType string, params any) (*Job, error) 
 	}
 
 	j := &Job{
-		ID:             uuid.New().String(),
-		SessionID:      sessionID,
-		Status:         pb.JobStatus_JOB_STATUS_QUEUED,
-		JobType:        jobType,
-		ParamsJSON:     data,
-		CreatedAt:      time.Now().UTC(),
-		ReservedTenant: resTenant,
-		ReservedAmount: resAmount,
+		ID:               uuid.New().String(),
+		SessionID:        sessionID,
+		Status:           pb.JobStatus_JOB_STATUS_QUEUED,
+		JobType:          jobType,
+		ParamsJSON:       data,
+		CreatedAt:        time.Now().UTC(),
+		ReservedTenant:   resTenant,
+		ReservedAmount:   resAmount,
+		CompilerUsed:     compilerUsed,
+		FallbackEstimate: fallbackEstimate,
 	}
 
-	query := `INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-	_, err = r.ledger.DB().Exec(query, j.ID, j.SessionID, j.Status.String(), j.JobType, string(j.ParamsJSON), j.CreatedAt, j.ReservedTenant, j.ReservedAmount)
+	query := `INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount, compiler_used, fallback_estimate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	fallbackInt := 0
+	if fallbackEstimate {
+		fallbackInt = 1
+	}
+	_, err = r.ledger.DB().Exec(query, j.ID, j.SessionID, j.Status.String(), j.JobType, string(j.ParamsJSON), j.CreatedAt, j.ReservedTenant, j.ReservedAmount, j.CompilerUsed, fallbackInt)
 	if err != nil {
 		// The job never queued (no row to release from): unwind directly.
 		_ = r.tenantStore().ReleaseSpend(resTenant, resAmount)
@@ -476,15 +519,17 @@ func (r *Runner) CancelSessionJobs(sessionID, reason string) (int, error) {
 }
 
 func (r *Runner) GetJob(id string) (*Job, error) {
-	query := `SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at FROM jobs WHERE id = ?`
+	query := `SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, compiler_used, fallback_estimate FROM jobs WHERE id = ?`
 	row := r.ledger.DB().QueryRow(query, id)
 
 	var j Job
 	var statusStr, paramsStr string
 	var resultStr sql.NullString
 	var compAt sql.NullTime
+	var compilerUsed sql.NullString
+	var fallbackInt sql.NullInt64
 
-	if err := row.Scan(&j.ID, &j.SessionID, &statusStr, &j.JobType, &paramsStr, &resultStr, &j.CreatedAt, &compAt); err != nil {
+	if err := row.Scan(&j.ID, &j.SessionID, &statusStr, &j.JobType, &paramsStr, &resultStr, &j.CreatedAt, &compAt, &compilerUsed, &fallbackInt); err != nil {
 		return nil, err
 	}
 	j.Status = pb.JobStatus(pb.JobStatus_value[statusStr])
@@ -496,6 +541,10 @@ func (r *Runner) GetJob(id string) (*Job, error) {
 		t := compAt.Time
 		j.CompletedAt = &t
 	}
+	if compilerUsed.Valid {
+		j.CompilerUsed = compilerUsed.String
+	}
+	j.FallbackEstimate = fallbackInt.Valid && fallbackInt.Int64 != 0
 	return &j, nil
 }
 
@@ -507,12 +556,12 @@ func (r *Runner) ListJobs(sessionID string, limit int) ([]*Job, error) {
 	var err error
 	if sessionID != "" {
 		rows, err = r.ledger.DB().Query(
-			`SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at FROM jobs WHERE session_id = ? ORDER BY created_at DESC LIMIT ?`,
+			`SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, compiler_used, fallback_estimate FROM jobs WHERE session_id = ? ORDER BY created_at DESC LIMIT ?`,
 			sessionID, limit,
 		)
 	} else {
 		rows, err = r.ledger.DB().Query(
-			`SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at FROM jobs ORDER BY created_at DESC LIMIT ?`,
+			`SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, compiler_used, fallback_estimate FROM jobs ORDER BY created_at DESC LIMIT ?`,
 			limit,
 		)
 	}
@@ -527,7 +576,9 @@ func (r *Runner) ListJobs(sessionID string, limit int) ([]*Job, error) {
 		var statusStr, paramsStr string
 		var resultStr sql.NullString
 		var compAt sql.NullTime
-		if err := rows.Scan(&j.ID, &j.SessionID, &statusStr, &j.JobType, &paramsStr, &resultStr, &j.CreatedAt, &compAt); err != nil {
+		var compilerUsed sql.NullString
+		var fallbackInt sql.NullInt64
+		if err := rows.Scan(&j.ID, &j.SessionID, &statusStr, &j.JobType, &paramsStr, &resultStr, &j.CreatedAt, &compAt, &compilerUsed, &fallbackInt); err != nil {
 			return nil, err
 		}
 		j.Status = pb.JobStatus(pb.JobStatus_value[statusStr])
@@ -539,6 +590,10 @@ func (r *Runner) ListJobs(sessionID string, limit int) ([]*Job, error) {
 			t := compAt.Time
 			j.CompletedAt = &t
 		}
+		if compilerUsed.Valid {
+			j.CompilerUsed = compilerUsed.String
+		}
+		j.FallbackEstimate = fallbackInt.Valid && fallbackInt.Int64 != 0
 		jobsList = append(jobsList, &j)
 	}
 	return jobsList, nil
