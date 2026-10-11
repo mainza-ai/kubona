@@ -1588,3 +1588,7 @@ skipped is the exact failure this incident is about:
   Gate trigger/copy/actions, idle-rest canvas, job detail route+view,
   layered DAG, widget geometry. All 5 jobs success on run 38149382547.
   Tree clean, zero unpushed.
+
+## [2026-10-11] verification | CI green on tool-calling core batch
+  Registry + protocol + DSML fallback + copilot loop + tool_called audit.
+  All 5 jobs success on run 38156597060. Tree clean, zero unpushed.
