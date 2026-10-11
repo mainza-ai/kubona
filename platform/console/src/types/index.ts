@@ -75,6 +75,13 @@ export interface ChatMessage {
   // Model that served this reply (chat POST envelope). Shown under the
   // bubble so a stale selection is visible, never silent.
   model?: string;
+  // Measured generation cost (envelope only; absent on history reloads).
+  duration_ms?: number;
+  usage?: {
+    completion_tokens?: number;
+    prompt_tokens?: number;
+    total_tokens?: number;
+  };
 }
 
 export interface Job {
