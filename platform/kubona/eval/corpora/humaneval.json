@@ -7,7 +7,8 @@
   "description": "151 Qiskit codegen problems as {prompt, tests, reference}; credential-needing tasks excluded by design (see exclusions file)",
   "admitted": 136,
   "excluded": 15,
-  "verification": "every admitted task golden-verified live 2026-10-10 (reference passes its tests in kubona-quantum-runner:1.1.0); exclusions named, nothing silently dropped"
+  "verification": "every admitted task golden-verified live 2026-10-10 (reference passes its tests in kubona-quantum-runner:1.1.0); exclusions named, nothing silently dropped",
+  "provenance": "upstream"
  },
  "qiskitHumanEval_0": {
   "task_id": "qiskitHumanEval/0",

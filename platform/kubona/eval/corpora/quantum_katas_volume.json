@@ -1,1 +1,67 @@
-{"_meta": {"description": "Volume transcription of Microsoft QuantumKatas exercises (MIT) into QASM satisfiability tasks. Each entry names the kata tutorial it is transcribed from; only katas with a strongly-checkable invariant were transcribed (Deutsch-Jozsa, teleportation, and arithmetic katas have no declarative counts-check and are excluded by design, not oversight).", "license": "MIT (transcribed from microsoft/QuantumKatas, MIT licence)", "retrieved_at": "2026-10-10", "source_url": "https://github.com/microsoft/QuantumKatas"}, "katas_ghz_3q": {"check": "ghz", "check_params": {"n": 3}, "kata": "tutorials/Entanglement (GHZ state preparation)", "qasm": "OPENQASM 2.0;\nqreg q[3];\nh q[0];\ncx q[0], q[1];\ncx q[1], q[2];"}, "katas_ghz_8q": {"check": "ghz", "check_params": {"n": 8}, "kata": "tutorials/Entanglement (GHZ ladder, volume extension)", "qasm": "OPENQASM 2.0;\nqreg q[8];\nh q[0];\ncx q[0], q[1];\ncx q[1], q[2];\ncx q[2], q[3];\ncx q[3], q[4];\ncx q[4], q[5];\ncx q[5], q[6];\ncx q[6], q[7];"}, "katas_minus_state": {"check": "uniform", "check_params": {"n": 1}, "kata": "tutorials/Superposition (Minus state task)", "qasm": "OPENQASM 2.0;\nqreg q[1];\nx q[0];\nh q[0];"}, "katas_phi_minus": {"check": "bell", "check_params": {}, "kata": "tutorials/Entanglement (Phi-minus Bell state task)", "qasm": "OPENQASM 2.0;\nqreg q[2];\nh q[0];\nz q[0];\ncx q[0], q[1];"}, "katas_plus_state": {"check": "uniform", "check_params": {"n": 1}, "kata": "tutorials/Superposition (Plus state task)", "qasm": "OPENQASM 2.0;\nqreg q[1];\nh q[0];"}, "katas_psi_minus": {"check": "psi", "check_params": {}, "kata": "tutorials/Entanglement (Psi-minus Bell state task)", "qasm": "OPENQASM 2.0;\nqreg q[2];\nh q[0];\nz q[0];\ncx q[0], q[1];\nx q[1];"}, "katas_psi_plus": {"check": "psi", "check_params": {}, "kata": "tutorials/Entanglement (Psi-plus Bell state task)", "qasm": "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0], q[1];\nx q[1];"}, "katas_uniform_4q": {"check": "uniform", "check_params": {"n": 4}, "kata": "tutorials/Superposition (uniform superposition, volume extension)", "qasm": "OPENQASM 2.0;\nqreg q[4];\nh q[0];\nh q[1];\nh q[2];\nh q[3];"}}
+{
+ "_meta": {
+  "description": "Volume transcription of Microsoft QuantumKatas exercises (MIT) into QASM satisfiability tasks. Each entry names the kata tutorial it is transcribed from; only katas with a strongly-checkable invariant were transcribed (Deutsch-Jozsa, teleportation, and arithmetic katas have no declarative counts-check and are excluded by design, not oversight).",
+  "license": "MIT (transcribed from microsoft/QuantumKatas, MIT licence)",
+  "retrieved_at": "2026-10-10",
+  "source_url": "https://github.com/microsoft/QuantumKatas",
+  "provenance": "transcribed"
+ },
+ "katas_ghz_3q": {
+  "check": "ghz",
+  "check_params": {
+   "n": 3
+  },
+  "kata": "tutorials/Entanglement (GHZ state preparation)",
+  "qasm": "OPENQASM 2.0;\nqreg q[3];\nh q[0];\ncx q[0], q[1];\ncx q[1], q[2];"
+ },
+ "katas_ghz_8q": {
+  "check": "ghz",
+  "check_params": {
+   "n": 8
+  },
+  "kata": "tutorials/Entanglement (GHZ ladder, volume extension)",
+  "qasm": "OPENQASM 2.0;\nqreg q[8];\nh q[0];\ncx q[0], q[1];\ncx q[1], q[2];\ncx q[2], q[3];\ncx q[3], q[4];\ncx q[4], q[5];\ncx q[5], q[6];\ncx q[6], q[7];"
+ },
+ "katas_minus_state": {
+  "check": "uniform",
+  "check_params": {
+   "n": 1
+  },
+  "kata": "tutorials/Superposition (Minus state task)",
+  "qasm": "OPENQASM 2.0;\nqreg q[1];\nx q[0];\nh q[0];"
+ },
+ "katas_phi_minus": {
+  "check": "bell",
+  "check_params": {},
+  "kata": "tutorials/Entanglement (Phi-minus Bell state task)",
+  "qasm": "OPENQASM 2.0;\nqreg q[2];\nh q[0];\nz q[0];\ncx q[0], q[1];"
+ },
+ "katas_plus_state": {
+  "check": "uniform",
+  "check_params": {
+   "n": 1
+  },
+  "kata": "tutorials/Superposition (Plus state task)",
+  "qasm": "OPENQASM 2.0;\nqreg q[1];\nh q[0];"
+ },
+ "katas_psi_minus": {
+  "check": "psi",
+  "check_params": {},
+  "kata": "tutorials/Entanglement (Psi-minus Bell state task)",
+  "qasm": "OPENQASM 2.0;\nqreg q[2];\nh q[0];\nz q[0];\ncx q[0], q[1];\nx q[1];"
+ },
+ "katas_psi_plus": {
+  "check": "psi",
+  "check_params": {},
+  "kata": "tutorials/Entanglement (Psi-plus Bell state task)",
+  "qasm": "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0], q[1];\nx q[1];"
+ },
+ "katas_uniform_4q": {
+  "check": "uniform",
+  "check_params": {
+   "n": 4
+  },
+  "kata": "tutorials/Superposition (uniform superposition, volume extension)",
+  "qasm": "OPENQASM 2.0;\nqreg q[4];\nh q[0];\nh q[1];\nh q[2];\nh q[3];"
+ }
+}

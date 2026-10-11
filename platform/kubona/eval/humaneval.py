@@ -20,7 +20,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from kubona.eval.corpus_loader import license_admissible
+from kubona.eval.corpus_loader import license_admissible, provenance_declared
 
 _REQUIRED = ("prompt", "tests", "reference", "entry_point")
 
@@ -53,6 +53,9 @@ def load_code_tasks(path: str | Path) -> dict[str, dict]:
         raise ValueError(f"code-task corpus {path.name} refused: licence "
                          f"{(meta.get('license') if isinstance(meta, dict) else None)!r} "
                          "not admissible (Q-26)")
+    if not provenance_declared(meta if isinstance(meta, dict) else None):
+        raise ValueError(f"code-task corpus {path.name} refused: provenance "
+                         "undeclared (quarantine rule)")
     tasks = {}
     for name, spec in data.items():
         if name.startswith("_") or not isinstance(spec, dict):
