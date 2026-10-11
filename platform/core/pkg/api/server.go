@@ -1416,6 +1416,78 @@ func (s *Server) handleChatRewrite(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{"rewritten": true, "message": msg})
 }
 
+// fallbackProposal synthesizes launchable scaffolding when the model emits
+// no proposal: a Bell-ladder QASM for the detected molecule plus a live (or
+// explicitly fallback-labeled) anchor string. Attribution is structural —
+// designed_by:"server-fallback" — so no consumer can present it as the
+// model's design. Returns nil when no molecule is detected: no scaffolding
+// to offer, no proposal to fake.
+func (s *Server) fallbackProposal(content, reply string) *json.RawMessage {
+	upper := strings.ToUpper(content + " " + reply)
+	mol := ""
+	bondDist := 0.0
+	qubits := 2
+	if strings.Contains(upper, "LIH") || strings.Contains(upper, "LITHIUM") {
+		mol = "LiH"
+		bondDist = 1.5957
+		qubits = 4
+	} else if strings.Contains(upper, "BEH2") || strings.Contains(upper, "BERYLLIUM") {
+		mol = "BeH2"
+		bondDist = 1.3300
+		qubits = 6
+	} else if strings.Contains(upper, "H2") || strings.Contains(upper, "HYDROGEN") || strings.Contains(upper, "VQE") {
+		mol = "H2"
+		bondDist = 0.7414
+		qubits = 2
+	}
+	if mol == "" {
+		return nil
+	}
+	fciStr := "PySCF STO-3G FCI (unverified fallback)"
+	if s.jobRunner.BridgeClient() != nil {
+		anchorCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		anchorResp, err := s.jobRunner.BridgeClient().ComputeClassicalAnchor(anchorCtx, &pb.ClassicalAnchorRequest{
+			Molecule:     mol,
+			BondDistance: bondDist,
+		})
+		cancel()
+		if err == nil && anchorResp.Success {
+			fciStr = fmt.Sprintf("PySCF STO-3G FCI (%.5f Ha)", anchorResp.FciExactEnergy)
+		}
+	}
+
+	// Generate valid OpenQASM circuit
+	var qasmBuilder strings.Builder
+	qasmBuilder.WriteString("OPENQASM 2.0;\ninclude \"qelib1.inc\";\n")
+	qasmBuilder.WriteString(fmt.Sprintf("qreg q[%d];\ncreg c[%d];\n", qubits, qubits))
+	qasmBuilder.WriteString("h q[0];\n")
+	for i := 0; i < qubits-1; i++ {
+		qasmBuilder.WriteString(fmt.Sprintf("cx q[%d], q[%d];\n", i, i+1))
+	}
+	for i := 0; i < qubits; i++ {
+		qasmBuilder.WriteString(fmt.Sprintf("measure q[%d] -> c[%d];\n", i, i))
+	}
+
+	// Attribution: this circuit is server-synthesized scaffolding
+	// (Bell ladder for the detected molecule), NOT model-designed.
+	// Consumers must surface designed_by; launch treats it like
+	// any valid proposal, but nobody may present it as the
+	// model's design.
+	propMap := map[string]any{
+		"target":           fmt.Sprintf("%s Ground State VQE (R=%.4f A)", mol, bondDist),
+		"molecule":         mol,
+		"spend_estimate":   "$0.00 (Local Simulator)",
+		"recommended_tier": "Local Simulator (qiskit-aer-simulator)",
+		"classical_anchor": fciStr,
+		"qasm":             qasmBuilder.String(),
+		"designed_by":      "server-fallback",
+	}
+	propBytes, _ := json.MarshalIndent(propMap, "", "  ")
+	raw := json.RawMessage(propBytes)
+	return &raw
+}
+
+// triggerLabel builds a bounded trigger string for campaign versions:
 // triggerLabel builds a bounded trigger string for campaign versions:
 // kind plus up to 120 runes of source text. Prompts can be long; the
 // trigger names the cause, it never stores the whole prompt.
@@ -1481,62 +1553,7 @@ func (s *Server) generateCopilotResponse(ctx context.Context, sessionID, content
 
 	// If the model did not close or generate the proposal block, dynamically synthesize by computing classical anchor from Python bridge
 	if proposalJSON == nil {
-		upper := strings.ToUpper(content + " " + reply)
-		mol := ""
-		bondDist := 0.0
-		qubits := 2
-		if strings.Contains(upper, "LIH") || strings.Contains(upper, "LITHIUM") {
-			mol = "LiH"
-			bondDist = 1.5957
-			qubits = 4
-		} else if strings.Contains(upper, "BEH2") || strings.Contains(upper, "BERYLLIUM") {
-			mol = "BeH2"
-			bondDist = 1.3300
-			qubits = 6
-		} else if strings.Contains(upper, "H2") || strings.Contains(upper, "HYDROGEN") || strings.Contains(upper, "VQE") {
-			mol = "H2"
-			bondDist = 0.7414
-			qubits = 2
-		}
-
-		if mol != "" {
-			fciStr := "PySCF STO-3G FCI"
-			if s.jobRunner.BridgeClient() != nil {
-				anchorCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-				anchorResp, err := s.jobRunner.BridgeClient().ComputeClassicalAnchor(anchorCtx, &pb.ClassicalAnchorRequest{
-					Molecule:     mol,
-					BondDistance: bondDist,
-				})
-				cancel()
-				if err == nil && anchorResp.Success {
-					fciStr = fmt.Sprintf("PySCF STO-3G FCI (%.5f Ha)", anchorResp.FciExactEnergy)
-				}
-			}
-
-			// Generate valid OpenQASM circuit
-			var qasmBuilder strings.Builder
-			qasmBuilder.WriteString("OPENQASM 2.0;\ninclude \"qelib1.inc\";\n")
-			qasmBuilder.WriteString(fmt.Sprintf("qreg q[%d];\ncreg c[%d];\n", qubits, qubits))
-			qasmBuilder.WriteString("h q[0];\n")
-			for i := 0; i < qubits-1; i++ {
-				qasmBuilder.WriteString(fmt.Sprintf("cx q[%d], q[%d];\n", i, i+1))
-			}
-			for i := 0; i < qubits; i++ {
-				qasmBuilder.WriteString(fmt.Sprintf("measure q[%d] -> c[%d];\n", i, i))
-			}
-
-			propMap := map[string]any{
-				"target":           fmt.Sprintf("%s Ground State VQE (R=%.4f A)", mol, bondDist),
-				"molecule":         mol,
-				"spend_estimate":   "$0.00 (Local Simulator)",
-				"recommended_tier": "Local Simulator (qiskit-aer-simulator)",
-				"classical_anchor": fciStr,
-				"qasm":             qasmBuilder.String(),
-			}
-			propBytes, _ := json.MarshalIndent(propMap, "", "  ")
-			raw := json.RawMessage(propBytes)
-			proposalJSON = &raw
-		}
+		proposalJSON = s.fallbackProposal(content, reply)
 	}
 
 	return reply, proposalJSON, nil
@@ -1601,10 +1618,12 @@ func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.QASM == "" {
-		req.QASM = "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[2];\ncreg c[2];\nh q[0];\ncx q[0], q[1];\nmeasure q[0] -> c[0];\nmeasure q[1] -> c[1];\n"
+		http.Error(w, "launch requires qasm: no circuit in request or proposal — nothing dispatched", http.StatusBadRequest)
+		return
 	}
 	if req.Backend == "" {
-		req.Backend = "local_simulator"
+		http.Error(w, "launch requires backend: no backend in request or proposal — nothing dispatched", http.StatusBadRequest)
+		return
 	}
 	if req.BudgetUSD <= 0 {
 		req.BudgetUSD = 1.0

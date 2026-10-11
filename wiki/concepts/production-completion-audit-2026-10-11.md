@@ -57,7 +57,7 @@ with tests + live proof + green CI, per project rule).
   false + sign-path rate limits. — landed 2026-10-11: tenant-admin envelope
   on sign, Bearer fail-closed 503, CORS allowlist (`*` needs opt-in), host
   fallback opt-in, per-IP buckets on sign/verify.
-- [ ] B0-3. Proposal `designed_by:"server-fallback"` + labeled fallback
+- [x] B0-3. Proposal `designed_by:"server-fallback"` + labeled fallback
   strings; launch refuses empty QASM/backend (or explicit `allow_defaults`).
 - [ ] B0-4. Stream `withToolMessages` routing (`pkg/llm/client.go:184`);
   `tool_called` from `observeTurn`; tribunal `toolNamesSince` (not `nil`);

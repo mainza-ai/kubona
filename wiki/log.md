@@ -1738,3 +1738,10 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-11] verification | CI green on B0-2 edge auth
   All 5 jobs success on run 38176471912. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | B0-3 proposal attribution + launch refusals
+  Fallback scaffolding carries designed_by:server-fallback (helper
+  extracted, unit-pinned, passes real submit gate) + labeled fallback
+  anchor; launch 400s empty QASM/backend with reasons (UI already
+  surfaces them on cards); console SERVER FALLBACK badge. Live:
+  400s verified, model proposals key-absent. Go + 54 vitest green.
