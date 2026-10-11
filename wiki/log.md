@@ -1674,3 +1674,10 @@ skipped is the exact failure this incident is about:
   caption. A2A epistemic_claim_evaluation opens the only production
   path into claim_eval (previously test-only). Full Go suite green,
   console 54 vitest green.
+
+## [2026-10-11] verification | CI green on claim-citation plumbing
+  All 5 jobs success on run 38169347731. Tree clean, zero unpushed.
+  Flag: epistemic-gate seed citations (arXiv:1304.3061, JACS:2014,
+  chemrxiv:2026.01) are unverified strings in dead demo data
+  (CanAssert has no production callers) — replace or label before
+  any UI consumes them.
