@@ -1617,3 +1617,8 @@ skipped is the exact failure this incident is about:
   validateQASM (header/qreg/balance/size, comments stripped) refuses
   before admission/queue/ledger/spend; no-residue test. Live: unbalanced
   refused with reason, Bell dispatched. Full Go suite green.
+
+## [2026-10-11] verification | CI green after fixture fix
+  QASM gate broke 7 tests on stub programs; fixtures now submit minimal
+  valid QASM (dispatch requires a program — doctrine, not breakage).
+  All 5 jobs success on run 38161426719, race-clean locally.
