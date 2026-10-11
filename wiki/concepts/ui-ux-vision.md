@@ -2,7 +2,7 @@
 type: concept
 name: Kubona UI/UX Vision & Console Specification
 date: 2026-08-16
-updated: 2026-10-08
+updated: 2026-10-11
 tags: [ux, ui, control-plane, console, report]
 sources: [source-gap-analysis-plan, source-architecture-paper, source-openai-math-corpus]
 status: adopted
@@ -244,6 +244,25 @@ substrate.
 - **P4:** a contributor registers a provider and reads pass/fail without maintainer help.
 - **P6:** a researcher runs the full discovery loop and shares a citable, credential-safe
   report — with every number one click from its ledger record.
+
+## 13. Sovereign redesign (built 2026-10-11, prototype register)
+
+The console was rebuilt around the operator-supplied concept (obsidian `#07080B`,
+cyan `#00E5FF` / amber `#FFB300` / emerald `#00E676` / rose accents, no purple
+gradients, Plus Jakarta Sans + JetBrains Mono self-hosted via `next/font`):
+64 px icon-only dock (arena / recorder / manifold / fleet / proofs / mesh + air-gap
+lock, settings, avatar campaign menu) with hover tooltips; center arena with HUD
+(target pill, orbital / proof-DAG / hardware-QPU mode pill, live spend + session
+clock), data-driven probe universe (Theorist / Formalist / Compiler / Critic fed
+by `quantum_factors`, anchors, and epistemics — placeholders, never invented
+numbers), and a floating Action Gate that appears only while authorization is
+outstanding (real AP2 Ed25519 mandate sign + backend verify, deny-with-reason).
+The co-pilot keeps all chat/tribunal logic in the new visual language (cyan user
+bubbles, synthesis eyebrows, ✦ chips, composer card with real file attach).
+All thirteen prior surfaces remain reachable (proofs/manuscripts+tribunal and
+mesh/mesh+guardrails+models+labs+settings sub-toggles, legacy Living Canvas
+overlay, ⌘K palette, ⌘1–6 shortcuts). Verified: `pnpm build` + 22 vitest green +
+eslint clean + served-200 smoke test.
 
 Related: [[agent-ux-control-plane]] · [[science-discovery]] · [[cost-governance]] ·
 [[provenance-and-reproducibility]] · [[user-identity-and-profiles]] ·

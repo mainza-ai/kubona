@@ -1522,3 +1522,9 @@ skipped is the exact failure this incident is about:
 ## [2026-10-11] verification | CI green on ER-pipeline batch
   All 5 jobs success on run 38122879475. Intelligence buildable phases
   complete (entity core, taxonomy v0, OPS connector, ER). Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | Sovereign console redesign (concept build)
+  64px icon dock + arena HUD + data-driven probe universe + proof-DAG +
+  Action Gate (Ed25519 mandate) + co-pilot reskin; all 13 prior surfaces
+  reachable; fonts self-hosted (no runtime egress). pnpm build + 22 vitest
+  + eslint clean + served-200 smoke. Spec recorded on [[ui-ux-vision]] s13.

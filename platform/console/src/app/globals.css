@@ -2,12 +2,17 @@
 @import "katex/dist/katex.min.css";
 
 :root {
-  --background: #05070b;
+  --background: #07080B;
   --foreground: #f1f5f9;
-  --obsidian-base: #0a0d14;
-  --obsidian-elevated: #111726;
+  --obsidian-base: #0A0C10;
+  --obsidian-elevated: #0E1015;
+  --obsidian-card: #13161D;
   --obsidian-border: #1e293b;
-  --coherence-cyan: #00f0ff;
+  --coherence-cyan: #00E5FF;
+  --theorist-amber: #FFB300;
+  --truth-emerald: #00E676;
+  --critic-rose: #F43F5E;
+  /* Legacy aliases (pre-redesign surfaces still mounted inside the shell) */
   --entangle-violet: #8a2be2;
   --amber-warning: #f59e0b;
   --chemical-emerald: #10b981;
@@ -19,12 +24,22 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  --font-sovereign: var(--font-jakarta), var(--font-geist-sans), system-ui, sans-serif;
+  --font-code: var(--font-jetbrains), var(--font-geist-mono), monospace;
+  --color-void: #07080B;
+  --color-abyss: #0A0C10;
+  --color-panel: #0E1015;
+  --color-card: #13161D;
+  --color-pulse-cyan: #00E5FF;
+  --color-theorist: #FFB300;
+  --color-truth: #00E676;
+  --color-critic: #F43F5E;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-family: var(--font-jakarta), var(--font-geist-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
   overflow-x: hidden;
 }
 
@@ -139,6 +154,27 @@ body {
 .animate-float-gentle {
   animation: floatGentle 3.5s ease-in-out infinite;
 }
+
+/* Sovereign console spatial language (redesign) */
+.grid-bg {
+  background-size: 40px 40px;
+  background-image:
+    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+}
+
+@keyframes pulseOrb {
+  0%, 100% { transform: scale(1); opacity: 0.85; filter: drop-shadow(0 0 15px rgba(0,229,255,0.4)); }
+  50% { transform: scale(1.08); opacity: 1; filter: drop-shadow(0 0 25px rgba(0,229,255,0.7)); }
+}
+.animate-orb { animation: pulseOrb 4s ease-in-out infinite; }
+
+@keyframes orbitRotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-orbit-slow { animation: orbitRotate 90s linear infinite; }
+.animate-orbit-reverse { animation: orbitRotate 60s linear infinite reverse; }
 
 /* Spring-style transitions */
 .spring-transition {
