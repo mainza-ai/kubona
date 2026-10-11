@@ -230,6 +230,11 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		oldFCI := state.ClassicalAnchor.FciExactEnergy
 		state.ClassicalAnchor.RhfMeanFieldEnergy = rhf
 		state.ClassicalAnchor.FciExactEnergy = fci
+		// A recomputed anchor is measured evidence: the campaign's anchor
+		// becomes computed-grade here, even if synthesis ran on fallback.
+		state.ClassicalAnchor.AnchorComputed = true
+		state.ClassicalAnchor.AnchorSource = "pyscf-live"
+		state.ClassicalAnchor.Method = "PySCF STO-3G Full Configuration Interaction"
 		delta := math.Abs(state.ClassicalAnchor.VqeExpectationEnergy-fci) * 1000.0
 		state.ClassicalAnchor.DiscrepancyMHa = delta
 		state.ClassicalAnchor.ChemicalAccuracyPassed = delta <= 1.6

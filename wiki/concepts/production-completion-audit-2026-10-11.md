@@ -52,7 +52,7 @@ with tests + live proof + green CI, per project rule).
 
 ## Phase B0 — correctness before capability
 
-- [ ] B0-1. Anchor fallback flag (above).
+- [x] B0-1. Anchor fallback flag (above). — landed 2026-10-11: `anchor_computed`/`anchor_source`, fallback never verifies (UNVERIFIED + pending weights + caveats at every surface), replan promotes to computed-grade.
 - [ ] B0-2. Auth on sign + bearer skeleton + CORS allowlist + sandbox default
   false + sign-path rate limits.
 - [ ] B0-3. Proposal `designed_by:"server-fallback"` + labeled fallback

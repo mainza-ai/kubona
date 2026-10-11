@@ -1718,3 +1718,10 @@ skipped is the exact failure this incident is about:
   Four parallel code investigations + spot-confirmation; verdict not
   100% (B ~55%, C ~40%, D one P0 honesty bug, E far from P4).
   Plan B0/B1/C/D/E with checkboxes on the page; execution starts B0-1.
+
+## [2026-10-11] implementation | B0-1 anchor fallback flag
+  ClassicalAnchor gains anchor_computed/source; fallback forces
+  ChemAcc false, UNVERIFIED + pending weights + caveats in
+  statement, method, notebook verdict/sections; replan anchor
+  fold promotes to pyscf-live. Live: bridge-up synthesizes
+  computed:true/pyscf-live. Full Go suite green.
