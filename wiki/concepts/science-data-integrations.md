@@ -34,6 +34,7 @@ relevant to Kubona, ranked by leverage.
 | **GBIF / iDigBio / ITIS** | Biodiversity & specimens — biology discovery workflows |
 | **NASA / ISRO / Launch Library** | Space & astronomy observation data |
 | **Purple Air** | Environmental/air-quality time series |
+| **GPU-DFT anchor service** (assessed 2026-10-11, trial-gated) | Fast classical DFT single-points as chemistry claim anchors (`integrations/promethium.py`: driver seam + ledger-recorded anchor dict; vendor SDK binding deferred to trial — private distribution, account + API key required) |
 
 ## Integration pattern
 
