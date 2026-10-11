@@ -42,7 +42,7 @@ interface CopilotDrawerProps {
   onExperimentLaunched?: () => void;
   onCampaignUpdated?: (campaign: CampaignState) => void;
   onSelectSurface?: (surface: string) => void;
-  onMaterialize?: (kind: CanvasWidgetKind, title: string) => void;
+  onMaterialize?: (kind: CanvasWidgetKind, title: string, jobId?: string) => void;
   onRunStateChange?: (phase: RunPhase, detail: string) => void;
   onClose?: () => void;
 }
@@ -72,6 +72,7 @@ export function CopilotDrawer({
   const [expandedTurns, setExpandedTurns] = useState<Record<string, boolean>>({});
   const [launchingId, setLaunchingId] = useState<string | null>(null);
   const [launchedNote, setLaunchedNote] = useState<Record<string, string>>({});
+  const [launchedJobs, setLaunchedJobs] = useState<Record<string, string>>({});
   const [streamingId, setStreamingId] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
@@ -585,6 +586,7 @@ export function CopilotDrawer({
       const res = await launchProposal(activeSessionId, proposal);
       if (res && 'job' in res && res.job) {
         const jobId = String(res.job.id);
+        setLaunchedJobs((prev) => ({ ...prev, [messageId]: jobId }));
         setLaunchedNote((prev) => ({ ...prev, [messageId]: `Launched: job ${jobId.slice(0, 8)} · tracking…` }));
         if (onExperimentLaunched) onExperimentLaunched();
         // Inline job tracking: poll session jobs for this id and report the
@@ -630,6 +632,7 @@ export function CopilotDrawer({
     if (!m.proposal_json) return null;
     const p = m.proposal_json;
     const note = launchedNote[m.id];
+    const jobId = launchedJobs[m.id];
     return (
       <div className="w-full max-w-[95%] rounded-2xl bg-black/40 border border-cyan-400/25 p-3 space-y-2">
         <div className="flex items-center gap-1.5 text-[10px] font-code text-cyan-400">
@@ -645,7 +648,17 @@ export function CopilotDrawer({
           anchor · {p.classical_anchor}
         </div>
         {note ? (
-          <div className="text-[11px] font-code text-emerald-300">{note}</div>
+          jobId ? (
+            <button
+              onClick={() => onMaterialize?.('job', `Job ${jobId.slice(0, 8)} · detail`, jobId)}
+              title="Open full job detail (params, counts, result)"
+              className="w-full text-left text-[11px] font-code text-emerald-300 hover:text-emerald-200 hover:bg-white/5 rounded-lg px-1.5 py-1 transition-all"
+            >
+              {note} →
+            </button>
+          ) : (
+            <div className="text-[11px] font-code text-emerald-300">{note}</div>
+          )
         ) : (
           <button
             onClick={() => handleLaunchProposal(m.id, p)}

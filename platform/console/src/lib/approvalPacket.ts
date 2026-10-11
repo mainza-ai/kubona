@@ -18,6 +18,20 @@ interface CampaignLike {
 
 export const APPROVAL_TTL_MS = 15 * 60 * 1000;
 
+/**
+ * Metered-backend test (calibrated friction): simulator-class backends run
+ * under L1 auto-allow and must NEVER raise the Action Gate; anything else
+ * (hardware names, unknown tiers) needs human eyes. Unknown defaults to
+ * metered (fail-closed visibility). Mirrors the server's tier normalization
+ * smells so both sides agree on what "local" means.
+ */
+export function isMeteredBackend(backend?: string | null): boolean {
+  if (!backend) return true;
+  const lower = backend.toLowerCase();
+  const simSmells = ['local', 'simulator', 'statevector', 'aer', 'sim-first', 'sim first', 'starter', 'shot-based', 'numpy'];
+  return !simSmells.some((smell) => lower.includes(smell));
+}
+
 /** Denial requires a non-blank reason (returned to the agent). Pure. */
 export function canConfirmDenial(reason: string): boolean {
   return reason.trim().length > 0;

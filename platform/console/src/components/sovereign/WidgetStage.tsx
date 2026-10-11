@@ -1,25 +1,30 @@
 'use client';
 
-import React from 'react';
-import { X, CircuitBoard, Radio, Atom, KeyRound, Fingerprint } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, CircuitBoard, Radio, Atom, KeyRound, Fingerprint, Minus, Plus } from 'lucide-react';
 import { CampaignState } from '@/types';
+import { isMeteredBackend } from '@/lib/approvalPacket';
 import {
   QuantumCircuitQIREditorWidget,
   ShadowTomographyRadarWidget,
   MolecularActiveSpaceWidget,
 } from '@/components/widgets';
+import { JobDetailWidget } from './JobDetailWidget';
 
-export type CanvasWidgetKind = 'circuit' | 'shadows' | 'molecule' | 'mandate';
+export type CanvasWidgetKind = 'circuit' | 'shadows' | 'molecule' | 'mandate' | 'job';
 
 export interface CanvasWidgetSpec {
   kind: CanvasWidgetKind;
   title: string;
+  /** Job id for kind === 'job' (fetched live; never embedded). */
+  jobId?: string;
 }
 
 const KIND_META: Record<CanvasWidgetKind, { icon: React.ComponentType<{ className?: string }>; dot: string }> = {
   circuit: { icon: CircuitBoard, dot: 'bg-cyan-400' },
   shadows: { icon: Radio, dot: 'bg-cyan-400' },
   molecule: { icon: Atom, dot: 'bg-amber-400' },
+  job: { icon: CircuitBoard, dot: 'bg-emerald-400' },
   mandate: { icon: KeyRound, dot: 'bg-amber-400' },
 };
 
@@ -49,34 +54,56 @@ export function WidgetStage({
   onDismiss,
   onRequestGateFocus,
 }: WidgetStageProps) {
+  const [minimized, setMinimized] = useState(false);
   if (!widget) return null;
   const meta = KIND_META[widget.kind];
   const Icon = meta.icon;
   const qf = campaign?.quantum_factors;
+  // Badge honesty: shadows renders static reference figures (its own
+  // Illustrative badge says so) — the stage must not claim LIVE over it.
+  const liveFeed = widget.kind !== 'shadows';
 
   return (
     <div
       data-testid="widget-stage"
-      className="absolute right-6 top-1/2 -translate-y-1/2 z-20 w-[min(380px,92%)] max-h-[76%] flex flex-col rounded-2xl bg-[#0E1117]/92 backdrop-blur-2xl border border-white/10 shadow-2xl overflow-hidden"
+      data-minimized={minimized ? 'true' : undefined}
+      className="absolute right-6 top-1/2 -translate-y-1/2 z-20 w-[min(440px,92%)] max-h-[76%] flex flex-col rounded-2xl bg-[#0E1117]/92 backdrop-blur-2xl border border-white/10 shadow-2xl overflow-hidden"
     >
-      <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.06] shrink-0">
-        <div className="flex items-center gap-2">
-          <span className={`w-1.5 h-1.5 rounded-full ${meta.dot}`} />
-          <Icon className="w-3.5 h-3.5 text-slate-300" />
-          <span className="text-[11px] font-semibold text-white">{widget.title}</span>
-          <span className="px-1.5 py-0.5 rounded bg-emerald-400/10 text-emerald-400 font-code text-[9px]">LIVE</span>
+      <div className="flex items-center justify-between gap-2 px-4 py-2.5 border-b border-white/[0.06] shrink-0">
+        <div className="flex items-center gap-2 min-w-0">
+          <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${meta.dot}`} />
+          <Icon className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+          <span className="text-[11px] font-semibold text-white truncate">{widget.title}</span>
+          <span
+            title={liveFeed ? 'Fed by live session data' : 'Static reference figures — illustrative'}
+            className={`px-1.5 py-0.5 rounded font-code text-[9px] shrink-0 ${
+              liveFeed ? 'bg-emerald-400/10 text-emerald-400' : 'bg-white/[0.06] text-slate-400'
+            }`}
+          >
+            {liveFeed ? 'LIVE' : 'REF'}
+          </span>
         </div>
-        <button
-          aria-label="Dismiss widget"
-          data-testid="widget-dismiss"
-          onClick={onDismiss}
-          className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            aria-label={minimized ? 'Expand widget' : 'Minimize widget'}
+            data-testid="widget-minimize"
+            onClick={() => setMinimized((v) => !v)}
+            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
+          >
+            {minimized ? <Plus className="w-3.5 h-3.5" /> : <Minus className="w-3.5 h-3.5" />}
+          </button>
+          <button
+            aria-label="Dismiss widget"
+            data-testid="widget-dismiss"
+            onClick={onDismiss}
+            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-all focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
       </div>
-
-      <div className="overflow-y-auto p-3">
+      {!minimized && (
+      <div className="overflow-y-auto overflow-x-hidden p-3">
         {widget.kind === 'circuit' && (
           <QuantumCircuitQIREditorWidget
             qubits={qf?.qubit_count ?? 2}
@@ -97,7 +124,7 @@ export function WidgetStage({
         {widget.kind === 'mandate' && (
           <div className="rounded-2xl border border-amber-500/25 bg-black/50 p-4 space-y-3">
             <div className="text-xs text-white font-medium">
-              Deploy pulse on {qf?.recommended_backend || 'selected backend'}
+              Dispatch on {qf?.recommended_backend || 'selected backend'}
             </div>
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div>
@@ -131,14 +158,22 @@ export function WidgetStage({
                 <Fingerprint className="w-4 h-4" />
                 <span>Review at Action Gate</span>
               </button>
-            ) : (
+            ) : isMeteredBackend(qf?.recommended_backend) ? (
               <p className="text-[10px] font-code text-slate-500">
                 Gate already decided this session — card is read-only.
+              </p>
+            ) : (
+              <p className="text-[10px] font-code text-slate-500">
+                Local simulator needs no authorization (L1 auto-allow).
               </p>
             )}
           </div>
         )}
+        {widget.kind === 'job' && widget.jobId && (
+          <JobDetailWidget jobId={widget.jobId} />
+        )}
       </div>
+      )}
     </div>
   );
 }

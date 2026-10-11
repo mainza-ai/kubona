@@ -241,6 +241,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/chat/tribunal", s.handleChatTribunal)
 	s.mux.HandleFunc("/api/chat/launch", s.handleChatLaunch)
 	s.mux.HandleFunc("/api/jobs", s.handleJobs)
+	s.mux.HandleFunc("/api/jobs/", s.handleJobByID)
 	s.mux.HandleFunc("/api/loops", s.handleLoops)
 	s.mux.HandleFunc("/api/loops/", s.handleLoopActions)
 	s.mux.HandleFunc("/api/events", s.handleEvents)
@@ -1609,6 +1610,26 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// handleJobByID serves one job with full params + result payloads — the
+// click-through target for job-detail views. Unknown ids 404 (never empty).
+func (s *Server) handleJobByID(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/api/jobs/")
+	if id == "" {
+		http.Error(w, "missing job id", http.StatusBadRequest)
+		return
+	}
+	job, err := s.jobRunner.GetJob(id)
+	if err != nil {
+		http.Error(w, "job not found", http.StatusNotFound)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"job": job})
 }
 
 func (s *Server) handleLoops(w http.ResponseWriter, r *http.Request) {
