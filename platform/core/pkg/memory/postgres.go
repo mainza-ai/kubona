@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -19,10 +20,14 @@ type PostgresStoreConfig struct {
 	ConnMaxLifetime time.Duration
 }
 
-// DefaultPostgresStoreConfig returns standard local dev configuration
+// DefaultPostgresStoreConfig returns operator configuration. The DSN
+// comes from KUBONA_PG_DSN with NO default: a hardcoded dev password in
+// source shipped here once and was removed — connection strings with
+// secrets are operator config, never code.
+// Empty DSN means unconfigured; constructors must refuse it.
 func DefaultPostgresStoreConfig() PostgresStoreConfig {
 	return PostgresStoreConfig{
-		DSN:             "postgres://kubona:kubona_dev_secret@localhost:5432/kubona_memory?sslmode=disable",
+		DSN:             os.Getenv("KUBONA_PG_DSN"),
 		MaxOpenConns:    25,
 		MaxIdleConns:    5,
 		ConnMaxLifetime: 5 * time.Minute,
