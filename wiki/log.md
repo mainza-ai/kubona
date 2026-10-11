@@ -1649,3 +1649,10 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-11] verification | CI green on planner replan
   All 5 jobs success on run 38165234609. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | Semantic QASM pre-dispatch validation
+  Phase 2 in jobs/validate.go: header-first, register table, index
+  bounds, measure kinds/widths, core-set arity, custom gate/opaque
+  arities, conditionals. Unknown names stay with the executor (no
+  false refusals). Live: q[7] + cx-arity refused pre-admission with
+  reasons, zero residue; Bell admitted. Full Go suite green.
