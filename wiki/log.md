@@ -1681,3 +1681,11 @@ skipped is the exact failure this incident is about:
   chemrxiv:2026.01) are unverified strings in dead demo data
   (CanAssert has no production callers) — replace or label before
   any UI consumes them.
+
+## [2026-10-11] implementation | Source-label vocabulary + seed repair
+  epistemics.ValidSourceLabel grammar (arxiv/doi/pyscf/bridge/clm/
+  pending-review); seeds extracted to SeedClaims with resolvable
+  sources — arXiv:1304.3061 verified REAL (Peruzzo VQE paper) and
+  kept, JACS:2014 + chemrxiv:2026.01 unresolvable and replaced;
+  synth sources now pyscf rhf+fci pair. Tests pin all three sites.
+  Gate math tests keep dummy labels (RegisterClaim stays lenient).
