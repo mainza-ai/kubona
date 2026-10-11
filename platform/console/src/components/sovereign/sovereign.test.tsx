@@ -5,6 +5,7 @@ import { SovereignDock } from './SovereignDock';
 import { ArenaHud } from './ArenaHud';
 import { SwarmUniverse } from './SwarmUniverse';
 import { ActionGate } from './ActionGate';
+import { WidgetStage } from './WidgetStage';
 import type { CampaignState } from '@/types';
 
 function render(el: React.ReactElement) {
@@ -143,5 +144,60 @@ describe('ActionGate', () => {
     const flat = textOf(root.findByProps({ 'data-testid': 'action-gate' }));
     expect(flat).toContain('48.50');
     expect(flat).toContain('QuEra Aquila');
+  });
+});
+
+describe('WidgetStage', () => {
+  const base = {
+    campaign: CAMPAIGN,
+    gateOpen: true,
+    onDismiss: () => {},
+    onRequestGateFocus: () => {},
+  };
+
+  it('stays empty by default (zero clutter)', () => {
+    const root = render(<WidgetStage widget={null} {...base} />);
+    expect(root.findAllByProps({ 'data-testid': 'widget-stage' }).length).toBe(0);
+  });
+
+  it('materializes one widget with title and dismisses on demand', () => {
+    const onDismiss = vi.fn();
+    const root = render(
+      <WidgetStage widget={{ kind: 'circuit', title: 'Circuit · live' }} {...base} onDismiss={onDismiss} />
+    );
+    const stage = root.findByProps({ 'data-testid': 'widget-stage' });
+    expect(textOf(stage)).toContain('Circuit · live');
+    expect(textOf(stage)).toContain('LIVE');
+    act(() => {
+      root.findByProps({ 'data-testid': 'widget-dismiss' }).props.onClick();
+    });
+    expect(onDismiss).toHaveBeenCalled();
+  });
+
+  it('spend card shows live figures and is read-only once the gate has decided', () => {
+    const decided = render(
+      <WidgetStage widget={{ kind: 'mandate', title: 'Spend mandate' }} {...base} gateOpen={false} />
+    );
+    const flat = textOf(decided.findByProps({ 'data-testid': 'widget-stage' }));
+    expect(flat).toContain('read-only');
+    expect(flat).toContain('48.50');
+  });
+
+  it('spend card defers the decision to the Action Gate (never signs itself)', () => {
+    const onRequestGateFocus = vi.fn();
+    const root = render(
+      <WidgetStage
+        widget={{ kind: 'mandate', title: 'Spend mandate' }}
+        {...base}
+        gateOpen
+        onRequestGateFocus={onRequestGateFocus}
+      />
+    );
+    const review = root.findAllByType('button').find((b) => textOf(b).includes('Review at Action Gate'));
+    expect(review).toBeDefined();
+    act(() => {
+      (review as ReactTestInstance).props.onClick();
+    });
+    expect(onRequestGateFocus).toHaveBeenCalled();
   });
 });

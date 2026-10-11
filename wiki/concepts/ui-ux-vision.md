@@ -264,6 +264,22 @@ mesh/mesh+guardrails+models+labs+settings sub-toggles, legacy Living Canvas
 overlay, ⌘K palette, ⌘1–6 shortcuts). Verified: `pnpm build` + 22 vitest green +
 eslint clean + served-200 smoke test.
 
+## 14. On-demand canvas widgets (built 2026-10-11, prototype register)
+
+The vision's core interaction — *"agents show, don't tell"* — is now working:
+the co-pilot materializes exactly one widget at a time onto the arena backdrop
+(`WidgetStage`, empty by default), fed with live campaign props. Tribunal
+syntheses carry ✦ dispatch pills (Inspect circuit → live QIR widget with the
+campaign's qubits/depth/QASM; Shadow estimates; Active space with live
+e/m counts; Spend card with live cost/backend/budget). Trust rules enforced in
+code and tested: the spend card is read-only and defers to the Action Gate
+(the widget with its own signing display was deliberately *not* reused — it
+verifies nothing and would display "Authorized" the gate never granted);
+materializing switches to the arena; widget state clears on session switch.
+Shell de-worded to icon-only affordances (avatar menu, icon canvas entry).
+Verified: `pnpm build` + 26 vitest green + eslint zero-warning + served-200
+smoke (zero widget markup in default SSR — the stage is truly empty).
+
 Related: [[agent-ux-control-plane]] · [[science-discovery]] · [[cost-governance]] ·
 [[provenance-and-reproducibility]] · [[user-identity-and-profiles]] ·
 [[workflows-and-agent-authoring]] · [[buzz]] · [[ibm-quantum-composer]] · [[qflow-studio]]

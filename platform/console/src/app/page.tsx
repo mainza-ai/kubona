@@ -14,6 +14,7 @@ import { ArenaHud, ArenaView } from '@/components/sovereign/ArenaHud';
 import { SwarmUniverse } from '@/components/sovereign/SwarmUniverse';
 import { ProofDagView } from '@/components/sovereign/ProofDagView';
 import { ActionGate } from '@/components/sovereign/ActionGate';
+import { WidgetStage, CanvasWidgetSpec, CanvasWidgetKind } from '@/components/sovereign/WidgetStage';
 import { FlightRecorder } from '@/components/surfaces/FlightRecorder';
 import { EpistemicManifold } from '@/components/surfaces/EpistemicManifold';
 import { FleetRadar } from '@/components/surfaces/FleetRadar';
@@ -54,6 +55,7 @@ export default function Home() {
   const [showLegacyCanvas, setShowLegacyCanvas] = useState(false);
   const [gateState, setGateState] = useState<Record<string, 'authorized' | 'denied'>>({});
   const [gateNotice, setGateNotice] = useState<string | null>(null);
+  const [canvasWidget, setCanvasWidget] = useState<CanvasWidgetSpec | null>(null);
 
   // Modals & Panels Visibility
   const [isAboutOpen, setIsAboutOpen] = useState(false);
@@ -83,6 +85,11 @@ export default function Home() {
     }
   }, [currentSessionId]);
 
+  const switchSession = useCallback((id: string) => {
+    setCanvasWidget(null);
+    setCurrentSessionId(id);
+  }, []);
+
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -98,7 +105,7 @@ export default function Home() {
           const firstSess = await createSession('Quantum Research Campaign #1', 150.0);
           if (firstSess && mounted) {
             setSessions([firstSess]);
-            setCurrentSessionId(firstSess.id);
+            switchSession(firstSess.id);
             fetchCampaignState(firstSess.id).then((c) => {
               if (mounted) setCampaign(c);
             });
@@ -107,7 +114,7 @@ export default function Home() {
       } else {
         setSessions(sessList);
         if (!currentSessionId) {
-          setCurrentSessionId(sessList[0].id);
+          switchSession(sessList[0].id);
           fetchCampaignState(sessList[0].id).then((c) => {
             if (mounted) setCampaign(c);
           });
@@ -127,7 +134,7 @@ export default function Home() {
       clearInterval(timer);
       clearInterval(clock);
     };
-  }, [currentSessionId, refreshData]);
+  }, [currentSessionId, refreshData, switchSession]);
 
   const handleCreateSession = useCallback(() => {
     setIsNewCampaignModalOpen(true);
@@ -148,14 +155,14 @@ export default function Home() {
       );
       if (newSess) {
         setSessions((prev) => [newSess, ...prev]);
-        setCurrentSessionId(newSess.id);
+        switchSession(newSess.id);
         const newCamp = await fetchCampaignState(newSess.id);
         if (newCamp) {
           setCampaign(newCamp);
         }
       }
     },
-    []
+    [switchSession]
   );
 
   const handleDeleteSession = useCallback(
@@ -173,12 +180,12 @@ export default function Home() {
           if (currentSessionId === sessionId) {
             const nextSession = filtered[0];
             if (nextSession) {
-              setCurrentSessionId(nextSession.id);
+              switchSession(nextSession.id);
               fetchCampaignState(nextSession.id).then((c) => {
                 if (c) setCampaign(c);
               });
             } else {
-              setCurrentSessionId('');
+              switchSession('');
               setCampaign(null);
             }
           }
@@ -186,7 +193,7 @@ export default function Home() {
         });
       }
     },
-    [sessions, currentSessionId]
+    [sessions, currentSessionId, switchSession]
   );
 
   const handleEmergencyAbort = useCallback(async () => {
@@ -224,6 +231,35 @@ export default function Home() {
     else if (surf === 'surface7') { setSurface('proofs'); setProofsTab('manuscripts'); }
     else setSurface(surf as DockSurface);
   }, []);
+
+  const handleMaterialize = useCallback((kind: CanvasWidgetKind, title: string) => {
+    setCanvasWidget({ kind, title });
+    setSurface('arena');
+  }, []);
+
+  const handleAuthorizePulse = useCallback(() => {
+    setGateState((g) => ({ ...g, [currentSessionId]: 'authorized' }));
+    setGateNotice('Pulse authorized: mandate verified & recorded. Gate closed.');
+    setTimeout(() => setGateNotice(null), 6000);
+    refreshData();
+  }, [currentSessionId, refreshData]);
+
+  const handleDenyPulse = useCallback((reason: string) => {
+    setGateState((g) => ({ ...g, [currentSessionId]: 'denied' }));
+    setGateNotice(`Pulse denied (${reason}). Halted fail-closed — nothing dispatched.`);
+    setTimeout(() => setGateNotice(null), 6000);
+  }, [currentSessionId]);
+
+  const gateOpen = Boolean(campaign) && !gateState[currentSessionId];
+
+  const handleRequestGateFocus = useCallback(() => {
+    setGateNotice(
+      gateOpen
+        ? 'Confirm in the Action Gate (bottom left) — the only place pulses authorize.'
+        : 'Gate already decided for this session.'
+    );
+    setTimeout(() => setGateNotice(null), 6000);
+  }, [gateOpen]);
 
   // Global Keyboard Shortcuts
   useEffect(() => {
@@ -265,7 +301,6 @@ export default function Home() {
   const session = sessions.find((s) => s.id === currentSessionId) || null;
   const targetShort = campaign?.quantum_factors?.target_molecule || campaign?.target_system || '';
   const targetLabel = targetShort ? `${targetShort.slice(0, 28)} · Ground State Target` : 'No Target · Idle';
-  const gateOpen = Boolean(campaign) && !gateState[currentSessionId];
   void nowTick;
 
   const subToggle = (options: Array<{ id: string; label: string }>, value: string, onChange: (id: string) => void) => (
@@ -339,7 +374,7 @@ export default function Home() {
               return (
                 <div key={s.id} className="relative group">
                   <button
-                    onClick={() => { setCurrentSessionId(s.id); setShowCampaignMenu(false); }}
+                    onClick={() => { switchSession(s.id); setShowCampaignMenu(false); }}
                     className={`w-full text-left p-2.5 pr-8 rounded-xl text-xs transition-all border ${
                       isSelected
                         ? 'bg-cyan-500/10 border-cyan-500/40 text-white'
@@ -424,11 +459,25 @@ export default function Home() {
             {!showLegacyCanvas && (
               <button
                 onClick={() => setShowLegacyCanvas(true)}
-                title="Open Living Canvas (molecule workbench)"
-                className="absolute bottom-6 right-6 z-20 flex items-center gap-1.5 px-3 py-2 rounded-full bg-[#0E1117]/80 backdrop-blur-xl border border-white/10 text-[11px] text-slate-300 hover:text-white hover:border-cyan-400/40 transition-all shadow-2xl"
+                title="Living Canvas (molecule workbench)"
+                aria-label="Living Canvas (molecule workbench)"
+                className="absolute bottom-6 right-6 z-20 w-9 h-9 rounded-full bg-[#0E1117]/80 backdrop-blur-xl border border-white/10 hover:border-cyan-400/40 transition-all shadow-2xl flex items-center justify-center"
               >
-                <Box className="w-3.5 h-3.5 text-cyan-400" /> Living Canvas
+                <Box className="w-4 h-4 text-cyan-400" />
               </button>
+            )}
+
+            {/* On-demand canvas widget (co-pilot materialized, single slot) */}
+            {!showLegacyCanvas && (
+              <WidgetStage
+                widget={canvasWidget}
+                campaign={campaign}
+                gateOpen={gateOpen}
+                spendUsd={session?.current_spend_usd ?? 0}
+                spendCapUsd={session?.spend_limit_usd ?? 150}
+                onDismiss={() => setCanvasWidget(null)}
+                onRequestGateFocus={handleRequestGateFocus}
+              />
             )}
 
             {/* Calibrated action gate — only while authorization is outstanding */}
@@ -436,17 +485,8 @@ export default function Home() {
               <ActionGate
                 campaign={campaign}
                 session={session}
-                onAuthorized={() => {
-                  setGateState((g) => ({ ...g, [currentSessionId]: 'authorized' }));
-                  setGateNotice('Pulse authorized: mandate verified & recorded. Gate closed.');
-                  setTimeout(() => setGateNotice(null), 6000);
-                  refreshData();
-                }}
-                onDenied={(reason) => {
-                  setGateState((g) => ({ ...g, [currentSessionId]: 'denied' }));
-                  setGateNotice(`Pulse denied (${reason}). Halted fail-closed — nothing dispatched.`);
-                  setTimeout(() => setGateNotice(null), 6000);
-                }}
+                onAuthorized={handleAuthorizePulse}
+                onDenied={handleDenyPulse}
               />
             )}
             {gateNotice && (
@@ -510,6 +550,7 @@ export default function Home() {
             }}
             onCampaignUpdated={(c) => setCampaign(c)}
             onSelectSurface={handleCopilotSurface}
+            onMaterialize={handleMaterialize}
             onClose={() => setShowCopilot(false)}
           />
         </aside>
