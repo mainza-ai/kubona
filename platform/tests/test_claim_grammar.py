@@ -16,6 +16,7 @@ from kubona.anchors.chemistry import MolecularAnchorEngine
 from kubona.epistemics.claim_grammar import (
     ClaimCategory,
     CredibilityField,
+    EvidenceTier,
     HardwareProvenance,
     ScientificClaim,
 )
@@ -49,6 +50,7 @@ def _base_claim(**over) -> dict:
         confidence_interval_95=(-1.137, -1.135),
         falsification_criteria=["independent FCI recomputation differs by >1.6 mHa"],
         hardware_provenance=_hw(),
+        evidence_tier=EvidenceTier.T3_SAMPLED,
     )
     kw.update(over)
     return kw
@@ -173,3 +175,22 @@ def test_uncollapsed_record_has_zero_rho():
     assert record.rho == 0.0
     with pytest.raises(EpistemicGateError, match="uncollapsed"):
         wf.assert_claim("Measured something somewhere", state)
+
+
+def test_missing_evidence_tier_refuses():
+    kw = _base_claim()
+    del kw["evidence_tier"]
+    with pytest.raises(ValidationError):
+        ScientificClaim(**kw)
+
+
+def test_invalid_evidence_tier_refuses():
+    with pytest.raises(ValidationError):
+        ScientificClaim(**_base_claim(evidence_tier="T9_MAYBE"))
+
+
+def test_evidence_tier_renders_in_statement():
+    c = ScientificClaim(**_base_claim())
+    assert "[T3_SAMPLED]" in c.formatted_statement()
+    c1 = ScientificClaim(**_base_claim(evidence_tier=EvidenceTier.T1_VERIFIED))
+    assert "[T1_VERIFIED]" in c1.formatted_statement()
