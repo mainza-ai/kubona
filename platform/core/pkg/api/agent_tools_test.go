@@ -20,7 +20,7 @@ func TestCopilotToolRegistration(t *testing.T) {
 	want := map[string]bool{
 		"get_anchor": false, "get_campaign": false, "list_jobs": false,
 		"get_job": false, "recent_events": false, "query_literature": false,
-		"submit_local_sim": false,
+		"submit_local_sim": false, "recall_memory": false,
 	}
 	for _, d := range defs {
 		fn, _ := d["function"].(map[string]any)
@@ -101,5 +101,42 @@ func TestSubmitLocalSimTool(t *testing.T) {
 	_, err = r.Dispatch(context.Background(), CopilotRole, mustCall("submit_local_sim", `{"session_id":"s","qasm":"OPENQASM 2.0;","shots":99999}`))
 	if err == nil || !strings.Contains(err.Error(), "capped at 4096") {
 		t.Errorf("expected shots-cap refusal, got %v", err)
+	}
+}
+
+func TestRecallMemoryTool(t *testing.T) {
+	s := &Server{}
+	r := s.registerAgentTools()
+	// Unknown session: tenant falls back to default, empty store reads
+	// return empty snippets — never an error, never invented memories.
+	out, err := r.Dispatch(context.Background(), CopilotRole,
+		mustCall("recall_memory", `{"session_id":"missing","query":"H2 anchor"}`))
+	if err != nil {
+		t.Fatalf("recall on empty store must succeed empty, got %v", err)
+	}
+	m, ok := out.(map[string]any)
+	if !ok {
+		t.Fatalf("unexpected shape: %T", out)
+	}
+	if snips, ok := m["snippets"].([]any); !ok || len(snips) != 0 {
+		t.Errorf("expected empty snippets, got %v", m["snippets"])
+	}
+	// Missing query refuses (required field).
+	if _, err := r.Dispatch(context.Background(), CopilotRole,
+		mustCall("recall_memory", `{"session_id":"s"}`)); err == nil {
+		t.Error("missing query must refuse")
+	}
+	// Turn roles may recall; nobody unlisted may.
+	for _, role := range []string{"ansatz-scout", "epistemic-scribe"} {
+		seen := false
+		for _, d := range r.DefinitionsForLLM(role) {
+			fn, _ := d["function"].(map[string]any)
+			if fn["name"] == "recall_memory" {
+				seen = true
+			}
+		}
+		if !seen {
+			t.Errorf("role %q must see recall_memory", role)
+		}
 	}
 }
