@@ -1413,3 +1413,9 @@ skipped is the exact failure this incident is about:
   EvidenceTier (T1 verified / T2 consistent / T3 sampled) required on
   ScientificClaim, rendered in statements; missing/invalid refuses.
   Defined on the realism page with in-repo mappings. Suite 327 passed.
+
+## [2026-10-10] implementation | Provenance quarantine on corpora
+  Mandatory _meta.provenance (authored/transcribed/curated/generated/
+  upstream) in both loaders; undeclared refuses even with clean licence;
+  generated admissible only declared. All 4 corpora stamped; existing
+  fixtures updated. Suite 329 passed.

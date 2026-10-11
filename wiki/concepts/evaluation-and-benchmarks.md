@@ -182,3 +182,10 @@ Related: [[karpathy-autoresearch]] · [[qir-mlir-compilation]] · [[barren-plate
   LLM judging, no vibes — satisfiability is the entire criterion, verified by
   `evaluate_codegen` (in-repo corpora additionally prove satisfiability at
   load-test time).
+- **Provenance quarantine (2026-10-10).** Every corpus file additionally
+  declares `_meta.provenance` in {authored, transcribed, curated, generated,
+  upstream}; undeclared provenance refuses the file even with a clean
+  licence. Model-generated content is admissible *only* declared — the
+  declaration is what makes the execution-verification requirement
+  auditable. Scraped content without per-item licence refs refuses via the
+  licence gate above. Same rule enforced on code-task corpora.
