@@ -90,7 +90,6 @@ The positive vocabulary — what Kubona *may* say, enforced at construction in
   Rendered as `[ρ=0.950 L3 refs=1]` in `formatted_statement`.
 
 ## Evidence tiers (enforced 2026-10-10)
-
 Every claim states how its number was earned (`EvidenceTier`, required, no
 default — a claim that will not say how it knows refuses at construction):
 
@@ -103,6 +102,25 @@ default — a claim that will not say how it knows refuses at construction):
 A T3 number cited without its interval, or a T2 cited without its
 assumptions, is a malformed claim — the tier names what must travel with
 the number. Rendered as `[T3_SAMPLED]` in `formatted_statement`.
+
+## Structural pre-checks (built 2026-10-11)
+
+Before any cost estimate or anchor comparison, `verification/advantage.py`
+screens circuits for the two fastest historical kill patterns (`intake_checklist`):
+
+- **Mirror structure** (`mirror_fraction`): second half inverting the first
+  (gate-wise inverse, reversed order, parametric inverses included) at
+  ≥0.5 flags for contraction-width analysis — the "peak" may be an
+  uncomputation artifact.
+- **Narrow entanglement cuts** (`min_entanglement_cut`, exact ≤12 qubits,
+  reported unmeasured above): min cut below half the qubit count flags
+  transverse-contraction risk.
+- **Three-task separation**: `score_only` claims (XEB/HOG/anticoncentration
+  without fidelity) **refuse outright** — no sample-only statistic can
+  witness advantage. `exact_amplitude` / `bounded_fidelity_sampling` (the
+  latter needing a fidelity number) proceed to cost-estimated review.
+- Unmeasured means FLAG, never PASS; thresholds are documented v1
+  heuristics, not constants of nature.
 
 **Links:** [[claim-credibility-wavefunctions]] · [[evaluation-and-benchmarks]] ·
 [[fidelity-accounting]] · [[quantum-domain-packs]] · [[provenance-and-reproducibility]] ·
