@@ -1434,3 +1434,8 @@ skipped is the exact failure this incident is about:
   three-task intake (score-only refuses, mirrored/narrow flags, clean
   passes to cost review). 10 tests green; thresholds documented v1.
   Suite 342 passed.
+
+## [2026-10-11] implementation | Re-fittable ZNE records, syndrome deferred
+  ZNEResult archives per-scale values + shots/seed; refit() over
+  Richardson/linear/exponential with fail-closed boundaries. Syndrome
+  pipelines explicitly deferred (no producer yet). Suite 344 passed.
