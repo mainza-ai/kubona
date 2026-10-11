@@ -66,10 +66,27 @@ returned by providers, currently discarded).
 
 - **Batch 1 (frontend only):** stop button, copy everywhere, in-chat search,
   metadata line, export, slash commands, contextual follow-ups.
+  ✅ **Built 2026-10-11:** abortable streaming + Stop button (honest
+  server-continues note), per-message copy, served-by/duration/token line,
+  search with match navigation, markdown export, `/tribunal /launch /help`,
+  attachment pills, contextual follow-ups. 35/35 vitest.
 - **Batch 2 (backend):** clear endpoint, regenerate, feedback events, usage
   persistence.
+  ✅ **Built 2026-10-11:** `DELETE messages` (auditable erasure), `POST
+  regenerate` (no duplicated turn), `POST feedback` (ledger-sealed votes),
+  `duration_ms`/`usage_json` columns + persistence on both chat paths.
+  Live-validated: rewrite→regen answered the edited prompt in 408 ms;
+  refusals (unknown id, bad vote, empty rewrite, assistant rewrite) all
+  hold; usage round-trips through history reloads.
 - **Batch 3 (integration):** edit-resend branching, turn→probe ignition,
-  inline job tracking, claim citations.
+  inline job tracking, citations.
+  ✅ **Built 2026-10-11 (part):** `POST rewrite` (user-only, positional
+  truncation — timestamp comparison under-deleted same-second inserts) +
+  pencil/edit/resend UI with auto-regenerate; tribunal stage timers replaced
+  by live turn polling (probe ignites per recorded turn, transcript merges
+  mid-run); launched proposals poll job status inline (bounded, terminal
+  stop). Claim-citation plumbing deferred: needs record-id surfacing per
+  turn (specced, not built).
 
 Related: [[ui-ux-vision]] · [[ui-honesty-audit-2026-10-11]] ·
 [[agent-ux-control-plane]] · [[evaluation-and-benchmarks]]

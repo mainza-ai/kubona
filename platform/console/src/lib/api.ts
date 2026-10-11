@@ -81,10 +81,13 @@ export async function sendChatMessage(sessionId: string, content: string): Promi
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ session_id: sessionId, role: 'user', content }),
     });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const assistant = data.assistant || data.assistant_message;
-    if (assistant && data.model && !assistant.model) assistant.model = data.model;
+      if (!res.ok) return null;
+      const data = await res.json();
+      const assistant = data.assistant || data.assistant_message;
+      if (assistant && data.model && !assistant.model) assistant.model = data.model;
+      if (assistant && data.duration_ms != null && assistant.duration_ms == null) {
+        assistant.duration_ms = data.duration_ms;
+      }
     return {
       user: data.user || data.user_message,
       assistant,
@@ -101,6 +104,8 @@ export interface StreamDone {
   proposal?: unknown;
   campaign?: import('@/types').CampaignState;
   model?: string;
+  duration_ms?: number;
+  usage?: Record<string, number>;
 }
 
 // Streaming twin of sendChatMessage: tokens arrive live via SSE
@@ -109,12 +114,14 @@ export interface StreamDone {
 export async function streamChatMessage(
   sessionId: string,
   content: string,
-  onToken: (text: string) => void
+  onToken: (text: string) => void,
+  signal?: AbortSignal
 ): Promise<StreamDone> {
   const res = await fetch(`${API_BASE}/api/chat/stream?session_id=${encodeURIComponent(sessionId)}`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ session_id: sessionId, role: 'user', content }),
+    signal,
   });
   if (!res.ok || !res.body) throw new Error(`stream refused (HTTP ${res.status})`);
   const reader = res.body.getReader();
@@ -754,5 +761,104 @@ export async function searchLiterature(query: string, limit = 5): Promise<{ reco
   } catch (err) {
     console.error('Failed to search literature:', err);
     return { records: [], cached: false };
+  }
+}
+
+// Clear-history: deletes every chat message in the session. Session +
+// campaign + ledger history survive; the erasure is sealed server-side.
+export async function clearMessages(sessionId: string): Promise<number | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/messages`, {
+      method: 'DELETE',
+      headers: authHeaders(),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return typeof data.deleted === 'number' ? data.deleted : 0;
+  } catch (err) {
+    console.error('Failed to clear messages:', err);
+    return null;
+  }
+}
+
+// Regenerate: drops trailing assistant messages and re-answers the last
+// user prompt (no duplicated user turn). Same envelope as chat POST.
+export async function regenerateChat(
+  sessionId: string
+): Promise<{ assistant: ChatMessage; model?: string; duration_ms?: number } | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/chat/regenerate`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ session_id: sessionId }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const assistant = data.assistant || data.assistant_message;
+    if (assistant && data.model && !assistant.model) assistant.model = data.model;
+    if (assistant && data.duration_ms != null && assistant.duration_ms == null) {
+      assistant.duration_ms = data.duration_ms;
+    }
+    return { assistant, model: data.model, duration_ms: data.duration_ms };
+  } catch (err) {
+    console.error('Failed to regenerate:', err);
+    return null;
+  }
+}
+
+// Feedback: records a vote on an assistant message as a ledger event.
+export async function sendFeedback(
+  sessionId: string,
+  messageId: string,
+  vote: 'up' | 'down'
+): Promise<boolean> {
+  try {
+    const res = await fetch(`${API_BASE}/api/chat/feedback`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ session_id: sessionId, message_id: messageId, vote }),
+    });
+    return res.ok;
+  } catch (err) {
+    console.error('Failed to send feedback:', err);
+    return false;
+  }
+}
+
+// Rewrite (edit-resend branching): replaces a user message and deletes every
+// later message, restarting the thread from the edited turn.
+export async function rewriteChat(
+  sessionId: string,
+  messageId: string,
+  content: string
+): Promise<ChatMessage | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/chat/rewrite`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ session_id: sessionId, message_id: messageId, content }),
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.message || null;
+  } catch (err) {
+    console.error('Failed to rewrite message:', err);
+    return null;
+  }
+}
+
+// Jobs: session-scoped run list for inline launch tracking.
+export async function fetchJobs(sessionId: string): Promise<import('@/types').Job[]> {
+  try {
+    const res = await fetch(`${API_BASE}/api/jobs?session_id=${encodeURIComponent(sessionId)}`, {
+      cache: 'no-store',
+      headers: authHeaders(),
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.jobs || [];
+  } catch (err) {
+    console.error('Failed to fetch jobs:', err);
+    return [];
   }
 }
