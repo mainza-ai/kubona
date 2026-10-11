@@ -1424,3 +1424,7 @@ skipped is the exact failure this incident is about:
   fidelity_budget on the accounting engine: absolute gains honest,
   shares rank-only with documented non-additivity; ideal devices clean.
   3 tests green; suite 332 passed.
+
+## [2026-10-11] verification | CI green with improvement batches
+  Scheduler, tiers, quarantine, budgets pushed; all 5 jobs success on
+  run 38103820390. Tree clean, zero unpushed.
