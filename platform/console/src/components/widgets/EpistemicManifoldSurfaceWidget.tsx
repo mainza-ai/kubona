@@ -32,7 +32,7 @@ export function EpistemicManifoldSurfaceWidget({
             <Compass className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-white/90">Riemannian Epistemic Manifold Surface (A2UI)</h3>
+            <h3 className="text-sm font-semibold text-white/90">Riemannian Epistemic Manifold Surface (A2UI)<span className="ml-2 align-middle text-[9px] font-mono uppercase px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/10 text-slate-400">Illustrative</span></h3>
             <p className="text-xs text-white/50">Fisher-Rao Information Metric g_μν • Geodesic Curiosity Navigation</p>
           </div>
         </div>

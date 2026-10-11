@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Radio, RefreshCw } from 'lucide-react';
+import { Radio } from 'lucide-react';
 
 interface ShadowTomographyRadarWidgetProps {
   numQubits?: number;
@@ -13,9 +13,10 @@ export function ShadowTomographyRadarWidget({
   initialSnapshots = 600,
 }: ShadowTomographyRadarWidgetProps) {
   const [snapshotCount, setSnapshotCount] = useState<number>(initialSnapshots);
-  const [isSampling, setIsSampling] = useState<boolean>(false);
 
-  // Observable expectation estimates computed via median-of-means
+  // Reference observable estimates (static illustrative figures — see the
+  // Illustrative badge; the pool-size slider below explores what-if pool
+  // sizes without recomputing statistics).
   const observables = [
     { pauli: 'ZZ', exact: 1.000, shadowEst: 0.984, stdErr: 0.021 },
     { pauli: 'XX', exact: 1.000, shadowEst: 0.991, stdErr: 0.019 },
@@ -23,13 +24,6 @@ export function ShadowTomographyRadarWidget({
     { pauli: 'ZI', exact: 0.000, shadowEst: 0.012, stdErr: 0.015 },
     { pauli: 'IZ', exact: 0.000, shadowEst: -0.008, stdErr: 0.014 },
   ];
-
-  const handleResample = () => {
-    setIsSampling(true);
-    setTimeout(() => {
-      setIsSampling(false);
-    }, 400);
-  };
 
   return (
     <div className="rounded-2xl border border-white/[0.08] bg-black/60 p-5 backdrop-blur-xl text-white space-y-4">
@@ -44,15 +38,14 @@ export function ShadowTomographyRadarWidget({
             <p className="text-xs text-white/50">Huang-Kueng-Preskill Protocol • {numQubits} Qubits • O(log M / ε²)</p>
           </div>
         </div>
-        <button
-          onClick={handleResample}
-          disabled={isSampling}
-          className="flex items-center space-x-1.5 px-3 py-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 text-xs text-blue-300 hover:bg-blue-500/20 transition disabled:opacity-50"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${isSampling ? 'animate-spin' : ''}`} />
-          <span>Resample Shadows</span>
-        </button>
+        <span className="text-[9px] font-mono uppercase px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/10 text-slate-400">
+          Illustrative
+        </span>
       </div>
+
+      <p className="text-[10px] font-mono text-slate-500">
+        Reference figures for the protocol — not measured from this session. Estimates below are static.
+      </p>
 
       {/* Snapshots Controls & Efficiency Badge */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
