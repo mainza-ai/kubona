@@ -2,8 +2,6 @@ package agents
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"log"
 	"math"
@@ -18,26 +16,26 @@ import (
 
 // QuantumFactors encapsulates the dynamic quantum information for a target
 type QuantumFactors struct {
-	TargetMolecule     string   `json:"target_molecule"`
-	MolecularFormula   string   `json:"molecular_formula"`
-	BondDistance       float64  `json:"bond_distance"`
-	ActiveElectrons    int      `json:"active_electrons"`
-	ActiveOrbitals     int      `json:"active_orbitals"`
-	FermionMapping     string   `json:"fermion_mapping"`
-	QubitCount         int      `json:"qubit_count"`
-	CircuitDepth       int      `json:"circuit_depth"`
-	TwoQubitGates      int      `json:"two_qubit_gates"`
-	AnsatzFamily       string   `json:"ansatz_family"`
-	MeyerWallachQ      float64  `json:"meyer_wallach_q"`
-	GradientVariance   float64  `json:"gradient_variance"`
-	BarrenPlateauRisk  string   `json:"barren_plateau_risk"`
-	CliffordFidelity   float64  `json:"clifford_fidelity"`
-	RecommendedBackend string   `json:"recommended_backend"`
-	EstimatedSpendUSD  float64  `json:"estimated_spend_usd"`
-	QASM               string   `json:"qasm"`
-	DagNodes           []any    `json:"dag_nodes"`
-	DagEdges           []any    `json:"dag_edges"`
-	WireCuts           []any    `json:"wire_cuts"`
+	TargetMolecule     string  `json:"target_molecule"`
+	MolecularFormula   string  `json:"molecular_formula"`
+	BondDistance       float64 `json:"bond_distance"`
+	ActiveElectrons    int     `json:"active_electrons"`
+	ActiveOrbitals     int     `json:"active_orbitals"`
+	FermionMapping     string  `json:"fermion_mapping"`
+	QubitCount         int     `json:"qubit_count"`
+	CircuitDepth       int     `json:"circuit_depth"`
+	TwoQubitGates      int     `json:"two_qubit_gates"`
+	AnsatzFamily       string  `json:"ansatz_family"`
+	MeyerWallachQ      float64 `json:"meyer_wallach_q"`
+	GradientVariance   float64 `json:"gradient_variance"`
+	BarrenPlateauRisk  string  `json:"barren_plateau_risk"`
+	CliffordFidelity   float64 `json:"clifford_fidelity"`
+	RecommendedBackend string  `json:"recommended_backend"`
+	EstimatedSpendUSD  float64 `json:"estimated_spend_usd"`
+	QASM               string  `json:"qasm"`
+	DagNodes           []any   `json:"dag_nodes"`
+	DagEdges           []any   `json:"dag_edges"`
+	WireCuts           []any   `json:"wire_cuts"`
 }
 
 // ClassicalAnchor encapsulates the ab-initio physics baseline
@@ -529,10 +527,9 @@ func SynthesizeCampaignStateWithOpts(
 		epStatement = fmt.Sprintf("Hypothesis formulated for %s. Awaiting variational circuit optimization.", target)
 	}
 
-	// SHA-256 Merkle Provenance Hash
-	hasher := sha256.New()
-	hasher.Write([]byte(fmt.Sprintf("%s:%s:%.5f:%.5f:%s", sessionID, mol, bondDist, fciVal, qasmCode)))
-	provenanceHash := fmt.Sprintf("sha256:%s", hex.EncodeToString(hasher.Sum(nil)))
+	// SHA-256 Merkle Provenance Hash (shared with replan: the hash must
+	// re-derive identically when a recomputed anchor changes FCI).
+	provenanceHash := provenanceHash(sessionID, mol, bondDist, fciVal, qasmCode)
 
 	// Systematic Notebook Sections
 	notebookVerdict := "VERIFIED_COLLAPSED"

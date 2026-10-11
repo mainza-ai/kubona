@@ -1639,3 +1639,10 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-11] verification | CI green on memory write-back
   All 5 jobs success on run 38164273195. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | Planner replan on job settlement
+  agents.ReplanWithJobResult pure fold per job type (MW/krylov energy/
+  anchor recompute/verdict amplitudes; energy never fabricated);
+  jobs settled-hook on COMPLETED only; versions labeled
+  replan:<type>:<id>. Live: Bell run MW 0.82 -> 1.0 with provenance
+  line. Full Go suite green.

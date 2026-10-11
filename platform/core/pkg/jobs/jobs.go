@@ -52,6 +52,26 @@ type Runner struct {
 	// fidelityGate predicts whether a hardware run can produce a publishable
 	// number before spending (Ring 3 second rail beside money).
 	fidelityGate *fidelity.FidelityGate
+	// settledHook fires after a job reaches COMPLETED, on the worker
+	// goroutine. It owns no job state — persistence already landed before it
+	// runs. Failed and aborted jobs never fire it: there is no measured
+	// result to fold. The hook must be fast and non-blocking (ledger writes
+	// and pure folds only); a slow hook stalls the worker pool.
+	settledHook func(*Job)
+}
+
+// SetSettledHook registers the post-completion callback (planner replan).
+// Nil clears it. Safe to call before or after Start.
+func (r *Runner) SetSettledHook(hook func(*Job)) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.settledHook = hook
+}
+
+func (r *Runner) getSettledHook() func(*Job) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.settledHook
 }
 
 func NewRunner(l *ledger.Ledger, bridgeClient pb.QuantumBridgeServiceClient, workers int) *Runner {
@@ -294,6 +314,11 @@ func (r *Runner) executeJob(j *Job) {
 		j.Status.String(), string(j.ResultJSON), j.CompletedAt, j.ID,
 	)
 	r.ledger.AppendEvent(j.SessionID, "job_settled", j)
+	if j.Status == pb.JobStatus_JOB_STATUS_COMPLETED {
+		if hook := r.getSettledHook(); hook != nil {
+			hook(j)
+		}
+	}
 }
 
 // releaseReservation returns a job's bound spend to its lab. Idempotent:

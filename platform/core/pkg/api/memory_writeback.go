@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/mainza-ai/kubona/core/pkg/agents"
+	"github.com/mainza-ai/kubona/core/pkg/jobs"
 	"github.com/mainza-ai/kubona/core/pkg/memory"
 )
 
@@ -112,6 +114,36 @@ func chatImportance(hasProposal, hadError, usedTools bool) float64 {
 	default:
 		return 0.5
 	}
+}
+
+// replanCampaignOnSettled is the job settled-hook: a COMPLETED job's
+// measured result folds back into the session campaign, saved as a new
+// version so plan evolution stays auditable. Sessions without a campaign,
+// undecodable payloads, and folds with nothing honest to change all skip
+// silently — the job_settled event already records the outcome, and a
+// no-change version would be audit spam.
+func (s *Server) replanCampaignOnSettled(j *jobs.Job) {
+	if s.ledger == nil || j == nil || len(j.ResultJSON) == 0 {
+		return
+	}
+	rawState, err := s.ledger.GetCampaignState(j.SessionID)
+	if err != nil || len(rawState) == 0 {
+		return
+	}
+	updated, changed, note := agents.ReplanWithJobResult(rawState, j.ID, j.JobType, j.ResultJSON)
+	if !changed {
+		return
+	}
+	shortID := j.ID
+	if len(shortID) > 8 {
+		shortID = shortID[:8]
+	}
+	s.ledger.SaveCampaignStateWithTrigger(j.SessionID, updated, "replan:"+j.JobType+":"+shortID)
+	_ = s.ledger.AppendEvent(j.SessionID, "campaign_replanned", map[string]any{
+		"job":      j.ID,
+		"job_type": j.JobType,
+		"note":     note,
+	})
 }
 
 // retainTurnExperience stores one bounded experience for a completed model
