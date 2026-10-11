@@ -1477,3 +1477,6 @@ skipped is the exact failure this incident is about:
   anchor dict + ledger record, 4 stub tests green. Vendor SDK privately
   distributed (PyPI name is unrelated lib) so no method names guessed;
   binding + trial account remain operator steps.
+
+## [2026-10-11] verification | CI green on 9-commit research batch
+  All 5 jobs success first try on run 38113120983. Tree clean, zero unpushed.
