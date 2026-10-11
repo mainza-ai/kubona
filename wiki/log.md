@@ -1566,3 +1566,8 @@ skipped is the exact failure this incident is about:
   rewrite endpoints + usage persistence; tribunal live-turn polling, inline
   job tracking, edit-resend UI. Go full suite + 35 vitest + build clean.
   Chat dynamicity rule holds: no baked results, statuses from backend only.
+
+## [2026-10-11] verification | CI green after red-fix + chat tooltips
+  Uncommitted types/client files had red CI (Go build + Next typecheck);
+  committed, all 5 jobs success on run 38137923077. Rich Tip tooltips on all
+  chat icon controls. Tree clean, zero unpushed.
