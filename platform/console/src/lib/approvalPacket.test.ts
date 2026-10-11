@@ -68,3 +68,19 @@ describe('approval packet builder (Q-11 burden-scaled packet)', () => {
     expect(canConfirmDenial('too pricey')).toBe(true);
   });
 });
+
+describe('isMeteredBackend', () => {
+  it('treats simulator-class backends as auto-allow (never gated)', async () => {
+    const { isMeteredBackend } = await import('./approvalPacket');
+    for (const b of ['local_simulator', 'Local Simulator (qiskit-aer-simulator)', 'statevector', 'starter / simulator-first']) {
+      expect(isMeteredBackend(b)).toBe(false);
+    }
+  });
+
+  it('treats hardware and unknown tiers as metered (fail-closed visibility)', async () => {
+    const { isMeteredBackend } = await import('./approvalPacket');
+    for (const b of ['ibm_brisbane', 'QuEra Aquila', 'mystery-backend-9', '', null, undefined]) {
+      expect(isMeteredBackend(b)).toBe(true);
+    }
+  });
+});

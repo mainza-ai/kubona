@@ -6,6 +6,7 @@ import { ArenaHud } from './ArenaHud';
 import { SwarmUniverse } from './SwarmUniverse';
 import { ActionGate } from './ActionGate';
 import { WidgetStage } from './WidgetStage';
+import { ProofDagView } from './ProofDagView';
 import type { CampaignState } from '@/types';
 
 function render(el: React.ReactElement) {
@@ -156,14 +157,27 @@ describe('SwarmUniverse', () => {
     expect(root.findByProps({ 'data-testid': 'probe-compiler' }).props['data-active']).toBe('true');
     expect(root.findByProps({ 'data-testid': 'probe-theorist' }).props['data-active']).toBe(undefined);
   });
+
+  it('rests when idle: no sweep, rest note shown', () => {
+    const root = render(<SwarmUniverse campaign={CAMPAIGN} atRest />);
+    expect(root.findByProps({ 'data-testid': 'swarm-universe' }).props['data-rest']).toBe('true');
+    expect(textOf(root.findByProps({ 'data-testid': 'universe-rest-note' }))).toContain('idle');
+  });
+
+  it('animates when working: no rest markers', () => {
+    const root = render(<SwarmUniverse campaign={CAMPAIGN} atRest={false} />);
+    expect(root.findByProps({ 'data-testid': 'swarm-universe' }).props['data-rest']).toBe(undefined);
+    expect(root.findAllByProps({ 'data-testid': 'universe-rest-note' }).length).toBe(0);
+  });
 });
 
 describe('ActionGate', () => {
   it('shows the authorize affordance with live cost and backend', () => {
     const root = render(
-      <ActionGate campaign={CAMPAIGN} session={null} onAuthorized={() => {}} onDenied={() => {}} />
+      <ActionGate campaign={CAMPAIGN} session={null} onAuthorized={() => {}} onDenied={() => {}} onDowngrade={() => {}} />
     );
     root.findByProps({ 'data-testid': 'action-gate-authorize' });
+    root.findByProps({ 'data-testid': 'action-gate-downgrade' });
     const flat = textOf(root.findByProps({ 'data-testid': 'action-gate' }));
     expect(flat).toContain('48.50');
     expect(flat).toContain('QuEra Aquila');
@@ -206,8 +220,30 @@ describe('WidgetStage', () => {
     expect(flat).toContain('48.50');
   });
 
-  it('spend card defers the decision to the Action Gate (never signs itself)', () => {
-    const onRequestGateFocus = vi.fn();
+  it('minimizes to the header bar and expands back', () => {
+    const root = render(
+      <WidgetStage widget={{ kind: 'circuit', title: 'Circuit · live' }} {...base} onDismiss={() => {}} />
+    );
+    const stage = root.findByProps({ 'data-testid': 'widget-stage' });
+    expect(stage.props['data-minimized']).toBe(undefined);
+    act(() => {
+      root.findByProps({ 'data-testid': 'widget-minimize' }).props.onClick();
+    });
+    expect(root.findByProps({ 'data-testid': 'widget-stage' }).props['data-minimized']).toBe('true');
+  });
+
+  it('marks static reference content REF, live feeds LIVE', () => {
+    const shadows = render(
+      <WidgetStage widget={{ kind: 'shadows', title: 'Shadow estimates' }} {...base} onDismiss={() => {}} />
+    );
+    expect(textOf(shadows.findByProps({ 'data-testid': 'widget-stage' }))).toContain('REF');
+    const circuit = render(
+      <WidgetStage widget={{ kind: 'circuit', title: 'Circuit · live' }} {...base} onDismiss={() => {}} />
+    );
+    expect(textOf(circuit.findByProps({ 'data-testid': 'widget-stage' }))).toContain('LIVE');
+  });
+
+  it('spend card defers the decision to the Action Gate (never signs itself)', () => {    const onRequestGateFocus = vi.fn();
     const root = render(
       <WidgetStage
         widget={{ kind: 'mandate', title: 'Spend mandate' }}
@@ -222,5 +258,53 @@ describe('WidgetStage', () => {
       (review as ReactTestInstance).props.onClick();
     });
     expect(onRequestGateFocus).toHaveBeenCalled();
+  });
+});
+
+describe('ProofDagView', () => {
+  const dagCampaign = {
+    ...CAMPAIGN,
+    quantum_factors: {
+      ...CAMPAIGN.quantum_factors,
+      dag_nodes: [
+        { id: 'q0-in', data: { type: 'Qubit Wire', label: 'q[0]: |0>' } },
+        { id: 'rz-q0', data: { type: 'Param Rotation', label: '[ Rz(θ1) ]', angle: 0.785 } },
+      ],
+      dag_edges: [{ id: 'e1', source: 'q0-in', target: 'rz-q0' }],
+    },
+  } as unknown as CampaignState;
+
+  it('lays out nodes by layer and draws the real edge set', () => {
+    const root = render(<ProofDagView campaign={dagCampaign} />);
+    expect(root.findByProps({ 'data-testid': 'proof-dag' })).toBeDefined();
+    const svg = root.findByType('svg');
+    expect(textOf(svg)).toContain('Rz');
+    expect(svg.findAllByType('path').length).toBe(1);
+  });
+
+  it('drops dangling edges and stays honest when empty', () => {
+    const broken = {
+      ...dagCampaign,
+      quantum_factors: {
+        ...dagCampaign.quantum_factors,
+        dag_edges: [{ id: 'ghost', source: 'nope', target: 'rz-q0' }],
+      },
+    } as unknown as CampaignState;
+    const root = render(<ProofDagView campaign={broken} />);
+    expect(root.findByType('svg').findAllByType('path').length).toBe(0);
+    const empty = render(<ProofDagView campaign={CAMPAIGN} />);
+    expect(textOf(empty.findByType(ProofDagView))).toContain('No proof DAG');
+  });
+
+  it('selecting a node traces its record', () => {
+    const root = render(<ProofDagView campaign={dagCampaign} />);
+    const groups = root.findAll(
+      (n) => typeof n.type === 'string' && n.type === 'g' && n.props.onClick
+    );
+    expect(groups.length).toBe(2);
+    act(() => {
+      groups[1].props.onClick();
+    });
+    expect(textOf(root.findByProps({ 'data-testid': 'proof-dag' }))).toContain('rz-q0');
   });
 });

@@ -14,6 +14,7 @@ import { ArenaHud, ArenaView } from '@/components/sovereign/ArenaHud';
 import { SwarmUniverse } from '@/components/sovereign/SwarmUniverse';
 import { ProofDagView } from '@/components/sovereign/ProofDagView';
 import { ActionGate } from '@/components/sovereign/ActionGate';
+import { isMeteredBackend } from '@/lib/approvalPacket';
 import { WidgetStage, CanvasWidgetSpec, CanvasWidgetKind } from '@/components/sovereign/WidgetStage';
 import { FlightRecorder } from '@/components/surfaces/FlightRecorder';
 import { EpistemicManifold } from '@/components/surfaces/EpistemicManifold';
@@ -54,7 +55,7 @@ export default function Home() {
   const [proofsTab, setProofsTab] = useState<'manuscripts' | 'tribunal'>('manuscripts');
   const [meshTab, setMeshTab] = useState<'mesh' | 'guardrails' | 'models' | 'labs' | 'settings'>('mesh');
   const [showLegacyCanvas, setShowLegacyCanvas] = useState(false);
-  const [gateState, setGateState] = useState<Record<string, 'authorized' | 'denied'>>({});
+  const [gateState, setGateState] = useState<Record<string, 'authorized' | 'denied' | 'downgraded'>>({});
   const [gateNotice, setGateNotice] = useState<string | null>(null);
   const [canvasWidget, setCanvasWidget] = useState<CanvasWidgetSpec | null>(null);
   // Run-state machine (Phase 1 awareness): what the swarm is doing right now.
@@ -262,8 +263,8 @@ export default function Home() {
     else setSurface(surf as DockSurface);
   }, []);
 
-  const handleMaterialize = useCallback((kind: CanvasWidgetKind, title: string) => {
-    setCanvasWidget({ kind, title });
+  const handleMaterialize = useCallback((kind: CanvasWidgetKind, title: string, jobId?: string) => {
+    setCanvasWidget({ kind, title, jobId });
     setSurface('arena');
   }, []);
 
@@ -301,7 +302,16 @@ export default function Home() {
     setTimeout(() => setGateNotice(null), 6000);
   }, [currentSessionId]);
 
-  const gateOpen = Boolean(campaign) && !gateState[currentSessionId];
+  const handleDowngradePulse = useCallback(() => {
+    setGateState((g) => ({ ...g, [currentSessionId]: 'downgraded' }));
+    setGateNotice('Downgraded to local simulator — dispatch via chat launch or Simulate Offline (L1 auto-allow, $0.00).');
+    setTimeout(() => setGateNotice(null), 6000);
+  }, [currentSessionId]);
+
+  const gateOpen =
+    Boolean(campaign) &&
+    isMeteredBackend(campaign?.quantum_factors?.recommended_backend) &&
+    !gateState[currentSessionId];
 
   // Run-state derivation: overdue, lit probe, HUD status line.
   const runOverdue = runPhase !== 'idle' && runElapsedSec > 90;
@@ -487,7 +497,7 @@ export default function Home() {
           <main className="relative flex-1 h-full overflow-hidden">
             <ArenaHud
               targetLabel={targetLabel}
-              swarmDetail={`${loops.length} Loops Live`}
+              swarmDetail={runPhase === 'idle' ? 'idle · at rest' : `${loops.length} Loops Live`}
               view={arenaView}
               onViewChange={setArenaView}
               spendUsd={session?.current_spend_usd ?? 0}
@@ -498,7 +508,7 @@ export default function Home() {
             />
 
             {arenaView === 'orbital' && !showLegacyCanvas && (
-              <SwarmUniverse campaign={campaign} recenterSignal={recenterSignal} activeProbe={activeProbe} />
+              <SwarmUniverse campaign={campaign} recenterSignal={recenterSignal} activeProbe={activeProbe} atRest={runPhase === 'idle'} />
             )}
             {arenaView === 'proof-dag' && !showLegacyCanvas && (
               <ProofDagView campaign={campaign} />
@@ -554,6 +564,7 @@ export default function Home() {
                 session={session}
                 onAuthorized={handleAuthorizePulse}
                 onDenied={handleDenyPulse}
+                onDowngrade={handleDowngradePulse}
               />
             )}
             {gateNotice && (
