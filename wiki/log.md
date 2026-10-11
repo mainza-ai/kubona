@@ -1554,3 +1554,9 @@ skipped is the exact failure this incident is about:
   Manifold orb/pills/confidence gated on live claim; ResultsStudio sorryAx
   pill + axioms gated, seeded reviews removed; cockpit spend honest $0.00,
   ceiling relabeled. Console 28 vitest + tsc + eslint clean.
+
+## [2026-10-11] implementation | Audit fixes #3-5 complete
+  Tribunal room drives real endpoint (live seats/quorum, empty states);
+  recorder relabeled preview; shadow resample removed + Illustrative badges
+  on 5 widgets; Simulate Offline dispatches real local launch; cockpit
+  air-gap persists; fleet label honest. Console build+28 vitest+lint clean.

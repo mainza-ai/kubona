@@ -90,10 +90,24 @@ safety). Showcases must be labeled illustrative.
    step or relabel `Preview next`), Resample (recompute or remove),
    Simulate Offline (dispatch or remove), spend slider (persist or relabel),
    air-gap switch (save or relabel).
+   ✅ **Fixed 2026-10-11:** recorder advance relabeled `Preview Next Step`
+   (playback-only, shorter scrub); shadow Resample removed + `Illustrative`
+   badge + static-figures note; Simulate Offline dispatches a real local-sim
+   launch from the live campaign QASM (disabled without session + circuit);
+   cockpit air-gap switch persists via settings API (initialized from live
+   state, reverts on refusal); fleet toggle relabeled local filter.
 4. **Showcase labeling:** all six widgets get `illustrative` badges until fed
    by runs; static tables clearly marked.
+   ✅ **Fixed 2026-10-11:** `Illustrative` badges on shadow/molecule/circuit/
+   lean4/manifold widgets (mandate card is live-data by construction).
 5. **Tribunal room:** either drive real `/api/chat/tribunal` turns or relabel
    as rehearsal — never `Chamber Live` over constants.
+   ✅ **Fixed 2026-10-11:** room drives the real tribunal endpoint (topic
+   input, honest waiting state, fail-closed errors); seats fill from live
+   turns only (`— awaiting deliberation` otherwise); quorum computed from
+   corroborated turns (`—` before any run); fake hashes/confidences/persona
+   statements/hypothesis tuple removed; badge reads Idle → Deliberating →
+   Live.
 
 Related: [[ui-ux-vision]] · [[evaluation-and-benchmarks]] ·
 [[local-simulation-test-scenarios]] · [[market-intelligence-capability]]

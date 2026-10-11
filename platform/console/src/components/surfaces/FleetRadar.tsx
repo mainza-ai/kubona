@@ -101,10 +101,11 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
           </div>
         </div>
 
-        {/* 100% Sovereign Air-Gap Toggle Switch */}
+        {/* Local-only list filter (display filter — enforcement lives in routing/admission) */}
         <div className="flex items-center space-x-3">
           <button
             onClick={() => setSovereignOnly(!sovereignOnly)}
+            title="Filters this list to local backends; does not change enforcement"
             className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center space-x-2 border transition-all shadow-sm active:scale-95 ${
               sovereignOnly
                 ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300 ring-1 ring-emerald-500/20'
@@ -114,7 +115,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
             {sovereignOnly ? (
               <>
                 <Lock className="w-3.5 h-3.5 text-emerald-400" />
-                <span>100% Sovereign Air-Gap (Local Mac Only)</span>
+                <span>Local backends only (filter)</span>
               </>
             ) : (
               <>

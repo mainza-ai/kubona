@@ -142,11 +142,12 @@ export function FlightRecorder({ loops = [], events = [], campaign }: FlightReco
     return () => clearInterval(timer);
   }, [isPlaying, milestones.length]);
 
-  const handleStepAutonomous = async () => {
+  // Playback-only stepping: scrubs the recorded narrative, dispatches
+  // nothing. The label says preview so it can never read as an experiment.
+  const handleStepPreview = async () => {
     setIsStepping(true);
     try {
-      // Advance narrative playback cleanly (scrubs existing milestones only)
-      await new Promise((r) => setTimeout(r, 1200));
+      await new Promise((r) => setTimeout(r, 400));
       if (currentStepIndex < milestones.length - 1) {
         setCurrentStepIndex((prev) => prev + 1);
       }
@@ -173,14 +174,15 @@ export function FlightRecorder({ loops = [], events = [], campaign }: FlightReco
           </div>
         </div>
 
-        {/* Step Autonomous Experiment Button */}
+        {/* Step Playback Preview Button */}
         <button
-          onClick={handleStepAutonomous}
+          onClick={handleStepPreview}
           disabled={isStepping}
-          className="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 active:scale-[0.98] text-white text-xs font-semibold flex items-center space-x-2 transition-all shadow-md shadow-cyan-950/40 disabled:opacity-50"
+          title="Scrub forward through the recorded narrative (dispatches nothing)"
+          className="px-4 py-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 active:scale-[0.98] text-white text-xs font-semibold flex items-center space-x-2 transition-all shadow-md disabled:opacity-50"
         >
           <Sparkles className="w-3.5 h-3.5" />
-          <span>{isStepping ? 'Evaluating Candidate...' : 'Advance Discovery Step'}</span>
+          <span>{isStepping ? 'Scrubbing...' : 'Preview Next Step'}</span>
         </button>
       </div>
 
