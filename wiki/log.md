@@ -1777,3 +1777,10 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-11] verification | CI green on B0-6 secrets purge
   All 5 jobs success on run 38182132137. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | B1-1 planner early-exit + earned consensus
+  Turn-2 tool failures end the run at 2 turns CONTESTED (reason in
+  synthesis); ConsensusPassed requires authored evidence turns + zero
+  failures (fallback never passes); contested verdicts retained at
+  0.5 with honest text. Live: 4-turn earned pass, 10 audited tool
+  events, attributed memory. Full Go suite green.
