@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"os"
 	"sync"
 )
 
@@ -15,6 +16,7 @@ const (
 	ProviderLMStudio  ProviderType = "lmstudio"
 	ProviderAnthropic ProviderType = "anthropic"
 	ProviderOpenAI    ProviderType = "openai"
+	ProviderOpenCode  ProviderType = "opencode"
 )
 
 type ProviderConfig struct {
@@ -36,22 +38,31 @@ type RoleModelAssignment struct {
 
 type Settings struct {
 	mu              sync.RWMutex
-	ActiveProvider  ProviderType                   `json:"active_provider"`
-	ActiveModel     string                         `json:"active_model"`
-	AirGapped       bool                           `json:"air_gapped"`
-	Temperature     float64                        `json:"temperature"`
-	MaxTokens       int                            `json:"max_tokens"`
+	ActiveProvider  ProviderType                    `json:"active_provider"`
+	ActiveModel     string                          `json:"active_model"`
+	AirGapped       bool                            `json:"air_gapped"`
+	Temperature     float64                         `json:"temperature"`
+	MaxTokens       int                             `json:"max_tokens"`
 	Providers       map[ProviderType]ProviderConfig `json:"providers"`
-	RoleAssignments map[string]RoleModelAssignment `json:"role_assignments"`
+	RoleAssignments map[string]RoleModelAssignment  `json:"role_assignments"`
 }
 
 func DefaultSettings() *Settings {
+	// Development default (2026-10-11, operator-directed): OpenCode-hosted
+	// deepseek-v4.1-flash for every role. Local oMLX stays enabled as the
+	// air-gapped fallback. Production posture is the reverse (air-gapped,
+	// local-only) — set air_gapped + local roles explicitly there.
+	opencodeKey := os.Getenv("OPENCODE_API_KEY")
 	return &Settings{
-		ActiveProvider: ProviderOMLX,
-		ActiveModel:    "Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit",
-		AirGapped:      true,
+		ActiveProvider: ProviderOpenCode,
+		ActiveModel:    "deepseek-v4.1-flash",
+		AirGapped:      false,
 		Temperature:    0.2,
-		MaxTokens:      2048,
+		// MaxTokens 0 = unset: the field is omitted and the model generates
+		// to EOS / its own context window. Any positive value is a per-role
+		// ceiling, not a default — 2048 proved too low for tribunal turns,
+		// and no fixed default fits all roles (2026-10-11).
+		MaxTokens: 0,
 		Providers: map[ProviderType]ProviderConfig{
 			ProviderOMLX: {
 				Type:         ProviderOMLX,
@@ -98,32 +109,42 @@ func DefaultSettings() *Settings {
 				IsLocal:      false,
 				TimeoutSec:   60,
 			},
+			ProviderOpenCode: {
+				Type:         ProviderOpenCode,
+				Name:         "OpenCode Hosted Inference",
+				BaseURL:      "https://opencode.ai/inference/openai/v1",
+				APIKey:       opencodeKey,
+				DefaultModel: "deepseek-v4.1-flash",
+				Enabled:      opencodeKey != "",
+				IsLocal:      false,
+				TimeoutSec:   120,
+			},
 		},
 		RoleAssignments: map[string]RoleModelAssignment{
 			"copilot": {
 				Role:     "copilot",
-				Provider: ProviderOMLX,
-				Model:    "Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit",
+				Provider: ProviderOpenCode,
+				Model:    "deepseek-v4.1-flash",
 			},
 			"epistemic-scribe": {
 				Role:     "epistemic-scribe",
-				Provider: ProviderOMLX,
-				Model:    "Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit",
+				Provider: ProviderOpenCode,
+				Model:    "deepseek-v4.1-flash",
 			},
 			"ansatz-scout": {
 				Role:     "ansatz-scout",
-				Provider: ProviderOMLX,
-				Model:    "Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit",
+				Provider: ProviderOpenCode,
+				Model:    "deepseek-v4.1-flash",
 			},
 			"disconfirmation-officer": {
 				Role:     "disconfirmation-officer",
-				Provider: ProviderOMLX,
-				Model:    "Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit",
+				Provider: ProviderOpenCode,
+				Model:    "deepseek-v4.1-flash",
 			},
 			"device-auditor": {
 				Role:     "device-auditor",
-				Provider: ProviderOMLX,
-				Model:    "Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit",
+				Provider: ProviderOpenCode,
+				Model:    "deepseek-v4.1-flash",
 			},
 		},
 	}
@@ -184,6 +205,68 @@ func (s *Settings) Save(db *sql.DB) error {
 	return err
 }
 
+// EnsureDefaultRoles backfills role assignments missing from persisted
+// settings (older seeds lacked e.g. "copilot", leaving generation on a
+// silent ActiveModel fallback). Returns true when it changed anything.
+func (s *Settings) EnsureDefaultRoles() bool {
+	defs := DefaultSettings().RoleAssignments
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.RoleAssignments == nil {
+		s.RoleAssignments = make(map[string]RoleModelAssignment)
+	}
+	changed := false
+	for role, assign := range defs {
+		if _, ok := s.RoleAssignments[role]; !ok {
+			s.RoleAssignments[role] = assign
+			changed = true
+		}
+	}
+	return changed
+}
+
+// EnsureDefaultProviders backfills provider entries missing from persisted
+// settings (e.g. a provider added by a newer binary). Never overwrites an
+// operator-configured provider; picks up credential env vars for backfilled
+// entries. Returns true when it changed anything.
+func (s *Settings) EnsureDefaultProviders() bool {
+	defs := DefaultSettings().Providers
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.Providers == nil {
+		s.Providers = make(map[ProviderType]ProviderConfig)
+	}
+	changed := false
+	for pt, pc := range defs {
+		existing, ok := s.Providers[pt]
+		if !ok {
+			if pc.APIKey == "" {
+				pc.APIKey = os.Getenv(providerEnvKey(pt))
+			}
+			if pc.Type == ProviderOpenCode {
+				pc.Enabled = pc.APIKey != ""
+			}
+			s.Providers[pt] = pc
+			changed = true
+			continue
+		}
+		// Top-up: an empty stored secret picks up the env var (rotating or
+		// newly-provisioned keys apply without a UI round-trip). A stored
+		// non-empty secret is never overwritten here.
+		if existing.APIKey == "" {
+			if envKey := os.Getenv(providerEnvKey(pt)); envKey != "" {
+				existing.APIKey = envKey
+				if pt == ProviderOpenCode {
+					existing.Enabled = true
+				}
+				s.Providers[pt] = existing
+				changed = true
+			}
+		}
+	}
+	return changed
+}
+
 func (s *Settings) GetSnapshot() Settings {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -217,7 +300,20 @@ func (s *Settings) Update(update *Settings, db *sql.DB) error {
 	s.Temperature = update.Temperature
 	s.MaxTokens = update.MaxTokens
 	if update.Providers != nil {
-		s.Providers = update.Providers
+		// Never wipe a stored secret with an empty form field: an empty
+		// incoming APIKey keeps the existing one (env-supplied keys survive
+		// UI saves that don't include secrets).
+		for pt, pc := range update.Providers {
+			if pc.APIKey == "" {
+				if existing, ok := s.Providers[pt]; ok {
+					pc.APIKey = existing.APIKey
+				}
+				if pc.APIKey == "" {
+					pc.APIKey = os.Getenv(providerEnvKey(pt))
+				}
+			}
+			s.Providers[pt] = pc
+		}
 	}
 	if update.RoleAssignments != nil {
 		s.RoleAssignments = update.RoleAssignments
@@ -228,6 +324,20 @@ func (s *Settings) Update(update *Settings, db *sql.DB) error {
 		return s.Save(db)
 	}
 	return nil
+}
+
+// providerEnvKey maps providers to their credential env vars.
+func providerEnvKey(pt ProviderType) string {
+	switch pt {
+	case ProviderOpenCode:
+		return "OPENCODE_API_KEY"
+	case ProviderOpenAI:
+		return "OPENAI_API_KEY"
+	case ProviderAnthropic:
+		return "ANTHROPIC_API_KEY"
+	default:
+		return ""
+	}
 }
 
 func (s *Settings) GetModelForRole(role string) (ProviderType, string, error) {

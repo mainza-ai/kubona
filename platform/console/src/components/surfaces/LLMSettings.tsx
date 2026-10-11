@@ -72,6 +72,10 @@ export function LLMSettings() {
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [testPrompt, setTestPrompt] = useState('Confirm you are active and describe how you optimize a VQE ansatz.');
   const [saveStatus, setSaveStatus] = useState<string>('');
+  // Key edits live outside settings state: secrets are never rendered and
+  // only sent when the operator types them. Empty provider keys in the save
+  // payload mean "keep stored" (backend preserves non-empty secrets).
+  const [keyEdits, setKeyEdits] = useState<Record<string, string>>({});
 
   const loadModels = useCallback(async () => {
     try {
@@ -109,9 +113,15 @@ export function LLMSettings() {
     setSaving(true);
     setSaveStatus('');
     try {
-      const ok = await saveLLMSettings(settings as unknown as Record<string, unknown>);
+      // Merge key edits; untouched providers send "" (backend keeps stored).
+      const providers: Record<string, ProviderConfig> = {};
+      for (const [pt, pc] of Object.entries(settings.providers)) {
+        providers[pt] = { ...pc, api_key: keyEdits[pt] ?? '' };
+      }
+      const ok = await saveLLMSettings({ ...settings, providers } as unknown as Record<string, unknown>);
       if (ok) {
         setSaveStatus('✅ Settings persisted successfully to SQLite ledger.');
+        setKeyEdits({});
       } else {
         setSaveStatus('❌ Failed to persist settings.');
       }
@@ -120,6 +130,37 @@ export function LLMSettings() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const setProvider = (pt: string, patch: Partial<ProviderConfig>) => {
+    setSettings((prev) => {
+      if (!prev) return prev;
+      return { ...prev, providers: { ...prev.providers, [pt]: { ...prev.providers[pt], ...patch } } };
+    });
+  };
+
+  const setRole = (role: string, patch: Partial<RoleModelAssignment>) => {
+    setSettings((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        role_assignments: { ...prev.role_assignments, [role]: { ...prev.role_assignments[role], ...patch } },
+      };
+    });
+  };
+
+  // Model options for the active-model + per-role selects: live oMLX list,
+  // every enabled provider's default, plus the current value as fallback so
+  // the control never renders blank on a cloud selection.
+  const modelOptions = (current: string): string[] => {
+    const opts = [...omlxModels.map((m) => m.id)];
+    if (settings) {
+      for (const pc of Object.values(settings.providers)) {
+        if (pc.enabled && pc.default_model && !opts.includes(pc.default_model)) opts.push(pc.default_model);
+      }
+    }
+    if (current && !opts.includes(current)) opts.unshift(current);
+    return opts;
   };
 
   const handleRunTest = async () => {
@@ -212,14 +253,14 @@ export function LLMSettings() {
         </div>
       )}
 
-      {/* Main Grid: Local Engines vs Cloud Egress */}
+      {/* Main Grid: Providers vs Routing */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Left Column: Local Inference Engines */}
+        {/* Left Column: Providers (live) */}
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider font-mono flex items-center space-x-2">
               <Cpu className="w-4 h-4 text-cyan-400" />
-              <span>Local Engines (Air-Gap Compliant)</span>
+              <span>Providers</span>
             </h3>
             <button
               onClick={loadModels}
@@ -230,159 +271,158 @@ export function LLMSettings() {
             </button>
           </div>
 
-          {/* oMLX Card */}
-          <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl space-y-3.5">
-            <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
-              <div className="flex items-center space-x-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                <span className="font-semibold text-xs text-white">oMLX Local Engine (Apple Silicon)</span>
+          {Object.entries(settings.providers).map(([pt, pc]) => (
+            <div key={pt} className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl space-y-3.5">
+              <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+                <div className="flex items-center space-x-2">
+                  <span className={`w-2 h-2 rounded-full ${pc.enabled ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`} />
+                  <span className="font-semibold text-xs text-white">{pc.name}</span>
+                  {pc.is_local && (
+                    <span className="text-[9px] font-mono text-emerald-300 bg-emerald-950/60 px-1.5 py-0.5 rounded-full border border-emerald-800">LOCAL</span>
+                  )}
+                  {!pc.is_local && (
+                    <span className="text-[9px] font-mono text-indigo-300 bg-indigo-950/60 px-1.5 py-0.5 rounded-full border border-indigo-800">CLOUD</span>
+                  )}
+                </div>
+                <button
+                  onClick={() => setProvider(pt, { enabled: !pc.enabled })}
+                  aria-label={`Toggle ${pc.name}`}
+                  className={`text-[10px] font-mono px-2 py-0.5 rounded-full border transition-all ${
+                    pc.enabled
+                      ? 'text-emerald-400 bg-emerald-950/60 border-emerald-800'
+                      : 'text-slate-500 bg-white/[0.03] border-white/10 hover:text-slate-300'
+                  }`}
+                >
+                  {pc.enabled ? (pt === 'omlx' ? 'ACTIVE :8787' : 'ENABLED') : 'OFF'}
+                </button>
               </div>
-              <span className="text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded-full border border-emerald-800">
-                ACTIVE :8787
-              </span>
+
+              <div className="space-y-2.5 text-xs">
+                <div className="flex justify-between items-center text-slate-400 font-mono text-[11px]">
+                  <span>Base URL:</span>
+                  <span className="text-slate-200 truncate max-w-[220px]">{pc.base_url}</span>
+                </div>
+                <div className="flex justify-between items-center text-slate-400 font-mono text-[11px]">
+                  <span>Default model:</span>
+                  <span className="text-slate-200 truncate max-w-[220px]">{pc.default_model}</span>
+                </div>
+                {!pc.is_local && (
+                  <div>
+                    <label className="block text-slate-400 mb-1 text-[11px]">
+                      API key {pc.api_key ? <span className="text-emerald-400 font-mono">(stored ●●●)</span> : <span className="text-amber-400 font-mono">(not set)</span>}
+                    </label>
+                    <input
+                      type="password"
+                      value={keyEdits[pt] ?? ''}
+                      placeholder={pc.api_key ? 'Stored — type to rotate' : 'Paste key…'}
+                      onChange={(e) => setKeyEdits((prev) => ({ ...prev, [pt]: e.target.value }))}
+                      className="w-full bg-black/60 border border-white/10 rounded-xl p-2.5 text-xs text-slate-200 font-mono focus:border-indigo-500 focus:outline-none"
+                    />
+                  </div>
+                )}
+              </div>
             </div>
+          ))}
 
-            <div className="space-y-2.5 text-xs">
-              <div className="flex justify-between items-center text-slate-400 font-mono text-[11px]">
-                <span>Base URL:</span>
-                <span className="text-slate-200">http://127.0.0.1:8787/v1</span>
-              </div>
-
+          <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl space-y-3.5">
+            <div className="text-xs font-semibold text-white">Generation defaults</div>
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-400 mb-1 text-[11px]">Active Model:</label>
-                <select
-                  value={settings.active_model}
+                <label className="block text-slate-400 text-[11px] mb-1">Temperature:</label>
+                <input
+                  type="number"
+                  step="0.05"
+                  min="0"
+                  max="1"
+                  value={settings.temperature}
                   onChange={(e) =>
                     setSettings({
                       ...settings,
-                      active_model: e.target.value,
+                      temperature: parseFloat(e.target.value) || 0.2,
                     })
                   }
-                  className="w-full bg-black/60 border border-white/10 rounded-xl p-2.5 text-xs text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
-                >
-                  {omlxModels.length > 0 ? (
-                    omlxModels.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.id} {m.id.includes('Qwen3.8-27B') ? '★ [Default Laboratory Model]' : ''}
-                      </option>
-                    ))
-                  ) : (
-                    <option value="Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit">
-                      Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit (Default)
-                    </option>
-                  )}
-                </select>
+                  className="w-full bg-black/60 border border-white/10 rounded-xl p-2 text-xs text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
+                />
               </div>
-
-              <div className="grid grid-cols-2 gap-3 pt-1">
-                <div>
-                  <label className="block text-slate-400 text-[11px] mb-1">Temperature:</label>
-                  <input
-                    type="number"
-                    step="0.05"
-                    min="0"
-                    max="1"
-                    value={settings.temperature}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        temperature: parseFloat(e.target.value) || 0.2,
-                      })
-                    }
-                    className="w-full bg-black/60 border border-white/10 rounded-xl p-2 text-xs text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
-                  />
-                </div>
-                <div>
-                  <label className="block text-slate-400 text-[11px] mb-1">Max Tokens:</label>
-                  <input
-                    type="number"
-                    step="128"
-                    min="256"
-                    max="4096"
-                    value={settings.max_tokens}
-                    onChange={(e) =>
-                      setSettings({
-                        ...settings,
-                        max_tokens: parseInt(e.target.value) || 1024,
-                      })
-                    }
-                    className="w-full bg-black/60 border border-white/10 rounded-xl p-2 text-xs text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
-                  />
-                </div>
+              <div>
+                <label className="block text-slate-400 text-[11px] mb-1">Max tokens (0 = uncapped):</label>
+                <input
+                  type="number"
+                  step="128"
+                  min="0"
+                  value={settings.max_tokens}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value);
+                    setSettings({ ...settings, max_tokens: Number.isNaN(v) ? 0 : Math.max(0, v) });
+                  }}
+                  className="w-full bg-black/60 border border-white/10 rounded-xl p-2 text-xs text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
+                />
               </div>
             </div>
-          </div>
-
-          {/* Alternative Local Engines */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-1.5 text-xs">
-              <div className="font-semibold text-slate-200">Ollama Engine</div>
-              <div className="text-xs text-slate-300 font-mono">127.0.0.1:11434</div>
-              <div className="text-[11px] text-slate-300 font-medium">Model: qwen2.5:32b</div>
-            </div>
-
-            <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-1.5 text-xs">
-              <div className="font-semibold text-slate-200">LM Studio Engine</div>
-              <div className="text-xs text-slate-300 font-mono">127.0.0.1:1234</div>
-              <div className="text-[11px] text-slate-300 font-medium">Model: local-model</div>
+            <div>
+              <label className="block text-slate-400 mb-1 text-[11px]">Active model (used when a role has no assignment):</label>
+              <select
+                value={settings.active_model}
+                onChange={(e) =>
+                  setSettings({ ...settings, active_model: e.target.value })
+                }
+                className="w-full bg-black/60 border border-white/10 rounded-xl p-2.5 text-xs text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
+              >
+                {modelOptions(settings.active_model).map((m) => (
+                  <option key={m} value={m}>{m}</option>
+                ))}
+              </select>
             </div>
           </div>
         </div>
 
-        {/* Right Column: Cloud Providers & Role Routing */}
+        {/* Right Column: Agent routing */}
         <div className="space-y-4">
           <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider font-mono flex items-center space-x-2">
             <Globe className="w-4 h-4 text-indigo-400" />
-            <span>Cloud Frontier Providers (Gated by Air-Gap)</span>
+            <span>Agent Routing {settings.air_gapped ? '(air-gapped: local only)' : ''}</span>
           </h3>
 
-          <div
-            className={`p-5 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl space-y-3.5 transition-opacity ${
-              settings.air_gapped ? 'opacity-60 pointer-events-none' : ''
-            }`}
-          >
-            {settings.air_gapped && (
-              <div className="text-[11px] text-amber-300 bg-amber-950/40 border border-amber-800/40 p-2.5 rounded-xl flex items-center space-x-2">
-                <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
-                <span>Cloud egress blocked while Sovereign Air-Gap is engaged.</span>
-              </div>
-            )}
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">Anthropic Claude API Key:</label>
-                <input
-                  type="password"
-                  placeholder="sk-ant-..."
-                  className="w-full bg-black/60 border border-white/10 rounded-xl p-2.5 text-xs text-slate-200 font-mono focus:border-indigo-500 focus:outline-none"
-                  disabled={settings.air_gapped}
-                />
-              </div>
-
-              <div>
-                <label className="block text-slate-300 font-medium mb-1">OpenAI API Key:</label>
-                <input
-                  type="password"
-                  placeholder="sk-..."
-                  className="w-full bg-black/60 border border-white/10 rounded-xl p-2.5 text-xs text-slate-200 font-mono focus:border-indigo-500 focus:outline-none"
-                  disabled={settings.air_gapped}
-                />
-              </div>
+          {settings.air_gapped && (
+            <div className="text-[11px] text-amber-300 bg-amber-950/40 border border-amber-800/40 p-2.5 rounded-xl flex items-center space-x-2">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
+              <span>Cloud egress blocked while Sovereign Air-Gap is engaged. Roles on cloud providers will refuse.</span>
             </div>
-          </div>
+          )}
 
-          {/* Role Routing Matrix */}
+          {/* Role Routing Matrix (editable) */}
           <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl space-y-3">
             <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wide font-mono">
-              Tribunal Specialist Agent Routing
+              Agent → Provider : Model
             </h4>
             <div className="space-y-2 text-xs">
               {Object.entries(settings.role_assignments).map(([role, assign]) => (
-                <div key={role} className="flex items-center justify-between p-2.5 bg-white/[0.03] rounded-xl border border-white/10">
-                  <span className="font-mono text-cyan-300 font-semibold">{role}</span>
-                  <span className="text-slate-300 text-xs font-mono truncate max-w-[200px]">
-                    {assign.provider}:{assign.model}
-                  </span>
+                <div key={role} className="p-2.5 bg-white/[0.03] rounded-xl border border-white/10 space-y-2">
+                  <div className="font-mono text-cyan-300 font-semibold">{role}</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      aria-label={`${role} provider`}
+                      value={assign.provider}
+                      onChange={(e) => setRole(role, { provider: e.target.value })}
+                      className="bg-black/60 border border-white/10 rounded-lg p-1.5 text-[11px] text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
+                    >
+                      {Object.entries(settings.providers).map(([pt, pc]) => (
+                        <option key={pt} value={pt}>
+                          {pt}{pc.enabled ? '' : ' (off)'}
+                        </option>
+                      ))}
+                    </select>
+                    <select
+                      aria-label={`${role} model`}
+                      value={assign.model}
+                      onChange={(e) => setRole(role, { model: e.target.value })}
+                      className="bg-black/60 border border-white/10 rounded-lg p-1.5 text-[11px] text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
+                    >
+                      {modelOptions(assign.model).map((m) => (
+                        <option key={m} value={m}>{m}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               ))}
             </div>
