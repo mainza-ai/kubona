@@ -82,6 +82,71 @@ def _sha256(text: str) -> str:
     return hashlib.sha256(text.encode()).hexdigest()
 
 
+def _static_check(solution: str, tests: str,
+                  requires: list[str]) -> str | None:
+    """Parse + closed-world import check. Returns None when clean, else the
+    refusal reason. Undeclared tasks (no `requires`) skip the import half:
+    open-world code cannot be judged without a declared boundary."""
+    import ast
+    import sys as _sys
+
+    for label, code in (("solution.py", solution), ("test_main.py", tests)):
+        try:
+            tree = ast.parse(code)
+        except SyntaxError as e:
+            return f"{label} does not parse: {e}"
+        if not requires:
+            continue
+        allowed = set(_sys.stdlib_module_names) | set(requires) | {"solution"}
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                mods = [a.name.split(".")[0] for a in node.names]
+            elif isinstance(node, ast.ImportFrom):
+                if node.level and node.level > 0:
+                    return f"{label}: relative imports refused"
+                mods = [(node.module or "").split(".")[0]]
+            else:
+                continue
+            unknown = [m for m in mods if m and m not in allowed]
+            if unknown:
+                return (f"{label}: imports {unknown} outside declared "
+                        f"requires {sorted(requires)} (+ stdlib)")
+    return None
+
+
+def _probe_missing_deps(task_dir: Path, requires: list[str], cfg: PyexecSandboxConfig,
+                        runner: Callable[..., Any]) -> list[str]:
+    """Ask the container which declared deps are missing (one probe run).
+
+    Returns the missing subset; empty means all present. A probe that
+    cannot run (infra) yields [] and lets the real run surface the truth —
+    the probe is an optimization with named skips, never a gate that can
+    manufacture a pass.
+    """
+    if not requires:
+        return []
+    probe = ("import json, importlib\nmissing = []\n"
+             + "\n".join(f"try:\n    importlib.import_module({r!r})\n"
+                         f"except Exception:\n    missing.append({r!r})"
+                         for r in requires)
+             + "\nprint(json.dumps(missing))")
+    (task_dir / "_probe.py").write_text(probe)
+    cmd = sandbox_docker_cmd(cfg, task_dir)[:-1] + ["_probe.py"]
+    try:
+        proc = runner(cmd, capture_output=True, text=True,
+                      timeout=min(120, cfg.timeout_seconds))
+    except Exception:
+        return []
+    if proc.returncode != 0 or _is_infra_failure(proc.stderr or ""):
+        return []
+    try:
+        import json as _json
+        missing = _json.loads((proc.stdout or "").strip().splitlines()[-1])
+        return [m for m in missing if isinstance(m, str)]
+    except Exception:
+        return []
+
+
 def run_codeexec_task(task: dict[str, str],
                       cfg: PyexecSandboxConfig | None = None,
                       ledger: Ledger | None = None,
@@ -99,12 +164,24 @@ def run_codeexec_task(task: dict[str, str],
     name = task.get("name", "?")
     solution = task.get("solution", "")
     tests = task.get("tests", "")
+    requires = task.get("requires") or []
     record_base = {
         "name": name,
         "image": cfg.image,
         "solution_sha256": _sha256(solution),
         "tests_sha256": _sha256(tests),
     }
+
+    # Static gate first (no daemon, no container): both files must parse,
+    # and when the task declares `requires`, imports must stay inside the
+    # closed world of stdlib + declared deps + the solution module itself.
+    # Malformed tasks refuse here instead of spending a container on them.
+    static_err = _static_check(solution, tests, requires)
+    if static_err is not None:
+        rec = {**record_base, "ok": False, "skip": False,
+               "reason": f"static gate refused: {static_err}"}
+        ledger.append("codeexec", rec)
+        return rec
 
     if runner is None:
         if not docker_available():
@@ -124,6 +201,17 @@ def run_codeexec_task(task: dict[str, str],
     try:
         (task_dir / "solution.py").write_text(solution)
         (task_dir / "test_main.py").write_text(tests)
+        # Dependency pre-flight: declared-but-missing deps skip with the
+        # missing set named (the precise shopping list for the next image
+        # revision) instead of dying as ModuleNotFoundError mid-run.
+        if requires:
+            missing = _probe_missing_deps(task_dir, requires, cfg, runner)
+            if missing:
+                rec = {**record_base, "ok": False, "skip": True,
+                       "reason": f"missing optional deps in {cfg.image}: {missing}",
+                       "missing_dependencies": missing}
+                ledger.append("codeexec", rec)
+                return rec
         cmd = sandbox_docker_cmd(cfg, task_dir)
         try:
             proc = runner(cmd, capture_output=True, text=True,

@@ -7,7 +7,13 @@ only, else the whole file refuses.
 
 Task contract per entry:
   {"prompt": str, "tests": str, "reference": str,
-   "entry_point": str, "difficulty": str, "task_id": str}
+   "entry_point": str, "difficulty": str, "task_id": str,
+   "requires": [import names] (optional)}
+`requires` declares third-party imports the task needs beyond the base
+image (qiskit/aer/pennylane/scipy/numpy). The harness pre-flights them
+inside the container: missing deps skip with a named reason instead of a
+cryptic ModuleNotFoundError, and the missing set becomes the precise
+shopping list for the next image revision.
 `wrap_for_harness(entry)` renders the codeexec {solution, tests} pair:
 solution.py = prompt + reference body; test_main.py = prompt imports +
 test body + `check(solution.<entry_point>)` invocation.
@@ -41,7 +47,10 @@ def wrap_for_harness(entry: dict[str, Any]) -> dict[str, str]:
              + f"from solution import {ep}\n"
              + entry["tests"].rstrip() + "\n"
              + f"check({ep})\n")
-    return {"solution": solution, "tests": tests}
+    pair: dict[str, str] = {"solution": solution, "tests": tests}
+    if entry.get("requires"):
+        pair["requires"] = list(entry["requires"])
+    return pair
 
 
 def load_code_tasks(path: str | Path) -> dict[str, dict]:
@@ -62,5 +71,9 @@ def load_code_tasks(path: str | Path) -> dict[str, dict]:
             continue
         if any(k not in spec for k in _REQUIRED):
             continue
+        if "requires" in spec and (
+                not isinstance(spec["requires"], list)
+                or not all(isinstance(r, str) for r in spec["requires"])):
+            continue  # malformed dependency declaration: not loadable
         tasks[name] = spec
     return tasks
