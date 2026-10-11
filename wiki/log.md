@@ -1612,3 +1612,8 @@ skipped is the exact failure this incident is about:
 ## [2026-10-11] verification | CI green on memory slice
   Store + tribunal WithMemory + recall_memory + budgeting. All 5 jobs
   success on run 38159851942. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | QASM pre-dispatch gate in SubmitJob
+  validateQASM (header/qreg/balance/size, comments stripped) refuses
+  before admission/queue/ledger/spend; no-residue test. Live: unbalanced
+  refused with reason, Bell dispatched. Full Go suite green.
