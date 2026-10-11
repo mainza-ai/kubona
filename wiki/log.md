@@ -1571,3 +1571,9 @@ skipped is the exact failure this incident is about:
   Uncommitted types/client files had red CI (Go build + Next typecheck);
   committed, all 5 jobs success on run 38137923077. Rich Tip tooltips on all
   chat icon controls. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | Chat markdown rendering (no new deps)
+  Rewrote MathText text path: dependency-free markdown (bold/italic/code,
+  headers, bullets, ordered, quotes, GFM tables) + preserved KaTeX + HTML
+  escaping (injection hole closed). 6 tests incl. user-reported PES case.
+  42/42 vitest, lint + build clean.
