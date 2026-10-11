@@ -44,6 +44,7 @@ export interface Proposal {
   job_type?: string;
   qasm?: string;
   launch_params?: Record<string, unknown>;
+  designed_by?: string;
 }
 
 export interface TribunalTurn {
