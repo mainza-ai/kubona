@@ -128,3 +128,58 @@ def test_live_golden_and_evil_in_container():
          "tests": "import solution\n"})
     assert evil["ok"] is False and evil["skip"] is False
     assert "Network is unreachable" in (evil.get("stderr_tail") or "")
+
+
+def test_static_gate_refuses_unparseable():
+    rec = run_codeexec_task(
+        {"name": "broken", "solution": "def f(:\n", "tests": "x\n"},
+        runner=_runner(0, "ok\n"))
+    assert rec["ok"] is False and rec["skip"] is False
+    assert "static gate refused" in rec["reason"]
+
+
+def test_static_gate_closed_world_imports():
+    base = {"name": "w", "solution": "import numpy\n",
+            "tests": "import solution\n",
+            "requires": ["numpy"]}
+    rec = run_codeexec_task(dict(base), runner=_runner(0, "ok\n"))
+    assert rec["ok"] is True, rec
+    rec = run_codeexec_task(
+        dict(base, tests="import solution\nimport seaborn\n"),
+        runner=_runner(0, "ok\n"))
+    assert rec["ok"] is False and "seaborn" in rec["reason"]
+    # Open-world tasks (no requires) skip the import half.
+    rec = run_codeexec_task(
+        {"name": "w", "solution": "import anything\n", "tests": "x\n"},
+        runner=_runner(0, "ok\n"))
+    assert rec["ok"] is True
+
+
+def test_dep_preflight_names_missing():
+    from types import SimpleNamespace
+
+    def probe_runner(cmd, **kwargs):
+        if cmd[-1] == "_probe.py":
+            return SimpleNamespace(stdout='["seaborn"]\n', stderr="", returncode=0)
+        return SimpleNamespace(stdout="ok\n", stderr="", returncode=0)
+
+    rec = run_codeexec_task(
+        {"name": "w", "solution": "x = 1\n", "tests": "import solution\n",
+         "requires": ["seaborn"]}, runner=probe_runner)
+    assert rec["ok"] is False and rec["skip"] is True
+    assert rec["missing_dependencies"] == ["seaborn"]
+    assert "seaborn" in rec["reason"]
+
+
+def test_dep_preflight_proceeds_when_present():
+    from types import SimpleNamespace
+
+    def probe_runner(cmd, **kwargs):
+        if cmd[-1] == "_probe.py":
+            return SimpleNamespace(stdout='[]\n', stderr="", returncode=0)
+        return SimpleNamespace(stdout="ok\n", stderr="", returncode=0)
+
+    rec = run_codeexec_task(
+        {"name": "w", "solution": "x = 1\n", "tests": "import solution\n",
+         "requires": ["numpy"]}, runner=probe_runner)
+    assert rec["ok"] is True and rec["skip"] is False

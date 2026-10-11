@@ -1449,3 +1449,8 @@ skipped is the exact failure this incident is about:
   qir/portfolio.py: feature-based selection, chained receipts, per-pass
   evidence tiers, noise context honestly unconsumed; compile_circuit MCP
   tool. 6 tests green; suite 350 passed.
+
+## [2026-10-11] implementation | Harness static gate + dep pre-flight
+  codeexec: AST parse gate + closed-world imports for declared tasks;
+  in-container requires probe with named skips; humaneval requires
+  validation + wrap passthrough. 4 new tests; suite 354 passed.
