@@ -81,6 +81,11 @@ type Server struct {
 	signerPubKey          ed25519.PublicKey
 	signerPrivKey         ed25519.PrivateKey
 	reviewerKeyConfigured bool
+
+	// Edge rate limiters (B0-2): per-server instances so tests stay
+	// isolated; see edge_auth.go for budgets.
+	signLimiter   *rateLimiter
+	verifyLimiter *rateLimiter
 }
 
 // loadReviewerKey returns the human-reviewer ed25519 keypair for mandate
@@ -139,7 +144,11 @@ func NewServer(
 	llmCli := llm.NewClient(llmSet)
 
 	sbCfg := sandbox.DefaultConfig()
-	sbCfg.AllowHostFallback = true // Resilient for testing
+	// Host fallback is opt-in, never default: without Docker, agent code
+	// refuses to run rather than silently executing on the host. Local
+	// dev opts in with KUBONA_ALLOW_HOST_FALLBACK=1 (tests set it where
+	// they need host execution, same as the harness unit tests).
+	sbCfg.AllowHostFallback = os.Getenv("KUBONA_ALLOW_HOST_FALLBACK") == "1"
 	sbRunner := sandbox.NewSandboxRunnerWithConfig(sbCfg)
 	metaEngine := metasearch.NewMetaSearchEngineWithLLM(llmCli)
 	pqcKey, _ := mandates.GenerateRecipientKeypair()
@@ -170,6 +179,8 @@ func NewServer(
 		signerPubKey:          pub,
 		signerPrivKey:         priv,
 		reviewerKeyConfigured: configured,
+		signLimiter:           newRateLimiter(2, 5),
+		verifyLimiter:         newRateLimiter(20, 50),
 		mux:                   http.NewServeMux(),
 	}
 
@@ -221,7 +232,9 @@ func NewServer(
 
 func (s *Server) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		if origin := corsAllowOrigin(r); origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		if r.Method == "OPTIONS" {
@@ -255,7 +268,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/epistemics", s.handleEpistemics)
 	s.mux.HandleFunc("/api/fleet", s.handleFleet)
 	s.mux.HandleFunc("/api/radar", s.handleRadar)
-	s.mux.HandleFunc("/api/mandates/sign", s.handleMandateSign)
+	s.mux.HandleFunc("/api/mandates/sign", s.requireBearer(s.handleMandateSign))
 	s.mux.HandleFunc("/api/mandates/verify", s.handleMandateVerify)
 	s.mux.HandleFunc("/api/harnesses", s.handleHarnesses)
 	s.mux.HandleFunc("/api/results/notebooks", s.handleNotebooks)
@@ -575,12 +588,17 @@ func (s *Server) handleMandateSign(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if !s.signLimiter.allow(clientKey(r)) {
+		http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+		return
+	}
 
 	var req struct {
-		TenantID     string  `json:"tenant_id"`
-		JobHash      string  `json:"job_hash"`
-		MaxBudgetUSD float64 `json:"max_budget_usd"`
-		TtlSeconds   int64   `json:"ttl_seconds"`
+		TenantID     string               `json:"tenant_id"`
+		JobHash      string               `json:"job_hash"`
+		MaxBudgetUSD float64              `json:"max_budget_usd"`
+		TtlSeconds   int64                `json:"ttl_seconds"`
+		AdminAction  *tenants.AdminAction `json:"admin_action"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -596,6 +614,24 @@ func (s *Server) handleMandateSign(w http.ResponseWriter, r *http.Request) {
 				"(or KUBONA_ALLOW_EPHEMERAL_SIGNER=1 for local dev only)",
 			"reviewer_key_configured": false,
 		})
+		return
+	}
+	// Spend authority mints only for the tenant's admin: the envelope binds
+	// tenant, action, and exact parameters under the admin key. A bearer
+	// token alone (already checked by the route wrapper) is not enough.
+	if req.AdminAction == nil {
+		http.Error(w, "admin_action envelope required: tenant admin must authorize this spend", http.StatusForbidden)
+		return
+	}
+	bound, err := bindAdminAction(req.TenantID, "mandate_sign",
+		map[string]any{"job_hash": req.JobHash, "max_budget_usd": req.MaxBudgetUSD, "ttl_seconds": req.TtlSeconds},
+		*req.AdminAction)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+	if _, err := s.tenantMgr.VerifyAdminAction(bound); err != nil {
+		http.Error(w, "admin authorization failed: "+err.Error(), http.StatusForbidden)
 		return
 	}
 	expiry := time.Now().UTC().Add(time.Duration(req.TtlSeconds) * time.Second)
@@ -618,6 +654,10 @@ func (s *Server) handleMandateSign(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleMandateVerify(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.verifyLimiter.allow(clientKey(r)) {
+		http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
 		return
 	}
 
@@ -1864,7 +1904,9 @@ func (s *Server) handleEventsStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	if origin := corsAllowOrigin(r); origin != "" {
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+	}
 
 	sessionID := r.URL.Query().Get("session_id")
 

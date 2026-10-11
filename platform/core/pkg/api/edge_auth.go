@@ -1,0 +1,129 @@
+package api
+
+import (
+	"crypto/subtle"
+	"net"
+	"net/http"
+	"os"
+	"strings"
+	"sync"
+	"time"
+)
+
+// Edge auth (B0-2): the trust boundary in front of spend-authority
+// endpoints. Three independent rails, all fail-closed:
+//
+//  1. Bearer token (requireBearer): Authorization: Bearer <token> checked
+//     against KUBONA_API_TOKEN with constant-time compare. The token is
+//     operator-configured on both sides; when unset the endpoint refuses
+//     with 503 instead of silently serving. NOTE: the console's
+//     NEXT_PUBLIC_* token is client-visible and is NOT accepted here —
+//     public values are not secrets.
+//  2. Tenant-admin envelope: spend mandates bind a tenant admin's Ed25519
+//     signature over the exact parameters (same bindAdminAction envelope
+//     as the tenant mutating routes). Stolen bearer tokens alone cannot
+//     mint spend for a tenant whose admin key they lack.
+//  3. Rate limits: per-IP token buckets on sign/verify so stolen
+//     credentials cannot be sprayed at machine pace.
+
+// requireBearer gates one handler on the operator API token.
+func (s *Server) requireBearer(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		want := os.Getenv("KUBONA_API_TOKEN")
+		if want == "" {
+			http.Error(w, "API token not configured: set KUBONA_API_TOKEN", http.StatusServiceUnavailable)
+			return
+		}
+		const prefix = "Bearer "
+		got := r.Header.Get("Authorization")
+		if !strings.HasPrefix(got, prefix) ||
+			subtle.ConstantTimeCompare([]byte(strings.TrimPrefix(got, prefix)), []byte(want)) != 1 {
+			http.Error(w, "missing or invalid bearer token", http.StatusUnauthorized)
+			return
+		}
+		next(w, r)
+	}
+}
+
+// corsAllowOrigin resolves the Access-Control-Allow-Origin value for a
+// request. Default is an explicit allowlist (local console origins plus
+// KUBONA_CORS_ORIGINS extras); "*" requires the KUBONA_CORS_ANY=1 dev
+// escape hatch, never the default. Non-matching origins get no header,
+// so browsers block them.
+func corsAllowOrigin(r *http.Request) string {
+	if os.Getenv("KUBONA_CORS_ANY") == "1" {
+		return "*"
+	}
+	allow := []string{"http://localhost:3000", "http://127.0.0.1:3000"}
+	if extra := os.Getenv("KUBONA_CORS_ORIGINS"); extra != "" {
+		for _, o := range strings.Split(extra, ",") {
+			if o = strings.TrimSpace(o); o != "" {
+				allow = append(allow, o)
+			}
+		}
+	}
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return allow[0]
+	}
+	for _, o := range allow {
+		if subtle.ConstantTimeCompare([]byte(origin), []byte(o)) == 1 {
+			return origin
+		}
+	}
+	return ""
+}
+
+// rateLimiter is a per-key token bucket. v1 constants are deliberately
+// tight on sign (human-paced approvals) and looser on verify (called per
+// submit by admission paths); tune with production traffic, not theory.
+type rateLimiter struct {
+	mu      sync.Mutex
+	rate    float64 // tokens per second
+	burst   int
+	buckets map[string]*tokenBucket
+}
+
+type tokenBucket struct {
+	tokens float64
+	last   time.Time
+}
+
+func newRateLimiter(rate float64, burst int) *rateLimiter {
+	return &rateLimiter{rate: rate, burst: burst, buckets: map[string]*tokenBucket{}}
+}
+
+// allow reports whether key may proceed, consuming one token.
+func (l *rateLimiter) allow(key string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	now := time.Now()
+	b, ok := l.buckets[key]
+	if !ok {
+		b = &tokenBucket{tokens: float64(l.burst), last: now}
+		l.buckets[key] = b
+	}
+	b.tokens += now.Sub(b.last).Seconds() * l.rate
+	if b.tokens > float64(l.burst) {
+		b.tokens = float64(l.burst)
+	}
+	b.last = now
+	if b.tokens < 1 {
+		return false
+	}
+	b.tokens--
+	return true
+}
+
+// clientKey attributes a request for rate limiting. X-Forwarded-For is
+// honored only from loopback (no trusted-proxy config exists yet); direct
+// RemoteAddr otherwise. Spoofing XFF from non-loopback buys nothing.
+func clientKey(r *http.Request) string {
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil && (host == "127.0.0.1" || host == "::1") {
+		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+			return "xff:" + strings.TrimSpace(strings.Split(xff, ",")[0])
+		}
+	}
+	return "addr:" + r.RemoteAddr
+}
