@@ -48,7 +48,6 @@ $$N \in \mathcal{O}\left( \frac{\log M}{\epsilon^2} \max_i \|O_i\|_{\text{shadow
 randomized Clifford measurements, completely decoupling measurement overhead from commuting Pauli groupings.
 
 ## 3. Early Fault-Tolerant Hardware Architectures
-
 ```
 ┌────────────────────────────────────────────────────────────────────────┐
 │               FRONTIER HARDWARE & QEC PARADIGMS (2024-2026)           │
@@ -70,6 +69,16 @@ randomized Clifford measurements, completely decoupling measurement overhead fro
    - The \[144, 12, 12\] "gross code" encodes 12 logical qubits into 144 data qubits + 144 syndrome ancillae (288 total), with code distance $d=12$.
    - Slashes physical qubit overhead by **over 10x** compared to standard rotated surface codes (which require 3,456 physical qubits for 12 distance-12 logical qubits).
    - High threshold ($0.75\% - 0.8\%$) under standard circuit noise models.
+
+## Claim shape + acceptance pricing (built 2026-10-11)
+
+`pkg/qec/claim.go`: every "logical beats physical" assertion carries four
+numbers or refuses — suppression-per-+2-distance Λ (fit from ≥2 points,
+single points cannot define a scaling law), breakeven factor, decoder
+latency vs cycle time (backlog check), and acceptance rate. Postselected
+gains price at 1/acceptance via `EffectiveShotsMultiplier` on both
+estimators (unspecified acceptance = 1.0×, never assumed). A gain quoted
+without its acceptance rate is not a scaling result.
 
 ## Cross-References
 
