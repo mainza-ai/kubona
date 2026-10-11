@@ -28,6 +28,10 @@ type ChatMessage struct {
 	Content      string           `json:"content"`
 	ProposalJSON *json.RawMessage `json:"proposal_json,omitempty"`
 	CreatedAt    time.Time        `json:"created_at"`
+	// Measured generation cost, persisted when the serving path reports it
+	// (streaming usage chunks / unary timing). Nil when unknown — never estimated.
+	DurationMs *int64           `json:"duration_ms,omitempty"`
+	UsageJSON  *json.RawMessage `json:"usage_json,omitempty"`
 }
 
 type Manager struct {
@@ -173,7 +177,7 @@ func (m *Manager) AddMessage(sessionID, role, content string, proposal *json.Raw
 }
 
 func (m *Manager) GetMessages(sessionID string) ([]ChatMessage, error) {
-	query := `SELECT id, session_id, role, content, proposal_json, created_at FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC`
+	query := `SELECT id, session_id, role, content, proposal_json, created_at, duration_ms, usage_json FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC`
 	rows, err := m.ledger.DB().Query(query, sessionID)
 	if err != nil {
 		return nil, err
@@ -184,16 +188,160 @@ func (m *Manager) GetMessages(sessionID string) ([]ChatMessage, error) {
 	for rows.Next() {
 		var msg ChatMessage
 		var propStr sql.NullString
-		if err := rows.Scan(&msg.ID, &msg.SessionID, &msg.Role, &msg.Content, &propStr, &msg.CreatedAt); err != nil {
+		var durMs sql.NullInt64
+		var usageStr sql.NullString
+		if err := rows.Scan(&msg.ID, &msg.SessionID, &msg.Role, &msg.Content, &propStr, &msg.CreatedAt, &durMs, &usageStr); err != nil {
 			return nil, err
 		}
 		if propStr.Valid {
 			raw := json.RawMessage(propStr.String)
 			msg.ProposalJSON = &raw
 		}
+		if durMs.Valid {
+			v := durMs.Int64
+			msg.DurationMs = &v
+		}
+		if usageStr.Valid {
+			raw := json.RawMessage(usageStr.String)
+			msg.UsageJSON = &raw
+		}
 		msgs = append(msgs, msg)
 	}
 	return msgs, nil
+}
+
+// ClearMessages deletes every chat message in a session (operator "clear
+// chat"). The session, campaign state, and ledger history survive; the clear
+// itself is sealed as a ledger event so the erasure is auditable.
+func (m *Manager) ClearMessages(sessionID string) (int64, error) {
+	res, err := m.ledger.DB().Exec(`DELETE FROM chat_messages WHERE session_id = ?`, sessionID)
+	if err != nil {
+		return 0, fmt.Errorf("failed to clear chat messages: %w", err)
+	}
+	n, _ := res.RowsAffected()
+	m.ledger.AppendEvent(sessionID, "chat_cleared", map[string]any{"deleted": n})
+	return n, nil
+}
+
+// DropTrailingAssistant deletes assistant messages after the last user
+// message and returns that user message's content. Powers regenerate
+// without duplicating the user turn. Returns an error when no user message
+// exists to regenerate from.
+func (m *Manager) DropTrailingAssistant(sessionID string) (string, error) {
+	msgs, err := m.GetMessages(sessionID)
+	if err != nil {
+		return "", err
+	}
+	lastUser := -1
+	for i, msg := range msgs {
+		if msg.Role == "user" {
+			lastUser = i
+		}
+	}
+	if lastUser == -1 {
+		return "", fmt.Errorf("no user message to regenerate from")
+	}
+	if _, err := m.ledger.DB().Exec(
+		`DELETE FROM chat_messages WHERE session_id = ? AND role = 'assistant' AND created_at > (SELECT created_at FROM chat_messages WHERE session_id = ? AND role = 'user' ORDER BY created_at DESC LIMIT 1)`,
+		sessionID, sessionID); err != nil {
+		return "", fmt.Errorf("failed to drop trailing assistant messages: %w", err)
+	}
+	return msgs[lastUser].Content, nil
+}
+
+// RewriteUserMessage replaces a user message's content and deletes every
+// message after it (branching: the edited turn restarts the thread from
+// that point). Only role='user' rows are rewritable; anything else refuses.
+// Returns the updated message.
+func (m *Manager) RewriteUserMessage(sessionID, messageID, content string) (*ChatMessage, error) {
+	if content == "" {
+		return nil, fmt.Errorf("rewritten content must not be empty")
+	}
+	var role, created string
+	err := m.ledger.DB().QueryRow(
+		`SELECT role, created_at FROM chat_messages WHERE id = ? AND session_id = ?`,
+		messageID, sessionID).Scan(&role, &created)
+	if err != nil {
+		return nil, fmt.Errorf("message not found in session")
+	}
+	if role != "user" {
+		return nil, fmt.Errorf("only user messages can be rewritten")
+	}
+	tx, err := m.ledger.DB().Begin()
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`UPDATE chat_messages SET content = ? WHERE id = ?`, content, messageID); err != nil {
+		return nil, fmt.Errorf("failed to rewrite message: %w", err)
+	}
+	// Positional truncation (not timestamp comparison: same-second inserts
+	// share created_at granularity, so time comparison under-deletes).
+	rows, err := tx.Query(`SELECT id FROM chat_messages WHERE session_id = ? ORDER BY created_at ASC, rowid ASC`, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	var ids []string
+	for rows.Next() {
+		var mid string
+		if err := rows.Scan(&mid); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		ids = append(ids, mid)
+	}
+	rows.Close()
+	if rerr := rows.Err(); rerr != nil {
+		return nil, rerr
+	}
+	cut := false
+	for _, mid := range ids {
+		if mid == messageID {
+			cut = true
+			continue
+		}
+		if cut {
+			if _, err := tx.Exec(`DELETE FROM chat_messages WHERE id = ?`, mid); err != nil {
+				return nil, fmt.Errorf("failed to truncate thread: %w", err)
+			}
+		}
+	}
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	m.ledger.AppendEvent(sessionID, "chat_rewritten", map[string]any{"message_id": messageID})
+	var msg ChatMessage
+	var propStr sql.NullString
+	var durMs sql.NullInt64
+	var usageStr sql.NullString
+	err = m.ledger.DB().QueryRow(
+		`SELECT id, session_id, role, content, proposal_json, created_at, duration_ms, usage_json FROM chat_messages WHERE id = ?`,
+		messageID).Scan(&msg.ID, &msg.SessionID, &msg.Role, &msg.Content, &propStr, &msg.CreatedAt, &durMs, &usageStr)
+	if err != nil {
+		return nil, err
+	}
+	if propStr.Valid {
+		raw := json.RawMessage(propStr.String)
+		msg.ProposalJSON = &raw
+	}
+	return &msg, nil
+}
+// SetMessageUsage persists measured generation cost on a stored message.
+// Duration of 0 / nil usage means "unknown" and stores NULL — never zeros
+// presented as measurements.
+func (m *Manager) SetMessageUsage(messageID string, durationMs int64, usage *json.RawMessage) error {
+	var dur any
+	if durationMs > 0 {
+		dur = durationMs
+	}
+	var usageStr any
+	if usage != nil {
+		usageStr = string(*usage)
+	}
+	_, err := m.ledger.DB().Exec(
+		`UPDATE chat_messages SET duration_ms = ?, usage_json = ? WHERE id = ?`,
+		dur, usageStr, messageID)
+	return err
 }
 
 func (m *Manager) DeleteSession(id string) error {
