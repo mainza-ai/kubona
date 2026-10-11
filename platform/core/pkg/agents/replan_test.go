@@ -302,3 +302,65 @@ func TestReplanPesSweep(t *testing.T) {
 		t.Error("point-free sweep must not fold")
 	}
 }
+
+// B0-1: an uncomputed anchor is never verification-grade. Nil bridge =
+// fallback path: labeled everywhere, accuracy fails, no collapse.
+func TestSynthFallbackAnchorNeverVerifies(t *testing.T) {
+	state, err := SynthesizeCampaignState(context.Background(), "sess-fallback", "H2 ground state VQE", nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state.ClassicalAnchor.AnchorComputed {
+		t.Error("nil bridge must not mark anchor computed")
+	}
+	if state.ClassicalAnchor.AnchorSource != "hardcoded-fallback" {
+		t.Errorf("source must name the fallback, got %q", state.ClassicalAnchor.AnchorSource)
+	}
+	if state.ClassicalAnchor.ChemicalAccuracyPassed {
+		t.Error("chemical accuracy cannot pass on a fallback anchor")
+	}
+	if state.Epistemics.Status != "UNVERIFIED" {
+		t.Errorf("fallback epistemics must be UNVERIFIED, got %q", state.Epistemics.Status)
+	}
+	if state.Epistemics.AlphaCorroborated != 0.50 {
+		t.Errorf("fallback amplitudes must drop to pending, got %v", state.Epistemics.AlphaCorroborated)
+	}
+	if !strings.Contains(state.Epistemics.Statement, "hardcoded fallback") {
+		t.Errorf("statement must carry the caveat: %q", state.Epistemics.Statement)
+	}
+	if state.Notebook.EpistemicVerdict != "UNVERIFIED_FALLBACK" {
+		t.Errorf("notebook verdict must name the fallback, got %q", state.Notebook.EpistemicVerdict)
+	}
+	if !strings.Contains(state.Notebook.Sections[1], "UNAVAILABLE") {
+		t.Errorf("notebook section 2 must disclose the missing anchor: %q", state.Notebook.Sections[1])
+	}
+	if !strings.Contains(state.ClassicalAnchor.Method, "fallback") {
+		t.Errorf("method must not read as PySCF: %q", state.ClassicalAnchor.Method)
+	}
+
+	// Fresh campaigns keep HYPOTHESIS_PENDING (already pending) + caveat.
+	fresh, err := SynthesizeCampaignStateWithOpts(context.Background(), "sess-fresh-fb", "H2", "", true, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if fresh.Epistemics.Status != "HYPOTHESIS_PENDING" {
+		t.Errorf("fresh fallback keeps HYPOTHESIS_PENDING, got %q", fresh.Epistemics.Status)
+	}
+	if !strings.Contains(fresh.Epistemics.Statement, "hardcoded fallback") {
+		t.Errorf("fresh statement must carry the caveat: %q", fresh.Epistemics.Statement)
+	}
+}
+
+// A recomputed anchor promotes the campaign back to computed-grade.
+func TestReplanAnchorPromotesComputed(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+	updated, changed, _ := ReplanWithJobResult(raw, "job-anchor9", "classical_anchor",
+		[]byte(`{"success":true,"molecule":"H2","bond_distance":0.7414,"rhf_energy":-1.11668,"fci_exact_energy":-1.13727}`), "")
+	if !changed {
+		t.Fatal("expected fold")
+	}
+	after := decodeReplan(t, updated)
+	if !after.ClassicalAnchor.AnchorComputed || after.ClassicalAnchor.AnchorSource != "pyscf-live" {
+		t.Errorf("recomputed anchor must promote to computed-grade: %+v", after.ClassicalAnchor)
+	}
+}
