@@ -1528,3 +1528,9 @@ skipped is the exact failure this incident is about:
   Action Gate (Ed25519 mandate) + co-pilot reskin; all 13 prior surfaces
   reachable; fonts self-hosted (no runtime egress). pnpm build + 22 vitest
   + eslint clean + served-200 smoke. Spec recorded on [[ui-ux-vision]] s13.
+
+## [2026-10-11] implementation | On-demand canvas widgets (vision iteration)
+  WidgetStage single-slot backdrop + co-pilot ✦ dispatch pills with live
+  props; spend card read-only, defers to Action Gate (own-signing widget
+  refused: verifies nothing). Icon-only de-wording. Build + 26 vitest +
+  eslint zero-warning + empty-stage smoke proven. Spec on [[ui-ux-vision]] s14.

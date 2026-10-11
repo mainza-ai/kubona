@@ -23,6 +23,7 @@ import {
 import { ChatMessage, CampaignState } from '@/types';
 import { fetchMessages, sendChatMessage, createSession, runTribunal, fetchCampaignState } from '@/lib/api';
 import { MathText } from './common/MathText';
+import type { CanvasWidgetKind } from './sovereign/WidgetStage';
 
 interface CopilotDrawerProps {
   sessionId: string;
@@ -32,6 +33,7 @@ interface CopilotDrawerProps {
   onExperimentLaunched?: () => void;
   onCampaignUpdated?: (campaign: CampaignState) => void;
   onSelectSurface?: (surface: string) => void;
+  onMaterialize?: (kind: CanvasWidgetKind, title: string) => void;
   onClose?: () => void;
 }
 
@@ -43,6 +45,7 @@ export function CopilotDrawer({
   onExperimentLaunched,
   onCampaignUpdated,
   onSelectSurface,
+  onMaterialize,
   onClose,
 }: CopilotDrawerProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -524,6 +527,36 @@ export function CopilotDrawer({
                           <span>{copiedId === m.id ? 'Copied' : 'Copy Synthesis'}</span>
                         </button>
                       </div>
+
+                      {/* On-demand canvas dispatch: agents show, don't tell */}
+                      {onMaterialize && (
+                        <div className="pt-1 flex flex-wrap items-center gap-1.5">
+                          <button
+                            onClick={() => onMaterialize('circuit', 'Circuit · live')}
+                            className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] text-slate-300 transition-all flex items-center gap-1"
+                          >
+                            <span className="text-cyan-400">✦</span> Inspect circuit
+                          </button>
+                          <button
+                            onClick={() => onMaterialize('shadows', 'Shadow estimates')}
+                            className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] text-slate-300 transition-all flex items-center gap-1"
+                          >
+                            <span className="text-cyan-400">✦</span> Shadow estimates
+                          </button>
+                          <button
+                            onClick={() => onMaterialize('molecule', 'Active space')}
+                            className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] text-slate-300 transition-all flex items-center gap-1"
+                          >
+                            <span className="text-amber-400">✦</span> Active space
+                          </button>
+                          <button
+                            onClick={() => onMaterialize('mandate', 'Spend mandate')}
+                            className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] text-slate-300 transition-all flex items-center gap-1"
+                          >
+                            <span className="text-amber-400">✦</span> Spend card
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
                   </div>
