@@ -1713,3 +1713,8 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-11] verification | CI green on PES sweep
   All 5 jobs success on run 38173445138. Tree clean, zero unpushed.
+
+## [2026-10-11] audit | Production completion audit B/C/D/E filed
+  Four parallel code investigations + spot-confirmation; verdict not
+  100% (B ~55%, C ~40%, D one P0 honesty bug, E far from P4).
+  Plan B0/B1/C/D/E with checkboxes on the page; execution starts B0-1.
