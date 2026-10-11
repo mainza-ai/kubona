@@ -107,9 +107,16 @@ the model sees the prompt twice. Cosmetic today, token waste always.
   transcript-order fix, empty-session clear, stream single-prompt,
   job-detail route + view, results bound to `result_json`, widget geometry
   (wider stage, truncate, minimize, LIVE-badge honesty).
-- **Phase 3 — agentic core:** `tools` protocol in `pkg/llm` + dispatcher;
-  single tool registry replacing both dead allow-lists; context injection
-  with budgeting; Hindsight wired over HTTP; planner loop with observation;
+- **Phase 3 — agentic core (in build 2026-10-11):** `tools` protocol in
+  `pkg/llm` ✅ (tools/tool_choice, tool_calls, streaming deltas, DSML
+  fallback) + single registry/dispatcher ✅ (6 read-only tools, deny by
+  default, schema validation, `tool_called` audit events); context injection
+  ✅ with budgeting (`BudgetHistory`: system survives, newest wins, cuts
+  announced); tribunal turns observe ✅ (one bounded round per turn,
+  nil-safe); local-sim submit tool ✅ (admission-enforced, 4096-shot cap,
+  one dispatch per turn, turn roles never write — live-proven: model
+  dispatched one Bell run, read it back, reported genuine counts).
+  Remaining: Hindsight wired over HTTP; planner loop with replan;
   versioned campaigns; compile/validate gates on launch.
 - **Phase 4 — hardening:** proposal schema validation, dissent-capable
   tribunal or removal, memory write-back, load/chaos tests on the loop,

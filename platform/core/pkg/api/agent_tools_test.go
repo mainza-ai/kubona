@@ -9,6 +9,10 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/tools"
 )
 
+func mustCall(name, args string) tools.Call {
+	return tools.Call{ID: "t1", Name: name, Arguments: args}
+}
+
 func TestCopilotToolRegistration(t *testing.T) {
 	s := &Server{}
 	r := s.registerAgentTools()
@@ -16,6 +20,7 @@ func TestCopilotToolRegistration(t *testing.T) {
 	want := map[string]bool{
 		"get_anchor": false, "get_campaign": false, "list_jobs": false,
 		"get_job": false, "recent_events": false, "query_literature": false,
+		"submit_local_sim": false,
 	}
 	for _, d := range defs {
 		fn, _ := d["function"].(map[string]any)
@@ -62,5 +67,39 @@ func TestResolveWithToolsDegrades(t *testing.T) {
 	s.toolRegistry = s.registerAgentTools()
 	if out := s.resolveWithTools(context.Background(), "sess", base); len(out) != len(base) {
 		t.Error("nil LLM client must return base unchanged")
+	}
+}
+
+func TestSubmitLocalSimTool(t *testing.T) {
+	s := &Server{}
+	r := s.registerAgentTools()
+	defs := r.DefinitionsForLLM(CopilotRole)
+	found := false
+	for _, d := range defs {
+		fn, _ := d["function"].(map[string]any)
+		if fn["name"] == "submit_local_sim" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("copilot must see submit_local_sim")
+	}
+	for _, role := range []string{"ansatz-scout", "device-auditor"} {
+		for _, d := range r.DefinitionsForLLM(role) {
+			fn, _ := d["function"].(map[string]any)
+			if fn["name"] == "submit_local_sim" {
+				t.Errorf("turn role %q must never see the submit tool", role)
+			}
+		}
+	}
+	// Empty QASM refuses before any runner is touched (nil-safe: the
+	// refusal happens on validation, so no jobRunner is needed).
+	_, err := r.Dispatch(context.Background(), CopilotRole, mustCall("submit_local_sim", `{"session_id":"s","qasm":"  "}`))
+	if err == nil || !strings.Contains(err.Error(), "must not be empty") {
+		t.Errorf("expected empty-QASM refusal, got %v", err)
+	}
+	_, err = r.Dispatch(context.Background(), CopilotRole, mustCall("submit_local_sim", `{"session_id":"s","qasm":"OPENQASM 2.0;","shots":99999}`))
+	if err == nil || !strings.Contains(err.Error(), "capped at 4096") {
+		t.Errorf("expected shots-cap refusal, got %v", err)
 	}
 }

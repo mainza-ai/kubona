@@ -1,10 +1,16 @@
 package agents
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/mainza-ai/kubona/core/pkg/llm"
 	"github.com/mainza-ai/kubona/core/pkg/memory"
+	"github.com/mainza-ai/kubona/core/pkg/tools"
 )
 
 func TestAgentCollectiveManifests(t *testing.T) {
@@ -86,5 +92,97 @@ func TestExecuteTribunalWithMemory(t *testing.T) {
 	}
 	if !foundConsensus {
 		t.Fatalf("expected to find consensus memory record in store")
+	}
+}
+
+func TestObserveTurnPassthrough(t *testing.T) {
+	ac := NewAgentCollective()
+	base := []llm.ChatMessage{{Role: "user", Content: "hi"}}
+	if out := ac.observeTurn(context.Background(), nil, "ansatz-scout", base); len(out) != 1 {
+		t.Error("nil client must return base unchanged")
+	}
+}
+
+func TestObserveTurnDispatches(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var body map[string]any
+		_ = json.NewDecoder(r.Body).Decode(&body)
+		msgs, _ := body["messages"].([]any)
+		last, _ := msgs[len(msgs)-1].(map[string]any)
+		if obs, ok := last["content"].(string); ok && strings.Contains(obs, "get_anchor") {
+			// Observation round: answer from the observed value.
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"choices": []any{map[string]any{
+					"message":       map[string]any{"content": "anchor observed: -1.13727"},
+					"finish_reason": "stop",
+				}},
+			})
+			return
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []any{map[string]any{
+				"message": map[string]any{
+					"content": "",
+					"tool_calls": []any{map[string]any{
+						"id":   "call_9",
+						"type": "function",
+						"function": map[string]any{
+							"name":      "get_anchor",
+							"arguments": `{"molecule":"H2"}`,
+						},
+					}},
+				},
+				"finish_reason": "tool_calls",
+			}},
+		})
+	}))
+	defer srv.Close()
+
+	t.Setenv("OPENCODE_API_KEY", "test-key")
+	settings := llm.DefaultSettings()
+	snap := settings.GetSnapshot()
+	pc := snap.Providers[llm.ProviderOpenCode]
+	pc.BaseURL = srv.URL
+	snap.Providers[llm.ProviderOpenCode] = pc
+	if err := settings.Update(&snap, nil); err != nil {
+		t.Fatal(err)
+	}
+	// Point the scout role at the stub server.
+	snap.RoleAssignments["ansatz-scout"] = llm.RoleModelAssignment{
+		Role: "ansatz-scout", Provider: llm.ProviderOpenCode, Model: "stub",
+	}
+	if err := settings.Update(&snap, nil); err != nil {
+		t.Fatal(err)
+	}
+	cli := llm.NewClient(settings)
+
+	reg := tools.NewRegistry()
+	_ = reg.Register(tools.Definition{
+		Name:        "get_anchor",
+		Description: "test anchor",
+		Parameters:  map[string]any{"type": "object"},
+		Capability:  "anchor:read",
+		ReadOnly:    true,
+		Handler: func(_ context.Context, args json.RawMessage) (any, error) {
+			return map[string]any{"fci": -1.13727}, nil
+		},
+	})
+	_ = reg.Allow("ansatz-scout", "get_anchor")
+	ac := NewAgentCollective()
+	ac.Tools = reg
+
+	out := ac.observeTurn(context.Background(), cli, "ansatz-scout", []llm.ChatMessage{
+		{Role: "system", Content: "s"},
+		{Role: "user", Content: "anchor for H2?"},
+	})
+	// base(2) + assistant-tool-call + tool observation
+	if len(out) != 4 {
+		t.Fatalf("expected augmented history of 4, got %d", len(out))
+	}
+	if out[2].Role != "assistant" || len(out[2].ToolCalls) != 1 {
+		t.Errorf("expected assistant tool-call message, got %+v", out[2])
+	}
+	if out[3].Role != "tool" || !strings.Contains(out[3].Content, "-1.13727") {
+		t.Errorf("expected observation carrying the tool result, got %q", out[3].Content)
 	}
 }
