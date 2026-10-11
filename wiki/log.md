@@ -1656,3 +1656,9 @@ skipped is the exact failure this incident is about:
   arities, conditionals. Unknown names stay with the executor (no
   false refusals). Live: q[7] + cx-arity refused pre-admission with
   reasons, zero residue; Bell admitted. Full Go suite green.
+
+## [2026-10-11] verification | CI red on validator, fixtures repaired
+  Semantic gate refused literal-backslash-n fixtures (2 api + 5 jobs
+  tests) — payloads that were never valid QASM, previously waved
+  through by substring checks. Fixtures converted to real newlines;
+  regression test pins it. Suite green locally; recommitting.
