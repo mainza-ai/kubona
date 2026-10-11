@@ -140,3 +140,47 @@ func TestRecallMemoryTool(t *testing.T) {
 		}
 	}
 }
+
+// The registry is the only enforcement plane: tribunal roles observe
+// read-only (submit_local_sim is copilot-only), unknown tools and unknown
+// roles are denied before any handler runs.
+func TestRegistryReplacesAllowLists(t *testing.T) {
+	s := &Server{}
+	r := s.registerAgentTools()
+	ctx := context.Background()
+
+	defNames := func(role string) map[string]bool {
+		out := map[string]bool{}
+		for _, d := range r.DefinitionsForLLM(role) {
+			fn, _ := d["function"].(map[string]any)
+			name, _ := fn["name"].(string)
+			out[name] = true
+		}
+		return out
+	}
+	copilot := defNames(CopilotRole)
+	if !copilot["submit_local_sim"] {
+		t.Error("copilot must be granted submit_local_sim")
+	}
+	for _, role := range []string{"ansatz-scout", "disconfirmation-officer", "device-auditor", "epistemic-scribe"} {
+		defs := defNames(role)
+		if defs["submit_local_sim"] {
+			t.Errorf("tribunal role %s must not be granted submit_local_sim", role)
+		}
+		if !defs["recall_memory"] {
+			t.Errorf("tribunal role %s must be granted recall_memory", role)
+		}
+		if _, err := r.Dispatch(ctx, role, mustCall("submit_local_sim", `{}`)); err == nil ||
+			!strings.Contains(err.Error(), "may not call") {
+			t.Errorf("tribunal role %s submit must be denied at the gate, got: %v", role, err)
+		}
+	}
+
+	if _, err := r.Dispatch(ctx, CopilotRole, mustCall("sign_spend_mandate", `{}`)); err == nil ||
+		!strings.Contains(err.Error(), "unknown tool") {
+		t.Errorf("unknown tool must be denied even for copilot, got: %v", err)
+	}
+	if _, err := r.Dispatch(ctx, "ghost-role", mustCall("get_anchor", `{}`)); err == nil {
+		t.Error("unknown role must be denied everything")
+	}
+}

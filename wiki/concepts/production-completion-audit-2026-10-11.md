@@ -59,10 +59,13 @@ with tests + live proof + green CI, per project rule).
   fallback opt-in, per-IP buckets on sign/verify.
 - [x] B0-3. Proposal `designed_by:"server-fallback"` + labeled fallback
   strings; launch refuses empty QASM/backend (or explicit `allow_defaults`).
-- [ ] B0-4. Stream `withToolMessages` routing (`pkg/llm/client.go:184`);
+- [x] B0-4. Stream `withToolMessages` routing (`pkg/llm/client.go:184`);
   `tool_called` from `observeTurn`; tribunal `toolNamesSince` (not `nil`);
   delete/wire dead stream-tool helpers; delete dead allow-lists (or
-  registry-resolution test).
+  registry-resolution test). — landed 2026-10-11: stream wire shape fixed
+  + pinned, observeTurn returns auditable calls (turn-level `observed_tools`,
+  ledger `tool_called` via helper), dead stream helpers + RoleManifest
+  allow-list deleted, registry contract test replaces it.
 - [ ] B0-5. `qir.Analyze` in `SubmitJob` circuit_run branch; record
   `compiler_used`/`fallback_estimate`; launch inherits.
 - [ ] B0-6. Secrets purge: `.env` discipline, lease HMAC + PG DSN to

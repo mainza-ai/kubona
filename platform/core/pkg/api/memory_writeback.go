@@ -182,6 +182,25 @@ func evalDeltaMHa(resultJSON []byte) *float64 {
 	return &v
 }
 
+// auditTribunalTools records tribunal observe-round dispatches as
+// tool_called ledger events — the same shape as the copilot path, so
+// tribunal tool use is attributable instead of silent. Arguments stay out
+// of the event; name, outcome, and error text are what the audit needs.
+func (s *Server) auditTribunalTools(sessionID string, turns []agents.TribunalTurn) {
+	if s.ledger == nil {
+		return
+	}
+	for _, turn := range turns {
+		for _, c := range turn.Observed {
+			_ = s.ledger.AppendEvent(sessionID, "tool_called", map[string]any{
+				"tool":  c.Name,
+				"ok":    c.OK,
+				"error": c.Error,
+			})
+		}
+	}
+}
+
 // retainTurnExperience stores one bounded experience for a completed model
 // turn. Importance is caller-rated: tool-using and proposal-bearing turns
 // outrank plain answers. Never fails the turn on memory error — retention is

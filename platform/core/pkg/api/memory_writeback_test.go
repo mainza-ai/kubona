@@ -1,10 +1,12 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"os"
 	"testing"
 
+	"github.com/mainza-ai/kubona/core/pkg/agents"
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
 	"github.com/mainza-ai/kubona/core/pkg/memory"
@@ -147,5 +149,70 @@ func TestChatOutcomeClassification(t *testing.T) {
 	}
 	if got := chatImportance(true, false, true); got != 0.8 {
 		t.Errorf("proposal+tools must rate 0.8, got %v", got)
+	}
+}
+
+// B0-4: tribunal observe-round dispatches audit exactly like copilot tool
+// calls — same event type, same payload shape — so memory attribution and
+// any future alerting read one stream, not two.
+func TestAuditTribunalToolsMirrorsCopilot(t *testing.T) {
+	dbPath := "test_audit_tribunal.db"
+	defer os.Remove(dbPath)
+	defer os.Remove(dbPath + "-wal")
+	defer os.Remove(dbPath + "-shm")
+
+	l, err := ledger.OpenLedger(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
+	sm := session.NewManager(l)
+	jr := jobs.NewRunner(l, nil, 1)
+	sup := supervisor.NewSupervisor(l)
+	wd := watchdog.NewTaskWatchdog(l, sup)
+	srv := NewServer(l, sm, jr, sup, wd)
+
+	sess, _ := sm.CreateSession("audit drill", 50, "")
+	srv.auditTribunalTools(sess.ID, []agents.TribunalTurn{
+		{TurnIndex: 1, Observed: []agents.ObservedCall{
+			{Name: "get_anchor", OK: true},
+			{Name: "query_literature", OK: false, Error: "boom"},
+		}},
+		{TurnIndex: 2},
+	})
+
+	events, err := l.GetRecentEvents(sess.ID, 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tools []ledger.EventRecord
+	for _, e := range events {
+		if e.EventType != "tool_called" {
+			continue
+		}
+		tools = append(tools, e)
+	}
+	if len(tools) != 2 {
+		t.Fatalf("expected 2 tool_called events, got %d", len(tools))
+	}
+	for _, e := range tools {
+		if e.EventType != "tool_called" {
+			t.Errorf("wrong event type: %s", e.EventType)
+		}
+	}
+	var newest map[string]any
+	if err := json.Unmarshal([]byte(tools[0].Payload), &newest); err != nil {
+		t.Fatal(err)
+	}
+	// DESC order: the failed call was appended last.
+	if newest["tool"] != "query_literature" || newest["ok"] != false || newest["error"] != "boom" {
+		t.Errorf("failure must audit with reason: %v", newest)
+	}
+
+	// Attribution end-to-end: tools recorded via audit feed toolNamesSince.
+	names := srv.toolNamesSince(sess.ID, 0)
+	if len(names) != 2 || names[0] != "get_anchor" || names[1] != "query_literature" {
+		t.Errorf("attribution must follow the audit trail, got %v", names)
 	}
 }

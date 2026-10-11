@@ -22,27 +22,18 @@ func TestAgentCollectiveManifests(t *testing.T) {
 		t.Fatalf("expected 5 personas, got %d", len(roles))
 	}
 
-	// Epistemic scribe can evaluate wavefunctions but cannot sign mandates
-	auth, msg := ac.AuthorizeTool(RoleEpistemicScribe, "evaluate_wavefunction")
-	if !auth {
-		t.Fatalf("expected epistemic-scribe to be authorized for evaluate_wavefunction, got: %s", msg)
-	}
-
-	auth, _ = ac.AuthorizeTool(RoleEpistemicScribe, "sign_spend_mandate")
-	if auth {
-		t.Fatalf("epistemic-scribe must NOT be authorized for sign_spend_mandate")
-	}
-
-	// Human reviewer holds sign_spend_mandate
-	auth, _ = ac.AuthorizeTool(RoleHumanReviewer, "sign_spend_mandate")
-	if !auth {
-		t.Fatalf("expected human-reviewer to be authorized for sign_spend_mandate")
-	}
-
-	// Disconfirmation officer can compute classical anchors
-	auth, _ = ac.AuthorizeTool(RoleDisconfirmationOfficer, "compute_classical_anchor")
-	if !auth {
-		t.Fatalf("expected disconfirmation-officer to be authorized for compute_classical_anchor")
+	// Manifests carry identity and prompt only. Enforcement lives in the
+	// single tool registry (pkg/tools) — the old AllowedTools list named
+	// tools that no longer exist and was removed; see
+	// TestRegistryReplacesAllowLists for the live contract.
+	for _, m := range roles {
+		if m.SystemPrompt == "" {
+			t.Errorf("role %s must carry a system prompt", m.Role)
+		}
+		wantAP2 := m.Role == RoleHumanReviewer
+		if m.RequiresHumanAP2 != wantAP2 {
+			t.Errorf("role %s RequiresHumanAP2=%v, want %v", m.Role, m.RequiresHumanAP2, wantAP2)
+		}
 	}
 }
 
@@ -98,7 +89,7 @@ func TestExecuteTribunalWithMemory(t *testing.T) {
 func TestObserveTurnPassthrough(t *testing.T) {
 	ac := NewAgentCollective()
 	base := []llm.ChatMessage{{Role: "user", Content: "hi"}}
-	if out := ac.observeTurn(context.Background(), nil, "ansatz-scout", base); len(out) != 1 {
+	if out, obs := ac.observeTurn(context.Background(), nil, "ansatz-scout", base); len(out) != 1 || len(obs) != 0 {
 		t.Error("nil client must return base unchanged")
 	}
 }
@@ -171,13 +162,17 @@ func TestObserveTurnDispatches(t *testing.T) {
 	ac := NewAgentCollective()
 	ac.Tools = reg
 
-	out := ac.observeTurn(context.Background(), cli, "ansatz-scout", []llm.ChatMessage{
+	out, obs := ac.observeTurn(context.Background(), cli, "ansatz-scout", []llm.ChatMessage{
 		{Role: "system", Content: "s"},
 		{Role: "user", Content: "anchor for H2?"},
 	})
 	// base(2) + assistant-tool-call + tool observation
 	if len(out) != 4 {
 		t.Fatalf("expected augmented history of 4, got %d", len(out))
+	}
+	// The dispatch must be reported for auditing: name, outcome, no args.
+	if len(obs) != 1 || obs[0].Name != "get_anchor" || !obs[0].OK || obs[0].Error != "" {
+		t.Fatalf("expected one successful get_anchor observation, got %+v", obs)
 	}
 	if out[2].Role != "assistant" || len(out[2].ToolCalls) != 1 {
 		t.Errorf("expected assistant tool-call message, got %+v", out[2])

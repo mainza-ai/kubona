@@ -1686,12 +1686,18 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 
+	// Watermark first: observe-round dispatches land during the run, and
+	// the write-back below attributes exactly this turn's tools.
+	tribEventsBefore := s.latestEventID(req.SessionID)
 	res, err := s.collective.ExecuteTribunalWithMemory(r.Context(), s.llmClient, s.jobRunner.BridgeClient(), s.memoryStore, req.Prompt, onTurn)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-
+	// Tribunal tool use audits exactly like copilot tool use: one
+	// tool_called event per observed dispatch, so the memory write-back
+	// below can attribute this turn's tools instead of passing nil.
+	s.auditTribunalTools(req.SessionID, res.Turns)
 	// Add final assistant consensus with proposal
 	assistantMsg, _ := s.sessionMgr.AddMessage(req.SessionID, "assistant", res.Synthesis, res.ProposalJSON)
 
@@ -1725,7 +1731,8 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 		tribRecordID = rec.ID
 		tribOutcome += " [" + rec.ID + "]"
 	}
-	s.retainTurnExperience(req.SessionID, "tribunal", req.Prompt, tribOutcome, nil, 0.7)
+	s.retainTurnExperience(req.SessionID, "tribunal", req.Prompt, tribOutcome,
+		s.toolNamesSince(req.SessionID, tribEventsBefore), 0.7)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"tribunal":          res,

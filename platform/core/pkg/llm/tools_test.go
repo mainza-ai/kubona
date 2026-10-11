@@ -3,6 +3,7 @@ package llm_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -158,5 +159,48 @@ func TestParseDSMLInvokes(t *testing.T) {
 	}
 	if len(llm.ParseDSMLInvokes("plain answer, no markup")) != 0 {
 		t.Error("plain text must yield zero calls")
+	}
+}
+
+// B0-4: the stream path must serialize tool observations in OpenAI wire
+// shape, exactly like unary Complete. Previously it sent ChatMessage
+// structs raw (tool_call_id/tool_name Go fields), which providers reject
+// or misread whenever a turn used tools before streaming.
+func TestCompleteStreamUsesWireToolMessages(t *testing.T) {
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.Header().Set("Content-Type", "text/event-stream")
+		fmt.Fprint(w, "data: {\"choices\":[{\"delta\":{\"content\":\"hi\"},\"finish_reason\":\"stop\"}]}\n\n")
+		fmt.Fprint(w, "data: [DONE]\n\n")
+	}))
+	defer srv.Close()
+
+	c := llm.NewClient(toolTestSettings(t, srv.URL))
+	history := []llm.ChatMessage{
+		{Role: "user", Content: "anchor?"},
+		{Role: "assistant", Content: "", ToolCalls: []llm.ToolCall{{ID: "call_1", Name: "get_anchor", Arguments: "{}"}}},
+		{Role: "tool", ToolCallID: "call_1", ToolName: "get_anchor", Content: `{"ok":true}`},
+	}
+	if _, err := c.CompleteStream(context.Background(), "copilot", history, func(string) {}); err != nil {
+		t.Fatalf("CompleteStream failed: %v", err)
+	}
+	msgs, ok := gotBody["messages"].([]any)
+	if !ok || len(msgs) != 3 {
+		t.Fatalf("expected 3 wire messages, got %v", gotBody["messages"])
+	}
+	toolMsg, ok := msgs[2].(map[string]any)
+	if !ok {
+		t.Fatalf("tool message wrong shape: %v", msgs[2])
+	}
+	if toolMsg["role"] != "tool" || toolMsg["tool_call_id"] != "call_1" || toolMsg["name"] != "get_anchor" {
+		t.Errorf("tool observation not in wire shape: %v", toolMsg)
+	}
+	if _, hasGoField := toolMsg["tool_name"]; hasGoField {
+		t.Errorf("raw Go struct field leaked onto the wire: %v", toolMsg)
+	}
+	asstMsg, _ := msgs[1].(map[string]any)
+	if _, ok := asstMsg["tool_calls"]; !ok {
+		t.Errorf("assistant tool_calls missing on the wire: %v", asstMsg)
 	}
 }
