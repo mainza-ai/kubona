@@ -1518,3 +1518,7 @@ skipped is the exact failure this incident is about:
   kubona/intelligence/resolve.py: block/match/cluster, all-pairs floor
   refuses chain-merges, sparsity floor, proposals-only + validator-gated
   apply with supersedes chains. 5 tests green (21 across intelligence suite).
+
+## [2026-10-11] verification | CI green on ER-pipeline batch
+  All 5 jobs success on run 38122879475. Intelligence buildable phases
+  complete (entity core, taxonomy v0, OPS connector, ER). Tree clean, zero unpushed.
