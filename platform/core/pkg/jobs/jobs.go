@@ -100,6 +100,21 @@ func (r *Runner) SubmitJob(sessionID, jobType string, params any) (*Job, error) 
 		return nil, fmt.Errorf("failed to marshal params: %w", err)
 	}
 
+	// Structural QASM gate first (cheapest check): malformed programs
+	// refuse before admission, queue, ledger, or spend moves.
+	if jobType == "circuit_run" {
+		var qp struct {
+			QASM string `json:"qasm"`
+		}
+		if err := json.Unmarshal(data, &qp); err == nil && qp.QASM != "" {
+			if err := validateQASM(qp.QASM); err != nil {
+				return nil, err
+			}
+		} else if qp.QASM == "" {
+			return nil, fmt.Errorf("circuit_run requires qasm")
+		}
+	}
+
 	// Pre-QPU admission gate: autonomy + hardware/mandate rules. Refusals
 	// happen here, before any queue or ledger write, so rejected jobs leave
 	// no residue and cost nothing. Success reserves spend against the bound
