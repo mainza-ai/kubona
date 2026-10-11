@@ -49,9 +49,33 @@ def expectation_from_counts(counts: dict[str, int], obs: np.ndarray, n: int) -> 
 
 
 def _richardson(scales: list[float], values: list[float]) -> float:
-    """Polynomial extrapolation to \u03bb=0 (Richardson): fit degree n-1, eval at 0."""
+    """Polynomial extrapolation to λ=0 (Richardson): fit degree n-1, eval at 0."""
     coeffs = np.polyfit(scales, values, deg=len(scales) - 1)
     return float(np.polyval(coeffs, 0.0))
+
+
+def _linear(scales: list[float], values: list[float]) -> float:
+    """Linear fit through scale points, eval at 0 (conservative alternative)."""
+    coeffs = np.polyfit(scales, values, deg=1)
+    return float(np.polyval(coeffs, 0.0))
+
+
+def _exponential(scales: list[float], values: list[float]) -> float:
+    """Exponential-decay fit eval at 0 (for noise that compounds per fold).
+
+    Fail-closed: non-positive values cannot log-fit — raises instead of
+    inventing a number.
+    """
+    import math
+    if any(v <= 0 for v in values):
+        raise ValueError("exponential extrapolator needs positive values")
+    logged = [math.log(v) for v in values]
+    coeffs = np.polyfit(scales, logged, deg=1)
+    return float(math.exp(np.polyval(coeffs, 0.0)))
+
+
+EXTRAPOLATORS = {"richardson": _richardson, "linear": _linear,
+                 "exponential": _exponential}
 
 
 @dataclass
@@ -62,11 +86,33 @@ class ZNEResult:
     technique: str = "ZNE"
     fold: str = "global"
     extrapolator: str = "Richardson"
+    shots: int = 0
+    seed: int | None = None
 
     def to_dict(self) -> dict:
         return {"raw_value": self.raw_value, "mitigated_value": self.mitigated_value,
                 "scale_values": {str(k): v for k, v in self.scale_values.items()},
-                "technique": self.technique, "fold": self.fold, "extrapolator": self.extrapolator}
+                "technique": self.technique, "fold": self.fold, "extrapolator": self.extrapolator,
+                "shots": self.shots, "seed": self.seed}
+
+    def refit(self, extrapolator: str) -> "ZNEResult":
+        """Re-estimate from the SAME shots with a different extrapolator.
+
+        No new execution: the per-scale values are the archived measurement
+        record, and each refit is one more estimator over identical data.
+        Unknown extrapolators refuse (fail-closed, never a default swap).
+        """
+        if extrapolator not in EXTRAPOLATORS:
+            raise ValueError(f"unknown extrapolator {extrapolator!r}; "
+                             f"known: {sorted(EXTRAPOLATORS)}")
+        scales = sorted(self.scale_values)
+        values = [self.scale_values[s] for s in scales]
+        return ZNEResult(
+            raw_value=self.raw_value,
+            mitigated_value=EXTRAPOLATORS[extrapolator](scales, values),
+            scale_values=dict(self.scale_values),
+            technique=self.technique, fold=self.fold,
+            extrapolator=extrapolator, shots=self.shots, seed=self.seed)
 
 
 def run_zne(circuit: Circuit, observable: str = "z", qubit: int = 0,
@@ -86,4 +132,5 @@ def run_zne(circuit: Circuit, observable: str = "z", qubit: int = 0,
             raw = val
         scale_values[float(s)] = val
     mitigated = _richardson(list(map(float, scales)), list(scale_values.values()))
-    return ZNEResult(raw_value=float(raw), mitigated_value=mitigated, scale_values=scale_values)
+    return ZNEResult(raw_value=float(raw), mitigated_value=mitigated, scale_values=scale_values,
+                     extrapolator="richardson", shots=shots, seed=seed)
