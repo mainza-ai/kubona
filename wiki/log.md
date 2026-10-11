@@ -1444,3 +1444,8 @@ skipped is the exact failure this incident is about:
   pkg/qec/claim.go: four-number logical-claim validator (Λ fit, breakeven,
   decoder-vs-cycle, acceptance), EffectiveCostMultiplier on estimates.
   5 tests green; full Go suite green.
+
+## [2026-10-11] implementation | Compiler pass portfolio with receipts
+  qir/portfolio.py: feature-based selection, chained receipts, per-pass
+  evidence tiers, noise context honestly unconsumed; compile_circuit MCP
+  tool. 6 tests green; suite 350 passed.
