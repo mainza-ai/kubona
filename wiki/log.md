@@ -1627,3 +1627,6 @@ skipped is the exact failure this incident is about:
   campaign_versions table (cap 50, rowid versions, triggers); all 7
   writers labeled; GET .../campaign/versions. Live: session-create +
   chat triggers recorded. Full Go suite green.
+
+## [2026-10-11] verification | CI green on versioned campaigns
+  All 5 jobs success on run 38162834450. Tree clean, zero unpushed.
