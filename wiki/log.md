@@ -1710,3 +1710,6 @@ skipped is the exact failure this incident is about:
   section + coarse FCI minimum, anchor/trajectory untouched.
   A2A potential_energy_scan submit path. Live: real PySCF H2
   3-point sweep COMPLETED (FCI min near R=1.0, coarse as labeled).
+
+## [2026-10-11] verification | CI green on PES sweep
+  All 5 jobs success on run 38173445138. Tree clean, zero unpushed.
