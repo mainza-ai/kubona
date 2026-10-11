@@ -19,8 +19,8 @@ import {
   
   
 } from 'lucide-react';
-import {  AgentPersona } from '@/types';
-import { API_BASE } from '@/lib/api';
+import {  AgentPersona, TribunalTurn } from '@/types';
+import { API_BASE, runTribunal } from '@/lib/api';
 
 interface TribunalRoomProps {
   hypothesisId?: string;
@@ -31,11 +31,11 @@ interface TribunalRoomProps {
 
 interface PersonaState {
   persona: AgentPersona;
-  currentStatement: string;
-  vote: 'corroborated' | 'contested' | 'falsified' | 'abstain';
-  confidenceRho: number;
-  formalAstHash?: string;
-  isThinking: boolean;
+  // Live turn content once a real deliberation lands; null = seat empty.
+  statement: string | null;
+  vote: 'corroborated' | 'contested' | 'falsified' | 'abstain' | 'pending';
+  // Substrings of TribunalTurn.role that fill this seat.
+  matchKeys: string[];
 }
 
 export function EpistemicTribunalRoom({
@@ -44,13 +44,18 @@ export function EpistemicTribunalRoom({
   sessionId = '',
   onCommitToLedger,
 }: TribunalRoomProps) {
-  const [currentPhase, setCurrentPhase] = useState<number>(5); // 1 to 5
-  const [quorumPercent, setQuorumPercent] = useState<number>(94.5);
+  const [currentPhase, setCurrentPhase] = useState<number>(0); // 0 = not started; 5 = consensus recorded
+  const [quorumPercent, setQuorumPercent] = useState<number | null>(null);
   const [committedReceipt, setCommittedReceipt] = useState<string | null>(null);
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
   const [isCommitting, setIsCommitting] = useState<boolean>(false);
   const [commitError, setCommitError] = useState<string | null>(null);
+  const [delibError, setDelibError] = useState<string | null>(null);
+  const [turns, setTurns] = useState<TribunalTurn[] | null>(null);
+  const [topic, setTopic] = useState(`${targetSystem} ground state electronic structure`);
 
+  // Chamber seats: identities only. Statements, votes, and quorum come
+  // exclusively from live tribunal turns — an empty seat says so.
   const personas: PersonaState[] = [
     {
       persona: {
@@ -62,12 +67,9 @@ export function EpistemicTribunalRoom({
         description: 'Conjectures ground states, formulates physical models and targets.',
         thinking_horizon_seconds: 180,
       },
-      currentStatement:
-        'Conjecture: Ground state energy converges to -1.498 J via Quantum Krylov subspace diagonalization, beating classical single-reference DFT by 42 mHa.',
-      vote: 'corroborated',
-      confidenceRho: 0.96,
-      formalAstHash: 'sha256:7b4f8a...90e1',
-      isThinking: false,
+      statement: null,
+      vote: 'pending',
+      matchKeys: ['scout', 'theorist'],
     },
     {
       persona: {
@@ -79,12 +81,9 @@ export function EpistemicTribunalRoom({
         description: 'Red-teams claims, probes barren plateaus, searches counterexamples.',
         thinking_horizon_seconds: 240,
       },
-      currentStatement:
-        'Falsification Audit: Variance of partial derivatives Var[∇H] = 0.082 > 10⁻⁷. No barren plateau traps detected across Krylov subspace depth 4.',
-      vote: 'corroborated',
-      confidenceRho: 0.92,
-      formalAstHash: 'sha256:4a1c9e...38b2',
-      isThinking: false,
+      statement: null,
+      vote: 'pending',
+      matchKeys: ['disconfirmation', 'critic', 'falsif'],
     },
     {
       persona: {
@@ -96,12 +95,9 @@ export function EpistemicTribunalRoom({
         description: 'Machine-checks assertions under strict zero-cheat axiom containment.',
         thinking_horizon_seconds: 360,
       },
-      currentStatement:
-        'Lake Comparator: Machine proof compiled cleanly with 0 sorryAx. Axiom whitelist satisfied: {propext, Quot.sound, Classical.choice}.',
-      vote: 'corroborated',
-      confidenceRho: 1.0,
-      formalAstHash: 'sha256:8f4e12...c09a',
-      isThinking: false,
+      statement: null,
+      vote: 'pending',
+      matchKeys: ['scribe', 'prover', 'lean'],
     },
     {
       persona: {
@@ -113,48 +109,27 @@ export function EpistemicTribunalRoom({
         description: 'Verifies expectations against exact mathematical physics anchors.',
         thinking_horizon_seconds: 120,
       },
-      currentStatement:
-        'Anchor Verification: System evaluated against Family 271 exact ferromagnetic bound (E₀/NJ = -1.5 J). Discrepancy Δ = 1.3 mHa <= 1.6 mHa chemical precision.',
-      vote: 'corroborated',
-      confidenceRho: 0.94,
-      formalAstHash: 'sha256:2d90ef...71aa',
-      isThinking: false,
-    },
-    {
-      persona: {
-        id: 'compiler-01',
-        name: 'Quantum Circuit Compiler',
-        role: 'quantum_circuit_compiler',
-        avatar_emoji: '⚡',
-        badge_color: 'border-purple-500/30 text-purple-400 bg-purple-950/20',
-        description: 'Compiles QIR bitcode, optimizes Clifford+T depth, maps to qLDPC.',
-        thinking_horizon_seconds: 90,
-      },
-      currentStatement:
-        'QIR Compilation: Synthesized 12 logical qubits mapped to IBM [[144, 12, 12]] Bivariate Bicycle gross code. T-depth reduced by 41% using Family 279 relations.',
-      vote: 'corroborated',
-      confidenceRho: 0.89,
-      formalAstHash: 'sha256:9c11aa...4f88',
-      isThinking: false,
-    },
-    {
-      persona: {
-        id: 'sentinel-01',
-        name: 'Sentinel Spend Governor',
-        role: 'sentinel_spend_governor',
-        avatar_emoji: '🛡️',
-        badge_color: 'border-emerald-500/30 text-emerald-400 bg-emerald-950/20',
-        description: 'Monitors AP2 spend mandates, enforces sovereign air-gap isolation.',
-        thinking_horizon_seconds: 30,
-      },
-      currentStatement:
-        'Spend Governance: AP2 spend mandate verified with WebCrypto Ed25519 signature. Egress blocked (0 bytes outbound); session within $120.00 ceiling.',
-      vote: 'corroborated',
-      confidenceRho: 1.0,
-      formalAstHash: 'sha256:ed2551...99bb',
-      isThinking: false,
+      statement: null,
+      vote: 'pending',
+      matchKeys: ['anchor', 'auditor', 'device'],
     },
   ];
+
+  const voteForVerdict = (verdict: string): PersonaState['vote'] => {
+    const v = (verdict || '').toLowerCase();
+    if (/corroborat|pass|confirm|verif/.test(v)) return 'corroborated';
+    if (/falsif|fail|reject/.test(v)) return 'falsified';
+    return 'contested';
+  };
+
+  // Fill seats from live turns only. No turn, no statement — ever.
+  const filledSeats: PersonaState[] = personas.map((seat) => {
+    const turn = turns?.find((t) =>
+      seat.matchKeys.some((k) => `${t.role} ${t.name}`.toLowerCase().includes(k))
+    );
+    if (!turn) return seat;
+    return { ...seat, statement: turn.content, vote: voteForVerdict(turn.verdict) };
+  });
 
   const phases = [
     { num: 1, label: 'Proposal Submission', desc: 'Hypothesis tuple H published' },
@@ -164,20 +139,34 @@ export function EpistemicTribunalRoom({
     { num: 5, label: 'Quorum Voting', desc: 'Supermajority consensus (>= 75%)' },
   ];
 
-  const handleRunDeliberation = () => {
+  const handleRunDeliberation = async () => {
+    if (isSimulating) return;
+    if (!sessionId) {
+      setDelibError('No active session: open or create a session before convening.');
+      return;
+    }
     setIsSimulating(true);
-    setCurrentPhase(1);
-    let step = 1;
-    const interval = setInterval(() => {
-      step += 1;
-      if (step <= 5) {
-        setCurrentPhase(step);
+    setDelibError(null);
+    setCommittedReceipt(null);
+    try {
+      // Real deliberation: one backend call, four live turns. Minutes on
+      // local models — the button shows honest waiting, not fake phases.
+      const res = await runTribunal(sessionId, topic.trim() || `${targetSystem} ground state`);
+      if (res?.tribunal?.turns?.length) {
+        setTurns(res.tribunal.turns);
+        const corroborated = res.tribunal.turns.filter((t) =>
+          /corroborat|pass|confirm|verif/.test((t.verdict || '').toLowerCase())
+        ).length;
+        setQuorumPercent((corroborated / res.tribunal.turns.length) * 100);
+        setCurrentPhase(5);
       } else {
-        clearInterval(interval);
-        setIsSimulating(false);
-        setQuorumPercent(95.2);
+        setDelibError('Tribunal returned no turns — nothing deliberated, nothing recorded.');
       }
-    }, 700);
+    } catch (err) {
+      setDelibError(err instanceof Error ? err.message : 'Tribunal call failed.');
+    } finally {
+      setIsSimulating(false);
+    }
   };
 
   const handleCommitLedger = async () => {
@@ -238,8 +227,14 @@ export function EpistemicTribunalRoom({
             <h2 className="text-xl font-bold text-white tracking-wide">
               Epistemic Tribunal Room & Swarm Deliberation
             </h2>
-            <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-500/30 text-emerald-400">
-              Chamber Live
+            <span className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded-full border ${
+              isSimulating
+                ? 'bg-cyan-950/60 border-cyan-500/30 text-cyan-400 animate-pulse'
+                : turns
+                  ? 'bg-emerald-950/60 border-emerald-500/30 text-emerald-400'
+                  : 'bg-white/[0.03] border-white/10 text-slate-500'
+            }`}>
+              {isSimulating ? 'Deliberating…' : turns ? 'Chamber Live' : 'Chamber Idle'}
             </span>
           </div>
           <p className="text-xs text-neutral-400">
@@ -269,11 +264,11 @@ export function EpistemicTribunalRoom({
 
           <button
             onClick={handleCommitLedger}
-            disabled={quorumPercent < 75.0 || committedReceipt !== null || isCommitting}
+            disabled={quorumPercent == null || quorumPercent < 75.0 || committedReceipt !== null || isCommitting}
             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
               committedReceipt
                 ? 'bg-emerald-950/40 text-emerald-400 border-emerald-500/40 cursor-default'
-                : quorumPercent >= 75.0
+                : quorumPercent != null && quorumPercent >= 75.0
                 ? 'bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-400 shadow-lg shadow-indigo-900/30'
                 : 'bg-neutral-800 text-neutral-500 border-neutral-700 cursor-not-allowed'
             }`}
@@ -332,19 +327,41 @@ export function EpistemicTribunalRoom({
             <span className="text-xs font-semibold text-neutral-200">Target: {targetSystem}</span>
           </div>
           <div className="flex items-center gap-3 text-xs text-neutral-400 font-mono">
-            <span>Anchor: Family 271 / 278</span>
-            <span>Spend Ceiling: $120.00</span>
+            <span>{turns ? `${turns.length} live turns` : 'no deliberation yet'}</span>
           </div>
         </div>
 
-        <div className="bg-black/40 border border-neutral-800/80 rounded-lg p-3 font-mono text-xs text-neutral-300">
-          <div className="text-neutral-500 mb-1">Computational Hypothesis Tuple H:</div>
-          <span className="text-indigo-400">⟨S_Lean4(femoco_krylov_monotonic)</span>,{' '}
-          <span className="text-amber-400">A_anchor(Heisenberg_3D_Bloch)</span>,{' '}
-          <span className="text-purple-400">C_QIR(bb_code_12q_transversal)</span>,{' '}
-          <span className="text-emerald-400">B_AP2($120.00)</span>,{' '}
-          <span className="text-cyan-400">ΔS_target(0.85 nat)⟩</span>
+        <div className="flex flex-wrap items-center gap-2 mb-2">
+          <input
+            value={topic}
+            onChange={(e) => setTopic(e.target.value)}
+            placeholder="Deliberation topic…"
+            maxLength={200}
+            className="flex-1 min-w-[220px] px-3 py-1.5 rounded-lg bg-black/40 border border-neutral-800 text-xs text-neutral-200 font-mono focus:outline-none focus:border-indigo-500"
+          />
         </div>
+        {delibError && (
+          <div className="p-3 bg-rose-950/30 border border-rose-500/40 rounded-xl flex items-center gap-2 mb-2">
+            <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span className="text-xs text-rose-300"><strong>Deliberation failed:</strong> {delibError} Nothing was recorded.</span>
+          </div>
+        )}
+
+        {turns ? (
+          <div className="bg-black/40 border border-neutral-800/80 rounded-lg p-3 font-mono text-xs text-neutral-300">
+            <div className="text-neutral-500 mb-1">Deliberation record ({turns.length} turns):</div>
+            {turns.map((t, i) => (
+              <div key={i} className="py-1 border-t border-neutral-800/60 first:border-0">
+                <span className="text-cyan-400">[{t.role}]</span>{' '}
+                <span className="text-neutral-300">{t.content.slice(0, 220)}{t.content.length > 220 ? '…' : ''}</span>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="bg-black/40 border border-neutral-800/80 rounded-lg p-3 font-mono text-xs text-neutral-600">
+            No deliberation record — convene the tribunal to fill this chamber.
+          </div>
+        )}
       </div>
 
       {/* Quorum Consensus Gauge */}
@@ -354,7 +371,7 @@ export function EpistemicTribunalRoom({
             Supermajority Quorum Consensus
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-2xl font-bold font-mono text-emerald-400">{quorumPercent.toFixed(1)}%</span>
+            <span className="text-2xl font-bold font-mono text-emerald-400">{quorumPercent != null ? `${quorumPercent.toFixed(1)}%` : '—'}</span>
             <span className="text-xs text-neutral-400">
               (Supermajority threshold: 75.0% required to commit discovery to Merkle ledger)
             </span>
@@ -364,7 +381,7 @@ export function EpistemicTribunalRoom({
         <div className="w-full md:w-64 bg-neutral-800 rounded-full h-3 overflow-hidden border border-neutral-700">
           <div
             className="bg-gradient-to-r from-emerald-500 to-cyan-400 h-full rounded-full transition-all duration-500"
-            style={{ width: `${Math.min(quorumPercent, 100)}%` }}
+            style={{ width: `${quorumPercent != null ? Math.min(quorumPercent, 100) : 0}%` }}
           />
         </div>
       </div>
@@ -395,9 +412,9 @@ export function EpistemicTribunalRoom({
         </div>
       )}
 
-      {/* The Deliberation Grid: 6 Specialized Personas */}
+      {/* The Deliberation Grid: chamber seats, live turns only */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {personas.map((item) => (
+        {filledSeats.map((item) => (
           <div
             key={item.persona.id}
             className="bg-neutral-900/80 border border-neutral-800 hover:border-neutral-700 transition rounded-xl p-4 flex flex-col justify-between"
@@ -416,26 +433,27 @@ export function EpistemicTribunalRoom({
                   className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded border ${
                     item.vote === 'corroborated'
                       ? 'border-emerald-500/40 text-emerald-400 bg-emerald-950/30'
-                      : 'border-rose-500/40 text-rose-400 bg-rose-950/30'
+                      : item.vote === 'pending'
+                        ? 'border-white/10 text-slate-500 bg-white/[0.03]'
+                        : 'border-rose-500/40 text-rose-400 bg-rose-950/30'
                   }`}
                 >
                   {item.vote}
                 </span>
               </div>
 
-              {/* Persona statement / critique */}
+              {/* Seat statement: live turn content, or an honest empty seat */}
               <div className="p-2.5 rounded-lg bg-black/40 border border-neutral-800/80 text-xs text-neutral-300 leading-relaxed my-2">
-                {item.currentStatement}
+                {item.statement ?? <span className="text-neutral-600 font-mono">— awaiting deliberation</span>}
               </div>
             </div>
 
-            {/* Persona footer with confidence and formal hash */}
+            {/* Seat footer */}
             <div className="pt-2 border-t border-neutral-800/80 flex items-center justify-between text-[11px] font-mono text-neutral-400">
               <div className="flex items-center gap-1">
-                <span>Confidence:</span>
-                <span className="text-emerald-400 font-semibold">ρ = {item.confidenceRho.toFixed(3)}</span>
+                <span>{item.statement ? 'live turn' : 'seat empty'}</span>
               </div>
-              <div className="text-neutral-500 truncate max-w-[120px]">{item.formalAstHash}</div>
+              <div className="text-neutral-500 truncate max-w-[120px]">{item.persona.id}</div>
             </div>
           </div>
         ))}

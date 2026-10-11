@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { KeyRound, ShieldCheck, AlertOctagon, Sparkles, ChevronDown, ChevronUp, Lock } from 'lucide-react';
 import { CampaignState, Session } from '@/types';
 import { createSignedSpendMandate } from '@/lib/mandates';
-import { verifySpendMandate, emergencyAbort } from '@/lib/api';
+import { verifySpendMandate, emergencyAbort, launchProposal, fetchLLMSettings, saveLLMSettings } from '@/lib/api';
 import { ApprovalPacketCard } from '@/components/common/ApprovalPacketCard';
 import { buildApprovalPacketFromCampaign } from '@/lib/approvalPacket';
 
@@ -25,6 +25,21 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCryptoDetails, setShowCryptoDetails] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+
+  // Initialize the switch from live settings — never assume engaged.
+  useEffect(() => {
+    let mounted = true;
+    fetchLLMSettings()
+      .then((d) => {
+        if (mounted && d && typeof (d as { air_gapped?: boolean }).air_gapped === 'boolean') {
+          setSovereignAirGap((d as { air_gapped: boolean }).air_gapped);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   const handleApprovePendingRun = async () => {
     setIsSubmitting(true);
@@ -61,8 +76,53 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
     }
   };
 
-  const handleEmergencyStop = async () => {
-    const sid = session?.id || campaign?.session_id || '';
+  // Real local dispatch: builds a simulator-tier proposal from the live
+  // campaign circuit and launches it. Disabled without session + QASM —
+  // never a banner pretending work happened.
+  const handleSimulateOffline = async () => {
+    const qf = campaign?.quantum_factors;
+    if (!session?.id || !qf?.qasm) return;
+    setIsSubmitting(true);
+    try {
+      const res = await launchProposal(session.id, {
+        target: `${campaign?.target_system || 'Target'} local simulation`,
+        spend_estimate: '$0.00 (Local Simulator)',
+        recommended_tier: 'Local Simulator (qiskit-aer-simulator)',
+        classical_anchor: 'session anchor',
+        qasm: qf.qasm,
+      });
+      if (res?.job) {
+        setActionMessage(`Dispatched offline: job ${String(res.job.id).slice(0, 8)} on local simulator.`);
+      } else {
+        setActionMessage('Local dispatch refused — nothing dispatched, nothing spent.');
+      }
+    } catch {
+      setActionMessage('Local dispatch failed — nothing dispatched.');
+    } finally {
+      setIsSubmitting(false);
+      setTimeout(() => setActionMessage(null), 5000);
+    }
+  };
+
+  // Air-gap switch persists to intelligence settings (same backend control
+  // as Cognitive Mesh) — never a visual-only toggle.
+  const handleToggleAirGap = async () => {
+    const next = !sovereignAirGap;
+    setSovereignAirGap(next);
+    try {
+      const current = await fetchLLMSettings();
+      if (!current) throw new Error('settings unreachable');
+      const ok = await saveLLMSettings({ ...(current as Record<string, unknown>), air_gapped: next });
+      setActionMessage(ok ? `Sovereign Air-Gap ${next ? 'ENGAGED' : 'released'} (persisted).` : 'Air-gap save refused — switch reverted.');
+      if (!ok) setSovereignAirGap(!next);
+    } catch {
+      setSovereignAirGap(!next);
+      setActionMessage('Air-gap save failed — switch reverted, nothing changed.');
+    }
+    setTimeout(() => setActionMessage(null), 4000);
+  };
+
+  const handleEmergencyStop = async () => {    const sid = session?.id || campaign?.session_id || '';
     if (!sid) {
       setActionMessage('No active session: open a campaign before triggering an abort.');
       setTimeout(() => setActionMessage(null), 4000);
@@ -146,11 +206,10 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
           />
           <div className="flex items-center space-x-3 pt-2">
             <button
-              onClick={() => {
-                setActionMessage('Routed to offline NumPy local statevector simulator.');
-                setTimeout(() => setActionMessage(null), 3000);
-              }}
-              className="flex-1 py-2.5 px-4 bg-white/05 hover:bg-white/10 text-slate-300 text-xs font-medium rounded-xl transition-all"
+              onClick={handleSimulateOffline}
+              disabled={isSubmitting || !session?.id || !campaign?.quantum_factors?.qasm}
+              title={!campaign?.quantum_factors?.qasm ? 'Needs a campaign circuit first' : 'Dispatch to local simulator'}
+              className="flex-1 py-2.5 px-4 bg-white/05 hover:bg-white/10 text-slate-300 text-xs font-medium rounded-xl transition-all disabled:opacity-40"
             >
               Simulate Offline
             </button>
@@ -193,7 +252,8 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
           </div>
 
           <button
-            onClick={() => setSovereignAirGap(!sovereignAirGap)}
+            onClick={handleToggleAirGap}
+            title="Persists to intelligence settings (same control as Cognitive Mesh)"
             className={`w-11 h-6 rounded-full transition-colors relative p-0.5 ${sovereignAirGap ? 'bg-cyan-500' : 'bg-slate-700'}`}
           >
             <div className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${sovereignAirGap ? 'translate-x-5' : 'translate-x-0'}`} />
