@@ -163,6 +163,9 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 	_, _ = db.Exec(`ALTER TABLE tenants ADD COLUMN spent_usd REAL NOT NULL DEFAULT 0`)
 	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN reserved_tenant TEXT NOT NULL DEFAULT ''`)
 	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN reserved_amount REAL NOT NULL DEFAULT 0`)
+	// Measured generation cost on chat messages (NULL = unknown, never zero-filled).
+	_, _ = db.Exec(`ALTER TABLE chat_messages ADD COLUMN duration_ms INTEGER`)
+	_, _ = db.Exec(`ALTER TABLE chat_messages ADD COLUMN usage_json TEXT`)
 	// Normalize pre-migration rows (ALTER ... DEFAULT '' backfills '').
 	_, _ = db.Exec(`UPDATE ledger_events SET tenant_id = 'default' WHERE tenant_id = ''`)
 	_, _ = db.Exec(`UPDATE sessions SET tenant_id = 'default' WHERE tenant_id = ''`)

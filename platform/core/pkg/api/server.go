@@ -235,6 +235,9 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/sessions/", s.handleSessionByID)
 	s.mux.HandleFunc("/api/chat/messages", s.handleChatMessages)
 	s.mux.HandleFunc("/api/chat/stream", s.handleChatStream)
+	s.mux.HandleFunc("/api/chat/regenerate", s.handleChatRegenerate)
+	s.mux.HandleFunc("/api/chat/rewrite", s.handleChatRewrite)
+	s.mux.HandleFunc("/api/chat/feedback", s.handleChatFeedback)
 	s.mux.HandleFunc("/api/chat/tribunal", s.handleChatTribunal)
 	s.mux.HandleFunc("/api/chat/launch", s.handleChatLaunch)
 	s.mux.HandleFunc("/api/jobs", s.handleJobs)
@@ -858,6 +861,17 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
 	if strings.HasSuffix(id, "/messages") {
 		sessionID := strings.TrimSuffix(id, "/messages")
+		if r.Method == http.MethodDelete {
+			// Operator "clear chat": messages gone, session + campaign +
+			// ledger history survive, erasure sealed as an event.
+			n, err := s.sessionMgr.ClearMessages(sessionID)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"cleared": true, "deleted": n, "session_id": sessionID})
+			return
+		}
 		msgs, err := s.sessionMgr.GetMessages(sessionID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -1005,7 +1019,9 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 		}
 
 		// Autonomous Epistemic Routing via the configured engine
+		genStart := time.Now()
 		botReply, proposalJSON, err := s.generateCopilotResponse(r.Context(), sessionID, req.Content)
+		genMs := time.Since(genStart).Milliseconds()
 		if err != nil && botReply == "" {
 			prov, model, _ := s.llmSettings.GetModelForRole("copilot")
 			botReply = engineNotice(string(prov), model, err)
@@ -1029,6 +1045,7 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 			"user":              userMsg,
 			"assistant":         assistantMsg,
 			"model":             servedModel,
+			"duration_ms":       genMs,
 		})
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -1101,7 +1118,7 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 
 	streamCtx, cancel := context.WithTimeout(r.Context(), 600*time.Second)
 	defer cancel()
-	raw, finish, _, streamErr := s.llmClient.CompleteStream(streamCtx, "copilot", history, func(tok string) {
+	streamRes, streamErr := s.llmClient.CompleteStream(streamCtx, "copilot", history, func(tok string) {
 		emit("token", map[string]any{"text": tok})
 	})
 	if streamErr != nil {
@@ -1112,6 +1129,8 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 		emit("done", map[string]any{"user": userMsg, "assistant": assistantMsg, "model": servedModel})
 		return
 	}
+	raw := streamRes.Text
+	finish := streamRes.Finish
 	if finish == "length" {
 		raw += copilotTruncationNotice
 	}
@@ -1119,6 +1138,22 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 	display = sanitizeCopilotReply(display)
 	assistantMsg, _ := s.sessionMgr.AddMessage(sessionID, "assistant", display, proposalJSON)
 	_, servedModel, _ := s.llmSettings.GetModelForRole("copilot")
+	// Persist measured cost on the stored message (NULL when unreported).
+	streamMs := streamRes.Duration.Milliseconds()
+	var streamUsage *json.RawMessage
+	if streamRes.Usage != nil {
+		if rawUsage, merr := json.Marshal(streamRes.Usage); merr == nil {
+			u := json.RawMessage(rawUsage)
+			streamUsage = &u
+		}
+	}
+	if streamMs > 0 || streamUsage != nil {
+		_ = s.sessionMgr.SetMessageUsage(assistantMsg.ID, streamMs, streamUsage)
+		if streamMs > 0 {
+			assistantMsg.DurationMs = &streamMs
+		}
+		assistantMsg.UsageJSON = streamUsage
+	}
 
 	var campState any
 	if cs, _ := agents.SynthesizeCampaignState(r.Context(), sessionID, req.Content, s.llmClient, s.jobRunner.BridgeClient()); cs != nil {
@@ -1130,11 +1165,139 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 	emit("done", map[string]any{
 		"user": userMsg, "assistant": assistantMsg,
 		"proposal": proposalJSON, "campaign": campState, "model": servedModel,
+		"duration_ms": streamRes.Duration.Milliseconds(), "usage": streamRes.Usage,
 	})
 }
 
-func (s *Server) generateCopilotResponse(ctx context.Context, sessionID, content string) (string, *json.RawMessage, error) {
-	// 1. Fetch recent messages for session context
+// handleChatRegenerate re-runs generation for the last user message without
+// duplicating it: trailing assistant messages are dropped first, then the
+// standard unary path answers the surviving prompt. Same envelope as chat
+// POST plus duration_ms.
+func (s *Server) handleChatRegenerate(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		SessionID string `json:"session_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	sessionID, err := s.ensureSession(req.SessionID)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("failed to resolve session: %v", err), http.StatusInternalServerError)
+		return
+	}
+	prompt, err := s.sessionMgr.DropTrailingAssistant(sessionID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	genStart := time.Now()
+	botReply, proposalJSON, genErr := s.generateCopilotResponse(r.Context(), sessionID, prompt)
+	genMs := time.Since(genStart).Milliseconds()
+	if genErr != nil && botReply == "" {
+		prov, model, _ := s.llmSettings.GetModelForRole("copilot")
+		botReply = engineNotice(string(prov), model, genErr)
+	}
+	assistantMsg, _ := s.sessionMgr.AddMessage(sessionID, "assistant", botReply, proposalJSON)
+	if genMs > 0 {
+		_ = s.sessionMgr.SetMessageUsage(assistantMsg.ID, genMs, nil)
+		assistantMsg.DurationMs = &genMs
+	}
+	_, servedModel, _ := s.llmSettings.GetModelForRole("copilot")
+	if campState, _ := agents.SynthesizeCampaignState(r.Context(), sessionID, prompt, s.llmClient, s.jobRunner.BridgeClient()); campState != nil {
+		if campBytes, merr := json.Marshal(campState); merr == nil {
+			s.ledger.SaveCampaignState(sessionID, campBytes)
+		}
+	}
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"assistant_message": assistantMsg,
+		"assistant":         assistantMsg,
+		"model":             servedModel,
+		"duration_ms":       genMs,
+		"regenerated_from":  prompt,
+	})
+}
+
+// handleChatFeedback records a 👍/👎 vote on an assistant message as a ledger
+// event — the training signal for the credibility flywheel. Votes outside
+// {up, down} are refused; unknown message ids are refused.
+func (s *Server) handleChatFeedback(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		SessionID string `json:"session_id"`
+		MessageID string `json:"message_id"`
+		Vote      string `json:"vote"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.Vote != "up" && req.Vote != "down" {
+		http.Error(w, "vote must be 'up' or 'down'", http.StatusBadRequest)
+		return
+	}
+	msgs, err := s.sessionMgr.GetMessages(req.SessionID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	found := false
+	for _, m := range msgs {
+		if m.ID == req.MessageID && m.Role == "assistant" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		http.Error(w, "assistant message not found in session", http.StatusNotFound)
+		return
+	}
+	if err := s.ledger.AppendEvent(req.SessionID, "chat_feedback", map[string]any{
+		"message_id": req.MessageID, "vote": req.Vote,
+	}); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"recorded": true, "message_id": req.MessageID, "vote": req.Vote})
+}
+
+// handleChatRewrite implements edit-resend branching: a user message is
+// replaced and every later message is deleted, restarting the thread from
+// the edited turn. The caller then regenerates (or leaves the clean branch).
+func (s *Server) handleChatRewrite(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		SessionID string `json:"session_id"`
+		MessageID string `json:"message_id"`
+		Content   string `json:"content"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.Content == "" {
+		http.Error(w, "content must not be empty", http.StatusBadRequest)
+		return
+	}
+	msg, err := s.sessionMgr.RewriteUserMessage(req.SessionID, req.MessageID, req.Content)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"rewritten": true, "message": msg})
+}
+
+func (s *Server) generateCopilotResponse(ctx context.Context, sessionID, content string) (string, *json.RawMessage, error) {	// 1. Fetch recent messages for session context
 	recentMsgs, _ := s.sessionMgr.GetMessages(sessionID)
 	var history []llm.ChatMessage
 

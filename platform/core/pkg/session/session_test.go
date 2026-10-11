@@ -1,6 +1,7 @@
 package session_test
 
 import (
+	"encoding/json"
 	"os"
 	"testing"
 
@@ -168,5 +169,126 @@ func TestSessionUncappedLimitUnaffected(t *testing.T) {
 	}
 	if err := mgr.ReserveSpend("no-such-session", 10); err == nil {
 		t.Fatal("unknown session must refuse, not pass open")
+	}
+}
+
+func TestClearMessagesAndRegenerate(t *testing.T) {
+	dbPath := "test_session_chatops.db"
+	defer os.Remove(dbPath)
+
+	l, err := ledger.OpenLedger(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open ledger: %v", err)
+	}
+	defer l.Close()
+
+	mgr := session.NewManager(l)
+	sess, err := mgr.CreateSession("ChatOps", 50.0, "default")
+	if err != nil {
+		t.Fatalf("failed to create session: %v", err)
+	}
+
+	if _, err := mgr.AddMessage(sess.ID, "user", "first question", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mgr.AddMessage(sess.ID, "assistant", "first answer", nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := mgr.AddMessage(sess.ID, "user", "second question", nil); err != nil {
+		t.Fatal(err)
+	}
+	stale, err := mgr.AddMessage(sess.ID, "assistant", "stale answer", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Regenerate drops the trailing assistant reply, keeps the user prompt.
+	prompt, err := mgr.DropTrailingAssistant(sess.ID)
+	if err != nil {
+		t.Fatalf("DropTrailingAssistant failed: %v", err)
+	}
+	if prompt != "second question" {
+		t.Errorf("expected surviving prompt 'second question', got %q", prompt)
+	}
+	msgs, _ := mgr.GetMessages(sess.ID)
+	for _, m := range msgs {
+		if m.ID == stale.ID {
+			t.Error("stale assistant reply survives DropTrailingAssistant")
+		}
+	}
+
+	// Usage persistence round-trips through GetMessages.
+	usage := json.RawMessage(`{"completion_tokens": 42}`)
+	if err := mgr.SetMessageUsage(msgs[1].ID, 1234, &usage); err != nil {
+		t.Fatalf("SetMessageUsage failed: %v", err)
+	}
+	msgs, _ = mgr.GetMessages(sess.ID)
+	if msgs[1].DurationMs == nil || *msgs[1].DurationMs != 1234 {
+		t.Error("duration_ms did not persist")
+	}
+	if msgs[1].UsageJSON == nil {
+		t.Error("usage_json did not persist")
+	}
+
+	// Clear wipes the transcript but keeps the session.
+	n, err := mgr.ClearMessages(sess.ID)
+	if err != nil {
+		t.Fatalf("ClearMessages failed: %v", err)
+	}
+	if n != 3 {
+		t.Errorf("expected 3 deleted messages, got %d", n)
+	}
+	msgs, _ = mgr.GetMessages(sess.ID)
+	if len(msgs) != 0 {
+		t.Errorf("expected empty transcript, got %d messages", len(msgs))
+	}
+	if _, err := mgr.GetSession(sess.ID); err != nil {
+		t.Errorf("session must survive ClearMessages: %v", err)
+	}
+	if _, err := mgr.DropTrailingAssistant(sess.ID); err == nil {
+		t.Error("regenerate on empty transcript must refuse")
+	}
+}
+
+func TestRewriteUserMessageBranches(t *testing.T) {
+	dbPath := "test_session_rewrite.db"
+	defer os.Remove(dbPath)
+
+	l, err := ledger.OpenLedger(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open ledger: %v", err)
+	}
+	defer l.Close()
+
+	mgr := session.NewManager(l)
+	sess, err := mgr.CreateSession("Rewrite", 50.0, "default")
+	if err != nil {
+		t.Fatalf("failed to create session: %v", err)
+	}
+
+	u1, _ := mgr.AddMessage(sess.ID, "user", "original question", nil)
+	mgr.AddMessage(sess.ID, "assistant", "original answer", nil)
+
+	rewritten, err := mgr.RewriteUserMessage(sess.ID, u1.ID, "edited question")
+	if err != nil {
+		t.Fatalf("RewriteUserMessage failed: %v", err)
+	}
+	if rewritten.Content != "edited question" {
+		t.Errorf("expected edited content, got %q", rewritten.Content)
+	}
+	msgs, _ := mgr.GetMessages(sess.ID)
+	if len(msgs) != 1 || msgs[0].ID != u1.ID {
+		t.Errorf("expected truncated branch (1 message), got %d", len(msgs))
+	}
+
+	a2, _ := mgr.AddMessage(sess.ID, "assistant", "new answer", nil)
+	if _, err := mgr.RewriteUserMessage(sess.ID, a2.ID, "sneaky"); err == nil {
+		t.Error("rewriting an assistant message must refuse")
+	}
+	if _, err := mgr.RewriteUserMessage(sess.ID, u1.ID, ""); err == nil {
+		t.Error("empty rewrite must refuse")
+	}
+	if _, err := mgr.RewriteUserMessage(sess.ID, "missing-id", "x"); err == nil {
+		t.Error("unknown message id must refuse")
 	}
 }

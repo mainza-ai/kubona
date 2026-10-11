@@ -1560,3 +1560,9 @@ skipped is the exact failure this incident is about:
   recorder relabeled preview; shadow resample removed + Illustrative badges
   on 5 widgets; Simulate Offline dispatches real local launch; cockpit
   air-gap persists; fleet label honest. Console build+28 vitest+lint clean.
+
+## [2026-10-11] implementation | Chat batches 1-3 built + live-validated
+  Stop/copy/search/export/slashes/follow-ups; clear/regenerate/feedback/
+  rewrite endpoints + usage persistence; tribunal live-turn polling, inline
+  job tracking, edit-resend UI. Go full suite + 35 vitest + build clean.
+  Chat dynamicity rule holds: no baked results, statuses from backend only.

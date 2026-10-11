@@ -19,9 +19,17 @@ import {
   Check,
   Paperclip,
   ArrowUp,
+  Search,
+  Download,
+  X,
+  Trash2,
+  RotateCcw,
+  ThumbsUp,
+  ThumbsDown,
+  Pencil,
 } from 'lucide-react';
 import { ChatMessage, CampaignState, RunPhase, Proposal } from '@/types';
-import { fetchMessages, sendChatMessage, streamChatMessage, createSession, runTribunal, fetchCampaignState, launchProposal } from '@/lib/api';
+import { fetchMessages, sendChatMessage, streamChatMessage, createSession, runTribunal, fetchCampaignState, launchProposal, clearMessages, regenerateChat, sendFeedback, rewriteChat, fetchJobs } from '@/lib/api';
 import { MathText } from './common/MathText';
 import type { CanvasWidgetKind } from './sovereign/WidgetStage';
 
@@ -64,6 +72,23 @@ export function CopilotDrawer({
   const [launchingId, setLaunchingId] = useState<string | null>(null);
   const [launchedNote, setLaunchedNote] = useState<Record<string, string>>({});
   const [streamingId, setStreamingId] = useState<string | null>(null);
+  const [infoMessage, setInfoMessage] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+  const idCounter = useRef(0);
+  const nextTempId = (prefix: string) => `${prefix}-${++idCounter.current}`;
+  // Attachments ride the next direct send as explicit context, then clear.
+  const [attachments, setAttachments] = useState<Array<{ name: string; text: string }>>([]);
+  const [clearing, setClearing] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
+  const [votes, setVotes] = useState<Record<string, 'up' | 'down'>>({});
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editDraft, setEditDraft] = useState('');
+  const [rewriting, setRewriting] = useState(false);
+  // In-chat search: filter-narrow + jump between matches (no KaTeX surgery).
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchIndex, setSearchIndex] = useState(0);
+  const messageRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -121,16 +146,29 @@ export function CopilotDrawer({
   };
 
   const handleSend = async (customPrompt?: string) => {
-    const textToSend = customPrompt || input.trim();
-    if (!textToSend || loading || runningTribunal) return;
+    const rawText = customPrompt || input.trim();
+    if (!rawText || loading || runningTribunal) return;
+
+    // Slash commands never reach the model.
+    if (rawText.startsWith('/')) {
+      handleSlash(rawText);
+      if (!customPrompt) setInput('');
+      return;
+    }
+
+    // Attachments ride this send as explicit context, then clear.
+    const attached = attachments.map((a) => `[attached ${a.name}]\n${a.text}`).join('\n');
+    const textToSend = [attached, rawText].filter(Boolean).join('\n');
+    if (attachments.length > 0) setAttachments([]);
 
     if (!customPrompt) setInput('');
     setErrorMessage(null);
+    setInfoMessage(null);
 
     const activeSessionId = await getActiveSessionId();
 
     const tempUserMsg: ChatMessage = {
-      id: `temp-user-${Date.now()}`,
+      id: nextTempId(`temp-user`),
       session_id: activeSessionId,
       role: 'user',
       content: textToSend,
@@ -142,7 +180,7 @@ export function CopilotDrawer({
 
     // Live bubble: tokens stream into it; the done event replaces it with
     // the stored (sanitized) records. Unary fallback on stream failure.
-    const liveId = `live-assistant-${Date.now()}`;
+    const liveId = nextTempId(`live-assistant`);
     setMessages((prev) => [
       ...prev,
       {
@@ -154,13 +192,25 @@ export function CopilotDrawer({
       },
     ]);
     setStreamingId(liveId);
+    const controller = new AbortController();
+    abortRef.current = controller;
 
-    const settleStream = (done: { user: ChatMessage; assistant: ChatMessage; proposal?: unknown; campaign?: CampaignState }) => {
+    const settleStream = (done: { user: ChatMessage; assistant: ChatMessage; proposal?: unknown; campaign?: CampaignState; duration_ms?: number; usage?: Record<string, number> }) => {
       setMessages((prev) => {
         const filtered = prev.filter((m) => m.id !== tempUserMsg.id && m.id !== liveId);
         const assistant: ChatMessage = { ...done.assistant };
         if (!assistant.proposal_json && done.proposal) {
           assistant.proposal_json = done.proposal as Proposal;
+        }
+        if (assistant.duration_ms == null && done.duration_ms != null) {
+          assistant.duration_ms = done.duration_ms;
+        }
+        if (!assistant.usage && done.usage) {
+          assistant.usage = {
+            completion_tokens: done.usage.completion_tokens,
+            prompt_tokens: done.usage.prompt_tokens,
+            total_tokens: done.usage.total_tokens,
+          };
         }
         return [...filtered, done.user, assistant];
       });
@@ -179,9 +229,21 @@ export function CopilotDrawer({
         setMessages((prev) =>
           prev.map((m) => (m.id === liveId ? { ...m, content: m.content + tok } : m))
         );
-      });
+      }, controller.signal);
       settleStream(done);
     } catch (streamErr) {
+      if (streamErr instanceof DOMException && streamErr.name === 'AbortError') {
+        // Operator stop: drop the partial bubble but keep the sent prompt.
+        // The server run may still complete and appear on next history load.
+        setMessages((prev) => prev.filter((m) => m.id !== liveId));
+        setInfoMessage('Stopped. The backend run may still finish — its result will appear in history.');
+        setTimeout(() => setInfoMessage(null), 6000);
+        setLoading(false);
+        setStreamingId(null);
+        abortRef.current = null;
+        onRunStateChange?.('idle', '');
+        return;
+      }
       console.warn('Stream failed, falling back to unary chat:', streamErr);
       try {
         const res = await sendChatMessage(activeSessionId, textToSend);
@@ -221,7 +283,7 @@ export function CopilotDrawer({
     const activeSessionId = await getActiveSessionId();
 
     const tempUserMsg: ChatMessage = {
-      id: `temp-tribunal-${Date.now()}`,
+      id: nextTempId(`temp-tribunal`),
       session_id: activeSessionId,
       role: 'user',
       content: `Convene Research Tribunal for: ${topic}`,
@@ -229,19 +291,33 @@ export function CopilotDrawer({
     };
     setMessages((prev) => [...prev, tempUserMsg]);
 
-    // Simulated animated stage progression while waiting for local LLM
-    const stageTimer1 = setTimeout(() => {
-      setTribunalStage('Disconfirmation Officer: Benchmarking against PySCF FCI classical anchor...');
-      onRunStateChange?.('tribunal', 'Disconfirmation Officer: benchmarking anchor…');
-    }, 2000);
-    const stageTimer2 = setTimeout(() => {
-      setTribunalStage('Device Auditor: Testing Clifford RB canary on simulated Heron backend...');
-      onRunStateChange?.('tribunal', 'Device Auditor: canary on simulator…');
-    }, 4500);
-    const stageTimer3 = setTimeout(() => {
-      setTribunalStage('Epistemic Scribe: Collapsing credibility state & synthesizing consensus...');
-      onRunStateChange?.('tribunal', 'Epistemic Scribe: synthesizing…');
-    }, 7000);
+    // Live turn polling: tribunal turns land as messages mid-run (backend
+    // onTurn records each one). Every new turn updates the canvas run-state
+    // so the matching probe ignites — no simulated stages. Stateless:
+    // anything created after the prompt that isn't the prompt counts.
+    const runStartEpoch = new Date(tempUserMsg.created_at).getTime() - 1000;
+    const turnPoll = setInterval(async () => {
+      try {
+        const fresh = await fetchMessages(activeSessionId);
+        const arrived = fresh.filter(
+          (m) => m.role !== 'user' && new Date(m.created_at).getTime() >= runStartEpoch
+        );
+        const lastTurn = arrived[arrived.length - 1];
+        if (lastTurn) {
+          const roleLabel = String(lastTurn.role).replace(/_/g, ' ');
+          setTribunalStage(`${lastTurn.role}: turn recorded (${arrived.length} so far)…`);
+          onRunStateChange?.('tribunal', `${roleLabel} turn recorded`);
+          // Merge arrived turns into the visible transcript live.
+          setMessages((prev) => {
+            const ids = new Set(prev.map((m) => m.id));
+            const missing = arrived.filter((m) => !ids.has(m.id));
+            return missing.length > 0 ? [...prev, ...missing] : prev;
+          });
+        }
+      } catch {
+        /* transient poll failure — next round retries */
+      }
+    }, 2500);
 
     try {
       const res = await runTribunal(activeSessionId, topic);
@@ -270,11 +346,37 @@ export function CopilotDrawer({
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'Tribunal connection error.');
     } finally {
-      clearTimeout(stageTimer1);
-      clearTimeout(stageTimer2);
-      clearTimeout(stageTimer3);
+      clearInterval(turnPoll);
       setRunningTribunal(false);
       onRunStateChange?.('idle', '');
+    }
+  };
+
+  const handleLaunchLast = async () => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (m.role !== 'user' && m.proposal_json) {
+        await handleLaunchProposal(m.id, m.proposal_json);
+        return;
+      }
+    }
+    setInfoMessage('No proposal in this conversation yet — ask for a simulation first.');
+    setTimeout(() => setInfoMessage(null), 4000);
+  };
+
+  const handleSlash = (raw: string) => {
+    const [cmd, ...rest] = raw.slice(1).split(/\s+/);
+    const arg = rest.join(' ').trim();
+    if (cmd === 'tribunal') {
+      handleRunTribunal(arg || `${targetSystem} ground state electronic structure`);
+    } else if (cmd === 'launch') {
+      handleLaunchLast();
+    } else if (cmd === 'help') {
+      setInfoMessage('Commands: /tribunal <topic> · /launch (most recent proposal) · /help');
+      setTimeout(() => setInfoMessage(null), 5000);
+    } else {
+      setInfoMessage(`Unknown command /${cmd}. Try /help.`);
+      setTimeout(() => setInfoMessage(null), 4000);
     }
   };
 
@@ -291,9 +393,178 @@ export function CopilotDrawer({
     try {
       const text = await file.text();
       const trimmed = text.length > 4000 ? text.slice(0, 4000) + '\n…[truncated]' : text;
-      setInput((prev) => `${prev}${prev ? '\n' : ''}[attached ${file.name}]\n${trimmed}\n`);
+      setAttachments((prev) => [...prev.filter((a) => a.name !== file.name), { name: file.name, text: trimmed }]);
     } catch {
       setErrorMessage(`Could not read ${file.name}: binary or unreadable file.`);
+    }
+  };
+
+  const removeAttachment = (name: string) => {
+    setAttachments((prev) => prev.filter((a) => a.name !== name));
+  };
+
+  // In-chat search matches (message ids in order).
+  const matchedIds = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return [];
+    return messages.filter((m) => m.content.toLowerCase().includes(q)).map((m) => m.id);
+  }, [messages, searchQuery]);
+
+  const jumpToMatch = (dir: 1 | -1) => {
+    if (matchedIds.length === 0) return;
+    const next = (searchIndex + dir + matchedIds.length) % matchedIds.length;
+    setSearchIndex(next);
+    requestAnimationFrame(() => {
+      messageRefs.current[matchedIds[next]]?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    });
+  };
+
+  // Slash commands are defined after the handlers they invoke (no TDZ).
+
+  const exportTranscript = () => {
+    const lines = [
+      `# Kubona co-pilot transcript`,
+      ``,
+      `- Session: ${sessionId || 'unsaved'}`,
+      `- Target: ${targetDisplayName}`,
+      `- Exported: ${new Date().toISOString()}`,
+      ``,
+    ];
+    for (const m of messages) {
+      const when = new Date(m.created_at).toLocaleString();
+      lines.push(`## ${m.role} · ${when}${m.model ? ` · ${m.model}` : ''}`);
+      lines.push(``);
+      lines.push(m.content);
+      lines.push(``);
+      if (m.proposal_json) {
+        lines.push('```json');
+        lines.push(JSON.stringify(m.proposal_json, null, 2));
+        lines.push('```');
+        lines.push(``);
+      }
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `kubona-transcript-${(sessionId || 'session').slice(0, 8)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Regenerate is available when the transcript ends in an assistant turn.
+  const canRegenerate =
+    messages.length > 0 && messages[messages.length - 1].role !== 'user';
+
+  const handleClearChat = async () => {
+    if (clearing || loading || runningTribunal || messages.length === 0) return;
+    const activeSessionId = await getActiveSessionId();
+    if (!activeSessionId) return;
+    if (!confirm('Clear this conversation? Messages are deleted; the session, campaign, and ledger history survive.')) return;
+    setClearing(true);
+    try {
+      const deleted = await clearMessages(activeSessionId);
+      if (deleted != null) {
+        setMessages([]);
+        setVotes({});
+        setInfoMessage(`Cleared ${deleted} message${deleted === 1 ? '' : 's'}.`);
+        setTimeout(() => setInfoMessage(null), 4000);
+      } else {
+        setErrorMessage('Clear refused by backend — nothing was deleted.');
+      }
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Clear failed.');
+    } finally {
+      setClearing(false);
+    }
+  };
+
+  const handleRegenerate = async () => {
+    if (regenerating || loading || runningTribunal || !canRegenerate) return;
+    const activeSessionId = await getActiveSessionId();
+    if (!activeSessionId) return;
+    setRegenerating(true);
+    setErrorMessage(null);
+    onRunStateChange?.('thinking', 'regenerating last answer');
+    try {
+      const res = await regenerateChat(activeSessionId);
+      if (res?.assistant) {
+        setMessages((prev) => {
+          // Drop trailing assistant turns the server already removed, then
+          // append the fresh answer (dedupe by id for safety).
+          const trimmed: ChatMessage[] = [...prev];
+          while (trimmed.length > 0 && trimmed[trimmed.length - 1].role !== 'user') {
+            trimmed.pop();
+          }
+          if (!trimmed.some((m) => m.id === res.assistant.id)) {
+            trimmed.push(res.assistant);
+          }
+          return trimmed;
+        });
+        if (onExperimentLaunched) onExperimentLaunched();
+      } else {
+        setErrorMessage('Regenerate refused — no user message to answer, or backend error.');
+      }
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Regenerate failed.');
+    } finally {
+      setRegenerating(false);
+      onRunStateChange?.('idle', '');
+    }
+  };
+  const handleVote = async (messageId: string, vote: 'up' | 'down') => {
+    const activeSessionId = await getActiveSessionId();
+    if (!activeSessionId) return;
+    setVotes((prev) => ({ ...prev, [messageId]: vote }));
+    const ok = await sendFeedback(activeSessionId, messageId, vote);
+    if (!ok) {
+      setVotes((prev) => {
+        const next = { ...prev };
+        delete next[messageId];
+        return next;
+      });
+      setErrorMessage('Feedback not recorded — backend refused.');
+    }
+  };
+
+  // Edit-resend branching: rewrite the user turn server-side (later turns
+  // deleted), truncate the local transcript at the branch point, then
+  // regenerate the answer for the edited prompt.
+  const handleRewriteSave = async (messageId: string) => {
+    const draft = editDraft.trim();
+    if (!draft || rewriting || loading || runningTribunal) return;
+    const activeSessionId = await getActiveSessionId();
+    if (!activeSessionId) return;
+    setRewriting(true);
+    setErrorMessage(null);
+    try {
+      const rewritten = await rewriteChat(activeSessionId, messageId, draft);
+      if (!rewritten) {
+        setErrorMessage('Rewrite refused — only your own messages can be edited.');
+        return;
+      }
+      setEditingId(null);
+      setMessages((prev) => {
+        const idx = prev.findIndex((m) => m.id === messageId);
+        const cut = idx === -1 ? prev : prev.slice(0, idx);
+        return [...cut, rewritten];
+      });
+      onRunStateChange?.('thinking', 'answering edited prompt');
+      const res = await regenerateChat(activeSessionId);
+      if (res?.assistant) {
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === res.assistant.id)) return prev;
+          return [...prev, res.assistant];
+        });
+        if (onExperimentLaunched) onExperimentLaunched();
+      } else {
+        setErrorMessage('Regenerate after rewrite refused — branch is clean, retry manually.');
+      }
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Rewrite failed.');
+    } finally {
+      setRewriting(false);
+      onRunStateChange?.('idle', '');
     }
   };
 
@@ -312,8 +583,31 @@ export function CopilotDrawer({
     try {
       const res = await launchProposal(activeSessionId, proposal);
       if (res?.job) {
-        setLaunchedNote((prev) => ({ ...prev, [messageId]: `Launched: job ${String(res.job.id).slice(0, 8)}` }));
+        const jobId = String(res.job.id);
+        setLaunchedNote((prev) => ({ ...prev, [messageId]: `Launched: job ${jobId.slice(0, 8)} · tracking…` }));
         if (onExperimentLaunched) onExperimentLaunched();
+        // Inline job tracking: poll session jobs for this id and report the
+        // live status into the card. Bounded (8 rounds); terminal states stop
+        // early. Status strings come from the backend — never invented.
+        let rounds = 0;
+        const terminal = new Set(['completed', 'failed', 'cancelled', 'aborted', 'settled']);
+        const track = async () => {
+          rounds += 1;
+          const jobs = await fetchJobs(activeSessionId);
+          const hit = jobs.find((j) => String(j.id) === jobId);
+          if (hit?.status) {
+            setLaunchedNote((prev) => ({
+              ...prev,
+              [messageId]: `Job ${jobId.slice(0, 8)} · ${hit.status}${hit.completed_at ? ` · done ${new Date(hit.completed_at).toLocaleTimeString()}` : ''}`,
+            }));
+            if (terminal.has(String(hit.status).toLowerCase()) || rounds >= 8) return;
+          } else if (rounds >= 8) {
+            setLaunchedNote((prev) => ({ ...prev, [messageId]: `Launched: job ${jobId.slice(0, 8)} · status unavailable` }));
+            return;
+          }
+          setTimeout(track, 3000);
+        };
+        setTimeout(track, 3000);
       } else {
         setLaunchedNote((prev) => ({ ...prev, [messageId]: 'Launch refused by backend — nothing dispatched.' }));
       }
@@ -358,8 +652,11 @@ export function CopilotDrawer({
   };
 
   const targetSystem = campaign?.target_system || 'H2';
-  const targetDisplayName = useMemo(() => {
-    const raw = campaign?.target_system || 'H2';
+
+  // Plain function (not memoized): trivial string mapping, and the compiler
+  // rejects the optional-chaining dep form.
+  const displayNameFor = (rawTarget: string): string => {
+    const raw = rawTarget || 'H2';
     if (raw.toUpperCase() === 'H2' || raw === 'H₂') return 'Hydrogen Molecule (H₂)';
     if (raw.toUpperCase().includes('LIH')) return 'Lithium Hydride (LiH)';
     if (raw.toUpperCase().includes('BEH2')) return 'Beryllium Hydride (BeH₂)';
@@ -367,9 +664,55 @@ export function CopilotDrawer({
     if (raw.toUpperCase().includes('N2')) return 'Dinitrogen (N₂)';
     if (raw.toUpperCase().includes('CO')) return 'Carbon Monoxide (CO)';
     return raw;
-  }, [campaign?.target_system]);
+  };
+  const targetDisplayName = displayNameFor(campaign?.target_system || 'H2');
   const discrepancy = campaign?.classical_anchor?.discrepancy_mha;
   const isChemicalAccuracyMet = discrepancy != null && discrepancy <= 1.6;
+
+  // Contextual follow-ups derived from the latest assistant turn.
+  // Data-only specs computed inline (tiny list — no memo needed), so no
+  // memoized closures over ref-touching handlers. Click dispatch happens in
+  // runFollowUp (event-handler context, refs allowed).
+  type FollowUpSpec = { label: string; accent: string; key: string };
+  const lastAssistantForFollowUps = [...messages].reverse().find((m) => m.role !== 'user');
+  const followUps: FollowUpSpec[] = lastAssistantForFollowUps?.proposal_json
+    ? [
+        { label: 'Launch it', accent: 'text-cyan-400', key: 'launch-last' },
+        { label: 'Inspect circuit', accent: 'text-cyan-400', key: 'show-circuit' },
+        { label: 'Tribunal review', accent: 'text-emerald-400', key: 'tribunal-topic' },
+      ]
+    : lastAssistantForFollowUps?.tribunal
+      ? [
+          { label: 'Inspect circuit', accent: 'text-cyan-400', key: 'show-circuit' },
+          { label: 'Shadow estimates', accent: 'text-cyan-400', key: 'show-shadows' },
+          { label: 'Active space', accent: 'text-amber-400', key: 'show-molecule' },
+        ]
+      : [
+          { label: 'H₂ Bond PES', accent: 'text-amber-400', key: 'send-pes' },
+          { label: `${targetSystem} Tribunal`, accent: 'text-emerald-400', key: 'tribunal-topic' },
+          { label: 'Canary Fidelity', accent: 'text-cyan-400', key: 'send-canary' },
+          { label: 'Classical FCI Anchor', accent: 'text-amber-400', key: 'send-anchor' },
+        ];
+
+  const runFollowUp = (key: string) => {
+    if (key === 'launch-last') {
+      handleLaunchLast();
+    } else if (key === 'show-circuit') {
+      onMaterialize?.('circuit', 'Circuit · live');
+    } else if (key === 'show-shadows') {
+      onMaterialize?.('shadows', 'Shadow estimates');
+    } else if (key === 'show-molecule') {
+      onMaterialize?.('molecule', 'Active space');
+    } else if (key === 'tribunal-topic') {
+      handleRunTribunal(`${targetDisplayName} equilibrium state`);
+    } else if (key === 'send-pes') {
+      handleSend('Calculate potential energy surface for H2');
+    } else if (key === 'send-canary') {
+      handleSend('Simulate Clifford RB canary on IBM Heron');
+    } else if (key === 'send-anchor') {
+      handleSend('Verify classical PySCF STO-3G ground truth');
+    }
+  };
 
   return (
     <div
@@ -391,6 +734,51 @@ export function CopilotDrawer({
         </div>
 
         <div className="flex items-center space-x-1.5">
+          {/* In-chat search */}
+          <button
+            onClick={() => setSearchOpen((v) => !v)}
+            title="Search this conversation"
+            aria-label="Search this conversation"
+            className={`p-1.5 rounded-lg transition-colors focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none ${
+              searchOpen ? 'text-cyan-300 bg-white/10' : 'text-slate-400 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <Search className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Export transcript */}
+          <button
+            onClick={exportTranscript}
+            title="Export transcript (markdown)"
+            aria-label="Export transcript"
+            disabled={messages.length === 0}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
+          >
+            <Download className="w-3.5 h-3.5" />
+          </button>
+
+          {/* Regenerate last answer */}
+          <button
+            onClick={handleRegenerate}
+            title="Regenerate last answer"
+            aria-label="Regenerate last answer"
+            disabled={regenerating || loading || runningTribunal || !canRegenerate}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
+          >
+            <RotateCcw className={`w-3.5 h-3.5 ${regenerating ? 'animate-spin' : ''}`} />
+          </button>
+
+          {/* Clear chat */}
+          <button
+            onClick={handleClearChat}
+            title="Clear chat history"
+            aria-label="Clear chat history"
+            disabled={clearing || loading || runningTribunal || messages.length === 0}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors disabled:opacity-30 focus-visible:ring-2 focus-visible:ring-rose-400 focus-visible:outline-none"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+
           {/* Spatial Expand/Contract Button */}
           <button
             onClick={handleToggleExpand}
@@ -426,6 +814,39 @@ export function CopilotDrawer({
           </span>
         </div>
       </div>
+
+      {/* In-chat search bar */}
+      {searchOpen && (
+        <div className="mx-5 mt-2 flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-black/40 border border-white/10 shrink-0">
+          <Search className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+          <input
+            autoFocus
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value);
+              setSearchIndex(0);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') jumpToMatch(1);
+              if (e.key === 'Escape') setSearchOpen(false);
+            }}
+            placeholder="Find in conversation…"
+            className="flex-1 min-w-0 bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none"
+          />
+          <span className="text-[10px] font-code text-slate-500 shrink-0">
+            {matchedIds.length === 0 ? '0' : `${searchIndex + 1}/${matchedIds.length}`}
+          </span>
+          <button onClick={() => jumpToMatch(-1)} aria-label="Previous match" className="p-0.5 text-slate-400 hover:text-white">
+            <ChevronUp className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={() => jumpToMatch(1)} aria-label="Next match" className="p-0.5 text-slate-400 hover:text-white">
+            <ChevronDown className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={() => { setSearchOpen(false); setSearchQuery(''); }} aria-label="Close search" className="p-0.5 text-slate-400 hover:text-white">
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
 
       {/* Messages Feed */}
       <div
@@ -486,17 +907,123 @@ export function CopilotDrawer({
           return (
             <div
               key={m.id}
-              className={`flex flex-col space-y-1.5 ${isUser ? 'items-end' : 'items-start'}`}
+              ref={(el) => {
+                messageRefs.current[m.id] = el;
+              }}
+              className={`flex flex-col space-y-1.5 rounded-xl -mx-1 px-1 py-0.5 transition-shadow ${
+                isUser ? 'items-end' : 'items-start'
+              } ${
+                matchedIds.length > 0 && matchedIds[searchIndex] === m.id
+                  ? 'ring-1 ring-cyan-400/50'
+                  : ''
+              }`}
             >
-              {/* Message Meta Info */}
+              {/* Message Meta Info + actions */}
               <div className="flex items-center space-x-2 text-[10px] text-slate-400 font-mono px-1">
                 <span>{isUser ? 'You' : 'Kubona Tribunal Salon'}</span>
                 <span>•</span>
                 <span>{new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                {!isUser && m.model && (
+                  <>
+                    <span>•</span>
+                    <span className="text-slate-500">served by {m.model}</span>
+                  </>
+                )}
+                {!isUser && m.duration_ms != null && (
+                  <>
+                    <span>•</span>
+                    <span className="text-slate-500">{(m.duration_ms / 1000).toFixed(1)}s</span>
+                  </>
+                )}
+                {!isUser && m.usage?.completion_tokens != null && (
+                  <>
+                    <span>•</span>
+                    <span className="text-slate-500">{m.usage.completion_tokens} tok</span>
+                  </>
+                )}
+                <button
+                  onClick={() => copyToClipboard(m.content, `copy-${m.id}`)}
+                  title="Copy message"
+                  aria-label="Copy message"
+                  className="p-0.5 rounded text-slate-600 hover:text-slate-200 transition-colors focus-visible:ring-1 focus-visible:ring-cyan-400 focus-visible:outline-none"
+                >
+                  {copiedId === `copy-${m.id}` ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                </button>
+                {isUser && !streamingId && (
+                  <button
+                    onClick={() => {
+                      setEditingId(m.id);
+                      setEditDraft(m.content);
+                    }}
+                    title="Edit and resend (branches the thread)"
+                    aria-label="Edit and resend"
+                    className="p-0.5 rounded text-slate-600 hover:text-slate-200 transition-colors focus-visible:ring-1 focus-visible:ring-cyan-400 focus-visible:outline-none"
+                  >
+                    <Pencil className="w-3 h-3" />
+                  </button>
+                )}
+                {!isUser && (
+                  <>
+                    <button
+                      onClick={() => handleVote(m.id, 'up')}
+                      title="Helpful"
+                      aria-label="Mark helpful"
+                      aria-pressed={votes[m.id] === 'up'}
+                      className={`p-0.5 rounded transition-colors focus-visible:ring-1 focus-visible:ring-cyan-400 focus-visible:outline-none ${
+                        votes[m.id] === 'up' ? 'text-emerald-400' : 'text-slate-600 hover:text-slate-200'
+                      }`}
+                    >
+                      <ThumbsUp className="w-3 h-3" />
+                    </button>
+                    <button
+                      onClick={() => handleVote(m.id, 'down')}
+                      title="Not helpful"
+                      aria-label="Mark not helpful"
+                      aria-pressed={votes[m.id] === 'down'}
+                      className={`p-0.5 rounded transition-colors focus-visible:ring-1 focus-visible:ring-cyan-400 focus-visible:outline-none ${
+                        votes[m.id] === 'down' ? 'text-rose-400' : 'text-slate-600 hover:text-slate-200'
+                      }`}
+                    >
+                      <ThumbsDown className="w-3 h-3" />
+                    </button>
+                  </>
+                )}
               </div>
 
-              {/* Standard Message Bubble */}
-              {!hasTribunal && (
+              {/* Standard Message Bubble (or inline editor when branching) */}
+              {editingId === m.id && isUser ? (
+                <div className="w-full max-w-[92%] rounded-2xl bg-black/40 border border-cyan-400/30 p-2.5 space-y-2 self-end">
+                  <textarea
+                    autoFocus
+                    value={editDraft}
+                    onChange={(e) => setEditDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleRewriteSave(m.id);
+                      if (e.key === 'Escape') setEditingId(null);
+                    }}
+                    rows={3}
+                    maxLength={4000}
+                    className="w-full bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none resize-y"
+                  />
+                  <div className="flex items-center justify-end gap-1.5">
+                    <button
+                      onClick={() => setEditingId(null)}
+                      disabled={rewriting}
+                      className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[11px] transition-all disabled:opacity-40"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => handleRewriteSave(m.id)}
+                      disabled={rewriting || !editDraft.trim()}
+                      className="px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/30 text-cyan-200 text-[11px] font-semibold transition-all disabled:opacity-40"
+                    >
+                      {rewriting ? 'Resending…' : 'Resend (branches thread)'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+              !hasTribunal && (
                 <div
                   className={`px-3.5 py-2.5 text-xs leading-relaxed max-w-[92%] ${
                     isUser
@@ -507,6 +1034,7 @@ export function CopilotDrawer({
                   <MathText text={m.content} />
                   {m.id === streamingId && <span className="text-cyan-400 animate-pulse"> ▍</span>}
                 </div>
+              )
               )}
               {!isUser && renderProposalCard(m)}
 
@@ -675,9 +1203,6 @@ export function CopilotDrawer({
                   )}
                   </div>
               {!isUser && renderProposalCard(m)}
-              {!isUser && m.model && (
-                <span className="text-[9px] font-code text-slate-600 px-1">served by {m.model}</span>
-              )}
                 </div>
               )}
             </div>
@@ -707,37 +1232,28 @@ export function CopilotDrawer({
           </div>
         )}
 
+        {infoMessage && (
+          <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 text-slate-300 text-xs font-sans">
+            {infoMessage}
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 
       {/* Input Stage with Suggestion Pills */}
       <div className="shrink-0 p-4 border-t border-white/5 bg-[#0A0C10] space-y-2">
-        {/* Quick Prompt Suggestion Strip */}
+        {/* Contextual follow-ups */}
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
-          <button
-            onClick={() => handleSend('Calculate potential energy surface for H2')}
-            className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] text-slate-300 transition-all flex items-center gap-1 whitespace-nowrap"
-          >
-            <span className="text-amber-400">✦</span> H₂ Bond PES
-          </button>
-          <button
-            onClick={() => handleRunTribunal(`${targetDisplayName} equilibrium state`)}
-            className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] text-slate-300 transition-all flex items-center gap-1 whitespace-nowrap"
-          >
-            <span className="text-emerald-400">✦</span> {targetSystem} Tribunal
-          </button>
-          <button
-            onClick={() => handleSend('Simulate Clifford RB canary on IBM Heron')}
-            className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] text-slate-300 transition-all flex items-center gap-1 whitespace-nowrap"
-          >
-            <span className="text-cyan-400">✦</span> Canary Fidelity
-          </button>
-          <button
-            onClick={() => handleSend('Verify classical PySCF STO-3G ground truth')}
-            className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] text-slate-300 transition-all flex items-center gap-1 whitespace-nowrap"
-          >
-            <span className="text-amber-400">✦</span> Classical FCI Anchor
-          </button>
+          {followUps.map((f) => (
+            <button
+              key={f.label}
+              onClick={() => runFollowUp(f.key)}
+              className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] text-slate-300 transition-all flex items-center gap-1 whitespace-nowrap"
+            >
+              <span className={f.accent}>✦</span> {f.label}
+            </button>
+          ))}
         </div>
 
         {/* Composer Card */}
@@ -748,6 +1264,26 @@ export function CopilotDrawer({
           }}
           className="relative bg-[#13161F] border border-white/10 rounded-2xl p-2 focus-within:border-cyan-400/60 focus-within:ring-1 focus-within:ring-cyan-400/40 transition-all shadow-inner"
         >
+          {/* Attachment pills (explicit context riding the next send) */}
+          {attachments.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 px-2 pb-1.5">
+              {attachments.map((a) => (
+                <span key={a.name} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-400/30 text-[10px] font-code text-cyan-200">
+                  <Paperclip className="w-3 h-3" />
+                  {a.name}
+                  <button type="button" onClick={() => removeAttachment(a.name)} aria-label={`Remove ${a.name}`} className="hover:text-white">
+                    <X className="w-3 h-3" />
+                  </button>
+                </span>
+              ))}
+            </div>
+          )}
+          {/* Slash hint */}
+          {input.startsWith('/') && (
+            <div className="px-2 pb-1.5 text-[10px] font-code text-slate-500">
+              <span className="text-cyan-300">/tribunal</span> convene · <span className="text-cyan-300">/launch</span> last proposal · <span className="text-cyan-300">/help</span>
+            </div>
+          )}
           <textarea
             rows={2}
             value={input}
@@ -781,12 +1317,22 @@ export function CopilotDrawer({
               <span className="text-[10px] font-code text-slate-600 ml-1">⌘K</span>
             </div>
             <button
-              type="submit"
-              disabled={!input.trim() || loading || runningTribunal}
-              aria-label="Send directive"
-              className="w-7 h-7 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-black flex items-center justify-center transition-all shadow-[0_0_15px_rgba(0,229,255,0.3)] disabled:opacity-40 focus-visible:ring-2 focus-visible:ring-cyan-200 focus-visible:outline-none"
+              type={streamingId ? 'button' : 'submit'}
+              onClick={streamingId ? () => abortRef.current?.abort() : undefined}
+              disabled={!streamingId && (!input.trim() || loading || runningTribunal)}
+              aria-label={streamingId ? 'Stop generation' : 'Send directive'}
+              title={streamingId ? 'Stop generation' : 'Send directive'}
+              className={`w-7 h-7 rounded-xl flex items-center justify-center transition-all focus-visible:ring-2 focus-visible:ring-cyan-200 focus-visible:outline-none ${
+                streamingId
+                  ? 'bg-rose-500 hover:bg-rose-400 text-white shadow-[0_0_15px_rgba(244,63,94,0.35)]'
+                  : 'bg-cyan-400 hover:bg-cyan-300 text-black shadow-[0_0_15px_rgba(0,229,255,0.3)] disabled:opacity-40'
+              }`}
             >
-              <ArrowUp className="w-4 h-4 font-bold" />
+              {streamingId ? (
+                <span className="w-3 h-3 rounded-[2px] bg-current" />
+              ) : (
+                <ArrowUp className="w-4 h-4 font-bold" />
+              )}
             </button>
           </div>
         </form>
