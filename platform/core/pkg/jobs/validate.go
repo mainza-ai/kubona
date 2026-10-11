@@ -250,14 +250,34 @@ func parseRegDecl(stmt, kind string) (string, int, error) {
 	if !isQASMIdent(name) {
 		return "", 0, fmt.Errorf("malformed %s name %q", kind, name)
 	}
-	var size int
-	if _, err := fmt.Sscanf(strings.TrimSpace(rest[open+1:close]), "%d", &size); err != nil || size <= 0 {
+	size, ok := parseQASMUint(strings.TrimSpace(rest[open+1 : close]))
+	if !ok || size <= 0 {
 		return "", 0, fmt.Errorf("%s %q has non-positive size", kind, name)
 	}
 	if strings.TrimSpace(rest[close+1:]) != "" {
 		return "", 0, fmt.Errorf("malformed %s declaration %q", kind, boundStmt(stmt))
 	}
 	return name, size, nil
+}
+
+// parseQASMUint parses a plain non-negative integer. Sscanf-family
+// parsers accept leading-digit garbage ("12abc" → 12); indices and sizes
+// must be digits-only or malformed text slips through as valid.
+func parseQASMUint(s string) (int, bool) {
+	t := strings.TrimSpace(s)
+	if t == "" {
+		return 0, false
+	}
+	for _, r := range t {
+		if r < '0' || r > '9' {
+			return 0, false
+		}
+	}
+	var n int
+	if _, err := fmt.Sscanf(t, "%d", &n); err != nil {
+		return 0, false
+	}
+	return n, true
 }
 
 // parseGateSig reads `gate|opaque name(params) qargs { ... }` and returns the
@@ -275,7 +295,11 @@ func parseGateSig(stmt, kw string) (string, [2]int, error) {
 		if end < 0 {
 			return "", [2]int{}, fmt.Errorf("malformed %s %q parameter list", kw, name)
 		}
-		params = len(splitTopLevel(strings.TrimSpace(rest[1:end]), ','))
+		// Empty parens declare zero parameters; splitTopLevel("") would
+		// wrongly yield one empty part.
+		if inner := strings.TrimSpace(rest[1:end]); inner != "" {
+			params = len(splitTopLevel(inner, ','))
+		}
 		rest = strings.TrimSpace(rest[end+1:])
 	}
 	if idx := strings.Index(rest, "{"); idx >= 0 {
@@ -349,8 +373,8 @@ func resolveQubitCount(op string, table map[string]int, what string) (int, error
 		if !ok {
 			return 0, fmt.Errorf("%s %q names undeclared register %q", what, op, name)
 		}
-		var idx int
-		if _, err := fmt.Sscanf(strings.TrimSpace(op[open+1:len(op)-1]), "%d", &idx); err != nil {
+		idx, ok := parseQASMUint(strings.TrimSpace(op[open+1 : len(op)-1]))
+		if !ok {
 			return 0, fmt.Errorf("malformed %s index in %q", what, op)
 		}
 		if idx < 0 || idx >= size {

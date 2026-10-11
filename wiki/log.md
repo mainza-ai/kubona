@@ -1787,3 +1787,11 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-11] verification | CI green on B1-1 earned consensus
   All 5 jobs success on run 38183022956. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | B1-2 Hindsight over HTTP + console panel
+  GET recall (bank/all/list-mode/min-similarity/count, shared parser)
+  + POST retain (bank allowlist, pointer importance, 4k bound) on the
+  exact tool scoping; ListRecent inventory (null similarity, no LRU
+  touch); MemoryPanel in copilot drawer (recall/retain/banks/weights).
+  Live: retain receipt, 7-row inventory, 0.541 query hit. Go + 56
+  vitest green.

@@ -916,3 +916,55 @@ export async function fetchJob(jobId: string): Promise<import('@/types').Job | n
     return null;
   }
 }
+
+export interface MemorySnippet {
+  content: string;
+  bank: string;
+  similarity: number | null;
+  created_at: string;
+}
+
+export async function fetchMemoryRecall(
+  sessionId: string,
+  query: string,
+  opts?: { bank?: string; limit?: number }
+): Promise<{ snippets: MemorySnippet[]; tenant: string } | null> {
+  try {
+    const params = new URLSearchParams({ session_id: sessionId, q: query });
+    if (opts?.bank) params.set('bank', opts.bank);
+    if (opts?.limit) params.set('limit', String(opts.limit));
+    const res = await fetch(`${API_BASE}/api/memory/recall?${params.toString()}`, {
+      cache: 'no-store',
+      headers: authHeaders(),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to recall memory:', err);
+    return null;
+  }
+}
+
+export async function retainMemory(
+  sessionId: string,
+  content: string,
+  opts?: { bank?: string; importance?: number }
+): Promise<{ id: string; bank: string; importance: number } | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/memory/retain`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        session_id: sessionId,
+        content,
+        bank: opts?.bank || 'experiences',
+        ...(opts?.importance !== undefined ? { importance: opts.importance } : {}),
+      }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to retain memory:', err);
+    return null;
+  }
+}

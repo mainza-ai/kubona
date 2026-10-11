@@ -77,7 +77,7 @@ with tests + live proof + green CI, per project rule).
 
 - [x] B1-1. Planner early-exit: Turn-2 anchor/gradient check → 2-turn
   CONTESTED; `ConsensusPassed` wired to evidence.
-- [ ] B1-2. Hindsight HTTP (`GET recall`/`POST retain`, tenant-scoped) + one
+- [x] B1-2. Hindsight HTTP (`GET recall`/`POST retain`, tenant-scoped) + one
   console caller — or formally downgrade the claim.
 - [ ] B1-3. Drop "event-sourced" language or add `ReplayCampaign` tested
   against the live row; budgets into one config counted against history;

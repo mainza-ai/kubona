@@ -261,6 +261,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/loops", s.handleLoops)
 	s.mux.HandleFunc("/api/loops/", s.handleLoopActions)
 	s.mux.HandleFunc("/api/events", s.handleEvents)
+	s.mux.HandleFunc("/api/memory/recall", s.handleMemoryRecall)
+	s.mux.HandleFunc("/api/memory/retain", s.handleMemoryRetain)
 
 	// New Observatory control plane endpoints
 	s.mux.HandleFunc("/api/agents", s.handleAgents)

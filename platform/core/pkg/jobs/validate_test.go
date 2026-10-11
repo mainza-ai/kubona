@@ -129,3 +129,32 @@ func TestValidateQASMRefusesLiteralBackslashN(t *testing.T) {
 		t.Errorf("refusal must name the statement, got: %v", err)
 	}
 }
+
+func TestValidateQASMSemanticsStrictNumbers(t *testing.T) {
+	cases := []struct {
+		name string
+		qasm string
+		want string
+	}{
+		// Sscanf-family parsers accept leading-digit garbage; indices and
+		// sizes must be digits-only.
+		{"register size garbage", "OPENQASM 2.0;\nqreg q[12abc];\n", "non-positive size"},
+		{"index garbage", "OPENQASM 2.0;\nqreg q[2];\nh q[1x];\n", "malformed qubit index"},
+		{"negative index", "OPENQASM 2.0;\nqreg q[2];\nh q[-1];\n", "malformed qubit"},
+		// Empty parens declare zero parameters, not one.
+		{"custom gate empty parens", "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\ngate g() a {\nh a;\n}\ng q[0];\nmeasure q[0] -> c[0];\n", ""},
+		{"custom gate param mismatch", "OPENQASM 2.0;\nqreg q[1];\ngate g(theta) a {\nh a;\n}\ng q[0];\n", "takes 1 parameters"},
+	}
+	for _, tc := range cases {
+		err := validateQASM(tc.qasm)
+		if tc.want == "" {
+			if err != nil {
+				t.Errorf("%s: valid program refused: %v", tc.name, err)
+			}
+			continue
+		}
+		if err == nil || !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("%s: got %v, want refusal containing %q", tc.name, err, tc.want)
+		}
+	}
+}

@@ -314,6 +314,48 @@ func (s *HindsightStore) Recall(bank MemoryBank, query string, maxTokens int) []
 	return budgeted
 }
 
+// ListRecent inventories a tenant's memories newest-first within a token
+// budget. It exists because semantic search with an empty query is
+// meaningless (the empty string embeds to the zero vector); callers that
+// want "what is in memory" use this, callers that want "what matches"
+// use recall. Listing does not touch LastAccessedAt: inventory is not use,
+// and must not protect rows from LRU eviction.
+func (s *HindsightStore) ListRecent(bank MemoryBank, tenant string, maxTokens int) []*MemoryItem {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if tenant == "" {
+		tenant = "default"
+	}
+	var matched []*MemoryItem
+	for _, item := range s.items {
+		if bank != "" && item.Bank != bank {
+			continue
+		}
+		itemTenant := item.TenantID
+		if itemTenant == "" {
+			itemTenant = "default"
+		}
+		if itemTenant != tenant {
+			continue
+		}
+		matched = append(matched, item)
+	}
+	sort.Slice(matched, func(i, j int) bool {
+		return matched[i].CreatedAt.After(matched[j].CreatedAt)
+	})
+	var out []*MemoryItem
+	currentTokens := 0
+	for _, item := range matched {
+		if currentTokens+item.TokensEstimate > maxTokens && len(out) > 0 {
+			break
+		}
+		out = append(out, item)
+		currentTokens += item.TokensEstimate
+	}
+	return out
+}
+
 // SemanticRecall queries memory using 384-dimensional cosine similarity ranking with default tenant scoping
 func (s *HindsightStore) SemanticRecall(bank MemoryBank, queryText string, maxTokens int, minSimilarity float64) []*ScoredMemoryItem {
 	return s.SemanticRecallScoped(bank, queryText, maxTokens, minSimilarity, "default", []string{"default"})

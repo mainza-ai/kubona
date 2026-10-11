@@ -2,6 +2,9 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
+	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/mainza-ai/kubona/core/pkg/agents"
@@ -199,6 +202,217 @@ func (s *Server) auditTribunalTools(sessionID string, turns []agents.TribunalTur
 			})
 		}
 	}
+}
+
+// ---------------------------------------------------------------------------
+// Hindsight over HTTP (B1-2): the in-process loop (recall_memory tool +
+// turn write-back) is joined by two session-scoped routes sharing the exact
+// recall path and scoping. Read-only recall needs no new trust: it returns
+// what the tenant's own agent turns could already read.
+// ---------------------------------------------------------------------------
+
+// maxRetainChars bounds operator-retained memories. Recall budgets and bank
+// eviction bound reads; this bounds writes against pasting a corpus.
+const maxRetainChars = 4000
+
+func memoryBankOrDefault(raw string) (memory.MemoryBank, bool) {
+	switch memory.MemoryBank(strings.TrimSpace(raw)) {
+	case "", memory.BankExperiences:
+		return memory.BankExperiences, true
+	case memory.BankWorldFacts:
+		return memory.BankWorldFacts, true
+	case memory.BankMentalModels:
+		return memory.BankMentalModels, true
+	default:
+		return "", false
+	}
+}
+
+func (s *Server) resolveMemoryTenant(sessionID string) (string, error) {
+	sess, err := s.sessionMgr.GetSession(sessionID)
+	if err != nil {
+		return "", err
+	}
+	if sess.TenantID != "" {
+		return sess.TenantID, nil
+	}
+	return "default", nil
+}
+
+// recallParams parses the shared recall query contract: bank (validated,
+// empty/all = every bank), token budget, similarity floor, and count cap.
+// One parser serves the route now and any future recall caller — no
+// per-caller drift in bounds or defaults. Tool parity: the recall_memory
+// tool queries experiences at 250 tokens / 0.35 floor; those are the
+// defaults here too, overridable per call.
+type recallParams struct {
+	bank     memory.MemoryBank
+	matchAll bool
+	tokens   int
+	minSim   float64
+	limit    int
+}
+
+func parseRecallParams(r *http.Request) (recallParams, error) {
+	p := recallParams{tokens: 250, minSim: 0.35, limit: 10}
+	rawBank := strings.TrimSpace(r.URL.Query().Get("bank"))
+	if rawBank == "" || rawBank == "all" {
+		p.matchAll = true
+	} else if bank, ok := memoryBankOrDefault(rawBank); ok {
+		p.bank = bank
+	} else {
+		return p, fmt.Errorf("bank must be all, experiences, world-facts, or mental-models")
+	}
+	if n, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && n > 0 {
+		p.limit = n
+	}
+	if p.limit > 50 {
+		p.limit = 50
+	}
+	if n, err := strconv.Atoi(r.URL.Query().Get("tokens")); err == nil && n > 0 {
+		p.tokens = n
+	}
+	if p.tokens > 2000 {
+		p.tokens = 2000
+	}
+	if raw := strings.TrimSpace(r.URL.Query().Get("min_similarity")); raw != "" {
+		v, err := strconv.ParseFloat(raw, 64)
+		if err != nil || v < 0 || v > 1 {
+			return p, fmt.Errorf("min_similarity must be within 0..1")
+		}
+		p.minSim = v
+	}
+	return p, nil
+}
+
+// handleMemoryRecall serves GET /api/memory/recall?session_id=&q=&bank=
+// &limit=&tokens=&min_similarity=. Same SemanticRecallScoped path as the
+// recall_memory tool — the HTTP surface observes, never widens.
+func (s *Server) handleMemoryRecall(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.memoryStore == nil {
+		writeJSON(w, http.StatusOK, map[string]any{"snippets": []any{}})
+		return
+	}
+	sessionID := r.URL.Query().Get("session_id")
+	if sessionID == "" {
+		http.Error(w, "session_id required", http.StatusBadRequest)
+		return
+	}
+	tenant, err := s.resolveMemoryTenant(sessionID)
+	if err != nil {
+		http.Error(w, "session not found", http.StatusNotFound)
+		return
+	}
+	params, err := parseRecallParams(r)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	bank := params.bank
+	if params.matchAll {
+		bank = ""
+	}
+	query := r.URL.Query().Get("q")
+	out := make([]any, 0)
+	if strings.TrimSpace(query) == "" {
+		// Inventory mode: an empty query embeds to the zero vector, so
+		// semantic search would return nothing meaningful. List newest
+		// instead, same budget and boundary, similarity null (no match
+		// was computed — never a fabricated score).
+		for _, item := range s.memoryStore.ListRecent(bank, tenant, params.tokens) {
+			if len(out) >= params.limit {
+				break
+			}
+			out = append(out, map[string]any{
+				"content":    item.Content,
+				"bank":       string(item.Bank),
+				"similarity": nil,
+				"created_at": item.CreatedAt,
+			})
+		}
+	} else {
+		recalled := s.memoryStore.SemanticRecallScoped(
+			bank, query, params.tokens, params.minSim, tenant, []string{tenant})
+		for _, item := range recalled {
+			if len(out) >= params.limit {
+				break
+			}
+			out = append(out, map[string]any{
+				"content":    item.Item.Content,
+				"bank":       string(item.Item.Bank),
+				"similarity": item.Similarity,
+				"created_at": item.Item.CreatedAt,
+			})
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"snippets": out, "tenant": tenant, "session_id": sessionID,
+	})
+}
+
+// handleMemoryRetain serves POST /api/memory/retain
+// {session_id, content, importance?, bank?}. Tenant-scoped with the tenant
+// as its own readership — identical to turn write-back, so retained rows
+// are recallable through the same IFC check and invisible elsewhere.
+func (s *Server) handleMemoryRetain(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.memoryStore == nil {
+		http.Error(w, "memory store unavailable", http.StatusServiceUnavailable)
+		return
+	}
+	var req struct {
+		SessionID  string   `json:"session_id"`
+		Content    string   `json:"content"`
+		Importance *float64 `json:"importance"`
+		Bank       string   `json:"bank"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	tenant, err := s.resolveMemoryTenant(req.SessionID)
+	if err != nil {
+		http.Error(w, "session not found", http.StatusNotFound)
+		return
+	}
+	content := strings.TrimSpace(req.Content)
+	if content == "" {
+		http.Error(w, "content must not be empty", http.StatusBadRequest)
+		return
+	}
+	if len([]rune(content)) > maxRetainChars {
+		http.Error(w, "content exceeds 4000 characters", http.StatusBadRequest)
+		return
+	}
+	bank, ok := memoryBankOrDefault(req.Bank)
+	if !ok {
+		http.Error(w, "bank must be experiences, world-facts, or mental-models", http.StatusBadRequest)
+		return
+	}
+	// Pointer distinguishes absent (default 0.5) from explicit 0: an
+	// explicitly unimportant memory is legal and must survive as 0.
+	importance := 0.5
+	if req.Importance != nil {
+		importance = *req.Importance
+	}
+	if importance < 0 {
+		importance = 0
+	}
+	if importance > 1 {
+		importance = 1
+	}
+	item := s.memoryStore.RetainScoped(tenant, tenant, bank, content, importance, nil)
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"id": item.ID, "bank": string(item.Bank), "importance": item.Importance,
+		"tenant": item.TenantID, "created_at": item.CreatedAt,
+	})
 }
 
 // retainTurnExperience stores one bounded experience for a completed model
