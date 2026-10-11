@@ -21,6 +21,10 @@ type QECResourceSpec struct {
 	LogicalClifford  int     `json:"logical_clifford_count"`
 	TargetLogicalInf float64 `json:"target_logical_infidelity"` // e.g. 1e-6
 	PhysicalErrorRate float64 `json:"physical_error_rate"`       // e.g. 1e-3
+	// AcceptanceRate: fraction of shots kept under error detection +
+	// postselection. <= 0 means unspecified (no postselection, multiplier 1).
+	// A gain quoted without its acceptance rate is not a scaling result.
+	AcceptanceRate float64 `json:"acceptance_rate"`
 }
 
 // QECResourceEstimate holds computed physical hardware requirements
@@ -35,6 +39,9 @@ type QECResourceEstimate struct {
 	Threshold             float64         `json:"threshold"`
 	MeetsThreshold        bool            `json:"meets_threshold"`
 	EstExecutionTimeMs    float64         `json:"est_execution_time_ms"`
+	// EffectiveShotsMultiplier: 1/acceptance for postselected estimates
+	// (1.0 when no postselection). Multiply shot budgets by this.
+	EffectiveShotsMultiplier float64 `json:"effective_shots_multiplier"`
 }
 
 // ResourceEstimator computes early fault-tolerant quantum requirements
@@ -68,6 +75,15 @@ func (e *ResourceEstimator) EstimateNeutralAtom(spec QECResourceSpec) (*QECResou
 
 	pLogical := p * math.Pow(p/threshold, float64(distance-1)/2.0)
 
+	multiplier := 1.0
+	if spec.AcceptanceRate > 0 {
+		var err error
+		multiplier, err = EffectiveCostMultiplier(spec.AcceptanceRate)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &QECResourceEstimate{
 		Architecture:          ArchNeutralAtomQuEra,
 		PhysicalQubitsTotal:   totalPhysical,
@@ -79,6 +95,7 @@ func (e *ResourceEstimator) EstimateNeutralAtom(spec QECResourceSpec) (*QECResou
 		Threshold:             threshold,
 		MeetsThreshold:        p < threshold,
 		EstExecutionTimeMs:    float64(spec.LogicalClifford+spec.LogicalTCount) * 0.1, // ~10 kHz shuttle + gate
+		EffectiveShotsMultiplier: multiplier,
 	}, nil
 }
 
@@ -105,6 +122,15 @@ func (e *ResourceEstimator) EstimateBivariateBicycle(spec QECResourceSpec) (*QEC
 	ratio := p / threshold
 	pLogical := 0.1 * math.Pow(ratio, 6.0)
 
+	multiplier := 1.0
+	if spec.AcceptanceRate > 0 {
+		var err error
+		multiplier, err = EffectiveCostMultiplier(spec.AcceptanceRate)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &QECResourceEstimate{
 		Architecture:          ArchBivariateBicycleIBM,
 		PhysicalQubitsTotal:   totalPhysical,
@@ -116,5 +142,6 @@ func (e *ResourceEstimator) EstimateBivariateBicycle(spec QECResourceSpec) (*QEC
 		Threshold:             threshold,
 		MeetsThreshold:        p < threshold,
 		EstExecutionTimeMs:    float64(spec.LogicalClifford+spec.LogicalTCount) * 0.002, // ~500 kHz transmon rate
+		EffectiveShotsMultiplier: multiplier,
 	}, nil
 }

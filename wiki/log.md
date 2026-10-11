@@ -1439,3 +1439,8 @@ skipped is the exact failure this incident is about:
   ZNEResult archives per-scale values + shots/seed; refit() over
   Richardson/linear/exponential with fail-closed boundaries. Syndrome
   pipelines explicitly deferred (no producer yet). Suite 344 passed.
+
+## [2026-10-11] implementation | QEC claim shape + acceptance pricing
+  pkg/qec/claim.go: four-number logical-claim validator (Λ fit, breakeven,
+  decoder-vs-cycle, acceptance), EffectiveCostMultiplier on estimates.
+  5 tests green; full Go suite green.
