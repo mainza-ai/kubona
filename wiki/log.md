@@ -1471,3 +1471,9 @@ skipped is the exact failure this incident is about:
   formula (d=9 unresolvable at 100k shots). Validates fit machinery, not
   vendor constants. Two harness bugs caught (rounds confounding, broadcast
   shape). Deltakit full package uninstallable on py3.14; Stim-direct used.
+
+## [2026-10-11] implementation | DFT anchor adapter seam (trial-gated)
+  integrations/promethium.py: driver protocol + bounded poll + parsed
+  anchor dict + ledger record, 4 stub tests green. Vendor SDK privately
+  distributed (PyPI name is unrelated lib) so no method names guessed;
+  binding + trial account remain operator steps.
