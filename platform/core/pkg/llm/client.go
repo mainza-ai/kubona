@@ -132,7 +132,7 @@ func (c *Client) Complete(ctx context.Context, role string, messages []ChatMessa
 	}
 
 	if len(chatResp.Choices) == 0 {
-		return "", &chatResp, duration, fmt.Errorf("no completion choices returned by model")
+		return "", nil, duration, fmt.Errorf("no completion choices returned by model")
 	}
 
 	return chatResp.Choices[0].Message.Content, &chatResp, duration, nil
@@ -145,40 +145,50 @@ type StreamChunk struct {
 	Done         bool
 }
 
+// StreamResult is the accumulated outcome of a streaming completion.
+type StreamResult struct {
+	Text     string
+	Finish   string
+	Duration time.Duration
+	// Usage is provider-reported token accounting when the endpoint sends
+	// it (final usage chunk); nil when absent — never estimated.
+	Usage map[string]any
+}
+
 // CompleteStream executes a streaming chat completion, invoking onToken for
-// each content delta in arrival order. Returns the accumulated text and the
-// terminal finish reason ("stop", "length", or ""). Both oMLX and
-// OpenAI-compatible cloud endpoints speak this SSE dialect.
-func (c *Client) CompleteStream(ctx context.Context, role string, messages []ChatMessage, onToken func(string)) (string, string, time.Duration, error) {
+// each content delta in arrival order. Both oMLX and OpenAI-compatible cloud
+// endpoints speak this SSE dialect.
+func (c *Client) CompleteStream(ctx context.Context, role string, messages []ChatMessage, onToken func(string)) (*StreamResult, error) {
 	providerType, model, err := c.settings.GetModelForRole(role)
 	if err != nil {
-		return "", "", 0, err
+		return nil, err
 	}
 
 	snap := c.settings.GetSnapshot()
 	provConfig, ok := snap.Providers[providerType]
 	if !ok {
-		return "", "", 0, fmt.Errorf("provider configuration not found for %s", providerType)
+		return nil, fmt.Errorf("provider configuration not found for %s", providerType)
 	}
 
 	body := map[string]any{
-		"model":       model,
-		"messages":    messages,
-		"temperature": snap.Temperature,
-		"stream":      true,
+		"model":          model,
+		"messages":       messages,
+		"temperature":    snap.Temperature,
+		"stream":         true,
+		"stream_options": map[string]any{"include_usage": true},
 	}
 	if snap.MaxTokens > 0 {
 		body["max_tokens"] = snap.MaxTokens
 	}
 	bodyBytes, err := json.Marshal(body)
 	if err != nil {
-		return "", "", 0, err
+		return nil, err
 	}
 
 	endpoint := fmt.Sprintf("%s/chat/completions", provConfig.BaseURL)
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(bodyBytes))
 	if err != nil {
-		return "", "", 0, err
+		return nil, err
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Accept", "text/event-stream")
@@ -188,19 +198,19 @@ func (c *Client) CompleteStream(ctx context.Context, role string, messages []Cha
 
 	start := time.Now()
 	resp, err := c.httpCli.Do(req)
-	duration := time.Since(start)
 	if err != nil {
-		return "", "", duration, err
+		return nil, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		slurp, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return "", "", duration, fmt.Errorf("API error (%d) from %s: %s", resp.StatusCode, endpoint, string(slurp))
+		return nil, fmt.Errorf("API error (%d) from %s: %s", resp.StatusCode, endpoint, string(slurp))
 	}
 
 	var full strings.Builder
 	finish := ""
+	var usage map[string]any
 	sc := bufio.NewScanner(resp.Body)
 	sc.Buffer(make([]byte, 1024*1024), 1024*1024)
 	for sc.Scan() {
@@ -219,8 +229,15 @@ func (c *Client) CompleteStream(ctx context.Context, role string, messages []Cha
 				} `json:"delta"`
 				FinishReason string `json:"finish_reason"`
 			} `json:"choices"`
+			Usage map[string]any `json:"usage"`
 		}
-		if err := json.Unmarshal([]byte(payload), &chunk); err != nil || len(chunk.Choices) == 0 {
+		if err := json.Unmarshal([]byte(payload), &chunk); err != nil {
+			continue
+		}
+		if chunk.Usage != nil {
+			usage = chunk.Usage
+		}
+		if len(chunk.Choices) == 0 {
 			continue
 		}
 		ch := chunk.Choices[0]
@@ -235,9 +252,9 @@ func (c *Client) CompleteStream(ctx context.Context, role string, messages []Cha
 		}
 	}
 	if err := sc.Err(); err != nil {
-		return full.String(), finish, time.Since(start), err
+		return &StreamResult{Text: full.String(), Finish: finish, Duration: time.Since(start), Usage: usage}, err
 	}
-	return full.String(), finish, time.Since(start), nil
+	return &StreamResult{Text: full.String(), Finish: finish, Duration: time.Since(start), Usage: usage}, nil
 }
 
 // FetchModels queries the provider's /models endpoint to discover live available models
