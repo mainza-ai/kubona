@@ -1636,3 +1636,6 @@ skipped is the exact failure this incident is about:
   attribution via ledger diff; tenant-scoped RetainScoped mirroring
   recall IFC. Live: 0.8-rated experience with get_campaign,get_anchor.
   Rewrite (user edit) excluded. Full Go suite green.
+
+## [2026-10-11] verification | CI green on memory write-back
+  All 5 jobs success on run 38164273195. Tree clean, zero unpushed.
