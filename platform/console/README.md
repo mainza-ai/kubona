@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Kubona Observatory Console
 
-## Getting Started
+Sovereign discovery console: icon dock, living arena, native co-pilot. Next.js 16 + React 19 + Tailwind v4 + vitest.
 
-First, run the development server:
+## Run it (local test stack)
+
+The console was built against the **Go core** — not the Python bridge (different shapes: SSE events, `session_id` fields).
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# 1. Backend — Go orchestrator on :8080
+go build -o /tmp/kubonad ./cmd/kubonad   # from platform/core
+/tmp/kubonad -port 8080
+
+# 2. Frontend — from this directory (dev token required: the bridge/core
+#    fail closed without `Authorization: Bearer`; unset in production)
+NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN=dev-token pnpm dev --port 3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000. Optional: local oMLX LLM on `:8787` powers chat/tribunal replies.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Gates
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+pnpm run build   # production build (required green)
+pnpm test        # vitest suite
+pnpm lint        # eslint, zero warnings
+```
 
-## Learn More
+## Test it
 
-To learn more about Next.js, take a look at the following resources:
+Ten adopted co-pilot scenarios (local simulation only, $0.00, no QPU):
+[`wiki/concepts/local-simulation-test-scenarios.md`](../../wiki/concepts/local-simulation-test-scenarios.md).
+Golden rule: if the Action Gate appears during testing, deny it or leave it pending.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Layout
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `src/app/page.tsx` — shell (dock + stage + co-pilot wiring, sessions, gate state)
+- `src/components/sovereign/` — Dock, ArenaHud, SwarmUniverse, ProofDagView, ActionGate, WidgetStage (+ tests)
+- `src/components/CopilotDrawer.tsx` — chat/tribunal logic in co-pilot skin
+- `src/components/surfaces/` — prior instruments (recorder, manifold, fleet, proofs, mesh…)
+- `src/lib/api.ts` — backend client (Bearer attached only when the dev token env is set)

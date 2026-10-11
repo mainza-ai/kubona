@@ -28,6 +28,22 @@ with organized, reproducible results.
 See [`wiki/overview.md`](wiki/overview.md) for the synthesis and [`wiki/roadmap.md`](wiki/roadmap.md)
 for the implementation plan.
 
+## Run it
+
+```bash
+# Backend — Go orchestrator (the API the console was built against)
+go build -o /tmp/kubonad ./cmd/kubonad   # from platform/core
+/tmp/kubonad -port 8080
+
+# Frontend — sovereign console on :3000 (dev token required locally)
+NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN=dev-token pnpm dev --port 3000   # from platform/console
+```
+
+Then work the ten adopted local-simulation test scenarios
+([`wiki/concepts/local-simulation-test-scenarios.md`](wiki/concepts/local-simulation-test-scenarios.md):
+co-pilot chat, tribunal, flight recorder, on-demand widgets — $0.00, no QPU.
+Details in [`platform/console/README.md`](platform/console/README.md).
+
 ## License
 
 Apache-2.0
