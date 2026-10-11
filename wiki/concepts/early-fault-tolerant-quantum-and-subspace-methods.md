@@ -71,7 +71,6 @@ randomized Clifford measurements, completely decoupling measurement overhead fro
    - High threshold ($0.75\% - 0.8\%$) under standard circuit noise models.
 
 ## Claim shape + acceptance pricing (built 2026-10-11)
-
 `pkg/qec/claim.go`: every "logical beats physical" assertion carries four
 numbers or refuses — suppression-per-+2-distance Λ (fit from ≥2 points,
 single points cannot define a scaling law), breakeven factor, decoder
@@ -79,6 +78,22 @@ latency vs cycle time (backlog check), and acceptance rate. Postselected
 gains price at 1/acceptance via `EffectiveShotsMultiplier` on both
 estimators (unspecified acceptance = 1.0×, never assumed). A gain quoted
 without its acceptance rate is not a scaling result.
+
+## Fit machinery calibrated on real decoder data (2026-10-11)
+
+Stim + PyMatching repetition-code memory (21 rounds, circuit-level
+depolarizing p=0.008, 100k shots, distances 3/5/7) yields per-round rates
+2.9e-4 → 2.1e-5 → 1.4e-6 and Λ=14.4 through the same log-linear formula
+`FitLambda` implements (d=9 unresolvable at 100k shots — reported, not
+extrapolated). This validates the *fit machinery*, not the estimator's
+vendor constants: surface/BB suppression laws stay analytic heuristics
+until the same protocol runs against them. Rerun recipe: scratch venv,
+`pip install stim pymatching` (the full Deltakit package has no usable
+wheels on Python 3.14 — Stim-direct instead), fixed rounds across
+distances, batch decode, fit ≥2 nonzero points. Debugging notes kept:
+rounds must be fixed across distances (else distance confounds with
+volume), and observable-array shapes must be flattened before comparison
+(a silent (N,1)-vs-(N,) broadcast fabricated a 145× error rate).
 
 ## Cross-References
 
