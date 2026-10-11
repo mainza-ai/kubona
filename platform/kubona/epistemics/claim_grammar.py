@@ -22,6 +22,25 @@ class ClaimCategory(str, enum.Enum):
     HYPOTHESIS_REFUTED = "HYPOTHESIS_REFUTED"
 
 
+class EvidenceTier(str, enum.Enum):
+    """How the claim's number was earned — required on every claim.
+
+    T1_VERIFIED: mechanical, parameter-free check (unitary equality,
+      anchor match to tolerance, lint/type-level, formal proof step).
+    T2_CONSISTENT: agrees under stated assumptions (model vs literature
+      with assumed prefactors, simulator vs theory, fitted calibration).
+    T3_SAMPLED: statistical interval from finite shots, runs, or seeds
+      (canary Wilson intervals, seed bands, Monte Carlo estimates).
+    A T3 number cited without its interval, or a T2 cited without its
+    assumptions, refuses downstream — the tier names what must travel
+    with the number.
+    """
+
+    T1_VERIFIED = "T1_VERIFIED"
+    T2_CONSISTENT = "T2_CONSISTENT"
+    T3_SAMPLED = "T3_SAMPLED"
+
+
 # Q-04: permitted claim verbs. A predicate must contain one of these —
 # reports may only *report what was done*, never what was achieved in the
 # abstract. Anything else (proves, guarantees, solves, unlocks, ...) fails
@@ -78,6 +97,10 @@ class ScientificClaim(BaseModel):
     uncertainty_sigma: float = Field(ge=0.0)
     confidence_interval_95: tuple[float, float]
     falsification_criteria: List[str] = Field(min_length=1)
+
+    # Evidence tier: how the number was earned (required, no default —
+    # a claim that will not say how it knows refuses at construction).
+    evidence_tier: EvidenceTier
     
     # Provenance & Epistemics
     hardware_provenance: HardwareProvenance
@@ -139,6 +162,7 @@ class ScientificClaim(BaseModel):
         tag = f"[{self.category.value}]"
         adv_tag = "[ADVANTAGE GROUNDED]" if self.claims_advantage else "[NO ADVANTAGE CLAIMED]"
         base = f"{tag} {adv_tag} {self.predicate} (Δ={self.delta_hartree:.4f} Ha, σ={self.uncertainty_sigma:.4f})"
+        base += f" [{self.evidence_tier.value}]"
         if self.credibility is not None:
             c = self.credibility
             base += f" [ρ={c.rho:.3f} {c.tier} refs={len(c.evidence_refs)}]"
