@@ -29,7 +29,7 @@ import {
   Pencil,
 } from 'lucide-react';
 import { ChatMessage, CampaignState, RunPhase, Proposal } from '@/types';
-import { fetchMessages, sendChatMessage, streamChatMessage, createSession, runTribunal, fetchCampaignState, launchProposal, clearMessages, regenerateChat, sendFeedback, rewriteChat, fetchJobs } from '@/lib/api';
+import { fetchMessages, sendChatMessage, streamChatMessage, createSession, runTribunal, fetchCampaignState, launchProposal, clearMessages, regenerateChat, sendFeedback, rewriteChat, fetchJobs, jobStatusLabel, isTerminalJobStatus } from '@/lib/api';
 import { MathText } from './common/MathText';
 import { Tip } from './common/Tip';
 import type { CanvasWidgetKind } from './sovereign/WidgetStage';
@@ -261,7 +261,7 @@ export function CopilotDrawer({
           if (onExperimentLaunched) onExperimentLaunched();
         } else {
           setMessages((prev) => prev.filter((m) => m.id !== liveId));
-          setErrorMessage('Local AI engine did not respond. Verify that oMLX is listening on port 8787.');
+          setErrorMessage('AI engine did not respond. Check the model in Sovereign settings (dock → mesh → settings).');
         }
       } catch (err: unknown) {
         setMessages((prev) => prev.filter((m) => m.id !== liveId));
@@ -342,7 +342,7 @@ export function CopilotDrawer({
         }
         if (onExperimentLaunched) onExperimentLaunched();
       } else {
-        setErrorMessage('Failed to convene tribunal. Verify backend gRPC bridge and local oMLX daemon.');
+        setErrorMessage('Failed to convene tribunal. Check the model in Sovereign settings and the bridge status in Fleet Radar.');
       }
     } catch (err: unknown) {
       setErrorMessage(err instanceof Error ? err.message : 'Tribunal connection error.');
@@ -589,23 +589,24 @@ export function CopilotDrawer({
         if (onExperimentLaunched) onExperimentLaunched();
         // Inline job tracking: poll session jobs for this id and report the
         // live status into the card. Bounded (8 rounds); terminal states stop
-        // early. Status strings come from the backend — never invented.
+        // early. Status labels + failure reasons come from the backend.
         let rounds = 0;
-        const terminal = new Set(['completed', 'failed', 'cancelled', 'aborted', 'settled']);
         const track = async () => {
           rounds += 1;
           const jobs = await fetchJobs(activeSessionId);
           const hit = jobs.find((j) => String(j.id) === jobId);
-          if (hit?.status) {
-            // On failure, surface the executor's reason (dynamic, from the
-            // backend) so a bad circuit is actionable, not mysterious.
-            const result = (hit as { result_json?: { error_message?: string } }).result_json;
-            const reason = result?.error_message ? ` · ${String(result.error_message).slice(0, 160)}` : '';
+          if (hit?.status != null) {
+            const label = jobStatusLabel(hit.status);
+            // Failure reasons: backend writes `error` (failJob/cancel paths);
+            // the success proto also carries `error_message` (empty on success).
+            const result = (hit as { result_json?: { error?: string; error_message?: string } }).result_json;
+            const reasonText = result?.error || result?.error_message || '';
+            const reason = reasonText ? ` · ${String(reasonText).slice(0, 160)}` : '';
             setLaunchedNote((prev) => ({
               ...prev,
-              [messageId]: `Job ${jobId.slice(0, 8)} · ${hit.status}${hit.completed_at ? ` · done ${new Date(hit.completed_at).toLocaleTimeString()}` : ''}${reason}`,
+              [messageId]: `Job ${jobId.slice(0, 8)} · ${label}${hit.completed_at ? ` · done ${new Date(hit.completed_at).toLocaleTimeString()}` : ''}${reason}`,
             }));
-            if (terminal.has(String(hit.status).toLowerCase()) || rounds >= 8) return;
+            if (isTerminalJobStatus(hit.status) || rounds >= 8) return;
           } else if (rounds >= 8) {
             setLaunchedNote((prev) => ({ ...prev, [messageId]: `Launched: job ${jobId.slice(0, 8)} · status unavailable` }));
             return;
@@ -1248,7 +1249,7 @@ export function CopilotDrawer({
             </div>
 
             <p className="text-xs text-slate-300 leading-relaxed font-sans">
-              {runningTribunal ? tribunalStage : `Reasoning with local oMLX model on port 8787...`}
+              {runningTribunal ? tribunalStage : `Reasoning with the configured model…`}
             </p>
           </div>
         )}

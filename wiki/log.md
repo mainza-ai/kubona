@@ -1577,3 +1577,9 @@ skipped is the exact failure this incident is about:
   headers, bullets, ordered, quotes, GFM tables) + preserved KaTeX + HTML
   escaping (injection hole closed). 6 tests incl. user-reported PES case.
   42/42 vitest, lint + build clean.
+
+## [2026-10-11] verification | Production agentic audit filed (tracked)
+  3-track deep dive: zero tool-calling, template-state proof, results-die-
+  in-DB + 6 mismatches, state-reset inventory. Same-day fixes: numeric
+  status labels, error-key reasons, generic engine strings. Phased plan
+  (correctness done, coherence next, agentic core, hardening).

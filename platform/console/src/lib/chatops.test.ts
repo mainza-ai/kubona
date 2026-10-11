@@ -52,12 +52,28 @@ describe('chat ops client', () => {
   });
 
   it('fetchJobs returns the session job list', async () => {
-    mockFetchOnce({ jobs: [{ id: 'j1', status: 'running' }] });
-    await expect(fetchJobs('s')).resolves.toEqual([{ id: 'j1', status: 'running' }]);
+    mockFetchOnce({ jobs: [{ id: 'j1', status: 2 }] });
+    await expect(fetchJobs('s')).resolves.toEqual([{ id: 'j1', status: 2 }]);
   });
 
   it('fetchJobs falls back to empty on refusal', async () => {
     mockFetchOnce({}, false, 500);
     await expect(fetchJobs('s')).resolves.toEqual([]);
+  });
+});
+
+describe('jobStatusLabel', () => {
+  it('maps numeric wire values to canonical labels', async () => {
+    const { jobStatusLabel, isTerminalJobStatus } = await import('./api');
+    expect(jobStatusLabel(1)).toBe('QUEUED');
+    expect(jobStatusLabel(2)).toBe('RUNNING');
+    expect(jobStatusLabel(3)).toBe('COMPLETED');
+    expect(jobStatusLabel(4)).toBe('FAILED');
+    expect(jobStatusLabel('JOB_STATUS_COMPLETED')).toBe('COMPLETED');
+    expect(jobStatusLabel('completed')).toBe('COMPLETED');
+    expect(isTerminalJobStatus(3)).toBe(true);
+    expect(isTerminalJobStatus(4)).toBe(true);
+    expect(isTerminalJobStatus(2)).toBe(false);
+    expect(isTerminalJobStatus('running')).toBe(false);
   });
 });
