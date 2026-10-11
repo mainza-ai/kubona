@@ -112,7 +112,11 @@ machinery:
 - **Now (no accounts, no spend):** entity schema + deterministic-ID upsert +
   tier/quarantine promotion path, stub-tested; taxonomy v0 for quantum
   modalities reusing the provider-capability vocabulary; snapshot + update-log
-  mechanism on the existing store.
+  mechanism on the existing store. **Built 2026-10-11:** `intelligence/entities.py`
+  (7 kinds, 5 relationship kinds, T3-default upsert, T2/T1 promotion ladder with
+  independent-source rule, alias-conflict refusal, chained corrections,
+  id-preserving retractions, citable snapshots; 8 tests green) — the prototype
+  demonstrates the mechanism on stub data, per the register rule.
 - **Next (keys/approvals):** one new connector at a time with permission rows
   (patents first — highest claim value for prior art); ER pipeline on the
   company/paper corpus behind the static gate.
