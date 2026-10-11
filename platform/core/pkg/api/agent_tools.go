@@ -10,6 +10,7 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/agents"
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
 	"github.com/mainza-ai/kubona/core/pkg/llm"
+	"github.com/mainza-ai/kubona/core/pkg/memory"
 	"github.com/mainza-ai/kubona/core/pkg/tools"
 	pb "github.com/mainza-ai/kubona/core/proto"
 )
@@ -313,9 +314,53 @@ func (s *Server) registerAgentTools() *tools.Registry {
 		},
 	})
 
+	_ = r.Register(tools.Definition{
+		Name:        "recall_memory",
+		Description: "Recall prior lab experiences relevant to a query (tenant-scoped associative memory). Returns snippets with similarity scores, newest-relevant first.",
+		Parameters: map[string]any{
+			"type": "object",
+			"properties": map[string]any{
+				"session_id": map[string]any{"type": "string"},
+				"query":      map[string]any{"type": "string"},
+			},
+			"required": []any{"session_id", "query"},
+		},
+		Capability: "memory:read",
+		ReadOnly:   true,
+		Handler: func(_ context.Context, args json.RawMessage) (any, error) {
+			var a struct {
+				SessionID string `json:"session_id"`
+				Query     string `json:"query"`
+			}
+			if err := json.Unmarshal(args, &a); err != nil {
+				return nil, err
+			}
+			tenant := "default"
+			if s.sessionMgr != nil {
+				if sess, err := s.sessionMgr.GetSession(a.SessionID); err == nil && sess.TenantID != "" {
+					tenant = sess.TenantID
+				}
+			}
+			if s.memoryStore == nil {
+				return map[string]any{"snippets": []any{}, "tenant": tenant}, nil
+			}
+			recalled := s.memoryStore.SemanticRecallScoped(
+				memory.BankExperiences, a.Query, 250, 0.35, tenant, []string{tenant})
+			out := make([]any, 0, len(recalled))
+			for _, item := range recalled {
+				out = append(out, map[string]any{
+					"similarity": item.Similarity,
+					"content":    item.Item.Content,
+				})
+			}
+			return map[string]any{"snippets": out, "tenant": tenant}, nil
+		},
+	})
+
 	_ = r.Allow(CopilotRole,
 		"get_anchor", "get_campaign", "list_jobs", "get_job",
 		"recent_events", "query_literature", "submit_local_sim",
+		"recall_memory",
 	)
 	// Tribunal specialist roles observe through the same read-only set.
 	// Turns never write: submit_local_sim is copilot-only.
@@ -324,7 +369,7 @@ func (s *Server) registerAgentTools() *tools.Registry {
 	} {
 		_ = r.Allow(role,
 			"get_anchor", "get_campaign", "list_jobs", "get_job",
-			"recent_events", "query_literature",
+			"recent_events", "query_literature", "recall_memory",
 		)
 	}
 	return r
