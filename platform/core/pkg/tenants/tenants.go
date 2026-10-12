@@ -147,7 +147,11 @@ func (m *Manager) verifyAdmin(action *AdminAction) (*Tenant, error) {
 	if err != nil {
 		return nil, err
 	}
-	if t.Status != "active" {
+	// Q-33: suspension freezes spend-affecting actions, but the lab admin
+	// keeps the two recovery actions — reactivation and key rotation
+	// (a kill-switch that bricks recovery, e.g. after a key compromise,
+	// is a trap, not a control). Everything else refuses while suspended.
+	if t.Status != "active" && action.Action != "set_status" && action.Action != "set_admin_key" {
 		return nil, ErrTenantSuspended
 	}
 	if t.AdminPubkeyHex == "" || !strings.EqualFold(t.AdminPubkeyHex, action.PubkeyHex) {
@@ -254,6 +258,27 @@ func (m *Manager) RevokeAutonomy(action *AdminAction, reason string) (*Tenant, e
 		return nil, err
 	}
 	m.ledger.AppendEvent(t.ID, "tenant_autonomy_revoked", map[string]string{"tenant_id": t.ID, "from": from, "reason": reason})
+	return m.GetTenant(t.ID)
+}
+
+// SetStatus flips a tenant between active and suspended (Q-33: the
+// status field finally has a mutator). Suspended labs refuse spend and
+// dispatch via ErrTenantSuspended, enforced live; the autonomy level is
+// untouched, so reactivation restores exactly what was there. Only the
+// tenant admin may suspend its own lab (self-serve kill-switch).
+func (m *Manager) SetStatus(action *AdminAction, status string) (*Tenant, error) {
+	t, err := m.verifyAdmin(action)
+	if err != nil {
+		return nil, err
+	}
+	if status != "active" && status != "suspended" {
+		return nil, fmt.Errorf("unknown tenant status %q: want active or suspended", status)
+	}
+	from := t.Status
+	if _, err := m.ledger.DB().Exec(`UPDATE tenants SET status = ? WHERE id = ?`, status, t.ID); err != nil {
+		return nil, err
+	}
+	m.ledger.AppendEvent(t.ID, "tenant_status_changed", map[string]string{"tenant_id": t.ID, "from": from, "to": status})
 	return m.GetTenant(t.ID)
 }
 

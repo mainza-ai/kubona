@@ -102,11 +102,16 @@ is how a fleet learns to hide failure.
 
 ## Landing
 
-`platform/kubona/observability/` (telemetry, watchdog, [[epistemic-curvature]]) ·
-`kubona/mcp/servers/collective.py` (signed events + triggers) · [[hindsight]] behind
-`memory_retain`/`memory_recall`/`memory_reflect` with per-tenant banks · lifecycle inside the
-Rust core · one console view per campaign: timeline, budget curve, refusal ratio, κ sparkline, and
-a "why" button that walks the ledger ([[agent-ux-control-plane]]).
+`platform/kubona/epistemics/curvature.py` (κ/drift diagnostics, tested) ·
+Go `pkg/agents/collective.go` tribunal + ledger-signed events (`AppendSignedEvent`,
+tribunal turns/audits) · [[hindsight]] behind `memory_retain`/`memory_recall`
+with per-tenant banks + HTTP recall/retain (`/api/memory/*`) + `MemoryPanel`
+> ⚑ Correction (2026-10-12): this section previously cited
+> `platform/kubona/observability/` and `kubona/mcp/servers/collective.py`
+> — neither path ever existed. Signed events live in the Go ledger;
+> memory lives in `pkg/memory/hindsight.go` + HTTP surface. The
+> lifecycle-in-Rust-core and one-console-view-per-campaign items remain
+> open (see Q-17 CORE-ENGINE).
 
 **Acceptance test:** a cold human auditor answers "why did the agent stop?" and "what did it
 spend?" in under 60 seconds — a measurable gate, added to [[evaluation-and-benchmarks]].

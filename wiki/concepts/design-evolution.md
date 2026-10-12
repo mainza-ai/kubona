@@ -32,6 +32,6 @@ how Kubona's design moved from the architecture paper's vision to the expanded a
 
 The core bets that needed no re-arguing: **MCP as the agent-to-tool bus**, **QIR/MLIR as
 the hardware-agnostic compilation core**, **Rust for the performance-critical compiler +
-WASM edge**, and the **Python/TypeScript/Dart split**.
+WASM edge**, and the **polyglot split** (now Go/TS/Python/Rust; Dart retired Q-22).
 
 Related: [[overview]] · [[kubona]] · [[roadmap]]

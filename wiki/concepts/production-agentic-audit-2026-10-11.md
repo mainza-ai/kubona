@@ -116,8 +116,12 @@ the model sees the prompt twice. Cosmetic today, token waste always.
   nil-safe); local-sim submit tool ✅ (admission-enforced, 4096-shot cap,
   one dispatch per turn, turn roles never write — live-proven: model
   dispatched one Bell run, read it back, reported genuine counts).
-  Remaining: Hindsight wired over HTTP; planner loop with replan;
-  versioned campaigns; compile/validate gates on launch.
+   Remaining: Hindsight wired over HTTP; planner loop with replan;
+   versioned campaigns; compile/validate gates on launch.
+   ✅ **All four landed:** Hindsight HTTP (B1-2) + console panel;
+   planner replan on settlement (B1-3 era); versioned campaigns +
+   `VerifyCampaignHistory`; QASM validate + QIR compile gates on
+   launch (B0-5). This list is closed; see [[log]] B1/C entries.
 - **Phase 4 — hardening:** proposal schema validation, dissent-capable
   tribunal or removal, memory write-back, load/chaos tests on the loop,
   multi-geometry scan execution (PES scans today launch one circuit).

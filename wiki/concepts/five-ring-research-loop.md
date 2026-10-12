@@ -40,8 +40,8 @@ lets each layer's *stop condition* be owned by the layer beneath it.
 
 | Ring | Loops over | Closes on | Invariant | Status |
 |---|---|---|---|---|
-| **0 · Reflex** | the running job | telemetry: divergence, timeout, refusal, error signature | a non-LLM watchdog may **pause, re-scope, or abort-to-snapshot** mid-flight | absent |
-| **1 · Epistemic** | what may be claimed | wavefunction collapse under an evidence-strength gate | no assertion without a collapsed claim record | absent |
+| **0 · Reflex** | the running job | telemetry: divergence, timeout, refusal, error signature | a non-LLM watchdog may **pause, re-scope, or abort-to-snapshot** mid-flight | partial (supervisor + abort rail + watchdog trips live; automated re-scope + snapshot recovery open) |
+| **1 · Epistemic** | what may be claimed | wavefunction collapse under an evidence-strength gate | no assertion without a collapsed claim record | partial (claim records + RegisterClaim/assert gates live; report-time assertion audit open) |
 | **2 · Instrumental** | the experiment | measured metric of a [[vqa-vqe]]/sampling run | every result bound to a ledger record | **exists** |
 | **3 · Methodological** | how the experiment is built | predicted-then-measured fidelity and cost | a job may not spend money it cannot be shown will produce physics | partial |
 | **4 · Reflexive** | strategy and model | task-metric slope; held-out benchmark delta | self-modification only through the same harness as any candidate | partial |
@@ -57,7 +57,7 @@ own clock decide staleness (:376) — a real-time ingest surface that cannot be 
 network. `chickensoup` supplies the coordination object:
 `ReconciliationGate.acquire/release/is_busy/refresh_ttl` plus a cooperative stop flag and
 stale-gate clear (`src/reconciliation_gate.py:25-102`) — a TTL'd single-writer gate, so two
-agents never mutate one campaign. Build: `platform/kubona/observability/`; telemetry goes to
+agents never mutate one campaign. Build: `platform/kubona/epistemics/curvature.py` (κ/drift diagnostics) + Go supervisor/watchdog; telemetry goes to
 the existing ledger, not a parallel store.
 
 **Ring 1 — Epistemic.** Every hypothesis enters as a claim record carrying a wavefunction

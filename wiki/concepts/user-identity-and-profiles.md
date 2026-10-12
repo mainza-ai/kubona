@@ -63,3 +63,20 @@ multi-tenant, per ruling; an IdP would punch egress against Q-16).
   per tenant at multi-tenant scale).
 - Human membership inside a lab (join/invite/roles) is Phase-4 work; agents are never
   tenants — they carry owner delegation attestations with budget envelopes.
+
+## Tenant suspension (Q-33, closed 2026-10-12; mutator chosen over removal)
+
+`suspended` stays a real status with a real mutator: `POST /api/tenants/status`
+(admin-signed `set_status` envelope, bearer + limiter rail) flips `active ↔ suspended`;
+the prototype demonstrates the full lifecycle live (suspend → refused dispatch/ceiling
+→ reactivate → dispatch proceeds).
+
+- Suspension freezes spend-affecting actions only: dispatch, ceiling, autonomy, and
+  key-rotation-by-others refuse with `tenant is suspended`, while the lab admin keeps
+  the two recovery actions — **reactivation and key rotation** (a kill-switch that
+  bricks recovery after a key compromise is a trap, not a control).
+- Enforcement lives in one place, `verifyAdmin` (`platform/core/pkg/tenants/tenants.go`),
+  so every mutation inherits it; dispatch checks `requireDispatchAutonomy` at every
+  entry (`platform/core/pkg/api/server.go`).
+- Tests: `TestTenantSuspendLifecycle` + `TestTenantSuspendedRecoveryPaths`
+  (`platform/core/pkg/api/server_new_routes_test.go`).
