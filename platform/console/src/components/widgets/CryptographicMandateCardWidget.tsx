@@ -14,24 +14,33 @@ interface CryptographicMandateCardWidgetProps {
 }
 
 export function CryptographicMandateCardWidget({
-  actionDescription = 'Dispatch FeMoco Quantum Krylov to QuEra Neutral Atom (48 Logical Qubits)',
-  estimatedCostUsd = 48.50,
-  targetBackend = 'QuEra Reconfigurable Neutral Atom (Harvard 2024)',
+  actionDescription,
+  estimatedCostUsd,
+  targetBackend,
   onAuthorize,
   onDowngrade,
   onAbort,
 }: CryptographicMandateCardWidgetProps) {
   const [isSigning, setIsSigning] = useState(false);
   const [signedToken, setSignedToken] = useState<string | null>(null);
+  // No demo defaults: authorization chrome with a fictional dispatch would
+  // sign spend for work that was never proposed. Without props the card
+  // states the gap and signing stays disabled.
+  const hasProposal = actionDescription != null && estimatedCostUsd != null && targetBackend != null;
 
   const handleSign = async () => {
+    if (!hasProposal) return;
+    // Guarded above: all three are defined here. Locals keep TS honest
+    // without reintroducing demo fallbacks.
+    const action = actionDescription as string;
+    const cost = estimatedCostUsd as number;
     setIsSigning(true);
     try {
       // Deterministically hash the action description for the job hash
       const encoder = new TextEncoder();
       const digestBuffer = await window.crypto.subtle.digest(
         'SHA-256',
-        encoder.encode(`${actionDescription}-${estimatedCostUsd}`)
+        encoder.encode(`${action}-${cost}`)
       );
       const jobHashHex = Array.from(new Uint8Array(digestBuffer))
         .map((b) => b.toString(16).padStart(2, '0'))
@@ -41,7 +50,7 @@ export function CryptographicMandateCardWidget({
       const mandate = createSignedSpendMandate({
         tenantId: 'tenant-default',
         jobHash: jobHashHex,
-        maxBudgetUsd: estimatedCostUsd,
+        maxBudgetUsd: cost,
         ttlSeconds: 3600,
       });
 
@@ -63,7 +72,7 @@ export function CryptographicMandateCardWidget({
             <KeyRound className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-rose-200">AP2 High-Friction Spend Mandate Card (A2UI)</h3>
+            <h3 className="text-sm font-semibold text-rose-200">AP2 High-Friction Spend Mandate Card (Preview)</h3>
             <p className="text-xs text-rose-300/60">Autonomous Action Requiring Cryptographic Human Authorization</p>
           </div>
         </div>
@@ -73,6 +82,11 @@ export function CryptographicMandateCardWidget({
       </div>
 
       {/* Target & Cost Details */}
+      {!hasProposal ? (
+        <div className="p-4 rounded-xl bg-black/60 border border-white/10 text-xs text-slate-400">
+          No action proposed — nothing to authorize. This card signs only explicit proposals.
+        </div>
+      ) : (
       <div className="p-4 rounded-xl bg-black/60 border border-rose-500/10 space-y-3 text-xs">
         <div>
           <span className="text-white/40 block text-[10px]">Action Request</span>
@@ -85,10 +99,11 @@ export function CryptographicMandateCardWidget({
           </div>
           <div>
             <span className="text-white/40 block text-[10px]">Estimated QPU Spend</span>
-            <span className="font-mono text-amber-300 text-sm font-bold">${estimatedCostUsd.toFixed(2)} USD</span>
+            <span className="font-mono text-amber-300 text-sm font-bold">${(estimatedCostUsd ?? 0).toFixed(2)} USD</span>
           </div>
         </div>
       </div>
+      )}
 
       {/* Signature Status or Actions */}
       {signedToken ? (
@@ -99,6 +114,8 @@ export function CryptographicMandateCardWidget({
             <span className="font-mono text-[11px] text-emerald-200">{signedToken}</span>
           </div>
         </div>
+      ) : !hasProposal ? (
+        <p className="text-[11px] font-code text-slate-500">Authorize disabled — no proposal bound.</p>
       ) : (
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <button

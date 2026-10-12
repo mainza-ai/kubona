@@ -605,7 +605,7 @@ export default function Home() {
               {surface === 'recorder' && <FlightRecorder loops={loops} events={events} campaign={campaign} />}
               {surface === 'manifold' && <EpistemicManifold campaign={campaign} />}
               {surface === 'fleet' && <FleetRadar campaign={campaign} />}
-              {surface === 'proofs' && proofsTab === 'manuscripts' && <ResultsStudio campaign={campaign} />}
+              {surface === 'proofs' && proofsTab === 'manuscripts' && <ResultsStudio campaign={campaign} sessionId={currentSessionId || null} />}
               {surface === 'proofs' && proofsTab === 'tribunal' && <EpistemicTribunalRoom sessionId={session?.id ?? ''} />}
               {surface === 'mesh' && meshTab === 'mesh' && <CognitiveMesh campaign={campaign} />}
               {surface === 'mesh' && meshTab === 'guardrails' && <AutonomyCockpit campaign={campaign} session={session} />}

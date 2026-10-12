@@ -82,19 +82,28 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
   // Compute energy on the fly based on physical Morse potential anchored to PySCF FCI
   const energyCalculated = useMemo(() => {
     const Re = equilibriumR;
-    const fciGround = campaign?.classical_anchor?.fci_exact_energy ?? (isLiH ? -7.8824 : -1.13727);
+    const anchor = campaign?.classical_anchor;
+    const anchorComputed = anchor?.anchor_computed === true;
+    const fciGround = anchor?.fci_exact_energy ?? (isLiH ? -7.8824 : -1.13727);
     const De = Math.abs(fciGround) * 0.15; // Proportional dissociation depth
     const a = 1.44; // Potential width parameter
     const deltaR = bondDistance - Re;
     const morseTerm = De * Math.pow(1 - Math.exp(-a * deltaR), 2);
     const energy = fciGround + morseTerm;
-    const rhfEnergy = campaign?.classical_anchor?.rhf_mean_field_energy ?? (energy + 0.02058);
+    const rhfEnergy = anchor?.rhf_mean_field_energy ?? (energy + 0.02058);
     const deltaMHa = Math.abs(energy - fciGround) * 1000.0;
+    const nearEquilibrium = Math.abs(deltaR) < 0.01;
     return {
-      fci: energy,
+      anchorFci: fciGround,
+      anchorComputed,
+      modelEnergy: energy,
       rhf: rhfEnergy,
       deltaMHa: deltaMHa,
-      withinChemicalAccuracy: deltaMHa <= 1.6,
+      // Verified chrome only when the anchor was actually computed AND the
+      // slider sits at equilibrium (where the model equals the anchor).
+      // Anywhere else this is Morse extrapolation, labeled as such.
+      anchored: anchorComputed && nearEquilibrium,
+      displaced: !nearEquilibrium,
     };
   }, [bondDistance, equilibriumR, campaign?.classical_anchor, isLiH]);
 
@@ -243,7 +252,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
       <div 
         className="absolute inset-0 pointer-events-none opacity-40 transition-opacity duration-1000"
         style={{
-          background: `radial-gradient(circle 450px at 50% 45%, ${energyCalculated.withinChemicalAccuracy ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)'}, transparent 75%)`,
+          background: `radial-gradient(circle 450px at 50% 45%, ${energyCalculated.anchored ? 'rgba(16, 185, 129, 0.15)' : 'rgba(245, 158, 11, 0.15)'}, transparent 75%)`,
         }}
       />
 
@@ -265,14 +274,21 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
             <p className="text-xs text-slate-300 mt-0.5">
               Direct physical manipulation of nuclear coordinates and electronic structure
             </p>
+            <p className="text-[10px] font-code text-slate-500 mt-0.5">
+              2-atom schematic only — larger systems still render two bubbles
+            </p>
           </div>
         </div>
 
         {/* Calm Truth Status Indicator */}
         <div className="flex items-center space-x-2.5 px-3.5 py-1.5 rounded-2xl bg-black/40 border border-white/10 backdrop-blur-xl">
-          <div className={`w-2 h-2 rounded-full ${energyCalculated.withinChemicalAccuracy ? 'bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.8)]' : 'bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.8)]'}`} />
+          <div className={`w-2 h-2 rounded-full ${energyCalculated.anchored ? 'bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.8)]' : 'bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.8)]'}`} />
           <span className="text-xs font-medium text-slate-200">
-            {energyCalculated.withinChemicalAccuracy ? 'Verified Quantum Ground Truth' : 'Displaced Coordinate'}
+            {energyCalculated.anchored
+              ? 'Anchored at computed FCI'
+              : energyCalculated.displaced
+                ? 'Morse extrapolation — not measured at this R'
+                : 'Unverified anchor (bridge unavailable)'}
           </span>
           <span className="text-xs text-slate-400">•</span>
           <span className="text-xs font-mono font-semibold text-slate-200">
@@ -290,7 +306,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
             <div 
               className="absolute w-64 h-32 rounded-full opacity-30 blur-2xl transition-all duration-300"
               style={{
-                background: energyCalculated.withinChemicalAccuracy
+                background: energyCalculated.anchored
                   ? 'radial-gradient(ellipse at center, rgba(16, 185, 129, 0.4), transparent)'
                   : 'radial-gradient(ellipse at center, rgba(245, 158, 11, 0.4), transparent)',
                 width: `${atomOffset + 120}px`,
@@ -490,11 +506,11 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
             
             <div className="grid grid-cols-2 gap-4">
               <div className="p-4 rounded-xl bg-white/[0.03] border border-white/05 space-y-1">
-                <span className="text-[11px] text-slate-300 uppercase tracking-wider font-semibold">Exact FCI Ground State</span>
+                <span className="text-[11px] text-slate-300 uppercase tracking-wider font-semibold">Exact FCI Anchor</span>
                 <div className="text-base font-mono font-bold text-emerald-400">
-                  {energyCalculated.fci.toFixed(6)} Ha
+                  {energyCalculated.anchorFci.toFixed(6)} Ha
                 </div>
-                <span className="text-xs text-slate-300 font-sans">Calculated via live PySCF bridge</span>
+                <span className="text-xs text-slate-300 font-sans">{energyCalculated.anchorComputed ? 'PySCF-computed anchor' : 'Assumed anchor — bridge unavailable'}</span>
               </div>
 
               <div className="p-4 rounded-xl bg-white/[0.03] border border-white/05 space-y-1">
@@ -508,6 +524,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
 
             <div className="p-4 rounded-xl bg-black/40 border border-white/05 space-y-2">
               <span className="text-xs font-semibold text-slate-200">Second-Quantized Hamiltonian Mapping</span>
+              <p className="text-[10px] font-code text-slate-500">Illustrative Pauli form — coefficients schematic, anchor value live</p>
               <p className="text-xs font-mono text-cyan-300 leading-relaxed overflow-x-auto whitespace-nowrap scrollbar-thin">
                 {hamiltonianString}
               </p>
@@ -521,12 +538,12 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
         {/* Real-time energy readouts */}
         <div className="flex items-center space-x-6 text-xs font-mono">
           <div>
-            <span className="text-slate-300 font-medium">VQE Energy: </span>
-            <span className="text-white font-bold">{energyCalculated.fci.toFixed(5)} Ha</span>
+            <span className="text-slate-300 font-medium">Morse model at R: </span>
+            <span className="text-white font-bold">{energyCalculated.modelEnergy.toFixed(5)} Ha</span>
           </div>
           <div>
-            <span className="text-slate-300 font-medium">Classical Anchor: </span>
-            <span className="text-emerald-400 font-bold">{energyCalculated.fci.toFixed(5)} Ha</span>
+            <span className="text-slate-300 font-medium">FCI anchor: </span>
+            <span className="text-emerald-400 font-bold">{energyCalculated.anchorFci.toFixed(5)} Ha</span>
           </div>
         </div>
 

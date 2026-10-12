@@ -87,7 +87,7 @@ export function ObservatoryCockpit({
     { id: 'surface4', label: 'Sentinel Guardrails', shortcut: '⌘5', icon: KeyRound },
     { id: 'surface5', label: 'Fleet Radar', shortcut: '⌘6', icon: Radio },
     { id: 'surface6', label: 'Cognitive Mesh', shortcut: '⌘7', icon: Network },
-    { id: 'surface9', label: 'A2UI Studio', shortcut: '⌘8', icon: Code2 },
+    { id: 'surface9', label: 'Preview Gallery', shortcut: '⌘8', icon: Code2 },
     { id: 'labs', label: 'Laboratories', shortcut: '⌘L', icon: FlaskConical },
     { id: 'hf_hub', label: 'Hugging Face Hub', shortcut: '⌘9', icon: Database },
     { id: 'settings', label: 'Sovereign Air-Gap', shortcut: '⌘S', icon: Sliders },

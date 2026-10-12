@@ -56,6 +56,36 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
     return raw.map((w) => asRecord(w));
   }, [campaign?.quantum_factors?.wire_cuts]);
 
+  // Campaign signals: stuck / rescoped / contested states rendered as
+  // chips from resident data (trajectory watchdogs, branch statuses,
+  // epistemic verdict). Per-node mapping would invent correspondence
+  // between optimizer steps and circuit gates, so signals stay at the
+  // campaign level with honest labels.
+  const signals = useMemo(() => {
+    const out: Array<{ tone: 'red' | 'amber' | 'rose'; text: string; title: string }> = [];
+    for (const t of campaign?.trajectory ?? []) {
+      const w = String(t.watchdog || '');
+      const up = w.toUpperCase();
+      if (up.includes('TRIP') || up.includes('STUCK') || up.includes('BARREN')) {
+        out.push({ tone: 'red', text: `stuck: step ${t.step} (${w})`, title: 'Watchdog trip recorded in trajectory' });
+      } else if (up.includes('RESCOP') || up.includes('ROLLBACK')) {
+        out.push({ tone: 'amber', text: `rescoped: step ${t.step} (${w})`, title: 'Optimizer rescoped after this step' });
+      }
+    }
+    for (const b of campaign?.branches ?? []) {
+      const r = asRecord(b);
+      const status = String(r.status || '');
+      if (/rescop|stuck|failed/i.test(status)) {
+        out.push({ tone: 'amber', text: `branch ${String(r.id || r.name || '?')}: ${status}`, title: 'Branch did not converge cleanly' });
+      }
+    }
+    const ep = String(campaign?.epistemics?.status || '');
+    if (/CONTESTED|FAILED/i.test(ep)) {
+      out.push({ tone: 'rose', text: `epistemics: ${ep}`, title: 'Claim verdict is contested, not verified' });
+    }
+    return out;
+  }, [campaign?.trajectory, campaign?.branches, campaign?.epistemics?.status]);
+
   const runCompile = async () => {
     const qasm = campaign?.quantum_factors?.qasm;
     if (!qasm || compiling) return;
@@ -175,6 +205,26 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
               </span>
             );
           })}
+        </div>
+      )}
+      {/* Campaign signals: stuck / rescoped / contested states. */}
+      {signals.length > 0 && (
+        <div className="px-6 pb-1 flex flex-wrap justify-center gap-1.5 shrink-0">
+          {signals.map((s, i) => (
+            <span
+              key={i}
+              title={s.title}
+              className={`px-2 py-0.5 rounded-full font-code text-[10px] border ${
+                s.tone === 'red'
+                  ? 'bg-red-400/10 border-red-400/40 text-red-300'
+                  : s.tone === 'amber'
+                    ? 'bg-amber-400/10 border-amber-400/40 text-amber-300'
+                    : 'bg-rose-400/10 border-rose-400/40 text-rose-300'
+              }`}
+            >
+              {s.text}
+            </span>
+          ))}
         </div>
       )}
       <div className="flex-1 overflow-auto px-6 pb-4">

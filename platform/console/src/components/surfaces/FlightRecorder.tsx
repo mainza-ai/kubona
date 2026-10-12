@@ -43,10 +43,16 @@ export function FlightRecorder({ loops = [], events = [], campaign }: FlightReco
         const isDiscard = t.watchdog?.toUpperCase().includes('TRIP') || t.watchdog?.toUpperCase().includes('DISCARD');
         const isBaseline = idx === 0;
         const isBreakthrough = deltaMHa <= chemLimit;
-        
+        // Measured points (e.g. Krylov energies folded from real jobs)
+        // are observations, not optimizer steps: label them as such so
+        // they never read as variational convergence.
+        const isMeasured = (t.watchdog || '').toLowerCase().startsWith('measured');
+
         let title = `Variational Optimization Step ${t.step}`;
         let verdict: 'keep' | 'discard' | 'baseline' = 'keep';
-        if (isBaseline) {
+        if (isMeasured) {
+          title = `Measured Point ${t.step} (${t.watchdog})`;
+        } else if (isBaseline) {
           title = `Baseline ${targetSystem} Hypothesis`;
           verdict = 'baseline';
         } else if (isDiscard) {
@@ -57,7 +63,9 @@ export function FlightRecorder({ loops = [], events = [], campaign }: FlightReco
           verdict = 'keep';
         }
 
-        const summary = isBaseline
+        const summary = isMeasured
+          ? `Directly measured energy ${t.energy.toFixed(5)} Ha from job execution (${t.watchdog}) — an observation, not an optimizer step.`
+          : isBaseline
           ? `Initial parameterized ansatz evaluated for ${targetSystem}. Baseline energy: ${t.energy.toFixed(5)} Ha.`
           : isDiscard
           ? `Disconfirmation Officer triggered watchdog (${t.watchdog}). Mutation discarded to prevent barren plateau.`
@@ -69,7 +77,9 @@ export function FlightRecorder({ loops = [], events = [], campaign }: FlightReco
           ? t.theta.map((v) => v.toFixed(3)).join(', ')
           : 'not recorded';
 
-        const codeDiff = isBaseline
+        const codeDiff = isMeasured
+          ? `  # Measured observation (${t.watchdog})\n+ E = ${t.energy.toFixed(5)} Ha (Δ = ${deltaMHa.toFixed(2)} mHa)\n+ no optimizer state: not a gradient step`
+          : isBaseline
           ? `+ # Initial Ansatz: ${ansatzFamily}\n+ theta = [${thetaStr}]\n+ E_init = ${t.energy.toFixed(5)} Ha`
           : isDiscard
           ? `- # Watchdog trip: ${t.watchdog}\n- Reverted parameters\n+ Retained stable prior manifold`

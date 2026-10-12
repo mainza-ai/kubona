@@ -42,7 +42,7 @@ export function GenerativeUIStudio() {
         <div className="space-y-1">
           <div className="flex items-center space-x-2">
             <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono tracking-wider uppercase bg-purple-500/20 text-purple-300 border border-purple-500/30">
-              Surface 9 · A2UI
+              Surface 9 · Preview Gallery
             </span>
             <span className="text-white/40 text-xs">• Agent-to-User Generative Scientific Widgets</span>
           </div>

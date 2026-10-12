@@ -19,9 +19,11 @@ import {
 } from 'lucide-react';
 import { CampaignState } from '@/types';
 import { LiteraturePanel } from './LiteraturePanel';
+import { MeasuredOutputs } from '../MeasuredOutputs';
 
 interface ResultsStudioProps {
   campaign?: CampaignState | null;
+  sessionId?: string | null;
 }
 
 interface FrameAnnotation {
@@ -33,7 +35,7 @@ interface FrameAnnotation {
   timestamp: string;
 }
 
-export function ResultsStudio({ campaign }: ResultsStudioProps) {
+export function ResultsStudio({ campaign, sessionId }: ResultsStudioProps) {
   const [copiedBibtex, setCopiedBibtex] = useState(false);
   const [exported, setExported] = useState(false);
   const [activeTab, setActiveTab] = useState<'manuscript' | 'latex' | 'lean4' | 'literature'>('manuscript');
@@ -249,6 +251,8 @@ ${bibtex}
         <div className="lg:col-span-2 bg-black/40 border border-white/10 rounded-2xl p-6 backdrop-blur-xl overflow-y-auto max-h-[580px] space-y-6">
           {activeTab === 'manuscript' && (
             <div className="space-y-6">
+              {/* Measured job outputs: what ran, bound to job ids */}
+              <MeasuredOutputs sessionId={sessionId ?? null} />
               {/* Paper Title & Metadata */}
               <div 
                 onClick={() => setSelectedAnchor('§Title')}
