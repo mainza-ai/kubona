@@ -48,7 +48,14 @@ export function LiteraturePanel({ initialQuery = '' }: { initialQuery?: string }
       {searched && (
         <div className="text-[10px] font-mono text-slate-400">
           {records.length} record{records.length === 1 ? '' : 's'}
-          {cached ? ' · served from local cache' : ' · live fetch'}
+          {/* Label invariant: the bridge never fabricates records, so a
+              non-empty uncached result genuinely arrived live this session;
+              empty means unavailable or no matches — never "live" nothing. */}
+          {records.length === 0
+            ? ' · no records returned (unavailable or no matches)'
+            : cached
+              ? ' · served from local cache'
+              : ' · live fetch'}
         </div>
       )}
 

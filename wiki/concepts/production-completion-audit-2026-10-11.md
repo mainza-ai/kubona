@@ -102,7 +102,7 @@ with tests + live proof + green CI, per project rule).
 - [x] D-1a. Synth honesty: trajectory `source` (synthesized/measured),
   synth `ChemicalAccuracyPassed=false` until a fold, PROJECTED status +
   verdict, DAG partitions relabeled planned. — landed 2026-10-11.
-- [ ] D-1b. QKSD `classical-emulation` badge; curvature
+- [x] D-1b. QKSD `classical-emulation` badge; curvature
   decisional-or-diagnostic; mechanical contradiction check at claim_eval;
   literature offline label.
 - [ ] D-1c. Per-family bridge verification (large molecules first).

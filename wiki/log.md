@@ -1840,3 +1840,11 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-12] verification | CI green on D-1a projection honesty
   All 5 jobs success on run 38199170044. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | D-1b evidence labels
+  Literature fabrication removed (offline returns [], never cached;
+  console empty state honest, live-fetch label true by construction);
+  krylov fold + docstring name classical emulation; mechanical
+  verdict-vs-delta contradiction check in claim fold; curvature
+  documented diagnostic (non-decisional). Live: 3 genuine records.
+  Go + 71 vitest + python literature green.

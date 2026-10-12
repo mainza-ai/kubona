@@ -51,6 +51,24 @@ describe('LiteraturePanel', () => {
     await act(async () => {
       form.props.onSubmit({ preventDefault: () => {} });
     });
+    expect(textOf(root!.root)).toContain('no records returned');
+  });
+
+  it('labels non-empty cache hits as cache', async () => {
+    vi.mocked(api.searchLiterature).mockResolvedValue({
+      records: [
+        { id: 'x', title: 'Cached paper', authors: 'A', abstract: '', url: 'x', publication_year: 2020, citation_count: 3 },
+      ],
+      cached: true,
+    });
+    let root: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      root = TestRenderer.create(<LiteraturePanel initialQuery="vqe" />);
+    });
+    const form = root!.root.findByType('form');
+    await act(async () => {
+      form.props.onSubmit({ preventDefault: () => {} });
+    });
     expect(textOf(root!.root)).toContain('served from local cache');
   });
 });

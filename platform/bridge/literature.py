@@ -94,41 +94,23 @@ def search_arxiv(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
                     "cached": False,
                 })
     except Exception:
-        # Graceful offline / fallback scientific corpus
-        results = [
-            {
-                "id": "https://arxiv.org/abs/1304.3061",
-                "title": "A variational eigenvalue solver on a photonic quantum processor",
-                "abstract": "We present the variational quantum eigensolver algorithm...",
-                "authors": ["Alberto Peruzzo", "Jarrod McClean", "Peter Shadbolt", "Alán Aspuru-Guzik"],
-                "source": "arXiv (offline cache)",
-                "license": "arXiv perpetual non-exclusive license",
-                "provenance_verified": True,
-                "year": 2013,
-                "cited_by_count": 0,
-                "cached": False,
-            },
-            {
-                "id": "https://arxiv.org/abs/2001.05983",
-                "title": "Quantum Circuit Cutting for Accelerated Simulation",
-                "abstract": "We explore quantum circuit cutting techniques using quasiprobability decomposition...",
-                "authors": ["Tianyi Peng", "Aram Harrow", "Maris Ozols", "Xiaodi Wu"],
-                "source": "arXiv (offline cache)",
-                "license": "CC-BY-4.0",
-                "provenance_verified": True,
-                "year": 2020,
-                "cited_by_count": 0,
-                "cached": False,
-            }
-        ]
+        # Offline: return nothing. Fabricated "fallback papers" shipped here
+        # once (real IDs, invented context) and were even cached as hits —
+        # search results must only ever contain fetched records. The offline
+        # reference set lives in the wiki (arXiv:1304.3061), not in results.
+        results = []
 
-    # Cache results
-    with sqlite3.connect(CACHE_DB_PATH) as conn:
-        conn.execute(
-            "INSERT OR REPLACE INTO literature_cache (query_hash, source, query, payload_json) VALUES (?, ?, ?, ?)",
-            (query_hash, "arxiv", query, json.dumps(results)),
-        )
-        conn.commit()
+
+    # Cache successes only: caching an outage's empty result would
+    # launder "no data" into a sticky cached answer. Genuine empties
+    # re-fetch next time (correct over efficient).
+    if results:
+        with sqlite3.connect(CACHE_DB_PATH) as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO literature_cache (query_hash, source, query, payload_json) VALUES (?, ?, ?, ?)",
+                (query_hash, "arxiv", query, json.dumps(results)),
+            )
+            conn.commit()
 
     return results
 
@@ -177,27 +159,18 @@ def search_openalex(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
                     "cached": False,
                 })
     except Exception:
-        results = [
-            {
-                "id": "https://doi.org/10.1038/ncomms5213",
-                "title": "A variational eigenvalue solver on a photonic quantum processor",
-                "abstract": "Initial experimental demonstration of VQE on quantum hardware.",
-                "authors": ["A. Peruzzo", "J. McClean"],
-                "source": "OpenAlex (offline cache)",
-                "license": "Open Access (CC-BY-4.0)",
-                "provenance_verified": True,
-                "year": 2014,
-                "cited_by_count": 0,
-                "cached": False,
-            }
-        ]
+        # Offline: return nothing (see arXiv note above — no fabricated
+        # records, ever).
+        results = []
 
-    with sqlite3.connect(CACHE_DB_PATH) as conn:
-        conn.execute(
-            "INSERT OR REPLACE INTO literature_cache (query_hash, source, query, payload_json) VALUES (?, ?, ?, ?)",
-            (query_hash, "openalex", query, json.dumps(results)),
-        )
-        conn.commit()
+
+    if results:
+        with sqlite3.connect(CACHE_DB_PATH) as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO literature_cache (query_hash, source, query, payload_json) VALUES (?, ?, ?, ?)",
+                (query_hash, "openalex", query, json.dumps(results)),
+            )
+            conn.commit()
 
     return results
 

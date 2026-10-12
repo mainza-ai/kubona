@@ -71,11 +71,15 @@ def solve_quantum_krylov(
     shots: int = 1024,
 ) -> Dict[str, Any]:
     """
-    Executes Quantum Krylov Subspace Diagonalization for the targeted molecule.
-    Generates Krylov subspace vectors via real-time unitary evolution:
-    |psi_k> = exp(-i * k * tau * H) |psi_0>
-    Measures generalized overlap matrix S and Hamiltonian matrix H in the subspace,
-    and solves H c = E S c.
+    Computes a Krylov-subspace ground-state estimate for the targeted
+    molecule with CLASSICAL linear algebra (scipy expm/eigh) — no quantum
+    execution happens here despite the historical docstring. Generates
+    Krylov vectors via numerical real-time evolution |psi_k> =
+    exp(-i * k * tau * H) |psi_0>, COMPUTES (not measures) the overlap
+    matrix S and projected Hamiltonian, and solves H c = E S c with numpy.
+    Non-H2 molecules take an analytical convergence sequence, not a solve.
+    Downstream consumers must label these energies bridge-computed
+    classical emulation (see callers of solve_quantum_krylov).
     """
     t0 = time.perf_counter()
 

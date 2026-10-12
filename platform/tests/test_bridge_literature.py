@@ -108,3 +108,23 @@ def test_server_maps_real_values_not_placeholders(lit):
     bare = lit.to_records([{"id": "x"}])[0]
     assert bare["year"] == 0 and bare["cited_by_count"] == 0
     assert bare["authors"] == "Unknown"
+
+
+def _boom(url, timeout):
+    raise ConnectionError("simulated outage")
+
+
+def test_offline_returns_no_records_and_caches_nothing(lit, monkeypatch):
+    # Outages must surface as empty results — never fabricated papers, and
+    # never cached as hits (which would launder the outage into "local
+    # cache" on every later query).
+    monkeypatch.setattr(lit.httpx, "get", _boom)
+    assert lit.search_arxiv("vqe offline", max_results=2) == []
+    assert lit.search_openalex("vqe offline", max_results=2) == []
+    import sqlite3
+    conn = sqlite3.connect(lit.CACHE_DB_PATH)
+    try:
+        rows = conn.execute("SELECT COUNT(*) FROM literature_cache").fetchone()[0]
+    finally:
+        conn.close()
+    assert rows == 0, "outage must leave no cache rows"
