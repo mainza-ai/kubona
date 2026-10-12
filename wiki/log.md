@@ -2052,3 +2052,7 @@ skipped is the exact failure this incident is about:
   unknown sessions 404s; mock fixture offline-labeled; forensic
   UID/file claims corrected. Lean image blocked upstream (no such
   Hub path). Console 78 green.
+
+## [2026-10-12] verification | DELETE unknown sessions 404 (was 500)
+  Follow-up to the K4c delete fix: missing ids refuse with 404 like
+  the GET path, not 500. Live-proven; parked daemon current.
