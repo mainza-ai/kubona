@@ -2035,3 +2035,8 @@ skipped is the exact failure this incident is about:
   stores behind Go paths); unique routes kept + documented; README
   corrected (Go canonical); MCP stdio role clarified + smoke-proven.
   Live 19 routes, zero dupes; full python suite green.
+
+## [2026-10-12] verification | K6 bind/TLS posture + secret scan + dep verdict landed
+  Loopback-default bind, TLS flags, strict-mode refusal, all tested
+  incl. live HTTPS proof. Versioned secret-scan + CI job green.
+  xyflow removed (unused). Lock strays: gitignore is the control.

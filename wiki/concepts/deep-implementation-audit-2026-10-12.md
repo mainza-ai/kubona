@@ -265,6 +265,16 @@ implemented (needs revision). Every item has file:line or a live probe.
     identity the submit path lacks), wiki threshold synced ≤36→50,
     credits kept as specified output. Live: 503 fail-closed + 2
     seeds listed.
+  - [x] **K6 landed 2026-10-12:** `--bind` (loopback default),
+    `--tls-cert/key` (ServeTLS when set), `--tls-required`
+    (refuses without material) + pure validators with tests incl.
+    live self-signed HTTPS proof; non-loopback plaintext logs an
+    audible warning (declared-LAN posture). `scripts/secret-scan.sh`
+    (versioned pre-commit mirror) + CI `secret-scan` job, clean.
+    `@xyflow/react` removed (zero imports; lockfile updated).
+    `.db.lock`: gitignore-verified as the durable control —
+    per-test deletion not pursued (lock files are meant to persist;
+    stale ones block nobody). Live: loopback bind, refusal proof.
   - [x] **K5 landed 2026-10-12:** Python shadow verdict EXECUTED —
     18 divergent-duplicate routes removed from `console_api.py`
     (sessions, chat, loops, events, hf/*, mesh, fleet, provenance,
