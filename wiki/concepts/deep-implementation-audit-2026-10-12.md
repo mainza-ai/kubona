@@ -183,6 +183,15 @@ implemented (needs revision). Every item has file:line or a live probe.
   studio→`manuscript.py` wiring · J2 mesh-route gate port · J3
   meta approve/apply bearer + signer binding · J4 mandate tenant
   attribution · J5 krylov solver flag + fold gating.
+  - [x] **J1 landed 2026-10-12:** (see previous entry — render tests
+    caught 2 further ungated badges, fixed same slice).
+  - [x] **J2 landed 2026-10-12:** `RouteMultimodal` cloud branch now
+    requires `HasEd25519Mandate || SpendBudgetUSD > 0.05` (Python
+    gate faithfully ported); "mandate backing" named only when a
+    mandate exists; `AirGapEnforced` only on the true air-gap
+    branch. Unit matrix (unfunded→local, funded→cloud,
+    mandated→cloud+named, air-gap→enforced, default→unenforced)
+    green; pre-existing HTTP mesh test (budget 5.0) still passes.
   - [x] **J1 landed 2026-10-12:** manuscript/LaTeX/Lean prose gated on
     `epistemics.status === COLLAPSED_VERIFIED` (claim) and recorded
     proof receipt (Lean — never set today, so honestly absent);

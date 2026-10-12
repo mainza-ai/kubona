@@ -1987,3 +1987,8 @@ skipped is the exact failure this incident is about:
   (claims) + proof receipt (Lean, honestly absent); render tests caught
   2 further ungated badges in the same component (fixed same slice).
   Console 76 green, build clean.
+
+## [2026-10-12] verification | J2 mesh-route spend gate landed
+  Cloud escalation requires mandate or budget>0.05 (Python gate
+  ported); mandate-backing named only when present; AirGapEnforced
+  only on the true air-gap branch. Unit matrix + HTTP mesh test green.
