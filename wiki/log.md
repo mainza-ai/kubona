@@ -1806,3 +1806,6 @@ skipped is the exact failure this incident is about:
   parses usage — was always nil); VerifyCampaignHistory; wiki
   drops event-sourced claim. Live turn unaffected, zero guard
   events. Full Go suite green.
+
+## [2026-10-12] verification | CI green on B1-3 budgets and guards
+  All 5 jobs success on run 38192009191. Tree clean, zero unpushed.
