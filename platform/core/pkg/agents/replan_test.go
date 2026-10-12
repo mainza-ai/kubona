@@ -668,3 +668,41 @@ func TestSynthFallbackDefaultsAreVerified(t *testing.T) {
 		}
 	}
 }
+
+// J5: Meyer-Wallach folds only for real numerical solves. The analytical
+// corridor path reports a placeholder 0.85 that must never overwrite a
+// measured value; unattributed results (no solver field) are treated the
+// same — a number without provenance is not a measurement.
+func TestReplanKrylovMWFoldsOnlyWhenNumerical(t *testing.T) {
+	fold := func(payload string) CampaignState {
+		t.Helper()
+		raw := replanTestState(t, "H2 ground state VQE")
+		updated, changed, _ := ReplanWithJobResult(raw, "job-kmw", "krylov_solve", []byte(payload), "")
+		if !changed {
+			t.Fatal("krylov energy must fold")
+		}
+		return decodeReplan(t, updated)
+	}
+	before := decodeReplan(t, replanTestState(t, "H2 ground state VQE"))
+
+	// Numerical solve folds MW.
+	after := fold(`{"success":true,"ground_state_energy":-1.13699,"classical_fci_energy":-1.13727,"meyer_wallach_entanglement":0.81,"solver":"numerical-krylov"}`)
+	if after.QuantumFactors.MeyerWallachQ != 0.81 {
+		t.Errorf("numerical MW must fold, got %v", after.QuantumFactors.MeyerWallachQ)
+	}
+	// Analytical corridor never overwrites, energy still folds.
+	after = fold(`{"success":true,"ground_state_energy":-7.83239,"classical_fci_energy":-7.88239,"meyer_wallach_entanglement":0.85,"solver":"analytical-sequence"}`)
+	if after.QuantumFactors.MeyerWallachQ != before.QuantumFactors.MeyerWallachQ {
+		t.Errorf("analytical placeholder must not fold, MW moved %v -> %v",
+			before.QuantumFactors.MeyerWallachQ, after.QuantumFactors.MeyerWallachQ)
+	}
+	if n := len(after.Trajectory); n != len(before.Trajectory)+1 {
+		t.Errorf("analytical energy must still fold to trajectory, len %d", n)
+	}
+	// Missing solver field: unattributed, MW skipped.
+	after = fold(`{"success":true,"ground_state_energy":-1.13699,"classical_fci_energy":-1.13727,"meyer_wallach_entanglement":0.81}`)
+	if after.QuantumFactors.MeyerWallachQ != before.QuantumFactors.MeyerWallachQ {
+		t.Errorf("unattributed MW must not fold, MW moved %v -> %v",
+			before.QuantumFactors.MeyerWallachQ, after.QuantumFactors.MeyerWallachQ)
+	}
+}

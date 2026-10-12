@@ -202,6 +202,21 @@ implemented (needs revision). Every item has file:line or a live probe.
     optional `tenantId` prop (default preserves static mounts).
     Render test captures the verify body and asserts the lab tenant.
     Console 77 green, build clean.
+  - [x] **J5 landed 2026-10-12:** `solver` field on
+    `QuantumKrylovResponse` (`numerical-krylov` vs
+    `analytical-sequence`) across the IDL + both bindings; replan
+    folds MW only for numerical (unknown/absent skips — a number
+    without provenance is not a measurement); energy still folds
+    with the emulation note. Fixed en route: the direct
+    `/api/krylov/solve` proxy dropped the new field (field-by-field
+    map) — now passes it; root `proto/kubona.proto` was stale
+    (wrong go_package, missing routing fields) — synced from the
+    bridge copy; `scripts/regen-proto.sh` records the pinned
+    toolchain (grpcio-tools 1.71.x — newer emits 7.x gencode the
+    5.29.6 runtime refuses; protoc-gen-go v1.36.12 exact).
+    Regen diff verified additive-only on both sides. Live: LiH →
+    analytical/0.85-skipped, H2 → numerical/real-MW. Go full +
+    402 python green; bridge + daemon restarted current.
   - [x] **J1 landed 2026-10-12:** manuscript/LaTeX/Lean prose gated on
     `epistemics.status === COLLAPSED_VERIFIED` (claim) and recorded
     proof receipt (Lean — never set today, so honestly absent);

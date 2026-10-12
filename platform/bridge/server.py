@@ -183,7 +183,11 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                 success=False,
                 error_message=f"krylov solve failed: {e}",
             )
+        # J5: solver attribution rides the response so downstream folds
+        # can tell a real numerical solve from the analytical corridor
+        # schedule (solve_quantum_krylov tags res["solver"]).
         return kubona_pb2.QuantumKrylovResponse(
+            solver=res.get("solver", ""),
             success=res["success"],
             ground_state_energy=res["ground_state_energy"],
             classical_fci_energy=res["classical_fci_energy"],

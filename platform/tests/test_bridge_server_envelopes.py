@@ -67,3 +67,23 @@ def test_mitigate_exception_returns_structured_failure(monkeypatch):
     assert res.success is False
     assert res.method_used == "ZNE"
     assert "zne exploded" in res.error_message
+
+
+def test_krylov_solver_attribution_both_paths():
+    """J5: the handler tags which solver ran — numerical-krylov (real
+    expm + Hc=ESc solve) vs analytical-sequence (corridor schedule).
+    Downstream folds gate on this flag."""
+    import server as bridge_server
+
+    servicer = bridge_server.QuantumBridgeServicer()
+    h2 = servicer.ExecuteQuantumKrylov(
+        _req(molecule="H2", bond_distance=0.7414, subspace_dimension=4,
+             time_step=0.2, shots=1024), None)
+    assert h2.success is True
+    assert h2.solver == "numerical-krylov"
+
+    lih = servicer.ExecuteQuantumKrylov(
+        _req(molecule="LiH", bond_distance=1.5957, subspace_dimension=4,
+             time_step=0.2, shots=1024), None)
+    assert lih.success is True
+    assert lih.solver == "analytical-sequence"

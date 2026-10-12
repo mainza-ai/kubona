@@ -201,7 +201,16 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		})
 		if raw, ok := present("meyer_wallach_entanglement"); ok {
 			var mw float64
-			if err := json.Unmarshal(raw, &mw); err == nil && mw > 0 {
+			// J5: MW folds only for real numerical solves. The analytical
+			// corridor path reports a placeholder 0.85 that must never
+			// overwrite a measured value; unattributed results (no solver
+			// field, e.g. pre-J5 rows) are treated the same way — a number
+			// without provenance is not a measurement.
+			var solver string
+			if rawS, ok := present("solver"); ok {
+				_ = json.Unmarshal(rawS, &solver)
+			}
+			if err := json.Unmarshal(raw, &mw); err == nil && mw > 0 && solver == "numerical-krylov" {
 				state.QuantumFactors.MeyerWallachQ = mw
 			}
 		}

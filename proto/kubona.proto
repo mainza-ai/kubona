@@ -2,9 +2,8 @@ syntax = "proto3";
 
 package kubona;
 
-option go_package = "github.com/mainza-ai/kubona/core/pkg/proto;kubonaproto";
+option go_package = "github.com/mainza-ai/kubona/core/proto;kubonaproto";
 
-// Job & Execution State
 enum JobStatus {
   JOB_STATUS_UNSPECIFIED = 0;
   JOB_STATUS_QUEUED = 1;
@@ -30,6 +29,12 @@ message CircuitExecutionRequest {
   int32 shots = 4;
   string requested_backend = 5;
   bool allow_classical_fallback = 6;
+  // P5 §2.9 routing: caller-declared jurisdictions + export-control class.
+  // The bridge refuses hardware execution when these are absent or the
+  // route() verdict is INELIGIBLE — compliance gate, not afterthought.
+  repeated string caller_jurisdictions = 7;
+  string caller_export_class = 8;
+  bool export_reviewed = 9;
 }
 
 message CircuitExecutionResponse {
@@ -65,7 +70,7 @@ message CircuitCutResponse {
 }
 
 message ClassicalAnchorRequest {
-  string molecule = 1; // "H2", "LiH", "BeH2", "H4"
+  string molecule = 1;
   double bond_distance = 2;
   string basis_set = 3;
 }
@@ -124,10 +129,10 @@ message LiteratureGroundingResponse {
 }
 
 message QuantumKrylovRequest {
-  string molecule = 1; // e.g. "H2", "LiH", "BeH2"
+  string molecule = 1;
   double bond_distance = 2;
-  int32 subspace_dimension = 3; // e.g. 3, 4, 5
-  double time_step = 4; // tau
+  int32 subspace_dimension = 3;
+  double time_step = 4;
   int32 shots = 5;
   string requested_backend = 6;
 }
@@ -141,12 +146,17 @@ message QuantumKrylovResponse {
   double meyer_wallach_entanglement = 6;
   double execution_time_ms = 7;
   string error_message = 8;
+  // J5: which solver produced this result. "numerical-krylov" = real
+  // expm + Hc=ESc solve (H2); "analytical-sequence" = corridor schedule
+  // off the FCI anchor (other molecules). Consumers must not treat the
+  // analytical path as a measurement (MW folds only for numerical).
+  string solver = 9;
 }
 
 message MitigationRequest {
   string qasm = 1;
-  string method = 2; // "ZNE", "PEC", "CDR"
-  repeated double scale_factors = 3; // e.g. [1.0, 1.5, 2.0]
+  string method = 2;
+  repeated double scale_factors = 3;
   int32 shots = 4;
 }
 
@@ -159,7 +169,6 @@ message MitigationResponse {
   string error_message = 6;
 }
 
-// Quantum and Data Bridge Service
 service QuantumBridgeService {
   rpc ExecuteCircuit(CircuitExecutionRequest) returns (CircuitExecutionResponse);
   rpc CutCircuit(CircuitCutRequest) returns (CircuitCutResponse);
@@ -169,3 +178,4 @@ service QuantumBridgeService {
   rpc ExecuteQuantumKrylov(QuantumKrylovRequest) returns (QuantumKrylovResponse);
   rpc MitigateCircuit(MitigationRequest) returns (MitigationResponse);
 }
+
