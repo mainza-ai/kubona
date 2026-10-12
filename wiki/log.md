@@ -1901,3 +1901,10 @@ skipped is the exact failure this incident is about:
 ## [2026-10-12] verification | CI green on E-1d with least privilege
   All 5 jobs success on run 38206421572 (first run under
   contents:read). Tree clean, zero unpushed.
+
+## [2026-10-12] implementation | E-1e KEM contract + transport decision
+  ML-KEM-768 parameter contract pinned (sizes, nonce, fingerprint,
+  wrong-key); NIST-KAT limitation documented (seedless stdlib admits
+  no vector seam); transport decision in security-and-pqc (TLS edge +
+  envelopes, KEMTLS deferred); operator actions listed in order.
+  Mandates suite green.

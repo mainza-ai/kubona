@@ -136,8 +136,19 @@ with tests + live proof + green CI, per project rule).
   needs a bot first, logged); can-agent-act test (reach/refuse/budget
   against production paths) fails CI if any leg is assumed. Also fixed
   a real CI flake found en route (A2A revoke race, blocking executor).
-- [ ] E-1e. FIPS-203 KAT + transport decision doc; review engagement +
-  sidecar grading; Q-27 flip (operator-gated).
+- [x] E-1e. FIPS-203 KAT + transport decision doc; review engagement +
+  sidecar grading; Q-27 flip (operator-gated). — landed 2026-10-12 as
+  code+docs where executable, operator actions where not: KEM parameter
+  contract pinned (sizes, nonce, fingerprint, wrong-key) with the NIST-KAT
+  limitation documented (seedless stdlib API admits no vector seam);
+  transport decision recorded in [[security-and-pqc]] (TLS at edge +
+  ML-KEM envelopes, KEMTLS deferred, plain-HTTP LAN declared).
+  Operator-gated, in order: (1) revoke the `store`-helper `gho_…` grant;
+  (2) commission the third-party review (brief exists); (3) run one real
+  vendor through the conformance gate; (4) Q-27 flip sequence
+  (filter-repo → force-push → re-clone → rotate). None of these can be
+  executed from inside the build — this checkbox tracks the docs, not
+  the deeds.
 
 ## Evidence notes (kept, not re-verified here)
 

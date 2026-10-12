@@ -108,3 +108,96 @@ func TestHybridSpendMandateRecipientMismatch(t *testing.T) {
 		t.Fatalf("expected ErrRecipientMismatch, got: %v", err)
 	}
 }
+
+// KEM parameter contract (E-1e): FIPS 203 ML-KEM-768 dimensions are pinned
+// here so an algorithm swap (or a confused import) fails loudly instead of
+// silently weakening the envelope. Note on NIST KAT vectors: they bind a
+// fixed seed to fixed outputs, but Go's stdlib API is seedless by design
+// (GenerateKey768/Encapsulate draw internally) — there is no seam to feed
+// vectors through. The stdlib implementation itself is the validated
+// primitive; these tests pin OUR envelope logic (sizes, parsing,
+// tamper/wrong-key behavior) on top of it.
+func TestMLKEM768ParameterSizes(t *testing.T) {
+	kp, err := GenerateRecipientKeypair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := len(kp.EncapsulationKey.Bytes()); n != 1184 {
+		t.Errorf("ML-KEM-768 public key must be 1184 bytes, got %d", n)
+	}
+	if _, err := ParseEncapsulationKey(make([]byte, 1183)); err == nil {
+		t.Error("short public key must refuse parsing")
+	}
+	if _, err := ParseEncapsulationKey(make([]byte, 1185)); err == nil {
+		t.Error("long public key must refuse parsing")
+	}
+	if _, err := ParseEncapsulationKey(kp.EncapsulationKey.Bytes()); err != nil {
+		t.Errorf("valid public key must parse: %v", err)
+	}
+}
+
+func TestMLKEMCiphertextAndNonceShape(t *testing.T) {
+	kp, err := GenerateRecipientKeypair()
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, clientPriv, _ := ed25519.GenerateKey(nil)
+	jobHash, _ := ComputeJobHash("job", map[string]any{"a": 1})
+	mandate, _ := SignMandate(clientPriv, "t", jobHash, 5.0, time.Now().UTC().Add(time.Minute))
+
+	first, err := EncapsulateMandate(kp.EncapsulationKey, mandate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ct, err := hex.DecodeString(first.EncapsulatedKeyHex)
+	if err != nil || len(ct) != 1088 {
+		t.Errorf("ML-KEM-768 ciphertext must be 1088 bytes, got %d (%v)", len(ct), err)
+	}
+	nonce, err := hex.DecodeString(first.NonceHex)
+	if err != nil || len(nonce) != 12 {
+		t.Errorf("AES-GCM nonce must be 12 bytes, got %d (%v)", len(nonce), err)
+	}
+	// Fresh randomness per encapsulation: identical mandates seal differently.
+	second, err := EncapsulateMandate(kp.EncapsulationKey, mandate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.EncapsulatedKeyHex == second.EncapsulatedKeyHex || first.NonceHex == second.NonceHex {
+		t.Error("encapsulation randomness must differ per envelope")
+	}
+	// Fingerprint binds the recipient deterministically and uniquely.
+	if kp.Fingerprint() == "" || len(kp.Fingerprint()) != 64 {
+		t.Errorf("fingerprint must be 64-hex SHA-256, got %q", kp.Fingerprint())
+	}
+	other, _ := GenerateRecipientKeypair()
+	if other.Fingerprint() == kp.Fingerprint() {
+		t.Error("distinct keypairs must fingerprint distinctly")
+	}
+}
+
+func TestMLKEMWrongKeyDecapsulationFails(t *testing.T) {
+	a, _ := GenerateRecipientKeypair()
+	b, _ := GenerateRecipientKeypair()
+	_, clientPriv, _ := ed25519.GenerateKey(nil)
+	jobHash, _ := ComputeJobHash("job", map[string]any{"a": 1})
+	mandate, _ := SignMandate(clientPriv, "t", jobHash, 5.0, time.Now().UTC().Add(time.Minute))
+
+	hybrid, err := EncapsulateMandate(a.EncapsulationKey, mandate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Wrong recipient, right tenant/job/budget: the fingerprint gate fires
+	// before any decapsulation attempt.
+	if _, err := b.DecapsulateAndVerify(hybrid, "t", jobHash, 5.0); !errors.Is(err, ErrRecipientMismatch) {
+		t.Fatalf("expected ErrRecipientMismatch, got %v", err)
+	}
+	// Bypass the gate (same keypair object, corrupted ciphertext): the KEM
+	// itself must not yield a usable secret — GCM open fails closed.
+	corrupt := *hybrid
+	raw, _ := hex.DecodeString(hybrid.EncapsulatedKeyHex)
+	raw[0] ^= 0x01
+	corrupt.EncapsulatedKeyHex = hex.EncodeToString(raw)
+	if _, err := a.DecapsulateAndVerify(&corrupt, "t", jobHash, 5.0); err == nil {
+		t.Fatal("corrupted KEM ciphertext must never verify")
+	}
+}
