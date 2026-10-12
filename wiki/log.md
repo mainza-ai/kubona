@@ -2029,3 +2029,9 @@ skipped is the exact failure this incident is about:
   events + optional global cap at 4 chat entries. Meta proposals
   persist; Apply states no-write design + ledger event. Live spend
   events + 429-cap proof. Parked daemon track-only (no cap).
+
+## [2026-10-12] verification | K5 Python shadow retirement landed
+  18 divergent-duplicate routes removed from console_api (separate
+  stores behind Go paths); unique routes kept + documented; README
+  corrected (Go canonical); MCP stdio role clarified + smoke-proven.
+  Live 19 routes, zero dupes; full python suite green.
