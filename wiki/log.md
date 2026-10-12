@@ -2110,3 +2110,11 @@ skipped is the exact failure this incident is about:
   enforces open-question => questions.md row (re-verified live with a
   temp probe page: fires, then clean on removal); [[index]] records the
   rule and stops enumerating closed rows (Closed table is the source).
+
+## [2026-10-12] ingest | platform architecture diagram
+  New page [[platform-architecture-diagram]]: mermaid map of the running
+  platform (console :3000, kubonad :8080, bridge :50051, oMLX :8787;
+  cognition/execution/trust/memory subgraphs; dormant + legacy dotted).
+  Snapshot pinned to dd600c2 with node-evidence anchors; status living
+  with refresh duty. Corrected an unverified "8 surfaces" count to no
+  count (12 surface components on disk). Indexed in Overview & meta.
