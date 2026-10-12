@@ -485,3 +485,32 @@ describe('ActionGate tenant attribution (J4)', () => {
     expect(seenBody.tenant_id).toBe('lab-alpha');
   });
 });
+
+describe('ActionGate cost honesty', () => {
+  it('disables authorization without a priced campaign', async () => {
+    const unpriced = {
+      ...CAMPAIGN,
+      quantum_factors: { ...CAMPAIGN.quantum_factors, estimated_spend_usd: undefined },
+    };
+    const session = {
+      id: 'sess-p', title: 't', tenant_id: 'lab-a', created_at: '', updated_at: '',
+      status: 'active', spend_limit_usd: 150, current_spend_usd: 0,
+    };
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(
+        <ActionGate campaign={unpriced as any} session={session} onAuthorized={() => {}} onDenied={() => {}} onDowngrade={() => {}} />
+      );
+    });
+    const text = JSON.stringify(tree!.toJSON());
+    expect(text).toContain('unpriced — authorization disabled');
+    expect(text).not.toContain('0.12 max');
+    const btn = tree!.root.findByProps({ 'data-testid': 'action-gate-authorize' });
+    expect((btn.props as any).disabled).toBe(true);
+    // Direct invocation (bypassing disabled) still refuses, never mints.
+    await act(async () => {
+      await (btn.props as any).onClick();
+    });
+    expect(JSON.stringify(tree!.toJSON())).toContain('No cost estimate');
+  });
+});

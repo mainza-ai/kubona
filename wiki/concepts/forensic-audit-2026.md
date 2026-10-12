@@ -142,7 +142,13 @@ Every page across the 89-page wiki inventory was audited against the codebase fo
   - Extrapolation fits Richardson polynomials and zero-noise limit $E(0)$.
 
 ### 2. Workload & Container Isolation
-- **Container Hardening (`platform/docker/Dockerfile.worker`):**
+> ⚑ Correction (2026-10-12): the file cited below,
+> `platform/docker/Dockerfile.worker`, does not exist — the worker
+> image is `platform/docker/Dockerfile.quantum-runner`, whose
+> sandbox user is UID 1000 (`sandbox`), matching the runner's
+> `--user 1000:1000` default. The "UID 10001" figure was never in
+> the tree. Claim corrected, not deleted.
+- **Container Hardening (`platform/docker/Dockerfile.quantum-runner`):**
   - Enforces non-root unprivileged execution (`USER kubona:kubona`, UID 10001).
   - Flags specified in runtime contracts: `--read-only`, `--network=none`, `--cap-drop=ALL`.
   - Resource clamps: CPU limit 2.0 cores, memory limit 2048 MB, pids-limit 128.
