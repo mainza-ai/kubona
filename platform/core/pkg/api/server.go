@@ -802,7 +802,10 @@ func (s *Server) handleNotebooks(w http.ResponseWriter, r *http.Request) {
 	var rhfEnergy float64 = -1.11668
 	var qEnergy float64 = -1.13680
 
-	// Dynamically compute real PySCF classical anchor via bridge
+	// Dynamically compute real PySCF classical anchor via bridge. R2: when
+	// the bridge is absent or fails, every number below is an assumed
+	// template default — labeled as such, never as verified integrals.
+	anchorComputed := false
 	if s.jobRunner.BridgeClient() != nil {
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 		resp, err := s.jobRunner.BridgeClient().ComputeClassicalAnchor(ctx, &pb.ClassicalAnchorRequest{
@@ -811,11 +814,15 @@ func (s *Server) handleNotebooks(w http.ResponseWriter, r *http.Request) {
 		})
 		cancel()
 		if err == nil && resp.Success {
+			anchorComputed = true
 			fciEnergy = resp.FciExactEnergy
 			rhfEnergy = resp.RhfEnergy
 			// VQE expectation value within realistic chemical accuracy corridor
 			qEnergy = fciEnergy + 0.00047
 		}
+	}
+	if !anchorComputed {
+		classicalAnchorName = "Hardcoded fallback (bridge unavailable) — assumed, no ab-initio integrals computed"
 	}
 
 	deltaMHa := (qEnergy - fciEnergy) * 1000.0
@@ -844,6 +851,16 @@ func (s *Server) handleNotebooks(w http.ResponseWriter, r *http.Request) {
 	if !chemAccuracy {
 		verdict = "ACCURACY_THRESHOLD_UNMET"
 	}
+	anchorSection := fmt.Sprintf("2. Classical PySCF ab-initio ground state RHF (%.5f Ha) and FCI (%.5f Ha) integrals", rhfEnergy, fciEnergy)
+	collapseSection := fmt.Sprintf("4. Ring 1 Epistemic Wavefunction collapse and chemical accuracy verification (|Δ|=%.3f mHa <= 1.6 mHa)", deltaMHa)
+	if !anchorComputed {
+		// R2: no bridge, no verification-grade claim. Accuracy cannot
+		// pass on assumed numbers and no collapse is claimed.
+		chemAccuracy = false
+		verdict = "UNVERIFIED_FALLBACK"
+		anchorSection = fmt.Sprintf("2. Classical anchor UNAVAILABLE — hardcoded RHF (%.5f Ha) and FCI (%.5f Ha) assumed (bridge unreachable); no ab-initio integrals computed", rhfEnergy, fciEnergy)
+		collapseSection = "4. Ring 1 Epistemic state UNVERIFIED: anchor is a hardcoded fallback, no collapse claimed"
+	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"notebooks": []map[string]any{
@@ -861,9 +878,9 @@ func (s *Server) handleNotebooks(w http.ResponseWriter, r *http.Request) {
 				"epistemic_verdict": verdict,
 				"sections": []string{
 					fmt.Sprintf("1. Scientific Objective & Active-Space Configuration (%s at R=%.4f A)", mol, bondDist),
-					fmt.Sprintf("2. Classical PySCF ab-initio ground state RHF (%.5f Ha) and FCI (%.5f Ha) integrals", rhfEnergy, fciEnergy),
+					anchorSection,
 					fmt.Sprintf("3. Variational Quantum Eigensolver circuit execution on Aer Statevector (E=%.5f Ha)", qEnergy),
-					fmt.Sprintf("4. Ring 1 Epistemic Wavefunction collapse and chemical accuracy verification (|Δ|=%.3f mHa <= 1.6 mHa)", deltaMHa),
+					collapseSection,
 					"5. Negative results & barren plateau avoidance ledger (Var(∇E) >= 1e-6)",
 					"6. Pre-flight Clifford canary probe fidelity profile (F >= 95%)",
 					fmt.Sprintf("7. Provenance SHA-256 Merkle DAG hash proof (%s)", merkleHash),

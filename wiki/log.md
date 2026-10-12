@@ -1927,3 +1927,8 @@ skipped is the exact failure this incident is about:
   R1 conditional Sources + R3a withheld-collapse gate + R3b anchor
   repair; live both directions via API (bridge up/down); full Go suite
   green; parked daemon rebuilt to current develop.
+
+## [2026-10-12] verification | F-3 display/handler honesty landed
+  R2 notebooks fallback labeling + R7 COMPLETED-status gate + R16
+  CONTESTED badge; live template-path proof both directions (bridge
+  up/down, campaign rows removed to reach it); console 73 green.

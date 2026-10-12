@@ -93,7 +93,9 @@ export function MeasuredOutputs({ sessionId }: { sessionId: string | null }) {
       if (cancelled) return;
       const latest = new Map<string, Job>();
       for (const j of jobs) {
-        if (!j.completed_at || !j.result_json) continue;
+        // R7: status is the gate, not timestamp presence — FAILED jobs
+        // carry completed_at too and must never render as measured.
+        if (j.status !== 'JOB_STATUS_COMPLETED' || !j.result_json) continue;
         const prev = latest.get(j.job_type);
         if (!prev || (prev.completed_at ?? '') < (j.completed_at ?? '')) latest.set(j.job_type, j);
       }
