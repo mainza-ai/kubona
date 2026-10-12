@@ -263,6 +263,24 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		state.Notebook.ProvenanceHash = provenanceHash(state.SessionID,
 			state.QuantumFactors.TargetMolecule, state.QuantumFactors.BondDistance, fci,
 			state.QuantumFactors.QASM)
+		// A recomputed anchor repairs fallback epistemics (R3): strip the
+		// hardcoded-fallback caveat and re-attest the PySCF sources. Only
+		// pristine UNVERIFIED states regain projection weights — fresh
+		// HYPOTHESIS_PENDING keeps its pending weights, and anything
+		// already decided (COLLAPSED/CONTESTED/measured PROJECTED) is
+		// never rewritten. The notebook sections stay historical; the
+		// repair is recorded in the measure line below.
+		if strings.Contains(state.Epistemics.Statement, strings.TrimSpace(fallbackCaveat)) {
+			state.Epistemics.Statement = strings.ReplaceAll(state.Epistemics.Statement, fallbackCaveat, "")
+			state.Epistemics.Sources = synthSources(true)
+			if state.Epistemics.Status == "UNVERIFIED" {
+				state.Epistemics.Status = "PROJECTED"
+				state.Epistemics.AlphaCorroborated = 0.95
+				state.Epistemics.BetaContested = 0.05
+				state.Epistemics.GammaUnverified = 0.10
+				state.Epistemics.PCorrelated = 0.95 * 0.95 * 100.0
+			}
+		}
 		measureLine("anchor recomputed: FCI %.5f -> %.5f Ha, discrepancy %.2f mHa.", oldFCI, fci, delta)
 		return marshalReplan(&state, true, "classical anchor recomputed")
 
@@ -313,8 +331,18 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			_ = json.Unmarshal(raw, &reason)
 		}
 		if passes {
-			state.Epistemics.Status = "COLLAPSED_VERIFIED"
-			measureLine("claim evaluated: chemical accuracy PASSED. %s%s", boundClaim(reason), citeSuffix(cite))
+			if !state.ClassicalAnchor.AnchorComputed {
+				// A pass against an uncomputed anchor verifies nothing:
+				// the evaluator blessed fallback numbers. Amplitudes fold
+				// (real tribunal output — the record is transcribed, not
+				// rewritten), but collapse is withheld loudly (R3).
+				state.Epistemics.Status = "CONTESTED"
+				state.Epistemics.Statement = "Evaluated claim passed against an UNCOMPUTED anchor — collapse withheld: " + boundClaim(reason)
+				measureLine("claim evaluated: PASS WITHHELD (anchor uncomputed). %s%s", boundClaim(reason), citeSuffix(cite))
+			} else {
+				state.Epistemics.Status = "COLLAPSED_VERIFIED"
+				measureLine("claim evaluated: chemical accuracy PASSED. %s%s", boundClaim(reason), citeSuffix(cite))
+			}
 		} else {
 			state.Epistemics.Status = "CONTESTED"
 			state.Epistemics.Statement = "Evaluated claim failed chemical accuracy: " + boundClaim(reason)
