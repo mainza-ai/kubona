@@ -201,9 +201,12 @@ export async function launchProposal(sessionId: string, proposal: unknown): Prom
   }
 }
 
-export async function fetchLoops(): Promise<Loop[]> {
+export async function fetchLoops(sessionId?: string | null): Promise<Loop[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/loops`, { cache: 'no-store', headers: authHeaders() });
+    // K2: session-scoped when a session is active — the header counts
+    // this session's loops, not the fleet's. Unset keeps the global view.
+    const qs = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : '';
+    const res = await fetch(`${API_BASE}/api/loops${qs}`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return [];
     const data = await res.json();
     return data.loops || [];

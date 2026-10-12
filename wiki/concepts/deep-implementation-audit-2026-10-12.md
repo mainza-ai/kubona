@@ -246,6 +246,14 @@ implemented (needs revision). Every item has file:line or a live probe.
     (`defaulted_*` + `evaluated_by`) in responses + ledger. Tests
     caught a real CWD bug (fixed with CWD-anchored candidates).
     Live: defaulted:true + venv path + real MW.
+  - [x] **K2 landed 2026-10-12:** canvas layouts persist in a new
+    `canvas_layouts` table (in-memory map + struct fields removed;
+    the log's SQLite claim is now true) with a 256KB blob cap;
+    restart-survival + oversize-refusal tests green. `GET
+    /api/loops` accepts `session_id` scope (unfiltered keeps
+    global); console passes its session for loops + events (the
+    events endpoint was already scoped server-side — the client
+    never sent it). Console 77 green, build clean.
 - **Phase L (operator queue, in order):** oMLX-as-default switch
   (or documented cloud-default) · Lean image + warm · reviewer/API/
   contact env · EPO registration · vendor grading · review

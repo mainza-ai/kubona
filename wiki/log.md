@@ -2013,3 +2013,8 @@ skipped is the exact failure this incident is about:
   runBridgePython: ctx timeouts, absolute paths, single attempts,
   named-interpreter 503s; demo defaults labeled. Tests caught a
   real CWD mis-resolution (fixed). Live defaulted:true + real MW.
+
+## [2026-10-12] verification | K2 canvas persistence + loops scoping landed
+  canvas_layouts SQLite table (map removed; log claim now true) with
+  256KB cap; restart + oversize tests. Loops session scope + console
+  passes session for loops/events. Console 77 green, build clean.
