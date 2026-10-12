@@ -2118,3 +2118,14 @@ skipped is the exact failure this incident is about:
   Snapshot pinned to dd600c2 with node-evidence anchors; status living
   with refresh duty. Corrected an unverified "8 surfaces" count to no
   count (12 surface components on disk). Indexed in Overview & meta.
+
+## [2026-10-12] audit | full platform completeness audit — 73.0%
+  New page [[full-platform-audit-2026-10-12]]: wiki read page-by-page
+  (3 verification batches over settled/adopted/entities), code
+  inventoried package-by-package (Go 20.6k LOC/291 tests/71 routes;
+  console 13.2k/78; bridge 2.8k; legacy 18k/402), suites executed
+  (Go 27 pkgs ok, pytest 402 passed, pnpm 78/78, vet clean), daemon
+  probed live (15+ routes + SSE). 30 components scored, mean 73.0%;
+  batches converge ±2. Refutations corrected in-page (OAuth-everywhere,
+  QASM3 pipeline, CKT, licence table, 8-surfaces). Remainder grouped:
+  operator deeds / deferred-by-decision / buildable / wiki-refresh debt.
