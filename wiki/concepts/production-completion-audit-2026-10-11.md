@@ -159,9 +159,11 @@ coverage exists in `platform/tests/test_bridge_chemistry.py`; the Analyze
 refuse branch stays as documented defense). Each slice ships with tests +
 live proof + green CI, checkboxes flip on landing.
 
-- [ ] F-1. Python CORS allowlist (P0). Mirror the Go rail in
-  `console_api.py`: explicit origins + `KUBONA_CORS_ANY=1` escape; prove
-  with a header-assertion test or live curl matrix.
+- [x] F-1. Python CORS allowlist (P0). — landed 2026-10-12:
+  `_cors_allow_origins()` in `console_api.py` mirrors the Go rail
+  (localhost:3000 + 127.0.0.1:3000 + `KUBONA_CORS_ORIGINS` extras;
+  `*` only under `KUBONA_CORS_ANY=1`); helper + live middleware tests
+  prove allowlisted origins echoed, foreign origins headerless.
 - [ ] F-2. Epistemic state coherence (P1). R1: `Sources` conditional on
   computed anchors (fallback → unattested `[]`). R3: claim PASS on
   fallback anchor → `CONTESTED` + withheld-collapse note; anchor fold on

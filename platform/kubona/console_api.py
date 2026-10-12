@@ -849,9 +849,26 @@ async def science_qec_estimate(request: Request) -> JSONResponse:
     })
 
 
+# CORS: explicit origin allowlist, mirroring the Go edge rail
+# (platform/core/pkg/api/edge_auth.go corsAllowOrigin). Default is the
+# local console origins plus KUBONA_CORS_ORIGINS extras; "*" requires the
+# KUBONA_CORS_ANY=1 dev escape hatch, never the default.
+def _cors_allow_origins() -> list[str]:
+    if os.environ.get("KUBONA_CORS_ANY") == "1":
+        return ["*"]
+    allow = ["http://localhost:3000", "http://127.0.0.1:3000"]
+    extra = os.environ.get("KUBONA_CORS_ORIGINS", "")
+    for origin in extra.split(","):
+        origin = origin.strip()
+        if origin:
+            allow.append(origin)
+    return allow
+
+
 app = Starlette(
     middleware=[Middleware(CORSMiddleware,
-                          allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])],
+                          allow_origins=_cors_allow_origins(),
+                          allow_methods=["*"], allow_headers=["*"])],
     routes=[
         Route("/api/health", health),
         Route("/api/events", events),
