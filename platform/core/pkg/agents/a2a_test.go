@@ -120,6 +120,22 @@ func (f *fakeExecutor) ExecuteTask(ctx context.Context, taskType string, payload
 	return f.result, f.err
 }
 
+// blockingExecutor holds task execution until released, making
+// in-flight states deterministic under test (no worker race).
+type blockingExecutor struct {
+	release chan struct{}
+	result  map[string]any
+}
+
+func (f *blockingExecutor) ExecuteTask(ctx context.Context, taskType string, payload json.RawMessage, tenantID string) (map[string]any, error) {
+	select {
+	case <-f.release:
+		return f.result, nil
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+}
+
 func submitTask(t *testing.T, server *A2AServer, params TaskSubmitParams, id any) *A2ATask {
 	t.Helper()
 	raw, _ := json.Marshal(params)
@@ -293,8 +309,13 @@ func TestA2ADelegationDepthAndScopes(t *testing.T) {
 }
 
 func TestA2ARevokePropagates(t *testing.T) {
+	// Deterministic revoke: the executor blocks until released, so the
+	// task cannot settle before the revoke lands (the old instant-result
+	// fake raced the worker and flaked under -race).
+	release := make(chan struct{})
+	blocking := &blockingExecutor{release: release, result: map[string]any{"ok": true}}
 	server := NewA2AServer("0x123", nil, nil)
-	server.SetTaskExecutor(&fakeExecutor{result: map[string]any{"ok": true}})
+	server.SetTaskExecutor(blocking)
 
 	root := submitTask(t, server, TaskSubmitParams{
 		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
@@ -311,6 +332,7 @@ func TestA2ARevokePropagates(t *testing.T) {
 	if resp.Error == nil {
 		t.Fatalf("child of revoked parent must refuse")
 	}
+	close(release)
 
 	// Revoking a settled task refuses (history is immutable).
 	done := submitTask(t, server, TaskSubmitParams{

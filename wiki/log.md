@@ -1884,3 +1884,9 @@ skipped is the exact failure this incident is about:
   from_env selection; qiskit _credential consults Bao when
   configured, env otherwise. 9 python tests green (incl. outage
   raises, no fallback). Runbook updated.
+
+## [2026-10-12] fix | A2A revoke test race made deterministic
+  CI caught TestA2ARevokePropagates flaking (instant fake executor
+  lost to the worker under -race). Blocking executor holds tasks
+  until released: 10x + 5x race green locally. Full -race suite
+  green.
