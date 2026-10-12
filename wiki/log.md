@@ -1997,3 +1997,8 @@ skipped is the exact failure this incident is about:
   Approve/reject/apply require bearer (signer = attribution label);
   listing stays public. Test pins 401s + pass-through. Runbook token
   row covers all bearer routes; duplicate J1 stub removed.
+
+## [2026-10-12] verification | J4 mandate tenant attribution landed
+  ActionGate uses session.tenant_id (was session id); widget takes
+  tenantId prop. Render test asserts the lab tenant in the verify
+  body. Console 77 green, build clean.

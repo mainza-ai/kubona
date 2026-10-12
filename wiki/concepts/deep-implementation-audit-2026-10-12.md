@@ -197,6 +197,11 @@ implemented (needs revision). Every item has file:line or a live probe.
     public list. Runbook API-token row now covers all bearer routes.
     Remaining for K-phase: proposal persistence + Apply-writes-
     nothing honesty.
+  - [x] **J4 landed 2026-10-12:** ActionGate authorizes against
+    `session.tenant_id` (was session id); mandate widget takes an
+    optional `tenantId` prop (default preserves static mounts).
+    Render test captures the verify body and asserts the lab tenant.
+    Console 77 green, build clean.
   - [x] **J1 landed 2026-10-12:** manuscript/LaTeX/Lean prose gated on
     `epistemics.status === COLLAPSED_VERIFIED` (claim) and recorded
     proof receipt (Lean — never set today, so honestly absent);

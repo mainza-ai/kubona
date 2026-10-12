@@ -449,3 +449,39 @@ describe('ProofDagView campaign signals (C-2)', () => {
     expect(text).not.toContain('epistemics: CONTESTED');
   });
 });
+
+describe('ActionGate tenant attribution (J4)', () => {
+  it('authorizes against the lab tenant, never the session id', async () => {
+    vi.unstubAllGlobals();
+    let seenBody: any = null;
+    vi.stubGlobal(
+      'fetch',
+      async (_url: string, init?: any) => {
+        seenBody = JSON.parse(init.body);
+        return { ok: true, json: async () => ({ valid: true }) };
+      }
+    );
+    const session = {
+      id: 'sess-tenant-test',
+      title: 't',
+      tenant_id: 'lab-alpha',
+      created_at: '',
+      updated_at: '',
+      status: 'active',
+      spend_limit_usd: 150,
+      current_spend_usd: 0,
+    };
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(
+        <ActionGate campaign={CAMPAIGN as any} session={session} onAuthorized={() => {}} onDenied={() => {}} onDowngrade={() => {}} />
+      );
+    });
+    const btn = tree!.root.findByProps({ 'data-testid': 'action-gate-authorize' });
+    await act(async () => {
+      await (btn.props as any).onClick();
+    });
+    expect(seenBody).not.toBeNull();
+    expect(seenBody.tenant_id).toBe('lab-alpha');
+  });
+});

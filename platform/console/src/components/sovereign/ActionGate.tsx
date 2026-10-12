@@ -54,8 +54,11 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied, onDowngr
       // program cannot be replayed against another.
       const binding = `${session?.id || 'tenant-default'}|${packet.programHash}|${packet.backend}|${packet.costMaxUsd.toFixed(4)}`;
       const jobHash = bytesToHex(sha256(new TextEncoder().encode(binding)));
+      // J4: the mandate's tenant is the LAB tenant, never the session id.
+      // Session-scoped binding above is correct (replay scope); tenant
+      // attribution must resolve against the lab for admission.
       const mandate = createSignedSpendMandate({
-        tenantId: session?.id || 'tenant-default',
+        tenantId: session?.tenant_id || 'tenant-default',
         jobHash,
         maxBudgetUsd: estimatedCost,
         ttlSeconds: 3600,
