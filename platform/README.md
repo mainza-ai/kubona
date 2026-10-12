@@ -96,11 +96,16 @@ Run everything: `uv run --project . pytest -q` or `.venv/bin/python -m pytest -q
   hardware providers (ibm-qiskit, quantinuum, rigetti, neutral-atom) keep
   capability entries + plugins that fail with actionable guidance until
   credentials/SDKs exist. Open-source-first: Qiskit/Aer (Apache-2.0), Flutter (BSD-3).
-- **Console REST API** (`kubona/console_api.py`): read/approve-only surface the
-  console talks to — sessions, burn rate, approvals (hold/approve/reject), loops
-  (pause/resume/kill). **No job-submission endpoints** (ui-ux-vision hard rule #1).
-  CORS `*` is dev-only (Phase-3 hardening). Run: `uv run --project . kubona-console-api`
-  (or `python -m kubona.console_api`, default http://127.0.0.1:8000).
+- **Console REST API:** the Next.js console talks **only to the Go
+  orchestrator** (`platform/core`, `:8080`) — sessions, chat, loops,
+  jobs, mandates, tenants, HF, mesh, fleet, events. `kubona/
+  console_api.py` (`:8000` when run via `kubona serve`) keeps only
+  routes with no Go equivalent (health, approvals, providers,
+  reports, workflows, agents, labs, models, settings, science/*);
+  its sessions/chat/loops/events/hf/mesh/fleet/provenance/
+  custom-agent duplicates were retired 2026-10-12 (separate stores
+  behind the same paths = split-brain). **No job-submission
+  endpoints** on either surface (ui-ux-vision hard rule #1).
 - **Flutter console** (`console/`): builds for web (`flutter build web`), two
   Phase-2 surfaces live (Cost & Approvals, Live Loops) wired to the REST API.
   Requires Flutter SDK (installed via Homebrew 2026-08-16) and

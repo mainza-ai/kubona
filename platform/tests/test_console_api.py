@@ -22,7 +22,7 @@ def _h():
 
 def test_requires_auth():
     assert client.get("/api/health").status_code == 401
-    assert client.get("/api/sessions").status_code == 401
+    assert client.get("/api/labs").status_code == 401
 
 
 def test_health_and_providers():
@@ -52,9 +52,15 @@ def test_models_and_settings_endpoints():
     assert r2.json()["settings"].get("llm_provider") == "scripted"
 
 
-def test_sessions_and_burn_rate():
-    r = client.get("/api/sessions", headers=_h())
-    assert r.json()["ok"] is True
+def test_retired_shadow_routes_stay_gone():
+    """K5: Go-canonical routes must not resurrect here. Sessions, loops,
+    events, chat, hf, mesh, fleet, provenance and custom-agents live on
+    :8080; serving them here with divergent stores was split-brain."""
+    for path in ["/api/sessions", "/api/loops", "/api/events",
+                 "/api/fleet", "/api/provenance", "/api/mesh/route",
+                 "/api/hf/search", "/api/agents/custom"]:
+        assert client.get(path, headers=_h()).status_code == 404, path
+    assert client.post("/api/chat/messages", json={}, headers=_h()).status_code == 404
 
 
 def test_approval_flow_over_rest():
@@ -77,14 +83,10 @@ def test_approval_flow_over_rest():
     assert r.json()["ok"] is False  # already approved -> governance error surfaced
 
 
-def test_events_stream():
-    """Asserts /api/events SSE returns event-stream and telemetry events."""
-    r = client.get("/api/events", headers=_h())
-    assert r.status_code == 200
-    assert "text/event-stream" in r.headers["content-type"]
-    assert "event: telemetry" in r.text
-    assert "approvals" in r.text
-    assert "loops" in r.text
+def test_events_stream_retired_to_go():
+    """K5: event streaming lives on Go :8080 (/api/events + /stream,
+    tested there). This surface keeps no SSE duplicate."""
+    assert client.get("/api/events", headers=_h()).status_code == 404
 
 
 def test_science_discovery_endpoints():
