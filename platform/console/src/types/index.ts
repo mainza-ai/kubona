@@ -160,6 +160,7 @@ export interface TrajectoryStep {
   grad_norm: number;
   watchdog: string;
   timestamp: string;
+  source?: string;
 }
 
 export interface EpistemicState {
