@@ -39,6 +39,7 @@ arrives, place it here first and it will find its page.
 | [[roadmap]] | Phases 0–6 read as **acceptance criteria**, not progress: gates, dependencies, team loading. |
 | [[implementation-gaps]] | Prototype gap register: what the scaffold does vs. what production requires. Code facts only. |
 | [[platform-architecture-diagram]] | Mermaid map of the running platform (services, ports, stores, call paths). Snapshot verified 2026-10-12; refresh after any service/port/store change. |
+| [[full-platform-audit-2026-10-12]] | Full completeness audit: 73.0% implemented across 30 scored components, with inventory, evidence tiers, refutations corrected, and remaining work by owner. |
 | [[log]] | Append-only chronological changelog. |
 
 ## Status legend (frontmatter `status:`)
@@ -56,7 +57,7 @@ Describes **how decided** something is — never how finished.
 | `source` | An ingested source record. Immutable once written. | the 6 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (115 pages = 43 entities · 61 concepts · 6 sources · 5 meta), 2026-10-12:**
+**Census (117 pages = 43 entities · 62 concepts · 6 sources · 5 meta), 2026-10-12:**
 `settled` 5 · `adopted` 48 · `open-question` 7 · `candidate` 7 · `tracked` 32 ·
 `reference` 5 · `source` 6 · `living` 6 (lint-counted; the 2026-10-10 text
 undercounted adopted/tracked/candidate).
