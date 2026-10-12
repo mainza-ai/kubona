@@ -1860,3 +1860,9 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-12] verification | CI green on D-1c anchor verification
   All 5 jobs success on run 38202465462. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | E-1a single-writer guard
+  OpenLedger takes an exclusive flock (second daemon refuses with
+  cause, releases on exit, read-only unaffected); invariant
+  documented. Live: second daemon refused, primary unaffected,
+  fail-closed exit. Full Go suite green.

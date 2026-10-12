@@ -353,3 +353,37 @@ func TestVerifyCampaignHistory(t *testing.T) {
 		t.Errorf("bypass write must fail loudly, got %v", err)
 	}
 }
+
+func TestSingleWriterGuard(t *testing.T) {
+	dbPath := "test_single_writer.db"
+	defer os.Remove(dbPath)
+	defer os.Remove(dbPath + "-lock")
+
+	l1, err := ledger.OpenLedger(dbPath)
+	if err != nil {
+		t.Fatalf("first open: %v", err)
+	}
+	// Second read-write open on the same state refuses (no split brain).
+	if l2, err := ledger.OpenLedger(dbPath); err == nil {
+		l2.Close()
+		l1.Close()
+		t.Fatal("second writer must be refused")
+	} else if !strings.Contains(err.Error(), "another daemon") {
+		l1.Close()
+		t.Fatalf("refusal must name the cause, got: %v", err)
+	}
+	// Read-only handles never take the lock.
+	ro, err := ledger.OpenLedgerReadOnly(dbPath)
+	if err != nil {
+		l1.Close()
+		t.Fatalf("read-only open beside a writer: %v", err)
+	}
+	ro.Close()
+	// After close the state is openable again (lock releases, no stale).
+	l1.Close()
+	l3, err := ledger.OpenLedger(dbPath)
+	if err != nil {
+		t.Fatalf("reopen after close: %v", err)
+	}
+	l3.Close()
+}

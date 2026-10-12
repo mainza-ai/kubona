@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -33,6 +34,13 @@ type EventRecord struct {
 type Ledger struct {
 	db   *sql.DB
 	lock sync.RWMutex
+	// lockFile holds an exclusive flock on <dbPath>.lock for the ledger's
+	// lifetime: exactly one read-write daemon per state directory. A second
+	// OpenLedger on the same path refuses instead of split-braining the
+	// in-memory planes (job queue, sessions, hindsight) that SQLite alone
+	// cannot reconcile. The lock releases on process exit — no stale
+	// cleanup, no pidfiles. Read-only handles never take it.
+	lockFile *os.File
 }
 
 func OpenLedgerReadOnly(dbPath string) (*Ledger, error) {
@@ -59,10 +67,24 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
 		return nil, fmt.Errorf("failed to create db dir: %w", err)
 	}
+	// Single-writer guard: refuse a second read-write daemon on this state
+	// directory instead of running split-brain. SQLite serializes writes,
+	// but the job queue, session cache, and memory store live in-process —
+	// two daemons would dispatch twice and remember separately.
+	lockFile, err := os.OpenFile(dbPath+".lock", os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open state lock: %w", err)
+	}
+	if err := syscall.Flock(int(lockFile.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+		lockFile.Close()
+		return nil, fmt.Errorf("state directory locked by another daemon (%s): stop it first — refusing second writer", dbPath)
+	}
 	// Open with SQLite WAL mode and busy timeout for high-throughput concurrent writes
 	dsn := fmt.Sprintf("%s?_journal_mode=WAL&_busy_timeout=5000&_synchronous=NORMAL", dbPath)
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
+		syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN)
+		lockFile.Close()
 		return nil, fmt.Errorf("failed to open sqlite db: %w", err)
 	}
 
@@ -183,6 +205,7 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 
 	if _, err := db.Exec(initSchema); err != nil {
 		db.Close()
+		releaseLock(lockFile)
 		return nil, fmt.Errorf("failed to initialize ledger schema: %w", err)
 	}
 
@@ -213,7 +236,16 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 		`INSERT OR IGNORE INTO tenants (id, display_name, admin_pubkey_hex, autonomy_level, spend_ceiling_usd, status, created_at) VALUES ('default', 'Default lab', '', 'L1', 150.0, 'active', CURRENT_TIMESTAMP)`,
 	)
 
-	return &Ledger{db: db}, nil
+	return &Ledger{db: db, lockFile: lockFile}, nil
+}
+
+// releaseLock drops a state-dir flock best-effort (open-failure paths).
+func releaseLock(f *os.File) {
+	if f == nil {
+		return
+	}
+	_ = syscall.Flock(int(f.Fd()), syscall.LOCK_UN)
+	f.Close()
 }
 
 func (l *Ledger) DB() *sql.DB {
@@ -672,5 +704,8 @@ func (l *Ledger) GetCampaignState(sessionID string) ([]byte, error) {
 func (l *Ledger) Close() error {
 	l.lock.Lock()
 	defer l.lock.Unlock()
-	return l.db.Close()
+	err := l.db.Close()
+	releaseLock(l.lockFile)
+	l.lockFile = nil
+	return err
 }
