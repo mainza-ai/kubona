@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -2276,18 +2277,74 @@ func (s *Server) handleVaultLeases(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// findPythonVenv locates the hermetic venv python + bridge dir for the
+// K1 exec sites. Candidates are anchored to every CWD the daemon and its
+// tests actually run from (repo root, platform/, platform/core,
+// package dirs) — a bare CWD-relative guess breaks whenever the process
+// starts elsewhere, which the K1 tests caught live.
 func findPythonVenv() (string, string) {
 	candidates := []struct{ bin, dir string }{
-		{"../.venv/bin/python3", "../bridge"},
-		{"platform/.venv/bin/python3", "platform/bridge"},
-		{".venv/bin/python3", "bridge"},
+		{".venv/bin/python3", "bridge"},                       // CWD=platform
+		{"platform/.venv/bin/python3", "platform/bridge"},     // CWD=repo root
+		{"../.venv/bin/python3", "../bridge"},                 // CWD=platform/core
+		{"../../.venv/bin/python3", "../../bridge"},           // CWD=platform/core/pkg/<x> (go test)
+		{"../../../.venv/bin/python3", "../../../bridge"},     // deeper test nesting, just in case
 	}
 	for _, c := range candidates {
-		if _, err := os.Stat(c.bin); err == nil {
-			return c.bin, c.dir
+		absBin, err := filepath.Abs(c.bin)
+		if err != nil {
+			continue
+		}
+		if _, err := os.Stat(absBin); err == nil {
+			absDir, _ := filepath.Abs(c.dir)
+			return absBin, absDir
 		}
 	}
 	return "python3", "platform/bridge"
+}
+
+// runBridgePython executes a bridge snippet with a bounded lifetime and
+// absolute interpreter paths. K1: previously this was two unbounded,
+// CWD-relative execs (the second a verbatim retry when the first already
+// resolved to python3). One attempt per resolved interpreter, each under
+// ctx timeout (well inside the server WriteTimeout); failure names the
+// interpreter tried instead of returning a bare exec error.
+func runBridgePython(ctx context.Context, timeout time.Duration, script string, args ...string) ([]byte, string, error) {
+	bin, dir := findPythonVenv()
+	attempt := func(pyBin string) ([]byte, error) {
+		cctx, cancel := context.WithTimeout(ctx, timeout)
+		defer cancel()
+		cmd := exec.CommandContext(cctx, pyBin, append([]string{"-c", script}, args...)...)
+		// findPythonVenv returns absolute paths; never re-resolve here
+		// (re-resolving a dir against CWD a second time is how a wrong
+		// dir once slipped through — K1 tests pin this).
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), "PYTHONPATH="+dir)
+		out, err := cmd.CombinedOutput()
+		if cctx.Err() == context.DeadlineExceeded {
+			return out, fmt.Errorf("bridge python timed out after %s (%s)", timeout, pyBin)
+		}
+		return out, err
+	}
+	if absBin, err := exec.LookPath(bin); err == nil {
+		bin = absBin
+	}
+	out, err := attempt(bin)
+	if err == nil {
+		return out, bin, nil
+	}
+	firstErr := err
+	// Fallback: PATH-resolved python3, once — for dev machines whose venv
+	// is absent but system python carries the deps. Never a CWD-relative
+	// guess, never a verbatim retry of the same binary.
+	if hostBin, lerr := exec.LookPath("python3"); lerr == nil && hostBin != bin {
+		if out2, err2 := attempt(hostBin); err2 == nil {
+			return out2, hostBin, nil
+		} else {
+			return out2, hostBin, fmt.Errorf("bridge python failed (%s: %v; %s: %v)", bin, firstErr, hostBin, err2)
+		}
+	}
+	return out, bin, fmt.Errorf("bridge python failed (%s: %v)", bin, firstErr)
 }
 
 func (s *Server) handleChemistryADMET(w http.ResponseWriter, r *http.Request) {
@@ -2300,11 +2357,13 @@ func (s *Server) handleChemistryADMET(w http.ResponseWriter, r *http.Request) {
 			smiles = req.SMILES
 		}
 	}
+	// K1: the Aspirin default is labeled in the response, never silent.
+	defaultedSmiles := false
 	if smiles == "" {
 		smiles = "CC(=O)Oc1ccccc1C(=O)O" // Default Aspirin benchmark
+		defaultedSmiles = true
 	}
 
-	bin, dir := findPythonVenv()
 	script := `import json, sys
 from chemistry import evaluate_molecular_admet
 try:
@@ -2313,28 +2372,25 @@ try:
 except Exception as e:
     print(json.dumps({"error": str(e)}))
 `
-	cmd := exec.Command(bin, "-c", script, smiles)
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "PYTHONPATH=.")
-	out, err := cmd.CombinedOutput()
+	out, pyBin, err := runBridgePython(r.Context(), 120*time.Second, script, smiles)
 	if err != nil {
-		cmdHost := exec.Command("python3", "-c", script, smiles)
-		cmdHost.Dir = "platform/bridge"
-		cmdHost.Env = append(os.Environ(), "PYTHONPATH=platform/bridge")
-		if hostOut, hostErr := cmdHost.CombinedOutput(); hostErr == nil {
-			out = hostOut
-			err = nil
-		}
+		http.Error(w, fmt.Sprintf("ADMET evaluation unavailable: %v", err), http.StatusServiceUnavailable)
+		return
 	}
 
 	var parsed map[string]any
 	if json.Unmarshal(out, &parsed) == nil {
-		s.ledger.AppendEvent("system", "molecular_admet_profiled", map[string]any{
-			"smiles": smiles,
-			"mw":     parsed["molecular_weight"],
-			"logp":   parsed["clogp"],
-			"qed":    parsed["qed"],
-		})
+		if _, hasErr := parsed["error"]; !hasErr {
+			parsed["defaulted_smiles"] = defaultedSmiles
+			parsed["evaluated_by"] = pyBin
+			s.ledger.AppendEvent("system", "molecular_admet_profiled", map[string]any{
+				"smiles":    smiles,
+				"mw":        parsed["molecular_weight"],
+				"logp":      parsed["clogp"],
+				"qed":       parsed["qed"],
+				"defaulted": defaultedSmiles,
+			})
+		}
 		writeJSON(w, http.StatusOK, parsed)
 		return
 	}
@@ -2359,9 +2415,12 @@ func (s *Server) handleDiscoveryPipeline(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
+	// K1: demo defaults labeled, never silent.
+	defaultedTarget := req.Target == ""
 	if req.Target == "" {
 		req.Target = "COX-2"
 	}
+	defaultedCandidates := len(req.Candidates) == 0
 	if len(req.Candidates) == 0 {
 		req.Candidates = []CandReq{
 			{Name: "Aspirin", SMILES: "CC(=O)Oc1ccccc1C(=O)O"},
@@ -2372,7 +2431,6 @@ func (s *Server) handleDiscoveryPipeline(w http.ResponseWriter, r *http.Request)
 
 	candsJSON, _ := json.Marshal(req.Candidates)
 
-	bin, dir := findPythonVenv()
 	script := `import json, sys
 from chemistry import evaluate_candidate_pipeline
 try:
@@ -2382,27 +2440,25 @@ try:
 except Exception as e:
     print(json.dumps({"error": str(e)}))
 `
-	cmd := exec.Command(bin, "-c", script, req.Target, string(candsJSON))
-	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "PYTHONPATH=.")
-	out, err := cmd.CombinedOutput()
+	out, pyBin, err := runBridgePython(r.Context(), 180*time.Second, script, req.Target, string(candsJSON))
 	if err != nil {
-		cmdHost := exec.Command("python3", "-c", script, req.Target, string(candsJSON))
-		cmdHost.Dir = "platform/bridge"
-		cmdHost.Env = append(os.Environ(), "PYTHONPATH=platform/bridge")
-		if hostOut, hostErr := cmdHost.CombinedOutput(); hostErr == nil {
-			out = hostOut
-			err = nil
-		}
+		http.Error(w, fmt.Sprintf("discovery pipeline unavailable: %v", err), http.StatusServiceUnavailable)
+		return
 	}
 
 	var parsed map[string]any
 	if json.Unmarshal(out, &parsed) == nil {
-		s.ledger.AppendEvent("system", "discovery_pipeline_evaluated", map[string]any{
-			"target":          req.Target,
-			"total_evaluated": len(req.Candidates),
-			"top_lead":        parsed["top_lead"],
-		})
+		if _, hasErr := parsed["error"]; !hasErr {
+			parsed["defaulted_target"] = defaultedTarget
+			parsed["defaulted_candidates"] = defaultedCandidates
+			parsed["evaluated_by"] = pyBin
+			s.ledger.AppendEvent("system", "discovery_pipeline_evaluated", map[string]any{
+				"target":               req.Target,
+				"total_evaluated":      len(req.Candidates),
+				"top_lead":             parsed["top_lead"],
+				"defaulted_candidates": defaultedCandidates,
+			})
+		}
 		writeJSON(w, http.StatusOK, parsed)
 		return
 	}
