@@ -62,6 +62,19 @@ type ClassicalAnchor struct {
 // stay a single shared constant — never two copies that drift apart.
 const fallbackCaveat = " Classical anchor is a hardcoded fallback (bridge unavailable) — unverified."
 
+// Live-anchor projection weights: a computed anchor with a non-fresh
+// template reads as PROJECTION — the shape of convergence, not a verified
+// result. Shared with the replan anchor-repair fold (R3b), which restores
+// exactly these values: a second literal copy there would rot silently.
+const (
+	liveAlpha = 0.95
+	liveBeta  = 0.05
+	liveGamma = 0.10
+)
+
+// livePCorrelated derives from liveAlpha the same way synthesis does.
+const livePCorrelated = liveAlpha * liveAlpha * 100.0
+
 // synthSources attests PySCF evidence labels only for computed anchors.
 // A fallback anchor cites nothing: an empty (unattested) list is legal,
 // an invented PySCF label is fabrication (R1).
@@ -564,10 +577,10 @@ func SynthesizeCampaignStateWithOpts(
 	// Tripartite credibility wavefunction amplitudes. A live anchor with a
 	// non-fresh template is a PROJECTION — the shape of convergence, not a
 	// verified result. Only job folds move a campaign out of projection.
-	alpha := 0.95
-	beta := 0.05
-	gamma := 0.10
-	pCorr := (alpha * alpha) * 100.0
+	alpha := liveAlpha
+	beta := liveBeta
+	gamma := liveGamma
+	pCorr := livePCorrelated
 	epStatus := "PROJECTED"
 	epStatement := fmt.Sprintf("%s VQE projection converging toward PySCF ab-initio FCI in template space — unverified until jobs fold", target)
 

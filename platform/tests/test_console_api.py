@@ -240,3 +240,14 @@ def test_cors_origin_allowlist():
     h = dict(_h(), Origin="https://evil.example.com")
     r = client.get("/api/health", headers=h)
     assert "access-control-allow-origin" not in r.headers
+
+
+def test_cors_preflight_restricts_methods_and_headers():
+    """F-1 audit: preflight must not bless arbitrary methods/headers."""
+    origin = {"Origin": "http://localhost:3000", "Access-Control-Request-Method": "PATCH",
+              "Access-Control-Request-Headers": "X-Custom"}
+    r = client.options("/api/health", headers=dict(_h(), **origin))
+    allow_methods = r.headers.get("access-control-allow-methods", "")
+    assert "PATCH" not in allow_methods and "POST" in allow_methods
+    allow_headers = r.headers.get("access-control-allow-headers", "")
+    assert "X-Custom" not in allow_headers and "Authorization" in allow_headers
