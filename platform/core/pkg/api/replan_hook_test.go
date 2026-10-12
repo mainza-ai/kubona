@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net/http"
@@ -356,5 +357,57 @@ func TestNotebooksTemplateSuccessIsProjection(t *testing.T) {
 	}
 	if !strings.Contains(nb.Sections[2], "not measured") || !strings.Contains(nb.Sections[3], "unclaimed until measured") {
 		t.Errorf("estimate must be labeled as unmeasured: %v", nb.Sections[2:4])
+	}
+}
+
+// K4: the global cloud-LLM dollar cap refuses new metered entries once
+// spent; track-only mode (cap unset) never refuses. Local deployments
+// never trip it (checked via active provider, not per call).
+func TestLLMBudgetCapRefusesWhenSpent(t *testing.T) {
+	srv, l, cleanup := replanHookTestServer(t, "test_llm_budget.db")
+	defer cleanup()
+
+	seedSpend := func(usd float64) {
+		t.Helper()
+		if err := l.AppendEvent("global", "llm_spend_estimated", map[string]any{
+			"provider": "opencode", "model": "deepseek-v4.1-flash",
+			"prompt_tokens": 1000, "completion_tokens": 500,
+			"estimated_usd": usd, "heuristic": true, "usage_reported": true,
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Track-only (no cap): allowed regardless of recorded spend.
+	seedSpend(999.0)
+	t.Setenv("KUBONA_LLM_BUDGET_USD", "")
+	if err := srv.checkLLMBudget(); err != nil {
+		t.Errorf("track-only must never refuse, got %v", err)
+	}
+
+	// Cap above spend: allowed.
+	t.Setenv("KUBONA_LLM_BUDGET_USD", "1000")
+	if err := srv.checkLLMBudget(); err != nil {
+		t.Errorf("under-cap must allow, got %v", err)
+	}
+
+	// Cap below spend: refused with the cause named.
+	t.Setenv("KUBONA_LLM_BUDGET_USD", "10")
+	if err := srv.checkLLMBudget(); err == nil {
+		t.Error("over-cap must refuse")
+	} else if !strings.Contains(err.Error(), "KUBONA_LLM_BUDGET_USD") {
+		t.Errorf("refusal must name the control, got %v", err)
+	}
+
+	// HTTP entry refuses fast (429) without touching any LLM.
+	req := httptest.NewRequest(http.MethodPost, "/api/chat/tribunal",
+		bytes.NewReader([]byte(`{"prompt":"H2","session_id":"s"}`)))
+	w := httptest.NewRecorder()
+	srv.handleChatTribunal(w, req)
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("capped tribunal must 429 before any LLM call, got %d", w.Code)
+	}
+	if got := srv.llmSpendTotal(); got != 999.0 {
+		t.Errorf("spend total must sum recorded estimates, got %v", got)
 	}
 }
