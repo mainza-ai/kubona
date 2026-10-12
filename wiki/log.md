@@ -1848,3 +1848,6 @@ skipped is the exact failure this incident is about:
   verdict-vs-delta contradiction check in claim fold; curvature
   documented diagnostic (non-decisional). Live: 3 genuine records.
   Go + 71 vitest + python literature green.
+
+## [2026-10-12] verification | CI green on D-1b evidence labels
+  All 5 jobs success on run 38200005334. Tree clean, zero unpushed.
