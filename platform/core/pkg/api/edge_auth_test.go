@@ -298,3 +298,80 @@ func TestVaultLeaseRequiresKey(t *testing.T) {
 		t.Errorf("lease must carry a 64-hex HMAC, got %q", out["lease_signature"])
 	}
 }
+
+// R4: spend-adjacent mutations sit behind the bearer rail as well as their
+// own cryptographic envelopes. No token → 401 on all seven; a valid token
+// passes through to the handler's own verdict (never 401).
+func TestEdgeBearerOnAdjacentRoutes(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
+
+	paths := []string{
+		"/api/mandates/verify",
+		"/api/grants/register",
+		"/api/grants/revoke",
+		"/api/tenants/admin-key",
+		"/api/tenants/ceiling",
+		"/api/tenants/autonomy",
+		"/api/tenants/revoke",
+	}
+	for _, path := range paths {
+		call := func(token string) int {
+			req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader([]byte(`{}`)))
+			if token != "" {
+				req.Header.Set("Authorization", "Bearer "+token)
+			}
+			req.RemoteAddr = "127.0.0.1:0"
+			req.Header.Set("X-Forwarded-For", nextTestIP())
+			w := httptest.NewRecorder()
+			srv.Handler().ServeHTTP(w, req)
+			return w.Code
+		}
+		if got := call(""); got != http.StatusUnauthorized {
+			t.Errorf("%s without token must 401, got %d", path, got)
+		}
+		if got := call("wrong"); got != http.StatusUnauthorized {
+			t.Errorf("%s with wrong token must 401, got %d", path, got)
+		}
+		if got := call("op-token"); got == http.StatusUnauthorized || got == http.StatusServiceUnavailable {
+			t.Errorf("%s with valid token must reach the handler, got %d", path, got)
+		}
+	}
+}
+
+// R4: tenant self-provisioning stays open by design (first SetAdminKey
+// wins) — but rate-limited. Open means no bearer, not unlimited.
+func TestTenantCreationOpenButLimited(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
+
+	create := func(id, ip string) int {
+		body, _ := json.Marshal(map[string]string{"id": id, "display_name": "open lab"})
+		req := httptest.NewRequest(http.MethodPost, "/api/tenants", bytes.NewReader(body))
+		req.RemoteAddr = "127.0.0.1:0"
+		req.Header.Set("X-Forwarded-For", ip)
+		w := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w, req)
+		return w.Code
+	}
+	// No bearer: still provisions (design decision, pinned here).
+	if got := create("lab-open-1", nextTestIP()); got != http.StatusCreated {
+		t.Fatalf("open provisioning must 201 without a token, got %d", got)
+	}
+	// Same client, rapid fire: the bucket (5rps/15 burst) must bite.
+	ip := nextTestIP()
+	var created, limited int
+	for i := 0; i < 25; i++ {
+		switch create("lab-spam-"+itoa(i), ip) {
+		case http.StatusCreated:
+			created++
+		case http.StatusTooManyRequests:
+			limited++
+		}
+	}
+	if created == 0 || limited == 0 {
+		t.Errorf("limiter must admit-then-refuse, got %d created %d limited", created, limited)
+	}
+}

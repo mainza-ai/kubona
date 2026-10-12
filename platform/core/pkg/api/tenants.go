@@ -27,6 +27,11 @@ func (s *Server) handleTenants(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	// R4: open provisioning is not unlimited provisioning.
+	if !s.tenantLimiter.allow(clientKey(r)) {
+		http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+		return
+	}
 	var req struct {
 		ID          string `json:"id"`
 		DisplayName string `json:"display_name"`
@@ -89,6 +94,10 @@ func (s *Server) handleTenantAdminKey(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if !s.tenantLimiter.allow(clientKey(r)) {
+		http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+		return
+	}
 	var req struct {
 		TenantID       string               `json:"tenant_id"`
 		NewAdminPubkey string               `json:"new_admin_pubkey_hex"`
@@ -121,6 +130,10 @@ func (s *Server) handleTenantCeiling(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if !s.tenantLimiter.allow(clientKey(r)) {
+		http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+		return
+	}
 	var req struct {
 		TenantID string              `json:"tenant_id"`
 		Ceiling  float64             `json:"ceiling_usd"`
@@ -149,6 +162,10 @@ func (s *Server) handleTenantAutonomy(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if !s.tenantLimiter.allow(clientKey(r)) {
+		http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+		return
+	}
 	var req struct {
 		TenantID string              `json:"tenant_id"`
 		Level    string              `json:"level"`
@@ -175,6 +192,10 @@ func (s *Server) handleTenantAutonomy(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleTenantRevoke(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.tenantLimiter.allow(clientKey(r)) {
+		http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
 		return
 	}
 	var req struct {

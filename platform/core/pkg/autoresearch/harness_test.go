@@ -179,3 +179,23 @@ func TestCorrectnessRegressionHarnessEvaluation(t *testing.T) {
 		t.Fatalf("expected fidelity ~1.0 on Bell state, got %f", res.PhysicalValue)
 	}
 }
+
+// R5: the nil-runner default must not smuggle host fallback in. Dockerless
+// execution stays refused unless the operator opts in with
+// KUBONA_ALLOW_HOST_FALLBACK=1 — the same gate the daemon uses.
+func TestEnsureRunnerDefaultsFailClosed(t *testing.T) {
+	t.Setenv("KUBONA_ALLOW_HOST_FALLBACK", "")
+	if got := ensureRunner(nil).Config().AllowHostFallback; got {
+		t.Error("nil runner must default to AllowHostFallback=false")
+	}
+	t.Setenv("KUBONA_ALLOW_HOST_FALLBACK", "1")
+	if got := ensureRunner(nil).Config().AllowHostFallback; !got {
+		t.Error("KUBONA_ALLOW_HOST_FALLBACK=1 must opt in to host fallback")
+	}
+	// An explicit runner is never rewritten.
+	cfg := sandbox.DefaultConfig()
+	cfg.AllowHostFallback = true
+	if got := ensureRunner(sandbox.NewSandboxRunnerWithConfig(cfg)); got.Config().AllowHostFallback != true {
+		t.Error("explicit runner must pass through untouched")
+	}
+}

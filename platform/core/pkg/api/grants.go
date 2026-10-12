@@ -31,6 +31,10 @@ func (s *Server) handleGrantRegister(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if !s.grantLimiter.allow(clientKey(r)) {
+		http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+		return
+	}
 	var req struct {
 		Chain []string `json:"chain"`
 	}
@@ -80,6 +84,10 @@ func (s *Server) handleGrantRegister(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGrantRevoke(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.grantLimiter.allow(clientKey(r)) {
+		http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
 		return
 	}
 	var req struct {

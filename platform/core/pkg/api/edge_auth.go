@@ -144,12 +144,19 @@ func (l *rateLimiter) allow(key string) bool {
 
 // clientKey attributes a request for rate limiting. X-Forwarded-For is
 // honored only from loopback (no trusted-proxy config exists yet); direct
-// RemoteAddr otherwise. Spoofing XFF from non-loopback buys nothing.
+// connections key on the remote IP WITHOUT the port — keying on
+// RemoteAddr verbatim mints one bucket per TCP connection and the limiter
+// never trips (caught live in F-4: 25 rapid curls, 25×201). Spoofing XFF
+// from non-loopback buys nothing.
 func clientKey(r *http.Request) string {
-	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil && (host == "127.0.0.1" || host == "::1") {
+	host, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		host = r.RemoteAddr
+	}
+	if host == "127.0.0.1" || host == "::1" {
 		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 			return "xff:" + strings.TrimSpace(strings.Split(xff, ",")[0])
 		}
 	}
-	return "addr:" + r.RemoteAddr
+	return "addr:" + host
 }

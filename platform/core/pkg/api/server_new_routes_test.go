@@ -531,6 +531,8 @@ func TestTenantRoutesLifecycle(t *testing.T) {
 	srv, cleanup := setupTestRoutesServer(t)
 	defer cleanup()
 	h := srv.Handler()
+	// R4: tenant mutations sit behind the bearer rail.
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
 
 	// Register lab.
 	createBody, _ := json.Marshal(map[string]any{"id": "lab-route", "display_name": "Route Lab"})
@@ -557,6 +559,7 @@ func TestTenantRoutesLifecycle(t *testing.T) {
 	pubHex := hex.EncodeToString(priv.Public().(ed25519.PublicKey))
 	adminBody, _ := json.Marshal(map[string]any{"tenant_id": "lab-route", "new_admin_pubkey_hex": pubHex})
 	req = httptest.NewRequest(http.MethodPost, "/api/tenants/admin-key", bytes.NewReader(adminBody))
+	req.Header.Set("Authorization", "Bearer op-token")
 	w = httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
@@ -567,6 +570,7 @@ func TestTenantRoutesLifecycle(t *testing.T) {
 	grantAct := signTenantAction(t, priv, pubHex, "lab-route", "grant_autonomy", map[string]string{"level": "L2"})
 	grantBody, _ := json.Marshal(map[string]any{"tenant_id": "lab-route", "level": "L2", "action": grantAct})
 	req = httptest.NewRequest(http.MethodPost, "/api/tenants/autonomy", bytes.NewReader(grantBody))
+	req.Header.Set("Authorization", "Bearer op-token")
 	w = httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
@@ -577,6 +581,7 @@ func TestTenantRoutesLifecycle(t *testing.T) {
 	badAct := signTenantAction(t, priv, pubHex, "lab-route", "grant_autonomy", map[string]string{"level": "L3"})
 	badBody, _ := json.Marshal(map[string]any{"tenant_id": "lab-route", "level": "L2", "action": badAct})
 	req = httptest.NewRequest(http.MethodPost, "/api/tenants/autonomy", bytes.NewReader(badBody))
+	req.Header.Set("Authorization", "Bearer op-token")
 	w = httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusForbidden {
@@ -587,6 +592,7 @@ func TestTenantRoutesLifecycle(t *testing.T) {
 	revAct := signTenantAction(t, priv, pubHex, "lab-route", "revoke_autonomy", map[string]string{"reason": "drill"})
 	revBody, _ := json.Marshal(map[string]any{"tenant_id": "lab-route", "reason": "drill", "action": revAct})
 	req = httptest.NewRequest(http.MethodPost, "/api/tenants/revoke", bytes.NewReader(revBody))
+	req.Header.Set("Authorization", "Bearer op-token")
 	w = httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
@@ -607,6 +613,8 @@ func TestMandateClampedToTenantCeiling(t *testing.T) {
 	srv, cleanup := setupTestRoutesServer(t)
 	defer cleanup()
 	h := srv.Handler()
+	// R4: tenant mutations + verify sit behind the bearer rail.
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
 
 	// Lab with a $40 ceiling.
 	createBody, _ := json.Marshal(map[string]any{"id": "lab-cap", "display_name": "Cap Lab"})
@@ -620,6 +628,7 @@ func TestMandateClampedToTenantCeiling(t *testing.T) {
 	pubHex := hex.EncodeToString(priv.Public().(ed25519.PublicKey))
 	adminBody, _ := json.Marshal(map[string]any{"tenant_id": "lab-cap", "new_admin_pubkey_hex": pubHex})
 	req = httptest.NewRequest(http.MethodPost, "/api/tenants/admin-key", bytes.NewReader(adminBody))
+	req.Header.Set("Authorization", "Bearer op-token")
 	w = httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
@@ -628,6 +637,7 @@ func TestMandateClampedToTenantCeiling(t *testing.T) {
 	ceilAct := signTenantAction(t, priv, pubHex, "lab-cap", "set_ceiling", map[string]float64{"ceiling_usd": 40})
 	ceilBody, _ := json.Marshal(map[string]any{"tenant_id": "lab-cap", "ceiling_usd": 40.0, "action": ceilAct})
 	req = httptest.NewRequest(http.MethodPost, "/api/tenants/ceiling", bytes.NewReader(ceilBody))
+	req.Header.Set("Authorization", "Bearer op-token")
 	w = httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
@@ -642,6 +652,7 @@ func TestMandateClampedToTenantCeiling(t *testing.T) {
 		}
 		body, _ := json.Marshal(m)
 		r := httptest.NewRequest(http.MethodPost, "/api/mandates/verify", bytes.NewReader(body))
+		r.Header.Set("Authorization", "Bearer op-token")
 		wr := httptest.NewRecorder()
 		h.ServeHTTP(wr, r)
 		var resp struct {
@@ -667,12 +678,15 @@ func TestL0TenantRefusesDispatch(t *testing.T) {
 	srv, cleanup := setupTestRoutesServer(t)
 	defer cleanup()
 	h := srv.Handler()
+	// R4: tenant mutations sit behind the bearer rail.
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
 
 	// Bootstrap default-tenant admin, then revoke the lab to L0.
 	_, priv, _ := ed25519.GenerateKey(nil)
 	pubHex := hex.EncodeToString(priv.Public().(ed25519.PublicKey))
 	adminBody, _ := json.Marshal(map[string]any{"tenant_id": "default", "new_admin_pubkey_hex": pubHex})
 	req := httptest.NewRequest(http.MethodPost, "/api/tenants/admin-key", bytes.NewReader(adminBody))
+	req.Header.Set("Authorization", "Bearer op-token")
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
@@ -681,6 +695,7 @@ func TestL0TenantRefusesDispatch(t *testing.T) {
 	revAct := signTenantAction(t, priv, pubHex, "default", "revoke_autonomy", map[string]string{"reason": "drill"})
 	revBody, _ := json.Marshal(map[string]any{"tenant_id": "default", "reason": "drill", "action": revAct})
 	req = httptest.NewRequest(http.MethodPost, "/api/tenants/revoke", bytes.NewReader(revBody))
+	req.Header.Set("Authorization", "Bearer op-token")
 	w = httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
@@ -793,10 +808,13 @@ func TestCrossTenantGrantFlow(t *testing.T) {
 	srv, cleanup := setupTestRoutesServer(t)
 	defer cleanup()
 	h := srv.Handler()
+	// R4: grants mutations sit behind the bearer rail.
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
 	post := func(path string, body any) (int, map[string]any) {
 		t.Helper()
 		raw, _ := json.Marshal(body)
 		req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(raw))
+		req.Header.Set("Authorization", "Bearer op-token")
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, req)
 		var out map[string]any

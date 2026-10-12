@@ -213,6 +213,7 @@ func TestAPIRoutes(t *testing.T) {
 
 	verifyBody, _ := json.Marshal(signResp.Mandate)
 	req = httptest.NewRequest(http.MethodPost, "/api/mandates/verify", bytes.NewReader(verifyBody))
+	req.Header.Set("Authorization", "Bearer test-token")
 	w = httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {

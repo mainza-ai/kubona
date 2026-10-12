@@ -1932,3 +1932,9 @@ skipped is the exact failure this incident is about:
   R2 notebooks fallback labeling + R7 COMPLETED-status gate + R16
   CONTESTED badge; live template-path proof both directions (bridge
   up/down, campaign rows removed to reach it); console 73 green.
+
+## [2026-10-12] verification | F-4 auth/hardening leftovers landed
+  Bearer on 7 adjacent routes + tenants/grants limiters; harness
+  fallback default false; compose required-env. Live matrix green;
+  live proof caught + fixed clientKey per-connection bucket bug
+  (pre-existing, also covered B0-2 limiters). Parked daemon current.
