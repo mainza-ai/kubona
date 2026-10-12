@@ -42,8 +42,6 @@ These come first, because they change how every other question gets answered.
 | # | Question | Rank | Known | Missing |
 | [[confidentiality-lattice-provenance]] | Where is the label lattice enforced — query, export, admission — and what refuses unmodelable labels? | P1 | Buzz primitive verified; Go/Python lattice live | Enforcement seams + refusal rule |
 | [[secrets-and-workload-isolation]] | What closes the remaining hardening gaps (case-guard analogue, low-trust CI mode, user-instrument SSRF)? | P1 | Sandbox + vault + envelopes live | Named gaps with tests |
-| **Q-34** | **PG/HNSW: wire or mark dormant?** `postgres.go` staged, zero importers. Either wire to recall or record dormant like x402. | P2 | Staged code; x402 dormant precedent | Decision + wiring or label |
-| **Q-35** | **A2A external transport: expose or downgrade?** Go-internal only; external collectives cannot reach it. Either serve JSON-RPC or scope the claim to internal delegation. | P2 | Internal paths; forensic gap note | Decision + transport or scope |
 |---|---|---|---|---|
 
 
@@ -93,6 +91,8 @@ These come first, because they change how every other question gets answered.
 | **Q-05** | 2026-10-10 | Operational: 3-state axes, `ClaimCredibilityWavefunction.evaluate` over evidence signals, `ClaimRecord` ledger payloads, rho-gated assertion; worked H2 VQE example with real anchor numbers green. | [[claim-credibility-wavefunctions]] |
 | **Q-08** | 2026-10-10 | Not competitors but axes: five rings = architecture, discovery 7-stage = lifecycle traversal, §11/§13 = Ring-2/Ring-4 engines; new loops must state traversed rings. | [[five-ring-research-loop]] |
 | **Q-33** | 2026-10-12 | Mutator, not removal: `POST /api/tenants/status` flips active ↔ suspended; suspension freezes spend-affecting actions while the admin keeps reactivation + key rotation; enforced in `verifyAdmin`, live-proven both directions. | [[user-identity-and-profiles]] |
+| **Q-34** | 2026-10-12 | Dormant by design (x402 precedent): pgvector sidecar is complete but constructed by nothing; labelled in-code with activation criteria; `TestPostgresStoreDormantContract` pins unconfigured + fail-closed. | [[agentic-memory-and-observability]] |
+| **Q-35** | 2026-10-12 | Premise was stale — already exposed: `POST /api/a2a/v1` serves external JSON-RPC (card, status, x402-gated submit) on the same ledger-bound executor and tenant rules; proven live, claim corrected, no transport work. | [[a2a]] |
 
 ## Reading order for a new session
 
