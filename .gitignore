@@ -21,6 +21,7 @@ target/
 *.db
 *.db-shm
 *.db-wal
+*.db.lock
 *.sqlite
 platform/core/*.db
 platform/core/*.db-shm
