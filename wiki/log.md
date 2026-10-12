@@ -1816,3 +1816,6 @@ skipped is the exact failure this incident is about:
   (QASM vs backend QIR + compiler/fallback receipt, capped display);
   QASM-as-qirCode fixed. Live cut caught a real bridge shape gap
   (no total_cuts key) — fold derives honestly. Go + 59 vitest green.
+
+## [2026-10-12] verification | CI green on C-1 DAG-b provenance
+  All 5 jobs success on run 38196807016. Tree clean, zero unpushed.
