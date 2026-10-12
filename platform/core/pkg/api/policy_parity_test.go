@@ -53,6 +53,19 @@ func TestPolicyParityTable(t *testing.T) {
 	if table.Version != 1 {
 		t.Fatalf("parity table version %d: update this driver, never silently accept", table.Version)
 	}
+	// R11: rail labels are a closed vocabulary and every go-railed case
+	// must actually run — a typo'd rail ("goo") or an accidental skip
+	// must fail loudly, never silently shrink coverage.
+	for _, tc := range table.Cases {
+		if len(tc.Rails) == 0 {
+			t.Fatalf("case %q names no rails: every case must run somewhere", tc.ID)
+		}
+		for _, r := range tc.Rails {
+			if r != "go" && r != "py" {
+				t.Fatalf("case %q names unknown rail %q: rails are go/py only", tc.ID, r)
+			}
+		}
+	}
 
 	stubOK := func(_ context.Context, _ json.RawMessage) (any, error) {
 		return map[string]any{"ok": true}, nil
@@ -172,10 +185,13 @@ func TestPolicyParityTable(t *testing.T) {
 		}
 	}
 
+	// R11: ran must equal the go-railed count — every go case runs.
+	ranGo := 0
 	for _, tc := range table.Cases {
 		if !hasRail(tc.Rails, "go") {
 			continue
 		}
+		ranGo++
 		var got string
 		switch tc.ID {
 		case "unknown-tool", "unscoped-principal", "observer-submit",
@@ -217,6 +233,15 @@ func TestPolicyParityTable(t *testing.T) {
 			t.Errorf("case %q (%s): Go rail says %s, table demands %s — %s",
 				tc.ID, tc.Principal+"/"+tc.Action, got, tc.Expect, tc.Why)
 		}
+	}
+	wantGo := 0
+	for _, tc := range table.Cases {
+		if hasRail(tc.Rails, "go") {
+			wantGo++
+		}
+	}
+	if ranGo != wantGo {
+		t.Errorf("parity Go coverage shrank: ran %d of %d go-railed cases", ranGo, wantGo)
 	}
 }
 

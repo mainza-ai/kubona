@@ -157,3 +157,30 @@ def test_qiskit_submit_path_env_without_bao(monkeypatch):
     monkeypatch.setenv("KUBONA_IBM_QISKIT_TOKEN", "env-token")
     provider = get_provider("qiskit-aer-simulator")
     assert provider._credential() == "env-token"
+
+
+def test_qiskit_credential_sees_rotation_without_restart(monkeypatch):
+    """R12: the provider must not cache SecretStore.from_env(). Caching
+    froze the SOURCE SELECTION: a BAO_ADDR set after the first submit
+    stayed invisible, so Bao-side rotation/revocation would never bite
+    until restart. Now the store is built per call."""
+    import types
+
+    from kubona.providers.qiskit_provider import QiskitProvider
+
+    monkeypatch.delenv("BAO_ADDR", raising=False)
+    monkeypatch.delenv("BAO_TOKEN", raising=False)
+    provider = QiskitProvider(types.SimpleNamespace(backend=None))
+    monkeypatch.setenv("KUBONA_IBM_QISKIT_TOKEN", "env-A")
+    assert provider._credential() == "env-A"
+    # Operator points the fleet at Bao mid-process: the next credential
+    # read must go to Bao (fail-closed here — nothing listens) instead
+    # of serving the stale env credential. A cached store returns env-A.
+    monkeypatch.setenv("BAO_ADDR", "http://127.0.0.1:9")
+    monkeypatch.setenv("BAO_TOKEN", "dev-override")
+    with pytest.raises(ConnectionError):
+        provider._credential()
+    # An explicitly injected store is still honored verbatim.
+    injected = QiskitProvider(types.SimpleNamespace(backend=None),
+                              secrets=SecretStore())
+    assert injected._credential() == "env-A"

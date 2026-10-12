@@ -357,7 +357,9 @@ func TestVerifyCampaignHistory(t *testing.T) {
 func TestSingleWriterGuard(t *testing.T) {
 	dbPath := "test_single_writer.db"
 	defer os.Remove(dbPath)
-	defer os.Remove(dbPath + "-lock")
+	defer os.Remove(dbPath + ".lock")
+	defer os.Remove(dbPath + "-wal")
+	defer os.Remove(dbPath + "-shm")
 
 	l1, err := ledger.OpenLedger(dbPath)
 	if err != nil {
@@ -386,4 +388,30 @@ func TestSingleWriterGuard(t *testing.T) {
 		t.Fatalf("reopen after close: %v", err)
 	}
 	l3.Close()
+}
+
+// R10: Close is idempotent-safe — a second Close must not panic or
+// corrupt lock state (database/sql Close is nil-returning when already
+// closed), and the state must reopen cleanly afterwards.
+func TestLedgerDoubleClose(t *testing.T) {
+	dbPath := "test_double_close.db"
+	defer os.Remove(dbPath)
+	defer os.Remove(dbPath + ".lock")
+	defer os.Remove(dbPath + "-wal")
+	defer os.Remove(dbPath + "-shm")
+
+	l, err := ledger.OpenLedger(dbPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Close(); err != nil {
+		t.Fatalf("first close: %v", err)
+	}
+	// Must not panic; sql.DB.Close on a closed DB returns nil.
+	_ = l.Close()
+	l2, err := ledger.OpenLedger(dbPath)
+	if err != nil {
+		t.Fatalf("reopen after double close: %v", err)
+	}
+	l2.Close()
 }

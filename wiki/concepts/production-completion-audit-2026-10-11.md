@@ -222,14 +222,33 @@ live proof + green CI, checkboxes flip on landing.
   same hole applied to the B0-2 sign/verify limiters); now keys on
   remote IP, live re-proof 15×201 + 10×429. Six existing tests
   updated with tokens; parked daemon rebuilt to current develop.
-- [ ] F-5. Backend robustness + dead code (P2). R8: QIR empty-QASM 400.
-  R9: `try` around `ExecuteQuantumKrylov` like the anchor path. R10:
-  fix `-lock` typo, sweep `.lock` strays, `_ =` + comment on unlock,
-  double-Close test. R11: explicit `KNOWN_IDS` assert both parity
-  drivers. R12: qiskit `_credential` constructs per call (rotation
-  visible). R14: delete MCP allow-list plane (verify approval
-  machinery referenced elsewhere first). R17: carry `designed_by`
-  into job params + `job_queued` event.
+- [x] F-5. Backend robustness + dead code (P2). — landed 2026-10-12:
+  R8 QIR empty/whitespace QASM → 400 (Analyze is total; empty must not
+  look like a result). R9 extended to the class: all four bridge
+  handlers with success/error envelopes (execute, cut, krylov,
+  mitigate) return structured `success:false` on unexpected
+  exceptions; Evaluate/GroundLiterature deliberately still raise —
+  their proto messages have no success field, so UNKNOWN is honest
+  there (wrapping literature to return empty records would read an
+  outage as "no literature"). R10 ledger hygiene: open-failure path
+  uses `releaseLock`, `-lock` typo fixed, double-Close test (no panic,
+  clean reopen), shared test helpers clean `.lock`, 43 stale test
+  lockfiles swept (gitignored, prod DB untouched). R11 parity
+  ID-binding: both drivers validate rail labels ∈ {go,py} and assert
+  ran == railed count (self-maintaining, no hardcoded numbers).
+  R12 qiskit store built per `_credential()` call (injected stores
+  honored); test proves a mid-process BAO_ADDR switch bites instead
+  of serving stale env (verified to fail on old code). R14 deleted
+  `pkg/mcp/gateway.go` + test (zero production callers; unwired
+  allow-list invites false confidence) — real enforcement lives in
+  the Go tool registry + admission and the Python approval gateway;
+  no wiki page claimed it as live. R17 `designed_by` transcribed
+  from proposal into job params (row + `job_queued` event carry it);
+  absent stays absent, never inferred. Live: dispatched job ran on
+  Aer with the stamp in params; krylov XenonX refusal flows through
+  the new envelope; QIR empty → 400; bridge + daemon restarted to
+  current builds; validation session deleted. Go full + 401 python
+  green.
 - [ ] F-6. Docs/minors (P2). R15: publish the 14-row measured matrix
   here. B1-2: empty-q cross-tenant test. `provenance_verified`
   rename/doc (fetched-live meaning). Analyze-refuse-branch comment.

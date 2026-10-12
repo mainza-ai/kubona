@@ -31,17 +31,33 @@ logger = logging.getLogger("kubona-bridge")
 
 
 class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
+    # Failure contract: handlers whose response carries success/error_message
+    # return a structured failure (success=False + cause) on unexpected
+    # exceptions — never an unstructured gRPC UNKNOWN, and never a fake
+    # success. EvaluateWavefunction and GroundLiterature have NO success
+    # field in their proto messages, so raising (UNKNOWN, handled
+    # fail-closed by Go callers) is their honest failure mode; wrapping
+    # GroundLiterature to return empty records would read an outage as
+    # "no literature found". Each wrapped handler keeps its own envelope.
     def ExecuteCircuit(self, request, context):
         logger.info(f"ExecuteCircuit called for Job {request.job_id}")
-        res = execute_qasm(
-            qasm=request.qasm,
-            shots=request.shots if request.shots > 0 else 1024,
-            requested_backend=request.requested_backend,
-            allow_fallback=request.allow_classical_fallback,
-            caller_jurisdictions=list(request.caller_jurisdictions),
-            caller_export_class=request.caller_export_class or "any",
-            export_reviewed=request.export_reviewed,
-        )
+        try:
+            res = execute_qasm(
+                qasm=request.qasm,
+                shots=request.shots if request.shots > 0 else 1024,
+                requested_backend=request.requested_backend,
+                allow_fallback=request.allow_classical_fallback,
+                caller_jurisdictions=list(request.caller_jurisdictions),
+                caller_export_class=request.caller_export_class or "any",
+                export_reviewed=request.export_reviewed,
+            )
+        except Exception as e:
+            logger.exception("ExecuteCircuit failed for Job %s", request.job_id)
+            return kubona_pb2.CircuitExecutionResponse(
+                job_id=request.job_id,
+                success=False,
+                error_message=f"circuit execution failed: {e}",
+            )
         return kubona_pb2.CircuitExecutionResponse(
             job_id=request.job_id,
             success=res["success"],
@@ -58,7 +74,14 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
 
     def CutCircuit(self, request, context):
         logger.info(f"CutCircuit called with max_qubits={request.max_subcircuit_qubits}")
-        res = cut_circuit_qasm(request.qasm, request.max_subcircuit_qubits)
+        try:
+            res = cut_circuit_qasm(request.qasm, request.max_subcircuit_qubits)
+        except Exception as e:
+            logger.exception("CutCircuit failed")
+            return kubona_pb2.CircuitCutResponse(
+                success=False,
+                error_message=f"circuit cutting failed: {e}",
+            )
         fragments = [
             kubona_pb2.SubcircuitFragment(
                 fragment_id=f["fragment_id"],
@@ -146,13 +169,20 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
 
     def ExecuteQuantumKrylov(self, request, context):
         logger.info(f"ExecuteQuantumKrylov called for {request.molecule} at R={request.bond_distance}")
-        res = solve_quantum_krylov(
-            molecule=request.molecule if request.molecule else "H2",
-            bond_distance=request.bond_distance if request.bond_distance > 0 else 0.7414,
-            subspace_dim=request.subspace_dimension if request.subspace_dimension > 0 else 4,
-            time_step=request.time_step if request.time_step > 0 else 0.2,
-            shots=request.shots if request.shots > 0 else 1024,
-        )
+        try:
+            res = solve_quantum_krylov(
+                molecule=request.molecule if request.molecule else "H2",
+                bond_distance=request.bond_distance if request.bond_distance > 0 else 0.7414,
+                subspace_dim=request.subspace_dimension if request.subspace_dimension > 0 else 4,
+                time_step=request.time_step if request.time_step > 0 else 0.2,
+                shots=request.shots if request.shots > 0 else 1024,
+            )
+        except Exception as e:
+            logger.exception("ExecuteQuantumKrylov failed for %s", request.molecule)
+            return kubona_pb2.QuantumKrylovResponse(
+                success=False,
+                error_message=f"krylov solve failed: {e}",
+            )
         return kubona_pb2.QuantumKrylovResponse(
             success=res["success"],
             ground_state_energy=res["ground_state_energy"],
@@ -167,12 +197,20 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
     def MitigateCircuit(self, request, context):
         logger.info(f"MitigateCircuit called with method={request.method}")
         scales = list(request.scale_factors) if request.scale_factors else [1.0, 1.5, 2.0]
-        res = mitigate_circuit(
-            qasm=request.qasm,
-            method=request.method if request.method else "ZNE",
-            scale_factors=scales,
-            shots=request.shots if request.shots > 0 else 1024,
-        )
+        try:
+            res = mitigate_circuit(
+                qasm=request.qasm,
+                method=request.method if request.method else "ZNE",
+                scale_factors=scales,
+                shots=request.shots if request.shots > 0 else 1024,
+            )
+        except Exception as e:
+            logger.exception("MitigateCircuit failed with method=%s", request.method)
+            return kubona_pb2.MitigationResponse(
+                success=False,
+                method_used=request.method if request.method else "ZNE",
+                error_message=f"error mitigation failed: {e}",
+            )
         return kubona_pb2.MitigationResponse(
             success=res["success"],
             unmitigated_value=res["unmitigated_value"],

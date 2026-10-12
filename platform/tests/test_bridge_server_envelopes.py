@@ -1,0 +1,69 @@
+"""Bridge handler failure envelopes: unexpected exceptions must come back
+as structured success=False responses, never gRPC UNKNOWN and never fake
+success. Covers the four handlers whose proto messages carry a
+success/error_message envelope (anchor was already wrapped; krylov,
+execute, cut, mitigate wrapped in F-5/R9)."""
+
+import sys
+import types
+from pathlib import Path
+
+import pytest
+
+BRIDGE = Path(__file__).resolve().parent.parent / "bridge"
+if str(BRIDGE) not in sys.path:
+    sys.path.insert(0, str(BRIDGE))
+
+import server
+
+
+def _req(**fields):
+    return types.SimpleNamespace(**fields)
+
+
+def test_krylov_exception_returns_structured_failure(monkeypatch):
+    def boom(**kwargs):
+        raise RuntimeError("pyscf exploded")
+    monkeypatch.setattr(server, "solve_quantum_krylov", boom)
+    res = server.QuantumBridgeServicer().ExecuteQuantumKrylov(
+        _req(molecule="H2", bond_distance=0.7414, subspace_dimension=4,
+             time_step=0.2, shots=1024), None)
+    assert res.success is False
+    assert "pyscf exploded" in res.error_message
+
+
+def test_execute_exception_returns_structured_failure(monkeypatch):
+    def boom(**kwargs):
+        raise RuntimeError("aer exploded")
+    monkeypatch.setattr(server, "execute_qasm", boom)
+    res = server.QuantumBridgeServicer().ExecuteCircuit(
+        _req(job_id="job-x", qasm="qreg q[1];", shots=100,
+             requested_backend="", allow_classical_fallback=False,
+             caller_jurisdictions=[], caller_export_class="",
+             export_reviewed=False), None)
+    assert res.job_id == "job-x"
+    assert res.success is False
+    assert "aer exploded" in res.error_message
+
+
+def test_cut_exception_returns_structured_failure(monkeypatch):
+    def boom(*args):
+        raise RuntimeError("kahypar exploded")
+    monkeypatch.setattr(server, "cut_circuit_qasm", boom)
+    res = server.QuantumBridgeServicer().CutCircuit(
+        _req(qasm="garbage", max_subcircuit_qubits=2), None)
+    assert res.success is False
+    assert "kahypar exploded" in res.error_message
+    assert list(res.fragments) == []
+
+
+def test_mitigate_exception_returns_structured_failure(monkeypatch):
+    def boom(**kwargs):
+        raise RuntimeError("zne exploded")
+    monkeypatch.setattr(server, "mitigate_circuit", boom)
+    res = server.QuantumBridgeServicer().MitigateCircuit(
+        _req(qasm="qreg q[1];", method="ZNE", scale_factors=[],
+             shots=100), None)
+    assert res.success is False
+    assert res.method_used == "ZNE"
+    assert "zne exploded" in res.error_message

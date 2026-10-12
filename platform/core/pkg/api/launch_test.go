@@ -66,3 +66,55 @@ func TestChatLaunchRefusesEmpty(t *testing.T) {
 		t.Errorf("explicit launch must dispatch, got %d", code)
 	}
 }
+
+// R17: proposal attribution survives dispatch — designed_by rides the job
+// params (row + job_queued event carry params_json verbatim). Present is
+// transcribed; absent stays absent (never inferred).
+func TestChatLaunchCarriesDesignedBy(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+
+	sessBody, _ := json.Marshal(map[string]any{"title": "attribution drill"})
+	sessReq := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewReader(sessBody))
+	sessW := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(sessW, sessReq)
+	var sess struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(sessW.Body).Decode(&sess); err != nil {
+		t.Fatal(err)
+	}
+	qasm := "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\nh q[0];\nmeasure q[0] -> c[0];\n"
+	launch := func(proposal map[string]any) map[string]any {
+		t.Helper()
+		body, _ := json.Marshal(map[string]any{
+			"session_id": sess.ID, "backend": "local_simulator",
+			"budget_usd": 1.0, "proposal": proposal,
+		})
+		req := httptest.NewRequest(http.MethodPost, "/api/chat/launch", bytes.NewReader(body))
+		w := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w, req)
+		if w.Code != http.StatusCreated {
+			t.Fatalf("launch must dispatch, got %d %s", w.Code, w.Body.String())
+		}
+		var out struct {
+			Job struct {
+				Params map[string]any `json:"params_json"`
+			} `json:"job"`
+		}
+		if err := json.NewDecoder(w.Body).Decode(&out); err != nil {
+			t.Fatal(err)
+		}
+		return out.Job.Params
+	}
+	// Fallback-stamped proposal keeps its stamp.
+	params := launch(map[string]any{"qasm": qasm, "designed_by": "server-fallback"})
+	if params["designed_by"] != "server-fallback" {
+		t.Errorf("designed_by must survive dispatch, got %v", params["designed_by"])
+	}
+	// Unstamped proposal stays unstamped — authorship is never inferred.
+	params = launch(map[string]any{"qasm": qasm})
+	if _, ok := params["designed_by"]; ok {
+		t.Errorf("absent attribution must stay absent, got %v", params["designed_by"])
+	}
+}

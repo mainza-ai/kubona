@@ -45,6 +45,7 @@ func setupTestRoutesServer(t *testing.T) (*api.Server, func()) {
 	cleanup := func() {
 		l.Close()
 		os.Remove(dbPath)
+		os.Remove(dbPath + ".lock")
 		os.Remove(dbPath + "-wal")
 		os.Remove(dbPath + "-shm")
 	}
@@ -127,6 +128,17 @@ func TestQIRCompileEndpoint(t *testing.T) {
 	}
 	if summary.NumQubits < 2 || !strings.HasPrefix(summary.QIRProfile, "BaseProfile") {
 		t.Fatalf("unexpected summary: %+v", summary)
+	}
+
+	// R8: empty and whitespace-only QASM refuse with 400 — compiling
+	// nothing must never come back looking like a result.
+	for _, empty := range []string{`{"qasm":""}`, `{"qasm":"  \n\t "}`, `{}`} {
+		req := httptest.NewRequest(http.MethodPost, "/api/qir/compile", bytes.NewReader([]byte(empty)))
+		w := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w, req)
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("empty QASM %q must 400, got %d", empty, w.Code)
+		}
 	}
 }
 

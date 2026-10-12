@@ -33,6 +33,7 @@ func replanHookTestServer(t *testing.T, dbPath string) (*Server, *ledger.Ledger,
 	cleanup := func() {
 		l.Close()
 		os.Remove(dbPath)
+		os.Remove(dbPath + ".lock")
 		os.Remove(dbPath + "-wal")
 		os.Remove(dbPath + "-shm")
 	}
