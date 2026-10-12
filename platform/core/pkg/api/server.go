@@ -2841,6 +2841,9 @@ func (s *Server) handleKrylovSolve(w http.ResponseWriter, r *http.Request) {
 				"meyer_wallach_entanglement": resp.MeyerWallachEntanglement,
 				"execution_time_ms":          resp.ExecutionTimeMs,
 				"error_message":              resp.ErrorMessage,
+				// J5: solver attribution must survive this proxy —
+				// downstream folds gate MW on it.
+				"solver": resp.Solver,
 			})
 			return
 		}

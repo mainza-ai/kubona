@@ -94,6 +94,7 @@ def solve_quantum_krylov(
         elapsed = (time.perf_counter() - t0) * 1000.0
         return {
             "success": True,
+            "solver": "analytical-sequence",
             "ground_state_energy": float(eigenvalues[0]),
             "classical_fci_energy": float(fci_e),
             "subspace_eigenvalues": [float(x) for x in eigenvalues],
@@ -165,6 +166,7 @@ def solve_quantum_krylov(
 
     return {
         "success": True,
+        "solver": "numerical-krylov",
         "ground_state_energy": ground_e,
         "classical_fci_energy": e_fci,
         "subspace_eigenvalues": [float(x) for x in evals],
