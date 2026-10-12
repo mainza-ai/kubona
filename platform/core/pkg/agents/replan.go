@@ -275,10 +275,10 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			state.Epistemics.Sources = synthSources(true)
 			if state.Epistemics.Status == "UNVERIFIED" {
 				state.Epistemics.Status = "PROJECTED"
-				state.Epistemics.AlphaCorroborated = 0.95
-				state.Epistemics.BetaContested = 0.05
-				state.Epistemics.GammaUnverified = 0.10
-				state.Epistemics.PCorrelated = 0.95 * 0.95 * 100.0
+				state.Epistemics.AlphaCorroborated = liveAlpha
+				state.Epistemics.BetaContested = liveBeta
+				state.Epistemics.GammaUnverified = liveGamma
+				state.Epistemics.PCorrelated = livePCorrelated
 			}
 		}
 		measureLine("anchor recomputed: FCI %.5f -> %.5f Ha, discrepancy %.2f mHa.", oldFCI, fci, delta)
