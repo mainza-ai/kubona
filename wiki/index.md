@@ -34,7 +34,7 @@ arrives, place it here first and it will find its page.
 
 | Page | Summary |
 |---|---|
-| [[questions]] | **The work-list.** Open questions and design forks (Q-01, Q-06, Q-15, Q-16, Q-18, Q-21, Q-22, Q-25 closed) — what is known, what is missing, what the answer unblocks. Read first. |
+| [[questions]] | **The work-list.** Open questions and design forks — what is known, what is missing, what the answer unblocks. Closed answers live in its Closed table (the single source; this page does not enumerate them). Read first. Every `status: open-question` page must have a row there — enforced by `scripts/wiki-lint.py --strict` (Q-32, closed 2026-10-12; index presence alone is not enough). |
 | [[overview]] | Synthesis: what Kubona is, what is decided, and what the prototype has actually answered. |
 | [[roadmap]] | Phases 0–6 read as **acceptance criteria**, not progress: gates, dependencies, team loading. |
 | [[implementation-gaps]] | Prototype gap register: what the scaffold does vs. what production requires. Code facts only. |

@@ -102,8 +102,14 @@ revocation (oldest open item, 2026-09-27).
 
 - `suspended` tenant status: field + enforcement exist, **no mutator**
   anywhere — unreachable state (Q-33: add mutator or remove field).
+> ⚑ Resolved (2026-10-12, Q-33 closed): mutator chosen —
+> `POST /api/tenants/status`, recovery-preserving freeze semantics.
+> Answer on [[user-identity-and-profiles]].
 - `pkg/memory/postgres.go`: zero importers — PG/HNSW staged, unwired
   (Q-34: wire or mark dormant like x402).
+> ⚑ Resolved (2026-10-12, Q-34 closed): dormant by design, labelled
+> in-code with activation criteria; `TestPostgresStoreDormantContract`
+> pins it. See [[agentic-memory-and-observability]].
 - `useTelemetry` hook: staged, unconsumed (fleet-radar pending) — either
   wire or note as staged.
 - Quantum multi-geometry scans: classical `pes_sweep` done, quantum
