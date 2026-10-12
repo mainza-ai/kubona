@@ -165,8 +165,11 @@ func TestReplanHookMintsClaimRecord(t *testing.T) {
 	if !strings.Contains(last, "["+rec.ID+"]") {
 		t.Errorf("version must cite the minted record %q, got %q", rec.ID, last)
 	}
-	if folded.Epistemics.Status != "COLLAPSED_VERIFIED" {
-		t.Errorf("verdict not applied: %s", folded.Epistemics.Status)
+	if folded.Epistemics.Status != "CONTESTED" {
+		t.Errorf("pass on fallback anchor must withhold collapse: %s", folded.Epistemics.Status)
+	}
+	if !strings.Contains(folded.Epistemics.Statement, "UNCOMPUTED") {
+		t.Errorf("withholding must name the cause: %q", folded.Epistemics.Statement)
 	}
 }
 

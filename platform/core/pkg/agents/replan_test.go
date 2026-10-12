@@ -124,8 +124,29 @@ func TestReplanClaimEval(t *testing.T) {
 		t.Fatal("verdict must fold")
 	}
 	after := decodeReplan(t, updated)
+	// R3: replanTestState synthesizes on a fallback anchor, so a pass
+	// withholds collapse — amplitudes fold, status contests loudly.
+	if after.Epistemics.Status != "CONTESTED" || after.Epistemics.AlphaCorroborated != 0.97 {
+		t.Errorf("pass on fallback must withhold collapse: %+v", after.Epistemics)
+	}
+	if !strings.Contains(after.Epistemics.Statement, "UNCOMPUTED") {
+		t.Errorf("withholding must name the cause: %q", after.Epistemics.Statement)
+	}
+
+	// Promote the anchor first, then the same pass verifies for real.
+	updated, changed, _ = ReplanWithJobResult(raw, "job-anchor0", "classical_anchor",
+		[]byte(`{"success":true,"molecule":"H2","bond_distance":0.7414,"rhf_energy":-1.11668,"fci_exact_energy":-1.13727}`), "")
+	if !changed {
+		t.Fatal("anchor must fold")
+	}
+	updated, changed, _ = ReplanWithJobResult(updated, "job-claim1b", "claim_eval",
+		[]byte(`{"claim_id":"c1","corroborated_amplitude":0.97,"contested_amplitude":0.02,"unverified_amplitude":0.05,"passes_chemical_accuracy":true,"verdict_reason":"within 0.4 mHa"}`), "")
+	if !changed {
+		t.Fatal("verdict must fold")
+	}
+	after = decodeReplan(t, updated)
 	if after.Epistemics.Status != "COLLAPSED_VERIFIED" || after.Epistemics.AlphaCorroborated != 0.97 {
-		t.Errorf("verdict not applied: %+v", after.Epistemics)
+		t.Errorf("pass on computed anchor must verify: %+v", after.Epistemics)
 	}
 
 	updated, changed, _ = ReplanWithJobResult(raw, "job-claim2", "claim_eval",
@@ -252,13 +273,28 @@ func TestSynthSourcesResolve(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(state.Epistemics.Sources) < 2 {
-			t.Errorf("%q: campaign must carry at least 2 evidence sources", prompt)
+		// R1: a fallback anchor cites nothing — unattested (empty) is
+		// legal, an invented PySCF label is fabrication.
+		if len(state.Epistemics.Sources) != 0 {
+			t.Errorf("%q: fallback must carry no sources, got %v", prompt, state.Epistemics.Sources)
 		}
 		for _, src := range state.Epistemics.Sources {
 			if !epistemics.ValidSourceLabel(src) {
 				t.Errorf("%q: unresolvable source %q", prompt, src)
 			}
+		}
+	}
+	// A computed anchor re-attests the PySCF pair.
+	live, err := SynthesizeCampaignState(context.Background(), "sess-sources-live", "H2 ground state VQE", nil, stubAnchorBridge{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(live.Epistemics.Sources) != 2 {
+		t.Fatalf("computed anchor must carry the PySCF pair, got %v", live.Epistemics.Sources)
+	}
+	for _, src := range live.Epistemics.Sources {
+		if !epistemics.ValidSourceLabel(src) {
+			t.Errorf("unresolvable source %q", src)
 		}
 	}
 }
@@ -364,6 +400,52 @@ func TestReplanAnchorPromotesComputed(t *testing.T) {
 	after := decodeReplan(t, updated)
 	if !after.ClassicalAnchor.AnchorComputed || after.ClassicalAnchor.AnchorSource != "pyscf-live" {
 		t.Errorf("recomputed anchor must promote to computed-grade: %+v", after.ClassicalAnchor)
+	}
+	// R3: the fallback caveat is stripped, sources re-attested, and the
+	// pristine UNVERIFIED state regains projection weights.
+	if strings.Contains(after.Epistemics.Statement, "hardcoded fallback") {
+		t.Errorf("caveat must be stripped after repair: %q", after.Epistemics.Statement)
+	}
+	if after.Epistemics.Status != "PROJECTED" {
+		t.Errorf("repaired fallback must return to PROJECTED, got %q", after.Epistemics.Status)
+	}
+	if after.Epistemics.AlphaCorroborated != 0.95 || after.Epistemics.BetaContested != 0.05 ||
+		after.Epistemics.GammaUnverified != 0.10 || after.Epistemics.PCorrelated != 90.25 {
+		t.Errorf("projection weights not restored: %+v", after.Epistemics)
+	}
+	if len(after.Epistemics.Sources) != 2 || after.Epistemics.Sources[0] != "pyscf:sto-3g:rhf" {
+		t.Errorf("sources must re-attest the PySCF pair, got %v", after.Epistemics.Sources)
+	}
+}
+
+// R3: a fresh HYPOTHESIS_PENDING campaign keeps its pending weights when
+// the anchor arrives — only the caveat is stripped and sources attested.
+func TestReplanFreshAnchorFoldKeepsPending(t *testing.T) {
+	fresh, err := SynthesizeCampaignStateWithOpts(context.Background(), "sess-fresh-repair", "H2", "", true, nil, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := json.Marshal(fresh)
+	if err != nil {
+		t.Fatal(err)
+	}
+	updated, changed, _ := ReplanWithJobResult(raw, "job-anchor-fresh", "classical_anchor",
+		[]byte(`{"success":true,"molecule":"H2","bond_distance":0.7414,"rhf_energy":-1.11668,"fci_exact_energy":-1.13727}`), "")
+	if !changed {
+		t.Fatal("expected fold")
+	}
+	after := decodeReplan(t, updated)
+	if after.Epistemics.Status != "HYPOTHESIS_PENDING" {
+		t.Errorf("fresh campaign must keep HYPOTHESIS_PENDING, got %q", after.Epistemics.Status)
+	}
+	if after.Epistemics.AlphaCorroborated != 0.50 {
+		t.Errorf("fresh weights must stay pending, got %v", after.Epistemics.AlphaCorroborated)
+	}
+	if strings.Contains(after.Epistemics.Statement, "hardcoded fallback") {
+		t.Errorf("caveat must be stripped after repair: %q", after.Epistemics.Statement)
+	}
+	if len(after.Epistemics.Sources) != 2 {
+		t.Errorf("sources must re-attest the PySCF pair, got %v", after.Epistemics.Sources)
 	}
 }
 
