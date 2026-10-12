@@ -197,6 +197,7 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			GradNorm:  0,
 			Watchdog:  "measured_krylov",
 			Timestamp: time.Now().UTC().Format(time.RFC3339),
+			Source:    "measured",
 		})
 		if raw, ok := present("meyer_wallach_entanglement"); ok {
 			var mw float64

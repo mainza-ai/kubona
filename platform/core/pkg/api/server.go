@@ -435,7 +435,9 @@ func (s *Server) handleEpistemics(w http.ResponseWriter, r *http.Request) {
 	drift := 0.47
 	statement := "H2 ground state equilibrium at 0.7414 A"
 	claimID := "claim-h2-ground"
-	status := "COLLAPSED_VERIFIED"
+	// No campaign means no evaluated claim: the default is explicitly
+	// unverified, never a collapsed verdict over placeholder amplitudes.
+	status := "UNVERIFIED"
 
 	if raw, err := s.ledger.GetCampaignState(sessionID); err == nil && len(raw) > 0 {
 		var cs agents.CampaignState

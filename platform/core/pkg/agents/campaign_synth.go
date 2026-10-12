@@ -56,7 +56,10 @@ type ClassicalAnchor struct {
 	AnchorSource           string  `json:"anchor_source"`
 }
 
-// TrajectoryStep represents a single optimization point
+// TrajectoryStep represents a single optimization point. Source names the
+// provenance: "synthesized" milestones are template projections (the shape
+// of a converged run, not measurements); "measured" points folded from real
+// job results. Consumers must render them differently.
 type TrajectoryStep struct {
 	Step      int       `json:"step"`
 	Energy    float64   `json:"energy"`
@@ -65,6 +68,7 @@ type TrajectoryStep struct {
 	GradNorm  float64   `json:"grad_norm"`
 	Watchdog  string    `json:"watchdog"`
 	Timestamp string    `json:"timestamp"`
+	Source    string    `json:"source,omitempty"`
 }
 
 // EpistemicState represents the tripartite credibility manifold
@@ -373,9 +377,10 @@ func SynthesizeCampaignStateWithOpts(
 	// Quantum expectation value simulation
 	vqeVal := fciVal + 0.00047
 	deltaMHa := math.Abs(vqeVal-fciVal) * 1000.0
-	// Chemical accuracy can only pass on a computed anchor: a fallback
-	// FCI is an assumption, and assumptions do not verify.
-	chemAccPassed := anchorComputed && deltaMHa <= 1.6
+	// Chemical accuracy never passes at synthesis: the VQE value above is
+	// arithmetic (FCI + 0.47 mHa), not a measurement. Only folds from real
+	// evidence (anchor recompute, claim verdict) may pass it.
+	chemAccPassed := false
 
 	if fresh {
 		vqeVal = rhfVal // Unoptimized initial Hartree-Fock state
@@ -457,18 +462,19 @@ func SynthesizeCampaignStateWithOpts(
 		})
 	}
 
-	// Subcircuit execution nodes
+	// Subcircuit execution nodes: planned partitions, never executed here.
+	// Labels name the plan explicitly so the DAG never implies a run.
 	dagNodes = append(dagNodes, map[string]any{
 		"id":       "sub-1",
 		"type":     "quantumGate",
 		"position": map[string]any{"x": 680, "y": midY - 60},
-		"data":     map[string]any{"type": "Partition A", "label": "Local Aer Simulator"},
+		"data":     map[string]any{"type": "Partition A (planned)", "label": "Simulated partition, Aer (not executed)"},
 	})
 	dagNodes = append(dagNodes, map[string]any{
 		"id":       "sub-2",
 		"type":     "quantumGate",
 		"position": map[string]any{"x": 680, "y": midY + 60},
-		"data":     map[string]any{"type": "Partition B", "label": "IBM Heron Hardware QPU"},
+		"data":     map[string]any{"type": "Partition B (planned)", "label": "Hardware target, Heron (not dispatched)"},
 	})
 
 	dagEdges = append(dagEdges, map[string]any{
@@ -519,6 +525,7 @@ func SynthesizeCampaignStateWithOpts(
 				GradNorm:  m.grad,
 				Watchdog:  m.watchdog,
 				Timestamp: time.Now().UTC().Format(time.RFC3339),
+				Source:    "synthesized",
 			})
 		}
 
@@ -532,13 +539,15 @@ func SynthesizeCampaignStateWithOpts(
 		branches = []any{}
 	}
 
-	// Tripartite credibility wavefunction amplitudes
+	// Tripartite credibility wavefunction amplitudes. A live anchor with a
+	// non-fresh template is a PROJECTION — the shape of convergence, not a
+	// verified result. Only job folds move a campaign out of projection.
 	alpha := 0.95
 	beta := 0.05
 	gamma := 0.10
 	pCorr := (alpha * alpha) * 100.0
-	epStatus := "COLLAPSED_VERIFIED"
-	epStatement := fmt.Sprintf("%s ground state energy matches PySCF ab-initio FCI within chemical accuracy", target)
+	epStatus := "PROJECTED"
+	epStatement := fmt.Sprintf("%s VQE projection converging toward PySCF ab-initio FCI in template space — unverified until jobs fold", target)
 
 	if fresh {
 		alpha = 0.50
@@ -569,10 +578,10 @@ func SynthesizeCampaignStateWithOpts(
 	provenanceHash := provenanceHash(sessionID, mol, bondDist, fciVal, qasmCode)
 
 	// Systematic Notebook Sections
-	notebookVerdict := "VERIFIED_COLLAPSED"
+	notebookVerdict := "PROJECTION"
 	notebookTitle := fmt.Sprintf("%s Potential Energy Surface VQE vs PySCF FCI", target)
 	anchorLine := fmt.Sprintf("2. Classical PySCF ab-initio ground state RHF (%.5f Ha) and FCI (%.5f Ha) integrals", rhfVal, fciVal)
-	collapseLine := fmt.Sprintf("4. Ring 1 Epistemic Wavefunction collapse (P_corr = %.2f%%) and chemical accuracy (<1.6 mHa)", pCorr)
+	collapseLine := fmt.Sprintf("4. Ring 1 Epistemic projection (P_corr = %.2f%% template weight): chemical accuracy unclaimed until measured", pCorr)
 	if !anchorComputed {
 		notebookVerdict = "UNVERIFIED_FALLBACK"
 		anchorLine = fmt.Sprintf("2. Classical anchor UNAVAILABLE — hardcoded RHF (%.5f Ha) and FCI (%.5f Ha) assumed (bridge unreachable); no ab-initio integrals computed", rhfVal, fciVal)
