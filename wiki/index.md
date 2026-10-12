@@ -55,7 +55,10 @@ Describes **how decided** something is — never how finished.
 | `source` | An ingested source record. Immutable once written. | the 6 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (113 pages = 43 entities · 59 concepts · 6 sources · 5 meta), 2026-10-12:**
+**Census (114 pages = 43 entities · 60 concepts · 6 sources · 5 meta), 2026-10-12:**
+`settled` 5 · `adopted` 48 · `open-question` 7 · `candidate` 7 · `tracked` 32 ·
+`reference` 5 · `source` 6 · `living` 5 (lint-counted; the 2026-10-10 text
+undercounted adopted/tracked/candidate).
 `settled` 5 · `adopted` 45 · `open-question` 8 · `candidate` 6 · `tracked` 26 ·
 `reference` 5 · `source` 6 · `living` 5. Five `settled` against 45 `adopted` keeps the honest
 reading: the load-bearing constraints are **chosen**, everything else remains **understood**.
@@ -190,6 +193,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[integration-topology-and-licence-discipline]] | Submodule / sidecar / blueprint / reference + licence rules; submodule is a shipping decision, not a compliment |
 | [[forensic-audit-2026]] | Comprehensive forensic code audit and empirical verification matrix across all 89 pages & platform tiers |
 | [[full-wiki-audit-2026-10-12]] | Full 113-page read + plan-vs-code audit: hygiene findings, gaps, ranked improvements, G/H/I plan |
+| [[deep-implementation-audit-2026-10-12]] | Line-by-line code verification: completed/partial/absent/poor lists with file:line + J/K/L plan |
 | [[autonomous-mathematical-discovery]] | Multi-hour thinking compute search dynamics over open conjectures, counterexample isolation, and proof refactoring |
 | [[formal-proof-verification-lean-comparator]] | Axiomatic formal verification ($\rho = 1.0$) vs empirical simulation, anti-cheating axiom sets, and ledger receipts |
 | [[mathematical-physics-anchors]] | Analytical ground-truth baselines from `openai/math` (Heisenberg ferromagnet, SK model, Haldane gap, MUB-6) enforcing quantum realism |

@@ -1969,3 +1969,15 @@ skipped is the exact failure this incident is about:
   operator env as live ops gaps, ranked improvements, G/H/I plan.
   New rows Q-32 (row-rule enforcement), Q-33 (suspended), Q-34
   (PG/HNSW), Q-35 (A2A transport); index recounted 106->113.
+
+## [2026-10-12] audit | Deep line-by-line implementation audit filed
+  Read raw/ + dev-docs planning corpus in full, then verified every
+  subsystem in code with live probes (oMLX back: 11 models, LOCAL-OK;
+  daemon stays on cloud per speed directive). Filed
+  [[deep-implementation-audit-2026-10-12]]: completed/partial/absent/
+  poor lists with file:line + J/K/L plan. Headline: ResultsStudio
+  manuscript prose ungated (P0), mesh-route gate missing, meta
+  approve self-asserted, Python :8000 shadow API unserved (17 routes
+  with no Go equivalent), prior dev-docs audits unreliable (ML-DSA
+  error, dead paths rated green). oMLX models verified incl.
+  OrcaRouter-27B.
