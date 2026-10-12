@@ -24,7 +24,7 @@ status: living
 These come first, because they change how every other question gets answered.
 
 | # | Question | Rank | Known | Missing | Pages |
-|---|---|---|---|---|---|
+| **Q-32** | **How is the open-question-row rule enforced?** 7 open-question pages have zero rows in A–E; lint passes because it checks index-OR-questions presence. Either teach the lint the rule or reclassify the pages. | P1 | Rule text in AGENTS.md; lint check shape | Decision + enforcement | [[index]] |---|
 
 ## B · Method & epistemics (the differentiator, least grounded)
 
@@ -34,6 +34,9 @@ These come first, because they change how every other question gets answered.
 ## C · Governance & the trust boundary
 
 | # | Question | Rank | Known | Missing |
+| **Q-33** | **`suspended` tenant status: mutator or removal?** Field + enforcement exist, no mutator writes it — unreachable state. | P2 | Enforcement sites; E-1b log | Decision + test either way |
+| **Q-34** | **PG/HNSW: wire or mark dormant?** `postgres.go` staged, zero importers. Either wire to recall or record dormant like x402. | P2 | Staged code; x402 dormant precedent | Decision + wiring or label |
+| **Q-35** | **A2A external transport: expose or downgrade?** Go-internal only; external collectives cannot reach it. Either serve JSON-RPC or scope the claim to internal delegation. | P2 | Internal paths; forensic gap note | Decision + transport or scope |
 |---|---|---|---|---|
 
 
