@@ -1875,3 +1875,6 @@ skipped is the exact failure this incident is about:
   L0 revoke-and-refuse, QPU refuse/admit via grants) and Python
   driver (PolicyEngine scopes); unknown-version fails loudly;
   suspended-status dead state logged. Full Go + python green.
+
+## [2026-10-12] verification | CI green on E-1b policy parity
+  All 5 jobs success on run 38204594239. Tree clean, zero unpushed.
