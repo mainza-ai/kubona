@@ -3,6 +3,7 @@
 import React, { useMemo, useState } from 'react';
 import { GitBranch } from 'lucide-react';
 import { CampaignState } from '@/types';
+import { fetchQirCompile, type QirCompileReceipt } from '@/lib/api';
 
 interface ProofDagViewProps {
   campaign?: CampaignState | null;
@@ -29,6 +30,15 @@ function str(v: unknown): string {
   return typeof v === 'string' ? v : '';
 }
 
+// Caps rendered IR at 300 lines with the cut labeled — the receipt stays
+// complete server-side; only the display is bounded.
+function receiptLineCapped(llvmIr?: string): string {
+  if (!llvmIr) return 'no IR returned';
+  const lines = llvmIr.split('\n');
+  if (lines.length <= 300) return llvmIr;
+  return `${lines.slice(0, 300).join('\n')}\n…[display truncated: ${lines.length} lines total]`;
+}
+
 /**
  * Layered proof DAG: nodes laid out by longest-path layer over the REAL
  * edge set (sources left, sinks right), edges drawn as connectors.
@@ -37,6 +47,25 @@ function str(v: unknown): string {
  */
 export function ProofDagView({ campaign }: ProofDagViewProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [compileOpen, setCompileOpen] = useState(false);
+  const [receipt, setReceipt] = useState<QirCompileReceipt | null | undefined>(undefined);
+  const [compiling, setCompiling] = useState(false);
+
+  const wireCuts = useMemo(() => {
+    const raw = (campaign?.quantum_factors?.wire_cuts ?? []) as unknown[];
+    return raw.map((w) => asRecord(w));
+  }, [campaign?.quantum_factors?.wire_cuts]);
+
+  const runCompile = async () => {
+    const qasm = campaign?.quantum_factors?.qasm;
+    if (!qasm || compiling) return;
+    setCompiling(true);
+    try {
+      setReceipt(await fetchQirCompile(qasm));
+    } finally {
+      setCompiling(false);
+    }
+  };
 
   const graph = useMemo(() => {
     const rawNodes = (campaign?.quantum_factors?.dag_nodes ?? []) as unknown[];
@@ -123,6 +152,31 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
       <div className="pt-20 pb-1 text-center font-code text-[10px] text-slate-500 shrink-0">
         {graph.nodes.length} nodes · {graph.edges.length} edges · {campaign?.target_system || 'untargeted'}
       </div>
+      {/* Wire-cut ledger: planned template vs measured cut jobs. */}
+      {wireCuts.length > 0 && (
+        <div className="px-6 pb-1 flex flex-wrap justify-center gap-1.5 shrink-0">
+          {wireCuts.map((w, i) => {
+            const measured = w.measured === true;
+            const frags = Array.isArray(w.fragments) ? w.fragments.length : 0;
+            const cuts = typeof w.total_cuts === 'number' ? w.total_cuts : null;
+            return (
+              <span
+                key={i}
+                title={measured ? `Cut job ${String(w.job_id ?? '?')}` : 'Synthesis placeholder — no cut has executed'}
+                className={`px-2 py-0.5 rounded-full font-code text-[10px] border ${
+                  measured
+                    ? 'bg-emerald-400/10 border-emerald-400/40 text-emerald-300'
+                    : 'bg-amber-400/10 border-amber-400/40 text-amber-300'
+                }`}
+              >
+                {measured
+                  ? `measured: ${cuts ?? '?'} cuts · ${frags} fragments · job ${String(w.job_id ?? '?').slice(0, 8)}`
+                  : 'planned cut (not executed)'}
+              </span>
+            );
+          })}
+        </div>
+      )}
       <div className="flex-1 overflow-auto px-6 pb-4">
         <svg
           width={graph.width}
@@ -203,6 +257,56 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
             Select a node to trace its record.
           </p>
         )}
+        {/* Compile receipt: original QASM vs backend-transpiled QIR. */}
+        <div className="max-w-2xl mx-auto mt-2 rounded-2xl bg-[#0E1117]/95 border border-white/10">
+          <button
+            onClick={() => setCompileOpen((v) => !v)}
+            aria-expanded={compileOpen}
+            className="w-full flex items-center justify-between px-3.5 py-2 text-[11px] font-code text-slate-300 hover:text-white transition-colors"
+          >
+            <span>Compile receipt (QASM → QIR via backend)</span>
+            <span>{compileOpen ? '−' : '+'}</span>
+          </button>
+          {compileOpen && (
+            <div className="px-3.5 pb-3.5 space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <div className="text-[10px] font-code text-slate-500 mb-1">ORIGINAL QASM (campaign)</div>
+                  <pre className="max-h-40 overflow-auto text-[10px] font-code text-slate-300 bg-black/40 rounded-lg p-2 whitespace-pre-wrap">
+                    {campaign?.quantum_factors?.qasm || 'no circuit in this campaign'}
+                  </pre>
+                </div>
+                <div>
+                  <div className="text-[10px] font-code text-slate-500 mb-1">TRANSPILED QIR (backend)</div>
+                  {!receipt && (
+                    <button
+                      onClick={() => void runCompile()}
+                      disabled={compiling || !campaign?.quantum_factors?.qasm}
+                      className="px-2.5 py-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/30 text-cyan-200 text-[11px] transition-all disabled:opacity-40"
+                    >
+                      {compiling ? 'Compiling…' : 'Compile via backend'}
+                    </button>
+                  )}
+                  {receipt === null && (
+                    <p className="text-[11px] font-code text-rose-400">Compile refused — nothing transpiled.</p>
+                  )}
+                  {receipt && (
+                    <div className="space-y-1.5">
+                      <div className="text-[10px] font-code text-slate-400">
+                        {receipt.compiler_used || 'unanalyzed'}
+                        {receipt.fallback_estimate ? ' · ESTIMATE (not compiler-verified)' : ' · compiler-verified'}
+                        {' · '}qubits {receipt.num_qubits} · depth {receipt.depth} · gates {receipt.gate_count} · T {receipt.t_count}
+                      </div>
+                      <pre className="max-h-40 overflow-auto text-[10px] font-code text-slate-300 bg-black/40 rounded-lg p-2 whitespace-pre-wrap">
+                        {receiptLineCapped(receipt.llvm_ir)}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

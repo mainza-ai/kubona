@@ -1809,3 +1809,10 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-12] verification | CI green on B1-3 budgets and guards
   All 5 jobs success on run 38192009191. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | C-1 DAG-b compile provenance
+  Replan persists measured cut fragments (template relabeled
+  planned); DAG chips planned-vs-measured; compile receipt pane
+  (QASM vs backend QIR + compiler/fallback receipt, capped display);
+  QASM-as-qirCode fixed. Live cut caught a real bridge shape gap
+  (no total_cuts key) — fold derives honestly. Go + 59 vitest green.
