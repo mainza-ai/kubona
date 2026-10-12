@@ -86,6 +86,10 @@ type Server struct {
 	// isolated; see edge_auth.go for budgets.
 	signLimiter   *rateLimiter
 	verifyLimiter *rateLimiter
+	// R4: the tenants/grants mutations had no limiter at all. Human-paced
+	// budgets — these are operator actions, never machine loops.
+	tenantLimiter *rateLimiter
+	grantLimiter  *rateLimiter
 }
 
 // loadReviewerKey returns the human-reviewer ed25519 keypair for mandate
@@ -181,6 +185,8 @@ func NewServer(
 		reviewerKeyConfigured: configured,
 		signLimiter:           newRateLimiter(2, 5),
 		verifyLimiter:         newRateLimiter(20, 50),
+		tenantLimiter:         newRateLimiter(5, 15),
+		grantLimiter:          newRateLimiter(5, 15),
 		mux:                   http.NewServeMux(),
 	}
 
@@ -271,7 +277,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/fleet", s.handleFleet)
 	s.mux.HandleFunc("/api/radar", s.handleRadar)
 	s.mux.HandleFunc("/api/mandates/sign", s.requireBearer(s.handleMandateSign))
-	s.mux.HandleFunc("/api/mandates/verify", s.handleMandateVerify)
+	s.mux.HandleFunc("/api/mandates/verify", s.requireBearer(s.handleMandateVerify))
 	s.mux.HandleFunc("/api/harnesses", s.handleHarnesses)
 	s.mux.HandleFunc("/api/results/notebooks", s.handleNotebooks)
 	s.mux.HandleFunc("/api/literature", s.handleLiterature)
@@ -334,12 +340,16 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/supervisor/abort", s.handleSupervisorAbort)
 	s.mux.HandleFunc("/api/tenants", s.handleTenants)
 	s.mux.HandleFunc("/api/tenants/", s.handleTenantByID)
-	s.mux.HandleFunc("/api/grants/register", s.handleGrantRegister)
-	s.mux.HandleFunc("/api/grants/revoke", s.handleGrantRevoke)
-	s.mux.HandleFunc("/api/tenants/admin-key", s.handleTenantAdminKey)
-	s.mux.HandleFunc("/api/tenants/ceiling", s.handleTenantCeiling)
-	s.mux.HandleFunc("/api/tenants/autonomy", s.handleTenantAutonomy)
-	s.mux.HandleFunc("/api/tenants/revoke", s.handleTenantRevoke)
+	// R4: spend-adjacent mutations sit behind the bearer rail as well as
+	// their own cryptographic envelopes. Tenant self-provisioning
+	// (POST /api/tenants) stays open by design — first SetAdminKey wins —
+	// but rate-limited against creation spam. Pure reads stay open.
+	s.mux.HandleFunc("/api/grants/register", s.requireBearer(s.handleGrantRegister))
+	s.mux.HandleFunc("/api/grants/revoke", s.requireBearer(s.handleGrantRevoke))
+	s.mux.HandleFunc("/api/tenants/admin-key", s.requireBearer(s.handleTenantAdminKey))
+	s.mux.HandleFunc("/api/tenants/ceiling", s.requireBearer(s.handleTenantCeiling))
+	s.mux.HandleFunc("/api/tenants/autonomy", s.requireBearer(s.handleTenantAutonomy))
+	s.mux.HandleFunc("/api/tenants/revoke", s.requireBearer(s.handleTenantRevoke))
 }
 
 func (s *Server) PQCKeypair() *mandates.RecipientKeypair {
