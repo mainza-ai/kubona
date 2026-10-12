@@ -108,7 +108,6 @@ export function WidgetStage({
           <QuantumCircuitQIREditorWidget
             qubits={qf?.qubit_count ?? 2}
             circuitDepth={qf?.circuit_depth ?? 0}
-            qirCode={qf?.qasm || undefined}
           />
         )}
         {widget.kind === 'shadows' && (

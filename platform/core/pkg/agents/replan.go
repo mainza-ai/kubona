@@ -344,12 +344,39 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		if !successTrue() {
 			return nil, false, "cut reported success=false"
 		}
-		cuts := 0
-		rawCuts, ok := present("total_cuts")
-		if !ok {
-			return nil, false, "cut count absent"
+		// The bridge reports fragments (each with fragment_id and QASM);
+		// total_cuts is optional. The count derives from the array when
+		// absent — arithmetic over the payload, never invention. Fragment
+		// QASM is not stored (kilobytes each); ids and cut qubits are.
+		frags := []any{}
+		if rawFrags, ok := present("fragments"); ok {
+			var decoded []map[string]json.RawMessage
+			if err := json.Unmarshal(rawFrags, &decoded); err == nil {
+				for _, f := range decoded {
+					var idx int
+					_ = json.Unmarshal(f["fragment_id"], &idx)
+					entry := map[string]any{"fragment": idx}
+					var cutQubits []int32
+					if rawQ, ok := f["cut_qubits"]; ok {
+						if json.Unmarshal(rawQ, &cutQubits) == nil && len(cutQubits) > 0 {
+							entry["cut_qubits"] = cutQubits
+						}
+					}
+					frags = append(frags, entry)
+				}
+			}
 		}
-		_ = json.Unmarshal(rawCuts, &cuts)
+		cuts := len(frags)
+		if rawCuts, ok := present("total_cuts"); ok {
+			_ = json.Unmarshal(rawCuts, &cuts)
+		}
+		if cuts == 0 && len(frags) == 0 {
+			return nil, false, "cut produced nothing"
+		}
+		state.QuantumFactors.WireCuts = []any{map[string]any{
+			"measured": true, "job_id": shortID,
+			"total_cuts": cuts, "fragments": frags,
+		}}
 		measureLine("cut into fragments with %d wire cuts.", cuts)
 		return marshalReplan(&state, true, "cut recorded")
 

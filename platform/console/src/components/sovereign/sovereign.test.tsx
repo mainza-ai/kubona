@@ -308,3 +308,93 @@ describe('ProofDagView', () => {
     expect(textOf(root.findByProps({ 'data-testid': 'proof-dag' }))).toContain('rz-q0');
   });
 });
+
+describe('ProofDagView wire cuts + compile receipt (C-1)', () => {
+  const cutCampaign = {
+    ...CAMPAIGN,
+    quantum_factors: {
+      ...CAMPAIGN.quantum_factors,
+      qasm: 'OPENQASM 2.0;\nqreg q[2];',
+      dag_nodes: [{ id: 'q0-in', data: { type: 'Qubit Wire', label: 'q[0]' } }],
+      dag_edges: [],
+      wire_cuts: [
+        { planned: true, cut_type: 'KaHyPar QPD', overhead: '4.0x (estimate, not measured)' },
+        { measured: true, job_id: 'abcdef123456', total_cuts: 2, fragments: [{ fragment: 0 }, { fragment: 1 }] },
+      ],
+    },
+  } as unknown as CampaignState;
+
+  it('labels planned cuts planned and measured cuts measured', () => {
+    const root = render(<ProofDagView campaign={cutCampaign} />);
+    const text = textOf(root.findByProps({ 'data-testid': 'proof-dag' }));
+    expect(text).toContain('planned cut (not executed)');
+    expect(text).toContain('measured: 2 cuts');
+    expect(text).toContain('2 fragments');
+    expect(text).toContain('abcdef12');
+  });
+
+  it('compiles via backend and shows the receipt honestly', async () => {
+    vi.stubGlobal(
+      'fetch',
+      async (url: string) => {
+        expect(String(url)).toContain('/api/qir/compile');
+        return {
+          ok: true,
+          json: async () => ({
+            num_qubits: 2,
+            depth: 4,
+            gate_count: 6,
+            t_count: 0,
+            qir_profile: 'BaseProfile-Estimate',
+            llvm_ir: '; ModuleID',
+            compiler_used: 'go-fallback-estimate',
+            fallback_estimate: true,
+          }),
+        };
+      }
+    );
+    try {
+      const root = render(<ProofDagView campaign={cutCampaign} />);
+      const toggles = root.findAllByType('button');
+      const compileToggle = toggles.find((b) => textOf(b).includes('Compile receipt'));
+      expect(compileToggle).toBeTruthy();
+      act(() => {
+        compileToggle!.props.onClick();
+      });
+      expect(textOf(root.findByProps({ 'data-testid': 'proof-dag' }))).toContain('OPENQASM 2.0');
+      const compileBtn = root
+        .findAllByType('button')
+        .find((b) => textOf(b).includes('Compile via backend'));
+      expect(compileBtn).toBeTruthy();
+      await act(async () => {
+        await compileBtn!.props.onClick();
+      });
+      const text = textOf(root.findByProps({ 'data-testid': 'proof-dag' }));
+      expect(text).toContain('go-fallback-estimate');
+      expect(text).toContain('ESTIMATE (not compiler-verified)');
+      expect(text).toContain('; ModuleID');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('says so when compile refuses', async () => {
+    vi.stubGlobal('fetch', async () => ({ ok: false }));
+    try {
+      const root = render(<ProofDagView campaign={cutCampaign} />);
+      const toggles = root.findAllByType('button');
+      act(() => {
+        toggles.find((b) => textOf(b).includes('Compile receipt'))!.props.onClick();
+      });
+      const compileBtn = root
+        .findAllByType('button')
+        .find((b) => textOf(b).includes('Compile via backend'));
+      await act(async () => {
+        await compileBtn!.props.onClick();
+      });
+      expect(textOf(root.findByProps({ 'data-testid': 'proof-dag' }))).toContain('Compile refused');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

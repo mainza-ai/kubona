@@ -968,3 +968,29 @@ export async function retainMemory(
     return null;
   }
 }
+
+export interface QirCompileReceipt {
+  num_qubits: number;
+  depth: number;
+  gate_count: number;
+  t_count: number;
+  qir_profile: string;
+  llvm_ir?: string;
+  compiler_used: string;
+  fallback_estimate: boolean;
+}
+
+export async function fetchQirCompile(qasm: string): Promise<QirCompileReceipt | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/qir/compile`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ qasm }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to compile QIR:', err);
+    return null;
+  }
+}

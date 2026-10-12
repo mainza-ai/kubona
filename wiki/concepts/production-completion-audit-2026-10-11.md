@@ -89,7 +89,7 @@ with tests + live proof + green CI, per project rule).
 
 ## Phase C — wire what exists (no new viz systems)
 
-- [ ] C-1. DAG-b: persist `circuit_cut` fragments into `wire_cuts`, render
+- [x] C-1. DAG-b: persist `circuit_cut` fragments into `wire_cuts`, render
   chips, relabel cut node `"planned (not executed)"`; original-vs-transpiled
   + receipt hash via existing `/api/qir/compile`; fix QASM-as-`qirCode`.
 - [ ] C-2. ResultsStudio energy table + FlightRecorder tooltips from latest
