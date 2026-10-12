@@ -236,8 +236,16 @@ implemented (needs revision). Every item has file:line or a live probe.
   + threshold sync + credits wired-or-removed · K6 cloud-LLM dollar
   cap · K7 Python shadow decision (serve/merge/retire) + MCP stdio
   role clarified · K8 CI secret scan + TLS-bind test · K9
-  `@xyflow/react` verdict + `.db.lock` helper coverage.
+  `@xyflow/react` verdict + `.db.lock` helper coverage · K10 meta
+  proposal persistence + Apply-writes-nothing honesty (from J3).
   Acceptance: tests + live proof per slice, CI green.
+  - [x] **K1 landed 2026-10-12:** `runBridgePython` — 120/180s ctx
+    timeouts, absolute interpreter paths, single attempt per binary
+    + one PATH-resolved host fallback, failures name the
+    interpreter (503). Aspirin/target/candidate defaults labeled
+    (`defaulted_*` + `evaluated_by`) in responses + ledger. Tests
+    caught a real CWD bug (fixed with CWD-anchored candidates).
+    Live: defaulted:true + venv path + real MW.
 - **Phase L (operator queue, in order):** oMLX-as-default switch
   (or documented cloud-default) · Lean image + warm · reviewer/API/
   contact env · EPO registration · vendor grading · review

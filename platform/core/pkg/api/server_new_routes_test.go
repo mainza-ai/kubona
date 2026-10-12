@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -1046,3 +1047,111 @@ func TestCampaignVersionsEndpoint(t *testing.T) {
 	}
 }
 
+
+// K1: exec-backed chemistry endpoints label demo defaults and name their
+// interpreter; failures are 503 with cause, never silent. RDKit is absent
+// in CI (chemistry extra not installed) — skip with reason there, assert
+// fully where the backend exists.
+func rdkitAvailable() bool {
+	// Test CWD is pkg/api: ../../../.venv is platform/.venv.
+	for _, py := range []string{"../../../.venv/bin/python3", "python3"} {
+		cmd := exec.Command(py, "-c", "import rdkit")
+		if err := cmd.Run(); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
+func TestChemistryADMETDefaultLabeled(t *testing.T) {
+	if !rdkitAvailable() {
+		t.Skip("rdkit absent: ADMET backend cannot run here")
+	}
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+
+	// No SMILES: Aspirin default, labeled + interpreter named.
+	req := httptest.NewRequest(http.MethodGet, "/api/chemistry/admet", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("default ADMET must answer 200, got %d: %s", w.Code, w.Body.String())
+	}
+	var out map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	if out["defaulted_smiles"] != true {
+		t.Errorf("default SMILES must be labeled, got %v", out["defaulted_smiles"])
+	}
+	if _, ok := out["evaluated_by"].(string); !ok {
+		t.Errorf("response must name the interpreter, got %v", out["evaluated_by"])
+	}
+	if out["molecular_weight"] == nil {
+		t.Errorf("default evaluation must still compute, got %v", out)
+	}
+
+	// Explicit SMILES: same shape, not marked defaulted.
+	req = httptest.NewRequest(http.MethodGet, "/api/chemistry/admet?smiles=CCO", nil)
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("explicit ADMET must answer 200, got %d: %s", w.Code, w.Body.String())
+	}
+	out = nil
+	if err := json.NewDecoder(w.Body).Decode(&out); err != nil {
+		t.Fatal(err)
+	}
+	if out["defaulted_smiles"] != false {
+		t.Errorf("explicit SMILES must not be marked defaulted, got %v", out["defaulted_smiles"])
+	}
+}
+
+func TestDiscoveryPipelineDefaultsLabeled(t *testing.T) {
+	if !rdkitAvailable() {
+		t.Skip("rdkit absent: discovery backend cannot run here")
+	}
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+
+	post := func(body any) (int, map[string]any) {
+		t.Helper()
+		raw, _ := json.Marshal(body)
+		req := httptest.NewRequest(http.MethodPost, "/api/discovery/pipeline", bytes.NewReader(raw))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		var out map[string]any
+		_ = json.NewDecoder(w.Body).Decode(&out)
+		return w.Code, out
+	}
+
+	// Empty body: demo target + candidates, both labeled.
+	code, out := post(map[string]any{})
+	if code != http.StatusOK {
+		t.Fatalf("default pipeline must answer 200, got %d: %v", code, out)
+	}
+	if out["defaulted_target"] != true || out["defaulted_candidates"] != true {
+		t.Errorf("demo defaults must be labeled, got target=%v candidates=%v",
+			out["defaulted_target"], out["defaulted_candidates"])
+	}
+	if out["total_evaluated"] != float64(3) {
+		t.Errorf("demo set must evaluate 3 candidates, got %v", out["total_evaluated"])
+	}
+
+	// Explicit target + candidates: computed, unmarked.
+	code, out = post(map[string]any{
+		"target":     "test-target",
+		"candidates": []any{map[string]any{"name": "Ethanol", "smiles": "CCO"}},
+	})
+	if code != http.StatusOK {
+		t.Fatalf("explicit pipeline must answer 200, got %d: %v", code, out)
+	}
+	if out["defaulted_target"] != false || out["defaulted_candidates"] != false {
+		t.Errorf("explicit inputs must not be marked defaulted, got %v", out)
+	}
+	if out["total_evaluated"] != float64(1) {
+		t.Errorf("must evaluate exactly the 1 given candidate, got %v", out)
+	}
+}
