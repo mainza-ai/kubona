@@ -24,7 +24,6 @@ status: living
 These come first, because they change how every other question gets answered.
 
 | # | Question | Rank | Known | Missing | Pages |
-| **Q-32** | **How is the open-question-row rule enforced?** 7 open-question pages have zero rows in A–E; lint passes because it checks index-OR-questions presence. Either teach the lint the rule or reclassify the pages. | P1 | Rule text in AGENTS.md; lint check shape | Decision + enforcement | [[index]] |
 | [[kubona]] scope | What is the platform's settled scope — quantum toolset, discovery platform, or both, and what does v1 exclude? | P0 | Q-17 ruled CORE; Q-01 fixed `platform/` role | A scope statement that says what v1 is NOT | [[kubona]] |
 |---|---|---|---|---|---|
 
@@ -93,6 +92,7 @@ These come first, because they change how every other question gets answered.
 | **Q-33** | 2026-10-12 | Mutator, not removal: `POST /api/tenants/status` flips active ↔ suspended; suspension freezes spend-affecting actions while the admin keeps reactivation + key rotation; enforced in `verifyAdmin`, live-proven both directions. | [[user-identity-and-profiles]] |
 | **Q-34** | 2026-10-12 | Dormant by design (x402 precedent): pgvector sidecar is complete but constructed by nothing; labelled in-code with activation criteria; `TestPostgresStoreDormantContract` pins unconfigured + fail-closed. | [[agentic-memory-and-observability]] |
 | **Q-35** | 2026-10-12 | Premise was stale — already exposed: `POST /api/a2a/v1` serves external JSON-RPC (card, status, x402-gated submit) on the same ledger-bound executor and tenant rules; proven live, claim corrected, no transport work. | [[a2a]] |
+| **Q-32** | 2026-10-12 | Lint taught the rule: `status: open-question` requires a row in A–E (index presence insufficient); enforced in `scripts/wiki-lint.py --strict`, negative-tested; rule recorded on [[index]], which no longer enumerates closed rows (Closed table is the single source). | [[index]] |
 
 ## Reading order for a new session
 

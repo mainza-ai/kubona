@@ -126,6 +126,10 @@ with tests + live proof + green CI, per project rule).
   rails; Go covers registry/autonomy/admission incl. grant-admitted QPU
   and L0 refusal; suspended-status has no mutator anywhere (dead state,
   logged gap).
+> ⚑ Correction (2026-10-12, Q-33 closed): the gap is landed —
+> `POST /api/tenants/status` flips active ↔ suspended (admin-signed,
+> bearer + limiter); suspension freezes spend-affecting actions while the
+> admin keeps reactivation + key rotation. See [[user-identity-and-profiles]].
 - [x] E-1c. Bao credential into one job path + AppRole. — landed 2026-10-11:
   `OpenBaoSecretSource` (AppRole login, KV reads, fail-closed outages,
   404-absent passthrough, lease revoke) + `SecretStore.from_env`
