@@ -145,6 +145,25 @@ func NewServer(
 	log.Printf("[Kubona Core] LLM effective: provider=%s model=%s max_tokens=%d (0=server default/EOS)",
 		snap.ActiveProvider, snap.ActiveModel, snap.MaxTokens)
 	llmCli := llm.NewClient(llmSet)
+	// K4: cloud LLM spend accounting. Every metered completion records a
+	// ledger event with a heuristic estimate; an optional global dollar
+	// cap (KUBONA_LLM_BUDGET_USD) refuses new cloud entries when spent.
+	// Local providers never record. Unset cap = track-only (current
+	// behavior preserved).
+	llmCli.OnSpend = func(rec llm.SpendRecord) {
+		est, ok := llm.EstimateCostUSD(llm.ProviderType(rec.Provider), rec.Model, rec.PromptTokens, rec.CompletionTokens)
+		payload := map[string]any{
+			"provider": rec.Provider, "model": rec.Model,
+			"prompt_tokens": rec.PromptTokens, "completion_tokens": rec.CompletionTokens,
+			"usage_reported": rec.UsageReported, "heuristic": true,
+		}
+		if ok {
+			payload["estimated_usd"] = est
+		} else {
+			payload["estimated_usd"] = nil
+		}
+		_ = l.AppendEvent("global", "llm_spend_estimated", payload)
+	}
 
 	sbCfg := sandbox.DefaultConfig()
 	// Host fallback is opt-in, never default: without Docker, agent code
@@ -154,6 +173,9 @@ func NewServer(
 	sbCfg.AllowHostFallback = os.Getenv("KUBONA_ALLOW_HOST_FALLBACK") == "1"
 	sbRunner := sandbox.NewSandboxRunnerWithConfig(sbCfg)
 	metaEngine := metasearch.NewMetaSearchEngineWithLLM(llmCli)
+	// K4: proposals persist across restarts (approvals must survive the
+	// reboot between review and application).
+	metaEngine.SetDB(l.DB())
 	pqcKey, _ := mandates.GenerateRecipientKeypair()
 	qirComp := qir.NewCompiler()
 
@@ -1137,6 +1159,11 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
+		// K4: cloud LLM entries check the global dollar cap first.
+		if err := s.checkLLMBudget(); err != nil {
+			http.Error(w, err.Error(), http.StatusTooManyRequests)
+			return
+		}
 		if sessionID == "" {
 			sessionID = req.SessionID
 		}
@@ -1207,6 +1234,11 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	// K4: cloud LLM entries check the global dollar cap first.
+	if err := s.checkLLMBudget(); err != nil {
+		http.Error(w, err.Error(), http.StatusTooManyRequests)
 		return
 	}
 	flusher, ok := w.(http.Flusher)
@@ -1337,6 +1369,11 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleChatRegenerate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	// K4: cloud LLM entries check the global dollar cap first.
+	if err := s.checkLLMBudget(); err != nil {
+		http.Error(w, err.Error(), http.StatusTooManyRequests)
 		return
 	}
 	var req struct {
@@ -1716,6 +1753,12 @@ func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	// K4: cloud LLM entries check the global dollar cap first (covers the
+	// 4-turn run atomically at entry; mid-run breach stops the next entry).
+	if err := s.checkLLMBudget(); err != nil {
+		http.Error(w, err.Error(), http.StatusTooManyRequests)
 		return
 	}
 
@@ -2152,6 +2195,64 @@ func (s *Server) handleCanvasLayout(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// llmBudgetCapUSD reads the optional global cloud-LLM dollar cap.
+// Unset/non-positive = track-only: spend is recorded, never refused.
+func llmBudgetCapUSD() float64 {
+	v, _ := strconv.ParseFloat(strings.TrimSpace(os.Getenv("KUBONA_LLM_BUDGET_USD")), 64)
+	if v <= 0 {
+		return 0
+	}
+	return v
+}
+
+// llmSpendTotal sums recorded cloud-LLM estimates lifetime (bounded scan;
+// unpriced records contribute nothing — they were allowed, not hidden).
+func (s *Server) llmSpendTotal() float64 {
+	rows, err := s.ledger.DB().Query(
+		`SELECT payload FROM ledger_events WHERE event_type = 'llm_spend_estimated' ORDER BY id DESC LIMIT 10000`)
+	if err != nil {
+		return 0
+	}
+	defer rows.Close()
+	var total float64
+	for rows.Next() {
+		var payloadStr string
+		var payload struct {
+			EstimatedUSD *float64 `json:"estimated_usd"`
+		}
+		if err := rows.Scan(&payloadStr); err != nil {
+			continue
+		}
+		if err := json.Unmarshal([]byte(payloadStr), &payload); err != nil {
+			continue
+		}
+		if payload.EstimatedUSD != nil {
+			total += *payload.EstimatedUSD
+		}
+	}
+	return total
+}
+
+// checkLLMBudget refuses new cloud LLM entries once the operator's global
+// dollar cap is spent. Local-only deployments never trip it (their active
+// provider is local); track-only mode (cap unset) never refuses. Mid-run
+// breach (tribunal turns 2-4 after a passed pre-check) stops the NEXT
+// entry, not the running one — documented limitation, not a hole.
+func (s *Server) checkLLMBudget() error {
+	cap := llmBudgetCapUSD()
+	if cap <= 0 {
+		return nil
+	}
+	snap := s.llmSettings.GetSnapshot()
+	if prov, ok := snap.Providers[snap.ActiveProvider]; ok && prov.IsLocal {
+		return nil
+	}
+	if total := s.llmSpendTotal(); total >= cap {
+		return fmt.Errorf("cloud LLM budget exhausted: spent ~$%.4f of $%.4f cap (KUBONA_LLM_BUDGET_USD) — switch to a local provider or raise the cap", total, cap)
+	}
+	return nil
 }
 
 func (s *Server) handleLLMSettings(w http.ResponseWriter, r *http.Request) {
@@ -2720,6 +2821,15 @@ func (s *Server) handleMetasearchApply(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	prop, _ := s.metaSearchEngine.GetProposal(req.ProposalID)
+
+	// K4: the application record lands in the ledger (who/when/which) —
+	// Apply itself writes no files by design (see ApplyProposal).
+	if prop != nil {
+		s.ledger.AppendEvent("global", "metasearch_applied", map[string]any{
+			"proposal_id": prop.ID, "loop_id": prop.LoopID,
+			"harness_id": prop.HarnessID, "approved_by": prop.ApprovedBy,
+		})
+	}
 
 	// If corresponding loop was stagnant, resume it!
 	s.autoresearchMu.RLock()

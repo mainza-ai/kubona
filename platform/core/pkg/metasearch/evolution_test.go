@@ -2,7 +2,11 @@ package metasearch
 
 import (
 	"context"
+	"os"
+	"strings"
 	"testing"
+
+	"github.com/mainza-ai/kubona/core/pkg/ledger"
 )
 
 func TestMetaSearchEvolutionLifecycle(t *testing.T) {
@@ -77,5 +81,54 @@ func TestMetaSearchRejection(t *testing.T) {
 	_, err = engine.ApplyProposal(prop.ID)
 	if err != ErrHumanApprovalRequired {
 		t.Fatalf("expected error applying rejected proposal")
+	}
+}
+
+// K4: proposals (including approvals) survive engine restarts via SQLite,
+// and Apply records without writing files (message says so).
+func TestMetaSearchPersistsAcrossInstances(t *testing.T) {
+	dbPath := "test_meta_persist.db"
+	cleanup := func() {
+		os.Remove(dbPath)
+		os.Remove(dbPath + ".lock")
+		os.Remove(dbPath + "-wal")
+		os.Remove(dbPath + "-shm")
+	}
+	defer cleanup()
+
+	openEngine := func() (*MetaSearchEngine, func()) {
+		t.Helper()
+		l, err := ledger.OpenLedger(dbPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		e := NewMetaSearchEngine()
+		e.SetDB(l.DB())
+		return e, func() { l.Close() }
+	}
+
+	e1, close1 := openEngine()
+	p := e1.ProposeSearchRefinement("loop-1", "ansatz-search", "search.md", "cur", "diff", "why")
+	if err := e1.ApproveProposal(p.ID, "alice"); err != nil {
+		t.Fatal(err)
+	}
+	close1()
+
+	e2, close2 := openEngine()
+	defer close2()
+	defer cleanup()
+	got, err := e2.GetProposal(p.ID)
+	if err != nil {
+		t.Fatalf("approved proposal must reload after restart: %v", err)
+	}
+	if got.Status != ProposalApproved || got.ApprovedBy != "alice" {
+		t.Errorf("approval state must survive, got %+v", got)
+	}
+	msg, err := e2.ApplyProposal(p.ID)
+	if err != nil {
+		t.Fatalf("apply after reload: %v", err)
+	}
+	if !strings.Contains(msg, "no files written") {
+		t.Errorf("apply message must state the no-write design, got %q", msg)
 	}
 }
