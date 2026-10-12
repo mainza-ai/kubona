@@ -27,7 +27,12 @@ interface ActionGateProps {
  * required reason. Downgrade routes the intent to the local simulator rail.
  */
 export function ActionGate({ campaign, session, onAuthorized, onDenied, onDowngrade }: ActionGateProps) {
-  const estimatedCost = campaign?.quantum_factors?.estimated_spend_usd ?? 0.12;
+  // No silent money defaults: an absent estimate disables authorization
+  // (previously `?? 0.12` invented a spend cap for metered backends).
+  const estimatedCost = campaign?.quantum_factors?.estimated_spend_usd;
+  const costKnown = typeof estimatedCost === 'number' && isFinite(estimatedCost);
+  const sessionBound = (session?.id ?? '') !== '';
+  const canAuthorize = costKnown && sessionBound;
   const recommendedBackend = campaign?.quantum_factors?.recommended_backend || 'Local simulator';
   const qubits = campaign?.quantum_factors?.qubit_count ?? 0;
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -40,12 +45,23 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied, onDowngr
   const packet = buildApprovalPacketFromCampaign(
     campaign ?? null,
     session?.id || '',
-    estimatedCost,
+    estimatedCost ?? 0,
     session?.spend_limit_usd ?? 25.0,
     session?.current_spend_usd ?? 0
   );
 
   const handleAuthorize = async () => {
+    // Defense in depth: the button is disabled without cost + session,
+    // but a crafted call must still refuse here, never mint.
+    if (!canAuthorize) {
+      setRejected(true);
+      setMessage(
+        !sessionBound
+          ? 'No session bound — authorization disabled.'
+          : 'No cost estimate on this campaign — authorization disabled until priced.'
+      );
+      return;
+    }
     setIsSubmitting(true);
     setMessage(null);
     try {
@@ -97,7 +113,8 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied, onDowngr
       <div className="mt-2.5">
         <div className="text-xs text-white font-medium">Authorize {recommendedBackend} Dispatch</div>
         <div className="text-[11px] text-slate-400 mt-0.5">
-          {recommendedBackend} · {qubits} Qubits · ${estimatedCost.toFixed(2)} max
+          {recommendedBackend} · {qubits} Qubits ·{' '}
+          {costKnown ? `$${(estimatedCost as number).toFixed(2)} max` : 'unpriced — authorization disabled'}
         </div>
       </div>
 
@@ -112,7 +129,8 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied, onDowngr
           <button
             data-testid="action-gate-authorize"
             onClick={handleAuthorize}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !canAuthorize}
+            title={!canAuthorize ? 'Disabled: needs a bound session and a priced campaign' : undefined}
             className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(255,179,0,0.3)] active:scale-[0.98] disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:outline-none"
           >
             <Fingerprint className="w-4 h-4" />

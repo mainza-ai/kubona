@@ -357,8 +357,14 @@ func (m *Manager) DeleteSession(id string) error {
 	if _, err := tx.Exec(`DELETE FROM campaign_states WHERE session_id = ?`, id); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(`DELETE FROM sessions WHERE id = ?`, id); err != nil {
+	res, err := tx.Exec(`DELETE FROM sessions WHERE id = ?`, id)
+	if err != nil {
 		return err
+	}
+	// Deleting nothing is not a deletion: callers (and the ledger receipt
+	// below) must not report success for an id that never existed.
+	if n, err := res.RowsAffected(); err != nil || n == 0 {
+		return fmt.Errorf("session not found: %s", id)
 	}
 	if err := tx.Commit(); err != nil {
 		return err
