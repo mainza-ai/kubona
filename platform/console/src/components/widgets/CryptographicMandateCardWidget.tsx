@@ -8,6 +8,9 @@ interface CryptographicMandateCardWidgetProps {
   actionDescription?: string;
   estimatedCostUsd?: number;
   targetBackend?: string;
+  // J4: lab tenant the mandate authorizes against. Defaults to
+  // tenant-default for static mounts; live callers pass the session lab.
+  tenantId?: string;
   onAuthorize?: (signature: string) => void;
   onDowngrade?: () => void;
   onAbort?: () => void;
@@ -17,6 +20,7 @@ export function CryptographicMandateCardWidget({
   actionDescription,
   estimatedCostUsd,
   targetBackend,
+  tenantId,
   onAuthorize,
   onDowngrade,
   onAbort,
@@ -48,7 +52,7 @@ export function CryptographicMandateCardWidget({
 
       // Generate authentic AP2 Ed25519 SpendMandate
       const mandate = createSignedSpendMandate({
-        tenantId: 'tenant-default',
+        tenantId: tenantId || 'tenant-default',
         jobHash: jobHashHex,
         maxBudgetUsd: cost,
         ttlSeconds: 3600,
