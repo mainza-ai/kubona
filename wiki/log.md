@@ -1961,3 +1961,11 @@ skipped is the exact failure this incident is about:
   fetched_live rename; Analyze defense comments; synth section-3
   de-fictioned + dead H2 except removed (production-bar extras).
   All F-1..F-6 green: Go full + 401 python + console 73 + builds.
+
+## [2026-10-12] audit | Full 113-page wiki-vs-code audit filed
+  Read all 113 pages in full; checked every code claim against the
+  tree + live stack. Filed [[full-wiki-audit-2026-10-12]]: 15 wiki
+  hygiene findings, operator queue re-confirmed, oMLX down + no local
+  operator env as live ops gaps, ranked improvements, G/H/I plan.
+  New rows Q-32 (row-rule enforcement), Q-33 (suspended), Q-34
+  (PG/HNSW), Q-35 (A2A transport); index recounted 106->113.
