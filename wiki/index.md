@@ -38,6 +38,7 @@ arrives, place it here first and it will find its page.
 | [[overview]] | Synthesis: what Kubona is, what is decided, and what the prototype has actually answered. |
 | [[roadmap]] | Phases 0–6 read as **acceptance criteria**, not progress: gates, dependencies, team loading. |
 | [[implementation-gaps]] | Prototype gap register: what the scaffold does vs. what production requires. Code facts only. |
+| [[platform-architecture-diagram]] | Mermaid map of the running platform (services, ports, stores, call paths). Snapshot verified 2026-10-12; refresh after any service/port/store change. |
 | [[log]] | Append-only chronological changelog. |
 
 ## Status legend (frontmatter `status:`)
@@ -55,9 +56,9 @@ Describes **how decided** something is — never how finished.
 | `source` | An ingested source record. Immutable once written. | the 6 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (114 pages = 43 entities · 60 concepts · 6 sources · 5 meta), 2026-10-12:**
+**Census (115 pages = 43 entities · 61 concepts · 6 sources · 5 meta), 2026-10-12:**
 `settled` 5 · `adopted` 48 · `open-question` 7 · `candidate` 7 · `tracked` 32 ·
-`reference` 5 · `source` 6 · `living` 5 (lint-counted; the 2026-10-10 text
+`reference` 5 · `source` 6 · `living` 6 (lint-counted; the 2026-10-10 text
 undercounted adopted/tracked/candidate).
 `settled` 5 · `adopted` 45 · `open-question` 8 · `candidate` 6 · `tracked` 26 ·
 `reference` 5 · `source` 6 · `living` 5. Five `settled` against 45 `adopted` keeps the honest
