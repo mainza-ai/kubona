@@ -1866,3 +1866,6 @@ skipped is the exact failure this incident is about:
   cause, releases on exit, read-only unaffected); invariant
   documented. Live: second daemon refused, primary unaffected,
   fail-closed exit. Full Go suite green.
+
+## [2026-10-12] verification | CI green on E-1a single-writer guard
+  All 5 jobs success on run 38203420052. Tree clean, zero unpushed.
