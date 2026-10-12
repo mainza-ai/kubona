@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "note": "Cross-rail authorization parity: the Python scope rail (kubona/security/policy.py) and the Go enforcement rail (tenant autonomy, admission, tool registry) must return the SAME verdict for the same abstract case. Each engine binds abstract principals/actions to its native constructs (documented in the respective test); the verdicts must agree. Cases marked go-only name a concept Python cannot express — a logged gap, not parity.",
+  "cases": [
+    {"id": "unknown-tool", "rails": ["go", "py"], "principal": "researcher", "action": "tool:teleport", "expect": "deny", "why": "unmapped actions refuse on both rails"},
+    {"id": "unscoped-principal", "rails": ["go", "py"], "principal": "nobody", "action": "tool:read", "expect": "deny", "why": "principals with no scopes/rights are denied everything"},
+    {"id": "observer-submit", "rails": ["go", "py"], "principal": "observer", "action": "tool:submit", "expect": "deny", "why": "read-only observers cannot dispatch writes"},
+    {"id": "operator-submit", "rails": ["go", "py"], "principal": "operator", "action": "tool:submit", "expect": "allow", "why": "fully-scoped operator dispatches"},
+    {"id": "researcher-read", "rails": ["go", "py"], "principal": "researcher", "action": "tool:read", "expect": "allow", "why": "read-only observation is the baseline grant"},
+    {"id": "metered-without-approval", "rails": ["go", "py"], "principal": "researcher", "action": "metered", "expect": "deny", "why": "metered actions need an approval artifact on both rails"},
+    {"id": "metered-with-approval", "rails": ["go", "py"], "principal": "researcher-approved", "action": "metered", "expect": "allow", "why": "approval artifact admits the metered action"},
+    {"id": "l0-tenant", "rails": ["go"], "principal": "l0-lab", "action": "tool:read", "expect": "deny", "why": "Go-only: Python has no tenant autonomy states (L0/suspended). Suspended status additionally has no mutator anywhere — dead state, logged as gap."}
+  ]
+}
