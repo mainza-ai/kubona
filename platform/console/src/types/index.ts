@@ -94,6 +94,8 @@ export interface Job {
   result_json?: Record<string, unknown>;
   created_at: string;
   completed_at?: string;
+  compiler_used?: string;
+  fallback_estimate?: boolean;
 }
 
 export interface Loop {
@@ -146,6 +148,8 @@ export interface ClassicalAnchor {
   discrepancy_mha: number;
   chemical_accuracy_passed: boolean;
   chemical_accuracy_limit: number;
+  anchor_computed?: boolean;
+  anchor_source?: string;
 }
 
 export interface TrajectoryStep {

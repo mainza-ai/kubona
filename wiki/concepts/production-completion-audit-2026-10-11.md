@@ -92,7 +92,7 @@ with tests + live proof + green CI, per project rule).
 - [x] C-1. DAG-b: persist `circuit_cut` fragments into `wire_cuts`, render
   chips, relabel cut node `"planned (not executed)"`; original-vs-transpiled
   + receipt hash via existing `/api/qir/compile`; fix QASM-as-`qirCode`.
-- [ ] C-2. ResultsStudio energy table + FlightRecorder tooltips from latest
+- [x] C-2. ResultsStudio energy table + FlightRecorder tooltips from latest
   completed jobs; tribunal/stuck badges on DAG nodes; fix SpatialCanvas
   verified-chrome, WidgetStage LIVE badges, mandate demo defaults,
   A2UI→Preview suffixes.

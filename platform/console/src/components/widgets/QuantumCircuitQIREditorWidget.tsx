@@ -59,7 +59,7 @@ entry:
             <Cpu className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-white/90">Post-QIR Quantum Circuit Editor (A2UI)<span className="ml-2 align-middle text-[9px] font-mono uppercase px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/10 text-slate-400">Illustrative</span></h3>
+            <h3 className="text-sm font-semibold text-white/90">Post-QIR Quantum Circuit Editor (Preview)<span className="ml-2 align-middle text-[9px] font-mono uppercase px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/10 text-slate-400">Illustrative</span></h3>
             <p className="text-xs text-white/50">{qubits} Qubits • Depth {circuitDepth} • Family 279 Clifford+T Synthesis</p>
           </div>
         </div>

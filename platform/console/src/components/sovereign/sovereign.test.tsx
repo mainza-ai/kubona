@@ -204,7 +204,7 @@ describe('WidgetStage', () => {
     );
     const stage = root.findByProps({ 'data-testid': 'widget-stage' });
     expect(textOf(stage)).toContain('Circuit · live');
-    expect(textOf(stage)).toContain('LIVE');
+    expect(textOf(stage)).toContain('MIX');
     act(() => {
       root.findByProps({ 'data-testid': 'widget-dismiss' }).props.onClick();
     });
@@ -238,9 +238,15 @@ describe('WidgetStage', () => {
     );
     expect(textOf(shadows.findByProps({ 'data-testid': 'widget-stage' }))).toContain('REF');
     const circuit = render(
-      <WidgetStage widget={{ kind: 'circuit', title: 'Circuit · live' }} {...base} onDismiss={() => {}} />
+      <WidgetStage widget={{ kind: 'circuit', title: 'Circuit · mixed' }} {...base} onDismiss={() => {}} />
     );
-    expect(textOf(circuit.findByProps({ 'data-testid': 'widget-stage' }))).toContain('LIVE');
+    const circuitText = textOf(circuit.findByProps({ 'data-testid': 'widget-stage' }));
+    expect(circuitText).toContain('MIX');
+    expect(circuitText).not.toMatch(/\bLIVE\b/);
+    const molecule = render(
+      <WidgetStage widget={{ kind: 'molecule', title: 'Molecule' }} {...base} onDismiss={() => {}} />
+    );
+    expect(textOf(molecule.findByProps({ 'data-testid': 'widget-stage' }))).toContain('MIX');
   });
 
   it('spend card defers the decision to the Action Gate (never signs itself)', () => {    const onRequestGateFocus = vi.fn();
@@ -396,5 +402,50 @@ describe('ProofDagView wire cuts + compile receipt (C-1)', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+describe('ProofDagView campaign signals (C-2)', () => {
+  it('surfaces stuck, rescoped, and contested states as chips', () => {
+    const signalCampaign = {
+      ...CAMPAIGN,
+      quantum_factors: {
+        ...CAMPAIGN.quantum_factors,
+        dag_nodes: [{ id: 'q0-in', data: { type: 'Qubit Wire', label: 'q[0]' } }],
+        dag_edges: [],
+      },
+      trajectory: [
+        { step: 15, energy: -1.0, loss: 0.09, theta: [], grad_norm: 4e-8, watchdog: 'barren_plateau_trip', timestamp: '' },
+        { step: 18, energy: -1.0, loss: 0.045, theta: [], grad_norm: 0.04, watchdog: 'rescoped_rollback', timestamp: '' },
+      ],
+      branches: [{ id: 'fork-01', name: 'fork', step: 18, status: 'rescoped', delta: '1.2 mHa' }],
+      epistemics: { ...CAMPAIGN.epistemics, status: 'CONTESTED' },
+    } as unknown as CampaignState;
+    const root = render(<ProofDagView campaign={signalCampaign} />);
+    const text = textOf(root.findByProps({ 'data-testid': 'proof-dag' }));
+    expect(text).toContain('stuck: step 15 (barren_plateau_trip)');
+    expect(text).toContain('rescoped: step 18 (rescoped_rollback)');
+    expect(text).toContain('branch fork-01: rescoped');
+    expect(text).toContain('epistemics: CONTESTED');
+  });
+
+  it('stays quiet on clean campaigns', () => {
+    const clean = {
+      ...CAMPAIGN,
+      quantum_factors: {
+        ...CAMPAIGN.quantum_factors,
+        dag_nodes: [{ id: 'q0-in', data: { type: 'Qubit Wire', label: 'q[0]' } }],
+        dag_edges: [],
+      },
+      trajectory: [
+        { step: 1, energy: -1.0, loss: 0.4, theta: [], grad_norm: 0.1, watchdog: 'normal', timestamp: '' },
+      ],
+      branches: [],
+      epistemics: { ...CAMPAIGN.epistemics, status: 'COLLAPSED_VERIFIED' },
+    } as unknown as CampaignState;
+    const root = render(<ProofDagView campaign={clean} />);
+    const text = textOf(root.findByProps({ 'data-testid': 'proof-dag' }));
+    expect(text).not.toContain('stuck:');
+    expect(text).not.toContain('epistemics: CONTESTED');
   });
 });

@@ -34,7 +34,7 @@ export function ShadowTomographyRadarWidget({
             <Radio className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-white/90">Classical Shadow Tomography Radar (A2UI)</h3>
+            <h3 className="text-sm font-semibold text-white/90">Classical Shadow Tomography Radar (Preview)</h3>
             <p className="text-xs text-white/50">Huang-Kueng-Preskill Protocol • {numQubits} Qubits • O(log M / ε²)</p>
           </div>
         </div>

@@ -59,9 +59,21 @@ export function WidgetStage({
   const meta = KIND_META[widget.kind];
   const Icon = meta.icon;
   const qf = campaign?.quantum_factors;
-  // Badge honesty: shadows renders static reference figures (its own
-  // Illustrative badge says so) — the stage must not claim LIVE over it.
-  const liveFeed = widget.kind !== 'shadows';
+  // Feed honesty per kind: shadows renders static reference figures;
+  // circuit/molecule mix live labels over illustrative bodies; job and
+  // mandate surfaces read live session data end to end.
+  const feed: 'LIVE' | 'MIX' | 'REF' =
+    widget.kind === 'shadows'
+      ? 'REF'
+      : widget.kind === 'circuit' || widget.kind === 'molecule'
+        ? 'MIX'
+        : 'LIVE';
+  const feedTitle =
+    feed === 'LIVE'
+      ? 'Fed by live session data'
+      : feed === 'MIX'
+        ? 'Labels live, body illustrative'
+        : 'Static reference figures — illustrative';
 
   return (
     <div
@@ -75,12 +87,16 @@ export function WidgetStage({
           <Icon className="w-3.5 h-3.5 text-slate-300 shrink-0" />
           <span className="text-[11px] font-semibold text-white truncate">{widget.title}</span>
           <span
-            title={liveFeed ? 'Fed by live session data' : 'Static reference figures — illustrative'}
+            title={feedTitle}
             className={`px-1.5 py-0.5 rounded font-code text-[9px] shrink-0 ${
-              liveFeed ? 'bg-emerald-400/10 text-emerald-400' : 'bg-white/[0.06] text-slate-400'
+              feed === 'LIVE'
+                ? 'bg-emerald-400/10 text-emerald-400'
+                : feed === 'MIX'
+                  ? 'bg-amber-400/10 text-amber-300'
+                  : 'bg-white/[0.06] text-slate-400'
             }`}
           >
-            {liveFeed ? 'LIVE' : 'REF'}
+            {feed}
           </span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
