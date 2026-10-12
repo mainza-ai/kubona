@@ -1890,3 +1890,6 @@ skipped is the exact failure this incident is about:
   lost to the worker under -race). Blocking executor holds tasks
   until released: 10x + 5x race green locally. Full -race suite
   green.
+
+## [2026-10-12] verification | CI green after revoke fix
+  All 5 jobs success on run 38205765855. Tree clean, zero unpushed.
