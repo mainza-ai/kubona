@@ -29,20 +29,34 @@ import (
 // requireBearer gates one handler on the operator API token.
 func (s *Server) requireBearer(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		want := os.Getenv("KUBONA_API_TOKEN")
-		if want == "" {
+		switch bearerGate(r) {
+		case http.StatusOK:
+			next(w, r)
+		case http.StatusServiceUnavailable:
 			http.Error(w, "API token not configured: set KUBONA_API_TOKEN", http.StatusServiceUnavailable)
-			return
-		}
-		const prefix = "Bearer "
-		got := r.Header.Get("Authorization")
-		if !strings.HasPrefix(got, prefix) ||
-			subtle.ConstantTimeCompare([]byte(strings.TrimPrefix(got, prefix)), []byte(want)) != 1 {
+		default:
 			http.Error(w, "missing or invalid bearer token", http.StatusUnauthorized)
-			return
 		}
-		next(w, r)
 	}
+}
+
+// bearerGate checks the operator token without writing a response, for
+// handlers that mix public reads with gated writes on one route (custom
+// agents: list public, create/delete gated). Returns StatusOK when the
+// token checks out, ServiceUnavailable when unconfigured, Unauthorized
+// on mismatch — the same codes requireBearer emits.
+func bearerGate(r *http.Request) int {
+	want := os.Getenv("KUBONA_API_TOKEN")
+	if want == "" {
+		return http.StatusServiceUnavailable
+	}
+	const prefix = "Bearer "
+	got := r.Header.Get("Authorization")
+	if !strings.HasPrefix(got, prefix) ||
+		subtle.ConstantTimeCompare([]byte(strings.TrimPrefix(got, prefix)), []byte(want)) != 1 {
+		return http.StatusUnauthorized
+	}
+	return http.StatusOK
 }
 
 // corsAllowOrigin resolves the Access-Control-Allow-Origin value for a

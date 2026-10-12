@@ -203,6 +203,12 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 		updated_at DATETIME NOT NULL
 	);
 
+	CREATE TABLE IF NOT EXISTS custom_agents (
+		id TEXT PRIMARY KEY,
+		manifest_json TEXT NOT NULL DEFAULT '{}',
+		updated_at DATETIME NOT NULL
+	);
+
 	CREATE INDEX IF NOT EXISTS idx_chat_session ON chat_messages(session_id);
 	CREATE INDEX IF NOT EXISTS idx_jobs_session ON jobs(session_id);
 	CREATE INDEX IF NOT EXISTS idx_ledger_session ON ledger_events(session_id);

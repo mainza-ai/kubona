@@ -324,6 +324,11 @@ func TestHFHubEndpoints(t *testing.T) {
 func TestCustomAgentAndMeshRouteEndpoints(t *testing.T) {
 	srv, cleanup := setupTestRoutesServer(t)
 	defer cleanup()
+	// K3: registry writes are operator mutations.
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
+	authed := func(req *http.Request) {
+		req.Header.Set("Authorization", "Bearer op-token")
+	}
 
 	// 1. GET /api/agents/custom
 	req1 := httptest.NewRequest(http.MethodGet, "/api/agents/custom", nil)
@@ -351,6 +356,7 @@ func TestCustomAgentAndMeshRouteEndpoints(t *testing.T) {
 		"memory_scopes": ["session"]
 	}`)
 	req2 := httptest.NewRequest(http.MethodPost, "/api/agents/custom", bytes.NewReader(createBody))
+	authed(req2)
 	w2 := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w2, req2)
 
@@ -1200,5 +1206,78 @@ func TestLoopsSessionScope(t *testing.T) {
 	}
 	if n := get("?session_id=ghost"); n != 0 {
 		t.Errorf("unknown session must list 0, got %d", n)
+	}
+}
+
+// K3: the custom-agent registry validates shape, protects seeds, persists
+// across restarts, and gates writes on the operator token.
+func TestCustomAgentRegistryGuards(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
+	h := srv.Handler()
+
+	call := func(method, path, token string, body any) (int, map[string]any) {
+		t.Helper()
+		raw, _ := json.Marshal(body)
+		var req *http.Request
+		if body == nil {
+			req = httptest.NewRequest(method, path, nil)
+		} else {
+			req = httptest.NewRequest(method, path, bytes.NewReader(raw))
+		}
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		req.RemoteAddr = "127.0.0.1:0"
+		req.Header.Set("X-Forwarded-For", nextTestIP())
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		var out map[string]any
+		_ = json.NewDecoder(w.Body).Decode(&out)
+		return w.Code, out
+	}
+	good := map[string]any{"name": "Analyst", "role": "researcher", "spend_budget_usd": 1.0}
+
+	// Writes need the token; listing stays public.
+	if code, _ := call(http.MethodPost, "/api/agents/custom", "", good); code != http.StatusUnauthorized {
+		t.Errorf("register without token must 401, got %d", code)
+	}
+	if code, _ := call(http.MethodDelete, "/api/agents/custom/agent_qksd_theorist", "", nil); code != http.StatusUnauthorized {
+		t.Errorf("delete without token must 401, got %d", code)
+	}
+	if code, _ := call(http.MethodGet, "/api/agents/custom", "", nil); code != http.StatusOK {
+		t.Errorf("listing must stay public, got %d", code)
+	}
+
+	// Shape validation refuses loudly.
+	for name, body := range map[string]map[string]any{
+		"empty name":     {"role": "x"},
+		"negative spend": {"name": "n", "spend_budget_usd": -5.0},
+		"system forgery": {"name": "n", "is_system_agent": true},
+		"seed overwrite": {"id": "agent_qksd_theorist", "name": "Trojan"},
+	} {
+		if code, out := call(http.MethodPost, "/api/agents/custom", "op-token", body); code != http.StatusBadRequest {
+			t.Errorf("%s must 400, got %d (%v)", name, code, out)
+		}
+	}
+
+	// System seeds cannot be deleted, even by the operator.
+	if code, out := call(http.MethodDelete, "/api/agents/custom/agent_qksd_theorist", "op-token", nil); code != http.StatusBadRequest {
+		t.Errorf("seed delete must 400, got %d (%v)", code, out)
+	}
+
+	// Round trip: register → delete a user agent.
+	code, out := call(http.MethodPost, "/api/agents/custom", "op-token", good)
+	if code != http.StatusOK {
+		t.Fatalf("register: %d (%v)", code, out)
+	}
+	id, _ := out["agent"].(map[string]any)["id"].(string)
+	if id == "" {
+		t.Fatalf("registered agent must carry an id: %v", out)
+	}
+	delPath := "/api/agents/custom/" + id
+	if code, _ := call(http.MethodDelete, delPath, "op-token", nil); code != http.StatusOK {
+		t.Fatalf("delete user agent: %d", code)
 	}
 }

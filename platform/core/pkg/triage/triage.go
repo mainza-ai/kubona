@@ -1,5 +1,18 @@
 package triage
 
+// Mathematical triage routing (Family 278/275): classifies a molecular
+// system as DFT-tractable, DMRG-tractable, or QPU-mandatory, with the
+// active-space ceiling at 50 orbitals (both engines agree; the wiki's
+// older ≤36 figure is superseded).
+//
+// Status: ADVISORY engine. No live dispatch path calls Triage today —
+// verdicts are computed on demand (tests, explicit callers) and recorded,
+// never enforced. Wiring it into pre-QPU admission is a design question,
+// not a code gap: submit paths carry QASM/backends, not molecule
+// identity or orbital counts, so there is nothing honest to route on yet.
+// EstimatedCredits prices the verdict (25/orbital QPU, 2.5 DMRG, 1.0 DFT)
+// for the day a caller exists; until then it is specified output.
+
 import (
 	"crypto/sha256"
 	"encoding/hex"

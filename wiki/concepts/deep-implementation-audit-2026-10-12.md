@@ -254,6 +254,17 @@ implemented (needs revision). Every item has file:line or a live probe.
     global); console passes its session for loops + events (the
     events endpoint was already scoped server-side — the client
     never sent it). Console 77 green, build clean.
+  - [x] **K3 landed 2026-10-12:** custom registry persists user rows
+    in a new `custom_agents` table (seeds stay code-owned); Register
+    validates (name required, budget ≥ 0, system-flag forgery and
+    seed-ID overwrite refuse); Delete seed-immutable even against
+    doctored rows; create/delete bearer-gated + rate-limited,
+    listing public. Tests caught a dropped seed-set line (would have
+    allowed seed deletion). Triage decision recorded: engines stay
+    ADVISORY (no live callers; admission wiring needs molecule
+    identity the submit path lacks), wiki threshold synced ≤36→50,
+    credits kept as specified output. Live: 503 fail-closed + 2
+    seeds listed.
 - **Phase L (operator queue, in order):** oMLX-as-default switch
   (or documented cloud-default) · Lean image + warm · reviewer/API/
   contact env · EPO registration · vendor grading · review

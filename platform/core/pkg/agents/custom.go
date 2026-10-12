@@ -1,6 +1,8 @@
 package agents
 
 import (
+	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
@@ -33,15 +35,58 @@ type CustomAgentManifest struct {
 type CustomAgentRegistry struct {
 	mu     sync.RWMutex
 	agents map[string]CustomAgentManifest
+	seeds  map[string]bool
+	db     *sql.DB
 }
 
 // NewCustomAgentRegistry creates and seeds a custom agent registry
 func NewCustomAgentRegistry() *CustomAgentRegistry {
 	reg := &CustomAgentRegistry{
 		agents: make(map[string]CustomAgentManifest),
+		seeds:  make(map[string]bool),
 	}
 	reg.seedDefaults()
 	return reg
+}
+
+// NewCustomAgentRegistryWithDB creates the registry and loads persisted
+// user agents on top of the seeds. K3: user agents previously vanished
+// on every restart (in-memory only) — seeds stay code-owned, user rows
+// live in custom_agents.
+func NewCustomAgentRegistryWithDB(db *sql.DB) *CustomAgentRegistry {
+	reg := NewCustomAgentRegistry()
+	if db == nil {
+		return reg
+	}
+	reg.db = db
+	rows, err := db.Query(`SELECT id, manifest_json FROM custom_agents`)
+	if err != nil {
+		return reg
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, raw string
+		var m CustomAgentManifest
+		if err := rows.Scan(&id, &raw); err != nil {
+			continue
+		}
+		if err := json.Unmarshal([]byte(raw), &m); err != nil {
+			continue
+		}
+		m.ID = id
+		m.IsSystemAgent = false
+		reg.agents[id] = m
+	}
+	return reg
+}
+
+// seedIDs are immutable: user registration can never overwrite or delete
+// them (otherwise an attacker re-stamps a seed non-system, then deletes
+// it — the Delete guard below would be theater).
+func (r *CustomAgentRegistry) isSeedID(id string) bool {
+	// Lock-free by design (caller holds mu): seeds are written once at
+	// construction, never mutated after.
+	return r.seeds[id]
 }
 
 func (r *CustomAgentRegistry) seedDefaults() {
@@ -87,6 +132,7 @@ func (r *CustomAgentRegistry) seedDefaults() {
 
 	for _, a := range defaults {
 		r.agents[a.ID] = a
+		r.seeds[a.ID] = true
 	}
 }
 
@@ -102,22 +148,50 @@ func (r *CustomAgentRegistry) List() []CustomAgentManifest {
 	return list
 }
 
-// Register adds or updates a custom agent manifest
-func (r *CustomAgentRegistry) Register(m CustomAgentManifest) CustomAgentManifest {
+// Register adds or updates a user-defined custom agent manifest, validated
+// and persisted. K3: previously anything went — empty names, negative
+// budgets, IsSystemAgent forgery, seed-ID overwrite (then deletable).
+// Manifest Capabilities/MCPTools stay descriptive: execution is gated
+// separately by tool-registry role grants at dispatch, never by this
+// manifest — so registration validates shape, not authority.
+func (r *CustomAgentRegistry) Register(m CustomAgentManifest) (CustomAgentManifest, error) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	now := time.Now().UTC().Format(time.RFC3339)
+	if strings.TrimSpace(m.Name) == "" {
+		return CustomAgentManifest{}, fmt.Errorf("agent name is required")
+	}
+	if m.SpendBudgetUSD < 0 {
+		return CustomAgentManifest{}, fmt.Errorf("spend budget cannot be negative")
+	}
+	if m.IsSystemAgent {
+		return CustomAgentManifest{}, fmt.Errorf("IsSystemAgent is reserved for built-in seeds")
+	}
 	if m.ID == "" {
 		m.ID = "agent_" + uuid.New().String()[:8]
 	}
+	if r.isSeedID(m.ID) {
+		return CustomAgentManifest{}, fmt.Errorf("agent id %q is a reserved system seed", m.ID)
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
 	if m.CreatedAt == "" {
 		m.CreatedAt = now
 	}
 	m.UpdatedAt = now
+	m.IsSystemAgent = false
 
 	r.agents[m.ID] = m
-	return m
+	if r.db != nil {
+		raw, _ := json.Marshal(m)
+		if _, err := r.db.Exec(
+			`INSERT INTO custom_agents (id, manifest_json, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+			 ON CONFLICT(id) DO UPDATE SET manifest_json = excluded.manifest_json, updated_at = CURRENT_TIMESTAMP`,
+			m.ID, string(raw)); err != nil {
+			delete(r.agents, m.ID)
+			return CustomAgentManifest{}, fmt.Errorf("failed to persist agent: %w", err)
+		}
+	}
+	return m, nil
 }
 
 // Delete removes a user-defined custom agent
@@ -129,11 +203,19 @@ func (r *CustomAgentRegistry) Delete(id string) error {
 	if !exists {
 		return fmt.Errorf("agent %s not found", id)
 	}
-	if agent.IsSystemAgent {
+	// Seed IDs are immutable even if a stored row disagrees (defense in
+	// depth: registration can no longer plant such a row, but old ones
+	// must still refuse).
+	if agent.IsSystemAgent || r.isSeedID(id) {
 		return fmt.Errorf("cannot delete system agent %s", id)
 	}
 
 	delete(r.agents, id)
+	if r.db != nil {
+		if _, err := r.db.Exec(`DELETE FROM custom_agents WHERE id = ?`, id); err != nil {
+			return fmt.Errorf("failed to delete persisted agent: %w", err)
+		}
+	}
 	return nil
 }
 

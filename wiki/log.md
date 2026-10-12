@@ -2018,3 +2018,8 @@ skipped is the exact failure this incident is about:
   canvas_layouts SQLite table (map removed; log claim now true) with
   256KB cap; restart + oversize tests. Loops session scope + console
   passes session for loops/events. Console 77 green, build clean.
+
+## [2026-10-12] verification | K3 custom registry + triage decision landed
+  Registry persists (SQLite), validates shape, seed-immutable,
+  bearer-gated writes; tests caught a dropped seed line. Triage
+  recorded advisory, wiki threshold synced to 50. Live 503 + seeds.
