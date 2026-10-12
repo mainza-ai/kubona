@@ -1911,3 +1911,9 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-12] verification | CI green on E-1e crypto contract
   All 5 jobs success on run 38207304381. Tree clean, zero unpushed.
+
+## [2026-10-12] audit | Phase F filed from adversarial re-audit
+  Three falsification passes: plan ~85% truly complete, 5 refutations
+  confirmed (R1-R17 specs), 2 rejected with evidence (autonomy bypass
+  false — admitJob enforces all types; chemistry coverage exists).
+  Phase F (F-1..F-6) on the audit page, ordered P0/P1/P2.
