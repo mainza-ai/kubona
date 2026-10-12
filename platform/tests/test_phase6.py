@@ -90,9 +90,13 @@ def test_experiment_report_structured_and_traceable(tmp_path):
 def test_scholarly_grounding_writes_provenance(tmp_path):
     ledger = Ledger(path=str(tmp_path / "led.jsonl"))
     out = ground_literature("vqe", source="mock", ledger=ledger)
-    assert len(out["items"]) == 2 and out["license"] and out["freshness"] == 1.0
+    # Static in-repo fixture: license present, but freshness 0.0 — it was
+    # never fetched live (offline=True). A fixture at 1.0 would present
+    # canned text as searched results.
+    assert len(out["items"]) == 2 and out["license"] and out["freshness"] == 0.0
     lit = [r for r in ledger if r.kind == "literature"]
-    assert len(lit) == 1 and lit[0].payload["license"] and lit[0].payload["freshness"] == 1.0
+    assert len(lit) == 1 and lit[0].payload["license"] and lit[0].payload["freshness"] == 0.0
+    assert lit[0].payload["offline"] is True
 
 
 def test_arxiv_offline_never_crashes(tmp_path):
