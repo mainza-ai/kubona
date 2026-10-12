@@ -1869,3 +1869,9 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-12] verification | CI green on E-1a single-writer guard
   All 5 jobs success on run 38203420052. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | E-1b cross-rail policy parity
+  Shared parity table (8 cases) with Go driver (registry grants,
+  L0 revoke-and-refuse, QPU refuse/admit via grants) and Python
+  driver (PolicyEngine scopes); unknown-version fails loudly;
+  suspended-status dead state logged. Full Go + python green.
