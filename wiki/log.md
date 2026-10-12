@@ -1827,3 +1827,6 @@ skipped is the exact failure this incident is about:
   anchor/model split (no slider-verified chrome); widget MIX badges;
   mandate card requires proposal; A2UI→Preview. Live Bell row feeds
   the table shape. Go + 68 vitest green.
+
+## [2026-10-12] verification | CI green on C-2 console honesty
+  All 5 jobs success on run 38197697813. Tree clean, zero unpushed.
