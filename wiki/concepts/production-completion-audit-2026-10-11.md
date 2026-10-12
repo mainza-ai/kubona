@@ -117,10 +117,15 @@ with tests + live proof + green CI, per project rule).
 
 ## Phase E — P4 gate
 
-- [ ] E-1. FIPS-203 KAT + transport decision; Bao credential into one job
-  path + AppRole; leases doc + single-writer guard; policy parity test;
-  low-trust CI split; review engagement + sidecar grading; can-agent-act CI
-  job; Q-27 flip sequence.
+- [x] E-1a. Leases doc + single-writer guard. — landed 2026-10-11:
+  exclusive flock on `<db>.lock` in `OpenLedger` (second daemon refuses
+  with cause, releases on exit, read-only unaffected); invariant
+  documented at the struct.
+- [ ] E-1b. Policy parity test (Go/Python rails).
+- [ ] E-1c. Bao credential into one job path + AppRole.
+- [ ] E-1d. Low-trust CI split + can-agent-act job.
+- [ ] E-1e. FIPS-203 KAT + transport decision doc; review engagement +
+  sidecar grading; Q-27 flip (operator-gated).
 
 ## Evidence notes (kept, not re-verified here)
 
