@@ -2100,3 +2100,13 @@ skipped is the exact failure this incident is about:
   sessions; new TestSessionAttributionStrictness. Live on :8080: 404s
   all around for ghosts, 201 for a real session. Row in
   [[implementation-gaps]] Medium table.
+
+## [2026-10-12] audit | verification sweep: Q-32 closed, stale audit claims corrected
+  Zero orphans across 110 pages; register-drift scan negative (tribunal
+  + control-plane passages carry explicit production headers).
+  Corrected: E-1b "suspended dead state" note (Q-33 mutator landed) and
+  full-audit suspend row (Resolved); PG row annotated dormant (Q-34).
+  gateway.go deletion record verified (pkg/mcp/ gone). Q-32 closed: lint
+  enforces open-question => questions.md row (re-verified live with a
+  temp probe page: fires, then clean on removal); [[index]] records the
+  rule and stops enumerating closed rows (Closed table is the source).
