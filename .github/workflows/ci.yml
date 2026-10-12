@@ -1,5 +1,13 @@
 name: CI
 
+# Least privilege: no job in this pipeline publishes, pushes, or needs
+# anything beyond reading the tree — so the token gets read-only contents.
+# PR builds (including forks) therefore cannot write back anywhere. Action
+# versions stay pinned as tags (a SHA-pinning bot is future work, not a
+# silent downgrade to floating latest).
+permissions:
+  contents: read
+
 on:
   push:
     # `develop` belongs here: the gate previously observed only `main`, which this repo

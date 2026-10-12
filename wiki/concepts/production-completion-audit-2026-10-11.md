@@ -131,7 +131,11 @@ with tests + live proof + green CI, per project rule).
   404-absent passthrough, lease revoke) + `SecretStore.from_env`
   (Bao authoritative when configured, env otherwise); Qiskit submit
   path consults Bao first. 9 tests; runbook covers Bao rotation.
-- [ ] E-1d. Low-trust CI split + can-agent-act job.
+- [x] E-1d. Low-trust CI split + can-agent-act job. — landed 2026-10-11:
+  `contents: read` on CI + nightly (nothing publishes; SHA-pinning
+  needs a bot first, logged); can-agent-act test (reach/refuse/budget
+  against production paths) fails CI if any leg is assumed. Also fixed
+  a real CI flake found en route (A2A revoke race, blocking executor).
 - [ ] E-1e. FIPS-203 KAT + transport decision doc; review engagement +
   sidecar grading; Q-27 flip (operator-gated).
 
