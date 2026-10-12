@@ -150,6 +150,49 @@ with tests + live proof + green CI, per project rule).
   executed from inside the build — this checkbox tracks the docs, not
   the deeds.
 
+## Phase F — audit findings (2026-10-12 adversarial re-audit)
+
+Three falsification passes plus independent re-verification found the plan
+~85% truly complete: 5 refutations confirmed real, 2 rejected with evidence
+(autonomy bypass is false — `admitJob` enforces for all types; chemistry
+coverage exists in `platform/tests/test_bridge_chemistry.py`; the Analyze
+refuse branch stays as documented defense). Each slice ships with tests +
+live proof + green CI, checkboxes flip on landing.
+
+- [ ] F-1. Python CORS allowlist (P0). Mirror the Go rail in
+  `console_api.py`: explicit origins + `KUBONA_CORS_ANY=1` escape; prove
+  with a header-assertion test or live curl matrix.
+- [ ] F-2. Epistemic state coherence (P1). R1: `Sources` conditional on
+  computed anchors (fallback → unattested `[]`). R3: claim PASS on
+  fallback anchor → `CONTESTED` + withheld-collapse note; anchor fold on
+  pristine-`UNVERIFIED` restores `PROJECTED` + template statement without
+  clobbering real verdicts. Update the two tests that bake current
+  behavior.
+- [ ] F-3. Display/handler honesty (P1). R2: `handleNotebooks`
+  no-campaign path labeled (`UNVERIFIED_FALLBACK`, assumed anchor,
+  `chemAccuracy=false`). R7: `MeasuredOutputs` filters
+  `status === COMPLETED` (+ FAILED-with-timestamp fixture). R16:
+  contested tribunal badge reads `CONTESTED`/`NO CONSENSUS`, never
+  `DELIBERATING`.
+- [ ] F-4. Auth/hardening leftovers (P1). R4: `requireBearer` on
+  verify/grants-register/tenants-mutations + limiters on tenants
+  routes (update grant/tenant tests with tokens). R5: harness
+  `ensureRunner` default false + opt-in env (verify harness tests).
+  R6: compose password → `${POSTGRES_PASSWORD:?}` required-env.
+- [ ] F-5. Backend robustness + dead code (P2). R8: QIR empty-QASM 400.
+  R9: `try` around `ExecuteQuantumKrylov` like the anchor path. R10:
+  fix `-lock` typo, sweep `.lock` strays, `_ =` + comment on unlock,
+  double-Close test. R11: explicit `KNOWN_IDS` assert both parity
+  drivers. R12: qiskit `_credential` constructs per call (rotation
+  visible). R14: delete MCP allow-list plane (verify approval
+  machinery referenced elsewhere first). R17: carry `designed_by`
+  into job params + `job_queued` event.
+- [ ] F-6. Docs/minors (P2). R15: publish the 14-row measured matrix
+  here. B1-2: empty-q cross-tenant test. `provenance_verified`
+  rename/doc (fetched-live meaning). Analyze-refuse-branch comment.
+  Rejected refutations recorded (autonomy, chemistry file, Analyze
+  branch) so nothing gets "fixed" unnecessarily.
+
 ## Evidence notes (kept, not re-verified here)
 
 - Tribunal constants (`collective.go:248-249,304,336,368,400`), non-H2/LiH/BeH2
