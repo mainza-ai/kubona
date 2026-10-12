@@ -179,8 +179,10 @@ func RouteMultimodal(p MultimodalPayload, airGapped bool) RoutingDecision {
 		}
 	}
 
-	// In sovereign air-gap or zero budget, route to local oMLX / Qwen
-	if airGapped || p.SpendBudgetUSD <= 0.01 {
+	// Sovereign air-gap: local only, and only this branch may claim
+	// enforcement. (A previous revision stamped AirGapEnforced on every
+	// local branch, including the plain default below.)
+	if airGapped {
 		return RoutingDecision{
 			Provider:            "omlx",
 			Model:               "local/qwen2.5-coder:32b",
@@ -192,24 +194,34 @@ func RouteMultimodal(p MultimodalPayload, airGapped bool) RoutingDecision {
 		}
 	}
 
-	// High-complexity reasoning with spend mandate authorized
-	if has3D || strings.Contains(strings.ToLower(p.Prompt), "femoco") || strings.Contains(strings.ToLower(p.Prompt), "kohn-sham") {
+	// J2: cloud escalation is spend-gated, mirroring the Python router.
+	// A complex prompt with no budget and no mandate routes local —
+	// Previously this branch fired on keywords alone ("femoco") and
+	// claimed "AP2 mandate backing" it never checked.
+	wantsCloud := has3D || strings.Contains(strings.ToLower(p.Prompt), "femoco") || strings.Contains(strings.ToLower(p.Prompt), "kohn-sham")
+	funded := p.HasEd25519Mandate || p.SpendBudgetUSD > 0.05
+	if wantsCloud && funded {
+		backing := "spend budget declared"
+		if p.HasEd25519Mandate {
+			backing = "AP2 mandate backing"
+		}
 		return RoutingDecision{
 			Provider:            "anthropic",
 			Model:               "claude-3-5-sonnet",
 			IsLocal:             false,
 			AirGapEnforced:      false,
 			EstimatedCostUSD:    0.045,
-			Explanation:         "Complex electronic structure multi-reference character detected. Routed to high-reasoning frontier model with AP2 mandate backing.",
+			Explanation:         "Complex electronic structure multi-reference character detected. Routed to high-reasoning frontier model with " + backing + ".",
 			ModalitiesSupported: []string{"text", "code", "vision", "molecule_3d"},
 		}
 	}
 
+	// Local default: cheap, unblocked, and honestly labeled — not enforced.
 	return RoutingDecision{
 		Provider:            "omlx",
 		Model:               "local/qwen2.5-coder:32b",
 		IsLocal:             true,
-		AirGapEnforced:      true,
+		AirGapEnforced:      false,
 		EstimatedCostUSD:    0.0,
 		Explanation:         "Standard quantum compilation query. Routed to sovereign local engine.",
 		ModalitiesSupported: []string{"text", "code"},
