@@ -1830,3 +1830,10 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-12] verification | CI green on C-2 console honesty
   All 5 jobs success on run 38197697813. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | D-1a synth projection honesty
+  Trajectory Source synthesized/measured (krylov fold marks);
+  synth ChemAcc never passes; PROJECTED status/verdict/statement;
+  DAG partitions planned-labeled; Manifold collapsed-only; endpoint
+  default UNVERIFIED. Live: PROJECTED + synthesized + PROJECTION
+  with computed anchor. Go + 70 vitest green.

@@ -59,7 +59,9 @@ export function EpistemicManifold({ campaign }: EpistemicManifoldProps) {
     status: 'UNVERIFIED',
   };
 
-  const isVerified = hasLive && (active.collapsed || active.alpha_corr >= 0.85);
+  // Verified chrome only on explicit collapse: high amplitudes alone
+  // (e.g. template projections) must never render verified.
+  const isVerified = hasLive && active.collapsed === true;
   const alpha = active.alpha_corr;
   const beta = active.beta_cont;
   const gamma = active.gamma_unv;

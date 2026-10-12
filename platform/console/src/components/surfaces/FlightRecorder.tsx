@@ -43,10 +43,14 @@ export function FlightRecorder({ loops = [], events = [], campaign }: FlightReco
         const isDiscard = t.watchdog?.toUpperCase().includes('TRIP') || t.watchdog?.toUpperCase().includes('DISCARD');
         const isBaseline = idx === 0;
         const isBreakthrough = deltaMHa <= chemLimit;
-        // Measured points (e.g. Krylov energies folded from real jobs)
-        // are observations, not optimizer steps: label them as such so
-        // they never read as variational convergence.
-        const isMeasured = (t.watchdog || '').toLowerCase().startsWith('measured');
+        // Measured points (Source == "measured", e.g. Krylov energies folded
+        // from real jobs) are observations, not optimizer steps: label them
+        // as such so they never read as variational convergence. The
+        // watchdog prefix is the legacy signal; Source wins when present.
+        const isMeasured =
+          (t as { source?: string }).source === 'measured' ||
+          ((t as { source?: string }).source !== 'synthesized' &&
+            (t.watchdog || '').toLowerCase().startsWith('measured'));
 
         let title = `Variational Optimization Step ${t.step}`;
         let verdict: 'keep' | 'discard' | 'baseline' = 'keep';

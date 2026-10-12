@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/mainza-ai/kubona/core/pkg/epistemics"
+	pb "github.com/mainza-ai/kubona/core/proto"
+	"google.golang.org/grpc"
 )
 
 func replanTestState(t *testing.T, prompt string) []byte {
@@ -444,4 +446,65 @@ func TestReplanCutPersistsMeasuredWireCuts(t *testing.T) {
 	if first["planned"] != true {
 		t.Errorf("synth template must be marked planned: %+v", first)
 	}
+}
+
+func TestSynthProjectionFields(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+	state := decodeReplan(t, raw)
+	if state.Epistemics.Status != "UNVERIFIED" {
+		t.Logf("note: nil-bridge synth is UNVERIFIED (fallback), got %q", state.Epistemics.Status)
+	}
+	if state.ClassicalAnchor.ChemicalAccuracyPassed {
+		t.Error("synth must never pass chemical accuracy (folds decide)")
+	}
+	for i, step := range state.Trajectory {
+		if step.Source != "synthesized" {
+			t.Errorf("milestone %d must be marked synthesized, got %q", i, step.Source)
+		}
+	}
+	if state.Notebook.EpistemicVerdict != "UNVERIFIED_FALLBACK" {
+		t.Errorf("nil-bridge notebook verdict wrong: %q", state.Notebook.EpistemicVerdict)
+	}
+}
+
+// Live anchor + template trajectory reads as projection, never verified:
+// status PROJECTED, accuracy unclaimed, milestones marked synthesized.
+func TestSynthLiveAnchorIsProjection(t *testing.T) {
+	state, err := SynthesizeCampaignState(context.Background(), "sess-proj", "H2 ground state VQE", nil, stubAnchorBridge{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !state.ClassicalAnchor.AnchorComputed {
+		t.Fatal("stub bridge must yield a computed anchor")
+	}
+	if state.Epistemics.Status != "PROJECTED" {
+		t.Errorf("live template must be PROJECTED, got %q", state.Epistemics.Status)
+	}
+	if state.ClassicalAnchor.ChemicalAccuracyPassed {
+		t.Error("synth must never pass chemical accuracy (folds decide)")
+	}
+	if !strings.Contains(state.Epistemics.Statement, "unverified until jobs fold") {
+		t.Errorf("statement must name the projection: %q", state.Epistemics.Statement)
+	}
+	if state.Notebook.EpistemicVerdict != "PROJECTION" {
+		t.Errorf("notebook verdict must be PROJECTION, got %q", state.Notebook.EpistemicVerdict)
+	}
+	for i, step := range state.Trajectory {
+		if step.Source != "synthesized" {
+			t.Errorf("milestone %d must be marked synthesized, got %q", i, step.Source)
+		}
+	}
+}
+
+// stubAnchorBridge answers ComputeClassicalAnchor with fixed H2 numbers.
+// All other RPCs nil-panic if touched — synth must not touch them.
+type stubAnchorBridge struct {
+	pb.QuantumBridgeServiceClient
+}
+
+func (s stubAnchorBridge) ComputeClassicalAnchor(ctx context.Context, in *pb.ClassicalAnchorRequest, _ ...grpc.CallOption) (*pb.ClassicalAnchorResponse, error) {
+	return &pb.ClassicalAnchorResponse{
+		Success: true, Molecule: in.Molecule,
+		RhfEnergy: -1.11668, FciExactEnergy: -1.13727,
+	}, nil
 }

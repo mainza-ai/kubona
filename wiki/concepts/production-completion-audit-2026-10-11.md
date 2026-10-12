@@ -99,12 +99,13 @@ with tests + live proof + green CI, per project rule).
 
 ## Phase D — by anchor family, honesty first
 
-- [ ] D-1. Milestone-fiction badges (`synthesized-projection` vs `measured`)
-  or fresh-empty default; synth `ChemicalAccuracyPassed=false` until a fold;
-  QKSD `classical-emulation` badge; curvature decisional-or-diagnostic;
-  mechanical contradiction check at claim_eval; literature offline label; DAG
-  partition relabels. Then per-family bridge verification (large molecules
-  first).
+- [x] D-1a. Synth honesty: trajectory `source` (synthesized/measured),
+  synth `ChemicalAccuracyPassed=false` until a fold, PROJECTED status +
+  verdict, DAG partitions relabeled planned. — landed 2026-10-11.
+- [ ] D-1b. QKSD `classical-emulation` badge; curvature
+  decisional-or-diagnostic; mechanical contradiction check at claim_eval;
+  literature offline label.
+- [ ] D-1c. Per-family bridge verification (large molecules first).
 
 ## Phase E — P4 gate
 
