@@ -423,3 +423,47 @@ func TestMandateVerifyStaysPublic(t *testing.T) {
 		t.Error("public verify must still rate-limit a hammering client")
 	}
 }
+
+// J3: meta approve/reject/apply are capability mutations — bearer-gated.
+// No token → 401; valid token reaches the handler (unknown IDs refuse
+// with 400 from the engine, never 401). Listing stays public.
+func TestMetaRoutesBearerGate(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
+
+	for _, path := range []string{"/api/metasearch/approve", "/api/metasearch/reject", "/api/metasearch/apply"} {
+		call := func(token string) int {
+			body := []byte(`{"proposal_id":"ghost","signer":"tester"}`)
+			if path == "/api/metasearch/apply" {
+				body = []byte(`{"proposal_id":"ghost"}`)
+			}
+			req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(body))
+			if token != "" {
+				req.Header.Set("Authorization", "Bearer "+token)
+			}
+			req.RemoteAddr = "127.0.0.1:0"
+			req.Header.Set("X-Forwarded-For", nextTestIP())
+			w := httptest.NewRecorder()
+			srv.Handler().ServeHTTP(w, req)
+			return w.Code
+		}
+		if got := call(""); got != http.StatusUnauthorized {
+			t.Errorf("%s without token must 401, got %d", path, got)
+		}
+		if got := call("wrong"); got != http.StatusUnauthorized {
+			t.Errorf("%s with wrong token must 401, got %d", path, got)
+		}
+		if got := call("op-token"); got != http.StatusBadRequest {
+			t.Errorf("%s with valid token must reach the engine (400 unknown id), got %d", path, got)
+		}
+	}
+
+	// Proposals listing stays public (read-only).
+	req := httptest.NewRequest(http.MethodGet, "/api/metasearch/proposals", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Errorf("proposals listing must stay public, got %d", w.Code)
+	}
+}

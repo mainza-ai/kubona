@@ -293,9 +293,14 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/autoresearch/loops", s.handleAutoresearchLoops)
 	s.mux.HandleFunc("/api/autoresearch/loops/", s.handleAutoresearchLoopAction)
 	s.mux.HandleFunc("/api/metasearch/proposals", s.handleMetasearchProposals)
-	s.mux.HandleFunc("/api/metasearch/approve", s.handleMetasearchApprove)
-	s.mux.HandleFunc("/api/metasearch/reject", s.handleMetasearchReject)
-	s.mux.HandleFunc("/api/metasearch/apply", s.handleMetasearchApply)
+	// J3: meta-approve/reject/apply are capability mutations (they mark
+	// strategy changes approved and resume loops). The signer field is an
+	// attribution label, not authentication — the bearer token proves
+	// operator possession. Unauthenticated callers get 401 before any
+	// proposal state is touched. Listing stays public (read-only).
+	s.mux.HandleFunc("/api/metasearch/approve", s.requireBearer(s.handleMetasearchApprove))
+	s.mux.HandleFunc("/api/metasearch/reject", s.requireBearer(s.handleMetasearchReject))
+	s.mux.HandleFunc("/api/metasearch/apply", s.requireBearer(s.handleMetasearchApply))
 
 	// Hybrid LLM Configuration Plane endpoints
 	s.mux.HandleFunc("/api/llm/settings", s.handleLLMSettings)
