@@ -180,3 +180,47 @@ func TestMemoryHTTPRefusals(t *testing.T) {
 		t.Errorf("over-range importance must clamp, not refuse, got %d", code)
 	}
 }
+
+// Inventory mode (empty q → ListRecent) crosses the same tenant boundary
+// as semantic recall: tenant B's inventory must not list tenant A's rows,
+// and listed rows carry similarity:null (no match computed, never a score).
+func TestMemoryHTTPInventoryIsolation(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+
+	if _, err := srv.TenantManager().CreateTenant("lab-ia", "Lab IA"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := srv.TenantManager().CreateTenant("lab-ib", "Lab IB"); err != nil {
+		t.Fatal(err)
+	}
+	sidA := memoryTestSession(t, srv, "ia session", "lab-ia")
+	sidB := memoryTestSession(t, srv, "ib session", "lab-ib")
+
+	if code, _ := retainPost(t, h, map[string]any{"session_id": sidA, "content": "lab-ia inventory secret"}); code != http.StatusCreated {
+		t.Fatalf("retain in A: %d", code)
+	}
+	code, out := recallGet(t, h, "session_id="+sidB+"&bank=all")
+	if code != http.StatusOK {
+		t.Fatalf("inventory in B: %d", code)
+	}
+	if snips, _ := out["snippets"].([]any); len(snips) != 0 {
+		t.Errorf("cross-tenant inventory leak: %v", snips)
+	}
+	code, out = recallGet(t, h, "session_id="+sidA+"&bank=all")
+	if code != http.StatusOK {
+		t.Fatalf("inventory in A: %d", code)
+	}
+	snips, _ := out["snippets"].([]any)
+	if len(snips) != 1 {
+		t.Fatalf("own inventory must list exactly 1, got %v", out)
+	}
+	row, _ := snips[0].(map[string]any)
+	if sim, present := row["similarity"]; !present || sim != nil {
+		t.Errorf("inventory similarity must be present-null (no match computed), got %v (present=%v)", sim, present)
+	}
+	if row["content"] != "lab-ia inventory secret" {
+		t.Errorf("inventory content wrong: %v", row)
+	}
+}

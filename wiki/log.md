@@ -1955,3 +1955,9 @@ skipped is the exact failure this incident is about:
   R8/R9-class/R10/R11/R12/R14/R17 with tests + live proof (Aer dispatch
   with stamp, krylov envelope, QIR 400); dead Go MCP plane deleted;
   bridge + daemon on current builds. Go full + 401 python green.
+
+## [2026-10-12] verification | F-6 docs/minors landed, Phase F complete
+  R15 live-measured 14-row matrix published; inventory isolation test;
+  fetched_live rename; Analyze defense comments; synth section-3
+  de-fictioned + dead H2 except removed (production-bar extras).
+  All F-1..F-6 green: Go full + 401 python + console 73 + builds.
