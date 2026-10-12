@@ -1625,14 +1625,24 @@ func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// R17: proposal attribution transcribed into the job below.
+	designedBy := ""
 	if len(req.Proposal) > 0 {
 		var p struct {
 			QASM            string `json:"qasm"`
 			RecommendedTier string `json:"recommended_tier"`
 			SpendEstimate   string `json:"spend_estimate"`
 			Target          string `json:"target"`
+			// R17: attribution rides into the job. Transcribed verbatim
+			// when present, never inferred when absent — stamping "model"
+			// on client-crafted JSON would fabricate authorship. The
+			// server-fallback flow (generated in-chat, echoed back at
+			// launch) preserves its stamp end-to-end, which is the case
+			// that matters.
+			DesignedBy string `json:"designed_by"`
 		}
 		if json.Unmarshal(req.Proposal, &p) == nil {
+			designedBy = p.DesignedBy
 			if p.QASM != "" {
 				req.QASM = p.QASM
 			}
@@ -1675,6 +1685,11 @@ func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
 		"requested_backend": req.Backend,
 		"shots":             1024,
 		"max_cost_usd":      req.BudgetUSD,
+	}
+	// R17: attribution persists on the job row and the job_queued event
+	// (SubmitJob stores params_json verbatim and queues the full job).
+	if designedBy != "" {
+		jobParams["designed_by"] = designedBy
 	}
 	job, err := s.jobRunner.SubmitJob(req.SessionID, "circuit_run", jobParams)
 	if err != nil {
@@ -2715,6 +2730,14 @@ func (s *Server) handleQIRCompile(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// R8: compiling nothing is a client error, not an empty summary.
+	// Analyze is total by construction — without this guard an empty
+	// submission would come back looking like a result.
+	if strings.TrimSpace(req.QASM) == "" {
+		http.Error(w, "qasm is required: empty input compiles to nothing", http.StatusBadRequest)
 		return
 	}
 

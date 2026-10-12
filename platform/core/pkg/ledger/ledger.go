@@ -83,8 +83,7 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 	dsn := fmt.Sprintf("%s?_journal_mode=WAL&_busy_timeout=5000&_synchronous=NORMAL", dbPath)
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
-		syscall.Flock(int(lockFile.Fd()), syscall.LOCK_UN)
-		lockFile.Close()
+		releaseLock(lockFile)
 		return nil, fmt.Errorf("failed to open sqlite db: %w", err)
 	}
 
