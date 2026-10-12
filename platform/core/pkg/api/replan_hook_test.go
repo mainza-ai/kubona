@@ -234,3 +234,50 @@ func TestClaimEvalMintsWithoutCampaign(t *testing.T) {
 		t.Errorf("no campaign means no versions, got %d", len(versions))
 	}
 }
+
+// R2: the no-campaign notebook path with no bridge behind it must read as
+// an assumed template — UNVERIFIED_FALLBACK, accuracy false, fallback
+// named in the anchor and sections. Never VERIFIED_ACCURATE.
+func TestNotebooksFallbackLabeled(t *testing.T) {
+	srv, _, cleanup := replanHookTestServer(t, "test_notebooks_fallback.db")
+	defer cleanup()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/results/notebooks", nil)
+	rec := httptest.NewRecorder()
+	srv.handleNotebooks(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("notebooks must answer 200, got %d", rec.Code)
+	}
+	var body struct {
+		Notebooks []struct {
+			ClassicalAnchor  string   `json:"classical_anchor"`
+			ChemicalAccuracy bool     `json:"chemical_accuracy"`
+			EpistemicVerdict string   `json:"epistemic_verdict"`
+			Sections         []string `json:"sections"`
+		} `json:"notebooks"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Notebooks) != 1 {
+		t.Fatalf("expected 1 template notebook, got %d", len(body.Notebooks))
+	}
+	nb := body.Notebooks[0]
+	if nb.EpistemicVerdict != "UNVERIFIED_FALLBACK" {
+		t.Errorf("fallback verdict must be UNVERIFIED_FALLBACK, got %q", nb.EpistemicVerdict)
+	}
+	if nb.ChemicalAccuracy {
+		t.Error("accuracy cannot pass on an assumed anchor")
+	}
+	if !strings.Contains(nb.ClassicalAnchor, "fallback") {
+		t.Errorf("anchor must name the fallback: %q", nb.ClassicalAnchor)
+	}
+	if !strings.Contains(nb.Sections[1], "UNAVAILABLE") {
+		t.Errorf("section 2 must disclose the missing anchor: %q", nb.Sections[1])
+	}
+	for _, sec := range nb.Sections {
+		if strings.Contains(sec, "verification (|") {
+			t.Errorf("no verification language on fallback: %q", sec)
+		}
+	}
+}

@@ -178,12 +178,17 @@ live proof + green CI, checkboxes flip on landing.
   `UNVERIFIED` + caveat; validation sessions deleted. Full Go suite
   green; 3 tests updated to the corrected behavior + 1 new
   (fresh-fold-keeps-pending).
-- [ ] F-3. Display/handler honesty (P1). R2: `handleNotebooks`
-  no-campaign path labeled (`UNVERIFIED_FALLBACK`, assumed anchor,
-  `chemAccuracy=false`). R7: `MeasuredOutputs` filters
-  `status === COMPLETED` (+ FAILED-with-timestamp fixture). R16:
-  contested tribunal badge reads `CONTESTED`/`NO CONSENSUS`, never
-  `DELIBERATING`.
+- [x] F-3. Display/handler honesty (P1). — landed 2026-10-12: R2
+  `handleNotebooks` no-campaign path tracks `anchorComputed` — bridge
+  absent/failed → `UNVERIFIED_FALLBACK`, accuracy false, fallback named
+  in anchor + sections (success path unchanged). R7 `MeasuredOutputs`
+  gates on `status === JOB_STATUS_COMPLETED` (FAILED carries
+  `completed_at` too) + regression fixture with a newer FAILED job.
+  R16 tribunal badge reads `CONTESTED` + `XCircle` on false
+  (a rendered tribunal is finished — never `DELIBERATING`) + render
+  tests both ways. Live: template path both directions via API
+  (campaign rows removed to reach it); validation sessions deleted.
+  Go `pkg/api` green, console 73 tests green, `pnpm build` clean.
 - [ ] F-4. Auth/hardening leftovers (P1). R4: `requireBearer` on
   verify/grants-register/tenants-mutations + limiters on tenants
   routes (update grant/tenant tests with tokens). R5: harness

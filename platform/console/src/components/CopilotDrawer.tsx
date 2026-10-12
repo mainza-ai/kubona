@@ -27,6 +27,7 @@ import {
   ThumbsUp,
   ThumbsDown,
   Pencil,
+  XCircle,
 } from 'lucide-react';
 import { ChatMessage, CampaignState, RunPhase, Proposal } from '@/types';
 import { fetchMessages, sendChatMessage, streamChatMessage, createSession, runTribunal, fetchCampaignState, launchProposal, clearMessages, regenerateChat, sendFeedback, rewriteChat, fetchJobs, jobStatusLabel, isTerminalJobStatus } from '@/lib/api';
@@ -1110,8 +1111,14 @@ export function CopilotDrawer({
                           : 'bg-amber-950/70 border-amber-500/40 text-amber-300'
                       }`}
                     >
-                      <CheckCircle2 className="w-3 h-3" />
-                      <span>{m.tribunal.consensus_passed ? 'CONSENSUS VERIFIED' : 'DELIBERATING'}</span>
+                      {/* R16: a rendered tribunal message is finished — a false
+                          consensus is CONTESTED, never "still deliberating". */}
+                      {m.tribunal.consensus_passed ? (
+                        <CheckCircle2 className="w-3 h-3" />
+                      ) : (
+                        <XCircle className="w-3 h-3" />
+                      )}
+                      <span>{m.tribunal.consensus_passed ? 'CONSENSUS VERIFIED' : 'CONTESTED'}</span>
                     </span>
                   </div>
 

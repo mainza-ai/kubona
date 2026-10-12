@@ -18,6 +18,12 @@ const JOBS = [
     id: 'job-run-1', session_id: 's', status: 'JOB_STATUS_RUNNING', job_type: 'circuit_run',
     params_json: {}, created_at: '',
   },
+  {
+    // R7: FAILED jobs carry completed_at — they must not render as measured.
+    id: 'job-fail-1', session_id: 's', status: 'JOB_STATUS_FAILED', job_type: 'krylov_solve',
+    params_json: {}, result_json: { error_message: 'bridge blew up' },
+    created_at: '', completed_at: '2026-10-11T03:00:00Z',
+  },
 ];
 
 describe('MeasuredOutputs', () => {
@@ -52,6 +58,9 @@ describe('MeasuredOutputs', () => {
     expect(text).toContain('(estimate)');
     expect(text).toContain('job-kry'.slice(0, 8));
     expect(text).not.toContain('RUNNING');
+    // The newer FAILED krylov job must not displace (or appear as) measured.
+    expect(text).not.toContain('bridge blew up');
+    expect(text).not.toContain('job-fail'.slice(0, 8));
   });
 
   it('says so when nothing completed', async () => {
