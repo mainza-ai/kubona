@@ -197,6 +197,12 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 	);
 	CREATE INDEX IF NOT EXISTS idx_claims_session ON claim_records(session_id);
 
+	CREATE TABLE IF NOT EXISTS canvas_layouts (
+		session_id TEXT PRIMARY KEY,
+		layout_json TEXT NOT NULL DEFAULT '{}',
+		updated_at DATETIME NOT NULL
+	);
+
 	CREATE INDEX IF NOT EXISTS idx_chat_session ON chat_messages(session_id);
 	CREATE INDEX IF NOT EXISTS idx_jobs_session ON jobs(session_id);
 	CREATE INDEX IF NOT EXISTS idx_ledger_session ON ledger_events(session_id);

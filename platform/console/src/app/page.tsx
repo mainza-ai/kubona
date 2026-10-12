@@ -77,17 +77,18 @@ export default function Home() {
   const [showCampaignMenu, setShowCampaignMenu] = useState(false);
 
   const refreshData = useCallback(async () => {
+    const sid = currentSessionId || undefined;
     const [sessList, loopList, evtList] = await Promise.all([
       fetchSessions(),
-      fetchLoops(),
-      fetchEvents(),
+      fetchLoops(sid),
+      fetchEvents(sid),
     ]);
     if (sessList.length > 0) {
       setSessions(sessList);
     }
     setLoops(loopList);
     setEvents(evtList);
-  }, []);
+  }, [currentSessionId]);
 
   useEffect(() => {
     if (currentSessionId) {
@@ -135,8 +136,8 @@ export default function Home() {
     })();
 
     const timer = setInterval(() => {
-      fetchLoops().then((l) => { if (mounted) setLoops(l); });
-      fetchEvents().then((e) => {
+      fetchLoops(currentSessionId || undefined).then((l) => { if (mounted) setLoops(l); });
+      fetchEvents(currentSessionId || undefined).then((e) => {
         if (!mounted) return;
         setEvents(e);
         // Heartbeat toasts: while a run is live, surface fresh ledger events
