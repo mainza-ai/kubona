@@ -126,7 +126,11 @@ with tests + live proof + green CI, per project rule).
   rails; Go covers registry/autonomy/admission incl. grant-admitted QPU
   and L0 refusal; suspended-status has no mutator anywhere (dead state,
   logged gap).
-- [ ] E-1c. Bao credential into one job path + AppRole.
+- [x] E-1c. Bao credential into one job path + AppRole. — landed 2026-10-11:
+  `OpenBaoSecretSource` (AppRole login, KV reads, fail-closed outages,
+  404-absent passthrough, lease revoke) + `SecretStore.from_env`
+  (Bao authoritative when configured, env otherwise); Qiskit submit
+  path consults Bao first. 9 tests; runbook covers Bao rotation.
 - [ ] E-1d. Low-trust CI split + can-agent-act job.
 - [ ] E-1e. FIPS-203 KAT + transport decision doc; review engagement +
   sidecar grading; Q-27 flip (operator-gated).
