@@ -20,6 +20,14 @@ on:
   workflow_dispatch:
 
 jobs:
+  secret-scan:
+    name: Secret + local-path scan (versioned pre-commit mirror)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Scan tracked tree for secrets and local-only paths
+        run: ./scripts/secret-scan.sh
+
   python-tests:
     name: Python tests (121+)
     runs-on: ubuntu-latest

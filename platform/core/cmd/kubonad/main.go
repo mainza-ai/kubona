@@ -40,6 +40,42 @@ func loadDotEnv() {
 	}
 }
 
+// isLoopback reports whether a bind address is loopback-only.
+func isLoopback(host string) bool {
+	h := strings.Trim(strings.TrimSpace(host), "[]")
+	return h == "127.0.0.1" || h == "::1" || strings.ToLower(h) == "localhost"
+}
+
+// validateServeConfig enforces the TLS posture before any socket opens
+// (K6: "non-local binds refuse without TLS material", strict mode).
+//   - cert without key (or vice versa): refuse — half material serves nothing.
+//   - --tls-required without both files present: refuse.
+//   - cert/key paths that don't exist: refuse early with the path named
+//     (rather than crashing mid-serve inside ListenAndServeTLS).
+// Plain HTTP on loopback, or declared-LAN plaintext, passes validation
+// (the LAN case logs a warning at boot instead).
+func validateServeConfig(bind, cert, key string, required bool) error {
+	if (cert == "") != (key == "") {
+		return fmt.Errorf("tls-cert and tls-key must be set together")
+	}
+	if required && (cert == "" || key == "") {
+		return fmt.Errorf("--tls-required needs --tls-cert and --tls-key")
+	}
+	for label, path := range map[string]string{"tls-cert": cert, "tls-key": key} {
+		if path == "" {
+			continue
+		}
+		fi, err := os.Stat(path)
+		if err != nil {
+			return fmt.Errorf("%s file unreadable %q: %v", label, path, err)
+		}
+		if fi.IsDir() {
+			return fmt.Errorf("%s path %q is a directory", label, path)
+		}
+	}
+	return nil
+}
+
 func loadDotEnvFile(path string) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -79,7 +115,20 @@ func main() {
 	port := flag.Int("port", 8080, "HTTP API gateway port")
 	dbPath := flag.String("db", "", "Path to SQLite WAL ledger (default: ~/.kubona/kubona.db)")
 	bridgeAddr := flag.String("bridge", "localhost:50051", "Python gRPC bridge address")
+	// K6: bind/TLS posture. Default bind is loopback (fail-closed network
+	// posture matching the rest of the edge: bearer 503s, opt-in host
+	// fallback). LAN serving is an explicit --bind; TLS serving needs
+	// operator-owned cert material; --tls-required refuses non-TLS
+	// operation outright. See [[security-and-pqc]] transport decision.
+	bindAddr := flag.String("bind", "127.0.0.1", "HTTP bind address (loopback default; 0.0.0.0 only behind TLS or declared LAN)")
+	tlsCert := flag.String("tls-cert", "", "TLS certificate file (PEM); with --tls-key enables HTTPS serving")
+	tlsKey := flag.String("tls-key", "", "TLS private key file (PEM)")
+	tlsRequired := flag.Bool("tls-required", false, "Refuse to serve without TLS material (strict edge posture)")
 	flag.Parse()
+
+	if err := validateServeConfig(*bindAddr, *tlsCert, *tlsKey, *tlsRequired); err != nil {
+		log.Fatalf("Serve configuration refused: %v", err)
+	}
 
 	resolvedDB := *dbPath
 	if resolvedDB == "" {
@@ -123,7 +172,7 @@ func main() {
 	// 4. Start HTTP / REST / WebSocket Gateway
 	server := api.NewServer(l, sessionMgr, jobRunner, loopSupervisor, taskWatchdog)
 	httpServer := &http.Server{
-		Addr:    fmt.Sprintf(":%d", *port),
+		Addr:    fmt.Sprintf("%s:%d", *bindAddr, *port),
 		Handler: server.Handler(),
 		// Write budget covers uncapped local generations (~6 tok/s can run
 		// minutes); the 600s LLM call budget plus margin. Read stays tight
@@ -133,13 +182,30 @@ func main() {
 		IdleTimeout:  120 * time.Second,
 	}
 
+	useTLS := *tlsCert != "" && *tlsKey != ""
+	if !useTLS && !isLoopback(*bindAddr) {
+		// Declared-LAN posture (see transport decision): audible, never silent.
+		log.Printf("[Kubona Core] WARNING: serving plain HTTP on non-loopback %s — TLS termination belongs at the deployment edge; set --tls-cert/--tls-key or --bind 127.0.0.1", *bindAddr)
+	}
+
 	go func() {
-		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		var err error
+		if useTLS {
+			log.Printf("[Kubona Core] Serving HTTPS on %s", httpServer.Addr)
+			err = httpServer.ListenAndServeTLS(*tlsCert, *tlsKey)
+		} else {
+			err = httpServer.ListenAndServe()
+		}
+		if err != nil && err != http.ErrServerClosed {
 			log.Fatalf("HTTP server failure: %v", err)
 		}
 	}()
 
-	log.Printf("[Kubona Core] Daemon running at http://localhost:%d", *port)
+	scheme := "http"
+	if *tlsCert != "" && *tlsKey != "" {
+		scheme = "https"
+	}
+	log.Printf("[Kubona Core] Daemon running at %s://%s:%d", scheme, *bindAddr, *port)
 
 	// Graceful shutdown handling
 	sigCh := make(chan os.Signal, 1)
