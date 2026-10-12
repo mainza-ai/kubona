@@ -2061,3 +2061,22 @@ skipped is the exact failure this incident is about:
   Provider switch proven both ways live; Lean image verdict recorded
   (Hub path unresolvable); runbook + suites + dry-run stand ready.
   Remaining deeds are operator-only by nature.
+
+## [2026-10-12] audit | G-batch hygiene fixes landed (part)
+  kubona/risks/design-evolution stack wording; cost-gov Q-11 pointer;
+  overview counts; gaps corpora/perf/arXiv rows; agentic-audit Phase-3
+  closure; evidence-notes bridge count; curvature + five-ring paths
+  and ring table; agentic-memory landing correction; anchors 8→20
+  coverage note.
+  Correction: the 2026-10-04 entry pointing at
+  `wiki_89_pages_comprehensive_audit_report.md` names a file that was
+  never committed — the artifact is [[forensic-audit-2026]].
+
+## [2026-10-12] question | Q-33 — suspended tenant status gets a mutator, not removal
+  `POST /api/tenants/status` (admin-signed set_status, bearer + limiter)
+  flips active <-> suspended; verifyAdmin freezes spend-affecting actions
+  while the admin keeps reactivation + key rotation. Tests
+  TestTenantSuspendLifecycle + TestTenantSuspendedRecoveryPaths green;
+  live matrix on :8080 proven (401 no-bearer, 403 dispatch/ceiling naming
+  suspension, 200 reactivate). Answer landed on
+  [[user-identity-and-profiles]]; row moved to Closed.

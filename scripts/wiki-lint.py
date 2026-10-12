@@ -76,6 +76,13 @@ def check(pages: list[str]) -> dict[str, list[str]]:
         if stem not in META_PAGES and stem not in index and stem not in questions:
             findings["page absent from index.md and questions.md"].append(rel)
 
+        # Q-32: every open-question page must have a row in questions.md.
+        # Presence in index.md is not enough — the work-list is questions.md.
+        # (Substring match is deliberately lenient: a [[link]] reference
+        # counts. What it catches is pages with zero mention at all.)
+        if status == "open-question" and stem not in questions:
+            findings["open-question page without a questions.md row"].append(rel)
+
         # The invariant that matters: a `path:line` anchor must resolve against the live GitHub
         # URL, never a `dev-docs/` scratch clone (deleted when development ends). Historical prose
         # *about* dev-docs is fine; an anchor pointing into it is not. log.md is an append-only
