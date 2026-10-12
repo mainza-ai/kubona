@@ -99,10 +99,13 @@ func TestPolicyParityTable(t *testing.T) {
 	srv, cleanup := setupTestRoutesServer(t)
 	defer cleanup()
 	h := srv.Handler()
+	// R4: tenants/grants mutations sit behind the bearer rail.
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
 	post := func(path string, body any) (int, map[string]any) {
 		t.Helper()
 		rawBody, _ := json.Marshal(body)
 		req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(rawBody))
+		req.Header.Set("Authorization", "Bearer op-token")
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, req)
 		var out map[string]any

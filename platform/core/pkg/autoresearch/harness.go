@@ -3,6 +3,7 @@ package autoresearch
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 
@@ -38,13 +39,18 @@ type HarnessResult struct {
 	RawStderr         string  `json:"raw_stderr,omitempty"`
 }
 
-// ensureRunner provides a configured sandbox runner if none was passed
+// ensureRunner provides a configured sandbox runner if none was passed.
+// R5: host fallback is opt-in, never default — mirroring the daemon's
+// KUBONA_ALLOW_HOST_FALLBACK=1 gate. Un-sandboxed host execution must be
+// a deliberate operator choice, not a silent default.
 func ensureRunner(r *sandbox.SandboxRunner) *sandbox.SandboxRunner {
 	if r != nil {
 		return r
 	}
 	cfg := sandbox.DefaultConfig()
-	cfg.AllowHostFallback = true // Resilient execution if docker daemon is not active
+	if os.Getenv("KUBONA_ALLOW_HOST_FALLBACK") == "1" {
+		cfg.AllowHostFallback = true
+	}
 	return sandbox.NewSandboxRunnerWithConfig(cfg)
 }
 

@@ -189,11 +189,23 @@ live proof + green CI, checkboxes flip on landing.
   tests both ways. Live: template path both directions via API
   (campaign rows removed to reach it); validation sessions deleted.
   Go `pkg/api` green, console 73 tests green, `pnpm build` clean.
-- [ ] F-4. Auth/hardening leftovers (P1). R4: `requireBearer` on
-  verify/grants-register/tenants-mutations + limiters on tenants
-  routes (update grant/tenant tests with tokens). R5: harness
-  `ensureRunner` default false + opt-in env (verify harness tests).
-  R6: compose password → `${POSTGRES_PASSWORD:?}` required-env.
+- [x] F-4. Auth/hardening leftovers (P1). — landed 2026-10-12: R4
+  bearer rail extended to `mandates/verify`, `grants/register`,
+  `grants/revoke`, and the four tenant mutations (envelopes stay the
+  real auth; bearer is the edge rail); new 5rps/15-burst limiters on
+  tenants + grants routes. Tenant self-provisioning stays open by
+  design (L1 simulator-only, first-key-wins — pinned by test) but
+  rate-limited. R5 `ensureRunner` defaults `AllowHostFallback=false`
+  + `KUBONA_ALLOW_HOST_FALLBACK=1` opt-in (all existing tests already
+  set the flag explicitly). R6 compose password → required-env
+  (refuses `config` without the var, resolves with it). Live matrix
+  on an isolated daemon+DB: 401×3 no-token, 201 open creation, 401
+  wrong token, 403 token-without-envelope. Live proof also caught a
+  real pre-existing bug: `clientKey` keyed on `RemoteAddr` verbatim
+  (one bucket per TCP connection — 25 rapid curls all 201, and the
+  same hole applied to the B0-2 sign/verify limiters); now keys on
+  remote IP, live re-proof 15×201 + 10×429. Six existing tests
+  updated with tokens; parked daemon rebuilt to current develop.
 - [ ] F-5. Backend robustness + dead code (P2). R8: QIR empty-QASM 400.
   R9: `try` around `ExecuteQuantumKrylov` like the anchor path. R10:
   fix `-lock` typo, sweep `.lock` strays, `_ =` + comment on unlock,
