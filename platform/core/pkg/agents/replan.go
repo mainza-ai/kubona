@@ -205,7 +205,7 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 				state.QuantumFactors.MeyerWallachQ = mw
 			}
 		}
-		measureLine("Krylov ground state E=%.5f Ha (|E-FCI|=%.5f Ha).", energy, math.Abs(energy-fci))
+		measureLine("Krylov ground state E=%.5f Ha (|E-FCI|=%.5f Ha; bridge-computed classical emulation, no quantum execution).", energy, math.Abs(energy-fci))
 		return marshalReplan(&state, true, "krylov energy folded into trajectory")
 
 	case "classical_anchor":
@@ -301,6 +301,13 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			return nil, false, "verdict unknown"
 		}
 		_ = json.Unmarshal(rawPass, &passes)
+		var delta float64
+		deltaKnown := false
+		if rawDelta, ok := present("delta_mha"); ok {
+			if json.Unmarshal(rawDelta, &delta) == nil {
+				deltaKnown = true
+			}
+		}
 		reason := ""
 		if raw, ok := present("verdict_reason"); ok {
 			_ = json.Unmarshal(raw, &reason)
@@ -312,6 +319,14 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			state.Epistemics.Status = "CONTESTED"
 			state.Epistemics.Statement = "Evaluated claim failed chemical accuracy: " + boundClaim(reason)
 			measureLine("claim evaluated: chemical accuracy FAILED. %s%s", boundClaim(reason), citeSuffix(cite))
+		}
+		// Mechanical contradiction check: the verdict flag and the measured
+		// delta must agree (pass ⟺ Δ ≤ 1.6). A mismatch means the evaluator
+		// contradicts its own evidence — recorded loudly, never smoothed
+		// over. This is the thinnest real contradiction detector: no LLM,
+		// just arithmetic over the verdict just folded.
+		if deltaKnown && ((passes && delta > 1.6) || (!passes && delta <= 1.6)) {
+			measureLine("CONTRADICTION: verdict flag disagrees with measured Δ=%.2f mHa (passes=%v).", delta, passes)
 		}
 		return marshalReplan(&state, true, "epistemics set from evaluated verdict")
 
