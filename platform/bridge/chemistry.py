@@ -78,8 +78,10 @@ def solve_classical_anchor(molecule: str, bond_distance_angstrom: float, basis: 
                 f"unsupported molecule {molecule.strip()!r}: no explicit geometry and not resolvable "
                 f"to a conformer ({e}) — refusing instead of substituting another molecule"
             )
-        except Exception:
-            atom_str = f"H 0 0 0; H 0 0 {r}"
+        # NOTE: no fallback geometry here. An earlier revision silently
+        # substituted H2 and returned H2 energies as the requested molecule;
+        # the except above now refuses, and dead fallback code was removed
+        # (2026-10-12) so no reader can mistake it for a live path.
 
     try:
         from pyscf import gto, scf, fci, mcscf
