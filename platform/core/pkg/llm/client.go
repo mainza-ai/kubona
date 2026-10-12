@@ -63,6 +63,29 @@ type ModelInfo struct {
 type Client struct {
 	settings *Settings
 	httpCli  *http.Client
+	// OnSpend, when set, fires after every non-local completion with the
+	// provider-reported usage. Fire-and-forget by contract: it runs
+	// synchronously but must never fail the call (accounting observes,
+	// never gates — gating happens pre-call at the edge).
+	OnSpend func(SpendRecord)
+}
+
+// reportSpend emits one accounting record for a completed call when a
+// hook is set and the provider is metered (non-local).
+func (c *Client) reportSpend(providerType ProviderType, model string, promptTokens, completionTokens int, usageReported bool) {
+	if c.OnSpend == nil {
+		return
+	}
+	if providerType == ProviderOMLX || providerType == ProviderOllama || providerType == ProviderLMStudio {
+		return
+	}
+	c.OnSpend(SpendRecord{
+		Provider:         string(providerType),
+		Model:            model,
+		PromptTokens:     promptTokens,
+		CompletionTokens: completionTokens,
+		UsageReported:    usageReported,
+	})
 }
 
 func NewClient(settings *Settings) *Client {
@@ -144,6 +167,9 @@ func (c *Client) Complete(ctx context.Context, role string, messages []ChatMessa
 		return "", nil, duration, fmt.Errorf("no completion choices returned by model")
 	}
 
+	c.reportSpend(providerType, model,
+		chatResp.Usage.PromptTokens, chatResp.Usage.CompletionTokens,
+		chatResp.Usage.TotalTokens > 0)
 	return chatResp.Choices[0].Message.Content, &chatResp, duration, nil
 }
 
@@ -263,7 +289,29 @@ func (c *Client) CompleteStream(ctx context.Context, role string, messages []Cha
 	if err := sc.Err(); err != nil {
 		return &StreamResult{Text: full.String(), Finish: finish, Duration: time.Since(start), Usage: usage}, err
 	}
+	c.reportSpendMap(providerType, model, usage)
 	return &StreamResult{Text: full.String(), Finish: finish, Duration: time.Since(start), Usage: usage}, nil
+}
+
+// reportSpendMap adapts provider-reported usage maps (float64 JSON
+// numbers) to reportSpend. Absent keys mean unreported, never zero-priced.
+func (c *Client) reportSpendMap(providerType ProviderType, model string, usage map[string]any) {
+	if usage == nil {
+		c.reportSpend(providerType, model, 0, 0, false)
+		return
+	}
+	num := func(k string) int {
+		switch v := usage[k].(type) {
+		case float64:
+			return int(v)
+		case int:
+			return v
+		default:
+			return 0
+		}
+	}
+	pt, ct := num("prompt_tokens"), num("completion_tokens")
+	c.reportSpend(providerType, model, pt, ct, pt+ct > 0)
 }
 
 // FetchModels queries the provider's /models endpoint to discover live available models

@@ -2,6 +2,8 @@ package metasearch
 
 import (
 	"context"
+	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sync"
@@ -44,6 +46,7 @@ type MetaSearchEngine struct {
 	mu        sync.RWMutex
 	proposals map[string]*MetaProposal
 	llmClient *llm.Client
+	db        *sql.DB
 }
 
 func NewMetaSearchEngine() *MetaSearchEngine {
@@ -55,6 +58,51 @@ func NewMetaSearchEngineWithLLM(llmClient *llm.Client) *MetaSearchEngine {
 		proposals: make(map[string]*MetaProposal),
 		llmClient: llmClient,
 	}
+}
+
+// SetDB attaches SQLite persistence for proposals (K4). Without it the
+// engine is memory-only: approvals vanish on restart (fail-closed, but
+// the approval UX breaks across reboots). Rows are append-only history —
+// rejections stay recorded, never deleted.
+func (e *MetaSearchEngine) SetDB(db *sql.DB) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.db = db
+	if db == nil {
+		return
+	}
+	rows, err := db.Query(`SELECT id, proposal_json FROM metasearch_proposals`)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var id, raw string
+		var p MetaProposal
+		if err := rows.Scan(&id, &raw); err != nil {
+			continue
+		}
+		if err := json.Unmarshal([]byte(raw), &p); err != nil {
+			continue
+		}
+		p.ID = id
+		e.proposals[id] = &p
+	}
+}
+
+// saveLocked upserts one proposal row; caller holds mu.
+func (e *MetaSearchEngine) saveLocked(p *MetaProposal) {
+	if e.db == nil {
+		return
+	}
+	raw, err := json.Marshal(p)
+	if err != nil {
+		return
+	}
+	_, _ = e.db.Exec(
+		`INSERT INTO metasearch_proposals (id, proposal_json, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+		 ON CONFLICT(id) DO UPDATE SET proposal_json = excluded.proposal_json, updated_at = CURRENT_TIMESTAMP`,
+		p.ID, string(raw))
 }
 
 // ProposeSearchRefinement creates a versioned, diff-reviewable update to search.md
@@ -83,6 +131,7 @@ func (e *MetaSearchEngine) ProposeSearchRefinement(
 	}
 
 	e.proposals[p.ID] = p
+	e.saveLocked(p)
 	return p
 }
 
@@ -172,6 +221,7 @@ func (e *MetaSearchEngine) ApproveProposal(proposalID, humanSigner string) error
 	p.Status = ProposalApproved
 	now := time.Now().UTC()
 	p.ResolvedAt = &now
+	e.saveLocked(p)
 	return nil
 }
 
@@ -189,10 +239,16 @@ func (e *MetaSearchEngine) RejectProposal(proposalID, humanSigner string) error 
 	p.Status = ProposalRejected
 	now := time.Now().UTC()
 	p.ResolvedAt = &now
+	e.saveLocked(p)
 	return nil
 }
 
-// ApplyProposal applies the refinement to the active harness instruction set
+// ApplyProposal records an approved refinement as applied. K4 honesty:
+// this writes NO files — applying a diff to live harness instructions
+// is operator action until Phase-5 auto-apply, and writing
+// attacker-influenced diffs from an HTTP handler would be a path and
+// content hazard. The status + persisted row + ledger event (written by
+// the caller) are the application record; the message says so.
 func (e *MetaSearchEngine) ApplyProposal(proposalID string) (string, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -207,7 +263,8 @@ func (e *MetaSearchEngine) ApplyProposal(proposalID string) (string, error) {
 	}
 
 	p.Status = ProposalApplied
-	return fmt.Sprintf("Applied Section 13 meta-search refinement %s to %s", p.ID, p.TargetFile), nil
+	e.saveLocked(p)
+	return fmt.Sprintf("Recorded approved Section 13 refinement %s for %s (no files written — application is operator action)", p.ID, p.TargetFile), nil
 }
 
 func (e *MetaSearchEngine) ListProposals() []*MetaProposal {

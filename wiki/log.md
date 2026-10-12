@@ -2023,3 +2023,9 @@ skipped is the exact failure this incident is about:
   Registry persists (SQLite), validates shape, seed-immutable,
   bearer-gated writes; tests caught a dropped seed line. Triage
   recorded advisory, wiki threshold synced to 50. Live 503 + seeds.
+
+## [2026-10-12] verification | K4 cloud-LLM dollar rail + meta persistence landed
+  Heuristic cost table + OnSpend hook (cloud-only) + per-call ledger
+  events + optional global cap at 4 chat entries. Meta proposals
+  persist; Apply states no-write design + ledger event. Live spend
+  events + 429-cap proof. Parked daemon track-only (no cap).

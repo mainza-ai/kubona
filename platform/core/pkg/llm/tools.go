@@ -138,6 +138,9 @@ func (c *Client) CompleteWithTools(ctx context.Context, role string, messages []
 	chatResp.Usage.PromptTokens = parsed.Usage.PromptTokens
 	chatResp.Usage.CompletionTokens = parsed.Usage.CompletionTokens
 	chatResp.Usage.TotalTokens = parsed.Usage.TotalTokens
+	c.reportSpend(providerType, model,
+		parsed.Usage.PromptTokens, parsed.Usage.CompletionTokens,
+		parsed.Usage.TotalTokens > 0)
 	return ch.Message.Content, fromWireCalls(ch.Message.ToolCalls), chatResp, duration, nil
 }
 

@@ -265,6 +265,19 @@ implemented (needs revision). Every item has file:line or a live probe.
     identity the submit path lacks), wiki threshold synced ≤36→50,
     credits kept as specified output. Live: 503 fail-closed + 2
     seeds listed.
+  - [x] **K4 landed 2026-10-12:** cloud-LLM dollar rail —
+    `pkg/llm/cost.go` heuristic rate table (labeled v1, unknown
+    models refuse to price) + `OnSpend` hook on all 3 client paths
+    (local never fires) + per-call `llm_spend_estimated` ledger
+    events + optional global cap (`KUBONA_LLM_BUDGET_USD`, unset =
+    track-only) enforced at chat/stream/regenerate/tribunal entries
+    (429 with cause). Meta persistence: `metasearch_proposals`
+    table, save on propose/approve/reject/apply, load on boot;
+    Apply message states the no-write design + ledger `applied`
+    event. Live: tribunal recorded 5 spend events (~$0.003);
+    $0.0001 cap → 429 with cause. Runbook row added. (Minor:
+    `DELETE` on a non-existent session id answered deleted:true —
+    leniency noted, not chased here.)
 - **Phase L (operator queue, in order):** oMLX-as-default switch
   (or documented cloud-default) · Lean image + warm · reviewer/API/
   contact env · EPO registration · vendor grading · review
