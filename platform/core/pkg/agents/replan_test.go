@@ -546,3 +546,43 @@ func TestReplanKrylovLabelsEmulation(t *testing.T) {
 		t.Errorf("krylov line must name the emulation: %q", last)
 	}
 }
+
+// D-1c: fallback defaults are reviewed measurements, not inventions. Each
+// family synthesizes (nil bridge) to its verified STO-3G anchor, labeled
+// fallback. If someone "tunes" a default, this test demands the matrix.
+func TestSynthFallbackDefaultsAreVerified(t *testing.T) {
+	cases := []struct {
+		prompt string
+		rhf    float64
+		fci    float64
+	}{
+		{"H2 ground state", -1.11668, -1.13727},
+		{"LiH dissociation", -7.86200, -7.88239},
+		{"BeH2 linear", -15.56010, -15.57580},
+		{"H2O water", -74.96298, -74.97040},
+		{"N2 dinitrogen", -107.49589, -107.62185},
+		{"CO2 carbon dioxide", -185.06522, -185.15720},
+		{"CO carbon monoxide", -111.22459, -111.33095},
+		{"HF fluoride", -98.57076, -98.59659},
+		{"NH3 ammonia", -55.45398, -55.49467},
+		{"CH4 methane", -39.50989, -39.55590},
+		{"Benzene", -227.88822, -227.94430},
+		{"Caffeine", -667.65428, -667.68304},
+		{"Aspirin", -636.60816, -636.64195},
+		{"Paracetamol", -505.83584, -505.89628},
+	}
+	for _, tc := range cases {
+		state, err := SynthesizeCampaignState(context.Background(), "sess-defaults", tc.prompt, nil, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if state.ClassicalAnchor.AnchorComputed {
+			t.Errorf("%q: nil bridge must fall back", tc.prompt)
+		}
+		if state.ClassicalAnchor.RhfMeanFieldEnergy != tc.rhf || state.ClassicalAnchor.FciExactEnergy != tc.fci {
+			t.Errorf("%q: fallback drifted from verified matrix: got %.5f/%.5f, want %.5f/%.5f",
+				tc.prompt, state.ClassicalAnchor.RhfMeanFieldEnergy, state.ClassicalAnchor.FciExactEnergy,
+				tc.rhf, tc.fci)
+		}
+	}
+}
