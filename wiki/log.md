@@ -2089,3 +2089,14 @@ skipped is the exact failure this incident is about:
   402-gated submit, same executor + tenant rules) — claim corrected on
   [[a2a]] + Correction block on the audit page, no transport work. Both
   rows moved to Closed.
+
+## [2026-10-12] audit | G7 session-attribution fallback closed
+  ensureSession adopted the most-recent session for unknown/missing ids.
+  Now requireSession (404) on the spend class — jobs, launch, tribunal
+  (missing too), autoresearch; chat writes 404 unknown / mint-fresh on
+  empty; reads 404 unknown without adopting (epistemics keeps
+  most-recent for the console global view: read-only, bearer-gated, no
+  boundary crossed). Strengthened L0 + autoresearch tests to explicit
+  sessions; new TestSessionAttributionStrictness. Live on :8080: 404s
+  all around for ghosts, 201 for a real session. Row in
+  [[implementation-gaps]] Medium table.
