@@ -137,6 +137,12 @@ func SynthesizeCampaignStateWithOpts(
 		upper = strings.ToUpper(targetMolecule) + " " + upper
 	}
 
+	// Fallback defaults below are MEASURED PySCF STO-3G values, verified
+	// 2026-10-11 against the live bridge across all 14 families (D-1c
+	// matrix, all computing within the production time budget). They were
+	// previously never-STO-3G numbers (N2 off 1.5 Ha, Aspirin off 456 Ha).
+	// Fallbacks stay labeled as such (anchor_computed=false) — but at
+	// least they are now the right physics, not inventions.
 	mol := "H2"
 	formula := "H2"
 	bondDist := 0.7414
@@ -162,8 +168,8 @@ func SynthesizeCampaignStateWithOpts(
 		ansatz = "TwoLocal / RyRz Entangling"
 		mwQ = 0.76
 		gradVar = 2.1e-3
-		rhfDefault = -7.86338
-		fciDefault = -7.88240
+		rhfDefault = -7.86200
+		fciDefault = -7.88239
 		smiles = "[Li][H]"
 	} else if strings.Contains(upper, "BEH2") || strings.Contains(upper, "BERYLLIUM") {
 		mol = "BeH2"
@@ -176,8 +182,8 @@ func SynthesizeCampaignStateWithOpts(
 		ansatz = "RealAmplitudes Hardware-Efficient"
 		mwQ = 0.88
 		gradVar = 1.8e-3
-		rhfDefault = -15.5620
-		fciDefault = -15.5940
+		rhfDefault = -15.56010
+		fciDefault = -15.57580
 		smiles = "[H][Be][H]"
 	} else if strings.Contains(upper, "H2O") || strings.Contains(upper, "WATER") {
 		mol = "H2O"
@@ -190,8 +196,8 @@ func SynthesizeCampaignStateWithOpts(
 		ansatz = "UCCSD Active-Space Transpiled"
 		mwQ = 0.91
 		gradVar = 1.2e-3
-		rhfDefault = -75.9890
-		fciDefault = -76.0125
+		rhfDefault = -74.96298
+		fciDefault = -74.97040
 		smiles = "O"
 	} else if strings.Contains(upper, "N2") || strings.Contains(upper, "NITROGEN") {
 		mol = "N2"
@@ -204,8 +210,8 @@ func SynthesizeCampaignStateWithOpts(
 		ansatz = "UCCSD Active-Space Transpiled"
 		mwQ = 0.89
 		gradVar = 1.4e-3
-		rhfDefault = -108.98
-		fciDefault = -109.11
+		rhfDefault = -107.49589
+		fciDefault = -107.62185
 		smiles = "N#N"
 	} else if strings.Contains(upper, "CO2") {
 		mol = "CO2"
@@ -218,8 +224,8 @@ func SynthesizeCampaignStateWithOpts(
 		ansatz = "RealAmplitudes Hardware-Efficient"
 		mwQ = 0.92
 		gradVar = 1.1e-3
-		rhfDefault = -187.65
-		fciDefault = -187.82
+		rhfDefault = -185.06522
+		fciDefault = -185.15720
 		smiles = "O=C=O"
 	} else if strings.Contains(upper, "CO") || strings.Contains(upper, "CARBON MONOXIDE") {
 		mol = "CO"
@@ -232,8 +238,8 @@ func SynthesizeCampaignStateWithOpts(
 		ansatz = "UCCSD Parameterized"
 		mwQ = 0.87
 		gradVar = 1.5e-3
-		rhfDefault = -112.78
-		fciDefault = -112.91
+		rhfDefault = -111.22459
+		fciDefault = -111.33095
 		smiles = "[C-]#[O+]"
 	} else if strings.Contains(upper, "HF") || strings.Contains(upper, "FLUORIDE") {
 		mol = "HF"
@@ -246,8 +252,8 @@ func SynthesizeCampaignStateWithOpts(
 		ansatz = "TwoLocal / RyRz Entangling"
 		mwQ = 0.81
 		gradVar = 2.2e-3
-		rhfDefault = -99.98
-		fciDefault = -100.07
+		rhfDefault = -98.57076
+		fciDefault = -98.59659
 		smiles = "F"
 	} else if strings.Contains(upper, "NH3") || strings.Contains(upper, "AMMONIA") {
 		mol = "NH3"
@@ -260,8 +266,8 @@ func SynthesizeCampaignStateWithOpts(
 		ansatz = "UCCSD Active-Space Transpiled"
 		mwQ = 0.88
 		gradVar = 1.3e-3
-		rhfDefault = -56.18
-		fciDefault = -56.29
+		rhfDefault = -55.45398
+		fciDefault = -55.49467
 		smiles = "N"
 	} else if strings.Contains(upper, "CH4") || strings.Contains(upper, "METHANE") {
 		mol = "CH4"
@@ -274,8 +280,8 @@ func SynthesizeCampaignStateWithOpts(
 		ansatz = "TwoLocal / RyRz Entangling"
 		mwQ = 0.86
 		gradVar = 1.5e-3
-		rhfDefault = -39.724
-		fciDefault = -39.752
+		rhfDefault = -39.50989
+		fciDefault = -39.55590
 		smiles = "C"
 	} else if strings.Contains(upper, "BENZENE") {
 		mol = "Benzene"
@@ -288,8 +294,8 @@ func SynthesizeCampaignStateWithOpts(
 		ansatz = "Pi-Space Complete Active Space VQE"
 		mwQ = 0.91
 		gradVar = 1.6e-3
-		rhfDefault = -230.70
-		fciDefault = -230.82
+		rhfDefault = -227.88822
+		fciDefault = -227.94430
 		smiles = "c1ccccc1"
 	} else if strings.Contains(upper, "CAFFEINE") {
 		mol = "Caffeine"
@@ -302,8 +308,8 @@ func SynthesizeCampaignStateWithOpts(
 		ansatz = "Fragment Molecular Orbital VQE"
 		mwQ = 0.84
 		gradVar = 2.1e-3
-		rhfDefault = -675.20
-		fciDefault = -675.35
+		rhfDefault = -667.65428
+		fciDefault = -667.68304
 		smiles = "CN1C=NC2=C1C(=O)N(C(=O)N2C)C"
 	} else if strings.Contains(upper, "ASPIRIN") {
 		mol = "Aspirin"
@@ -316,8 +322,8 @@ func SynthesizeCampaignStateWithOpts(
 		ansatz = "Fragment Molecular Orbital VQE"
 		mwQ = 0.79
 		gradVar = 2.4e-3
-		rhfDefault = -180.20
-		fciDefault = -180.28
+		rhfDefault = -636.60816
+		fciDefault = -636.64195
 		smiles = "CC(=O)Oc1ccccc1C(=O)O"
 	} else if strings.Contains(upper, "PARACETAMOL") {
 		mol = "Paracetamol"
@@ -330,8 +336,8 @@ func SynthesizeCampaignStateWithOpts(
 		ansatz = "Fragment Molecular Orbital VQE"
 		mwQ = 0.77
 		gradVar = 2.6e-3
-		rhfDefault = -151.10
-		fciDefault = -151.18
+		rhfDefault = -505.83584
+		fciDefault = -505.89628
 		smiles = "CC(=O)Nc1ccc(O)cc1"
 	}
 
