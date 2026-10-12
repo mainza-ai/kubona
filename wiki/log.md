@@ -1981,3 +1981,9 @@ skipped is the exact failure this incident is about:
   with no Go equivalent), prior dev-docs audits unreliable (ML-DSA
   error, dead paths rated green). oMLX models verified incl.
   OrcaRouter-27B.
+
+## [2026-10-12] verification | J1 manuscript verification gating landed
+  ResultsStudio manuscript/LaTeX/Lean prose gated on COLLAPSED_VERIFIED
+  (claims) + proof receipt (Lean, honestly absent); render tests caught
+  2 further ungated badges in the same component (fixed same slice).
+  Console 76 green, build clean.

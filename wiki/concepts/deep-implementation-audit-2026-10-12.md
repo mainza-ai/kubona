@@ -183,6 +183,15 @@ implemented (needs revision). Every item has file:line or a live probe.
   studio→`manuscript.py` wiring · J2 mesh-route gate port · J3
   meta approve/apply bearer + signer binding · J4 mandate tenant
   attribution · J5 krylov solver flag + fold gating.
+  - [x] **J1 landed 2026-10-12:** manuscript/LaTeX/Lean prose gated on
+    `epistemics.status === COLLAPSED_VERIFIED` (claim) and recorded
+    proof receipt (Lean — never set today, so honestly absent);
+    unverified renders PROJECTED DRAFT + "Projected Research Draft"
+    + "Variational Exploration Active" + no-prover-run text. The
+    render tests caught 2 more ungated sites in the same component
+    (header "Verified Research Finding" + "Chemical Accuracy Met"
+    badges, "Zero sorryAx (ρ=1.000)" pill) — fixed in the same
+    slice. 76/76 console green, build clean.
   Acceptance: each proven by a would-be-caught test (wrong-number
   manuscript refuses/marks; keyword route without mandate refuses;
   self-asserted approve 401s; session-tenant mandates admit past
