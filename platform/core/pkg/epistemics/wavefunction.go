@@ -119,7 +119,13 @@ func (g *EpistemicGate) RefusalRatio() float64 {
 	return float64(g.refusalCount) / float64(g.totalChecks)
 }
 
-// ComputeEpistemicCurvature computes concentration κ and literature drift d(E_canon, E_live)
+// ComputeEpistemicCurvature computes concentration κ and literature drift d(E_canon, E_live).
+// κ here is a cheap closed form over a caller-supplied variance — a
+// DIAGNOSTIC, not a decision input: nothing in the codebase branches on it
+// (the IPR/Fisher-Rao machinery in kubona/epistemics/curvature.py has no
+// production callers). Do not gate collapses on this value without wiring
+// measured variance first; the hardcoded call-site variance is a prior,
+// not evidence.
 func ComputeEpistemicCurvature(variance float64, eCanon, eLive float64) (kappa float64, drift float64) {
 	kappa = 1.0 / (1.0 + math.Abs(variance))
 	drift = math.Abs(eCanon - eLive)

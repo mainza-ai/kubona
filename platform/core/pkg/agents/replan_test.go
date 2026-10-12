@@ -508,3 +508,41 @@ func (s stubAnchorBridge) ComputeClassicalAnchor(ctx context.Context, in *pb.Cla
 		RhfEnergy: -1.11668, FciExactEnergy: -1.13727,
 	}, nil
 }
+
+func TestReplanContradictionCheck(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+	// Pass flag with failing delta: evaluator contradicts its evidence.
+	updated, changed, _ := ReplanWithJobResult(raw, "job-contra", "claim_eval",
+		[]byte(`{"claim_id":"c","corroborated_amplitude":0.9,"contested_amplitude":0.05,"unverified_amplitude":0.1,"passes_chemical_accuracy":true,"delta_mha":3.2,"verdict_reason":"fine"}`), "")
+	if !changed {
+		t.Fatal("expected fold")
+	}
+	after := decodeReplan(t, updated)
+	last := after.Notebook.Sections[len(after.Notebook.Sections)-1]
+	if !strings.Contains(last, "CONTRADICTION") || !strings.Contains(last, "3.20") {
+		t.Errorf("mismatch must record loudly: %q", last)
+	}
+	// Consistent verdicts record no contradiction line.
+	updated, _, _ = ReplanWithJobResult(raw, "job-ok", "claim_eval",
+		[]byte(`{"claim_id":"c","corroborated_amplitude":0.9,"contested_amplitude":0.05,"unverified_amplitude":0.1,"passes_chemical_accuracy":true,"delta_mha":0.4,"verdict_reason":"fine"}`), "")
+	after = decodeReplan(t, updated)
+	for _, sec := range after.Notebook.Sections {
+		if strings.Contains(sec, "CONTRADICTION") {
+			t.Errorf("consistent verdict must not flag: %q", sec)
+		}
+	}
+}
+
+func TestReplanKrylovLabelsEmulation(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+	updated, changed, _ := ReplanWithJobResult(raw, "job-k2", "krylov_solve",
+		[]byte(`{"success":true,"ground_state_energy":-1.13699,"classical_fci_energy":-1.13727}`), "")
+	if !changed {
+		t.Fatal("expected fold")
+	}
+	after := decodeReplan(t, updated)
+	last := after.Notebook.Sections[len(after.Notebook.Sections)-1]
+	if !strings.Contains(last, "classical emulation") {
+		t.Errorf("krylov line must name the emulation: %q", last)
+	}
+}
