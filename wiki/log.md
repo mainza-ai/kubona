@@ -1908,3 +1908,6 @@ skipped is the exact failure this incident is about:
   no vector seam); transport decision in security-and-pqc (TLS edge +
   envelopes, KEMTLS deferred); operator actions listed in order.
   Mandates suite green.
+
+## [2026-10-12] verification | CI green on E-1e crypto contract
+  All 5 jobs success on run 38207304381. Tree clean, zero unpushed.
