@@ -1857,3 +1857,6 @@ skipped is the exact failure this incident is about:
   name-to-SMILES, unknowns refuse); 13 defaults refreshed to measured
   STO-3G + pinned; bridge + python tests. Live benzene campaign
   computes pyscf-live anchor. Go + python green.
+
+## [2026-10-12] verification | CI green on D-1c anchor verification
+  All 5 jobs success on run 38202465462. Tree clean, zero unpushed.
