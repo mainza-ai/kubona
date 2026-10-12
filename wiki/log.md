@@ -2080,3 +2080,12 @@ skipped is the exact failure this incident is about:
   live matrix on :8080 proven (401 no-bearer, 403 dispatch/ceiling naming
   suspension, 200 reactivate). Answer landed on
   [[user-identity-and-profiles]]; row moved to Closed.
+
+## [2026-10-12] question | Q-34 + Q-35 — dormant PG labelled, A2A premise corrected
+  Q-34: pgvector sidecar marked dormant-by-design in-code (x402 precedent);
+  TestPostgresStoreDormantContract pins unconfigured + fail-closed; answer
+  on [[agentic-memory-and-observability]]. Q-35: live probe proved
+  POST /api/a2a/v1 already serves external JSON-RPC (card/-32601/status/
+  402-gated submit, same executor + tenant rules) — claim corrected on
+  [[a2a]] + Correction block on the audit page, no transport work. Both
+  rows moved to Closed.
