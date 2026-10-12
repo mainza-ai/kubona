@@ -442,7 +442,7 @@ func SynthesizeCampaignStateWithOpts(
 		"type":     "wireCut",
 		"position": map[string]any{"x": 420, "y": midY},
 		"data": map[string]any{
-			"label":    fmt.Sprintf("KaHyPar QPD Wire Cut (%s)", formula),
+			"label":    fmt.Sprintf("Planned KaHyPar wire cut (%s) — not executed", formula),
 			"overhead": "4.0x",
 		},
 	})
@@ -646,7 +646,7 @@ func SynthesizeCampaignStateWithOpts(
 			QASM:               qasmCode,
 			DagNodes:           dagNodes,
 			DagEdges:           dagEdges,
-			WireCuts:           []any{map[string]any{"cut_type": "KaHyPar QPD", "overhead": "4.0x"}},
+			WireCuts:           []any{map[string]any{"planned": true, "cut_type": "KaHyPar QPD", "overhead": "4.0x (estimate, not measured)"}},
 		},
 		ClassicalAnchor: ClassicalAnchor{
 			Method:                 anchorMethod,

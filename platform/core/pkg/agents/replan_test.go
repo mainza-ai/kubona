@@ -382,7 +382,18 @@ func TestReplanPresenceRules(t *testing.T) {
 	}
 	if _, changed, _ := ReplanWithJobResult(raw, "job-v3", "circuit_cut",
 		[]byte(`{"success":true}`), ""); changed {
-		t.Error("cut without count must not fold")
+		t.Error("cut that produced nothing must not fold")
+	}
+	cutReal, cutChanged, _ := ReplanWithJobResult(raw, "job-v3b", "circuit_cut",
+		[]byte(`{"success":true,"fragments":[{"fragment_id":1},{"fragment_id":2}]}`), "")
+	if !cutChanged {
+		t.Error("real bridge shape (fragments, no total_cuts) must fold with derived count")
+	} else {
+		afterCut := decodeReplan(t, cutReal)
+		entry, _ := afterCut.QuantumFactors.WireCuts[0].(map[string]any)
+		if entry["total_cuts"] != float64(2) {
+			t.Errorf("count must derive from fragments: %+v", entry)
+		}
 	}
 	if _, changed, _ := ReplanWithJobResult(raw, "job-v4", "pes_sweep",
 		[]byte(`{"success":true,"molecule":"H2","points":[{"rhf_energy":-1.0,"fci_energy":-1.1}]}`), ""); changed {
@@ -399,5 +410,38 @@ func TestReplanPresenceRules(t *testing.T) {
 func TestEvalClaimRecordRequiresVerdict(t *testing.T) {
 	if _, ok := EvalClaimRecord([]byte(`{"claim_id":"c","corroborated_amplitude":0.9,"contested_amplitude":0.05,"unverified_amplitude":0.1,"verdict_reason":"x"}`)); ok {
 		t.Error("amplitudes without a verdict key must not draft")
+	}
+}
+
+func TestReplanCutPersistsMeasuredWireCuts(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+	updated, changed, _ := ReplanWithJobResult(raw, "job-cut9", "circuit_cut",
+		[]byte(`{"success":true,"total_cuts":2,"fragments":[{"fragment_id":0,"cut_qubits":[1]},{"fragment_id":1,"cut_qubits":[1]}]}`), "")
+	if !changed {
+		t.Fatal("expected fold")
+	}
+	after := decodeReplan(t, updated)
+	if len(after.QuantumFactors.WireCuts) != 1 {
+		t.Fatalf("expected 1 measured entry, got %+v", after.QuantumFactors.WireCuts)
+	}
+	entry, ok := after.QuantumFactors.WireCuts[0].(map[string]any)
+	if !ok {
+		t.Fatalf("entry wrong shape: %T", after.QuantumFactors.WireCuts[0])
+	}
+	if entry["measured"] != true || entry["job_id"] != "job-cut9" {
+		t.Errorf("entry must be marked measured with job: %+v", entry)
+	}
+	if entry["total_cuts"] != float64(2) {
+		t.Errorf("cut count wrong: %+v", entry)
+	}
+	frags, _ := entry["fragments"].([]any)
+	if len(frags) != 2 {
+		t.Errorf("fragments wrong: %+v", entry)
+	}
+	// Synthesis template carries the planned marker (never measured).
+	synth := decodeReplan(t, raw)
+	first, _ := synth.QuantumFactors.WireCuts[0].(map[string]any)
+	if first["planned"] != true {
+		t.Errorf("synth template must be marked planned: %+v", first)
 	}
 }
