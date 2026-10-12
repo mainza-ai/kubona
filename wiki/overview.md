@@ -158,8 +158,8 @@ reproducible results — see [[science-discovery]].
   insight mining needs no grant, and the only check is at release time.
 ## Where the blueprint is unsettled
 
-The full ledger of undecided and under-understood items is [[questions]] — 26 ranked
-open questions, each with what is known, what is missing, and what the answer unblocks.
+The full ledger of undecided and under-understood items is [[questions]] — 30 closed,
+5 open rows (Q-27, Q-32…Q-35), each with what is known, what is missing, and what the answer unblocks.
 Three tensions are worth naming here because they are strategic rather than technical:
 
 - **Open-source vs. qBraid's 34-device lead.** Kubona deliberately starts with 2–3

@@ -74,7 +74,7 @@ $$g_{\mu\nu}(\vec{\theta}) = \mathbb{E}_{\vec{\theta}}\left[ \frac{\partial \log
 
 ## Landing in the platform
 
-- `platform/kubona/observability/epistemics.py`: pure functions, golden-tested on a synthetic
+- `platform/kubona/epistemics/curvature.py`: pure functions, golden-tested on a synthetic
   evidence corpus (a diverging corpus, an echo corpus, a stale corpus).
 - Emitted as ledger records on the same append-only store as runs, so a stagnation alarm is
   itself provenance ([[provenance-and-reproducibility]]).

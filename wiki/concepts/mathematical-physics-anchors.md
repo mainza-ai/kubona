@@ -29,6 +29,16 @@ Under the [[quantum-advantage-realism]] policy, Kubona forbids ungrounded claims
 | **278** | Coulomb Molecule Ensemble | Non-representability of ground state density by Kohn–Sham systems | Justification for quantum VQE where classical DFT provably fails |
 | **279** | Quantum Integer Factoring | Polynomial-size uniform circuits over fixed gate set without ancillas | Compilation passes for fault-tolerant Clifford+T architectures |
 
+> **Coverage note (2026-10-12):** the table above names the 8
+> quantum-relevant families. The engine (`math_physics.py`,
+> `test_all_twenty_analytical_anchor_families`) implements 20
+> tested transcriptions of corpus claims (261–287). Transcription
+> means: the numbers are the corpus's published constants,
+> self-consistency-tested — not independently re-proven.
+> Extraordinary corpus claims (notably 287, free-group-factor
+> isomorphism) inherit corpus credibility only; nothing here
+> upgrades an AI-generated manuscript into peer-reviewed fact.
+
 ---
 
 ## 2. Enforcing Quantum Advantage Realism

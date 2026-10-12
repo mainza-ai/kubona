@@ -49,8 +49,8 @@ Four levels, enforced live at every dispatch entry point (`platform/core/pkg/ten
 
 Grants and revocations are admin-signed envelopes (`AdminAction`: params-bound hash,
 5-minute TTL, Ed25519) sealed as `tenant_autonomy_granted/revoked` ledger events.
-What the approver sees at each level (burden-scaled approval packets) remains
-[[questions]] Q-11.
+What the approver sees at each level (burden-scaled approval packets) is decided
+under [[questions]] Q-11 (closed 2026-10-09) — see Approval packet schema below.
 
 ## Approval packet schema (Q-11 design, 2026-10-09)
 

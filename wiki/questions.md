@@ -24,17 +24,24 @@ status: living
 These come first, because they change how every other question gets answered.
 
 | # | Question | Rank | Known | Missing | Pages |
-| **Q-32** | **How is the open-question-row rule enforced?** 7 open-question pages have zero rows in A–E; lint passes because it checks index-OR-questions presence. Either teach the lint the rule or reclassify the pages. | P1 | Rule text in AGENTS.md; lint check shape | Decision + enforcement | [[index]] |---|
+| **Q-32** | **How is the open-question-row rule enforced?** 7 open-question pages have zero rows in A–E; lint passes because it checks index-OR-questions presence. Either teach the lint the rule or reclassify the pages. | P1 | Rule text in AGENTS.md; lint check shape | Decision + enforcement | [[index]] |
+| [[kubona]] scope | What is the platform's settled scope — quantum toolset, discovery platform, or both, and what does v1 exclude? | P0 | Q-17 ruled CORE; Q-01 fixed `platform/` role | A scope statement that says what v1 is NOT | [[kubona]] |
+|---|---|---|---|---|---|
 
 ## B · Method & epistemics (the differentiator, least grounded)
 
 | # | Question | Rank | Known | Missing |
+| [[agentic-memory-and-observability]] | Where does the unified memory/observability surface live — ledger, sidecar, or console view? | P1 | Banks + HTTP + panel live; Rust-core lifecycle + single view open | Placement decision + acceptance test wiring |
+| [[agentic-qir-compilation]] | Do we author an MLIR dialect, or is the dialect scope one Kubona QIR + one lowering target? | P1 | No-quantum-dialect verified; portfolio + receipts live | Scope ruling (boundary conditions say one dialect) |
+| [[autonomous-ansatz-optimization]] | How do refuted-genome priors transfer across devices? | P1 | Genome shape, pre-checks, harness live | Transfer mechanism (the stated open problem) |
+| [[differentiable-quantum-stack]] | Is autodiff central (single tape) or a PennyLane-wrapped module? | P2 | Primitives verified; stack unwired | Architecture direction |
 |---|---|---|---|---|
 
 ## C · Governance & the trust boundary
 
 | # | Question | Rank | Known | Missing |
-| **Q-33** | **`suspended` tenant status: mutator or removal?** Field + enforcement exist, no mutator writes it — unreachable state. | P2 | Enforcement sites; E-1b log | Decision + test either way |
+| [[confidentiality-lattice-provenance]] | Where is the label lattice enforced — query, export, admission — and what refuses unmodelable labels? | P1 | Buzz primitive verified; Go/Python lattice live | Enforcement seams + refusal rule |
+| [[secrets-and-workload-isolation]] | What closes the remaining hardening gaps (case-guard analogue, low-trust CI mode, user-instrument SSRF)? | P1 | Sandbox + vault + envelopes live | Named gaps with tests |
 | **Q-34** | **PG/HNSW: wire or mark dormant?** `postgres.go` staged, zero importers. Either wire to recall or record dormant like x402. | P2 | Staged code; x402 dormant precedent | Decision + wiring or label |
 | **Q-35** | **A2A external transport: expose or downgrade?** Go-internal only; external collectives cannot reach it. Either serve JSON-RPC or scope the claim to internal delegation. | P2 | Internal paths; forensic gap note | Decision + transport or scope |
 |---|---|---|---|---|
@@ -85,6 +92,7 @@ These come first, because they change how every other question gets answered.
 | **Q-04** | 2026-10-10 | Allowed vocabulary: 12 permitted reporting verbs, banned hype terms, required qualifiers (anchor, provenance, falsification criteria), credibility field {rho, tier, refs}; enforced fail-closed in `ScientificClaim`. | [[quantum-advantage-realism]] |
 | **Q-05** | 2026-10-10 | Operational: 3-state axes, `ClaimCredibilityWavefunction.evaluate` over evidence signals, `ClaimRecord` ledger payloads, rho-gated assertion; worked H2 VQE example with real anchor numbers green. | [[claim-credibility-wavefunctions]] |
 | **Q-08** | 2026-10-10 | Not competitors but axes: five rings = architecture, discovery 7-stage = lifecycle traversal, §11/§13 = Ring-2/Ring-4 engines; new loops must state traversed rings. | [[five-ring-research-loop]] |
+| **Q-33** | 2026-10-12 | Mutator, not removal: `POST /api/tenants/status` flips active ↔ suspended; suspension freezes spend-affecting actions while the admin keeps reactivation + key rotation; enforced in `verifyAdmin`, live-proven both directions. | [[user-identity-and-profiles]] |
 
 ## Reading order for a new session
 

@@ -97,13 +97,13 @@ unimplemented, stubbed, or disguised behind static UI facades:
 |---|---|---|
 | Structured observability/metrics/audit export | 🟢 partial | Gateway audit now persists to a JSONL export (restart-safe, `audit_export()`, wired by default in `kubona run`/`serve-gateway`). Structured logging + OTel/Prometheus metrics remain. |
 | Perf-regression guards (G12) | 🟢 | tests/test_perf_guard.py guards the lower + local-simulator hot paths against accidental O(exponential) regressions (passed in ~0.1s). |
-| Volume eval corpora (QuantumKatas/HumanEval/PennyLang) | 🟡 mechanism-ready | `kubona/eval/corpus_loader.py` loads declarative JSON corpora (ghz/uniform/grover/bell check-kinds) into the evaluate_codegen contract; ships a verified extended corpus (ghz5/ghz6/qft4) whose every task passes its invariant on the simulator, and rejects bad entries fail-closed. The third-party datasets (QuantumKatas/HumanEval/PennyLang) are the external ingredient that drop in via this loader. |
+| Volume eval corpora (QuantumKatas/HumanEval/PennyLang) | 🟢 landed 2026-10-10 | Katas transcribed (16 tasks at 1.0) + HumanEval 136 golden with 15 named exclusions via the loader; PennyLang refused-named under Q-26 (licence). Loader + licence gate + provenance quarantine all enforced. |
 | GQE transformer (Unsloth) training | 🔵 | n-gram stand-in today; drop-in `propose` replacement on a GPU host. |
 | Full circuit knitting | 🟡 partial | LOOC-Z single-CNOT wire cut now additionally reconstructs the **full post-cut target distribution** (`cut_histogram`, exact Z-diagonal, verified against uncut — strictly more informative than a single ⟨Z⟩). Honest scope: a single-CNOT cut reaches one target qubit, so multi-qubit-gate/product-Z cuts still need the full QPD/Qiskit-CKT integration (documented; that is the remaining piece). |
-| Perf/load baselines | 🔵 | Pure-numpy simulator; add perf regression + memory guards. |
+| Perf/load baselines | 🟢 guards landed | tests/test_perf_guard.py guards the lower + local-simulator hot paths (passed in ~0.1s). Full loop load/chaos tests remain open. |
 
 ## Deferred by design (correct, per plan)
-- x402 activation on a real rail (Phase 5+), meta-loop auto-apply (§13.5, Phase 5+), Unsloth personas (Phase 6), real third-party provider PR, third-party security review execution, live arXiv/OpenAlex default (network-acknowledged; mock is the offline default).
+- x402 activation on a real rail (Phase 5+), meta-loop auto-apply (§13.5, Phase 5+), Unsloth personas (Phase 6), real third-party provider PR, third-party security review execution.
 
 ## Blueprint integrity (the wiki is the deliverable, so it is linted)
 

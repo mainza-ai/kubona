@@ -298,7 +298,7 @@ distance (Å); large-molecule R seeds the RDKit conformer path.
   silently H2; `recent_events` pays `{type,id}` only; schemas validate scalars
   only; `maxToolRounds=3` unbounded. Console honest-patterns to copy:
   ProofDagView/FlightRecorder/Manifold/TribunalRoom empty states, LIVE/REF
-  split, UNVERIFIED banners. Science: 14 synth families (bridge covers 10);
+  split, UNVERIFIED banners. Science: 14 synth families (bridge covers 14/14 since D-1c — R15 matrix below);
   syndrome "no producer" verified accurate; advantage language clean (keep the
   gate; consider renaming `COLLAPSED_VERIFIED` → `WITHIN_CHEMICAL_ACCURACY`).
   Hardening: mandate-envelope ML-KEM-768 real; transport plain HTTP; PG/HNSW

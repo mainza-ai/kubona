@@ -383,6 +383,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/tenants/ceiling", s.requireBearer(s.handleTenantCeiling))
 	s.mux.HandleFunc("/api/tenants/autonomy", s.requireBearer(s.handleTenantAutonomy))
 	s.mux.HandleFunc("/api/tenants/revoke", s.requireBearer(s.handleTenantRevoke))
+	s.mux.HandleFunc("/api/tenants/status", s.requireBearer(s.handleTenantStatus))
 }
 
 func (s *Server) PQCKeypair() *mandates.RecipientKeypair {

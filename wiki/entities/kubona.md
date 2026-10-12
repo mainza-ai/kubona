@@ -59,7 +59,7 @@ reproducible results (see [[science-discovery]]) — unifying [[qiskit]], [[penn
 - **Providers (11+):** IBM · IonQ · Quantinuum · Rigetti · Azure · Google · D-Wave ·
   QuEra · Pasqal · Xanadu · local/GPU simulator — onboarded as
   [[provider-capability-schema|data, not code]].
-- **Control plane:** Dart/Flutter [[agent-ux-control-plane|read/approve-only console]].
+- **Control plane:** TypeScript/Next.js [[agent-ux-control-plane|read/approve-only console]] (Dart/Flutter retired Q-22).
 
 ## Monetization (future)
 
@@ -69,7 +69,7 @@ reproducible results (see [[science-discovery]]) — unifying [[qiskit]], [[penn
 
 ## Costs & risks
 
-Six-language stack (Rust/TS/Dart/JS/Py/±Go) hiring burden; export-control exposure from
+Four-language production stack (Go/TS/Python/Rust); Dart retired. Export-control exposure from
 autonomous cross-border routing; MCP credential compromise → runaway spend (mitigated by
 [[cost-governance]] being Phase-1 non-optional).
 See [[overview]] and [[roadmap]].

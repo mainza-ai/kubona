@@ -189,6 +189,40 @@ func (s *Server) handleTenantAutonomy(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, t)
 }
 
+// handleTenantStatus flips active/suspended (Q-33). Same rails as the
+// other tenant mutations: bearer + limiter + admin-signed envelope.
+func (s *Server) handleTenantStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if !s.tenantLimiter.allow(clientKey(r)) {
+		http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+		return
+	}
+	var req struct {
+		TenantID string              `json:"tenant_id"`
+		Status   string              `json:"status"`
+		Action   tenants.AdminAction `json:"action"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	bound, err := bindAdminAction(req.TenantID, "set_status",
+		map[string]string{"status": req.Status}, req.Action)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+	t, err := s.tenantMgr.SetStatus(bound, req.Status)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+	writeJSON(w, http.StatusOK, t)
+}
+
 func (s *Server) handleTenantRevoke(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -1297,5 +1298,167 @@ func TestTribunalUnknownSessionRefuses(t *testing.T) {
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusNotFound {
 		t.Errorf("unknown session tribunal must 404, got %d", w.Code)
+	}
+}
+
+// Q-33: suspended is a reachable state, not a dead one. Admin-signed
+// suspend → spend and dispatch refuse naming suspension; reactivate
+// restores; invalid statuses and foreign keys refuse; bearer required.
+func TestTenantSuspendLifecycle(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
+
+	call := func(method, path, token string, body any) (int, string) {
+		t.Helper()
+		var req *http.Request
+		if body == nil {
+			req = httptest.NewRequest(method, path, nil)
+		} else {
+			raw, _ := json.Marshal(body)
+			req = httptest.NewRequest(method, path, bytes.NewReader(raw))
+		}
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		req.RemoteAddr = "127.0.0.1:0"
+		req.Header.Set("X-Forwarded-For", nextTestIP())
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		return w.Code, w.Body.String()
+	}
+	// Bootstrap lab + admin.
+	if code, _ := call(http.MethodPost, "/api/tenants", "", map[string]any{"id": "lab-susp"}); code != http.StatusCreated {
+		t.Fatalf("register: %d", code)
+	}
+	_, priv, _ := ed25519.GenerateKey(nil)
+	pubHex := hex.EncodeToString(priv.Public().(ed25519.PublicKey))
+	setKey := func() (int, string) {
+		return call(http.MethodPost, "/api/tenants/admin-key", "op-token", map[string]any{
+			"tenant_id": "lab-susp", "new_admin_pubkey_hex": pubHex})
+	}
+	if code, body := setKey(); code != http.StatusOK {
+		t.Fatalf("bootstrap: %d %s", code, body)
+	}
+	suspend := func(status, token string, key []byte, pub string) (int, string) {
+		act := signTenantAction(t, key, pub, "lab-susp", "set_status", map[string]string{"status": status})
+		return call(http.MethodPost, "/api/tenants/status", token, map[string]any{
+			"tenant_id": "lab-susp", "status": status, "action": act})
+	}
+
+	// Bearer gate + value gate + key gate.
+	if code, _ := suspend("suspended", "", priv, pubHex); code != http.StatusUnauthorized {
+		t.Errorf("no token must 401, got %d", code)
+	}
+	if code, body := suspend("frozen", "op-token", priv, pubHex); code != http.StatusForbidden {
+		t.Errorf("unknown status must 403, got %d %s", code, body)
+	}
+	_, priv2, _ := ed25519.GenerateKey(nil)
+	pub2 := hex.EncodeToString(priv2.Public().(ed25519.PublicKey))
+	if code, body := suspend("suspended", "op-token", priv2, pub2); code != http.StatusForbidden {
+		t.Errorf("foreign admin must 403, got %d %s", code, body)
+	}
+
+	// Suspend: dispatch refuses naming suspension.
+	if code, body := suspend("suspended", "op-token", priv, pubHex); code != http.StatusOK {
+		t.Fatalf("suspend: %d %s", code, body)
+	}
+	jobBody := map[string]any{
+		"session_id": "", "qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\nh q[0];\nmeasure q[0] -> c[0];\n",
+		"backend": "local_simulator", "shots": 100,
+	}
+	_ = jobBody
+	sessBody, _ := json.Marshal(map[string]any{"title": "susp drill", "tenant_id": "lab-susp"})
+	sessReq := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewReader(sessBody))
+	sessW := httptest.NewRecorder()
+	h.ServeHTTP(sessW, sessReq)
+	var sessResp struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(sessW.Body).Decode(&sessResp); err != nil || sessResp.ID == "" {
+		t.Fatalf("session setup: %v", err)
+	}
+	jb, _ := json.Marshal(map[string]any{
+		"session_id": sessResp.ID,
+		"qasm":       "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\nh q[0];\nmeasure q[0] -> c[0];\n",
+		"backend": "local_simulator", "shots": 100,
+	})
+	jreq := httptest.NewRequest(http.MethodPost, "/api/jobs", bytes.NewReader(jb))
+	jw := httptest.NewRecorder()
+	h.ServeHTTP(jw, jreq)
+	if jw.Code != http.StatusForbidden || !strings.Contains(strings.ToLower(jw.Body.String()), "suspend") {
+		t.Errorf("suspended dispatch must 403 naming suspension, got %d %q", jw.Code, jw.Body.String())
+	}
+
+	// Reactivate: dispatch works again.
+	if code, body := suspend("active", "op-token", priv, pubHex); code != http.StatusOK {
+		t.Fatalf("reactivate: %d %s", code, body)
+	}
+	jreq2 := httptest.NewRequest(http.MethodPost, "/api/jobs", bytes.NewReader(jb))
+	jw2 := httptest.NewRecorder()
+	h.ServeHTTP(jw2, jreq2)
+	if jw2.Code != http.StatusCreated {
+		t.Errorf("reactivated dispatch must proceed, got %d %s", jw2.Code, jw2.Body.String())
+	}
+}
+
+// Q-33 recovery: a suspended lab's admin keeps reactivation + key
+// rotation (kill-switch without recovery is a brick). Everything else
+// stays refused while suspended.
+func TestTenantSuspendedRecoveryPaths(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
+
+	call := func(method, path string, body any) (int, map[string]any) {
+		t.Helper()
+		raw, _ := json.Marshal(body)
+		req := httptest.NewRequest(method, path, bytes.NewReader(raw))
+		req.Header.Set("Authorization", "Bearer op-token")
+		req.RemoteAddr = "127.0.0.1:0"
+		req.Header.Set("X-Forwarded-For", nextTestIP())
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		rawBody := w.Body.String()
+		out := map[string]any{}
+		_ = json.Unmarshal([]byte(rawBody), &out)
+		out["_raw"] = rawBody
+		return w.Code, out
+	}
+	if code, _ := call(http.MethodPost, "/api/tenants", map[string]any{"id": "lab-rec"}); code != http.StatusCreated {
+		t.Fatalf("register: %d", code)
+	}
+	_, priv, _ := ed25519.GenerateKey(nil)
+	pubHex := hex.EncodeToString(priv.Public().(ed25519.PublicKey))
+	signed := func(action string, params any) tenants.AdminAction {
+		return signTenantAction(t, priv, pubHex, "lab-rec", action, params)
+	}
+	if code, _ := call(http.MethodPost, "/api/tenants/admin-key", map[string]any{
+		"tenant_id": "lab-rec", "new_admin_pubkey_hex": pubHex}); code != http.StatusOK {
+		t.Fatalf("bootstrap: %d", code)
+	}
+	suspAct := signed("set_status", map[string]string{"status": "suspended"})
+	if code, _ := call(http.MethodPost, "/api/tenants/status", map[string]any{
+		"tenant_id": "lab-rec", "status": "suspended", "action": suspAct}); code != http.StatusOK {
+		t.Fatalf("suspend: %d", code)
+	}
+	// Key rotation works while suspended (post-compromise recovery).
+	_, priv2, _ := ed25519.GenerateKey(nil)
+	pub2 := hex.EncodeToString(priv2.Public().(ed25519.PublicKey))
+	rotAct := signed("set_admin_key", map[string]string{"new_admin_pubkey_hex": pub2})
+	if code, body := call(http.MethodPost, "/api/tenants/admin-key", map[string]any{
+		"tenant_id": "lab-rec", "new_admin_pubkey_hex": pub2, "action": rotAct}); code != http.StatusOK {
+		t.Errorf("suspended key rotation must work, got %d %v", code, body)
+	}
+	// But ceiling changes stay refused while suspended — signed with the
+	// CURRENT (rotated) key so the refusal proves suspension, not key mismatch.
+	ceilAct2 := signTenantAction(t, priv2, pub2, "lab-rec", "set_ceiling", map[string]float64{"ceiling_usd": 10})
+	if code, body := call(http.MethodPost, "/api/tenants/ceiling", map[string]any{
+		"tenant_id": "lab-rec", "ceiling_usd": 10.0, "action": ceilAct2}); code != http.StatusForbidden {
+		t.Errorf("suspended ceiling change must 403, got %d %v", code, body)
+	} else if !strings.Contains(strings.ToLower(fmt.Sprint(body["_raw"])), "suspend") {
+		t.Errorf("refusal must name suspension, got %v", body)
 	}
 }
