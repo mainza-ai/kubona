@@ -2046,3 +2046,9 @@ skipped is the exact failure this incident is about:
   probe history left intact, append-only). Local oMLX tribunal proven
   (4 turns, zero cloud spend); per-role routing documented; cloud
   restored per speed directive.
+
+## [2026-10-12] verification | K4c honesty sweep landed
+  ActionGate fail-closed on unpriced/unbound authorize; DELETE
+  unknown sessions 404s; mock fixture offline-labeled; forensic
+  UID/file claims corrected. Lean image blocked upstream (no such
+  Hub path). Console 78 green.

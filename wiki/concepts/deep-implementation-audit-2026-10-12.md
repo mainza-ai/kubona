@@ -265,6 +265,15 @@ implemented (needs revision). Every item has file:line or a live probe.
     identity the submit path lacks), wiki threshold synced ≤36→50,
     credits kept as specified output. Live: 503 fail-closed + 2
     seeds listed.
+  - [x] **K4c landed 2026-10-12 (hygiene sweep):** ActionGate refuses
+    without a priced campaign (was silent `$0.12` default) and
+    without a bound session; `DeleteSession` 404s on unknown ids
+    (was `deleted:true` + ledger event for nothing); mock-papers
+    fixture labeled `offline=True`; forensic UID/file claims
+    corrected (quantum-runner UID 1000, no Dockerfile.worker).
+    Console 78 green. Lean image unbuildable as specified
+    (`leanprover/lean4:v4.34.1` unresolvable on Hub; no host
+    lake/elan) — stays operator-gated with the specific blocker.
   - [x] **K4b landed 2026-10-12:** tribunal refuses unknown session
     ids (404) instead of attaching turns/records/spend to
     `sessions[0]` — demonstrated live on a real session (history

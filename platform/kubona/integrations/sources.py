@@ -134,10 +134,12 @@ class _MockSource(AbstractSource):
     license = "CC0 (reference corpus)"
 
     def fetch(self, query: str, _http=None) -> SourceResult:
+        # offline=True: static fixture, never a live fetch. Nothing may
+        # present these two papers as searched results.
         return SourceResult(source=self.name, query=query,
                             items=[{"title": "VQE: theory and practice", "url": "mock://vqe"},
                                    {"title": "Error mitigation survey", "url": "mock://mirg"}],
-                            license=self.license, fetched_at=time.time(), offline=False)
+                            license=self.license, fetched_at=time.time(), offline=True)
 
 
 ARXIV = _HTTPArxivSource()
