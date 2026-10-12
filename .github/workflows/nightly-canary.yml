@@ -1,5 +1,9 @@
 name: Nightly Canary
 
+# Same least-privilege posture as CI: read-only tree, no publishing.
+permissions:
+  contents: read
+
 on:
   schedule:
     - cron: "17 3 * * *"   # nightly

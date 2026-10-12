@@ -1893,3 +1893,7 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-12] verification | CI green after revoke fix
   All 5 jobs success on run 38205765855. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | E-1d low-trust CI + can-agent-act
+  Least-privilege tokens on CI/nightly; three-leg agent proof
+  (reach/refuse/budget) running in the Go gate. Full Go suite green.
