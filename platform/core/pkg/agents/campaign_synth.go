@@ -625,7 +625,10 @@ func SynthesizeCampaignStateWithOpts(
 	sections := []string{
 		fmt.Sprintf("1. Scientific Objective: %s at equilibrium bond distance R=%.4f A", target, bondDist),
 		anchorLine,
-		fmt.Sprintf("3. Variational Quantum Eigensolver circuit execution on Aer (%s)", ansatz),
+		// Same rule as the no-campaign template path: nothing has
+		// executed at synthesis — vqeVal is corridor arithmetic, so the
+		// section names the estimate as unmeasured, never as execution.
+		fmt.Sprintf("3. Variational Quantum Eigensolver circuit prepared (%s) — awaiting execution; corridor estimate E=%.5f Ha (not measured)", ansatz, vqeVal),
 		collapseLine,
 		fmt.Sprintf("5. Negative results & barren plateau avoidance ledger (Var(∇E) = %.1e)", gradVar),
 		fmt.Sprintf("6. Pre-flight Clifford canary probe fidelity profile (F = %.1f%%)", 98.4),

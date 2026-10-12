@@ -2746,6 +2746,9 @@ func (s *Server) handleQIRCompile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	summary, err := s.qirCompiler.Analyze(req.QASM)
+	// Defensive refuse branch, kept deliberately (see SubmitJob): Analyze
+	// is total today, so this never fires — but a future fallible Analyze
+	// must refuse here, not summarize. Do not delete as "dead code".
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

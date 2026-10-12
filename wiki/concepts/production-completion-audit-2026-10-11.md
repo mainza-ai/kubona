@@ -249,11 +249,48 @@ live proof + green CI, checkboxes flip on landing.
   the new envelope; QIR empty → 400; bridge + daemon restarted to
   current builds; validation session deleted. Go full + 401 python
   green.
-- [ ] F-6. Docs/minors (P2). R15: publish the 14-row measured matrix
-  here. B1-2: empty-q cross-tenant test. `provenance_verified`
-  rename/doc (fetched-live meaning). Analyze-refuse-branch comment.
-  Rejected refutations recorded (autonomy, chemistry file, Analyze
-  branch) so nothing gets "fixed" unnecessarily.
+- [x] F-6. Docs/minors (P2). — landed 2026-10-12: R15 measured
+  14-row matrix published below (all values computed live on the date,
+  PySCF STO-3G; FCI ≤6 orbitals else CASCI cascade; variational check
+  holds on every row). B1-2 empty-q inventory isolation test
+  (similarity:null pinned). `provenance_verified` renamed
+  `fetched_live` with its narrow meaning documented (bytes arrived
+  live — nothing about the claims). Analyze refuse branches
+  documented as deliberate defense, not dead code. Production-bar
+  extras caught en route: synth notebook section 3 claimed un-run Aer
+  execution (same class as R2 — now corridor-estimate language), and
+  the dead H2-substitution `except` in chemistry.py removed (was
+  unreachable behind the refusal raise, but fiction-shaped).
+  Rejected refutations stand recorded above. Go full + 401 python
+  green.
+
+### R15 measured family matrix (2026-10-12, PySCF STO-3G, live bridge)
+
+Every value below was computed live on the audit date — no carried,
+no rounded-from-memory numbers. Solver: exact FCI at ≤6 orbitals,
+else the fixed CASCI cascade (6,6)→(6,4)→(4,4)→(4,2)→(2,2), first
+success wins (deterministic). Every FCI sits below its RHF
+(variational check passes on all 14 rows). `XenonX` refuses over the
+same bridge (`unsupported molecule … refusing instead of
+substituting`, live-proven in F-5). R = campaign equilibrium bond
+distance (Å); large-molecule R seeds the RDKit conformer path.
+
+| Molecule | R | RHF (Ha) | FCI/CASCI (Ha) | Solver |
+|---|---|---|---|---|
+| H2 | 0.7414 | -1.11668 | -1.13727 | FCI |
+| LiH | 1.5957 | -7.86200 | -7.88239 | FCI |
+| BeH2 | 1.3300 | -15.56010 | -15.57580 | CASCI* |
+| H2O | 0.9575 | -74.96298 | -74.97040 | CASCI* |
+| N2 | 1.0977 | -107.49589 | -107.62185 | CASCI* |
+| CO2 | 1.1620 | -185.06522 | -185.15720 | CASCI* |
+| CO | 1.1283 | -111.22459 | -111.33095 | CASCI* |
+| HF | 0.9168 | -98.57076 | -98.59659 | FCI |
+| NH3 | 1.0124 | -55.45398 | -55.49467 | CASCI* |
+| CH4 | 1.0870 | -39.50989 | -39.55590 | CASCI* |
+| Benzene | 1.3970 | -227.88822 | -227.94430 | CASCI* |
+| Caffeine | 1.3800 | -667.65428 | -667.68304 | CASCI* |
+| Aspirin | 1.4000 | -636.60816 | -636.64195 | CASCI* |
+| Paracetamol | 1.4000 | -505.83584 | -505.89628 | CASCI* |
 
 ## Evidence notes (kept, not re-verified here)
 

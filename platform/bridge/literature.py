@@ -86,7 +86,12 @@ def search_arxiv(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
                     "authors": authors,
                     "source": "arXiv",
                     "license": "arXiv.org perpetual non-exclusive license",
-                    "provenance_verified": True,
+                    # fetched_live means ONLY this: these bytes arrived
+                    # from the named source in this call — not from cache,
+                    # not synthesized. It says nothing about the paper's
+                    # claims (renamed from provenance_verified, which
+                    # invited exactly that misreading).
+                    "fetched_live": True,
                     "year": year,
                     # arXiv exposes no citation counts: 0 means "no data",
                     # never an invented count.
@@ -153,7 +158,9 @@ def search_openalex(query: str, max_results: int = 5) -> List[Dict[str, Any]]:
                     "authors": authors[:5],
                     "source": "OpenAlex",
                     "license": f"Open Access ({oa_status})" if oa_status != "closed" else "Proprietary",
-                    "provenance_verified": True,
+                    # fetched_live: bytes arrived live from OpenAlex here —
+                    # not cache, not synthesis; nothing about the claims.
+                    "fetched_live": True,
                     "year": work.get("publication_year", 0) or 0,
                     "cited_by_count": work.get("cited_by_count", 0) or 0,
                     "cached": False,

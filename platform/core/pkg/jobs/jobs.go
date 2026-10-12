@@ -162,6 +162,11 @@ func (r *Runner) SubmitJob(sessionID, jobType string, params any) (*Job, error) 
 			}
 			if c := r.getCompiler(); c != nil {
 				summary, aerr := c.Analyze(qp.QASM)
+				// Defensive refuse branch, kept deliberately: Analyze is
+				// total today (semantic validation never errors — malformed
+				// input refuses earlier at validateQASM), so this never
+				// fires. It stays because a future fallible Analyze must
+				// refuse here, not admit. Do not delete as "dead code".
 				if aerr != nil {
 					return nil, fmt.Errorf("compile analysis refused: %w", aerr)
 				}

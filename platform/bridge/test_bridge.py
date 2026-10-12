@@ -93,7 +93,7 @@ def test_literature_grounding():
     results = search_arxiv("quantum eigensolver", max_results=2)
     assert len(results) > 0
     assert "title" in results[0]
-    assert results[0]["provenance_verified"] is True
+    assert results[0]["fetched_live"] is True
 
     oa_results = search_openalex("quantum computing", max_results=2)
     assert len(oa_results) > 0
