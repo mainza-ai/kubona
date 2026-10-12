@@ -722,13 +722,34 @@ func TestL0TenantRefusesDispatch(t *testing.T) {
 		t.Fatalf("revoke: %d %s", w.Code, w.Body.String())
 	}
 
-	// Dispatch must now refuse at the edge with 403.
-	jobBody, _ := json.Marshal(map[string]any{"qasm": "OPENQASM 2.0;\\nqreg q[1];\\ncreg c[1];\\n", "shots": 100})
+	// Dispatch must now refuse at the edge with 403 — against an explicit
+	// default-tenant session, proving the refusal is the autonomy rule
+	// (G7: missing ids 404 before autonomy is even consulted).
+	sessBody, _ := json.Marshal(map[string]any{"title": "l0 drill"})
+	sessReq := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewReader(sessBody))
+	sessW := httptest.NewRecorder()
+	h.ServeHTTP(sessW, sessReq)
+	var l0sess struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(sessW.Body).Decode(&l0sess); err != nil || l0sess.ID == "" {
+		t.Fatalf("session setup: %v", err)
+	}
+	jobBody, _ := json.Marshal(map[string]any{"session_id": l0sess.ID, "qasm": "OPENQASM 2.0;\\nqreg q[1];\\ncreg c[1];\\n", "shots": 100})
 	jobReq := httptest.NewRequest(http.MethodPost, "/api/jobs", bytes.NewReader(jobBody))
 	jobW := httptest.NewRecorder()
 	h.ServeHTTP(jobW, jobReq)
 	if jobW.Code != http.StatusForbidden {
 		t.Fatalf("L0 tenant dispatch must 403, got %d", jobW.Code)
+	}
+
+	// And a missing session id 404s (no unattributed dispatch).
+	jobBody, _ = json.Marshal(map[string]any{"qasm": "OPENQASM 2.0;\\nqreg q[1];\\ncreg c[1];\\n", "shots": 100})
+	jobReq = httptest.NewRequest(http.MethodPost, "/api/jobs", bytes.NewReader(jobBody))
+	jobW = httptest.NewRecorder()
+	h.ServeHTTP(jobW, jobReq)
+	if jobW.Code != http.StatusNotFound {
+		t.Fatalf("dispatch without session_id must 404, got %d", jobW.Code)
 	}
 }
 
@@ -1460,5 +1481,110 @@ func TestTenantSuspendedRecoveryPaths(t *testing.T) {
 		t.Errorf("suspended ceiling change must 403, got %d %v", code, body)
 	} else if !strings.Contains(strings.ToLower(fmt.Sprint(body["_raw"])), "suspend") {
 		t.Errorf("refusal must name suspension, got %v", body)
+	}
+}
+
+// G7 session-attribution strictness. Threat, not consistency: unattributed
+// spend bills another lab, and adopting a stranger session writes one
+// caller's content into another session's tenant recall scope. So spend
+// entries 404 missing/unknown ids; content writes 404 unknown ids and mint
+// fresh sessions for empty ones; reads 404 unknown ids without adopting.
+func TestSessionAttributionStrictness(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
+
+	mkSession := func(title string) string {
+		t.Helper()
+		raw, _ := json.Marshal(map[string]any{"title": title})
+		req := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewReader(raw))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != http.StatusCreated {
+			t.Fatalf("session setup %q: %d", title, w.Code)
+		}
+		var s struct {
+			ID string `json:"id"`
+		}
+		_ = json.NewDecoder(w.Body).Decode(&s)
+		return s.ID
+	}
+	post := func(path string, body any) (int, string) {
+		t.Helper()
+		raw, _ := json.Marshal(body)
+		req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(raw))
+		req.Header.Set("Authorization", "Bearer op-token")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		return w.Code, w.Body.String()
+	}
+	get := func(path string) (int, string) {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer op-token")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		return w.Code, w.Body.String()
+	}
+	withID := func(base map[string]any, id string) map[string]any {
+		out := map[string]any{}
+		for k, v := range base {
+			out[k] = v
+		}
+		if id != "" {
+			out["session_id"] = id
+		}
+		return out
+	}
+
+	anchorID := mkSession("g7 anchor")
+
+	// Spend entries: missing AND unknown session ids 404 (before autonomy,
+	// before any worker sees the job).
+	spendBases := map[string]map[string]any{
+		"/api/jobs":               {"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "shots": 8},
+		"/api/chat/launch":        {"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"},
+		"/api/chat/tribunal":      {"prompt": "g7 drill"},
+		"/api/autoresearch/start": {"harness_id": "ansatz-search", "max_iterations": 1},
+	}
+	for path, base := range spendBases {
+		if code, body := post(path, withID(base, "")); code != http.StatusNotFound {
+			t.Errorf("%s missing session must 404, got %d %s", path, code, body)
+		}
+		if code, body := post(path, withID(base, "sess-does-not-exist")); code != http.StatusNotFound {
+			t.Errorf("%s unknown session must 404, got %d %s", path, code, body)
+		} else if !strings.Contains(strings.ToLower(body), "session") {
+			t.Errorf("%s refusal must name the session problem, got %q", path, body)
+		}
+	}
+	// A real session still dispatches (201 queued, no workers in tests) —
+	// strictness refuses ghosts, not real attribution.
+	if code, body := post("/api/jobs", withID(spendBases["/api/jobs"], anchorID)); code != http.StatusCreated {
+		t.Errorf("jobs with a real session must 201, got %d %s", code, body)
+	}
+
+	// Content writes: unknown explicit id 404s (never adopt a stranger).
+	if code, body := post("/api/chat/messages", map[string]any{"session_id": "sess-does-not-exist", "content": "hi"}); code != http.StatusNotFound {
+		t.Errorf("chat POST unknown session must 404, got %d %s", code, body)
+	} else if !strings.Contains(strings.ToLower(body), "session") {
+		t.Errorf("chat refusal must name the session problem, got %q", body)
+	}
+
+	// Reads: unknown ids 404 without adopting; empty chat reads [].
+	if code, _ := get("/api/chat/messages?session_id=sess-does-not-exist"); code != http.StatusNotFound {
+		t.Errorf("chat GET unknown session must 404, got %d", code)
+	}
+	if code, body := get("/api/chat/messages"); code != http.StatusOK {
+		t.Errorf("chat GET empty session must 200 [], got %d %s", code, body)
+	}
+	if code, _ := get("/api/notebooks?session_id=sess-does-not-exist"); code != http.StatusNotFound {
+		t.Errorf("notebooks unknown session must 404, got %d", code)
+	}
+	if code, _ := get("/api/epistemics?session_id=sess-does-not-exist"); code != http.StatusNotFound {
+		t.Errorf("epistemics unknown session must 404, got %d", code)
+	}
+	if code, _ := get("/api/epistemics"); code != http.StatusOK {
+		t.Errorf("epistemics empty session must 200, got %d", code)
 	}
 }

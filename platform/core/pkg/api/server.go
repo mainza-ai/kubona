@@ -469,7 +469,16 @@ func (s *Server) handleFidelity(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleEpistemics(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.URL.Query().Get("session_id")
 	if sessionID == "" {
-		sessionID, _ = s.ensureSession("")
+		// Read-only continuity: the console's global assessment view calls
+		// without an id. Adoption is safe here — reads already sit behind
+		// the operator bearer, and nothing is written or spent (G7; cf. the
+		// reverted read-gating in the F-4 audit).
+		if sessions, lerr := s.sessionMgr.ListSessions(1); lerr == nil && len(sessions) > 0 {
+			sessionID = sessions[0].ID
+		}
+	} else if _, gerr := s.sessionMgr.GetSession(sessionID); gerr != nil {
+		http.Error(w, fmt.Sprintf("unknown session %q: refusing to show another session", sessionID), http.StatusNotFound)
+		return
 	}
 
 	alpha := 0.95
@@ -814,9 +823,14 @@ func (s *Server) handleLiterature(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleNotebooks(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.URL.Query().Get("session_id")
-	if sessionID == "" {
-		sessionID, _ = s.ensureSession("")
+	if sessionID != "" {
+		if _, gerr := s.sessionMgr.GetSession(sessionID); gerr != nil {
+			http.Error(w, fmt.Sprintf("unknown session %q: refusing to show another session", sessionID), http.StatusNotFound)
+			return
+		}
 	}
+	// Empty id renders the unscoped template below — a GET never mints a
+	// session, and never adopts the most-recent one (G7).
 
 	if raw, err := s.ledger.GetCampaignState(sessionID); err == nil && len(raw) > 0 {
 		var cs agents.CampaignState
@@ -1118,15 +1132,22 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, sess)
 }
 
+func (s *Server) requireSession(sessionID string) (string, error) {
+	if sessionID == "" {
+		return "", fmt.Errorf("missing session_id: spend-attributed calls must name an existing session")
+	}
+	if _, err := s.sessionMgr.GetSession(sessionID); err != nil {
+		return "", fmt.Errorf("unknown session %q: refusing to attach spend elsewhere", sessionID)
+	}
+	return sessionID, nil
+}
+
 func (s *Server) ensureSession(sessionID string) (string, error) {
 	if sessionID != "" {
 		if _, err := s.sessionMgr.GetSession(sessionID); err == nil {
 			return sessionID, nil
 		}
-	}
-	sessions, err := s.sessionMgr.ListSessions(1)
-	if err == nil && len(sessions) > 0 {
-		return sessions[0].ID, nil
+		return "", fmt.Errorf("unknown session %q: refusing to attach content to another session", sessionID)
 	}
 	sess, err := s.sessionMgr.CreateSession("Active Research Campaign", 150.0, tenants.DefaultTenantID)
 	if err != nil {
@@ -1141,12 +1162,12 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		if sessionID == "" {
-			var err error
-			sessionID, err = s.ensureSession("")
-			if err != nil || sessionID == "" {
-				writeJSON(w, http.StatusOK, map[string]any{"messages": []any{}})
-				return
-			}
+			writeJSON(w, http.StatusOK, map[string]any{"messages": []any{}})
+			return
+		}
+		if _, gerr := s.sessionMgr.GetSession(sessionID); gerr != nil {
+			http.Error(w, fmt.Sprintf("unknown session %q: refusing to read another session", sessionID), http.StatusNotFound)
+			return
 		}
 		msgs, err := s.sessionMgr.GetMessages(sessionID)
 		if err != nil {
@@ -1175,7 +1196,7 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 		var err error
 		sessionID, err = s.ensureSession(sessionID)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("failed to resolve session: %v", err), http.StatusInternalServerError)
+			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
 		if req.Role == "" {
@@ -1277,7 +1298,7 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 	var err error
 	sessionID, err = s.ensureSession(sessionID)
 	if err != nil {
-		emit("error", map[string]any{"error": fmt.Sprintf("failed to resolve session: %v", err)})
+		emit("error", map[string]any{"error": err.Error()})
 		return
 	}
 	if req.Role == "" {
@@ -1390,7 +1411,7 @@ func (s *Server) handleChatRegenerate(w http.ResponseWriter, r *http.Request) {
 	}
 	sessionID, err := s.ensureSession(req.SessionID)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to resolve session: %v", err), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 	prompt, err := s.sessionMgr.DropTrailingAssistant(sessionID)
@@ -1666,7 +1687,14 @@ func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req.SessionID, _ = s.ensureSession(req.SessionID)
+	// Launch mints jobs (spend): missing/unknown session ids 404 like
+	// dispatch — unattributed spend is another lab's bill (G7).
+	launchSid, launchErr := s.requireSession(req.SessionID)
+	if launchErr != nil {
+		http.Error(w, launchErr.Error(), http.StatusNotFound)
+		return
+	}
+	req.SessionID = launchSid
 
 	if err := s.requireDispatchAutonomy(req.SessionID); err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
@@ -1783,20 +1811,18 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 	var err error
 	// K4-follow-up (demonstrated live: a probe id attached 8 turns + claim
 	// records to a stranger session): an explicit unknown session id
-	// refuses instead of falling back to sessions[0]. Empty still
-	// bootstraps (console first-run). Launch/jobs/chat keep legacy
-	// fallback — changing them is a separate slice.
+	// refuses instead of falling back to sessions[0]. G7 extends the rule
+	// to the spend class: tribunal spends (multi-role calls), so a missing
+	// id 404s too — a tribunal with no session has no tenant to bill.
+	// Launch/jobs carry their own requireSession; chat keeps ensureSession.
 	if req.SessionID != "" {
 		if _, gerr := s.sessionMgr.GetSession(req.SessionID); gerr != nil {
 			http.Error(w, fmt.Sprintf("unknown session %q: tribunal refuses to attach elsewhere", req.SessionID), http.StatusNotFound)
 			return
 		}
 	} else {
-		req.SessionID, err = s.ensureSession(req.SessionID)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("failed to resolve session: %v", err), http.StatusInternalServerError)
-			return
-		}
+		http.Error(w, "missing session_id: tribunal calls must name an existing session", http.StatusNotFound)
+		return
 	}
 
 	onTurn := func(turn agents.TribunalTurn) {
@@ -1895,8 +1921,14 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		// Dispatch is always attributed to a real session (tenant
-		// attribution for autonomy checks); missing ids resolve like chat.
-		req.SessionID, _ = s.ensureSession(req.SessionID)
+		// attribution for autonomy checks); missing/unknown ids 404 —
+		// unattributed spend is another lab's bill (G7).
+		sid, serr := s.requireSession(req.SessionID)
+		if serr != nil {
+			http.Error(w, serr.Error(), http.StatusNotFound)
+			return
+		}
+		req.SessionID = sid
 		if err := s.requireDispatchAutonomy(req.SessionID); err != nil {
 			http.Error(w, err.Error(), http.StatusForbidden)
 			return
@@ -2654,9 +2686,14 @@ func (s *Server) handleAutoresearchStart(w http.ResponseWriter, r *http.Request)
 	if req.HarnessID == "" {
 		req.HarnessID = "ansatz-search"
 	}
-	if req.SessionID == "" {
-		req.SessionID, _ = s.ensureSession("")
+	// Autoresearch loops spend: missing/unknown session ids 404 like
+	// dispatch — loop spend with no tenant to bill is refused (G7).
+	arSid, arErr := s.requireSession(req.SessionID)
+	if arErr != nil {
+		http.Error(w, arErr.Error(), http.StatusNotFound)
+		return
 	}
+	req.SessionID = arSid
 	if req.MaxIterations <= 0 {
 		req.MaxIterations = 25
 	}
