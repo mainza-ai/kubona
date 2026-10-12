@@ -1878,3 +1878,9 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-12] verification | CI green on E-1b policy parity
   All 5 jobs success on run 38204594239. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | E-1c Bao sourcing on Qiskit submit path
+  OpenBaoSecretSource (AppRole, KV, fail-closed, revoke) +
+  from_env selection; qiskit _credential consults Bao when
+  configured, env otherwise. 9 python tests green (incl. outage
+  raises, no fallback). Runbook updated.

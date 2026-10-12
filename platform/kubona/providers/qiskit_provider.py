@@ -93,7 +93,10 @@ class QiskitProvider(Provider):
     def _credential(self) -> str | None:
         if self._secrets is None:
             from kubona.secrets import SecretStore
-            self._secrets = SecretStore()
+            # Bao-backed when BAO_ADDR is set (authoritative, fail-closed),
+            # environment otherwise. This submit path is the first wired to
+            # OpenBao; other providers keep EnvSecretSource until their turn.
+            self._secrets = SecretStore.from_env()
         return self._secrets.get("ibm-qiskit", "token")
 
     @property

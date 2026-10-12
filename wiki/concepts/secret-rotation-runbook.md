@@ -39,6 +39,7 @@ if it leaks, how to rotate, how to verify. Rotate in the order listed
 | Postgres DSN | `KUBONA_PG_DSN` (consumer env) | Full memory-store read/write | Rotate in Postgres; update env; restart consumers | Empty default refuses connection (no silent fallback) |
 | Tenant admin keys | Per-tenant `admin_pubkey_hex` via `/api/tenants/admin-key` (current-admin-signed rotation) | Authorizes spend + ceiling + autonomy per tenant | Current admin signs rotation to new pubkey | Old-key envelope → 403 |
 | OpenCode/cloud key | `.env` `OPENCODE_API_KEY` (never committed) | LLM spend on operator's account | Regenerate at provider; update `.env`; restart daemon | Funded-model completion succeeds; 402 surfaces honestly |
+| OpenBao AppRole | `BAO_ADDR` + `BAO_ROLE_ID` + `BAO_SECRET_ID` (`BAO_TOKEN` dev override only) | Provider credentials (IBM etc.) via `SecretStore.from_env` | Rotate role/secret IDs in Bao; update env; restart bridge consumers | Unset `BAO_ADDR` → env sourcing; wrong creds → AppRole 403, never silent fallback |
 | Console token | `NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN` | Client-visible: NOT a secret — never accepted as API auth | Align value for UX only; real auth is `KUBONA_API_TOKEN` | — |
 | Git credential helper | `~/.git-credentials` (see [[risks]]) | Repo push as operator | Revoke stale grant; drop `store` helper | Helper absent from gitconfig |
 
