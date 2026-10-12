@@ -1917,3 +1917,8 @@ skipped is the exact failure this incident is about:
   confirmed (R1-R17 specs), 2 rejected with evidence (autonomy bypass
   false — admitJob enforces all types; chemistry coverage exists).
   Phase F (F-1..F-6) on the audit page, ordered P0/P1/P2.
+
+## [2026-10-12] verification | F-1 Python CORS allowlist landed
+  console_api now mirrors the Go origin rail; 9/9 console API tests green,
+  full python suite 395 passed from platform/ (5 root-CWD relative-path
+  failures are invocation-local, pre-existing).
