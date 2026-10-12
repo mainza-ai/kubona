@@ -159,9 +159,20 @@ func TestAPIRoutes(t *testing.T) {
 		t.Fatalf("expected 200 for /api/results/notebooks, got %d", w.Code)
 	}
 
-	// 9. Multi-Agent Tribunal Debate
+	// 9. Multi-Agent Tribunal Debate (real session: unknown ids 404
+	// instead of attaching to a stranger session).
+	sessBody, _ := json.Marshal(map[string]any{"title": "tribunal drill"})
+	sessReq := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewReader(sessBody))
+	sessW := httptest.NewRecorder()
+	handler.ServeHTTP(sessW, sessReq)
+	var tribSess struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(sessW.Body).Decode(&tribSess); err != nil || tribSess.ID == "" {
+		t.Fatalf("tribunal session setup: %v", err)
+	}
 	tribunalPayload := map[string]any{
-		"session_id": "test-session-tribunal",
+		"session_id": tribSess.ID,
 		"prompt":     "Investigate LiH ground state dissociation VQE",
 	}
 	body, _ = json.Marshal(tribunalPayload)

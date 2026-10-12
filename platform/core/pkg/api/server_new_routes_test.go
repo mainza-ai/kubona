@@ -1281,3 +1281,21 @@ func TestCustomAgentRegistryGuards(t *testing.T) {
 		t.Fatalf("delete user agent: %d", code)
 	}
 }
+
+// Tribunal refuses unknown session ids instead of attaching turns,
+// records and spend to a stranger session (demonstrated live: a probe
+// id wrote 8 turns + claim records into an unrelated validation
+// session). Empty ids still bootstrap for first-run UX.
+func TestTribunalUnknownSessionRefuses(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+
+	bad, _ := json.Marshal(map[string]any{"session_id": "ghost-session", "prompt": "H2"})
+	req := httptest.NewRequest(http.MethodPost, "/api/chat/tribunal", bytes.NewReader(bad))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Errorf("unknown session tribunal must 404, got %d", w.Code)
+	}
+}
