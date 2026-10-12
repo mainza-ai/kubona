@@ -273,10 +273,22 @@ func TestAutoresearchAndMetasearchAPIs(t *testing.T) {
 		t.Fatalf("expected docker runner image kubona/quantum-runner:latest, got %s", harnessResp.DockerRunner.Image)
 	}
 
-	// 2. Start Loop
+	// 2. Start Loop (G7: loop spend is session-attributed — create an
+	// explicit session first, then start against it).
+	sessBody, _ := json.Marshal(map[string]any{"title": "autoresearch drill"})
+	sessReq := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewReader(sessBody))
+	sessW := httptest.NewRecorder()
+	handler.ServeHTTP(sessW, sessReq)
+	var arSess struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(sessW.Body).Decode(&arSess); err != nil || arSess.ID == "" {
+		t.Fatalf("session setup: %v", err)
+	}
 	startPayload := map[string]any{
 		"harness_id":     "ansatz-search",
 		"max_iterations": 10,
+		"session_id":     arSess.ID,
 	}
 	body, _ := json.Marshal(startPayload)
 	req = httptest.NewRequest(http.MethodPost, "/api/autoresearch/start", bytes.NewReader(body))

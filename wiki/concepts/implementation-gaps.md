@@ -101,6 +101,7 @@ unimplemented, stubbed, or disguised behind static UI facades:
 | GQE transformer (Unsloth) training | 🔵 | n-gram stand-in today; drop-in `propose` replacement on a GPU host. |
 | Full circuit knitting | 🟡 partial | LOOC-Z single-CNOT wire cut now additionally reconstructs the **full post-cut target distribution** (`cut_histogram`, exact Z-diagonal, verified against uncut — strictly more informative than a single ⟨Z⟩). Honest scope: a single-CNOT cut reaches one target qubit, so multi-qubit-gate/product-Z cuts still need the full QPD/Qiskit-CKT integration (documented; that is the remaining piece). |
 | Perf/load baselines | 🟢 guards landed | tests/test_perf_guard.py guards the lower + local-simulator hot paths (passed in ~0.1s). Full loop load/chaos tests remain open. |
+| Session-attribution fallback (G7) | 🟢 closed 2026-10-12 | `ensureSession` used to adopt the most-recent session (or mint silently) for unknown/missing ids — unattributed spend and cross-session content writes. Now: spend entries (jobs, launch, tribunal, autoresearch) `requireSession` (404 missing/unknown); chat writes 404 unknown / mint fresh on empty; reads 404 unknown without adopting (epistemics keeps most-recent for the console global view — read-only, bearer-gated). `TestSessionAttributionStrictness` + live 404/201 matrix both directions. |
 
 ## Deferred by design (correct, per plan)
 - x402 activation on a real rail (Phase 5+), meta-loop auto-apply (§13.5, Phase 5+), Unsloth personas (Phase 6), real third-party provider PR, third-party security review execution.
