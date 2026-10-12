@@ -265,6 +265,15 @@ implemented (needs revision). Every item has file:line or a live probe.
     identity the submit path lacks), wiki threshold synced ≤36→50,
     credits kept as specified output. Live: 503 fail-closed + 2
     seeds listed.
+  - [x] **K4b landed 2026-10-12:** tribunal refuses unknown session
+    ids (404) instead of attaching turns/records/spend to
+    `sessions[0]` — demonstrated live on a real session (history
+    left intact: ledger is append-only; no rows deleted). Empty ids
+    still bootstrap. Launch/jobs/chat fallback kept, recorded as
+    follow-up. L-support: provider switch proven both directions
+    (oMLX roles run local, zero cloud spend, 6-min 4-turn
+    deliberation; cloud restored after); per-role assignments (not
+    ActiveProvider) drive tribunal routing — documented.
   - [x] **K6 landed 2026-10-12:** `--bind` (loopback default),
     `--tls-cert/key` (ServeTLS when set), `--tls-required`
     (refuses without material) + pure validators with tests incl.

@@ -2040,3 +2040,9 @@ skipped is the exact failure this incident is about:
   Loopback-default bind, TLS flags, strict-mode refusal, all tested
   incl. live HTTPS proof. Versioned secret-scan + CI job green.
   xyflow removed (unused). Lock strays: gitignore is the control.
+
+## [2026-10-12] verification | K4b tribunal session strictness + L provider proof
+  Unknown session ids 404 on tribunal (was: attach to sessions[0];
+  probe history left intact, append-only). Local oMLX tribunal proven
+  (4 turns, zero cloud spend); per-role routing documented; cloud
+  restored per speed directive.

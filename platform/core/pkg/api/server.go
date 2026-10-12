@@ -1776,10 +1776,22 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var err error
-	req.SessionID, err = s.ensureSession(req.SessionID)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("failed to resolve session: %v", err), http.StatusInternalServerError)
-		return
+	// K4-follow-up (demonstrated live: a probe id attached 8 turns + claim
+	// records to a stranger session): an explicit unknown session id
+	// refuses instead of falling back to sessions[0]. Empty still
+	// bootstraps (console first-run). Launch/jobs/chat keep legacy
+	// fallback — changing them is a separate slice.
+	if req.SessionID != "" {
+		if _, gerr := s.sessionMgr.GetSession(req.SessionID); gerr != nil {
+			http.Error(w, fmt.Sprintf("unknown session %q: tribunal refuses to attach elsewhere", req.SessionID), http.StatusNotFound)
+			return
+		}
+	} else {
+		req.SessionID, err = s.ensureSession(req.SessionID)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("failed to resolve session: %v", err), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	onTurn := func(turn agents.TribunalTurn) {
