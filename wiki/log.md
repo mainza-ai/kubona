@@ -2002,3 +2002,9 @@ skipped is the exact failure this incident is about:
   ActionGate uses session.tenant_id (was session id); widget takes
   tenantId prop. Render test asserts the lab tenant in the verify
   body. Console 77 green, build clean.
+
+## [2026-10-12] verification | J5 krylov solver flag landed
+  solver field across IDL + Go/Python bindings; MW folds numerical
+  only; fixed krylov/solve proxy drop + stale root proto + regen
+  script with pinned toolchain (7.x gencode refused by 5.29.6
+  runtime — pinned 1.71.x). Live both paths; bridge+daemon current.

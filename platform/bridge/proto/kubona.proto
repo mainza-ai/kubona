@@ -146,6 +146,11 @@ message QuantumKrylovResponse {
   double meyer_wallach_entanglement = 6;
   double execution_time_ms = 7;
   string error_message = 8;
+  // J5: which solver produced this result. "numerical-krylov" = real
+  // expm + Hc=ESc solve (H2); "analytical-sequence" = corridor schedule
+  // off the FCI anchor (other molecules). Consumers must not treat the
+  // analytical path as a measurement (MW folds only for numerical).
+  string solver = 9;
 }
 
 message MitigationRequest {

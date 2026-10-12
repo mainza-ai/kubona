@@ -1202,8 +1202,13 @@ type QuantumKrylovResponse struct {
 	MeyerWallachEntanglement float64                `protobuf:"fixed64,6,opt,name=meyer_wallach_entanglement,json=meyerWallachEntanglement,proto3" json:"meyer_wallach_entanglement,omitempty"`
 	ExecutionTimeMs          float64                `protobuf:"fixed64,7,opt,name=execution_time_ms,json=executionTimeMs,proto3" json:"execution_time_ms,omitempty"`
 	ErrorMessage             string                 `protobuf:"bytes,8,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
+	// J5: which solver produced this result. "numerical-krylov" = real
+	// expm + Hc=ESc solve (H2); "analytical-sequence" = corridor schedule
+	// off the FCI anchor (other molecules). Consumers must not treat the
+	// analytical path as a measurement (MW folds only for numerical).
+	Solver        string `protobuf:"bytes,9,opt,name=solver,proto3" json:"solver,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *QuantumKrylovResponse) Reset() {
@@ -1288,6 +1293,13 @@ func (x *QuantumKrylovResponse) GetExecutionTimeMs() float64 {
 func (x *QuantumKrylovResponse) GetErrorMessage() string {
 	if x != nil {
 		return x.ErrorMessage
+	}
+	return ""
+}
+
+func (x *QuantumKrylovResponse) GetSolver() string {
+	if x != nil {
+		return x.Solver
 	}
 	return ""
 }
@@ -1543,7 +1555,7 @@ const file_kubona_proto_rawDesc = "" +
 	"\x12subspace_dimension\x18\x03 \x01(\x05R\x11subspaceDimension\x12\x1b\n" +
 	"\ttime_step\x18\x04 \x01(\x01R\btimeStep\x12\x14\n" +
 	"\x05shots\x18\x05 \x01(\x05R\x05shots\x12+\n" +
-	"\x11requested_backend\x18\x06 \x01(\tR\x10requestedBackend\"\x84\x03\n" +
+	"\x11requested_backend\x18\x06 \x01(\tR\x10requestedBackend\"\x9c\x03\n" +
 	"\x15QuantumKrylovResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12.\n" +
 	"\x13ground_state_energy\x18\x02 \x01(\x01R\x11groundStateEnergy\x120\n" +
@@ -1552,7 +1564,8 @@ const file_kubona_proto_rawDesc = "" +
 	"\x12subspace_dimension\x18\x05 \x01(\x05R\x11subspaceDimension\x12<\n" +
 	"\x1ameyer_wallach_entanglement\x18\x06 \x01(\x01R\x18meyerWallachEntanglement\x12*\n" +
 	"\x11execution_time_ms\x18\a \x01(\x01R\x0fexecutionTimeMs\x12#\n" +
-	"\rerror_message\x18\b \x01(\tR\ferrorMessage\"z\n" +
+	"\rerror_message\x18\b \x01(\tR\ferrorMessage\x12\x16\n" +
+	"\x06solver\x18\t \x01(\tR\x06solver\"z\n" +
 	"\x11MitigationRequest\x12\x12\n" +
 	"\x04qasm\x18\x01 \x01(\tR\x04qasm\x12\x16\n" +
 	"\x06method\x18\x02 \x01(\tR\x06method\x12#\n" +
