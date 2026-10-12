@@ -1992,3 +1992,8 @@ skipped is the exact failure this incident is about:
   Cloud escalation requires mandate or budget>0.05 (Python gate
   ported); mandate-backing named only when present; AirGapEnforced
   only on the true air-gap branch. Unit matrix + HTTP mesh test green.
+
+## [2026-10-12] verification | J3 meta approve/apply bearer gate landed
+  Approve/reject/apply require bearer (signer = attribution label);
+  listing stays public. Test pins 401s + pass-through. Runbook token
+  row covers all bearer routes; duplicate J1 stub removed.
