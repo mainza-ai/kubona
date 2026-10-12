@@ -324,6 +324,16 @@ implemented (needs revision). Every item has file:line or a live probe.
   (or documented cloud-default) · Lean image + warm · reviewer/API/
   contact env · EPO registration · vendor grading · review
   commission · paid QPU run · Q-27 flip. Acceptance: receipts.
+  - [x] **L-support landed 2026-10-12 (build-side):** provider switch
+    proven both directions live (per-role assignments drive
+    tribunal routing, not ActiveProvider alone — documented; oMLX
+    4-turn run with zero cloud spend; cloud restored per speed
+    directive); Lean image investigated to a verdict (Hub path
+    unresolvable — specific blocker recorded, not hand-waved);
+    runbook covers reviewer/API/contact/LLM-cap keys; conformance
+    suite + runbook + Q-27 dry-run stand ready. Remaining deeds are
+    operator-only: env values, registrations, grading run, review,
+    spend, flip.
 - **Non-goals (stay VISION):** §C lists above except J/K items;
   KEMTLS; sharding; syndromes; IdP; membership; scale; Bemba/Typst
   (dev-docs-only claims, no code anywhere).
