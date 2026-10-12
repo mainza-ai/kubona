@@ -84,6 +84,7 @@ func (ac *AgentCollective) observeTurn(ctx context.Context, llmClient *llm.Clien
 	hist := append([]llm.ChatMessage(nil), base...)
 	hist = append(hist, llm.ChatMessage{Role: "assistant", Content: "", ToolCalls: calls})
 	var observed []ObservedCall
+	obsCap := llm.DefaultBudgetConfig().MaxObservationChars
 	for _, c := range calls {
 		out, derr := ac.Tools.Dispatch(ctx, role, tools.Call{ID: c.ID, Name: c.Name, Arguments: c.Arguments})
 		observed = append(observed, ObservedCall{Name: c.Name, OK: derr == nil, Error: errText(derr)})
@@ -93,7 +94,7 @@ func (ac *AgentCollective) observeTurn(ctx context.Context, llmClient *llm.Clien
 		})
 		hist = append(hist, llm.ChatMessage{
 			Role: "tool", ToolCallID: c.ID, ToolName: c.Name,
-			Content: string(obs),
+			Content: llm.TruncateObservation(string(obs), obsCap),
 		})
 	}
 	return hist, observed
@@ -286,7 +287,8 @@ func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmCli
 	// Associative memory recall via Hindsight
 	var memoryContext string
 	if store != nil {
-		recalled := store.SemanticRecall(memory.BankExperiences, userPrompt+" "+mol+" ansatz barren plateau", 250, 0.35)
+		recalled := store.SemanticRecall(memory.BankExperiences, userPrompt+" "+mol+" ansatz barren plateau",
+			llm.DefaultBudgetConfig().RecallTokens, llm.DefaultBudgetConfig().RecallMinSimilarity)
 		if len(recalled) > 0 {
 			var snippets []string
 			for _, r := range recalled {

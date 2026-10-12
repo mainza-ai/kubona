@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
@@ -315,5 +316,40 @@ func TestMintClaimRecordRoundTrip(t *testing.T) {
 	}
 	if _, err := l.MintClaimRecord("s", "tribunal", "  ", -1, -1, -1, "verified", ""); err == nil {
 		t.Error("empty statement must refuse a mint")
+	}
+}
+
+func TestVerifyCampaignHistory(t *testing.T) {
+	dbPath := "test_verify_campaign.db"
+	defer os.Remove(dbPath)
+
+	l, err := ledger.OpenLedger(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open ledger: %v", err)
+	}
+	defer l.Close()
+
+	// No campaign verifies cleanly.
+	if err := l.VerifyCampaignHistory("ghost"); err != nil {
+		t.Errorf("empty history must verify: %v", err)
+	}
+
+	sid := "sess-verify"
+	if err := l.SaveCampaignStateWithTrigger(sid, []byte(`{"v":1}`), "session-create"); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.SaveCampaignStateWithTrigger(sid, []byte(`{"v":2}`), "chat:x"); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.VerifyCampaignHistory(sid); err != nil {
+		t.Errorf("consistent history must verify: %v", err)
+	}
+
+	// Simulate a bypass writer: live row moved without a version.
+	if _, err := l.DB().Exec(`UPDATE campaign_states SET state_json = '{"v":999}' WHERE session_id = ?`, sid); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.VerifyCampaignHistory(sid); err == nil || !strings.Contains(err.Error(), "drift") {
+		t.Errorf("bypass write must fail loudly, got %v", err)
 	}
 }
