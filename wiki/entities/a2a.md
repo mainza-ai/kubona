@@ -35,3 +35,15 @@ collaborate with subagents across [[workflows-and-agent-authoring|workflow bound
 autonomy ceilings without leaking tenant keys.
 
 Related: [[protocol-strategy]] · [[spend-mandates-and-delegation]] · [[workflows-and-agent-authoring]] · [[aaif]]
+
+## Transport in Kubona (Q-35, closed 2026-10-12; already exposed)
+
+The question's premise ("Go-internal only") was stale: Kubona serves A2A externally as
+JSON-RPC over HTTP at `POST /api/a2a/v1` (`platform/core/pkg/api/server.go` `handleA2A`,
+backed by `platform/core/pkg/agents/a2a.go`). Proven live 2026-10-12 against the running
+daemon: `a2a.GetAgentCard` returns the public capability card, unknown methods get proper
+`-32601`, `a2a.GetTaskStatus` resolves real task state (`-32001` for unknown ids), and
+`a2a.SubmitTask` without payment gets HTTP 402 with an x402 challenge
+(`GET /api/a2a/v1/challenge`). Dispatch through it runs the same ledger-bound executor and
+the same `requireDispatchAutonomy` tenant rule as HTTP dispatch — including the Q-33
+suspension refusal. No new transport was needed; the wiki claim was corrected instead.

@@ -41,3 +41,21 @@ func TestPostgresVectorStoreNilGuards(t *testing.T) {
 		t.Fatalf("expected error on nil db connection for ReleaseDistributedLock")
 	}
 }
+
+// Q-34 dormant contract: without an operator-provisioned DSN the store is
+// unconfigured, and nothing in the live path may depend on it being wired.
+// (Verified by grep at decision time: zero non-test references to
+// NewPostgresVectorStore or Postgres* symbols outside this file.)
+func TestPostgresStoreDormantContract(t *testing.T) {
+	t.Setenv("KUBONA_PG_DSN", "")
+	cfg := DefaultPostgresStoreConfig()
+	if cfg.DSN != "" {
+		t.Fatalf("dormant store must be unconfigured without KUBONA_PG_DSN, got DSN set")
+	}
+	// Even constructed, every method refuses a nil DB — fail-closed, never
+	// a silent no-op that callers could mistake for a working sidecar.
+	store := NewPostgresVectorStore(nil, cfg)
+	if _, err := store.Retain(nil, "t", "public", BankWorldFacts, "x", 0.5, []float32{0.1}); err == nil {
+		t.Fatalf("dormant store Retain must refuse nil DB")
+	}
+}

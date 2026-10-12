@@ -1,5 +1,15 @@
 package memory
 
+// DORMANT BY DESIGN (Q-34, decided 2026-10-12): this file implements a
+// complete PostgreSQL + pgvector sidecar (HNSW recall, distributed locks)
+// that NOTHING constructs — the live recall path is the SQLite hindsight
+// store in this package. Activation requires an operator-provisioned
+// PG + pgvector instance, a driver dependency, and recall-path wiring;
+// until then the constructor refuses unconfigured use (empty DSN, nil DB)
+// and the dormant contract below pins that state. Same precedent as the
+// x402 settlement path (Q-23): real code, honestly labeled, never silently
+// half-wired.
+
 import (
 	"context"
 	"database/sql"

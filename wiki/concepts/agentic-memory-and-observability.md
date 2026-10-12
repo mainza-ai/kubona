@@ -115,3 +115,14 @@ with per-tenant banks + HTTP recall/retain (`/api/memory/*`) + `MemoryPanel`
 
 **Acceptance test:** a cold human auditor answers "why did the agent stop?" and "what did it
 spend?" in under 60 seconds — a measurable gate, added to [[evaluation-and-benchmarks]].
+
+## pgvector sidecar: dormant by design (Q-34, closed 2026-10-12)
+
+`platform/core/pkg/memory/postgres.go` implements a complete PostgreSQL + pgvector sidecar
+(HNSW semantic recall, distributed locks) that **nothing constructs** — verified zero
+non-test references to `NewPostgresVectorStore`/`Postgres*` outside the file; the live
+recall path is the SQLite hindsight store in the same package. Labelled dormant in-code
+(Q-34 banner) on the Q-23/x402 precedent: real code, honestly marked, never half-wired.
+Activation needs an operator-provisioned PG + pgvector instance, a driver dependency, and
+recall-path wiring. Pinned by `TestPostgresStoreDormantContract`: unset `KUBONA_PG_DSN`
+means unconfigured, and every method refuses a nil DB fail-closed.

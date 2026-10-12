@@ -111,6 +111,9 @@ revocation (oldest open item, 2026-09-27).
 - Load/chaos tests on the agentic loop: absent (Phase 4 leftover).
 - A2A external transport: Go-internal only; external collectives cannot
   reach it (Q-35: expose JSON-RPC or downgrade the claim).
+> ⚑ Correction (2026-10-12, Q-35 closed): the premise was stale — `POST
+> /api/a2a/v1` serves external JSON-RPC (agent card, task status, x402-gated
+> submit), proven live. Claim corrected on [[a2a]], no transport work needed.
 
 ### 3d. Unbuilt vision (correctly deferred — confirm, don't drift)
 
