@@ -47,21 +47,37 @@ def solve_classical_anchor(molecule: str, bond_distance_angstrom: float, basis: 
         atom_str = f"N 0 0 0; H 0 0.94 0.38; H 0.81 -0.47 0.38; H -0.81 -0.47 0.38"
     elif mol_upper in ("CH4", "CH_4"):
         d = r * 0.57735
-        atom_str = f"C 0 0 0; H {d} {d} {d}; H -{d} -{d} {d}; H -{d} {d} -{d}; H {d} -{d} -{d}"
+        atom_str = f"C 0 0 0; H {d} {d} {d}; H -{d} {d} {d}; H -{d} {d} -{d}; H {d} -{d} -{d}"
     else:
-        # Attempt RDKit conformer from SMILES or fall back to diatomic chain
+        # Named larger molecules resolve to SMILES, then RDKit conformers.
+        # Anything unresolvable REFUSES — an earlier revision silently
+        # substituted H2 geometry and returned H2 energies labeled as the
+        # requested molecule (success:true). That corrupted every large-
+        # molecule anchor whenever the bridge was up. Never again.
+        NAME_TO_SMILES = {
+            "BENZENE": "c1ccccc1",
+            "CAFFEINE": "CN1C=NC2=C1C(=O)N(C(=O)N2C)C",
+            "ASPIRIN": "CC(=O)Oc1ccccc1C(=O)O",
+            "PARACETAMOL": "CC(=O)Nc1ccc(O)cc1",
+        }
+        candidate = NAME_TO_SMILES.get(mol_upper, molecule.strip())
         try:
             from rdkit import Chem
             from rdkit.Chem import AllChem
-            rd_mol = Chem.MolFromSmiles(molecule.strip())
-            if rd_mol is not None:
-                rd_mol = Chem.AddHs(rd_mol)
-                AllChem.EmbedMolecule(rd_mol, randomSeed=42)
-                conf = rd_mol.GetConformer()
-                coords = [f"{a.GetSymbol()} {conf.GetAtomPosition(i).x:.4f} {conf.GetAtomPosition(i).y:.4f} {conf.GetAtomPosition(i).z:.4f}" for i, a in enumerate(rd_mol.GetAtoms())]
-                atom_str = "; ".join(coords)
-            else:
-                atom_str = f"H 0 0 0; H 0 0 {r}"
+            rd_mol = Chem.MolFromSmiles(candidate)
+            if rd_mol is None:
+                raise ValueError(f"not valid SMILES: {candidate!r}")
+            rd_mol = Chem.AddHs(rd_mol)
+            if AllChem.EmbedMolecule(rd_mol, randomSeed=42) != 0:
+                raise ValueError(f"conformer embedding failed for {candidate!r}")
+            conf = rd_mol.GetConformer()
+            coords = [f"{a.GetSymbol()} {conf.GetAtomPosition(i).x:.4f} {conf.GetAtomPosition(i).y:.4f} {conf.GetAtomPosition(i).z:.4f}" for i, a in enumerate(rd_mol.GetAtoms())]
+            atom_str = "; ".join(coords)
+        except Exception as e:
+            raise RuntimeError(
+                f"unsupported molecule {molecule.strip()!r}: no explicit geometry and not resolvable "
+                f"to a conformer ({e}) — refusing instead of substituting another molecule"
+            )
         except Exception:
             atom_str = f"H 0 0 0; H 0 0 {r}"
 
@@ -76,7 +92,14 @@ def solve_classical_anchor(molecule: str, bond_distance_angstrom: float, basis: 
         e_rhf = float(mf.e_tot)
         mo_energies = [float(x) for x in mf.mo_energy]
 
-        # Full Configuration Interaction (FCI) or Active Space CASCI
+        # Full Configuration Interaction (FCI) or Active Space CASCI.
+        # PySCF rejects some (ncas, nelecas) combos outright (bare
+        # AssertionError, e.g. CASCI(6,6) on 7-orbital H2O) — so candidates
+        # run in fixed descending order with the first success winning.
+        # Fixed order keeps energies deterministic; previously-working
+        # molecules still hit (6,6) first and keep identical numbers, while
+        # previously-failing geometries fall through instead of dying.
+        # Total failure raises (honest outage) — never a substitute molecule.
         num_orbitals = int(mol.nao_nr())
         num_electrons = int(mol.nelectron)
 
@@ -85,13 +108,22 @@ def solve_classical_anchor(molecule: str, bond_distance_angstrom: float, basis: 
             e_fci, _ = cisolver.kernel()
             e_fci = float(e_fci)
         else:
-            # Active space CASCI for larger systems
-            ncas = min(6, num_orbitals)
-            nelecas = min(6, num_electrons)
-            if nelecas % 2 != 0:
-                nelecas -= 1
-            cas = mcscf.CASCI(mf, ncas, nelecas)
-            e_fci = float(cas.kernel()[0])
+            e_fci = None
+            cas_errors = []
+            for ncas, nelecas in [(6, 6), (6, 4), (4, 4), (4, 2), (2, 2)]:
+                if ncas > num_orbitals or nelecas > min(num_electrons, 2 * ncas):
+                    continue
+                try:
+                    cas = mcscf.CASCI(mf, ncas, nelecas)
+                    e_fci = float(cas.kernel()[0])
+                    break
+                except Exception as e:
+                    cas_errors.append(f"CASCI({ncas},{nelecas}): {e}")
+            if e_fci is None:
+                raise RuntimeError(
+                    f"no CASCI active space converged for {mol_upper} "
+                    f"({num_electrons}e/{num_orbitals}o): {'; '.join(cas_errors)}"
+                )
 
     except Exception as e:
         raise RuntimeError(f"PySCF ab-initio electronic structure calculation failed for {mol_upper} (basis={basis}, R={r}): {e}")

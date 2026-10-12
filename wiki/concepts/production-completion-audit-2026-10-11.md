@@ -105,7 +105,15 @@ with tests + live proof + green CI, per project rule).
 - [x] D-1b. QKSD `classical-emulation` badge; curvature
   decisional-or-diagnostic; mechanical contradiction check at claim_eval;
   literature offline label.
-- [ ] D-1c. Per-family bridge verification (large molecules first).
+- [x] D-1c. Per-family bridge verification (large molecules first). — landed
+  2026-10-11: 14/14 families compute live within budget. Found + fixed:
+  silent H2-substitution for unknown molecules (now refuses), H2O
+  CASCI(6,6) crash (deterministic candidate cascade), 13 fallback
+  defaults that were never STO-3G numbers (Aspirin off 456 Ha) refreshed
+  to measured values and pinned by test. Matrix: H2/LiH/BeH2/H2O/N2/CO2/
+  CO/HF/NH3/CH4/Benzene/Caffeine/Aspirin/Paracetamol live; XenonX refuses.
+  Follow-up (not this slice): CASCI-labeled-as-FCI wording for large
+  systems; SMILES-bridge coverage needs the chemistry extra in CI.
 
 ## Phase E — P4 gate
 

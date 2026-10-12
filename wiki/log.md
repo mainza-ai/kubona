@@ -1851,3 +1851,9 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-12] verification | CI green on D-1b evidence labels
   All 5 jobs success on run 38200005334. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | D-1c per-family anchor verification
+  Matrix 14/14 live (H2O fixed via CASCI cascade, large families via
+  name-to-SMILES, unknowns refuse); 13 defaults refreshed to measured
+  STO-3G + pinned; bridge + python tests. Live benzene campaign
+  computes pyscf-live anchor. Go + python green.
