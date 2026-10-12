@@ -2056,3 +2056,8 @@ skipped is the exact failure this incident is about:
 ## [2026-10-12] verification | DELETE unknown sessions 404 (was 500)
   Follow-up to the K4c delete fix: missing ids refuse with 404 like
   the GET path, not 500. Live-proven; parked daemon current.
+
+## [2026-10-12] audit | Phase L build-side support complete
+  Provider switch proven both ways live; Lean image verdict recorded
+  (Hub path unresolvable); runbook + suites + dry-run stand ready.
+  Remaining deeds are operator-only by nature.
