@@ -1897,3 +1897,7 @@ skipped is the exact failure this incident is about:
 ## [2026-10-11] implementation | E-1d low-trust CI + can-agent-act
   Least-privilege tokens on CI/nightly; three-leg agent proof
   (reach/refuse/budget) running in the Go gate. Full Go suite green.
+
+## [2026-10-12] verification | CI green on E-1d with least privilege
+  All 5 jobs success on run 38206421572 (first run under
+  contents:read). Tree clean, zero unpushed.
