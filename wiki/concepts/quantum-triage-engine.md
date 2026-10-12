@@ -29,41 +29,48 @@ Family 275 proves that approximating the electronic Coulomb spectral infimum in 
 ## 2. Automated Triage Decision Flow
 
 ```
-                               MOLECULAR SYSTEM CANDIDATE
-                                           │
-                                           ▼
-                       ┌───────────────────────────────────────┐
-                       │   Static Correlation Diagnostic       │
-                       │   • Fractional Occupation Number      │
-                       │   • D1 / T1 Multi-Reference Metric    │
-                       └───────────────────┬───────────────────┘
-                                           │
-                    ┌──────────────────────┴──────────────────────┐
-                    ▼                                             ▼
-        [SINGLE-REFERENCE SYSTEM]                     [MULTI-REFERENCE SYSTEM]
-        • Kohn-Sham Representable                     • Provable KS Failure (Family 278)
-        • D1 < 0.05, Homogeneous Bonds                • Open d-shells, Radical Centers
-                    │                                             │
-                    ▼                                             ▼
-        ┌───────────────────────┐                     ┌───────────────────────┐
-        │   CLASSICAL HPC DFT   │                     │ Active Space Sieve    │
-        │   PySCF B3LYP / PBE   │                     │ CAS (N_elec, N_orb)   │
-        │   Cost: $0.00         │                     └───────────┬───────────┘
-        └───────────────────────┘                                 │
-                                            ┌─────────────────────┴─────────────────────┐
-                                            ▼                                           ▼
-                                 [ACTIVE SPACE <= 36]                        [ACTIVE SPACE > 36]
-                                 Classical Slurm HPC                         Provable QMA Horizon
-                                 DMRG / Heat-bath CI                         Federated QPU Dispatch
-                                 MPS Bond Dim χ ~ 4000                       Quantum Krylov (QKSD)
-                                 Cost: ~$0.50 (Slurm)                        Cost: x402 Token Spend
+                                MOLECULAR SYSTEM CANDIDATE
+                                            │
+                                            ▼
+                        ┌───────────────────────────────────────┐
+                        │   Static Correlation Diagnostic       │
+                        │   • Fractional Occupation Number      │
+                        │   • D1 / T1 Multi-Reference Metric    │
+                        └───────────────────┬───────────────────┘
+                                            │
+                     ┌──────────────────────┴──────────────────────┐
+                     ▼                                             ▼
+         [SINGLE-REFERENCE SYSTEM]                     [MULTI-REFERENCE SYSTEM]
+         • Kohn-Sham Representable                     • Provable KS Failure (Family 278)
+         • D1 < 0.05, Homogeneous Bonds                • Open d-shells, Radical Centers
+                     │                                             │
+                     ▼                                             ▼
+         ┌───────────────────────┐                     ┌───────────────────────┐
+         │   CLASSICAL HPC DFT   │                     │ Active Space Sieve    │
+         │   PySCF B3LYP / PBE   │                     │ CAS (N_elec, N_orb)   │
+         │   Cost: $0.00         │                     └───────────┬───────────┘
+         └───────────────────────┘                                 │
+                                             ┌─────────────────────┴─────────────────────┐
+                                             ▼                                           ▼
+                                  [ACTIVE SPACE <= 50]                        [ACTIVE SPACE > 50]
+                                  Classical Slurm HPC                         Provable QMA Horizon
+                                  DMRG / Heat-bath CI                         Federated QPU Dispatch
+                                  MPS Bond Dim χ ~ 4000                       Quantum Krylov (QKSD)
+                                  Cost: ~$0.50 (Slurm)                        Cost: x402 Token Spend
 ```
 
 1. **Step 1: Multi-Reference Diagnostic:** Evaluates fractional frontier orbital occupancies and static correlation metrics ($D_1$ diagnostic, natural orbital occupation numbers).
 2. **Step 2: Single-Reference Classical Route:** If $D_1 < 0.05$, the system is confirmed Kohn–Sham representable. The job is dispatched to PySCF DFT (B3LYP/PBE) on local CPU cores. QPU allocation is strictly rejected.
-3. **Step 3: Multi-Reference Active Space Sieve:** If static correlation is detected (Kohn–Sham failure), the active space dimension is evaluated:
-   - If active orbitals $\le 36$: Routed to classical Slurm HPC executing Density Matrix Renormalization Group (DMRG) or Heat-bath Configuration Interaction (HCI).
-   - If active orbitals $> 36$: Exceeds classical tensor network contraction limits ($n > 50$). The job is compiled into QIR and dispatched to federated QPUs (QuEra neutral atoms or IBM Quantum) executing [[early-fault-tolerant-quantum-and-subspace-methods|Quantum Krylov Subspace Diagonalization]].
+3. **Step 3: Multi-Reference Active Space Sieve:** If static correlation is detected (Kohn–Sham failure), the active space dimension is evaluated (ceiling 50 orbitals, matching both engines — supersedes the older ≤36 figure):
+   - If active orbitals $\le 50$: Routed to classical Slurm HPC executing Density Matrix Renormalization Group (DMRG) or Heat-bath Configuration Interaction (HCI).
+   - If active orbitals $> 50$: Exceeds classical tensor network contraction limits ($n > 50$). The job is compiled into QIR and dispatched to federated QPUs (QuEra neutral atoms or IBM Quantum) executing [[early-fault-tolerant-quantum-and-subspace-methods|Quantum Krylov Subspace Diagonalization]].
+
+> **Status (2026-10-12): advisory engine.** Both implementations (Go
+> `pkg/triage`, Python `science/triage.py`) are tested and agree, but
+> no live dispatch path calls either — verdicts are computed on
+> demand and recorded, never enforced. Admission wiring is a design
+> question (submit paths carry QASM/backends, not molecule/orbital
+> identity), not an unimplemented TODO.
 
 ## 3. Enforcing Quantum Advantage Realism
 

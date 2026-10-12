@@ -175,7 +175,7 @@ func NewServer(
 		sandboxRunner:         sbRunner,
 		activeAutoloops:       make(map[string]*autoresearch.LoopEngine),
 		hfClient:              hf.NewHubClient(""),
-		customAgents:          agents.NewCustomAgentRegistry(),
+		customAgents:          agents.NewCustomAgentRegistryWithDB(l.DB()),
 		pqcKeypair:            pqcKey,
 		qirCompiler:           qirComp,
 		signerPubKey:          pub,
@@ -340,6 +340,9 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/hf/downloads/", s.handleHFDownloadAction)
 
 	// Custom Agents & Multimodal Mesh Router
+	// K3: agent create/delete are registry mutations — bearer-gated like
+	// the other operator mutations (same human-paced limiter bucket).
+	// Listing stays public.
 	s.mux.HandleFunc("/api/agents/custom", s.handleCustomAgents)
 	s.mux.HandleFunc("/api/agents/custom/", s.handleCustomAgentByID)
 	s.mux.HandleFunc("/api/mesh/route", s.handleMeshRoute)
@@ -3154,12 +3157,25 @@ func (s *Server) handleCustomAgents(w http.ResponseWriter, r *http.Request) {
 			"agents": s.customAgents.List(),
 		})
 	case http.MethodPost:
+		// K3: registry writes are operator mutations.
+		if code := bearerGate(r); code != http.StatusOK {
+			http.Error(w, "custom agent registration requires the operator token", code)
+			return
+		}
+		if !s.tenantLimiter.allow(clientKey(r)) {
+			http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+			return
+		}
 		var manifest agents.CustomAgentManifest
 		if err := json.NewDecoder(r.Body).Decode(&manifest); err != nil {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-		registered := s.customAgents.Register(manifest)
+		registered, err := s.customAgents.Register(manifest)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		s.ledger.AppendEvent("global", "custom_agent_registered", map[string]any{
 			"agent_id": registered.ID,
 			"name":     registered.Name,
@@ -3186,6 +3202,15 @@ func (s *Server) handleCustomAgentByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == http.MethodDelete {
+		// K3: registry deletes are operator mutations.
+		if code := bearerGate(r); code != http.StatusOK {
+			http.Error(w, "custom agent deletion requires the operator token", code)
+			return
+		}
+		if !s.tenantLimiter.allow(clientKey(r)) {
+			http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+			return
+		}
 		err := s.customAgents.Delete(id)
 		if err != nil {
 			writeJSON(w, http.StatusBadRequest, map[string]any{"ok": false, "error": err.Error()})
