@@ -1819,3 +1819,11 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-12] verification | CI green on C-1 DAG-b provenance
   All 5 jobs success on run 38196807016. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | C-2 job-result wiring + honesty labels
+  MeasuredOutputs (latest completed per type, job-bound figures,
+  krylov labeled emulation); FlightRecorder measured-point
+  distinction; DAG stuck/rescoped/contested chips; SpatialCanvas
+  anchor/model split (no slider-verified chrome); widget MIX badges;
+  mandate card requires proposal; A2UI→Preview. Live Bell row feeds
+  the table shape. Go + 68 vitest green.
