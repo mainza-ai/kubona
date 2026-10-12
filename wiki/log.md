@@ -1837,3 +1837,6 @@ skipped is the exact failure this incident is about:
   DAG partitions planned-labeled; Manifold collapsed-only; endpoint
   default UNVERIFIED. Live: PROJECTED + synthesized + PROJECTION
   with computed anchor. Go + 70 vitest green.
+
+## [2026-10-12] verification | CI green on D-1a projection honesty
+  All 5 jobs success on run 38199170044. Tree clean, zero unpushed.
