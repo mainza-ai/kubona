@@ -1922,3 +1922,8 @@ skipped is the exact failure this incident is about:
   console_api now mirrors the Go origin rail; 9/9 console API tests green,
   full python suite 395 passed from platform/ (5 root-CWD relative-path
   failures are invocation-local, pre-existing).
+
+## [2026-10-12] verification | F-2 epistemic state coherence landed
+  R1 conditional Sources + R3a withheld-collapse gate + R3b anchor
+  repair; live both directions via API (bridge up/down); full Go suite
+  green; parked daemon rebuilt to current develop.

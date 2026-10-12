@@ -56,6 +56,22 @@ type ClassicalAnchor struct {
 	AnchorSource           string  `json:"anchor_source"`
 }
 
+// fallbackCaveat is the exact suffix appended to the epistemic statement
+// whenever synthesis runs on an uncomputed anchor. The replan anchor fold
+// strips this same string when measured evidence arrives (R3), so it must
+// stay a single shared constant — never two copies that drift apart.
+const fallbackCaveat = " Classical anchor is a hardcoded fallback (bridge unavailable) — unverified."
+
+// synthSources attests PySCF evidence labels only for computed anchors.
+// A fallback anchor cites nothing: an empty (unattested) list is legal,
+// an invented PySCF label is fabrication (R1).
+func synthSources(anchorComputed bool) []string {
+	if !anchorComputed {
+		return []string{}
+	}
+	return []string{"pyscf:sto-3g:rhf", "pyscf:sto-3g:fci"}
+}
+
 // TrajectoryStep represents a single optimization point. Source names the
 // provenance: "synthesized" milestones are template projections (the shape
 // of a converged run, not measurements); "measured" points folded from real
@@ -576,7 +592,7 @@ func SynthesizeCampaignStateWithOpts(
 		if !fresh {
 			epStatus = "UNVERIFIED"
 		}
-		epStatement += " Classical anchor is a hardcoded fallback (bridge unavailable) — unverified."
+		epStatement += fallbackCaveat
 	}
 
 	// SHA-256 Merkle Provenance Hash (shared with replan: the hash must
@@ -684,7 +700,10 @@ func SynthesizeCampaignStateWithOpts(
 			Status:            epStatus,
 			LiteratureDrift:   deltaMHa,
 			Statement:         epStatement,
-			Sources:           []string{"pyscf:sto-3g:rhf", "pyscf:sto-3g:fci"},
+			// R1: sources are attested only when the anchor is computed.
+			// A fallback anchor cites nothing — unattested ([]) is legal,
+			// an invented PySCF label is not.
+			Sources:           synthSources(anchorComputed),
 		},
 		Notebook:  notebook,
 		UpdatedAt: time.Now().UTC(),

@@ -164,12 +164,20 @@ live proof + green CI, checkboxes flip on landing.
   (localhost:3000 + 127.0.0.1:3000 + `KUBONA_CORS_ORIGINS` extras;
   `*` only under `KUBONA_CORS_ANY=1`); helper + live middleware tests
   prove allowlisted origins echoed, foreign origins headerless.
-- [ ] F-2. Epistemic state coherence (P1). R1: `Sources` conditional on
-  computed anchors (fallback → unattested `[]`). R3: claim PASS on
-  fallback anchor → `CONTESTED` + withheld-collapse note; anchor fold on
-  pristine-`UNVERIFIED` restores `PROJECTED` + template statement without
-  clobbering real verdicts. Update the two tests that bake current
-  behavior.
+- [x] F-2. Epistemic state coherence (P1). — landed 2026-10-12: R1
+  `synthSources()` attests the PySCF pair only for computed anchors
+  (fallback → unattested `[]`, via shared `fallbackCaveat` const so
+  synth and fold cannot drift). R3a: claim PASS on an uncomputed
+  anchor folds amplitudes but withholds collapse → `CONTESTED` +
+  "UNCOMPUTED" note + `PASS WITHHELD` measure line. R3b: a recomputed
+  anchor strips the caveat, re-attests sources, and restores
+  `PROJECTED` + 0.95/0.05/0.10 weights only for pristine `UNVERIFIED`
+  (fresh `HYPOTHESIS_PENDING` keeps pending weights; decided states
+  never rewritten; notebook sections stay historical). Live: computed
+  session → pair + `PROJECTED`; bridge-paused session → `[]` +
+  `UNVERIFIED` + caveat; validation sessions deleted. Full Go suite
+  green; 3 tests updated to the corrected behavior + 1 new
+  (fresh-fold-keeps-pending).
 - [ ] F-3. Display/handler honesty (P1). R2: `handleNotebooks`
   no-campaign path labeled (`UNVERIFIED_FALLBACK`, assumed anchor,
   `chemAccuracy=false`). R7: `MeasuredOutputs` filters
