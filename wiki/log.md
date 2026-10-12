@@ -1938,3 +1938,15 @@ skipped is the exact failure this incident is about:
   fallback default false; compose required-env. Live matrix green;
   live proof caught + fixed clientKey per-connection bucket bug
   (pre-existing, also covered B0-2 limiters). Parked daemon current.
+
+## [2026-10-12] audit | Line-by-line review of F-1..F-4, fixes landed
+  Production-grade pass over every shipped line. Findings fixed:
+  (1) CORS methods/headers tightened from * to used set + preflight
+  test; (2) live weights hoisted to shared consts (drift-proof);
+  (3) notebooks template SUCCESS path de-fictioned — was claiming an
+  un-run VQE execution + VERIFIED_ACCURATE, now PROJECTION/accuracy
+  never passes/corridor labeled, only folds verify (+ stub-bridge
+  test); (4) mandates/verify UNWRAPPED from bearer — pure read-only
+  check, gating broke console display flow for zero gain (limiter
+  stays). R7/R16, R5/R6, limiter math, bearer-outer ordering all
+  verified sound. Full Go + 396 python green; live re-proof done.

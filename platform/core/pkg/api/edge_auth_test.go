@@ -300,15 +300,16 @@ func TestVaultLeaseRequiresKey(t *testing.T) {
 }
 
 // R4: spend-adjacent mutations sit behind the bearer rail as well as their
-// own cryptographic envelopes. No token → 401 on all seven; a valid token
+// own cryptographic envelopes. No token → 401 on all six; a valid token
 // passes through to the handler's own verdict (never 401).
+// NOTE: /api/mandates/verify is deliberately NOT here — it is a pure
+// read-only check (see TestMandateVerifyStaysPublic).
 func TestEdgeBearerOnAdjacentRoutes(t *testing.T) {
 	srv, cleanup := setupTestRoutesServer(t)
 	defer cleanup()
 	t.Setenv("KUBONA_API_TOKEN", "op-token")
 
 	paths := []string{
-		"/api/mandates/verify",
 		"/api/grants/register",
 		"/api/grants/revoke",
 		"/api/tenants/admin-key",
@@ -373,5 +374,52 @@ func TestTenantCreationOpenButLimited(t *testing.T) {
 	}
 	if created == 0 || limited == 0 {
 		t.Errorf("limiter must admit-then-refuse, got %d created %d limited", created, limited)
+	}
+}
+
+// Audit correction: mandate verification is a pure read-only
+// cryptographic check (no ledger write, no secret revealed), so it stays
+// public behind its rate limiter — the console verifies mandate cards
+// with the console token, which must never require the operator token.
+// Gating it would break the display flow for zero security gain.
+func TestMandateVerifyStaysPublic(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
+
+	call := func(body string) int {
+		req := httptest.NewRequest(http.MethodPost, "/api/mandates/verify", bytes.NewReader([]byte(body)))
+		req.RemoteAddr = "127.0.0.1:0"
+		req.Header.Set("X-Forwarded-For", nextTestIP())
+		w := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w, req)
+		return w.Code
+	}
+	// No bearer, well-formed body: the check runs, the fake mandate fails
+	// closed as invalid — 200 with valid:false, never 401.
+	if got := call(`{"tenant_id":"t","job_hash":"h","max_budget_usd":1}`); got != http.StatusOK {
+		t.Errorf("public verify must answer 200 without a token, got %d", got)
+	}
+	// No bearer, garbage body: 400 from the handler, never 401.
+	if got := call(`not json`); got != http.StatusBadRequest {
+		t.Errorf("garbage body must 400 without a token, got %d", got)
+	}
+	// The limiter still guards the public endpoint: one client hammering
+	// past the 20rps/50-burst budget must see 429s.
+	ip := nextTestIP()
+	var limited bool
+	for i := 0; i < 70; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/api/mandates/verify", bytes.NewReader([]byte(`{}`)))
+		req.RemoteAddr = "127.0.0.1:0"
+		req.Header.Set("X-Forwarded-For", ip)
+		w := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w, req)
+		if w.Code == http.StatusTooManyRequests {
+			limited = true
+			break
+		}
+	}
+	if !limited {
+		t.Error("public verify must still rate-limit a hammering client")
 	}
 }

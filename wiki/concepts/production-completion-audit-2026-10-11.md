@@ -163,7 +163,10 @@ live proof + green CI, checkboxes flip on landing.
   `_cors_allow_origins()` in `console_api.py` mirrors the Go rail
   (localhost:3000 + 127.0.0.1:3000 + `KUBONA_CORS_ORIGINS` extras;
   `*` only under `KUBONA_CORS_ANY=1`); helper + live middleware tests
-  prove allowlisted origins echoed, foreign origins headerless.
+  prove allowlisted origins echoed, foreign origins headerless. Line
+  audit: methods/headers tightened from `*` to the actually-used
+  `GET/POST/PUT/DELETE` + `Authorization/Content-Type` (verified
+  against console usage) + preflight test.
 - [x] F-2. Epistemic state coherence (P1). — landed 2026-10-12: R1
   `synthSources()` attests the PySCF pair only for computed anchors
   (fallback → unattested `[]`, via shared `fallbackCaveat` const so
@@ -171,9 +174,11 @@ live proof + green CI, checkboxes flip on landing.
   anchor folds amplitudes but withholds collapse → `CONTESTED` +
   "UNCOMPUTED" note + `PASS WITHHELD` measure line. R3b: a recomputed
   anchor strips the caveat, re-attests sources, and restores
-  `PROJECTED` + 0.95/0.05/0.10 weights only for pristine `UNVERIFIED`
+  `PROJECTED` + live weights only for pristine `UNVERIFIED`
   (fresh `HYPOTHESIS_PENDING` keeps pending weights; decided states
-  never rewritten; notebook sections stay historical). Live: computed
+  never rewritten; notebook sections stay historical). Line audit:
+  live weights hoisted to shared `liveAlpha/liveBeta/liveGamma`
+  consts (synth + repair can no longer rot apart). Live: computed
   session → pair + `PROJECTED`; bridge-paused session → `[]` +
   `UNVERIFIED` + caveat; validation sessions deleted. Full Go suite
   green; 3 tests updated to the corrected behavior + 1 new
@@ -181,7 +186,13 @@ live proof + green CI, checkboxes flip on landing.
 - [x] F-3. Display/handler honesty (P1). — landed 2026-10-12: R2
   `handleNotebooks` no-campaign path tracks `anchorComputed` — bridge
   absent/failed → `UNVERIFIED_FALLBACK`, accuracy false, fallback named
-  in anchor + sections (success path unchanged). R7 `MeasuredOutputs`
+  in anchor + sections. Line audit caught the success path still
+  claiming an un-run VQE execution + verification (`fci + 0.47mHa`
+  arithmetic labeled "execution"/"VERIFIED_ACCURATE") — rewritten:
+  template path is now always `PROJECTION` (real anchor) /
+  `UNVERIFIED_FALLBACK` (assumed), accuracy never passes, corridor
+  estimate labeled "(not measured)", execution language removed; only
+  job folds verify. R7 `MeasuredOutputs`
   gates on `status === JOB_STATUS_COMPLETED` (FAILED carries
   `completed_at` too) + regression fixture with a newer FAILED job.
   R16 tribunal badge reads `CONTESTED` + `XCircle` on false
@@ -190,16 +201,21 @@ live proof + green CI, checkboxes flip on landing.
   (campaign rows removed to reach it); validation sessions deleted.
   Go `pkg/api` green, console 73 tests green, `pnpm build` clean.
 - [x] F-4. Auth/hardening leftovers (P1). — landed 2026-10-12: R4
-  bearer rail extended to `mandates/verify`, `grants/register`,
-  `grants/revoke`, and the four tenant mutations (envelopes stay the
-  real auth; bearer is the edge rail); new 5rps/15-burst limiters on
-  tenants + grants routes. Tenant self-provisioning stays open by
-  design (L1 simulator-only, first-key-wins — pinned by test) but
-  rate-limited. R5 `ensureRunner` defaults `AllowHostFallback=false`
+  bearer rail extended to `grants/register`, `grants/revoke`, and the
+  four tenant mutations (envelopes stay the real auth; bearer is the
+  edge rail); new 5rps/15-burst limiters on tenants + grants routes.
+  Tenant self-provisioning stays open by design (L1 simulator-only,
+  first-key-wins — pinned by test) but rate-limited. `mandates/verify`
+  was wrapped then deliberately UNWRAPPED in the line audit: it is a
+  pure read-only check (no ledger write, nothing secret), and gating it
+  would break the console's mandate-display flow (console token ≠
+  operator token) for zero security gain — spray protection is the
+  limiter's job (pinned by `TestMandateVerifyStaysPublic`). R5
+  `ensureRunner` defaults `AllowHostFallback=false`
   + `KUBONA_ALLOW_HOST_FALLBACK=1` opt-in (all existing tests already
   set the flag explicitly). R6 compose password → required-env
   (refuses `config` without the var, resolves with it). Live matrix
-  on an isolated daemon+DB: 401×3 no-token, 201 open creation, 401
+  on an isolated daemon+DB: 401s no-token, 201 open creation, 401
   wrong token, 403 token-without-envelope. Live proof also caught a
   real pre-existing bug: `clientKey` keyed on `RemoteAddr` verbatim
   (one bucket per TCP connection — 25 rapid curls all 201, and the

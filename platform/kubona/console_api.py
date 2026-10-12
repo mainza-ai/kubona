@@ -868,7 +868,12 @@ def _cors_allow_origins() -> list[str]:
 app = Starlette(
     middleware=[Middleware(CORSMiddleware,
                           allow_origins=_cors_allow_origins(),
-                          allow_methods=["*"], allow_headers=["*"])],
+                          # Explicit method/header sets: the console speaks
+                          # GET/POST/PUT/DELETE with Authorization +
+                          # Content-Type only. A new method/header is a
+                          # conscious allowlist edit, never a wildcard.
+                          allow_methods=["GET", "POST", "PUT", "DELETE"],
+                          allow_headers=["Authorization", "Content-Type"])],
     routes=[
         Route("/api/health", health),
         Route("/api/events", events),

@@ -15,6 +15,8 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/session"
 	"github.com/mainza-ai/kubona/core/pkg/supervisor"
 	"github.com/mainza-ai/kubona/core/pkg/watchdog"
+	pb "github.com/mainza-ai/kubona/core/proto"
+	"google.golang.org/grpc"
 )
 
 func replanHookTestServer(t *testing.T, dbPath string) (*Server, *ledger.Ledger, func()) {
@@ -279,5 +281,79 @@ func TestNotebooksFallbackLabeled(t *testing.T) {
 		if strings.Contains(sec, "verification (|") {
 			t.Errorf("no verification language on fallback: %q", sec)
 		}
+	}
+}
+
+// stubNotebookBridge answers ComputeClassicalAnchor with fixed H2 numbers
+// so the notebooks template success path is testable without a live bridge.
+// All other RPCs nil-panic if touched — the handler must not touch them.
+type stubNotebookBridge struct {
+	pb.QuantumBridgeServiceClient
+}
+
+func (s stubNotebookBridge) ComputeClassicalAnchor(ctx context.Context, in *pb.ClassicalAnchorRequest, _ ...grpc.CallOption) (*pb.ClassicalAnchorResponse, error) {
+	return &pb.ClassicalAnchorResponse{
+		Success: true, Molecule: in.Molecule,
+		RhfEnergy: -1.11668, FciExactEnergy: -1.13727,
+	}, nil
+}
+
+// Audit fix: even with a REAL anchor, the template path must never claim a
+// VQE execution or a verification — verdict PROJECTION, accuracy false,
+// corridor estimate labeled as such. Only job folds verify.
+func TestNotebooksTemplateSuccessIsProjection(t *testing.T) {
+	l, err := ledger.OpenLedger("test_notebooks_projection.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		l.Close()
+		os.Remove("test_notebooks_projection.db")
+		os.Remove("test_notebooks_projection.db-wal")
+		os.Remove("test_notebooks_projection.db-shm")
+	}()
+	sm := session.NewManager(l)
+	jr := jobs.NewRunner(l, stubNotebookBridge{}, 1)
+	sup := supervisor.NewSupervisor(l)
+	wd := watchdog.NewTaskWatchdog(l, sup)
+	srv := NewServer(l, sm, jr, sup, wd)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/results/notebooks", nil)
+	rec := httptest.NewRecorder()
+	srv.handleNotebooks(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("notebooks must answer 200, got %d", rec.Code)
+	}
+	var body struct {
+		Notebooks []struct {
+			ClassicalAnchor  string   `json:"classical_anchor"`
+			ChemicalAccuracy bool     `json:"chemical_accuracy"`
+			EpistemicVerdict string   `json:"epistemic_verdict"`
+			Sections         []string `json:"sections"`
+		} `json:"notebooks"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Notebooks) != 1 {
+		t.Fatalf("expected 1 template notebook, got %d", len(body.Notebooks))
+	}
+	nb := body.Notebooks[0]
+	if nb.EpistemicVerdict != "PROJECTION" {
+		t.Errorf("template with real anchor must be PROJECTION, got %q", nb.EpistemicVerdict)
+	}
+	if nb.ChemicalAccuracy {
+		t.Error("template path must never pass accuracy — only folds decide")
+	}
+	if !strings.Contains(nb.ClassicalAnchor, "PySCF") {
+		t.Errorf("real anchor must be named: %q", nb.ClassicalAnchor)
+	}
+	for _, sec := range nb.Sections {
+		if strings.Contains(sec, "execution on Aer") || strings.Contains(sec, "collapse and chemical accuracy verification") {
+			t.Errorf("no execution/verification fiction on the template path: %q", sec)
+		}
+	}
+	if !strings.Contains(nb.Sections[2], "not measured") || !strings.Contains(nb.Sections[3], "unclaimed until measured") {
+		t.Errorf("estimate must be labeled as unmeasured: %v", nb.Sections[2:4])
 	}
 }

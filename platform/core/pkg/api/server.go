@@ -277,7 +277,12 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/fleet", s.handleFleet)
 	s.mux.HandleFunc("/api/radar", s.handleRadar)
 	s.mux.HandleFunc("/api/mandates/sign", s.requireBearer(s.handleMandateSign))
-	s.mux.HandleFunc("/api/mandates/verify", s.requireBearer(s.handleMandateVerify))
+	// Verify stays PUBLIC (audit correction): it is a pure cryptographic
+	// check with no state change — gating it on the operator token would
+	// break the console's mandate-display flow (console token ≠ operator
+	// token) while revealing nothing secret. Spray protection comes from
+	// the verify limiter inside the handler, not from identity.
+	s.mux.HandleFunc("/api/mandates/verify", s.handleMandateVerify)
 	s.mux.HandleFunc("/api/harnesses", s.handleHarnesses)
 	s.mux.HandleFunc("/api/results/notebooks", s.handleNotebooks)
 	s.mux.HandleFunc("/api/literature", s.handleLiterature)
@@ -827,7 +832,9 @@ func (s *Server) handleNotebooks(w http.ResponseWriter, r *http.Request) {
 			anchorComputed = true
 			fciEnergy = resp.FciExactEnergy
 			rhfEnergy = resp.RhfEnergy
-			// VQE expectation value within realistic chemical accuracy corridor
+			// Corridor estimate, not a measurement: nothing has executed
+			// on this template path. qEnergy exists so the notebook shows
+			// the shape of the corridor, labeled as such below.
 			qEnergy = fciEnergy + 0.00047
 		}
 	}
@@ -839,7 +846,6 @@ func (s *Server) handleNotebooks(w http.ResponseWriter, r *http.Request) {
 	if deltaMHa < 0 {
 		deltaMHa = -deltaMHa
 	}
-	chemAccuracy := deltaMHa <= 1.6
 
 	// Compute real provenance Merkle hash from recent events
 	recentEvents, _ := s.ledger.GetRecentEvents(sessionID, 20)
@@ -857,18 +863,22 @@ func (s *Server) handleNotebooks(w http.ResponseWriter, r *http.Request) {
 		notebookID = "nb-" + latestJob.ID[:8]
 	}
 
-	verdict := "VERIFIED_ACCURATE"
-	if !chemAccuracy {
-		verdict = "ACCURACY_THRESHOLD_UNMET"
-	}
+	// The template path never passes chemical accuracy and never claims
+	// verification: qEnergy is a corridor estimate by construction, never a
+	// measured VQE result. Only job folds decide accuracy — the same rule
+	// campaign synthesis obeys. A computed anchor reads as PROJECTION
+	// (the shape of the work, anchor real, execution pending); an assumed
+	// one as UNVERIFIED_FALLBACK.
+	verdict := "PROJECTION"
+	chemAccuracy := false
 	anchorSection := fmt.Sprintf("2. Classical PySCF ab-initio ground state RHF (%.5f Ha) and FCI (%.5f Ha) integrals", rhfEnergy, fciEnergy)
-	collapseSection := fmt.Sprintf("4. Ring 1 Epistemic Wavefunction collapse and chemical accuracy verification (|Δ|=%.3f mHa <= 1.6 mHa)", deltaMHa)
+	vqeSection := fmt.Sprintf("3. Variational Quantum Eigensolver circuit prepared — awaiting execution; corridor estimate E=%.5f Ha (not measured)", qEnergy)
+	collapseSection := fmt.Sprintf("4. Ring 1 Epistemic projection: chemical accuracy unclaimed until measured (|Δ corridor|=%.3f mHa)", deltaMHa)
 	if !anchorComputed {
-		// R2: no bridge, no verification-grade claim. Accuracy cannot
-		// pass on assumed numbers and no collapse is claimed.
-		chemAccuracy = false
+		// R2: no bridge, no verification-grade claim of any kind.
 		verdict = "UNVERIFIED_FALLBACK"
 		anchorSection = fmt.Sprintf("2. Classical anchor UNAVAILABLE — hardcoded RHF (%.5f Ha) and FCI (%.5f Ha) assumed (bridge unreachable); no ab-initio integrals computed", rhfEnergy, fciEnergy)
+		vqeSection = fmt.Sprintf("3. Variational Quantum Eigensolver circuit prepared — awaiting execution; template default E=%.5f Ha (not measured)", qEnergy)
 		collapseSection = "4. Ring 1 Epistemic state UNVERIFIED: anchor is a hardcoded fallback, no collapse claimed"
 	}
 
@@ -889,7 +899,7 @@ func (s *Server) handleNotebooks(w http.ResponseWriter, r *http.Request) {
 				"sections": []string{
 					fmt.Sprintf("1. Scientific Objective & Active-Space Configuration (%s at R=%.4f A)", mol, bondDist),
 					anchorSection,
-					fmt.Sprintf("3. Variational Quantum Eigensolver circuit execution on Aer Statevector (E=%.5f Ha)", qEnergy),
+					vqeSection,
 					collapseSection,
 					"5. Negative results & barren plateau avoidance ledger (Var(∇E) >= 1e-6)",
 					"6. Pre-flight Clifford canary probe fidelity profile (F >= 95%)",
