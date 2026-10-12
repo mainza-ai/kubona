@@ -1950,3 +1950,8 @@ skipped is the exact failure this incident is about:
   check, gating broke console display flow for zero gain (limiter
   stays). R7/R16, R5/R6, limiter math, bearer-outer ordering all
   verified sound. Full Go + 396 python green; live re-proof done.
+
+## [2026-10-12] verification | F-5 backend robustness + dead code landed
+  R8/R9-class/R10/R11/R12/R14/R17 with tests + live proof (Aer dispatch
+  with stamp, krylov envelope, QIR 400); dead Go MCP plane deleted;
+  bridge + daemon on current builds. Go full + 401 python green.

@@ -91,13 +91,19 @@ class QiskitProvider(Provider):
                 "backend": "qiskit-aer", "hardware": False}
 
     def _credential(self) -> str | None:
-        if self._secrets is None:
-            from kubona.secrets import SecretStore
-            # Bao-backed when BAO_ADDR is set (authoritative, fail-closed),
-            # environment otherwise. This submit path is the first wired to
-            # OpenBao; other providers keep EnvSecretSource until their turn.
-            self._secrets = SecretStore.from_env()
-        return self._secrets.get("ibm-qiskit", "token")
+        # R12: no caching of the default store. An explicitly injected
+        # store (constructor arg — tests, deliberate wiring) is honored;
+        # otherwise the store is built fresh per call so rotation stays
+        # visible: a rotated env var, a newly set BAO_ADDR, or a revoked
+        # Bao lease bites on the next submit, not on process restart.
+        # from_env() is env reads + object construction (no I/O until
+        # .get), so per-call construction costs nothing measurable.
+        if self._secrets is not None:
+            return self._secrets.get("ibm-qiskit", "token")
+        from kubona.secrets import SecretStore
+        # Bao-backed when BAO_ADDR is set (authoritative, fail-closed),
+        # environment otherwise.
+        return SecretStore.from_env().get("ibm-qiskit", "token")
 
     @property
     def backend_name(self) -> str | None:

@@ -123,6 +123,36 @@ the mechanical precondition (`dev-docs/` + `.obsidian/` residue in private-remot
   the release-gate bug was fixed, because a step in a pipeline that already failed 17/17 adds no
   signal. It is text-only over `wiki/**`, so it needs neither `dev-docs/` nor the toolchain.
 
+## Production bar (settled 2026-10-12)
+
+Kubona is built for production, not demo. Simplification now means redo
+later, which is not productive — so every implementation is held to this
+bar before it lands. "Works" is necessary and insufficient.
+
+- **Real logic or fail-closed refusal.** No invented `success:true`, no
+  arithmetic standing in for measurement, no verification without a
+  measured result. Thresholds are v1 heuristics and say so.
+- **No scope-dodging.** A fix that leaves the same fiction class alive in
+  an adjacent branch is incomplete (the notebooks template success path
+  kept claiming an un-run VQE while its fallback branch was fixed — the
+  line audit caught it). Fix the class, not the instance.
+- **Threat analysis over consistency.** Every auth/gating change carries a
+  threat argument: what breaks, for whom, reader-vs-writer
+  classification. "Consistency" is never the argument (gating a pure
+  read-only check broke the console display flow for zero gain — reverted
+  in the audit). Reads stay public behind limiters; writes get edge auth.
+- **No weakened tests.** A test updated for new behavior must assert the
+  corrected behavior with equal or greater strength. Red going green by
+  asserting less is falsification, not verification.
+- **Drift-proof shared values.** Any literal a second file depends on
+  (match/strip string pairs, weight sets, source labels) lives in one
+  shared const — never two copies that can rot apart.
+- **Line audit before landing.** Re-read the full diff line by line before
+  every slice lands: check edge cases, error paths, float-bit and
+  ordering subtleties, and every caller that could break. Then prove it
+  live in both directions wherever behavior branches, and record
+  reversals in the wiki so nobody re-applies them.
+
 ## Current state (2026-09-29)
 
 **Purpose:** the wiki is Kubona's **blueprint** — insight gathered so the platform can be
