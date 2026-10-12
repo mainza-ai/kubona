@@ -216,3 +216,27 @@ def test_science_discovery_endpoints():
     assert qec_res["architectures"]["bivariate_bicycle_qldpc_ibm"]["physical_qubits_total"] == 288
 
 
+
+
+def test_cors_origin_allowlist():
+    """F-1: CORS echoes allowlisted origins only; foreign origins get no header."""
+    from kubona import console_api
+    # helper unit level: default, extras, ANY escape
+    assert console_api._cors_allow_origins()[:2] == ["http://localhost:3000", "http://127.0.0.1:3000"]
+    os.environ["KUBONA_CORS_ORIGINS"] = "https://console.example.com"
+    try:
+        assert "https://console.example.com" in console_api._cors_allow_origins()
+    finally:
+        del os.environ["KUBONA_CORS_ORIGINS"]
+    os.environ["KUBONA_CORS_ANY"] = "1"
+    try:
+        assert console_api._cors_allow_origins() == ["*"]
+    finally:
+        del os.environ["KUBONA_CORS_ANY"]
+    # live middleware level: allowlisted origin echoed, foreign origin blocked
+    h = dict(_h(), Origin="http://localhost:3000")
+    r = client.get("/api/health", headers=h)
+    assert r.headers.get("access-control-allow-origin") == "http://localhost:3000"
+    h = dict(_h(), Origin="https://evil.example.com")
+    r = client.get("/api/health", headers=h)
+    assert "access-control-allow-origin" not in r.headers
