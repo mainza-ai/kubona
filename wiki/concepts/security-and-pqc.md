@@ -2,7 +2,7 @@
 type: concept
 name: Security & PQC
 date: 2026-08-16
-updated: 2026-09-27
+updated: 2026-10-12
 tags: [security, pqc, oauth, mcp]
 sources: [source-gap-analysis-plan, source-architecture-paper]
 status: adopted
@@ -43,3 +43,27 @@ requires this guardrail — a Python sandbox executing agent code is a prime tar
 
 Related: [[mcp-and-context-flooding]] · [[cost-governance]] ·
 [[provenance-and-reproducibility]] · [[kubona]]
+
+## Transport decision (2026-10-12, E-1e)
+
+Measured state: mandate-envelope ML-KEM-768 is live and tested
+(`pkg/mandates/pqc.go`, parameter sizes + tamper + wrong-key pinned);
+the Go gateway, the Python bridge wire, and the console API all run
+plain HTTP. "Hybrid post-quantum transport" above therefore describes
+the envelope layer, **not** the wire — claiming otherwise would be the
+kind of fiction this wiki exists to prevent.
+
+Decision: TLS termination at the deployment edge (operator-owned certs,
+documented in the runbook) carries confidentiality and server identity;
+ML-KEM-768 mandate envelopes stay the PQC layer for spend authority;
+KEMTLS is deferred until a mature Go implementation exists to evaluate.
+Rejected: rolling custom transport crypto (no-bespoke-crypto rule), and
+treating the Python `hybrid_transport` demo as production (it is
+explicitly a stand-in).
+
+Done looks like: every gateway/bridge/console HTTP surface behind TLS
+in every non-loopback deployment, verified by a config test asserting
+non-local binds refuse without TLS material; envelope-only mandate
+transport (no bare mandates on any transport). Until then the posture is:
+loopback-only dev, envelope-protected mandates, plain-HTTP LAN segments
+declared — never implied secure.
