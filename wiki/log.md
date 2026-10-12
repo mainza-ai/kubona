@@ -2008,3 +2008,8 @@ skipped is the exact failure this incident is about:
   only; fixed krylov/solve proxy drop + stale root proto + regen
   script with pinned toolchain (7.x gencode refused by 5.29.6
   runtime — pinned 1.71.x). Live both paths; bridge+daemon current.
+
+## [2026-10-12] verification | K1 exec-site hardening landed
+  runBridgePython: ctx timeouts, absolute paths, single attempts,
+  named-interpreter 503s; demo defaults labeled. Tests caught a
+  real CWD mis-resolution (fixed). Live defaulted:true + real MW.
