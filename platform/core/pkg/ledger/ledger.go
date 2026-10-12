@@ -614,6 +614,47 @@ func (l *Ledger) ListClaimRecords(sessionID string, limit int) ([]ClaimRecord, e
 	return out, rows.Err()
 }
 
+// VerifyCampaignHistory asserts the live row equals the newest version.
+// Every writer funnels through SaveCampaignStateWithTrigger, so divergence
+// means a bypass (or a partial failure between the two writes) — fail
+// loudly here instead of drifting silently. Sessions with no campaign at
+// all verify cleanly (nothing to diverge).
+func (l *Ledger) VerifyCampaignHistory(sessionID string) error {
+	l.lock.RLock()
+	defer l.lock.RUnlock()
+
+	var live []byte
+	err := l.db.QueryRow(`SELECT state_json FROM campaign_states WHERE session_id = ?`, sessionID).Scan(&live)
+	if err == sql.ErrNoRows {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	var newest []byte
+	var trigger string
+	err = l.db.QueryRow(
+		`SELECT state_json, trigger FROM campaign_versions WHERE session_id = ? ORDER BY rowid DESC LIMIT 1`,
+		sessionID).Scan(&newest, &trigger)
+	if err == sql.ErrNoRows {
+		return fmt.Errorf("campaign drift: live row exists with no versions for session %s", shortID(sessionID))
+	}
+	if err != nil {
+		return err
+	}
+	if string(live) != string(newest) {
+		return fmt.Errorf("campaign drift: live row != newest version (trigger %q) for session %s", trigger, shortID(sessionID))
+	}
+	return nil
+}
+
+func shortID(id string) string {
+	if len(id) > 8 {
+		return id[:8]
+	}
+	return id
+}
+
 func (l *Ledger) GetCampaignState(sessionID string) ([]byte, error) {
 	l.lock.RLock()
 	defer l.lock.RUnlock()

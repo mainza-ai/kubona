@@ -26,7 +26,7 @@ with tests + live proof + green CI, per project rule).
 | Context budgeting | PARTIAL — real bounds, hardcoded constants, recall uncounted |
 | Hindsight over HTTP | ABSENT — in-process only, zero routes, zero console callers |
 | Planner loop replacing tribunal | ABSENT — fixed 4 turns, hardcoded pass |
-| Versioned/event-sourced campaigns | Versioned DONE; event-sourced NO (snapshots, no replay) |
+| Versioned/event-sourced campaigns | Versioned DONE + consistency-checked (`VerifyCampaignHistory`: live == newest version, bypass fails loudly). Snapshot trail, NOT event-sourced — the word is retired everywhere it implied replay. |
 | Compile/validate gates on launch | Validate DONE; compile NO (QIR never on launch path) |
 | Memory write-back | DONE on chat paths; tribunal unattributed, non-chat paths open |
 | Multi-geometry scans | Classical DONE (`pes_sweep`); quantum multi-geometry ABSENT |
@@ -79,9 +79,13 @@ with tests + live proof + green CI, per project rule).
   CONTESTED; `ConsensusPassed` wired to evidence.
 - [x] B1-2. Hindsight HTTP (`GET recall`/`POST retain`, tenant-scoped) + one
   console caller — or formally downgrade the claim.
-- [ ] B1-3. Drop "event-sourced" language or add `ReplayCampaign` tested
+- [x] B1-3. Drop "event-sourced" language or add `ReplayCampaign` tested
   against the live row; budgets into one config counted against history;
-  failure breaker + cost accumulator on tool loop.
+  failure breaker + cost accumulator on tool loop. — landed 2026-10-11:
+  `VerifyCampaignHistory` (bypass fails loudly), `llm.BudgetConfig` single
+  source (recall sites + HTTP parser + history defaults), observation caps
+  (6k) + turn tool-char cap (24k) with ledger events, repeat-failure
+  breaker, usage accumulator (usage now parsed, was always nil), all pinned.
 
 ## Phase C — wire what exists (no new viz systems)
 
