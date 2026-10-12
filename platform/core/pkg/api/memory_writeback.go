@@ -9,6 +9,7 @@ import (
 
 	"github.com/mainza-ai/kubona/core/pkg/agents"
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
+	"github.com/mainza-ai/kubona/core/pkg/llm"
 	"github.com/mainza-ai/kubona/core/pkg/memory"
 )
 
@@ -254,7 +255,8 @@ type recallParams struct {
 }
 
 func parseRecallParams(r *http.Request) (recallParams, error) {
-	p := recallParams{tokens: 250, minSim: 0.35, limit: 10}
+	cfg := llm.DefaultBudgetConfig()
+	p := recallParams{tokens: cfg.RecallTokens, minSim: cfg.RecallMinSimilarity, limit: 10}
 	rawBank := strings.TrimSpace(r.URL.Query().Get("bank"))
 	if rawBank == "" || rawBank == "all" {
 		p.matchAll = true

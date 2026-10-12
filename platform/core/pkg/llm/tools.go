@@ -121,6 +121,11 @@ func (c *Client) CompleteWithTools(ctx context.Context, role string, messages []
 			} `json:"message"`
 			FinishReason string `json:"finish_reason"`
 		} `json:"choices"`
+		Usage struct {
+			PromptTokens     int `json:"prompt_tokens"`
+			CompletionTokens int `json:"completion_tokens"`
+			TotalTokens      int `json:"total_tokens"`
+		} `json:"usage"`
 	}
 	if err := json.Unmarshal(respBytes, &parsed); err != nil {
 		return "", nil, nil, duration, fmt.Errorf("failed to parse JSON response: %w", err)
@@ -129,7 +134,11 @@ func (c *Client) CompleteWithTools(ctx context.Context, role string, messages []
 		return "", nil, nil, duration, fmt.Errorf("no completion choices returned by model")
 	}
 	ch := parsed.Choices[0]
-	return ch.Message.Content, fromWireCalls(ch.Message.ToolCalls), nil, duration, nil
+	chatResp := &ChatCompletionResponse{}
+	chatResp.Usage.PromptTokens = parsed.Usage.PromptTokens
+	chatResp.Usage.CompletionTokens = parsed.Usage.CompletionTokens
+	chatResp.Usage.TotalTokens = parsed.Usage.TotalTokens
+	return ch.Message.Content, fromWireCalls(ch.Message.ToolCalls), chatResp, duration, nil
 }
 
 // withToolMessages serializes messages including tool_calls / tool results.

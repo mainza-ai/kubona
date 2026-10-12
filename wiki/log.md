@@ -1798,3 +1798,11 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-11] verification | CI green on B1-2 + hardening pass
   All 5 jobs success on run 38184010370. Tree clean, zero unpushed.
+
+## [2026-10-11] implementation | B1-3 budgets, breaker, history check
+  llm.BudgetConfig single source (history/recall/loop defaults);
+  observation caps + turn tool-char cap with ledger events;
+  repeat-failure breaker; usage accumulator (CompleteWithTools now
+  parses usage — was always nil); VerifyCampaignHistory; wiki
+  drops event-sourced claim. Live turn unaffected, zero guard
+  events. Full Go suite green.

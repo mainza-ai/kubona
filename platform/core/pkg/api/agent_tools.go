@@ -19,10 +19,6 @@ import (
 // registry grants this role an explicit read-only set at registration.
 const CopilotRole = "copilot"
 
-// maxToolRounds bounds model→tool→observation cycles per turn. Enough for
-// anchor-then-answer; the loop always terminates with a plain answer.
-const maxToolRounds = 3
-
 // registerAgentTools wires the single tool registry with server-backed v1
 // tools. All v1 tools are read-only observations (anchors, campaign, jobs,
 // ledger tail, literature). Nothing here spends, dispatches, or mutates:
@@ -344,8 +340,11 @@ func (s *Server) registerAgentTools() *tools.Registry {
 			if s.memoryStore == nil {
 				return map[string]any{"snippets": []any{}, "tenant": tenant}, nil
 			}
+			recallCfg := llm.DefaultBudgetConfig()
 			recalled := s.memoryStore.SemanticRecallScoped(
-				memory.BankExperiences, a.Query, 250, 0.35, tenant, []string{tenant})
+				memory.BankExperiences, a.Query,
+				recallCfg.RecallTokens, recallCfg.RecallMinSimilarity,
+				tenant, []string{tenant})
 			out := make([]any, 0, len(recalled))
 			for _, item := range recalled {
 				out = append(out, map[string]any{
@@ -422,9 +421,24 @@ func (s *Server) resolveWithTools(ctx context.Context, sessionID string, base []
 	}
 	hist := append([]llm.ChatMessage(nil), base...)
 	hist = append(hist, llm.ChatMessage{Role: "system", Content: toolContextPreamble(sessionID)})
+	cfg := llm.DefaultBudgetConfig()
 	submits := 0
-	for round := 0; round < maxToolRounds; round++ {
-		text, calls, _, _, err := s.llmClient.CompleteWithTools(ctx, CopilotRole, hist, toolsForLLM)
+	var toolChars, turnTokens int
+	var lastFailTool string
+	var failStreak int
+loop:
+	for round := 0; round < cfg.MaxToolRounds; round++ {
+		text, calls, chatResp, _, err := s.llmClient.CompleteWithTools(ctx, CopilotRole, hist, toolsForLLM)
+		turnTokens += usageTokens(chatResp)
+		if turnTokens > cfg.MaxTurnTokens {
+			// Token guardrail: provider-reported usage past the turn cap
+			// stops the loop instead of burning minutes. Recorded as a
+			// cap event, never as a tool failure (nothing failed).
+			_ = s.ledger.AppendEvent(sessionID, "tool_loop_capped", map[string]any{
+				"reason": "token_cap", "rounds": round + 1, "turn_tokens": turnTokens,
+			})
+			break
+		}
 		if err != nil {
 			break
 		}
@@ -469,13 +483,54 @@ func (s *Server) resolveWithTools(ctx context.Context, sessionID string, base []
 				"error": errorText(derr),
 				"data":  out,
 			})
+			// Observation budget: one chatty tool (a full campaign dump)
+			// must not eat the turn. The cut is marked on the wire.
+			obsCapped := llm.TruncateObservation(string(obs), cfg.MaxObservationChars)
+			toolChars += len(obsCapped)
 			hist = append(hist, llm.ChatMessage{
 				Role: "tool", ToolCallID: c.ID, ToolName: c.Name,
-				Content: string(obs),
+				Content: obsCapped,
 			})
+			// Repeat-failure breaker: the same tool failing twice in a row
+			// will fail a third time — stop the loop and let the model
+			// answer with partial observations instead of burning rounds.
+			if derr == nil {
+				failStreak, lastFailTool = 0, ""
+			} else {
+				if c.Name == lastFailTool {
+					failStreak++
+				} else {
+					failStreak, lastFailTool = 1, c.Name
+				}
+				if failStreak >= 2 {
+					_ = s.ledger.AppendEvent(sessionID, "tool_loop_breaker", map[string]any{
+						"tool": c.Name, "consecutive_failures": failStreak,
+					})
+					break loop
+				}
+			}
+			if toolChars > cfg.MaxToolCharsPerTurn {
+				_ = s.ledger.AppendEvent(sessionID, "tool_loop_capped", map[string]any{
+					"reason": "tool_chars", "rounds": round + 1, "tool_chars": toolChars,
+				})
+				break loop
+			}
 		}
 	}
 	return hist
+}
+
+// usageTokens sums provider-reported usage for the accumulator. Zero when
+// unreported (local providers often omit it) — the accumulator then stays
+// quiet rather than guessing.
+func usageTokens(resp *llm.ChatCompletionResponse) int {
+	if resp == nil {
+		return 0
+	}
+	if resp.Usage.TotalTokens > 0 {
+		return resp.Usage.TotalTokens
+	}
+	return resp.Usage.PromptTokens + resp.Usage.CompletionTokens
 }
 
 func toolContextPreamble(sessionID string) string {

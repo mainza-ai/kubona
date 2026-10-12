@@ -204,3 +204,30 @@ func TestCompleteStreamUsesWireToolMessages(t *testing.T) {
 		t.Errorf("assistant tool_calls missing on the wire: %v", asstMsg)
 	}
 }
+
+// CompleteWithTools must surface provider usage: the turn accumulator
+// cannot guard what it cannot see (previously always nil).
+func TestCompleteWithToolsReturnsUsage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []any{map[string]any{
+				"message":       map[string]any{"content": "done"},
+				"finish_reason": "stop",
+			}},
+			"usage": map[string]any{
+				"prompt_tokens": 100, "completion_tokens": 50, "total_tokens": 150,
+			},
+		})
+	}))
+	defer srv.Close()
+
+	c := llm.NewClient(toolTestSettings(t, srv.URL))
+	_, _, chatResp, _, err := c.CompleteWithTools(context.Background(), "copilot",
+		[]llm.ChatMessage{{Role: "user", Content: "hi"}}, nil)
+	if err != nil {
+		t.Fatalf("CompleteWithTools failed: %v", err)
+	}
+	if chatResp == nil || chatResp.Usage.TotalTokens != 150 {
+		t.Errorf("usage must surface, got %+v", chatResp)
+	}
+}
