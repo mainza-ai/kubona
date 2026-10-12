@@ -265,6 +265,19 @@ implemented (needs revision). Every item has file:line or a live probe.
     identity the submit path lacks), wiki threshold synced ≤36→50,
     credits kept as specified output. Live: 503 fail-closed + 2
     seeds listed.
+  - [x] **K5 landed 2026-10-12:** Python shadow verdict EXECUTED —
+    18 divergent-duplicate routes removed from `console_api.py`
+    (sessions, chat, loops, events, hf/*, mesh, fleet, provenance,
+    custom-agents; separate stores behind Go-identical paths =
+    split-brain), keeping health + 11 unique handlers (approvals,
+    providers, reports, workflows, agents, labs, models, settings,
+    science/*) with a status docstring forbidding re-adds; tests
+    repointed (retired routes assert 404, burn-rate covered by
+    unit test, SSE by Go test); README Console-API section
+    rewritten (Go canonical). MCP stdio role clarified in package
+    docstring (external edge + serve-gateway; not the console
+    backend, not the job path) with a clean-boot smoke proof.
+    Live: 19 routes, zero dupe paths. Full python suite green.
   - [x] **K4 landed 2026-10-12:** cloud-LLM dollar rail —
     `pkg/llm/cost.go` heuristic rate table (labeled v1, unknown
     models refuse to price) + `OnSpend` hook on all 3 client paths
