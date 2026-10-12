@@ -34,7 +34,7 @@ if it leaks, how to rotate, how to verify. Rotate in the order listed
 | Secret | Configured | Blast radius if leaked | Rotate | Verify |
 |---|---|---|---|---|
 | Reviewer private key | `KUBONA_REVIEWER_PRIVKEY_HEX` (daemon env) | Mints spend mandates via `/api/mandates/sign` (needs admin envelope + bearer too) | Generate new Ed25519 keypair; set env; restart daemon | `/api/mandates/sign` with old-key-era mandate fails verify; new mints verify |
-| Operator API token | `KUBONA_API_TOKEN` (daemon env) + console `Authorization` header | Calls `/api/mandates/sign` (still needs admin envelope) | Set new value both sides; restart daemon | Sign without header → 401; wrong value → 401 |
+| Operator API token | `KUBONA_API_TOKEN` (daemon env) + console `Authorization` header | All bearer-gated routes: `/api/mandates/sign` (still needs admin envelope), grants register/revoke, tenant mutations, metasearch approve/reject/apply | Set new value both sides; restart daemon | Sign without header → 401; wrong value → 401 |
 | Lease HMAC key | `KUBONA_LEASE_HMAC_KEY` (daemon env, min 32 chars) | Forges vault lease receipts | Set new value; restart daemon; old signatures fail comparison | Unset/short → 503 on mint |
 | Postgres DSN | `KUBONA_PG_DSN` (consumer env) | Full memory-store read/write | Rotate in Postgres; update env; restart consumers | Empty default refuses connection (no silent fallback) |
 | Tenant admin keys | Per-tenant `admin_pubkey_hex` via `/api/tenants/admin-key` (current-admin-signed rotation) | Authorizes spend + ceiling + autonomy per tenant | Current admin signs rotation to new pubkey | Old-key envelope → 403 |
