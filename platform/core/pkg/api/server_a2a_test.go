@@ -11,11 +11,18 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
 	"github.com/mainza-ai/kubona/core/pkg/agents"
+	"github.com/mainza-ai/kubona/core/pkg/api"
 	"github.com/mainza-ai/kubona/core/pkg/cost"
+	"github.com/mainza-ai/kubona/core/pkg/jobs"
+	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/session"
+	"github.com/mainza-ai/kubona/core/pkg/supervisor"
+	"github.com/mainza-ai/kubona/core/pkg/watchdog"
 )
 
 func TestA2A_PaymentRequiredAndSettlement(t *testing.T) {
@@ -198,5 +205,64 @@ func TestCanvas_LayoutPersistence(t *testing.T) {
 	}
 	if len(savedLayout.Nodes) != 1 || savedLayout.Zoom != 1.5 {
 		t.Fatalf("saved layout mismatch: %+v", savedLayout)
+	}
+}
+
+// K2: canvas layouts survive a server restart (SQLite, not memory), and
+// megabyte blobs refuse instead of landing in a row.
+func TestCanvas_LayoutSurvivesRestart(t *testing.T) {
+	dbPath := "test_canvas_restart.db"
+	cleanup := func() {
+		os.Remove(dbPath)
+		os.Remove(dbPath + ".lock")
+		os.Remove(dbPath + "-wal")
+		os.Remove(dbPath + "-shm")
+	}
+	defer cleanup()
+
+	serve := func() (*api.Server, func()) {
+		t.Helper()
+		l, err := ledger.OpenLedger(dbPath)
+		if err != nil {
+			t.Fatal(err)
+		}
+		sm := session.NewManager(l)
+		jr := jobs.NewRunner(l, nil, 1)
+		sup := supervisor.NewSupervisor(l)
+		wd := watchdog.NewTaskWatchdog(l, sup)
+		return api.NewServer(l, sm, jr, sup, wd), func() { l.Close() }
+	}
+	put := func(srv *api.Server, body string) int {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodPost, "/api/canvas/layout?session_id=s9", strings.NewReader(body))
+		w := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w, req)
+		return w.Code
+	}
+	get := func(srv *api.Server) string {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, "/api/canvas/layout?session_id=s9", nil)
+		w := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w, req)
+		return w.Body.String()
+	}
+
+	srv1, close1 := serve()
+	if code := put(srv1, `{"nodes":[{"id":"n1"}],"zoom":2}`); code != http.StatusOK {
+		t.Fatalf("save: %d", code)
+	}
+	close1()
+
+	// Fresh server, same DB file: layout must still be there.
+	srv2, close2 := serve()
+	defer close2()
+	if got := get(srv2); !strings.Contains(got, "n1") {
+		t.Errorf("layout must survive restart, got %q", got)
+	}
+
+	// Oversize blobs refuse.
+	big := `{"pad":"` + strings.Repeat("x", 300*1024) + `"}`
+	if code := put(srv2, big); code != http.StatusBadRequest {
+		t.Errorf("300KB layout must 400, got %d", code)
 	}
 }

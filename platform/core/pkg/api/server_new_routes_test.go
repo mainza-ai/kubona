@@ -1155,3 +1155,50 @@ func TestDiscoveryPipelineDefaultsLabeled(t *testing.T) {
 		t.Errorf("must evaluate exactly the 1 given candidate, got %v", out)
 	}
 }
+
+// K2: GET /api/loops accepts session_id scope. Unfiltered keeps the
+// global view; filtered counts only that session's loops (the console
+// header was counting the fleet's loops as the session's).
+func TestLoopsSessionScope(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+
+	mkLoop := func(sess string) {
+		t.Helper()
+		body, _ := json.Marshal(map[string]any{"session_id": sess, "max_steps": 5})
+		req := httptest.NewRequest(http.MethodPost, "/api/loops", bytes.NewReader(body))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != http.StatusCreated {
+			t.Fatalf("register loop in %s: %d", sess, w.Code)
+		}
+	}
+	mkLoop("sess-A")
+	mkLoop("sess-A")
+	mkLoop("sess-B")
+
+	get := func(qs string) int {
+		t.Helper()
+		req := httptest.NewRequest(http.MethodGet, "/api/loops"+qs, nil)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		var out struct {
+			Loops []any `json:"loops"`
+		}
+		_ = json.NewDecoder(w.Body).Decode(&out)
+		return len(out.Loops)
+	}
+	if n := get(""); n != 3 {
+		t.Errorf("unfiltered must list all loops, got %d", n)
+	}
+	if n := get("?session_id=sess-A"); n != 2 {
+		t.Errorf("sess-A scope must list 2, got %d", n)
+	}
+	if n := get("?session_id=sess-B"); n != 1 {
+		t.Errorf("sess-B scope must list 1, got %d", n)
+	}
+	if n := get("?session_id=ghost"); n != 0 {
+		t.Errorf("unknown session must list 0, got %d", n)
+	}
+}

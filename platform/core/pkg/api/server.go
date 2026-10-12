@@ -51,8 +51,6 @@ type Server struct {
 	watchdog         *watchdog.TaskWatchdog
 	collective       *agents.AgentCollective
 	a2aServer        *agents.A2AServer
-	canvasLayouts    map[string]string
-	canvasMu         sync.RWMutex
 	fidelityGate     *fidelity.FidelityGate
 	epistemicGate    *epistemics.EpistemicGate
 	harnessReg       *autoresearch.HarnessRegistry
@@ -168,7 +166,6 @@ func NewServer(
 		watchdog:              wd,
 		collective:            agents.NewAgentCollective(),
 		a2aServer:             agents.NewA2AServer("0x89205A3A3b2A69De6Dbf7f01ED13B2108B2c43e7", nil, sbRunner),
-		canvasLayouts:         make(map[string]string),
 		fidelityGate:          fidelity.NewFidelityGate(),
 		epistemicGate:         epistemics.NewEpistemicGate(),
 		harnessReg:            autoresearch.NewHarnessRegistry(),
@@ -1891,6 +1888,18 @@ func (s *Server) handleLoops(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		loops := s.supervisor.ListLoops()
+		// K2: optional session scope. Unfiltered (all loops) stays for
+		// global views; the console passes its session so headers count
+		// this session's loops instead of the fleet's.
+		if sid := r.URL.Query().Get("session_id"); sid != "" {
+			scoped := loops[:0:0]
+			for _, l := range loops {
+				if l.SessionID == sid {
+					scoped = append(scoped, l)
+				}
+			}
+			loops = scoped
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"loops": loops})
 	case http.MethodPost:
 		var req struct {
@@ -2101,12 +2110,15 @@ func (s *Server) handleCanvasLayout(w http.ResponseWriter, r *http.Request) {
 		sessionID = "default"
 	}
 
+	// K2: layouts persist in SQLite (survive restarts), not in a Go map.
+	// The old in-memory map lost every layout on reboot while the log
+	// claimed a table — that claim is now true.
 	switch r.Method {
 	case http.MethodGet:
-		s.canvasMu.RLock()
-		layout, exists := s.canvasLayouts[sessionID]
-		s.canvasMu.RUnlock()
-		if !exists {
+		var layout string
+		err := s.ledger.DB().QueryRow(
+			`SELECT layout_json FROM canvas_layouts WHERE session_id = ?`, sessionID).Scan(&layout)
+		if err != nil {
 			layout = "{}"
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -2118,9 +2130,20 @@ func (s *Server) handleCanvasLayout(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "invalid JSON layout", http.StatusBadRequest)
 			return
 		}
-		s.canvasMu.Lock()
-		s.canvasLayouts[sessionID] = string(raw)
-		s.canvasMu.Unlock()
+		// Bound the blob: one client must not stuff megabytes into a
+		// layout row (or the old map). 256KB fits any real canvas.
+		const maxLayoutBytes = 256 * 1024
+		if len(raw) > maxLayoutBytes {
+			http.Error(w, "layout too large: max 256KB", http.StatusBadRequest)
+			return
+		}
+		if _, err := s.ledger.DB().Exec(
+			`INSERT INTO canvas_layouts (session_id, layout_json, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+			 ON CONFLICT(session_id) DO UPDATE SET layout_json = excluded.layout_json, updated_at = CURRENT_TIMESTAMP`,
+			sessionID, string(raw)); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
 		writeJSON(w, http.StatusOK, map[string]string{"status": "saved", "session_id": sessionID})
 	default:
