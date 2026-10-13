@@ -132,3 +132,49 @@ def test_phase6_gate_full_discovery_loop(tmp_path):
     assert ok, msg
     # the ledger is tenant-scoped to lab-alpha
     assert "lab-alpha" in str(ledger.path)
+
+
+def test_workflow_unknown_trigger_refused(tmp_path):
+    from kubona.workflows import parse_workflow
+    with pytest.raises(WorkflowError):
+        parse_workflow({**VQE_WORKFLOW, "trigger": "cron"})
+
+
+def test_workflow_schedule_trigger_needs_force(tmp_path):
+    gw = build_gateway()
+    ledger = Ledger(path=str(tmp_path / "led.jsonl"))
+    engine = WorkflowEngine(gw, ledger=ledger)
+    wf = parse_workflow({**VQE_WORKFLOW, "trigger": "schedule",
+                         "schedule": {"interval_s": 3600}})
+    assert wf.schedule == {"interval_s": 3600}
+    sid = gw.call("cost", "create_session",
+                  {"name": "wf-trig", "owner": "researcher", "budget_ceiling_usd": 10.0},
+                  token="dev-token")["session_id"]
+    with pytest.raises(WorkflowError):
+        engine.run(wf, token="dev-token", session_id=sid)
+    out = engine.run(wf, token="dev-token", session_id=sid, force=True)
+    assert out["ok"] and out["steps"] == 3
+
+
+def test_workflow_dry_run_plans_without_touching_tools(tmp_path):
+    gw = build_gateway()
+    ledger = Ledger(path=str(tmp_path / "led.jsonl"))
+    engine = WorkflowEngine(gw, ledger=ledger)
+    wf = parse_workflow({**VQE_WORKFLOW, "trigger": "schedule",
+                         "schedule": {"cron": "0 * * * *"}})
+    out = engine.run(wf, token="dev-token", session_id="sess-dry", dry_run=True)
+    assert out["ok"] and out["dry_run"] is True
+    assert [s["tool"] for s in out["steps"]] == ["cost/estimate_cost", "execution/submit_job", "provenance/write_record"]
+    assert out["steps"][0]["args"]["session_id"] == "sess-dry"  # injected
+    assert out["steps"][2]["args"]["payload"] == {"job_id": "{}"}  # templated, unfilled
+    assert wf.status == "draft"  # nothing ran
+    kinds = [r.kind for r in ledger.query()]
+    assert "workflow_dry_run" in kinds and "workflow_step" not in kinds
+
+
+def test_workflow_dry_run_refuses_unknown_tools(tmp_path):
+    gw = build_gateway()
+    engine = WorkflowEngine(gw, ledger=Ledger(path=str(tmp_path / "led.jsonl")))
+    bad = parse_workflow({**VQE_WORKFLOW, "steps": [{"id": "x", "tool": "nope/does_not_exist"}]})
+    with pytest.raises(WorkflowError):
+        engine.run(bad, token="dev-token", dry_run=True)

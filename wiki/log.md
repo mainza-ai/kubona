@@ -2188,3 +2188,12 @@ skipped is the exact failure this incident is about:
   in the session stream. Delta noted on [[fidelity-accounting]]:
   calibration_age is profile_source until profiles carry clocks; the
   drift-curve query is still open.
+
+## [2026-10-12] feat | workflow trigger discipline + dry-run
+  Trigger was free text that run() ignored: now parse enforces
+  manual|schedule|event, schedule/event never fire without force=True
+  (opaque schedule mapping stored + ledger-stamped), dry_run=True
+  validates/templates/records workflow_dry_run with zero tool calls.
+  4 new full-stack tests (13/13 phase6, 407 suite green). Honest remainder
+  on [[workflows-and-agent-authoring]]: real scheduler, per-step gates,
+  budget_ceiling_usd enforcement (no cost contract yet).

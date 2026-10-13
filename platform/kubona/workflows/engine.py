@@ -1,8 +1,12 @@
 """Minimal workflow engine: YAML steps -> MCP tools with gates.
 
 Workflow shape:
-  name, version, trigger (manual|schedule|event), created_by_agent (bool),
-  budget_ceiling_usd, steps: [{id, tool, args, requires_approval}]
+  name, version, trigger (manual|schedule|event), schedule (opaque mapping),
+  created_by_agent (bool), budget_ceiling_usd, steps: [{id, tool, args,
+  requires_approval}].
+Trigger discipline: only manual runs by default — schedule/event never fire
+(no scheduler exists); run() refuses them without force=True, dry_run=True
+always plans without touching tools. Unknown triggers refuse at parse.
 Args may template {{session_id}}, {{prev.<step_id>.<field>}}, {{input.<field>}}.
 Each executed step is written to the ledger (kind="workflow_step") so every
 outcome traces to a record (§13.4/provenance-first).
@@ -41,6 +45,10 @@ class Workflow:
     steps: list[dict[str, Any]]
     version: int = 1
     trigger: str = "manual"
+    # Opaque schedule description (cron/interval/…): stored and stamped, never
+    # interpreted — no scheduler exists yet, so schedule/event triggers never
+    # fire on their own (run() refuses them without force; see below).
+    schedule: dict[str, Any] = field(default_factory=dict)
     created_by_agent: bool = False
     budget_ceiling_usd: float | None = None
     approved: bool = False
@@ -53,8 +61,14 @@ class Workflow:
         steps = d.get("steps")
         if not steps or not isinstance(steps, list) or not all("id" in s and "tool" in s for s in steps):
             raise WorkflowError("workflow needs a non-empty list of {id, tool, ...} steps")
+        trigger = d.get("trigger", "manual")
+        if trigger not in ("manual", "schedule", "event"):
+            raise WorkflowError(f"unknown trigger {trigger!r}: manual|schedule|event")
+        schedule = d.get("schedule", {})
+        if trigger in ("schedule", "event") and schedule and not isinstance(schedule, dict):
+            raise WorkflowError("schedule must be a mapping describing the trigger")
         return cls(name=d["name"], steps=steps, version=d.get("version", 1),
-                   trigger=d.get("trigger", "manual"),
+                   trigger=trigger, schedule=schedule or {},
                    created_by_agent=d.get("created_by_agent", False),
                    budget_ceiling_usd=d.get("budget_ceiling_usd"))
 
@@ -94,15 +108,43 @@ class WorkflowEngine:
         self.ledger = ledger
 
     def run(self, workflow: Workflow, *, token: str, session_id: str | None = None,
-            inputs: dict[str, Any] | None = None) -> dict[str, Any]:
+            inputs: dict[str, Any] | None = None, dry_run: bool = False,
+            force: bool = False) -> dict[str, Any]:
         if workflow.requires_approval() and not workflow.approved:
             raise WorkflowError(f"workflow {workflow.name} requires human approval (created_by_agent={workflow.created_by_agent})")
+        if workflow.trigger != "manual" and not force and not dry_run:
+            raise WorkflowError(
+                f"workflow {workflow.name} has trigger {workflow.trigger!r}: no scheduler "
+                "is attached, so it never fires on its own — pass force=True to run it "
+                "manually and own the consequences, or dry_run=True to plan it")
         if workflow.status in ("running",):
             raise WorkflowError("workflow already running")
 
-        workflow.status = "running"
         prev: dict[str, Any] = {}
         ctx: dict[str, Any] = {"session_id": session_id or "", "input": inputs or {}, "prev": {}}
+
+        if dry_run:
+            # Plan only: validate scopes, template every step, touch nothing.
+            unknown = self.validate(workflow)
+            if unknown:
+                raise WorkflowError(f"dry run refused: unknown tools {unknown}")
+            planned = []
+            for step in workflow.steps:
+                args = _templated(copy.deepcopy(step.get("args", {})), ctx)
+                if step["tool"] in SESSION_ID_TOOLS and session_id and "session_id" not in args:
+                    args["session_id"] = session_id
+                planned.append({"id": step["id"], "tool": step["tool"], "args": args})
+                prev[step["id"]] = {"dry_run": True}
+                ctx["prev"] = prev
+            if self.ledger is not None:
+                self.ledger.append("workflow_dry_run", {"workflow": workflow.name,
+                                                        "trigger": workflow.trigger,
+                                                        "planned_steps": planned,
+                                                        "session_id": session_id})
+            return {"ok": True, "dry_run": True, "workflow_id": workflow.workflow_id,
+                    "steps": planned}
+
+        workflow.status = "running"
         step_records: list[str] = []
 
         for step in workflow.steps:
@@ -122,6 +164,7 @@ class WorkflowEngine:
             rec = None
             if self.ledger is not None:
                 rec = self.ledger.append("workflow_step", {"workflow": workflow.name,
+                                                           "trigger": workflow.trigger,
                                                            "step": sid, "tool": tool,
                                                            "result_summary": str(result)[:400],
                                                            "session_id": session_id})

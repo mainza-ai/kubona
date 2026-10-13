@@ -26,6 +26,16 @@ tool (transpile, estimate, submit, analyze, fetch-literature, …), with:
   (harness change, workflow change — the §13.4 tier, [[meta-search-and-self-evolution]]).
 - **Dry-run mode:** every workflow runs through the simulator-tier first; nothing touches a
   paid queue without pre-flight.
+> ⚑ Landed in part (2026-10-12): trigger values are enforced at parse
+> (`manual|schedule|event`, unknown refused); `schedule`/`event` never fire
+> — `run()` refuses them without `force=True` (no silent manual execution),
+> with the opaque `schedule` mapping stored and ledger-stamped;
+> `dry_run=True` validates scopes, templates all steps and records a
+> `workflow_dry_run` without touching any tool. Proven in
+> `platform/tests/test_phase6.py` (13 green, full-stack through the real
+> gateway). Still open: a real scheduler to fire schedule/event triggers,
+> per-step approval gates, and `budget_ceiling_usd` enforcement (field
+> exists, no cost-extraction contract yet).
 - **Library + reuse:** workflows are indexed artifacts (compound asset), reusable as
   templates by other users and agents, each traceable to its creator identity.
 
