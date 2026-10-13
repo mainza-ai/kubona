@@ -7,8 +7,11 @@ import pytest
 
 from kubona.eval.humaneval import load_code_tasks, wrap_for_harness
 
-CORPUS = Path("kubona/eval/corpora/humaneval.json")
-EXCLUDED = Path("kubona/eval/corpora/humaneval.excluded.json")
+# CWD-independent: corpus paths anchor at this file, so the suite passes
+# from platform/ and from the repo root alike.
+_HERE = Path(__file__).resolve().parent
+CORPUS = _HERE.parent / "kubona/eval/corpora/humaneval.json"
+EXCLUDED = _HERE.parent / "kubona/eval/corpora/humaneval.excluded.json"
 
 
 def test_corpus_loads_136_licence_clean():

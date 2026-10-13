@@ -81,3 +81,28 @@ def test_readable_and_derive_label():
     assert readable(mk(""), "lab-b") is True  # legacy rows: file-shard scoping
     assert derive_label(["public", "public"], "lab-a") == "public"
     assert derive_label(["public", "tenant/lab-a"], "lab-a") == "tenant/lab-a"
+
+
+def _append_n(path, n, tag):
+    # Module-level import inside the child: multiprocessing spawn-safe.
+    from kubona.provenance import Ledger
+    ledger = Ledger(path=path)
+    for i in range(n):
+        ledger.append("experiment", {"circuit_hash": f"{tag}-{i}", "shots": 8})
+
+
+def test_concurrent_process_appends_keep_chain(tmp_path):
+    """Two processes appending at once must not fork the chain (2026-10-12:
+    concurrent suites produced identical-prev_hash twins in the shared
+    ledger). flock serializes tail-read + append across processes."""
+    import multiprocessing as mp
+    path = str(tmp_path / "ledger.jsonl")
+    procs = [mp.Process(target=_append_n, args=(path, 25, f"p{k}")) for k in range(2)]
+    for p in procs:
+        p.start()
+    for p in procs:
+        p.join(60)
+    assert all(p.exitcode == 0 for p in procs)
+    from kubona.provenance import Ledger
+    ok, msg = Ledger(path=path).validate_chain()
+    assert ok, msg
