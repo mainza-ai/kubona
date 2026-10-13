@@ -12,6 +12,12 @@ from kubona.providers.base import ProviderError
 from kubona.providers.local_simulator import LocalSimulator
 from kubona.sdk import conformance_gate, grade_candidate
 
+# CWD-independent: schema paths anchor at this file, so the suite passes
+# from platform/ and from the repo root alike.
+from pathlib import Path as _Path
+
+_SCHEMA = _Path(__file__).resolve().parent.parent / "kubona" / "schema" / "providers"
+
 _SIM_CAP = {
     "provider": "conformant-sim",
     "modality": "statevector_simulator",
@@ -113,8 +119,7 @@ def test_annealing_graded_on_qubo_not_bell():
     """Annealing speaks QUBO: determinism probed via solve_qubo, Bell is N/A,
     hardware attestation deferred to the admission-time canary."""
     import json
-    from pathlib import Path
-    cap = json.loads(Path("kubona/schema/providers/dwave-annealing.json").read_text())
+    cap = json.loads((_SCHEMA / "dwave-annealing.json").read_text())
     report = grade_candidate(
         cap, "kubona.providers.annealing_provider.AnnealingProvider")
     passed = _passes(report)
@@ -129,8 +134,7 @@ def test_unpriced_hardware_rail_still_fails():
     """rigetti.json declares per-second billing with no rate: the gate must
     refuse (a $0.00 default would read as a free tier downstream)."""
     import json
-    from pathlib import Path
-    cap = json.loads(Path("kubona/schema/providers/rigetti.json").read_text())
+    cap = json.loads((_SCHEMA / "rigetti.json").read_text())
     report = grade_candidate(
         cap, "kubona.providers.pyquil_provider.PyQuilProvider")
     assert "cost_model_sane" in report["failures"]

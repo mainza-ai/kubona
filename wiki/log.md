@@ -2129,3 +2129,16 @@ skipped is the exact failure this incident is about:
   batches converge ±2. Refutations corrected in-page (OAuth-everywhere,
   QASM3 pipeline, CKT, licence table, 8-surfaces). Remainder grouped:
   operator deeds / deferred-by-decision / buildable / wiki-refresh debt.
+
+## [2026-10-12] fix | pytest CWD-robust + Python ledger single-writer
+  CWD slice: humaneval + sdk_conformance corpus paths now anchor at
+  __file__ (established pattern) — 403 passed from platform/ AND repo
+  root (was 5 failed from root). Found en route, by my own concurrent
+  runs: Python Ledger.append was multi-process unsafe (threading.Lock
+  only; the "O_APPEND is enough" comment was wrong) — two suites forked
+  ~/.kubona/ledger.jsonl with identical-prev_hash twins. Repaired the
+  fork (dropped the identical twin, chain re-validates 666 records,
+  backup in /tmp) and fixed the class: flock around tail-read + append,
+  mirroring Go's <db>.lock (E-1a). Regression test
+  test_concurrent_process_appends_keep_chain fails on old code with the
+  exact fork signature, passes on new.

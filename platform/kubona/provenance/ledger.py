@@ -7,6 +7,7 @@ chained so any tampering breaks the chain. Agents query it as an MCP resource
 
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
 import os
@@ -106,28 +107,41 @@ class Ledger:
             return self._append_locked(kind, payload, label)
 
     def _append_locked(self, kind: str, payload: dict[str, Any], label: str | None = None) -> LedgerRecord:
-        prev = self._read_tail()
-        # Default label is the file's own lab tenant (files are sharded per
-        # tenant); explicit "public" is the only way to widen readership.
-        resolved = label if label else f"tenant/{self.tenant or 'default'}"
-        content = _content_hash(payload, resolved)
-        record = LedgerRecord(
-            record_id=uuid.uuid4().hex[:16],
-            prev_hash=prev,
-            content_hash=content,
-            record_hash=_record_hash(prev, content),
-            ts=time.time(),
-            kind=kind,
-            payload=payload,
-            label=resolved,
-        )
-        # atomic O_APPEND single write — safe under concurrent multi-tenant writers
-        fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
-        try:
-            os.write(fd, (record.to_json() + "\n").encode())
-        finally:
-            os.close(fd)
-        return record
+        # Cross-process single-writer: self._lock serializes threads, but
+        # concurrent PROCESSES share this file (gateway + tests, two suites
+        # at once) — tail-read + append must hold an flock, mirroring the
+        # Go ledger's <db>.lock (E-1a). Proven necessary 2026-10-12: two
+        # concurrent pytest runs forked the chain with identical prev_hashes.
+        lock_path = self.path.parent / (self.path.name + ".lock")
+        with open(lock_path, "a+b") as lf:
+            fcntl.flock(lf.fileno(), fcntl.LOCK_EX)
+            try:
+                prev = self._read_tail()
+                # Default label is the file's own lab tenant (files are sharded per
+                # tenant); explicit "public" is the only way to widen readership.
+                resolved = label if label else f"tenant/{self.tenant or 'default'}"
+                content = _content_hash(payload, resolved)
+                record = LedgerRecord(
+                    record_id=uuid.uuid4().hex[:16],
+                    prev_hash=prev,
+                    content_hash=content,
+                    record_hash=_record_hash(prev, content),
+                    ts=time.time(),
+                    kind=kind,
+                    payload=payload,
+                    label=resolved,
+                )
+                # O_APPEND single write, under the flock above (the old
+                # "atomic O_APPEND is enough" comment was wrong: the
+                # tail-read + append sequence is what must be exclusive).
+                fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
+                try:
+                    os.write(fd, (record.to_json() + "\n").encode())
+                finally:
+                    os.close(fd)
+                return record
+            finally:
+                fcntl.flock(lf.fileno(), fcntl.LOCK_UN)
 
     def __iter__(self) -> Iterator[LedgerRecord]:
         if not self.path.exists():
