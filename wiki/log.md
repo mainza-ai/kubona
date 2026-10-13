@@ -2158,3 +2158,11 @@ skipped is the exact failure this incident is about:
   2026.3.6; 17 pins checked against importlib.metadata, zero mismatch;
   suite re-green 403). Absent extras (pytket/pyquil/dimod/SF/pulser/
   langgraph) keep >= — no verified versions exist locally to pin.
+
+## [2026-10-12] hardening | dep pins fixed for CI 3.11 (pipeline caught it)
+  The == pins broke CI: numpy 2.5.3 needs Python >=3.12, CI runs 3.11
+  (Python-tests + release-gate jobs failed at pip install). Fixed with
+  an interpreter marker (2.5.3 on >=3.12, 2.4.6 on <3.12 — the latter
+  what >= floors resolved on 3.11). Pipeline green again. Lesson
+  recorded: pins must satisfy the oldest supported interpreter
+  (requires-python>=3.11), not just the local venv.
