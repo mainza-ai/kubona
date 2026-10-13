@@ -4,26 +4,28 @@ version = "0.1.0"
 description = "Kubona — open-source, MCP-native quantum-computing and AI-enhanced science discovery platform. Phase 0 skeleton."
 requires-python = ">=3.11"
 dependencies = [
-    "mcp>=1.2.0",
-    "pydantic>=2.7",
-    "numpy>=1.26",
-    "httpx>=0.27",
-    "cryptography>=42.0",
-    "PyNaCl>=1.5",
-    "PyYAML>=6.0",
-    "starlette>=0.37",
-    "uvicorn>=0.29",
-    "grpcio>=1.60",
-    "protobuf>=5.29,<6",
+    # Pinned == : the suite-verified set (2026-10-12). Floors rot CI into
+    # untested version combos; absent extras keep >= (unverifiable here).
+    "mcp==2.3.0",
+    "pydantic==2.13.5",
+    "numpy==2.5.3",
+    "httpx==0.28.1",
+    "cryptography==50.0.2",
+    "PyNaCl==1.6.2",
+    "PyYAML==6.0.3",
+    "starlette==1.7.0",
+    "uvicorn==0.54.0",
+    "grpcio==1.84.0",
+    "protobuf==5.29.6",
 ]
 
 [project.scripts]
 kubona = "kubona.run:_cli"
 
 [project.optional-dependencies]
-dev = ["pytest>=8.0", "pytest-asyncio>=0.24"]
-qiskit = ["qiskit>=1.0", "qiskit-aer>=0.14", "qiskit-ibm-runtime>=0.30"]
-chemistry = ["pyscf>=2.0", "rdkit>=2023.03"]
+dev = ["pytest==9.1.1", "pytest-asyncio==1.4.0"]
+qiskit = ["qiskit==2.5.2", "qiskit-aer==0.17.2", "qiskit-ibm-runtime==0.50.0"]
+chemistry = ["pyscf==2.14.0", "rdkit==2026.3.6"]
 providers = [
     "pytket>=0.50", "pytket-quantinuum",   # Quantinuum (real SDK conversion validated)
     "pyquil>=3.5",                          # Rigetti (WavefunctionSimulator is credential-free w/ qvm)
