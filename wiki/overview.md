@@ -158,8 +158,8 @@ reproducible results — see [[science-discovery]].
   insight mining needs no grant, and the only check is at release time.
 ## Where the blueprint is unsettled
 
-The full ledger of undecided and under-understood items is [[questions]] — 30 closed,
-5 open rows (Q-27, Q-32…Q-35), each with what is known, what is missing, and what the answer unblocks.
+The full ledger of undecided and under-understood items is [[questions]] — 34 closed,
+18 open rows (only Q-27 still numbered; the rest are section forks in A–D), each with what is known, what is missing, and what the answer unblocks.
 Three tensions are worth naming here because they are strategic rather than technical:
 
 - **Open-source vs. qBraid's 34-device lead.** Kubona deliberately starts with 2–3
@@ -223,15 +223,24 @@ evidence that a design decision has been made. [[questions]] Q-01 asks what the
 prototype's role should be; until that is answered, no phase gate here counts as a
 blueprint milestone.
 
-**Status census (mechanical, 2026-10-03).** 89 pages: `settled` 1 · `adopted` 28 ·
-`open-question` 13 · `candidate` 6 · `tracked` 26 · `reference` 5 · `source` 5 ·
-`living` 5 (meta). Vocabulary: [[index]] §status legend. Read it as *decidedness*, never
-as completion: one settled policy against 28 adopted mechanisms means the blueprint is
+**Status census (mechanical, 2026-10-12).** 117 pages: `settled` 5 · `adopted` 48 ·
+`open-question` 7 · `candidate` 7 · `tracked` 33 · `reference` 5 · `source` 6 ·
+`living` 6 (meta + diagram). Vocabulary: [[index]] §status legend. Read it as *decidedness*, never
+as completion: five settled policies against 48 adopted mechanisms means the blueprint is
 still mostly "understood", not "chosen".
 
 ### What the prototype has empirically answered
 
-`platform/` — 213 Python tests (pytest) + 58 Go tests (`platform/core/`, 24 packages) + Next.js 16 production build + 3 Rust + 1 Flutter test, all green locally and in CI as of 2026-10-08. Each phase below had a gate test, and each passes **on simulators**:
+`platform/` — 403 Python tests (pytest) + 291 Go test funcs across 27 packages
+(`go test ./...`, vet clean) + 78 console tests (vitest, 16 files) + Rust
+`qir-core` building, all green locally and in CI as of 2026-10-12
+(see [[full-platform-audit-2026-10-12]] for the 73.0% component breakdown).
+Each phase below had a gate test, and each passes **on simulators**:
+
+> ⚑ Correction: the 2026-10-08 text here read "213 Python + 58 Go + 3 Rust +
+> 1 Flutter test". The Flutter/Dart stack was retired 2026-10-04 (stack
+> ruling, [[roadmap]]); the counts grew as the Go core became the load-bearing
+> implementation (71 routes, single `kubonad` binary).
 
 - **P0** federated MCP servers + gateway + provider trait + local simulator + capability
   schema + Apache-2.0 → the four-server split is workable over stdio MCP.
@@ -257,8 +266,9 @@ These need a human, a wallet, or the outside world — which is why the roadmap'
 work is not "finishing the code": a **real QPU run** (P1/P2 gates say *real QPU*); a
 **third-party security review** (P3); a **public repo plus a merged outside PR** (P4 — which the Q-25 ruling now also defers, since it
 cannot be satisfied while the repository is private by decision);
-**business sign-off** on monetization (P5); and the **human surface**, whose spec is 8
-surfaces and whose build is 4 tabs (P6, [[questions]] Q-22). Also outstanding: volume eval
+**business sign-off** on monetization (P5); and the **human surface**, whose spec is the
+observatory surfaces ([[agent-ux-control-plane]]) and whose build is the Next.js console
+(P6, [[questions]] Q-22). Also outstanding: volume eval
 corpora, a real payment rail, GQE retraining on a GPU host, and a `ci.yml` push pipeline that
 had **never passed** (17 recorded runs, every one a failure) while `scripts/ci.sh` ran green
 locally — the release gate the roadmap treats as load-bearing was decorative on the machine that

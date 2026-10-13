@@ -2142,3 +2142,12 @@ skipped is the exact failure this incident is about:
   mirroring Go's <db>.lock (E-1a). Regression test
   test_concurrent_process_appends_keep_chain fails on old code with the
   exact fork signature, passes on new.
+
+## [2026-10-12] cleanup | overview + roadmap refresh (stale-count debt)
+  Overview: unsettled ledger now 34 closed / 18 open (Q-27 only numbered
+  row left); census re-based to lint counts (117 pages, settled 5,
+  adopted 48); prototype evidence re-based to measured suites (403 +
+  291 + 78) with Flutter-retirement correction; human-surface wording
+  drops the unverified surface/tab counts. Roadmap: state-update block
+  with Go-core-era numbers + main-advances-by-ff note; phase-status
+  blocks marked historical (Python-scaffold era).
