@@ -38,6 +38,16 @@ status: living
 > Credential-free execution: local-simulator, qiskit-aer, dwave-annealing (QUBO);
 > IBM/Quantinuum/Rigetti have real SDK paths validated against the real SDKs but need creds;
 > Pulser/StrawberryFields are modality-gated and fail closed.
+>
+> > ⚑ State update (2026-10-12): the load-bearing implementation is now the Go
+> > core (`platform/core`, 26 pkgs, 291 test funcs, 71 routes, single `kubonad`
+> > binary) + Next.js console (78 vitest tests) + Python bridge (7 gRPC RPCs);
+> > suites green locally and in CI — Go 27 pkgs ok, pytest 403 passed (run from
+> > `platform/`; CWD-robust since the 2026-10-12 fixture-path fix), pnpm 78/78.
+> > `main` advances by fast-forwarding `develop` (199 commits, 2026-10-12).
+> > Full component breakdown: [[full-platform-audit-2026-10-12]] (73.0%).
+> > The 2026-08/09 phase-status blocks below are historical records of the
+> > Python-scaffold era, not current state.
 
 The working implementation plan for Kubona. Phase content, exit criteria, and team shape
 trace to §§7–8 of [[source-gap-analysis-plan]], with the §11.5 (autoresearch engine) and
