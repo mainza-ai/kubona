@@ -2151,3 +2151,10 @@ skipped is the exact failure this incident is about:
   drops the unverified surface/tab counts. Roadmap: state-update block
   with Go-core-era numbers + main-advances-by-ff note; phase-status
   blocks marked historical (Python-scaffold era).
+
+## [2026-10-12] hardening | bridge deps pinned ==
+  platform/pyproject.toml: core/dev/qiskit/chemistry move from >= floors
+  to == pins matching the suite-verified venv (mcp 2.3.0 … rdkit
+  2026.3.6; 17 pins checked against importlib.metadata, zero mismatch;
+  suite re-green 403). Absent extras (pytket/pyquil/dimod/SF/pulser/
+  langgraph) keep >= — no verified versions exist locally to pin.
