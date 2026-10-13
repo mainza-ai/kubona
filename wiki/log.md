@@ -2176,3 +2176,15 @@ skipped is the exact failure this incident is about:
   qubit-less or under-supplied u-gates panicked — now refused at the
   parse boundary (arity table u1/u2/u3 = 1/2/3). 8/8 green + CLI Bell
   end-to-end. No Go/Python callers (standalone reference).
+
+## [2026-10-12] feat | fidelity assessments sealed to the ledger
+  Go admission now persists every hardware fidelity assessment
+  (fidelity_assessment event: device/predicted/measured+flag/decision/
+  reason/qubits/depth/2q/floor/drift_tol/profile_source/backend) —
+  admits and both refusal kinds (below-floor, unknown-device); ledger
+  failure refuses admission (no unattested spend). Thresholds read off
+  the gate (no copied literals). TestFidelityAssessmentSealedToLedger
+  green; live: mystery_qpu dispatch refused with reason + REFUSE event
+  in the session stream. Delta noted on [[fidelity-accounting]]:
+  calibration_age is profile_source until profiles carry clocks; the
+  drift-curve query is still open.

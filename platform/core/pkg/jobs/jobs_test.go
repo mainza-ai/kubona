@@ -2,6 +2,7 @@ package jobs
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"strings"
 	"sync"
@@ -641,5 +642,63 @@ func TestCompileGateAbsentWithoutCompiler(t *testing.T) {
 	}
 	if j.CompilerUsed != "" || j.FallbackEstimate {
 		t.Errorf("compiler-less runner must leave provenance empty, got %+v", j)
+	}
+}
+
+func TestFidelityAssessmentSealedToLedger(t *testing.T) {
+	r, cleanup := setupRunner(t, &fakeBridge{})
+	defer cleanup()
+	shallow := "OPENQASM 2.0;\nqreg q[2];\ncreg c[2];\nh q[0];\ncx q[0],q[1];\n"
+
+	// ADMIT: shallow heron circuit clears the floor.
+	if err := r.admitFidelity("sess-1", "ibm_brisbane", shallow); err != nil {
+		t.Fatalf("shallow heron job must admit: %v", err)
+	}
+	// REFUSE: below-floor rigetti depth (70 two-qubit gates at 0.008 err).
+	deep := "OPENQASM 2.0;\nqreg q[2];\ncreg c[2];\n" + strings.Repeat("cx q[0],q[1];\n", 70)
+	if err := r.admitFidelity("sess-1", "rigetti_aspen_qpu", deep); err == nil {
+		t.Fatalf("below-floor fidelity must refuse")
+	}
+	// REFUSE: unknown backend has no profile — denial sealed, not silent.
+	if err := r.admitFidelity("sess-1", "mystery_qpu", shallow); err == nil {
+		t.Fatalf("unknown-backend fidelity must refuse")
+	}
+
+	events, err := r.ledger.GetRecentEvents("sess-1", 10)
+	if err != nil {
+		t.Fatalf("recent events: %v", err)
+	}
+	seen := map[string]map[string]any{}
+	for _, e := range events {
+		if e.EventType != "fidelity_assessment" {
+			continue
+		}
+		var p map[string]any
+		if err := json.Unmarshal(e.Payload, &p); err != nil {
+			t.Fatalf("payload decode: %v", err)
+		}
+		seen[p["decision"].(string)+"/"+p["backend"].(string)] = p
+	}
+	admit, ok := seen["ADMIT/ibm_brisbane"]
+	if !ok {
+		t.Fatalf("admit assessment not sealed: %v", seen)
+	}
+	for _, k := range []string{"predicted_fidelity", "floor_threshold", "drift_tolerance", "profile_source", "depth", "reason"} {
+		if _, ok := admit[k]; !ok {
+			t.Errorf("admit record missing %q", k)
+		}
+	}
+	if admit["measured"] != false {
+		t.Errorf("floor-only assessment must mark measured:false")
+	}
+	ref, ok := seen["REFUSE/mystery_qpu"]
+	if !ok {
+		t.Fatalf("unknown-device refusal not sealed: %v", seen)
+	}
+	if ref["profile_source"] != "none" {
+		t.Errorf("unassessed refusal must record profile_source:none, got %v", ref["profile_source"])
+	}
+	if _, ok := seen["APPLY_MITIGATION/rigetti_aspen_qpu"]; !ok {
+		t.Fatalf("below-floor mitigation refusal not sealed: %v", seen)
 	}
 }

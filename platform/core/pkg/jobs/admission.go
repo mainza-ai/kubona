@@ -136,7 +136,7 @@ func (r *Runner) admitJob(sessionID, jobType string, paramsJSON []byte) (string,
 	// proceeds; mitigate/downgrade verdicts refuse with the recommended
 	// action stated — remediation changes what was approved and must be
 	// resubmitted explicitly, never applied silently.
-	if err := r.admitFidelity(p.RequestedBackend, p.QASM); err != nil {
+	if err := r.admitFidelity(sessionID, p.RequestedBackend, p.QASM); err != nil {
 		return "", 0, err
 	}
 	if grant != nil {
@@ -258,13 +258,52 @@ func countQasmGates(qasm string) (qubits, depth, twoQ int) {
 }
 
 // admitFidelity enforces the fidelity floor for metered-hardware jobs.
-func (r *Runner) admitFidelity(backend, qasm string) error {
-	device, err := fidelityDeviceForBackend(backend)
-	if err != nil {
-		return err
+// Every assessment — admit AND refuse — is sealed into the ledger first:
+// refused assessments are the audit trail of denied hardware spend, and the
+// series is the raw material for drift curves. A ledger that cannot record
+// refuses admission (no unattested spend).
+func (r *Runner) admitFidelity(sessionID, backend, qasm string) error {
+	device, derr := fidelityDeviceForBackend(backend)
+	if derr != nil {
+		// No profile, no prediction — but the denial itself is sealed:
+		// unattested refusals are indistinguishable from never-asked.
+		unassessed := map[string]any{
+			"device_name":        "",
+			"predicted_fidelity": 0.0,
+			"measured_clifford":  0.0,
+			"measured":           false,
+			"decision":           string(fidelity.DecisionRefuse),
+			"reason":             derr.Error(),
+			"floor_threshold":    r.fidelityGate.FloorThreshold(),
+			"drift_tolerance":    r.fidelityGate.DriftTolerance(),
+			"profile_source":     "none",
+			"backend":            backend,
+		}
+		if aerr := r.ledger.AppendEvent(sessionID, "fidelity_assessment", unassessed); aerr != nil {
+			return fmt.Errorf("fidelity assessment could not be sealed: %w (admission refused)", aerr)
+		}
+		return derr
 	}
 	qubits, depth, twoQ := countQasmGates(qasm)
 	assessment := r.fidelityGate.EvaluateAdmissionFloorOnly(device, depth, twoQ)
+	record := map[string]any{
+		"device_name":        assessment.DeviceName,
+		"predicted_fidelity": assessment.PredictedFidelity,
+		"measured_clifford":  assessment.MeasuredClifford,
+		"measured":           assessment.MeasuredClifford > 0,
+		"decision":           string(assessment.Decision),
+		"reason":             assessment.Reason,
+		"qubits":             qubits,
+		"depth":              depth,
+		"two_qubit_gates":    twoQ,
+		"floor_threshold":    r.fidelityGate.FloorThreshold(),
+		"drift_tolerance":    r.fidelityGate.DriftTolerance(),
+		"profile_source":     "builtin-bootstrap",
+		"backend":            backend,
+	}
+	if err := r.ledger.AppendEvent(sessionID, "fidelity_assessment", record); err != nil {
+		return fmt.Errorf("fidelity assessment could not be sealed: %w (admission refused)", err)
+	}
 	if assessment.Decision != fidelity.DecisionAdmit {
 		return fmt.Errorf("fidelity gate: %s (predicted %.3f on %s, %d qubits, depth %d, %d 2q gates; %s)",
 			assessment.Reason, assessment.PredictedFidelity, device, qubits, depth, twoQ,

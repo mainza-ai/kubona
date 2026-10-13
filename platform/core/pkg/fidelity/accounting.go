@@ -50,6 +50,21 @@ func NewFidelityGate() *FidelityGate {
 	return fg
 }
 
+// FloorThreshold exposes the admission floor for ledger sealing (one source:
+// the gate's own field, never a copied literal).
+func (fg *FidelityGate) FloorThreshold() float64 {
+	fg.mu.RLock()
+	defer fg.mu.RUnlock()
+	return fg.floorThreshold
+}
+
+// DriftTolerance exposes the probe-drift tolerance for ledger sealing.
+func (fg *FidelityGate) DriftTolerance() float64 {
+	fg.mu.RLock()
+	defer fg.mu.RUnlock()
+	return fg.driftTolerance
+}
+
 func (fg *FidelityGate) bootstrapProfiles() {
 	fg.profiles["ibm_heron"] = DeviceProfile{
 		Name:           "ibm_heron",
