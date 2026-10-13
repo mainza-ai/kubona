@@ -69,6 +69,21 @@ pub fn parse(source: &str) -> Result<Circuit, String> {
                 qubits.push(q[o + 1..end].trim().parse::<usize>().map_err(|_| "bad qubit")?);
             }
         }
+        // Fail-closed boundary: transpile indexes qubits[0] and params[0..2],
+        // so a gate that parses but addresses nothing (or under-supplies a
+        // u-gate) would panic downstream. Refuse here instead.
+        if qubits.is_empty() {
+            return Err(format!("gate '{name}' addresses no qubits"));
+        }
+        let want_params = match name.as_str() {
+            "u1" => 1,
+            "u2" => 2,
+            "u3" => 3,
+            _ => 0,
+        };
+        if params.len() < want_params {
+            return Err(format!("gate '{name}' needs {want_params} params, got {}", params.len()));
+        }
         gates.push(Gate { name, qubits, params });
     }
     Ok(Circuit { name: "qasm".into(), num_qubits, gates })
@@ -177,7 +192,53 @@ mod tests {
     }
 
     #[test]
+    fn decomposes_u1_u2_to_native() {
+        let u1 = transpile_to_native(&parse("qreg q[1];\nu1(0.7) q[0];").unwrap());
+        assert_eq!(u1.gates.len(), 1);
+        assert_eq!(u1.gates[0].name, "rz");
+        assert_eq!(u1.gates[0].params, vec![0.7]);
+        let u2 = transpile_to_native(&parse("qreg q[1];\nu2(0.2, 0.9) q[0];").unwrap());
+        assert_eq!(u2.gates.len(), 3);
+        assert_eq!(u2.gates[1].name, "ry");
+        assert!((u2.gates[1].params[0] - std::f64::consts::PI / 2.0).abs() < 1e-12);
+    }
+
+    #[test]
+    fn parse_refuses_malformed() {
+        for bad in [
+            "qreg q[2;\nh q[0];",          // malformed qreg
+            "qreg q;\nh q[0];",            // qreg missing [
+            "qreg q[x];\nh q[0];",         // bad qreg size
+            "qreg q[1];\nh q[0]",          // missing ';'
+            "qreg q[1];\nrz(foo) q[0];",   // bad param
+            "qreg q[1];\nh q[x];",         // bad qubit
+            "qreg q[1];\nrz(0.1 q[0];",    // missing ')'
+            "qreg q[1];\nh;",               // gate addresses no qubits
+            "qreg q[1];\nu3(0.5) q[0];",   // u3 needs 3 params
+            "qreg q[1];\nu2(0.5) q[0];",   // u2 needs 2 params
+        ] {
+            assert!(parse(bad).is_err(), "must refuse: {bad}");
+        }
+    }
+
+    #[test]
+    fn parse_ignores_comments_and_headers() {
+        let c = parse("// lead\nOPENQASM 2.0;\nqreg q[1]; // trailing\nh q[0]; // gate\n").unwrap();
+        assert_eq!(c.gates.len(), 1);
+        assert_eq!(c.gates[0].name, "h");
+    }
+
+    #[test]
+    fn empty_circuit_emits_valid_skeleton() {
+        let text = emit_qir(&parse("qreg q[1];").unwrap());
+        assert!(text.contains("define void @main()"));
+        assert!(text.contains("ret void"));
+        assert!(!text.contains("@__quantum__qis__"));
+    }
+
+    #[test]
     fn test_qft_4qubit_lowering_and_analysis() {
+        // 4-qubit Quantum Fourier Transform circuit subset
         // 4-qubit Quantum Fourier Transform circuit subset
         let qft_src = "OPENQASM 2.0;\nqreg q[4];\nh q[0];\nrz(1.570796) q[0];\ncx q[1],q[0];\nh q[1];\nrz(0.785398) q[0];\ncx q[2],q[0];\nh q[2];\nh q[3];";
         let c = parse(qft_src).unwrap();

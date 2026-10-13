@@ -2166,3 +2166,13 @@ skipped is the exact failure this incident is about:
   what >= floors resolved on 3.11). Pipeline green again. Lesson
   recorded: pins must satisfy the oldest supported interpreter
   (requires-python>=3.11), not just the local venv.
+
+## [2026-10-12] fix | qir-core parse boundary + tests 4 -> 8
+  The "0 Rust tests" audit claim was my own tail-truncation error — both
+  crates carry 4 green tests (corrected on the audit page). Strengthened
+  qir-core instead: u1/u2 decomposition, 10 malformed-input refusals,
+  comment/header tolerance, empty-circuit skeleton. Found en route:
+  transpile indexed qubits[0]/params[0..2] on any parsed gate, so
+  qubit-less or under-supplied u-gates panicked — now refused at the
+  parse boundary (arity table u1/u2/u3 = 1/2/3). 8/8 green + CLI Bell
+  end-to-end. No Go/Python callers (standalone reference).

@@ -46,7 +46,11 @@ status: tracked
 | `platform/console` (Next 16 / React 19) | 13,188 LOC, 48 src files | 16 test files, 78 tests (vitest) | 56 exports in `lib/api.ts`; 12 surface components |
 | `platform/bridge` (Python gRPC) | 2,799 LOC | 1 test file (278 LOC) | 7 RPCs in `QuantumBridgeService`; deps unpinned (`>=` floors) |
 | `platform/kubona` (legacy Python) | 17,970 LOC, 158 files | 80 test files, 402 tests | `console_api.py` down to 19 Starlette routes (duplicates retired) |
-| `platform/crates` (Rust) | 2 crates (`ifc-core`, `qir-core`) | 0 unit tests | builds clean; role shrinking toward text-IR |
+| `platform/crates` (Rust) | 2 crates (`ifc-core`, `qir-core`) | builds clean; 4 + 4 unit tests green |
+> ⚑ Correction (2026-10-12, same day): the filed "0 unit tests" was my own
+> `cargo test -q | tail` truncation hiding the lib block — both crates carry
+> 4 unit tests, all passing (`qir-core`: Bell parse, u3 decomposition, QIR
+> emit, QFT-4 analysis; `ifc-core`: 4 lattice tests). Verified direct. builds clean; role shrinking toward text-IR |
 | `platform/domain_packs` | 3 `pack.yaml` manifests | covered by `test_domain_packs.py` | chemistry, materials, math-physics |
 
 ## 3. What is done (>85 — test-enforced, several live-proven)
@@ -163,12 +167,14 @@ Mean: 2191 / 30 = **73.0%**. Batch cross-checks: governance 71.7, mechanisms
   full LLVM lowering, KEMTLS re-eval, CKT integration, Bemba/Typst output.
 - **Buildable next (no operator needed):** workflow triggers/gates/dry-run,
   fidelity ledger persistence, loop load/chaos tests, quantum multi-geometry
-  scans, pytest CWD-robustness (run green only from `platform/`), bridge dep
-  pinning (`>=` floors should be `==`), Rust unit tests for `qir-core`.
-- **Wiki-refresh debt (fresh findings):** [[overview]] "30 closed, 5 open
-  (Q-27, Q-32…Q-35)" is stale (Q-32…Q-35 closed — only Q-27 + section forks
-  remain); roadmap test-counts and phase-status blocks predate the Go-core
-  era; index prose census lags the lint counts.
+  scans, pytest CWD-robustness (done 2026-10-12: `__file__`-anchored paths,
+  403 green both CWDs), bridge dep pinning (done 2026-10-12: `==` pins +
+  3.11 marker), ~~Rust unit tests for `qir-core`~~ (struck 2026-10-12: both
+  crates already carry 4 green unit tests — see §2 correction).
+- **Wiki-refresh debt (fresh findings, done 2026-10-12):** [[overview]] counts
+  re-based (34 closed / 18 open, lint census, measured suites) and
+  [[roadmap]] state-updated with a Go-core-era block; phase-status blocks
+  marked historical.
 
 ## 8. Standing of this report
 
