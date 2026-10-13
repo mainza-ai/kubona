@@ -70,6 +70,14 @@ older than `device_refresh_interval`, mirroring `cloud_provider_api_configs` in
    calibration_age)`. Over a quarter this becomes a **calibration curve for the platform's own
    physics predictions** — and when the curve drifts, we know the noise model is wrong before
    a physicist notices the results are.
+> ⚑ Landed in part (2026-10-12): Go admission seals a `fidelity_assessment`
+> event per hardware dispatch — admit AND refuse — with `{device,
+> predicted, measured (+flag), decision, reason, qubits, depth, 2q, floor,
+> drift_tol, profile_source, backend}` (`platform/core/pkg/jobs/admission.go`,
+> `TestFidelityAssessmentSealedToLedger`, proven live). Honest deltas from
+> the design: `calibration_age` is `profile_source: builtin-bootstrap`
+> (profiles are hardcoded — no calibration clock exists yet), and the drift
+> curve itself (querying the series) is still open work.
 2. **Refusal with receipts.** "Refused, floor unreachable at price P, with mitigation set M"
    is a *reusable negative result* feeding [[science-discovery]], not a rejected request.
 3. **Mitigation selection becomes a searchable harness.** Which of {ZNE, PEC, cutting,
