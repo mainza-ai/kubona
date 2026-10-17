@@ -31,7 +31,7 @@ describe('JobProgress', () => {
     vi.stubGlobal('fetch', fetch);
     let tree!: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(<JobProgress jobId="j" />);
+      tree = TestRenderer.create(<JobProgress jobId="j" sessionId="s" />);
     });
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2100);
@@ -48,11 +48,23 @@ describe('JobProgress', () => {
     expect(fetch.mock.calls.length).toBe(calls);
   });
 
+  it('fetches scoped by session (no more 400s)', async () => {
+    const fetch = vi.fn().mockResolvedValue(job('JOB_STATUS_COMPLETED'));
+    vi.stubGlobal('fetch', fetch);
+    let tree!: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<JobProgress jobId="j" sessionId="s" />);
+    });
+    expect(fetch).toHaveBeenCalled();
+    expect(String(fetch.mock.calls[0][0])).toBe('http://localhost:8080/api/jobs/j?session_id=s');
+    expect(JSON.stringify(tree.toJSON())).toContain('COMPLETED');
+  });
+
   it('marks failed terminal distinctly', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(job('JOB_STATUS_FAILED')));
     let tree!: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(<JobProgress jobId="j" />);
+      tree = TestRenderer.create(<JobProgress jobId="j" sessionId="s" />);
     });
     expect(JSON.stringify(tree.toJSON())).toContain('FAILED');
   });

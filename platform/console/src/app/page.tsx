@@ -281,10 +281,10 @@ export default function Home() {
     else setSurface(surf as DockSurface);
   }, []);
 
-  const handleMaterialize = useCallback((kind: CanvasWidgetKind, title: string, jobId?: string) => {
-    setCanvasWidget({ kind, title, jobId });
+  const handleMaterialize = useCallback((kind: CanvasWidgetKind, title: string, jobId?: string, sessionId?: string) => {
+    setCanvasWidget({ kind, title, jobId, sessionId: sessionId ?? currentSessionId });
     setSurface('arena');
-  }, []);
+  }, [currentSessionId]);
 
   const handleRunStateChange = useCallback((phase: RunPhase, detail: string) => {
     runPhaseRef.current = phase;

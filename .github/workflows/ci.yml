@@ -71,6 +71,11 @@ jobs:
         env:
           KUBONA_QIR_CORE: ${{ github.workspace }}/platform/crates/qir-core/target/release/qir-core
         run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q -rs
+      # Bridge contract suite lives outside testpaths (bridge/test_bridge.py)
+      # so the default run skips it — a red bridge test went unnoticed.
+      # It is fast (~seconds) and hermetic (no creds, no network).
+      - name: Bridge contract suite (credential fail-closed pins)
+        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest bridge/test_bridge.py -q
       - name: doctor (state-root + fail-closed config check)
         run: |
           KUBONA_STATE_DIR="$(mktemp -d)" python -m kubona.run doctor

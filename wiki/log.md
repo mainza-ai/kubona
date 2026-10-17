@@ -2498,3 +2498,11 @@ skipped is the exact failure this incident is about:
   notebooks-endpoint UI declined (redundant read), canvas layout deferred
   (static canvas), server-signed mandates stay daemon-side (unify at IdP).
   Console 133 tests + lint + build green.
+
+## [2026-10-17] decision | UI completion (fetchJob scoping, fleet credentials, copilot hint, bridge red fixed)
+  fetchJob threads session_id (old call 400s, new 200s — proven on a
+  current-tree build; dev daemon is a stale binary). Fleet: credential_state
+  per backend + measured bridge liveness (dial) + NO CREDENTIALS badge,
+  proven live (DEGRADED honestly, credentialless QPUs). Copilot names
+  offline exits on engine notices. Bridge test updated to the W2.18 refusal
+  + suite wired into CI. Console 139 + Go api/cmd green, lint clean.

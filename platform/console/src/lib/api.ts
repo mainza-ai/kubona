@@ -982,13 +982,19 @@ export async function fetchJobs(sessionId: string): Promise<import('@/types').Jo
 }
 
 // Job detail: full params + result payloads for the click-through view.
-// Unknown ids 404 → null (never an empty shell).
-export async function fetchJob(jobId: string): Promise<import('@/types').Job | null> {
+// Unknown ids 404 → null (never an empty shell). sessionId is REQUIRED:
+// the backend scopes jobs per tenant session and refuses unscopend reads
+// (400) — the client never makes a call it knows will fail.
+export async function fetchJob(jobId: string, sessionId: string): Promise<import('@/types').Job | null> {
+  if (!sessionId) return null;
   try {
-    const res = await fetch(`${API_BASE}/api/jobs/${encodeURIComponent(jobId)}`, {
-      cache: 'no-store',
-      headers: authHeaders(),
-    });
+    const res = await fetch(
+      `${API_BASE}/api/jobs/${encodeURIComponent(jobId)}?session_id=${encodeURIComponent(sessionId)}`,
+      {
+        cache: 'no-store',
+        headers: authHeaders(),
+      }
+    );
     if (!res.ok) return null;
     const data = await res.json();
     return data.job || null;

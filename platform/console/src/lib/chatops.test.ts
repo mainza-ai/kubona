@@ -86,14 +86,19 @@ describe('jobStatusLabel', () => {
 });
 
 describe('fetchJob', () => {
-  it('returns the job payload', async () => {
+  it('returns the job payload scoped by session', async () => {
     const { fetchJob } = await import('./api');
-    (globalThis as { fetch?: unknown }).fetch = vi.fn().mockResolvedValue({
+    const fetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
       json: async () => ({ job: { id: 'j1', status: 3 } }),
     });
-    await expect(fetchJob('j1')).resolves.toEqual({ id: 'j1', status: 3 });
+    (globalThis as { fetch?: unknown }).fetch = fetch;
+    await expect(fetchJob('j1', 's1')).resolves.toEqual({ id: 'j1', status: 3 });
+    expect(fetch).toHaveBeenCalledWith(
+      'http://localhost:8080/api/jobs/j1?session_id=s1',
+      expect.objectContaining({ cache: 'no-store' })
+    );
   });
 
   it('returns null on 404 (never an empty shell)', async () => {
@@ -103,7 +108,15 @@ describe('fetchJob', () => {
       status: 404,
       json: async () => ({}),
     });
-    await expect(fetchJob('missing')).resolves.toBeNull();
+    await expect(fetchJob('missing', 's1')).resolves.toBeNull();
+  });
+
+  it('refuses without a session (never makes the doomed call)', async () => {
+    const { fetchJob } = await import('./api');
+    const fetch = vi.fn();
+    (globalThis as { fetch?: unknown }).fetch = fetch;
+    await expect(fetchJob('j1', '')).resolves.toBeNull();
+    expect(fetch).not.toHaveBeenCalled();
   });
 });
 

@@ -286,6 +286,10 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
             const isExpanded = expandedBackend === b.name;
             const statusUp = (b.status || '').toUpperCase();
             const isOnline = statusUp === 'ONLINE' || statusUp === 'READY';
+            // Credential dimension (fleet): credentialless is not down —
+            // the device may be fine, this daemon lacks credentials.
+            const credState = (b.credential_state || '').toLowerCase();
+            const noCreds = credState === 'credentialless';
 
             return (
               <div
@@ -319,6 +323,14 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                     <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
                     <span>{b.status}</span>
                   </span>
+                  {noCreds && (
+                    <span
+                      className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-sky-950/60 text-sky-300 border border-sky-800/60"
+                      title="This daemon holds no credentials for this backend — the device may be fine. Set the provider token to enable it."
+                    >
+                      NO CREDENTIALS
+                    </span>
+                  )}
                 </div>
 
                 <div className="text-xs text-slate-300 font-sans">{b.type}</div>

@@ -55,3 +55,51 @@ describe('CopilotDrawer tribunal badge', () => {
     expect(text).toContain('CONSENSUS VERIFIED');
   });
 });
+
+describe('CopilotDrawer no-proposal hint', () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('names the exit paths when the engine notice carries no proposal', async () => {
+    vi.stubGlobal('fetch', async () => ({
+      ok: true,
+      json: async () => ({
+        messages: [{
+          id: 'm-note',
+          session_id: 's',
+          role: 'assistant',
+          content: '⚠️ [opencode Notice] (deepseek-v4.1-flash): disabled. Check the provider API key and account balance.',
+          created_at: '2026-10-17T00:00:00Z',
+        }],
+      }),
+    }));
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<CopilotDrawer sessionId="s" />);
+    });
+    const text = JSON.stringify(tree!.toJSON());
+    expect(text).toContain('NO PROPOSAL');
+    expect(text).toContain('Simulate Offline');
+  });
+
+  it('stays silent on ordinary assistant text without a proposal', async () => {
+    vi.stubGlobal('fetch', async () => ({
+      ok: true,
+      json: async () => ({
+        messages: [{
+          id: 'm-plain',
+          session_id: 's',
+          role: 'assistant',
+          content: 'Hello — how can I help?',
+          created_at: '2026-10-17T00:00:00Z',
+        }],
+      }),
+    }));
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<CopilotDrawer sessionId="s" />);
+    });
+    expect(JSON.stringify(tree!.toJSON())).not.toContain('NO PROPOSAL');
+  });
+});

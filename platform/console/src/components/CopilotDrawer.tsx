@@ -46,7 +46,7 @@ interface CopilotDrawerProps {
   onExperimentLaunched?: () => void;
   onCampaignUpdated?: (campaign: CampaignState) => void;
   onSelectSurface?: (surface: string) => void;
-  onMaterialize?: (kind: CanvasWidgetKind, title: string, jobId?: string) => void;
+  onMaterialize?: (kind: CanvasWidgetKind, title: string, jobId?: string, sessionId?: string) => void;
   onRunStateChange?: (phase: RunPhase, detail: string) => void;
   onSessionChange?: (newSessionId: string) => void;
   onClose?: () => void;
@@ -635,7 +635,25 @@ export function CopilotDrawer({
   };
 
   const renderProposalCard = (m: ChatMessage) => {
-    if (!m.proposal_json) return null;
+    // No-proposal hint: the server marks LLM failures with an engine
+    // notice (`[<provider> Notice]`, see copilot_response.go engineNotice)
+    // and no proposal_json. Say so explicitly and point at the paths that
+    // still work — never leave a dead notice without an exit.
+    if (!m.proposal_json) {
+      if (m.role !== 'user' && !m.tribunal && typeof m.content === 'string' && m.content.includes('Notice]')) {
+        return (
+          <div className="w-full max-w-[95%] rounded-2xl bg-black/40 border border-amber-400/25 p-3 space-y-1.5" aria-label="No proposal — model unavailable">
+            <div className="text-[11px] font-code text-amber-300">NO PROPOSAL — MODEL UNREACHABLE OR UNCONFIGURED</div>
+            <p className="text-[11px] text-slate-300">
+              Nothing was dispatched. Classical paths still work: open Autonomy
+              Cockpit → Simulate Offline (needs a campaign with QASM), or ask
+              about H₂ / LiH / BeH₂ / VQE for server-side scaffolding.
+            </p>
+          </div>
+        );
+      }
+      return null;
+    }
     const p = m.proposal_json;
     const note = launchedNote[m.id];
     const jobId = launchedJobs[m.id];
@@ -661,7 +679,7 @@ export function CopilotDrawer({
         {note ? (
           jobId ? (
             <button
-              onClick={() => onMaterialize?.('job', `Job ${jobId.slice(0, 8)} · detail`, jobId)}
+              onClick={() => onMaterialize?.('job', `Job ${jobId.slice(0, 8)} · detail`, jobId, m.session_id)}
               title="Open full job detail (params, counts, result)"
               className="w-full text-left text-[11px] font-code text-emerald-300 hover:text-emerald-200 hover:bg-white/5 rounded-lg px-1.5 py-1 transition-all"
             >

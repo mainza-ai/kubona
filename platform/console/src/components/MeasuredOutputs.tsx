@@ -144,7 +144,7 @@ export function MeasuredOutputs({ sessionId }: { sessionId: string | null }) {
       {activeIds !== null && activeIds.length > 0 && (
         <div className="space-y-1.5">
           {activeIds.map((id) => (
-            <JobProgress key={id} jobId={id} />
+            <JobProgress key={id} jobId={id} sessionId={sessionId ?? ''} />
           ))}
         </div>
       )}

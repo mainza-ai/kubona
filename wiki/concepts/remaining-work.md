@@ -96,6 +96,22 @@ status: tracked
   > SpatialCanvas (currently static display). server-signed mandate
   > console path declined — client-mint is the console path,
   > server-signed stays daemon/CLI-side; unify at IdP (U3).
+  > ✅ UI COMPLETION 2026-10-17 (opencode-deepseek is the dev LLM; oMLX
+  > parked): fetchJob threads session_id (job detail/JobProgress 400s
+  > fixed, proven live old-400/new-200 on current build — which also
+  > exposed the dev daemon as a stale binary: the /tmp/kubonad-s8a file
+  > was removed during cleanup while PID 54943 lives on; rebuild from
+  > current tree before any restart); fleet reports credential_state
+  > (ready vs credentialless) + measured bridge liveness (dial, not the
+  > never-nil client) with a NO CREDENTIALS console badge, proven live;
+  > copilot no-proposal hint names the offline exits when the engine
+  > notice fires. Bridge red test fixed to assert the W2.18 refusal at
+  > equal strength + stale Tier-1 comment corrected; the bridge suite now
+  > runs in CI (it lived outside testpaths, which is how the red went
+  > unnoticed). Findings needing the operator: opencode returns 402
+  > INSUFFICIENT FUNDS — tribunal/chat/LLM features are down until
+  > top-up (oMLX serves locally with models as the fallback; repoint
+  > roles on order).
 - P1-4 subsystem consolidation execution — design: [[agent-subsystem-consolidation]].
   > ✅ STEP 1 LANDED 2026-10-17: conformance freezes on all three
   > registry homes (Go + 2× Python) + boot-crash hardening
