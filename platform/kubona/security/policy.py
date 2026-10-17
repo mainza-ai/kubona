@@ -74,14 +74,17 @@ class PolicyEngine:
         self.identities = identities or IdentityRegistry()
 
     def effective_scopes(self, principal: Principal) -> tuple[str, ...]:
-        """A user's scopes come from their token identity; an agent's from a
-        LIVE owner delegation (revocation is immediate — checked per call)."""
-        if principal.scopes == ("*",) and principal.role == "operator":
-            return ("*",)
+        """A user's scopes come from their (issuer-signed) token; a
+        registered agent's from a LIVE owner delegation only (W0.13):
+        revocation is immediate — a revoked/expired agent resolves to NO
+        scopes even when its bearer still carries some. Unknown subs fall
+        back to token scopes (the issuer is the trust root there, and
+        issuer-minted scopes are validated at issuance)."""
         if self.identities is not None:
-            agent_scopes = self.identities.access(principal.sub)
-            if agent_scopes is not None:
-                return agent_scopes
+            ident = self.identities.get(principal.sub)
+            if ident is not None and ident.kind == "agent":
+                agent_scopes = self.identities.access(principal.sub)
+                return agent_scopes if agent_scopes is not None else ()
         return principal.scopes
 
     def decide(self, principal: Principal, tool_path: str) -> Decision:

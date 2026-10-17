@@ -22,20 +22,8 @@ from kubona.security.oauth import OAuth2AccessTokenProvider, OAuth2TokenIssuer
 
 def _load_or_seed_signing_key() -> bytes:
     """Reuse a persisted Ed25519 private key so issued tokens survive restarts."""
-    from cryptography.hazmat.primitives import serialization
-    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
-    pem = config.signing_key_path()  # state_path ensures parents
-    if pem.exists():
-        return pem.read_bytes()
-    key = Ed25519PrivateKey.generate()
-    data = key.private_bytes(
-        encoding=serialization.Encoding.PEM,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption(),
-    )
-    pem.write_bytes(data)
-    return data
+    from kubona.security.oauth import load_or_seed_signing_key
+    return load_or_seed_signing_key()
 
 
 def build_auth() -> OAuth2AccessTokenProvider:
