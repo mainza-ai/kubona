@@ -1,0 +1,45 @@
+[
+  {
+    "id": "provider-inventory",
+    "kind": "gateway",
+    "require_ok": false,
+    "server": "execution",
+    "tool": "list_provider_registry",
+    "args": {},
+    "keys": {
+      "local-sim": "local-simulator",
+      "aer": "qiskit-aer-simulator"
+    }
+  },
+  {
+    "id": "session-lifecycle",
+    "kind": "gateway-steps",
+    "steps": [
+      {"server": "cost", "tool": "create_session",
+       "args": {"name": "bench", "owner": "bench", "budget_ceiling_usd": 10.0}},
+      {"server": "cost", "tool": "session_burn_rate",
+       "args": {"session_id": "{{prev.session_id}}"}},
+      {"server": "execution", "tool": "close_session",
+       "args": {"session_id": "{{prev.session_id}}"}}
+    ],
+    "keys": {
+      "ceiling": "\"ceiling_usd\": 10.0",
+      "closed": "\"status\": \"closed\""
+    }
+  },
+  {
+    "id": "mandate-shape",
+    "kind": "mandate",
+    "keys": {
+      "valid": "mandate valid: bound, unexpired, covering, signed",
+      "over": "exceeds mandate budget"
+    }
+  },
+  {
+    "id": "ledger-tail",
+    "kind": "ledger",
+    "keys": {
+      "chain": "chain intact"
+    }
+  }
+]

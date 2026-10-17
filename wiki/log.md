@@ -2438,3 +2438,9 @@ skipped is the exact failure this incident is about:
   policy decided. Plan page gains phased roadmap L-A/L-B/L-C with
   entry/exit gates. No questions.md rows opened or closed (insight
   unchanged — stated on the page, not dodged).
+
+## [2026-10-17] decision | Phase L-A exit (skill + bench baseline landed)
+  Plan adopted; `skills/kubona/SKILL.md` (6827 B, 5 first-moves executed
+  live, 11/11 anchors resolve) + `bench/` (4/4 tasks ×3 reps green,
+  surface 8720 B vs 16384 budget, Go floor verified). Next: L3 → L2-rerun
+  → L4 → L5 per corrected sequence.
