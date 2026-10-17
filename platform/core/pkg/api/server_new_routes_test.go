@@ -794,7 +794,11 @@ func TestA2AHarnessAndQIRDelegation(t *testing.T) {
 
 	submit := func(taskType, payload string) string {
 		t.Helper()
-		params, _ := json.Marshal(map[string]any{"task_type": taskType, "payload": json.RawMessage(payload)})
+		// W0.5: delegation names its scope + budget (default-deny roots).
+		params, _ := json.Marshal(map[string]any{
+			"task_type": taskType, "payload": json.RawMessage(payload),
+			"scopes": []string{taskType}, "max_budget_usd": 5.0,
+		})
 		resp := a2a.HandleRequest(&agents.JSONRPCRequest{JSONRPC: "2.0", ID: 1, Method: "a2a.SubmitTask", Params: params})
 		if resp.Error != nil {
 			t.Fatalf("submit %s: %+v", taskType, resp.Error)

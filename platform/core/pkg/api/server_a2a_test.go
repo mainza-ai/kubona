@@ -57,8 +57,10 @@ func TestA2A_PaymentRequiredAndSettlement(t *testing.T) {
 
 	// 2. SubmitTask WITHOUT payment header returns HTTP 402
 	taskParams, _ := json.Marshal(agents.TaskSubmitParams{
-		TaskType: "molecular_ground_state_pyscf",
-		Payload:  json.RawMessage(`{"molecule": "H2"}`),
+		TaskType:     "molecular_ground_state_pyscf",
+		Payload:      json.RawMessage(`{"molecule": "H2"}`),
+		Scopes:       []string{"molecular_ground_state_pyscf"},
+		MaxBudgetUSD: 5.0,
 	})
 	taskReq := agents.JSONRPCRequest{
 		JSONRPC: "2.0",

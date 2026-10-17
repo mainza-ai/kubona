@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"sync"
 	"time"
@@ -137,12 +138,18 @@ func NewA2AServer(escrowAddr string, pm *cost.PaymentManager, runner *sandbox.Sa
 		Name:        "kubona-agent-collective",
 		Version:     "0.2.0-ts-go",
 		Description: "Autonomous Quantum-Classical Research Agent Node with Post-Quantum Cryptography",
+		// Capabilities is the closed vocabulary this node serves: every
+		// taskType the executor handles must be advertised here, because
+		// root-task scopes validate against this list (W0.5). An
+		// unadvertised capability is an unrequestable one.
 		Capabilities: []string{
 			"variational_ansatz_optimization",
 			"circuit_cutting_recombination",
 			"zne_error_mitigation",
 			"molecular_ground_state_pyscf",
 			"krylov_subspace_ground_state",
+			"epistemic_claim_evaluation",
+			"potential_energy_scan",
 			"qir_llvm_lowering",
 		},
 		SupportedTokens:   []string{"USDC"},
@@ -258,10 +265,19 @@ func (s *A2AServer) HandleRequest(req *JSONRPCRequest) *JSONRPCResponse {
 		// inherits at most the parent's scopes (narrowing only, never
 		// widening — no privilege escalation through creation) and one
 		// deeper depth. Dead or revoked parents cannot spawn.
+		//
+		// W0.5 scope rule: a ROOT task (no parent) must name its scopes
+		// explicitly — default-deny, never the full capability set. A CHILD
+		// with empty scopes inherits the parent's (delegation narrowing);
+		// explicit child scopes must be a subset of the parent's.
+		if math.IsNaN(params.MaxBudgetUSD) || math.IsInf(params.MaxBudgetUSD, 0) || params.MaxBudgetUSD <= 0 {
+			return rpcError(req.ID, -32602, "max_budget_usd must be a positive finite number: delegation without a budget is refused")
+		}
 		depth := 0
 		parentScopes := append([]string(nil), s.card.Capabilities...)
+		isRoot := params.ParentTaskID == ""
 		var parentTaskID string
-		if params.ParentTaskID != "" {
+		if !isRoot {
 			s.mu.RLock()
 			pt, ok := s.tasks[params.ParentTaskID]
 			// Snapshot under the lock: runTask may settle the parent
@@ -286,6 +302,9 @@ func (s *A2AServer) HandleRequest(req *JSONRPCRequest) *JSONRPCResponse {
 		}
 		scopes := params.Scopes
 		if len(scopes) == 0 {
+			if isRoot {
+				return rpcError(req.ID, -32602, "root tasks must declare scopes explicitly: default-deny, never the full capability set")
+			}
 			scopes = append([]string(nil), parentScopes...)
 		} else {
 			allowed := make(map[string]bool, len(parentScopes))
@@ -294,18 +313,31 @@ func (s *A2AServer) HandleRequest(req *JSONRPCRequest) *JSONRPCResponse {
 			}
 			for _, sc := range scopes {
 				if !allowed[sc] {
+					if isRoot {
+						return rpcError(req.ID, -32602, fmt.Sprintf("scope %q is not an advertised capability: refused", sc))
+					}
 					return rpcError(req.ID, -32602, fmt.Sprintf("scope %q exceeds parent delegation: refused", sc))
 				}
 			}
 		}
 
-		// Sub-mandate bound: a child task may never inherit more budget than its
-		// verified parent authorizes. The parent mandate signature, expiry and
-		// ceiling are verified here; the bound is recorded on the task.
+		// Sub-mandate bound (W0.5): a child task may never inherit more
+		// budget than its verified parent authorizes. The mandate is
+		// verified WITH expectations — tenant and job-hash binding plus
+		// budget cover — never the old Verify("","",budget) that skipped
+		// binding. An empty tenant or job hash refuses: a sub-mandate
+		// authorizing nothing-specific authorizes nothing.
 		var parentJobHash string
 		tenantID := "default"
 		if params.ParentMandate != nil {
-			if err := params.ParentMandate.Verify("", "", params.MaxBudgetUSD); err != nil {
+			pm := params.ParentMandate
+			if pm.TenantID == "" {
+				return rpcError(req.ID, -32602, "parent mandate names no tenant: sub-mandate refused")
+			}
+			if pm.JobHash == "" {
+				return rpcError(req.ID, -32602, "parent mandate binds no job: sub-mandate refused")
+			}
+			if err := pm.Verify(pm.TenantID, pm.JobHash, params.MaxBudgetUSD); err != nil {
 				return &JSONRPCResponse{
 					JSONRPC: "2.0",
 					ID:      req.ID,
@@ -315,10 +347,15 @@ func (s *A2AServer) HandleRequest(req *JSONRPCRequest) *JSONRPCResponse {
 					},
 				}
 			}
-			parentJobHash = params.ParentMandate.JobHash
-			if params.ParentMandate.TenantID != "" {
-				tenantID = params.ParentMandate.TenantID
-			}
+			parentJobHash = pm.JobHash
+			tenantID = pm.TenantID
+		}
+
+		// Payload cost containment: when the payload declares its own
+		// max_cost_usd (bridge-bound tasks), it must fit inside the task
+		// budget — otherwise the delegation over-authorizes its own spend.
+		if declared := payloadMaxCost(params.Payload); declared > 0 && declared > params.MaxBudgetUSD {
+			return rpcError(req.ID, -32602, fmt.Sprintf("payload declares cost %.4f above task budget %.4f: delegation refused", declared, params.MaxBudgetUSD))
 		}
 
 		taskID := "task-" + uuid.New().String()[:8]
@@ -442,6 +479,20 @@ func (s *A2AServer) runTask(taskID, taskType string, payload json.RawMessage, ex
 	task.UpdatedAt = time.Now().UTC()
 	s.mu.Unlock()
 
+	// W0.5 scope enforcement: scopes are not advisory — a task may only
+	// execute the capability it was granted. Without this, scope narrowing
+	// down the delegation chain would be theater.
+	if !taskTypeInScopes(taskType, task.Scopes) {
+		s.mu.Lock()
+		if t, ok := s.tasks[taskID]; ok && t.Status == TaskStatusRunning {
+			t.Status = TaskStatusFailed
+			t.Error = fmt.Sprintf("task type %q outside granted scopes: dispatch refused", taskType)
+			t.UpdatedAt = time.Now().UTC()
+		}
+		s.mu.Unlock()
+		return
+	}
+
 	// Live autonomy gate: L0 (or unknown) tenants settle failed before any
 	// execution. Revocation takes effect on next dispatch — no cached grants.
 	if checker != nil {
@@ -486,6 +537,35 @@ func (s *A2AServer) runTask(taskID, taskType string, payload json.RawMessage, ex
 	}
 	task.Status = TaskStatusCompleted
 	task.Result = result
+}
+
+// taskTypeInScopes reports whether a task type is inside the granted scope
+// set. Scopes name capabilities verbatim (see AgentCard.Capabilities).
+func taskTypeInScopes(taskType string, scopes []string) bool {
+	for _, sc := range scopes {
+		if sc == taskType {
+			return true
+		}
+	}
+	return false
+}
+
+// payloadMaxCost extracts a payload-declared max_cost_usd when present
+// (bridge-bound task payloads). Absent or non-numeric declares 0 — the
+// execution rail then requires its own declared cost.
+func payloadMaxCost(payload json.RawMessage) float64 {
+	var p map[string]any
+	if err := json.Unmarshal(payload, &p); err != nil {
+		return 0
+	}
+	switch n := p["max_cost_usd"].(type) {
+	case float64:
+		return n
+	case int:
+		return float64(n)
+	default:
+		return 0
+	}
 }
 
 // A2AClient dispatches outbound JSON-RPC 2.0 requests to remote A2A agent nodes
@@ -539,14 +619,27 @@ func (c *A2AClient) GetAgentCard(ctx context.Context) (*AgentCard, error) {
 
 // SubmitTask delegates a research task to the remote A2A agent node with optional x402 payment proof
 func (c *A2AClient) SubmitTask(ctx context.Context, taskType string, payload any, x402Token string) (*A2ATask, error) {
+	return c.SubmitTaskWithDelegation(ctx, taskType, payload, x402Token, 0, nil, nil, "")
+}
+
+// SubmitTaskWithDelegation carries the full delegation envelope (W0.5):
+// budget, scopes, parent mandate, and parent task edge. The fixed-shape
+// SubmitTask above drops these — a client that cannot name its budget and
+// scopes cannot delegate, so the narrow form only serves scope-free local
+// probes (which the server refuses for root tasks without scopes).
+func (c *A2AClient) SubmitTaskWithDelegation(ctx context.Context, taskType string, payload any, x402Token string, maxBudgetUSD float64, scopes []string, parentMandate *mandates.SpendMandate, parentTaskID string) (*A2ATask, error) {
 	payloadRaw, err := json.Marshal(payload)
 	if err != nil {
 		return nil, err
 	}
 
 	paramsRaw, _ := json.Marshal(TaskSubmitParams{
-		TaskType: taskType,
-		Payload:  payloadRaw,
+		TaskType:      taskType,
+		Payload:       payloadRaw,
+		MaxBudgetUSD:  maxBudgetUSD,
+		ParentMandate: parentMandate,
+		Scopes:        scopes,
+		ParentTaskID:  parentTaskID,
 	})
 
 	reqBody, _ := json.Marshal(JSONRPCRequest{
