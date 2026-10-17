@@ -2306,3 +2306,31 @@ skipped is the exact failure this incident is about:
   compact theater) + JobProgress polling wired into MeasuredOutputs
   (R7 gate intact). Tools-hub reduced (no backends). 8 vitests, 86/86 +
   build clean; Go api/llm/session green. Rows on gaps + plan S8.
+
+## [2026-10-17] query | Kubona x REA updated improvement report + plan
+  Deep-dived morluto/rea live @ e567033 (contracts, architecture map,
+  repo metadata) against kubona @ 433e7d5 (code graph, ci.yml,
+  pyproject, wiki record). Re-verdict all 15 prior proposals vs S1-S8
+  state (5 closed/reduced, 10 open/confirmed); 5 new findings (taxonomy
+  precedent, idempotency dialect, manifest seam, CI flake surface,
+  fallback half-done). Filed [[rea]] (reference) + [[rea-adoption-plan]]
+  (candidate R0-R6, production-scoped, nothing started). 4 operator
+  decision points recorded.
+
+## [2026-10-17] query | REA conflicts + remediation (C1-C6)
+  Investigated conflicts vs [[rea-adoption-plan]]: cross-language
+  taxonomy split (Go enforced/Python free-form), S5 missing the Python
+  rail, caller-dependent tribunal-turn persistence, producer-less
+  proposal_generated row, I5-vs-R5 discovery overlap, route-count drift
+  71->76. Filed [[rea-conflicts-and-remediation]] (candidate) with
+  decisions + sequenced slices (R1a/S5b first); S5 residual noted;
+  index 121->122.
+
+## [2026-10-17] query | full-tree code-read roadmap filed
+  Read every implementation file in full (Go core api/jobs/ledger/session/
+  agents/autoresearch/tenants/grants/mandates/llm/fidelity/disk/vault/sandbox/
+  memory-skim, Python provenance/workflows/secrets/config/gateway/servers,
+  all of bridge + proto, console api/page/drawer, both Rust crates, ci.yml,
+  both manifests). Filed [[full-tree-roadmap]] (candidate): verified
+  defects in Waves 0-2 with file:line evidence, sequenced against
+  [[rea-adoption-plan]] R-series. Index 122->123.
