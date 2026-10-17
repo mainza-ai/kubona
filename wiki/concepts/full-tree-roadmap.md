@@ -607,13 +607,19 @@ status: candidate
   (schema-declared, canary-pinned); ADMET RPCs absent with no callers
   (nothing to add); test_qir lower-case intrinsic updated to the canonical
   cnot name.
-- **Residuals for later (stated, not hidden):** X402 persistent
-  single-use needs ledger backing (in-memory now); failed-job spend has no
+- **Residuals for later (stated, not hidden):** failed-job spend has no
   audited refund primitive; loop reservations are I3-future (guarded, not
   implemented); MCP control tools need principal threading for
   tenant-isolation; Python mandate interop with Go verification is
   byte-compatible but unwired end-to-end; emulator thresholds are v1
   heuristics throughout.
+- > ⚑ Resolved since (2026-10-17): X402 single-use is reboot-safe BY
+  CONSTRUCTION (verification requires a live challenge; challenges die
+  with the process) — proven by `TestPaymentManager_RebootRefusesOldReceipts`,
+  not by building ledger backing for a non-hole. I2 landed (`90a82e5`:
+  shared `kubona/retention.py`, 8 MiB × 3 segments, both stores replay
+  all segments). I6 landed (`66cef19`: strict decoding on the six spend
+  mutations, console sends verified compatible).
 - > ⚑ Correction (2026-10-17, `ee870b0`): two Wave-2 slices above landed
   with red suites — the agents' "green" reports predated the final
   commit contents, and the slices were not re-run after bundling.

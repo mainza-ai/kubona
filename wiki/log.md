@@ -2385,3 +2385,8 @@ skipped is the exact failure this incident is about:
 ## [2026-10-17] decision | R6 scoring pilot + C4 proposal producer landed
   `217b062`: rule rubric + scores table + response rows + pairing test.
   Fixture delta 0.88; stub-vs-fallback 0.00 (honest); model delta queued.
+
+## [2026-10-17] decision | residuals X402/I2/I6 closed
+  X402: reboot-safe by construction, proven by test (no ledger backing
+  built for a non-hole). I2 (`90a82e5`) + I6 (`66cef19`) landed with
+  suites green (Go full, Python 656).

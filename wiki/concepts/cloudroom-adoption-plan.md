@@ -97,6 +97,10 @@ status: candidate
   lets the console degrade honestly instead of probing.
 - **I6 — Strict request validation** (`deny_unknown_fields`-equivalent on
   spend mutations): typos in `mandate_ref` currently parse as absent.
+  > ✅ LANDED 2026-10-17 (`66cef19`): `decodeStrict` on jobs, launch,
+  > tribunal, autoresearch-start, mandates/sign, loops (reads stay
+  > lenient); unknown fields 400 typed `bad_request` naming the field;
+  > console sends verified compatible before landing.
 
 ## 3. Implementation plan (full logic per slice)
 
@@ -192,6 +196,10 @@ status: candidate
   thresholds const remains.
 - **Follow-up (designed, not hidden):** I2 rotation for `jobs.jsonl` /
   `sessions.jsonl` (size-based, 8 MiB pattern).
+  > ✅ LANDED 2026-10-17 (`90a82e5`): shared `kubona/retention.py`
+  > (8 MiB × 3, rotate-before-append under the caller's lock, readers
+  > sweep all segments oldest-first); `session.create` takes the lock
+  > like every other writer (its unlocked append raced locked ones).
 - **Wiki:** [[risks]] + [[implementation-gaps]] rows.
 
 ### S3 — Loop sleep + drain + mid-run budget (M, needs S1 keys for wake) — ✅ LANDED 2026-10-17
