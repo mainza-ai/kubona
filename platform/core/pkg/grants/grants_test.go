@@ -158,3 +158,98 @@ func TestDIDForAdminPubkeyStable(t *testing.T) {
 		t.Fatalf("bad hex must refuse")
 	}
 }
+
+// W0.8: mint-time validation — empty scopes, slash scopes, and bad TTLs
+// refuse at mint, never as known-dead envelopes.
+func TestGrantMintValidation(t *testing.T) {
+	privA, _, didA := testKeys(t)
+	_, _, didB := testKeys(t)
+	_ = didA
+	if _, _, err := MintGrant(privA, didB, "lab-a", "lab-b", "qpu/submit",
+		nil, 100.0, time.Hour); err == nil {
+		t.Fatalf("empty scopes must refuse")
+	}
+	if _, _, err := MintGrant(privA, didB, "lab-a", "lab-b", "qpu/submit",
+		[]string{""}, 100.0, time.Hour); err == nil {
+		t.Fatalf("blank scope must refuse")
+	}
+	if _, _, err := MintGrant(privA, didB, "lab-a", "lab-b", "qpu/submit",
+		[]string{"qpu/submit", "a/b"}, 100.0, time.Hour); err == nil {
+		t.Fatalf("slash scope must refuse (collides with a:b in scopePath)")
+	}
+	if _, _, err := MintGrant(privA, didB, "lab-a", "lab-b", "qpu/submit",
+		[]string{ScopeQPUSubmit}, 100.0, 0); err == nil {
+		t.Fatalf("zero TTL must refuse")
+	}
+	if _, _, err := MintGrant(privA, didB, "lab-a", "lab-b", "qpu/submit",
+		[]string{ScopeQPUSubmit}, 100.0, 91*24*time.Hour); err == nil {
+		t.Fatalf("over-90d TTL must refuse")
+	}
+}
+
+// W0.8: attenuation is the grantee's act — a stranger minting "down" the
+// chain refuses at mint time (VerifyChain would refuse it at level i;
+// fail-early instead of minting known-dead envelopes).
+func TestGrantAttenuateIssuerMustBeAudience(t *testing.T) {
+	privA, _, _ := testKeys(t)
+	privB, _, didB := testKeys(t)
+	privE, _, didEvil := testKeys(t)
+
+	rootSealed, _, err := MintGrant(privA, didB, "lab-a", "lab-b", "qpu/submit",
+		[]string{ScopeQPUSubmit, ScopeRead}, 100.0, time.Hour)
+	if err != nil {
+		t.Fatalf("mint: %v", err)
+	}
+	// Stranger (not the parent audience) attenuating refuses.
+	if _, _, err := AttenuateGrant(rootSealed, privE, didEvil,
+		"qpu/submit", []string{ScopeQPUSubmit}, 10.0, time.Minute); err == nil {
+		t.Fatalf("non-audience attenuation must refuse")
+	}
+	// Bad TTL refuses.
+	if _, _, err := AttenuateGrant(rootSealed, privB, didB,
+		"qpu/submit", []string{ScopeQPUSubmit}, 10.0, 0); err == nil {
+		t.Fatalf("zero-TTL attenuation must refuse")
+	}
+	// Empty scopes refuse (empty is a subset of everything — narrowing to
+	// nothing must be explicit refusal, not silent).
+	if _, _, err := AttenuateGrant(rootSealed, privB, didB,
+		"qpu/submit", nil, 10.0, time.Minute); err == nil {
+		t.Fatalf("scope-emptying attenuation must refuse")
+	}
+}
+
+// W0.8: leaf revocation is surgical — revoking the leaf kills chains
+// containing that envelope while the root-only chain still verifies.
+func TestGrantLeafRevocationSurgical(t *testing.T) {
+	privA, _, didA := testKeys(t)
+	privB, _, didB := testKeys(t)
+	_, _, didAgent := testKeys(t)
+
+	rootSealed, rootCID, err := MintGrant(privA, didB, "lab-a", "lab-b", "qpu/submit",
+		[]string{ScopeQPUSubmit, ScopeRead}, 100.0, time.Hour)
+	if err != nil {
+		t.Fatalf("mint: %v", err)
+	}
+	leafSealed, leafCID, err := AttenuateGrant(rootSealed, privB, didAgent,
+		"qpu/submit", []string{ScopeQPUSubmit}, 25.0, 10*time.Minute)
+	if err != nil {
+		t.Fatalf("attenuate: %v", err)
+	}
+	roots := map[string]string{didA: "lab-a"}
+	full := [][]byte{rootSealed, leafSealed}
+
+	// Leaf revoked: full chain refuses, root alone still verifies.
+	revoked := map[string]bool{leafCID: true}
+	if _, err := VerifyChain(full, VerifyOptions{TrustedRoots: roots, Revoked: revoked}); err == nil {
+		t.Fatalf("leaf-revoked chain must refuse")
+	}
+	if _, err := VerifyChain([][]byte{rootSealed}, VerifyOptions{TrustedRoots: roots, Revoked: revoked}); err != nil {
+		t.Fatalf("root-only chain must survive leaf revocation: %v", err)
+	}
+	// Root revoked: everything refuses (unchanged whole-chain semantics).
+	revokedRoot := map[string]bool{rootCID: true}
+	if _, err := VerifyChain(full, VerifyOptions{TrustedRoots: roots, Revoked: revokedRoot}); err == nil {
+		t.Fatalf("root-revoked chain must refuse")
+	}
+	_ = rootCID
+}
