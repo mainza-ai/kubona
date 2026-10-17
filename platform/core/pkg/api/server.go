@@ -314,6 +314,9 @@ func NewServer(
 	// Tribunal turns observe through the same registry (nil-safe: turns
 	// proceed text-only when unset).
 	s.collective.Tools = s.toolRegistry
+	// R2/C3: the collective seals tribunal turns + records obligation
+	// cases directly (nil-ledger unit paths are unaffected).
+	s.collective.Ledger = l
 	// Persistent associative memory (SQLite-backed, tenant-scoped recall).
 	// Activates the tribunal recall/retain paths and the recall_memory tool.
 	s.memoryStore = memory.NewPersistentHindsightStore(l.DB())
@@ -2244,20 +2247,38 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 
 	onTurn := func(turn agents.TribunalTurn) {
 		s.sessionMgr.AddMessage(req.SessionID, string(turn.Role), fmt.Sprintf("[%s]: %s", turn.Name, turn.Content), nil)
-		s.ledger.AppendEvent(req.SessionID, "tribunal_turn", map[string]any{
-			"turn_index": turn.TurnIndex,
-			"role":       turn.Role,
-			"verdict":    turn.Verdict,
-		})
+		// C3: no handler-side sealing — the collective seals each turn
+		// (event + obligation case, deduped by turn index) during the
+		// run. Sealing here as well would double-seal every turn.
 	}
 
 	// Watermark first: observe-round dispatches land during the run, and
 	// the write-back below attributes exactly this turn's tools.
 	tribEventsBefore := s.latestEventID(req.SessionID)
-	res, err := s.collective.ExecuteTribunalWithMemory(r.Context(), s.llmClient, s.jobRunner.BridgeClient(), s.memoryStore, req.Prompt, onTurn)
+	res, err := s.collective.ExecuteTribunalWithSession(r.Context(), s.llmClient, s.jobRunner.BridgeClient(), s.memoryStore, req.SessionID, req.Prompt, onTurn)
 	if err != nil {
 		s.idemFinishError(w, tribIdem, http.StatusInternalServerError, err.Error())
 		return
+	}
+	// R2: the verdict lives in the obligation query, not in prose. The
+	// session owns the run obligation (exactly one owner); close reads
+	// cases, authorities, unknowns, dependencies. Unwired runs (no
+	// obligation) keep the collective's provisional verdict.
+	if res.ObligationID != "" {
+		if serr := s.ledger.SetObligationOwner(res.ObligationID, "session:"+req.SessionID); serr != nil {
+			s.idemFinishError(w, tribIdem, http.StatusInternalServerError, serr.Error())
+			return
+		}
+		closed, reasons, cerr := agents.AttemptClose(s.ledger, res.ObligationID)
+		if cerr != nil {
+			s.idemFinishError(w, tribIdem, http.StatusInternalServerError, cerr.Error())
+			return
+		}
+		res.ConsensusPassed = closed
+		if !closed {
+			res.Synthesis = fmt.Sprintf("Multi-Agent Tribunal did NOT reach consensus for %s: obligation %s stays open (%s).",
+				res.Target, res.ObligationID, strings.Join(reasons, "; "))
+		}
 	}
 	// Tribunal tool use audits exactly like copilot tool use: one
 	// tool_called event per observed dispatch, so the memory write-back
@@ -2286,9 +2307,10 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 	// is what the tribunal measured.
 	tribRecordID := ""
 	evBytes, _ := json.Marshal(map[string]any{
-		"turns":        len(res.Turns),
-		"consensus":    res.ConsensusPassed,
-		"has_proposal": res.ProposalJSON != nil,
+		"turns":         len(res.Turns),
+		"consensus":     res.ConsensusPassed,
+		"has_proposal":  res.ProposalJSON != nil,
+		"obligation_id": res.ObligationID,
 	})
 	if rec, merr := s.ledger.MintClaimRecord(req.SessionID, "tribunal",
 		"Tribunal consensus: "+boundRunes(res.Synthesis, 400),
@@ -2304,6 +2326,7 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 		"assistant_message": assistantMsg,
 		"campaign":          campState,
 		"claim_record_id":   tribRecordID,
+		"obligation_id":     res.ObligationID,
 	})
 }
 
