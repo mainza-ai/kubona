@@ -2359,3 +2359,8 @@ skipped is the exact failure this incident is about:
   `8a9e9a5` envelope + vectors (byte-exact Go/Python agreement) +
   `3404976` S5 section envelopes. Python pb2 regen blocked by scratch-venv
   drift (grpcio-tools 1.84 vs pinned 1.71.x) — operator re-pin queued.
+
+## [2026-10-17] decision | S5b python_ledger ninth section landed
+  `671200d`: sidecar sweep + verbatim-content replay under Python's lock,
+  strict 10-row digest roster, R1 envelopes cover the ninth section.
+  C2 closed; S5 residual cleared.

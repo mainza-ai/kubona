@@ -70,6 +70,26 @@ section (`python_ledger`: per-tenant digest-pinned record lists, same
 64 MB total cap, same validation-before-replay). Until then, the S5 wiki
 row carries the residual explicitly (added below).
 **Slice S5b (M, after R1a — needs the shared taxonomy for kind checks):**
+> ✅ LANDED 2026-10-17 (`671200d`): `python_ledger` ninth section —
+> export sweeps the tenant sidecar (`KUBONA_LEDGER`-mirrored resolution,
+> `ledger.<tenant>.jsonl`) for the session's rows, digest-pinned +
+> enveloped like the rest; import replays with rewritten chain links
+> (`prev` := tail, `record_hash` := sha256(prev:content), the exact
+> Python formula) under Python's own `.lock`, deduped by content_hash
+> (double-activate replays). Layering decided: kind-registry enforced
+> at the Python append path (R1a), Go verifies structure + digest-pin
+> (malformed lines refuse, never dropped). Strict 10-row digest roster:
+> stripped/unknown rows refuse (an undetectable history-drop is worse
+> than refusing a day-old manifest — S5 is one day old). Python
+> companion test proves the replay algorithm yields `validate_chain`
+> -clean files. `omitempty` deliberately absent on the new field (an
+> omitted-then-nil `[]` digests as `null`, failing the HTTP round-trip
+> — caught by the API round-trip test).
+> - Files: `pkg/session/pyrail.go` (new), `pkg/session/migrate.go` (ninth section + roster + replay), `pkg/session/migrate_test.go`, `pkg/session/pyrail_test.go` (real-Python-written fixtures), `platform/tests/test_s5b_sidecar.py`.
+> - Tests: filter/round-trip/idempotent-replay/tamper/stripped/unknown-row/malformed/empty-tenant-file; negative automatic (new digest row required).
+> - Accept: export → fresh DB import → both rails' chains verify.
+> - Rollback: drop the section (manifest v1 readers ignore unknown
+>   sections — version gate already handles this).
 - Files: `pkg/session/migrate.go` (ninth section + cap accounting),
   Python-side export helper, round-trip + tamper tests.
 - Tests: workflow records survive migration with digests intact; tampered
