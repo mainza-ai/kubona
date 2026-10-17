@@ -324,7 +324,15 @@ func NewServer(
 	// Planner replan: settled jobs fold their measured results back into the
 	// session campaign. Runs on the job-worker goroutine — pure fold plus
 	// ledger writes only, never LLM or bridge calls.
-	jr.SetSettledHook(s.replanCampaignOnSettled)
+	// R2b: mandate settlement rides first (obligation closure), then the
+	// replan fold. The hook never fails the settlement (audit follows
+	// evidence): recording errors log, and a post-closure settlement
+	// opens a follow-up anomaly obligation instead of rewriting history.
+	replan := s.replanCampaignOnSettled
+	jr.SetSettledHook(func(j *jobs.Job) {
+		s.recordMandateSettlement(j)
+		replan(j)
+	})
 
 	// Ledger-bound A2A execution: delegated tasks run on the jobs runner (one
 	// budget rail), never on invented results.
@@ -1001,7 +1009,7 @@ func (s *Server) handleMandateVerify(w http.ResponseWriter, r *http.Request) {
 		via = "reviewer"
 	}
 
-	s.ledger.AppendExternalEvent(req.TenantID, "mandate_verified_client", map[string]any{
+	rec, rerr := s.ledger.AppendExternalEvent(req.TenantID, "mandate_verified_client", map[string]any{
 		"tenant_id":        req.TenantID,
 		"job_hash":         req.JobHash,
 		"public_key_hex":   req.PublicKeyHex,
@@ -1010,12 +1018,107 @@ func (s *Server) handleMandateVerify(w http.ResponseWriter, r *http.Request) {
 		"via":              via,
 		"expiry_timestamp": req.ExpiryTimestamp.UTC().Format(time.RFC3339),
 	}, req.PublicKeyHex, req.SignatureHex)
+	if rerr != nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"valid": false,
+			"code":  "mandate_invalid",
+			"error": rerr.Error(),
+		})
+		return
+	}
+	// R2b: the verified receipt opens its closure obligation (subject =
+	// the receipt entry_hash jobs cite as mandate_ref). The owner is the
+	// accountable key: tenant admin on the admin path, the reviewer on
+	// the reviewer path. Opening failure fails verification (no
+	// unattributed mandates).
+	owner := "admin:" + req.PublicKeyHex
+	if !isAdmin {
+		owner = "reviewer:" + req.PublicKeyHex
+	}
+	if oerr := s.openMandateObligation(req.TenantID, owner, rec.EntryHash); oerr != nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"valid": false,
+			"code":  "mandate_invalid",
+			"error": oerr.Error(),
+		})
+		return
+	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"valid":       true,
 		"mandate":     req,
 		"verified_at": time.Now().UTC().Format(time.RFC3339),
+		"receipt":     rec.EntryHash,
 	})
+}
+
+// openMandateObligation opens (idempotently) the closure obligation for
+// a verified mandate receipt (R2b): subject = the receipt entry_hash
+// jobs cite as mandate_ref, required case = settlement by the ledger
+// receipt authority, owner = the accountable key (admin or reviewer).
+// tenantID names the billed lab (kept for call-site clarity; the
+// subject + owner carry the binding).
+func (s *Server) openMandateObligation(tenantID, owner, entryHash string) error {
+	if entryHash == "" {
+		return fmt.Errorf("mandate obligation needs the receipt entry hash")
+	}
+	if owner == "" {
+		return fmt.Errorf("mandate obligation needs an accountable owner")
+	}
+	ob, err := s.ledger.OpenObligation("mandate", entryHash, []string{"settlement"}, []string{"ledger-receipt"}, nil)
+	if err != nil {
+		return fmt.Errorf("mandate obligation: %w", err)
+	}
+	if err := s.ledger.SetObligationOwner(ob.ID, owner); err != nil {
+		return fmt.Errorf("mandate obligation owner: %w", err)
+	}
+	return nil
+}
+
+// recordMandateSettlement closes the mandate loop (R2b): a completed
+// job carrying mandate_ref records the settlement case on its receipt's
+// obligation (authority ledger-receipt — the admission-verified binding
+// is the verification) and attempts close. Unmandated jobs and unknown
+// receipts (pre-obligation history) skip silently. A settlement landing
+// on an ALREADY-CLOSED obligation opens an ownerless follow-up anomaly
+// (subject mandate/H/jobID, dependency on the original) instead of
+// rewriting closure — post-closure activity stays visible, never merged.
+// Runs on the job-worker goroutine: never fails the settlement itself.
+func (s *Server) recordMandateSettlement(j *jobs.Job) {
+	if j == nil || j.MandateRef == "" {
+		return
+	}
+	ob, err := s.ledger.GetObligationBySubject("mandate", j.MandateRef)
+	if err != nil {
+		log.Printf("[Kubona Core] mandate settlement lookup failed for job %s: %v", j.ID, err)
+		return
+	}
+	if ob == nil {
+		return
+	}
+	settlement := ledger.ObligationCase{
+		CaseKind: "settlement", Verdict: "pass", Authority: "ledger-receipt",
+		Evidence: j.ID,
+	}
+	if err := s.ledger.RecordObligationCase(ob.ID, settlement); err != nil {
+		// Closed history is immutable: fork an anomaly follow-up.
+		follow, ferr := s.ledger.OpenObligation("mandate-settlement",
+			j.MandateRef+"/job/"+j.ID, []string{"settlement"}, []string{"ledger-receipt"},
+			[]string{ob.ID})
+		if ferr != nil {
+			log.Printf("[Kubona Core] mandate follow-up failed for job %s: %v", j.ID, ferr)
+			return
+		}
+		if ferr := s.ledger.RecordObligationCase(follow.ID, settlement); ferr != nil {
+			log.Printf("[Kubona Core] mandate follow-up case failed for job %s: %v", j.ID, ferr)
+		}
+		return
+	}
+	if closed, reasons, err := agents.AttemptClose(s.ledger, ob.ID); err != nil {
+		log.Printf("[Kubona Core] mandate close failed for job %s: %v", j.ID, err)
+	} else if !closed {
+		log.Printf("[Kubona Core] mandate %s stays open after job %s: %v", j.MandateRef, j.ID, reasons)
+	}
 }
 
 func (s *Server) handleHarnesses(w http.ResponseWriter, r *http.Request) {
@@ -4274,7 +4377,7 @@ func (s *Server) handlePQCVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	s.ledger.AppendExternalEvent(mandate.TenantID, "mandate_verified_pqc_mlkem768", map[string]any{
+	pqcRec, rerr := s.ledger.AppendExternalEvent(mandate.TenantID, "mandate_verified_pqc_mlkem768", map[string]any{
 		"tenant_id":             mandate.TenantID,
 		"job_hash":              mandate.JobHash,
 		"public_key_hex":        mandate.PublicKeyHex,
@@ -4283,12 +4386,29 @@ func (s *Server) handlePQCVerify(w http.ResponseWriter, r *http.Request) {
 		"max_budget_usd":        mandate.MaxBudgetUSD,
 		"expiry_timestamp":      mandate.ExpiryTimestamp.UTC().Format(time.RFC3339),
 	}, mandate.PublicKeyHex, mandate.SignatureHex)
+	if rerr != nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"valid": false,
+			"error": rerr.Error(),
+		})
+		return
+	}
+	// R2b: same obligation seam as the classical path (receipt-scoped).
+	// The PQC path admits admin keys only, so ownership is admin-side.
+	if oerr := s.openMandateObligation(mandate.TenantID, "admin:"+mandate.PublicKeyHex, pqcRec.EntryHash); oerr != nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"valid": false,
+			"error": oerr.Error(),
+		})
+		return
+	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"valid":                 true,
 		"tenant_id":             mandate.TenantID,
 		"job_hash":              mandate.JobHash,
 		"pqc_verified":          true,
+		"receipt":               pqcRec.EntryHash,
 		"recipient_fingerprint": hybrid.RecipientFingerprint,
 	})
 }

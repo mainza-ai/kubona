@@ -64,6 +64,10 @@ type Job struct {
 	// means no compiler ran (runner without one) — never implied.
 	CompilerUsed     string `json:"compiler_used,omitempty"`
 	FallbackEstimate bool   `json:"fallback_estimate,omitempty"`
+	// R2b: the spend-mandate receipt this job settles against (ledger
+	// entry_hash of the mandate_verified event; "" for unmandated local
+	// work). The settle hook closes the mandate's obligation from this.
+	MandateRef string `json:"mandate_ref,omitempty"`
 }
 
 type Runner struct {
@@ -201,6 +205,20 @@ func (r *Runner) SubmitJobWithDeclaredCost(sessionID, jobType string, params any
 	return r.submitJob(sessionID, jobType, params, maxCostUSD)
 }
 
+// mandateRefOf extracts the spend-mandate receipt reference from submit
+// params (R2b): the admission-verified entry_hash the job settles
+// against. Params without one (local/sim work) yield "" — unmandated
+// jobs settle no obligation.
+func mandateRefOf(data []byte) string {
+	var p struct {
+		MandateRef string `json:"mandate_ref"`
+	}
+	if err := json.Unmarshal(data, &p); err != nil {
+		return ""
+	}
+	return p.MandateRef
+}
+
 func (r *Runner) submitJob(sessionID, jobType string, params any, declaredCost float64) (*Job, error) {
 	data, err := json.Marshal(params)
 	if err != nil {
@@ -276,14 +294,15 @@ func (r *Runner) submitJob(sessionID, jobType string, params any, declaredCost f
 		ReservedAmount:   resAmount,
 		CompilerUsed:     compilerUsed,
 		FallbackEstimate: fallbackEstimate,
+		MandateRef:       mandateRefOf(data),
 	}
 
-	query := `INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount, compiler_used, fallback_estimate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	query := `INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount, compiler_used, fallback_estimate, mandate_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	fallbackInt := 0
 	if fallbackEstimate {
 		fallbackInt = 1
 	}
-	_, err = r.ledger.DB().Exec(query, j.ID, j.SessionID, j.Status.String(), j.JobType, string(j.ParamsJSON), j.CreatedAt, j.ReservedTenant, j.ReservedAmount, j.CompilerUsed, fallbackInt)
+	_, err = r.ledger.DB().Exec(query, j.ID, j.SessionID, j.Status.String(), j.JobType, string(j.ParamsJSON), j.CreatedAt, j.ReservedTenant, j.ReservedAmount, j.CompilerUsed, fallbackInt, j.MandateRef)
 	if err != nil {
 		// The job never queued (no row to release from): unwind directly.
 		_ = r.tenantStore().ReleaseSpend(resTenant, resAmount)
@@ -668,7 +687,7 @@ func (r *Runner) CancelJob(id, reason string) (transitioned bool, err error) {
 }
 
 func (r *Runner) GetJob(id string) (*Job, error) {
-	query := `SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, compiler_used, fallback_estimate FROM jobs WHERE id = ?`
+	query := `SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, compiler_used, fallback_estimate, mandate_ref FROM jobs WHERE id = ?`
 	row := r.ledger.DB().QueryRow(query, id)
 
 	var j Job
@@ -677,8 +696,9 @@ func (r *Runner) GetJob(id string) (*Job, error) {
 	var compAt sql.NullTime
 	var compilerUsed sql.NullString
 	var fallbackInt sql.NullInt64
+	var mandateRef sql.NullString
 
-	if err := row.Scan(&j.ID, &j.SessionID, &statusStr, &j.JobType, &paramsStr, &resultStr, &j.CreatedAt, &compAt, &compilerUsed, &fallbackInt); err != nil {
+	if err := row.Scan(&j.ID, &j.SessionID, &statusStr, &j.JobType, &paramsStr, &resultStr, &j.CreatedAt, &compAt, &compilerUsed, &fallbackInt, &mandateRef); err != nil {
 		return nil, err
 	}
 	j.Status = pb.JobStatus(pb.JobStatus_value[statusStr])
@@ -694,6 +714,9 @@ func (r *Runner) GetJob(id string) (*Job, error) {
 		j.CompilerUsed = compilerUsed.String
 	}
 	j.FallbackEstimate = fallbackInt.Valid && fallbackInt.Int64 != 0
+	if mandateRef.Valid {
+		j.MandateRef = mandateRef.String
+	}
 	return &j, nil
 }
 
@@ -714,12 +737,12 @@ func (r *Runner) ListJobs(sessionID string, limit int) ([]*Job, error) {
 	var err error
 	if sessionID != "" {
 		rows, err = r.ledger.DB().Query(
-			`SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, compiler_used, fallback_estimate FROM jobs WHERE session_id = ? ORDER BY created_at DESC LIMIT ?`,
+			`SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, compiler_used, fallback_estimate, mandate_ref FROM jobs WHERE session_id = ? ORDER BY created_at DESC LIMIT ?`,
 			sessionID, limit,
 		)
 	} else {
 		rows, err = r.ledger.DB().Query(
-			`SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, compiler_used, fallback_estimate FROM jobs ORDER BY created_at DESC LIMIT ?`,
+			`SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, compiler_used, fallback_estimate, mandate_ref FROM jobs ORDER BY created_at DESC LIMIT ?`,
 			limit,
 		)
 	}
@@ -736,7 +759,8 @@ func (r *Runner) ListJobs(sessionID string, limit int) ([]*Job, error) {
 		var compAt sql.NullTime
 		var compilerUsed sql.NullString
 		var fallbackInt sql.NullInt64
-		if err := rows.Scan(&j.ID, &j.SessionID, &statusStr, &j.JobType, &paramsStr, &resultStr, &j.CreatedAt, &compAt, &compilerUsed, &fallbackInt); err != nil {
+		var mandateRef sql.NullString
+		if err := rows.Scan(&j.ID, &j.SessionID, &statusStr, &j.JobType, &paramsStr, &resultStr, &j.CreatedAt, &compAt, &compilerUsed, &fallbackInt, &mandateRef); err != nil {
 			return nil, err
 		}
 		j.Status = pb.JobStatus(pb.JobStatus_value[statusStr])
@@ -752,6 +776,9 @@ func (r *Runner) ListJobs(sessionID string, limit int) ([]*Job, error) {
 			j.CompilerUsed = compilerUsed.String
 		}
 		j.FallbackEstimate = fallbackInt.Valid && fallbackInt.Int64 != 0
+		if mandateRef.Valid {
+			j.MandateRef = mandateRef.String
+		}
 		jobsList = append(jobsList, &j)
 	}
 	return jobsList, nil

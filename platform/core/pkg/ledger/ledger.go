@@ -134,6 +134,7 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 		reserved_amount REAL NOT NULL DEFAULT 0,
 		compiler_used TEXT NOT NULL DEFAULT '',
 		fallback_estimate INTEGER NOT NULL DEFAULT 0,
+		mandate_ref TEXT NOT NULL DEFAULT '',
 		FOREIGN KEY (session_id) REFERENCES sessions(id)
 	);
 
@@ -256,6 +257,7 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN reserved_amount REAL NOT NULL DEFAULT 0`)
 	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN compiler_used TEXT NOT NULL DEFAULT ''`)
 	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN fallback_estimate INTEGER NOT NULL DEFAULT 0`)
+	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN mandate_ref TEXT NOT NULL DEFAULT ''`)
 	// Measured generation cost on chat messages (NULL = unknown, never zero-filled).
 	_, _ = db.Exec(`ALTER TABLE chat_messages ADD COLUMN duration_ms INTEGER`)
 	_, _ = db.Exec(`ALTER TABLE chat_messages ADD COLUMN usage_json TEXT`)
