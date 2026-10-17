@@ -102,6 +102,10 @@ notes, never silent edits; rollback stated.
 > (necessary, not sufficient). Job IDs unchanged (branch protection
 > safe). Accept criterion (3 consecutive green runs, no network flake)
 > is pending observation — this push is run #1 of 3.
+> ✅ ACCEPT MET 2026-10-17: three green full-pipeline runs, zero
+> flakes. The one interleaved failure was the new fail-fast lint gate
+> itself catching a dangling wikilink in 12s — the gate working as
+> designed, not a flake.
 
 - **Threat:** every run is a full network fetch; flakes tax each landing.
 - **Change:** pip/Go/cargo/pnpm cache; split mega `python-tests` job
