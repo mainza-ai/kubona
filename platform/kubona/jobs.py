@@ -36,6 +36,7 @@ from typing import Any, Callable, Iterator
 
 from kubona.config import state_path
 from kubona.logging import get_logger
+from kubona.retention import maybe_rotate, rotated_paths
 
 log = get_logger("jobs")
 
@@ -111,9 +112,11 @@ class JobStore:
 
     def _load(self) -> dict[str, Job]:
         out: dict[str, Job] = {}
-        if self.path.exists():
-            skipped = 0
-            for line in self.path.read_text().splitlines():
+        skipped = 0
+        # I2: replay every retained segment oldest-first (rotation must
+        # never hide rows — newer snapshots overwrite older ones).
+        for seg in rotated_paths(self.path):
+            for line in seg.read_text().splitlines():
                 if not line.strip():
                     continue
                 try:
@@ -122,11 +125,15 @@ class JobStore:
                     skipped += 1  # corrupt line quarantined, never fatal
                     continue
                 out[j.job_id] = j
-            if skipped:
-                log.warning("job store skipped corrupt lines", extra={"skipped": skipped})
+        if skipped:
+            log.warning("job store skipped corrupt lines", extra={"skipped": skipped})
         return out
 
     def _save(self, j: Job) -> None:
+        # I2: rotate-before-append INSIDE the caller's lock (all _save
+        # callers hold _exclusive): the triggering write lands in a fresh
+        # file, and rotation can never race an append.
+        maybe_rotate(self.path)
         with open(self.path, "a") as f:
             f.write(json.dumps(j.to_record(), sort_keys=True) + "\n")
 
