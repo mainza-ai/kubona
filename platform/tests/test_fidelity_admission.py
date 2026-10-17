@@ -17,14 +17,20 @@ def test_simulator_skips_fidelity_gate():
 
 
 def test_shallow_qpu_circuit_admitted_with_verdict():
+    # W0.16: budgets above the implicit cap travel on explicit sessions
+    # (opened via cost/create_session), never self-granted implicitly.
+    from kubona.mcp.servers import cost as cost_server
+    sess = cost_server.create_session("qpu-shallow", "researcher", budget_ceiling_usd=150.0)
     out = exec_server.submit_job(BELL, provider="ibm-qiskit", shots=100,
-                                     budget_ceiling_usd=150.0, caller_jurisdictions=["US"])
+                                 session_id=sess["session_id"],
+                                 caller_jurisdictions=["US"])
     assert out["ok"] is True, out
+    assert out["status"] in ("queued", "running", "completed"), out
 
 
 def test_deep_circuit_refused_with_receipt_not_remediation():
     out = exec_server.submit_job(_deep_qasm(), provider="ibm-qiskit", shots=100,
-                                     budget_ceiling_usd=150.0, caller_jurisdictions=["US"])
+                                 budget_ceiling_usd=25.0, caller_jurisdictions=["US"])
     assert out["ok"] is False, out
     assert "fidelity" in out and out["fidelity"]["fidelity_receipt"], out
     assert out["fidelity"]["recommended_action"] in (
@@ -33,7 +39,7 @@ def test_deep_circuit_refused_with_receipt_not_remediation():
 
 def test_unknown_device_refuses_as_unpredictable():
     out = exec_server.submit_job(BELL, provider="quantinuum", shots=100,
-                                     budget_ceiling_usd=150.0, caller_jurisdictions=["US", "UK"],
-                                     caller_export_class="allied")
+                                 budget_ceiling_usd=25.0, caller_jurisdictions=["US", "UK"],
+                                 caller_export_class="allied")
     assert out["ok"] is False, out
     assert "no fidelity profile" in out["error"], out
