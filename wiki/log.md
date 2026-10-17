@@ -2369,3 +2369,7 @@ skipped is the exact failure this incident is about:
   `dfeb2cc`: store + AttemptClose (every refusal) + tribunal wiring
   (turn cases, deliberation fail, anchor unknown, disposition verdict).
   R2b sequenced (mandate obligations need job.mandate_ref linkage).
+
+## [2026-10-17] decision | R3 coverage + provenance landed
+  `5a4a6ce`: ObservedCall source/untrusted + in-budget history tags,
+  per-facet coverage on turns, SealTurn refusals, audit mirror.
