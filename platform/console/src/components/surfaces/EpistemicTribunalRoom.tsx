@@ -19,8 +19,8 @@ import {
   
   
 } from 'lucide-react';
-import {  AgentPersona, TribunalTurn } from '@/types';
-import { runTribunal, appendLedgerEvent } from '@/lib/api';
+import {  AgentPersona, CampaignState, TribunalTurn } from '@/types';
+import { runTribunal, appendLedgerEvent, synthesizeCampaign } from '@/lib/api';
 import { classifyTribunalVerdict } from '@/lib/verdict';
 
 interface TribunalRoomProps {
@@ -28,6 +28,7 @@ interface TribunalRoomProps {
   targetSystem?: string;
   sessionId?: string;
   onCommitToLedger?: (receipt: Record<string, unknown>) => void;
+  onCampaignSynthesized?: (campaign: CampaignState) => void;
 }
 
 interface PersonaState {
@@ -44,6 +45,7 @@ export function EpistemicTribunalRoom({
   targetSystem = 'FeMoco Nitrogenase Cluster',
   sessionId = '',
   onCommitToLedger,
+  onCampaignSynthesized,
 }: TribunalRoomProps) {
   const [currentPhase, setCurrentPhase] = useState<number>(0); // 0 = not started; 5 = consensus recorded
   const [quorumPercent, setQuorumPercent] = useState<number | null>(null);
@@ -52,6 +54,8 @@ export function EpistemicTribunalRoom({
   const [isCommitting, setIsCommitting] = useState<boolean>(false);
   const [commitError, setCommitError] = useState<string | null>(null);
   const [delibError, setDelibError] = useState<string | null>(null);
+  const [isSynthesizing, setIsSynthesizing] = useState<boolean>(false);
+  const [synthNotice, setSynthNotice] = useState<string | null>(null);
   const [turns, setTurns] = useState<TribunalTurn[] | null>(null);
   const [topic, setTopic] = useState(`${targetSystem} ground state electronic structure`);
 
@@ -172,6 +176,32 @@ export function EpistemicTribunalRoom({
     }
   };
 
+  // U2-b: formulate campaign state from the deliberation (same quorum
+  // bar as commit — formulation follows consensus, never contest).
+  // synthesizeCampaign returns null on refusal and throws only on
+  // transport failure — the notice names which happened.
+  const handleSynthesizeCampaign = async () => {
+    if (!sessionId) {
+      setSynthNotice('No active session: open or create a session before synthesizing.');
+      return;
+    }
+    setIsSynthesizing(true);
+    setSynthNotice(null);
+    try {
+      const state = await synthesizeCampaign(sessionId, topic.trim() || `${targetSystem} ground state`);
+      if (!state) {
+        setSynthNotice('Synthesis refused or failed — campaign unchanged, nothing recorded.');
+        return;
+      }
+      setSynthNotice(`Campaign synthesized from deliberation — ledger-sealed server-side.`);
+      if (onCampaignSynthesized) onCampaignSynthesized(state);
+    } catch (err) {
+      setSynthNotice(err instanceof Error ? err.message : 'Synthesis call failed — campaign unchanged.');
+    } finally {
+      setIsSynthesizing(false);
+    }
+  };
+
   const handleCommitLedger = async () => {
     if (!sessionId) {
       setCommitError('No active session: open or create a session before committing.');
@@ -269,8 +299,29 @@ export function EpistemicTribunalRoom({
             <FileCheck className="w-4 h-4" />
             <span>{committedReceipt ? 'Committed to Ledger' : isCommitting ? 'Committing…' : 'Commit Discovery to Merkle Ledger'}</span>
           </button>
+
+          {/* U2-b: formulate campaign state from the deliberation. Same
+              quorum bar as commit — formulation follows consensus. */}
+          <button
+            onClick={handleSynthesizeCampaign}
+            disabled={quorumPercent == null || quorumPercent < 75.0 || isSynthesizing}
+            title={quorumPercent == null || quorumPercent < 75.0 ? 'Needs supermajority consensus (≥ 75%) first' : 'Formulate campaign state from this deliberation'}
+            className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
+              quorumPercent != null && quorumPercent >= 75.0
+                ? 'bg-cyan-600 hover:bg-cyan-500 text-white border-cyan-400 shadow-lg shadow-cyan-900/30'
+                : 'bg-neutral-800 text-neutral-500 border-neutral-700 cursor-not-allowed'
+            }`}
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>{isSynthesizing ? 'Synthesizing…' : 'Synthesize Campaign'}</span>
+          </button>
         </div>
       </div>
+      {synthNotice && (
+        <div className="rounded-xl border border-cyan-500/30 bg-cyan-950/40 px-4 py-2 text-xs text-cyan-200" role="status">
+          {synthNotice}
+        </div>
+      )}
 
       {/* 5-Phase Tribunal Protocol Progression */}
       <div className="bg-neutral-900/50 border border-neutral-800 rounded-xl p-4">
