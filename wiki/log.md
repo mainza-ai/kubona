@@ -2390,3 +2390,8 @@ skipped is the exact failure this incident is about:
   X402: reboot-safe by construction, proven by test (no ledger backing
   built for a non-hole). I2 (`90a82e5`) + I6 (`66cef19`) landed with
   suites green (Go full, Python 656).
+
+## [2026-10-17] decision | refund primitive + I3 loop reservations landed
+  `41ed4f9` admin-authorized refunds (no auto-refunds by design) +
+  live taxonomy catch (spend_release_refused unregistered). `8a49012`
+  I3: admission bound, drawdown, claim-once release, sleep/wake symmetry.

@@ -88,6 +88,17 @@ status: candidate
 - **I3 — Per-iteration spend reservation for loops** (full accounting):
   designed after S3 lands mid-run checks; S3 must not preclude it (loop row
   carries `reserved_amount`, same columns as jobs).
+  > ✅ LANDED 2026-10-17 (`8a49012`): admission reserves worst-case
+  > (per-iteration ceiling across coder/critic roles × max iters, tenant
+  > + session dual books; unknown metered models fall back to
+  > priciest-known, named in the loop_started event); measured usage
+  > draws down per iteration (unpriced → pause); overrun pauses;
+  > stop/end/sleep release via claim-once (kill racing completion
+  > releases exactly once); sleep releases + wake re-reserves remainder
+  > (refuses when uncovered — this reverses the W2.10 never-sleep-money
+  > skip, which would have frozen sleep for every funded loop);
+  > crash-safe direction documented (over-reserved, never under, refund
+  > primitive recovers). Suite: llm/ledger/engine/api green.
 - **I4 — `DeleteSession` fail-closed cascade**: refuse when non-terminal
   jobs/loops or unreleased reservations exist; else cascade all 8
   session-scoped tables (fixes G6 at the root; S5's export sweep covers
