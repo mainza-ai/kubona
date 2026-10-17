@@ -549,6 +549,18 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 	w.Write(bytes)
 }
 
+// decodeStrict parses a spend-mutation body with unknown fields refused
+// (I6): a typo'd mandate_ref must 400, never parse as absent (zero value)
+// and silently authorize the wrong thing. Applies to the spend paths
+// only (jobs, launch, tribunal, autoresearch-start, mandates/sign,
+// loops) — read/query routes stay lenient so console display probes
+// never 400 on additive fields.
+func decodeStrict(r *http.Request, v any) error {
+	dec := json.NewDecoder(r.Body)
+	dec.DisallowUnknownFields()
+	return dec.Decode(v)
+}
+
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	health := map[string]string{
 		"status":    "healthy",
@@ -859,8 +871,8 @@ func (s *Server) handleMandateSign(w http.ResponseWriter, r *http.Request) {
 		TtlSeconds   int64                `json:"ttl_seconds"`
 		AdminAction  *tenants.AdminAction `json:"admin_action"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if err := decodeStrict(r, &req); err != nil {
+		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid request body: %v", err), nil)
 		return
 	}
 
@@ -2113,8 +2125,8 @@ func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
 		// S1: optional content-bound idempotency key (see handleJobs).
 		RequestID string `json:"request_id"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if err := decodeStrict(r, &req); err != nil {
+		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid request body: %v", err), nil)
 		return
 	}
 
@@ -2264,8 +2276,8 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 		// 4-turn run executes once; retries replay the stored consensus).
 		RequestID string `json:"request_id"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if err := decodeStrict(r, &req); err != nil {
+		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid request body: %v", err), nil)
 		return
 	}
 
@@ -2519,8 +2531,8 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 			// behavior (console back-compat).
 			RequestID string `json:"request_id"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+		if err := decodeStrict(r, &req); err != nil {
+			WriteAPIError(w, "bad_request", fmt.Sprintf("invalid request body: %v", err), nil)
 			return
 		}
 		// Dispatch is always attributed to a real session (tenant
@@ -2677,8 +2689,8 @@ func (s *Server) handleLoops(w http.ResponseWriter, r *http.Request) {
 			SessionID string `json:"session_id"`
 			MaxSteps  int    `json:"max_steps"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
+		if err := decodeStrict(r, &req); err != nil {
+			WriteAPIError(w, "bad_request", fmt.Sprintf("invalid request body: %v", err), nil)
 			return
 		}
 		loop, err := s.supervisor.RegisterLoop(req.SessionID, req.MaxSteps)
@@ -3567,8 +3579,8 @@ func (s *Server) handleAutoresearchStart(w http.ResponseWriter, r *http.Request)
 		// baseline run executes once; retries replay the stored state).
 		RequestID string `json:"request_id"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+	if err := decodeStrict(r, &req); err != nil {
+		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid request body: %v", err), nil)
 		return
 	}
 
