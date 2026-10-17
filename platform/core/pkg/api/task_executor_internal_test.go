@@ -10,7 +10,7 @@ import (
 // is refused here — enforcement lives in the core rail, never in the adapter.
 func TestMapA2ATaskToJobContract(t *testing.T) {
 	// Unknown task types refuse (no invented execution paths).
-	if _, _, err := mapA2ATaskToJob("teleportation_teleport", json.RawMessage(`{}`)); err == nil {
+	if _, _, _, err := mapA2ATaskToJob("teleportation_teleport", json.RawMessage(`{}`)); err == nil {
 		t.Fatalf("unmapped capability must refuse")
 	}
 
@@ -32,8 +32,12 @@ func TestMapA2ATaskToJobContract(t *testing.T) {
 		{"potential_energy_scan", `{"molecule":"H2"}`},
 		{"potential_energy_scan", `{"molecule":"H2","r_min":0.5,"r_max":1.5,"steps":1}`},
 		{"potential_energy_scan", `{"molecule":"H2","r_min":1.5,"r_max":0.5}`},
+		{"molecular_ground_state_pyscf", `{"molecule":"H2","bond_distance":0.7414}`},
+		{"molecular_ground_state_pyscf", `{"molecule":"H2","bond_distance":0.7414,"max_cost_usd":0}`},
+		{"molecular_ground_state_pyscf", `{"molecule":"H2","bond_distance":0.7414,"max_cost_usd":-5}`},
+		{"zne_error_mitigation", `{"qasm":"q;","max_cost_usd":"a-lot"}`},
 	} {
-		if _, _, err := mapA2ATaskToJob(tc.taskType, json.RawMessage(tc.payload)); err == nil {
+		if _, _, _, err := mapA2ATaskToJob(tc.taskType, json.RawMessage(tc.payload)); err == nil {
 			t.Fatalf("%s %s must refuse", tc.taskType, tc.payload)
 		}
 	}
@@ -48,15 +52,15 @@ func TestMapA2ATaskToJobContract(t *testing.T) {
 		"potential_energy_scan":         "pes_sweep",
 	}
 	payloads := map[string]string{
-		"molecular_ground_state_pyscf":  `{"molecule":"H2","bond_distance":0.7414}`,
-		"circuit_cutting_recombination": `{"qasm":"q;","max_subcircuit_qubits":2}`,
-		"zne_error_mitigation":          `{"qasm":"q;"}`,
-		"krylov_subspace_ground_state":  `{"molecule":"H2","bond_distance":0.7414}`,
-		"epistemic_claim_evaluation":    `{"claim_id":"claim-h2-ground","statement":"H2 within chemical accuracy","quantum_value":-1.1368,"classical_anchor_value":-1.13727,"source_platforms":["pyscf","aer"],"total_engagement":12}`,
-		"potential_energy_scan":         `{"molecule":"H2","r_min":0.5,"r_max":1.5}`,
+		"molecular_ground_state_pyscf":  `{"molecule":"H2","bond_distance":0.7414,"max_cost_usd":2.5}`,
+		"circuit_cutting_recombination": `{"qasm":"q;","max_subcircuit_qubits":2,"max_cost_usd":1.0}`,
+		"zne_error_mitigation":          `{"qasm":"q;","max_cost_usd":1.0}`,
+		"krylov_subspace_ground_state":  `{"molecule":"H2","bond_distance":0.7414,"max_cost_usd":2.5}`,
+		"epistemic_claim_evaluation":    `{"claim_id":"claim-h2-ground","statement":"H2 within chemical accuracy","quantum_value":-1.1368,"classical_anchor_value":-1.13727,"source_platforms":["pyscf","aer"],"total_engagement":12,"max_cost_usd":0.5}`,
+		"potential_energy_scan":         `{"molecule":"H2","r_min":0.5,"r_max":1.5,"max_cost_usd":3.0}`,
 	}
 	for taskType, wantJob := range mapped {
-		jobType, _, err := mapA2ATaskToJob(taskType, json.RawMessage(payloads[taskType]))
+		jobType, _, _, err := mapA2ATaskToJob(taskType, json.RawMessage(payloads[taskType]))
 		if err != nil {
 			t.Fatalf("%s: %v", taskType, err)
 		}
