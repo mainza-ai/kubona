@@ -3628,6 +3628,37 @@ func (s *Server) handleAutoresearchStart(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	// I3: loop spend admission — reserve the worst-case total BEFORE the
+	// baseline run (which may burn LLM). The bound prices every
+	// iteration's ceiling across loop roles; remainder releases at loop
+	// end. A ceiling that cannot cover the bound refuses here (never a
+	// mid-run surprise); local/unpriced roles bind $0 (nothing to bill).
+	arTenant := ""
+	if sess, gerr := s.sessionMgr.GetSession(req.SessionID); gerr == nil {
+		arTenant = sess.TenantID
+	}
+	perIter, priceFallbacks := llm.LoopIterationBound(s.llmSettings, []string{"coder", "critic"})
+	loopReserveTotal := perIter * float64(req.MaxIterations)
+	if loopReserveTotal > 0 {
+		if arTenant == "" {
+			http.Error(w, "loop spend has no tenant to bill: refusing", http.StatusForbidden)
+			return
+		}
+		if err := s.tenantMgr.ReserveSpend(arTenant, loopReserveTotal); err != nil {
+			WriteAPIError(w, "ceiling_exceeded", fmt.Sprintf("loop worst-case $%.4f exceeds tenant means: %v", loopReserveTotal, err), map[string]any{
+				"tenant_id": arTenant, "reserved_usd": loopReserveTotal, "max_iterations": req.MaxIterations,
+			})
+			return
+		}
+		if err := s.sessionMgr.ReserveSpend(req.SessionID, loopReserveTotal); err != nil {
+			_ = s.tenantMgr.ReleaseSpend(arTenant, loopReserveTotal)
+			WriteAPIError(w, "ceiling_exceeded", fmt.Sprintf("loop worst-case $%.4f exceeds session means: %v", loopReserveTotal, err), map[string]any{
+				"session_id": req.SessionID, "reserved_usd": loopReserveTotal,
+			})
+			return
+		}
+	}
+
 	loopID := fmt.Sprintf("loop-%s-%s", req.HarnessID, uuid.New().String()[:8])
 	engine := autoresearch.NewLoopEngine(
 		loopID,
@@ -3640,6 +3671,11 @@ func (s *Server) handleAutoresearchStart(w http.ResponseWriter, r *http.Request)
 	)
 	// S3: mid-run spend bound — entry checks never bound a hot loop.
 	engine.SetBudgetCheck(func() error { return s.checkLLMBudget() })
+	// I3: per-iteration drawdown against the admission reservation.
+	engine.SetSpendReservation(loopReserveTotal)
+	engine.SetSpendRecorder(func(role string, promptTokens, completionTokens int) (float64, error) {
+		return s.recordLoopSpend(loopID, role, promptTokens, completionTokens)
+	})
 
 	// Hook up Section 13 Meta-Search stagnation trigger
 	engine.SetStagnationCallback(func(lID string, discards int, champion string) {
@@ -3666,12 +3702,32 @@ func (s *Server) handleAutoresearchStart(w http.ResponseWriter, r *http.Request)
 	s.autoresearchMu.Unlock()
 
 	s.ledger.AppendEvent(req.SessionID, "autoresearch_loop_started", map[string]any{
-		"loop_id":        loopID,
-		"harness_id":     req.HarnessID,
-		"max_iterations": req.MaxIterations,
+		"loop_id":         loopID,
+		"harness_id":      req.HarnessID,
+		"max_iterations":  req.MaxIterations,
+		"reserved_usd":    loopReserveTotal,
+		"price_fallbacks": priceFallbacks,
 	})
-	// S3: the loops table previously had no writer — persist the row so
+	// I3: the loops table previously had no writer — persist the row so
 	// sleep/wake/drain and restarts have restart-surviving truth.
+	// Reservation books ride the row from birth (tenant + total).
+	// Birth write carries the tenant explicitly (the carry in
+	// persistLoopRow reads the row — which does not exist yet here).
+	if arTenant != "" && loopReserveTotal > 0 {
+		if err := s.ledger.SaveLoopState(ledger.LoopPersist{
+			ID: loopID, SessionID: req.SessionID, HarnessID: req.HarnessID,
+			Status: string(engine.State().Status), StepCount: 0,
+			MaxSteps: req.MaxIterations, LastActivity: time.Now().UTC(),
+			ReservedAmount: loopReserveTotal, ReservedTenant: arTenant,
+		}); err != nil {
+			// Birth row failed: unwind the reservation (no orphaned hold)
+			// and refuse — a loop whose books cannot persist cannot run.
+			_ = s.tenantMgr.ReleaseSpend(arTenant, loopReserveTotal)
+			_ = s.sessionMgr.ReleaseSpend(req.SessionID, loopReserveTotal)
+			http.Error(w, fmt.Sprintf("loop spend books failed: %v", err), http.StatusInternalServerError)
+			return
+		}
+	}
 	s.persistLoopRow(engine)
 
 	s.idemFinishJSON(w, arIdem, http.StatusCreated, engine.State())
@@ -3702,16 +3758,18 @@ const (
 // reconciled on the next transition.
 func (s *Server) persistLoopRow(engine *autoresearch.LoopEngine) {
 	st := engine.State()
-	// W2.10: preserve a pre-existing reservation — the upsert overwrites
-	// reserved_amount, so persisting without carrying it would wipe loop
-	// spend the moment I3 lands per-iteration reservation.
-	var reserved float64
-	_ = s.ledger.DB().QueryRow(`SELECT reserved_amount FROM loops WHERE id = ?`, st.ID).Scan(&reserved)
+	// I3: spend books persist from the engine telemetry (reserved +
+	// consumed mirrors); reserved_tenant lives row-side only (engines
+	// never learn tenants), so carry it across the upsert. Admission
+	// sets it at birth; every later persist must not wipe it.
+	var tenant string
+	_ = s.ledger.DB().QueryRow(`SELECT reserved_tenant FROM loops WHERE id = ?`, st.ID).Scan(&tenant)
 	if err := s.ledger.SaveLoopState(ledger.LoopPersist{
 		ID: st.ID, SessionID: st.SessionID, HarnessID: st.HarnessID,
 		Status: string(st.Status), StepCount: st.CurrentIteration,
 		MaxSteps: st.MaxIterations, LastActivity: st.LastActivity,
-		Drain: st.Drained, ReservedAmount: reserved,
+		Drain: st.Drained, ReservedAmount: st.ReservedAmount,
+		ReservedTenant: tenant, ConsumedAmount: st.ConsumedAmount,
 	}); err != nil {
 		// W2.10: loud, timestamped, and audited — the old bare println
 		// vanished into scrollback while DB and memory diverged.
@@ -3720,6 +3778,119 @@ func (s *Server) persistLoopRow(engine *autoresearch.LoopEngine) {
 			"loop_id": st.ID, "error": err.Error(),
 		})
 	}
+}
+
+// recordLoopSpend prices one measured loop LLM call and draws it
+// against the loop's reservation (I3). Local models cost nothing;
+// measured tokens on an unpriced model pause the loop (fail-closed —
+// spend that cannot be accounted cannot continue). Successful metered
+// calls always carry usage (the client refuses blind spend), so a zero
+// measurement here is genuine, not missing data.
+func (s *Server) recordLoopSpend(loopID, role string, promptTokens, completionTokens int) (float64, error) {
+	prov, model, err := s.llmSettings.GetModelForRole(role)
+	if err != nil {
+		return 0, fmt.Errorf("cannot price role %q: %w", role, err)
+	}
+	if prov == llm.ProviderOMLX || prov == llm.ProviderOllama || prov == llm.ProviderLMStudio {
+		return 0, nil
+	}
+	cost, ok := llm.EstimateCostUSD(prov, model, promptTokens, completionTokens)
+	if !ok {
+		return 0, fmt.Errorf("unpriced model %q: measured spend unaccountable, pausing", model)
+	}
+	if err := s.ledger.AddLoopConsumed(loopID, cost); err != nil {
+		return 0, err
+	}
+	return cost, nil
+}
+
+// releaseLoopSpend returns a loop's unspent reservation (I3): claim the
+// row once (kill racing completion releases exactly once), unwind tenant
+// AND session books, seal the audit event. Idempotent — already-released
+// loops are a no-op receipt. Returns false only on ledger failure (the
+// reservation may still be held — callers must NOT park the loop then).
+// Stuck money stays visible in spent_usd, recoverable via refund.
+func (s *Server) releaseLoopSpend(loopID, cause string) bool {
+	st, err := s.ledger.GetLoopState(loopID)
+	if err != nil {
+		log.Printf("[Kubona Core] loop spend release failed for %s: %v", loopID, err)
+		return false
+	}
+	sessionID := ""
+	if st != nil {
+		sessionID = st.SessionID
+	}
+	tenant, refund, ok, err := s.ledger.ClaimLoopSpend(loopID)
+	if err != nil {
+		log.Printf("[Kubona Core] loop spend release failed for %s: %v", loopID, err)
+		return false
+	}
+	if !ok {
+		return true
+	}
+	// I3: clear the engine mirrors so the next persist cannot resurrect
+	// the reservation from State (released twice = double refund).
+	s.autoresearchMu.RLock()
+	engine, present := s.activeAutoloops[loopID]
+	s.autoresearchMu.RUnlock()
+	if present {
+		engine.ClearSpendReservation()
+	}
+	if tenant != "" && refund > 0 {
+		if rerr := s.tenantMgr.ReleaseSpend(tenant, refund); rerr != nil {
+			log.Printf("[Kubona Core] loop spend tenant release failed for %s: %v", loopID, rerr)
+		}
+	}
+	if sessionID != "" && refund > 0 {
+		if rerr := s.sessionMgr.ReleaseSpend(sessionID, refund); rerr != nil {
+			log.Printf("[Kubona Core] loop spend session release failed for %s: %v", loopID, rerr)
+		}
+	}
+	_ = s.ledger.AppendEvent(sessionID, "loop_spend_released", map[string]any{
+		"loop_id": loopID, "tenant_id": tenant, "amount_usd": refund, "cause": cause,
+	})
+	return true
+}
+
+// rereserveLoopSpend funds a waking (previously slept) loop for its
+// remaining iterations. Refuses when the ceiling cannot cover — wake is
+// admission, not a right (the caller re-sleeps on refusal). Paused-only
+// loops never released, so they never reach here.
+func (s *Server) rereserveLoopSpend(engine *autoresearch.LoopEngine) error {
+	st := engine.State()
+	remaining := st.MaxIterations - st.CurrentIteration
+	if remaining <= 0 {
+		return nil
+	}
+	sess, err := s.sessionMgr.GetSession(st.SessionID)
+	if err != nil {
+		return fmt.Errorf("wake needs a live session to bill: %w", err)
+	}
+	perIter, _ := llm.LoopIterationBound(s.llmSettings, []string{"coder", "critic"})
+	total := perIter * float64(remaining)
+	if total <= 0 {
+		return nil
+	}
+	if err := s.tenantMgr.ReserveSpend(sess.TenantID, total); err != nil {
+		return fmt.Errorf("wake re-reserve $%.4f refused: %w", total, err)
+	}
+	if err := s.sessionMgr.ReserveSpend(st.SessionID, total); err != nil {
+		_ = s.tenantMgr.ReleaseSpend(sess.TenantID, total)
+		return fmt.Errorf("wake re-reserve $%.4f refused: %w", total, err)
+	}
+	engine.SetSpendReservation(total)
+	if err := s.ledger.SaveLoopState(ledger.LoopPersist{
+		ID: st.ID, SessionID: st.SessionID, HarnessID: st.HarnessID,
+		Status: string(st.Status), StepCount: st.CurrentIteration,
+		MaxSteps: st.MaxIterations, LastActivity: st.LastActivity,
+		Drain: st.Drained, ReservedAmount: total, ReservedTenant: sess.TenantID,
+	}); err != nil {
+		engine.ClearSpendReservation()
+		_ = s.tenantMgr.ReleaseSpend(sess.TenantID, total)
+		_ = s.sessionMgr.ReleaseSpend(st.SessionID, total)
+		return fmt.Errorf("wake spend books failed: %w", err)
+	}
+	return nil
 }
 
 // SweepIdleLoops sleeps engines past the idle threshold (S3). Only
@@ -3751,14 +3922,13 @@ func (s *Server) SweepIdleLoops(now time.Time, idleAfter time.Duration) []string
 		if last.IsZero() || now.Sub(last) < idleAfter {
 			continue
 		}
-		// W2.10: never sleep money. Loop reservations are I3-future
-		// (always 0 today), but if a row ever carries spend, the sweeper
-		// skips it loudly instead of parking it unreachable.
-		var reserved float64
-		_ = s.ledger.DB().QueryRow(`SELECT reserved_amount FROM loops WHERE id = ?`, st.ID).Scan(&reserved)
-		if reserved > 0 {
+		// I3: sleep releases the reservation first (money never parks
+		// unreachable — this reverses the W2.10 skip, which would have
+		// frozen sleep for every funded loop now that reservations are
+		// real). A failed release refuses the sleep loudly instead.
+		if !s.releaseLoopSpend(st.ID, "sleep") {
 			s.ledger.AppendEvent(st.SessionID, "autoresearch_loop_sleep_refused", map[string]any{
-				"loop_id": st.ID, "reason": "outstanding loop reservation",
+				"loop_id": st.ID, "reason": "spend release failed",
 			})
 			continue
 		}
@@ -3816,6 +3986,11 @@ func (s *Server) handleAutoresearchLoopAction(w http.ResponseWriter, r *http.Req
 			return
 		}
 		s.persistLoopRow(engine)
+		// I3: terminal steps settle the books (kill racing completion
+		// releases exactly once via the claim).
+		if st := engine.State().Status; st == autoresearch.StatusCompleted || st == autoresearch.StatusAborted {
+			s.releaseLoopSpend(loopID, "end")
+		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"step":  rec,
 			"state": engine.State(),
@@ -3831,6 +4006,8 @@ func (s *Server) handleAutoresearchLoopAction(w http.ResponseWriter, r *http.Req
 	case "stop":
 		engine.Abort()
 		s.persistLoopRow(engine)
+		// I3: stopping settles the books (unspent reservation returns).
+		s.releaseLoopSpend(loopID, "end")
 		writeJSON(w, http.StatusOK, engine.State())
 	case "sleep":
 		// S3: explicit sleep — release the harness, keep history; wake
@@ -3839,6 +4016,17 @@ func (s *Server) handleAutoresearchLoopAction(w http.ResponseWriter, r *http.Req
 		st := engine.State().Status
 		if st != autoresearch.StatusRunning && st != autoresearch.StatusPaused {
 			http.Error(w, fmt.Sprintf("loop is %s: only running/paused loops sleep", st), http.StatusConflict)
+			return
+		}
+		// I3: sleep releases the reservation FIRST (money never parks
+		// unreachable — this reverses the W2.10 skip, which would have
+		// frozen sleep for every funded loop). A failed release refuses
+		// the sleep loudly instead. Wake re-reserves.
+		if !s.releaseLoopSpend(loopID, "sleep") {
+			s.ledger.AppendEvent(engine.State().SessionID, "autoresearch_loop_sleep_refused", map[string]any{
+				"loop_id": loopID, "reason": "spend release failed",
+			})
+			http.Error(w, "sleep refused: loop spend could not be released", http.StatusInternalServerError)
 			return
 		}
 		engine.Sleep()
@@ -3871,6 +4059,18 @@ func (s *Server) handleAutoresearchLoopAction(w http.ResponseWriter, r *http.Req
 			return
 		}
 		engine.Resume()
+		// I3: sleeping loops released on sleep — waking re-reserves the
+		// remaining estimate (refuses when the ceiling cannot cover, and
+		// re-sleeps so no unfunded loop runs; paused/stagnant loops never
+		// released, nothing to top up).
+		if st == autoresearch.StatusSleeping {
+			if werr := s.rereserveLoopSpend(engine); werr != nil {
+				engine.Sleep()
+				s.persistLoopRow(engine)
+				s.idemFinishError(w, widem, http.StatusForbidden, werr.Error())
+				return
+			}
+		}
 		s.persistLoopRow(engine)
 		s.ledger.AppendEvent(engine.State().SessionID, "autoresearch_loop_woken", map[string]any{
 			"loop_id": loopID,

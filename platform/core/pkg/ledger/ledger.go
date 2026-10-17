@@ -266,6 +266,11 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN last_activity DATETIME`)
 	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN drain INTEGER NOT NULL DEFAULT 0`)
 	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN reserved_amount REAL NOT NULL DEFAULT 0`)
+	// I3: per-iteration loop accounting — who funded the reservation and
+	// how much of it the iterations have consumed (drawdown). Release at
+	// loop end returns reserved - consumed to reserved_tenant.
+	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN reserved_tenant TEXT NOT NULL DEFAULT ''`)
+	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN consumed_amount REAL NOT NULL DEFAULT 0`)
 	// Normalize pre-migration rows (ALTER ... DEFAULT '' backfills '').
 	_, _ = db.Exec(`UPDATE ledger_events SET tenant_id = 'default' WHERE tenant_id = ''`)
 	_, _ = db.Exec(`UPDATE sessions SET tenant_id = 'default' WHERE tenant_id = ''`)
@@ -699,6 +704,9 @@ func (l *Ledger) SaveCampaignState(sessionID string, stateJSON []byte) error {
 
 // LoopPersist is the persisted projection of an autoresearch loop (S3).
 // Engines live in memory; this row is the restart-surviving truth.
+// ReservedAmount/ReservedTenant/ConsumedAmount are the I3 spend books:
+// reserved_total upfront, consumed drawn per iteration, released back to
+// reserved_tenant (reserved - consumed) at loop end.
 type LoopPersist struct {
 	ID             string
 	SessionID      string
@@ -709,11 +717,13 @@ type LoopPersist struct {
 	LastActivity   time.Time
 	Drain          bool
 	ReservedAmount float64
+	ReservedTenant string
+	ConsumedAmount float64
 	UpdatedAt      time.Time
 }
 
-// SaveLoopState upserts a loop row. reserved_amount is I3-reserved (always
-// written, always 0 until per-iteration reservation lands).
+// SaveLoopState upserts a loop row (I3 spend books included: reserved
+// total, funding tenant, consumed drawdown).
 func (l *Ledger) SaveLoopState(p LoopPersist) error {
 	l.lock.Lock()
 	defer l.lock.Unlock()
@@ -721,11 +731,12 @@ func (l *Ledger) SaveLoopState(p LoopPersist) error {
 	if p.Drain {
 		drain = 1
 	}
-	_, err := l.db.Exec(`INSERT INTO loops (id, session_id, harness_id, status, step_count, max_steps, diverged, created_at, updated_at, last_activity, drain, reserved_amount)
-		VALUES (?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?)
+	_, err := l.db.Exec(`INSERT INTO loops (id, session_id, harness_id, status, step_count, max_steps, diverged, created_at, updated_at, last_activity, drain, reserved_amount, reserved_tenant, consumed_amount)
+		VALUES (?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET status=excluded.status, step_count=excluded.step_count, max_steps=excluded.max_steps,
-		updated_at=CURRENT_TIMESTAMP, last_activity=excluded.last_activity, drain=excluded.drain, reserved_amount=excluded.reserved_amount`,
-		p.ID, p.SessionID, p.HarnessID, p.Status, p.StepCount, p.MaxSteps, p.LastActivity.UTC().Format(time.RFC3339), drain, p.ReservedAmount)
+		updated_at=CURRENT_TIMESTAMP, last_activity=excluded.last_activity, drain=excluded.drain, reserved_amount=excluded.reserved_amount,
+		reserved_tenant=excluded.reserved_tenant, consumed_amount=excluded.consumed_amount`,
+		p.ID, p.SessionID, p.HarnessID, p.Status, p.StepCount, p.MaxSteps, p.LastActivity.UTC().Format(time.RFC3339), drain, p.ReservedAmount, p.ReservedTenant, p.ConsumedAmount)
 	if err != nil {
 		return fmt.Errorf("save loop state failed: %w", err)
 	}
@@ -736,7 +747,7 @@ func (l *Ledger) SaveLoopState(p LoopPersist) error {
 func (l *Ledger) ListLoopStates() ([]LoopPersist, error) {
 	l.lock.RLock()
 	defer l.lock.RUnlock()
-	rows, err := l.db.Query(`SELECT id, session_id, harness_id, status, step_count, max_steps, last_activity, drain, reserved_amount, updated_at FROM loops ORDER BY updated_at DESC`)
+	rows, err := l.db.Query(`SELECT id, session_id, harness_id, status, step_count, max_steps, last_activity, drain, reserved_amount, reserved_tenant, consumed_amount, updated_at FROM loops ORDER BY updated_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -746,7 +757,7 @@ func (l *Ledger) ListLoopStates() ([]LoopPersist, error) {
 		var p LoopPersist
 		var lastAct, updated sql.NullString
 		var drain int
-		if err := rows.Scan(&p.ID, &p.SessionID, &p.HarnessID, &p.Status, &p.StepCount, &p.MaxSteps, &lastAct, &drain, &p.ReservedAmount, &updated); err != nil {
+		if err := rows.Scan(&p.ID, &p.SessionID, &p.HarnessID, &p.Status, &p.StepCount, &p.MaxSteps, &lastAct, &drain, &p.ReservedAmount, &p.ReservedTenant, &p.ConsumedAmount, &updated); err != nil {
 			return nil, err
 		}
 		p.Drain = drain != 0
