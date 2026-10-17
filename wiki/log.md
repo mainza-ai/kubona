@@ -2273,3 +2273,14 @@ skipped is the exact failure this incident is about:
   test; test event names migrated to registered types (incl. a spend
   story). Enforcement caught missing proposal_generated on first run.
   8 tests, race green, live shape intact. Rows on gaps + plan S6.
+
+## [2026-10-17] fix | taxonomy completeness (CI caught 2 misses)
+  Enforcing the event taxonomy broke TestLedgerAppendIssuesServerReceipt
+  (tribunal_commit via /api/ledger/append) and TestA2AHarnessAndQIRDelegation
+  (a2a_qir_compile via sealReceipt) — both legitimate types my grep
+  inventory missed (multiline calls, variable-held disk events). Registry
+  completed (tribunal_commit/peer_review/annotation/a2a_* pair), plus a
+  subset test pinning the route allowlist to the registry. Process fix:
+  landing verification now uses go test -count=1 (a cached green masked
+  this locally — the earlier full-suite pass reused a pre-enforcement
+  pkg/api result).

@@ -19,6 +19,17 @@ var tribunalLedgerEventTypes = map[string]bool{
 	"annotation":      true,
 }
 
+// LedgerAppendAllowlist exposes the route allowlist for the taxonomy
+// conformance test (S6): the allowlist must stay a subset of the ledger
+// registry, or the two lists rot apart silently.
+func LedgerAppendAllowlist() []string {
+	out := make([]string, 0, len(tribunalLedgerEventTypes))
+	for et := range tribunalLedgerEventTypes {
+		out = append(out, et)
+	}
+	return out
+}
+
 // handleLedgerAppend seals a console-side outcome (tribunal verdict, review,
 // annotation) into the hash-chained ledger and returns the server-issued
 // record hash. The receipt is computed by the ledger — never by the client.
