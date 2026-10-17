@@ -2430,3 +2430,11 @@ skipped is the exact failure this incident is about:
   29 tools / ~8–10 KB / ~2k tokens (~1/200th of REA all-loaded) —
   hygiene program, not emergency. Slices queued in `[[remaining-work]]` §B;
   lint `SOURCE_KEYS` + census updated (128 pages, ties out).
+
+## [2026-10-17] decision | leanrea conflicts remediated + phased roadmap
+  `[[leanrea-conflicts-and-remediation]]` (LC1–LC10 + non-conflicts):
+  distribution gated on public flip (LC1), L2-baseline→L3→L2-rerun order
+  corrected (LC3), hermetic bench + wording contracts + deprecation
+  policy decided. Plan page gains phased roadmap L-A/L-B/L-C with
+  entry/exit gates. No questions.md rows opened or closed (insight
+  unchanged — stated on the page, not dodged).

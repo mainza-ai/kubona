@@ -47,8 +47,10 @@ status: tracked
 ## B · Queued programs (unblocked, beyond a single slice)
 
 - P1-4 subsystem consolidation execution — design: [[agent-subsystem-consolidation]].
-- Lean skill slices L1–L5 (plan: [[leanrea-adoption-plan]] §3 — S-sized,
-  ordered L1 → L2+L3 → L4 → L5, none touch the trust boundary):
+- Lean skill slices L1–L5 (plan: [[leanrea-adoption-plan]] §3, conflicts:
+  [[leanrea-conflicts-and-remediation]] — S-sized, ordered L1 → L2-baseline
+  → L3 → L2-rerun → L4 → L5 (LC3: baseline before change), none touch the
+  trust boundary; distribution gated on the public flip (LC1).
   L1 `skills/kubona/SKILL.md` (router + traps + first-moves, ≤12 KB
   pinned); L2 `bench/` harness with answer keys + ctx-budget gate;
   L3 scribe seen/inferred/unknown tags (convention, R3 gate unchanged);

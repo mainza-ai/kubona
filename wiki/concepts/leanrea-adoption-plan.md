@@ -179,15 +179,29 @@ silent edits; rollback stated.
 - **Rollback:** catalog is additive; no tool removed in this slice
   (removal, if ever, is a separate decided slice per tool).
 
-### Sequencing
+### Sequencing (corrected per LC3 — baseline before change)
 
-L1 (knowledge, no dependencies) → L2 (needs L1 tasks) + L3 (needs R3,
-landed) in either order → L4 (needs L1 call-sites) → L5 last (needs
-the I1 budget to judge against). Relation to other plans: L2 converges
-with R6 measurement (scores feed keys, never gates); L5 closes P2-13;
-L1 is the week-one form of P2-14's remainder (skill now, installer
-only if needed); none touch the trust boundary (Waves 0–2, R-series
-untouched by design).
+L1 (knowledge, no dependencies) → L2-baseline (record numbers +
+caveats) → L3 (tags) → L2-rerun (delta as result) → L4 (needs L1
+call-sites; hermetic per LC9) → L5 last (needs the I1 budget to judge
+against; removals per LC6 as separate slices). Relation to other plans:
+L2 converges with R6 measurement (scores recorded alongside, never as
+keys per LC8); L5 closes P2-13; L1 is the week-one form of P2-14's
+remainder (skill now, installer only if needed); none touch the trust
+boundary (Waves 0–2, R-series untouched by design); distribution gated
+per LC1.
+
+### Phased roadmap (entry/exit per phase; each phase pushes independently, CI green throughout)
+
+| Phase | Slices | Entry (gate in) | Exit (gate out) |
+|---|---|---|---|
+| L-A · Knowledge + baseline | L1, L2-baseline | This page adopted (candidate → adopted) | `skills/kubona/SKILL.md` merged with pin tests green; first bench numbers + caveats published (even n=3) |
+| L-B · Convention + checks | L3, L4 | L-A exit | Recorded transcripts carry all three tags by reading; `doctor` deepened with hermetic tests green in CI |
+| L-C · Review + catalog | L5 | L-B exit | Verdict table for all 29 tools checked in; MCP catalog generated with digest discipline; P2-13 closed |
+
+Phase gates are verified by reading (bench report) and running (suites),
+never by prose. A phase that cannot exit green rolls back to its entry —
+slices are additive, so rollback is deletion.
 
 ## 4. What NOT to borrow (explicit non-goals)
 
