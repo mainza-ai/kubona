@@ -2381,3 +2381,7 @@ skipped is the exact failure this incident is about:
 ## [2026-10-17] decision | R5 typed errors + C5 capabilities landed
   `937303a` 19-code catalog + migrated decision paths; `1c4993e`
   tool catalog + capabilities + CLI exits. I5 delivered by the endpoint.
+
+## [2026-10-17] decision | R6 scoring pilot + C4 proposal producer landed
+  `217b062`: rule rubric + scores table + response rows + pairing test.
+  Fixture delta 0.88; stub-vs-fallback 0.00 (honest); model delta queued.

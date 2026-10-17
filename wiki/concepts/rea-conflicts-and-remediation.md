@@ -139,6 +139,11 @@ without a ledger keep passing); the HTTP handler stops double-sealing
 evidence). Deleting the row instead would waste a true concept.
 **Slice (S, with R6):** one emit + assertion that proposal-bearing
 tribunals always seal it.
+> ✅ LANDED 2026-10-17 (`217b062`, with R6): `proposal_generated`
+> emitted beside the claim mint (claim_record_id + obligation_id +
+> has_proposal + consensus — the claim's evidence shape); every
+> claim-bearing tribunal response has a matching event (HTTP test
+> asserts the pairing, including obligation agreement).
 - Accept: every `claim_record_id`-bearing tribunal response has a
   matching `proposal_generated` event in the session stream.
 

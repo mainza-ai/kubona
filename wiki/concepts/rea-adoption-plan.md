@@ -266,6 +266,19 @@ notes, never silent edits; rollback stated.
 
 ### R6 — Transcript scoring pilot (S, alongside R2)
 
+> ✅ LANDED 2026-10-17 (`217b062`): rule-based per-role rubric
+> (`pkg/agents/scoring.go` — substring/regex signals only, Q-26: no LLM
+> judging) over recorded transcripts (content + coverage + case
+> authorship); scores persist per (obligation, role) in
+> `transcript_scores` (upsert on rescore, absence reads empty), ride the
+> tribunal response, and are never enforced (measurement before gating).
+> Fixtures resolve (good 1.00 vs thin 0.12, delta 0.88). Honest pilot
+> finding: stub-authored vs fallback measures 1.00 vs 1.00 (delta 0.00)
+> — the stub returns canned RICH text, so content-identical conditions
+> correctly measure identically; fabricating separation with thin stubs
+> would be theater. Queued operator measurement: DeepSeek-vs-oMLX delta
+> with keyed providers (same harness, swap the stub client).
+
 - **Threat:** tribunal quality unevaluated, model-dependent.
 - **Change:** per-role rubric over recorded transcripts (falsification
   attempted? canary checked? anchor computed?) + scenario evidence
