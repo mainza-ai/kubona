@@ -99,8 +99,11 @@ async def test_phase1_gate_vqe_with_budget_and_provenance():
 
 
 @pytest.mark.asyncio
-async def test_phase1_paid_gate_requires_approval():
+async def test_phase1_paid_gate_requires_approval(monkeypatch):
     """Paid provider: pre-flight refuses without a ceiling; approval gate works."""
+    import secrets
+    # W0.9: approval mints a real signed mandate — key + bindings explicit.
+    monkeypatch.setenv("KUBONA_OPERATOR_PRIVKEY_HEX", secrets.token_hex(32))
     # free provider with session -> ok
     sess = await _call("kubona.mcp.servers.cost", "create_session",
                        {"name": "paid-check", "owner": "researcher", "budget_ceiling_usd": 100.0})
@@ -113,7 +116,8 @@ async def test_phase1_paid_gate_requires_approval():
     held = await _call("kubona.mcp.servers.cost", "hold_approval", {"approval_id": req["approval_id"]})
     assert held["state"] == "HOLD"
     done = await _call("kubona.mcp.servers.cost", "approve_approval",
-                       {"approval_id": req["approval_id"], "reviewer": "pi"})
+                       {"approval_id": req["approval_id"], "reviewer": "pi",
+                        "tenant_id": "lab-a", "job_hash": "job-paid"})
     assert done["state"] == "APPROVED"
 
     # x402 quote flow

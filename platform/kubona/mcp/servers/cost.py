@@ -56,8 +56,22 @@ def hold_approval(approval_id: str, reviewer: str = "operator") -> dict:
     return {"ok": True, "approval_id": a.approval_id, "state": a.state}
 
 
-def approve_approval(approval_id: str, reviewer: str = "operator", note: str | None = None) -> dict:
-    a = _gov.approve(approval_id, reviewer, note)
+def approve_approval(approval_id: str, reviewer: str = "operator", note: str | None = None,
+                     tenant_id: str = "", job_hash: str = "") -> dict:
+    """Approve a held/requested approval. tenant_id + job_hash are required
+    (the mandate binds them); the operator key comes from
+    KUBONA_OPERATOR_PRIVKEY_HEX — unset refuses instead of minting
+    unsigned (W0.9)."""
+    from kubona.cost.mandate import operator_key_from_env
+    try:
+        key = operator_key_from_env()
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
+    try:
+        a = _gov.approve(approval_id, reviewer, note,
+                         tenant_id=tenant_id, job_hash=job_hash, signing_key=key)
+    except RuntimeError as e:
+        return {"ok": False, "error": str(e)}
     return {"ok": True, "approval_id": a.approval_id, "state": a.state}
 
 

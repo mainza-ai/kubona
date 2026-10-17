@@ -104,7 +104,18 @@ async def approval_action(request: Request) -> JSONResponse:
         if action == "hold":
             a = _gov.hold_approval(aid, reviewer)
         elif action == "approve":
-            a = _gov.approve(aid, reviewer, note=request.query_params.get("note"))
+            from kubona.cost.mandate import operator_key_from_env
+            try:
+                key = operator_key_from_env()
+            except ValueError as e:
+                return _json({"ok": False, "error": str(e)}, 503)
+            tenant_id = request.query_params.get("tenant_id", "")
+            job_hash = request.query_params.get("job_hash", "")
+            try:
+                a = _gov.approve(aid, reviewer, note=request.query_params.get("note"),
+                                 tenant_id=tenant_id, job_hash=job_hash, signing_key=key)
+            except RuntimeError as e:
+                return _json({"ok": False, "error": str(e)}, 400)
         elif action == "reject":
             a = _gov.reject(aid, reviewer, note=request.query_params.get("note") or "rejected from console")
         else:

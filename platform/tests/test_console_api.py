@@ -63,10 +63,14 @@ def test_retired_shadow_routes_stay_gone():
     assert client.post("/api/chat/messages", json={}, headers=_h()).status_code == 404
 
 
-def test_approval_flow_over_rest():
+def test_approval_flow_over_rest(monkeypatch):
     # seed an approval through the same service the API reads
+    import os
     from kubona.session import SessionStore
     from kubona.cost.governance import CostGovernanceService
+    # W0.9: approval mints a real signed mandate — operator key + explicit
+    # lab/program bindings travel with the request, never defaults.
+    monkeypatch.setenv("KUBONA_OPERATOR_PRIVKEY_HEX", os.urandom(32).hex())
 
     gov = CostGovernanceService(SessionStore())
     s = gov.sessions.create("api-test", "researcher", budget_ceiling_usd=100.0)
@@ -77,7 +81,7 @@ def test_approval_flow_over_rest():
     # regardless of other tests' approvals in the shared store).
     r = client.post(f"/api/approvals/{a.approval_id}/hold", headers=_h())
     assert r.status_code == 200 and r.json()["ok"] is True
-    r = client.post(f"/api/approvals/{a.approval_id}/approve", headers=_h())
+    r = client.post(f"/api/approvals/{a.approval_id}/approve?tenant_id=lab-a&job_hash=job-1", headers=_h())
     assert r.json()["state"] == "APPROVED"
     r = client.post(f"/api/approvals/{a.approval_id}/reject", headers=_h())
     assert r.json()["ok"] is False  # already approved -> governance error surfaced
