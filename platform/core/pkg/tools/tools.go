@@ -2,6 +2,8 @@ package tools
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -27,7 +29,55 @@ type Definition struct {
 	Handler    Handler
 }
 
-// Call is one model-requested invocation.
+// Snapshot describes one registered tool for catalog generation
+// (R5/C5): name, capability, read-only flag, and granted roles.
+type Snapshot struct {
+	Name       string   `json:"name"`
+	Capability string   `json:"capability"`
+	ReadOnly   bool     `json:"read_only"`
+	Roles      []string `json:"roles"`
+}
+
+// Catalog returns a sorted snapshot of the registry (tools by name,
+// roles sorted). The R5 tool catalog + capabilities digest build on
+// this — one accessor, never registry internals elsewhere.
+func (r *Registry) Catalog() []Snapshot {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	byName := map[string]*Snapshot{}
+	for name, def := range r.defs {
+		byName[name] = &Snapshot{Name: name, Capability: def.Capability, ReadOnly: def.ReadOnly}
+	}
+	for role, names := range r.roles {
+		for _, n := range names {
+			if s, ok := byName[n]; ok {
+				s.Roles = append(s.Roles, role)
+			}
+		}
+	}
+	out := make([]Snapshot, 0, len(byName))
+	for _, s := range byName {
+		sort.Strings(s.Roles)
+		out = append(out, *s)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out
+}
+
+// CatalogJSON renders snapshots in catalog wire shape (sorted tools,
+// sorted roles — Catalog guarantees both) plus the sha256 digest that
+// pins the surface. Single source for the checked-in file, the embedded
+// const, and the capabilities endpoint: all three hash THESE bytes, so
+// they cannot disagree on the algorithm, only on staleness (which 500s).
+func CatalogJSON(snaps []Snapshot) ([]byte, string) {
+	body, err := json.Marshal(snaps)
+	if err != nil {
+		return nil, ""
+	}
+	sum := sha256.Sum256(body)
+	return body, hex.EncodeToString(sum[:])
+}
+
 type Call struct {
 	ID        string
 	Name      string
