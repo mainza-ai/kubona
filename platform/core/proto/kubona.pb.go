@@ -261,8 +261,12 @@ type CircuitExecutionResponse struct {
 	MeyerWallachEntanglement float64                `protobuf:"fixed64,9,opt,name=meyer_wallach_entanglement,json=meyerWallachEntanglement,proto3" json:"meyer_wallach_entanglement,omitempty"`
 	ExecutionTimeMs          float64                `protobuf:"fixed64,10,opt,name=execution_time_ms,json=executionTimeMs,proto3" json:"execution_time_ms,omitempty"`
 	ErrorMessage             string                 `protobuf:"bytes,11,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
+	// W1.8: the real provider-side job id when hardware ran (executor
+	// already produced it; the wire dropped it). Empty for simulators —
+	// never a fabricated id.
+	HardwareJobId string `protobuf:"bytes,12,opt,name=hardware_job_id,json=hardwareJobId,proto3" json:"hardware_job_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CircuitExecutionResponse) Reset() {
@@ -368,6 +372,13 @@ func (x *CircuitExecutionResponse) GetExecutionTimeMs() float64 {
 func (x *CircuitExecutionResponse) GetErrorMessage() string {
 	if x != nil {
 		return x.ErrorMessage
+	}
+	return ""
+}
+
+func (x *CircuitExecutionResponse) GetHardwareJobId() string {
+	if x != nil {
+		return x.HardwareJobId
 	}
 	return ""
 }
@@ -485,13 +496,16 @@ func (x *SubcircuitFragment) GetCutQubits() []int32 {
 }
 
 type CircuitCutResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Success       bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
-	Fragments     []*SubcircuitFragment  `protobuf:"bytes,2,rep,name=fragments,proto3" json:"fragments,omitempty"`
-	TotalCuts     int32                  `protobuf:"varint,3,opt,name=total_cuts,json=totalCuts,proto3" json:"total_cuts,omitempty"`
-	ErrorMessage  string                 `protobuf:"bytes,4,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Success      bool                   `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	Fragments    []*SubcircuitFragment  `protobuf:"bytes,2,rep,name=fragments,proto3" json:"fragments,omitempty"`
+	TotalCuts    int32                  `protobuf:"varint,3,opt,name=total_cuts,json=totalCuts,proto3" json:"total_cuts,omitempty"`
+	ErrorMessage string                 `protobuf:"bytes,4,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	// W1.8: quasi-probability sampling overhead (4^K, capped server-side).
+	// 1.0 when N/A. The executor computed it; the wire dropped it.
+	SamplingOverheadKappa float64 `protobuf:"fixed64,5,opt,name=sampling_overhead_kappa,json=samplingOverheadKappa,proto3" json:"sampling_overhead_kappa,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *CircuitCutResponse) Reset() {
@@ -550,6 +564,13 @@ func (x *CircuitCutResponse) GetErrorMessage() string {
 		return x.ErrorMessage
 	}
 	return ""
+}
+
+func (x *CircuitCutResponse) GetSamplingOverheadKappa() float64 {
+	if x != nil {
+		return x.SamplingOverheadKappa
+	}
+	return 0
 }
 
 type ClassicalAnchorRequest struct {
@@ -815,8 +836,12 @@ type ClaimEvaluationResponse struct {
 	QuantumAdvantageClaimed  bool                   `protobuf:"varint,7,opt,name=quantum_advantage_claimed,json=quantumAdvantageClaimed,proto3" json:"quantum_advantage_claimed,omitempty"`
 	QuantumAdvantageVerified bool                   `protobuf:"varint,8,opt,name=quantum_advantage_verified,json=quantumAdvantageVerified,proto3" json:"quantum_advantage_verified,omitempty"`
 	VerdictReason            string                 `protobuf:"bytes,9,opt,name=verdict_reason,json=verdictReason,proto3" json:"verdict_reason,omitempty"`
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
+	// W1.8: the response carried no success/error — callers could not tell
+	// evaluation from transport failure. Now explicit, like every other RPC.
+	Success       bool   `protobuf:"varint,10,opt,name=success,proto3" json:"success,omitempty"`
+	ErrorMessage  string `protobuf:"bytes,11,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ClaimEvaluationResponse) Reset() {
@@ -908,6 +933,20 @@ func (x *ClaimEvaluationResponse) GetQuantumAdvantageVerified() bool {
 func (x *ClaimEvaluationResponse) GetVerdictReason() string {
 	if x != nil {
 		return x.VerdictReason
+	}
+	return ""
+}
+
+func (x *ClaimEvaluationResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *ClaimEvaluationResponse) GetErrorMessage() string {
+	if x != nil {
+		return x.ErrorMessage
 	}
 	return ""
 }
@@ -1380,8 +1419,11 @@ type MitigationResponse struct {
 	ErrorBound       float64                `protobuf:"fixed64,4,opt,name=error_bound,json=errorBound,proto3" json:"error_bound,omitempty"`
 	MethodUsed       string                 `protobuf:"bytes,5,opt,name=method_used,json=methodUsed,proto3" json:"method_used,omitempty"`
 	ErrorMessage     string                 `protobuf:"bytes,6,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// W1.8: PEC sampling overhead (gamma); 0 when N/A (ZNE/CDR carry no
+	// kappa concept — 0 means unset, never a measurement).
+	SamplingOverheadKappa float64 `protobuf:"fixed64,7,opt,name=sampling_overhead_kappa,json=samplingOverheadKappa,proto3" json:"sampling_overhead_kappa,omitempty"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *MitigationResponse) Reset() {
@@ -1456,6 +1498,13 @@ func (x *MitigationResponse) GetErrorMessage() string {
 	return ""
 }
 
+func (x *MitigationResponse) GetSamplingOverheadKappa() float64 {
+	if x != nil {
+		return x.SamplingOverheadKappa
+	}
+	return 0
+}
+
 var File_kubona_proto protoreflect.FileDescriptor
 
 const file_kubona_proto_rawDesc = "" +
@@ -1471,7 +1520,7 @@ const file_kubona_proto_rawDesc = "" +
 	"\x18allow_classical_fallback\x18\x06 \x01(\bR\x16allowClassicalFallback\x121\n" +
 	"\x14caller_jurisdictions\x18\a \x03(\tR\x13callerJurisdictions\x12.\n" +
 	"\x13caller_export_class\x18\b \x01(\tR\x11callerExportClass\x12'\n" +
-	"\x0fexport_reviewed\x18\t \x01(\bR\x0eexportReviewed\"\xd2\x04\n" +
+	"\x0fexport_reviewed\x18\t \x01(\bR\x0eexportReviewed\"\xfa\x04\n" +
 	"\x18CircuitExecutionResponse\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x18\n" +
 	"\asuccess\x18\x02 \x01(\bR\asuccess\x12)\n" +
@@ -1484,7 +1533,8 @@ const file_kubona_proto_rawDesc = "" +
 	"\x1ameyer_wallach_entanglement\x18\t \x01(\x01R\x18meyerWallachEntanglement\x12*\n" +
 	"\x11execution_time_ms\x18\n" +
 	" \x01(\x01R\x0fexecutionTimeMs\x12#\n" +
-	"\rerror_message\x18\v \x01(\tR\ferrorMessage\x1a9\n" +
+	"\rerror_message\x18\v \x01(\tR\ferrorMessage\x12&\n" +
+	"\x0fhardware_job_id\x18\f \x01(\tR\rhardwareJobId\x1a9\n" +
 	"\vCountsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\x03R\x05value:\x028\x01\"[\n" +
@@ -1496,13 +1546,14 @@ const file_kubona_proto_rawDesc = "" +
 	"fragmentId\x12\x12\n" +
 	"\x04qasm\x18\x02 \x01(\tR\x04qasm\x12\x1d\n" +
 	"\n" +
-	"cut_qubits\x18\x03 \x03(\x05R\tcutQubits\"\xac\x01\n" +
+	"cut_qubits\x18\x03 \x03(\x05R\tcutQubits\"\xe4\x01\n" +
 	"\x12CircuitCutResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x128\n" +
 	"\tfragments\x18\x02 \x03(\v2\x1a.kubona.SubcircuitFragmentR\tfragments\x12\x1d\n" +
 	"\n" +
 	"total_cuts\x18\x03 \x01(\x05R\ttotalCuts\x12#\n" +
-	"\rerror_message\x18\x04 \x01(\tR\ferrorMessage\"v\n" +
+	"\rerror_message\x18\x04 \x01(\tR\ferrorMessage\x126\n" +
+	"\x17sampling_overhead_kappa\x18\x05 \x01(\x01R\x15samplingOverheadKappa\"v\n" +
 	"\x16ClassicalAnchorRequest\x12\x1a\n" +
 	"\bmolecule\x18\x01 \x01(\tR\bmolecule\x12#\n" +
 	"\rbond_distance\x18\x02 \x01(\x01R\fbondDistance\x12\x1b\n" +
@@ -1524,7 +1575,7 @@ const file_kubona_proto_rawDesc = "" +
 	"\x16classical_anchor_value\x18\x04 \x01(\x01R\x14classicalAnchorValue\x12)\n" +
 	"\x10source_platforms\x18\x05 \x03(\tR\x0fsourcePlatforms\x12)\n" +
 	"\x10total_engagement\x18\x06 \x01(\x03R\x0ftotalEngagement\x121\n" +
-	"\x14contradiction_signal\x18\a \x01(\x01R\x13contradictionSignal\"\xc7\x03\n" +
+	"\x14contradiction_signal\x18\a \x01(\x01R\x13contradictionSignal\"\x86\x04\n" +
 	"\x17ClaimEvaluationResponse\x12\x19\n" +
 	"\bclaim_id\x18\x01 \x01(\tR\aclaimId\x125\n" +
 	"\x16corroborated_amplitude\x18\x02 \x01(\x01R\x15corroboratedAmplitude\x12/\n" +
@@ -1534,7 +1585,10 @@ const file_kubona_proto_rawDesc = "" +
 	"\tdelta_mha\x18\x06 \x01(\x01R\bdeltaMha\x12:\n" +
 	"\x19quantum_advantage_claimed\x18\a \x01(\bR\x17quantumAdvantageClaimed\x12<\n" +
 	"\x1aquantum_advantage_verified\x18\b \x01(\bR\x18quantumAdvantageVerified\x12%\n" +
-	"\x0everdict_reason\x18\t \x01(\tR\rverdictReason\"H\n" +
+	"\x0everdict_reason\x18\t \x01(\tR\rverdictReason\x12\x18\n" +
+	"\asuccess\x18\n" +
+	" \x01(\bR\asuccess\x12#\n" +
+	"\rerror_message\x18\v \x01(\tR\ferrorMessage\"H\n" +
 	"\x1aLiteratureGroundingRequest\x12\x14\n" +
 	"\x05query\x18\x01 \x01(\tR\x05query\x12\x14\n" +
 	"\x05limit\x18\x02 \x01(\x05R\x05limit\"\xdb\x01\n" +
@@ -1570,7 +1624,7 @@ const file_kubona_proto_rawDesc = "" +
 	"\x04qasm\x18\x01 \x01(\tR\x04qasm\x12\x16\n" +
 	"\x06method\x18\x02 \x01(\tR\x06method\x12#\n" +
 	"\rscale_factors\x18\x03 \x03(\x01R\fscaleFactors\x12\x14\n" +
-	"\x05shots\x18\x04 \x01(\x05R\x05shots\"\xeb\x01\n" +
+	"\x05shots\x18\x04 \x01(\x05R\x05shots\"\xa3\x02\n" +
 	"\x12MitigationResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12+\n" +
 	"\x11unmitigated_value\x18\x02 \x01(\x01R\x10unmitigatedValue\x12'\n" +
@@ -1579,7 +1633,8 @@ const file_kubona_proto_rawDesc = "" +
 	"errorBound\x12\x1f\n" +
 	"\vmethod_used\x18\x05 \x01(\tR\n" +
 	"methodUsed\x12#\n" +
-	"\rerror_message\x18\x06 \x01(\tR\ferrorMessage*\xb8\x01\n" +
+	"\rerror_message\x18\x06 \x01(\tR\ferrorMessage\x126\n" +
+	"\x17sampling_overhead_kappa\x18\a \x01(\x01R\x15samplingOverheadKappa*\xb8\x01\n" +
 	"\tJobStatus\x12\x1a\n" +
 	"\x16JOB_STATUS_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11JOB_STATUS_QUEUED\x10\x01\x12\x16\n" +
