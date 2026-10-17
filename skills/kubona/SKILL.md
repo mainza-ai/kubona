@@ -72,6 +72,12 @@ m = create_mandate(secrets.token_bytes(32), 't', 'job-sha256-test', 25.0, utc_no
 print(verify_mandate(m, 't', 'job-sha256-test', 10.0))
 print(verify_mandate(m, 't', 'job-sha256-test', 99.0))"
 ```
+Same check against a mandate file plus ledger admission lookup
+(`shape_valid` vs `admitted` are separate fields — a valid mandate
+spends nothing until a receipt cites it):
+```sh
+.venv/bin/python -m kubona.run mandate-check --mandate M.json --tenant t --job-hash h --cost 10 [--db ~/.kubona/kubona.db]
+```
 
 ## Traps
 - Fail-closed arithmetic: NaN, Inf, and negatives refuse everywhere — amounts, budgets, noise rates. `platform/core/pkg/session/session.go:15`, `platform/kubona/cost/mandate.py:78`, `platform/kubona/cost/payment.py:20`. A zero or missing number never means "free" or "unset"; it refuses.

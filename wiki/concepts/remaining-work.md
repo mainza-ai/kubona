@@ -53,7 +53,10 @@ status: tracked
   trust boundary; distribution gated on the public flip (LC1).
   > ✅ L1 + L2-baseline LANDED 2026-10-17 (Phase L-A exit met):
   > `skills/kubona/SKILL.md` + pins, `bench/` harness + first numbers.
-  > Remaining: L3 tags → L2-rerun → L4 doctor → L5 review+catalog.
+  > ✅ L3 + L2-rerun + L4 LANDED 2026-10-17 (Phase L-B exit met):
+  > scribe tags (convention, R3 gate unchanged), bench delta zero on
+  > record, doctor deepening + `mandate-check` (LC5 wording contract).
+  > Remaining: L5 review+catalog.
   L1 `skills/kubona/SKILL.md` (router + traps + first-moves, ≤12 KB
   pinned); L2 `bench/` harness with answer keys + ctx-budget gate;
   L3 scribe seen/inferred/unknown tags (convention, R3 gate unchanged);

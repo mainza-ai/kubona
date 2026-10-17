@@ -220,3 +220,35 @@ func TestFallbackRunDeclaresUnobserved(t *testing.T) {
 	}
 	_ = res
 }
+
+func TestFallbackScribeCarriesTags(t *testing.T) {
+	// L3: the fallback scribe template carries deterministic
+	// seen/inferred/unknown tags (convention, reviewed by reading —
+	// the hard gate remains the R3 coverage map, asserted elsewhere).
+	ac := NewAgentCollective()
+	res, err := ac.ExecuteTribunal(t.Context(), nil, nil, "Investigate H2 ground state")
+	if err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	var scribe *TribunalTurn
+	for i := range res.Turns {
+		if res.Turns[i].Role == RoleEpistemicScribe {
+			scribe = &res.Turns[i]
+		}
+	}
+	if scribe == nil {
+		t.Fatal("no scribe turn sealed")
+	}
+	for _, tag := range []string{"\nseen:", "\ninferred:", "\nunknown:"} {
+		if !strings.Contains(scribe.Content, tag) {
+			t.Fatalf("fallback scribe must carry %q tag: %q", tag, scribe.Content)
+		}
+	}
+	// Tags sit outside the proposal fence: extraction still parses.
+	if !strings.Contains(scribe.Content, "```json_proposal") {
+		t.Fatal("proposal fence must survive tagging")
+	}
+	if res.ProposalJSON == nil {
+		t.Fatal("proposal must still extract with tags present")
+	}
+}
