@@ -2412,3 +2412,6 @@ skipped is the exact failure this incident is about:
   full pipeline green on hermetic-fix run and lint-fix run. The
   12s residual-closures failure was the new fail-fast lint gate
   working as designed (dangling link caught pre-suite).
+
+## [2026-10-17] verification | R0 accept met (3 green runs, zero flakes)
+  Full pipeline green x3 (hermetic, lint-fix, recovery-log incl. gate).
