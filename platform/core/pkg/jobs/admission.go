@@ -11,6 +11,7 @@ import (
 
 	"github.com/mainza-ai/kubona/core/pkg/fidelity"
 	"github.com/mainza-ai/kubona/core/pkg/grants"
+	"github.com/mainza-ai/kubona/core/pkg/mandates"
 	"github.com/mainza-ai/kubona/core/pkg/tenants"
 )
 
@@ -46,6 +47,7 @@ type circuitRunParams struct {
 
 type mandateReceipt struct {
 	TenantID        string  `json:"tenant_id"`
+	JobHash         string  `json:"job_hash"`
 	MaxBudgetUSD    float64 `json:"max_budget_usd"`
 	ExpiryTimestamp string  `json:"expiry_timestamp"`
 }
@@ -154,7 +156,9 @@ func (r *Runner) admitJob(sessionID, jobType string, paramsJSON []byte, declared
 	if p.MandateRef == "" {
 		return "", 0, fmt.Errorf("backend %q is metered hardware: a verified spend-mandate receipt (mandate_ref) is required", p.RequestedBackend)
 	}
-	if err := r.verifyMandateReceipt(p.MandateRef, tenantID, p.MaxCostUSD); err != nil {
+	// W0.4: the receipt must bind THIS program in THIS session — recompute
+	// the canonical binding from the submission, never trust a bare ref.
+	if err := r.verifyMandateReceipt(p.MandateRef, tenantID, p.MaxCostUSD, mandates.CanonicalJobBinding("circuit_run", sessionID, p.QASM)); err != nil {
 		return "", 0, err
 	}
 	if err := r.tenantStore().ReserveSpend(tenantID, p.MaxCostUSD); err != nil {
@@ -203,8 +207,11 @@ func (r *Runner) admitNonCircuitRun(tenantID, sessionID, jobType string, paramsJ
 }
 
 // verifyMandateReceipt checks a cited mandate verification event: right
-// tenant, budget covering the job cost, unexpired.
-func (r *Runner) verifyMandateReceipt(entryHash, tenantID string, costUSD float64) error {
+// tenant, budget covering the job cost, unexpired, AND bound to the exact
+// submitted program (W0.4: expectedJobHash is the canonical binding
+// recomputed from the submission — a receipt for another program refuses
+// even when tenant and budget cover).
+func (r *Runner) verifyMandateReceipt(entryHash, tenantID string, costUSD float64, expectedJobHash string) error {
 	var eventType, payloadStr string
 	err := r.ledger.DB().QueryRow(
 		`SELECT event_type, payload FROM ledger_events WHERE entry_hash = ? AND event_type IN ('mandate_verified_client', 'mandate_verified_pqc_mlkem768')`,
@@ -221,6 +228,9 @@ func (r *Runner) verifyMandateReceipt(entryHash, tenantID string, costUSD float6
 	}
 	if rec.TenantID != tenantID {
 		return fmt.Errorf("mandate receipt belongs to tenant %q: dispatch refused", rec.TenantID)
+	}
+	if rec.JobHash != expectedJobHash {
+		return fmt.Errorf("mandate receipt binds a different program (job_hash mismatch): dispatch refused")
 	}
 	if costUSD > rec.MaxBudgetUSD {
 		return fmt.Errorf("job cost %.4f exceeds mandate budget %.4f: dispatch refused", costUSD, rec.MaxBudgetUSD)

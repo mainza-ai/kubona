@@ -3,6 +3,7 @@ package jobs
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/mandates"
 	"github.com/mainza-ai/kubona/core/pkg/qir"
 	"github.com/mainza-ai/kubona/core/pkg/session"
 	"github.com/mainza-ai/kubona/core/pkg/tenants"
@@ -321,7 +323,8 @@ func TestAdmissionQPUNeedsMandateReceipt(t *testing.T) {
 	}
 
 	// Seed a verified mandate receipt (tenant default, $100, unexpired).
-	payload := `{"tenant_id":"default","job_hash":"job-qpu","max_budget_usd":100,"expiry_timestamp":"2030-01-01T00:00:00Z"}`
+	payload := fmt.Sprintf(`{"tenant_id":"default","job_hash":"%s","max_budget_usd":100,"expiry_timestamp":"2030-01-01T00:00:00Z"}`,
+		mandates.CanonicalJobBinding("circuit_run", "sess-qpu", "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"))
 	if _, err := l.DB().Exec(
 		`INSERT INTO ledger_events (timestamp, session_id, tenant_id, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		"2026-10-09T00:00:00Z", "sess-qpu", "default", "mandate_verified_client", payload,
@@ -346,7 +349,8 @@ func TestAdmissionQPUNeedsMandateReceipt(t *testing.T) {
 	}
 
 	// Wrong-tenant receipt: refused.
-	badPayload := `{"tenant_id":"lab-other","job_hash":"job-qpu","max_budget_usd":10000,"expiry_timestamp":"2030-01-01T00:00:00Z"}`
+	badPayload := fmt.Sprintf(`{"tenant_id":"lab-other","job_hash":"%s","max_budget_usd":10000,"expiry_timestamp":"2030-01-01T00:00:00Z"}`,
+		mandates.CanonicalJobBinding("circuit_run", "sess-qpu", "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"))
 	if _, err := l.DB().Exec(
 		`INSERT INTO ledger_events (timestamp, session_id, tenant_id, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		"2026-10-09T00:00:00Z", "sess-qpu", "default", "mandate_verified_client", badPayload,
@@ -358,6 +362,24 @@ func TestAdmissionQPUNeedsMandateReceipt(t *testing.T) {
 	qpu["max_cost_usd"] = 25.0
 	if _, err := r.SubmitJob("sess-qpu", "circuit_run", qpu); err == nil {
 		t.Fatalf("foreign-tenant receipt must refuse")
+	}
+
+	// W0.4: receipt bound to a DIFFERENT program refuses even when tenant
+	// and budget cover — a mandate for one circuit cannot ride another.
+	otherBinding := mandates.CanonicalJobBinding("circuit_run", "sess-qpu", "OPENQASM 2.0;\nqreg q[9];\ncreg c[9];\n")
+	otherPayload := fmt.Sprintf(`{"tenant_id":"default","job_hash":"%s","max_budget_usd":100,"expiry_timestamp":"2030-01-01T00:00:00Z"}`, otherBinding)
+	if _, err := l.DB().Exec(
+		`INSERT INTO ledger_events (timestamp, session_id, tenant_id, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"2026-10-09T00:00:00Z", "sess-qpu", "default", "mandate_verified_client", otherPayload,
+		"0", "receipt-hash-3", "pub", "sig",
+	); err != nil {
+		t.Fatalf("seed receipt: %v", err)
+	}
+	qpu["mandate_ref"] = "receipt-hash-3"
+	if _, err := r.SubmitJob("sess-qpu", "circuit_run", qpu); err == nil {
+		t.Fatalf("cross-program receipt must refuse")
+	} else if !strings.Contains(err.Error(), "different program") {
+		t.Fatalf("refusal must name the binding, got: %v", err)
 	}
 }
 
@@ -429,7 +451,8 @@ func TestCumulativeCeilingAcrossJobs(t *testing.T) {
 	defer r.Stop()
 
 	// Deep receipt budget so only the tenant ceiling binds (default 150).
-	payload := `{"tenant_id":"default","job_hash":"job-spend","max_budget_usd":10000,"expiry_timestamp":"2030-01-01T00:00:00Z"}`
+	payload := fmt.Sprintf(`{"tenant_id":"default","job_hash":"%s","max_budget_usd":10000,"expiry_timestamp":"2030-01-01T00:00:00Z"}`,
+		mandates.CanonicalJobBinding("circuit_run", "sess-spend", "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"))
 	if _, err := l.DB().Exec(
 		`INSERT INTO ledger_events (timestamp, session_id, tenant_id, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		"2026-10-09T00:00:00Z", "sess-spend", "default", "mandate_verified_client", payload,
@@ -489,7 +512,8 @@ func TestFailedJobReleasesReservation(t *testing.T) {
 	// the terminal transition via failJob directly (deterministic, no race).
 	defer r.Stop()
 
-	payload := `{"tenant_id":"default","job_hash":"job-rel","max_budget_usd":10000,"expiry_timestamp":"2030-01-01T00:00:00Z"}`
+	payload := fmt.Sprintf(`{"tenant_id":"default","job_hash":"%s","max_budget_usd":10000,"expiry_timestamp":"2030-01-01T00:00:00Z"}`,
+		mandates.CanonicalJobBinding("circuit_run", "sess-rel", "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"))
 	if _, err := l.DB().Exec(
 		`INSERT INTO ledger_events (timestamp, session_id, tenant_id, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		"2026-10-09T00:00:00Z", "sess-rel", "default", "mandate_verified_client", payload,
@@ -555,7 +579,8 @@ func TestSessionLimitBindsEndToEnd(t *testing.T) {
 	r.Start()
 	defer r.Stop()
 
-	payload := `{"tenant_id":"default","job_hash":"job-cap","max_budget_usd":10000,"expiry_timestamp":"2030-01-01T00:00:00Z"}`
+	payload := fmt.Sprintf(`{"tenant_id":"default","job_hash":"%s","max_budget_usd":10000,"expiry_timestamp":"2030-01-01T00:00:00Z"}`,
+		mandates.CanonicalJobBinding("circuit_run", "sess-cap", "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"))
 	if _, err := l.DB().Exec(
 		`INSERT INTO ledger_events (timestamp, session_id, tenant_id, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		"2026-10-09T00:00:00Z", "sess-cap", "default", "mandate_verified_client", payload,

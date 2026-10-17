@@ -1,5 +1,5 @@
 import * as ed from '@noble/ed25519';
-import { sha512 } from '@noble/hashes/sha2.js';
+import { sha512, sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
 
 // Configure synchronous sha512 for noble-ed25519 v3
@@ -44,6 +44,17 @@ export function computeCanonicalPayload(
   const budgetStr = maxBudgetUsd.toFixed(4);
   const raw = `${tenantId}:${jobHash}:${budgetStr}:${expiryTimestampIso}`;
   return new TextEncoder().encode(raw);
+}
+
+/**
+ * Canonical v1 job binding (W0.4): hex(sha256("kubona-job-v1\n" + jobType +
+ * "\n" + sessionId + "\n" + qasm)). Must match Go's
+ * mandates.CanonicalJobBinding byte-for-byte — pinned by the fixed vector
+ * test on both sides. The daemon recomputes this from the submitted job at
+ * admission and refuses a receipt bound to any other program.
+ */
+export function canonicalJobBinding(sessionId: string, qasm: string, jobType = 'circuit_run'): string {
+  return bytesToHex(sha256(new TextEncoder().encode(`kubona-job-v1\n${jobType}\n${sessionId}\n${qasm}`)));
 }
 
 /**
