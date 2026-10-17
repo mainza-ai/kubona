@@ -166,3 +166,45 @@ func TestParseAuthorizationHeaderRequiresAllFields(t *testing.T) {
 		}
 	}
 }
+
+// X402 reboot-safety proof (residual investigation 2026-10-17): the
+// settled map is in-memory, but single-use does NOT depend on it across
+// restarts — verification requires a LIVE challenge, and challenges die
+// with the process. A rebooted manager holds no challenges, so every
+// pre-restart receipt refuses at lookup (fail-closed), settled or not.
+// This test pins that property: if verification ever stops requiring
+// challenge liveness, it fails and the ledger-backing residual reopens.
+func TestPaymentManager_RebootRefusesOldReceipts(t *testing.T) {
+	mgr := NewPaymentManager("0xEscrowAddress")
+	c, err := mgr.GenerateChallenge("USDC", "0.05")
+	if err != nil {
+		t.Fatalf("challenge: %v", err)
+	}
+	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
+	msgHash := sha256.Sum256([]byte(c.Payload))
+	sig := ed25519.Sign(priv, msgHash[:])
+	receipt := &PaymentReceipt{
+		ChallengeID: c.ChallengeID,
+		Token:       "USDC",
+		Amount:      "0.05",
+		PayerPubHex: hex.EncodeToString(pub),
+		Signature:   hex.EncodeToString(sig),
+		Timestamp:   time.Now().Unix(),
+	}
+	if _, err := mgr.SettlePayment(receipt, "base-sepolia"); err != nil {
+		t.Fatalf("settle: %v", err)
+	}
+
+	// Simulate restart: brand-new manager, zero carried state.
+	restarted := NewPaymentManager("0xEscrowAddress")
+	if valid, err := restarted.VerifyPayment(receipt); valid || err == nil {
+		t.Fatalf("post-restart verify must refuse, got valid=%v err=%v", valid, err)
+	}
+	if _, err := restarted.SettlePayment(receipt, "base-sepolia"); err == nil {
+		t.Fatal("post-restart settle must refuse")
+	}
+	// And the pre-restart manager still refuses the replay in-window.
+	if valid, err := mgr.VerifyPayment(receipt); valid || err == nil {
+		t.Fatalf("in-window replay must refuse, got valid=%v err=%v", valid, err)
+	}
+}
