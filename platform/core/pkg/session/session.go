@@ -4,12 +4,26 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
 )
+
+// ErrInvalidAmount refuses negative/NaN/Inf spend (W0.7, mirrored from the
+// tenant manager: one rule, two books).
+var ErrInvalidAmount = fmt.Errorf("spend amount must be a finite number >= 0: negative/NaN/Inf refuse")
+
+// validAmount rejects negative/NaN/Inf spend: NaN comparisons are all
+// false, so an unvalidated NaN sails through every limit check.
+func validAmount(amountUSD float64) error {
+	if math.IsNaN(amountUSD) || math.IsInf(amountUSD, 0) || amountUSD < 0 {
+		return ErrInvalidAmount
+	}
+	return nil
+}
 
 // ErrContentMismatch is returned when expected_content CAS fails (re-read
 // and retry). Handlers map it to 409.
@@ -337,6 +351,7 @@ func (m *Manager) RewriteUserMessage(sessionID, messageID, content, expectedCont
 	}
 	return &msg, nil
 }
+
 // SetMessageUsage persists measured generation cost on a stored message.
 // Duration of 0 / nil usage means "unknown" and stores NULL — never zeros
 // presented as measurements.
@@ -398,7 +413,10 @@ func (m *Manager) DeleteSession(id string) error {
 // uncapped — sessions created without a budget keep working exactly as
 // before enforcement existed. Sealed as a ledger event on success.
 func (m *Manager) ReserveSpend(sessionID string, amountUSD float64) error {
-	if amountUSD <= 0 {
+	if err := validAmount(amountUSD); err != nil {
+		return err
+	}
+	if amountUSD == 0 {
 		return nil
 	}
 	res, err := m.ledger.DB().Exec(
@@ -424,17 +442,39 @@ func (m *Manager) ReserveSpend(sessionID string, amountUSD float64) error {
 }
 
 // ReleaseSpend returns a session reservation (terminal-failed jobs only).
-// Floored at zero; callers zero the job row first for idempotence.
+// Same W0.7 discipline as the tenant book: atomic guarded subtract,
+// over-release refuses without mutating (float-dust epsilon + MAX(0,...)
+// absorb representation error only), refusal seals a
+// session_spend_release_refused audit event. Unknown sessions refuse.
 func (m *Manager) ReleaseSpend(sessionID string, amountUSD float64) error {
-	if amountUSD <= 0 {
+	if err := validAmount(amountUSD); err != nil {
+		return err
+	}
+	if amountUSD == 0 {
 		return nil
 	}
-	if _, err := m.ledger.DB().Exec(
-		`UPDATE sessions SET current_spend_usd = MAX(0, current_spend_usd - ?) WHERE id = ?`,
-		amountUSD, sessionID); err != nil {
+	res, err := m.ledger.DB().Exec(
+		`UPDATE sessions SET current_spend_usd = MAX(0, current_spend_usd - ?) WHERE id = ? AND current_spend_usd + 1e-9 >= ?`,
+		amountUSD, sessionID, amountUSD)
+	if err != nil {
 		return fmt.Errorf("session spend release failed: %w", err)
 	}
-	m.ledger.AppendEvent(sessionID, "session_spend_released", map[string]any{
-		"session_id": sessionID, "amount_usd": amountUSD})
-	return nil
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("session spend release failed: %w", err)
+	}
+	if n == 1 {
+		m.ledger.AppendEvent(sessionID, "session_spend_released", map[string]any{
+			"session_id": sessionID, "amount_usd": amountUSD})
+		return nil
+	}
+	var exists string
+	if err := m.ledger.DB().QueryRow(`SELECT id FROM sessions WHERE id = ?`, sessionID).Scan(&exists); err != nil {
+		return fmt.Errorf("unknown session %q: dispatch refused", sessionID)
+	}
+	m.ledger.AppendEvent(sessionID, "session_spend_release_refused", map[string]any{
+		"session_id": sessionID, "amount_usd": amountUSD,
+		"reason": "release exceeds recorded spend: caller bug, books untouched",
+	})
+	return fmt.Errorf("session spend release of %.4f exceeds recorded spend: refused, books untouched", amountUSD)
 }

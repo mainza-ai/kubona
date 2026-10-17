@@ -180,7 +180,7 @@ func TestPolicyParityTable(t *testing.T) {
 		return map[string]any{
 			"session_id": grantSession,
 			"qasm":       "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\nh q[0];\nmeasure q[0] -> c[0];\n",
-			"backend":    "ibm_brisbane", "shots": 100, "max_cost_usd": 25.0,
+			"backend":    "ibm_brisbane", "shots": 100, "budget_usd": 25.0,
 			"caller_jurisdictions": []string{"US"},
 		}
 	}

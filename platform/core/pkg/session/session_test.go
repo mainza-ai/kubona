@@ -2,6 +2,7 @@ package session_test
 
 import (
 	"encoding/json"
+	"math"
 	"os"
 	"testing"
 
@@ -142,6 +143,25 @@ func TestSessionReserveBindsTighterThanTenant(t *testing.T) {
 	}
 	if got.CurrentSpendUSD != 0 {
 		t.Fatalf("spend must release to 0, got %v", got.CurrentSpendUSD)
+	}
+	// W0.7: over-release refuses without mutating; invalid amounts refuse;
+	// ghost sessions refuse.
+	if err := mgr.ReleaseSpend(sess.ID, 1); err == nil {
+		t.Fatal("over-release must refuse")
+	}
+	if got, _ := mgr.GetSession(sess.ID); got.CurrentSpendUSD != 0 {
+		t.Fatalf("refused release must leave books at 0, got %v", got.CurrentSpendUSD)
+	}
+	for _, amt := range []float64{-5.0, math.NaN(), math.Inf(1)} {
+		if err := mgr.ReserveSpend(sess.ID, amt); err == nil {
+			t.Fatalf("ReserveSpend(%v) must refuse", amt)
+		}
+		if err := mgr.ReleaseSpend(sess.ID, amt); err == nil {
+			t.Fatalf("ReleaseSpend(%v) must refuse", amt)
+		}
+	}
+	if err := mgr.ReleaseSpend("ghost-session", 10); err == nil {
+		t.Fatal("ghost release must refuse")
 	}
 }
 
