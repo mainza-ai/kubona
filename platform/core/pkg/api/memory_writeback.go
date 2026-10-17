@@ -197,9 +197,11 @@ func (s *Server) auditTribunalTools(sessionID string, turns []agents.TribunalTur
 	for _, turn := range turns {
 		for _, c := range turn.Observed {
 			_ = s.ledger.AppendEvent(sessionID, "tool_called", map[string]any{
-				"tool":  c.Name,
-				"ok":    c.OK,
-				"error": c.Error,
+				"tool":      c.Name,
+				"ok":        c.OK,
+				"error":     c.Error,
+				"source":    c.Source,
+				"untrusted": c.Untrusted,
 			})
 		}
 	}
