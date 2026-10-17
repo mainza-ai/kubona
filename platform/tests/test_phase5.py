@@ -110,15 +110,18 @@ def test_ledger_concurrent_appends_safe(tmp_path):
 # -- x402 activation + library metering -------------------------------------
 def test_metering_free_summary_and_x402_purchase(tmp_path):
     lib = AlgorithmLibrary(path=str(tmp_path / "lib.json"))
+    # W0.12: entries carry their own price policy — no invented fallback.
     entry = lib.add(harness="vqe_ansatz", artifact=3.6, metric=1.118, cost_usd=0.0,
-                    ledger_ref="r1")
+                    ledger_ref="r1", price_usd=0.99)
     meter = LibraryMeter(lib, ledger=Ledger(path=str(tmp_path / "l.jsonl")))
 
     summary = meter.free_summary("vqe_ansatz")
     assert summary["ok"] and "microtransaction" in summary["summary"]
+    assert "metric" not in summary, "free tier must not leak the headline metric"
 
     quote = meter.quote(entry.entry_id)
     assert quote["required"] is True and quote["flow"] == "http-402"
+    assert quote["amount_usd"] == 0.99
     assert quote["amount_usd"] <= APPROVAL_THRESHOLD_USD
 
     # production posture: no injected verifier -> fail closed (never release paid config)
@@ -134,15 +137,43 @@ def test_metering_free_summary_and_x402_purchase(tmp_path):
     with pytest.raises(MeteringError):
         meter2.purchase(entry.entry_id, payment_proof="bad-proof")
 
+    # W0.12: the same proof buys nothing twice (ledger-backed single-use).
+    with pytest.raises(MeteringError, match="already spent"):
+        meter2.purchase(entry.entry_id, payment_proof="x402:proof-1")
+
+    # W0.12: unpriced entries are not for sale (no invented price).
+    bare = lib.add(harness="vqe_ansatz", artifact=1.0, metric=2.0, cost_usd=0.0,
+                   ledger_ref="r2")
+    with pytest.raises(MeteringError, match="no price policy"):
+        meter2.quote(bare.entry_id)
+
+
+def test_payment_rails_fail_closed():
+    from kubona.cost.payment import FreeTierPayments, payments_for
+    # Negative/non-finite never route free.
+    for bad in (-1.0, float("nan"), float("inf")):
+        with pytest.raises(ValueError):
+            payments_for(bad)
+    # Free tier quotes exactly zero only.
+    with pytest.raises(ValueError):
+        FreeTierPayments().quote(job_ref="j", amount_usd=1.0)
+    # Empty proofs refuse before any verifier runs.
+    x402 = X402Payments(verifier=lambda proof, quote: {"ok": True, "reason": "test"})
+    assert x402.verify("", x402.quote("j", 1.0))["ok"] is False
+
 
 def test_metering_records_payment_proof_in_ledger(tmp_path):
     lib = AlgorithmLibrary(path=str(tmp_path / "lib.json"))
-    entry = lib.add(harness="h", artifact="a", metric=1.0, cost_usd=0.0, ledger_ref="r")
+    entry = lib.add(harness="h", artifact="a", metric=1.0, cost_usd=0.0, ledger_ref="r",
+                    price_usd=0.5)
     ledger = Ledger(path=str(tmp_path / "l.jsonl"))
-    LibraryMeter(lib, ledger=ledger, payments=X402Payments(verifier=_test_verifier)).purchase(entry.entry_id, payment_proof="x402:p")
+    LibraryMeter(lib, ledger=ledger, payments=X402Payments(verifier=_test_verifier)).purchase(
+        entry.entry_id, payment_proof="x402:p", buyer="lab-a")
     kinds = [r.kind for r in ledger]
     assert "payment" in kinds and "library_release" in kinds
     assert ledger.validate_chain()[0]
+    pay = next(r for r in ledger if r.kind == "payment")
+    assert pay.payload["buyer"] == "lab-a" and pay.payload["amount_usd"] == 0.5
 
 
 # -- meta-loop auto-apply (staged shadow rollout, §13.5) --------------------
