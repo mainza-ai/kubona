@@ -115,6 +115,10 @@ func loadDotEnvFile(path string) {
 }
 
 func main() {
+	// R5 CLI exit contract (pinned by cli_exit_test.go): 0 = success
+	// (verify-clean; partial results still 0 — the receipt, not the
+	// code, says what completed), 1 = incomplete (faults, operational
+	// failure), 2 = usage error, 128+N = signals (runtime default).
 	// Operator subcommands run before flag parsing: `kubonad grants ...`
 	// mints/attenuates/verifies cross-lab UCAN grants with operator-held keys.
 	loadDotEnv()

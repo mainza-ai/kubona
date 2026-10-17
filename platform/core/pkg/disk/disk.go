@@ -146,6 +146,14 @@ type Guard struct {
 	snap         Snapshot
 }
 
+// Config reports the guard's trip points (capabilities endpoint serves
+// the live values, never assumed defaults).
+func (g *Guard) Config() Thresholds {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	return g.cfg
+}
+
 // NewGuard builds a guard. A nil measurer uses MeasureAvail. A nil
 // onTransition disables transition callbacks (tests).
 func NewGuard(cfg Thresholds, paths []string, measure func(path string) (uint64, error), onTransition func(Snapshot)) *Guard {
