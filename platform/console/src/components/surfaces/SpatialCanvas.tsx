@@ -84,28 +84,34 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
     const Re = equilibriumR;
     const anchor = campaign?.classical_anchor;
     const anchorComputed = anchor?.anchor_computed === true;
-    const fciGround = anchor?.fci_exact_energy ?? (isLiH ? -7.8824 : -1.13727);
-    const De = Math.abs(fciGround) * 0.15; // Proportional dissociation depth
+    const fciRaw = anchor?.fci_exact_energy;
+    const fciFinite = typeof fciRaw === 'number' && Number.isFinite(fciRaw);
+    // No anchor → no Δ, no invented baseline. Model energy renders as
+    // Morse extrapolation only when an anchor exists; otherwise UNVERIFIED.
+    const fciGround = fciFinite ? (fciRaw as number) : null;
+    const De = fciGround != null ? Math.abs(fciGround) * 0.15 : 0;
     const a = 1.44; // Potential width parameter
     const deltaR = bondDistance - Re;
-    const morseTerm = De * Math.pow(1 - Math.exp(-a * deltaR), 2);
-    const energy = fciGround + morseTerm;
-    const rhfEnergy = anchor?.rhf_mean_field_energy ?? (energy + 0.02058);
-    const deltaMHa = Math.abs(energy - fciGround) * 1000.0;
+    const morseTerm = fciGround != null ? De * Math.pow(1 - Math.exp(-a * deltaR), 2) : 0;
+    const energy = fciGround != null ? fciGround + morseTerm : null;
+    const rhfRaw = anchor?.rhf_mean_field_energy;
+    const rhfFinite = typeof rhfRaw === 'number' && Number.isFinite(rhfRaw);
+    const rhfEnergy = rhfFinite ? (rhfRaw as number) : null;
+    const deltaMHa = fciGround != null && energy != null ? Math.abs(energy - fciGround) * 1000.0 : null;
     const nearEquilibrium = Math.abs(deltaR) < 0.01;
     return {
       anchorFci: fciGround,
       anchorComputed,
       modelEnergy: energy,
       rhf: rhfEnergy,
-      deltaMHa: deltaMHa,
+      deltaMHa,
       // Verified chrome only when the anchor was actually computed AND the
       // slider sits at equilibrium (where the model equals the anchor).
       // Anywhere else this is Morse extrapolation, labeled as such.
-      anchored: anchorComputed && nearEquilibrium,
+      anchored: anchorComputed && fciGround != null && nearEquilibrium,
       displaced: !nearEquilibrium,
     };
-  }, [bondDistance, equilibriumR, campaign?.classical_anchor, isLiH]);
+  }, [bondDistance, equilibriumR, campaign?.classical_anchor]);
 
   // Atom positions for SVG physical rendering
   const atomOffset = useMemo(() => {
@@ -117,13 +123,16 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
   const circuitData = useMemo(() => {
     const qf = campaign?.quantum_factors;
     const defaultQubits = isLiH ? 4 : 2;
-    const numQubits = qf?.qubit_count || defaultQubits;
-    const rawQasm = qf?.qasm || '';
-
-    // Generate fallback QASM if none provided
-    const qasmText = rawQasm.trim() || (() => {
+    const numQubits = (typeof qf?.qubit_count === 'number' && Number.isFinite(qf.qubit_count) ? qf.qubit_count : defaultQubits);
+    const rawQasm = (qf?.qasm || '').trim();
+    // No-circuit refusal state: without QASM there is no circuit to parse.
+    // The schematic below renders only from live QASM; otherwise it refuses.
+    const hasCircuit = rawQasm !== '';
+    // Schematic fallback QASM is illustrative only and watermarked as such
+    // in every copyable string — never presented as session data.
+    const qasmText = hasCircuit ? rawQasm : (() => {
       const q = numQubits;
-      let s = `OPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[${q}];\ncreg c[${q}];\n`;
+      let s = `// schematic — illustrative, not session data (no circuit in this campaign)\nOPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[${q}];\ncreg c[${q}];\n`;
       s += 'h q[0];\n';
       for (let i = 0; i < q; i++) s += `rz(${(0.785 * (i + 1)).toFixed(3)}) q[${i}];\n`;
       for (let i = 0; i < q - 1; i++) s += `cx q[${i}], q[${i + 1}];\n`;
@@ -216,35 +225,43 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
     }
 
     const totalCols = Math.max(1, ...colPointers);
+    const depthRaw = qf?.circuit_depth;
+    const twoQRaw = qf?.two_qubit_gates;
     return {
       numQubits,
       totalCols,
       gates,
       connections,
       rawQasm: qasmText,
+      hasCircuit,
       ansatzTitle: qf?.ansatz_family || (isLiH ? 'TwoLocal / RyRz Entangling' : 'UCCSD Parameterized'),
-      depth: qf?.circuit_depth || (isLiH ? 8 : 4),
-      twoQubitGates: qf?.two_qubit_gates || (numQubits - 1),
+      depth: typeof depthRaw === 'number' && Number.isFinite(depthRaw) ? depthRaw : (isLiH ? 8 : 4),
+      depthLive: typeof depthRaw === 'number' && Number.isFinite(depthRaw),
+      twoQubitGates: typeof twoQRaw === 'number' && Number.isFinite(twoQRaw) ? twoQRaw : (numQubits - 1),
+      twoQLive: typeof twoQRaw === 'number' && Number.isFinite(twoQRaw),
     };
   }, [campaign?.quantum_factors, isLiH]);
 
   const hamiltonianString = useMemo(() => {
-    const fciGround = campaign?.classical_anchor?.fci_exact_energy ?? (isLiH ? -7.8824 : -1.13727);
+    const fciRaw = campaign?.classical_anchor?.fci_exact_energy;
+    const fciOk = typeof fciRaw === 'number' && Number.isFinite(fciRaw);
+    const fciLabel = fciOk ? (fciRaw as number).toFixed(4) : 'UNVERIFIED';
+    const prefix = '// schematic coefficients — illustrative, anchor value live where shown\n';
     const n = circuitData.numQubits;
     if (n === 2) {
-      return `H = ${fciGround.toFixed(4)} I + 0.3979 Z₀ - 0.3979 Z₁ - 0.0112 Z₀Z₁ + 0.1809 X₀X₁`;
+      return `${prefix}H = ${fciLabel} I + 0.3979 Z₀ - 0.3979 Z₁ - 0.0112 Z₀Z₁ + 0.1809 X₀X₁`;
     }
     if (n === 4) {
-      return `H = ${fciGround.toFixed(4)} I + 0.1712 Z₀ - 0.2227 Z₁ + 0.1686 Z₂ - 0.2227 Z₃ + 0.1205 Z₀Z₁ + 0.1658 Z₁Z₂ + 0.0453 X₀X₁Y₂Y₃`;
+      return `${prefix}H = ${fciLabel} I + 0.1712 Z₀ - 0.2227 Z₁ + 0.1686 Z₂ - 0.2227 Z₃ + 0.1205 Z₀Z₁ + 0.1658 Z₁Z₂ + 0.0453 X₀X₁Y₂Y₃`;
     }
-    const terms = [`${fciGround.toFixed(4)} I`];
+    const terms = [`${fciLabel} I`];
     for (let i = 0; i < n; i++) {
       const coeff = (0.25 / (i + 1)).toFixed(4);
       terms.push(`${i % 2 === 0 ? '+' : '-'} ${coeff} Z${i}`);
     }
     terms.push(`+ 0.0412 Z₀Z₁`);
-    return `H = ${terms.join(' ')}`;
-  }, [campaign?.classical_anchor?.fci_exact_energy, isLiH, circuitData.numQubits]);
+    return `${prefix}H = ${terms.join(' ')}`;
+  }, [campaign?.classical_anchor?.fci_exact_energy, circuitData.numQubits]);
 
   return (
     <div className="relative min-h-[680px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0F19] to-[#07090E] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-8 select-none">
@@ -292,7 +309,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
           </span>
           <span className="text-xs text-slate-400">•</span>
           <span className="text-xs font-mono font-semibold text-slate-200">
-            Δ = {energyCalculated.deltaMHa.toFixed(2)} mHa
+            {energyCalculated.deltaMHa != null && Number.isFinite(energyCalculated.deltaMHa) ? `Δ = ${energyCalculated.deltaMHa.toFixed(2)} mHa` : 'Δ = UNVERIFIED (no anchor)'}
           </span>
         </div>
       </div>
@@ -343,7 +360,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
 
             {/* Bond Length Badge (Floating on bond center) */}
             <div className="absolute -top-4 px-3 py-1 rounded-full bg-black/70 border border-white/15 backdrop-blur-md text-[11px] font-mono font-bold text-cyan-200 shadow-md">
-              R = {bondDistance.toFixed(4)} Å
+              R = {typeof bondDistance === 'number' && Number.isFinite(bondDistance) ? bondDistance.toFixed(4) : 'UNVERIFIED'} Å
             </div>
           </div>
 
@@ -389,7 +406,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Dynamic parameterized circuit mapped for {targetSystem} (Depth: {circuitData.depth})
+                  Dynamic parameterized circuit mapped for {targetSystem} (Depth: {circuitData.depth}{circuitData.depthLive ? '' : ' (illustrative)'} · {circuitData.twoQubitGates} CNOT{circuitData.twoQLive ? '' : ' (illustrative)'})
                 </p>
               </div>
 
@@ -416,12 +433,17 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
                 </div>
 
                 <span className="text-xs font-mono text-cyan-400 bg-cyan-950/60 px-2.5 py-1 rounded-lg border border-cyan-800/40">
-                  Depth = {circuitData.depth} | {circuitData.twoQubitGates} CNOT
+                  Depth = {circuitData.depth}{circuitData.depthLive ? '' : ' (EST)'} | {circuitData.twoQubitGates} CNOT{circuitData.twoQLive ? '' : ' (EST)'}
                 </span>
               </div>
             </div>
 
             {circuitViewMode === 'schematic' ? (
+              !circuitData.hasCircuit ? (
+                <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-950/30 text-xs text-rose-200">
+                  No circuit in this campaign — nothing to render. Propose a circuit to populate this view.
+                </div>
+              ) : (
               <div className="space-y-4 overflow-x-auto py-2 scrollbar-thin">
                 {Array.from({ length: circuitData.numQubits }).map((_, qIdx) => {
                   return (
@@ -469,17 +491,26 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
                   );
                 })}
 
-                <p className="text-xs text-slate-400 text-center font-sans pt-2">
-                  Parameters continuously calibrated against classical anchor gradients with zero barren plateaus.
-                </p>
+                {(() => {
+                  const gv = campaign?.quantum_factors?.gradient_variance;
+                  const gvOk = typeof gv === 'number' && Number.isFinite(gv);
+                  return (
+                    <p className="text-xs text-slate-400 text-center font-sans pt-2">
+                      {gvOk
+                        ? `Gradient variance ${(gv as number).toExponential(2)} — barren-plateau status bound to measured variance.`
+                        : 'Barren-plateau status unattested — no gradient variance measured.'}
+                    </p>
+                  );
+                })()}
               </div>
+              )
             ) : (
               <div className="space-y-3">
                 <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span className="font-mono">OpenQASM 2.0 Intermediate Representation</span>
+                  <span className="font-mono">OpenQASM 2.0 Intermediate Representation {!circuitData.hasCircuit ? '(schematic — illustrative)' : ''}</span>
                   <button
                     onClick={() => {
-                      navigator.clipboard.writeText(circuitData.rawQasm);
+                      navigator.clipboard.writeText(circuitData.rawQasm).catch(() => {});
                       setCopiedQasm(true);
                       setTimeout(() => setCopiedQasm(false), 2000);
                     }}
@@ -508,17 +539,17 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
               <div className="p-4 rounded-xl bg-white/[0.03] border border-white/05 space-y-1">
                 <span className="text-[11px] text-slate-300 uppercase tracking-wider font-semibold">Exact FCI Anchor</span>
                 <div className="text-base font-mono font-bold text-emerald-400">
-                  {energyCalculated.anchorFci.toFixed(6)} Ha
+                  {energyCalculated.anchorFci != null && Number.isFinite(energyCalculated.anchorFci) ? `${energyCalculated.anchorFci.toFixed(6)} Ha` : 'UNVERIFIED'}
                 </div>
-                <span className="text-xs text-slate-300 font-sans">{energyCalculated.anchorComputed ? 'PySCF-computed anchor' : 'Assumed anchor — bridge unavailable'}</span>
+                <span className="text-xs text-slate-300 font-sans">{energyCalculated.anchorComputed && energyCalculated.anchorFci != null ? 'PySCF-computed anchor' : 'No anchor computed — bridge unavailable'}</span>
               </div>
 
               <div className="p-4 rounded-xl bg-white/[0.03] border border-white/05 space-y-1">
                 <span className="text-[11px] text-slate-300 uppercase tracking-wider font-semibold">Classical Hartree-Fock</span>
                 <div className="text-base font-mono font-bold text-slate-200">
-                  {energyCalculated.rhf.toFixed(6)} Ha
+                  {energyCalculated.rhf != null && Number.isFinite(energyCalculated.rhf) ? `${energyCalculated.rhf.toFixed(6)} Ha` : 'UNVERIFIED (no RHF baseline)'}
                 </div>
-                <span className="text-xs text-slate-300 font-sans">Mean-field baseline</span>
+                <span className="text-xs text-slate-300 font-sans">Mean-field baseline{energyCalculated.rhf == null ? ' — not measured' : ''}</span>
               </div>
             </div>
 
@@ -539,11 +570,11 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
         <div className="flex items-center space-x-6 text-xs font-mono">
           <div>
             <span className="text-slate-300 font-medium">Morse model at R: </span>
-            <span className="text-white font-bold">{energyCalculated.modelEnergy.toFixed(5)} Ha</span>
+            <span className="text-white font-bold">{energyCalculated.modelEnergy != null && Number.isFinite(energyCalculated.modelEnergy) ? `${energyCalculated.modelEnergy.toFixed(5)} Ha` : 'UNVERIFIED'}</span>
           </div>
           <div>
             <span className="text-slate-300 font-medium">FCI anchor: </span>
-            <span className="text-emerald-400 font-bold">{energyCalculated.anchorFci.toFixed(5)} Ha</span>
+            <span className="text-emerald-400 font-bold">{energyCalculated.anchorFci != null && Number.isFinite(energyCalculated.anchorFci) ? `${energyCalculated.anchorFci.toFixed(5)} Ha` : 'UNVERIFIED'}</span>
           </div>
         </div>
 

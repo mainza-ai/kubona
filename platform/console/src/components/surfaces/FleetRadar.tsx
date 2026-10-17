@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Radio,
   ShieldCheck,
@@ -12,30 +12,8 @@ import {
   ChevronUp,
   MapPin,
 } from 'lucide-react';
-import { CampaignState } from '@/types';
+import { CampaignState, BackendInfo, RadarEndpoint } from '@/types';
 import { fetchFleet, fetchRadar } from '@/lib/api';
-
-interface RadarEndpoint {
-  port: number;
-  listening: boolean;
-  service: string;
-  sovereign: boolean;
-  is_local_ip: boolean;
-}
-
-interface BackendInfo {
-  name: string;
-  type: string;
-  qubits: number;
-  t1_us: string;
-  avg_t1_us?: number;
-  avg_t2_us?: number;
-  status: string;
-  queue_depth: number;
-  cost_per_shot: number;
-  jurisdiction: string;
-  itar_ear: string;
-}
 
 interface FleetRadarProps {
   campaign?: CampaignState | null;
@@ -46,34 +24,63 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
   const [radarEndpoints, setRadarEndpoints] = useState<RadarEndpoint[]>([]);
   const [sovereignOnly, setSovereignOnly] = useState(false);
   const [expandedBackend, setExpandedBackend] = useState<string | null>(null);
+  const [refused, setRefused] = useState<string | null>(null);
+  const backoffRef = useRef(1000);
 
   useEffect(() => {
-    fetchFleet()
-      .then((data) => setBackends((data.backends as BackendInfo[]) || []))
-      .catch((err) => console.error('Failed to load fleet data:', err));
-
     let active = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
     const pollRadar = async () => {
+      // Visibility-gated: no polling when the tab is hidden.
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        if (active) timer = setTimeout(pollRadar, 2000);
+        return;
+      }
       try {
         const data = await fetchRadar();
-        if (active && data?.radar_endpoints) {
+        if (!active) return;
+        if ((data as { refused?: boolean })?.refused) {
+          setRefused((data as { refuse_reason?: string })?.refuse_reason || 'radar refused');
+          setRadarEndpoints([]);
+          backoffRef.current = Math.min(backoffRef.current * 1.5, 15000);
+        } else if (data?.radar_endpoints) {
           setRadarEndpoints(data.radar_endpoints as RadarEndpoint[]);
+          setRefused(null);
+          backoffRef.current = 1000;
         }
       } catch (err) {
-        console.error('Radar poll error:', err);
+        if (!active) return;
+        setRefused(err instanceof Error ? err.message : String(err));
+        backoffRef.current = Math.min(backoffRef.current * 1.5, 15000);
       }
+      if (active) timer = setTimeout(pollRadar, backoffRef.current);
     };
+    fetchFleet()
+      .then((data) => {
+        if (!active) return;
+        if ((data as { refused?: boolean })?.refused) {
+          setRefused((data as { refuse_reason?: string })?.refuse_reason || 'fleet refused');
+          setBackends([]);
+        } else {
+          setBackends((data.backends as BackendInfo[]) || []);
+        }
+      })
+      .catch((err) => {
+        if (active) setRefused(err instanceof Error ? err.message : String(err));
+      });
+
     pollRadar();
-    const interval = setInterval(pollRadar, 1000);
     return () => {
       active = false;
-      clearInterval(interval);
+      if (timer) clearTimeout(timer);
     };
   }, []);
 
   const filteredBackends = sovereignOnly
-    ? backends.filter((b) => b.jurisdiction === 'LOCAL_SOVEREIGN' || b.name.includes('local'))
+    ? backends.filter((b) => b.jurisdiction === 'LOCAL_SOVEREIGN' || (b.name || '').toLowerCase().includes('local'))
     : backends;
+  // EAR99 banner only when a backend flag actually carries it — never static.
+  const showEar99 = backends.some((b) => ((b.itar_ear || '') as string).toUpperCase().includes('EAR99'));
 
   const tiers = [
     { tier: 0, title: 'Tier 0 · Classical Physics Ground Truth', desc: 'PySCF FCI / RHF ab-initio exact anchor' },
@@ -133,10 +140,12 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
           <span className="font-semibold text-slate-300 uppercase tracking-wider font-mono text-[11px]">
             Quantum Execution Continuum
           </span>
-          <span className="text-slate-400 font-mono text-[10px] flex items-center space-x-1.5">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>EAR99 Export-Controlled Cloud Filtering Active</span>
-          </span>
+          {showEar99 && (
+            <span className="text-slate-400 font-mono text-[10px] flex items-center space-x-1.5">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+              <span>EAR99 Export-Controlled Cloud Filtering Active</span>
+            </span>
+          )}
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2.5">
@@ -167,11 +176,18 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
           </span>
         </div>
 
+        {refused && (
+          <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[11px]">
+            Radar refused — {refused.slice(0, 200)}. Nothing discovered, nothing assumed.
+          </div>
+        )}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
           {/* Port 8080 Go Core Orchestrator Gateway */}
           {(() => {
+            // Outage defaults unknown (not LISTENING): absent endpoint renders
+            // UNKNOWN, never a confident LISTENING.
             const ep8080 = radarEndpoints.find((e) => e.port === 8080);
-            const isListening = ep8080 ? ep8080.listening : true;
+            const state: 'on' | 'off' | 'unknown' = ep8080 == null ? 'unknown' : ep8080.listening ? 'on' : 'off';
             return (
               <div
                 data-testid="radar-endpoint-8080"
@@ -192,17 +208,19 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                 <div
                   data-testid="status-indicator-8080"
                   className={`px-3 py-1 rounded-full text-[11px] font-mono font-semibold flex items-center space-x-1.5 border transition-all ${
-                    isListening
+                    state === 'on'
                       ? 'bg-emerald-950/70 text-emerald-300 border-emerald-700/60'
-                      : 'bg-rose-950/70 text-rose-300 border-rose-700/60'
+                      : state === 'unknown'
+                        ? 'bg-white/[0.06] text-slate-300 border-white/20'
+                        : 'bg-rose-950/70 text-rose-300 border-rose-700/60'
                   }`}
                 >
                   <span
                     className={`w-2 h-2 rounded-full ${
-                      isListening ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'
+                      state === 'on' ? 'bg-emerald-400 animate-pulse' : state === 'unknown' ? 'bg-slate-400' : 'bg-rose-500'
                     }`}
                   />
-                  <span>{isListening ? 'LISTENING / SOVEREIGN' : 'OFFLINE / DISCONNECTED'}</span>
+                  <span>{state === 'on' ? 'LISTENING / SOVEREIGN' : state === 'unknown' ? 'UNKNOWN — no endpoint' : 'OFFLINE / DISCONNECTED'}</span>
                 </div>
               </div>
             );
@@ -211,7 +229,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
           {/* Port 50051 Python Quantum Bridge */}
           {(() => {
             const ep50051 = radarEndpoints.find((e) => e.port === 50051);
-            const isListening = ep50051 ? ep50051.listening : false;
+            const state: 'on' | 'off' | 'unknown' = ep50051 == null ? 'unknown' : ep50051.listening ? 'on' : 'off';
             return (
               <div
                 data-testid="radar-endpoint-50051"
@@ -232,17 +250,19 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                 <div
                   data-testid="status-indicator-50051"
                   className={`px-3 py-1 rounded-full text-[11px] font-mono font-semibold flex items-center space-x-1.5 border transition-all ${
-                    isListening
+                    state === 'on'
                       ? 'bg-emerald-950/70 text-emerald-300 border-emerald-700/60'
-                      : 'bg-rose-950/70 text-rose-300 border-rose-700/60'
+                      : state === 'unknown'
+                        ? 'bg-white/[0.06] text-slate-300 border-white/20'
+                        : 'bg-rose-950/70 text-rose-300 border-rose-700/60'
                   }`}
                 >
                   <span
                     className={`w-2 h-2 rounded-full ${
-                      isListening ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'
+                      state === 'on' ? 'bg-emerald-400 animate-pulse' : state === 'unknown' ? 'bg-slate-400' : 'bg-rose-500'
                     }`}
                   />
-                  <span>{isListening ? 'LISTENING / SOVEREIGN' : 'OFFLINE / DISCONNECTED'}</span>
+                  <span>{state === 'on' ? 'LISTENING / SOVEREIGN' : state === 'unknown' ? 'UNKNOWN — no endpoint' : 'OFFLINE / DISCONNECTED'}</span>
                 </div>
               </div>
             );
@@ -264,7 +284,8 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                 (b.name.toLowerCase().includes('heron') && campaign.quantum_factors.recommended_backend.toLowerCase().includes('heron')));
 
             const isExpanded = expandedBackend === b.name;
-            const isOnline = b.status === 'ONLINE' || b.status === 'READY';
+            const statusUp = (b.status || '').toUpperCase();
+            const isOnline = statusUp === 'ONLINE' || statusUp === 'READY';
 
             return (
               <div
@@ -338,7 +359,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                   <div className="p-3.5 rounded-xl bg-black/70 border border-white/10 space-y-2 text-xs font-mono animate-fadeIn">
                     <div className="flex justify-between text-slate-300 font-medium">
                       <span>Cost per Shot:</span>
-                      <strong className="text-emerald-300">${b.cost_per_shot.toFixed(4)}</strong>
+                      <strong className="text-emerald-300">${typeof b.cost_per_shot === 'number' && Number.isFinite(b.cost_per_shot) ? b.cost_per_shot.toFixed(4) : '—'}</strong>
                     </div>
                     {b.avg_t2_us !== undefined && b.avg_t2_us > 0 && (
                       <div className="flex justify-between text-slate-300 font-medium">

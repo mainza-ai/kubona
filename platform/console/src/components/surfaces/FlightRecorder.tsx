@@ -36,13 +36,17 @@ export function FlightRecorder({ loops = [], events = [], campaign }: FlightReco
 
   // Dynamic narrative milestones derived from campaign trajectory and Karpathy loops
   const milestones: StoryMilestone[] = useMemo(() => {
+    // Chemical Accuracy labels require a computed anchor — without one every
+    // Δ is UNVERIFIED (-1), never a breakthrough.
+    const anchorKnown = typeof fciEnergy === 'number' && Number.isFinite(fciEnergy);
     if (trajectory && trajectory.length > 0) {
-      const fci = fciEnergy ?? trajectory[trajectory.length - 1].energy;
+      const fci = anchorKnown ? (fciEnergy as number) : null;
       return trajectory.map((t, idx) => {
-        const deltaMHa = Math.abs(t.energy - fci) * 1000;
+        const energyFinite = typeof t.energy === 'number' && Number.isFinite(t.energy);
+        const deltaMHa = anchorKnown && energyFinite && fci != null ? Math.abs(t.energy - fci) * 1000 : -1;
         const isDiscard = t.watchdog?.toUpperCase().includes('TRIP') || t.watchdog?.toUpperCase().includes('DISCARD');
         const isBaseline = idx === 0;
-        const isBreakthrough = deltaMHa <= chemLimit;
+        const isBreakthrough = anchorKnown && deltaMHa >= 0 && deltaMHa <= chemLimit;
         // Measured points (Source == "measured", e.g. Krylov energies folded
         // from real jobs) are observations, not optimizer steps: label them
         // as such so they never read as variational convergence. The
@@ -68,26 +72,26 @@ export function FlightRecorder({ loops = [], events = [], campaign }: FlightReco
         }
 
         const summary = isMeasured
-          ? `Directly measured energy ${t.energy.toFixed(5)} Ha from job execution (${t.watchdog}) — an observation, not an optimizer step.`
+          ? `Directly measured energy ${energyFinite ? t.energy.toFixed(5) : 'UNVERIFIED'} Ha from job execution (${t.watchdog}) — an observation, not an optimizer step.`
           : isBaseline
-          ? `Initial parameterized ansatz evaluated for ${targetSystem}. Baseline energy: ${t.energy.toFixed(5)} Ha.`
+          ? `Initial parameterized ansatz evaluated for ${targetSystem}. Baseline energy: ${energyFinite ? t.energy.toFixed(5) : 'UNVERIFIED'} Ha.`
           : isDiscard
           ? `Disconfirmation Officer triggered watchdog (${t.watchdog}). Mutation discarded to prevent barren plateau.`
           : isBreakthrough
-          ? `Energy converged to ${t.energy.toFixed(5)} Ha. Discrepancy against exact FCI is within ${deltaMHa.toFixed(2)} mHa chemical threshold.`
-          : `Ansatz parameter vector updated. Energy lowered to ${t.energy.toFixed(5)} Ha (grad norm: ${t.grad_norm.toFixed(4)}).`;
+          ? `Energy converged to ${energyFinite ? t.energy.toFixed(5) : 'UNVERIFIED'} Ha. Discrepancy against exact FCI is within ${deltaMHa >= 0 ? deltaMHa.toFixed(2) : 'UNVERIFIED'} mHa chemical threshold.`
+          : `Ansatz parameter vector updated. Energy lowered to ${energyFinite ? t.energy.toFixed(5) : 'UNVERIFIED'} Ha (grad norm: ${typeof t.grad_norm === 'number' && Number.isFinite(t.grad_norm) ? t.grad_norm.toFixed(4) : 'UNVERIFIED'}).`;
 
         const thetaStr = t.theta && t.theta.length > 0
-          ? t.theta.map((v) => v.toFixed(3)).join(', ')
+          ? t.theta.map((v) => (typeof v === 'number' && Number.isFinite(v) ? v.toFixed(3) : 'UNVERIFIED')).join(', ')
           : 'not recorded';
 
         const codeDiff = isMeasured
-          ? `  # Measured observation (${t.watchdog})\n+ E = ${t.energy.toFixed(5)} Ha (Δ = ${deltaMHa.toFixed(2)} mHa)\n+ no optimizer state: not a gradient step`
+          ? `  # Measured observation (${t.watchdog})\n+ E = ${energyFinite ? t.energy.toFixed(5) : 'UNVERIFIED'} Ha (Δ = ${deltaMHa >= 0 ? deltaMHa.toFixed(2) : 'UNVERIFIED'} mHa)\n+ no optimizer state: not a gradient step`
           : isBaseline
-          ? `+ # Initial Ansatz: ${ansatzFamily}\n+ theta = [${thetaStr}]\n+ E_init = ${t.energy.toFixed(5)} Ha`
+          ? `+ # Initial Ansatz: ${ansatzFamily}\n+ theta = [${thetaStr}]\n+ E_init = ${energyFinite ? t.energy.toFixed(5) : 'UNVERIFIED'} Ha`
           : isDiscard
           ? `- # Watchdog trip: ${t.watchdog}\n- Reverted parameters\n+ Retained stable prior manifold`
-          : `  # Gradient Step ${t.step}\n- grad_norm: ${t.grad_norm.toFixed(4)}\n+ theta = [${thetaStr}]\n+ E = ${t.energy.toFixed(5)} Ha (Δ = ${deltaMHa.toFixed(2)} mHa)`;
+          : `  # Gradient Step ${t.step}\n- grad_norm: ${typeof t.grad_norm === 'number' && Number.isFinite(t.grad_norm) ? t.grad_norm.toFixed(4) : 'UNVERIFIED'}\n+ theta = [${thetaStr}]\n+ E = ${energyFinite ? t.energy.toFixed(5) : 'UNVERIFIED'} Ha (Δ = ${deltaMHa >= 0 ? deltaMHa.toFixed(2) : 'UNVERIFIED'} mHa)`;
 
         return {
           step: t.step,
@@ -104,18 +108,18 @@ export function FlightRecorder({ loops = [], events = [], campaign }: FlightReco
     // Fresh campaign with no optimization steps executed yet: state what
     // exists (the anchor, if computed) and nothing else.
     if (trajectory !== undefined && trajectory.length === 0) {
-      const anchorKnown = fciEnergy != null;
+      const anchorKnownEmpty = typeof fciEnergy === 'number' && Number.isFinite(fciEnergy);
       return [
         {
           step: 0,
           title: `Initial ${targetSystem} Hypothesis`,
           verdict: 'baseline',
-          summary: anchorKnown
-            ? `Campaign initialized for ${targetSystem}. Classical anchor established at ${fciEnergy.toFixed(5)} Ha. Awaiting first variational trial or Research Tribunal deliberation.`
+          summary: anchorKnownEmpty
+            ? `Campaign initialized for ${targetSystem}. Classical anchor established at ${(fciEnergy as number).toFixed(5)} Ha. Awaiting first variational trial or Research Tribunal deliberation.`
             : `Campaign initialized for ${targetSystem}. No anchor computed and no trials run yet — nothing measured.`,
           metric: 0.0,
           deltaMHa: -1,
-          codeDiff: `+ # Target Molecule: ${targetSystem}\n+ # Classical FCI Anchor: ${anchorKnown ? fciEnergy.toFixed(5) + ' Ha' : 'UNVERIFIED'}\n+ # Status: Initial Hypothesis Formulated (Awaiting First Step)`,
+          codeDiff: `+ # Target Molecule: ${targetSystem}\n+ # Classical FCI Anchor: ${anchorKnownEmpty ? (fciEnergy as number).toFixed(5) + ' Ha' : 'UNVERIFIED'}\n+ # Status: Initial Hypothesis Formulated (Awaiting First Step)`,
         },
       ];
     }

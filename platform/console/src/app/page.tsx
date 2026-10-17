@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Sparkles, Plus, Zap, Info, HelpCircle, Trash2, Clock, Box, X } from 'lucide-react';
 import { Session, Loop, LedgerEvent, CampaignState, RunPhase, ProbeId } from '@/types';
-import { fetchSessions, createSession, deleteSession, fetchLoops, fetchEvents, fetchCampaignState, API_BASE } from '@/lib/api';
+import { fetchSessions, createSession, deleteSession, fetchLoops, fetchEvents, fetchCampaignState, API_BASE, authHeaders } from '@/lib/api';
 import { CopilotDrawer } from '@/components/CopilotDrawer';
 import { AboutLabModal } from '@/components/AboutLabModal';
 import { CommandPalette } from '@/components/CommandPalette';
@@ -237,7 +237,7 @@ export default function Home() {
       try {
         const res = await fetch(`${API_BASE}/api/supervisor/abort`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: authHeaders({ 'Content-Type': 'application/json' }),
           body: JSON.stringify({ session_id: currentSessionId }),
         });
         if (!res.ok) {

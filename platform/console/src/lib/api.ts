@@ -12,6 +12,10 @@ function authHeaders(extra: Record<string, string> = {}): Record<string, string>
   return CONSOLE_TOKEN ? { Authorization: `Bearer ${CONSOLE_TOKEN}`, ...extra } : { ...extra };
 }
 
+// Exported for ledger helpers and any surface that must go through the
+// authenticated bridge path (no raw unauthed fetch to /api/*).
+export { authHeaders };
+
 
 export async function fetchSessions(): Promise<Session[]> {
   try {
@@ -437,22 +441,38 @@ export async function applyMetasearchProposal(proposalId: string): Promise<boole
 export async function fetchFleet(): Promise<Record<string, unknown>> {
   try {
     const res = await fetch(`${API_BASE}/api/fleet`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return { backends: [] };
+    if (!res.ok) {
+      let text = '';
+      try {
+        text = (await res.text()).trim().slice(0, 280);
+      } catch {
+        /* ignore */
+      }
+      return { backends: [], refused: true, refuse_reason: text || `HTTP ${res.status}` };
+    }
     return await res.json();
   } catch (err) {
     console.error('Failed to fetch fleet:', err);
-    return { backends: [] };
+    return { backends: [], refused: true, refuse_reason: String(err).slice(0, 280) };
   }
 }
 
 export async function fetchRadar(): Promise<Record<string, unknown>> {
   try {
     const res = await fetch(`${API_BASE}/api/radar`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return { radar_endpoints: [] };
+    if (!res.ok) {
+      let text = '';
+      try {
+        text = (await res.text()).trim().slice(0, 280);
+      } catch {
+        /* ignore */
+      }
+      return { radar_endpoints: [], refused: true, refuse_reason: text || `HTTP ${res.status}` };
+    }
     return await res.json();
   } catch (err) {
     console.error('Failed to fetch radar:', err);
-    return { radar_endpoints: [] };
+    return { radar_endpoints: [], refused: true, refuse_reason: String(err).slice(0, 280) };
   }
 }
 
@@ -478,17 +498,29 @@ export async function fetchLLMSettings(): Promise<Record<string, unknown> | null
   }
 }
 
-export async function saveLLMSettings(settings: Record<string, unknown>): Promise<boolean> {
+export async function saveLLMSettings(
+  settings: Record<string, unknown>
+): Promise<{ ok: boolean; error?: string }> {
   try {
     const res = await fetch(`${API_BASE}/api/llm/settings`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(settings),
     });
-    return res.ok;
+    if (!res.ok) {
+      // Surface the backend reason verbatim — never swallow into generic false.
+      let text = '';
+      try {
+        text = (await res.text()).trim().slice(0, 280);
+      } catch {
+        /* ignore body read failure */
+      }
+      return { ok: false, error: text || `HTTP ${res.status}` };
+    }
+    return { ok: true };
   } catch (err) {
     console.error('Failed to save LLM settings:', err);
-    return false;
+    return { ok: false, error: String(err) };
   }
 }
 
@@ -984,18 +1016,15 @@ export interface QirCompileReceipt {
 }
 
 export async function fetchQirCompile(qasm: string): Promise<QirCompileReceipt | null> {
-  try {
-    const res = await fetch(`${API_BASE}/api/qir/compile`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ qasm }),
-    });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (err) {
-    console.error('Failed to compile QIR:', err);
-    return null;
-  }
+  // Refusal (HTTP !ok) returns null so the caller renders "refused".
+  // Transport failure throws so the caller can distinguish it from refusal.
+  const res = await fetch(`${API_BASE}/api/qir/compile`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ qasm }),
+  });
+  if (!res.ok) return null;
+  return await res.json();
 }
 
 export interface SessionContext {
@@ -1023,4 +1052,33 @@ export async function fetchSessionContext(sessionId: string): Promise<SessionCon
     console.error('Failed to fetch session context:', err);
     return null;
   }
+}
+
+// Ledger append via the authenticated bridge path (no raw fetch). Surfaces
+// the backend refusal body via res.text() on !ok; throws on transport
+// failure so callers can separate transport-null from refusal.
+export async function appendLedgerEvent(
+  sessionId: string,
+  eventType: string,
+  payload: Record<string, unknown>
+): Promise<{ ok: boolean; record_hash?: string; event_id?: string | number; error?: string }> {
+  const res = await fetch(`${API_BASE}/api/ledger/append`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ session_id: sessionId, event_type: eventType, payload }),
+  });
+  if (!res.ok) {
+    let text = '';
+    try {
+      text = (await res.text()).trim().slice(0, 280);
+    } catch {
+      /* ignore */
+    }
+    return { ok: false, error: text || `ledger refused the commit (HTTP ${res.status})` };
+  }
+  const data = await res.json();
+  if (!data?.ok || !data?.record_hash) {
+    return { ok: false, error: (data?.error as string) || 'ledger returned no record hash' };
+  }
+  return { ok: true, record_hash: data.record_hash, event_id: data.event_id };
 }

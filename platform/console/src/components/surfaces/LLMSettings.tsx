@@ -66,16 +66,21 @@ interface TestResult {
 
 export function LLMSettings() {
   const [settings, setSettings] = useState<SettingsPayload | null>(null);
+  const [baseline, setBaseline] = useState<string | null>(null);
   const [omlxModels, setOmlxModels] = useState<ModelInfo[]>([]);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [testPrompt, setTestPrompt] = useState('Confirm you are active and describe how you optimize a VQE ansatz.');
   const [saveStatus, setSaveStatus] = useState<string>('');
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [tokenError, setTokenError] = useState<string | null>(null);
   // Key edits live outside settings state: secrets are never rendered and
   // only sent when the operator types them. Empty provider keys in the save
   // payload mean "keep stored" (backend preserves non-empty secrets).
   const [keyEdits, setKeyEdits] = useState<Record<string, string>>({});
+  // Unsaved marker: dirty when current JSON differs from last loaded/saved.
+  const dirty = settings != null && baseline != null && JSON.stringify(settings) !== baseline;
 
   const loadModels = useCallback(async () => {
     try {
@@ -84,29 +89,34 @@ export function LLMSettings() {
         setOmlxModels((data as { models: ModelInfo[] }).models);
       }
     } catch (err) {
-      console.error('Failed to fetch oMLX models:', err);
+      setLoadError(`Models unreachable: ${err instanceof Error ? err.message : String(err)}`);
     }
   }, []);
 
-  useEffect(() => {
-    let mounted = true;
+  const loadAll = useCallback(() => {
+    setLoadError(null);
     fetchLLMSettings()
       .then((data) => {
-        if (mounted && data) setSettings(data as unknown as SettingsPayload);
+        if (data) {
+          setSettings(data as unknown as SettingsPayload);
+          setBaseline(JSON.stringify(data));
+        } else {
+          setLoadError('Settings refused — backend returned nothing. Retry to reload.');
+        }
       })
-      .catch((err) => console.error('Failed to load LLM settings:', err));
+      .catch((err) => setLoadError(`Failed to load LLM settings: ${err instanceof Error ? err.message : String(err)}`));
 
     fetchLLMModels('omlx')
       .then((data) => {
         const models = (data as { models?: ModelInfo[] })?.models;
-        if (mounted && models) setOmlxModels(models);
+        if (models) setOmlxModels(models);
       })
-      .catch((err) => console.error('Failed to fetch oMLX models:', err));
-
-    return () => {
-      mounted = false;
-    };
+      .catch((err) => setLoadError(`Failed to fetch oMLX models: ${err instanceof Error ? err.message : String(err)}`));
   }, []);
+
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
 
   const handleSave = async () => {
     if (!settings) return;
@@ -118,15 +128,16 @@ export function LLMSettings() {
       for (const [pt, pc] of Object.entries(settings.providers)) {
         providers[pt] = { ...pc, api_key: keyEdits[pt] ?? '' };
       }
-      const ok = await saveLLMSettings({ ...settings, providers } as unknown as Record<string, unknown>);
-      if (ok) {
+      const res = await saveLLMSettings({ ...settings, providers } as unknown as Record<string, unknown>);
+      if (res.ok) {
         setSaveStatus('✅ Settings persisted successfully to SQLite ledger.');
         setKeyEdits({});
+        setBaseline(JSON.stringify({ ...settings, providers }));
       } else {
-        setSaveStatus('❌ Failed to persist settings.');
+        setSaveStatus(`❌ Failed to persist settings — backend refused (${res.error || 'no reason'}). Nothing changed.`);
       }
     } catch (err) {
-      setSaveStatus(`❌ Network error: ${err}`);
+      setSaveStatus(`❌ Network error: ${err instanceof Error ? err.message : String(err)} — nothing changed.`);
     } finally {
       setSaving(false);
     }
@@ -182,9 +193,23 @@ export function LLMSettings() {
 
   if (!settings) {
     return (
-      <div className="p-12 text-center text-slate-400 text-xs flex items-center justify-center space-x-2">
-        <RefreshCw className="w-4 h-4 animate-spin text-cyan-400" />
-        <span>Loading Sovereign Intelligence Configuration...</span>
+      <div className="p-12 text-center space-y-3">
+        {loadError ? (
+          <>
+            <div className="text-rose-300 text-xs">Settings load failed — {loadError} Nothing loaded.</div>
+            <button
+              onClick={loadAll}
+              className="px-4 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-white text-xs font-semibold"
+            >
+              Retry load
+            </button>
+          </>
+        ) : (
+          <div className="text-slate-400 text-xs flex items-center justify-center space-x-2">
+            <RefreshCw className="w-4 h-4 animate-spin text-cyan-400" />
+            <span>Loading Sovereign Intelligence Configuration...</span>
+          </div>
+        )}
       </div>
     );
   }
@@ -209,6 +234,20 @@ export function LLMSettings() {
         </div>
 
         <div className="flex items-center space-x-3">
+          {dirty && (
+            <span className="px-2.5 py-1 rounded-full text-[10px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/40">
+              Unsaved changes
+            </span>
+          )}
+          {loadError && (
+            <button
+              onClick={loadAll}
+              className="px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-300 text-xs font-semibold"
+              title={loadError}
+            >
+              Retry load
+            </button>
+          )}
           {/* Sovereign Air-Gap Toggle */}
           <button
             onClick={() =>
@@ -335,12 +374,15 @@ export function LLMSettings() {
                   min="0"
                   max="1"
                   value={settings.temperature}
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      temperature: parseFloat(e.target.value) || 0.2,
-                    })
-                  }
+                  onChange={(e) => {
+                    const v = parseFloat(e.target.value);
+                    if (!Number.isFinite(v)) {
+                      setTokenError('Temperature must be a finite number — change rejected.');
+                      return;
+                    }
+                    setTokenError(null);
+                    setSettings({ ...settings, temperature: v });
+                  }}
                   className="w-full bg-black/60 border border-white/10 rounded-xl p-2 text-xs text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
                 />
               </div>
@@ -352,13 +394,29 @@ export function LLMSettings() {
                   min="0"
                   value={settings.max_tokens}
                   onChange={(e) => {
-                    const v = parseInt(e.target.value);
-                    setSettings({ ...settings, max_tokens: Number.isNaN(v) ? 0 : Math.max(0, v) });
+                    const raw = e.target.value.trim();
+                    if (raw === '') {
+                      setTokenError('Token cap empty — enter 0 for uncapped or a finite duration.');
+                      return;
+                    }
+                    const v = parseInt(raw, 10);
+                    // Reject NaN: empty/garbage input must not silently become 0.
+                    if (!Number.isFinite(v)) {
+                      setTokenError(`Token cap rejected: "${raw}" is not a number — nothing changed.`);
+                      return;
+                    }
+                    setTokenError(null);
+                    setSettings({ ...settings, max_tokens: Math.max(0, v) });
                   }}
                   className="w-full bg-black/60 border border-white/10 rounded-xl p-2 text-xs text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
                 />
               </div>
             </div>
+            {tokenError && (
+              <div className="p-2 rounded-lg bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[11px]">
+                {tokenError}
+              </div>
+            )}
             <div>
               <label className="block text-slate-400 mb-1 text-[11px]">Active model (used when a role has no assignment):</label>
               <select
@@ -471,8 +529,8 @@ export function LLMSettings() {
                   <span>{testResult.success ? 'VERIFICATION PASSED' : 'BENCHMARK FAILED'}</span>
                 </span>
                 <div className="flex items-center space-x-4 text-slate-400">
-                  <span>Latency: <strong className="text-white">{testResult.duration_ms} ms</strong></span>
-                  {testResult.gen_tok_per_sec !== undefined && (
+                  <span>Latency: <strong className="text-white">{typeof testResult.duration_ms === 'number' && Number.isFinite(testResult.duration_ms) ? `${testResult.duration_ms} ms` : 'UNVERIFIED (no duration measured)'}</strong></span>
+                  {typeof testResult.gen_tok_per_sec === 'number' && Number.isFinite(testResult.gen_tok_per_sec) && (
                     <span>Speed: <strong className="text-emerald-400">{testResult.gen_tok_per_sec.toFixed(1)} tok/s</strong></span>
                   )}
                   <span>Model: <strong className="text-cyan-300">{testResult.model}</strong></span>

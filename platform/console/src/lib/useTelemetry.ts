@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { LedgerEvent } from '@/types';
-
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+import { API_BASE } from './api';
 
 export interface TelemetryState {
   events: LedgerEvent[];
@@ -19,9 +18,10 @@ export interface TelemetryState {
 // against /api/events/stream is retained as progressive enhancement for the
 // fleet radar ONLY, pending a load measurement (concurrent EventSource
 // connections, proxy buffering behavior) — it is staged, not supported, and
-// no surface may depend on it until that measurement lands.
+// no surface may depend on it until that measurement lands. Disabled by
+// default until that measurement exists.
 export function useTelemetry(sessionId?: string, options: { enabled?: boolean } = {}) {
-  const { enabled = true } = options;
+  const { enabled = false } = options;
   const [state, setState] = useState<TelemetryState>({
     events: [],
     connected: false,

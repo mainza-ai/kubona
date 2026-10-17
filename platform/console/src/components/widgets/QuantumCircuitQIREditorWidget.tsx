@@ -12,8 +12,8 @@ interface QuantumCircuitQIREditorWidgetProps {
 }
 
 export function QuantumCircuitQIREditorWidget({
-  qubits = 4,
-  circuitDepth = 18,
+  qubits,
+  circuitDepth,
   tCount = 8,
   tDepth = 4,
   qirCode,
@@ -21,8 +21,14 @@ export function QuantumCircuitQIREditorWidget({
   const [mode, setMode] = useState<'schematic' | 'qir' | 'cutting'>('schematic');
   const [wireCutSelected, setWireCutSelected] = useState<number>(2);
   const [copied, setCopied] = useState(false);
+  // Live synthesis receipt required: without qirCode the body is schematic
+  // only. Labels (qubits/depth) render live when bound, body stays watermarked.
+  const hasReceipt = qirCode != null && qirCode.trim() !== '';
+  const displayQubits = typeof qubits === 'number' && Number.isFinite(qubits) ? qubits : null;
+  const displayDepth = typeof circuitDepth === 'number' && Number.isFinite(circuitDepth) ? circuitDepth : null;
 
-  const sampleQir = qirCode || `; ModuleID = 'kubona_qksd_circuit'
+  const sampleQir = qirCode || `; schematic — illustrative, not session data (no live synthesis receipt)
+; ModuleID = 'kubona_qksd_circuit'
 source_filename = "kubona_qir_v1"
 target datalayout = "e-m:e-p:64:64-i64:64-f80:128-n8:16:32:64-S128"
 
@@ -45,13 +51,18 @@ entry:
 }`;
 
   const copyQir = () => {
-    navigator.clipboard.writeText(sampleQir);
+    navigator.clipboard.writeText(sampleQir).catch(() => {});
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <div className="rounded-2xl border border-white/[0.08] bg-black/60 p-5 backdrop-blur-xl text-white space-y-4">
+      {!hasReceipt && (
+        <div className="p-2.5 rounded-xl bg-amber-950/50 border border-amber-500/40 text-amber-200 text-[11px] font-code text-center">
+          synthetic demo — not session data. No live synthesis receipt; schematic body is illustrative.
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
         <div className="flex items-center space-x-3">
@@ -60,7 +71,7 @@ entry:
           </div>
           <div>
             <h3 className="text-sm font-semibold text-white/90">Post-QIR Quantum Circuit Editor (Preview)<span className="ml-2 align-middle text-[9px] font-mono uppercase px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/10 text-slate-400">Illustrative</span></h3>
-            <p className="text-xs text-white/50">{qubits} Qubits • Depth {circuitDepth} • Family 279 Clifford+T Synthesis</p>
+            <p className="text-xs text-white/50">{displayQubits != null ? displayQubits : '—'} Qubits • Depth {displayDepth != null ? displayDepth : '—'} • Family 279 Clifford+T Synthesis {!hasReceipt ? '· schematic only' : ''}</p>
           </div>
         </div>
         <div className="flex items-center space-x-1.5 text-xs">
@@ -121,7 +132,7 @@ entry:
       {mode === 'schematic' && (
         <div className="p-4 rounded-xl border border-white/[0.06] bg-white/[0.02] overflow-x-auto">
           <div className="space-y-4 min-w-[500px]">
-            {Array.from({ length: qubits }).map((_, qIdx) => (
+            {Array.from({ length: displayQubits ?? 4 }).map((_, qIdx) => (
               <div key={qIdx} className="flex items-center space-x-3">
                 <span className="w-10 text-xs font-mono text-white/60">q[{qIdx}]</span>
                 <div className="flex-1 flex items-center relative h-8">

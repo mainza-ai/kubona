@@ -10,20 +10,10 @@ import {
   Users,
   Plus,
   Trash2,
-  
-  
   Zap,
-  
-  
-  
-  
-  
-  
-  
   X,
-  
 } from 'lucide-react';
-import { CampaignState, CustomAgentManifest, RoutingDecision, ModalityType } from '@/types';
+import { CampaignState, CustomAgentManifest, RoutingDecision, ModalityType, RadarEndpoint } from '@/types';
 import {
   fetchRadar,
   fetchLLMSettings,
@@ -33,14 +23,7 @@ import {
   deleteCustomAgent,
   routeMultimodalPayload,
 } from '@/lib/api';
-
-interface RadarEndpoint {
-  port: number;
-  listening: boolean;
-  service: string;
-  sovereign: boolean;
-  is_local_ip: boolean;
-}
+import { fmtFixed } from '@/lib/guards';
 
 interface CognitiveMeshProps {
   campaign?: CampaignState | null;
@@ -48,10 +31,14 @@ interface CognitiveMeshProps {
 
 export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
   const [endpoints, setEndpoints] = useState<RadarEndpoint[]>([]);
+  const [radarRefused, setRadarRefused] = useState<string | null>(null);
   const [airGapped, setAirGapped] = useState(true);
   const [loading, setLoading] = useState(false);
   const [agents, setAgents] = useState<CustomAgentManifest[]>([]);
   const [isCreatingAgent, setIsCreatingAgent] = useState(false);
+  const [meshError, setMeshError] = useState<string | null>(null);
+  const [airGapError, setAirGapError] = useState<string | null>(null);
+  const [routeError, setRouteError] = useState<string | null>(null);
 
   // New Agent Form
   const [newAgentName, setNewAgentName] = useState('');
@@ -70,11 +57,18 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
 
   const scanRadar = async () => {
     setLoading(true);
+    setRadarRefused(null);
     try {
       const data = await fetchRadar();
-      setEndpoints((data.radar_endpoints as RadarEndpoint[]) || []);
+      if ((data as { refused?: boolean }).refused) {
+        setRadarRefused((data as { refuse_reason?: string }).refuse_reason || 'radar refused');
+        setEndpoints([]);
+      } else {
+        setEndpoints((data.radar_endpoints as RadarEndpoint[]) || []);
+      }
     } catch (err) {
-      console.error('Failed to scan host radar:', err);
+      setRadarRefused(err instanceof Error ? err.message : String(err));
+      setEndpoints([]);
     } finally {
       setLoading(false);
     }
@@ -84,18 +78,30 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
     try {
       const list = await fetchCustomAgents();
       setAgents(list);
+      setMeshError(null);
     } catch (err) {
-      console.error('Failed to load agents:', err);
+      setMeshError(err instanceof Error ? err.message : String(err));
     }
   }, []);
 
+  // Fetch-merge-save: never wipe unrelated settings with a partial toggle
+  // write. Revert + banner on failure so the switch cannot lie.
   const toggleAirGap = async () => {
+    const prev = airGapped;
     const nextVal = !airGapped;
     setAirGapped(nextVal);
+    setAirGapError(null);
     try {
-      await saveLLMSettings({ air_gapped: nextVal });
+      const current = await fetchLLMSettings();
+      if (!current) throw new Error('settings unreachable — nothing changed');
+      const res = await saveLLMSettings({ ...(current as Record<string, unknown>), air_gapped: nextVal });
+      if (!res.ok) {
+        setAirGapped(prev);
+        setAirGapError(`Air-gap save refused — reverted (${res.error || 'no reason'}).`);
+      }
     } catch (err) {
-      console.error('Failed to save air gap state:', err);
+      setAirGapped(prev);
+      setAirGapError(`Air-gap save failed — reverted (${err instanceof Error ? err.message : String(err)}).`);
     }
   };
 
@@ -103,11 +109,17 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
     let mounted = true;
     fetchRadar()
       .then((data) => {
-        if (mounted && data?.radar_endpoints) {
+        if (!mounted) return;
+        if ((data as { refused?: boolean })?.refused) {
+          setRadarRefused((data as { refuse_reason?: string })?.refuse_reason || 'radar refused');
+          setEndpoints([]);
+        } else if (data?.radar_endpoints) {
           setEndpoints(data.radar_endpoints as RadarEndpoint[]);
         }
       })
-      .catch((err) => console.error('Failed to scan host radar:', err));
+      .catch((err) => {
+        if (mounted) setRadarRefused(err instanceof Error ? err.message : String(err));
+      });
 
     fetchLLMSettings()
       .then((data) => {
@@ -115,7 +127,9 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
           setAirGapped(Boolean(data.air_gapped));
         }
       })
-      .catch((err) => console.error('Failed to load LLM settings:', err));
+      .catch((err) => {
+        if (mounted) setMeshError(`LLM settings unreachable: ${err instanceof Error ? err.message : String(err)}`);
+      });
 
     fetchCustomAgents()
       .then((list) => {
@@ -123,7 +137,9 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
           setAgents(list);
         }
       })
-      .catch((err) => console.error('Failed to load agents:', err));
+      .catch((err) => {
+        if (mounted) setMeshError(`Agents unreachable: ${err instanceof Error ? err.message : String(err)}`);
+      });
 
     return () => {
       mounted = false;
@@ -132,6 +148,14 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
 
   const handleSaveCustomAgent = async () => {
     if (!newAgentName.trim() || !newAgentPrompt.trim()) return;
+    const parsedBudget = parseFloat(newAgentBudget);
+    if (!Number.isFinite(parsedBudget) || parsedBudget < 0) {
+      setMeshError(`Refused: spend budget must be a finite number ≥ 0 (got "${newAgentBudget}"). Nothing registered.`);
+      return;
+    }
+    if (parsedBudget > 100) {
+      setMeshError(`Warning: $${parsedBudget.toFixed(2)} exceeds the $100 planning ceiling — confirm this is intentional.`);
+    }
     const id = `agent_${newAgentName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${Date.now().toString(36)}`;
     const manifest: CustomAgentManifest = {
       id,
@@ -145,7 +169,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
       modalities: ['text', 'molecule_3d'],
       preferred_model: newAgentModel,
       mcp_tools: ['pyscf', 'lean4'],
-      spend_budget_usd: parseFloat(newAgentBudget) || 0.0,
+      spend_budget_usd: parsedBudget,
       memory_scopes: ['default'],
     };
     try {
@@ -154,9 +178,10 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
       setNewAgentName('');
       setNewAgentDesc('');
       setNewAgentPrompt('');
+      setMeshError(null);
       loadAgents();
     } catch (err) {
-      console.error('Failed to create agent:', err);
+      setMeshError(`Failed to create agent — nothing registered (${err instanceof Error ? err.message : String(err)}).`);
     }
   };
 
@@ -165,12 +190,13 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
       await deleteCustomAgent(agentId);
       loadAgents();
     } catch (err) {
-      console.error('Failed to delete agent:', err);
+      setMeshError(`Failed to delete agent — nothing removed (${err instanceof Error ? err.message : String(err)}).`);
     }
   };
 
   const handleTestRoute = async () => {
     setRoutingLoading(true);
+    setRouteError(null);
     try {
       const decision = await routeMultimodalPayload({
         prompt: testPrompt,
@@ -184,9 +210,15 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
         ],
         spend_budget_usd: 1.0,
       });
-      setRoutingDecision(decision);
+      if (!decision) {
+        setRouteError('Router refused — no decision returned. Nothing routed.');
+        setRoutingDecision(null);
+      } else {
+        setRoutingDecision(decision);
+      }
     } catch (err) {
-      console.error('Failed to test route:', err);
+      setRouteError(`Router failed — nothing routed (${err instanceof Error ? err.message : String(err)}).`);
+      setRoutingDecision(null);
     } finally {
       setRoutingLoading(false);
     }
@@ -194,6 +226,16 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
 
   return (
     <div className="relative rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0E17] to-[#06080D] border border-white/[0.08] shadow-2xl p-7 space-y-6">
+      {meshError && (
+        <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-xs">
+          Mesh error — {meshError} Nothing was changed.
+        </div>
+      )}
+      {airGapError && (
+        <div className="p-3 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-200 text-xs">
+          {airGapError}
+        </div>
+      )}
       {/* Serene Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-5">
         <div className="flex items-center space-x-3.5">
@@ -257,6 +299,16 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
             Target: 127.0.0.1 (Loopback Only)
           </span>
         </div>
+        {radarRefused && (
+          <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[11px]">
+            Radar refused — {radarRefused.slice(0, 200)}. Nothing discovered, nothing assumed.
+          </div>
+        )}
+        {!radarRefused && endpoints.length === 0 && (
+          <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 text-slate-400 text-[11px] font-code">
+            No endpoints discovered — radar reachable but empty (not a refusal).
+          </div>
+        )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {endpoints.map((ep) => (
@@ -337,9 +389,14 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
             <p className="text-slate-400 font-sans">{routingDecision.explanation}</p>
             <div className="flex items-center space-x-4 text-[10px] text-slate-400">
               <span>Provider: {routingDecision.provider}</span>
-              <span>Estimated Cost: ${routingDecision.estimated_cost_usd.toFixed(2)}</span>
+              <span>Estimated Cost: ${fmtFixed(routingDecision.estimated_cost_usd, 2)}</span>
               <span>Modalities: {routingDecision.modalities_supported.join(', ')}</span>
             </div>
+          </div>
+        )}
+        {routeError && (
+          <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[11px]">
+            {routeError}
           </div>
         )}
       </div>

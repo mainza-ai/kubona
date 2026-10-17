@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { KeyRound,  CheckCircle2, XCircle, ArrowDownCircle } from 'lucide-react';
-import { createSignedSpendMandate } from '@/lib/mandates';
+import { createSignedSpendMandate, verifySpendMandateLocally } from '@/lib/mandates';
 
 interface CryptographicMandateCardWidgetProps {
   actionDescription?: string;
@@ -27,10 +27,13 @@ export function CryptographicMandateCardWidget({
 }: CryptographicMandateCardWidgetProps) {
   const [isSigning, setIsSigning] = useState(false);
   const [signedToken, setSignedToken] = useState<string | null>(null);
+  const [verifiedLocal, setVerifiedLocal] = useState<boolean | null>(null);
+  const [signError, setSignError] = useState<string | null>(null);
   // No demo defaults: authorization chrome with a fictional dispatch would
   // sign spend for work that was never proposed. Without props the card
   // states the gap and signing stays disabled.
   const hasProposal = actionDescription != null && estimatedCostUsd != null && targetBackend != null;
+  const costFinite = typeof estimatedCostUsd === 'number' && Number.isFinite(estimatedCostUsd);
 
   const handleSign = async () => {
     if (!hasProposal) return;
@@ -39,6 +42,8 @@ export function CryptographicMandateCardWidget({
     const action = actionDescription as string;
     const cost = estimatedCostUsd as number;
     setIsSigning(true);
+    setSignError(null);
+    setVerifiedLocal(null);
     try {
       // Deterministically hash the action description for the job hash
       const encoder = new TextEncoder();
@@ -52,16 +57,20 @@ export function CryptographicMandateCardWidget({
 
       // Generate authentic AP2 Ed25519 SpendMandate
       const mandate = createSignedSpendMandate({
-        tenantId: tenantId || 'tenant-default',
+        tenantId: (tenantId || 'tenant-default').trim() || 'tenant-default',
         jobHash: jobHashHex,
         maxBudgetUsd: cost,
         ttlSeconds: 3600,
       });
 
+      // Verify-or-label-local: the card mints locally, so it verifies
+      // locally and labels the result as local-only (never server-verified).
+      const localOk = verifySpendMandateLocally(mandate);
+      setVerifiedLocal(localOk);
       setSignedToken(mandate.signature_hex);
       onAuthorize?.(mandate.signature_hex);
     } catch (err) {
-      console.error('Failed to cryptographically sign mandate:', err);
+      setSignError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsSigning(false);
     }
@@ -103,7 +112,11 @@ export function CryptographicMandateCardWidget({
           </div>
           <div>
             <span className="text-white/40 block text-[10px]">Estimated QPU Spend</span>
-            <span className="font-mono text-amber-300 text-sm font-bold">${(estimatedCostUsd ?? 0).toFixed(2)} USD</span>
+            {costFinite ? (
+              <span className="font-mono text-amber-300 text-sm font-bold">${(estimatedCostUsd as number).toFixed(2)} USD</span>
+            ) : (
+              <span className="font-mono text-amber-300 text-sm font-bold">UNPRICED — authorization disabled</span>
+            )}
           </div>
         </div>
       </div>
@@ -114,8 +127,9 @@ export function CryptographicMandateCardWidget({
         <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center space-x-2 text-xs text-emerald-300">
           <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
           <div className="truncate">
-            <span className="font-bold">Authorized & Signed: </span>
+            <span className="font-bold">Authorized & Signed (local-only{verifiedLocal === false ? ', UNVERIFIED' : ''}): </span>
             <span className="font-mono text-[11px] text-emerald-200">{signedToken}</span>
+            <div className="text-[10px] font-code text-slate-400">local Ed25519 signature — not server-verified, nothing dispatched</div>
           </div>
         </div>
       ) : !hasProposal ? (
@@ -124,7 +138,8 @@ export function CryptographicMandateCardWidget({
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <button
             onClick={handleSign}
-            disabled={isSigning}
+            disabled={isSigning || !costFinite}
+            title={!costFinite ? 'Disabled: unpriced — authorization disabled' : undefined}
             className="flex-1 py-2 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-amber-600 hover:from-rose-500 hover:to-amber-500 text-white font-medium text-xs shadow-lg transition flex items-center justify-center space-x-2 disabled:opacity-50"
           >
             <KeyRound className="w-3.5 h-3.5" />
@@ -135,7 +150,7 @@ export function CryptographicMandateCardWidget({
             className="py-2 px-3 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-white/80 text-xs transition flex items-center space-x-1.5"
           >
             <ArrowDownCircle className="w-3.5 h-3.5 text-blue-400" />
-            <span>Downgrade to Classical DMRG</span>
+            <span>Downgrade to simulator</span>
           </button>
           <button
             onClick={onAbort}
@@ -144,6 +159,11 @@ export function CryptographicMandateCardWidget({
             <XCircle className="w-3.5 h-3.5 text-rose-400" />
             <span>Abort</span>
           </button>
+        </div>
+      )}
+      {signError && (
+        <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[11px]">
+          Sign failed — nothing authorized, nothing dispatched ({signError.slice(0, 200)}).
         </div>
       )}
     </div>

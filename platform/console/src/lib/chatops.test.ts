@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   clearMessages,
   regenerateChat,
@@ -11,12 +11,19 @@ function mockFetchOnce(body: unknown, ok = true, status = 200) {
   (globalThis as { fetch?: unknown }).fetch = vi.fn().mockResolvedValue({
     ok,
     status,
+    statusText: ok ? 'OK' : 'Refused',
+    text: async () => (typeof body === 'string' ? body : JSON.stringify(body)),
     json: async () => body,
   });
 }
 
 beforeEach(() => {
   vi.unstubAllGlobals();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 describe('chat ops client', () => {
@@ -97,5 +104,86 @@ describe('fetchJob', () => {
       json: async () => ({}),
     });
     await expect(fetchJob('missing')).resolves.toBeNull();
+  });
+});
+
+describe('spend-critical refusal paths (fail-closed)', () => {
+  it('verifySpendMandate fail-closed on HTTP refusal', async () => {
+    const { verifySpendMandate } = await import('./api');
+    (globalThis as { fetch?: unknown }).fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 403,
+      statusText: 'Forbidden',
+      text: async () => '',
+      json: async () => ({}),
+    });
+    const res = await verifySpendMandate({
+      tenant_id: 'lab-a',
+      job_hash: 'j',
+      max_budget_usd: 10,
+      expiry_timestamp: '2030-01-01T00:00:00Z',
+      public_key_hex: '00',
+      signature_hex: '00',
+    });
+    expect(res.valid).toBe(false);
+    expect(res.error).toMatch(/403|Forbidden/);
+  });
+
+  it('verifySpendMandate fail-closed on transport failure', async () => {
+    const { verifySpendMandate } = await import('./api');
+    (globalThis as { fetch?: unknown }).fetch = vi.fn().mockRejectedValue(new Error('down'));
+    const res = await verifySpendMandate({
+      tenant_id: 'lab-a',
+      job_hash: 'j',
+      max_budget_usd: 10,
+      expiry_timestamp: '2030-01-01T00:00:00Z',
+      public_key_hex: '00',
+      signature_hex: '00',
+    });
+    expect(res.valid).toBe(false);
+    expect(res.error).toMatch(/down/);
+  });
+
+  it('launchProposal surfaces the backend refusal text', async () => {
+    const { launchProposal } = await import('./api');
+    (globalThis as { fetch?: unknown }).fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 402,
+      text: async () => 'tier-routing refused: hardware tier needs approval',
+      json: async () => ({}),
+    });
+    const res = await launchProposal('s', { target: 'x' });
+    expect(res).toEqual({ error: 'tier-routing refused: hardware tier needs approval' });
+  });
+
+  it('launchProposal returns null on transport failure (never throws)', async () => {
+    const { launchProposal } = await import('./api');
+    (globalThis as { fetch?: unknown }).fetch = vi.fn().mockRejectedValue(new Error('bridge down'));
+    await expect(launchProposal('s', { target: 'x' })).resolves.toBeNull();
+  });
+
+  it('streamChatMessage throws on refusal (fail-closed)', async () => {
+    const { streamChatMessage } = await import('./api');
+    (globalThis as { fetch?: unknown }).fetch = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 429,
+      body: null,
+    });
+    await expect(streamChatMessage('s', 'hi', () => {})).rejects.toThrow(/refused.*429/);
+  });
+
+  it('streamChatMessage throws on transport error event', async () => {
+    const { streamChatMessage } = await import('./api');
+    const enc = new TextEncoder();
+    const frames = enc.encode('event: error\ndata: {"error":"overloaded"}\n\n');
+    const reader = {
+      read: vi.fn().mockResolvedValueOnce({ value: frames, done: false }).mockResolvedValueOnce({ value: undefined, done: true }),
+    };
+    (globalThis as { fetch?: unknown }).fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      body: { getReader: () => reader },
+    });
+    await expect(streamChatMessage('s', 'hi', () => {})).rejects.toThrow(/overloaded/);
   });
 });

@@ -4,6 +4,9 @@ import React, { useMemo, useState } from 'react';
 import { GitBranch } from 'lucide-react';
 import { CampaignState } from '@/types';
 import { fetchQirCompile, type QirCompileReceipt } from '@/lib/api';
+import { asRecord } from '@/lib/guards';
+
+export { asRecord };
 
 interface ProofDagViewProps {
   campaign?: CampaignState | null;
@@ -20,10 +23,6 @@ interface DagEdge {
   id: string;
   source: string;
   target: string;
-}
-
-function asRecord(v: unknown): Record<string, unknown> {
-  return (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
 }
 
 function str(v: unknown): string {
@@ -49,6 +48,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [compileOpen, setCompileOpen] = useState(false);
   const [receipt, setReceipt] = useState<QirCompileReceipt | null | undefined>(undefined);
+  const [compileError, setCompileError] = useState<string | null>(null);
   const [compiling, setCompiling] = useState(false);
 
   const wireCuts = useMemo(() => {
@@ -90,8 +90,14 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
     const qasm = campaign?.quantum_factors?.qasm;
     if (!qasm || compiling) return;
     setCompiling(true);
+    setCompileError(null);
     try {
+      // Null = backend refusal (HTTP !ok). Throw = transport failure —
+      // rendered distinctly so a down bridge never reads as "refused".
       setReceipt(await fetchQirCompile(qasm));
+    } catch (e) {
+      setReceipt(undefined);
+      setCompileError(e instanceof Error ? e.message : String(e));
     } finally {
       setCompiling(false);
     }
@@ -128,7 +134,12 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
       out.set(e.source, list);
     }
     const layer = new Map<string, number>();
-    const queue: string[] = nodes.filter((n) => (inDeg.get(n.id) ?? 0) === 0).map((n) => n.id);
+    const roots = nodes.filter((n) => (inDeg.get(n.id) ?? 0) === 0).map((n) => n.id);
+    const queue: string[] = [...roots];
+    // Cycle guard: no roots with edges present means every node sits in a
+    // cycle — seed from the first node but flag it loudly instead of
+    // rendering a confident layout.
+    const hasCycleSeed = queue.length === 0 && nodes.length > 0 && edges.length > 0;
     if (queue.length === 0 && nodes.length > 0) queue.push(nodes[0].id);
     for (const id of queue) layer.set(id, 0);
     const order = [...queue];
@@ -143,6 +154,9 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
     for (const n of nodes) {
       if (!layer.has(n.id)) layer.set(n.id, 0);
     }
+    // Any node unreachable from the seed set, or a seed forced from a
+    // rootless graph, indicates a cycle / disconnected loop.
+    const hasCycle = hasCycleSeed || order.length < nodes.length;
 
     const COL_X = 190;
     const ROW_Y = 62;
@@ -159,7 +173,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
     }
     const maxLayer = columns.size > 0 ? Math.max(...columns.keys()) : 0;
     const maxRows = columns.size > 0 ? Math.max(...[...columns.values()].map((c) => c.length)) : 1;
-    return { nodes, edges, pos, width: 30 + maxLayer * COL_X + 220, height: Math.max(120, 30 + maxRows * ROW_Y) };
+    return { nodes, edges, pos, width: 30 + maxLayer * COL_X + 220, height: Math.max(120, 30 + maxRows * ROW_Y), hasCycle };
   }, [campaign?.quantum_factors?.dag_nodes, campaign?.quantum_factors?.dag_edges]);
 
   const selected = graph.nodes.find((n) => n.id === selectedId) ?? null;
@@ -182,29 +196,51 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
       <div className="pt-20 pb-1 text-center font-code text-[10px] text-slate-500 shrink-0">
         {graph.nodes.length} nodes · {graph.edges.length} edges · {campaign?.target_system || 'untargeted'}
       </div>
-      {/* Wire-cut ledger: planned template vs measured cut jobs. */}
+      {/* Wire-cut ledger: planned template vs measured cut jobs. Unmeasured
+          cuts render their known fields with a planned prefix — never a bare
+          generic chip that hides what was templated. */}
       {wireCuts.length > 0 && (
         <div className="px-6 pb-1 flex flex-wrap justify-center gap-1.5 shrink-0">
           {wireCuts.map((w, i) => {
             const measured = w.measured === true;
             const frags = Array.isArray(w.fragments) ? w.fragments.length : 0;
-            const cuts = typeof w.total_cuts === 'number' ? w.total_cuts : null;
+            const cuts = typeof w.total_cuts === 'number' && Number.isFinite(w.total_cuts) ? w.total_cuts : null;
+            if (measured) {
+              return (
+                <span
+                  key={i}
+                  title={`Cut job ${String(w.job_id ?? '?')}`}
+                  className="px-2 py-0.5 rounded-full font-code text-[10px] border bg-emerald-400/10 border-emerald-400/40 text-emerald-300"
+                >
+                  {`measured: ${cuts ?? '?'} cuts · ${frags} fragments · job ${String(w.job_id ?? '?').slice(0, 8)}`}
+                </span>
+              );
+            }
+            const known: string[] = [];
+            if (w.cut_type != null) known.push(`type ${String(w.cut_type).slice(0, 24)}`);
+            if (cuts != null) known.push(`${cuts} cuts`);
+            if (typeof w.overhead === 'string' && w.overhead) known.push(`overhead ${w.overhead.slice(0, 32)}`);
+            if (frags > 0) known.push(`${frags} fragments`);
             return (
               <span
                 key={i}
-                title={measured ? `Cut job ${String(w.job_id ?? '?')}` : 'Synthesis placeholder — no cut has executed'}
-                className={`px-2 py-0.5 rounded-full font-code text-[10px] border ${
-                  measured
-                    ? 'bg-emerald-400/10 border-emerald-400/40 text-emerald-300'
-                    : 'bg-amber-400/10 border-amber-400/40 text-amber-300'
-                }`}
+                title="Synthesis placeholder — no cut has executed"
+                className="px-2 py-0.5 rounded-full font-code text-[10px] border bg-amber-400/10 border-amber-400/40 text-amber-300"
               >
-                {measured
-                  ? `measured: ${cuts ?? '?'} cuts · ${frags} fragments · job ${String(w.job_id ?? '?').slice(0, 8)}`
-                  : 'planned cut (not executed)'}
+                {known.length > 0 ? `planned: ${known.join(' · ')} (not executed)` : 'planned cut (not executed)'}
               </span>
             );
           })}
+        </div>
+      )}
+      {graph.hasCycle && (
+        <div className="px-6 pb-1 flex justify-center shrink-0">
+          <span
+            title="The edge set contains a cycle — layering is a fallback, not a proof order"
+            className="px-2 py-0.5 rounded-full font-code text-[10px] border bg-rose-400/10 border-rose-400/40 text-rose-300"
+          >
+            cycle detected — layout is fallback, not proof order
+          </span>
         </div>
       )}
       {/* Campaign signals: stuck / rescoped / contested states. */}
@@ -283,7 +319,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
                 </text>
                 <text x="12" y="28" className="fill-slate-500" fontSize="9" fontFamily="monospace">
                   {n.kind}
-                  {n.angle != null ? ` · θ=${n.angle.toFixed(3)}` : ''}
+                  {typeof n.angle === 'number' && Number.isFinite(n.angle) ? ` · θ=${n.angle.toFixed(3)}` : ''}
                 </text>
               </g>
             );
@@ -296,7 +332,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
             <div className="text-xs font-code text-cyan-200">{selected.label}</div>
             <div className="text-[10px] font-code text-slate-400">
               id {selected.id} · {selected.kind}
-              {selected.angle != null ? ` · θ=${selected.angle}` : ''}
+              {typeof selected.angle === 'number' && Number.isFinite(selected.angle) ? ` · θ=${selected.angle}` : ''}
             </div>
             <div className="text-[10px] font-code text-slate-500">
               {provenance ? `ledger receipt ${provenance}` : 'no provenance receipt on this campaign'}
@@ -328,7 +364,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
                 </div>
                 <div>
                   <div className="text-[10px] font-code text-slate-500 mb-1">TRANSPILED QIR (backend)</div>
-                  {!receipt && (
+                  {!receipt && !compileError && (
                     <button
                       onClick={() => void runCompile()}
                       disabled={compiling || !campaign?.quantum_factors?.qasm}
@@ -337,15 +373,20 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
                       {compiling ? 'Compiling…' : 'Compile via backend'}
                     </button>
                   )}
-                  {receipt === null && (
+                  {receipt === null && !compileError && (
                     <p className="text-[11px] font-code text-rose-400">Compile refused — nothing transpiled.</p>
+                  )}
+                  {compileError && (
+                    <p className="text-[11px] font-code text-amber-300">
+                      Compile transport failed — bridge unreachable, not a refusal ({compileError.slice(0, 160)}). Nothing transpiled.
+                    </p>
                   )}
                   {receipt && (
                     <div className="space-y-1.5">
                       <div className="text-[10px] font-code text-slate-400">
                         {receipt.compiler_used || 'unanalyzed'}
                         {receipt.fallback_estimate ? ' · ESTIMATE (not compiler-verified)' : ' · compiler-verified'}
-                        {' · '}qubits {receipt.num_qubits} · depth {receipt.depth} · gates {receipt.gate_count} · T {receipt.t_count}
+                        {' · '}qubits {receipt.num_qubits}{receipt.fallback_estimate ? ' (EST)' : ''} · depth {receipt.depth}{receipt.fallback_estimate ? ' (EST)' : ''} · gates {receipt.gate_count}{receipt.fallback_estimate ? ' (EST)' : ''} · T {receipt.t_count}{receipt.fallback_estimate ? ' (EST)' : ''}
                       </div>
                       <pre className="max-h-40 overflow-auto text-[10px] font-code text-slate-300 bg-black/40 rounded-lg p-2 whitespace-pre-wrap">
                         {receiptLineCapped(receipt.llvm_ir)}

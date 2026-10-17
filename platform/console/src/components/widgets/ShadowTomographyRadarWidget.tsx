@@ -44,13 +44,13 @@ export function ShadowTomographyRadarWidget({
       </div>
 
       <p className="text-[10px] font-mono text-slate-500">
-        Reference figures for the protocol — not measured from this session. Estimates below are static.
+        REF — reference figures for the protocol, not measured from this session. Estimates below are static.
       </p>
 
       {/* Snapshots Controls & Efficiency Badge */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
         <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] space-y-1">
-          <span className="text-white/40 block text-[10px]">Shadow Pool Size</span>
+          <span className="text-white/40 block text-[10px]">Shadow Pool Size (REF)</span>
           <div className="flex justify-between items-center">
             <span className="font-mono text-base font-semibold text-blue-300">{snapshotCount} snapshots</span>
           </div>
@@ -65,7 +65,7 @@ export function ShadowTomographyRadarWidget({
           />
         </div>
         <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] flex flex-col justify-between">
-          <span className="text-white/40 text-[10px]">Measurement Speedup vs Pauli Grouping</span>
+          <span className="text-white/40 text-[10px]">Measurement Speedup vs Pauli Grouping (REF)</span>
           <div className="flex items-baseline space-x-1">
             <span className="font-mono text-xl font-bold text-emerald-400">14.8x</span>
             <span className="text-[10px] text-white/40">shot reduction</span>
@@ -73,7 +73,7 @@ export function ShadowTomographyRadarWidget({
           <span className="text-[10px] text-emerald-300/70 font-mono">Decoupled from term count</span>
         </div>
         <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] flex flex-col justify-between">
-          <span className="text-white/40 text-[10px]">State Representation Fidelity</span>
+          <span className="text-white/40 text-[10px]">State Representation Fidelity (REF)</span>
           <div className="flex items-baseline space-x-1">
             <span className="font-mono text-xl font-bold text-cyan-400">99.2%</span>
             <span className="text-[10px] text-white/40">F_shadow</span>
@@ -97,15 +97,18 @@ export function ShadowTomographyRadarWidget({
           <tbody className="divide-y divide-white/[0.04] font-mono">
             {observables.map((obs) => {
               const diff = Math.abs(obs.shadowEst - obs.exact);
+              const exactOk = Number.isFinite(obs.exact);
+              const estOk = Number.isFinite(obs.shadowEst);
+              const errOk = Number.isFinite(obs.stdErr);
               return (
                 <tr key={obs.pauli} className="hover:bg-white/[0.02]">
-                  <td className="py-2.5 font-bold text-blue-300">σ_{obs.pauli}</td>
-                  <td className="py-2.5 text-white/60">{obs.exact.toFixed(3)}</td>
-                  <td className="py-2.5 text-white/90">{obs.shadowEst.toFixed(3)}</td>
-                  <td className="py-2.5 text-white/40">±{obs.stdErr.toFixed(3)}</td>
+                  <td className="py-2.5 font-bold text-blue-300">σ_{obs.pauli} <span className="text-[9px] text-slate-500">REF</span></td>
+                  <td className="py-2.5 text-white/60">{exactOk ? obs.exact.toFixed(3) : '—'} (ref)</td>
+                  <td className="py-2.5 text-white/90">{estOk ? obs.shadowEst.toFixed(3) : '—'} (ref)</td>
+                  <td className="py-2.5 text-white/40">±{errOk ? obs.stdErr.toFixed(3) : '—'} (ref)</td>
                   <td className="py-2.5">
                     <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
-                      Converged (Δ={diff.toFixed(3)})
+                      Converged (Δ={Number.isFinite(diff) ? diff.toFixed(3) : '—'}) (ref)
                     </span>
                   </td>
                 </tr>

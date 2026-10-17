@@ -46,13 +46,21 @@ export function MemoryPanel({ sessionId }: { sessionId: string | null }) {
     const content = note.trim();
     if (!content) return;
     setStatus(null);
-    const res = await retainMemory(sessionId, content, { bank, importance: parseFloat(weight) });
+    const weightNum = parseFloat(weight);
+    if (!Number.isFinite(weightNum)) {
+      setStatus(`Retain refused — weight "${weight}" is not a number. Nothing stored.`);
+      return;
+    }
+    const res = await retainMemory(sessionId, content, { bank, importance: weightNum });
     if (!res) {
       setStatus('Retain failed — nothing stored.');
       return;
     }
+    const idShort = typeof res.id === 'string' && res.id ? `${res.id.slice(0, 13)}…` : 'UNVERIFIED (no id)';
+    const bankLabel = typeof res.bank === 'string' && res.bank ? res.bank : bank;
+    const impLabel = typeof res.importance === 'number' && Number.isFinite(res.importance) ? res.importance : weightNum;
     setNote('');
-    setStatus(`Retained ${res.id.slice(0, 13)}… in ${res.bank} at weight ${res.importance}.`);
+    setStatus(`Retained ${idShort} in ${bankLabel} at weight ${impLabel}.`);
     void runRecall();
   };
 
@@ -107,14 +115,22 @@ export function MemoryPanel({ sessionId }: { sessionId: string | null }) {
 
           {snippets !== null && snippets.length > 0 && (
             <ul className="space-y-1.5 max-h-48 overflow-y-auto">
-              {snippets.map((s, i) => (
+              {snippets.map((s, i) => {
+                const sim = typeof s.similarity === 'number' && Number.isFinite(s.similarity) ? `sim ${s.similarity.toFixed(2)}` : 'inventory';
+                const when = (() => {
+                  if (!s.created_at) return 'UNVERIFIED (no date)';
+                  const d = new Date(s.created_at);
+                  return Number.isNaN(d.getTime()) ? 'UNVERIFIED (bad date)' : d.toLocaleString();
+                })();
+                return (
                 <li key={`${s.created_at}-${i}`} className="rounded-lg bg-black/40 border border-white/10 px-2.5 py-1.5">
                   <div className="text-xs text-slate-200 leading-relaxed">{s.content}</div>
                   <div className="mt-0.5 text-[10px] font-code text-slate-500">
-                    {s.bank} · {s.similarity === null || s.similarity === undefined ? 'inventory' : `sim ${s.similarity.toFixed(2)}`} · {new Date(s.created_at).toLocaleString()}
+                    {s.bank} · {sim} · {when}
                   </div>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
 

@@ -23,6 +23,13 @@ export interface SpendMandateParams {
 
 let sessionKeyPair: { secretKey: Uint8Array; publicKey: Uint8Array } | null = null;
 
+// Key custody (honest limitation, 2026-10-17): the Ed25519 session keypair
+// lives in module memory only — it is generated on first use, never
+// persisted to disk/indexedDB, never rotated, and lost on reload. There is
+// no persisted/rotated custody in this console build. Do not present these
+// mandates as hardware-backed or durable: they are ephemeral in-memory
+// signatures verified against the bundled public key for the session only.
+
 export function getOrCreateSessionKeyPair(): { secretKey: Uint8Array; publicKey: Uint8Array } {
   if (!sessionKeyPair) {
     sessionKeyPair = ed.keygen();
@@ -59,11 +66,18 @@ export function canonicalJobBinding(sessionId: string, qasm: string, jobType = '
 
 /**
  * Creates and signs a real Ed25519 SpendMandate envelope.
+ * Fail-closed: missing tenant/job throws (no fail-open defaults), and a
+ * non-finite or non-positive budget throws — callers must refuse, never mint.
  */
 export function createSignedSpendMandate(params: SpendMandateParams): SpendMandate {
-  const tenantId = params.tenantId || 'tenant-default';
-  const jobHash = params.jobHash || 'job-auth-' + Date.now().toString(16);
+  const tenantId = (params.tenantId ?? '').trim();
+  const jobHash = (params.jobHash ?? '').trim();
   const maxBudgetUsd = params.maxBudgetUsd;
+  if (!tenantId) throw new Error('refused: tenant_id is required (no fail-open default)');
+  if (!jobHash) throw new Error('refused: job_hash is required (no fail-open default)');
+  if (typeof maxBudgetUsd !== 'number' || !Number.isFinite(maxBudgetUsd) || maxBudgetUsd <= 0) {
+    throw new Error('refused: maxBudgetUsd must be a finite number > 0');
+  }
   const ttlSeconds = params.ttlSeconds || 3600;
 
   const expirySeconds = Math.floor(Date.now() / 1000) + ttlSeconds;

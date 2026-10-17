@@ -9,8 +9,6 @@ import {
   Radio,
   Network,
   BookOpen,
-  
-  
   Atom,
   CheckCircle2,
   ChevronRight,
@@ -18,6 +16,7 @@ import {
   Database,
 } from 'lucide-react';
 import { Loop, LedgerEvent, CampaignState, Session } from '@/types';
+import { SHORTCUTS } from '@/lib/shortcuts';
 import { SpatialCanvas } from './surfaces/SpatialCanvas';
 import { FlightRecorder } from './surfaces/FlightRecorder';
 import { EpistemicManifold } from './surfaces/EpistemicManifold';
@@ -78,19 +77,19 @@ export function ObservatoryCockpit({
   };
 
   const tabs = [
-    { id: 'overview', label: 'Discovery Home', shortcut: '⌘0', icon: Atom },
-    { id: 'surface1', label: 'Living Canvas', shortcut: '⌘1', icon: Sparkles },
-    { id: 'surface2', label: 'Flight Recorder', shortcut: '⌘2', icon: PlayCircle },
-    { id: 'surface3', label: 'Epistemic Orb', shortcut: '⌘3', icon: Compass },
-    { id: 'surface7', label: 'Living Notebook', shortcut: '⌘4', icon: BookOpen },
-    { id: 'surface8', label: 'Tribunal Room', shortcut: '⌘T', icon: Scale },
-    { id: 'surface4', label: 'Sentinel Guardrails', shortcut: '⌘5', icon: KeyRound },
-    { id: 'surface5', label: 'Fleet Radar', shortcut: '⌘6', icon: Radio },
-    { id: 'surface6', label: 'Cognitive Mesh', shortcut: '⌘7', icon: Network },
-    { id: 'surface9', label: 'Preview Gallery', shortcut: '⌘8', icon: Code2 },
-    { id: 'labs', label: 'Laboratories', shortcut: '⌘L', icon: FlaskConical },
-    { id: 'hf_hub', label: 'Hugging Face Hub', shortcut: '⌘9', icon: Database },
-    { id: 'settings', label: 'Sovereign Air-Gap', shortcut: '⌘S', icon: Sliders },
+    { id: 'overview', label: 'Discovery Home', shortcut: SHORTCUTS.overview, icon: Atom },
+    { id: 'surface1', label: 'Living Canvas', shortcut: SHORTCUTS.livingCanvas, icon: Sparkles },
+    { id: 'surface2', label: 'Flight Recorder', shortcut: SHORTCUTS.flightRecorder, icon: PlayCircle },
+    { id: 'surface3', label: 'Epistemic Orb', shortcut: SHORTCUTS.epistemicOrb, icon: Compass },
+    { id: 'surface7', label: 'Living Notebook', shortcut: SHORTCUTS.livingNotebook, icon: BookOpen },
+    { id: 'surface8', label: 'Tribunal Room', shortcut: SHORTCUTS.tribunalRoom, icon: Scale },
+    { id: 'surface4', label: 'Sentinel Guardrails', shortcut: SHORTCUTS.sentinelGuardrails, icon: KeyRound },
+    { id: 'surface5', label: 'Fleet Radar', shortcut: SHORTCUTS.fleetRadar, icon: Radio },
+    { id: 'surface6', label: 'Cognitive Mesh', shortcut: SHORTCUTS.cognitiveMesh, icon: Network },
+    { id: 'surface9', label: 'Preview Gallery', shortcut: SHORTCUTS.previewGallery, icon: Code2 },
+    { id: 'labs', label: 'Laboratories', shortcut: SHORTCUTS.laboratories, icon: FlaskConical },
+    { id: 'hf_hub', label: 'Hugging Face Hub', shortcut: SHORTCUTS.huggingFaceHub, icon: Database },
+    { id: 'settings', label: 'Sovereign Air-Gap', shortcut: SHORTCUTS.sovereignAirGap, icon: Sliders },
   ];
 
   const targetSystemDisplayName = useMemo(() => {
@@ -106,7 +105,9 @@ export function ObservatoryCockpit({
     return raw.replace(/Ground State.*$/i, '').trim() || raw;
   }, [campaign?.target_system, campaign?.quantum_factors?.target_molecule, activeMolecule]);
 
-  const anchorDiscrepancy = campaign?.classical_anchor?.discrepancy_mha;
+  const anchorDiscrepancyRaw = campaign?.classical_anchor?.discrepancy_mha;
+  const anchorComputed = campaign?.classical_anchor?.anchor_computed === true;
+  const anchorDiscrepancy = anchorComputed && typeof anchorDiscrepancyRaw === 'number' && Number.isFinite(anchorDiscrepancyRaw) ? anchorDiscrepancyRaw : null;
   const isChemicalAccuracyMet = anchorDiscrepancy != null && anchorDiscrepancy <= 1.6;
 
   return (
@@ -161,9 +162,9 @@ export function ObservatoryCockpit({
         {activeTab === 'surface4' && <AutonomyCockpit campaign={campaign} session={session} />}
         {activeTab === 'surface5' && <FleetRadar campaign={campaign} />}
         {activeTab === 'surface6' && <CognitiveMesh campaign={campaign} />}
-        {activeTab === 'surface7' && <ResultsStudio campaign={campaign} />}
+        {activeTab === 'surface7' && <ResultsStudio campaign={campaign} sessionId={session?.id ?? null} />}
         {activeTab === 'surface8' && <EpistemicTribunalRoom sessionId={session?.id ?? ''} />}
-        {activeTab === 'surface9' && <GenerativeUIStudio />}
+        {activeTab === 'surface9' && <GenerativeUIStudio campaign={campaign} />}
         {activeTab === 'labs' && <LabsView />}
         {activeTab === 'hf_hub' && <HuggingFaceModelHub />}
         {activeTab === 'settings' && <LLMSettings />}
@@ -185,11 +186,11 @@ export function ObservatoryCockpit({
                 }`}>
                   <CheckCircle2 className="w-3.5 h-3.5" />
                   <span>
-                    {isChemicalAccuracyMet
-                      ? `Chemical Accuracy Met (Δ = ${anchorDiscrepancy!.toFixed(2)} mHa)`
-                      : anchorDiscrepancy != null
-                        ? `Exploring Variational Space (Δ = ${anchorDiscrepancy.toFixed(2)} mHa)`
-                        : 'Exploring Variational Space (Δ = UNVERIFIED — no anchor measured)'}
+                    {anchorDiscrepancy != null
+                      ? isChemicalAccuracyMet
+                        ? `Chemical Accuracy Met (Δ = ${anchorDiscrepancy.toFixed(2)} mHa · computed anchor)`
+                        : `Exploring Variational Space (Δ = ${anchorDiscrepancy.toFixed(2)} mHa · computed anchor)`
+                      : 'Exploring Variational Space (Δ = UNVERIFIED — no anchor measured)'}
                   </span>
                 </span>
               </div>

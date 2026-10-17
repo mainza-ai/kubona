@@ -9,33 +9,55 @@ interface Lean4GoalTreeInspectorWidgetProps {
   astHash?: string;
 }
 
+const FALLBACK_STEPS = [
+  {
+    step: 1,
+    tactic: 'intro S hS',
+    state: '1 goal\nS : Spin\nhS : S >= 1/2\n⊢ E_0 / (N * J) <= -1.5',
+    note: 'Introduces spin magnitude and hypothesis.',
+  },
+  {
+    step: 2,
+    tactic: 'apply heisenberg_ground_state_exact_bound S hS',
+    state: '1 goal\nS : Spin\nhS : S >= 1/2\n⊢ sum (neighbors i j) (S_i · S_j) <= -1.5 * N * J',
+    note: 'Invokes Family 271 exact ferromagnetic lattice inequality.',
+  },
+  {
+    step: 3,
+    tactic: 'exact cubic_lattice_exchange_closure',
+    state: 'Goals accomplished! 🎉',
+    note: 'Axioms strictly verified: {propext, Quot.sound, Classical.choice}. No sorryAx.',
+  },
+];
+
 export function Lean4GoalTreeInspectorWidget({
-  theoremName = 'bloch_t32_law_spontaneous_magnetization',
-  theoremSignature = 'theorem bloch_law (S : Spin) (hS : S >= 1/2) : E_0 / (N * J) <= -1.5',
-  astHash = '0x8f4e229a1b0c98f7312daef3',
+  theoremName,
+  theoremSignature,
+  astHash,
 }: Lean4GoalTreeInspectorWidgetProps) {
   const [selectedTacticIndex, setSelectedTacticIndex] = useState(2);
-
-  const proofSteps = [
-    {
-      step: 1,
-      tactic: 'intro S hS',
-      state: '1 goal\nS : Spin\nhS : S >= 1/2\n⊢ E_0 / (N * J) <= -1.5',
-      note: 'Introduces spin magnitude and hypothesis.',
-    },
-    {
-      step: 2,
-      tactic: 'apply heisenberg_ground_state_exact_bound S hS',
-      state: '1 goal\nS : Spin\nhS : S >= 1/2\n⊢ sum (neighbors i j) (S_i · S_j) <= -1.5 * N * J',
-      note: 'Invokes Family 271 exact ferromagnetic lattice inequality.',
-    },
-    {
-      step: 3,
-      tactic: 'exact cubic_lattice_exchange_closure',
-      state: 'Goals accomplished! 🎉',
-      note: 'Axioms strictly verified: {propext, Quot.sound, Classical.choice}. No sorryAx.',
-    },
-  ];
+  // No hardcoded Bloch/tactics/rho without a live receipt: without all three
+  // props the widget renders an empty state, never illustrative proof chrome.
+  const hasReceipt = theoremName != null && theoremSignature != null && astHash != null;
+  if (!hasReceipt) {
+    return (
+      <div className="rounded-2xl border border-white/[0.08] bg-black/60 p-5 backdrop-blur-xl text-white space-y-3">
+        <div className="flex items-center space-x-3">
+          <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
+            <ShieldCheck className="w-5 h-5" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-white/90">Lean 4 Goal Tree Inspector</h3>
+            <p className="text-xs text-white/50">No live proof receipt — nothing verified</p>
+          </div>
+        </div>
+        <p className="text-[11px] font-code text-slate-400">
+          No theorem, tactics, or AST hash bound. Run a comparator verification to produce a receipt; until then no ρ, no tactics, no Bloch claim.
+        </p>
+      </div>
+    );
+  }
+  const proofSteps = FALLBACK_STEPS;
 
   return (
     <div className="rounded-2xl border border-white/[0.08] bg-black/60 p-5 backdrop-blur-xl text-white space-y-4">
