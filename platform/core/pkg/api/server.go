@@ -276,7 +276,7 @@ func NewServer(
 
 	// Ledger-bound A2A execution: delegated tasks run on the jobs runner (one
 	// budget rail), never on invented results.
-	s.a2aServer.SetTaskExecutor(&bridgeTaskExecutor{runner: jr, sessions: sm, ledger: l, harness: s.harnessReg, sandbox: sbRunner, qir: qirComp})
+	s.a2aServer.SetTaskExecutor(&bridgeTaskExecutor{runner: jr, sessions: sm, ledger: l, harness: s.harnessReg, sandbox: sbRunner, qir: qirComp, signer: s.signerPrivKey})
 	// Live tenant autonomy at A2A dispatch (same rule as HTTP dispatch).
 	s.a2aServer.SetAutonomyChecker(func(tenantID string) (string, error) {
 		t, err := s.tenantMgr.GetTenant(tenantID)
