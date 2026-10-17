@@ -410,31 +410,80 @@ export async function fetchMetasearchProposals(): Promise<import('@/types').Meta
   }
 }
 
-export async function approveMetasearchProposal(proposalId: string, signer: string = 'human-quantum-engineer'): Promise<boolean> {
+export async function approveMetasearchProposal(
+  proposalId: string,
+  signer: string = 'console-operator'
+): Promise<{ ok: true } | { error: string } | null> {
   try {
     const res = await fetch(`${API_BASE}/api/metasearch/approve`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ proposal_id: proposalId, signer }),
     });
-    return res.ok;
+    if (!res.ok) {
+      let text = '';
+      try {
+        text = (await res.text()).trim().slice(0, 280);
+      } catch {
+        /* ignore */
+      }
+      return { error: text || `HTTP ${res.status}` };
+    }
+    return { ok: true };
   } catch (err) {
     console.error('Failed to approve proposal:', err);
-    return false;
+    return null;
   }
 }
 
-export async function applyMetasearchProposal(proposalId: string): Promise<boolean> {
+export async function rejectMetasearchProposal(
+  proposalId: string,
+  signer: string = 'console-operator'
+): Promise<{ ok: true } | { error: string } | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/metasearch/reject`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ proposal_id: proposalId, signer }),
+    });
+    if (!res.ok) {
+      let text = '';
+      try {
+        text = (await res.text()).trim().slice(0, 280);
+      } catch {
+        /* ignore */
+      }
+      return { error: text || `HTTP ${res.status}` };
+    }
+    return { ok: true };
+  } catch (err) {
+    console.error('Failed to reject proposal:', err);
+    return null;
+  }
+}
+
+export async function applyMetasearchProposal(
+  proposalId: string
+): Promise<{ ok: true } | { error: string } | null> {
   try {
     const res = await fetch(`${API_BASE}/api/metasearch/apply`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ proposal_id: proposalId }),
     });
-    return res.ok;
+    if (!res.ok) {
+      let text = '';
+      try {
+        text = (await res.text()).trim().slice(0, 280);
+      } catch {
+        /* ignore */
+      }
+      return { error: text || `HTTP ${res.status}` };
+    }
+    return { ok: true };
   } catch (err) {
     console.error('Failed to apply proposal:', err);
-    return false;
+    return null;
   }
 }
 
@@ -1081,4 +1130,186 @@ export async function appendLedgerEvent(
     return { ok: false, error: (data?.error as string) || 'ledger returned no record hash' };
   }
   return { ok: true, record_hash: data.record_hash, event_id: data.event_id };
+}
+
+export interface BackendStatus {
+  reachable: boolean;
+  ready: boolean;
+  service?: string;
+  version?: string;
+  diskLevel?: string;
+  diskReason?: string;
+  message?: string;
+}
+
+// Backend liveness for the status banner (U1-a). Three states, never
+// conflated: unreachable (transport failed — surfaces may be showing
+// cached/empty data), degraded (health 200 but ready 503 — the reason
+// rides along), healthy. Distinguishes "empty" from "backend down".
+export async function fetchBackendStatus(): Promise<BackendStatus> {
+  let health: Record<string, unknown>;
+  try {
+    const res = await fetch(`${API_BASE}/api/health`, { cache: 'no-store', headers: authHeaders() });
+    if (!res.ok) return { reachable: false, ready: false };
+    health = (await res.json()) as Record<string, unknown>;
+  } catch {
+    return { reachable: false, ready: false };
+  }
+  let ready = true;
+  let message: string | undefined;
+  try {
+    const res = await fetch(`${API_BASE}/api/ready`, { cache: 'no-store', headers: authHeaders() });
+    if (!res.ok) {
+      ready = false;
+      try {
+        const body = (await res.json()) as { message?: unknown; code?: unknown };
+        message =
+          typeof body.message === 'string'
+            ? body.message
+            : typeof body.code === 'string'
+              ? body.code
+              : `HTTP ${res.status}`;
+      } catch {
+        message = `HTTP ${res.status}`;
+      }
+    }
+  } catch {
+    return { reachable: false, ready: false };
+  }
+  const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
+  return {
+    reachable: true,
+    ready,
+    service: str(health.service),
+    version: str(health.version),
+    diskLevel: str(health.disk_level),
+    diskReason: str(health.disk_reason),
+    message,
+  };
+}
+
+export type LoopAction = 'pause' | 'resume' | 'kill';
+
+// U1-c: loop override (watch-and-interrupt). POSTs the supervisor action;
+// refusals carry the backend reason as text (unknown id, illegal
+// transition), transport failure returns null so the caller can tell
+// "refused" from "unreachable".
+export async function loopAction(
+  loopId: string,
+  action: LoopAction
+): Promise<{ ok: true } | { error: string } | null> {
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/loops/${encodeURIComponent(loopId)}/${action}`,
+      { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }) }
+    );
+    if (!res.ok) {
+      let text = '';
+      try {
+        text = (await res.text()).trim().slice(0, 280);
+      } catch {
+        /* ignore body read failure */
+      }
+      return { error: text || `HTTP ${res.status}` };
+    }
+    return { ok: true };
+  } catch (err) {
+    console.error(`Failed loop ${action}:`, err);
+    return null;
+  }
+}
+
+export interface TenantWriteResult {
+  ok: true;
+  tenant: import('@/types').Lab;
+}
+
+export interface TenantWriteError {
+  error: string;
+}
+
+// Shared POST helper for the bearer-gated, admin-enveloped tenant
+// mutations (U1-b). Refusals carry the backend reason verbatim
+// (not-admin, expired, suspended, rate-limited…); transport failure
+// returns null so the UI can tell "refused" from "unreachable".
+async function postTenantMutation(
+  path: string,
+  body: Record<string, unknown>
+): Promise<TenantWriteResult | TenantWriteError | null> {
+  try {
+    const res = await fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) {
+      let text = '';
+      try {
+        text = (await res.text()).trim().slice(0, 280);
+      } catch {
+        /* ignore body read failure */
+      }
+      return { error: text || `HTTP ${res.status}` };
+    }
+    const data = await res.json();
+    return { ok: true, tenant: data as import('@/types').Lab };
+  } catch (err) {
+    console.error(`Tenant mutation ${path} failed:`, err);
+    return null;
+  }
+}
+
+// U1-b: tenant ceiling / suspend-resume / refund / admin-key bootstrap.
+// Each takes a minted AdminAction envelope (see lib/adminAction) — the
+// bearer token proves operator possession, the envelope proves lab-admin
+// authority over the exact parameters. Bootstrap (set_admin_key on a lab
+// with no registered admin) takes no envelope: first write wins.
+export function setTenantCeiling(
+  tenantId: string,
+  ceilingUsd: number,
+  action: import('./adminAction').AdminAction
+): Promise<TenantWriteResult | TenantWriteError | null> {
+  return postTenantMutation('/api/tenants/ceiling', {
+    tenant_id: tenantId,
+    ceiling_usd: ceilingUsd,
+    action,
+  });
+}
+
+export function setTenantStatus(
+  tenantId: string,
+  status: 'active' | 'suspended',
+  action: import('./adminAction').AdminAction
+): Promise<TenantWriteResult | TenantWriteError | null> {
+  return postTenantMutation('/api/tenants/status', {
+    tenant_id: tenantId,
+    status,
+    action,
+  });
+}
+
+export function refundTenantSpend(
+  tenantId: string,
+  amountUsd: number,
+  reason: string,
+  action: import('./adminAction').AdminAction
+): Promise<TenantWriteResult | TenantWriteError | null> {
+  return postTenantMutation('/api/tenants/refund', {
+    tenant_id: tenantId,
+    amount_usd: amountUsd,
+    reason,
+    action,
+  });
+}
+
+export function registerTenantAdminKey(
+  tenantId: string,
+  newAdminPubkeyHex: string,
+  action?: import('./adminAction').AdminAction
+): Promise<TenantWriteResult | TenantWriteError | null> {
+  return postTenantMutation('/api/tenants/admin-key', {
+    tenant_id: tenantId,
+    new_admin_pubkey_hex: newAdminPubkeyHex,
+    ...(action ? { action } : {}),
+  });
 }

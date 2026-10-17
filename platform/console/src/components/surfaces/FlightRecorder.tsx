@@ -5,11 +5,13 @@ import {
   Play, Pause, RotateCcw, CheckCircle, Sparkles, ChevronDown, ChevronUp, FileCode
 } from 'lucide-react';
 import { Loop, LedgerEvent, CampaignState } from '@/types';
+import { LoopControlList } from '@/components/common/LoopControlList';
 
 interface FlightRecorderProps {
   loops?: Loop[];
   events?: LedgerEvent[];
   campaign?: CampaignState | null;
+  onLoopsChanged?: () => void;
 }
 
 interface StoryMilestone {
@@ -22,7 +24,7 @@ interface StoryMilestone {
   codeDiff?: string;
 }
 
-export function FlightRecorder({ loops = [], events = [], campaign }: FlightRecorderProps) {
+export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChanged }: FlightRecorderProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentStepIndex, setCurrentStepIndex] = useState(3);
   const [showCodeDiff, setShowCodeDiff] = useState(false);
@@ -203,6 +205,14 @@ export function FlightRecorder({ loops = [], events = [], campaign }: FlightReco
           <span>{isStepping ? 'Scrubbing...' : 'Preview Next Step'}</span>
         </button>
       </div>
+
+      {/* U1-c: live loop override — pause/resume/kill in-flight loops.
+          Renders nothing when the roster is empty. */}
+      {onLoopsChanged && (
+        <div className="mt-4">
+          <LoopControlList loops={loops} onChanged={onLoopsChanged} />
+        </div>
+      )}
 
       {/* Center Narrative Story Card */}
       <div className="flex-1 flex flex-col items-center justify-center my-8 max-w-xl mx-auto w-full">

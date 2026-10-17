@@ -37,6 +37,15 @@ export function getOrCreateSessionKeyPair(): { secretKey: Uint8Array; publicKey:
   return sessionKeyPair;
 }
 
+// Peeks the browser keypair's public key WITHOUT generating one (unlike
+// getOrCreateSessionKeyPair). Tenant-write surfaces use this to decide
+// whether the operator holds a key at all — key creation stays an explicit
+// keyring action, never a side effect of rendering a lab row.
+export function peekSessionPubkeyHex(): string | null {
+  if (!sessionKeyPair) return null;
+  return bytesToHex(sessionKeyPair.publicKey);
+}
+
 /**
  * Computes the deterministic canonical payload string for a spend mandate matching Go's SpendMandate.CanonicalPayload():
  * fmt.Sprintf("%s:%s:%.4f:%s", m.TenantID, m.JobHash, m.MaxBudgetUSD, m.ExpiryTimestamp.UTC().Format(time.RFC3339))

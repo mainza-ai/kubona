@@ -61,6 +61,17 @@ status: tracked
   > ready (daemon now ensures the models dir, regression-tested);
   > plaintext-compose needs the explicit opt-in the server demands.
   > Next: U1 (health banner, tenant writes, loop override, metasearch UI).
+  > ✅ U1 LANDED 2026-10-17: backend status strip (down vs degraded vs
+  > healthy, 15s poll — ends "empty vs down" ambiguity); loop
+  > pause/resume/kill roster in the recorder (status-gated buttons,
+  > confirm on kill, reasons verbatim, proven live pause→resume→kill);
+  > metasearch approve/reject/apply panel in the cockpit (+ the missing
+  > reject client; signer `console-operator`; proven live list-shape +
+  > gated refusal); LabsView tenant writes (ceiling/suspend/refund +
+  > admin bootstrap) with byte-exact admin envelopes (Go-generated
+  > golden hashes, 4 vectors; full live cycle on compose: bootstrap →
+  > ceiling → wrong-key 403 → suspend → frozen-write 403 → resume →
+  > no-bearer 401). Next: U2 (wire-or-decide per dead backend).
 - P1-4 subsystem consolidation execution — design: [[agent-subsystem-consolidation]].
   > ✅ STEP 1 LANDED 2026-10-17: conformance freezes on all three
   > registry homes (Go + 2× Python) + boot-crash hardening
