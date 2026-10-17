@@ -37,6 +37,13 @@ type HarnessResult struct {
 	IsolationTag      string  `json:"isolation_tag"`
 	RawStdout         string  `json:"raw_stdout,omitempty"`
 	RawStderr         string  `json:"raw_stderr,omitempty"`
+	// S6: bounded capture accounting. Raw* hold at most
+	// sandbox.MaxStoredOutputBytes bytes; the flags + byte counts make
+	// truncation visible instead of silent.
+	StdoutTruncated bool `json:"stdout_truncated,omitempty"`
+	StderrTruncated bool `json:"stderr_truncated,omitempty"`
+	StdoutBytes     int  `json:"stdout_bytes,omitempty"`
+	StderrBytes     int  `json:"stderr_bytes,omitempty"`
 }
 
 // ensureRunner provides a configured sandbox runner if none was passed.
@@ -593,16 +600,25 @@ func (h *CorrectnessRegressionHarness) Metric(artifact string) (float64, error) 
 // Helper: Parse JSON output emitted by Python benchmark runner
 // ============================================================================
 func parseHarnessOutput(harnessID string, res *sandbox.ExecutionResult) (*HarnessResult, error) {
+	// S6: bound agent-controlled output at this choke (the single point
+	// where sandbox streams enter persisted structures). Unbounded stderr
+	// previously flowed verbatim into rows served by the API.
+	stdout, outTrunc, outBytes := sandbox.BoundOutput(res.Stdout)
+	stderr, errTrunc, errBytes := sandbox.BoundOutput(res.Stderr)
 	hr := &HarnessResult{
-		HarnessID:    harnessID,
-		DurationMs:   res.Duration.Milliseconds(),
-		Sandboxed:    res.Sandboxed,
-		IsolationTag: res.IsolationTag,
-		RawStdout:    res.Stdout,
-		RawStderr:    res.Stderr,
+		HarnessID:       harnessID,
+		DurationMs:      res.Duration.Milliseconds(),
+		Sandboxed:       res.Sandboxed,
+		IsolationTag:    res.IsolationTag,
+		RawStdout:       stdout,
+		RawStderr:       stderr,
+		StdoutTruncated: outTrunc,
+		StderrTruncated: errTrunc,
+		StdoutBytes:     outBytes,
+		StderrBytes:     errBytes,
 	}
 
-	lines := strings.Split(res.Stdout, "\n")
+	lines := strings.Split(stdout, "\n")
 	var parsedPayload map[string]any
 
 	for i := len(lines) - 1; i >= 0; i-- {
@@ -618,7 +634,7 @@ func parseHarnessOutput(harnessID string, res *sandbox.ExecutionResult) (*Harnes
 
 	if parsedPayload == nil {
 		hr.Valid = false
-		hr.ValidityReason = fmt.Sprintf("no JSON payload found in runner stdout: %s (stderr: %s)", res.Stdout, res.Stderr)
+		hr.ValidityReason = fmt.Sprintf("no JSON payload found in runner stdout: %s (stderr: %s)", stdout, stderr)
 		hr.Metric = 999.0
 		return hr, nil
 	}

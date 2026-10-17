@@ -1,6 +1,7 @@
 package autoresearch
 
 import (
+	"strings"
 	"testing"
 	"time"
 
@@ -197,5 +198,46 @@ func TestEnsureRunnerDefaultsFailClosed(t *testing.T) {
 	cfg.AllowHostFallback = true
 	if got := ensureRunner(sandbox.NewSandboxRunnerWithConfig(cfg)); got.Config().AllowHostFallback != true {
 		t.Error("explicit runner must pass through untouched")
+	}
+}
+
+func TestParseHarnessOutputBoundsStreams(t *testing.T) {
+	big := strings.Repeat("E", 100000)
+	res := &sandbox.ExecutionResult{
+		Stdout:   "{\"metric\": 1.5}\n" + strings.Repeat("o", 50000),
+		Stderr:   big,
+		ExitCode: 0, Sandboxed: true,
+	}
+	hr, err := parseHarnessOutput("ansatz-search", res)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(hr.RawStderr) != sandbox.MaxStoredOutputBytes {
+		t.Fatalf("stderr must cap at %d, got %d", sandbox.MaxStoredOutputBytes, len(hr.RawStderr))
+	}
+	if !hr.StderrTruncated || hr.StderrBytes != len(big) {
+		t.Fatalf("truncation must be flagged with original size, got %+v", hr)
+	}
+	if !hr.StdoutTruncated || hr.StdoutBytes <= sandbox.MaxStoredOutputBytes {
+		t.Fatalf("stdout must flag too, got %+v", hr)
+	}
+}
+
+func TestParseHarnessOutputReasonBounded(t *testing.T) {
+	// Unparseable output previously embedded FULL streams in the reason.
+	res := &sandbox.ExecutionResult{
+		Stdout:   strings.Repeat("x", 50000),
+		Stderr:   strings.Repeat("y", 50000),
+		ExitCode: 1, Sandboxed: true,
+	}
+	hr, err := parseHarnessOutput("ansatz-search", res)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if hr.Valid {
+		t.Fatalf("garbage must stay invalid")
+	}
+	if len(hr.ValidityReason) > 2*sandbox.MaxStoredOutputBytes+200 {
+		t.Fatalf("reason must be bounded, got %d bytes", len(hr.ValidityReason))
 	}
 }
