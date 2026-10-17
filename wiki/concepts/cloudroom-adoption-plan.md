@@ -276,6 +276,10 @@ I4 `DeleteSession`: refuses live loops /
 > single source. 5 tests (round-trip digest equality, 5 refusal kinds,
 > validate-before-replay, cascade refuse + full); negative automatic (new
 > routes 404 on old code); live export/import/replay/tamper matrix.
+>
+> > ✅ S5b residual closed 2026-10-17 (`671200d`, see [[rea-conflicts-and-remediation]] C2):
+> > the manifest carries the Python sidecar as a ninth digest-pinned
+> > section with idempotent replay — workflow history migrates with the lab.
 
 - **Threat:** raw-DB copying diverges silently (G9).
 - **Logic:** export sweeps all 8 session tables **plus** already-orphaned
