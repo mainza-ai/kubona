@@ -72,6 +72,11 @@ class HybridSession:
         self._aead = AESGCM(aead_key)
         self.peer_id = peer_id
         self.suite = HYBRID_SUITE
+        # Envelope replay registry (W0.14): nonce hex -> exp. Lives on the
+        # session (the long-lived object), NOT on per-request RPC wrappers —
+        # a fresh wrapper per request would forget spent nonces and accept
+        # replays. Only the unwrap (server) side records here.
+        self.envelope_nonces: dict[str, float] = {}
 
     def encrypt(self, plaintext: bytes, aad: bytes = b"") -> bytes:
         nonce = os.urandom(12)

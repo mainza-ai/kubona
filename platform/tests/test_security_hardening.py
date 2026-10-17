@@ -74,6 +74,54 @@ def test_secure_rpc_roundtrip_and_tamper():
         SecureRpc(s_server, gateway=gw).handle(bad)
 
 
+def test_secure_rpc_envelope_discipline():
+    """W0.14: replay/stale/anonymous/reflected envelopes all refuse; post-decrypt
+    failures share one encrypted shape."""
+    from kubona.security.secure_rpc import AAD_REQ, AAD_RESP, SecureRpc
+    client = HybridKeyPair.generate()
+    server = HybridKeyPair.generate()
+    s_client, ct = handshake_initiator(client, server.public_bytes())
+    s_server = handshake_responder(server, client.public_bytes(), ct)
+    gw = build_gateway()
+    rpc_server = SecureRpc(s_server, gateway=gw)
+
+    # anonymous envelopes refuse at wrap time (fail fast, client side)
+    rpc_client = SecureRpc(s_client)
+    with pytest.raises(ValueError):
+        rpc_client.wrap_call("compiler", "transpile_circuit", {}, token=None)
+
+    env = rpc_client.wrap_call("compiler", "transpile_circuit",
+                               {"circuit_qasm": "OPENQASM 2.0;\nqreg q[1];\nh q[0];"},
+                               token="dev-token")
+    assert rpc_client.unwrap_response(rpc_server.handle(env))["ok"] is True
+
+    # replay: the same bytes twice — second refuses
+    with pytest.raises(TransportError):
+        rpc_server.handle(env)
+
+    # stale: expired envelope refuses
+    old = rpc_client.wrap_call("compiler", "transpile_circuit", {}, token="dev-token",
+                               ttl_s=1)
+    import time as _time
+    _time.sleep(1.1)
+    with pytest.raises(TransportError):
+        rpc_server.handle(old)
+
+    # reflection: a response presented as a request refuses (directional AAD)
+    resp = rpc_server.handle(rpc_client.wrap_call(
+        "compiler", "transpile_circuit", {}, token="dev-token"))
+    with pytest.raises(TransportError):
+        rpc_server.handle(resp)
+    assert AAD_REQ != AAD_RESP
+
+    # uniform post-decrypt shape: unknown tool and bad inner token return the
+    # same encrypted {"ok": False} envelope, never an exception
+    bad_tool = rpc_client.wrap_call("nope", "missing", {}, token="dev-token")
+    out = rpc_client.unwrap_response(rpc_server.handle(bad_tool))
+    assert out["ok"] is False
+    assert set(out) == {"ok", "error"}
+
+
 # -- routing enforcement inside execution -----------------------------------
 def test_execution_blocks_routing_ineligible_via_gateway():
     gw = build_gateway()

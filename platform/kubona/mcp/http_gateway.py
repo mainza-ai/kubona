@@ -18,7 +18,6 @@ posture on the wire; this module proves the path and is what `kubona serve` wire
 from __future__ import annotations
 
 import base64
-import json
 import os
 import time
 from typing import Any
@@ -28,37 +27,48 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.routing import Route
 
-from kubona.mcp.auth import AuthError
+from kubona.mcp.auth import AuthError, Principal
 from kubona.mcp.gateway import KubonaGateway
 from kubona.logging import get_logger, log_call
 from kubona.security.hybrid_transport import HybridSession, TransportError
+from kubona.security.secure_rpc import SecureRpc
+
+# Hard cap on inbound bodies (W0.14): unbounded request.json() is a
+# large-body DoS primitive. Envelopes are small authenticated blobs.
+MAX_BODY_BYTES = 1 * 1024 * 1024
 
 
-def _authed(request: Request, gateway: KubonaGateway) -> bool:
+def _principal(request: Request, gateway: KubonaGateway) -> Principal | None:
     token = request.headers.get("authorization", "")
     if not token.startswith("Bearer "):
-        return False
+        return None
     try:
-        gateway.auth.verify(token[len("Bearer "):])
-        return True
+        return gateway.auth.verify(token[len("Bearer "):])
     except Exception:  # noqa: BLE001
-        return False
+        return None
 
 
 _rpc_logger = get_logger("http")
 
 
-def _make_app(gateway: KubonaGateway, secure_session: HybridSession | None = None) -> Starlette:
+def _make_app(gateway: KubonaGateway, secure_session: HybridSession | None = None,
+                require_secure: bool = False) -> Starlette:
+    """W0.14: require_secure refuses to serve the hybrid mode without a
+    session (silent downgrade to plain used to be a None away), and the
+    health surface is minimal (no server inventory for recon)."""
+    if require_secure and secure_session is None:
+        raise ValueError("require_secure=True needs a secure_session: refusing to serve downgraded")
+
     async def health(request: Request) -> JSONResponse:
-        return JSONResponse({"ok": True, "service": "kubona-http-gateway",
-                             "servers": gateway.servers(),
-                             "secure": secure_session is not None})
+        return JSONResponse({"ok": True, "service": "kubona-http-gateway"})
 
     async def rpc(request: Request) -> JSONResponse:
-        auth_header = request.headers.get("authorization", "")
-        if not _authed(request, gateway):
+        outer = _principal(request, gateway)
+        if outer is None:
             return JSONResponse({"ok": False, "error": "unauthorized: Bearer <token>"}, status_code=401)
-        bearer = auth_header[len("Bearer "):] if auth_header.startswith("Bearer ") else None
+        if int(request.headers.get("content-length", "0") or 0) > MAX_BODY_BYTES:
+            return JSONResponse({"ok": False, "error": "body too large"}, status_code=413)
+        bearer = request.headers["authorization"][len("Bearer "):]
         try:
             body = await request.json()
         except Exception:  # noqa: BLE001
@@ -67,52 +77,61 @@ def _make_app(gateway: KubonaGateway, secure_session: HybridSession | None = Non
         try:
             if "envelope" in body and secure_session is not None:
                 ct = base64.b64decode(body["envelope"])
-                call = json.loads(secure_session.decrypt(ct, aad=b"kubona-secure-rpc").decode())
-                result = gateway.call(call["server"], call["tool"], call["args"],
-                                      token=call.get("token"))
-                resp = secure_session.encrypt(json.dumps(result).encode(), aad=b"kubona-secure-rpc")
-                log_call(_rpc_logger, server=call["server"], tool=call["tool"], status=200,
-                         duration_ms=(time.time() - t0) * 1000, mode="secure")
+                if len(ct) > MAX_BODY_BYTES:
+                    return JSONResponse({"ok": False, "error": "envelope too large"}, status_code=413)
+                # Single envelope implementation (W0.14): nonce/expiry/
+                # replay/identity-match live in SecureRpc, not here.
+                resp = SecureRpc(secure_session, gateway).handle(ct, expected_sub=outer.sub)
+                log_call(_rpc_logger, server="?", tool="?", status=200,
+                         duration_ms=(time.time() - t0) * 1000, mode="secure",
+                         principal=outer.sub)
                 return JSONResponse({"ok": True, "envelope": base64.b64encode(resp).decode()})
             # plain authenticated RPC — pass the verified bearer token so the gateway
             # re-derives the principal and applies per-call scope authorization
             result = gateway.call(body["server"], body["tool"], body.get("args", {}),
-                                  token=bearer)
+                                   token=bearer)
             log_call(_rpc_logger, server=body["server"], tool=body["tool"], status=200,
-                     duration_ms=(time.time() - t0) * 1000, mode="plain")
+                      duration_ms=(time.time() - t0) * 1000, mode="plain",
+                      principal=outer.sub)
             return JSONResponse({"ok": True, "result": result})
         except AuthError as e:
             log_call(_rpc_logger, server=body.get("server", "?"), tool=body.get("tool", "?"),
-                     status=403, duration_ms=(time.time() - t0) * 1000, error=str(e))
+                      status=403, duration_ms=(time.time() - t0) * 1000, error=str(e),
+                      principal=outer.sub)
             return JSONResponse({"ok": False, "error": f"authorization denied: {e}"}, status_code=403)
         except KeyError as e:
             log_call(_rpc_logger, server=body.get("server", "?"), tool=body.get("tool", "?"),
-                     status=404, duration_ms=(time.time() - t0) * 1000, error=str(e))
+                      status=404, duration_ms=(time.time() - t0) * 1000, error=str(e),
+                      principal=outer.sub)
             return JSONResponse({"ok": False, "error": f"unknown server/tool: {e}"}, status_code=404)
         except TransportError as e:
             log_call(_rpc_logger, server="?", tool="?", status=400,
-                     duration_ms=(time.time() - t0) * 1000, error=str(e))
+                      duration_ms=(time.time() - t0) * 1000, error=str(e),
+                      principal=outer.sub)
             return JSONResponse({"ok": False, "error": f"decryption failed: {e}"}, status_code=400)
         except Exception as e:  # noqa: BLE001
             log_call(_rpc_logger, server=body.get("server", "?"), tool=body.get("tool", "?"),
-                     status=400, duration_ms=(time.time() - t0) * 1000, error=str(e))
+                      status=400, duration_ms=(time.time() - t0) * 1000, error=str(e),
+                      principal=outer.sub)
             return JSONResponse({"ok": False, "error": str(e)}, status_code=400)
 
     return Starlette(routes=[Route("/health", health), Route("/rpc", rpc, methods=["POST"])])
 
 
 def make_http_gateway(gateway: KubonaGateway | None = None,
-                      secure_session: HybridSession | None = None) -> Starlette:
+                      secure_session: HybridSession | None = None,
+                      require_secure: bool = False) -> Starlette:
     """Build the HTTP app over (optionally) a production-authorized gateway.
 
     Pass a `secure_session` (the server's responder side of a real X25519+ML-KEM
     handshake) to enable the hybrid-envelope mode; TLS/KEMTLS carries it publicly.
+    require_secure=True refuses to build without a session (W0.14).
     """
     if gateway is None:
         from kubona.run import make_gateway
 
         gateway = make_gateway(require_auth=True)
-    return _make_app(gateway, secure_session)
+    return _make_app(gateway, secure_session, require_secure)
 
 
 if __name__ == "__main__":

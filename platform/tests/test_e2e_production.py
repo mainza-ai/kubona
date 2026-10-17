@@ -109,11 +109,11 @@ def test_hybrid_envelope_over_full_stack(tmp_path):
     client = TestClient(app)
     token = iss.issue("secure-agent", role="agent", scopes=("compiler:read",))
 
-    call = json.dumps({"server": "compiler", "tool": "transpile_circuit",
-                       "args": {"circuit_qasm": BELL}, "token": token}).encode()
-    env = base64.b64encode(csession.encrypt(call, aad=b"kubona-secure-rpc")).decode()
+    from kubona.security.secure_rpc import SecureRpc
+    rpc_client = SecureRpc(csession)
+    env = base64.b64encode(rpc_client.wrap_call(
+        "compiler", "transpile_circuit", {"circuit_qasm": BELL}, token=token)).decode()
     r = client.post("/rpc", json={"envelope": env}, headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 200 and r.json()["ok"] is True
-    resp = json.loads(csession.decrypt(base64.b64decode(r.json()["envelope"]),
-                                       aad=b"kubona-secure-rpc"))
+    resp = rpc_client.unwrap_response(base64.b64decode(r.json()["envelope"]))
     assert resp["num_qubits"] == 2
