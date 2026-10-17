@@ -67,15 +67,22 @@ def test_revocation_takes_effect_immediately(tmp_path):
 def test_operator_has_full_access(monkeypatch):
     import os
     gw = build_gateway()
-    # W0.9: with an operator key present, the call REACHES the tool and fails
-    # on the unknown approval (KeyError), NOT on authorization (AuthError).
+    # W0.9/W0.10: with key + bindings present, the call REACHES the tool and
+    # fails on the unknown approval (KeyError), NOT on authorization.
     monkeypatch.setenv("KUBONA_OPERATOR_PRIVKEY_HEX", os.urandom(32).hex())
     with pytest.raises(KeyError):
-        gw.call("cost", "approve_approval", {"approval_id": "x"}, token="dev-token")
-    # Without the key the tool refuses instead of minting unsigned — the
-    # refusal is fail-closed at the tool, auth still passed.
-    monkeypatch.delenv("KUBONA_OPERATOR_PRIVKEY_HEX")
+        gw.call("cost", "approve_approval",
+                {"approval_id": "x", "tenant_id": "lab-a", "job_hash": "job-1"},
+                token="dev-token")
+    # Without bindings the tool refuses before the store (fail-closed at the
+    # tool, auth still passed).
     out = gw.call("cost", "approve_approval", {"approval_id": "x"}, token="dev-token")
+    assert out["ok"] is False
+    # Without the key the tool refuses instead of minting unsigned.
+    monkeypatch.delenv("KUBONA_OPERATOR_PRIVKEY_HEX")
+    out = gw.call("cost", "approve_approval",
+                  {"approval_id": "x", "tenant_id": "lab-a", "job_hash": "job-1"},
+                  token="dev-token")
     assert out["ok"] is False
 
 
