@@ -88,6 +88,19 @@ notes, never silent edits; rollback stated.
 
 ### R0 — CI cache + DAG + lane split (S, first — unblocks everything)
 
+> ✅ LANDED 2026-10-17: `wiki-lint` is its own fail-fast job (was buried
+> behind the Python suite); `secret-scan` + `wiki-lint` gate every heavy
+> job via `needs:`; `canary-gate` needs all suites (a red suite can no
+> longer coexist with a green gate); cargo cache enabled for the
+> Python-job qir-core build; actions were already SHA-pinned (W2.4) and
+> pip/Go/pnpm caches already present. `CONTRIBUTING.md` defines the
+> named lanes (`test:fast` / `test:changed` / `test:boundary`, required
+> before commit / code-touch / push). Operator default recorded: lanes
+> `test:fast` + `test:boundary` required, `test:changed` advisory
+> (necessary, not sufficient). Job IDs unchanged (branch protection
+> safe). Accept criterion (3 consecutive green runs, no network flake)
+> is pending observation — this push is run #1 of 3.
+
 - **Threat:** every run is a full network fetch; flakes tax each landing.
 - **Change:** pip/Go/cargo/pnpm cache; split mega `python-tests` job
   (build / test / lint); wiki-lint first for fail-fast; `needs:` fan-in so

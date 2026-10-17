@@ -2349,3 +2349,8 @@ skipped is the exact failure this incident is about:
   Operator defaults recorded for R-series: R1 fields = REA four +
   mandate/tenant binding; R2 authority = tribunal quorum; R0 lanes =
   fast/full required, boundary advisory; P1-4 stays last.
+
+## [2026-10-17] decision | R0 CI lanes + C6 route count landed
+  R0: wiki-lint fail-fast job, needs: fan-in, canary actually gates,
+  cargo cache, CONTRIBUTING lanes (`test:fast/changed/boundary`).
+  C6: overview 71 -> 76 with recount command. Push = green-run observation 1/3.

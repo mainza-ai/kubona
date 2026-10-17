@@ -20,6 +20,21 @@ on:
   workflow_dispatch:
 
 jobs:
+  # R0: fail-fast lane. Lint + secret scan run first and every heavy job
+  # waits on them (needs:) — a blueprint violation or leaked secret skips
+  # the 30-minute suites instead of being buried at step 55 behind them.
+  wiki-lint:
+    name: Wiki structural lint (fail-fast)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+      - run: pip install pyyaml
+      - name: Wiki structural lint (blueprint invariants)
+        run: python scripts/wiki-lint.py --strict
+
   secret-scan:
     name: Secret + local-path scan (versioned pre-commit mirror)
     runs-on: ubuntu-latest
@@ -29,8 +44,9 @@ jobs:
         run: ./scripts/secret-scan.sh
 
   python-tests:
-    name: Python tests (121+)
+    name: Python suite
     runs-on: ubuntu-latest
+    needs: [wiki-lint, secret-scan]
     defaults:
       run:
         working-directory: platform
@@ -41,6 +57,10 @@ jobs:
           python-version: "3.11"
           cache: "pip"
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          # R0: this job rebuilds qir-core for the Python suite — without
+          # the cargo cache every run recompiled it from scratch.
+          cache: true
       - name: Build Rust qir-core (production compiler core)
         run: cargo build --release --manifest-path crates/qir-core/Cargo.toml
       # W2.4: install the suite-verified set — qiskit/chemistry extras pinned
@@ -56,13 +76,13 @@ jobs:
           KUBONA_STATE_DIR="$(mktemp -d)" python -m kubona.run doctor
           KUBONA_ENV=production KUBONA_STATE_DIR="$(mktemp -d)" \
             python -c 'import kubona.config as c; assert c.console_token() is None; assert c.is_production()'
-      - name: Wiki structural lint (blueprint invariants)
-        working-directory: .
-        run: python scripts/wiki-lint.py --strict
+      # R0: wiki-lint is its own fail-fast job now (top of this file) —
+      # it no longer hides here behind the full suite.
 
   rust-tests:
     name: Rust crates (qir-core + ifc-core)
     runs-on: ubuntu-latest
+    needs: [wiki-lint, secret-scan]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
@@ -78,6 +98,10 @@ jobs:
   canary-gate:
     name: Canary + correctness release-gate
     runs-on: ubuntu-latest
+    # R0: the release gate actually gates — it runs only when every suite
+    # above is green. Previously it ran in parallel, so a red suite and a
+    # green gate coexisted and the gate meant nothing.
+    needs: [wiki-lint, secret-scan, python-tests, rust-tests, go-core-tests, nextjs-console-build]
     defaults:
       run:
         working-directory: platform
@@ -97,6 +121,7 @@ jobs:
   go-core-tests:
     name: Go Orchestrator Core (tests + race detector)
     runs-on: ubuntu-latest
+    needs: [wiki-lint, secret-scan]
     defaults:
       run:
         working-directory: platform/core
@@ -120,6 +145,7 @@ jobs:
   nextjs-console-build:
     name: Next.js Observatory Console (TypeScript build)
     runs-on: ubuntu-latest
+    needs: [wiki-lint, secret-scan]
     defaults:
       run:
         working-directory: platform/console

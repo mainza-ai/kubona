@@ -131,6 +131,11 @@ single sources; skew test.
 
 ## C6. Route-count drift 71 → 76 (wiki hygiene, no code change)
 
+> ✅ FIXED 2026-10-17 ([[overview]]): 71 → 76 with the recount command
+> recorded in the note (`rg -o 'HandleFunc\("[^"]*"' … | sort -u | wc -l`
+> = 76 distinct paths). The "unaccounted +1" resolved: exactly 76
+> distinct paths, no remainder.
+
 **Evidence.** `rg HandleFunc → 76 distinct paths
 (`platform/core/pkg/api/server.go`); [[overview]] correction block says
 71. New since: `sessions/context|export|import`, `vault/leases/revoke`,
