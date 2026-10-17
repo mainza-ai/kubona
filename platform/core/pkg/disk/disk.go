@@ -188,17 +188,16 @@ func (g *Guard) PollOnce() {
 	b, r, w := uint64(g.cfg.BlockBytes), uint64(g.cfg.ResumeBytes), uint64(g.cfg.WarnBytes)
 	switch cur {
 	case LevelBlocked:
-		// Blocked clears only above resume (never at the boundary). W2.10:
-		// recovery through the warning band lands on WARNING, not OK —
-		// the old code skipped straight to OK, hiding degraded disks.
+		// Blocked clears only above resume (never at the boundary).
+		// (Reversal 2026-10-17: W2.10 briefly landed recovery-through-
+		// warn on WARNING unless avail >= 1.2x warn. Reverted: the S2
+		// decision fixes the bands at resume (1.5 GB), and the next
+		// 15 s poll re-enters WARNING on its own when still below
+		// warn — the transient OK lasted one poll, the extra band
+		// contradicted the decided semantics and its soak test.)
 		if avail > r {
-			if avail >= uint64(float64(w)*1.2) {
-				next = LevelOK
-				reason = fmt.Sprintf("disk space recovered: %d bytes free", avail)
-			} else {
-				next = LevelWarning
-				reason = fmt.Sprintf("disk recovering but still low: %d bytes free", avail)
-			}
+			next = LevelOK
+			reason = fmt.Sprintf("disk space recovered: %d bytes free", avail)
 		} else {
 			next = LevelBlocked
 			reason = fmt.Sprintf("disk still below resume threshold: %d bytes free", avail)

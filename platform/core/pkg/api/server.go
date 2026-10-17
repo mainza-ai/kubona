@@ -878,9 +878,21 @@ func (s *Server) handleMandateVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// W0.12 key→tenant binding: the signing key must be the tenant's
-	// CURRENT admin key. Without this, anyone's self-signed mandate spends
-	// any tenant's ceiling (signature valid, key unattributed).
+	// W0.12 key→tenant binding: the signing key must be attributable.
+	// Two paths, both audited (R-fix 2026-10-17: the first version of this
+	// check accepted admin keys only, which refused every reviewer-minted
+	// mandate the sign endpoint produces — TestAPIRoutes step 10 caught
+	// it on the clean tree):
+	//  1. tenant-admin path: key == the tenant's CURRENT admin key
+	//     (self-authorized spend under its own ceiling; rotation
+	//     invalidates old keys here automatically);
+	//  2. reviewer path: key == this server's signing key (human-review
+	//     flow; the sign endpoint mints under this key). Gated on a real
+	//     reviewer key or the dev-only ephemeral flag — mirroring the
+	//     sign endpoint's own gate, so production never accepts an
+	//     ephemeral reviewer.
+	// Anything else (attacker's self-signed key) refuses: a valid
+	// signature from an unattributed key spends nobody's ceiling.
 	lab, err := s.tenantMgr.GetTenant(req.TenantID)
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{
@@ -889,12 +901,19 @@ func (s *Server) handleMandateVerify(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	if lab.AdminPubkeyHex == "" || !strings.EqualFold(lab.AdminPubkeyHex, req.PublicKeyHex) {
+	isAdmin := lab.AdminPubkeyHex != "" && strings.EqualFold(lab.AdminPubkeyHex, req.PublicKeyHex)
+	isReviewer := strings.EqualFold(hex.EncodeToString(s.signerPubKey), req.PublicKeyHex) &&
+		(s.reviewerKeyConfigured || os.Getenv("KUBONA_ALLOW_EPHEMERAL_SIGNER") == "1")
+	if !isAdmin && !isReviewer {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"valid": false,
 			"error": "mandate key is not the tenant admin key: self-signed spend refused (bootstrap an admin key or use the reviewer-signed path)",
 		})
 		return
+	}
+	via := "tenant_admin"
+	if !isAdmin {
+		via = "reviewer"
 	}
 
 	s.ledger.AppendExternalEvent(req.TenantID, "mandate_verified_client", map[string]any{
@@ -903,6 +922,7 @@ func (s *Server) handleMandateVerify(w http.ResponseWriter, r *http.Request) {
 		"public_key_hex":   req.PublicKeyHex,
 		"signature_hex":    req.SignatureHex,
 		"max_budget_usd":   req.MaxBudgetUSD,
+		"via":              via,
 		"expiry_timestamp": req.ExpiryTimestamp.UTC().Format(time.RFC3339),
 	}, req.PublicKeyHex, req.SignatureHex)
 
