@@ -42,6 +42,12 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
     def ExecuteCircuit(self, request, context):
         logger.info(f"ExecuteCircuit called for Job {request.job_id}")
         try:
+            # W1.4: executor requires an explicit seed (no unseeded sampling).
+            # The proto carries no seed field, so derive deterministically
+            # from job_id (same job -> same seed, reproducible; empty -> 7).
+            import hashlib as _hl
+            _jid = request.job_id or ""
+            _seed = int(_hl.sha256(_jid.encode()).hexdigest()[:8], 16) % (2 ** 31) if _jid else 7
             res = execute_qasm(
                 qasm=request.qasm,
                 shots=request.shots if request.shots > 0 else 1024,
@@ -50,6 +56,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                 caller_jurisdictions=list(request.caller_jurisdictions),
                 caller_export_class=request.caller_export_class or "any",
                 export_reviewed=request.export_reviewed,
+                seed=_seed,
             )
         except Exception as e:
             logger.exception("ExecuteCircuit failed for Job %s", request.job_id)
@@ -70,6 +77,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             meyer_wallach_entanglement=res["meyer_wallach"],
             execution_time_ms=res["execution_time_ms"],
             error_message=res["error_message"],
+            hardware_job_id=res.get("hardware_job_id") or "",
         )
 
     def CutCircuit(self, request, context):
@@ -95,12 +103,15 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             fragments=fragments,
             total_cuts=res["total_cuts"],
             error_message=res["error_message"],
+            sampling_overhead_kappa=float(res.get("sampling_overhead_kappa", 1.0)),
         )
 
     def ComputeClassicalAnchor(self, request, context):
         logger.info(f"ComputeClassicalAnchor called for {request.molecule} at R={request.bond_distance}")
         try:
-            res = solve_classical_anchor(request.molecule, request.bond_distance)
+            # W1.8: basis_set travels the wire now (was silently dropped).
+            basis = (getattr(request, "basis_set", "") or "").strip() or "sto-3g"
+            res = solve_classical_anchor(request.molecule, request.bond_distance, basis=basis)
             return kubona_pb2.ClassicalAnchorResponse(
                 molecule=res["molecule"],
                 bond_distance=res["bond_distance"],
@@ -121,15 +132,23 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
 
     def EvaluateWavefunction(self, request, context):
         logger.info(f"EvaluateWavefunction called for Claim {request.claim_id}")
-        res = evaluate_claim_credibility(
-            claim_id=request.claim_id,
-            statement=request.statement,
-            quantum_value=request.quantum_value,
-            classical_anchor_value=request.classical_anchor_value,
-            source_platforms=list(request.source_platforms),
-            total_engagement=request.total_engagement,
-            contradiction_signal=request.contradiction_signal,
-        )
+        try:
+            res = evaluate_claim_credibility(
+                claim_id=request.claim_id,
+                statement=request.statement,
+                quantum_value=request.quantum_value,
+                classical_anchor_value=request.classical_anchor_value,
+                source_platforms=list(request.source_platforms),
+                total_engagement=request.total_engagement,
+                contradiction_signal=request.contradiction_signal,
+            )
+        except Exception as e:
+            logger.exception("EvaluateWavefunction failed for Claim %s", request.claim_id)
+            return kubona_pb2.ClaimEvaluationResponse(
+                claim_id=request.claim_id,
+                success=False,
+                error_message=f"claim evaluation failed: {e}",
+            )
         return kubona_pb2.ClaimEvaluationResponse(
             claim_id=res["claim_id"],
             corroborated_amplitude=res["corroborated_amplitude"],
@@ -140,6 +159,8 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             quantum_advantage_claimed=res["quantum_advantage_claimed"],
             quantum_advantage_verified=res["quantum_advantage_verified"],
             verdict_reason=res["verdict_reason"],
+            success=True,
+            error_message="",
         )
 
     def GroundLiterature(self, request, context):
@@ -169,6 +190,19 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
 
     def ExecuteQuantumKrylov(self, request, context):
         logger.info(f"ExecuteQuantumKrylov called for {request.molecule} at R={request.bond_distance}")
+        # W1.8: the solver is classical emulation — a metered-hardware
+        # backend here would label emulation as hardware compute
+        # (quantum-washing). Hardware dispatch goes through circuit_run.
+        backend = (getattr(request, "requested_backend", "") or "").strip().lower()
+        if backend and backend not in ("local_simulator", "local-simulator", "aer",
+                                       "qiskit-aer", "statevector", "statevector_simulator",
+                                       "gpu_simulator", "simulator"):
+            return kubona_pb2.QuantumKrylovResponse(
+                success=False,
+                error_message=(f"backend {request.requested_backend!r} is not a simulator: "
+                               "krylov runs as classical emulation, hardware dispatch "
+                               "goes through circuit_run"),
+            )
         try:
             res = solve_quantum_krylov(
                 molecule=request.molecule if request.molecule else "H2",
@@ -186,14 +220,17 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
         # J5: solver attribution rides the response so downstream folds
         # can tell a real numerical solve from the analytical corridor
         # schedule (solve_quantum_krylov tags res["solver"]).
+        # W1.2: refusal/heuristic paths carry None for uncomputed numbers
+        # (proto doubles cannot be null) — map None to 0.0; the solver +
+        # success/error_message carry the honest signal.
         return kubona_pb2.QuantumKrylovResponse(
             solver=res.get("solver", ""),
             success=res["success"],
-            ground_state_energy=res["ground_state_energy"],
-            classical_fci_energy=res["classical_fci_energy"],
-            subspace_eigenvalues=res["subspace_eigenvalues"],
-            subspace_dimension=res["subspace_dimension"],
-            meyer_wallach_entanglement=res["meyer_wallach"],
+            ground_state_energy=res.get("ground_state_energy") or 0.0,
+            classical_fci_energy=res.get("classical_fci_energy") or 0.0,
+            subspace_eigenvalues=res.get("subspace_eigenvalues") or [],
+            subspace_dimension=res.get("subspace_dimension") or 0,
+            meyer_wallach_entanglement=res.get("meyer_wallach") or 0.0,
             execution_time_ms=res["execution_time_ms"],
             error_message=res["error_message"],
         )
@@ -219,9 +256,10 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             success=res["success"],
             unmitigated_value=res["unmitigated_value"],
             mitigated_value=res["mitigated_value"],
-            error_bound=res["error_bound"],
+            error_bound=res["error_bound"] if res.get("error_bound") is not None else 0.0,
             method_used=res["method_used"],
             error_message=res["error_message"],
+            sampling_overhead_kappa=float(res.get("sampling_overhead_kappa", 0.0)),
         )
 
 

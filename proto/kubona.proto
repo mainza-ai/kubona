@@ -49,6 +49,10 @@ message CircuitExecutionResponse {
   double meyer_wallach_entanglement = 9;
   double execution_time_ms = 10;
   string error_message = 11;
+  // W1.8: the real provider-side job id when hardware ran (executor
+  // already produced it; the wire dropped it). Empty for simulators —
+  // never a fabricated id.
+  string hardware_job_id = 12;
 }
 
 message CircuitCutRequest {
@@ -67,6 +71,9 @@ message CircuitCutResponse {
   repeated SubcircuitFragment fragments = 2;
   int32 total_cuts = 3;
   string error_message = 4;
+  // W1.8: quasi-probability sampling overhead (4^K, capped server-side).
+  // 1.0 when N/A. The executor computed it; the wire dropped it.
+  double sampling_overhead_kappa = 5;
 }
 
 message ClassicalAnchorRequest {
@@ -106,6 +113,10 @@ message ClaimEvaluationResponse {
   bool quantum_advantage_claimed = 7;
   bool quantum_advantage_verified = 8;
   string verdict_reason = 9;
+  // W1.8: the response carried no success/error — callers could not tell
+  // evaluation from transport failure. Now explicit, like every other RPC.
+  bool success = 10;
+  string error_message = 11;
 }
 
 message LiteratureGroundingRequest {
@@ -167,6 +178,9 @@ message MitigationResponse {
   double error_bound = 4;
   string method_used = 5;
   string error_message = 6;
+  // W1.8: PEC sampling overhead (gamma); 0 when N/A (ZNE/CDR carry no
+  // kappa concept — 0 means unset, never a measurement).
+  double sampling_overhead_kappa = 7;
 }
 
 service QuantumBridgeService {

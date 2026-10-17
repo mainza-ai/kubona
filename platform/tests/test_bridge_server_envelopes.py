@@ -70,9 +70,12 @@ def test_mitigate_exception_returns_structured_failure(monkeypatch):
 
 
 def test_krylov_solver_attribution_both_paths():
-    """J5: the handler tags which solver ran — numerical-krylov (real
-    expm + Hc=ESc solve) vs analytical-sequence (corridor schedule).
-    Downstream folds gate on this flag."""
+    """J5 + W1.2 recalibration (documented): the handler tags which solver
+    ran — numerical-krylov (real expm + Hc=ESc solve) vs the non-H2 refusal
+    (analytical-sequence-refused, success=False, no synthetic numbers).
+    Downstream folds gate on this flag; the labeled heuristic corridor is
+    available only via explicit allow_heuristic=True on solve_quantum_krylov
+    (never silently behind success=True)."""
     import server as bridge_server
 
     servicer = bridge_server.QuantumBridgeServicer()
@@ -85,5 +88,25 @@ def test_krylov_solver_attribution_both_paths():
     lih = servicer.ExecuteQuantumKrylov(
         _req(molecule="LiH", bond_distance=1.5957, subspace_dimension=4,
              time_step=0.2, shots=1024), None)
-    assert lih.success is True
-    assert lih.solver == "analytical-sequence"
+    assert lih.success is False  # fail-closed: no synthetic corridor
+    assert lih.solver == "analytical-sequence-refused"
+    assert "allow_heuristic" in lih.error_message
+
+
+def test_krylov_hardware_backend_refused():
+    """W1.8: krylov is classical emulation — a hardware backend refuses
+    (quantum-washing) instead of running mislabeled."""
+    res = server.QuantumBridgeServicer().ExecuteQuantumKrylov(
+        _req(molecule="H2", bond_distance=0.7414, subspace_dimension=4,
+             time_step=0.2, shots=1024, requested_backend="ibm_brisbane"), None)
+    assert res.success is False and "circuit_run" in res.error_message
+
+
+def test_claim_response_carries_success():
+    """W1.8: claim responses carry success/error like every other RPC."""
+    res = server.QuantumBridgeServicer().EvaluateWavefunction(
+        _req(claim_id="c1", statement="H2 within chemical accuracy",
+             quantum_value=-1.1368, classical_anchor_value=-1.13727,
+             source_platforms=["pyscf"], total_engagement=12,
+             contradiction_signal=0.0), None)
+    assert res.success is True and res.error_message == ""
