@@ -150,8 +150,8 @@ func TestSectionEnvelopesRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatalf("export: %v", err)
 	}
-	if len(man.SectionEnvelopes) != 9 {
-		t.Fatalf("want 9 section envelopes, got %d", len(man.SectionEnvelopes))
+	if len(man.SectionEnvelopes) != 10 {
+		t.Fatalf("want 10 section envelopes, got %d", len(man.SectionEnvelopes))
 	}
 	for name, env := range man.SectionEnvelopes {
 		e := env
