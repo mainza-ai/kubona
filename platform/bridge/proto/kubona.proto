@@ -193,3 +193,19 @@ service QuantumBridgeService {
   rpc MitigateCircuit(MitigationRequest) returns (MitigationResponse);
 }
 
+// R1 — canonical evidence envelope: one receipt identity across both
+// ledgers. The sealed form is canonical JSON bytes (sorted keys, compact,
+// UTF-8, finite floats only); evidence_id = "ev_" + sha256 hex of those
+// bytes. The JSON form is what Go (pkg/ledger/envelope.go) and Python
+// (kubona/provenance/envelope.py) both build and verify against the SAME
+// checked-in vectors (platform/contracts/evidence-vectors.json). This
+// message is the schema home for transport; the bytes are the seal.
+message EvidenceEnvelope {
+  string evidence_id = 1;
+  string normalized_result_json = 2;
+  string raw_result_json = 3;
+  string analysis_profile_json = 4;
+  string tenant_id = 5;
+  string mandate_ref_json = 6;
+}
+
