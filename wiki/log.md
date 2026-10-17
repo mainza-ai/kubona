@@ -2373,3 +2373,7 @@ skipped is the exact failure this incident is about:
 ## [2026-10-17] decision | R3 coverage + provenance landed
   `5a4a6ce`: ObservedCall source/untrusted + in-budget history tags,
   per-facet coverage on turns, SealTurn refusals, audit mirror.
+
+## [2026-10-17] decision | R4 bounded tribunal context landed
+  `9acd3a5`: evidence store + continuation tool + 16k turn budget gate +
+  turn bundles + resume. Soak max 5697 runes.
