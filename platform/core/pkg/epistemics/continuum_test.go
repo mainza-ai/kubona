@@ -31,7 +31,10 @@ func TestComputationalHypothesisAndContinuumTiers(t *testing.T) {
 }
 
 func TestFisherStoppingRule(t *testing.T) {
-	eval := NewFisherStoppingRuleEvaluator(1.5) // lambda_ap2 = 1.5
+	eval, err := NewFisherStoppingRuleEvaluator(1.5) // lambda_ap2 = 1.5
+	if err != nil {
+		t.Fatalf("evaluator: %v", err)
+	}
 
 	// Case 1: high expected information gain, low cost -> don't stop
 	if eval.ShouldStop(10.0, 1.0) {
@@ -73,7 +76,10 @@ func TestEpistemicTribunalLifecycle(t *testing.T) {
 		ExpectedEntropyGain: 0.92,
 	}
 
-	session := engine.StartTribunal(hyp)
+	session, err := engine.StartTribunal(hyp)
+	if err != nil {
+		t.Fatalf("start: %v", err)
+	}
 	if session.CurrentPhase != PhaseProposal {
 		t.Fatalf("expected PhaseProposal, got %s", session.CurrentPhase)
 	}
@@ -129,5 +135,106 @@ func TestEpistemicTribunalLifecycle(t *testing.T) {
 	}
 	if concluded.Verdict != "COMMITTED_TO_LEDGER" {
 		t.Fatalf("expected COMMITTED_TO_LEDGER, got %s", concluded.Verdict)
+	}
+}
+
+// W1.10: the tribunal cannot be gamed — single-vote quorum, skipped phases,
+// weight inflation, unverified commits, and session-ID collisions all refuse.
+func TestTribunalGamingRefusals(t *testing.T) {
+	newEngine := func() *EpistemicTribunalEngine { return NewEpistemicTribunalEngine() }
+	newHyp := func(id string) ComputationalHypothesis {
+		return ComputationalHypothesis{
+			HypothesisID: id, Lean4Statement: "theorem t : True",
+			AnalyticalAnchorID: "a", QIRCircuitBitcode: "b",
+			SpendBudgetUSD: 1.0, ExpectedEntropyGain: 0.1,
+		}
+	}
+	fullPassage := func(e *EpistemicTribunalEngine, sid string) {
+		t.Helper()
+		if err := e.AdvanceToChallenge(sid, true); err != nil {
+			t.Fatal(err)
+		}
+		if err := e.AdvanceToFormalVerification(sid, true, true); err != nil {
+			t.Fatal(err)
+		}
+		if err := e.AdvanceToAnchorAudit(sid, true); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Phase skipping refuses.
+	e := newEngine()
+	s, _ := e.StartTribunal(newHyp("skip"))
+	if err := e.AdvanceToAnchorAudit(s.SessionID, true); err == nil {
+		t.Fatalf("phase skip must refuse")
+	}
+	if err := e.CastVote(s.SessionID, PersonaVote{AgentPersona: "a", Vote: VoteCorroborated, Confidence: 1}); err == nil {
+		t.Fatalf("pre-audit vote must refuse")
+	}
+	if _, err := e.ConcludeTribunal(s.SessionID); err == nil {
+		t.Fatalf("pre-voting conclude must refuse")
+	}
+
+	// Zero/negative confidence refuses (no 0.5 inflation).
+	e = newEngine()
+	s, _ = e.StartTribunal(newHyp("wt"))
+	fullPassage(e, s.SessionID)
+	if err := e.CastVote(s.SessionID, PersonaVote{AgentPersona: "a", Vote: VoteCorroborated, Confidence: 0}); err == nil {
+		t.Fatalf("zero confidence must refuse")
+	}
+
+	// Single persona cannot commit (needs 3 distinct).
+	e = newEngine()
+	s, _ = e.StartTribunal(newHyp("solo"))
+	fullPassage(e, s.SessionID)
+	if err := e.CastVote(s.SessionID, PersonaVote{AgentPersona: "solo", Vote: VoteCorroborated, Confidence: 1}); err != nil {
+		t.Fatal(err)
+	}
+	c, err := e.ConcludeTribunal(s.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Verdict == "COMMITTED_TO_LEDGER" {
+		t.Fatalf("single persona must never commit, quorum %.1f", c.QuorumPercentage)
+	}
+
+	// Unverified formal proof cannot commit.
+	e = newEngine()
+	s, _ = e.StartTribunal(newHyp("unver"))
+	if err := e.AdvanceToChallenge(s.SessionID, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.AdvanceToFormalVerification(s.SessionID, false, true); err != nil {
+		t.Fatal(err)
+	}
+	if err := e.AdvanceToAnchorAudit(s.SessionID, true); err != nil {
+		t.Fatal(err)
+	}
+	for i, p := range []string{"a", "b", "c"} {
+		if err := e.CastVote(s.SessionID, PersonaVote{AgentPersona: p, Vote: VoteCorroborated, Confidence: 1}); err != nil {
+			t.Fatal(err)
+		}
+		_ = i
+	}
+	c, err = e.ConcludeTribunal(s.SessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.Verdict == "COMMITTED_TO_LEDGER" {
+		t.Fatalf("unverified proof must never commit")
+	}
+
+	// Same hypothesis twice: second start refuses (no silent overwrite).
+	e = newEngine()
+	if _, err := e.StartTribunal(newHyp("dup")); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := e.StartTribunal(newHyp("dup")); err == nil {
+		t.Fatalf("duplicate tribunal start must refuse")
+	}
+
+	// Fisher evaluator refuses non-positive lambda.
+	if _, err := NewFisherStoppingRuleEvaluator(0); err == nil {
+		t.Fatalf("non-positive lambda must refuse")
 	}
 }

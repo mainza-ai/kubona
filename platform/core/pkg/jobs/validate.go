@@ -33,21 +33,37 @@ func ValidateQASM(qasm string) error {
 	if !strings.Contains(upper, "OPENQASM") {
 		return fmt.Errorf("qasm missing OPENQASM version header")
 	}
-	if strings.Contains(upper, "OPENQASM 3") {
-		return fmt.Errorf("OPENQASM 3 programs not yet admitted; submit 2.0")
-	}
-	if !strings.Contains(strings.ToLower(qasm), "qreg") {
-		return fmt.Errorf("qasm declares no quantum register (qreg)")
-	}
+	// W1.14: no whole-file "OPENQASM 3" substring check — a 2.0 file
+	// mentioning 3 in a comment used to refuse. Version enforcement lives
+	// in validateQASMSemantics, which checks the first statement only.
 	pairs := map[rune]rune{'{': '}', '[': ']', '(': ')'}
-	// Strip // line comments first so their brackets never count.
+	// Strip // line comments AND /* block */ comments first so their
+	// brackets never count (W1.14: brackets in block comments used to
+	// false-refuse).
 	var code strings.Builder
-	for _, line := range strings.Split(qasm, "\n") {
+	stripped := stripBlockComments(qasm)
+	for _, line := range strings.Split(stripped, "\n") {
 		if idx := strings.Index(line, "//"); idx >= 0 {
 			line = line[:idx]
 		}
 		code.WriteString(line)
 		code.WriteByte('\n')
+	}
+	if !strings.Contains(strings.ToLower(code.String()), "qreg") {
+		// Version first: a 3.0 program's missing qreg is incidental —
+		// the honest refusal names the version, not the register.
+		for _, line := range strings.Split(code.String(), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			upper := strings.ToUpper(line)
+			if strings.Contains(upper, "OPENQASM 3") || strings.HasPrefix(strings.ToLower(line), "qubit") {
+				return fmt.Errorf("OPENQASM 3 programs not yet admitted; submit 2.0")
+			}
+			break
+		}
+		return fmt.Errorf("qasm declares no quantum register (qreg)")
 	}
 	var stack []rune
 	for _, r := range code.String() {
@@ -68,8 +84,31 @@ func ValidateQASM(qasm string) error {
 	return validateQASMSemantics(code.String())
 }
 
+// stripBlockComments removes /* ... */ spans (non-nesting): brackets inside
+// them must never count toward delimiter balance.
+func stripBlockComments(qasm string) string {
+	var out strings.Builder
+	i := 0
+	for i < len(qasm) {
+		if i+1 < len(qasm) && qasm[i] == '/' && qasm[i+1] == '*' {
+			end := strings.Index(qasm[i+2:], "*/")
+			if end < 0 {
+				break // unterminated: drop the rest (delimiter check runs on what's left)
+			}
+			i += end + 4
+			continue
+		}
+		out.WriteByte(qasm[i])
+		i++
+	}
+	return out.String()
+}
+
 // coreGateArity is the qelib1.inc subset the pre-check is certain about:
 // name -> (qubits, params). Anything else resolves at the executor.
+// W1.14: u0 takes 1 param (was {1,0}: valid u0(λ) refused, invalid u0()
+// admitted); ch takes 0 params (was {2,1}: valid ch refused, invalid
+// ch(π/2) admitted).
 var coreGateArity = map[string][2]int{
 	"h":    {1, 0},
 	"x":    {1, 0},
@@ -80,11 +119,11 @@ var coreGateArity = map[string][2]int{
 	"t":    {1, 0},
 	"tdg":  {1, 0},
 	"id":   {1, 0},
-	"u0":   {1, 0},
+	"u0":   {1, 1},
 	"cx":   {2, 0},
 	"cz":   {2, 0},
 	"cy":   {2, 0},
-	"ch":   {2, 1},
+	"ch":   {2, 0},
 	"swap": {2, 0},
 	"rx":   {1, 1},
 	"ry":   {1, 1},

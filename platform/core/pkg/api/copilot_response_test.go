@@ -50,7 +50,8 @@ func TestIsTruncated(t *testing.T) {
 	}
 }
 
-func TestEngineNoticeNamesProvider(t *testing.T) {	err := engineNotice("opencode", "deepseek-v4.1-flash", errTest)
+func TestEngineNoticeNamesProvider(t *testing.T) {
+	err := engineNotice("opencode", "deepseek-v4.1-flash", errTest)
 	if strings.Contains(err, "oMLX") {
 		t.Errorf("cloud failure mislabeled as oMLX:\n%s", err)
 	}
@@ -66,9 +67,11 @@ func TestEngineNoticeNamesProvider(t *testing.T) {	err := engineNotice("opencode
 }
 
 func TestExtractProposalShared(t *testing.T) {
-	raw := "Plan first.\n```json_proposal\n{\"target\": \"H2\"}\n```\nDone."
-	display, prop := extractProposal(raw)
-	if prop == nil {
+	// W1.13: launchable means qasm-carrying. Field-less JSON is not a
+	// proposal (nil → fallback synthesis engages, display still excised).
+	raw := "Plan first.\n```json_proposal\n{\"target\": \"H2\", \"qasm\": \"OPENQASM 2.0;\\nqreg q[1];\"}\n```\nDone."
+	display, prop, multi := extractProposal(raw)
+	if prop == nil || multi {
 		t.Fatal("expected proposal payload")
 	}
 	if strings.Contains(display, "json_proposal") {
@@ -77,8 +80,20 @@ func TestExtractProposalShared(t *testing.T) {
 	if !strings.Contains(display, "Plan first.") || !strings.Contains(display, "Done.") {
 		t.Errorf("prose lost:\n%s", display)
 	}
-	_, none := extractProposal("Just prose, no block.")
+	_, none, _ := extractProposal("Just prose, no block.")
 	if none != nil {
 		t.Error("expected nil proposal for block-free reply")
+	}
+	_, fieldless, _ := extractProposal("Plan.\n```json_proposal\n{\"target\": \"H2\"}\n```\nDone.")
+	if fieldless != nil {
+		t.Error("field-less JSON must not become the proposal (launch would refuse it unseen)")
+	}
+	multiRaw := "A.\n```json_proposal\n{\"target\": \"H2\", \"qasm\": \"q;\"}\n```\nB.\n```json_proposal\n{\"target\": \"LiH\", \"qasm\": \"q;\"}\n```\nC."
+	multiDisplay, multiProp, isMulti := extractProposal(multiRaw)
+	if !isMulti || multiProp != nil {
+		t.Error("multiple proposals must refuse (nil + flag), never silently keep the first")
+	}
+	if strings.Contains(multiDisplay, "json_proposal") {
+		t.Error("refused blocks must still leave the display")
 	}
 }

@@ -24,7 +24,18 @@ type LogicalClaim struct {
 
 // ValidateLogicalClaim enforces the claim shape, fail-closed. It does not
 // bless the numbers — it refuses the ones that cannot be checked.
+// W1.11: every field refuses NaN/Inf explicitly — NaN comparisons are all
+// false, so NaN used to sail through every check below.
 func ValidateLogicalClaim(c LogicalClaim) error {
+	for name, v := range map[string]float64{
+		"lambda": c.Lambda, "breakeven_factor": c.BreakevenFactor,
+		"decoder_latency_us": c.DecoderLatencyUs, "cycle_time_us": c.CycleTimeUs,
+		"acceptance_rate": c.AcceptanceRate,
+	} {
+		if math.IsNaN(v) || math.IsInf(v, 0) {
+			return errors.New("logical claim refused: " + name + " is not a finite number")
+		}
+	}
 	if c.Lambda <= 0 {
 		return errors.New("logical claim refused: lambda (suppression per +2 distance) missing or non-positive")
 	}
@@ -57,8 +68,8 @@ func FitLambda(distances []int, logicalErrs []float64) (float64, error) {
 		if i > 0 && d <= distances[i-1] {
 			return 0, errors.New("lambda fit needs strictly increasing distances")
 		}
-		if logicalErrs[i] <= 0 {
-			return 0, errors.New("lambda fit needs positive error rates")
+		if logicalErrs[i] <= 0 || math.IsNaN(logicalErrs[i]) || math.IsInf(logicalErrs[i], 0) {
+			return 0, errors.New("lambda fit needs positive finite error rates")
 		}
 		l := math.Log(logicalErrs[i])
 		sumD += float64(d)
@@ -71,17 +82,24 @@ func FitLambda(distances []int, logicalErrs []float64) (float64, error) {
 		return 0, errors.New("lambda fit degenerate: distances identical")
 	}
 	slope := (n*sumDL - sumD*sumL) / denom
+	if math.IsNaN(slope) || math.IsInf(slope, 0) {
+		return 0, errors.New("lambda fit refused: non-finite slope (degenerate input)")
+	}
 	if slope >= 0 {
 		return 0, errors.New("lambda fit refused: error does not decrease with distance (no suppression)")
 	}
-	return math.Exp(-2 * slope), nil
+	out := math.Exp(-2 * slope)
+	if math.IsNaN(out) || math.IsInf(out, 0) {
+		return 0, errors.New("lambda fit refused: non-finite scaling factor")
+	}
+	return out, nil
 }
 
 // EffectiveCostMultiplier converts a postselected gain into its true price:
 // 1/acceptance more shots for the same kept statistics. Applied to any
 // estimate that leans on detection + postselection.
 func EffectiveCostMultiplier(acceptanceRate float64) (float64, error) {
-	if acceptanceRate <= 0 || acceptanceRate > 1 {
+	if math.IsNaN(acceptanceRate) || math.IsInf(acceptanceRate, 0) || acceptanceRate <= 0 || acceptanceRate > 1 {
 		return 0, errors.New("acceptance rate must be in (0, 1]")
 	}
 	return 1.0 / acceptanceRate, nil
