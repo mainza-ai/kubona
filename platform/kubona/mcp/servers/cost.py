@@ -94,7 +94,10 @@ def quote_payment(session_id: str, amount_usd: float) -> dict:
         _sessions.get(session_id)
     except KeyError:
         return {"ok": False, "error": f"unknown session_id {session_id!r}"}
-    pay = payments_for(amount_usd)
+    try:
+        pay = payments_for(amount_usd)
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
     quote = pay.quote(job_ref=session_id, amount_usd=amount_usd)
     return {"ok": True, **quote.to_dict()}
 
