@@ -8,10 +8,13 @@ from __future__ import annotations
 
 from kubona.mesh.hf_hub import (
     HFDownloadManager,
+    HFHubError,
     HFModelQuantization,
     HFModelSummary,
     HuggingFaceHubClient,
     _infer_quant_type,
+    sanitize_filename,
+    sanitize_repo_id,
 )
 from kubona.mesh.model_router import (
     HybridModelRouter,
@@ -28,10 +31,13 @@ from kubona.agents.user_defined import (
 
 __all__ = [
     "HFDownloadManager",
+    "HFHubError",
     "HFModelQuantization",
     "HFModelSummary",
     "HuggingFaceHubClient",
     "_infer_quant_type",
+    "sanitize_filename",
+    "sanitize_repo_id",
     "HybridModelRouter",
     "Modality",
     "MultimodalItem",

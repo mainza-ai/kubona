@@ -22,8 +22,9 @@ def test_infer_quant_type():
 async def test_download_manager_task_lifecycle(tmp_path: Path):
     mgr = HFDownloadManager(models_dir=tmp_path)
 
-    # Verify task initiation
-    task = await mgr.start_download("test/dummy-repo", "dummy-q4_k_m.gguf")
+    # Verify task initiation (W2.16: hash pin required at start)
+    task = await mgr.start_download("test/dummy-repo", "dummy-q4_k_m.gguf",
+                                    expected_sha256="0" * 64)
     assert task.task_id is not None
     assert task.repo_id == "test/dummy-repo"
     assert task.filename == "dummy-q4_k_m.gguf"

@@ -19,8 +19,10 @@ import httpx
 from .base import ModelInfo
 
 DEFAULT_PORTS = [11434, 8787, 1234, 8080, 8000, 8899, 8081, 5000, 3000, 9000, 9997]
-# provider heuristics by default port (only a hint; the endpoint response is authoritative)
-_PORT_PROVIDER = {11434: "ollama", 8787: "omlx", 1234: "lm-studio", 8080: "mlx",
+# Provider hint by default port (W2.21, SINGLE shared const): only a hint —
+# the endpoint response is authoritative. available_models()/pick_default()
+# derive from this; no second or third copy may exist.
+PORT_PROVIDERS = {11434: "ollama", 8787: "omlx", 1234: "lm-studio", 8080: "mlx",
                   8081: "llama.cpp", 8000: "local", 8899: "omlx"}
 
 
@@ -72,7 +74,9 @@ class LocalModelRegistry:
             self.ports = [int(p) for p in env_p.split(",") if p.strip().isdigit()]
         else:
             self.ports = ports or DEFAULT_PORTS
-        self._cache: dict[str, Any] | None = None
+        # W2.13: no result cache. The old `_cache` was written on every
+        # discover() and read nowhere — a cache that never serves is a lie
+        # about freshness. discover() always probes live (documented).
 
     def discover(self) -> dict[str, Any]:
         body = os.environ.get("KUBONA_LLM_BASE_URL", "").rstrip("/")
@@ -92,19 +96,20 @@ class LocalModelRegistry:
                 out[str(port)] = {"base_url": base, "port": port,
                                   "provider": hit["provider"], "models": hit["models"]}
         out["summary"] = {k: v["provider"] for k, v in out.items() if k != "summary"}
-        self._cache = out
         return out
 
     def available_models(self) -> list[ModelInfo]:
         d = self.discover()
         models: list[ModelInfo] = []
-        provider_hint = {11434: "ollama", 8787: "omlx", 1234: "lm-studio", 8080: "mlx", 8899: "omlx"}
         for key, info in d.items():
             if key == "summary":
                 continue
             provider = info.get("provider")
             if provider == "openai-compat":
-                provider = provider_hint.get(int(info.get("port")), "local")
+                try:
+                    provider = PORT_PROVIDERS.get(int(info.get("port")), "local")
+                except (TypeError, ValueError):
+                    provider = "local"
             for mid in info.get("models", []):
                 models.append(ModelInfo(provider=provider, model_id=mid,
                                         base_url=info["base_url"]))
@@ -118,8 +123,10 @@ class LocalModelRegistry:
             if info.get("models"):
                 provider = info["provider"]
                 if provider == "openai-compat":
-                    provider = {11434: "ollama", 8787: "omlx", 1234: "lm-studio", 8080: "mlx"}.get(
-                        int(info.get("port")), "local")
+                    try:
+                        provider = PORT_PROVIDERS.get(int(info.get("port")), "local")
+                    except (TypeError, ValueError):
+                        provider = "local"
                 return {"provider": provider, "base_url": info["base_url"],
                         "model": info["models"][0]}
         return None

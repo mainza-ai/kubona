@@ -71,23 +71,32 @@ def test_molecular_anchor_engine():
     assert anchor.fci_energy_hartree < anchor.rhf_energy_hartree
     assert anchor.correlation_energy() < 0.0
 
-    # Advantage check: standing policy never claims advantage even if accuracy is achieved
+    # Advantage check: no unreserved-advantage flag exists anymore (the old
+    # always-False field was dead); the verdict carries the judgment.
     eval_res = engine.evaluate_advantage_claim(anchor.fci_energy_hartree, anchor)
     assert eval_res["chemical_accuracy_achieved"]
-    assert not eval_res["quantum_advantage_claimed"]
+    assert "quantum_advantage_claimed" not in eval_res
+    assert eval_res["correlation_majority_recovered"] is True
     assert "chemical accuracy" in eval_res["honest_verdict"].lower()
 
 
 def test_discovery_campaign_with_epistemics_and_anchors(tmp_path):
     campaign = DiscoveryCampaign(problem="H2-dissociation", hamiltonian="H2", ground_state=-1.137, budget_steps=10)
     result = campaign.run(source="mock")
-    assert result["stages"]["report"]["collapsed"]
+    # Honest-signals consequence (2026-10-17): the VQE harness minimizes
+    # ZZ+0.5XX (ground ≈ -1.118) while the H2 FCI anchor sits at ≈ -1.0718,
+    # and ZNE now runs on the campaign's own best circuit instead of voting
+    # contest from unrelated X-circuit physics. Split evidence genuinely does
+    # not collapse at the 0.75 gate — so the campaign must HOLD the claim as
+    # a qualified hypothesis (fail-closed), never crash and never assert it.
+    assert result["stages"]["report"]["collapsed"] is False
     assert "epistemics" in result["stages"]
     assert "anchor" in result["stages"]["epistemics"]
     assert result["report"]["classical_anchor"] is not None
     assert len(result["report"]["claims"]) > 0
-    # The claim was evaluated by the gate and collapsed into a rigorous verdict
-    assert any(tag in result["report"]["conclusions"] for tag in ("[CORROBORATED]", "[CONTESTED]"))
+    # The gate refused assertion: conclusions carry the qualified hypothesis.
+    assert "[UNCOLLAPSED]" in result["report"]["conclusions"]
+    assert "hypothesis" in result["report"]["conclusions"].lower()
     assert "Does not surpass classical benchmark" in result["report"]["conclusions"]
 
 

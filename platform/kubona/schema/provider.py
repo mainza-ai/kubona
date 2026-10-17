@@ -17,6 +17,13 @@ SCHEMA_DIR = Path(__file__).parent / "providers"
 
 
 class Modality(str, Enum):
+    """Hardware program-model modality (W2.21: canonical hardware enum).
+
+    NOTE: this is NOT the same as `kubona.mesh.model_router.Modality`,
+    which classifies multimodal PAYLOAD content (text/image-audio/...) for
+    LLM routing. Same class name, disjoint domains — neither imports the
+    other, and unifying them would be a type error. Both docstrings say so.
+    """
     GATE_MODEL = "gate_model"
     TRAPPED_ION = "trapped_ion"
     SUPERCONDUCTING = "superconducting"
@@ -87,13 +94,24 @@ class CalibrationSnapshot(BaseModel):
 # NOT calibration data; the estimate is conservative by construction and the
 # cost_basis string always states the model revision so approval packets show
 # estimate provenance, never a bare number).
+# Shared modality/gate consts (W2.21, drift-proof single source): the canary,
+# the SDK conformance suite, and the execution server all classify modalities
+# and 2-qubit gates — every copy used to be a literal that could rot apart.
+# Import these; never re-list.
+MODALITIES_GATE = frozenset({
+    "gate_model", "superconducting", "trapped_ion",
+    "statevector_simulator", "gpu_simulator", "statevector", "gpu",
+})
+MODALITIES_SIMULATOR = frozenset({
+    "statevector_simulator", "gpu_simulator", "statevector", "gpu",
+})
+TWO_Q_GATES = frozenset({"cx", "cz", "swap", "cp", "ecr", "rzz"})
 _QPU_1Q_GATE_S = 50e-9       # single-qubit gate time (superconducting, conservative)
 _QPU_2Q_GATE_S = 500e-9      # two-qubit gate time (ECR-class, conservative)
 _QPU_READOUT_S = 2e-6        # measurement + readout per shot
 _QPU_REP_DELAY_S = 1e-6      # repetition delay (IBM Nighthawk default; Heron similar)
 _QPU_SESSION_OVERHEAD_S = 5.0  # conservatism buffer for job setup (queue wait is NOT billed)
 _QPU_MINIMUM_BILL_S = 1.0    # IBM PAYG 1-second minimum purchase
-_TWO_Q_GATES = frozenset({"cx", "cz", "swap", "cp", "ecr", "rzz"})
 
 
 def estimate_qpu_seconds(circuit: Any, shots: int,

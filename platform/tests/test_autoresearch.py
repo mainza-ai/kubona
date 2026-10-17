@@ -63,15 +63,18 @@ def test_orchestrator_keep_or_discard_loop():
 
 def test_search_mode_beats_hand_designed_baseline(tmp_path):
     """Phase-4 gate: Search Mode produces an ansatz beating a hand-designed baseline."""
+    from kubona.provenance import Ledger
+
     h = build_vqe_ansatz_harness()
     lib = AlgorithmLibrary(path=str(tmp_path / "lib.json"))
+    ledger = Ledger(path=str(tmp_path / "ledger.jsonl"))
     out = run_search_mode(h, budget_steps=60, seed=7,
-                          baseline_artifact=2.8, library=lib)  # baseline E ≈ -0.77
+                          baseline_artifact=2.8, library=lib, ledger=ledger)  # baseline E ≈ -0.77
     assert out["beat_baseline"] is True, out
     assert out["best"]["metric"] > 1.0  # E < -1.0 (close to ground -1.118)
     assert out["library_entry_id"] is not None
     assert len(lib) == 1
-    assert lib.best("vqe_ansatz").artifact != 2.8  # the search found something better
+    assert lib.best("vqe_ansatz", direction="max").artifact != 2.8  # the search found something better
 
 
 def test_library_full_pipeline_cost_approved(tmp_path):
@@ -102,7 +105,8 @@ def test_library_full_pipeline_cost_approved(tmp_path):
                                           "approval": a.approval_id})
     lib = AlgorithmLibrary(path=str(tmp_path / "lib.json"))
     lib.add(harness=h.name, artifact=best.artifact, metric=best.metric, cost_usd=0.0,
-            ledger_ref=rec.record_id, approval=a.approval_id)
-    entry = lib.best(h.name)
+            ledger_ref=rec.record_id, validated=True, validation_proof=a.approval_id,
+            approval=a.approval_id)
+    entry = lib.best(h.name, direction="max")
     assert entry is not None and entry.ledger_ref == rec.record_id
     assert ledger.validate_chain()[0] is True

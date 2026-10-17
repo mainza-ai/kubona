@@ -11,12 +11,21 @@ from __future__ import annotations
 
 import time
 import math
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 import numpy as np
 import scipy.linalg
 
 from chemistry import solve_classical_anchor
 from executor import calculate_meyer_wallach
+
+# --- Shared consts (single source; no inline magic) ---
+#: Heuristic method label for the non-H2 analytical corridor. The string is
+#: asserted by tests; keep it in one place so labels cannot rot apart.
+ANALYTICAL_HEURISTIC_METHOD_V1 = "analytical-sequence-heuristic"
+#: Solver tag for the refused (default) non-H2 path.
+ANALYTICAL_REFUSED_SOLVER_V1 = "analytical-sequence-refused"
+#: Solver tag for the real H2 numerical solve.
+NUMERICAL_KRYLOV_SOLVER_V1 = "numerical-krylov"
 
 try:
     from pyscf import gto, scf, fci, ao2mo
@@ -69,6 +78,8 @@ def solve_quantum_krylov(
     subspace_dim: int = 4,
     time_step: float = 0.2,
     shots: int = 1024,
+    *,
+    allow_heuristic: bool = False,
 ) -> Dict[str, Any]:
     """
     Computes a Krylov-subspace ground-state estimate for the targeted
@@ -80,6 +91,14 @@ def solve_quantum_krylov(
     Non-H2 molecules take an analytical convergence sequence, not a solve.
     Downstream consumers must label these energies bridge-computed
     classical emulation (see callers of solve_quantum_krylov).
+
+    Production bar (W1.2): the non-H2 analytical corridor is NOT a
+    measurement. By default it REFUSES (success=False, no synthetic
+    eigenvalues, meyer_wallach=None with a reason). Callers that explicitly
+    opt in with allow_heuristic=True receive the corridor numbers LABELED
+    as heuristic (method=analytical-sequence-heuristic, measured=False on
+    every Krylov value, meyer_wallach=None with a reason). No synthetic
+    value ever rides success=True unlabeled.
     """
     t0 = time.perf_counter()
 
@@ -87,19 +106,72 @@ def solve_quantum_krylov(
         # Classical fallback anchor for general molecules
         anchor = solve_classical_anchor(molecule, bond_distance)
         fci_e = anchor["fci_exact_energy"]
-        # Analytical Krylov convergence sequence
+        # The anchor's method flag is CHECKED, not assumed: a CASCI fallback
+        # value is variational-in-active-space, never full FCI. Downstream
+        # consumers must read classical_method before citing the energy.
+        classical_method = anchor.get("method", "unknown")
+        if classical_method not in ("FCI-exact",) and not classical_method.startswith("CASCI("):
+            raise RuntimeError(
+                f"unrecognized anchor method {classical_method!r}: refusing "
+                "to build a convergence sequence on an unlabeled energy"
+            )
+        elapsed = (time.perf_counter() - t0) * 1000.0
+        if not allow_heuristic:
+            # Fail closed: the analytical corridor (fci+0.05/(k+1)) is a
+            # synthetic convergence schedule, not a solve. Refuse rather
+            # than return it behind success=True (old code returned
+            # success=True + hardcoded meyer_wallach=0.85).
+            return {
+                "success": False,
+                "solver": ANALYTICAL_REFUSED_SOLVER_V1,
+                "method": ANALYTICAL_REFUSED_SOLVER_V1,
+                "measured": False,
+                "ground_state_energy": None,
+                "classical_fci_energy": float(fci_e),
+                "classical_method": classical_method,
+                "subspace_eigenvalues": [],
+                "subspace_eigenvalues_measured": [],
+                "subspace_dimension": 0,
+                "meyer_wallach": None,
+                "meyer_wallach_reason": (
+                    "analytical corridor carries no statevector; "
+                    "Meyer-Wallach omitted (the old hardcoded 0.85 was synthetic)"
+                ),
+                "execution_time_ms": elapsed,
+                "error_message": (
+                    "refusing analytical-sequence for non-H2 "
+                    f"{molecule!r}: no Krylov solve performed; pass "
+                    "allow_heuristic=True to receive the explicitly labeled "
+                    "analytical-sequence-heuristic corridor instead"
+                ),
+            }
+        # Explicit opt-in heuristic corridor: every Krylov number labeled.
         subspace_dim = max(2, min(subspace_dim, 6))
         eigenvalues = [fci_e + 0.05 / (k + 1) for k in range(subspace_dim)]
         eigenvalues.sort()
-        elapsed = (time.perf_counter() - t0) * 1000.0
         return {
             "success": True,
-            "solver": "analytical-sequence",
+            "solver": ANALYTICAL_HEURISTIC_METHOD_V1,
+            "method": ANALYTICAL_HEURISTIC_METHOD_V1,
+            "measured": False,
+            "heuristic": True,
             "ground_state_energy": float(eigenvalues[0]),
+            "ground_state_energy_measured": False,
             "classical_fci_energy": float(fci_e),
+            "classical_method": classical_method,
             "subspace_eigenvalues": [float(x) for x in eigenvalues],
+            "subspace_eigenvalues_measured": [False] * len(eigenvalues),
             "subspace_dimension": subspace_dim,
-            "meyer_wallach": 0.85,
+            "meyer_wallach": None,
+            "meyer_wallach_reason": (
+                "analytical-sequence-heuristic carries no statevector; "
+                "Meyer-Wallach omitted (never the synthetic 0.85)"
+            ),
+            "heuristic_warning": (
+                "analytical-sequence-heuristic: fci+0.05/(k+1) corridor off "
+                "the classical anchor, not a Krylov solve; measured=False on "
+                "every value"
+            ),
             "execution_time_ms": elapsed,
             "error_message": "",
         }
@@ -166,10 +238,14 @@ def solve_quantum_krylov(
 
     return {
         "success": True,
-        "solver": "numerical-krylov",
+        "solver": NUMERICAL_KRYLOV_SOLVER_V1,
+        "method": NUMERICAL_KRYLOV_SOLVER_V1,
+        "measured": True,
         "ground_state_energy": ground_e,
+        "ground_state_energy_measured": True,
         "classical_fci_energy": e_fci,
         "subspace_eigenvalues": [float(x) for x in evals],
+        "subspace_eigenvalues_measured": [True] * len(evals),
         "subspace_dimension": len(evals),
         "meyer_wallach": mw_score,
         "execution_time_ms": elapsed,

@@ -19,14 +19,36 @@ MODEL_SOURCES = {
 }
 
 
+class UnknownLLMProviderError(ValueError):
+    """Refusal for unconfigured/unknown LLM providers (W2.17, fail-closed)."""
+
+
 def get_llm(settings: dict[str, Any]) -> AbstractLLM:
-    """Build an LLM from settings {llm_provider, llm_base_url, llm_model, llm_api_key}."""
+    """Build an LLM from settings {llm_provider, llm_base_url, llm_model, llm_api_key}.
+
+    Fail-closed (W2.17): a missing provider (None) REFUSES — no silent
+    deterministic stand-in (a silently-scripted "LLM" in a reasoning path is
+    fiction). The scripted stand-in exists ONLY via the explicit
+    `llm_provider="scripted"` opt-in. Unknown provider names refuse instead
+    of degrading to scripted.
+    """
+    from kubona.settings import SECRET_KEYS
+
     provider = settings.get("llm_provider")
     if not provider:
-        return ScriptedLLM()  # no local LLM configured -> deterministic stand-in
+        raise UnknownLLMProviderError(
+            "no llm_provider configured: refusing silent scripted fallback — "
+            "set llm_provider explicitly (or \"scripted\" to opt into the "
+            "deterministic stand-in)")
+    if not isinstance(provider, str) or not provider.strip():
+        raise UnknownLLMProviderError(
+            f"llm_provider must be a non-blank string, got {provider!r}")
     factory = MODEL_SOURCES.get(provider)
     if factory is None:
-        return ScriptedLLM()
+        raise UnknownLLMProviderError(
+            f"unknown llm_provider {provider!r} (known: {sorted(MODEL_SOURCES)}): "
+            "refusing silent scripted fallback")
+    api_key = next((settings.get(k) for k in SECRET_KEYS if settings.get(k)), None)
     return factory(settings.get("llm_base_url") or "http://127.0.0.1:11434",
                    settings.get("llm_model"),
-                   settings.get("llm_api_key") or None)
+                   api_key)

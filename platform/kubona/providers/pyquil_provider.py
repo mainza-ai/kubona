@@ -35,10 +35,13 @@ class PyQuilProvider(Provider):
             self._ready, self._err = False, str(e)
 
     def _credential(self) -> str | None:
-        if self._secrets is None:
-            from kubona.secrets import SecretStore
-            self._secrets = SecretStore()
-        return self._secrets.get("rigetti", "qcs_token")
+        # W2.18: fresh per call (match qiskit) — no cached SecretStore.
+        if self._secrets is not None:
+            return self._secrets.get("rigetti", "qcs_token")
+        from kubona.secrets import SecretStore
+        # Bao-backed when BAO_ADDR is set (authoritative, fail-closed),
+        # environment otherwise.
+        return SecretStore.from_env().get("rigetti", "qcs_token")
 
     @property
     def backend_id(self) -> str | None:
@@ -72,6 +75,8 @@ class PyQuilProvider(Provider):
             raise ProviderError(
                 "rigetti requires optional dep: pip install pyquil " f"(missing: {self._err})."
             )
+        if isinstance(shots, bool) or not isinstance(shots, int) or shots <= 0:
+            raise ProviderError(f"shots must be a positive int, got {shots!r}")
         prog = self._to_pyquil(circuit)
         token = self._credential()
         if not token:
@@ -79,6 +84,16 @@ class PyQuilProvider(Provider):
             # still needs the Rigetti `qvm` daemon running (127.0.0.1:5000) — no
             # cloud credentials, but a local sim binary — so we fail closed with
             # actionable guidance if the daemon is absent. (open-source first.)
+            if seed is not None:
+                # W2.18: the WavefunctionSimulator/qvm path cannot be seeded
+                # (no seed parameter exists) — a seeded call would return
+                # unseeded draws labeled seeded. Refuse the seeded path and
+                # declare nondeterminism instead of faking it.
+                raise ProviderError(
+                    "rigetti credential-free WavefunctionSimulator path is "
+                    "nondeterministic (qvm exposes no seed): refusing seeded "
+                    "submit — pass seed=None for explicitly-unseeded runs, or "
+                    "use the local-simulator for seeded determinism")
             try:
                 from pyquil.api import WavefunctionSimulator
             except Exception as e:  # noqa: BLE001
@@ -96,23 +111,24 @@ class PyQuilProvider(Provider):
                     "127.0.0.1:5000 (start qvm/quilc), or set KUBONA_RIGETTI_QCS_TOKEN "
                     f"for QPU. (error: {e})"
                 )
-            # measured: list of bitstring-rows (lists of ints), one per trial
-            rows = [tuple(int(b) for b in r) for r in measured]
-            renders = {row: rows.count(row) for row in set(rows)}
-            return {"counts": {"".join(str(b) for b in k): v for k, v in renders.items()},
-                    "shots": shots, "backend": "pyquil-wavesim", "hardware": False}
+            # measured: list of bitstring-rows (lists of ints), one per trial.
+            # W2.18: Counter over tuples (O(shots)) — the old
+            # {row: rows.count(row)} was O(shots^2).
+            from collections import Counter
+            tallies = Counter(tuple(int(b) for b in r) for r in measured)
+            return {"counts": {"".join(str(b) for b in k): v for k, v in tallies.items()},
+                    "shots": shots, "backend": "pyquil-wavesim", "hardware": False,
+                    "seed": None, "deterministic": False}
         return self._submit_via_qcs(prog, shots, token)
 
     def _submit_via_qcs(self, prog, shots: int, token: str) -> dict[str, Any]:
         """Submit via pyquil QCS Connection (documented API); result -> counts."""
-        try:
-            from pyquil.api import WavefunctionSimulator  # noqa: F401
-            from qcs_sdk import QCSClient  # or pyquil API surface used at deployment
-        except ImportError as e:  # pragma: no cover - SDK optional
-            raise ProviderError(f"pyquil/QCS backend not available: {e}")
-        # Real QPU submission adapter lives behind this documented seam; the recorded
-        # fixture exercises the full path. Live wiring uses the Rigetti QCS REST API
-        # with the token when the backend/endpoint is provisioned.
+        # W2.13: the old body imported WavefunctionSimulator (already handled
+        # on the credential-free path above) and qcs_sdk.QCSClient without
+        # using either — dead imports before an unconditional raise. Removed:
+        # a probe that never probes is decoration. Live wiring uses the
+        # Rigetti QCS REST API with the token once the backend/endpoint is
+        # provisioned.
         raise ProviderError(
             "rigetti QPU submission adapter needs the provisioned QCS endpoint; "
             "see kubona/secrets + the backend field. (Simulator path: WavefunctionSimulator.)"

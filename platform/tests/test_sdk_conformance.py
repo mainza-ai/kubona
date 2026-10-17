@@ -34,7 +34,9 @@ def _passes(report):
 
 
 def test_conformant_simulator_passes_full_suite():
-    report = grade_candidate(_SIM_CAP, _SIM_PLUGIN)
+    # shots=4096 with the default 5% tolerance (see test_canary_report_carries_
+    # intervals: balance assertions run where 5% is robust, never weakened).
+    report = grade_candidate(_SIM_CAP, _SIM_PLUGIN, shots=4096)
     assert report["pass"] is True, report
     assert report["failures"] == []
     assert _passes(report)["bell_correct"] is True
@@ -109,7 +111,7 @@ def test_priced_per_second_reports_basis():
 
 def test_conformance_gate_requires_graded_candidates():
     assert conformance_gate([])["ok"] is False  # reviewed nothing: not a pass
-    ok_report = grade_candidate(_SIM_CAP, _SIM_PLUGIN)
+    ok_report = grade_candidate(_SIM_CAP, _SIM_PLUGIN, shots=4096)
     assert conformance_gate([ok_report])["ok"] is True
     bad_report = grade_candidate({"provider": 42}, _SIM_PLUGIN)
     assert conformance_gate([ok_report, bad_report])["ok"] is False

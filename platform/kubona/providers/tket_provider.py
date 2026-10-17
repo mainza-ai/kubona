@@ -42,17 +42,34 @@ class TketProvider(Provider):
             self._ready, self._err = False, str(e)
 
     def _credential(self) -> str | None:
-        if self._secrets is None:
-            from kubona.secrets import SecretStore
-            self._secrets = SecretStore()
-        return self._secrets.get("quantinuum", "api_key")
+        # W2.18: fresh per call (match qiskit) — no cached SecretStore. A
+        # cached store froze BAO_ADDR/rotation at first use; building fresh
+        # per call keeps rotation and revocation live.
+        from kubona.secrets import SecretStore
+        if self._secrets is not None:
+            return self._secrets.get("quantinuum", "api_key")
+        # Bao-backed when BAO_ADDR is set (authoritative, fail-closed),
+        # environment otherwise.
+        return SecretStore.from_env().get("quantinuum", "api_key")
 
     @property
     def device(self) -> str | None:
-        return self.capability.backend or "H1-1"
+        """Target backend, or None when unset (W2.18).
+
+        The old code defaulted to "H1-1" — an unbilled hardware default: a
+        misconfigured capability would aim jobs (and spend) at a real QPU
+        nobody named. submit() refuses a None device instead.
+        """
+        return self.capability.backend or None
 
     def _to_tket(self, circuit: Circuit):
-        """Convert a Kubona circuit to a pytket Circuit (native-set directed)."""
+        """Convert a Kubona circuit to a pytket Circuit (native-set directed).
+
+        Angle units (W2.18): radians on both sides — Kubona rx/ry/rz take
+        radians (see local_simulator._rx) and pytket OpType.Rx/Ry/Rz take
+        radians, so parameters pass through verbatim. No conversion, no
+        half-turn ambiguity; per-gate passthrough is pinned by tests.
+        """
         from pytket import Circuit as TKCkt
         from pytket.circuit import OpType
 
@@ -76,6 +93,13 @@ class TketProvider(Provider):
                 "quantinuum requires optional deps: pip install pytket pytket-quantinuum "
                 f"(missing: {self._err})."
             )
+        if isinstance(shots, bool) or not isinstance(shots, int) or shots <= 0:
+            raise ProviderError(f"shots must be a positive int, got {shots!r}")
+        if self.device is None:
+            raise ProviderError(
+                "quantinuum execution refuses: no backend configured on the "
+                "capability (no unbilled hardware default — set the backend "
+                "field to the intended device)")
         token = self._credential()
         if not token:
             raise ProviderError(

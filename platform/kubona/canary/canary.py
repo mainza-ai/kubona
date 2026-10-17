@@ -16,6 +16,11 @@ from typing import Any
 from kubona.circuits import parse_qasm2
 from kubona.providers import ProviderError, get_provider, list_providers
 from kubona.provenance import Ledger
+from kubona.schema.provider import MODALITIES_GATE as _GATE_MODALITIES_CANON
+
+# W2.21: single shared gate-modality set (kubona.schema.provider).
+# Local alias keeps call sites readable; the set itself lives in one place.
+_GATE_MODALITIES = _GATE_MODALITIES_CANON
 
 CANARY_QASM = "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];"
 CANARY_SHOTS = 2048
@@ -57,17 +62,33 @@ def canary_check(provider_name: str, shots: int = CANARY_SHOTS,
     circuit = parse_qasm2(CANARY_QASM)
     result = provider.submit(circuit, shots, seed=2026)
     counts = result["counts"]
-    total = sum(counts.values()) or 1
+    if not counts or sum(counts.values()) <= 0:
+        # Fail-closed: empty counts are not a 50/50 pass with total masked to
+        # 1 (the old `or 1` hid provider outages as balanced canaries).
+        return {"provider": provider_name, "ok": False, "counts": counts,
+                "error": "empty counts from provider — refusing (no shots measured)",
+                "fidelity_balance": None,
+                "checks": {"nonempty_counts": False},
+                "intervals": {},
+                "attestation": attest_capacity(provider_name, False)}
+    total = sum(counts.values())
     ok00 = counts.get("00", 0)
     ok11 = counts.get("11", 0)
     checks = {
+        "nonempty_counts": True,
         "only_00_or_11": set(counts) <= {"00", "11"},
         "total_shots": total == shots,
         "balanced_50_50": abs(ok00 - ok11) / max(total, 1) <= tolerance,
     }
     ok = all(checks.values())
     attestation = attest_capacity(provider_name, ok)
-    if attestation.get("calibration", {}).get("calibration_ok") is False:
+    # Q-14: a lying schema fails the canary, not just the attestation. The
+    # calibration outcome is a CHECK (never a side-channel that contradicts
+    # the checks dict): False forces calibration_ok False and ok False;
+    # None (unmeasurable) is recorded as unknown, never a pass or a fail.
+    calib_ok = attestation.get("calibration", {}).get("calibration_ok")
+    checks["calibration_ok"] = calib_ok is not False
+    if calib_ok is False:
         ok = False  # Q-14: a lying schema fails the canary, not just the attestation
     intervals = {
         outcome: {"k": counts.get(outcome, 0),
@@ -84,8 +105,17 @@ def attest_capacity(provider_name: str, canary_ok: bool) -> dict[str, Any]:
     """Measured-vs-declared qubit attestation (Q-14).
 
     Compares the plugin's live `health()["measured_qubits"]` against the
-    capability JSON's declared `physical_qubits`. A mismatch is a failed
-    attestation (the schema lied); an unmeasurable plugin yields
+    capability JSON's declared `physical_qubits`.
+
+    Verdict rule (documented): pass when measured >= declared - tolerance,
+    where tolerance = max(1, declared // 10) — the schema must not OVERSTATE
+    usable capacity beyond noise. Exact equality is refused as a rule because
+    live capacity is noisy: real backends take qubits offline for
+    calibration, so a healthy backend can honestly report slightly fewer
+    than the schema's static number. measured < declared - tolerance is a
+    failed attestation (the schema lied upward); understating (measured >
+    declared) is conservative headroom and passes — it never strands a job
+    on a nonexistent qubit. An unmeasurable plugin yields
     `qubit_count_ok=None` labeled unknown — never a pass. The snapshot hash
     seals the attestation for ledger admission checks.
     """
@@ -104,7 +134,8 @@ def attest_capacity(provider_name: str, canary_ok: bool) -> dict[str, Any]:
     if measured is None:
         verdict: bool | None = None
     else:
-        verdict = (measured == cap.physical_qubits)
+        tolerance = max(1, cap.physical_qubits // 10)
+        verdict = bool(measured >= cap.physical_qubits - tolerance)
     checked_at = datetime.now(timezone.utc).isoformat()
     snapshot = {
         "provider": provider_name,
@@ -180,9 +211,9 @@ def attest_calibration(provider_name: str) -> dict[str, Any]:
 # Annealing (QUBO), neutral-atom AHS, and photonic CV are different program
 # models — a Bell gate-circuit is not a valid probe for them, so they are not
 # canaried (a provider-registry concern, not a regression signal here).
-_GATE_MODALITIES = {"gate_model", "superconducting", "trapped_ion",
-                    "statevector_simulator", "gpu_simulator", "statevector",
-                    "gpu"}
+# W2.21: the set itself is MODALITIES_GATE in kubona.schema.provider (single
+# shared const); this alias keeps the explanatory comment with its use site.
+_GATE_MODALITIES = _GATE_MODALITIES_CANON
 
 
 def run_all(ledger: Ledger | None = None, providers: list[str] | None = None,

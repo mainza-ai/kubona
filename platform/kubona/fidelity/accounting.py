@@ -13,7 +13,7 @@ import math
 import time
 import dataclasses
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 
 @dataclass(frozen=True)

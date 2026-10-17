@@ -1,35 +1,17 @@
-"""Multi-Agent Research Collective & Role Manifests (Ring 2).
+"""Multi-Agent Research Collective skeptic (Ring 2).
 
-Defines specialized roles with least-privilege tool grants:
-1. ansatz-scout: Proposes quantum circuit topologies.
-2. compiler-scout: Optimizes hardware gate passes.
-3. disconfirmation-officer: Mandatory automated skeptic that attempts to
-   invalidate any claimed finding using classical shortcuts, barren plateau
-   detection, or baseline anchors before a report is certified.
+W2.13: the RoleType / AgentRoleManifest scaffolding was deleted — zero
+in-repo callers (verified by grep over platform/, including tests) and no
+wiring into any admission path. What remains is the disconfirmation logic
+itself, kept as a TESTED reference implementation with an explicit status:
+as of 2026-10-17 it has no production caller, so nothing in the platform may
+claim skeptic coverage until it is wired into one.
 """
 
 from __future__ import annotations
 
-import enum
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import List
 from pydantic import BaseModel, Field
-
-
-class RoleType(str, enum.Enum):
-    ANSATZ_SCOUT = "ansatz-scout"
-    COMPILER_SCOUT = "compiler-scout"
-    DISCONFIRMATION_OFFICER = "disconfirmation-officer"
-    DEVICE_AUDITOR = "device-auditor"
-
-
-class AgentRoleManifest(BaseModel):
-    role: RoleType
-    name: str
-    description: str
-    allowed_tools: List[str]
-    read_only: bool = True
-    max_step_budget: int = 20
 
 
 class DisconfirmationVerdict(BaseModel):

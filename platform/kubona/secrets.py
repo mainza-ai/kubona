@@ -28,6 +28,24 @@ def _env_key(provider: str, key: str) -> str:
     return f"KUBONA_{p}_{k}"
 
 
+def provider_slug(provider: str) -> str:
+    """Bao KV path slug for a provider (W2.7, single shared rule).
+
+    Validated by the W0.13 canonical `kubona.session.tenant_slug` rule
+    (non-empty, max 64 chars, alnum plus dash/underscore — hostile names
+    refuse instead of collapsing onto another provider's path), then
+    lowercased so "IBM-Qiskit" and "ibm-qiskit" agree on one path.
+
+    Note: the pre-W2.7 rule folded underscores to dashes; names written with
+    underscores now keep them, so their Bao paths change. Canonical provider
+    names are dashed-lowercase ("ibm-qiskit", "quantinuum", "rigetti") and
+    unaffected.
+    """
+    from kubona.session import tenant_slug
+
+    return tenant_slug(provider).lower()
+
+
 class SecretSource(ABC):
     @abstractmethod
     def get(self, provider: str, key: str) -> str | None:
@@ -95,9 +113,9 @@ class OpenBaoSecretSource(SecretSource):
 
     def get(self, provider: str, key: str) -> str | None:
         token = self._login()
-        # Same normalization as _env_key (uppercase classes first), then
-        # lowercase with dashes: "ibm_qiskit" and "ibm-qiskit" agree.
-        slug = _PROVIDER_RE.sub("-", provider.upper()).strip("-").lower()
+        # W2.7: single shared slug rule (kubona.session.tenant_slug) — the
+        # Bao path and the tenant/session namespace can no longer disagree.
+        slug = provider_slug(provider)
         try:
             resp = self._httpx.get(
                 f"{self.addr}/v1/secret/data/quantum/{slug}",

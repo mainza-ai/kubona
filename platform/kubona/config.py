@@ -84,3 +84,27 @@ def console_token() -> str | None:
 def signing_key_path() -> Path:
     """Where the OAuth signing key lives (seeded once, reused across restarts)."""
     return state_path("signing-key.pem")
+
+
+def atomic_write_text(path: str | Path, text: str) -> None:
+    """Single shared atomic-write helper (W2.6/W2.17, drift-proof): tmp-file
+    in the same directory + fsync + os.rename, so readers never see a
+    half-written file and a crash never corrupts the target. All persistent
+    JSON stores route through here instead of carrying their own copy."""
+    import tempfile
+
+    p = Path(path)
+    p.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=str(p.parent), prefix=p.name + ".", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
+        os.rename(tmp, p)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise

@@ -35,6 +35,26 @@ class QiskitProvider(Provider):
             )
 
     # -- circuit -> Qiskit QuantumCircuit (shared by Aer and IBM Runtime paths) --
+    # Explicit gate allowlist + arity check (W2.18): the old hasattr duck-typing
+    # accepted any attribute (including non-gate helpers) and forwarded params
+    # unchecked — a 2-param gate handed 3 params failed deep inside Qiskit.
+    # Anything outside _QISKIT_GATES refuses with ProviderError (fail-closed).
+    #
+    # Scope note: this is the SDK CONVERSION set (gates with explicit branches
+    # or direct QuantumCircuit methods below) — deliberately NOT the hardware
+    # basis set from the capability JSON. Basis lowering stays the compiler
+    # server's job; the provider converts, it does not silently recompile.
+    _QISKIT_GATES = frozenset({
+        "h", "x", "y", "z", "s", "sdg", "t", "tdg", "id",
+        "rx", "ry", "rz", "p", "u1", "u2", "u3",
+        "cx", "cz", "swap", "cp", "sx", "ecr",
+    })
+    _PARAM_ARITY: dict[str, int] = {
+        "u3": 3, "u2": 2, "u1": 1, "p": 1,
+        "rx": 1, "ry": 1, "rz": 1, "rxx": 1, "ryy": 1, "rzz": 1,
+        "cp": 1, "crx": 1, "cry": 1, "crz": 1,
+    }
+
     def _to_qiskit(self, circuit: Circuit):
         import math
         from qiskit import QuantumCircuit as QKCircuit
@@ -45,6 +65,20 @@ class QiskitProvider(Provider):
         for g in circuit.gates:
             qs = list(g.qubits)
             name = g.name
+            if not qs:
+                raise ProviderError(
+                    f"gate {name!r} has no qubits (zero-qubit gate): refusing")
+            if name not in self._QISKIT_GATES:
+                raise ProviderError(
+                    f"gate {name!r} has no explicit Qiskit conversion in this "
+                    f"provider (convertible: {sorted(self._QISKIT_GATES)}); "
+                    "transpile first (compiler server) or pick another provider"
+                )
+            arity = self._PARAM_ARITY.get(name, 0)
+            if len(g.params) != arity:
+                raise ProviderError(
+                    f"gate {name!r} takes {arity} parameter(s), got {len(g.params)}: "
+                    "refusing unchecked params")
             if name == "u3":
                 qc.u(*g.params, qs[0])
             elif name == "u2":
@@ -53,42 +87,61 @@ class QiskitProvider(Provider):
                 qc.p(g.params[0], qs[0])
             elif name == "id":
                 qc.id(qs[0])
-            elif not hasattr(qc, name):
-                raise ProviderError(
-                    f"gate {name!r} has no Qiskit mapping in this provider; "
-                    f"transpile first (compiler server) or pick another provider"
-                )
-            elif g.params:
-                getattr(qc, name)(*g.params, *qs)
             else:
-                getattr(qc, name)(*qs)
+                fn = getattr(qc, name, None)
+                if not callable(fn):
+                    raise ProviderError(
+                        f"gate {name!r} is declared native but has no Qiskit "
+                        "method in this SDK version: refusing duck-typed call"
+                    )
+                if g.params:
+                    fn(*g.params, *qs)
+                else:
+                    fn(*qs)
         qc.measure_all()  # counts require classical registers
         return qc
 
-    def submit(self, circuit: Circuit, shots: int, seed: int | None = None) -> dict[str, Any]:
-        """Run on real IBM hardware via Qiskit Runtime when credentials exist,
-        otherwise the credential-free local Aer simulator (dev provider).
+    def submit(self, circuit: Circuit, shots: int, seed: int | None = None,
+               allow_sim_fallback: bool = False) -> dict[str, Any]:
+        """Run on real IBM hardware via Qiskit Runtime when credentials exist.
 
-        Real-hardware path: reads KUBONA_IBM_QISKIT_TOKEN via the SecretStore,
-        submits to the named IBM backend, and returns counts with a real job_id —
-        so the P1 "runs on a real QPU via direct provider SDK" gate is exercised
-        whenever credentials are configured. Fails closed (Aer) otherwise, keeping
-        the dev/test posture credential-free (open-source first).
+        No quantum-washing (W2.18): when this capability is a HARDWARE
+        modality (anything but statevector/gpu simulator), a missing
+        credential or backend REFUSES — the old code silently ran Aer and
+        returned simulator counts for a hardware request. Pass
+        `allow_sim_fallback=True` to explicitly opt into the Aer path (the
+        result carries `"sim_fallback": True` so the downgrade is labeled,
+        never silent). Simulator-tier capabilities (qiskit-aer-simulator)
+        run Aer directly with no flag — no downgrade is involved.
         """
         self._ensure_ready()
+        if isinstance(shots, bool) or not isinstance(shots, int) or shots <= 0:
+            raise ProviderError(f"shots must be a positive int, got {shots!r}")
         qc = self._to_qiskit(circuit)
 
+        modality = getattr(self.capability.modality, "value",
+                           str(self.capability.modality))
+        is_simulator = modality in ("statevector_simulator", "gpu_simulator")
         token = self._credential()
-        if token and self.backend_name:
+        if token and self.backend_name and not is_simulator:
             return self._submit_ibm_runtime(qc, shots, token)
-        # credential-free dev provider (open-source first, per maintainer direction)
-        from qiskit_aer import AerSimulator
+        if is_simulator or allow_sim_fallback:
+            # credential-free Aer path (open-source first, per maintainer direction)
+            from qiskit_aer import AerSimulator
 
-        backend = AerSimulator(seed_simulator=seed)
-        job = backend.run(qc, shots=shots)
-        counts = job.result().get_counts()
-        return {"counts": counts, "shots": shots, "seed": seed,
-                "backend": "qiskit-aer", "hardware": False}
+            backend = AerSimulator(seed_simulator=seed)
+            job = backend.run(qc, shots=shots)
+            counts = job.result().get_counts()
+            out: dict[str, Any] = {"counts": counts, "shots": shots, "seed": seed,
+                                   "backend": "qiskit-aer", "hardware": False}
+            if not is_simulator:
+                out["sim_fallback"] = True  # explicitly opted-in downgrade, labeled
+            return out
+        raise ProviderError(
+            f"provider {self.capability.provider!r} is a hardware modality "
+            f"({modality}) but no credential (KUBONA_IBM_QISKIT_TOKEN) or "
+            "backend is configured: refusing silent Aer downgrade "
+            "(pass allow_sim_fallback=True to explicitly run the simulator)")
 
     def _credential(self) -> str | None:
         # R12: no caching of the default store. An explicitly injected

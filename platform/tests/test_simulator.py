@@ -25,5 +25,6 @@ def test_deterministic_seed():
 
 def test_unsupported_gate_rejected():
     qasm = "OPENQASM 2.0;\nqreg q[1];\nfoo q[0];"
-    with pytest.raises(ProviderError):
-        get_provider("local-simulator").submit(parse_qasm2(qasm), 10)
+    # Fail-closed at parse: unknown gates refuse before reaching any provider.
+    with pytest.raises(ValueError, match="unknown gate"):
+        parse_qasm2(qasm)

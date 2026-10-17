@@ -20,6 +20,7 @@ from kubona.jobs import JobRunner
 from kubona.mitigation import run_zne
 from kubona.providers import get_provider, list_providers
 from kubona.schema import load_provider
+from kubona.schema.provider import MODALITIES_SIMULATOR, TWO_Q_GATES
 from kubona.session import SessionStore
 
 mcp = MCPServer("kubona-execution")
@@ -36,8 +37,11 @@ _FIDELITY_DEVICE_FOR_PROVIDER = {
     "ibm-qiskit": "ibm-heron",
     "rigetti": "rigetti-aspen",
 }
-_SIMULATOR_MODALITIES = {"statevector_simulator", "gpu_simulator"}
-_TWO_QUBIT_GATES = frozenset({"cx", "cz", "swap", "cp", "ecr", "rzz"})
+# W2.21: single shared consts from kubona.schema.provider (aliases keep the
+# neighboring _LOCAL_ONLY_PROVIDERS documentation coherent — when adding a
+# simulator provider, list it there AND check the modality set here).
+_SIMULATOR_MODALITIES = MODALITIES_SIMULATOR
+_TWO_QUBIT_GATES = TWO_Q_GATES
 
 # Local-only providers (W0.16): the ONLY names allowed to skip the
 # jurisdiction/export gate via jurisdiction "none". A new provider claiming
@@ -297,8 +301,11 @@ def run_zne_job(circuit_qasm: str, shots: int = 8000, noise_rate: float = 0.02,
             or not 0 < noise_rate < 1:
         return {"ok": False, "error": f"noise_rate must be in (0, 1), got {noise_rate!r}"}
     circuit = parse_qasm2(circuit_qasm)
-    result = run_zne(circuit, shots=shots, noise_rate=noise_rate,
-                     scales=tuple(parsed), seed=seed)
+    try:
+        result = run_zne(circuit, shots=shots, noise_rate=noise_rate,
+                         scales=tuple(parsed), seed=seed)
+    except ValueError as e:
+        return {"ok": False, "error": f"zne refused: {e}"}
     return {"ok": True, **result.to_dict()}
 
 

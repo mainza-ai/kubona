@@ -24,6 +24,11 @@ from kubona.llm.registry import LocalModelRegistry
 
 
 class Modality(str, enum.Enum):
+    """Multimodal PAYLOAD content kinds for LLM routing (W2.21: canonical
+    payload enum — deliberately NOT kubona.schema.provider.Modality, which
+    classifies HARDWARE program models (gate_model/trapped_ion/...). Same
+    class name, disjoint domains; unifying them would be a type error. Both
+    docstrings say so."""
     TEXT = "text"
     IMAGE = "image"
     MOLECULE_3D = "molecule_3d"
@@ -116,7 +121,11 @@ class HybridModelRouter:
         """Determines the optimal model runtime for the given multimodal payload."""
         required_modalities = {item.modality for item in payload.items}
         needs_vision = Modality.IMAGE in required_modalities or Modality.SPECTROSCOPY in required_modalities
-        needs_audio = Modality.AUDIO in required_modalities
+        # W2.13: the old `needs_audio` local was assigned and never read —
+        # audio does NOT influence routing (no audio-capable local model
+        # detection exists; audio payloads ride the default local pick and
+        # are rendered as transcribed text in prepare_multimodal_context).
+        # Deleting the dead variable instead of pretending it gates anything.
 
         # 1. Discover active local models
         local_discovery = self.registry.discover()

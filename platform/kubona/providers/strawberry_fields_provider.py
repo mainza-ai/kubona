@@ -25,13 +25,19 @@ class StrawberryFieldsProvider(Provider):
             self._ready, self._err = False, str(e)
 
     def submit(self, circuit: Circuit, shots: int, seed: int | None = None) -> dict[str, Any]:
+        # W2.18: missing-SDK vs not-wired are SEPARATE refusals (see
+        # pulser_provider for the rationale).
         if not self._ready:
             raise ProviderError(
-                "xanadu-strawberry-fields requires optional deps + credentials: "
-                f"pip install strawberryfields (missing: {self._err}). CV/photonic "
-                "execution ships with credentials + a Strawberry Fields backend wiring."
+                "photonic provider SDK missing: pip install strawberryfields "
+                f"(import failed: {self._err}). This is a setup gap, not a "
+                "wiring gap — execution still needs credentials + a CV "
+                "backend wiring after install."
             )
-        raise ProviderError("strawberry-fields execution not yet wired (needs credentials + SF backend)")
+        raise ProviderError(
+            "strawberry-fields execution not yet wired: the SDK imports, but "
+            "no CV/photonic backend is configured. Failing closed instead "
+            "of simulating a distinct modality.")
 
     def health(self) -> dict[str, Any]:
         return {"provider": self.capability.provider, "ready": self._ready, "error": self._err}

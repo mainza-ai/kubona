@@ -52,11 +52,19 @@ def fake_runtime(monkeypatch):
 
 
 def test_aer_fallback_without_credentials(monkeypatch):
-    """No token -> credential-free Aer dev provider (open-source first)."""
+    """No token -> REFUSAL (W2.18, no silent Aer downgrade for hardware
+    modalities); explicit allow_sim_fallback=True opts into a LABELED Aer
+    run (open-source first, never silent)."""
+    from kubona.providers.base import ProviderError
+
     monkeypatch.delenv("KUBONA_IBM_QISKIT_TOKEN", raising=False)
+    monkeypatch.delenv("BAO_ADDR", raising=False)
     p = QiskitProvider(load_provider("ibm-qiskit"), backend_name="ibm_brisbane")
-    out = p.submit(BELL, shots=512, seed=7)
+    with pytest.raises(ProviderError, match="allow_sim_fallback"):
+        p.submit(BELL, shots=512, seed=7)
+    out = p.submit(BELL, shots=512, seed=7, allow_sim_fallback=True)
     assert out["hardware"] is False and out["backend"] == "qiskit-aer"
+    assert out["sim_fallback"] is True
     assert set(out["counts"]) <= {"00", "11"}
 
 

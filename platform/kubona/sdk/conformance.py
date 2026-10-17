@@ -24,6 +24,7 @@ import numpy as np
 from kubona.circuits import Circuit, Gate, parse_qasm2
 from kubona.providers.base import Provider, ProviderError, _instantiate
 from kubona.schema import ProviderCapability
+from kubona.schema.provider import MODALITIES_GATE, MODALITIES_SIMULATOR
 
 from .register import validate_capability
 
@@ -33,11 +34,10 @@ _SANDBOX_1Q = Circuit(name="sdk-conformance-1q", num_qubits=1, gates=[Gate("h", 
 # Modalities a Bell gate-circuit can actually probe (mirrors canary.py:
 # annealing QUBO, neutral-atom AHS and photonic CV are different program
 # models — bell_correct is N/A for them, never a fail).
-_GATE_MODALITIES = {"gate_model", "superconducting", "trapped_ion",
-                    "statevector_simulator", "gpu_simulator",
-                    "statevector", "gpu"}
-_SIM_MODALITIES = {"statevector_simulator", "gpu_simulator",
-                   "statevector", "gpu"}
+# W2.21: single shared consts from kubona.schema.provider (aliases keep the
+# explanatory comments with their use sites).
+_GATE_MODALITIES = MODALITIES_GATE
+_SIM_MODALITIES = MODALITIES_SIMULATOR
 
 # Env prefixes scrubbed for the credential-hygiene probe: a simulator-tier
 # candidate must run with none of these set; a hardware claimant must fail

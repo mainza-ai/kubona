@@ -10,7 +10,7 @@ from .base import AbstractLLM, ModelInfo, ScriptedLLM
 from .registry import LocalModelRegistry, discovery_defaults
 from .openai_compat import OpenAICompatLLM
 from .ollama import OllamaLLM
-from .factory import get_llm, MODEL_SOURCES
+from .factory import get_llm, MODEL_SOURCES, UnknownLLMProviderError
 
 __all__ = ["AbstractLLM", "ModelInfo", "ScriptedLLM", "LocalModelRegistry", "discovery_defaults",
-           "OpenAICompatLLM", "OllamaLLM", "get_llm", "MODEL_SOURCES"]
+           "OpenAICompatLLM", "OllamaLLM", "get_llm", "MODEL_SOURCES", "UnknownLLMProviderError"]
