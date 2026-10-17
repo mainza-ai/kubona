@@ -68,6 +68,65 @@ type LoopSnapshot struct {
 	CreatedAt  time.Time      `json:"created_at"`
 }
 
+// Loop lifecycle states (W0.21: single source — the loops table is written
+// with bare strings in several places, so every transition below goes
+// through validLoopTransition; a new status defaults to blocking until
+// classified here).
+const (
+	LoopRunning   = "running"
+	LoopPaused    = "paused"
+	LoopCompleted = "completed"
+	LoopDiverged  = "diverged"
+	LoopRescoped  = "rescoped"
+	LoopKilled    = "killed"
+	LoopStalled   = "stalled"
+	LoopAborted   = "aborted"
+	LoopSleeping  = "sleeping"
+)
+
+// TerminalLoopStatuses are over: killed/completed/aborted loops never run
+// again (pkg/session builds its deletion blockers from this set — a killed
+// loop must not block session deletion forever).
+func TerminalLoopStatuses() []string {
+	return []string{LoopCompleted, LoopAborted, LoopKilled}
+}
+
+// validLoopTransition reports whether to-state is reachable from from-state.
+// Terminal states are immutable (killed/completed/aborted never revive —
+// Resume used to resurrect them into spend). Same-state is a no-op success.
+func validLoopTransition(from, to string) bool {
+	if from == to {
+		return true
+	}
+	switch to {
+	case LoopPaused:
+		// Parking live or stuck work for inspection (running, rescoped,
+		// diverged, stalled). Terminal stays terminal.
+		switch from {
+		case LoopRunning, LoopRescoped, LoopDiverged, LoopStalled:
+			return true
+		}
+	case LoopRunning:
+		// Resume only from parked states (W0.21). Diverged loops recover
+		// via RollbackToSnapshot, not Resume; terminal never revives.
+		switch from {
+		case LoopPaused, LoopStalled, LoopSleeping:
+			return true
+		}
+	case LoopKilled:
+		switch from {
+		case LoopRunning, LoopPaused, LoopRescoped, LoopDiverged, LoopStalled, LoopSleeping:
+			return true
+		}
+	case LoopRescoped:
+		switch from {
+		case LoopRunning, LoopDiverged:
+			return true
+		}
+	}
+	return false
+}
+
 // ManagedLoop represents an active agent autonomous discovery loop
 type ManagedLoop struct {
 	ID        string    `json:"id"`
@@ -92,6 +151,7 @@ type Supervisor struct {
 	snapshots map[string][]*LoopSnapshot
 	ctx       context.Context
 	cancel    context.CancelFunc
+	sweepWg   sync.WaitGroup
 }
 
 func NewSupervisor(l *ledger.Ledger) *Supervisor {
@@ -110,6 +170,8 @@ func NewSupervisor(l *ledger.Ledger) *Supervisor {
 
 func (s *Supervisor) Close() {
 	s.cancel()
+	// W0.21: join the sweep — cancel alone left it racing shutdown.
+	s.sweepWg.Wait()
 }
 
 func (s *Supervisor) Gate() *ReconciliationGate {
@@ -120,14 +182,20 @@ func (s *Supervisor) RegisterLoop(sessionID string, maxSteps int) (*ManagedLoop,
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// W0.21: maxSteps bounds spend — callers must state it (the silent
+	// 50-default hid caller errors on the spend bound). Ghost sessions
+	// refuse: unattributed loops are another lab's bill.
 	if maxSteps <= 0 {
-		maxSteps = 50
+		return nil, fmt.Errorf("maxSteps must be positive (spend bound): refusing")
+	}
+	if sessionID == "" {
+		return nil, fmt.Errorf("sessionID is required: ghost loops refuse")
 	}
 
 	loop := &ManagedLoop{
 		ID:        uuid.New().String(),
 		SessionID: sessionID,
-		Status:    "running",
+		Status:    LoopRunning,
 		StepCount: 0,
 		MaxSteps:  maxSteps,
 		Diverged:  false,
@@ -189,10 +257,22 @@ func (s *Supervisor) RollbackToSnapshot(loopID string) (*LoopSnapshot, error) {
 	}
 
 	target := snaps[len(snaps)-1]
-	loop.Status = "running"
+	// Recovery path, not resurrection: rollback runs only from live states
+	// (diverged/stalled/paused/running/rescoped) — completed/killed/aborted
+	// history is immutable. The transition persists (W0.21): the old code
+	// left the loops table behind memory.
+	if loop.Status == LoopCompleted || loop.Status == LoopKilled || loop.Status == LoopAborted {
+		return nil, fmt.Errorf("loop %s is %s: rollback refuses terminal history", loopID, loop.Status)
+	}
+	loop.Status = LoopRunning
 	loop.Diverged = false
 	loop.StepCount = target.StepIndex
 	loop.UpdatedAt = time.Now().UTC()
+	if _, err := s.ledger.DB().Exec(
+		`UPDATE loops SET status = ?, step_count = ?, diverged = ?, updated_at = ? WHERE id = ?`,
+		loop.Status, loop.StepCount, loop.Diverged, loop.UpdatedAt, loopID); err != nil {
+		return nil, fmt.Errorf("rollback persist failed: %w", err)
+	}
 
 	s.ledger.AppendEvent(loop.SessionID, "loop_rollback_executed", map[string]any{
 		"loop_id":     loopID,
@@ -211,13 +291,21 @@ func (s *Supervisor) RescopeLoop(loopID string, newMaxSteps int) error {
 	if !exists {
 		return fmt.Errorf("loop not found: %s", loopID)
 	}
+	if !validLoopTransition(loop.Status, LoopRescoped) && loop.Status != LoopRescoped {
+		return fmt.Errorf("loop %s cannot go %s -> rescoped: terminal states are immutable", loopID, loop.Status)
+	}
 
-	loop.Status = "rescoped"
+	loop.Status = LoopRescoped
 	loop.Diverged = false
 	if newMaxSteps > 0 {
 		loop.MaxSteps = newMaxSteps
 	}
 	loop.UpdatedAt = time.Now().UTC()
+	if _, err := s.ledger.DB().Exec(
+		`UPDATE loops SET status = ?, diverged = ?, max_steps = ?, updated_at = ? WHERE id = ?`,
+		loop.Status, loop.Diverged, loop.MaxSteps, loop.UpdatedAt, loopID); err != nil {
+		return fmt.Errorf("rescope persist failed: %w", err)
+	}
 
 	s.ledger.AppendEvent(loop.SessionID, "loop_rescoped", map[string]any{
 		"loop_id":       loopID,
@@ -235,7 +323,7 @@ func (s *Supervisor) Step(loopID string, gradientNorm float64) (string, error) {
 		return "", fmt.Errorf("loop not found: %s", loopID)
 	}
 
-	if loop.Status != "running" && loop.Status != "rescoped" {
+	if loop.Status != LoopRunning && loop.Status != LoopRescoped {
 		status := loop.Status
 		s.mu.Unlock()
 		return status, nil
@@ -247,14 +335,14 @@ func (s *Supervisor) Step(loopID string, gradientNorm float64) (string, error) {
 	// Barren plateau or gradient explosion reflex trigger
 	if gradientNorm < 1e-6 || gradientNorm > 1e4 {
 		loop.Diverged = true
-		loop.Status = "diverged"
+		loop.Status = LoopDiverged
 		s.ledger.AppendEvent(loop.SessionID, "loop_diverged", map[string]any{
 			"loop_id":       loopID,
 			"gradient_norm": gradientNorm,
 			"reason":        "Ring 0 watchdog triggered: barren plateau or exploding gradient",
 		})
 	} else if loop.StepCount >= loop.MaxSteps {
-		loop.Status = "completed"
+		loop.Status = LoopCompleted
 		s.ledger.AppendEvent(loop.SessionID, "loop_completed", loop)
 	}
 
@@ -269,39 +357,23 @@ func (s *Supervisor) Step(loopID string, gradientNorm float64) (string, error) {
 	return status, nil
 }
 
+// transitionLoop applies a lifecycle transition with the state machine
+// enforced and every change persisted (W0.21): transitions used to mutate
+// memory only (stall sweep, rescope, rollback) while the loops table said
+// "running" forever. Same-state is a no-op success (idempotent operators).
 func (s *Supervisor) Pause(loopID string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	loop, exists := s.loops[loopID]
-	if !exists {
-		return fmt.Errorf("loop not found: %s", loopID)
-	}
-	loop.Status = "paused"
-	loop.UpdatedAt = time.Now().UTC()
-
-	s.ledger.DB().Exec(`UPDATE loops SET status = ?, updated_at = ? WHERE id = ?`, loop.Status, loop.UpdatedAt, loopID)
-	s.ledger.AppendEvent(loop.SessionID, "loop_paused", map[string]string{"loop_id": loopID})
-	return nil
+	return s.transitionLoop(loopID, LoopPaused, "loop_paused", nil)
 }
 
 func (s *Supervisor) Resume(loopID string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	loop, exists := s.loops[loopID]
-	if !exists {
-		return fmt.Errorf("loop not found: %s", loopID)
-	}
-	loop.Status = "running"
-	loop.UpdatedAt = time.Now().UTC()
-
-	s.ledger.DB().Exec(`UPDATE loops SET status = ?, updated_at = ? WHERE id = ?`, loop.Status, loop.UpdatedAt, loopID)
-	s.ledger.AppendEvent(loop.SessionID, "loop_resumed", map[string]string{"loop_id": loopID})
-	return nil
+	return s.transitionLoop(loopID, LoopRunning, "loop_resumed", nil)
 }
 
 func (s *Supervisor) Kill(loopID string) error {
+	return s.transitionLoop(loopID, LoopKilled, "loop_killed", nil)
+}
+
+func (s *Supervisor) transitionLoop(loopID, to string, eventType string, extra map[string]any) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -309,11 +381,24 @@ func (s *Supervisor) Kill(loopID string) error {
 	if !exists {
 		return fmt.Errorf("loop not found: %s", loopID)
 	}
-	loop.Status = "killed"
+	if loop.Status == to {
+		return nil
+	}
+	if !validLoopTransition(loop.Status, to) {
+		return fmt.Errorf("loop %s cannot go %s -> %s: terminal states are immutable", loopID, loop.Status, to)
+	}
+	loop.Status = to
 	loop.UpdatedAt = time.Now().UTC()
-
-	s.ledger.DB().Exec(`UPDATE loops SET status = ?, updated_at = ? WHERE id = ?`, loop.Status, loop.UpdatedAt, loopID)
-	s.ledger.AppendEvent(loop.SessionID, "loop_killed", map[string]string{"loop_id": loopID})
+	if _, err := s.ledger.DB().Exec(
+		`UPDATE loops SET status = ?, updated_at = ? WHERE id = ?`,
+		loop.Status, loop.UpdatedAt, loopID); err != nil {
+		return fmt.Errorf("loop transition persist failed: %w", err)
+	}
+	fields := map[string]any{"loop_id": loopID}
+	for k, v := range extra {
+		fields[k] = v
+	}
+	s.ledger.AppendEvent(loop.SessionID, eventType, fields)
 	return nil
 }
 
@@ -321,15 +406,24 @@ func (s *Supervisor) ListLoops() []*ManagedLoop {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
+	// W0.21: copies, never live pointers — callers mutated loop state past
+	// the lock (and the race detector's reach).
 	res := make([]*ManagedLoop, 0, len(s.loops))
 	for _, l := range s.loops {
-		res = append(res, l)
+		cp := *l
+		if l.LatestSnapshot != nil {
+			snap := *l.LatestSnapshot
+			cp.LatestSnapshot = &snap
+		}
+		res = append(res, &cp)
 	}
 	return res
 }
 
 // heartbeatWatchdogSweep detects stalled subtrees and terminates zombie loops
 func (s *Supervisor) heartbeatWatchdogSweep() {
+	s.sweepWg.Add(1)
+	defer s.sweepWg.Done()
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
 
@@ -341,8 +435,14 @@ func (s *Supervisor) heartbeatWatchdogSweep() {
 			s.mu.Lock()
 			now := time.Now().UTC()
 			for _, loop := range s.loops {
-				if loop.Status == "running" && now.Sub(loop.UpdatedAt) > 10*time.Minute {
-					loop.Status = "stalled"
+				if loop.Status == LoopRunning && now.Sub(loop.UpdatedAt) > 10*time.Minute {
+					loop.Status = LoopStalled
+					loop.UpdatedAt = now
+					// W0.21: the stall persists — the old sweep left the
+					// table saying "running" forever.
+					_, _ = s.ledger.DB().Exec(
+						`UPDATE loops SET status = ?, updated_at = ? WHERE id = ?`,
+						loop.Status, loop.UpdatedAt, loop.ID)
 					s.ledger.AppendEvent(loop.SessionID, "loop_stalled_timeout", map[string]any{
 						"loop_id": loop.ID,
 						"timeout": "10m",
@@ -354,8 +454,13 @@ func (s *Supervisor) heartbeatWatchdogSweep() {
 	}
 }
 
-// IsLocalIPv4 implements gods-eye-view local pin guard ensuring local models stay on 127.0.0.1
+// IsLocalIPv4 implements gods-eye-view local pin guard ensuring local models stay on 127.0.0.1.
+// Host:port forms split first (W0.21): the old code fed "127.0.0.1:8787" to
+// ParseIP, got nil, and answered false for a loopback endpoint.
 func IsLocalIPv4(host string) bool {
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
 	ip := net.ParseIP(host)
 	if ip == nil {
 		return host == "localhost"
