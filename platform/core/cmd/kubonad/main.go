@@ -89,6 +89,13 @@ func validateServeConfig(bind, cert, key string, required bool) error {
 	return nil
 }
 
+// ensureStateDirs creates the on-disk state the daemon measures and
+// serves (HF models dir) before the disk guard reads it. See the call
+// site in main: a fresh state root otherwise never becomes ready.
+func ensureStateDirs() error {
+	return os.MkdirAll(hf.DefaultModelsDir(), 0755)
+}
+
 func loadDotEnvFile(path string) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -165,6 +172,15 @@ func main() {
 
 	log.Printf("[Kubona Core] Starting orchestrator daemon on port %d...", *port)
 	log.Printf("[Kubona Core] Ledger path: %s", resolvedDB)
+
+	// D1: ensure the state the daemon measures before the disk guard
+	// reads it. A fresh state root (new volume) otherwise never becomes
+	// ready: statfs on the missing HF models dir fails and /api/ready
+	// latches not-ready forever. Fail-closed: an uncreatable state dir
+	// refuses boot (unmeasurable state storage is unstartable storage).
+	if err := ensureStateDirs(); err != nil {
+		log.Fatalf("Cannot create daemon state directories: %v", err)
+	}
 
 	// 1. Initialize SQLite WAL Ledger
 	l, err := ledger.OpenLedger(resolvedDB)

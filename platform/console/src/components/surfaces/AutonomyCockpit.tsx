@@ -35,12 +35,16 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
   // No stale budget: resync planning view whenever the session changes.
+  // Reset during render (key-change pattern, not in the effect below):
+  // the budget fields must track the newly selected session, never the
+  // previous one's figures.
   const sessionId = session?.id ?? '';
-  useEffect(() => {
+  const [prevSessionId, setPrevSessionId] = useState(sessionId);
+  if (prevSessionId !== sessionId) {
+    setPrevSessionId(sessionId);
     setBudgetUSD(session?.spend_limit_usd ?? 25.0);
     setCurrentSpentUSD(session?.current_spend_usd ?? 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId]);
+  }
 
   // Initialize the switch from live settings — never assume engaged.
   useEffect(() => {

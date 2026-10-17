@@ -1,0 +1,38 @@
+# Kubona Python gRPC Bridge — production image (D1).
+#
+# Carries the compute stack (qiskit + chemistry extras, all == pinned in
+# pyproject.toml — same discipline as CI). Slimming the chemistry deps
+# out of this image is a follow-up, not this slice: the bridge imports
+# them at module load (server.py), so omitting them is a crash, not a diet.
+# Nonroot; HEALTHCHECK dials the gRPC port with plain grpc (no reflection
+# needed — channel_ready only proves the socket accepts).
+#
+# Build (repo root): docker build -f platform/docker/Dockerfile.bridge -t kubona/bridge:dev platform
+# Run (compose is the supported path): see compose.prod.yml.
+
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    DEBIAN_FRONTEND=noninteractive
+
+WORKDIR /app
+# Install first (better layer caching): project metadata + package, then
+# the bridge tree. setuptools packages only kubona*; bridge/ runs as cwd.
+COPY pyproject.toml ./
+COPY kubona ./kubona
+RUN pip install --no-cache-dir ".[qiskit,chemistry]" \
+    && groupadd -g 1000 kubona && useradd -u 1000 -g kubona -m -s /bin/sh kubona
+
+COPY bridge ./bridge
+RUN chown -R kubona:kubona /app
+
+USER kubona
+WORKDIR /app/bridge
+EXPOSE 50051
+HEALTHCHECK --interval=10s --timeout=5s --retries=3 --start-period=30s \
+    CMD python -c "import grpc; grpc.channel_ready_future(grpc.insecure_channel('127.0.0.1:50051')).result(timeout=4)"
+
+CMD ["python", "server.py"]

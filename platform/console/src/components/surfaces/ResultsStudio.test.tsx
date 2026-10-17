@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { ResultsStudio } from './ResultsStudio';
+import type { CampaignState } from '@/types';
 
 function campaign(status: string) {
   return {
@@ -25,7 +26,7 @@ function campaign(status: string) {
     },
     quantum_factors: {},
     trajectory: [],
-  } as any;
+  } as unknown as CampaignState;
 }
 
 describe('ResultsStudio verification gating (J1)', () => {
@@ -50,7 +51,7 @@ describe('ResultsStudio verification gating (J1)', () => {
       .findAllByType('button')
       .find((b) => JSON.stringify(b.props.children).includes('Lean 4 Proof AST'));
     act(() => {
-      (leanTab!.props as any).onClick();
+      (leanTab!.props as { onClick: () => void }).onClick();
     });
     const leanText = JSON.stringify(tree!.toJSON());
     expect(leanText).toContain('No verified Lean 4 declaration exists');
@@ -72,7 +73,7 @@ describe('ResultsStudio verification gating (J1)', () => {
     let tree: TestRenderer.ReactTestRenderer;
     act(() => {
       tree = TestRenderer.create(
-        <ResultsStudio campaign={{ target_system: 'H2' } as any} sessionId={null} />
+        <ResultsStudio campaign={{ target_system: 'H2' } as unknown as CampaignState} sessionId={null} />
       );
     });
     expect(JSON.stringify(tree!.toJSON())).toContain('UNVERIFIED DRAFT');

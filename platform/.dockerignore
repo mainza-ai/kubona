@@ -1,0 +1,21 @@
+# D1: build context is platform/ (pyproject at root). Keep the bridge
+# image free of state, secrets, tests, and the console tree.
+__pycache__
+.pytest_cache
+.venv
+*.egg-info
+.env
+.env.*
+.git
+tests
+test_*.py
+console
+core
+crates
+models
+state
+.kubona
+*.db
+*.db-lock
+*.db-shm
+*.db-wal

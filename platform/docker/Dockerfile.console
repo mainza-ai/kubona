@@ -1,0 +1,56 @@
+# Kubona Observatory Console — production image (D1).
+#
+# Multi-stage: builder runs the full pnpm build (tests + lint already
+# gate in CI; the image build itself only needs build green), final runs
+# the Next.js standalone server as nonroot.
+#
+# Build-time baking (U3 tracks the runtime-config fix): NEXT_PUBLIC_*
+# vars are inlined at build. The compose file passes NEXT_PUBLIC_API_URL
+# as a build arg so one file builds per environment — a rebuild per
+# backend, stated here, not hidden. No token is baked: without
+# NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN the console sends no Authorization
+# header, reads stay public, writes fail closed server-side.
+#
+# Build (repo root): docker build -f platform/docker/Dockerfile.console \
+#   --build-arg NEXT_PUBLIC_API_URL=http://localhost:8080 \
+#   -t kubona/console:dev platform/console
+
+FROM node:20-bookworm-slim AS build
+
+ENV NEXT_TELEMETRY_DISABLED=1
+WORKDIR /app
+# Same toolchain as CI (ci.yml: node 20 + pnpm 9): corepack would pull the
+# packageManager-pinned pnpm 11, which needs node >=22 — replicating CI
+# exactly instead of mixing lanes.
+RUN npm install -g pnpm@9
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY . .
+# Default is the browser's view (all data fetching is client-side):
+# localhost:8080 with the published port for local compose — kubonad:8080
+# would break browser fetches. Compose overrides per environment.
+ARG NEXT_PUBLIC_API_URL=http://localhost:8080
+ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+RUN pnpm build
+
+FROM node:20-bookworm-slim
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    PORT=3000 \
+    HOSTNAME=0.0.0.0
+WORKDIR /app
+# node:20-slim already ships a nonroot node:1000 user — reuse it instead
+# of colliding with groupadd/useradd (exit 4 on the taken GID).
+RUN chown node:node /app
+# Standalone server + static assets + public dir (next.config standalone).
+COPY --from=build --chown=node:node /app/.next/standalone ./
+COPY --from=build --chown=node:node /app/.next/static ./.next/static
+COPY --from=build --chown=node:node /app/public ./public
+
+USER node
+EXPOSE 3000
+HEALTHCHECK --interval=10s --timeout=3s --retries=3 --start-period=20s \
+    CMD node -e "fetch('http://127.0.0.1:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+
+CMD ["node", "server.js"]

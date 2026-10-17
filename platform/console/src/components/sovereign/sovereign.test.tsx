@@ -457,10 +457,10 @@ describe('ProofDagView campaign signals (C-2)', () => {
 describe('ActionGate tenant attribution (J4)', () => {
   it('authorizes against the lab tenant, never the session id', async () => {
     vi.unstubAllGlobals();
-    let seenBody: any = null;
+    let seenBody: { tenant_id?: string; job_hash?: string } | null = null;
     vi.stubGlobal(
       'fetch',
-      async (_url: string, init?: any) => {
+      async (_url: string, init: { body: string }) => {
         seenBody = JSON.parse(init.body);
         return { ok: true, json: async () => ({ valid: true }) };
       }
@@ -484,23 +484,26 @@ describe('ActionGate tenant attribution (J4)', () => {
     };
     await act(async () => {
       tree = TestRenderer.create(
-        <ActionGate campaign={withProgram as any} session={session} onAuthorized={() => {}} onDenied={() => {}} onDowngrade={() => {}} />
+        <ActionGate campaign={withProgram} session={session} onAuthorized={() => {}} onDenied={() => {}} onDowngrade={() => {}} />
       );
     });
     const btn = tree!.root.findByProps({ 'data-testid': 'action-gate-authorize' });
     await act(async () => {
-      await (btn.props as any).onClick();
+      await (btn.props as { onClick: () => Promise<void> }).onClick();
     });
     expect(seenBody).not.toBeNull();
-    expect(seenBody.tenant_id).toBe('lab-alpha');
+    expect(seenBody!.tenant_id).toBe('lab-alpha');
     // The minted mandate binds the exact session + program (daemon-side
     // admission recomputes this and refuses anything else).
-    expect(seenBody.job_hash).toBe(canonicalJobBinding('sess-tenant-test', 'OPENQASM 2.0;\nqreg q[1];\n'));
+    expect(seenBody!.job_hash).toBe(canonicalJobBinding('sess-tenant-test', 'OPENQASM 2.0;\nqreg q[1];\n'));
   });
 });
 
 describe('ActionGate cost honesty', () => {
   it('disables authorization without a priced campaign', async () => {
+    // Deliberately violates QuantumFactors (spend undefined): the gate
+    // must refuse an unpriced campaign, so the fixture is invalid on
+    // purpose — double-cast documents intent, not compatibility.
     const unpriced = {
       ...CAMPAIGN,
       quantum_factors: {
@@ -508,7 +511,7 @@ describe('ActionGate cost honesty', () => {
         estimated_spend_usd: undefined,
         qasm: 'OPENQASM 2.0;\nqreg q[1];\n',
       },
-    };
+    } as unknown as CampaignState;
     const session = {
       id: 'sess-p', title: 't', tenant_id: 'lab-a', created_at: '', updated_at: '',
       status: 'active', spend_limit_usd: 150, current_spend_usd: 0,
@@ -516,17 +519,17 @@ describe('ActionGate cost honesty', () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
       tree = TestRenderer.create(
-        <ActionGate campaign={unpriced as any} session={session} onAuthorized={() => {}} onDenied={() => {}} onDowngrade={() => {}} />
+        <ActionGate campaign={unpriced} session={session} onAuthorized={() => {}} onDenied={() => {}} onDowngrade={() => {}} />
       );
     });
     const text = JSON.stringify(tree!.toJSON());
     expect(text).toContain('unpriced — authorization disabled');
     expect(text).not.toContain('0.12 max');
     const btn = tree!.root.findByProps({ 'data-testid': 'action-gate-authorize' });
-    expect((btn.props as any).disabled).toBe(true);
+    expect((btn.props as { disabled?: boolean }).disabled).toBe(true);
     // Direct invocation (bypassing disabled) still refuses, never mints.
     await act(async () => {
-      await (btn.props as any).onClick();
+      await (btn.props as { onClick: () => Promise<void> }).onClick();
     });
     expect(JSON.stringify(tree!.toJSON())).toContain('No cost estimate');
   });
@@ -545,13 +548,13 @@ describe('ActionGate cost honesty', () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
       tree = TestRenderer.create(
-        <ActionGate campaign={programless as any} session={session} onAuthorized={() => {}} onDenied={() => {}} onDowngrade={() => {}} />
+        <ActionGate campaign={programless} session={session} onAuthorized={() => {}} onDenied={() => {}} onDowngrade={() => {}} />
       );
     });
     const btn = tree!.root.findByProps({ 'data-testid': 'action-gate-authorize' });
-    expect((btn.props as any).disabled).toBe(true);
+    expect((btn.props as { disabled?: boolean }).disabled).toBe(true);
     await act(async () => {
-      await (btn.props as any).onClick();
+      await (btn.props as { onClick: () => Promise<void> }).onClick();
     });
     expect(JSON.stringify(tree!.toJSON())).toContain('No program in this campaign');
   });

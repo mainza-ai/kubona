@@ -9,7 +9,9 @@ if (!process.env.NEXT_PUBLIC_API_URL) {
 }
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // D1: standalone output for the production console image
+  // (Dockerfile.console copies .next/standalone + .next/static).
+  output: 'standalone',
 };
 
 export default nextConfig;
