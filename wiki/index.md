@@ -28,7 +28,7 @@ arrives, place it here first and it will find its page.
 | **L2 · Compute** | Compilation, providers, mitigation, the machine itself | [[qir-mlir-compilation]], [[protocol-strategy]], [[mcp-and-context-flooding]], [[nisq-and-hybrid-orchestration]], [[error-mitigation]], [[circuit-cutting]], [[vqa-vqe]], [[barren-plateau]] + provider entities, [[qiskit-mcp-servers]], [[early-fault-tolerant-quantum-and-subspace-methods]] | `adopted` mechanisms, `tracked` vendors |
 | **L3 · Research** | Autonomy that compounds: search, meta-search, packs, the discovery loop, memory | [[science-discovery]], [[karpathy-autoresearch]], [[meta-search-and-self-evolution]], [[five-ring-research-loop]], [[multi-agent-research-collective]], [[quantum-domain-packs]], [[agentic-memory-and-observability]], [[autonomous-ansatz-optimization]], [[differentiable-quantum-stack]], [[autonomous-mathematical-discovery]], [[frontier-benchmark-saturation]], [[epistemic-information-lifecycle-and-memory]], [[autonomous-manuscript-synthesis-and-peer-review]], [[multimodal-mission-control-and-custom-agents]] | `adopted` core research mechanisms |
 | **L4 · Surface** | Where a human sees and limits the agent | [[ui-ux-vision]], [[agent-ux-control-plane]], [[workflows-and-agent-authoring]], [[confidentiality-lattice-provenance]], [[scientific-agentic-experience-triad]] | `adopted` cognitive cockpit & AX triad |
-| **L5 · Ecosystem** | How it gets used, funded, and extended by others | [[agent-resource-economy]], [[x402]], [[cloudflare]], [[aaif]], [[a2a]], [[ap2]], [[integration-topology-and-licence-discipline]], [[openai-math]], [[hugging-face-hub]], [[cloudroom]] | 1 `settled` policy; standard delegation, model hub, and payment rails; `reference` agent-room prior art |
+| **L5 · Ecosystem** | How it gets used, funded, and extended by others | [[agent-resource-economy]], [[x402]], [[cloudflare]], [[aaif]], [[a2a]], [[ap2]], [[integration-topology-and-licence-discipline]], [[openai-math]], [[hugging-face-hub]], [[cloudroom]], [[rea]] | 1 `settled` policy; standard delegation, model hub, and payment rails; `reference` agent-room + REA prior art |
 
 ## Overview & meta
 
@@ -40,6 +40,9 @@ arrives, place it here first and it will find its page.
 | [[implementation-gaps]] | Prototype gap register: what the scaffold does vs. what production requires. Code facts only. |
 | [[platform-architecture-diagram]] | Mermaid map of the running platform (services, ports, stores, call paths). Snapshot verified 2026-10-12; refresh after any service/port/store change. |
 | [[cloudroom-adoption-plan]] | Ordered implementation plan for Cloudroom-mined patterns (S1–S8). Candidate — awaiting review, nothing started. |
+| [[rea-adoption-plan]] | Updated Kubona × REA improvement report + production plan (R0–R6).
+| [[rea-conflicts-and-remediation]] | Conflicts vs the REA plan (C1–C6) with remediation decisions and sequenced slices. |
+| [[full-tree-roadmap]] | Code-read implementation roadmap: verified defects and fixes in Waves 0–2, sequenced against the REA plan. | Candidate — prior 2026-10-16 scratch re-verified; nothing started. |
 | [[full-platform-audit-2026-10-12]] | Full completeness audit: 73.0% implemented across 30 scored components, with inventory, evidence tiers, refutations corrected, and remaining work by owner. |
 | [[log]] | Append-only chronological changelog. |
 
@@ -58,9 +61,9 @@ Describes **how decided** something is — never how finished.
 | `source` | An ingested source record. Immutable once written. | the 6 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (119 pages = 44 entities · 63 concepts · 6 sources · 5 meta), 2026-10-17:**
-`settled` 5 · `adopted` 48 · `open-question` 7 · `candidate` 7 · `tracked` 32 ·
-`reference` 5 · `source` 6 · `living` 6 (lint-counted; the 2026-10-10 text
+**Census (123 pages = 45 entities · 66 concepts · 6 sources · 5 meta), 2026-10-17:**
+`settled` 5 · `adopted` 48 · `open-question` 7 · `candidate` 9 · `tracked` 33 ·
+`reference` 7 · `source` 6 · `living` 6 (lint-counted; the 2026-10-10 text
 undercounted adopted/tracked/candidate).
 `settled` 5 · `adopted` 45 · `open-question` 8 · `candidate` 6 · `tracked` 26 ·
 `reference` 5 · `source` 6 · `living` 5. Five `settled` against 45 `adopted` keeps the honest

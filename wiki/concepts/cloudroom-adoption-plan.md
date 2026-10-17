@@ -265,7 +265,12 @@ status: candidate
 > `updated_at` excluded), caps enforced (64 MB / 50 versions / 256 KB
 > canvas), validation before existence-replay (tampered-existing 400s —
 > caught live), ONE `session_imported` record, non-terminal jobs keep rows
-> but no engine resumes them. I4 `DeleteSession`: refuses live loops /
+> but no engine resumes them. > **Residual (2026-10-17, see [[rea-conflicts-and-remediation]] C2):**
+> the manifest covers Go tables only — Python tenant sidecars
+> (`ledger.<tenant>.jsonl`: `workflow_step`, `workflow_dry_run`) do not
+> migrate yet. S5b follow-up exports them as a ninth digest-pinned section.
+
+I4 `DeleteSession`: refuses live loops /
 > non-terminal jobs / outstanding reservations, else cascades all 9 tables
 > (deletion receipt survives by design). I1 unified: `ledger.CanonicalHash`
 > single source. 5 tests (round-trip digest equality, 5 refusal kinds,
