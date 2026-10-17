@@ -2481,3 +2481,10 @@ skipped is the exact failure this incident is about:
   compose needs the explicit plaintext opt-in the server demands.
   Contamination lesson: a dev daemon owned host :8080 during smoke —
   in-network probes are the source of truth (runbook noted in compose).
+
+## [2026-10-17] decision | U1 landed (operator visibility)
+  Status strip, loop override roster, metasearch panel (+reject client),
+  LabsView tenant writes with byte-exact admin envelopes (Go golden
+  vectors). Live proofs: loop pause/resume/kill ok; full tenant cycle on
+  compose (bootstrap/ceiling/wrong-key 403/suspend/frozen 403/resume/
+  no-bearer 401). Console 127 tests + lint + build green.

@@ -27,6 +27,7 @@ import { LabsView } from '@/components/surfaces/LabsView';
 import { LLMSettings } from '@/components/surfaces/LLMSettings';
 import { AutonomyCockpit } from '@/components/surfaces/AutonomyCockpit';
 import { SpatialCanvas } from '@/components/surfaces/SpatialCanvas';
+import { BackendStatusBar } from '@/components/common/BackendStatusBar';
 
 function formatElapsed(createdAt: string): string {
   const ms = Date.now() - new Date(createdAt).getTime();
@@ -100,6 +101,13 @@ export default function Home() {
     setCanvasWidget(null);
     setCurrentSessionId(id);
   }, []);
+
+  // Focused loop refetch for override actions (U1-c): the server owns
+  // loop state, so every accepted pause/resume/kill re-reads it.
+  const refreshLoops = useCallback(async () => {
+    const loopList = await fetchLoops(currentSessionId || undefined);
+    setLoops(loopList);
+  }, [currentSessionId]);
 
   useEffect(() => {
     let mounted = true;
@@ -494,6 +502,9 @@ export default function Home() {
 
       {/* Center stage */}
       <div className="flex-1 flex flex-col min-w-0 relative grid-bg">
+        {/* U1-a: backend liveness always visible — distinguishes "empty"
+            from "backend down" on every surface below. */}
+        <BackendStatusBar />
         {surface === 'arena' && (
           <main className="relative flex-1 h-full overflow-hidden">
             <ArenaHud
@@ -603,7 +614,7 @@ export default function Home() {
               (id) => setMeshTab(id as typeof meshTab)
             )}
             <div className="p-6 max-w-6xl mx-auto">
-              {surface === 'recorder' && <FlightRecorder loops={loops} events={events} campaign={campaign} />}
+              {surface === 'recorder' && <FlightRecorder loops={loops} events={events} campaign={campaign} onLoopsChanged={refreshLoops} />}
               {surface === 'manifold' && <EpistemicManifold campaign={campaign} />}
               {surface === 'fleet' && <FleetRadar campaign={campaign} />}
               {surface === 'proofs' && proofsTab === 'manuscripts' && <ResultsStudio campaign={campaign} sessionId={currentSessionId || null} />}
