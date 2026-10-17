@@ -29,7 +29,7 @@ func (s *Server) handleTenants(w http.ResponseWriter, r *http.Request) {
 	}
 	// R4: open provisioning is not unlimited provisioning.
 	if !s.tenantLimiter.allow(clientKey(r)) {
-		http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+		WriteAPIError(w, "rate_limited", "rate limit exceeded: slow down and retry", nil)
 		return
 	}
 	var req struct {
@@ -95,7 +95,7 @@ func (s *Server) handleTenantAdminKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.tenantLimiter.allow(clientKey(r)) {
-		http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+		WriteAPIError(w, "rate_limited", "rate limit exceeded: slow down and retry", nil)
 		return
 	}
 	var req struct {
@@ -131,7 +131,7 @@ func (s *Server) handleTenantCeiling(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.tenantLimiter.allow(clientKey(r)) {
-		http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+		WriteAPIError(w, "rate_limited", "rate limit exceeded: slow down and retry", nil)
 		return
 	}
 	var req struct {
@@ -163,7 +163,7 @@ func (s *Server) handleTenantAutonomy(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.tenantLimiter.allow(clientKey(r)) {
-		http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+		WriteAPIError(w, "rate_limited", "rate limit exceeded: slow down and retry", nil)
 		return
 	}
 	var req struct {
@@ -197,7 +197,7 @@ func (s *Server) handleTenantStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.tenantLimiter.allow(clientKey(r)) {
-		http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+		WriteAPIError(w, "rate_limited", "rate limit exceeded: slow down and retry", nil)
 		return
 	}
 	var req struct {
@@ -229,7 +229,7 @@ func (s *Server) handleTenantRevoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.tenantLimiter.allow(clientKey(r)) {
-		http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+		WriteAPIError(w, "rate_limited", "rate limit exceeded: slow down and retry", nil)
 		return
 	}
 	var req struct {

@@ -35,9 +35,9 @@ func (s *Server) requireBearer(next http.HandlerFunc) http.HandlerFunc {
 		case http.StatusOK:
 			next(w, r)
 		case http.StatusServiceUnavailable:
-			http.Error(w, "API token not configured: set KUBONA_API_TOKEN", http.StatusServiceUnavailable)
+			WriteAPIError(w, "server_misconfigured", "API token not configured: set KUBONA_API_TOKEN", nil)
 		default:
-			http.Error(w, "missing or invalid bearer token", http.StatusUnauthorized)
+			WriteAPIError(w, "unauthorized", "missing or invalid bearer token", nil)
 		}
 	}
 }
