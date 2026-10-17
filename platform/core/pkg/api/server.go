@@ -2513,7 +2513,11 @@ func (s *Server) handleA2AChallenge(w http.ResponseWriter, r *http.Request) {
 	if amount == "" {
 		amount = "0.05"
 	}
-	challenge := s.a2aServer.PaymentManager().GenerateChallenge(token, amount)
+	challenge, err := s.a2aServer.PaymentManager().GenerateChallenge(token, amount)
+	if err != nil {
+		http.Error(w, fmt.Sprintf("invalid payment challenge: %v", err), http.StatusBadRequest)
+		return
+	}
 	w.Header().Set("WWW-Authenticate", s.a2aServer.PaymentManager().FormatWWWAuthenticate(challenge))
 	writeJSON(w, http.StatusPaymentRequired, challenge)
 }
@@ -2540,7 +2544,11 @@ func (s *Server) handleA2A(w http.ResponseWriter, r *http.Request) {
 	if rpcReq.Method == "a2a.SubmitTask" {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			challenge := s.a2aServer.PaymentManager().GenerateChallenge("USDC", "0.05")
+			challenge, err := s.a2aServer.PaymentManager().GenerateChallenge("USDC", "0.05")
+			if err != nil {
+				http.Error(w, fmt.Sprintf("payment challenge failed: %v", err), http.StatusInternalServerError)
+				return
+			}
 			w.Header().Set("WWW-Authenticate", s.a2aServer.PaymentManager().FormatWWWAuthenticate(challenge))
 			writeJSON(w, http.StatusPaymentRequired, map[string]any{
 				"error":     "Payment Required",

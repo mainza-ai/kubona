@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"math/big"
 	"strings"
 	"sync"
 	"time"
@@ -51,16 +52,62 @@ func NewPaymentManager(recipient string) *PaymentManager {
 	}
 }
 
-// GenerateChallenge creates a new cryptographically unique 402 challenge with 5-minute TTL
-func (m *PaymentManager) GenerateChallenge(token, amount string) *PaymentChallenge {
+// maxOpenChallenges bounds the challenge map (DoS cap); challenges live
+// 5 minutes, so legitimate use never approaches it.
+const maxOpenChallenges = 10000
+
+// parseAmount parses an exact decimal amount (W0.17): float64 would make
+// "0.05" vs "0.050" compare unequal-or-fuzzy. big.Rat compares exact values,
+// so equivalent spellings match and anything else refuses.
+func parseAmount(s string) (*big.Rat, error) {
+	r, ok := new(big.Rat).SetString(strings.TrimSpace(s))
+	if !ok {
+		return nil, fmt.Errorf("amount %q is not a decimal number", s)
+	}
+	if r.Sign() <= 0 {
+		return nil, fmt.Errorf("amount %q must be positive", s)
+	}
+	return r, nil
+}
+
+// GenerateChallenge creates a new cryptographically unique 402 challenge with 5-minute TTL.
+// Empty tokens and non-positive/unparseable amounts refuse (W0.17): an
+// empty-amount challenge used to settle free.
+func (m *PaymentManager) GenerateChallenge(token, amount string) (*PaymentChallenge, error) {
+	if strings.TrimSpace(token) == "" {
+		return nil, fmt.Errorf("challenge token is required: refusing")
+	}
+	if _, err := parseAmount(amount); err != nil {
+		return nil, fmt.Errorf("challenge amount invalid: %w", err)
+	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	// Janitor sweep (W0.17): expired challenges used to pile up until a
+	// verify attempt touched them. Sweep on every issue; refuse past the cap
+	// rather than growing unbounded.
+	now := time.Now().UTC()
+	for id, ch := range m.challenges {
+		if now.After(ch.ExpiresAt) {
+			delete(m.challenges, id)
+		}
+	}
+	for id, done := range m.settled {
+		if done {
+			if _, ok := m.challenges[id]; !ok {
+				delete(m.settled, id)
+			}
+		}
+	}
+	if len(m.challenges) >= maxOpenChallenges {
+		return nil, fmt.Errorf("challenge registry full: refusing (never grow unbounded)")
+	}
 
 	rawID := make([]byte, 16)
 	_, _ = rand.Read(rawID)
 	challengeID := hex.EncodeToString(rawID)
 
-	expiresAt := time.Now().UTC().Add(5 * time.Minute)
+	expiresAt := now.Add(5 * time.Minute)
 	payload := fmt.Sprintf("x402:%s:%s:%s:%s:%d", challengeID, token, amount, m.recipient, expiresAt.Unix())
 
 	challenge := &PaymentChallenge{
@@ -73,7 +120,7 @@ func (m *PaymentManager) GenerateChallenge(token, amount string) *PaymentChallen
 	}
 
 	m.challenges[challengeID] = challenge
-	return challenge
+	return challenge, nil
 }
 
 // FormatWWWAuthenticate formats the HTTP 402 challenge header
@@ -103,6 +150,27 @@ func (m *PaymentManager) VerifyPayment(receipt *PaymentReceipt) (bool, error) {
 
 	if m.settled[receipt.ChallengeID] {
 		return false, fmt.Errorf("challenge %s already settled (replay protection)", receipt.ChallengeID)
+	}
+
+	// W0.17 exact challenge match: the receipt's token and amount must equal
+	// the challenged ones. The signature authorizes the CHALLENGE payload —
+	// without this comparison a $0.05 authorization settled with receipt
+	// fields claiming $100 in another token (settlement records use the
+	// receipt's fields). Amounts compare as exact rationals, so "0.05" and
+	// "0.050" match while anything else refuses.
+	if receipt.Token != challenge.Token {
+		return false, fmt.Errorf("receipt token %q does not match challenged %q: refusing", receipt.Token, challenge.Token)
+	}
+	wantAmt, err := parseAmount(challenge.Amount)
+	if err != nil {
+		return false, fmt.Errorf("stored challenge amount corrupt: %w", err)
+	}
+	gotAmt, err := parseAmount(receipt.Amount)
+	if err != nil {
+		return false, fmt.Errorf("receipt amount invalid: %w", err)
+	}
+	if wantAmt.Cmp(gotAmt) != 0 {
+		return false, fmt.Errorf("receipt amount %q does not match challenged %q: refusing", receipt.Amount, challenge.Amount)
 	}
 
 	// Verify public key format
@@ -153,8 +221,9 @@ func ParseAuthorizationHeader(header string) (*PaymentReceipt, error) {
 		Timestamp:   time.Now().Unix(),
 	}
 
-	if receipt.ChallengeID == "" || receipt.PayerPubHex == "" || receipt.Signature == "" {
-		return nil, fmt.Errorf("missing required fields in x402 authorization header")
+	if receipt.ChallengeID == "" || receipt.Token == "" || receipt.Amount == "" ||
+		receipt.PayerPubHex == "" || receipt.Signature == "" {
+		return nil, fmt.Errorf("missing required fields in x402 authorization header (challenge, token, amount, payer, signature)")
 	}
 
 	return receipt, nil
@@ -165,6 +234,13 @@ func ParseAuthorizationHeader(header string) (*PaymentReceipt, error) {
 // local-only: Simulated is always true and Reference is a content hash, NOT a
 // chain transaction hash. The flag exists so no consumer can mistake a local
 // receipt for an on-chain settlement.
+//
+// Authorization vs settlement (W0.17): dispatch gates (handleA2A) rest on
+// VerifyPayment — a REAL Ed25519 payer authorization over the challenge
+// payload binding token+amount+recipient — not on chain broadcast. A verified
+// receipt is genuine payer consent; only the broadcast is stubbed, and every
+// settlement record carries simulated:true to say so. Check Simulated before
+// treating any settlement as on-chain proof.
 type Settlement struct {
 	Reference string `json:"reference"`
 	Network   string `json:"network"`
