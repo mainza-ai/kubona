@@ -363,7 +363,6 @@ func TestAdmissionQPUNeedsMandateReceipt(t *testing.T) {
 	if _, err := r.SubmitJob("sess-qpu", "circuit_run", qpu); err == nil {
 		t.Fatalf("foreign-tenant receipt must refuse")
 	}
-
 	// W0.4: receipt bound to a DIFFERENT program refuses even when tenant
 	// and budget cover — a mandate for one circuit cannot ride another.
 	otherBinding := mandates.CanonicalJobBinding("circuit_run", "sess-qpu", "OPENQASM 2.0;\nqreg q[9];\ncreg c[9];\n")
@@ -381,6 +380,16 @@ func TestAdmissionQPUNeedsMandateReceipt(t *testing.T) {
 	} else if !strings.Contains(err.Error(), "different program") {
 		t.Fatalf("refusal must name the binding, got: %v", err)
 	}
+
+	// W0.7: metered hardware with zero declared cost refuses — a $0
+	// reservation is unattributed spend (ReserveSpend treats 0 as no-op).
+	qpu["mandate_ref"] = "receipt-hash-1"
+	qpu["max_cost_usd"] = 0.0
+	if _, err := r.SubmitJob("sess-qpu", "circuit_run", qpu); err == nil {
+		t.Fatalf("zero-cost metered dispatch must refuse")
+	} else if !strings.Contains(err.Error(), "max_cost_usd") {
+		t.Fatalf("refusal must name the cost, got: %v", err)
+	}
 }
 
 func TestAdmissionFidelityRefusesDeepCircuit(t *testing.T) {
@@ -394,7 +403,7 @@ func TestAdmissionFidelityRefusesDeepCircuit(t *testing.T) {
 	// Shallow circuit passes fidelity but still needs spend authorization.
 	_, err := r.SubmitJob("sess-1", "circuit_run", map[string]any{
 		"qasm":              "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0], q[1];",
-		"requested_backend": "ibm_brisbane", "shots": 100,
+		"requested_backend": "ibm_brisbane", "shots": 100, "max_cost_usd": 10.0,
 		"caller_jurisdictions": []string{"US"},
 	})
 	if err == nil || !strings.Contains(err.Error(), "mandate_ref") {

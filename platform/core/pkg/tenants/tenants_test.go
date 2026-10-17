@@ -3,7 +3,9 @@ package tenants
 import (
 	"crypto/ed25519"
 	"encoding/hex"
+	"math"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -182,16 +184,36 @@ func TestReserveSpendCumulativeCeiling(t *testing.T) {
 	if err := m.ReserveSpend("default", 100); err != nil {
 		t.Fatalf("reservation after release must succeed: %v", err)
 	}
-	// Release floors at zero: double-release never mints negative spend.
+	// W0.7: over-release refuses WITHOUT mutating (the old floor silently
+	// destroyed outstanding reservations on a double-release). Books stay
+	// at whatever they held; the refusal names the anomaly.
 	if err := m.ReleaseSpend("default", 100); err != nil {
 		t.Fatal(err)
 	}
-	if err := m.ReleaseSpend("default", 100); err != nil {
-		t.Fatal(err)
+	if err := m.ReleaseSpend("default", 100); err == nil {
+		t.Fatal("double-release must refuse")
+	} else if !strings.Contains(err.Error(), "exceeds recorded spend") {
+		t.Fatalf("refusal must name the over-release, got: %v", err)
 	}
 	got, _ = m.GetTenant("default")
 	if got.SpentUSD != 0 {
-		t.Fatalf("spent must floor at 0, got %v", got.SpentUSD)
+		t.Fatalf("refused release must leave books untouched at 0, got %v", got.SpentUSD)
+	}
+	// Negative/NaN/zero amounts refuse (zero is the only no-op).
+	for _, amt := range []float64{-5.0, math.NaN(), math.Inf(1)} {
+		if err := m.CheckSpend("default", amt); err == nil {
+			t.Fatalf("CheckSpend(%v) must refuse", amt)
+		}
+		if err := m.ReserveSpend("default", amt); err == nil {
+			t.Fatalf("ReserveSpend(%v) must refuse", amt)
+		}
+		if err := m.ReleaseSpend("default", amt); err == nil {
+			t.Fatalf("ReleaseSpend(%v) must refuse", amt)
+		}
+	}
+	// Unknown tenant release refuses (no silent success on missing rows).
+	if err := m.ReleaseSpend("ghost-lab", 10); err == nil {
+		t.Fatal("ghost release must refuse")
 	}
 }
 

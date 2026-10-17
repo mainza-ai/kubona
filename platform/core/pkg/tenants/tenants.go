@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -20,6 +21,7 @@ var (
 	ErrActionExpired   = errors.New("admin action expired")
 	ErrInvalidLevel    = errors.New("unknown autonomy level")
 	ErrCeilingExceeded = errors.New("amount exceeds tenant spend ceiling")
+	ErrInvalidAmount   = errors.New("spend amount must be a finite number >= 0: negative/NaN/Inf refuse")
 	ErrAdminKeySet     = errors.New("admin key already set: rotation requires current admin signature")
 )
 
@@ -302,10 +304,23 @@ func (m *Manager) ListTenants() ([]Tenant, error) {
 	return out, rows.Err()
 }
 
+// validAmount rejects negative/NaN/Inf spend (W0.7): NaN comparisons are
+// all false, so an unvalidated NaN sails through every ceiling check and
+// poisons spent_usd in SQL. Zero is a valid no-op probe (liveness only).
+func validAmount(amountUSD float64) error {
+	if math.IsNaN(amountUSD) || math.IsInf(amountUSD, 0) || amountUSD < 0 {
+		return ErrInvalidAmount
+	}
+	return nil
+}
+
 // CheckSpend refuses amounts above the tenant ceiling (live check at dispatch).
 // Cumulative: already-reserved spend counts, so ten $14 jobs exhaust a $150
 // ceiling — the ceiling is a billing boundary, not a per-job suggestion.
 func (m *Manager) CheckSpend(tenantID string, amountUSD float64) error {
+	if err := validAmount(amountUSD); err != nil {
+		return err
+	}
 	t, err := m.GetTenant(tenantID)
 	if err != nil {
 		return err
@@ -326,7 +341,10 @@ func (m *Manager) CheckSpend(tenantID string, amountUSD float64) error {
 // job settles terminal-failed, and keeps it when the job completes (the
 // authorized amount is the spend — provider true-ups are out of scope).
 func (m *Manager) ReserveSpend(tenantID string, amountUSD float64) error {
-	if amountUSD <= 0 {
+	if err := validAmount(amountUSD); err != nil {
+		return err
+	}
+	if amountUSD == 0 {
 		return m.CheckSpend(tenantID, 0)
 	}
 	res, err := m.ledger.DB().Exec(
@@ -355,21 +373,45 @@ func (m *Manager) ReserveSpend(tenantID string, amountUSD float64) error {
 	return nil
 }
 
-// ReleaseSpend returns a reservation (terminal-failed jobs only). Floored at
-// zero so double-release can never mint negative spend; callers additionally
-// zero the job's reserved_amount for idempotence.
+// ReleaseSpend returns a reservation (terminal-failed jobs only). The
+// compare-and-subtract runs in one UPDATE so concurrent releases cannot
+// jointly drive the books negative, and an over-release — returning more
+// than currently spent — refuses WITHOUT mutating (W0.7): the old
+// unconditional MAX(0,...) floor silently destroyed legitimate outstanding
+// reservations on a double-release. The 1e-9 epsilon and MAX(0,...) absorb
+// float dust only (sub-nanodollar); real over-release refuses. The refusal
+// seals a spend_release_refused audit event, so the caller bug can never
+// hide. Unknown tenants refuse.
 func (m *Manager) ReleaseSpend(tenantID string, amountUSD float64) error {
-	if amountUSD <= 0 {
+	if err := validAmount(amountUSD); err != nil {
+		return err
+	}
+	if amountUSD == 0 {
 		return nil
 	}
-	if _, err := m.ledger.DB().Exec(
-		`UPDATE tenants SET spent_usd = MAX(0, spent_usd - ?) WHERE id = ?`,
-		amountUSD, tenantID); err != nil {
+	res, err := m.ledger.DB().Exec(
+		`UPDATE tenants SET spent_usd = MAX(0, spent_usd - ?) WHERE id = ? AND spent_usd + 1e-9 >= ?`,
+		amountUSD, tenantID, amountUSD)
+	if err != nil {
 		return fmt.Errorf("spend release failed: %w", err)
 	}
-	m.ledger.AppendEvent(tenantID, "tenant_spend_released", map[string]any{
-		"tenant_id": tenantID, "amount_usd": amountUSD})
-	return nil
+	n, err := res.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("spend release failed: %w", err)
+	}
+	if n == 1 {
+		m.ledger.AppendEvent(tenantID, "tenant_spend_released", map[string]any{
+			"tenant_id": tenantID, "amount_usd": amountUSD})
+		return nil
+	}
+	if _, gerr := m.GetTenant(tenantID); gerr != nil {
+		return ErrTenantNotFound
+	}
+	m.ledger.AppendEvent(tenantID, "spend_release_refused", map[string]any{
+		"tenant_id": tenantID, "amount_usd": amountUSD,
+		"reason": "release exceeds recorded spend: caller bug, books untouched",
+	})
+	return fmt.Errorf("spend release of %.4f exceeds recorded spend: refused, books untouched", amountUSD)
 }
 
 // VaultScope returns the per-tenant vault scope convention: provider

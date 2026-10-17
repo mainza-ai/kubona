@@ -91,6 +91,12 @@ func (r *Runner) admitJob(sessionID, jobType string, paramsJSON []byte, declared
 	if err := json.Unmarshal(paramsJSON, &p); err != nil {
 		return "", 0, fmt.Errorf("invalid circuit_run params: %w", err)
 	}
+	// W0.7: cost is load-bearing from here on (reservations, mandate
+	// cover). NaN/Inf/negative refuse for every circuit_run; zero refuses
+	// for metered hardware below (a $0 reservation is unattributed spend).
+	if math.IsNaN(p.MaxCostUSD) || math.IsInf(p.MaxCostUSD, 0) || p.MaxCostUSD < 0 {
+		return "", 0, fmt.Errorf("invalid max_cost_usd: dispatch refused")
+	}
 	// Cross-lab UCAN grant path: a verified chain authorizing this tenant
 	// replaces the mandate receipt and admits foreign-tenant input labels it
 	// covers with read scope. Spend binds to the granting lab's ceiling.
@@ -126,6 +132,11 @@ func (r *Runner) admitJob(sessionID, jobType string, paramsJSON []byte, declared
 	}
 	if isSimulatorBackend(p.RequestedBackend) {
 		return "", 0, nil
+	}
+	// Metered hardware with no declared positive cost refuses: ReserveSpend
+	// treats 0 as a no-op, so admitting here would dispatch unattributed.
+	if p.MaxCostUSD <= 0 {
+		return "", 0, fmt.Errorf("backend %q is metered hardware: max_cost_usd must be positive (got %.4f)", p.RequestedBackend, p.MaxCostUSD)
 	}
 	// Routing declaration (P5 §2.9): metered hardware without declared caller
 	// jurisdictions refuses here — the executor cannot verify a route it was
