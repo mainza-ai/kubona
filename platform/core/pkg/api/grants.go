@@ -77,10 +77,12 @@ func (s *Server) handleGrantRegister(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// handleGrantRevoke revokes a grant chain by root CID. Authorization: the
-// caller must present a valid admin envelope for the GRANTING tenant (looked
-// up from the stored grant_issued event) — only the lab that issued a grant
-// can revoke it. Revocation is a ledger event, effective on next dispatch.
+// handleGrantRevoke revokes a grant chain by root CID (whole chain refuses)
+// or leaf CID (chains containing that exact envelope refuse — W0.8).
+// Exactly one of the two is required. Authorization: the caller must present
+// a valid admin envelope for the GRANTING tenant (looked up from the stored
+// grant_issued event) — only the lab that issued a grant can revoke it.
+// Revocation is a ledger event, effective on next dispatch.
 func (s *Server) handleGrantRevoke(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -92,6 +94,7 @@ func (s *Server) handleGrantRevoke(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		RootCID string              `json:"root_cid"`
+		LeafCID string              `json:"leaf_cid"`
 		Reason  string              `json:"reason"`
 		Action  tenants.AdminAction `json:"action"`
 	}
@@ -99,17 +102,23 @@ func (s *Server) handleGrantRevoke(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	if req.RootCID == "" {
-		http.Error(w, "root_cid is required", http.StatusBadRequest)
+	// Exactly one target: revoking "everything" is not an operation.
+	if (req.RootCID == "") == (req.LeafCID == "") {
+		http.Error(w, "exactly one of root_cid, leaf_cid is required", http.StatusBadRequest)
 		return
 	}
-	granting, err := s.grantingTenantFor(req.RootCID)
+	granting, err := s.grantingTenantFor(req.RootCID, req.LeafCID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
-	bound, err := bindAdminAction(granting, "revoke_grant",
-		map[string]string{"root_cid": req.RootCID, "reason": req.Reason}, req.Action)
+	params := map[string]string{"reason": req.Reason}
+	if req.RootCID != "" {
+		params["root_cid"] = req.RootCID
+	} else {
+		params["leaf_cid"] = req.LeafCID
+	}
+	bound, err := bindAdminAction(granting, "revoke_grant", params, req.Action)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
@@ -126,21 +135,26 @@ func (s *Server) handleGrantRevoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rec, err := s.ledger.AppendSignedEvent(granting, "grant_revoked", map[string]any{
-		"root_cid": req.RootCID, "reason": req.Reason, "revoked_by": req.Action.PubkeyHex,
+		"root_cid": req.RootCID, "leaf_cid": req.LeafCID,
+		"reason": req.Reason, "revoked_by": req.Action.PubkeyHex,
 	}, s.signerPrivKey)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{
-		"ok": true, "root_cid": req.RootCID, "ledger_receipt": rec.EntryHash,
+		"ok": true, "root_cid": req.RootCID, "leaf_cid": req.LeafCID,
+		"ledger_receipt": rec.EntryHash,
 	})
 }
 
-// grantingTenantFor resolves which lab issued a registered grant chain.
-func (s *Server) grantingTenantFor(rootCID string) (string, error) {
+// grantingTenantFor resolves which lab issued a registered grant chain,
+// matching by root CID (whole chain) or leaf CID (exact envelope) — W0.8.
+// The scan covers ALL grant_issued events: the old LIMIT 50 made grants
+// older than fifty registrations irrevocable while still spendable.
+func (s *Server) grantingTenantFor(rootCID, leafCID string) (string, error) {
 	rows, err := s.ledger.DB().Query(
-		`SELECT payload FROM ledger_events WHERE event_type = 'grant_issued' ORDER BY id DESC LIMIT 50`)
+		`SELECT payload FROM ledger_events WHERE event_type = 'grant_issued' ORDER BY id DESC`)
 	if err != nil {
 		return "", err
 	}
@@ -149,6 +163,7 @@ func (s *Server) grantingTenantFor(rootCID string) (string, error) {
 		var payloadStr string
 		var rec struct {
 			RootCID        string `json:"root_cid"`
+			LeafCID        string `json:"leaf_cid"`
 			GrantingTenant string `json:"granting_tenant"`
 		}
 		if err := rows.Scan(&payloadStr); err != nil {
@@ -157,9 +172,12 @@ func (s *Server) grantingTenantFor(rootCID string) (string, error) {
 		if err := json.Unmarshal([]byte(payloadStr), &rec); err != nil {
 			continue
 		}
-		if rec.RootCID == rootCID {
+		if rootCID != "" && rec.RootCID == rootCID {
+			return rec.GrantingTenant, nil
+		}
+		if leafCID != "" && rec.LeafCID == leafCID {
 			return rec.GrantingTenant, nil
 		}
 	}
-	return "", fmt.Errorf("no registered grant with root %s", rootCID)
+	return "", fmt.Errorf("no registered grant matches root %q leaf %q", rootCID, leafCID)
 }

@@ -955,6 +955,113 @@ func TestCrossTenantGrantFlow(t *testing.T) {
 	}
 }
 
+// W0.8: leaf revocation is surgical end-to-end — revoking the exact
+// envelope kills chains containing it while the root-only chain still
+// admits (the grantee's other delegations keep working).
+func TestGrantLeafRevokeSurgical(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
+	post := func(path string, body any) (int, map[string]any) {
+		t.Helper()
+		raw, _ := json.Marshal(body)
+		req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(raw))
+		req.Header.Set("Authorization", "Bearer op-token")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		var out map[string]any
+		_ = json.NewDecoder(w.Body).Decode(&out)
+		return w.Code, out
+	}
+	_, privA, _ := ed25519.GenerateKey(nil)
+	pubAHex := hex.EncodeToString(privA.Public().(ed25519.PublicKey))
+	_, privB, _ := ed25519.GenerateKey(nil)
+	pubBHex := hex.EncodeToString(privB.Public().(ed25519.PublicKey))
+	for _, lab := range []string{"lab-leaf-grantor", "lab-leaf-grantee"} {
+		if code, _ := post("/api/tenants", map[string]any{"id": lab}); code != http.StatusCreated {
+			t.Fatalf("register %s: %d", lab, code)
+		}
+	}
+	mkAdmin := func(lab, pub string) {
+		t.Helper()
+		if code, _ := post("/api/tenants/admin-key", map[string]any{"tenant_id": lab, "new_admin_pubkey_hex": pub}); code != http.StatusOK {
+			t.Fatalf("bootstrap %s: %d", lab, code)
+		}
+	}
+	mkAdmin("lab-leaf-grantor", pubAHex)
+	mkAdmin("lab-leaf-grantee", pubBHex)
+	didB, err := grants.DIDForAdminPubkey(pubBHex)
+	if err != nil {
+		t.Fatalf("did: %v", err)
+	}
+	_, agentPriv, _ := ed25519.GenerateKey(nil)
+	didAg, err := grants.DIDForAdminPubkey(hex.EncodeToString(agentPriv.Public().(ed25519.PublicKey)))
+	if err != nil {
+		t.Fatalf("did: %v", err)
+	}
+	rootSealed, _, err := grants.MintGrant(
+		hex.EncodeToString(privA), didB, "lab-leaf-grantor", "lab-leaf-grantee", "qpu/submit",
+		[]string{grants.ScopeQPUSubmit, grants.ScopeRead}, 60.0, time.Hour)
+	if err != nil {
+		t.Fatalf("mint: %v", err)
+	}
+	// Grantee narrows to the agent leaf (issuer == parent audience).
+	leafSealed, _, err := grants.AttenuateGrant(rootSealed, hex.EncodeToString(privB), didAg,
+		"qpu/submit", []string{grants.ScopeQPUSubmit}, 25.0, 10*time.Minute)
+	if err != nil {
+		t.Fatalf("attenuate: %v", err)
+	}
+	leafChain := grants.EncodeChainB64([][]byte{rootSealed, leafSealed})
+	code, reg := post("/api/grants/register", map[string]any{"chain": leafChain})
+	if code != http.StatusOK || reg["ok"] != true {
+		t.Fatalf("register leaf chain: %d %+v", code, reg)
+	}
+	leafCID, _ := reg["leaf_cid"].(string)
+	if leafCID == "" {
+		t.Fatalf("no leaf cid: %+v", reg)
+	}
+	sessBody, _ := json.Marshal(map[string]any{"title": "leaf drill", "tenant_id": "lab-leaf-grantee"})
+	sessReq := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewReader(sessBody))
+	sessW := httptest.NewRecorder()
+	h.ServeHTTP(sessW, sessReq)
+	var sessResp struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(sessW.Body).Decode(&sessResp); err != nil {
+		t.Fatalf("session: %v", err)
+	}
+	leafJob := map[string]any{"session_id": sessResp.ID, "qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n",
+		"backend": "ibm_brisbane", "shots": 100, "budget_usd": 10.0, "grant_chain": leafChain,
+		"caller_jurisdictions": []string{"US"}}
+	if code, _ := post("/api/jobs", leafJob); code != http.StatusCreated {
+		t.Fatalf("leaf chain must admit before revocation, got %d", code)
+	}
+	// Revoke by leaf CID; the exact envelope dies...
+	leafAct := signTenantAction(t, privA, pubAHex, "lab-leaf-grantor", "revoke_grant",
+		map[string]string{"leaf_cid": leafCID, "reason": "leaf drill"})
+	if code, _ := post("/api/grants/revoke", map[string]any{"leaf_cid": leafCID, "reason": "leaf drill", "action": leafAct}); code != http.StatusOK {
+		t.Fatalf("leaf revoke: %d", code)
+	}
+	if code, _ := post("/api/jobs", leafJob); code == http.StatusCreated {
+		t.Fatalf("leaf-revoked chain must refuse dispatch")
+	}
+	// ...while the root-only chain (no revoked envelope inside) still admits.
+	rootJob := map[string]any{"session_id": sessResp.ID, "qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n",
+		"backend": "ibm_brisbane", "shots": 100, "budget_usd": 10.0,
+		"grant_chain":          grants.EncodeChainB64([][]byte{rootSealed}),
+		"caller_jurisdictions": []string{"US"}}
+	if code, _ := post("/api/jobs", rootJob); code != http.StatusCreated {
+		t.Fatalf("root-only chain must survive leaf revocation, got %d", code)
+	}
+	// Both CIDs at once is not an operation.
+	bothAct := signTenantAction(t, privA, pubAHex, "lab-leaf-grantor", "revoke_grant",
+		map[string]string{"root_cid": "x", "leaf_cid": leafCID, "reason": "both"})
+	if code, _ := post("/api/grants/revoke", map[string]any{"root_cid": "x", "leaf_cid": leafCID, "reason": "both", "action": bothAct}); code != http.StatusBadRequest {
+		t.Fatalf("dual-CID revoke must 400, got %d", code)
+	}
+}
+
 func TestTenantsListForLabsView(t *testing.T) {
 	srv, cleanup := setupTestRoutesServer(t)
 	defer cleanup()

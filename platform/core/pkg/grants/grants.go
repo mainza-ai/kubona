@@ -109,6 +109,43 @@ func tenantPolicy(targetTenant string) (policy.Policy, error) {
 	return policy.Construct(policy.Equal(".kubona.tenant", literal.String(targetTenant)))
 }
 
+// validScope enforces the canonical scope vocabulary (W0.8): scopes are
+// colon-separated ("qpu:submit"), non-empty, and never contain "/" —
+// otherwise "a:b" and "a/b" collide in scopePath and a minted scope means
+// something the verifier maps elsewhere.
+func validScope(s string) error {
+	if strings.TrimSpace(s) == "" {
+		return fmt.Errorf("empty scope: refused")
+	}
+	if strings.Contains(s, "/") {
+		return fmt.Errorf("scope %q contains '/': use ':' separators", s)
+	}
+	return nil
+}
+
+// checkScopes requires at least one valid scope: an empty list is a subset
+// of everything, so without this an "attenuation" to no-scopes would verify
+// as narrowing while authorizing nothing-checkable.
+func checkScopes(scopes []string) error {
+	if len(scopes) == 0 {
+		return fmt.Errorf("at least one scope is required: refused")
+	}
+	for _, s := range scopes {
+		if err := validScope(s); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// checkTTL mirrors MintGrant's bound: positive and <= 90 days.
+func checkTTL(ttl time.Duration) error {
+	if ttl <= 0 || ttl > 90*24*time.Hour {
+		return fmt.Errorf("grant TTL must be positive and <= 90 days: refused")
+	}
+	return nil
+}
+
 // MintGrant creates a root cross-lab grant. The issuer holds the granting
 // lab's admin private key (operator CLI / key file — private keys never touch
 // the server). audDID is the grantee lab or agent DID.
@@ -116,11 +153,14 @@ func MintGrant(issuerPrivHex, audDID, grantingTenant, targetTenant, scope string
 	if grantingTenant == "" || targetTenant == "" || scope == "" {
 		return nil, "", fmt.Errorf("granting/target tenant and scope are required")
 	}
+	if err := checkScopes(scopes); err != nil {
+		return nil, "", err
+	}
 	if maxBudgetUSD <= 0 {
 		return nil, "", fmt.Errorf("grant budget must be positive")
 	}
-	if ttl <= 0 || ttl > 90*24*time.Hour {
-		return nil, "", fmt.Errorf("grant TTL must be positive and <= 90 days")
+	if err := checkTTL(ttl); err != nil {
+		return nil, "", err
 	}
 	priv, err := parsePrivKey(issuerPrivHex)
 	if err != nil {
@@ -158,6 +198,9 @@ func MintGrant(issuerPrivHex, audDID, grantingTenant, targetTenant, scope string
 
 // AttenuateGrant narrows a parent grant: strictly smaller-or-equal command
 // (parent Covers child), budget, scopes, and expiry. Tenant is immutable.
+// The issuer must be the parent grant's audience (W0.8): anyone else minting
+// "down" the chain produces a chain VerifyChain refuses at level i —
+// fail-early here instead of minting known-dead envelopes.
 func AttenuateGrant(parentSealed []byte, issuerPrivHex, audDID, scope string, scopes []string, maxBudgetUSD float64, ttl time.Duration) (sealed []byte, cidStr string, err error) {
 	parent, parentCID, err := delegation.FromSealed(parentSealed)
 	if err != nil {
@@ -172,6 +215,15 @@ func AttenuateGrant(parentSealed []byte, issuerPrivHex, audDID, scope string, sc
 		return nil, "", err
 	}
 	iss := didkeyctl.FromPrivateKey(priv)
+	if iss.String() != parent.Audience().String() {
+		return nil, "", fmt.Errorf("attenuator %s is not the parent audience %s: only the grantee narrows its own grant", iss.String(), parent.Audience().String())
+	}
+	if err := checkTTL(ttl); err != nil {
+		return nil, "", err
+	}
+	if err := checkScopes(scopes); err != nil {
+		return nil, "", err
+	}
 	aud, err := parseDID(audDID)
 	if err != nil {
 		return nil, "", err
@@ -425,11 +477,12 @@ func DecodeChainB64(strs []string) ([][]byte, error) {
 	return chain, nil
 }
 
-// RevokedCIDs reads the ledger revocation registry: every grant_revoked
-// event names a root CID whose entire descendant chain must refuse. Short
-// TTLs bound propagation latency; this registry makes revocation immediate
-// for verifiers that read it (upstream go-ucan leaves revocation to the
-// application — this registry IS our implementation of it).
+// RevokedCIDs reads the ledger revocation registry (W0.8): grant_revoked
+// events name a root CID (whole chain refuses) and/or a leaf CID (chains
+// containing that exact envelope refuse — VerifyChain checks EVERY
+// envelope's CID, so leaf revocation propagates without killing siblings).
+// Previously only roots were recorded, so leaf revocation was unexpressible
+// although the verifier already checked every level.
 func RevokedCIDs(db *sql.DB) map[string]bool {
 	out := map[string]bool{}
 	rows, err := db.Query(`SELECT payload FROM ledger_events WHERE event_type = 'grant_revoked'`)
@@ -441,6 +494,7 @@ func RevokedCIDs(db *sql.DB) map[string]bool {
 		var payloadStr string
 		var rec struct {
 			RootCID string `json:"root_cid"`
+			LeafCID string `json:"leaf_cid"`
 		}
 		if err := rows.Scan(&payloadStr); err != nil {
 			continue
@@ -450,6 +504,9 @@ func RevokedCIDs(db *sql.DB) map[string]bool {
 		}
 		if rec.RootCID != "" {
 			out[rec.RootCID] = true
+		}
+		if rec.LeafCID != "" {
+			out[rec.LeafCID] = true
 		}
 	}
 	return out
