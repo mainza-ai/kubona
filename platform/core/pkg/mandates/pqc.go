@@ -83,9 +83,10 @@ func EncapsulateMandate(ek *mlkem.EncapsulationKey768, mandate *SpendMandate) (*
 		return nil, fmt.Errorf("failed to generate nonce: %w", err)
 	}
 
-	encryptedPayload := gcm.Seal(nil, nonce, mandateBytes, nil)
-
+	// W0.12: recipient fingerprint as associated data (context binding).
 	sum := sha256.Sum256(ek.Bytes())
+	encryptedPayload := gcm.Seal(nil, nonce, mandateBytes, sum[:])
+
 	return &HybridSpendMandate{
 		RecipientFingerprint: hex.EncodeToString(sum[:]),
 		EncapsulatedKeyHex:   hex.EncodeToString(ciphertext),
@@ -98,6 +99,13 @@ func EncapsulateMandate(ek *mlkem.EncapsulationKey768, mandate *SpendMandate) (*
 func (rk *RecipientKeypair) DecapsulateAndVerify(hybrid *HybridSpendMandate, expectedTenantID, expectedJobHash string, requestedCostUSD float64) (*SpendMandate, error) {
 	if hybrid.RecipientFingerprint != rk.Fingerprint() {
 		return nil, ErrRecipientMismatch
+	}
+	// W0.12: the recipient fingerprint binds as AES-GCM associated data
+	// (mirrors EncapsulateMandate) — the envelope is bound to its intended
+	// recipient, not just its key.
+	fpBytes, err := hex.DecodeString(hybrid.RecipientFingerprint)
+	if err != nil {
+		return nil, fmt.Errorf("invalid recipient fingerprint hex: %w", err)
 	}
 
 	ciphertext, err := hex.DecodeString(hybrid.EncapsulatedKeyHex)
@@ -132,7 +140,7 @@ func (rk *RecipientKeypair) DecapsulateAndVerify(hybrid *HybridSpendMandate, exp
 		return nil, fmt.Errorf("failed to initialize GCM cipher: %w", err)
 	}
 
-	plaintext, err := gcm.Open(nil, nonce, encryptedPayload, nil)
+	plaintext, err := gcm.Open(nil, nonce, encryptedPayload, fpBytes)
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrDecryptionFailed, err)
 	}

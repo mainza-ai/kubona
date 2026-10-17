@@ -35,6 +35,12 @@ type bridgeTaskExecutor struct {
 	signer ed25519.PrivateKey
 }
 
+// a2aMaxWait bounds the ledger-job poll (W2.20): without it a Background
+// context (no deadline) polls forever when workers stall. The context
+// deadline still wins when earlier; this is the backstop, not the budget.
+// Var (not const) so tests can shrink it without waiting minutes.
+var a2aMaxWait = 10 * time.Minute
+
 // ExecuteTask implements agents.TaskExecutor.
 func (e *bridgeTaskExecutor) ExecuteTask(ctx context.Context, taskType string, payload json.RawMessage, tenantID string, maxBudgetUSD float64) (map[string]any, error) {
 	// Tenant-attributed delegation session: A2A spend and autonomy checks
@@ -72,13 +78,19 @@ func (e *bridgeTaskExecutor) ExecuteTask(ctx context.Context, taskType string, p
 
 	// Wait for a worker to settle the job. Workers run in kubonad; without
 	// them (or without a bridge) the context deadline fails the task honestly
-	// instead of hanging forever.
+	// instead of hanging forever. W2.20: a2aMaxWait caps the poll even when
+	// the caller passes a deadline-less context.
+	waitCtx, waitCancel := context.WithTimeout(ctx, a2aMaxWait)
+	defer waitCancel()
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-ctx.Done():
-			return nil, fmt.Errorf("a2a task %q timed out waiting for ledger job %s", taskType, job.ID)
+		case <-waitCtx.Done():
+			if ctx.Err() != nil {
+				return nil, fmt.Errorf("a2a task %q timed out waiting for ledger job %s: %w", taskType, job.ID, ctx.Err())
+			}
+			return nil, fmt.Errorf("a2a task %q timed out waiting for ledger job %s after %s (poll deadline)", taskType, job.ID, a2aMaxWait)
 		case <-ticker.C:
 			stored, err := e.runner.GetJob(job.ID)
 			if err != nil {

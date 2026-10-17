@@ -81,10 +81,24 @@ func TestPQCKeyAndVerifyEndpoints(t *testing.T) {
 
 	// 2. Encapsulate a test mandate
 	_, priv, _ := ed25519.GenerateKey(nil)
+	pubHex := hex.EncodeToString(priv.Public().(ed25519.PublicKey))
 	tenant := "tenant-pqc-1"
 	jobHash := "job-hash-1"
 	budget := 15.00
 	expiry := time.Now().Add(1 * time.Hour).UTC()
+
+	// W0.12: the mandate key must be the tenant admin key — register the
+	// tenant with this key or verification refuses (self-signed spend).
+	regBody, _ := json.Marshal(map[string]any{"id": tenant})
+	regReq := httptest.NewRequest(http.MethodPost, "/api/tenants", bytes.NewReader(regBody))
+	regW := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(regW, regReq)
+	if regW.Code != http.StatusCreated {
+		t.Fatalf("register tenant: %d", regW.Code)
+	}
+	if _, err := srv.TenantManager().SetAdminKey(tenant, pubHex, nil); err != nil {
+		t.Fatalf("bootstrap admin: %v", err)
+	}
 
 	m, err := mandates.SignMandate(priv, tenant, jobHash, budget, expiry)
 	if err != nil {
@@ -104,6 +118,35 @@ func TestPQCKeyAndVerifyEndpoints(t *testing.T) {
 
 	if vW.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", vW.Code, vW.Body.String())
+	}
+	var vResp struct {
+		Valid bool `json:"valid"`
+	}
+	if err := json.NewDecoder(vW.Body).Decode(&vResp); err != nil || !vResp.Valid {
+		t.Fatalf("admin-key mandate must verify valid: %+v %v", vResp, err)
+	}
+
+	// W0.12: a mandate signed by a FOREIGN key for the same tenant refuses
+	// (self-signed spend) even though the crypto is valid.
+	_, evilPriv, _ := ed25519.GenerateKey(nil)
+	evil, err := mandates.SignMandate(evilPriv, tenant, jobHash, budget, expiry)
+	if err != nil {
+		t.Fatalf("sign evil mandate: %v", err)
+	}
+	evilHybrid, err := mandates.EncapsulateMandate(srv.PQCKeypair().EncapsulationKey, evil)
+	if err != nil {
+		t.Fatalf("encapsulate evil: %v", err)
+	}
+	evilBody, _ := json.Marshal(evilHybrid)
+	evilReq := httptest.NewRequest(http.MethodPost, "/api/mandates/pqc-verify", bytes.NewReader(evilBody))
+	evilW := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(evilW, evilReq)
+	var evilResp struct {
+		Valid bool   `json:"valid"`
+		Error string `json:"error"`
+	}
+	if err := json.NewDecoder(evilW.Body).Decode(&evilResp); err != nil || evilResp.Valid {
+		t.Fatalf("foreign-key mandate must refuse: %+v %v", evilResp, err)
 	}
 }
 
@@ -272,9 +315,15 @@ func TestPaymentSettleEndpoint(t *testing.T) {
 func TestHFHubEndpoints(t *testing.T) {
 	srv, cleanup := setupTestRoutesServer(t)
 	defer cleanup()
+	// W2.1: HF routes are operator-gated (external fetch + disk writes).
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
+	authed := func(req *http.Request) {
+		req.Header.Set("Authorization", "Bearer op-token")
+	}
 
 	// 1. GET /api/hf/search
 	req1 := httptest.NewRequest(http.MethodGet, "/api/hf/search?q=qwen&library=gguf&limit=5", nil)
+	authed(req1)
 	w1 := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w1, req1)
 
@@ -298,6 +347,7 @@ func TestHFHubEndpoints(t *testing.T) {
 
 	// 2. GET /api/hf/models/Qwen/Qwen2.5-Coder-32B-Instruct-GGUF
 	req2 := httptest.NewRequest(http.MethodGet, "/api/hf/models/Qwen/Qwen2.5-Coder-32B-Instruct-GGUF", nil)
+	authed(req2)
 	w2 := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w2, req2)
 
@@ -308,6 +358,7 @@ func TestHFHubEndpoints(t *testing.T) {
 	// 3. POST /api/hf/download
 	dBody := []byte(`{"repo_id":"Qwen/Qwen2.5-Coder-7B-Instruct-GGUF","filename":"model.gguf"}`)
 	req3 := httptest.NewRequest(http.MethodPost, "/api/hf/download", bytes.NewReader(dBody))
+	authed(req3)
 	w3 := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w3, req3)
 
@@ -317,6 +368,7 @@ func TestHFHubEndpoints(t *testing.T) {
 
 	// 4. GET /api/hf/downloads
 	req4 := httptest.NewRequest(http.MethodGet, "/api/hf/downloads", nil)
+	authed(req4)
 	w4 := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w4, req4)
 
@@ -397,15 +449,31 @@ func TestCustomAgentAndMeshRouteEndpoints(t *testing.T) {
 func TestLedgerAppendIssuesServerReceipt(t *testing.T) {
 	srv, cleanup := setupTestRoutesServer(t)
 	defer cleanup()
+	// W2.1: ledger append is an operator-gated write (provenance forgery
+	// rail) — bearer required; unauthenticated forging refuses.
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
+	authedPost := func(body []byte) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, "/api/ledger/append", bytes.NewReader(body))
+		req.Header.Set("Authorization", "Bearer op-token")
+		w := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w, req)
+		return w
+	}
+
+	// Bearerless forgery refuses before any allowlist check.
+	anonReq := httptest.NewRequest(http.MethodPost, "/api/ledger/append", bytes.NewReader([]byte(`{"session_id":"x","event_type":"tribunal_commit","payload":{}}`)))
+	anonW := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(anonW, anonReq)
+	if anonW.Code != http.StatusUnauthorized {
+		t.Fatalf("bearerless ledger append must 401, got %d", anonW.Code)
+	}
 
 	body, _ := json.Marshal(map[string]any{
 		"session_id": "sess-tribunal",
 		"event_type": "tribunal_commit",
 		"payload":    map[string]any{"hypothesis_id": "H-1", "quorum_percent": 95.2},
 	})
-	req := httptest.NewRequest(http.MethodPost, "/api/ledger/append", bytes.NewReader(body))
-	w := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(w, req)
+	w := authedPost(body)
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
@@ -429,9 +497,7 @@ func TestLedgerAppendIssuesServerReceipt(t *testing.T) {
 		"event_type": "peer_review",
 		"payload":    map[string]any{"score": 9},
 	})
-	req2 := httptest.NewRequest(http.MethodPost, "/api/ledger/append", bytes.NewReader(body2))
-	w2 := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(w2, req2)
+	w2 := authedPost(body2)
 	var resp2 struct {
 		RecordHash string `json:"record_hash"`
 		PrevHash   string `json:"prev_hash"`
@@ -449,9 +515,7 @@ func TestLedgerAppendIssuesServerReceipt(t *testing.T) {
 		"event_type": "forged_advantage_claim",
 		"payload":    map[string]any{},
 	})
-	badReq := httptest.NewRequest(http.MethodPost, "/api/ledger/append", bytes.NewReader(badBody))
-	badW := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(badW, badReq)
+	badW := authedPost(badBody)
 	if badW.Code != http.StatusForbidden {
 		t.Fatalf("expected 403 for non-allowlisted event, got %d", badW.Code)
 	}
@@ -460,6 +524,8 @@ func TestLedgerAppendIssuesServerReceipt(t *testing.T) {
 func TestSupervisorAbortSettlesJobsFailed(t *testing.T) {
 	srv, cleanup := setupTestRoutesServer(t)
 	defer cleanup()
+	// W2.1: abort is an operator kill-switch — bearer required.
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
 
 	// Real session first: dispatch is attributed to registered sessions.
 	sessBody, _ := json.Marshal(map[string]any{"title": "abort drill"})
@@ -488,7 +554,15 @@ func TestSupervisorAbortSettlesJobsFailed(t *testing.T) {
 	}
 
 	abortBody, _ := json.Marshal(map[string]any{"session_id": sessResp.ID})
+	// Bearerless kill-switch refuses before touching jobs.
+	anonAbort := httptest.NewRequest(http.MethodPost, "/api/supervisor/abort", bytes.NewReader(abortBody))
+	anonW := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(anonW, anonAbort)
+	if anonW.Code != http.StatusUnauthorized {
+		t.Fatalf("bearerless abort must 401, got %d", anonW.Code)
+	}
 	abortReq := httptest.NewRequest(http.MethodPost, "/api/supervisor/abort", bytes.NewReader(abortBody))
+	abortReq.Header.Set("Authorization", "Bearer op-token")
 	abortW := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(abortW, abortReq)
 	if abortW.Code != http.StatusOK {
@@ -1744,8 +1818,10 @@ func TestSessionAttributionStrictness(t *testing.T) {
 	if code, _ := get("/api/epistemics?session_id=sess-does-not-exist"); code != http.StatusNotFound {
 		t.Errorf("epistemics unknown session must 404, got %d", code)
 	}
-	if code, _ := get("/api/epistemics"); code != http.StatusOK {
-		t.Errorf("epistemics empty session must 200, got %d", code)
+	// W2.2: unscoped epistemics never adopts sessions[0] (cross-session
+	// leak) — missing ids 404 like unknown ones.
+	if code, _ := get("/api/epistemics"); code != http.StatusNotFound {
+		t.Errorf("epistemics empty session must 404, got %d", code)
 	}
 }
 

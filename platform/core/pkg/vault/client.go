@@ -237,10 +237,12 @@ func (c *OpenBaoClient) GetProviderCredential(ctx context.Context, provider stri
 	return keyStr, secret.LeaseID, nil
 }
 
-// RevokeLease immediately terminates an active credential lease
+// RevokeLease immediately terminates an active credential lease.
+// An empty lease id REFUSES (fail-closed): silently accepting "" used to
+// report success while revoking nothing.
 func (c *OpenBaoClient) RevokeLease(ctx context.Context, leaseID string) error {
 	if leaseID == "" {
-		return nil
+		return fmt.Errorf("%w: refusing to revoke an empty lease id", ErrVaultRevokeFailed)
 	}
 
 	c.mu.RLock()

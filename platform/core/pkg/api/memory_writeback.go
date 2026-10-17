@@ -442,11 +442,19 @@ func (s *Server) retainTurnExperience(sessionID, kind, prompt, outcome string, t
 	}
 	content := boundRunes(b.String(), maxExperienceRunes)
 
-	tenant := "default"
+	// W2.20: fail-closed skip — an unknown session previously fell back to
+	// the "default" tenant and wrote one lab's turn into another's memory
+	// bank. Ghost turns now write nothing (the reply already went out;
+	// retention is best-effort, never cross-tenant).
+	tenant := ""
 	if s.sessionMgr != nil {
-		if sess, err := s.sessionMgr.GetSession(sessionID); err == nil && sess.TenantID != "" {
-			tenant = sess.TenantID
+		sess, err := s.sessionMgr.GetSession(sessionID)
+		if err != nil || sess.TenantID == "" {
+			return
 		}
+		tenant = sess.TenantID
+	} else {
+		return
 	}
 	s.memoryStore.RetainScoped(tenant, tenant, memory.BankExperiences, content, importance, nil)
 }

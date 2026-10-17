@@ -698,8 +698,17 @@ func (r *Runner) GetJob(id string) (*Job, error) {
 }
 
 func (r *Runner) ListJobs(sessionID string, limit int) ([]*Job, error) {
+	// W2.2: tenant scoping — an empty session would enumerate every lab's
+	// jobs (cross-tenant read). Refuse instead of listing all tenants;
+	// callers must name the session they may read.
+	if sessionID == "" {
+		return nil, fmt.Errorf("session_id is required: refusing unscoped job list (would cross tenants)")
+	}
 	if limit <= 0 {
 		limit = 50
+	}
+	if limit > 200 {
+		limit = 200
 	}
 	var rows *sql.Rows
 	var err error

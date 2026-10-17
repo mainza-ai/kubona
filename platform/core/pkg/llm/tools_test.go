@@ -45,6 +45,9 @@ func TestCompleteWithToolsParsesToolCalls(t *testing.T) {
 				},
 				"finish_reason": "tool_calls",
 			}},
+			// W0.19 metered-usage rule: cloud stubs must report usage,
+			// otherwise CompleteWithTools refuses blind spend.
+			"usage": map[string]any{"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
 		})
 	}))
 	defer srv.Close()
@@ -78,6 +81,7 @@ func TestCompleteWithToolsNoToolsBehavesLikeComplete(t *testing.T) {
 				"message":       map[string]any{"content": "plain answer"},
 				"finish_reason": "stop",
 			}},
+			"usage": map[string]any{"prompt_tokens": 5, "completion_tokens": 5, "total_tokens": 10},
 		})
 	}))
 	defer srv.Close()
@@ -118,6 +122,7 @@ func TestToolMessageSerialization(t *testing.T) {
 				"message":       map[string]any{"content": "anchored: -1.13727"},
 				"finish_reason": "stop",
 			}},
+			"usage": map[string]any{"prompt_tokens": 5, "completion_tokens": 5, "total_tokens": 10},
 		})
 	}))
 	defer srv.Close()

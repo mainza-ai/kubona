@@ -98,6 +98,12 @@ type Server struct {
 	// budgets — these are operator actions, never machine loops.
 	tenantLimiter *rateLimiter
 	grantLimiter  *rateLimiter
+	// W2.1: ledger-append and supervisor-abort are operator kill-switch /
+	// provenance-forging rails — their own human-paced buckets so a spray
+	// on one rail never spends another's budget. Reads stay public behind
+	// limiters; these writes get edge auth + their own limiter.
+	ledgerLimiter *rateLimiter
+	abortLimiter  *rateLimiter
 
 	// S2: disk guard (nil = unguarded, e.g. tests). Set via SetDiskGuard
 	// after construction so NewServer's signature never ripples.
@@ -165,6 +171,22 @@ func loadReviewerKey() (ed25519.PublicKey, ed25519.PrivateKey, bool) {
 	}
 	pub, priv, _ := ed25519.GenerateKey(nil)
 	return pub, priv, false
+}
+
+// newVaultLeases builds the server-side lease registry (W2.7). When
+// KUBONA_VAULT_REVOCATIONS names a file, revocations persist there across
+// restarts (a revoked lease stays revoked); unset means dev-only in-memory
+// leases. An unusable persistence path fails server construction loudly —
+// an undurable revocation must never report success.
+func newVaultLeases() *vault.VaultClient {
+	if path := strings.TrimSpace(os.Getenv("KUBONA_VAULT_REVOCATIONS")); path != "" {
+		vc, err := vault.NewVaultClientWithPersistence(path)
+		if err != nil {
+			panic("vault revocations persistence unusable: " + err.Error())
+		}
+		return vc
+	}
+	return vault.NewVaultClient()
 }
 
 func NewServer(
@@ -271,16 +293,18 @@ func NewServer(
 		activeAutoloops:       make(map[string]*autoresearch.LoopEngine),
 		hfClient:              hf.NewHubClient(""),
 		customAgents:          agents.NewCustomAgentRegistryWithDB(l.DB()),
-		vaultLeases:           vault.NewVaultClient(),
+		vaultLeases:           newVaultLeases(),
 		pqcKeypair:            pqcKey,
 		qirCompiler:           qirComp,
 		signerPubKey:          pub,
 		signerPrivKey:         priv,
 		reviewerKeyConfigured: configured,
-		signLimiter:           newRateLimiter(2, 5),
-		verifyLimiter:         newRateLimiter(20, 50),
-		tenantLimiter:         newRateLimiter(5, 15),
-		grantLimiter:          newRateLimiter(5, 15),
+		signLimiter:           newRateLimiter(rateFromEnv("KUBONA_RATE_SIGN", 2, 5)),
+		verifyLimiter:         newRateLimiter(rateFromEnv("KUBONA_RATE_VERIFY", 20, 50)),
+		tenantLimiter:         newRateLimiter(rateFromEnv("KUBONA_RATE_TENANT", 5, 15)),
+		grantLimiter:          newRateLimiter(rateFromEnv("KUBONA_RATE_GRANT", 5, 15)),
+		ledgerLimiter:         newRateLimiter(rateFromEnv("KUBONA_RATE_LEDGER", 5, 15)),
+		abortLimiter:          newRateLimiter(rateFromEnv("KUBONA_RATE_ABORT", 5, 15)),
 		mux:                   http.NewServeMux(),
 	}
 
@@ -434,11 +458,16 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/cost/settle", s.handlePaymentSettle)
 
 	// Hugging Face Model Hub & In-Platform Downloader
-	s.mux.HandleFunc("/api/hf/search", s.handleHFSearch)
-	s.mux.HandleFunc("/api/hf/models/", s.handleHFModelDetails)
-	s.mux.HandleFunc("/api/hf/download", s.handleHFDownload)
-	s.mux.HandleFunc("/api/hf/downloads", s.handleHFDownloads)
-	s.mux.HandleFunc("/api/hf/downloads/", s.handleHFDownloadAction)
+	// W2.1 threat model: reads stay public behind limiters in general,
+	// but HF routes trigger external network fetch + disk writes (even
+	// "search" fans out to huggingface.co and caches), so every HF route
+	// is an operator-gated write-class rail: bearer auth, no anonymous
+	// fetch-or-store primitive.
+	s.mux.HandleFunc("/api/hf/search", s.requireBearer(s.handleHFSearch))
+	s.mux.HandleFunc("/api/hf/models/", s.requireBearer(s.handleHFModelDetails))
+	s.mux.HandleFunc("/api/hf/download", s.requireBearer(s.handleHFDownload))
+	s.mux.HandleFunc("/api/hf/downloads", s.requireBearer(s.handleHFDownloads))
+	s.mux.HandleFunc("/api/hf/downloads/", s.requireBearer(s.handleHFDownloadAction))
 
 	// Custom Agents & Multimodal Mesh Router
 	// K3: agent create/delete are registry mutations — bearer-gated like
@@ -447,9 +476,13 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/agents/custom", s.handleCustomAgents)
 	s.mux.HandleFunc("/api/agents/custom/", s.handleCustomAgentByID)
 	s.mux.HandleFunc("/api/mesh/route", s.handleMeshRoute)
-	s.mux.HandleFunc("/api/ledger/append", s.handleLedgerAppend)
+	// W2.1 threat model: ledger append forges tribunal/review provenance
+	// and the abort rail is an availability kill-switch — both are writes,
+	// so both get edge auth + their own limiter. Reads stay public behind
+	// limiters; these two never serve anonymous callers.
+	s.mux.HandleFunc("/api/ledger/append", s.requireBearer(s.handleLedgerAppend))
 	s.mux.HandleFunc("/api/ledger/export", s.handleLedgerExport)
-	s.mux.HandleFunc("/api/supervisor/abort", s.handleSupervisorAbort)
+	s.mux.HandleFunc("/api/supervisor/abort", s.requireBearer(s.handleSupervisorAbort))
 	s.mux.HandleFunc("/api/tenants", s.handleTenants)
 	s.mux.HandleFunc("/api/tenants/", s.handleTenantByID)
 	// R4: spend-adjacent mutations sit behind the bearer rail as well as
@@ -570,14 +603,14 @@ func (s *Server) handleFidelity(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleEpistemics(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.URL.Query().Get("session_id")
 	if sessionID == "" {
-		// Read-only continuity: the console's global assessment view calls
-		// without an id. Adoption is safe here — reads already sit behind
-		// the operator bearer, and nothing is written or spent (G7; cf. the
-		// reverted read-gating in the F-4 audit).
-		if sessions, lerr := s.sessionMgr.ListSessions(1); lerr == nil && len(sessions) > 0 {
-			sessionID = sessions[0].ID
-		}
-	} else if _, gerr := s.sessionMgr.GetSession(sessionID); gerr != nil {
+		// W2.2: no cross-session leak — an unscoped read never adopts
+		// sessions[0] (that attached one lab's verdict to a stranger's
+		// view). Reads stay public behind limiters, but they must name
+		// their session: missing ids 404.
+		http.Error(w, "missing session_id: epistemics reads must name an existing session", http.StatusNotFound)
+		return
+	}
+	if _, gerr := s.sessionMgr.GetSession(sessionID); gerr != nil {
 		http.Error(w, fmt.Sprintf("unknown session %q: refusing to show another session", sessionID), http.StatusNotFound)
 		return
 	}
@@ -841,6 +874,25 @@ func (s *Server) handleMandateVerify(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"valid": false,
 			"error": err.Error(),
+		})
+		return
+	}
+
+	// W0.12 key→tenant binding: the signing key must be the tenant's
+	// CURRENT admin key. Without this, anyone's self-signed mandate spends
+	// any tenant's ceiling (signature valid, key unattributed).
+	lab, err := s.tenantMgr.GetTenant(req.TenantID)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"valid": false,
+			"error": err.Error(),
+		})
+		return
+	}
+	if lab.AdminPubkeyHex == "" || !strings.EqualFold(lab.AdminPubkeyHex, req.PublicKeyHex) {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"valid": false,
+			"error": "mandate key is not the tenant admin key: self-signed spend refused (bootstrap an admin key or use the reviewer-signed path)",
 		})
 		return
 	}
@@ -1287,6 +1339,9 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 				limit = n
 			}
 		}
+		if limit > 200 {
+			limit = 200
+		}
 		records, err := s.ledger.ListClaimRecords(sessionID, limit)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -1305,6 +1360,9 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 			if n, err := strconv.Atoi(raw); err == nil && n > 0 {
 				limit = n
 			}
+		}
+		if limit > 200 {
+			limit = 200
 		}
 		versions, err := s.ledger.GetCampaignVersions(sessionID, limit)
 		if err != nil {
@@ -1376,17 +1434,17 @@ func (s *Server) requireSession(sessionID string) (string, error) {
 }
 
 func (s *Server) ensureSession(sessionID string) (string, error) {
-	if sessionID != "" {
-		if _, err := s.sessionMgr.GetSession(sessionID); err == nil {
-			return sessionID, nil
-		}
+	// W2.2 / G7: fail-closed attribution — chat/stream/regenerate never
+	// mint a session implicitly. A missing id 404s (no tenant to bill)
+	// and an unknown id 404s (refusing to attach content elsewhere).
+	// Callers map this error to 404.
+	if sessionID == "" {
+		return "", fmt.Errorf("missing session_id: chat calls must name an existing session")
+	}
+	if _, err := s.sessionMgr.GetSession(sessionID); err != nil {
 		return "", fmt.Errorf("unknown session %q: refusing to attach content to another session", sessionID)
 	}
-	sess, err := s.sessionMgr.CreateSession("Active Research Campaign", 150.0, tenants.DefaultTenantID)
-	if err != nil {
-		return "", err
-	}
-	return sess.ID, nil
+	return sessionID, nil
 }
 
 func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
@@ -2232,7 +2290,18 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
+		// W2.2: tenant-scoped reads — an unscoped list (empty session)
+		// would enumerate every tenant's jobs. Refuse instead of listing
+		// all tenants; ghosts 404.
 		sessionID := r.URL.Query().Get("session_id")
+		if sessionID == "" {
+			http.Error(w, "session_id is required: refusing unscoped job list (would cross tenants)", http.StatusBadRequest)
+			return
+		}
+		if _, gerr := s.sessionMgr.GetSession(sessionID); gerr != nil {
+			http.Error(w, fmt.Sprintf("unknown session %q: refusing to read another session", sessionID), http.StatusNotFound)
+			return
+		}
 		jobsList, err := s.jobRunner.ListJobs(sessionID, 50)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -2369,9 +2438,32 @@ func (s *Server) handleJobByID(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	// W2.2: tenant-scoped job reads — the caller names the session they
+	// read from, and the job must belong to a session of the same tenant.
+	// A job id alone is a cross-tenant read primitive (guessable UUIDs
+	// across labs). Missing scope 400s, ghosts 404, tenant mismatch 403.
+	scopeSession := r.URL.Query().Get("session_id")
+	if scopeSession == "" {
+		http.Error(w, "session_id is required: job reads are tenant-scoped", http.StatusBadRequest)
+		return
+	}
+	scopeSess, gerr := s.sessionMgr.GetSession(scopeSession)
+	if gerr != nil {
+		http.Error(w, fmt.Sprintf("unknown session %q: refusing to read another session", scopeSession), http.StatusNotFound)
+		return
+	}
 	job, err := s.jobRunner.GetJob(id)
 	if err != nil {
 		http.Error(w, "job not found", http.StatusNotFound)
+		return
+	}
+	jobSess, jerr := s.sessionMgr.GetSession(job.SessionID)
+	if jerr != nil {
+		http.Error(w, "job session unknown: refusing cross-tenant read", http.StatusForbidden)
+		return
+	}
+	if jobSess.TenantID != scopeSess.TenantID {
+		http.Error(w, "job belongs to another tenant: refused", http.StatusForbidden)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"job": job})
@@ -2469,11 +2561,26 @@ func (s *Server) handleLoopActions(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
+	// W2.1 threat model: event tail is a read — stays public behind the
+	// edge (no bearer), but bounded (max 200) and session-scoped. An
+	// unscoped or ghost read refuses instead of leaking another tenant's
+	// tail or scanning unbounded rows.
 	sessionID := r.URL.Query().Get("session_id")
+	if sessionID == "" {
+		http.Error(w, "session_id is required: refusing unscoped event list", http.StatusBadRequest)
+		return
+	}
+	if _, gerr := s.sessionMgr.GetSession(sessionID); gerr != nil {
+		http.Error(w, fmt.Sprintf("unknown session %q: refusing to read another session", sessionID), http.StatusNotFound)
+		return
+	}
 	limitStr := r.URL.Query().Get("limit")
 	limit := 50
 	if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
 		limit = l
+	}
+	if limit > 200 {
+		limit = 200
 	}
 
 	events, err := s.ledger.GetRecentEvents(sessionID, limit)
@@ -2485,6 +2592,28 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleEventsStream(w http.ResponseWriter, r *http.Request) {
+	// W2.1 threat model: SSE is a read, but a long-lived unauthenticated
+	// subscription is a ghost-observation primitive (no tenant to bill,
+	// no identity to rate-limit fairly). Require operator bearer + an
+	// existing session before the first byte streams; ghosts and
+	// bearerless callers refuse.
+	switch bearerGate(r) {
+	case http.StatusServiceUnavailable:
+		http.Error(w, "API token not configured: set KUBONA_API_TOKEN", http.StatusServiceUnavailable)
+		return
+	case http.StatusUnauthorized:
+		http.Error(w, "missing or invalid bearer token", http.StatusUnauthorized)
+		return
+	}
+	sessionID := r.URL.Query().Get("session_id")
+	if sessionID == "" {
+		http.Error(w, "session_id is required: streams must name an existing session", http.StatusNotFound)
+		return
+	}
+	if _, gerr := s.sessionMgr.GetSession(sessionID); gerr != nil {
+		http.Error(w, fmt.Sprintf("unknown session %q: refusing to stream another session", sessionID), http.StatusNotFound)
+		return
+	}
 	flusher, ok := w.(http.Flusher)
 	if !ok {
 		http.Error(w, "streaming unsupported", http.StatusInternalServerError)
@@ -2497,8 +2626,6 @@ func (s *Server) handleEventsStream(w http.ResponseWriter, r *http.Request) {
 	if origin := corsAllowOrigin(r); origin != "" {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 	}
-
-	sessionID := r.URL.Query().Get("session_id")
 
 	// Emit initial connection ACK frame
 	initData, _ := json.Marshal(map[string]any{
@@ -2606,9 +2733,18 @@ func (s *Server) handleA2A(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCanvasLayout(w http.ResponseWriter, r *http.Request) {
+	// W2.1: no shared "default" session — a missing session_id 404s and
+	// ghost sessions 404 instead of reading/writing one shared layout row
+	// (that row mixed every tenant's canvas). Reads stay public behind
+	// limiters; the session gate is attribution, not auth.
 	sessionID := r.URL.Query().Get("session_id")
 	if sessionID == "" {
-		sessionID = "default"
+		http.Error(w, "session_id is required: canvas layouts are session-scoped, no shared default", http.StatusNotFound)
+		return
+	}
+	if _, gerr := s.sessionMgr.GetSession(sessionID); gerr != nil {
+		http.Error(w, fmt.Sprintf("unknown session %q: refusing to show another session", sessionID), http.StatusNotFound)
+		return
 	}
 
 	// K2: layouts persist in SQLite (survive restarts), not in a Go map.
@@ -3367,13 +3503,23 @@ const (
 // reconciled on the next transition.
 func (s *Server) persistLoopRow(engine *autoresearch.LoopEngine) {
 	st := engine.State()
+	// W2.10: preserve a pre-existing reservation — the upsert overwrites
+	// reserved_amount, so persisting without carrying it would wipe loop
+	// spend the moment I3 lands per-iteration reservation.
+	var reserved float64
+	_ = s.ledger.DB().QueryRow(`SELECT reserved_amount FROM loops WHERE id = ?`, st.ID).Scan(&reserved)
 	if err := s.ledger.SaveLoopState(ledger.LoopPersist{
 		ID: st.ID, SessionID: st.SessionID, HarnessID: st.HarnessID,
 		Status: string(st.Status), StepCount: st.CurrentIteration,
 		MaxSteps: st.MaxIterations, LastActivity: st.LastActivity,
-		Drain: st.Drained,
+		Drain: st.Drained, ReservedAmount: reserved,
 	}); err != nil {
-		println("kubona: persistLoopRow failed for", st.ID, err.Error())
+		// W2.10: loud, timestamped, and audited — the old bare println
+		// vanished into scrollback while DB and memory diverged.
+		log.Printf("[Kubona Core] loop persist FAILED for %s: %v (memory/DB diverged)", st.ID, err)
+		_ = s.ledger.AppendEvent(st.SessionID, "loop_persist_failed", map[string]any{
+			"loop_id": st.ID, "error": err.Error(),
+		})
 	}
 }
 
@@ -3397,8 +3543,24 @@ func (s *Server) SweepIdleLoops(now time.Time, idleAfter time.Duration) []string
 		if e.Drained() {
 			continue
 		}
+		// W2.10: zero activity means idle-since-start (StartedAt), not
+		// exempt — the old IsZero skip leaked never-stepped loops forever.
 		last := e.LastActivity()
+		if last.IsZero() {
+			last = st.StartedAt
+		}
 		if last.IsZero() || now.Sub(last) < idleAfter {
+			continue
+		}
+		// W2.10: never sleep money. Loop reservations are I3-future
+		// (always 0 today), but if a row ever carries spend, the sweeper
+		// skips it loudly instead of parking it unreachable.
+		var reserved float64
+		_ = s.ledger.DB().QueryRow(`SELECT reserved_amount FROM loops WHERE id = ?`, st.ID).Scan(&reserved)
+		if reserved > 0 {
+			s.ledger.AppendEvent(st.SessionID, "autoresearch_loop_sleep_refused", map[string]any{
+				"loop_id": st.ID, "reason": "outstanding loop reservation",
+			})
 			continue
 		}
 		e.Sleep()
@@ -3609,16 +3771,21 @@ func (s *Server) handleMetasearchApply(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	prop, _ := s.metaSearchEngine.GetProposal(req.ProposalID)
+	// W2.1: fail-closed nil guard — ApplyProposal succeeded, so the
+	// proposal must still resolve; a nil return here (store race, evicted
+	// row) refuses with 400 instead of dereferencing prop.LoopID below.
+	prop, gerr := s.metaSearchEngine.GetProposal(req.ProposalID)
+	if gerr != nil || prop == nil {
+		http.Error(w, "proposal vanished after apply: refusing to resume unknown loop", http.StatusBadRequest)
+		return
+	}
 
 	// K4: the application record lands in the ledger (who/when/which) —
 	// Apply itself writes no files by design (see ApplyProposal).
-	if prop != nil {
-		s.ledger.AppendEvent("global", "metasearch_applied", map[string]any{
-			"proposal_id": prop.ID, "loop_id": prop.LoopID,
-			"harness_id": prop.HarnessID, "approved_by": prop.ApprovedBy,
-		})
-	}
+	s.ledger.AppendEvent("global", "metasearch_applied", map[string]any{
+		"proposal_id": prop.ID, "loop_id": prop.LoopID,
+		"harness_id": prop.HarnessID, "approved_by": prop.ApprovedBy,
+	})
 
 	// If corresponding loop was stagnant, resume it!
 	s.autoresearchMu.RLock()
@@ -3660,9 +3827,13 @@ func (s *Server) handlePQCVerify(w http.ResponseWriter, r *http.Request) {
 
 	mandate, err := s.pqcKeypair.DecapsulateAndVerify(&hybrid, "", "", 0)
 	if err != nil {
+		// W0.12: uniform external refusal (decap/decrypt/hex failures are
+		// indistinguishable outside; detail goes to the server log, not
+		// the wire — no oracle, still debuggable).
+		log.Printf("[Kubona Core] PQC mandate rejected: %v", err)
 		writeJSON(w, http.StatusOK, map[string]any{
 			"valid": false,
-			"error": err.Error(),
+			"error": "hybrid mandate rejected",
 		})
 		return
 	}
@@ -3682,6 +3853,24 @@ func (s *Server) handlePQCVerify(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"valid": false,
 			"error": err.Error(),
+		})
+		return
+	}
+
+	// W0.12 key→tenant binding (same rule as the client path): the inner
+	// signature must come from the tenant's current admin key.
+	plab, err := s.tenantMgr.GetTenant(mandate.TenantID)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"valid": false,
+			"error": err.Error(),
+		})
+		return
+	}
+	if plab.AdminPubkeyHex == "" || !strings.EqualFold(plab.AdminPubkeyHex, mandate.PublicKeyHex) {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"valid": false,
+			"error": "mandate key is not the tenant admin key: self-signed spend refused",
 		})
 		return
 	}
@@ -3936,6 +4125,12 @@ func (s *Server) handleHFSearch(w http.ResponseWriter, r *http.Request) {
 	limit := 15
 	if limitStr != "" {
 		fmt.Sscanf(limitStr, "%d", &limit)
+	}
+	if limit <= 0 {
+		limit = 15
+	}
+	if limit > 50 {
+		limit = 50
 	}
 
 	if s.hfClient == nil {

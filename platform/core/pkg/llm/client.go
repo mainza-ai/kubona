@@ -70,6 +70,25 @@ type Client struct {
 	OnSpend func(SpendRecord)
 }
 
+// maxLLMResponseBytes bounds a single provider response body (W2.20). A
+// malicious or broken endpoint must not OOM the daemon with an unbounded
+// read: bodies past the cap refuse instead of buffering forever. 8MB fits
+// any real chat completion (long turns are streamed, not buffered).
+const maxLLMResponseBytes = 8 * 1024 * 1024
+
+// readBoundedBody reads at most maxLLMResponseBytes+1 and refuses past the
+// cap — the +1 distinguishes "exactly full" from "overflowing".
+func readBoundedBody(body io.Reader) ([]byte, error) {
+	raw, err := io.ReadAll(io.LimitReader(body, maxLLMResponseBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if len(raw) > maxLLMResponseBytes {
+		return nil, fmt.Errorf("provider response exceeds %d-byte cap: refusing unbounded body", maxLLMResponseBytes)
+	}
+	return raw, nil
+}
+
 // reportSpend emits one accounting record for a completed call when a
 // hook is set and the provider is metered (non-local).
 func (c *Client) reportSpend(providerType ProviderType, model string, promptTokens, completionTokens int, usageReported bool) {
@@ -191,7 +210,7 @@ func (c *Client) Complete(ctx context.Context, role string, messages []ChatMessa
 	}
 	defer resp.Body.Close()
 
-	respBytes, err := io.ReadAll(resp.Body)
+	respBytes, err := readBoundedBody(resp.Body)
 	if err != nil {
 		return "", nil, duration, err
 	}
@@ -425,7 +444,13 @@ func (c *Client) FetchModels(ctx context.Context, providerType ProviderType) ([]
 		} `json:"data"`
 	}
 
-	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+	// W2.20: bounded decode — the /models body is small; cap it like
+	// completions instead of decoding an unbounded stream.
+	bounded, err := readBoundedBody(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(bounded, &raw); err != nil {
 		return nil, err
 	}
 

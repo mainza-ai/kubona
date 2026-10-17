@@ -47,6 +47,11 @@ func stubToolServer(t *testing.T, toolName string, usage map[string]any) (*llm.C
 			}
 			if usage != nil {
 				resp["usage"] = usage
+			} else {
+				// W0.19 metered-usage rule: cloud stubs must report
+				// usage, otherwise the tool loop refuses blind spend
+				// and the breaker/observation paths never dispatch.
+				resp["usage"] = map[string]any{"prompt_tokens": 5, "completion_tokens": 5, "total_tokens": 10}
 			}
 			_ = json.NewEncoder(w).Encode(resp)
 			return
