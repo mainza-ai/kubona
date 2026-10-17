@@ -164,12 +164,12 @@ func TestSealTurnRefusesUndeclared(t *testing.T) {
 		t.Fatalf("open: %v", err)
 	}
 	bare := TribunalTurn{TurnIndex: 1, Role: RoleAnsatzScout, Name: "x", Content: "y", Verdict: "PROPOSED"}
-	if err := ac.SealTurn(sid, ob.ID, bare, true); err == nil {
+	if err := ac.SealTurn(sid, ob.ID, bare, true, ""); err == nil {
 		t.Fatal("turn without coverage must refuse (undeclared verdict)")
 	}
 	scribe := TribunalTurn{TurnIndex: 4, Role: RoleEpistemicScribe, Name: "x", Content: "y", Verdict: "COLLAPSED",
 		Coverage: map[string]CoverageDecl{FacetAnsatz: {Available: true}}}
-	if err := ac.SealTurn(sid, ob.ID, scribe, true); err == nil {
+	if err := ac.SealTurn(sid, ob.ID, scribe, true, ""); err == nil {
 		t.Fatal("scribe missing facets must refuse (incomplete synthesis)")
 	}
 }

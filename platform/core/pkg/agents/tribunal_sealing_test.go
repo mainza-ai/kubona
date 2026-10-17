@@ -91,7 +91,7 @@ func TestDirectCollectiveRunSealsTurns(t *testing.T) {
 		t.Fatalf("fallback run must stay open with the anchor unknown: %+v", ob)
 	}
 	// Re-sealing any turn is a no-op receipt (dedupe by turn index).
-	if err := ac.SealTurn(sid, res.ObligationID, res.Turns[0], false); err != nil {
+	if err := ac.SealTurn(sid, res.ObligationID, res.Turns[0], false, ""); err != nil {
 		t.Fatalf("reseal: %v", err)
 	}
 	if n := len(tribunalTurnEvents(t, l, sid)); n != 4 {
