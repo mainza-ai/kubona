@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -152,6 +153,42 @@ func (s *Server) handleTenantCeiling(w http.ResponseWriter, r *http.Request) {
 	t, err := s.tenantMgr.SetCeiling(bound, req.Ceiling)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+	writeJSON(w, http.StatusOK, t)
+}
+
+// handleTenantRefund returns consumed spend to a lab's books (audited
+// refund primitive). Admin envelope binds tenant + amount + reason;
+// suspended labs refuse (reactivate first — books never move frozen).
+func (s *Server) handleTenantRefund(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		WriteAPIError(w, "method_not_allowed", "refund is POST-only", nil)
+		return
+	}
+	if !s.tenantLimiter.allow(clientKey(r)) {
+		WriteAPIError(w, "rate_limited", "rate limit exceeded: slow down and retry", nil)
+		return
+	}
+	var req struct {
+		TenantID string              `json:"tenant_id"`
+		Amount   float64             `json:"amount_usd"`
+		Reason   string              `json:"reason"`
+		Action   tenants.AdminAction `json:"action"`
+	}
+	if err := decodeStrict(r, &req); err != nil {
+		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid request body: %v", err), nil)
+		return
+	}
+	bound, err := bindAdminAction(req.TenantID, "refund_spend",
+		map[string]any{"tenant_id": req.TenantID, "amount_usd": req.Amount, "reason": req.Reason}, req.Action)
+	if err != nil {
+		WriteAPIError(w, "forbidden", err.Error(), nil)
+		return
+	}
+	t, err := s.tenantMgr.RefundSpend(bound, req.TenantID, req.Amount, req.Reason)
+	if err != nil {
+		WriteAPIError(w, "forbidden", err.Error(), nil)
 		return
 	}
 	writeJSON(w, http.StatusOK, t)
