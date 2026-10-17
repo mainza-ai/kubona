@@ -8,7 +8,7 @@ import (
 
 func TestValidateQASMAcceptsBell(t *testing.T) {
 	bell := "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[2];\ncreg c[2];\nh q[0];\ncx q[0], q[1];\nmeasure q[0] -> c[0];\nmeasure q[1] -> c[1];\n"
-	if err := validateQASM(bell); err != nil {
+	if err := ValidateQASM(bell); err != nil {
 		t.Errorf("valid Bell QASM refused: %v", err)
 	}
 }
@@ -27,7 +27,7 @@ func TestValidateQASMRefusals(t *testing.T) {
 		{"comment brackets ignored", "OPENQASM 2.0;\n// } junk {\nqreg q[1];", ""},
 	}
 	for _, tc := range cases {
-		err := validateQASM(tc.qasm)
+		err := ValidateQASM(tc.qasm)
 		if tc.want == "" {
 			if err != nil {
 				t.Errorf("%s: should pass, got %v", tc.name, err)
@@ -80,7 +80,7 @@ func TestValidateQASMSemanticsAccepts(t *testing.T) {
 		{"multiple registers", "OPENQASM 2.0;\nqreg a[1];\nqreg b[1];\ncreg c[2];\ncx a[0], b[0];\nmeasure a[0] -> c[0];\nmeasure b[0] -> c[1];\n"},
 	}
 	for _, tc := range cases {
-		if err := validateQASM(tc.qasm); err != nil {
+		if err := ValidateQASM(tc.qasm); err != nil {
 			t.Errorf("%s: valid program refused: %v", tc.name, err)
 		}
 	}
@@ -111,7 +111,7 @@ func TestValidateQASMSemanticsRefusals(t *testing.T) {
 		{"zero-size register", "OPENQASM 2.0;\nqreg q[0];\n", "non-positive size"},
 	}
 	for _, tc := range cases {
-		err := validateQASM(tc.qasm)
+		err := ValidateQASM(tc.qasm)
 		if err == nil || !strings.Contains(err.Error(), tc.want) {
 			t.Errorf("%s: got %v, want refusal containing %q", tc.name, err, tc.want)
 		}
@@ -123,7 +123,7 @@ func TestValidateQASMRefusesLiteralBackslashN(t *testing.T) {
 	// program that still carries literal backslash-n sequences is malformed
 	// text, not a program. Several fixtures made this mistake (2026-10-11).
 	qasm := "OPENQASM 2.0;\\nqreg q[1];\\ncreg c[1];\\n"
-	if err := validateQASM(qasm); err == nil {
+	if err := ValidateQASM(qasm); err == nil {
 		t.Error("literal backslash-n program must refuse")
 	} else if !strings.Contains(err.Error(), "unrecognized statement") {
 		t.Errorf("refusal must name the statement, got: %v", err)
@@ -146,7 +146,7 @@ func TestValidateQASMSemanticsStrictNumbers(t *testing.T) {
 		{"custom gate param mismatch", "OPENQASM 2.0;\nqreg q[1];\ngate g(theta) a {\nh a;\n}\ng q[0];\n", "takes 1 parameters"},
 	}
 	for _, tc := range cases {
-		err := validateQASM(tc.qasm)
+		err := ValidateQASM(tc.qasm)
 		if tc.want == "" {
 			if err != nil {
 				t.Errorf("%s: valid program refused: %v", tc.name, err)

@@ -9,7 +9,7 @@ import (
 // the file/artifact path, not inline params.
 const maxQASMBytes = 1 << 20
 
-// validateQASM is the pre-dispatch structural gate for circuit_run jobs: it
+// ValidateQASM is the pre-dispatch structural gate for circuit_run jobs: it
 // refuses malformed programs before admission, queue, ledger, or spend
 // moves. Phase 1 is structural (shape); phase 2 is semantic (meaning).
 // Neither is a compiler — the executor's parser remains the authority and
@@ -19,7 +19,7 @@ const maxQASMBytes = 1 << 20
 // resolves lives with the executor, which holds the include files; the
 // pre-check owns only what it can decide with certainty (indices, arity on
 // the core set, measure kinds, register declarations).
-func validateQASM(qasm string) error {
+func ValidateQASM(qasm string) error {
 	if strings.TrimSpace(qasm) == "" {
 		return fmt.Errorf("qasm must not be empty")
 	}

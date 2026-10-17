@@ -158,6 +158,11 @@ func (e *bridgeTaskExecutor) executeQIR(sessionID string, payload json.RawMessag
 	if p.QASM == "" {
 		return nil, fmt.Errorf("qir_llvm_lowering requires qasm")
 	}
+	// W1.9: validate before analysis — malformed QASM used to lower into
+	// plausible-but-wrong IR (fallback estimates as compilation).
+	if err := jobs.ValidateQASM(p.QASM); err != nil {
+		return nil, err
+	}
 	summary, err := e.qir.Analyze(p.QASM)
 	if err != nil {
 		return nil, fmt.Errorf("qir compilation failed: %w", err)
