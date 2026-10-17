@@ -11,6 +11,7 @@ import {
   KeyRound,
   Sparkles,
 } from 'lucide-react';
+import type { CampaignState } from '@/types';
 import {
   MolecularActiveSpaceWidget,
   QuantumCircuitQIREditorWidget,
@@ -22,8 +23,9 @@ import {
 
 type WidgetTab = 'all' | 'molecule' | 'circuit' | 'lean4' | 'shadows' | 'manifold' | 'mandate';
 
-export function GenerativeUIStudio() {
+export function GenerativeUIStudio({ campaign }: { campaign?: CampaignState | null }) {
   const [activeWidgetTab, setActiveWidgetTab] = useState<WidgetTab>('all');
+  const hasLive = campaign != null;
 
   const tabs: { id: WidgetTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'all', label: 'All Widgets', icon: Sparkles },
@@ -34,6 +36,8 @@ export function GenerativeUIStudio() {
     { id: 'manifold', label: 'Epistemic Manifold', icon: Compass },
     { id: 'mandate', label: 'AP2 Spend Card', icon: KeyRound },
   ];
+
+  const qf = campaign?.quantum_factors;
 
   return (
     <div className="space-y-6">
@@ -53,6 +57,11 @@ export function GenerativeUIStudio() {
           <p className="text-xs text-white/60 max-w-2xl">
             Interactive visual components dynamically rendered by autonomous agent collectives: 3D molecular active spaces, post-QIR circuits, Lean 4 goal trees, classical shadow tomography, and high-friction spend mandate cards.
           </p>
+          {!hasLive && (
+            <p className="text-[11px] font-code text-amber-300 border border-amber-400/40 bg-amber-950/40 rounded-xl px-3 py-2 mt-2">
+              synthetic demo — not session data. Connect a live campaign to populate these widgets with measured values.
+            </p>
+          )}
         </div>
 
         {/* Filter Pills */}
@@ -81,11 +90,18 @@ export function GenerativeUIStudio() {
       {/* Widget Showcase Grid */}
       <div className="space-y-6">
         {(activeWidgetTab === 'all' || activeWidgetTab === 'molecule') && (
-          <MolecularActiveSpaceWidget />
+          <MolecularActiveSpaceWidget
+            moleculeName={qf?.target_molecule || campaign?.target_system}
+            numElectrons={qf?.active_electrons}
+            numOrbitals={qf?.active_orbitals}
+          />
         )}
 
         {(activeWidgetTab === 'all' || activeWidgetTab === 'circuit') && (
-          <QuantumCircuitQIREditorWidget />
+          <QuantumCircuitQIREditorWidget
+            qubits={qf?.qubit_count}
+            circuitDepth={qf?.circuit_depth}
+          />
         )}
 
         {(activeWidgetTab === 'all' || activeWidgetTab === 'lean4') && (
@@ -93,7 +109,7 @@ export function GenerativeUIStudio() {
         )}
 
         {(activeWidgetTab === 'all' || activeWidgetTab === 'shadows') && (
-          <ShadowTomographyRadarWidget />
+          <ShadowTomographyRadarWidget numQubits={qf?.qubit_count} />
         )}
 
         {(activeWidgetTab === 'all' || activeWidgetTab === 'manifold') && (

@@ -2,8 +2,8 @@
 
 import React, { useState } from 'react';
 import { Fingerprint, ChevronDown, ChevronUp, ArrowDownToLine } from 'lucide-react';
-import { CampaignState, Session } from '@/types';import { createSignedSpendMandate, canonicalJobBinding } from '@/lib/mandates';
-import { verifySpendMandate } from '@/lib/api';
+import { CampaignState, Session } from '@/types';
+import { authorizeSpend } from '@/lib/authorizeSpend';
 import { ApprovalPacketCard } from '@/components/common/ApprovalPacketCard';
 import { buildApprovalPacketFromCampaign } from '@/lib/approvalPacket';
 
@@ -69,23 +69,12 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied, onDowngr
     setIsSubmitting(true);
     setMessage(null);
     try {
-      // jobHash binds the mandate to the exact program being authorized:
-      // canonical v1 binding (session + exact QASM). A mandate for one
-      // program cannot be replayed against another — the daemon enforces it.
-      const jobHash = canonicalJobBinding(session?.id || 'tenant-default', programQasm);
-      // J4: the mandate's tenant is the LAB tenant, never the session id.
-      // Session-scoped binding above is correct (replay scope); tenant
-      // attribution must resolve against the lab for admission.
-      const mandate = createSignedSpendMandate({
-        tenantId: session?.tenant_id || 'tenant-default',
-        jobHash,
-        maxBudgetUsd: estimatedCost,
-        ttlSeconds: 3600,
-      });
-      const verifyRes = await verifySpendMandate(mandate);
-      if (!verifyRes.valid) {
+      // Single shared path (authorizeSpend): canonical v1 job binding over
+      // session + exact QASM, tenant = lab tenant (never session id).
+      const res = await authorizeSpend({ session, campaign });
+      if (!res.ok) {
         setRejected(true);
-        setMessage(`Mandate REJECTED (${verifyRes.error || 'invalid'}). Halted fail-closed — nothing dispatched, nothing spent.`);
+        setMessage(`${res.reason} Halted fail-closed — nothing dispatched, nothing spent.`);
         return;
       }
       onAuthorized();

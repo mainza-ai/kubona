@@ -2,6 +2,7 @@
 
 import React, { useEffect } from 'react';
 import { X, Command } from 'lucide-react';
+import { SHORTCUTS } from '@/lib/shortcuts';
 
 interface KeyboardShortcutsModalProps {
   isOpen: boolean;
@@ -25,24 +26,24 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
     {
       category: 'Surfaces Navigation',
       shortcuts: [
-        { key: '⌘ 1', description: 'Active Research Arena' },
-        { key: '⌘ 2', description: '4D Flight Recorder' },
-        { key: '⌘ 3', description: 'Epistemic Manifold' },
-        { key: '⌘ 4', description: 'Quantum Fleet Radar' },
-        { key: '⌘ 5', description: 'Merkle Proofs & Papers' },
-        { key: '⌘ 6', description: 'Local Sovereign Mesh' },
+        { key: SHORTCUTS.livingCanvas, description: 'Active Research Arena' },
+        { key: SHORTCUTS.flightRecorder, description: '4D Flight Recorder' },
+        { key: SHORTCUTS.epistemicOrb, description: 'Epistemic Manifold' },
+        { key: SHORTCUTS.fleetRadar, description: 'Quantum Fleet Radar' },
+        { key: SHORTCUTS.livingNotebook, description: 'Merkle Proofs & Papers' },
+        { key: SHORTCUTS.cognitiveMesh, description: 'Local Sovereign Mesh' },
       ],
     },
     {
       category: 'Workspace & Windows',
       shortcuts: [
-        { key: '⌘ K', description: 'Open Command Palette / Quick Jump' },
-        { key: '⌘ J', description: 'Toggle Kubona Copilot' },
-        { key: '⌘ I', description: 'About Kubona Scientific Laboratory' },
-        { key: '⌘ N', description: 'Create New Research Campaign' },
-        { key: '⌘ .', description: 'Emergency Abort (Ring 0 Intercept)' },
-        { key: '?', description: 'Show this keyboard shortcuts guide' },
-        { key: 'Esc', description: 'Dismiss active dialog or drawer' },
+        { key: SHORTCUTS.commandPalette, description: 'Open Command Palette / Quick Jump' },
+        { key: SHORTCUTS.copilot, description: 'Toggle Kubona Copilot' },
+        { key: SHORTCUTS.about, description: 'About Kubona Scientific Laboratory' },
+        { key: SHORTCUTS.newCampaign, description: 'Create New Research Campaign' },
+        { key: SHORTCUTS.emergencyAbort, description: 'Emergency Abort (Ring 0 Intercept)' },
+        { key: SHORTCUTS.help, description: 'Show this keyboard shortcuts guide' },
+        { key: SHORTCUTS.dismiss, description: 'Dismiss active dialog or drawer' },
       ],
     },
   ];

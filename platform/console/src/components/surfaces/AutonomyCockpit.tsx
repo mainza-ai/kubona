@@ -3,10 +3,11 @@
 import React, { useState, useEffect } from 'react';
 import { KeyRound, ShieldCheck, AlertOctagon, Sparkles, ChevronDown, ChevronUp, Lock } from 'lucide-react';
 import { CampaignState, Session } from '@/types';
-import { createSignedSpendMandate } from '@/lib/mandates';
-import { verifySpendMandate, emergencyAbort, launchProposal, fetchLLMSettings, saveLLMSettings } from '@/lib/api';
+import { emergencyAbort, launchProposal, fetchLLMSettings, saveLLMSettings } from '@/lib/api';
 import { ApprovalPacketCard } from '@/components/common/ApprovalPacketCard';
 import { buildApprovalPacketFromCampaign } from '@/lib/approvalPacket';
+import { authorizeSpend } from '@/lib/authorizeSpend';
+import { fmtFixed } from '@/lib/guards';
 
 interface AutonomyCockpitProps {
   campaign?: CampaignState | null;
@@ -14,17 +15,32 @@ interface AutonomyCockpitProps {
 }
 
 export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
-  const estimatedCost = campaign?.quantum_factors?.estimated_spend_usd ?? 0.12;
-  const recommendedBackend = campaign?.quantum_factors?.recommended_backend || 'IBM Heron QPU simulator';
+  // No silent money defaults: an absent estimate disables authorization
+  // (same costKnown gate as ActionGate — never an invented ??0.12 cap).
+  const rawEstimated = campaign?.quantum_factors?.estimated_spend_usd;
+  const costKnown = typeof rawEstimated === 'number' && Number.isFinite(rawEstimated);
+  const estimatedCost = costKnown ? (rawEstimated as number) : 0;
+  const recommendedBackend = campaign?.quantum_factors?.recommended_backend || 'Local simulator';
   const targetName = campaign?.target_system || 'Target Molecular System';
+  // Same session gate as ActionGate: no bound session, no authorization.
+  const sessionBound = Boolean((session?.id ?? '').trim());
 
   const [budgetUSD, setBudgetUSD] = useState(session?.spend_limit_usd ?? 25.0);
-  // Honest zero: no session means no recorded spend, not $1.42 of it.
+  // Server spend only: refreshed from the session record, never incremented
+  // locally. A local prev+estimated increment would invent ledger spend.
   const [currentSpentUSD, setCurrentSpentUSD] = useState(session?.current_spend_usd ?? 0);
   const [sovereignAirGap, setSovereignAirGap] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCryptoDetails, setShowCryptoDetails] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+
+  // No stale budget: resync planning view whenever the session changes.
+  const sessionId = session?.id ?? '';
+  useEffect(() => {
+    setBudgetUSD(session?.spend_limit_usd ?? 25.0);
+    setCurrentSpentUSD(session?.current_spend_usd ?? 0);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
 
   // Initialize the switch from live settings — never assume engaged.
   useEffect(() => {
@@ -44,28 +60,18 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
   const handleApprovePendingRun = async () => {
     setIsSubmitting(true);
     try {
-      // 1. Generate authentic AP2 Ed25519 SpendMandate
-      const mandate = createSignedSpendMandate({
-        tenantId: session?.id || 'tenant-default',
-        jobHash: 'vqe-' + (campaign?.session_id || Date.now().toString(16)),
-        maxBudgetUsd: estimatedCost,
-        ttlSeconds: 3600,
-      });
-
-      // 2. Submit to Go backend for verification and Merkle DAG ledger recording.
-      // Hard refusal: an invalid mandate halts here. There is no simulation
-      // bypass — proceeding on a failed verification would let unverified
-      // spend claims dispatch.
-      const verifyRes = await verifySpendMandate(mandate);
-
-      if (!verifyRes.valid) {
-        setActionMessage(`Mandate REJECTED by verifier (${verifyRes.error || 'invalid'}). Action halted fail-closed — nothing dispatched, nothing spent.`);
+      // Session-bound, priced-packet-only authorization via the shared
+      // helper (same gates as ActionGate: session + priced + program).
+      // Verify-only: a valid mandate is reported as verified, never as
+      // dispatched — this surface mints no ledger spend locally.
+      const res = await authorizeSpend({ session, campaign });
+      if (!res.ok) {
+        setActionMessage(`${res.reason} Halted fail-closed — nothing dispatched, nothing spent.`);
         setTimeout(() => setActionMessage(null), 6000);
         return;
       }
-      setCurrentSpentUSD((prev) => prev + estimatedCost);
-      const sigPreview = mandate.signature_hex.slice(0, 16);
-      setActionMessage(`Mandate verified & recorded to DAG ledger (Sig: ${sigPreview}...). Dispatched to sandbox.`);
+      const sigPreview = res.mandate.signature_hex.slice(0, 16);
+      setActionMessage(`Mandate verified (Sig: ${sigPreview}...). Verified, not dispatched — no spend recorded. Refresh the session to see ledger spend.`);
       setTimeout(() => setActionMessage(null), 5000);
     } catch (err) {
       console.error('Failed to authorize run:', err);
@@ -107,19 +113,25 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
   };
 
   // Air-gap switch persists to intelligence settings (same backend control
-  // as Cognitive Mesh) — never a visual-only toggle.
+  // as Cognitive Mesh) — never a visual-only toggle. Fetch-merge-save so a
+  // toggle never wipes unrelated settings; revert + banner on failure.
   const handleToggleAirGap = async () => {
     const next = !sovereignAirGap;
+    const prev = sovereignAirGap;
     setSovereignAirGap(next);
     try {
       const current = await fetchLLMSettings();
       if (!current) throw new Error('settings unreachable');
-      const ok = await saveLLMSettings({ ...(current as Record<string, unknown>), air_gapped: next });
-      setActionMessage(ok ? `Sovereign Air-Gap ${next ? 'ENGAGED' : 'released'} (persisted).` : 'Air-gap save refused — switch reverted.');
-      if (!ok) setSovereignAirGap(!next);
-    } catch {
-      setSovereignAirGap(!next);
-      setActionMessage('Air-gap save failed — switch reverted, nothing changed.');
+      const res = await saveLLMSettings({ ...(current as Record<string, unknown>), air_gapped: next });
+      if (res.ok) {
+        setActionMessage(`Sovereign Air-Gap ${next ? 'ENGAGED' : 'released'} (persisted).`);
+      } else {
+        setSovereignAirGap(prev);
+        setActionMessage(`Air-gap save refused — switch reverted (${res.error || 'no reason'}). Nothing changed.`);
+      }
+    } catch (e) {
+      setSovereignAirGap(prev);
+      setActionMessage(`Air-gap save failed — switch reverted, nothing changed (${e instanceof Error ? e.message : String(e)}).`);
     }
     setTimeout(() => setActionMessage(null), 4000);
   };
@@ -182,21 +194,27 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
               <span>Sentinel Approval Request</span>
             </span>
             <span className="text-[11px] font-mono text-cyan-300 bg-cyan-950/80 px-2.5 py-0.5 rounded-full border border-cyan-800/40">
-              Est. Cost: ${estimatedCost.toFixed(2)}
+              {costKnown ? `Est. Cost: $${fmtFixed(rawEstimated, 2)}` : 'UNPRICED — authorization disabled'}
             </span>
           </div>
 
           <p className="text-sm text-slate-300 leading-relaxed font-sans">
             Ansatz Scout has prepared an optimized variational trial for {targetName}. Would you like to run 1,024 shots on the {recommendedBackend}?
           </p>
+          {!sessionBound && (
+            <p className="text-[11px] font-code text-amber-300">No session bound — authorization disabled until a session is attached.</p>
+          )}
+          {!costKnown && (
+            <p className="text-[11px] font-code text-amber-300">No priced estimate on this campaign — authorization disabled until priced.</p>
+          )}
 
           <ApprovalPacketCard
             packet={buildApprovalPacketFromCampaign(
-              campaign ?? null,
+              costKnown ? (campaign ?? null) : null,
               session?.id || '',
               estimatedCost,
-              budgetUSD,
-              currentSpentUSD
+              session?.spend_limit_usd ?? budgetUSD,
+              session?.current_spend_usd ?? currentSpentUSD
             )}
             isSubmitting={isSubmitting}
             onApproveOnce={handleApprovePendingRun}
@@ -222,7 +240,7 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
         <div className="w-full bg-black/50 border border-white/10 rounded-3xl p-6 backdrop-blur-xl space-y-4">
           <div className="flex justify-between items-center text-xs">
             <span className="font-semibold text-white">Planning Ceiling <span className="text-slate-500 font-normal">(local view)</span></span>
-            <span className="font-mono text-emerald-400 font-bold">${budgetUSD.toFixed(2)} Maximum</span>
+            <span className="font-mono text-emerald-400 font-bold">${fmtFixed(budgetUSD, 2)} Maximum</span>
           </div>
 
           <input 
@@ -236,9 +254,10 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
           />
 
           <div className="flex justify-between items-center text-[11px] text-slate-400 font-mono pt-1">
-            <span>Spent today: ${currentSpentUSD.toFixed(2)}</span>
-            <span>Available: ${(budgetUSD - currentSpentUSD).toFixed(2)}</span>
+            <span>Spent (server): ${fmtFixed(session?.current_spend_usd ?? currentSpentUSD, 2)}</span>
+            <span>Available: ${fmtFixed((session?.spend_limit_usd ?? budgetUSD) - (session?.current_spend_usd ?? currentSpentUSD), 2)}</span>
           </div>
+          <p className="text-[10px] font-code text-slate-500">Spend refreshes from the session/ledger only — this view never invents ledger spend.</p>
         </div>
 
         {/* Sovereign Air-Gap Toggle & Emergency Pause */}

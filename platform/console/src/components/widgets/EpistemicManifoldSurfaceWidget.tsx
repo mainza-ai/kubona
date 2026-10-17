@@ -10,11 +10,19 @@ interface EpistemicManifoldSurfaceWidgetProps {
 }
 
 export function EpistemicManifoldSurfaceWidget({
-  currentCurvatureScalar = -1.842,
-  fisherInfoNorm = 4.218,
-  entropyReduction = 0.64,
+  currentCurvatureScalar,
+  fisherInfoNorm,
+  entropyReduction,
 }: EpistemicManifoldSurfaceWidgetProps) {
   const [selectedAnchor, setSelectedAnchor] = useState<string>('Family 271');
+  // Per-field illustrative marks: defaults are template figures until the
+  // caller binds live geometry. Each unbound field carries its own mark.
+  const curv = typeof currentCurvatureScalar === 'number' && Number.isFinite(currentCurvatureScalar) ? currentCurvatureScalar : -1.842;
+  const curvLive = currentCurvatureScalar != null && Number.isFinite(currentCurvatureScalar);
+  const fisher = typeof fisherInfoNorm === 'number' && Number.isFinite(fisherInfoNorm) ? fisherInfoNorm : 4.218;
+  const fisherLive = fisherInfoNorm != null && Number.isFinite(fisherInfoNorm);
+  const entropy = typeof entropyReduction === 'number' && Number.isFinite(entropyReduction) ? entropyReduction : 0.64;
+  const entropyLive = entropyReduction != null && Number.isFinite(entropyReduction);
 
   const anchors = [
     { id: 'Family 271', name: 'Heisenberg Ferromagnet 3D', exactVal: -1.500, rho: 1.0, type: 'Ground Energy (J)' },
@@ -38,7 +46,7 @@ export function EpistemicManifoldSurfaceWidget({
         </div>
         <div className="flex items-center space-x-2">
           <span className="px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-[11px] font-mono text-amber-300">
-            R = {currentCurvatureScalar.toFixed(3)}
+            R = {curv.toFixed(3)}{!curvLive ? ' (illustrative)' : ''}
           </span>
         </div>
       </div>
@@ -46,8 +54,8 @@ export function EpistemicManifoldSurfaceWidget({
       {/* Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
         <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] space-y-1">
-          <span className="text-white/40 text-[10px]">Fisher Information Norm ||g_μν||</span>
-          <div className="font-mono text-lg font-bold text-amber-300">{fisherInfoNorm.toFixed(3)}</div>
+          <span className="text-white/40 text-[10px]">Fisher Information Norm ||g_μν|| {!fisherLive && <span className="text-amber-300 border border-amber-400/40 rounded px-1">illustrative</span>}</span>
+          <div className="font-mono text-lg font-bold text-amber-300">{fisher.toFixed(3)}</div>
           <p className="text-[10px] text-white/40">Local parameter sensitivity</p>
         </div>
         <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] space-y-1">
@@ -56,8 +64,8 @@ export function EpistemicManifoldSurfaceWidget({
           <p className="text-[10px] text-white/40">Geodesics diverge into new discovery spaces</p>
         </div>
         <div className="p-3 rounded-xl bg-white/[0.02] border border-white/[0.06] space-y-1">
-          <span className="text-white/40 text-[10px]">Expected Entropy Reduction</span>
-          <div className="font-mono text-lg font-bold text-emerald-400">ΔS = -{entropyReduction.toFixed(2)} nats</div>
+          <span className="text-white/40 text-[10px]">Expected Entropy Reduction {!entropyLive && <span className="text-amber-300 border border-amber-400/40 rounded px-1">illustrative</span>}</span>
+          <div className="font-mono text-lg font-bold text-emerald-400">ΔS = -{entropy.toFixed(2)} nats</div>
           <p className="text-[10px] text-white/40">Satisfies Fisher stopping rule</p>
         </div>
       </div>
@@ -69,7 +77,7 @@ export function EpistemicManifoldSurfaceWidget({
             <Anchor className="w-3.5 h-3.5 text-amber-400" />
             <span>Exact Analytical Anchors Pinning Belief Space</span>
           </span>
-          <span className="text-[11px] text-white/40">Zero-Quantum-Washing Pins</span>
+          <span className="text-[11px] text-white/40">Zero-Quantum-Washing Pins · reference values</span>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
           {anchors.map((a) => {
@@ -84,11 +92,11 @@ export function EpistemicManifoldSurfaceWidget({
                     : 'border-white/[0.04] bg-white/[0.01] text-white/70 hover:bg-white/[0.04]'
                 }`}
               >
-                <div className="font-bold text-[11px] text-amber-400 font-mono">{a.id}</div>
+                <div className="font-bold text-[11px] text-amber-400 font-mono">{a.id} <span className="text-[9px] text-slate-400">REF</span></div>
                 <div className="truncate text-white/90 text-xs mt-0.5">{a.name}</div>
                 <div className="font-mono text-[10px] text-white/40 mt-1 flex justify-between">
-                  <span>{a.exactVal.toFixed(3)}</span>
-                  <span className="text-emerald-400">ρ={a.rho.toFixed(1)}</span>
+                  <span>{a.exactVal.toFixed(3)} (ref)</span>
+                  <span className="text-emerald-400">ρ={a.rho.toFixed(1)} (ref)</span>
                 </div>
               </div>
             );

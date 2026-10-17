@@ -334,7 +334,10 @@ describe('ProofDagView wire cuts + compile receipt (C-1)', () => {
   it('labels planned cuts planned and measured cuts measured', () => {
     const root = render(<ProofDagView campaign={cutCampaign} />);
     const text = textOf(root.findByProps({ 'data-testid': 'proof-dag' }));
-    expect(text).toContain('planned cut (not executed)');
+    // Stronger contract: unmeasured cuts render known fields with a planned
+    // prefix, never a bare generic chip.
+    expect(text).toContain('planned: type KaHyPar QPD');
+    expect(text).toContain('(not executed)');
     expect(text).toContain('measured: 2 cuts');
     expect(text).toContain('2 fragments');
     expect(text).toContain('abcdef12');

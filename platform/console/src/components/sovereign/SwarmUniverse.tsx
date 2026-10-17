@@ -70,14 +70,25 @@ function HoverCard({
 export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null, atRest = false }: SwarmUniverseProps) {
   const qf = campaign?.quantum_factors;
   const anchor = campaign?.classical_anchor;
+  // No-campaign empty state: no invented H2 default. Without a campaign the
+  // arena states that it is empty — target, energy, and probes stay silent.
+  const hasCampaign = campaign != null;
+  const targetLabel = qf?.target_molecule || campaign?.target_system || (hasCampaign ? '—' : 'No campaign — swarm idle');
+  const energyRaw = anchor?.vqe_expectation_energy ?? anchor?.fci_exact_energy;
+  const energyText = typeof energyRaw === 'number' && Number.isFinite(energyRaw) ? energyRaw.toFixed(4) : '—';
 
-  const targetLabel = qf?.target_molecule || campaign?.target_system || 'H2';
-  const energy = anchor?.vqe_expectation_energy ?? anchor?.fci_exact_energy;
-  const energyText = energy != null && Number.isFinite(energy) ? energy.toFixed(4) : '—';
-
-  const gradVar = qf?.gradient_variance;
-  const bpRisk = (qf?.barren_plateau_risk || 'unknown').toUpperCase();
-  const criticCleared = bpRisk.includes('LOW');
+  const gradVar = typeof qf?.gradient_variance === 'number' && Number.isFinite(qf.gradient_variance) ? qf.gradient_variance : null;
+  const bpRisk = (qf?.barren_plateau_risk || (hasCampaign ? 'unknown' : '—')).toUpperCase();
+  // Critic verdict hides without live factors: no qf means no risk signal,
+  // never a default WATCHING/CLEARED.
+  const criticCleared = qf ? bpRisk.includes('LOW') : false;
+  const criticState = !qf ? '—' : criticCleared ? 'CLEARED' : 'WATCHING';
+  const epistemics = campaign?.epistemics;
+  const pCorr = typeof epistemics?.p_correlated === 'number' && Number.isFinite(epistemics.p_correlated) ? epistemics.p_correlated : null;
+  const litDrift = typeof epistemics?.literature_drift_mha === 'number' && Number.isFinite(epistemics.literature_drift_mha) ? epistemics.literature_drift_mha : null;
+  const meyerWallach = typeof qf?.meyer_wallach_q === 'number' && Number.isFinite(qf.meyer_wallach_q) ? qf.meyer_wallach_q : null;
+  const estSpend = typeof qf?.estimated_spend_usd === 'number' && Number.isFinite(qf.estimated_spend_usd) ? qf.estimated_spend_usd : null;
+  const canary = typeof qf?.clifford_fidelity === 'number' && Number.isFinite(qf.clifford_fidelity) ? qf.clifford_fidelity : null;
 
   return (
     <div
@@ -170,8 +181,8 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
           body={qf ? `Exploring ${targetLabel} under ${qf.ansatz_family} (${qf.fermion_mapping}).` : 'Awaiting campaign state.'}
           rows={[
             ['∇ variance', gradVar != null ? gradVar.toExponential(2) : '—', 'text-white'],
-            ['Entanglement Q', qf?.meyer_wallach_q != null ? qf.meyer_wallach_q.toFixed(3) : '—', 'text-white'],
-            ['BP risk', bpRisk, criticCleared ? 'text-emerald-400' : 'text-amber-400'],
+            ['Entanglement Q', meyerWallach != null ? meyerWallach.toFixed(3) : '—', 'text-white'],
+            ['BP risk', qf ? bpRisk : '—', qf ? (criticCleared ? 'text-emerald-400' : 'text-amber-400') : 'text-white'],
           ]}
         />
       </div>
@@ -182,13 +193,13 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
           <div className="bg-[#0D1017]/90 backdrop-blur-md border border-white/10 rounded-lg px-2.5 py-1 flex flex-col text-right">
             <div className="flex items-center justify-end gap-1.5">
               <span className="text-[9px] font-code text-emerald-400">
-                {campaign?.epistemics ? `ρ ${(campaign.epistemics.p_correlated ?? 0).toFixed(3)}` : 'ρ —'}
+                {pCorr != null ? `ρ ${pCorr.toFixed(3)}` : 'ρ —'}
               </span>
               <span className="text-[11px] font-bold text-white tracking-wide">Formalist</span>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
             </div>
             <div className="text-[10px] font-code text-slate-400">
-              {campaign?.epistemics?.status || 'Epistemic status'}
+              {campaign?.epistemics?.status || (hasCampaign ? 'Epistemic status' : 'No campaign')}
             </div>
           </div>
           <div className="w-9 h-9 rounded-xl bg-[#141822] border border-emerald-400/50 flex items-center justify-center shadow-xl group-hover:border-emerald-400">
@@ -202,7 +213,7 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
           rows={[
             ['Corroborated α', `${campaign?.epistemics?.alpha_corroborated ?? '—'}`],
             ['Contested β', `${campaign?.epistemics?.beta_contested ?? '—'}`],
-            ['Literature drift', campaign?.epistemics ? `${campaign.epistemics.literature_drift_mha.toFixed(2)} mHa` : '—'],
+            ['Literature drift', litDrift != null ? `${litDrift.toFixed(2)} mHa` : '—'],
           ]}
         />
       </div>
@@ -231,8 +242,8 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
           title="Hardware Transpilation"
           body={qf ? `Depth ${qf.circuit_depth} · ${qf.two_qubit_gates} two-qubit gates · ${qf.fermion_mapping}.` : 'Awaiting circuit.'}
           rows={[
-            ['Est. spend', qf ? `$${qf.estimated_spend_usd.toFixed(2)}` : '—'],
-            ['Canary fidelity', qf?.clifford_fidelity != null ? qf.clifford_fidelity.toFixed(4) : '—'],
+            ['Est. spend', estSpend != null ? `$${estSpend.toFixed(2)}` : '—'],
+            ['Canary fidelity', canary != null ? canary.toFixed(4) : '—'],
           ]}
         />
       </div>
@@ -248,20 +259,20 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
               <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
               <span className="text-[11px] font-bold text-white tracking-wide">Critic</span>
               <span className="text-[9px] font-code text-rose-400 ml-1">
-                {criticCleared ? 'CLEARED' : 'WATCHING'}
+                {criticState}
               </span>
             </div>
             <div className="text-[10px] font-code text-slate-400">
-              {qf?.clifford_fidelity != null ? `canary ${qf.clifford_fidelity.toFixed(3)}` : 'canary pending'}
+              {canary != null ? `canary ${canary.toFixed(3)}` : 'canary pending'}
             </div>
           </div>
         </div>
         <HoverCard
           accent="rose"
           title="Trap Watch"
-          body={criticCleared ? 'Barren-plateau risk low: variational path clear.' : `Barren-plateau risk ${bpRisk.toLowerCase()}: holding dispatch.`}
+          body={!qf ? 'Awaiting campaign — no barren-plateau signal.' : criticCleared ? 'Barren-plateau risk low: variational path clear.' : `Barren-plateau risk ${bpRisk.toLowerCase()}: holding dispatch.`}
           rows={[
-            ['BP risk', bpRisk, criticCleared ? 'text-emerald-400' : 'text-rose-400'],
+            ['BP risk', qf ? bpRisk : '—', qf ? (criticCleared ? 'text-emerald-400' : 'text-rose-400') : 'text-white'],
             ['∇ variance', gradVar != null ? gradVar.toExponential(2) : '—', 'text-white'],
           ]}
         />

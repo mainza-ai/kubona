@@ -136,7 +136,14 @@ export function WidgetStage({
             numOrbitals={qf?.active_orbitals}
           />
         )}
-        {widget.kind === 'mandate' && (
+        {widget.kind === 'mandate' && (() => {
+          const estRaw = qf?.estimated_spend_usd;
+          const priced = typeof estRaw === 'number' && Number.isFinite(estRaw);
+          const capFinite = typeof spendCapUsd === 'number' && Number.isFinite(spendCapUsd);
+          const spendFinite = typeof spendUsd === 'number' && Number.isFinite(spendUsd);
+          const remaining = capFinite && spendFinite ? Math.max(0, (spendCapUsd as number) - (spendUsd as number)) : null;
+          const breached = capFinite && spendFinite && (spendUsd as number) > (spendCapUsd as number);
+          return (
           <div className="rounded-2xl border border-amber-500/25 bg-black/50 p-4 space-y-3">
             <div className="text-xs text-white font-medium">
               Dispatch on {qf?.recommended_backend || 'selected backend'}
@@ -144,14 +151,18 @@ export function WidgetStage({
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div>
                 <span className="text-white/40 block text-[10px]">Est. spend</span>
-                <span className="font-code text-amber-300 font-bold">
-                  ${(qf?.estimated_spend_usd ?? 0).toFixed(2)}
-                </span>
+                {priced ? (
+                  <span className="font-code text-amber-300 font-bold">
+                    ${(estRaw as number).toFixed(2)}
+                  </span>
+                ) : (
+                  <span className="font-code text-amber-300 font-bold">UNPRICED — authorization disabled</span>
+                )}
               </div>
               <div>
                 <span className="text-white/40 block text-[10px]">Budget left</span>
-                <span className="font-code text-slate-200">
-                  ${(spendCapUsd - spendUsd).toFixed(2)}
+                <span className={`font-code ${breached ? 'text-rose-300 font-bold' : 'text-slate-200'}`}>
+                  {remaining != null ? `$${remaining.toFixed(2)}` : '—'}{breached ? ' · OVER CAP' : ''}
                 </span>
               </div>
               <div>
@@ -161,17 +172,19 @@ export function WidgetStage({
               <div>
                 <span className="text-white/40 block text-[10px]">Canary fidelity</span>
                 <span className="font-code text-slate-200">
-                  {qf?.clifford_fidelity != null ? qf.clifford_fidelity.toFixed(4) : '—'}
+                  {typeof qf?.clifford_fidelity === 'number' && Number.isFinite(qf.clifford_fidelity) ? qf.clifford_fidelity.toFixed(4) : '—'}
                 </span>
               </div>
             </div>
             {gateOpen ? (
               <button
                 onClick={onRequestGateFocus}
-                className="w-full py-2 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/40 text-amber-200 font-semibold text-xs flex items-center justify-center gap-2 transition-all"
+                disabled={!priced}
+                title={!priced ? 'Disabled: unpriced — authorization disabled' : undefined}
+                className="w-full py-2 px-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-400/40 text-amber-200 font-semibold text-xs flex items-center justify-center gap-2 transition-all disabled:opacity-40"
               >
                 <Fingerprint className="w-4 h-4" />
-                <span>Review at Action Gate</span>
+                <span>{priced ? 'Review at Action Gate' : 'UNPRICED — gate disabled'}</span>
               </button>
             ) : isMeteredBackend(qf?.recommended_backend) ? (
               <p className="text-[10px] font-code text-slate-500">
@@ -183,9 +196,15 @@ export function WidgetStage({
               </p>
             )}
           </div>
-        )}
+          );
+        })()}
         {widget.kind === 'job' && widget.jobId && (
           <JobDetailWidget jobId={widget.jobId} />
+        )}
+        {widget.kind === 'job' && !widget.jobId && (
+          <div className="rounded-2xl border border-rose-500/30 bg-rose-950/30 p-4 text-xs text-rose-200">
+            Job widget requires a job id — nothing to show. Select a completed job to inspect it.
+          </div>
         )}
       </div>
       )}

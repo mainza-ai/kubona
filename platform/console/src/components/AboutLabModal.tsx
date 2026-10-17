@@ -98,10 +98,10 @@ export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
                 <span>Cryptographic Posture</span>
               </div>
               <div className="font-mono text-xs text-slate-200 font-medium">
-                ML-KEM-768 + X25519 PQC
+                Ed25519 AP2 Mandates (wired)
               </div>
               <div className="text-[11px] text-slate-300">
-                Stateless Ed25519 AP2 Mandates
+                ML-KEM-768 hybrid encapsulation staged — not wired, no recipient registry yet
               </div>
             </div>
 
@@ -145,15 +145,16 @@ export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
             </div>
           </div>
 
-          {/* Version & Build Bar */}
+          {/* Version & Build Bar — static snapshot with as-of dates (no version
+              endpoint wired yet; do not present as live). */}
           <div className="p-3.5 rounded-xl bg-black/60 border border-white/10 flex items-center justify-between text-xs font-mono text-slate-300">
             <div>
               <span className="text-slate-300 font-medium">Core Daemon:</span>{' '}
-              <strong className="text-white font-bold">v0.2.0-ts-go</strong> (Port 8080)
+              <strong className="text-white font-bold">v0.2.0-ts-go</strong> (as of 2026-10-12)
             </div>
             <div>
               <span className="text-slate-300 font-medium">Bridge:</span>{' '}
-              <strong className="text-cyan-300 font-bold">gRPC</strong> (Port 50051)
+              <strong className="text-cyan-300 font-bold">gRPC</strong> (as of 2026-10-12)
             </div>
             <div>
               <span className="text-slate-300 font-medium">License:</span>{' '}
