@@ -1,8 +1,16 @@
 """Async persistent job farm — production job/session abstraction (G5)."""
 
+import threading
 import time
 
-from kubona.jobs import JobRunner, JobStore
+import pytest
+
+from kubona.jobs import (
+    InvalidTransitionError,
+    JobRunner,
+    JobStore,
+    RunnerBusyError,
+)
 
 
 BELL = "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];"
@@ -72,6 +80,70 @@ def test_cancel_queued_or_running_job():
     assert out["ok"] is False
 
     release.set()  # let the worker finish (it will not overwrite 'cancelled' terminal)
+    assert release.wait(timeout=5)
+    time.sleep(0.2)  # worker observed the fence and discarded its result
+    assert runner.store.get(job.job_id).status == "cancelled", \
+        "cancelled status must survive the worker finishing (no completed-over-cancelled)"
+
+
+def test_transition_graph_terminal_immutable(tmp_path):
+    """W0.11: any->any is gone — terminal states never resurrect, unknown
+    fields never write, ghosts return None."""
+    s = JobStore(path=str(tmp_path / "g.jsonl"))
+    j = s.create(provider="local-simulator", session_id="s")
+    assert s.transition("ghost", "running") is None
+    s.transition(j.job_id, "running")
+    s.transition(j.job_id, "completed", result={"ok": True})
+    for bad in ("queued", "running", "failed", "cancelled"):
+        with pytest.raises(InvalidTransitionError):
+            s.transition(j.job_id, bad)
+    with pytest.raises(InvalidTransitionError):
+        s.transition(j.job_id, "completed", meta={"injected": True})
+    assert s.get(j.job_id).status == "completed"
+    assert s.get(j.job_id).job_id == j.job_id
+
+
+def test_enqueue_ghost_refuses_before_ledger(tmp_path):
+    """W0.11: enqueueing an unknown id refuses with no ledger record."""
+    seen = []
+    runner = JobRunner(store=JobStore(path=str(tmp_path / "g.jsonl")),
+                       ledger=type("L", (), {"append": lambda self, k, p: seen.append(k)})())
+    with pytest.raises(KeyError):
+        runner.enqueue("ghost", lambda: {"ok": True})
+    assert seen == [], f"refused enqueue must leave no ledger trace, got {seen}"
+
+
+def test_wait_tristate(tmp_path):
+    """W0.11: unknown raises KeyError, timeout raises TimeoutError naming the
+    status, terminal returns the job."""
+    runner = JobRunner(store=JobStore(path=str(tmp_path / "g.jsonl")))
+    with pytest.raises(KeyError):
+        runner.wait("ghost", timeout_s=0.1)
+    gate = threading.Event()
+    job = runner.store.create(provider="x", session_id="s")
+    runner.enqueue(job.job_id, lambda: (gate.wait(timeout=5), {"ok": True})[1])
+    with pytest.raises(TimeoutError, match="running|queued"):
+        runner.wait(job.job_id, timeout_s=0.2, poll_s=0.02)
+    gate.set()
+    done = runner.wait(job.job_id, timeout_s=5.0)
+    assert done.status == "completed"
+
+
+def test_farm_backpressure_explicit(tmp_path):
+    """W0.11: a full farm refuses explicitly instead of silently queueing."""
+    runner = JobRunner(store=JobStore(path=str(tmp_path / "g.jsonl")), max_workers=1)
+    gate = threading.Event()
+    j1 = runner.store.create(provider="x", session_id="s")
+    runner.enqueue(j1.job_id, lambda: (gate.wait(timeout=5), {"ok": True})[1])
+    assert runner.store.get(j1.job_id).status in ("queued", "running")
+    j2 = runner.store.create(provider="x", session_id="s")
+    with pytest.raises(RunnerBusyError):
+        runner.enqueue(j2.job_id, lambda: {"ok": True})
+    gate.set()
+    assert runner.wait(j1.job_id, timeout_s=5.0).status == "completed"
+    # Slot freed: enqueue works again.
+    runner.enqueue(j2.job_id, lambda: {"ok": True})
+    assert runner.wait(j2.job_id, timeout_s=5.0).status == "completed"
 def test_cancel_job_scoped_via_policy(tmp_path):
     """cancel_job requires execution:override; a submit-only agent is denied."""
     from kubona.mcp.auth import AuthError, Principal
