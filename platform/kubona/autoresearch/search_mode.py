@@ -25,8 +25,21 @@ def run_search_mode(harness: Harness, *, budget_steps: int = 60, seed: int = 7,
 
     entry_id = None
     if library is not None:
+        if not best.ledger_ref:
+            # No trial ledger ref (e.g. orchestrator ran without a ledger):
+            # refusing a "none"-phantom archive is fail-closed, not a skip.
+            return {
+                "harness": harness.name,
+                "baseline": {"artifact": baseline_artifact, "score": baseline_score} if baseline_artifact is not None else None,
+                "best": best.to_dict(),
+                "beat_baseline": baseline_score is not None and best.metric > baseline_score,
+                "library_entry_id": None,
+                "archive_refused": "best trial carries no ledger ref — refusing phantom archive",
+                "steps": len(history),
+            }
         entry = library.add(harness=harness.name, artifact=best.artifact, metric=best.metric,
-                            cost_usd=best.cost_usd, ledger_ref=best.ledger_ref or "none",
+                            cost_usd=best.cost_usd, ledger_ref=best.ledger_ref,
+                            validated=True, validation_proof=best.ledger_ref,
                             baseline_beaten=baseline_score is not None and best.metric > baseline_score)
         entry_id = entry.entry_id
 

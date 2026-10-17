@@ -88,14 +88,23 @@ class EpistemicKnowledgeGraph:
 
         return results
 
-    def find_negative_certificates(self, topic_keyword: str) -> List[KnowledgeEntity]:
-        """Retrieves verified negative certificates and refutations matching keyword."""
+    def search_substring(self, topic_keyword: str) -> List[KnowledgeEntity]:
+        """Lexical substring retrieval over negative certificates (W2.8,
+        honest name): `topic_keyword` matched case-insensitively against
+        certificate names and properties. Substring search wearing no
+        semantic costume — there is no vector store here, so this method
+        does not claim recall semantics."""
         matches = []
         for entity in self._entities.values():
             if entity.entity_type == "negative_certificate":
                 if topic_keyword.lower() in entity.name.lower() or topic_keyword.lower() in str(entity.properties).lower():
                     matches.append(entity)
         return matches
+
+    def find_negative_certificates(self, topic_keyword: str) -> List[KnowledgeEntity]:
+        """Backward-compatible alias for `search_substring` (lexical, not
+        semantic — see above)."""
+        return self.search_substring(topic_keyword)
 
 
 @dataclass

@@ -1,14 +1,29 @@
-"""Wire the four servers' tools into the gateway registry (shared by tests)."""
+"""Wire the five servers' tools into the gateway registry (shared by tests).
+
+Single mount table (W2.14): `kubona.run.make_gateway` (production auth) and
+every test build through this builder, so the tool surface cannot drift
+between the dev/test gateway and the production one. `compile_circuit` is
+mounted here — it is a real compiler-server tool, not an optional extra.
+"""
 
 from __future__ import annotations
+
+from typing import Any
 
 from kubona.mcp.gateway import KubonaGateway
 
 from . import compiler, control, cost, execution, provenance
 
 
-def build_gateway(*, require_auth: bool = True) -> KubonaGateway:
-    gw = KubonaGateway(require_auth=require_auth)
+def build_gateway(*, require_auth: bool = True, auth: Any | None = None,
+                  audit_path: str | None = None, ledger: Any | None = None) -> KubonaGateway:
+    """Build a gateway with every MCP server mounted.
+
+    `auth=None` keeps the gateway default (dev provider, local/CI smoke
+    tests); production passes its OAuth2 issuer via `make_gateway`.
+    """
+    gw = KubonaGateway(auth=auth, require_auth=require_auth,
+                       audit_path=audit_path, ledger=ledger)
     gw.mount("control", {
         "register_loop": control.register_loop,
         "step_loop": control.step_loop,
@@ -19,7 +34,8 @@ def build_gateway(*, require_auth: bool = True) -> KubonaGateway:
         "kill_loop": control.kill_loop,
     })
     gw.mount("compiler", {"transpile_circuit": compiler.transpile_circuit,
-                          "lower_circuit": compiler.lower_circuit})
+                          "lower_circuit": compiler.lower_circuit,
+                          "compile_circuit": compiler.compile_circuit})
     gw.mount("execution", {
         "submit_job": execution.submit_job,
         "get_job_status": execution.get_job_status,

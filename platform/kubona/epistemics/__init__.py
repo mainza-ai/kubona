@@ -5,6 +5,7 @@ from .continuum import (
     EpistemicContinuum,
     EpistemicLevel,
     NegativeCertificate,
+    RefutationType,
 )
 from .curvature import (
     CurvatureMetrics,
@@ -39,6 +40,7 @@ __all__ = [
     "GeodesicTrajectory",
     "ManifoldPoint",
     "NegativeCertificate",
+    "RefutationType",
     "WavefunctionState",
 ]
 

@@ -50,7 +50,8 @@ def test_executor_hardware_undeclared_refuses_without_spend(monkeypatch):
         raise AssertionError("must not attempt hardware execution undeclared")
 
     monkeypatch.setattr(mod, "_execute_ibm_hardware", _boom)
-    out = mod.execute_qasm(BELL, shots=64, requested_backend="ibm_brisbane")
+    # W1.4: explicit seed on every call (no unseeded sampling).
+    out = mod.execute_qasm(BELL, shots=64, requested_backend="ibm_brisbane", seed=7)
     assert out["success"] is False
     assert "routing refused" in out["error_message"]
     assert "caller_jurisdictions" in out["error_message"]
@@ -63,7 +64,7 @@ def test_executor_hardware_ineligible_refuses_without_simulation(monkeypatch):
     monkeypatch.setattr(mod, "_execute_ibm_hardware",
                         lambda *a, **k: called.append(1))
     out = mod.execute_qasm(BELL, shots=64, requested_backend="ibm_brisbane",
-                           caller_jurisdictions=["AQ"])
+                           caller_jurisdictions=["AQ"], seed=7)
     assert out["success"] is False
     assert "routing refused" in out["error_message"]
     assert "jurisdiction mismatch" in out["error_message"]
@@ -74,12 +75,12 @@ def test_executor_hardware_ineligible_refuses_without_simulation(monkeypatch):
 def test_executor_hardware_eligible_proceeds_past_gate():
     mod = _load_executor()
     out = mod.execute_qasm(BELL, shots=64, requested_backend="ibm_brisbane",
-                           caller_jurisdictions=["US"])
+                           caller_jurisdictions=["US"], seed=7)
     assert "routing refused" not in out.get("error_message", "")
     assert "routing refused" not in out.get("degradation_reason", "")
 
 
 def test_executor_simulator_path_untouched_by_routing():
     mod = _load_executor()
-    out = mod.execute_qasm(BELL, shots=64, requested_backend="aer_simulator")
+    out = mod.execute_qasm(BELL, shots=64, requested_backend="aer_simulator", seed=7)
     assert out["success"] is True, out

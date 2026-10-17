@@ -8,6 +8,7 @@ the watchdog raises a BarrenPlateauException or pauses execution to halt wasted 
 from __future__ import annotations
 
 import math
+import uuid
 from typing import List
 
 
@@ -54,7 +55,7 @@ class BarrenPlateauWatchdog:
 
 import numpy as np
 from typing import Callable, Dict, Optional, Tuple, Any
-from kubona.epistemics.continuum import NegativeCertificate
+from kubona.epistemics.continuum import NegativeCertificate, RefutationType
 
 
 class McCleanCerezoBarrenPlateauDetector:
@@ -139,15 +140,18 @@ class McCleanCerezoBarrenPlateauDetector:
         ansatz_pattern: str = "HardwareEfficient_DeepAnsatz",
         hypothesis_hash: str = "0" * 64,
         target_system: str = "QuantumSystem",
+        hypothesis_id: str = "",
     ) -> Tuple[bool, Optional[NegativeCertificate], Dict[str, Any]]:
         """Evaluates gradient variance and emits a NegativeCertificate if trapped."""
         metrics = self.compute_gradient_variance(cost_fn, base_parameters)
         if metrics["is_barren_plateau"]:
-            cert_id = f"cert_bp_{hypothesis_hash[:12]}_{ansatz_pattern[:16]}"
+            # uuid cert id (re-issuing never overwrites) + hypothesis ref.
+            cert_id = f"cert_bp_{uuid.uuid4().hex[:12]}"
             cert = NegativeCertificate(
                 certificate_id=cert_id,
+                hypothesis_id=hypothesis_id,
                 hypothesis_hash=hypothesis_hash,
-                refutation_type="BARREN_PLATEAU",
+                refutation_type=RefutationType.BARREN_PLATEAU,
                 evidence_summary=(
                     f"Vanishing gradient variance ({metrics['mean_variance']:.2e} < {metrics['effective_threshold']:.2e}) "
                     f"under {metrics['num_qubits']} qubits indicates McClean-Cerezo barren plateau."

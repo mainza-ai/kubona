@@ -13,6 +13,7 @@ KUBONA_STATE_DIR, KUBONA_LEDGER, KUBONA_SIGNING_KEY (optional PEM).
 
 from __future__ import annotations
 
+import os
 import sys
 from kubona import config
 from kubona.mcp.gateway import KubonaGateway
@@ -45,57 +46,42 @@ def make_gateway(*, require_auth: bool = True,
                  production: bool | None = None) -> KubonaGateway:
     """A gateway authenticated with the real OAuth2 issuer (not the dev shim).
 
+    Single builder (W2.14): the mount table lives in
+    `kubona.mcp.servers._mount.build_gateway` — this function only supplies
+    the production auth + persistent audit export, so the production tool
+    surface cannot drift from the tested one.
+
     `require_auth=False` is for local/CI-only smoke tests; production always
     requires auth.
     """
     use_prod = (config.is_production() if production is None else production)
     auth = build_auth()
     # persistent audit export (JSONL under the state root) so ops can review every call
-    gw = KubonaGateway(auth=auth, require_auth=require_auth,
-                       audit_path=str(config.state_path("audit.jsonl")))
-    # NOTE: build_production_gateway must mount the same tool servers as build_gateway
-    # re-mount by reusing the module-level builder then swapping auth is not clean,
-    # so we rebuild with the production auth:
-    from kubona.mcp.servers import compiler, control, cost, execution, provenance
-
-    gw.mount("control", {"register_loop": control.register_loop, "step_loop": control.step_loop,
-                         "list_loops": control.list_loops, "loop_status": control.loop_status,
-                         "pause_loop": control.pause_loop, "resume_loop": control.resume_loop,
-                         "kill_loop": control.kill_loop})
-    gw.mount("compiler", {"transpile_circuit": compiler.transpile_circuit,
-                          "lower_circuit": compiler.lower_circuit})
-    gw.mount("execution", {"submit_job": execution.submit_job,
-                           "get_job_status": execution.get_job_status,
-                           "get_result": execution.get_result,
-                           "run_zne_job": execution.run_zne_job,
-                           "cancel_job": execution.cancel_job,
-                           "session_status": execution.session_status,
-                           "close_session": execution.close_session,
-                           "list_provider_registry": execution.list_provider_registry})
-    gw.mount("cost", {"create_session": cost.create_session, "estimate_cost": cost.estimate_cost,
-                      "request_approval": cost.request_approval, "hold_approval": cost.hold_approval,
-                      "approve_approval": cost.approve_approval, "reject_approval": cost.reject_approval,
-                      "session_burn_rate": cost.session_burn_rate, "quote_payment": cost.quote_payment,
-                      "verify_payment": cost.verify_payment})
-    gw.mount("provenance", {"write_record": provenance.write_record,
-                            "query_records": provenance.query_records})
-    return gw
+    return build_gateway(
+        require_auth=require_auth if not use_prod else True,
+        auth=auth,
+        audit_path=str(config.state_path("audit.jsonl")),
+    )
 
 
 def serve(*, host: str = "127.0.0.1", port: int | None = None) -> None:
-    """Boot the console REST API (backed by the production-authorized gateway)."""
+    """Boot the console REST API (backed by the production-authorized gateway).
+
+    `host`/`port` are threaded into the server (W2.14); `port=None` keeps
+    the KUBONA_CONSOLE_PORT env default.
+    """
     from kubona.logging import setup_logging
     setup_logging(log_dir=None)
     if config.is_production() and config.console_token() is None:
         raise SystemExit(
             "FAIL-CLOSED: KUBONA_ENV=production requires KUBONA_CONSOLE_TOKEN to be set."
         )
-    from kubona.console_api import app, main
+    from kubona.console_api import main
 
-    main()  # console_api.main() runs uvicorn on KUBONA_CONSOLE_PORT
+    main(host=host, port=port)  # console_api.main() runs uvicorn on host/port
 
 
-def serve_gateway(*, host: str = "127.0.0.1") -> None:
+def serve_gateway(*, host: str = "127.0.0.1", port: int | None = None) -> None:
     """Boot the HTTP gateway transport (streamable-HTTP MCP surface, G8).
 
     In production this is the network-facing entry point: OAuth2 bearer +
@@ -108,8 +94,9 @@ def serve_gateway(*, host: str = "127.0.0.1") -> None:
 
     gateway = make_gateway(require_auth=True)
     app = make_http_gateway(gateway, secure_session=None)  # TLS/KEMTLS terminates the wire
-    port = int(os.environ.get("KUBONA_GATEWAY_PORT", "8123"))
-    Server(Config(app, host=host, port=port, log_level="warning")).run()
+    # W2.14: explicit `port=` wins; otherwise the env default (never ignored).
+    resolved_port = port if port is not None else int(os.environ.get("KUBONA_GATEWAY_PORT", "8123"))
+    Server(Config(app, host=host, port=resolved_port, log_level="warning")).run()
 
 
 def _cli(argv: list[str]) -> int:

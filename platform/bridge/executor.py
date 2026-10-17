@@ -94,6 +94,12 @@ def calculate_meyer_wallach(statevector: np.ndarray) -> float:
 MAX_STATEVECTOR_QUBITS = 28  # Safe 4GB RAM ceiling (2^28 * 16 bytes = 4.29 GB)
 MAX_AER_SIM_QUBITS = 30      # 16GB Aer density matrix / MPS simulation limit
 
+# --- Shared consts (single source; no inline magic) ---
+#: Cap for QPD sampling overhead kappa=4^K (v1 heuristic). Above this the
+#: cut REFUSES instead of silently promising a 4^K blowup. 4^6=4096.
+MAX_SAMPLING_OVERHEAD_KAPPA_V1 = 4096.0
+MAX_CUTS_V1 = 6
+
 
 def check_circuit_memory_bounds(qc: QuantumCircuit) -> Dict[str, Any]:
     """
@@ -168,7 +174,7 @@ def _route_hardware(provider_name: str, caller_jurisdictions: list | None,
     return None
 
 
-def _execute_ibm_hardware(qasm: str, shots: int, requested_backend: str) -> Dict[str, Any] | None:
+def _execute_ibm_hardware(qasm: str, shots: int, requested_backend: str, seed: int | None = None) -> Dict[str, Any] | None:
     """Real IBM Quantum hardware via the provider plugin, or None to fall
     through to labeled simulation when credentials/SDK are absent.
 
@@ -197,7 +203,7 @@ def _execute_ibm_hardware(qasm: str, shots: int, requested_backend: str) -> Dict
         }
     try:
         plugin = QiskitProvider(load_provider("ibm-qiskit"), backend_name=requested_backend)
-        res = plugin.submit(parse_native(qasm), shots, seed=7)
+        res = plugin.submit(parse_native(qasm), shots, seed=seed if seed is not None else 7)
     except Exception as e:
         return {
             "success": False,
@@ -239,6 +245,7 @@ def execute_qasm(
     caller_jurisdictions: list | None = None,
     caller_export_class: str = "any",
     export_reviewed: bool = False,
+    seed: int | None = None,
 ) -> Dict[str, Any]:
     """
     Executes an OpenQASM circuit with transparent backend resolution,
@@ -248,8 +255,33 @@ def execute_qasm(
     route() ELIGIBLE verdict against the provider capability. A refusal
     returns immediately (success False) — it never degrades into simulation,
     which would make the gate theater.
+
+    Production bar (W1.4):
+    - seed is REQUIRED (explicit int, no unseeded np.random): sampling
+      paths (Aer seed_simulator + statevector default_rng) consume it and
+      echo it; a missing/invalid seed REFUSES instead of drawing silently.
+    - Pre-flight-partition and no-counts paths REFUSE (success=False,
+      counts={}, non-empty error) — never synthetic counts behind
+      success=True.
+    - Fallback returns success=False (error iff success is false: success
+      True always carries error_message="", success False always carries
+      a non-empty error_message).
     """
     t0 = time.time()
+    if seed is None or isinstance(seed, bool) or not isinstance(seed, int):
+        return {
+            "success": False,
+            "resolved_backend": "none",
+            "degradation_level": 0,
+            "degradation_reason": "seed is required: pass an explicit int seed (no unseeded sampling)",
+            "counts": {},
+            "statevector_real": [],
+            "statevector_imag": [],
+            "meyer_wallach": 0.0,
+            "seed": seed,
+            "execution_time_ms": (time.time() - t0) * 1000.0,
+            "error_message": f"seed is required: got {seed!r} (pass an explicit int seed)",
+        }
     if not HAS_QISKIT:
         return {
             "success": False,
@@ -260,6 +292,7 @@ def execute_qasm(
             "statevector_real": [],
             "statevector_imag": [],
             "meyer_wallach": 0.0,
+            "seed": seed,
             "execution_time_ms": (time.time() - t0) * 1000.0,
             "error_message": "Qiskit unavailable",
         }
@@ -276,8 +309,9 @@ def execute_qasm(
             "statevector_real": [],
             "statevector_imag": [],
             "meyer_wallach": 0.0,
+            "seed": seed,
             "execution_time_ms": (time.time() - t0) * 1000.0,
-            "error_message": str(e),
+            "error_message": str(e) or "QASM parse error",
         }
 
     # Pre-flight RAM safety check
@@ -287,25 +321,59 @@ def execute_qasm(
             if allow_fallback:
                 try:
                     cut_res = cut_circuit_qasm(qasm, max_subcircuit_qubits=20)
+                    if not cut_res.get("success"):
+                        return {
+                            "success": False,
+                            "resolved_backend": "none",
+                            "degradation_level": 0,
+                            "degradation_reason": (
+                                f"RAM pre-flight bounds exceeded and auto-cutting refused: "
+                                f"{cut_res.get('error_message', 'cut failed')}"
+                            ),
+                            "counts": {},
+                            "statevector_real": [],
+                            "statevector_imag": [],
+                            "meyer_wallach": 0.0,
+                            "seed": seed,
+                            "partition_fragments": cut_res.get("fragments", []),
+                            "total_cuts": cut_res.get("total_cuts", 0),
+                            "sampling_overhead_kappa": cut_res.get("sampling_overhead_kappa", 1.0),
+                            "execution_time_ms": (time.time() - t0) * 1000.0,
+                            "error_message": (
+                                f"PREFLIGHT_RAM_EXCEEDED: Circuit requires {bounds['required_mb']:.1f} MB RAM "
+                                f"({qc.num_qubits} qubits), exceeding safe host simulation limit of 28 qubits (4096 MB). "
+                                f"Auto-cutting refused: {cut_res.get('error_message', 'cut failed')}"
+                            ),
+                        }
+                    # Fail closed: a partition plan is NOT counts. Returning
+                    # synthetic all-zero counts behind success=True (old code)
+                    # let callers mistake a RAM refusal for a measurement.
                     return {
-                        "success": True,
-                        "resolved_backend": "circuit-partition: pennylane-wire-cutting",
-                        "degradation_level": 4,
+                        "success": False,
+                        "resolved_backend": "none",
+                        "degradation_level": 0,
                         "degradation_reason": (
                             f"Pre-flight RAM limit exceeded ({bounds['num_qubits']} qubits, "
-                            f"{bounds['required_mb']:.1f} MB RAM required). Automatically partitioned "
-                            f"into {len(cut_res['fragments'])} subcircuits with {cut_res['total_cuts']} cuts "
-                            f"(sampling overhead kappa={cut_res['sampling_overhead_kappa']:.1f})."
+                            f"{bounds['required_mb']:.1f} MB RAM required). Partition plan "
+                            f"computed ({len(cut_res.get('fragments', []))} fragments, "
+                            f"{cut_res.get('total_cuts', 0)} cuts, kappa="
+                            f"{cut_res.get('sampling_overhead_kappa', 1.0):.1f}) but execution "
+                            f"refused: no counts fabricated."
                         ),
-                        "counts": {("0" * min(16, qc.num_qubits)): shots},
+                        "counts": {},
                         "statevector_real": [],
                         "statevector_imag": [],
                         "meyer_wallach": 0.0,
+                        "seed": seed,
                         "partition_fragments": cut_res.get("fragments", []),
                         "total_cuts": cut_res.get("total_cuts", 0),
                         "sampling_overhead_kappa": cut_res.get("sampling_overhead_kappa", 1.0),
                         "execution_time_ms": (time.time() - t0) * 1000.0,
-                        "error_message": "",
+                        "error_message": (
+                            f"PREFLIGHT_RAM_EXCEEDED: Circuit requires {bounds['required_mb']:.1f} MB RAM "
+                            f"({qc.num_qubits} qubits), exceeding safe host simulation limit of 28 qubits (4096 MB). "
+                            f"Partition plan available ({cut_res.get('total_cuts', 0)} cuts) — execute fragments explicitly."
+                        ),
                     }
                 except Exception as cut_err:
                     return {
@@ -317,6 +385,7 @@ def execute_qasm(
                         "statevector_real": [],
                         "statevector_imag": [],
                         "meyer_wallach": 0.0,
+                        "seed": seed,
                         "execution_time_ms": (time.time() - t0) * 1000.0,
                         "error_message": (
                             f"PREFLIGHT_RAM_EXCEEDED: Circuit requires {bounds['required_mb']:.1f} MB RAM "
@@ -333,6 +402,7 @@ def execute_qasm(
                     "statevector_real": [],
                     "statevector_imag": [],
                     "meyer_wallach": 0.0,
+                    "seed": seed,
                     "execution_time_ms": (time.time() - t0) * 1000.0,
                     "error_message": (
                         f"PREFLIGHT_RAM_EXCEEDED: Circuit requires {bounds['required_mb']:.1f} MB RAM "
@@ -356,10 +426,12 @@ def execute_qasm(
                 "ibm-qiskit", caller_jurisdictions,
                 caller_export_class, export_reviewed, t0)
             if routed is not None:
+                routed["seed"] = seed
                 return routed
-            hw = _execute_ibm_hardware(qasm, shots, requested_backend)
+            hw = _execute_ibm_hardware(qasm, shots, requested_backend, seed=seed)
             if hw is not None:
                 hw["execution_time_ms"] = (time.time() - t0) * 1000.0
+                hw["seed"] = seed
                 return hw
             # No credential/SDK: fall through to labeled simulation below.
             degradation_reason = (
@@ -377,7 +449,7 @@ def execute_qasm(
             qc_meas = qc.copy()
             if not any(instr.operation.name == "measure" for instr in qc_meas.data):
                 qc_meas.measure_all()
-            job = backend.run(qc_meas, shots=shots)
+            job = backend.run(qc_meas, shots=shots, seed_simulator=seed)
             result = job.result()
             counts = result.get_counts()
         else:
@@ -398,17 +470,43 @@ def execute_qasm(
             degradation_reason += f" (Statevector omitted: required {bounds['required_mb']:.1f} MB exceeds 28-qubit ceiling)"
         
         # If counts weren't produced by Aer, sample from statevector probabilities
+        # with the EXPLICIT seed (default_rng, never global np.random).
         if not counts and len(sv) > 0:
+            rng = np.random.default_rng(seed)
             probs = np.abs(sv) ** 2
+            # Renormalize defensively (floating-point drift must not crash choice).
+            probs = probs / max(1e-300, float(np.sum(probs)))
             n_qubits = qc.num_qubits
-            samples = np.random.choice(len(probs), size=shots, p=probs)
+            samples = rng.choice(len(probs), size=shots, p=probs)
             counts_dict = {}
             for s in samples:
-                bitstring = format(s, f"0{n_qubits}b")
+                bitstring = format(int(s), f"0{n_qubits}b")
                 counts_dict[bitstring] = counts_dict.get(bitstring, 0) + 1
             counts = counts_dict
         elif not counts:
-            counts = {("0" * min(16, qc.num_qubits)): shots}
+            # Fail closed: no Aer counts and no statevector to sample —
+            # refusing instead of fabricating all-zero counts behind success.
+            return {
+                "success": False,
+                "resolved_backend": "none",
+                "degradation_level": 0,
+                "degradation_reason": (
+                    "No counts produced (backend did not return counts and "
+                    "no statevector available for seeded sampling): refusing "
+                    "synthetic counts"
+                ),
+                "counts": {},
+                "statevector_real": [],
+                "statevector_imag": [],
+                "meyer_wallach": 0.0,
+                "seed": seed,
+                "execution_time_ms": (time.time() - t0) * 1000.0,
+                "error_message": (
+                    "NO_COUNTS_NO_STATEVECTOR: backend returned no counts "
+                    "and statevector sampling was unavailable (out of bounds "
+                    "or unitary extraction failed) — refusing synthetic counts"
+                ),
+            }
 
         return {
             "success": True,
@@ -419,23 +517,31 @@ def execute_qasm(
             "statevector_real": [float(np.real(x)) for x in sv],
             "statevector_imag": [float(np.imag(x)) for x in sv],
             "meyer_wallach": mw_score,
+            "seed": seed,
             "execution_time_ms": (time.time() - t0) * 1000.0,
             "error_message": "",
         }
 
     except Exception as e:
+        # Fail closed in BOTH branches: a fallback that returns synthetic
+        # counts with success=True (old code) lets callers mistake an
+        # exception for a measurement, and success=True with a non-empty
+        # error_message breaks the error-iff-failure invariant. Empty
+        # error_message with success=False is likewise impossible.
+        err = str(e) or f"{type(e).__name__}: execution failed"
         if allow_fallback:
             return {
-                "success": True,
-                "resolved_backend": "classical-fallback: numpy-statevector",
-                "degradation_level": 4,
-                "degradation_reason": f"Honest degradation fallback triggered: {e}",
-                "counts": {"0": shots},
-                "statevector_real": [1.0],
-                "statevector_imag": [0.0],
+                "success": False,
+                "resolved_backend": "none",
+                "degradation_level": 0,
+                "degradation_reason": f"Execution failed (fallback refused to fabricate): {e}",
+                "counts": {},
+                "statevector_real": [],
+                "statevector_imag": [],
                 "meyer_wallach": 0.0,
+                "seed": seed,
                 "execution_time_ms": (time.time() - t0) * 1000.0,
-                "error_message": str(e),
+                "error_message": err,
             }
         else:
             return {
@@ -447,8 +553,9 @@ def execute_qasm(
                 "statevector_real": [],
                 "statevector_imag": [],
                 "meyer_wallach": 0.0,
+                "seed": seed,
                 "execution_time_ms": (time.time() - t0) * 1000.0,
-                "error_message": str(e),
+                "error_message": err,
             }
 
 
@@ -458,9 +565,18 @@ def cut_circuit_qasm(qasm: str, max_subcircuit_qubits: int = 2) -> Dict[str, Any
     and Quasi-Probability Decomposition (QPD) wire-cutting principles (PennyLane qcut / Peng et al.).
     Guarantees that each subcircuit fragment preserves the actual operations of the user circuit
     with explicit Pauli basis measurement and state-preparation expansion channels.
+
+    Production bar (W1.4):
+    - kappa=4^K is CAPPED at MAX_SAMPLING_OVERHEAD_KAPPA_V1: above the cap
+      the cut REFUSES (success=False) instead of silently promising an
+      exponential sampling blowup.
+    - >2q gates spanning partitions REFUSE (recorded in dropped_gates with
+      a non-empty error) — never silently dropped. Callers must remap the
+      circuit or widen the partition instead of trusting incomplete
+      fragments.
     """
     if not HAS_QISKIT:
-        return {"success": False, "fragments": [], "total_cuts": 0, "sampling_overhead_kappa": 1.0, "error_message": "Qiskit unavailable"}
+        return {"success": False, "fragments": [], "total_cuts": 0, "sampling_overhead_kappa": 1.0, "dropped_gates": [], "error_message": "Qiskit unavailable"}
 
     try:
         qc = circuit_from_qasm(qasm)
@@ -471,6 +587,8 @@ def cut_circuit_qasm(qasm: str, max_subcircuit_qubits: int = 2) -> Dict[str, Any
                 "fragments": [{"fragment_id": 1, "qasm": qasm, "cut_qubits": [], "qpd_channels": []}],
                 "total_cuts": 0,
                 "sampling_overhead_kappa": 1.0,
+                "qpd_channels": [],
+                "dropped_gates": [],
                 "error_message": "",
             }
 
@@ -489,6 +607,7 @@ def cut_circuit_qasm(qasm: str, max_subcircuit_qubits: int = 2) -> Dict[str, Any
         subcircuits = [QuantumCircuit(len(p), len(p)) for p in partitions]
         cut_qubits_per_part = [set() for _ in partitions]
         cut_channels = []
+        dropped_gates: list[dict] = []
         total_cuts = 0
 
         # Iterate over gates in the original circuit
@@ -540,14 +659,54 @@ def cut_circuit_qasm(qasm: str, max_subcircuit_qubits: int = 2) -> Dict[str, Any
                         "channel_overhead": 4.0,
                     })
             else:
-                # Multi-qubit gates
-                part_idx, local_q = qubit_to_part[qargs[0]]
-                local_qubits = [qubit_to_part[q][1] for q in qargs if qubit_to_part[q][0] == part_idx]
-                if local_qubits:
-                    subcircuits[part_idx].append(op, local_qubits, [])
+                # Multi-qubit (>2q) gates: a cross-partition control cannot be
+                # wire-cut by the 2q QPD channel above. Silently keeping only
+                # the local qubits (old code) ships incomplete fragments as
+                # success. Record every spanning >2q gate and REFUSE.
+                parts = {qubit_to_part[q][0] for q in qargs}
+                if len(parts) > 1:
+                    dropped_gates.append({
+                        "gate": op.name,
+                        "qubits": list(qargs),
+                        "partitions": sorted(parts),
+                    })
+                    continue
+                part_idx, _local_q = qubit_to_part[qargs[0]]
+                local_qubits = [qubit_to_part[q][1] for q in qargs]
+                subcircuits[part_idx].append(op, local_qubits, [])
 
-        # Total sampling overhead kappa = 4^K for K cut wires
+        # Total sampling overhead kappa = 4^K for K cut wires — CAPPED.
         sampling_overhead_kappa = float(4.0 ** total_cuts)
+        if sampling_overhead_kappa > MAX_SAMPLING_OVERHEAD_KAPPA_V1:
+            return {
+                "success": False,
+                "fragments": [],
+                "total_cuts": total_cuts,
+                "sampling_overhead_kappa": sampling_overhead_kappa,
+                "qpd_channels": cut_channels,
+                "dropped_gates": dropped_gates,
+                "error_message": (
+                    f"KAPPA_CAP_EXCEEDED: {total_cuts} cuts need kappa="
+                    f"{sampling_overhead_kappa:.1f} > cap "
+                    f"{MAX_SAMPLING_OVERHEAD_KAPPA_V1:.1f} (max {MAX_CUTS_V1} cuts): "
+                    f"refusing instead of a silent 4^K blowup"
+                ),
+            }
+        if dropped_gates:
+            return {
+                "success": False,
+                "fragments": [],
+                "total_cuts": total_cuts,
+                "sampling_overhead_kappa": sampling_overhead_kappa,
+                "qpd_channels": cut_channels,
+                "dropped_gates": dropped_gates,
+                "error_message": (
+                    f"CROSS_PARTITION_MULTI_QUBIT_REFUSED: {len(dropped_gates)} "
+                    f">2q gate(s) span partitions {dropped_gates}: remap the "
+                    f"circuit or widen max_subcircuit_qubits — refusing "
+                    f"instead of silently dropping controls"
+                ),
+            }
 
         fragments = []
         for part_idx, sc in enumerate(subcircuits):
@@ -564,8 +723,9 @@ def cut_circuit_qasm(qasm: str, max_subcircuit_qubits: int = 2) -> Dict[str, Any
             "total_cuts": total_cuts,
             "sampling_overhead_kappa": sampling_overhead_kappa,
             "qpd_channels": cut_channels,
+            "dropped_gates": [],
             "error_message": "",
         }
     except Exception as e:
-        return {"success": False, "fragments": [], "total_cuts": 0, "sampling_overhead_kappa": 1.0, "error_message": str(e)}
+        return {"success": False, "fragments": [], "total_cuts": 0, "sampling_overhead_kappa": 1.0, "qpd_channels": [], "dropped_gates": [], "error_message": str(e) or "circuit cutting failed"}
 

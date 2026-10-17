@@ -6,6 +6,6 @@ production path (Qiskit Circuit Knitting Toolbox) is Phase-2 hardening; this
 module fixes the semantics and the fragment shapes.
 """
 
-from .wire import cut_expectation, plan_cut
+from .wire import cut_expectation, cut_histogram, plan_cut
 
-__all__ = ["cut_expectation", "plan_cut"]
+__all__ = ["cut_expectation", "cut_histogram", "plan_cut"]

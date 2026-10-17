@@ -60,5 +60,5 @@ def test_exponential_refit_on_positive_decay():
 
 def test_zne_exact_without_noise():
     circuit = parse_qasm2(PREP_ONE)
-    result = run_zne(circuit, shots=100000, noise_rate=0.0, seed=1)
+    result = run_zne(circuit, shots=100000, noise_rate=0.0, scales=(1, 3, 5), seed=1)
     assert abs(result.raw_value - (-1.0)) < 0.02

@@ -8,7 +8,9 @@ def test_lower_emits_qir():
     out = lower("OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];")
     assert out["ok"] and out["num_qubits"] == 2
     assert "__quantum__qis__h__body" in out["qir_text"]
-    assert "__quantum__qis__cx__body" in out["qir_text"]
+    # W1.5: cx normalizes to the canonical cnot intrinsic (the old
+    # cx__body name had no declare and never linked).
+    assert "__quantum__qis__cnot__body" in out["qir_text"]
     assert "__quantum__rt__qubit_allocate" in out["qir_text"]
 
 

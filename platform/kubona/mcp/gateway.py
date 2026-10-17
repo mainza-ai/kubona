@@ -12,6 +12,7 @@ Wires the federated servers behind one entry point with:
 from __future__ import annotations
 
 import json
+import logging
 import os
 
 from typing import Any, Callable
@@ -27,6 +28,8 @@ ToolFn = Callable[..., dict]
 # PacketBuilder(principal, args) -> ApprovalPacket | None.
 # Return None to auto-allow (e.g. simulator backends); raise to refuse.
 ApprovalPacketBuilder = Callable[..., ApprovalPacket | None]
+
+logger = logging.getLogger(__name__)
 
 
 class KubonaGateway:
@@ -50,9 +53,36 @@ class KubonaGateway:
         self._nonces = ApprovalRegistry()
         self._audit: list[dict] = []
         self._audit_path = audit_path  # optional persistent JSONL audit export
+        # Loud-failure counter (W2.7): audit/ledger sinks must never fail
+        # silently. Every swallowed sink error increments this and logs at
+        # warning — the call path still never breaks, but ops can alert on it.
+        self._audit_failures: int = 0
+
+    @property
+    def audit_failures(self) -> int:
+        """Sink errors swallowed so far (audit JSONL + ledger appends)."""
+        return self._audit_failures
+
+    def _sink_failed(self, what: str, exc: Exception) -> None:
+        self._audit_failures += 1
+        logger.warning("kubona gateway %s failed (call path unaffected): %s",
+                       what, exc)
 
     def mount(self, server_name: str, tools: dict[str, ToolFn]) -> None:
-        self._registry[server_name] = tools
+        """Mount-merge tools under `server_name` (W2.7).
+
+        Mounting a new server name creates it; mounting into an existing
+        server merges. A name collision with a DIFFERENT function refuses
+        (fail-closed) instead of silently overwriting — re-mounting the
+        identical function object is idempotent and allowed.
+        """
+        existing = self._registry.setdefault(server_name, {})
+        for name, fn in tools.items():
+            if name in existing and existing[name] is not fn:
+                raise ValueError(
+                    f"mount conflict: {server_name}/{name} is already mounted "
+                    "(refusing silent overwrite — unmount or rename first)")
+            existing[name] = fn
         if isinstance(self.transport, InProcessTransport):
             self.transport._registry = self._registry
 
@@ -109,13 +139,13 @@ class KubonaGateway:
             try:
                 with open(self._audit_path, "a") as f:
                     f.write(json.dumps(entry, sort_keys=True) + "\n")
-            except Exception:  # audit must never break the call path
-                pass
+            except Exception as e:  # audit must never break the call path (W2.7: loudly, not silently)
+                self._sink_failed("audit export", e)
         if self._ledger is not None:  # immutable, content-addressed audit (doubles as cost ledger)
             try:
                 self._ledger.append("audit", entry)
-            except Exception:  # audit must never break the call path
-                pass
+            except Exception as e:  # audit must never break the call path (W2.7: loudly, not silently)
+                self._sink_failed("ledger append", e)
         return result
 
     def _request_approval(self, sub: str, packet: ApprovalPacket) -> dict:
@@ -178,8 +208,8 @@ class KubonaGateway:
         if self._ledger is not None:
             try:
                 self._ledger.append("approval", entry)
-            except Exception:
-                pass
+            except Exception as e:  # W2.7: loud, never silent
+                self._sink_failed("ledger append", e)
 
     def audit_log(self) -> list[dict]:
         return list(self._audit)

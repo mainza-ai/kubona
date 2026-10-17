@@ -110,12 +110,16 @@ def test_ledger_concurrent_appends_safe(tmp_path):
 # -- x402 activation + library metering -------------------------------------
 def test_metering_free_summary_and_x402_purchase(tmp_path):
     lib = AlgorithmLibrary(path=str(tmp_path / "lib.json"))
-    # W0.12: entries carry their own price policy — no invented fallback.
+    ledger = Ledger(path=str(tmp_path / "l.jsonl"))
+    # Production bar: entries resolve ledger refs at add-time (no phantoms)
+    # and carry an explicit validation proof; best() takes the objective.
+    ref = ledger.append("trial", {"harness": "vqe_ansatz", "artifact": "3.6"}).record_id
     entry = lib.add(harness="vqe_ansatz", artifact=3.6, metric=1.118, cost_usd=0.0,
-                    ledger_ref="r1", price_usd=0.99)
+                    ledger_ref=ref, validated=True, validation_proof=ref,
+                    price_usd=0.99)
     meter = LibraryMeter(lib, ledger=Ledger(path=str(tmp_path / "l.jsonl")))
 
-    summary = meter.free_summary("vqe_ansatz")
+    summary = meter.free_summary("vqe_ansatz", direction="max")
     assert summary["ok"] and "microtransaction" in summary["summary"]
     assert "metric" not in summary, "free tier must not leak the headline metric"
 
@@ -142,8 +146,9 @@ def test_metering_free_summary_and_x402_purchase(tmp_path):
         meter2.purchase(entry.entry_id, payment_proof="x402:proof-1")
 
     # W0.12: unpriced entries are not for sale (no invented price).
+    ref2 = ledger.append("trial", {"harness": "vqe_ansatz", "artifact": "1.0"}).record_id
     bare = lib.add(harness="vqe_ansatz", artifact=1.0, metric=2.0, cost_usd=0.0,
-                   ledger_ref="r2")
+                   ledger_ref=ref2, validated=True, validation_proof=ref2)
     with pytest.raises(MeteringError, match="no price policy"):
         meter2.quote(bare.entry_id)
 
@@ -164,8 +169,10 @@ def test_payment_rails_fail_closed():
 
 def test_metering_records_payment_proof_in_ledger(tmp_path):
     lib = AlgorithmLibrary(path=str(tmp_path / "lib.json"))
-    entry = lib.add(harness="h", artifact="a", metric=1.0, cost_usd=0.0, ledger_ref="r",
-                    price_usd=0.5)
+    ledger = Ledger(path=str(tmp_path / "l.jsonl"))
+    ref = ledger.append("trial", {"harness": "h"}).record_id
+    entry = lib.add(harness="h", artifact="a", metric=1.0, cost_usd=0.0, ledger_ref=ref,
+                    validated=True, validation_proof=ref, price_usd=0.5)
     ledger = Ledger(path=str(tmp_path / "l.jsonl"))
     LibraryMeter(lib, ledger=ledger, payments=X402Payments(verifier=_test_verifier)).purchase(
         entry.entry_id, payment_proof="x402:p", buyer="lab-a")

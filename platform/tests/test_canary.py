@@ -39,10 +39,16 @@ def test_run_all_writes_canary_ledger(tmp_path):
     from kubona.provenance import Ledger
 
     ledger = Ledger(path=str(tmp_path / "ledger.jsonl"))
-    # executable plugins (qiskit installed): canary must PASS
+    # local-simulator canaries green; uncredentialed hardware SKIPS (W2.18:
+    # the old all-ok held only because ibm-qiskit silently ran Aer — the same
+    # skip convention quantinuum already had below, now applied uniformly:
+    # no quantum-washing in the release gate).
     providers = ["local-simulator", "ibm-qiskit"]
     results = run_all(ledger=ledger, providers=providers)
-    assert all(r["ok"] for r in results), results
+    by_name = {r["provider"]: r for r in results}
+    assert by_name["local-simulator"]["ok"] is True, results
+    assert by_name["ibm-qiskit"].get("skip") is True, results
+    assert "allow_sim_fallback" in by_name["ibm-qiskit"]["error"], results
     assert sum(1 for r in ledger if r.kind == "canary") == len(providers)
 
     # an inaccessible provider (missing creds/SDK) is surfaced by the canary as
@@ -200,11 +206,15 @@ def test_wilson_interval_edges_and_width():
 
 
 def test_canary_report_carries_intervals():
-    res = canary_check("local-simulator", shots=1024)
+    # 4096 shots (tolerance unchanged at 5%): the balance assertion is a
+    # statistical gate, so it runs where 5% is a robust bar (sigma ~1.6%) —
+    # 1024 shots makes ANY correct sampler flaky (~11%/run), which is how the
+    # suite got here. Same bar, strictly stronger evidence.
+    res = canary_check("local-simulator", shots=4096)
     assert res["ok"] is True, res
     assert set(res["intervals"]) == set(res["counts"])
     for outcome, entry in res["intervals"].items():
         lo, hi = entry["interval_95"]
         assert 0 <= lo <= hi <= 1
         k = entry["k"]
-        assert lo <= k / 1024 <= hi or k in (0, 1024)
+        assert lo <= k / 4096 <= hi or k in (0, 4096)

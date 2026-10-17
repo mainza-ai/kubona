@@ -8,7 +8,7 @@ basis the hardware-canary and eval harnesses build on later.
 
 from __future__ import annotations
 
-import random
+from collections import Counter
 from typing import Any
 
 import numpy as np
@@ -64,9 +64,12 @@ class LocalSimulator(Provider):
     def submit(self, circuit: Circuit, shots: int, seed: int | None = None) -> dict[str, Any]:
         if circuit.num_qubits > self._max_qubits:
             raise ProviderError(f"local simulator cap: {circuit.num_qubits} > {self._max_qubits} qubits")
-        if shots <= 0:
+        if isinstance(shots, bool) or not isinstance(shots, int) or shots <= 0:
             raise ProviderError("shots must be > 0")
         for g in circuit.gates:
+            if not g.qubits:
+                raise ProviderError(
+                    f"gate {g.name!r} has no qubits (zero-qubit gate): refusing")
             if g.name not in _SINGLE and g.name not in ("cx", "cz", "swap", "cp"):
                 raise ProviderError(
                     f"gate {g.name!r} not in local simulator's native gate set; "
@@ -95,22 +98,21 @@ class LocalSimulator(Provider):
                 raise ProviderError(f"gate {g.name!r} not supported by local simulator")
 
         probs = np.abs(state) ** 2
-        rng = random.Random(seed)
-        counts: dict[str, int] = {}
-        for _ in range(shots):
-            outcome = rng.random()
-            acc = 0.0
-            for i, p in enumerate(probs):
-                acc += p
-                if outcome < acc:
-                    key = f"{i:0{n}b}"
-                    counts[key] = counts.get(key, 0) + 1
-                    break
+        # W2.18: vectorized sampling — the old per-shot linear scan over
+        # 2^n outcomes was O(shots * 2^n) Python-level (100k shots x 10
+        # qubits ≈ 10^8 steps). rng.choice is O(shots) in C.
+        total = float(np.sum(probs))
+        if total <= 0.0:
+            raise ProviderError("simulation produced a zero-norm statevector: refusing empty counts")
+        rng = np.random.default_rng(seed)
+        draws = rng.choice(dim, size=shots, p=probs / total)
+        tallies = Counter(int(d) for d in draws)
+        counts = {f"{i:0{n}b}": tallies[i] for i in tallies}
         return {
             "counts": counts,
             "shots": shots,
             "seed": seed,
-            "statevector_norm_sq": float(np.sum(probs)),
+            "statevector_norm_sq": total,
         }
 
     def health(self) -> dict[str, Any]:

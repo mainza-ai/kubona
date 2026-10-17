@@ -83,8 +83,13 @@ def test_settings_store_persist_and_mask(tmp_path):
 
 def test_get_llm_dispatch():
     from kubona.llm import ScriptedLLM as S
+    from kubona.llm import UnknownLLMProviderError
 
-    assert isinstance(get_llm({}), S)  # no provider -> deterministic fallback
+    # W2.17 fail-closed: missing/unknown providers refuse (no silent scripted).
+    with pytest.raises(UnknownLLMProviderError):
+        get_llm({})
+    with pytest.raises(UnknownLLMProviderError):
+        get_llm({"llm_provider": "not-a-provider"})
     assert isinstance(get_llm({"llm_provider": "scripted"}), S)
     assert isinstance(get_llm({"llm_provider": "lm-studio",
                                "llm_base_url": "http://127.0.0.1:1234"}), OpenAICompatLLM)
@@ -134,7 +139,9 @@ def test_discovery_campaign_uses_llm_hypothesis(tmp_path):
     from kubona.library import AlgorithmLibrary
 
     llm = ScriptedLLM(responses=["3.6"])  # a helpful ansatz start
-    camp = run_campaign(problem="h2", hamiltonian="Z0Z1 + 0.5 X0X1", ground_state=-1.118,
+    # hamiltonian names the anchor molecule (table-anchor-v1 covers H2);
+    # "Z0Z1 + 0.5 X0X1" is the harness's internal model, not anchorable.
+    camp = run_campaign(problem="h2", hamiltonian="H2", ground_state=-1.118,
                         budget_steps=30, tenant="lab-llm",
                         ledger=Ledger(path=str(tmp_path / "l.jsonl")),
                         library=AlgorithmLibrary(path=str(tmp_path / "lib.json")),
