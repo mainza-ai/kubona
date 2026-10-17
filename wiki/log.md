@@ -2444,3 +2444,10 @@ skipped is the exact failure this incident is about:
   live, 11/11 anchors resolve) + `bench/` (4/4 tasks ×3 reps green,
   surface 8720 B vs 16384 budget, Go floor verified). Next: L3 → L2-rerun
   → L4 → L5 per corrected sequence.
+
+## [2026-10-17] decision | Phase L-B exit (tags, rerun, doctor landed)
+  L3 scribe tags (prompt + deterministic fallback template, extraction
+  intact, R3 untouched); L2-rerun delta zero on record; L4 doctor
+  deepening (4 hermetic checks) + `mandate-check` (`shape_valid` vs
+  `admitted`, proven live both directions). Python 669 + Go green.
+  Next: L5 review+catalog (closes P2-13).

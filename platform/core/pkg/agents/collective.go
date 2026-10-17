@@ -184,7 +184,8 @@ func (ac *AgentCollective) bootstrapRoles() {
 		RequiresHumanAP2: false,
 		SystemPrompt: `You are the Epistemic Scribe. Your sole mandate is mathematical rigor and claim integrity.
 You never allow an uncollapsed claim (P_corr < 0.75) to be stated as established fact.
-You record credibility amplitudes (|corr>, |cont>, |unver>) for every scientific hypothesis.`,
+You record credibility amplitudes (|corr>, |cont>, |unver>) for every scientific hypothesis.
+Tag every verdict claim on its own line: 'seen:' with a citation (file:offset, symbol, ledger entry hash, or record id) for observed evidence; 'inferred:' for conclusions drawn from evidence; 'unknown:' for facts not established (never assert absence). A claim without a tag is an undeclared verdict.`,
 	}
 
 	ac.manifests[RoleAnsatzScout] = RoleManifest{
@@ -743,9 +744,9 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		escapedQASM := strings.ReplaceAll(qasm, "\n", "\\n")
 		turn4Prompt, breached4 := projectTurn(4, "turn-4 scribe", []string{
 			fmt.Sprintf("Prior evidence:\n%s\n%s\n%s", Summarize(ev1, 1500), Summarize(ev2, 1500), Summarize(ev3, 1500)),
-			fmt.Sprintf("Synthesize tribunal debate for %s. Collapsed credibility wavefunction P_corr = 90.25%%. Output an AP2 mandate proposal with a JSON proposal block formatted as ```json_proposal {\"target\": \"%s\", \"molecule\": \"%s\", \"spend_estimate\": \"%s\", \"recommended_tier\": \"%s\", \"classical_anchor\": \"%s\", \"qasm\": \"%s\"} ```.", target, target, mol, budget, tier, fciAnchor, escapedQASM),
+			fmt.Sprintf("Synthesize tribunal debate for %s. Collapsed credibility wavefunction P_corr = 90.25%%. Output an AP2 mandate proposal with a JSON proposal block formatted as ```json_proposal {\"target\": \"%s\", \"molecule\": \"%s\", \"spend_estimate\": \"%s\", \"recommended_tier\": \"%s\", \"classical_anchor\": \"%s\", \"qasm\": \"%s\"} ```. Tag every verdict claim on its own line outside the proposal block: 'seen:' with a citation (file:offset, symbol, ledger entry hash, or record id), 'inferred:' for conclusions, 'unknown:' for unestablished facts (never assert absence).", target, target, mol, budget, tier, fciAnchor, escapedQASM),
 		})
-		scribeContent = fmt.Sprintf("Consensus reached across 4 specialist personas. Ring 1 credibility wavefunction collapsed: P_corr = 90.25%%. Generating cryptographic AP2 Mandate Card for human review.\n\n```json_proposal\n{\n  \"target\": \"%s\",\n  \"molecule\": \"%s\",\n  \"spend_estimate\": \"%s\",\n  \"recommended_tier\": \"%s\",\n  \"classical_anchor\": \"%s\",\n  \"qasm\": \"%s\"\n}\n```", target, mol, budget, tier, fciAnchor, escapedQASM)
+		scribeContent = fmt.Sprintf("Consensus reached across 4 specialist personas. Ring 1 credibility wavefunction collapsed: P_corr = 90.25%%. Generating cryptographic AP2 Mandate Card for human review.\n\n```json_proposal\n{\n  \"target\": \"%s\",\n  \"molecule\": \"%s\",\n  \"spend_estimate\": \"%s\",\n  \"recommended_tier\": \"%s\",\n  \"classical_anchor\": \"%s\",\n  \"qasm\": \"%s\"\n}\n```\nseen: proposal block above (this transcript, template fallback — no turn was LLM-authored).\ninferred: P_corr collapse bookkeeping from template values, not measurement.\nunknown: live ab-initio anchor status; hardware noise on the target backend; whether any future turn will be authored.", target, mol, budget, tier, fciAnchor, escapedQASM)
 		if llmClient != nil && !breached4 {
 			tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
 			turnMsgs := []llm.ChatMessage{

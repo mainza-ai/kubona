@@ -31,6 +31,16 @@ MCP surface: 29 tools, 8720 bytes (~2180 tokens), budget 16384 — within.
 Tribunal floor (Go suites, recorded): 4 turns/run, 2 LLM trips/turn,
 coverage facets on every sealed turn, rubric fixture delta 0.88.
 
+## Rerun (L2-rerun, post-L3, 2026-10-17)
+
+4/4 tasks ×3 reps green; surface still 8720 bytes; Go tribunal floor
+still green including the new fallback-tag test. Delta vs baseline:
+zero across every cell — expected and correct, since L3 alters scribe
+wording only (prompts + fallback template), nothing this harness
+measures (dispatch shapes, timings, surface bytes, structural floors).
+The rerun's value is the negative result on record: the tagging change
+moved no needle it shouldn't have.
+
 ## Caveats (read before citing)
 
 - These are deterministic floors, not agent comparisons. There is no

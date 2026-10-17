@@ -171,18 +171,35 @@ silent edits; rollback stated.
 - **Accept:** recorded tribunal transcripts distinguish quoted evidence
   from inference by reading (reviewed, not run).
 - **Rollback:** revert prompt + template (coverage map untouched).
+> ✅ LANDED 2026-10-17: scribe system prompt + turn-4 prompt instruct
+> verbatim `seen:`/`inferred:`/`unknown:` lines outside the proposal
+> fence (extraction verified intact); fallback template carries
+> deterministic tags; `TestFallbackScribeCarriesTags` green with all
+> R3 tests unmodified. Convention labeled as convention — the hard
+> gate stays the R3 coverage map.
 
 ### L4 — Doctor deepening + validity first-moves (S)
 
 - **Change:** `doctor` gains read-only checks within its envelope (no
-  network): provider inventory, tool-catalog digest pin match, disk
-  thresholds, ledger readability. New `kubona.run mandate-check`
-  first-move: offline mandate shape/expiry/binding validation (no
-  ledger write, no network — the L1 one-liner calls it).
-- **Tests:** each new check has pass + refusal fixtures; unknown
-  subcommand still refuses (existing behavior kept).
-- **Accept:** L1 first-moves call these and only these.
+  network, no writes, exit code unchanged): provider inventory, ledger
+  parse check (shape only — live daemons append concurrently, so chain
+  validation stays out to avoid torn-read false alarms), skill
+  presence, taxonomy kind count. New `kubona.run mandate-check`
+  first-move: offline shape validation plus receipt lookup in the Go
+  SQLite ledger (read-only, windowed recent-1000) reported as separate
+  `shape_valid` vs `admitted` fields per LC5 (usage errors exit 2,
+  verdicts exit 0).
+- **Tests:** `platform/tests/test_doctor.py` (5 tests: full output,
+  corrupt-ledger survival, shape verdicts, receipt-found admission,
+  usage errors); unknown subcommand still refuses.
+- **Accept:** L1 first-moves call these and only these (skill gained
+  the `mandate-check` block on landing).
 - **Rollback:** revert `run.py` additions (config checks untouched).
+> ✅ LANDED 2026-10-17: all doctor lines verified live (fresh + live
+> state); mandate-check proven both directions live (forged refuses,
+> seeded receipt admits). Catalog-digest and disk-threshold checks
+> scoped OUT — Go-side state Python cannot read hermetically; the
+> capabilities endpoint (R5) already serves both live.
 
 ### L5 — Per-tool justification review + MCP catalog (S, last)
 
