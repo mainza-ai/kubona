@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/hex"
 	"encoding/pem"
 	"math/big"
 	"net"
@@ -14,6 +15,8 @@ import (
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/mainza-ai/kubona/core/pkg/grants"
 )
 
 // K6: serve-posture validation. Non-local binds without TLS material are
@@ -133,4 +136,82 @@ func writeSelfSigned(t *testing.T, dir string) (string, string) {
 	_ = pem.Encode(keyOut, &pem.Block{Type: "EC PRIVATE KEY", Bytes: derKey})
 	keyOut.Close()
 	return certFile, keyFile
+}
+
+// W0.20: operator CLI guards — key-file permissions, required scopes, and
+// multi-envelope attenuation parents.
+func TestGrantsCLIKeyFilePerms(t *testing.T) {
+	dir := t.TempDir()
+	// World-readable key file refuses.
+	openPath := dir + "/open.hex"
+	if err := os.WriteFile(openPath, []byte("abcd"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readKeyFile(openPath); err == nil {
+		t.Fatalf("0644 key file must refuse")
+	}
+	// 0600 loads (content validation still applies).
+	okPath := dir + "/ok.hex"
+	if err := os.WriteFile(okPath, []byte("zz-not-hex"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readKeyFile(okPath); err == nil {
+		t.Fatalf("non-hex content must refuse")
+	}
+}
+
+func TestGrantsCLIFlagValidation(t *testing.T) {
+	// Missing --scopes refuses at flag validation (usage error, exit 2).
+	if code := grantsMint([]string{"--key-file", "k", "--aud", "a", "--granting", "g",
+		"--target", "t", "--scope", "s", "--budget", "1", "--ttl", "1h"}); code != 2 {
+		t.Fatalf("mint without --scopes must exit 2, got %d", code)
+	}
+	if code := grantsAttenuate([]string{"--key-file", "k", "--aud", "a", "--parent", "p",
+		"--scope", "s", "--budget", "1", "--ttl", "1h"}); code != 2 {
+		t.Fatalf("attenuate without --scopes must exit 2, got %d", code)
+	}
+}
+
+// W0.20: attenuate accepts a multi-envelope parent (attenuates its leaf).
+func TestGrantsCLIAttenuateChainParent(t *testing.T) {
+	dir := t.TempDir()
+	mkkey := func(name string) string {
+		t.Helper()
+		priv := make([]byte, 32)
+		if _, err := rand.Read(priv); err != nil {
+			t.Fatal(err)
+		}
+		hexKey := hex.EncodeToString(priv)
+		if err := os.WriteFile(dir+"/"+name, []byte(hexKey), 0600); err != nil {
+			t.Fatal(err)
+		}
+		return hexKey
+	}
+	privA, privB := mkkey("a.hex"), mkkey("b.hex")
+	didB, err := grants.DIDForPrivkey(privB)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootSealed, _, err := grants.MintGrant(privA, didB, "lab-a", "lab-b", "qpu/submit",
+		[]string{"qpu:submit", "read"}, 100.0, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	leafSealed, _, err := grants.AttenuateGrant(rootSealed, privB, didB,
+		"qpu/submit", []string{"qpu:submit"}, 25.0, 10*time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	chainFile := dir + "/chain.b64"
+	chainB64 := grants.EncodeChainB64([][]byte{rootSealed, leafSealed})
+	if err := os.WriteFile(chainFile, []byte(chainB64[0]+"\n"+chainB64[1]+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	// Attenuating the 2-chain file (from its leaf) succeeds — previously
+	// only single-envelope parents were accepted.
+	if code := grantsAttenuate([]string{"--key-file", dir + "/b.hex", "--aud", didB,
+		"--parent", chainFile, "--scope", "qpu/submit", "--scopes", "qpu:submit",
+		"--budget", "10", "--ttl", "5m"}); code != 0 {
+		t.Fatalf("attenuate from chain leaf must succeed, got %d", code)
+	}
 }
