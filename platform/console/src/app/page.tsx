@@ -109,6 +109,15 @@ export default function Home() {
     setLoops(loopList);
   }, [currentSessionId]);
 
+  // U2-a: an imported (or replayed) session becomes current — switch to
+  // it and load its campaign, same as a fresh creation.
+  const handleSessionImported = useCallback(async (sessionId: string) => {
+    switchSession(sessionId);
+    const camp = await fetchCampaignState(sessionId);
+    if (camp) setCampaign(camp);
+    refreshData();
+  }, [switchSession, refreshData]);
+
   useEffect(() => {
     let mounted = true;
     (async () => {
@@ -614,11 +623,11 @@ export default function Home() {
               (id) => setMeshTab(id as typeof meshTab)
             )}
             <div className="p-6 max-w-6xl mx-auto">
-              {surface === 'recorder' && <FlightRecorder loops={loops} events={events} campaign={campaign} onLoopsChanged={refreshLoops} />}
+              {surface === 'recorder' && <FlightRecorder loops={loops} events={events} campaign={campaign} onLoopsChanged={refreshLoops} onSessionImported={handleSessionImported} />}
               {surface === 'manifold' && <EpistemicManifold campaign={campaign} />}
               {surface === 'fleet' && <FleetRadar campaign={campaign} />}
               {surface === 'proofs' && proofsTab === 'manuscripts' && <ResultsStudio campaign={campaign} sessionId={currentSessionId || null} />}
-              {surface === 'proofs' && proofsTab === 'tribunal' && <EpistemicTribunalRoom sessionId={session?.id ?? ''} />}
+              {surface === 'proofs' && proofsTab === 'tribunal' && <EpistemicTribunalRoom sessionId={session?.id ?? ''} onCampaignSynthesized={(c) => setCampaign(c)} />}
               {surface === 'mesh' && meshTab === 'mesh' && <CognitiveMesh campaign={campaign} />}
               {surface === 'mesh' && meshTab === 'guardrails' && <AutonomyCockpit campaign={campaign} session={session} />}
               {surface === 'mesh' && meshTab === 'models' && <HuggingFaceModelHub />}

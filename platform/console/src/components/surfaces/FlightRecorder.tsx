@@ -6,12 +6,14 @@ import {
 } from 'lucide-react';
 import { Loop, LedgerEvent, CampaignState } from '@/types';
 import { LoopControlList } from '@/components/common/LoopControlList';
+import { SessionPortability } from '@/components/common/SessionPortability';
 
 interface FlightRecorderProps {
   loops?: Loop[];
   events?: LedgerEvent[];
   campaign?: CampaignState | null;
   onLoopsChanged?: () => void;
+  onSessionImported?: (sessionId: string, replayed: boolean) => void;
 }
 
 interface StoryMilestone {
@@ -24,7 +26,7 @@ interface StoryMilestone {
   codeDiff?: string;
 }
 
-export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChanged }: FlightRecorderProps) {
+export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChanged, onSessionImported }: FlightRecorderProps) {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentStepIndex, setCurrentStepIndex] = useState(3);
   const [showCodeDiff, setShowCodeDiff] = useState(false);
@@ -211,6 +213,14 @@ export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChang
       {onLoopsChanged && (
         <div className="mt-4">
           <LoopControlList loops={loops} onChanged={onLoopsChanged} />
+        </div>
+      )}
+
+      {/* U2-a: session + ledger portability — export downloads, import
+          switches to the resulting session via the parent. */}
+      {onSessionImported && (
+        <div className="mt-4">
+          <SessionPortability sessionId={campaign?.session_id ?? null} onSessionImported={onSessionImported} />
         </div>
       )}
 
