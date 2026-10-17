@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 )
@@ -14,7 +15,10 @@ func TestPaymentManager_Lifecycle(t *testing.T) {
 	mgr := NewPaymentManager("0xEscrowAddress")
 
 	// 1. Generate challenge
-	c := mgr.GenerateChallenge("USDC", "0.05")
+	c, err := mgr.GenerateChallenge("USDC", "0.05")
+	if err != nil {
+		t.Fatalf("challenge: %v", err)
+	}
 	if c.ChallengeID == "" {
 		t.Fatalf("expected non-empty challenge ID")
 	}
@@ -71,7 +75,10 @@ func TestPaymentManager_Lifecycle(t *testing.T) {
 
 func TestPaymentManager_TamperedSignature(t *testing.T) {
 	mgr := NewPaymentManager("0xEscrowAddress")
-	c := mgr.GenerateChallenge("USDC", "0.10")
+	c, err := mgr.GenerateChallenge("USDC", "0.10")
+	if err != nil {
+		t.Fatalf("challenge: %v", err)
+	}
 
 	pub, _, _ := ed25519.GenerateKey(rand.Reader)
 	fakeSig := make([]byte, ed25519.SignatureSize)
@@ -88,5 +95,74 @@ func TestPaymentManager_TamperedSignature(t *testing.T) {
 	valid, err := mgr.VerifyPayment(receipt)
 	if valid || err == nil {
 		t.Fatalf("expected verification failure for tampered signature, got valid=%v", valid)
+	}
+}
+
+func TestPaymentManager_ChallengeValidation(t *testing.T) {
+	mgr := NewPaymentManager("0xEscrowAddress")
+	for _, tc := range [][2]string{{"", "0.05"}, {"USDC", ""}, {"USDC", "0"}, {"USDC", "-1"}, {"USDC", "much"}} {
+		if _, err := mgr.GenerateChallenge(tc[0], tc[1]); err == nil {
+			t.Fatalf("GenerateChallenge(%q, %q) must refuse", tc[0], tc[1])
+		}
+	}
+}
+
+func TestPaymentManager_ReceiptMustMatchChallenge(t *testing.T) {
+	mgr := NewPaymentManager("0xEscrowAddress")
+	c, err := mgr.GenerateChallenge("USDC", "0.05")
+	if err != nil {
+		t.Fatalf("challenge: %v", err)
+	}
+	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
+	msgHash := sha256.Sum256([]byte(c.Payload))
+	sig := ed25519.Sign(priv, msgHash[:])
+	mk := func(token, amount string) *PaymentReceipt {
+		return &PaymentReceipt{
+			ChallengeID: c.ChallengeID,
+			Token:       token,
+			Amount:      amount,
+			PayerPubHex: hex.EncodeToString(pub),
+			Signature:   hex.EncodeToString(sig),
+			Timestamp:   time.Now().Unix(),
+		}
+	}
+	// Wrong token refuses even with a valid signature over the challenge.
+	if ok, err := mgr.VerifyPayment(mk("FAKE", "0.05")); ok || err == nil {
+		t.Fatalf("token-mismatched receipt must refuse, got %v %v", ok, err)
+	}
+	// Wrong amount refuses (pay $0.05, settle as $100 hole closed).
+	if ok, err := mgr.VerifyPayment(mk("USDC", "100")); ok || err == nil {
+		t.Fatalf("amount-mismatched receipt must refuse, got %v %v", ok, err)
+	}
+	if ok, err := mgr.VerifyPayment(mk("USDC", "0.01")); ok || err == nil {
+		t.Fatalf("under-amount receipt must refuse, got %v %v", ok, err)
+	}
+	// Equivalent spelling matches exactly ("0.050" == "0.05", rational compare).
+	if ok, err := mgr.VerifyPayment(mk("USDC", "0.050")); !ok || err != nil {
+		t.Fatalf("equivalent-spelling amount must verify, got %v %v", ok, err)
+	}
+}
+
+func TestParseAuthorizationHeaderRequiresAllFields(t *testing.T) {
+	base := `x402 challenge="c", token="USDC", amount="0.05", payer="p", signature="s"`
+	if _, err := ParseAuthorizationHeader(base); err != nil {
+		t.Fatalf("full header must parse: %v", err)
+	}
+	for _, drop := range []string{"token", "amount"} {
+		fields := map[string]string{"challenge": "c", "token": "USDC", "amount": "0.05", "payer": "p", "signature": "s"}
+		delete(fields, drop)
+		var b strings.Builder
+		b.WriteString("x402 ")
+		i := 0
+		for k, v := range fields {
+			if i > 0 {
+				b.WriteString(", ")
+			}
+			b.WriteString(k + `="` + v + `"`)
+			i++
+		}
+		if _, err := ParseAuthorizationHeader(b.String()); err == nil {
+			t.Fatalf("header without %s must refuse", drop)
+		}
 	}
 }
