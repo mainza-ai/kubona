@@ -3,6 +3,7 @@ package autoresearch
 import (
 	"context"
 	"fmt"
+	"log"
 	"regexp"
 	"strings"
 	"sync"
@@ -25,23 +26,23 @@ const (
 
 // IterationRecord tracks an individual experiment step
 type IterationRecord struct {
-	Iteration         int                `json:"iteration"`
-	Timestamp         time.Time          `json:"timestamp"`
-	Decision          IterationDecision  `json:"decision"`
-	Metric            float64            `json:"metric"`
-	MetricDelta       float64            `json:"metric_delta"` // Negative means improvement for loss
-	CircuitDepth      int                `json:"circuit_depth"`
-	NumQubits         int                `json:"num_qubits"`
-	TwoQubitGateCount int                `json:"two_qubit_gate_count"`
-	EntanglementScore float64            `json:"entanglement_score"`
-	PhysicalValue     float64            `json:"physical_value"`
-	MutatedArtifact   string             `json:"mutated_artifact"`
-	UnifiedDiff       string             `json:"unified_diff"`
-	Rationale         string             `json:"rationale"`
-	DurationMs        int64              `json:"duration_ms"`
-	Sandboxed         bool               `json:"sandboxed"`
-	IsolationTag      string             `json:"isolation_tag"`
-	Error             string             `json:"error,omitempty"`
+	Iteration         int               `json:"iteration"`
+	Timestamp         time.Time         `json:"timestamp"`
+	Decision          IterationDecision `json:"decision"`
+	Metric            float64           `json:"metric"`
+	MetricDelta       float64           `json:"metric_delta"` // Negative means improvement for loss
+	CircuitDepth      int               `json:"circuit_depth"`
+	NumQubits         int               `json:"num_qubits"`
+	TwoQubitGateCount int               `json:"two_qubit_gate_count"`
+	EntanglementScore float64           `json:"entanglement_score"`
+	PhysicalValue     float64           `json:"physical_value"`
+	MutatedArtifact   string            `json:"mutated_artifact"`
+	UnifiedDiff       string            `json:"unified_diff"`
+	Rationale         string            `json:"rationale"`
+	DurationMs        int64             `json:"duration_ms"`
+	Sandboxed         bool              `json:"sandboxed"`
+	IsolationTag      string            `json:"isolation_tag"`
+	Error             string            `json:"error,omitempty"`
 }
 
 // ParetoPoint tracks the multi-objective trade-off
@@ -89,6 +90,9 @@ type LoopState struct {
 	// S3: exported for the idle sweeper + console (additive field).
 	LastActivity time.Time `json:"last_activity"`
 	Drained      bool      `json:"drained"`
+	// I3: spend books telemetry (mirrored from the engine + row).
+	ReservedAmount float64 `json:"reserved_amount"`
+	ConsumedAmount float64 `json:"consumed_amount"`
 }
 
 // LoopEngine orchestrates the unattended Karpathy experiment cycle
@@ -111,6 +115,15 @@ type LoopEngine struct {
 	lastActivity time.Time
 	checkBudget  func() error
 	drained      bool
+	// I3: per-iteration spend recording. spendRecorder fires after every
+	// loop LLM call with the measured usage (role + tokens); nil skips
+	// recording (unit engines without books). spendReservedTotal is the
+	// admission-time bound; spendConsumed accumulates measured drawdown.
+	// Overrun (consumed > reserved) pauses at the next check — the loop
+	// never spends it cannot account.
+	spendRecorder      func(role string, promptTokens, completionTokens int) (float64, error)
+	spendReservedTotal float64
+	spendConsumed      float64
 }
 
 // SetBudgetCheck wires the mid-run spend bound (S3). Nil clears it.
@@ -118,6 +131,65 @@ func (e *LoopEngine) SetBudgetCheck(fn func() error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.checkBudget = fn
+}
+
+// SetSpendRecorder wires I3 per-iteration drawdown: invoked with measured
+// usage after every loop LLM call. The recorder persists the drawdown
+// (server-side, against the loop's reservation); a recorder error pauses
+// the loop (books must balance — spend that cannot be recorded cannot
+// continue). Nil clears it.
+func (e *LoopEngine) SetSpendRecorder(fn func(role string, promptTokens, completionTokens int) (float64, error)) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.spendRecorder = fn
+}
+
+// recordSpend persists one measured LLM call against the reservation and
+// enforces the bound: overrun (consumed past reserved) pauses the loop
+// with the overrun named. spendConsumed mirrors the row for State()
+// telemetry; the row is authoritative.
+func (e *LoopEngine) recordSpend(role string, promptTokens, completionTokens int) {
+	e.mu.RLock()
+	rec := e.spendRecorder
+	reserved := e.spendReservedTotal
+	e.mu.RUnlock()
+	if rec == nil {
+		return
+	}
+	cost, err := rec(role, promptTokens, completionTokens)
+	if err != nil {
+		log.Printf("[autoresearch] loop %s spend record failed (pausing): %v", e.state.ID, err)
+		e.Pause()
+		return
+	}
+	e.mu.Lock()
+	e.spendConsumed += cost
+	consumed := e.spendConsumed
+	e.mu.Unlock()
+	if reserved > 0 && consumed > reserved {
+		log.Printf("[autoresearch] loop %s spend overrun %.4f > reserved %.4f (pausing)", e.state.ID, consumed, reserved)
+		e.Pause()
+	}
+}
+
+// SetSpendReservation records the admission-time bound on the engine
+// (mirrored to the loop row by the server). Zero means unreserved
+// (local/scripted models — nothing to bound).
+func (e *LoopEngine) SetSpendReservation(total float64) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.spendReservedTotal = total
+}
+
+// ClearSpendReservation zeroes the engine mirrors after the server
+// releases the row claim (I3): without this, the next persist would
+// resurrect the reservation from State and double-release. Called with
+// the engine present; row-absent engines (restart) have no mirrors.
+func (e *LoopEngine) ClearSpendReservation() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.spendReservedTotal = 0
+	e.spendConsumed = 0
 }
 
 // LastActivity returns the last observed work instant (S3 sweeper input).
@@ -203,6 +275,10 @@ func (e *LoopEngine) State() *LoopState {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	cp := *e.state
+	// I3: spend telemetry mirrors the engine counters (the row carries
+	// reserved_tenant separately — engines never learn tenants).
+	cp.ReservedAmount = e.spendReservedTotal
+	cp.ConsumedAmount = e.spendConsumed
 	return &cp
 }
 
@@ -505,8 +581,11 @@ func (e *LoopEngine) TriggerAutonomousReflection(ctx context.Context, memoryStor
 			{Role: "system", Content: "You are the Epistemic Scribe and Scientific Reflection Engine. Analyze experimental stagnation and formulate durable scientific mental models."},
 			{Role: "user", Content: reflectionPrompt},
 		}
-		content, _, _, err := e.llmClient.Complete(ctx, "critic", msgs)
+		content, resp, _, err := e.llmClient.Complete(ctx, "critic", msgs)
 		if err == nil && content != "" {
+			if resp != nil {
+				e.recordSpend("critic", resp.Usage.PromptTokens, resp.Usage.CompletionTokens)
+			}
 			reflection = content
 		}
 	}
@@ -542,8 +621,15 @@ Output only the mutated Python code inside triple backticks.`, e.programMd, cham
 			{Role: "user", Content: prompt},
 		}
 
-		content, _, _, err := e.llmClient.Complete(ctx, "coder", msgs)
+		content, resp, _, err := e.llmClient.Complete(ctx, "coder", msgs)
 		if err == nil && content != "" {
+			// I3: measured drawdown (usage is guaranteed reported here:
+			// requireMeteredUsage refuses unreported metered calls at
+			// the client, so a success carries local-free or measured
+			// tokens — never blind spend).
+			if resp != nil {
+				e.recordSpend("coder", resp.Usage.PromptTokens, resp.Usage.CompletionTokens)
+			}
 			code := extractCodeBlock(content)
 			if code != "" {
 				return code, "LLM Qwen proposed mutation to rotation parameterization and entanglement"

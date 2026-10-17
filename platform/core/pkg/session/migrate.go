@@ -509,8 +509,8 @@ func (m *Manager) ImportSession(man *SessionManifest) (*ImportResult, error) {
 		if p.SessionID != s.ID {
 			return nil, fmt.Errorf("import loop %s names foreign session %q", p.ID, p.SessionID)
 		}
-		if err := exec(`INSERT INTO loops (id, session_id, harness_id, status, step_count, max_steps, diverged, created_at, updated_at, last_activity, drain, reserved_amount) VALUES (?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?)`,
-			p.ID, s.ID, p.HarnessID, p.Status, p.StepCount, p.MaxSteps, p.LastActivity.UTC().Format(time.RFC3339), boolInt(p.Drain), p.ReservedAmount); err != nil {
+		if err := exec(`INSERT INTO loops (id, session_id, harness_id, status, step_count, max_steps, diverged, created_at, updated_at, last_activity, drain, reserved_amount, reserved_tenant, consumed_amount) VALUES (?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?)`,
+			p.ID, s.ID, p.HarnessID, p.Status, p.StepCount, p.MaxSteps, p.LastActivity.UTC().Format(time.RFC3339), boolInt(p.Drain), p.ReservedAmount, p.ReservedTenant, p.ConsumedAmount); err != nil {
 			return nil, fmt.Errorf("import loop %s: %w", p.ID, err)
 		}
 	}
