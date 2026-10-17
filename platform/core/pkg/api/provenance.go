@@ -43,7 +43,7 @@ func (s *Server) handleLedgerAppend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.ledgerLimiter.allow(clientKey(r)) {
-		http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+		WriteAPIError(w, "rate_limited", "rate limit exceeded: slow down and retry", nil)
 		return
 	}
 	// 64KB payload cap: one client must not stuff an unbounded blob into
@@ -99,7 +99,7 @@ func (s *Server) handleSupervisorAbort(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.abortLimiter.allow(clientKey(r)) {
-		http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+		WriteAPIError(w, "rate_limited", "rate limit exceeded: slow down and retry", nil)
 		return
 	}
 	// 64KB payload cap: abort reasons are short strings, not blobs.

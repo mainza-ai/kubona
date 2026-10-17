@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -141,7 +142,7 @@ func (s *Server) diskBlocked() (blocked bool, reason string) {
 func (s *Server) refuseIfDiskBlocked(w http.ResponseWriter) bool {
 	if blocked, reason := s.diskBlocked(); blocked {
 		w.Header().Set("Retry-After", "30")
-		http.Error(w, fmt.Sprintf("storage_blocked: %s — new work refused until disk space recovers; reads and recovery stay available", reason), http.StatusServiceUnavailable)
+		WriteAPIError(w, "storage_blocked", fmt.Sprintf("storage_blocked: %s — new work refused until disk space recovers; reads and recovery stay available", reason), nil)
 		return true
 	}
 	return false
@@ -375,6 +376,7 @@ func (s *Server) Handler() http.Handler {
 func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/health", s.handleHealth)
 	s.mux.HandleFunc("/api/ready", s.handleReady)
+	s.mux.HandleFunc("/api/capabilities", s.handleCapabilities)
 	s.mux.HandleFunc("/api/sessions", s.handleSessions)
 	s.mux.HandleFunc("/api/sessions/export", s.handleSessionExport)
 	s.mux.HandleFunc("/api/sessions/import", s.handleSessionImport)
@@ -572,10 +574,73 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 // body), readiness is status-coded for load balancers and supervisors.
 func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	if blocked, reason := s.diskBlocked(); blocked {
-		http.Error(w, fmt.Sprintf("not ready: %s", reason), http.StatusServiceUnavailable)
+		WriteAPIError(w, "not_ready", fmt.Sprintf("not ready: %s", reason), nil)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ready": true})
+}
+
+// handleCapabilities serves runtime discovery (I5) with the build-time
+// catalog digest embedded (C5 boundary): the catalog is the build-time
+// surface (what CAN be called, digest-pinned); capabilities are runtime
+// state (what is CURRENTLY available: flags, thresholds, harness
+// catalog, budgets). Skew between the live registry digest and the
+// embedded reviewed digest 500s — fail-closed discovery (regen, never
+// hand-edit, never serve stale tools). Open like /api/health (read-only
+// discovery degrades the console instead of probing blind).
+func (s *Server) handleCapabilities(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		WriteAPIError(w, "method_not_allowed", "capabilities is GET-only", nil)
+		return
+	}
+	snaps := s.toolRegistry.Catalog()
+	body, digest := tools.CatalogJSON(snaps)
+	if digest == "" {
+		WriteAPIError(w, "internal", "catalog render failed", nil)
+		return
+	}
+	if digest != EmbeddedCatalogDigest {
+		WriteAPIError(w, "internal",
+			fmt.Sprintf("tool catalog skew: live registry digests %s, reviewed build pins %s — regen the catalog, never serve stale tools", digest, EmbeddedCatalogDigest),
+			map[string]any{"live_digest": digest, "pinned_digest": EmbeddedCatalogDigest})
+		return
+	}
+	var harnesses []string
+	for _, h := range s.harnessReg.List() {
+		harnesses = append(harnesses, h.ID())
+	}
+	sort.Strings(harnesses)
+	if harnesses == nil {
+		harnesses = []string{}
+	}
+	var disk any = map[string]any{"guarded": false}
+	if s.diskGuard != nil {
+		cfg := s.diskGuard.Config()
+		snap := s.diskGuard.Snapshot()
+		disk = map[string]any{
+			"guarded":    true,
+			"warn_bytes": cfg.WarnBytes, "block_bytes": cfg.BlockBytes,
+			"resume_bytes": cfg.ResumeBytes, "level": snap.Level,
+			"bytes_available": snap.AvailBytes,
+		}
+	}
+	budget := llm.DefaultBudgetConfig()
+	writeJSON(w, http.StatusOK, map[string]any{
+		"catalog_digest": digest,
+		"tools":          json.RawMessage(body),
+		"disk":           disk,
+		"harnesses":      harnesses,
+		"budget": map[string]any{
+			"turn_context_runes":    budget.TurnContextRunes,
+			"max_observation_chars": budget.MaxObservationChars,
+			"max_tool_rounds":       budget.MaxToolRounds,
+		},
+		"flags": map[string]any{
+			"reviewer_configured":      s.reviewerKeyConfigured,
+			"ephemeral_signer_allowed": os.Getenv("KUBONA_ALLOW_EPHEMERAL_SIGNER") == "1",
+			"bridge_connected":         s.jobRunner.BridgeClient() != nil,
+		},
+	})
 }
 
 func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
@@ -614,7 +679,7 @@ func (s *Server) handleEpistemics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, gerr := s.sessionMgr.GetSession(sessionID); gerr != nil {
-		http.Error(w, fmt.Sprintf("unknown session %q: refusing to show another session", sessionID), http.StatusNotFound)
+		WriteAPIError(w, "ghost_session", fmt.Sprintf("unknown session %q: refusing to show another session", sessionID), nil)
 		return
 	}
 
@@ -783,7 +848,7 @@ func (s *Server) handleMandateSign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.signLimiter.allow(clientKey(r)) {
-		http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+		WriteAPIError(w, "rate_limited", "rate limit exceeded: slow down and retry", nil)
 		return
 	}
 
@@ -814,7 +879,7 @@ func (s *Server) handleMandateSign(w http.ResponseWriter, r *http.Request) {
 	// tenant, action, and exact parameters under the admin key. A bearer
 	// token alone (already checked by the route wrapper) is not enough.
 	if req.AdminAction == nil {
-		http.Error(w, "admin_action envelope required: tenant admin must authorize this spend", http.StatusForbidden)
+		WriteAPIError(w, "forbidden", "admin_action envelope required: tenant admin must authorize this spend", nil)
 		return
 	}
 	bound, err := bindAdminAction(req.TenantID, "mandate_sign",
@@ -851,7 +916,7 @@ func (s *Server) handleMandateVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.verifyLimiter.allow(clientKey(r)) {
-		http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+		WriteAPIError(w, "rate_limited", "rate limit exceeded: slow down and retry", nil)
 		return
 	}
 
@@ -865,6 +930,7 @@ func (s *Server) handleMandateVerify(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"valid": false,
+			"code":  "mandate_invalid",
 			"error": err.Error(),
 		})
 		return
@@ -876,6 +942,7 @@ func (s *Server) handleMandateVerify(w http.ResponseWriter, r *http.Request) {
 	if err := s.tenantMgr.CheckSpend(req.TenantID, req.MaxBudgetUSD); err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"valid": false,
+			"code":  "budget_exceeded",
 			"error": err.Error(),
 		})
 		return
@@ -909,8 +976,10 @@ func (s *Server) handleMandateVerify(w http.ResponseWriter, r *http.Request) {
 		(s.reviewerKeyConfigured || os.Getenv("KUBONA_ALLOW_EPHEMERAL_SIGNER") == "1")
 	if !isAdmin && !isReviewer {
 		writeJSON(w, http.StatusOK, map[string]any{
-			"valid": false,
-			"error": "mandate key is not the tenant admin key: self-signed spend refused (bootstrap an admin key or use the reviewer-signed path)",
+			"valid":       false,
+			"code":        "mandate_invalid",
+			"error":       "mandate key is not the tenant admin key: self-signed spend refused (bootstrap an admin key or use the reviewer-signed path)",
+			"remediation": "mint a fresh mandate: bind the tenant admin key, exact parameters, and a live expiry",
 		})
 		return
 	}
@@ -1001,7 +1070,7 @@ func (s *Server) handleNotebooks(w http.ResponseWriter, r *http.Request) {
 	sessionID := r.URL.Query().Get("session_id")
 	if sessionID != "" {
 		if _, gerr := s.sessionMgr.GetSession(sessionID); gerr != nil {
-			http.Error(w, fmt.Sprintf("unknown session %q: refusing to show another session", sessionID), http.StatusNotFound)
+			WriteAPIError(w, "ghost_session", fmt.Sprintf("unknown session %q: refusing to show another session", sessionID), nil)
 			return
 		}
 	}
@@ -1253,7 +1322,7 @@ func (s *Server) handleSessionContext(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, err := s.sessionMgr.GetSession(sessionID); err != nil {
-		http.Error(w, fmt.Sprintf("unknown session %q", sessionID), http.StatusNotFound)
+		WriteAPIError(w, "ghost_session", fmt.Sprintf("unknown session %q", sessionID), nil)
 		return
 	}
 	msgs, err := s.sessionMgr.GetMessages(sessionID)
@@ -1480,7 +1549,7 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if _, gerr := s.sessionMgr.GetSession(sessionID); gerr != nil {
-			http.Error(w, fmt.Sprintf("unknown session %q: refusing to read another session", sessionID), http.StatusNotFound)
+			WriteAPIError(w, "ghost_session", fmt.Sprintf("unknown session %q: refusing to read another session", sessionID), nil)
 			return
 		}
 		msgs, err := s.sessionMgr.GetMessages(sessionID)
@@ -2148,7 +2217,7 @@ func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
 		"designed_by":          designedBy,
 	}, idemRailJob)
 	if iref != nil {
-		http.Error(w, iref.msg, iref.status)
+		iref.write(w)
 		return
 	}
 	if idem.replay {
@@ -2213,7 +2282,7 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 	// Launch/jobs carry their own requireSession; chat keeps ensureSession.
 	if req.SessionID != "" {
 		if _, gerr := s.sessionMgr.GetSession(req.SessionID); gerr != nil {
-			http.Error(w, fmt.Sprintf("unknown session %q: tribunal refuses to attach elsewhere", req.SessionID), http.StatusNotFound)
+			WriteAPIError(w, "ghost_session", fmt.Sprintf("unknown session %q: tribunal refuses to attach elsewhere", req.SessionID), nil)
 			return
 		}
 	} else {
@@ -2237,7 +2306,7 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 		"session_id": req.SessionID, "prompt": req.Prompt,
 	}, idemRailSlow)
 	if tribRef != nil {
-		http.Error(w, tribRef.msg, tribRef.status)
+		tribRef.write(w)
 		return
 	}
 	if tribIdem.replay {
@@ -2342,7 +2411,7 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if _, gerr := s.sessionMgr.GetSession(sessionID); gerr != nil {
-			http.Error(w, fmt.Sprintf("unknown session %q: refusing to read another session", sessionID), http.StatusNotFound)
+			WriteAPIError(w, "ghost_session", fmt.Sprintf("unknown session %q: refusing to read another session", sessionID), nil)
 			return
 		}
 		jobsList, err := s.jobRunner.ListJobs(sessionID, 50)
@@ -2419,7 +2488,7 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 			"export_reviewed":      req.ExportReviewed,
 		}, idemRailJob)
 		if iref != nil {
-			http.Error(w, iref.msg, iref.status)
+			iref.write(w)
 			return
 		}
 		if idem.replay {
@@ -2614,7 +2683,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, gerr := s.sessionMgr.GetSession(sessionID); gerr != nil {
-		http.Error(w, fmt.Sprintf("unknown session %q: refusing to read another session", sessionID), http.StatusNotFound)
+		WriteAPIError(w, "ghost_session", fmt.Sprintf("unknown session %q: refusing to read another session", sessionID), nil)
 		return
 	}
 	limitStr := r.URL.Query().Get("limit")
@@ -2786,7 +2855,7 @@ func (s *Server) handleCanvasLayout(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if _, gerr := s.sessionMgr.GetSession(sessionID); gerr != nil {
-		http.Error(w, fmt.Sprintf("unknown session %q: refusing to show another session", sessionID), http.StatusNotFound)
+		WriteAPIError(w, "ghost_session", fmt.Sprintf("unknown session %q: refusing to show another session", sessionID), nil)
 		return
 	}
 
@@ -3464,7 +3533,7 @@ func (s *Server) handleAutoresearchStart(w http.ResponseWriter, r *http.Request)
 		"initial_artifact": req.InitialArtifact, "max_iterations": req.MaxIterations,
 	}, idemRailSlow)
 	if arRef != nil {
-		http.Error(w, arRef.msg, arRef.status)
+		arRef.write(w)
 		return
 	}
 	if arIdem.replay {
@@ -3702,7 +3771,7 @@ func (s *Server) handleAutoresearchLoopAction(w http.ResponseWriter, r *http.Req
 			"loop_id": loopID, "action": "wake",
 		}, idemRailSlow)
 		if wref != nil {
-			http.Error(w, wref.msg, wref.status)
+			wref.write(w)
 			return
 		}
 		if widem.replay {
@@ -4300,7 +4369,7 @@ func (s *Server) handleCustomAgents(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !s.tenantLimiter.allow(clientKey(r)) {
-			http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+			WriteAPIError(w, "rate_limited", "rate limit exceeded: slow down and retry", nil)
 			return
 		}
 		var manifest agents.CustomAgentManifest
@@ -4345,7 +4414,7 @@ func (s *Server) handleCustomAgentByID(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if !s.tenantLimiter.allow(clientKey(r)) {
-			http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+			WriteAPIError(w, "rate_limited", "rate limit exceeded: slow down and retry", nil)
 			return
 		}
 		err := s.customAgents.Delete(id)

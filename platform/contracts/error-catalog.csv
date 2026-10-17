@@ -1,0 +1,20 @@
+code,category,http_status,retryable,remediation
+unauthorized,auth,401,false,pass a valid bearer token (KUBONA_API_TOKEN)
+forbidden,auth,403,false,use an operator-authorized credential for this action
+rate_limited,auth,429,true,back off and retry after the limiter window
+bad_request,validation,400,false,fix the request shape (see message details)
+ghost_session,validation,404,false,create the session first; ids are never auto-vivified
+unknown_rail,validation,400,false,use a documented rail name (see message)
+method_not_allowed,validation,405,false,use the documented method for this route
+budget_exceeded,budget,200,false,"lower max_budget_usd or raise the tenant ceiling (rides a 200 valid:false envelope, not an error status)"
+mandate_invalid,state,200,false,"mint a fresh mandate: bind the tenant admin key, exact parameters, and a live expiry (rides a 200 valid:false envelope)"
+request_conflict,state,409,false,same id with different content will never succeed: use a new request_id
+request_in_progress,state,409,true,the claim is still running: poll the same request_id again
+storage_blocked,resource,503,true,"free disk above the resume threshold, then retry (reads stay available)"
+resource_constraint,resource,503,false,shrink inputs or page evidence via evidence_continue
+not_ready,state,503,true,"wait for readiness (disk recovery, bridge connect) then retry"
+bridge_unavailable,upstream,502,true,"retry when the Python bridge is reachable; sim-only paths stay available"
+llm_unavailable,upstream,503,true,retry when a provider is configured; fallback paths stay open
+unknown_tool,validation,400,false,call a tool from the pinned catalog (/api/capabilities)
+internal,internal,500,false,report the incident id; do not blind-retry mutations (use idempotency keys)
+server_misconfigured,internal,503,false,set the missing server configuration (see message) and restart
