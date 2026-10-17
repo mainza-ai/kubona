@@ -50,7 +50,8 @@ func TestA2AServer_TaskSubmissionAndStatus(t *testing.T) {
 	// 1. Submit task
 	params, _ := json.Marshal(TaskSubmitParams{
 		TaskType: "circuit_cutting_recombination",
-		Payload:  json.RawMessage(`{"circuit": "qreg q[4]; h q[0]; cx q[0], q[1];"}`),
+		Scopes:   []string{"circuit_cutting_recombination"}, MaxBudgetUSD: 5.0,
+		Payload: json.RawMessage(`{"circuit": "qreg q[4]; h q[0]; cx q[0], q[1];"}`),
 	})
 
 	subReq := &JSONRPCRequest{
@@ -174,7 +175,8 @@ func TestA2AServer_AsyncExecutionThroughExecutor(t *testing.T) {
 
 	task := submitTask(t, server, TaskSubmitParams{
 		TaskType: "molecular_ground_state_pyscf",
-		Payload:  json.RawMessage(`{"molecule":"H2"}`),
+		Scopes:   []string{"molecular_ground_state_pyscf"}, MaxBudgetUSD: 5.0,
+		Payload: json.RawMessage(`{"molecule":"H2"}`),
 	}, 10)
 	if task.Status != TaskStatusQueued {
 		t.Fatalf("expected queued on submit, got %s", task.Status)
@@ -195,7 +197,8 @@ func TestA2AServer_ExecutorFailureMarksFailed(t *testing.T) {
 
 	task := submitTask(t, server, TaskSubmitParams{
 		TaskType: "zne_error_mitigation",
-		Payload:  json.RawMessage(`{"qasm":"OPENQASM 2.0;"}`),
+		Scopes:   []string{"zne_error_mitigation"}, MaxBudgetUSD: 5.0,
+		Payload: json.RawMessage(`{"qasm":"OPENQASM 2.0;"}`),
 	}, 11)
 	settled := pollTaskStatus(t, server, task.ID)
 	if settled.Status != TaskStatusFailed || settled.Error == "" {
@@ -217,6 +220,7 @@ func TestA2AServer_SubMandateCapEnforced(t *testing.T) {
 	// Within budget: accepted and bound recorded.
 	task := submitTask(t, server, TaskSubmitParams{
 		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
+		Scopes:       []string{"molecular_ground_state_pyscf"},
 		MaxBudgetUSD: 25.0, ParentMandate: parent,
 	}, 12)
 	if task.MaxBudgetUSD != 25.0 || task.ParentJobHash != "jobhash-parent" {
@@ -226,6 +230,7 @@ func TestA2AServer_SubMandateCapEnforced(t *testing.T) {
 	// Over budget: refused at submit time.
 	overRaw, _ := json.Marshal(TaskSubmitParams{
 		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
+		Scopes:       []string{"molecular_ground_state_pyscf"},
 		MaxBudgetUSD: 75.0, ParentMandate: parent,
 	})
 	resp := server.HandleRequest(&JSONRPCRequest{JSONRPC: "2.0", ID: 13, Method: "a2a.SubmitTask", Params: overRaw})
@@ -238,6 +243,7 @@ func TestA2AServer_SubMandateCapEnforced(t *testing.T) {
 	tampered.SignatureHex = parent.SignatureHex[:len(parent.SignatureHex)-2] + "ff"
 	tampRaw, _ := json.Marshal(TaskSubmitParams{
 		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
+		Scopes:       []string{"molecular_ground_state_pyscf"},
 		MaxBudgetUSD: 10.0, ParentMandate: &tampered,
 	})
 	resp = server.HandleRequest(&JSONRPCRequest{JSONRPC: "2.0", ID: 14, Method: "a2a.SubmitTask", Params: tampRaw})
@@ -258,32 +264,43 @@ func TestA2ADelegationDepthAndScopes(t *testing.T) {
 
 	root := submitTask(t, server, TaskSubmitParams{
 		TaskType: "molecular_ground_state_pyscf",
-		Payload:  json.RawMessage(`{"molecule":"H2"}`),
+		Scopes:   []string{"molecular_ground_state_pyscf"}, MaxBudgetUSD: 5.0,
+		Payload: json.RawMessage(`{"molecule":"H2"}`),
 	}, 20)
-	if root.Depth != 0 || len(root.Scopes) == 0 {
-		t.Fatalf("root must be depth 0 with full capabilities: %+v", root)
+	if root.Depth != 0 || len(root.Scopes) != 1 {
+		t.Fatalf("root must be depth 0 with exactly its declared scope: %+v", root)
+	}
+
+	// W0.5: root without explicit scopes refuses (default-deny) even though
+	// the capability is advertised — inheritance is for children only.
+	resp := submitRaw(t, server, "a2a.SubmitTask", TaskSubmitParams{
+		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
+		MaxBudgetUSD: 5.0,
+	}, 200)
+	if resp.Error == nil {
+		t.Fatalf("scope-free root must refuse")
 	}
 
 	// Narrowing scopes down the chain is allowed.
 	child := submitTask(t, server, TaskSubmitParams{
 		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
-		ParentTaskID: root.ID, Scopes: []string{"molecular_ground_state_pyscf"},
+		ParentTaskID: root.ID, Scopes: []string{"molecular_ground_state_pyscf"}, MaxBudgetUSD: 4.0,
 	}, 21)
 	if child.Depth != 1 {
 		t.Fatalf("child must be depth 1: %+v", child)
 	}
 	grandchild := submitTask(t, server, TaskSubmitParams{
 		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
-		ParentTaskID: child.ID,
+		ParentTaskID: child.ID, MaxBudgetUSD: 3.0,
 	}, 22)
 	if grandchild.Depth != 2 || len(grandchild.Scopes) != 1 {
 		t.Fatalf("grandchild must inherit narrowed scopes at depth 2: %+v", grandchild)
 	}
 
 	// Depth 3 refused.
-	resp := submitRaw(t, server, "a2a.SubmitTask", TaskSubmitParams{
+	resp = submitRaw(t, server, "a2a.SubmitTask", TaskSubmitParams{
 		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
-		ParentTaskID: grandchild.ID,
+		ParentTaskID: grandchild.ID, MaxBudgetUSD: 2.0,
 	}, 23)
 	if resp.Error == nil {
 		t.Fatalf("depth-3 delegation must refuse")
@@ -292,7 +309,7 @@ func TestA2ADelegationDepthAndScopes(t *testing.T) {
 	// Scope widening refused (grandchild only holds one scope).
 	resp = submitRaw(t, server, "a2a.SubmitTask", TaskSubmitParams{
 		TaskType: "zne_error_mitigation", Payload: json.RawMessage(`{"qasm":"q;"}`),
-		ParentTaskID: grandchild.ID, Scopes: []string{"zne_error_mitigation", "qir_llvm_lowering"},
+		ParentTaskID: grandchild.ID, Scopes: []string{"zne_error_mitigation", "qir_llvm_lowering"}, MaxBudgetUSD: 2.0,
 	}, 24)
 	if resp.Error == nil {
 		t.Fatalf("scope escalation must refuse")
@@ -301,7 +318,7 @@ func TestA2ADelegationDepthAndScopes(t *testing.T) {
 	// Unknown parent refused.
 	resp = submitRaw(t, server, "a2a.SubmitTask", TaskSubmitParams{
 		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
-		ParentTaskID: "task-nonexistent",
+		ParentTaskID: "task-nonexistent", MaxBudgetUSD: 2.0,
 	}, 25)
 	if resp.Error == nil {
 		t.Fatalf("unknown parent must refuse")
@@ -319,6 +336,7 @@ func TestA2ARevokePropagates(t *testing.T) {
 
 	root := submitTask(t, server, TaskSubmitParams{
 		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
+		Scopes: []string{"molecular_ground_state_pyscf"}, MaxBudgetUSD: 5.0,
 	}, 30)
 	if err := server.RevokeTask(root.ID); err != nil {
 		t.Fatalf("revoke queued task: %v", err)
@@ -337,6 +355,7 @@ func TestA2ARevokePropagates(t *testing.T) {
 	// Revoking a settled task refuses (history is immutable).
 	done := submitTask(t, server, TaskSubmitParams{
 		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
+		Scopes: []string{"molecular_ground_state_pyscf"}, MaxBudgetUSD: 5.0,
 	}, 32)
 	settled := pollTaskStatus(t, server, done.ID)
 	if settled.Status != TaskStatusCompleted {
@@ -362,6 +381,7 @@ func TestA2AL0TenantRefusesDispatch(t *testing.T) {
 
 	task := submitTask(t, server, TaskSubmitParams{
 		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
+		Scopes: []string{"molecular_ground_state_pyscf"}, MaxBudgetUSD: 5.0,
 	}, 40)
 	settled := pollTaskStatus(t, server, task.ID)
 	if settled.Status != TaskStatusFailed {
@@ -381,9 +401,78 @@ func TestA2AUnknownTenantFailsClosed(t *testing.T) {
 
 	task := submitTask(t, server, TaskSubmitParams{
 		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
+		Scopes: []string{"molecular_ground_state_pyscf"}, MaxBudgetUSD: 5.0,
 	}, 41)
 	settled := pollTaskStatus(t, server, task.ID)
 	if settled.Status != TaskStatusFailed {
 		t.Fatalf("unknown tenant must settle failed, got %+v", settled)
+	}
+}
+
+func TestA2AW05DelegationRail(t *testing.T) {
+	server := NewA2AServer("0x123", nil, nil)
+	server.SetTaskExecutor(&fakeExecutor{result: map[string]any{"ok": true}})
+
+	pub, priv, _ := ed25519.GenerateKey(nil)
+	_ = pub
+	signParent := func(tenant, jobHash string, budget float64) *mandates.SpendMandate {
+		m, err := mandates.SignMandate(priv, tenant, jobHash, budget, time.Now().UTC().Add(time.Hour))
+		if err != nil {
+			t.Fatalf("sign parent: %v", err)
+		}
+		return m
+	}
+	base := func() TaskSubmitParams {
+		return TaskSubmitParams{
+			TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
+			Scopes: []string{"molecular_ground_state_pyscf"}, MaxBudgetUSD: 10.0,
+		}
+	}
+
+	// Zero budget: refused (delegation without a budget cannot spend).
+	bad := base()
+	bad.MaxBudgetUSD = 0
+	if resp := submitRaw(t, server, "a2a.SubmitTask", bad, 50); resp.Error == nil {
+		t.Fatalf("zero-budget delegation must refuse")
+	}
+
+	// Empty-tenant parent mandate: refused (authorizes nothing-specific).
+	bad = base()
+	bad.ParentMandate = signParent("", "jobhash-x", 50.0)
+	if resp := submitRaw(t, server, "a2a.SubmitTask", bad, 51); resp.Error == nil {
+		t.Fatalf("tenant-less parent mandate must refuse")
+	}
+
+	// Empty-jobhash parent mandate: refused.
+	bad = base()
+	bad.ParentMandate = signParent("tenant-a", "", 50.0)
+	if resp := submitRaw(t, server, "a2a.SubmitTask", bad, 52); resp.Error == nil {
+		t.Fatalf("job-less parent mandate must refuse")
+	}
+
+	// Payload declares more than the task budget: refused (over-delegation).
+	bad = base()
+	bad.Payload = json.RawMessage(`{"molecule":"H2","max_cost_usd":25.0}`)
+	if resp := submitRaw(t, server, "a2a.SubmitTask", bad, 53); resp.Error == nil {
+		t.Fatalf("payload cost above task budget must refuse")
+	}
+
+	// Scope enforcement at run: granted scope differs from task type —
+	// submit narrows honestly, but a mismatched stored scope settles failed.
+	// (Submit validates subset; run validates membership.)
+	mismatch := base()
+	mismatch.Scopes = []string{"zne_error_mitigation"}
+	if resp := submitRaw(t, server, "a2a.SubmitTask", mismatch, 54); resp.Error != nil {
+		t.Fatalf("in-capability scope must submit: %v", resp.Error)
+	} else {
+		var task A2ATask
+		raw, _ := json.Marshal(resp.Result)
+		if err := json.Unmarshal(raw, &task); err != nil {
+			t.Fatalf("decode: %v", err)
+		}
+		settled := pollTaskStatus(t, server, task.ID)
+		if settled.Status != TaskStatusFailed {
+			t.Fatalf("out-of-scope execution must settle failed, got %+v", settled)
+		}
 	}
 }
