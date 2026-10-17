@@ -1,4 +1,20 @@
 from .estimator import estimate, preflight
-from .mandate import SpendMandate, create_mandate, verify_mandate_integrity
+from .mandate import (
+    SpendMandate,
+    canonical_job_binding,
+    create_mandate,
+    operator_key_from_env,
+    utc_now_plus,
+    verify_mandate,
+)
 
-__all__ = ["estimate", "preflight", "SpendMandate", "create_mandate", "verify_mandate_integrity"]
+__all__ = [
+    "estimate",
+    "preflight",
+    "SpendMandate",
+    "canonical_job_binding",
+    "create_mandate",
+    "operator_key_from_env",
+    "utc_now_plus",
+    "verify_mandate",
+]

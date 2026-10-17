@@ -13,6 +13,7 @@ remains the immutable system of record; this store is the live control state.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import tempfile
@@ -91,28 +92,40 @@ class CostGovernanceService:
         self._save_approval(a)
         return a
 
-    def approve(self, approval_id: str, reviewer: str, note: str | None = None) -> Approval:
-        from kubona.cost.mandate import create_mandate
+    def approve(self, approval_id: str, reviewer: str, note: str | None = None,
+                tenant_id: str | None = None, job_hash: str | None = None,
+                signing_key: bytes | None = None) -> Approval:
+        from kubona.cost.mandate import create_mandate, utc_now_plus, verify_mandate
 
         a = self._load_approvals()[approval_id]
         if a.state not in ("REVIEW", "HOLD"):
             raise GovernanceError(f"approval {approval_id} is {a.state}")
+        # W0.9: the mandate binds an explicit lab + program under an explicit
+        # operator key. No defaults anywhere: a defaulted tenant or job hash
+        # is an unbound mandate, and an unsigned one never mints. (W0.10
+        # propagates the real session tenant + payload hash here.)
+        if not tenant_id or not tenant_id.strip():
+            raise GovernanceError("approve requires tenant_id: mandates bind a lab, never a default")
+        if not job_hash or not job_hash.strip():
+            raise GovernanceError("approve requires job_hash: mandates bind a program, never a blank")
+        if signing_key is None:
+            raise GovernanceError("approve requires signing_key (operator Ed25519 seed): unsigned mandates never mint")
+        m = create_mandate(
+            signing_key=signing_key,
+            tenant_id=tenant_id,
+            job_hash=job_hash,
+            max_budget_usd=a.amount_requested_usd,
+            expiry=utc_now_plus(3600.0),
+        )
+        ok, reason = verify_mandate(m, tenant_id, job_hash, a.amount_requested_usd)
+        if not ok:
+            raise GovernanceError(f"freshly minted mandate must verify: {reason}")
         a.state = "APPROVED"
         a.reviewed_by = reviewer
         a.note = note
         a.reviewed_at = time.time()
-        # Generate cryptographic AP2 spend mandate token upon approval
-        m = create_mandate(
-            mandate_id=a.approval_id,
-            tenant_id="default-tenant",
-            session_id=a.session_id,
-            job_hash=f"job-{a.approval_id}",
-            max_budget_usd=a.amount_requested_usd,
-            ttl_seconds=3600.0,
-            approved_by=reviewer,
-        )
-        a.mandate_token = m.mandate_id
-        a.mandate_digest = m.digest()
+        a.mandate_token = m.signature_hex
+        a.mandate_digest = hashlib.sha256(m.canonical_payload()).hexdigest()
         self._save_approval(a)
         return a
 
