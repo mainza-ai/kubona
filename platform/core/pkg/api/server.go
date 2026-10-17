@@ -1681,6 +1681,16 @@ func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
 		Backend   string          `json:"backend"`
 		BudgetUSD float64         `json:"budget_usd"`
 		Proposal  json.RawMessage `json:"proposal"`
+		// G3: launch accepts the full jobs field set — without these,
+		// metered-hardware launch could never pass admission (dead path).
+		MandateRef          string   `json:"mandate_ref"`
+		GrantChain          []string `json:"grant_chain"`
+		InputLabels         []string `json:"input_labels"`
+		CallerJurisdictions []string `json:"caller_jurisdictions"`
+		CallerExportClass   string   `json:"caller_export_class"`
+		ExportReviewed      bool     `json:"export_reviewed"`
+		// S1: optional content-bound idempotency key (see handleJobs).
+		RequestID string `json:"request_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -1757,19 +1767,45 @@ func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jobParams := map[string]any{
-		"qasm":              req.QASM,
-		"requested_backend": req.Backend,
-		"shots":             1024,
-		"max_cost_usd":      req.BudgetUSD,
+		"qasm":                 req.QASM,
+		"requested_backend":    req.Backend,
+		"shots":                1024,
+		"max_cost_usd":         req.BudgetUSD,
+		"mandate_ref":          req.MandateRef,
+		"grant_chain":          req.GrantChain,
+		"input_labels":         req.InputLabels,
+		"caller_jurisdictions": req.CallerJurisdictions,
+		"caller_export_class":  req.CallerExportClass,
+		"export_reviewed":      req.ExportReviewed,
 	}
 	// R17: attribution persists on the job row and the job_queued event
 	// (SubmitJob stores params_json verbatim and queues the full job).
 	if designedBy != "" {
 		jobParams["designed_by"] = designedBy
 	}
+	// S1: claim-or-replay after all 400-validation (a fixable 400 must not
+	// consume the key) and before SubmitJob (spend). Content hashes the
+	// effective spend-binding values, not raw proposal bytes.
+	idem, iref := s.idemBegin(req.SessionID, req.RequestID, map[string]any{
+		"session_id": req.SessionID, "qasm": req.QASM, "backend": req.Backend,
+		"budget_usd": req.BudgetUSD, "mandate_ref": req.MandateRef,
+		"grant_chain": req.GrantChain, "input_labels": req.InputLabels,
+		"caller_jurisdictions": req.CallerJurisdictions,
+		"caller_export_class":  req.CallerExportClass,
+		"export_reviewed":      req.ExportReviewed,
+		"designed_by":          designedBy,
+	}, idemRailJob)
+	if iref != nil {
+		http.Error(w, iref.msg, iref.status)
+		return
+	}
+	if idem.replay {
+		s.idemReplay(w, idem)
+		return
+	}
 	job, err := s.jobRunner.SubmitJob(req.SessionID, "circuit_run", jobParams)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		s.idemFinishError(w, idem, http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -1777,7 +1813,7 @@ func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
 
 	s.sessionMgr.AddMessage(req.SessionID, "system", fmt.Sprintf("🚀 Dispatched Job %s to backend '%s'. Loop %s armed under Ring 0 watchdog.", job.ID, req.Backend, loop.ID), nil)
 
-	writeJSON(w, http.StatusCreated, map[string]any{
+	s.idemFinishJSON(w, idem, http.StatusCreated, map[string]any{
 		"job":  job,
 		"loop": loop,
 	})
@@ -1798,6 +1834,9 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		SessionID string `json:"session_id"`
 		Prompt    string `json:"prompt"`
+		// S1: optional content-bound idempotency key (slow rail: the
+		// 4-turn run executes once; retries replay the stored consensus).
+		RequestID string `json:"request_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -1825,6 +1864,22 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// S1: claim-or-replay on the slow rail (effective prompt post-default,
+	// so a retried empty prompt matches). All side effects below
+	// (messages, claim mint, campaign save, memory write-back) run only on
+	// the proceed path; replays serve the stored consensus untouched.
+	tribIdem, tribRef := s.idemBegin(req.SessionID, req.RequestID, map[string]any{
+		"session_id": req.SessionID, "prompt": req.Prompt,
+	}, idemRailSlow)
+	if tribRef != nil {
+		http.Error(w, tribRef.msg, tribRef.status)
+		return
+	}
+	if tribIdem.replay {
+		s.idemReplay(w, tribIdem)
+		return
+	}
+
 	onTurn := func(turn agents.TribunalTurn) {
 		s.sessionMgr.AddMessage(req.SessionID, string(turn.Role), fmt.Sprintf("[%s]: %s", turn.Name, turn.Content), nil)
 		s.ledger.AppendEvent(req.SessionID, "tribunal_turn", map[string]any{
@@ -1839,7 +1894,7 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 	tribEventsBefore := s.latestEventID(req.SessionID)
 	res, err := s.collective.ExecuteTribunalWithMemory(r.Context(), s.llmClient, s.jobRunner.BridgeClient(), s.memoryStore, req.Prompt, onTurn)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		s.idemFinishError(w, tribIdem, http.StatusInternalServerError, err.Error())
 		return
 	}
 	// Tribunal tool use audits exactly like copilot tool use: one
@@ -1882,7 +1937,7 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 	s.retainTurnExperience(req.SessionID, "tribunal", req.Prompt, tribOutcome,
 		s.toolNamesSince(req.SessionID, tribEventsBefore), 0.7)
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	s.idemFinishJSON(w, tribIdem, http.StatusOK, map[string]any{
 		"tribunal":          res,
 		"assistant_message": assistantMsg,
 		"campaign":          campState,
@@ -1915,6 +1970,11 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 			CallerJurisdictions []string `json:"caller_jurisdictions"`
 			CallerExportClass   string   `json:"caller_export_class"`
 			ExportReviewed      bool     `json:"export_reviewed"`
+			// S1: optional content-bound idempotency key. Same
+			// (session, request_id, content) replays the stored receipt;
+			// same ID with different content 409s. Empty = current
+			// behavior (console back-compat).
+			RequestID string `json:"request_id"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -1922,7 +1982,8 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 		}
 		// Dispatch is always attributed to a real session (tenant
 		// attribution for autonomy checks); missing/unknown ids 404 —
-		// unattributed spend is another lab's bill (G7).
+		// unattributed spend is another lab's bill (G7). The 404 runs
+		// before any idempotency key is touched (S1): ghosts never store.
 		sid, serr := s.requireSession(req.SessionID)
 		if serr != nil {
 			http.Error(w, serr.Error(), http.StatusNotFound)
@@ -1948,12 +2009,29 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 			"caller_export_class":  req.CallerExportClass,
 			"export_reviewed":      req.ExportReviewed,
 		}
-		job, err := s.jobRunner.SubmitJob(req.SessionID, "circuit_run", jobParams)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		// S1: claim-or-replay before SubmitJob (spend happens inside).
+		idem, iref := s.idemBegin(req.SessionID, req.RequestID, map[string]any{
+			"session_id": req.SessionID, "qasm": req.QASM, "backend": req.Backend,
+			"shots": req.Shots, "budget_usd": req.BudgetUSD, "mandate_ref": req.MandateRef,
+			"grant_chain": req.GrantChain, "input_labels": req.InputLabels,
+			"caller_jurisdictions": req.CallerJurisdictions,
+			"caller_export_class":  req.CallerExportClass,
+			"export_reviewed":      req.ExportReviewed,
+		}, idemRailJob)
+		if iref != nil {
+			http.Error(w, iref.msg, iref.status)
 			return
 		}
-		writeJSON(w, http.StatusCreated, job)
+		if idem.replay {
+			s.idemReplay(w, idem)
+			return
+		}
+		job, err := s.jobRunner.SubmitJob(req.SessionID, "circuit_run", jobParams)
+		if err != nil {
+			s.idemFinishError(w, idem, http.StatusInternalServerError, err.Error())
+			return
+		}
+		s.idemFinishJSON(w, idem, http.StatusCreated, job)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
@@ -2677,6 +2755,9 @@ func (s *Server) handleAutoresearchStart(w http.ResponseWriter, r *http.Request)
 		HarnessID       string `json:"harness_id"`
 		InitialArtifact string `json:"initial_artifact"`
 		MaxIterations   int    `json:"max_iterations"`
+		// S1: optional content-bound idempotency key (slow rail: the
+		// baseline run executes once; retries replay the stored state).
+		RequestID string `json:"request_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -2701,6 +2782,22 @@ func (s *Server) handleAutoresearchStart(w http.ResponseWriter, r *http.Request)
 	harness, err := s.harnessReg.Get(req.HarnessID)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("harness '%s' not found: %v", req.HarnessID, err), http.StatusBadRequest)
+		return
+	}
+
+	// S1: claim-or-replay after all 400-validation, before the baseline
+	// run (the first spend-adjacent work). A replayed start returns the
+	// original loop state — never a second loop.
+	arIdem, arRef := s.idemBegin(req.SessionID, req.RequestID, map[string]any{
+		"session_id": req.SessionID, "harness_id": req.HarnessID,
+		"initial_artifact": req.InitialArtifact, "max_iterations": req.MaxIterations,
+	}, idemRailSlow)
+	if arRef != nil {
+		http.Error(w, arRef.msg, arRef.status)
+		return
+	}
+	if arIdem.replay {
+		s.idemReplay(w, arIdem)
 		return
 	}
 
@@ -2745,7 +2842,7 @@ func (s *Server) handleAutoresearchStart(w http.ResponseWriter, r *http.Request)
 		"max_iterations": req.MaxIterations,
 	})
 
-	writeJSON(w, http.StatusCreated, engine.State())
+	s.idemFinishJSON(w, arIdem, http.StatusCreated, engine.State())
 }
 
 func (s *Server) handleAutoresearchLoops(w http.ResponseWriter, r *http.Request) {

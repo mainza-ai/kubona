@@ -78,4 +78,16 @@ released alongside the tenant share) — tenant first, session second, tenant
 unwound if the session refuses. The tenant remains the billing boundary;
 the session is the tighter inner rail.
 
+> ⚑ Landed (2026-10-17, S1): content-bound idempotency keys on the four
+> session-scoped spend mutations (jobs dispatch, chat launch, tribunal,
+> autoresearch start). Same `(session, request_id, content-hash)` replays
+> the stored receipt byte-identical (`X-Idempotent-Replay`); same ID with
+> different content 409s `request_conflict`; ghosts 404 before any key is
+> stored; crash-orphaned `IN_PROGRESS` claims are reclaimable after
+> rail thresholds (5 min job / 60 min slow). Receipts are audit (no TTL).
+> Launch additionally accepts the full jobs field set (mandate / grants /
+> jurisdictions — hardware launch was previously a dead path). Metasearch
+> apply needed no key: its applied-state gate already refuses double-apply
+> (`TestMetaSearchDoubleApplyRefused`). See [[cloudroom-adoption-plan]] S1.
+
 Related: [[cost-governance]] · [[protocol-strategy]] · [[user-identity-and-profiles]] · [[workflows-and-agent-authoring]]
