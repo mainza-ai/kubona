@@ -63,7 +63,7 @@ Describes **how decided** something is — never how finished.
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
 **Census (124 pages = 45 entities · 67 concepts · 6 sources · 5 meta), 2026-10-17:**
-`settled` 5 · `adopted` 48 · `open-question` 7 · `candidate` 10 · `tracked` 33 ·
+`settled` 5 · `adopted` 48 · `open-question` 7 · `candidate` 12 · `tracked` 33 ·
 `reference` 7 · `source` 6 · `living` 6 (lint-counted; the 2026-10-10 text
 undercounted adopted/tracked/candidate).
 `settled` 5 · `adopted` 45 · `open-question` 8 · `candidate` 6 · `tracked` 26 ·
