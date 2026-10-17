@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/mainza-ai/kubona/core/pkg/llm"
@@ -94,10 +95,22 @@ func TestOnSpendHookFiresCloudOnly(t *testing.T) {
 
 // I3: loop iteration bounds price worst-case ceilings per role.
 func TestLoopIterationBound(t *testing.T) {
-	// Defaults: coder/critic unassigned and no enabled provider —
-	// nothing billable, bound zero, no fallbacks.
+	t.Setenv("OPENCODE_API_KEY", "test-key")
+	t.Setenv("OPENCODE_MODEL", "deepseek-v4.1-flash")
+	// Defaults: coder/critic unassigned and the active provider force-
+	// disabled — nothing billable, bound zero, no fallbacks.
 	s := llm.DefaultSettings()
-	bound, fallbacks := llm.LoopIterationBound(s, []string{"coder", "critic"})
+	off := s.GetSnapshot()
+	offPc := off.Providers[llm.ProviderOpenCode]
+	offPc.Enabled = false
+	off.Providers[llm.ProviderOpenCode] = offPc
+	if err := s.Update(&off, nil); err != nil {
+		t.Fatal(err)
+	}
+	bound, fallbacks, err := llm.LoopIterationBound(s, []string{"coder", "critic"})
+	if err != nil {
+		t.Fatalf("unassigned roles must not error, got: %v", err)
+	}
 	if bound != 0 || len(fallbacks) != 0 {
 		t.Fatalf("unassigned roles must bind zero, got %v %v", bound, fallbacks)
 	}
@@ -111,19 +124,24 @@ func TestLoopIterationBound(t *testing.T) {
 	if err := s.Update(&snap, nil); err != nil {
 		t.Fatal(err)
 	}
-	bound, fallbacks = llm.LoopIterationBound(s, []string{"coder", "critic"})
+	bound, fallbacks, err = llm.LoopIterationBound(s, []string{"coder", "critic"})
+	if err != nil {
+		t.Fatalf("priced roles must bind, got: %v", err)
+	}
 	want := 2 * 0.0004 * 150000.0 / 1000.0
 	if bound != want || len(fallbacks) != 0 {
 		t.Fatalf("priced roles must sum ceiling cost, got %v %v (want %v)", bound, fallbacks, want)
 	}
-	// Unknown metered model falls back to priciest-known (named, safe).
+	// Unknown metered model fails closed: no bound, no over-reserve —
+	// the refusal names the model and the fix.
 	snap.RoleAssignments["critic"] = llm.RoleModelAssignment{Role: "critic", Provider: llm.ProviderOpenCode, Model: "mystery-9000"}
 	if err := s.Update(&snap, nil); err != nil {
 		t.Fatal(err)
 	}
-	bound2, fallbacks := llm.LoopIterationBound(s, []string{"coder", "critic"})
-	if bound2 <= want || len(fallbacks) != 1 {
-		t.Fatalf("unknown model must fall back upward and named, got %v %v", bound2, fallbacks)
+	if _, _, err := llm.LoopIterationBound(s, []string{"coder", "critic"}); err == nil {
+		t.Fatal("unknown model must refuse admission, not over-reserve")
+	} else if got := err.Error(); !strings.Contains(got, "mystery-9000") {
+		t.Fatalf("refusal must name the model, got: %v", err)
 	}
 	// Local providers contribute zero even when assigned.
 	snap.RoleAssignments["coder"] = llm.RoleModelAssignment{Role: "coder", Provider: llm.ProviderOllama, Model: "llama3"}
@@ -131,7 +149,10 @@ func TestLoopIterationBound(t *testing.T) {
 	if err := s.Update(&snap, nil); err != nil {
 		t.Fatal(err)
 	}
-	bound3, fallbacks := llm.LoopIterationBound(s, []string{"coder", "critic"})
+	bound3, fallbacks, err := llm.LoopIterationBound(s, []string{"coder", "critic"})
+	if err != nil {
+		t.Fatalf("local roles must not error, got: %v", err)
+	}
 	if bound3 != 0 || len(fallbacks) != 0 {
 		t.Fatalf("local roles must bind zero, got %v %v", bound3, fallbacks)
 	}

@@ -45,13 +45,14 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
   const [newAgentRole, setNewAgentRole] = useState('custom_theorist');
   const [newAgentDesc, setNewAgentDesc] = useState('');
   const [newAgentPrompt, setNewAgentPrompt] = useState('');
-  const [newAgentModel, setNewAgentModel] = useState('local/qwen2.5-coder:32b');
+  const [newAgentModel, setNewAgentModel] = useState('');
   const [newAgentBudget, setNewAgentBudget] = useState('5.0');
   const [newAgentEmoji, setNewAgentEmoji] = useState('🧪');
 
   // Multimodal Router Test
   const [testPrompt, setTestPrompt] = useState('Evaluate Kohn-Sham failure for FeMo-cofactor');
   const [testModality, setTestModality] = useState<ModalityType>('molecule_3d');
+  const [testModel, setTestModel] = useState('');
   const [routingDecision, setRoutingDecision] = useState<RoutingDecision | null>(null);
   const [routingLoading, setRoutingLoading] = useState(false);
 
@@ -148,6 +149,10 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
 
   const handleSaveCustomAgent = async () => {
     if (!newAgentName.trim() || !newAgentPrompt.trim()) return;
+    if (!newAgentModel.trim()) {
+      setMeshError('Refused: preferred model is required — pick an explicit model, never a baked-in default. Nothing registered.');
+      return;
+    }
     const parsedBudget = parseFloat(newAgentBudget);
     if (!Number.isFinite(parsedBudget) || parsedBudget < 0) {
       setMeshError(`Refused: spend budget must be a finite number ≥ 0 (got "${newAgentBudget}"). Nothing registered.`);
@@ -201,6 +206,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
       const decision = await routeMultimodalPayload({
         prompt: testPrompt,
         role_hint: 'lead_theorist',
+        preferred_model: testModel.trim() || undefined,
         items: [
           {
             modality: testModality,
@@ -212,6 +218,9 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
       });
       if (!decision) {
         setRouteError('Router refused — no decision returned. Nothing routed.');
+        setRoutingDecision(null);
+      } else if (decision.ok === false) {
+        setRouteError(`Router refused: ${decision.explanation || 'no reason given'}. Nothing routed.`);
         setRoutingDecision(null);
       } else {
         setRoutingDecision(decision);
@@ -366,6 +375,14 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
             <option value="spectroscopy">Modality: Spectroscopy / Vision</option>
             <option value="lean4_ast">Modality: Lean 4 AST</option>
           </select>
+          <input
+            type="text"
+            value={testModel}
+            onChange={(e) => setTestModel(e.target.value)}
+            placeholder="Model (optional — server default applies)"
+            title="Explicit model to route; empty uses the server's configured default, never a baked-in ID"
+            className="px-4 py-2 rounded-xl bg-black/60 border border-white/10 text-white text-xs font-mono placeholder:text-slate-500 focus:outline-none focus:border-cyan-400"
+          />
           <button
             onClick={handleTestRoute}
             disabled={routingLoading}
@@ -546,6 +563,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
                   <input
                     type="text"
                     value={newAgentModel}
+                    placeholder="e.g. local/qwen2.5-coder:32b (required — never assumed)"
                     onChange={(e) => setNewAgentModel(e.target.value)}
                     className="w-full p-2 rounded-xl bg-black/40 border border-white/10 text-white font-mono text-[11px]"
                   />

@@ -97,7 +97,10 @@ func TestLoopAdmissionReserves(t *testing.T) {
 	if err != nil {
 		t.Fatalf("reload settings: %v", err)
 	}
-	perIter, _ := llm.LoopIterationBound(persisted, []string{"coder", "critic"})
+	perIter, _, err := llm.LoopIterationBound(persisted, []string{"coder", "critic"})
+	if err != nil {
+		t.Fatalf("bound must resolve: %v", err)
+	}
 	want := perIter * 10
 	tenant, err := srv.TenantManager().GetTenant("default")
 	if err != nil {

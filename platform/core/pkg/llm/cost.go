@@ -1,5 +1,7 @@
 package llm
 
+import "fmt"
+
 // Cloud LLM spend accounting (K4). Tribunal and copilot turns can call
 // metered cloud models (opencode/deepseek, anthropic, openai); without a
 // dollar rail that spend is invisible and uncapped — the same defect
@@ -46,21 +48,15 @@ func EstimateCostUSD(provider ProviderType, model string, promptTokens, completi
 
 // LoopIterationBound prices one worst-case loop iteration (I3): the sum
 // over roles of ceiling-cost at MaxTurnTokens (output rate — an UPPER
-// bound by construction, never an estimate of the typical). Unassigned
-// or disabled roles contribute zero (their calls fail over to the free
-// algorithmic fallback, spending nothing). Unknown metered models fall
-// back to the priciest KNOWN rate (safe direction; remainder releases
-// at loop end, and the fallback is named in fallbackRoles for the
-// audit event). Local providers contribute zero. Never errors —
-// admission refuses on the tenant ceiling, not on pricing.
-func LoopIterationBound(s *Settings, roles []string) (perIterUSD float64, fallbackRoles []string) {
+// bound by construction, never an estimate of the typical). Unassigned,
+// disabled, or local roles contribute zero (their calls fail over to the
+// free algorithmic fallback, spending nothing). An unknown METERED model
+// refuses outright: admitting a loop that cannot be priced would either
+// lock money against a guess or stall at first billing — both are
+// silent failures, so admission fails closed with the model named.
+// Never returns a bound for a model it cannot price.
+func LoopIterationBound(s *Settings, roles []string) (perIterUSD float64, fallbackRoles []string, err error) {
 	cfg := DefaultBudgetConfig()
-	maxKnown := 0.0
-	for _, rate := range heuristicRates {
-		if rate.outputPer1K > maxKnown {
-			maxKnown = rate.outputPer1K
-		}
-	}
 	for _, role := range roles {
 		prov, model, err := s.GetModelForRole(role)
 		if err != nil {
@@ -69,14 +65,13 @@ func LoopIterationBound(s *Settings, roles []string) (perIterUSD float64, fallba
 		if prov == ProviderOMLX || prov == ProviderOllama || prov == ProviderLMStudio {
 			continue
 		}
-		if b, ok := EstimateCeilingCostUSD(prov, model, cfg.MaxTurnTokens); ok {
-			perIterUSD += b
-			continue
+		b, ok := EstimateCeilingCostUSD(prov, model, cfg.MaxTurnTokens)
+		if !ok {
+			return 0, nil, fmt.Errorf("role %q model %q has no ceiling rate: pick a priced model in Model Settings before starting metered loops", role, model)
 		}
-		perIterUSD += maxKnown * float64(cfg.MaxTurnTokens) / 1000.0
-		fallbackRoles = append(fallbackRoles, role+":"+model)
+		perIterUSD += b
 	}
-	return perIterUSD, fallbackRoles
+	return perIterUSD, nil, nil
 }
 
 // (W0.19): the call's real split is unknown, so the upper bound bills.

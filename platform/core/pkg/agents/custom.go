@@ -102,7 +102,7 @@ func (r *CustomAgentRegistry) seedDefaults() {
 			BadgeColor:     "cyan",
 			Capabilities:   []string{"qksd", "electronic_structure", "generalized_eigenvalues"},
 			Modalities:     []string{"text", "molecule_3d"},
-			PreferredModel: "local/qwen2.5-coder:32b",
+			PreferredModel: "", // Unpinned by policy: persona seeds carry no model IDs. Execution resolves models at dispatch; a baked-in ID here would rot silently.
 			MCPTools:       []string{"bridge_solve_krylov", "bridge_compute_anchor"},
 			SpendBudgetUSD: 5.0,
 			MemoryScopes:   []string{"session", "hindsight_pareto"},
@@ -120,7 +120,7 @@ func (r *CustomAgentRegistry) seedDefaults() {
 			BadgeColor:     "purple",
 			Capabilities:   []string{"zne", "pec", "cdr", "noise_budget"},
 			Modalities:     []string{"text", "circuit_qir"},
-			PreferredModel: "local/qwen2.5-coder:32b",
+			PreferredModel: "", // Unpinned by policy: persona seeds carry no model IDs. Execution resolves models at dispatch; a baked-in ID here would rot silently.
 			MCPTools:       []string{"bridge_mitigate_circuit"},
 			SpendBudgetUSD: 2.5,
 			MemoryScopes:   []string{"session"},
@@ -240,7 +240,10 @@ type MultimodalPayload struct {
 	HasEd25519Mandate bool             `json:"has_ed25519_mandate"`
 }
 
-// RoutingDecision is the synthesized router outcome
+// RoutingDecision is the synthesized router outcome. Ok=false is a
+// refusal (no model configured, air-gap block, or unfunded cloud
+// request) — callers check it before dispatching, never treat an empty
+// Model as routed.
 type RoutingDecision struct {
 	Provider            string   `json:"provider"`
 	Model               string   `json:"model"`
@@ -249,63 +252,131 @@ type RoutingDecision struct {
 	EstimatedCostUSD    float64  `json:"estimated_cost_usd"`
 	Explanation         string   `json:"explanation"`
 	ModalitiesSupported []string `json:"modalities_supported"`
+	Ok                  bool     `json:"ok"`
 }
 
-// RouteMultimodal evaluates task complexity, air-gap policy, and budget constraints
-func RouteMultimodal(p MultimodalPayload, airGapped bool) RoutingDecision {
-	has3D := false
-	for _, it := range p.Items {
-		if strings.Contains(it.Modality, "molecule") || strings.Contains(it.Modality, "3d") {
-			has3D = true
-			break
+// cloudModel reports whether a model ID names a hosted (non-local)
+// backend. Prefix "provider/model" wins; bare IDs fall back to known
+// cloud substrings (fail-closed direction: an unrecognized ID is treated
+// as cloud, never silently routed free).
+func cloudModel(model string) bool {
+	head := model
+	if i := strings.Index(model, "/"); i >= 0 {
+		head = strings.ToLower(model[:i])
+	} else {
+		lower := strings.ToLower(model)
+		for _, sub := range []string{"claude", "gpt", "gemini", "deepseek", "nemotron", "opus", "sonnet", "o1", "-4o", "qwen-max", "qwen-plus"} {
+			if strings.Contains(lower, sub) {
+				return true
+			}
+		}
+		return false
+	}
+	switch head {
+	case "local", "omlx", "ollama", "lmstudio":
+		return false
+	default:
+		return true
+	}
+}
+
+// modelProvider names the provider for a "provider/model" ID, or "" when
+// the ID carries no provider prefix.
+func modelProvider(model string) string {
+	if i := strings.Index(model, "/"); i >= 0 {
+		return model[:i]
+	}
+	return ""
+}
+
+// RouteMultimodal evaluates task complexity, air-gap policy, and budget
+// constraints. The model is NEVER invented here: an explicit
+// caller-supplied preferred_model wins, else the configured fallback
+// (operator env/DB, passed in — never a baked-in ID). Empty model
+// refuses outright instead of routing a stale default. Callers check Ok.
+func RouteMultimodal(p MultimodalPayload, airGapped bool, fallbackModel string) RoutingDecision {
+	model := strings.TrimSpace(p.PreferredModel)
+	if model == "" {
+		model = strings.TrimSpace(fallbackModel)
+	}
+	if model == "" {
+		return RoutingDecision{
+			Ok:          false,
+			Explanation: "no model configured: pass preferred_model or set a configured default (see .env.example KUBONA_LLM_MODEL / provider *_MODEL)",
 		}
 	}
+	prov := modelProvider(model)
+	if prov == "" {
+		prov = "omlx"
+	}
+	isCloud := cloudModel(model)
 
-	// Sovereign air-gap: local only, and only this branch may claim
-	// enforcement. (A previous revision stamped AirGapEnforced on every
-	// local branch, including the plain default below.)
+	// Sovereign air-gap: local only. A cloud model under air-gap refuses
+	// (never silently downgraded to a local stand-in); only the enforced
+	// local branch may claim AirGapEnforced.
 	if airGapped {
+		if isCloud {
+			return RoutingDecision{
+				Provider:    prov,
+				Model:       model,
+				Ok:          false,
+				Explanation: "sovereign air-gap enforced: cloud model " + model + " refused, zero external network egress",
+			}
+		}
 		return RoutingDecision{
-			Provider:            "omlx",
-			Model:               "local/qwen2.5-coder:32b",
+			Provider:            prov,
+			Model:               model,
 			IsLocal:             true,
 			AirGapEnforced:      true,
 			EstimatedCostUSD:    0.0,
-			Explanation:         "Sovereign air-gap enforced: routed to local on-device oMLX engine with zero external network egress.",
+			Explanation:         "Sovereign air-gap enforced: routed to local on-device engine with zero external network egress.",
 			ModalitiesSupported: []string{"text", "code", "ast", "molecule_3d"},
+			Ok:                  true,
 		}
 	}
 
-	// J2: cloud escalation is spend-gated, mirroring the Python router.
-	// A complex prompt with no budget and no mandate routes local —
-	// Previously this branch fired on keywords alone ("femoco") and
-	// claimed "AP2 mandate backing" it never checked.
-	wantsCloud := has3D || strings.Contains(strings.ToLower(p.Prompt), "femoco") || strings.Contains(strings.ToLower(p.Prompt), "kohn-sham")
+	// J2: cloud escalation is spend-gated. An explicit cloud model without
+	// funding refuses (never silently downgraded to local); funded complex
+	// work routes to the requested model with the backing named.
 	funded := p.HasEd25519Mandate || p.SpendBudgetUSD > 0.05
-	if wantsCloud && funded {
+	if isCloud {
+		if !funded {
+			return RoutingDecision{
+				Provider:    prov,
+				Model:       model,
+				Ok:          false,
+				Explanation: "cloud model " + model + " requested without spend backing: declare a budget or mandate, never silently downgraded",
+			}
+		}
 		backing := "spend budget declared"
 		if p.HasEd25519Mandate {
 			backing = "AP2 mandate backing"
 		}
+		cost := 0.045
+		if p.MaxTokens > 2048 {
+			cost = 0.15
+		}
 		return RoutingDecision{
-			Provider:            "anthropic",
-			Model:               "claude-3-5-sonnet",
+			Provider:            prov,
+			Model:               model,
 			IsLocal:             false,
 			AirGapEnforced:      false,
-			EstimatedCostUSD:    0.045,
-			Explanation:         "Complex electronic structure multi-reference character detected. Routed to high-reasoning frontier model with " + backing + ".",
+			EstimatedCostUSD:    cost,
+			Explanation:         "Frontier cloud model routed with " + backing + ".",
 			ModalitiesSupported: []string{"text", "code", "vision", "molecule_3d"},
+			Ok:                  true,
 		}
 	}
 
 	// Local default: cheap, unblocked, and honestly labeled — not enforced.
 	return RoutingDecision{
-		Provider:            "omlx",
-		Model:               "local/qwen2.5-coder:32b",
+		Provider:            prov,
+		Model:               model,
 		IsLocal:             true,
 		AirGapEnforced:      false,
 		EstimatedCostUSD:    0.0,
 		Explanation:         "Standard quantum compilation query. Routed to sovereign local engine.",
 		ModalitiesSupported: []string{"text", "code"},
+		Ok:                  true,
 	}
 }

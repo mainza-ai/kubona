@@ -29,6 +29,7 @@ interface ProviderConfig {
   enabled: boolean;
   is_local: boolean;
   timeout_sec: number;
+  last_success_at?: string;
 }
 
 interface RoleModelAssignment {
@@ -82,16 +83,33 @@ export function LLMSettings() {
   // Unsaved marker: dirty when current JSON differs from last loaded/saved.
   const dirty = settings != null && baseline != null && JSON.stringify(settings) !== baseline;
 
-  const loadModels = useCallback(async () => {
-    try {
-      const data = await fetchLLMModels('omlx');
-      if (data && Array.isArray((data as { models?: ModelInfo[] }).models)) {
-        setOmlxModels((data as { models: ModelInfo[] }).models);
-      }
-    } catch (err) {
-      setLoadError(`Models unreachable: ${err instanceof Error ? err.message : String(err)}`);
+  // Model list: the active provider's live models plus oMLX's (local
+  // discovery baseline) — never biased to a single hardcoded provider.
+  // setState lives in .then continuations only (lint-clean in effects).
+  const loadModels = useCallback(() => {
+    const providers = [settings?.active_provider, 'omlx'].filter((p): p is string => !!p);
+    const seen = new Set<string>();
+    const lists: Array<Promise<ModelInfo[]>> = [];
+    for (const p of providers) {
+      if (seen.has(p)) continue;
+      seen.add(p);
+      lists.push(
+        fetchLLMModels(p).then(
+          (data) => (Array.isArray((data as { models?: ModelInfo[] })?.models) ? (data as { models: ModelInfo[] }).models : []),
+          () => [] as ModelInfo[]
+        )
+      );
     }
-  }, []);
+    void Promise.all(lists).then((arrs) => {
+      const all: ModelInfo[] = [];
+      for (const arr of arrs) {
+        for (const m of arr) {
+          if (!all.some((x) => x.id === m.id)) all.push(m);
+        }
+      }
+      setOmlxModels(all);
+    });
+  }, [settings?.active_provider]);
 
   // Mount + retry loader. The error reset lives with the retry callers
   // (event handlers), never synchronously in the mount effect below —
@@ -107,14 +125,11 @@ export function LLMSettings() {
         }
       })
       .catch((err) => setLoadError(`Failed to load LLM settings: ${err instanceof Error ? err.message : String(err)}`));
-
-    fetchLLMModels('omlx')
-      .then((data) => {
-        const models = (data as { models?: ModelInfo[] })?.models;
-        if (models) setOmlxModels(models);
-      })
-      .catch((err) => setLoadError(`Failed to fetch oMLX models: ${err instanceof Error ? err.message : String(err)}`));
   }, []);
+
+  useEffect(() => {
+    loadModels();
+  }, [loadModels]);
 
   useEffect(() => {
     loadAll();
@@ -343,9 +358,21 @@ export function LLMSettings() {
                   <span>Base URL:</span>
                   <span className="text-slate-200 truncate max-w-[220px]">{pc.base_url}</span>
                 </div>
+                <div className="flex justify-between items-center gap-2 text-slate-400 font-mono text-[11px]">
+                  <span className="shrink-0" title="Empty clears the default — calls then fail naming the variable to set">Default model:</span>
+                  <input
+                    value={pc.default_model || ''}
+                    onChange={(e) => setProvider(pt, { default_model: e.target.value.trim() })}
+                    placeholder="(unset — configure per .env or here)"
+                    aria-label={`${pc.name} default model`}
+                    className="flex-1 min-w-0 bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
+                  />
+                </div>
                 <div className="flex justify-between items-center text-slate-400 font-mono text-[11px]">
-                  <span>Default model:</span>
-                  <span className="text-slate-200 truncate max-w-[220px]">{pc.default_model}</span>
+                  <span>Last success:</span>
+                  <span className="text-slate-200" title="Process-lifetime signal: last completed call via this provider. Unknown until the next success after a restart.">
+                    {pc.last_success_at ? new Date(pc.last_success_at).toLocaleString() : 'never here'}
+                  </span>
                 </div>
                 {!pc.is_local && (
                   <div>
@@ -419,20 +446,43 @@ export function LLMSettings() {
                 {tokenError}
               </div>
             )}
-            <div>
-              <label className="block text-slate-400 mb-1 text-[11px]">Active model (used when a role has no assignment):</label>
-              <select
-                value={settings.active_model}
-                onChange={(e) =>
-                  setSettings({ ...settings, active_model: e.target.value })
-                }
-                className="w-full bg-black/60 border border-white/10 rounded-xl p-2.5 text-xs text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
-              >
-                {modelOptions(settings.active_model).map((m) => (
-                  <option key={m} value={m}>{m}</option>
-                ))}
-              </select>
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="block text-slate-400 mb-1 text-[11px]">Active provider:</label>
+                <select
+                  value={settings.active_provider}
+                  onChange={(e) =>
+                    setSettings({ ...settings, active_provider: e.target.value })
+                  }
+                  aria-label="Active provider"
+                  className="w-full bg-black/60 border border-white/10 rounded-xl p-2.5 text-xs text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
+                >
+                  {Object.entries(settings.providers).map(([pt, pc]) => (
+                    <option key={pt} value={pt}>
+                      {pt}{pc.enabled ? '' : ' (off)'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-slate-400 mb-1 text-[11px]">Active model (used when a role has no assignment):</label>
+                <input
+                  value={settings.active_model}
+                  onChange={(e) =>
+                    setSettings({ ...settings, active_model: e.target.value.trim() })
+                  }
+                  list="kubona-model-options"
+                  placeholder="(unset — resolve fails naming the variable)"
+                  aria-label="Active model"
+                  className="w-full bg-black/60 border border-white/10 rounded-xl p-2.5 text-xs text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
+                />
+              </div>
             </div>
+            <datalist id="kubona-model-options">
+              {modelOptions(settings.active_model).map((m) => (
+                <option key={m} value={m} />
+              ))}
+            </datalist>
           </div>
         </div>
 
@@ -472,16 +522,19 @@ export function LLMSettings() {
                         </option>
                       ))}
                     </select>
-                    <select
+                    <input
                       aria-label={`${role} model`}
                       value={assign.model}
-                      onChange={(e) => setRole(role, { model: e.target.value })}
+                      list={`kubona-role-models-${role}`}
+                      onChange={(e) => setRole(role, { model: e.target.value.trim() })}
+                      placeholder="(unset — resolve fails naming the variable)"
                       className="bg-black/60 border border-white/10 rounded-lg p-1.5 text-[11px] text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
-                    >
+                    />
+                    <datalist id={`kubona-role-models-${role}`}>
                       {modelOptions(assign.model).map((m) => (
-                        <option key={m} value={m}>{m}</option>
+                        <option key={m} value={m} />
                       ))}
-                    </select>
+                    </datalist>
                   </div>
                 </div>
               ))}
