@@ -28,7 +28,8 @@ def test_health_reports_servers():
     client = TestClient(make_http_gateway(gw))
     r = client.get("/health")
     assert r.status_code == 200 and r.json()["ok"] is True
-    assert "compiler" in r.json()["servers"]
+    # W0.14: minimal health — no server inventory for recon.
+    assert "servers" not in r.json()
 
 
 def test_plain_authenticated_rpc():
@@ -73,21 +74,38 @@ def test_hybrid_mlkem_envelope_over_http():
     client = TestClient(app)
     token = iss.issue("secure-agent", role="agent", scopes=("compiler:read",))
 
-    # client wraps the call in the hybrid session
-    call = json.dumps({"server": "compiler", "tool": "transpile_circuit",
-                       "args": {"circuit_qasm": BELL}, "token": token}).encode()
-    enc = client_session.encrypt(call, aad=b"kubona-secure-rpc")
+    # client wraps the call in the hybrid session (real envelope discipline:
+    # nonce + expiry + directional AAD, inner token bound to the bearer)
+    from kubona.security.secure_rpc import SecureRpc
+    rpc_client = SecureRpc(client_session)
+    enc = rpc_client.wrap_call("compiler", "transpile_circuit",
+                               {"circuit_qasm": BELL}, token=token)
     r = client.post("/rpc", json={"envelope": base64.b64encode(enc).decode()},
                     headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 200 and r.json()["ok"] is True
-    resp = client_session.decrypt(base64.b64decode(r.json()["envelope"]), aad=b"kubona-secure-rpc")
-    assert json.loads(resp)["num_qubits"] == 2
+    resp = rpc_client.unwrap_response(base64.b64decode(r.json()["envelope"]))
+    assert resp["num_qubits"] == 2
 
     # a tampered envelope must be rejected
     bad = enc[:-3] + bytes([enc[-1] ^ 0xFF])
     r2 = client.post("/rpc", json={"envelope": base64.b64encode(bad).decode()},
                      headers={"Authorization": f"Bearer {token}"})
     assert r2.status_code == 400
+
+    # a replayed envelope must be rejected (single-use nonces)
+    r3 = client.post("/rpc", json={"envelope": base64.b64encode(enc).decode()},
+                     headers={"Authorization": f"Bearer {token}"})
+    assert r3.status_code == 400
+
+    # inner/outer identity mismatch must be refused (confused deputy)
+    other = iss.issue("other-agent", role="agent", scopes=("compiler:read",))
+    enc2 = rpc_client.wrap_call("compiler", "transpile_circuit",
+                                {"circuit_qasm": BELL}, token=other)
+    r4 = client.post("/rpc", json={"envelope": base64.b64encode(enc2).decode()},
+                     headers={"Authorization": f"Bearer {token}"})
+    assert r4.status_code == 200
+    refused = rpc_client.unwrap_response(base64.b64decode(r4.json()["envelope"]))
+    assert refused["ok"] is False
 
 
 def test_secrets_fail_closed():
