@@ -33,9 +33,13 @@ type QuantumFactors struct {
 	RecommendedBackend string  `json:"recommended_backend"`
 	EstimatedSpendUSD  float64 `json:"estimated_spend_usd"`
 	QASM               string  `json:"qasm"`
-	DagNodes           []any   `json:"dag_nodes"`
-	DagEdges           []any   `json:"dag_edges"`
-	WireCuts           []any   `json:"wire_cuts"`
+	// Synthesized marks the proposed circuit as generated, not measured
+	// (W1.6): the h+rz+cx template below is a starting proposal for the
+	// optimizer — launch binds it to a real run, never presents it as one.
+	Synthesized bool  `json:"synthesized"`
+	DagNodes    []any `json:"dag_nodes"`
+	DagEdges    []any `json:"dag_edges"`
+	WireCuts    []any `json:"wire_cuts"`
 }
 
 // ClassicalAnchor encapsulates the ab-initio physics baseline.
@@ -166,211 +170,25 @@ func SynthesizeCampaignStateWithOpts(
 		upper = strings.ToUpper(targetMolecule) + " " + upper
 	}
 
-	// Fallback defaults below are MEASURED PySCF STO-3G values, verified
-	// 2026-10-11 against the live bridge across all 14 families (D-1c
-	// matrix, all computing within the production time budget). They were
-	// previously never-STO-3G numbers (N2 off 1.5 Ha, Aspirin off 456 Ha).
-	// Fallbacks stay labeled as such (anchor_computed=false) — but at
-	// least they are now the right physics, not inventions.
-	mol := "H2"
-	formula := "H2"
-	bondDist := 0.7414
-	target := "Hydrogen Molecule (H2)"
-	qubits := 2
-	depth := 4
-	twoQGates := 1
-	ansatz := "UCCSD Parameterized"
-	mwQ := 0.82
-	gradVar := 3.4e-3
-	rhfDefault := -1.11668
-	fciDefault := -1.13727
-	smiles := "[H][H]"
+	// Canonical molecule row (W1.6): single physics source (molecule_table.go).
+	// Fallback defaults are MEASURED PySCF STO-3G values, verified 2026-10-11
+	// against the live bridge across all 14 families. Fallbacks stay labeled
+	// as such (anchor_computed=false) — the right physics, not inventions.
+	spec := LookupMolecule(upper)
+	mol := spec.Mol
+	formula := spec.Formula
+	bondDist := spec.BondDist
+	target := spec.Target
+	qubits := spec.Qubits
+	depth := spec.Depth
+	twoQGates := spec.TwoQGates
+	ansatz := spec.Ansatz
+	mwQ := spec.MWQ
+	gradVar := spec.GradVar
+	rhfDefault := spec.RHF
+	fciDefault := spec.FCI
+	smiles := spec.SMILES
 
-	if strings.Contains(upper, "LIH") || strings.Contains(upper, "LITHIUM") {
-		mol = "LiH"
-		formula = "LiH"
-		bondDist = 1.5957
-		target = "Lithium Hydride (LiH)"
-		qubits = 4
-		depth = 8
-		twoQGates = 3
-		ansatz = "TwoLocal / RyRz Entangling"
-		mwQ = 0.76
-		gradVar = 2.1e-3
-		rhfDefault = -7.86200
-		fciDefault = -7.88239
-		smiles = "[Li][H]"
-	} else if strings.Contains(upper, "BEH2") || strings.Contains(upper, "BERYLLIUM") {
-		mol = "BeH2"
-		formula = "BeH2"
-		bondDist = 1.3300
-		target = "Beryllium Hydride (BeH2)"
-		qubits = 6
-		depth = 12
-		twoQGates = 6
-		ansatz = "RealAmplitudes Hardware-Efficient"
-		mwQ = 0.88
-		gradVar = 1.8e-3
-		rhfDefault = -15.56010
-		fciDefault = -15.57580
-		smiles = "[H][Be][H]"
-	} else if strings.Contains(upper, "H2O") || strings.Contains(upper, "WATER") {
-		mol = "H2O"
-		formula = "H2O"
-		bondDist = 0.9575
-		target = "Water Molecule (H2O)"
-		qubits = 8
-		depth = 16
-		twoQGates = 8
-		ansatz = "UCCSD Active-Space Transpiled"
-		mwQ = 0.91
-		gradVar = 1.2e-3
-		rhfDefault = -74.96298
-		fciDefault = -74.97040
-		smiles = "O"
-	} else if strings.Contains(upper, "N2") || strings.Contains(upper, "NITROGEN") {
-		mol = "N2"
-		formula = "N2"
-		bondDist = 1.0977
-		target = "Dinitrogen (N2)"
-		qubits = 6
-		depth = 12
-		twoQGates = 5
-		ansatz = "UCCSD Active-Space Transpiled"
-		mwQ = 0.89
-		gradVar = 1.4e-3
-		rhfDefault = -107.49589
-		fciDefault = -107.62185
-		smiles = "N#N"
-	} else if strings.Contains(upper, "CO2") {
-		mol = "CO2"
-		formula = "CO2"
-		bondDist = 1.1620
-		target = "Carbon Dioxide (CO2)"
-		qubits = 8
-		depth = 16
-		twoQGates = 8
-		ansatz = "RealAmplitudes Hardware-Efficient"
-		mwQ = 0.92
-		gradVar = 1.1e-3
-		rhfDefault = -185.06522
-		fciDefault = -185.15720
-		smiles = "O=C=O"
-	} else if strings.Contains(upper, "CO") || strings.Contains(upper, "CARBON MONOXIDE") {
-		mol = "CO"
-		formula = "CO"
-		bondDist = 1.1283
-		target = "Carbon Monoxide (CO)"
-		qubits = 6
-		depth = 12
-		twoQGates = 5
-		ansatz = "UCCSD Parameterized"
-		mwQ = 0.87
-		gradVar = 1.5e-3
-		rhfDefault = -111.22459
-		fciDefault = -111.33095
-		smiles = "[C-]#[O+]"
-	} else if strings.Contains(upper, "HF") || strings.Contains(upper, "FLUORIDE") {
-		mol = "HF"
-		formula = "HF"
-		bondDist = 0.9168
-		target = "HF Polar Ground State VQE"
-		qubits = 4
-		depth = 8
-		twoQGates = 3
-		ansatz = "TwoLocal / RyRz Entangling"
-		mwQ = 0.81
-		gradVar = 2.2e-3
-		rhfDefault = -98.57076
-		fciDefault = -98.59659
-		smiles = "F"
-	} else if strings.Contains(upper, "NH3") || strings.Contains(upper, "AMMONIA") {
-		mol = "NH3"
-		formula = "NH3"
-		bondDist = 1.0124
-		target = "NH3 Pyramidal Inversion Active Space"
-		qubits = 8
-		depth = 14
-		twoQGates = 7
-		ansatz = "UCCSD Active-Space Transpiled"
-		mwQ = 0.88
-		gradVar = 1.3e-3
-		rhfDefault = -55.45398
-		fciDefault = -55.49467
-		smiles = "N"
-	} else if strings.Contains(upper, "CH4") || strings.Contains(upper, "METHANE") {
-		mol = "CH4"
-		formula = "CH4"
-		bondDist = 1.0870
-		target = "CH4 Tetrahedral Equilibrium VQE"
-		qubits = 8
-		depth = 16
-		twoQGates = 8
-		ansatz = "TwoLocal / RyRz Entangling"
-		mwQ = 0.86
-		gradVar = 1.5e-3
-		rhfDefault = -39.50989
-		fciDefault = -39.55590
-		smiles = "C"
-	} else if strings.Contains(upper, "BENZENE") {
-		mol = "Benzene"
-		formula = "C6H6"
-		bondDist = 1.3970
-		target = "Benzene Pi-Electron Active Space CAS(6,6)"
-		qubits = 6
-		depth = 14
-		twoQGates = 6
-		ansatz = "Pi-Space Complete Active Space VQE"
-		mwQ = 0.91
-		gradVar = 1.6e-3
-		rhfDefault = -227.88822
-		fciDefault = -227.94430
-		smiles = "c1ccccc1"
-	} else if strings.Contains(upper, "CAFFEINE") {
-		mol = "Caffeine"
-		formula = "C8H10N4O2"
-		bondDist = 1.3800
-		target = "Caffeine Fragment Active Orbitals"
-		qubits = 4
-		depth = 8
-		twoQGates = 4
-		ansatz = "Fragment Molecular Orbital VQE"
-		mwQ = 0.84
-		gradVar = 2.1e-3
-		rhfDefault = -667.65428
-		fciDefault = -667.68304
-		smiles = "CN1C=NC2=C1C(=O)N(C(=O)N2C)C"
-	} else if strings.Contains(upper, "ASPIRIN") {
-		mol = "Aspirin"
-		formula = "C9H8O4"
-		bondDist = 1.40
-		target = "Aspirin (Acetylsalicylic Acid) Lead Profile"
-		qubits = 4
-		depth = 8
-		twoQGates = 4
-		ansatz = "Fragment Molecular Orbital VQE"
-		mwQ = 0.79
-		gradVar = 2.4e-3
-		rhfDefault = -636.60816
-		fciDefault = -636.64195
-		smiles = "CC(=O)Oc1ccccc1C(=O)O"
-	} else if strings.Contains(upper, "PARACETAMOL") {
-		mol = "Paracetamol"
-		formula = "C8H9NO2"
-		bondDist = 1.40
-		target = "Paracetamol (Acetaminophen) Molecular Profile"
-		qubits = 4
-		depth = 8
-		twoQGates = 4
-		ansatz = "Fragment Molecular Orbital VQE"
-		mwQ = 0.77
-		gradVar = 2.6e-3
-		rhfDefault = -505.83584
-		fciDefault = -505.89628
-		smiles = "CC(=O)Nc1ccc(O)cc1"
-	}
-
-	// Dynamically extract user-specified bond distance if provided in the prompt (e.g. R=1.2 A)
 	bondRegex := regexp.MustCompile(`(?i)(?:R\s*=\s*|BOND\s*(?:LENGTH|DISTANCE)\s*(?:OF\s*)?)([0-9]+\.?[0-9]*)`)
 	if m := bondRegex.FindStringSubmatch(prompt); len(m) > 1 {
 		if parsedDist, err := strconv.ParseFloat(m[1], 64); err == nil && parsedDist >= 0.3 && parsedDist <= 10.0 {
@@ -691,6 +509,7 @@ func SynthesizeCampaignStateWithOpts(
 			RecommendedBackend: "local_simulator",
 			EstimatedSpendUSD:  0.0,
 			QASM:               qasmCode,
+			Synthesized:        true,
 			DagNodes:           dagNodes,
 			DagEdges:           dagEdges,
 			WireCuts:           []any{map[string]any{"planned": true, "cut_type": "KaHyPar QPD", "overhead": "4.0x (estimate, not measured)"}},
@@ -719,7 +538,7 @@ func SynthesizeCampaignStateWithOpts(
 			// R1: sources are attested only when the anchor is computed.
 			// A fallback anchor cites nothing — unattested ([]) is legal,
 			// an invented PySCF label is not.
-			Sources:           synthSources(anchorComputed),
+			Sources: synthSources(anchorComputed),
 		},
 		Notebook:  notebook,
 		UpdatedAt: time.Now().UTC(),
