@@ -4,7 +4,9 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
+	"strings"
 	"sync"
 )
 
@@ -45,6 +47,11 @@ type Settings struct {
 	MaxTokens       int                             `json:"max_tokens"`
 	Providers       map[ProviderType]ProviderConfig `json:"providers"`
 	RoleAssignments map[string]RoleModelAssignment  `json:"role_assignments"`
+	// DisableDSMLFallback kills the DSML-markup tool-invocation fallback
+	// (W0.19): with it off, model text never becomes tool calls. Default
+	// false — some gateways need the dialect; operators who don't trust it
+	// switch it off and lose nothing structured.
+	DisableDSMLFallback bool `json:"disable_dsml_fallback"`
 }
 
 func DefaultSettings() *Settings {
@@ -267,6 +274,30 @@ func (s *Settings) EnsureDefaultProviders() bool {
 	return changed
 }
 
+// ValidateForProduction enforces the production posture (W0.19): the dev
+// deployment runs cloud-hosted inference by explicit operator direction
+// (OPENCODE_API_KEY present), but a PRODUCTION boot with a non-local active
+// provider and no explicit KUBONA_LLM_CLOUD=1 opt-in refuses instead of
+// silently exfiltrating prompts. Key presence alone is not opt-in — keys
+// leak across environments; the flag is the decision.
+func (s *Settings) ValidateForProduction() error {
+	if strings.ToLower(strings.TrimSpace(os.Getenv("KUBONA_ENV"))) != "production" {
+		return nil
+	}
+	snap := s.GetSnapshot()
+	prov, ok := snap.Providers[snap.ActiveProvider]
+	if !ok || !prov.Enabled {
+		return fmt.Errorf("production: active provider %s is disabled or unconfigured", snap.ActiveProvider)
+	}
+	if prov.IsLocal {
+		return nil
+	}
+	if os.Getenv("KUBONA_LLM_CLOUD") != "1" {
+		return fmt.Errorf("production: non-local LLM provider %s requires explicit KUBONA_LLM_CLOUD=1 opt-in (prompts would leave the box)", snap.ActiveProvider)
+	}
+	return nil
+}
+
 func (s *Settings) GetSnapshot() Settings {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
@@ -293,6 +324,14 @@ func (s *Settings) GetSnapshot() Settings {
 }
 
 func (s *Settings) Update(update *Settings, db *sql.DB) error {
+	// W0.19: values are load-bearing (a NaN temperature or negative token
+	// ceiling corrupts every call silently). Refuse garbage at the edge.
+	if math.IsNaN(update.Temperature) || math.IsInf(update.Temperature, 0) {
+		return fmt.Errorf("temperature must be finite: refusing")
+	}
+	if update.MaxTokens < 0 {
+		return fmt.Errorf("max_tokens must be >= 0: refusing")
+	}
 	s.mu.Lock()
 	s.ActiveProvider = update.ActiveProvider
 	s.ActiveModel = update.ActiveModel
