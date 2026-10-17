@@ -73,6 +73,38 @@ def _record_hash(prev: str, content: str) -> str:
     return hashlib.sha256(f"{prev}:{content}".encode()).hexdigest()
 
 
+def _contract_path() -> Path:
+    # R1a: single-source closed taxonomy shared with the Go rail
+    # (platform/contracts/event-types.json). Explicit override first (tests,
+    # installs), else the repo tree relative to this file. Missing contract
+    # = fail-closed at import: running without the registry would fork the
+    # audit trail with untyped kinds.
+    override = os.environ.get("KUBONA_EVENT_TYPES")
+    if override:
+        return Path(override)
+    return Path(__file__).resolve().parents[2] / "contracts" / "event-types.json"
+
+
+def _load_taxonomy() -> dict[str, dict[str, Any]]:
+    path = _contract_path()
+    try:
+        contract = json.loads(path.read_text())
+    except OSError as e:
+        raise RuntimeError(
+            f"event taxonomy contract missing at {path}: refusing to run "
+            f"without the closed registry ({e})"
+        ) from e
+    if contract.get("version") != 1:
+        raise RuntimeError(
+            f"event taxonomy contract version {contract.get('version')!r}: "
+            "this code knows v1 — refusing unknown major"
+        )
+    return contract["types"]
+
+
+KNOWN_EVENT_TYPES: dict[str, dict[str, Any]] = _load_taxonomy()
+
+
 class Ledger:
     """Append-only JSONL ledger with a hash chain (genesis = 64 zeroes).
 
@@ -103,6 +135,16 @@ class Ledger:
         return "0" * 64
 
     def append(self, kind: str, payload: dict[str, Any], label: str | None = None) -> LedgerRecord:
+        # R1a closed taxonomy (C1): unknown kinds refuse here — a typo'd kind
+        # used to silently fork the cross-rail audit trail, and the MCP
+        # write_record tool passes agent-supplied kinds straight through, so
+        # this is also the tool-boundary enforcement. Register the kind in
+        # platform/contracts/event-types.json first.
+        if kind not in KNOWN_EVENT_TYPES:
+            raise ValueError(
+                f"unknown ledger event kind {kind!r}: not in the shared "
+                "event taxonomy (platform/contracts/event-types.json)"
+            )
         with self._lock:  # the hash chain is inherently sequential: guard tail-read + append
             return self._append_locked(kind, payload, label)
 

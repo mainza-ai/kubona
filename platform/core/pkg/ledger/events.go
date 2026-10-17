@@ -1,6 +1,12 @@
 package ledger
 
-// S6 — ledger event-type taxonomy (closed set).
+// S6 — ledger event-type taxonomy (closed set). R1a: the single source is
+// platform/contracts/event-types.json — both rails validate against it and
+// the conformance tests (TestEventTypesMatchContract here, the Python
+// taxonomy test) assert set-identity with it, so drift is red. Adding a
+// type = adding a row there (emitters + payload contract) first, then
+// emitting. This map mirrors the go-emitter rows of that file; the test
+// below enforces the mirror.
 //
 // Threat (G10): untyped event strings drift — a typo'd event_type silently
 // forks the audit trail, and new unreviewed types enter records without
@@ -9,8 +15,10 @@ package ledger
 // package) exercises broad flows and asserts DISTINCT event_type ⊆ this
 // set. Adding a type = adding a row here + its payload contract.
 //
-// Python-rail events (workflow_step, workflow_dry_run) live in the
-// separate Python ledger file and are out of scope for this registry.
+// Python-rail events (workflow_step, workflow_dry_run, intelligence-*,
+// job runner receipts) live in the same contract file with
+// emitters:["python"] — one registry, not two. This map holds exactly the
+// go-emitter rows; TestEventTypesMatchContract enforces it.
 
 var KnownEventTypes = map[string]bool{
 	"a2a_harness_eval":                  true,
