@@ -9,6 +9,8 @@ node_modules/
 # Local-only working files — never pushed
 .obsidian/
 dev-docs/
+bench/work/
+bench/results/
 
 # platform build/test artifacts
 .pytest_cache/

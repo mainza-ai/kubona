@@ -5,7 +5,7 @@ date: 2026-10-17
 updated: 2026-10-17
 tags: [plan, leanrea, skill, benchmark, mcp, production]
 sources: [source-leanrea-investigation-2026]
-status: candidate
+status: adopted
 ---
 
 # Kubona × leanrea: measurement, report + implementation plan
@@ -105,7 +105,6 @@ changes); live proof where it touches runtime; wiki landed-notes, never
 silent edits; rollback stated.
 
 ### L1 — `skills/kubona/SKILL.md` (S, first — unblocks nothing, enables everything)
-
 - **Content (knowledge only, zero wrappers):** Rules (work-on-copy +
   state-root hygiene, `rg -uu` over extracted trees, slice-don't-cat,
   batch probes with `---` markers, seen/inferred/unknown tagging);
@@ -123,22 +122,42 @@ silent edits; rollback stated.
 - **Rollback:** delete the directory (nothing imports it).
 - **Not in slice:** `npx skills add` distribution wiring (paste fallback
   documented; distribution is operator packaging, later).
+> ✅ LANDED 2026-10-17: `skills/kubona/SKILL.md` (6827 bytes — Rules,
+> Router ×8, 5 verified first-moves, 7 traps with resolving anchors,
+> Speed patterns) + `platform/tests/test_skill.py` (existence, 12 KB
+> budget, headings, anchor resolution; gates negative-tested). All 5
+> first-moves executed live before filing (doctor, JSONL tail,
+> tribunal-turn SQL, list_providers, mandate round-trip).
 
 ### L2 — `bench/` harness with answer keys (S, needs L1 tasks)
 
-- **Change:** `bench/tasks.json` (tribunal + ops tasks with hand-made
-  regex keys, kubona-flavored: mandate-validity verdict, provider
-  inventory, tribunal consensus on a fixed prompt, cost-ceiling refusal);
-  `bench/run.py` (N reps × M configs: model × skill/no-skill × 4-turn);
-  `bench/ctx.sh` adapted (surface bytes per gateway load mode + I1
-  budget gate); `bench/BENCHMARK.md` (method + caveats, leanrea-style
-  honesty: reps, model, machine).
-- **Tests:** keys grade known-good/known-bad fixtures apart;
-  ctx probe fails past budget (negative-tested by a padded fixture).
+- **Change:** `bench/tasks.json` (hermetic tasks with hand-made regex
+  keys: provider inventory, session lifecycle, mandate shape, ledger
+  tail); `bench/run.py` (N reps, in-process gateway + crypto + ledger,
+  state sandboxed to gitignored `bench/work/`, results JSONL, nonzero
+  exit on fail — no model arms: hermetic floors only, keyed comparisons
+  stay operator-periodic); `bench/surface.py` (single measurer for
+  script + CI, derived from the live gateway registry — never a
+  hardcoded tool list); `bench/ctx.sh` (16 KB budget gate);
+  `bench/BENCHMARK.md` (method + caveats + first numbers). Tribunal
+  structure rides existing Go suites by reference (no duplicated
+  harness); `KubonaGateway.mounted_tools()` accessor added (also serves
+  L5's catalog).
+- **Tests:** 4/4 tasks green ×3 reps; ctx probe fails past budget
+  (negative-tested); `platform/tests/test_mcp_surface.py` (budget gate +
+  task-file validity).
 - **Accept:** first comparison run publishes numbers + caveats (even if
   n=3 — leanrea's honesty standard, not its sample size).
 - **Rollback:** delete `bench/` (evals in `platform/tests` untouched).
-- **Not in slice:** gating releases on scores (R6 policy stays operator).
+- **Not in slice:** gating releases on scores (R6 policy stays operator);
+  keyed skill/no-skill agent comparison (needs models — queued).
+> ✅ LANDED 2026-10-17 (baseline): 4/4 tasks ×3 reps green (all
+> sub-millisecond–1 ms, hermetic floors as designed); surface 8720
+> bytes vs 16384 budget; Go tribunal floor verified green
+> (`TestExecuteTribunal*`, rubric separation, fallback declarations).
+> `list_provider_registry` ships a bare payload with no `ok` envelope —
+> noted in BENCHMARK.md caveats as follow-up candidate (bench measures,
+> does not fix product).
 
 ### L3 — Scribe seen/inferred/unknown tagging (S, needs R3 — landed)
 

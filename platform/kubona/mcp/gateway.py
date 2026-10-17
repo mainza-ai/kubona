@@ -227,3 +227,11 @@ class KubonaGateway:
 
     def servers(self) -> list[str]:
         return sorted(self._registry)
+
+    def mounted_tools(self) -> dict[str, dict[str, ToolFn]]:
+        """Mounted surface snapshot (server → {tool: fn}), copies.
+
+        Measurement (bench/surface.py) and the future MCP catalog (L5)
+        build on this — one accessor, never registry internals elsewhere.
+        """
+        return {s: dict(ts) for s, ts in self._registry.items()}
