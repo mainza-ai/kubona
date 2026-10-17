@@ -489,10 +489,21 @@ loop:
 			// DSML fallback: some model/gateway pairs emit invocations as
 			// markup in text instead of structured tool_calls. Same
 			// validated dispatch, same observation loop — never raw text.
-			calls = llm.ParseDSMLInvokes(text)
+			// Kill-switch (W0.19): disable_dsml_fallback skips this whole
+			// branch; model text then never becomes tool calls.
+			if !s.llmSettings.GetSnapshot().DisableDSMLFallback {
+				calls = llm.ParseDSMLInvokes(text)
+			}
 			if len(calls) == 0 {
 				break
 			}
+		}
+		// W0.19 provenance: structured tool_calls vs DSML-markup fallback.
+		// DSML invokes parse ONLY inside calls blocks (stray prose invokes
+		// never execute); the source rides every audit event below.
+		callSource := "structured"
+		if len(calls) > 0 && strings.HasPrefix(calls[0].ID, "dsml-") {
+			callSource = "dsml"
 		}
 		hist = append(hist, llm.ChatMessage{Role: "assistant", Content: "", ToolCalls: calls})
 		for _, c := range calls {
@@ -516,9 +527,10 @@ loop:
 			// confabulated?). Arguments stay out of the event; the name,
 			// outcome, and error text are what the audit needs.
 			_ = s.ledger.AppendEvent(sessionID, "tool_called", map[string]any{
-				"tool":  c.Name,
-				"ok":    derr == nil,
-				"error": errorText(derr),
+				"tool":   c.Name,
+				"source": callSource,
+				"ok":     derr == nil,
+				"error":  errorText(derr),
 			})
 			obs, _ := json.Marshal(map[string]any{
 				"tool":  c.Name,

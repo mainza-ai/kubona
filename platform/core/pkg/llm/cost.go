@@ -44,13 +44,33 @@ func EstimateCostUSD(provider ProviderType, model string, promptTokens, completi
 		rate.outputPer1K*float64(completionTokens)/1000.0, true
 }
 
+// EstimateCeilingCostUSD prices a token ceiling at the model's output rate
+// (W0.19): the call's real split is unknown, so the upper bound bills.
+// Unknown models still refuse (no ceiling to price against either).
+func EstimateCeilingCostUSD(provider ProviderType, model string, ceilingTokens int) (float64, bool) {
+	if provider == ProviderOMLX || provider == ProviderOllama || provider == ProviderLMStudio {
+		return 0, false
+	}
+	rate, ok := heuristicRates[model]
+	if !ok {
+		return 0, false
+	}
+	return rate.outputPer1K * float64(ceilingTokens) / 1000.0, true
+}
+
 // SpendRecord reports one metered cloud completion for cost accounting.
 // Token counts are provider-reported; UsageReported is false when the
-// endpoint sent no usage (never backfilled by estimation).
+// endpoint sent no usage (never backfilled by estimation). CeilingApplied
+// marks a ceiling estimate (tokens unknown, ceiling billed at the output
+// rate as an upper bound); Unmetered marks blind spend with no ceiling
+// (streams only — Complete refuses instead).
 type SpendRecord struct {
 	Provider         string
 	Model            string
 	PromptTokens     int
 	CompletionTokens int
 	UsageReported    bool
+	CeilingApplied   bool
+	CeilingTokens    int
+	Unmetered        bool
 }

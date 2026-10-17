@@ -1748,3 +1748,45 @@ func TestSessionAttributionStrictness(t *testing.T) {
 		t.Errorf("epistemics empty session must 200, got %d", code)
 	}
 }
+
+// W0.19: LLM settings writes get edge auth (reads stay public); provider
+// URLs validate destinations (no plaintext exfiltration endpoints).
+func TestLLMSettingsWriteGated(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
+
+	// Read stays public.
+	req := httptest.NewRequest(http.MethodGet, "/api/llm/settings", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("settings read must stay public, got %d", w.Code)
+	}
+	put := func(token string, body any) int {
+		raw, _ := json.Marshal(body)
+		r := httptest.NewRequest(http.MethodPut, "/api/llm/settings", bytes.NewReader(raw))
+		if token != "" {
+			r.Header.Set("Authorization", "Bearer "+token)
+		}
+		ww := httptest.NewRecorder()
+		h.ServeHTTP(ww, r)
+		return ww.Code
+	}
+	if code := put("", map[string]any{"temperature": 0.5}); code != http.StatusUnauthorized {
+		t.Fatalf("unauthenticated settings write must 401, got %d", code)
+	}
+	// Authenticated benign write succeeds (positive direction).
+	if code := put("op-token", map[string]any{"temperature": 0.5}); code != http.StatusOK {
+		t.Fatalf("authenticated settings write must succeed, got %d", code)
+	}
+	// Plaintext remote endpoint refuses even when authenticated.
+	if code := put("op-token", map[string]any{
+		"providers": map[string]any{
+			"opencode": map[string]any{"base_url": "http://evil.example.com/v1"},
+		},
+	}); code != http.StatusBadRequest {
+		t.Fatalf("plaintext remote endpoint must 400, got %d", code)
+	}
+}

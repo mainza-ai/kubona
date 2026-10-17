@@ -88,6 +88,48 @@ func (c *Client) reportSpend(providerType ProviderType, model string, promptToke
 	})
 }
 
+// reportSpendCeiling records a ceiling estimate when a non-local provider
+// omits usage (W0.19): tokens unknown, so the role's token ceiling bills at
+// the output rate (upper bound) instead of the call billing zero. Never
+// silent — CeilingApplied marks the record.
+func (c *Client) reportSpendCeiling(providerType ProviderType, model string, ceilingTokens int) {
+	if c.OnSpend == nil {
+		return
+	}
+	if providerType == ProviderOMLX || providerType == ProviderOllama || providerType == ProviderLMStudio {
+		return
+	}
+	c.OnSpend(SpendRecord{
+		Provider:         string(providerType),
+		Model:            model,
+		PromptTokens:     ceilingTokens,
+		CompletionTokens: 0,
+		UsageReported:    false,
+		CeilingApplied:   true,
+		CeilingTokens:    ceilingTokens,
+	})
+}
+
+// requireMeteredUsage enforces the W0.19 rule for non-local completions:
+// reported usage bills exact; unreported usage bills the token ceiling when
+// one is configured, and refuses when it isn't (blind cloud spend with no
+// ceiling is un-meterable — the call fails instead of billing zero).
+// Local providers are exempt (no external spend). Returns nil to proceed.
+func (c *Client) requireMeteredUsage(providerType ProviderType, model string, usageReported bool) error {
+	if usageReported {
+		return nil
+	}
+	if providerType == ProviderOMLX || providerType == ProviderOllama || providerType == ProviderLMStudio {
+		return nil
+	}
+	ceiling := c.settings.GetSnapshot().MaxTokens
+	if ceiling <= 0 {
+		return fmt.Errorf("provider %s omitted usage and no token ceiling is configured (max_tokens=0): refusing blind cloud spend — set max_tokens or use a reporting provider", providerType)
+	}
+	c.reportSpendCeiling(providerType, model, ceiling)
+	return nil
+}
+
 func NewClient(settings *Settings) *Client {
 	return &Client{
 		settings: settings,
@@ -167,9 +209,14 @@ func (c *Client) Complete(ctx context.Context, role string, messages []ChatMessa
 		return "", nil, duration, fmt.Errorf("no completion choices returned by model")
 	}
 
-	c.reportSpend(providerType, model,
-		chatResp.Usage.PromptTokens, chatResp.Usage.CompletionTokens,
-		chatResp.Usage.TotalTokens > 0)
+	usageOK := chatResp.Usage.TotalTokens > 0
+	if err := c.requireMeteredUsage(providerType, model, usageOK); err != nil {
+		return "", nil, duration, err
+	}
+	if usageOK {
+		c.reportSpend(providerType, model,
+			chatResp.Usage.PromptTokens, chatResp.Usage.CompletionTokens, true)
+	}
 	return chatResp.Choices[0].Message.Content, &chatResp, duration, nil
 }
 
@@ -294,10 +341,14 @@ func (c *Client) CompleteStream(ctx context.Context, role string, messages []Cha
 }
 
 // reportSpendMap adapts provider-reported usage maps (float64 JSON
-// numbers) to reportSpend. Absent keys mean unreported, never zero-priced.
+// numbers) to reportSpend. Absent keys mean unreported, never zero-priced:
+// non-local streams without usage take the ceiling-or-refuse rule (W0.19);
+// without a ceiling the unmetered record is flagged, never priced zero.
 func (c *Client) reportSpendMap(providerType ProviderType, model string, usage map[string]any) {
 	if usage == nil {
-		c.reportSpend(providerType, model, 0, 0, false)
+		if err := c.requireMeteredUsage(providerType, model, false); err != nil {
+			c.reportUnmetered(providerType, model)
+		}
 		return
 	}
 	num := func(k string) int {
@@ -311,7 +362,31 @@ func (c *Client) reportSpendMap(providerType ProviderType, model string, usage m
 		}
 	}
 	pt, ct := num("prompt_tokens"), num("completion_tokens")
-	c.reportSpend(providerType, model, pt, ct, pt+ct > 0)
+	if pt+ct > 0 {
+		c.reportSpend(providerType, model, pt, ct, true)
+		return
+	}
+	if err := c.requireMeteredUsage(providerType, model, false); err != nil {
+		c.reportUnmetered(providerType, model)
+	}
+}
+
+// reportUnmetered records a blind-spend flag when neither usage nor ceiling
+// exists (streams only — Complete refuses instead). The budget gate trips
+// on unmetered records when a cap is set; track-only mode keeps them visible.
+func (c *Client) reportUnmetered(providerType ProviderType, model string) {
+	if c.OnSpend == nil {
+		return
+	}
+	if providerType == ProviderOMLX || providerType == ProviderOllama || providerType == ProviderLMStudio {
+		return
+	}
+	c.OnSpend(SpendRecord{
+		Provider:      string(providerType),
+		Model:         model,
+		UsageReported: false,
+		Unmetered:     true,
+	})
 }
 
 // FetchModels queries the provider's /models endpoint to discover live available models
