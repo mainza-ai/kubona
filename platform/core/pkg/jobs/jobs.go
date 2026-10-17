@@ -602,9 +602,14 @@ func (r *Runner) CancelJob(id, reason string) (transitioned bool, err error) {
 		return false, nil
 	}
 	r.releaseReservation(id)
-	r.ledger.AppendEvent(j.SessionID, "job_cancelled", map[string]any{
+	// The receipt is load-bearing (audit of who cancelled what): a
+	// cancellation that cannot be recorded fails loudly so the client
+	// retries into the already-terminal replay — never a silent loss.
+	if err := r.ledger.AppendEvent(j.SessionID, "job_cancelled", map[string]any{
 		"job_id": id, "reason": reason,
-	})
+	}); err != nil {
+		return true, fmt.Errorf("job cancelled but receipt failed: %w (retry: already-terminal replay)", err)
+	}
 	return true, nil
 }
 
