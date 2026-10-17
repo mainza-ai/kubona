@@ -7,8 +7,8 @@ from kubona.providers import get_provider
 SIM = get_provider("local-simulator")
 
 
-def _backend(c, shots):
-    return SIM.submit(c, shots, seed=7)
+def _backend(c, shots, seed=7):
+    return SIM.submit(c, shots, seed=seed)
 
 
 def _uncut_z1(gates, shots=120000):
@@ -22,7 +22,7 @@ def _z1(counts):
 
 def test_z_cut_matches_uncut_asym():
     prep = [Gate("ry", (0,), (0.6,))]
-    cut = cut_expectation(Circuit("c", 2, prep + [Gate("cx", (0, 1))]), 1, 1, _backend, shots=120000)
+    cut = cut_expectation(Circuit("c", 2, prep + [Gate("cx", (0, 1))]), 1, 1, _backend, shots=120000, seed=7)
     uncut = _z1(_uncut_z1(prep + [Gate("cx", (0, 1))]))
     assert abs(cut["expected"] - uncut) < 0.02, (cut["expected"], uncut)
 
@@ -30,13 +30,13 @@ def test_z_cut_matches_uncut_asym():
 def test_z_cut_with_post_cut_target_gate():
     prep = [Gate("ry", (0,), (0.6,))]
     after = [Gate("ry", (1,), (0.8,))]
-    cut = cut_expectation(Circuit("c", 2, prep + [Gate("cx", (0, 1))] + after), 1, 1, _backend, shots=120000)
+    cut = cut_expectation(Circuit("c", 2, prep + [Gate("cx", (0, 1))] + after), 1, 1, _backend, shots=120000, seed=7)
     uncut = _z1(_uncut_z1(prep + [Gate("cx", (0, 1))] + after))
     assert abs(cut["expected"] - uncut) < 0.02, (cut["expected"], uncut)
 
 
 def test_z_cut_bell_is_zero():
-    cut = cut_expectation(Circuit("c", 2, [Gate("h", (0,)), Gate("cx", (0, 1))]), 1, 1, _backend, shots=120000)
+    cut = cut_expectation(Circuit("c", 2, [Gate("h", (0,)), Gate("cx", (0, 1))]), 1, 1, _backend, shots=120000, seed=7)
     assert abs(cut["expected"]) < 0.02
 
 
@@ -105,7 +105,7 @@ def test_histogram_reconstruction_matches_uncut(tmp_path):
     circ = _make_bell_cut_circuit()
     sim = LocalSimulator(load_provider("local-simulator"))
     shots = 65536
-    r = cut_histogram(circ, 1, n_target=1, backend=sim.submit, shots=shots)
+    r = cut_histogram(circ, 1, n_target=1, backend=sim.submit, shots=shots, seed=7)
     dist = r["distribution"]
     # Bell -> the target (q1) is 50/50
     assert abs(dist.get("0", 0) - 0.5) < 0.02 and abs(dist.get("1", 0) - 0.5) < 0.02

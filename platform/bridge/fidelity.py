@@ -49,10 +49,23 @@ DEVICE_PROFILES: Dict[str, Dict[str, Any]] = {
     },
 }
 
+# --- Shared consts (single source; heuristic labels cannot rot apart) ---
+#: Versioned method label for the Clifford structural probe. Every probe
+#: result carries this string plus measured=False — never a bare float
+#: presented as physics.
+PROBE_METHOD_V1 = "clifford-probe-heuristic-v1"
+#: Versioned method label for the gate-error-product fidelity prediction.
+#: A structural estimate, not a measurement.
+PREDICT_METHOD_V1 = "gate-error-product-heuristic-v1"
+
 
 def build_noise_model(device_name: str) -> Optional[Any]:
     """
     Constructs a verified Qiskit Aer NoiseModel enforcing physical constraint t2 <= 2*t1.
+
+    Unknown devices REFUSE (return None) — never silently default to
+    another profile. Callers must treat None as refusal, not as a cue to
+    substitute ibm_heron.
     """
     if not HAS_QISKIT_AER:
         return None
@@ -87,20 +100,71 @@ def build_noise_model(device_name: str) -> Optional[Any]:
 def predict_fidelity(circuit_depth: int, two_qubit_gates: int, device_name: str) -> float:
     """
     Predicts circuit execution fidelity based on device gate error rates and coherence limits.
+
+    Production bar: unknown devices REFUSE (ValueError) — never silently
+    default to ibm_heron. The returned float is a structural estimate
+    (method gate-error-product-heuristic-v1), not a measurement; callers
+    that persist it must label it measured=False.
     """
-    prof = DEVICE_PROFILES.get(device_name.lower(), DEVICE_PROFILES["ibm_heron"])
+    prof = DEVICE_PROFILES.get(device_name.lower())
+    if prof is None:
+        raise ValueError(
+            f"unknown device {device_name!r}: refusing instead of defaulting "
+            f"to ibm_heron; known: {sorted(DEVICE_PROFILES)}"
+        )
     p_1q = (1.0 - prof["single_qubit_error"]) ** circuit_depth
     p_2q = (1.0 - prof["two_qubit_error"]) ** two_qubit_gates
     return float(max(0.01, min(1.0, p_1q * p_2q)))
 
 
-def probe_clifford_fidelity(qasm: str, shots: int = 64) -> float:
+def probe_clifford_fidelity(
+    qasm: str,
+    shots: int = 64,
+    device_name: Optional[str] = None,
+) -> Dict[str, Any]:
     """
     Cheap stabilizer probe evaluating topological fidelity without expensive sampling.
+
+    Production bar: the probe is a STRUCTURAL HEURISTIC
+    (clifford-probe-heuristic-v1), never a measurement. The return is a
+    labeled receipt carrying measured=False end-to-end (top level and
+    inside the receipt sub-dict). Unknown devices REFUSE (ValueError) —
+    never silently default to ibm_heron. device_name=None means a
+    device-independent structural estimate (no profile consulted).
     """
+    if device_name is not None:
+        prof = DEVICE_PROFILES.get(device_name.lower())
+        if prof is None:
+            raise ValueError(
+                f"unknown device {device_name!r}: refusing instead of "
+                f"defaulting to ibm_heron; known: {sorted(DEVICE_PROFILES)}"
+            )
+        device_label = device_name.lower()
+    else:
+        device_label = None
     # Fast path: compute Clifford structural fidelity expectation
     lines = [l.strip() for l in qasm.splitlines() if l.strip() and not l.startswith("//")]
     n_2q = sum(1 for l in lines if l.startswith("cx") or l.startswith("cz"))
     # Deterministic probe heuristic simulating 64 shots of Clifford parity
-    raw_fid = np.exp(-0.015 * n_2q)
-    return float(max(0.1, min(0.99, raw_fid)))
+    raw_fid = float(max(0.1, min(0.99, np.exp(-0.015 * n_2q))))
+    receipt: Dict[str, Any] = {
+        "fidelity": raw_fid,
+        "measured": False,
+        "method": PROBE_METHOD_V1,
+        "device_name": device_label,
+        "n_two_qubit_gates": n_2q,
+        "shots": shots,
+        "reason": (
+            "structural exp(-0.015*n_2q) heuristic, not a sampled fidelity; "
+            "never gates spend"
+        ),
+    }
+    return {
+        "fidelity": raw_fid,
+        "measured": False,
+        "method": PROBE_METHOD_V1,
+        "device_name": device_label,
+        "n_two_qubit_gates": n_2q,
+        "shots": shots,
+        "receipt": receipt,
+    }

@@ -48,12 +48,13 @@ class LibraryMeter:
         self.payments = payments
         self.ledger = ledger or Ledger()
 
-    def free_summary(self, harness: str) -> dict[str, Any]:
+    def free_summary(self, harness: str, direction: str) -> dict[str, Any]:
         """Free tier: existence + coarse signal only (W0.12). The old code
         returned the headline metric — often the entire answer (best energy)
         — while claiming 'low-resolution'. The valuable signal stays behind
-        the purchase."""
-        best = self.library.best(harness)
+        the purchase. direction is the harness's explicit objective
+        ("min"/"max") — the meter never guesses it."""
+        best = self.library.best(harness, direction=direction)
         if best is None:
             return {"ok": False, "error": "no validated library entries yet"}
         return {"ok": True, "harness": harness,
@@ -86,8 +87,11 @@ class LibraryMeter:
 
     def purchase(self, entry_id: str, payment_proof: str | None = None,
                  buyer: str | None = None) -> PurchaseResult:
-        """Pay (x402 proof) -> verify (edge) -> release full validated config."""
-        entry = self._get(entry_id)
+        """Pay (x402 proof) -> verify (edge) -> release full validated config.
+
+        Sell-path enforcement first: tenant-scoped entries only release to
+        their own tenant (anonymous purchase of scoped inventory refuses)."""
+        entry = self.library.authorize_sale(entry_id, buyer_tenant=buyer)
         amount = self._price(entry)
         pay = self.payments or payments_for(amount)
         quote = pay.quote(job_ref=entry_id, amount_usd=amount)

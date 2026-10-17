@@ -120,7 +120,12 @@ def test_arxiv_offline_never_crashes(tmp_path):
 def test_phase6_gate_full_discovery_loop(tmp_path):
     ledger = Ledger(path=str(tmp_path / "led.jsonl"), tenant="lab-alpha")
     library = AlgorithmLibrary(path=str(tmp_path / "lib.json"))
-    camp = run_campaign(problem="h2-energetics", hamiltonian="Z0Z1 + 0.5 X0X1",
+    # Recalibrated 2026-10-17: hamiltonian is the single problem key for the
+    # anchor lookup (table-anchor-v1 covers H2). The old "Z0Z1 + 0.5 X0X1"
+    # string is the VQE harness's internal model Hamiltonian, not an
+    # anchorable molecule — the table engine honestly refuses it instead of
+    # inventing a generic-dimer anchor, so the campaign names H2.
+    camp = run_campaign(problem="h2-energetics", hamiltonian="H2",
                         ground_state=-1.118, budget_steps=40, tenant="lab-alpha",
                         **{"ledger": ledger, "library": library, "source": "mock"})
 
@@ -136,7 +141,7 @@ def test_phase6_gate_full_discovery_loop(tmp_path):
 
     # the best result was archived; ledger chain intact; lab-tenant scoped
     assert camp["library_entry_id"] is not None
-    assert library.best("vqe_ansatz") is not None
+    assert library.best("vqe_ansatz", direction="max") is not None
     ok, msg = ledger.validate_chain()
     assert ok, msg
     # the ledger is tenant-scoped to lab-alpha
@@ -175,7 +180,10 @@ def test_workflow_dry_run_plans_without_touching_tools(tmp_path):
     assert out["ok"] and out["dry_run"] is True
     assert [s["tool"] for s in out["steps"]] == ["cost/estimate_cost", "execution/submit_job", "provenance/write_record"]
     assert out["steps"][0]["args"]["session_id"] == "sess-dry"  # injected
-    assert out["steps"][2]["args"]["payload"] == {"job_id": "{}"}  # templated, unfilled
+    # W2.6 fail-closed render: an unresolvable dry-run reference is an
+    # explicit UNRESOLVED marker (listed in the plan), never a silent "".
+    assert out["steps"][2]["args"]["payload"] == {"job_id": "{{UNRESOLVED:prev.run.job_id}}"}
+    assert out["unresolved"] == ["prev.run.job_id"]
     assert wf.status == "draft"  # nothing ran
     kinds = [r.kind for r in ledger.query()]
     assert "workflow_dry_run" in kinds and "workflow_step" not in kinds

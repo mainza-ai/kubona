@@ -11,12 +11,14 @@
     "sdg",
     "t",
     "tdg",
+    "id",
     "rx",
     "ry",
     "rz",
     "cx",
     "cz",
-    "swap"
+    "swap",
+    "cp"
   ],
   "queue_depth_estimate_s": 0,
   "pricing": {

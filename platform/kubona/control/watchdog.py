@@ -2,8 +2,9 @@
 
 A non-LLM supervisory daemon that runs alongside iterative loops (VQE, ansatz search,
 training) to mathematically detect:
-1. Weak Barren Plateaus (WBP): variance of gradient/parameter step falls below threshold
-   Var(Δθ) < 1e-7 across a rolling window.
+1. Weak Barren Plateaus (WBP): variance of gradient/parameter step falls below
+   WatchdogThresholds.wbp_variance_floor across a rolling window (the single
+   shared const — this docstring carries no second copy of the number).
 2. Cost & Energy Slope Divergence: runaway loss, NaN/Inf gradients, or monotonic cost inflation.
 3. Rapid Stagnation: zero metric variance over consecutive iterations.
 

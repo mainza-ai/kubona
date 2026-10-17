@@ -14,6 +14,7 @@ from pydantic import ValidationError
 
 from kubona.anchors.chemistry import MolecularAnchorEngine
 from kubona.epistemics.claim_grammar import (
+    AdvantageJustification,
     ClaimCategory,
     CredibilityField,
     EvidenceTier,
@@ -71,6 +72,13 @@ def test_predicate_without_reporting_verb_refuses():
         ScientificClaim(**_base_claim(predicate="The system works well overall today"))
 
 
+def _just() -> AdvantageJustification:
+    return AdvantageJustification(
+        method="VQE RY-RY-CX depth2 simulator run",
+        anchor_ref="ledger:anchor:h2-fci",
+    )
+
+
 def test_advantage_without_anchor_or_credibility_refuses():
     with pytest.raises(ValidationError):
         ScientificClaim(**_base_claim(claims_advantage=True, chemical_accuracy_achieved=False))
@@ -78,7 +86,7 @@ def test_advantage_without_anchor_or_credibility_refuses():
         ScientificClaim(
             **_base_claim(
                 claims_advantage=True,
-                advantage_justification="Variational bound saturated within error bars",
+                advantage_justification=_just(),
             )
         )
 
@@ -87,7 +95,7 @@ def test_advantage_with_grounded_credibility_passes():
     c = ScientificClaim(
         **_base_claim(
             claims_advantage=True,
-            advantage_justification="Variational bound saturated within error bars",
+            advantage_justification=_just(),
             credibility=CredibilityField(rho=0.95, tier="L3", evidence_refs=["ledger:anchor:1"]),
         )
     )
@@ -100,7 +108,7 @@ def test_advantage_with_weak_credibility_refuses():
         ScientificClaim(
             **_base_claim(
                 claims_advantage=True,
-                advantage_justification="Variational bound saturated within error bars",
+                advantage_justification=_just(),
                 credibility=CredibilityField(rho=0.5, tier="L1", evidence_refs=["x"]),
             )
         )
@@ -153,10 +161,18 @@ def test_worked_vqe_credibility_example():
     assert "policy_digest" in payload and "quantum_provenance" in payload
 
     # The record's rho flows into a report claim's credibility field.
+    # Recalibrated 2026-10-17: the old test hardcoded classical_anchor_value
+    # -1.137 (a stale bridge number) while the engine's H2 FCI anchor is
+    # -1.0718. The claim now derives the anchor value from the engine itself
+    # (delta recomputed from anchor values, never caller-supplied), with the
+    # 95% interval centered on the measured VQE energy.
+    anchor_fci = anchor.fci_energy_hartree
     claim = ScientificClaim(
         **_base_claim(
+            classical_anchor_value=anchor_fci,
             quantum_measured_value=vqe_energy,
-            delta_hartree=abs(vqe_energy - anchor.fci_energy_hartree),
+            delta_hartree=abs(vqe_energy - anchor_fci),
+            confidence_interval_95=(vqe_energy - 0.001, vqe_energy + 0.001),
             credibility=CredibilityField(rho=round(record.rho, 3), tier="L2",
                                          evidence_refs=payload["evidence_refs"]),
         )

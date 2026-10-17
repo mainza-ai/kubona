@@ -19,6 +19,7 @@ from kubona.circuits import (
     parse_qasm2,
     to_qasm,
 )
+from kubona.circuits.model import EXOTIC_GATES, NON_CLIFFORD
 from kubona.circuits.schedule import (
     equivalent_up_to_phase,
     fragile_metrics,
@@ -30,11 +31,14 @@ _EXACT_EQUIVALENCE_MAX_QUBITS = 8
 
 
 def circuit_features(circuit: Circuit) -> dict[str, Any]:
-    """Cheap structural features driving pass selection."""
+    """Cheap structural features driving pass selection.
+
+    Gate sets are the shared constants from kubona.circuits.model (single
+    source with schedule.py) — never a local copy that can rot apart.
+    """
     twoq = sum(1 for g in circuit.gates if len(g.qubits) == 2)
-    noncliff = sum(1 for g in circuit.gates
-                   if g.name in ("t", "tdg", "rx", "ry", "rz", "cp"))
-    exotic = [g.name for g in circuit.gates if g.name in ("u1", "u2", "u3")]
+    noncliff = sum(1 for g in circuit.gates if g.name in NON_CLIFFORD)
+    exotic = [g.name for g in circuit.gates if g.name in EXOTIC_GATES]
     return {"n_qubits": circuit.num_qubits, "n_gates": len(circuit.gates),
             "n_twoq": twoq, "n_nonclifford": noncliff,
             "needs_decompose": bool(exotic)}
@@ -131,8 +135,8 @@ def _check_constraints(circuit: Circuit, constraints: dict[str, Any]) -> list[st
     if isinstance(max_width, int) and circuit.num_qubits > max_width:
         problems.append(f"width {circuit.num_qubits} exceeds max_width {max_width}")
     max_depth = constraints.get("max_depth")
-    if isinstance(max_depth, int) and len(circuit.gates) > max_depth:
-        problems.append(f"depth {len(circuit.gates)} exceeds max_depth {max_depth}")
+    if isinstance(max_depth, int) and circuit.depth() > max_depth:
+        problems.append(f"depth {circuit.depth()} exceeds max_depth {max_depth}")
     optimize_for = constraints.get("optimize_for")
     if optimize_for is not None and optimize_for not in ("depth", "width"):
         problems.append(f"unknown optimize_for {optimize_for!r} (want depth|width)")

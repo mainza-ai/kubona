@@ -183,6 +183,10 @@ async def models(request: Request) -> JSONResponse:
 async def settings(request: Request) -> JSONResponse:
     if not _authed(request):
         return _auth_error()
+    # W2.17 CALLER REQUIREMENT: the settings PUT (apply_llm_edge) repoints the
+    # platform LLM and touches credentials — expose this route only to
+    # Writer-scope principals. _authed covers operator auth; if this console
+    # ever gains Reader roles, gate PUT (not GET) on Writer here.
     from kubona.settings import SettingsStore
 
     store = SettingsStore()
@@ -253,7 +257,13 @@ async def science_krylov(request: Request) -> JSONResponse:
         I = np.eye(2, dtype=complex)
         H = -np.kron(Z, Z) - 0.5 * (np.kron(X, I) + np.kron(I, X))
 
-    result = QKSDSolver.solve(H, subspace_dim=subspace_dim, time_step=dt)
+    result = QKSDSolver.solve(
+        H,
+        initial_state=np.eye(H.shape[0], dtype=complex)[0],
+        subspace_dim=subspace_dim,
+        time_step=dt,
+        reference_assumption="computational-zero |0...0> (console default, recorded — overlap with ground state assumed, not measured)",
+    )
     return _json({"ok": True, "result": result.to_dict()})
 
 
@@ -271,13 +281,17 @@ async def science_shadows(request: Request) -> JSONResponse:
     state[0] = 1.0 / np.sqrt(2)
     state[-1] = 1.0 / np.sqrt(2)
 
+    import secrets as _secrets
+    shadow_seed = int(body.get("seed", _secrets.randbits(63)))
     snapshots = ClassicalShadowEngine.sample_shadows_from_state(
-        state, num_qubits=num_qubits, num_snapshots=num_snapshots
+        state, num_qubits=num_qubits, num_snapshots=num_snapshots,
+        rng=np.random.default_rng(shadow_seed),
     )
     estimates = {}
     for obs in observables:
         estimates[obs] = ClassicalShadowEngine.estimate_observable_from_snapshots(snapshots, obs)
-    return _json({"ok": True, "num_snapshots": num_snapshots, "estimates": estimates})
+    return _json({"ok": True, "num_snapshots": num_snapshots, "estimates": estimates,
+                  "seed": shadow_seed})
 
 
 async def science_manuscript_create(request: Request) -> JSONResponse:
@@ -611,11 +625,13 @@ app = Starlette(
 )
 
 
-def main() -> None:
+def main(host: str = "127.0.0.1", port: int | None = None) -> None:
+    """Run the console API. W2.14: `serve()` threads its args here —
+    explicit values win, otherwise the env defaults apply (never ignored)."""
     import uvicorn
 
-    port = int(os.environ.get("KUBONA_CONSOLE_PORT", "8000"))
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+    resolved_port = port if port is not None else int(os.environ.get("KUBONA_CONSOLE_PORT", "8000"))
+    uvicorn.run(app, host=host, port=resolved_port, log_level="warning")
 
 
 if __name__ == "__main__":

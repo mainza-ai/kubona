@@ -60,7 +60,9 @@ def test_all_twenty_analytical_anchor_families():
     f271 = MathPhysicsAnchorEngine.compute_family_271_heisenberg_ferromagnet(temperature=0.5, J=1.0)
     assert f271["family_id"] == 271
     assert f271["ground_state_energy_density_J"] == -1.5
-    assert f271["spontaneous_ferromagnetic_order_certified"]
+    # Arithmetic evaluations carry tier + provenance, never a certified flag.
+    assert "spontaneous_ferromagnetic_order_certified" not in f271
+    assert "evidence_tier" in f271 and "provenance" in f271
 
     # 2. Family 281: SK Spin Glass
     f281 = MathPhysicsAnchorEngine.compute_family_281_sk_spin_glass(qaoa_p_depth=3)
