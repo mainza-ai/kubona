@@ -7,9 +7,20 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
 )
+
+func mustOpenTempLoop(t *testing.T) *ledger.Ledger {
+	t.Helper()
+	l, err := ledger.OpenLedger(t.TempDir() + "/loops.db")
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	t.Cleanup(func() { l.Close() })
+	return l
+}
 
 func TestLedgerLifecycle(t *testing.T) {
 	dbPath := "test_kubona.db"
@@ -414,4 +425,71 @@ func TestLedgerDoubleClose(t *testing.T) {
 		t.Fatalf("reopen after double close: %v", err)
 	}
 	l2.Close()
+}
+
+func TestLoopPersistRoundTrip(t *testing.T) {
+	l := mustOpenTempLoop(t)
+	now := time.Now().UTC().Truncate(time.Second)
+	if err := l.SaveLoopState(ledger.LoopPersist{ID: "loop-1", SessionID: "s1", HarnessID: "ansatz-search",
+		Status: "running", StepCount: 3, MaxSteps: 25, LastActivity: now}); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	rows, err := l.ListLoopStates()
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("list: %v %+v", err, rows)
+	}
+	p := rows[0]
+	if p.ID != "loop-1" || p.Status != "running" || p.StepCount != 3 || p.MaxSteps != 25 || p.HarnessID != "ansatz-search" {
+		t.Fatalf("round trip mismatch: %+v", p)
+	}
+	if !p.LastActivity.Equal(now) {
+		t.Fatalf("activity mismatch: %v vs %v", p.LastActivity, now)
+	}
+	if p.Drain || p.ReservedAmount != 0 {
+		t.Fatalf("defaults must be undrained/unreserved: %+v", p)
+	}
+	// Upsert overwrites.
+	if err := l.SaveLoopState(ledger.LoopPersist{ID: "loop-1", SessionID: "s1", HarnessID: "ansatz-search",
+		Status: "sleeping", StepCount: 3, MaxSteps: 25, LastActivity: now, Drain: true}); err != nil {
+		t.Fatalf("resave: %v", err)
+	}
+	rows, _ = l.ListLoopStates()
+	if len(rows) != 1 || rows[0].Status != "sleeping" || !rows[0].Drain {
+		t.Fatalf("upsert must overwrite: %+v", rows)
+	}
+}
+
+func TestReconcileLoopsOnBoot(t *testing.T) {
+	l := mustOpenTempLoop(t)
+	now := time.Now().UTC()
+	states := []ledger.LoopPersist{
+		{ID: "l-run", SessionID: "s1", Status: "running", LastActivity: now},
+		{ID: "l-pause", SessionID: "s1", Status: "paused", LastActivity: now},
+		{ID: "l-done", SessionID: "s1", Status: "completed", LastActivity: now},
+		{ID: "l-abort", SessionID: "s1", Status: "aborted", LastActivity: now},
+		{ID: "l-sleep", SessionID: "s1", Status: "sleeping", LastActivity: now},
+	}
+	for _, s := range states {
+		if err := l.SaveLoopState(s); err != nil {
+			t.Fatalf("save %s: %v", s.ID, err)
+		}
+	}
+	n, err := l.ReconcileLoopsOnBoot()
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if n != 2 {
+		t.Fatalf("must reconcile running+paused only, got %d", n)
+	}
+	rows, _ := l.ListLoopStates()
+	byID := map[string]string{}
+	for _, r := range rows {
+		byID[r.ID] = r.Status
+	}
+	if byID["l-run"] != "sleeping" || byID["l-pause"] != "sleeping" {
+		t.Fatalf("live states must sleep: %v", byID)
+	}
+	if byID["l-done"] != "completed" || byID["l-abort"] != "aborted" || byID["l-sleep"] != "sleeping" {
+		t.Fatalf("terminal states untouched: %v", byID)
+	}
 }

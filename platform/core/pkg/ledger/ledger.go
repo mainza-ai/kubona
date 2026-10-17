@@ -258,6 +258,13 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 	// Measured generation cost on chat messages (NULL = unknown, never zero-filled).
 	_, _ = db.Exec(`ALTER TABLE chat_messages ADD COLUMN duration_ms INTEGER`)
 	_, _ = db.Exec(`ALTER TABLE chat_messages ADD COLUMN usage_json TEXT`)
+	// S3: loop lifecycle persistence. The loops table previously had no
+	// writer (engines lived in memory only); sleep state, drain flags, and
+	// the I3-reserved spend column persist here.
+	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN harness_id TEXT NOT NULL DEFAULT ''`)
+	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN last_activity DATETIME`)
+	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN drain INTEGER NOT NULL DEFAULT 0`)
+	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN reserved_amount REAL NOT NULL DEFAULT 0`)
 	// Normalize pre-migration rows (ALTER ... DEFAULT '' backfills '').
 	_, _ = db.Exec(`UPDATE ledger_events SET tenant_id = 'default' WHERE tenant_id = ''`)
 	_, _ = db.Exec(`UPDATE sessions SET tenant_id = 'default' WHERE tenant_id = ''`)
@@ -638,6 +645,102 @@ func (l *Ledger) GetRecentEvents(sessionID string, limit int) ([]EventRecord, er
 
 func (l *Ledger) SaveCampaignState(sessionID string, stateJSON []byte) error {
 	return l.SaveCampaignStateWithTrigger(sessionID, stateJSON, "")
+}
+
+// LoopPersist is the persisted projection of an autoresearch loop (S3).
+// Engines live in memory; this row is the restart-surviving truth.
+type LoopPersist struct {
+	ID             string
+	SessionID      string
+	HarnessID      string
+	Status         string
+	StepCount      int
+	MaxSteps       int
+	LastActivity   time.Time
+	Drain          bool
+	ReservedAmount float64
+	UpdatedAt      time.Time
+}
+
+// SaveLoopState upserts a loop row. reserved_amount is I3-reserved (always
+// written, always 0 until per-iteration reservation lands).
+func (l *Ledger) SaveLoopState(p LoopPersist) error {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	drain := 0
+	if p.Drain {
+		drain = 1
+	}
+	_, err := l.db.Exec(`INSERT INTO loops (id, session_id, harness_id, status, step_count, max_steps, diverged, created_at, updated_at, last_activity, drain, reserved_amount)
+		VALUES (?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?)
+		ON CONFLICT(id) DO UPDATE SET status=excluded.status, step_count=excluded.step_count, max_steps=excluded.max_steps,
+		updated_at=CURRENT_TIMESTAMP, last_activity=excluded.last_activity, drain=excluded.drain, reserved_amount=excluded.reserved_amount`,
+		p.ID, p.SessionID, p.HarnessID, p.Status, p.StepCount, p.MaxSteps, p.LastActivity.UTC().Format(time.RFC3339), drain, p.ReservedAmount)
+	if err != nil {
+		return fmt.Errorf("save loop state failed: %w", err)
+	}
+	return nil
+}
+
+// ListLoopStates returns all persisted loop rows (empty table = no error).
+func (l *Ledger) ListLoopStates() ([]LoopPersist, error) {
+	l.lock.RLock()
+	defer l.lock.RUnlock()
+	rows, err := l.db.Query(`SELECT id, session_id, harness_id, status, step_count, max_steps, last_activity, drain, reserved_amount, updated_at FROM loops ORDER BY updated_at DESC`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []LoopPersist
+	for rows.Next() {
+		var p LoopPersist
+		var lastAct, updated sql.NullString
+		var drain int
+		if err := rows.Scan(&p.ID, &p.SessionID, &p.HarnessID, &p.Status, &p.StepCount, &p.MaxSteps, &lastAct, &drain, &p.ReservedAmount, &updated); err != nil {
+			return nil, err
+		}
+		p.Drain = drain != 0
+		if lastAct.Valid {
+			if t, err := time.Parse(time.RFC3339, lastAct.String); err == nil {
+				p.LastActivity = t
+			}
+		}
+		if updated.Valid {
+			if t, err := time.Parse("2006-01-02 15:04:05", updated.String); err == nil {
+				p.UpdatedAt = t
+			} else if t, err := time.Parse(time.RFC3339, updated.String); err == nil {
+				p.UpdatedAt = t
+			}
+		}
+		out = append(out, p)
+	}
+	return out, nil
+}
+
+// ReconcileLoopsOnBoot marks every non-terminal persisted loop sleeping:
+// engines are in-memory, so nothing can be running after a restart.
+// Terminal states (completed/aborted) are untouched. New engines start only
+// via explicit start/wake — never refilled from disk.
+func (l *Ledger) ReconcileLoopsOnBoot() (int, error) {
+	rows, err := l.ListLoopStates()
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, p := range rows {
+		if p.Status == "completed" || p.Status == "aborted" || p.Status == "sleeping" {
+			continue
+		}
+		p.Status = "sleeping"
+		if err := l.SaveLoopState(p); err != nil {
+			return n, err
+		}
+		_ = l.AppendEvent(p.SessionID, "autoresearch_loop_reconciled", map[string]any{
+			"loop_id": p.ID, "status": "sleeping", "reason": "daemon restart: in-memory engine gone",
+		})
+		n++
+	}
+	return n, nil
 }
 
 // maxCampaignVersions bounds per-session history. Versions are small JSON
