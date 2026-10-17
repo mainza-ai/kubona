@@ -113,6 +113,13 @@ type SessionManifest struct {
 	// import (digests verify as before); when present, every envelope
 	// must verify and agree with the recomputed digest.
 	SectionEnvelopes map[string]ledger.Envelope `json:"section_envelopes,omitempty"`
+	// S5b/C2: Python-rail sidecar rows for this session (ninth section,
+	// digest-pinned + enveloped like the rest). No omitempty: export
+	// always writes the array (possibly []) so the digest is stable
+	// across JSON round-trips — an omitted-then-nil [] would digest as
+	// "null" instead of "[]" and fail import. Pre-S5b manifests without
+	// the digest row refuse under the strict roster (decided).
+	PythonLedger []PythonRecord `json:"python_ledger"`
 }
 
 // JobRow mirrors the jobs table (session package cannot import jobs:
@@ -210,6 +217,14 @@ func (m *Manager) ExportSession(id string) (*SessionManifest, error) {
 	var canvas string
 	_ = m.ledger.DB().QueryRow(`SELECT layout_json FROM canvas_layouts WHERE session_id = ?`, id).Scan(&canvas)
 
+	// S5b: sweep the Python sidecar for this session's rows (missing file
+	// = empty section, never an error — sessions without workflow history
+	// migrate exactly as before).
+	pyRecs, err := exportPythonRecords(id, sess.TenantID)
+	if err != nil {
+		return nil, fmt.Errorf("export python ledger: %w", err)
+	}
+
 	out := &SessionManifest{
 		Version:         ManifestVersion,
 		ExportedAt:      time.Now().UTC().Format(time.RFC3339),
@@ -225,6 +240,7 @@ func (m *Manager) ExportSession(id string) (*SessionManifest, error) {
 		ClaimsTruncated: claimsTruncated,
 		CanvasLayout:    canvas,
 		Digests:         map[string]string{},
+		PythonLedger:    pyRecs,
 	}
 	if out.Messages == nil {
 		out.Messages = []ChatMessage{}
@@ -248,6 +264,7 @@ func (m *Manager) ExportSession(id string) (*SessionManifest, error) {
 		"session": out.Session, "messages": out.Messages, "jobs": out.Jobs,
 		"loops": out.Loops, "events": out.Events, "campaign_state": out.CampaignState,
 		"versions": out.Versions, "claims": out.Claims, "canvas_layout": out.CanvasLayout,
+		"python_ledger": out.PythonLedger,
 	}
 	for name, sec := range sections {
 		h, err := sectionDigest(sec)
@@ -327,6 +344,9 @@ type ImportResult struct {
 	SessionID string
 	Existing  bool
 	Manifest  *SessionManifest
+	// S5b: sidecar rows appended by this import (0 when the section was
+	// empty or every row was already present — idempotent replay).
+	PythonReplayed int
 }
 
 // ImportSession validates a manifest and activates it with ONE ledger
@@ -360,19 +380,35 @@ func (m *Manager) ImportSession(man *SessionManifest) (*ImportResult, error) {
 	if len(raw) > MaxManifestBytes {
 		return nil, fmt.Errorf("manifest %d bytes exceeds %d cap", len(raw), MaxManifestBytes)
 	}
-	// Digests pin every section (recompute, never trust).
+	// Digests pin every section (recompute, never trust). The roster is
+	// strict: every known section must carry a digest row and no unknown
+	// rows are accepted (S5b — a stripped section + stripped digest row
+	// must refuse, not silently migrate partial history; a future
+	// section bumps the manifest major instead of smuggling rows past
+	// v1 readers, which ignore unknown SECTIONS but never unknown
+	// digest rows).
 	sections := map[string]any{
 		"session": man.Session, "messages": man.Messages, "jobs": man.Jobs,
 		"loops": man.Loops, "events": man.Events, "campaign_state": man.CampaignState,
 		"versions": man.Versions, "claims": man.Claims, "canvas_layout": man.CanvasLayout,
+		"python_ledger": man.PythonLedger,
 	}
 	for name, sec := range sections {
+		want, ok := man.Digests[name]
+		if !ok {
+			return nil, fmt.Errorf("manifest missing digest row for %s: refusing partial manifest", name)
+		}
 		h, herr := sectionDigest(sec)
 		if herr != nil {
 			return nil, fmt.Errorf("digest %s: %w", name, herr)
 		}
-		if want, ok := man.Digests[name]; !ok || want != h {
+		if want != h {
 			return nil, fmt.Errorf("manifest digest mismatch on %s: tampered or corrupt", name)
+		}
+	}
+	for name := range man.Digests {
+		if _, ok := sections[name]; !ok {
+			return nil, fmt.Errorf("manifest carries digest row for unknown section %s: refused", name)
 		}
 	}
 	// R1: when section envelopes are present, every one must verify AND
@@ -403,13 +439,25 @@ func (m *Manager) ImportSession(man *SessionManifest) (*ImportResult, error) {
 	if man.Session.TenantID == "" {
 		return nil, fmt.Errorf("manifest session has no tenant_id")
 	}
+	// S5b: merge the Python sidecar rows (idempotent by content_hash —
+	// safe to run even when the session already exists below: only
+	// missing rows append). Runs AFTER all validation above, BEFORE any
+	// row replay — validation-before-replay covers both rails.
+	pyReplayed := 0
+	if len(man.PythonLedger) > 0 {
+		n, err := replayPythonRecords(man.Session.TenantID, man.PythonLedger)
+		if err != nil {
+			return nil, fmt.Errorf("replay python ledger: %w", err)
+		}
+		pyReplayed = n
+	}
 	// Replay by existence (after validation).
 	if _, err := m.GetSession(man.Session.ID); err == nil {
 		cur, cerr := m.ExportSession(man.Session.ID)
 		if cerr != nil {
 			return nil, fmt.Errorf("session %q already exists (re-export failed: %v)", man.Session.ID, cerr)
 		}
-		return &ImportResult{SessionID: man.Session.ID, Existing: true, Manifest: cur}, nil
+		return &ImportResult{SessionID: man.Session.ID, Existing: true, Manifest: cur, PythonReplayed: pyReplayed}, nil
 	}
 
 	db := m.ledger.DB()
@@ -508,7 +556,7 @@ func (m *Manager) ImportSession(man *SessionManifest) (*ImportResult, error) {
 	}); err != nil {
 		return nil, fmt.Errorf("import activation record failed: %w", err)
 	}
-	return &ImportResult{SessionID: s.ID, Manifest: man}, nil
+	return &ImportResult{SessionID: s.ID, Manifest: man, PythonReplayed: pyReplayed}, nil
 }
 
 func boolInt(b bool) int {
