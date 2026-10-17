@@ -231,6 +231,52 @@ func (m *Manager) SetCeiling(action *AdminAction, ceilingUSD float64) (*Tenant, 
 	return m.GetTenant(t.ID)
 }
 
+// RefundSpend returns consumed spend to a lab's books (admin-signed,
+// reasoned, ledger-sealed). This is the audited refund primitive:
+// reservations already unwind on failure (releaseReservation), but
+// CONSUMED spend (burnt LLM/QPU on a failed job) only moves here, with
+// a who and a why on record. No automatic refunds exist by design — an
+// auto-refund on failure would pay agents to fail (the policy stays
+// operator-side; the mechanism is what this provides). Over-refund
+// refuses with the same epsilon discipline as ReleaseSpend; empty
+// reasons refuse (an unexplained money movement is a hole, not a refund).
+func (m *Manager) RefundSpend(action *AdminAction, tenantID string, amountUSD float64, reason string) (*Tenant, error) {
+	t, err := m.verifyAdmin(action)
+	if err != nil {
+		return nil, err
+	}
+	if tenantID != t.ID {
+		return nil, fmt.Errorf("refund tenant %q does not match envelope tenant %q: refusing cross-tenant refund", tenantID, t.ID)
+	}
+	if err := validAmount(amountUSD); err != nil {
+		return nil, err
+	}
+	if amountUSD == 0 {
+		return nil, fmt.Errorf("zero refund refused: use an explicit amount or skip the call")
+	}
+	if reason == "" {
+		return nil, fmt.Errorf("refund needs a reason: unexplained money movement refused")
+	}
+	res, err := m.ledger.DB().Exec(
+		`UPDATE tenants SET spent_usd = MAX(0, spent_usd - ?) WHERE id = ? AND spent_usd + 1e-9 >= ?`,
+		amountUSD, tenantID, amountUSD)
+	if err != nil {
+		return nil, fmt.Errorf("spend refund failed: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("spend refund failed: %w", err)
+	}
+	if n != 1 {
+		m.ledger.AppendEvent(tenantID, "spend_refund_refused", map[string]any{
+			"tenant_id": tenantID, "amount_usd": amountUSD, "reason": reason})
+		return nil, fmt.Errorf("refund of %.6f exceeds recorded spend: refusing (no negative books)", amountUSD)
+	}
+	m.ledger.AppendEvent(tenantID, "tenant_spend_refunded", map[string]any{
+		"tenant_id": tenantID, "amount_usd": amountUSD, "reason": reason})
+	return m.GetTenant(tenantID)
+}
+
 // GrantAutonomy moves a tenant to a new level (admin-signed, ledger-sealed).
 func (m *Manager) GrantAutonomy(action *AdminAction, level string) (*Tenant, error) {
 	t, err := m.verifyAdmin(action)
