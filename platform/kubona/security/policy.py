@@ -19,6 +19,7 @@ TOOL_SCOPES: dict[str, str] = {
     # compiler
     "compiler/transpile_circuit": "compiler:read",
     "compiler/lower_circuit": "compiler:read",
+    "compiler/compile_circuit": "compiler:read",
     # execution
     "execution/submit_job": "execution:submit",
     "execution/get_job_status": "execution:read",
