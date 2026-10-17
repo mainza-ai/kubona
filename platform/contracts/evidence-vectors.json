@@ -1,0 +1,72 @@
+{
+  "$comment": "R1 cross-language vectors: Go (pkg/ledger/envelope.go) and Python (kubona/provenance/envelope.py) must both reproduce every evidence_id AND every canonical_json byte-exactly. Regenerate deliberately, never by copying one rail output over the other.",
+  "version": 1,
+  "fixtures": [
+    {
+      "name": "vqe-minimal",
+      "inputs": {
+        "normalized_result": {
+          "energy_hartree": -1.118,
+          "theta": 3.6
+        },
+        "analysis_profile": {
+          "backend": "local-simulator",
+          "method": "vqe/cg",
+          "shots": 4096
+        },
+        "tenant_id": "lab-alpha",
+        "raw_result": null,
+        "mandate_ref": null
+      },
+      "evidence_id": "ev_4883071c1ff359c8a7a71077ea2e7a07e672627d8dd127b5a2a43531d29ae418",
+      "canonical_json": "{\"analysis_profile\":{\"backend\":\"local-simulator\",\"method\":\"vqe/cg\",\"shots\":4096},\"mandate_ref\":null,\"normalized_result\":{\"energy_hartree\":-1.118,\"theta\":3.6},\"raw_result\":null,\"tenant_id\":\"lab-alpha\"}"
+    },
+    {
+      "name": "anchor-full",
+      "inputs": {
+        "normalized_result": {
+          "delta_mha": 0.47,
+          "molecule": "LiH → Li-H",
+          "qubits": 4
+        },
+        "analysis_profile": {
+          "basis": "sto-3g",
+          "method": "pyscf/fci"
+        },
+        "tenant_id": "lab-alpha",
+        "raw_result": {
+          "fci_exact_energy": -7.88239,
+          "rhf_energy": -7.862
+        },
+        "mandate_ref": {
+          "mandate_id": "m-001"
+        }
+      },
+      "evidence_id": "ev_948a4ea17cbebdfe9d47311c857e7efa86607cdcda88e854f44a79cfa4b2b6e3",
+      "canonical_json": "{\"analysis_profile\":{\"basis\":\"sto-3g\",\"method\":\"pyscf/fci\"},\"mandate_ref\":{\"mandate_id\":\"m-001\"},\"normalized_result\":{\"delta_mha\":0.47,\"molecule\":\"LiH → Li-H\",\"qubits\":4},\"raw_result\":{\"fci_exact_energy\":-7.88239,\"rhf_energy\":-7.862},\"tenant_id\":\"lab-alpha\"}"
+    },
+    {
+      "name": "nested-ordering",
+      "inputs": {
+        "normalized_result": {
+          "theta": [
+            0.62,
+            0.95
+          ],
+          "zeta": {
+            "a": 1,
+            "m": 2
+          }
+        },
+        "analysis_profile": {
+          "method": "vqe/cg"
+        },
+        "tenant_id": "lab-beta",
+        "raw_result": null,
+        "mandate_ref": null
+      },
+      "evidence_id": "ev_33fe766c9eda620aae71668a397aee5c803ec77d62319c43e316318bed7424b0",
+      "canonical_json": "{\"analysis_profile\":{\"method\":\"vqe/cg\"},\"mandate_ref\":null,\"normalized_result\":{\"theta\":[0.62,0.95],\"zeta\":{\"a\":1,\"m\":2}},\"raw_result\":null,\"tenant_id\":\"lab-beta\"}"
+    }
+  ]
+}

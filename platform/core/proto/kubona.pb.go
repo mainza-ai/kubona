@@ -1505,6 +1505,97 @@ func (x *MitigationResponse) GetSamplingOverheadKappa() float64 {
 	return 0
 }
 
+// R1 — canonical evidence envelope: one receipt identity across both
+// ledgers. The sealed form is canonical JSON bytes (sorted keys, compact,
+// UTF-8, finite floats only); evidence_id = "ev_" + sha256 hex of those
+// bytes. The JSON form is what Go (pkg/ledger/envelope.go) and Python
+// (kubona/provenance/envelope.py) both build and verify against the SAME
+// checked-in vectors (platform/contracts/evidence-vectors.json). This
+// message is the schema home for transport; the bytes are the seal.
+type EvidenceEnvelope struct {
+	state                protoimpl.MessageState `protogen:"open.v1"`
+	EvidenceId           string                 `protobuf:"bytes,1,opt,name=evidence_id,json=evidenceId,proto3" json:"evidence_id,omitempty"`
+	NormalizedResultJson string                 `protobuf:"bytes,2,opt,name=normalized_result_json,json=normalizedResultJson,proto3" json:"normalized_result_json,omitempty"`
+	RawResultJson        string                 `protobuf:"bytes,3,opt,name=raw_result_json,json=rawResultJson,proto3" json:"raw_result_json,omitempty"`
+	AnalysisProfileJson  string                 `protobuf:"bytes,4,opt,name=analysis_profile_json,json=analysisProfileJson,proto3" json:"analysis_profile_json,omitempty"`
+	TenantId             string                 `protobuf:"bytes,5,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	MandateRefJson       string                 `protobuf:"bytes,6,opt,name=mandate_ref_json,json=mandateRefJson,proto3" json:"mandate_ref_json,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *EvidenceEnvelope) Reset() {
+	*x = EvidenceEnvelope{}
+	mi := &file_kubona_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EvidenceEnvelope) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EvidenceEnvelope) ProtoMessage() {}
+
+func (x *EvidenceEnvelope) ProtoReflect() protoreflect.Message {
+	mi := &file_kubona_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EvidenceEnvelope.ProtoReflect.Descriptor instead.
+func (*EvidenceEnvelope) Descriptor() ([]byte, []int) {
+	return file_kubona_proto_rawDescGZIP(), []int{16}
+}
+
+func (x *EvidenceEnvelope) GetEvidenceId() string {
+	if x != nil {
+		return x.EvidenceId
+	}
+	return ""
+}
+
+func (x *EvidenceEnvelope) GetNormalizedResultJson() string {
+	if x != nil {
+		return x.NormalizedResultJson
+	}
+	return ""
+}
+
+func (x *EvidenceEnvelope) GetRawResultJson() string {
+	if x != nil {
+		return x.RawResultJson
+	}
+	return ""
+}
+
+func (x *EvidenceEnvelope) GetAnalysisProfileJson() string {
+	if x != nil {
+		return x.AnalysisProfileJson
+	}
+	return ""
+}
+
+func (x *EvidenceEnvelope) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+func (x *EvidenceEnvelope) GetMandateRefJson() string {
+	if x != nil {
+		return x.MandateRefJson
+	}
+	return ""
+}
+
 var File_kubona_proto protoreflect.FileDescriptor
 
 const file_kubona_proto_rawDesc = "" +
@@ -1634,7 +1725,15 @@ const file_kubona_proto_rawDesc = "" +
 	"\vmethod_used\x18\x05 \x01(\tR\n" +
 	"methodUsed\x12#\n" +
 	"\rerror_message\x18\x06 \x01(\tR\ferrorMessage\x126\n" +
-	"\x17sampling_overhead_kappa\x18\a \x01(\x01R\x15samplingOverheadKappa*\xb8\x01\n" +
+	"\x17sampling_overhead_kappa\x18\a \x01(\x01R\x15samplingOverheadKappa\"\x8c\x02\n" +
+	"\x10EvidenceEnvelope\x12\x1f\n" +
+	"\vevidence_id\x18\x01 \x01(\tR\n" +
+	"evidenceId\x124\n" +
+	"\x16normalized_result_json\x18\x02 \x01(\tR\x14normalizedResultJson\x12&\n" +
+	"\x0fraw_result_json\x18\x03 \x01(\tR\rrawResultJson\x122\n" +
+	"\x15analysis_profile_json\x18\x04 \x01(\tR\x13analysisProfileJson\x12\x1b\n" +
+	"\ttenant_id\x18\x05 \x01(\tR\btenantId\x12(\n" +
+	"\x10mandate_ref_json\x18\x06 \x01(\tR\x0emandateRefJson*\xb8\x01\n" +
 	"\tJobStatus\x12\x1a\n" +
 	"\x16JOB_STATUS_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11JOB_STATUS_QUEUED\x10\x01\x12\x16\n" +
@@ -1672,7 +1771,7 @@ func file_kubona_proto_rawDescGZIP() []byte {
 }
 
 var file_kubona_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_kubona_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_kubona_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_kubona_proto_goTypes = []any{
 	(JobStatus)(0),                      // 0: kubona.JobStatus
 	(DegradationLevel)(0),               // 1: kubona.DegradationLevel
@@ -1692,11 +1791,12 @@ var file_kubona_proto_goTypes = []any{
 	(*QuantumKrylovResponse)(nil),       // 15: kubona.QuantumKrylovResponse
 	(*MitigationRequest)(nil),           // 16: kubona.MitigationRequest
 	(*MitigationResponse)(nil),          // 17: kubona.MitigationResponse
-	nil,                                 // 18: kubona.CircuitExecutionResponse.CountsEntry
+	(*EvidenceEnvelope)(nil),            // 18: kubona.EvidenceEnvelope
+	nil,                                 // 19: kubona.CircuitExecutionResponse.CountsEntry
 }
 var file_kubona_proto_depIdxs = []int32{
 	1,  // 0: kubona.CircuitExecutionResponse.degradation_level:type_name -> kubona.DegradationLevel
-	18, // 1: kubona.CircuitExecutionResponse.counts:type_name -> kubona.CircuitExecutionResponse.CountsEntry
+	19, // 1: kubona.CircuitExecutionResponse.counts:type_name -> kubona.CircuitExecutionResponse.CountsEntry
 	5,  // 2: kubona.CircuitCutResponse.fragments:type_name -> kubona.SubcircuitFragment
 	12, // 3: kubona.LiteratureGroundingResponse.records:type_name -> kubona.LiteratureRecord
 	2,  // 4: kubona.QuantumBridgeService.ExecuteCircuit:input_type -> kubona.CircuitExecutionRequest
@@ -1731,7 +1831,7 @@ func file_kubona_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kubona_proto_rawDesc), len(file_kubona_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   17,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
