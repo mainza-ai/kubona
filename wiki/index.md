@@ -43,6 +43,7 @@ arrives, place it here first and it will find its page.
 | [[rea-adoption-plan]] | Updated Kubona × REA improvement report + production plan (R0–R6).
 | [[rea-conflicts-and-remediation]] | Conflicts vs the REA plan (C1–C6) with remediation decisions and sequenced slices. |
 | [[agent-subsystem-consolidation]] | P1-4 design record: inventory, target shape, sequenced migration (refactor queued, not started). |
+| [[remaining-work]] | Execution leftovers with owners: operator deeds, queued programs, conditionals (landed work excluded). |
 | [[full-tree-roadmap]] | Code-read implementation roadmap: verified defects and fixes in Waves 0–2, sequenced against the REA plan. | Candidate — prior 2026-10-16 scratch re-verified; nothing started. |
 | [[full-platform-audit-2026-10-12]] | Full completeness audit: 73.0% implemented across 30 scored components, with inventory, evidence tiers, refutations corrected, and remaining work by owner. |
 | [[log]] | Append-only chronological changelog. |
@@ -62,8 +63,8 @@ Describes **how decided** something is — never how finished.
 | `source` | An ingested source record. Immutable once written. | the 6 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (124 pages = 45 entities · 67 concepts · 6 sources · 5 meta), 2026-10-17:**
-`settled` 5 · `adopted` 48 · `open-question` 7 · `candidate` 12 · `tracked` 33 ·
+**Census (125 pages = 45 entities · 68 concepts · 6 sources · 5 meta), 2026-10-17:**
+`settled` 5 · `adopted` 48 · `open-question` 7 · `candidate` 12 · `tracked` 34 ·
 `reference` 7 · `source` 6 · `living` 6 (lint-counted; the 2026-10-10 text
 undercounted adopted/tracked/candidate).
 `settled` 5 · `adopted` 45 · `open-question` 8 · `candidate` 6 · `tracked` 26 ·
