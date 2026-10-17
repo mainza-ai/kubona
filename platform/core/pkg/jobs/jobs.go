@@ -339,6 +339,10 @@ func (r *Runner) executeJob(j *Job) {
 			resp, err := r.bridgeClient.ExecuteCircuit(r.ctx, &req)
 			if err != nil {
 				execErr = err
+			} else if !resp.Success {
+				// W1.8: bridge-reported failure settles failed, never
+				// completed with a zero payload (every RPC type below).
+				execErr = fmt.Errorf("bridge reports failure: %s", resp.ErrorMessage)
 			} else {
 				resultData, _ = json.Marshal(resp)
 			}
@@ -352,6 +356,8 @@ func (r *Runner) executeJob(j *Job) {
 			resp, err := r.bridgeClient.CutCircuit(r.ctx, &req)
 			if err != nil {
 				execErr = err
+			} else if !resp.Success {
+				execErr = fmt.Errorf("bridge reports failure: %s", resp.ErrorMessage)
 			} else {
 				resultData, _ = json.Marshal(resp)
 			}
@@ -365,6 +371,8 @@ func (r *Runner) executeJob(j *Job) {
 			resp, err := r.bridgeClient.ComputeClassicalAnchor(r.ctx, &req)
 			if err != nil {
 				execErr = err
+			} else if !resp.Success {
+				execErr = fmt.Errorf("bridge reports failure: %s", resp.ErrorMessage)
 			} else {
 				resultData, _ = json.Marshal(resp)
 			}
@@ -378,6 +386,8 @@ func (r *Runner) executeJob(j *Job) {
 			resp, err := r.bridgeClient.EvaluateWavefunction(r.ctx, &req)
 			if err != nil {
 				execErr = err
+			} else if !resp.Success {
+				execErr = fmt.Errorf("bridge reports failure: %s", resp.ErrorMessage)
 			} else {
 				resultData, _ = json.Marshal(resp)
 			}
@@ -391,6 +401,8 @@ func (r *Runner) executeJob(j *Job) {
 			resp, err := r.bridgeClient.ExecuteQuantumKrylov(r.ctx, &req)
 			if err != nil {
 				execErr = err
+			} else if !resp.Success {
+				execErr = fmt.Errorf("bridge reports failure: %s", resp.ErrorMessage)
 			} else {
 				resultData, _ = json.Marshal(resp)
 			}
@@ -404,6 +416,8 @@ func (r *Runner) executeJob(j *Job) {
 			resp, err := r.bridgeClient.MitigateCircuit(r.ctx, &req)
 			if err != nil {
 				execErr = err
+			} else if !resp.Success {
+				execErr = fmt.Errorf("bridge reports failure: %s", resp.ErrorMessage)
 			} else {
 				resultData, _ = json.Marshal(resp)
 			}

@@ -35,7 +35,7 @@ func (f *fakeBridge) ComputeClassicalAnchor(ctx context.Context, in *pb.Classica
 	return &pb.ClassicalAnchorResponse{Success: true, Molecule: in.Molecule}, nil
 }
 func (f *fakeBridge) EvaluateWavefunction(ctx context.Context, in *pb.ClaimEvaluationRequest, opts ...grpc.CallOption) (*pb.ClaimEvaluationResponse, error) {
-	return &pb.ClaimEvaluationResponse{ClaimId: in.ClaimId, PassesChemicalAccuracy: true}, nil
+	return &pb.ClaimEvaluationResponse{ClaimId: in.ClaimId, PassesChemicalAccuracy: true, Success: true}, nil
 }
 func (f *fakeBridge) GroundLiterature(ctx context.Context, in *pb.LiteratureGroundingRequest, opts ...grpc.CallOption) (*pb.LiteratureGroundingResponse, error) {
 	return &pb.LiteratureGroundingResponse{Cached: false}, nil
@@ -810,5 +810,31 @@ func TestOversizeResultRefused(t *testing.T) {
 	}
 	if !strings.Contains(string(got.ResultJSON), "result_too_large") {
 		t.Fatalf("failure must name result_too_large, got %s", got.ResultJSON)
+	}
+}
+
+// W1.8: bridge-reported failure settles the job FAILED — never COMPLETED
+// with a zero payload that downstream folds mistake for measurement.
+type failBridge struct{ fakeBridge }
+
+func (f *failBridge) MitigateCircuit(ctx context.Context, in *pb.MitigationRequest, opts ...grpc.CallOption) (*pb.MitigationResponse, error) {
+	return &pb.MitigationResponse{Success: false, ErrorMessage: "mitigation refused: test"}, nil
+}
+
+func TestBridgeReportedFailureSettlesFailed(t *testing.T) {
+	r, cleanup := setupRunner(t, &failBridge{})
+	defer cleanup()
+	j, err := r.SubmitJob("sess-1", "mitigate", map[string]any{
+		"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "method": "ZNE",
+		"max_cost_usd": 1.0})
+	if err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	settled := pollJob(t, r, j.ID)
+	if settled.Status != pb.JobStatus_JOB_STATUS_FAILED {
+		t.Fatalf("bridge failure must settle FAILED, got %+v", settled)
+	}
+	if !strings.Contains(string(settled.ResultJSON), "bridge reports failure") {
+		t.Fatalf("failure reason must name the bridge report: %s", settled.ResultJSON)
 	}
 }
