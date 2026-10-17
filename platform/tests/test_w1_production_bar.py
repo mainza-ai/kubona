@@ -528,7 +528,10 @@ def test_negative_results_default_path_under_state(tmp_path, monkeypatch):
     monkeypatch.setenv("KUBONA_STATE_DIR", str(tmp_path / "state"))
     led = NegativeResultsLedger()
     assert led.ledger_path == state_path("negative_results.jsonl")
-    assert "/tmp/" not in str(led.ledger_path)
+    # Hermetic property (2026-10-17 fix): the ledger defaults UNDER the
+    # state dir. The old assertion ("/tmp/" not in path) assumed macOS
+    # tmp and failed on every Linux CI run since introduction.
+    assert str(led.ledger_path).startswith(str(tmp_path / "state"))
 
 
 # ------------------------------------------------- W1.20 canary ---
