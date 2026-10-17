@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"crypto/ed25519"
 	"encoding/json"
 	"fmt"
 	"math"
@@ -28,17 +29,27 @@ type bridgeTaskExecutor struct {
 	harness  *autoresearch.HarnessRegistry
 	sandbox  *sandbox.SandboxRunner
 	qir      *qir.Compiler
+	// signer signs delegation receipts (W0.18): sealReceipt with a nil key
+	// recorded hash-chained-but-unsigned rows, rewrite-forgeable under the
+	// ledger verifier's unsigned-event gap. Wired from the server key.
+	signer ed25519.PrivateKey
 }
 
 // ExecuteTask implements agents.TaskExecutor.
-func (e *bridgeTaskExecutor) ExecuteTask(ctx context.Context, taskType string, payload json.RawMessage, tenantID string) (map[string]any, error) {
+func (e *bridgeTaskExecutor) ExecuteTask(ctx context.Context, taskType string, payload json.RawMessage, tenantID string, maxBudgetUSD float64) (map[string]any, error) {
 	// Tenant-attributed delegation session: A2A spend and autonomy checks
 	// resolve against the delegating lab, never a shared pseudo-session.
+	// W0.18: tenantID arrives from the verified parent mandate (SubmitTask
+	// refuses empty tenants) or "default" for roots; the session ceiling
+	// is the task's own budget, never an invented $100.
 	if tenantID == "" {
 		tenantID = "default"
 	}
+	if maxBudgetUSD <= 0 {
+		return nil, fmt.Errorf("delegation without a task budget: dispatch refused")
+	}
 	sessionID := "a2a-delegation-" + tenantID
-	if _, err := e.sessions.EnsureSessionWithID(sessionID, "A2A delegation ("+tenantID+")", 100.0, tenantID); err != nil {
+	if _, err := e.sessions.EnsureSessionWithID(sessionID, "A2A delegation ("+tenantID+")", maxBudgetUSD, tenantID); err != nil {
 		return nil, fmt.Errorf("delegation session unavailable for tenant %q: %w", tenantID, err)
 	}
 
@@ -168,7 +179,7 @@ func (e *bridgeTaskExecutor) executeQIR(sessionID string, payload json.RawMessag
 }
 
 func (e *bridgeTaskExecutor) sealReceipt(sessionID, eventType string, fields map[string]any) (*ledger.EventRecord, error) {
-	rec, err := e.ledger.AppendSignedEvent(sessionID, eventType, fields, nil)
+	rec, err := e.ledger.AppendSignedEvent(sessionID, eventType, fields, e.signer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to seal delegation receipt: %w", err)
 	}
@@ -280,15 +291,17 @@ func mapA2ATaskToJob(taskType string, payload json.RawMessage) (string, any, flo
 		if len(scales) == 0 {
 			scales = []float64{1.0, 1.5, 2.0}
 		}
-		shots := int32(numField("shots"))
-		if shots <= 0 {
-			shots = 1024
+		// W0.18: shots drive metered cost — required explicit, never
+		// defaulted (a 1024-default invents spend the declarer never stated).
+		shots, shotsOK := numFieldOK("shots")
+		if !shotsOK || shots <= 0 || math.IsNaN(shots) || math.IsInf(shots, 0) {
+			return "", nil, 0, fmt.Errorf("zne_error_mitigation requires shots > 0: spend must be declared, never defaulted")
 		}
 		return "mitigate", &pb.MitigationRequest{
 			Qasm:         qasm,
 			Method:       method,
 			ScaleFactors: scales,
-			Shots:        shots,
+			Shots:        int32(shots),
 		}, maxCost, nil
 
 	case "krylov_subspace_ground_state":
@@ -300,24 +313,28 @@ func mapA2ATaskToJob(taskType string, payload json.RawMessage) (string, any, flo
 		if bond <= 0 {
 			return "", nil, 0, fmt.Errorf("krylov_subspace_ground_state requires bond_distance > 0")
 		}
-		dim := int32(numField("subspace_dimension"))
-		if dim <= 0 {
-			dim = 4
+		// W0.18: subspace physics drives the verdict — dim, tau, and shots
+		// are required explicit (the old dim=4/tau=0.2/shots=1024 defaults
+		// minted verdicts from invented inputs). Basis keeps its sto-3g
+		// default: the standard minimal basis, recorded visibly in params.
+		dim, dimOK := numFieldOK("subspace_dimension")
+		if !dimOK || dim <= 0 || math.IsNaN(dim) || math.IsInf(dim, 0) {
+			return "", nil, 0, fmt.Errorf("krylov_subspace_ground_state requires subspace_dimension > 0")
 		}
-		tau := numField("time_step")
-		if tau <= 0 {
-			tau = 0.2
+		tau, tauOK := numFieldOK("time_step")
+		if !tauOK || tau <= 0 || math.IsNaN(tau) || math.IsInf(tau, 0) {
+			return "", nil, 0, fmt.Errorf("krylov_subspace_ground_state requires time_step > 0")
 		}
-		shots := int32(numField("shots"))
-		if shots <= 0 {
-			shots = 1024
+		shots, shotsOK := numFieldOK("shots")
+		if !shotsOK || shots <= 0 || math.IsNaN(shots) || math.IsInf(shots, 0) {
+			return "", nil, 0, fmt.Errorf("krylov_subspace_ground_state requires shots > 0")
 		}
 		return "krylov_solve", &pb.QuantumKrylovRequest{
 			Molecule:          molecule,
 			BondDistance:      bond,
-			SubspaceDimension: dim,
+			SubspaceDimension: int32(dim),
 			TimeStep:          tau,
-			Shots:             shots,
+			Shots:             int32(shots),
 		}, maxCost, nil
 
 	case "epistemic_claim_evaluation":
