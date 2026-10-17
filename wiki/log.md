@@ -2291,3 +2291,10 @@ skipped is the exact failure this incident is about:
   by design) + rewrite CAS/session-404/disk-gate; steer N/A documented.
   3 tests + manager CAS units, race green; live matrix both directions
   (transition in-test, worker raced honestly). Rows on gaps + plan S7.
+
+## [2026-10-17] fix | uncommitted taxonomy row (CI right twice)
+  The S7 CI failures were NOT flakes: the job_cancelled registry row was
+  never committed (explicit git-add file list missed events.go), so clean
+  checkouts refused the cancel receipt while my tree stayed green. Landed
+  the row. Process fix: review git status --short before every commit —
+  explicit add-lists silently drop hunks in old files.
