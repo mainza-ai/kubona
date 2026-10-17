@@ -30,6 +30,10 @@ class LoopHandle:
     heartbeat: float = field(default_factory=time.time)
     history: list[dict[str, Any]] = field(default_factory=list)  # 4D flight recorder trajectory
     meta: dict[str, Any] = field(default_factory=dict)
+    # Owning lab tenant (isolation label). The gateway capability gate
+    # authorizes WHO may call; this label scopes WHICH loops they may
+    # see or touch (same requester convention as provenance reads).
+    tenant: str = "default"
 
     def to_dict(self) -> dict[str, Any]:
         return {k: v for k, v in self.__dict__.items() if k != "meta"} | {"meta": self.meta}
@@ -43,10 +47,27 @@ class LoopSupervisor:
         self.sessions = sessions or SessionStore()
 
     def register(self, name: str, session_id: str, total_steps: int,
-                 meta: dict[str, Any] | None = None) -> LoopHandle:
+                 meta: dict[str, Any] | None = None, tenant: str = "default") -> LoopHandle:
         h = LoopHandle(loop_id=uuid.uuid4().hex[:16], name=name, session_id=session_id,
-                       total_steps=total_steps, meta=meta or {})
+                       total_steps=total_steps, meta=meta or {}, tenant=tenant or "default")
         self._loops[h.loop_id] = h
+        return h
+
+    def get_for(self, loop_id: str, requester: str | None) -> LoopHandle:
+        """Fetch a loop for a principal (tenant isolation).
+
+        Unknown ids raise KeyError (unchanged); a loop owned by another
+        tenant raises PermissionError — callers render it as a refusal,
+        never as existence-or-absence signal beyond the refusal itself.
+        requester None means ambient access: sees default-tenant loops
+        only (never another tenant's).
+        """
+        h = self._loops[loop_id]
+        want = requester or "default"
+        if h.tenant != want:
+            raise PermissionError(
+                f"loop {loop_id!r} belongs to another lab tenant: refusing"
+            )
         return h
 
     def get(self, loop_id: str) -> LoopHandle:
@@ -54,6 +75,12 @@ class LoopSupervisor:
 
     def list(self) -> list[dict[str, Any]]:
         return [h.to_dict() for h in self._loops.values()]
+
+    def list_for(self, requester: str | None) -> list[dict[str, Any]]:
+        """Tenant-scoped listing (never global-with-redaction: existence
+        is information, same doctrine as provenance reads)."""
+        want = requester or "default"
+        return [h.to_dict() for h in self._loops.values() if h.tenant == want]
 
     # -- step gate: called by the loop before each step -------------------
     def step(self, loop_id: str, step_desc: str, metric: float | None = None,
