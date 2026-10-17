@@ -226,7 +226,10 @@ func TestPaymentSettleEndpoint(t *testing.T) {
 	defer cleanup()
 
 	pm := srv.A2AServer().PaymentManager()
-	ch := pm.GenerateChallenge("USDC", "0.25")
+	ch, err := pm.GenerateChallenge("USDC", "0.25")
+	if err != nil {
+		t.Fatalf("challenge: %v", err)
+	}
 
 	pub, priv, _ := ed25519.GenerateKey(nil)
 	msgHash := sha256.Sum256([]byte(ch.Payload))
