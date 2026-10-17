@@ -2488,3 +2488,13 @@ skipped is the exact failure this incident is about:
   vectors). Live proofs: loop pause/resume/kill ok; full tenant cycle on
   compose (bootstrap/ceiling/wrong-key 403/suspend/frozen 403/resume/
   no-bearer 401). Console 127 tests + lint + build green.
+
+## [2026-10-17] decision | U2 wired + decided (dead-backend sweep)
+  Wired: session export/import + ledger export in recorder (proven live
+  as idempotent replay, no duplicate); re-synthesize-campaign in tribunal
+  room (75% quorum bar, proven live). Decided with triggers: autoresearch
+  UI deferred (no operator workflow), krylov/mitigation/fidelity/ADMET/
+  discovery forms declined (agent paths; results already surfaced),
+  notebooks-endpoint UI declined (redundant read), canvas layout deferred
+  (static canvas), server-signed mandates stay daemon-side (unify at IdP).
+  Console 133 tests + lint + build green.

@@ -280,18 +280,15 @@ export async function fetchCampaignState(sessionId: string): Promise<import('@/t
 }
 
 export async function synthesizeCampaign(sessionId: string, prompt: string): Promise<import('@/types').CampaignState | null> {
-  try {
-    const res = await fetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/campaign/synthesize`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ prompt }),
-    });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch (err) {
-    console.error('Failed to synthesize campaign:', err);
-    return null;
-  }
+  // Refusal (HTTP !ok) returns null so the caller renders "refused".
+  // Transport failure throws so the caller can distinguish it from refusal.
+  const res = await fetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/campaign/synthesize`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ prompt }),
+  });
+  if (!res.ok) return null;
+  return await res.json();
 }
 
 export async function fetchAutoresearchHarnesses(): Promise<{ harnesses: import('@/types').AutoresearchHarness[]; docker_runner: Record<string, unknown> | null }> {
@@ -1312,4 +1309,135 @@ export function registerTenantAdminKey(
     new_admin_pubkey_hex: newAdminPubkeyHex,
     ...(action ? { action } : {}),
   });
+}
+
+export interface SessionExport {
+  ok: true;
+  manifest: unknown;
+}
+
+export interface SessionImportResult {
+  ok: true;
+  session_id: string;
+  replayed: boolean;
+}
+
+// U2-a: session export/import + ledger export (FlightRecorder home).
+// Export returns the manifest for client-side download; import posts a
+// parsed manifest (unknown ids 404, invalid manifests 400 — reasons
+// verbatim); ledger export returns JSON events or a markdown rendering
+// (cross-tenant selections refuse whole, never redacted).
+export async function exportSession(sessionId: string): Promise<SessionExport | { error: string } | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/sessions/export`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ session_id: sessionId }),
+    });
+    if (!res.ok) {
+      let text = '';
+      try {
+        text = (await res.text()).trim().slice(0, 280);
+      } catch {
+        /* ignore */
+      }
+      return { error: text || `HTTP ${res.status}` };
+    }
+    return { ok: true, manifest: (await res.json()) as unknown };
+  } catch (err) {
+    console.error('Failed to export session:', err);
+    return null;
+  }
+}
+
+export async function importSession(manifest: unknown): Promise<SessionImportResult | { error: string } | null> {
+  let raw = '';
+  try {
+    const res = await fetch(`${API_BASE}/api/sessions/import`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ manifest }),
+    });
+    try {
+      raw = (await res.text()).trim();
+    } catch {
+      raw = '';
+    }
+    if (!res.ok) {
+      return { error: raw.slice(0, 280) || `HTTP ${res.status}` };
+    }
+    let data: { session_id?: unknown; replayed?: unknown } | null = null;
+    try {
+      data = JSON.parse(raw) as { session_id?: unknown; replayed?: unknown };
+    } catch {
+      data = null;
+    }
+    if (!data || typeof data.session_id !== 'string') {
+      return { error: 'import returned no session id' };
+    }
+    return { ok: true, session_id: data.session_id, replayed: data.replayed === true };
+  } catch (err) {
+    console.error('Failed to import session:', err);
+    return null;
+  }
+}
+
+export type LedgerExportFormat = 'json' | 'markdown';
+
+export async function exportLedger(
+  sessionId: string,
+  format: LedgerExportFormat
+): Promise<{ ok: true; events?: unknown[]; markdown?: string } | { error: string } | null> {
+  let raw = '';
+  let status = 0;
+  try {
+    const res = await fetch(`${API_BASE}/api/ledger/export`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ session_id: sessionId, format }),
+    });
+    status = res.status;
+    try {
+      raw = (await res.text()).trim();
+    } catch {
+      raw = '';
+    }
+    if (!res.ok) {
+      return { error: raw.slice(0, 280) || `HTTP ${status}` };
+    }
+    let data: { events?: unknown[]; markdown?: string; ok?: boolean; error?: string } | null = null;
+    try {
+      data = JSON.parse(raw) as { events?: unknown[]; markdown?: string; ok?: boolean; error?: string };
+    } catch {
+      data = null;
+    }
+    if (!data || data.ok === false) {
+      return { error: (data && data.error) || 'ledger refused the export' };
+    }
+    return { ok: true, events: data.events, markdown: data.markdown };
+  } catch (err) {
+    console.error('Failed to export ledger:', err);
+    return null;
+  }
+}
+
+// Client-side download for exports (U2-a). DOM-guarded: returns false
+// when there is no document (non-browser runtimes) so callers can fall
+// back to inline display instead of crashing.
+export function downloadFile(filename: string, text: string, mime: string): boolean {
+  if (typeof document === 'undefined') return false;
+  try {
+    const blob = new Blob([text], { type: mime });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    return true;
+  } catch {
+    return false;
+  }
 }

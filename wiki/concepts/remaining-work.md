@@ -71,7 +71,31 @@ status: tracked
   > admin bootstrap) with byte-exact admin envelopes (Go-generated
   > golden hashes, 4 vectors; full live cycle on compose: bootstrap →
   > ceiling → wrong-key 403 → suspend → frozen-write 403 → resume →
-  > no-bearer 401). Next: U2 (wire-or-decide per dead backend).
+  > no-bearer 401).
+  > ✅ U2 WIRED 2026-10-17: session export/import + ledger export
+  > (JSON/Markdown download, import switches to the session) in the
+  > recorder — proven live as export→import idempotent replay
+  > (replayed:true, no duplicate); re-synthesize-campaign button in the
+  > tribunal room (same 75% quorum bar as commit; proven live, full
+  > campaign state returned). Correction to the U2 brief: the modal's
+  > "Synthesize Reference Baseline" path was already wired server-side
+  > (`fresh:false` synthesizes at creation) — only re-synthesis of
+  > existing sessions was missing.
+  > ⏸️ U2 DECIDED 2026-10-17 (wire-or-decide outcomes, each with trigger):
+  > autoresearch UI deferred — engine is eval-driven (nightly canary),
+  > no operator workflow designed (who starts loops, with what artifact,
+  > toward what end); trigger = workflow design, no theater before it.
+  > krylov / mitigation / fidelity / ADMET / discovery-pipeline console
+  > forms declined — agent-consumed compute stages (task_executor,
+  > campaign_synth, bridge); the console already surfaces their results,
+  > a hand-run form duplicates agent paths with no operator action
+  > behind it (discovery curation belongs to the blueprint layer,
+  > [[questions]] §D). notebooks-endpoint UI declined — ResultsStudio
+  > already renders notebook content from campaign state (redundant read
+  > path). canvas layout save/load deferred — waits for an interactive
+  > SpatialCanvas (currently static display). server-signed mandate
+  > console path declined — client-mint is the console path,
+  > server-signed stays daemon/CLI-side; unify at IdP (U3).
 - P1-4 subsystem consolidation execution — design: [[agent-subsystem-consolidation]].
   > ✅ STEP 1 LANDED 2026-10-17: conformance freezes on all three
   > registry homes (Go + 2× Python) + boot-crash hardening
