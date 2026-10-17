@@ -86,8 +86,12 @@ def test_library_full_pipeline_cost_approved(tmp_path):
     s = gov.sessions.create("library-pipeline", "researcher", budget_ceiling_usd=100.0)
 
     # simulator tier runs free; the approval gate exercises the paid path
-    a = gov.request_approval(s.session_id, 0.0, "library entry validation")
-    a = gov.approve(a.approval_id, reviewer="pi")
+    # (W0.9: approval mints a real signed mandate, so the request carries a
+    # positive budget with an explicit lab, program, and operator key).
+    import os
+    a = gov.request_approval(s.session_id, 5.0, "library entry validation")
+    a = gov.approve(a.approval_id, reviewer="pi", tenant_id="lab-a",
+                    job_hash="job-lib", signing_key=os.urandom(32))
 
     h = build_vqe_ansatz_harness()
     orch = Orchestrator(h, budget_steps=10, seed=7, ledger=ledger)

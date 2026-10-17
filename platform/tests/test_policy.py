@@ -64,12 +64,19 @@ def test_revocation_takes_effect_immediately(tmp_path):
                  "provider": "local-simulator", "shots": 64, "seed": 1}, token="agent-token")
 
 
-def test_operator_has_full_access():
+def test_operator_has_full_access(monkeypatch):
+    import os
     gw = build_gateway()
-    # operator dev principal has full scope: the call REACHES the tool and fails on
-    # the unknown approval (KeyError), NOT on authorization (AuthError).
+    # W0.9: with an operator key present, the call REACHES the tool and fails
+    # on the unknown approval (KeyError), NOT on authorization (AuthError).
+    monkeypatch.setenv("KUBONA_OPERATOR_PRIVKEY_HEX", os.urandom(32).hex())
     with pytest.raises(KeyError):
         gw.call("cost", "approve_approval", {"approval_id": "x"}, token="dev-token")
+    # Without the key the tool refuses instead of minting unsigned — the
+    # refusal is fail-closed at the tool, auth still passed.
+    monkeypatch.delenv("KUBONA_OPERATOR_PRIVKEY_HEX")
+    out = gw.call("cost", "approve_approval", {"approval_id": "x"}, token="dev-token")
+    assert out["ok"] is False
 
 
 class _AgentAuth(DevAuthProvider):

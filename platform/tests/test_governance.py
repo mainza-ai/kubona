@@ -22,13 +22,20 @@ def test_ceiling_enforced(gov):
 
 
 def test_two_stage_approval_lifecycle(gov):
+    import os
+    key = os.urandom(32)
     s = gov.sessions.create("paid-run", "agent", budget_ceiling_usd=100.0)
     a = gov.request_approval(s.session_id, 42.0, "paid provider run")
     assert a.state == "REVIEW"
     a = gov.hold_approval(a.approval_id, reviewer="pi")
     assert a.state == "HOLD"
-    a = gov.approve(a.approval_id, reviewer="pi", note="ok")
+    # W0.9: approval mints a real signed mandate bound to lab + program.
+    with pytest.raises(GovernanceError):
+        gov.approve(a.approval_id, reviewer="pi", note="ok")
+    a = gov.approve(a.approval_id, reviewer="pi", note="ok",
+                    tenant_id="lab-a", job_hash="job-42", signing_key=key)
     assert a.state == "APPROVED"
+    assert a.mandate_token and a.mandate_digest
     with pytest.raises(GovernanceError):
         gov.hold_approval(a.approval_id, reviewer="pi")  # already approved
 
