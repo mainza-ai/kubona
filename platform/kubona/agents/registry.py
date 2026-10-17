@@ -68,6 +68,8 @@ class AgentRegistry:
             return
         for a in raw:
             try:
+                if not isinstance(a, dict):
+                    continue  # non-row (string, number, null) skips, never fatal
                 d = dict(a)
                 d["scopes"] = tuple(d.get("scopes", ()))
                 self._agents[d["agent_id"]] = Agent(**{k: v for k, v in d.items()
