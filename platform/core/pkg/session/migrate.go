@@ -21,6 +21,7 @@ import (
 
 	"github.com/mainza-ai/kubona/core/pkg/autoresearch"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/supervisor"
 	pb "github.com/mainza-ai/kubona/core/proto"
 )
 
@@ -45,14 +46,20 @@ var (
 	}
 	// TerminalLoopStatuses: a loop in one of these states is over.
 	// Sleeping loops are NOT terminal (wake resumes the same session).
+	// W0.21: supervisor terminal states included — the loops table is
+	// written by two writers (autoresearch engine + supervisor) with two
+	// vocabularies; a killed loop blocked deletion forever.
 	TerminalLoopStatuses = []string{
 		string(autoresearch.StatusCompleted),
 		string(autoresearch.StatusAborted),
+		supervisor.LoopCompleted,
+		supervisor.LoopAborted,
+		supervisor.LoopKilled,
 	}
 )
 
-// placeholders returns "?, ?, ..." for n bind args.
-func placeholders(n int) string {
+// Placeholders returns "?, ?, ..." for n bind args.
+func Placeholders(n int) string {
 	if n <= 0 {
 		return "NULL" // IN (NULL) matches nothing — fail-closed, never "all".
 	}
@@ -67,7 +74,7 @@ func LiveJobStatusClause() (string, []any) {
 	for _, s := range LiveJobStatuses {
 		args = append(args, s)
 	}
-	return "IN (" + placeholders(len(LiveJobStatuses)) + ")", args
+	return "IN (" + Placeholders(len(LiveJobStatuses)) + ")", args
 }
 
 // Manifest version. Major bump = incompatible: unknown majors refuse with
@@ -475,8 +482,8 @@ func nullDatetime(s string) any {
 func (m *Manager) DeleteBlockers(id string) ([]string, error) {
 	var blockers []string
 	var n int
-	jobQ := `SELECT COUNT(*) FROM jobs WHERE session_id = ? AND status NOT IN (` + placeholders(len(TerminalJobStatuses)) + `)`
-	loopQ := `SELECT COUNT(*) FROM loops WHERE session_id = ? AND status NOT IN (` + placeholders(len(TerminalLoopStatuses)) + `)`
+	jobQ := `SELECT COUNT(*) FROM jobs WHERE session_id = ? AND status NOT IN (` + Placeholders(len(TerminalJobStatuses)) + `)`
+	loopQ := `SELECT COUNT(*) FROM loops WHERE session_id = ? AND status NOT IN (` + Placeholders(len(TerminalLoopStatuses)) + `)`
 	type blockerCheck struct {
 		query string
 		args  []any

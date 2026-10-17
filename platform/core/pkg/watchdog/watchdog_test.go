@@ -74,3 +74,41 @@ func TestWatchdogWakesOncePerFingerprint(t *testing.T) {
 		t.Fatalf("second scan must dedup: woke=%v reason=%s err=%v", woke, reason, err)
 	}
 }
+
+// W0.21: FAILED jobs are settled (they used to keep subtrees "unsettled"
+// forever), live loops fingerprint (jobs-only used to miss them), and
+// fingerprints are per-session (no cross-session eviction re-wake).
+func TestWatchdogSettledFailedAndLoops(t *testing.T) {
+	wd, l, cleanup := setupWatchdog(t)
+	defer cleanup()
+
+	if _, err := l.DB().Exec(
+		`INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at) VALUES (?, ?, ?, ?, ?, ?)`,
+		"job-failed", "sess-f", "JOB_STATUS_FAILED", "circuit_run", "{}", "2026-10-09T00:00:00Z",
+	); err != nil {
+		t.Fatalf("seed job: %v", err)
+	}
+	if fp, err := wd.ComputeStopFingerprint("sess-f"); err != nil || fp != "" {
+		t.Fatalf("failed-only session must fingerprint settled, got %q %v", fp, err)
+	}
+	if _, err := l.DB().Exec(
+		`INSERT INTO loops (id, session_id, harness_id, status, step_count, max_steps, diverged, created_at, updated_at, last_activity, drain, reserved_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"loop-live", "sess-f", "ansatz-search", "running", 1, 5, 0,
+		"2026-10-09T00:00:00Z", "2026-10-09T00:00:00Z", "2026-10-09T00:00:00Z", 0, 0,
+	); err != nil {
+		t.Fatalf("seed loop: %v", err)
+	}
+	fp, err := wd.ComputeStopFingerprint("sess-f")
+	if err != nil || fp == "" {
+		t.Fatalf("live loop must fingerprint unsettled, got %q %v", fp, err)
+	}
+	// Per-session dedup: another session's identical fingerprint still wakes.
+	woke, _, err := wd.ScanSubtree("sess-f")
+	if err != nil || !woke {
+		t.Fatalf("first scan must wake: %v", err)
+	}
+	woke, reason, err := wd.ScanSubtree("sess-f")
+	if err != nil || woke || reason != "already_reviewed" {
+		t.Fatalf("second scan must dedup: %v %s %v", woke, reason, err)
+	}
+}
