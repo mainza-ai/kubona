@@ -41,11 +41,13 @@ var proposalBlockRe = regexp.MustCompile("(?s)```json_proposal.*?```")
 
 // instructionEchoMarkers match sentences that narrate the harness instead of
 // answering — the exact failure mode observed 2026-10-11 (model echoed the
-// old MUST-style prompt into chat).
+// old MUST-style prompt into chat). W1.13: full instruction PHRASES, never
+// bare substrings — "MUST conserve energy" is physics prose, not an echo.
 var instructionEchoMarkers = []string{
 	"json_proposal",
 	"MUST provide",
-	"MUST",
+	"you MUST",
+	"MUST NOT",
 	"my instructions",
 	"system prompt",
 	"internal monologue",
@@ -54,9 +56,6 @@ var instructionEchoMarkers = []string{
 }
 
 var planningOpenerRe = regexp.MustCompile(`(?i)^\s*(we need (to )?(answer|provide|explain|map|state)|i need to (answer|provide)|we should (provide|answer|map)|need (likely|maybe|to )|need [a-z]+ |we can (provide|state|map|compute)|could use|let's recall|but mapping|wait\b)`)
-
-// dataSignalRe keeps opener-led sentences that still carry a value.
-var dataSignalRe = regexp.MustCompile(`[0-9]|Ha\b|eV\b|Å|Angstrom`)
 
 // sentenceSplitRe splits on sentence-ending punctuation only when it really
 // ends a sentence (never inside decimals like 0.7414).
@@ -86,9 +85,12 @@ func sanitizeCopilotReply(reply string) string {
 		if !drop && planningOpenerRe.MatchString(s) {
 			// Planning narration ("We need to map...", "Need values..."):
 			// a bare quoted user-prompt echo is dropped outright; otherwise
-			// keep only if a data signal survives the opener strip.
+			// strip the opener but KEEP the remainder (W1.13) — the old
+			// data-signal gate dropped valid prose without digits
+			// ("Need careful static correlation" vanished for lacking
+			// numbers). Narration framing removed, content preserved.
 			remainder := strings.TrimSpace(planningOpenerRe.ReplaceAllString(s, ""))
-			if strings.HasPrefix(remainder, `"`) || !dataSignalRe.MatchString(remainder) {
+			if strings.HasPrefix(remainder, `"`) {
 				drop = true
 			} else {
 				s = remainder
@@ -159,30 +161,79 @@ func engineNotice(provider, model string, err error) string {
 // extractProposal pulls the ```json_proposal block out of a raw reply,
 // returning the display text (block excised) and the launchable payload.
 // Shared by the unary and streaming chat paths so both behave identically.
-func extractProposal(raw string) (string, *json.RawMessage) {
-	var proposalJSON *json.RawMessage
+//
+// W1.13: a launchable proposal must carry a non-empty qasm — field-less
+// JSON objects used to become THE proposal (excised from display, then
+// refused downstream where the user saw nothing). Without qasm the block
+// is not a proposal: nil returns and the fallback synthesis path engages.
+// Multiple blocks refuse (ambiguous intent): all excised, nil proposal,
+// multiple=true so callers say why instead of silently keeping the first.
+func extractProposal(raw string) (display string, proposal *json.RawMessage, multiple bool) {
 	startTag := "```json_proposal"
 	endTag := "```"
-	display := raw
-	if idx := strings.Index(raw, startTag); idx != -1 {
-		rem := raw[idx+len(startTag):]
-		if endIdx := strings.Index(rem, endTag); endIdx != -1 {
-			jsonStr := strings.TrimSpace(rem[:endIdx])
-			var testObj map[string]any
-			if json.Unmarshal([]byte(jsonStr), &testObj) == nil {
-				rawMsg := json.RawMessage(jsonStr)
-				proposalJSON = &rawMsg
-			}
-			display = strings.TrimSpace(raw[:idx] + rem[endIdx+len(endTag):])
+	display = raw
+	var payloads []json.RawMessage
+	rest := raw
+	for {
+		idx := strings.Index(rest, startTag)
+		if idx == -1 {
+			break
 		}
+		rem := rest[idx+len(startTag):]
+		endIdx := strings.Index(rem, endTag)
+		if endIdx == -1 {
+			break
+		}
+		jsonStr := strings.TrimSpace(rem[:endIdx])
+		var testObj map[string]any
+		if json.Unmarshal([]byte(jsonStr), &testObj) == nil {
+			if qasm, ok := testObj["qasm"].(string); ok && strings.TrimSpace(qasm) != "" {
+				rawMsg := json.RawMessage(jsonStr)
+				payloads = append(payloads, rawMsg)
+			}
+		}
+		rest = rem[endIdx+len(endTag):]
 	}
-	return display, proposalJSON
+	if len(payloads) == 0 {
+		// Excise even invalid blocks from display (no dead markup shown),
+		// but return no proposal so fallback synthesis engages.
+		display = exciseProposalBlocks(raw)
+		return strings.TrimSpace(display), nil, false
+	}
+	if len(payloads) > 1 {
+		return strings.TrimSpace(exciseProposalBlocks(raw)), nil, true
+	}
+	proposal = &payloads[0]
+	return strings.TrimSpace(exciseProposalBlocks(raw)), proposal, false
 }
 
-// isTruncated reports finish_reason "length" (any choice) from a completion.
+// exciseProposalBlocks removes all proposal blocks from display text.
+func exciseProposalBlocks(raw string) string {
+	startTag := "```json_proposal"
+	endTag := "```"
+	out := raw
+	for {
+		idx := strings.Index(out, startTag)
+		if idx == -1 {
+			break
+		}
+		rem := out[idx+len(startTag):]
+		endIdx := strings.Index(rem, endTag)
+		if endIdx == -1 {
+			break
+		}
+		out = strings.TrimSpace(out[:idx] + rem[endIdx+len(endTag):])
+	}
+	return out
+}
+
+// isTruncated reports severing finish reasons (any choice) from a
+// completion. W1.13: only "length" used to count — "max_tokens" and
+// content-filter stops passed severed answers off as complete.
 func isTruncated(finishReasons ...string) bool {
 	for _, f := range finishReasons {
-		if f == "length" {
+		switch strings.ToLower(strings.ReplaceAll(f, "-", "_")) {
+		case "length", "max_tokens", "content_filter":
 			return true
 		}
 	}

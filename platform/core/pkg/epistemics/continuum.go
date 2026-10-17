@@ -5,6 +5,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"sync"
 	"time"
 )
@@ -42,7 +44,9 @@ func (t EpistemicContinuumTier) BaseConfidence() float64 {
 	case Tier2ExactAnalyticalAnchor:
 		return 0.95
 	case Tier3CertifiedClassicalBaseline:
-		return 0.85
+		// W1.10: 0.90, matching the tier's documented floor (0.90 <= ρ).
+		// The old 0.85 let the label promise more than the number carried.
+		return 0.90
 	case Tier4ErrorMitigatedQuantum:
 		return 0.65
 	default:
@@ -63,15 +67,19 @@ type ComputationalHypothesis struct {
 	Metadata            map[string]interface{} `json:"metadata,omitempty"`
 }
 
-// ContentHash computes the canonical SHA-256 digest of the computational hypothesis tuple
+// ContentHash computes the canonical SHA-256 digest of the computational hypothesis tuple.
+// W1.10: covers the FULL tuple (HypothesisID included) at full float
+// precision — the old %.4f/%.6f rounding aliased distinct hypotheses to one
+// hash, and the omitted ID let two hypotheses share it.
 func (h *ComputationalHypothesis) ContentHash() string {
-	raw := fmt.Sprintf("%s:%s:%s:%.4f:%.6f",
+	raw := strings.Join([]string{
+		h.HypothesisID,
 		h.Lean4Statement,
 		h.AnalyticalAnchorID,
 		h.QIRCircuitBitcode,
-		h.SpendBudgetUSD,
-		h.ExpectedEntropyGain,
-	)
+		strconv.FormatFloat(h.SpendBudgetUSD, 'g', -1, 64),
+		strconv.FormatFloat(h.ExpectedEntropyGain, 'g', -1, 64),
+	}, ":")
 	hasher := sha256.New()
 	hasher.Write([]byte(raw))
 	return hex.EncodeToString(hasher.Sum(nil))
@@ -82,11 +90,13 @@ type FisherStoppingRuleEvaluator struct {
 	LambdaAP2 float64 `json:"lambda_ap2"`
 }
 
-func NewFisherStoppingRuleEvaluator(lambdaAP2 float64) *FisherStoppingRuleEvaluator {
+func NewFisherStoppingRuleEvaluator(lambdaAP2 float64) (*FisherStoppingRuleEvaluator, error) {
+	// W1.10: a non-positive stopping weight silently became 1.0, hiding
+	// misconfiguration of the thing that decides when to stop spending.
 	if lambdaAP2 <= 0 {
-		lambdaAP2 = 1.0
+		return nil, fmt.Errorf("lambda_ap2 must be positive, got %v: refusing", lambdaAP2)
 	}
-	return &FisherStoppingRuleEvaluator{LambdaAP2: lambdaAP2}
+	return &FisherStoppingRuleEvaluator{LambdaAP2: lambdaAP2}, nil
 }
 
 // ShouldStop returns true if the expected information gain is less than or equal to marginal cost
@@ -172,13 +182,21 @@ func NewEpistemicTribunalEngine() *EpistemicTribunalEngine {
 	}
 }
 
-// StartTribunal initializes a new tribunal session for a hypothesis
-func (e *EpistemicTribunalEngine) StartTribunal(h ComputationalHypothesis) *TribunalSession {
+// StartTribunal initializes a new tribunal session for a hypothesis.
+// The session ID is the FULL content hash (W1.10): the old 12-hex prefix
+// (48 bits) collided and silently overwrote the earlier session. An ID that
+// already exists refuses instead of overwriting — two tribunals never share
+// a session.
+func (e *EpistemicTribunalEngine) StartTribunal(h ComputationalHypothesis) (*TribunalSession, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
+	id := fmt.Sprintf("tribunal-%s", h.ContentHash())
+	if _, exists := e.sessions[id]; exists {
+		return nil, fmt.Errorf("tribunal session %s already exists: refusing to overwrite", id)
+	}
 	session := &TribunalSession{
-		SessionID:         fmt.Sprintf("tribunal-%s", h.ContentHash()[:12]),
+		SessionID:         id,
 		Hypothesis:        h,
 		CurrentPhase:      PhaseProposal,
 		Votes:             make(map[string]PersonaVote),
@@ -186,7 +204,17 @@ func (e *EpistemicTribunalEngine) StartTribunal(h ComputationalHypothesis) *Trib
 		ZeroAxiomCheating: true, // Default expectation
 	}
 	e.sessions[session.SessionID] = session
-	return session
+	return session, nil
+}
+
+// requirePhase enforces the ordered state machine (W1.10): proposal →
+// challenge → verification → audit → voting → verdict. Skipping phases
+// used to conclude without challenge, verification, or audit.
+func requirePhase(s *TribunalSession, want TribunalPhase) error {
+	if s.CurrentPhase != want {
+		return fmt.Errorf("tribunal %s is %s: phase %s required first", s.SessionID, s.CurrentPhase, want)
+	}
+	return nil
 }
 
 // AdvanceToChallenge moves to Phase 2 (Adversarial Challenge)
@@ -197,6 +225,9 @@ func (e *EpistemicTribunalEngine) AdvanceToChallenge(sessionID string, barrenPla
 	s, ok := e.sessions[sessionID]
 	if !ok {
 		return errors.New("tribunal session not found")
+	}
+	if err := requirePhase(s, PhaseProposal); err != nil {
+		return err
 	}
 	s.BarrenPlateauSafe = barrenPlateauSafe
 	s.CurrentPhase = PhaseAdversarialChallenge
@@ -211,6 +242,9 @@ func (e *EpistemicTribunalEngine) AdvanceToFormalVerification(sessionID string, 
 	s, ok := e.sessions[sessionID]
 	if !ok {
 		return errors.New("tribunal session not found")
+	}
+	if err := requirePhase(s, PhaseAdversarialChallenge); err != nil {
+		return err
 	}
 	s.Lean4Verified = lean4Verified
 	s.ZeroAxiomCheating = zeroCheat
@@ -227,12 +261,18 @@ func (e *EpistemicTribunalEngine) AdvanceToAnchorAudit(sessionID string, consist
 	if !ok {
 		return errors.New("tribunal session not found")
 	}
+	if err := requirePhase(s, PhaseFormalVerification); err != nil {
+		return err
+	}
 	s.AnchorConsistent = consistent
 	s.CurrentPhase = PhaseAnalyticalAudit
 	return nil
 }
 
-// CastVote records an agent's vote in Phase 5
+// CastVote records an agent's vote. Confidence must be in (0, 1] (W1.10):
+// zero/negative confidences used to inflate to 0.5 and count toward quorum.
+// First vote must arrive in the audit phase (ordered machine); later votes
+// in the voting phase.
 func (e *EpistemicTribunalEngine) CastVote(sessionID string, vote PersonaVote) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -241,12 +281,33 @@ func (e *EpistemicTribunalEngine) CastVote(sessionID string, vote PersonaVote) e
 	if !ok {
 		return errors.New("tribunal session not found")
 	}
+	if vote.Confidence <= 0 || vote.Confidence > 1 {
+		return fmt.Errorf("vote confidence must be in (0, 1], got %v: refusing", vote.Confidence)
+	}
+	if vote.AgentPersona == "" {
+		return errors.New("vote persona is required: refusing")
+	}
+	if len(s.Votes) == 0 {
+		if err := requirePhase(s, PhaseAnalyticalAudit); err != nil {
+			return err
+		}
+	} else if err := requirePhase(s, PhaseQuorumVoting); err != nil {
+		return err
+	}
 	s.CurrentPhase = PhaseQuorumVoting
 	s.Votes[vote.AgentPersona] = vote
 	return nil
 }
 
-// ConcludeTribunal calculates quorum consensus and renders verdict
+// minCommitPersonas floors commit diversity (W1.10): one persona voting
+// with itself used to reach 100% quorum and COMMIT. Fewer than three
+// distinct personas concludes REJECTED (honestly labeled), never committed.
+const minCommitPersonas = 3
+
+// ConcludeTribunal calculates quorum consensus and renders verdict.
+// Concluding requires the voting phase; COMMIT additionally requires
+// Lean4Verified (formal proof passed — the old code committed without it),
+// the hygiene triple, and persona diversity.
 func (e *EpistemicTribunalEngine) ConcludeTribunal(sessionID string) (*TribunalSession, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -254,6 +315,9 @@ func (e *EpistemicTribunalEngine) ConcludeTribunal(sessionID string) (*TribunalS
 	s, ok := e.sessions[sessionID]
 	if !ok {
 		return nil, errors.New("tribunal session not found")
+	}
+	if err := requirePhase(s, PhaseQuorumVoting); err != nil {
+		return nil, err
 	}
 
 	totalVotes := len(s.Votes)
@@ -265,14 +329,10 @@ func (e *EpistemicTribunalEngine) ConcludeTribunal(sessionID string) (*TribunalS
 	totalWeight := 0.0
 
 	for _, v := range s.Votes {
-		weight := v.Confidence
-		if weight <= 0 {
-			weight = 0.5
-		}
-		totalWeight += weight
+		totalWeight += v.Confidence
 
 		if v.Vote == VoteCorroborated {
-			corroboratedWeighted += weight
+			corroboratedWeighted += v.Confidence
 		}
 	}
 
@@ -285,22 +345,43 @@ func (e *EpistemicTribunalEngine) ConcludeTribunal(sessionID string) (*TribunalS
 	now := time.Now()
 	s.CompletedAt = &now
 	s.CurrentPhase = PhaseVerdictRendered
-
-	// Supermajority threshold: >= 75% quorum + strict axiomatic hygiene + no barren plateau
-	if quorum >= 75.0 && s.ZeroAxiomCheating && s.BarrenPlateauSafe && s.AnchorConsistent {
+	// Supermajority threshold: >= 75% quorum + verified formal proof +
+	// strict axiomatic hygiene + no barren plateau + anchor consistency +
+	// persona diversity. Anything less rejects with the reason named.
+	switch {
+	case totalVotes < minCommitPersonas:
+		s.Verdict = "REJECTED_INSUFFICIENT_CONSENSUS"
+	case !s.Lean4Verified:
+		s.Verdict = "REJECTED_UNVERIFIED_FORMAL_PROOF"
+	case quorum >= 75.0 && s.ZeroAxiomCheating && s.BarrenPlateauSafe && s.AnchorConsistent:
 		s.Verdict = "COMMITTED_TO_LEDGER"
-	} else if !s.ZeroAxiomCheating || !s.BarrenPlateauSafe {
+	case !s.ZeroAxiomCheating || !s.BarrenPlateauSafe:
 		s.Verdict = "FALSIFIED_NEGATIVE_CERTIFICATE"
-	} else {
+	default:
 		s.Verdict = "REJECTED_INSUFFICIENT_CONSENSUS"
 	}
 
-	return s, nil
+	cp := *s
+	cp.Votes = make(map[string]PersonaVote, len(s.Votes))
+	for k, v := range s.Votes {
+		cp.Votes[k] = v
+	}
+	return &cp, nil
 }
 
+// GetSession returns a copy: callers used to mutate sessions past the lock
+// (W1.10 hygiene).
 func (e *EpistemicTribunalEngine) GetSession(sessionID string) (*TribunalSession, bool) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	s, ok := e.sessions[sessionID]
-	return s, ok
+	if !ok {
+		return nil, false
+	}
+	cp := *s
+	cp.Votes = make(map[string]PersonaVote, len(s.Votes))
+	for k, v := range s.Votes {
+		cp.Votes[k] = v
+	}
+	return &cp, true
 }

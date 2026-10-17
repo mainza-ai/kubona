@@ -1587,7 +1587,10 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 	if finish == "length" {
 		raw += copilotTruncationNotice
 	}
-	display, proposalJSON := extractProposal(raw)
+	display, proposalJSON, multiProposal := extractProposal(raw)
+	if multiProposal {
+		display += "\n\n⚠️ Multiple proposals generated — ambiguous intent, none kept. Resubmit one."
+	}
 	display = sanitizeCopilotReply(display)
 	assistantMsg, _ := s.sessionMgr.AddMessage(sessionID, "assistant", display, proposalJSON)
 	_, servedModel, _ := s.llmSettings.GetModelForRole("copilot")
@@ -1918,7 +1921,11 @@ func (s *Server) generateCopilotResponse(ctx context.Context, sessionID, content
 	// 3. Extract json_proposal if generated (runs on the RAW reply: the
 	// display filter below excises the block from chat prose, but the
 	// launchable payload must survive in proposal_json).
-	display, proposalJSON := extractProposal(reply)
+	display, proposalJSON, multiProposal := extractProposal(reply)
+	if multiProposal {
+		reply = sanitizeCopilotReply(display) + "\n\n⚠️ Multiple proposals generated — ambiguous intent, none kept. Resubmit one."
+		return reply, nil, nil
+	}
 	reply = sanitizeCopilotReply(display)
 
 	// If the model did not close or generate the proposal block, dynamically synthesize by computing classical anchor from Python bridge

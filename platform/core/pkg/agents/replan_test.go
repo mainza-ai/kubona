@@ -203,7 +203,7 @@ func TestReplanNotebookCap(t *testing.T) {
 	}
 	full, _ := json.Marshal(state)
 
-	updated, changed, _ := ReplanWithJobResult(full, "job-cap1", "circuit_run", []byte(`{"success":true}`), "")
+	updated, changed, _ := ReplanWithJobResult(full, "job-cap1", "circuit_run", []byte(`{"success":true,"meyer_wallach_entanglement":0.5,"resolved_backend":"aer","counts":{"00":50,"11":50}}`), "")
 	if !changed {
 		t.Fatal("expected fold")
 	}
@@ -704,5 +704,40 @@ func TestReplanKrylovMWFoldsOnlyWhenNumerical(t *testing.T) {
 	if after.QuantumFactors.MeyerWallachQ != before.QuantumFactors.MeyerWallachQ {
 		t.Errorf("unattributed MW must not fold, MW moved %v -> %v",
 			before.QuantumFactors.MeyerWallachQ, after.QuantumFactors.MeyerWallachQ)
+	}
+}
+
+// W1.14: no-measurement folds nothing (no version spam); molecule matching
+// is token-bound (LI never matches LIH); mitigation needs all three inputs;
+// provenance hashes are full-precision.
+func TestReplanW114Honesty(t *testing.T) {
+	raw := replanTestState(t, "H2 ground state VQE")
+
+	// circuit_run with no MW: no fold, no version.
+	if _, changed, _ := ReplanWithJobResult(raw, "job-nm", "circuit_run",
+		[]byte(`{"success":true,"resolved_backend":"aer","counts":{"00":50}}`), ""); changed {
+		t.Error("measurement-less run must not fold (no version spam)")
+	}
+	// Mitigation missing unmitigated/error-bound refuses (no 0.0 printing).
+	if _, changed, _ := ReplanWithJobResult(raw, "job-m2", "mitigate",
+		[]byte(`{"success":true,"method_used":"ZNE","mitigated_value":-1.1371}`), ""); changed {
+		t.Error("mitigation without unmitigated value must not fold")
+	}
+	if _, changed, _ := ReplanWithJobResult(raw, "job-m3", "mitigate",
+		[]byte(`{"success":true,"method_used":"ZNE","unmitigated_value":-1.1,"mitigated_value":-1.1371}`), ""); changed {
+		t.Error("mitigation without error bound must not fold")
+	}
+	// Token match: LIH target matches LIH, never LI.
+	if !molTokenMatch("LIH CLUSTER", "LIH") {
+		t.Error("LIH must token-match")
+	}
+	if molTokenMatch("LIH CLUSTER", "LI") {
+		t.Error("LI must never token-match LIH")
+	}
+	// Full-precision provenance: bond distances 1e-6 apart hash apart.
+	h1 := provenanceHash("s", "H2", 0.741400, -1.13727, "q;")
+	h2 := provenanceHash("s", "H2", 0.741401, -1.13727, "q;")
+	if h1 == h2 {
+		t.Error("provenance must distinguish 1e-6 bond differences")
 	}
 }

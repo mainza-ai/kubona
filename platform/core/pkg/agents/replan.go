@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -106,6 +107,20 @@ func EvalClaimRecord(resultJSON []byte) (*ClaimDraft, bool) {
 		Verdict: verdict, ExternalID: external, Reason: boundClaim(reason)}, true
 }
 
+// molTokenMatch reports whether mol appears as a whole token in target
+// (split on non-alphanumerics): "LIH" matches "LIH cluster" but "LI"
+// never matches "LIH".
+func molTokenMatch(targetUpper, molNorm string) bool {
+	for _, tok := range strings.FieldsFunc(targetUpper, func(r rune) bool {
+		return !(r >= 'A' && r <= 'Z' || r >= '0' && r <= '9')
+	}) {
+		if tok == molNorm {
+			return true
+		}
+	}
+	return false
+}
+
 // ReplanWithJobResult folds one settled job into stored campaign JSON.
 // cite carries a claim record ID for the notebook line ("" = no citation).
 func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []byte, cite string) (updated []byte, changed bool, note string) {
@@ -156,6 +171,14 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 				changedAny = true
 			}
 		}
+		if !changedAny {
+			// W1.14: nothing measured folded, nothing changed. The old
+			// code forced changed=true for the provenance line alone —
+			// version spam against the 50-version cap (the file's own
+			// purity rule: no change, no version). The run itself stays
+			// recorded on the job row and events.
+			return marshalReplan(&state, false, "circuit measurements folded (no state change)")
+		}
 		backend := "unknown backend"
 		if raw, ok := present("resolved_backend"); ok {
 			var b string
@@ -173,8 +196,7 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			}
 		}
 		measureLine("executed on %s, %d shots, measured MW=%.4f.", backend, shots, state.QuantumFactors.MeyerWallachQ)
-		changedAny = true // the provenance line itself is new information
-		return marshalReplan(&state, changedAny, "circuit measurements folded")
+		return marshalReplan(&state, true, "circuit measurements folded")
 
 	case "krylov_solve":
 		if !successTrue() {
@@ -226,11 +248,11 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			_ = json.Unmarshal(raw, &mol)
 		}
 		// Molecule identity is exact against the campaign formula
-		// ("H2" == "H2"), with substring against the display target only
-		// as a fallback for formula-less states. Substring alone
-		// mismatches ("H" would satisfy "H2") and would corrupt the
-		// anchor with the wrong molecule's physics — so codes shorter
-		// than two characters never match at all.
+		// ("H2" == "H2"), with token-boundary match against the display
+		// target only as a fallback for formula-less states (W1.14: the old
+		// substring fallback let "LI" match "LIH" — a wrong-molecule anchor
+		// corrupts everything downstream). Codes shorter than two
+		// characters never match at all.
 		molNorm := strings.ToUpper(strings.TrimSpace(mol))
 		matched := false
 		if len(molNorm) >= 2 {
@@ -238,8 +260,7 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 				strings.TrimSpace(state.QuantumFactors.MolecularFormula), mol)
 			if !matched {
 				targetUpper := strings.ToUpper(state.QuantumFactors.TargetMolecule)
-				matched = strings.Contains(targetUpper, molNorm) ||
-					strings.Contains(molNorm, targetUpper)
+				matched = molTokenMatch(targetUpper, molNorm)
 			}
 		}
 		if !matched {
@@ -379,16 +400,28 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			return nil, false, "no mitigation method recorded"
 		}
 		var unmit, mit, bound float64
-		if raw, ok := present("unmitigated_value"); ok {
-			_ = json.Unmarshal(raw, &unmit)
+		// W1.14: all three values are the measurement — absent inputs
+		// refuse instead of printing 0.0 defaults as measured results.
+		rawUnmit, okU := present("unmitigated_value")
+		if !okU {
+			return nil, false, "unmitigated value absent"
+		}
+		if err := json.Unmarshal(rawUnmit, &unmit); err != nil {
+			return nil, false, "unmitigated value undecodable"
 		}
 		rawMit, ok := present("mitigated_value")
 		if !ok {
 			return nil, false, "mitigated value absent"
 		}
-		_ = json.Unmarshal(rawMit, &mit)
-		if raw, ok := present("error_bound"); ok {
-			_ = json.Unmarshal(raw, &bound)
+		if err := json.Unmarshal(rawMit, &mit); err != nil {
+			return nil, false, "mitigated value undecodable"
+		}
+		rawBound, okB := present("error_bound")
+		if !okB {
+			return nil, false, "error bound absent"
+		}
+		if err := json.Unmarshal(rawBound, &bound); err != nil {
+			return nil, false, "error bound undecodable"
 		}
 		measureLine("%s mitigation: %.6f -> %.6f (bound %.2e).", method, unmit, mit, bound)
 		return marshalReplan(&state, true, "mitigation recorded")
@@ -558,8 +591,15 @@ func trimMeasurementLines(state *CampaignState) {
 // that define it. Synthesis and replan share it so a recomputed anchor
 // re-hashes identically instead of forking the scheme.
 func provenanceHash(sessionID, mol string, bondDist, fciVal float64, qasmCode string) string {
+	// W1.14: full-precision floats — the old %.5f aliased distinct
+	// (bond, energy) pairs to one provenance hash.
 	hasher := sha256.New()
-	hasher.Write([]byte(fmt.Sprintf("%s:%s:%.5f:%.5f:%s", sessionID, mol, bondDist, fciVal, qasmCode)))
+	hasher.Write([]byte(strings.Join([]string{
+		sessionID, mol,
+		strconv.FormatFloat(bondDist, 'g', -1, 64),
+		strconv.FormatFloat(fciVal, 'g', -1, 64),
+		qasmCode,
+	}, ":")))
 	return fmt.Sprintf("sha256:%s", hex.EncodeToString(hasher.Sum(nil)))
 }
 
