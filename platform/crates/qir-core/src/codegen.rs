@@ -12,18 +12,21 @@ pub struct QirAnalysisSummary {
     pub gate_depth: usize,
     pub single_qubit_gates: usize,
     pub two_qubit_gates: usize,
+    /// W1.5: 3+-qubit gates used to vanish from the counts (match 1/2/else).
+    pub multi_qubit_gates: usize,
     pub total_gates: usize,
 }
 
 impl QirAnalysisSummary {
     pub fn to_json(&self) -> String {
         format!(
-            "{{\"instruction_count\":{},\"qubit_allocations\":{},\"gate_depth\":{},\"single_qubit_gates\":{},\"two_qubit_gates\":{},\"total_gates\":{}}}",
+            "{{\"instruction_count\":{},\"qubit_allocations\":{},\"gate_depth\":{},\"single_qubit_gates\":{},\"two_qubit_gates\":{},\"multi_qubit_gates\":{},\"total_gates\":{}}}",
             self.instruction_count,
             self.qubit_allocations,
             self.gate_depth,
             self.single_qubit_gates,
             self.two_qubit_gates,
+            self.multi_qubit_gates,
             self.total_gates
         )
     }
@@ -34,12 +37,13 @@ pub fn analyze_circuit(c: &Circuit) -> QirAnalysisSummary {
     let mut qubit_layers = vec![0usize; c.num_qubits.max(1)];
     let mut single_q = 0usize;
     let mut two_q = 0usize;
+    let mut multi_q = 0usize;
 
     for g in &c.gates {
         match g.qubits.len() {
             1 => single_q += 1,
             2 => two_q += 1,
-            _ => (),
+            _ => multi_q += 1,
         }
 
         let max_prev = g.qubits.iter().map(|&q| if q < qubit_layers.len() { qubit_layers[q] } else { 0 }).max().unwrap_or(0);
@@ -61,12 +65,37 @@ pub fn analyze_circuit(c: &Circuit) -> QirAnalysisSummary {
         gate_depth,
         single_qubit_gates: single_q,
         two_qubit_gates: two_q,
+        multi_qubit_gates: multi_q,
         total_gates: c.gates.len(),
     }
 }
 
+/// Closed emission set (W1.5): every other gate name refuses. The old
+/// emitter interpolated ANY name into @__quantum__qis__{name}__body with
+/// only fixed declares — arbitrary QASM emitted un-linkable IR.
+fn qis_intrinsic(name: &str) -> Option<&'static str> {
+    Some(match name {
+        "h" => "h",
+        "x" => "x",
+        "y" => "y",
+        "z" => "z",
+        "s" => "s",
+        "t" => "t",
+        "rx" => "rx",
+        "ry" => "ry",
+        "rz" => "rz",
+        "cx" => "cnot",
+        "cz" => "cz",
+        "swap" => "swap",
+        "reset" => "reset",
+        _ => return None,
+    })
+}
+
 /// Generate compliant QIR LLVM text IR for a quantum circuit.
-pub fn emit_llvm_ir(c: &Circuit) -> String {
+/// Refuses unknown gates and malformed measurements: invalid IR is never
+/// emitted (callers surface the error; main exits 1).
+pub fn emit_llvm_ir(c: &Circuit) -> Result<String, String> {
     let mut out = String::with_capacity(4096);
 
     // LLVM Module Headers
@@ -93,13 +122,13 @@ pub fn emit_llvm_ir(c: &Circuit) -> String {
     out.push_str("declare void @__quantum__qis__z__body(%Qubit*)\n");
     out.push_str("declare void @__quantum__qis__s__body(%Qubit*)\n");
     out.push_str("declare void @__quantum__qis__t__body(%Qubit*)\n");
-    out.push_str("declare void @__quantum__qis__cx__body(%Qubit*, %Qubit*)\n");
     out.push_str("declare void @__quantum__qis__cnot__body(%Qubit*, %Qubit*)\n");
     out.push_str("declare void @__quantum__qis__cz__body(%Qubit*, %Qubit*)\n");
     out.push_str("declare void @__quantum__qis__swap__body(%Qubit*, %Qubit*)\n");
     out.push_str("declare void @__quantum__qis__rx__body(double, %Qubit*)\n");
     out.push_str("declare void @__quantum__qis__ry__body(double, %Qubit*)\n");
     out.push_str("declare void @__quantum__qis__rz__body(double, %Qubit*)\n");
+    out.push_str("declare void @__quantum__qis__reset__body(%Qubit*)\n");
     out.push_str("declare %Result* @__quantum__qis__mz__body(%Qubit*)\n\n");
 
     // Main Entrypoint
@@ -111,33 +140,34 @@ pub fn emit_llvm_ir(c: &Circuit) -> String {
         out.push_str(&format!("  %q{q} = call %Qubit* @__quantum__rt__qubit_allocate()\n"));
     }
 
-    // Gate invocations
+    // Gate invocations through the closed intrinsic set. `id` emits
+    // nothing (identity, validated at parse). Measurements thread their
+    // classical bit: %res_{idx} names the gate result (W1.5 — the old code
+    // dropped the bit and called an undeclared measure intrinsic).
     for (idx, g) in c.gates.iter().enumerate() {
         let gate_name = g.name.as_str();
-
+        if gate_name == "id" {
+            continue;
+        }
+        if gate_name == "measure" || gate_name == "mz" || gate_name == "m" {
+            let q = g.qubits.first().copied().ok_or_else(|| format!("measure gate {idx} addresses no qubit"))?;
+            out.push_str(&format!(
+                "  %res_{idx} = call %Result* @__quantum__qis__mz__body(%Qubit* %q{q})\n"
+            ));
+            continue;
+        }
+        let intrinsic = qis_intrinsic(gate_name)
+            .ok_or_else(|| format!("gate '{gate_name}' is outside the QIR emission set: refusing"))?;
         if g.params.is_empty() {
             let qs: Vec<String> = g.qubits.iter().map(|q| format!("%Qubit* %q{q}")).collect();
-            out.push_str(&format!(
-                "  call void @__quantum__qis__{}__body({})\n",
-                gate_name,
-                qs.join(", ")
-            ));
+            out.push_str(&format!("  call void @__quantum__qis__{intrinsic}__body({})\n", qs.join(", ")));
         } else {
             let ps: Vec<String> = g.params.iter().map(|p| format!("double {p:?}")).collect();
             let qs: Vec<String> = g.qubits.iter().map(|q| format!("%Qubit* %q{q}")).collect();
             out.push_str(&format!(
-                "  call void @__quantum__qis__{}__body({}, {})\n",
-                gate_name,
+                "  call void @__quantum__qis__{intrinsic}__body({}, {})\n",
                 ps.join(", "),
                 qs.join(", ")
-            ));
-        }
-
-        // Optional intermediate measurement tracking if gate is measurement
-        if gate_name == "m" || gate_name == "mz" {
-            let q = g.qubits.first().copied().unwrap_or(0);
-            out.push_str(&format!(
-                "  %res_{idx} = call %Result* @__quantum__qis__mz__body(%Qubit* %q{q})\n"
             ));
         }
     }
@@ -166,5 +196,5 @@ pub fn emit_llvm_ir(c: &Circuit) -> String {
     out.push_str("!0 = !{i32 1, !\"qir_major_version\", i32 1}\n");
     out.push_str("!1 = !{i32 7, !\"qir_minor_version\", i32 0}\n");
 
-    out
+    Ok(out)
 }
