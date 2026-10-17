@@ -19,8 +19,56 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mainza-ai/kubona/core/pkg/autoresearch"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	pb "github.com/mainza-ai/kubona/core/proto"
 )
+
+// W0.1 — job/loop lifecycle sets. SINGLE SOURCE for "is this work over".
+// Threat (verified): DeleteBlockers compared against hand-written status
+// literals ('FAILED','failed','completed') that never occur in the jobs
+// table — failed jobs (stored as JOB_STATUS_FAILED) blocked deletion
+// forever. Every query below and in pkg/jobs builds from these sets, so a
+// new status defaults to blocking (fail-closed) until classified here.
+var (
+	// TerminalJobStatuses: a job in one of these states is over and must
+	// not block session deletion.
+	TerminalJobStatuses = []string{
+		pb.JobStatus_JOB_STATUS_COMPLETED.String(),
+		pb.JobStatus_JOB_STATUS_FAILED.String(),
+	}
+	// LiveJobStatuses: jobs in these states are still live work — the
+	// CAS-guard live set for cancel/abort sweeps.
+	LiveJobStatuses = []string{
+		pb.JobStatus_JOB_STATUS_QUEUED.String(),
+		pb.JobStatus_JOB_STATUS_RUNNING.String(),
+	}
+	// TerminalLoopStatuses: a loop in one of these states is over.
+	// Sleeping loops are NOT terminal (wake resumes the same session).
+	TerminalLoopStatuses = []string{
+		string(autoresearch.StatusCompleted),
+		string(autoresearch.StatusAborted),
+	}
+)
+
+// placeholders returns "?, ?, ..." for n bind args.
+func placeholders(n int) string {
+	if n <= 0 {
+		return "NULL" // IN (NULL) matches nothing — fail-closed, never "all".
+	}
+	return strings.Repeat("?, ", n-1) + "?"
+}
+
+// LiveJobStatusClause returns the SQL "IN (?, ...)" fragment plus bind
+// args for the single-source live set, so every CAS sweep in pkg/jobs
+// classifies liveness identically to DeleteBlockers' terminal set.
+func LiveJobStatusClause() (string, []any) {
+	args := make([]any, 0, len(LiveJobStatuses))
+	for _, s := range LiveJobStatuses {
+		args = append(args, s)
+	}
+	return "IN (" + placeholders(len(LiveJobStatuses)) + ")", args
+}
 
 // Manifest version. Major bump = incompatible: unknown majors refuse with
 // unsupported_manifest_version (a v2 reader must never misread v1).
@@ -427,15 +475,29 @@ func nullDatetime(s string) any {
 func (m *Manager) DeleteBlockers(id string) ([]string, error) {
 	var blockers []string
 	var n int
-	for _, q := range []struct {
+	jobQ := `SELECT COUNT(*) FROM jobs WHERE session_id = ? AND status NOT IN (` + placeholders(len(TerminalJobStatuses)) + `)`
+	loopQ := `SELECT COUNT(*) FROM loops WHERE session_id = ? AND status NOT IN (` + placeholders(len(TerminalLoopStatuses)) + `)`
+	type blockerCheck struct {
 		query string
+		args  []any
 		label string
-	}{
-		{`SELECT COUNT(*) FROM jobs WHERE session_id = ? AND status NOT IN ('JOB_STATUS_COMPLETED', 'FAILED', 'failed', 'completed')`, "non-terminal jobs"},
-		{`SELECT COUNT(*) FROM loops WHERE session_id = ? AND status NOT IN ('completed', 'aborted')`, "live loops"},
-		{`SELECT COUNT(*) FROM jobs WHERE session_id = ? AND reserved_amount > 0`, "outstanding spend reservations"},
+	}
+	jobArgs := make([]any, 0, len(TerminalJobStatuses)+1)
+	jobArgs = append(jobArgs, id)
+	for _, s := range TerminalJobStatuses {
+		jobArgs = append(jobArgs, s)
+	}
+	loopArgs := make([]any, 0, len(TerminalLoopStatuses)+1)
+	loopArgs = append(loopArgs, id)
+	for _, s := range TerminalLoopStatuses {
+		loopArgs = append(loopArgs, s)
+	}
+	for _, q := range []blockerCheck{
+		{jobQ, jobArgs, "non-terminal jobs"},
+		{loopQ, loopArgs, "live loops"},
+		{`SELECT COUNT(*) FROM jobs WHERE session_id = ? AND reserved_amount > 0`, []any{id}, "outstanding spend reservations"},
 	} {
-		if err := m.ledger.DB().QueryRow(q.query, id).Scan(&n); err != nil {
+		if err := m.ledger.DB().QueryRow(q.query, q.args...).Scan(&n); err != nil {
 			return nil, err
 		}
 		if n > 0 {
