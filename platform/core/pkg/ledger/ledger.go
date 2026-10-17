@@ -218,6 +218,25 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 	CREATE INDEX IF NOT EXISTS idx_chat_session ON chat_messages(session_id);
 	CREATE INDEX IF NOT EXISTS idx_jobs_session ON jobs(session_id);
 	CREATE INDEX IF NOT EXISTS idx_ledger_session ON ledger_events(session_id);
+
+	-- Idempotency receipts (S1): content-bound deduplication keys for spend
+	-- mutations. One row per (session, request_id): the first execution
+	-- claims IN_PROGRESS, then records its terminal outcome. Retries replay
+	-- the stored receipt byte-identical; same-ID-different-content 409s.
+	-- Spend receipts are audit: no TTL, never deleted.
+	CREATE TABLE IF NOT EXISTS idempotency_keys (
+		session_id TEXT NOT NULL,
+		request_id TEXT NOT NULL,
+		content_hash TEXT NOT NULL,
+		rail TEXT NOT NULL DEFAULT '',
+		status TEXT NOT NULL DEFAULT 'IN_PROGRESS',
+		status_code INTEGER NOT NULL DEFAULT 0,
+		receipt_kind TEXT NOT NULL DEFAULT '',
+		receipt_body TEXT NOT NULL DEFAULT '',
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		PRIMARY KEY (session_id, request_id)
+	);
 	`
 
 	if _, err := db.Exec(initSchema); err != nil {
@@ -355,6 +374,107 @@ func (l *Ledger) AppendSignedEvent(sessionID string, eventType string, payload a
 func (l *Ledger) AppendEvent(sessionID string, eventType string, payload any) error {
 	_, err := l.AppendSignedEvent(sessionID, eventType, payload, nil)
 	return err
+}
+
+// Idempotency rail statuses (S1). Keys move IN_PROGRESS -> COMPLETE exactly
+// once; a COMPLETE row is terminal and replays forever.
+const (
+	IdemStatusInProgress = "IN_PROGRESS"
+	IdemStatusComplete   = "COMPLETE"
+)
+
+// IdempotencyRecord is one claimed request key with its terminal receipt.
+type IdempotencyRecord struct {
+	SessionID   string
+	RequestID   string
+	ContentHash string
+	Rail        string
+	Status      string
+	StatusCode  int
+	ReceiptKind string // "json" (raw body bytes) or "text" (http.Error message)
+	ReceiptBody string
+	CreatedAt   string
+	UpdatedAt   string
+}
+
+// IdemLookup returns the key row, or found=false when no execution has
+// claimed this (session, request) pair yet.
+func (l *Ledger) IdemLookup(sessionID, requestID string) (IdempotencyRecord, bool, error) {
+	l.lock.RLock()
+	defer l.lock.RUnlock()
+	var rec IdempotencyRecord
+	err := l.db.QueryRow(
+		`SELECT session_id, request_id, content_hash, rail, status, status_code, receipt_kind, receipt_body, created_at, updated_at FROM idempotency_keys WHERE session_id = ? AND request_id = ?`,
+		sessionID, requestID).Scan(
+		&rec.SessionID, &rec.RequestID, &rec.ContentHash, &rec.Rail, &rec.Status,
+		&rec.StatusCode, &rec.ReceiptKind, &rec.ReceiptBody, &rec.CreatedAt, &rec.UpdatedAt)
+	if err == sql.ErrNoRows {
+		return IdempotencyRecord{}, false, nil
+	}
+	if err != nil {
+		return IdempotencyRecord{}, false, fmt.Errorf("idempotency lookup failed: %w", err)
+	}
+	return rec, true, nil
+}
+
+// IdemClaim inserts an IN_PROGRESS row. A primary-key conflict means a
+// duplicate is already claimed (or completed): the caller must re-read via
+// IdemLookup instead of executing. Driver-agnostic: any insert error falls
+// back to a re-read, and only a still-missing row surfaces the error.
+func (l *Ledger) IdemClaim(sessionID, requestID, contentHash, rail string) error {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	_, err := l.db.Exec(
+		`INSERT INTO idempotency_keys (session_id, request_id, content_hash, rail, status, updated_at) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+		sessionID, requestID, contentHash, rail, IdemStatusInProgress)
+	if err == nil {
+		return nil
+	}
+	var existing IdempotencyRecord
+	qerr := l.db.QueryRow(
+		`SELECT session_id, request_id, content_hash, rail, status, status_code, receipt_kind, receipt_body, created_at, updated_at FROM idempotency_keys WHERE session_id = ? AND request_id = ?`,
+		sessionID, requestID).Scan(
+		&existing.SessionID, &existing.RequestID, &existing.ContentHash, &existing.Rail, &existing.Status,
+		&existing.StatusCode, &existing.ReceiptKind, &existing.ReceiptBody, &existing.CreatedAt, &existing.UpdatedAt)
+	if qerr == sql.ErrNoRows {
+		return fmt.Errorf("idempotency claim failed: %w", err)
+	}
+	if qerr != nil {
+		return fmt.Errorf("idempotency claim failed: %w", err)
+	}
+	return fmt.Errorf("idempotency key already claimed")
+}
+
+// IdemComplete records the terminal outcome. It only transitions
+// IN_PROGRESS rows: completing an already-completed (or reclaimed) key is a
+// no-op returning found=false, so a leader orphaned by a reclaim never
+// overwrites the reclaimer's receipt.
+func (l *Ledger) IdemComplete(sessionID, requestID string, statusCode int, receiptKind, receiptBody string) (bool, error) {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	res, err := l.db.Exec(
+		`UPDATE idempotency_keys SET status = ?, status_code = ?, receipt_kind = ?, receipt_body = ?, updated_at = CURRENT_TIMESTAMP WHERE session_id = ? AND request_id = ? AND status = ?`,
+		IdemStatusComplete, statusCode, receiptKind, receiptBody, sessionID, requestID, IdemStatusInProgress)
+	if err != nil {
+		return false, fmt.Errorf("idempotency complete failed: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, fmt.Errorf("idempotency complete failed: %w", err)
+	}
+	return n == 1, nil
+}
+
+// IdemDelete removes a key row (reclaim of a stale IN_PROGRESS claim, or
+// unwinding a claim whose execution result could not be sealed).
+func (l *Ledger) IdemDelete(sessionID, requestID string) error {
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	_, err := l.db.Exec(`DELETE FROM idempotency_keys WHERE session_id = ? AND request_id = ?`, sessionID, requestID)
+	if err != nil {
+		return fmt.Errorf("idempotency delete failed: %w", err)
+	}
+	return nil
 }
 
 // AppendExternalEvent writes an event signed by an external client/tenant with cryptographic hash chaining

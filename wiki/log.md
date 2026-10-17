@@ -2197,3 +2197,35 @@ skipped is the exact failure this incident is about:
   4 new full-stack tests (13/13 phase6, 407 suite green). Honest remainder
   on [[workflows-and-agent-authoring]]: real scheduler, per-step gates,
   budget_ceiling_usd enforcement (no cost contract yet).
+
+## [2026-10-17] ingest | cloudroom agent-room prior art
+  New entity [[cloudroom]] (reference): davidondrej/cloudroom-core @
+  0735d68 + cloudroom-gui @ 3e4b4bc deep-read (receipts, sleep, teleport,
+  disk guard, secrets broker, observability redaction, GUI patterns).
+  9 adoptable mechanisms ranked for Kubona; topology stays reference
+  (patterns only, no submodule). Indexed in L5.
+
+## [2026-10-17] plan | cloudroom adoption plan S1-S8 awaiting review
+  New candidate [[cloudroom-adoption-plan]]: 8 ordered slices from
+  [[cloudroom]] (idempotency, disk guard, loop sleep, secrets, session
+  migration, redaction, queue ops + steer, console UX) with threats,
+  files, tests, live proofs, accept criteria, non-goals, and 6 review
+  questions. Nothing implemented.
+
+## [2026-10-17] plan | cloudroom adoption plan v2 production-grade
+  Rewrote [[cloudroom-adoption-plan]] to full-logic spec: 6 questions
+  decided with evidence (4-scope S1 + launch field fix, 2/1/1.5GB
+  resolved-mount guard, 10/30min sleep + mid-run budget, content-only
+  migration v1, portable binding now, S1-S2-S3 order), 10 gaps (G1-G10),
+  6 enhancements (I1-I6), per-slice concurrency/restart/retention/
+  refusal paths, race + restart tests required. Nothing implemented.
+
+## [2026-10-17] feat | S1 content-bound idempotency keys landed
+  idempotency_keys table (no TTL, audit) + guard (validate/claim/replay/
+  409-conflict/stale-reclaim/bounded-await) on jobs, launch, tribunal,
+  autoresearch-start; launch takes the full jobs field set (G3 hardware
+  path un-deaded); metasearch apply verified already guarded (no key).
+  11 tests incl. 20-way race (1 execution), restart replay, stale
+  reclaim; negative-tested on old handlers; race suites green; live
+  201/replay/409/keyless matrix on :8080. Notes on
+  [[spend-mandates-and-delegation]] + [[cloudroom-adoption-plan]] S1.

@@ -132,3 +132,26 @@ func TestMetaSearchPersistsAcrossInstances(t *testing.T) {
 		t.Errorf("apply message must state the no-write design, got %q", msg)
 	}
 }
+
+func TestMetaSearchDoubleApplyRefused(t *testing.T) {
+	engine := NewMetaSearchEngine()
+	ctx := context.Background()
+	prop, err := engine.GenerateStagnationProposal(ctx, "loop-202", "ansatz-search", "default instructions", "qc = QuantumCircuit(2)", 5)
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	if err := engine.ApproveProposal(prop.ID, "quantum-engineer-bob"); err != nil {
+		t.Fatalf("approve: %v", err)
+	}
+	if _, err := engine.ApplyProposal(prop.ID); err != nil {
+		t.Fatalf("first apply: %v", err)
+	}
+	// Second apply must refuse (status is now applied, not approved): the
+	// handler returns before loop.Resume(), so no double side-effect.
+	if _, err := engine.ApplyProposal(prop.ID); err != ErrHumanApprovalRequired {
+		t.Fatalf("double apply must refuse with ErrHumanApprovalRequired, got: %v", err)
+	}
+	if p, _ := engine.GetProposal(prop.ID); p.Status != ProposalApplied {
+		t.Fatalf("status must stay applied, got %s", p.Status)
+	}
+}
