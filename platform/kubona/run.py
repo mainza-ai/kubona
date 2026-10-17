@@ -99,6 +99,66 @@ def serve_gateway(*, host: str = "127.0.0.1", port: int | None = None) -> None:
     Server(Config(app, host=host, port=resolved_port, log_level="warning")).run()
 
 
+def _doctor_providers() -> str:
+    """Provider inventory (local registry read, no network, no keys)."""
+    try:
+        from kubona.providers import list_providers
+        names = sorted(list_providers())
+        return f"{len(names)} ({', '.join(names[:5])}{'...' if len(names) > 5 else ''})"
+    except Exception as e:  # noqa: BLE001 — doctor reports, never crashes
+        return f"unavailable: {e}"
+
+
+def _doctor_ledger() -> str:
+    """Sidecar ledger readability (parse check only, not chain validation:
+    live daemons append concurrently, so a torn read must never report
+    CORRUPT — counts + JSON shape only, chain validity stays with the
+    ledger's own tests)."""
+    import json
+
+    try:
+        path = config.ledger_path()
+    except Exception as e:  # noqa: BLE001
+        return f"unresolvable: {e}"
+    if not path.exists():
+        return "missing (fresh state — nothing recorded yet)"
+    try:
+        lines = [ln for ln in path.read_text().splitlines() if ln.strip()]
+        for ln in lines:
+            json.loads(ln)
+        return f"{len(lines)} records, parseable"
+    except Exception as e:  # noqa: BLE001
+        return f"unreadable: {e}"
+
+
+def _doctor_skill() -> str:
+    """Operator-guidance surface health (repo checkouts carry it;
+    package installs legitimately do not — reported neutrally)."""
+    from pathlib import Path
+
+    import kubona
+
+    skill = Path(kubona.__file__).resolve().parents[2] / "skills" / "kubona" / "SKILL.md"
+    if not skill.exists():
+        return "absent (repo checkout only)"
+    return f"present {skill.stat().st_size} bytes"
+
+
+def _doctor_taxonomy() -> str:
+    """Shared event taxonomy loads (agents depend on the closed kind set)."""
+    import json
+    from pathlib import Path
+
+    import kubona
+
+    contract = Path(kubona.__file__).resolve().parents[1] / "contracts" / "event-types.json"
+    try:
+        kinds = len(json.loads(contract.read_text())["types"])
+        return f"{kinds} kinds"
+    except Exception as e:  # noqa: BLE001
+        return f"unreadable: {e}"
+
+
 def _cli(argv: list[str]) -> int:
     cmd = argv[1] if len(argv) > 1 else "serve"
     if cmd == "serve":
@@ -113,8 +173,86 @@ def _cli(argv: list[str]) -> int:
         print("production:", config.is_production())
         print("token configured:", config.console_token() is not None)
         print("signing key:", config.signing_key_path())
+        print("providers:", _doctor_providers())
+        print("ledger check:", _doctor_ledger())
+        print("skill:", _doctor_skill())
+        print("taxonomy:", _doctor_taxonomy())
         return 0
-    raise SystemExit(f"unknown command: {cmd} (expected: serve | doctor)")
+    if cmd == "mandate-check":
+        return _mandate_check(argv[2:])
+    raise SystemExit(f"unknown command: {cmd} (expected: serve | doctor | mandate-check)")
+
+
+def _mandate_check(args: list[str]) -> int:
+    """Offline mandate first-move (L4): shape validity by crypto, admission
+    by receipt lookup — reported as SEPARATE fields (LC5). Never touches
+    the network and never writes. Exit 0 = answered (even when invalid);
+    exit 2 = usage error.
+    """
+    import argparse
+    import json
+    import sqlite3
+    from pathlib import Path
+
+    ap = argparse.ArgumentParser(prog="kubona.run mandate-check")
+    ap.add_argument("--mandate", required=True, help="mandate JSON file")
+    ap.add_argument("--tenant", required=True)
+    ap.add_argument("--job-hash", required=True)
+    ap.add_argument("--cost", required=True, type=float)
+    ap.add_argument("--db", default="", help="Go ledger SQLite (default ~/.kubona/kubona.db)")
+    ap.add_argument("--window", type=int, default=1000, help="recent receipts scanned")
+    try:
+        ns = ap.parse_args(args)
+    except SystemExit:
+        return 2
+    try:
+        raw = json.loads(open(ns.mandate).read())
+    except (OSError, ValueError) as e:
+        print(json.dumps({"error": f"mandate file unreadable: {e}"}))
+        return 2
+
+    from kubona.cost.mandate import SpendMandate, verify_mandate
+
+    try:
+        mandate = SpendMandate(**{k: raw[k] for k in
+                                  ("tenant_id", "job_hash", "max_budget_usd",
+                                   "expiry_timestamp", "public_key_hex", "signature_hex")})
+    except (KeyError, TypeError) as e:
+        print(json.dumps({"shape_valid": False, "reason": f"mandate shape: {e}"}))
+        return 0
+    valid, reason = verify_mandate(mandate, ns.tenant, ns.job_hash, ns.cost)
+    out: dict = {"shape_valid": valid, "reason": reason}
+
+    # Admission !== shape: a valid mandate spends nothing until a
+    # mandate_verified receipt cites it. Absence in the window is not
+    # proof of absence — the window and db path ride along.
+    db = ns.db or str(Path.home() / ".kubona" / "kubona.db")
+    out["db"] = db
+    out["admitted"] = False
+    if os.path.exists(db):
+        try:
+            conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+            rows = conn.execute(
+                "SELECT payload FROM ledger_events WHERE event_type LIKE 'mandate_verified%'"
+                " ORDER BY id DESC LIMIT ?", (ns.window,)).fetchall()
+            conn.close()
+            for (payload,) in rows:
+                try:
+                    if json.loads(payload).get("signature_hex") == mandate.signature_hex:
+                        out["admitted"] = True
+                        break
+                except ValueError:
+                    continue
+            if not out["admitted"]:
+                out["admission_note"] = (
+                    f"no receipt in recent {ns.window} (not proof of absence — "
+                    "check full history or admit first)")
+        except Exception as e:  # noqa: BLE001 — report, never crash the check
+            out["admission_note"] = f"receipt lookup failed: {e}"
+    else:
+        out["admission_note"] = "ledger db missing (fresh state — nothing admitted yet)"
+    print(json.dumps(out, indent=2))
+    return 0
 
 
 if __name__ == "__main__":
