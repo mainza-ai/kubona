@@ -137,6 +137,10 @@ type JobRow struct {
 	ReservedAmount   float64 `json:"reserved_amount"`
 	CompilerUsed     string  `json:"compiler_used"`
 	FallbackEstimate int     `json:"fallback_estimate"`
+	// R2b: the spend-mandate receipt this job settles against ("" when
+	// unmandated). omitempty keeps old manifests shape-stable on write;
+	// import tolerates absence (nil reads as "").
+	MandateRef string `json:"mandate_ref,omitempty"`
 }
 
 func sectionDigest(v any) (string, error) {
@@ -311,7 +315,7 @@ func nullIfEmpty(b []byte) []byte {
 }
 
 func (m *Manager) exportJobs(sessionID string) ([]JobRow, error) {
-	rows, err := m.ledger.DB().Query(`SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, reserved_tenant, reserved_amount, compiler_used, fallback_estimate FROM jobs WHERE session_id = ? ORDER BY created_at`, sessionID)
+	rows, err := m.ledger.DB().Query(`SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, reserved_tenant, reserved_amount, compiler_used, fallback_estimate, mandate_ref FROM jobs WHERE session_id = ? ORDER BY created_at`, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -319,9 +323,12 @@ func (m *Manager) exportJobs(sessionID string) ([]JobRow, error) {
 	var out []JobRow
 	for rows.Next() {
 		var j JobRow
-		var resultJSON, completedAt, createdAt sql.NullString
-		if err := rows.Scan(&j.ID, &j.SessionID, &j.Status, &j.JobType, &j.ParamsJSON, &resultJSON, &createdAt, &completedAt, &j.ReservedTenant, &j.ReservedAmount, &j.CompilerUsed, &j.FallbackEstimate); err != nil {
+		var resultJSON, completedAt, createdAt, mandateRef sql.NullString
+		if err := rows.Scan(&j.ID, &j.SessionID, &j.Status, &j.JobType, &j.ParamsJSON, &resultJSON, &createdAt, &completedAt, &j.ReservedTenant, &j.ReservedAmount, &j.CompilerUsed, &j.FallbackEstimate, &mandateRef); err != nil {
 			return nil, err
+		}
+		if mandateRef.Valid {
+			j.MandateRef = mandateRef.String
 		}
 		if resultJSON.Valid {
 			j.ResultJSON = resultJSON.String
@@ -500,8 +507,8 @@ func (m *Manager) ImportSession(man *SessionManifest) (*ImportResult, error) {
 		// Empty datetimes store as NULL (SubmitJob semantics: nil time, not
 		// ""). The driver parses DATETIME columns, so "" would read back
 		// as zero-time and break round-trip digests.
-		if err := exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, result_json, created_at, completed_at, reserved_tenant, reserved_amount, compiler_used, fallback_estimate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			j.ID, s.ID, j.Status, j.JobType, j.ParamsJSON, j.ResultJSON, nullDatetime(j.CreatedAt), nullDatetime(j.CompletedAt), j.ReservedTenant, j.ReservedAmount, j.CompilerUsed, j.FallbackEstimate); err != nil {
+		if err := exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, result_json, created_at, completed_at, reserved_tenant, reserved_amount, compiler_used, fallback_estimate, mandate_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			j.ID, s.ID, j.Status, j.JobType, j.ParamsJSON, j.ResultJSON, nullDatetime(j.CreatedAt), nullDatetime(j.CompletedAt), j.ReservedTenant, j.ReservedAmount, j.CompilerUsed, j.FallbackEstimate, j.MandateRef); err != nil {
 			return nil, fmt.Errorf("import job %s: %w", j.ID, err)
 		}
 	}
