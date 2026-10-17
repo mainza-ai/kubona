@@ -43,6 +43,8 @@ decided it wants; several prior proposals are now closed or reduced.
 | P0-2 | Obligation ledgers for claim/mandate closure | **OPEN** | Claim records carry amplitudes; nothing machine-enforces closure. No `obligation` construct in either tree (grep clean). |
 | P0-3 | Coverage discipline ("unknown, not absence") | **OPEN** | No `facet_availability`/coverage declarations on verdicts (grep clean). The Disconfirmation Officer can still certify unobserved as disproven. |
 | P1-4 | Consolidate two agent subsystems | **OPEN, still biggest refactor** | Go `platform/core/pkg/agents/` + Python `platform/kubona/agents/` (`collective.py`, `loop.py`, `registry.py`) both live. Defer until R-series contracts below stabilize it. |
+|---|---|---|---|
+| P1-4-design | Consolidation design recorded | **RECORDED 2026-10-17** | [[agent-subsystem-consolidation]]: inventory + overlap map + target shape + 5-step migration. The refactor itself stays queued (program-scale); R1–R3 contracts done unblocked the design, not the execution. |
 | P1-5 | Provenance-mark tribunal inputs | **OPEN** | `ObservedCall{name, ok, error}` has no origin/provenance field (no `untrusted_content` marker anywhere in Go/Python trees). |
 | P1-6 | Validated session bundles | **SUBSTANTIALLY CLOSED by S5** | Manifest v1 (per-section digests, validation-before-replay, tamper→400 proven live). Remainder: tribunal-*turn* portability across agents (turns are ledger events — exportable, but no turn-scoped bundle + resume flow exists). Reduced to R4. |
 | P1-7 | Detail/summary projection | **OPEN** | No `detail`/`summary` projection, no continuation pattern; tribunal context is unbounded per turn (90 s timeouts price it). |
