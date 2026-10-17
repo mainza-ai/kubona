@@ -96,7 +96,11 @@ type A2ATask struct {
 // supplied by the orchestrator (which owns the ledger-bound job runner); the
 // A2A layer never invents results. A nil executor leaves tasks queued.
 type TaskExecutor interface {
-	ExecuteTask(ctx context.Context, taskType string, payload json.RawMessage, tenantID string) (map[string]any, error)
+	// maxBudgetUSD is the delegating task's budget (W0.18): the executor
+	// sizes the delegation session ceiling from it instead of inventing
+	// one. Tenant attribution comes from the verified parent mandate
+	// (SubmitTask), never from this string alone.
+	ExecuteTask(ctx context.Context, taskType string, payload json.RawMessage, tenantID string, maxBudgetUSD float64) (map[string]any, error)
 }
 
 // TaskSubmitParams represents the input parameters for a2a.SubmitTask
@@ -515,7 +519,7 @@ func (s *A2AServer) runTask(taskID, taskType string, payload json.RawMessage, ex
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
-	result, err := exec.ExecuteTask(ctx, taskType, payload, tenantID)
+	result, err := exec.ExecuteTask(ctx, taskType, payload, tenantID, task.MaxBudgetUSD)
 
 	s.mu.Lock()
 	defer s.mu.Unlock()

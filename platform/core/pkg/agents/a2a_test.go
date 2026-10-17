@@ -117,7 +117,7 @@ type fakeExecutor struct {
 	err    error
 }
 
-func (f *fakeExecutor) ExecuteTask(ctx context.Context, taskType string, payload json.RawMessage, tenantID string) (map[string]any, error) {
+func (f *fakeExecutor) ExecuteTask(ctx context.Context, taskType string, payload json.RawMessage, tenantID string, maxBudgetUSD float64) (map[string]any, error) {
 	return f.result, f.err
 }
 
@@ -128,7 +128,7 @@ type blockingExecutor struct {
 	result  map[string]any
 }
 
-func (f *blockingExecutor) ExecuteTask(ctx context.Context, taskType string, payload json.RawMessage, tenantID string) (map[string]any, error) {
+func (f *blockingExecutor) ExecuteTask(ctx context.Context, taskType string, payload json.RawMessage, tenantID string, maxBudgetUSD float64) (map[string]any, error) {
 	select {
 	case <-f.release:
 		return f.result, nil
