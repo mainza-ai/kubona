@@ -28,7 +28,12 @@ type SpendMandate struct {
 	SignatureHex    string    `json:"signature_hex"`
 }
 
-// CanonicalPayload returns the deterministic bytes over which the signature is computed
+// CanonicalPayload returns the deterministic bytes over which the signature is computed.
+// W0.12 rounding note: %.4f means budgets within $0.00005 share canonical
+// bytes (one signature covers both spellings). This is wire-stable by
+// design (console + Python sign identical bytes, pinned by vector tests),
+// and SAFE at enforcement: Verify and admission compare full-precision
+// floats, so a rounded signature never authorizes a rounded-up spend.
 func (m *SpendMandate) CanonicalPayload() []byte {
 	return []byte(fmt.Sprintf("%s:%s:%.4f:%s",
 		m.TenantID,
@@ -55,8 +60,26 @@ func SignMandate(privKey ed25519.PrivateKey, tenantID, jobHash string, maxBudget
 	return m, nil
 }
 
-// Verify verifies that the mandate is cryptographically authentic, unexpired, and covers the cost
+// Verify verifies that the mandate is cryptographically authentic, unexpired, and covers the cost.
+// W0.12 order: the SIGNATURE verifies first, then bindings. Checking
+// tenant/job/expiry before crypto lets an attacker probe which field
+// mismatches without a valid signature (mismatch oracle) — a forged
+// envelope must fail closed on crypto before learning anything else.
 func (m *SpendMandate) Verify(expectedTenantID, expectedJobHash string, requestedCostUSD float64) error {
+	pubKeyBytes, err := hex.DecodeString(m.PublicKeyHex)
+	if err != nil || len(pubKeyBytes) != ed25519.PublicKeySize {
+		return fmt.Errorf("invalid public key: %w", err)
+	}
+
+	sigBytes, err := hex.DecodeString(m.SignatureHex)
+	if err != nil || len(sigBytes) != ed25519.SignatureSize {
+		return fmt.Errorf("invalid signature format: %w", err)
+	}
+
+	if !ed25519.Verify(ed25519.PublicKey(pubKeyBytes), m.CanonicalPayload(), sigBytes) {
+		return ErrInvalidSignature
+	}
+
 	if expectedTenantID != "" && m.TenantID != expectedTenantID {
 		return ErrTenantMismatch
 	}
@@ -71,20 +94,6 @@ func (m *SpendMandate) Verify(expectedTenantID, expectedJobHash string, requeste
 
 	if requestedCostUSD > m.MaxBudgetUSD {
 		return ErrMandateExceeded
-	}
-
-	pubKeyBytes, err := hex.DecodeString(m.PublicKeyHex)
-	if err != nil || len(pubKeyBytes) != ed25519.PublicKeySize {
-		return fmt.Errorf("invalid public key: %w", err)
-	}
-
-	sigBytes, err := hex.DecodeString(m.SignatureHex)
-	if err != nil || len(sigBytes) != ed25519.SignatureSize {
-		return fmt.Errorf("invalid signature format: %w", err)
-	}
-
-	if !ed25519.Verify(ed25519.PublicKey(pubKeyBytes), m.CanonicalPayload(), sigBytes) {
-		return ErrInvalidSignature
 	}
 
 	return nil

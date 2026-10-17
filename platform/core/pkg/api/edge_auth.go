@@ -2,9 +2,11 @@ package api
 
 import (
 	"crypto/subtle"
+	"log"
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -62,10 +64,15 @@ func bearerGate(r *http.Request) int {
 // corsAllowOrigin resolves the Access-Control-Allow-Origin value for a
 // request. Default is an explicit allowlist (local console origins plus
 // KUBONA_CORS_ORIGINS extras); "*" requires the KUBONA_CORS_ANY=1 dev
-// escape hatch, never the default. Non-matching origins get no header,
-// so browsers block them.
+// escape hatch (explicit "1" only, never "true"/empty), never the default.
+// Non-matching origins get no header, so browsers block them. Threat model:
+// reads stay public behind limiters (CORS is a browser-only control, not
+// auth); writes get edge auth regardless of origin. An empty Origin carries
+// no allowlist proof, so it gets no header either (no allow[0] fallback —
+// that minted a trusted origin for non-browser clients).
 func corsAllowOrigin(r *http.Request) string {
 	if os.Getenv("KUBONA_CORS_ANY") == "1" {
+		log.Printf("[Kubona Core] WARNING: KUBONA_CORS_ANY=1 — CORS wide open (*); dev only, never production")
 		return "*"
 	}
 	allow := []string{"http://localhost:3000", "http://127.0.0.1:3000"}
@@ -78,7 +85,7 @@ func corsAllowOrigin(r *http.Request) string {
 	}
 	origin := r.Header.Get("Origin")
 	if origin == "" {
-		return allow[0]
+		return ""
 	}
 	for _, o := range allow {
 		if subtle.ConstantTimeCompare([]byte(origin), []byte(o)) == 1 {
@@ -91,10 +98,39 @@ func corsAllowOrigin(r *http.Request) string {
 // rateLimiter is a per-key token bucket. v1 constants are deliberately
 // tight on sign (human-paced approvals) and looser on verify (called per
 // submit by admission paths); tune with production traffic, not theory.
+// Defaults are documented here and overridable via environment (no behavior
+// change when unset):
+//
+//	KUBONA_RATE_SIGN   "2,5"    (2 tokens/sec, burst 5)
+//	KUBONA_RATE_VERIFY "20,50"  (20/sec, burst 50)
+//	KUBONA_RATE_TENANT "5,15"
+//	KUBONA_RATE_GRANT  "5,15"
+//	KUBONA_RATE_LEDGER "5,15"   (ledger append / abort kill-switch)
+//
+// Format is "rate,burst" (float,int); malformed values fall back to the
+// compiled default.
 // The bucket map is bounded: past maxBuckets the longest-idle entry is
 // evicted to make room, so spoofed-key floods cannot grow memory without
-// bound (at the cost of sharing budget under extreme pressure — the
-// fail-open direction for availability, with 429s still biting).
+// bound. Eviction is fail-closed: when no idle entry exists to evict
+// (same-instant flood), the new key is refused (429) instead of deleting an
+// arbitrary live budget and sharing it (the old fail-open direction).
+func rateFromEnv(key string, defRate float64, defBurst int) (float64, int) {
+	raw := strings.TrimSpace(os.Getenv(key))
+	if raw == "" {
+		return defRate, defBurst
+	}
+	parts := strings.Split(raw, ",")
+	if len(parts) != 2 {
+		return defRate, defBurst
+	}
+	rate, err1 := strconv.ParseFloat(strings.TrimSpace(parts[0]), 64)
+	burst, err2 := strconv.Atoi(strings.TrimSpace(parts[1]))
+	if err1 != nil || err2 != nil || rate <= 0 || burst <= 0 {
+		return defRate, defBurst
+	}
+	return rate, burst
+}
+
 type rateLimiter struct {
 	mu      sync.Mutex
 	rate    float64 // tokens per second
@@ -124,9 +160,11 @@ func (l *rateLimiter) allow(key string) bool {
 	if !ok {
 		if len(l.buckets) >= maxRateBuckets {
 			// Evict the longest-idle entry to bound memory. One linear
-			// scan, only on overflow — steady state never pays it. If
-			// every entry is fresh (same-instant flood), drop an
-			// arbitrary one: the bound is hard either way.
+			// scan, only on overflow — steady state never pays it.
+			// Fail-closed: when every entry is fresh (same-instant
+			// flood, no idle candidate), refuse the newcomer (429)
+			// instead of deleting an arbitrary live budget and
+			// sharing it.
 			oldest, oldestAt := "", now
 			for k, v := range l.buckets {
 				if v.last.Before(oldestAt) {
@@ -134,10 +172,7 @@ func (l *rateLimiter) allow(key string) bool {
 				}
 			}
 			if oldest == "" {
-				for k := range l.buckets {
-					oldest = k
-					break
-				}
+				return false
 			}
 			delete(l.buckets, oldest)
 		}
@@ -156,18 +191,59 @@ func (l *rateLimiter) allow(key string) bool {
 	return true
 }
 
+// trustedProxy reports whether the direct peer is allowed to assert
+// X-Forwarded-For. Loopback is always trusted (tests + local reverse
+// proxies); anything else must appear in the KUBONA_TRUSTED_PROXIES
+// allowlist (comma-separated IPs or CIDRs, e.g.
+// "10.0.0.0/8,192.168.1.10"). Unlisted peers have their XFF ignored and
+// share one bucket on their direct IP (stated, fail-closed: spoofing XFF
+// from an untrusted peer buys nothing).
+func trustedProxy(host string) bool {
+	if host == "127.0.0.1" || host == "::1" {
+		return true
+	}
+	raw := strings.TrimSpace(os.Getenv("KUBONA_TRUSTED_PROXIES"))
+	if raw == "" {
+		return false
+	}
+	ip := net.ParseIP(strings.TrimSpace(host))
+	for _, part := range strings.Split(raw, ",") {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if strings.Contains(part, "/") {
+			_, cidr, err := net.ParseCIDR(part)
+			if err != nil || ip == nil {
+				continue
+			}
+			if cidr.Contains(ip) {
+				return true
+			}
+			continue
+		}
+		if part == host {
+			return true
+		}
+		if pip := net.ParseIP(part); pip != nil && ip != nil && pip.Equal(ip) {
+			return true
+		}
+	}
+	return false
+}
+
 // clientKey attributes a request for rate limiting. X-Forwarded-For is
-// honored only from loopback (no trusted-proxy config exists yet); direct
-// connections key on the remote IP WITHOUT the port — keying on
-// RemoteAddr verbatim mints one bucket per TCP connection and the limiter
-// never trips (caught live in F-4: 25 rapid curls, 25×201). Spoofing XFF
-// from non-loopback buys nothing.
+// honored only from loopback or KUBONA_TRUSTED_PROXIES peers (no allowlist
+// = loopback only); direct connections key on the remote IP WITHOUT the
+// port — keying on RemoteAddr verbatim mints one bucket per TCP connection
+// and the limiter never trips (caught live in F-4: 25 rapid curls, 25×201).
+// Spoofing XFF from non-trusted peers buys nothing (shared direct-IP bucket).
 func clientKey(r *http.Request) string {
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		host = r.RemoteAddr
 	}
-	if host == "127.0.0.1" || host == "::1" {
+	if trustedProxy(host) {
 		if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
 			return "xff:" + strings.TrimSpace(strings.Split(xff, ",")[0])
 		}

@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -296,6 +297,13 @@ func (l *Ledger) DB() *sql.DB {
 }
 
 func (l *Ledger) getLatestEntryHashLocked(sessionID string) string {
+	// W2.13 design (not a bug): chains are PER-SESSION — prev_hash links
+	// the latest event of the same session_id, not the global tip. A
+	// global chain would serialize every tenant's writes through one tip
+	// and let one session's fork invalidate another's; per-session chains
+	// keep each lab's audit trail independent (VerifyChain audits one
+	// session or all sessions chain-by-chain). The empty-session ("")
+	// branch covers pre-tenancy/global-plane rows only.
 	var hash string
 	var query string
 	var row *sql.Row
@@ -444,8 +452,12 @@ func (l *Ledger) IdemLookup(sessionID, requestID string) (IdempotencyRecord, boo
 
 // IdemClaim inserts an IN_PROGRESS row. A primary-key conflict means a
 // duplicate is already claimed (or completed): the caller must re-read via
-// IdemLookup instead of executing. Driver-agnostic: any insert error falls
-// back to a re-read, and only a still-missing row surfaces the error.
+// IdemLookup instead of executing.
+//
+// W2.11: only a PRIMARY-KEY conflict means "already claimed". Any other
+// insert error (disk, schema, NOT NULL) used to fall into the re-read and
+// come back as "already claimed" whenever a row happened to exist —
+// masking the real failure. Non-PK errors now surface wrapped.
 func (l *Ledger) IdemClaim(sessionID, requestID, contentHash, rail string) error {
 	l.lock.Lock()
 	defer l.lock.Unlock()
@@ -454,6 +466,9 @@ func (l *Ledger) IdemClaim(sessionID, requestID, contentHash, rail string) error
 		sessionID, requestID, contentHash, rail, IdemStatusInProgress)
 	if err == nil {
 		return nil
+	}
+	if !isPrimaryKeyConflict(err) {
+		return fmt.Errorf("idempotency claim failed: %w", err)
 	}
 	var existing IdempotencyRecord
 	qerr := l.db.QueryRow(
@@ -468,6 +483,20 @@ func (l *Ledger) IdemClaim(sessionID, requestID, contentHash, rail string) error
 		return fmt.Errorf("idempotency claim failed: %w", err)
 	}
 	return fmt.Errorf("idempotency key already claimed")
+}
+
+// isPrimaryKeyConflict reports a SQLite PRIMARY KEY violation (W2.11).
+// mattn exposes Code()/ExtendedCode() (19 = CONSTRAINT, 1555 = PRIMARYKEY);
+// anything else — disk, schema, NOT NULL — is a real failure, never a race.
+func isPrimaryKeyConflict(err error) bool {
+	var ec interface{ ExtendedCode() int }
+	if errors.As(err, &ec) {
+		if code := ec.ExtendedCode(); code != 1555 && code != 19 {
+			return false
+		}
+		return strings.Contains(err.Error(), "UNIQUE constraint failed")
+	}
+	return strings.Contains(err.Error(), "UNIQUE constraint failed")
 }
 
 // IdemComplete records the terminal outcome. It only transitions

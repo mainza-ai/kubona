@@ -120,7 +120,11 @@ func inferQuantType(filename string) string {
 	return "GGUF"
 }
 
-// Fallback catalog when offline / air-gapped
+// Fallback catalog when offline / air-gapped. Downloads/Likes below are
+// STATIC ESTIMATES captured at audit time (W2.20), not live Hub counts —
+// served only when the live API is unreachable, and labeled as estimates
+// wherever they surface (never presented as measured). Live results carry
+// real counts from the API.
 var fallbackCatalog = []HFModelSummary{
 	{
 		ID:          "Qwen/Qwen2.5-Coder-32B-Instruct-GGUF",
@@ -565,18 +569,30 @@ func (c *HubClient) GetDownload(taskID string) (*HFDownloadTask, error) {
 	return &cp, nil
 }
 
-// CancelDownload cancels a currently executing download task
+// CancelDownload cancels a currently executing download task. W2.20
+// TOCTOU guard: the terminal transition goes through setTerminal, so a
+// worker that just completed/failed wins over a racing cancel (a cancel
+// that overwrote "completed" would lie about the weight file). Terminal
+// tasks refuse instead of re-settling.
 func (c *HubClient) CancelDownload(taskID string) error {
 	c.mu.Lock()
-	defer c.mu.Unlock()
-
 	task, exists := c.tasks[taskID]
 	if !exists {
+		c.mu.Unlock()
 		return fmt.Errorf("task %s not found", taskID)
 	}
-	if task.cancelFunc != nil {
-		task.cancelFunc()
+	switch task.Status {
+	case "completed", "failed", "cancelled":
+		status := task.Status
+		c.mu.Unlock()
+		return fmt.Errorf("task %s already %s: refusing to re-settle terminal state", taskID, status)
 	}
-	task.Status = "cancelled"
+	cancel := task.cancelFunc
+	c.mu.Unlock()
+
+	if cancel != nil {
+		cancel()
+	}
+	c.setTerminal(task, "cancelled", "")
 	return nil
 }

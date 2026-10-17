@@ -160,6 +160,13 @@ func NewGuard(cfg Thresholds, paths []string, measure func(path string) (uint64,
 // PollOnce measures every watch path (minimum wins — guarding / while state
 // lives elsewhere is fiction) and advances the hysteresis bands.
 func (g *Guard) PollOnce() {
+	// W2.10: zero watch paths measure nothing — the old code left avail at
+	// ^uint64(0) (MAX) and reported OK forever (fail-open). Unguarded
+	// refuses instead.
+	if len(g.paths) == 0 {
+		g.transition(LevelBlocked, 0, "no watch paths configured: refusing to run unguarded")
+		return
+	}
 	avail := ^uint64(0)
 	reason := ""
 	for _, p := range g.paths {
@@ -181,10 +188,17 @@ func (g *Guard) PollOnce() {
 	b, r, w := uint64(g.cfg.BlockBytes), uint64(g.cfg.ResumeBytes), uint64(g.cfg.WarnBytes)
 	switch cur {
 	case LevelBlocked:
-		// Blocked clears only above resume (never at the boundary).
+		// Blocked clears only above resume (never at the boundary). W2.10:
+		// recovery through the warning band lands on WARNING, not OK —
+		// the old code skipped straight to OK, hiding degraded disks.
 		if avail > r {
-			next = LevelOK
-			reason = fmt.Sprintf("disk space recovered: %d bytes free", avail)
+			if avail >= uint64(float64(w)*1.2) {
+				next = LevelOK
+				reason = fmt.Sprintf("disk space recovered: %d bytes free", avail)
+			} else {
+				next = LevelWarning
+				reason = fmt.Sprintf("disk recovering but still low: %d bytes free", avail)
+			}
 		} else {
 			next = LevelBlocked
 			reason = fmt.Sprintf("disk still below resume threshold: %d bytes free", avail)

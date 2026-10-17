@@ -170,6 +170,13 @@ func (m *Manager) ListSessions(limit int) ([]Session, error) {
 }
 
 func (m *Manager) AddMessage(sessionID, role, content string, proposal *json.RawMessage) (*ChatMessage, error) {
+	// W2.2: fail-closed ghost refusal — the chat_messages FK is declared
+	// but SQLite does not enforce it unless PRAGMA foreign_keys=ON (off
+	// by default), so enforce in code: unknown sessions refuse before any
+	// row, ledger event, or updated_at touch. Ghost writes never mint.
+	if _, err := m.GetSession(sessionID); err != nil {
+		return nil, fmt.Errorf("unknown session %q: message refused (ghost write)", sessionID)
+	}
 	msg := &ChatMessage{
 		ID:           uuid.New().String(),
 		SessionID:    sessionID,

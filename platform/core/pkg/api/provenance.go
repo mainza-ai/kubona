@@ -33,11 +33,22 @@ func LedgerAppendAllowlist() []string {
 // handleLedgerAppend seals a console-side outcome (tribunal verdict, review,
 // annotation) into the hash-chained ledger and returns the server-issued
 // record hash. The receipt is computed by the ledger — never by the client.
+// W2.1 threat model: writes get edge auth — unauthenticated forging of
+// tribunal_commit/peer_review refuses (401/503) before any allowlist check.
+// Reads (export below) stay public behind limiters; this append never serves
+// anonymous callers. Bounded (64KB) and rate-limited (human-paced bucket).
 func (s *Server) handleLedgerAppend(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if !s.ledgerLimiter.allow(clientKey(r)) {
+		http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+		return
+	}
+	// 64KB payload cap: one client must not stuff an unbounded blob into
+	// the hash-chained ledger.
+	r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
 
 	var req struct {
 		SessionID string         `json:"session_id"`
@@ -79,11 +90,20 @@ func (s *Server) handleLedgerAppend(w http.ResponseWriter, r *http.Request) {
 // unsettled jobs are settled failed with the abort reason, in-flight workers
 // are fenced via the runner's abort registry, and the abort itself is sealed
 // in the ledger. The response carries the aborted count and the abort receipt.
+// W2.1 threat model: the abort rail is an availability kill-switch (a write
+// that destroys queued work) — operator bearer auth + its own limiter.
+// Unauthenticated abort refuses before any session is touched.
 func (s *Server) handleSupervisorAbort(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if !s.abortLimiter.allow(clientKey(r)) {
+		http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+		return
+	}
+	// 64KB payload cap: abort reasons are short strings, not blobs.
+	r.Body = http.MaxBytesReader(w, r.Body, 64*1024)
 
 	var req struct {
 		SessionID string `json:"session_id"`

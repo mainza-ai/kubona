@@ -125,12 +125,15 @@ func (s *Server) idemBegin(sessionID, requestID string, content any, rail string
 	if err := ValidateRequestID(requestID); err != nil {
 		return nil, &idemRefusal{http.StatusBadRequest, err.Error()}
 	}
+	// W2.11: rails are a closed vocabulary — the old silent coercion turned
+	// a typo'd rail ("slo") into the job rail with different TTL/await
+	// windows. Unknown rails refuse loudly at the edge.
+	if rail != idemRailJob && rail != idemRailSlow {
+		return nil, &idemRefusal{http.StatusBadRequest, fmt.Sprintf("unknown idempotency rail %q: must be %q or %q", rail, idemRailJob, idemRailSlow)}
+	}
 	hash, err := CanonicalContentHash(content)
 	if err != nil {
 		return nil, &idemRefusal{http.StatusBadRequest, err.Error()}
-	}
-	if rail != idemRailSlow {
-		rail = idemRailJob
 	}
 	for attempt := 0; attempt < 3; attempt++ {
 		rec, found, err := s.ledger.IdemLookup(sessionID, requestID)
@@ -176,6 +179,9 @@ func (s *Server) idemBegin(sessionID, requestID string, content any, rail string
 // idemAwait polls a running claim for completion. Returns a replay ticket on
 // success, a conflict on hash drift (shouldn't happen — defensive), or
 // (nil, nil) on timeout so the caller 409s request_in_progress.
+// W2.11: the deadline follows the STORED row's rail (slow rows wait the slow
+// window). Legacy '' rows predate rails and take the job window, stated
+// here — the old code did this implicitly via the job default.
 func (s *Server) idemAwait(sessionID, requestID, hash string) (*idemTicket, *idemRefusal) {
 	deadline := time.Now().Add(idemAwaitFor(idemRailJob))
 	// Slow-rail claims take minutes; the rail is on the stored row.

@@ -21,6 +21,9 @@ import (
 
 // K6: serve-posture validation. Non-local binds without TLS material are
 // refused in strict mode; half material or missing files refuse always.
+// W2.3: non-loopback plain HTTP refuses unless the operator explicitly opts
+// in with KUBONA_ALLOW_PLAINTEXT=1 (fail-closed — warn-only served
+// credentials across plaintext on one forgotten --bind).
 func TestValidateServeConfig(t *testing.T) {
 	// Loopback plaintext: the dev default, always allowed.
 	if err := validateServeConfig("127.0.0.1", "", "", false); err != nil {
@@ -49,6 +52,21 @@ func TestValidateServeConfig(t *testing.T) {
 	certFile, keyFile := writeSelfSigned(t, dir)
 	if err := validateServeConfig("0.0.0.0", certFile, keyFile, true); err != nil {
 		t.Errorf("real material in strict mode must validate: %v", err)
+	}
+	// W2.3: non-loopback plaintext without TLS refuses by default ...
+	t.Setenv("KUBONA_ALLOW_PLAINTEXT", "")
+	if err := validateServeConfig("0.0.0.0", "", "", false); err == nil {
+		t.Error("non-loopback plain HTTP must refuse without KUBONA_ALLOW_PLAINTEXT=1")
+	}
+	// ... and passes with the explicit opt-in (warned at boot, not silent).
+	t.Setenv("KUBONA_ALLOW_PLAINTEXT", "1")
+	if err := validateServeConfig("0.0.0.0", "", "", false); err != nil {
+		t.Errorf("explicit KUBONA_ALLOW_PLAINTEXT=1 must validate: %v", err)
+	}
+	// Opt-in values other than exactly "1" do not count.
+	t.Setenv("KUBONA_ALLOW_PLAINTEXT", "true")
+	if err := validateServeConfig("0.0.0.0", "", "", false); err == nil {
+		t.Error("KUBONA_ALLOW_PLAINTEXT=true must not count (explicit \"1\" only)")
 	}
 }
 

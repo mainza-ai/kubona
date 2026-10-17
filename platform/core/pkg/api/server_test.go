@@ -96,12 +96,29 @@ func TestAPIRoutes(t *testing.T) {
 		t.Fatalf("expected 200 for /api/fidelity, got %d", w.Code)
 	}
 
-	// 4. Epistemics
+	// 4. Epistemics (W2.2: session-scoped, no sessions[0] adoption —
+	// missing ids 404, explicit sessions read 200).
 	req = httptest.NewRequest(http.MethodGet, "/api/epistemics", nil)
 	w = httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for unscoped /api/epistemics, got %d", w.Code)
+	}
+	epiSessBody, _ := json.Marshal(map[string]any{"title": "epistemics drill"})
+	epiSessReq := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewReader(epiSessBody))
+	epiSessW := httptest.NewRecorder()
+	handler.ServeHTTP(epiSessW, epiSessReq)
+	var epiSess struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(epiSessW.Body).Decode(&epiSess); err != nil || epiSess.ID == "" {
+		t.Fatalf("epistemics session setup: %v", err)
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/epistemics?session_id="+epiSess.ID, nil)
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200 for /api/epistemics, got %d", w.Code)
+		t.Fatalf("expected 200 for scoped /api/epistemics, got %d", w.Code)
 	}
 
 	// 5. Fleet Radar

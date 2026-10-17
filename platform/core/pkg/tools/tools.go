@@ -149,7 +149,12 @@ func (r *Registry) Dispatch(ctx context.Context, role string, call Call) (any, e
 
 // checkSchema validates args against a minimal JSON-Schema subset
 // (type: object, properties with scalar types, required[]). Enough for
-// fail-closed dispatch with zero new dependencies.
+// fail-closed dispatch with zero new dependencies. W2.20 strictness: the
+// top level must be a JSON object, and unknown properties refuse —
+// silently ignoring a misspelled argument would execute the wrong call
+// with a zero value (e.g. wrong molecule). Schemas that genuinely accept
+// free-form keys must declare "additionalProperties": true explicitly;
+// anything else (absent or false) refuses unknown fields.
 func checkSchema(schema map[string]any, args json.RawMessage) error {
 	if len(schema) == 0 {
 		return nil
@@ -166,6 +171,11 @@ func checkSchema(schema map[string]any, args json.RawMessage) error {
 		return fmt.Errorf("unsupported top-level schema type %q", t)
 	}
 	props, _ := schema["properties"].(map[string]any)
+	allowExtra, _ := schema["additionalProperties"].(bool)
+	// Generic {"type":"object"} with no declared properties constrains
+	// nothing (legacy test tools use exactly this) — unknown-refusal
+	// applies only when the schema declares properties.
+	strictProps := len(props) > 0 && !allowExtra
 	if req, ok := schema["required"].([]any); ok {
 		for _, item := range req {
 			name, _ := item.(string)
@@ -181,7 +191,10 @@ func checkSchema(schema map[string]any, args json.RawMessage) error {
 	for name, value := range obj {
 		spec, ok := props[name].(map[string]any)
 		if !ok {
-			continue // unspecified properties pass through
+			if strictProps {
+				return fmt.Errorf("unknown argument %q: refused (not in tool schema)", name)
+			}
+			continue
 		}
 		want, _ := spec["type"].(string)
 		switch want {

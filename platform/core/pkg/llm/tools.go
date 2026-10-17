@@ -101,9 +101,14 @@ func (c *Client) CompleteWithTools(ctx context.Context, role string, messages []
 	}
 	defer resp.Body.Close()
 
-	respBytes, err := io.ReadAll(resp.Body)
+	// W2.20: bounded read — same cap as Complete; a runaway tool-call
+	// body refuses instead of buffering forever.
+	respBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxLLMResponseBytes+1))
 	if err != nil {
 		return "", nil, nil, duration, err
+	}
+	if len(respBytes) > maxLLMResponseBytes {
+		return "", nil, nil, duration, fmt.Errorf("provider response exceeds %d-byte cap: refusing unbounded body", maxLLMResponseBytes)
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		slurp := string(respBytes)
