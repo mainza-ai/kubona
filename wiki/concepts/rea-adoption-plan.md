@@ -204,6 +204,22 @@ notes, never silent edits; rollback stated.
 
 ### R4 — Bounded tribunal context: projection + continuation (M)
 
+> ✅ LANDED 2026-10-17 (`9acd3a5`): run-scoped `EvidenceStore`
+> (append-only, stable offset/limit paging, parent links); turn prompts
+> rebuilt as bounded projections (prior-turn summaries ≤1500 runes +
+> refs — turns 3–4 previously saw NO priors, so grounding improves
+> while bytes pin); oversized observations retain full bytes
+> server-side with a preview + `evidence_continue` ref (shared
+> definition, tribunal roles only, paged lossless reassembly proven);
+> tag lives inside the observation budget; pinned `TurnContextRunes`
+> 16000 refuses pre-construction with `resource_constraint` (breach
+> degrades to fallback + closure-blocking unknown, never a priced
+> runaway); turn-bundle export + `ExecuteTribunalResume` (fresh
+> obligation, ancestor-seeded store, ancestry proven end-to-end through
+> recorded prompts). Soak: 3 runs × 50k-rune replies, max prompt 5697
+> vs 16000 budget. Suite: agents green (7 new tests). No endpoint for
+> bundle export yet (surface work, stated).
+
 - **Threat:** context bloat is the tribunal's biggest cost/quality risk
   (90 s timeouts price it).
 - **Change:** full evidence server-side; per-turn bounded views with
