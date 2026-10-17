@@ -238,25 +238,27 @@ func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmCli
 		turnCb = onTurn[0]
 	}
 	upper := strings.ToUpper(userPrompt)
-	mol := "H2"
-	bondDist := 0.7414
-	target := "H2 Ground State VQE (R=0.7414 A)"
-	fciAnchor := "PySCF STO-3G FCI (-1.13727 Ha)"
+	// W1.6: canonical molecule row (molecule_table.go) — the old inline
+	// copy diverged from campaign_synth (LiH -7.88240 vs -7.88239, BeH2
+	// -15.5940 vs -15.57580). One table, never two. The tribunal covers
+	// H2/LiH/BeH2 prompts; anything else falls back to H2 (labeled).
+	spec := LookupMolecule(upper)
+	if spec.Mol != "H2" && spec.Mol != "LiH" && spec.Mol != "BeH2" {
+		spec = DefaultMoleculeSpec()
+	}
+	mol := spec.Mol
+	bondDist := spec.BondDist
+	target := fmt.Sprintf("%s Ground State VQE (R=%.4f A)", mol, bondDist)
+	fciAnchor := FCIAnchorLabel(spec.FCI)
 	qasm := "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[2];\ncreg c[2];\nh q[0];\ncx q[0], q[1];\nmeasure q[0] -> c[0];\nmeasure q[1] -> c[1];\n"
 	budget := "$0.00 (Local Simulator)"
 	tier := "Local Simulator (qiskit-aer-simulator)"
 
-	if strings.Contains(upper, "LIH") || strings.Contains(upper, "LITHIUM") {
-		mol = "LiH"
-		bondDist = 1.5957
+	if mol == "LiH" {
 		target = "LiH Ground State VQE (R=1.595 A)"
-		fciAnchor = "PySCF STO-3G FCI (-7.88240 Ha)"
 		qasm = "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[4];\ncreg c[4];\nh q[0];\ncx q[0], q[1];\ncx q[1], q[2];\nmeasure q[0] -> c[0];\nmeasure q[1] -> c[1];\nmeasure q[2] -> c[2];\n"
-	} else if strings.Contains(upper, "BEH2") || strings.Contains(upper, "BERYLLIUM") {
-		mol = "BeH2"
-		bondDist = 1.3300
+	} else if mol == "BeH2" {
 		target = "BeH2 Linear Ground State VQE (R=1.33 A)"
-		fciAnchor = "PySCF STO-3G FCI (-15.5940 Ha)"
 		qasm = "OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[6];\ncreg c[6];\nh q[0];\ncx q[0], q[1];\ncx q[1], q[2];\ncx q[2], q[3];\nmeasure q[0] -> c[0];\nmeasure q[1] -> c[1];\nmeasure q[2] -> c[2];\nmeasure q[3] -> c[3];\n"
 	}
 
