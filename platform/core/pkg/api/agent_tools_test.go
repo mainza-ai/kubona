@@ -5,7 +5,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/mainza-ai/kubona/core/pkg/jobs"
+	"github.com/mainza-ai/kubona/core/pkg/ledger"
 	"github.com/mainza-ai/kubona/core/pkg/llm"
+	"github.com/mainza-ai/kubona/core/pkg/session"
+	"github.com/mainza-ai/kubona/core/pkg/tenants"
 	"github.com/mainza-ai/kubona/core/pkg/tools"
 )
 
@@ -107,19 +111,15 @@ func TestSubmitLocalSimTool(t *testing.T) {
 func TestRecallMemoryTool(t *testing.T) {
 	s := &Server{}
 	r := s.registerAgentTools()
-	// Unknown session: tenant falls back to default, empty store reads
-	// return empty snippets — never an error, never invented memories.
+	// W0.6: ghost sessions refuse instead of resolving to the default
+	// tenant — the old fallback leaked one lab's memories to another's
+	// probe. (Empty stores still read empty; that path needs a session.)
 	out, err := r.Dispatch(context.Background(), CopilotRole,
 		mustCall("recall_memory", `{"session_id":"missing","query":"H2 anchor"}`))
-	if err != nil {
-		t.Fatalf("recall on empty store must succeed empty, got %v", err)
-	}
-	m, ok := out.(map[string]any)
-	if !ok {
-		t.Fatalf("unexpected shape: %T", out)
-	}
-	if snips, ok := m["snippets"].([]any); !ok || len(snips) != 0 {
-		t.Errorf("expected empty snippets, got %v", m["snippets"])
+	if err == nil {
+		t.Fatalf("ghost recall must refuse, got %v", out)
+	} else if !strings.Contains(err.Error(), "unknown session") {
+		t.Fatalf("refusal must name the ghost, got %v", err)
 	}
 	// Missing query refuses (required field).
 	if _, err := r.Dispatch(context.Background(), CopilotRole,
@@ -182,5 +182,69 @@ func TestRegistryReplacesAllowLists(t *testing.T) {
 	}
 	if _, err := r.Dispatch(ctx, "ghost-role", mustCall("get_anchor", `{}`)); err == nil {
 		t.Error("unknown role must be denied everything")
+	}
+}
+
+// W0.6: the tool rail gates on session existence and membership — ghosts
+// refuse everywhere, and a job id from another session refuses even when
+// the id itself is valid.
+func TestToolSessionGates(t *testing.T) {
+	l, err := ledger.OpenLedger(t.TempDir() + "/tools-gate.db")
+	if err != nil {
+		t.Fatalf("open ledger: %v", err)
+	}
+	t.Cleanup(func() { l.Close() })
+	sm := session.NewManager(l)
+	tm := tenants.NewManager(l)
+	for _, lab := range []string{"lab-a", "lab-b"} {
+		if _, err := tm.CreateTenant(lab, lab); err != nil {
+			t.Fatalf("seed tenant %s: %v", lab, err)
+		}
+	}
+	if _, err := sm.EnsureSessionWithID("sess-a", "a", 100.0, "lab-a"); err != nil {
+		t.Fatalf("seed a: %v", err)
+	}
+	if _, err := sm.EnsureSessionWithID("sess-b", "b", 100.0, "lab-b"); err != nil {
+		t.Fatalf("seed b: %v", err)
+	}
+	if _, err := l.DB().Exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at) VALUES ('job-a1', 'sess-a', 'JOB_STATUS_COMPLETED', 'circuit_run', '{}', CURRENT_TIMESTAMP)`); err != nil {
+		t.Fatalf("seed job: %v", err)
+	}
+	s := &Server{ledger: l, sessionMgr: sm, jobRunner: jobs.NewRunner(l, nil, 1)}
+	r := s.registerAgentTools()
+	ctx := context.Background()
+
+	// Ghost session: every session-scoped read refuses.
+	for _, call := range []tools.Call{
+		mustCall("get_campaign", `{"session_id":"ghost"}`),
+		mustCall("list_jobs", `{"session_id":"ghost"}`),
+		mustCall("recent_events", `{"session_id":"ghost"}`),
+		mustCall("recall_memory", `{"session_id":"ghost","query":"x"}`),
+		mustCall("get_job", `{"job_id":"job-a1","session_id":"ghost"}`),
+	} {
+		if _, err := r.Dispatch(ctx, CopilotRole, call); err == nil {
+			t.Errorf("tool %s must refuse ghosts", call.Name)
+		} else if !strings.Contains(err.Error(), "unknown session") {
+			t.Errorf("tool %s refusal must name the ghost, got %v", call.Name, err)
+		}
+	}
+
+	// Cross-session job read refuses even with a valid id + live session.
+	if _, err := r.Dispatch(ctx, CopilotRole, mustCall("get_job", `{"job_id":"job-a1","session_id":"sess-b"}`)); err == nil {
+		t.Fatalf("cross-session get_job must refuse")
+	} else if !strings.Contains(err.Error(), "another session") {
+		t.Fatalf("refusal must name the boundary, got %v", err)
+	}
+
+	// Same-session reads proceed (empty store reads empty, never an error).
+	if _, err := r.Dispatch(ctx, CopilotRole, mustCall("recall_memory", `{"session_id":"sess-a","query":"H2"}`)); err != nil {
+		t.Fatalf("same-session recall on empty store must succeed empty, got %v", err)
+	}
+	out, err := r.Dispatch(ctx, CopilotRole, mustCall("get_job", `{"job_id":"job-a1","session_id":"sess-a"}`))
+	if err != nil {
+		t.Fatalf("same-session get_job must succeed, got %v", err)
+	}
+	if m, ok := out.(map[string]any); !ok || m["id"] != "job-a1" {
+		t.Fatalf("unexpected shape: %v", out)
 	}
 }

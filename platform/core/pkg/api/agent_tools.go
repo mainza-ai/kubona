@@ -11,9 +11,25 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
 	"github.com/mainza-ai/kubona/core/pkg/llm"
 	"github.com/mainza-ai/kubona/core/pkg/memory"
+	"github.com/mainza-ai/kubona/core/pkg/session"
 	"github.com/mainza-ai/kubona/core/pkg/tools"
 	pb "github.com/mainza-ai/kubona/core/proto"
 )
+
+// requireToolSession gates tool-rail reads on session existence (W0.6): a
+// ghost id never resolves to the default tenant (recall_memory did exactly
+// that), and unscoped reads never cross tenant boundaries. Nil-safe for
+// dependency-free unit tests — without a session manager no session exists.
+func (s *Server) requireToolSession(tool, sessionID string) (*session.Session, error) {
+	if s.sessionMgr == nil {
+		return nil, fmt.Errorf("unknown session %q: tool %q refuses ghosts", sessionID, tool)
+	}
+	sess, err := s.sessionMgr.GetSession(sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("unknown session %q: tool %q refuses ghosts", sessionID, tool)
+	}
+	return sess, nil
+}
 
 // CopilotRole is the caller role for chat tool calls. Deny by default: the
 // registry grants this role an explicit read-only set at registration.
@@ -95,6 +111,9 @@ func (s *Server) registerAgentTools() *tools.Registry {
 			if err := json.Unmarshal(args, &a); err != nil {
 				return nil, err
 			}
+			if _, err := s.requireToolSession("get_campaign", a.SessionID); err != nil {
+				return nil, err
+			}
 			raw, err := s.ledger.GetCampaignState(a.SessionID)
 			if err != nil || len(raw) == 0 {
 				return map[string]any{"session_id": a.SessionID, "campaign": nil}, nil
@@ -131,6 +150,9 @@ func (s *Server) registerAgentTools() *tools.Registry {
 			if err := json.Unmarshal(args, &a); err != nil {
 				return nil, err
 			}
+			if _, err := s.requireToolSession("list_jobs", a.SessionID); err != nil {
+				return nil, err
+			}
 			list, err := s.jobRunner.ListJobs(a.SessionID, 5)
 			if err != nil {
 				return nil, err
@@ -150,24 +172,37 @@ func (s *Server) registerAgentTools() *tools.Registry {
 
 	_ = r.Register(tools.Definition{
 		Name:        "get_job",
-		Description: "Fetch one job with full params and result payloads by id.",
+		Description: "Fetch one job with full params and result payloads by id. Session-scoped: the job must belong to the given session.",
 		Parameters: map[string]any{
-			"type":       "object",
-			"properties": map[string]any{"job_id": map[string]any{"type": "string"}},
-			"required":   []any{"job_id"},
+			"type": "object",
+			"properties": map[string]any{
+				"job_id":     map[string]any{"type": "string"},
+				"session_id": map[string]any{"type": "string"},
+			},
+			"required": []any{"job_id", "session_id"},
 		},
 		Capability: "jobs:read",
 		ReadOnly:   true,
 		Handler: func(_ context.Context, args json.RawMessage) (any, error) {
 			var a struct {
-				JobID string `json:"job_id"`
+				JobID     string `json:"job_id"`
+				SessionID string `json:"session_id"`
 			}
 			if err := json.Unmarshal(args, &a); err != nil {
+				return nil, err
+			}
+			// W0.6: session membership first — an unscoped job id is a
+			// cross-tenant read primitive. Ghost sessions refuse; a job
+			// from another session refuses even when the id is known.
+			if _, err := s.requireToolSession("get_job", a.SessionID); err != nil {
 				return nil, err
 			}
 			j, err := s.jobRunner.GetJob(a.JobID)
 			if err != nil {
 				return nil, fmt.Errorf("job not found")
+			}
+			if j.SessionID != a.SessionID {
+				return nil, fmt.Errorf("job %q belongs to another session: refused", a.JobID)
 			}
 			return map[string]any{
 				"id":      j.ID,
@@ -202,6 +237,9 @@ func (s *Server) registerAgentTools() *tools.Registry {
 			}
 			if a.Limit <= 0 || a.Limit > 25 {
 				a.Limit = 10
+			}
+			if _, err := s.requireToolSession("recent_events", a.SessionID); err != nil {
+				return nil, err
 			}
 			events, err := s.ledger.GetRecentEvents(a.SessionID, a.Limit)
 			if err != nil {
@@ -331,11 +369,16 @@ func (s *Server) registerAgentTools() *tools.Registry {
 			if err := json.Unmarshal(args, &a); err != nil {
 				return nil, err
 			}
-			tenant := "default"
-			if s.sessionMgr != nil {
-				if sess, err := s.sessionMgr.GetSession(a.SessionID); err == nil && sess.TenantID != "" {
-					tenant = sess.TenantID
-				}
+			// W0.6: ghost sessions refuse — previously they resolved to
+			// the default tenant, leaking one lab's memories to another's
+			// probe. Empty stores still read empty (no memories ≠ refusal).
+			sess, err := s.requireToolSession("recall_memory", a.SessionID)
+			if err != nil {
+				return nil, err
+			}
+			tenant := sess.TenantID
+			if tenant == "" {
+				tenant = "default"
 			}
 			if s.memoryStore == nil {
 				return map[string]any{"snippets": []any{}, "tenant": tenant}, nil
