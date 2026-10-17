@@ -145,6 +145,23 @@ notes, never silent edits; rollback stated.
 
 ### R2 — Obligation ledger for claim + mandate closure (M, needs R1)
 
+> ✅ LANDED 2026-10-17, tribunal half (`dfeb2cc`): `obligations` +
+> `obligation_cases` tables (idempotent open on subject, set-once owner,
+> upsert cases, closed-history immutable, residual unknowns with IDs);
+> `AttemptClose` enforces owner + all-required-pass + no-contradiction
+> anywhere + required authorities + closed deps + zero unknowns +
+> non-empty; tribunal runs open one obligation each (run-unique subject),
+> seal turn-N cases with authored pass/fail, record `deliberation` fail
+> on tool contest and `classical-anchor` unknown on fallback anchors;
+> the session owns, closes, and reads the disposition AS the verdict
+> (claim evidence + response carry the obligation id). Operator default
+> recorded: tribunal quorum = the four seated roles. Suite: store (4) +
+> lifecycle (2, every refusal) + collective C3 (1) + HTTP (1) green.
+> Sequenced follow-up R2b (NOT hidden): mandate issuance opening
+> obligations with settlement cases needs a `job.mandate_ref` column +
+> admission threading + settled-hook chain — the linkage does not exist
+> yet, and opening unclosable obligations would be theater.
+
 - **Threat:** vocabulary without enforcement — claims close on prose.
 - **Change:** obligations (ID, version, required case kinds incl.
   negative/malformed/cancellation, required authorities, dependencies,

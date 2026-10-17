@@ -2364,3 +2364,8 @@ skipped is the exact failure this incident is about:
   `671200d`: sidecar sweep + verbatim-content replay under Python's lock,
   strict 10-row digest roster, R1 envelopes cover the ninth section.
   C2 closed; S5 residual cleared.
+
+## [2026-10-17] decision | R2 obligation ledger + C3 turn sealing landed
+  `dfeb2cc`: store + AttemptClose (every refusal) + tribunal wiring
+  (turn cases, deliberation fail, anchor unknown, disposition verdict).
+  R2b sequenced (mandate obligations need job.mandate_ref linkage).
