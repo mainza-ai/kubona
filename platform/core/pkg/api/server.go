@@ -23,6 +23,7 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/agents"
 	"github.com/mainza-ai/kubona/core/pkg/autoresearch"
 	"github.com/mainza-ai/kubona/core/pkg/cost"
+	"github.com/mainza-ai/kubona/core/pkg/disk"
 	"github.com/mainza-ai/kubona/core/pkg/epistemics"
 	"github.com/mainza-ai/kubona/core/pkg/fidelity"
 	"github.com/mainza-ai/kubona/core/pkg/hf"
@@ -89,6 +90,47 @@ type Server struct {
 	// budgets — these are operator actions, never machine loops.
 	tenantLimiter *rateLimiter
 	grantLimiter  *rateLimiter
+
+	// S2: disk guard (nil = unguarded, e.g. tests). Set via SetDiskGuard
+	// after construction so NewServer's signature never ripples.
+	diskGuard *disk.Guard
+}
+
+// SetDiskGuard attaches the S2 disk guard. Nil detaches (tests).
+func (s *Server) SetDiskGuard(g *disk.Guard) {
+	s.diskGuard = g
+}
+
+// diskBlocked reports whether new work must be refused (503
+// storage_blocked). Reads, health, and recovery never consult this —
+// the guard freezes admission, never visibility.
+func (s *Server) diskBlocked() (blocked bool, reason string) {
+	g := s.diskGuard
+	if g == nil {
+		return false, ""
+	}
+	snap := g.Snapshot()
+	if snap.Level != disk.LevelBlocked {
+		return false, ""
+	}
+	if snap.Reason == "" {
+		return true, "disk guard is blocking new work"
+	}
+	return true, snap.Reason
+}
+
+// refuseIfDiskBlocked writes the 503 refusal when blocked. Handlers for
+// every new-work entry (spend mutations + chat writes + loop starts)
+// call this first: sub-MB bounded writes (canvas, single reads) are
+// deliberately ungated — at 1 GB free they always fit, so gating them
+// would add failure modes without protection.
+func (s *Server) refuseIfDiskBlocked(w http.ResponseWriter) bool {
+	if blocked, reason := s.diskBlocked(); blocked {
+		w.Header().Set("Retry-After", "30")
+		http.Error(w, fmt.Sprintf("storage_blocked: %s — new work refused until disk space recovers; reads and recovery stay available", reason), http.StatusServiceUnavailable)
+		return true
+	}
+	return false
 }
 
 // loadReviewerKey returns the human-reviewer ed25519 keypair for mandate
@@ -273,6 +315,7 @@ func (s *Server) Handler() http.Handler {
 
 func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/health", s.handleHealth)
+	s.mux.HandleFunc("/api/ready", s.handleReady)
 	s.mux.HandleFunc("/api/sessions", s.handleSessions)
 	s.mux.HandleFunc("/api/sessions/", s.handleSessionByID)
 	s.mux.HandleFunc("/api/chat/messages", s.handleChatMessages)
@@ -433,12 +476,34 @@ func writeJSON(w http.ResponseWriter, status int, data any) {
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
-	writeJSON(w, http.StatusOK, map[string]string{
+	health := map[string]string{
 		"status":    "healthy",
 		"service":   "kubona-core-orchestrator",
 		"version":   "0.2.0-ts-go",
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
-	})
+	}
+	// S2: disk readings ride along when a guard is attached (additive —
+	// existing health consumers keep working).
+	if s.diskGuard != nil {
+		snap := s.diskGuard.Snapshot()
+		health["disk_level"] = snap.Level
+		health["disk_avail_bytes"] = strconv.FormatUint(snap.AvailBytes, 10)
+		if snap.Reason != "" {
+			health["disk_reason"] = snap.Reason
+		}
+	}
+	writeJSON(w, http.StatusOK, health)
+}
+
+// handleReady is the deployment readiness probe: 200 only when the disk
+// guard (if attached) is not blocking. Unlike health (always 200 with a
+// body), readiness is status-coded for load balancers and supervisors.
+func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
+	if blocked, reason := s.diskBlocked(); blocked {
+		http.Error(w, fmt.Sprintf("not ready: %s", reason), http.StatusServiceUnavailable)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ready": true})
 }
 
 func (s *Server) handleAgents(w http.ResponseWriter, r *http.Request) {
@@ -1185,6 +1250,10 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
+		// S2: chat writes mint LLM spend + message rows — new work.
+		if s.refuseIfDiskBlocked(w) {
+			return
+		}
 		// K4: cloud LLM entries check the global dollar cap first.
 		if err := s.checkLLMBudget(); err != nil {
 			http.Error(w, err.Error(), http.StatusTooManyRequests)
@@ -1260,6 +1329,10 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	// S2: streaming generation is new work (spend + rows).
+	if s.refuseIfDiskBlocked(w) {
 		return
 	}
 	// K4: cloud LLM entries check the global dollar cap first.
@@ -1395,6 +1468,10 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleChatRegenerate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	// S2: regeneration mints a fresh assistant turn — new work.
+	if s.refuseIfDiskBlocked(w) {
 		return
 	}
 	// K4: cloud LLM entries check the global dollar cap first.
@@ -1674,6 +1751,10 @@ func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	// S2: disk guard freezes new work before any parse/spend.
+	if s.refuseIfDiskBlocked(w) {
+		return
+	}
 
 	var req struct {
 		SessionID string          `json:"session_id"`
@@ -1824,6 +1905,11 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	// S2: infrastructure before policy — a full disk can't reliably write
+	// the tribunal's turns, so block before the budget check.
+	if s.refuseIfDiskBlocked(w) {
+		return
+	}
 	// K4: cloud LLM entries check the global dollar cap first (covers the
 	// 4-turn run atomically at entry; mid-run breach stops the next entry).
 	if err := s.checkLLMBudget(); err != nil {
@@ -1956,6 +2042,10 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"jobs": jobsList})
 	case http.MethodPost:
+		// S2: disk guard freezes admission before any parse/spend.
+		if s.refuseIfDiskBlocked(w) {
+			return
+		}
 		var req struct {
 			SessionID   string   `json:"session_id"`
 			QASM        string   `json:"qasm"`
@@ -2749,6 +2839,10 @@ func (s *Server) handleAutoresearchStart(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	// S2: disk guard freezes new loops before any parse/spend.
+	if s.refuseIfDiskBlocked(w) {
+		return
+	}
 
 	var req struct {
 		SessionID       string `json:"session_id"`
@@ -2957,6 +3051,10 @@ func (s *Server) handleMetasearchReject(w http.ResponseWriter, r *http.Request) 
 func (s *Server) handleMetasearchApply(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	// S2: applying resumes loop work — blocked with other new work.
+	if s.refuseIfDiskBlocked(w) {
 		return
 	}
 	var req struct {

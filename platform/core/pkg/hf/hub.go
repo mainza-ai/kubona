@@ -72,15 +72,21 @@ type HubClient struct {
 	tasks      map[string]*HFDownloadTask
 }
 
+// DefaultModelsDir resolves the model storage directory: ~/.kubona/models,
+// or /tmp/kubona/models when the home directory is unresolvable. Single
+// source (S2's disk guard watches this same path — never a copied literal).
+func DefaultModelsDir() string {
+	home, err := os.UserHomeDir()
+	if err == nil {
+		return filepath.Join(home, ".kubona", "models")
+	}
+	return "/tmp/kubona/models"
+}
+
 // NewHubClient initializes a new Hugging Face client with local model storage
 func NewHubClient(storageDir string) *HubClient {
 	if storageDir == "" {
-		home, err := os.UserHomeDir()
-		if err == nil {
-			storageDir = filepath.Join(home, ".kubona", "models")
-		} else {
-			storageDir = "/tmp/kubona/models"
-		}
+		storageDir = DefaultModelsDir()
 	}
 	_ = os.MkdirAll(storageDir, 0755)
 

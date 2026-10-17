@@ -90,6 +90,7 @@ unimplemented, stubbed, or disguised behind static UI facades:
 | **Gap M-8: GQE Checkpoint Pipeline** | 🟢 verified | LoRA weight delta distribution manifest and architecture specification for Qwen2.5-Coder base model (`platform/models/adapters/manifest.json`). |
 | **Campaign Pre-Population & Element Parsing Fix** | 🟢 verified | Fresh vs Baseline discovery mode, element symbol whitelist in `SpatialCanvas.tsx`, and session deletion lifecycle (`platform/core/pkg/session/session.go`, `platform/console/src/components/modals/NewCampaignModal.tsx`). |
 | **Elimination of UI Hardcoded Mocks** | 🟢 verified | All 8 surfaces dynamically wired to live session state (`CampaignState`), OpenQASM 2.0 multi-qubit visualizer, dynamic milestones, and centralized `API_BASE` (`platform/console/src/lib/api.ts`). |
+| **Disk guard with hysteresis (S2)** | 🟢 landed 2026-10-17 | `platform/core/pkg/disk/` poller (WARN 2 GB / BLOCK 1 GB / RESUME 1.5 GB, env-overridable, `0<block<resume<warn` enforced at boot) watching DB dir + HF models dir via `statfs` (minimum wins); BLOCK 503s `storage_blocked` on all new-work entries (spend mutations, chat writes, loop starts) with `Retry-After`, freezes `SubmitJob` defense-in-depth; reads/health/recovery stay; `/api/ready` 200/503 probe + health disk fields; transitions sealed as ledger events. No process killing (needs cgroup work). |
 
 ## Medium
 

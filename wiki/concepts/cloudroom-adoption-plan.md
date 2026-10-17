@@ -151,7 +151,16 @@ status: candidate
   ledger events remain valid history).
 - **Wiki:** [[spend-mandates-and-delegation]] landed-note + gap G1/G3 rows.
 
-### S2 — Disk guard with hysteresis + retention design (M)
+### S2 — Disk guard with hysteresis + retention design (M) — ✅ LANDED 2026-10-17
+
+> Landed as specified at decided values (WARN 2 GB / BLOCK 1 GB / RESUME
+> 1.5 GB, resolved-mount set: DB dir + HF models dir via `hf.DefaultModelsDir`
+> single source). 6 `pkg/disk` unit tests (validation, env, hysteresis
+> soak, fail-closed measurement, min-wins, live statfs) + 4 API gate tests
+> (all-entries 503 + Retry-After, reads stay, ready probe, runner
+> defense-in-depth); negative-tested (gate removal fails); live matrix on
+> `:8080` (blocked health/ready/503-body → clear 200/ok, plus invalid-env
+> boot refusal). Canvas/sub-MB writes deliberately ungated (bounded).
 
 - **Threat:** unmodelled disk-full outage (G2); bursty writers (HF GBs,
   jobs.jsonl growth, PySCF spill).
