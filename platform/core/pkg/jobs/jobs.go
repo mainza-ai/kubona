@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/mainza-ai/kubona/core/pkg/disk"
 	"github.com/mainza-ai/kubona/core/pkg/fidelity"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
 	"github.com/mainza-ai/kubona/core/pkg/qir"
@@ -69,6 +70,24 @@ type Runner struct {
 	// result to fold. The hook must be fast and non-blocking (ledger writes
 	// and pure folds only); a slow hook stalls the worker pool.
 	settledHook func(*Job)
+	// diskGuard freezes admission when set and blocking (S2 defense in
+	// depth: the HTTP edge 503s first, but A2A/internal callers reach
+	// SubmitJob directly). Nil means unguarded.
+	diskGuard *disk.Guard
+}
+
+// SetDiskGuard attaches the S2 disk guard. Nil clears it. Safe to call
+// before or after Start.
+func (r *Runner) SetDiskGuard(g *disk.Guard) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.diskGuard = g
+}
+
+func (r *Runner) getDiskGuard() *disk.Guard {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.diskGuard
 }
 
 // SetCompiler registers the QIR compiler for pre-dispatch analysis.
@@ -143,6 +162,13 @@ func (r *Runner) SubmitJob(sessionID, jobType string, params any) (*Job, error) 
 	data, err := json.Marshal(params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal params: %w", err)
+	}
+
+	// S2 defense in depth: the HTTP edge 503s first, but internal callers
+	// (A2A executor, tests-as-clients) reach here directly.
+	if g := r.getDiskGuard(); g != nil && g.Blocks() {
+		snap := g.Snapshot()
+		return nil, fmt.Errorf("storage_blocked: %s — dispatch frozen until disk space recovers", snap.Reason)
 	}
 
 	// Structural QASM gate first (cheapest check): malformed programs

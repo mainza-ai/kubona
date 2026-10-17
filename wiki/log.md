@@ -2229,3 +2229,11 @@ skipped is the exact failure this incident is about:
   reclaim; negative-tested on old handlers; race suites green; live
   201/replay/409/keyless matrix on :8080. Notes on
   [[spend-mandates-and-delegation]] + [[cloudroom-adoption-plan]] S1.
+
+## [2026-10-17] feat | S2 disk guard landed
+  pkg/disk poller (2/1/1.5GB, env-overridable, boot-validated) over DB
+  dir + HF models dir (single-sourced); BLOCK 503s storage_blocked +
+  Retry-After on spend/chat/loop/metasearch entries + SubmitJob depth;
+  reads/health/recovery exempt; /api/ready probe; transitions sealed.
+  10 tests, negative-tested, race green; live blocked/clear matrix on
+  :8080. Rows on [[implementation-gaps]], [[risks]], plan S2.
