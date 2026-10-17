@@ -441,8 +441,40 @@ func TestCustomAgentAndMeshRouteEndpoints(t *testing.T) {
 	if err := json.NewDecoder(w3.Body).Decode(&rResp); err != nil {
 		t.Fatalf("failed to decode mesh route resp: %v", err)
 	}
-	if !rResp.OK || rResp.Decision["model"] == "" {
-		t.Fatalf("unexpected route decision: %+v", rResp)
+	if !rResp.OK {
+		t.Fatalf("route envelope must be ok:true, got %+v", rResp)
+	}
+	// No model configured anywhere: the router refuses instead of
+	// inventing a default. ok:false lives on the decision, not the envelope.
+	if rResp.Decision["ok"] != false {
+		t.Fatalf("unconfigured routing must refuse, got %+v", rResp.Decision)
+	}
+	if _, ok := rResp.Decision["explanation"].(string); !ok {
+		t.Fatalf("refusal must explain, got %+v", rResp.Decision)
+	}
+
+	// 3b. Explicit model routes with the model echoed, never substituted.
+	routeBodyNamed := []byte(`{
+		"prompt": "Optimize VQE ansatz for FeMoCo",
+		"items": [{"modality": "molecule_3d", "data": "H2"}],
+		"preferred_model": "local/test-model",
+		"spend_budget_usd": 5.0
+	}`)
+	req3b := httptest.NewRequest(http.MethodPost, "/api/mesh/route", bytes.NewReader(routeBodyNamed))
+	w3b := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w3b, req3b)
+	if w3b.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w3b.Code)
+	}
+	var rResp2 struct {
+		OK       bool                   `json:"ok"`
+		Decision map[string]interface{} `json:"decision"`
+	}
+	if err := json.NewDecoder(w3b.Body).Decode(&rResp2); err != nil {
+		t.Fatalf("failed to decode mesh route resp: %v", err)
+	}
+	if rResp2.Decision["ok"] != true || rResp2.Decision["model"] != "local/test-model" {
+		t.Fatalf("explicit model must route verbatim, got %+v", rResp2.Decision)
 	}
 }
 
