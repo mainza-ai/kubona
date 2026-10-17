@@ -2451,3 +2451,12 @@ skipped is the exact failure this incident is about:
   deepening (4 hermetic checks) + `mandate-check` (`shape_valid` vs
   `admitted`, proven live both directions). Python 669 + Go green.
   Next: L5 review+catalog (closes P2-13).
+
+## [2026-10-17] decision | Phase L-C exit (MCP catalog + review landed)
+  L5: `contracts/mcp-catalog.json` (29 tools, digest-pinned, verdicts) +
+  builder + gates (drift, review-complete, scope coverage). Verdict: keep
+  all 29 with named trust properties, zero removals (stated, not theater).
+  Live finding fixed: `compile_circuit` mounted-but-unscoped (dead under
+  default-deny) → mapped + proven both directions. `not_found` added to
+  shared error catalog (both rails + pins). P2-13 CLOSED. Python 672 +
+  Go api green, full build clean.

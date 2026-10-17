@@ -1,0 +1,1080 @@
+{
+  "generated_by": "KUBONA_UPDATE_CATALOG=1 pytest platform/tests/test_mcp_catalog.py",
+  "digest": "fa6b45ec11af6d3069d0e259ce9971ae16fa581e7f2631a7a013a7e4ec86bcd9",
+  "tools": [
+    {
+      "name": "compile_circuit",
+      "description": "Compile with the pass portfolio: feature-selected passes, equivalence evidence, compile receipt.",
+      "inputSchema": {
+        "properties": {
+          "circuit_qasm": {
+            "title": "Circuit Qasm",
+            "type": "string"
+          },
+          "target": {
+            "default": "local",
+            "title": "Target",
+            "type": "string"
+          },
+          "two_qubit_error": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Two Qubit Error"
+          },
+          "constraints": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Constraints"
+          }
+        },
+        "required": [
+          "circuit_qasm"
+        ],
+        "title": "compile_circuitArguments",
+        "type": "object"
+      },
+      "server": "compiler",
+      "verdict": "keep",
+      "trust_property": "Pass portfolio with per-pass equivalence evidence + chained compile receipt",
+      "error_codes": [
+        "bad_request",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "lower_circuit",
+      "description": "Lower a circuit to QIR-like IR (reference pipeline; Rust core is qir-core).",
+      "inputSchema": {
+        "properties": {
+          "circuit_qasm": {
+            "title": "Circuit Qasm",
+            "type": "string"
+          }
+        },
+        "required": [
+          "circuit_qasm"
+        ],
+        "title": "lower_circuitArguments",
+        "type": "object"
+      },
+      "server": "compiler",
+      "verdict": "keep",
+      "trust_property": "Pinned-toolchain reference lowering; same boundary as transpile (parse refuses, never guesses)",
+      "error_codes": [
+        "bad_request",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "transpile_circuit",
+      "description": "Validate and canonicalize an OpenQASM 2 circuit into Kubona's SDK-independent IR.",
+      "inputSchema": {
+        "properties": {
+          "circuit_qasm": {
+            "title": "Circuit Qasm",
+            "type": "string"
+          }
+        },
+        "required": [
+          "circuit_qasm"
+        ],
+        "title": "transpile_circuitArguments",
+        "type": "object"
+      },
+      "server": "compiler",
+      "verdict": "keep",
+      "trust_property": "Rejects malformed QASM + canonicalizes to content-addressed IR (circuit_hash identity); versioned service boundary for clients without repo access",
+      "error_codes": [
+        "bad_request",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "kill_loop",
+      "description": "Kill an in-flight loop (operator interrupt).",
+      "inputSchema": {
+        "properties": {
+          "loop_id": {
+            "title": "Loop Id",
+            "type": "string"
+          },
+          "requester": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "default",
+            "title": "Requester"
+          }
+        },
+        "required": [
+          "loop_id"
+        ],
+        "title": "kill_loopArguments",
+        "type": "object"
+      },
+      "server": "control",
+      "verdict": "keep",
+      "trust_property": "Operator override authority (control:override scope)",
+      "error_codes": [
+        "not_found",
+        "forbidden",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "list_loops",
+      "description": "List in-flight loops for the requesting tenant (the console's live loop inspector feed).",
+      "inputSchema": {
+        "properties": {
+          "requester": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "default",
+            "title": "Requester"
+          }
+        },
+        "title": "list_loopsArguments",
+        "type": "object"
+      },
+      "server": "control",
+      "verdict": "keep",
+      "trust_property": "Tenant-filtered listing (existence-is-information doctrine)",
+      "error_codes": [
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "loop_status",
+      "description": "Status of one loop: step, heartbeat, 'what is the agent doing'.",
+      "inputSchema": {
+        "properties": {
+          "loop_id": {
+            "title": "Loop Id",
+            "type": "string"
+          },
+          "requester": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "default",
+            "title": "Requester"
+          }
+        },
+        "required": [
+          "loop_id"
+        ],
+        "title": "loop_statusArguments",
+        "type": "object"
+      },
+      "server": "control",
+      "verdict": "keep",
+      "trust_property": "Tenant-scoped supervised-state read",
+      "error_codes": [
+        "not_found",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "pause_loop",
+      "description": "Pause an in-flight loop (operator override).",
+      "inputSchema": {
+        "properties": {
+          "loop_id": {
+            "title": "Loop Id",
+            "type": "string"
+          },
+          "requester": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "default",
+            "title": "Requester"
+          }
+        },
+        "required": [
+          "loop_id"
+        ],
+        "title": "pause_loopArguments",
+        "type": "object"
+      },
+      "server": "control",
+      "verdict": "keep",
+      "trust_property": "Operator override authority (control:override scope)",
+      "error_codes": [
+        "not_found",
+        "forbidden",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "register_loop",
+      "description": "A running loop announces itself to the control plane (loop-harness interface).",
+      "inputSchema": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "total_steps": {
+            "default": 100,
+            "title": "Total Steps",
+            "type": "integer"
+          },
+          "tenant": {
+            "default": "default",
+            "title": "Tenant",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "session_id"
+        ],
+        "title": "register_loopArguments",
+        "type": "object"
+      },
+      "server": "control",
+      "verdict": "keep",
+      "trust_property": "Binds loop to session+tenant label (isolation root for all later overrides)",
+      "error_codes": [
+        "bad_request",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "resume_loop",
+      "description": "Resume a paused loop.",
+      "inputSchema": {
+        "properties": {
+          "loop_id": {
+            "title": "Loop Id",
+            "type": "string"
+          },
+          "requester": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "default",
+            "title": "Requester"
+          }
+        },
+        "required": [
+          "loop_id"
+        ],
+        "title": "resume_loopArguments",
+        "type": "object"
+      },
+      "server": "control",
+      "verdict": "keep",
+      "trust_property": "Operator override authority (control:override scope)",
+      "error_codes": [
+        "not_found",
+        "forbidden",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "step_loop",
+      "description": "A loop reports progress; should_run=False when paused/killed.",
+      "inputSchema": {
+        "properties": {
+          "loop_id": {
+            "title": "Loop Id",
+            "type": "string"
+          },
+          "step_desc": {
+            "title": "Step Desc",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loop_id",
+          "step_desc"
+        ],
+        "title": "step_loopArguments",
+        "type": "object"
+      },
+      "server": "control",
+      "verdict": "keep",
+      "trust_property": "Possession-capability progress gate (unguessable loop_id; no requester threaded by design)",
+      "error_codes": [
+        "not_found",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "approve_approval",
+      "description": "Approve a held/requested approval.",
+      "inputSchema": {
+        "properties": {
+          "approval_id": {
+            "title": "Approval Id",
+            "type": "string"
+          },
+          "reviewer": {
+            "default": "operator",
+            "title": "Reviewer",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Note"
+          },
+          "tenant_id": {
+            "default": "",
+            "title": "Tenant Id",
+            "type": "string"
+          },
+          "job_hash": {
+            "default": "",
+            "title": "Job Hash",
+            "type": "string"
+          }
+        },
+        "required": [
+          "approval_id"
+        ],
+        "title": "approve_approvalArguments",
+        "type": "object"
+      },
+      "server": "cost",
+      "verdict": "keep",
+      "trust_property": "Mints spend authority on the reviewer path",
+      "error_codes": [
+        "bad_request",
+        "not_found",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "create_session",
+      "description": "Open a session with a hard budget ceiling.",
+      "inputSchema": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "owner": {
+            "title": "Owner",
+            "type": "string"
+          },
+          "budget_ceiling_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Budget Ceiling Usd"
+          }
+        },
+        "required": [
+          "name",
+          "owner"
+        ],
+        "title": "create_sessionArguments",
+        "type": "object"
+      },
+      "server": "cost",
+      "verdict": "keep",
+      "trust_property": "Binds hard budget ceiling at session birth (spend cannot exist unceilinged)",
+      "error_codes": [
+        "bad_request",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "estimate_cost",
+      "description": "Estimate cost + pre-flight verdict for a circuit on a provider.",
+      "inputSchema": {
+        "properties": {
+          "circuit_qasm": {
+            "title": "Circuit Qasm",
+            "type": "string"
+          },
+          "provider": {
+            "default": "local-simulator",
+            "title": "Provider",
+            "type": "string"
+          },
+          "shots": {
+            "default": 1024,
+            "title": "Shots",
+            "type": "integer"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Session Id"
+          }
+        },
+        "required": [
+          "circuit_qasm"
+        ],
+        "title": "estimate_costArguments",
+        "type": "object"
+      },
+      "server": "cost",
+      "verdict": "keep",
+      "trust_property": "Priced pre-flight verdict against session ceiling (heuristic-labeled, never silent)",
+      "error_codes": [
+        "bad_request",
+        "ghost_session",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "hold_approval",
+      "description": "Hold an approval for review (stage 2: HOLD).",
+      "inputSchema": {
+        "properties": {
+          "approval_id": {
+            "title": "Approval Id",
+            "type": "string"
+          },
+          "reviewer": {
+            "default": "operator",
+            "title": "Reviewer",
+            "type": "string"
+          }
+        },
+        "required": [
+          "approval_id"
+        ],
+        "title": "hold_approvalArguments",
+        "type": "object"
+      },
+      "server": "cost",
+      "verdict": "keep",
+      "trust_property": "Staged review state (prevents double-decision races)",
+      "error_codes": [
+        "bad_request",
+        "not_found",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "quote_payment",
+      "description": "x402-compatible price quote (the request is the transaction).",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "amount_usd": {
+            "title": "Amount Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "session_id",
+          "amount_usd"
+        ],
+        "title": "quote_paymentArguments",
+        "type": "object"
+      },
+      "server": "cost",
+      "verdict": "keep",
+      "trust_property": "x402 quote binds amount to session (verify checks the STORED quote)",
+      "error_codes": [
+        "ghost_session",
+        "bad_request",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "reject_approval",
+      "description": "Reject an approval with a note.",
+      "inputSchema": {
+        "properties": {
+          "approval_id": {
+            "title": "Approval Id",
+            "type": "string"
+          },
+          "reviewer": {
+            "default": "operator",
+            "title": "Reviewer",
+            "type": "string"
+          },
+          "note": {
+            "default": "",
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "approval_id"
+        ],
+        "title": "reject_approvalArguments",
+        "type": "object"
+      },
+      "server": "cost",
+      "verdict": "keep",
+      "trust_property": "Refusal with reason (auditable no)",
+      "error_codes": [
+        "bad_request",
+        "not_found",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "request_approval",
+      "description": "Request spend approval (stage 1: REVIEW).",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "amount_usd": {
+            "title": "Amount Usd",
+            "type": "number"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "amount_usd",
+          "reason"
+        ],
+        "title": "request_approvalArguments",
+        "type": "object"
+      },
+      "server": "cost",
+      "verdict": "keep",
+      "trust_property": "Opens the staged approval workflow with ledger trail",
+      "error_codes": [
+        "bad_request",
+        "ghost_session",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "session_burn_rate",
+      "description": "Real-time burn-rate telemetry for a session.",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "session_burn_rateArguments",
+        "type": "object"
+      },
+      "server": "cost",
+      "verdict": "keep",
+      "trust_property": "Burn telemetry agents budget against (spent/ceiling/remaining)",
+      "error_codes": [
+        "ghost_session",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "verify_payment",
+      "description": "Verify an x402 payment proof.",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "proof": {
+            "title": "Proof",
+            "type": "string"
+          },
+          "amount_usd": {
+            "title": "Amount Usd",
+            "type": "number"
+          }
+        },
+        "required": [
+          "session_id",
+          "proof",
+          "amount_usd"
+        ],
+        "title": "verify_paymentArguments",
+        "type": "object"
+      },
+      "server": "cost",
+      "verdict": "keep",
+      "trust_property": "Settles against stored quote only (no quote or amount mismatch refuses)",
+      "error_codes": [
+        "ghost_session",
+        "bad_request",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "cancel_job",
+      "description": "Cancel a queued or running job (watch-and-interrupt primitive).",
+      "inputSchema": {
+        "properties": {
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id"
+        ],
+        "title": "cancel_jobArguments",
+        "type": "object"
+      },
+      "server": "execution",
+      "verdict": "keep",
+      "trust_property": "CAS-fenced abort (QUEUED never runs, RUNNING fenced, terminal replays)",
+      "error_codes": [
+        "not_found",
+        "forbidden",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "close_session",
+      "description": "Close a session.",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "close_sessionArguments",
+        "type": "object"
+      },
+      "server": "execution",
+      "verdict": "keep",
+      "trust_property": "Terminal lifecycle close (releases holds)",
+      "error_codes": [
+        "ghost_session",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "get_job_status",
+      "description": "Get the persisted status of a submitted job (survives restart).",
+      "inputSchema": {
+        "properties": {
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id"
+        ],
+        "title": "get_job_statusArguments",
+        "type": "object"
+      },
+      "server": "execution",
+      "verdict": "keep",
+      "trust_property": "Continuation read (async jobs are blind without it)",
+      "error_codes": [
+        "not_found",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "get_result",
+      "description": "Get the completed result of a job.",
+      "inputSchema": {
+        "properties": {
+          "job_id": {
+            "title": "Job Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "job_id"
+        ],
+        "title": "get_resultArguments",
+        "type": "object"
+      },
+      "server": "execution",
+      "verdict": "keep",
+      "trust_property": "Continuation read (async jobs are blind without it)",
+      "error_codes": [
+        "not_found",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "list_provider_registry",
+      "description": "List registered providers and their capability summaries.",
+      "inputSchema": {
+        "properties": {},
+        "title": "list_provider_registryArguments",
+        "type": "object"
+      },
+      "server": "execution",
+      "verdict": "keep",
+      "trust_property": "Sole discovery path for MCP-only clients (~200 bytes; skill covers repo agents) \u2014 reviewed, kept deliberately",
+      "error_codes": [
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "run_zne_job",
+      "description": "Run ZNE mitigation (unitary folding + Richardson) on a circuit.",
+      "inputSchema": {
+        "properties": {
+          "circuit_qasm": {
+            "title": "Circuit Qasm",
+            "type": "string"
+          },
+          "shots": {
+            "default": 8000,
+            "title": "Shots",
+            "type": "integer"
+          },
+          "noise_rate": {
+            "default": 0.02,
+            "title": "Noise Rate",
+            "type": "number"
+          },
+          "scales": {
+            "default": "1,3,5",
+            "title": "Scales",
+            "type": "string"
+          },
+          "seed": {
+            "default": 7,
+            "title": "Seed",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "circuit_qasm"
+        ],
+        "title": "run_zne_jobArguments",
+        "type": "object"
+      },
+      "server": "execution",
+      "verdict": "keep",
+      "trust_property": "Metered mitigation execution (unitary folding + Richardson) with spend binding",
+      "error_codes": [
+        "bad_request",
+        "ceiling_exceeded",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "session_status",
+      "description": "Session state: spend, ceiling, jobs, burn telemetry inputs.",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "session_statusArguments",
+        "type": "object"
+      },
+      "server": "execution",
+      "verdict": "keep",
+      "trust_property": "Session state read (spend, ceiling, jobs)",
+      "error_codes": [
+        "ghost_session",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "submit_job",
+      "description": "Submit a circuit through the cost-governance gate, threaded to a session (async-persistent job farm).",
+      "inputSchema": {
+        "properties": {
+          "circuit_qasm": {
+            "title": "Circuit Qasm",
+            "type": "string"
+          },
+          "provider": {
+            "default": "local-simulator",
+            "title": "Provider",
+            "type": "string"
+          },
+          "shots": {
+            "default": 1024,
+            "title": "Shots",
+            "type": "integer"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Session Id"
+          },
+          "budget_ceiling_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Budget Ceiling Usd"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": 7,
+            "title": "Seed"
+          },
+          "caller_jurisdictions": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Caller Jurisdictions"
+          },
+          "caller_export_class": {
+            "default": "any",
+            "title": "Caller Export Class",
+            "type": "string"
+          },
+          "require_review": {
+            "default": false,
+            "title": "Require Review",
+            "type": "boolean"
+          },
+          "wait": {
+            "default": true,
+            "title": "Wait",
+            "type": "boolean"
+          },
+          "wait_timeout_s": {
+            "default": 30.0,
+            "title": "Wait Timeout S",
+            "type": "number"
+          }
+        },
+        "required": [
+          "circuit_qasm"
+        ],
+        "title": "submit_jobArguments",
+        "type": "object"
+      },
+      "server": "execution",
+      "verdict": "keep",
+      "trust_property": "Admission gate (mandate/fidelity/tenant/routing) + idempotent farm submit",
+      "error_codes": [
+        "bad_request",
+        "ghost_session",
+        "ceiling_exceeded",
+        "forbidden",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "query_records",
+      "description": "Return ledger records, optionally filtered by kind.",
+      "inputSchema": {
+        "properties": {
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Kind"
+          },
+          "requester": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "default",
+            "title": "Requester"
+          }
+        },
+        "title": "query_recordsArguments",
+        "type": "object"
+      },
+      "server": "provenance",
+      "verdict": "keep",
+      "trust_property": "Label-scoped reads (tenant isolation at read time)",
+      "error_codes": [
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "write_record",
+      "description": "Append an immutable, content-addressed record to the provenance ledger.",
+      "inputSchema": {
+        "properties": {
+          "kind": {
+            "title": "Kind",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "title": "Payload",
+            "type": "object"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Label"
+          }
+        },
+        "required": [
+          "kind",
+          "payload"
+        ],
+        "title": "write_recordArguments",
+        "type": "object"
+      },
+      "server": "provenance",
+      "verdict": "keep",
+      "trust_property": "Sealed hash-chained append (closed taxonomy refuses typos)",
+      "error_codes": [
+        "bad_request",
+        "unauthorized",
+        "internal"
+      ]
+    }
+  ]
+}

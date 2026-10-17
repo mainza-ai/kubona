@@ -56,7 +56,9 @@ status: tracked
   > ✅ L3 + L2-rerun + L4 LANDED 2026-10-17 (Phase L-B exit met):
   > scribe tags (convention, R3 gate unchanged), bench delta zero on
   > record, doctor deepening + `mandate-check` (LC5 wording contract).
-  > Remaining: L5 review+catalog.
+  > ✅ L5 LANDED 2026-10-17 (Phase L-C exit met): MCP catalog +
+  > 29 keep-verdicts (P2-13 closed) + unscoped-tool guard + `not_found`
+  > code. Lean program COMPLETE — all phases exited green.
   L1 `skills/kubona/SKILL.md` (router + traps + first-moves, ≤12 KB
   pinned); L2 `bench/` harness with answer keys + ctx-budget gate;
   L3 scribe seen/inferred/unknown tags (convention, R3 gate unchanged);
