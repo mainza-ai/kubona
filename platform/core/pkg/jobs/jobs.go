@@ -24,6 +24,18 @@ import (
 // corrupt it, truncating logs is honest).
 const MaxStoredResultBytes = 1 * 1024 * 1024
 
+// W0.1 — CAS-guard live set, bound once from the single source
+// (session.LiveJobStatuses). The clause fragment and its bind args stay
+// adjacent so they cannot rot apart.
+var (
+	liveStatusClause string
+	liveStatusArgs   []any
+)
+
+func init() {
+	liveStatusClause, liveStatusArgs = session.LiveJobStatusClause()
+}
+
 type Job struct {
 	ID          string          `json:"id"`
 	SessionID   string          `json:"session_id"`
@@ -477,8 +489,8 @@ func (r *Runner) isAborted(id string) bool {
 // shares the abort-registry semantics of CancelSessionJobs.
 func (r *Runner) CancelTenantJobs(tenantID, reason string) (int, error) {
 	rows, err := r.ledger.DB().Query(
-		`SELECT jobs.id FROM jobs JOIN sessions ON jobs.session_id = sessions.id WHERE sessions.tenant_id = ? AND jobs.status IN ('JOB_STATUS_QUEUED', 'JOB_STATUS_RUNNING')`,
-		tenantID,
+		`SELECT jobs.id FROM jobs JOIN sessions ON jobs.session_id = sessions.id WHERE sessions.tenant_id = ? AND jobs.status `+liveStatusClause,
+		append([]any{tenantID}, liveStatusArgs...)...,
 	)
 	if err != nil {
 		return 0, err
@@ -501,8 +513,8 @@ func (r *Runner) CancelTenantJobs(tenantID, reason string) (int, error) {
 		r.aborted[id] = true
 		r.mu.Unlock()
 		res, _ := r.ledger.DB().Exec(
-			`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ? AND status IN ('JOB_STATUS_QUEUED', 'JOB_STATUS_RUNNING')`,
-			pb.JobStatus_JOB_STATUS_FAILED.String(), string(errRes), now, id,
+			`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ? AND status `+liveStatusClause,
+			append([]any{pb.JobStatus_JOB_STATUS_FAILED.String(), string(errRes), now, id}, liveStatusArgs...)...,
 		)
 		if n, _ := res.RowsAffected(); n > 0 {
 			r.releaseReservation(id) // terminal-failed here: unwind spend
@@ -523,8 +535,8 @@ func (r *Runner) CancelTenantJobs(tenantID, reason string) (int, error) {
 // supervisor_abort receipt in the ledger. It returns the aborted count.
 func (r *Runner) CancelSessionJobs(sessionID, reason string) (int, error) {
 	rows, err := r.ledger.DB().Query(
-		`SELECT id FROM jobs WHERE session_id = ? AND status IN ('JOB_STATUS_QUEUED', 'JOB_STATUS_RUNNING')`,
-		sessionID,
+		`SELECT id FROM jobs WHERE session_id = ? AND status `+liveStatusClause,
+		append([]any{sessionID}, liveStatusArgs...)...,
 	)
 	if err != nil {
 		return 0, err
@@ -547,8 +559,8 @@ func (r *Runner) CancelSessionJobs(sessionID, reason string) (int, error) {
 		r.aborted[id] = true
 		r.mu.Unlock()
 		res, _ := r.ledger.DB().Exec(
-			`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ? AND status IN ('JOB_STATUS_QUEUED', 'JOB_STATUS_RUNNING')`,
-			pb.JobStatus_JOB_STATUS_FAILED.String(), string(errRes), now, id,
+			`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ? AND status `+liveStatusClause,
+			append([]any{pb.JobStatus_JOB_STATUS_FAILED.String(), string(errRes), now, id}, liveStatusArgs...)...,
 		)
 		if n, _ := res.RowsAffected(); n > 0 {
 			r.releaseReservation(id) // terminal-failed here: unwind spend
@@ -586,8 +598,8 @@ func (r *Runner) CancelJob(id, reason string) (transitioned bool, err error) {
 	now := time.Now().UTC()
 	errRes, _ := json.Marshal(map[string]string{"error": reason, "cancelled": "true"})
 	res, err := r.ledger.DB().Exec(
-		`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ? AND status IN ('JOB_STATUS_QUEUED', 'JOB_STATUS_RUNNING')`,
-		pb.JobStatus_JOB_STATUS_FAILED.String(), string(errRes), now, id,
+		`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ? AND status `+liveStatusClause,
+		append([]any{pb.JobStatus_JOB_STATUS_FAILED.String(), string(errRes), now, id}, liveStatusArgs...)...,
 	)
 	if err != nil {
 		return false, err
@@ -613,7 +625,8 @@ func (r *Runner) CancelJob(id, reason string) (transitioned bool, err error) {
 	return true, nil
 }
 
-func (r *Runner) GetJob(id string) (*Job, error) {	query := `SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, compiler_used, fallback_estimate FROM jobs WHERE id = ?`
+func (r *Runner) GetJob(id string) (*Job, error) {
+	query := `SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, compiler_used, fallback_estimate FROM jobs WHERE id = ?`
 	row := r.ledger.DB().QueryRow(query, id)
 
 	var j Job

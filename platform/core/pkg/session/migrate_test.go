@@ -58,6 +58,47 @@ func TestDeleteSessionRefusesLiveWork(t *testing.T) {
 	}
 }
 
+// W0.1 — terminal jobs (COMPLETED/FAILED) must not block deletion.
+// Threat (verified): the old literal list never matched JOB_STATUS_FAILED,
+// so any session with a failed job could never be deleted.
+func TestDeleteBlockersTerminalJobsDoNotBlock(t *testing.T) {
+	m, l := mustOpenCascade(t)
+	seedCascadeSession(t, m, l, "sess-term")
+	if _, err := l.DB().Exec(`UPDATE loops SET status = 'aborted' WHERE session_id = 'sess-term'`); err != nil {
+		t.Fatalf("settle loop: %v", err)
+	}
+	for _, tc := range []struct{ id, status string }{
+		{"j-failed", "JOB_STATUS_FAILED"},
+		{"j-done", "JOB_STATUS_COMPLETED"},
+	} {
+		if _, err := l.DB().Exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount) VALUES (?, 'sess-term', ?, 'circuit_run', '{}', CURRENT_TIMESTAMP, 'default', 0)`, tc.id, tc.status); err != nil {
+			t.Fatalf("seed job %s: %v", tc.id, err)
+		}
+	}
+	if bl, err := m.DeleteBlockers("sess-term"); err != nil {
+		t.Fatalf("blockers: %v", err)
+	} else if len(bl) != 0 {
+		t.Fatalf("terminal jobs must not block, got %v", bl)
+	}
+	if err := m.DeleteSession("sess-term"); err != nil {
+		t.Fatalf("settled delete must succeed: %v", err)
+	}
+	// A running job still blocks (fail-closed direction preserved).
+	m2, l2 := mustOpenCascade(t)
+	seedCascadeSession(t, m2, l2, "sess-live2")
+	if _, err := l2.DB().Exec(`UPDATE loops SET status = 'aborted' WHERE session_id = 'sess-live2'`); err != nil {
+		t.Fatalf("settle loop: %v", err)
+	}
+	if _, err := l2.DB().Exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount) VALUES ('j-run', 'sess-live2', 'JOB_STATUS_RUNNING', 'circuit_run', '{}', CURRENT_TIMESTAMP, 'default', 0)`); err != nil {
+		t.Fatalf("seed running job: %v", err)
+	}
+	if bl, err := m2.DeleteBlockers("sess-live2"); err != nil {
+		t.Fatalf("blockers: %v", err)
+	} else if len(bl) != 1 || bl[0] != "non-terminal jobs" {
+		t.Fatalf("running job must block exactly once, got %v", bl)
+	}
+}
+
 func TestDeleteSessionCascadesAll(t *testing.T) {
 	m, l := mustOpenCascade(t)
 	seedCascadeSession(t, m, l, "sess-gone")
