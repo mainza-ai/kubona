@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from kubona.config import state_path
+from kubona.retention import maybe_rotate, rotated_paths
 
 
 def tenant_slug(tenant: str) -> str:
@@ -118,9 +119,10 @@ class SessionStore:
 
     def _load(self) -> dict[str, SessionState]:
         out: dict[str, SessionState] = {}
-        if self.path.exists():
-            skipped = 0
-            for line in self.path.read_text().splitlines():
+        skipped = 0
+        # I2: replay every retained segment oldest-first (see jobs.py).
+        for seg in rotated_paths(self.path):
+            for line in seg.read_text().splitlines():
                 if not line.strip():
                     continue
                 try:
@@ -132,6 +134,9 @@ class SessionStore:
         return out
 
     def _save(self, s: SessionState) -> None:
+        # I2: rotate-before-append; caller must hold _exclusive (create
+        # takes it below; update/record paths already do).
+        maybe_rotate(self.path)
         with open(self.path, "a") as f:
             f.write(json.dumps(asdict(s), sort_keys=True) + "\n")
 
@@ -148,7 +153,10 @@ class SessionStore:
             owner=owner,
             budget_ceiling_usd=budget_ceiling_usd,
         )
-        self._save(s)
+        # _save rotates (I2): takes the lock like every other writer —
+        # the unlocked append used to race locked ones.
+        with self._exclusive():
+            self._save(s)
         return s
 
     def get(self, session_id: str) -> SessionState:
