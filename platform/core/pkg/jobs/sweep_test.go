@@ -37,7 +37,7 @@ func TestPesSweepWorkerSettles(t *testing.T) {
 	defer cleanup()
 
 	j, err := r.SubmitJob("sess-1", "pes_sweep", map[string]any{
-		"molecule": "H2", "r_min": 0.5, "r_max": 1.5, "steps": 3,
+		"molecule": "H2", "r_min": 0.5, "r_max": 1.5, "steps": 3, "max_cost_usd": 2.0,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -65,7 +65,7 @@ func TestPesSweepRefusesWithoutResidue(t *testing.T) {
 	defer cleanup()
 
 	_, err := r.SubmitJob("sess-1", "pes_sweep", map[string]any{
-		"molecule": "H2", "r_min": 0.5, "r_max": 1.5, "steps": 1,
+		"molecule": "H2", "r_min": 0.5, "r_max": 1.5, "steps": 1, "max_cost_usd": 2.0,
 	})
 	if err == nil || !strings.Contains(err.Error(), "steps must be") {
 		t.Fatalf("expected grid refusal, got %v", err)
@@ -88,7 +88,7 @@ func TestPesSweepWithoutBridgeFails(t *testing.T) {
 	defer cleanup()
 
 	j, err := r.SubmitJob("sess-1", "pes_sweep", map[string]any{
-		"molecule": "H2", "r_min": 0.5, "r_max": 1.5, "steps": 2,
+		"molecule": "H2", "r_min": 0.5, "r_max": 1.5, "steps": 2, "max_cost_usd": 2.0,
 	})
 	if err != nil {
 		t.Fatal(err)

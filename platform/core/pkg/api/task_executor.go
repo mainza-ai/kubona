@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/agents"
@@ -49,11 +50,11 @@ func (e *bridgeTaskExecutor) ExecuteTask(ctx context.Context, taskType string, p
 		return e.executeQIR(sessionID, payload)
 	}
 
-	jobType, jobParams, err := mapA2ATaskToJob(taskType, payload)
+	jobType, jobParams, maxCost, err := mapA2ATaskToJob(taskType, payload)
 	if err != nil {
 		return nil, err
 	}
-	job, err := e.runner.SubmitJob(sessionID, jobType, jobParams)
+	job, err := e.runner.SubmitJobWithDeclaredCost(sessionID, jobType, jobParams, maxCost)
 	if err != nil {
 		return nil, fmt.Errorf("failed to submit ledger job for a2a task %q: %w", taskType, err)
 	}
@@ -177,10 +178,32 @@ func (e *bridgeTaskExecutor) sealReceipt(sessionID, eventType string, fields map
 // mapA2ATaskToJob binds an advertised A2A capability to a ledger job type with
 // strictly validated parameters. Required fields that are missing or
 // non-positive are rejected — the orchestrator never guesses physics inputs.
-func mapA2ATaskToJob(taskType string, payload json.RawMessage) (string, any, error) {
+// Every bridge-bound task must also declare max_cost_usd > 0 (W0.2): the
+// delegation rail reserves it at submit, so A2A spend cannot bypass the
+// budget rail the HTTP path enforces.
+func mapA2ATaskToJob(taskType string, payload json.RawMessage) (string, any, float64, error) {
 	var p map[string]any
 	if err := json.Unmarshal(payload, &p); err != nil {
-		return "", nil, fmt.Errorf("invalid task payload JSON: %w", err)
+		return "", nil, 0, fmt.Errorf("invalid task payload JSON: %w", err)
+	}
+	// Declared spend first: no bridge task dispatches without an explicit,
+	// positive, finite cost the rail can reserve.
+	var maxCost float64
+	costOK := false
+	if v, ok := p["max_cost_usd"]; ok {
+		switch n := v.(type) {
+		case float64:
+			maxCost, costOK = n, true
+		case int:
+			maxCost, costOK = float64(n), true
+		default:
+			costOK = false
+		}
+	} else {
+		costOK = false
+	}
+	if !costOK || math.IsNaN(maxCost) || math.IsInf(maxCost, 0) || maxCost <= 0 {
+		return "", nil, 0, fmt.Errorf("%s requires max_cost_usd > 0: spend must be declared, never defaulted", taskType)
 	}
 	strField := func(key string) string {
 		v, _ := p[key].(string)
@@ -205,11 +228,11 @@ func mapA2ATaskToJob(taskType string, payload json.RawMessage) (string, any, err
 	case "molecular_ground_state_pyscf":
 		molecule := strField("molecule")
 		if molecule == "" {
-			return "", nil, fmt.Errorf("molecular_ground_state_pyscf requires molecule")
+			return "", nil, 0, fmt.Errorf("molecular_ground_state_pyscf requires molecule")
 		}
 		bond := numField("bond_distance")
 		if bond <= 0 {
-			return "", nil, fmt.Errorf("molecular_ground_state_pyscf requires bond_distance > 0")
+			return "", nil, 0, fmt.Errorf("molecular_ground_state_pyscf requires bond_distance > 0")
 		}
 		basis := strField("basis_set")
 		if basis == "" {
@@ -219,28 +242,28 @@ func mapA2ATaskToJob(taskType string, payload json.RawMessage) (string, any, err
 			Molecule:     molecule,
 			BondDistance: bond,
 			BasisSet:     basis,
-		}, nil
+		}, maxCost, nil
 
 	case "circuit_cutting_recombination":
 		qasm := strField("qasm")
 		if qasm == "" {
 			if qasm = strField("circuit"); qasm == "" {
-				return "", nil, fmt.Errorf("circuit_cutting_recombination requires qasm")
+				return "", nil, 0, fmt.Errorf("circuit_cutting_recombination requires qasm")
 			}
 		}
 		maxQ := int32(numField("max_subcircuit_qubits"))
 		if maxQ <= 0 {
-			return "", nil, fmt.Errorf("circuit_cutting_recombination requires max_subcircuit_qubits > 0")
+			return "", nil, 0, fmt.Errorf("circuit_cutting_recombination requires max_subcircuit_qubits > 0")
 		}
 		return "circuit_cut", &pb.CircuitCutRequest{
 			Qasm:                qasm,
 			MaxSubcircuitQubits: maxQ,
-		}, nil
+		}, maxCost, nil
 
 	case "zne_error_mitigation":
 		qasm := strField("qasm")
 		if qasm == "" {
-			return "", nil, fmt.Errorf("zne_error_mitigation requires qasm")
+			return "", nil, 0, fmt.Errorf("zne_error_mitigation requires qasm")
 		}
 		method := strField("method")
 		if method == "" {
@@ -266,16 +289,16 @@ func mapA2ATaskToJob(taskType string, payload json.RawMessage) (string, any, err
 			Method:       method,
 			ScaleFactors: scales,
 			Shots:        shots,
-		}, nil
+		}, maxCost, nil
 
 	case "krylov_subspace_ground_state":
 		molecule := strField("molecule")
 		if molecule == "" {
-			return "", nil, fmt.Errorf("krylov_subspace_ground_state requires molecule")
+			return "", nil, 0, fmt.Errorf("krylov_subspace_ground_state requires molecule")
 		}
 		bond := numField("bond_distance")
 		if bond <= 0 {
-			return "", nil, fmt.Errorf("krylov_subspace_ground_state requires bond_distance > 0")
+			return "", nil, 0, fmt.Errorf("krylov_subspace_ground_state requires bond_distance > 0")
 		}
 		dim := int32(numField("subspace_dimension"))
 		if dim <= 0 {
@@ -295,7 +318,7 @@ func mapA2ATaskToJob(taskType string, payload json.RawMessage) (string, any, err
 			SubspaceDimension: dim,
 			TimeStep:          tau,
 			Shots:             shots,
-		}, nil
+		}, maxCost, nil
 
 	case "epistemic_claim_evaluation":
 		// The only production path into claim_eval jobs: without it the
@@ -305,12 +328,12 @@ func mapA2ATaskToJob(taskType string, payload json.RawMessage) (string, any, err
 		claimID := strField("claim_id")
 		statement := strField("statement")
 		if claimID == "" || statement == "" {
-			return "", nil, fmt.Errorf("epistemic_claim_evaluation requires claim_id and statement")
+			return "", nil, 0, fmt.Errorf("epistemic_claim_evaluation requires claim_id and statement")
 		}
 		qv, qOK := numFieldOK("quantum_value")
 		cv, cOK := numFieldOK("classical_anchor_value")
 		if !qOK || !cOK {
-			return "", nil, fmt.Errorf("epistemic_claim_evaluation requires measured quantum_value and classical_anchor_value")
+			return "", nil, 0, fmt.Errorf("epistemic_claim_evaluation requires measured quantum_value and classical_anchor_value")
 		}
 		var platforms []string
 		if raw, ok := p["source_platforms"].([]any); ok {
@@ -321,7 +344,7 @@ func mapA2ATaskToJob(taskType string, payload json.RawMessage) (string, any, err
 			}
 		}
 		if len(platforms) == 0 {
-			return "", nil, fmt.Errorf("epistemic_claim_evaluation requires at least one source_platform")
+			return "", nil, 0, fmt.Errorf("epistemic_claim_evaluation requires at least one source_platform")
 		}
 		engagement := int64(numField("total_engagement"))
 		contra, _ := numFieldOK("contradiction_signal")
@@ -333,7 +356,7 @@ func mapA2ATaskToJob(taskType string, payload json.RawMessage) (string, any, err
 			SourcePlatforms:      platforms,
 			TotalEngagement:      engagement,
 			ContradictionSignal:  contra,
-		}, nil
+		}, maxCost, nil
 
 	case "potential_energy_scan":
 		// Classical PES sweep: the grid is caller-stated (no defaulted
@@ -341,12 +364,12 @@ func mapA2ATaskToJob(taskType string, payload json.RawMessage) (string, any, err
 		// step bounds enforce here and again in the worker.
 		molecule := strField("molecule")
 		if molecule == "" {
-			return "", nil, fmt.Errorf("potential_energy_scan requires molecule")
+			return "", nil, 0, fmt.Errorf("potential_energy_scan requires molecule")
 		}
 		rMin, minOK := numFieldOK("r_min")
 		rMax, maxOK := numFieldOK("r_max")
 		if !minOK || !maxOK {
-			return "", nil, fmt.Errorf("potential_energy_scan requires r_min and r_max")
+			return "", nil, 0, fmt.Errorf("potential_energy_scan requires r_min and r_max")
 		}
 		steps := int(numField("steps"))
 		if steps == 0 {
@@ -357,12 +380,12 @@ func mapA2ATaskToJob(taskType string, payload json.RawMessage) (string, any, err
 		}
 		rawParams, _ := json.Marshal(params)
 		if _, err := jobs.ValidateSweepParams(rawParams); err != nil {
-			return "", nil, err
+			return "", nil, 0, err
 		}
-		return "pes_sweep", params, nil
+		return "pes_sweep", params, maxCost, nil
 
 	default:
-		return "", nil, fmt.Errorf("no ledger-bound executor for task_type %q: refused, not faked", taskType)
+		return "", nil, 0, fmt.Errorf("no ledger-bound executor for task_type %q: refused, not faked", taskType)
 	}
 }
 

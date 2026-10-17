@@ -24,6 +24,16 @@ import (
 // corrupt it, truncating logs is honest).
 const MaxStoredResultBytes = 1 * 1024 * 1024
 
+// knownJobTypes is the closed set of dispatchable job types (W0.2).
+// Unknown types refuse at submit with no residue — previously they queued,
+// reserved nothing, then failed in the worker after autonomy had passed
+// them. The dispatch switch in executeJob covers exactly this set.
+var knownJobTypes = map[string]bool{
+	"circuit_run": true, "circuit_cut": true, "classical_anchor": true,
+	"claim_eval": true, "krylov_solve": true, "mitigate": true,
+	"pes_sweep": true,
+}
+
 // W0.1 — CAS-guard live set, bound once from the single source
 // (session.LiveJobStatuses). The clause fragment and its bind args stay
 // adjacent so they cannot rot apart.
@@ -177,9 +187,27 @@ func (r *Runner) tenantStore() *tenants.Manager {
 }
 
 func (r *Runner) SubmitJob(sessionID, jobType string, params any) (*Job, error) {
+	return r.submitJob(sessionID, jobType, params, 0)
+}
+
+// SubmitJobWithDeclaredCost submits a job whose params schema carries no
+// cost fields (A2A-mapped bridge tasks): spend is declared explicitly here
+// instead. circuit_run keeps its params-embedded cost; a positive
+// declaration for circuit_run is refused — one cost source per type.
+func (r *Runner) SubmitJobWithDeclaredCost(sessionID, jobType string, params any, maxCostUSD float64) (*Job, error) {
+	if jobType == "circuit_run" && maxCostUSD > 0 {
+		return nil, fmt.Errorf("circuit_run carries cost in params: declared cost refused (one cost source)")
+	}
+	return r.submitJob(sessionID, jobType, params, maxCostUSD)
+}
+
+func (r *Runner) submitJob(sessionID, jobType string, params any, declaredCost float64) (*Job, error) {
 	data, err := json.Marshal(params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal params: %w", err)
+	}
+	if !knownJobTypes[jobType] {
+		return nil, fmt.Errorf("unknown job type %q: dispatch refused", jobType)
 	}
 
 	// S2 defense in depth: the HTTP edge 503s first, but internal callers
@@ -232,7 +260,7 @@ func (r *Runner) SubmitJob(sessionID, jobType string, params any) (*Job, error) 
 	// no residue and cost nothing. Success reserves spend against the bound
 	// lab's ceiling (persisted on the job row; released on terminal failure,
 	// kept on completion).
-	resTenant, resAmount, err := r.admitJob(sessionID, jobType, data)
+	resTenant, resAmount, err := r.admitJob(sessionID, jobType, data, declaredCost)
 	if err != nil {
 		return nil, err
 	}
