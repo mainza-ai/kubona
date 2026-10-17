@@ -26,6 +26,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
@@ -89,6 +90,25 @@ type idemTicket struct {
 type idemRefusal struct {
 	status int
 	msg    string
+}
+
+// write renders the refusal as a TYPED error (R5): the messages already
+// carry request_conflict:/request_in_progress: prefixes (agents key
+// retries off them); this maps them — plus the rail/ghost 400s — onto
+// catalog codes at the same statuses. One method, all five call sites.
+func (r *idemRefusal) write(w http.ResponseWriter) {
+	code := "bad_request"
+	switch {
+	case strings.HasPrefix(r.msg, "request_conflict:"):
+		code = "request_conflict"
+	case strings.HasPrefix(r.msg, "request_in_progress:"):
+		code = "request_in_progress"
+	case strings.HasPrefix(r.msg, "unknown idempotency rail"):
+		code = "unknown_rail"
+	case r.status == http.StatusNotFound:
+		code = "ghost_session"
+	}
+	WriteAPIError(w, code, r.msg, nil)
 }
 
 func idemStaleAfter(rail string) time.Duration {
@@ -180,7 +200,7 @@ func (s *Server) idemBegin(sessionID, requestID string, content any, rail string
 // success, a conflict on hash drift (shouldn't happen — defensive), or
 // (nil, nil) on timeout so the caller 409s request_in_progress.
 // W2.11: the deadline follows the STORED row's rail (slow rows wait the slow
-// window). Legacy '' rows predate rails and take the job window, stated
+// window). Legacy ” rows predate rails and take the job window, stated
 // here — the old code did this implicitly via the job default.
 func (s *Server) idemAwait(sessionID, requestID, hash string) (*idemTicket, *idemRefusal) {
 	deadline := time.Now().Add(idemAwaitFor(idemRailJob))

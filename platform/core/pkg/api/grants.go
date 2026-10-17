@@ -32,7 +32,7 @@ func (s *Server) handleGrantRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.grantLimiter.allow(clientKey(r)) {
-		http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+		WriteAPIError(w, "rate_limited", "rate limit exceeded: slow down and retry", nil)
 		return
 	}
 	var req struct {
@@ -89,7 +89,7 @@ func (s *Server) handleGrantRevoke(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.grantLimiter.allow(clientKey(r)) {
-		http.Error(w, "rate limit exceeded: slow down and retry", http.StatusTooManyRequests)
+		WriteAPIError(w, "rate_limited", "rate limit exceeded: slow down and retry", nil)
 		return
 	}
 	var req struct {

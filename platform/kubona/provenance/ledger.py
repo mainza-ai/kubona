@@ -140,10 +140,16 @@ class Ledger:
         # write_record tool passes agent-supplied kinds straight through, so
         # this is also the tool-boundary enforcement. Register the kind in
         # platform/contracts/event-types.json first.
+        # R5: the refusal is typed (bad_request, non-retryable) so MCP
+        # callers can implement retry-vs-escalate from the catalog.
         if kind not in KNOWN_EVENT_TYPES:
-            raise ValueError(
+            from kubona.errors import KubonaError
+
+            raise KubonaError(
+                "bad_request",
                 f"unknown ledger event kind {kind!r}: not in the shared "
-                "event taxonomy (platform/contracts/event-types.json)"
+                "event taxonomy (platform/contracts/event-types.json)",
+                {"kind": kind},
             )
         with self._lock:  # the hash chain is inherently sequential: guard tail-read + append
             return self._append_locked(kind, payload, label)
