@@ -8,6 +8,7 @@ deterministic ScriptedLLM when no local model is present).
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import uuid
@@ -43,8 +44,10 @@ def normalize_args(gateway: KubonaGateway, tool: str, args: dict[str, Any]) -> d
     Handles the common failure where a model uses a synonym for the canonical
     param name (e.g. `circuit` for `circuit_qasm`): if the tool has exactly one
     unfilled required param and the model supplied exactly one unrecognized key,
-    remap it; drop other unknown keys. This makes tool-calling robust across
-    local models' naming habits.
+    remap it — and SAY SO (W0.15): the remap is returned visibly in
+    `_remapped_from` instead of silently rebinding (a `shots` typo silently
+    becoming the wrong slot used to be invisible). Multiple unknown keys
+    refuse outright: guessing across several slots is fabrication.
     """
     params = _signature_params(gateway, tool)
     if not params:
@@ -56,6 +59,9 @@ def normalize_args(gateway: KubonaGateway, tool: str, args: dict[str, Any]) -> d
     # unknown key, treat the unknown key as that param
     if len(unknown) == 1 and len(missing) == 1:
         out[missing[0]] = args[unknown[0]]
+        out["_remapped_from"] = {missing[0]: unknown[0]}
+    elif unknown:
+        raise ValueError(f"tool {tool}: unknown args {unknown} (missing {missing}): refusing to guess")
     return out
 
 
@@ -82,12 +88,22 @@ def tool_signature_map(gateway: KubonaGateway | None) -> dict[str, str]:
 
 class LLMAgentLoop:
     def __init__(self, llm: AbstractLLM | None = None, gateway: KubonaGateway | None = None,
-                 ledger: Ledger | None = None, max_steps: int = 8, token: str = "dev-token"):
+                 ledger: Ledger | None = None, max_steps: int = 8, token: str | None = None):
+        # W0.15: no default credential. A loop driving a gateway without a
+        # token used to authenticate as dev-token silently.
+        if gateway is not None and not token:
+            raise ValueError("LLMAgentLoop with a gateway requires an explicit token: refusing dev default")
+        if max_steps <= 0:
+            raise ValueError(f"max_steps must be positive, got {max_steps}")
         self.llm = llm or ScriptedLLM()
         self.gateway = gateway
         self.ledger = ledger
         self.max_steps = max_steps
         self.token = token
+
+    @staticmethod
+    def _result_hash(result: dict[str, Any]) -> str:
+        return hashlib.sha256(json.dumps(result, sort_keys=True, default=str).encode()).hexdigest()
 
     def run(self, task: str, available_tools: list[str] | None = None) -> dict[str, Any]:
         transcript: list[dict[str, Any]] = []
@@ -103,23 +119,44 @@ class LLMAgentLoop:
                 transcript.append({"step": step, "action": "done", "summary": parsed["done"]})
                 break
             tool = parsed.get("tool", "")
+            # W0.15: the allowlist is enforced server-side here, not merely
+            # rendered into the prompt (the model used to escape to any tool).
+            if available_tools is not None and tool not in available_tools:
+                result = {"ok": False, "error": f"tool {tool!r} outside the loop allowlist: refusing"}
+                transcript.append({"step": step, "action": tool, "args": parsed.get("args", {}),
+                                   "result_summary": str(result)[:300],
+                                   "result_hash": self._result_hash(result)})
+                continue
             server, _, name = tool.partition("/")
             args = parsed.get("args", {})
+            remapped: dict[str, str] = {}
             result: dict[str, Any]
             if self.gateway is None:
-                result = {"ok": True, "note": "no gateway mounted (dry run)"}
+                # Dry run executes nothing: ok False with the reason stated
+                # (the old ok True presented non-execution as success).
+                result = {"ok": False, "dry_run": True,
+                          "note": "no gateway mounted: nothing executed"}
             else:
                 try:
                     if self.gateway._registry.get(server) and name in self.gateway._registry[server]:
                         args = normalize_args(self.gateway, tool, args)
+                        remapped = args.pop("_remapped_from", {})
                     result = self.gateway.call(server, name, args, token=self.token)
                 except Exception as e:  # noqa: BLE001
                     result = {"ok": False, "error": str(e)}
-            transcript.append({"step": step, "action": tool, "args": args, "result_summary": str(result)[:300]})
+            summary = str(result)[:300]
+            entry: dict[str, Any] = {"step": step, "action": tool, "args": args,
+                                     "result_summary": summary,
+                                     "result_hash": self._result_hash(result)}
+            if remapped:
+                entry["args_remapped_from"] = remapped
+            transcript.append(entry)
             if self.ledger is not None:
                 self.ledger.append("agent_step", {"task": task, "step": step, "tool": tool,
                                                   "ok": result.get("ok"),
-                                                  "result_summary": str(result)[:300]})
+                                                  "result_summary": summary,
+                                                  "result_hash": self._result_hash(result),
+                                                  "args_remapped_from": remapped or None})
         return {"task": task, "steps": len(transcript), "transcript": transcript,
                 "done": any(t.get("action") == "done" for t in transcript)}
 
@@ -142,17 +179,20 @@ class LLMAgentLoop:
 
     @staticmethod
     def _parse(decision: str) -> dict[str, Any] | None:
-        # strip markdown fences / surrounding prose defensively
+        # Strict parse (W0.15): strip markdown fences, decode the FIRST
+        # complete object, and refuse trailing prose. The old find/rfind
+        # outermost slice let a prompt-injected second object win via rfind.
         text = decision.strip()
         if text.startswith("```"):
             text = text.strip("`\n")
             if text.startswith("json"):
                 text = text[4:].lstrip()
-        start, end = text.find("{"), text.rfind("}")
-        if start < 0 or end <= start:
-            return None
         try:
-            obj = json.loads(text[start:end + 1])  # outermost object (args may nest)
-            return obj if isinstance(obj, dict) else None
+            obj, end = json.JSONDecoder().raw_decode(text)
         except Exception:  # noqa: BLE001
             return None
+        if not isinstance(obj, dict):
+            return None
+        if text[end:].strip():
+            return None  # trailing prose after the object: refusing
+        return obj

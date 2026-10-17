@@ -68,13 +68,22 @@ def test_workflow_library_saves_and_reuses(tmp_path):
 
 def test_agent_registry_no_escalation(tmp_path):
     reg = AgentRegistry(path=str(tmp_path / "agents.json"))
-    reg.register("plain-agent", "researcher", scopes=("execution:submit", "cost:read"))
+    # W0.15: single creation path — every agent names its creator, whose
+    # scopes are stated explicitly (operator bootstrap) or read from its
+    # record (agent delegation). Proof-less creation is gone.
+    reg.create_agent("operator:root", ("execution:submit", "cost:read", "cost:approve"),
+                     "plain-agent", "researcher", scopes=("execution:submit", "cost:read"))
     # subset ok
-    reg.create_as_agent("plain-agent", "sub-agent", "reviewer", scopes=("execution:submit",))
+    reg.create_agent("plain-agent", (), "sub-agent", "reviewer", scopes=("execution:submit",))
     # escalation rejected (trying to gain cost:approve)
     with pytest.raises(AgentCreationError):
-        reg.create_as_agent("plain-agent", "evil-agent", "escalator",
-                            scopes=("execution:submit", "cost:approve"))
+        reg.create_agent("plain-agent", (), "evil-agent", "escalator",
+                         scopes=("execution:submit", "cost:approve"))
+    # ghosts refuse everywhere
+    with pytest.raises(AgentCreationError):
+        reg.create_agent("ghost", (), "x", "y", scopes=("execution:submit",))
+    with pytest.raises(AgentCreationError):
+        reg.disable("ghost")
 
 
 def test_experiment_report_structured_and_traceable(tmp_path):
