@@ -6,6 +6,7 @@ bad_request,validation,400,false,fix the request shape (see message details)
 ghost_session,validation,404,false,create the session first; ids are never auto-vivified
 unknown_rail,validation,400,false,use a documented rail name (see message)
 method_not_allowed,validation,405,false,use the documented method for this route
+ceiling_exceeded,budget,403,false,"raise the tenant ceiling or shrink the request (fewer iterations)"
 budget_exceeded,budget,200,false,"lower max_budget_usd or raise the tenant ceiling (rides a 200 valid:false envelope, not an error status)"
 mandate_invalid,state,200,false,"mint a fresh mandate: bind the tenant admin key, exact parameters, and a live expiry (rides a 200 valid:false envelope)"
 request_conflict,state,409,false,same id with different content will never succeed: use a new request_id

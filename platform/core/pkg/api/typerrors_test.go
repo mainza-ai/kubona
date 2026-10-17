@@ -69,7 +69,7 @@ func TestErrorRegistryMatchesCatalog(t *testing.T) {
 	for _, code := range []string{
 		"unauthorized", "forbidden", "rate_limited", "bad_request",
 		"ghost_session", "unknown_rail", "method_not_allowed",
-		"budget_exceeded", "mandate_invalid", "request_conflict",
+		"ceiling_exceeded", "budget_exceeded", "mandate_invalid", "request_conflict",
 		"request_in_progress", "storage_blocked", "resource_constraint",
 		"not_ready", "bridge_unavailable", "llm_unavailable",
 		"unknown_tool", "internal", "server_misconfigured",
@@ -100,7 +100,7 @@ func TestErrorCatalogShape(t *testing.T) {
 			lines++
 		}
 	}
-	if lines != 20 { // header + 19 codes
+	if lines != 21 { // header + 20 codes
 		t.Fatalf("catalog must carry header + 19 codes, got %d lines", lines)
 	}
 	_ = http.StatusOK

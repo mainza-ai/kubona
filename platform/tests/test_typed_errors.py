@@ -15,7 +15,7 @@ CONTRACT = Path(__file__).resolve().parents[1] / "contracts" / "error-catalog.cs
 
 def test_codes_match_contract():
     rows = list(csv.DictReader(CONTRACT.read_text().splitlines()))
-    assert len(rows) == 19, f"catalog grew/shrank: {len(rows)} rows"
+    assert len(rows) == 20, f"catalog grew/shrank: {len(rows)} rows"
     assert set(ERROR_CATALOG) == {r["code"] for r in rows}
     for code in ERROR_CATALOG:
         e = KubonaError(code, "probe")
