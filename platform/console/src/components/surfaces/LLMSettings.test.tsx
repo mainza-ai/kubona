@@ -89,4 +89,28 @@ describe('LLMSettings model management (M2)', () => {
     const tree = await render();
     expect(JSON.stringify(tree.toJSON())).toContain('never here');
   });
+
+  it('kill-switch toggle flips and persists via save', async () => {
+    const seen: string[] = [];
+    stubFetch((url, init) => {
+      if (url.includes('/api/llm/models')) return { ok: true, status: 200, json: async () => ({ models: [] }) };
+      if (url.includes('/api/llm/settings') && init?.method === 'POST') {
+        seen.push(String(init.body));
+        return { ok: true, status: 200, json: async () => ({ ok: true }) };
+      }
+      return { ok: true, status: 200, json: async () => settings() };
+    });
+    const tree = await render();
+    expect(JSON.stringify(tree.toJSON()).includes('KILLED')).toBe(false);
+    await act(async () => {
+      tree.root.findByProps({ 'aria-label': 'Toggle DSML tool-invocation fallback' }).props.onClick();
+    });
+    expect(JSON.stringify(tree.toJSON())).toContain('KILLED');
+    await act(async () => {
+      const save = tree.root.findAllByType('button').find((b) => textOf(b.props.children).includes('Save'));
+      await save!.props.onClick();
+    });
+    expect(seen).toHaveLength(1);
+    expect(JSON.parse(seen[0]).disable_dsml_fallback).toBe(true);
+  });
 });

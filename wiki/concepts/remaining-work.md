@@ -130,13 +130,18 @@ status: tracked
   > legacy PUT /api/settings now validated. U3 runtime backend URL via
   > /api/config (no rebuild per backend). D2 digest-pinned base images
   > (all Dockerfiles rebuild + serve green).
-  > Still open: operator deeds — restart the dev daemon from the rebuilt
-  > binary (file restored at /tmp/kubonad-s8a; running PID 54943 predates
-  > it), then repoint roles via LLM Settings (or KUBONA_LLM_PROVIDER=nvidia
-  > + NVIDIA_MODEL in .env before restart); opencode 402 top-up decision;
-  > session-based auth (httpOnly) remains the U3 remainder. Pre-existing
-  > red (not ours, fails on clean tree too): the discovery test when a
-  > local server runs — ports=[] falls back to DEFAULT_PORTS.
+  > Still open when written: operator deeds — restart the dev daemon
+  > from the rebuilt binary, then repoint roles; opencode 402 top-up
+  > decision; session-based auth (httpOnly) remains the U3 remainder.
+  > ✅ M0 DONE 2026-10-17: daemon verified idle (no live loops/jobs, 38
+  > sessions persisted, loops reconcile on boot), killed gracefully,
+  > restarted on a current-tree rebuild with .env (NVIDIA key + provider
+  > + model), all 5 roles repointed via authenticated save and proven
+  > live — QUARK via private/nvidia/nemotron-3.5-super in 1.1s.
+  > ✅ Kill-switch UI DONE: DSML toggle in LLM Settings + round-trip
+  > test (toggle flips, persists via save).
+  > Pre-existing red (not ours, fails on clean tree too): the discovery
+  > test when a local server runs — ports=[] falls back to DEFAULT_PORTS.
 - P1-4 subsystem consolidation execution — design: [[agent-subsystem-consolidation]].
   > ✅ STEP 1 LANDED 2026-10-17: conformance freezes on all three
   > registry homes (Go + 2× Python) + boot-crash hardening

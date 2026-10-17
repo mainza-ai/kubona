@@ -2530,3 +2530,19 @@ skipped is the exact failure this incident is about:
   Pre-existing red (not ours, fails on clean tree): discovery test when
   a local server (oMLX) runs — KUBONA_LLM_BASE_URL unset; ports=[] falls
   back to DEFAULT_PORTS.
+
+## [2026-10-17] decision | M0 + kill-switch done; no-hardcode program landed
+  M0: dev daemon restarted on rebuilt binary (/tmp/kubonad-s8a, current
+  tree) after verifying idle (no live loops/jobs; 38 sessions persisted,
+  loops reconcile on boot). .env carries NVIDIA key + provider + model;
+  roles repointed to nvidia via authenticated settings save, verified
+  live (QUARK via private/nvidia/nemotron-3.5-super-120b, 1.1s).
+  Kill-switch UI: DSML toggle in LLM Settings + round-trip test.
+  No-hardcode program (37 files): env-driven models, schema versioning,
+  write-path validation, uniform fail-closed pricing (unpriced_model),
+  router caller-wins-or-refuse (Go + Python), seeds unpinned, legacy
+  settings bypass closed, runtime backend URL, digest-pinned images.
+  Go full + Python 685 + console 145 + lint + build green (one
+  pre-existing env failure: discovery test when a local LLM runs).
+  Open: session-based auth (plan recorded in remaining-work), opencode
+  402 top-up decision, lean image toolchain.
