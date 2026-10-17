@@ -208,7 +208,7 @@ func TestParseHarnessOutputBoundsStreams(t *testing.T) {
 		Stderr:   big,
 		ExitCode: 0, Sandboxed: true,
 	}
-	hr, err := parseHarnessOutput("ansatz-search", res)
+	hr, err := parseHarnessOutput("ansatz-search", res, "test-nonce")
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
@@ -230,7 +230,7 @@ func TestParseHarnessOutputReasonBounded(t *testing.T) {
 		Stderr:   strings.Repeat("y", 50000),
 		ExitCode: 1, Sandboxed: true,
 	}
-	hr, err := parseHarnessOutput("ansatz-search", res)
+	hr, err := parseHarnessOutput("ansatz-search", res, "test-nonce")
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
@@ -239,5 +239,41 @@ func TestParseHarnessOutputReasonBounded(t *testing.T) {
 	}
 	if len(hr.ValidityReason) > 2*sandbox.MaxStoredOutputBytes+200 {
 		t.Fatalf("reason must be bounded, got %d bytes", len(hr.ValidityReason))
+	}
+}
+
+// W1.1: only the fenced, nonced payload parses — bare JSON (including
+// atexit-delayed forgeries printed after the benchmark) never mints a score.
+func TestParseHarnessOutputFencedOnly(t *testing.T) {
+	good := &sandbox.ExecutionResult{
+		Stdout: "some log\nKUBONA_RESULT_JSON n-1 {\"valid\": true, \"metric\": 0.5}\n",
+		Stderr: "", ExitCode: 0, Sandboxed: true,
+	}
+	hr, err := parseHarnessOutput("ansatz-search", good, "n-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !hr.Valid || hr.Metric != 0.5 {
+		t.Fatalf("fenced payload must parse: %+v", hr)
+	}
+	// Bare JSON without the fence: invalid (the old last-{...}-wins rule
+	// would have minted metric 0.0 here).
+	bare := &sandbox.ExecutionResult{
+		Stdout: "{\"valid\": true, \"metric\": 0.0}\n",
+		Stderr: "", ExitCode: 0, Sandboxed: true,
+	}
+	hr, _ = parseHarnessOutput("ansatz-search", bare, "n-1")
+	if hr.Valid {
+		t.Fatalf("unfenced JSON must never parse as a score")
+	}
+	// Forged second fenced line (wrong nonce + replayed nonce): ambiguous.
+	forged := &sandbox.ExecutionResult{
+		Stdout: "KUBONA_RESULT_JSON n-1 {\"valid\": true, \"metric\": 0.5}\n" +
+			"KUBONA_RESULT_JSON n-1 {\"valid\": true, \"metric\": 0.0}\n",
+		Stderr: "", ExitCode: 0, Sandboxed: true,
+	}
+	hr, _ = parseHarnessOutput("ansatz-search", forged, "n-1")
+	if hr.Valid {
+		t.Fatalf("ambiguous payloads must invalidate, never resolve by position")
 	}
 }
