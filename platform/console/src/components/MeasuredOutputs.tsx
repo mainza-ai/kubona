@@ -88,12 +88,18 @@ export function MeasuredOutputs({ sessionId }: { sessionId: string | null }) {
   // derive from the same fetch — one source, no second listing.
   const [activeIds, setActiveIds] = useState<string[] | null>(null);
 
+  // Reset during render on session change (same key-change pattern):
+  // measured rows belong to exactly one session — stale rows must not
+  // render while the new session's jobs load.
+  const [prevSessionId, setPrevSessionId] = useState<string | null>(sessionId);
+  if (prevSessionId !== sessionId) {
+    setPrevSessionId(sessionId);
+    setRows(null);
+    setActiveIds(null);
+  }
+
   useEffect(() => {
-    if (!sessionId) {
-      setRows(null);
-      setActiveIds(null);
-      return;
-    }
+    if (!sessionId) return;
     let cancelled = false;
     fetchJobs(sessionId).then((jobs) => {
       if (cancelled) return;

@@ -1,0 +1,11 @@
+# D1: never ship the dev tree into the image (bloat + secret risk:
+# .env, state, and host-built modules must not enter any layer).
+node_modules
+.next
+.git
+.env
+.env.*
+*.local
+coverage
+.kubona
+state

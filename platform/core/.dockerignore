@@ -1,0 +1,10 @@
+# D1: build context is platform/core (go.mod at root). Exclude
+# everything the binary never needs; state and secrets especially.
+*.db
+*.db-lock
+*.db-shm
+*.db-wal
+.kubona
+.env
+.env.*
+.git

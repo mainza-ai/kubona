@@ -16,7 +16,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mainza-ai/kubona/core/pkg/disk"
 	"github.com/mainza-ai/kubona/core/pkg/grants"
+	"github.com/mainza-ai/kubona/core/pkg/hf"
 )
 
 // K6: serve-posture validation. Non-local binds without TLS material are
@@ -231,5 +233,23 @@ func TestGrantsCLIAttenuateChainParent(t *testing.T) {
 		"--parent", chainFile, "--scope", "qpu/submit", "--scopes", "qpu:submit",
 		"--budget", "10", "--ttl", "5m"}); code != 0 {
 		t.Fatalf("attenuate from chain leaf must succeed, got %d", code)
+	}
+}
+
+// D1: fresh state roots must become measurable. The disk guard statfs's
+// hf.DefaultModelsDir(); on a fresh HOME that dir is missing, so /api/ready
+// latched not-ready forever until the daemon ensures it at boot. This pins
+// the contract: unmeasurable before ensure, measurable after.
+func TestEnsureStateDirsMakesGuardPathMeasurable(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	dir := hf.DefaultModelsDir()
+	if _, err := disk.MeasureAvail(dir); err == nil {
+		t.Fatalf("fresh state root %q must NOT be measurable before ensure (else this test proves nothing)", dir)
+	}
+	if err := ensureStateDirs(); err != nil {
+		t.Fatalf("ensure must succeed on a writable HOME: %v", err)
+	}
+	if _, err := disk.MeasureAvail(dir); err != nil {
+		t.Fatalf("models dir must be measurable after ensure: %v", err)
 	}
 }

@@ -93,8 +93,10 @@ export function LLMSettings() {
     }
   }, []);
 
+  // Mount + retry loader. The error reset lives with the retry callers
+  // (event handlers), never synchronously in the mount effect below —
+  // on mount the error is already null from initialization.
   const loadAll = useCallback(() => {
-    setLoadError(null);
     fetchLLMSettings()
       .then((data) => {
         if (data) {
@@ -198,7 +200,7 @@ export function LLMSettings() {
           <>
             <div className="text-rose-300 text-xs">Settings load failed — {loadError} Nothing loaded.</div>
             <button
-              onClick={loadAll}
+              onClick={() => { setLoadError(null); loadAll(); }}
               className="px-4 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-white text-xs font-semibold"
             >
               Retry load
@@ -241,7 +243,7 @@ export function LLMSettings() {
           )}
           {loadError && (
             <button
-              onClick={loadAll}
+              onClick={() => { setLoadError(null); loadAll(); }}
               className="px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-300 text-xs font-semibold"
               title={loadError}
             >

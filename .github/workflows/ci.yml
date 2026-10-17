@@ -95,13 +95,44 @@ jobs:
         working-directory: platform/crates/ifc-core
         run: cargo test --lib
 
+  # D1: the production stack must be deployable on every commit — images
+  # build, the daemon is ready on a FRESH state root (exercises
+  # ensureStateDirs: a missing models dir used to latch /api/ready 503
+  # forever), the console serves, the bridge answers gRPC, and an
+  # unauthenticated abort fails closed (503, never 2xx).
+  docker-smoke:
+    name: Docker production stack (build + health smoke)
+    runs-on: ubuntu-latest
+    needs: [wiki-lint, secret-scan]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Bring up the production stack
+        run: docker compose -f platform/docker/compose.prod.yml up --build -d
+      - name: Kubonad ready on a fresh state root
+        run: |
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8080/api/ready && break || sleep 10
+          done
+          curl -sf http://127.0.0.1:8080/api/ready
+      - name: Console serves + bridge answers gRPC
+        run: |
+          curl -sf http://127.0.0.1:3000/ > /dev/null
+          docker exec kubona-prod-bridge-1 python -c "import grpc; grpc.channel_ready_future(grpc.insecure_channel('127.0.0.1:50051')).result(timeout=10); print('bridge grpc ok')"
+      - name: Unauthenticated abort fails closed (503, never 2xx)
+        run: |
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8080/api/supervisor/abort -H 'Content-Type: application/json' -d '{"session_id":"ci-smoke"}')
+          test "$code" = "503"
+      - name: Tear down the stack
+        if: always()
+        run: docker compose -f platform/docker/compose.prod.yml down -v
+
   canary-gate:
     name: Canary + correctness release-gate
     runs-on: ubuntu-latest
     # R0: the release gate actually gates — it runs only when every suite
     # above is green. Previously it ran in parallel, so a red suite and a
     # green gate coexisted and the gate meant nothing.
-    needs: [wiki-lint, secret-scan, python-tests, rust-tests, go-core-tests, nextjs-console-build]
+    needs: [wiki-lint, secret-scan, python-tests, rust-tests, go-core-tests, nextjs-console-build, docker-smoke]
     defaults:
       run:
         working-directory: platform
@@ -143,7 +174,7 @@ jobs:
       - run: go test -v -race ./...
 
   nextjs-console-build:
-    name: Next.js Observatory Console (TypeScript build)
+    name: Next.js Observatory Console (tests + lint + build)
     runs-on: ubuntu-latest
     needs: [wiki-lint, secret-scan]
     defaults:
@@ -160,5 +191,10 @@ jobs:
           cache: "pnpm"
           cache-dependency-path: platform/console/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      # U0: the 103 vitest tests + eslint previously ran nowhere in CI —
+      # the console could rot green while build-only stayed green. Test
+      # first (fastest signal), then lint, then build.
+      - run: pnpm test
+      - run: pnpm lint
       - run: pnpm build
 

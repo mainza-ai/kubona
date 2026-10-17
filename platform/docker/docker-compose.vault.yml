@@ -1,8 +1,13 @@
+# DEV ONLY (U0): -dev mode + hardcoded root token + ephemeral storage.
+# Nothing in this file is safe for shared or production use: no prod
+# compose may reference it, and promotion needs a real storage backend,
+# init/unseal, and TLS (tracked in remaining-work). Image pinned by
+# digest (measured 2026-10-17); never float back to :latest.
 version: '3.8'
 
 services:
   openbao:
-    image: openbao/openbao:latest
+    image: openbao/openbao:2@sha256:6d2b93856e3fcf7b18ad855a0b51eaba474dc8b79cf554379ea32034797d2acf
     container_name: kubona-openbao
     environment:
       BAO_DEV_ROOT_TOKEN_ID: "root-token-dev"
