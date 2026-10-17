@@ -60,10 +60,24 @@ type AgentCollective struct {
 // ObservedCall records one tool dispatch inside a tribunal observe round,
 // mirroring the copilot path's tool_called ledger event payload (name,
 // outcome, error text — arguments never leave the dispatcher).
+// R3: every observation carries origin provenance — Source names where the
+// bytes came from, Untrusted marks them as external data (true for ALL
+// tool outputs, success AND error: error text carries injected content
+// just as easily). Roles weight by source: the history message embedding
+// the observation is tagged, so no downstream role can mistake tool data
+// for principal instructions.
 type ObservedCall struct {
-	Name  string `json:"name"`
-	OK    bool   `json:"ok"`
-	Error string `json:"error,omitempty"`
+	Name      string `json:"name"`
+	OK        bool   `json:"ok"`
+	Error     string `json:"error,omitempty"`
+	Source    string `json:"source"`
+	Untrusted bool   `json:"untrusted"`
+}
+
+// provenanceTag renders the trust marking embedded in observation history.
+// Tool data is NEVER principal speech: the tag travels with the bytes.
+func provenanceTag(source string) string {
+	return "[provenance source=" + source + " trust=untrusted]"
 }
 
 // observeTurn runs a single plan→tool→observe round for one tribunal turn
@@ -95,14 +109,24 @@ func (ac *AgentCollective) observeTurn(ctx context.Context, llmClient *llm.Clien
 	obsCap := llm.DefaultBudgetConfig().MaxObservationChars
 	for _, c := range calls {
 		out, derr := ac.Tools.Dispatch(ctx, role, tools.Call{ID: c.ID, Name: c.Name, Arguments: c.Arguments})
-		observed = append(observed, ObservedCall{Name: c.Name, OK: derr == nil, Error: errText(derr)})
+		// R3: provenance on every dispatch, success AND error. The source
+		// is the tool identity; trust is always untrusted (external
+		// data, never principal instructions). The tag is embedded in
+		// the history bytes themselves — a role that reads the
+		// observation reads its provenance with it.
+		source := "tool:" + c.Name
+		observed = append(observed, ObservedCall{Name: c.Name, OK: derr == nil, Error: errText(derr), Source: source, Untrusted: true})
 		obs, _ := json.Marshal(map[string]any{
 			"tool": c.Name, "ok": derr == nil,
 			"error": errText(derr), "data": out,
 		})
+		// The tag lives INSIDE the budget: truncate the data to leave
+		// room, so provenance can never push context past the cap.
+		tag := provenanceTag(source)
+		room := obsCap - len([]rune(tag)) - 1
 		hist = append(hist, llm.ChatMessage{
 			Role: "tool", ToolCallID: c.ID, ToolName: c.Name,
-			Content: llm.TruncateObservation(string(obs), obsCap),
+			Content: tag + " " + llm.TruncateObservation(string(obs), room),
 		})
 	}
 	return hist, observed
@@ -216,6 +240,58 @@ type TribunalTurn struct {
 	// Empty means text-only (no tools fired or registry unset) — never
 	// abbreviated, never guessed.
 	Observed []ObservedCall `json:"observed_tools,omitempty"`
+	// Coverage declares what this turn actually evaluated (R3). Every
+	// sealed turn carries it; the ledger seam refuses turns without it.
+	// Available=false with a reason is "unobserved" — distinct from a
+	// fail verdict ("disproven"). The Disconfirmation Officer's recorded
+	// verdict therefore always says which of the two it is.
+	Coverage map[string]CoverageDecl `json:"coverage,omitempty"`
+}
+
+// CoverageDecl is one facet's availability declaration.
+type CoverageDecl struct {
+	Available bool   `json:"available"`
+	Reason    string `json:"reason,omitempty"`
+}
+
+// Tribunal evidence facets (single source; the scribe must declare all
+// four — SealTurn enforces it).
+const (
+	FacetAnsatz   = "ansatz"
+	FacetAnchor   = "anchor"
+	FacetAudit    = "audit"
+	FacetProposal = "proposal"
+)
+
+// covered marks a facet evaluated; uncovered marks it unobserved with the
+// reason (never silently absent).
+func covered() CoverageDecl { return CoverageDecl{Available: true} }
+
+func uncovered(reason string) CoverageDecl {
+	return CoverageDecl{Available: false, Reason: reason}
+}
+
+const fallbackCoverageReason = "turn fell back to template text (not LLM-authored): facet unobserved, never assumed"
+
+// authoredCoverage maps the authored flag to a declaration.
+func authoredCoverage(authored bool) CoverageDecl {
+	if authored {
+		return covered()
+	}
+	return uncovered(fallbackCoverageReason)
+}
+
+// anchorCoverage maps officer authorship + anchor liveness to the anchor
+// facet: a fallback anchor is unobserved even when reasoned over (the
+// officer's unknown classical-anchor says the same on the obligation).
+func anchorCoverage(authored, live bool) CoverageDecl {
+	if authored && live {
+		return covered()
+	}
+	if !authored {
+		return uncovered(fallbackCoverageReason)
+	}
+	return uncovered("ab-initio anchor unavailable (bridge unreachable): canonical fallback label in use, unverified")
 }
 
 // SealTurn seals one tribunal turn (C3): the tribunal_turn event plus the
@@ -238,6 +314,19 @@ func (ac *AgentCollective) SealTurn(sessionID, obID string, turn TribunalTurn, a
 			return nil // already sealed: dedupe receipt
 		}
 	}
+	// R3: undeclared verdicts refuse at the ledger seam. The scribe
+	// additionally must declare ALL facets — a synthesis over unstated
+	// coverage is exactly the false-negative certification R3 kills.
+	if len(turn.Coverage) == 0 {
+		return fmt.Errorf("turn %d (%s) carries no coverage declaration: undeclared verdict refused", turn.TurnIndex, turn.Role)
+	}
+	if turn.Role == RoleEpistemicScribe {
+		for _, f := range []string{FacetAnsatz, FacetAnchor, FacetAudit, FacetProposal} {
+			if _, ok := turn.Coverage[f]; !ok {
+				return fmt.Errorf("scribe turn declares no %q facet: incomplete synthesis refused", f)
+			}
+		}
+	}
 	verdict := "fail"
 	if authored {
 		verdict = "pass"
@@ -258,6 +347,7 @@ func (ac *AgentCollective) SealTurn(sessionID, obID string, turn TribunalTurn, a
 		"verdict":       turn.Verdict,
 		"obligation_id": obID,
 		"authored":      authored,
+		"coverage":      turn.Coverage,
 	}); err != nil {
 		return fmt.Errorf("seal event: %w", err)
 	}
@@ -431,6 +521,7 @@ func (ac *AgentCollective) ExecuteTribunalWithSession(ctx context.Context, llmCl
 		Verdict:   "PROPOSED",
 		Timestamp: time.Now().UTC(),
 		Observed:  obs1,
+		Coverage:  map[string]CoverageDecl{FacetAnsatz: authoredCoverage(authored1)},
 	}
 	result.Turns = append(result.Turns, t1)
 	if turnCb != nil {
@@ -468,6 +559,7 @@ func (ac *AgentCollective) ExecuteTribunalWithSession(ctx context.Context, llmCl
 		Verdict:   "ANCHORED",
 		Timestamp: time.Now().UTC(),
 		Observed:  obs2,
+		Coverage:  map[string]CoverageDecl{FacetAnchor: anchorCoverage(authored2, anchorLive)},
 	}
 	result.Turns = append(result.Turns, t2)
 	if turnCb != nil {
@@ -526,6 +618,7 @@ func (ac *AgentCollective) ExecuteTribunalWithSession(ctx context.Context, llmCl
 			Verdict:   "AUDITED",
 			Timestamp: time.Now().UTC(),
 			Observed:  obs3,
+			Coverage:  map[string]CoverageDecl{FacetAudit: authoredCoverage(authored3)},
 		}
 		result.Turns = append(result.Turns, t3)
 		if turnCb != nil {
@@ -564,6 +657,14 @@ func (ac *AgentCollective) ExecuteTribunalWithSession(ctx context.Context, llmCl
 			Verdict:   "COLLAPSED",
 			Timestamp: time.Now().UTC(),
 			Observed:  obs4,
+			// The scribe declares ALL facets (SealTurn enforces): its
+			// verdict is only meaningful against stated coverage.
+			Coverage: map[string]CoverageDecl{
+				FacetAnsatz:   authoredCoverage(authored1),
+				FacetAnchor:   anchorCoverage(authored2, anchorLive),
+				FacetAudit:    authoredCoverage(authored3),
+				FacetProposal: authoredCoverage(authored4),
+			},
 		}
 		result.Turns = append(result.Turns, t4)
 		if turnCb != nil {
