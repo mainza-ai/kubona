@@ -13,7 +13,10 @@ package ledger
 // separate Python ledger file and are out of scope for this registry.
 
 var KnownEventTypes = map[string]bool{
+	"a2a_harness_eval":                  true,
+	"a2a_qir_compile":                   true,
 	"action_gate_downgrade_sim":         true,
+	"annotation":                        true,
 	"autoresearch_loop_drain":           true,
 	"autoresearch_loop_reconciled":      true,
 	"autoresearch_loop_slept":           true,
@@ -57,6 +60,7 @@ var KnownEventTypes = map[string]bool{
 	"mandate_verified_pqc_mlkem768":     true,
 	"metasearch_applied":                true,
 	"molecular_admet_profiled":          true,
+	"peer_review":                       true,
 	"proposal_generated":                true,
 	"session_created":                   true,
 	"session_deleted":                   true,
@@ -78,6 +82,7 @@ var KnownEventTypes = map[string]bool{
 	"tool_called":                       true,
 	"tool_loop_breaker":                 true,
 	"tool_loop_capped":                  true,
+	"tribunal_commit":                   true,
 	"tribunal_turn":                     true,
 	"x402_payment_settled":              true,
 }

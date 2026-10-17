@@ -8,6 +8,7 @@ package api_test
 import (
 	"testing"
 
+	"github.com/mainza-ai/kubona/core/pkg/api"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
 )
 
@@ -64,5 +65,16 @@ func TestEventTypesRegistered(t *testing.T) {
 	}
 	if len(ledger.KnownEventTypes) < 50 {
 		t.Fatalf("registry looks gutted: %d rows", len(ledger.KnownEventTypes))
+	}
+}
+
+func TestLedgerAppendAllowlistSubsetOfRegistry(t *testing.T) {
+	// The /api/ledger/append route allowlist must stay a subset of the
+	// registry: two lists that can rot apart will. This test fails loudly
+	// if either side drifts.
+	for _, et := range api.LedgerAppendAllowlist() {
+		if !ledger.IsKnownEventType(et) {
+			t.Errorf("route-allowlisted type %q missing from KnownEventTypes", et)
+		}
 	}
 }
