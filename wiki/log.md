@@ -2406,3 +2406,9 @@ skipped is the exact failure this incident is about:
   thresholds: credential-blocked (canary verifies live-vs-declared).
   P1-4: design recorded in [[agent-subsystem-consolidation]], execution queued.
   CI red-since-Wave-1 fixed (macOS-only tmp assertion) — awaiting green.
+
+## [2026-10-17] verification | CI green again (R0 accept 2/3)
+  Red since Wave-1 (macOS-only tmp assertion) fixed hermetically;
+  full pipeline green on hermetic-fix run and lint-fix run. The
+  12s residual-closures failure was the new fail-fast lint gate
+  working as designed (dangling link caught pre-suite).
