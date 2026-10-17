@@ -178,6 +178,12 @@ func withToolMessages(messages []ChatMessage) []any {
 // validated dispatch path serves both dialects — and strip them from display
 // so markup never reaches chat. Structured tool_calls always win when both
 // are present.
+//
+// Single grammar (W0.19): invokes are valid ONLY inside calls blocks. Stray
+// invokes in prose are ignored (never executed) — the old parser executed
+// any invoke anywhere, so prompt-injected markup ran spend-capable tools.
+// Strip removes whole calls blocks (with contents); stray tags are cleaned
+// after. Parse and strip share these patterns: one dialect, never two.
 var (
 	dsmlInvokeRe = regexp.MustCompile(`(?s)<｜DSML｜\s+invoke\s+name="([^"]+)"\s*>(.*?)</｜DSML｜\s*invoke\s*>`)
 	dsmlParamRe  = regexp.MustCompile(`(?s)<｜DSML｜\s+parameter\s+name="([^"]+)"[^>]*>(.*?)</｜DSML｜\s*parameter\s*>`)
@@ -185,42 +191,46 @@ var (
 	dsmlTagRe    = regexp.MustCompile(`</?｜DSML｜[^>]*>`)
 )
 
-// ParseDSMLInvokes extracts tool invocations from DSML-marked text.
+// ParseDSMLInvokes extracts tool invocations from DSML-marked text — only
+// invokes nested inside calls blocks execute. Stray invokes (prose
+// injection) are ignored, never parsed.
 func ParseDSMLInvokes(text string) []ToolCall {
 	var out []ToolCall
-	for _, m := range dsmlInvokeRe.FindAllStringSubmatch(text, -1) {
-		name := strings.TrimSpace(m[1])
-		if name == "" {
-			continue
-		}
-		args := map[string]any{}
-		for _, p := range dsmlParamRe.FindAllStringSubmatch(m[2], -1) {
-			key := strings.TrimSpace(p[1])
-			raw := strings.TrimSpace(p[2])
-			if key == "" {
+	for _, block := range dsmlCallsRe.FindAllString(text, -1) {
+		for _, m := range dsmlInvokeRe.FindAllStringSubmatch(block, -1) {
+			name := strings.TrimSpace(m[1])
+			if name == "" {
 				continue
 			}
-			var v any
-			if err := json.Unmarshal([]byte(raw), &v); err != nil {
-				v = raw
-			}
-			// Unquote JSON strings that arrived double-encoded.
-			if s, ok := v.(string); ok {
-				var inner any
-				if err := json.Unmarshal([]byte(s), &inner); err == nil {
-					if _, isStr := inner.(string); !isStr {
-						v = inner
+			args := map[string]any{}
+			for _, p := range dsmlParamRe.FindAllStringSubmatch(m[2], -1) {
+				key := strings.TrimSpace(p[1])
+				raw := strings.TrimSpace(p[2])
+				if key == "" {
+					continue
+				}
+				var v any
+				if err := json.Unmarshal([]byte(raw), &v); err != nil {
+					v = raw
+				}
+				// Unquote JSON strings that arrived double-encoded.
+				if s, ok := v.(string); ok {
+					var inner any
+					if err := json.Unmarshal([]byte(s), &inner); err == nil {
+						if _, isStr := inner.(string); !isStr {
+							v = inner
+						}
 					}
 				}
+				args[key] = v
 			}
-			args[key] = v
+			rawArgs, _ := json.Marshal(args)
+			out = append(out, ToolCall{
+				ID:        fmt.Sprintf("dsml-%d", len(out)+1),
+				Name:      name,
+				Arguments: string(rawArgs),
+			})
 		}
-		rawArgs, _ := json.Marshal(args)
-		out = append(out, ToolCall{
-			ID:        fmt.Sprintf("dsml-%d", len(out)+1),
-			Name:      name,
-			Arguments: string(rawArgs),
-		})
 	}
 	return out
 }

@@ -11,6 +11,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -193,6 +194,12 @@ func NewServer(
 	snap := llmSet.GetSnapshot()
 	log.Printf("[Kubona Core] LLM effective: provider=%s model=%s max_tokens=%d (0=server default/EOS)",
 		snap.ActiveProvider, snap.ActiveModel, snap.MaxTokens)
+	// W0.19 production posture: a prod boot with cloud inference and no
+	// explicit opt-in refuses here — loudly at startup, never silently
+	// exfiltrating prompts mid-session. Dev/test boot is unaffected.
+	if err := llmSet.ValidateForProduction(); err != nil {
+		log.Fatalf("[Kubona Core] FATAL: %v", err)
+	}
 	llmCli := llm.NewClient(llmSet)
 	// K4: cloud LLM spend accounting. Every metered completion records a
 	// ledger event with a heuristic estimate; an optional global dollar
@@ -200,16 +207,33 @@ func NewServer(
 	// Local providers never record. Unset cap = track-only (current
 	// behavior preserved).
 	llmCli.OnSpend = func(rec llm.SpendRecord) {
-		est, ok := llm.EstimateCostUSD(llm.ProviderType(rec.Provider), rec.Model, rec.PromptTokens, rec.CompletionTokens)
 		payload := map[string]any{
 			"provider": rec.Provider, "model": rec.Model,
 			"prompt_tokens": rec.PromptTokens, "completion_tokens": rec.CompletionTokens,
 			"usage_reported": rec.UsageReported, "heuristic": true,
 		}
-		if ok {
-			payload["estimated_usd"] = est
-		} else {
+		if rec.CeilingApplied {
+			// W0.19: tokens unknown, ceiling billed at the output rate.
+			est, ok := llm.EstimateCeilingCostUSD(llm.ProviderType(rec.Provider), rec.Model, rec.CeilingTokens)
+			payload["ceiling_applied"] = true
+			payload["ceiling_tokens"] = rec.CeilingTokens
+			if ok {
+				payload["estimated_usd"] = est
+			} else {
+				payload["estimated_usd"] = nil
+			}
+		} else if rec.Unmetered {
+			// Streams with no usage and no ceiling: flagged, never
+			// zero-priced. The budget gate trips on these when capped.
+			payload["unmetered"] = true
 			payload["estimated_usd"] = nil
+		} else {
+			est, ok := llm.EstimateCostUSD(llm.ProviderType(rec.Provider), rec.Model, rec.PromptTokens, rec.CompletionTokens)
+			if ok {
+				payload["estimated_usd"] = est
+			} else {
+				payload["estimated_usd"] = nil
+			}
 		}
 		_ = l.AppendEvent("global", "llm_spend_estimated", payload)
 	}
@@ -2664,6 +2688,9 @@ func (s *Server) llmSpendTotal() float64 {
 // provider is local); track-only mode (cap unset) never refuses. Mid-run
 // breach (tribunal turns 2-4 after a passed pre-check) stops the NEXT
 // entry, not the running one — documented limitation, not a hole.
+// W0.19: unmetered records (blind stream spend) trip a capped gate even
+// though they carry no dollar figure — a cap that ignores blind spend is
+// theater.
 func (s *Server) checkLLMBudget() error {
 	cap := llmBudgetCapUSD()
 	if cap <= 0 {
@@ -2672,6 +2699,26 @@ func (s *Server) checkLLMBudget() error {
 	snap := s.llmSettings.GetSnapshot()
 	if prov, ok := snap.Providers[snap.ActiveProvider]; ok && prov.IsLocal {
 		return nil
+	}
+	rows, err := s.ledger.DB().Query(
+		`SELECT payload FROM ledger_events WHERE event_type = 'llm_spend_estimated' ORDER BY id DESC LIMIT 10000`)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var payloadStr string
+			var payload struct {
+				Unmetered *bool `json:"unmetered"`
+			}
+			if err := rows.Scan(&payloadStr); err != nil {
+				continue
+			}
+			if err := json.Unmarshal([]byte(payloadStr), &payload); err != nil {
+				continue
+			}
+			if payload.Unmetered != nil && *payload.Unmetered {
+				return fmt.Errorf("blind cloud spend detected (unmetered stream records): refusing new entries until usage reporting or max_tokens ceiling is configured")
+			}
+		}
 	}
 	if total := s.llmSpendTotal(); total >= cap {
 		return fmt.Errorf("cloud LLM budget exhausted: spent ~$%.4f of $%.4f cap (KUBONA_LLM_BUDGET_USD) — switch to a local provider or raise the cap", total, cap)
@@ -2684,9 +2731,24 @@ func (s *Server) handleLLMSettings(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		writeJSON(w, http.StatusOK, s.llmSettings.GetSnapshot())
 	case http.MethodPut, http.MethodPost:
+		// W0.19: reads stay public behind limiters; writes get edge auth.
+		// An unauthenticated settings write flips providers/endpoints —
+		// redirecting prompts (and their secrets) to an attacker URL.
+		switch bearerGate(r) {
+		case http.StatusServiceUnavailable:
+			http.Error(w, "API token not configured: set KUBONA_API_TOKEN", http.StatusServiceUnavailable)
+			return
+		case http.StatusUnauthorized:
+			http.Error(w, "missing or invalid bearer token", http.StatusUnauthorized)
+			return
+		}
 		var req llm.Settings
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		if err := validateProviderURLs(&req); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
 		if err := s.llmSettings.Update(&req, s.ledger.DB()); err != nil {
@@ -2697,6 +2759,37 @@ func (s *Server) handleLLMSettings(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// validateProviderURLs constrains where prompts may be sent (W0.19): the
+// settings writer could otherwise redirect completions (and API keys) to an
+// attacker endpoint. Loopback http:// is local; anything remote must be
+// https://. The config layer validates values; this route validates
+// destinations — neither is the sole guard.
+func validateProviderURLs(st *llm.Settings) error {
+	for pt, pc := range st.Providers {
+		u := strings.TrimSpace(pc.BaseURL)
+		if u == "" {
+			continue
+		}
+		parsed, err := url.Parse(u)
+		if err != nil {
+			return fmt.Errorf("provider %s has an unparseable BaseURL: refusing", pt)
+		}
+		switch parsed.Scheme {
+		case "https":
+			continue
+		case "http":
+			host := strings.ToLower(parsed.Hostname())
+			if host == "127.0.0.1" || host == "localhost" || host == "::1" {
+				continue
+			}
+			return fmt.Errorf("provider %s: non-loopback http:// endpoints refuse (credentials would cross plaintext)", pt)
+		default:
+			return fmt.Errorf("provider %s: scheme %q refuses (https or loopback http only)", pt, parsed.Scheme)
+		}
+	}
+	return nil
 }
 
 func (s *Server) handleLLMModels(w http.ResponseWriter, r *http.Request) {
