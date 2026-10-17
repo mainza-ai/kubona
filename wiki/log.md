@@ -2395,3 +2395,7 @@ skipped is the exact failure this incident is about:
   `41ed4f9` admin-authorized refunds (no auto-refunds by design) +
   live taxonomy catch (spend_release_refused unregistered). `8a49012`
   I3: admission bound, drawdown, claim-once release, sleep/wake symmetry.
+
+## [2026-10-17] decision | R2b mandate obligations landed
+  `4822ea2`: mandate_ref linkage end to end (verify opens, settle
+  closes, post-closure forks anomaly). R2 series complete.

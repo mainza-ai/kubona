@@ -161,6 +161,14 @@ notes, never silent edits; rollback stated.
 > obligations with settlement cases needs a `job.mandate_ref` column +
 > admission threading + settled-hook chain — the linkage does not exist
 > yet, and opening unclosable obligations would be theater.
+> ✅ R2b LANDED 2026-10-17 (`4822ea2`): `jobs.mandate_ref` column +
+> struct + submit threading + S5 JobRow (omitempty — old manifests
+> digest-identical); verify opens the receipt-scoped obligation
+> (subject = receipt entry_hash, owner = admin or reviewer by path;
+> opening failure fails verification); settle hook records the
+> settlement case and attempts close (chained after replan, never
+> fails settlement); post-closure settlements fork ownerless anomaly
+> follow-ups with dependency links. Suite: jobs/api/ledger green.
 
 - **Threat:** vocabulary without enforcement — claims close on prose.
 - **Change:** obligations (ID, version, required case kinds incl.
