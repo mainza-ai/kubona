@@ -255,6 +255,7 @@ func main() {
 	// 4. Start HTTP / REST / WebSocket Gateway
 	server := api.NewServer(l, sessionMgr, jobRunner, loopSupervisor, taskWatchdog)
 	server.SetDiskGuard(diskGuard)
+	server.SetBridgeAddr(*bridgeAddr)
 	jobRunner.SetDiskGuard(diskGuard)
 
 	// 4b. S3: idle-loop sweeper (10 min threshold, 60 s poll).

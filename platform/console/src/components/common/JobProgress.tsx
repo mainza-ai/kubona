@@ -17,7 +17,7 @@ function elapsed(created?: string, completed?: string): string {
   return `${Math.floor(s / 60)}m ${s % 60}s`;
 }
 
-export function JobProgress({ jobId }: { jobId: string }) {
+export function JobProgress({ jobId, sessionId }: { jobId: string; sessionId: string }) {
   const [status, setStatus] = useState<string>('JOB_STATUS_QUEUED');
   const [detail, setDetail] = useState<{ created?: string; completed?: string; jobType?: string; backend?: string }>({});
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -25,7 +25,7 @@ export function JobProgress({ jobId }: { jobId: string }) {
   useEffect(() => {
     let live = true;
     const poll = async () => {
-      const job = await fetchJob(jobId);
+      const job = await fetchJob(jobId, sessionId);
       if (!live || !job) return;
       setStatus(String(job.status));
       setDetail({ created: job.created_at, completed: job.completed_at, jobType: job.job_type });
@@ -41,7 +41,7 @@ export function JobProgress({ jobId }: { jobId: string }) {
       live = false;
       if (timer.current) clearInterval(timer.current);
     };
-  }, [jobId]);
+  }, [jobId, sessionId]);
 
   const done = status.includes('COMPLETED') || status.includes('FAILED');
   const failed = status.includes('FAILED');

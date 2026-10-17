@@ -18,6 +18,8 @@ export interface CanvasWidgetSpec {
   title: string;
   /** Job id for kind === 'job' (fetched live; never embedded). */
   jobId?: string;
+  /** Owning session for kind === 'job' (backend scopes reads per session). */
+  sessionId?: string;
 }
 
 const KIND_META: Record<CanvasWidgetKind, { icon: React.ComponentType<{ className?: string }>; dot: string }> = {
@@ -198,12 +200,12 @@ export function WidgetStage({
           </div>
           );
         })()}
-        {widget.kind === 'job' && widget.jobId && (
-          <JobDetailWidget jobId={widget.jobId} />
+        {widget.kind === 'job' && widget.jobId && widget.sessionId && (
+          <JobDetailWidget jobId={widget.jobId} sessionId={widget.sessionId} />
         )}
-        {widget.kind === 'job' && !widget.jobId && (
+        {widget.kind === 'job' && (!widget.jobId || !widget.sessionId) && (
           <div className="rounded-2xl border border-rose-500/30 bg-rose-950/30 p-4 text-xs text-rose-200">
-            Job widget requires a job id — nothing to show. Select a completed job to inspect it.
+            Job widget requires a job id and session — nothing to show. Select a completed job to inspect it.
           </div>
         )}
       </div>

@@ -454,6 +454,10 @@ export interface BackendInfo {
   avg_t1_us?: number;
   avg_t2_us?: number;
   status: string;
+  // Credential dimension (fleet): 'ready' (credential-free sims or token
+  // present) vs 'credentialless' (device may be fine — WE lack credentials).
+  // Absent on older daemons: treat as unknown, never as ready.
+  credential_state?: string;
   queue_depth: number;
   cost_per_shot: number;
   jurisdiction: string;
