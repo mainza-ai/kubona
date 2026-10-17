@@ -2,10 +2,7 @@
 
 import React, { useState } from 'react';
 import { Fingerprint, ChevronDown, ChevronUp, ArrowDownToLine } from 'lucide-react';
-import { sha256 } from '@noble/hashes/sha2.js';
-import { bytesToHex } from '@noble/hashes/utils.js';
-import { CampaignState, Session } from '@/types';
-import { createSignedSpendMandate } from '@/lib/mandates';
+import { CampaignState, Session } from '@/types';import { createSignedSpendMandate, canonicalJobBinding } from '@/lib/mandates';
 import { verifySpendMandate } from '@/lib/api';
 import { ApprovalPacketCard } from '@/components/common/ApprovalPacketCard';
 import { buildApprovalPacketFromCampaign } from '@/lib/approvalPacket';
@@ -32,7 +29,12 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied, onDowngr
   const estimatedCost = campaign?.quantum_factors?.estimated_spend_usd;
   const costKnown = typeof estimatedCost === 'number' && isFinite(estimatedCost);
   const sessionBound = (session?.id ?? '') !== '';
-  const canAuthorize = costKnown && sessionBound;
+  // W0.4: the mandate binds the exact program about to run — no QASM, no
+  // signature. The daemon recomputes this binding at admission and refuses
+  // a receipt for any other program.
+  const programQasm = campaign?.quantum_factors?.qasm ?? '';
+  const programKnown = programQasm !== '';
+  const canAuthorize = costKnown && sessionBound && programKnown;
   const recommendedBackend = campaign?.quantum_factors?.recommended_backend || 'Local simulator';
   const qubits = campaign?.quantum_factors?.qubit_count ?? 0;
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -51,14 +53,16 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied, onDowngr
   );
 
   const handleAuthorize = async () => {
-    // Defense in depth: the button is disabled without cost + session,
-    // but a crafted call must still refuse here, never mint.
+    // Defense in depth: the button is disabled without cost + session +
+    // program, but a crafted call must still refuse here, never mint.
     if (!canAuthorize) {
       setRejected(true);
       setMessage(
         !sessionBound
           ? 'No session bound — authorization disabled.'
-          : 'No cost estimate on this campaign — authorization disabled until priced.'
+          : !programKnown
+            ? 'No program in this campaign — authorization disabled until a circuit is proposed.'
+            : 'No cost estimate on this campaign — authorization disabled until priced.'
       );
       return;
     }
@@ -66,10 +70,9 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied, onDowngr
     setMessage(null);
     try {
       // jobHash binds the mandate to the exact program being authorized:
-      // session + program hash + backend + cost bound. A mandate for one
-      // program cannot be replayed against another.
-      const binding = `${session?.id || 'tenant-default'}|${packet.programHash}|${packet.backend}|${packet.costMaxUsd.toFixed(4)}`;
-      const jobHash = bytesToHex(sha256(new TextEncoder().encode(binding)));
+      // canonical v1 binding (session + exact QASM). A mandate for one
+      // program cannot be replayed against another — the daemon enforces it.
+      const jobHash = canonicalJobBinding(session?.id || 'tenant-default', programQasm);
       // J4: the mandate's tenant is the LAB tenant, never the session id.
       // Session-scoped binding above is correct (replay scope); tenant
       // attribution must resolve against the lab for admission.
@@ -130,7 +133,7 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied, onDowngr
             data-testid="action-gate-authorize"
             onClick={handleAuthorize}
             disabled={isSubmitting || !canAuthorize}
-            title={!canAuthorize ? 'Disabled: needs a bound session and a priced campaign' : undefined}
+            title={!canAuthorize ? 'Disabled: needs a bound session, a proposed program, and a priced campaign' : undefined}
             className="w-full py-2 px-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-black font-semibold text-xs flex items-center justify-center gap-2 transition-all shadow-[0_0_20px_rgba(255,179,0,0.3)] active:scale-[0.98] disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-amber-300 focus-visible:outline-none"
           >
             <Fingerprint className="w-4 h-4" />

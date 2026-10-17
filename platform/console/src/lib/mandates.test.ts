@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   computeCanonicalPayload,
+  canonicalJobBinding,
   createSignedSpendMandate,
   verifySpendMandateLocally,
   type SpendMandate,
@@ -63,5 +64,20 @@ describe('mandate canonical payload (must match Go %.4f + RFC3339)', () => {
     const mandate = createSignedSpendMandate({ tenantId: 't', jobHash: 'j', maxBudgetUsd: 10 });
     expect(verifySpendMandateLocally(mandate)).toBe(true);
     expect(mandate.expiry_timestamp).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/);
+  });
+});
+
+describe('canonical job binding v1 (must match Go CanonicalJobBinding)', () => {
+  const QASM = 'OPENQASM 2.0;\nqreg q[1];\n';
+  it('computes the fixed cross-language vector', () => {
+    expect(canonicalJobBinding('sess-vec', QASM)).toBe(
+      '67cc6d01173411aecf553a038cc9873a15779416dafd58a30e3c15a98c63bbfb'
+    );
+  });
+  it('rebinds on session, program, or type change', () => {
+    const base = canonicalJobBinding('sess-vec', QASM);
+    expect(canonicalJobBinding('sess-other', QASM)).not.toBe(base);
+    expect(canonicalJobBinding('sess-vec', QASM + 'h q[0];\n')).not.toBe(base);
+    expect(canonicalJobBinding('sess-vec', QASM, 'mitigate')).not.toBe(base);
   });
 });
