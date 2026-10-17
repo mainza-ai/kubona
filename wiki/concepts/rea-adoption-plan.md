@@ -233,6 +233,23 @@ notes, never silent edits; rollback stated.
 
 ### R5 — Typed errors + generated catalog (M)
 
+> ✅ LANDED 2026-10-17 (`937303a` + `1c4993e`): closed 19-code set in
+> `platform/contracts/error-catalog.csv` (single source; Go registry
+> mirrors it with field-level conformance, Python loads it directly);
+> uncatalogued construction refuses both rails. Migrated agent decision
+> points (same statuses, typed bodies): bearer/limiter gates, all five
+> idempotency refusal sites (central `write`), disk 503, readiness,
+> mandate envelopes (`code` inside the 200 `valid:false` bodies —
+> statuses untouched), ghost 404s on jobs/events/tribunal. Fixtures:
+> every code constructs + renders (Go), CSV↔registry identity (Go),
+> subset + typed taxonomy refusal (Python). CLI exit contract pinned
+> (0/1/2 + runtime 128+N). Retry-vs-escalate review (by reading):
+> retryable=true only on rate_limited, request_in_progress,
+> storage_blocked, not_ready, bridge/llm_unavailable — everything else
+> escalates. gRPC bound stated: bridge keeps success/error_message
+> (W1.8; proto regen blocked on the scratch-venv drift) with the
+> status→code mapping recorded here when the stubs regenerate.
+
 - **Threat:** machine-illegible failures (agents can't choose
   retry-vs-escalate); hand-maintained tool surface skews silently.
 - **Change:** canonical `{code, category, message, retryable,

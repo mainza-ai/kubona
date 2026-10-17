@@ -2377,3 +2377,7 @@ skipped is the exact failure this incident is about:
 ## [2026-10-17] decision | R4 bounded tribunal context landed
   `9acd3a5`: evidence store + continuation tool + 16k turn budget gate +
   turn bundles + resume. Soak max 5697 runes.
+
+## [2026-10-17] decision | R5 typed errors + C5 capabilities landed
+  `937303a` 19-code catalog + migrated decision paths; `1c4993e`
+  tool catalog + capabilities + CLI exits. I5 delivered by the endpoint.
