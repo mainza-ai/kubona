@@ -55,6 +55,16 @@ func runGrants(args []string) int {
 }
 
 func readKeyFile(path string) (string, error) {
+	// W0.20: refuse world/group-readable key files. A private key readable
+	// by other users is already compromised — loading it silently blesses
+	// the leak. 0600 (or stricter 0400) only.
+	fi, err := os.Stat(path)
+	if err != nil {
+		return "", err
+	}
+	if perm := fi.Mode().Perm(); perm&0077 != 0 {
+		return "", fmt.Errorf("key file %s has permissions %04o: refusing (must be 0600 or stricter — a shared key file is a compromised key)", path, perm)
+	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
@@ -87,7 +97,7 @@ func grantsMint(args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	if *keyFile == "" || *aud == "" || *granting == "" || *target == "" || *scope == "" || *budget <= 0 || *ttl <= 0 {
+	if *keyFile == "" || *aud == "" || *granting == "" || *target == "" || *scope == "" || *scopes == "" || *budget <= 0 || *ttl <= 0 {
 		fmt.Fprintln(os.Stderr, "mint requires --key-file --aud --granting --target --scope --scopes --budget --ttl")
 		return 2
 	}
@@ -122,7 +132,7 @@ func grantsAttenuate(args []string) int {
 	if err := fs.Parse(args); err != nil {
 		return 2
 	}
-	if *keyFile == "" || *aud == "" || *parentFile == "" || *scope == "" || *budget <= 0 || *ttl <= 0 {
+	if *keyFile == "" || *aud == "" || *parentFile == "" || *scope == "" || *scopes == "" || *budget <= 0 || *ttl <= 0 {
 		fmt.Fprintln(os.Stderr, "attenuate requires --key-file --aud --parent --scope --scopes --budget --ttl")
 		return 2
 	}
@@ -131,17 +141,23 @@ func grantsAttenuate(args []string) int {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		return 1
 	}
-	parentB64, err := os.ReadFile(*parentFile)
+	parentRaw, err := os.ReadFile(*parentFile)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
 		return 1
 	}
-	parentChain, err := grants.DecodeChainB64([]string{strings.TrimSpace(string(parentB64))})
-	if err != nil || len(parentChain) != 1 {
+	// W0.20: parent files hold one base64 envelope per line (a 2+-chain
+	// file attenuates from its leaf). Single-envelope files keep working.
+	parentChain, err := grants.DecodeChainB64(strings.Fields(string(parentRaw)))
+	if err != nil || len(parentChain) == 0 {
 		fmt.Fprintln(os.Stderr, "parent envelope unreadable")
 		return 1
 	}
-	sealed, cidStr, err := grants.AttenuateGrant(parentChain[0], privHex, *aud, *scope,
+	// W0.20: attenuate the leaf you hand over — a multi-envelope chain
+	// attenuates from its last envelope (depth>1 chains were previously
+	// unattentuatable). Chain validity itself is checked at register and
+	// dispatch, not here.
+	sealed, cidStr, err := grants.AttenuateGrant(parentChain[len(parentChain)-1], privHex, *aud, *scope,
 		strings.Split(*scopes, ","), *budget, *ttl)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "attenuate error:", err)
