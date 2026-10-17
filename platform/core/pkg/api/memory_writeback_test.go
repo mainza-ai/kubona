@@ -126,7 +126,7 @@ func TestToolNamesSinceAttribution(t *testing.T) {
 		t.Fatal("expected nonzero event id after append")
 	}
 	_ = l.AppendEvent(sess.ID, "tool_called", map[string]any{"tool": "query_literature", "ok": true})
-	_ = l.AppendEvent(sess.ID, "note", map[string]any{"x": 1})
+	_ = l.AppendEvent(sess.ID, "chat_message_appended", map[string]any{"x": 1})
 
 	names := srv.toolNamesSince(sess.ID, before)
 	if len(names) != 1 || names[0] != "query_literature" {

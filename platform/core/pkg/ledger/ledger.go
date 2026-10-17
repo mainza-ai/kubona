@@ -328,6 +328,12 @@ func (l *Ledger) resolveTenantLocked(sessionID string) string {
 
 // AppendSignedEvent writes a cryptographic, RFC 8032 Ed25519-signed event record into SQLite WAL
 func (l *Ledger) AppendSignedEvent(sessionID string, eventType string, payload any, privKey ed25519.PrivateKey) (*EventRecord, error) {
+	// S6 closed taxonomy: unregistered types refuse here, so a typo'd
+	// type can never silently fork the audit trail. Register new types
+	// in events.go (KnownEventTypes) with their payload contract.
+	if !IsKnownEventType(eventType) {
+		return nil, fmt.Errorf("unregistered event_type %q: add it to KnownEventTypes (pkg/ledger/events.go) with its payload contract", eventType)
+	}
 	l.lock.Lock()
 	defer l.lock.Unlock()
 
@@ -499,6 +505,9 @@ func (l *Ledger) IdemDelete(sessionID, requestID string) error {
 
 // AppendExternalEvent writes an event signed by an external client/tenant with cryptographic hash chaining
 func (l *Ledger) AppendExternalEvent(sessionID string, eventType string, payload any, pubKeyHex, sigHex string) (*EventRecord, error) {
+	if !IsKnownEventType(eventType) {
+		return nil, fmt.Errorf("unregistered event_type %q: add it to KnownEventTypes (pkg/ledger/events.go) with its payload contract", eventType)
+	}
 	l.lock.Lock()
 	defer l.lock.Unlock()
 
@@ -546,6 +555,9 @@ func (l *Ledger) AppendExternalEvent(sessionID string, eventType string, payload
 // yet), as are empty and deny-all labels. Derived records should compute
 // their label with ifc.JoinLabels over their inputs.
 func (l *Ledger) AppendLabeledEvent(sessionID string, eventType string, payload any, privKey ed25519.PrivateKey, label string) (*EventRecord, error) {
+	if !IsKnownEventType(eventType) {
+		return nil, fmt.Errorf("unregistered event_type %q: add it to KnownEventTypes (pkg/ledger/events.go) with its payload contract", eventType)
+	}
 	l.lock.Lock()
 	defer l.lock.Unlock()
 

@@ -31,7 +31,7 @@ func seedCascadeSession(t *testing.T, m *Manager, l *ledger.Ledger, sid string) 
 	if _, err := m.AddMessage(sid, "user", "hello", nil); err != nil {
 		t.Fatalf("seed message: %v", err)
 	}
-	if err := l.AppendEvent(sid, "seed_event", map[string]string{"k": "v"}); err != nil {
+	if err := l.AppendEvent(sid, "chat_message_appended", map[string]string{"k": "v"}); err != nil {
 		t.Fatalf("seed event: %v", err)
 	}
 	if err := l.SaveLoopState(ledger.LoopPersist{ID: "loop-" + sid, SessionID: sid, HarnessID: "ansatz-search", Status: "running", MaxSteps: 5, LastActivity: time.Now().UTC()}); err != nil {

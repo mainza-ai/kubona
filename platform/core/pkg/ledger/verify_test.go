@@ -30,13 +30,13 @@ func TestVerifyChainClean(t *testing.T) {
 	l, _ := openTestLedger(t)
 	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
 	_ = pub
-	if err := l.AppendEvent("s1", "a", map[string]int{"n": 1}); err != nil {
+	if err := l.AppendEvent("s1", "chat_message_appended", map[string]int{"n": 1}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := l.AppendSignedEvent("s1", "b", map[string]int{"n": 2}, priv); err != nil {
+	if _, err := l.AppendSignedEvent("s1", "chat_cleared", map[string]int{"n": 2}, priv); err != nil {
 		t.Fatal(err)
 	}
-	if err := l.AppendEvent("s2", "a", "other-session"); err != nil {
+	if err := l.AppendEvent("s2", "chat_message_appended", "other-session"); err != nil {
 		t.Fatal(err)
 	}
 	faults, err := l.VerifyChain("")
@@ -54,10 +54,10 @@ func TestVerifyChainClean(t *testing.T) {
 
 func TestVerifyChainDetectsTamper(t *testing.T) {
 	l, _ := openTestLedger(t)
-	if err := l.AppendEvent("s1", "a", map[string]int{"n": 1}); err != nil {
+	if err := l.AppendEvent("s1", "chat_message_appended", map[string]int{"n": 1}); err != nil {
 		t.Fatal(err)
 	}
-	if err := l.AppendEvent("s1", "b", map[string]int{"n": 2}); err != nil {
+	if err := l.AppendEvent("s1", "chat_cleared", map[string]int{"n": 2}); err != nil {
 		t.Fatal(err)
 	}
 	// Tamper with the first payload behind the ledger's back.
@@ -84,10 +84,10 @@ func TestVerifyChainDetectsTamper(t *testing.T) {
 
 func TestVerifyChainDetectsBrokenLink(t *testing.T) {
 	l, _ := openTestLedger(t)
-	if err := l.AppendEvent("s1", "a", "x"); err != nil {
+	if err := l.AppendEvent("s1", "chat_message_appended", "x"); err != nil {
 		t.Fatal(err)
 	}
-	if err := l.AppendEvent("s1", "b", "y"); err != nil {
+	if err := l.AppendEvent("s1", "chat_cleared", "y"); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := l.DB().Exec(`UPDATE ledger_events SET prev_hash = 'ff' WHERE id = 2`); err != nil {
@@ -111,7 +111,7 @@ func TestVerifyChainDetectsBrokenLink(t *testing.T) {
 func TestVerifyChainDetectsBadSignature(t *testing.T) {
 	l, _ := openTestLedger(t)
 	_, priv, _ := ed25519.GenerateKey(rand.Reader)
-	if _, err := l.AppendSignedEvent("s1", "b", "signed", priv); err != nil {
+	if _, err := l.AppendSignedEvent("s1", "chat_cleared", "signed", priv); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := l.DB().Exec(`UPDATE ledger_events SET signature_hex = '00' WHERE id = 1`); err != nil {
@@ -134,7 +134,7 @@ func TestVerifyChainDetectsBadSignature(t *testing.T) {
 
 func TestReadOnlyHandleReadsAndRefusesWrites(t *testing.T) {
 	l, path := openTestLedger(t)
-	if err := l.AppendEvent("s1", "a", "readable"); err != nil {
+	if err := l.AppendEvent("s1", "chat_message_appended", "readable"); err != nil {
 		t.Fatal(err)
 	}
 	ro, err := ledger.OpenLedgerReadOnly(path)

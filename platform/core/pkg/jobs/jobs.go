@@ -18,6 +18,12 @@ import (
 	pb "github.com/mainza-ai/kubona/core/proto"
 )
 
+// MaxStoredResultBytes caps one persisted job result blob (S6). Structured
+// bridge/sweep payloads refuse above this (fail-closed); sandbox streams
+// truncate with flags at parseHarnessOutput instead (truncating JSON would
+// corrupt it, truncating logs is honest).
+const MaxStoredResultBytes = 1 * 1024 * 1024
+
 type Job struct {
 	ID          string          `json:"id"`
 	SessionID   string          `json:"session_id"`
@@ -383,6 +389,14 @@ func (r *Runner) executeJob(j *Job) {
 	j.CompletedAt = &now
 	if execErr != nil {
 		r.failJob(j, execErr.Error())
+		return
+	}
+	// S6: bound persisted results. Bridge/sweep payloads are structured,
+	// so oversize blobs refuse (fail-closed, auditable) rather than
+	// truncate into unparseable JSON. Sandbox streams are bounded
+	// separately at parseHarnessOutput (truncation with flags).
+	if len(resultData) > MaxStoredResultBytes {
+		r.failJob(j, fmt.Sprintf("result_too_large: %d bytes exceeds %d cap — refusing to persist an unbounded blob", len(resultData), MaxStoredResultBytes))
 		return
 	}
 	// An abort that landed mid-flight wins over the late completion, but the
