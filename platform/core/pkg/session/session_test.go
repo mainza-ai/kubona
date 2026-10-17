@@ -269,7 +269,7 @@ func TestRewriteUserMessageBranches(t *testing.T) {
 	u1, _ := mgr.AddMessage(sess.ID, "user", "original question", nil)
 	mgr.AddMessage(sess.ID, "assistant", "original answer", nil)
 
-	rewritten, err := mgr.RewriteUserMessage(sess.ID, u1.ID, "edited question")
+	rewritten, err := mgr.RewriteUserMessage(sess.ID, u1.ID, "edited question", "")
 	if err != nil {
 		t.Fatalf("RewriteUserMessage failed: %v", err)
 	}
@@ -282,13 +282,20 @@ func TestRewriteUserMessageBranches(t *testing.T) {
 	}
 
 	a2, _ := mgr.AddMessage(sess.ID, "assistant", "new answer", nil)
-	if _, err := mgr.RewriteUserMessage(sess.ID, a2.ID, "sneaky"); err == nil {
+	if _, err := mgr.RewriteUserMessage(sess.ID, a2.ID, "sneaky", ""); err == nil {
 		t.Error("rewriting an assistant message must refuse")
 	}
-	if _, err := mgr.RewriteUserMessage(sess.ID, u1.ID, ""); err == nil {
+	if _, err := mgr.RewriteUserMessage(sess.ID, u1.ID, "", ""); err == nil {
 		t.Error("empty rewrite must refuse")
 	}
-	if _, err := mgr.RewriteUserMessage(sess.ID, "missing-id", "x"); err == nil {
+	if _, err := mgr.RewriteUserMessage(sess.ID, "missing-id", "x", ""); err == nil {
 		t.Error("unknown message id must refuse")
+	}
+	// S7: compare-and-swap guard — stale expected content refuses.
+	if _, err := mgr.RewriteUserMessage(sess.ID, u1.ID, "race", "stale guess"); err != session.ErrContentMismatch {
+		t.Errorf("stale CAS must return ErrContentMismatch, got %v", err)
+	}
+	if _, err := mgr.RewriteUserMessage(sess.ID, u1.ID, "second edit", "edited question"); err != nil {
+		t.Errorf("matching CAS must proceed: %v", err)
 	}
 }

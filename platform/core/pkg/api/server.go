@@ -1661,10 +1661,15 @@ func (s *Server) handleChatRewrite(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	// S2: rewrite mutates rows — same gate class as chat writes.
+	if s.refuseIfDiskBlocked(w) {
+		return
+	}
 	var req struct {
-		SessionID string `json:"session_id"`
-		MessageID string `json:"message_id"`
-		Content   string `json:"content"`
+		SessionID       string `json:"session_id"`
+		MessageID       string `json:"message_id"`
+		Content         string `json:"content"`
+		ExpectedContent string `json:"expected_content"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -1674,8 +1679,18 @@ func (s *Server) handleChatRewrite(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "content must not be empty", http.StatusBadRequest)
 		return
 	}
-	msg, err := s.sessionMgr.RewriteUserMessage(req.SessionID, req.MessageID, req.Content)
+	// S7: ghost sessions 404 explicitly (previously conflated with
+	// ghost messages under one 400).
+	if _, gerr := s.sessionMgr.GetSession(req.SessionID); gerr != nil {
+		http.Error(w, fmt.Sprintf("unknown session %q: nothing to rewrite", req.SessionID), http.StatusNotFound)
+		return
+	}
+	msg, err := s.sessionMgr.RewriteUserMessage(req.SessionID, req.MessageID, req.Content, req.ExpectedContent)
 	if err != nil {
+		if err == session.ErrContentMismatch {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -2208,14 +2223,40 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 
 // handleJobByID serves one job with full params + result payloads — the
 // click-through target for job-detail views. Unknown ids 404 (never empty).
+// POST {id}/cancel cancels an unsettled job (S7): QUEUED never executes,
+// RUNNING is fenced; terminal replays success; unknown 404s. Cancel frees
+// (never spends), so it is deliberately ungated by the disk guard —
+// blocking cancel during an outage would trap spend behind the outage.
 func (s *Server) handleJobByID(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
 	id := strings.TrimPrefix(r.URL.Path, "/api/jobs/")
 	if id == "" {
 		http.Error(w, "missing job id", http.StatusBadRequest)
+		return
+	}
+	if r.Method == http.MethodPost && strings.HasSuffix(id, "/cancel") {
+		jobID := strings.TrimSuffix(id, "/cancel")
+		if jobID == "" {
+			http.Error(w, "missing job id", http.StatusBadRequest)
+			return
+		}
+		var req struct {
+			Reason string `json:"reason"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&req)
+		transitioned, err := s.jobRunner.CancelJob(jobID, req.Reason)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		job, _ := s.jobRunner.GetJob(jobID)
+		writeJSON(w, http.StatusOK, map[string]any{
+			"job_id": jobID, "cancelled": transitioned,
+			"already_terminal": !transitioned, "job": job,
+		})
+		return
+	}
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	job, err := s.jobRunner.GetJob(id)

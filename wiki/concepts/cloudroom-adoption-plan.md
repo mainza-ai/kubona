@@ -315,7 +315,22 @@ status: candidate
   absence tests.
 - **Wiki:** [[agentic-memory-and-observability]] note.
 
-### S7 — Queue ops + steer (M, needs S1)
+### S7 — Queue ops + steer (M, needs S1) — ✅ LANDED 2026-10-17 (reframed)
+
+> Mapping found no prompt queue (synchronous turns) and rewrite/regenerate
+> already existing — so S7 shipped what was actually missing: `POST
+> /api/jobs/{id}/cancel` (QUEUED never executes, RUNNING fenced via abort
+> registry, CAS-guarded reservation unwind, terminal replays success,
+> ghosts 404; deliberately ungated by disk — blocking cancel traps spend
+> behind the outage) and rewrite hardening (ghost session 404s explicitly,
+> `expected_content` compare-and-swap 409s on stale reads, disk-gated).
+> Steer documented N/A: no background turn exists to steer into
+> (synchronous model) — a mid-flight injection point would be engine
+> surgery, not a queue op. Tests: cancel transition/replay/ghost,
+> CAS match/stale/empty/ghost (+ manager CAS unit tests); negative
+> automatic (new route 404s/405s on old code); race green; live
+> cancel/replay/ghost + rewrite 200/409/404 (cancel-transition proven
+> in-test where no worker races it).
 
 - **Threat:** queued mistakes unfixable short of abort-all (G7).
 - **Logic:** `edit`/`cancel`/`reorder` on queued items with
