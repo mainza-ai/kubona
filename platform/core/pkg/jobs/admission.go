@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 	"regexp"
 	"strings"
 	"time"
@@ -58,7 +59,7 @@ type mandateReceipt struct {
 // amount), already debited: SubmitJob persists it on the job row, and every
 // terminal-failed path releases it. Completed jobs keep it — the authorized
 // amount is the spend.
-func (r *Runner) admitJob(sessionID, jobType string, paramsJSON []byte) (string, float64, error) {
+func (r *Runner) admitJob(sessionID, jobType string, paramsJSON []byte, declaredCost float64) (string, float64, error) {
 	var tenantID string
 	err := r.ledger.DB().QueryRow(`SELECT tenant_id FROM sessions WHERE id = ?`, sessionID).Scan(&tenantID)
 	if err != nil {
@@ -82,7 +83,7 @@ func (r *Runner) admitJob(sessionID, jobType string, paramsJSON []byte) (string,
 	}
 
 	if jobType != "circuit_run" {
-		return "", 0, nil
+		return r.admitNonCircuitRun(tenantID, sessionID, jobType, paramsJSON, declaredCost)
 	}
 	var p circuitRunParams
 	if err := json.Unmarshal(paramsJSON, &p); err != nil {
@@ -164,6 +165,41 @@ func (r *Runner) admitJob(sessionID, jobType string, paramsJSON []byte) (string,
 		return "", 0, err
 	}
 	return tenantID, p.MaxCostUSD, nil
+}
+
+// jobCostEnvelope is the explicit spend declaration for job types whose
+// params schemas carry no cost fields (A2A-mapped bridge tasks). Map-shaped
+// params may embed it; proto-shaped params cannot, so those callers use
+// SubmitJobWithDeclaredCost instead.
+type jobCostEnvelope struct {
+	MaxCostUSD float64 `json:"max_cost_usd"`
+}
+
+// admitNonCircuitRun rails bridge-compute jobs (W0.2): tenant autonomy
+// already passed above; the caller must declare an explicit positive
+// max_cost_usd, reserved here against tenant + session exactly like
+// circuit_run. No mandate receipt and no fidelity floor: those gate QPU
+// dispatch, and these types never touch hardware — the exemption is
+// recorded here, not silent, and the reservation is the receipt.
+func (r *Runner) admitNonCircuitRun(tenantID, sessionID, jobType string, paramsJSON []byte, declaredCost float64) (string, float64, error) {
+	maxCost := declaredCost
+	if maxCost <= 0 {
+		var c jobCostEnvelope
+		if err := json.Unmarshal(paramsJSON, &c); err == nil {
+			maxCost = c.MaxCostUSD
+		}
+	}
+	if math.IsNaN(maxCost) || math.IsInf(maxCost, 0) || maxCost <= 0 {
+		return "", 0, fmt.Errorf("%s declares no positive max_cost_usd: dispatch refused", jobType)
+	}
+	if err := r.tenantStore().ReserveSpend(tenantID, maxCost); err != nil {
+		return "", 0, err
+	}
+	if err := r.sessionMgr.ReserveSpend(sessionID, maxCost); err != nil {
+		_ = r.tenantStore().ReleaseSpend(tenantID, maxCost)
+		return "", 0, err
+	}
+	return tenantID, maxCost, nil
 }
 
 // verifyMandateReceipt checks a cited mandate verification event: right

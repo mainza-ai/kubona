@@ -97,11 +97,11 @@ func TestRunnerAllJobTypesSettle(t *testing.T) {
 		params  any
 	}{
 		{"circuit_run", map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "shots": 100}},
-		{"circuit_cut", map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "max_subcircuit_qubits": 2}},
-		{"classical_anchor", map[string]any{"molecule": "H2", "bond_distance": 0.7414}},
-		{"claim_eval", map[string]any{"claim_id": "c1", "statement": "s"}},
-		{"krylov_solve", map[string]any{"molecule": "H2", "bond_distance": 0.7414}},
-		{"mitigate", map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "method": "ZNE"}},
+		{"circuit_cut", map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "max_subcircuit_qubits": 2, "max_cost_usd": 1.0}},
+		{"classical_anchor", map[string]any{"molecule": "H2", "bond_distance": 0.7414, "max_cost_usd": 1.0}},
+		{"claim_eval", map[string]any{"claim_id": "c1", "statement": "s", "max_cost_usd": 1.0}},
+		{"krylov_solve", map[string]any{"molecule": "H2", "bond_distance": 0.7414, "max_cost_usd": 1.0}},
+		{"mitigate", map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "method": "ZNE", "max_cost_usd": 1.0}},
 	}
 	for _, tc := range cases {
 		j, err := r.SubmitJob("sess-1", tc.jobType, tc.params)
@@ -122,13 +122,58 @@ func TestRunnerUnknownJobTypeFails(t *testing.T) {
 	r, cleanup := setupRunner(t, &fakeBridge{})
 	defer cleanup()
 
-	j, err := r.SubmitJob("sess-1", "teleportation", map[string]any{})
+	// W0.2: unknown types refuse at submit with no residue (previously they
+	// queued, reserved nothing, then failed in the worker).
+	if _, err := r.SubmitJob("sess-1", "teleportation", map[string]any{}); err == nil {
+		t.Fatalf("unknown job type must refuse at submit")
+	} else if !strings.Contains(err.Error(), "unknown job type") {
+		t.Fatalf("refusal must name the unknown type, got %v", err)
+	}
+	listed, lerr := r.ListJobs("sess-1", 50)
+	if lerr != nil {
+		t.Fatal(lerr)
+	}
+	for _, j := range listed {
+		if j.JobType == "teleportation" {
+			t.Fatalf("refused job must leave no row")
+		}
+	}
+}
+
+// W0.2: bridge-compute jobs run the spend rail — undeclared cost refuses,
+// declared cost reserves against tenant + session and releases on failure.
+func TestNonCircuitRunSpendRail(t *testing.T) {
+	r, cleanup := setupRunner(t, &fakeBridge{})
+	defer cleanup()
+
+	// No declared cost: refuse, no row, no spend moved.
+	if _, err := r.SubmitJob("sess-1", "mitigate", map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "method": "ZNE"}); err == nil {
+		t.Fatalf("costless bridge job must refuse")
+	} else if !strings.Contains(err.Error(), "max_cost_usd") {
+		t.Fatalf("refusal must name max_cost_usd, got %v", err)
+	}
+	listed, _ := r.ListJobs("sess-1", 50)
+	for _, j := range listed {
+		if j.JobType == "mitigate" {
+			t.Fatalf("refused job must leave no row")
+		}
+	}
+	// Declared cost: reserves, persists on the row, settles.
+	j, err := r.SubmitJob("sess-1", "mitigate", map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "method": "ZNE", "max_cost_usd": 7.5})
 	if err != nil {
-		t.Fatalf("SubmitJob failed: %v", err)
+		t.Fatalf("declared-cost submit: %v", err)
+	}
+	if j.ReservedAmount != 7.5 {
+		t.Fatalf("reservation must persist on the row, got %v", j.ReservedAmount)
 	}
 	settled := pollJob(t, r, j.ID)
-	if settled.Status != pb.JobStatus_JOB_STATUS_FAILED {
-		t.Fatalf("unknown job type must fail, got %+v", settled)
+	if settled.Status != pb.JobStatus_JOB_STATUS_COMPLETED {
+		t.Fatalf("declared-cost job must settle, got %+v", settled)
+	}
+	// circuit_run keeps params-embedded cost: a parallel declaration is
+	// refused (one cost source per type, never two to confuse).
+	if _, err := r.SubmitJobWithDeclaredCost("sess-1", "circuit_run", map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"}, 5.0); err == nil {
+		t.Fatalf("dual cost sources must refuse")
 	}
 }
 
@@ -136,7 +181,7 @@ func TestRunnerNilBridgeFailsHonestly(t *testing.T) {
 	r, cleanup := setupRunner(t, nil)
 	defer cleanup()
 
-	j, err := r.SubmitJob("sess-1", "classical_anchor", map[string]any{"molecule": "H2"})
+	j, err := r.SubmitJob("sess-1", "classical_anchor", map[string]any{"molecule": "H2", "max_cost_usd": 1.0})
 	if err != nil {
 		t.Fatalf("SubmitJob failed: %v", err)
 	}
@@ -150,7 +195,7 @@ func TestRunnerListJobs(t *testing.T) {
 	r, cleanup := setupRunner(t, &fakeBridge{})
 	defer cleanup()
 
-	if _, err := r.SubmitJob("sess-list", "mitigate", map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"}); err != nil {
+	if _, err := r.SubmitJob("sess-list", "mitigate", map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "max_cost_usd": 1.0}); err != nil {
 		t.Fatalf("SubmitJob failed: %v", err)
 	}
 	listed, err := r.ListJobs("sess-list", 10)
@@ -196,11 +241,11 @@ func TestRunnerCancelTenantJobs(t *testing.T) {
 	seedSession("sess-tenant-a1", "lab-a")
 	seedSession("sess-tenant-b1", "lab-b")
 
-	j1, err := r.SubmitJob("sess-tenant-a1", "mitigate", map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"})
+	j1, err := r.SubmitJob("sess-tenant-a1", "mitigate", map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "max_cost_usd": 1.0})
 	if err != nil {
 		t.Fatalf("submit: %v", err)
 	}
-	j2, err := r.SubmitJob("sess-tenant-b1", "mitigate", map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"})
+	j2, err := r.SubmitJob("sess-tenant-b1", "mitigate", map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "max_cost_usd": 1.0})
 	if err != nil {
 		t.Fatalf("submit: %v", err)
 	}
@@ -223,7 +268,7 @@ func TestAdmissionRefusesUnknownSession(t *testing.T) {
 	r, cleanup := setupRunner(t, &fakeBridge{})
 	defer cleanup()
 
-	if _, err := r.SubmitJob("ghost-session", "mitigate", map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"}); err == nil {
+	if _, err := r.SubmitJob("ghost-session", "mitigate", map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "max_cost_usd": 1.0}); err == nil {
 		t.Fatalf("unknown session must refuse at admission")
 	}
 }
