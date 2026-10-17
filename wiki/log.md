@@ -2247,3 +2247,12 @@ skipped is the exact failure this incident is about:
   7 tests (engine 3, api 2, ledger 2), negative-tested, race green. Live:
   sleep/step-refusal/wake/drain/drain-refusal + restart reconciled 20+1
   rows. Chat excluded by design (no harness held). Rows on gaps + plan S3.
+
+## [2026-10-17] feat | S4 secrets discipline landed (reframed)
+  Mapping found no dotenv writers + no secret values on HTTP (valueless
+  HMAC receipts; VaultClient tested-but-unwired) — dotenv item dropped,
+  shipped instead: session/tenant lease binding (ghost 404), scope+TTL
+  caps, server-side registry (one ID namespace), revoke route, bearer on
+  both routes (key test +401 case), canary absence scan. 4 tests,
+  negative-tested, race green; live 401/200/400/400/200/404. Notes on
+  secrets page + plan S4.

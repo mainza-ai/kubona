@@ -272,11 +272,23 @@ func TestVaultLeaseRequiresKey(t *testing.T) {
 	mint := func() (int, map[string]any) {
 		body, _ := json.Marshal(map[string]any{"scope": "provider:test", "ttl_seconds": 60})
 		req := httptest.NewRequest(http.MethodPost, "/api/vault/leases", bytes.NewReader(body))
+		req.Header.Set("Authorization", "Bearer op-token")
 		w := httptest.NewRecorder()
 		srv.Handler().ServeHTTP(w, req)
 		var out map[string]any
 		_ = json.NewDecoder(w.Body).Decode(&out)
 		return w.Code, out
+	}
+
+	// S4: issuance is a bearer-gated mutation — no token, no lease.
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
+	t.Setenv("KUBONA_LEASE_HMAC_KEY", "0123456789abcdef0123456789abcdef")
+	anonBody, _ := json.Marshal(map[string]any{"scope": "provider:test"})
+	anonReq := httptest.NewRequest(http.MethodPost, "/api/vault/leases", bytes.NewReader(anonBody))
+	anonW := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(anonW, anonReq)
+	if anonW.Code != http.StatusUnauthorized {
+		t.Errorf("bearerless mint must 401, got %d", anonW.Code)
 	}
 
 	t.Setenv("KUBONA_LEASE_HMAC_KEY", "")
