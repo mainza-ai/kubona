@@ -240,7 +240,13 @@ Each phase below had a gate test, and each passes **on simulators**:
 > ⚑ Correction: the 2026-10-08 text here read "213 Python + 58 Go + 3 Rust +
 > 1 Flutter test". The Flutter/Dart stack was retired 2026-10-04 (stack
 > ruling, [[roadmap]]); the counts grew as the Go core became the load-bearing
-> implementation (71 routes, single `kubonad` binary).
+> implementation (76 routes, single `kubonad` binary).
+>
+> > ⚑ Correction (2026-10-17, C6): 71 → 76. New since the earlier count:
+> > `sessions/context|export|import`, `vault/leases/revoke`,
+> > `jobs/{id}/cancel`, and the S8 console-support routes. Counts are
+> > prose and prose rots — recount with
+> > `rg -o 'HandleFunc\("[^"]*"' platform/core/pkg/api/server.go | sort -u | wc -l`.
 
 - **P0** federated MCP servers + gateway + provider trait + local simulator + capability
   schema + Apache-2.0 → the four-server split is workable over stdio MCP.
