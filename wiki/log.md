@@ -2284,3 +2284,10 @@ skipped is the exact failure this incident is about:
   landing verification now uses go test -count=1 (a cached green masked
   this locally — the earlier full-suite pass reused a pre-enforcement
   pkg/api result).
+
+## [2026-10-17] feat | S7 queue ops reframed + shipped
+  No prompt queue exists (synchronous turns) — shipped real gaps:
+  POST /api/jobs/{id}/cancel (CAS unwind, terminal replay, disk-ungated
+  by design) + rewrite CAS/session-404/disk-gate; steer N/A documented.
+  3 tests + manager CAS units, race green; live matrix both directions
+  (transition in-test, worker raced honestly). Rows on gaps + plan S7.

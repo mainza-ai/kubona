@@ -563,8 +563,52 @@ func (r *Runner) CancelSessionJobs(sessionID, reason string) (int, error) {
 	return len(ids), nil
 }
 
-func (r *Runner) GetJob(id string) (*Job, error) {
-	query := `SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, compiler_used, fallback_estimate FROM jobs WHERE id = ?`
+// CancelJob cancels one unsettled job (S7): QUEUED jobs never execute;
+// RUNNING jobs are fenced via the abort registry so a late completion
+// cannot overwrite the cancellation. Terminal jobs replay success
+// (already-terminal is a stable answer, not an error); unknown ids
+// refuse. Spend reservations unwind exactly once via the CAS guard.
+func (r *Runner) CancelJob(id, reason string) (transitioned bool, err error) {
+	if reason == "" {
+		reason = "cancelled by operator"
+	}
+	j, err := r.GetJob(id)
+	if err != nil {
+		return false, fmt.Errorf("job not found: %s", id)
+	}
+	switch j.Status {
+	case pb.JobStatus_JOB_STATUS_COMPLETED, pb.JobStatus_JOB_STATUS_FAILED:
+		return false, nil
+	}
+	r.mu.Lock()
+	r.aborted[id] = true
+	r.mu.Unlock()
+	now := time.Now().UTC()
+	errRes, _ := json.Marshal(map[string]string{"error": reason, "cancelled": "true"})
+	res, err := r.ledger.DB().Exec(
+		`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ? AND status IN ('JOB_STATUS_QUEUED', 'JOB_STATUS_RUNNING')`,
+		pb.JobStatus_JOB_STATUS_FAILED.String(), string(errRes), now, id,
+	)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	if n == 0 {
+		// Lost the race with the worker (it settled first): report the
+		// terminal state, not a phantom cancellation.
+		return false, nil
+	}
+	r.releaseReservation(id)
+	r.ledger.AppendEvent(j.SessionID, "job_cancelled", map[string]any{
+		"job_id": id, "reason": reason,
+	})
+	return true, nil
+}
+
+func (r *Runner) GetJob(id string) (*Job, error) {	query := `SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, compiler_used, fallback_estimate FROM jobs WHERE id = ?`
 	row := r.ledger.DB().QueryRow(query, id)
 
 	var j Job

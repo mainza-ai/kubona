@@ -11,6 +11,10 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
 )
 
+// ErrContentMismatch is returned when expected_content CAS fails (re-read
+// and retry). Handlers map it to 409.
+var ErrContentMismatch = fmt.Errorf("message changed since read: expected_content mismatch (concurrent edit — re-read and retry)")
+
 type Session struct {
 	ID              string    `json:"id"`
 	Title           string    `json:"title"`
@@ -253,20 +257,26 @@ func (m *Manager) DropTrailingAssistant(sessionID string) (string, error) {
 // RewriteUserMessage replaces a user message's content and deletes every
 // message after it (branching: the edited turn restarts the thread from
 // that point). Only role='user' rows are rewritable; anything else refuses.
+// expectedContent, when non-empty, is a compare-and-swap guard: mismatch
+// 409s at the handler (concurrent edits last-writer-win silently otherwise).
 // Returns the updated message.
-func (m *Manager) RewriteUserMessage(sessionID, messageID, content string) (*ChatMessage, error) {
+func (m *Manager) RewriteUserMessage(sessionID, messageID, content, expectedContent string) (*ChatMessage, error) {
 	if content == "" {
 		return nil, fmt.Errorf("rewritten content must not be empty")
 	}
 	var role, created string
+	var current string
 	err := m.ledger.DB().QueryRow(
-		`SELECT role, created_at FROM chat_messages WHERE id = ? AND session_id = ?`,
-		messageID, sessionID).Scan(&role, &created)
+		`SELECT role, created_at, content FROM chat_messages WHERE id = ? AND session_id = ?`,
+		messageID, sessionID).Scan(&role, &created, &current)
 	if err != nil {
 		return nil, fmt.Errorf("message not found in session")
 	}
 	if role != "user" {
 		return nil, fmt.Errorf("only user messages can be rewritten")
+	}
+	if expectedContent != "" && current != expectedContent {
+		return nil, ErrContentMismatch
 	}
 	tx, err := m.ledger.DB().Begin()
 	if err != nil {
