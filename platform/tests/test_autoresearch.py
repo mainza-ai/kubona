@@ -90,6 +90,7 @@ def test_library_full_pipeline_cost_approved(tmp_path):
     # positive budget with an explicit lab, program, and operator key).
     import os
     a = gov.request_approval(s.session_id, 5.0, "library entry validation")
+    a = gov.hold_approval(a.approval_id, reviewer="pi")
     a = gov.approve(a.approval_id, reviewer="pi", tenant_id="lab-a",
                     job_hash="job-lib", signing_key=os.urandom(32))
 

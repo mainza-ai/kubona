@@ -19,6 +19,7 @@ import os
 import tempfile
 import time
 import uuid
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -48,6 +49,12 @@ class Approval:
     reviewed_at: float | None = None
     mandate_token: str | None = None
     mandate_digest: str | None = None
+    # W0.10: the lab + program the minted mandate binds (audit trail of what
+    # was authorized — a mandate without a recorded binding is unreviewable).
+    mandate_tenant_id: str | None = None
+    mandate_job_hash: str | None = None
+    mandate_signature_hex: str | None = None
+    mandate_pubkey_hex: str | None = None
 
 
 class CostGovernanceService:
@@ -58,6 +65,13 @@ class CostGovernanceService:
         base = Path(store_path) if store_path else state_path("governance.jsonl").parent
         base.mkdir(parents=True, exist_ok=True)
         self.path = base / "governance.jsonl"
+        # W0.10: the money decision must be deterministic under concurrency.
+        # The thread lock serializes in-process transitions; the file lock
+        # serializes across processes sharing the store (approve+reject
+        # racing used to both append, last-line-wins deciding spend).
+        import threading
+        self._lock = threading.Lock()
+        self._lock_path = base / "governance.lock"
 
     # -- approvals (two-stage gate) -------------------------------------
     def _load_approvals(self) -> dict[str, Approval]:
@@ -73,33 +87,63 @@ class CostGovernanceService:
         with open(self.path, "a") as f:
             f.write(json.dumps(asdict(a), sort_keys=True) + "\n")
 
+    @contextmanager
+    def _money_locked(self):
+        """Serialize a full load-check-mutate-append cycle across threads
+        and processes sharing this store (approve+reject racing used to both
+        append, last-line-wins deciding spend)."""
+        import fcntl
+        with self._lock:
+            with open(self._lock_path, "a+b") as lf:
+                fcntl.flock(lf.fileno(), fcntl.LOCK_EX)
+                try:
+                    yield
+                finally:
+                    fcntl.flock(lf.fileno(), fcntl.LOCK_UN)
+
     def request_approval(self, session_id: str, amount_usd: float, reason: str,
                          requested_by: str = "agent") -> Approval:
+        import math
+        if not isinstance(amount_usd, (int, float)) or not math.isfinite(amount_usd) or amount_usd <= 0:
+            raise GovernanceError(f"amount_usd must be a positive finite number, got {amount_usd!r}")
+        if not reason or not reason.strip():
+            raise GovernanceError("reason is required: unattributed spend requests refuse")
+        if not requested_by or not requested_by.strip():
+            raise GovernanceError("requested_by is required")
+        try:
+            self.sessions.get(session_id)
+        except KeyError:
+            raise GovernanceError(f"unknown session {session_id!r}: approvals attach to live sessions") from None
         a = Approval(approval_id=uuid.uuid4().hex[:16], session_id=session_id,
-                     kind="paid_job", amount_requested_usd=round(amount_usd, 6),
+                     kind="paid_job", amount_requested_usd=round(float(amount_usd), 6),
                      reason=reason, requested_by=requested_by)
         self._save_approval(a)
         self.sessions.update(session_id, approvals=[*self.sessions.get(session_id).approvals, a.approval_id])
         return a
 
+    def _check_reviewer(self, reviewer: str) -> None:
+        if not reviewer or not reviewer.strip():
+            raise GovernanceError("reviewer is required: unattributed audit records refuse")
+
     def hold_approval(self, approval_id: str, reviewer: str) -> Approval:
-        a = self._load_approvals()[approval_id]
-        if a.state != "REVIEW":
-            raise GovernanceError(f"approval {approval_id} is {a.state}, not REVIEW")
-        a.state = "HOLD"
-        a.reviewed_by = reviewer
-        a.reviewed_at = time.time()
-        self._save_approval(a)
-        return a
+        self._check_reviewer(reviewer)
+        with self._money_locked():
+            a = self._load_approvals().get(approval_id)
+            if a is None:
+                raise KeyError(f"unknown approval {approval_id!r}")
+            if a.state != "REVIEW":
+                raise GovernanceError(f"approval {approval_id} is {a.state}, not REVIEW")
+            a.state = "HOLD"
+            a.reviewed_by = reviewer
+            a.reviewed_at = time.time()
+            self._save_approval(a)
+            return a
 
     def approve(self, approval_id: str, reviewer: str, note: str | None = None,
                 tenant_id: str | None = None, job_hash: str | None = None,
                 signing_key: bytes | None = None) -> Approval:
         from kubona.cost.mandate import create_mandate, utc_now_plus, verify_mandate
 
-        a = self._load_approvals()[approval_id]
-        if a.state not in ("REVIEW", "HOLD"):
-            raise GovernanceError(f"approval {approval_id} is {a.state}")
         # W0.9: the mandate binds an explicit lab + program under an explicit
         # operator key. No defaults anywhere: a defaulted tenant or job hash
         # is an unbound mandate, and an unsigned one never mints. (W0.10
@@ -110,35 +154,52 @@ class CostGovernanceService:
             raise GovernanceError("approve requires job_hash: mandates bind a program, never a blank")
         if signing_key is None:
             raise GovernanceError("approve requires signing_key (operator Ed25519 seed): unsigned mandates never mint")
-        m = create_mandate(
-            signing_key=signing_key,
-            tenant_id=tenant_id,
-            job_hash=job_hash,
-            max_budget_usd=a.amount_requested_usd,
-            expiry=utc_now_plus(3600.0),
-        )
-        ok, reason = verify_mandate(m, tenant_id, job_hash, a.amount_requested_usd)
-        if not ok:
-            raise GovernanceError(f"freshly minted mandate must verify: {reason}")
-        a.state = "APPROVED"
-        a.reviewed_by = reviewer
-        a.note = note
-        a.reviewed_at = time.time()
-        a.mandate_token = m.signature_hex
-        a.mandate_digest = hashlib.sha256(m.canonical_payload()).hexdigest()
-        self._save_approval(a)
-        return a
+        self._check_reviewer(reviewer)
+        with self._money_locked():
+            a = self._load_approvals().get(approval_id)
+            if a is None:
+                raise KeyError(f"unknown approval {approval_id!r}")
+            # Two-stage gate enforced: REVIEW must pass through HOLD.
+            # Approving REVIEW directly skips the hold checkpoint (W0.10).
+            if a.state != "HOLD":
+                raise GovernanceError(f"approval {approval_id} is {a.state}: approve requires HOLD (request -> hold -> approve)")
+            m = create_mandate(
+                signing_key=signing_key,
+                tenant_id=tenant_id,
+                job_hash=job_hash,
+                max_budget_usd=a.amount_requested_usd,
+                expiry=utc_now_plus(3600.0),
+            )
+            ok, reason = verify_mandate(m, tenant_id, job_hash, a.amount_requested_usd)
+            if not ok:
+                raise GovernanceError(f"freshly minted mandate must verify: {reason}")
+            a.state = "APPROVED"
+            a.reviewed_by = reviewer
+            a.note = note
+            a.reviewed_at = time.time()
+            a.mandate_token = m.signature_hex
+            a.mandate_digest = hashlib.sha256(m.canonical_payload()).hexdigest()
+            a.mandate_tenant_id = tenant_id
+            a.mandate_job_hash = job_hash
+            a.mandate_signature_hex = m.signature_hex
+            a.mandate_pubkey_hex = m.public_key_hex
+            self._save_approval(a)
+            return a
 
     def reject(self, approval_id: str, reviewer: str, note: str) -> Approval:
-        a = self._load_approvals()[approval_id]
-        if a.state not in ("REVIEW", "HOLD"):
-            raise GovernanceError(f"approval {approval_id} is {a.state}")
-        a.state = "REJECTED"
-        a.reviewed_by = reviewer
-        a.note = note
-        a.reviewed_at = time.time()
-        self._save_approval(a)
-        return a
+        self._check_reviewer(reviewer)
+        with self._money_locked():
+            a = self._load_approvals().get(approval_id)
+            if a is None:
+                raise KeyError(f"unknown approval {approval_id!r}")
+            if a.state not in ("REVIEW", "HOLD"):
+                raise GovernanceError(f"approval {approval_id} is {a.state}")
+            a.state = "REJECTED"
+            a.reviewed_by = reviewer
+            a.note = note
+            a.reviewed_at = time.time()
+            self._save_approval(a)
+            return a
 
     # -- pre-flight + spend enforcement ---------------------------------
     def preflight(self, capability: ProviderCapability, circuit: Circuit, shots: int,
@@ -163,9 +224,14 @@ class CostGovernanceService:
         return self.sessions.get(session_id).spent_usd
 
     # -- burn-rate telemetry --------------------------------------------
-    def burn_rate(self, session_id: str, window_s: float = 60.0) -> dict[str, Any]:
+    def burn_rate(self, session_id: str) -> dict[str, Any]:
+        """Average spend rate since session start (W0.10): the old code
+        divided cumulative spend by a fixed 60s window, mislabeling the
+        result as a rate. The window param is gone — a windowed rate needs
+        timestamped spend events, which this store does not keep."""
         s = self.sessions.get(session_id)
-        rate = round(s.spent_usd / max(window_s, 1e-9), 6) if s.spent_usd else 0.0
+        elapsed = max(time.time() - s.created_at, 1e-9)
+        rate = round(s.spent_usd / elapsed, 6) if s.spent_usd else 0.0
         remaining = s.remaining()
         eta = round(remaining / rate, 1) if (remaining is not None and rate > 0) else None
         return {
