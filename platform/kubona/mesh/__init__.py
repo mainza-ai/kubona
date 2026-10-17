@@ -20,9 +20,9 @@ from kubona.mesh.model_router import (
     MultimodalPayload,
     RoutingDecision,
 )
-from kubona.mesh.user_defined import (
+from kubona.agents.user_defined import (
     STANDARD_SYSTEM_AGENTS,
-    AgentRegistry,
+    CustomAgentRegistry,
     UserDefinedAgentManifest,
 )
 
@@ -38,6 +38,6 @@ __all__ = [
     "MultimodalPayload",
     "RoutingDecision",
     "UserDefinedAgentManifest",
-    "AgentRegistry",
+    "CustomAgentRegistry",
     "STANDARD_SYSTEM_AGENTS",
 ]

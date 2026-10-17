@@ -160,7 +160,7 @@ STANDARD_SYSTEM_AGENTS: list[UserDefinedAgentManifest] = [
 ]
 
 
-class AgentRegistry:
+class CustomAgentRegistry:
     """Manages system and user-defined agents with validation and persistence."""
 
     def __init__(self, storage_path: Path | None = None):

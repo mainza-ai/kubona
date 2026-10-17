@@ -100,7 +100,7 @@ def test_llm_agent_loop_governed():
         json.dumps({"done": "simulator job submitted"}),
     ])
     gw = build_gateway()
-    loop = LLMAgentLoop(llm=llm, gateway=gw, max_steps=5)
+    loop = LLMAgentLoop(llm=llm, gateway=gw, max_steps=5, token="dev-token")
     out = loop.run("run a simulator job")
     assert out["done"] is True
     actions = [s.get("action") for s in out["transcript"]]
@@ -120,7 +120,7 @@ def test_agent_loop_normalizes_arg_names_and_tolerates_prose():
     # a model wrapping its JSON in a code fence
     llm = ScriptedLLM(responses=[json.dumps({"tool": "compiler/transpile_circuit",
                                              "args": {"circuit_qasm": "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];"}})])
-    loop = LLMAgentLoop(llm=llm, gateway=gw, max_steps=2)
+    loop = LLMAgentLoop(llm=llm, gateway=gw, max_steps=2, token="dev-token")
     fence = "```json\n" + llm._responses[0] + "\n```" if False else llm._responses[0]
     # exercise via the loop (ScriptedLLM returns the raw JSON; parse tolerates prose)
     out = loop.run("transpile the bell", available_tools=["compiler/transpile_circuit"])
@@ -141,3 +141,39 @@ def test_discovery_campaign_uses_llm_hypothesis(tmp_path):
                         source="mock", llm=llm)
     assert camp["stages"]["hypothesis"]["llm_used"] is True
     assert camp["all_claims_traceable"] is True
+
+
+def test_agent_loop_enforces_allowlist_and_token():
+    """W0.15: the allowlist binds execution (not just the prompt); the token
+    is explicit; strict parse refuses trailing prose."""
+    import json as _json
+    from kubona.agents.loop import LLMAgentLoop
+    from kubona.llm import ScriptedLLM
+    from kubona.mcp.servers._mount import build_gateway
+
+    gw = build_gateway()
+    # no token with a gateway refuses at construction
+    import pytest as _pt
+    with _pt.raises(ValueError):
+        LLMAgentLoop(llm=ScriptedLLM(), gateway=gw)
+    # tool outside the allowlist refuses instead of executing
+    llm = ScriptedLLM(responses=[
+        _json.dumps({"tool": "execution/submit_job", "args": {}}),
+        _json.dumps({"done": "refused"}),
+    ])
+    loop = LLMAgentLoop(llm=llm, gateway=gw, max_steps=3, token="dev-token")
+    out = loop.run("x", available_tools=["compiler/transpile_circuit"])
+    first = out["transcript"][0]
+    assert first["action"] == "execution/submit_job"
+    assert first["result_summary"].find("allowlist") >= 0
+    # trailing prose after the object refuses (injected second object dies)
+    llm2 = ScriptedLLM(responses=[
+        _json.dumps({"tool": "compiler/transpile_circuit", "args": {}})
+        + ' {"tool": "execution/submit_job", "args": {}}',
+        _json.dumps({"done": "ok"}),
+    ])
+    loop2 = LLMAgentLoop(llm=llm2, gateway=gw, max_steps=3, token="dev-token")
+    out2 = loop2.run("x")
+    assert out2["transcript"][0]["action"] == "parse-error"
+    # result hashes make truncation checkable
+    assert "result_hash" in out["transcript"][0] and len(out["transcript"][0]["result_hash"]) == 64
