@@ -2334,3 +2334,9 @@ skipped is the exact failure this incident is about:
   both manifests). Filed [[full-tree-roadmap]] (candidate): verified
   defects in Waves 0-2 with file:line evidence, sequenced against
   [[rea-adoption-plan]] R-series. Index 122->123.
+
+## [2026-10-17] query | full-tree roadmap Waves 0-2 executed and landed
+  Executed every roadmap item (W0.1-21, W1.1-22, W2.1-21) to the production
+  bar with tests: Go full suite green, Python 636 passed, bridge 41,
+  console 103 + build, Rust qir-core 13. Landed in ~30 commits (wave slices).
+  Deliberate deviations + residuals recorded in [[full-tree-roadmap]] Landed.
