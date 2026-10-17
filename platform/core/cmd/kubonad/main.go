@@ -15,6 +15,8 @@ import (
 	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/api"
+	"github.com/mainza-ai/kubona/core/pkg/disk"
+	"github.com/mainza-ai/kubona/core/pkg/hf"
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
 	"github.com/mainza-ai/kubona/core/pkg/qir"
@@ -149,6 +151,49 @@ func main() {
 	}
 	defer l.Close()
 
+	// 1b. S2 disk guard: watch the filesystems holding state (DB dir +
+	// HF models dir — guarding / while state lives elsewhere is fiction).
+	// Thresholds come from env over Q2 defaults; invalid config refuses boot.
+	diskThresholds, err := disk.ThresholdsFromEnv()
+	if err != nil {
+		log.Fatalf("Disk guard configuration refused: %v", err)
+	}
+	diskPollSeconds, err := disk.PollSecondsFromEnv()
+	if err != nil {
+		log.Fatalf("Disk guard configuration refused: %v", err)
+	}
+	diskGuard := disk.NewGuard(diskThresholds,
+		[]string{filepath.Dir(resolvedDB), hf.DefaultModelsDir()}, nil,
+		func(snap disk.Snapshot) {
+			event := "disk_warning"
+			if snap.Level == disk.LevelBlocked {
+				event = "disk_blocked"
+			} else if snap.Level == disk.LevelOK {
+				event = "disk_resumed"
+			}
+			_ = l.AppendEvent("global", event, map[string]any{
+				"level": snap.Level, "avail_bytes": snap.AvailBytes,
+				"paths": snap.Paths, "reason": snap.Reason,
+			})
+			log.Printf("[Kubona Core] disk guard: %s (%s)", snap.Level, snap.Reason)
+		})
+	diskGuard.PollOnce() // fail-closed first reading before serving
+	diskStop := make(chan struct{})
+	defer close(diskStop)
+	go diskGuard.Start(diskStop, time.Duration(diskPollSeconds)*time.Second)
+	log.Printf("[Kubona Core] Disk guard watching %s + %s (warn/block/resume %d/%d/%d bytes)",
+		filepath.Dir(resolvedDB), hf.DefaultModelsDir(),
+		diskThresholds.WarnBytes, diskThresholds.BlockBytes, diskThresholds.ResumeBytes)
+
+	// 1c. S3: reconcile persisted loops. Engines are in-memory, so nothing
+	// can be running after a restart — non-terminal rows sleep (history
+	// kept, explicit wake only). Terminal rows untouched.
+	if reconciled, rerr := l.ReconcileLoopsOnBoot(); rerr != nil {
+		log.Fatalf("Loop reconcile refused: %v", rerr)
+	} else if reconciled > 0 {
+		log.Printf("[Kubona Core] Reconciled %d persisted loops to sleeping", reconciled)
+	}
+
 	// 2. Connect to Python Quantum Bridge via gRPC
 	conn, err := grpc.NewClient(*bridgeAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
@@ -171,6 +216,13 @@ func main() {
 
 	// 4. Start HTTP / REST / WebSocket Gateway
 	server := api.NewServer(l, sessionMgr, jobRunner, loopSupervisor, taskWatchdog)
+	server.SetDiskGuard(diskGuard)
+	jobRunner.SetDiskGuard(diskGuard)
+
+	// 4b. S3: idle-loop sweeper (10 min threshold, 60 s poll).
+	loopStop := make(chan struct{})
+	defer close(loopStop)
+	go server.StartLoopSweeper(loopStop)
 	httpServer := &http.Server{
 		Addr:    fmt.Sprintf("%s:%d", *bindAddr, *port),
 		Handler: server.Handler(),

@@ -194,7 +194,15 @@ status: candidate
   `sessions.jsonl` (size-based, 8 MiB pattern).
 - **Wiki:** [[risks]] + [[implementation-gaps]] rows.
 
-### S3 — Loop sleep + drain + mid-run budget (M, needs S1 keys for wake)
+### S3 — Loop sleep + drain + mid-run budget (M, needs S1 keys for wake) — ✅ LANDED 2026-10-17
+
+> Landed as specified with one documented reduction: chat/tribunal sessions
+> do NOT sleep (they hold no harness — sleeping them would be theater;
+> loops only). Loop-row writer added (`harness_id/last_activity/drain/
+> reserved_amount`), boot reconcile sleeps non-terminal rows (proven live),
+> budget hook pauses on breach, wake S1-keyed, drain latched. Engine (3) +
+> API (2) + ledger (2) tests; negative-tested; race green; live
+> sleep/step-refusal/wake/drain/drain-refusal + restart-reconcile matrix.
 
 - **Threat:** idle loops hold harness/bridge resources forever; stop mid-turn
   loses or double-runs work; hot loops burn unbounded LLM (G4/G5).
