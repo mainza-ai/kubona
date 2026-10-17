@@ -214,6 +214,24 @@ silent edits; rollback stated.
   alone (same bar as R5, reviewed by reading).
 - **Rollback:** catalog is additive; no tool removed in this slice
   (removal, if ever, is a separate decided slice per tool).
+> ✅ LANDED 2026-10-17: `platform/contracts/mcp-catalog.json` (29 tools,
+> digest-pinned, verdict+trust_property+error_codes per tool) +
+> `kubona/mcp/catalog.py` (live-registry builder, SDK's own serialization,
+> merge-by-key regen) + `test_mcp_catalog.py` (drift-red, review-complete,
+> scope-coverage guard). Review outcome, decided: **keep all 29 with named
+> properties, zero removals** — each tool answered leanrea's question with
+> a trust property (override authority, budget binding, sealed receipts,
+> tenant isolation, admission gates, evidence chains); `list_provider_registry`
+> kept deliberately as the sole MCP-client discovery path (~200 B).
+> Live review finding fixed in-slice: `compile_circuit` shipped mounted
+> but scope-unmapped (default-deny made it dead surface) — mapped to
+> `compiler:read`, proven refused-before/allowed-after. `not_found`
+> added to the error catalog (shared, both rails + pins) for unknown-id
+> refusals. Retry read-through: escalate-only is CORRECT for this surface
+> (no limiters/disk/idempotency/bridge paths in MCP Python code — verified
+> by grep, not assumed); retryable codes live in the shared catalog for
+> the surfaces that need them. Capabilities endpoint untouched (tribunal
+> registry only — language boundary, stated). P2-13 CLOSED.
 
 ### Sequencing (corrected per LC3 — baseline before change)
 
