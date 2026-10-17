@@ -2460,3 +2460,13 @@ skipped is the exact failure this incident is about:
   default-deny) → mapped + proven both directions. `not_found` added to
   shared error catalog (both rails + pins). P2-13 CLOSED. Python 672 +
   Go api green, full build clean.
+
+## [2026-10-17] decision | P1-4 step 1 landed + principal-threading assessed
+  Step 1: conformance freezes on all three registry homes (Go custom +
+  Python registry + Python user_defined; inventory corrected 2→3 homes);
+  boot-crash hardening for non-dict store rows (saw red pre-fix).
+  Step 2 scoped: wire-shape freezes both sides only — three Go verdict
+  vocabularies found, canonical mapping left for operator. Principal
+  threading: assessed, no change by design (possession model + scope
+  gates + file sharding; gateway sub→requester binding limit stated).
+  Python 682 + Go agents green, lint clean.

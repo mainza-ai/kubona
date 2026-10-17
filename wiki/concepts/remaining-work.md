@@ -47,6 +47,12 @@ status: tracked
 ## B · Queued programs (unblocked, beyond a single slice)
 
 - P1-4 subsystem consolidation execution — design: [[agent-subsystem-consolidation]].
+  > ✅ STEP 1 LANDED 2026-10-17: conformance freezes on all three
+  > registry homes (Go + 2× Python) + boot-crash hardening
+  > (negative-proven). Step 2 scoped: wire-shape freezes both sides,
+  > canonical mapping left for the operator (three Go vocabularies,
+  > not one). Steps 3–5 await operator scheduling + identity-home
+  > decision. Page status stays `candidate` — correctly.
 - Lean skill slices L1–L5 (plan: [[leanrea-adoption-plan]] §3, conflicts:
   [[leanrea-conflicts-and-remediation]] — S-sized, ordered L1 → L2-baseline
   → L3 → L2-rerun → L4 → L5 (LC3: baseline before change), none touch the
@@ -72,8 +78,21 @@ status: tracked
   theater built).
 - Steer — needs engine surgery (documented N/A: synchronous model has
   no background turn to steer into).
-- Assess principal threading on the remaining MCP servers
-  (cost/execution/provenance write paths) — control plane done.
+- ~~Assess principal threading on the remaining MCP servers
+  (cost/execution/provenance write paths)~~ — ASSESSED 2026-10-17, no
+  change (by design, threat argument): control already threads
+  `requester` with label scoping (`test_control_tenants.py`); provenance
+  reads thread `requester` via `readable()` with ambient resources
+  public-only; provenance writes take caller-stated `label` (default =
+  file's own tenant, files sharded per tenant, label bound into the
+  content hash so forgery breaks validation); cost/execution run a
+  possession model (unguessable `uuid4` session/job ids) + gateway scope
+  gates for WHO — consistent with the `step_loop` precedent (possession
+  of loop_id, documented). Known limit, stated: the gateway never binds
+  `principal.sub` → `requester`, so label isolation is honest-caller +
+  file-sharding + scopes, not cryptographic binding — the documented
+  local-deployment model. Re-open if MCP serves remote cross-lab
+  clients.
 - Deferred batch: IdP (Phase 4), human lab membership (Phase 4),
   pgvector activation, sharding, full LLVM lowering, KEMTLS re-eval,
   CKT, Cirq/Q#/Serverless/Braket/rQOPS/CQM providers, GQE transformer,

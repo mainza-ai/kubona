@@ -67,3 +67,29 @@ def test_validation_rejects_overwriting_system_agent():
     )
     with pytest.raises(ValueError, match="Cannot overwrite reserved system agent"):
         reg.register_custom_agent(malicious)
+
+
+def _manifest(**kw):
+    base = dict(id="agent_x", name="X", role="r", description="d",
+                system_prompt="prompt")
+    base.update(kw)
+    return UserDefinedAgentManifest(**base)
+
+
+def test_validation_contract_edges():
+    # P1-4 step 1 (freeze): every remaining refusal edge of
+    # register/delete, pinned before any consolidation migration.
+    reg = CustomAgentRegistry()
+    with pytest.raises(ValueError, match="ID cannot be empty"):
+        reg.register_custom_agent(_manifest(id="  "))
+    with pytest.raises(ValueError, match="name cannot be empty"):
+        reg.register_custom_agent(_manifest(name=" "))
+    with pytest.raises(ValueError, match="system prompt cannot be empty"):
+        reg.register_custom_agent(_manifest(system_prompt=""))
+    # is_system_agent forgery is forced False, never stored True.
+    got = reg.register_custom_agent(_manifest(is_system_agent=True))
+    assert got.is_system_agent is False
+    # System agents refuse deletion; unknown deletes report False.
+    with pytest.raises(ValueError, match="Cannot delete system agent"):
+        reg.delete_custom_agent("sys_lead_theorist")
+    assert reg.delete_custom_agent("agent_no_such") is False
