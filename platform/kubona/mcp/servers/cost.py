@@ -9,6 +9,7 @@ session_burn_rate (real-time telemetry), quote_payment / verify_payment
 from __future__ import annotations
 
 import asyncio
+import threading
 
 from mcp.server.mcpserver import MCPServer
 
@@ -22,6 +23,13 @@ mcp = MCPServer("kubona-cost")
 
 _sessions = SessionStore()
 _gov = CostGovernanceService(_sessions)
+
+# Stored quotes (W0.16): verify_payment checks the proof against the amount
+# OWED (the stored quote for this session), never a caller-supplied amount —
+# the old code re-quoted from caller input, so a $100 job verified with a
+# $0.01 proof. Mismatched or missing stored quotes refuse.
+_quotes: dict[str, float] = {}
+_quotes_lock = threading.Lock()
 
 
 def create_session(name: str, owner: str, budget_ceiling_usd: float | None = None) -> dict:
@@ -99,16 +107,26 @@ def quote_payment(session_id: str, amount_usd: float) -> dict:
     except ValueError as e:
         return {"ok": False, "error": str(e)}
     quote = pay.quote(job_ref=session_id, amount_usd=amount_usd)
+    with _quotes_lock:
+        _quotes[session_id] = quote.amount_usd
     return {"ok": True, **quote.to_dict()}
 
 
 def verify_payment(session_id: str, proof: str, amount_usd: float) -> dict:
+    """Verify a proof against the STORED quote for this session (W0.16)."""
     try:
         _sessions.get(session_id)
     except KeyError:
         return {"ok": False, "error": f"unknown session_id {session_id!r}"}
-    pay = payments_for(amount_usd)
-    quote = pay.quote(job_ref=session_id, amount_usd=amount_usd)
+    with _quotes_lock:
+        owed = _quotes.get(session_id)
+    if owed is None:
+        return {"ok": False, "error": "no stored quote for this session: quote first, then verify"}
+    if amount_usd != owed:
+        return {"ok": False,
+                "error": f"verify amount ${amount_usd} does not match quoted ${owed}: refusing"}
+    pay = payments_for(owed)
+    quote = pay.quote(job_ref=session_id, amount_usd=owed)
     return pay.verify(proof, quote)
 
 
