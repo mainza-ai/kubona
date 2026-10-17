@@ -607,15 +607,25 @@ status: candidate
   (schema-declared, canary-pinned); ADMET RPCs absent with no callers
   (nothing to add); test_qir lower-case intrinsic updated to the canonical
   cnot name.
-- **Residuals for later (stated, not hidden):** MCP control tools need
-  principal threading for tenant-isolation; Python mandate interop with Go
-  verification is byte-compatible but unwired end-to-end; emulator
-  thresholds are v1 heuristics throughout.
+- **Residuals for later (stated, not hidden):** P1-4 subsystem
+  consolidation (program-scale — design recorded in
+  [[agent-subsystem-consolidation]], refactor queued).
+- > ⚑ Closed as verified-unnecessary or operator-gated (2026-10-17):
+  Python↔Go mandate interop has NO cross-rail consumer (parallel
+  implementations by design; byte-compat continuously pinned
+  three-way by the W0.9 vector — the day a flow needs crossing, the
+  bytes already agree). Emulator/device thresholds stay v1-heuristic
+  until keyed hardware exists (canary already verifies live-vs-declared
+  per Q-14; recalibration needs QPU credentials — operator deed).
 - > ⚑ Resolved since (2026-10-17): refund primitive landed (`41ed4f9`:
   admin-authorized, reasoned, sealed `tenant_spend_refunded`; no
   auto-refunds by design) plus a live taxonomy catch (`spend_release_refused`
   was emitted but never registered — its audit row silently dropped until
   now). I3 landed (`8a49012`, see [[cloudroom-adoption-plan]]).
+  MCP principal threading landed (`9da17bf`): control-plane loops carry
+  owning-tenant labels, reads/overrides take requester (same convention
+  as provenance; capability gate still authorizes WHO, labels scope
+  WHICH; step_loop stays possession-capability, documented).
 - > ⚑ Correction (2026-10-17, `ee870b0`): two Wave-2 slices above landed
   with red suites — the agents' "green" reports predated the final
   commit contents, and the slices were not re-run after bundling.

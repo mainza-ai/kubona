@@ -2399,3 +2399,10 @@ skipped is the exact failure this incident is about:
 ## [2026-10-17] decision | R2b mandate obligations landed
   `4822ea2`: mandate_ref linkage end to end (verify opens, settle
   closes, post-closure forks anomaly). R2 series complete.
+
+## [2026-10-17] decision | residuals triaged: MCP landed, interop/emulator closed, P1-4 designed
+  `9da17bf` control-plane tenant isolation. Mandate interop: no
+  cross-rail consumer (parallel by design, vector-pinned). Emulator
+  thresholds: credential-blocked (canary verifies live-vs-declared).
+  P1-4: design recorded in [[agent-subsystem-consolidation]], execution queued.
+  CI red-since-Wave-1 fixed (macOS-only tmp assertion) — awaiting green.
