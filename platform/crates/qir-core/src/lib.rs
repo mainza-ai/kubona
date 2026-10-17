@@ -11,6 +11,10 @@ pub struct Gate {
     pub name: String,
     pub qubits: Vec<usize>,
     pub params: Vec<f64>,
+    /// Classical target bit for `measure q[i] -> c[j]` (None otherwise).
+    /// W1.5: the old parser dropped the bit and the emitter called an
+    /// undeclared @__quantum__qis__measure__body — invalid IR.
+    pub cbit: Option<usize>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -34,13 +38,25 @@ pub fn parse(source: &str) -> Result<Circuit, String> {
         if line.is_empty() || line.starts_with("OPENQASM") {
             continue;
         }
+        // W1.5: structural directives are not gates. The old parser lowered
+        // `creg`/`barrier` into calls to undeclared @__quantum__qis__creg__body
+        // et al. — invalid IR from valid QASM.
+        let lname = line.split_whitespace().next().unwrap_or("");
+        if matches!(lname, "include" | "creg" | "barrier" | "opaque" | "if") {
+            if lname == "opaque" || lname == "if" {
+                return Err(format!("unsupported statement '{lname}': refusing"));
+            }
+            continue;
+        }
         if let Some(rest) = line.strip_prefix("qreg") {
             let end = rest.find(']').ok_or("malformed qreg")?;
             let n: usize = rest[rest.find('[').ok_or("qreg missing [")? + 1..end]
                 .trim()
                 .parse()
                 .map_err(|_| "bad qreg size")?;
-            num_qubits = n;
+            // W1.5: max width across registers (the old overwrite took the
+            // last qreg, shrinking multi-register programs).
+            num_qubits = num_qubits.max(n);
             continue;
         }
         // gate line: name[(params)] q[a], q[b];
@@ -69,6 +85,18 @@ pub fn parse(source: &str) -> Result<Circuit, String> {
                 qubits.push(q[o + 1..end].trim().parse::<usize>().map_err(|_| "bad qubit")?);
             }
         }
+        // W1.5: measure threads its classical bit (q[i] -> c[j]) instead of
+        // dropping it. Malformed measure refuses here, not in codegen.
+        let mut cbit = None;
+        if name == "measure" || name == "mz" || name == "m" {
+            let arrow = q_part.find("->").ok_or("measure needs q[i] -> c[j]")?;
+            let cpart = q_part[arrow + 2..].trim();
+            let (co, ce) = (cpart.find('[').ok_or("bad classical bit")?, cpart.find(']').ok_or("bad classical bit")?);
+            cbit = Some(cpart[co + 1..ce].trim().parse::<usize>().map_err(|_| "bad classical bit")?);
+            if qubits.len() != 1 {
+                return Err("measure takes exactly 1 qubit".into());
+            }
+        }
         // Fail-closed boundary: transpile indexes qubits[0] and params[0..2],
         // so a gate that parses but addresses nothing (or under-supplies a
         // u-gate) would panic downstream. Refuse here instead.
@@ -84,7 +112,15 @@ pub fn parse(source: &str) -> Result<Circuit, String> {
         if params.len() < want_params {
             return Err(format!("gate '{name}' needs {want_params} params, got {}", params.len()));
         }
-        gates.push(Gate { name, qubits, params });
+        gates.push(Gate { name, qubits, params, cbit });
+    }
+    // W1.5: max register width (the old overwrite took the LAST qreg), and
+    // qubit bounds — %q5 with qreg q[2] used to emit undeclared SSA names.
+    let max_idx = gates.iter().flat_map(|g| g.qubits.iter().copied()).max();
+    if let Some(m) = max_idx {
+        if m >= num_qubits {
+            return Err(format!("qubit q[{m}] out of range for {num_qubits} declared qubits"));
+        }
     }
     Ok(Circuit { name: "qasm".into(), num_qubits, gates })
 }
@@ -98,54 +134,23 @@ pub fn transpile_to_native(c: &Circuit) -> Circuit {
         match g.name.as_str() {
             "u3" => {
                 let (th, ph, la) = (g.params[0], g.params[1], g.params[2]);
-                gates.push(Gate { name: "rz".into(), qubits: vec![q], params: vec![la] });
-                gates.push(Gate { name: "ry".into(), qubits: vec![q], params: vec![th] });
-                gates.push(Gate { name: "rz".into(), qubits: vec![q], params: vec![ph] });
+                gates.push(Gate { name: "rz".into(), qubits: vec![q], params: vec![la], cbit: None });
+                gates.push(Gate { name: "ry".into(), qubits: vec![q], params: vec![th], cbit: None });
+                gates.push(Gate { name: "rz".into(), qubits: vec![q], params: vec![ph], cbit: None });
             }
             "u2" => {
                 let (ph, la) = (g.params[0], g.params[1]);
-                gates.push(Gate { name: "rz".into(), qubits: vec![q], params: vec![la] });
-                gates.push(Gate { name: "ry".into(), qubits: vec![q], params: vec![PI / 2.0] });
-                gates.push(Gate { name: "rz".into(), qubits: vec![q], params: vec![ph] });
+                gates.push(Gate { name: "rz".into(), qubits: vec![q], params: vec![la], cbit: None });
+                gates.push(Gate { name: "ry".into(), qubits: vec![q], params: vec![PI / 2.0], cbit: None });
+                gates.push(Gate { name: "rz".into(), qubits: vec![q], params: vec![ph], cbit: None });
             }
             "u1" => {
-                gates.push(Gate { name: "rz".into(), qubits: vec![q], params: vec![g.params[0]] });
+                gates.push(Gate { name: "rz".into(), qubits: vec![q], params: vec![g.params[0]], cbit: None });
             }
             _ => gates.push(g.clone()),
         }
     }
     Circuit { name: c.name.clone(), num_qubits: c.num_qubits, gates }
-}
-
-/// Emit QIR-like textual LLVM IR.
-pub fn emit_qir(c: &Circuit) -> String {
-    let mut out = String::new();
-    out.push_str("; QIR-like textual IR (qir-core, Rust reference compiler)\n");
-    out.push_str(&format!("; circuit: {}  qubits: {}\n", c.name, c.num_qubits));
-    out.push_str("define void @main() {\nentry:\n");
-    for q in 0..c.num_qubits {
-        out.push_str(&format!("  %q{q} = call %Qubit* @__quantum__rt__qubit_allocate()\n"));
-    }
-    for g in &c.gates {
-        let qs: Vec<String> = g.qubits.iter().map(|q| format!("%q{q}")).collect();
-        let qs = qs.join(", ");
-        if g.params.is_empty() {
-            out.push_str(&format!("  call void @__quantum__qis__{}__body({qs})\n", g.name));
-        } else {
-            let ps: Vec<String> = g.params.iter().map(|p| format!("{p:?}")).collect();
-            out.push_str(&format!(
-                "  call void @__quantum__qis__{}__body({}, {})\n",
-                g.name,
-                ps.join(", "),
-                qs
-            ));
-        }
-    }
-    for q in 0..c.num_qubits {
-        out.push_str(&format!("  call void @__quantum__rt__record_output({q})\n"));
-    }
-    out.push_str("  ret void\n}\n");
-    out
 }
 
 pub mod codegen;
@@ -184,9 +189,9 @@ mod tests {
     #[test]
     fn emits_qir_calls() {
         let c = transpile_to_native(&parse(BELL).unwrap());
-        let text = emit_qir(&c);
+        let text = emit_llvm_ir(&c).unwrap();
         assert!(text.contains("@__quantum__qis__h__body"));
-        assert!(text.contains("@__quantum__qis__cx__body"));
+        assert!(text.contains("@__quantum__qis__cnot__body"));
         assert!(text.contains("@__quantum__rt__qubit_allocate"));
         assert!(text.contains("@__quantum__rt__record_output"));
     }
@@ -230,10 +235,11 @@ mod tests {
 
     #[test]
     fn empty_circuit_emits_valid_skeleton() {
-        let text = emit_qir(&parse("qreg q[1];").unwrap());
+        let text = emit_llvm_ir(&parse("qreg q[1];").unwrap()).unwrap();
         assert!(text.contains("define void @main()"));
         assert!(text.contains("ret void"));
-        assert!(!text.contains("@__quantum__qis__"));
+        // Declares are always present (closed set); no gate CALLS may appear.
+        assert!(!text.contains("call void @__quantum__qis__"));
     }
 
     #[test]
@@ -252,7 +258,7 @@ mod tests {
         assert!(summary.gate_depth > 0);
         assert!(summary.instruction_count > 0);
 
-        let llvm_ir = emit_llvm_ir(&c);
+        let llvm_ir = emit_llvm_ir(&c).unwrap();
         assert!(llvm_ir.contains("target datalayout"));
         assert!(llvm_ir.contains("%Qubit = type opaque"));
         assert!(llvm_ir.contains("@__quantum__qis__h__body"));
@@ -265,5 +271,61 @@ mod tests {
         let json_str = summary.to_json();
         assert!(json_str.contains("\"qubit_allocations\":4"));
         assert!(json_str.contains("\"two_qubit_gates\":2"));
+    }
+}
+
+#[cfg(test)]
+mod w15_tests {
+    use super::*;
+
+    #[test]
+    fn measure_threads_classical_bit() {
+        let c = parse("qreg q[1];\ncreg c[1];\nh q[0];\nmeasure q[0] -> c[0];").unwrap();
+        assert_eq!(c.gates[1].cbit, Some(0));
+        let text = emit_llvm_ir(&c).unwrap();
+        assert!(text.contains("@__quantum__qis__mz__body"));
+        assert!(!text.contains("@__quantum__qis__measure__body"));
+    }
+
+    #[test]
+    fn closed_set_refuses() {
+        for bad in [
+            "qreg q[1];\nfoo q[0];",
+            "qreg q[1];\nch q[0];",
+            "qreg q[3];\nccx q[0],q[1],q[2];",
+            "qreg q[1];\nh q[5];",
+        ] {
+            // Refusal may land at parse (bounds/shape) or at emission
+            // (closed set) — either way no invalid IR ships.
+            match parse(bad) {
+                Err(_) => (),
+                Ok(c) => assert!(emit_llvm_ir(&c).is_err(), "must refuse: {bad}"),
+            }
+        }
+        // Malformed measure refuses at parse (no classical target).
+        assert!(parse("qreg q[1];\ncreg c[1];\nmeasure q[0];").is_err());
+    }
+
+    #[test]
+    fn directives_are_not_gates() {
+        let c = parse("OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[1];\ncreg c[1];\nbarrier q[0];\nh q[0];").unwrap();
+        assert_eq!(c.gates.len(), 1);
+        let text = emit_llvm_ir(&c).unwrap();
+        assert!(!text.contains("creg"));
+        assert!(!text.contains("barrier"));
+    }
+
+    #[test]
+    fn multi_register_width_is_max() {
+        let c = parse("qreg a[2];\nqreg b[3];\nh a[0];").unwrap();
+        assert_eq!(c.num_qubits, 3);
+    }
+
+    #[test]
+    fn multi_qubit_gates_counted() {
+        let c = parse("qreg q[3];\nccx q[0],q[1],q[2];").unwrap();
+        let s = analyze_circuit(&c);
+        assert_eq!(s.multi_qubit_gates, 1);
+        assert_eq!(s.total_gates, 1);
     }
 }
