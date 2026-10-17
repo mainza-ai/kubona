@@ -416,10 +416,14 @@ def execute_qasm(
     degradation_reason = "Executed exact statevector simulation"
 
     try:
-        # Tier 1: real QPU hardware via the provider plugin. The plugin holds
-        # its own credential gate (SecretStore): without a token it returns
-        # Aer results with hardware=False, which we surface as an explicit
-        # fail-closed degradation — never as hardware counts.
+        # Tier 1: real QPU hardware via the provider plugin. The plugin
+        # holds its own credential gate (SecretStore): without a token it
+        # RAISES unless the caller explicitly opts into simulation
+        # (allow_sim_fallback) — this executor does not opt in, so a
+        # credentialless QPU request fails closed here with the reason.
+        # (An older provider contract returned Aer results with
+        # hardware=False; W2.18 ended that — silent downgrade, even
+        # labeled, is refused at the plugin seam.)
         route = route_backend(requested_backend)
         if route == "hardware:ibm-qiskit":
             routed = _route_hardware(

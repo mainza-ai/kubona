@@ -651,11 +651,13 @@ def test_route_backend_classification():
     assert route_backend("quantinuum_h1").startswith("unknown-hardware")
 
 
-def test_qpu_request_without_credential_fails_closed_to_labeled_sim(monkeypatch):
+def test_qpu_request_without_credential_fails_closed(monkeypatch):
     """Undeclared hardware routing refuses (P5 §2.9: success False, no
-    simulation theater); declared-but-credentialless routing degrades to
-    LABELED simulation with an explicit fail-closed reason and zero network
-    I/O. Neither path ever claims hardware without a job."""
+    simulation theater); declared-but-credentialless routing ALSO refuses
+    (W2.18: the provider raises unless the caller explicitly opts into
+    simulation with allow_sim_fallback=True — this executor does not opt
+    in, so the refusal propagates with the missing-credential reason and
+    zero network I/O). Neither path ever claims hardware without a job."""
     # No order-dependent env assertion: force the condition locally.
     monkeypatch.delenv("KUBONA_IBM_QISKIT_TOKEN", raising=False)
     from executor import execute_qasm
@@ -667,14 +669,16 @@ def test_qpu_request_without_credential_fails_closed_to_labeled_sim(monkeypatch)
     assert "routing refused" in refused["error_message"]
     assert "hardware_job_id" not in refused
 
-    # 2. Declared jurisdictions, no token/SDK -> labeled simulation.
+    # 2. Declared jurisdictions, no token -> plugin refusal propagates.
     res = execute_qasm(BELL_QASM, shots=100, requested_backend="ibm_brisbane",
                        caller_jurisdictions=["US"], seed=7)
-    assert res["success"] is True
-    assert res["error_message"] == ""
+    assert res["success"] is False
     assert "hardware_job_id" not in res
-    assert "Statevector" in res["resolved_backend"] or "Aer" in res["resolved_backend"]
-    assert "fail-closed" in res["degradation_reason"]
+    assert res["counts"] == {}
+    # Names the missing credential and the explicit opt-in — not a
+    # silent downgrade, not a bare 500.
+    assert "KUBONA_IBM_QISKIT_TOKEN" in res["error_message"]
+    assert "allow_sim_fallback" in res["error_message"]
 
 
 # ------------------------------------------------- W1.4 executor refusals ---

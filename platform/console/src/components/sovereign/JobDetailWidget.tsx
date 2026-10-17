@@ -20,17 +20,18 @@ function kv(label: string, value: string) {
  * unknown id → refusal notice. Counts render measured numbers only —
  * non-numeric entries render raw/UNVERIFIED, never coerced 0 bars.
  */
-export function JobDetailWidget({ jobId }: { jobId: string }) {
+export function JobDetailWidget({ jobId, sessionId }: { jobId: string; sessionId: string }) {
   const [job, setJob] = useState<Job | null>(null);
   const [missing, setMissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Reset during render on job change (same key-change pattern as the
-  // context readouts): stale job/error/missing flags must not bleed
-  // across job selections while the refetch is in flight.
-  const [prevJobId, setPrevJobId] = useState(jobId);
-  if (prevJobId !== jobId) {
-    setPrevJobId(jobId);
+  // Reset during render on job/session change (same key-change pattern as
+  // the context readouts): stale job/error/missing flags must not bleed
+  // across selections while the refetch is in flight.
+  const prevKey = `${jobId} ${sessionId}`;
+  const [prevSeenKey, setPrevSeenKey] = useState(prevKey);
+  if (prevSeenKey !== prevKey) {
+    setPrevSeenKey(prevKey);
     setError(null);
     setMissing(false);
     setJob(null);
@@ -38,7 +39,7 @@ export function JobDetailWidget({ jobId }: { jobId: string }) {
 
   useEffect(() => {
     let mounted = true;
-    fetchJob(jobId).then(
+    fetchJob(jobId, sessionId).then(
       (j) => {
         if (!mounted) return;
         if (j) setJob(j);
@@ -52,7 +53,7 @@ export function JobDetailWidget({ jobId }: { jobId: string }) {
     return () => {
       mounted = false;
     };
-  }, [jobId]);
+  }, [jobId, sessionId]);
 
   if (error) {
     return (

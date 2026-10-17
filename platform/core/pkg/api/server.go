@@ -109,11 +109,22 @@ type Server struct {
 	// S2: disk guard (nil = unguarded, e.g. tests). Set via SetDiskGuard
 	// after construction so NewServer's signature never ripples.
 	diskGuard *disk.Guard
+
+	// D1/U3: bridge address for the fleet liveness probe (host:port of
+	// the Python gRPC bridge). Set via SetBridgeAddr after construction.
+	// Empty = unconfigured: fleet reports local_simulator UNKNOWN
+	// instead of claiming ONLINE behind a nil client that never fails.
+	bridgeAddr string
 }
 
 // SetDiskGuard attaches the S2 disk guard. Nil detaches (tests).
 func (s *Server) SetDiskGuard(g *disk.Guard) {
 	s.diskGuard = g
+}
+
+// SetBridgeAddr records the Python bridge address for fleet liveness.
+func (s *Server) SetBridgeAddr(addr string) {
+	s.bridgeAddr = addr
 }
 
 // diskBlocked reports whether new work must be refused (503
@@ -757,10 +768,29 @@ func (s *Server) handleEpistemics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleFleet(w http.ResponseWriter, r *http.Request) {
-	// Dynamically check local python bridge availability
-	localSimStatus := "ONLINE"
-	if s.jobRunner.BridgeClient() == nil {
+	// Bridge liveness is MEASURED (short TCP dial), never inferred from
+	// the lazily-constructed gRPC client (which is never nil, so the old
+	// nil-check reported ONLINE with the bridge down). Unconfigured
+	// address reads UNKNOWN — honest about not knowing.
+	localSimStatus := "UNKNOWN"
+	if s.bridgeAddr != "" {
 		localSimStatus = "DEGRADED"
+		if conn, err := net.DialTimeout("tcp", s.bridgeAddr, 200*time.Millisecond); err == nil {
+			conn.Close()
+			localSimStatus = "ONLINE"
+		}
+	}
+
+	// Credential dimension (U3): env presence is a fact about this
+	// daemon's ability to submit — not a measurement, stated as such.
+	// Simulators are credential-free by construction ("ready"); QPU
+	// backends without their token are "credentialless" (distinct from
+	// down: the device may be fine, WE lack credentials).
+	credState := func(present bool) string {
+		if present {
+			return "ready"
+		}
+		return "credentialless"
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -771,6 +801,7 @@ func (s *Server) handleFleet(w http.ResponseWriter, r *http.Request) {
 				"qubits":        32,
 				"t1_us":         "Infinite (Exact Numerical)",
 				"status":        localSimStatus,
+				"credential_state": "ready",
 				"queue_depth":   0,
 				"cost_per_shot": 0.0,
 				"jurisdiction":  "LOCAL_SOVEREIGN",
@@ -785,6 +816,7 @@ func (s *Server) handleFleet(w http.ResponseWriter, r *http.Request) {
 				"qubits":        156,
 				"t1_us":         "180.0",
 				"status":        "READY",
+				"credential_state": credState(os.Getenv("KUBONA_IBM_QISKIT_TOKEN") != ""),
 				"queue_depth":   14,
 				"cost_per_shot": 0.0016,
 				"jurisdiction":  "US_EAST",
@@ -799,6 +831,7 @@ func (s *Server) handleFleet(w http.ResponseWriter, r *http.Request) {
 				"qubits":        20,
 				"t1_us":         ">1,000,000",
 				"status":        "ONLINE",
+				"credential_state": credState(os.Getenv("KUBONA_QUANTINUUM_API_KEY") != ""),
 				"queue_depth":   3,
 				"cost_per_shot": 0.0125,
 				"jurisdiction":  "US_CENTRAL",
@@ -813,6 +846,7 @@ func (s *Server) handleFleet(w http.ResponseWriter, r *http.Request) {
 				"qubits":        80,
 				"t1_us":         "35.0",
 				"status":        "CALIBRATING",
+				"credential_state": credState(os.Getenv("KUBONA_RIGETTI_QCS_TOKEN") != ""),
 				"queue_depth":   28,
 				"cost_per_shot": 0.0008,
 				"jurisdiction":  "US_WEST",
