@@ -121,3 +121,61 @@ func TestTribunalHTTPSealsExactlyFour(t *testing.T) {
 		t.Fatalf("turns must split 4+4 across obligations: %v", byOb)
 	}
 }
+
+func TestTribunalProposalEventAndScores(t *testing.T) {
+	srv, _, close := setupIdemServer(t)
+	defer close()
+	h := srv.Handler()
+	sid := idemSession(t, h, "proposal + scores")
+
+	out := postTribunal(t, h, sid, "Investigate H2 ground state")
+	claimID, _ := out["claim_record_id"].(string)
+	if claimID == "" {
+		t.Fatal("tribunal response must carry a claim_record_id")
+	}
+	// C4 accept: every claim-bearing response has a matching
+	// proposal_generated event.
+	req := httptest.NewRequest(http.MethodGet, "/api/events?session_id="+sid+"&limit=200", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	var ev struct {
+		Events []map[string]any `json:"events"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &ev); err != nil {
+		t.Fatalf("events decode: %v", err)
+	}
+	found := false
+	for _, e := range ev.Events {
+		if e["event_type"] != "proposal_generated" {
+			continue
+		}
+		var p struct {
+			ClaimRecordID string `json:"claim_record_id"`
+			ObligationID  string `json:"obligation_id"`
+		}
+		raw, _ := json.Marshal(e["payload"])
+		if err := json.Unmarshal(raw, &p); err != nil {
+			t.Fatalf("proposal payload: %v", err)
+		}
+		if p.ClaimRecordID == claimID {
+			found = true
+			if p.ObligationID != out["obligation_id"] {
+				t.Fatalf("proposal event obligation %q must match response %q", p.ObligationID, out["obligation_id"])
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("no proposal_generated event matches claim %s", claimID)
+	}
+	// R6: scores ride the response (4 roles, recorded not enforced).
+	scores, _ := out["transcript_scores"].([]any)
+	if len(scores) != 4 {
+		t.Fatalf("response must carry 4 role scores, got %v", out["transcript_scores"])
+	}
+	for _, s := range scores {
+		m := s.(map[string]any)
+		if _, ok := m["score"]; !ok {
+			t.Fatalf("score row must carry a score: %v", m)
+		}
+	}
+}
