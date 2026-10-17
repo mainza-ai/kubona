@@ -1,16 +1,16 @@
-"""Unit tests for UserDefinedAgentManifest and AgentRegistry (Phase 3)."""
+"""Unit tests for UserDefinedAgentManifest and CustomAgentRegistry (Phase 3)."""
 
 import pytest
 from pathlib import Path
 from kubona.agents.user_defined import (
-    AgentRegistry,
+    CustomAgentRegistry,
     UserDefinedAgentManifest,
     STANDARD_SYSTEM_AGENTS,
 )
 
 
 def test_standard_system_agents_loaded():
-    reg = AgentRegistry()
+    reg = CustomAgentRegistry()
     agents = reg.list_all(include_system=True)
     assert len(agents) >= len(STANDARD_SYSTEM_AGENTS)
     roles = {a.role for a in agents}
@@ -25,7 +25,7 @@ def test_standard_system_agents_loaded():
 
 def test_register_custom_agent(tmp_path: Path):
     storage = tmp_path / "custom_agents.json"
-    reg = AgentRegistry(storage_path=storage)
+    reg = CustomAgentRegistry(storage_path=storage)
 
     custom = UserDefinedAgentManifest(
         id="agent_photovoltaic_scout",
@@ -44,7 +44,7 @@ def test_register_custom_agent(tmp_path: Path):
     assert registered.is_system_agent is False
 
     # Verify persistence
-    reg2 = AgentRegistry(storage_path=storage)
+    reg2 = CustomAgentRegistry(storage_path=storage)
     found = reg2.get("agent_photovoltaic_scout")
     assert found is not None
     assert found.name == "Perovskite Photovoltaic Scout"
@@ -57,7 +57,7 @@ def test_register_custom_agent(tmp_path: Path):
 
 
 def test_validation_rejects_overwriting_system_agent():
-    reg = AgentRegistry()
+    reg = CustomAgentRegistry()
     malicious = UserDefinedAgentManifest(
         id="sys_lead_theorist",
         name="Fake Theorist",

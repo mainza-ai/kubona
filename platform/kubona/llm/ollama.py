@@ -6,6 +6,8 @@ import json
 
 import httpx
 
+from typing import Any
+
 from .base import AbstractLLM, LLMUnavailable, ModelInfo
 from .openai_compat import OpenAICompatLLM  # fallback for compatibility
 
@@ -37,15 +39,19 @@ class OllamaLLM(AbstractLLM):
             return []
 
     def complete(self, system: str, prompt: str, temperature: float = 0.2,
-                 max_tokens: int = 256) -> str:
+                 max_tokens: int = 256, json_mode: bool = False) -> str:
         model = self.default_model
         if model is None:
             models = self.list_models()
             if not models:
                 raise LLMUnavailable("ollama has no discoverable models")
             model = models[0].model_id
-        payload = {"model": model, "system": system, "prompt": prompt,
+        payload: dict[str, Any] = {"model": model, "system": system, "prompt": prompt,
                    "temperature": temperature, "stream": False, "num_predict": max_tokens}
+        # W0.15: the loop always passes json_mode — the missing param used to
+        # crash with TypeError instead of failing closed.
+        if json_mode:
+            payload["format"] = "json"
         try:
             r = self._client.post(f"{self.base_url}/api/generate", json=payload, timeout=60)
             r.raise_for_status()
