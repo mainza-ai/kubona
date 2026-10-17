@@ -341,7 +341,14 @@ status: candidate
   negative-tested.
 - **Not in slice:** execution-semantics changes.
 
-### S8 — Console UX (3 independent S slices, needs I5 flags)
+### S8 — Console UX (3 independent S slices, needs I5 flags) — ✅ LANDED 2026-10-17 (reduced)
+
+> **S8a** `GET /api/sessions/context` + composer `ContextReadout`
+> (BudgetHistory-denominated, fails-silent UI). **S8b** `OverflowCard`
+> (pressure-gated, real actions, session-switch wired) + `JobProgress`
+> polling wired into MeasuredOutputs (R7 intact). **S8c reduced:** no
+> skills/packs/automations backends exist — hub would be theater; the
+> wiring above is the real deliverable. 8 vitests, 86/86 + build clean.
 
 - **S8a** context-% + compact tokens in the composer (real usage endpoint,
   no arithmetic stand-ins). **S8b** overflow card

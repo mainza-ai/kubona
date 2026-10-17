@@ -997,3 +997,30 @@ export async function fetchQirCompile(qasm: string): Promise<QirCompileReceipt |
     return null;
   }
 }
+
+export interface SessionContext {
+  session_id: string;
+  turns: number;
+  turn_cap: number;
+  history_chars: number;
+  history_chars_cap: number;
+  would_drop: number;
+  pressure_pct: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+}
+
+// S8a: measured transcript pressure against the server's real truncation
+// rule (BudgetHistory caps) — never a vendor window. Null when the
+// backend is unreachable (the readout hides; data failures stay loud in
+// the Go tests, not in the composer).
+export async function fetchSessionContext(sessionId: string): Promise<SessionContext | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/sessions/context?session_id=${encodeURIComponent(sessionId)}`, { cache: 'no-store', headers: authHeaders() });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to fetch session context:', err);
+    return null;
+  }
+}
