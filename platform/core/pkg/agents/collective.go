@@ -2,6 +2,8 @@ package agents
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -9,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mainza-ai/kubona/core/pkg/ledger"
 	"github.com/mainza-ai/kubona/core/pkg/llm"
 	"github.com/mainza-ai/kubona/core/pkg/memory"
 	"github.com/mainza-ai/kubona/core/pkg/tools"
@@ -47,6 +50,11 @@ type AgentCollective struct {
 	// gets one bounded observe round (read-only tools) before answering.
 	// Nil preserves the legacy text-only path exactly.
 	Tools *tools.Registry
+	// Ledger wires R2/C3: turn sealing + obligation cases. Nil preserves
+	// the in-memory path exactly (unit tests without a ledger keep
+	// passing); the session-scoped half of sealing still needs a
+	// session, which only ExecuteTribunalWithSession receives.
+	Ledger *ledger.Ledger
 }
 
 // ObservedCall records one tool dispatch inside a tribunal observe round,
@@ -210,6 +218,52 @@ type TribunalTurn struct {
 	Observed []ObservedCall `json:"observed_tools,omitempty"`
 }
 
+// SealTurn seals one tribunal turn (C3): the tribunal_turn event plus the
+// turn-N obligation case, deduped by turn index per obligation. A second
+// seal of the same turn is a no-op receipt (adapter retries and the old
+// handler-side sealing path can never double-seal). Ledger == nil keeps
+// the in-memory path (nil, nil). Sealing never fails the run — callers
+// log, never abort — but every failure is LOUD (returned, not swallowed).
+func (ac *AgentCollective) SealTurn(sessionID, obID string, turn TribunalTurn, authored bool) error {
+	if ac.Ledger == nil || sessionID == "" || obID == "" {
+		return nil
+	}
+	kind := fmt.Sprintf("turn-%d", turn.TurnIndex)
+	cases, err := ac.Ledger.ListObligationCases(obID)
+	if err != nil {
+		return fmt.Errorf("list cases: %w", err)
+	}
+	for _, c := range cases {
+		if c.CaseKind == kind {
+			return nil // already sealed: dedupe receipt
+		}
+	}
+	verdict := "fail"
+	if authored {
+		verdict = "pass"
+	}
+	// Case first: closure state is authoritative, the event is the view.
+	// (A crash between the two leaves a case without its event — the
+	// retry then dedupes on the case and the turn stays sealed-once in
+	// state, event-missing in view; the view is re-derivable by query.)
+	if err := ac.Ledger.RecordObligationCase(obID, ledger.ObligationCase{
+		CaseKind: kind, Verdict: verdict, Authority: string(turn.Role),
+		Evidence: fmt.Sprintf("turn-%d", turn.TurnIndex),
+	}); err != nil {
+		return fmt.Errorf("record case: %w", err)
+	}
+	if err := ac.Ledger.AppendEvent(sessionID, "tribunal_turn", map[string]any{
+		"turn_index":    turn.TurnIndex,
+		"role":          turn.Role,
+		"verdict":       turn.Verdict,
+		"obligation_id": obID,
+		"authored":      authored,
+	}); err != nil {
+		return fmt.Errorf("seal event: %w", err)
+	}
+	return nil
+}
+
 // TribunalResult encapsulates the full 4-turn debate transcript and resulting AP2 proposal
 type TribunalResult struct {
 	Target          string           `json:"target"`
@@ -218,6 +272,10 @@ type TribunalResult struct {
 	ProposalJSON    *json.RawMessage `json:"proposal_json"`
 	ConsensusPassed bool             `json:"consensus_passed"`
 	Synthesis       string           `json:"synthesis"`
+	// ObligationID is the R2 obligation for this run ("" when unwired:
+	// Ledger == nil or no session). The owner closes it and reads the
+	// disposition — the verdict lives in the query, not in this struct.
+	ObligationID string `json:"obligation_id,omitempty"`
 }
 
 // ExecuteTribunal runs an automated 4-turn collective tribunal debate across the 4 automated specialist roles:
@@ -233,6 +291,16 @@ func (ac *AgentCollective) ExecuteTribunal(ctx context.Context, llmClient *llm.C
 }
 
 func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmClient *llm.Client, bridgeClient pb.QuantumBridgeServiceClient, store *memory.HindsightStore, userPrompt string, onTurn ...func(TribunalTurn)) (*TribunalResult, error) {
+	return ac.ExecuteTribunalWithSession(ctx, llmClient, bridgeClient, store, "", userPrompt, onTurn...)
+}
+
+// ExecuteTribunalWithSession is the wired run (C3/R2): with a session ID
+// AND a Ledger on the collective, every turn seals a tribunal_turn event
+// (deduped by turn index per obligation) and records its obligation case;
+// the owner closes the obligation and reads the disposition as the
+// verdict. With sessionID == "" the run is pure in-memory — exactly the
+// legacy path (nil ledgers and sessionless callers are unaffected).
+func (ac *AgentCollective) ExecuteTribunalWithSession(ctx context.Context, llmClient *llm.Client, bridgeClient pb.QuantumBridgeServiceClient, store *memory.HindsightStore, sessionID, userPrompt string, onTurn ...func(TribunalTurn)) (*TribunalResult, error) {
 	var turnCb func(TribunalTurn)
 	if len(onTurn) > 0 && onTurn[0] != nil {
 		turnCb = onTurn[0]
@@ -263,6 +331,7 @@ func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmCli
 	}
 
 	// 1. Compute genuine PySCF ab-initio classical anchor via bridge
+	anchorLive := false
 	if bridgeClient != nil {
 		anchorCtx, anchorCancel := context.WithTimeout(ctx, 15*time.Second)
 		resp, err := bridgeClient.ComputeClassicalAnchor(anchorCtx, &pb.ClassicalAnchorRequest{
@@ -271,6 +340,7 @@ func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmCli
 		})
 		anchorCancel()
 		if err == nil && resp.Success {
+			anchorLive = true
 			fciAnchor = fmt.Sprintf("PySCF STO-3G FCI (%.5f Ha)", resp.FciExactEnergy)
 			log.Printf("[Tribunal] Ab-initio PySCF calculated for %s at R=%.4f A: FCI=%.5f Ha, RHF=%.5f Ha", mol, bondDist, resp.FciExactEnergy, resp.RhfEnergy)
 		} else {
@@ -282,6 +352,37 @@ func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmCli
 		Target:   target,
 		Molecule: mol,
 		Turns:    make([]TribunalTurn, 0, 4),
+	}
+
+	// R2: open the run obligation (wired runs only). Subject is run-unique
+	// (a rerun opens a new obligation — closed history is never rewritten;
+	// HTTP retries replay stored consensus before reaching here).
+	var obID string
+	wired := ac.Ledger != nil && sessionID != ""
+	if wired {
+		var runID [8]byte
+		if _, err := rand.Read(runID[:]); err != nil {
+			return nil, fmt.Errorf("tribunal run id: %w", err)
+		}
+		ob, err := ac.Ledger.OpenObligation("tribunal-run", "run-"+hex.EncodeToString(runID[:]),
+			[]string{"turn-1", "turn-2", "turn-3", "turn-4"},
+			[]string{string(RoleAnsatzScout), string(RoleDisconfirmationOfficer), string(RoleDeviceAuditor), string(RoleEpistemicScribe)},
+			nil)
+		if err != nil {
+			return nil, fmt.Errorf("tribunal obligation: %w", err)
+		}
+		obID = ob.ID
+		result.ObligationID = obID
+	}
+	seal := func(turn TribunalTurn, authored bool) {
+		if !wired {
+			return
+		}
+		// Sealing must never fail the run (audit follows evidence, never
+		// blocks it) — but silence hid gaps before, so seal LOUDLY.
+		if err := ac.SealTurn(sessionID, obID, turn, authored); err != nil {
+			log.Printf("[Tribunal] seal turn %d failed (run continues): %v", turn.TurnIndex, err)
+		}
 	}
 
 	llmTimeout := 90 * time.Second
@@ -335,6 +436,7 @@ func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmCli
 	if turnCb != nil {
 		turnCb(t1)
 	}
+	seal(t1, authored1)
 
 	// Turn 2: Disconfirmation Officer
 	var obs2 []ObservedCall
@@ -371,6 +473,7 @@ func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmCli
 	if turnCb != nil {
 		turnCb(t2)
 	}
+	seal(t2, authored2)
 
 	// Planner check (B1-1): measured tool failures in the evidence turns
 	// contest the run immediately. Turns 3-4 corroborate evidence; they
@@ -380,12 +483,22 @@ func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmCli
 		contestedReason = "tool observation failed: " + bad
 		log.Printf("[Tribunal] Early exit after Turn 2: %s", contestedReason)
 	}
+	if contestedReason != "" && wired {
+		// A contested run can never close: record the refutation as a
+		// case (any fail blocks AttemptClose) rather than prose.
+		if err := ac.Ledger.RecordObligationCase(obID, ledger.ObligationCase{
+			CaseKind: "deliberation", Verdict: "fail", Authority: "collective", Evidence: contestedReason,
+		}); err != nil {
+			log.Printf("[Tribunal] record deliberation case failed: %v", err)
+		}
+	}
 	// scribeContent feeds the shared proposal-extraction tail; empty on
 	// early exit, where the synthesized map below stands in.
 	scribeContent := ""
 	if contestedReason == "" {
 		// Turn 3: Device Auditor
 		var obs3 []ObservedCall
+		var authored3 bool
 		turn3Prompt := fmt.Sprintf("Auditing proposed execution for %s on %s. Hardware constraints: T2 <= 2*T1, Clifford canary probe fidelity >= 95%%, cost estimate %s <= $150.00. State approval status.", target, tier, budget)
 		auditContent := fmt.Sprintf("Target backend validated on %s. Hardware noise model constraint satisfied (T2 <= 2*T1). Clifford canary probe fidelity: 98.4%% (>= 95%% threshold). Estimated financial spend: %s <= $150.00 ceiling. APPROVED for dispatch.", tier, budget)
 		if llmClient != nil {
@@ -398,6 +511,7 @@ func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmCli
 			reply, _, _, err := llmClient.Complete(tCtx, "device-auditor", turnMsgs)
 			tCancel()
 			if err == nil && len(reply) > 20 {
+				authored3 = true
 				auditContent = reply
 				log.Printf("[Tribunal] Turn 3 (Device Auditor) generated via LLM: %s", reply[:min(len(reply), 100)])
 			} else if err != nil {
@@ -417,9 +531,11 @@ func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmCli
 		if turnCb != nil {
 			turnCb(t3)
 		}
+		seal(t3, authored3)
 
 		// Turn 4: Epistemic Scribe
 		var obs4 []ObservedCall
+		var authored4 bool
 		escapedQASM := strings.ReplaceAll(qasm, "\n", "\\n")
 		turn4Prompt := fmt.Sprintf("Synthesize tribunal debate for %s. Collapsed credibility wavefunction P_corr = 90.25%%. Output an AP2 mandate proposal with a JSON proposal block formatted as ```json_proposal {\"target\": \"%s\", \"molecule\": \"%s\", \"spend_estimate\": \"%s\", \"recommended_tier\": \"%s\", \"classical_anchor\": \"%s\", \"qasm\": \"%s\"} ```.", target, target, mol, budget, tier, fciAnchor, escapedQASM)
 		scribeContent = fmt.Sprintf("Consensus reached across 4 specialist personas. Ring 1 credibility wavefunction collapsed: P_corr = 90.25%%. Generating cryptographic AP2 Mandate Card for human review.\n\n```json_proposal\n{\n  \"target\": \"%s\",\n  \"molecule\": \"%s\",\n  \"spend_estimate\": \"%s\",\n  \"recommended_tier\": \"%s\",\n  \"classical_anchor\": \"%s\",\n  \"qasm\": \"%s\"\n}\n```", target, mol, budget, tier, fciAnchor, escapedQASM)
@@ -433,6 +549,7 @@ func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmCli
 			reply, _, _, err := llmClient.Complete(tCtx, "epistemic-scribe", turnMsgs)
 			tCancel()
 			if err == nil && len(reply) > 20 {
+				authored4 = true
 				scribeContent = reply
 				log.Printf("[Tribunal] Turn 4 (Epistemic Scribe) generated via LLM: %s", reply[:min(len(reply), 100)])
 			} else if err != nil {
@@ -452,6 +569,7 @@ func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmCli
 		if turnCb != nil {
 			turnCb(t4)
 		}
+		seal(t4, authored4)
 
 	}
 
@@ -491,6 +609,18 @@ func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmCli
 		// consensus may be claimed no matter what turns 3-4 say.
 		contestedReason = "evidence turns were not LLM-authored (fallback text cannot corroborate)"
 		result.ConsensusPassed = false
+	}
+	// R2: a fallback anchor is a RESIDUAL UNKNOWN (P1-9), not a quiet
+	// pass — the Disconfirmation Officer reasoned over a canonical label,
+	// not a measurement. Recorded, it blocks AttemptClose until a live
+	// anchor exists; the close reasons say so verbatim.
+	if wired && !anchorLive {
+		if err := ac.Ledger.RecordObligationUnknown(obID, ledger.Unknown{
+			ID:          "classical-anchor",
+			Description: "ab-initio anchor unavailable (bridge unreachable): canonical fallback label in use, unverified",
+		}); err != nil {
+			log.Printf("[Tribunal] record anchor unknown failed: %v", err)
+		}
 	}
 	if result.ConsensusPassed {
 		result.Synthesis = fmt.Sprintf("Multi-Agent Tribunal concluded with unanimous consensus for %s. Classical anchor: %s.", target, fciAnchor)
