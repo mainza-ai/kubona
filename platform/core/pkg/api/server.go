@@ -325,6 +325,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/health", s.handleHealth)
 	s.mux.HandleFunc("/api/ready", s.handleReady)
 	s.mux.HandleFunc("/api/sessions", s.handleSessions)
+	s.mux.HandleFunc("/api/sessions/export", s.handleSessionExport)
+	s.mux.HandleFunc("/api/sessions/import", s.handleSessionImport)
 	s.mux.HandleFunc("/api/sessions/", s.handleSessionByID)
 	s.mux.HandleFunc("/api/chat/messages", s.handleChatMessages)
 	s.mux.HandleFunc("/api/chat/stream", s.handleChatStream)
@@ -1064,6 +1066,74 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// handleSessionExport returns the validated migration manifest for one
+// session (S5). A read, open like other session reads; ghosts 404.
+func (s *Server) handleSessionExport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		SessionID string `json:"session_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.SessionID == "" {
+		http.Error(w, "export requires {\"session_id\": ...}", http.StatusBadRequest)
+		return
+	}
+	if _, err := s.sessionMgr.GetSession(req.SessionID); err != nil {
+		http.Error(w, fmt.Sprintf("unknown session %q: nothing to export", req.SessionID), http.StatusNotFound)
+		return
+	}
+	man, err := s.sessionMgr.ExportSession(req.SessionID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, man)
+}
+
+// handleSessionImport validates a manifest and activates it with ONE
+// ledger record (S5). Open like other session-content writes (chat POST,
+// jobs POST are open; validation is the control, not bearer —
+// bearer-gating here while chat stays open would be consistency theater).
+// An already-present session ID replays the current export (200 +
+// replayed:true) instead of forking a duplicate.
+func (s *Server) handleSessionImport(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		Manifest json.RawMessage `json:"manifest"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || len(req.Manifest) == 0 {
+		http.Error(w, "import requires {\"manifest\": {...}}", http.StatusBadRequest)
+		return
+	}
+	var man session.SessionManifest
+	if err := json.Unmarshal(req.Manifest, &man); err != nil {
+		http.Error(w, fmt.Sprintf("manifest does not parse: %v", err), http.StatusBadRequest)
+		return
+	}
+	res, err := s.sessionMgr.ImportSession(&man)
+	if err != nil {
+		status := http.StatusBadRequest
+		msg := err.Error()
+		if strings.HasPrefix(msg, "import commit:") || strings.HasPrefix(msg, "import activation") {
+			status = http.StatusInternalServerError
+		}
+		http.Error(w, msg, status)
+		return
+	}
+	out := map[string]any{"session_id": res.SessionID, "manifest_version": res.Manifest.Version}
+	if res.Existing {
+		w.Header().Set("X-Idempotent-Replay", "true")
+		out["replayed"] = true
+		out["manifest"] = res.Manifest
+	}
+	writeJSON(w, http.StatusOK, out)
 }
 
 func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {

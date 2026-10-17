@@ -383,6 +383,19 @@ func (l *Ledger) AppendEvent(sessionID string, eventType string, payload any) er
 	return err
 }
 
+// CanonicalHash (I1, single source) hashes a value over sorted-key JSON,
+// so digests are stable across key order and process restarts. Used by the
+// idempotency guard and the session-migration manifest — never a second
+// copy elsewhere.
+func CanonicalHash(v any) (string, error) {
+	raw, err := json.Marshal(v)
+	if err != nil {
+		return "", fmt.Errorf("content not hashable: %w", err)
+	}
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:]), nil
+}
+
 // Idempotency rail statuses (S1). Keys move IN_PROGRESS -> COMPLETE exactly
 // once; a COMPLETE row is terminal and replays forever.
 const (

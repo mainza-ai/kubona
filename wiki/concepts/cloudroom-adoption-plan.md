@@ -257,7 +257,20 @@ status: candidate
 - **Live proof:** request → answer → event-stream grep shows names only.
 - **Wiki:** [[secrets-and-workload-isolation]] + runbook note.
 
-### S5 — Session export/import, single-record migration (M, needs S1 keys)
+### S5 — Session export/import, single-record migration (M, needs S1 keys) — ✅ LANDED 2026-10-17
+
+> Landed: `POST /api/sessions/export|import`, manifest v1 with per-section
+> digests (normalized form — typed-vs-map and int64/float64 stable,
+> datetimes truncated to DB seconds, event IDs preserved, server-bookkeeping
+> `updated_at` excluded), caps enforced (64 MB / 50 versions / 256 KB
+> canvas), validation before existence-replay (tampered-existing 400s —
+> caught live), ONE `session_imported` record, non-terminal jobs keep rows
+> but no engine resumes them. I4 `DeleteSession`: refuses live loops /
+> non-terminal jobs / outstanding reservations, else cascades all 9 tables
+> (deletion receipt survives by design). I1 unified: `ledger.CanonicalHash`
+> single source. 5 tests (round-trip digest equality, 5 refusal kinds,
+> validate-before-replay, cascade refuse + full); negative automatic (new
+> routes 404 on old code); live export/import/replay/tamper matrix.
 
 - **Threat:** raw-DB copying diverges silently (G9).
 - **Logic:** export sweeps all 8 session tables **plus** already-orphaned
