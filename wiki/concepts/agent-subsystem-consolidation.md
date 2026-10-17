@@ -63,4 +63,4 @@ Python `platform/kubona/agents/` (bridge/agent runtimes): `collective.py`
 - Merging the tribunal with LLMAgentLoop (different jobs).
 - Rewriting Python agents in Go or vice versa (stack ruling stands).
 
-Related: [[rea-adoption-plan]] · [[protocol-strategy]] · [[multi-agent-research-loop]]
+Related: [[rea-adoption-plan]] · [[protocol-strategy]] · [[multi-agent-research-collective]]
