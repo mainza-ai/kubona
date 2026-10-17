@@ -9,7 +9,7 @@ from kubona.mesh.model_router import (
 )
 
 
-def test_air_gap_enforcement_blocks_cloud():
+def test_air_gap_blocks_cloud_with_refusal_not_fallback():
     router = HybridModelRouter(default_air_gapped=True)
     payload = MultimodalPayload(
         prompt="Synthesize research plan for family 278",
@@ -18,10 +18,8 @@ def test_air_gap_enforcement_blocks_cloud():
     )
     decision = router.route(payload, spend_budget_usd=10.0, has_ed25519_mandate=True)
 
-    assert decision.is_local is True
-    assert decision.air_gap_enforced is True
-    assert decision.estimated_cost_usd == 0.0
-    assert "Sovereign air-gap is active" in decision.explanation
+    assert decision.ok is False
+    assert "air-gap" in decision.explanation
 
 
 def test_cloud_escalation_when_air_gap_disabled():
@@ -36,8 +34,49 @@ def test_cloud_escalation_when_air_gap_disabled():
 
     assert decision.is_local is False
     assert decision.air_gap_enforced is False
-    assert decision.provider == "cloud_frontier"
+    assert decision.provider == 'anthropic'
+    assert decision.model == 'anthropic/claude-3-7-sonnet'
     assert decision.estimated_cost_usd > 0.0
+
+
+def test_air_gap_enforces_explicit_local_model():
+    router = HybridModelRouter(default_air_gapped=True)
+    payload = MultimodalPayload(
+        prompt="Compile this circuit",
+        preferred_model="local/test-model",
+    )
+    decision = router.route(payload)
+
+    assert decision.ok is True
+    assert decision.is_local is True
+    assert decision.air_gap_enforced is True
+    assert decision.model == "local/test-model"
+
+
+class _EmptyRegistry:
+    def discover(self):
+        return {}
+
+
+def test_no_model_anywhere_refuses():
+    router = HybridModelRouter(local_registry=_EmptyRegistry(), default_air_gapped=False)
+    payload = MultimodalPayload(prompt="anything")
+    decision = router.route(payload)
+
+    assert decision.ok is False
+    assert "no model configured" in decision.explanation
+
+
+def test_unfunded_cloud_refuses_instead_of_downgrading():
+    router = HybridModelRouter(default_air_gapped=False)
+    payload = MultimodalPayload(
+        prompt="anything",
+        preferred_model="anthropic/claude-x",
+    )
+    decision = router.route(payload, spend_budget_usd=0.0, has_ed25519_mandate=False)
+
+    assert decision.ok is False
+    assert "spend backing" in decision.explanation
 
 
 def test_multimodal_context_formatting():

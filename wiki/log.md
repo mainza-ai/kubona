@@ -2506,3 +2506,27 @@ skipped is the exact failure this incident is about:
   proven live (DEGRADED honestly, credentialless QPUs). Copilot names
   offline exits on engine notices. Bridge test updated to the W2.18 refusal
   + suite wired into CI. Console 139 + Go api/cmd green, lint clean.
+
+## [2026-10-17] decision | M1-M6: no hardcoded models + U3/D2 remainder
+  M1 (Go): NVIDIA provider plumbing (no model IDs); env-driven selection
+  (KUBONA_LLM_PROVIDER, *_MODEL, per-role overrides, .env.example);
+  settings schema_version + stale-blob stamping (no value rewrites);
+  write-path validation (unknown provider/empty model refuse, unchanged
+  entries grandfathered); GetModelForRole names the exact env var on empty
+  model and refuses silent fallback to active; kill-switch plumbed
+  (snapshot + update + console toggle); RecordSuccess last_ok stamp.
+  M2 (console): editable provider defaults, active-provider select,
+  free-text model inputs with datalist suggestions, last-success display,
+  active-provider-biased model fetch, new-agent model required.
+  M3: LoopIterationBound refuses unknown metered models (fail-closed
+  admission, unpriced_model code) instead of over-reserving; catalog
+  ripple (CSV + Go + counts both sides). M4: Python router refuses
+  instead of inventing (discovery first, explicit only); seeds unpinned
+  (Go + Python); legacy PUT /api/settings now validated.
+  M5: runtime backend URL via /api/config (no rebuild per backend).
+  M6: digest-pinned base images (all 3 Dockerfiles build + serve green).
+  Live: env-driven nvidia QUARK ok; mesh route honored caller model,
+  refused unfunded cloud; resolve names the exact missing env var.
+  Pre-existing red (not ours, fails on clean tree): discovery test when
+  a local server (oMLX) runs — KUBONA_LLM_BASE_URL unset; ports=[] falls
+  back to DEFAULT_PORTS.

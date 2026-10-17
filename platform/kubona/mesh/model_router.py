@@ -2,16 +2,18 @@
 
 Routes reasoning, formal verification, visual inspection, and quantum compilation
 tasks across local-first air-gapped runtimes (MLX, Ollama, vLLM, llama.cpp) and
-cryptographically provisioned cloud frontiers (Claude 3.7 Sonnet, OpenAI o-series, Gemini 2.5 Pro).
+explicitly requested cloud models under cryptographic spend envelopes.
 
 Core Invariants:
   1. Local-First Air-Gap: If air_gapped=True, zero outbound bytes are permitted.
-     Cloud escalations are hard-blocked and automatically fallen back to the
-     strongest detected local multimodal model.
+     Cloud models are hard-refused, never silently downgraded to a local stand-in.
   2. Multimodal Fusion: Accepts text, 3D molecular structures (PDB/CIF/SMILES),
      quantum circuits (QASM/QIR), spectroscopic plots, and audio telemetry.
   3. AP2 Cryptographic Spend Guard: Cloud escalation requires a valid Ed25519
      spend mandate within the authorized session dollar limit.
+  4. No baked-in models: the router echoes caller-supplied models, falls back
+     to live-discovered local models, and refuses otherwise. A rotation must
+     never require a code change.
 """
 
 from __future__ import annotations
@@ -85,6 +87,9 @@ class RoutingDecision:
     estimated_cost_usd: float
     explanation: str
     modalities_supported: list[str]
+    # ok=False is a refusal (no model configured, air-gap block, unfunded
+    # cloud request). Callers check it before dispatching.
+    ok: bool = True
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -95,7 +100,26 @@ class RoutingDecision:
             "estimated_cost_usd": self.estimated_cost_usd,
             "explanation": self.explanation,
             "modalities_supported": self.modalities_supported,
+            "ok": self.ok,
         }
+
+
+def _is_cloud_model(model: str) -> bool:
+    """Mirrors Go's cloudModel (agents/custom.go): prefixed IDs classify
+    by provider prefix, bare IDs by known cloud substrings (no "o1"-style
+    fragments — they over-match). Unknown = cloud (fail-closed direction)."""
+    if "/" in model:
+        return model.split("/", 1)[0].lower() not in ("local", "omlx", "ollama", "lmstudio")
+    low = model.lower()
+    return any(s in low for s in ("claude", "gpt", "gemini", "deepseek", "nemotron", "opus", "sonnet", "-4o", "qwen-max", "qwen-plus"))
+
+
+def _refuse(reason: str, air_gapped: bool = False) -> "RoutingDecision":
+    return RoutingDecision(
+        provider="", model="", is_local=True, air_gap_enforced=air_gapped,
+        estimated_cost_usd=0.0, explanation=reason, modalities_supported=[],
+        ok=False,
+    )
 
 
 class HybridModelRouter:
@@ -140,25 +164,32 @@ class HybridModelRouter:
         ]
 
         # 2. Air-gap enforcement
-        if self.air_gapped:
-            if payload.preferred_model and ("claude" in payload.preferred_model.lower() or "gpt" in payload.preferred_model.lower()):
-                # Cloud model explicitly requested but blocked by sovereign air-gap
-                fallback_model = local_vision_models[0] if (needs_vision and local_vision_models) else (local_models[0] if local_models else "local/qwen2.5-coder:32b")
-                return RoutingDecision(
-                    provider="local_fallback",
-                    model=fallback_model,
-                    is_local=True,
-                    air_gap_enforced=True,
-                    estimated_cost_usd=0.0,
-                    explanation="Sovereign air-gap is active: blocked requested cloud model and routed to local runtime (0 outbound bytes).",
-                    modalities_supported=["text", "image", "molecule_3d", "circuit_qir"],
-                )
+        # Model selection is never invented: an explicit caller model wins,
+        # else the strongest discovered local model, else refusal. No
+        # baked-in IDs anywhere on this path (a rotation must not need a
+        # code change).
+        requested = (payload.preferred_model or "").strip()
+        discovered = local_vision_models[0] if (needs_vision and local_vision_models) else (local_models[0] if local_models else "")
+        model = requested or discovered
+        if not model:
+            return _refuse(
+                "no model configured: pass preferred_model or start a local engine "
+                "(no baked-in default is routed)",
+                air_gapped=self.air_gapped,
+            )
 
-            # Local selection
-            chosen_model = payload.preferred_model or (local_vision_models[0] if (needs_vision and local_vision_models) else (local_models[0] if local_models else "local/qwen2.5-coder:32b"))
+        # 2. Air-gap enforcement: cloud models refuse outright (never
+        # silently downgraded to a local stand-in).
+        if self.air_gapped:
+            if _is_cloud_model(model):
+                return _refuse(
+                    f"sovereign air-gap is active: cloud model {model} refused, zero outbound bytes",
+                    air_gapped=True,
+                )
+            provider = model.split("/")[0] if "/" in model else "local_sovereign"
             return RoutingDecision(
-                provider="local_sovereign",
-                model=chosen_model,
+                provider=provider,
+                model=model,
                 is_local=True,
                 air_gap_enforced=True,
                 estimated_cost_usd=0.0,
@@ -166,20 +197,18 @@ class HybridModelRouter:
                 modalities_supported=["text", "image", "molecule_3d", "circuit_qir"],
             )
 
-        # 3. Cloud allowed: Check if cloud escalation is justified
-        wants_cloud = (
-            payload.preferred_model
-            and any(c in payload.preferred_model.lower() for c in ["claude", "gpt-4", "o1", "o3", "gemini"])
-        )
-        needs_deep_reasoning = payload.role_hint in ["lead_theorist", "lean4_proof_engineer"] and payload.max_tokens >= 4096
-
-        if (wants_cloud or needs_deep_reasoning) and (spend_budget_usd > 0.05 or has_ed25519_mandate):
-            # Authorize cloud frontier
-            target_model = payload.preferred_model or "anthropic/claude-3-7-sonnet"
+        # 3. Cloud allowed: explicit cloud models are spend-gated (mandate
+        # or budget); unfunded cloud requests refuse, never downgrade.
+        if _is_cloud_model(model):
+            if not (spend_budget_usd > 0.05 or has_ed25519_mandate):
+                return _refuse(
+                    f"cloud model {model} requested without spend backing: declare a budget or mandate",
+                )
+            provider = model.split("/")[0] if "/" in model else "cloud_frontier"
             estimated_cost = 0.03 if payload.max_tokens <= 2048 else 0.15
             return RoutingDecision(
-                provider="cloud_frontier",
-                model=target_model,
+                provider=provider,
+                model=model,
                 is_local=False,
                 air_gap_enforced=False,
                 estimated_cost_usd=estimated_cost,
@@ -187,15 +216,15 @@ class HybridModelRouter:
                 modalities_supported=["text", "image", "molecule_3d", "circuit_qir", "audio"],
             )
 
-        # Default local fallback even when cloud is unblocked
-        chosen_model = payload.preferred_model or (local_vision_models[0] if (needs_vision and local_vision_models) else (local_models[0] if local_models else "local/qwen2.5-coder:32b"))
+        # Local model, cloud allowed: route local, unenforced.
+        provider = model.split("/")[0] if "/" in model else "local_default"
         return RoutingDecision(
-            provider="local_default",
-            model=chosen_model,
+            provider=provider,
+            model=model,
             is_local=True,
             air_gap_enforced=False,
             estimated_cost_usd=0.0,
-            explanation="Local-first default routing (conserving token budget).",
+            explanation="Local-first routing (conserving token budget).",
             modalities_supported=["text", "image", "molecule_3d", "circuit_qir"],
         )
 

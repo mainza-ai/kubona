@@ -193,7 +193,13 @@ async def settings(request: Request) -> JSONResponse:
     if request.method == "GET":
         return _json({"ok": True, "settings": store.public()})
     body = await request.json()
-    return _json({"ok": True, "settings": store.update(body)})
+    # Validated edge (not raw update): unknown keys/providers and blank
+    # models refuse here instead of persisting as live config.
+    try:
+        settings = store.apply_llm_edge(body if isinstance(body, dict) else {})
+    except ValueError as e:
+        return _json({"ok": False, "error": str(e)}, status=400)
+    return _json({"ok": True, "settings": settings})
 
 
 def DEFAULT_LLM_PORTS() -> list[int]:

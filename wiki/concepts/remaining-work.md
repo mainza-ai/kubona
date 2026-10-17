@@ -112,6 +112,31 @@ status: tracked
   > INSUFFICIENT FUNDS — tribunal/chat/LLM features are down until
   > top-up (oMLX serves locally with models as the fallback; repoint
   > roles on order).
+  > ✅ M1–M6 LANDED 2026-10-17 (no hardcoded models): Go NVIDIA plumbing
+  > (provider type + endpoint + env-key wiring, zero model IDs);
+  > env-driven selection (KUBONA_LLM_PROVIDER, *_MODEL incl. NVIDIA_MODEL,
+  > per-role overrides, .env.example); settings schema_version +
+  > stale-blob stamping (no value rewrites); write-path validation
+  > (unknown provider/empty model refuse, unchanged entries
+  > grandfathered); GetModelForRole names the exact env var + refuses
+  > silent fallback; kill-switch plumbed end-to-end (snapshot + update +
+  > console toggle); RecordSuccess last_ok. Console: editable provider
+  > defaults, active-provider select, free-text models with datalist
+  > suggestions, last-success display, active-provider-biased fetch,
+  > new-agent model required. Pricing: LoopIterationBound refuses unknown
+  > metered models (new unpriced_model code) instead of over-reserving.
+  > Python router refuses instead of inventing (discovery first, explicit
+  > only); seeds unpinned (Go custom.go + Python user_defined.py);
+  > legacy PUT /api/settings now validated. U3 runtime backend URL via
+  > /api/config (no rebuild per backend). D2 digest-pinned base images
+  > (all Dockerfiles rebuild + serve green).
+  > Still open: operator deeds — restart the dev daemon from the rebuilt
+  > binary (file restored at /tmp/kubonad-s8a; running PID 54943 predates
+  > it), then repoint roles via LLM Settings (or KUBONA_LLM_PROVIDER=nvidia
+  > + NVIDIA_MODEL in .env before restart); opencode 402 top-up decision;
+  > session-based auth (httpOnly) remains the U3 remainder. Pre-existing
+  > red (not ours, fails on clean tree too): the discovery test when a
+  > local server runs — ports=[] falls back to DEFAULT_PORTS.
 - P1-4 subsystem consolidation execution — design: [[agent-subsystem-consolidation]].
   > ✅ STEP 1 LANDED 2026-10-17: conformance freezes on all three
   > registry homes (Go + 2× Python) + boot-crash hardening
