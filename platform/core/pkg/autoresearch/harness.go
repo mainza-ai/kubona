@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/google/uuid"
 	"github.com/mainza-ai/kubona/core/pkg/sandbox"
 )
 
@@ -181,12 +182,14 @@ except Exception as e:
     print(json.dumps({"valid": False, "error": f"Execution error: {str(e)}"}))
 `, h.TargetFCI)
 
+	nonce := newRunNonce()
+	benchmarkScript = fenceBenchmarkOutputs(benchmarkScript, nonce)
 	res, err := runner.ExecuteHarness(benchmarkScript, h.MutableArtifact(), artifact)
 	if err != nil {
 		return nil, fmt.Errorf("ansatz-search execution failed: %w", err)
 	}
 
-	return parseHarnessOutput(h.ID(), res)
+	return parseHarnessOutput(h.ID(), res, nonce)
 }
 
 func (h *AnsatzSearchHarness) Metric(artifact string) (float64, error) {
@@ -300,12 +303,14 @@ except Exception as e:
     print(json.dumps({"valid": False, "error": f"QAOA error: {str(e)}"}))
 `
 
+	nonce := newRunNonce()
+	benchmarkScript = fenceBenchmarkOutputs(benchmarkScript, nonce)
 	res, err := runner.ExecuteHarness(benchmarkScript, h.MutableArtifact(), artifact)
 	if err != nil {
 		return nil, fmt.Errorf("qaoa execution failed: %w", err)
 	}
 
-	return parseHarnessOutput(h.ID(), res)
+	return parseHarnessOutput(h.ID(), res, nonce)
 }
 
 func (h *QAOACombinatorialHarness) Metric(artifact string) (float64, error) {
@@ -392,12 +397,14 @@ except Exception as e:
     print(json.dumps({"valid": False, "error": f"Mitigation error: {str(e)}"}))
 `
 
+	nonce := newRunNonce()
+	benchmarkScript = fenceBenchmarkOutputs(benchmarkScript, nonce)
 	res, err := runner.ExecuteHarness(benchmarkScript, h.MutableArtifact(), artifact)
 	if err != nil {
 		return nil, fmt.Errorf("mitigation execution failed: %w", err)
 	}
 
-	return parseHarnessOutput(h.ID(), res)
+	return parseHarnessOutput(h.ID(), res, nonce)
 }
 
 func (h *ErrorMitigationHarness) Metric(artifact string) (float64, error) {
@@ -487,12 +494,14 @@ except Exception as e:
     print(json.dumps({"valid": False, "error": f"Compilation error: {str(e)}"}))
 `
 
+	nonce := newRunNonce()
+	benchmarkScript = fenceBenchmarkOutputs(benchmarkScript, nonce)
 	res, err := runner.ExecuteHarness(benchmarkScript, h.MutableArtifact(), artifact)
 	if err != nil {
 		return nil, fmt.Errorf("compilation-pass execution failed: %w", err)
 	}
 
-	return parseHarnessOutput(h.ID(), res)
+	return parseHarnessOutput(h.ID(), res, nonce)
 }
 
 func (h *CompilationPassHarness) Metric(artifact string) (float64, error) {
@@ -580,12 +589,13 @@ except Exception as e:
     }))
 `
 
-	res, err := runner.ExecuteHarness(benchmarkScript, "benchmarks.qasm", artifact)
+	nonce := newRunNonce()
+	res, err := runner.ExecuteHarness(fenceBenchmarkOutputs(benchmarkScript, nonce), "benchmarks.qasm", artifact)
 	if err != nil {
 		return nil, fmt.Errorf("regression execution failed: %w", err)
 	}
 
-	return parseHarnessOutput(h.ID(), res)
+	return parseHarnessOutput(h.ID(), res, nonce)
 }
 
 func (h *CorrectnessRegressionHarness) Metric(artifact string) (float64, error) {
@@ -597,9 +607,28 @@ func (h *CorrectnessRegressionHarness) Metric(artifact string) (float64, error) 
 }
 
 // ============================================================================
-// Helper: Parse JSON output emitted by Python benchmark runner
-// ============================================================================
-func parseHarnessOutput(harnessID string, res *sandbox.ExecutionResult) (*HarnessResult, error) {
+// resultFencePrefix marks the ONE harness-computed payload line in runner
+// stdout (W1.1): parseHarnessOutput accepts only lines starting with this
+// prefix carrying the run nonce, exactly once. The old rule (last {...}
+// line wins) let a workload print fake JSON — including via atexit handlers
+// that fire after the benchmark — and mint its own score. A per-run nonce
+// plus exactly-one-match means forgery is DETECTED (0 or 2+ matches
+// invalidate), not outvoted.
+const resultFencePrefix = "KUBONA_RESULT_JSON"
+
+// fenceBenchmarkOutputs rewrites every print(json.dumps(...)) in a benchmark
+// template into the fenced form carrying the run nonce. All five harnesses
+// route through here: one rewrite rule, never per-harness parsing.
+func fenceBenchmarkOutputs(script, nonce string) string {
+	return strings.ReplaceAll(script, "print(json.dumps(",
+		fmt.Sprintf("print(\"%s %s \" + json.dumps(", resultFencePrefix, nonce))
+}
+
+// newRunNonce mints the per-evaluation payload nonce.
+func newRunNonce() string {
+	return uuid.NewString()
+}
+func parseHarnessOutput(harnessID string, res *sandbox.ExecutionResult, nonce string) (*HarnessResult, error) {
 	// S6: bound agent-controlled output at this choke (the single point
 	// where sandbox streams enter persisted structures). Unbounded stderr
 	// previously flowed verbatim into rows served by the API.
@@ -618,23 +647,32 @@ func parseHarnessOutput(harnessID string, res *sandbox.ExecutionResult) (*Harnes
 		StderrBytes:     errBytes,
 	}
 
-	lines := strings.Split(stdout, "\n")
+	// W1.1 fenced parse: only lines the harness printed (prefix + run
+	// nonce) count, and exactly one must exist. Zero means the benchmark
+	// never reported; two or more means something else printed a fenced
+	// line (forgery or bug) — ambiguous payloads invalidate, never resolve
+	// by position.
+	fence := resultFencePrefix + " " + nonce + " "
 	var parsedPayload map[string]any
-
-	for i := len(lines) - 1; i >= 0; i-- {
-		line := strings.TrimSpace(lines[i])
-		if strings.HasPrefix(line, "{") && strings.HasSuffix(line, "}") {
-			var m map[string]any
-			if err := json.Unmarshal([]byte(line), &m); err == nil {
-				parsedPayload = m
-				break
-			}
+	matches := 0
+	for _, line := range strings.Split(stdout, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, fence) {
+			continue
+		}
+		matches++
+		if matches > 1 {
+			break
+		}
+		var m map[string]any
+		if err := json.Unmarshal([]byte(strings.TrimPrefix(line, fence)), &m); err == nil {
+			parsedPayload = m
 		}
 	}
 
-	if parsedPayload == nil {
+	if matches != 1 || parsedPayload == nil {
 		hr.Valid = false
-		hr.ValidityReason = fmt.Sprintf("no JSON payload found in runner stdout: %s (stderr: %s)", stdout, stderr)
+		hr.ValidityReason = fmt.Sprintf("expected exactly 1 fenced payload, found %d: refusing (stdout: %s) (stderr: %s)", matches, stdout, stderr)
 		hr.Metric = 999.0
 		return hr, nil
 	}
