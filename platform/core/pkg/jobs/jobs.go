@@ -229,7 +229,7 @@ func (r *Runner) submitJob(sessionID, jobType string, params any, declaredCost f
 			QASM string `json:"qasm"`
 		}
 		if err := json.Unmarshal(data, &qp); err == nil && qp.QASM != "" {
-			if err := validateQASM(qp.QASM); err != nil {
+			if err := ValidateQASM(qp.QASM); err != nil {
 				return nil, err
 			}
 			if c := r.getCompiler(); c != nil {
