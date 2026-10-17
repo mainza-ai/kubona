@@ -95,3 +95,58 @@ func TestEstimatesDefaultToNoPostselection(t *testing.T) {
 		t.Fatalf("50%% acceptance must double the bill, got %v", out.EffectiveShotsMultiplier)
 	}
 }
+
+// W1.11: NaN never validates; targets compare; bad inputs refuse.
+func TestQECNonFiniteRefusals(t *testing.T) {
+	nan := math.NaN()
+	for _, c := range []LogicalClaim{
+		{Lambda: nan, BreakevenFactor: 2.4, DecoderLatencyUs: 0.8, CycleTimeUs: 1.1, AcceptanceRate: 0.9},
+		{Lambda: 2.14, BreakevenFactor: nan, DecoderLatencyUs: 0.8, CycleTimeUs: 1.1, AcceptanceRate: 0.9},
+		{Lambda: 2.14, BreakevenFactor: 2.4, DecoderLatencyUs: 0.8, CycleTimeUs: 1.1, AcceptanceRate: nan},
+	} {
+		if err := ValidateLogicalClaim(c); err == nil {
+			t.Fatalf("NaN claim must refuse: %+v", c)
+		}
+	}
+	if _, err := FitLambda([]int{3, 5}, []float64{1e-3, nan}); err == nil {
+		t.Fatalf("NaN fit input must refuse")
+	}
+	if _, err := EffectiveCostMultiplier(nan); err == nil {
+		t.Fatalf("NaN acceptance must refuse")
+	}
+	e := NewResourceEstimator()
+	if _, err := e.EstimateNeutralAtom(QECResourceSpec{NumLogicalQubits: 4, PhysicalErrorRate: 0}); err == nil {
+		t.Fatalf("missing error rate must refuse (no invented physics)")
+	}
+	if _, err := e.EstimateNeutralAtom(QECResourceSpec{NumLogicalQubits: 4, PhysicalErrorRate: nan}); err == nil {
+		t.Fatalf("NaN error rate must refuse")
+	}
+	if _, err := e.EstimateNeutralAtom(QECResourceSpec{
+		NumLogicalQubits: 4, PhysicalErrorRate: 0.001, AcceptanceRate: -0.5,
+	}); err == nil {
+		t.Fatalf("negative acceptance must refuse (no silent 1.0)")
+	}
+	if _, err := e.EstimateNeutralAtom(QECResourceSpec{
+		NumLogicalQubits: 4, LogicalTCount: -3, PhysicalErrorRate: 0.001,
+	}); err == nil {
+		t.Fatalf("negative gate counts must refuse")
+	}
+	// Target comparison is real: met vs unmet.
+	met, err := e.EstimateNeutralAtom(QECResourceSpec{
+		NumLogicalQubits: 4, PhysicalErrorRate: 0.001, TargetLogicalInf: 1e-3,
+	})
+	if err != nil || !met.MeetsTarget {
+		t.Fatalf("suppressed error must meet a loose target: %+v %v", met, err)
+	}
+	unmet, err := e.EstimateNeutralAtom(QECResourceSpec{
+		NumLogicalQubits: 4, PhysicalErrorRate: 0.001, TargetLogicalInf: 1e-30,
+	})
+	if err != nil || unmet.MeetsTarget {
+		t.Fatalf("impossible target must not meet: %+v %v", unmet, err)
+	}
+	// No target set: MeetsTarget false (never vacuously true).
+	plain, err := e.EstimateNeutralAtom(QECResourceSpec{NumLogicalQubits: 4, PhysicalErrorRate: 0.001})
+	if err != nil || plain.MeetsTarget {
+		t.Fatalf("unset target must not report met: %+v %v", plain, err)
+	}
+}

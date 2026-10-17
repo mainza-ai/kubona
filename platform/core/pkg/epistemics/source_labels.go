@@ -2,6 +2,7 @@ package epistemics
 
 import (
 	"regexp"
+	"strings"
 )
 
 // Source-label vocabulary: every string cited as claim evidence must resolve
@@ -17,8 +18,10 @@ import (
 //	literature:pending-review       explicitly unattested — never evidence,
 //	                                only a marker that review is outstanding
 //
-// The gate itself does not enforce this (its math tests use dummy labels);
-// enforcement lives at the construction sites, pinned by tests.
+// The gate enforces this at registration (RegisterClaim refuses
+// unresolvable labels); the patterns below are the single source for what
+// resolves. Math-only unit tests may use raw strings, but no production
+// claim enters with a label that fails here.
 var sourceLabelPatterns = []*regexp.Regexp{
 	regexp.MustCompile(`^arxiv:\d{4}\.\d{4,5}(v\d+)?$`),
 	regexp.MustCompile(`^doi:10\.\d+/\S+$`),
@@ -32,6 +35,15 @@ var sourceLabelPatterns = []*regexp.Regexp{
 func ValidSourceLabel(s string) bool {
 	for _, p := range sourceLabelPatterns {
 		if p.MatchString(s) {
+			// W1.10: the bridge pattern's [0-9a-fA-F-]{8,} accepts
+			// all-dash placeholders ("--------") as job IDs. The ID
+			// part (after the last colon) must contain a hex digit.
+			if strings.HasPrefix(s, "bridge:") {
+				id := s[strings.LastIndex(s, ":")+1:]
+				if !strings.ContainsAny(id, "0123456789abcdefABCDEF") {
+					return false
+				}
+			}
 			return true
 		}
 	}

@@ -51,7 +51,28 @@ func NewEpistemicGate() *EpistemicGate {
 // citation refuses registration outright, so invented evidence can never
 // enter the gate. An empty source list is legal (unattested claim); every
 // listed source must resolve.
+//
+// W1.10 domain checks: non-empty ID/statement, non-negative amplitudes
+// (negative amplitudes squared into collapse used to pass), finite
+// non-negative accuracy delta (a -100 mHa "discrepancy" used to collapse),
+// and the stored claim is a COPY — the old code kept the caller's pointer,
+// so post-registration mutation bypassed the gate.
 func (g *EpistemicGate) RegisterClaim(cw *ClaimWavefunction) error {
+	if cw == nil {
+		return fmt.Errorf("nil claim: refusing")
+	}
+	if cw.ClaimID == "" || cw.Statement == "" {
+		return fmt.Errorf("claim id and statement are required: refusing")
+	}
+	for _, a := range []float64{cw.AlphaCorroborated, cw.BetaContested, cw.GammaUnverified} {
+		if math.IsNaN(a) || math.IsInf(a, 0) || a < 0 {
+			return fmt.Errorf("claim amplitudes must be finite and non-negative: refusing")
+		}
+	}
+	if math.IsNaN(cw.ChemicalAccuracyDeltaMHa) || math.IsInf(cw.ChemicalAccuracyDeltaMHa, 0) ||
+		cw.ChemicalAccuracyDeltaMHa < 0 {
+		return fmt.Errorf("accuracy delta must be a finite non-negative discrepancy: refusing")
+	}
 	for _, src := range cw.Sources {
 		if !ValidSourceLabel(src) {
 			return fmt.Errorf("unresolvable source label %q on claim %q: refused, not recorded", src, cw.ClaimID)
@@ -60,22 +81,25 @@ func (g *EpistemicGate) RegisterClaim(cw *ClaimWavefunction) error {
 	g.mu.Lock()
 	defer g.mu.Unlock()
 
+	cp := *cw
+	cp.Sources = append([]string(nil), cw.Sources...)
+
 	// Normalize amplitudes
-	norm := math.Sqrt(cw.AlphaCorroborated*cw.AlphaCorroborated +
-		cw.BetaContested*cw.BetaContested +
-		cw.GammaUnverified*cw.GammaUnverified)
+	norm := math.Sqrt(cp.AlphaCorroborated*cp.AlphaCorroborated +
+		cp.BetaContested*cp.BetaContested +
+		cp.GammaUnverified*cp.GammaUnverified)
 	if norm > 1e-9 {
-		cw.AlphaCorroborated /= norm
-		cw.BetaContested /= norm
-		cw.GammaUnverified /= norm
+		cp.AlphaCorroborated /= norm
+		cp.BetaContested /= norm
+		cp.GammaUnverified /= norm
 	} else {
-		cw.GammaUnverified = 1.0
+		cp.GammaUnverified = 1.0
 	}
 
-	pCorr := cw.ProbabilityCorroborated()
-	cw.Collapsed = (pCorr >= 0.75 && len(cw.Sources) >= 2 && cw.ChemicalAccuracyDeltaMHa <= 1.6)
+	pCorr := cp.ProbabilityCorroborated()
+	cp.Collapsed = (pCorr >= 0.75 && len(cp.Sources) >= 2 && cp.ChemicalAccuracyDeltaMHa <= 1.6)
 
-	g.claims[cw.ClaimID] = cw
+	g.claims[cp.ClaimID] = &cp
 	return nil
 }
 
@@ -126,7 +150,13 @@ func (g *EpistemicGate) RefusalRatio() float64 {
 // production callers). Do not gate collapses on this value without wiring
 // measured variance first; the hardcoded call-site variance is a prior,
 // not evidence.
+//
+// W1.10: non-finite variance refuses (NaN κ used to propagate silently into
+// any future branch).
 func ComputeEpistemicCurvature(variance float64, eCanon, eLive float64) (kappa float64, drift float64) {
+	if math.IsNaN(variance) || math.IsInf(variance, 0) {
+		return 0, 0
+	}
 	kappa = 1.0 / (1.0 + math.Abs(variance))
 	drift = math.Abs(eCanon - eLive)
 	return kappa, drift

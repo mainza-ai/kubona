@@ -74,3 +74,49 @@ func TestEpistemicCurvature(t *testing.T) {
 		t.Fatalf("unexpected drift: %f", drift)
 	}
 }
+
+// W1.10: the gate refuses unphysical registrations and isolates stored
+// claims from caller mutation.
+func TestEpistemicGateDomainRefusals(t *testing.T) {
+	gate := NewEpistemicGate()
+	base := func() *ClaimWavefunction {
+		return &ClaimWavefunction{
+			ClaimID: "c1", Statement: "s",
+			AlphaCorroborated: 0.9, BetaContested: 0.1, GammaUnverified: 0.1,
+			Sources:                  []string{"arxiv:1304.3061", "doi:10.1038/ncomms5213"},
+			ChemicalAccuracyDeltaMHa: 0.5,
+		}
+	}
+	bad := base()
+	bad.ClaimID = ""
+	if err := gate.RegisterClaim(bad); err == nil {
+		t.Fatalf("empty claim id must refuse")
+	}
+	bad = base()
+	bad.AlphaCorroborated = -0.5
+	if err := gate.RegisterClaim(bad); err == nil {
+		t.Fatalf("negative amplitude must refuse")
+	}
+	bad = base()
+	bad.ChemicalAccuracyDeltaMHa = -100.0
+	if err := gate.RegisterClaim(bad); err == nil {
+		t.Fatalf("negative delta must refuse (it used to collapse)")
+	}
+	// Stored claims are copies: post-registration mutation changes nothing.
+	good := base()
+	if err := gate.RegisterClaim(good); err != nil {
+		t.Fatal(err)
+	}
+	good.AlphaCorroborated = 0.0
+	good.ChemicalAccuracyDeltaMHa = 100.0
+	if ok, _ := gate.CanAssert("c1"); !ok {
+		t.Fatalf("stored claim must be isolated from caller mutation")
+	}
+	// Placeholder job IDs refuse.
+	if ValidSourceLabel("bridge:circuit_run:--------") {
+		t.Fatalf("all-dash job id must not resolve")
+	}
+	if !ValidSourceLabel("bridge:circuit_run:abc12345") {
+		t.Fatalf("real job id must resolve")
+	}
+}

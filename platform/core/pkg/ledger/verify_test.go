@@ -157,3 +157,54 @@ func TestReadOnlyHandleReadsAndRefusesWrites(t *testing.T) {
 		t.Fatal("read-only open of a missing file must fail, not create")
 	}
 }
+
+// W1.12: unsigned commit-class events fault (rewrite-forgeable), and the
+// audit re-anchors on recomputed digests (forged links never become anchors).
+func TestVerifyChainFlagsUnsignedCommitEvents(t *testing.T) {
+	l, _ := openTestLedger(t)
+	if err := l.AppendEvent("s1", "chat_message_appended", "plain"); err != nil {
+		t.Fatal(err)
+	}
+	// Unsigned tribunal_commit: linkage fine, authority absent.
+	if err := l.AppendEvent("s1", "tribunal_commit", map[string]string{"v": "x"}); err != nil {
+		t.Fatal(err)
+	}
+	faults, err := l.VerifyChain("s1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, f := range faults {
+		if f.Kind == "signature" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("unsigned commit-class event must fault, got %+v", faults)
+	}
+}
+
+// Tamper extent: a rewritten payload faults at its link AND the next link
+// (which no longer matches true history) — then the chain re-anchors and
+// later events verify.
+func TestVerifyChainReanchorsOnTruth(t *testing.T) {
+	l, _ := openTestLedger(t)
+	for _, p := range []string{"a", "b", "c"} {
+		if err := l.AppendEvent("s1", "chat_message_appended", p); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := l.DB().Exec(`UPDATE ledger_events SET payload = '"forged"' WHERE id = 1`); err != nil {
+		t.Fatal(err)
+	}
+	faults, err := l.VerifyChain("s1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(faults) != 2 {
+		t.Fatalf("one tamper must fault exactly its link + the next, got %+v", faults)
+	}
+	if faults[0].Kind != "hash" || faults[1].Kind != "link" {
+		t.Fatalf("fault order must be hash-then-link, got %+v", faults)
+	}
+}

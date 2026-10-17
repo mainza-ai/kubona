@@ -343,8 +343,7 @@ func (l *Ledger) AppendSignedEvent(sessionID string, eventType string, payload a
 	}
 
 	prevHash := l.getLatestEntryHashLocked(sessionID)
-	dataToSign := fmt.Sprintf("%s|%s|%s|%s", prevHash, sessionID, eventType, string(data))
-	digest := sha256.Sum256([]byte(dataToSign))
+	digest := chainDigestBytes(prevHash, sessionID, eventType, string(data))
 	entryHashHex := hex.EncodeToString(digest[:])
 
 	var signerPubHex, sigHex string
@@ -517,8 +516,7 @@ func (l *Ledger) AppendExternalEvent(sessionID string, eventType string, payload
 	}
 
 	prevHash := l.getLatestEntryHashLocked(sessionID)
-	dataToSign := fmt.Sprintf("%s|%s|%s|%s", prevHash, sessionID, eventType, string(data))
-	digest := sha256.Sum256([]byte(dataToSign))
+	digest := chainDigestBytes(prevHash, sessionID, eventType, string(data))
 	entryHashHex := hex.EncodeToString(digest[:])
 
 	ts := time.Now().UTC().Format(time.RFC3339)
@@ -574,8 +572,7 @@ func (l *Ledger) AppendLabeledEvent(sessionID string, eventType string, payload 
 	}
 
 	prevHash := l.getLatestEntryHashLocked(sessionID)
-	dataToSign := fmt.Sprintf("%s|%s|%s|%s", prevHash, sessionID, eventType, string(data))
-	digest := sha256.Sum256([]byte(dataToSign))
+	digest := chainDigestBytes(prevHash, sessionID, eventType, string(data))
 	entryHashHex := hex.EncodeToString(digest[:])
 
 	var signerPubHex, sigHex string
@@ -633,8 +630,7 @@ func (l *Ledger) VerifyEventSignature(event *EventRecord) (bool, error) {
 		return false, fmt.Errorf("invalid signature size: %w", err)
 	}
 
-	dataToSign := fmt.Sprintf("%s|%s|%s|%s", event.PrevHash, event.SessionID, event.EventType, string(event.Payload))
-	digest := sha256.Sum256([]byte(dataToSign))
+	digest := chainDigestBytes(event.PrevHash, event.SessionID, event.EventType, string(event.Payload))
 
 	if hex.EncodeToString(digest[:]) != event.EntryHash {
 		return false, fmt.Errorf("entry hash mismatch: computed %s, recorded %s", hex.EncodeToString(digest[:]), event.EntryHash)

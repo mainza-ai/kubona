@@ -158,3 +158,30 @@ func TestValidateQASMSemanticsStrictNumbers(t *testing.T) {
 		}
 	}
 }
+
+// W1.14: corrected arities admit valid programs (u0(λ), bare ch) and refuse
+// invalid ones; comments never steer validation.
+func TestValidateCorrectedArities(t *testing.T) {
+	valid := []string{
+		"OPENQASM 2.0;\nqreg q[1];\nu0(0.5) q[0];\n",
+		"OPENQASM 2.0;\nqreg q[2];\nch q[0], q[1];\n",
+		"OPENQASM 2.0;\n// mentions OPENQASM 3 in a comment\nqreg q[1];\nh q[0];\n",
+		"OPENQASM 2.0;\n/* block comment with [ unbalanced ] brackets */\nqreg q[1];\nh q[0];\n",
+	}
+	for _, qasm := range valid {
+		if err := ValidateQASM(qasm); err != nil {
+			t.Errorf("valid program must admit, got %v:\n%s", err, qasm)
+		}
+	}
+	invalid := []struct{ qasm, want string }{
+		{"OPENQASM 2.0;\nqreg q[1];\nu0 q[0];\n", "u0"},
+		{"OPENQASM 2.0;\nqreg q[2];\nch(pi/2) q[0], q[1];\n", "ch"},
+	}
+	for _, tc := range invalid {
+		if err := ValidateQASM(tc.qasm); err == nil {
+			t.Errorf("invalid arity must refuse:\n%s", tc.qasm)
+		} else if !strings.Contains(err.Error(), tc.want) {
+			t.Errorf("refusal must name %q, got %v", tc.want, err)
+		}
+	}
+}
