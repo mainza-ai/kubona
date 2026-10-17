@@ -178,6 +178,18 @@ notes, never silent edits; rollback stated.
 
 ### R3 — Coverage declarations + provenance-marked inputs (M)
 
+> ✅ LANDED 2026-10-17 (`5a4a6ce`): every `ObservedCall` carries
+> `source` + `untrusted` (all tool outputs, success AND error) and the
+> history bytes embed the tag inside the observation budget (data
+> truncated to leave room — provenance can never push past the cap);
+> injection fixture proves the directive is preserved-as-data and never
+> re-dispatched. Every `TribunalTurn` carries per-facet coverage
+> (`ansatz`/`anchor`/`audit`/`proposal`; `available:false` + reason =
+> unobserved, distinct from fail = disproven — the fallback run's turn-2
+> anchor facet demonstrates it on record); `SealTurn` refuses
+> coverage-less turns and facet-incomplete scribes; `tool_called` audit
+> mirrors the provenance fields. Suite: agents green (4 new tests).
+
 - **Threat:** false negatives certified as receipts (P0-3); prompt
   injection via tool results (P1-5).
 - **Change:** verdicts carry per-facet `{available: true}` /
