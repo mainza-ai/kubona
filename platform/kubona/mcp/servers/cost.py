@@ -80,9 +80,9 @@ def reject_approval(approval_id: str, reviewer: str = "operator", note: str = ""
     return {"ok": True, "approval_id": a.approval_id, "state": a.state}
 
 
-def session_burn_rate(session_id: str, window_s: float = 60.0) -> dict:
+def session_burn_rate(session_id: str) -> dict:
     try:
-        br = _gov.burn_rate(session_id, window_s)
+        br = _gov.burn_rate(session_id)
         return {"ok": True, **br}
     except KeyError:
         return {"ok": False, "error": f"unknown session_id {session_id!r}"}
