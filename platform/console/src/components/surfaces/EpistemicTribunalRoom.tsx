@@ -20,7 +20,8 @@ import {
   
 } from 'lucide-react';
 import {  AgentPersona, TribunalTurn } from '@/types';
-import { API_BASE, runTribunal } from '@/lib/api';
+import { runTribunal, appendLedgerEvent } from '@/lib/api';
+import { classifyTribunalVerdict } from '@/lib/verdict';
 
 interface TribunalRoomProps {
   hypothesisId?: string;
@@ -116,10 +117,8 @@ export function EpistemicTribunalRoom({
   ];
 
   const voteForVerdict = (verdict: string): PersonaState['vote'] => {
-    const v = (verdict || '').toLowerCase();
-    if (/corroborat|pass|confirm|verif/.test(v)) return 'corroborated';
-    if (/falsif|fail|reject/.test(v)) return 'falsified';
-    return 'contested';
+    const c = classifyTribunalVerdict(verdict);
+    return c === 'abstain' ? 'abstain' : c;
   };
 
   // Fill seats from live turns only. No turn, no statement — ever.
@@ -151,11 +150,15 @@ export function EpistemicTribunalRoom({
     try {
       // Real deliberation: one backend call, four live turns. Minutes on
       // local models — the button shows honest waiting, not fake phases.
+      // runTribunal returns null on transport failure (distinct from an
+      // empty-turns success), so the chamber can separate the two.
       const res = await runTribunal(sessionId, topic.trim() || `${targetSystem} ground state`);
-      if (res?.tribunal?.turns?.length) {
+      if (res == null) {
+        setDelibError('Tribunal unreachable (transport failure) — nothing deliberated, nothing recorded.');
+      } else if (res?.tribunal?.turns?.length) {
         setTurns(res.tribunal.turns);
         const corroborated = res.tribunal.turns.filter((t) =>
-          /corroborat|pass|confirm|verif/.test((t.verdict || '').toLowerCase())
+          classifyTribunalVerdict(t.verdict) === 'corroborated'
         ).length;
         setQuorumPercent((corroborated / res.tribunal.turns.length) * 100);
         setCurrentPhase(5);
@@ -177,31 +180,21 @@ export function EpistemicTribunalRoom({
     setIsCommitting(true);
     setCommitError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/ledger/append`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          session_id: sessionId,
-          event_type: 'tribunal_commit',
-          payload: {
-            hypothesis_id: hypothesisId,
-            target_system: targetSystem,
-            quorum_percent: quorumPercent,
-          },
-        }),
+      // Authenticated bridge helper (authHeaders inside) — no raw fetch.
+      // Surfaces the backend refusal body; throws only on transport.
+      const res = await appendLedgerEvent(sessionId, 'tribunal_commit', {
+        hypothesis_id: hypothesisId,
+        target_system: targetSystem,
+        quorum_percent: quorumPercent,
       });
       if (!res.ok) {
-        throw new Error(`ledger refused the commit (HTTP ${res.status})`);
+        throw new Error(res.error || 'ledger refused the commit');
       }
-      const data = await res.json();
-      if (!data.ok || !data.record_hash) {
-        throw new Error(data.error || 'ledger returned no record hash');
-      }
-      setCommittedReceipt(data.record_hash);
+      setCommittedReceipt(res.record_hash as string);
       if (onCommitToLedger) {
         onCommitToLedger({
-          receipt_hash: data.record_hash,
-          event_id: data.event_id,
+          receipt_hash: res.record_hash,
+          event_id: res.event_id,
           hypothesis_id: hypothesisId,
           target_system: targetSystem,
           quorum_percent: quorumPercent,

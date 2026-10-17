@@ -27,6 +27,9 @@ export interface ApprovalPacketView {
   };
   expiresAtIso: string;
   noncePreview: string;
+  // Fail-closed overspend flag: true when ceiling - spent < 0 at build time.
+  // Renderers must surface this as a breach, never clamp silently.
+  budgetBreached?: boolean;
 }
 
 interface ApprovalPacketCardProps {
@@ -64,9 +67,14 @@ export function ApprovalPacketCard({
           <span>Approval Packet</span>
         </span>
         <span className="text-[11px] font-mono text-amber-300 bg-amber-950/80 px-2.5 py-0.5 rounded-full border border-amber-800/40">
-          ≤ ${packet.costMaxUsd.toFixed(2)} · ${packet.budgetRemainingUsd.toFixed(2)} left
+          ≤ ${typeof packet.costMaxUsd === 'number' && Number.isFinite(packet.costMaxUsd) ? packet.costMaxUsd.toFixed(2) : '—'} · ${typeof packet.budgetRemainingUsd === 'number' && Number.isFinite(packet.budgetRemainingUsd) ? packet.budgetRemainingUsd.toFixed(2) : '—'} left{packet.budgetBreached ? ' · OVERSPENT' : ''}
         </span>
       </div>
+      {packet.budgetBreached && (
+        <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[11px] font-code text-center">
+          Budget breached — ceiling exceeded. Authorization must refuse until funded.
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-3 text-xs">
         <div>

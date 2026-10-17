@@ -34,7 +34,7 @@ describe('LabsView', () => {
     const text = textOf(root!.root);
     expect(text).toContain('Lab A');
     expect(text).toContain('Lab B');
-    expect(text).toContain('$100 / $150');
+    expect(text).toContain('$100.00 / $150.00');
     expect(text).toContain('L1');
     expect(text).toContain('suspended');
   });
@@ -50,7 +50,7 @@ describe('LabsView', () => {
     });
     const text = textOf(root!.root);
     expect(text).toContain('drill');
-    expect(text).toContain('$70 / $120');
+    expect(text).toContain('$70.00 / $120.00');
   });
 
   it('renders empty state when no labs exist', async () => {

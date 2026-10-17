@@ -14,6 +14,7 @@ import {
   Info,
   Command,
 } from 'lucide-react';
+import { SHORTCUTS } from '@/lib/shortcuts';
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -41,7 +42,7 @@ export function CommandPalette({
       id: 'arena',
       title: 'Active Research Arena (Living Swarm Universe)',
       category: 'Surfaces',
-      shortcut: '⌘1',
+      shortcut: SHORTCUTS.livingCanvas,
       icon: Orbit,
       action: () => onSelectSurface('arena'),
     },
@@ -49,7 +50,7 @@ export function CommandPalette({
       id: 'recorder',
       title: '4D Flight Recorder (Scrub Discovery Story)',
       category: 'Surfaces',
-      shortcut: '⌘2',
+      shortcut: SHORTCUTS.flightRecorder,
       icon: PlayCircle,
       action: () => onSelectSurface('recorder'),
     },
@@ -57,7 +58,7 @@ export function CommandPalette({
       id: 'manifold',
       title: 'Epistemic Manifold (Curvature & Belief Topology)',
       category: 'Surfaces',
-      shortcut: '⌘3',
+      shortcut: SHORTCUTS.epistemicOrb,
       icon: Compass,
       action: () => onSelectSurface('manifold'),
     },
@@ -65,7 +66,7 @@ export function CommandPalette({
       id: 'fleet',
       title: 'Quantum Fleet Radar (QuEra, IBM & Slurm HPC)',
       category: 'Surfaces',
-      shortcut: '⌘4',
+      shortcut: SHORTCUTS.fleetRadar,
       icon: Radio,
       action: () => onSelectSurface('fleet'),
     },
@@ -73,7 +74,7 @@ export function CommandPalette({
       id: 'proofs',
       title: 'Merkle Proofs & Papers (Lean 4 ASTs & LaTeX)',
       category: 'Surfaces',
-      shortcut: '⌘5',
+      shortcut: SHORTCUTS.livingNotebook,
       icon: BookOpen,
       action: () => onSelectSurface('proofs'),
     },
@@ -81,7 +82,7 @@ export function CommandPalette({
       id: 'mesh',
       title: 'Local Sovereign Mesh (MLX · Ollama · Air-Gap)',
       category: 'Surfaces',
-      shortcut: '⌘6',
+      shortcut: SHORTCUTS.cognitiveMesh,
       icon: Network,
       action: () => onSelectSurface('mesh'),
     },
@@ -89,7 +90,7 @@ export function CommandPalette({
       id: 'new-campaign',
       title: 'New Research Campaign',
       category: 'Actions',
-      shortcut: '⌘N',
+      shortcut: SHORTCUTS.newCampaign,
       icon: Plus,
       action: onNewCampaign,
     },
@@ -97,7 +98,7 @@ export function CommandPalette({
       id: 'about-lab',
       title: 'About Kubona Scientific Laboratory',
       category: 'Actions',
-      shortcut: '⌘I',
+      shortcut: SHORTCUTS.about,
       icon: Info,
       action: onOpenAbout,
     },
@@ -105,9 +106,13 @@ export function CommandPalette({
       id: 'emergency-abort',
       title: 'Emergency Abort (Ring 0 Intercept)',
       category: 'Safety',
-      shortcut: '⌘.',
+      shortcut: SHORTCUTS.emergencyAbort,
       icon: Zap,
-      action: onEmergencyAbort,
+      action: () => {
+        if (confirm('EMERGENCY ABORT: Settle every unsettled job in this session as failed?')) {
+          onEmergencyAbort();
+        }
+      },
     },
   ];
 

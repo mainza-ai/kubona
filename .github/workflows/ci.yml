@@ -2,9 +2,9 @@ name: CI
 
 # Least privilege: no job in this pipeline publishes, pushes, or needs
 # anything beyond reading the tree — so the token gets read-only contents.
-# PR builds (including forks) therefore cannot write back anywhere. Action
-# versions stay pinned as tags (a SHA-pinning bot is future work, not a
-# silent downgrade to floating latest).
+# PR builds (including forks) therefore cannot write back anywhere. Actions
+# pin to commit SHAs (tag in trailing comment); re-pin deliberately, never
+# by floating forward.
 permissions:
   contents: read
 
@@ -24,7 +24,7 @@ jobs:
     name: Secret + local-path scan (versioned pre-commit mirror)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Scan tracked tree for secrets and local-only paths
         run: ./scripts/secret-scan.sh
 
@@ -35,14 +35,18 @@ jobs:
       run:
         working-directory: platform
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
-      - uses: dtolnay/rust-toolchain@stable
+          cache: "pip"
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
       - name: Build Rust qir-core (production compiler core)
         run: cargo build --release --manifest-path crates/qir-core/Cargo.toml
-      - run: pip install -e ".[dev,qiskit]" pyscf
+      # W2.4: install the suite-verified set — qiskit/chemistry extras pinned
+      # == in pyproject (floors previously resolved untested combos; the
+      # chemistry extra was missing so RDKit coverage silently skipped).
+      - run: pip install -e ".[dev,qiskit,chemistry]" pyscf
       - name: Full python suite (Rust core wired; KUBONA_QIR_CORE)
         env:
           KUBONA_QIR_CORE: ${{ github.workspace }}/platform/crates/qir-core/target/release/qir-core
@@ -60,8 +64,10 @@ jobs:
     name: Rust crates (qir-core + ifc-core)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          cache: true
       - name: Test qir-core
         working-directory: platform/crates/qir-core
         run: cargo test --lib
@@ -76,11 +82,12 @@ jobs:
       run:
         working-directory: platform
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
-      - run: pip install -e ".[dev,qiskit]"
+          cache: "pip"
+      - run: pip install -e ".[dev,qiskit,chemistry]"
       - name: Hardware canary (simulator/GA providers)
         run: KUBONA_STATE_DIR="$(mktemp -d)" python -m kubona.canary
       - name: Correctness-regression harness (release gate)
@@ -94,16 +101,20 @@ jobs:
       run:
         working-directory: platform/core
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          go-version: "1.23"
+          # W2.4: must match go.mod (1.23 silently built a newer toolchain's code).
+          go-version: "1.27.1"
+          cache-dependency-path: platform/core/go.sum
       # Harness tests shell out to host python3 for embedded eval scripts
       # (numpy+qiskit): without them every harness test fails on import.
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
-      - run: pip install numpy "qiskit>=1.0" "qiskit-aer>=0.14"
+          cache: "pip"
+      # W2.4: suite-verified pins (== in pyproject), never floors.
+      - run: pip install "numpy==2.4.6" "qiskit==2.5.2" "qiskit-aer==0.17.2"
       - run: go test -v -race ./...
 
   nextjs-console-build:
@@ -113,15 +124,15 @@ jobs:
       run:
         working-directory: platform/console
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 9
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: "20"
           cache: "pnpm"
           cache-dependency-path: platform/console/pnpm-lock.yaml
-      - run: pnpm install
+      - run: pnpm install --frozen-lockfile
       - run: pnpm build
 

@@ -134,18 +134,35 @@ theorem ${target.toLowerCase()}_ground_state_monotonicity
 -- Run a comparator verification to produce a receipt.`;
 
   const handleCopyBibtex = () => {
-    navigator.clipboard.writeText(bibtex);
+    try {
+      const p = navigator.clipboard.writeText(bibtex) as unknown as Promise<void> | undefined;
+      if (p && typeof (p as Promise<void>).catch === 'function') {
+        (p as Promise<void>).catch(() => {
+          setCopiedBibtex(false);
+        });
+      }
+    } catch {
+      return;
+    }
     setCopiedBibtex(true);
     setTimeout(() => setCopiedBibtex(false), 2000);
   };
 
   const handleExport = () => {
+    // Same qualifiers as the on-screen manuscript: unverified drafts export
+    // UNVERIFIED literals, never measured-looking numbers.
+    const exportHeader = hasVerifiedData
+      ? (claimVerified
+        ? 'We present an autonomously synthesized variational quantum eigensolver ansatz targeting the ground-state electronic energy'
+        : 'PROJECTED DRAFT — corridor estimates, not measured. No claim in this draft is verified')
+      : 'UNVERIFIED DRAFT — this session carries no ledger-backed execution telemetry. All figures below are placeholders, not measurements';
     const mdContent = `# ${campaign?.notebook?.title || `Variational Quantum Ground State of ${target}`}
 By Kubona Autonomous Scientific Tribunal
 Date: ${new Date().toISOString()}
+Status: ${claimVerified && proofVerified ? 'Verified (COLLAPSED_VERIFIED + proof receipt)' : 'UNVERIFIED DRAFT'}
 
 ## Abstract
-We present an autonomously synthesized variational quantum eigensolver ansatz targeting the ground-state electronic energy of ${target}.
+${exportHeader} of ${target}.
 
 ## Ground State Integrals
 - VQE Energy: ${fmtEnergy(groundEnergy)} Ha
@@ -156,7 +173,7 @@ We present an autonomously synthesized variational quantum eigensolver ansatz ta
 ${(campaign?.notebook?.sections || []).map((s) => `- ${s}`).join('\n')}
 
 ## Cryptographic Provenance
-SHA-256 Merkle DAG Hash: ${provenanceHash}
+SHA-256 Merkle DAG Hash: ${provenanceHash ?? 'UNVERIFIED'}
 Lean 4 Formal AST Hash: ${lean4AstHash}
 
 ## BibTeX Citation
@@ -167,8 +184,11 @@ ${bibtex}
     const link = document.createElement('a');
     link.href = url;
     link.download = `kubona-finding-${target.toLowerCase().replace(/[^a-z0-9]/g, '-')}.md`;
+    // Firefox-safe download: the anchor must be in the DOM to fire.
+    document.body.appendChild(link);
     link.click();
-    URL.revokeObjectURL(url);
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     setExported(true);
     setTimeout(() => setExported(false), 3000);
   };
@@ -282,7 +302,7 @@ ${bibtex}
                 }`}
               >
                 <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-cyan-400">
-                  {claimVerified ? 'Verified Research Finding' : 'Projected Research Draft'}
+                  {claimVerified && proofVerified ? 'Verified Research Finding' : 'Projected Research Draft'}
                 </span>
                 <h1 className="text-lg md:text-xl font-bold text-white tracking-tight leading-snug mt-1">
                   {campaign?.notebook?.title || `Variational Quantum Ground State of ${target} Anchored to Full Configuration Interaction`}
@@ -291,10 +311,10 @@ ${bibtex}
                   <span>By Kubona Autonomous Epistemic Swarm</span>
                   <span>•</span>
                   <span className={`font-semibold flex items-center space-x-1 ${
-                    claimVerified && isChemAccMet ? 'text-emerald-400' : 'text-amber-400'
+                    claimVerified && proofVerified && isChemAccMet ? 'text-emerald-400' : 'text-amber-400'
                   }`}>
                     <CheckCircle2 className="w-3.5 h-3.5 inline mr-1" />
-                    {claimVerified && isChemAccMet ? 'Chemical Accuracy Met (Δ ≤ 1.6 mHa)' : 'Variational Exploration Active'}
+                    {claimVerified && proofVerified && isChemAccMet ? 'Chemical Accuracy Met (Δ ≤ 1.6 mHa · proof-verified)' : 'Variational Exploration Active'}
                   </span>
                 </div>
               </div>

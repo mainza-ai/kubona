@@ -21,6 +21,13 @@ dependencies = [
     "uvicorn==0.54.0",
     "grpcio==1.84.0",
     "protobuf==5.29.6",
+    # W2.4: scipy + pennylane were imported but undeclared (krylov needs
+    # scipy.linalg; cutting/diff-stack need pennylane) — CI resolved them
+    # transitively or not at all. scipy splits by interpreter like numpy
+    # (1.18.x needs >=3.12); pennylane covers >=3.11 in one pin.
+    "scipy==1.18.1; python_version >= '3.12'",
+    "scipy==1.15.3; python_version < '3.12'",
+    "pennylane==0.45.1",
 ]
 
 [project.scripts]

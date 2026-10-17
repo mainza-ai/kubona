@@ -65,6 +65,9 @@ export function EpistemicManifold({ campaign }: EpistemicManifoldProps) {
   const alpha = active.alpha_corr;
   const beta = active.beta_cont;
   const gamma = active.gamma_unv;
+  const alphaNum = typeof alpha === 'number' && Number.isFinite(alpha) ? alpha : null;
+  const betaNum = typeof beta === 'number' && Number.isFinite(beta) ? beta : null;
+  const gammaNum = typeof gamma === 'number' && Number.isFinite(gamma) ? gamma : null;
   const discrepancy = campaign?.classical_anchor?.discrepancy_mha;
   const accuracyLimit = campaign?.classical_anchor?.chemical_accuracy_limit ?? 1.6;
   const anchorMethod = campaign?.classical_anchor?.method;
@@ -141,6 +144,11 @@ export function EpistemicManifold({ campaign }: EpistemicManifoldProps) {
             <div className="text-[11px] font-medium opacity-90 mt-1">
               {hasLive ? (isVerified ? 'Verified True' : 'Evaluating') : 'Unverified'}
             </div>
+            {!hasLive && (
+              <div className="mt-1 px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-[9px] font-mono text-slate-300">
+                illustrative fallback — not session data
+              </div>
+            )}
           </div>
         </div>
 
@@ -161,11 +169,14 @@ export function EpistemicManifold({ campaign }: EpistemicManifoldProps) {
           )}
           <p className="text-xs text-slate-300 leading-relaxed">
             {anchorStated ? (
-              <>Corroborated within chemical accuracy (<span className="text-emerald-400 font-mono font-semibold">{discrepancy!.toFixed(2)} mHa &lt; {accuracyLimit.toFixed(1)} mHa</span>) against {anchorMethod} benchmarks.</>
+              <>Corroborated within chemical accuracy (<span className="text-emerald-400 font-mono font-semibold">{typeof discrepancy === 'number' && Number.isFinite(discrepancy) ? discrepancy.toFixed(2) : '—'} mHa &lt; {typeof accuracyLimit === 'number' && Number.isFinite(accuracyLimit) ? accuracyLimit.toFixed(1) : '—'} mHa</span>) against {anchorMethod} benchmarks.</>
             ) : (
               <>No anchor measured for this session — corroboration unattested.</>
             )}
           </p>
+          {!hasLive && (
+            <p className="text-[10px] font-code text-slate-500">Fallback numbers below are illustrative — no live claim.</p>
+          )}
         </div>
       </div>
 
@@ -185,20 +196,20 @@ export function EpistemicManifold({ campaign }: EpistemicManifoldProps) {
         {showDeepMath && (
           <div className="mt-4 p-5 rounded-2xl bg-black/60 border border-white/10 backdrop-blur-xl grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
             <div className="space-y-1">
-              <span className="text-slate-300 font-semibold">Corroborated (α):</span>
-              <div className="text-base text-emerald-400 font-bold">{(alpha * alpha).toFixed(4)}</div>
+              <span className="text-slate-300 font-semibold">Corroborated (α): {!hasLive && <span className="text-[9px] text-amber-300 border border-amber-400/40 rounded px-1">illustrative</span>}</span>
+              <div className="text-base text-emerald-400 font-bold">{hasLive && alphaNum != null ? (alphaNum * alphaNum).toFixed(4) : '—'}</div>
               <p className="text-xs text-slate-300 font-sans">Probability mass in agreement with physical anchor</p>
             </div>
 
             <div className="space-y-1">
-              <span className="text-slate-300 font-semibold">Contested (β):</span>
-              <div className="text-base text-amber-400 font-bold">{(beta * beta).toFixed(4)}</div>
+              <span className="text-slate-300 font-semibold">Contested (β): {!hasLive && <span className="text-[9px] text-amber-300 border border-amber-400/40 rounded px-1">illustrative</span>}</span>
+              <div className="text-base text-amber-400 font-bold">{hasLive && betaNum != null ? (betaNum * betaNum).toFixed(4) : '—'}</div>
               <p className="text-xs text-slate-300 font-sans">Active disconfirmation signal from tribunal</p>
             </div>
 
             <div className="space-y-1">
-              <span className="text-slate-300 font-semibold">Unverified (γ):</span>
-              <div className="text-base text-slate-200 font-bold">{(gamma * gamma).toFixed(4)}</div>
+              <span className="text-slate-300 font-semibold">Unverified (γ): {!hasLive && <span className="text-[9px] text-amber-300 border border-amber-400/40 rounded px-1">illustrative</span>}</span>
+              <div className="text-base text-slate-200 font-bold">{hasLive && gammaNum != null ? (gammaNum * gammaNum).toFixed(4) : '—'}</div>
               <p className="text-xs text-slate-300 font-sans">Remaining epistemic uncertainty interval</p>
             </div>
           </div>

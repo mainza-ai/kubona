@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Orbit, GitBranch, Radar, Zap, Crosshair } from 'lucide-react';
+import { Orbit, GitBranch, Radar, Zap, Crosshair, AlertTriangle } from 'lucide-react';
 
 export type ArenaView = 'orbital' | 'proof-dag' | 'hardware-qpu';
 
@@ -27,6 +27,10 @@ interface ArenaHudProps {
   onRecenter: () => void;
 }
 
+function fmt(v: unknown): string {
+  return typeof v === 'number' && Number.isFinite(v) ? v.toFixed(2) : '—';
+}
+
 export function ArenaHud({
   targetLabel,
   swarmDetail,
@@ -38,6 +42,9 @@ export function ArenaHud({
   statusText,
   onRecenter,
 }: ArenaHudProps) {
+  const spendFinite = typeof spendUsd === 'number' && Number.isFinite(spendUsd);
+  const capFinite = typeof spendCapUsd === 'number' && Number.isFinite(spendCapUsd) && spendCapUsd > 0;
+  const overCap = spendFinite && capFinite && (spendUsd as number) > (spendCapUsd as number);
   return (
     <header className="absolute top-4 left-6 right-6 z-20 flex items-center justify-between pointer-events-none">
       <div className="flex items-center gap-3 pointer-events-auto bg-[#0E1117]/80 backdrop-blur-xl border border-white/10 rounded-full px-4 py-2 shadow-2xl">
@@ -78,12 +85,22 @@ export function ArenaHud({
       </div>
 
       <div className="flex items-center gap-2 pointer-events-auto">
-        <div className="bg-[#0E1117]/80 backdrop-blur-xl border border-white/10 rounded-full px-3.5 py-2 flex items-center gap-3 shadow-2xl">
-          <div className="flex items-center gap-1.5" title={`$${spendUsd.toFixed(2)} of $${spendCapUsd.toFixed(2)} cap`}>
-            <Zap className="w-4 h-4 text-amber-400" />
-            <span className="font-code text-xs text-amber-400 font-medium">
-              ${spendUsd.toFixed(2)}
+        <div
+          className={`bg-[#0E1117]/80 backdrop-blur-xl border rounded-full px-3.5 py-2 flex items-center gap-3 shadow-2xl ${overCap ? 'border-rose-500/60' : 'border-white/10'}`}
+          data-testid="hud-spend"
+          data-breach={overCap ? 'true' : undefined}
+        >
+          <div className="flex items-center gap-1.5" title={capFinite ? `$${fmt(spendUsd)} of $${fmt(spendCapUsd)} cap` : `$${fmt(spendUsd)} (no cap)`}>
+            <Zap className={`w-4 h-4 ${overCap ? 'text-rose-400' : 'text-amber-400'}`} />
+            <span className={`font-code text-xs font-medium ${overCap ? 'text-rose-300 font-bold' : 'text-amber-400'}`}>
+              ${fmt(spendUsd)}
             </span>
+            {overCap && (
+              <span className="flex items-center gap-1 font-code text-[10px] text-rose-200 bg-rose-950/70 border border-rose-500/50 rounded-full px-1.5 py-0.5">
+                <AlertTriangle className="w-3 h-3" />
+                OVER CAP
+              </span>
+            )}
           </div>
           <span className="text-white/20">|</span>
           <div className="font-code text-[11px] text-slate-300">T+ {sessionElapsed}</div>

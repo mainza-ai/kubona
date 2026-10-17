@@ -5,8 +5,10 @@ export interface Session {
   created_at: string;
   updated_at: string;
   status: string;
-  spend_limit_usd: number;
-  current_spend_usd: number;
+  // Spend caps are backend-omitted when the session has no priced policy;
+  // consumers must treat absence as unknown, never as zero.
+  spend_limit_usd?: number;
+  current_spend_usd?: number;
 }
 
 // Canvas run-state: what the swarm is doing right now (Phase 1 awareness).
@@ -19,8 +21,10 @@ export interface Lab {
   id: string;
   display_name: string;
   autonomy_level: string;
-  spend_ceiling_usd: number;
-  spent_usd: number;
+  // Backend may omit spend figures for unmetered labs; absence means
+  // unknown/unbounded, never zero.
+  spend_ceiling_usd?: number;
+  spent_usd?: number;
   status: string;
 }
 
@@ -90,8 +94,10 @@ export interface Job {
   session_id: string;
   status: string;
   job_type: string;
-  params_json: Record<string, unknown>;
-  result_json?: Record<string, unknown>;
+  // The bridge may return params/result as a JSON string (large payloads)
+  // or as a decoded object; consumers must handle both via asRecord().
+  params_json: Record<string, unknown> | string;
+  result_json?: Record<string, unknown> | string | null;
   created_at: string;
   completed_at?: string;
   compiler_used?: string;
@@ -422,6 +428,33 @@ export interface CustomAgentManifest {
   is_system_agent?: boolean;
   created_at?: string;
   updated_at?: string;
+}
+
+// -----------------------------------------------------------------------------
+// Shared fleet / radar wire types (single source of truth — FleetRadar and
+// CognitiveMesh import these instead of redeclaring).
+// -----------------------------------------------------------------------------
+
+export interface RadarEndpoint {
+  port: number;
+  listening: boolean;
+  service: string;
+  sovereign: boolean;
+  is_local_ip: boolean;
+}
+
+export interface BackendInfo {
+  name: string;
+  type: string;
+  qubits: number;
+  t1_us: string;
+  avg_t1_us?: number;
+  avg_t2_us?: number;
+  status: string;
+  queue_depth: number;
+  cost_per_shot: number;
+  jurisdiction: string;
+  itar_ear: string;
 }
 
 // -----------------------------------------------------------------------------

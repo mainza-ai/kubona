@@ -12,12 +12,20 @@ interface MolecularActiveSpaceWidgetProps {
 }
 
 export function MolecularActiveSpaceWidget({
-  moleculeName = 'FeMoco (Nitrogenase [Fe7MoS9C])',
-  numElectrons = 54,
-  numOrbitals = 54,
-  homoLumoGapHa = 0.042,
+  moleculeName,
+  numElectrons,
+  numOrbitals,
+  homoLumoGapHa,
   onActiveSpaceChange,
 }: MolecularActiveSpaceWidgetProps) {
+  // Backed only when the caller binds live session values; otherwise the
+  // orbital ladder is layout-only and sliders stay disabled behind a demo
+  // watermark — never editable fiction presented as a live active space.
+  const backed = moleculeName != null && numElectrons != null && numOrbitals != null;
+  const displayName = moleculeName ?? 'FeMoco (illustrative demo)';
+  const totalE = numElectrons ?? 54;
+  const totalO = numOrbitals ?? 54;
+  const gap = homoLumoGapHa ?? 0.042;
   const [activeElectrons, setActiveElectrons] = useState(10);
   const [activeOrbitals, setActiveOrbitals] = useState(10);
   const [selectedOrbital, setSelectedOrbital] = useState<number>(5);
@@ -48,6 +56,11 @@ export function MolecularActiveSpaceWidget({
 
   return (
     <div className="rounded-2xl border border-white/[0.08] bg-black/60 p-5 backdrop-blur-xl text-white space-y-4">
+      {!backed && (
+        <div className="p-2.5 rounded-xl bg-amber-950/50 border border-amber-500/40 text-amber-200 text-[11px] font-code text-center">
+          synthetic demo — not session data. Sliders disabled until a live campaign backs this view.
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
         <div className="flex items-center space-x-3">
@@ -56,7 +69,7 @@ export function MolecularActiveSpaceWidget({
           </div>
           <div>
             <h3 className="text-sm font-semibold text-white/90">3D Molecular Active Space Viewer (Preview)<span className="ml-2 align-middle text-[9px] font-mono uppercase px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/10 text-slate-400">Illustrative</span></h3>
-            <p className="text-xs text-white/50">{moleculeName} • CASSCF({activeElectrons}e, {activeOrbitals}o)</p>
+            <p className="text-xs text-white/50">{displayName} • CASSCF({activeElectrons}e, {activeOrbitals}o){!backed ? ' · layout-only' : ''}</p>
           </div>
         </div>
         <div className="flex items-center space-x-1.5 text-xs">
@@ -89,7 +102,7 @@ export function MolecularActiveSpaceWidget({
         <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-4 flex flex-col justify-between h-64">
           <div className="text-xs font-mono text-white/60 flex justify-between items-center mb-2">
             <span>Orbital Energy Level (Ha)</span>
-            <span className="text-emerald-400">Gap: {homoLumoGapHa} Ha ({Math.round(homoLumoGapHa * 27.2114 * 100) / 100} eV)</span>
+            <span className="text-emerald-400">Gap: {typeof gap === 'number' && Number.isFinite(gap) ? gap : '—'} Ha ({typeof gap === 'number' && Number.isFinite(gap) ? Math.round(gap * 27.2114 * 100) / 100 : '—'} eV)</span>
           </div>
           <div className="flex-1 flex flex-col-reverse justify-around relative py-2">
             {/* Visual HOMO-LUMO Gap line */}
@@ -155,7 +168,9 @@ export function MolecularActiveSpaceWidget({
                 step="2"
                 value={activeElectrons}
                 onChange={handleElectronsChange}
-                className="w-full accent-purple-500 bg-white/10 rounded-lg h-1.5 cursor-pointer"
+                disabled={!backed}
+                title={backed ? undefined : 'Disabled — no live backing (layout-only demo)'}
+                className="w-full accent-purple-500 bg-white/10 rounded-lg h-1.5 cursor-pointer disabled:opacity-40"
               />
             </div>
             <div>
@@ -170,7 +185,9 @@ export function MolecularActiveSpaceWidget({
                 step="1"
                 value={activeOrbitals}
                 onChange={handleOrbitalsChange}
-                className="w-full accent-purple-500 bg-white/10 rounded-lg h-1.5 cursor-pointer"
+                disabled={!backed}
+                title={backed ? undefined : 'Disabled — no live backing (layout-only demo)'}
+                className="w-full accent-purple-500 bg-white/10 rounded-lg h-1.5 cursor-pointer disabled:opacity-40"
               />
             </div>
           </div>
@@ -178,15 +195,15 @@ export function MolecularActiveSpaceWidget({
           <div className="p-3 rounded-lg bg-black/40 border border-white/[0.04] text-xs space-y-1.5">
             <div className="flex justify-between text-white/60">
               <span>Total Electrons / Orbitals:</span>
-              <span className="font-mono text-white/80">{numElectrons} e / {numOrbitals} o</span>
+              <span className="font-mono text-white/80">{totalE} e / {totalO} o{!backed ? ' (illustrative)' : ''}</span>
             </div>
             <div className="flex justify-between text-white/60">
               <span>Frozen Core Orbitals:</span>
-              <span className="font-mono text-white/80">{Math.max(0, (numElectrons - activeElectrons) / 2)}</span>
+              <span className="font-mono text-white/80">{Math.max(0, (totalE - activeElectrons) / 2)}</span>
             </div>
             <div className="flex justify-between text-white/60">
               <span>Virtual Uncorrelated:</span>
-              <span className="font-mono text-white/80">{Math.max(0, numOrbitals - activeOrbitals - Math.max(0, (numElectrons - activeElectrons) / 2))}</span>
+              <span className="font-mono text-white/80">{Math.max(0, totalO - activeOrbitals - Math.max(0, (totalE - activeElectrons) / 2))}</span>
             </div>
             <div className="flex justify-between text-white/60 pt-1 border-t border-white/[0.04]">
               <span>Triage Complexity:</span>

@@ -39,6 +39,13 @@ export function HuggingFaceModelHub() {
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [downloads, setDownloads] = useState<HFDownloadTask[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [toastTone, setToastTone] = useState<'info' | 'error'>('info');
+
+  const showToast = (msg: string, tone: 'info' | 'error' = 'info') => {
+    setToastMessage(msg);
+    setToastTone(tone);
+    setTimeout(() => setToastMessage(null), 5000);
+  };
 
   const performSearch = useCallback(async (q = query, lib = library) => {
     setLoading(true);
@@ -46,7 +53,7 @@ export function HuggingFaceModelHub() {
       const results = await searchHFModels(q, lib, 16);
       setModels(results);
     } catch (err) {
-      console.error('Failed to search Hugging Face:', err);
+      showToast(`Search failed — nothing returned (${err instanceof Error ? err.message : String(err)}).`, 'error');
     } finally {
       setLoading(false);
     }
@@ -57,35 +64,51 @@ export function HuggingFaceModelHub() {
       const tasks = await listHFDownloads();
       setDownloads(tasks);
     } catch (err) {
-      console.error('Failed to refresh downloads:', err);
+      showToast(`Download list refused — showing last known (${err instanceof Error ? err.message : String(err)}).`, 'error');
     }
   }, []);
 
   useEffect(() => {
     let mounted = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
     searchHFModels('qwen2.5-coder', 'gguf', 16)
       .then((results) => {
         if (mounted) setModels(results);
       })
-      .catch((err) => console.error('Failed to search Hugging Face:', err));
+      .catch((err) => {
+        if (mounted) showToast(`Search failed — hub refused (${err instanceof Error ? err.message : String(err)}).`, 'error');
+      });
 
     listHFDownloads()
       .then((tasks) => {
         if (mounted) setDownloads(tasks);
       })
-      .catch((err) => console.error('Failed to refresh downloads:', err));
+      .catch((err) => {
+        if (mounted) showToast(`Download list refused (${err instanceof Error ? err.message : String(err)}).`, 'error');
+      });
 
-    const interval = setInterval(() => {
+    // Visibility-gated polling: no background refresh when hidden.
+    const poll = () => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        if (mounted) timer = setTimeout(poll, 3000);
+        return;
+      }
       listHFDownloads()
         .then((tasks) => {
           if (mounted) setDownloads(tasks);
         })
-        .catch((err) => console.error('Failed to refresh downloads:', err));
-    }, 3000);
+        .catch(() => {
+          /* toast would spam — silent on poll, loud on manual refresh */
+        })
+        .finally(() => {
+          if (mounted) timer = setTimeout(poll, 3000);
+        });
+    };
+    timer = setTimeout(poll, 3000);
 
     return () => {
       mounted = false;
-      clearInterval(interval);
+      if (timer) clearTimeout(timer);
     };
   }, []);
 
@@ -96,9 +119,11 @@ export function HuggingFaceModelHub() {
       const detailed = await getHFModelDetails(model.id);
       if (detailed) {
         setSelectedModel(detailed);
+      } else {
+        showToast(`Details refused for ${model.id} — showing summary only.`, 'error');
       }
     } catch (err) {
-      console.error('Failed to fetch details:', err);
+      showToast(`Failed to fetch details (${err instanceof Error ? err.message : String(err)}).`, 'error');
     } finally {
       setLoadingDetails(false);
     }
@@ -108,21 +133,23 @@ export function HuggingFaceModelHub() {
     try {
       const task = await startHFDownload(repoId, filename);
       if (task) {
-        setToastMessage(`Download started: ${filename}`);
-        setTimeout(() => setToastMessage(null), 4000);
+        showToast(`Download started: ${filename}`, 'info');
         refreshDownloads();
+      } else {
+        showToast(`Download refused for ${filename} — bridge said no. Nothing queued.`, 'error');
       }
     } catch (err) {
-      console.error('Failed to start download:', err);
+      showToast(`Failed to start download (${err instanceof Error ? err.message : String(err)}).`, 'error');
     }
   };
 
   const handleCancel = async (taskId: string) => {
     try {
-      await cancelHFDownload(taskId);
+      const ok = await cancelHFDownload(taskId);
+      if (!ok) showToast(`Cancel refused for ${taskId.slice(0, 8)} — task may have finished.`, 'error');
       refreshDownloads();
     } catch (err) {
-      console.error('Failed to cancel download:', err);
+      showToast(`Failed to cancel download (${err instanceof Error ? err.message : String(err)}).`, 'error');
     }
   };
 
@@ -172,7 +199,7 @@ export function HuggingFaceModelHub() {
 
       {/* Toast Alert */}
       {toastMessage && (
-        <div className="p-3 rounded-xl bg-cyan-500/20 border border-cyan-400/40 text-cyan-200 text-xs flex items-center justify-between animate-fade-in shadow-lg">
+        <div className={`p-3 rounded-xl border text-xs flex items-center justify-between animate-fade-in shadow-lg ${toastTone === 'error' ? 'bg-rose-950/60 border-rose-500/40 text-rose-200' : 'bg-cyan-500/20 border-cyan-400/40 text-cyan-200'}`}>
           <div className="flex items-center space-x-2">
             <Download className="w-4 h-4 text-cyan-400 animate-bounce" />
             <span>{toastMessage}</span>
@@ -231,10 +258,10 @@ export function HuggingFaceModelHub() {
 
                   <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
                     <span>
-                      {(task.bytes_downloaded / (1024 * 1024)).toFixed(1)} MB
-                      {task.total_bytes > 0 && ` / ${(task.total_bytes / (1024 * 1024)).toFixed(1)} MB`} ({task.progress_percent}%)
+                      {typeof task.bytes_downloaded === 'number' && Number.isFinite(task.bytes_downloaded) ? (task.bytes_downloaded / (1024 * 1024)).toFixed(1) : '—'} MB
+                      {typeof task.total_bytes === 'number' && Number.isFinite(task.total_bytes) && task.total_bytes > 0 && ` / ${(task.total_bytes / (1024 * 1024)).toFixed(1)} MB`} ({typeof task.progress_percent === 'number' && Number.isFinite(task.progress_percent) ? task.progress_percent : '—'}%)
                     </span>
-                    {task.speed_mb_s > 0 && <span>{task.speed_mb_s} MB/s</span>}
+                    {typeof task.speed_mb_s === 'number' && Number.isFinite(task.speed_mb_s) && task.speed_mb_s > 0 && <span>{task.speed_mb_s} MB/s</span>}
                     {task.sha256 && (
                       <span className="text-emerald-400 truncate max-w-xs" title={task.sha256}>
                         SHA-256: {task.sha256.slice(0, 12)}…
@@ -422,7 +449,7 @@ export function HuggingFaceModelHub() {
                             {q.quant_type}
                           </span>
                         </div>
-                        {q.size_bytes && (
+                        {typeof q.size_bytes === 'number' && Number.isFinite(q.size_bytes) && (
                           <span className="text-[10px] font-mono text-slate-400">
                             Size: {(q.size_bytes / (1024 * 1024 * 1024)).toFixed(2)} GB
                           </span>
