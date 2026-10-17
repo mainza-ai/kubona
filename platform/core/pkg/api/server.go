@@ -2109,6 +2109,14 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// W0.3: tribunal runs multi-role LLM calls on the lab's bill — L0 and
+	// suspended labs refuse here, like launch/jobs. Autonomy after
+	// attribution: the 404 above names the session, the 403 names the lab.
+	if err := s.requireDispatchAutonomy(req.SessionID); err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+
 	// S1: claim-or-replay on the slow rail (effective prompt post-default,
 	// so a retried empty prompt matches). All side effects below
 	// (messages, claim mint, campaign save, memory write-back) run only on
@@ -2772,7 +2780,8 @@ func leaseEventSession(sessionID string) string {
 	return "vault-plane"
 }
 
-func (s *Server) handleVaultLeases(w http.ResponseWriter, r *http.Request) {	if r.Method != http.MethodPost {
+func (s *Server) handleVaultLeases(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -2903,11 +2912,11 @@ func (s *Server) handleVaultLeaseRevoke(w http.ResponseWriter, r *http.Request) 
 // starts elsewhere, which the K1 tests caught live.
 func findPythonVenv() (string, string) {
 	candidates := []struct{ bin, dir string }{
-		{".venv/bin/python3", "bridge"},                       // CWD=platform
-		{"platform/.venv/bin/python3", "platform/bridge"},     // CWD=repo root
-		{"../.venv/bin/python3", "../bridge"},                 // CWD=platform/core
-		{"../../.venv/bin/python3", "../../bridge"},           // CWD=platform/core/pkg/<x> (go test)
-		{"../../../.venv/bin/python3", "../../../bridge"},     // deeper test nesting, just in case
+		{".venv/bin/python3", "bridge"},                   // CWD=platform
+		{"platform/.venv/bin/python3", "platform/bridge"}, // CWD=repo root
+		{"../.venv/bin/python3", "../bridge"},             // CWD=platform/core
+		{"../../.venv/bin/python3", "../../bridge"},       // CWD=platform/core/pkg/<x> (go test)
+		{"../../../.venv/bin/python3", "../../../bridge"}, // deeper test nesting, just in case
 	}
 	for _, c := range candidates {
 		absBin, err := filepath.Abs(c.bin)
@@ -3144,6 +3153,12 @@ func (s *Server) handleAutoresearchStart(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	req.SessionID = arSid
+	// W0.3: loops spend sandbox + LLM budget — L0 and suspended labs
+	// refuse here, like launch/jobs, before the baseline run is built.
+	if err := s.requireDispatchAutonomy(req.SessionID); err != nil {
+		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
 	if req.MaxIterations <= 0 {
 		req.MaxIterations = 25
 	}

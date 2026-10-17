@@ -1075,7 +1075,6 @@ func TestCampaignVersionsEndpoint(t *testing.T) {
 	}
 }
 
-
 // K1: exec-backed chemistry endpoints label demo defaults and name their
 // interpreter; failures are 503 with cause, never silent. RDKit is absent
 // in CI (chemistry extra not installed) — skip with reason there, assert
@@ -1403,7 +1402,7 @@ func TestTenantSuspendLifecycle(t *testing.T) {
 	jb, _ := json.Marshal(map[string]any{
 		"session_id": sessResp.ID,
 		"qasm":       "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\nh q[0];\nmeasure q[0] -> c[0];\n",
-		"backend": "local_simulator", "shots": 100,
+		"backend":    "local_simulator", "shots": 100,
 	})
 	jreq := httptest.NewRequest(http.MethodPost, "/api/jobs", bytes.NewReader(jb))
 	jw := httptest.NewRecorder()
@@ -1421,6 +1420,53 @@ func TestTenantSuspendLifecycle(t *testing.T) {
 	h.ServeHTTP(jw2, jreq2)
 	if jw2.Code != http.StatusCreated {
 		t.Errorf("reactivated dispatch must proceed, got %d %s", jw2.Code, jw2.Body.String())
+	}
+}
+
+// W0.3: tribunal + autoresearch-start enforce tenant autonomy like
+// launch/jobs — L0 and suspended labs 403 with the lab named, before any
+// LLM call or loop is built.
+func TestTribunalAutoresearchEnforceAutonomy(t *testing.T) {
+	srv, l, cleanup := setupIdemServer(t)
+	defer cleanup()
+	h := srv.Handler()
+
+	if code, _, _ := idemPost(t, h, "/api/tenants", map[string]any{"id": "lab-w03"}); code != http.StatusCreated {
+		t.Fatalf("register: %d", code)
+	}
+	code, body, _ := idemPost(t, h, "/api/sessions", map[string]any{"title": "w03 drill", "tenant_id": "lab-w03"})
+	if code != http.StatusCreated {
+		t.Fatalf("session: %d %s", code, body)
+	}
+	var sess struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal([]byte(body), &sess); err != nil || sess.ID == "" {
+		t.Fatalf("session decode: %v %s", body, err)
+	}
+	tribBody := map[string]any{"session_id": sess.ID, "prompt": "H2"}
+	arBody := map[string]any{"session_id": sess.ID, "harness_id": "ansatz-search", "max_iterations": 1}
+
+	// Suspended lab: both refuse naming the lab, before any spend.
+	if _, err := l.DB().Exec(`UPDATE tenants SET status = 'suspended' WHERE id = 'lab-w03'`); err != nil {
+		t.Fatalf("suspend: %v", err)
+	}
+	if code, body, _ := idemPost(t, h, "/api/chat/tribunal", tribBody); code != http.StatusForbidden || !strings.Contains(strings.ToLower(body), "lab-w03") {
+		t.Errorf("suspended tribunal must 403 naming the lab, got %d %q", code, body)
+	}
+	if code, body, _ := idemPost(t, h, "/api/autoresearch/start", arBody); code != http.StatusForbidden || !strings.Contains(strings.ToLower(body), "lab-w03") {
+		t.Errorf("suspended autoresearch must 403 naming the lab, got %d %q", code, body)
+	}
+
+	// L0 lab: same refusal naming autonomy.
+	if _, err := l.DB().Exec(`UPDATE tenants SET status = 'active', autonomy_level = 'L0' WHERE id = 'lab-w03'`); err != nil {
+		t.Fatalf("demote: %v", err)
+	}
+	if code, body, _ := idemPost(t, h, "/api/chat/tribunal", tribBody); code != http.StatusForbidden || !strings.Contains(strings.ToLower(body), "l0") {
+		t.Errorf("L0 tribunal must 403 naming autonomy, got %d %q", code, body)
+	}
+	if code, body, _ := idemPost(t, h, "/api/autoresearch/start", arBody); code != http.StatusForbidden || !strings.Contains(strings.ToLower(body), "l0") {
+		t.Errorf("L0 autoresearch must 403 naming autonomy, got %d %q", code, body)
 	}
 }
 
