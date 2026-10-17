@@ -2423,3 +2423,10 @@ skipped is the exact failure this incident is about:
   endpoint (needs archival design), sidecar rotation (needs chain-aware
   reads), S8c/steer (no backends/engine surgery), model delta +
   recalibration (need keyed hardware).
+
+## [2026-10-17] ingest | leanrea investigation (live-repo read, nothing cloned)
+  `[[source-leanrea-investigation-2026]]` + `[[leanrea]]` + `[[leanrea-adoption-plan]]`
+  (L1–L5, candidate). Headline correction: kubona's MCP surface measures
+  29 tools / ~8–10 KB / ~2k tokens (~1/200th of REA all-loaded) —
+  hygiene program, not emergency. Slices queued in `[[remaining-work]]` §B;
+  lint `SOURCE_KEYS` + census updated (128 pages, ties out).
