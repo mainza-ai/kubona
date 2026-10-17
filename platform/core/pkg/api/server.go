@@ -2905,6 +2905,8 @@ func (s *Server) handleAutoresearchStart(w http.ResponseWriter, r *http.Request)
 		req.InitialArtifact,
 		req.MaxIterations,
 	)
+	// S3: mid-run spend bound — entry checks never bound a hot loop.
+	engine.SetBudgetCheck(func() error { return s.checkLLMBudget() })
 
 	// Hook up Section 13 Meta-Search stagnation trigger
 	engine.SetStagnationCallback(func(lID string, discards int, champion string) {
@@ -2935,6 +2937,9 @@ func (s *Server) handleAutoresearchStart(w http.ResponseWriter, r *http.Request)
 		"harness_id":     req.HarnessID,
 		"max_iterations": req.MaxIterations,
 	})
+	// S3: the loops table previously had no writer — persist the row so
+	// sleep/wake/drain and restarts have restart-surviving truth.
+	s.persistLoopRow(engine)
 
 	s.idemFinishJSON(w, arIdem, http.StatusCreated, engine.State())
 }
@@ -2950,7 +2955,81 @@ func (s *Server) handleAutoresearchLoops(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, map[string]any{"loops": out})
 }
 
+// S3 loop-idle constants (Q3 decision): 10 min for autonomous loops
+// (chat/tribunal sessions hold no harness, so sleeping them would be
+// theater — loops only). Poll every 60 s.
+const (
+	loopIdleAfter  = 10 * time.Minute
+	loopSweepEvery = 60 * time.Second
+)
+
+// persistLoopRow writes the engine's restart-surviving projection (S3: the
+// loops table previously had no writer). Persist failures never fail the
+// action — the in-memory engine is authoritative mid-flight; the row is
+// reconciled on the next transition.
+func (s *Server) persistLoopRow(engine *autoresearch.LoopEngine) {
+	st := engine.State()
+	if err := s.ledger.SaveLoopState(ledger.LoopPersist{
+		ID: st.ID, SessionID: st.SessionID, HarnessID: st.HarnessID,
+		Status: string(st.Status), StepCount: st.CurrentIteration,
+		MaxSteps: st.MaxIterations, LastActivity: st.LastActivity,
+		Drain: st.Drained,
+	}); err != nil {
+		println("kubona: persistLoopRow failed for", st.ID, err.Error())
+	}
+}
+
+// SweepIdleLoops sleeps engines past the idle threshold (S3). Only
+// running/paused engines with recent-activity older than idleAfter;
+// drained, terminal, and already-sleeping loops are untouched. Returns
+// slept loop IDs.
+func (s *Server) SweepIdleLoops(now time.Time, idleAfter time.Duration) []string {
+	var slept []string
+	s.autoresearchMu.RLock()
+	engines := make([]*autoresearch.LoopEngine, 0, len(s.activeAutoloops))
+	for _, e := range s.activeAutoloops {
+		engines = append(engines, e)
+	}
+	s.autoresearchMu.RUnlock()
+	for _, e := range engines {
+		st := e.State()
+		if st.Status != autoresearch.StatusRunning && st.Status != autoresearch.StatusPaused {
+			continue
+		}
+		if e.Drained() {
+			continue
+		}
+		last := e.LastActivity()
+		if last.IsZero() || now.Sub(last) < idleAfter {
+			continue
+		}
+		e.Sleep()
+		s.persistLoopRow(e)
+		s.ledger.AppendEvent(st.SessionID, "autoresearch_loop_slept", map[string]any{
+			"loop_id": st.ID, "reason": "idle sweeper",
+		})
+		slept = append(slept, st.ID)
+	}
+	return slept
+}
+
+// StartLoopSweeper runs the idle sweeper until stop closes (S3). One
+// sweeper per daemon (single-writer flock ⇒ one daemon per state dir).
+func (s *Server) StartLoopSweeper(stop <-chan struct{}) {
+	t := time.NewTicker(loopSweepEvery)
+	defer t.Stop()
+	for {
+		select {
+		case <-stop:
+			return
+		case <-t.C:
+			s.SweepIdleLoops(time.Now().UTC(), loopIdleAfter)
+		}
+	}
+}
+
 func (s *Server) handleAutoresearchLoopAction(w http.ResponseWriter, r *http.Request) {
+
 	path := strings.TrimPrefix(r.URL.Path, "/api/autoresearch/loops/")
 	parts := strings.Split(path, "/")
 	loopID := parts[0]
@@ -2977,18 +3056,81 @@ func (s *Server) handleAutoresearchLoopAction(w http.ResponseWriter, r *http.Req
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		s.persistLoopRow(engine)
 		writeJSON(w, http.StatusOK, map[string]any{
 			"step":  rec,
 			"state": engine.State(),
 		})
 	case "pause":
 		engine.Pause()
+		s.persistLoopRow(engine)
 		writeJSON(w, http.StatusOK, engine.State())
 	case "resume":
 		engine.Resume()
+		s.persistLoopRow(engine)
 		writeJSON(w, http.StatusOK, engine.State())
 	case "stop":
 		engine.Abort()
+		s.persistLoopRow(engine)
+		writeJSON(w, http.StatusOK, engine.State())
+	case "sleep":
+		// S3: explicit sleep — release the harness, keep history; wake
+		// (resume) continues the same session. Terminal states refuse:
+		// sleeping a finished loop rewrites history.
+		st := engine.State().Status
+		if st != autoresearch.StatusRunning && st != autoresearch.StatusPaused {
+			http.Error(w, fmt.Sprintf("loop is %s: only running/paused loops sleep", st), http.StatusConflict)
+			return
+		}
+		engine.Sleep()
+		s.persistLoopRow(engine)
+		s.ledger.AppendEvent(engine.State().SessionID, "autoresearch_loop_slept", map[string]any{
+			"loop_id": loopID,
+		})
+		writeJSON(w, http.StatusOK, engine.State())
+	case "wake":
+		// S1-keyed (slow rail): a retried wake resumes once, never forks a
+		// second loop. Wake only applies to sleeping/paused/stagnant loops.
+		var wreq struct {
+			RequestID string `json:"request_id"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&wreq)
+		widem, wref := s.idemBegin(engine.State().SessionID, wreq.RequestID, map[string]any{
+			"loop_id": loopID, "action": "wake",
+		}, idemRailSlow)
+		if wref != nil {
+			http.Error(w, wref.msg, wref.status)
+			return
+		}
+		if widem.replay {
+			s.idemReplay(w, widem)
+			return
+		}
+		st := engine.State().Status
+		if st != autoresearch.StatusSleeping && st != autoresearch.StatusPaused && st != autoresearch.StatusStagnant {
+			s.idemFinishError(w, widem, http.StatusConflict, fmt.Sprintf("loop is %s: only sleeping/paused/stagnant loops wake", st))
+			return
+		}
+		engine.Resume()
+		s.persistLoopRow(engine)
+		s.ledger.AppendEvent(engine.State().SessionID, "autoresearch_loop_woken", map[string]any{
+			"loop_id": loopID,
+		})
+		s.idemFinishJSON(w, widem, http.StatusOK, engine.State())
+	case "drain":
+		// S3: drain latch — no new Steps while a stop is arranged.
+		var dreq struct {
+			Drain *bool `json:"drain"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&dreq); err != nil || dreq.Drain == nil {
+			http.Error(w, "drain requires {\"drain\": true|false}", http.StatusBadRequest)
+			return
+		}
+		engine.SetDrained(*dreq.Drain)
+		s.persistLoopRow(engine)
+		s.ledger.AppendEvent(engine.State().SessionID, "autoresearch_loop_drain", map[string]any{
+			"loop_id": loopID, "drain": *dreq.Drain,
+		})
 		writeJSON(w, http.StatusOK, engine.State())
 	default:
 		http.Error(w, fmt.Sprintf("unknown action '%s'", action), http.StatusBadRequest)

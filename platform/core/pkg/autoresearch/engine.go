@@ -62,6 +62,10 @@ const (
 	StatusStagnant  LoopStatus = "stagnant" // Triggers Section 13 Meta-Search
 	StatusCompleted LoopStatus = "completed"
 	StatusAborted   LoopStatus = "aborted"
+	// StatusSleeping: harness released after idle timeout (S3); history
+	// kept, wake resumes the same session. Persisted in the loops table
+	// (engines are in-memory; the row is restart-surviving truth).
+	StatusSleeping LoopStatus = "sleeping"
 )
 
 // LoopState is the telemetry state object exported to the API and UI
@@ -82,6 +86,9 @@ type LoopState struct {
 	Iterations          []*IterationRecord `json:"iterations"`
 	ParetoFrontier      []*ParetoPoint     `json:"pareto_frontier"`
 	StagnationReason    string             `json:"stagnation_reason,omitempty"`
+	// S3: exported for the idle sweeper + console (additive field).
+	LastActivity time.Time `json:"last_activity"`
+	Drained      bool      `json:"drained"`
 }
 
 // LoopEngine orchestrates the unattended Karpathy experiment cycle
@@ -96,6 +103,35 @@ type LoopEngine struct {
 	onEvent      func(event string, payload any)
 	onStagnation func(loopID string, discards int, champion string)
 	memoryStore  *memory.HindsightStore
+	// S3: lastActivity advances on every baseline/step/pause/resume/wake;
+	// the idle sweeper sleeps engines past the threshold. checkBudget, when
+	// set, runs at the top of every Step (mid-run spend bound — entry
+	// checks alone never bound a hot loop); breach pauses the loop.
+	// drained refuses new Steps while a stop is arranged.
+	lastActivity time.Time
+	checkBudget  func() error
+	drained      bool
+}
+
+// SetBudgetCheck wires the mid-run spend bound (S3). Nil clears it.
+func (e *LoopEngine) SetBudgetCheck(fn func() error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.checkBudget = fn
+}
+
+// LastActivity returns the last observed work instant (S3 sweeper input).
+func (e *LoopEngine) LastActivity() time.Time {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.lastActivity
+}
+
+func (e *LoopEngine) touchLocked() {
+	e.lastActivity = time.Now().UTC()
+	e.state.UpdatedAt = e.lastActivity
+	e.state.LastActivity = e.lastActivity
+	e.state.Drained = e.drained
 }
 
 func (e *LoopEngine) SetMemoryStore(store *memory.HindsightStore) {
@@ -143,6 +179,8 @@ func NewLoopEngine(
 		runner:    ensureRunner(runner),
 		llmClient: llmClient,
 		programMd: fmt.Sprintf("Autonomous Research Program for %s. Goal: Minimize metric on %s.", harness.ID(), harness.FixedSetup()),
+		// S3: creation is activity; sweeper never sleeps a newborn.
+		lastActivity: time.Now().UTC(),
 	}
 }
 
@@ -189,6 +227,7 @@ func (e *LoopEngine) InitializeBaseline(ctx context.Context) (*IterationRecord, 
 
 	e.state.Status = StatusRunning
 	e.state.StartedAt = time.Now().UTC()
+	e.touchLocked()
 
 	startTime := time.Now()
 	res, err := e.harness.Evaluate(e.runner, e.state.ChampionArtifact)
@@ -263,8 +302,32 @@ func (e *LoopEngine) Step(ctx context.Context) (*IterationRecord, error) {
 		e.mu.Unlock()
 		return nil, fmt.Errorf("loop is not running (status: %s)", e.state.Status)
 	}
+	if e.drained {
+		e.mu.Unlock()
+		return nil, fmt.Errorf("loop is draining: no new steps while a stop is arranged")
+	}
+	budgetCheck := e.checkBudget
+	e.mu.Unlock()
+
+	// S3: mid-run spend bound. A timeout alone never bounds a hot loop
+	// (worst case ~25 iters x 3 min); breach pauses (resumable), never
+	// aborts (transient caps recover).
+	if budgetCheck != nil {
+		if berr := budgetCheck(); berr != nil {
+			e.mu.Lock()
+			if e.state.Status == StatusRunning {
+				e.state.Status = StatusPaused
+			}
+			e.touchLocked()
+			e.mu.Unlock()
+			return nil, fmt.Errorf("loop paused: spend bound breached mid-run: %w", berr)
+		}
+	}
+
+	e.mu.Lock()
 	iterNum := e.state.CurrentIteration + 1
 	e.state.CurrentIteration = iterNum
+	e.touchLocked()
 	currentChampion := e.state.ChampionArtifact
 	championMetric := e.state.ChampionMetric
 	bm := e.branchMgr
@@ -615,19 +678,50 @@ func (e *LoopEngine) Pause() {
 	if e.state.Status == StatusRunning {
 		e.state.Status = StatusPaused
 	}
+	e.touchLocked()
 }
 
 func (e *LoopEngine) Resume() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
-	if e.state.Status == StatusPaused || e.state.Status == StatusStagnant {
+	if e.state.Status == StatusPaused || e.state.Status == StatusStagnant || e.state.Status == StatusSleeping {
 		e.state.Status = StatusRunning
 		e.state.ConsecutiveDiscards = 0 // Reset on resume after human approval
 	}
+	e.touchLocked()
 }
 
 func (e *LoopEngine) Abort() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.state.Status = StatusAborted
+	e.touchLocked()
+}
+
+// Sleep releases the harness after idle timeout (S3): history is kept,
+// wake (Resume) continues the same session. Sleeping is terminal for the
+// running state — only wake resumes.
+func (e *LoopEngine) Sleep() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.state.Status == StatusRunning || e.state.Status == StatusPaused {
+		e.state.Status = StatusSleeping
+	}
+	e.touchLocked()
+}
+
+// SetDrained refuses new Steps while a stop is arranged (S3). Drain is a
+// latch for stopping, not a pause: undrain only via explicit wake path.
+func (e *LoopEngine) SetDrained(d bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.drained = d
+	e.touchLocked()
+}
+
+// Drained reports the drain latch (sweeper + API input).
+func (e *LoopEngine) Drained() bool {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+	return e.drained
 }

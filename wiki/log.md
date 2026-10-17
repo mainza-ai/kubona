@@ -2237,3 +2237,13 @@ skipped is the exact failure this incident is about:
   reads/health/recovery exempt; /api/ready probe; transitions sealed.
   10 tests, negative-tested, race green; live blocked/clear matrix on
   :8080. Rows on [[implementation-gaps]], [[risks]], plan S2.
+
+## [2026-10-17] feat | S3 loop sleep + drain + mid-run budget landed
+  loops table finally has a writer (SaveLoopState/ListLoopStates +
+  harness_id/last_activity/drain/reserved_amount cols; ReconcileLoopsOnBoot
+  sleeps non-terminal rows). Engines: sleeping status, activity clock,
+  Drained latch, SetBudgetCheck pausing on breach. API sleep/wake(S1-keyed)/
+  drain + SweepIdleLoops (10min/60s) + sweeper + reconcile wired in kubonad.
+  7 tests (engine 3, api 2, ledger 2), negative-tested, race green. Live:
+  sleep/step-refusal/wake/drain/drain-refusal + restart reconciled 20+1
+  rows. Chat excluded by design (no harness held). Rows on gaps + plan S3.
