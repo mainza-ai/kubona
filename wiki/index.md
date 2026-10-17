@@ -42,6 +42,7 @@ arrives, place it here first and it will find its page.
 | [[cloudroom-adoption-plan]] | Ordered implementation plan for Cloudroom-mined patterns (S1–S8). Candidate — awaiting review, nothing started. |
 | [[rea-adoption-plan]] | Updated Kubona × REA improvement report + production plan (R0–R6).
 | [[rea-conflicts-and-remediation]] | Conflicts vs the REA plan (C1–C6) with remediation decisions and sequenced slices. |
+| [[leanrea-adoption-plan]] | Kubona × leanrea measurement, report + implementation plan (L1–L5). Candidate — awaiting review, nothing started. |
 | [[agent-subsystem-consolidation]] | P1-4 design record: inventory, target shape, sequenced migration (refactor queued, not started). |
 | [[remaining-work]] | Execution leftovers with owners: operator deeds, queued programs, conditionals (landed work excluded). |
 | [[full-tree-roadmap]] | Code-read implementation roadmap: verified defects and fixes in Waves 0–2, sequenced against the REA plan. | Candidate — prior 2026-10-16 scratch re-verified; nothing started. |
@@ -60,11 +61,11 @@ Describes **how decided** something is — never how finished.
 | `candidate` | Proposed for integration or reuse; integration topology not yet committed. | [[openbao]], [[univer]], [[openqasm]], [[model-optimizer]], own repos |
 | `tracked` | External landscape (vendor, SDK, standard) observed for change. No position taken. | provider entities, [[x402]], [[aaif]] |
 | `reference` | Prior art or another project mined for *method* only. Never load-bearing supply. | [[qbraid]], [[strangeworks]], [[hindsight]], own WIP |
-| `source` | An ingested source record. Immutable once written. | the 6 pages under `sources/` |
+| `source` | An ingested source record. Immutable once written. | the 7 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (125 pages = 45 entities · 68 concepts · 6 sources · 5 meta), 2026-10-17:**
-`settled` 5 · `adopted` 48 · `open-question` 7 · `candidate` 12 · `tracked` 34 ·
+**Census (128 pages = 46 entities · 70 concepts · 7 sources · 5 meta), 2026-10-17:**
+`settled` 5 · `adopted` 48 · `open-question` 7 · `candidate` 13 · `tracked` 34 ·
 `reference` 7 · `source` 6 · `living` 6 (lint-counted; the 2026-10-10 text
 undercounted adopted/tracked/candidate).
 `settled` 5 · `adopted` 45 · `open-question` 8 · `candidate` 6 · `tracked` 26 ·
@@ -100,8 +101,9 @@ Revisit only with a concrete claim that fits nowhere.
 | [[source-frontier-repo-audit-2026]] | *Frontier repository audit* — 25 live repos read end-to-end (remote · HEAD · licence · path:line) | Integration classes, licences, prior-art primitives |
 | [[source-agent-protocol-landscape-2026]] | *Agent Protocol Landscape & Standards Audit* — 2026 primary-source audit of MCP, A2A, AAIF, AP2, Qiskit MCP | [[protocol-strategy]], [[spend-mandates-and-delegation]], [[mcp-and-context-flooding]] |
 | [[source-openai-math-corpus]] | *OpenAI Math Manuscript Collection & Formal Proofs* — 722 manuscripts in 372 families, 162 Lean 4 formalizations, 811 challenges | [[autonomous-mathematical-discovery]], [[formal-proof-verification-lean-comparator]], [[mathematical-physics-anchors]], [[openai-math]] |
+| [[source-leanrea-investigation-2026]] | *leanrea live-repo investigation* — 8 KB skill + benchmark read end-to-end (remote · HEAD · licence, nothing cloned) | [[leanrea]], [[leanrea-adoption-plan]] |
 
-## Entities (43)
+## Entities (44)
 
 | Page | What it is |
 |---|---|
@@ -148,8 +150,9 @@ Revisit only with a concrete claim that fits nowhere.
 | [[lean4]] | Interactive theorem prover and functional language; formal verification engine in `openai/math` |
 | [[comparator]] | Automated formal verification challenge harness for Lean 4 enforcing strict axiom integrity |
 | [[hugging-face-hub]] | Open-weights repository & API; in-platform GGUF/MLX quantization search and direct air-gapped downloader |
+| [[leanrea]] | aicodeking skill: REA results with no MCP server (router + traps + benchmark template) — method reference, never supply |
 
-## Concepts (52)
+## Concepts (53)
 
 | Page | What it is |
 |---|---|

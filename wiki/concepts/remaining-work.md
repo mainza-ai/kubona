@@ -47,6 +47,13 @@ status: tracked
 ## B · Queued programs (unblocked, beyond a single slice)
 
 - P1-4 subsystem consolidation execution — design: [[agent-subsystem-consolidation]].
+- Lean skill slices L1–L5 (plan: [[leanrea-adoption-plan]] §3 — S-sized,
+  ordered L1 → L2+L3 → L4 → L5, none touch the trust boundary):
+  L1 `skills/kubona/SKILL.md` (router + traps + first-moves, ≤12 KB
+  pinned); L2 `bench/` harness with answer keys + ctx-budget gate;
+  L3 scribe seen/inferred/unknown tags (convention, R3 gate unchanged);
+  L4 doctor deepening + `mandate-check` first-move; L5 per-tool
+  justification review + MCP catalog (closes P2-13).
 - Bundle export endpoint — needs run-archival design (post-run turns
   cannot be reconstructed from events+chat; collective-level flow exists).
 - Sidecar rotation — needs chain-aware reads (rotation breaks the
