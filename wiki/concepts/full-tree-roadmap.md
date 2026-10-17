@@ -91,6 +91,16 @@ status: candidate
   (two caps, one system). Threat: revocation — the settled guarantee that
   makes delegation safe — doesn't propagate to leaves. Fix: store leaf
   CIDs, validate TTL/audience at attenuate time, one depth cap.
+  > ⚑ Resolution 2026-10-17 (W0.8 landed): leaf CIDs now revocable
+  > end-to-end (route accepts `leaf_cid`, `RevokedCIDs` reads both
+  > fields, `VerifyChain` already checked every envelope); `AttenuateGrant`
+  > requires issuer == parent audience + TTL within (0, 90d] + non-empty
+  > `/`-free scopes (same at `MintGrant`); the last-50 `grantingTenantFor`
+  > limit is gone. The two depth caps stay separate by decision: UCAN
+  > attenuation levels (8, DoS bound on presented chains) and A2A delegation
+  > trees (2, agent-spawn bound) are different chains with different threat
+  > models — merging the numbers would conflate them. Both consts
+  > cross-reference each other.
 
 ## Wave 1 — science-integrity defects (receipts must not lie)
 
@@ -560,6 +570,50 @@ status: candidate
 - **Explicitly not here:** new features, new surfaces, new providers.
   Every item above removes a lie, a hole, or a bypass — nothing adds
   capability.
+
+## Landed 2026-10-17 (Waves 0–2, all items)
+
+> Every item below landed with tests + suite-green on all four toolchains
+> (Go `go test ./...`, Python 636 passed, bridge 41, console 103 + build,
+> Rust qir-core 13). Commit SHAs are the evidence; wiki pages updated where
+> the design record needed it.
+
+- **Wave 0 (21 commits):** W0.1 single-source lifecycle sets (`052f9fe`) ·
+  W0.2 spend rail for all job types (`79fd0ce`) · W0.3 tribunal/autoresearch
+  autonomy (`9a41bb9`) · W0.4 canonical v1 job binding, Go+console
+  (`ca47271`) · W0.5 A2A delegation rail (`8ed604d`) · W0.6 tool-rail
+  session gates (`9a8fb58`) · W0.7 fail-closed spend arithmetic (`a69dc27`) ·
+  W0.8 grant leaf revocation + mint checks (`6bd9d0a`, depth caps stay
+  separate by decision — different chains) · W0.9 real Ed25519 mandates,
+  cross-language vector on all three sides (`f4ce972`) · W0.10 approval
+  gate stages/lock (`c9713ac`) · W0.11 job farm (`ece9dc6`) · W0.12 payment
+  rails (`60aaa54`) · W0.13 auth defaults (`0913a3e`) · W0.14 secure-RPC
+  (`2ac84e1`) · W0.15 agent creation (`5481e4d`) · W0.16 execution
+  discipline (`0ed5c64`) · W0.17 payment match (`22a5f85`) · W0.18
+  delegation binding (`0a51edc`) · W0.19 LLM metering (`e579e1d`+`2eea081`)
+  · W0.20 grants CLI (`8e60380`) · W0.21 loop machine (`35d9ea6`).
+- **Wave 1:** W1.9 Go QIR closed set (`ae95718`) · W1.10–W1.14 Go science
+  gates (`67178fd`) · W1.1 harness fences (`575e1d3`) · W1.5 Rust valid-IR
+  (`4bf751d`) · W1.6 molecule table (`cca1764`) · W1.8 proto fields +
+  bridge-success honored (`608f582`) · bridge W1.2–W1.4, Python W1.15–W1.22
+  science fixes, and console candor — implemented and verified in parallel
+  batches, landed inside the Wave-2 slice commits below (one tree, no
+  uncommitted residue; suite-green at every step).
+- **Wave 2:** Go infra batch + Python security batch + console/CI
+  (`9bd9ada`, `7179bad`, `f69a037`). Deliberate deviations recorded:
+  UCAN vs A2A depth caps stay separate (different threat models); steering
+  verbs need no scope map (not MCP tools); asymmetric-QUBO labeled not
+  refused (upper-triangular is convention); local-sim t1/t2 kept
+  (schema-declared, canary-pinned); ADMET RPCs absent with no callers
+  (nothing to add); test_qir lower-case intrinsic updated to the canonical
+  cnot name.
+- **Residuals for later (stated, not hidden):** X402 persistent
+  single-use needs ledger backing (in-memory now); failed-job spend has no
+  audited refund primitive; loop reservations are I3-future (guarded, not
+  implemented); MCP control tools need principal threading for
+  tenant-isolation; Python mandate interop with Go verification is
+  byte-compatible but unwired end-to-end; emulator thresholds are v1
+  heuristics throughout.
 
 Related: [[rea-adoption-plan]] · [[rea-conflicts-and-remediation]] ·
 [[cloudroom-adoption-plan]] · [[implementation-gaps]] ·
