@@ -124,9 +124,24 @@ func (ac *AgentCollective) observeTurn(ctx context.Context, llmClient *llm.Clien
 		// room, so provenance can never push context past the cap.
 		tag := provenanceTag(source)
 		room := obsCap - len([]rune(tag)) - 1
+		body := llm.TruncateObservation(string(obs), room)
+		// R4: oversized results resolve through a ready-to-call
+		// continuation, never lossy truncation. The FULL bytes stay
+		// server-side in the run store; history carries a preview +
+		// the ref any role can page through evidence_continue. No
+		// store in context (copilot path, sessionless runs) keeps the
+		// legacy marked truncation — same bytes, same tag.
+		if store := EvidenceStoreFromContext(ctx); store != nil && len([]rune(string(obs))) > room {
+			it := store.Put("observation", c.Name, string(obs), "")
+			preview := llm.TruncateObservation(string(obs), 1000)
+			body = fmt.Sprintf("%s oversized (%d runes, retained server-side): %s [continue via evidence_continue %s]",
+				tag, len([]rune(string(obs))), preview, it.ID)
+		} else {
+			body = tag + " " + body
+		}
 		hist = append(hist, llm.ChatMessage{
 			Role: "tool", ToolCallID: c.ID, ToolName: c.Name,
-			Content: tag + " " + llm.TruncateObservation(string(obs), room),
+			Content: body,
 		})
 	}
 	return hist, observed
@@ -300,7 +315,9 @@ func anchorCoverage(authored, live bool) CoverageDecl {
 // handler-side sealing path can never double-seal). Ledger == nil keeps
 // the in-memory path (nil, nil). Sealing never fails the run — callers
 // log, never abort — but every failure is LOUD (returned, not swallowed).
-func (ac *AgentCollective) SealTurn(sessionID, obID string, turn TribunalTurn, authored bool) error {
+// evidenceID links the turn's full server-side bytes (R4); "" omits the
+// link (sessionless/legacy callers).
+func (ac *AgentCollective) SealTurn(sessionID, obID string, turn TribunalTurn, authored bool, evidenceID string) error {
 	if ac.Ledger == nil || sessionID == "" || obID == "" {
 		return nil
 	}
@@ -341,14 +358,18 @@ func (ac *AgentCollective) SealTurn(sessionID, obID string, turn TribunalTurn, a
 	}); err != nil {
 		return fmt.Errorf("record case: %w", err)
 	}
-	if err := ac.Ledger.AppendEvent(sessionID, "tribunal_turn", map[string]any{
+	payload := map[string]any{
 		"turn_index":    turn.TurnIndex,
 		"role":          turn.Role,
 		"verdict":       turn.Verdict,
 		"obligation_id": obID,
 		"authored":      authored,
 		"coverage":      turn.Coverage,
-	}); err != nil {
+	}
+	if evidenceID != "" {
+		payload["evidence_id"] = evidenceID
+	}
+	if err := ac.Ledger.AppendEvent(sessionID, "tribunal_turn", payload); err != nil {
 		return fmt.Errorf("seal event: %w", err)
 	}
 	return nil
@@ -391,6 +412,77 @@ func (ac *AgentCollective) ExecuteTribunalWithMemory(ctx context.Context, llmCli
 // verdict. With sessionID == "" the run is pure in-memory — exactly the
 // legacy path (nil ledgers and sessionless callers are unaffected).
 func (ac *AgentCollective) ExecuteTribunalWithSession(ctx context.Context, llmClient *llm.Client, bridgeClient pb.QuantumBridgeServiceClient, store *memory.HindsightStore, sessionID, userPrompt string, onTurn ...func(TribunalTurn)) (*TribunalResult, error) {
+	return ac.runTribunal(ctx, llmClient, bridgeClient, store, sessionID, userPrompt, NewEvidenceStore("adhoc"), "", nil, onTurn...)
+}
+
+// ExecuteTribunalResume continues a tribunal from an exported bundle
+// (R4 turn-bundle flow): ancestor turns seed the new run's evidence store
+// (original content, parent-linked), new turns parent to their same-index
+// ancestor, and turn-1 carries the ancestor summary. The resumed run opens
+// a FRESH obligation (closed history is never rewritten); linkage lives
+// in evidence parents, not obligation deps.
+func (ac *AgentCollective) ExecuteTribunalResume(ctx context.Context, llmClient *llm.Client, bridgeClient pb.QuantumBridgeServiceClient, store *memory.HindsightStore, sessionID, userPrompt string, bundleData []byte, onTurn ...func(TribunalTurn)) (*TribunalResult, error) {
+	b, err := ParseTribunalBundle(bundleData)
+	if err != nil {
+		return nil, err
+	}
+	ev := NewEvidenceStore("resume")
+	var parentIDs []string
+	var lines []string
+	for _, t := range b.Turns {
+		it := ev.Put("ancestor",
+			fmt.Sprintf("turn-%d %s %s (prior run %s)", t.TurnIndex, t.Role, t.Verdict, b.ObligationID),
+			t.Content, "")
+		parentIDs = append(parentIDs, it.ID)
+		avail, total := 0, 0
+		for _, decl := range t.Coverage {
+			total++
+			if decl.Available {
+				avail++
+			}
+		}
+		lines = append(lines, fmt.Sprintf("turn-%d %s: %s, coverage %d/%d facets", t.TurnIndex, t.Role, t.Verdict, avail, total))
+	}
+	note := fmt.Sprintf("Resuming prior tribunal run %s (%s; consensus=%v). Ancestor evidence:\n%s",
+		b.ObligationID, b.Target, b.Consensus, strings.Join(lines, "\n"))
+	return ac.runTribunal(ctx, llmClient, bridgeClient, store, sessionID, userPrompt, ev, note, parentIDs, onTurn...)
+}
+
+// runTribunal is the single run body. evStore retains full turn/observation
+// bytes server-side (prompts embed bounded views + refs); ancestorNote
+// prefixes resumed runs with their parent evidence links (R4 bundle flow).
+func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Client, bridgeClient pb.QuantumBridgeServiceClient, store *memory.HindsightStore, sessionID, userPrompt string, evStore *EvidenceStore, ancestorNote string, parentIDs []string, onTurn ...func(TribunalTurn)) (*TribunalResult, error) {
+	if evStore == nil {
+		evStore = NewEvidenceStore("adhoc")
+	}
+	ctx = ContextWithEvidenceStore(ctx, evStore)
+	var obID string
+	parentFor := func(turnIdx int) string {
+		if turnIdx >= 1 && turnIdx <= len(parentIDs) {
+			return parentIDs[turnIdx-1]
+		}
+		return ""
+	}
+	// projectTurn builds the turn's user message through the pinned
+	// budget. Breach degrades honestly: template content stands
+	// (authored=false downstream), a context-budget unknown blocks
+	// closure with the size named. Never silent, never truncated.
+	projectTurn := func(turnIdx int, what string, parts []string) (string, bool) {
+		prompt, err := ProjectTurnContext(what, parts, llm.DefaultBudgetConfig().TurnContextRunes)
+		if err == nil {
+			return prompt, false
+		}
+		log.Printf("[Tribunal] turn %d projection refused (run continues on fallback): %v", turnIdx, err)
+		if ac.Ledger != nil && obID != "" {
+			if uerr := ac.Ledger.RecordObligationUnknown(obID, ledger.Unknown{
+				ID:          fmt.Sprintf("context-budget-turn-%d", turnIdx),
+				Description: err.Error(),
+			}); uerr != nil {
+				log.Printf("[Tribunal] record budget unknown failed: %v", uerr)
+			}
+		}
+		return "", true
+	}
 	var turnCb func(TribunalTurn)
 	if len(onTurn) > 0 && onTurn[0] != nil {
 		turnCb = onTurn[0]
@@ -447,7 +539,6 @@ func (ac *AgentCollective) ExecuteTribunalWithSession(ctx context.Context, llmCl
 	// R2: open the run obligation (wired runs only). Subject is run-unique
 	// (a rerun opens a new obligation — closed history is never rewritten;
 	// HTTP retries replay stored consensus before reaching here).
-	var obID string
 	wired := ac.Ledger != nil && sessionID != ""
 	if wired {
 		var runID [8]byte
@@ -464,15 +555,22 @@ func (ac *AgentCollective) ExecuteTribunalWithSession(ctx context.Context, llmCl
 		obID = ob.ID
 		result.ObligationID = obID
 	}
-	seal := func(turn TribunalTurn, authored bool) {
+	seal := func(turn TribunalTurn, authored bool) EvidenceItem {
+		// R4: full turn bytes retained server-side on EVERY run
+		// (summaries embed bounded views + refs downstream); the
+		// ledger seal additionally links the evidence id.
+		it := evStore.Put("turn",
+			fmt.Sprintf("turn-%d %s %s", turn.TurnIndex, turn.Role, turn.Verdict),
+			turn.Content, parentFor(turn.TurnIndex))
 		if !wired {
-			return
+			return it
 		}
 		// Sealing must never fail the run (audit follows evidence, never
 		// blocks it) — but silence hid gaps before, so seal LOUDLY.
-		if err := ac.SealTurn(sessionID, obID, turn, authored); err != nil {
+		if err := ac.SealTurn(sessionID, obID, turn, authored, it.ID); err != nil {
 			log.Printf("[Tribunal] seal turn %d failed (run continues): %v", turn.TurnIndex, err)
 		}
+		return it
 	}
 
 	llmTimeout := 90 * time.Second
@@ -494,9 +592,15 @@ func (ac *AgentCollective) ExecuteTribunalWithSession(ctx context.Context, llmCl
 	// Turn 1: Ansatz Scout
 	var obs1 []ObservedCall
 	var authored1 bool
-	turn1Prompt := fmt.Sprintf("Analyze target %s for prompt: %s.%s Propose the variational quantum ansatz, active space, qubit count, and parameterized rotational depth. Keep answer concise.", target, userPrompt, memoryContext)
+	// R4: the turn prompt is a bounded projection (pinned budget,
+	// pre-construction refusal). Breach keeps template content
+	// (authored=false) + records the unknown — never a priced runaway.
+	turn1Prompt, breached1 := projectTurn(1, "turn-1 scout", []string{
+		ancestorNote,
+		fmt.Sprintf("Analyze target %s for prompt: %s.%s Propose the variational quantum ansatz, active space, qubit count, and parameterized rotational depth. Keep answer concise.", target, userPrompt, memoryContext),
+	})
 	scoutContent := fmt.Sprintf("Proposed active space for %s. Applying UCCSD/RyRz parameterized ansatz with Meyer-Wallach expressibility Q=0.82. Qubit count: 2, 2-qubit CNOT depth: 1.", target)
-	if llmClient != nil {
+	if llmClient != nil && !breached1 {
 		tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
 		turnMsgs := []llm.ChatMessage{
 			{Role: "system", Content: string(ac.manifests[RoleAnsatzScout].SystemPrompt)},
@@ -527,14 +631,16 @@ func (ac *AgentCollective) ExecuteTribunalWithSession(ctx context.Context, llmCl
 	if turnCb != nil {
 		turnCb(t1)
 	}
-	seal(t1, authored1)
+	ev1 := seal(t1, authored1)
 
 	// Turn 2: Disconfirmation Officer
 	var obs2 []ObservedCall
 	var authored2 bool
-	turn2Prompt := fmt.Sprintf("Scout proposed ansatz for %s:\n%s\nClassical anchor computed via ab-initio %s. Evaluate whether quantum advantage can be claimed and check barren plateau risk. Enforce Quantum Advantage Realism.", target, scoutContent, fciAnchor)
+	turn2Prompt, breached2 := projectTurn(2, "turn-2 officer", []string{
+		fmt.Sprintf("Scout proposed ansatz for %s:\n%s\nClassical anchor computed via ab-initio %s. Evaluate whether quantum advantage can be claimed and check barren plateau risk. Enforce Quantum Advantage Realism.", target, Summarize(ev1, 1500), fciAnchor),
+	})
 	discContent := fmt.Sprintf("Classical baseline established via %s. Evaluated gradient variance Var(∇E) = 3.4e-3 > 1e-6 (barren plateau risk: LOW). Classical physics anchor matches; no unearned quantum advantage claimed.", fciAnchor)
-	if llmClient != nil {
+	if llmClient != nil && !breached2 {
 		tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
 		turnMsgs := []llm.ChatMessage{
 			{Role: "system", Content: string(ac.manifests[RoleDisconfirmationOfficer].SystemPrompt)},
@@ -565,7 +671,7 @@ func (ac *AgentCollective) ExecuteTribunalWithSession(ctx context.Context, llmCl
 	if turnCb != nil {
 		turnCb(t2)
 	}
-	seal(t2, authored2)
+	ev2 := seal(t2, authored2)
 
 	// Planner check (B1-1): measured tool failures in the evidence turns
 	// contest the run immediately. Turns 3-4 corroborate evidence; they
@@ -591,9 +697,14 @@ func (ac *AgentCollective) ExecuteTribunalWithSession(ctx context.Context, llmCl
 		// Turn 3: Device Auditor
 		var obs3 []ObservedCall
 		var authored3 bool
-		turn3Prompt := fmt.Sprintf("Auditing proposed execution for %s on %s. Hardware constraints: T2 <= 2*T1, Clifford canary probe fidelity >= 95%%, cost estimate %s <= $150.00. State approval status.", target, tier, budget)
+		// R4: turns 3-4 previously saw NO prior turns. They now get
+		// bounded summaries (grounding improves; bytes stay pinned).
+		turn3Prompt, breached3 := projectTurn(3, "turn-3 auditor", []string{
+			fmt.Sprintf("Prior evidence:\n%s\n%s", Summarize(ev1, 1500), Summarize(ev2, 1500)),
+			fmt.Sprintf("Auditing proposed execution for %s on %s. Hardware constraints: T2 <= 2*T1, Clifford canary probe fidelity >= 95%%, cost estimate %s <= $150.00. State approval status.", target, tier, budget),
+		})
 		auditContent := fmt.Sprintf("Target backend validated on %s. Hardware noise model constraint satisfied (T2 <= 2*T1). Clifford canary probe fidelity: 98.4%% (>= 95%% threshold). Estimated financial spend: %s <= $150.00 ceiling. APPROVED for dispatch.", tier, budget)
-		if llmClient != nil {
+		if llmClient != nil && !breached3 {
 			tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
 			turnMsgs := []llm.ChatMessage{
 				{Role: "system", Content: string(ac.manifests[RoleDeviceAuditor].SystemPrompt)},
@@ -624,15 +735,18 @@ func (ac *AgentCollective) ExecuteTribunalWithSession(ctx context.Context, llmCl
 		if turnCb != nil {
 			turnCb(t3)
 		}
-		seal(t3, authored3)
+		ev3 := seal(t3, authored3)
 
 		// Turn 4: Epistemic Scribe
 		var obs4 []ObservedCall
 		var authored4 bool
 		escapedQASM := strings.ReplaceAll(qasm, "\n", "\\n")
-		turn4Prompt := fmt.Sprintf("Synthesize tribunal debate for %s. Collapsed credibility wavefunction P_corr = 90.25%%. Output an AP2 mandate proposal with a JSON proposal block formatted as ```json_proposal {\"target\": \"%s\", \"molecule\": \"%s\", \"spend_estimate\": \"%s\", \"recommended_tier\": \"%s\", \"classical_anchor\": \"%s\", \"qasm\": \"%s\"} ```.", target, target, mol, budget, tier, fciAnchor, escapedQASM)
+		turn4Prompt, breached4 := projectTurn(4, "turn-4 scribe", []string{
+			fmt.Sprintf("Prior evidence:\n%s\n%s\n%s", Summarize(ev1, 1500), Summarize(ev2, 1500), Summarize(ev3, 1500)),
+			fmt.Sprintf("Synthesize tribunal debate for %s. Collapsed credibility wavefunction P_corr = 90.25%%. Output an AP2 mandate proposal with a JSON proposal block formatted as ```json_proposal {\"target\": \"%s\", \"molecule\": \"%s\", \"spend_estimate\": \"%s\", \"recommended_tier\": \"%s\", \"classical_anchor\": \"%s\", \"qasm\": \"%s\"} ```.", target, target, mol, budget, tier, fciAnchor, escapedQASM),
+		})
 		scribeContent = fmt.Sprintf("Consensus reached across 4 specialist personas. Ring 1 credibility wavefunction collapsed: P_corr = 90.25%%. Generating cryptographic AP2 Mandate Card for human review.\n\n```json_proposal\n{\n  \"target\": \"%s\",\n  \"molecule\": \"%s\",\n  \"spend_estimate\": \"%s\",\n  \"recommended_tier\": \"%s\",\n  \"classical_anchor\": \"%s\",\n  \"qasm\": \"%s\"\n}\n```", target, mol, budget, tier, fciAnchor, escapedQASM)
-		if llmClient != nil {
+		if llmClient != nil && !breached4 {
 			tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
 			turnMsgs := []llm.ChatMessage{
 				{Role: "system", Content: string(ac.manifests[RoleEpistemicScribe].SystemPrompt)},
@@ -670,7 +784,7 @@ func (ac *AgentCollective) ExecuteTribunalWithSession(ctx context.Context, llmCl
 		if turnCb != nil {
 			turnCb(t4)
 		}
-		seal(t4, authored4)
+		_ = seal(t4, authored4)
 
 	}
 

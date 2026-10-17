@@ -31,6 +31,12 @@ type BudgetConfig struct {
 	// not a bill: normal turns land far below it, pathological loops hit
 	// it instead of burning minutes.
 	MaxTurnTokens int
+	// TurnContextRunes pins the tribunal turn projection budget (R4):
+	// the constructed turn prompt (system + task + bounded prior-turn
+	// summaries + memory) must fit. Breach returns resource_constraint
+	// pre-construction instead of pricing a runaway prompt. Pinned by
+	// the R4 soak test; change deliberately, with the suite green.
+	TurnContextRunes int
 }
 
 // DefaultRecallTokens mirrors the long-standing recall injection budget.
@@ -51,6 +57,7 @@ func DefaultBudgetConfig() BudgetConfig {
 		MaxToolCharsPerTurn: 24000,
 		MaxToolRounds:       3,
 		MaxTurnTokens:       150000,
+		TurnContextRunes:    16000,
 	}
 }
 

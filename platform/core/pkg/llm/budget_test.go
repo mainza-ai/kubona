@@ -23,6 +23,9 @@ func TestDefaultBudgetConfig(t *testing.T) {
 	if cfg.MaxToolRounds != 3 || cfg.MaxTurnTokens <= 0 {
 		t.Errorf("loop guards must be positive: %+v", cfg)
 	}
+	if cfg.TurnContextRunes != 16000 {
+		t.Errorf("R4 turn projection budget is pinned (soak test enforces it): %+v", cfg)
+	}
 }
 
 func TestTruncateObservation(t *testing.T) {

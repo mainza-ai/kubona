@@ -399,6 +399,12 @@ func (s *Server) registerAgentTools() *tools.Registry {
 		},
 	})
 
+	// R4: the ready-to-call continuation for oversized tribunal evidence.
+	// One shared definition (agents.EvidenceContinueDefinition) — the
+	// store arrives via run context; tribunal roles only (copilot runs
+	// carry no run store, so granting it there would be dead surface).
+	_ = r.Register(agents.EvidenceContinueDefinition())
+
 	_ = r.Allow(CopilotRole,
 		"get_anchor", "get_campaign", "list_jobs", "get_job",
 		"recent_events", "query_literature", "submit_local_sim",
@@ -412,6 +418,7 @@ func (s *Server) registerAgentTools() *tools.Registry {
 		_ = r.Allow(role,
 			"get_anchor", "get_campaign", "list_jobs", "get_job",
 			"recent_events", "query_literature", "recall_memory",
+			"evidence_continue",
 		)
 	}
 	return r
