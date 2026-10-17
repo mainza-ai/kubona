@@ -107,6 +107,12 @@ type SessionManifest struct {
 	ClaimsTruncated bool                     `json:"claims_truncated"`
 	CanvasLayout    string                   `json:"canvas_layout"`
 	Digests         map[string]string        `json:"digests"`
+	// R1: every section sealed as a canonical evidence envelope at
+	// export (identity + analysis profile, verifiable by either rail).
+	// omitempty: manifests predating envelopes carry no field and still
+	// import (digests verify as before); when present, every envelope
+	// must verify and agree with the recomputed digest.
+	SectionEnvelopes map[string]ledger.Envelope `json:"section_envelopes,omitempty"`
 }
 
 // JobRow mirrors the jobs table (session package cannot import jobs:
@@ -250,6 +256,26 @@ func (m *Manager) ExportSession(id string) (*SessionManifest, error) {
 		}
 		out.Digests[name] = h
 	}
+	// R1: seal each section as an evidence envelope (content-addressed
+	// section identity + export profile). Tenantless sessions predate
+	// attribution — their sections stay digest-pinned only (import
+	// refuses them at the tenant check below regardless).
+	if out.Session.TenantID != "" {
+		out.SectionEnvelopes = map[string]ledger.Envelope{}
+		for name := range sections {
+			env, err := ledger.BuildEnvelope(
+				map[string]any{"digest": out.Digests[name], "section": name},
+				nil,
+				map[string]any{"manifest_version": ManifestVersion, "method": "session-export"},
+				out.Session.TenantID,
+				nil,
+			)
+			if err != nil {
+				return nil, fmt.Errorf("seal section %s: %w", name, err)
+			}
+			out.SectionEnvelopes[name] = *env
+		}
+	}
 	raw, err := json.Marshal(out)
 	if err != nil {
 		return nil, fmt.Errorf("manifest marshal: %w", err)
@@ -347,6 +373,30 @@ func (m *Manager) ImportSession(man *SessionManifest) (*ImportResult, error) {
 		}
 		if want, ok := man.Digests[name]; !ok || want != h {
 			return nil, fmt.Errorf("manifest digest mismatch on %s: tampered or corrupt", name)
+		}
+	}
+	// R1: when section envelopes are present, every one must verify AND
+	// agree with the recomputed digest (an envelope for other bytes, or
+	// a swapped section name, refuses here — not at replay).
+	if man.SectionEnvelopes != nil {
+		for name, h := range man.Digests {
+			env, ok := man.SectionEnvelopes[name]
+			if !ok {
+				return nil, fmt.Errorf("section %s has a digest but no envelope: partial envelope set refused", name)
+			}
+			if err := ledger.VerifyEnvelope(&env); err != nil {
+				return nil, fmt.Errorf("section %s envelope invalid: %w", name, err)
+			}
+			gotSection, _ := env.NormalizedResult["section"].(string)
+			gotDigest, _ := env.NormalizedResult["digest"].(string)
+			if gotSection != name || gotDigest != h {
+				return nil, fmt.Errorf("section %s envelope binds other bytes (section=%q digest=%q)", name, gotSection, gotDigest)
+			}
+		}
+		for name := range man.SectionEnvelopes {
+			if _, ok := man.Digests[name]; !ok {
+				return nil, fmt.Errorf("envelope for unknown section %s: refused", name)
+			}
 		}
 	}
 	// Tenant must resolve (no unattributed imports).

@@ -139,3 +139,98 @@ func TestDeleteSessionCascadesAll(t *testing.T) {
 		t.Fatalf("ghost delete must refuse")
 	}
 }
+
+// R1 — section envelopes: export seals every section as a verifiable
+// evidence envelope; import verifies the set; tamper/swap/partial refuse;
+// manifests predating envelopes still import (digests verify as before).
+func TestSectionEnvelopesRoundTrip(t *testing.T) {
+	m1, _ := mustOpenCascade(t)
+	seedCascadeSession(t, m1, m1.ledger, "env-sess")
+	man, err := m1.ExportSession("env-sess")
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	if len(man.SectionEnvelopes) != 9 {
+		t.Fatalf("want 9 section envelopes, got %d", len(man.SectionEnvelopes))
+	}
+	for name, env := range man.SectionEnvelopes {
+		e := env
+		if err := ledger.VerifyEnvelope(&e); err != nil {
+			t.Fatalf("section %s envelope must verify: %v", name, err)
+		}
+		if e.NormalizedResult["section"] != name {
+			t.Fatalf("section %s envelope binds %v", name, e.NormalizedResult["section"])
+		}
+		if e.TenantID != "default" {
+			t.Fatalf("envelope tenant = %q, want session tenant", e.TenantID)
+		}
+	}
+	m2, _ := mustOpenCascade(t)
+	res, err := m2.ImportSession(man)
+	if err != nil {
+		t.Fatalf("import with envelopes: %v", err)
+	}
+	if res.SessionID != "env-sess" || res.Existing {
+		t.Fatalf("fresh import must replay, got %+v", res)
+	}
+}
+
+func TestSectionEnvelopesTamperRefused(t *testing.T) {
+	m1, _ := mustOpenCascade(t)
+	seedCascadeSession(t, m1, m1.ledger, "env-tamper")
+	man, err := m1.ExportSession("env-tamper")
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	m2, _ := mustOpenCascade(t)
+
+	// Forged evidence_id on one section.
+	forged := *man
+	forged.SectionEnvelopes = map[string]ledger.Envelope{}
+	for name, env := range man.SectionEnvelopes {
+		forged.SectionEnvelopes[name] = env
+	}
+	messages := forged.SectionEnvelopes["messages"]
+	messages.EvidenceID = "ev_" + strings.Repeat("0", 64)
+	forged.SectionEnvelopes["messages"] = messages
+	if _, err := m2.ImportSession(&forged); err == nil {
+		t.Fatal("forged envelope id must refuse")
+	}
+
+	// Swapped envelopes between sections.
+	swapped := *man
+	swapped.SectionEnvelopes = map[string]ledger.Envelope{}
+	for name, env := range man.SectionEnvelopes {
+		swapped.SectionEnvelopes[name] = env
+	}
+	swapped.SectionEnvelopes["messages"], swapped.SectionEnvelopes["jobs"] =
+		swapped.SectionEnvelopes["jobs"], swapped.SectionEnvelopes["messages"]
+	if _, err := m2.ImportSession(&swapped); err == nil {
+		t.Fatal("swapped section envelopes must refuse")
+	}
+
+	// Partial set (one envelope dropped).
+	partial := *man
+	partial.SectionEnvelopes = map[string]ledger.Envelope{}
+	for name, env := range man.SectionEnvelopes {
+		partial.SectionEnvelopes[name] = env
+	}
+	delete(partial.SectionEnvelopes, "claims")
+	if _, err := m2.ImportSession(&partial); err == nil {
+		t.Fatal("partial envelope set must refuse")
+	}
+}
+
+func TestSectionEnvelopesAbsentStillImports(t *testing.T) {
+	m1, _ := mustOpenCascade(t)
+	seedCascadeSession(t, m1, m1.ledger, "env-legacy")
+	man, err := m1.ExportSession("env-legacy")
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	man.SectionEnvelopes = nil // pre-envelope manifest shape
+	m2, _ := mustOpenCascade(t)
+	if _, err := m2.ImportSession(man); err != nil {
+		t.Fatalf("envelope-less manifest must still import: %v", err)
+	}
+}
