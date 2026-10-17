@@ -90,6 +90,19 @@ func (m *SpendMandate) Verify(expectedTenantID, expectedJobHash string, requeste
 	return nil
 }
 
+// CanonicalJobBinding binds a mandate receipt to the exact program in the
+// exact session (W0.4). Format v1: hex(sha256("kubona-job-v1\n" + jobType +
+// "\n" + sessionID + "\n" + qasm)). The console computes the identical
+// string (mandates.ts canonicalJobBinding, pinned by the cross-language
+// vector test on both sides); admission recomputes it from the submitted
+// job and refuses a receipt bound to anything else. A mandate for one
+// program cannot ride another — previously ANY covering mandate admitted
+// ANY circuit.
+func CanonicalJobBinding(jobType, sessionID, qasm string) string {
+	sum := sha256.Sum256([]byte("kubona-job-v1\n" + jobType + "\n" + sessionID + "\n" + qasm))
+	return hex.EncodeToString(sum[:])
+}
+
 // ComputeJobHash calculates the SHA-256 hash of a job specification
 func ComputeJobHash(jobType string, params any) (string, error) {
 	data, err := json.Marshal(params)

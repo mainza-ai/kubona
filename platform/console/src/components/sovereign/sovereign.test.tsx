@@ -5,6 +5,7 @@ import { SovereignDock } from './SovereignDock';
 import { ArenaHud } from './ArenaHud';
 import { SwarmUniverse } from './SwarmUniverse';
 import { ActionGate } from './ActionGate';
+import { canonicalJobBinding } from '@/lib/mandates';
 import { WidgetStage } from './WidgetStage';
 import { ProofDagView } from './ProofDagView';
 import type { CampaignState } from '@/types';
@@ -472,9 +473,15 @@ describe('ActionGate tenant attribution (J4)', () => {
       current_spend_usd: 0,
     };
     let tree: TestRenderer.ReactTestRenderer;
+    // W0.4: the gate signs the exact program — the fixture carries QASM so
+    // authorization can proceed to the tenant assertion below.
+    const withProgram = {
+      ...CAMPAIGN,
+      quantum_factors: { ...CAMPAIGN.quantum_factors, qasm: 'OPENQASM 2.0;\nqreg q[1];\n' },
+    };
     await act(async () => {
       tree = TestRenderer.create(
-        <ActionGate campaign={CAMPAIGN as any} session={session} onAuthorized={() => {}} onDenied={() => {}} onDowngrade={() => {}} />
+        <ActionGate campaign={withProgram as any} session={session} onAuthorized={() => {}} onDenied={() => {}} onDowngrade={() => {}} />
       );
     });
     const btn = tree!.root.findByProps({ 'data-testid': 'action-gate-authorize' });
@@ -483,6 +490,9 @@ describe('ActionGate tenant attribution (J4)', () => {
     });
     expect(seenBody).not.toBeNull();
     expect(seenBody.tenant_id).toBe('lab-alpha');
+    // The minted mandate binds the exact session + program (daemon-side
+    // admission recomputes this and refuses anything else).
+    expect(seenBody.job_hash).toBe(canonicalJobBinding('sess-tenant-test', 'OPENQASM 2.0;\nqreg q[1];\n'));
   });
 });
 
@@ -490,7 +500,11 @@ describe('ActionGate cost honesty', () => {
   it('disables authorization without a priced campaign', async () => {
     const unpriced = {
       ...CAMPAIGN,
-      quantum_factors: { ...CAMPAIGN.quantum_factors, estimated_spend_usd: undefined },
+      quantum_factors: {
+        ...CAMPAIGN.quantum_factors,
+        estimated_spend_usd: undefined,
+        qasm: 'OPENQASM 2.0;\nqreg q[1];\n',
+      },
     };
     const session = {
       id: 'sess-p', title: 't', tenant_id: 'lab-a', created_at: '', updated_at: '',
@@ -512,5 +526,30 @@ describe('ActionGate cost honesty', () => {
       await (btn.props as any).onClick();
     });
     expect(JSON.stringify(tree!.toJSON())).toContain('No cost estimate');
+  });
+
+  it('disables authorization without a proposed program (W0.4)', async () => {
+    // Priced but program-less: the mandate would bind nothing, so the gate
+    // refuses naming the program — never mints over an empty binding.
+    const programless = {
+      ...CAMPAIGN,
+      quantum_factors: { ...CAMPAIGN.quantum_factors, qasm: '' },
+    };
+    const session = {
+      id: 'sess-p', title: 't', tenant_id: 'lab-a', created_at: '', updated_at: '',
+      status: 'active', spend_limit_usd: 150, current_spend_usd: 0,
+    };
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(
+        <ActionGate campaign={programless as any} session={session} onAuthorized={() => {}} onDenied={() => {}} onDowngrade={() => {}} />
+      );
+    });
+    const btn = tree!.root.findByProps({ 'data-testid': 'action-gate-authorize' });
+    expect((btn.props as any).disabled).toBe(true);
+    await act(async () => {
+      await (btn.props as any).onClick();
+    });
+    expect(JSON.stringify(tree!.toJSON())).toContain('No program in this campaign');
   });
 });

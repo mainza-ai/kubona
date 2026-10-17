@@ -88,3 +88,24 @@ func TestCrossLanguageMandateVector(t *testing.T) {
 		t.Fatalf("over-budget must refuse with ErrMandateExceeded, got %v", err)
 	}
 }
+
+// TestCanonicalJobBindingVector pins the v1 job binding both sides must
+// compute identically (console mandates.ts canonicalJobBinding asserts the
+// same hex): hex(sha256("kubona-job-v1\ncircuit_run\nsess-vec\n" + QASM)).
+func TestCanonicalJobBindingVector(t *testing.T) {
+	const qasm = "OPENQASM 2.0;\nqreg q[1];\n"
+	if got := mandates.CanonicalJobBinding("circuit_run", "sess-vec", qasm); got != "67cc6d01173411aecf553a038cc9873a15779416dafd58a30e3c15a98c63bbfb" {
+		t.Fatalf("binding vector mismatch: %s", got)
+	}
+	// Sensitivity: session, program, or type change must rebind.
+	base := mandates.CanonicalJobBinding("circuit_run", "sess-vec", qasm)
+	for _, other := range []string{
+		mandates.CanonicalJobBinding("circuit_run", "sess-other", qasm),
+		mandates.CanonicalJobBinding("circuit_run", "sess-vec", qasm+"h q[0];\n"),
+		mandates.CanonicalJobBinding("mitigate", "sess-vec", qasm),
+	} {
+		if other == base {
+			t.Fatalf("binding must change with session/program/type")
+		}
+	}
+}
