@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -39,6 +40,7 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/supervisor"
 	"github.com/mainza-ai/kubona/core/pkg/tenants"
 	"github.com/mainza-ai/kubona/core/pkg/tools"
+	"github.com/mainza-ai/kubona/core/pkg/vault"
 	"github.com/mainza-ai/kubona/core/pkg/watchdog"
 	pb "github.com/mainza-ai/kubona/core/proto"
 )
@@ -68,6 +70,11 @@ type Server struct {
 	// Hugging Face Hub client & Custom Agent Registry
 	hfClient     *hf.HubClient
 	customAgents *agents.CustomAgentRegistry
+
+	// S4: server-side lease registry. The /api/vault/leases endpoint mints
+	// HMAC receipts; the lease objects live here so issued leases are
+	// consumable and revocable (previously tested but unwired).
+	vaultLeases *vault.VaultClient
 
 	// Post-quantum cryptography keypair & QIR compiler
 	pqcKeypair  *mandates.RecipientKeypair
@@ -240,6 +247,7 @@ func NewServer(
 		activeAutoloops:       make(map[string]*autoresearch.LoopEngine),
 		hfClient:              hf.NewHubClient(""),
 		customAgents:          agents.NewCustomAgentRegistryWithDB(l.DB()),
+		vaultLeases:           vault.NewVaultClient(),
 		pqcKeypair:            pqcKey,
 		qirCompiler:           qirComp,
 		signerPubKey:          pub,
@@ -371,7 +379,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/llm/test", s.handleLLMTest)
 
 	// Vault Dynamic Leases (OpenBao sidecar bridge)
-	s.mux.HandleFunc("/api/vault/leases", s.handleVaultLeases)
+	s.mux.HandleFunc("/api/vault/leases", s.requireBearer(s.handleVaultLeases))
+	s.mux.HandleFunc("/api/vault/leases/revoke", s.requireBearer(s.handleVaultLeaseRevoke))
 
 	// A2A Inter-Agent Protocol & x402 payment rails
 	s.mux.HandleFunc("/api/a2a/v1", s.handleA2A)
@@ -2564,14 +2573,34 @@ func (s *Server) handleLLMTest(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func (s *Server) handleVaultLeases(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
+// S4 lease constants (single source — never copied literals).
+// Scope is a ledger-persisted identifier: bounded alphabet + length.
+// TTL is capped at 24h: short-lived issuance only.
+var leaseScopeRe = regexp.MustCompile(`^[A-Za-z0-9:_-]{1,128}$`)
+
+const maxLeaseTTLSeconds = 86400
+
+// leaseEventSession routes the lease_issued event at the bound session when
+// one exists, else the vault-plane stream (lease events are operator-plane,
+// not chat turns).
+func leaseEventSession(sessionID string) string {
+	if sessionID != "" {
+		return sessionID
+	}
+	return "vault-plane"
+}
+
+func (s *Server) handleVaultLeases(w http.ResponseWriter, r *http.Request) {	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 	var req struct {
 		Scope      string `json:"scope"`
 		TTLSeconds int    `json:"ttl_seconds"`
+		// S4: optional session attribution. When provided it must exist
+		// (ghosts 404 — unattributed leases repeat the G7 class); the
+		// lease record and event carry session + tenant.
+		SessionID string `json:"session_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -2580,34 +2609,67 @@ func (s *Server) handleVaultLeases(w http.ResponseWriter, r *http.Request) {
 	if req.Scope == "" {
 		req.Scope = "provider:session_token"
 	}
+	// S4: scope is a ledger-persisted identifier, not free text — bounded
+	// alphabet and length (an unbounded scope is ledger bloat by request).
+	if !leaseScopeRe.MatchString(req.Scope) {
+		http.Error(w, fmt.Sprintf("invalid scope %q: 1-128 chars of [A-Za-z0-9:_-]", req.Scope), http.StatusBadRequest)
+		return
+	}
 	if req.TTLSeconds <= 0 {
 		req.TTLSeconds = 60
 	}
+	// S4: TTL capped — an unbounded ttl_seconds mints an effectively
+	// immortal lease, defeating short-lived issuance.
+	if req.TTLSeconds > maxLeaseTTLSeconds {
+		http.Error(w, fmt.Sprintf("ttl_seconds %d exceeds maximum %d: short-lived leases only", req.TTLSeconds, maxLeaseTTLSeconds), http.StatusBadRequest)
+		return
+	}
+	tenantID := tenants.DefaultTenantID
+	if req.SessionID != "" {
+		sess, gerr := s.sessionMgr.GetSession(req.SessionID)
+		if gerr != nil {
+			http.Error(w, fmt.Sprintf("unknown session %q: leases bind to real sessions only", req.SessionID), http.StatusNotFound)
+			return
+		}
+		if sess.TenantID != "" {
+			tenantID = sess.TenantID
+		}
+	}
 
-	leaseID := "lease-" + uuid.New().String()
-	now := time.Now().UTC()
-	expiresAt := now.Add(time.Duration(req.TTLSeconds) * time.Second)
-
-	// Lease authenticity rests on this HMAC key: it MUST come from the
-	// environment, never source. Short/missing keys refuse (503) rather
-	// than minting forgeable leases. NOTE: issuance only — no verifier
-	// consumes these signatures yet; they are tamper-evident receipts
-	// pending a verification path, not access tokens.
 	leaseKey := os.Getenv("KUBONA_LEASE_HMAC_KEY")
 	if len(leaseKey) < 32 {
 		http.Error(w, "lease signing key not configured: set KUBONA_LEASE_HMAC_KEY (min 32 chars)", http.StatusServiceUnavailable)
 		return
 	}
+	now := time.Now().UTC()
+	expiresAt := now.Add(time.Duration(req.TTLSeconds) * time.Second)
+
+	// S4: the lease object lives server-side (consumable + revocable —
+	// previously tested but unwired). Its ID is the receipt ID: one
+	// namespace, so revoke/consume resolve what issuance returned. The
+	// receipt carries no secret value by design; values live in
+	// Bao/env/process memory, never in events.
+	issued, lerr := s.vaultLeases.IssueLease(req.Scope, tenantID, "", time.Duration(req.TTLSeconds)*time.Second)
+	if lerr != nil {
+		http.Error(w, fmt.Sprintf("lease registry refused: %v", lerr), http.StatusInternalServerError)
+		return
+	}
+	leaseID := issued.LeaseID
 	mac := hmac.New(sha256.New, []byte(leaseKey))
 	mac.Write([]byte(fmt.Sprintf("%s:%s:%d", req.Scope, leaseID, expiresAt.Unix())))
 	leaseSignature := hex.EncodeToString(mac.Sum(nil))
 
-	s.ledger.AppendEvent("vault-plane", "lease_issued", map[string]any{
+	s.ledger.AppendEvent(leaseEventSession(req.SessionID), "lease_issued", map[string]any{
 		"lease_id":        leaseID,
 		"scope":           req.Scope,
 		"ttl_seconds":     req.TTLSeconds,
 		"lease_signature": leaseSignature,
 		"expires_at":      expiresAt.Format(time.RFC3339),
+		"session_id":      req.SessionID,
+		"tenant_id":       tenantID,
+		// Reserved for a future OS-level caller check (Linux peercred
+		// sidecar); empty today so the schema never changes later.
+		"caller_binding": "",
 	})
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -2618,7 +2680,38 @@ func (s *Server) handleVaultLeases(w http.ResponseWriter, r *http.Request) {
 		"lease_signature": leaseSignature,
 		"issued_at":       now.Format(time.RFC3339),
 		"expires_at":      expiresAt.Format(time.RFC3339),
+		"session_id":      req.SessionID,
+		"tenant_id":       tenantID,
 	})
+}
+
+// handleVaultLeaseRevoke revokes an issued lease (S4): unknown ids 404,
+// consumed/expired ids refuse (already dead — revoking the dead proves
+// nothing and would mint a misleading receipt).
+func (s *Server) handleVaultLeaseRevoke(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		LeaseID string `json:"lease_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.LeaseID == "" {
+		http.Error(w, "revoke requires {\"lease_id\": ...}", http.StatusBadRequest)
+		return
+	}
+	if ok, _ := s.vaultLeases.ValidateLease(req.LeaseID); !ok {
+		http.Error(w, fmt.Sprintf("lease %q is not active (unknown, consumed, expired, or already revoked)", req.LeaseID), http.StatusNotFound)
+		return
+	}
+	if err := s.vaultLeases.RevokeLease(req.LeaseID); err != nil {
+		http.Error(w, fmt.Sprintf("revoke refused: %v", err), http.StatusConflict)
+		return
+	}
+	s.ledger.AppendEvent("vault-plane", "lease_revoked", map[string]any{
+		"lease_id": req.LeaseID,
+	})
+	writeJSON(w, http.StatusOK, map[string]any{"lease_id": req.LeaseID, "revoked": true})
 }
 
 // findPythonVenv locates the hermetic venv python + bridge dir for the

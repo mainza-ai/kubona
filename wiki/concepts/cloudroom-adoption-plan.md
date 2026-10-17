@@ -229,7 +229,20 @@ status: candidate
   row throughout.
 - **Wiki:** autoresearch + gaps rows.
 
-### S4 — Secrets discipline (S)
+### S4 — Secrets discipline (S) — ✅ LANDED 2026-10-17
+
+> Landed reframed by mapping: no dotenv writers and no secret values cross
+> HTTP anywhere (leases are valueless HMAC receipts; `VaultClient` leases
+> were tested but unwired), so the dotenv/atomic-write item had no target
+> and was dropped. Shipped instead: session/tenant binding on issuance
+> (ghosts 404, event carries session/tenant + reserved `caller_binding`
+> for a future peercred sidecar); scope alphabet+length caps; TTL capped
+> at 24h; server-side lease registry wired (issue/consume/revoke teeth,
+> one ID namespace); `POST /api/vault/leases/revoke` (double-revoke 404s);
+> both lease routes bearer-gated (existing key test strengthened with a
+> 401-without case); seeded-canary absence scan proving the HMAC key never
+> enters any ledger payload. Negative-tested; race green; live
+> 401/200/400/400/200/404 matrix.
 
 - **Threat:** values leak into history; multiline breaks consumers; caller
   confusion (G8).

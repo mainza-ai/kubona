@@ -98,3 +98,13 @@ recorded fixtures). (b) A sandboxed snippet importing a non-whitelisted module f
 audited refusal; egress denied by default. (c) The `case-guard` analogue exits non-zero with the
 grant unset, even when forced. (d) A CI job runs the low-trust mode. (e) A repo scanner fails
 the build on credential-bearing remote URLs — the direct response to the finding above.
+
+> ⚑ Landed (2026-10-17, S4): lease issuance binds session + tenant (ghosts
+> 404; event carries both plus reserved `caller_binding` for a future
+> peercred sidecar — portable check now, per Q5); scope alphabet/length
+> capped; TTL capped at 24h; server-side lease registry wired (issue →
+> consume/revoke teeth, one ID namespace); `POST /api/vault/leases/revoke`
+> (double-revoke 404s); both routes bearer-gated; seeded-canary scan
+> proves the HMAC key never enters any ledger payload. No dotenv item:
+> mapping found no dotenv writers and no secret values crossing HTTP
+> (leases are valueless receipts by design).
