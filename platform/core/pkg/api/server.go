@@ -3774,7 +3774,13 @@ func (s *Server) handleAutoresearchStart(w http.ResponseWriter, r *http.Request)
 	if sess, gerr := s.sessionMgr.GetSession(req.SessionID); gerr == nil {
 		arTenant = sess.TenantID
 	}
-	perIter, priceFallbacks := llm.LoopIterationBound(s.llmSettings, []string{"coder", "critic"})
+	perIter, priceFallbacks, boundErr := llm.LoopIterationBound(s.llmSettings, []string{"coder", "critic"})
+	if boundErr != nil {
+		WriteAPIError(w, "unpriced_model", fmt.Sprintf("loop admission refused: %v", boundErr), map[string]any{
+			"tenant_id": arTenant, "max_iterations": req.MaxIterations,
+		})
+		return
+	}
 	loopReserveTotal := perIter * float64(req.MaxIterations)
 	if loopReserveTotal > 0 {
 		if arTenant == "" {
@@ -4003,7 +4009,10 @@ func (s *Server) rereserveLoopSpend(engine *autoresearch.LoopEngine) error {
 	if err != nil {
 		return fmt.Errorf("wake needs a live session to bill: %w", err)
 	}
-	perIter, _ := llm.LoopIterationBound(s.llmSettings, []string{"coder", "critic"})
+	perIter, _ /* no fallbacks by construction: unknown models refuse */, err := llm.LoopIterationBound(s.llmSettings, []string{"coder", "critic"})
+	if err != nil {
+		return fmt.Errorf("wake re-reserve refused: %w", err)
+	}
 	total := perIter * float64(remaining)
 	if total <= 0 {
 		return nil
@@ -4886,11 +4895,23 @@ func (s *Server) handleMeshRoute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	airGapped := false
+	fallbackModel := ""
 	if s.llmSettings != nil {
-		airGapped = s.llmSettings.AirGapped
+		snap := s.llmSettings.GetSnapshot()
+		airGapped = snap.AirGapped
+		// Configured default for callers without an explicit model:
+		// the active model when its provider is enabled, else that
+		// provider's default. Empty stays empty — the router refuses
+		// rather than inventing a model.
+		if prov, ok := snap.Providers[snap.ActiveProvider]; ok && prov.Enabled {
+			fallbackModel = snap.ActiveModel
+			if fallbackModel == "" {
+				fallbackModel = prov.DefaultModel
+			}
+		}
 	}
 
-	decision := agents.RouteMultimodal(req, airGapped)
+	decision := agents.RouteMultimodal(req, airGapped, fallbackModel)
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":       true,
 		"decision": decision,

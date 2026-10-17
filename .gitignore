@@ -4,6 +4,8 @@ __pycache__/
 .venv/
 .env
 .env.*
+# ...except the documented template (no secrets — placeholders only).
+!.env.example
 node_modules/
 
 # Local-only working files — never pushed

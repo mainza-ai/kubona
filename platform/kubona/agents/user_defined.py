@@ -32,7 +32,7 @@ class UserDefinedAgentManifest:
     badge_color: str = "cyan"
     capabilities: list[str] = field(default_factory=list)
     modalities: list[str] = field(default_factory=lambda: ["text"])
-    preferred_model: str = "local/qwen2.5-coder:32b"
+    preferred_model: str = ""  # Unpinned by policy: personas carry no model IDs; resolution happens at dispatch
     mcp_tools: list[str] = field(default_factory=list)
     spend_budget_usd: float = 0.0
     memory_scopes: list[str] = field(default_factory=lambda: ["default"])
@@ -55,7 +55,7 @@ class UserDefinedAgentManifest:
             badge_color=data.get("badge_color", "cyan"),
             capabilities=data.get("capabilities", []),
             modalities=data.get("modalities", ["text"]),
-            preferred_model=data.get("preferred_model", "local/qwen2.5-coder:32b"),
+            preferred_model=data.get("preferred_model", ""),
             mcp_tools=data.get("mcp_tools", []),
             spend_budget_usd=float(data.get("spend_budget_usd", 0.0)),
             memory_scopes=data.get("memory_scopes", ["default"]),
@@ -76,7 +76,7 @@ STANDARD_SYSTEM_AGENTS: list[UserDefinedAgentManifest] = [
         system_prompt="You are the Lead Theorist of Kubona. Synthesize scientific literature, formulate falsifiable conjectures, and structure research campaigns.",
         capabilities=["hypothesis_formulation", "literature_synthesis", "manuscript_drafting"],
         modalities=["text", "image", "molecule_3d"],
-        preferred_model="anthropic/claude-3-7-sonnet",
+        preferred_model="",
         is_system_agent=True,
     ),
     UserDefinedAgentManifest(
@@ -89,7 +89,7 @@ STANDARD_SYSTEM_AGENTS: list[UserDefinedAgentManifest] = [
         system_prompt="You are the Lean 4 Proof Engineer. Convert informal mathematical lemmas into machine-checked Lean 4 code. Obey zero-cheat axiom rules.",
         capabilities=["lean4_formalization", "tactic_cavity_filling", "comparator_verification"],
         modalities=["text", "lean4_ast"],
-        preferred_model="local/qwen2.5-coder:32b",
+        preferred_model="",
         is_system_agent=True,
     ),
     UserDefinedAgentManifest(
@@ -102,7 +102,7 @@ STANDARD_SYSTEM_AGENTS: list[UserDefinedAgentManifest] = [
         system_prompt="You are the Classical Anchor Solver. Compute exact numerical ground-state energies and confirm whether classical approximations fail.",
         capabilities=["pyscf_fci", "dmrg_calculation", "kohn_sham_triage"],
         modalities=["text", "molecule_3d"],
-        preferred_model="local/qwen2.5-coder:32b",
+        preferred_model="",
         is_system_agent=True,
     ),
     UserDefinedAgentManifest(
@@ -115,7 +115,7 @@ STANDARD_SYSTEM_AGENTS: list[UserDefinedAgentManifest] = [
         system_prompt="You are the Quantum Circuit Compiler. Generate hardware-efficient circuits, check barren plateau risks, and compile QIR bitcode.",
         capabilities=["qasm_generation", "qir_compilation", "wire_cutting", "zne_mitigation"],
         modalities=["text", "circuit_qir"],
-        preferred_model="local/qwen2.5-coder:32b",
+        preferred_model="",
         is_system_agent=True,
     ),
     UserDefinedAgentManifest(
@@ -128,7 +128,7 @@ STANDARD_SYSTEM_AGENTS: list[UserDefinedAgentManifest] = [
         system_prompt="You are the Adversarial Falsification Critic. Relentlessly challenge assumptions, find counterexamples, and probe physical unviability.",
         capabilities=["counterexample_search", "noise_stress_testing", "disconfirmation"],
         modalities=["text", "image", "molecule_3d", "circuit_qir"],
-        preferred_model="local/qwen2.5-coder:32b",
+        preferred_model="",
         is_system_agent=True,
     ),
     UserDefinedAgentManifest(
@@ -141,7 +141,7 @@ STANDARD_SYSTEM_AGENTS: list[UserDefinedAgentManifest] = [
         system_prompt="You are the Sentinel Spend Governor. Ensure that no cloud or QPU call violates cryptographic limits or the sovereign air-gap policy.",
         capabilities=["cost_accounting", "air_gap_enforcement", "spend_card_verification"],
         modalities=["text"],
-        preferred_model="local/qwen2.5-coder:32b",
+        preferred_model="",
         is_system_agent=True,
     ),
     UserDefinedAgentManifest(
@@ -154,7 +154,7 @@ STANDARD_SYSTEM_AGENTS: list[UserDefinedAgentManifest] = [
         system_prompt="You are the Multimodal Spectroscopist. Inspect 2D/3D spectroscopic curves, crystal structures, and electron density plots.",
         capabilities=["spectroscopy_interpretation", "cif_pdb_analysis", "vision_inspection"],
         modalities=["text", "image", "molecule_3d", "spectroscopy"],
-        preferred_model="local/qwen2.5-coder:32b",
+        preferred_model="",
         is_system_agent=True,
     ),
 ]

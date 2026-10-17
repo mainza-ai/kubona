@@ -1,6 +1,32 @@
 import { Session, ChatMessage, Job, Loop, LedgerEvent, Lab } from '@/types';
 
-export const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+// Build-time default (local dev). The runtime route /api/config can
+// override this per deployment (see configureApiBase) so one image
+// serves any backend without a rebuild.
+export let API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
+let apiBaseConfigured = false;
+
+// Reads the runtime backend URL once (first call wins) and switches all
+// subsequent API calls to it. Failure keeps the build-time default —
+// never bricks the console when the route is missing (older bundles,
+// static export).
+export async function configureApiBase(): Promise<string> {
+  if (apiBaseConfigured) return API_BASE;
+  apiBaseConfigured = true;
+  try {
+    const res = await fetch('/api/config', { cache: 'no-store' });
+    if (res.ok) {
+      const data = (await res.json()) as { apiUrl?: unknown };
+      if (typeof data.apiUrl === 'string' && /^https?:\/\//.test(data.apiUrl)) {
+        API_BASE = data.apiUrl.replace(/\/$/, '');
+      }
+    }
+  } catch {
+    /* keep build-time default */
+  }
+  return API_BASE;
+}
 
 // Operator bearer token (local dev only): the bridge requires `Authorization:
 // Bearer <token>` on every route and fails closed without it. In production

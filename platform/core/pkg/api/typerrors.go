@@ -57,6 +57,7 @@ var errorRegistry = map[string]errorSpec{
 	"bridge_unavailable":   {"upstream", 502, true, "retry when the Python bridge is reachable; sim-only paths stay available"},
 	"llm_unavailable":      {"upstream", 503, true, "retry when a provider is configured; fallback paths stay open"},
 	"unknown_tool":         {"validation", 400, false, "call a tool from the pinned catalog (/api/capabilities)"},
+	"unpriced_model":       {"validation", 400, false, "pick a priced model in Model Settings for metered loops (unknown models never bill)"},
 	"internal":             {"internal", 500, false, "report the incident id; do not blind-retry mutations (use idempotency keys)"},
 	"server_misconfigured": {"internal", 503, false, "set the missing server configuration (see message) and restart"},
 }

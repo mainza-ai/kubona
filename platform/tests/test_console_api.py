@@ -45,11 +45,20 @@ def test_models_and_settings_endpoints():
     # settings GET (user choices + separate live host snapshot) + PUT round-trip
     r = client.get("/api/settings", headers=_h())
     assert r.status_code == 200 and "settings" in r.json()
-    r = client.put("/api/settings", json={"llm_provider": "scripted", "llm_model": "none",
-                                          "llm_temperature": 0.1}, headers=_h())
+    r = client.put("/api/settings", json={"llm_provider": "scripted", "llm_model": "none"}, headers=_h())
     assert r.status_code == 200 and r.json()["ok"] is True
     r2 = client.get("/api/settings", headers=_h())
     assert r2.json()["settings"].get("llm_provider") == "scripted"
+
+
+def test_settings_put_rejects_garbage_at_the_edge():
+    """Legacy PUT must validate like apply_llm_edge: unknown keys,
+    unknown providers, and blank models refuse instead of persisting."""
+    for bad in ({"nope": 1},
+                {"llm_provider": "mystery", "llm_model": "x"},
+                {"llm_provider": "scripted", "llm_model": "  "}):
+        r = client.put("/api/settings", json=bad, headers=_h())
+        assert r.status_code == 400 and r.json()["ok"] is False
 
 
 def test_retired_shadow_routes_stay_gone():

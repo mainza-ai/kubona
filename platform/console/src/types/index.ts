@@ -412,6 +412,9 @@ export interface RoutingDecision {
   estimated_cost_usd: number;
   explanation: string;
   modalities_supported: string[];
+  // False = refusal (no model, air-gap block, unfunded cloud). Absent on
+  // older daemons — treat missing as routed.
+  ok?: boolean;
 }
 
 export interface CustomAgentManifest {

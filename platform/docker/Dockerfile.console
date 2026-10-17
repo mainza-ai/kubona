@@ -15,7 +15,7 @@
 #   --build-arg NEXT_PUBLIC_API_URL=http://localhost:8080 \
 #   -t kubona/console:dev platform/console
 
-FROM node:20-bookworm-slim AS build
+FROM node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS build
 
 ENV NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app
@@ -33,7 +33,7 @@ ARG NEXT_PUBLIC_API_URL=http://localhost:8080
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN pnpm build
 
-FROM node:20-bookworm-slim
+FROM node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
 
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \

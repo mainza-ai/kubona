@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Sparkles, Plus, Zap, Info, HelpCircle, Trash2, Clock, Box, X } from 'lucide-react';
 import { Session, Loop, LedgerEvent, CampaignState, RunPhase, ProbeId } from '@/types';
-import { fetchSessions, createSession, deleteSession, fetchLoops, fetchEvents, fetchCampaignState, API_BASE, authHeaders } from '@/lib/api';
+import { fetchSessions, createSession, deleteSession, fetchLoops, fetchEvents, fetchCampaignState, API_BASE, authHeaders, configureApiBase } from '@/lib/api';
 import { CopilotDrawer } from '@/components/CopilotDrawer';
 import { AboutLabModal } from '@/components/AboutLabModal';
 import { CommandPalette } from '@/components/CommandPalette';
@@ -121,6 +121,8 @@ export default function Home() {
   useEffect(() => {
     let mounted = true;
     (async () => {
+      // Runtime backend URL first (M5): same image, any backend.
+      await configureApiBase();
       const [sessList, loopList, evtList] = await Promise.all([
         fetchSessions(),
         fetchLoops(),

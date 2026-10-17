@@ -236,6 +236,7 @@ func (c *Client) Complete(ctx context.Context, role string, messages []ChatMessa
 		c.reportSpend(providerType, model,
 			chatResp.Usage.PromptTokens, chatResp.Usage.CompletionTokens, true)
 	}
+	c.settings.RecordSuccess(providerType)
 	return chatResp.Choices[0].Message.Content, &chatResp, duration, nil
 }
 

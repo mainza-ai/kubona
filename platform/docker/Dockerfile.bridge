@@ -10,7 +10,7 @@
 # Build (repo root): docker build -f platform/docker/Dockerfile.bridge -t kubona/bridge:dev platform
 # Run (compose is the supported path): see compose.prod.yml.
 
-FROM python:3.11-slim
+FROM python:3.11-slim@sha256:e88e9763f943ec1834f992a4b51e0f24500486803e8bc534e5767af9ea65f6ce
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \

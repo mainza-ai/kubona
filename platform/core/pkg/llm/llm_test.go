@@ -16,6 +16,7 @@ import (
 
 func TestLLMSettingsPersistenceAndAirGap(t *testing.T) {
 	t.Setenv("OPENCODE_API_KEY", "test-key")
+	t.Setenv("OPENCODE_MODEL", "deepseek-v4.1-flash")
 	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
 		t.Fatalf("failed to open in-memory db: %v", err)
@@ -27,8 +28,9 @@ func TestLLMSettingsPersistenceAndAirGap(t *testing.T) {
 		t.Fatalf("failed to load settings: %v", err)
 	}
 
-	// Development default (operator-directed 2026-10-11): cloud model for
-	// every role; oMLX stays enabled as the air-gapped fallback.
+	// Development default is env-driven (2026-10-17): with the opencode
+	// key + model set, every role resolves to the configured model;
+	// oMLX stays enabled as the air-gapped fallback.
 	if settings.ActiveModel != "deepseek-v4.1-flash" {
 		t.Errorf("expected default model deepseek-v4.1-flash, got %s", settings.ActiveModel)
 	}
@@ -76,6 +78,7 @@ func TestLLMSettingsPersistenceAndAirGap(t *testing.T) {
 
 func TestUpdatePreservesAPIKey(t *testing.T) {
 	t.Setenv("OPENCODE_API_KEY", "env-key")
+	t.Setenv("OPENCODE_MODEL", "deepseek-v4.1-flash")
 	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
 		t.Fatalf("failed to open in-memory db: %v", err)
@@ -105,6 +108,7 @@ func TestUpdatePreservesAPIKey(t *testing.T) {
 // A stub endpoint omits usage; local providers stay exempt.
 func TestMissingUsageRefusesOrCeilings(t *testing.T) {
 	t.Setenv("OPENCODE_API_KEY", "test-key")
+	t.Setenv("OPENCODE_MODEL", "deepseek-v4.1-flash")
 	stub := func(usage map[string]any) *httptest.Server {
 		t.Helper()
 		body, _ := json.Marshal(map[string]any{
@@ -175,6 +179,7 @@ func TestMissingUsageRefusesOrCeilings(t *testing.T) {
 // W0.19: production boot with cloud inference and no explicit opt-in refuses.
 func TestValidateForProduction(t *testing.T) {
 	t.Setenv("OPENCODE_API_KEY", "test-key")
+	t.Setenv("OPENCODE_MODEL", "deepseek-v4.1-flash")
 	st := llm.DefaultSettings()
 	t.Setenv("KUBONA_ENV", "production")
 	if err := st.ValidateForProduction(); err == nil {

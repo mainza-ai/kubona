@@ -15,6 +15,7 @@ import (
 func toolTestSettings(t *testing.T, url string) *llm.Settings {
 	t.Helper()
 	t.Setenv("OPENCODE_API_KEY", "test-key")
+	t.Setenv("OPENCODE_MODEL", "deepseek-v4.1-flash")
 	s := llm.DefaultSettings()
 	snap := s.GetSnapshot()
 	pc := snap.Providers[llm.ProviderOpenCode]
