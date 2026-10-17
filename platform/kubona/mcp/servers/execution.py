@@ -161,7 +161,16 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
     job_id = job.job_id
     _runner.enqueue(job_id, _run)
     if wait:
-        done = _runner.wait(job_id, timeout_s=wait_timeout_s)
+        try:
+            done = _runner.wait(job_id, timeout_s=wait_timeout_s)
+        except TimeoutError as e:
+            # W0.11: the job is still live, not done — say so explicitly
+            # instead of returning a non-terminal row the caller misreads.
+            live = _runner.store.get(job_id)
+            return {"ok": True, "job_id": job_id, "session_id": session_id,
+                    "status": live.status if live else "unknown",
+                    "note": str(e), "circuit_hash": circuit_hash,
+                    "estimate": pf["estimate"]}
     else:
         done = job
 
