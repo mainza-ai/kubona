@@ -2245,7 +2245,13 @@ func (s *Server) handleJobByID(w http.ResponseWriter, r *http.Request) {
 		_ = json.NewDecoder(r.Body).Decode(&req)
 		transitioned, err := s.jobRunner.CancelJob(jobID, req.Reason)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusNotFound)
+			// Unknown ids 404; receipt failures 500 (the cancellation
+			// itself happened — retry lands on already-terminal replay).
+			if strings.Contains(err.Error(), "job not found") {
+				http.Error(w, err.Error(), http.StatusNotFound)
+				return
+			}
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 		job, _ := s.jobRunner.GetJob(jobID)
