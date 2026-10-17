@@ -2415,3 +2415,11 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-17] verification | R0 accept met (3 green runs, zero flakes)
   Full pipeline green x3 (hermetic, lint-fix, recovery-log incl. gate).
+
+## [2026-10-17] decision | remaining-work queue filed
+  `[[remaining-work]]`: every leftover with owner — operator deeds,
+  queued programs, conditionals. Screened out of immediate delivery:
+  P1-4 execution (program-scale), R6 gating (needs policy), bundle
+  endpoint (needs archival design), sidecar rotation (needs chain-aware
+  reads), S8c/steer (no backends/engine surgery), model delta +
+  recalibration (need keyed hardware).
