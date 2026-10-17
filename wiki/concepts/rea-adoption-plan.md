@@ -112,6 +112,24 @@ notes, never silent edits; rollback stated.
 
 ### R1 — Canonical evidence envelope, both ledgers (M, highest leverage)
 
+> ✅ LANDED 2026-10-17 (`8a9e9a5` + `3404976`): `EvidenceEnvelope` in the
+> IDL + sealed canonical-JSON bytes (sorted keys, compact, UTF-8, finite
+> floats; `ev_` + sha256). Operator default recorded: REA's four fields
+> + `tenant_id` mandatory and optional `mandate_ref` from day one.
+> `platform/contracts/evidence-vectors.json` (3 fixtures) reproduced
+> byte-exactly by both rails (Go `pkg/ledger/envelope.go`, Python
+> `kubona/provenance/envelope.py`) — agreement across the file IS the
+> cross-language proof. Missing profile/method/tenant/result refuse;
+> NaN/Inf refuse; tamper refuses. S5 manifests seal all 9 sections as
+> envelopes at export; import verifies the set (forged/swapped/partial
+> refuse; pre-envelope manifests still import on digests).
+> Deviations: Python `kubona_pb2` NOT regenerated — `/tmp/protogen`
+> drifted to grpcio-tools 1.84 (stamps 7.x gencode the 5.29.6 runtime
+> refuses); Python gencode reverted per the regen script's own stop
+> rule. Operator action: re-pin the scratch venv to grpcio-tools 1.71.x
+> and re-run `./scripts/regen-proto.sh` (Go stubs already carry the
+> message; envelope sealing needs no stubs).
+
 - **Threat:** two receipt formats for one "sealed ledger" story — an
   auditor cannot verify what has two canonical forms.
 - **Change:** define once (protobuf IDL, the existing IDL home):

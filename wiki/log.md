@@ -2354,3 +2354,8 @@ skipped is the exact failure this incident is about:
   R0: wiki-lint fail-fast job, needs: fan-in, canary actually gates,
   cargo cache, CONTRIBUTING lanes (`test:fast/changed/boundary`).
   C6: overview 71 -> 76 with recount command. Push = green-run observation 1/3.
+
+## [2026-10-17] decision | R1 evidence envelope landed on both rails
+  `8a9e9a5` envelope + vectors (byte-exact Go/Python agreement) +
+  `3404976` S5 section envelopes. Python pb2 regen blocked by scratch-venv
+  drift (grpcio-tools 1.84 vs pinned 1.71.x) — operator re-pin queued.
