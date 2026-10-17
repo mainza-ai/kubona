@@ -2386,7 +2386,22 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 		-1, -1, -1, tribVerdict, string(evBytes)); merr == nil {
 		tribRecordID = rec.ID
 		tribOutcome += " [" + rec.ID + "]"
+		// C4: the real proposal_generated producer — emitted where the
+		// proposal is produced, beside the claim mint, in the claim's
+		// evidence shape. Every claim_record_id-bearing response has a
+		// matching proposal event (asserted, not assumed).
+		_ = s.ledger.AppendEvent(req.SessionID, "proposal_generated", map[string]any{
+			"claim_record_id": rec.ID,
+			"obligation_id":   res.ObligationID,
+			"has_proposal":    res.ProposalJSON != nil,
+			"consensus":       res.ConsensusPassed,
+		})
 	}
+	// R6 pilot: score the recorded transcript (best-effort — scoring
+	// follows evidence, never fails the run). Authorship comes from the
+	// obligation cases (pass == authored); unwired runs score content
+	// only (authored unknown reads false — conservative, stated).
+	transcriptScores := s.scoreTribunalTranscript(req.SessionID, res)
 	s.retainTurnExperience(req.SessionID, "tribunal", req.Prompt, tribOutcome,
 		s.toolNamesSince(req.SessionID, tribEventsBefore), 0.7)
 
@@ -2396,7 +2411,66 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 		"campaign":          campState,
 		"claim_record_id":   tribRecordID,
 		"obligation_id":     res.ObligationID,
+		"transcript_scores": transcriptScores,
 	})
+}
+
+// scoreTribunalTranscript scores the recorded run (R6 pilot, best-effort).
+// Returns JSON-friendly rows for the response; persistence failures are
+// logged, never fatal. Authorship reads from the obligation cases
+// (pass == authored) so the score measures recorded evidence, not the
+// response struct's word.
+func (s *Server) scoreTribunalTranscript(sessionID string, res *agents.TribunalResult) []map[string]any {
+	passed := map[string]bool{}
+	if res.ObligationID != "" {
+		if cases, err := s.ledger.ListObligationCases(res.ObligationID); err == nil {
+			for _, c := range cases {
+				if c.Verdict == "pass" {
+					passed[c.CaseKind] = true
+				}
+			}
+		}
+	}
+	var turns []agents.ScoredTurn
+	for _, t := range res.Turns {
+		failedObs := false
+		for _, o := range t.Observed {
+			if !o.OK {
+				failedObs = true
+			}
+		}
+		coverage := map[string]agents.CoverageDecl{}
+		for facet, decl := range t.Coverage {
+			coverage[facet] = decl
+		}
+		turns = append(turns, agents.ScoredTurn{
+			Role: t.Role, Content: t.Content, Verdict: t.Verdict,
+			Authored: passed[fmt.Sprintf("turn-%d", t.TurnIndex)],
+			Coverage: coverage, Observed: len(t.Observed), FailedObs: failedObs,
+		})
+	}
+	scores := agents.ScoreTranscript(turns, res.ProposalJSON != nil)
+	var stored []ledger.TranscriptScore
+	rows := make([]map[string]any, 0, len(scores))
+	for _, sc := range scores {
+		signals := map[string]bool{}
+		for k, v := range sc.Signals {
+			signals[k] = v
+		}
+		stored = append(stored, ledger.TranscriptScore{
+			SessionID: sessionID, ObligationID: res.ObligationID,
+			Role: string(sc.Role), Score: sc.Score, Signals: signals,
+		})
+		rows = append(rows, map[string]any{
+			"role": string(sc.Role), "score": sc.Score, "signals": signals,
+		})
+	}
+	if res.ObligationID != "" {
+		if err := s.ledger.RecordTranscriptScores(stored); err != nil {
+			log.Printf("[Tribunal] record transcript scores failed (run stands): %v", err)
+		}
+	}
+	return rows
 }
 
 func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
