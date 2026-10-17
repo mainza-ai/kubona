@@ -427,8 +427,8 @@ def test_library_best_direction_explicit(tmp_path):
     from kubona.provenance import Ledger
     ledger = Ledger(path=str(tmp_path / "l.jsonl"))
     lib = AlgorithmLibrary(path=str(tmp_path / "lib.json"), ledger=ledger)
-    r1 = ledger.append("t", {"i": 1}).record_id
-    r2 = ledger.append("t", {"i": 2}).record_id
+    r1 = ledger.append("trial", {"harness": "h", "i": 1}).record_id
+    r2 = ledger.append("trial", {"harness": "h", "i": 2}).record_id
     lib.add(harness="h", artifact="lo", metric=1.0, cost_usd=0.0,
             ledger_ref=r1, validated=True, validation_proof=r1)
     lib.add(harness="h", artifact="hi", metric=2.0, cost_usd=0.0,
