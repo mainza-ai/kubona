@@ -327,6 +327,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/sessions", s.handleSessions)
 	s.mux.HandleFunc("/api/sessions/export", s.handleSessionExport)
 	s.mux.HandleFunc("/api/sessions/import", s.handleSessionImport)
+	s.mux.HandleFunc("/api/sessions/context", s.handleSessionContext)
 	s.mux.HandleFunc("/api/sessions/", s.handleSessionByID)
 	s.mux.HandleFunc("/api/chat/messages", s.handleChatMessages)
 	s.mux.HandleFunc("/api/chat/stream", s.handleChatStream)
@@ -1134,6 +1135,70 @@ func (s *Server) handleSessionImport(w http.ResponseWriter, r *http.Request) {
 		out["manifest"] = res.Manifest
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// handleSessionContext serves the composer's context readout (S8a): the
+// measured transcript against the REAL truncation rule (BudgetHistory
+// caps), plus summed provider-reported token usage. No vendor window is
+// involved — pressure_pct is max(chars/cap, turns/cap), i.e. how close
+// the next turn is to the cut the system actually applies. A read:
+// ungated like other session reads.
+func (s *Server) handleSessionContext(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	sessionID := r.URL.Query().Get("session_id")
+	if sessionID == "" {
+		http.Error(w, "session_id is required", http.StatusBadRequest)
+		return
+	}
+	if _, err := s.sessionMgr.GetSession(sessionID); err != nil {
+		http.Error(w, fmt.Sprintf("unknown session %q", sessionID), http.StatusNotFound)
+		return
+	}
+	msgs, err := s.sessionMgr.GetMessages(sessionID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	var transcript []llm.ChatMessage
+	var promptTok, completionTok int64
+	for _, m := range msgs {
+		transcript = append(transcript, llm.ChatMessage{Role: m.Role, Content: m.Content})
+		if m.UsageJSON != nil && len(*m.UsageJSON) > 0 {
+			var u struct {
+				PromptTokens     int64 `json:"prompt_tokens"`
+				CompletionTokens int64 `json:"completion_tokens"`
+				TotalTokens      int64 `json:"total_tokens"`
+			}
+			if jerr := json.Unmarshal(*m.UsageJSON, &u); jerr == nil {
+				promptTok += u.PromptTokens
+				completionTok += u.CompletionTokens
+			}
+		}
+	}
+	turns, chars, dropped := llm.HistoryPressure(transcript, llm.DefaultMaxHistoryMessages, llm.DefaultMaxHistoryChars)
+	pressure := 0.0
+	if llm.DefaultMaxHistoryChars > 0 {
+		pressure = float64(chars) / float64(llm.DefaultMaxHistoryChars)
+	}
+	if llm.DefaultMaxHistoryMessages > 0 {
+		if pm := float64(turns) / float64(llm.DefaultMaxHistoryMessages); pm > pressure {
+			pressure = pm
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"session_id":        sessionID,
+		"turns":             turns,
+		"turn_cap":          llm.DefaultMaxHistoryMessages,
+		"history_chars":     chars,
+		"history_chars_cap": llm.DefaultMaxHistoryChars,
+		"would_drop":        dropped,
+		"pressure_pct":      pressure * 100,
+		"prompt_tokens":     promptTok,
+		"completion_tokens": completionTok,
+	})
 }
 
 func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {

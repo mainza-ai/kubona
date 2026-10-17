@@ -56,6 +56,32 @@ func historyChars(msgs []ChatMessage) int {
 	return total
 }
 
+// HistoryPressure reports what BudgetHistory would do to msgs WITHOUT
+// mutating: turn count, char count, and how many oldest turns would be
+// dropped under the caps. S8a serves this as the composer's context
+// readout — measured transcript against the real truncation rule, never a
+// vendor window we don't own.
+func HistoryPressure(msgs []ChatMessage, maxMsgs, maxChars int) (turns, chars, dropped int) {
+	if maxMsgs <= 0 {
+		maxMsgs = DefaultMaxHistoryMessages
+	}
+	if maxChars <= 0 {
+		maxChars = DefaultMaxHistoryChars
+	}
+	var live []ChatMessage
+	for _, m := range msgs {
+		if m.Role == "system" {
+			continue
+		}
+		live = append(live, m)
+	}
+	chars = historyChars(live)
+	for len(live)-dropped > maxMsgs || historyChars(live[dropped:]) > maxChars {
+		dropped++
+	}
+	return len(live), chars, dropped
+}
+
 func itoa(n int) string {
 	if n == 0 {
 		return "0"

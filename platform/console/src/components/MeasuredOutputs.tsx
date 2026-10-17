@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { fetchJobs } from '@/lib/api';
+import { JobProgress } from './common/JobProgress';
 import type { Job } from '@/types';
 
 function rec(v: unknown): Record<string, unknown> {
@@ -82,15 +83,25 @@ function summarize(job: Job): string | null {
 // type, each figure bound to its job id. Empty sessions say so.
 export function MeasuredOutputs({ sessionId }: { sessionId: string | null }) {
   const [rows, setRows] = useState<Array<{ type: string; text: string; at: string }> | null>(null);
+  // S8b/c: in-flight jobs render live progress (JobProgress polls the
+  // record); completed jobs keep the measured table below. Active IDs
+  // derive from the same fetch — one source, no second listing.
+  const [activeIds, setActiveIds] = useState<string[] | null>(null);
 
   useEffect(() => {
     if (!sessionId) {
       setRows(null);
+      setActiveIds(null);
       return;
     }
     let cancelled = false;
     fetchJobs(sessionId).then((jobs) => {
       if (cancelled) return;
+      setActiveIds(
+        jobs
+          .filter((j) => j.status === 'JOB_STATUS_QUEUED' || j.status === 'JOB_STATUS_RUNNING')
+          .map((j) => j.id)
+      );
       const latest = new Map<string, Job>();
       for (const j of jobs) {
         // R7: status is the gate, not timestamp presence — FAILED jobs
@@ -123,6 +134,13 @@ export function MeasuredOutputs({ sessionId }: { sessionId: string | null }) {
       {rows === null && <p className="text-[11px] font-code text-slate-500">Loading job outputs…</p>}
       {rows !== null && rows.length === 0 && (
         <p className="text-[11px] font-code text-slate-500">No completed jobs yet — measured outputs appear here.</p>
+      )}
+      {activeIds !== null && activeIds.length > 0 && (
+        <div className="space-y-1.5">
+          {activeIds.map((id) => (
+            <JobProgress key={id} jobId={id} />
+          ))}
+        </div>
       )}
       {rows !== null && rows.length > 0 && (
         <ul className="space-y-1.5">

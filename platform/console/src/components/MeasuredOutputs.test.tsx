@@ -41,6 +41,9 @@ describe('MeasuredOutputs', () => {
 
   it('binds latest completed jobs per type, skipping the running', async () => {
     vi.stubGlobal('fetch', async (url: string) => {
+      if (String(url).includes('/api/jobs/job-run-1')) {
+        return { ok: true, json: async () => ({ job: { id: 'job-run-1', status: 'JOB_STATUS_RUNNING', job_type: 'circuit_run', created_at: new Date().toISOString() } }) };
+      }
       expect(String(url)).toContain('/api/jobs?session_id=s');
       return { ok: true, json: async () => ({ jobs: JOBS }) };
     });
@@ -57,10 +60,14 @@ describe('MeasuredOutputs', () => {
     expect(text).toContain('go-fallback-estimate');
     expect(text).toContain('(estimate)');
     expect(text).toContain('job-kry'.slice(0, 8));
-    expect(text).not.toContain('RUNNING');
+    // The running job must not appear as a measured row (R7 gate holds);
+    // it renders in the live-progress section instead (S8b/c).
+    expect(text).not.toContain('job-run-');
     // The newer FAILED krylov job must not displace (or appear as) measured.
     expect(text).not.toContain('bridge blew up');
     expect(text).not.toContain('job-fail'.slice(0, 8));
+    // S8b/c: the running job renders live progress beside the table.
+    expect(text).toContain('RUNNING');
   });
 
   it('says so when nothing completed', async () => {

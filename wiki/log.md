@@ -2298,3 +2298,11 @@ skipped is the exact failure this incident is about:
   checkouts refused the cancel receipt while my tree stayed green. Landed
   the row. Process fix: review git status --short before every commit —
   explicit add-lists silently drop hunks in old files.
+
+## [2026-10-17] feat | S8 console context + progress landed
+  GET /api/sessions/context (BudgetHistory-denominated pressure, summed
+  tokens) + composer ContextReadout + OverflowCard (>=80%, real actions:
+  session-switch wired via new onSessionChange, clear w/ confirm, NO
+  compact theater) + JobProgress polling wired into MeasuredOutputs
+  (R7 gate intact). Tools-hub reduced (no backends). 8 vitests, 86/86 +
+  build clean; Go api/llm/session green. Rows on gaps + plan S8.
