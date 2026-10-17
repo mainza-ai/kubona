@@ -46,6 +46,21 @@ status: tracked
 
 ## B · Queued programs (unblocked, beyond a single slice)
 
+- UI/Docker production program (report 2026-10-17: U0 → D1 → U1 → U2 → U3 → D2).
+  > ✅ U0 LANDED: console tests + lint in CI (19 lint errors fixed:
+  > 6 render-phase key-change resets — no stale-session bleed — + 13
+  > typed test casts); quantum-runner == pins measured from the shipped
+  > image + rebuilt + import-verified; openbao digest-pinned + dev-only
+  > header.
+  > ✅ D1-skeleton LANDED: Dockerfiles for kubonad (CGO/sqlite,
+  > nonroot, healthcheck) / console (standalone, CI-identical toolchain,
+  > nonroot) / bridge (pinned extras, grpc healthcheck); `.dockerignore`
+  > ×3; `compose.prod.yml` (health-gated, resource-limited, vault +
+  > pgvector deliberately absent); CI `docker-smoke` job wired into the
+  > release gate. Live findings fixed: fresh state roots never became
+  > ready (daemon now ensures the models dir, regression-tested);
+  > plaintext-compose needs the explicit opt-in the server demands.
+  > Next: U1 (health banner, tenant writes, loop override, metasearch UI).
 - P1-4 subsystem consolidation execution — design: [[agent-subsystem-consolidation]].
   > ✅ STEP 1 LANDED 2026-10-17: conformance freezes on all three
   > registry homes (Go + 2× Python) + boot-crash hardening

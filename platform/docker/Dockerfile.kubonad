@@ -1,0 +1,46 @@
+# Kubona Go Orchestrator (kubonad) — production image (D1).
+#
+# Multi-stage: builder compiles the static-ish binary (CGO stays ON:
+# mattn/go-sqlite3 needs gcc; the amalgamation links statically so the
+# final image needs no libsqlite3), final is debian-slim + nonroot.
+# Go toolchain pinned to the CI lane (go.mod / ci.yml: 1.27.1).
+# Health: /api/health + /api/ready are public reads (no bearer), so the
+# HEALTHCHECK needs no token. curl exists in final ONLY for that probe.
+#
+# Build (repo root):  docker build -f platform/docker/Dockerfile.kubonad -t kubona/kubonad:dev platform/core
+# Run (compose is the supported path): see compose.prod.yml.
+
+FROM golang:1.27.1-bookworm AS build
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+# Trimpath for reproducible builds; CGO required (sqlite).
+RUN CGO_ENABLED=1 go build -trimpath -o /kubonad ./cmd/kubonad
+
+FROM debian:bookworm-slim
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd -g 1000 kubona && useradd -u 1000 -g kubona -m -s /bin/sh kubona
+
+COPY --from=build /kubonad /usr/local/bin/kubonad
+
+# Seed the state dir with daemon ownership: a fresh named volume inherits
+# the image's directory (owner included); without this the volume mounts
+# root-owned and the nonroot daemon cannot create its state (boot refuses,
+# fail-closed — observed live before this line existed).
+RUN mkdir -p /home/kubona/.kubona/models && chown -R kubona:kubona /home/kubona/.kubona
+
+USER kubona
+EXPOSE 8080
+# State default is ~/.kubona/kubona.db — mount a volume there (compose does).
+HEALTHCHECK --interval=10s --timeout=3s --retries=3 --start-period=15s \
+    CMD curl -fsS http://127.0.0.1:8080/api/health || exit 1
+
+ENTRYPOINT ["/usr/local/bin/kubonad"]
+# Loopback default is overridden here: the container port is published by
+# compose, and TLS termination (if any) sits in front — see compose.prod.yml.
+CMD ["--bind", "0.0.0.0", "--port", "8080"]

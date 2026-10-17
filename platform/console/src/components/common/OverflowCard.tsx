@@ -22,12 +22,17 @@ export function OverflowCard({
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<string | null>(null);
 
+  // Same key-change reset as ContextReadout (shared data source): never
+  // show the old session's pressure card while the new one loads.
+  const [prevSessionId, setPrevSessionId] = useState(sessionId);
+  if (prevSessionId !== sessionId) {
+    setPrevSessionId(sessionId);
+    setCtx(null);
+  }
+
   useEffect(() => {
+    if (!sessionId) return;
     let live = true;
-    if (!sessionId) {
-      setCtx(null);
-      return;
-    }
     fetchSessionContext(sessionId).then((c) => {
       if (live) setCtx(c);
     });

@@ -25,11 +25,19 @@ export function JobDetailWidget({ jobId }: { jobId: string }) {
   const [missing, setMissing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let mounted = true;
+  // Reset during render on job change (same key-change pattern as the
+  // context readouts): stale job/error/missing flags must not bleed
+  // across job selections while the refetch is in flight.
+  const [prevJobId, setPrevJobId] = useState(jobId);
+  if (prevJobId !== jobId) {
+    setPrevJobId(jobId);
     setError(null);
     setMissing(false);
     setJob(null);
+  }
+
+  useEffect(() => {
+    let mounted = true;
     fetchJob(jobId).then(
       (j) => {
         if (!mounted) return;

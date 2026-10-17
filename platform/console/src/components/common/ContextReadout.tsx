@@ -10,12 +10,19 @@ import { fetchSessionContext, type SessionContext } from '@/lib/api';
 export function ContextReadout({ sessionId, refreshKey }: { sessionId: string; refreshKey: number }) {
   const [ctx, setCtx] = useState<SessionContext | null>(null);
 
+  // Reset during render on session change (React-endorsed key-change
+  // pattern): the readout must never bleed one session's pressure into
+  // another while the refetch is in flight — no synchronous setState in
+  // the fetch effect below.
+  const [prevSessionId, setPrevSessionId] = useState(sessionId);
+  if (prevSessionId !== sessionId) {
+    setPrevSessionId(sessionId);
+    setCtx(null);
+  }
+
   useEffect(() => {
+    if (!sessionId) return;
     let live = true;
-    if (!sessionId) {
-      setCtx(null);
-      return;
-    }
     fetchSessionContext(sessionId).then((c) => {
       if (live) setCtx(c);
     });

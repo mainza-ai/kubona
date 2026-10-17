@@ -1,0 +1,102 @@
+# Kubona production stack (D1 skeleton).
+#
+#   kubonad :8080  <- console + operator (Go orchestrator, SQLite ledger)
+#   bridge  :50051  <- kubonad only (Python gRPC compute; NOT published)
+#   console :3000  <- browser (Next.js standalone)
+#
+# Deliberately absent: vault (dev-only compose; promotion needs real
+# storage + init/unseal + TLS — see docker-compose.vault.yml header),
+# pgvector (dormant by design, Q-34; start docker-compose.hindsight.yml
+# explicitly if a memory experiment needs it).
+#
+# Up:   docker compose -f platform/docker/compose.prod.yml up --build -d
+# Down: docker compose -f platform/docker/compose.prod.yml down
+#
+# Writes need KUBONA_API_TOKEN in the environment (export it first):
+# unset means bearer-gated routes 503 with "API token not configured"
+# (fail-closed, by design). Reads stay public behind limiters.
+# TLS: terminate in front (reverse proxy) or mount PEM into kubonad and
+# extend its command with --tls-cert/--tls-key [--tls-required].
+
+name: kubona-prod
+
+services:
+  bridge:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.bridge
+    image: kubona/bridge:prod
+    expose:
+      - "50051"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+    healthcheck:
+      test: ["CMD", "python", "-c", "import grpc; grpc.channel_ready_future(grpc.insecure_channel('127.0.0.1:50051')).result(timeout=4)"]
+      interval: 15s
+      timeout: 6s
+      retries: 3
+      start_period: 60s
+
+  kubonad:
+    build:
+      context: ../core
+      dockerfile: ../docker/Dockerfile.kubonad
+    image: kubona/kubonad:prod
+    command: ["--bind", "0.0.0.0", "--port", "8080", "--bridge", "bridge:50051"]
+    environment:
+      KUBONA_API_TOKEN: ${KUBONA_API_TOKEN:-}
+      # Plain HTTP inside the compose network only: kubonad itself
+      # refuses non-loopback plaintext without TLS or this explicit
+      # opt-in. TLS terminates in front (reverse proxy) or via mounted
+      # PEM + --tls-cert/--tls-key flags — never expose :8080 directly.
+      KUBONA_ALLOW_PLAINTEXT: "1"
+    ports:
+      - "8080:8080"
+    # Runbook: if host localhost:8080 answers with sessions the stack
+    # never created, a dev daemon owns the host port (it binds before /
+    # beside Docker's forward). The stack itself is unaffected — probe it
+    # in-network (docker exec <svc> curl kubonad:8080/...) — but stop the
+    # dev daemon before trusting host-port curls.
+    volumes:
+      - kubona-state:/home/kubona/.kubona
+    depends_on:
+      bridge:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8080/api/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 15s
+
+  console:
+    build:
+      context: ../console
+      dockerfile: ../docker/Dockerfile.console
+      args:
+        NEXT_PUBLIC_API_URL: ${KUBONA_CONSOLE_API_URL:-http://localhost:8080}
+    image: kubona/console:prod
+    ports:
+      - "3000:3000"
+    depends_on:
+      kubonad:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1G
+
+volumes:
+  kubona-state:

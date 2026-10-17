@@ -2470,3 +2470,14 @@ skipped is the exact failure this incident is about:
   threading: assessed, no change by design (possession model + scope
   gates + file sharding; gateway sub→requester binding limit stated).
   Python 682 + Go agents green, lint clean.
+
+## [2026-10-17] decision | U0 + D1-skeleton landed (UI/Docker production program)
+  U0: console vitest+eslint in CI (19 lint errors fixed, suites green);
+  quantum-runner == pins (measured from shipped image, rebuilt +
+  import-verified); openbao digest-pinned + dev-only header. D1: kubonad/
+  console/bridge Dockerfiles + .dockerignore x3 + compose.prod.yml + CI
+  docker-smoke in the release gate. Live fixes: fresh state roots never
+  ready (daemon ensures models dir, regression-tested, ready 503->200);
+  compose needs the explicit plaintext opt-in the server demands.
+  Contamination lesson: a dev daemon owned host :8080 during smoke —
+  in-network probes are the source of truth (runbook noted in compose).
