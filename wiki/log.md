@@ -2265,3 +2265,11 @@ skipped is the exact failure this incident is about:
   cascade over 9 tables (receipt survives). ledger.CanonicalHash unified
   (I1). 5 tests, full Go suite green, live export/import/replay/tamper
   matrix. Rows on gaps + plan S5.
+
+## [2026-10-17] feat | S6 redaction by construction landed
+  sandbox.BoundOutput (16KiB UTF-8-safe, flagged) at parseHarnessOutput
+  incl. failure reasons; job results refuse >1MB (result_too_large);
+  KnownEventTypes (~60) enforced at all 3 append chokes + conformance
+  test; test event names migrated to registered types (incl. a spend
+  story). Enforcement caught missing proposal_generated on first run.
+  8 tests, race green, live shape intact. Rows on gaps + plan S6.

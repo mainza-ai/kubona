@@ -702,3 +702,34 @@ func TestFidelityAssessmentSealedToLedger(t *testing.T) {
 		t.Fatalf("below-floor mitigation refusal not sealed: %v", seen)
 	}
 }
+
+type bigBridge struct {
+	fakeBridge
+}
+
+func (b *bigBridge) ExecuteCircuit(ctx context.Context, in *pb.CircuitExecutionRequest, opts ...grpc.CallOption) (*pb.CircuitExecutionResponse, error) {
+	return &pb.CircuitExecutionResponse{Success: true, JobId: in.JobId, ErrorMessage: strings.Repeat("B", 2*1024*1024)}, nil
+}
+
+func TestOversizeResultRefused(t *testing.T) {
+	r, cleanup := setupRunner(t, &bigBridge{})
+	defer cleanup()
+	j, err := r.SubmitJob("sess-1", "circuit_run", map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "shots": 8})
+	if err != nil {
+		t.Fatalf("submit: %v", err)
+	}
+	settled := pollJob(t, r, j.ID)
+	if settled.Status != pb.JobStatus_JOB_STATUS_FAILED {
+		t.Fatalf("oversize result must fail the job, got %s", settled.Status)
+	}
+	got, err := r.GetJob(j.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if len(got.ResultJSON) > MaxStoredResultBytes {
+		t.Fatalf("stored blob must respect the cap, got %d bytes", len(got.ResultJSON))
+	}
+	if !strings.Contains(string(got.ResultJSON), "result_too_large") {
+		t.Fatalf("failure must name result_too_large, got %s", got.ResultJSON)
+	}
+}

@@ -33,7 +33,7 @@ func TestLedgerLifecycle(t *testing.T) {
 	defer l.Close()
 
 	sessionID := "sess-123"
-	if err := l.AppendEvent(sessionID, "test_event", map[string]string{"foo": "bar"}); err != nil {
+	if err := l.AppendEvent(sessionID, "chat_message_appended", map[string]string{"foo": "bar"}); err != nil {
 		t.Fatalf("failed to append event: %v", err)
 	}
 
@@ -44,7 +44,7 @@ func TestLedgerLifecycle(t *testing.T) {
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
-	if events[0].EventType != "test_event" {
+	if events[0].EventType != "chat_message_appended" {
 		t.Errorf("expected test_event, got %s", events[0].EventType)
 	}
 }
@@ -87,7 +87,7 @@ func TestSignedLedgerEventsAndTamperDetection(t *testing.T) {
 	}
 
 	// 2. Append second signed event (chained to event 1)
-	ev2, err := l.AppendSignedEvent(sessionID, "tribunal_verdict", map[string]any{
+	ev2, err := l.AppendSignedEvent(sessionID, "tribunal_turn", map[string]any{
 		"disconfirmation_passed": true,
 		"admissible":             true,
 	}, privKey)
@@ -115,7 +115,7 @@ func TestSignedLedgerEventsAndTamperDetection(t *testing.T) {
 
 	// 4. Tampering test: signature forged with another key
 	_, otherPrivKey, _ := ed25519.GenerateKey(nil)
-	evForged, err := l.AppendSignedEvent(sessionID, "unauthorized_payout", map[string]any{"amount": 1000}, otherPrivKey)
+	evForged, err := l.AppendSignedEvent(sessionID, "tenant_spend_reserved", map[string]any{"amount": 1000}, otherPrivKey)
 	if err != nil {
 		t.Fatalf("failed to append forged event: %v", err)
 	}
@@ -148,7 +148,7 @@ func TestLedgerConfidentialityLabels(t *testing.T) {
 	}
 
 	// Explicit public label allowed.
-	pub, err := l.AppendLabeledEvent("sess-lab", "announcement", map[string]string{"m": "1"}, nil, "public")
+	pub, err := l.AppendLabeledEvent("sess-lab", "chat_message_appended", map[string]string{"m": "1"}, nil, "public")
 	if err != nil || pub.ConfLabel != "public" {
 		t.Fatalf("public label must be writable: %+v err=%v", pub, err)
 	}
@@ -491,5 +491,23 @@ func TestReconcileLoopsOnBoot(t *testing.T) {
 	}
 	if byID["l-done"] != "completed" || byID["l-abort"] != "aborted" || byID["l-sleep"] != "sleeping" {
 		t.Fatalf("terminal states untouched: %v", byID)
+	}
+}
+
+func TestUnregisteredEventTypeRefused(t *testing.T) {
+	dbPath := "test_taxonomy.db"
+	defer os.Remove(dbPath)
+	l, err := ledger.OpenLedger(dbPath)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer l.Close()
+	if err := l.AppendEvent("s1", "typo_event_typo", map[string]string{"k": "v"}); err == nil {
+		t.Fatalf("unregistered type must refuse")
+	} else if got := err.Error(); !strings.Contains(got, "unregistered event_type") {
+		t.Fatalf("refusal must name the taxonomy, got %q", got)
+	}
+	if !ledger.IsKnownEventType("job_queued") || ledger.IsKnownEventType("typo_event_typo") {
+		t.Fatalf("registry lookup broken")
 	}
 }

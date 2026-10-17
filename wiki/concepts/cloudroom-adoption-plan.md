@@ -291,7 +291,19 @@ status: candidate
 - **Live proof:** export → fresh DB import → `verify` chain + resume.
 - **Wiki:** memory + gaps rows.
 
-### S6 — Observability redaction by construction (S)
+### S6 — Observability redaction by construction (S) — ✅ LANDED 2026-10-17
+
+> Landed: `sandbox.BoundOutput` (16 KiB cap, UTF-8-safe, truncation flagged
+> with original byte counts) applied at `parseHarnessOutput` — the single
+> choke where sandbox streams enter persisted structures (incl. the
+> previously unbounded failure-reason string); job result blobs refuse above
+> 1 MB (`result_too_large`, auditable) instead of persisting unbounded
+> bridge payloads; closed event taxonomy (`KnownEventTypes`, ~60 rows)
+> **enforced** at all three append chokes (a typo'd type can never fork the
+> trail) with a conformance test over exercised flows; test-only event
+> names migrated to registered types (spend-attribution story kept).
+> Enforcement immediately caught a missing `proposal_generated` row.
+> 8 tests; race green; live job shape intact, emitted types registered.
 
 - **Threat:** PII/prompts/secrets drift into diagnostics (G10).
 - **Logic:** fixed taxonomy (route, status, latency, counts — closed field
