@@ -138,9 +138,16 @@ func (c *Client) CompleteWithTools(ctx context.Context, role string, messages []
 	chatResp.Usage.PromptTokens = parsed.Usage.PromptTokens
 	chatResp.Usage.CompletionTokens = parsed.Usage.CompletionTokens
 	chatResp.Usage.TotalTokens = parsed.Usage.TotalTokens
-	c.reportSpend(providerType, model,
-		parsed.Usage.PromptTokens, parsed.Usage.CompletionTokens,
-		parsed.Usage.TotalTokens > 0)
+	// W0.19: same metered-usage rule as Complete — the tool loop is the
+	// highest-volume cloud path; leaving it ungated would scope-dodge.
+	usageOK := parsed.Usage.TotalTokens > 0
+	if err := c.requireMeteredUsage(providerType, model, usageOK); err != nil {
+		return "", nil, nil, duration, err
+	}
+	if usageOK {
+		c.reportSpend(providerType, model,
+			parsed.Usage.PromptTokens, parsed.Usage.CompletionTokens, true)
+	}
 	return ch.Message.Content, fromWireCalls(ch.Message.ToolCalls), chatResp, duration, nil
 }
 

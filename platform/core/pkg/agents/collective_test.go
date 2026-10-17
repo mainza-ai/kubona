@@ -111,6 +111,7 @@ func TestObserveTurnDispatches(t *testing.T) {
 					"message":       map[string]any{"content": "anchor observed: -1.13727"},
 					"finish_reason": "stop",
 				}},
+				"usage": map[string]any{"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
 			})
 			return
 		}
@@ -129,6 +130,7 @@ func TestObserveTurnDispatches(t *testing.T) {
 				},
 				"finish_reason": "tool_calls",
 			}},
+			"usage": map[string]any{"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
 		})
 	}))
 	defer srv.Close()
@@ -202,6 +204,9 @@ func stubTribunalClient(t *testing.T) *llm.Client {
 					"message":       map[string]any{"content": "Evidence weighed from the observed tool result; the anchor holds within tolerance and gradients are healthy."},
 					"finish_reason": "stop",
 				}},
+				// W0.19: stubs report usage like real providers — usage-less
+				// stubs trip the blind-spend refusal, which is the point.
+				"usage": map[string]any{"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
 			})
 			return
 		}
@@ -220,6 +225,7 @@ func stubTribunalClient(t *testing.T) *llm.Client {
 				},
 				"finish_reason": "tool_calls",
 			}},
+			"usage": map[string]any{"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
 		})
 	}))
 	t.Cleanup(srv.Close)
