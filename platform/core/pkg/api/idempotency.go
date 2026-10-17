@@ -22,8 +22,6 @@ package api
 // All tunables live below — never a copied literal elsewhere.
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -62,17 +60,15 @@ func ValidateRequestID(id string) error {
 	return nil
 }
 
-// CanonicalContentHash (I1) hashes the spend-binding fields. encoding/json
-// sorts map keys, so the digest is stable across key order and process
-// restarts; RawMessage fields hash as their exact bytes (clients must reuse
-// exact bytes for retries — documented on every keyed route).
+// CanonicalContentHash (I1) hashes the spend-binding fields. The digest
+// lives in pkg/ledger (single source); this wrapper keeps handler
+// call-sites stable.
 func CanonicalContentHash(v any) (string, error) {
-	raw, err := json.Marshal(v)
+	h, err := ledger.CanonicalHash(v)
 	if err != nil {
 		return "", fmt.Errorf("idempotency content not hashable: %w", err)
 	}
-	sum := sha256.Sum256(raw)
-	return hex.EncodeToString(sum[:]), nil
+	return h, nil
 }
 
 // idemTicket is a claimed (or replayed) key. Handlers must route every exit

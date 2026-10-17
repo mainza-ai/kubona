@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -345,17 +346,25 @@ func (m *Manager) SetMessageUsage(messageID string, durationMs int64, usage *jso
 }
 
 func (m *Manager) DeleteSession(id string) error {
+	// I4 fail-closed cascade (S5): refuse while live work or money trails
+	// exist; else delete ALL session rows (previously only chat +
+	// campaign_states + sessions, orphaning jobs/loops/events/claims/
+	// versions/layouts/keys).
+	if blockers, err := m.DeleteBlockers(id); err != nil {
+		return err
+	} else if len(blockers) > 0 {
+		return fmt.Errorf("session %s not deleted: %s (settle or abort first)", id, strings.Join(blockers, "; "))
+	}
 	tx, err := m.ledger.DB().Begin()
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
 
-	if _, err := tx.Exec(`DELETE FROM chat_messages WHERE session_id = ?`, id); err != nil {
-		return err
-	}
-	if _, err := tx.Exec(`DELETE FROM campaign_states WHERE session_id = ?`, id); err != nil {
-		return err
+	for _, table := range []string{"chat_messages", "campaign_states", "campaign_versions", "claim_records", "canvas_layouts", "jobs", "loops", "ledger_events", "idempotency_keys"} {
+		if _, err := tx.Exec(fmt.Sprintf(`DELETE FROM %s WHERE session_id = ?`, table), id); err != nil {
+			return err
+		}
 	}
 	res, err := tx.Exec(`DELETE FROM sessions WHERE id = ?`, id)
 	if err != nil {

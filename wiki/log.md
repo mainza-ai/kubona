@@ -2256,3 +2256,12 @@ skipped is the exact failure this incident is about:
   both routes (key test +401 case), canary absence scan. 4 tests,
   negative-tested, race green; live 401/200/400/400/200/404. Notes on
   secrets page + plan S4.
+
+## [2026-10-17] feat | S5 session migration + delete cascade landed
+  POST /api/sessions/export|import, manifest v1 digest-pinned (normalized
+  form; nanos truncated; event IDs preserved; updated_at excluded),
+  validation-before-replay (tampered-existing 400s, caught live),
+  ONE session_imported record, caps enforced. DeleteSession fail-closed
+  cascade over 9 tables (receipt survives). ledger.CanonicalHash unified
+  (I1). 5 tests, full Go suite green, live export/import/replay/tamper
+  matrix. Rows on gaps + plan S5.
