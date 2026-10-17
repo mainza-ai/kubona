@@ -23,7 +23,7 @@ from kubona.config import state_path
 
 
 @dataclass(frozen=True)
-class Principal:
+class Identity:
     sub: str          # identity id (person or agent)
     kind: str         # "user" | "agent"
     pubkey_hex: str
@@ -54,7 +54,7 @@ class IdentityRegistry:
     def __init__(self, path: str | Path | None = None):
         self.path = Path(path) if path else state_path("identity.json")
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self._principals: dict[str, Principal] = {}
+        self._principals: dict[str, Identity] = {}
         self._delegations: dict[str, Delegation] = {}
         self._load()
 
@@ -62,7 +62,7 @@ class IdentityRegistry:
     def _load(self) -> None:
         if self.path.exists():
             data = json.loads(self.path.read_text())
-            self._principals = {k: Principal(**v) for k, v in data.get("principals", {}).items()}
+            self._principals = {k: Identity(**v) for k, v in data.get("principals", {}).items()}
             self._delegations = {k: Delegation(**v) for k, v in data.get("delegations", {}).items()}
 
     def _save(self) -> None:
@@ -73,8 +73,8 @@ class IdentityRegistry:
         self.path.write_text(json.dumps(data, indent=2, sort_keys=True))
 
     # -- principals -------------------------------------------------------
-    def register(self, sub: str, kind: str, pubkey_hex: str, owner: str | None = None) -> Principal:
-        p = Principal(sub=sub, kind=kind, pubkey_hex=pubkey_hex, owner=owner)
+    def register(self, sub: str, kind: str, pubkey_hex: str, owner: str | None = None) -> Identity:
+        p = Identity(sub=sub, kind=kind, pubkey_hex=pubkey_hex, owner=owner)
         self._principals[sub] = p
         self._save()
         return p
@@ -82,7 +82,7 @@ class IdentityRegistry:
     def get(self, sub: str) -> Principal | None:
         return self._principals.get(sub)
 
-    def agents_of(self, owner: str) -> list[Principal]:
+    def agents_of(self, owner: str) -> list[Identity]:
         return [p for p in self._principals.values() if p.owner == owner]
 
     # -- delegations ------------------------------------------------------

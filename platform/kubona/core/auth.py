@@ -5,8 +5,11 @@ Decouples identity and authentication types from the MCP namespace.
 
 from __future__ import annotations
 
+import hmac
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+
+from kubona.config import is_production
 
 
 class AuthError(Exception):
@@ -16,10 +19,16 @@ class AuthError(Exception):
 
 @dataclass(frozen=True)
 class Principal:
-    """Represents an authenticated principal (human, agent, or service)."""
+    """Represents an authenticated principal (human, agent, or service).
+
+    Least privilege by construction (W0.13): no role, no scopes unless
+    explicitly granted. The old defaults (role="operator", scopes=("*",))
+    made every `Principal(sub=...)` without kwargs god-mode — forgotten
+    kwargs must never equal full authorization.
+    """
     sub: str
-    role: str = "operator"
-    scopes: tuple[str, ...] = ("*",)
+    role: str = "user"
+    scopes: tuple[str, ...] = ()
 
 
 class AuthProvider(ABC):
@@ -31,17 +40,25 @@ class AuthProvider(ABC):
 
 
 class DevAuthProvider(AuthProvider):
-    """Local/CI auth: 'dev-token' authenticates as the default operator.
+    """Local/CI auth: 'dev-token' authenticates as the configured principal.
 
-    Only ever used outside KUBONA_ENV=production; production wires the real
-    OAuth2 issuer (see kubona.security.oauth + kubona.run.build_auth).
+    Dev-only by construction (W0.13): verify() refuses outright in
+    KUBONA_ENV=production (a wrong import in prod used to silently enable
+    god-mode), and token comparison is constant-time. The default scopes
+    are explicitly documented god-mode-for-dev — reachable only through
+    this class, never through a bare Principal().
     """
 
-    def __init__(self, sub: str = "researcher@kubona.local", role: str = "operator"):
+    def __init__(self, sub: str = "researcher@kubona.local", role: str = "operator",
+                 scopes: tuple[str, ...] = ("*",), token: str = "dev-token"):
         self._sub = sub
         self._role = role
+        self._scopes = scopes
+        self._token = token
 
     def verify(self, token: str) -> Principal:
-        if token != "dev-token":
+        if is_production():
+            raise AuthError("dev auth is disabled in production: wire the OAuth2 issuer")
+        if not hmac.compare_digest(token or "", self._token):
             raise AuthError("invalid or missing token (dev auth: use 'dev-token')")
-        return Principal(sub=self._sub, role=self._role)
+        return Principal(sub=self._sub, role=self._role, scopes=self._scopes)

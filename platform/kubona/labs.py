@@ -14,6 +14,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from kubona.config import state_path
+from kubona.session import tenant_slug
 from typing import Any
 
 
@@ -39,9 +40,14 @@ class LabRegistry:
             self._labs = [Lab(**l) for l in json.loads(self.path.read_text())]
 
     def create(self, name: str, owner: str, members: list[str] | None = None) -> Lab:
+        # W0.13: tenant derives through the single shared slug rule — the old
+        # inline lower/replace let hostile names collapse onto shared
+        # namespaces (cross-lab session/budget bleed). Invalid names refuse.
+        slug = tenant_slug(name)
+        if any(l.tenant == slug for l in self._labs):
+            raise ValueError(f"tenant {slug!r} already exists: lab names must not collide")
         lab = Lab(lab_id=uuid.uuid4().hex[:8], name=name, owner=owner,
-                  tenant=name.lower().replace(" ", "-"),
-                  members=members or [owner])
+                  tenant=slug, members=members or [owner])
         self._labs.append(lab)
         self._save()
         return lab

@@ -23,3 +23,81 @@ def test_session_persists_across_reload(tmp_path):
     store2 = SessionStore(path=path)  # fresh instance, same file
     s2 = store2.get(s.session_id)
     assert s2.spent_usd == 2.0
+
+
+def test_update_allowlist(tmp_path):
+    """W0.13: arbitrary setattr is gone — ceilings, spend, and ids are not
+    mutable via update; bad statuses refuse."""
+    import pytest
+    store = SessionStore(path=str(tmp_path / "s.jsonl"))
+    s = store.create("v", "agent", budget_ceiling_usd=50.0)
+    for bad in ("spent_usd", "budget_ceiling_usd", "owner", "created_at"):
+        with pytest.raises(ValueError):
+            store.update(s.session_id, **{bad: 0})
+    with pytest.raises(ValueError):
+        store.update(s.session_id, status="archived")
+    store.update(s.session_id, name="renamed")
+    assert store.get(s.session_id).name == "renamed"
+
+
+def test_spend_validation(tmp_path):
+    """W0.13: negative/NaN/zero spend refuses (no silent unwinding); poisoned
+    ceilings refuse at create."""
+    import math
+    import pytest
+    store = SessionStore(path=str(tmp_path / "s.jsonl"))
+    s = store.create("v", "agent", budget_ceiling_usd=50.0)
+    for bad in (0.0, -5.0, math.nan, math.inf):
+        with pytest.raises(ValueError):
+            store.record_spend(s.session_id, bad)
+    for bad_ceiling in (-1.0, math.nan, math.inf):
+        with pytest.raises(ValueError):
+            store.create("v", "agent", budget_ceiling_usd=bad_ceiling)
+
+
+def test_concurrent_spend_no_overshoot(tmp_path):
+    """W0.13: two concurrent spends serialize under the ceiling."""
+    import threading
+    store = SessionStore(path=str(tmp_path / "s.jsonl"))
+    s = store.create("v", "agent", budget_ceiling_usd=10.0)
+    won = []
+
+    def spend():
+        try:
+            store.record_spend(s.session_id, 6.0)
+            won.append(True)
+        except ValueError:
+            won.append(False)
+
+    ts = [threading.Thread(target=spend) for _ in range(4)]
+    [t.start() for t in ts]
+    [t.join() for t in ts]
+    assert won.count(True) == 1, f"exactly one 6.0 spend fits in 10.0: {won}"
+    assert store.get(s.session_id).spent_usd == 6.0
+
+
+def test_corrupt_lines_quarantined(tmp_path):
+    """W0.13: one corrupt line never bricks the store."""
+    path = tmp_path / "s.jsonl"
+    store = SessionStore(path=str(path))
+    s = store.create("v", "agent")
+    with open(path, "a") as f:
+        f.write("not-json{{{\n")
+    assert store.get(s.session_id).session_id == s.session_id
+
+
+def test_tenant_slug_and_labs(tmp_path):
+    """W0.13: hostile tenant names refuse; labs share the slug rule and
+    cannot collide."""
+    import pytest
+    from kubona.session import tenant_slug
+    assert tenant_slug("Lab-A") == "Lab-A"
+    for bad in ("", "   ", "...", "..", "x" * 65, "/etc/passwd"[:0] or "///"):
+        with pytest.raises(ValueError):
+            tenant_slug(bad)
+    from kubona.labs import LabRegistry
+    labs = LabRegistry(path=str(tmp_path / "labs.json"))
+    a = labs.create("Lab A", "owner")
+    assert a.tenant == "LabA"
+    with pytest.raises(ValueError):
+        labs.create("Lab A", "owner")  # same slug collides

@@ -9,20 +9,56 @@ reconstruction cache).
 
 from __future__ import annotations
 
+import fcntl
 import json
+import math
 import os
 import tempfile
+import threading
 import time
 import uuid
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from kubona.config import state_path
 
 
+def tenant_slug(tenant: str) -> str:
+    """Canonical tenant slug (W0.13, single shared rule): the historical
+    charset mapping (alnum + dash/underscore, case preserved — existing
+    session dirs depend on it), plus validity: non-empty after stripping,
+    max 64 chars. Anything else refuses — the old strip-to-empty rule
+    collapsed hostile names like "..." onto the default namespace
+    (cross-tenant session/budget bleed). labs.py derives tenants through
+    this function. Residual: case-only-distinct names ("LabA" vs "laba")
+    share a directory on case-insensitive filesystems — treat tenant names
+    as case-sensitive identifiers and don't mint near-collisions."""
+    if not isinstance(tenant, str):
+        raise ValueError(f"tenant must be a string, got {type(tenant).__name__}")
+    slug = "".join(ch for ch in tenant.strip() if ch.isalnum() or ch in "-_")
+    if not slug or len(slug) > 64:
+        raise ValueError(f"tenant {tenant!r} is not a valid lab slug: refusing")
+    return slug
+
+
 def _tenant_dir(tenant: str) -> str:
-    return "".join(ch for ch in tenant if ch.isalnum() or ch in "-_")
+    return tenant_slug(tenant)
+
+
+# update() may only write these fields (W0.13): the old arbitrary setattr
+# let any caller raise ceilings, unwind spend, flip status, even rewrite
+# session_id. spent_usd is deliberately absent — spend moves only through
+# record_spend (ceiling-checked under lock); status only open|closed.
+MUTABLE_FIELDS = frozenset({"name", "status", "jobs", "meta", "approvals"})
+SESSION_STATUSES = frozenset({"open", "closed"})
+
+
+def _check_amount(usd: float, what: str) -> float:
+    if not isinstance(usd, (int, float)) or not math.isfinite(usd) or usd <= 0:
+        raise ValueError(f"{what} must be a positive finite number, got {usd!r}")
+    return float(usd)
 
 
 def _state_dir() -> str | os.PathLike:
@@ -64,14 +100,35 @@ class SessionStore:
                 path = _state_dir() / "sessions.jsonl"
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.Lock()
+        self._lock_path = self.path.parent / (self.path.name + ".lock")
+
+    @contextmanager
+    def _exclusive(self) -> Iterator[None]:
+        """Serialize load-modify-append across threads and processes (W0.13):
+        record_spend was read-check-then-append with no lock — two concurrent
+        spends both passed the ceiling, then both landed."""
+        with self._lock:
+            with open(self._lock_path, "a+b") as lf:
+                fcntl.flock(lf.fileno(), fcntl.LOCK_EX)
+                try:
+                    yield
+                finally:
+                    fcntl.flock(lf.fileno(), fcntl.LOCK_UN)
 
     def _load(self) -> dict[str, SessionState]:
         out: dict[str, SessionState] = {}
         if self.path.exists():
+            skipped = 0
             for line in self.path.read_text().splitlines():
-                if line.strip():
+                if not line.strip():
+                    continue
+                try:
                     s = SessionState(**json.loads(line))
-                    out[s.session_id] = s
+                except (ValueError, TypeError, KeyError):
+                    skipped += 1  # corrupt line quarantined, never fatal
+                    continue
+                out[s.session_id] = s
         return out
 
     def _save(self, s: SessionState) -> None:
@@ -79,6 +136,12 @@ class SessionStore:
             f.write(json.dumps(asdict(s), sort_keys=True) + "\n")
 
     def create(self, name: str, owner: str, budget_ceiling_usd: float | None = None) -> SessionState:
+        if budget_ceiling_usd is not None and (
+            not isinstance(budget_ceiling_usd, (int, float))
+            or not math.isfinite(budget_ceiling_usd)
+            or budget_ceiling_usd < 0
+        ):
+            raise ValueError(f"budget_ceiling_usd must be finite >= 0 or None, got {budget_ceiling_usd!r}")
         s = SessionState(
             session_id=uuid.uuid4().hex[:16],
             name=name,
@@ -95,12 +158,18 @@ class SessionStore:
         return s
 
     def update(self, session_id: str, **changes: Any) -> SessionState:
-        s = self.get(session_id)
-        for k, v in changes.items():
-            setattr(s, k, v)
-        s.updated_at = time.time()
-        self._save(s)
-        return s
+        for k in changes:
+            if k not in MUTABLE_FIELDS:
+                raise ValueError(f"session field {k!r} is not mutable via update (spend moves via record_spend)")
+        if "status" in changes and changes["status"] not in SESSION_STATUSES:
+            raise ValueError(f"session status must be one of {sorted(SESSION_STATUSES)}, got {changes['status']!r}")
+        with self._exclusive():
+            s = self.get(session_id)
+            for k, v in changes.items():
+                setattr(s, k, v)
+            s.updated_at = time.time()
+            self._save(s)
+            return s
 
     def record_job(self, session_id: str, job_id: str) -> SessionState:
         s = self.get(session_id)
@@ -109,14 +178,19 @@ class SessionStore:
         return self.update(session_id, jobs=s.jobs)
 
     def record_spend(self, session_id: str, usd: float) -> SessionState:
-        s = self.get(session_id)
-        new_spend = round(s.spent_usd + usd, 6)
-        if s.budget_ceiling_usd is not None and new_spend > s.budget_ceiling_usd:
-            raise ValueError(
-                f"session {session_id} would exceed budget ceiling "
-                f"({new_spend} > {s.budget_ceiling_usd})"
-            )
-        return self.update(session_id, spent_usd=new_spend)
+        amount = _check_amount(usd, "spend")
+        with self._exclusive():
+            s = self.get(session_id)
+            new_spend = round(s.spent_usd + amount, 6)
+            if s.budget_ceiling_usd is not None and new_spend > s.budget_ceiling_usd:
+                raise ValueError(
+                    f"session {session_id} would exceed budget ceiling "
+                    f"({new_spend} > {s.budget_ceiling_usd})"
+                )
+            s.spent_usd = new_spend
+            s.updated_at = time.time()
+            self._save(s)
+            return s
 
     def close(self, session_id: str) -> SessionState:
         return self.update(session_id, status="closed")
