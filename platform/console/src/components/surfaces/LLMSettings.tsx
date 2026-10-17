@@ -12,6 +12,7 @@ import {
   Database,
   CheckCircle2,
   AlertCircle,
+  ShieldAlert,
 } from 'lucide-react';
 import {
   fetchLLMSettings,
@@ -44,6 +45,7 @@ interface SettingsPayload {
   air_gapped: boolean;
   temperature: number;
   max_tokens: number;
+  disable_dsml_fallback?: boolean;
   providers: Record<string, ProviderConfig>;
   role_assignments: Record<string, RoleModelAssignment>;
 }
@@ -290,6 +292,30 @@ export function LLMSettings() {
                 <span>Air-Gap: OFF (Cloud Egress Allowed)</span>
               </>
             )}
+          </button>
+
+          {/* DSML tool-invocation fallback kill-switch (M1-5). KILLED =
+              model prose never becomes tool calls; ON (default) keeps
+              the dialect for gateways that need it. Persists to the
+              daemon via Save — the toggle alone changes nothing
+              server-side. */}
+          <button
+            onClick={() =>
+              setSettings({
+                ...settings,
+                disable_dsml_fallback: !settings.disable_dsml_fallback,
+              })
+            }
+            aria-label="Toggle DSML tool-invocation fallback"
+            title="When on, model text is never parsed as tool calls. Save to apply."
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center space-x-2 border transition-all shadow-sm active:scale-95 ${
+              settings.disable_dsml_fallback
+                ? 'bg-amber-950/70 border-amber-500/40 text-amber-300 ring-1 ring-amber-500/20'
+                : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-300'
+            }`}
+          >
+            <ShieldAlert className="w-3.5 h-3.5 text-amber-400" />
+            <span>DSML fallback: {settings.disable_dsml_fallback ? 'KILLED' : 'ON'}</span>
           </button>
 
           <button
