@@ -26,6 +26,9 @@ export interface Lab {
   spend_ceiling_usd?: number;
   spent_usd?: number;
   status: string;
+  // Registered tenant-admin Ed25519 pubkey (hex). Empty/absent means no
+  // admin is registered — the first SetAdminKey bootstraps it.
+  admin_pubkey_hex?: string;
 }
 
 export interface LiteratureRecord {

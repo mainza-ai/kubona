@@ -5,6 +5,7 @@ import { KeyRound, ShieldCheck, AlertOctagon, Sparkles, ChevronDown, ChevronUp, 
 import { CampaignState, Session } from '@/types';
 import { emergencyAbort, launchProposal, fetchLLMSettings, saveLLMSettings } from '@/lib/api';
 import { ApprovalPacketCard } from '@/components/common/ApprovalPacketCard';
+import { MetasearchPanel } from '@/components/common/MetasearchPanel';
 import { buildApprovalPacketFromCampaign } from '@/lib/approvalPacket';
 import { authorizeSpend } from '@/lib/authorizeSpend';
 import { fmtFixed } from '@/lib/guards';
@@ -284,6 +285,11 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
             <div className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${sovereignAirGap ? 'translate-x-5' : 'translate-x-0'}`} />
           </button>
         </div>
+
+        {/* U1-d: meta-search strategy proposals — the human-approval half
+            of the autonomy loop. Approve/reject/apply are bearer-gated;
+            refusals render with the backend reason. */}
+        <MetasearchPanel />
       </div>
 
       {/* Bottom Footer: Emergency Pause & Progressive Disclosure */}

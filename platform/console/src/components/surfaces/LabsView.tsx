@@ -5,6 +5,7 @@ import { FlaskConical, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-reac
 import { Lab, Session } from '@/types';
 import { fetchLabs, fetchSessions } from '@/lib/api';
 import { fmtMoney } from '@/lib/guards';
+import { LabOpsPanel } from '@/components/common/LabOpsPanel';
 
 function pct(spent: number, ceiling: number): number | null {
   if (!Number.isFinite(spent) || !Number.isFinite(ceiling) || !(ceiling > 0)) return null;
@@ -17,6 +18,13 @@ export function LabsView() {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Refetch labs (U1-b: server owns tenant state — every accepted
+  // ceiling/status/refund/admin-key mutation re-reads it).
+  const reload = async () => {
+    const l = await fetchLabs();
+    setLabs(l);
+  };
 
   useEffect(() => {
     let live = true;
@@ -125,6 +133,9 @@ export function LabsView() {
             </div>
             {expanded && (
               <div className="mt-3 space-y-1.5">
+                {/* U1-b: operator writes (ceiling/suspend/refund/admin) —
+                    bearer + admin envelope, refusals verbatim. */}
+                <LabOpsPanel lab={lab} onChanged={reload} />
                 {labSessions.length === 0 && (
                   <div className="text-xs text-slate-500">No sessions in this lab.</div>
                 )}
