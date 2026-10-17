@@ -1,0 +1,109 @@
+{
+  "digest": "c9fa086c4a1e3e51f5b966d0347d111c61a5e1de769449d13f4d295f2a1f5a6f",
+  "generated_by": "go test ./pkg/api/ -run TestToolCatalogMatchesCheckedIn -update",
+  "tools": [
+    {
+      "name": "evidence_continue",
+      "capability": "evidence:read",
+      "read_only": true,
+      "roles": [
+        "ansatz-scout",
+        "device-auditor",
+        "disconfirmation-officer",
+        "epistemic-scribe"
+      ]
+    },
+    {
+      "name": "get_anchor",
+      "capability": "anchor:read",
+      "read_only": true,
+      "roles": [
+        "ansatz-scout",
+        "copilot",
+        "device-auditor",
+        "disconfirmation-officer",
+        "epistemic-scribe"
+      ]
+    },
+    {
+      "name": "get_campaign",
+      "capability": "campaign:read",
+      "read_only": true,
+      "roles": [
+        "ansatz-scout",
+        "copilot",
+        "device-auditor",
+        "disconfirmation-officer",
+        "epistemic-scribe"
+      ]
+    },
+    {
+      "name": "get_job",
+      "capability": "jobs:read",
+      "read_only": true,
+      "roles": [
+        "ansatz-scout",
+        "copilot",
+        "device-auditor",
+        "disconfirmation-officer",
+        "epistemic-scribe"
+      ]
+    },
+    {
+      "name": "list_jobs",
+      "capability": "jobs:read",
+      "read_only": true,
+      "roles": [
+        "ansatz-scout",
+        "copilot",
+        "device-auditor",
+        "disconfirmation-officer",
+        "epistemic-scribe"
+      ]
+    },
+    {
+      "name": "query_literature",
+      "capability": "literature:read",
+      "read_only": true,
+      "roles": [
+        "ansatz-scout",
+        "copilot",
+        "device-auditor",
+        "disconfirmation-officer",
+        "epistemic-scribe"
+      ]
+    },
+    {
+      "name": "recall_memory",
+      "capability": "memory:read",
+      "read_only": true,
+      "roles": [
+        "ansatz-scout",
+        "copilot",
+        "device-auditor",
+        "disconfirmation-officer",
+        "epistemic-scribe"
+      ]
+    },
+    {
+      "name": "recent_events",
+      "capability": "ledger:read",
+      "read_only": true,
+      "roles": [
+        "ansatz-scout",
+        "copilot",
+        "device-auditor",
+        "disconfirmation-officer",
+        "epistemic-scribe"
+      ]
+    },
+    {
+      "name": "submit_local_sim",
+      "capability": "jobs:submit-local",
+      "read_only": false,
+      "roles": [
+        "copilot"
+      ]
+    }
+  ]
+}
