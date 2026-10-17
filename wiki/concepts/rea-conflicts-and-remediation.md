@@ -34,6 +34,18 @@ against — `platform/contracts/event-types.json` (single source; Go
 unknown kinds like the Go chokes. Cross-rail conformance test asserts the
 two taxonomies are identical.
 **Slice R1a (S, first — R1 dependency):**
+> ✅ LANDED 2026-10-17 (`7fc6a7a`): `platform/contracts/event-types.json`
+> v1 (114 rows: 73 go-emitter + 41 python-emitter, one shared
+> `job_cancelled` row). Go keeps `events.go` as the embedded mirror with
+> `TestEventTypesMatchContract` asserting set-identity (drift = red);
+> Python loads the file at import and `append` refuses unknown kinds
+> (fail-closed at the MCP `write_record` tool boundary too).
+> Landing the closed rail caught **8 genuinely unregistered production
+> emitters** (`comparator_*` ×2, `paid_job`, `mutation_radius`,
+> `intelligence-tag`, `promethium-anchor`, `vqe_step`, `workflow_result`)
+> — the exact audit-join breakage class C1 predicted. Test-only `"t"`
+> repointed to `trial`, not registered. Suite: Go green, Python 640
+> passed (4 new taxonomy tests), live typo refusal proven.
 - Files: `platform/contracts/event-types.json` (new),
   `pkg/ledger/events.go` (load-or-generate from it),
   `platform/kubona/provenance/ledger.py` (validate in `append`),

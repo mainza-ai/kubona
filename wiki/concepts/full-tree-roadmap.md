@@ -614,6 +614,20 @@ status: candidate
   tenant-isolation; Python mandate interop with Go verification is
   byte-compatible but unwired end-to-end; emulator thresholds are v1
   heuristics throughout.
+- > ⚑ Correction (2026-10-17, `ee870b0`): two Wave-2 slices above landed
+  with red suites — the agents' "green" reports predated the final
+  commit contents, and the slices were not re-run after bundling.
+  (1) W2.12's verify binding accepted admin keys only, refusing every
+  reviewer-minted mandate the sign endpoint produces (TestAPIRoutes
+  step 10 caught it on the clean tree). Fixed by implementing the
+  reviewer path the error message already promised, with `via`
+  recorded on the event; pinned by `TestMandateVerifyTwoPaths`
+  (admin valid / attacker refused / rotation invalidates).
+  (2) W2.10's recovery-lands-WARNING tweak contradicted the decided S2
+  hysteresis bands and its soak test. Reverted (the transient OK
+  self-corrects on the next 15 s poll); the zero-paths fail-closed
+  half of W2.10 stands. Lesson restated: no slice lands without
+  running its own suites after the final `git add`.
 
 Related: [[rea-adoption-plan]] · [[rea-conflicts-and-remediation]] ·
 [[cloudroom-adoption-plan]] · [[implementation-gaps]] ·

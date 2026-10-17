@@ -2340,3 +2340,12 @@ skipped is the exact failure this incident is about:
   bar with tests: Go full suite green, Python 636 passed, bridge 41,
   console 103 + build, Rust qir-core 13. Landed in ~30 commits (wave slices).
   Deliberate deviations + residuals recorded in [[full-tree-roadmap]] Landed.
+
+## [2026-10-17] decision | R1a shared taxonomy landed; two Wave-2 corrections
+  R1a (`7fc6a7a`): contracts/event-types.json v1, both rails validate,
+  8 unregistered emitters registered, suites green. Corrections (`ee870b0`):
+  verify reviewer-path implemented (was admin-only, broke sign flow);
+  W2.10 hysteresis tweak reverted (contradicted decided S2 bands).
+  Operator defaults recorded for R-series: R1 fields = REA four +
+  mandate/tenant binding; R2 authority = tribunal quorum; R0 lanes =
+  fast/full required, boundary advisory; P1-4 stays last.
