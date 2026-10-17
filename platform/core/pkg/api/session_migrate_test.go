@@ -235,3 +235,51 @@ func TestSessionImportValidatesBeforeReplay(t *testing.T) {
 		t.Fatalf("clean re-import must replay, got %d %v", code, imp)
 	}
 }
+
+func TestSessionContextReadout(t *testing.T) {
+	srv, _, cleanup := setupIdemServer(t)
+	defer cleanup()
+	h := srv.Handler()
+	sid := idemSession(t, h, "ctx readout")
+
+	get := func(sid string) (int, map[string]any) {
+		req := httptest.NewRequest(http.MethodGet, "/api/sessions/context?session_id="+sid, nil)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		var out map[string]any
+		_ = json.Unmarshal(w.Body.Bytes(), &out)
+		return w.Code, out
+	}
+	if code, _ := get("sess-ghost"); code != http.StatusNotFound {
+		t.Fatalf("ghost context must 404, got %d", code)
+	}
+	if code, _ := get(""); code != http.StatusBadRequest {
+		t.Fatalf("empty context must 400, got %d", code)
+	}
+	code, empty := get(sid)
+	if code != http.StatusOK {
+		t.Fatalf("context: %d", code)
+	}
+	if empty["turns"] != float64(0) || empty["pressure_pct"] != float64(0) {
+		t.Fatalf("fresh session must read zero, got %v", empty)
+	}
+	if empty["turn_cap"] != float64(40) || empty["history_chars_cap"] != float64(48000) {
+		t.Fatalf("caps must be the BudgetHistory consts, got %v", empty)
+	}
+	if code, _, _ := idemPost(t, h, "/api/chat/messages", map[string]any{"session_id": sid, "content": "hello context"}); code != http.StatusCreated {
+		t.Fatalf("chat: %d", code)
+	}
+	code, full := get(sid)
+	if code != http.StatusOK {
+		t.Fatalf("context: %d", code)
+	}
+	if full["turns"] != float64(2) {
+		t.Fatalf("user+assistant = 2 turns, got %v", full["turns"])
+	}
+	if full["history_chars"].(float64) <= 0 || full["pressure_pct"].(float64) <= 0 {
+		t.Fatalf("nonempty transcript must read positive, got %v", full)
+	}
+	if full["would_drop"] != float64(0) {
+		t.Fatalf("small transcript drops nothing, got %v", full)
+	}
+}

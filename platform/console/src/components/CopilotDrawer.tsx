@@ -31,6 +31,8 @@ import {
 } from 'lucide-react';
 import { ChatMessage, CampaignState, RunPhase, Proposal } from '@/types';
 import { fetchMessages, sendChatMessage, streamChatMessage, createSession, runTribunal, fetchCampaignState, launchProposal, clearMessages, regenerateChat, sendFeedback, rewriteChat, fetchJobs, jobStatusLabel, isTerminalJobStatus } from '@/lib/api';
+import { ContextReadout } from './common/ContextReadout';
+import { OverflowCard } from './common/OverflowCard';
 import { MathText } from './common/MathText';
 import { Tip } from './common/Tip';
 import { MemoryPanel } from './MemoryPanel';
@@ -46,6 +48,7 @@ interface CopilotDrawerProps {
   onSelectSurface?: (surface: string) => void;
   onMaterialize?: (kind: CanvasWidgetKind, title: string, jobId?: string) => void;
   onRunStateChange?: (phase: RunPhase, detail: string) => void;
+  onSessionChange?: (newSessionId: string) => void;
   onClose?: () => void;
 }
 
@@ -59,6 +62,7 @@ export function CopilotDrawer({
   onSelectSurface,
   onMaterialize,
   onRunStateChange,
+  onSessionChange,
   onClose,
 }: CopilotDrawerProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -1361,6 +1365,16 @@ export function CopilotDrawer({
             className="hidden"
             onChange={handleAttachFile}
           />
+          {/* S8b: overflow card — real pressure only, real actions only. */}
+          <div className="px-0 pt-1.5">
+            <OverflowCard
+              sessionId={sessionId}
+              refreshKey={messages.length}
+              onSessionChanged={(id) => {
+                if (onSessionChange) onSessionChange(id);
+              }}
+            />
+          </div>
           <div className="flex items-center justify-between pt-1 border-t border-white/5 px-1">
             <div className="flex items-center gap-1">
               <Tip label="Attach file" sub="PDB · CIF · XYZ · text" position="top">
@@ -1374,6 +1388,7 @@ export function CopilotDrawer({
               </button>
               </Tip>
               <span className="text-[10px] font-code text-slate-600 ml-1">⌘K</span>
+              <ContextReadout sessionId={sessionId} refreshKey={messages.length} />
             </div>
             <Tip label={streamingId ? 'Stop generation' : 'Send directive'} position="top">
             <button

@@ -639,6 +639,10 @@ export default function Home() {
             onSelectSurface={handleCopilotSurface}
             onMaterialize={handleMaterialize}
             onRunStateChange={handleRunStateChange}
+            onSessionChange={(id) => {
+              setCurrentSessionId(id);
+              refreshData();
+            }}
             onClose={() => setShowCopilot(false)}
           />
         </aside>
