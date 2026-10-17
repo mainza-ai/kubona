@@ -23,7 +23,7 @@ def test_oauth_issue_verify_and_scopes():
 
 def test_oauth_expired_token_rejected():
     issuer = OAuth2TokenIssuer(ttl_s=1)
-    token = issuer.issue("u")
+    token = issuer.issue("u", scopes=("cost:read",))
     time.sleep(1.1)
     with pytest.raises(AuthError):
         issuer.decode(token)
@@ -31,7 +31,7 @@ def test_oauth_expired_token_rejected():
 
 def test_oauth_tampered_token_rejected():
     issuer = OAuth2TokenIssuer()
-    token = issuer.issue("u")
+    token = issuer.issue("u", scopes=("cost:read",))
     parts = token.split(".")
     tampered = parts[0] + "." + parts[1][:-2] + "XX" + "." + parts[2]
     with pytest.raises(AuthError):

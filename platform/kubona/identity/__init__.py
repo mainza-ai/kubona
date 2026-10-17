@@ -5,6 +5,6 @@ Keypair identities for users and agents, with owner-delegated authority
 owner revokes every agent they authorized — instantly, no per-agent surgery.
 """
 
-from .registry import IdentityRegistry, Principal, create_identity, Delegation
+from .registry import IdentityRegistry, Identity, create_identity, Delegation
 
-__all__ = ["IdentityRegistry", "Principal", "create_identity", "Delegation"]
+__all__ = ["IdentityRegistry", "Identity", "create_identity", "Delegation"]
