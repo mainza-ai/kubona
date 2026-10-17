@@ -112,6 +112,15 @@ injected ledger handle (nil = current in-memory behavior, so unit tests
 without a ledger keep passing); the HTTP handler stops double-sealing
 (dedupe by turn index — turns already carry indices).
 **Slice (M, with R2):**
+> ✅ LANDED 2026-10-17 (`dfeb2cc`, with R2): sealing moved into
+> `AgentCollective.SealTurn` behind the injected `Ledger` handle
+> (nil = pure in-memory, sessionless callers unaffected); the HTTP
+> handler seals nothing (AddMessage only). Dedupe by turn index per
+> obligation via the turn-N case keys (persisted — restart-safe, no
+> in-memory sets on the singleton). Proven: direct run seals 4,
+> HTTP run seals exactly 4 (no doubles), second run 4+4 under distinct
+> obligations. New runs use `ExecuteTribunalWithSession`; the old entry
+> points delegate sessionless.
 - Files: `pkg/agents/collective.go` (ledger port + seal-on-turn),
   `pkg/api/server.go` (remove handler-side sealing), turn-level tests.
 - Tests: direct-collective run seals 4 turn records; HTTP run seals
