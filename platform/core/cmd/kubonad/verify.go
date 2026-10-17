@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
 )
@@ -12,13 +13,19 @@ import (
 // kubonad verify --db PATH [--session ID]: audit the ledger hash chain(s)
 // through a read-only handle. Exit 0 + "clean" when no faults; exit 1
 // listing every fault otherwise. Any copy of the ledger must verify before
-// it is trusted (read replicas, backups, per-tenant shards).
+// it is trusted (read replicas, backups, per-tenant shards). W2.20: --db
+// must be absolute — a relative path would verify whatever the CWD happens
+// to hold, not the ledger the operator meant.
 func runVerify(args []string) int {
 	fs := flag.NewFlagSet("verify", flag.ContinueOnError)
-	dbPath := fs.String("db", "kubona.db", "path to SQLite WAL ledger")
+	dbPath := fs.String("db", "kubona.db", "path to SQLite WAL ledger (must be absolute)")
 	session := fs.String("session", "", "audit one session only (default: all)")
 	if err := fs.Parse(args); err != nil {
 		return 2
+	}
+	if !filepath.IsAbs(*dbPath) {
+		fmt.Fprintln(os.Stderr, "error: --db must be an absolute path (relative ledger paths refuse: CWD-dependent verification proves nothing)")
+		return 1
 	}
 	l, err := ledger.OpenLedgerReadOnly(*dbPath)
 	if err != nil {

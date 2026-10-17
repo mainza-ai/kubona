@@ -54,8 +54,14 @@ func isLoopback(host string) bool {
 //   - --tls-required without both files present: refuse.
 //   - cert/key paths that don't exist: refuse early with the path named
 //     (rather than crashing mid-serve inside ListenAndServeTLS).
-// Plain HTTP on loopback, or declared-LAN plaintext, passes validation
-// (the LAN case logs a warning at boot instead).
+//   - non-loopback plain HTTP: refuse unless the operator explicitly opts in
+//     with KUBONA_ALLOW_PLAINTEXT=1 (W2.3 fail-closed — the old warn-only
+//     posture served credentials across plaintext on one forgotten --bind).
+//     Loopback plaintext always passes (dev default); non-loopback with TLS
+//     material passes.
+//
+// Plain HTTP on loopback passes validation; declared-LAN plaintext with the
+// opt-in passes with a boot warning (never silent).
 func validateServeConfig(bind, cert, key string, required bool) error {
 	if (cert == "") != (key == "") {
 		return fmt.Errorf("tls-cert and tls-key must be set together")
@@ -73,6 +79,11 @@ func validateServeConfig(bind, cert, key string, required bool) error {
 		}
 		if fi.IsDir() {
 			return fmt.Errorf("%s path %q is a directory", label, path)
+		}
+	}
+	if !isLoopback(bind) && cert == "" && key == "" {
+		if os.Getenv("KUBONA_ALLOW_PLAINTEXT") != "1" {
+			return fmt.Errorf("refusing non-loopback plain HTTP on %q without TLS: set --tls-cert/--tls-key, --bind 127.0.0.1, or KUBONA_ALLOW_PLAINTEXT=1 (explicit opt-in)", bind)
 		}
 	}
 	return nil
@@ -139,6 +150,13 @@ func main() {
 			log.Fatalf("Cannot resolve home directory for default ledger path: %v", err)
 		}
 		resolvedDB = filepath.Join(home, ".kubona", "kubona.db")
+	}
+	// W2.20: the ledger path must be absolute — a CWD-relative --db would
+	// fork state across working directories (one daemon's ledger invisible
+	// to another's verify). Refuse relative paths instead of resolving
+	// them silently.
+	if !filepath.IsAbs(resolvedDB) {
+		log.Fatalf("Serve configuration refused: --db path must be absolute (got %q)", resolvedDB)
 	}
 
 	log.Printf("[Kubona Core] Starting orchestrator daemon on port %d...", *port)
@@ -237,7 +255,9 @@ func main() {
 	useTLS := *tlsCert != "" && *tlsKey != ""
 	if !useTLS && !isLoopback(*bindAddr) {
 		// Declared-LAN posture (see transport decision): audible, never silent.
-		log.Printf("[Kubona Core] WARNING: serving plain HTTP on non-loopback %s — TLS termination belongs at the deployment edge; set --tls-cert/--tls-key or --bind 127.0.0.1", *bindAddr)
+		// Reached only with KUBONA_ALLOW_PLAINTEXT=1 (validateServeConfig
+		// refuses otherwise) — the opt-in is logged, not assumed.
+		log.Printf("[Kubona Core] WARNING: serving plain HTTP on non-loopback %s with KUBONA_ALLOW_PLAINTEXT=1 — TLS termination belongs at the deployment edge; set --tls-cert/--tls-key or --bind 127.0.0.1", *bindAddr)
 	}
 
 	go func() {

@@ -22,6 +22,11 @@ type DeviceProfile struct {
 	T2Us           float64 `json:"t2_us"`
 	SingleQubitErr float64 `json:"single_qubit_error"`
 	TwoQubitErr    float64 `json:"two_qubit_error"`
+	// W2.5 provenance: hardcoded profiles must say where they came from.
+	// A profile without source/version/date refuses to bootstrap.
+	Source       string `json:"source"`
+	Version      string `json:"version"`
+	CalibratedAt string `json:"calibrated_at"`
 }
 
 type FidelityAssessment struct {
@@ -66,29 +71,35 @@ func (fg *FidelityGate) DriftTolerance() float64 {
 }
 
 func (fg *FidelityGate) bootstrapProfiles() {
-	fg.profiles["ibm_heron"] = DeviceProfile{
-		Name:           "ibm_heron",
-		Qubits:         156,
-		T1Us:           180.0,
-		T2Us:           120.0,
-		SingleQubitErr: 0.00012,
-		TwoQubitErr:    0.0021,
-	}
-	fg.profiles["quantinuum_h1"] = DeviceProfile{
-		Name:           "quantinuum_h1",
-		Qubits:         20,
-		T1Us:           1000000.0,
-		T2Us:           1000000.0,
-		SingleQubitErr: 0.00003,
-		TwoQubitErr:    0.0015,
-	}
-	fg.profiles["rigetti_aspen"] = DeviceProfile{
-		Name:           "rigetti_aspen",
-		Qubits:         80,
-		T1Us:           35.0,
-		T2Us:           25.0,
-		SingleQubitErr: 0.0005,
-		TwoQubitErr:    0.0080,
+	// W2.5: v1 heuristic device data (order-of-magnitude, labeled). T1/T2
+	// ride along for forensics and calibration display; the floor model
+	// prices gate errors (PredictFidelity), not coherence — T1/T2 are
+	// validated for physicality (T2 <= 2*T1) at bootstrap, never silently
+	// consumed.
+	for _, p := range []DeviceProfile{
+		{Name: "ibm_heron", Qubits: 156,
+			T1Us: 180.0, T2Us: 120.0,
+			SingleQubitErr: 0.00012, TwoQubitErr: 0.0021,
+			Source: "IBM Quantum backend calibration medians, Heron r2 class",
+			Version: "v1-heuristic-2026-10", CalibratedAt: "2026-10-01"},
+		{Name: "quantinuum_h1", Qubits: 20,
+			T1Us: 1000000.0, T2Us: 1000000.0,
+			SingleQubitErr: 0.00003, TwoQubitErr: 0.0015,
+			Source: "Quantinuum H1 published system specs (trapped-ion coherence)",
+			Version: "v1-heuristic-2026-10", CalibratedAt: "2026-10-01"},
+		{Name: "rigetti_aspen", Qubits: 80,
+			T1Us: 35.0, T2Us: 25.0,
+			SingleQubitErr: 0.0005, TwoQubitErr: 0.0080,
+			Source: "Rigetti Aspen-class published medians",
+			Version: "v1-heuristic-2026-10", CalibratedAt: "2026-10-01"},
+	} {
+		if p.T2Us > 2*p.T1Us {
+			panic(fmt.Sprintf("device profile %s violates T2 <= 2*T1: refusing to boot on unphysical data", p.Name))
+		}
+		if p.Source == "" || p.Version == "" || p.CalibratedAt == "" {
+			panic(fmt.Sprintf("device profile %s lacks provenance: refusing", p.Name))
+		}
+		fg.profiles[p.Name] = p
 	}
 }
 

@@ -283,7 +283,12 @@ func fidelityDeviceForBackend(backend string) (string, error) {
 
 var (
 	qasmQregRe = regexp.MustCompile(`qreg\s+\w+\[(\d+)\]`)
-	qasmTwoQRe = regexp.MustCompile(`^(cx|cz|swap|cp|ecr|rzz)\b`)
+	// W2.5 closed 2-qubit vocabulary (case-insensitive): the old set
+	// (cx|cz|swap|cp|ecr|rzz) missed cnot/cy/ch/crx/cry/crz/cu/rxx/ryy and
+	// friends — undercounting 2q gates OVER-predicts fidelity, the unsafe
+	// direction. Unknown gates resolve at the executor; for counting, an
+	// unlisted 2-operand gate still counts via the operand fallback below.
+	qasmTwoQRe = regexp.MustCompile(`(?i)^(cx|cnot|cy|cz|ch|swap|cp|ecr|rzz|rxx|ryy|rzx|crx|cry|crz|cu1|cu3|csx|dcx|iswap|xx|yy|zz)\b`)
 	qasmSkipRe = regexp.MustCompile(`^(OPENQASM|include|qreg|creg|measure|barrier|reset|opaque|//|$)`)
 )
 
@@ -293,6 +298,10 @@ var (
 func countQasmGates(qasm string) (qubits, depth, twoQ int) {
 	for _, line := range strings.Split(qasm, "\n") {
 		line = strings.TrimSpace(line)
+		// W2.5: comments never count (a commented-out cx used to score).
+		if idx := strings.Index(line, "//"); idx >= 0 {
+			line = strings.TrimSpace(line[:idx])
+		}
 		if line == "" || qasmSkipRe.MatchString(line) {
 			if m := qasmQregRe.FindStringSubmatch(line); len(m) > 1 {
 				var n int
@@ -308,6 +317,13 @@ func countQasmGates(qasm string) (qubits, depth, twoQ int) {
 		}
 		depth++
 		if qasmTwoQRe.MatchString(line) {
+			twoQ++
+			continue
+		}
+		// W2.5 operand fallback: an unlisted gate touching 2+ qubits
+		// counts as entangling (fail-closed direction — unknown ops must
+		// lower the prediction, never raise it).
+		if strings.Count(line, "q[") >= 2 {
 			twoQ++
 		}
 	}

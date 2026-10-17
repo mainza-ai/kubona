@@ -131,7 +131,22 @@ func TestSSE_EventsStreamHandshake(t *testing.T) {
 	server := httptest.NewServer(srv.Handler())
 	defer server.Close()
 
-	resp, err := http.Get(server.URL + "/api/events/stream?session_id=sess-test")
+	// W2.1: SSE requires operator bearer + an existing session (ghosts
+	// and bearerless callers refuse). Create the session first.
+	t.Setenv("KUBONA_API_TOKEN", "test-token")
+	sessBody, _ := json.Marshal(map[string]any{"title": "sse drill"})
+	sessReq := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewReader(sessBody))
+	sessW := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(sessW, sessReq)
+	var sess struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(sessW.Body).Decode(&sess); err != nil || sess.ID == "" {
+		t.Fatalf("session setup: %v", err)
+	}
+	req, _ := http.NewRequest(http.MethodGet, server.URL+"/api/events/stream?session_id="+sess.ID, nil)
+	req.Header.Set("Authorization", "Bearer test-token")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("failed to connect to SSE stream: %v", err)
 	}
@@ -169,8 +184,22 @@ func TestCanvas_LayoutPersistence(t *testing.T) {
 	server := httptest.NewServer(srv.Handler())
 	defer server.Close()
 
+	// W2.1: canvas is session-scoped with no shared default — create the
+	// session first, then read/write against it.
+	sessBody, _ := json.Marshal(map[string]any{"title": "canvas drill"})
+	sessReq := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewReader(sessBody))
+	sessW := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(sessW, sessReq)
+	var sess struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(sessW.Body).Decode(&sess); err != nil || sess.ID == "" {
+		t.Fatalf("session setup: %v", err)
+	}
+	sid := sess.ID
+
 	// Initial layout is empty object
-	respGet, err := http.Get(server.URL + "/api/canvas/layout?session_id=s1")
+	respGet, err := http.Get(server.URL + "/api/canvas/layout?session_id=" + sid)
 	if err != nil {
 		t.Fatalf("failed GET layout: %v", err)
 	}
@@ -183,7 +212,7 @@ func TestCanvas_LayoutPersistence(t *testing.T) {
 
 	// Save layout
 	layoutData := `{"nodes":[{"id":"node-1","position":{"x":100,"y":200}}],"zoom":1.5}`
-	respPost, err := http.Post(server.URL+"/api/canvas/layout?session_id=s1", "application/json", strings.NewReader(layoutData))
+	respPost, err := http.Post(server.URL+"/api/canvas/layout?session_id="+sid, "application/json", strings.NewReader(layoutData))
 	if err != nil {
 		t.Fatalf("failed POST layout: %v", err)
 	}
@@ -193,7 +222,7 @@ func TestCanvas_LayoutPersistence(t *testing.T) {
 	}
 
 	// Retrieve saved layout
-	respGet2, err := http.Get(server.URL + "/api/canvas/layout?session_id=s1")
+	respGet2, err := http.Get(server.URL + "/api/canvas/layout?session_id=" + sid)
 	if err != nil {
 		t.Fatalf("failed GET layout after save: %v", err)
 	}
@@ -234,23 +263,33 @@ func TestCanvas_LayoutSurvivesRestart(t *testing.T) {
 		wd := watchdog.NewTaskWatchdog(l, sup)
 		return api.NewServer(l, sm, jr, sup, wd), func() { l.Close() }
 	}
-	put := func(srv *api.Server, body string) int {
+	put := func(srv *api.Server, sid, body string) int {
 		t.Helper()
-		req := httptest.NewRequest(http.MethodPost, "/api/canvas/layout?session_id=s9", strings.NewReader(body))
+		req := httptest.NewRequest(http.MethodPost, "/api/canvas/layout?session_id="+sid, strings.NewReader(body))
 		w := httptest.NewRecorder()
 		srv.Handler().ServeHTTP(w, req)
 		return w.Code
 	}
-	get := func(srv *api.Server) string {
+	get := func(srv *api.Server, sid string) string {
 		t.Helper()
-		req := httptest.NewRequest(http.MethodGet, "/api/canvas/layout?session_id=s9", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/canvas/layout?session_id="+sid, nil)
 		w := httptest.NewRecorder()
 		srv.Handler().ServeHTTP(w, req)
 		return w.Body.String()
 	}
 
 	srv1, close1 := serve()
-	if code := put(srv1, `{"nodes":[{"id":"n1"}],"zoom":2}`); code != http.StatusOK {
+	// W2.1: explicit session, no shared default — create it first.
+	mkReq := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewReader([]byte(`{"title":"restart drill"}`)))
+	mkW := httptest.NewRecorder()
+	srv1.Handler().ServeHTTP(mkW, mkReq)
+	var mk struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(mkW.Body).Decode(&mk); err != nil || mk.ID == "" {
+		t.Fatalf("session setup: %v", err)
+	}
+	if code := put(srv1, mk.ID, `{"nodes":[{"id":"n1"}],"zoom":2}`); code != http.StatusOK {
 		t.Fatalf("save: %d", code)
 	}
 	close1()
@@ -258,13 +297,13 @@ func TestCanvas_LayoutSurvivesRestart(t *testing.T) {
 	// Fresh server, same DB file: layout must still be there.
 	srv2, close2 := serve()
 	defer close2()
-	if got := get(srv2); !strings.Contains(got, "n1") {
+	if got := get(srv2, mk.ID); !strings.Contains(got, "n1") {
 		t.Errorf("layout must survive restart, got %q", got)
 	}
 
 	// Oversize blobs refuse.
 	big := `{"pad":"` + strings.Repeat("x", 300*1024) + `"}`
-	if code := put(srv2, big); code != http.StatusBadRequest {
+	if code := put(srv2, mk.ID, big); code != http.StatusBadRequest {
 		t.Errorf("300KB layout must 400, got %d", code)
 	}
 }
