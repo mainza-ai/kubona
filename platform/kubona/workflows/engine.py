@@ -371,6 +371,12 @@ class WorkflowEngine:
             except Exception as e:  # noqa: BLE001 — a failing step fails the workflow
                 return self._fail(workflow, session_id, step_records, sid, str(e),
                                   ctx, prev, spent_usd, token)
+            if isinstance(result, dict) and result.get("ok") is False:
+                err_msg = str(result.get("error") or result.get("rejection_message") or f"step {sid} returned ok=False")
+                prev[sid] = result
+                ctx["prev"] = prev
+                return self._fail(workflow, session_id, step_records, sid, err_msg,
+                                  ctx, prev, spent_usd, token)
             spent_usd += _result_reported_spend(result)
             try:
                 self._check_ceiling(workflow, spent_usd, 0.0, sid + " (reported spend)")

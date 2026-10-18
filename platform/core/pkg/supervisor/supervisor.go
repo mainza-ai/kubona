@@ -3,6 +3,7 @@ package supervisor
 import (
 	"context"
 	"fmt"
+	"math"
 	"net"
 	"sync"
 	"time"
@@ -333,7 +334,7 @@ func (s *Supervisor) Step(loopID string, gradientNorm float64) (string, error) {
 	loop.UpdatedAt = time.Now().UTC()
 
 	// Barren plateau or gradient explosion reflex trigger
-	if gradientNorm < 1e-6 || gradientNorm > 1e4 {
+	if math.IsNaN(gradientNorm) || math.IsInf(gradientNorm, 0) || gradientNorm < 1e-6 || gradientNorm > 1e4 {
 		loop.Diverged = true
 		loop.Status = LoopDiverged
 		s.ledger.AppendEvent(loop.SessionID, "loop_diverged", map[string]any{
@@ -347,11 +348,14 @@ func (s *Supervisor) Step(loopID string, gradientNorm float64) (string, error) {
 	}
 
 	status := loop.Status
+	stepCount := loop.StepCount
+	diverged := loop.Diverged
+	updatedAt := loop.UpdatedAt
 	s.mu.Unlock()
 
 	s.ledger.DB().Exec(
 		`UPDATE loops SET status = ?, step_count = ?, diverged = ?, updated_at = ? WHERE id = ?`,
-		loop.Status, loop.StepCount, loop.Diverged, loop.UpdatedAt, loopID,
+		status, stepCount, diverged, updatedAt, loopID,
 	)
 
 	return status, nil

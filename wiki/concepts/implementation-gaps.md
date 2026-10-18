@@ -1,7 +1,7 @@
 ---
 type: concept
 date: 2026-08-16
-updated: 2026-10-05
+updated: 2026-10-17
 tags: [kubona, production, gaps]
 sources: [source-gap-analysis-plan]
 status: tracked
@@ -21,31 +21,34 @@ status: tracked
 - 🔵 **Deferred by design** — matches the plan's own "functional product first" sequencing.
 - 🔴 **Regressed / failing now** — verified broken at the stated date; not a future concern.
 
-## Forensic Audit (2026-10-04): Codebase Reality vs. Blueprint
+## Forensic Audit (2026-10-04 historical snapshot): Codebase Reality vs. Blueprint
 
-> See full forensic deep-dive, empirical code inspection, and zero-mock verification matrix in [[forensic-audit-2026]].
+> **Historical note (updated 2026-10-17):** The numbered findings below record the state of
+> the tree at the 2026-10-04 forensic baseline (see [[forensic-audit-2026]]) before Phases
+> 1–6, Waves 0–2, Cloudroom S1–S8, REA R0–R6, leanrea L1–L5, M0–M6, and A1–A4 landed. See
+> the `## Critical (structural)` table below for current verified status.
 
-A systematic audit revealed that over 90% of what is documented in the blueprint across the
-89 wiki pages, the 7 Observatory Surfaces, and 25 audited dev-docs repositories was either
+A systematic audit on 2026-10-04 revealed that over 90% of what was documented in the blueprint across the
+89 wiki pages, the 7 Observatory Surfaces, and 25 audited dev-docs repositories was at that time either
 unimplemented, stubbed, or disguised behind static UI facades:
 
-1. **The 7 Observatory Surfaces are Missing/Stubbed:**
+1. **The 7 Observatory Surfaces (at 2026-10-04 baseline):**
    - Surface 1 (Spatial Living Lab): No infinite zoomable canvas, no React Flow node graph, no post-QIR universal glyphs, no ghost circuits.
    - Surface 2 (4D Flight Recorder): Was reduced to a plain static HTML table; lacked interactive scrub bar, parameter trajectory animation, and counterfactual branching.
-   - Surface 3 (Epistemic Manifold): Renders static placeholder cards rather than dynamic SVG/Canvas wavefunction rings ($\alpha|\text{corr}\rangle + \beta|\text{cont}\rangle + \gamma|\text{unver}\rangle$) or stagnation telemetry ($\kappa$).
+   - Surface 3 (Epistemic Manifold): Rendered static placeholder cards rather than dynamic SVG/Canvas wavefunction rings ($\alpha|\text{corr}\rangle + \beta|\text{cont}\rangle + \gamma|\text{unver}\rangle$) or stagnation telemetry ($\kappa$).
    - Surface 4 (Autonomy Cockpit & AP2): Unsigned JSON payload without Ed25519 cryptographic spend mandate verification.
    - Surfaces 5, 6, 7 (Fleet Radar, Cognitive LLM Mesh, Results Studio): Completely absent from the frontend.
-2. **Multi-Agent Research Collective is a Single Prompt:**
-   - The 5 distinct specialist personas (`epistemic-scribe`, `ansatz-scout`, `device-auditor`, `disconfirmation-officer`, `human-reviewer`) with declarative `role.yaml` capability grants and keypair identities are unbuilt.
-3. **The Five-Ring Research Loop is Unclosed:**
-   - Ring 0 (Reflex): Lacks automated re-scoping and snapshot recovery.
-   - Ring 1 (Epistemic): Uncollapsed claims are not blocked from being asserted in agent outputs.
+2. **Multi-Agent Research Collective (at 2026-10-04 baseline):**
+   - The 5 distinct specialist personas (`epistemic-scribe`, `ansatz-scout`, `device-auditor`, `disconfirmation-officer`, `human-reviewer`) with declarative `role.yaml` capability grants and keypair identities were unbuilt.
+3. **The Five-Ring Research Loop (at 2026-10-04 baseline):**
+   - Ring 0 (Reflex): Lacked automated re-scoping and snapshot recovery.
+   - Ring 1 (Epistemic): Uncollapsed claims were not blocked from being asserted in agent outputs.
    - Ring 3 (Methodological): No fidelity accounting, no device noise profiles ($T_2 \le 2T_1$), and no Clifford stabilizer probes.
    - Ring 4 (Reflexive): No Karpathy Autoresearch harness runners or §13 meta-search evolution flywheel.
-4. **Security, Confidentiality & Isolation:**
-   - Buzz IFC `can_flow_to` reader-set lattice is missing from queries.
-   - OpenBao secrets vault with dynamic single-use leases is unintegrated.
-   - Code execution is unsandboxed on the host instead of container-isolated.
+4. **Security, Confidentiality & Isolation (at 2026-10-04 baseline):**
+   - Buzz IFC `can_flow_to` reader-set lattice was missing from queries.
+   - OpenBao secrets vault with dynamic single-use leases was unintegrated.
+   - Code execution was unsandboxed on the host instead of container-isolated.
 
 ## The 6-Phase Master Implementation Plan
 
@@ -61,9 +64,9 @@ unimplemented, stubbed, or disguised behind static UI facades:
 | Gap | Status | What's real / what's missing |
 |---|---|---|
 | **Persistent state root (data-loss)** | 🟢 M0 | Route through `kubona/config.py` (`state_root()`) — default `~/.kubona`. |
-| **Prod auth default** | 🟢 M0 | Console uses constant-time compare against `KUBONA_CONSOLE_TOKEN`, production fails closed. |
-| **Deployment entrypoint** | 🟢 M0 | `kubona serve` / `kubona doctor` package entrypoints. |
-| **CI / release-gate** | 🟢 green | Single verdict `release_gate()` in `canary.py`, verified in hosted Actions. |
+| **Prod auth & Ed25519 operator sessions (A1–A4)** | 🟢 landed 2026-10-17 | Unified `checkAuth` in Go core (`pkg/api/edge_auth.go`, `auth_session.go`): accepts `kubona_session` `httpOnly` + `SameSite=Lax` cookies minted via Ed25519 challenge-response against the lab's registered `admin_pubkey_hex` (with `csrfAllowed` Origin check on unsafe methods and session revocation on `RotateAdminKey`), or constant-time `KUBONA_API_TOKEN` bearer for CLI/CI callers. Console mounts `AuthPanel.tsx` in `LabsView.tsx`. |
+| **Deployment entrypoint** | 🟢 M0 | `kubona serve` / `kubona doctor` package entrypoints + `kubonad` Go daemon with Docker Compose production stack (`platform/docker/docker-compose.yml`). |
+| **CI / release-gate** | 🟢 green | Single verdict `release_gate()` in `canary.py`, verified in hosted Actions (`ci.yml` + `docker-smoke`). |
 | **Pillar 1: Workload Container Sandbox** | 🟢 verified | Fail-closed Docker runner in production with `--read-only`, `--network=none`, `--cap-drop=ALL`, unprivileged user, and memory clamps (`platform/core/pkg/sandbox/docker.go`). |
 | **Pillar 2: OpenBao Secrets Vault Sidecar** | 🟢 verified | AppRole token exchange, dynamic leased QPU credentials, and automatic lease revocation (`platform/core/pkg/vault/client.go`). Manifest at `platform/docker/docker-compose.vault.yml`. |
 | **Pillar 3: Post-Quantum Spend Mandates** | 🟢 verified | Hybrid NIST FIPS 203 ML-KEM-768 + AES-256-GCM + RFC 8032 Ed25519 spend mandates in Go (`platform/core/pkg/mandates/pqc.go`) and TypeScript (`platform/console/src/lib/pqc.ts`). |
@@ -72,14 +75,14 @@ unimplemented, stubbed, or disguised behind static UI facades:
 | **Pillar 6: Rust QIR LLVM Lowering Core** | 🟢 verified | QIR AST to LLVM IR lowering module (`platform/crates/qir-core/src/codegen.rs`) emitting BaseProfile text IR with full QIS runtime declarations and `--json` CLI output. |
 | **Pillar 7: A2A Protocol & x402 Payment Rails** | 🟢 verified | JSON-RPC 2.0 A2A server (`platform/core/pkg/agents/a2a.go`) with capability cards and task delegation. HTTP 402 challenge/response verification (`platform/core/pkg/cost/payment.go`) requiring cryptographic signatures. |
 | **Pillar 8: Observatory Cockpit & SSE Streaming** | 🟢 verified | Server-Sent Events (SSE) streaming endpoint (`/api/events/stream`), spatial canvas layout persistence (`/api/canvas/layout`), and Next.js 16 `useTelemetry` React hook (`platform/console/src/lib/useTelemetry.ts`). |
-| **x402 fail-closed** | 🟢 M0 | Rejects proofs unless real verifier injected. |
-| **Chat/Copilot & oMLX Integration** | 🟢 verified | Live multi-agent tribunal dispatch to local oMLX port 8787 (`Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit`); real 4-turn debate pipeline with 90s context timeout and live PySCF classical anchor injection. Zero mocks. |
+| **x402 fail-closed** | 🟢 M0 | Rejects proofs unless real verifier injected; reboot-refusal check on persisted nonces (`pkg/cost/payment.go`). |
+| **Chat/Copilot & Env-Driven LLM Routing (M0–M6)** | 🟢 landed 2026-10-17 | Zero hardcoded model IDs in Go/Python/TS (`pkg/llm/config.go`, `kubona/mesh/model_router.py`); env-driven selection (`KUBONA_LLM_PROVIDER`, `*_MODEL`), live 4-turn tribunal debate pipeline with PySCF classical anchor injection, and DSML tool-call fallback toggle. |
 | **Circuit Cutting & Knitting** | 🟢 verified | Genuine PennyLane & QPD circuit cutting decomposing circuits into valid subcircuits with preserved gates and measurements in `platform/bridge/executor.py`. |
 | **Local Classical-Quantum Testing Gate** | 🟢 verified | Verified in `scripts/verify_real_world_e2e.py`: PySCF ab-initio RHF/FCI, Qiskit Aer simulation, Clifford canary probes ($\le 64$ shots), Meyer-Wallach entanglement $Q=1.000000$. |
 | **Hybrid LLM Configuration Plane** | 🟢 verified | Settings view in Next.js console (`/llm` and `/settings/llm`) with Sovereign Air-Gap switch, local port radar sweep (8787, 11434, 1234, 8080, 50051), and Go Core `/api/llm/settings` persistence. |
 | **Loop Supervisor Persistence** | 🟢 verified | Go Core WAL SQLite audit ledger (`platform/core/pkg/ledger/ledger.go`), event stream, and live job submission/status. |
 | **Classical Chemistry Anchors** | 🟢 verified | Live PySCF STO-3G exact RHF and FCI calculation on molecular geometries ($H_2$ -1.137270 Ha, $LiH$ -7.882392 Ha) with strictly negative correlation energies. |
-| **TypeScript/Go Core Migration** | 🟢 verified | Live production stack: Next.js 16 console (port 3000), Go Core daemon `kubonad` (port 8080), Python gRPC bridge (port 50051), and local oMLX LLM (port 8787). |
+| **TypeScript/Go Core Migration** | 🟢 verified | Live production stack: Next.js 16 console (port 3000), Go Core daemon `kubonad` (port 8080), Python gRPC bridge (port 50051), and local/cloud LLM providers. |
 | **Gap M-1: Memory Lifecycle & LRU Eviction** | 🟢 verified | Hard capacity limits (500 items/bank, 250k tokens) with importance-weighted LRU eviction and SQLite WAL synchronization (`platform/core/pkg/memory/hindsight.go#L238-L278`). |
 | **Gap M-2: IFC Multi-Tenant Scoping** | 🟢 verified | Multi-tenant boundary checks and Buzz IFC `ReaderSet.CanFlowTo` lattice flow rules across semantic memory recall (`platform/core/pkg/memory/hindsight.go#L322-L385`). |
 | **Gap M-3: Quantum Simulation RAM Pre-Flight Bounds Clamp** | 🟢 verified | Theoretical RAM scaling checks clamping exact statevector at 28 qubits (4.29 GB) and Aer at 30 qubits, automatically degrading to PennyLane KaHyPar wire-cutting (`platform/bridge/executor.py#L77-L140`). |
@@ -90,13 +93,15 @@ unimplemented, stubbed, or disguised behind static UI facades:
 | **Gap M-8: GQE Checkpoint Pipeline** | 🟢 verified | LoRA weight delta distribution manifest and architecture specification for Qwen2.5-Coder base model (`platform/models/adapters/manifest.json`). |
 | **Campaign Pre-Population & Element Parsing Fix** | 🟢 verified | Fresh vs Baseline discovery mode, element symbol whitelist in `SpatialCanvas.tsx`, and session deletion lifecycle (`platform/core/pkg/session/session.go`, `platform/console/src/components/modals/NewCampaignModal.tsx`). |
 | **Elimination of UI Hardcoded Mocks** | 🟢 verified | All 8 surfaces dynamically wired to live session state (`CampaignState`), OpenQASM 2.0 multi-qubit visualizer, dynamic milestones, and centralized `API_BASE` (`platform/console/src/lib/api.ts`). |
+| **Spend idempotency & reservation safety (S1 + Waves 0–2)** | 🟢 landed 2026-10-17 | Content-bound `idempotency_key` across all 4 spend mutations (`jobs`, `launch`, `tribunal`, `autoresearch-start` — replay=cached, mutated-body=409), persistent `spend_reservations` table with crash-recovery reconciliation, and `/api/tenants/refund` primitive (`full-tree-roadmap`). |
 | **Disk guard with hysteresis (S2)** | 🟢 landed 2026-10-17 | `platform/core/pkg/disk/` poller (WARN 2 GB / BLOCK 1 GB / RESUME 1.5 GB, env-overridable, `0<block<resume<warn` enforced at boot) watching DB dir + HF models dir via `statfs` (minimum wins); BLOCK 503s `storage_blocked` on all new-work entries (spend mutations, chat writes, loop starts) with `Retry-After`, freezes `SubmitJob` defense-in-depth; reads/health/recovery stay; `/api/ready` 200/503 probe + health disk fields; transitions sealed as ledger events. No process killing (needs cgroup work). |
 | **Loop sleep + drain + mid-run budget (S3)** | 🟢 landed 2026-10-17 | `loops` table finally has a writer (`SaveLoopState` + `harness_id/last_activity/drain/reserved_amount` cols; `ReconcileLoopsOnBoot` sleeps non-terminal rows — proven live: 20+1 rows). Engines: `sleeping` status, activity clock, `SetDrained` latch (Step refuses), `SetBudgetCheck` hook pausing on mid-run breach (never abort). API: `sleep`/`wake` (S1-keyed replay)/`drain` actions + `SweepIdleLoops` (10 min, 60 s poll) + sweeper goroutine in `kubonad`. Chat/tribunal deliberately excluded (no harness held — sleeping them would be theater). |
-| **Session migration + delete cascade (S5)** | 🟢 landed 2026-10-17 | `POST /api/sessions/export|import` with manifest v1 (per-section digests, 64 MB / 50-version / 256 KB caps, validation-before-replay, ONE `session_imported` record, event IDs preserved). `DeleteSession` refuses live/non-terminal/reserved work, else cascades all 9 tables (receipt survives). `ledger.CanonicalHash` unified (I1). |
-| **Redaction by construction (S6)** | 🟢 landed 2026-10-17 | `sandbox.BoundOutput` (16 KiB, UTF-8-safe, flagged) at the harness-parse choke (incl. failure reasons); job results refuse above 1 MB (`result_too_large`); closed `KnownEventTypes` taxonomy enforced at all append chokes + conformance test; test event names migrated to registered types. |
+| **Vault lease session/tenant binding (S4)** | 🟢 landed 2026-10-17 | Portable `session_id` + `tenant_id` + `scope` binding on vault leases plus `/api/vault/leases/revoke` and canary test coverage. |
+| **Session migration + delete cascade (S5 + S5b)** | 🟢 landed 2026-10-17 | `POST /api/sessions/export|import` with manifest v1 (per-section digests across 9 sections including `python_ledger`, 64 MB / 50-version / 256 KB caps, validation-before-replay, ONE `session_imported` record, event IDs preserved). `DeleteSession` refuses live/non-terminal/reserved work, else cascades all 9 tables (receipt survives). `ledger.CanonicalHash` unified (I1). |
+| **Redaction by construction & shared event taxonomy (S6 + R1a)** | 🟢 landed 2026-10-17 | `sandbox.BoundOutput` (16 KiB, UTF-8-safe, flagged) at the harness-parse choke (incl. failure reasons); job results refuse above 1 MB (`result_too_large`); closed 121-row `platform/contracts/event-types.json` (80 Go + 41 Python) enforced at all Go and Python append chokes + cross-rail conformance tests. |
 | **Queue ops reframed + shipped (S7)** | 🟢 landed 2026-10-17 | No prompt queue exists (synchronous model) — shipped the real gaps: `POST /api/jobs/{id}/cancel` (CAS unwind, terminal replay, ungated by disk by design) + rewrite CAS/session-404/disk-gate. Steer N/A documented (no background turn). |
-| **Console context + progress (S8)** | 🟢 landed 2026-10-17 | `GET /api/sessions/context` (measured transcript vs BudgetHistory caps — no vendor window) + composer readout + pressure-gated overflow card (real actions only, session-switching wired) + `JobProgress` in-flight polling wired into MeasuredOutputs. Tools-hub scope reduced (no skills/packs/automations backends — hub would be theater). |
-| **Console context + progress (S8)** | 🟢 landed 2026-10-17 | `GET /api/sessions/context` (measured transcript vs BudgetHistory caps — no vendor window) + composer readout + pressure-gated overflow card (real actions only, session-switching wired) + `JobProgress` in-flight polling wired into MeasuredOutputs. Tools-hub scope reduced (no skills/packs/automations backends — hub would be theater). |
+| **Console context + progress + operator visibility (S8 + S8a + U0–U3 + D1–D2)** | 🟢 landed 2026-10-17 | `GET /api/sessions/context` (measured transcript vs BudgetHistory caps — no vendor window) + composer readout + pressure-gated overflow card + `JobProgress` in-flight polling + `OperatorBar` disk/drain/loops/bundle controls + runtime `/api/config` + digest-pinned Docker production stack (`platform/docker/`). |
+| **REA contracts & leanrea skill/catalog (R0–R6, C1–C6, L1–L5)** | 🟢 landed 2026-10-17 | Cross-rail `EvidenceEnvelope` vectors, `platform/contracts/obligation-rules.json` (7 rules), coverage declarations (`CoverageMap`), bounded tribunal context + provenance markers, 22-code `platform/contracts/error-codes.json` + `/api/capabilities`, 5-dimension transcript rubric, `skills/kubona/SKILL.md` (≤12 KB), `bench/` harness, and 29-tool `platform/contracts/mcp-catalog.json`. |
 
 ## Medium
 

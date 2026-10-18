@@ -2,7 +2,7 @@
 type: entity
 name: Kubona
 date: 2026-08-16
-updated: 2026-10-09
+updated: 2026-10-17
 tags: [kubona, platform]
 sources: [source-gap-analysis-plan]
 status: open-question
@@ -35,7 +35,7 @@ reproducible results (see [[science-discovery]]) — unifying [[qiskit]], [[penn
 > ⚑ *Conflict* block, because the Phase-0 gate passed weeks ago and the repository stayed
 > private — which read as drift. The operator has since stated the intent, and it was never
 > "public when tests pass": the trigger is **direction legible enough to onboard strangers**,
-> which the blueprint does not yet have (1 `settled` page against 24 `adopted`). The Apache-2.0
+> which the blueprint did not yet have at the time of that ruling (1 `settled` page against 24 `adopted`; now 5 `settled` against 49 `adopted`). The Apache-2.0
 > commitment stands; its timing follows the condition above. Residual hygiene work before any
 > flip (private-remote, never-public `dev-docs/` + `.obsidian/` history) is tracked as [[questions]] Q-27; see
 > [[implementation-gaps]] and [[risks]].
@@ -45,9 +45,10 @@ reproducible results (see [[science-discovery]]) — unifying [[qiskit]], [[penn
 - Defensible product = the **agentic control/governance layer** (cost governance,
   provenance, per-call auth, routing) nobody else has shipped; the hardware-abstraction
   foundation underneath it must be genuinely open source.
-- **`status: open-question` is deliberate for this page.** The platform's own definition is
-  the least-settled page in the wiki: scope, the discovery-layer commitment, and the
-  autonomy model are all still being shaped. See [[questions]] Q-17, Q-10, Q-01.
+- **`status: open-question` is deliberate for this page.** While Q-01 (`platform/` role),
+  Q-10 (autonomy ladder), and Q-17 (CORE science discovery) are now closed in [[questions]],
+  the explicit v1 scope exclusion statement (what v1 is *not*) remains open in [[questions]]
+  Section A (`[[kubona]] scope`).
 
 ## Architecture at a glance
 

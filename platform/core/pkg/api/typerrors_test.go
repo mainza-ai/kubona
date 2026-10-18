@@ -73,6 +73,7 @@ func TestErrorRegistryMatchesCatalog(t *testing.T) {
 		"request_in_progress", "storage_blocked", "resource_constraint",
 		"not_ready", "bridge_unavailable", "llm_unavailable",
 		"unknown_tool", "internal", "server_misconfigured",
+		"not_found", "unpriced_model",
 	} {
 		if !seen[code] {
 			t.Fatalf("registry code %q missing from catalog", code)
@@ -87,7 +88,7 @@ func TestErrorRegistryMatchesCatalog(t *testing.T) {
 }
 
 func TestErrorCatalogShape(t *testing.T) {
-	// The CSV parses to the same 21 codes (row-level drift guard: a
+	// The CSV parses to the same 22 codes (row-level drift guard: a
 	// silent CSV edit that the registry test above would bless by
 	// construction is caught here by count).
 	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "contracts", "error-catalog.csv"))
@@ -101,7 +102,7 @@ func TestErrorCatalogShape(t *testing.T) {
 		}
 	}
 	if lines != 23 { // header + 22 codes (trailing newline is uncounted)
-		t.Fatalf("catalog must carry header + 21 codes, got %d lines", lines)
+		t.Fatalf("catalog must carry header + 22 codes, got %d lines", lines)
 	}
 	_ = http.StatusOK
 }

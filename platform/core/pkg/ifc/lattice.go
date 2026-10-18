@@ -99,7 +99,7 @@ func (l ConfidentialityLabel) CanFlowTo(dest ConfidentialityLabel) bool {
 // fail-closed by construction.
 func ParseLabel(label string) ReaderSet {
 	switch {
-	case label == "":
+	case label == "" || label == "deny-all":
 		return Restricted()
 	case label == "public":
 		return Public()

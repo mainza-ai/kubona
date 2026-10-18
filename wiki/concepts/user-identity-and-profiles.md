@@ -2,7 +2,7 @@
 type: concept
 name: User & Agent Identity and Profiles
 date: 2026-08-16
-updated: 2026-10-09
+updated: 2026-10-17
 tags: [identity, users, agents, profiles, labs]
 sources: [source-gap-analysis-plan, source-architecture-paper]
 status: adopted
@@ -80,3 +80,33 @@ the prototype demonstrates the full lifecycle live (suspend → refused dispatch
   entry (`platform/core/pkg/api/server.go`).
 - Tests: `TestTenantSuspendLifecycle` + `TestTenantSuspendedRecoveryPaths`
   (`platform/core/pkg/api/server_new_routes_test.go`).
+
+## Session-based operator authentication (A1–A4, landed 2026-10-17)
+
+The prototype implements local Ed25519 challenge-response operator sessions so browser
+operators authenticate without baking secrets into `NEXT_PUBLIC_*` client bundles or
+introducing an external OIDC IdP (preserving Q-16 air-gap integrity):
+
+- **Challenge-response login (`platform/core/pkg/api/auth_session.go`):**
+  `POST /api/auth/challenge` issues a 60-second single-use 32-byte hex nonce.
+  `POST /api/auth/login` verifies an Ed25519 signature over
+  `kubona-auth/v1 login <nonce>` against the registered `admin_pubkey_hex` of an active
+  lab tenant, persists only the SHA-256 `token_hash` in SQLite `auth_sessions`, and sets
+  an `httpOnly`, `SameSite=Lax` cookie (`kubona_session`, default TTL 12h via
+  `KUBONA_SESSION_TTL`, `Secure` when TLS is active).
+- **Session management & rotation cascade:** `GET /api/auth/whoami`,
+  `GET /api/auth/sessions` (scoped to the authenticated tenant),
+  `POST /api/auth/revoke` (cross-tenant revoke returns 404), and `POST /api/auth/logout`.
+  Rotating a tenant's admin key (`RotateAdminKey` in `platform/core/pkg/tenants/tenants.go`)
+  immediately revokes all active `auth_sessions` for that tenant.
+- **Unified edge gate + CSRF protection (`platform/core/pkg/api/edge_auth.go`):**
+  `checkAuth` accepts a valid `kubona_session` cookie first (enforcing `csrfAllowed`
+  Origin allowlist checks on unsafe methods) and falls back to `KUBONA_API_TOKEN` bearer
+  auth for CLI/CI/machine callers. Every tenant mutation records `admin_fp` (16-hex
+  SHA-256 prefix of `admin_pubkey_hex`), and login/refusal/logout/revocation seal
+  `auth_login`, `auth_login_refused`, `auth_logout`, and `auth_session_revoked` ledger
+  events.
+- **Console surface (`platform/console/src/components/common/AuthPanel.tsx`):** Mounted
+  in `LabsView.tsx`, signing login challenges via browser WebCrypto Ed25519 and sending
+  `credentials: 'include'` across `api.ts`.
+

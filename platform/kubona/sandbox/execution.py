@@ -144,7 +144,7 @@ class WorkloadSandbox:
     ):
         self.max_cpu_seconds = max_cpu_seconds
         self.max_memory_mb = max_memory_mb
-        self.allowed_modules = allowed_modules or ALLOWED_MODULES
+        self.allowed_modules = set(allowed_modules) if allowed_modules is not None else set(ALLOWED_MODULES)
 
     def validate_ast(self, code_str: str) -> None:
         """Inspects Python code AST and rejects forbidden imports, dangerous
@@ -166,12 +166,16 @@ class WorkloadSandbox:
 
             # Check from x import y
             elif isinstance(node, ast.ImportFrom):
+                if getattr(node, "level", 0) > 0:
+                    raise SecurityPolicyViolation("Relative imports are disallowed in sandbox")
                 if node.module:
                     root_pkg = node.module.split(".")[0]
                     if root_pkg in BLOCKED_MODULES or node.module in BLOCKED_MODULES:
                         raise SecurityPolicyViolation(f"Disallowed import from: '{node.module}'")
                     if root_pkg not in self.allowed_modules:
                         raise SecurityPolicyViolation(f"Disallowed import from: '{node.module}'")
+                else:
+                    raise SecurityPolicyViolation("Import without module is disallowed in sandbox")
                 for alias in node.names:
                     if alias.name in _BLOCKED_ATTRS or (
                             alias.name.startswith("__") and alias.name.endswith("__")):

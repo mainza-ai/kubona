@@ -225,7 +225,10 @@ def solve_quantum_krylov(
     ground_e = float(evals[0])
 
     # Ground statevector representation for entanglement scoring
-    c0 = evecs[:, 0]
+    if np.sum(keep) < m:
+        c0 = v @ evecs[:, 0]
+    else:
+        c0 = evecs[:, 0]
     gs_vec = np.zeros(dim_full, dtype=complex)
     for k in range(min(len(c0), len(subspace_states))):
         gs_vec += c0[k] * subspace_states[k]
@@ -241,6 +244,7 @@ def solve_quantum_krylov(
         "solver": NUMERICAL_KRYLOV_SOLVER_V1,
         "method": NUMERICAL_KRYLOV_SOLVER_V1,
         "measured": True,
+        "classical_exact_matrix_exp": True,
         "ground_state_energy": ground_e,
         "ground_state_energy_measured": True,
         "classical_fci_energy": e_fci,

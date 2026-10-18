@@ -34,6 +34,7 @@ export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChang
 
   const trajectory = campaign?.trajectory;
   const fciEnergy = campaign?.classical_anchor?.fci_exact_energy;
+  const anchorComputed = campaign?.classical_anchor?.anchor_computed === true;
   const chemLimit = campaign?.classical_anchor?.chemical_accuracy_limit ?? 1.6;
   const targetSystem = campaign?.target_system || 'H₂';
   const ansatzFamily = campaign?.quantum_factors?.ansatz_family || 'TwoLocal';
@@ -42,7 +43,7 @@ export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChang
   const milestones: StoryMilestone[] = useMemo(() => {
     // Chemical Accuracy labels require a computed anchor — without one every
     // Δ is UNVERIFIED (-1), never a breakthrough.
-    const anchorKnown = typeof fciEnergy === 'number' && Number.isFinite(fciEnergy);
+    const anchorKnown = anchorComputed && typeof fciEnergy === 'number' && Number.isFinite(fciEnergy);
     if (trajectory && trajectory.length > 0) {
       const fci = anchorKnown ? (fciEnergy as number) : null;
       return trajectory.map((t, idx) => {
@@ -112,7 +113,7 @@ export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChang
     // Fresh campaign with no optimization steps executed yet: state what
     // exists (the anchor, if computed) and nothing else.
     if (trajectory !== undefined && trajectory.length === 0) {
-      const anchorKnownEmpty = typeof fciEnergy === 'number' && Number.isFinite(fciEnergy);
+      const anchorKnownEmpty = anchorComputed && typeof fciEnergy === 'number' && Number.isFinite(fciEnergy);
       return [
         {
           step: 0,
@@ -142,7 +143,7 @@ export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChang
         codeDiff: '+ # Status: UNVERIFIED — awaiting first campaign',
       },
     ];
-  }, [trajectory, fciEnergy, chemLimit, targetSystem, ansatzFamily]);
+  }, [trajectory, anchorComputed, fciEnergy, chemLimit, targetSystem, ansatzFamily]);
 
   const safeIndex = Math.min(Math.max(0, currentStepIndex), Math.max(0, milestones.length - 1));
   const activeMilestone = milestones[safeIndex] || milestones[0];
@@ -257,8 +258,8 @@ export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChang
             {activeMilestone.deltaMHa < 0 ? (
               <span className="font-bold text-slate-400">Δ = UNVERIFIED (no measurement)</span>
             ) : (
-              <span className={`font-bold ${activeMilestone.deltaMHa <= 1.6 ? 'text-emerald-400' : 'text-amber-400'}`}>
-                Δ = {activeMilestone.deltaMHa.toFixed(2)} mHa {activeMilestone.deltaMHa <= 1.6 ? '(Accuracy Met)' : '(Exploring)'}
+              <span className={`font-bold ${activeMilestone.deltaMHa <= chemLimit ? 'text-emerald-400' : 'text-amber-400'}`}>
+                Δ = {activeMilestone.deltaMHa.toFixed(2)} mHa {activeMilestone.deltaMHa <= chemLimit ? '(Accuracy Met)' : '(Exploring)'}
               </span>
             )}
           </div>

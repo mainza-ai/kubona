@@ -251,10 +251,16 @@ func TestW22JobsScoped(t *testing.T) {
 	if code, _ := w2do(t, h, http.MethodGet, "/api/jobs/"+jr.ID+"?session_id="+sid, nil, ""); code != http.StatusOK {
 		t.Errorf("same-tenant job read must 200, got %d", code)
 	}
-	// Cross-tenant: second session under another tenant.
+	// Cross-tenant: second session under another tenant ("lab-b").
 	other := w2mkSession(t, h, "jobs w2 other")
-	if code, body := w2do(t, h, http.MethodGet, "/api/jobs/"+jr.ID+"?session_id="+other, nil, ""); code != http.StatusOK && code != http.StatusForbidden {
-		t.Errorf("cross-tenant job read must 200 (same default tenant) or 403, got %d %s", code, body)
+	if _, err := srv.Ledger().DB().Exec(`INSERT OR IGNORE INTO tenants (id, display_name) VALUES ('lab-b', 'Lab B')`); err != nil {
+		t.Fatalf("insert lab-b: %v", err)
+	}
+	if _, err := srv.Ledger().DB().Exec(`UPDATE sessions SET tenant_id = 'lab-b' WHERE id = ?`, other); err != nil {
+		t.Fatalf("update other tenant: %v", err)
+	}
+	if code, body := w2do(t, h, http.MethodGet, "/api/jobs/"+jr.ID+"?session_id="+other, nil, ""); code != http.StatusForbidden {
+		t.Errorf("cross-tenant job read must strictly return 403 Forbidden, got %d %s", code, body)
 	}
 }
 

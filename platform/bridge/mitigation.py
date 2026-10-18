@@ -65,15 +65,16 @@ def _shot_std_z(z: float, shots: int) -> float:
     return float(math.sqrt(var))
 
 
-def _folded_counts(qc: Any, fold_factor: int, sim: Any, shots: int) -> Dict[str, int]:
+def _folded_counts(qc: Any, scale: float, sim: Any, shots: int) -> Dict[str, int]:
     # Gate-repetition folding (documents the approximation: repetition, not
     # true U U^dag U inverse folding — the noise-scale knob, not a unitary
     # identity). Shared by ZNE and CDR so the two scales cannot rot apart.
     scale_qc = qc.copy()
-    if fold_factor > 1:
-        for _ in range(fold_factor - 1):
-            for instr in qc.data:
-                scale_qc.data.append(instr)
+    if scale > 1.0:
+        n_gates = len(qc.data)
+        extra = int(round((scale - 1.0) * n_gates))
+        for i in range(extra):
+            scale_qc.data.append(qc.data[i % n_gates])
     has_m = any(getattr(inst.operation, "name", "") == "measure" for inst in scale_qc.data)
     if not has_m:
         if scale_qc.num_clbits == 0:
@@ -211,8 +212,7 @@ def mitigate_circuit(
         # Unitary folding at scale factors lambda (gate-repetition knob).
         vals = []
         for s in scale_factors:
-            fold_factor = int(round(s))
-            cnts = _folded_counts(qc, fold_factor, sim, shots)
+            cnts = _folded_counts(qc, float(s), sim, shots)
             vals.append(_z_expectation(cnts))
 
         # Richardson extrapolation to scale = 0 with conditioning check.
@@ -342,10 +342,9 @@ def mitigate_circuit(
         noisy_vals: List[float] = []
         ideal_vals: List[float] = []
         for s in scale_factors:
-            fold_factor = int(round(s))
-            cnts_n = _folded_counts(qc, fold_factor, sim, shots)
+            cnts_n = _folded_counts(qc, float(s), sim, shots)
             noisy_vals.append(_z_expectation(cnts_n))
-            cnts_i = _folded_counts(qc, fold_factor, ideal_sim, shots)
+            cnts_i = _folded_counts(qc, float(s), ideal_sim, shots)
             ideal_vals.append(_z_expectation(cnts_i))
         axis_var = float(np.var(np.asarray(noisy_vals, dtype=float)))
         if axis_var < MIN_CDR_AXIS_VAR_V1:

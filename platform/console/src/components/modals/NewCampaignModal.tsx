@@ -199,7 +199,7 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
                 Target Chemical System
               </label>
               <span className="text-[11px] text-slate-400 font-mono">
-                PySCF ab-initio ground truth verified
+                PySCF ab-initio anchor available on run
               </span>
             </div>
 

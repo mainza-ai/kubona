@@ -30,6 +30,18 @@ let sessionKeyPair: { secretKey: Uint8Array; publicKey: Uint8Array } | null = nu
 // mandates as hardware-backed or durable: they are ephemeral in-memory
 // signatures verified against the bundled public key for the session only.
 
+// Signs an auth challenge for /api/auth/login. The exact bytes the server
+// verifies: "kubona-auth/v1 login " + nonce (must match the daemon's
+// loginChallengeMessage — never add fields here without updating both).
+export function signLoginChallenge(
+  nonce: string,
+  keyPair: { secretKey: Uint8Array; publicKey: Uint8Array }
+): { pubkey_hex: string; signature_hex: string } {
+  const encoder = new TextEncoder();
+  const sig = ed.sign(encoder.encode(`kubona-auth/v1 login ${nonce}`), keyPair.secretKey);
+  return { pubkey_hex: bytesToHex(keyPair.publicKey), signature_hex: bytesToHex(sig) };
+}
+
 export function getOrCreateSessionKeyPair(): { secretKey: Uint8Array; publicKey: Uint8Array } {
   if (!sessionKeyPair) {
     sessionKeyPair = ed.keygen();

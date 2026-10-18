@@ -1,7 +1,7 @@
 ---
 type: roadmap
 date: 2026-08-16
-updated: 2026-10-10
+updated: 2026-10-17
 tags: [kubona, plan]
 sources: [source-gap-analysis-plan, source-openai-math-corpus]
 status: living
@@ -39,13 +39,16 @@ status: living
 > IBM/Quantinuum/Rigetti have real SDK paths validated against the real SDKs but need creds;
 > Pulser/StrawberryFields are modality-gated and fail closed.
 >
-> > ⚑ State update (2026-10-12): the load-bearing implementation is now the Go
-> > core (`platform/core`, 26 pkgs, 291 test funcs, 71 routes, single `kubonad`
-> > binary) + Next.js console (78 vitest tests) + Python bridge (7 gRPC RPCs);
-> > suites green locally and in CI — Go 27 pkgs ok, pytest 403 passed (run from
-> > `platform/`; CWD-robust since the 2026-10-12 fixture-path fix), pnpm 78/78.
-> > `main` advances by fast-forwarding `develop` (199 commits, 2026-10-12).
-> > Full component breakdown: [[full-platform-audit-2026-10-12]] (73.0%).
+> > ⚑ State update (2026-10-17): the load-bearing implementation is the Go
+> > core (`platform/core`, 27 pkgs, 84 HTTP routes, single `kubonad` binary) +
+> > Next.js 16 console (`platform/console`, 149 Vitest tests across 32 files) +
+> > Python runtime & gRPC bridge (`platform/kubona` + `platform/bridge`, 676
+> > pytest + 41 bridge tests, 7 gRPC RPCs) + Rust `qir-core` (13 tests) and
+> > `ifc-core` (4 tests) + digest-pinned Docker production stack
+> > (`platform/docker/`); Waves 0–2, Cloudroom S1–S8, REA R0–R6/C1–C6,
+> > leanrea L1–L5, M0–M6 env-driven LLM config, and A1–A4 Ed25519 challenge-response
+> > session auth are all landed and green locally and in CI.
+> > Full component breakdown: [[full-platform-audit-2026-10-12]] and [[remaining-work]].
 > > The 2026-08/09 phase-status blocks below are historical records of the
 > > Python-scaffold era, not current state.
 
@@ -425,12 +428,11 @@ Before any job is dispatched to paid cloud QPUs (IBM, Quantinuum, QuEra, D-Wave)
    and assert claims only when corroborated ($P_{\text{corr}} \ge 0.75$).
 
 ### The Hybrid LLM Configuration Plane
-A unified settings engine in Go and Next.js manages:
-- **Local Engines:** Automatic zero-config discovery for oMLX (port 8787 hosting `Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit`,
-  `Llama-3.2-3B-Instruct-bf16`, and `Qwen3.6-35B-A3B-UD-MLX-4bit`), Ollama (port 11434), and LM Studio (port 1234).
-- **Cloud Providers:** Configurable endpoints and API keys for Anthropic Claude and OpenAI.
+A unified settings engine in Go and Next.js (`pkg/llm/config.go`, `/api/llm/settings`) manages:
+- **Local Engines:** Automatic zero-config discovery across local ports (`8787` oMLX, `11434` Ollama, `1234` LM Studio, `8000`/`8081` vLLM/llama.cpp) with zero hardcoded model IDs in code.
+- **Cloud Providers:** Environment- and settings-driven endpoints and API keys (`KUBONA_LLM_PROVIDER`, `*_MODEL`) for NVIDIA NIM, OpenCode, Anthropic, and OpenAI.
 - **Sovereign Air-Gap Switch:** Physical toggle in the control plane that severs external egress and enforces 100% local inference.
-- **Agent Persona Routing:** Assigning distinct models to individual roles (`ansatz-scout`, `device-auditor`, `disconfirmation-officer`).
+- **Agent Persona Routing:** Assigning distinct discovered or configured models to individual roles (`lead_theorist`, `ansatz_architect`, `quantum_Hardware_auditor`, `adversarial_skeptic`, `epistemic_scribe`).
 
 ---
 

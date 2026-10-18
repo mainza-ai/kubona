@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -161,8 +162,8 @@ func (r *CustomAgentRegistry) Register(m CustomAgentManifest) (CustomAgentManife
 	if strings.TrimSpace(m.Name) == "" {
 		return CustomAgentManifest{}, fmt.Errorf("agent name is required")
 	}
-	if m.SpendBudgetUSD < 0 {
-		return CustomAgentManifest{}, fmt.Errorf("spend budget cannot be negative")
+	if math.IsNaN(m.SpendBudgetUSD) || math.IsInf(m.SpendBudgetUSD, 0) || m.SpendBudgetUSD < 0 {
+		return CustomAgentManifest{}, fmt.Errorf("spend budget must be a finite number and cannot be negative")
 	}
 	if m.IsSystemAgent {
 		return CustomAgentManifest{}, fmt.Errorf("IsSystemAgent is reserved for built-in seeds")
@@ -180,6 +181,7 @@ func (r *CustomAgentRegistry) Register(m CustomAgentManifest) (CustomAgentManife
 	m.UpdatedAt = now
 	m.IsSystemAgent = false
 
+	prev, hadPrev := r.agents[m.ID]
 	r.agents[m.ID] = m
 	if r.db != nil {
 		raw, _ := json.Marshal(m)
@@ -187,7 +189,11 @@ func (r *CustomAgentRegistry) Register(m CustomAgentManifest) (CustomAgentManife
 			`INSERT INTO custom_agents (id, manifest_json, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
 			 ON CONFLICT(id) DO UPDATE SET manifest_json = excluded.manifest_json, updated_at = CURRENT_TIMESTAMP`,
 			m.ID, string(raw)); err != nil {
-			delete(r.agents, m.ID)
+			if hadPrev {
+				r.agents[m.ID] = prev
+			} else {
+				delete(r.agents, m.ID)
+			}
 			return CustomAgentManifest{}, fmt.Errorf("failed to persist agent: %w", err)
 		}
 	}
@@ -265,12 +271,14 @@ func cloudModel(model string) bool {
 		head = strings.ToLower(model[:i])
 	} else {
 		lower := strings.ToLower(model)
-		for _, sub := range []string{"claude", "gpt", "gemini", "deepseek", "nemotron", "opus", "sonnet", "o1", "-4o", "qwen-max", "qwen-plus"} {
-			if strings.Contains(lower, sub) {
-				return true
+		// Known local patterns return false
+		for _, local := range []string{"local", "omlx", "ollama", "lmstudio", "gguf", "llama.cpp"} {
+			if strings.Contains(lower, local) {
+				return false
 			}
 		}
-		return false
+		// Fail-closed direction: an unrecognized bare ID is treated as cloud, never silently routed free
+		return true
 	}
 	switch head {
 	case "local", "omlx", "ollama", "lmstudio":
@@ -338,23 +346,23 @@ func RouteMultimodal(p MultimodalPayload, airGapped bool, fallbackModel string) 
 	// J2: cloud escalation is spend-gated. An explicit cloud model without
 	// funding refuses (never silently downgraded to local); funded complex
 	// work routes to the requested model with the backing named.
-	funded := p.HasEd25519Mandate || p.SpendBudgetUSD > 0.05
+	cost := 0.045
+	if p.MaxTokens > 2048 {
+		cost = 0.15
+	}
+	funded := p.HasEd25519Mandate || (p.SpendBudgetUSD >= cost && p.SpendBudgetUSD > 0)
 	if isCloud {
 		if !funded {
 			return RoutingDecision{
 				Provider:    prov,
 				Model:       model,
 				Ok:          false,
-				Explanation: "cloud model " + model + " requested without spend backing: declare a budget or mandate, never silently downgraded",
+				Explanation: fmt.Sprintf("cloud model %s requested without spend backing (budget %.4f USD < cost %.4f USD): declare a budget or mandate, never silently downgraded", model, p.SpendBudgetUSD, cost),
 			}
 		}
 		backing := "spend budget declared"
 		if p.HasEd25519Mandate {
 			backing = "AP2 mandate backing"
-		}
-		cost := 0.045
-		if p.MaxTokens > 2048 {
-			cost = 0.15
 		}
 		return RoutingDecision{
 			Provider:            prov,

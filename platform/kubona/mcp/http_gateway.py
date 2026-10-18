@@ -18,6 +18,7 @@ posture on the wire; this module proves the path and is what `kubona serve` wire
 from __future__ import annotations
 
 import base64
+import json
 import os
 import time
 from typing import Any
@@ -66,13 +67,22 @@ def _make_app(gateway: KubonaGateway, secure_session: HybridSession | None = Non
         outer = _principal(request, gateway)
         if outer is None:
             return JSONResponse({"ok": False, "error": "unauthorized: Bearer <token>"}, status_code=401)
-        if int(request.headers.get("content-length", "0") or 0) > MAX_BODY_BYTES:
+        try:
+            cl = int(request.headers.get("content-length", "0") or 0)
+        except (ValueError, TypeError):
+            return JSONResponse({"ok": False, "error": "invalid content-length"}, status_code=400)
+        if cl > MAX_BODY_BYTES:
             return JSONResponse({"ok": False, "error": "body too large"}, status_code=413)
         bearer = request.headers["authorization"][len("Bearer "):]
         try:
-            body = await request.json()
+            raw_body = await request.body()
+            if len(raw_body) > MAX_BODY_BYTES:
+                return JSONResponse({"ok": False, "error": "body too large"}, status_code=413)
+            body = json.loads(raw_body.decode("utf-8"))
         except Exception:  # noqa: BLE001
             return JSONResponse({"ok": False, "error": "invalid JSON body"}, status_code=400)
+        if require_secure and "envelope" not in body:
+            return JSONResponse({"ok": False, "error": "secure envelope required: refusing plaintext request"}, status_code=400)
         t0 = time.time()
         try:
             if "envelope" in body and secure_session is not None:

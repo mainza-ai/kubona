@@ -21,8 +21,9 @@ status: candidate
 > `platform/crates/*/src/*.rs`, `ci.yml`, both manifests. Kubona read at
 > @ `433e7d5` (develop); REA at `e567033` where cited. Items marked
 > **[verified]** were re-checked line-by-line for this page; unmarked items
-> come from the full-read pass with `file:line` anchors. Nothing below is
-> started. Production stance throughout: full logic or fail-closed refusal —
+> come from the full-read pass with `file:line` anchors. All 64 items across
+> Waves 0–2 landed 2026-10-17 (see `## Landed 2026-10-17` at the bottom of
+> this page). Production stance throughout: full logic or fail-closed refusal —
 > no stub that must be redone.
 
 ## Wave 0 — spend-safety defects (do first; money is irreversible)

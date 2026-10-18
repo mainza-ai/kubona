@@ -188,7 +188,11 @@ func (r *SandboxRunner) ExecuteHarness(benchmarkScript, mutableArtifactName, mut
 	}
 
 	if mutableArtifactName != "" && mutableArtifactContent != "" {
-		artPath := filepath.Join(workspaceDir, mutableArtifactName)
+		baseName := filepath.Base(mutableArtifactName)
+		if baseName != mutableArtifactName || strings.Contains(mutableArtifactName, "..") {
+			return nil, fmt.Errorf("invalid artifact name %q: path traversal rejected", mutableArtifactName)
+		}
+		artPath := filepath.Join(workspaceDir, baseName)
 		if err := os.WriteFile(artPath, []byte(mutableArtifactContent), 0666); err != nil {
 			return nil, fmt.Errorf("failed to write mutable artifact: %w", err)
 		}
@@ -301,11 +305,17 @@ func (r *SandboxRunner) ExecuteHarness(benchmarkScript, mutableArtifactName, mut
 	duration := time.Since(startTime)
 
 	exitCode := 0
+	errStr := ""
 	if runErr != nil {
-		if exitErr, ok := runErr.(*exec.ExitError); ok {
+		if ctx.Err() == context.DeadlineExceeded {
+			exitCode = 124
+			errStr = "execution timed out: " + r.cfg.Timeout.String()
+		} else if exitErr, ok := runErr.(*exec.ExitError); ok {
 			exitCode = exitErr.ExitCode()
+			errStr = exitErr.Error()
 		} else {
 			exitCode = 1
+			errStr = runErr.Error()
 		}
 	}
 
@@ -321,7 +331,7 @@ func (r *SandboxRunner) ExecuteHarness(benchmarkScript, mutableArtifactName, mut
 		Duration:     duration,
 		Sandboxed:    false, // Explicitly false! Never deceive caller.
 		IsolationTag: tag,
-		Error:        "",
+		Error:        errStr,
 	}, nil
 }
 

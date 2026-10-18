@@ -85,6 +85,10 @@ class Gate:
                 raise ValueError(
                     f"gate {self.name!r} has non-finite parameter {p!r}"
                 )
+        if len(set(self.qubits)) != len(self.qubits):
+            raise ValueError(
+                f"gate {self.name!r} has duplicate qubit operands: {self.qubits!r}"
+            )
 
 
 @dataclass

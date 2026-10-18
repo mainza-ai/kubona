@@ -4,8 +4,10 @@ import {
   canonicalJobBinding,
   createSignedSpendMandate,
   verifySpendMandateLocally,
+  signLoginChallenge,
   type SpendMandate,
 } from './mandates';
+import * as ed from '@noble/ed25519';
 
 // Cross-language fixture: produced once with @noble/ed25519 over the exact
 // canonical string below. The mirror test in Go (mandates package,
@@ -79,5 +81,24 @@ describe('canonical job binding v1 (must match Go CanonicalJobBinding)', () => {
     expect(canonicalJobBinding('sess-other', QASM)).not.toBe(base);
     expect(canonicalJobBinding('sess-vec', QASM + 'h q[0];\n')).not.toBe(base);
     expect(canonicalJobBinding('sess-vec', QASM, 'mitigate')).not.toBe(base);
+  });
+});
+
+describe('signLoginChallenge (A4 Ed25519 login challenge)', () => {
+  it('signs kubona-auth/v1 login <nonce> deterministically with Ed25519', () => {
+    const secretKey = ed.etc.hexToBytes('01'.repeat(32));
+    const publicKey = ed.getPublicKey(secretKey);
+    const nonce = 'deadbeef0123456789abcdef01234567';
+    const { pubkey_hex, signature_hex } = signLoginChallenge(nonce, { secretKey, publicKey });
+    expect(pubkey_hex).toBe(ed.etc.bytesToHex(publicKey));
+    const msg = new TextEncoder().encode(`kubona-auth/v1 login ${nonce}`);
+    expect(
+      ed.verify(ed.etc.hexToBytes(signature_hex), msg, publicKey)
+    ).toBe(true);
+    // Domain separation: does not verify under a different nonce or prefix
+    const wrongMsg = new TextEncoder().encode(`kubona-tenant-admin/v1 ${nonce}`);
+    expect(
+      ed.verify(ed.etc.hexToBytes(signature_hex), wrongMsg, publicKey)
+    ).toBe(false);
   });
 });

@@ -464,6 +464,16 @@ func checkGateApp(stmt string, regs *qasmRegs, custom map[string][2]int) error {
 		return fmt.Errorf("gate %q applies to no qubits", name)
 	}
 	operands := splitTopLevel(rest, ',')
+	if len(operands) > 1 {
+		seen := make(map[string]bool, len(operands))
+		for _, op := range operands {
+			clean := strings.TrimSpace(op)
+			if seen[clean] {
+				return fmt.Errorf("gate %q has duplicate qubit operands: %s", name, clean)
+			}
+			seen[clean] = true
+		}
+	}
 	if wantQ >= 0 {
 		indexed, whole := 0, 0
 		for _, op := range operands {
