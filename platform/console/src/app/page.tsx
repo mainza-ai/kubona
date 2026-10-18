@@ -123,18 +123,19 @@ export default function Home() {
     (async () => {
       // Runtime backend URL first (M5): same image, any backend.
       await configureApiBase();
-      const [sessList, loopList, evtList] = await Promise.all([
+      const [sessList, loopList] = await Promise.all([
         fetchSessions(),
         fetchLoops(),
-        fetchEvents(),
       ]);
       if (!mounted) return;
+      let targetSessionId = currentSessionId;
       if (sessList.length === 0) {
         if (!bootstrappedSession.current) {
           bootstrappedSession.current = true;
           const firstSess = await createSession('Quantum Research Campaign #1', 150.0);
           if (firstSess && mounted) {
             setSessions([firstSess]);
+            targetSessionId = firstSess.id;
             switchSession(firstSess.id);
             fetchCampaignState(firstSess.id).then((c) => {
               if (mounted) setCampaign(c);
@@ -144,6 +145,7 @@ export default function Home() {
       } else {
         setSessions(sessList);
         if (!currentSessionId) {
+          targetSessionId = sessList[0].id;
           switchSession(sessList[0].id);
           fetchCampaignState(sessList[0].id).then((c) => {
             if (mounted) setCampaign(c);
@@ -151,31 +153,37 @@ export default function Home() {
         }
       }
       setLoops(loopList);
-      setEvents(evtList);
+      if (targetSessionId) {
+        fetchEvents(targetSessionId).then((e) => {
+          if (mounted) setEvents(e);
+        });
+      }
     })();
 
     const timer = setInterval(() => {
       fetchLoops(currentSessionId || undefined).then((l) => { if (mounted) setLoops(l); });
-      fetchEvents(currentSessionId || undefined).then((e) => {
-        if (!mounted) return;
-        setEvents(e);
-        // Heartbeat toasts: while a run is live, surface fresh ledger events
-        // on the canvas (max one, auto-fading). Baseline on run start.
-        if (prevPhase.current === 'idle' && runPhase !== 'idle') {
-          if (e.length > 0) lastToastEventId.current = Math.max(...e.map((ev) => ev.id));
-        } else if (runPhase !== 'idle' && e.length > 0) {
-          const fresh = e.filter((ev) => ev.id > lastToastEventId.current);
-          if (lastToastEventId.current > 0 && fresh.length > 0) {
-            const last = fresh[fresh.length - 1];
-            const label = String(last.event_type || 'event').replace(/_/g, ' ');
-            setToast({ key: last.id, text: `${label} · recorded` });
-            if (toastTimer.current) clearTimeout(toastTimer.current);
-            toastTimer.current = setTimeout(() => setToast(null), 4000);
+      if (currentSessionId) {
+        fetchEvents(currentSessionId).then((e) => {
+          if (!mounted) return;
+          setEvents(e);
+          // Heartbeat toasts: while a run is live, surface fresh ledger events
+          // on the canvas (max one, auto-fading). Baseline on run start.
+          if (prevPhase.current === 'idle' && runPhase !== 'idle') {
+            if (e.length > 0) lastToastEventId.current = Math.max(...e.map((ev) => ev.id));
+          } else if (runPhase !== 'idle' && e.length > 0) {
+            const fresh = e.filter((ev) => ev.id > lastToastEventId.current);
+            if (lastToastEventId.current > 0 && fresh.length > 0) {
+              const last = fresh[fresh.length - 1];
+              const label = String(last.event_type || 'event').replace(/_/g, ' ');
+              setToast({ key: last.id, text: `${label} · recorded` });
+              if (toastTimer.current) clearTimeout(toastTimer.current);
+              toastTimer.current = setTimeout(() => setToast(null), 4000);
+            }
+            lastToastEventId.current = Math.max(...e.map((ev) => ev.id));
           }
-          lastToastEventId.current = Math.max(...e.map((ev) => ev.id));
-        }
-        prevPhase.current = runPhase;
-      });
+          prevPhase.current = runPhase;
+        });
+      }
     }, 3500);
     const clock = setInterval(() => {
       setNowTick((t) => t + 1);
