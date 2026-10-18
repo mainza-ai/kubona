@@ -18,6 +18,7 @@ import {
   
 } from 'lucide-react';
 import { CampaignState } from '@/types';
+import { sendChatMessage } from '@/lib/api';
 import { LiteraturePanel } from './LiteraturePanel';
 import { MeasuredOutputs } from '../MeasuredOutputs';
 
@@ -41,6 +42,8 @@ export function ResultsStudio({ campaign, sessionId }: ResultsStudioProps) {
   const [activeTab, setActiveTab] = useState<'manuscript' | 'latex' | 'lean4' | 'literature'>('manuscript');
   const [selectedAnchor, setSelectedAnchor] = useState<string>('§Abstract');
   const [newComment, setNewComment] = useState('');
+  const [submittingAnnotation, setSubmittingAnnotation] = useState(false);
+  const [annotationError, setAnnotationError] = useState<string | null>(null);
   // Annotations start empty: review history is written by reviewers, never seeded.
   const [annotations, setAnnotations] = useState<FrameAnnotation[]>([]);
 
@@ -197,19 +200,41 @@ ${bibtex}
     setTimeout(() => setExported(false), 3000);
   };
 
-  const handleAddAnnotation = (e: React.FormEvent) => {
+  const handleAddAnnotation = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newComment.trim()) return;
+    const comment = newComment.trim();
+    if (!comment) return;
+    setAnnotationError(null);
+    const annoId = `anno-${Date.now()}`;
     const anno: FrameAnnotation = {
-      id: `anno-${Date.now()}`,
+      id: annoId,
       targetAnchor: selectedAnchor,
       author: 'Human Scientist (You)',
-      comment: newComment.trim(),
+      comment: comment,
       status: 'open',
       timestamp: 'Just now',
     };
-    setAnnotations([anno, ...annotations]);
+    setAnnotations((prev) => [anno, ...prev]);
     setNewComment('');
+
+    if (sessionId) {
+      setSubmittingAnnotation(true);
+      try {
+        const prompt = `[Human Review on ${selectedAnchor}]: ${comment}\nPlease re-verify this derivation against computed classical limits and formal proof bounds.`;
+        const result = await sendChatMessage(sessionId, prompt);
+        if (!result) {
+          setAnnotationError('Failed to prompt swarm: message send returned null.');
+        } else {
+          setAnnotations((prev) =>
+            prev.map((a) => (a.id === annoId ? { ...a, status: 'addressed' } : a))
+          );
+        }
+      } catch (err) {
+        setAnnotationError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setSubmittingAnnotation(false);
+      }
+    }
   };
 
   const isChemAccMet = campaign?.notebook?.chemical_accuracy ?? (deltaMHa != null && deltaMHa <= 1.6);
@@ -479,6 +504,11 @@ ${bibtex}
 
           {/* New Annotation Input Form */}
           <form onSubmit={handleAddAnnotation} className="pt-3 border-t border-white/[0.08] space-y-2 mt-3">
+            {annotationError && (
+              <div className="p-2 rounded-lg bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[10px]">
+                {annotationError}
+              </div>
+            )}
             <input
               type="text"
               placeholder={`Annotate ${selectedAnchor}...`}
@@ -488,11 +518,11 @@ ${bibtex}
             />
             <button
               type="submit"
-              disabled={!newComment.trim()}
+              disabled={!newComment.trim() || submittingAnnotation}
               className="w-full py-1.5 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 disabled:opacity-50 text-xs font-semibold text-white flex items-center justify-center gap-1.5 transition"
             >
               <Send className="w-3.5 h-3.5" />
-              <span>Prompt Swarm to Re-verify</span>
+              <span>{submittingAnnotation ? 'Prompting Swarm...' : 'Prompt Swarm to Re-verify'}</span>
             </button>
           </form>
         </div>

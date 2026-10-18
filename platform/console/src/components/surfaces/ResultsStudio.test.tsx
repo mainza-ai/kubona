@@ -1,8 +1,17 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { ResultsStudio } from './ResultsStudio';
 import type { CampaignState } from '@/types';
+
+vi.mock('@/lib/api', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/lib/api')>();
+  return {
+    ...actual,
+    sendChatMessage: vi.fn().mockResolvedValue({ user: {}, assistant: {} }),
+    fetchJobs: vi.fn().mockResolvedValue([]),
+  };
+});
 
 function campaign(status: string) {
   return {
@@ -77,5 +86,31 @@ describe('ResultsStudio verification gating (J1)', () => {
       );
     });
     expect(JSON.stringify(tree!.toJSON())).toContain('UNVERIFIED DRAFT');
+  });
+
+  it('submits human annotation and dispatches re-verification prompt to active session', async () => {
+    const { sendChatMessage } = await import('@/lib/api');
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(
+        <ResultsStudio campaign={campaign('COLLAPSED_VERIFIED')} sessionId="sess-test-456" />
+      );
+    });
+
+    const input = tree!.root.findByType('input');
+    await act(async () => {
+      input.props.onChange({ target: { value: 'Check signs on overlap integrals' } });
+    });
+
+    const form = tree!.root.findByType('form');
+    await act(async () => {
+      await form.props.onSubmit({ preventDefault: () => {} });
+    });
+
+    expect(sendChatMessage).toHaveBeenCalledWith(
+      'sess-test-456',
+      expect.stringContaining('[Human Review on §Abstract]: Check signs on overlap integrals')
+    );
+    expect(JSON.stringify(tree!.toJSON())).toContain('Check signs on overlap integrals');
   });
 });

@@ -320,9 +320,9 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
         )}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {endpoints.map((ep) => (
+          {endpoints.map((ep, idx) => (
             <div
-              key={ep.port}
+              key={ep.port ?? idx}
               className="p-3.5 rounded-xl bg-white/[0.02] border border-white/[0.05] flex items-center justify-between text-xs font-mono hover:border-cyan-500/30 transition-all"
             >
               <div>
@@ -407,7 +407,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
             <div className="flex items-center space-x-4 text-[10px] text-slate-400">
               <span>Provider: {routingDecision.provider}</span>
               <span>Estimated Cost: ${fmtFixed(routingDecision.estimated_cost_usd, 2)}</span>
-              <span>Modalities: {routingDecision.modalities_supported.join(', ')}</span>
+              <span>Modalities: {(routingDecision.modalities_supported || []).join(', ') || 'general'}</span>
             </div>
           </div>
         )}

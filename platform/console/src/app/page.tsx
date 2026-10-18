@@ -28,6 +28,7 @@ import { LLMSettings } from '@/components/surfaces/LLMSettings';
 import { AutonomyCockpit } from '@/components/surfaces/AutonomyCockpit';
 import { SpatialCanvas } from '@/components/surfaces/SpatialCanvas';
 import { BackendStatusBar } from '@/components/common/BackendStatusBar';
+import { GenerativeUIStudio } from '@/components/surfaces/GenerativeUIStudio';
 
 function formatElapsed(createdAt: string): string {
   const ms = Date.now() - new Date(createdAt).getTime();
@@ -53,7 +54,7 @@ export default function Home() {
   const [surface, setSurface] = useState<DockSurface>('arena');
   const [arenaView, setArenaView] = useState<ArenaView>('orbital');
   const [recenterSignal, setRecenterSignal] = useState(0);
-  const [proofsTab, setProofsTab] = useState<'manuscripts' | 'tribunal'>('manuscripts');
+  const [proofsTab, setProofsTab] = useState<'manuscripts' | 'tribunal' | 'gallery'>('manuscripts');
   const [meshTab, setMeshTab] = useState<'mesh' | 'guardrails' | 'models' | 'labs' | 'settings'>('mesh');
   const [showLegacyCanvas, setShowLegacyCanvas] = useState(false);
   const [gateState, setGateState] = useState<Record<string, 'authorized' | 'denied' | 'downgraded'>>({});
@@ -432,7 +433,29 @@ export default function Home() {
       <CommandPalette
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
-        onSelectSurface={(surfId) => handleSelectDockSurface(surfId as DockSurface)}
+        onSelectSurface={(surfId) => {
+          if (surfId === 'tribunal') {
+            setSurface('proofs');
+            setProofsTab('tribunal');
+          } else if (surfId === 'gallery') {
+            setSurface('proofs');
+            setProofsTab('gallery');
+          } else if (surfId === 'guardrails') {
+            setSurface('mesh');
+            setMeshTab('guardrails');
+          } else if (surfId === 'models') {
+            setSurface('mesh');
+            setMeshTab('models');
+          } else if (surfId === 'labs') {
+            setSurface('mesh');
+            setMeshTab('labs');
+          } else if (surfId === 'settings') {
+            setSurface('mesh');
+            setMeshTab('settings');
+          } else {
+            handleSelectDockSurface(surfId as DockSurface);
+          }
+        }}
         onNewCampaign={handleCreateSession}
         onEmergencyAbort={handleEmergencyAbort}
         onOpenAbout={() => setIsAboutOpen(true)}
@@ -617,9 +640,13 @@ export default function Home() {
         {surface !== 'arena' && (
           <main className="flex-1 overflow-y-auto">
             {surface === 'proofs' && subToggle(
-              [{ id: 'manuscripts', label: 'Manuscripts' }, { id: 'tribunal', label: 'Tribunal' }],
+              [
+                { id: 'manuscripts', label: 'Manuscripts' },
+                { id: 'tribunal', label: 'Tribunal' },
+                { id: 'gallery', label: 'Preview Gallery' },
+              ],
               proofsTab,
-              (id) => setProofsTab(id as 'manuscripts' | 'tribunal')
+              (id) => setProofsTab(id as 'manuscripts' | 'tribunal' | 'gallery')
             )}
             {surface === 'mesh' && subToggle(
               [
@@ -646,6 +673,7 @@ export default function Home() {
                   onCampaignSynthesized={(c) => setCampaign(c)}
                 />
               )}
+              {surface === 'proofs' && proofsTab === 'gallery' && <GenerativeUIStudio campaign={campaign} />}
               {surface === 'mesh' && meshTab === 'mesh' && <CognitiveMesh campaign={campaign} />}
               {surface === 'mesh' && meshTab === 'guardrails' && <AutonomyCockpit campaign={campaign} session={session} />}
               {surface === 'mesh' && meshTab === 'models' && <HuggingFaceModelHub />}

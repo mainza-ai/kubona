@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/hmac"
@@ -3575,11 +3576,17 @@ func runBridgePython(ctx context.Context, timeout time.Duration, script string, 
 		// dir once slipped through — K1 tests pin this).
 		cmd.Dir = dir
 		cmd.Env = append(os.Environ(), "PYTHONPATH="+dir)
-		out, err := cmd.CombinedOutput()
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		err := cmd.Run()
 		if cctx.Err() == context.DeadlineExceeded {
-			return out, fmt.Errorf("bridge python timed out after %s (%s)", timeout, pyBin)
+			return stdout.Bytes(), fmt.Errorf("bridge python timed out after %s (%s)", timeout, pyBin)
 		}
-		return out, err
+		if err != nil {
+			return stdout.Bytes(), fmt.Errorf("bridge python exit error: %w, stderr: %s", err, stderr.String())
+		}
+		return stdout.Bytes(), nil
 	}
 	if absBin, err := exec.LookPath(bin); err == nil {
 		bin = absBin
@@ -3634,7 +3641,11 @@ except Exception as e:
 	}
 
 	var parsed map[string]any
-	if json.Unmarshal(out, &parsed) == nil {
+	cleanOut := bytes.TrimSpace(out)
+	if idx := bytes.Index(cleanOut, []byte("{")); idx >= 0 {
+		cleanOut = cleanOut[idx:]
+	}
+	if json.Unmarshal(cleanOut, &parsed) == nil {
 		if _, hasErr := parsed["error"]; !hasErr {
 			parsed["defaulted_smiles"] = defaultedSmiles
 			parsed["evaluated_by"] = pyBin
@@ -3702,7 +3713,11 @@ except Exception as e:
 	}
 
 	var parsed map[string]any
-	if json.Unmarshal(out, &parsed) == nil {
+	cleanOut := bytes.TrimSpace(out)
+	if idx := bytes.Index(cleanOut, []byte("{")); idx >= 0 {
+		cleanOut = cleanOut[idx:]
+	}
+	if json.Unmarshal(cleanOut, &parsed) == nil {
 		if _, hasErr := parsed["error"]; !hasErr {
 			parsed["defaulted_target"] = defaultedTarget
 			parsed["defaulted_candidates"] = defaultedCandidates
