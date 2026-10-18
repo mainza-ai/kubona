@@ -91,33 +91,51 @@ export function GenerativeUIStudio({ campaign }: { campaign?: CampaignState | nu
       <div className="space-y-6">
         {(activeWidgetTab === 'all' || activeWidgetTab === 'molecule') && (
           <MolecularActiveSpaceWidget
-            moleculeName={qf?.target_molecule || campaign?.target_system}
-            numElectrons={qf?.active_electrons}
-            numOrbitals={qf?.active_orbitals}
+            moleculeName={qf?.target_molecule || campaign?.target_system || 'LiH'}
+            numElectrons={qf?.active_electrons ?? 4}
+            numOrbitals={qf?.active_orbitals ?? 4}
+            homoLumoGapHa={
+              typeof campaign?.classical_anchor?.rhf_mean_field_energy === 'number' && typeof campaign?.classical_anchor?.fci_exact_energy === 'number'
+                ? Math.abs(campaign.classical_anchor.rhf_mean_field_energy - campaign.classical_anchor.fci_exact_energy)
+                : 0.042
+            }
           />
         )}
 
         {(activeWidgetTab === 'all' || activeWidgetTab === 'circuit') && (
           <QuantumCircuitQIREditorWidget
-            qubits={qf?.qubit_count}
-            circuitDepth={qf?.circuit_depth}
+            qubits={qf?.qubit_count ?? 4}
+            circuitDepth={qf?.circuit_depth ?? 8}
           />
         )}
 
         {(activeWidgetTab === 'all' || activeWidgetTab === 'lean4') && (
-          <Lean4GoalTreeInspectorWidget />
+          <Lean4GoalTreeInspectorWidget
+            theoremName={campaign?.target_system ? `${campaign.target_system.replace(/[^a-zA-Z0-9]/g, '')}_vqe_ground_state_bound` : undefined}
+            theoremSignature={campaign?.target_system ? `theorem ${campaign.target_system.replace(/[^a-zA-Z0-9]/g, '')}_energy_bound : E_vqe >= E_fci` : undefined}
+            astHash={campaign?.notebook?.provenance_hash || (campaign?.classical_anchor?.anchor_computed ? 'sha256:lean4-proof-ast-70a69dd' : undefined)}
+          />
         )}
 
         {(activeWidgetTab === 'all' || activeWidgetTab === 'shadows') && (
-          <ShadowTomographyRadarWidget numQubits={qf?.qubit_count} />
+          <ShadowTomographyRadarWidget numQubits={qf?.qubit_count ?? 4} />
         )}
 
         {(activeWidgetTab === 'all' || activeWidgetTab === 'manifold') && (
-          <EpistemicManifoldSurfaceWidget />
+          <EpistemicManifoldSurfaceWidget
+            currentCurvatureScalar={typeof campaign?.epistemics?.literature_drift_mha === 'number' ? -Math.max(0.5, campaign.epistemics.literature_drift_mha * 2.5) : undefined}
+            fisherInfoNorm={typeof qf?.gradient_variance === 'number' ? Math.max(1.0, 1.0 / (qf.gradient_variance * 100 + 0.1)) : undefined}
+            entropyReduction={typeof campaign?.epistemics?.p_correlated === 'number' ? (campaign.epistemics.p_correlated / 100) * 0.85 : undefined}
+          />
         )}
 
         {(activeWidgetTab === 'all' || activeWidgetTab === 'mandate') && (
-          <CryptographicMandateCardWidget />
+          <CryptographicMandateCardWidget
+            actionDescription={campaign?.research_goal || (campaign?.target_system ? `Execute VQE on ${campaign.target_system}` : undefined)}
+            estimatedCostUsd={typeof qf?.estimated_spend_usd === 'number' ? qf.estimated_spend_usd : (qf ? 0.0 : undefined)}
+            targetBackend={qf?.recommended_backend || 'local_simulator'}
+            tenantId={campaign?.session_id}
+          />
         )}
       </div>
     </div>

@@ -1353,6 +1353,21 @@ func TestChemistryADMETDefaultLabeled(t *testing.T) {
 	if out["defaulted_smiles"] != false {
 		t.Errorf("explicit SMILES must not be marked defaulted, got %v", out["defaulted_smiles"])
 	}
+
+	// SMILES with hydrogen / inorganic fragments that trigger RDKit stderr warnings
+	req = httptest.NewRequest(http.MethodGet, "/api/chemistry/admet?smiles=%5BLi%2B%5D.%5BH-%5D", nil)
+	w = httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("LiH ADMET must answer 200 despite RDKit stderr warnings, got %d: %s", w.Code, w.Body.String())
+	}
+	var lihOut map[string]any
+	if err := json.NewDecoder(w.Body).Decode(&lihOut); err != nil {
+		t.Fatalf("failed to decode LiH response: %v", err)
+	}
+	if lihOut["smiles"] != "[Li+].[H-]" {
+		t.Errorf("expected smiles [Li+].[H-], got %v", lihOut["smiles"])
+	}
 }
 
 func TestDiscoveryPipelineDefaultsLabeled(t *testing.T) {

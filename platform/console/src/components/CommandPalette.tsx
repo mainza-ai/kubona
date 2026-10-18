@@ -13,6 +13,12 @@ import {
   Zap,
   Info,
   Command,
+  Shield,
+  Sparkles,
+  SlidersHorizontal,
+  Database,
+  FlaskConical,
+  Settings,
 } from 'lucide-react';
 import { SHORTCUTS } from '@/lib/shortcuts';
 
@@ -79,12 +85,60 @@ export function CommandPalette({
       action: () => onSelectSurface('proofs'),
     },
     {
+      id: 'tribunal',
+      title: 'Epistemic Tribunal Room (Multi-Agent Cross-Examination)',
+      category: 'Proofs & Evidence',
+      shortcut: undefined,
+      icon: Shield,
+      action: () => onSelectSurface('tribunal'),
+    },
+    {
+      id: 'gallery',
+      title: 'Generative UI Studio (Multi-Modal Preview Gallery)',
+      category: 'Proofs & Evidence',
+      shortcut: undefined,
+      icon: Sparkles,
+      action: () => onSelectSurface('gallery'),
+    },
+    {
       id: 'mesh',
       title: 'Local Sovereign Mesh (MLX · Ollama · Air-Gap)',
       category: 'Surfaces',
       shortcut: SHORTCUTS.cognitiveMesh,
       icon: Network,
       action: () => onSelectSurface('mesh'),
+    },
+    {
+      id: 'guardrails',
+      title: 'Autonomy Cockpit & Guardrails (Spend, Rings & Mandates)',
+      category: 'Mesh & Governance',
+      shortcut: undefined,
+      icon: SlidersHorizontal,
+      action: () => onSelectSurface('guardrails'),
+    },
+    {
+      id: 'models',
+      title: 'Hugging Face Model Hub (GGUF Quant Discovery)',
+      category: 'Mesh & Governance',
+      shortcut: undefined,
+      icon: Database,
+      action: () => onSelectSurface('models'),
+    },
+    {
+      id: 'labs',
+      title: 'Experimental Tenant Labs (Ed25519 Session Auth)',
+      category: 'Mesh & Governance',
+      shortcut: undefined,
+      icon: FlaskConical,
+      action: () => onSelectSurface('labs'),
+    },
+    {
+      id: 'settings',
+      title: 'Sovereign Settings & LLM Configuration (Local-First Air-Gap)',
+      category: 'Mesh & Governance',
+      shortcut: undefined,
+      icon: Settings,
+      action: () => onSelectSurface('settings'),
     },
     {
       id: 'new-campaign',
@@ -154,6 +208,7 @@ export function CommandPalette({
       }
     };
 
+    if (typeof window === 'undefined') return;
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isOpen, filtered, selectedIndex, onClose]);
