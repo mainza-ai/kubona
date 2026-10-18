@@ -150,7 +150,11 @@ export function CopilotDrawer({
   const getActiveSessionId = async (): Promise<string> => {
     if (sessionId) return sessionId;
     const newSess = await createSession('Quantum Research Campaign #1', 150.0);
-    return newSess ? newSess.id : '';
+    if (newSess?.id) {
+      onSessionChange?.(newSess.id);
+      return newSess.id;
+    }
+    return '';
   };
 
   const handleSend = async (customPrompt?: string) => {
@@ -174,6 +178,10 @@ export function CopilotDrawer({
     setInfoMessage(null);
 
     const activeSessionId = await getActiveSessionId();
+    if (!activeSessionId) {
+      setErrorMessage('Could not create or resolve an active campaign session.');
+      return;
+    }
 
     const tempUserMsg: ChatMessage = {
       id: nextTempId(`temp-user`),
@@ -289,6 +297,12 @@ export function CopilotDrawer({
     setErrorMessage(null);
 
     const activeSessionId = await getActiveSessionId();
+    if (!activeSessionId) {
+      setRunningTribunal(false);
+      onRunStateChange?.('idle', '');
+      setErrorMessage('Could not create or resolve an active campaign session.');
+      return;
+    }
 
     const tempUserMsg: ChatMessage = {
       id: nextTempId(`temp-tribunal`),
@@ -716,7 +730,13 @@ export function CopilotDrawer({
     return raw;
   };
   const targetDisplayName = displayNameFor(campaign?.target_system || 'H2');
-  const discrepancy = campaign?.classical_anchor?.discrepancy_mha;
+  const rawDiscrepancy = campaign?.classical_anchor?.discrepancy_mha;
+  const discrepancy =
+    campaign?.classical_anchor?.anchor_computed === true &&
+    typeof rawDiscrepancy === 'number' &&
+    Number.isFinite(rawDiscrepancy)
+      ? rawDiscrepancy
+      : undefined;
   const isChemicalAccuracyMet = discrepancy != null && discrepancy <= 1.6;
 
   // Contextual follow-ups derived from the latest assistant turn.

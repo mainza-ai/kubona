@@ -10,6 +10,7 @@ classification — enforced at the routing layer, BEFORE a job reaches a provide
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Any
 
 from kubona.schema import ProviderCapability
@@ -76,4 +77,5 @@ def route(capability: ProviderCapability,
 
 
 def _to_set(s: str) -> set[str]:
-    return {x.strip().upper() for x in s.replace("and", "/").split("/") if x.strip()}
+    normalized = re.sub(r"\b(and|or)\b", "/", s, flags=re.IGNORECASE)
+    return {x.strip().upper() for x in normalized.split("/") if x.strip()}

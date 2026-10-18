@@ -446,23 +446,34 @@ func (m *Manager) ImportSession(man *SessionManifest) (*ImportResult, error) {
 	if man.Session.TenantID == "" {
 		return nil, fmt.Errorf("manifest session has no tenant_id")
 	}
-	// S5b: merge the Python sidecar rows (idempotent by content_hash —
-	// safe to run even when the session already exists below: only
-	// missing rows append). Runs AFTER all validation above, BEFORE any
-	// row replay — validation-before-replay covers both rails.
-	pyReplayed := 0
-	if len(man.PythonLedger) > 0 {
-		n, err := replayPythonRecords(man.Session.TenantID, man.PythonLedger)
-		if err != nil {
-			return nil, fmt.Errorf("replay python ledger: %w", err)
-		}
-		pyReplayed = n
+	var tenantExists int
+	if err := m.ledger.DB().QueryRow(`SELECT COUNT(*) FROM tenants WHERE id = ?`, man.Session.TenantID).Scan(&tenantExists); err != nil || tenantExists == 0 {
+		return nil, fmt.Errorf("manifest tenant %q does not exist: import refused", man.Session.TenantID)
 	}
+	for _, rec := range man.PythonLedger {
+		if len(rec.Payload) > 0 {
+			var payload struct {
+				SessionID string `json:"session_id"`
+			}
+			if err := json.Unmarshal(rec.Payload, &payload); err == nil && payload.SessionID != "" && payload.SessionID != man.Session.ID {
+				return nil, fmt.Errorf("manifest python ledger record names foreign session %q", payload.SessionID)
+			}
+		}
+	}
+
 	// Replay by existence (after validation).
 	if _, err := m.GetSession(man.Session.ID); err == nil {
 		cur, cerr := m.ExportSession(man.Session.ID)
 		if cerr != nil {
 			return nil, fmt.Errorf("session %q already exists (re-export failed: %v)", man.Session.ID, cerr)
+		}
+		pyReplayed := 0
+		if len(man.PythonLedger) > 0 {
+			n, err := replayPythonRecords(man.Session.TenantID, man.PythonLedger)
+			if err != nil {
+				return nil, fmt.Errorf("replay python ledger: %w", err)
+			}
+			pyReplayed = n
 		}
 		return &ImportResult{SessionID: man.Session.ID, Existing: true, Manifest: cur, PythonReplayed: pyReplayed}, nil
 	}
@@ -525,9 +536,18 @@ func (m *Manager) ImportSession(man *SessionManifest) (*ImportResult, error) {
 		if e.SessionID != s.ID {
 			return nil, fmt.Errorf("import event %d names foreign session %q", e.ID, e.SessionID)
 		}
-		if err := exec(`INSERT INTO ledger_events (id, timestamp, session_id, tenant_id, conf_label, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			e.ID, e.Timestamp, s.ID, e.TenantID, e.ConfLabel, e.EventType, string(e.Payload), e.PrevHash, e.EntryHash, e.SignerPubkey, e.Signature); err != nil {
-			return nil, fmt.Errorf("import event %d: %w", e.ID, err)
+		var idExists int
+		_ = tx.QueryRow(`SELECT COUNT(*) FROM ledger_events WHERE id = ?`, e.ID).Scan(&idExists)
+		var insertErr error
+		if idExists > 0 {
+			insertErr = exec(`INSERT INTO ledger_events (timestamp, session_id, tenant_id, conf_label, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				e.Timestamp, s.ID, e.TenantID, e.ConfLabel, e.EventType, string(e.Payload), e.PrevHash, e.EntryHash, e.SignerPubkey, e.Signature)
+		} else {
+			insertErr = exec(`INSERT INTO ledger_events (id, timestamp, session_id, tenant_id, conf_label, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				e.ID, e.Timestamp, s.ID, e.TenantID, e.ConfLabel, e.EventType, string(e.Payload), e.PrevHash, e.EntryHash, e.SignerPubkey, e.Signature)
+		}
+		if insertErr != nil {
+			return nil, fmt.Errorf("import event %d: %w", e.ID, insertErr)
 		}
 	}
 	if len(man.CampaignState) > 0 && string(man.CampaignState) != "null" {
@@ -557,6 +577,16 @@ func (m *Manager) ImportSession(man *SessionManifest) (*ImportResult, error) {
 	if err := tx.Commit(); err != nil {
 		return nil, fmt.Errorf("import commit: %w", err)
 	}
+
+	pyReplayed := 0
+	if len(man.PythonLedger) > 0 {
+		n, err := replayPythonRecords(man.Session.TenantID, man.PythonLedger)
+		if err != nil {
+			return nil, fmt.Errorf("replay python ledger: %w", err)
+		}
+		pyReplayed = n
+	}
+
 	// Single activating record (S5 contract).
 	if err := m.ledger.AppendEvent(s.ID, "session_imported", map[string]any{
 		"manifest_version": man.Version, "tenant_id": s.TenantID,
@@ -608,6 +638,7 @@ func (m *Manager) DeleteBlockers(id string) ([]string, error) {
 		{jobQ, jobArgs, "non-terminal jobs"},
 		{loopQ, loopArgs, "live loops"},
 		{`SELECT COUNT(*) FROM jobs WHERE session_id = ? AND reserved_amount > 0`, []any{id}, "outstanding spend reservations"},
+		{`SELECT COUNT(*) FROM loops WHERE session_id = ? AND reserved_amount > 0`, []any{id}, "outstanding loop spend reservations"},
 	} {
 		if err := m.ledger.DB().QueryRow(q.query, q.args...).Scan(&n); err != nil {
 			return nil, err

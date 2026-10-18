@@ -216,6 +216,9 @@ func (e *MetaSearchEngine) ApproveProposal(proposalID, humanSigner string) error
 	if !exists {
 		return ErrProposalNotFound
 	}
+	if p.Status != ProposalPending {
+		return fmt.Errorf("proposal %s is %s: only pending proposals can be approved", proposalID, p.Status)
+	}
 	p.ApprovedByHuman = true
 	p.ApprovedBy = humanSigner
 	p.Status = ProposalApproved
@@ -233,6 +236,9 @@ func (e *MetaSearchEngine) RejectProposal(proposalID, humanSigner string) error 
 	p, exists := e.proposals[proposalID]
 	if !exists {
 		return ErrProposalNotFound
+	}
+	if p.Status != ProposalPending {
+		return fmt.Errorf("proposal %s is %s: only pending proposals can be rejected", proposalID, p.Status)
 	}
 	p.ApprovedByHuman = false
 	p.ApprovedBy = humanSigner

@@ -35,10 +35,13 @@ def test_oauth2_real_issuer_contract():
         prov.verify(token + "x")          # tampered
     with pytest.raises(AuthError):
         prov.verify(iss.issue("a", role="agent", scopes=("*",), ttl_s=-1))  # expired
-    from kubona.security.oauth import OAuth2TokenIssuer as I2
-    other = OAuth2TokenIssuer()
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+    other = OAuth2TokenIssuer(signing_key=Ed25519PrivateKey.generate())
     with pytest.raises(AuthError):
-        prov.verify(other.issue("a", role="agent", scopes=("*",)))  # wrong key/issuer
+        prov.verify(other.issue("a", role="agent", scopes=("*",)))  # wrong key
+    other_idp = OAuth2TokenIssuer(issuer="https://foreign.idp")
+    with pytest.raises(AuthError):
+        prov.verify(other_idp.issue("a", role="agent", scopes=("*",)))  # wrong issuer
 
 
 def test_dev_auth_rejects_bad_token():

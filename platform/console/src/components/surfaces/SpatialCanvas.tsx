@@ -88,7 +88,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
     const fciFinite = typeof fciRaw === 'number' && Number.isFinite(fciRaw);
     // No anchor → no Δ, no invented baseline. Model energy renders as
     // Morse extrapolation only when an anchor exists; otherwise UNVERIFIED.
-    const fciGround = fciFinite ? (fciRaw as number) : null;
+    const fciGround = anchorComputed && fciFinite ? (fciRaw as number) : null;
     const De = fciGround != null ? Math.abs(fciGround) * 0.15 : 0;
     const a = 1.44; // Potential width parameter
     const deltaR = bondDistance - Re;
@@ -96,7 +96,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
     const energy = fciGround != null ? fciGround + morseTerm : null;
     const rhfRaw = anchor?.rhf_mean_field_energy;
     const rhfFinite = typeof rhfRaw === 'number' && Number.isFinite(rhfRaw);
-    const rhfEnergy = rhfFinite ? (rhfRaw as number) : null;
+    const rhfEnergy = anchorComputed && rhfFinite ? (rhfRaw as number) : null;
     const deltaMHa = fciGround != null && energy != null ? Math.abs(energy - fciGround) * 1000.0 : null;
     const nearEquilibrium = Math.abs(deltaR) < 0.01;
     return {
@@ -244,7 +244,8 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
 
   const hamiltonianString = useMemo(() => {
     const fciRaw = campaign?.classical_anchor?.fci_exact_energy;
-    const fciOk = typeof fciRaw === 'number' && Number.isFinite(fciRaw);
+    const anchorComputed = campaign?.classical_anchor?.anchor_computed === true;
+    const fciOk = anchorComputed && typeof fciRaw === 'number' && Number.isFinite(fciRaw);
     const fciLabel = fciOk ? (fciRaw as number).toFixed(4) : 'UNVERIFIED';
     const prefix = '// schematic coefficients — illustrative, anchor value live where shown\n';
     const n = circuitData.numQubits;
@@ -261,7 +262,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
     }
     terms.push(`+ 0.0412 Z₀Z₁`);
     return `${prefix}H = ${terms.join(' ')}`;
-  }, [campaign?.classical_anchor?.fci_exact_energy, circuitData.numQubits]);
+  }, [campaign?.classical_anchor?.anchor_computed, campaign?.classical_anchor?.fci_exact_energy, circuitData.numQubits]);
 
   return (
     <div className="relative min-h-[680px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0F19] to-[#07090E] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-8 select-none">

@@ -225,9 +225,20 @@ func (s *A2AServer) RevokeTask(taskID string) error {
 	case TaskStatusQueued, TaskStatusRunning:
 		task.Status = TaskStatusRevoked
 		task.UpdatedAt = time.Now().UTC()
+		s.revokeDescendantsLocked(taskID)
 		return nil
 	default:
 		return fmt.Errorf("task %s is %s: only queued/running tasks can be revoked", taskID, task.Status)
+	}
+}
+
+func (s *A2AServer) revokeDescendantsLocked(parentID string) {
+	for _, child := range s.tasks {
+		if child.ParentTaskID == parentID && (child.Status == TaskStatusQueued || child.Status == TaskStatusRunning) {
+			child.Status = TaskStatusRevoked
+			child.UpdatedAt = time.Now().UTC()
+			s.revokeDescendantsLocked(child.ID)
+		}
 	}
 }
 
@@ -281,6 +292,7 @@ func (s *A2AServer) HandleRequest(req *JSONRPCRequest) *JSONRPCResponse {
 		parentScopes := append([]string(nil), s.card.Capabilities...)
 		isRoot := params.ParentTaskID == ""
 		var parentTaskID string
+		tenantID := "default"
 		if !isRoot {
 			s.mu.RLock()
 			pt, ok := s.tasks[params.ParentTaskID]
@@ -297,12 +309,16 @@ func (s *A2AServer) HandleRequest(req *JSONRPCRequest) *JSONRPCResponse {
 			if parent.Status == TaskStatusFailed || parent.Status == TaskStatusRevoked {
 				return rpcError(req.ID, -32602, fmt.Sprintf("parent task %s is %s: delegation refused", parent.ID, parent.Status))
 			}
+			if params.MaxBudgetUSD > parent.MaxBudgetUSD {
+				return rpcError(req.ID, -32602, fmt.Sprintf("task budget %.4f exceeds parent task budget %.4f: delegation refused", params.MaxBudgetUSD, parent.MaxBudgetUSD))
+			}
 			depth = parent.Depth + 1
 			if depth > MaxDelegationDepth {
 				return rpcError(req.ID, -32602, fmt.Sprintf("delegation depth %d exceeds maximum %d", depth, MaxDelegationDepth))
 			}
 			parentScopes = append([]string(nil), parent.Scopes...)
 			parentTaskID = parent.ID
+			tenantID = parent.TenantID
 		}
 		scopes := params.Scopes
 		if len(scopes) == 0 {
@@ -332,11 +348,13 @@ func (s *A2AServer) HandleRequest(req *JSONRPCRequest) *JSONRPCResponse {
 		// binding. An empty tenant or job hash refuses: a sub-mandate
 		// authorizing nothing-specific authorizes nothing.
 		var parentJobHash string
-		tenantID := "default"
 		if params.ParentMandate != nil {
 			pm := params.ParentMandate
 			if pm.TenantID == "" {
 				return rpcError(req.ID, -32602, "parent mandate names no tenant: sub-mandate refused")
+			}
+			if !isRoot && tenantID != "default" && pm.TenantID != tenantID {
+				return rpcError(req.ID, -32602, fmt.Sprintf("parent mandate tenant %q disagrees with parent task tenant %q: delegation refused", pm.TenantID, tenantID))
 			}
 			if pm.JobHash == "" {
 				return rpcError(req.ID, -32602, "parent mandate binds no job: sub-mandate refused")

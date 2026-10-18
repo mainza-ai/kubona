@@ -144,7 +144,7 @@ export function ApprovalPacketCard({
         <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={onApproveOnce}
-            disabled={isSubmitting}
+            disabled={isSubmitting || Boolean(packet.budgetBreached)}
             className="flex-1 py-2.5 px-4 text-xs font-semibold rounded-xl flex items-center justify-center space-x-2 transition-all bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white shadow-lg active:scale-[0.98] disabled:opacity-50"
           >
             <Check className="w-4 h-4" />
@@ -152,7 +152,7 @@ export function ApprovalPacketCard({
           </button>
           <button
             onClick={onApproveUpToMax}
-            disabled={isSubmitting}
+            disabled={isSubmitting || Boolean(packet.budgetBreached)}
             className="py-2.5 px-4 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 text-xs font-medium rounded-xl transition-all disabled:opacity-50"
           >
             Approve up to max
@@ -207,6 +207,17 @@ export function ApprovalPacketCard({
             >
               <ExternalLink className="w-3 h-3" />
               <span>Notebook</span>
+            </a>
+          )}
+          {packet.evidence.quoteUrl && (
+            <a
+              href={packet.evidence.quoteUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center space-x-1 text-cyan-300 hover:text-cyan-200"
+            >
+              <ExternalLink className="w-3 h-3" />
+              <span>Quote</span>
             </a>
           )}
         </div>

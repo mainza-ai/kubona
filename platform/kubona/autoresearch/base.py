@@ -91,7 +91,8 @@ class Orchestrator:
         if isinstance(current, float):
             return current + self.rng.gauss(0.0, self.mutation_radius)
         if isinstance(current, (tuple, list)):
-            return tuple(x + self.rng.gauss(0.0, self.mutation_radius) for x in current)
+            mutated = [x + self.rng.gauss(0.0, self.mutation_radius) for x in current]
+            return type(current)(mutated)
         return current
 
     def _refine(self, history: list[Trial], half_width: float = 1.5, iters: int = 20) -> Trial:

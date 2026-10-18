@@ -180,7 +180,7 @@ function renderMarkdownText(text: string): string {
         i += 1;
       }
       blocks.push(
-        `<div class="my-1.5 pl-2.5 border-l-2 border-cyan-400/40 text-slate-300">${parts.map(renderInline).join('<br/>')}</div>`
+        `<div class="my-1.5 pl-2.5 border-l-2 border-cyan-400/40 text-slate-300">${parts.map(inlineRaw).join('<br/>')}</div>`
       );
       continue;
     }

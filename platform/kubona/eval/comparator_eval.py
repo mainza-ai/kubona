@@ -372,7 +372,19 @@ class ComparatorChallengeRegistry:
                     verification_mode="live_kernel_proven",
                     kernel_execution_skipped=False,
                 )
-            except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError):
+            except subprocess.TimeoutExpired:
+                return VerificationResult(
+                    challenge_name=challenge_name,
+                    ok=False,
+                    axioms_used=[],
+                    unpermitted_axioms=[],
+                    theorem_names=spec.theorem_names,
+                    error_message=f"Lake execution timed out after {timeout_seconds}s",
+                    ledger_ref=None,
+                    verification_mode="live_kernel_proven",
+                    kernel_execution_skipped=False,
+                )
+            except (FileNotFoundError, PermissionError):
                 pass
 
         # Toolchain absent on host: fallback gracefully to validated AST containment
@@ -412,7 +424,19 @@ class ComparatorChallengeRegistry:
                 text=True,
                 timeout=cfg.timeout_seconds,
             )
-        except (subprocess.TimeoutExpired, FileNotFoundError, PermissionError, OSError):
+        except subprocess.TimeoutExpired:
+            return VerificationResult(
+                challenge_name=spec.challenge_name,
+                ok=False,
+                axioms_used=[],
+                unpermitted_axioms=[],
+                theorem_names=spec.theorem_names,
+                error_message=f"Sandboxed lake execution timed out after {cfg.timeout_seconds}s",
+                ledger_ref=None,
+                verification_mode="live_kernel_proven",
+                kernel_execution_skipped=False,
+            )
+        except (FileNotFoundError, PermissionError, OSError):
             return None
         stdout = proc.stdout or ""
         stderr = proc.stderr or ""

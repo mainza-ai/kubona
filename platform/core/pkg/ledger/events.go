@@ -21,6 +21,10 @@ package ledger
 // go-emitter rows; TestEventTypesMatchContract enforces it.
 
 var KnownEventTypes = map[string]bool{
+	"auth_login":                        true,
+	"auth_login_refused":                true,
+	"auth_logout":                       true,
+	"auth_session_revoked":              true,
 	"a2a_harness_eval":                  true,
 	"a2a_qir_compile":                   true,
 	"action_gate_downgrade_sim":         true,
@@ -28,6 +32,7 @@ var KnownEventTypes = map[string]bool{
 	"autoresearch_loop_drain":           true,
 	"autoresearch_loop_reconciled":      true,
 	"autoresearch_loop_slept":           true,
+	"autoresearch_loop_sleep_refused":   true,
 	"autoresearch_loop_started":         true,
 	"autoresearch_loop_woken":           true,
 	"autoresearch_stagnation_triggered": true,
@@ -59,6 +64,7 @@ var KnownEventTypes = map[string]bool{
 	"loop_diverged":                     true,
 	"loop_killed":                       true,
 	"loop_paused":                       true,
+	"loop_persist_failed":               true,
 	"loop_registered":                   true,
 	"loop_rescoped":                     true,
 	"loop_resumed":                      true,
@@ -76,6 +82,7 @@ var KnownEventTypes = map[string]bool{
 	"session_deleted":                   true,
 	"session_imported":                  true,
 	"session_spend_released":            true,
+	"session_spend_release_refused":     true,
 	"session_spend_reserved":            true,
 	"spend_refund_refused":              true,
 	"spend_release_refused":             true,

@@ -109,6 +109,7 @@ func TestValidateQASMSemanticsRefusals(t *testing.T) {
 		{"mixed register and indexed", "OPENQASM 2.0;\nqreg a[2];\nqreg b[2];\ncx a, b[0];\n", "mixes register and indexed"},
 		{"custom gate arity", "OPENQASM 2.0;\nqreg q[2];\ngate g a, b {\ncx a, b;\n}\ng q[0];\n", "takes 2 qubits"},
 		{"zero-size register", "OPENQASM 2.0;\nqreg q[0];\n", "non-positive size"},
+		{"duplicate qubit operands in cx", "OPENQASM 2.0;\nqreg q[2];\ncx q[0], q[0];\n", "duplicate qubit operands"},
 	}
 	for _, tc := range cases {
 		err := ValidateQASM(tc.qasm)

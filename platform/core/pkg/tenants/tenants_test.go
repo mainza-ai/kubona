@@ -3,6 +3,7 @@ package tenants
 import (
 	"crypto/ed25519"
 	"encoding/hex"
+	"encoding/json"
 	"math"
 	"os"
 	"strings"
@@ -132,6 +133,28 @@ func TestTenantCeilingChange(t *testing.T) {
 	}
 	if lab.SpendCeilingUSD != 500 {
 		t.Fatalf("ceiling not stored: %+v", lab)
+	}
+	// A2: the sealed event carries the acting admin's fingerprint.
+	events, err := m.ledger.GetRecentEvents("lab-beta", 5)
+	if err != nil {
+		t.Fatalf("events: %v", err)
+	}
+	found := false
+	for _, e := range events {
+		if e.EventType != "tenant_ceiling_changed" {
+			continue
+		}
+		found = true
+		var payload map[string]any
+		if err := json.Unmarshal(e.Payload, &payload); err != nil {
+			t.Fatalf("payload must parse: %v", err)
+		}
+		if payload["admin_fp"] != Fingerprint(pubHex(pub)) {
+			t.Fatalf("ceiling event must carry the acting admin fp, got %+v", payload)
+		}
+	}
+	if !found {
+		t.Fatal("tenant_ceiling_changed must be sealed in the ledger")
 	}
 }
 

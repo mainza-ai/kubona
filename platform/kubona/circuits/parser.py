@@ -59,6 +59,8 @@ def parse_qasm2(source: str, name: str | None = None,
     gates: list[Gate] = []
     skipped: list[str] = []
     qreg_names: list[str] = []
+    qreg_offsets: dict[str, int] = {}
+    qreg_sizes: dict[str, int] = {}
     in_opaque = False
 
     for ln in lines:
@@ -94,10 +96,18 @@ def parse_qasm2(source: str, name: str | None = None,
             m = re.match(r"qreg\s+(\w+)\[(\d+)\];", ln)
             if not m:
                 raise ValueError(f"malformed qreg statement: {ln!r}")
+            rname = m.group(1)
+            rsize = int(m.group(2))
+            if rsize <= 0:
+                raise ValueError(f"qreg width must be positive: {ln!r}")
+            if rname in qreg_offsets:
+                raise ValueError(f"duplicate qreg declaration: {rname!r}")
             # Widths ACCUMULATE: several qregs declare several registers.
             # The old code overwrote, silently shrinking multi-register circuits.
-            qreg_names.append(m.group(1))
-            num_qubits += int(m.group(2))
+            qreg_offsets[rname] = num_qubits
+            qreg_sizes[rname] = rsize
+            qreg_names.append(rname)
+            num_qubits += rsize
             continue
         if ln.startswith("//") or not ln:
             continue
@@ -115,7 +125,23 @@ def parse_qasm2(source: str, name: str | None = None,
             params = [float(p.strip()) for p in raw_params.split(",")] if raw_params else []
         except ValueError:
             raise ValueError(f"non-numeric gate parameter in statement: {ln!r}")
-        qs = tuple(int(q) for q in re.findall(r"\[(\d+)\]", m.group("qubits")))
+        tokens = re.findall(r"([a-zA-Z_][a-zA-Z0-9_]*)\[(\d+)\]", m.group("qubits"))
+        if tokens:
+            qs_list = []
+            for reg, idx_str in tokens:
+                idx = int(idx_str)
+                if reg in qreg_offsets:
+                    if idx >= qreg_sizes[reg]:
+                        raise ValueError(
+                            f"qubit index {idx} out of range for register {reg}[{qreg_sizes[reg]}] "
+                            f"(beyond circuit width) in {ln!r}"
+                        )
+                    qs_list.append(qreg_offsets[reg] + idx)
+                else:
+                    qs_list.append(idx)
+            qs = tuple(qs_list)
+        else:
+            qs = tuple(int(q) for q in re.findall(r"\[(\d+)\]", m.group("qubits")))
         arity, n_params = GATE_ARITY[gname]
         if len(qs) != arity:
             raise ValueError(

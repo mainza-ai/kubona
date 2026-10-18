@@ -190,6 +190,8 @@ func (e *LoopEngine) ClearSpendReservation() {
 	defer e.mu.Unlock()
 	e.spendReservedTotal = 0
 	e.spendConsumed = 0
+	e.state.ReservedAmount = 0
+	e.state.ConsumedAmount = 0
 }
 
 // LastActivity returns the last observed work instant (S3 sweeper input).
@@ -309,7 +311,7 @@ func (e *LoopEngine) InitializeBaseline(ctx context.Context) (*IterationRecord, 
 	res, err := e.harness.Evaluate(e.runner, e.state.ChampionArtifact)
 	duration := time.Since(startTime)
 
-	if err != nil || !res.Valid {
+	if err != nil || res == nil || !res.Valid {
 		// Provide default valid ansatz if empty
 		if e.state.ChampionArtifact == "" && e.harness.ID() == "ansatz-search" {
 			e.state.ChampionArtifact = `from qiskit import QuantumCircuit
@@ -328,12 +330,32 @@ def build_circuit():
 		}
 	}
 
-	metric := 999.0
-	if res != nil && res.Valid {
-		metric = res.Metric
-		e.state.ChampionMetric = metric
-		e.state.ChampionDepth = res.CircuitDepth
-		e.state.Champion2QGates = res.TwoQubitGateCount
+	if err != nil || res == nil || !res.Valid {
+		reason := "invalid baseline result"
+		if err != nil {
+			reason = err.Error()
+		} else if res != nil && res.ValidityReason != "" {
+			reason = res.ValidityReason
+		}
+		return nil, fmt.Errorf("baseline evaluation failed: %s", reason)
+	}
+
+	metric := res.Metric
+	e.state.ChampionMetric = metric
+	e.state.ChampionDepth = res.CircuitDepth
+	e.state.Champion2QGates = res.TwoQubitGateCount
+
+	numQ := res.NumQubits
+	if numQ <= 0 {
+		numQ = 2
+	}
+	isoTag := res.IsolationTag
+	if isoTag == "" {
+		if res.Sandboxed {
+			isoTag = "docker:kubona/quantum-runner:latest"
+		} else {
+			isoTag = "host-fallback"
+		}
 	}
 
 	record := &IterationRecord{
@@ -343,16 +365,16 @@ def build_circuit():
 		Metric:            metric,
 		MetricDelta:       0.0,
 		CircuitDepth:      e.state.ChampionDepth,
-		NumQubits:         2,
+		NumQubits:         numQ,
 		TwoQubitGateCount: e.state.Champion2QGates,
-		EntanglementScore: 0.5,
-		PhysicalValue:     -1.80,
+		EntanglementScore: res.EntanglementScore,
+		PhysicalValue:     res.PhysicalValue,
 		MutatedArtifact:   e.state.ChampionArtifact,
 		UnifiedDiff:       "--- baseline\n+++ baseline\n@@ initial champion @@",
 		Rationale:         "Initial hardware baseline established",
 		DurationMs:        duration.Milliseconds(),
-		Sandboxed:         res != nil && res.Sandboxed,
-		IsolationTag:      "docker:kubona/quantum-runner:latest",
+		Sandboxed:         res.Sandboxed,
+		IsolationTag:      isoTag,
 	}
 
 	e.state.Iterations = append(e.state.Iterations, record)

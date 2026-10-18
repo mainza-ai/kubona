@@ -7,6 +7,12 @@ import * as api from '@/lib/api';
 vi.mock('@/lib/api', () => ({
   fetchLabs: vi.fn(),
   fetchSessions: vi.fn(),
+  authWhoami: vi.fn(),
+  authSessions: vi.fn(),
+  authChallenge: vi.fn(),
+  authLogin: vi.fn(),
+  authLogout: vi.fn(),
+  authRevoke: vi.fn(),
 }));
 
 function textOf(node: unknown): string {
@@ -24,9 +30,11 @@ describe('LabsView', () => {
     vi.mocked(api.fetchSessions).mockResolvedValue([
       { id: 's1', title: 'drill', tenant_id: 'lab-a', created_at: '', updated_at: '', status: 'active', spend_limit_usd: 120, current_spend_usd: 70 },
     ]);
+    vi.mocked(api.authWhoami).mockResolvedValue({ authenticated: false });
+    vi.mocked(api.authSessions).mockResolvedValue([]);
   });
 
-  it('renders labs with spend figures and autonomy badges', async () => {
+  it('renders labs with spend figures, autonomy badges, and the operator session auth panel', async () => {
     let root: TestRenderer.ReactTestRenderer | undefined;
     await act(async () => {
       root = TestRenderer.create(<LabsView />);
@@ -37,6 +45,8 @@ describe('LabsView', () => {
     expect(text).toContain('$100.00 / $150.00');
     expect(text).toContain('L1');
     expect(text).toContain('suspended');
+    expect(text).toContain('Operator session');
+    expect(text).toContain('Log in with browser key');
   });
 
   it('expands a lab to show its sessions with limits', async () => {
@@ -44,9 +54,10 @@ describe('LabsView', () => {
     await act(async () => {
       root = TestRenderer.create(<LabsView />);
     });
-    const buttons = root!.root.findAllByType('button');
+    const labButtons = root!.root.findAllByType('button').filter((b) => b.props['aria-expanded'] !== undefined);
+    expect(labButtons.length).toBeGreaterThanOrEqual(2);
     await act(async () => {
-      buttons[0].props.onClick();
+      labButtons[0].props.onClick();
     });
     const text = textOf(root!.root);
     expect(text).toContain('drill');

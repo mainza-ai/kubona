@@ -85,6 +85,9 @@ func (s *Server) registerAgentTools() *tools.Registry {
 			if err != nil {
 				return nil, err
 			}
+			if !resp.Success {
+				return nil, fmt.Errorf("classical anchor computation failed: %s", resp.ErrorMessage)
+			}
 			return map[string]any{
 				"molecule":      a.Molecule,
 				"bond_distance": a.BondDistance,
@@ -123,13 +126,16 @@ func (s *Server) registerAgentTools() *tools.Registry {
 				return nil, fmt.Errorf("stored campaign unreadable: %w", err)
 			}
 			return map[string]any{
-				"session_id":      cs.SessionID,
-				"target":          cs.TargetSystem,
-				"backend":         cs.QuantumFactors.RecommendedBackend,
-				"qubits":          cs.QuantumFactors.QubitCount,
-				"vqe_energy":      cs.ClassicalAnchor.VqeExpectationEnergy,
-				"fci_energy":      cs.ClassicalAnchor.FciExactEnergy,
-				"discrepancy_mha": cs.ClassicalAnchor.DiscrepancyMHa,
+				"session_id":       cs.SessionID,
+				"target":           cs.TargetSystem,
+				"backend":          cs.QuantumFactors.RecommendedBackend,
+				"qubits":           cs.QuantumFactors.QubitCount,
+				"vqe_energy":       cs.ClassicalAnchor.VqeExpectationEnergy,
+				"fci_energy":       cs.ClassicalAnchor.FciExactEnergy,
+				"discrepancy_mha":  cs.ClassicalAnchor.DiscrepancyMHa,
+				"anchor_computed":  cs.ClassicalAnchor.AnchorComputed,
+				"synthesized":      true,
+				"epistemic_status": cs.Epistemics.Status,
 			}, nil
 		},
 	})
@@ -330,6 +336,9 @@ func (s *Server) registerAgentTools() *tools.Registry {
 			if a.Shots > 4096 {
 				return nil, fmt.Errorf("shots capped at 4096 for tool dispatch (got %d)", a.Shots)
 			}
+			if s.jobRunner == nil {
+				return nil, fmt.Errorf("job runner unavailable")
+			}
 			job, err := s.jobRunner.SubmitJob(a.SessionID, "circuit_run", map[string]any{
 				"qasm":              a.QASM,
 				"requested_backend": "local_simulator",
@@ -425,14 +434,8 @@ func (s *Server) registerAgentTools() *tools.Registry {
 }
 
 func defaultBondDistance(molecule string) float64 {
-	switch strings.ToUpper(strings.TrimSpace(molecule)) {
-	case "LIH", "LITHIUM":
-		return 1.5957
-	case "BEH2", "BERYLLIUM":
-		return 1.3300
-	default:
-		return 0.7414
-	}
+	spec := agents.LookupMolecule(molecule)
+	return spec.BondDist
 }
 
 func jobStatusName(j *jobs.Job) string {
@@ -498,7 +501,7 @@ loop:
 			// validated dispatch, same observation loop — never raw text.
 			// Kill-switch (W0.19): disable_dsml_fallback skips this whole
 			// branch; model text then never becomes tool calls.
-			if !s.llmSettings.GetSnapshot().DisableDSMLFallback {
+			if s.llmSettings != nil && !s.llmSettings.GetSnapshot().DisableDSMLFallback {
 				calls = llm.ParseDSMLInvokes(text)
 			}
 			if len(calls) == 0 {

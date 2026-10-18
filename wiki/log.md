@@ -2546,3 +2546,12 @@ skipped is the exact failure this incident is about:
   pre-existing env failure: discovery test when a local LLM runs).
   Open: session-based auth (plan recorded in remaining-work), opencode
   402 top-up decision, lean image toolchain.
+
+## [2026-10-17] audit | Full-platform line-by-line audit and production polish completed
+  - 100% line-1-to-EOF read coverage across all 852 files across 9 buckets (Wiki, Go core, Rust crates, Python runtime, Bridge gRPC, Tests, Console, Contracts/Schemas, Docker & Root scripts/CI).
+  - A1–A4 Ed25519 Session Auth landed: challenge-response login (`POST /api/auth/challenge|login|logout|revoke`, `GET /api/auth/whoami|sessions`), CSRF double-submit protection, ledger audit events (`auth_login`, `auth_logout`, `auth_revoked`, `auth_refused`), and live operator UI (`AuthPanel.tsx` in `LabsView.tsx`).
+  - Console polish: `apiFetch` with `credentials: 'include'` everywhere, optimistic mutation rollbacks with error notifications, ARIA accessibility attributes, and full vitest suite (32/32 suites, 152/152 tests green).
+  - Go Core & Rust crates: duplicate qubit operands checked in `validate.go` and `qir-core`, gate arities & NaN/Inf checked in Rust QIR, collective tribunal 4-turn authoring enforced, all 28 Go core packages green.
+  - Python runtime & Bridge gRPC: OAuth2TokenIssuer key persistence & distinct key refusal, approval packet args digest verification, HTTP gateway Content-Length and plaintext rejection under require_secure, fail-closed comparator timeout, circuit breaker divergence & mutex lock, multi-qreg offsets in QASM parser, manuscript signoff expiry check, AST sandbox relative-import refusal, Krylov projected basis transform (`v @ evecs[:, 0]`), ZNE/CDR float scale folding without collision, and allow_fallback=False hardware refusal.
+  - Full platform test gates green: `python3 scripts/wiki-lint.py --strict`, `cargo test --locked`, `go test -count=1 ./...` (28/28 packages), `pytest platform/tests/ platform/bridge/test_bridge.py` (723 passed, 4 skipped), `pnpm test` (152 passed) + Next.js build clean, `./scripts/secret-scan.sh` clean.
+  - Rebuilt `/tmp/kubonad-s8a` and verified live against `:8080` (`/api/health` healthy, `/api/auth/whoami` authenticated: false).

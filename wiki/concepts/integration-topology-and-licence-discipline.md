@@ -110,8 +110,11 @@ wiki/concepts/*             design memos Blueprint integrations must produce bef
 ## Enforcement, not exhortation
 
 1. **Per-file CI licence scan** with a policy table (allow Apache-2.0/MIT/BSD/ISC; MPL-2.0 as
-   sidecar; deny unknown, non-commercial, GPL-into-core).
-2. **A CI secret scanner that fails on credential-bearing remote URLs** — the specific failure
+   sidecar; deny unknown, non-commercial, GPL-into-core) — *design requirement* (in the
+   prototype today, corpus licence gating is enforced at load time by `kubona/eval/corpus_loader.py`,
+   while a repo-wide per-file CI licence scanner remains queued; see [[deep-implementation-audit-2026-10-12]]).
+2. **A CI secret scanner that fails on credential-bearing remote URLs and token prefixes** — enforced
+   in `scripts/secret-scan.sh` and `.github/workflows/ci.yml`, catching the specific failure
    observed in a local working copy of a local project ((repo-audit-2026),
    [[secrets-and-workload-isolation]]).
 3. **Blueprint receipts**: each design memo links its source and names the test proving behavioural

@@ -51,6 +51,15 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
   const [compileError, setCompileError] = useState<string | null>(null);
   const [compiling, setCompiling] = useState(false);
 
+  const campaignKey = `${campaign?.session_id ?? ''}::${campaign?.quantum_factors?.qasm ?? ''}`;
+  const [prevCampaignKey, setPrevCampaignKey] = useState(campaignKey);
+  if (prevCampaignKey !== campaignKey) {
+    setPrevCampaignKey(campaignKey);
+    setSelectedId(null);
+    setReceipt(undefined);
+    setCompileError(null);
+  }
+
   const wireCuts = useMemo(() => {
     const raw = (campaign?.quantum_factors?.wire_cuts ?? []) as unknown[];
     return raw.map((w) => asRecord(w));

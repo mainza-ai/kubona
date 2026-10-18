@@ -437,10 +437,48 @@ def execute_qasm(
                 hw["execution_time_ms"] = (time.time() - t0) * 1000.0
                 hw["seed"] = seed
                 return hw
-            # No credential/SDK: fall through to labeled simulation below.
+            # No credential/SDK: refuse if fallback is disallowed
+            if not allow_fallback:
+                return {
+                    "success": False,
+                    "resolved_backend": "none",
+                    "degradation_level": 0,
+                    "degradation_reason": (
+                        f"QPU {requested_backend} requested but no credential/SDK and allow_fallback=False: refused"
+                    ),
+                    "counts": {},
+                    "statevector_real": [],
+                    "statevector_imag": [],
+                    "meyer_wallach": 0.0,
+                    "seed": seed,
+                    "execution_time_ms": (time.time() - t0) * 1000.0,
+                    "error_message": f"Hardware {requested_backend} unavailable and allow_fallback=False",
+                }
             degradation_reason = (
                 "Executed exact statevector simulation "
                 f"(QPU {requested_backend} requested but no credential/SDK: fail-closed)"
+            )
+        elif route.startswith("unknown-hardware:"):
+            hw_name = route.split(":", 1)[1]
+            if not allow_fallback:
+                return {
+                    "success": False,
+                    "resolved_backend": "none",
+                    "degradation_level": 0,
+                    "degradation_reason": (
+                        f"Unknown hardware backend {hw_name!r} requested and allow_fallback=False: refused"
+                    ),
+                    "counts": {},
+                    "statevector_real": [],
+                    "statevector_imag": [],
+                    "meyer_wallach": 0.0,
+                    "seed": seed,
+                    "execution_time_ms": (time.time() - t0) * 1000.0,
+                    "error_message": f"Unknown hardware backend {hw_name!r} with allow_fallback=False",
+                }
+            degradation_reason = (
+                "Executed exact statevector simulation "
+                f"(QPU {hw_name} requested but no provider plugin exists: degraded)"
             )
 
         # Check if Aer is available and requested

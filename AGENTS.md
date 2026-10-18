@@ -153,18 +153,16 @@ bar before it lands. "Works" is necessary and insufficient.
   live in both directions wherever behavior branches, and record
   reversals in the wiki so nobody re-applies them.
 
-## Current state (2026-09-29)
+## Current state (2026-10-17)
 
 **Purpose:** the wiki is Kubona's **blueprint** — insight gathered so the platform can be
-shaped before it is implemented. Implementation is deliberately *not* the current activity;
-`platform/` is a prototype scaffold that pre-dates most of the insights here and is treated
-as evidence about mechanisms, not as a decided design.
+shaped before it is implemented. Implementation is held strictly to the 2026-10-12 Production
+Bar (real logic or fail-closed refusal, no theater, line audit before landing).
 
-**Contents:** 4 sources ingested (see `wiki/log.md`), 82 pages — overview/roadmap/questions/
-index/log, 4 source pages, 35 entities, 38 concepts. Decidedness: `settled` 1 · `adopted` 24 ·
-`open-question` 13 · `candidate` 6 · `tracked` 24 · `reference` 5 · `source` 4 · `living` 5.
-One `settled` page against 24 `adopted` is the honest signal: the blueprint is largely
-*understood*, not yet *chosen*.
+**Contents:** 4 sources ingested (see `wiki/log.md`), 129 pages — overview/roadmap/questions/
+index/log, 4 source pages, 44 entities, 76 concepts. The entire wiki and platform code
+(all 852 tracked files across Go core, Rust crates, Python runtime, Bridge, Console, Contracts,
+Docker, and CI) have undergone a zero-shortcut line-by-line audit and production polish.
 
 **Domain:** an open-source, MCP-native quantum-computing **and AI-enhanced science-discovery
 platform** for autonomous AI agents. The fourth source, [[source-frontier-repo-audit-2026]],

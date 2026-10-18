@@ -41,6 +41,14 @@ const DefaultCeilingUSD = 150.0
 // DefaultTenantID is the single-operator lab present before multi-tenant use.
 const DefaultTenantID = "default"
 
+// Fingerprint returns the 16-hex-char audit identity for an admin public
+// key (first 64 bits of its SHA-256). Stable per key, compact in ledger
+// payloads and audit trails; not a secret (public keys are public).
+func Fingerprint(pubkeyHex string) string {
+	sum := sha256.Sum256([]byte(strings.ToLower(strings.TrimSpace(pubkeyHex))))
+	return hex.EncodeToString(sum[:])[:16]
+}
+
 // Tenant is a lab: the billing, credential, and ceiling boundary. Members
 // (Phase 4+) join tenants; agents never are tenants.
 type Tenant struct {
@@ -199,7 +207,7 @@ func (m *Manager) SetAdminKey(tenantID, newPubkeyHex string, action *AdminAction
 		if _, err := m.ledger.DB().Exec(`UPDATE tenants SET admin_pubkey_hex = ? WHERE id = ?`, newPubkeyHex, tenantID); err != nil {
 			return nil, err
 		}
-		m.ledger.AppendEvent(tenantID, "tenant_admin_bootstrapped", map[string]string{"tenant_id": tenantID, "admin_pubkey_hex": newPubkeyHex})
+		m.ledger.AppendEvent(tenantID, "tenant_admin_bootstrapped", map[string]string{"tenant_id": tenantID, "admin_pubkey_hex": newPubkeyHex, "admin_fp": Fingerprint(newPubkeyHex)})
 		return m.GetTenant(tenantID)
 	}
 	if action == nil {
@@ -211,7 +219,7 @@ func (m *Manager) SetAdminKey(tenantID, newPubkeyHex string, action *AdminAction
 	if _, err := m.ledger.DB().Exec(`UPDATE tenants SET admin_pubkey_hex = ? WHERE id = ?`, newPubkeyHex, tenantID); err != nil {
 		return nil, err
 	}
-	m.ledger.AppendEvent(tenantID, "tenant_admin_rotated", map[string]string{"tenant_id": tenantID})
+	m.ledger.AppendEvent(tenantID, "tenant_admin_rotated", map[string]string{"tenant_id": tenantID, "admin_fp": Fingerprint(action.PubkeyHex)})
 	return m.GetTenant(tenantID)
 }
 
@@ -227,7 +235,7 @@ func (m *Manager) SetCeiling(action *AdminAction, ceilingUSD float64) (*Tenant, 
 	if _, err := m.ledger.DB().Exec(`UPDATE tenants SET spend_ceiling_usd = ? WHERE id = ?`, ceilingUSD, t.ID); err != nil {
 		return nil, err
 	}
-	m.ledger.AppendEvent(t.ID, "tenant_ceiling_changed", map[string]any{"tenant_id": t.ID, "spend_ceiling_usd": ceilingUSD})
+	m.ledger.AppendEvent(t.ID, "tenant_ceiling_changed", map[string]any{"tenant_id": t.ID, "spend_ceiling_usd": ceilingUSD, "admin_fp": Fingerprint(action.PubkeyHex)})
 	return m.GetTenant(t.ID)
 }
 
@@ -269,11 +277,11 @@ func (m *Manager) RefundSpend(action *AdminAction, tenantID string, amountUSD fl
 	}
 	if n != 1 {
 		m.ledger.AppendEvent(tenantID, "spend_refund_refused", map[string]any{
-			"tenant_id": tenantID, "amount_usd": amountUSD, "reason": reason})
+			"tenant_id": tenantID, "amount_usd": amountUSD, "reason": reason, "admin_fp": Fingerprint(action.PubkeyHex)})
 		return nil, fmt.Errorf("refund of %.6f exceeds recorded spend: refusing (no negative books)", amountUSD)
 	}
 	m.ledger.AppendEvent(tenantID, "tenant_spend_refunded", map[string]any{
-		"tenant_id": tenantID, "amount_usd": amountUSD, "reason": reason})
+		"tenant_id": tenantID, "amount_usd": amountUSD, "reason": reason, "admin_fp": Fingerprint(action.PubkeyHex)})
 	return m.GetTenant(tenantID)
 }
 
@@ -290,7 +298,7 @@ func (m *Manager) GrantAutonomy(action *AdminAction, level string) (*Tenant, err
 	if _, err := m.ledger.DB().Exec(`UPDATE tenants SET autonomy_level = ? WHERE id = ?`, level, t.ID); err != nil {
 		return nil, err
 	}
-	m.ledger.AppendEvent(t.ID, "tenant_autonomy_granted", map[string]string{"tenant_id": t.ID, "from": from, "to": level})
+	m.ledger.AppendEvent(t.ID, "tenant_autonomy_granted", map[string]string{"tenant_id": t.ID, "from": from, "to": level, "admin_fp": Fingerprint(action.PubkeyHex)})
 	return m.GetTenant(t.ID)
 }
 
@@ -305,7 +313,7 @@ func (m *Manager) RevokeAutonomy(action *AdminAction, reason string) (*Tenant, e
 	if _, err := m.ledger.DB().Exec(`UPDATE tenants SET autonomy_level = ? WHERE id = ?`, LevelL0, t.ID); err != nil {
 		return nil, err
 	}
-	m.ledger.AppendEvent(t.ID, "tenant_autonomy_revoked", map[string]string{"tenant_id": t.ID, "from": from, "reason": reason})
+	m.ledger.AppendEvent(t.ID, "tenant_autonomy_revoked", map[string]string{"tenant_id": t.ID, "from": from, "reason": reason, "admin_fp": Fingerprint(action.PubkeyHex)})
 	return m.GetTenant(t.ID)
 }
 
@@ -326,7 +334,7 @@ func (m *Manager) SetStatus(action *AdminAction, status string) (*Tenant, error)
 	if _, err := m.ledger.DB().Exec(`UPDATE tenants SET status = ? WHERE id = ?`, status, t.ID); err != nil {
 		return nil, err
 	}
-	m.ledger.AppendEvent(t.ID, "tenant_status_changed", map[string]string{"tenant_id": t.ID, "from": from, "to": status})
+	m.ledger.AppendEvent(t.ID, "tenant_status_changed", map[string]string{"tenant_id": t.ID, "from": from, "to": status, "admin_fp": Fingerprint(action.PubkeyHex)})
 	return m.GetTenant(t.ID)
 }
 

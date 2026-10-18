@@ -73,8 +73,14 @@ pub fn parse(source: &str) -> Result<Circuit, String> {
         let params = match param_part {
             Some(p) if !p.trim().is_empty() => p
                 .split(',')
-                .map(|x| x.trim().parse::<f64>().map_err(|_| "bad param"))
-                .collect::<Result<Vec<_>, _>>()?,
+                .map(|x| {
+                    let v = x.trim().parse::<f64>().map_err(|_| "bad param")?;
+                    if v.is_nan() || v.is_infinite() {
+                        return Err("bad param: NaN or infinite value".into());
+                    }
+                    Ok(v)
+                })
+                .collect::<Result<Vec<_>, String>>()?,
             _ => Vec::new(),
         };
         let mut qubits = Vec::new();
@@ -82,6 +88,9 @@ pub fn parse(source: &str) -> Result<Circuit, String> {
             let q = q.trim();
             if let Some(o) = q.find('[') {
                 let end = q.find(']').ok_or("bad qubit ref")?;
+                if o >= end {
+                    return Err("bad qubit ref".into());
+                }
                 qubits.push(q[o + 1..end].trim().parse::<usize>().map_err(|_| "bad qubit")?);
             }
         }
@@ -103,14 +112,36 @@ pub fn parse(source: &str) -> Result<Circuit, String> {
         if qubits.is_empty() {
             return Err(format!("gate '{name}' addresses no qubits"));
         }
-        let want_params = match name.as_str() {
-            "u1" => 1,
-            "u2" => 2,
-            "u3" => 3,
-            _ => 0,
+        if qubits.len() > 1 {
+            let mut seen = std::collections::HashSet::new();
+            for q in &qubits {
+                if !seen.insert(*q) {
+                    return Err(format!("gate '{name}' has duplicate qubit operands: q[{q}]"));
+                }
+            }
+        }
+        let want_qubits = match name.as_str() {
+            "h" | "x" | "y" | "z" | "s" | "t" | "rx" | "ry" | "rz" | "u1" | "u2" | "u3" | "id" | "reset" | "measure" | "mz" | "m" => Some(1),
+            "cx" | "cz" | "swap" | "cnot" => Some(2),
+            "ccx" | "toffoli" => Some(3),
+            _ => None,
         };
-        if params.len() < want_params {
-            return Err(format!("gate '{name}' needs {want_params} params, got {}", params.len()));
+        if let Some(expected) = want_qubits {
+            if qubits.len() != expected {
+                return Err(format!("gate '{name}' expects {expected} qubits, got {}", qubits.len()));
+            }
+        }
+        let want_params = match name.as_str() {
+            "u1" | "rx" | "ry" | "rz" => Some(1),
+            "u2" => Some(2),
+            "u3" => Some(3),
+            "h" | "x" | "y" | "z" | "s" | "t" | "cx" | "cz" | "swap" | "cnot" | "id" | "reset" => Some(0),
+            _ => None,
+        };
+        if let Some(expected) = want_params {
+            if params.len() != expected {
+                return Err(format!("gate '{name}' needs {expected} params, got {}", params.len()));
+            }
         }
         gates.push(Gate { name, qubits, params, cbit });
     }
@@ -221,6 +252,11 @@ mod tests {
             "qreg q[1];\nh;",               // gate addresses no qubits
             "qreg q[1];\nu3(0.5) q[0];",   // u3 needs 3 params
             "qreg q[1];\nu2(0.5) q[0];",   // u2 needs 2 params
+            "qreg q[2];\ncx q[0], q[0];",  // duplicate qubit operands
+            "qreg q[1];\nrz(NaN) q[0];",   // NaN param
+            "qreg q[2];\ncx q[0];",        // cx needs 2 qubits
+            "qreg q[2];\nh q[0], q[1];",   // h needs 1 qubit
+            "qreg q[1];\nh(0.5) q[0];",    // h takes 0 params
         ] {
             assert!(parse(bad).is_err(), "must refuse: {bad}");
         }

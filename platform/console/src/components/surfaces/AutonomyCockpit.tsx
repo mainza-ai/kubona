@@ -325,7 +325,7 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
             <span className="text-emerald-300 font-bold">SQLite WAL Tamper-Evident Hash Chain</span>
           </div>
           <div className="truncate text-xs text-slate-300 pt-1 border-t border-white/10">
-            Tenant: {campaign?.session_id ? `session-${campaign.session_id.slice(0, 8)}` : 'tenant-quantum-lab-1'} • Envelope Verified Statelessly
+            Tenant: {session?.tenant_id || 'default'} • Envelope Verified Statelessly
           </div>
         </div>
       )}

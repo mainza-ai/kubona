@@ -11,6 +11,7 @@ Wires the federated servers behind one entry point with:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -125,6 +126,8 @@ class KubonaGateway:
                 if packet is None:
                     pass  # auto-allowed below
                 else:
+                    if not packet.args:
+                        packet.args = dict(args)
                     return self._request_approval(sub, packet)
             else:
                 return self._resolve_approval(sub, server, tool, args, tools[tool],
@@ -175,6 +178,10 @@ class KubonaGateway:
             raise AuthError("approval principal mismatch: refused")
         if state["server"] != server or state["tool"] != tool:
             raise AuthError("approval target mismatch: refused")
+        if state.get("args_digest"):
+            current_digest = hashlib.sha256(json.dumps(args, sort_keys=True).encode()).hexdigest()
+            if current_digest != state["args_digest"]:
+                raise AuthError("approval args mismatch: arguments altered between request and resolution: refused")
         try:
             self._nonces.consume(state["nonce"])
         except ValueError as e:
@@ -199,8 +206,9 @@ class KubonaGateway:
                            "server": server, "tool": tool, "sub": sub,
                            "decision": content["decision"]})
         result = fn(**args)
-        self._audit.append({"server": server, "tool": tool, "args_keys": sorted(args),
-                            "sub": sub, "via": "approved:" + state["packet_id"]})
+        self._audit_event({"server": server, "tool": tool, "args_keys": sorted(args),
+                           "sub": sub, "via": "approved:" + state["packet_id"],
+                           "packet_id": state["packet_id"], "phase": "execution_completed"})
         return result
 
     def _audit_event(self, entry: dict[str, Any]) -> None:

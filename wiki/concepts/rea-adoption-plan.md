@@ -20,8 +20,9 @@ status: candidate
 > `mainza-ai/kubona` @ `433e7d5` (develop — code graph, `ci.yml`,
 > `pyproject.toml`, wiki record). REA internals taken as documented
 > (its `docs:check` gate is the basis for doc/code parity); Kubona claims
-> verified against code or the wiki's own landed-notes. Nothing below is
-> started.
+> verified against code or the wiki's own landed-notes. Slices R0–R6 all
+> landed 2026-10-17 (see `> ✅ LANDED 2026-10-17` blocks per slice below;
+> the §1 table records the pre-R-series baseline at the start of the day).
 
 ## 0. Thesis (unchanged, sharpened)
 
