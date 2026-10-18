@@ -1,32 +1,24 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  
-  
   CheckCircle2,
   AlertTriangle,
   Scale,
-  
-  
-  
-  
-  
   FileCheck,
   Play,
   RotateCcw,
   Sparkles,
-  
-  
 } from 'lucide-react';
-import {  AgentPersona, CampaignState, TribunalTurn } from '@/types';
-import { runTribunal, appendLedgerEvent, synthesizeCampaign } from '@/lib/api';
+import { AgentPersona, CampaignState, TribunalTurn } from '@/types';
+import { runTribunal, appendLedgerEvent, synthesizeCampaign, fetchMessages } from '@/lib/api';
 import { classifyTribunalVerdict } from '@/lib/verdict';
 
 interface TribunalRoomProps {
   hypothesisId?: string;
   targetSystem?: string;
   sessionId?: string;
+  campaign?: CampaignState | null;
   onCommitToLedger?: (receipt: Record<string, unknown>) => void;
   onCampaignSynthesized?: (campaign: CampaignState) => void;
 }
@@ -41,9 +33,10 @@ interface PersonaState {
 }
 
 export function EpistemicTribunalRoom({
-  hypothesisId = 'hyp-qksd-femoco-01',
-  targetSystem = 'FeMoco Nitrogenase Cluster',
+  hypothesisId = 'hyp-qksd-01',
+  targetSystem = 'Lithium Hydride (LiH)',
   sessionId = '',
+  campaign,
   onCommitToLedger,
   onCampaignSynthesized,
 }: TribunalRoomProps) {
@@ -59,64 +52,119 @@ export function EpistemicTribunalRoom({
   const [turns, setTurns] = useState<TribunalTurn[] | null>(null);
   const [topic, setTopic] = useState(`${targetSystem} ground state electronic structure`);
 
-  // Chamber seats: identities only. Statements, votes, and quorum come
-  // exclusively from live tribunal turns — an empty seat says so.
+  // Sync topic when targetSystem changes
+  const [prevTarget, setPrevTarget] = useState(targetSystem);
+  if (prevTarget !== targetSystem) {
+    setPrevTarget(targetSystem);
+    setTopic(`${targetSystem} ground state electronic structure`);
+  }
+
+  // Auto-load existing deliberation turns for the active session
+  useEffect(() => {
+    if (!sessionId) return;
+    let live = true;
+    fetchMessages(sessionId)
+      .then((msgs) => {
+        if (!live || !msgs || msgs.length === 0) return;
+        // 1. Check for assistant message with tribunal payload
+        const tribunalMsg = [...msgs].reverse().find((m) => m.tribunal?.turns && m.tribunal.turns.length > 0);
+        if (tribunalMsg?.tribunal?.turns) {
+          setTurns(tribunalMsg.tribunal.turns);
+          const corroborated = tribunalMsg.tribunal.turns.filter((t) =>
+            classifyTribunalVerdict(t.verdict) === 'corroborated'
+          ).length;
+          setQuorumPercent((corroborated / tribunalMsg.tribunal.turns.length) * 100);
+          setCurrentPhase(5);
+          return;
+        }
+        // 2. Or check for individual specialist persona messages
+        const personaRoles = ['ansatz-scout', 'disconfirmation-officer', 'device-auditor', 'epistemic-scribe'];
+        const turnsFound: TribunalTurn[] = [];
+        for (const m of msgs) {
+          if (personaRoles.some((r) => m.role.toLowerCase().includes(r))) {
+            turnsFound.push({
+              turn_index: turnsFound.length + 1,
+              role: m.role,
+              name: m.role.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
+              content: m.content,
+              verdict: m.content.toLowerCase().includes('reject') || m.content.toLowerCase().includes('cannot be claimed') ? 'contested' : 'corroborated',
+              timestamp: m.created_at,
+            });
+          }
+        }
+        if (turnsFound.length > 0) {
+          setTurns(turnsFound);
+          const corroborated = turnsFound.filter((t) =>
+            classifyTribunalVerdict(t.verdict) === 'corroborated'
+          ).length;
+          setQuorumPercent((corroborated / turnsFound.length) * 100);
+          setCurrentPhase(5);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [sessionId]);
+
+  // Chamber seats aligned with Kubona's 4 Epistemic Collective Roles.
+  // Statements, votes, and quorum come exclusively from live tribunal turns.
   const personas: PersonaState[] = [
     {
       persona: {
-        id: 'theorist-01',
-        name: 'Lead Polymath Theorist',
-        role: 'lead_theorist',
+        id: 'scout-01',
+        name: 'Ansatz Scout',
+        role: 'ansatz_scout',
         avatar_emoji: '🌌',
         badge_color: 'border-cyan-500/30 text-cyan-400 bg-cyan-950/20',
-        description: 'Conjectures ground states, formulates physical models and targets.',
+        description: 'Proposes active space partitioning and low-depth variational quantum circuits.',
         thinking_horizon_seconds: 180,
       },
       statement: null,
       vote: 'pending',
-      matchKeys: ['scout', 'theorist'],
+      matchKeys: ['scout', 'ansatz', 'theorist'],
     },
     {
       persona: {
         id: 'critic-01',
-        name: 'Adversarial Falsification Critic',
-        role: 'adversarial_falsification_critic',
+        name: 'Disconfirmation Officer',
+        role: 'disconfirmation_officer',
         avatar_emoji: '⚔️',
         badge_color: 'border-rose-500/30 text-rose-400 bg-rose-950/20',
-        description: 'Red-teams claims, probes barren plateaus, searches counterexamples.',
+        description: 'Red-teams claims against classical anchors, probes barren plateaus, enforces realism.',
         thinking_horizon_seconds: 240,
       },
       statement: null,
       vote: 'pending',
-      matchKeys: ['disconfirmation', 'critic', 'falsif'],
+      matchKeys: ['disconfirmation', 'critic', 'falsif', 'officer'],
     },
     {
       persona: {
-        id: 'prover-01',
-        name: 'Lean 4 Proof Engineer',
-        role: 'lean4_proof_engineer',
-        avatar_emoji: '📐',
-        badge_color: 'border-emerald-500/30 text-emerald-400 bg-emerald-950/20',
-        description: 'Machine-checks assertions under strict zero-cheat axiom containment.',
-        thinking_horizon_seconds: 360,
-      },
-      statement: null,
-      vote: 'pending',
-      matchKeys: ['scribe', 'prover', 'lean'],
-    },
-    {
-      persona: {
-        id: 'anchor-01',
-        name: 'Classical Anchor Solver',
-        role: 'classical_anchor_solver',
+        id: 'auditor-01',
+        name: 'Device Auditor',
+        role: 'device_auditor',
         avatar_emoji: '⚖️',
         badge_color: 'border-amber-500/30 text-amber-400 bg-amber-950/20',
-        description: 'Verifies expectations against exact mathematical physics anchors.',
+        description: 'Audits hardware noise models, canary probe fidelity, and shot-budget financial caps.',
         thinking_horizon_seconds: 120,
       },
       statement: null,
       vote: 'pending',
-      matchKeys: ['anchor', 'auditor', 'device'],
+      matchKeys: ['device', 'auditor', 'hardware', 'anchor'],
+    },
+    {
+      persona: {
+        id: 'scribe-01',
+        name: 'Epistemic Scribe',
+        role: 'epistemic_scribe',
+        avatar_emoji: '📐',
+        badge_color: 'border-emerald-500/30 text-emerald-400 bg-emerald-950/20',
+        description: 'Synthesizes supermajority consensus, collapses credibility wavefunctions, mints AP2 proposal.',
+        thinking_horizon_seconds: 360,
+      },
+      statement: null,
+      vote: 'pending',
+      matchKeys: ['scribe', 'prover', 'lean', 'epistemic'],
     },
   ];
 

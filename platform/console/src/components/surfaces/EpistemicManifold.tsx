@@ -22,19 +22,24 @@ interface EpistemicResponse {
 
 interface EpistemicManifoldProps {
   campaign?: CampaignState | null;
+  sessionId?: string | null;
 }
 
-export function EpistemicManifold({ campaign }: EpistemicManifoldProps) {
+export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProps) {
   const [showDeepMath, setShowDeepMath] = useState(false);
   const [data, setData] = useState<EpistemicResponse | null>(null);
 
+  const effectiveSessionId = sessionId || campaign?.session_id;
+
   useEffect(() => {
-    fetchEpistemics()
-      .then((d) => {
-        if (d) setData(d as unknown as EpistemicResponse);
-      })
-      .catch((err) => console.error('Failed to load epistemics data:', err));
-  }, []);
+    if (effectiveSessionId) {
+      fetchEpistemics(effectiveSessionId)
+        .then((d) => {
+          if (d && Object.keys(d).length > 0) setData(d as unknown as EpistemicResponse);
+        })
+        .catch((err) => console.error('Failed to load epistemics data:', err));
+    }
+  }, [effectiveSessionId]);
 
   const liveClaim = campaign?.epistemics ? {
     claim_id: `claim-${campaign.target_system.toLowerCase().replace(/[^a-z0-9]/g, '')}`,
