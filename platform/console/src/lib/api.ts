@@ -218,7 +218,11 @@ export async function runTribunal(
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ session_id: sessionId, prompt }),
     });
-    if (!res.ok) return null;
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      console.error(`Failed to run tribunal (${res.status}):`, text || res.statusText);
+      return null;
+    }
     return await res.json();
   } catch (err) {
     console.error('Failed to run tribunal:', err);

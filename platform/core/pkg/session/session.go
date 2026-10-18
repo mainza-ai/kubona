@@ -144,6 +144,9 @@ func (m *Manager) GetSession(id string) (*Session, error) {
 		}
 		return nil, err
 	}
+	if s.TenantID == "" {
+		s.TenantID = "default"
+	}
 	return &s, nil
 }
 
@@ -163,6 +166,9 @@ func (m *Manager) ListSessions(limit int) ([]Session, error) {
 		var s Session
 		if err := rows.Scan(&s.ID, &s.Title, &s.TenantID, &s.CreatedAt, &s.UpdatedAt, &s.Status, &s.SpendLimitUSD, &s.CurrentSpendUSD); err != nil {
 			return nil, err
+		}
+		if s.TenantID == "" {
+			s.TenantID = "default"
 		}
 		sessions = append(sessions, s)
 	}

@@ -580,9 +580,13 @@ func (s *Server) requireDispatchAutonomy(sessionID string) error {
 	if err != nil {
 		return fmt.Errorf("unknown session %q: dispatch refused", sessionID)
 	}
-	t, err := s.tenantMgr.GetTenant(sess.TenantID)
+	tenantID := sess.TenantID
+	if tenantID == "" {
+		tenantID = "default"
+	}
+	t, err := s.tenantMgr.GetTenant(tenantID)
 	if err != nil {
-		return fmt.Errorf("unknown tenant %q: dispatch refused", sess.TenantID)
+		return fmt.Errorf("unknown tenant %q: dispatch refused", tenantID)
 	}
 	if t.Status != "active" {
 		return fmt.Errorf("tenant %q is %s: dispatch refused", t.ID, t.Status)
