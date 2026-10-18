@@ -201,6 +201,7 @@ export interface CampaignState {
   session_id: string;
   research_goal: string;
   target_system: string;
+  hypothesis_id?: string;
   smiles?: string;
   quantum_factors: QuantumFactors;
   classical_anchor: ClassicalAnchor;
@@ -289,7 +290,11 @@ export type AgentRoleType =
   | 'classical_anchor_solver'
   | 'quantum_circuit_compiler'
   | 'adversarial_falsification_critic'
-  | 'sentinel_spend_governor';
+  | 'sentinel_spend_governor'
+  | 'ansatz_scout'
+  | 'disconfirmation_officer'
+  | 'device_auditor'
+  | 'epistemic_scribe';
 
 export interface AgentPersona {
   id: string;

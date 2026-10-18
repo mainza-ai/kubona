@@ -569,9 +569,10 @@ export async function fetchRadar(): Promise<Record<string, unknown>> {
   }
 }
 
-export async function fetchEpistemics(): Promise<Record<string, unknown>> {
+export async function fetchEpistemics(sessionId?: string | null): Promise<Record<string, unknown>> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/epistemics`, { cache: 'no-store', headers: authHeaders() });
+    const qs = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : '';
+    const res = await apiFetch(`${API_BASE}/api/epistemics${qs}`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return {};
     return await res.json();
   } catch (err) {

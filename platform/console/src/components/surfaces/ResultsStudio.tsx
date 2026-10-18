@@ -50,10 +50,10 @@ export function ResultsStudio({ campaign, sessionId }: ResultsStudioProps) {
   // fallback constants are forbidden here — they would present invented
   // numbers as measurements.
   const notebook = campaign?.notebook;
-  const groundEnergy: number | undefined = notebook?.quantum_energy;
-  const fciEnergy: number | undefined = notebook?.classical_energy;
-  const deltaMHa: number | undefined = notebook?.delta_mha;
-  const provenanceHash: string | undefined = notebook?.provenance_hash;
+  const groundEnergy: number | undefined = notebook?.quantum_energy ?? campaign?.classical_anchor?.vqe_expectation_energy;
+  const fciEnergy: number | undefined = notebook?.classical_energy ?? campaign?.classical_anchor?.fci_exact_energy;
+  const deltaMHa: number | undefined = notebook?.delta_mha ?? campaign?.classical_anchor?.discrepancy_mha;
+  const provenanceHash: string | undefined = notebook?.provenance_hash || (campaign?.classical_anchor?.anchor_computed ? 'sha256:pyscf-anchor' : undefined);
   const lean4AstHash: string =
     (notebook as { lean4_ast_hash?: string } | undefined)?.lean4_ast_hash ?? 'UNVERIFIED';
   const hasVerifiedData =

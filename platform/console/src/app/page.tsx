@@ -634,10 +634,18 @@ export default function Home() {
             )}
             <div className="p-6 max-w-6xl mx-auto">
               {surface === 'recorder' && <FlightRecorder loops={loops} events={events} campaign={campaign} onLoopsChanged={refreshLoops} onSessionImported={handleSessionImported} />}
-              {surface === 'manifold' && <EpistemicManifold campaign={campaign} />}
+              {surface === 'manifold' && <EpistemicManifold campaign={campaign} sessionId={currentSessionId || null} />}
               {surface === 'fleet' && <FleetRadar campaign={campaign} />}
               {surface === 'proofs' && proofsTab === 'manuscripts' && <ResultsStudio campaign={campaign} sessionId={currentSessionId || null} />}
-              {surface === 'proofs' && proofsTab === 'tribunal' && <EpistemicTribunalRoom sessionId={session?.id ?? ''} onCampaignSynthesized={(c) => setCampaign(c)} />}
+              {surface === 'proofs' && proofsTab === 'tribunal' && (
+                <EpistemicTribunalRoom
+                  sessionId={session?.id ?? ''}
+                  targetSystem={campaign?.target_system || campaign?.quantum_factors?.target_molecule || 'LiH'}
+                  hypothesisId={campaign?.hypothesis_id || `hyp-qksd-${(campaign?.quantum_factors?.target_molecule || campaign?.target_system || 'LiH').toLowerCase().replace(/[^a-z0-9]/g, '')}-01`}
+                  campaign={campaign}
+                  onCampaignSynthesized={(c) => setCampaign(c)}
+                />
+              )}
               {surface === 'mesh' && meshTab === 'mesh' && <CognitiveMesh campaign={campaign} />}
               {surface === 'mesh' && meshTab === 'guardrails' && <AutonomyCockpit campaign={campaign} session={session} />}
               {surface === 'mesh' && meshTab === 'models' && <HuggingFaceModelHub />}
