@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -575,6 +577,11 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 	}
 
 	llmTimeout := 90 * time.Second
+	if envTo := os.Getenv("KUBONA_TRIBUNAL_LLM_TIMEOUT_SEC"); envTo != "" {
+		if sec, err := strconv.Atoi(envTo); err == nil && sec > 0 {
+			llmTimeout = time.Duration(sec) * time.Second
+		}
+	}
 
 	// Associative memory recall via Hindsight
 	var memoryContext string

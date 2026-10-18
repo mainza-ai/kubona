@@ -29,6 +29,10 @@ var heuristicRates = map[string]modelRate{
 	"gpt-4o":            {inputPer1K: 0.0025, outputPer1K: 0.01},
 	"o3":                {inputPer1K: 0.01, outputPer1K: 0.04},
 	"gemini-2.5-pro":    {inputPer1K: 0.00125, outputPer1K: 0.01},
+	// NVIDIA NIM hosted models, order-of-magnitude.
+	"nvidia/nemotron-3.5-super-vl-120b-a12b": {inputPer1K: 0.0007, outputPer1K: 0.0015},
+	"meta/llama-3.1-70b-instruct":            {inputPer1K: 0.0007, outputPer1K: 0.0015},
+	"meta/llama-3.3-70b-instruct":            {inputPer1K: 0.0007, outputPer1K: 0.0015},
 }
 
 // EstimateCostUSD prices measured token counts for a cloud model.
