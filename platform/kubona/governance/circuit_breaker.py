@@ -38,8 +38,11 @@ class SpendCircuitBreaker:
         current_actual_usd: float,
         on_soft_landing: Optional[Callable[[], None]] = None,
     ) -> CircuitBreakerStatus:
-        if estimated_usd <= 0.0:
-            divergence = 0.0
+        import math
+        if math.isnan(estimated_usd) or math.isnan(current_actual_usd) or math.isinf(current_actual_usd):
+            divergence = float("inf")
+        elif estimated_usd <= 0.0:
+            divergence = float("inf") if current_actual_usd > 0.0 else 0.0
         else:
             divergence = max(0.0, ((current_actual_usd - estimated_usd) / estimated_usd) * 100.0)
 

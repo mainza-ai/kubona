@@ -26,8 +26,14 @@ export function MolecularActiveSpaceWidget({
   const totalE = numElectrons ?? 54;
   const totalO = numOrbitals ?? 54;
   const gap = homoLumoGapHa ?? 0.042;
-  const [activeElectrons, setActiveElectrons] = useState(10);
-  const [activeOrbitals, setActiveOrbitals] = useState(10);
+  const [activeElectrons, setActiveElectrons] = useState(Math.min(10, totalE));
+  const [activeOrbitals, setActiveOrbitals] = useState(Math.min(10, totalO));
+  const [prevSpaceKey, setPrevSpaceKey] = useState(`${totalE}:${totalO}`);
+  if (prevSpaceKey !== `${totalE}:${totalO}`) {
+    setPrevSpaceKey(`${totalE}:${totalO}`);
+    setActiveElectrons(Math.min(10, totalE));
+    setActiveOrbitals(Math.min(10, totalO));
+  }
   const [selectedOrbital, setSelectedOrbital] = useState<number>(5);
   const [viewState, setViewState] = useState<'orbitals' | 'electrons' | 'density'>('orbitals');
 

@@ -2,7 +2,7 @@
 type: concept
 name: QIR / MLIR Compilation
 date: 2026-08-16
-updated: 2026-09-27
+updated: 2026-10-17
 tags: [compiler, qir, mlir]
 sources: [source-architecture-paper, source-gap-analysis-plan]
 status: adopted
@@ -12,6 +12,14 @@ status: adopted
 
 The hardware-agnostic compilation core that lets one algorithm run on any provider.
 
+> **Register note (design vs. prototype):** Sections below describe the target compilation
+> architecture from the architecture paper and gap-analysis plan. In the prototype today,
+> `platform/crates/qir-core` is a standalone Rust CLI that parses the locked OpenQASM 2.0
+> subset (`OPENQASM 3` is refused per Q-18/W0) and emits QIR `BaseProfile` LLVM text IR;
+> MLIR (`QUIR`/`Pulse` dialects), `qubit linearity` borrow-checking, WASM builds, and PyO3
+> bindings are blueprint targets (see [[agentic-qir-compilation]] and
+> [[deep-implementation-audit-2026-10-12]]).
+
 ## Quantum Intermediate Representation (QIR)
 
 - Maintained by the **QIR Alliance**; based on classical **LLVM IR**, extended with opaque
@@ -20,12 +28,12 @@ The hardware-agnostic compilation core that lets one algorithm run on any provid
 - Unifies classical + quantum code in one intermediate framework → standard LLVM passes
   (constant folding, loop unrolling, dead-code elimination) apply to both.
 
-## MLIR progressive lowering
+## MLIR progressive lowering (blueprint target)
 
 OpenQASM 3.0 → specialized MLIR dialects (**QUIR** for intermediate representation, **Pulse**
 for microwave control). Agents can inspect use-define chains to see how quantum data flows.
 
-## Pipeline
+## Pipeline (blueprint target)
 
 Front-end (Rust) parses AST (OpenQASM 3.0 / Q# / Qiskit output) → QIR bitcode → MLIR
 dialects → per-provider deploy (Quantinuum H-Series, Rigetti Cepheus, Braket, etc.) without
@@ -33,9 +41,9 @@ manual refactoring.
 
 ## Stack justification
 
-Rust core: memory safety, `qubit linearity` compile-time enforcement, ~100× faster than the
-legacy (pre-Rust) QDK engine, **WASM** compilation for in-browser/edge simulation,
-**PyO3** bindings for Python agent code.
+Rust core: memory safety, `qubit linearity` compile-time enforcement (target), ~100× faster than the
+legacy (pre-Rust) QDK engine, **WASM** compilation for in-browser/edge simulation (target),
+**PyO3** bindings for Python agent code (target; invoked via CLI/Go bridge in prototype).
 Ecosystem anchors: **qe-compiler** (OpenQASM's MLIR-based quantum compiler for quantum
 engines) and QIR support in the Munich Quantum Toolkit (MQT) are the pipeline's reference
 points for progressive lowering into QUIR/Pulse dialects.

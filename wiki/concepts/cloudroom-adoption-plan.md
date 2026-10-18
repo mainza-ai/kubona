@@ -8,14 +8,15 @@ sources: [source-frontier-repo-audit-2026]
 status: candidate
 ---
 
-# Cloudroom adoption plan — production-grade (awaiting review, nothing started)
+# Cloudroom adoption plan — production-grade (S1–S8 landed 2026-10-17)
 
 > Implements selected patterns from [[cloudroom]] as independent Kubona code
 > (reference topology — no submodule, no vendored code). Production stance:
 > every slice below specifies its **full logic** — concurrency, restart,
 > validation, retention, and refusal paths included — so nothing lands as a
 > stub that must be redone. The `Not in slice` lines name sequenced follow-ups,
-> never hidden gaps. S1 landed 2026-10-17; S2–S8 not started.
+> never hidden gaps. All slices S1–S8 landed 2026-10-17 (see `> ✅ LANDED`
+> blocks per slice below).
 
 ## 0. Decided values (from the 2026-10-17 deep-dive; evidence in §5)
 

@@ -73,14 +73,14 @@ class LocalModelRegistry:
         if env_p:
             self.ports = [int(p) for p in env_p.split(",") if p.strip().isdigit()]
         else:
-            self.ports = ports or DEFAULT_PORTS
+            self.ports = DEFAULT_PORTS if ports is None else list(ports)
         # W2.13: no result cache. The old `_cache` was written on every
         # discover() and read nowhere — a cache that never serves is a lie
         # about freshness. discover() always probes live (documented).
 
     def discover(self) -> dict[str, Any]:
         body = os.environ.get("KUBONA_LLM_BASE_URL", "").rstrip("/")
-        if not body:
+        if not body and self.ports:
             body = _lms_endpoint()
         out: dict[str, Any] = {}
         if body:

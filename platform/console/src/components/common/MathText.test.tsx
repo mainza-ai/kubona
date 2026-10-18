@@ -48,6 +48,13 @@ describe('MathText markdown', () => {
     expect(html).toContain('<strong');
   });
 
+  it('escapes HTML inside blockquotes (no injection)', () => {
+    const html = htmlOf('> <script>alert(1)</script> **bold**');
+    expect(html).not.toContain('<script');
+    expect(html).toContain('&lt;script');
+    expect(html).toContain('<strong');
+  });
+
   it('leaves code fences literal', () => {
     const html = htmlOf('```\n**not bold** $nor math$\n```');
     expect(html).toContain('<pre');

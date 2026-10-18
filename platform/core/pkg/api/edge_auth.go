@@ -28,37 +28,24 @@ import (
 //  3. Rate limits: per-IP token buckets on sign/verify so stolen
 //     credentials cannot be sprayed at machine pace.
 
-// requireBearer gates one handler on the operator API token.
+// requireBearer gates one handler on operator authority: a valid session
+// cookie first, else the shared KUBONA_API_TOKEN bearer (machines/CI).
+// Response codes preserve the bearer contract exactly (503 unconfigured,
+// 401 mismatch); session failures surface as 401/403 with reasons.
 func (s *Server) requireBearer(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		switch bearerGate(r) {
+		_, _, code := s.checkAuth(r)
+		switch code {
 		case http.StatusOK:
 			next(w, r)
 		case http.StatusServiceUnavailable:
-			WriteAPIError(w, "server_misconfigured", "API token not configured: set KUBONA_API_TOKEN", nil)
+			WriteAPIError(w, "server_misconfigured", "API token not configured: set KUBONA_API_TOKEN or log in", nil)
+		case http.StatusForbidden:
+			WriteAPIError(w, "forbidden", "cross-site session use refused: retry same-origin", nil)
 		default:
-			WriteAPIError(w, "unauthorized", "missing or invalid bearer token", nil)
+			WriteAPIError(w, "unauthorized", "missing or invalid bearer token or session: log in or pass a bearer token", nil)
 		}
 	}
-}
-
-// bearerGate checks the operator token without writing a response, for
-// handlers that mix public reads with gated writes on one route (custom
-// agents: list public, create/delete gated). Returns StatusOK when the
-// token checks out, ServiceUnavailable when unconfigured, Unauthorized
-// on mismatch — the same codes requireBearer emits.
-func bearerGate(r *http.Request) int {
-	want := os.Getenv("KUBONA_API_TOKEN")
-	if want == "" {
-		return http.StatusServiceUnavailable
-	}
-	const prefix = "Bearer "
-	got := r.Header.Get("Authorization")
-	if !strings.HasPrefix(got, prefix) ||
-		subtle.ConstantTimeCompare([]byte(strings.TrimPrefix(got, prefix)), []byte(want)) != 1 {
-		return http.StatusUnauthorized
-	}
-	return http.StatusOK
 }
 
 // corsAllowOrigin resolves the Access-Control-Allow-Origin value for a

@@ -6,6 +6,7 @@ import { Lab, Session } from '@/types';
 import { fetchLabs, fetchSessions } from '@/lib/api';
 import { fmtMoney } from '@/lib/guards';
 import { LabOpsPanel } from '@/components/common/LabOpsPanel';
+import { AuthPanel } from '@/components/common/AuthPanel';
 
 function pct(spent: number, ceiling: number): number | null {
   if (!Number.isFinite(spent) || !Number.isFinite(ceiling) || !(ceiling > 0)) return null;
@@ -70,6 +71,7 @@ export function LabsView() {
 
   return (
     <div className="space-y-4">
+      <AuthPanel labs={labs} />
       {labs.map((lab) => {
         const spent = typeof lab.spent_usd === 'number' && Number.isFinite(lab.spent_usd) ? lab.spent_usd : null;
         const ceiling = typeof lab.spend_ceiling_usd === 'number' && Number.isFinite(lab.spend_ceiling_usd) ? lab.spend_ceiling_usd : null;

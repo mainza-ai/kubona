@@ -306,6 +306,7 @@ func (r *Runner) submitJob(sessionID, jobType string, params any, declaredCost f
 	if err != nil {
 		// The job never queued (no row to release from): unwind directly.
 		_ = r.tenantStore().ReleaseSpend(resTenant, resAmount)
+		_ = r.sessionMgr.ReleaseSpend(sessionID, resAmount)
 		return nil, fmt.Errorf("failed to save job to db: %w", err)
 	}
 

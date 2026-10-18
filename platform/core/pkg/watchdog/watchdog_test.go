@@ -19,6 +19,7 @@ func setupWatchdog(t *testing.T) (*TaskWatchdog, *ledger.Ledger, func()) {
 	sup := supervisor.NewSupervisor(l)
 	wd := NewTaskWatchdog(l, sup)
 	cleanup := func() {
+		sup.Close()
 		l.Close()
 		os.Remove(dbPath)
 		os.Remove(dbPath + "-wal")

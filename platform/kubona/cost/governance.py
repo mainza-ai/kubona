@@ -117,8 +117,9 @@ class CostGovernanceService:
         a = Approval(approval_id=uuid.uuid4().hex[:16], session_id=session_id,
                      kind="paid_job", amount_requested_usd=round(float(amount_usd), 6),
                      reason=reason, requested_by=requested_by)
-        self._save_approval(a)
-        self.sessions.update(session_id, approvals=[*self.sessions.get(session_id).approvals, a.approval_id])
+        with self._money_locked():
+            self._save_approval(a)
+            self.sessions.update(session_id, approvals=[*self.sessions.get(session_id).approvals, a.approval_id])
         return a
 
     def _check_reviewer(self, reviewer: str) -> None:

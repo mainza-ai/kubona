@@ -137,7 +137,7 @@ export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
                 <span>Cognitive Intelligence</span>
               </div>
               <div className="font-mono text-xs text-slate-200 font-medium">
-                oMLX 27B Local Neural Engine
+                Env-Driven Provider Routing (NIM / Local)
               </div>
               <div className="text-[11px] text-slate-300">
                 4-Turn Epistemic Tribunal Loop

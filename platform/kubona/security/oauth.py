@@ -61,23 +61,6 @@ def load_or_seed_signing_key() -> bytes:
     return data
 
 
-class OAuth2TokenIssuer:
-    """Issues and verifies signed access tokens (sub, role, scopes, exp)."""
-
-    def __init__(self, issuer: str = "https://idp.kubona.local", ttl_s: int = 300,
-                 audience: str = "kubona-gateway",
-                 signing_key: Ed25519PrivateKey | None = None):
-        self.issuer = issuer
-        self.audience = audience  # tokens are bound to this audience; verified on decode
-        self.ttl_s = min(ttl_s, MAX_TTL_S)
-        if signing_key is None:
-            from cryptography.hazmat.primitives.serialization import load_pem_private_key
-            signing_key = load_pem_private_key(load_or_seed_signing_key(), password=None)
-            if not isinstance(signing_key, Ed25519PrivateKey):
-                raise AuthError("persisted signing key is not Ed25519: refusing")
-        self._key = signing_key
-
-
 def _b64url_decode(s: str) -> bytes:
     return base64.urlsafe_b64decode(s + "=" * (-len(s) % 4))
 
@@ -90,8 +73,13 @@ class OAuth2TokenIssuer:
                  signing_key: Ed25519PrivateKey | None = None):
         self.issuer = issuer
         self.audience = audience  # tokens are bound to this audience; verified on decode
-        self.ttl_s = ttl_s
-        self._key = signing_key or Ed25519PrivateKey.generate()
+        self.ttl_s = min(int(ttl_s), MAX_TTL_S)
+        if signing_key is None:
+            from cryptography.hazmat.primitives.serialization import load_pem_private_key
+            signing_key = load_pem_private_key(load_or_seed_signing_key(), password=None)
+            if not isinstance(signing_key, Ed25519PrivateKey):
+                raise AuthError("persisted signing key is not Ed25519: refusing")
+        self._key = signing_key
 
     def public_pem(self) -> bytes:
         return self._key.public_key().public_bytes(

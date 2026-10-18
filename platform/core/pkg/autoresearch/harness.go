@@ -3,6 +3,7 @@ package autoresearch
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 	"sync"
@@ -538,9 +539,11 @@ func (h *CorrectnessRegressionHarness) Evaluate(runner *sandbox.SandboxRunner, a
 
 	benchmarkScript := `
 import json
+import math
 import sys
 
 try:
+    import numpy as np
     from qiskit import QuantumCircuit
     from qiskit.quantum_info import Statevector, state_fidelity
 except Exception as e:
@@ -555,7 +558,7 @@ try:
 
     sv = Statevector(qc)
     # Target exact Bell state 1/sqrt(2) (|00> + |11>)
-    ideal_sv = Statevector([1.0/np.sqrt(2), 0, 0, 1.0/np.sqrt(2)])
+    ideal_sv = Statevector([1.0 / math.sqrt(2), 0, 0, 1.0 / math.sqrt(2)])
     fidelity = float(state_fidelity(sv, ideal_sv))
     error = abs(1.0 - fidelity)
 
@@ -570,23 +573,8 @@ try:
         "entanglement_score": 1.0
     }))
 except Exception as e:
-    import numpy as np
-    qc = QuantumCircuit(2)
-    qc.h(0)
-    qc.cx(0, 1)
-    sv = Statevector(qc)
-    ideal_sv = Statevector([1.0/np.sqrt(2), 0, 0, 1.0/np.sqrt(2)])
-    fidelity = float(state_fidelity(sv, ideal_sv))
-    print(json.dumps({
-        "valid": True,
-        "metric": float(abs(1.0 - fidelity)),
-        "physical_value": float(fidelity),
-        "reference_value": 1.0,
-        "circuit_depth": 2,
-        "num_qubits": 2,
-        "two_qubit_gate_count": 1,
-        "entanglement_score": 1.0
-    }))
+    print(json.dumps({"valid": False, "error": str(e)}))
+    sys.exit(0)
 `
 
 	nonce := newRunNonce()
@@ -689,12 +677,23 @@ func parseHarnessOutput(harnessID string, res *sandbox.ExecutionResult, nonce st
 	}
 
 	if metricVal, ok := parsedPayload["metric"].(float64); ok {
+		if math.IsNaN(metricVal) || math.IsInf(metricVal, 0) {
+			hr.Valid = false
+			hr.ValidityReason = "metric is NaN or Inf"
+			hr.Metric = 999.0
+			return hr, nil
+		}
 		hr.Metric = metricVal
+	} else {
+		hr.Valid = false
+		hr.ValidityReason = "metric field missing or not float64"
+		hr.Metric = 999.0
+		return hr, nil
 	}
-	if physVal, ok := parsedPayload["physical_value"].(float64); ok {
+	if physVal, ok := parsedPayload["physical_value"].(float64); ok && !math.IsNaN(physVal) && !math.IsInf(physVal, 0) {
 		hr.PhysicalValue = physVal
 	}
-	if refVal, ok := parsedPayload["reference_value"].(float64); ok {
+	if refVal, ok := parsedPayload["reference_value"].(float64); ok && !math.IsNaN(refVal) && !math.IsInf(refVal, 0) {
 		hr.ReferenceValue = refVal
 	}
 	if depthVal, ok := parsedPayload["circuit_depth"].(float64); ok {
@@ -706,7 +705,7 @@ func parseHarnessOutput(harnessID string, res *sandbox.ExecutionResult, nonce st
 	if twoQVal, ok := parsedPayload["two_qubit_gate_count"].(float64); ok {
 		hr.TwoQubitGateCount = int(twoQVal)
 	}
-	if entVal, ok := parsedPayload["entanglement_score"].(float64); ok {
+	if entVal, ok := parsedPayload["entanglement_score"].(float64); ok && !math.IsNaN(entVal) && !math.IsInf(entVal, 0) {
 		hr.EntanglementScore = entVal
 	}
 

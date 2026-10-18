@@ -65,7 +65,7 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
   if (!browserPub) {
     return (
       <p className="text-[11px] text-slate-500">
-        Operator writes need a browser key — create one in the keyring first (sovereign dock), then return here.
+        Operator writes require WebCrypto Ed25519 support in this browser context.
       </p>
     );
   }

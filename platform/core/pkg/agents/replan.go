@@ -84,6 +84,15 @@ func EvalClaimRecord(resultJSON []byte) (*ClaimDraft, bool) {
 	if !okA && !okB && !okG {
 		return nil, false
 	}
+	if !okA || alpha < 0 {
+		alpha = 0.0
+	}
+	if !okB || beta < 0 {
+		beta = 0.0
+	}
+	if !okG || gamma < 0 {
+		gamma = 0.0
+	}
 	var passes bool
 	rawPass, ok := res["passes_chemical_accuracy"]
 	if !ok {
@@ -91,6 +100,12 @@ func EvalClaimRecord(resultJSON []byte) (*ClaimDraft, bool) {
 	}
 	if err := json.Unmarshal(rawPass, &passes); err != nil {
 		return nil, false
+	}
+	if rawSuccess, ok := res["success"]; ok {
+		var succ bool
+		if err := json.Unmarshal(rawSuccess, &succ); err == nil && !succ {
+			passes = false
+		}
 	}
 	var reason, external string
 	if raw, ok := res["verdict_reason"]; ok {
@@ -286,9 +301,15 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		state.ClassicalAnchor.AnchorComputed = true
 		state.ClassicalAnchor.AnchorSource = "pyscf-live"
 		state.ClassicalAnchor.Method = "PySCF STO-3G Full Configuration Interaction"
-		delta := math.Abs(state.ClassicalAnchor.VqeExpectationEnergy-fci) * 1000.0
-		state.ClassicalAnchor.DiscrepancyMHa = delta
-		state.ClassicalAnchor.ChemicalAccuracyPassed = delta <= 1.6
+		delta := 0.0
+		if state.ClassicalAnchor.VqeExpectationEnergy != 0 {
+			delta = math.Abs(state.ClassicalAnchor.VqeExpectationEnergy-fci) * 1000.0
+			state.ClassicalAnchor.DiscrepancyMHa = delta
+			state.ClassicalAnchor.ChemicalAccuracyPassed = delta <= 1.6
+		} else {
+			state.ClassicalAnchor.DiscrepancyMHa = 0
+			state.ClassicalAnchor.ChemicalAccuracyPassed = false
+		}
 		state.Notebook.ClassicalAnchor = fmt.Sprintf("PySCF STO-3G Full Configuration Interaction (%.5f Ha)", fci)
 		state.Notebook.ProvenanceHash = provenanceHash(state.SessionID,
 			state.QuantumFactors.TargetMolecule, state.QuantumFactors.BondDistance, fci,

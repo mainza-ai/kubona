@@ -51,6 +51,7 @@ class ApprovalPacket:
     expires_at: float = 0.0
     nonce: str = ""
     requestor: str = ""
+    args: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -65,7 +66,8 @@ def build_packet(*, agent_id: str, server: str, tool: str, backend: str,
                  evidence: dict[str, Any] | None = None,
                  alternatives: dict[str, Any] | None = None,
                  ttl_s: int = DEFAULT_APPROVAL_TTL_S,
-                 requestor: str = "") -> ApprovalPacket:
+                 requestor: str = "",
+                 args: dict[str, Any] | None = None) -> ApprovalPacket:
     """Build a packet. All spend fields required; no silent defaults for money."""
     if cost_max_usd <= 0:
         raise ValueError("cost_max_usd must be positive: approvals never authorize unbounded spend")
@@ -80,6 +82,7 @@ def build_packet(*, agent_id: str, server: str, tool: str, backend: str,
         alternatives=alternatives or {},
         expires_at=time.time() + ttl_s, nonce=secrets.token_hex(16),
         requestor=requestor,
+        args=args or {},
     )
 
 
@@ -124,11 +127,16 @@ def elicitation_form(packet: ApprovalPacket) -> dict[str, Any]:
 
 
 def _canonical_state(packet: ApprovalPacket, sub: str) -> bytes:
+    args_digest = hashlib.sha256(json.dumps(packet.args, sort_keys=True).encode()).hexdigest()
     return json.dumps({
-        "packet_id": packet.packet_id, "sub": sub,
-        "server": packet.server, "tool": packet.tool,
-        "cost_max_usd": packet.cost_max_usd, "exp": packet.expires_at,
+        "args_digest": args_digest,
+        "cost_max_usd": packet.cost_max_usd,
+        "exp": packet.expires_at,
         "nonce": packet.nonce,
+        "packet_id": packet.packet_id,
+        "server": packet.server,
+        "sub": sub,
+        "tool": packet.tool,
     }, sort_keys=True).encode()
 
 

@@ -56,6 +56,20 @@ def test_gate_rejects_negative_qubit_and_nonfinite_param():
         Gate("rx", (0,), (float("inf"),))
     with pytest.raises(ValueError, match="invalid gate name"):
         Gate("", (0,))
+    with pytest.raises(ValueError, match="duplicate qubit operands"):
+        Gate("cx", (0, 0))
+
+
+def test_parser_multi_qreg_offsets_and_bounds():
+    src = "OPENQASM 2.0;\nqreg a[2];\nqreg b[2];\ncx a[1], b[0];\nh b[1];"
+    c = parse_qasm2(src)
+    assert c.num_qubits == 4
+    assert c.gates[0].name == "cx"
+    assert c.gates[0].qubits == (1, 2)
+    assert c.gates[1].name == "h"
+    assert c.gates[1].qubits == (3) or c.gates[1].qubits == (3,)
+    with pytest.raises(ValueError, match="duplicate qubit operands"):
+        parse_qasm2("OPENQASM 2.0;\nqreg q[2];\ncx q[0], q[0];")
 
 
 def test_circuit_cross_validates_width():

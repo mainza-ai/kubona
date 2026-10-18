@@ -101,9 +101,9 @@ type Settings struct {
 	mu sync.RWMutex
 	// SchemaVersion gates migrations (see LoadSettings). 0 = pre-version
 	// blob: stamped current on load, values untouched.
-	SchemaVersion     int                             `json:"schema_version"`
-	ActiveProvider    ProviderType                    `json:"active_provider"`
-	ActiveModel       string                          `json:"active_model"`
+	SchemaVersion   int                             `json:"schema_version"`
+	ActiveProvider  ProviderType                    `json:"active_provider"`
+	ActiveModel     string                          `json:"active_model"`
 	AirGapped       bool                            `json:"air_gapped"`
 	Temperature     float64                         `json:"temperature"`
 	MaxTokens       int                             `json:"max_tokens"`

@@ -10,6 +10,7 @@ interface CampaignLike {
   classical_anchor?: {
     method?: string;
     discrepancy_mha?: number;
+    anchor_computed?: boolean;
   };
   notebook?: {
     provenance_hash?: string;
@@ -44,14 +45,11 @@ export function classifyBackendTier(backend?: string | null): BackendTier {
  * Metered-backend test (calibrated friction): simulator-class backends run
  * under L1 auto-allow and must NEVER raise the Action Gate; anything else
  * (hardware names, unknown tiers) needs human eyes. Unknown defaults to
- * metered (fail-closed visibility). Mirrors the server's tier normalization
- * smells so both sides agree on what "local" means.
+ * metered (fail-closed visibility). Delegates to classifyBackendTier so
+ * tier classification lives in one place.
  */
 export function isMeteredBackend(backend?: string | null): boolean {
-  if (!backend) return true;
-  const lower = backend.toLowerCase();
-  const simSmells = ['local', 'simulator', 'statevector', 'aer', 'sim-first', 'sim first', 'starter', 'shot-based', 'numpy'];
-  return !simSmells.some((smell) => lower.includes(smell));
+  return classifyBackendTier(backend) !== 'simulator';
 }
 
 /** Denial requires a non-blank reason (returned to the agent). Pure. */
@@ -81,6 +79,12 @@ export function buildApprovalPacketFromCampaign(
   const ceiling = Number.isFinite(spendCeilingUsd) ? spendCeilingUsd : 0;
   const spent = Number.isFinite(spentUsd) ? spentUsd : 0;
   const breached = ceiling - spent < 0;
+  const anchorComputed =
+    anchor?.anchor_computed !== false &&
+    Boolean(anchor?.method) &&
+    anchor?.method !== 'uncomputed' &&
+    typeof anchor?.discrepancy_mha === 'number' &&
+    Number.isFinite(anchor.discrepancy_mha);
   return {
     packetId: `appr-${(sessionId || 'local').slice(0, 8)}`,
     agentId: 'ansatz-scout',
@@ -96,10 +100,9 @@ export function buildApprovalPacketFromCampaign(
     reversibility: 'irreversible spend once dequeued; cancel possible before dispatch',
     evidence: {
       dryRun: 'simulator pre-flight required before paid queue (cost-governance rail)',
-      classicalAnchor:
-        anchor?.method != null && anchor?.discrepancy_mha != null
-          ? `${anchor.method}: Δ ${anchor.discrepancy_mha.toFixed(2)} mHa`
-          : undefined,
+      classicalAnchor: anchorComputed
+        ? `${anchor!.method}: Δ ${anchor!.discrepancy_mha!.toFixed(2)} mHa`
+        : undefined,
     },
     alternatives: {
       simFirstSavings: 'local simulator: $0.00',

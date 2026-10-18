@@ -91,10 +91,23 @@ func (f *ParetoFrontier) AddCandidate(cand *ParetoCandidate) bool {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 
-	// 1. Check if candidate is dominated by any existing frontier point
+	// 1. Check if candidate is dominated by any existing frontier point or is a duplicate
 	for _, existing := range f.points {
 		if f.Dominates(existing, cand) {
 			return false // Candidate is dominated, not on frontier
+		}
+		// Deduplicate identical objective points
+		same := len(cand.Objectives) == len(existing.Objectives)
+		if same {
+			for k, v := range cand.Objectives {
+				if existing.Objectives[k] != v {
+					same = false
+					break
+				}
+			}
+		}
+		if same {
+			return false // Duplicate objective vector already on frontier
 		}
 	}
 

@@ -228,7 +228,10 @@ func (c *Client) Complete(ctx context.Context, role string, messages []ChatMessa
 		return "", nil, duration, fmt.Errorf("no completion choices returned by model")
 	}
 
-	usageOK := chatResp.Usage.TotalTokens > 0
+	usageOK := (chatResp.Usage.PromptTokens >= 0 && chatResp.Usage.CompletionTokens >= 0 && (chatResp.Usage.PromptTokens+chatResp.Usage.CompletionTokens) > 0) || chatResp.Usage.TotalTokens > 0
+	if chatResp.Usage.PromptTokens == 0 && chatResp.Usage.CompletionTokens == 0 && chatResp.Usage.TotalTokens > 0 {
+		chatResp.Usage.PromptTokens = chatResp.Usage.TotalTokens
+	}
 	if err := c.requireMeteredUsage(providerType, model, usageOK); err != nil {
 		return "", nil, duration, err
 	}
@@ -344,6 +347,9 @@ func (c *Client) CompleteStream(ctx context.Context, role string, messages []Cha
 		}
 		ch := chunk.Choices[0]
 		if ch.Delta.Content != "" {
+			if full.Len()+len(ch.Delta.Content) > maxLLMResponseBytes {
+				return nil, fmt.Errorf("response exceeded %d byte ceiling during streaming", maxLLMResponseBytes)
+			}
 			full.WriteString(ch.Delta.Content)
 			if onToken != nil {
 				onToken(ch.Delta.Content)
@@ -357,6 +363,7 @@ func (c *Client) CompleteStream(ctx context.Context, role string, messages []Cha
 		return &StreamResult{Text: full.String(), Finish: finish, Duration: time.Since(start), Usage: usage}, err
 	}
 	c.reportSpendMap(providerType, model, usage)
+	c.settings.RecordSuccess(providerType)
 	return &StreamResult{Text: full.String(), Finish: finish, Duration: time.Since(start), Usage: usage}, nil
 }
 

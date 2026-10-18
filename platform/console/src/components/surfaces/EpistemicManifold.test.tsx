@@ -4,7 +4,7 @@ import TestRenderer, { act } from 'react-test-renderer';
 import { EpistemicManifold } from './EpistemicManifold';
 import type { CampaignState } from '@/types';
 
-function campaignWith(status: string, alpha: number): CampaignState {
+function campaignWith(status: string, alpha: number, anchorComputed = true): CampaignState {
   return {
     target_system: 'H2',
     epistemics: {
@@ -20,7 +20,8 @@ function campaignWith(status: string, alpha: number): CampaignState {
     classical_anchor: {
       discrepancy_mha: 0.4,
       chemical_accuracy_limit: 1.6,
-      method: 'PySCF STO-3G',
+      method: anchorComputed ? 'PySCF STO-3G' : 'uncomputed',
+      anchor_computed: anchorComputed,
     },
   } as unknown as CampaignState;
 }
@@ -42,5 +43,15 @@ describe('EpistemicManifold verification chrome', () => {
       tree = TestRenderer.create(<EpistemicManifold campaign={campaignWith('COLLAPSED_VERIFIED', 0.95)} />);
     });
     expect(JSON.stringify(tree!.toJSON())).toContain('FCI Ground State Energy Verified');
+  });
+
+  it('reports no anchor measured when anchor_computed is false', () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tree = TestRenderer.create(<EpistemicManifold campaign={campaignWith('PROJECTED', 0.5, false)} />);
+    });
+    const text = JSON.stringify(tree!.toJSON());
+    expect(text).toContain('No anchor measured for this session');
+    expect(text).not.toContain('Corroborated within chemical accuracy');
   });
 });

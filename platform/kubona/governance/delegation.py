@@ -161,7 +161,7 @@ class SpendDelegationManager:
                 if m.parent_mandate_id == parent_mandate_id and not m.is_expired()
                 and m.mandate_id not in self._revoked
             ]
-            allocated = sum(c.budget_ceiling_usd for c in existing_children)
+            allocated = sum(c.remaining() for c in existing_children)
             if allocated + child_ceiling > parent.remaining():
                 raise DelegationBudgetExceededError(
                     f"Cannot delegate ${child_ceiling:.2f}: parent available is "
@@ -203,6 +203,14 @@ class SpendDelegationManager:
                     f"spend ${usd:.4f} exceeds remaining ${m.remaining():.4f}"
                 )
             m.spent_usd = round(m.spent_usd + usd, 6)
+            curr = m
+            while curr.parent_mandate_id:
+                parent = self._mandates.get(curr.parent_mandate_id)
+                if parent is not None:
+                    parent.spent_usd = round(parent.spent_usd + usd, 6)
+                    curr = parent
+                else:
+                    break
             return m.spent_usd
 
     def revoke(self, mandate_id: str) -> List[str]:

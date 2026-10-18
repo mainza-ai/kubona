@@ -1,10 +1,11 @@
 ---
 type: overview
 date: 2026-08-16
-updated: 2026-10-10
+updated: 2026-10-17
 tags: [kubona, synthesis]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-cloudflare-economy,
-  source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026, source-openai-math-corpus]
+  source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026, source-openai-math-corpus,
+  source-leanrea-investigation-2026]
 status: living
 ---
 
@@ -32,7 +33,7 @@ science discovery platform**: multi-user labs, user- and agent-created workflows
 agents, and the ability to conduct its own experiments and return organized,
 reproducible results — see [[science-discovery]].
 
-## The six sources ingested
+## The seven sources ingested
 
 | Source | What it provides |
 |---|---|
@@ -42,6 +43,7 @@ reproducible results — see [[science-discovery]].
 | [[source-frontier-repo-audit-2026]] | 25 live repos read end-to-end (remote · HEAD · licence · `path:line`): [[integration-topology-and-licence-discipline]], [[quantum-advantage-realism]], prior-art primitives for memory, governance and packs |
 | [[source-agent-protocol-landscape-2026]] | 2026 standards audit: MCP 2026-07-28 & SDK 2.x, AAIF, A2A delegation, AP2 mandates, Qiskit MCP servers, [[protocol-strategy]] |
 | [[source-openai-math-corpus]] | 722 manuscripts in 372 families, 162 Lean 4 formalizations, 811 Comparator challenges: [[autonomous-mathematical-discovery]], [[formal-proof-verification-lean-comparator]], [[mathematical-physics-anchors]] |
+| [[source-leanrea-investigation-2026]] | Live investigation of `aicodeking/leanrea` (`09ba4aa`, MIT): router + traps skill (`skills/kubona/SKILL.md`), benchmark harness (`bench/`), and 29-tool MCP catalog discipline ([[leanrea]], [[leanrea-adoption-plan]]) |
 
 ## The synthesis (current best understanding)
 
@@ -102,12 +104,14 @@ reproducible results — see [[science-discovery]].
    cleanly compatible with an Apache-2.0 container as long as its files stay distinct.
 
 8. **Cognitive Mesh, Sovereign Air-Gap, and Local-First Quantum Validation:**
-   The multi-agent research collective operates across a hybrid LLM fabric configured through a comprehensive
-   settings plane: local inference engines (oMLX on port 8787 hosting models like `Qwen3.8-27B-Uncensored-OrcaRouter-MLX-8bit`
-   and Llama-3.2, Ollama on 11434, LM Studio on 1234) alongside cloud frontier models (Anthropic Claude, OpenAI).
-   A Sovereign Air-Gap hardware toggle guarantees zero outbound network egress. Every quantum algorithm and ansatz
-   must pass a strict **local classical-quantum testing gate** (classical ab-initio PySCF RHF/FCI anchors, Qiskit Aer
-      See [[ui-ux-vision]], [[fidelity-accounting]], and [[implementation-gaps]].
+   The multi-agent research collective operates across a hybrid LLM fabric configured through an environment- and
+   settings-driven plane (`KUBONA_LLM_PROVIDER`, `*_MODEL`, `/api/llm/settings`, with zero hardcoded model IDs in
+   code): local inference engines (oMLX on port 8787, Ollama on 11434, LM Studio on 1234) alongside cloud frontier
+   providers (NVIDIA NIM, OpenCode, Anthropic, OpenAI). A Sovereign Air-Gap hardware toggle guarantees zero outbound
+   network egress. Every quantum algorithm and ansatz must pass a strict **local classical-quantum testing gate**
+   (classical ab-initio PySCF RHF/FCI anchors, Qiskit Aer simulation, Clifford canary probes, and Meyer-Wallach
+   expressibility checks) before any paid QPU dispatch. See [[ui-ux-vision]], [[fidelity-accounting]], and
+   [[implementation-gaps]].
    Paired with [[quantum-advantage-realism]]: the platform records the backend that actually ran,
    always computes a classical anchor, and never claims advantage.
 
@@ -158,8 +162,8 @@ reproducible results — see [[science-discovery]].
   insight mining needs no grant, and the only check is at release time.
 ## Where the blueprint is unsettled
 
-The full ledger of undecided and under-understood items is [[questions]] — 34 closed,
-18 open rows (only Q-27 still numbered; the rest are section forks in A–D), each with what is known, what is missing, and what the answer unblocks.
+The full ledger of undecided and under-understood items is [[questions]] — 36 closed,
+8 open rows (7 unnumbered `open-question` pages in Sections A–C plus Q-27 in Section E), each with what is known, what is missing, and what the answer unblocks.
 Three tensions are worth naming here because they are strategic rather than technical:
 
 - **Open-source vs. qBraid's 34-device lead.** Kubona deliberately starts with 2–3
@@ -169,7 +173,7 @@ Three tensions are worth naming here because they are strategic rather than tech
   to Phase 5, still unresolved at the level of *who is liable*, not which API is called.
 - **Core vs. v2 for science discovery.** Roughly 40% of the concept pages describe the
   discovery platform; roughly one phase and no human surface does. That mismatch is
-  [[questions]] Q-17, and it is the single largest shape decision left.
+  [[questions]] Q-17 (closed 2026-10-10 as CORE, not v2; remaining v1 scope boundary is the [[kubona]] row in [[questions]]).
 
 ## Settled constraints (Q-02, closed 2026-10-10)
 
@@ -223,28 +227,31 @@ evidence that a design decision has been made. [[questions]] Q-01 asks what the
 prototype's role should be; until that is answered, no phase gate here counts as a
 blueprint milestone.
 
-**Status census (mechanical, 2026-10-12).** 117 pages: `settled` 5 · `adopted` 48 ·
-`open-question` 7 · `candidate` 7 · `tracked` 33 · `reference` 5 · `source` 6 ·
+**Status census (mechanical, 2026-10-17).** 129 pages: `settled` 5 · `adopted` 49 ·
+`open-question` 7 · `candidate` 13 · `tracked` 34 · `reference` 8 · `source` 7 ·
 `living` 6 (meta + diagram). Vocabulary: [[index]] §status legend. Read it as *decidedness*, never
-as completion: five settled policies against 48 adopted mechanisms means the blueprint is
+as completion: five settled policies against 49 adopted mechanisms means the blueprint is
 still mostly "understood", not "chosen".
 
 ### What the prototype has empirically answered
 
-`platform/` — 403 Python tests (pytest) + 291 Go test funcs across 27 packages
-(`go test ./...`, vet clean) + 78 console tests (vitest, 16 files) + Rust
-`qir-core` building, all green locally and in CI as of 2026-10-12
-(see [[full-platform-audit-2026-10-12]] for the 73.0% component breakdown).
+`platform/` — 676 Python tests (`pytest platform/tests/`) + 41 gRPC bridge tests
+(`platform/bridge/test_bridge.py`) + 27 Go packages (`go test ./...`, vet clean) +
+149 console tests (Vitest, 32 files) + Rust `qir-core` (13 tests) and `ifc-core`
+(4 tests), all green locally and in CI as of 2026-10-17
+(see [[full-platform-audit-2026-10-12]] and [[remaining-work]]).
 Each phase below had a gate test, and each passes **on simulators**:
 
 > ⚑ Correction: the 2026-10-08 text here read "213 Python + 58 Go + 3 Rust +
 > 1 Flutter test". The Flutter/Dart stack was retired 2026-10-04 (stack
 > ruling, [[roadmap]]); the counts grew as the Go core became the load-bearing
-> implementation (76 routes, single `kubonad` binary).
+> implementation (84 routes, single `kubonad` binary).
 >
-> > ⚑ Correction (2026-10-17, C6): 71 → 76. New since the earlier count:
+> > ⚑ Correction (2026-10-17, C6 + A1): 71 → 76 → 84. New since the earlier count:
 > > `sessions/context|export|import`, `vault/leases/revoke`,
-> > `jobs/{id}/cancel`, and the S8 console-support routes. Counts are
+> > `jobs/{id}/cancel`, the S8 console-support routes, `/api/capabilities`,
+> > `/api/tenants/refund`, and the 6 Ed25519 session-auth routes
+> > (`/api/auth/challenge|login|logout|whoami|sessions|revoke`). Counts are
 > > prose and prose rots — recount with
 > > `rg -o 'HandleFunc\("[^"]*"' platform/core/pkg/api/server.go | sort -u | wc -l`.
 

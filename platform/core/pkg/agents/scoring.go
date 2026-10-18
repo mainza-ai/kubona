@@ -71,6 +71,14 @@ func scoreAuditor(t ScoredTurn) RoleScore {
 func scoreScribe(t ScoredTurn, proposalEmitted bool) RoleScore {
 	prop := proposalEmitted
 	complete := len(t.Coverage) == 4
+	if complete {
+		for _, decl := range t.Coverage {
+			if !decl.Available {
+				complete = false
+				break
+			}
+		}
+	}
 	uncertain := has(t.Content, "unverified") || has(t.Content, "did not") || has(t.Content, "not reach") ||
 		has(t.Content, "fallback") || has(t.Content, "consensus")
 	return pack(RoleEpistemicScribe, map[string]bool{

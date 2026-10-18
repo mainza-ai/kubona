@@ -70,6 +70,7 @@ func stubToolServer(t *testing.T, toolName string, usage map[string]any) (*llm.C
 	snap := settings.GetSnapshot()
 	pc := snap.Providers[llm.ProviderOpenCode]
 	pc.BaseURL = srv.URL
+	pc.Enabled = true
 	snap.Providers[llm.ProviderOpenCode] = pc
 	snap.RoleAssignments["copilot"] = llm.RoleModelAssignment{
 		Role: "copilot", Provider: llm.ProviderOpenCode, Model: "stub",

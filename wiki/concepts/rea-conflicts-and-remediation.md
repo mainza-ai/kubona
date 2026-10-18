@@ -13,8 +13,8 @@ status: candidate
 > Follow-up to [[rea-adoption-plan]]: while scoping R0–R6, six concrete
 > conflicts surfaced between the plan and the code, between the two rails,
 > and between wiki claims and the tree. Each has file:line evidence, a
-> remediation decision, and a production implementation slice. Nothing
-> below is started. Kubona read at @ `433e7d5`; REA at `e567033`.
+> remediation decision, and a production implementation slice. All slices
+> C1–C6 landed 2026-10-17 (see `> ✅ LANDED` blocks below). Kubona read at @ `433e7d5`; REA at `e567033`.
 
 ## C1. Cross-language taxonomy split (blocks R1)
 
@@ -34,9 +34,8 @@ against — `platform/contracts/event-types.json` (single source; Go
 unknown kinds like the Go chokes. Cross-rail conformance test asserts the
 two taxonomies are identical.
 **Slice R1a (S, first — R1 dependency):**
-> ✅ LANDED 2026-10-17 (`7fc6a7a`): `platform/contracts/event-types.json`
-> v1 (114 rows: 73 go-emitter + 41 python-emitter, one shared
-> `job_cancelled` row). Go keeps `events.go` as the embedded mirror with
+> ✅ LANDED 2026-10-17 (`7fc6a7a`, extended by A1–A4 to 121 rows: 80 go-emitter + 41 python-emitter, one shared
+> `job_cancelled` row; initially 114 rows at `7fc6a7a`). Go keeps `events.go` as the embedded mirror with
 > `TestEventTypesMatchContract` asserting set-identity (drift = red);
 > Python loads the file at import and `append` refuses unknown kinds
 > (fail-closed at the MCP `write_record` tool boundary too).

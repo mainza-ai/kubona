@@ -130,9 +130,6 @@ status: tracked
   > legacy PUT /api/settings now validated. U3 runtime backend URL via
   > /api/config (no rebuild per backend). D2 digest-pinned base images
   > (all Dockerfiles rebuild + serve green).
-  > Still open when written: operator deeds — restart the dev daemon
-  > from the rebuilt binary, then repoint roles; opencode 402 top-up
-  > decision; session-based auth (httpOnly) remains the U3 remainder.
   > ✅ M0 DONE 2026-10-17: daemon verified idle (no live loops/jobs, 38
   > sessions persisted, loops reconcile on boot), killed gracefully,
   > restarted on a current-tree rebuild with .env (NVIDIA key + provider
@@ -140,8 +137,22 @@ status: tracked
   > live — QUARK via private/nvidia/nemotron-3.5-super in 1.1s.
   > ✅ Kill-switch UI DONE: DSML toggle in LLM Settings + round-trip
   > test (toggle flips, persists via save).
-  > Pre-existing red (not ours, fails on clean tree too): the discovery
-  > test when a local server runs — ports=[] falls back to DEFAULT_PORTS.
+  > ✅ A1–A4 Session-based Auth (U3 remainder) DONE 2026-10-17:
+  > Ed25519 challenge-response login (`POST /api/auth/challenge|login|logout|revoke`,
+  > `GET /api/auth/whoami|sessions` in `pkg/api/auth_session.go`) bound to each
+  > lab's registered admin pubkey; `httpOnly` + `SameSite=Lax` cookie
+  > (`kubona_session`, SHA-256 token hash only in `auth_sessions`, 60s single-use
+  > challenge nonce, 12h TTL via `KUBONA_SESSION_TTL`); `csrfAllowed` Origin check
+  > on unsafe cookie-authenticated methods (including `PUT /api/llm/settings`,
+  > `POST /api/auth/logout`, and `POST /api/auth/revoke`); `RotateAdminKey`
+  > immediately revokes active tenant sessions; `AuthPanel.tsx` mounted in
+  > `LabsView.tsx` with WebCrypto Ed25519 signing + Vitest coverage; 7 missing Go
+  > ledger event types registered in `platform/contracts/event-types.json` +
+  > `pkg/ledger/events.go` (121 total rows: 80 Go + 41 Python).
+  > ✅ LocalModelRegistry `ports=[]` fix DONE 2026-10-17: `registry.py` now uses
+  > `DEFAULT_PORTS if ports is None else list(ports)` (and skips `_lms_endpoint()`
+  > when `self.ports` is empty), so `test_llm_registry_has_no_stale_cache` passes
+  > deterministically even when a local LLM server is active on `:8787`.
 - P1-4 subsystem consolidation execution — design: [[agent-subsystem-consolidation]].
   > ✅ STEP 1 LANDED 2026-10-17: conformance freezes on all three
   > registry homes (Go + 2× Python) + boot-crash hardening
@@ -161,11 +172,6 @@ status: tracked
   > ✅ L5 LANDED 2026-10-17 (Phase L-C exit met): MCP catalog +
   > 29 keep-verdicts (P2-13 closed) + unscoped-tool guard + `not_found`
   > code. Lean program COMPLETE — all phases exited green.
-  L1 `skills/kubona/SKILL.md` (router + traps + first-moves, ≤12 KB
-  pinned); L2 `bench/` harness with answer keys + ctx-budget gate;
-  L3 scribe seen/inferred/unknown tags (convention, R3 gate unchanged);
-  L4 doctor deepening + `mandate-check` first-move; L5 per-tool
-  justification review + MCP catalog (closes P2-13).
 - Bundle export endpoint — needs run-archival design (post-run turns
   cannot be reconstructed from events+chat; collective-level flow exists).
 - Sidecar rotation — needs chain-aware reads (rotation breaks the

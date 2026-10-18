@@ -115,3 +115,20 @@ def test_secrets_fail_closed():
     import pytest
     with pytest.raises(KeyError):
         store.require("xanadu-strawberry-fields", "api_key")
+
+
+def test_require_secure_refuses_plaintext_rpc():
+    gw, iss = _issuer_gateway()
+    client_kp = HybridKeyPair.generate()
+    server_kp = HybridKeyPair.generate()
+    client_session, ct = handshake_initiator(client_kp, server_kp.public_bytes())
+    server_session = handshake_responder(server_kp, client_kp.public_bytes(), ct)
+
+    app = make_http_gateway(gw, secure_session=server_session, require_secure=True)
+    client = TestClient(app)
+    token = iss.issue("http-agent", role="agent", scopes=("compiler:read",))
+    r = client.post("/rpc", json={"server": "compiler", "tool": "transpile_circuit",
+                                  "args": {"circuit_qasm": BELL}},
+                    headers={"Authorization": f"Bearer {token}"})
+    assert r.status_code == 400
+    assert "secure envelope required" in r.json()["error"]

@@ -14,7 +14,8 @@ status: candidate
 > tree with evidence, then remediated by decision (not deferral) or
 > recorded as a sequenced constraint. Precedent and format follow
 > [[rea-conflicts-and-remediation]]: `LC` numbers, file:line evidence,
-> decided remediations, slices with tests. Nothing here is started.
+> decided remediations, slices with tests. All slices L1–L5 (Phases L-A,
+> L-B, L-C) landed 2026-10-17; see [[leanrea-adoption-plan]].
 
 ## LC1. Skill publication vs Q-25 private posture (blocks distribution, not writing)
 

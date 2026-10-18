@@ -107,6 +107,16 @@ func (r *Runner) admitJob(sessionID, jobType string, paramsJSON []byte, declared
 		if err != nil {
 			return "", 0, fmt.Errorf("grant rejected: %w", err)
 		}
+		gt, err := r.tenantStore().GetTenant(grant.GrantingTenant)
+		if err != nil {
+			return "", 0, fmt.Errorf("granting tenant %q unknown: dispatch refused", grant.GrantingTenant)
+		}
+		if gt.Status != "active" {
+			return "", 0, fmt.Errorf("granting tenant %q is %s: dispatch refused", gt.ID, gt.Status)
+		}
+		if gt.AutonomyLevel == tenants.LevelL0 {
+			return "", 0, fmt.Errorf("granting tenant %q autonomy L0: cross-tenant delegation refused", gt.ID)
+		}
 		if err := r.tenantStore().CheckSpend(grant.GrantingTenant, p.MaxCostUSD); err != nil {
 			return "", 0, fmt.Errorf("granting lab ceiling: %w", err)
 		}

@@ -51,8 +51,8 @@ func (e *bridgeTaskExecutor) ExecuteTask(ctx context.Context, taskType string, p
 	if tenantID == "" {
 		tenantID = "default"
 	}
-	if maxBudgetUSD <= 0 {
-		return nil, fmt.Errorf("delegation without a task budget: dispatch refused")
+	if math.IsNaN(maxBudgetUSD) || math.IsInf(maxBudgetUSD, 0) || maxBudgetUSD <= 0 {
+		return nil, fmt.Errorf("delegation without a valid task budget: dispatch refused")
 	}
 	sessionID := "a2a-delegation-" + tenantID
 	if _, err := e.sessions.EnsureSessionWithID(sessionID, "A2A delegation ("+tenantID+")", maxBudgetUSD, tenantID); err != nil {
@@ -71,6 +71,9 @@ func (e *bridgeTaskExecutor) ExecuteTask(ctx context.Context, taskType string, p
 	if err != nil {
 		return nil, err
 	}
+	if maxCost > maxBudgetUSD {
+		return nil, fmt.Errorf("task cost %.4f exceeds delegated budget %.4f: dispatch refused", maxCost, maxBudgetUSD)
+	}
 	job, err := e.runner.SubmitJobWithDeclaredCost(sessionID, jobType, jobParams, maxCost)
 	if err != nil {
 		return nil, fmt.Errorf("failed to submit ledger job for a2a task %q: %w", taskType, err)
@@ -87,6 +90,7 @@ func (e *bridgeTaskExecutor) ExecuteTask(ctx context.Context, taskType string, p
 	for {
 		select {
 		case <-waitCtx.Done():
+			_, _ = e.runner.CancelJob(job.ID, "a2a task timed out")
 			if ctx.Err() != nil {
 				return nil, fmt.Errorf("a2a task %q timed out waiting for ledger job %s: %w", taskType, job.ID, ctx.Err())
 			}

@@ -694,10 +694,10 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 	// scribeContent feeds the shared proposal-extraction tail; empty on
 	// early exit, where the synthesized map below stands in.
 	scribeContent := ""
+	var authored3, authored4 bool
 	if contestedReason == "" {
 		// Turn 3: Device Auditor
 		var obs3 []ObservedCall
-		var authored3 bool
 		// R4: turns 3-4 previously saw NO prior turns. They now get
 		// bounded summaries (grounding improves; bytes stay pinned).
 		turn3Prompt, breached3 := projectTurn(3, "turn-3 auditor", []string{
@@ -737,10 +737,12 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			turnCb(t3)
 		}
 		ev3 := seal(t3, authored3)
+		if bad := firstFailedObserved(obs3); bad != "" && contestedReason == "" {
+			contestedReason = "turn 3 tool observation failed: " + bad
+		}
 
 		// Turn 4: Epistemic Scribe
 		var obs4 []ObservedCall
-		var authored4 bool
 		escapedQASM := strings.ReplaceAll(qasm, "\n", "\\n")
 		turn4Prompt, breached4 := projectTurn(4, "turn-4 scribe", []string{
 			fmt.Sprintf("Prior evidence:\n%s\n%s\n%s", Summarize(ev1, 1500), Summarize(ev2, 1500), Summarize(ev3, 1500)),
@@ -786,6 +788,9 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			turnCb(t4)
 		}
 		_ = seal(t4, authored4)
+		if bad := firstFailedObserved(obs4); bad != "" && contestedReason == "" {
+			contestedReason = "turn 4 tool observation failed: " + bad
+		}
 
 	}
 
@@ -819,11 +824,11 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 	result.ConsensusPassed = true
 	if contestedReason != "" {
 		result.ConsensusPassed = false
-	} else if !(authored1 && authored2) {
-		// Template text cannot corroborate: when the evidence turns fell
+	} else if !(authored1 && authored2 && authored3 && authored4) {
+		// Template text cannot corroborate: when the turns fell
 		// back to canned content, no genuine debate happened, so no
-		// consensus may be claimed no matter what turns 3-4 say.
-		contestedReason = "evidence turns were not LLM-authored (fallback text cannot corroborate)"
+		// consensus may be claimed.
+		contestedReason = "tribunal turns were not fully LLM-authored (fallback text cannot corroborate)"
 		result.ConsensusPassed = false
 	}
 	// R2: a fallback anchor is a RESIDUAL UNKNOWN (P1-9), not a quiet

@@ -1,14 +1,14 @@
 ---
 type: catalog
 date: 2026-08-16
-updated: 2026-10-10
+updated: 2026-10-17
 tags: [index]
 status: living
 ---
 
 # Index
 
-Catalog of every page in the wiki (113 pages), updated on every ingest. When answering a
+Catalog of every page in the wiki (129 pages), updated on every ingest. When answering a
 query, read this first to find relevant pages, then drill in.
 
 > **What this wiki is.** The **blueprint** for Kubona — the accumulated insight used to
@@ -24,11 +24,11 @@ arrives, place it here first and it will find its page.
 | Layer | What belongs | Pages | Decidedness |
 |---|---|---|---|
 | **L0 · Method** | How Kubona is allowed to *know* and *claim*: evidence classes, anchors, credibility, ontology | [[quantum-advantage-realism]], [[evaluation-and-benchmarks]], [[provenance-and-reproducibility]], [[claim-credibility-wavefunctions]], [[epistemic-curvature]], [[fidelity-accounting]], [[forensic-audit-2026]], [[mathematical-physics-anchors]], [[formal-proof-verification-lean-comparator]], [[epistemic-continuum-and-ontology]], [[quantum-triage-engine]] | mostly `adopted` with mathematical grounding |
-| **L1 · Control** | The governance rail that makes agent spend survivable | [[cost-governance]], [[spend-mandates-and-delegation]], [[security-and-pqc]], [[secrets-and-workload-isolation]], [[user-identity-and-profiles]], [[provider-capability-schema]], [[quantum-cloud-pricing]] | `adopted`, with AP2 mandates anchoring the approval gate |
-| **L2 · Compute** | Compilation, providers, mitigation, the machine itself | [[qir-mlir-compilation]], [[protocol-strategy]], [[mcp-and-context-flooding]], [[nisq-and-hybrid-orchestration]], [[error-mitigation]], [[circuit-cutting]], [[vqa-vqe]], [[barren-plateau]] + provider entities, [[qiskit-mcp-servers]], [[early-fault-tolerant-quantum-and-subspace-methods]] | `adopted` mechanisms, `tracked` vendors |
+| **L1 · Control** | The governance rail that makes agent spend survivable | [[cost-governance]], [[spend-mandates-and-delegation]], [[security-and-pqc]], [[secrets-and-workload-isolation]], [[secret-rotation-runbook]], [[user-identity-and-profiles]], [[provider-capability-schema]], [[quantum-cloud-pricing]] | `adopted`, with AP2 mandates anchoring the approval gate |
+| **L2 · Compute** | Compilation, providers, mitigation, the machine itself | [[qir-mlir-compilation]], [[agentic-qir-compilation]], [[protocol-strategy]], [[mcp-and-context-flooding]], [[nisq-and-hybrid-orchestration]], [[error-mitigation]], [[circuit-cutting]], [[vqa-vqe]], [[barren-plateau]] + provider entities, [[qiskit-mcp-servers]], [[early-fault-tolerant-quantum-and-subspace-methods]] | `adopted` mechanisms, `tracked` vendors |
 | **L3 · Research** | Autonomy that compounds: search, meta-search, packs, the discovery loop, memory | [[science-discovery]], [[karpathy-autoresearch]], [[meta-search-and-self-evolution]], [[five-ring-research-loop]], [[multi-agent-research-collective]], [[quantum-domain-packs]], [[agentic-memory-and-observability]], [[autonomous-ansatz-optimization]], [[differentiable-quantum-stack]], [[autonomous-mathematical-discovery]], [[frontier-benchmark-saturation]], [[epistemic-information-lifecycle-and-memory]], [[autonomous-manuscript-synthesis-and-peer-review]], [[multimodal-mission-control-and-custom-agents]] | `adopted` core research mechanisms |
 | **L4 · Surface** | Where a human sees and limits the agent | [[ui-ux-vision]], [[agent-ux-control-plane]], [[workflows-and-agent-authoring]], [[confidentiality-lattice-provenance]], [[scientific-agentic-experience-triad]] | `adopted` cognitive cockpit & AX triad |
-| **L5 · Ecosystem** | How it gets used, funded, and extended by others | [[agent-resource-economy]], [[x402]], [[cloudflare]], [[aaif]], [[a2a]], [[ap2]], [[integration-topology-and-licence-discipline]], [[openai-math]], [[hugging-face-hub]], [[cloudroom]], [[rea]] | 1 `settled` policy; standard delegation, model hub, and payment rails; `reference` agent-room + REA prior art |
+| **L5 · Ecosystem** | How it gets used, funded, and extended by others | [[agent-resource-economy]], [[x402]], [[cloudflare]], [[aaif]], [[a2a]], [[ap2]], [[integration-topology-and-licence-discipline]], [[openai-math]], [[hugging-face-hub]], [[cloudroom]], [[rea]], [[leanrea]] | 1 `settled` policy; standard delegation, model hub, and payment rails; `reference` agent-room + REA + leanrea prior art |
 
 ## Overview & meta
 
@@ -39,14 +39,14 @@ arrives, place it here first and it will find its page.
 | [[roadmap]] | Phases 0–6 read as **acceptance criteria**, not progress: gates, dependencies, team loading. |
 | [[implementation-gaps]] | Prototype gap register: what the scaffold does vs. what production requires. Code facts only. |
 | [[platform-architecture-diagram]] | Mermaid map of the running platform (services, ports, stores, call paths). Snapshot verified 2026-10-12; refresh after any service/port/store change. |
-| [[cloudroom-adoption-plan]] | Ordered implementation plan for Cloudroom-mined patterns (S1–S8). Candidate — awaiting review, nothing started. |
-| [[rea-adoption-plan]] | Updated Kubona × REA improvement report + production plan (R0–R6).
-| [[rea-conflicts-and-remediation]] | Conflicts vs the REA plan (C1–C6) with remediation decisions and sequenced slices. |
-| [[leanrea-adoption-plan]] | Kubona × leanrea measurement, report + implementation plan (L1–L5). Candidate — awaiting review, nothing started. |
-| [[leanrea-conflicts-and-remediation]] | Conflicts vs the lean plan (LC1–LC10) with decided remediations and corrected sequencing. |
-| [[agent-subsystem-consolidation]] | P1-4 design record: inventory, target shape, sequenced migration (refactor queued, not started). |
-| [[remaining-work]] | Execution leftovers with owners: operator deeds, queued programs, conditionals (landed work excluded). |
-| [[full-tree-roadmap]] | Code-read implementation roadmap: verified defects and fixes in Waves 0–2, sequenced against the REA plan. | Candidate — prior 2026-10-16 scratch re-verified; nothing started. |
+| [[cloudroom-adoption-plan]] | Ordered implementation plan for Cloudroom-mined patterns (S1–S8, all landed 2026-10-17). |
+| [[rea-adoption-plan]] | Updated Kubona × REA improvement report + production plan (R0–R6, all landed 2026-10-17). |
+| [[rea-conflicts-and-remediation]] | Conflicts vs the REA plan (C1–C6) with remediation decisions and landed slices (2026-10-17). |
+| [[leanrea-adoption-plan]] | Kubona × leanrea measurement, report + implementation plan (Phases L-A, L-B, L-C / L1–L5 landed 2026-10-17). |
+| [[leanrea-conflicts-and-remediation]] | Conflicts vs the lean plan (LC1–LC10) with decided remediations and landed sequencing (2026-10-17). |
+| [[agent-subsystem-consolidation]] | P1-4 design record: inventory, target shape, sequenced migration (Step 1 + Step 2 wire-shape freeze landed 2026-10-17; Steps 3–5 queued). |
+| [[remaining-work]] | Execution leftovers with owners: operator deeds, queued programs, conditionals (landed work recorded in place). |
+| [[full-tree-roadmap]] | Code-read implementation roadmap: verified defects and fixes in Waves 0–2 (all 64 items landed 2026-10-17). |
 | [[full-platform-audit-2026-10-12]] | Full completeness audit: 73.0% implemented across 30 scored components, with inventory, evidence tiers, refutations corrected, and remaining work by owner. |
 | [[log]] | Append-only chronological changelog. |
 
@@ -67,13 +67,10 @@ Describes **how decided** something is — never how finished.
 
 **Census (129 pages = 46 entities · 71 concepts · 7 sources · 5 meta), 2026-10-17:**
 `settled` 5 · `adopted` 49 · `open-question` 7 · `candidate` 13 · `tracked` 34 ·
-`reference` 7 · `source` 6 · `living` 6 (lint-counted; the 2026-10-10 text
-undercounted adopted/tracked/candidate).
-`settled` 5 · `adopted` 45 · `open-question` 8 · `candidate` 6 · `tracked` 26 ·
-`reference` 5 · `source` 6 · `living` 5. Five `settled` against 45 `adopted` keeps the honest
-reading: the load-bearing constraints are **chosen**, everything else remains **understood**.
-`settled` stays small by rule — each entry needed test enforcement plus dependents
-([[overview]] §Settled constraints); new candidates must meet the same bar.
+`reference` 8 · `source` 7 · `living` 6 (lint-counted). Five `settled` against 49 `adopted`
+keeps the honest reading: the load-bearing constraints are **chosen**, everything else
+remains **understood**. `settled` stays small by rule — each entry needed test enforcement
+plus dependents ([[overview]] §Settled constraints); new candidates must meet the same bar.
 
 **Machine-checkable:** `python3 scripts/wiki-lint.py --strict` enforces this vocabulary, the
 canonical `sources` keys, link and index integrity, and the no-`dev-docs`-anchors rule.
@@ -92,7 +89,7 @@ mapping, author guidance) for no new expressiveness; claims live as concept
 sections backed by ledger records, and the falsifier lives in the linked tests.
 Revisit only with a concrete claim that fits nowhere.
 
-## Sources (6)
+## Sources (7)
 
 | Page | Source doc | Sources this touched |
 |---|---|---|
@@ -104,7 +101,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[source-openai-math-corpus]] | *OpenAI Math Manuscript Collection & Formal Proofs* — 722 manuscripts in 372 families, 162 Lean 4 formalizations, 811 challenges | [[autonomous-mathematical-discovery]], [[formal-proof-verification-lean-comparator]], [[mathematical-physics-anchors]], [[openai-math]] |
 | [[source-leanrea-investigation-2026]] | *leanrea live-repo investigation* — 8 KB skill + benchmark read end-to-end (remote · HEAD · licence, nothing cloned) | [[leanrea]], [[leanrea-adoption-plan]] |
 
-## Entities (44)
+## Entities (46)
 
 | Page | What it is |
 |---|---|
@@ -151,9 +148,11 @@ Revisit only with a concrete claim that fits nowhere.
 | [[lean4]] | Interactive theorem prover and functional language; formal verification engine in `openai/math` |
 | [[comparator]] | Automated formal verification challenge harness for Lean 4 enforcing strict axiom integrity |
 | [[hugging-face-hub]] | Open-weights repository & API; in-platform GGUF/MLX quantization search and direct air-gapped downloader |
+| [[cloudroom]] | Multi-agent workspace & runtime prior art (idempotency, disk hysteresis, loop sleep/drain, session bundle migration) — method reference, never supply |
+| [[rea]] | Receipt- and obligation-driven agent runtime (`morluto/rea`) — method reference for envelopes, obligations, coverage, and typed error contracts |
 | [[leanrea]] | aicodeking skill: REA results with no MCP server (router + traps + benchmark template) — method reference, never supply |
 
-## Concepts (53)
+## Concepts (60; +11 in Overview & meta = 71 total)
 
 | Page | What it is |
 |---|---|

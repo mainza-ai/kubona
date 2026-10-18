@@ -15,7 +15,7 @@ export async function configureApiBase(): Promise<string> {
   if (apiBaseConfigured) return API_BASE;
   apiBaseConfigured = true;
   try {
-    const res = await fetch('/api/config', { cache: 'no-store' });
+    const res = await apiFetch('/api/config', { cache: 'no-store' });
     if (res.ok) {
       const data = (await res.json()) as { apiUrl?: unknown };
       if (typeof data.apiUrl === 'string' && /^https?:\/\//.test(data.apiUrl)) {
@@ -38,6 +38,22 @@ function authHeaders(extra: Record<string, string> = {}): Record<string, string>
   return CONSOLE_TOKEN ? { Authorization: `Bearer ${CONSOLE_TOKEN}`, ...extra } : { ...extra };
 }
 
+// All console fetches carry cookies (same-origin by default). Required
+// for session auth cross-origin (:3000 → :8080): without credentials the
+// browser drops the kubona_session cookie and every session-authed call
+// 401s despite a live login. Bearer headers (above) still work — the
+// server checks the cookie first, then the token.
+function withCredentials(init: RequestInit): RequestInit {
+  return { credentials: 'include' as RequestCredentials, ...init };
+}
+
+// Module fetch: every console call goes through here so the session
+// cookie flows cross-origin. Callers pass auth headers as before;
+// credentials are orthogonal (the server checks cookie first, then bearer).
+export function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+  return fetch(input, withCredentials(init));
+}
+
 // Exported for ledger helpers and any surface that must go through the
 // authenticated bridge path (no raw unauthed fetch to /api/*).
 export { authHeaders };
@@ -45,7 +61,7 @@ export { authHeaders };
 
 export async function fetchSessions(): Promise<Session[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/sessions`, { cache: 'no-store', headers: authHeaders() });
+    const res = await apiFetch(`${API_BASE}/api/sessions`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return [];
     const data = await res.json();
     return data.sessions || [];
@@ -62,7 +78,7 @@ export async function createSession(
   fresh?: boolean
 ): Promise<Session | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/sessions`, {
+    const res = await apiFetch(`${API_BASE}/api/sessions`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
@@ -82,7 +98,7 @@ export async function createSession(
 
 export async function deleteSession(sessionId: string): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}`, {
+    const res = await apiFetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}`, {
       headers: authHeaders(),
       method: 'DELETE',
     });
@@ -95,7 +111,7 @@ export async function deleteSession(sessionId: string): Promise<boolean> {
 
 export async function fetchMessages(sessionId: string): Promise<ChatMessage[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/sessions/${sessionId}/messages`, { cache: 'no-store', headers: authHeaders() });
+    const res = await apiFetch(`${API_BASE}/api/sessions/${sessionId}/messages`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return [];
     const data = await res.json();
     return data.messages || [];
@@ -106,7 +122,7 @@ export async function fetchMessages(sessionId: string): Promise<ChatMessage[]> {
 }
 
 export async function sendChatMessage(sessionId: string, content: string): Promise<{ user: ChatMessage; assistant: ChatMessage } | null> {  try {
-    const res = await fetch(`${API_BASE}/api/chat/messages?session_id=${encodeURIComponent(sessionId)}`, {
+    const res = await apiFetch(`${API_BASE}/api/chat/messages?session_id=${encodeURIComponent(sessionId)}`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ session_id: sessionId, role: 'user', content }),
@@ -147,7 +163,7 @@ export async function streamChatMessage(
   onToken: (text: string) => void,
   signal?: AbortSignal
 ): Promise<StreamDone> {
-  const res = await fetch(`${API_BASE}/api/chat/stream?session_id=${encodeURIComponent(sessionId)}`, {
+  const res = await apiFetch(`${API_BASE}/api/chat/stream?session_id=${encodeURIComponent(sessionId)}`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ session_id: sessionId, role: 'user', content }),
@@ -197,7 +213,7 @@ export async function runTribunal(
   prompt: string
 ): Promise<{ tribunal: import('@/types').TribunalResult; assistant_message: ChatMessage; campaign?: import('@/types').CampaignState } | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/chat/tribunal`, {
+    const res = await apiFetch(`${API_BASE}/api/chat/tribunal`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ session_id: sessionId, prompt }),
@@ -212,7 +228,7 @@ export async function runTribunal(
 
 export async function launchProposal(sessionId: string, proposal: unknown): Promise<{ job: Job; loop: Loop } | { error: string } | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/chat/launch`, {
+    const res = await apiFetch(`${API_BASE}/api/chat/launch`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ session_id: sessionId, proposal }),
@@ -236,7 +252,7 @@ export async function fetchLoops(sessionId?: string | null): Promise<Loop[]> {
     // K2: session-scoped when a session is active — the header counts
     // this session's loops, not the fleet's. Unset keeps the global view.
     const qs = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : '';
-    const res = await fetch(`${API_BASE}/api/loops${qs}`, { cache: 'no-store', headers: authHeaders() });
+    const res = await apiFetch(`${API_BASE}/api/loops${qs}`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return [];
     const data = await res.json();
     return data.loops || [];
@@ -249,7 +265,7 @@ export async function fetchLoops(sessionId?: string | null): Promise<Loop[]> {
 export async function fetchEvents(sessionId?: string): Promise<LedgerEvent[]> {
   try {
     const url = sessionId ? `${API_BASE}/api/events?session_id=${sessionId}` : `${API_BASE}/api/events`;
-    const res = await fetch(url, { cache: 'no-store', headers: authHeaders() });
+    const res = await apiFetch(url, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return [];
     const data = await res.json();
     return data.events || [];
@@ -261,7 +277,7 @@ export async function fetchEvents(sessionId?: string): Promise<LedgerEvent[]> {
 
 export async function fetchMolecularADMET(smiles: string): Promise<Record<string, unknown> | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/chemistry/admet?smiles=${encodeURIComponent(smiles)}`, {
+    const res = await apiFetch(`${API_BASE}/api/chemistry/admet?smiles=${encodeURIComponent(smiles)}`, {
       cache: 'no-store',
       headers: authHeaders(),
     });
@@ -278,7 +294,7 @@ export async function evaluateDiscoveryPipeline(
   candidates: Array<{ name: string; smiles: string }>
 ): Promise<Record<string, unknown> | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/discovery/pipeline`, {
+    const res = await apiFetch(`${API_BASE}/api/discovery/pipeline`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ target, candidates }),
@@ -293,7 +309,7 @@ export async function evaluateDiscoveryPipeline(
 
 export async function fetchCampaignState(sessionId: string): Promise<import('@/types').CampaignState | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/campaign`, {
+    const res = await apiFetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/campaign`, {
       cache: 'no-store',
       headers: authHeaders(),
     });
@@ -308,7 +324,7 @@ export async function fetchCampaignState(sessionId: string): Promise<import('@/t
 export async function synthesizeCampaign(sessionId: string, prompt: string): Promise<import('@/types').CampaignState | null> {
   // Refusal (HTTP !ok) returns null so the caller renders "refused".
   // Transport failure throws so the caller can distinguish it from refusal.
-  const res = await fetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/campaign/synthesize`, {
+  const res = await apiFetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/campaign/synthesize`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ prompt }),
@@ -319,7 +335,7 @@ export async function synthesizeCampaign(sessionId: string, prompt: string): Pro
 
 export async function fetchAutoresearchHarnesses(): Promise<{ harnesses: import('@/types').AutoresearchHarness[]; docker_runner: Record<string, unknown> | null }> {
   try {
-    const res = await fetch(`${API_BASE}/api/autoresearch/harnesses`, { cache: 'no-store', headers: authHeaders() });
+    const res = await apiFetch(`${API_BASE}/api/autoresearch/harnesses`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return { harnesses: [], docker_runner: null };
     return await res.json();
   } catch (err) {
@@ -335,7 +351,7 @@ export async function startAutoresearchLoop(
   sessionId?: string
 ): Promise<import('@/types').AutoresearchLoop | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/autoresearch/start`, {
+    const res = await apiFetch(`${API_BASE}/api/autoresearch/start`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
@@ -355,7 +371,7 @@ export async function startAutoresearchLoop(
 
 export async function fetchAutoresearchLoops(): Promise<import('@/types').AutoresearchLoop[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/autoresearch/loops`, { cache: 'no-store', headers: authHeaders() });
+    const res = await apiFetch(`${API_BASE}/api/autoresearch/loops`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return [];
     const data = await res.json();
     return data.loops || [];
@@ -367,7 +383,7 @@ export async function fetchAutoresearchLoops(): Promise<import('@/types').Autore
 
 export async function stepAutoresearchLoop(loopId: string): Promise<{ step: import('@/types').IterationRecord; state: import('@/types').AutoresearchLoop } | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/autoresearch/loops/${encodeURIComponent(loopId)}/step`, {
+    const res = await apiFetch(`${API_BASE}/api/autoresearch/loops/${encodeURIComponent(loopId)}/step`, {
       headers: authHeaders(),
       method: 'POST',
     });
@@ -381,7 +397,7 @@ export async function stepAutoresearchLoop(loopId: string): Promise<{ step: impo
 
 export async function pauseAutoresearchLoop(loopId: string): Promise<import('@/types').AutoresearchLoop | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/autoresearch/loops/${encodeURIComponent(loopId)}/pause`, {
+    const res = await apiFetch(`${API_BASE}/api/autoresearch/loops/${encodeURIComponent(loopId)}/pause`, {
       headers: authHeaders(),
       method: 'POST',
     });
@@ -395,7 +411,7 @@ export async function pauseAutoresearchLoop(loopId: string): Promise<import('@/t
 
 export async function resumeAutoresearchLoop(loopId: string): Promise<import('@/types').AutoresearchLoop | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/autoresearch/loops/${encodeURIComponent(loopId)}/resume`, {
+    const res = await apiFetch(`${API_BASE}/api/autoresearch/loops/${encodeURIComponent(loopId)}/resume`, {
       headers: authHeaders(),
       method: 'POST',
     });
@@ -409,7 +425,7 @@ export async function resumeAutoresearchLoop(loopId: string): Promise<import('@/
 
 export async function stopAutoresearchLoop(loopId: string): Promise<import('@/types').AutoresearchLoop | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/autoresearch/loops/${encodeURIComponent(loopId)}/stop`, {
+    const res = await apiFetch(`${API_BASE}/api/autoresearch/loops/${encodeURIComponent(loopId)}/stop`, {
       headers: authHeaders(),
       method: 'POST',
     });
@@ -423,7 +439,7 @@ export async function stopAutoresearchLoop(loopId: string): Promise<import('@/ty
 
 export async function fetchMetasearchProposals(): Promise<import('@/types').MetaProposal[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/metasearch/proposals`, { cache: 'no-store', headers: authHeaders() });
+    const res = await apiFetch(`${API_BASE}/api/metasearch/proposals`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return [];
     const data = await res.json();
     return data.proposals || [];
@@ -438,7 +454,7 @@ export async function approveMetasearchProposal(
   signer: string = 'console-operator'
 ): Promise<{ ok: true } | { error: string } | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/metasearch/approve`, {
+    const res = await apiFetch(`${API_BASE}/api/metasearch/approve`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ proposal_id: proposalId, signer }),
@@ -464,7 +480,7 @@ export async function rejectMetasearchProposal(
   signer: string = 'console-operator'
 ): Promise<{ ok: true } | { error: string } | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/metasearch/reject`, {
+    const res = await apiFetch(`${API_BASE}/api/metasearch/reject`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ proposal_id: proposalId, signer }),
@@ -489,7 +505,7 @@ export async function applyMetasearchProposal(
   proposalId: string
 ): Promise<{ ok: true } | { error: string } | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/metasearch/apply`, {
+    const res = await apiFetch(`${API_BASE}/api/metasearch/apply`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ proposal_id: proposalId }),
@@ -512,7 +528,7 @@ export async function applyMetasearchProposal(
 
 export async function fetchFleet(): Promise<Record<string, unknown>> {
   try {
-    const res = await fetch(`${API_BASE}/api/fleet`, { cache: 'no-store', headers: authHeaders() });
+    const res = await apiFetch(`${API_BASE}/api/fleet`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) {
       let text = '';
       try {
@@ -531,7 +547,7 @@ export async function fetchFleet(): Promise<Record<string, unknown>> {
 
 export async function fetchRadar(): Promise<Record<string, unknown>> {
   try {
-    const res = await fetch(`${API_BASE}/api/radar`, { cache: 'no-store', headers: authHeaders() });
+    const res = await apiFetch(`${API_BASE}/api/radar`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) {
       let text = '';
       try {
@@ -550,7 +566,7 @@ export async function fetchRadar(): Promise<Record<string, unknown>> {
 
 export async function fetchEpistemics(): Promise<Record<string, unknown>> {
   try {
-    const res = await fetch(`${API_BASE}/api/epistemics`, { cache: 'no-store', headers: authHeaders() });
+    const res = await apiFetch(`${API_BASE}/api/epistemics`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return {};
     return await res.json();
   } catch (err) {
@@ -561,7 +577,7 @@ export async function fetchEpistemics(): Promise<Record<string, unknown>> {
 
 export async function fetchLLMSettings(): Promise<Record<string, unknown> | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/llm/settings`, { cache: 'no-store', headers: authHeaders() });
+    const res = await apiFetch(`${API_BASE}/api/llm/settings`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return null;
     return await res.json();
   } catch (err) {
@@ -574,7 +590,7 @@ export async function saveLLMSettings(
   settings: Record<string, unknown>
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    const res = await fetch(`${API_BASE}/api/llm/settings`, {
+    const res = await apiFetch(`${API_BASE}/api/llm/settings`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(settings),
@@ -598,7 +614,7 @@ export async function saveLLMSettings(
 
 export async function fetchLLMModels(provider: string = 'omlx'): Promise<Record<string, unknown>> {
   try {
-    const res = await fetch(`${API_BASE}/api/llm/models?provider=${encodeURIComponent(provider)}`, { cache: 'no-store', headers: authHeaders() });
+    const res = await apiFetch(`${API_BASE}/api/llm/models?provider=${encodeURIComponent(provider)}`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return { models: [] };
     return await res.json();
   } catch (err) {
@@ -609,7 +625,7 @@ export async function fetchLLMModels(provider: string = 'omlx'): Promise<Record<
 
 export async function testLLM(prompt: string, role: string = 'copilot'): Promise<Record<string, unknown> | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/llm/test`, {
+    const res = await apiFetch(`${API_BASE}/api/llm/test`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ role, prompt }),
@@ -633,7 +649,7 @@ export async function searchHFModels(
 ): Promise<import('@/types').HFModelSummary[]> {
   try {
     const url = `${API_BASE}/api/hf/search?q=${encodeURIComponent(query)}&library=${encodeURIComponent(library)}&limit=${limit}`;
-    const res = await fetch(url, { cache: 'no-store', headers: authHeaders() });
+    const res = await apiFetch(url, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return [];
     const data = await res.json();
     return data.models || [];
@@ -647,7 +663,7 @@ export async function getHFModelDetails(
   repoId: string
 ): Promise<import('@/types').HFModelSummary | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/hf/models/${encodeURIComponent(repoId)}`, { cache: 'no-store', headers: authHeaders() });
+    const res = await apiFetch(`${API_BASE}/api/hf/models/${encodeURIComponent(repoId)}`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return null;
     const data = await res.json();
     return data.model || null;
@@ -662,7 +678,7 @@ export async function startHFDownload(
   filename: string
 ): Promise<import('@/types').HFDownloadTask | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/hf/download`, {
+    const res = await apiFetch(`${API_BASE}/api/hf/download`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ repo_id: repoId, filename }),
@@ -678,7 +694,7 @@ export async function startHFDownload(
 
 export async function listHFDownloads(): Promise<import('@/types').HFDownloadTask[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/hf/downloads`, { cache: 'no-store', headers: authHeaders() });
+    const res = await apiFetch(`${API_BASE}/api/hf/downloads`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return [];
     const data = await res.json();
     return data.downloads || [];
@@ -690,7 +706,7 @@ export async function listHFDownloads(): Promise<import('@/types').HFDownloadTas
 
 export async function cancelHFDownload(taskId: string): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/api/hf/downloads/${encodeURIComponent(taskId)}/cancel`, {
+    const res = await apiFetch(`${API_BASE}/api/hf/downloads/${encodeURIComponent(taskId)}/cancel`, {
       headers: authHeaders(),
       method: 'POST',
     });
@@ -707,7 +723,7 @@ export async function cancelHFDownload(taskId: string): Promise<boolean> {
 
 export async function fetchCustomAgents(): Promise<import('@/types').CustomAgentManifest[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/agents/custom`, { cache: 'no-store', headers: authHeaders() });
+    const res = await apiFetch(`${API_BASE}/api/agents/custom`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return [];
     const data = await res.json();
     return data.agents || [];
@@ -721,7 +737,7 @@ export async function createCustomAgent(
   manifest: import('@/types').CustomAgentManifest
 ): Promise<import('@/types').CustomAgentManifest | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/agents/custom`, {
+    const res = await apiFetch(`${API_BASE}/api/agents/custom`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(manifest),
@@ -737,7 +753,7 @@ export async function createCustomAgent(
 
 export async function deleteCustomAgent(agentId: string): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/api/agents/custom/${encodeURIComponent(agentId)}`, {
+    const res = await apiFetch(`${API_BASE}/api/agents/custom/${encodeURIComponent(agentId)}`, {
       headers: authHeaders(),
       method: 'DELETE',
     });
@@ -752,7 +768,7 @@ export async function routeMultimodalPayload(
   payload: import('@/types').MultimodalPayload
 ): Promise<import('@/types').RoutingDecision | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/mesh/route`, {
+    const res = await apiFetch(`${API_BASE}/api/mesh/route`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(payload),
@@ -794,7 +810,7 @@ export async function requestServerSignedMandate(
   req: SpendMandateSignRequest
 ): Promise<SpendMandateSignResponse | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/mandates/sign`, {
+    const res = await apiFetch(`${API_BASE}/api/mandates/sign`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(req),
@@ -811,7 +827,7 @@ export async function verifySpendMandate(
   mandate: import('./mandates').SpendMandate
 ): Promise<SpendMandateVerifyResponse> {
   try {
-    const res = await fetch(`${API_BASE}/api/mandates/verify`, {
+    const res = await apiFetch(`${API_BASE}/api/mandates/verify`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(mandate),
@@ -833,7 +849,7 @@ export async function verifySpendMandate(
 
 export async function fetchLabs(): Promise<Lab[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/tenants`, { cache: 'no-store', headers: authHeaders() });
+    const res = await apiFetch(`${API_BASE}/api/tenants`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return [];
     const data = await res.json();
     return data.tenants || [];
@@ -850,7 +866,7 @@ export async function emergencyAbort(
   reason = 'emergency abort from console'
 ): Promise<{ aborted_count: number; abort_receipt: string } | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/supervisor/abort`, {
+    const res = await apiFetch(`${API_BASE}/api/supervisor/abort`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ session_id: sessionId, reason }),
@@ -864,7 +880,7 @@ export async function emergencyAbort(
 }
 
 export async function searchLiterature(query: string, limit = 5): Promise<{ records: import('@/types').LiteratureRecord[]; cached: boolean }> {  try {
-    const res = await fetch(
+    const res = await apiFetch(
       `${API_BASE}/api/literature?query=${encodeURIComponent(query)}&limit=${limit}`,
       { cache: 'no-store', headers: authHeaders() }
     );
@@ -881,7 +897,7 @@ export async function searchLiterature(query: string, limit = 5): Promise<{ reco
 // campaign + ledger history survive; the erasure is sealed server-side.
 export async function clearMessages(sessionId: string): Promise<number | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/messages`, {
+    const res = await apiFetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/messages`, {
       method: 'DELETE',
       headers: authHeaders(),
     });
@@ -900,7 +916,7 @@ export async function regenerateChat(
   sessionId: string
 ): Promise<{ assistant: ChatMessage; model?: string; duration_ms?: number } | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/chat/regenerate`, {
+    const res = await apiFetch(`${API_BASE}/api/chat/regenerate`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ session_id: sessionId }),
@@ -926,7 +942,7 @@ export async function sendFeedback(
   vote: 'up' | 'down'
 ): Promise<boolean> {
   try {
-    const res = await fetch(`${API_BASE}/api/chat/feedback`, {
+    const res = await apiFetch(`${API_BASE}/api/chat/feedback`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ session_id: sessionId, message_id: messageId, vote }),
@@ -946,7 +962,7 @@ export async function rewriteChat(
   content: string
 ): Promise<ChatMessage | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/chat/rewrite`, {
+    const res = await apiFetch(`${API_BASE}/api/chat/rewrite`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ session_id: sessionId, message_id: messageId, content }),
@@ -994,7 +1010,7 @@ export function isTerminalJobStatus(status: unknown): boolean {
 // Jobs: session-scoped run list for inline launch tracking.
 export async function fetchJobs(sessionId: string): Promise<import('@/types').Job[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/jobs?session_id=${encodeURIComponent(sessionId)}`, {
+    const res = await apiFetch(`${API_BASE}/api/jobs?session_id=${encodeURIComponent(sessionId)}`, {
       cache: 'no-store',
       headers: authHeaders(),
     });
@@ -1014,7 +1030,7 @@ export async function fetchJobs(sessionId: string): Promise<import('@/types').Jo
 export async function fetchJob(jobId: string, sessionId: string): Promise<import('@/types').Job | null> {
   if (!sessionId) return null;
   try {
-    const res = await fetch(
+    const res = await apiFetch(
       `${API_BASE}/api/jobs/${encodeURIComponent(jobId)}?session_id=${encodeURIComponent(sessionId)}`,
       {
         cache: 'no-store',
@@ -1046,7 +1062,7 @@ export async function fetchMemoryRecall(
     const params = new URLSearchParams({ session_id: sessionId, q: query });
     if (opts?.bank) params.set('bank', opts.bank);
     if (opts?.limit) params.set('limit', String(opts.limit));
-    const res = await fetch(`${API_BASE}/api/memory/recall?${params.toString()}`, {
+    const res = await apiFetch(`${API_BASE}/api/memory/recall?${params.toString()}`, {
       cache: 'no-store',
       headers: authHeaders(),
     });
@@ -1064,7 +1080,7 @@ export async function retainMemory(
   opts?: { bank?: string; importance?: number }
 ): Promise<{ id: string; bank: string; importance: number } | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/memory/retain`, {
+    const res = await apiFetch(`${API_BASE}/api/memory/retain`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({
@@ -1096,7 +1112,7 @@ export interface QirCompileReceipt {
 export async function fetchQirCompile(qasm: string): Promise<QirCompileReceipt | null> {
   // Refusal (HTTP !ok) returns null so the caller renders "refused".
   // Transport failure throws so the caller can distinguish it from refusal.
-  const res = await fetch(`${API_BASE}/api/qir/compile`, {
+  const res = await apiFetch(`${API_BASE}/api/qir/compile`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ qasm }),
@@ -1123,7 +1139,7 @@ export interface SessionContext {
 // the Go tests, not in the composer).
 export async function fetchSessionContext(sessionId: string): Promise<SessionContext | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/sessions/context?session_id=${encodeURIComponent(sessionId)}`, { cache: 'no-store', headers: authHeaders() });
+    const res = await apiFetch(`${API_BASE}/api/sessions/context?session_id=${encodeURIComponent(sessionId)}`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return null;
     return await res.json();
   } catch (err) {
@@ -1140,7 +1156,7 @@ export async function appendLedgerEvent(
   eventType: string,
   payload: Record<string, unknown>
 ): Promise<{ ok: boolean; record_hash?: string; event_id?: string | number; error?: string }> {
-  const res = await fetch(`${API_BASE}/api/ledger/append`, {
+  const res = await apiFetch(`${API_BASE}/api/ledger/append`, {
     method: 'POST',
     headers: authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ session_id: sessionId, event_type: eventType, payload }),
@@ -1178,7 +1194,7 @@ export interface BackendStatus {
 export async function fetchBackendStatus(): Promise<BackendStatus> {
   let health: Record<string, unknown>;
   try {
-    const res = await fetch(`${API_BASE}/api/health`, { cache: 'no-store', headers: authHeaders() });
+    const res = await apiFetch(`${API_BASE}/api/health`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return { reachable: false, ready: false };
     health = (await res.json()) as Record<string, unknown>;
   } catch {
@@ -1187,7 +1203,7 @@ export async function fetchBackendStatus(): Promise<BackendStatus> {
   let ready = true;
   let message: string | undefined;
   try {
-    const res = await fetch(`${API_BASE}/api/ready`, { cache: 'no-store', headers: authHeaders() });
+    const res = await apiFetch(`${API_BASE}/api/ready`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) {
       ready = false;
       try {
@@ -1228,7 +1244,7 @@ export async function loopAction(
   action: LoopAction
 ): Promise<{ ok: true } | { error: string } | null> {
   try {
-    const res = await fetch(
+    const res = await apiFetch(
       `${API_BASE}/api/loops/${encodeURIComponent(loopId)}/${action}`,
       { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }) }
     );
@@ -1266,7 +1282,7 @@ async function postTenantMutation(
   body: Record<string, unknown>
 ): Promise<TenantWriteResult | TenantWriteError | null> {
   try {
-    const res = await fetch(`${API_BASE}${path}`, {
+    const res = await apiFetch(`${API_BASE}${path}`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
@@ -1361,7 +1377,7 @@ export interface SessionImportResult {
 // (cross-tenant selections refuse whole, never redacted).
 export async function exportSession(sessionId: string): Promise<SessionExport | { error: string } | null> {
   try {
-    const res = await fetch(`${API_BASE}/api/sessions/export`, {
+    const res = await apiFetch(`${API_BASE}/api/sessions/export`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ session_id: sessionId }),
@@ -1385,7 +1401,7 @@ export async function exportSession(sessionId: string): Promise<SessionExport | 
 export async function importSession(manifest: unknown): Promise<SessionImportResult | { error: string } | null> {
   let raw = '';
   try {
-    const res = await fetch(`${API_BASE}/api/sessions/import`, {
+    const res = await apiFetch(`${API_BASE}/api/sessions/import`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ manifest }),
@@ -1423,7 +1439,7 @@ export async function exportLedger(
   let raw = '';
   let status = 0;
   try {
-    const res = await fetch(`${API_BASE}/api/ledger/export`, {
+    const res = await apiFetch(`${API_BASE}/api/ledger/export`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ session_id: sessionId, format }),
@@ -1471,5 +1487,131 @@ export function downloadFile(filename: string, text: string, mime: string): bool
     return true;
   } catch {
     return false;
+  }
+}
+
+export interface AuthChallenge {
+  nonce: string;
+  message: string;
+  expires_at: string;
+}
+
+export interface AuthSession {
+  authenticated: boolean;
+  tenant_id?: string;
+  pubkey_fp?: string;
+}
+
+export interface AuthServerSession {
+  id: string;
+  pubkey_fp: string;
+  created_at: string;
+  expires_at: string;
+}
+
+// Session auth (A3/A4): challenge-response login bound to a lab admin key.
+// Transport failures return null (unreachable); refusals carry the backend
+// reason. The session cookie is httpOnly — JS never sees the token;
+// whoami is how the UI learns who it is.
+export async function authChallenge(): Promise<AuthChallenge | { error: string } | null> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/auth/challenge`, { method: 'POST' });
+    if (!res.ok) return { error: `HTTP ${res.status}` };
+    return (await res.json()) as AuthChallenge;
+  } catch (err) {
+    console.error('Failed to fetch auth challenge:', err);
+    return null;
+  }
+}
+
+export async function authLogin(
+  tenantId: string,
+  pubkeyHex: string,
+  nonce: string,
+  signatureHex: string
+): Promise<{ ok: true; tenant_id: string; pubkey_fp: string } | { error: string } | null> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/auth/login`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ tenant_id: tenantId, pubkey_hex: pubkeyHex, nonce, signature_hex: signatureHex }),
+    });
+    if (!res.ok) {
+      let text = '';
+      try {
+        text = (await res.text()).trim().slice(0, 280);
+      } catch {
+        /* ignore */
+      }
+      return { error: text || `HTTP ${res.status}` };
+    }
+    return (await res.json()) as { ok: true; tenant_id: string; pubkey_fp: string };
+  } catch (err) {
+    console.error('Failed to log in:', err);
+    return null;
+  }
+}
+
+export async function authLogout(): Promise<boolean> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/auth/logout`, { method: 'POST' });
+    return res.ok;
+  } catch (err) {
+    console.error('Failed to log out:', err);
+    return false;
+  }
+}
+
+export async function authWhoami(): Promise<AuthSession | null> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/auth/whoami`, { cache: 'no-store' });
+    if (!res.ok) return null;
+    return (await res.json()) as AuthSession;
+  } catch (err) {
+    console.error('Failed to check session:', err);
+    return null;
+  }
+}
+
+export async function authSessions(): Promise<AuthServerSession[] | { error: string } | null> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/auth/sessions`, { cache: 'no-store' });
+    if (!res.ok) {
+      let text = '';
+      try {
+        text = (await res.text()).trim().slice(0, 280);
+      } catch {
+        /* ignore */
+      }
+      return { error: text || `HTTP ${res.status}` };
+    }
+    const data = (await res.json()) as { sessions?: AuthServerSession[] };
+    return data.sessions || [];
+  } catch (err) {
+    console.error('Failed to list sessions:', err);
+    return null;
+  }
+}
+
+export async function authRevoke(id: string): Promise<{ ok: true } | { error: string } | null> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/auth/revoke`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ id }),
+    });
+    if (!res.ok) {
+      let text = '';
+      try {
+        text = (await res.text()).trim().slice(0, 280);
+      } catch {
+        /* ignore */
+      }
+      return { error: text || `HTTP ${res.status}` };
+    }
+    return { ok: true };
+  } catch (err) {
+    console.error('Failed to revoke session:', err);
+    return null;
   }
 }

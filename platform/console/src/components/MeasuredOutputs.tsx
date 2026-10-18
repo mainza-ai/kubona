@@ -1,13 +1,10 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { fetchJobs } from '@/lib/api';
+import { fetchJobs, jobStatusLabel } from '@/lib/api';
+import { asRecord } from '@/lib/guards';
 import { JobProgress } from './common/JobProgress';
 import type { Job } from '@/types';
-
-function rec(v: unknown): Record<string, unknown> {
-  return (v && typeof v === 'object' ? v : {}) as Record<string, unknown>;
-}
 
 function num(v: unknown): number | null {
   return typeof v === 'number' && Number.isFinite(v) ? v : null;
@@ -20,11 +17,12 @@ function str(v: unknown): string {
 // One measured row per job type: latest COMPLETED job only. Every figure
 // names the job it came from; energies never float unattributed.
 function summarize(job: Job): string | null {
-  const r = rec(job.result_json);
+  const r = asRecord(job.result_json);
+  if (r.success === false) return null;
   const short = String(job.id).slice(0, 8);
   switch (job.job_type) {
     case 'circuit_run': {
-      const counts = rec(r.counts);
+      const counts = asRecord(r.counts);
       const shots = Object.values(counts).reduce<number>(
         (a, v) => a + (typeof v === 'number' ? v : 0),
         0
@@ -63,14 +61,14 @@ function summarize(job: Job): string | null {
     }
     case 'pes_sweep': {
       const pts = Array.isArray(r.points) ? r.points : [];
-      const measured = pts.filter((p) => num(rec(p).fci_energy) !== null);
+      const measured = pts.filter((p) => num(asRecord(p).fci_energy) !== null);
       if (measured.length === 0) return null;
-      let best = measured[0] as Record<string, unknown>;
+      let best = asRecord(measured[0]);
       for (const p of measured) {
-        const rec_p = rec(p);
-        if ((num(rec_p.fci_energy) ?? Infinity) < (num(rec(best).fci_energy) ?? Infinity)) best = rec_p;
+        const rec_p = asRecord(p);
+        if ((num(rec_p.fci_energy) ?? Infinity) < (num(best.fci_energy) ?? Infinity)) best = rec_p;
       }
-      const bestR = num(rec(best).r);
+      const bestR = num(best.r);
       return `${measured.length}/${pts.length} geometries · coarse min${bestR !== null ? ` near R=${bestR.toFixed(4)} Å` : ''} · job ${short}`;
     }
     default:
@@ -105,14 +103,17 @@ export function MeasuredOutputs({ sessionId }: { sessionId: string | null }) {
       if (cancelled) return;
       setActiveIds(
         jobs
-          .filter((j) => j.status === 'JOB_STATUS_QUEUED' || j.status === 'JOB_STATUS_RUNNING')
+          .filter((j) => {
+            const st = jobStatusLabel(j.status);
+            return st === 'QUEUED' || st === 'RUNNING';
+          })
           .map((j) => j.id)
       );
       const latest = new Map<string, Job>();
       for (const j of jobs) {
         // R7: status is the gate, not timestamp presence — FAILED jobs
         // carry completed_at too and must never render as measured.
-        if (j.status !== 'JOB_STATUS_COMPLETED' || !j.result_json) continue;
+        if (jobStatusLabel(j.status) !== 'COMPLETED' || !j.result_json) continue;
         const prev = latest.get(j.job_type);
         if (!prev || (prev.completed_at ?? '') < (j.completed_at ?? '')) latest.set(j.job_type, j);
       }

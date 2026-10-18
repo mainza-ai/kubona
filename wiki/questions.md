@@ -2,7 +2,7 @@
 type: catalog
 name: Open Questions & Design Forks
 date: 2026-09-27
-updated: 2026-10-09
+updated: 2026-10-17
 tags: [index, questions, blueprint]
 sources: [source-gap-analysis-plan, source-architecture-paper, source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026]
 status: living
@@ -40,14 +40,12 @@ These come first, because they change how every other question gets answered.
 
 | # | Question | Rank | Known | Missing |
 | [[confidentiality-lattice-provenance]] | Where is the label lattice enforced — query, export, admission — and what refuses unmodelable labels? | P1 | Buzz primitive verified; Go/Python lattice live | Enforcement seams + refusal rule |
-| [[secrets-and-workload-isolation]] | What closes the remaining hardening gaps (case-guard analogue, low-trust CI mode, user-instrument SSRF)? | P1 | Sandbox + vault + envelopes live | Named gaps with tests |
+| [[secrets-and-workload-isolation]] | What closes the remaining OS/container containment decisions (cgroup process kill, Linux `SO_PEERCRED` sidecar attestation, gVisor/Firecracker prod runtime)? | P1 | Sandbox + vault lease binding (S4) + W2.7/W2.15 + A1–A4 live | Containment architecture decision |
 |---|---|---|---|---|
 
+## D · Science discovery (closed via Q-17, Q-18, Q-19, Q-20)
 
-## D · Science discovery (≈40% of concepts, least surfaced)
-
-| # | Question | Rank | Known | Missing |
-|---|---|---|---|---|
+All initial science-discovery forks are recorded in `## Closed` below (Q-17, Q-18, Q-19, Q-20).
 
 ## E · Surface, ecosystem, operations
 
@@ -69,7 +67,7 @@ These come first, because they change how every other question gets answered.
 | **Q-25** | 2026-09-29 | Privacy is a **decision, not drift**: the repo stays private while the blueprint is being designed, because a public repo without a settled direction invites contributions the project cannot direct — so the flip is gated on the blueprint becoming *contributor-legible* (Q-01 plus enough of the method layer to say what to build first), not on Phase 0 and not on a date. Apache-2.0 at publication stands. | [[kubona]] §Posture; residual history work → Q-27 |
 | **Q-10** | 2026-10-09 | Autonomy ladder is **L0 observe/suggest → L1 simulator-only (default) → L2 capped-QPU (mandate per job) → L3 program envelope**, enforced live at every dispatch entry with ledger-sealed admin-signed grants/revocations (no cached grants). | [[cost-governance]] |
 | **Q-12** | 2026-10-09 | Delegation chain rules: scopes narrow only (server-resolved, never client-claimed), depth cap 2, revocation propagates (revoked parents spawn nothing, in-flight runs fence), tenant revocation aborts the lab's jobs; execution runs in per-tenant `a2a-delegation-<tenant>` sessions. | [[spend-mandates-and-delegation]] |
-| **Q-13** | 2026-10-09 | Tenant := **lab** (billing/credential/ceiling boundary; operator ruling); admin is the lab operator's Ed25519 key, local keypairs first with IdP deferred to Phase 4; human lab membership is Phase-4 work, agents are never tenants. | [[user-identity-and-profiles]] |
+| **Q-13** | 2026-10-09 | Tenant := **lab** (billing/credential/ceiling boundary; operator ruling); admin is the lab operator's Ed25519 key (challenge-response `kubona_session` cookie landed in A1–A4, 2026-10-17), local keypairs first with IdP deferred to Phase 4; human lab membership is Phase-4 work, agents are never tenants. | [[user-identity-and-profiles]] |
 | **Q-29** | 2026-10-09 | Target **MCP spec 2026-07-28** (venv already on SDK 2.3.0); tasks-extension opportunistic with polling normative, MRTR for approvals; A2A adapter first, enforcement in Go core rail only. | [[mcp-and-context-flooding]] |
 | **Q-30** | 2026-10-09 | Posture: **encapsulate** vendor MCP suites as downstream provider plugins beneath the governance plane (vault-leased creds, admission gate, anchored results); raw agent→vendor paths refused by design. | [[qiskit-mcp-servers]] |
 | **Q-11** | 2026-10-09 | Burden-scaled approval packets: full schema (cost bound + budget left, blast radius, reversibility, evidence, alternatives, expiry, single-use nonce) via MRTR elicitation retry in the gateway plus ApprovalPacketCard in the console approve flow; risk-tiered prompting rules. | [[cost-governance]] |

@@ -62,6 +62,17 @@ class ManuscriptSignoff:
 
     def verify(self, expiry: str) -> bool:
         try:
+            from datetime import datetime, timezone
+            try:
+                if expiry.replace(".", "", 1).isdigit():
+                    exp_dt = datetime.fromtimestamp(float(expiry), tz=timezone.utc)
+                else:
+                    exp_dt = datetime.fromisoformat(expiry.replace("Z", "+00:00"))
+                if datetime.now(timezone.utc) > exp_dt:
+                    return False
+            except Exception:
+                return False
+
             from nacl.signing import VerifyKey
             from nacl.exceptions import BadSignatureError
             vk = VerifyKey(bytes.fromhex(self.signer_pubkey_hex))

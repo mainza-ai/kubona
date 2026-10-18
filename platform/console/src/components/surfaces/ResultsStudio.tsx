@@ -57,7 +57,10 @@ export function ResultsStudio({ campaign, sessionId }: ResultsStudioProps) {
   const lean4AstHash: string =
     (notebook as { lean4_ast_hash?: string } | undefined)?.lean4_ast_hash ?? 'UNVERIFIED';
   const hasVerifiedData =
-    groundEnergy != null && fciEnergy != null && deltaMHa != null && provenanceHash != null;
+    groundEnergy != null &&
+    fciEnergy != null &&
+    deltaMHa != null &&
+    Boolean(provenanceHash && provenanceHash.trim() !== '' && provenanceHash !== 'uncomputed');
   // J1: numbers-present is not verification. Convergence/accuracy prose
   // requires an evaluated-and-passed claim — COLLAPSED_VERIFIED arrives
   // only via a claim_eval PASS on a computed anchor (R3a-gated), never
@@ -65,10 +68,11 @@ export function ResultsStudio({ campaign, sessionId }: ResultsStudioProps) {
   // receipt, which no campaign pipeline run sets today: the Lean tab
   // therefore honestly reports absence until a prover run exists.
   const claimVerified = campaign?.epistemics?.status === 'COLLAPSED_VERIFIED';
-  const proofVerified = lean4AstHash !== 'UNVERIFIED';
+  const proofVerified = Boolean(lean4AstHash && lean4AstHash.trim() !== '' && lean4AstHash !== 'UNVERIFIED');
   const fmtEnergy = (v: number | undefined) => (v == null ? 'UNVERIFIED' : v.toFixed(5));
   const fmtDelta = (v: number | undefined) => (v == null ? 'UNVERIFIED' : v.toFixed(2));
-  const provenanceShort = provenanceHash == null ? 'UNVERIFIED' : provenanceHash.slice(0, 24);
+  const provenanceShort =
+    provenanceHash && provenanceHash.trim() !== '' ? provenanceHash.slice(0, 24) : 'UNVERIFIED';
 
   const bibtex = `@article{kubona_2026_${target.toLowerCase()},
   title = {Autonomous Variational Discovery of ${target} Potential Energy Surface},
@@ -409,7 +413,7 @@ ${bibtex}
             <div className="space-y-3 font-mono text-xs">
               <div className="flex items-center justify-between text-neutral-400 text-[11px]">
                 <span>Lean 4 Theorem Declaration (Lake Comparator Whitelist)</span>
-                <span className="text-emerald-400">{hasVerifiedData ? 'Axioms ⊆ {propext, Quot.sound, Classical.choice}' : 'No verified declaration'}</span>
+                <span className="text-emerald-400">{proofVerified ? 'Axioms ⊆ {propext, Quot.sound, Classical.choice}' : 'No verified declaration'}</span>
               </div>
               <pre className="p-4 rounded-xl bg-black/80 border border-neutral-800 text-emerald-300 overflow-x-auto leading-relaxed">
                 {lean4Code}

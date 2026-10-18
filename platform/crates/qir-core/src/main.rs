@@ -50,6 +50,10 @@ fn main() {
     let native = qir_core::transpile_to_native(&circuit);
 
     if json_mode {
+        if let Err(e) = qir_core::emit_llvm_ir(&native) {
+            eprintln!("lowering error: {e}");
+            std::process::exit(1);
+        }
         let summary = qir_core::analyze_circuit(&native);
         println!("{}", summary.to_json());
     } else {

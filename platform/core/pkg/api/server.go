@@ -105,6 +105,13 @@ type Server struct {
 	// limiters; these writes get edge auth + their own limiter.
 	ledgerLimiter *rateLimiter
 	abortLimiter  *rateLimiter
+	// Auth-session rail (A1): challenge/login/logout/whoami/list/revoke
+	// are human-paced; a guessing campaign against /api/auth/login is
+	// throttled here and every refusal is ledger-sealed (auditAuth).
+	authLimiter *rateLimiter
+	// Auth sessions: challenge-response login bound to lab admin keys.
+	// Set at construction (nil only in tests that never touch auth).
+	authSessions *AuthSessionStore
 
 	// S2: disk guard (nil = unguarded, e.g. tests). Set via SetDiskGuard
 	// after construction so NewServer's signature never ripples.
@@ -317,6 +324,8 @@ func NewServer(
 		grantLimiter:          newRateLimiter(rateFromEnv("KUBONA_RATE_GRANT", 5, 15)),
 		ledgerLimiter:         newRateLimiter(rateFromEnv("KUBONA_RATE_LEDGER", 5, 15)),
 		abortLimiter:          newRateLimiter(rateFromEnv("KUBONA_RATE_ABORT", 5, 15)),
+		authLimiter:           newRateLimiter(rateFromEnv("KUBONA_RATE_AUTH", 5, 15)),
+		authSessions:          newAuthSessionStore(l.DB()),
 		mux:                   http.NewServeMux(),
 	}
 
@@ -374,6 +383,9 @@ func NewServer(
 	}
 
 	s.registerRoutes()
+	if err := initAuthSessionTable(l.DB()); err != nil {
+		log.Printf("[Auth] session table init failed (%v): login will refuse until the ledger is writable", err)
+	}
 	return s
 }
 
@@ -381,6 +393,11 @@ func (s *Server) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if origin := corsAllowOrigin(r); origin != "" {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
+			// Credentialed requests (session cookie) only work cross-origin
+			// with this header; the origin above is allowlisted, never "*",
+			// so browsers accept it. Reads stay public; writes still need
+			// auth (bearer or session) plus CSRF checks on cookie calls.
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
@@ -429,6 +446,16 @@ func (s *Server) registerRoutes() {
 	// token) while revealing nothing secret. Spray protection comes from
 	// the verify limiter inside the handler, not from identity.
 	s.mux.HandleFunc("/api/mandates/verify", s.handleMandateVerify)
+	// Session auth (A1): challenge-response login bound to lab admin keys.
+	// Challenge + whoami stay public (no identity exists yet); login is
+	// rate-limited with ledger-sealed refusals; whoami/sessions/revoke
+	// need a session except logout, which always succeeds.
+	s.mux.HandleFunc("/api/auth/challenge", s.handleAuthChallenge)
+	s.mux.HandleFunc("/api/auth/login", s.handleAuthLogin)
+	s.mux.HandleFunc("/api/auth/logout", s.handleAuthLogout)
+	s.mux.HandleFunc("/api/auth/whoami", s.handleAuthWhoami)
+	s.mux.HandleFunc("/api/auth/sessions", s.handleAuthSessions)
+	s.mux.HandleFunc("/api/auth/revoke", s.handleAuthRevoke)
 	s.mux.HandleFunc("/api/harnesses", s.handleHarnesses)
 	s.mux.HandleFunc("/api/results/notebooks", s.handleNotebooks)
 	s.mux.HandleFunc("/api/literature", s.handleLiterature)
@@ -533,6 +560,14 @@ func (s *Server) A2AServer() *agents.A2AServer {
 
 func (s *Server) TenantManager() *tenants.Manager {
 	return s.tenantMgr
+}
+
+func (s *Server) Ledger() *ledger.Ledger {
+	return s.ledger
+}
+
+func (s *Server) SessionManager() *session.Manager {
+	return s.sessionMgr
 }
 
 // requireDispatchAutonomy enforces live tenant autonomy at every dispatch
@@ -796,64 +831,64 @@ func (s *Server) handleFleet(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"backends": []map[string]any{
 			{
-				"name":          "local_simulator",
-				"type":          "Qiskit Aer GPU/CPU Statevector",
-				"qubits":        32,
-				"t1_us":         "Infinite (Exact Numerical)",
-				"status":        localSimStatus,
+				"name":             "local_simulator",
+				"type":             "Qiskit Aer GPU/CPU Statevector",
+				"qubits":           32,
+				"t1_us":            "Infinite (Exact Numerical)",
+				"status":           localSimStatus,
 				"credential_state": "ready",
-				"queue_depth":   0,
-				"cost_per_shot": 0.0,
-				"jurisdiction":  "LOCAL_SOVEREIGN",
-				"itar_ear":      "EXEMPT",
-				"avg_t1_us":     0.0,
-				"avg_t2_us":     0.0,
-				"readout_error": 0.0,
+				"queue_depth":      0,
+				"cost_per_shot":    0.0,
+				"jurisdiction":     "LOCAL_SOVEREIGN",
+				"itar_ear":         "EXEMPT",
+				"avg_t1_us":        0.0,
+				"avg_t2_us":        0.0,
+				"readout_error":    0.0,
 			},
 			{
-				"name":          "ibm_heron",
-				"type":          "Superconducting Transmon (Heavy-Hex)",
-				"qubits":        156,
-				"t1_us":         "180.0",
-				"status":        "READY",
+				"name":             "ibm_heron",
+				"type":             "Superconducting Transmon (Heavy-Hex)",
+				"qubits":           156,
+				"t1_us":            "180.0",
+				"status":           "READY",
 				"credential_state": credState(os.Getenv("KUBONA_IBM_QISKIT_TOKEN") != ""),
-				"queue_depth":   14,
-				"cost_per_shot": 0.0016,
-				"jurisdiction":  "US_EAST",
-				"itar_ear":      "EAR99_CONTROLLED",
-				"avg_t1_us":     180.0,
-				"avg_t2_us":     145.0,
-				"readout_error": 0.0012,
+				"queue_depth":      14,
+				"cost_per_shot":    0.0016,
+				"jurisdiction":     "US_EAST",
+				"itar_ear":         "EAR99_CONTROLLED",
+				"avg_t1_us":        180.0,
+				"avg_t2_us":        145.0,
+				"readout_error":    0.0012,
 			},
 			{
-				"name":          "quantinuum_h1",
-				"type":          "Trapped Ion Shuttle",
-				"qubits":        20,
-				"t1_us":         ">1,000,000",
-				"status":        "ONLINE",
+				"name":             "quantinuum_h1",
+				"type":             "Trapped Ion Shuttle",
+				"qubits":           20,
+				"t1_us":            ">1,000,000",
+				"status":           "ONLINE",
 				"credential_state": credState(os.Getenv("KUBONA_QUANTINUUM_API_KEY") != ""),
-				"queue_depth":   3,
-				"cost_per_shot": 0.0125,
-				"jurisdiction":  "US_CENTRAL",
-				"itar_ear":      "EAR99_CONTROLLED",
-				"avg_t1_us":     1000000.0,
-				"avg_t2_us":     500000.0,
-				"readout_error": 0.0005,
+				"queue_depth":      3,
+				"cost_per_shot":    0.0125,
+				"jurisdiction":     "US_CENTRAL",
+				"itar_ear":         "EAR99_CONTROLLED",
+				"avg_t1_us":        1000000.0,
+				"avg_t2_us":        500000.0,
+				"readout_error":    0.0005,
 			},
 			{
-				"name":          "rigetti_aspen",
-				"type":          "Superconducting Multi-Chip",
-				"qubits":        80,
-				"t1_us":         "35.0",
-				"status":        "CALIBRATING",
+				"name":             "rigetti_aspen",
+				"type":             "Superconducting Multi-Chip",
+				"qubits":           80,
+				"t1_us":            "35.0",
+				"status":           "CALIBRATING",
 				"credential_state": credState(os.Getenv("KUBONA_RIGETTI_QCS_TOKEN") != ""),
-				"queue_depth":   28,
-				"cost_per_shot": 0.0008,
-				"jurisdiction":  "US_WEST",
-				"itar_ear":      "EAR99_CONTROLLED",
-				"avg_t1_us":     35.0,
-				"avg_t2_us":     28.0,
-				"readout_error": 0.0035,
+				"queue_depth":      28,
+				"cost_per_shot":    0.0008,
+				"jurisdiction":     "US_WEST",
+				"itar_ear":         "EAR99_CONTROLLED",
+				"avg_t1_us":        35.0,
+				"avg_t2_us":        28.0,
+				"readout_error":    0.0035,
 			},
 		},
 	})
@@ -2933,11 +2968,15 @@ func (s *Server) handleEventsStream(w http.ResponseWriter, r *http.Request) {
 	// no identity to rate-limit fairly). Require operator bearer + an
 	// existing session before the first byte streams; ghosts and
 	// bearerless callers refuse.
-	switch bearerGate(r) {
+	switch _, _, code := s.checkAuth(r); code {
+	case http.StatusOK:
 	case http.StatusServiceUnavailable:
 		http.Error(w, "API token not configured: set KUBONA_API_TOKEN", http.StatusServiceUnavailable)
 		return
-	case http.StatusUnauthorized:
+	case http.StatusForbidden:
+		WriteAPIError(w, "forbidden", "cross-site session use refused: retry same-origin", nil)
+		return
+	default:
 		http.Error(w, "missing or invalid bearer token", http.StatusUnauthorized)
 		return
 	}
@@ -3213,11 +3252,15 @@ func (s *Server) handleLLMSettings(w http.ResponseWriter, r *http.Request) {
 		// W0.19: reads stay public behind limiters; writes get edge auth.
 		// An unauthenticated settings write flips providers/endpoints —
 		// redirecting prompts (and their secrets) to an attacker URL.
-		switch bearerGate(r) {
+		switch _, _, code := s.checkAuth(r); code {
+		case http.StatusOK:
 		case http.StatusServiceUnavailable:
 			http.Error(w, "API token not configured: set KUBONA_API_TOKEN", http.StatusServiceUnavailable)
 			return
-		case http.StatusUnauthorized:
+		case http.StatusForbidden:
+			WriteAPIError(w, "forbidden", "cross-site session use refused: retry same-origin", nil)
+			return
+		default:
 			http.Error(w, "missing or invalid bearer token", http.StatusUnauthorized)
 			return
 		}
@@ -4814,7 +4857,7 @@ func (s *Server) handleCustomAgents(w http.ResponseWriter, r *http.Request) {
 		})
 	case http.MethodPost:
 		// K3: registry writes are operator mutations.
-		if code := bearerGate(r); code != http.StatusOK {
+		if _, _, code := s.checkAuth(r); code != http.StatusOK {
 			http.Error(w, "custom agent registration requires the operator token", code)
 			return
 		}
@@ -4859,7 +4902,7 @@ func (s *Server) handleCustomAgentByID(w http.ResponseWriter, r *http.Request) {
 
 	if r.Method == http.MethodDelete {
 		// K3: registry deletes are operator mutations.
-		if code := bearerGate(r); code != http.StatusOK {
+		if _, _, code := s.checkAuth(r); code != http.StatusOK {
 			http.Error(w, "custom agent deletion requires the operator token", code)
 			return
 		}

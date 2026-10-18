@@ -122,3 +122,16 @@ def test_nonce_registry_rejects_replay_and_sweeps():
                              program_hash="h", cost_max_usd=1.0)
     form = elicitation_form(state_pkt)
     assert form["params"]["requestedSchema"]["properties"]["cost_ack_usd"]["minimum"] == 1.0
+
+
+def test_altered_args_refuses_approval():
+    gw = _gated()
+    first = gw.call("execution", "submit_job", dict(ARGS), token="dev-token")
+    altered_args = dict(ARGS)
+    altered_args["shots"] = 9999
+    with pytest.raises(AuthError, match="approval args mismatch"):
+        gw.call("execution", "submit_job", altered_args, token="dev-token",
+                approval_response={"action": "accept",
+                                   "content": {"decision": "approve_once",
+                                               "cost_ack_usd": 48.0}},
+                request_state=first["requestState"])
