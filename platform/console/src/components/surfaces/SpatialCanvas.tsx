@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Atom, Code, Copy, Check } from 'lucide-react';
 import { CampaignState } from '@/types';
+import { fetchMolecularADMET } from '@/lib/api';
 
 interface SpatialCanvasProps {
   campaign?: CampaignState | null;
@@ -78,6 +79,39 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
   const [disclosureDepth, setDisclosureDepth] = useState<1 | 2 | 3>(1);
   const [circuitViewMode, setCircuitViewMode] = useState<'schematic' | 'qasm'>('schematic');
   const [copiedQasm, setCopiedQasm] = useState(false);
+
+  const targetSmiles = useMemo(() => {
+    if (campaign?.smiles) return campaign.smiles;
+    const sys = (campaign?.quantum_factors?.target_molecule || campaign?.target_system || 'H2').toUpperCase();
+    if (sys.includes('LIH')) return '[Li+].[H-]';
+    if (sys.includes('H2O')) return 'O';
+    if (sys.includes('CO2')) return 'O=C=O';
+    if (sys.includes('CO')) return '[C-]#[O+]';
+    if (sys.includes('N2')) return 'N#N';
+    return '[H][H]';
+  }, [campaign?.smiles, campaign?.quantum_factors?.target_molecule, campaign?.target_system]);
+
+  const [admetProfile, setAdmetProfile] = useState<Record<string, unknown> | null>(null);
+  const [admetLoading, setAdmetLoading] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (!targetSmiles) return;
+    setAdmetLoading(true);
+    fetchMolecularADMET(targetSmiles)
+      .then((data) => {
+        if (!cancelled && data && !data.error) {
+          setAdmetProfile(data);
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setAdmetLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [targetSmiles]);
 
   // Compute energy on the fly based on physical Morse potential anchored to PySCF FCI
   const energyCalculated = useMemo(() => {
@@ -390,6 +424,57 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
               <span className="text-emerald-300 font-bold">Equilibrium Valley</span>
               <span>Dissociated</span>
             </div>
+          </div>
+
+          {/* Molecular Pharmacology & ADMET Profile (RDKit Bridge Anchored) */}
+          <div className="w-full max-w-md mt-5 p-4 rounded-2xl bg-black/40 border border-white/[0.08] backdrop-blur-xl space-y-3">
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-semibold text-slate-300 uppercase tracking-wider font-mono text-[11px] flex items-center space-x-2">
+                <Atom className="w-4 h-4 text-emerald-400" />
+                <span>Molecular Pharmacology &amp; ADMET</span>
+              </span>
+              <span className="text-slate-400 font-mono text-[10px]">
+                SMILES: <code className="text-cyan-300">{targetSmiles}</code>
+              </span>
+            </div>
+
+            {admetLoading && (
+              <div className="p-3 text-center text-xs text-slate-400 font-mono">
+                Profiling molecular pharmacology via RDKit bridge...
+              </div>
+            )}
+
+            {admetProfile && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
+                <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                  <div className="text-[10px] text-slate-400 uppercase">Mol Weight</div>
+                  <div className="text-xs font-semibold text-white mt-0.5">
+                    {typeof admetProfile.molecular_weight === 'number' ? (admetProfile.molecular_weight as number).toFixed(2) : '—'} Da
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                  <div className="text-[10px] text-slate-400 uppercase">cLogP</div>
+                  <div className="text-xs font-semibold text-white mt-0.5">
+                    {typeof admetProfile.clogp === 'number' ? (admetProfile.clogp as number).toFixed(2) : '—'}
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                  <div className="text-[10px] text-slate-400 uppercase">TPSA</div>
+                  <div className="text-xs font-semibold text-white mt-0.5">
+                    {typeof admetProfile.tpsa === 'number' ? (admetProfile.tpsa as number).toFixed(1) : '—'} Å²
+                  </div>
+                </div>
+
+                <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
+                  <div className="text-[10px] text-slate-400 uppercase">Synthesis</div>
+                  <div className="text-xs font-semibold text-emerald-300 mt-0.5 truncate" title={String(admetProfile.synthesizability || '')}>
+                    {String(admetProfile.synthesizability || 'High').split(' ')[0]}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
