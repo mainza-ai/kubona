@@ -133,9 +133,14 @@ export function WidgetStage({
         )}
         {widget.kind === 'molecule' && (
           <MolecularActiveSpaceWidget
-            moleculeName={qf?.target_molecule || campaign?.target_system || 'H2'}
-            numElectrons={qf?.active_electrons}
-            numOrbitals={qf?.active_orbitals}
+            moleculeName={qf?.target_molecule || campaign?.target_system || 'LiH'}
+            numElectrons={qf?.active_electrons ?? (qf?.target_molecule?.toUpperCase().includes('LIH') ? 4 : 2)}
+            numOrbitals={qf?.active_orbitals ?? (qf?.target_molecule?.toUpperCase().includes('LIH') ? 4 : 2)}
+            homoLumoGapHa={
+              typeof campaign?.classical_anchor?.rhf_mean_field_energy === 'number' && typeof campaign?.classical_anchor?.fci_exact_energy === 'number'
+                ? Math.abs(campaign.classical_anchor.rhf_mean_field_energy - campaign.classical_anchor.fci_exact_energy)
+                : 0.042
+            }
           />
         )}
         {widget.kind === 'mandate' && (() => {
