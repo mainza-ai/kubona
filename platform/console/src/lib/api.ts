@@ -263,8 +263,9 @@ export async function fetchLoops(sessionId?: string | null): Promise<Loop[]> {
 }
 
 export async function fetchEvents(sessionId?: string): Promise<LedgerEvent[]> {
+  if (!sessionId) return [];
   try {
-    const url = sessionId ? `${API_BASE}/api/events?session_id=${sessionId}` : `${API_BASE}/api/events`;
+    const url = `${API_BASE}/api/events?session_id=${encodeURIComponent(sessionId)}`;
     const res = await apiFetch(url, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return [];
     const data = await res.json();
