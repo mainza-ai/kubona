@@ -15,12 +15,20 @@ MODEL_SOURCES = {
     "omlx": lambda base, model, key: OpenAICompatLLM(base, default_model=model, provider="omlx", api_key=key),
     "openai-compat": lambda base, model, key: OpenAICompatLLM(base, default_model=model, provider="openai-compat", api_key=key),
     "llama.cpp": lambda base, model, key: OpenAICompatLLM(base, default_model=model, provider="llama.cpp", api_key=key),
+    "nvidia": lambda base, model, key: OpenAICompatLLM(
+        base or NIM_DEFAULT_BASE_URL,
+        default_model=model, provider="nvidia", api_key=key),
     "scripted": lambda base, model, key: ScriptedLLM(),
 }
 
 
 class UnknownLLMProviderError(ValueError):
     """Refusal for unconfigured/unknown LLM providers (W2.17, fail-closed)."""
+
+
+#: NVIDIA NIM default (parked local engines never receive cloud traffic by
+#: accident: an nvidia request without a base_url targets NIM, not localhost).
+NIM_DEFAULT_BASE_URL = "https://integrate.api.nvidia.com/v1"
 
 
 def get_llm(settings: dict[str, Any]) -> AbstractLLM:
@@ -49,6 +57,9 @@ def get_llm(settings: dict[str, Any]) -> AbstractLLM:
             f"unknown llm_provider {provider!r} (known: {sorted(MODEL_SOURCES)}): "
             "refusing silent scripted fallback")
     api_key = next((settings.get(k) for k in SECRET_KEYS if settings.get(k)), None)
-    return factory(settings.get("llm_base_url") or "http://127.0.0.1:11434",
+    base = settings.get("llm_base_url")
+    if provider == "nvidia" and not base:
+        base = NIM_DEFAULT_BASE_URL
+    return factory(base or "http://127.0.0.1:11434",
                    settings.get("llm_model"),
                    api_key)

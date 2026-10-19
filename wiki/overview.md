@@ -33,7 +33,7 @@ science discovery platform**: multi-user labs, user- and agent-created workflows
 agents, and the ability to conduct its own experiments and return organized,
 reproducible results — see [[science-discovery]].
 
-## The seven sources ingested
+## The nine sources ingested
 
 | Source | What it provides |
 |---|---|
@@ -44,6 +44,8 @@ reproducible results — see [[science-discovery]].
 | [[source-agent-protocol-landscape-2026]] | 2026 standards audit: MCP 2026-07-28 & SDK 2.x, AAIF, A2A delegation, AP2 mandates, Qiskit MCP servers, [[protocol-strategy]] |
 | [[source-openai-math-corpus]] | 722 manuscripts in 372 families, 162 Lean 4 formalizations, 811 Comparator challenges: [[autonomous-mathematical-discovery]], [[formal-proof-verification-lean-comparator]], [[mathematical-physics-anchors]] |
 | [[source-leanrea-investigation-2026]] | Live investigation of `aicodeking/leanrea` (`09ba4aa`, MIT): router + traps skill (`skills/kubona/SKILL.md`), benchmark harness (`bench/`), and 29-tool MCP catalog discipline ([[leanrea]], [[leanrea-adoption-plan]]) |
+| [[source-llm-circuit-codesign-2026]] | Gu et al. `arXiv:2610.22367v1` (15 Oct 2026, unreproduced): evaluator-guided LLM search, kickmix validity, TQ-cost, routing/history-decode/failure-budget, 7 wins + divsteps: [[evaluator-guided-circuit-codesign]], [[reversible-co-design-patterns]], [[failure-budget-and-frontier]] |
+| [[source-magic-state-cultivation-2026]] | Google Willow cultivation (Science Oct 2026, tracked): `~40×` cut, `99.99%` T-fidelity, d3-color→d5-surface graft; magic-state economics for costing |
 
 ## The synthesis (current best understanding)
 

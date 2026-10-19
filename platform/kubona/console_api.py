@@ -177,7 +177,156 @@ async def models(request: Request) -> JSONResponse:
     from kubona.llm.registry import LocalModelRegistry
 
     return _json({"ok": True, "scan": LocalModelRegistry().discover(),
-                  "ports": DEFAULT_LLM_PORTS()})
+                   "ports": DEFAULT_LLM_PORTS()})
+
+
+def _strict_int(v: object, name: str, lo: int, hi: int) -> int:
+    # JSON floats truncate silently under int(); bools are ints in Python.
+    # Refuse both instead of narrowing caller data into a different request.
+    if isinstance(v, bool) or not isinstance(v, int):
+        raise ValueError(f"{name} must be an int in [{lo},{hi}], got {v!r}: refusing")
+    if not (lo <= v <= hi):
+        raise ValueError(f"{name} must be in [{lo},{hi}], got {v!r}: refusing")
+    return v
+
+
+def _resolve_codesign_spec(body: dict) -> tuple:
+    """Single spec resolver (no second copy): named kind or truth table.
+
+    Returns (spec, label). Truth-table form:
+    {spec_table: {num_qubits, inputs[], outputs[], table{inbits: {out, phase}}}}.
+    """
+    from kubona.codesign import build_spec, build_truth_table_spec
+    if "spec_table" in body and body["spec_table"] is not None:
+        st = body["spec_table"]
+        if not isinstance(st, dict):
+            raise ValueError("spec_table must be an object: refusing")
+        nq = st.get("num_qubits", 0)
+        ins, outs = st.get("inputs", []), st.get("outputs", [])
+        table = st.get("table", {})
+        if not isinstance(ins, list) or not isinstance(outs, list) \
+                or not isinstance(table, dict):
+            raise ValueError("spec_table needs inputs[]/outputs[]/table{}: refusing")
+        spec = build_truth_table_spec(
+            _strict_int(nq, "num_qubits", 1, 64),
+            [_strict_int(q, "inputs[]", 0, 63) for q in ins],
+            [_strict_int(q, "outputs[]", 0, 63) for q in outs],
+            table,
+        )
+        return spec, "table"
+    kind = body.get("spec_kind")
+    return build_spec(str(kind)), str(kind)
+
+
+async def codesign_evaluate(request: Request) -> JSONResponse:
+    """Evaluator-guided circuit check (Python-owned; pending Go migration).
+
+    Body: {spec_kind|spec_table, artifact, num_tests, max_failures, kappa, seed}.
+    spec_kind in {and2, cz-phase, copy1, xor2} or spec_table object.
+    Artifact = list of [name, qubits, cond].
+    Local-classical only; no QPU; refuses unknown specs/artifacts fail-closed.
+    """
+    if not _authed(request):
+        return _auth_error()
+    try:
+        body = await request.json()
+    except Exception:
+        return _json({"ok": False, "error": "invalid JSON body: refusing"}, 400)
+    try:
+        from kubona.codesign import CircuitCodesignHarness, kappa_sweep
+        artifact = body.get("artifact", [])
+        num_tests = _strict_int(body.get("num_tests", 64), "num_tests", 1, 100000)
+        max_failures = _strict_int(body.get("max_failures", 0), "max_failures", 0, 100000)
+        kappa = _strict_int(body.get("kappa", 1), "kappa", 1, 3)
+        seed = _strict_int(body.get("seed", 7), "seed", 0, 2**31 - 1)
+        if max_failures > num_tests:
+            raise ValueError("max_failures must be <= num_tests: refusing")
+        spec, label = _resolve_codesign_spec(body)
+        h = CircuitCodesignHarness(spec, num_tests=num_tests,
+                                   max_failures=max_failures, kappa=kappa, seed=seed)
+        res = h.run(artifact)
+        if res.get("valid"):
+            res["kappa_sweep"] = {str(k): v for k, v in
+                                  kappa_sweep(res["toffoli"], res["peak_qubits"]).items()}
+        return _json({"ok": True, "spec_kind": label, "result": res})
+    except ValueError as e:
+        return _json({"ok": False, "error": str(e)[:280]}, 400)
+    except Exception as e:  # noqa: BLE001 — fail-closed, never 500 with traceback
+        return _json({"ok": False, "error": f"evaluation refused: {e}"[:280]}, 400)
+
+
+async def codesign_frontier(request: Request) -> JSONResponse:
+    """MAP-Elites frontier over a batch of artifacts (read-only scoring).
+
+    Body: {spec_kind|spec_table, artifacts[], kappa}. Returns cells + best (min-TQ).
+    Invalid artifacts are reported, never scored as valid.
+    """
+    if not _authed(request):
+        return _auth_error()
+    try:
+        body = await request.json()
+    except Exception:
+        return _json({"ok": False, "error": "invalid JSON body: refusing"}, 400)
+    try:
+        from kubona.codesign import MapElitesFrontier
+        from kubona.codesign.harness import CircuitCodesignHarness
+        artifacts = body.get("artifacts", [])
+        kappa = _strict_int(body.get("kappa", 1), "kappa", 1, 3)
+        if not isinstance(artifacts, list) or len(artifacts) > 64:
+            return _json({"ok": False, "error": "artifacts must be a list of <=64: refusing"}, 400)
+        spec, label = _resolve_codesign_spec(body)
+        h = CircuitCodesignHarness(spec, num_tests=32, kappa=kappa)
+        f = MapElitesFrontier(kappa=kappa)
+        details = []
+        for art in artifacts:
+            r = h.run(art)
+            details.append({"valid": r["valid"], "toffoli": r["toffoli"],
+                            "peak_qubits": r["peak_qubits"], "tq": r["tq"],
+                            "eps_bound_97_5": r.get("eps_bound_97_5"),
+                            "depth": r.get("depth"),
+                            "toffoli_depth": r.get("toffoli_depth"),
+                            "active_qubits": r.get("active_qubits")})
+            if r["valid"]:
+                f.offer(art, r["toffoli"], r["peak_qubits"], {"tq": r["tq"]})
+        return _json({"ok": True, "spec_kind": label, "frontier": f.to_dict(), "details": details})
+    except ValueError as e:
+        return _json({"ok": False, "error": str(e)[:280]}, 400)
+    except Exception as e:  # noqa: BLE001
+        return _json({"ok": False, "error": f"frontier refused: {e}"[:280]}, 400)
+
+
+async def codesign_budget(request: Request) -> JSONResponse:
+    """Failure-budget union bound (read-only math, Table-S4 style).
+
+    Body: {entries: [{source, per_use_rate, uses}]}. Returns rows + total.
+    """
+    if not _authed(request):
+        return _auth_error()
+    try:
+        body = await request.json()
+    except Exception:
+        return _json({"ok": False, "error": "invalid JSON body: refusing"}, 400)
+    try:
+        from kubona.codesign import BudgetEntry, ledger_rows, union_bound
+        raw = body.get("entries", [])
+        if not isinstance(raw, list) or len(raw) > 32:
+            return _json({"ok": False, "error": "entries must be a list of <=32: refusing"}, 400)
+        entries = []
+        for e in raw:
+            if not isinstance(e, dict):
+                raise ValueError(f"entry must be an object, got {e!r}: refusing")
+            rate = e.get("per_use_rate", float("nan"))
+            if isinstance(rate, bool) or not isinstance(rate, (int, float)):
+                raise ValueError(f"per_use_rate must be a number, got {rate!r}: refusing")
+            entries.append(BudgetEntry(str(e.get("source", "")),
+                                       float(rate),
+                                       _strict_int(e.get("uses", -1), "uses", 0, 10**9)))
+        return _json({"ok": True, "rows": ledger_rows(entries),
+                      "union_bound": union_bound(entries)})
+    except ValueError as e:
+        return _json({"ok": False, "error": str(e)[:280]}, 400)
+    except Exception as e:  # noqa: BLE001
+        return _json({"ok": False, "error": f"budget refused: {e}"[:280]}, 400)
 
 
 async def settings(request: Request) -> JSONResponse:
@@ -627,6 +776,9 @@ app = Starlette(
         Route("/api/labs", labs),
         Route("/api/models", models),
         Route("/api/settings", settings, methods=["GET", "PUT"]),
+        Route("/api/codesign/evaluate", codesign_evaluate, methods=["POST"]),
+        Route("/api/codesign/frontier", codesign_frontier, methods=["POST"]),
+        Route("/api/codesign/budget", codesign_budget, methods=["POST"]),
     ],
 )
 

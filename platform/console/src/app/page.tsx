@@ -29,6 +29,7 @@ import { AutonomyCockpit } from '@/components/surfaces/AutonomyCockpit';
 import { SpatialCanvas } from '@/components/surfaces/SpatialCanvas';
 import { BackendStatusBar } from '@/components/common/BackendStatusBar';
 import { GenerativeUIStudio } from '@/components/surfaces/GenerativeUIStudio';
+import { CodesignCockpit } from '@/components/surfaces/CodesignCockpit';
 
 function formatElapsed(createdAt: string): string {
   const ms = Date.now() - new Date(createdAt).getTime();
@@ -54,7 +55,7 @@ export default function Home() {
   const [surface, setSurface] = useState<DockSurface>('arena');
   const [arenaView, setArenaView] = useState<ArenaView>('orbital');
   const [recenterSignal, setRecenterSignal] = useState(0);
-  const [proofsTab, setProofsTab] = useState<'manuscripts' | 'tribunal' | 'gallery'>('manuscripts');
+  const [proofsTab, setProofsTab] = useState<'manuscripts' | 'tribunal' | 'gallery' | 'circuits'>('manuscripts');
   const [meshTab, setMeshTab] = useState<'mesh' | 'guardrails' | 'models' | 'labs' | 'settings'>('mesh');
   const [showLegacyCanvas, setShowLegacyCanvas] = useState(false);
   const [gateState, setGateState] = useState<Record<string, 'authorized' | 'denied' | 'downgraded'>>({});
@@ -644,9 +645,10 @@ export default function Home() {
                 { id: 'manuscripts', label: 'Manuscripts' },
                 { id: 'tribunal', label: 'Tribunal' },
                 { id: 'gallery', label: 'Preview Gallery' },
+                { id: 'circuits', label: 'Circuit Codesign' },
               ],
               proofsTab,
-              (id) => setProofsTab(id as 'manuscripts' | 'tribunal' | 'gallery')
+              (id) => setProofsTab(id as 'manuscripts' | 'tribunal' | 'gallery' | 'circuits')
             )}
             {surface === 'mesh' && subToggle(
               [
@@ -674,6 +676,7 @@ export default function Home() {
                 />
               )}
               {surface === 'proofs' && proofsTab === 'gallery' && <GenerativeUIStudio campaign={campaign} />}
+              {surface === 'proofs' && proofsTab === 'circuits' && <CodesignCockpit />}
               {surface === 'mesh' && meshTab === 'mesh' && <CognitiveMesh campaign={campaign} />}
               {surface === 'mesh' && meshTab === 'guardrails' && <AutonomyCockpit campaign={campaign} session={session} />}
               {surface === 'mesh' && meshTab === 'models' && <HuggingFaceModelHub />}

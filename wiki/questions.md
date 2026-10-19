@@ -34,6 +34,7 @@ These come first, because they change how every other question gets answered.
 | [[agentic-qir-compilation]] | Do we author an MLIR dialect, or is the dialect scope one Kubona QIR + one lowering target? | P1 | No-quantum-dialect verified; portfolio + receipts live | Scope ruling (boundary conditions say one dialect) |
 | [[autonomous-ansatz-optimization]] | How do refuted-genome priors transfer across devices? | P1 | Genome shape, pre-checks, harness live | Transfer mechanism (the stated open problem) |
 | [[differentiable-quantum-stack]] | Is autodiff central (single tape) or a PennyLane-wrapped module? | P2 | Primitives verified; stack unwired | Architecture direction |
+| [[divstep-packing]] | How do the paper's two shared 256-bit registers hold the walk state — what is the per-step assignment and the integer encoding? | P1 | Naive sharing provably overflows from step 1 (f=p needs 257 signed bits; deep excursions need 267/271); SI gives the sharing shape but no assignment or encoding | Paper's per-step register assignment + encoding spec, or a shown error in the pinned measurements |
 |---|---|---|---|---|
 
 ## C · Governance & the trust boundary

@@ -23,7 +23,9 @@ VOCAB = {"settled", "adopted", "open-question", "candidate",
 SOURCE_KEYS = {"source-architecture-paper", "source-gap-analysis-plan",
                "source-cloudflare-economy", "source-frontier-repo-audit-2026",
                "source-agent-protocol-landscape-2026", "source-openai-math-corpus",
-               "source-leanrea-investigation-2026"}
+               "source-leanrea-investigation-2026",
+               "source-llm-circuit-codesign-2026",
+               "source-magic-state-cultivation-2026"}
 META_PAGES = {"index", "log"}
 REQUIRED = ("type", "tags", "date", "updated", "status")
 WIKI = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "wiki")

@@ -7,8 +7,12 @@ import tempfile
 import pytest
 from starlette.testclient import TestClient
 
-# isolate the API's stores BEFORE importing the app (module-level singletons)
-os.environ["KUBONA_STATE_DIR"] = tempfile.mkdtemp(prefix="kubona-api-test-")
+# isolate the API's stores BEFORE importing the app (module-level singletons).
+# setdefault (first-wins): sibling suites (e.g. test_codesign_api) bind the
+# same singletons when they import first — overwriting here would split the
+# API's store from this file's fresh SessionStore and break the shared-store
+# approval test without any logic change. Strength unchanged.
+os.environ.setdefault("KUBONA_STATE_DIR", tempfile.mkdtemp(prefix="kubona-api-test-"))
 
 from kubona.console_api import app
 
