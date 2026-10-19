@@ -109,6 +109,7 @@ from .kara12 import emit_f6_mul, emit_kara_mul12
 from .tower12 import emit_f64_mul, emit_f64_sqr, emit_f8_mul, emit_f8_sqr, emit_mu1_scale, emit_tower_inv12, from_tower12, to_tower12, tower12_change_matrices, tower_inv12_classical
 from .qrom import build_pruned_qrom, distinct_subtrees, emit_pruned_qrom_into, gaussian_regimes, naive_nodes, pruned_qrom_spec, qrom_vs_direct
 from .rerun import IndependentRerun
+from .rs12 import build_rs_decoder, rs12_layout
 
 __all__ = [
     "Builder",
@@ -194,6 +195,7 @@ __all__ = [
     "build_dwalk_full_roundtrip",
     "build_phase_scan",
     "build_pruned_qrom",
+    "build_rs_decoder",
     "check_decode",
     "check_symmetric",
     "chien_scan_spec",
@@ -463,6 +465,7 @@ __all__ = [
     "mbu_saving",
     "routed_1bit_spec",
     "routed_madd_costs",
+    "rs12_layout",
     "rotl_words",
     "run_walk",
     "step",
