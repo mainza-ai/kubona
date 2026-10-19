@@ -1,17 +1,17 @@
-"""Slice 56: one-level Karatsuba F2^12 multiplier (Phase 1 C4).
+"""Slice 56: one-level Karatsuba F2^12 multiplier (Phase 1 C4) — NEGATIVE RESULT.
 
 Production bar: three raw 6-bit schoolbook leaves (36 ANDs each, derived
 not transcribed) + linear recombination + REDUCE_12 reduction (CNOTs);
 self-contained (internal temps mirrored clean, answer persists). Measured
-432T pinned (3x72T forward + 3x72T mirror) vs 363T schoolbook
-accumulate-only / 726T accumulate+clear: 1.68x all-in at the cost of 46
-temps. Proof pattern: basis-pairs (all 144 unit-vector products, covering
-every sub-mult AND) + structural op check (emitted CCX multiset vs the
-derived pattern) + seeded random sample vs F2_12.mul. Recursive Karatsuba
-(6 -> 3-bit leaves) is a queued follow-up, not this slice. The Fermat
-inverter keeps schoolbook mults deliberately (pinned baseline family;
-tower is the production inversion path); no existing pins change — the
-re-pinning happens when Phase 2/3 deploy this emitter.
+432T pinned (3x72T forward + 3x72T mirror). CORRECTED 2026-10-19: the
+"1.68x all-in" first claimed here is invalid — kara-forward-only (216T)
+leaves internal temps dirty, so the only valid comparison is
+self-contained 432T at 46 temps vs schoolbook 363T at zero temps:
+schoolbook wins both ways (persist 363 < 432; clear 726 < 864). Kept as
+the measured comparison-family member and MBU/recursive substrate, NOT
+as the production mult — the paper round and EEA use schoolbook.
+Proof pattern stands: 144 basis-pairs + structural multiset + 2000 seeded
+samples vs F2_12.mul. No existing pins changed.
 """
 
 import random

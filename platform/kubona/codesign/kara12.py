@@ -8,13 +8,18 @@ Self-contained: internal temps (sums, middle, product) are mirrored clean
 (mults cleared by re-accumulation, CNOT ladders reversed); the answer in
 `out` persists.
 
-Cost: 3 x 72T forward + 3 x 72T mirror = 432T pinned (vs 363T schoolbook
-accumulate-only, 726T schoolbook accumulate+clear: 1.68x all-in at the cost
-of 46 temps). Recursive Karatsuba (6 -> 3-bit leaves, ~324T) is a queued
-follow-up, not this slice. The Fermat inverter keeps schoolbook mults
-(deliberate: it is the pinned baseline family member; the tower is the
-production inversion path; this emitter serves the EEA/BM builds of
-Phase 2/3, which need raw mults, not another inverter).
+CORRECTED cost analysis (2026-10-19 — the "1.68x" first shipped with this
+module compared kara-forward-only against schoolbook, which is invalid:
+kara-forward leaves internal temps dirty, so its only valid cost is
+self-contained): 3 x 72T forward + 3 x 72T mirror = 432T pinned at 46
+temps, vs schoolbook 363T accumulate-only at ZERO temps. Persist-output:
+363 < 432. Clear-later: 726 < 864. Schoolbook direct-write dominates plain
+one-level Karatsuba on T AND temps here (REDUCE_12 fanout averages 2.5x,
+below the 2x uncompute overhead kara pays per AND). This module is kept as
+the measured comparison-family member (f24 precedent) and the substrate
+for the variants that change the calculus — recursive 6->3 leaves and
+MBU-packed ANDs (both queued) — NOT as the production mult. The paper
+round (bm.py) and the EEA pass (Phase 3) use schoolbook mults.
 """
 
 from __future__ import annotations
