@@ -124,7 +124,9 @@ These are not code changes; they are rulings the bar itself needs to record so f
 
 **Phase 3 — Euclidean/psi-pass circuit (closes the RS decoder).**
 - [x] B2: fixed-schedule half-degree EEA circuit — LANDED slice 59 (2026-10-19): 17-block forward-only EEA (`eea12.py`), 985,484T pinned, A·E+B·O=1 verified on circuit outputs, explicit-refusal flag (17 blocks cover harvested locators needing <=17 terms; high-degree locators needing more explicitly refuse — paper-consistent bounded error). ψ·σ′=1 composition is the remaining Phase-3 step below.
-- [ ] Compose the full paper-scale RS decoder: BM walk → EEA pass → existing Chien (85,995T) + phase scan (217,350T), end-to-end on planted instances. This is the first moment the program can claim a *complete* paper-scale decoder, and the T-count is the honest headline number whatever it is.
+- [x] Compose the full paper-scale RS decoder — LANDED slice 60 (2026-10-19): single coherent 7,208,672T circuit (`rs12.py`, 110,132 qubits) chaining walk -> split -> EEA -> psi/omega -> Chien (85,995T pin-verified in place) + phase scan (217,350T pin-verified in place). Proven end to end on planted instances: FLAG=1, Chien marks exactly the planted roots, composed phase == standalone phase, A*E+B*O=1 on composed outputs, inputs preserved, temps clean. **This is the first complete paper-scale RS decoder: it decodes where the EEA converges and refuses explicitly elsewhere. T-count headline: 7,208,672T (~7.21M)** (walk 5.76M + EEA 0.99M + omega 0.23M + Chien 0.086M + scan 0.217M; CNOTs free).
+
+**Phase 3 COMPLETE (2026-10-19).**
 
 **Phase 4 — Close the honest gaps that are closable.**
 - [ ] C5: measurement-based zero-test uncompute (or an 11T zero-test construction); re-measure the phase scan.
