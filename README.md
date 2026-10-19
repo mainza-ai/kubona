@@ -12,8 +12,10 @@ with organized, reproducible results.
 
 | Path | What it is |
 |---|---|
-| [`wiki/`](wiki/) | The living knowledge base (Obsidian vault, 56 pages): entities, concepts, sources, overview, roadmap, index, log |
+| [`platform/`](platform/) | The code: Python runtime (`kubona/`), Go orchestrator (`core/`), Next.js console (`console/`), PySCF/Qiskit bridge (`bridge/`). Start at [`platform/README.md`](platform/README.md) |
+| [`wiki/`](wiki/) | The living knowledge base (Obsidian vault, 136 pages as of 2026-10-19): entities, concepts, sources, overview, roadmap, index, log |
 | [`raw/`](raw/) | Immutable ingested source documents (read-only) — incl. the implementation plan (rev 4b) |
+| [`scripts/`](scripts/) | Lint + CI helpers (wiki structural lint, codesign re-runs) |
 | [`AGENTS.md`](AGENTS.md) | Maintainer operating rules — read before editing the wiki |
 
 
@@ -43,6 +45,11 @@ Then work the ten adopted local-simulation test scenarios
 ([`wiki/concepts/local-simulation-test-scenarios.md`](wiki/concepts/local-simulation-test-scenarios.md):
 co-pilot chat, tribunal, flight recorder, on-demand widgets — $0.00, no QPU.
 Details in [`platform/console/README.md`](platform/console/README.md).
+
+```bash
+# Python suite — full verification incl. the circuit co-design program
+.venv/bin/python -m pytest platform/tests/ -q   # 961 passed, 3 skipped as of 2026-10-19
+```
 
 ## License
 
