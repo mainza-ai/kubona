@@ -79,7 +79,7 @@ These are not bugs — every one is measured, pinned, and stated as non-competit
 |---|---|---|---|---|
 | C1 | Greedy multi-output cover (`minimize.py`) | Exact QM primes; greedy cover (stated heuristic — exact cover is NP-hard) | Exact cover (Espresso-style) or a measured greedy-vs-exact gap on the actual tables; either way, record the choice | Open |
 | C2 | 2-opt local search for gauge scheduling | 3513+1215 → 3507+1213; paper 3136+480 stands | Better heuristics, exact DP on the loop structure, or accept-and-document (the DP bounds on ≤8-loop subsets already frame it) | Open |
-| C3 | Naive Fermat inversion | 66T at F4 (matches paper's trial — fine); 6897T at F12 (dominates) | Tower/Itoh–Tsuii (~4–5×); blocks B1–B2 on it | Queued, blocking B1–B2 |
+| C3 | Naive Fermat inversion | 66T at F4 (matches paper's trial — fine); 6897T at F12 (dominates) | ~~Tower/Itoh–Tsuii (~4–5×); blocks B1–B2 on it~~ **LANDED 2026-10-19 (slice 55): our-construction F2¹²/F64/F8 tower (`tower12.py`), 684T pinned exhaustive-4096, 10.1× over Fermat — beats the ~1.5kT target. Deployment into BM/EEA is Phase 2/3 work, not a C3 remainder.** | Landed (emitter); blocks B1–B2 now unblocked |
 | C4 | Schoolbook F₂¹² mult, 363T | Basis-verified, honest | Karatsuba (~3×); same mechanical proof pattern as C3 | Queued |
 | C5 | Phase-scan root test: 42T (21T test + 21T mirror-uncompute) vs paper's 11T | 54T/position total vs 23T; per-position products match the paper Toffoli-for-Toffoli (12 = 12) | Measurement-based uncompute (queued per slice-51 log) or an 11T zero-test construction; the gap is isolated to the test, not the bilinear readout | Queued |
 | C6 | Fresh-bank-per-round walks (BM toy; divstep banks likewise) | Simple, correct, qubit-hungry (fine at toy scale) | In-place updates or a small bank pool for paper scale — required by B1, not optional |
@@ -112,7 +112,7 @@ These are not code changes; they are rulings the bar itself needs to record so f
 - [x] Record the E1 ruling (harvested-state standard) as a dated decision in §E.1 (2026-10-19) — permanent standard, re-litigation needs new evidence.
 
 **Phase 1 — Arithmetic foundation (unblocks everything paper-scale).**
-- [ ] C3: tower/Itoh–Tsuii F₂¹² inverter (~1.5kT target, same exhaustive-4096 + basis proof discipline as slice 54). Acceptance: drop-in replacement for `emit_fermat_inv12` in the BM round with all slice-52/53 tests green unchanged + measured T.
+- [x] C3: tower/Itoh–Tsuii F₂¹² inverter — LANDED slice 55 (2026-10-19): 684T measured (beats ~1.5kT target), exhaustive-4096 + basis proof, exported, full suite green (983 passed). NOTE: ours, not the paper's (SI gives no F₂¹² tower) — labeled as such in `tower12.py` and the slice-55 docstring. Remainder (drop-in inside the BM round, slices 52/53 green unchanged) belongs to Phase 2 B1a, not C3.
 - [ ] C4: Karatsuba F₂¹² multiplier (same proof pattern: basis-pairs + structural op check). Acceptance: same as above.
 - [ ] Re-measure every downstream T-count that changes (BM round, EEA pass); update pins. No silent number changes — pins move only with the code that earns them.
 
