@@ -738,6 +738,62 @@ def _emit_neg5(b, n_ccx: list[int], d: list[int], carry: list[int], dagger: bool
             b.x(q)
 
 
+def _emit_incr8(b, n_ccx: list[int], d: list[int], carry: list[int], dagger: bool = False) -> None:
+    """In-place +1 on an 8-bit two's complement register (ripple, 12T).
+
+    Mechanical generalization of _emit_incr5 (same top-down apply/uncompute
+    interleaving; each carry cleared while its source bits are intact).
+    d LSB-first; carry is 7 zeroed temps, returned clean. Carry-out is
+    dropped (two's-complement wrap) — the caller guarantees no overflow
+    (paper BM's |d| <= rounds <= 70, far inside 8 bits; out-of-scope
+    inputs would wrap silently, so the round scope is model-gated like
+    the toy). dagger=True emits the exact reverse (forward then dagger
+    is the identity, tested exhaustively both ways).
+    """
+    if len(d) != 8 or len(carry) != 7:
+        raise ValueError("need 8-bit d and 7 carry bits: refusing")
+    if not dagger:
+        b.cx(d[0], carry[0])
+        for i in (1, 2, 3, 4, 5, 6):
+            b.ccx(d[i], carry[i - 1], carry[i])
+            n_ccx[0] += 1
+        b.x(d[0])
+        for i in (7, 6, 5, 4, 3, 2):
+            b.cx(carry[i - 1], d[i])
+            b.ccx(d[i - 1], carry[i - 2], carry[i - 1])
+            n_ccx[0] += 1
+        b.cx(carry[0], d[1])
+        b.cx(d[0], carry[0])
+        b.x(carry[0])
+    else:
+        b.x(carry[0])
+        b.cx(d[0], carry[0])
+        b.cx(carry[0], d[1])
+        for i in (2, 3, 4, 5, 6, 7):
+            b.ccx(d[i - 1], carry[i - 2], carry[i - 1])
+            n_ccx[0] += 1
+            b.cx(carry[i - 1], d[i])
+        b.x(d[0])
+        for i in (6, 5, 4, 3, 2, 1):
+            b.ccx(d[i], carry[i - 1], carry[i])
+            n_ccx[0] += 1
+        b.cx(d[0], carry[0])
+
+
+def _emit_neg8(b, n_ccx: list[int], d: list[int], carry: list[int], dagger: bool = False) -> None:
+    """In-place two's-complement negate on 8 bits (NOTs + increment, 12T)."""
+    if len(d) != 8 or len(carry) != 7:
+        raise ValueError("need 8-bit d and 7 carry bits: refusing")
+    if not dagger:
+        for q in d:
+            b.x(q)
+        _emit_incr8(b, n_ccx, d, carry)
+    else:
+        _emit_incr8(b, n_ccx, d, carry, dagger=True)
+        for q in d:
+            b.x(q)
+
+
 def _bm_round_layout(base: int) -> dict:
     """Single canonical bank layout for one BM round (offsets from base).
 
@@ -1118,6 +1174,283 @@ def build_bm_walk(n_rounds: int) -> tuple[object, dict]:
     outs = final["SIGMA"] + final["TAU"] + final["DELTA"] + final["IDELTA"] + final["D"]
     return b, {"inputs": tuple(S), "outputs": tuple(outs), "temps": ntemps + 1,
                "ccx": n_ccx[0], "rounds": N, "kind": "bm-walk"}
+
+
+# ---------------------------------------------------------------------------
+# Paper-scale BM round (F2^12, 70-syndrome RS instance, B1a).
+#
+# Same verified recurrence as the toy (_bm_walk with F2_12, max_degree 35),
+# same preload-then-flag-gate structure as _emit_bm_round, scaled:
+# - 12-bit field words; SIGMA 36 coeffs (degree <= 35); TAU 71 coeffs
+#   (rounds+1 exact bound — shifted template grows <= 1 word/round from
+#   length 1, so 71 words can never truncate inside the 70-round domain,
+#   same sizing argument as the toy's 9 = 8+1).
+# - W: 36-word syndrome window (caller wires S_{r}..S_{r-35}, zeros for
+#   k < 1 — the walk builder does this per round, like the toy's W).
+# - D: 8-bit signed counter (|d| <= 70 inside 8 bits; 8-bit incr/neg above).
+# - Mults: schoolbook F2^12 (363T accumulate, zero mult temps) — one-level
+#   plain Karatsuba measured worse self-contained (432T), so schoolbook
+#   dominates here; ainv via the tower inverter (684T) via one shared
+#   79-temp region. Zero-test on 12-bit DISC (21T, 10 temps).
+# ---------------------------------------------------------------------------
+
+#: Paper-scale bank word counts.
+_BM12_NSIG = 36
+_BM12_NTAU = 71
+_BM12_NW = 36
+
+
+def _bm12_round_layout(base: int) -> dict:
+    """Single canonical paper-scale BM round layout (offsets from base)."""
+    from .tower12 import N_TOWER_TEMPS
+
+    o = [base]
+
+    def take(n: int) -> list[int]:
+        r = list(range(o[0], o[0] + n))
+        o[0] += n
+        return r
+
+    SIGMA = take(12 * _BM12_NSIG)
+    TAU = take(12 * _BM12_NTAU)
+    DELTA = take(12)
+    IDELTA = take(12)
+    D = take(8)
+    W = take(12 * _BM12_NW)
+    nin = o[0] - base
+    DISC = take(12)
+    FZ, FR, FT = take(1), take(1), take(1)
+    ALPHA = take(12)
+    AINV = take(12)
+    NID = take(12)
+    REPL = take(12 * _BM12_NSIG)
+    RET = take(12 * _BM12_NSIG)
+    TINCR = take(8)
+    TNEG = take(8)
+    CARRY = take(7)
+    ZT = take(10)
+    TOWER = take(N_TOWER_TEMPS)
+    RD = take(12 * _BM12_NSIG)
+    TD = take(12 * _BM12_NTAU)
+    DD = take(12)
+    IDD = take(12)
+    DDD = take(8)
+    ntemps = o[0] - base - nin
+    OSIG = take(12 * _BM12_NSIG)
+    OTAU = take(12 * _BM12_NTAU)
+    ODELTA = take(12)
+    OIDELTA = take(12)
+    OD = take(8)
+    if nin != 12 * (_BM12_NSIG + _BM12_NTAU + 1 + 1 + _BM12_NW) + 8:
+        raise ValueError("input layout arithmetic drifted: refusing")
+    if ntemps != (12 + 3 + 12 + 12 + 12 + 12 * _BM12_NSIG + 12 * _BM12_NSIG
+                  + 8 + 8 + 7 + 10 + N_TOWER_TEMPS
+                  + 12 * _BM12_NSIG + 12 * _BM12_NTAU + 12 + 12 + 8):
+        raise ValueError("temp layout arithmetic drifted: refusing")
+    allocs = [q for grp in (DISC, FZ, FR, FT, ALPHA, AINV, NID, REPL, RET,
+                            TINCR, TNEG, CARRY, TOWER, RD, TD,
+                            DD, IDD, DDD) for q in grp]
+    return {"SIGMA": SIGMA, "TAU": TAU, "DELTA": DELTA, "IDELTA": IDELTA,
+            "D": D, "W": W, "DISC": DISC, "FZ": FZ, "FR": FR, "FT": FT,
+            "ALPHA": ALPHA, "AINV": AINV, "NID": NID, "REPL": REPL,
+            "RET": RET, "TINCR": TINCR, "TNEG": TNEG, "CARRY": CARRY,
+            "ZT": ZT, "TOWER": TOWER, "RD": RD, "TD": TD,
+            "DD": DD, "IDD": IDD, "DDD": DDD, "OSIG": OSIG, "OTAU": OTAU,
+            "ODELTA": ODELTA, "OIDELTA": OIDELTA, "OD": OD, "nin": nin,
+            "ntemps": ntemps, "nqubits": o[0] - base, "allocs": allocs}
+
+
+def _emit_bm12_round(b, n_ccx: list[int], L: dict) -> None:
+    """One paper-scale BM round into caller-managed banks (shared emitter).
+
+    Same preload-then-flag-gate design as _emit_bm_round: outputs start as
+    the retain/zero case (sigma copy, shifted tau, delta copies), flag-gated
+    deltas complete replace/retain. All ids from L; reads the input bank,
+    writes the output bank, borrows the temp block (left clean or dirty-free
+    fires). Mults are schoolbook F2^12 (no mult temps — direct accumulate;
+    corrected 2026-10-19: one-level plain Karatsuba measured 432T
+    self-contained vs 363T schoolbook, so schoolbook dominates here);
+    ainv via the tower (shared TOWER region).
+    """
+    from .f12 import emit_f12_mul
+    from .packing import emit_zero_test
+    from .tower12 import emit_tower_inv12
+    SIGMA = L["SIGMA"]
+    TAU = L["TAU"]
+    DELTA = L["DELTA"]
+    IDELTA = L["IDELTA"]
+    D = L["D"]
+    W = L["W"]
+    DISC = L["DISC"]
+    FZ, FR, FT = L["FZ"], L["FR"], L["FT"]
+    ALPHA = L["ALPHA"]
+    AINV = L["AINV"]
+    NID = L["NID"]
+    REPL = L["REPL"]
+    RET = L["RET"]
+    TINCR = L["TINCR"]
+    TNEG = L["TNEG"]
+    CARRY = L["CARRY"]
+    ZT = L["ZT"]
+    TOWER = L["TOWER"]
+    RD = L["RD"]
+    TD = L["TD"]
+    DD = L["DD"]
+    IDD = L["IDD"]
+    DDD = L["DDD"]
+    OSIG = L["OSIG"]
+    OTAU = L["OTAU"]
+    ODELTA = L["ODELTA"]
+    OIDELTA = L["OIDELTA"]
+    OD = L["OD"]
+
+    def words(bank: list[int], i: int) -> list[int]:
+        return bank[12 * i:12 * (i + 1)]
+
+    # outputs start at |0>: SIGMA' = SIGMA, TAU' = shifted TAU
+    for i in range(12 * _BM12_NSIG):
+        b.cx(SIGMA[i], OSIG[i])
+    for j in range(1, _BM12_NTAU):
+        for t in range(12):
+            b.cx(TAU[12 * (j - 1) + t], OTAU[12 * j + t])
+    for i in range(12):
+        b.cx(DELTA[i], ODELTA[i])
+        b.cx(IDELTA[i], OIDELTA[i])
+    # discrepancy disc = sum sigma_i * W_i (36 Kara mults accumulate direct)
+    for i in range(_BM12_NSIG):
+        n_ccx[0] += emit_f12_mul(b, words(SIGMA, i), words(W, i), DISC)
+    n_ccx[0] += emit_zero_test(b, DISC, FZ[0], ZT)
+    # flags: fr = !fz & (d>=0); ft = !fz & (d<0)
+    b.x(FZ[0])
+    b.x(D[7])
+    b.ccx(FZ[0], D[7], FR[0])
+    n_ccx[0] += 1
+    b.x(D[7])
+    b.x(FZ[0])
+    b.x(FZ[0])
+    b.ccx(FZ[0], D[7], FT[0])
+    n_ccx[0] += 1
+    b.x(FZ[0])
+    # alpha = disc * IDELTA; ainv = tower(alpha)
+    n_ccx[0] += emit_f12_mul(b, DISC, IDELTA, ALPHA)
+    n_ccx[0] += emit_tower_inv12(b, ALPHA, AINV, TOWER)
+    # new_IDELTA = ainv * IDELTA (so next round needs no fresh inversion)
+    n_ccx[0] += emit_f12_mul(b, AINV, IDELTA, NID)
+    # repl_scale = ainv * sigma; ret_scale = alpha * tau_tilde[1..35].
+    # The retain multiplier reads the shifted coeffs (TAU word i-1 into RET
+    # word i), so RET word 0 stays zero and word i>=1 uses TAU[i-1] — the
+    # unshifted-draft failure class from the toy, same fix.
+    for i in range(_BM12_NSIG):
+        n_ccx[0] += emit_f12_mul(b, AINV, words(SIGMA, i), words(REPL, i))
+    for i in range(1, _BM12_NSIG):
+        n_ccx[0] += emit_f12_mul(b, ALPHA, words(TAU, i - 1), words(RET, i))
+    # d+1 and -d into temp words
+    for i in range(8):
+        b.cx(D[i], TINCR[i])
+    _emit_incr8(b, n_ccx, TINCR, CARRY)
+    for i in range(8):
+        b.cx(D[i], TNEG[i])
+    _emit_neg8(b, n_ccx, TNEG, CARRY)
+    # mux deltas (CNOT-built) and gate into outputs
+    for idx in range(12 * _BM12_NSIG):
+        if idx >= 12:
+            b.cx(TAU[idx - 12], RD[idx])
+        b.cx(REPL[idx], RD[idx])
+        b.cx(SIGMA[idx], RD[idx])
+        b.ccx(FR[0], RD[idx], OSIG[idx])
+        n_ccx[0] += 1
+        b.ccx(FT[0], RET[idx], OSIG[idx])
+        n_ccx[0] += 1
+    for j in range(12 * _BM12_NTAU):
+        if j < 12 * _BM12_NSIG:
+            b.cx(SIGMA[j], TD[j])
+        if j >= 12:
+            b.cx(TAU[j - 12], TD[j])
+        b.ccx(FR[0], TD[j], OTAU[j])
+        n_ccx[0] += 1
+    for i in range(12):
+        b.cx(DISC[i], DD[i])
+        b.cx(DELTA[i], DD[i])
+        b.ccx(FR[0], DD[i], ODELTA[i])
+        n_ccx[0] += 1
+        b.cx(NID[i], IDD[i])
+        b.cx(IDELTA[i], IDD[i])
+        b.ccx(FR[0], IDD[i], OIDELTA[i])
+        n_ccx[0] += 1
+    for i in range(8):
+        b.cx(TNEG[i], DDD[i])
+        b.cx(TINCR[i], DDD[i])
+    for i in range(8):
+        b.cx(TINCR[i], OD[i])
+    for i in range(8):
+        b.ccx(FR[0], DDD[i], OD[i])
+        n_ccx[0] += 1
+    # full mirror uncompute (reverse dependency order; output gates persist)
+    for i in range(8):
+        b.cx(TNEG[i], DDD[i])
+        b.cx(TINCR[i], DDD[i])
+    for i in range(12):
+        b.cx(DISC[i], DD[i])
+        b.cx(DELTA[i], DD[i])
+        b.cx(NID[i], IDD[i])
+        b.cx(IDELTA[i], IDD[i])
+    _emit_neg8(b, n_ccx, TNEG, CARRY, dagger=True)
+    for i in range(8):
+        b.cx(D[i], TNEG[i])
+    _emit_incr8(b, n_ccx, TINCR, CARRY, dagger=True)
+    for i in range(8):
+        b.cx(D[i], TINCR[i])
+    for j in range(12 * _BM12_NTAU):
+        if j >= 12:
+            b.cx(TAU[j - 12], TD[j])
+        if j < 12 * _BM12_NSIG:
+            b.cx(SIGMA[j], TD[j])
+    for idx in range(12 * _BM12_NSIG):
+        b.cx(SIGMA[idx], RD[idx])
+        b.cx(REPL[idx], RD[idx])
+        if idx >= 12:
+            b.cx(TAU[idx - 12], RD[idx])
+    for i in range(_BM12_NSIG - 1, 0, -1):
+        n_ccx[0] += emit_f12_mul(b, ALPHA, words(TAU, i - 1), words(RET, i))
+    for i in range(_BM12_NSIG - 1, -1, -1):
+        n_ccx[0] += emit_f12_mul(b, AINV, words(SIGMA, i), words(REPL, i))
+    n_ccx[0] += emit_f12_mul(b, AINV, IDELTA, NID)
+    n_ccx[0] += emit_tower_inv12(b, ALPHA, AINV, TOWER)
+    n_ccx[0] += emit_f12_mul(b, DISC, IDELTA, ALPHA)
+    b.x(FZ[0])
+    b.ccx(FZ[0], D[7], FT[0])
+    n_ccx[0] += 1
+    b.x(FZ[0])
+    b.x(FZ[0])
+    b.x(D[7])
+    b.ccx(FZ[0], D[7], FR[0])
+    n_ccx[0] += 1
+    b.x(D[7])
+    b.x(FZ[0])
+    n_ccx[0] += emit_zero_test(b, DISC, FZ[0], ZT)
+    for i in range(_BM12_NSIG - 1, -1, -1):
+        n_ccx[0] += emit_f12_mul(b, words(SIGMA, i), words(W, i), DISC)
+
+
+def build_bm12_round() -> tuple[object, dict]:
+    """One reversible paper-scale BM round (uniform circuit, no parameters).
+
+    Thin wrapper over the shared emitter (single bank at base 0). See
+    _emit_bm12_round for the round design; the walk builder (slice 58)
+    reuses the emitter per round with caller-managed banks.
+    """
+    from .kickmix import Builder
+    L = _bm12_round_layout(0)
+    b = Builder(L["nqubits"])
+    for q in L["allocs"]:
+        b.alloc(q)
+    n_ccx = [0]
+    _emit_bm12_round(b, n_ccx, L)
+    for q in L["allocs"]:
+        b.free(q)
+    outs = list(L["OSIG"]) + list(L["OTAU"]) + list(L["ODELTA"]) + list(L["OIDELTA"]) + list(L["OD"])
+    return b, {"inputs": tuple(range(L["nin"])), "outputs": tuple(outs),
+               "temps": L["ntemps"], "ccx": n_ccx[0], "kind": "bm12-round"}
 
 
 def build_chien_scan(ncoeffs: int = 3, field=None) -> tuple[object, dict]:
