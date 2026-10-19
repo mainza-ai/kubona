@@ -23,7 +23,7 @@ from .budget import (
 )
 from .carry import FOLD_C256, compare_top_wrong, escape_bound, escape_probability, fold_reduce, fused_square, fused_square_parts, truncated_add_escape
 from .families import FamilySearch, NvidiaProposer, deterministic_mutator
-from .bm import berlekamp_massey, berlekamp_massey_toy, build_chien_scan, check_decode, chien_scan_spec, contracted_phase_bit, error_value_from_quotient, key_equation_report, locator_roots, mask_cancellation, multi_error_syndromes, poly_add, poly_eval, poly_scale, single_error_syndromes
+from .bm import berlekamp_massey, berlekamp_massey_toy, bilinear_terms, build_bm_round, build_bm_walk, build_chien_scan, build_phase_scan, check_decode, chien_scan_spec, contracted_phase_bit, error_value_from_quotient, key_equation_report, locator_roots, mask_cancellation, multi_error_syndromes, phase_scan_spec, poly_add, poly_eval, poly_scale, single_error_syndromes
 from .gauge import fold_tildeP, representatives, schedule_loops, tildeP_update, transform_cost, unfold_tildeP
 from .chemistry import alias_schedule, alias_step_spec, build_alias_step, build_cnot_select, build_swap_select, cnot_select_spec, schedule_alias_words, swap_select_spec
 from .coulomb import LINE_SLOPE_BITS, attainable_d2, build_coulomb_acc, coulomb_acc_spec, coulomb_d2_model, fit_coulomb_lines
@@ -84,12 +84,14 @@ from .lanczos import LanczosWalker, ScheduledWalker, check_symmetric, dot, find_
 #: Back-compat alias used by early tests (same object as dot).
 gfdot = dot
 from .dqi import dqi_loss_bound, eps_from_gate, prange_advantage_report, sample_sparse_error
+from .f12 import emit_f12_mul, emit_f12_sqr, emit_fermat_inv12
 from .f24 import (
     build_f24_inv_spec,
     build_f24_qrom_inv,
     build_inverter,
     build_kara_inverter,
     build_mbu_inverter,
+    emit_fermat_inv,
     emit_kara_mul_accumulate,
     emit_mbu_mul_accumulate,
     emit_mul,
@@ -165,10 +167,13 @@ __all__ = [
     "barrel_rotl4_spec",
     "berlekamp_massey",
     "berlekamp_massey_toy",
+    "bilinear_terms",
     "binom_tail",
     "bit",
     "build_alias_step",
     "build_barrel_rotl4",
+    "build_bm_round",
+    "build_bm_walk",
     "build_chien_scan",
     "build_cnot_select",
     "build_coulomb_acc",
@@ -182,6 +187,7 @@ __all__ = [
     "build_dwalk2",
     "build_dwalk_full",
     "build_dwalk_full_roundtrip",
+    "build_phase_scan",
     "build_pruned_qrom",
     "check_decode",
     "check_symmetric",
@@ -214,6 +220,10 @@ __all__ = [
     "dwalk_full_spec",
     "emit_add",
     "emit_factored",
+    "emit_f12_mul",
+    "emit_f12_sqr",
+    "emit_fermat_inv",
+    "emit_fermat_inv12",
     "emit_gauss_fold",
     "emit_mbu_mul_accumulate",
     "emit_mul",
@@ -327,6 +337,7 @@ __all__ = [
     "pdivmod",
     "peval",
     "perm_frame",
+    "phase_scan_spec",
     "plan_packing",
     "pmul",
     "pmod",
