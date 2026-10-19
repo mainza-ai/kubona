@@ -503,6 +503,9 @@ func (s *Server) registerRoutes() {
 
 	// QIR Compilation & Lowering
 	s.mux.HandleFunc("/api/qir/compile", s.handleQIRCompile)
+	// Circuit co-design scoring (read-only; validity stays Python-owned)
+	s.mux.HandleFunc("/api/codesign/tq", s.handleCodesignTQ)
+	s.mux.HandleFunc("/api/codesign/frontier", s.handleCodesignFrontier)
 
 	// Quantum Krylov Subspace & Mitigation Endpoints
 	s.mux.HandleFunc("/api/krylov/solve", s.handleKrylovSolve)

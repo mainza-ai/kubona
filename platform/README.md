@@ -85,7 +85,8 @@ Run everything: `uv run --project . pytest -q` or `.venv/bin/python -m pytest -q
   a reference VQE StateGraph (third-party framework drives Kubona; `[orchestration]` extra).
 - **Dart console scaffold** (`console/`) — models mirroring MCP payloads, gateway
   JSON-RPC client, the two priority surface contracts; widgets build on a
-  Flutter-equipped machine.
+  Flutter-equipped machine. (Retired per Q-22 — the human surface is
+  TypeScript/Next.js; see `wiki/questions.md`.)
 - **Phase 2 gate test** (`tests/test_phase2_gate.py`) — watch + interrupt a loop
   over the control MCP server.
 
@@ -110,6 +111,7 @@ Run everything: `uv run --project . pytest -q` or `.venv/bin/python -m pytest -q
   Phase-2 surfaces live (Cost & Approvals, Live Loops) wired to the REST API.
   Requires Flutter SDK (installed via Homebrew 2026-08-16) and
   `XDG_CONFIG_HOME` writable (see ~/.kubona-config on this machine).
+  (Retired per Q-22 — see above.)
 - **Known upstream quirk:** mcp 2.0's stdio client hangs when closing one of
   several concurrently-open sessions — tests use one session at a time.
 
@@ -269,6 +271,31 @@ Run everything: `uv run --project . pytest -q` or `.venv/bin/python -m pytest -q
   temperature); `GET/PUT /api/settings`; live host-model snapshot kept separate.
 - **Console**: a **Models** tab shows the models auto-detected on this host and
   lets the user set the active provider/model/temperature (saved to settings).
+
+## Current program (2026-10): evaluator-guided circuit co-design
+
+- **What:** independent verification of the evaluator-guided
+  quantum-circuit co-design in Gu et al. `arXiv:2610.22367v1` (SI held
+  locally, never committed): divstep walks, branch decoders, trace
+  readout, gauge-loop scheduling, Hermitian/Hermitian-locator walks,
+  and the Reed–Solomon decode chain — all proven by exhaustive local
+  simulation (Qiskit Aer / exact field math). No QPU, no LLM calls
+  in tests.
+- **Python** (`kubona/codesign/`, 37 modules): step/walk builders,
+  minimized + factored Boolean emitters, BM/Chien/Forney/phase-bit
+  machinery, gauge scheduler + local search, Hermitian walkers.
+  49 slice test files (`tests/test_codesign_slice2.py` …
+  `test_codesign_slice50.py`) plus harness/API/audit suites.
+- **Go** (`core/pkg/codesign/`, `core/pkg/api/codesign.go`): TQ cost
+  model + frontier served read-only to the console.
+- **Console:** `CodesignCockpit` surface (read-only scoring).
+- **Blueprint:** `../wiki/` is the design record (overview, questions
+  work-list, per-source summaries, decision log in `log.md`).
+- **Run it:** `.venv/bin/python -m pytest platform/tests/test_codesign_slice50.py -q`
+  (single slice) or the full suite (961 passed, 3 skipped as of 2026-10-19).
+- **Bar:** real logic or fail-closed refusal; no weakened asserts;
+  every number measured and pinned, paper deltas stated, never closed
+  by invention.
 
 ## Phase boundaries (honest stubs)
 
