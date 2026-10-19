@@ -25,7 +25,7 @@ arrives, place it here first and it will find its page.
 |---|---|---|---|
 | **L0 · Method** | How Kubona is allowed to *know* and *claim*: evidence classes, anchors, credibility, ontology | [[quantum-advantage-realism]], [[evaluation-and-benchmarks]], [[provenance-and-reproducibility]], [[claim-credibility-wavefunctions]], [[epistemic-curvature]], [[fidelity-accounting]], [[forensic-audit-2026]], [[mathematical-physics-anchors]], [[formal-proof-verification-lean-comparator]], [[epistemic-continuum-and-ontology]], [[quantum-triage-engine]] | mostly `adopted` with mathematical grounding |
 | **L1 · Control** | The governance rail that makes agent spend survivable | [[cost-governance]], [[spend-mandates-and-delegation]], [[security-and-pqc]], [[secrets-and-workload-isolation]], [[secret-rotation-runbook]], [[user-identity-and-profiles]], [[provider-capability-schema]], [[quantum-cloud-pricing]] | `adopted`, with AP2 mandates anchoring the approval gate |
-| **L2 · Compute** | Compilation, providers, mitigation, the machine itself | [[qir-mlir-compilation]], [[agentic-qir-compilation]], [[protocol-strategy]], [[mcp-and-context-flooding]], [[nisq-and-hybrid-orchestration]], [[error-mitigation]], [[circuit-cutting]], [[vqa-vqe]], [[barren-plateau]] + provider entities, [[qiskit-mcp-servers]], [[early-fault-tolerant-quantum-and-subspace-methods]] | `adopted` mechanisms, `tracked` vendors |
+| **L2 · Compute** | Compilation, providers, mitigation, the machine itself | [[qir-mlir-compilation]], [[agentic-qir-compilation]], [[protocol-strategy]], [[mcp-and-context-flooding]], [[nisq-and-hybrid-orchestration]], [[error-mitigation]], [[circuit-cutting]], [[vqa-vqe]], [[barren-plateau]] + provider entities, [[qiskit-mcp-servers]], [[early-fault-tolerant-quantum-and-subspace-methods]], [[divstep-packing]] | `adopted` mechanisms, `tracked` vendors, 1 open packing question |
 | **L3 · Research** | Autonomy that compounds: search, meta-search, packs, the discovery loop, memory | [[science-discovery]], [[karpathy-autoresearch]], [[meta-search-and-self-evolution]], [[five-ring-research-loop]], [[multi-agent-research-collective]], [[quantum-domain-packs]], [[agentic-memory-and-observability]], [[autonomous-ansatz-optimization]], [[differentiable-quantum-stack]], [[autonomous-mathematical-discovery]], [[frontier-benchmark-saturation]], [[epistemic-information-lifecycle-and-memory]], [[autonomous-manuscript-synthesis-and-peer-review]], [[multimodal-mission-control-and-custom-agents]] | `adopted` core research mechanisms |
 | **L4 · Surface** | Where a human sees and limits the agent | [[ui-ux-vision]], [[agent-ux-control-plane]], [[workflows-and-agent-authoring]], [[confidentiality-lattice-provenance]], [[scientific-agentic-experience-triad]] | `adopted` cognitive cockpit & AX triad |
 | **L5 · Ecosystem** | How it gets used, funded, and extended by others | [[agent-resource-economy]], [[x402]], [[cloudflare]], [[aaif]], [[a2a]], [[ap2]], [[integration-topology-and-licence-discipline]], [[openai-math]], [[hugging-face-hub]], [[cloudroom]], [[rea]], [[leanrea]] | 1 `settled` policy; standard delegation, model hub, and payment rails; `reference` agent-room + REA + leanrea prior art |
@@ -65,9 +65,9 @@ Describes **how decided** something is — never how finished.
 | `source` | An ingested source record. Immutable once written. | the 7 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (129 pages = 46 entities · 71 concepts · 7 sources · 5 meta), 2026-10-17:**
-`settled` 5 · `adopted` 49 · `open-question` 7 · `candidate` 13 · `tracked` 34 ·
-`reference` 8 · `source` 7 · `living` 6 (lint-counted). Five `settled` against 49 `adopted`
+**Census (136 pages = 46 entities · 76 concepts · 9 sources · 5 meta), 2026-10-19:**
+`settled` 5 · `adopted` 53 · `open-question` 8 · `candidate` 13 · `tracked` 34 ·
+`reference` 8 · `source` 9 · `living` 6 (lint-counted). Five `settled` against 53 `adopted`
 keeps the honest reading: the load-bearing constraints are **chosen**, everything else
 remains **understood**. `settled` stays small by rule — each entry needed test enforcement
 plus dependents ([[overview]] §Settled constraints); new candidates must meet the same bar.
@@ -89,7 +89,7 @@ mapping, author guidance) for no new expressiveness; claims live as concept
 sections backed by ledger records, and the falsifier lives in the linked tests.
 Revisit only with a concrete claim that fits nowhere.
 
-## Sources (7)
+## Sources (9)
 
 | Page | Source doc | Sources this touched |
 |---|---|---|
@@ -100,6 +100,8 @@ Revisit only with a concrete claim that fits nowhere.
 | [[source-agent-protocol-landscape-2026]] | *Agent Protocol Landscape & Standards Audit* — 2026 primary-source audit of MCP, A2A, AAIF, AP2, Qiskit MCP | [[protocol-strategy]], [[spend-mandates-and-delegation]], [[mcp-and-context-flooding]] |
 | [[source-openai-math-corpus]] | *OpenAI Math Manuscript Collection & Formal Proofs* — 722 manuscripts in 372 families, 162 Lean 4 formalizations, 811 challenges | [[autonomous-mathematical-discovery]], [[formal-proof-verification-lean-comparator]], [[mathematical-physics-anchors]], [[openai-math]] |
 | [[source-leanrea-investigation-2026]] | *leanrea live-repo investigation* — 8 KB skill + benchmark read end-to-end (remote · HEAD · licence, nothing cloned) | [[leanrea]], [[leanrea-adoption-plan]] |
+| [[source-llm-circuit-codesign-2026]] | *LLM-guided quantum circuit co-design* — Gu et al. `arXiv:2610.22367v1` (14pp + SI 29pp, unreproduced) | [[evaluator-guided-circuit-codesign]], [[reversible-co-design-patterns]], [[failure-budget-and-frontier]] |
+| [[source-magic-state-cultivation-2026]] | *Magic-state cultivation on Willow* — Google Quantum AI, Science Oct 2026 (tracked vendor result) | [[failure-budget-and-frontier]], [[fidelity-accounting]] |
 
 ## Entities (46)
 
@@ -152,7 +154,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[rea]] | Receipt- and obligation-driven agent runtime (`morluto/rea`) — method reference for envelopes, obligations, coverage, and typed error contracts |
 | [[leanrea]] | aicodeking skill: REA results with no MCP server (router + traps + benchmark template) — method reference, never supply |
 
-## Concepts (60; +11 in Overview & meta = 71 total)
+## Concepts (64; +11 in Overview & meta = 75 total)
 
 | Page | What it is |
 |---|---|
@@ -215,4 +217,8 @@ Revisit only with a concrete claim that fits nowhere.
 | [[quantum-triage-engine]] | Mathematical triage routing via Family 278 Kohn-Sham representability failure and Family 275 continuum Coulomb QMA-hardness |
 | [[autonomous-manuscript-synthesis-and-peer-review]] | Bilingual formal Lean 4 AST to modular arXiv LaTeX preprint synthesis and automated 5-dimensional adversarial peer review |
 | [[scientific-agentic-experience-triad]] | The AX triad: User ↔ Agent, Agent ↔ Agent tribunal protocol, Agent ↔ Interface (A2UI), and 9 cognitive observatory surfaces |
+| [[evaluator-guided-circuit-codesign]] | Evaluator-guided LLM circuit search: TaskSpec + KickmixEvaluator + TQScorer, families, MAP-Elites (`adopted`) |
+| [[reversible-co-design-patterns]] | Reusable routing / history-decode / MBU / in-place / integer-fit compiler passes (`adopted`) |
+| [[failure-budget-and-frontier]] | Failure-budget design + TQ frontier + domain packs order + magic-state bridge (`adopted`) |
+| [[circuit-codesign-ux-plan]] | Backend→frontend inclusive plan: landed slice 1 + queued slices 2-5, threat model (`adopted`) |
 | [[epistemic-information-lifecycle-and-memory]] | 4-tier storage (tmpfs, Merkle ledger, HippoRAG GraphRAG, strategy bank), refutation index, and RLVR flywheel |
