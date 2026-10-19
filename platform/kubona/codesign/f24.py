@@ -330,6 +330,47 @@ def build_inverter(num_qubits: int = 28) -> tuple[Builder, dict]:
     return b, regs
 
 
+def emit_fermat_inv(b: Builder, x: list[int], h: list[int], temps: list[int]) -> int:
+    """Fermat inverse x^14 as inline emission (schoolbook + mirrors).
+
+    x^2/x^4/x^8 by squaring (CNOTs, free), t = x^8*x^4 (22T), h ^= t*x^2
+    (22T), mirror-uncompute t (22T) and squares (CNOTs): 66T total, the
+    paper's trial-Fermat cost, measured here as a reusable emitter. h
+    must be zeroed (accumulation semantics); x preserved; every temp
+    returns clean (dirty-free raises otherwise); 0 maps to 0 with no
+    special-casing (zero controls are no-ops throughout). 16 temp bits
+    (x2+x4+x8+t). Re-invocation uncomputes: every emitted gate is a
+    self-inverse XOR into a bit never read as a control within the same
+    emission, so the same call sequence twice is the identity on h and
+    leaves temps clean (same discipline as the doubled zero-test).
+    """
+    if not (len(x) == 4 and len(h) == 4):
+        raise ValueError("F24 words are 4 qubits: refusing")
+    if not isinstance(temps, list) or len(temps) != 16:
+        raise ValueError(f"need 16 temp bits (x2+x4+x8+t), got {temps!r}: refusing")
+    for q in list(x) + list(h) + list(temps):
+        if not isinstance(q, int) or q < 0 or q >= b.num_qubits:
+            raise ValueError(f"qubit {q!r} out of range: refusing")
+    if len(set(list(x) + list(h) + list(temps))) != 24:
+        raise ValueError("x, h, temps must be disjoint words: refusing")
+    x2, x4, x8, t = temps[0:4], temps[4:8], temps[8:12], temps[12:16]
+    n = 0
+    emit_square(b, x, x2)
+    emit_square(b, x2, x4)
+    emit_square(b, x4, x8)
+    n += emit_mul(b, x8, x4, t)  # t = x^12
+    n += emit_mul(b, t, x2, h)   # h ^= x^14 = x^-1
+    # mirror uncompute: every emitted gate is a self-inverse XOR into a
+    # bit never read as a control within the same emission (targets are
+    # fresh words), so the same calls commute pairwise and re-emission
+    # cancels exactly, in any order.
+    n += emit_mul(b, x8, x4, t)  # uncompute t
+    emit_square(b, x4, x8)
+    emit_square(b, x2, x4)
+    emit_square(b, x, x2)
+    return n  # 22 + 22 + 22 = 66
+
+
 def build_f24_inv_spec():
     """Truth-table spec for the Extended-Data task (4 in + 4 out <= 8)."""
     from .gf import f24_inversion_table
