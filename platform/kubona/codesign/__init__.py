@@ -79,6 +79,7 @@ from .divsteps import (
 from .divwalk import batch_report, bit, modinv_odd, run_walk, schedule_cut, step, survey_walks, v2
 from .dstep import N_QUBITS, P_TOY, REG, build_dstep, dstep_spec_fwd, dstep_spec_rt, fit_divstep_state, from_bits, harvest_states, to_bits
 from .dwalk import BANKS, N_QUBITS_W, build_decode_flags, build_dstep_decode_reverse, build_dstep_decoded, build_dwalk2, build_dwalk_full, build_dwalk_full_roundtrip, decode_decisions, decode_flags_spec, decode_reverse_spec, dstep_decoded_spec_fwd, dwalk2_spec, dwalk_full_roundtrip_spec, dwalk_full_spec, fit_divstep_inverse
+from .eea12 import build_eea12, eea12_layout
 from .lanczos import LanczosWalker, ScheduledWalker, check_symmetric, dot, find_null, matvec, nullspace_vector, scheduled_find_null
 
 #: Back-compat alias used by early tests (same object as dot).
@@ -222,6 +223,8 @@ __all__ = [
     "dwalk2_spec",
     "dwalk_full_roundtrip_spec",
     "dwalk_full_spec",
+    "eea12_layout",
+    "build_eea12",
     "emit_add",
     "emit_factored",
     "emit_f12_mul",
