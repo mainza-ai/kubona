@@ -1,0 +1,143 @@
+---
+type: concept
+name: Circuit Co-Design Production Readiness
+date: 2026-10-19
+updated: 2026-10-19
+tags: [circuits, codesign, production, gaps, planning]
+sources: [source-llm-circuit-codesign-2026]
+status: tracked
+---
+
+# Circuit Co-Design Production Readiness: Gap Analysis + Implementation Plan
+
+> **What this page is.** The production-readiness register for the Kubona
+> circuit co-design program (slices 2–54): what is verified, what is
+> blocked on the paper, what was built at toy scale and would need
+> re-implementation for production, what is simplified today that must be
+> hardened, and the sequenced plan to close each class. It is a *code*
+> register in the sense of [[implementation-gaps]] — every claim below is
+> checkable against `platform/kubona/codesign/`, `platform/tests/`, or a
+> cited SI passage — but its audience is the production decision: **what
+> still stands between the verified prototype and a shippable stack, and
+> in what order to close it.**
+>
+> Standing rule (from AGENTS.md production bar): **real logic or
+> fail-closed refusal; no weakened tests; no scope-dodging; drift-proof
+> shared values; line audit before landing.** Anything below that would
+> need rework on the path to production is called out explicitly as
+> **redo-risk**, not left implicit.
+
+## 0. Verified baseline (what exists, all green at last full-suite pass)
+
+- **Scope:** `platform/kubona/codesign/` — 38 Python files; `platform/tests/test_codesign*.py` — 57 files (slices 2–54 contiguous, no gaps in numbering, plus harness/API/audit suites); 239 slice test functions, 287 codesign-collected items with zero collection errors. Full `platform/tests/` suite executed this session: **976 passed, 3 skipped in ~12.5 min** (skips: optional `langgraph`/`pytket`/`pyquil` imports only, unrelated to codesign). Wiki lint clean (verified this session).
+- **Harness (production-grade, not a gap):** kickmix evaluator with alloc/free lifecycle, dirty-free + leak refusal, re-alloc zeroing, record-controlled basis gates; TaskSpec specs with `target_perm` + `target_phase`; cross-language TQ parity (Go `Cost` 1..3 ↔ Python `kappa_sweep`, golden triple pinned both sides). Console (`CodesignCockpit`) is correctly decoupled — read-only scoring only, needs no per-builder updates.
+- **Threads verified end-to-end (toy scale unless noted):**
+  - Divstep: naive/decoded/full-walk circuits at p=13 and p=17 (792T fwd / 1584T roundtrip, zero-overhead composition); prime-agnostic pipeline; minimized + factored decoders (depths 6–8: 234/960/4568T → 136/424/1606T, 1.7–2.8×).
+  - Trace readout: naive 6580T → minimized SOP 1434T (normal) / 1508T (spec) → factored 438T / 370T (3.3–4.1×; spec basis wins under multi-level sharing, not SOP).
+  - Gauge loops: 576-loop accumulation (216 plaquettes + 384 rectangles); greedy schedule 3513 mults + 1215 invs; coordinate-descent 2-opt to 3507 + 1213.
+  - Reed–Solomon at **paper scale**: BM math (70 syndromes, degree ≤ 35), Chien scan circuit (F₂¹², 36 coeffs, 4095 positions, 85,995T), contracted phase-bit math, mask cancellation (70/70, Vandermonde), full-scan phase circuit (4025 positions, 217,350T = 54T/pos), full decode composition (planted 1/3/10/35-error, exact).
+  - Hermitian: striped vs direct scans, scheduled walks, 48-dim paper-scale nullspace walk.
+  - F₂¹² arithmetic (slice 54): schoolbook mult 363T (basis-verified), CNOT squaring, Fermat inverter 6897T (exhaustive over all 4096).
+  - HHL: toy only (domain [8, 16)).
+- **Methodology assets that transfer directly:** `_emit_bm_round` shared-emitter pattern, `verify_cover`/`reduce_anf`/`factor_and_network` minimization stack, `emit_factored` (T = 2·nodes, structural), harvested-state proof discipline, in-code bank-disjointness guards, the `harvest=` model hook pattern.
+
+## A. Blocked on paper artifacts (external — track, do not build around)
+
+These cannot be implemented from the SI text we hold. Each lists exactly what is missing and what would unblock it. Building a guess would be invention, not verification.
+
+| # | Gap | What is missing | What unblocks it |
+|---|---|---|---|
+| A1 | Hermitian true series + residue | The true ω series; synthesis from syndromes reads 0 at error points (`hermitian.py:35-37`: "true series + residue theorem, queued, never claimed") | Paper's series definition or a derivable equivalent |
+| A2 | xi-register incremental accumulation | Seeding is underspecified in the excerpt (`hlanczos.py:379`); the locator currently comes from the proven `null_vector()` path instead | Paper's seeding rule |
+| A3 | Divstep packing per-step assignment | Which values occupy the two shared 256-bit banks at which steps, and the integer encoding ([[divstep-packing]]: naive sharing provably overflows from step 1 — f=p needs 257 signed bits; deep excursions need 267/271; unsigned still fails) | Paper's per-step register assignment + encoding spec, or a shown error in the pinned measurements |
+| A4 | 41k-row Fe2S2 table | The data is not in the repo (`chemistry.py:127`); synthetic multisets validate the scheduler, never the paper's table | The table itself (or a citable subset) |
+| A5 | Factory throughput numbers | Needed for TQ depth/active-volume variants and the console kappa slider (`tq.py`: "queued behind capability data"; "inventing weights without them is theater") | Magic-state throughput, routing, decoder performance data |
+| A6 | 20T hand-optimized readout | The SI gives the truth table, never the factored circuit (`group72.py:623`); our best is 370T (18×) | The paper's hand-optimized Boolean structure (unrecoverable from SI) |
+| A7 | Gauge loop paper DP + hand structure | Paper: 3136 mults + 480 invs vs ours 3507 + 1213 (greedy + 2-opt plateau; `gaugeloops.py:25`) | The paper's dynamic program (named in SI, no recurrence given) |
+| A8 | 51-bit phase-gradient addition | `kickmix` admits only binary phases (`gaugeloops.py:25`); sums stay exact integers instead | A phase-capable execution model or an explicit decision that integer accumulation is the shipped semantics |
+
+## B. Toy→paper scaling gaps (the redo-risk core)
+
+This is the highest-risk category for the stated reason: code that is correct at toy scale but whose *structure* does not survive scaling, so shipping it as-is means re-implementing later. Each item names the structural break, not just the parameter change.
+
+| # | Gap | Toy status | What breaks at paper scale | Production requirement |
+|---|---|---|---|---|
+| B1 | BM round/walk circuit is F24-only | `build_bm_round`/`build_bm_walk` capped at ≤8 rounds, 4-coeff σ, F₂⁴ (`bm.py:1016-1017`) | Paper needs F₂¹², 70 syndromes, degree ≤ 35. Mult cost jumps 22T→363T per multiply; the single Fermat inversion becomes 6897T (vs 66T toy) — inversion dominates every round. Fresh-bank-per-round at 70 rounds × ~440-bit state ≈ 30k qubits of allocation traffic. | Paper-scale BM round + walk with (a) in-place or small-bank-pool discipline instead of fresh banks, (b) the tower/Itoh-Tsuii inverter from C3, (c) harvested proof over planted paper-scale walks (the toy harness pattern ports directly). |
+| B2 | No Euclidean/psi-pass circuit | `reciprocal_psi` is math-only (`psi.py:197`); the 44kT Euclidean pass has no circuit | The scan circuit (slice 51) consumes Ψ as an *input*; without a producing circuit the paper-scale decoder chain has an open joint. F₂¹² arithmetic (slice 54) is the enabler that did not exist before. | Fixed-schedule half-degree EEA circuit (17 elimination blocks per SI) on the slice-54 emitters; verify A·E+B·O=1 per instance + ψ·σ′=1 at roots, as the math layer already does. |
+| B3 | F₂¹² arithmetic is schoolbook-only | 363T mult (verified), 6897T Fermat inverter (exhaustive) — honest baseline, stated non-competitive | At paper scale the inverter dominates every loop that needs division (EEA: ~17 inversions ≈ 117kT naive vs 44kT whole-pass budget). Shipping the naive version into a pipeline and optimizing later is exactly the redo to avoid. | Tower/Itoh-Tsuii inverter (~4–5× cheaper, queued in `f12.py` docstring) and Karatsuba mult, each with the same basis/exhaustive proof discipline, *before* the EEA pass is built on top. |
+| B4 | HHL is toy-only (domain [8, 16)) | `build_hhl_toy_task` | Any production HHL use needs the paper-scale instance; the dyadic-select + shift + accumulate pattern is proven only in the toy window. | Paper-scale HHL task circuit, or an explicit scope ruling that HHL stays a toy demonstration (either is a decision; drift is not). |
+| B5 | Divstep decoders stop at depth 8 | Depth 9+ refuses (65536 inputs exceed exhaustive-proof scope) | If the paper's 533-step schedule ever needs a depth-9 decision, there is no verified circuit for it — and no non-exhaustive proof discipline has been adopted. The math layer (`decoder_poly_derived`) is already prime-generic to PAPER_P256; only the *circuit* is toy-gated. | A production-bar ruling: either prove depth 9+ is unreachable in the paper schedule (then the refusal is the spec), or adopt a named non-exhaustive proof (sampled + bound, symbolic) with the same refusal discipline elsewhere. |
+| B6 | Hermitian scan at 48 dims but no true-series readout | Striped scans, scheduled walk, paper-scale nullspace all land; true series + xi are A1–A2 | The Hermitian decode chain is the least complete thread: geometry ✓, walk ✓, readout ✗. | Unblocked only by A1–A2 resolving. Until then: no Hermitian work should be presented as decoder-complete. |
+| B7 | ginv/to_internal inversion queued | `group72.py:316-317` ("inversion queued; the solve is exact and fail-closed") | Group-element inversion in-circuit is unbuilt; anything downstream that needs W⁻¹ must route around it. | Either a verified inverter or an explicit call-graph audit proving no shipped path needs it. |
+| B8 | The 71st canceled position | `mask_cancellation` caps at 70 (Vandermonde is exactly determined); paper scans 4024 = 4095 − 71 | One unexplained position. Candidates: position 0, a known-zero mask entry, or paper-side rounding. | Resolve as metrology (find the 71st in the SI or a derived argument), not code: the solver is provably maximal for 70 supplied syndromes. |
+
+## C. Structural simplifications to harden (correct today, costly or heuristic)
+
+These are not bugs — every one is measured, pinned, and stated as non-competitive where applicable. They are listed here because *production use at these costs, or with these heuristics, is a decision*, and the decision has not been recorded.
+
+| # | Simplification | Measured cost of the simple version | What hardening looks like | Standing |
+|---|---|---|---|---|
+| C1 | Greedy multi-output cover (`minimize.py`) | Exact QM primes; greedy cover (stated heuristic — exact cover is NP-hard) | Exact cover (Espresso-style) or a measured greedy-vs-exact gap on the actual tables; either way, record the choice | Open |
+| C2 | 2-opt local search for gauge scheduling | 3513+1215 → 3507+1213; paper 3136+480 stands | Better heuristics, exact DP on the loop structure, or accept-and-document (the DP bounds on ≤8-loop subsets already frame it) | Open |
+| C3 | Naive Fermat inversion | 66T at F4 (matches paper's trial — fine); 6897T at F12 (dominates) | Tower/Itoh–Tsuii (~4–5×); blocks B1–B2 on it | Queued, blocking B1–B2 |
+| C4 | Schoolbook F₂¹² mult, 363T | Basis-verified, honest | Karatsuba (~3×); same mechanical proof pattern as C3 | Queued |
+| C5 | Phase-scan root test: 42T (21T test + 21T mirror-uncompute) vs paper's 11T | 54T/position total vs 23T; per-position products match the paper Toffoli-for-Toffoli (12 = 12) | Measurement-based uncompute (queued per slice-51 log) or an 11T zero-test construction; the gap is isolated to the test, not the bilinear readout | Queued |
+| C6 | Fresh-bank-per-round walks (BM toy; divstep banks likewise) | Simple, correct, qubit-hungry (fine at toy scale) | In-place updates or a small bank pool for paper scale — required by B1, not optional |
+| C7 | Divstep packing: no working circuit at any width | Open question stands ([[divstep-packing]]) | Either the paper's assignment (needs A3) or our own fixed-width packed layout proven end-to-end with stated overhead — a *different* deliverable from verifying the paper's, must be labeled as such |
+
+## D. Integration assessment (verified Python ↔ product surface)
+
+Deliberately short: the architecture is correctly decoupled and should stay that way.
+
+- **Go core** (`platform/core/pkg/codesign`: `frontier.go`, `tq.go`) is scoring-only: TQ cost with kappa 1..3 fail-closed bounds, MAP-Elites frontier keeps min-TQ per cell. This is the correct division of labor — Python owns validity (kickmix evaluator), Go owns ranking/serving. **No duplication of builders, no stale numbers**: grep finds no paper T-counts (3136, 6580, 1434…) hardcoded in Go; the API takes (T,Q) as inputs.
+- **Cross-language parity is asserted, not assumed**: Python `test_kappa_sweep_pins_triple` (5,10 → 50/500/5000) and Go `TestGoldenTQ` (5,10,1 → 50) pin the same golden; both refuse kappa outside 1..3. The formula is trivial (T·Q^kappa) so drift risk is minimal, but there is **no automated cross-language parity test** — a joint golden-vector check in CI would close this for free.
+- **Console** (`CodesignCockpit`) is read-only scoring (TQ, frontier, budget, DQI bound); it needs no per-builder knowledge and has none (zero references to phase_scan/bm_walk/mask_cancellation — verified). Correct as-is; do not wire builders into the console.
+- **Auditor's note (real gap, process not code): slices 51–54 are uncommitted** (new `f12.py`, four test files, `bm.py`/`f24.py`/`__init__.py` edits, this log). The 10039cb push landed slices 2–50; the working tree has not been committed since. Production rule: verified work is committed before the next slice starts.
+
+## E. Verification-strength decisions the production bar must rule on
+
+These are not code changes; they are rulings the bar itself needs to record so future work does not re-litigate them.
+
+1. **Harvested-state vs full-domain proof.** The BM round (slice 52) and walk (slice 53) are proven over harvested valid states (all single-error + all double-error + seeded triple toy walks, zero refusals, every temp clean). Out-of-scope inputs (invalid syndromes, degree > 3) are *unspecified by design* — same contract as the divstep harvested proof.
+> **✅ Decision (2026-10-19):** harvested-valid-input coverage is the **permanent proof standard**, with the model (`harvest=`) as the validity oracle. Rationale: invalid inputs are unspecified by design (fail-closed refusal at the boundary, never silent wrong answers); full-domain (2^n) proofs are infeasible at paper scale and would weaken the suite by forcing sampling. Future emitters must (a) name their harvested domain explicitly, (b) prove every temp clean + every valid input exact + every out-of-domain input refused-or-unspecified, (c) reuse the `harvest=` hook pattern so the oracle stays swappable. This closes E1; re-litigation requires new evidence, not new unease.
+2. **Determinism proofs are double-run equality, not harness-enforced.** Fine and cheap; keep.
+3. **Exhaustive-everywhere it matters:** 512-space readouts, 4096-space F₂¹² inverter, 16384-mask decoders, 144-pair bilinear bases — the pattern (exhaust the small domain, prove the large by structure) is the right one. No change; record as the house method.
+4. **Fail-closed conventions are load-bearing and tested:** invalid encodings read zero (never don't-cares), refused depths/rounds, draft→`_emit_bm_round` shared emitter, single-home constants (`emit_xor_cover`, `_flag_tables`, `_decoder_layout`). The audit test (`test_all_public_submodule_names_exported`) enforces the export surface. Keep.
+
+## F. Implementation plan (sequenced; each step lands green or not at all)
+
+**Phase 0 — Close out the open loop (now).**
+- [ ] Commit slices 51–54 + this page: `feat(codesign): ...` on develop; full suite (976 passed, 3 benign skips — verified 2026-10-19) + lint green before push.
+- [x] Update wiki census (136 → 137 with this page) and `index.md` L2 layer map; `wiki-lint.py --strict` clean.
+- [x] Record the E1 ruling (harvested-state standard) as a dated decision in §E.1 (2026-10-19) — permanent standard, re-litigation needs new evidence.
+
+**Phase 1 — Arithmetic foundation (unblocks everything paper-scale).**
+- [ ] C3: tower/Itoh–Tsuii F₂¹² inverter (~1.5kT target, same exhaustive-4096 + basis proof discipline as slice 54). Acceptance: drop-in replacement for `emit_fermat_inv12` in the BM round with all slice-52/53 tests green unchanged + measured T.
+- [ ] C4: Karatsuba F₂¹² multiplier (same proof pattern: basis-pairs + structural op check). Acceptance: same as above.
+- [ ] Re-measure every downstream T-count that changes (BM round, EEA pass); update pins. No silent number changes — pins move only with the code that earns them.
+
+**Phase 2 — Paper-scale BM (the core remaining circuit).**
+- [ ] B1a: F₂¹² BM round circuit (36-coeff sigma, general field ops on the Phase-1 emitters), harvested proof over planted paper-scale walks (single + double + seeded multi-error, exact-domain where feasible).
+- [ ] B1b: 70-round paper-scale walk with in-place discipline (C6): replace fresh-banks-per-round with a small bank pool or in-place update; prove the *discipline* (temps clean, inputs preserved, bank-collision guards) plus final-state equality on planted walks.
+- [ ] B5 ruling: prove depth-9 unreachable in the paper schedule (then the refusal is the spec), or adopt a named non-exhaustive proof method for depth 9+.
+
+**Phase 3 — Euclidean/psi-pass circuit (closes the RS decoder).**
+- [ ] B2: fixed-schedule half-degree EEA circuit on the Phase-1 emitters (17 elimination blocks per SI); verify A·E+B·O=1 per instance + ψ·σ′=1 at roots (the math layer's existing checks, now on circuit outputs).
+- [ ] Compose the full paper-scale RS decoder: BM walk → EEA pass → existing Chien (85,995T) + phase scan (217,350T), end-to-end on planted instances. This is the first moment the program can claim a *complete* paper-scale decoder, and the T-count is the honest headline number whatever it is.
+
+**Phase 4 — Close the honest gaps that are closable.**
+- [ ] C5: measurement-based zero-test uncompute (or an 11T zero-test construction); re-measure the phase scan.
+- [ ] C1/C2: measure the greedy-vs-exact and 2-opt-vs-DP gaps on the real tables; either close them or record acceptance with the numbers.
+- [ ] C7: our own fixed-width packed divstep layout (labeled as ours, with stated overhead) — only if A3 stays blocked; never presented as the paper's construction.
+- [ ] B8: resolve the 71st canceled position as metrology (SI re-read or derived argument).
+
+**Phase 5 — Blocked-item watchlist (no work until unblocked; re-check each ingest).**
+- A1 (true series), A2 (xi seeding), A3 (packing assignment), A4 (41k rows), A5 (factory numbers), A6 (20T hand structure), A7 (gauge DP), A8 (phase-gradient addition). Each has its unblock condition in the table above. When any unblocks, it enters the plan as its own slice with the same production bar.
+
+**Explicitly out of scope for this program (decisions, not omissions):** console per-builder wiring (decoupled by design); Go-side builders (Python owns validity); HHL beyond a scope ruling (B4); 71st-position fudging (refuse, don't invent); any LLM-in-the-loop proving (deterministic harness only).
+
+## Process notes
+
+- The four live `consumed-def` incidents (slices 51–53: an edit eating `def build_chien_scan` and orphaning its body) are a tooling pattern to name and avoid: never use a bare `def ...:` line as an edit anchor — include the docstring first line or a unique body line in the match.
+- Test-writing discipline that paid for itself repeatedly: exact-behavior baselines (naive implementation in-test), refusal probes for every gate, determinism double-runs, and the free-marker dirty-check as the universal temp discipline.
+- Suite runtime is the CI long pole (hundreds of simulated circuits dwarf lint and emitter unit tests); the per-slice fast units (emitter tables, basis checks) are the right inner loop. Do not let full-suite time be used to justify sampled (weakened) proofs.
