@@ -1453,6 +1453,144 @@ def build_bm12_round() -> tuple[object, dict]:
                "temps": L["ntemps"], "ccx": n_ccx[0], "kind": "bm12-round"}
 
 
+def _bank12(base: int) -> dict:
+    """One paper-scale BM bank (offsets from base): 432 + 852 + 12 + 12 + 8."""
+    return {"SIGMA": list(range(base, base + 432)),
+            "TAU": list(range(base + 432, base + 432 + 852)),
+            "DELTA": list(range(base + 1284, base + 1296)),
+            "IDELTA": list(range(base + 1296, base + 1308)),
+            "D": list(range(base + 1308, base + 1316))}
+
+
+def build_bm12_walk() -> tuple[object, dict]:
+    """Full paper-scale BM walk: 70 chained rounds, fresh banks per round.
+
+    S_1..S_70 are inputs (70*12 bits); initial sigma/tau/delta/IDELTA are
+    constants (X gates where 1), d starts zero. Each round reads the
+    previous bank and writes a fresh 1316-bit bank (fresh-bank style —
+    ping-pong overwriting is unitarily impossible here, see note below);
+    one shared temp block is alloc'd once and reused across rounds
+    (every round uncomputes it clean). Wiring per round r takes
+    S_r..S_{r-35} straight from the S bank (plus one shared ZERO qubit
+    for padding) — no W registers, no round index anywhere in the
+    circuit. Cost is structural: 70 x single-round (uniform emission).
+    Proven over full planted walks end to end (harvested-state discipline,
+    final-state equality).
+
+    WHY FRESH BANKS (not ping-pong): the round emitter preloads its
+    outputs as the retain/zero case and flag-gates the replace/retain
+    deltas — correct only on |0> output wires (caught live: ping-pong
+    reuse produced a 1-bit sigma error in round 2). Overwriting a stale
+    bank unitarily is impossible in general (erasure is non-unitary;
+    uncomputing the stale content needs its inputs, cascading to the
+    walk start). Finite-pool overwriting without measurement is ruled
+    out; measurement-clear (MBU-for-banks, paper-precedented for temps)
+    is a queued model change, not this slice. So banks are append-only
+    (93,436 wires); everything recyclable (temps) IS recycled.
+    """
+    from .kickmix import Builder
+    L0 = _bm12_round_layout(0)
+    N = 70
+    S = list(range(12 * N))
+    SET = 432 + 852 + 12 + 12 + 8
+    bank0 = 12 * N
+    NB = SET
+    temps0 = bank0 + NB * (N + 1)
+    ntemps = L0["ntemps"]
+    ZERO = [temps0 + ntemps]
+    # shape-match the bank against the canonical round layout (drift-proof)
+    B0 = _bank12(bank0)
+    assert (len(B0["SIGMA"]), len(B0["TAU"]), len(B0["DELTA"]),
+            len(B0["IDELTA"]), len(B0["D"])) == (len(L0["SIGMA"]), len(L0["TAU"]),
+            len(L0["DELTA"]), len(L0["IDELTA"]), len(L0["D"]))
+    o = [temps0]
+
+    def take(n: int) -> list[int]:
+        r = list(range(o[0], o[0] + n))
+        o[0] += n
+        return r
+
+    DISC = take(12)
+    FZ, FR, FT = take(1), take(1), take(1)
+    ALPHA = take(12)
+    AINV = take(12)
+    NID = take(12)
+    REPL = take(432)
+    RET = take(432)
+    TINCR = take(8)
+    TNEG = take(8)
+    CARRY = take(7)
+    ZT = take(10)
+    TOWER = take(79)
+    RD = take(432)
+    TD = take(852)
+    DD = take(12)
+    IDD = take(12)
+    DDD = take(8)
+    assert o[0] - temps0 == L0["ntemps"]  # shared block == round temp block
+    ZERO = [o[0]]
+    nqubits = o[0] + 1
+    T = {"DISC": DISC, "FZ": FZ, "FR": FR, "FT": FT, "ALPHA": ALPHA,
+         "AINV": AINV, "NID": NID, "REPL": REPL, "RET": RET,
+         "TINCR": TINCR, "TNEG": TNEG, "CARRY": CARRY, "ZT": ZT,
+         "TOWER": TOWER, "RD": RD, "TD": TD, "DD": DD, "IDD": IDD, "DDD": DDD}
+    # structural guard: S, every bank, the temp block, and ZERO are
+    # pairwise disjoint (temps are intentionally shared across rounds;
+    # banks must never alias — the divstep pool-collision class; banks are
+    # append-only fresh wires because the emitter needs |0> outputs)
+    regions = [set(S)] + [set(sum([_bank12(bank0 + NB * r)[k] for k in
+                                   ("SIGMA", "TAU", "DELTA", "IDELTA", "D")], []))
+                           for r in range(N + 1)]
+    pool = set()
+    for rgn in regions:
+        assert not (pool & rgn), "bank collision (implementation bug): refusing"
+        pool |= rgn
+    tset = set()
+    for k in ("DISC", "FZ", "FR", "FT", "ALPHA", "AINV", "NID", "REPL",
+              "RET", "TINCR", "TNEG", "CARRY", "ZT", "TOWER", "RD", "TD",
+              "DD", "IDD", "DDD"):
+        tset.update(T[k])
+    assert len(tset) == L0["ntemps"] and not (pool & tset), "temp collision: refusing"
+    assert ZERO[0] not in pool | tset
+    b = Builder(nqubits)
+    b.alloc(ZERO[0])
+    temps = sorted(tset - set(ZT))  # ZT managed internally by the zero-test
+    for q in temps:
+        b.alloc(q)
+    n_ccx = [0]
+    # initial bank: sigma=[1], tau=[1], delta=1, idelta=1, d=0
+    B = _bank12(bank0)
+    b.x(B["SIGMA"][0])
+    b.x(B["TAU"][0])
+    b.x(B["DELTA"][0])
+    b.x(B["IDELTA"][0])
+    for r in range(1, N + 1):
+        prev = _bank12(bank0 + NB * (r - 1))
+        cur = _bank12(bank0 + NB * r)
+        W = []
+        for i in range(_BM12_NW):
+            k = r - i
+            if k < 1:
+                W.extend([ZERO[0]] * 12)
+            else:
+                W.extend(S[12 * (k - 1) + t] for t in range(12))
+        L = dict(T)
+        L.update({"SIGMA": prev["SIGMA"], "TAU": prev["TAU"],
+                  "DELTA": prev["DELTA"], "IDELTA": prev["IDELTA"],
+                  "D": prev["D"], "W": W,
+                  "OSIG": cur["SIGMA"], "OTAU": cur["TAU"],
+                  "ODELTA": cur["DELTA"], "OIDELTA": cur["IDELTA"],
+                  "OD": cur["D"]})
+        _emit_bm12_round(b, n_ccx, L)
+    for q in temps:
+        b.free(q)
+    b.free(ZERO[0])
+    final = _bank12(bank0 + NB * N)
+    outs = final["SIGMA"] + final["TAU"] + final["DELTA"] + final["IDELTA"] + final["D"]
+    return b, {"inputs": tuple(S), "outputs": tuple(outs), "temps": len(temps) + 1,
+               "ccx": n_ccx[0], "rounds": N, "kind": "bm12-walk"}
+
+
 def build_chien_scan(ncoeffs: int = 3, field=None) -> tuple[object, dict]:
     """Chien search over all nonzero positions (toy default, paper scale ready).
 
