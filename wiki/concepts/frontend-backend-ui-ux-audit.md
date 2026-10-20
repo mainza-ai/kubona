@@ -22,6 +22,27 @@ status: tracked
 >
 > Standing rule: console stays **read/approve-only** ([[ui-ux-vision]] §3.1,
 > hard rule #1). Nothing here proposes job submission from the browser.
+>
+> ## 0. The wiki UI standard this audit is judged against
+>
+> There is no single "less data dense" page — the standard is distributed,
+> and it is stricter than any one line. Assembled from [[ui-ux-vision]] and
+> [[agent-ux-control-plane]]:
+> - **Calm instrumentation** (principle §3.10): the console is an oversight
+>   layer, not a dashboard that shouts; mobile-first check-in presence.
+> - **One-glance reviewer** (§2 persona; §5.4 action gates; control-plane
+>   §int-principles): a reviewer answers "what/why/cost/trust" in one
+>   glance; P2 gate = watch, understand, approve, interrupt in 60 seconds.
+> - **Progressive disclosure** (§3.3): deep circuits and long loops default
+>   to summarized stats, drill-down on demand — never a firehose.
+> - **De-worded shell** (§13–14): icon-only affordances, calm chrome, empty
+>   stage by default (WidgetStage renders nothing until summoned).
+> - **Calm check-in mode** (§7): glanceable burn-rate, ring status, anomaly
+>   notifications — not watching dashboards.
+> Net rule: **glanceable first, depth on demand.** The "high semantic
+> density" line (§6) serves this only when disclosure-gated — density
+> without a summary-first gate is the violation, not the goal. §3 and §5
+> below are re-judged against this rule; the density gaps are D1–D6.
 
 ## 1. Wiring map (verified 2026-10-20)
 
@@ -189,20 +210,51 @@ providers, reports, workflows, agents, labs, models, settings, `science/*`,
 
 ## 3. UI/UX assessment vs the vision
 
-Against [[ui-ux-vision]] §3 (10 principles) + §12 (gates):
+Against [[ui-ux-vision]] §3 (10 principles) + §12 (gates), judged by the §0
+glanceable-first rule:
 - **Held:** read/approve-only (no submission surface anywhere; cockpit header
   rule enforced + tested); fail-closed refusal chrome (`refused (HTTP …)`,
   κ-refusal, UNVERIFIED placeholders, never invented numbers); calm
-  instrumentation (polling, silent-empty degradation, three-state status).
-- **Partially held:** progressive disclosure (frontier truncates at 12, but
-  no drill-down exists yet — G4/G6); confidence-as-visual (ε-bounds render as
-  numbers, not visual states); provenance-everywhere (ledger links exist for
-  runs, but cockpit numbers have no click-through — G4 fixes the highest-value
-  instance); anomaly-first (no burn-rate/fidelity surfacing — G10 is the spend
-  half); recovery-as-guidance (refusals name the rule but offer no next step).
+  *transport* (polling, silent-empty degradation, three-state status).
+- **Partially held:** confidence-as-visual (ε-bounds render as numbers, not
+  states); provenance-everywhere (ledger links exist for runs, but cockpit
+  numbers have no click-through — G4 fixes the highest-value instance);
+  recovery-as-guidance (refusals name the rule but offer no next step).
+- **Failed — density & attention (new D-gaps, verified 2026-10-20):**
+  - **D1 — Everything renders expanded; one `<details>` in the whole app.**
+    Tribunal turns default expanded (`CopilotDrawer.tsx:1171`
+    `expandedTurns[turnKey] !== false; // Default expanded`); all cockpit
+    cards, all fleet tiers, all mesh panels render simultaneously. The only
+    disclosure primitive app-wide is a single `<details>` in MetasearchPanel
+    (`MetasearchPanel.tsx:135`). LabsView accordions (`LabsView.tsx:82-136`)
+    are the exception that proves the pattern. Progressive disclosure (§3.3)
+    is currently a wiki line, not a UI behavior.
+  - **D2 — No summary-first mode on any surface.** No card shows a one-line
+    verdict with drill-down; the reviewer gets the full firehose or nothing.
+    The P2 60-second gate ([[ui-ux-vision]] §12) is unpassable as built: no
+    surface can answer "what is happening and what needs me" in one glance.
+  - **D3 — No calm check-in mode.** Vision §7 specifies it (glanceable
+    burn-rate, ring status, anomaly notifications); nothing implements it.
+    The HUD spend pill + `OVER CAP` flag (`ArenaHud.tsx:88-107`) is the only
+    glanceable element, and it has no burn-rate, no ring status, no anomaly
+    feed. Mobile check-in is doubly absent (no mobile layout either).
+  - **D4 — Unaggregated alerting.** Page-level polling fires a toast per
+    fresh ledger event (3.5s cadence, no priority/mute/aggregate —
+    `page.tsx:165-193`); concurrent loops shout concurrently. This is the
+    notification-fatigue failure the vision's open problem #4 names.
+  - **D5 — Icon-only dock without persistent labels.** The 64px dock is
+    correctly de-worded per §13, but meaning lives in hover tooltips only
+    (`SovereignDock.tsx:37-44`) — touch/keyboard-first users get nothing,
+    and `Activity`/`Network`/`Orbit` are interchangeable waveforms. De-worded
+    chrome still needs a first-run gloss + `:focus-visible` tooltips.
+  - **D6 — No density budget.** New cards (factory diagnostics, verified
+    results, spend summary — G3/G4/G10) added to current surfaces will make
+    the firehose worse. Every Phase-2 addition must *replace* a visible
+    element with a summary-first gate, not append another card.
 - **New-feature fit:** Strata (G5), factories (G3), RS decoder (G4), and spend
   (G10) are the "never before seen" capabilities of this audit cycle; none
-  has a surface. The plan below wires each to the principle it serves.
+  has a surface. The plan below wires each to the principle it serves —
+  under the D6 budget.
 
 ## 4. Implementation plan (sequenced; each phase lands green or not at all)
 
@@ -236,6 +288,21 @@ carry anchors/evidence reqs. Ranking stays TQ; factory numbers stay
 diagnostics (existing POLICY, both sides).
 Acceptance per view: renders live data end-to-end from the new endpoints,
 refusal paths tested, no hand-typed numbers, no verdicts from Go.
+
+**Phase 2.5 — Calm-first density pass (new; gates Phase-2 additions).**
+Enforce the §0 glanceable-first rule before new cards land (D-budget):
+D1: disclosure primitives per surface (collapse-all by default on tribunal
+turns, cockpit cards, fleet tiers — LabsView accordion is the pattern);
+D2: one-line summary-first header on every card with drill-down
+(P2-gate test: reviewer reaches "what needs me" in 60s untrained);
+D3: calm check-in strip (burn-rate, ring status, anomaly count — the HUD
+pill grows into the vision §7 mode, desktop first); D4: toast aggregation
+("3 loop events in 30s — view recorder"), visibility-gating, backoff;
+D5: persistent micro-labels at `md+` + `:focus-visible` tooltips + first-run
+gloss for the dock; D6: density budget — each Phase-2 card *replaces* a
+visible element with a summary gate, never appends. Acceptance: P2-gate
+walkthrough per surface (untrained reviewer, 60s, watch/understand/
+approve/interrupt); no surface renders more than its summary set by default.
 
 **Phase 3 — LLM + spend visibility.**
 Strata provider card + 47831 radar + local=$0 cues (G5); read-only spend
