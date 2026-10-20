@@ -162,38 +162,49 @@ export default function Home() {
       }
     })();
 
-    const timer = setInterval(() => {
-      fetchLoops(currentSessionId || undefined).then((l) => { if (mounted) setLoops(l); });
-      if (currentSessionId) {
-        fetchEvents(currentSessionId).then((e) => {
-          if (!mounted) return;
-          setEvents(e);
-          // Heartbeat toasts: while a run is live, surface fresh ledger events
-          // on the canvas (max one, auto-fading). Baseline on run start.
-          if (prevPhase.current === 'idle' && runPhase !== 'idle') {
-            if (e.length > 0) lastToastEventId.current = Math.max(...e.map((ev) => ev.id));
-          } else if (runPhase !== 'idle' && e.length > 0) {
-            const fresh = e.filter((ev) => ev.id > lastToastEventId.current);
-            if (lastToastEventId.current > 0 && fresh.length > 0) {
-              const last = fresh[fresh.length - 1];
-              const label = String(last.event_type || 'event').replace(/_/g, ' ');
-              setToast({ key: last.id, text: `${label} · recorded` });
-              if (toastTimer.current) clearTimeout(toastTimer.current);
-              toastTimer.current = setTimeout(() => setToast(null), 4000);
+    // D4 (2.5b): aggregate heartbeat toasts (one per poll, never per event),
+    // skip fetch work while the tab is hidden, back off to 15s at rest.
+    // The 1s clock below is untouched (elapsed displays need it).
+    let tickTimer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      if (!mounted) return;
+      if (!document.hidden) {
+        fetchLoops(currentSessionId || undefined).then((l) => { if (mounted) setLoops(l); });
+        if (currentSessionId) {
+          fetchEvents(currentSessionId).then((e) => {
+            if (!mounted) return;
+            setEvents(e);
+            // Heartbeat toasts: while a run is live, surface fresh ledger events
+            // on the canvas (max one per poll, auto-fading). Baseline on run start.
+            if (prevPhase.current === 'idle' && runPhase !== 'idle') {
+              if (e.length > 0) lastToastEventId.current = Math.max(...e.map((ev) => ev.id));
+            } else if (runPhase !== 'idle' && e.length > 0) {
+              const fresh = e.filter((ev) => ev.id > lastToastEventId.current);
+              if (lastToastEventId.current > 0 && fresh.length > 0) {
+                const last = fresh[fresh.length - 1];
+                const label = String(last.event_type || 'event').replace(/_/g, ' ');
+                const text = fresh.length === 1 ? `${label} · recorded` : `${fresh.length} new events — view recorder`;
+                setToast({ key: last.id, text });
+                if (toastTimer.current) clearTimeout(toastTimer.current);
+                toastTimer.current = setTimeout(() => setToast(null), 4000);
+              }
+              lastToastEventId.current = Math.max(...e.map((ev) => ev.id));
             }
-            lastToastEventId.current = Math.max(...e.map((ev) => ev.id));
-          }
-          prevPhase.current = runPhase;
-        });
+            prevPhase.current = runPhase;
+          });
+        }
       }
-    }, 3500);
+      const atRest = runPhaseRef.current === 'idle';
+      tickTimer = setTimeout(tick, document.hidden || atRest ? 15000 : 3500);
+    };
+    tickTimer = setTimeout(tick, 3500);
     const clock = setInterval(() => {
       setNowTick((t) => t + 1);
       if (runPhaseRef.current !== 'idle') setRunElapsedSec((s) => s + 1);
     }, 1000);
     return () => {
       mounted = false;
-      clearInterval(timer);
+      clearTimeout(tickTimer);
       clearInterval(clock);
     };
   }, [currentSessionId, refreshData, switchSession, runPhase]);

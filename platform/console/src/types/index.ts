@@ -246,6 +246,45 @@ export interface ParetoPoint {
   two_qubit_gate_count: number;
 }
 
+// Codesign scoring contracts (mirror Go pkg/codesign goldens + Python
+// evaluate output; single source per layer, imported — never re-declared.
+// Validity stays Python-owned: these are numbers served, never verdicts).
+export interface CodesignTQResult {
+  toffoli: number;
+  qubits: number;
+  kappa: number;
+  tq: number;
+  golden_check: boolean;
+}
+
+export interface CodesignFrontierEntry {
+  toffoli: number;
+  qubits: number;
+  tq: number;
+}
+
+export interface CodesignFrontierResult {
+  kappa: number;
+  cells: number;
+  best: CodesignFrontierEntry | null;
+  entries: CodesignFrontierEntry[];
+}
+
+export interface CodesignBudgetEntry {
+  source: string;
+  per_use_rate: number;
+  uses: number;
+}
+
+export interface CodesignBudgetRow extends CodesignBudgetEntry {
+  contribution: number;
+}
+
+export interface CodesignBudgetResult {
+  rows: CodesignBudgetRow[];
+  union_bound: number;
+}
+
 export interface AutoresearchLoop {
   id: string;
   session_id: string;

@@ -900,6 +900,7 @@ export function CopilotDrawer({
           <input
             autoFocus
             value={searchQuery}
+            aria-label="Find in conversation"
             onChange={(e) => {
               setSearchQuery(e.target.value);
               setSearchIndex(0);
@@ -1165,10 +1166,28 @@ export function CopilotDrawer({
                   </div>
 
                   {/* 4 Colleague Discourse Cards */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] text-slate-400">{m.tribunal.turns.length} turns</span>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() =>
+                          setExpandedTurns(
+                            Object.fromEntries((m.tribunal?.turns ?? []).map((_, idx) => [`${m.id}-turn-${idx}`, true]))
+                          )
+                        }
+                        className="text-[11px] text-cyan-300 hover:text-cyan-100"
+                      >
+                        Expand all
+                      </button>
+                      <button onClick={() => setExpandedTurns({})} className="text-[11px] text-slate-400 hover:text-slate-200">
+                        Collapse all
+                      </button>
+                    </div>
+                  </div>
                   <div className="space-y-2.5">
                     {m.tribunal.turns.map((turn, idx) => {
                       const turnKey = `${m.id}-turn-${idx}`;
-                      const isTurnExpanded = expandedTurns[turnKey] !== false; // Default expanded
+                      const isTurnExpanded = expandedTurns[turnKey] === true; // Default collapsed (D1: summary first)
 
                       let accentColor = 'border-cyan-500/40 text-cyan-300';
                       let roleIcon = Atom;
@@ -1196,9 +1215,11 @@ export function CopilotDrawer({
                           className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-3.5 space-y-2 hover:border-white/15 transition-all"
                         >
                           {/* Colleague Header */}
-                          <div
+                          <button
                             onClick={() => toggleTurnExpand(turnKey)}
-                            className="flex items-center justify-between cursor-pointer"
+                            aria-expanded={isTurnExpanded}
+                            aria-label={`${isTurnExpanded ? 'Collapse' : 'Expand'} turn: ${turn.name || roleTitle}`}
+                            className="flex items-center justify-between cursor-pointer w-full text-left"
                           >
                             <div className="flex items-center space-x-2">
                               <RoleIconComponent className={`w-3.5 h-3.5 ${accentColor}`} />
@@ -1209,11 +1230,11 @@ export function CopilotDrawer({
                             </div>
 
                             <Tip label={isTurnExpanded ? 'Collapse turn' : 'Expand turn'} position="left">
-                            <button aria-label={isTurnExpanded ? 'Collapse turn' : 'Expand turn'} className="text-slate-400 hover:text-white transition-colors">
-                              {isTurnExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                            </button>
+                              <span className="text-slate-400 hover:text-white transition-colors inline-flex">
+                                {isTurnExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                              </span>
                             </Tip>
-                          </div>
+                          </button>
 
                           {/* Colleague Content */}
                           {isTurnExpanded && (
@@ -1386,6 +1407,7 @@ export function CopilotDrawer({
           <textarea
             rows={2}
             value={input}
+            aria-label="Chat message"
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {

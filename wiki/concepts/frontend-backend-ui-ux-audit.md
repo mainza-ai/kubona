@@ -322,14 +322,23 @@ D1: disclosure primitives per surface (collapse-all by default on tribunal
 turns, cockpit cards, fleet tiers — LabsView accordion is the pattern);
 D2: one-line summary-first header on every card with drill-down
 (P2-gate test: reviewer reaches "what needs me" in 60s untrained);
-D3: calm check-in strip (burn-rate, ring status, anomaly count — the HUD
-pill grows into the vision §7 mode, desktop first); D4: toast aggregation
+D3: calm check-in strip (burn-rate, ring status, anomaly count — the HUD pill
+grows into the vision §7 mode, desktop first); D4: toast aggregation
 ("3 loop events in 30s — view recorder"), visibility-gating, backoff;
 D5: persistent micro-labels at `md+` + `:focus-visible` tooltips + first-run
 gloss for the dock; D6: density budget — each Phase-2 card *replaces* a
 visible element with a summary gate, never appends. Acceptance: P2-gate
 walkthrough per surface (untrained reviewer, 60s, watch/understand/
 approve/interrupt); no surface renders more than its summary set by default.
+> **✅ LANDED 2026-10-20 (2.5a + 2.5b).** Tribunal turns default-collapsed
+> with expand/collapse-all (`CopilotDrawer`); cockpit informational cards
+> (families/DQI/packs) are native `<details>` collapsed by default —
+> scoring cards stay open (the tool's purpose); page poll aggregates
+> toasts ("N new events — view recorder"), skips fetch while hidden,
+> backs off to 15s at rest (clock untouched). Deferred: SwarmUniverse
+> hover-cards → tap-to-open rebuild (needs state-driven visibility, not
+> a label); fleet tier collapse (tiers ARE the surface's purpose —
+> D1 narrowed on evidence).
 
 **Phase 3 — LLM + spend visibility.**
 Strata provider card + 47831 radar + local=$0 cues (G5); read-only spend
@@ -342,6 +351,21 @@ Shared TS codesign types from the goldens; κ-rail parity (G8); hash-shaped
 placeholder fixed (G7); SSE enable-or-remove + dead-code sweep (G9);
 new-endpoint rail convention (G11); presence-aware provider merge (G13). Acceptance: `tsc` + vitest + lint clean;
 no behavior change except the fixed items.
+> **✅ LANDED 2026-10-20 (4a + 4b, partial).** Shared `Codesign*` types in
+> `types/index.ts` (cockpit + api import, no local duplicates); sweep card
+> documents κ-field independence (behavior correct as-built — sweep
+> covers all three by construction; refusing it on a typo'd κ would be
+> the worse UX); hash-shaped `sha256:lean4-proof-ast-…` fallback deleted
+> (honest empty state instead). Dialogs: both custom overlays get
+> role/aria-modal/labelledby/Esc/trap/return-focus via shared
+> `useFocusTrap` (no DOM test harness exists — node env, no testing-library;
+> tsc-verified). Labels batch: all icon-only buttons, placeholder-only
+> inputs, and range sliders labeled; div-click selections converted
+> (turn headers→real buttons, DAG/orb/anchors/rows/steps keyboardable;
+> orb display-only, separate toggle button rules); NewCampaign mode cards
+> radio-behaved. Vitest 38 files/170 green. Remainder: SwarmUniverse
+> tap-to-open rebuild, SSE enable-or-remove, dead-code sweep, G13 merge,
+> new-rail convention — queued, not smuggled into this slice.
 
 **Phase 5 — Navigation (behind existing sign-off).**
 Dock/palette placement for circuits once G4 lands (G12); progressive

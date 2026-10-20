@@ -159,6 +159,16 @@ export function MolecularActiveSpaceWidget({
                     <div
                       key={lvl.idx}
                       onClick={() => setSelectedOrbital(lvl.idx)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setSelectedOrbital(lvl.idx);
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={isSelected}
+                      aria-label={`Select orbital ${lvl.name}`}
                       className={`flex items-center justify-between text-xs px-2.5 py-1 rounded cursor-pointer transition ${
                         isSelected
                           ? 'bg-purple-500/20 border border-purple-500/40 text-purple-200'
@@ -196,6 +206,16 @@ export function MolecularActiveSpaceWidget({
                     <div
                       key={lvl.idx}
                       onClick={() => setSelectedOrbital(lvl.idx)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault();
+                          setSelectedOrbital(lvl.idx);
+                        }
+                      }}
+                      role="button"
+                      tabIndex={0}
+                      aria-pressed={isSelected}
+                      aria-label={`Select orbital ${lvl.name}`}
                       className={`flex items-center justify-between text-xs px-2.5 py-1 rounded cursor-pointer transition ${
                         isSelected
                           ? 'bg-purple-500/20 border border-purple-500/40 text-purple-200'
@@ -264,6 +284,7 @@ export function MolecularActiveSpaceWidget({
               </div>
               <input
                 type="range"
+                aria-label="Active electrons"
                 min="2"
                 max={Math.max(4, totalE)}
                 step="2"
@@ -281,6 +302,7 @@ export function MolecularActiveSpaceWidget({
               </div>
               <input
                 type="range"
+                aria-label="Active orbitals"
                 min="2"
                 max={Math.max(4, totalO)}
                 step="1"

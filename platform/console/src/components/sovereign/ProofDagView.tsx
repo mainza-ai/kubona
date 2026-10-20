@@ -314,6 +314,16 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
                 key={n.id}
                 transform={`translate(${p.x}, ${p.y})`}
                 onClick={() => setSelectedId(isSel ? null : n.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedId(isSel ? null : n.id);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-pressed={isSel}
+                aria-label={`Select proof node ${n.id}`}
                 className="cursor-pointer"
               >
                 <rect

@@ -427,6 +427,7 @@ export function EpistemicTribunalRoom({
           <input
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
+            aria-label="Deliberation topic"
             placeholder="Deliberation topic…"
             maxLength={200}
             className="flex-1 min-w-[220px] px-3 py-1.5 rounded-lg bg-black/40 border border-neutral-800 text-xs text-neutral-200 font-mono focus:outline-none focus:border-indigo-500"
