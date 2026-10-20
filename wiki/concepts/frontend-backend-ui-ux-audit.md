@@ -208,6 +208,18 @@ providers, reports, workflows, agents, labs, models, settings, `science/*`,
   decision, not revisited here), with progressive disclosure per vision §3.3
   (summary stats default, drill-down on demand).
 
+### G13 — Partial provider PUT silently clobbers non-sent fields (found 2026-10-20 during Phase 0)
+- `Settings.Update` merges only `APIKey` ("empty keeps stored",
+  `config.go:505-513`); every other field is full-struct-replaced per
+  incoming entry. A partial `PUT {"providers": {"nvidia": {"api_key": "x"}}}`
+  zeroes `Enabled`/`BaseURL`/model — the provider silently disables
+  (fail-visible at resolve time, which names the disabled provider, but the
+  save itself reports success). Only bearer-authenticated operators can PUT;
+  no real client sends partials (the console always spreads full objects) —
+  so this is a hardening gap, not a live break. Fix direction: presence-aware
+  merge or full-object-or-refuse; must preserve the `{enabled: X}` toggle
+  flow. Tracked for Phase 4, not Phase 0 (surgical redaction stays surgical).
+
 ## 3. UI/UX assessment vs the vision
 
 Against [[ui-ux-vision]] §3 (10 principles) + §12 (gates), judged by the §0
@@ -313,7 +325,7 @@ surface (vision §12 P3 shape).
 **Phase 4 — Contract hygiene.**
 Shared TS codesign types from the goldens; κ-rail parity (G8); hash-shaped
 placeholder fixed (G7); SSE enable-or-remove + dead-code sweep (G9);
-new-endpoint rail convention (G11). Acceptance: `tsc` + vitest + lint clean;
+new-endpoint rail convention (G11); presence-aware provider merge (G13). Acceptance: `tsc` + vitest + lint clean;
 no behavior change except the fixed items.
 
 **Phase 5 — Navigation (behind existing sign-off).**

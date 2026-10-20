@@ -1913,3 +1913,123 @@ func TestLLMSettingsWriteGated(t *testing.T) {
 		t.Fatalf("plaintext remote endpoint must 400, got %d", code)
 	}
 }
+
+// G1 (Phase 0): GET /api/llm/settings is a public read — it must never
+// carry key material. Authenticated PUT may set keys; responses stay
+// redacted; empty-incoming keeps the stored key (merge path intact,
+// observable via Enabled staying true).
+func TestLLMSettingsReadRedactsKeys(t *testing.T) {
+	t.Setenv("NVIDIA_API_KEY", "env-key-must-never-leak")
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+
+	getBody := func() (int, string) {
+		req := httptest.NewRequest(http.MethodGet, "/api/llm/settings", nil)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		return w.Code, w.Body.String()
+	}
+	put := func(token string, body any) (int, string) {
+		raw, _ := json.Marshal(body)
+		r := httptest.NewRequest(http.MethodPut, "/api/llm/settings", bytes.NewReader(raw))
+		if token != "" {
+			r.Header.Set("Authorization", "Bearer "+token)
+		}
+		ww := httptest.NewRecorder()
+		h.ServeHTTP(ww, r)
+		return ww.Code, ww.Body.String()
+	}
+
+	code, body := getBody()
+	if code != http.StatusOK {
+		t.Fatalf("settings read must stay public, got %d", code)
+	}
+	for _, secret := range []string{"env-key-must-never-leak"} {
+		if strings.Contains(body, secret) {
+			t.Fatalf("public GET must not contain key material")
+		}
+	}
+	var snap struct {
+		Providers map[string]struct {
+			APIKey  string `json:"api_key"`
+			Enabled bool   `json:"enabled"`
+		} `json:"providers"`
+	}
+	if err := json.Unmarshal([]byte(body), &snap); err != nil {
+		t.Fatalf("settings body must be JSON: %v", err)
+	}
+	nv, ok := snap.Providers["nvidia"]
+	if !ok {
+		t.Fatal("nvidia provider must be present (env key configured)")
+	}
+	if !nv.Enabled {
+		t.Fatal("nvidia must read enabled (key configured) — redaction must preserve existence signal")
+	}
+	if nv.APIKey != "" {
+		t.Fatal("nvidia api_key must read empty on the public rail")
+	}
+
+	// Authenticated rotation uses the honest flow (GET-modify-PUT full
+	// object, exactly what the console sends): response redacted, key
+	// stored server-side, config otherwise intact.
+	getFull := func() map[string]any {
+		_, b := getBody()
+		var full map[string]any
+		if err := json.Unmarshal([]byte(b), &full); err != nil {
+			t.Fatalf("settings body must be JSON: %v", err)
+		}
+		return full
+	}
+	rot := getFull()
+	rotProvs := rot["providers"].(map[string]any)
+	rotProvs["nvidia"].(map[string]any)["api_key"] = "rotated-key-2"
+	if code, resp := put("op-token", rot); code != http.StatusOK {
+		t.Fatalf("authenticated rotation must succeed, got %d", code)
+	} else if strings.Contains(resp, "rotated-key-2") {
+		t.Fatal("PUT response must not echo the rotated key")
+	}
+	_, body2 := getBody()
+	for _, secret := range []string{"env-key-must-never-leak", "rotated-key-2"} {
+		if strings.Contains(body2, secret) {
+			t.Fatalf("key material must not leak after rotation")
+		}
+	}
+	var snap2 struct {
+		Providers map[string]struct {
+			BaseURL string `json:"base_url"`
+			Enabled bool   `json:"enabled"`
+		} `json:"providers"`
+	}
+	if err := json.Unmarshal([]byte(body2), &snap2); err != nil {
+		t.Fatalf("settings body must be JSON: %v", err)
+	}
+	if !snap2.Providers["nvidia"].Enabled || snap2.Providers["nvidia"].BaseURL == "" {
+		t.Fatal("rotation must store the key without clobbering the provider config")
+	}
+
+	// Console-shape save (full object, api_key:"" for untouched): the stored
+	// key must survive every save — this is the merge path the console
+	// relies on.
+	sv := getFull()
+	sv["providers"].(map[string]any)["nvidia"].(map[string]any)["api_key"] = ""
+	if code, _ := put("op-token", sv); code != http.StatusOK {
+		t.Fatalf("console-shape save must succeed, got %d", code)
+	}
+	_, body3 := getBody()
+	var snap3 struct {
+		Providers map[string]struct {
+			Enabled bool `json:"enabled"`
+		} `json:"providers"`
+	}
+	if err := json.Unmarshal([]byte(body3), &snap3); err != nil {
+		t.Fatalf("settings body must be JSON: %v", err)
+	}
+	if !snap3.Providers["nvidia"].Enabled {
+		t.Fatal("console-shape save must keep the stored key (still enabled)")
+	}
+	if strings.Contains(body3, "rotated-key-2") {
+		t.Fatal("stored key must never appear on the read rail")
+	}
+}

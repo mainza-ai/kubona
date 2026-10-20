@@ -403,12 +403,12 @@ export function LLMSettings() {
                 {!pc.is_local && (
                   <div>
                     <label className="block text-slate-400 mb-1 text-[11px]">
-                      API key {pc.api_key ? <span className="text-emerald-400 font-mono">(stored ●●●)</span> : <span className="text-amber-400 font-mono">(not set)</span>}
+                      API key {pc.enabled ? <span className="text-emerald-400 font-mono">(stored ●●●)</span> : <span className="text-amber-400 font-mono">(not set)</span>}
                     </label>
                     <input
                       type="password"
                       value={keyEdits[pt] ?? ''}
-                      placeholder={pc.api_key ? 'Stored — type to rotate' : 'Paste key…'}
+                      placeholder={pc.enabled ? 'Stored — type to rotate' : 'Paste key…'}
                       onChange={(e) => setKeyEdits((prev) => ({ ...prev, [pt]: e.target.value }))}
                       className="w-full bg-black/60 border border-white/10 rounded-xl p-2.5 text-xs text-slate-200 font-mono focus:border-indigo-500 focus:outline-none"
                     />
