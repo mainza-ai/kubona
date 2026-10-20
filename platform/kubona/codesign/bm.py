@@ -1230,6 +1230,7 @@ def _bm12_round_layout(base: int) -> dict:
     CARRY = take(7)
     ZT = take(10)
     TOWER = take(N_TOWER_TEMPS)
+    MBP = take(1)
     RD = take(12 * _BM12_NSIG)
     TD = take(12 * _BM12_NTAU)
     DD = take(12)
@@ -1244,7 +1245,7 @@ def _bm12_round_layout(base: int) -> dict:
     if nin != 12 * (_BM12_NSIG + _BM12_NTAU + 1 + 1 + _BM12_NW) + 8:
         raise ValueError("input layout arithmetic drifted: refusing")
     if ntemps != (12 + 3 + 12 + 12 + 12 + 12 * _BM12_NSIG + 12 * _BM12_NSIG
-                  + 8 + 8 + 7 + 10 + N_TOWER_TEMPS
+                  + 8 + 8 + 7 + 10 + N_TOWER_TEMPS + 1
                   + 12 * _BM12_NSIG + 12 * _BM12_NTAU + 12 + 12 + 8):
         raise ValueError("temp layout arithmetic drifted: refusing")
     allocs = [q for grp in (DISC, FZ, FR, FT, ALPHA, AINV, NID, REPL, RET,
@@ -1254,7 +1255,7 @@ def _bm12_round_layout(base: int) -> dict:
             "D": D, "W": W, "DISC": DISC, "FZ": FZ, "FR": FR, "FT": FT,
             "ALPHA": ALPHA, "AINV": AINV, "NID": NID, "REPL": REPL,
             "RET": RET, "TINCR": TINCR, "TNEG": TNEG, "CARRY": CARRY,
-            "ZT": ZT, "TOWER": TOWER, "RD": RD, "TD": TD,
+            "ZT": ZT, "TOWER": TOWER, "MBP": MBP, "RD": RD, "TD": TD,
             "DD": DD, "IDD": IDD, "DDD": DDD, "OSIG": OSIG, "OTAU": OTAU,
             "ODELTA": ODELTA, "OIDELTA": OIDELTA, "OD": OD, "nin": nin,
             "ntemps": ntemps, "nqubits": o[0] - base, "allocs": allocs}
@@ -1267,12 +1268,12 @@ def _emit_bm12_round(b, n_ccx: list[int], L: dict) -> None:
     the retain/zero case (sigma copy, shifted tau, delta copies), flag-gated
     deltas complete replace/retain. All ids from L; reads the input bank,
     writes the output bank, borrows the temp block (left clean or dirty-free
-    fires). Mults are schoolbook F2^12 (no mult temps — direct accumulate;
-    corrected 2026-10-19: one-level plain Karatsuba measured 432T
-    self-contained vs 363T schoolbook, so schoolbook dominates here);
-    ainv via the tower (shared TOWER region).
+    fires). Mults are MBU-schoolbook F2^12 (144T each, 1T/AND + measure +
+    CZ-correct; corrected 2026-10-20: MBU dominates plain schoolbook 363T
+    and plain Kara 432T — see mbu12.py; E2 bar ruling covers measured
+    circuits on classical inputs); ainv via the tower (shared TOWER region).
     """
-    from .f12 import emit_f12_mul
+    from .mbu12 import emit_mbu_mul12
     from .packing import emit_zero_test
     from .tower12 import emit_tower_inv12
     SIGMA = L["SIGMA"]
@@ -1293,6 +1294,7 @@ def _emit_bm12_round(b, n_ccx: list[int], L: dict) -> None:
     CARRY = L["CARRY"]
     ZT = L["ZT"]
     TOWER = L["TOWER"]
+    MBP = L["MBP"]
     RD = L["RD"]
     TD = L["TD"]
     DD = L["DD"]
@@ -1318,7 +1320,7 @@ def _emit_bm12_round(b, n_ccx: list[int], L: dict) -> None:
         b.cx(IDELTA[i], OIDELTA[i])
     # discrepancy disc = sum sigma_i * W_i (36 Kara mults accumulate direct)
     for i in range(_BM12_NSIG):
-        n_ccx[0] += emit_f12_mul(b, words(SIGMA, i), words(W, i), DISC)
+        n_ccx[0] += emit_mbu_mul12(b, words(SIGMA, i), words(W, i), DISC, MBP)
     n_ccx[0] += emit_zero_test(b, DISC, FZ[0], ZT)
     # flags: fr = !fz & (d>=0); ft = !fz & (d<0)
     b.x(FZ[0])
@@ -1332,18 +1334,18 @@ def _emit_bm12_round(b, n_ccx: list[int], L: dict) -> None:
     n_ccx[0] += 1
     b.x(FZ[0])
     # alpha = disc * IDELTA; ainv = tower(alpha)
-    n_ccx[0] += emit_f12_mul(b, DISC, IDELTA, ALPHA)
+    n_ccx[0] += emit_mbu_mul12(b, DISC, IDELTA, ALPHA, MBP)
     n_ccx[0] += emit_tower_inv12(b, ALPHA, AINV, TOWER)
     # new_IDELTA = ainv * IDELTA (so next round needs no fresh inversion)
-    n_ccx[0] += emit_f12_mul(b, AINV, IDELTA, NID)
+    n_ccx[0] += emit_mbu_mul12(b, AINV, IDELTA, NID, MBP)
     # repl_scale = ainv * sigma; ret_scale = alpha * tau_tilde[1..35].
     # The retain multiplier reads the shifted coeffs (TAU word i-1 into RET
     # word i), so RET word 0 stays zero and word i>=1 uses TAU[i-1] — the
     # unshifted-draft failure class from the toy, same fix.
     for i in range(_BM12_NSIG):
-        n_ccx[0] += emit_f12_mul(b, AINV, words(SIGMA, i), words(REPL, i))
+        n_ccx[0] += emit_mbu_mul12(b, AINV, words(SIGMA, i), words(REPL, i), MBP)
     for i in range(1, _BM12_NSIG):
-        n_ccx[0] += emit_f12_mul(b, ALPHA, words(TAU, i - 1), words(RET, i))
+        n_ccx[0] += emit_mbu_mul12(b, ALPHA, words(TAU, i - 1), words(RET, i), MBP)
     # d+1 and -d into temp words
     for i in range(8):
         b.cx(D[i], TINCR[i])
@@ -1411,12 +1413,12 @@ def _emit_bm12_round(b, n_ccx: list[int], L: dict) -> None:
         if idx >= 12:
             b.cx(TAU[idx - 12], RD[idx])
     for i in range(_BM12_NSIG - 1, 0, -1):
-        n_ccx[0] += emit_f12_mul(b, ALPHA, words(TAU, i - 1), words(RET, i))
+        n_ccx[0] += emit_mbu_mul12(b, ALPHA, words(TAU, i - 1), words(RET, i), MBP)
     for i in range(_BM12_NSIG - 1, -1, -1):
-        n_ccx[0] += emit_f12_mul(b, AINV, words(SIGMA, i), words(REPL, i))
-    n_ccx[0] += emit_f12_mul(b, AINV, IDELTA, NID)
+        n_ccx[0] += emit_mbu_mul12(b, AINV, words(SIGMA, i), words(REPL, i), MBP)
+    n_ccx[0] += emit_mbu_mul12(b, AINV, IDELTA, NID, MBP)
     n_ccx[0] += emit_tower_inv12(b, ALPHA, AINV, TOWER)
-    n_ccx[0] += emit_f12_mul(b, DISC, IDELTA, ALPHA)
+    n_ccx[0] += emit_mbu_mul12(b, DISC, IDELTA, ALPHA, MBP)
     b.x(FZ[0])
     b.ccx(FZ[0], D[7], FT[0])
     n_ccx[0] += 1
@@ -1429,7 +1431,7 @@ def _emit_bm12_round(b, n_ccx: list[int], L: dict) -> None:
     b.x(FZ[0])
     n_ccx[0] += emit_zero_test(b, DISC, FZ[0], ZT)
     for i in range(_BM12_NSIG - 1, -1, -1):
-        n_ccx[0] += emit_f12_mul(b, words(SIGMA, i), words(W, i), DISC)
+        n_ccx[0] += emit_mbu_mul12(b, words(SIGMA, i), words(W, i), DISC, MBP)
 
 
 def build_bm12_round() -> tuple[object, dict]:
@@ -1522,6 +1524,7 @@ def build_bm12_walk() -> tuple[object, dict]:
     CARRY = take(7)
     ZT = take(10)
     TOWER = take(79)
+    MBP = take(1)
     RD = take(432)
     TD = take(852)
     DD = take(12)
@@ -1533,7 +1536,7 @@ def build_bm12_walk() -> tuple[object, dict]:
     T = {"DISC": DISC, "FZ": FZ, "FR": FR, "FT": FT, "ALPHA": ALPHA,
          "AINV": AINV, "NID": NID, "REPL": REPL, "RET": RET,
          "TINCR": TINCR, "TNEG": TNEG, "CARRY": CARRY, "ZT": ZT,
-         "TOWER": TOWER, "RD": RD, "TD": TD, "DD": DD, "IDD": IDD, "DDD": DDD}
+         "TOWER": TOWER, "MBP": MBP, "RD": RD, "TD": TD, "DD": DD, "IDD": IDD, "DDD": DDD}
     # structural guard: S, every bank, the temp block, and ZERO are
     # pairwise disjoint (temps are intentionally shared across rounds;
     # banks must never alias — the divstep pool-collision class; banks are
@@ -1547,14 +1550,14 @@ def build_bm12_walk() -> tuple[object, dict]:
         pool |= rgn
     tset = set()
     for k in ("DISC", "FZ", "FR", "FT", "ALPHA", "AINV", "NID", "REPL",
-              "RET", "TINCR", "TNEG", "CARRY", "ZT", "TOWER", "RD", "TD",
+              "RET", "TINCR", "TNEG", "CARRY", "ZT", "TOWER", "MBP", "RD", "TD",
               "DD", "IDD", "DDD"):
         tset.update(T[k])
     assert len(tset) == L0["ntemps"] and not (pool & tset), "temp collision: refusing"
     assert ZERO[0] not in pool | tset
     b = Builder(nqubits)
     b.alloc(ZERO[0])
-    temps = sorted(tset - set(ZT))  # ZT managed internally by the zero-test
+    temps = sorted(tset - set(ZT) - set(T["MBP"]))  # ZT/MBP self-managed
     for q in temps:
         b.alloc(q)
     n_ccx = [0]

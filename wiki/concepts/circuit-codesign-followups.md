@@ -50,34 +50,28 @@ instances now converge. Estimated: one slice, low risk.
 completeness gap in the decoder), lowest risk (parameter change +
 re-verification), cost quantified and acceptable.
 
-## F2. Karatsuba+MBU F2^12 multiplier (QUEUED, major follow-up)
+## F2. MBU-schoolbook F2^12 multiplier 144T (LANDED 2026-10-20, slices 61-62)
 
-**Finding.** Schoolbook 363T dominates plain Karatsuba 432T self-contained
-(slice-56 correction stands), but MBU changes the game: Karatsuba has 108
-ANDs vs schoolbook's 144 pairs, and MBU runs each AND at 1T (no uncompute)
-vs 2T plain. Estimated MBU-kara F2^12: ~108T + corrections/overhead (~125T
-conservative) vs 363T schoolbook = ~3x win. Tower12/F24 MBU precedent exists
-(88T -> 48T measured at F4); harness supports hmr + conditional CZ +
-multi-trajectory verification (slice-11 methodology ports directly).
+**Finding (corrected during implementation).** Schoolbook 363T dominates plain Karatsuba 432T
+self-contained (slice-56 correction stands). MBU changes the game — BUT the winner is MBU-*schoolbook*
+(144 ANDs x 1T = 144T, no uncompute, no restructuring), NOT MBU-Karatsuba (108 ANDs but +structure+mirror
+= 216T self-contained). Kara's AND-count advantage cannot overcome its structural overhead once ANDs cost 1T.
+MBU-schoolbook: 144T vs 363T = 2.5x win, zero extra temps, drop-in replacement. Tower12/F24 MBU precedent exists
+(88T -> 48T measured at F4); harness supports hmr + conditional CZ + multi-trajectory verification
+(slice-11 methodology: corrections load-bearing test included).
 
-**Impact (measured components x estimated mult cost).**
-EEA elim mults: 54/block x 17 x (363-125)T ≈ 219kT saved (22% of EEA).
-BM rounds: 109 mults/round x 70 x 238T ≈ 1.82MT saved (32% of walk).
-Omega: 630 x 238T ≈ 150kT saved. Tower F8 (MBU without kara): 144T saved.
-Total decode: ~7.2M -> ~5.0M (**~30% reduction**). Largest single T-win available.
+**Measured impact (not estimated).** EEA: 2,068,710 -> 1,192,586T (42% cut, better than projected:
+mirror re-emits also benefit). BM round: 82,344 -> 34,602T (58% cut). Walk: 5,764,080 -> 2,422,140T.
+Omega: ~229k -> ~96kT. Composed decode: 8,291,898 -> 3,928,980T (**53% reduction**, beats the 30% projection
+because the estimate forgot mirror doubling — which MBU also eliminates).
 
-**Cost/risk.** New kara-MBU emitter (~300 lines + exhaustive tests) + re-pin
-EEA/BM/omega slices (T-counts change; proofs unchanged in structure).
-MBU circuits are non-unitary (measure + feedforward) — consistent with E1
-(classical inputs) and tower precedent, but needs an explicit bar ruling
-(record MBU as acceptable for classical-input decode paths, same standing
-as harvested-state proofs). Multi-trajectory verification required
-(corrections must hold across sampled measurement outcomes).
-Effort: medium-high (one emitter slice + downstream re-pinning). Risk: medium
-(precedent exists at small scale; EEA/BM scale is new).
+**Cost/risk (realized).** New mbu12.py emitter (144T pinned, basis+sampled+multi-seed proof, corrections load-bearing
+test) + re-pin EEA/BM/omega/rs12 slices (proofs unchanged in structure — same emitters, cheaper mults).
+MBU circuits are non-unitary (measure + feedforward) — E2 bar ruling recorded (classical-input paths only,
+multi-trajectory verification, fail-closed). Effort was medium (one emitter slice + downstream re-pinning).
+Risk was low (precedent + same-structure swap).
 
-**Verdict: QUEUE as the major T-optimization (after F1).** Do not bundle with
-F1 (F1 is correctness; this is optimization — separate slices, separate pins).
+**Verdict: LANDED 2026-10-20.** Measured: EEA 2,068,710 -> 1,192,586T (42%); BM round 82,344 -> 34,602T (58%); walk 5,764,080 -> 2,422,140T; omega ~229k -> ~96kT; composed decode 8,291,898 -> 3,928,980T (**53%**, beats projection — mirror doubling also eliminated). E2 bar ruling recorded. Full suite green. No re-verification gaps: same emitters, cheaper mults, all pins re-earned.
 
 ## F3. MBU bank recycling (BLOCKED on harness — infrastructure, not circuit)
 
@@ -142,7 +136,7 @@ No action until divstep is prioritized or A3 unblocks (either reframes it).**
 ## Sequencing
 
 1. **F1 (EEA-36) now** — LANDED: 60/60 converge (incl. max-term instances); duplicate-swap bug found+fixed; swap paths now asserted in-test — correctness gap, clean change, unblocks full-radius claim.
-2. **F2 (MBU-kara mult) next** — biggest T-win, needs F1 stable first (re-pins downstream).
+2. **F2 (MBU-schoolbook mult) DONE** — landed slices 61-62, 53% decode T-cut — biggest T-win, needs F1 stable first (re-pins downstream).
 3. **F3/F4/F5** queued behind their triggers (harness primitive / divstep priority / never).
 4. Phase 5 watchlist unchanged (A1-A8 still blocked; re-check per ingest).
 

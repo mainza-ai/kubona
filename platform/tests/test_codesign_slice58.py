@@ -74,7 +74,7 @@ def _walks():
 def test_walk_build_pins():
     b, meta = build_bm12_walk()
     assert meta["rounds"] == 70 and meta["kind"] == "bm12-walk"
-    assert meta["ccx"] == 70 * 82344 == 5764080
+    assert meta["ccx"] == 70 * 34602 == 2422140
     nqubits = 840 + 71 * NB + 2343 + 1
     assert nqubits == 96620
     assert len(meta["inputs"]) == 840 and len(meta["outputs"]) == 1316
