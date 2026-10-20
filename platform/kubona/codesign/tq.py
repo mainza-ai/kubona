@@ -4,16 +4,17 @@ Paper: TQ = Toffoli-count x peak-qubits (T counts Toffoli+CCZ equally).
 The paper's variant is real-valued Q^kappa * T with kappa > 1 (1-3 cited
 from factoring estimates); this module discretizes to integer kappa in
 {1, 2, 3} so scores stay ledger-exact integers (no float receipts).
-Toffoli-depth and active-volume variants are queued behind capability
-data (factory throughput, cold storage). Kappa bounds + scoring live here
+Toffoli-depth and active-volume variants are LITERATURE-derived diagnostics
+(factories.py: GF2019 CCZ factory, Litinski 2019/2023 — labeled, never
+paper-measured), served via KickmixEvaluator.evaluate(factory=...) as the
+"factory" report key. Kappa bounds + scoring live here
 so cost/estimator + harness + console cannot rot apart.
 
-POLICY (settled): ranking stays TQ. Depth/active_qubits are measured
-diagnostics (kickmix.circuit_depth etc., served through evaluate/frontier)
-— never ranking inputs. A depth-weighted objective would need stated
-factory numbers (magic-state throughput, routing, decoder performance);
-inventing weights without them is theater, and consistency alone is never
-the argument for gating or re-ranking. Revisit only with capability data.
+POLICY (settled): ranking stays TQ. Depth/active_qubits/factory are measured
+diagnostics (kickmix.circuit_depth etc. + literature factory model, served
+through evaluate/frontier) — never ranking inputs. A5 closed slice 62 by
+wiring literature factories instead of inventing weights; consistency alone
+is never the argument for gating or re-ranking.
 """
 
 from __future__ import annotations
