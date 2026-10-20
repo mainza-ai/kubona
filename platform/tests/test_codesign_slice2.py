@@ -95,8 +95,25 @@ def test_deterministic_mutator_no_network():
 def test_nvidia_proposer_parks_others_and_refuses_keyless(monkeypatch):
     with pytest.raises(ValueError, match="parked"):
         NvidiaProposer(provider="omlx")
-    with pytest.raises(ValueError, match="nvidia only"):
+    with pytest.raises(ValueError, match="got 'anthropic'"):
         NvidiaProposer(provider="anthropic")
+    # nvidia stays explicitly usable (parked, not removed) but still
+    # requires its key when selected.
     monkeypatch.delenv("NVIDIA_API_KEY", raising=False)
     with pytest.raises(ValueError, match="NVIDIA_API_KEY"):
+        NvidiaProposer(provider="nvidia")
+    # strata is the dev default: no key required (localhost, optional auth),
+    # but an explicit model is still fail-closed.
+    monkeypatch.delenv("STRATA_MODEL", raising=False)
+    monkeypatch.delenv("STRATA_BASE_URL", raising=False)
+    with pytest.raises(ValueError, match="STRATA_MODEL"):
         NvidiaProposer()
+    monkeypatch.setenv("STRATA_MODEL", "iq3_s")
+    p = NvidiaProposer()
+    assert p.provider == "strata" and p.model == "iq3_s"
+    assert p.base_url == "http://127.0.0.1:47831/v1"
+    monkeypatch.setenv("STRATA_BASE_URL", "http://127.0.0.1:9999/v1")
+    assert NvidiaProposer().base_url == "http://127.0.0.1:9999/v1"
+    # empty string counts as unset (never silently route nowhere)
+    monkeypatch.setenv("STRATA_BASE_URL", "")
+    assert NvidiaProposer().base_url == "http://127.0.0.1:47831/v1"
