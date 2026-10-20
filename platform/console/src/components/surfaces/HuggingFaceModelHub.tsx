@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Search,
   Download,
@@ -29,6 +29,7 @@ import {
   cancelHFDownload,
 } from '@/lib/api';
 import { HFModelSummary,  HFDownloadTask } from '@/types';
+import { useFocusTrap } from '@/lib/useFocusTrap';
 
 export function HuggingFaceModelHub() {
   const [query, setQuery] = useState('qwen2.5-coder');
@@ -36,6 +37,8 @@ export function HuggingFaceModelHub() {
   const [models, setModels] = useState<HFModelSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedModel, setSelectedModel] = useState<HFModelSummary | null>(null);
+  const quantPanelRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(selectedModel !== null, quantPanelRef);
   const [loadingDetails, setLoadingDetails] = useState(false);
   const [downloads, setDownloads] = useState<HFDownloadTask[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -189,6 +192,7 @@ export function HuggingFaceModelHub() {
           </div>
           <button
             onClick={() => refreshDownloads()}
+            aria-label="Refresh downloads"
             className="p-2 rounded-xl bg-white/[0.04] hover:bg-white/[0.08] border border-white/10 text-slate-300 hover:text-white transition-all text-xs flex items-center space-x-1.5"
             title="Refresh Downloads"
           >
@@ -204,7 +208,7 @@ export function HuggingFaceModelHub() {
             <Download className="w-4 h-4 text-cyan-400 animate-bounce" />
             <span>{toastMessage}</span>
           </div>
-          <button onClick={() => setToastMessage(null)} className="text-cyan-300 hover:text-white">
+          <button onClick={() => setToastMessage(null)} aria-label="Dismiss notification" className="text-cyan-300 hover:text-white">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -292,6 +296,7 @@ export function HuggingFaceModelHub() {
             <input
               type="text"
               value={query}
+              aria-label="Search Hugging Face models"
               onChange={(e) => setQuery(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && performSearch(query, library)}
               placeholder="Search Hugging Face models (e.g. qwen2.5-coder, deepseek-r1, llama-3.3, phi-4, llava)..."
@@ -375,6 +380,7 @@ export function HuggingFaceModelHub() {
                 target="_blank"
                 rel="noreferrer"
                 className="text-slate-400 hover:text-white transition-colors"
+                aria-label={`View ${model.id} on Hugging Face`}
                 title="View on Hugging Face"
               >
                 <ExternalLink className="w-3.5 h-3.5" />
@@ -394,15 +400,25 @@ export function HuggingFaceModelHub() {
       {/* Quantizations Inspector Modal */}
       {selectedModel && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-          <div className="bg-[#0D111A] border border-white/20 rounded-3xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+          <div
+            ref={quantPanelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="quant-inspector-title"
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setSelectedModel(null);
+            }}
+            className="bg-[#0D111A] border border-white/20 rounded-3xl max-w-3xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden"
+          >
             {/* Modal Header */}
             <div className="p-6 border-b border-white/10 flex items-center justify-between">
               <div>
                 <span className="text-xs font-mono text-amber-400 font-semibold">{selectedModel.author}</span>
-                <h3 className="text-lg font-bold text-white">{selectedModel.id}</h3>
+                <h3 id="quant-inspector-title" className="text-lg font-bold text-white">{selectedModel.id}</h3>
               </div>
               <button
                 onClick={() => setSelectedModel(null)}
+                aria-label="Close quantization inspector"
                 className="p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-300 hover:text-white transition-all"
               >
                 <X className="w-4 h-4" />

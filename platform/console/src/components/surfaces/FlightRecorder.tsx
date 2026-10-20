@@ -295,6 +295,7 @@ export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChang
           <div className="flex items-center space-x-3">
             <button
               onClick={() => setIsPlaying(!isPlaying)}
+              aria-label={isPlaying ? 'Pause narrative' : 'Play narrative'}
               className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 text-white flex items-center justify-center transition-all shadow-md focus:outline-none"
               title={isPlaying ? 'Pause Narrative' : 'Play Narrative'}
             >
@@ -305,6 +306,7 @@ export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChang
                 setIsPlaying(false);
                 setCurrentStepIndex(0);
               }}
+              aria-label="Reset timeline to start"
               className="p-2 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors"
               title="Reset Timeline to Start"
             >
@@ -321,6 +323,8 @@ export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChang
         <div className="relative flex items-center h-4">
           <input 
             type="range"
+            aria-label="Playback scrubber"
+            aria-valuetext={`Step ${safeIndex + 1} of ${milestones.length}`}
             min={0}
             max={milestones.length - 1}
             step={1}

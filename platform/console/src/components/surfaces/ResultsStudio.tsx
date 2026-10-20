@@ -324,8 +324,18 @@ ${bibtex}
               {/* Measured job outputs: what ran, bound to job ids */}
               <MeasuredOutputs sessionId={sessionId ?? null} />
               {/* Paper Title & Metadata */}
-              <div 
+              <div
                 onClick={() => setSelectedAnchor('§Title')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedAnchor('§Title');
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-pressed={selectedAnchor === '§Title'}
+                aria-label={`Select anchor §Title`}
                 className={`p-4 rounded-xl border transition cursor-pointer ${
                   selectedAnchor === '§Title' ? 'border-indigo-500/60 bg-indigo-950/20' : 'border-white/[0.08] bg-white/[0.02]'
                 }`}
@@ -349,8 +359,18 @@ ${bibtex}
               </div>
 
               {/* Abstract */}
-              <div 
+              <div
                 onClick={() => setSelectedAnchor('§Abstract')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedAnchor('§Abstract');
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-pressed={selectedAnchor === '§Abstract'}
+                aria-label={`Select anchor §Abstract`}
                 className={`p-4 rounded-xl border transition cursor-pointer ${
                   selectedAnchor === '§Abstract' ? 'border-indigo-500/60 bg-indigo-950/20' : 'border-white/[0.08] bg-white/[0.02]'
                 }`}
@@ -373,8 +393,18 @@ ${bibtex}
               </div>
 
               {/* Key Findings Card */}
-              <div 
+              <div
                 onClick={() => setSelectedAnchor('§GroundStateIntegrals')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedAnchor('§GroundStateIntegrals');
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-pressed={selectedAnchor === '§GroundStateIntegrals'}
+                aria-label={`Select anchor §GroundStateIntegrals`}
                 className={`p-4 rounded-xl border transition cursor-pointer ${
                   selectedAnchor === '§GroundStateIntegrals' ? 'border-indigo-500/60 bg-indigo-950/20' : 'border-white/[0.08] bg-white/[0.02]'
                 }`}
@@ -400,8 +430,18 @@ ${bibtex}
               </div>
 
               {/* Lean 4 & Cryptographic Hashes */}
-              <div 
+              <div
                 onClick={() => setSelectedAnchor('§Lean4ProofAST')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedAnchor('§Lean4ProofAST');
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-pressed={selectedAnchor === '§Lean4ProofAST'}
+                aria-label={`Select anchor §Lean4ProofAST`}
                 className={`p-4 rounded-xl border transition cursor-pointer ${
                   selectedAnchor === '§Lean4ProofAST' ? 'border-indigo-500/60 bg-indigo-950/20' : 'border-white/[0.08] bg-white/[0.02]'
                 }`}
@@ -511,6 +551,7 @@ ${bibtex}
             )}
             <input
               type="text"
+              aria-label={`Annotate ${selectedAnchor}`}
               placeholder={`Annotate ${selectedAnchor}...`}
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
