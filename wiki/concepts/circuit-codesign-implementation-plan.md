@@ -175,6 +175,11 @@ Trigger: each needs its own cost-benefit at the time (none now).
 4. **Phase 5 re-check** — after U1/U2 land, re-evaluate A1/A2 (possibly unblocked),
    A5 (unblocked by U2), A4 (data hunt as follow-up if scheduler needs it).
    A3/A6/A7/A8 remain blocked (no new paths found; A6/A7 accepted via C1/C2).
+> **✅ Re-check DONE 2026-10-20.** A1/A2 blocked (stronger evidence, hunt
+> closed); A5 closed slice 62; A4 hunt ruled out (pipeline output, no
+> citable source — revive trigger recorded); A3/A6/A7/A8 blocked as
+> stated (A8 statement verified against SI :3404-3411). Full record on
+> circuit-codesign-production-readiness.md Phase-5 re-check block.
 5. **F3/F4/D3 only on trigger** (harness primitive / divstep prioritization /
    cost-benefit shift). Not now.
 
