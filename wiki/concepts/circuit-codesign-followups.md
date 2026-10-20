@@ -19,7 +19,7 @@ status: tracked
 > below is implemented; when an item is built it moves into the
 > readiness register as its own slice with the same production bar.
 
-## F1. EEA full radius: 17 -> 35 blocks (RECOMMENDED NEXT)
+## F1. EEA full radius: 17 -> 36 blocks (LANDED 2026-10-20)
 
 **Finding (measured + proven).** 17 single-term blocks cover only harvested
 locators needing <= 17 terms. Over 1,500 uniform-random valid instances,
@@ -141,7 +141,7 @@ No action until divstep is prioritized or A3 unblocks (either reframes it).**
 
 ## Sequencing
 
-1. **F1 (EEA-35) now** — correctness gap, clean change, unblocks full-radius claim.
+1. **F1 (EEA-36) now** — LANDED: 60/60 converge (incl. max-term instances); duplicate-swap bug found+fixed; swap paths now asserted in-test — correctness gap, clean change, unblocks full-radius claim.
 2. **F2 (MBU-kara mult) next** — biggest T-win, needs F1 stable first (re-pins downstream).
 3. **F3/F4/F5** queued behind their triggers (harness primitive / divstep priority / never).
 4. Phase 5 watchlist unchanged (A1-A8 still blocked; re-check per ingest).
