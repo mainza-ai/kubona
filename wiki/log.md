@@ -2900,3 +2900,8 @@ skipped is the exact failure this incident is about:
   - C5 DEFER (MBU-scan slice, queued): unitary 11T zero-test impossible (AND-tree lower bound: 11 ANDs x 2T = 22T floor; ours 42T = 21T test + 21T mirror, within 2x of floor). Paper's 11T requires MBU (1T/AND, no uncompute) — a measured-circuit model change in the proven phase scan + feedforward, for ~125kT (1.7% of decode). Accept 42T with numbers.
   - C7 SCOPED, DEFERRED to dedicated slice: A3 still blocked; only the 'our own fixed-width packed layout' branch is actionable (labeled OURS, acceptance criteria recorded). Large build, not Phase-4 filler.
   - C2 PENDING: randomized multi-start gauge scheduling in background (20 trials); verdict (adopt-if-beat + re-pin, else accept-plateau) on completion. Thread stays A1/A2-blocked regardless.
+
+## [2026-10-19] decision | Phase 4 C2 closed: ACCEPT gauge-scheduling plateau (measured)
+  - 30 random restarts (decode_order, no descent): all ~7045+ total vs 4720 baseline (50% worse — landscape strongly favors structured starts).
+  - Random + 3-cycle coordinate descent: plateaus at ~5750-5800 (22% worse, flatlining; cannot bridge the 1000-point gap to baseline). Different basins; greedy's basin far superior.
+  - Verdict: ACCEPT 3507+1213 with numbers (pinned). Gap to paper (3136+480) stands — closing needs the paper's DP + hand structure (queued), not more local search. Thread stays A1/A2-blocked regardless (scheduling only matters if Hermitian unblocks).
