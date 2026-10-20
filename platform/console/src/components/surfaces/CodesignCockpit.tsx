@@ -2,18 +2,12 @@
 
 import React, { useState } from 'react';
 import { API_BASE, apiFetch, authHeaders, scoreCodesignBudget } from '@/lib/api';
-import type { CodesignBudgetResult } from '@/lib/api';
+import type { CodesignBudgetResult, CodesignFrontierResult } from '@/lib/api';
 
 // Circuit co-design cockpit (read-only scoring).
 // Talks only to Go (:8080) read-only routes; validity ground truth stays
 // Python-owned (kickmix evaluator). No job-submission endpoints (hard rule).
 // Local-classical only; unreproduced paper gains are labeled as claimed.
-
-interface FrontierEntry {
-  toffoli: number;
-  qubits: number;
-  tq: number;
-}
 
 function DqiBoundWidget() {
   const [eps, setEps] = useState('0.002434');
@@ -43,7 +37,7 @@ export function CodesignCockpit() {
   const [budget, setBudget] = useState<CodesignBudgetResult | null>(null);
   const [budgetError, setBudgetError] = useState<string | null>(null);
   const [budgetBusy, setBudgetBusy] = useState(false);
-  const [frontier, setFrontier] = useState<{ best: FrontierEntry | null; entries: FrontierEntry[]; cells: number } | null>(null);
+  const [frontier, setFrontier] = useState<CodesignFrontierResult | null>(null);
   const [frontierError, setFrontierError] = useState<string | null>(null);
 
   const parseKappa = (): number | null => {
@@ -103,7 +97,7 @@ export function CodesignCockpit() {
         return;
       }
       const data = await res.json();
-      setFrontier({ best: data.best, entries: data.entries || [], cells: data.cells });
+      setFrontier({ kappa: data.kappa, best: data.best, entries: data.entries || [], cells: data.cells });
     } catch (err) {
       setFrontier(null);
       setFrontierError(String(err).slice(0, 200));
@@ -203,7 +197,7 @@ export function CodesignCockpit() {
 
       <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
         <div className="text-xs font-semibold text-white">Kappa sweep + failure-budget — read-only</div>
-        <div className="text-[11px] text-slate-400">κ=1..3 via the Go rail (same formula both sides). Budget is the server-sealed Table-S4 union bound (Python math, Go rail).</div>
+        <div className="text-[11px] text-slate-400">κ=1..3 via the Go rail (same formula both sides). Sweep always covers all three κ — the κ field above is not used here. Budget is the server-sealed Table-S4 union bound (Python math, Go rail).</div>
         <div className="mt-3 flex flex-wrap gap-2">
           <button onClick={scoreSweep} className="rounded-lg bg-cyan-500/15 border border-cyan-400/30 px-3 py-1 text-xs text-cyan-200">Sweep κ=1..3</button>
           {sweep && <span className="text-xs text-white font-mono">κ1={sweep.k1} κ2={sweep.k2} κ3={sweep.k3}</span>}
@@ -226,26 +220,26 @@ export function CodesignCockpit() {
         {budgetError && <div className="mt-2 text-xs text-rose-300">{budgetError}</div>}
       </div>
 
-      <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-[11px] text-slate-300">
-        <div className="text-xs font-semibold text-white">Families (anti-caution fix) — process note</div>
+      <details className="rounded-2xl border border-white/10 bg-black/40 p-4 text-[11px] text-slate-300">
+        <summary className="cursor-pointer text-xs font-semibold text-white">Families (anti-caution fix) — process note</summary>
         <div className="mt-1">N distinct tracks mature separately, then share elites. Stagnation = offers-since-improvement per family; the widen-nudge names the most stagnant track. Full lineage + elite pool land with the Go migration (bridge RPC); this cockpit shows scoring only until then.</div>
-      </div>
+      </details>
 
-      <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
-        <div className="text-xs font-semibold text-white">DQI loss bound (Eq 25) — local estimate</div>
-        <div className="text-[11px] text-slate-400">|⟨f⟩impl−⟨f⟩| ≤ 4ε⟨f⟩. Paper gate 100/100k → ε≤2.434e−3; RS 0.5763/Prange 0.5009 → ≤7.4% of advantage.</div>
+      <details className="rounded-2xl border border-white/10 bg-black/40 p-4">
+        <summary className="cursor-pointer text-xs font-semibold text-white">DQI loss bound (Eq 25) — local estimate</summary>
+        <div className="text-[11px] text-slate-400 mt-1">|⟨f⟩impl−⟨f⟩| ≤ 4ε⟨f⟩. Paper gate 100/100k → ε≤2.434e−3; RS 0.5763/Prange 0.5009 → ≤7.4% of advantage.</div>
         <DqiBoundWidget />
-      </div>
+      </details>
 
-      <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-[11px] text-slate-300">
-        <div className="text-xs font-semibold text-white">Domain packs — scaffold registry</div>
+      <details className="rounded-2xl border border-white/10 bg-black/40 p-4 text-[11px] text-slate-300">
+        <summary className="cursor-pointer text-xs font-semibold text-white">Domain packs — scaffold registry</summary>
         <ul className="mt-1 space-y-0.5 font-mono">
           {['numerics', 'inversion', 'dqi', 'chemistry', 'gauge'].map((p) => (
             <li key={p}>{p} · v0.1.0 · scaffold · anchor-required</li>
           ))}
         </ul>
         <div className="mt-1 text-slate-400">Promotion to active needs anchor_ref + proof_ref in the ledger. A pack name is not a result.</div>
-      </div>
+      </details>
 
       <div className="rounded-2xl border border-amber-400/20 bg-amber-500/5 p-4 text-[11px] text-amber-200">
         Validity ground truth is the Python kickmix evaluator (simulator-only, Aer local). This cockpit scores numbers only — never verdicts. Paper gains (12×/32×/39×/…) are Anthropic-claimed until independently rerun.

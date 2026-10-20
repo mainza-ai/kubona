@@ -56,6 +56,7 @@ export function ShadowTomographyRadarWidget({
           </div>
           <input
             type="range"
+            aria-label="Snapshot pool size"
             min="100"
             max="2000"
             step="100"

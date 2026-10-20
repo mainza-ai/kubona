@@ -113,7 +113,7 @@ export function GenerativeUIStudio({ campaign }: { campaign?: CampaignState | nu
           <Lean4GoalTreeInspectorWidget
             theoremName={campaign?.target_system ? `${campaign.target_system.replace(/[^a-zA-Z0-9]/g, '')}_vqe_ground_state_bound` : undefined}
             theoremSignature={campaign?.target_system ? `theorem ${campaign.target_system.replace(/[^a-zA-Z0-9]/g, '')}_energy_bound : E_vqe >= E_fci` : undefined}
-            astHash={campaign?.notebook?.provenance_hash || (campaign?.classical_anchor?.anchor_computed ? 'sha256:lean4-proof-ast-70a69dd' : undefined)}
+            astHash={campaign?.notebook?.provenance_hash || undefined}
           />
         )}
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Network,
   RefreshCw,
@@ -24,6 +24,7 @@ import {
   routeMultimodalPayload,
 } from '@/lib/api';
 import { fmtFixed } from '@/lib/guards';
+import { useFocusTrap } from '@/lib/useFocusTrap';
 
 interface CognitiveMeshProps {
   campaign?: CampaignState | null;
@@ -36,6 +37,8 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
   const [loading, setLoading] = useState(false);
   const [agents, setAgents] = useState<CustomAgentManifest[]>([]);
   const [isCreatingAgent, setIsCreatingAgent] = useState(false);
+  const createAgentPanelRef = useRef<HTMLDivElement | null>(null);
+  useFocusTrap(isCreatingAgent, createAgentPanelRef);
   const [meshError, setMeshError] = useState<string | null>(null);
   const [airGapError, setAirGapError] = useState<string | null>(null);
   const [routeError, setRouteError] = useState<string | null>(null);
@@ -491,13 +494,23 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
       {/* Modal: Create User-Defined Agent */}
       {isCreatingAgent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
-          <div className="bg-[#0D111A] border border-white/20 rounded-3xl max-w-xl w-full p-6 space-y-4 shadow-2xl">
+          <div
+            ref={createAgentPanelRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="create-agent-title"
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setIsCreatingAgent(false);
+            }}
+            className="bg-[#0D111A] border border-white/20 rounded-3xl max-w-xl w-full p-6 space-y-4 shadow-2xl"
+          >
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <h3 className="text-base font-bold text-white flex items-center space-x-2">
+              <h3 id="create-agent-title" className="text-base font-bold text-white flex items-center space-x-2">
                 <span>Define Custom Scientific Agent</span>
               </h3>
               <button
                 onClick={() => setIsCreatingAgent(false)}
+                aria-label="Close create agent dialog"
                 className="p-1.5 rounded-lg text-slate-400 hover:text-white"
               >
                 <X className="w-4 h-4" />
@@ -511,12 +524,14 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
                   <input
                     type="text"
                     value={newAgentEmoji}
+                    aria-label="Agent emoji"
                     onChange={(e) => setNewAgentEmoji(e.target.value)}
                     className="w-12 text-center p-2 rounded-xl bg-black/40 border border-white/10 text-white"
                   />
                   <input
                     type="text"
                     value={newAgentName}
+                    aria-label="Agent name"
                     onChange={(e) => setNewAgentName(e.target.value)}
                     placeholder="e.g. Battery Crystallographer"
                     className="flex-1 p-2 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-slate-500"
@@ -529,6 +544,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
                 <input
                   type="text"
                   value={newAgentRole}
+                  aria-label="Role identifier"
                   onChange={(e) => setNewAgentRole(e.target.value)}
                   placeholder="e.g. solid_state_crystallographer"
                   className="w-full p-2 rounded-xl bg-black/40 border border-white/10 text-white font-mono"
@@ -540,6 +556,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
                 <input
                   type="text"
                   value={newAgentDesc}
+                  aria-label="Short description"
                   onChange={(e) => setNewAgentDesc(e.target.value)}
                   placeholder="e.g. Investigates halide perovskite crystal structures"
                   className="w-full p-2 rounded-xl bg-black/40 border border-white/10 text-white"
@@ -551,6 +568,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
                 <textarea
                   rows={4}
                   value={newAgentPrompt}
+                  aria-label="System prompt"
                   onChange={(e) => setNewAgentPrompt(e.target.value)}
                   placeholder="Detailed scientific system prompt guiding the agent's reasoning..."
                   className="w-full p-2 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-slate-500 font-mono text-[11px]"
@@ -563,6 +581,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
                   <input
                     type="text"
                     value={newAgentModel}
+                    aria-label="Preferred model"
                     placeholder="e.g. local/qwen2.5-coder:32b (required — never assumed)"
                     onChange={(e) => setNewAgentModel(e.target.value)}
                     className="w-full p-2 rounded-xl bg-black/40 border border-white/10 text-white font-mono text-[11px]"
@@ -574,6 +593,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
                     type="number"
                     step="0.5"
                     value={newAgentBudget}
+                    aria-label="Spend budget in USD"
                     onChange={(e) => setNewAgentBudget(e.target.value)}
                     className="w-full p-2 rounded-xl bg-black/40 border border-white/10 text-white font-mono"
                   />

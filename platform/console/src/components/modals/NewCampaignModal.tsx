@@ -185,6 +185,7 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
             <input
               type="text"
               value={title}
+              aria-label="Research campaign name or hypothesis"
               onChange={(e) => setTitle(e.target.value)}
               placeholder="e.g., Lithium Hydride Ground State Dissociation"
               className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/10 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/40 transition-all font-sans"
@@ -241,6 +242,7 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
               <input
                 type="text"
                 value={customMolecule}
+                aria-label="Custom chemical formula or SMILES"
                 onChange={(e) => {
                   setCustomMolecule(e.target.value);
                   if (e.target.value.trim()) {
@@ -263,6 +265,16 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
               {/* Fresh Discovery Canvas */}
               <div
                 onClick={() => setIsFresh(true)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setIsFresh(true);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-pressed={isFresh}
+                aria-label="Fresh discovery canvas"
                 className={`p-3.5 rounded-2xl border cursor-pointer transition-all space-y-1.5 ${
                   isFresh
                     ? 'bg-cyan-950/60 border-cyan-500/60 ring-1 ring-cyan-500/30 text-white'
@@ -287,6 +299,16 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
               {/* Synthesize Benchmark Reference */}
               <div
                 onClick={() => setIsFresh(false)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setIsFresh(false);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-pressed={!isFresh}
+                aria-label="Synthesize reference baseline"
                 className={`p-3.5 rounded-2xl border cursor-pointer transition-all space-y-1.5 ${
                   !isFresh
                     ? 'bg-indigo-950/60 border-indigo-500/60 ring-1 ring-indigo-500/30 text-white'

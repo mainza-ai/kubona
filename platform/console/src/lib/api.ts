@@ -581,16 +581,24 @@ export async function fetchEpistemics(sessionId?: string | null): Promise<Record
   }
 }
 
-export interface CodesignBudgetEntry {
-  source: string;
-  per_use_rate: number;
-  uses: number;
-}
+import type {
+  CodesignBudgetEntry,
+  CodesignBudgetResult,
+  CodesignBudgetRow,
+  CodesignFrontierEntry,
+  CodesignFrontierResult,
+  CodesignTQResult,
+} from '@/types';
 
-export interface CodesignBudgetResult {
-  rows: Array<{ source: string; per_use_rate: number; uses: number; contribution: number }>;
-  union_bound: number;
-}
+export type {
+  CodesignBudgetEntry,
+  CodesignBudgetResult,
+  CodesignBudgetRow,
+  CodesignFrontierEntry,
+  CodesignFrontierResult,
+  CodesignTQResult,
+};
+
 
 // Server-sealed Table-S4 union bound (replaces the cockpit's local estimate;
 // single math source stays Python-owned behind the Go rail).

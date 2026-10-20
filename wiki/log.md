@@ -2972,3 +2972,9 @@ skipped is the exact failure this incident is about:
   - Operator chose migrate-stateless-to-Go (serving rejected: second token + split-brain). Landed: POST /api/codesign/evaluate|evaluate-batch|budget (codesign_eval.go, runBridgePython, Python single validator; num_tests HTTP-cap 4096; 120s ctx; public reads, no ledger writes).
   - Console: budget card rewired to sealed bound (local math deleted), evaluate helper landed, cockpit tests extended (server-rail + refusal paths). Go 28/28, console 38 files/170 tests green, tsc clean.
   - G3 HTTP path now exists for factory diagnostics (evaluate factory params end-to-end tested). science/* follows the same proxy pattern next.
+
+## [2026-10-20] feat | Phase 2.5a/2.5b + 4a/4b — collapse defaults, toast aggregation, shared types, dialog semantics, labels batch
+  - 2.5a: tribunal turns default-collapsed + expand/collapse-all; cockpit informational cards (families/DQI/packs) native <details> collapsed; scoring cards stay open.
+  - 2.5b: page poll aggregates toasts, skips fetch while hidden, backs off to 15s at rest (clock untouched).
+  - 4a: shared Codesign* types (types/index.ts); sweep κ-independence documented; hash-shaped lean placeholder deleted. 4b: useFocusTrap hook + both custom overlays (role/Esc/trap/return-focus); icon-button/slider/input labels; div-click selections keyboardable (turn headers are real buttons now; orb display-only).
+  - Vitest 38 files/170 green, tsc clean. Deferred honestly: Swarm tap-to-open rebuild, SSE decision, dead-code sweep, G13 merge.

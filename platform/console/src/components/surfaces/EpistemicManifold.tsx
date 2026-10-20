@@ -121,10 +121,9 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
       {/* Center Stage: The Living Epistemic Truth Orb */}
       <div className="relative z-10 flex-1 flex flex-col items-center justify-center my-8">
         {/* The Radiant Orb */}
-        <div 
-          onClick={() => setShowDeepMath(!showDeepMath)}
-          className="relative w-64 h-64 flex items-center justify-center cursor-pointer group"
-          title="Tap to reveal deep mathematical evidence"
+        <div
+          className="relative w-64 h-64 flex items-center justify-center group"
+          title="Deep mathematical evidence below"
         >
           {/* Outer Waveform Rings */}
           <div 
@@ -195,7 +194,7 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
         </div>
       </div>
 
-      {/* Progressive Disclosure (Tap Orb or Button to Reveal Deep Math) */}
+      {/* Progressive Disclosure (button reveals deep math; the orb itself is display-only) */}
       <div className="relative z-10 border-t border-white/[0.08] pt-4">
         <button
           onClick={() => setShowDeepMath(!showDeepMath)}

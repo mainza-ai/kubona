@@ -30,6 +30,7 @@ export function LiteraturePanel({ initialQuery = '' }: { initialQuery?: string }
           <Search className="w-3.5 h-3.5 text-slate-400" />
           <input
             type="text"
+            aria-label="Search literature"
             placeholder="Ground this report: e.g. variational quantum eigensolver"
             value={query}
             onChange={(e) => setQuery(e.target.value)}

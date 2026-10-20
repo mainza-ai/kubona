@@ -86,6 +86,16 @@ export function EpistemicManifoldSurfaceWidget({
               <div
                 key={a.id}
                 onClick={() => setSelectedAnchor(a.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedAnchor(a.id);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-pressed={isSelected}
+                aria-label={`Select anchor ${a.id}`}
                 className={`p-2.5 rounded-xl border cursor-pointer transition ${
                   isSelected
                     ? 'bg-amber-500/15 border-amber-500/40 text-amber-200'

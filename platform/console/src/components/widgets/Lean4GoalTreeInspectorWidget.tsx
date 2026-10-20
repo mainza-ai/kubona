@@ -103,6 +103,16 @@ export function Lean4GoalTreeInspectorWidget({
               <div
                 key={s.step}
                 onClick={() => setSelectedTacticIndex(idx)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedTacticIndex(idx);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+                aria-pressed={isSelected}
+                aria-label={`Select tactic step ${s.step}`}
                 className={`p-2.5 rounded-lg border text-xs cursor-pointer transition ${
                   isSelected
                     ? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-200'
