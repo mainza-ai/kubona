@@ -271,21 +271,36 @@ glanceable-first rule:
 ## 4. Implementation plan (sequenced; each phase lands green or not at all)
 
 **Phase 0 — Secret disclosure (now, before any feature work).**
-Redact `APIKey` from the `GET /api/llm/settings` serializer (server-side
+Redact `APIKey` in the `GET /api/llm/settings` serializer (server-side
 only); keep merge-on-update. Tests: redacted-read, preserved-update,
 empty-stays-empty, PUT-still-gated. Threat note: reads stay public behind
 limiters — redaction is what makes that posture survivable. Acceptance:
 `curl GET` shows no `api_key` with keys configured; all existing
 `llm_test`/`tools_test` green.
+> **✅ LANDED 2026-10-20 (`c4ac28d`).** `GetPublicSnapshot()` serves both
+> GET and the PUT response envelope (single `snapshot(redact)` builder —
+> also fixes the lock-copy vet shape the naive version had); console
+> `enabled`-flag display preserved (tsc clean); HTTP tests for redaction /
+> full-object rotation / console-shape save (merge intact); adjacent hole
+> G13 recorded, not smuggled into the fix.
 
 **Phase 1 — One served API (decision + migration).**
-Decide: serve unique `console_api.py` science routes behind the Go proxy or
-migrate to Go via bridge RPC (ux-plan slice 5). Either way: single-surface
+Decide: serve unique `console_api.py` science routes behind the Go proxy
+or migrate to Go via bridge RPC (ux-plan slice 5). Either way: single-surface
 rule enforced (delete the loser), `_authed` vs edge-auth reconciled per
 route, cockpit budget comment updated to name the real route. Acceptance:
 every console-called path served by exactly one backend; dead module gone or
 documented; `codesign/budget` resolves to a real endpoint or the comment is
 removed. Needs operator sign-off (contract change — existing rule, kept).
+> **✅ DECIDED 2026-10-20: migrate stateless to Go.** Serving as-is rejected
+> (second bearer token, parallel stores — K5 split-brain returns). Landed
+> slice 1: `POST /api/codesign/evaluate|evaluate-batch|budget` via
+> `runBridgePython` (Python stays single validator/implementation;
+> num_tests HTTP-capped 4096; 120s ctx; public reads like existing
+> codesign rails); console budget card rewired to the sealed bound
+> (local math deleted); `evaluateCodesignArtifact` helper landed for the
+> Phase-2 runs view. Go 28/28, console 170/170 green. Stateful duplicates
+> stay retired; `science/*` migration follows the same proxy pattern.
 
 **Phase 2 — Cockpit grows up (ux-plan slices 2–4, updated).**
 2a. Evaluator-runs view + factory card (G3, G6-slice-2): per-trial refs,

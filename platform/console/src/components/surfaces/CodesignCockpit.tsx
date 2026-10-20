@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { API_BASE, apiFetch, authHeaders } from '@/lib/api';
+import { API_BASE, apiFetch, authHeaders, scoreCodesignBudget } from '@/lib/api';
+import type { CodesignBudgetResult } from '@/lib/api';
 
 // Circuit co-design cockpit (read-only scoring).
 // Talks only to Go (:8080) read-only routes; validity ground truth stays
@@ -39,7 +40,9 @@ export function CodesignCockpit() {
   const [sweep, setSweep] = useState<{ k1: number; k2: number; k3: number } | null>(null);
   const [sweepError, setSweepError] = useState<string | null>(null);
   const [budgetRows, setBudgetRows] = useState('carry,0.0000005,40\nhistory,0.0000024,2');
-  const [budgetTotal, setBudgetTotal] = useState<number | null>(null);
+  const [budget, setBudget] = useState<CodesignBudgetResult | null>(null);
+  const [budgetError, setBudgetError] = useState<string | null>(null);
+  const [budgetBusy, setBudgetBusy] = useState(false);
   const [frontier, setFrontier] = useState<{ best: FrontierEntry | null; entries: FrontierEntry[]; cells: number } | null>(null);
   const [frontierError, setFrontierError] = useState<string | null>(null);
 
@@ -129,12 +132,13 @@ export function CodesignCockpit() {
     }
   };
 
-  const scoreBudgetLocal = () => {
-    // Local estimate only (Table-S4 shape): per-use rate × uses, union = Σ.
-    // Labeled as an estimate — the ledger-sealed bound lives server-side
-    // (Python /api/codesign/budget, pending Go migration via bridge RPC).
+  const scoreBudgetServer = async () => {
+    // Server-sealed Table-S4 bound (Python math behind the Go rail).
+    // Shape is parsed client-side; the union is never computed locally.
+    setBudgetError(null);
+    setBudget(null);
+    const entries: Array<{ source: string; per_use_rate: number; uses: number }> = [];
     try {
-      let total = 0;
       for (const line of budgetRows.split('\n')) {
         const t = line.trim();
         if (!t) continue;
@@ -145,11 +149,22 @@ export function CodesignCockpit() {
         if (!Number.isFinite(rate) || rate < 0 || rate > 1 || !Number.isInteger(uses) || uses < 0) {
           throw new Error(`bad row ${t}`);
         }
-        total += rate * uses;
+        entries.push({ source: src, per_use_rate: rate, uses });
       }
-      setBudgetTotal(Math.min(1, total));
-    } catch {
-      setBudgetTotal(null);
+    } catch (err) {
+      setBudgetError(err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200));
+      return;
+    }
+    setBudgetBusy(true);
+    try {
+      const out = await scoreCodesignBudget(entries);
+      if (!out.ok) {
+        setBudgetError(out.error);
+        return;
+      }
+      setBudget(out.result);
+    } finally {
+      setBudgetBusy(false);
     }
   };
 
@@ -187,16 +202,28 @@ export function CodesignCockpit() {
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
-        <div className="text-xs font-semibold text-white">Kappa sweep + failure-budget estimate — read-only</div>
-        <div className="text-[11px] text-slate-400">κ=1..3 via the Go rail (same formula both sides). Budget is a local estimate; ledger-sealed bound is Python /api/codesign/budget.</div>
+        <div className="text-xs font-semibold text-white">Kappa sweep + failure-budget — read-only</div>
+        <div className="text-[11px] text-slate-400">κ=1..3 via the Go rail (same formula both sides). Budget is the server-sealed Table-S4 union bound (Python math, Go rail).</div>
         <div className="mt-3 flex flex-wrap gap-2">
           <button onClick={scoreSweep} className="rounded-lg bg-cyan-500/15 border border-cyan-400/30 px-3 py-1 text-xs text-cyan-200">Sweep κ=1..3</button>
           {sweep && <span className="text-xs text-white font-mono">κ1={sweep.k1} κ2={sweep.k2} κ3={sweep.k3}</span>}
           {sweepError && <span className="text-xs text-rose-300">{sweepError}</span>}
         </div>
         <textarea aria-label="Budget rows" value={budgetRows} onChange={(e) => setBudgetRows(e.target.value)} rows={2} className="mt-3 w-full rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
-        <button onClick={scoreBudgetLocal} className="mt-2 rounded-lg bg-cyan-500/15 border border-cyan-400/30 px-3 py-1 text-xs text-cyan-200">Estimate union bound</button>
-        {budgetTotal !== null && <div className="mt-2 text-xs text-white font-mono">union ≤ {budgetTotal.toExponential(3)} (local estimate)</div>}
+        <button onClick={scoreBudgetServer} disabled={budgetBusy} className="mt-2 rounded-lg bg-cyan-500/15 border border-cyan-400/30 px-3 py-1 text-xs text-cyan-200 disabled:opacity-50">
+          {budgetBusy ? 'Scoring…' : 'Seal union bound'}
+        </button>
+        {budget && (
+          <div className="mt-2 text-xs text-white font-mono">
+            <ul className="space-y-0.5">
+              {budget.rows.map((r, i) => (
+                <li key={i}>{r.source}: {r.per_use_rate} × {r.uses} = {r.contribution.toExponential(3)}</li>
+              ))}
+            </ul>
+            <div className="mt-1">union ≤ {budget.union_bound.toExponential(3)} (server-sealed)</div>
+          </div>
+        )}
+        {budgetError && <div className="mt-2 text-xs text-rose-300">{budgetError}</div>}
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-black/40 p-4 text-[11px] text-slate-300">
