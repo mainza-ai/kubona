@@ -2945,3 +2945,7 @@ skipped is the exact failure this incident is about:
 ## [2026-10-20] verification | Phase-5 re-check complete (post-U1/U2/U3)
   - A1/A2 blocked (hunt closed); A3 blocked (no SI update); A4 hunt RULED OUT (41,052-row table is pipeline output, SI sec:case-alias-fe2s2 — no data statement/repo/Zenodo in SI; rebuild would be circular; revive trigger recorded); A5 CLOSED slice 62; A6/A7 stand (C1/C2); A8 blocked, statement verified vs SI :3404-3411.
   - B5/B8 pins verified present; F3/F4/D3 remain trigger-gated, untouched. Recorded on production-readiness Phase-5 block + implementation-plan step 4.
+
+## [2026-10-20] verification | Full suite re-verified green post-U1/U2/U3 + slice 62
+  - Python `platform/tests/`: 1008 passed, 3 skipped (benign optional imports), 0 failures, ~59 min wall (dominated by slice-60 paper-scale end-to-end, ~25 min/file — expected, not pathological; verified via /tmp/slice60.log 1498s precedent + live CPU/stack check mid-run).
+  - Go `./pkg/...`: 28/28 packages green; console CodesignCockpit test green; wiki lint clean. Baselines updated (1003 -> 1008 = +5 slice-62 tests).

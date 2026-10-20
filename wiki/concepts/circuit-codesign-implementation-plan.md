@@ -18,7 +18,9 @@ status: tracked
 > (c) what is DEFERRED by explicit decision (with the trigger that would
 > revive each), and (d) the recommended build sequence with acceptance
 > criteria. No implementation here — decisions and sequencing only.
-> Status as of writing: all code green (1003 passed), lint clean, all pushed.
+> Status as of writing: all code green (1008 passed, 3 benign skips —
+> re-verified 2026-10-20 full suite in ~59 min, slice-60 end-to-end
+> dominates), lint clean, all pushed.
 
 ## 0. Verified baseline (do not rebuild)
 
