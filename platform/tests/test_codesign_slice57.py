@@ -230,7 +230,7 @@ def test_round_harvested_walks():
         b.alloc(q)
     n_ccx = [0]
     _emit_bm12_round(b, n_ccx, L)
-    assert n_ccx[0] == 82344
+    assert n_ccx[0] == 34602
     ops = b.emit()
     for e in states:
         init = _load(e, L)
@@ -246,7 +246,7 @@ def test_round_harvested_walks():
 
 def test_round_pins_determinism_layout():
     L = _bm12_round_layout(0)
-    assert L["nqubits"] == 5407 and L["nin"] == 1748 and L["ntemps"] == 2343
+    assert L["nqubits"] == 5408 and L["nin"] == 1748 and L["ntemps"] == 2344
     assert len(L["SIGMA"]) == 432 and len(L["TAU"]) == 852
     assert len(L["W"]) == 432 and len(L["OSIG"]) == 432 and len(L["OTAU"]) == 852
     # every region pairwise disjoint (bank-collision class), except the
@@ -262,7 +262,7 @@ def test_round_pins_determinism_layout():
         "DISC", "FZ", "FR", "FT", "ALPHA", "AINV", "NID", "REPL", "RET",
         "TINCR", "TNEG", "CARRY", "TOWER", "RD", "TD", "DD", "IDD", "DDD")])
     b, meta = build_bm12_round()
-    assert meta["ccx"] == 82344
+    assert meta["ccx"] == 34602
     assert meta["kind"] == "bm12-round"
     b1, _ = build_bm12_round()
     assert b.emit() == b1.emit()

@@ -106,6 +106,7 @@ from .numerics import accuracy_sweep, build_gauss_fold, dyadic_leaves, emit_gaus
 from .packs import PACK_ORDER, PackSpec, default_registry, promote
 from .tower import build_tower_inverter, from_tower, gf4_add, gf4_inv, gf4_mul, to_tower, tower_change_matrices, tower_inv, tower_inv_spec, tower_invert, tower_mul
 from .kara12 import emit_f6_mul, emit_kara_mul12
+from .mbu12 import emit_mbu_mul12
 from .tower12 import emit_f64_mul, emit_f64_sqr, emit_f8_mul, emit_f8_sqr, emit_mu1_scale, emit_tower_inv12, from_tower12, to_tower12, tower12_change_matrices, tower_inv12_classical
 from .qrom import build_pruned_qrom, distinct_subtrees, emit_pruned_qrom_into, gaussian_regimes, naive_nodes, pruned_qrom_spec, qrom_vs_direct
 from .rerun import IndependentRerun
@@ -430,6 +431,7 @@ __all__ = [
     "tower_inv12_classical",
     "emit_f6_mul",
     "emit_kara_mul12",
+    "emit_mbu_mul12",
     "from_tower",
     "gf4_add",
     "gf4_inv",
