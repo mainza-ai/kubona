@@ -2033,3 +2033,114 @@ func TestLLMSettingsReadRedactsKeys(t *testing.T) {
 		t.Fatal("stored key must never appear on the read rail")
 	}
 }
+
+// Phase 1 migration: Go proxies for the stateless console_api compute
+// routes (single validator stays Python). Bounds mirror console_api;
+// num_tests HTTP-capped at 4096 (larger runs belong in the local harness).
+func TestCodesignEvaluateProxy(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+	post := func(path string, body any) (int, map[string]any) {
+		raw, _ := json.Marshal(body)
+		req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(raw))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		var m map[string]any
+		_ = json.Unmarshal(w.Body.Bytes(), &m)
+		return w.Code, m
+	}
+	and2 := []any{[]any{"ccx", []any{0, 1, 2}, []any{}}}
+
+	code, m := post("/api/codesign/evaluate", map[string]any{
+		"spec_kind": "and2", "artifact": and2, "num_tests": 8, "kappa": 1})
+	if code != http.StatusOK || m["ok"] != true {
+		t.Fatalf("valid and2 must score 200/ok, got %d %v", code, m)
+	}
+	res := m["result"].(map[string]any)
+	if res["valid"] != true || res["toffoli"] != float64(1) || res["peak_qubits"] != float64(3) || res["tq"] != float64(3) {
+		t.Fatalf("and2 must pin T=1 Q=3 TQ=3, got %v", res)
+	}
+
+	if code, _ := post("/api/codesign/evaluate", map[string]any{
+		"spec_kind": "shor", "artifact": []any{}}); code != http.StatusBadRequest {
+		t.Fatalf("unknown spec must 400, got %d", code)
+	}
+	code, m = post("/api/codesign/evaluate", map[string]any{
+		"spec_kind": "and2", "artifact": []any{[]any{"cx", []any{0, 2}, []any{}}}, "num_tests": 8})
+	if code != http.StatusOK || m["result"].(map[string]any)["valid"] != false {
+		t.Fatalf("invalid artifact must score valid=false, got %d %v", code, m)
+	}
+	if code, _ := post("/api/codesign/evaluate", map[string]any{
+		"spec_kind": "and2", "artifact": and2, "num_tests": 4097}); code != http.StatusBadRequest {
+		t.Fatalf("num_tests above the HTTP bound must 400, got %d", code)
+	}
+
+	// Factory diagnostics over HTTP (G3): measured counts + literature model.
+	code, m = post("/api/codesign/evaluate", map[string]any{
+		"spec_kind": "and2", "artifact": and2, "num_tests": 8,
+		"factory": "gf2019_ccz", "code_distance": 3, "cycle_us": 1.0})
+	if code != http.StatusOK {
+		t.Fatalf("factory evaluation must 200, got %d %v", code, m)
+	}
+	fac := m["result"].(map[string]any)["factory"].(map[string]any)
+	// T=1: patches 72*9=648, serial 1*11*3=33 half-cycles.
+	if fac["factory_patches"] != float64(648) || fac["serial_half_cycles"] != float64(33) {
+		t.Fatalf("factory report must pin GF2019 figures, got %v", fac)
+	}
+	if code, _ := post("/api/codesign/evaluate", map[string]any{
+		"spec_kind": "and2", "artifact": and2,
+		"factory": "gf2019_ccz", "code_distance": 3}); code != http.StatusBadRequest {
+		t.Fatalf("partial factory spec must 400 (no silent physics), got %d", code)
+	}
+
+	// Batch: best is min-TQ, oversize refuses.
+	arts := []any{and2, []any{[]any{"cx", []any{0, 2}, []any{}}}, and2}
+	code, m = post("/api/codesign/evaluate-batch", map[string]any{
+		"spec_kind": "and2", "artifacts": arts, "kappa": 1})
+	if code != http.StatusOK {
+		t.Fatalf("batch must 200, got %d %v", code, m)
+	}
+	fr := m["frontier"].(map[string]any)
+	if fr["best"].(map[string]any)["tq"] != float64(3) {
+		t.Fatalf("batch best must be min-TQ=3, got %v", fr)
+	}
+	if len(m["details"].([]any)) != 3 {
+		t.Fatalf("batch must detail all 3 artifacts, got %v", m)
+	}
+	big := make([]any, 65)
+	for i := range big {
+		big[i] = and2
+	}
+	if code, _ := post("/api/codesign/evaluate-batch", map[string]any{
+		"spec_kind": "and2", "artifacts": big}); code != http.StatusBadRequest {
+		t.Fatalf("batch above 64 must 400, got %d", code)
+	}
+
+	// Budget math: rows + union bound pinned.
+	code, m = post("/api/codesign/budget", map[string]any{"entries": []any{
+		map[string]any{"source": "carry", "per_use_rate": 0.0000005, "uses": 40},
+		map[string]any{"source": "history", "per_use_rate": 0.0000024, "uses": 2},
+	}})
+	if code != http.StatusOK {
+		t.Fatalf("budget must 200, got %d %v", code, m)
+	}
+	// union = 40*5e-7 + 2*2.4e-6 = 2e-5 + 4.8e-6 = 2.48e-5.
+	if ub, ok := m["union_bound"].(float64); !ok || ub < 2.47e-5 || ub > 2.49e-5 {
+		t.Fatalf("union bound must pin 2.48e-5, got %v", m["union_bound"])
+	}
+	if code, _ := post("/api/codesign/budget", map[string]any{
+		"entries": []any{map[string]any{"source": "x", "per_use_rate": "nan", "uses": 1}}}); code != http.StatusBadRequest {
+		t.Fatalf("non-numeric rate must 400, got %d", code)
+	}
+
+	// Read-only rail: GET refuses on all three.
+	for _, p := range []string{"/api/codesign/evaluate", "/api/codesign/evaluate-batch", "/api/codesign/budget"} {
+		req := httptest.NewRequest(http.MethodGet, p, nil)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != http.StatusMethodNotAllowed {
+			t.Fatalf("GET %s must 405, got %d", p, w.Code)
+		}
+	}
+}

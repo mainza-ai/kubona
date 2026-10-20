@@ -506,6 +506,10 @@ func (s *Server) registerRoutes() {
 	// Circuit co-design scoring (read-only; validity stays Python-owned)
 	s.mux.HandleFunc("/api/codesign/tq", s.handleCodesignTQ)
 	s.mux.HandleFunc("/api/codesign/frontier", s.handleCodesignFrontier)
+	// Evaluator proxy (Phase 1 migration): stateless Python compute only.
+	s.mux.HandleFunc("/api/codesign/evaluate", s.handleCodesignEvaluate)
+	s.mux.HandleFunc("/api/codesign/evaluate-batch", s.handleCodesignEvaluateBatch)
+	s.mux.HandleFunc("/api/codesign/budget", s.handleCodesignBudget)
 
 	// Quantum Krylov Subspace & Mitigation Endpoints
 	s.mux.HandleFunc("/api/krylov/solve", s.handleKrylovSolve)
