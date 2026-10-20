@@ -3255,7 +3255,7 @@ func (s *Server) checkLLMBudget() error {
 func (s *Server) handleLLMSettings(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		writeJSON(w, http.StatusOK, s.llmSettings.GetSnapshot())
+		writeJSON(w, http.StatusOK, s.llmSettings.GetPublicSnapshot())
 	case http.MethodPut, http.MethodPost:
 		// W0.19: reads stay public behind limiters; writes get edge auth.
 		// An unauthenticated settings write flips providers/endpoints —
@@ -3285,7 +3285,7 @@ func (s *Server) handleLLMSettings(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"status": "updated", "settings": s.llmSettings.GetSnapshot()})
+		writeJSON(w, http.StatusOK, map[string]any{"status": "updated", "settings": s.llmSettings.GetPublicSnapshot()})
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}

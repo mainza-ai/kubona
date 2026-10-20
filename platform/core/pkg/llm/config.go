@@ -415,12 +415,25 @@ func (s *Settings) ValidateForProduction() error {
 	return nil
 }
 
-func (s *Settings) GetSnapshot() Settings {
+func (s *Settings) GetSnapshot() Settings { return s.snapshot(false) }
+
+// GetPublicSnapshot is the only serializer for network reads (GET and the
+// PUT response envelope). API keys are server-side only: the console was
+// designed for no-echo (untouched providers send "", backend keeps stored),
+// so nothing over the wire needs them — and GET is a public read. Existence
+// of a key remains visible via Enabled; the value never leaves the process.
+// Update() merge semantics are unchanged (empty incoming keeps stored).
+func (s *Settings) GetPublicSnapshot() Settings { return s.snapshot(true) }
+
+func (s *Settings) snapshot(redact bool) Settings {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	copyProviders := make(map[ProviderType]ProviderConfig)
 	for k, v := range s.Providers {
+		if redact {
+			v.APIKey = ""
+		}
 		copyProviders[k] = v
 	}
 

@@ -2961,3 +2961,9 @@ skipped is the exact failure this incident is about:
   - Online research applied: NN/g complex-app guidelines + 10 heuristics for complex apps (steps+remaining for >10s waits, undo/versioning, minimalist design); agentic UX patterns (intent preview, escalation pathways, trust calibration, 8-AI-states checklist, visible abort, oversight views); state-contract discipline (4 distinct empties, geometry-matched skeletons, retry, stale preservation, no fake progress); uncertainty-viz (separable channels, distributions over mean±sd, provenance-as-attribute).
   - New D1-D6 (verified in code): everything-expanded-by-default (one <details> app-wide, tribunal turns default-expanded), no summary-first mode (P2 60s gate unpassable), no calm check-in mode, unaggregated toasts, icon-only dock without persistent labels, no density budget.
   - Plan: new Phase 2.5 calm-first density pass gates Phase-2 additions; D6 budget (replace, never append).
+
+## [2026-10-20] fix | Phase 0 (G1) — LLM API keys redacted from public settings read
+  - `GET /api/llm/settings` + PUT response now serve `GetPublicSnapshot()` (keys blanked server-side; Enabled preserved as existence signal). Refactored snapshot builder to single `snapshot(redact)` (also fixes a vet lock-copy the refactor would have introduced).
+  - Console `LLMSettings.tsx` display condition `api_key` -> `enabled` (no behavior change; tsc clean).
+  - Tests: `TestGetPublicSnapshotRedactsKeys` (unit: redacted + internal intact + no aliasing + serialized clean) and `TestLLMSettingsReadRedactsKeys` (HTTP: public redacted, full-object rotation works without clobbering, console-shape save preserves stored key). Go 28/28 green.
+  - Adjacent find (recorded as G13, Phase 4): partial provider PUT clobbers non-sent fields (only APIKey merges); no real client sends partials, fail-visible at resolve time. Presence-aware merge or full-object-or-refuse, preserving the enable-toggle flow.
