@@ -228,6 +228,7 @@ def eea12_layout(base: int) -> dict:
     BB = [take(12 * NW) for _ in range(5)]
     INV = take(12)
     BRE = take(1)
+    MBP = take(1)
     ZTBIG = take(217)
     ntemps = o[0] - base - nin
     A = take(12 * NW_IO)
@@ -236,13 +237,16 @@ def eea12_layout(base: int) -> dict:
     if nin != 2 * 12 * NW_IO:
         raise ValueError("input layout arithmetic drifted: refusing")
     expect = (6 * 12 * NW + N_BLOCKS * N_BT + N_LT + 10 + N_TOWER_TEMPS
-              + 12 * NW_IO + 12 * NW + 5 * 12 * NW + 12 + 1 + 217)
+              + 12 * NW_IO + 12 * NW + 5 * 12 * NW + 12 + 1 + 1 + 217)
     if ntemps != expect:
         raise ValueError("temp layout arithmetic drifted: refusing")
+    # NOTE: MBP (MBU pool) is self-managed like ZT (alloc'd per AND,
+    # consumed by hmr) — pre-allocating it would double-alloc. Reserved
+    # here for disjointness only, never alloc'd by the builder.
     allocs = [q for grp in ([LT, TOWER, PE, QE, INV, BRE] + BB) for q in grp]
     return {"E": E, "O": O, "X": X, "Y": Y, "U0": U0, "U1": U1,
             "V0": V0, "V1": V1, "BT": BT, "LT": LT, "ZT": ZT,
-            "TOWER": TOWER, "PE": PE, "QE": QE, "BB": BB, "INV": INV, "BRE": BRE,
+            "TOWER": TOWER, "PE": PE, "QE": QE, "BB": BB, "INV": INV, "BRE": BRE, "MBP": MBP,
             "ZTBIG": ZTBIG, "A": A, "B": B, "FLAG": FLAG, "nin": nin,
             "ntemps": ntemps, "nqubits": o[0] - base, "allocs": allocs}
 
@@ -366,7 +370,7 @@ def _emit_eea_block(b: Builder, n_ccx: list[int], L: dict, blk: int) -> None:
     X,U0,V0 via barrel-shifted schoolbook mults. BT trail persists;
     all shared scratch returns clean. No mirror (forward-only pass).
     """
-    from .f12 import emit_f12_mul
+    from .mbu12 import emit_mbu_mul12
     from .tower12 import emit_tower_inv12
     X, Y = L["X"], L["Y"]
     U0, U1, V0, V1 = L["U0"], L["U1"], L["V0"], L["V1"]
@@ -374,6 +378,7 @@ def _emit_eea_block(b: Builder, n_ccx: list[int], L: dict, blk: int) -> None:
     LT, ZT = L["LT"], L["ZT"]
     TOWER, PE, QE = L["TOWER"], L["PE"], L["QE"]
     BB = L["BB"]
+    MBP = L["MBP"]
     BRE = L["BRE"][0]
     INV = L["INV"]
 
@@ -413,11 +418,11 @@ def _emit_eea_block(b: Builder, n_ccx: list[int], L: dict, blk: int) -> None:
     n_ccx[0] += _emit_sub5(b, DX, DY, S, B2, T2)
     # 5. quotient: tower(Ly) then q = Lx * invLy
     n_ccx[0] += emit_tower_inv12(b, LY, INV, TOWER)
-    n_ccx[0] += emit_f12_mul(b, LX, INV, QT)
+    n_ccx[0] += emit_mbu_mul12(b, LX, INV, QT, MBP)
     # 6. eliminate X, U0, V0 (barrel-shifted mults into low+high words)
     for R, Dd in ((X, Y), (U0, U1), (V0, V1)):
         for j in range(18):
-            n_ccx[0] += emit_f12_mul(b, QT, words(Dd, j), PE[12 * j:12 * (j + 1)])
+            n_ccx[0] += emit_mbu_mul12(b, QT, words(Dd, j), PE[12 * j:12 * (j + 1)], MBP)
         Pw = [[PE[12 * j + tt] for tt in range(12)] for j in range(18)]
         n_ccx[0] += _emit_barrel(b, Pw, QE, S, [BRE], BB)
         for k in range(36):
@@ -425,18 +430,19 @@ def _emit_eea_block(b: Builder, n_ccx: list[int], L: dict, blk: int) -> None:
                 b.cx(QE[12 * k + tt], R[12 * k + tt])
         n_ccx[0] += _emit_barrel(b, Pw, QE, S, [BRE], BB, reverse=True)
         for j in range(17, -1, -1):
-            n_ccx[0] += emit_f12_mul(b, QT, words(Dd, j), PE[12 * j:12 * (j + 1)])
+            n_ccx[0] += emit_mbu_mul12(b, QT, words(Dd, j), PE[12 * j:12 * (j + 1)], MBP)
     # 7. clear quotient path (tower re-emit needs LY intact: it is)
-    n_ccx[0] += emit_f12_mul(b, LX, INV, QT)
+    n_ccx[0] += emit_mbu_mul12(b, LX, INV, QT, MBP)
     n_ccx[0] += emit_tower_inv12(b, LY, INV, TOWER)
 
 
 def _emit_eea(b: Builder, n_ccx: list[int], L: dict) -> None:
     """Full 36-block forward EEA pass + extract + failure flag."""
-    from .f12 import emit_f12_mul
+    from .mbu12 import emit_mbu_mul12
     from .packing import emit_zero_test
     from .tower12 import emit_tower_inv12
     X, Y, U0, V0 = L["X"], L["Y"], L["U0"], L["V0"]
+    MBP = L["MBP"]
     E, O, A, B = L["E"], L["O"], L["A"], L["B"]
     FLAG = L["FLAG"][0]
     ZT, ZTBIG = L["ZT"], L["ZTBIG"]
@@ -456,8 +462,8 @@ def _emit_eea(b: Builder, n_ccx: list[int], L: dict) -> None:
     # extract A,B: A=U0/c, B=V0/c with c=X[0] via tower inverse
     n_ccx[0] += emit_tower_inv12(b, words(X, 0), PE[0:12], TOWER)
     for i in range(NW_IO):
-        n_ccx[0] += emit_f12_mul(b, words(U0, i), PE[0:12], words(A, i))
-        n_ccx[0] += emit_f12_mul(b, words(V0, i), PE[0:12], words(B, i))
+        n_ccx[0] += emit_mbu_mul12(b, words(U0, i), PE[0:12], words(A, i), MBP)
+        n_ccx[0] += emit_mbu_mul12(b, words(V0, i), PE[0:12], words(B, i), MBP)
     n_ccx[0] += emit_tower_inv12(b, words(X, 0), PE[0:12], TOWER)
     # failure flag: Y==0 AND X[1:]==0 AND X[0]!=0  (else refuse downstream)
     f1, f2, f3 = ZTBIG[0], ZTBIG[1], ZTBIG[2]

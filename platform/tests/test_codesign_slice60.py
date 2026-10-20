@@ -59,7 +59,7 @@ def _instances():
 def test_rs_composition_end_to_end():
     positions, nus = _scan_setup()
     b, meta = build_rs_decoder(positions, nus)
-    assert meta["ccx"] == 8291898
+    assert meta["ccx"] == 3928980
     assert meta["kind"] == "rs12-decode"
     L = rs12_layout(0)
     # standalone scan for phase transitivity (same inputs, proven vs spec)
@@ -133,6 +133,6 @@ def test_rs_pins_determinism_layout():
     assert L["nin"] == 840
     assert len(L["FOUND"]) == 4095
     b, meta = build_rs_decoder(positions, nus)
-    assert meta["ccx"] == 8291898
+    assert meta["ccx"] == 3928980
     b1, _ = build_rs_decoder(positions, nus)
     assert b.emit() == b1.emit()

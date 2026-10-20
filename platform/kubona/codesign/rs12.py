@@ -57,7 +57,7 @@ def rs12_layout(base: int) -> dict:
     _L0 = _bm12_round_layout(0)
     WT = {}
     for _k in ("DISC", "FZ", "FR", "FT", "ALPHA", "AINV", "NID", "REPL", "RET",
-               "TINCR", "TNEG", "CARRY", "ZT", "TOWER", "RD", "TD",
+               "TINCR", "TNEG", "CARRY", "ZT", "TOWER", "MBP", "RD", "TD",
                "DD", "IDD", "DDD"):
         WT[_k] = take(len(_L0[_k]))
     assert sum(len(v) for v in WT.values()) == _L0["ntemps"]
@@ -81,6 +81,8 @@ def rs12_layout(base: int) -> dict:
     EBB = [take(12 * NW) for _ in range(5)]
     EINV = take(12)
     EBRE = take(1)
+    EMBP = take(1)
+    OMBP = take(1)
     EZTBIG = take(217)
     A = take(12 * NW_IO)
     B = take(12 * NW_IO)
@@ -106,14 +108,15 @@ def rs12_layout(base: int) -> dict:
     # inlined scan code (alloc/free per use, exactly like the builders).
     allocs = []
     for _k, _grp in WT.items():
-        if _k != "ZT":
+        if _k not in ("ZT", "MBP"):
             allocs.extend(_grp)
     for _grp in ([WZ, ELT, ETOWER, EPE, EQE, EINV, EBRE] + EBB):
         allocs.extend(_grp)
     return {"S": S, "WB": WB, "WT": WT, "WZ": WZ, "E": E, "O": O,
             "X": X, "Y": Y, "U0": U0, "U1": U1, "V0": V0, "V1": V1,
             "BT": BT, "ELT": ELT, "EZT": EZT, "ETOWER": ETOWER,
-            "EPE": EPE, "EQE": EQE, "EBB": EBB, "EINV": EINV, "EBRE": EBRE,
+            "EPE": EPE, "EQE": EQE, "EBB": EBB, "EINV": EINV, "EBRE": EBRE, "EMBP": EMBP,
+            "OMBP": OMBP,
             "EZTBIG": EZTBIG, "A": A, "B": B, "FLAG": FLAG,
             "OMEGA": OMEGA, "PSI": PSI, "FOUND": FOUND, "CVAL": CVAL,
             "CZT": CZT, "PVALW": PVALW, "PVALP": PVALP, "PFOUND": PFOUND,
@@ -182,25 +185,26 @@ def _emit_psi_from_ab(b: Builder, a: list[int], c: list[int], psi: list[int],
 
 
 def _emit_omega12(b: Builder, n_ccx: list[int], sig: list[int],
-                  syn: list[int], om: list[int]) -> int:
-    """Evaluator omega = sigma*S (first 36 coeffs, schoolbook mults).
+                  syn: list[int], om: list[int], pool: list[int]) -> int:
+    """Evaluator omega = sigma*S (first 36 coeffs, MBU schoolbook mults).
 
-    om[k] += sig[i] * syn[k-i] over all valid (i, k-i). 666 mults, no
-    temps (direct accumulate). Returns the Toffoli count.
+    om[k] += sig[i] * syn[k-i] over all valid (i, k-i). 666 MBU mults
+    (144T each), pool shared+self-managed. Returns the Toffoli count.
     """
-    from .f12 import emit_f12_mul
+    from .mbu12 import emit_mbu_mul12
     if not isinstance(b, Builder):
         raise ValueError("b must be a Builder: refusing")
     _check_word(sig, 36 * 12, "sig", b.num_qubits)
     _check_word(syn, 70 * 12, "syn", b.num_qubits)
     _check_word(om, 36 * 12, "om", b.num_qubits)
+    _check_word(pool, 1, "pool", b.num_qubits)
     n = 0
     for k in range(36):
         for i in range(36):
             j = k - i
             if 0 <= j < 70:
-                n += emit_f12_mul(b, sig[12 * i:12 * (i + 1)],
-                                  syn[12 * j:12 * (j + 1)], om[12 * k:12 * (k + 1)])
+                n += emit_mbu_mul12(b, sig[12 * i:12 * (i + 1)],
+                                    syn[12 * j:12 * (j + 1)], om[12 * k:12 * (k + 1)], pool)
     return n
 
 
@@ -256,12 +260,12 @@ def _emit_rs_decode(b: Builder, n_ccx: list[int], L: dict, positions: list[int],
           "A": L["A"], "B": L["B"], "FLAG": L["FLAG"],
           "ZT": L["EZT"], "ZTBIG": L["EZTBIG"], "TOWER": L["ETOWER"],
           "PE": L["EPE"], "BT": L["BT"], "LT": L["ELT"],
-          "QE": L["EQE"], "BB": L["EBB"], "INV": L["EINV"], "BRE": L["EBRE"]}
+          "QE": L["EQE"], "BB": L["EBB"], "INV": L["EINV"], "BRE": L["EBRE"], "MBP": L["EMBP"]}
     _emit_eea(b, n_ccx, Le)
     # ---- Psi = B^2 + z*A^2 (CNOTs; EPE[0:12] temp, cleaned) ----
     _emit_psi_from_ab(b, L["A"], L["B"], L["PSI"], L["EPE"][0:12])
     # ---- Omega = sigma*S mod z^36 (666 schoolbook mults) ----
-    n_ccx[0] += _emit_omega12(b, n_ccx, SIGMA, S, L["OMEGA"])
+    n_ccx[0] += _emit_omega12(b, n_ccx, SIGMA, S, L["OMEGA"], L["OMBP"])
     # ---- Chien scan (inlined from build_chien_scan; pin-parity asserted) ----
     from .gf import F2_12
     n = 12

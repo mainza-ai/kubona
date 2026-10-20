@@ -108,7 +108,7 @@ def test_eea_circuit_harvested():
     locs = _locators()
     L = eea12_layout(0)
     b, meta = build_eea12()
-    assert meta["ccx"] == 2068710
+    assert meta["ccx"] == 1193586
     assert meta["kind"] == "eea12"
     n_ok = 0
     saw_swap = False
@@ -184,11 +184,11 @@ def test_eea_flag_refuses():
 
 def test_eea_pins_determinism_layout():
     L = eea12_layout(0)
-    assert L["nin"] == 432 and L["ntemps"] == 9640
+    assert L["nin"] == 432 and L["ntemps"] == 9641
     assert len(L["A"]) == 216 and len(L["B"]) == 216
     regions = {k: set(v) for k, v in L.items() if isinstance(v, list) and v and isinstance(v[0], int) and k != "allocs"}
     keys = list(regions)
-    assert len(keys) == 19  # E,O,X,Y,U0,U1,V0,V1,LT,ZT,TOWER,PE,QE,INV,BRE,ZTBIG,A,B,FLAG (BT checked below)
+    assert len(keys) == 20  # E,O,X,Y,U0,U1,V0,V1,LT,ZT,TOWER,PE,QE,INV,BRE,MBP,ZTBIG,A,B,FLAG (BT below)
     for a in range(len(keys)):
         for bb in range(a + 1, len(keys)):
             assert not (regions[keys[a]] & regions[keys[bb]]), (keys[a], keys[bb])
@@ -200,7 +200,7 @@ def test_eea_pins_determinism_layout():
     pall = set().union(*[regions[k] for k in keys])
     assert not (ball & pall) and len(ball) == N_BLOCKS * 107
     b, meta = build_eea12()
-    assert meta["ccx"] == 2068710
+    assert meta["ccx"] == 1193586
     b1, _ = build_eea12()
     assert b.emit() == b1.emit()
     with pytest.raises(ValueError):
