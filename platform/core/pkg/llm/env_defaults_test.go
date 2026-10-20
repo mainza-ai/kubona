@@ -3,6 +3,7 @@ package llm_test
 import (
 	"database/sql"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/mainza-ai/kubona/core/pkg/llm"
@@ -284,5 +285,39 @@ func TestRecordSuccessAndSnapshot(t *testing.T) {
 	}
 	if !re.GetSnapshot().DisableDSMLFallback {
 		t.Fatal("kill-switch must persist and round-trip")
+	}
+}
+
+// G1 (Phase 0): keys are server-side only. The public snapshot redacts
+// values; the internal snapshot keeps them (Update merge still sees stored
+// keys), and redaction must not mutate the live settings.
+func TestGetPublicSnapshotRedactsKeys(t *testing.T) {
+	t.Setenv("NVIDIA_API_KEY", "test-key-must-never-leave")
+	db := openMem(t)
+	s, err := llm.LoadSettings(db)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	internal := s.GetSnapshot().Providers[llm.ProviderNVIDIA]
+	if internal.APIKey != "test-key-must-never-leave" {
+		t.Fatalf("setup broken: internal snapshot must carry the key, got %q", internal.APIKey)
+	}
+	pub := s.GetPublicSnapshot().Providers[llm.ProviderNVIDIA]
+	if pub.APIKey != "" {
+		t.Fatalf("public snapshot must redact the key, got %q", pub.APIKey)
+	}
+	if !pub.Enabled {
+		t.Fatal("redaction must preserve the Enabled signal (existence, not value)")
+	}
+	after := s.GetSnapshot().Providers[llm.ProviderNVIDIA]
+	if after.APIKey != "test-key-must-never-leave" {
+		t.Fatal("redaction must not mutate live settings (map aliasing would be a credential-loss bug)")
+	}
+	raw, err := json.Marshal(s.GetPublicSnapshot())
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(raw), "test-key-must-never-leave") {
+		t.Fatal("serialized public snapshot must not contain the key material")
 	}
 }
