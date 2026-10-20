@@ -22,6 +22,7 @@ func TestW220BoundedResponseRefuses(t *testing.T) {
 
 	t.Setenv("OPENCODE_API_KEY", "test-key")
 	t.Setenv("OPENCODE_MODEL", "deepseek-v4.1-flash")
+	t.Setenv("KUBONA_LLM_PROVIDER", "opencode")
 	s := llm.DefaultSettings()
 	snap := s.GetSnapshot()
 	pc := snap.Providers[llm.ProviderOpenCode]

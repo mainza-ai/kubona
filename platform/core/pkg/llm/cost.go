@@ -35,11 +35,23 @@ var heuristicRates = map[string]modelRate{
 	"meta/llama-3.3-70b-instruct":            {inputPer1K: 0.0007, outputPer1K: 0.0015},
 }
 
+// isLocalProvider reports whether the provider runs on loopback/on-device
+// with no metered spend (free by construction, never priced). Single home
+// for the local set — a new local engine updates this one predicate,
+// not every call site (drift-proofing per the production bar).
+func isLocalProvider(p ProviderType) bool {
+	switch p {
+	case ProviderOMLX, ProviderOllama, ProviderLMStudio, ProviderStrata:
+		return true
+	}
+	return false
+}
+
 // EstimateCostUSD prices measured token counts for a cloud model.
 // Local providers always return (0, false) — no spend to account.
 // Unknown models return (0, false): refusing to price beats inventing.
 func EstimateCostUSD(provider ProviderType, model string, promptTokens, completionTokens int) (float64, bool) {
-	if provider == ProviderOMLX || provider == ProviderOllama || provider == ProviderLMStudio {
+	if isLocalProvider(provider) {
 		return 0, false
 	}
 	rate, ok := heuristicRates[model]
@@ -66,7 +78,7 @@ func LoopIterationBound(s *Settings, roles []string) (perIterUSD float64, fallba
 		if err != nil {
 			continue
 		}
-		if prov == ProviderOMLX || prov == ProviderOllama || prov == ProviderLMStudio {
+		if isLocalProvider(prov) {
 			continue
 		}
 		b, ok := EstimateCeilingCostUSD(prov, model, cfg.MaxTurnTokens)
@@ -82,7 +94,7 @@ func LoopIterationBound(s *Settings, roles []string) (perIterUSD float64, fallba
 // Unknown models still refuse (no ceiling to price against either).
 // EstimateCeilingCostUSD prices a token ceiling at the model's output rate
 func EstimateCeilingCostUSD(provider ProviderType, model string, ceilingTokens int) (float64, bool) {
-	if provider == ProviderOMLX || provider == ProviderOllama || provider == ProviderLMStudio {
+	if isLocalProvider(provider) {
 		return 0, false
 	}
 	rate, ok := heuristicRates[model]

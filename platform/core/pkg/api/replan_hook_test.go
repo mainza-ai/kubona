@@ -364,6 +364,11 @@ func TestNotebooksTemplateSuccessIsProjection(t *testing.T) {
 // spent; track-only mode (cap unset) never refuses. Local deployments
 // never trip it (checked via active provider, not per call).
 func TestLLMBudgetCapRefusesWhenSpent(t *testing.T) {
+	// Metered-provider budget test: pin the active provider explicitly
+	// (the code default is local/unmetered Strata).
+	t.Setenv("KUBONA_LLM_PROVIDER", "opencode")
+	t.Setenv("OPENCODE_API_KEY", "test-key")
+	t.Setenv("OPENCODE_MODEL", "deepseek-v4.1-flash")
 	srv, l, cleanup := replanHookTestServer(t, "test_llm_budget.db")
 	defer cleanup()
 

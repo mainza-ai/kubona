@@ -2,6 +2,7 @@ package llm_test
 
 import (
 	"database/sql"
+	"encoding/json"
 	"testing"
 
 	"github.com/mainza-ai/kubona/core/pkg/llm"
@@ -40,15 +41,65 @@ func TestEnvDrivenDefaults(t *testing.T) {
 	}
 }
 
-// No env: the default active provider (opencode) is keyless → disabled,
-// so resolution refuses naming the provider and the fix. No silent
-// fallback, no invented model.
+// No env: the default active provider (strata, local) has no model, so
+// resolution refuses naming the exact variable to set. No silent fallback,
+// no invented model.
 func TestNoEnvFailsLoudly(t *testing.T) {
 	s := llm.DefaultSettings()
+	if s.ActiveProvider != llm.ProviderStrata {
+		t.Fatalf("no-env default must be strata, got %s", s.ActiveProvider)
+	}
 	if _, _, err := s.GetModelForRole("copilot"); err == nil {
-		t.Fatal("copilot with no key and no model configured must refuse")
-	} else if got := err.Error(); !contains(got, "opencode") || !contains(got, "disabled") {
-		t.Fatalf("refusal must name the provider and its state, got: %v", err)
+		t.Fatal("copilot with no model configured must refuse")
+	} else if got := err.Error(); !contains(got, "STRATA_MODEL") {
+		t.Fatalf("refusal must name STRATA_MODEL, got: %v", err)
+	}
+}
+
+// Strata resolves end-to-end from env (default provider + model + base URL
+// override); NVIDIA stays explicitly selectable (parked, not removed).
+func TestStrataDefaults(t *testing.T) {
+	t.Setenv("STRATA_MODEL", "iq3_s")
+	s := llm.DefaultSettings()
+	if s.ActiveProvider != llm.ProviderStrata {
+		t.Fatalf("no-env explicit provider must default to strata, got %s", s.ActiveProvider)
+	}
+	prov, model, err := s.GetModelForRole("copilot")
+	if err != nil {
+		t.Fatalf("copilot must resolve on strata env: %v", err)
+	}
+	if prov != llm.ProviderStrata || model != "iq3_s" {
+		t.Fatalf("copilot resolved to %s/%s, want strata/iq3_s", prov, model)
+	}
+	pc := s.Providers[llm.ProviderStrata]
+	if pc.BaseURL != "http://127.0.0.1:47831/v1" {
+		t.Fatalf("strata default base URL wrong, got %q", pc.BaseURL)
+	}
+	if !pc.IsLocal || !pc.Enabled {
+		t.Fatal("strata must be local and enabled by default")
+	}
+}
+
+func TestStrataBaseURLOverride(t *testing.T) {
+	t.Setenv("STRATA_MODEL", "iq3_s")
+	t.Setenv("STRATA_BASE_URL", "http://127.0.0.1:9999/v1")
+	s := llm.DefaultSettings()
+	if got := s.Providers[llm.ProviderStrata].BaseURL; got != "http://127.0.0.1:9999/v1" {
+		t.Fatalf("STRATA_BASE_URL must win, got %q", got)
+	}
+}
+
+func TestNvidiaStillExplicitlySelectable(t *testing.T) {
+	t.Setenv("NVIDIA_API_KEY", "test-key")
+	t.Setenv("NVIDIA_MODEL", "nvidia/parked-model")
+	t.Setenv("KUBONA_LLM_PROVIDER", "nvidia")
+	s := llm.DefaultSettings()
+	prov, model, err := s.GetModelForRole("copilot")
+	if err != nil {
+		t.Fatalf("explicit nvidia selection must still work (parked, not removed): %v", err)
+	}
+	if prov != llm.ProviderNVIDIA || model != "nvidia/parked-model" {
+		t.Fatalf("got %s/%s, want nvidia parked model", prov, model)
 	}
 }
 
@@ -88,8 +139,7 @@ func TestPerRoleEnvOverride(t *testing.T) {
 
 // A role pointing at a disabled provider refuses — never silently serves
 // the active provider's model.
-func TestDisabledRoleProviderRefuses(t *testing.T) {
-	t.Setenv("NVIDIA_API_KEY", "test-key")
+func TestDisabledRoleProviderRefuses(t *testing.T) {	t.Setenv("NVIDIA_API_KEY", "test-key")
 	t.Setenv("NVIDIA_MODEL", "nvidia/fleet-model")
 	t.Setenv("KUBONA_LLM_PROVIDER", "nvidia")
 	db := openMem(t)
@@ -105,6 +155,47 @@ func TestDisabledRoleProviderRefuses(t *testing.T) {
 	}
 	if _, _, err := s.GetModelForRole("copilot"); err == nil {
 		t.Fatal("resolving through a disabled provider must refuse, not fall back silently")
+	}
+}
+
+// Backfill: a persisted blob predating Strata gains an enabled local
+// entry with the env model (or empty model, which refuses loudly at
+// resolve time — never silently). Stored values are untouched.
+func TestBackfillsStrataIntoOldBlobs(t *testing.T) {
+	t.Setenv("STRATA_MODEL", "iq3_s")
+	db := openMem(t)
+	s, err := llm.LoadSettings(db)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	snap := s.GetSnapshot()
+	delete(snap.Providers, llm.ProviderStrata)
+	blob, err := json.Marshal(snap)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if _, err := db.Exec(`INSERT INTO llm_settings (key, value_json, updated_at) VALUES ('active_settings', ?, CURRENT_TIMESTAMP) ON CONFLICT(key) DO UPDATE SET value_json=excluded.value_json, updated_at=CURRENT_TIMESTAMP`, string(blob)); err != nil {
+		t.Fatalf("seed old blob: %v", err)
+	}
+	re, err := llm.LoadSettings(db)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if _, ok := re.GetSnapshot().Providers[llm.ProviderStrata]; ok {
+		t.Fatal("setup broken: blob must lack strata before backfill")
+	}
+	if !re.EnsureDefaultProviders() {
+		t.Fatal("backfill must report adding the missing strata entry")
+	}
+	got := re.GetSnapshot().Providers[llm.ProviderStrata]
+	if !got.Enabled {
+		t.Fatal("backfilled strata must be enabled (local needs no key)")
+	}
+	if !got.IsLocal {
+		t.Fatal("backfilled strata must be marked local (production-safe)")
+	}
+	if got.DefaultModel != "iq3_s" {
+		t.Fatalf("backfill must pick up STRATA_MODEL, got %q", got.DefaultModel)
 	}
 }
 

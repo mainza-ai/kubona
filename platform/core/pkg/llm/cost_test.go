@@ -97,6 +97,7 @@ func TestOnSpendHookFiresCloudOnly(t *testing.T) {
 func TestLoopIterationBound(t *testing.T) {
 	t.Setenv("OPENCODE_API_KEY", "test-key")
 	t.Setenv("OPENCODE_MODEL", "deepseek-v4.1-flash")
+	t.Setenv("KUBONA_LLM_PROVIDER", "opencode")
 	// Defaults: coder/critic unassigned and the active provider force-
 	// disabled — nothing billable, bound zero, no fallbacks.
 	s := llm.DefaultSettings()

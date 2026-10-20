@@ -21,6 +21,7 @@ const (
 	ProviderOpenAI    ProviderType = "openai"
 	ProviderOpenCode  ProviderType = "opencode"
 	ProviderNVIDIA    ProviderType = "nvidia"
+	ProviderStrata    ProviderType = "strata"
 )
 
 // KnownRoles is the fixed tribunal/copilot role set. Role assignments
@@ -53,6 +54,8 @@ func providerModelEnv(pt ProviderType) string {
 		return "OPENCODE_MODEL"
 	case ProviderNVIDIA:
 		return "NVIDIA_MODEL"
+	case ProviderStrata:
+		return "STRATA_MODEL"
 	default:
 		return ""
 	}
@@ -126,6 +129,15 @@ func DefaultSettings() *Settings {
 	// reverse (air-gapped, local-only) — set air_gapped + local roles
 	// explicitly there; a non-local active provider needs
 	// KUBONA_LLM_CLOUD=1 anyway.
+	// Base URLs are the well-known local defaults; Strata's serving port
+	// comes from its Serving panel (observed http://127.0.0.1:47831/v1)
+	// and is overridable without a rebuild when it changes. No-env
+	// default active provider is the local Strata engine (dev-first,
+	// production-safe: local needs no KUBONA_LLM_CLOUD opt-in).
+	strataBase := os.Getenv("STRATA_BASE_URL")
+	if strataBase == "" {
+		strataBase = "http://127.0.0.1:47831/v1"
+	}
 	providers := map[ProviderType]ProviderConfig{
 		ProviderOMLX: {
 			Type:         ProviderOMLX,
@@ -194,11 +206,21 @@ func DefaultSettings() *Settings {
 			IsLocal:      false,
 			TimeoutSec:   120,
 		},
+		ProviderStrata: {
+			Type:         ProviderStrata,
+			Name:         "Strata Local Engine",
+			BaseURL:      strataBase,
+			APIKey:       os.Getenv("STRATA_API_KEY"),
+			DefaultModel: os.Getenv("STRATA_MODEL"),
+			Enabled:      true,
+			IsLocal:      true,
+			TimeoutSec:   30,
+		},
 	}
 
 	active := ProviderType(os.Getenv("KUBONA_LLM_PROVIDER"))
 	if active == "" {
-		active = ProviderOpenCode
+		active = ProviderStrata
 	}
 	activeModel := os.Getenv("KUBONA_LLM_MODEL")
 	if activeModel == "" {
@@ -511,6 +533,8 @@ func providerEnvKey(pt ProviderType) string {
 		return "OPENAI_API_KEY"
 	case ProviderAnthropic:
 		return "ANTHROPIC_API_KEY"
+	case ProviderStrata:
+		return "STRATA_API_KEY"
 	default:
 		return ""
 	}

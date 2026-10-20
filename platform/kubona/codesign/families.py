@@ -3,9 +3,10 @@
 N qualitatively-distinct families mature separately, then share elites
 (cross-pollination). Stagnation is measured, never vibes: offers since
 last cell-improvement per family. LLM proposals are an explicit callable;
-the deterministic mutator (no network) is the test path. The NVIDIA
-proposer refuses fail-closed without a key — oMLX/OpenCode are parked
-during development and are never called here.
+the deterministic mutator (no network) is the test path. The Strata local
+engine is the development default; NVIDIA stays explicitly selectable
+(parked, not removed). oMLX/OpenCode and other local shims stay parked:
+refused outright, never silently routed.
 """
 
 from __future__ import annotations
@@ -106,27 +107,45 @@ def deterministic_mutator(artifact: list, step: int) -> list:
 
 
 class NvidiaProposer:
-    """Production proposer hook: NVIDIA NIM only, fail-closed without key.
+    """Production proposer hook: Strata local by default, NVIDIA parked.
 
-    oMLX/OpenCode (and other local shims) are parked: requesting them here
-    refuses instead of silently routing to a parked engine.
+    Strata (`strata`, OpenAI-compatible localhost) is the development
+    default; NVIDIA NIM (`nvidia`) stays explicitly selectable for
+    parked-but-available use and still requires its key. Parked shims
+    (oMLX/OpenCode/...) refuse outright: never silently routed.
+    The propose() entrypoint stays unwired (no network inside unit tests).
     """
 
-    def __init__(self, provider: str = "nvidia", model: str | None = None,
+    # NOTE: the class name is historical (it was NVIDIA-only); the
+    # contract below is provider-agnostic across the two supported
+    # backends. Renaming would churn imports for zero behavior change.
+    def __init__(self, provider: str = "strata", model: str | None = None,
                  base_url: str | None = None):
         if provider in PARKED_PROVIDERS:
             raise ValueError(
-                f"provider {provider!r} is parked during development: refusing "
-                "(use nvidia for LLM inference)")
-        if provider != "nvidia":
-            raise ValueError(f"proposer supports nvidia only, got {provider!r}: refusing")
+                f"provider {provider!r} is parked: refusing (use strata for local dev)")
+        if provider not in ("strata", "nvidia"):
+            raise ValueError(
+                f"proposer supports strata (dev default) or nvidia (parked fallback), "
+                f"got {provider!r}: refusing")
         self.provider = provider
-        self.model = model or os.environ.get("NVIDIA_MODEL", "")
-        self.base_url = base_url or "https://integrate.api.nvidia.com/v1"
-        if not os.environ.get("NVIDIA_API_KEY"):
-            raise ValueError("NVIDIA_API_KEY absent: refusing LLM proposal (deterministic path only)")
+        if provider == "strata":
+            self.model = model or os.environ.get("STRATA_MODEL", "")
+            # Empty env counts as unset (fall back to the Serving-panel URL,
+            # never to an empty string that would silently misroute calls).
+            self.base_url = base_url or os.environ.get("STRATA_BASE_URL") or "http://127.0.0.1:47831/v1"
+            self.api_key = os.environ.get("STRATA_API_KEY", "")
+        else:
+            self.model = model or os.environ.get("NVIDIA_MODEL", "")
+            self.base_url = base_url or "https://integrate.api.nvidia.com/v1"
+            self.api_key = os.environ.get("NVIDIA_API_KEY", "")
+            if not self.api_key:
+                raise ValueError("NVIDIA_API_KEY absent: refusing LLM proposal (deterministic path only)")
+        if not self.model:
+            env_var = "STRATA_MODEL" if provider == "strata" else "NVIDIA_MODEL"
+            raise ValueError(f"no model configured: set {env_var} (or pass model= explicitly)")
 
     def propose(self, prompt: str) -> str:
         raise NotImplementedError(
-            "live NVIDIA proposal is a network call: wire via get_llm() at the "
+            "live proposal is a network call: wire via get_llm() at the "
             "search-loop edge with ledger sealing, never inside unit tests")
