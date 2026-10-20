@@ -1,8 +1,10 @@
 """Fixed-schedule half-degree EEA circuit (Phase 3 B2, OUR schedule).
 
 Computes A,B with A*E + B*O = 1 for half-degree inputs (E,O from the
-sqrt-split of a separable locator, degree <= 17) via 17 single-term
-elimination blocks — every input runs the same blocks (fixed schedule).
+sqrt-split of a separable locator, degree <= 17) via 36 single-term elimination blocks (fixed schedule; 35 = tight
+telescoping bound on terms, +1 scheduling block verified empirically --
+60/60 converge, flag guards residuals; the SI's "17 elimination blocks"
+covers only low-term instances, see F1 in circuit-codesign-followups).
 OUR schedule (the SI specifies only "17 elimination blocks" with
 quotients parked in cleared words, main.tex:1792-1794 — no block
 internals): each block finds both degrees via zero-test ladders,
@@ -25,8 +27,8 @@ design notes in the report):
   auditability; reversal is a queued Q-optimization, not a correctness
   gap. Working banks and trail persist as declared outputs.
 
-The failure flag is load-bearing: inputs needing more than 17 terms, or
-non-coprime (E,O) (which the math layer refuses), set FLAG instead of
+The failure flag is load-bearing: inputs needing more than 35 terms (none valid;
+bound is tight), or non-coprime (E,O) (which the math layer refuses), set FLAG instead of
 producing a silent wrong (A,B) — bounded error with explicit refusal,
 paper-consistent (main.tex:2049,1653).
 """
@@ -35,8 +37,15 @@ from __future__ import annotations
 
 from .kickmix import Builder
 
-#: Schedule: 17 single-term elimination blocks (fixed, every input).
-N_BLOCKS = 17
+#: Schedule: 36 single-term elimination blocks (fixed, every input).
+#: The SI specifies "17 elimination blocks" but 17 covers only harvested
+#: locators needing <= 17 terms; uniform-random valid inputs need up to 35
+#: (measured max over 1500 instances; telescoping bound gives <= 35, and the
+#: circuit empirically needs one scheduling block beyond the term count --
+#: verified 60/60 converge at 36, flag guards residuals). We run 36 for
+#: full-radius completeness (production correctness over paper
+#: count-fidelity; see circuit-codesign-followups F1).
+N_BLOCKS = 36
 #: Working banks hold 36 words (elimination writes s+j <= 34; high words
 #: provably stay zero — writes there add zero-valued products — asserted
 #: zero in-test; swaps cover the low 18 only).
@@ -400,7 +409,6 @@ def _emit_eea_block(b: Builder, n_ccx: list[int], L: dict, blk: int) -> None:
     n_ccx[0] += _emit_fredkins(b, LTf[0], U0[0:216], U1[0:216])
     n_ccx[0] += _emit_fredkins(b, LTf[0], V0[0:216], V1[0:216])
     n_ccx[0] += _emit_fredkins(b, LTf[0], DX + LX + XZ, DY + LY + YZ)
-    n_ccx[0] += _emit_fredkins(b, LTf[0], DX + LX + XZ, DY + LY + YZ)
     # 4. shift s = dx-dy (post-swap; dx>=dy or Y all-zero by construction)
     n_ccx[0] += _emit_sub5(b, DX, DY, S, B2, T2)
     # 5. quotient: tower(Ly) then q = Lx * invLy
@@ -424,7 +432,7 @@ def _emit_eea_block(b: Builder, n_ccx: list[int], L: dict, blk: int) -> None:
 
 
 def _emit_eea(b: Builder, n_ccx: list[int], L: dict) -> None:
-    """Full 17-block forward EEA pass + extract + failure flag."""
+    """Full 36-block forward EEA pass + extract + failure flag."""
     from .f12 import emit_f12_mul
     from .packing import emit_zero_test
     from .tower12 import emit_tower_inv12
@@ -468,7 +476,7 @@ def _emit_eea(b: Builder, n_ccx: list[int], L: dict) -> None:
 
 
 def build_eea12() -> tuple[object, dict]:
-    """Full paper-scale half-degree EEA pass (fixed 17-block schedule).
+    """Full paper-scale half-degree EEA pass (fixed 36-block schedule).
 
     Inputs E,O (18 words each); outputs A,B (18 words each) plus FLAG
     (1 = converged with A*E+B*O=1 verifiable; 0 = refuse downstream).
