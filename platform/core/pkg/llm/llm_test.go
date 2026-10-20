@@ -17,6 +17,7 @@ import (
 func TestLLMSettingsPersistenceAndAirGap(t *testing.T) {
 	t.Setenv("OPENCODE_API_KEY", "test-key")
 	t.Setenv("OPENCODE_MODEL", "deepseek-v4.1-flash")
+	t.Setenv("KUBONA_LLM_PROVIDER", "opencode")
 	db, err := sql.Open("sqlite3", ":memory:")
 	if err != nil {
 		t.Fatalf("failed to open in-memory db: %v", err)
@@ -180,6 +181,7 @@ func TestMissingUsageRefusesOrCeilings(t *testing.T) {
 func TestValidateForProduction(t *testing.T) {
 	t.Setenv("OPENCODE_API_KEY", "test-key")
 	t.Setenv("OPENCODE_MODEL", "deepseek-v4.1-flash")
+	t.Setenv("KUBONA_LLM_PROVIDER", "opencode")
 	st := llm.DefaultSettings()
 	t.Setenv("KUBONA_ENV", "production")
 	if err := st.ValidateForProduction(); err == nil {
