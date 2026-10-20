@@ -27,6 +27,8 @@ import random
 from dataclasses import dataclass, field
 from typing import Any, Callable
 
+from .factories import factory_report
+
 
 #: Gates the evaluator executes. H is excluded by construction: it creates
 #: superposition and is outside kickmix — refusing is the honest answer,
@@ -572,11 +574,20 @@ class KickmixEvaluator:
         num_tests: int = 256,
         max_failures: int = 0,
         seed: int = 7,
+        *,
+        factory: str | None = None,
+        code_distance: int | None = None,
+        cycle_us: float | None = None,
     ) -> dict[str, Any]:
         """Sample trajectories; bound eps per Methods Eqs 20-21.
 
         For a candidate fixed before the draw, k passes -> eps bound.
         Returns fail-closed verdict + resource counts + bound.
+
+        Factory diagnostics (factories.py, literature-derived, diagnostics
+        only — never ranking): pass factory + code_distance + cycle_us to
+        attach a factory_report; omit all three for "factory": None
+        (explicitly not computed). Partial specification refuses.
         """
         if num_tests <= 0:
             raise ValueError("num_tests must be positive")
@@ -673,6 +684,25 @@ class KickmixEvaluator:
             eps_bound = min(1.0, phat + math.sqrt(math.log(40.0) / (2.0 * k)))
         transfer = transfer_bounds(eps_bound)
         ops = builder.emit()
+        if factory is None and (code_distance is not None or cycle_us is not None):
+            raise ValueError(
+                "factory diagnostics need factory + code_distance + cycle_us "
+                "together: refusing partial specification")
+        if factory is not None and (code_distance is None or cycle_us is None):
+            raise ValueError(
+                "factory diagnostics need factory + code_distance + cycle_us "
+                "together: refusing partial specification (no silent physics)")
+        toffoli_depth_v = toffoli_depth(ops)
+        factory_rep = None
+        if factory is not None:
+            factory_rep = factory_report(
+                toffoli=builder.toffoli_count(),
+                qubits=builder.peak_qubits(),
+                toffoli_depth=toffoli_depth_v,
+                factory=factory,
+                code_distance=code_distance,
+                cycle_us=cycle_us,
+            )
         return {
             "valid": valid,
             "failures": failures,
@@ -684,6 +714,7 @@ class KickmixEvaluator:
             "tests": k,
             "transfer": transfer,
             "depth": circuit_depth(ops),
-            "toffoli_depth": toffoli_depth(ops),
+            "toffoli_depth": toffoli_depth_v,
             "active_qubits": active_qubits(ops),
+            "factory": factory_rep,
         }

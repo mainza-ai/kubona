@@ -56,6 +56,21 @@ it settles a binary question cheaply.
 **Risk:** paper focuses on HOPI optimization, not decoding circuits (may lack
 the needed details). Mitigated by the bounded cost (an ingest either way
 enriches the blueprint; a negative result is still a result).
+> **✅ Verdict (2026-10-20): option (b) — CONFIRMED ABSENT, hunt closed.**
+> Pulled the source tarball (arXiv:2510.06603v1, 8 Oct 2025, 475-line
+> `main.tex`) and searched it exhaustively: `omega`/`residue`/`series`/
+> `Krylov`/`null-vector`/`Toffoli` all 0 hits; `locator` 1 hit (taxonomy
+> sentence only — "key equation", no construction); `circuit` 1 hit +
+> `reversible` 3 hits, all in-principle statements ("can be implemented in
+> principle by reversible circuits", :185) with zero constructions and zero
+> T-counts; all 34 `xi` hits are English words (maximize/approximate/exist).
+> The paper is HOPI optimization theory (semicircle law, Prange comparison,
+> list-decoding outlook) — it contains neither the true ω series + residue
+> definition (A1) nor the xi-seeding rule (A2). **A1/A2 stay blocked with
+> stronger evidence.** No full source-summary ingest: proportionate response
+> to a negative result (per the ingest rule, the value here is the closed
+> question, recorded in this verdict + `log.md`); full ingest if Hermitian
+> work ever revives. Evidence: `https://arxiv.org/abs/2510.06603` (v1).
 
 ### U2. A5 (factory numbers) → adopt literature costs, labeled as such
 **Finding.** Magic-state factory costs are extensively published independent
@@ -73,6 +88,21 @@ kappa slider functional; all numbers trace to cited literature (not the SI).
 unblocks product surface (console) and TQ analysis with no paper dependency.
 **Risk:** low (additive; literature clearly labeled; no proven code touched
 except wiring).
+> **✅ LANDED 2026-10-20 (slice 62): A5 CLOSED.**
+> `platform/kubona/codesign/factories.py` (pure, dependency-free): single
+> `FACTORIES` const with `gf2019_ccz` (72d² patches, 11d half-cycles/state,
+> 1e10-state budget — all GF2019 figures); `factory_report()` keyword-only,
+> code_distance + cycle_us REQUIRED, exact-int ledgers + labeled float
+> estimates, fail-closed on unknown factory / bad inputs / NaN cycle.
+> Wired into `KickmixEvaluator.evaluate(factory=...)` as a `"factory"` key
+> (default None = explicitly not computed; partial spec refuses; additive —
+> no existing pin touched, all callers keyword-safe). Proven: hand-computed
+> table pins, 8 refusal probes, decoder-scale end-to-end (3,928,980T /
+> 110,132Q → ~583s serial @ d=27/1µs, within budget), determinism
+> double-run. tq.py POLICY comment updated (ranking stays TQ, factory is
+> diagnostics). TQ variants (`kappa_sweep`) + console kappa slider verified
+> (`CodesignCockpit.test.tsx` green) — no console change needed. 23 tests
+> pass incl. export-surface audit.
 
 ### U3. B4 + sibling case studies (HHL, Coulomb, Gaussian, lattice-gauge full
 sim, Fe2S2-real-data) → explicit scope ruling (recommended: OUT)
@@ -92,6 +122,19 @@ stays as proven infrastructure (no action); Fe2S2-real-data stays A4
 definition; no code changes.
 **Effort:** nil (decision only). **Priority: HIGH (clarity)** — stops scope
 creep by default and routes future asks through the slice process.
+> **✅ Ruling recorded (2026-10-20): OUT — verified non-dependence.**
+> RS decode path (`rs12, bm, eea12, mbu12, tower12, f12, harness, kickmix,
+> tq, frontier`) imports **zero** symbols from `hhl/coulomb/gaussian/
+> lattice/chemistry/hermitian/hlanczos` (grep-verified this session);
+> `hhl.py` is self-contained (stdlib `math` only) with exactly two importers
+> (package re-export + its own slice-13 test); `chemistry` (Fe2S2) serves
+> `packs.py` + validation tests as proven scheduler infrastructure (no
+> action — stays); `hermitian`/`hlanczos` likewise leaf-only (A1/A2-blocked
+> thread, already scoped). General rule (extends B4): other paper tasks stay
+> prototypes until a concrete agent workflow needs them, then each becomes a
+> scoped slice under the same bar. Fe2S2-real-data stays A4 (blocked on data,
+> validation-only). Re-litigation needs a caller in a production path, not
+> new interest.
 
 ## 2. Deferred with triggers (explicitly NOT now)
 

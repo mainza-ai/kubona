@@ -2931,3 +2931,13 @@ skipped is the exact failure this incident is about:
   - Tests: new `TestStrataDefaults` / `TestStrataBaseURLOverride` / `TestNvidiaStillExplicitlySelectable` / `TestBackfillsStrataIntoOldBlobs`; `TestNoEnvFailsLoudly` now pins strata-refusal naming STRATA_MODEL (better failure than before); implicit-default api/cost tests pin `KUBONA_LLM_PROVIDER=opencode` explicitly (intent preserved, found via full-suite run). Python slice-2 updated (strata default + empty-URL regression test).
   - `.env.example`: Strata section (STRATA_MODEL=iq3_s, optional BASE_URL/API_KEY comments); routing comment updated (default strata, NVIDIA parked-but-configured). Real `.env` (untracked, secrets untouched): provider flipped to strata, STRATA_MODEL added.
   - Verified: Go pkg/llm + full ./pkg/... green (28 pkgs); Python slice-2/14 green; Strata endpoint live-verified (models + chat completion); wiki lint clean. NVIDIA_API_KEY retained in .env (parked, not removed).
+
+## [2026-10-20] question | U1 — companion paper arXiv:2510.06603 searched, A1/A2 confirmed absent (hunt closed, verdict (b))
+  - Pulled source tarball (v1, 475-line main.tex); exhaustive term search: omega/residue/series/Krylov/null-vector/Toffoli 0 hits; locator 1 (taxonomy only); circuit/reversible in-principle only; xi hits all English words.
+  - Paper is HOPI optimization theory, no decoding circuits. A1 (true series + residue) and A2 (xi seeding) stay blocked with stronger evidence. No full source ingest (proportionate negative-result response); verdict recorded on circuit-codesign-implementation-plan.md U1.
+
+## [2026-10-20] slice | 62 — literature factory-cost model closes A5 (U2 landed)
+  - `factories.py` (new, pure): GF2019 CCZ factory const (Quantum 3:135, arXiv:1812.01238); Litinski-2019/2023 diagnostics; code_distance + cycle_us required; exact-int ledgers + labeled estimates; fail-closed.
+  - Wired into `KickmixEvaluator.evaluate(factory=...)` ("factory" key, default None, partial refuses); tq.py POLICY updated (ranking stays TQ).
+  - Proven: hand-computed pins, 8 refusal probes, decoder-scale end-to-end (3.93M T -> ~583s serial @ d=27/1us, within 1e10 budget), double-run determinism; console kappa slider verified green (no console change).
+  - 23 passed (slice62 + export audit). A5 row + U2 section updated.
