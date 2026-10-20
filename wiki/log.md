@@ -2949,3 +2949,9 @@ skipped is the exact failure this incident is about:
 ## [2026-10-20] verification | Full suite re-verified green post-U1/U2/U3 + slice 62
   - Python `platform/tests/`: 1008 passed, 3 skipped (benign optional imports), 0 failures, ~59 min wall (dominated by slice-60 paper-scale end-to-end, ~25 min/file — expected, not pathological; verified via /tmp/slice60.log 1498s precedent + live CPU/stack check mid-run).
   - Go `./pkg/...`: 28/28 packages green; console CodesignCockpit test green; wiki lint clean. Baselines updated (1003 -> 1008 = +5 slice-62 tests).
+
+## [2026-10-20] audit | Frontend–backend–UI/UX deep audit (12 gaps, 6-phase plan)
+  - Mapped both sides end-to-end (console routes/surfaces/lib/types + Go route table/auth/limits/bridge). New page wiki/concepts/frontend-backend-ui-ux-audit.md (L4, tracked), indexed (census 140).
+  - Headline: G1 HIGH — GET /api/llm/settings echoes live API keys on a public read (snapshot copies Providers verbatim incl. api_key; only PUT/POST gated). Fix = Phase 0 (redact on read, keep merge-on-update).
+  - Also: G2 unserved console_api.py (unique science/* + codesign evaluate/frontier/budget, no listener); G3 factory diagnostics with no HTTP path; G4 verified RS decoder invisible in product; G5 Strata zero refs in console; G6-G12 cockpit depth, types, sweep parity, dead code, spend visibility, validation rails, navigation burial.
+  - Plan: Phase 0 secrets, Phase 1 single served API (sign-off), Phase 2 cockpit slices 2-4 (absorbs G3/G4/G6), Phase 3 LLM+spend visibility, Phase 4 hygiene, Phase 5 navigation (sign-off). Read/approve-only hard rule throughout.
