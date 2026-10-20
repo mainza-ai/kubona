@@ -581,6 +581,65 @@ export async function fetchEpistemics(sessionId?: string | null): Promise<Record
   }
 }
 
+export interface CodesignBudgetEntry {
+  source: string;
+  per_use_rate: number;
+  uses: number;
+}
+
+export interface CodesignBudgetResult {
+  rows: Array<{ source: string; per_use_rate: number; uses: number; contribution: number }>;
+  union_bound: number;
+}
+
+// Server-sealed Table-S4 union bound (replaces the cockpit's local estimate;
+// single math source stays Python-owned behind the Go rail).
+export async function scoreCodesignBudget(
+  entries: CodesignBudgetEntry[]
+): Promise<{ ok: true; result: CodesignBudgetResult } | { ok: false; error: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/codesign/budget`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ entries }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || data.ok !== true) {
+      const msg =
+        (data && typeof data.message === 'string' && data.message) ||
+        (data && typeof data.error === 'string' && data.error) ||
+        `refused (HTTP ${res.status})`;
+      return { ok: false, error: msg.slice(0, 280) };
+    }
+    return { ok: true, result: data as CodesignBudgetResult };
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 280) };
+  }
+}
+
+export async function evaluateCodesignArtifact(
+  body: Record<string, unknown>
+): Promise<{ ok: true; spec_kind: string; result: Record<string, unknown> } | { ok: false; error: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/codesign/evaluate`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || data.ok !== true) {
+      const msg =
+        (data && typeof data.message === 'string' && data.message) ||
+        (data && typeof data.error === 'string' && data.error) ||
+        `refused (HTTP ${res.status})`;
+      return { ok: false, error: msg.slice(0, 280) };
+    }
+    return { ok: true, spec_kind: String(data.spec_kind ?? ''), result: (data.result ?? {}) as Record<string, unknown> };
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 280) };
+  }
+}
+
 export async function fetchLLMSettings(): Promise<Record<string, unknown> | null> {
   try {
     const res = await apiFetch(`${API_BASE}/api/llm/settings`, { cache: 'no-store', headers: authHeaders() });

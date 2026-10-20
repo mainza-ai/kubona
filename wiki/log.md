@@ -2967,3 +2967,8 @@ skipped is the exact failure this incident is about:
   - Console `LLMSettings.tsx` display condition `api_key` -> `enabled` (no behavior change; tsc clean).
   - Tests: `TestGetPublicSnapshotRedactsKeys` (unit: redacted + internal intact + no aliasing + serialized clean) and `TestLLMSettingsReadRedactsKeys` (HTTP: public redacted, full-object rotation works without clobbering, console-shape save preserves stored key). Go 28/28 green.
   - Adjacent find (recorded as G13, Phase 4): partial provider PUT clobbers non-sent fields (only APIKey merges); no real client sends partials, fail-visible at resolve time. Presence-aware merge or full-object-or-refuse, preserving the enable-toggle flow.
+
+## [2026-10-20] feat | Phase 1 slice 1 — codesign evaluator proxied via Go rail (decision: migrate)
+  - Operator chose migrate-stateless-to-Go (serving rejected: second token + split-brain). Landed: POST /api/codesign/evaluate|evaluate-batch|budget (codesign_eval.go, runBridgePython, Python single validator; num_tests HTTP-cap 4096; 120s ctx; public reads, no ledger writes).
+  - Console: budget card rewired to sealed bound (local math deleted), evaluate helper landed, cockpit tests extended (server-rail + refusal paths). Go 28/28, console 38 files/170 tests green, tsc clean.
+  - G3 HTTP path now exists for factory diagnostics (evaluate factory params end-to-end tested). science/* follows the same proxy pattern next.
