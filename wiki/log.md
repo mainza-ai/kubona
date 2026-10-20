@@ -2941,3 +2941,7 @@ skipped is the exact failure this incident is about:
   - Wired into `KickmixEvaluator.evaluate(factory=...)` ("factory" key, default None, partial refuses); tq.py POLICY updated (ranking stays TQ).
   - Proven: hand-computed pins, 8 refusal probes, decoder-scale end-to-end (3.93M T -> ~583s serial @ d=27/1us, within 1e10 budget), double-run determinism; console kappa slider verified green (no console change).
   - 23 passed (slice62 + export audit). A5 row + U2 section updated.
+
+## [2026-10-20] verification | Phase-5 re-check complete (post-U1/U2/U3)
+  - A1/A2 blocked (hunt closed); A3 blocked (no SI update); A4 hunt RULED OUT (41,052-row table is pipeline output, SI sec:case-alias-fe2s2 — no data statement/repo/Zenodo in SI; rebuild would be circular; revive trigger recorded); A5 CLOSED slice 62; A6/A7 stand (C1/C2); A8 blocked, statement verified vs SI :3404-3411.
+  - B5/B8 pins verified present; F3/F4/D3 remain trigger-gated, untouched. Recorded on production-readiness Phase-5 block + implementation-plan step 4.

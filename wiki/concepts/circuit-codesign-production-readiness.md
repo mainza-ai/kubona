@@ -138,6 +138,21 @@ These are not code changes; they are rulings the bar itself needs to record so f
 
 **Phase 5 — Blocked-item watchlist (no work until unblocked; re-check each ingest).**
 - A1 (true series), A2 (xi seeding), A3 (packing assignment), A4 (41k rows), A5 (factory numbers), A6 (20T hand structure), A7 (gauge DP), A8 (phase-gradient addition). Each has its unblock condition in the table above. When any unblocks, it enters the plan as its own slice with the same production bar.
+> **✅ Re-check 2026-10-20 (post-U1/U2/U3; only ingest since: companion paper, confirmed absent).**
+> A1/A2: still blocked, stronger evidence (U1 verdict — hunt closed).
+> A3: still blocked (no SI update; C7 our-own-layout stays queued).
+> A4: hunt RULED OUT, not merely blocked — the 41,052-row table is pipeline
+> output (SI `sec:case-alias-fe2s2`, :3017ff: 41,052 terms → 3,221 blocks),
+> not a published dataset: no data-availability statement, no repo/Zenodo
+> link anywhere in the SI (grep-verified). Even a from-scratch chemistry
+> rebuild could not validate against THEIR table (no ground truth — circular).
+> Synthetic-multiset validation already covers scheduler safety
+> (identity-candidate non-regression). Revive trigger: authors publish the
+> table or preprocessing code. A5: CLOSED slice 62. A6/A7: stand via C1/C2
+> accepted verdicts (no new source). A8: still blocked, statement verified
+> against SI :3404-3411 (genuine PG_51 phase rotation; kickmix binary-phase
+> only; our exact integer sums are the phase's inputs S_P/S_R, the gradient
+> application stays queued) — code comment matches the paper, no change.
 
 **Explicitly out of scope for this program (decisions, not omissions):** console per-builder wiring (decoupled by design); Go-side builders (Python owns validity); HHL beyond a scope ruling (B4) — **extended 2026-10-20 (U3): all sibling paper-task prototypes (Coulomb, Gaussian, lattice-gauge full sim, Fe2S2-real-data) stay prototype until a concrete agent workflow needs them; each becomes a scoped slice then. Fe2S2-scheduler stays as proven infrastructure.** 71st-position fudging (refuse, don't invent); any LLM-in-the-loop proving (deterministic harness only).
 
