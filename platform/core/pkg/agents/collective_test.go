@@ -1,10 +1,14 @@
 package agents
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -309,3 +313,50 @@ func TestTribunalContestsOnFailedObservation(t *testing.T) {
 type errTestProbe string
 
 func (e errTestProbe) Error() string { return string(e) }
+
+// T-15 — every tribunal turn emits a turn-telemetry line with the full
+// field set on the success path (previously only failures logged reply
+// length; duration and prompt size were never logged anywhere).
+func TestTribunalEmitsPerTurnTelemetry(t *testing.T) {
+	var buf bytes.Buffer
+	log.SetOutput(&buf)
+	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+	ac := NewAgentCollective()
+	reg := tools.NewRegistry()
+	_ = reg.Register(tools.Definition{
+		Name: "probe_tool", Description: "clean probe",
+		Parameters: map[string]any{"type": "object"},
+		Capability: "test:read", ReadOnly: true,
+		Handler: func(_ context.Context, args json.RawMessage) (any, error) {
+			return map[string]any{"tool_result:": "clean"}, nil
+		},
+	})
+	for _, role := range []string{"ansatz-scout", "disconfirmation-officer", "device-auditor", "epistemic-scribe"} {
+		_ = reg.Allow(role, "probe_tool")
+	}
+	ac.Tools = reg
+	if _, err := ac.ExecuteTribunal(t.Context(), stubTribunalClient(t), nil, "Investigate H2 ground state"); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	for idx, role := range map[int]string{1: "ansatz-scout", 2: "disconfirmation-officer", 3: "device-auditor", 4: "epistemic-scribe"} {
+		line := ""
+		for _, l := range strings.Split(out, "\n") {
+			if strings.Contains(l, "turn-telemetry") && strings.Contains(l, "idx="+strconv.Itoa(idx)) {
+				line = l
+				break
+			}
+		}
+		if line == "" {
+			t.Fatalf("missing turn-telemetry line for turn %d (%s)", idx, role)
+		}
+		for _, field := range []string{"role=" + role, "prompt_runes=", "reply_runes=", "dur_ms=", "timeout_ms=", "turn_cap=", "authored=", "call_err="} {
+			if !strings.Contains(line, field) {
+				t.Errorf("turn %d telemetry missing field %q: %s", idx, field, line)
+			}
+		}
+	}
+	if !strings.Contains(out, "anchor_live=") {
+		t.Error("turn 2 telemetry must carry anchor_live")
+	}
+}
