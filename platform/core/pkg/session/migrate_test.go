@@ -234,3 +234,51 @@ func TestSectionEnvelopesAbsentStillImports(t *testing.T) {
 		t.Fatalf("envelope-less manifest must still import: %v", err)
 	}
 }
+
+// T-10a — ReconcileLoopsOnBoot must skip every terminal loop status in
+// BOTH writer vocabularies (autoresearch + supervisor) and must never
+// resurrect killed rows to sleeping. Parity guard: the skip set in
+// ledger.ReconcileLoopsOnBoot must equal TerminalLoopStatuses (+ the
+// already-settled sleeping). Threat: a killed loop flipped to sleeping
+// pins its session forever (sleeping is non-terminal by design, wake
+// has no engine post-restart, delete refuses "live loops").
+func TestReconcileSkipsAllTerminalLoopStatuses(t *testing.T) {
+	_, l := mustOpenCascade(t)
+	seed := func(id, status string) {
+		t.Helper()
+		if err := l.SaveLoopState(ledger.LoopPersist{ID: id, SessionID: "sess-rec", HarnessID: "ansatz-search", Status: status, MaxSteps: 5, LastActivity: time.Now().UTC()}); err != nil {
+			t.Fatalf("seed %s: %v", id, err)
+		}
+	}
+	for _, st := range TerminalLoopStatuses {
+		seed("loop-term-"+st, st)
+	}
+	seed("loop-sleeping", "sleeping")
+	seed("loop-running", "running")
+	n, err := l.ReconcileLoopsOnBoot()
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("exactly the running row must flip, got %d", n)
+	}
+	rows, err := l.ListLoopStates()
+	if err != nil {
+		t.Fatalf("list: %v", err)
+	}
+	byID := map[string]string{}
+	for _, r := range rows {
+		byID[r.ID] = r.Status
+	}
+	for _, st := range TerminalLoopStatuses {
+		if got := byID["loop-term-"+st]; got != st {
+			t.Fatalf("terminal status %q was rewritten to %q", st, got)
+		}
+	}
+	if got := byID["loop-sleeping"]; got != "sleeping" {
+		t.Fatalf("sleeping row must stay sleeping, got %q", got)
+	}
+	if got := byID["loop-running"]; got != "sleeping" {
+		t.Fatalf("running row must flip to sleeping, got %q", got)
+	}
+}
