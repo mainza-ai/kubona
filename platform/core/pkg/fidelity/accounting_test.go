@@ -58,3 +58,22 @@ func TestFloorOnlyShallowAdmits(t *testing.T) {
 		t.Fatalf("shallow circuit must admit: %+v", a)
 	}
 }
+
+// T-02: the probe-run signal pins the honesty contract. A supplied
+// measurement (EvaluateAdmission) always reports probe_run:true; the
+// floor-only path (no probe) reports false — so a zero
+// measured_clifford beside probe_run:false reads as "not measured".
+func TestProbeRunSignalHonest(t *testing.T) {
+	fg := NewFidelityGate()
+	probed := fg.EvaluateAdmission("ibm_heron", 5, 2, 0.98)
+	if !probed.ProbeRun {
+		t.Errorf("supplied-measurement path must report probe_run:true: %+v", probed)
+	}
+	unprobed := fg.EvaluateAdmissionFloorOnly("ibm_heron", 5, 2)
+	if unprobed.ProbeRun {
+		t.Errorf("floor-only path must report probe_run:false: %+v", unprobed)
+	}
+	if unprobed.MeasuredClifford != 0 {
+		t.Errorf("floor-only path must not fabricate a measurement: %+v", unprobed)
+	}
+}
