@@ -861,13 +861,23 @@ export async function getHFModelDetails(
 
 export async function startHFDownload(
   repoId: string,
-  filename: string
+  filename: string,
+  // T-11: client-declared size + explicit confirmation. The server
+  // enforces the same bound, so the confirm dialog is not bypassable
+  // via raw POST; unknown sizes omit the field and pass ungated.
+  sizeBytes?: number,
+  confirmed?: boolean
 ): Promise<import('@/types').HFDownloadTask | null> {
   try {
     const res = await apiFetch(`${API_BASE}/api/hf/download`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ repo_id: repoId, filename }),
+      body: JSON.stringify({
+        repo_id: repoId,
+        filename,
+        ...(typeof sizeBytes === 'number' && Number.isFinite(sizeBytes) ? { size_bytes: sizeBytes } : {}),
+        ...(confirmed ? { confirmed: true } : {}),
+      }),
     });
     if (!res.ok) return null;
     const data = await res.json();
