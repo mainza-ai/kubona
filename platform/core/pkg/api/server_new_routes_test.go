@@ -2258,3 +2258,97 @@ func TestCostSummaryAggregates(t *testing.T) {
 		t.Fatalf("cost summary POST must 405, got %d", w.Code)
 	}
 }
+
+func TestCodesignFamiliesProxy(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+	post := func(body any) (int, map[string]any) {
+		raw, _ := json.Marshal(body)
+		req := httptest.NewRequest(http.MethodPost, "/api/codesign/families", bytes.NewReader(raw))
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		var m map[string]any
+		_ = json.Unmarshal(w.Body.Bytes(), &m)
+		return w.Code, m
+	}
+	and2 := []any{[]any{"ccx", []any{0, 1, 2}, []any{}}}
+	bad := []any{[]any{"cx", []any{0, 2}, []any{}}}
+
+	code, m := post(map[string]any{
+		"spec_kind": "and2", "kappa": 1, "share_rounds": 1,
+		"families": []any{"direct", "tower", "mbu"},
+		"offers": []any{
+			map[string]any{"family": "direct", "artifact": and2},
+			map[string]any{"family": "tower", "artifact": bad},
+			map[string]any{"family": "mbu", "artifact": and2},
+		},
+	})
+	if code != http.StatusOK || m["ok"] != true {
+		t.Fatalf("families run must 200/ok, got %d %v", code, m)
+	}
+	elites, ok := m["elites"].(map[string]any)
+	if !ok || elites["direct"] == nil || elites["mbu"] == nil {
+		t.Fatalf("valid offers must seed direct+mbu elites, got %v", m["elites"])
+	}
+	// The invalid tower offer is recorded, never scored.
+	foundInvalid := false
+	for _, o := range m["offers"].([]any) {
+		om := o.(map[string]any)
+		if om["family"] == "tower" && om["valid"] == false {
+			foundInvalid = true
+		}
+	}
+	if !foundInvalid {
+		t.Fatalf("invalid offer must be recorded valid=false, got %v", m["offers"])
+	}
+	shares, ok := m["shares"].([]any)
+	if !ok || len(shares) != 1 {
+		t.Fatalf("one share round expected, got %v", m["shares"])
+	}
+	if det, ok := shares[0].(map[string]any)["details"].([]any); !ok || len(det) != 4 {
+		t.Fatalf("2 elite-holders x (3-1) others = 4 cross-offers (tower shares nothing until it earns an elite), got %v", shares)
+	}
+
+	if code, _ := post(map[string]any{
+		"spec_kind": "and2", "families": []any{"a", "b"},
+		"offers": []any{map[string]any{"family": "ghost", "artifact": and2}},
+	}); code != http.StatusBadRequest {
+		t.Fatalf("unknown family must 400, got %d", code)
+	}
+	big := make([]any, 65)
+	for i := range big {
+		big[i] = map[string]any{"family": "a", "artifact": and2}
+	}
+	if code, _ := post(map[string]any{
+		"spec_kind": "and2", "families": []any{"a"}, "offers": big,
+	}); code != http.StatusBadRequest {
+		t.Fatalf("offers above 64 must 400, got %d", code)
+	}
+
+	// Stagnation is measured, never vibes: re-offering the same artifact
+	// does not improve (strict min-TQ), so "a" stagnates while "b" idles —
+	// the widen-nudge deterministically names "a".
+	code, m = post(map[string]any{
+		"spec_kind": "and2", "kappa": 1, "share_rounds": 0,
+		"families": []any{"a", "b"},
+		"offers": []any{
+			map[string]any{"family": "a", "artifact": and2},
+			map[string]any{"family": "a", "artifact": and2},
+		},
+	})
+	if code != http.StatusOK {
+		t.Fatalf("stagnation run must 200, got %d %v", code, m)
+	}
+	nudge, ok := m["widen_nudge"].(map[string]any)
+	if !ok || nudge["family"] != "a" || nudge["offers_since_improvement"] != float64(1) {
+		t.Fatalf("widen-nudge must name a@1, got %v", m["widen_nudge"])
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/codesign/families", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("families GET must 405, got %d", w.Code)
+	}
+}

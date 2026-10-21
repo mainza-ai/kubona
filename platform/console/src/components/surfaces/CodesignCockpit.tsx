@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { API_BASE, apiFetch, authHeaders, evaluateCodesignArtifact, fetchCodesignVerified, scoreCodesignBudget } from '@/lib/api';
-import type { CodesignBudgetResult, CodesignFrontierResult, CodesignVerifiedResult } from '@/lib/api';
+import { API_BASE, apiFetch, authHeaders, evaluateCodesignArtifact, fetchCodesignVerified, runFamilySearch, scoreCodesignBudget } from '@/lib/api';
+import type { CodesignBudgetResult, CodesignFamiliesResult, CodesignFrontierResult, CodesignVerifiedResult } from '@/lib/api';
 
 // Circuit co-design cockpit (read-only scoring).
 // Talks only to Go (:8080) read-only routes; validity ground truth stays
@@ -53,6 +53,14 @@ export function CodesignCockpit() {
   const [evalSpecKind, setEvalSpecKind] = useState<string | null>(null);
   const [evalError, setEvalError] = useState<string | null>(null);
   const [evalBusy, setEvalBusy] = useState(false);
+  const [famSpec, setFamSpec] = useState('and2');
+  const [famFamilies, setFamFamilies] = useState('direct,tower,mbu');
+  const [famOffers, setFamOffers] = useState('[{"family":"direct","artifact":[["ccx",[0,1,2],[]]]},{"family":"tower","artifact":[["cx",[0,2],[]]]},{"family":"mbu","artifact":[["ccx",[0,1,2],[]]]}]');
+  const [famRounds, setFamRounds] = useState('1');
+  const [famKappa, setFamKappa] = useState('1');
+  const [famRes, setFamRes] = useState<CodesignFamiliesResult | null>(null);
+  const [famError, setFamError] = useState<string | null>(null);
+  const [famBusy, setFamBusy] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -186,6 +194,40 @@ export function CodesignCockpit() {
     } catch (err) {
       setFrontier(null);
       setFrontierError(String(err).slice(0, 200));
+    }
+  };
+
+  const runFamilies = async () => {
+    setFamError(null);
+    setFamRes(null);
+    let offers: unknown;
+    try {
+      offers = JSON.parse(famOffers);
+    } catch {
+      setFamError('offers must be JSON: refusing to send');
+      return;
+    }
+    if (!Array.isArray(offers)) {
+      setFamError('offers must be a JSON array of {family, artifact}: refusing to send');
+      return;
+    }
+    const families = famFamilies.split(',').map((s) => s.trim()).filter(Boolean);
+    setFamBusy(true);
+    try {
+      const out = await runFamilySearch({
+        spec_kind: famSpec,
+        families,
+        kappa: Number(famKappa),
+        offers,
+        share_rounds: Number(famRounds),
+      });
+      if (!out.ok) {
+        setFamError(out.error);
+        return;
+      }
+      setFamRes(out.result);
+    } finally {
+      setFamBusy(false);
     }
   };
 
@@ -361,6 +403,38 @@ export function CodesignCockpit() {
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
+        <div className="text-xs font-semibold text-white">Families (anti-caution fix) — read-only</div>
+        <div className="text-[11px] text-slate-400">N tracks mature separately on one spec, elites cross-pollinate, the widen-nudge names the most stagnant track. Human nudge reads the output — never auto-prompt-injection.</div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <select aria-label="Family spec" value={famSpec} onChange={(e) => setFamSpec(e.target.value)} className="rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs text-white">
+            {['and2', 'cz-phase', 'copy1', 'xor2'].map((k) => (
+              <option key={k} value={k} className="bg-black">{k}</option>
+            ))}
+          </select>
+          <input aria-label="Families (comma list)" value={famFamilies} onChange={(e) => setFamFamilies(e.target.value)} className="w-40 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
+          <input aria-label="Share rounds" value={famRounds} onChange={(e) => setFamRounds(e.target.value)} className="w-16 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
+          <input aria-label="Kappa" value={famKappa} onChange={(e) => setFamKappa(e.target.value)} className="w-16 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
+          <button onClick={runFamilies} disabled={famBusy} className="rounded-lg bg-cyan-500/15 border border-cyan-400/30 px-3 py-1 text-xs text-cyan-200 disabled:opacity-50">
+            {famBusy ? 'Running…' : 'Run families'}
+          </button>
+        </div>
+        <textarea aria-label="Family offers JSON" value={famOffers} onChange={(e) => setFamOffers(e.target.value)} rows={3} className="mt-2 w-full rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
+        {famError && <div className="mt-2 text-xs text-rose-300">{famError}</div>}
+        {famRes && (
+          <div className="mt-2 text-xs text-slate-200">
+            <div className="font-mono">elites: {Object.entries(famRes.elites).map(([f, e]) => `${f} ${e.toffoli}T×${e.qubits}Q`).join(' · ') || 'none yet'}</div>
+            <div className="mt-1 font-mono text-[11px] text-slate-400">
+              stagnation: {Object.entries(famRes.stagnation).map(([f, s]) => `${f}:${s}`).join(' ')} · lineage {famRes.lineage_len}
+            </div>
+            <div className="mt-1 text-[11px] text-amber-200">widen-nudge: {famRes.widen_nudge.nudge} ({famRes.widen_nudge.offers_since_improvement} offers since improvement)</div>
+            <div className="mt-1 text-[11px] text-slate-300">
+              sharing: {famRes.shares.map((s, i) => `round ${i + 1}: ${s.offers} offers → ${s.improvements} improvements`).join('; ') || 'no share rounds'}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
         <div className="text-xs font-semibold text-white">Kappa sweep + failure-budget — read-only</div>
         <div className="text-[11px] text-slate-400">κ=1..3 via the Go rail (same formula both sides). Sweep always covers all three κ — the κ field above is not used here. Budget is the server-sealed Table-S4 union bound (Python math, Go rail).</div>
         <div className="mt-3 flex flex-wrap gap-2">
@@ -384,11 +458,6 @@ export function CodesignCockpit() {
         )}
         {budgetError && <div className="mt-2 text-xs text-rose-300">{budgetError}</div>}
       </div>
-
-      <details className="rounded-2xl border border-white/10 bg-black/40 p-4 text-[11px] text-slate-300">
-        <summary className="cursor-pointer text-xs font-semibold text-white">Families (anti-caution fix) — process note</summary>
-        <div className="mt-1">N distinct tracks mature separately, then share elites. Stagnation = offers-since-improvement per family; the widen-nudge names the most stagnant track. Full lineage + elite pool land with the Go migration (bridge RPC); this cockpit shows scoring only until then.</div>
-      </details>
 
       <details className="rounded-2xl border border-white/10 bg-black/40 p-4">
         <summary className="cursor-pointer text-xs font-semibold text-white">DQI loss bound (Eq 25) — local estimate</summary>
