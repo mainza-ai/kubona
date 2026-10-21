@@ -491,7 +491,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
           </div>
 
           <button
-            onClick={() => setIsCreatingAgent(true)}
+            onClick={() => { setMeshError(null); setIsCreatingAgent(true); }}
             className="px-3 py-1.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-200 text-xs font-semibold flex items-center space-x-1.5 transition-all shadow-sm"
           >
             <Plus className="w-3.5 h-3.5" />
@@ -661,6 +661,16 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
             </div>
 
             <div className="pt-3 border-t border-white/10 flex justify-end space-x-2">
+              {/* Audit 2026-10-21: registration refusals set meshError,
+              which renders on the page behind this modal's backdrop.
+              The dialog carries its own copy so the refusal is visible
+              where the user acted — the modal stays open with the form
+              intact for retry. */}
+              {meshError && (
+                <p role="alert" className="flex-1 text-left text-[11px] text-rose-200 self-center pr-2">
+                  {meshError}
+                </p>
+              )}
               <button
                 onClick={() => setIsCreatingAgent(false)}
                 className="px-4 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-300 text-xs font-semibold"
