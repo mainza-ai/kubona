@@ -217,6 +217,23 @@ except Exception as e:
     print(json.dumps({"ok": False, "error": f"families refused: {e}"[:280]}))
 `
 
+// packsSnippet serves the pack registry live (ux-plan slice 4): no
+// hand-typed pack list anywhere — the console renders this document.
+// Promotion stays a privileged op (ledger refs); this rail is read-only.
+const packsSnippet = `import json, sys
+try:
+    from kubona.codesign.packs import PACK_ORDER, default_registry
+    reg = default_registry()
+    print(json.dumps({"ok": True, "order": list(PACK_ORDER), "packs": [
+        {"name": name, "version": p.version,
+         "anchor_required": p.anchor_required,
+         "evidence_reqs": list(p.evidence_reqs), "status": p.status,
+         "anchor_ref": p.anchor_ref, "proof_ref": p.proof_ref}
+        for name, p in reg.items()]}))
+except Exception as e:
+    print(json.dumps({"ok": False, "error": f"registry refused: {e}"[:280]}))
+`
+
 // budgetSnippet mirrors codesign_budget (entries<=32, Table-S4 math).
 const budgetSnippet = `import json, sys
 def strict_int(v, name, lo, hi):
@@ -252,15 +269,20 @@ except Exception as e:
 // proxyCodesign is the shared rail: method gate, body cap, forward raw,
 // map outer ok flag to status. Python owns all validation (single
 // validator); Go owns transport + timeout + status mapping.
-func (s *Server) proxyCodesign(w http.ResponseWriter, r *http.Request, script string) {
-	if r.Method != http.MethodPost {
+func (s *Server) proxyCodesign(w http.ResponseWriter, r *http.Request, script string, allowGet ...bool) {
+	getOK := len(allowGet) > 0 && allowGet[0]
+	if r.Method != http.MethodPost && !(getOK && r.Method == http.MethodGet) {
 		http.Error(w, "method not allowed: refusing", http.StatusMethodNotAllowed)
 		return
 	}
-	raw, err := io.ReadAll(http.MaxBytesReader(w, r.Body, codesignEvalMaxBody))
-	if err != nil {
-		WriteAPIError(w, "bad_request", "body too large or unreadable: refusing", nil)
-		return
+	raw := []byte("{}")
+	if r.Method == http.MethodPost {
+		var err error
+		raw, err = io.ReadAll(http.MaxBytesReader(w, r.Body, codesignEvalMaxBody))
+		if err != nil {
+			WriteAPIError(w, "bad_request", "body too large or unreadable: refusing", nil)
+			return
+		}
 	}
 	var probe any
 	if json.Unmarshal(raw, &probe) != nil {
@@ -311,4 +333,8 @@ func (s *Server) handleCodesignFamilies(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) handleCodesignBudget(w http.ResponseWriter, r *http.Request) {
 	s.proxyCodesign(w, r, budgetSnippet)
+}
+
+func (s *Server) handleCodesignPacks(w http.ResponseWriter, r *http.Request) {
+	s.proxyCodesign(w, r, packsSnippet, true)
 }

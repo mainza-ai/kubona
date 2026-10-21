@@ -513,6 +513,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/codesign/budget", s.handleCodesignBudget)
 	// Verified results (G4): versioned JSON, numbers not verdicts.
 	s.mux.HandleFunc("/api/codesign/verified", s.handleCodesignVerified)
+	// Pack registry (ux-plan slice 4): served live, never hand-typed.
+	s.mux.HandleFunc("/api/codesign/packs", s.handleCodesignPacks)
 
 	// Quantum Krylov Subspace & Mitigation Endpoints
 	s.mux.HandleFunc("/api/krylov/solve", s.handleKrylovSolve)
