@@ -402,9 +402,19 @@ export function CodesignCockpit() {
               {' '}{String(evalRes.toffoli)}T × {String(evalRes.peak_qubits)}Q
               {typeof evalRes.eps_bound_97_5 === 'number' && <span> · ε ≤ {evalRes.eps_bound_97_5.toExponential(3)}</span>}
             </div>
-            <div className="mt-1 text-[11px] text-slate-400">
-              depth {String(evalRes.depth)} · Toffoli-depth {String(evalRes.toffoli_depth)} · active {String(evalRes.active_qubits)} · spec {evalSpecKind}
-            </div>
+              <div className="mt-1 text-[11px] text-slate-400">
+                depth {String(evalRes.depth)} · Toffoli-depth {String(evalRes.toffoli_depth)} · active {String(evalRes.active_qubits)} · spec {evalSpecKind}
+              </div>
+              {typeof evalRes.failures === 'number' && evalRes.failures > 0 && (
+                <div className="mt-1 text-[11px] text-rose-200">
+                  {String(evalRes.failures)} failure{evalRes.failures === 1 ? '' : 's'}
+                  {Array.isArray(evalRes.failure_details) && evalRes.failure_details.length > 0 && (() => {
+                    const d = evalRes.failure_details[0] as Record<string, unknown>;
+                    return <> — first: trial {String(d.t)}, input {JSON.stringify(d.input)}, {String(d.reason).slice(0, 120)}</>;
+                  })()}
+                  {evalRes.failure_details_capped === true && <span className="text-slate-400"> (showing first 32 of {String(evalRes.failures)} — counts authoritative)</span>}
+                </div>
+              )}
             {!!evalRes.factory && typeof evalRes.factory === 'object' && (
               <div className="mt-1 text-[11px] text-slate-300">
                 factory {(evalRes.factory as Record<string, unknown>).factory as string}:{' '}
