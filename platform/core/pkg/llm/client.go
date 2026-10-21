@@ -95,7 +95,10 @@ func (c *Client) reportSpend(providerType ProviderType, model string, promptToke
 	if c.OnSpend == nil {
 		return
 	}
-	if providerType == ProviderOMLX || providerType == ProviderOllama || providerType == ProviderLMStudio {
+	// Audit 2026-10-21: this was an inline oMLX/Ollama/LMStudio triple
+	// that missed ProviderStrata (the default). Local is local — the
+	// single predicate, never a copied list.
+	if isLocalProvider(providerType) {
 		return
 	}
 	c.OnSpend(SpendRecord{
@@ -115,7 +118,7 @@ func (c *Client) reportSpendCeiling(providerType ProviderType, model string, cei
 	if c.OnSpend == nil {
 		return
 	}
-	if providerType == ProviderOMLX || providerType == ProviderOllama || providerType == ProviderLMStudio {
+	if isLocalProvider(providerType) {
 		return
 	}
 	c.OnSpend(SpendRecord{
@@ -138,7 +141,7 @@ func (c *Client) requireMeteredUsage(providerType ProviderType, model string, us
 	if usageReported {
 		return nil
 	}
-	if providerType == ProviderOMLX || providerType == ProviderOllama || providerType == ProviderLMStudio {
+	if isLocalProvider(providerType) {
 		return nil
 	}
 	ceiling := c.settings.GetSnapshot().MaxTokens
@@ -161,8 +164,33 @@ func NewClient(settings *Settings) *Client {
 	}
 }
 
+// SettingsMaxTokens exposes the operator's configured token ceiling
+// (0 = uncapped) for callers that bound their own worst case (tribunal
+// turns take min(operator ceiling, turn cap) when the operator set one).
+func (c *Client) SettingsMaxTokens() int {
+	if c == nil || c.settings == nil {
+		return 0
+	}
+	return c.settings.GetSnapshot().MaxTokens
+}
+
 // Complete executes a chat completion request with the configured provider and model
 func (c *Client) Complete(ctx context.Context, role string, messages []ChatMessage) (string, *ChatCompletionResponse, time.Duration, error) {
+	return c.completeWithMaxTokens(ctx, role, messages, -1)
+}
+
+// CompleteCapped is Complete with an explicit per-call token ceiling.
+// maxTokens < 0 keeps the settings default (0 = omit, generate to EOS);
+// maxTokens >= 0 overrides it for this call only. Added 2026-10-21: the
+// synchronous tribunal bounds worst-case turn latency on slow local
+// models (uncapped turns rambled past every context timeout on the
+// default Strata stack); the global default stays uncapped on purpose
+// (a 250-token ceiling once decapitated every reply — see below).
+func (c *Client) CompleteCapped(ctx context.Context, role string, messages []ChatMessage, maxTokens int) (string, *ChatCompletionResponse, time.Duration, error) {
+	return c.completeWithMaxTokens(ctx, role, messages, maxTokens)
+}
+
+func (c *Client) completeWithMaxTokens(ctx context.Context, role string, messages []ChatMessage, maxTokensOverride int) (string, *ChatCompletionResponse, time.Duration, error) {
 	providerType, model, err := c.settings.GetModelForRole(role)
 	if err != nil {
 		return "", nil, 0, err
@@ -174,17 +202,22 @@ func (c *Client) Complete(ctx context.Context, role string, messages []ChatMessa
 		return "", nil, 0, fmt.Errorf("provider configuration not found for %s", providerType)
 	}
 
+	maxTokens := snap.MaxTokens
+	if maxTokensOverride >= 0 {
+		maxTokens = maxTokensOverride
+	}
+
 	// MaxTokens passes straight through: 0 omits the field (omitempty) and
 	// the model generates to EOS / its own context window. There is
-	// deliberately no client-side clamp — a 250-token ceiling once
-	// decapitated every reply mid-sentence (2026-10-11). Long turns are
-	// governed by the result contract (finish_reason) and the UI run-state,
-	// not by truncation here.
+	// deliberately no client-side clamp on the default path — a 250-token
+	// ceiling once decapitated every reply mid-sentence (2026-10-11). Long
+	// turns are governed by the result contract (finish_reason) and the UI
+	// run-state; only explicit per-call caps (CompleteCapped) truncate.
 	reqBody := ChatCompletionRequest{
 		Model:       model,
 		Messages:    withToolMessages(messages),
 		Temperature: snap.Temperature,
-		MaxTokens:   snap.MaxTokens,
+		MaxTokens:   maxTokens,
 	}
 	bodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
@@ -405,7 +438,7 @@ func (c *Client) reportUnmetered(providerType ProviderType, model string) {
 	if c.OnSpend == nil {
 		return
 	}
-	if providerType == ProviderOMLX || providerType == ProviderOllama || providerType == ProviderLMStudio {
+	if isLocalProvider(providerType) {
 		return
 	}
 	c.OnSpend(SpendRecord{

@@ -107,6 +107,11 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
   const meyerWallach = typeof qf?.meyer_wallach_q === 'number' && Number.isFinite(qf.meyer_wallach_q) ? qf.meyer_wallach_q : null;
   const estSpend = typeof qf?.estimated_spend_usd === 'number' && Number.isFinite(qf.estimated_spend_usd) ? qf.estimated_spend_usd : null;
   const canary = typeof qf?.clifford_fidelity === 'number' && Number.isFinite(qf.clifford_fidelity) ? qf.clifford_fidelity : null;
+  // Audit 2026-10-21: the 0.984 canary is a synthesis-template constant
+  // (campaign_synth hardcodes it), not a measured probe. Until a job fold
+  // collapses the campaign (COLLAPSED_VERIFIED), the pill says template.
+  const canaryVerified = campaign?.epistemics?.status === 'COLLAPSED_VERIFIED';
+  const canaryLabel = canary != null ? (canaryVerified ? `canary ${canary.toFixed(3)}` : `canary ${canary.toFixed(3)} (template)`) : 'canary pending';
 
   return (
     <div
@@ -263,7 +268,7 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
           body={qf ? `Depth ${qf.circuit_depth} · ${qf.two_qubit_gates} two-qubit gates · ${qf.fermion_mapping}.` : 'Awaiting circuit.'}
           rows={[
             ['Est. spend', estSpend != null ? `$${estSpend.toFixed(2)}` : '—'],
-            ['Canary fidelity', canary != null ? canary.toFixed(4) : '—'],
+            ['Canary fidelity', canary != null ? (canaryVerified ? canary.toFixed(4) : `${canary.toFixed(4)} (template)`) : '—'],
           ]}
           forceOpen={openCard === 'compiler'}
         />
@@ -284,7 +289,7 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
               </span>
             </div>
             <div className="text-[10px] font-code text-slate-400">
-              {canary != null ? `canary ${canary.toFixed(3)}` : 'canary pending'}
+              {canaryLabel}
             </div>
           </div>
         </div>

@@ -35,16 +35,24 @@ var heuristicRates = map[string]modelRate{
 	"meta/llama-3.3-70b-instruct":            {inputPer1K: 0.0007, outputPer1K: 0.0015},
 }
 
-// isLocalProvider reports whether the provider runs on loopback/on-device
-// with no metered spend (free by construction, never priced). Single home
-// for the local set — a new local engine updates this one predicate,
-// not every call site (drift-proofing per the production bar).
+// isLocalProvider is the single home for the local set — a new local
+// engine updates this one predicate, not every call site (drift-proofing
+// per the production bar).
 func isLocalProvider(p ProviderType) bool {
 	switch p {
 	case ProviderOMLX, ProviderOllama, ProviderLMStudio, ProviderStrata:
 		return true
 	}
 	return false
+}
+
+// IsLocalProvider reports whether the provider runs on loopback/on-device
+// with no metered spend (free by construction, never priced). Exported so
+// the api rail shares the single home instead of copying the list (audit
+// 2026-10-21: server.go carried its own triple and missed Strata — a Strata
+// loop with measured tokens errored "unpriced model" instead of costing 0).
+func IsLocalProvider(p ProviderType) bool {
+	return isLocalProvider(p)
 }
 
 // EstimateCostUSD prices measured token counts for a cloud model.

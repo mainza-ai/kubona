@@ -3035,3 +3035,18 @@ skipped is the exact failure this incident is about:
   - SovereignDock: tooltips reveal on keyboard focus too (group-focus-within), gloss aria-hidden (buttons already named); air-gap sentinel is a labeled status (role+tabindex+aria-label). Micro-labels rejected on evidence: would break the adopted icon-only shell; focus-tooltips + labels are the fix.
   - New CheckInStrip (arena, all surfaces): loops by status + server-sealed LLM spend vs cap (or track-only), blind-stream count; no rates, no alerts (needs server series — stated in code, not silently omitted). Degrades to loop counts when spend refuses.
   - Console 39 files/186 tests green (tooltip + strip tests), tsc clean.
+
+## [2026-10-21] ingest | Audit topology map + live-verification round
+  - New living page: wiki/concepts/audit-topology-map.md — deployment topology as verified live (compose stack, local audit rail, Strata :47831, validity split, F-001/F-006 marked). Mermaid diagram + refresh checklist. Index census 140 -> 141.
+  - Fixes from the live round: radar 50051 probe uses --bridge addr (was loopback false-OFFLINE); recorder "Iteration 15 of 7" -> milestone label; orb rotation removed (text legible); HF/agent-registration refusals throw + in-modal alert (was silent []/null); jobs [] (was null); Strata spend-silence via IsLocalProvider single home (client x4 + server recordLoopSpend); tribunal turns capped at 1500 tokens (uncapped turns rambled past 90s/300s ctx on default Strata stack).
+  - Contamination note: local audit rail initially ran without --db and wrote 1 session + 2 messages + 3 events into ~/.kubona/kubona.db (operator machine state); all removed, verified zero rows remain. Local test daemons must pass --db.
+  - Strata IQ3_S measured: ~36 tok/s decode; 3k-char prompt 50s; unbounded tribunal turns exceed 300s ctx. Turn cap 1500 tokens bounds worst case ~55s/turn.
+
+## [2026-10-21] fix | Strata-default LLM path: turn caps, session id, mesh route, spend silence
+  - Tribunal turns capped at 1500 tokens (CompleteCapped; operator ceiling wins when smaller). Evidence: uncapped turns rambled past 90s and 300s ctx on default Strata (~36 tok/s); capped turns complete in ~50-85s. First full consensus on default stack: 4/4 authored, all tools OK, obligation closed.
+  - Wired tribunal prompts name the session id verbatim (proven live: get_campaign("h2-ground-state-vqe") refused -> contested; now get_campaign succeeds).
+  - Mesh route qualifies bare default-model IDs against settings ("iq3_s" -> "strata/iq3_s"); cloudModel knows the strata prefix. Pins: RouteMultimodalStrataIDs + handler-level bare-default test (both stash-proven).
+  - Spend honesty: IsLocalProvider exported single home; client.go x4 inline triples, server.go recordLoopSpend, copilot engineNotice hint, cost_test local list all unified. Strata no longer files spend or refuses on missing usage.
+  - Scribe note (observation, not a fix): authored-but-noncompliant turns (missing json_proposal block) still pass coverage; fallback proposal covers it.
+  - Critic probe canary labeled (template) until COLLAPSED_VERIFIED (was bare 0.984 on a template campaign); pin in sovereign.test.
+  - Full suites: Go 28/28, console 41 files/194 tests, tsc clean; Python 1011 passed earlier on untouched tree.
