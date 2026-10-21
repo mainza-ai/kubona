@@ -26,6 +26,7 @@ status: adopted
 ## Full refactor (slices 2-5, queued)
 
 1. **Slice 2 — Evaluator runs view:** per-trial ledger refs, `ε`-bound display with Wilson/Hoeffding note, failure-budget union-bound table (Table-S4 style), `κ` slider (`1→3`) + depth/volume toggles when factory data present.
+> **✅ LANDED 2026-10-20 (2.2a).** Cockpit "Evaluator runs" card: spec select + editable artifact JSON (live-verified presets) + tests/kappa/seed + optional factory trio → `POST /api/codesign/evaluate` → validity badge, T/Q, ε-bound, depths, kappa sweep, factory report (G3 UI half). Console-tested (mocked rail + refusal paths). Remaining slice-2 scope (per-trial ledger refs, depth/volume toggles) stays queued behind pack/family surfaces.
 2. **Slice 3 — Families view:** ≤5 ideation tracks, elite-sharing events, widen-nudge button (human nudge, never auto-prompt-injection), lineage graph (parent→child, non-monotonic allowed).
 3. **Slice 4 — Packs:** `numerics → inversion (jstore slider 0/5/9) → DQI (BM/Lanczos/Ψ/stripes) → chemistry (frames, fallback intact) → gauge (4³ only)`, each `kubona-pack/v1` with anchor + evidence reqs.
 4. **Slice 5 — Go migration:** move `console_api` codesign routes into Go via bridge RPC (Python stays evaluator); delete Python duplicates to honor single-surface rule. Needs operator sign-off (contract change).
