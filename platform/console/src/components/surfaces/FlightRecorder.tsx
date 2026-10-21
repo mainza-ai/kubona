@@ -230,7 +230,7 @@ export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChang
         <div className="w-full bg-black/60 border border-white/10 rounded-3xl p-7 backdrop-blur-2xl shadow-2xl space-y-5">
           <div className="flex items-center justify-between">
             <span className="text-[11px] font-mono font-bold px-3 py-1 rounded-full bg-white/[0.08] text-slate-200 border border-white/15">
-              Iteration {activeMilestone.step} of {milestones.length}
+              Milestone {safeIndex + 1} of {milestones.length} · Iteration {activeMilestone.step}
             </span>
 
             <span className={`text-[11px] font-mono font-bold px-3 py-1 rounded-full flex items-center space-x-1.5 ${

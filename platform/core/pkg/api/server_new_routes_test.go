@@ -1507,6 +1507,37 @@ func TestValidationRefusalsAre400Not500(t *testing.T) {
 	}
 }
 
+// Audit 2026-10-21: an empty job list serialized as "jobs":null, forcing
+// every consumer to null-guard. Empty reads as [] on the wire.
+func TestEmptyJobsListIsArray(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+
+	sessBody, _ := json.Marshal(map[string]any{"title": "empty jobs drill"})
+	sessReq := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewReader(sessBody))
+	sessW := httptest.NewRecorder()
+	h.ServeHTTP(sessW, sessReq)
+	if sessW.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for session, got %d", sessW.Code)
+	}
+	var sessResp struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(sessW.Body).Decode(&sessResp); err != nil {
+		t.Fatalf("decode failed: %v", err)
+	}
+	listReq := httptest.NewRequest(http.MethodGet, "/api/jobs?session_id="+sessResp.ID, nil)
+	listW := httptest.NewRecorder()
+	h.ServeHTTP(listW, listReq)
+	if listW.Code != http.StatusOK {
+		t.Fatalf("expected 200 for jobs list, got %d", listW.Code)
+	}
+	if !strings.Contains(listW.Body.String(), `"jobs":[]`) {
+		t.Errorf("empty jobs list must serialize as [], got %s", listW.Body.String())
+	}
+}
+
 // Audit 2026-10-21: hex-decode-then-length-check wrapped a possibly-nil err
 // with %w, leaking "%!w(<nil>)" into user-facing errors (mandates, ledger).
 // Pins: wrong-length keys name actual vs wanted bytes, never a format verb.

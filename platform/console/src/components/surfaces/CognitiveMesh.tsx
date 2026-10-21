@@ -217,7 +217,13 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
 
   const handleDeleteAgent = async (agentId: string) => {
     try {
-      await deleteCustomAgent(agentId);
+      // Audit 2026-10-21: the boolean was ignored, so a refused delete
+      // reloaded the roster in false confirmation. Refusals surface.
+      const removed = await deleteCustomAgent(agentId);
+      if (!removed) {
+        setMeshError('Failed to delete agent — nothing removed (hub refused: operator token required).');
+        return;
+      }
       loadAgents();
     } catch (err) {
       setMeshError(`Failed to delete agent — nothing removed (${err instanceof Error ? err.message : String(err)}).`);

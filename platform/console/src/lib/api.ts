@@ -831,10 +831,15 @@ export async function searchHFModels(
   try {
     const url = `${API_BASE}/api/hf/search?q=${encodeURIComponent(query)}&library=${encodeURIComponent(library)}&limit=${limit}`;
     const res = await apiFetch(url, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return [];
+    // Audit 2026-10-21: a bare `return []` here turned every refusal
+    // (401 without an operator token, 429, 5xx) into "No models found"
+    // — a lie the hub surface rendered as an empty result. Refusals
+    // throw so callers toast them; only a genuine empty hub reads empty.
+    if (!res.ok) throw new Error(`hub refused search (HTTP ${res.status}): no operator token or hub unreachable`);
     const data = await res.json();
     return data.models || [];
   } catch (err) {
+    if (err instanceof Error && err.message.startsWith('hub refused')) throw err;
     console.error('Failed to search Hugging Face models:', err);
     return [];
   }
@@ -876,10 +881,13 @@ export async function startHFDownload(
 export async function listHFDownloads(): Promise<import('@/types').HFDownloadTask[]> {
   try {
     const res = await apiFetch(`${API_BASE}/api/hf/downloads`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return [];
+    // Same audit rule as search: a refused list is not an empty list.
+    // Pollers already swallow rejections silently; manual callers toast.
+    if (!res.ok) throw new Error(`hub refused download list (HTTP ${res.status}): no operator token or hub unreachable`);
     const data = await res.json();
     return data.downloads || [];
   } catch (err) {
+    if (err instanceof Error && err.message.startsWith('hub refused')) throw err;
     console.error('Failed to list HF downloads:', err);
     return [];
   }
@@ -916,20 +924,22 @@ export async function fetchCustomAgents(): Promise<import('@/types').CustomAgent
 
 export async function createCustomAgent(
   manifest: import('@/types').CustomAgentManifest
-): Promise<import('@/types').CustomAgentManifest | null> {
-  try {
-    const res = await apiFetch(`${API_BASE}/api/agents/custom`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(manifest),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    return data.agent || null;
-  } catch (err) {
-    console.error('Failed to create custom agent:', err);
-    return null;
+): Promise<import('@/types').CustomAgentManifest> {
+  // Audit 2026-10-21: returning null on refusal made the mesh modal
+  // close in silent success theater (roster unchanged, no message).
+  // Refusals throw — the caller's catch toasts them honestly.
+  const res = await apiFetch(`${API_BASE}/api/agents/custom`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(manifest),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`agent registration refused (HTTP ${res.status}): ${detail.slice(0, 160) || 'operator token required'}`);
   }
+  const data = await res.json();
+  if (!data.agent) throw new Error('agent registration returned no agent: nothing registered');
+  return data.agent;
 }
 
 export async function deleteCustomAgent(agentId: string): Promise<boolean> {

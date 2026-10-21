@@ -921,7 +921,16 @@ func (s *Server) handleRadar(w http.ResponseWriter, r *http.Request) {
 	var detected []map[string]any
 
 	for _, p := range ports {
-		conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", p), 150*time.Millisecond)
+		dialTarget := fmt.Sprintf("127.0.0.1:%d", p)
+		if p == 50051 && s.bridgeAddr != "" {
+			// The bridge lives at the configured gRPC address
+			// (--bridge; bridge:50051 in compose), not on this
+			// daemon's loopback. Dialing loopback here reported a
+			// healthy bridge as OFFLINE in the shipped topology.
+			// Same standard as the fleet liveness probe below.
+			dialTarget = s.bridgeAddr
+		}
+		conn, err := net.DialTimeout("tcp", dialTarget, 150*time.Millisecond)
 		isListening := (err == nil)
 		if conn != nil {
 			conn.Close()
@@ -2700,6 +2709,11 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
+		}
+		// Audit 2026-10-21: a nil slice serializes as "jobs":null, forcing
+		// every consumer to null-guard. Empty lists read as [].
+		if jobsList == nil {
+			jobsList = []*jobs.Job{}
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"jobs": jobsList})
 	case http.MethodPost:
