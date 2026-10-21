@@ -99,10 +99,10 @@ func TestAPIRoutes(t *testing.T) {
 		t.Fatalf("expected 200 for /api/fidelity, got %d", w.Code)
 	}
 	var fid struct {
-		Decision        string  `json:"decision"`
-		Reason          string  `json:"reason"`
+		Decision         string  `json:"decision"`
+		Reason           string  `json:"reason"`
 		MeasuredClifford float64 `json:"measured_clifford"`
-		ProbeRun        bool    `json:"probe_run"`
+		ProbeRun         bool    `json:"probe_run"`
 	}
 	if err := json.Unmarshal(w.Body.Bytes(), &fid); err != nil {
 		t.Fatalf("fidelity body must decode: %v", err)
