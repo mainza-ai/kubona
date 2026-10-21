@@ -129,8 +129,7 @@ describe('CodesignCockpit read-only', () => {
     }
   });
 
-  it('shows the verified rail refusal instead of inventing numbers', async () => {
-    const realFetch = globalThis.fetch;
+  it('shows the verified rail refusal instead of inventing numbers', async () => {    const realFetch = globalThis.fetch;
     (globalThis as unknown as { fetch: unknown }).fetch = async () =>
       new Response(JSON.stringify({ code: 'unavailable', message: 'verified results unavailable' }), {
         status: 503,
@@ -217,6 +216,80 @@ describe('CodesignCockpit read-only', () => {
         await (run.props as { onClick: () => Promise<void> }).onClick();
       });
       expect(textOf(root!.root)).toContain('artifact must be JSON');
+      expect(calls).toBe(0);
+    } finally {
+      (globalThis as unknown as { fetch: unknown }).fetch = realFetch;
+    }
+  });
+
+  it('runs families and renders elites, stagnation, and the widen-nudge', async () => {
+    const realFetch = globalThis.fetch;
+    let posted: unknown = null;
+    (globalThis as unknown as { fetch: unknown }).fetch = async (input: unknown, init?: { body?: unknown }) => {
+      const url = String(input);
+      if (url.includes('/api/codesign/families')) {
+        posted = JSON.parse(String((init?.body as string) ?? '{}'));
+        return new Response(
+          JSON.stringify({
+            ok: true, spec_kind: 'and2', kappa: 1,
+            offers: [
+              { family: 'direct', valid: true, toffoli: 1, qubits: 3, tq: 3, improved: true },
+              { family: 'tower', valid: false },
+            ],
+            elites: { direct: { toffoli: 1, qubits: 3, tq: 3, artifact: [] } },
+            stagnation: { direct: 0, tower: 0, mbu: 0 },
+            lineage_len: 2, lineage: [],
+            shares: [{ offers: 2, improvements: 1, details: [] }],
+            widen_nudge: { family: 'direct', offers_since_improvement: 0, nudge: 'widen direct: propose a rewrite' },
+          }),
+          { status: 200 }
+        );
+      }
+      if (url.includes('/api/codesign/verified')) {
+        return new Response(JSON.stringify({ message: 'not ready' }), { status: 503 });
+      }
+      return new Response('not found', { status: 404 });
+    };
+    try {
+      let root: TestRenderer.ReactTestRenderer | undefined;
+      await act(async () => {
+        root = TestRenderer.create(<CodesignCockpit />);
+      });
+      const run = root!.root.findByProps({ children: 'Run families' });
+      await act(async () => {
+        await (run.props as { onClick: () => Promise<void> }).onClick();
+      });
+      const text = textOf(root!.root);
+      expect((posted as { families: string[] }).families).toEqual(['direct', 'tower', 'mbu']);
+      expect(text).toContain('direct 1T×3Q');
+      expect(text).toContain('widen-nudge');
+      expect(text).toContain('widen direct');
+    } finally {
+      (globalThis as unknown as { fetch: unknown }).fetch = realFetch;
+    }
+  });
+
+  it('refuses to send malformed family offers', async () => {
+    const realFetch = globalThis.fetch;
+    let calls = 0;
+    (globalThis as unknown as { fetch: unknown }).fetch = async (input: unknown) => {
+      if (String(input).includes('/api/codesign/families')) calls += 1;
+      return new Response(JSON.stringify({ message: 'not ready' }), { status: 503 });
+    };
+    try {
+      let root: TestRenderer.ReactTestRenderer | undefined;
+      await act(async () => {
+        root = TestRenderer.create(<CodesignCockpit />);
+      });
+      const box = root!.root.findByProps({ 'aria-label': 'Family offers JSON' });
+      await act(async () => {
+        (box.props as { onChange: (e: { target: { value: string } }) => void }).onChange({ target: { value: 'nope{{{' } });
+      });
+      const run = root!.root.findByProps({ children: 'Run families' });
+      await act(async () => {
+        await (run.props as { onClick: () => Promise<void> }).onClick();
+      });
+      expect(textOf(root!.root)).toContain('offers must be JSON');
       expect(calls).toBe(0);
     } finally {
       (globalThis as unknown as { fetch: unknown }).fetch = realFetch;

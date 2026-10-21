@@ -590,6 +590,8 @@ import type {
   CodesignTQResult,
   CodesignVerifiedComponent,
   CodesignVerifiedResult,
+  CodesignFamilyOffer,
+  CodesignFamiliesResult,
   CostSummary,
 } from '@/types';
 
@@ -602,6 +604,8 @@ export type {
   CodesignTQResult,
   CodesignVerifiedComponent,
   CodesignVerifiedResult,
+  CodesignFamilyOffer,
+  CodesignFamiliesResult,
   CostSummary,
 };
 
@@ -678,6 +682,31 @@ export async function evaluateCodesignArtifact(
 }
 
 // Read-only LLM spend summary (G10): server-sealed aggregates, heuristic.
+// Evaluated family search (ux-plan slice 3): tracks mature separately,
+// elites cross-pollinate, widen-nudge names the most stagnant track.
+export async function runFamilySearch(
+  body: Record<string, unknown>
+): Promise<{ ok: true; result: CodesignFamiliesResult } | { ok: false; error: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/codesign/families`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || data.ok !== true) {
+      const msg =
+        (data && typeof data.message === 'string' && data.message) ||
+        (data && typeof data.error === 'string' && data.error) ||
+        `refused (HTTP ${res.status})`;
+      return { ok: false, error: msg.slice(0, 280) };
+    }
+    return { ok: true, result: data as CodesignFamiliesResult };
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 280) };
+  }
+}
+
 export async function fetchCostSummary(): Promise<
   { ok: true; result: CostSummary } | { ok: false; error: string }
 > {

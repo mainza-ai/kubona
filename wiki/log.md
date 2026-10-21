@@ -2999,3 +2999,8 @@ skipped is the exact failure this incident is about:
   - Caught live: first version leaked the write lock on refusal paths (bare return under explicit Unlock) -> next read deadlocked. Fixed unlock-before-return; TestUpdateRefusesPartialProviders pins refuse + no-mutation + rotation + toggle.
   - Deleted ObservatoryCockpit.tsx (zero importers) + useTelemetry.ts (disabled, zero callers); fixed stale shortcuts.ts comment. Backend SSE rail stays (served capability, not dead).
   - Verified: pkg/llm green, pkg/api full green (32s), console tsc + 176 tests green, lint clean.
+
+## [2026-10-20] feat | Families view (ux-plan slice 3) — tracks mature, elites share, nudge reads stagnation
+  - Go: POST /api/codesign/families (bounded evaluated search, same spec, offers<=64, share_rounds<=3, fixed tests; invalid recorded never scored; widen-nudge = max offers-since-improvement).
+  - Console: Families card (spec, family list, offers JSON with live-verified presets, share rounds; elites/stagnation/widen-nudge/shares rendered). Replaces the old families process-note (D6).
+  - Verified: Go families proxy green (incl. earned-elite sharing + deterministic stagnation nudge), console 38 files/178 tests green (2 new), tsc clean.

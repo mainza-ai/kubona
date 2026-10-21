@@ -303,6 +303,27 @@ export interface CodesignVerifiedResult {
   proofs: string[];
 }
 
+export interface CodesignFamilyOffer {
+  family: string;
+  valid: boolean;
+  toffoli?: number;
+  qubits?: number;
+  tq?: number;
+  improved?: boolean;
+}
+
+export interface CodesignFamiliesResult {
+  spec_kind: string;
+  kappa: number;
+  offers: CodesignFamilyOffer[];
+  elites: Record<string, { toffoli: number; qubits: number; tq: number; artifact: unknown }>;
+  stagnation: Record<string, number>;
+  lineage_len: number;
+  lineage: Array<Record<string, unknown>>;
+  shares: Array<{ offers: number; improvements: number; details: Array<Record<string, unknown>> }>;
+  widen_nudge: { family: string; offers_since_improvement: number; nudge: string };
+}
+
 // Cost summary (read-only LLM spend aggregates; heuristic, never billing).
 export interface CostSummary {
   cap_usd: number;
