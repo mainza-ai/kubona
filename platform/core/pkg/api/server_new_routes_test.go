@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -2350,5 +2351,56 @@ func TestCodesignFamiliesProxy(t *testing.T) {
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("families GET must 405, got %d", w.Code)
+	}
+}
+
+func TestCodesignPacksRegistryLive(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		var body io.Reader
+		if method == http.MethodPost {
+			body = bytes.NewReader([]byte("{}"))
+		}
+		req := httptest.NewRequest(method, "/api/codesign/packs", body)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Fatalf("packs %s must 200, got %d", method, w.Code)
+		}
+		if method == http.MethodGet {
+			var m struct {
+				Order []string `json:"order"`
+				Packs []struct {
+					Name            string   `json:"name"`
+					Version         string   `json:"version"`
+					AnchorRequired  bool     `json:"anchor_required"`
+					EvidenceReqs    []string `json:"evidence_reqs"`
+					Status          string   `json:"status"`
+				} `json:"packs"`
+			}
+			if err := json.Unmarshal(w.Body.Bytes(), &m); err != nil {
+				t.Fatalf("packs body must be JSON: %v", err)
+			}
+			if len(m.Order) != 5 || len(m.Packs) != 5 {
+				t.Fatalf("registry must carry 5 packs in order, got %v", m)
+			}
+			for i, name := range m.Order {
+				if m.Packs[i].Name != name {
+					t.Fatalf("pack order must match PACK_ORDER, got %v", m.Order)
+				}
+				p := m.Packs[i]
+				if p.Version == "" || !p.AnchorRequired || len(p.EvidenceReqs) == 0 || p.Status != "scaffold" {
+					t.Fatalf("pack %q must be versioned, anchor-required, evidenced, scaffold: %+v", name, p)
+				}
+			}
+		}
+	}
+	req := httptest.NewRequest(http.MethodPut, "/api/codesign/packs", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("packs PUT must 405, got %d", w.Code)
 	}
 }

@@ -592,6 +592,8 @@ import type {
   CodesignVerifiedResult,
   CodesignFamilyOffer,
   CodesignFamiliesResult,
+  CodesignPack,
+  CodesignPacksResult,
   CostSummary,
 } from '@/types';
 
@@ -606,6 +608,8 @@ export type {
   CodesignVerifiedResult,
   CodesignFamilyOffer,
   CodesignFamiliesResult,
+  CodesignPack,
+  CodesignPacksResult,
   CostSummary,
 };
 
@@ -682,6 +686,30 @@ export async function evaluateCodesignArtifact(
 }
 
 // Read-only LLM spend summary (G10): server-sealed aggregates, heuristic.
+// Pack registry (ux-plan slice 4): served live, never hand-typed.
+// Promotion stays a privileged op; this rail is read-only.
+export async function fetchCodesignPacks(): Promise<
+  { ok: true; result: CodesignPacksResult } | { ok: false; error: string }
+> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/codesign/packs`, {
+      cache: 'no-store',
+      headers: authHeaders(),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || data.ok !== true || !Array.isArray(data.packs)) {
+      const msg =
+        (data && typeof data.message === 'string' && data.message) ||
+        (data && typeof data.error === 'string' && data.error) ||
+        `refused (HTTP ${res.status})`;
+      return { ok: false, error: msg.slice(0, 280) };
+    }
+    return { ok: true, result: data as CodesignPacksResult };
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 280) };
+  }
+}
+
 // Evaluated family search (ux-plan slice 3): tracks mature separately,
 // elites cross-pollinate, widen-nudge names the most stagnant track.
 export async function runFamilySearch(
