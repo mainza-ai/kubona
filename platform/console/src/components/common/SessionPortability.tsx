@@ -23,8 +23,12 @@ export function SessionPortability({
   onSessionImported: (sessionId: string, replayed: boolean) => void;
 }) {
   const [busy, setBusy] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  // T-13: notice carries a tone so success receipts render distinctly
+  // from failure strings (previously success set nothing at all).
+  const [notice, setNotice] = useState<{ text: string; tone: 'ok' | 'warn' } | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
+
+  const warn = (text: string) => setNotice({ text, tone: 'warn' });
 
   const run = async (kind: string, fn: () => Promise<{ ok: true } | { error: string } | null>) => {
     setBusy(kind);
@@ -32,9 +36,9 @@ export function SessionPortability({
     try {
       const res = await fn();
       if (res === null) {
-        setNotice('backend unreachable — nothing changed.');
+        warn('backend unreachable — nothing changed.');
       } else if ('error' in res) {
-        setNotice(res.error);
+        warn(res.error);
       }
     } finally {
       setBusy(null);
@@ -80,23 +84,33 @@ export function SessionPortability({
       try {
         raw = await file.text();
       } catch {
-        setNotice('could not read that file — nothing sent.');
+        warn('could not read that file — nothing sent.');
         return;
       }
       let manifest: unknown;
       try {
         manifest = JSON.parse(raw);
       } catch {
-        setNotice('not valid JSON — nothing sent to the backend.');
+        warn('not valid JSON — nothing sent to the backend.');
         return;
       }
       const res = await importSession(manifest);
       if (res === null) {
-        setNotice('backend unreachable — nothing changed.');
+        warn('backend unreachable — nothing changed.');
       } else if ('error' in res) {
-        setNotice(res.error);
+        warn(res.error);
       } else {
+        // T-13: silent success is gone. The receipt names what happened
+        // and distinguishes a fresh import from an idempotent replay
+        // (the backend reports replayed:true on existing ids).
         onSessionImported(res.session_id, res.replayed);
+        const short = res.session_id.slice(0, 8);
+        setNotice({
+          text: res.replayed
+            ? `session ${short} already present — replayed without duplicating, switched to it.`
+            : `imported session ${short} — switched to it.`,
+          tone: 'ok',
+        });
       }
     } finally {
       setBusy(null);
@@ -157,8 +171,11 @@ export function SessionPortability({
         />
       </div>
       {notice && (
-        <p className="text-[11px] text-amber-200" role="alert">
-          {notice}
+        <p
+          className={notice.tone === 'ok' ? 'text-[11px] text-emerald-200' : 'text-[11px] text-amber-200'}
+          role="alert"
+        >
+          {notice.text}
         </p>
       )}
     </div>
