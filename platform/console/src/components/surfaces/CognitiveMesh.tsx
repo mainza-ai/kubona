@@ -18,6 +18,7 @@ import {
   fetchRadar,
   fetchLLMSettings,
   saveLLMSettings,
+  fetchCostSummary,
   fetchCustomAgents,
   createCustomAgent,
   deleteCustomAgent,
@@ -25,6 +26,7 @@ import {
 } from '@/lib/api';
 import { fmtFixed } from '@/lib/guards';
 import { useFocusTrap } from '@/lib/useFocusTrap';
+import type { CostSummary } from '@/lib/api';
 
 interface CognitiveMeshProps {
   campaign?: CampaignState | null;
@@ -41,6 +43,8 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
   useFocusTrap(isCreatingAgent, createAgentPanelRef);
   const [meshError, setMeshError] = useState<string | null>(null);
   const [airGapError, setAirGapError] = useState<string | null>(null);
+  const [costSummary, setCostSummary] = useState<CostSummary | null>(null);
+  const [costRefused, setCostRefused] = useState<string | null>(null);
   const [routeError, setRouteError] = useState<string | null>(null);
 
   // New Agent Form
@@ -143,6 +147,24 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
       })
       .catch((err) => {
         if (mounted) setMeshError(`Agents unreachable: ${err instanceof Error ? err.message : String(err)}`);
+      });
+
+    fetchCostSummary()
+      .then((out) => {
+        if (!mounted) return;
+        if (out.ok) {
+          setCostSummary(out.result);
+          setCostRefused(null);
+        } else {
+          setCostSummary(null);
+          setCostRefused(out.error);
+        }
+      })
+      .catch((err) => {
+        if (mounted) {
+          setCostSummary(null);
+          setCostRefused(err instanceof Error ? err.message : String(err));
+        }
       });
 
     return () => {
@@ -298,6 +320,37 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
             )}
           </button>
         </div>
+      </div>
+
+      {/* LLM spend (server-sealed aggregates, heuristic estimates) */}
+      <div className="p-4 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl">
+        <div className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider font-mono flex items-center space-x-2">
+          <span>LLM spend — server-sealed</span>
+          {costSummary?.local_bypass && (
+            <span className="text-emerald-400 normal-case font-sans">{`local inference $0 · unmetered (active: ${costSummary.active_provider})`}</span>
+          )}
+        </div>
+        {costRefused && (
+          <div className="mt-2 p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[11px]">
+            Spend refused — {costRefused.slice(0, 200)}. Nothing spent, nothing assumed.
+          </div>
+        )}
+        {!costRefused && !costSummary && (
+          <div className="mt-2 text-[11px] text-slate-400 font-code">Loading spend…</div>
+        )}
+        {costSummary && (
+          <div className="mt-1 text-xs text-slate-200 font-mono">
+            spent ${fmtFixed(costSummary.spent_usd, 4)}
+            {costSummary.track_only ? (
+              <span className="text-slate-400"> · no cap (track-only)</span>
+            ) : (
+              <span> / ${fmtFixed(costSummary.cap_usd, 2)} cap · ${fmtFixed(costSummary.remaining_usd ?? 0, 2)} left</span>
+            )}
+            {costSummary.unmetered_count > 0 && (
+              <span className="text-amber-300"> · {costSummary.unmetered_count} blind-stream record{costSummary.unmetered_count === 1 ? '' : 's'} (gate-relevant)</span>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Host Port Radar Discovery */}

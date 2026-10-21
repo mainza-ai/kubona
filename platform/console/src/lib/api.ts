@@ -590,6 +590,7 @@ import type {
   CodesignTQResult,
   CodesignVerifiedComponent,
   CodesignVerifiedResult,
+  CostSummary,
 } from '@/types';
 
 export type {
@@ -601,6 +602,7 @@ export type {
   CodesignTQResult,
   CodesignVerifiedComponent,
   CodesignVerifiedResult,
+  CostSummary,
 };
 
 
@@ -670,6 +672,28 @@ export async function evaluateCodesignArtifact(
       return { ok: false, error: msg.slice(0, 280) };
     }
     return { ok: true, spec_kind: String(data.spec_kind ?? ''), result: (data.result ?? {}) as Record<string, unknown> };
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 280) };
+  }
+}
+
+// Read-only LLM spend summary (G10): server-sealed aggregates, heuristic.
+export async function fetchCostSummary(): Promise<
+  { ok: true; result: CostSummary } | { ok: false; error: string }
+> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/cost/summary`, {
+      cache: 'no-store',
+      headers: authHeaders(),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || typeof data.spent_usd !== 'number') {
+      const msg =
+        (data && typeof data.message === 'string' && data.message) ||
+        `refused (HTTP ${res.status})`;
+      return { ok: false, error: msg.slice(0, 280) };
+    }
+    return { ok: true, result: data as CostSummary };
   } catch (err) {
     return { ok: false, error: String(err).slice(0, 280) };
   }

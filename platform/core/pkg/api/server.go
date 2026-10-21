@@ -517,6 +517,10 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/krylov/solve", s.handleKrylovSolve)
 	s.mux.HandleFunc("/api/mitigation/apply", s.handleMitigationApply)
 	s.mux.HandleFunc("/api/cost/settle", s.handlePaymentSettle)
+	// Spend visibility (G10): read-only LLM cost summary for the console.
+	// Aggregates only (no per-session/tenant attribution is recorded);
+	// heuristic estimates, never metered billing.
+	s.mux.HandleFunc("/api/cost/summary", s.handleCostSummary)
 
 	// Hugging Face Model Hub & In-Platform Downloader
 	// W2.1 threat model: reads stay public behind limiters in general,
@@ -910,7 +914,7 @@ func (s *Server) handleFleet(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleRadar(w http.ResponseWriter, r *http.Request) {
 	// Probe local ports
-	ports := []int{8787, 11434, 1234, 8080, 50051}
+	ports := []int{8787, 11434, 1234, 47831, 8080, 50051}
 	var detected []map[string]any
 
 	for _, p := range ports {
@@ -928,6 +932,8 @@ func (s *Server) handleRadar(w http.ResponseWriter, r *http.Request) {
 			serviceName = "Ollama Local LLM Engine"
 		case 1234:
 			serviceName = "LM Studio Local LLM Engine"
+		case 47831:
+			serviceName = "Strata Local LLM Engine"
 		case 8080:
 			serviceName = "Kubona Go Core Gateway"
 		case 50051:
@@ -3190,17 +3196,27 @@ func llmBudgetCapUSD() float64 {
 // llmSpendTotal sums recorded cloud-LLM estimates lifetime (bounded scan;
 // unpriced records contribute nothing — they were allowed, not hidden).
 func (s *Server) llmSpendTotal() float64 {
+	spent, _, _ := s.llmSpendSummary()
+	return spent
+}
+
+// llmSpendSummary aggregates one bounded scan: total cloud estimates,
+// per-provider subtotals, and the blind-stream (unmetered) record count
+// the budget gate trips on when capped.
+func (s *Server) llmSpendSummary() (spent float64, byProvider map[string]float64, unmetered int) {
+	byProvider = map[string]float64{}
 	rows, err := s.ledger.DB().Query(
 		`SELECT payload FROM ledger_events WHERE event_type = 'llm_spend_estimated' ORDER BY id DESC LIMIT 10000`)
 	if err != nil {
-		return 0
+		return 0, byProvider, 0
 	}
 	defer rows.Close()
-	var total float64
 	for rows.Next() {
 		var payloadStr string
 		var payload struct {
 			EstimatedUSD *float64 `json:"estimated_usd"`
+			Provider     string   `json:"provider"`
+			Unmetered    *bool    `json:"unmetered"`
 		}
 		if err := rows.Scan(&payloadStr); err != nil {
 			continue
@@ -3208,11 +3224,16 @@ func (s *Server) llmSpendTotal() float64 {
 		if err := json.Unmarshal([]byte(payloadStr), &payload); err != nil {
 			continue
 		}
+		if payload.Unmetered != nil && *payload.Unmetered {
+			unmetered++
+			continue
+		}
 		if payload.EstimatedUSD != nil {
-			total += *payload.EstimatedUSD
+			spent += *payload.EstimatedUSD
+			byProvider[payload.Provider] += *payload.EstimatedUSD
 		}
 	}
-	return total
+	return spent, byProvider, unmetered
 }
 
 // checkLLMBudget refuses new cloud LLM entries once the operator's global

@@ -303,6 +303,20 @@ export interface CodesignVerifiedResult {
   proofs: string[];
 }
 
+// Cost summary (read-only LLM spend aggregates; heuristic, never billing).
+export interface CostSummary {
+  cap_usd: number;
+  spent_usd: number;
+  remaining_usd: number | null;
+  unmetered_count: number;
+  by_provider: Record<string, number>;
+  active_provider: string;
+  local_bypass: boolean;
+  heuristic: boolean;
+  currency: string;
+  track_only: boolean;
+}
+
 export interface AutoresearchLoop {
   id: string;
   session_id: string;

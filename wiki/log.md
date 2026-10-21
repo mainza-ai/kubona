@@ -2984,3 +2984,8 @@ skipped is the exact failure this incident is about:
   - Side find: qubits are 112,168 (addressable == peak-live), not stale prose 110,132 — corrected in slice60 docstring, slice62 test, plan, readiness (⚑ Correction notes); generator asserts every run.
   - Go: verified.go (embed + shape check) + GET /api/codesign/verified (read-only, 405 on write). Console: headline card (total/components/labels/collapsible proofs + refusal state), typed via shared CodesignVerified* types.
   - Verified: Go codesign+api tests green, console 38 files/172 tests green, tsc clean, Python slice62 green, wiki lint clean.
+
+## [2026-10-20] feat | Phase 3 — spend summary + Strata visibility (G5/G10)
+  - Go: GET /api/cost/summary (public read, aggregates only — cap/spent/remaining/blind-stream/by-provider/active/local_bypass/heuristic labels); radar probes 47831 ("Strata Local LLM Engine"); llmSpendTotal refactored onto llmSpendSummary (identical semantics).
+  - Console: fetchCostSummary + shared CostSummary type; mesh "LLM spend — server-sealed" strip (spent/cap/remaining, local=$0 cue, unmetered warning, distinct refused/loading states). No strata hardcoding — generic rails cover it.
+  - Verified: Go api/codesign/llm green, console 38 files/174 tests green (2 new strip tests), tsc clean, wiki lint clean.

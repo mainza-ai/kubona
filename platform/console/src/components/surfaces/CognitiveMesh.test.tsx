@@ -35,6 +35,16 @@ describe('CognitiveMesh', () => {
       if (url.includes('/api/llm/settings')) {
         return { ok: true, json: async () => ({ air_gapped: true }) };
       }
+      if (url.includes('/api/cost/summary')) {
+        return {
+          ok: true,
+          json: async () => ({
+            cap_usd: 10, spent_usd: 4, remaining_usd: 6, unmetered_count: 0,
+            by_provider: { openai: 4 }, active_provider: 'openai',
+            local_bypass: false, heuristic: true, currency: 'USD', track_only: false,
+          }),
+        };
+      }
       if (url.includes('/api/agents/custom')) {
         return {
           ok: true,
@@ -73,6 +83,16 @@ describe('CognitiveMesh', () => {
     stubFetch((url) => {
       if (url.includes('/api/radar')) return { ok: true, json: async () => ({ radar_endpoints: [] }) };
       if (url.includes('/api/llm/settings')) return { ok: true, json: async () => ({ air_gapped: false }) };
+      if (url.includes('/api/cost/summary')) {
+        return {
+          ok: true,
+          json: async () => ({
+            cap_usd: 10, spent_usd: 4, remaining_usd: 6, unmetered_count: 0,
+            by_provider: { openai: 4 }, active_provider: 'openai',
+            local_bypass: false, heuristic: true, currency: 'USD', track_only: false,
+          }),
+        };
+      }
       if (url.includes('/api/agents/custom')) return { ok: true, json: async () => ({ agents: [] }) };
       if (url.includes('/api/mesh/route')) {
         return {
@@ -114,5 +134,57 @@ describe('CognitiveMesh', () => {
     expect(text).toContain('CLOUD ESCALATION');
     expect(text).toContain('Modalities:');
     expect(text).toContain('general');
+  });
+
+  it('renders the server-sealed spend strip with local-bypass cue', async () => {
+    stubFetch((url) => {
+      if (url.includes('/api/radar')) return { ok: true, json: async () => ({ radar_endpoints: [] }) };
+      if (url.includes('/api/llm/settings')) return { ok: true, json: async () => ({ air_gapped: true }) };
+      if (url.includes('/api/agents/custom')) return { ok: true, json: async () => ({ agents: [] }) };
+      if (url.includes('/api/cost/summary')) {
+        return {
+          ok: true,
+          json: async () => ({
+            cap_usd: 0, spent_usd: 0, remaining_usd: null, unmetered_count: 0,
+            by_provider: {}, active_provider: 'strata',
+            local_bypass: true, heuristic: true, currency: 'USD', track_only: true,
+          }),
+        };
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<CognitiveMesh />);
+    });
+
+    const text = textOf(tree!.toJSON());
+    expect(text).toContain('LLM spend — server-sealed');
+    expect(text).toContain('local inference $0');
+    expect(text).toContain('unmetered (active: strata)');
+    expect(text).toContain('no cap (track-only)');
+  });
+
+  it('shows the spend refusal instead of inventing figures', async () => {
+    stubFetch((url) => {
+      if (url.includes('/api/radar')) return { ok: true, json: async () => ({ radar_endpoints: [] }) };
+      if (url.includes('/api/llm/settings')) return { ok: true, json: async () => ({ air_gapped: true }) };
+      if (url.includes('/api/agents/custom')) return { ok: true, json: async () => ({ agents: [] }) };
+      if (url.includes('/api/cost/summary')) {
+        return { ok: false, status: 503, json: async () => ({ code: 'unavailable', message: 'spend store unreachable' }) };
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    });
+
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<CognitiveMesh />);
+    });
+
+    const text = textOf(tree!.toJSON());
+    expect(text).toContain('LLM spend — server-sealed');
+    expect(text).toContain('Spend refused');
+    expect(text).not.toContain('local inference $0');
   });
 });

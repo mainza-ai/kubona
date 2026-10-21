@@ -2184,3 +2184,77 @@ func TestCodesignVerifiedServesDocument(t *testing.T) {
 		t.Fatalf("verified POST must 405, got %d", ww.Code)
 	}
 }
+
+func TestCostSummaryAggregates(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+	l := srv.Ledger()
+
+	get := func() (int, map[string]any) {
+		req := httptest.NewRequest(http.MethodGet, "/api/cost/summary", nil)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		var m map[string]any
+		_ = json.Unmarshal(w.Body.Bytes(), &m)
+		return w.Code, m
+	}
+	seed := func(provider string, usd float64, unmetered bool) {
+		t.Helper()
+		p := map[string]any{"provider": provider, "model": "m",
+			"prompt_tokens": 100, "completion_tokens": 50,
+			"heuristic": true, "usage_reported": !unmetered}
+		if unmetered {
+			p["unmetered"] = true
+		} else {
+			p["estimated_usd"] = usd
+		}
+		if err := l.AppendEvent("global", "llm_spend_estimated", p); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// Empty ledger, track-only: zeros, null remaining.
+	t.Setenv("KUBONA_LLM_BUDGET_USD", "")
+	if code, m := get(); code != http.StatusOK {
+		t.Fatalf("cost summary must 200, got %d", code)
+	} else {
+		if m["spent_usd"] != float64(0) || m["remaining_usd"] != nil {
+			t.Fatalf("empty track-only must read 0/null, got %v", m)
+		}
+		if m["track_only"] != true || m["heuristic"] != true || m["currency"] != "USD" {
+			t.Fatalf("summary must label track-only + heuristic + USD, got %v", m)
+		}
+	}
+
+	seed("openai", 1.5, false)
+	seed("openai", 0.5, false)
+	seed("anthropic", 2.0, false)
+	seed("openai", 0, true)
+	t.Setenv("KUBONA_LLM_BUDGET_USD", "10")
+	code, m := get()
+	if code != http.StatusOK {
+		t.Fatalf("cost summary must 200, got %d", code)
+	}
+	if m["spent_usd"] != 4.0 {
+		t.Fatalf("spent must sum 4.0, got %v", m["spent_usd"])
+	}
+	if m["remaining_usd"] != 6.0 {
+		t.Fatalf("remaining must be 10-4=6, got %v", m["remaining_usd"])
+	}
+	if m["unmetered_count"] != float64(1) {
+		t.Fatalf("unmetered count must be 1, got %v", m["unmetered_count"])
+	}
+	bp := m["by_provider"].(map[string]any)
+	if bp["openai"] != 2.0 || bp["anthropic"] != 2.0 {
+		t.Fatalf("by_provider must split openai=2/anthropic=2, got %v", bp)
+	}
+
+	// Writes refuse on the read-only rail.
+	req := httptest.NewRequest(http.MethodPost, "/api/cost/summary", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("cost summary POST must 405, got %d", w.Code)
+	}
+}
