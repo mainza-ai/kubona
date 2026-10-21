@@ -1536,6 +1536,25 @@ func TestEmptyJobsListIsArray(t *testing.T) {
 	if !strings.Contains(listW.Body.String(), `"jobs":[]`) {
 		t.Errorf("empty jobs list must serialize as [], got %s", listW.Body.String())
 	}
+
+	// Same null-vs-[] class on the sessions list (fresh daemon reads null).
+	listSess := httptest.NewRequest(http.MethodGet, "/api/sessions", nil)
+	listSessW := httptest.NewRecorder()
+	h.ServeHTTP(listSessW, listSess)
+	if listSessW.Code != http.StatusOK {
+		t.Fatalf("expected 200 for sessions list, got %d", listSessW.Code)
+	}
+	// A fresh test server has sessions; assert shape, not emptiness: the
+	// list must be a JSON array, never null.
+	var sessList struct {
+		Sessions []any `json:"sessions"`
+	}
+	if err := json.NewDecoder(listSessW.Body).Decode(&sessList); err != nil {
+		t.Fatalf("decode failed: %v", err)
+	}
+	if sessList.Sessions == nil {
+		t.Errorf("sessions list must serialize as [], never null: %s", listSessW.Body.String())
+	}
 }
 
 // Audit 2026-10-21: supervisor "loop not found" errors surfaced as HTTP
