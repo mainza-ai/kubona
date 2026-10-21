@@ -201,6 +201,7 @@ entry:
         <div className="relative rounded-xl border border-white/[0.06] bg-black/80 p-4 font-mono text-xs text-white/80 overflow-x-auto h-64 scrollbar-thin">
           <button
             onClick={copyQir}
+            aria-label={copied ? 'QIR copied to clipboard' : 'Copy QIR to clipboard'}
             className="absolute top-3 right-3 p-1.5 rounded-lg bg-white/10 hover:bg-white/20 transition text-white/70"
           >
             {copied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}

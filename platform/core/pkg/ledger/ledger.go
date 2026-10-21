@@ -657,13 +657,19 @@ func (l *Ledger) VerifyEventSignature(event *EventRecord) (bool, error) {
 	}
 
 	pubBytes, err := hex.DecodeString(event.SignerPubkey)
-	if err != nil || len(pubBytes) != ed25519.PublicKeySize {
+	if err != nil {
 		return false, fmt.Errorf("invalid public key: %w", err)
+	}
+	if len(pubBytes) != ed25519.PublicKeySize {
+		return false, fmt.Errorf("invalid public key: %d bytes (want %d)", len(pubBytes), ed25519.PublicKeySize)
 	}
 
 	sigBytes, err := hex.DecodeString(event.Signature)
-	if err != nil || len(sigBytes) != ed25519.SignatureSize {
+	if err != nil {
 		return false, fmt.Errorf("invalid signature size: %w", err)
+	}
+	if len(sigBytes) != ed25519.SignatureSize {
+		return false, fmt.Errorf("invalid signature size: %d bytes (want %d)", len(sigBytes), ed25519.SignatureSize)
 	}
 
 	digest := chainDigestBytes(event.PrevHash, event.SessionID, event.EventType, string(event.Payload))

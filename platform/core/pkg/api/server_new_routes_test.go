@@ -1466,6 +1466,70 @@ func TestLoopsSessionScope(t *testing.T) {
 	}
 }
 
+// Audit 2026-10-21: domain validation refusals must be 400, never 500.
+// POST /api/loops with no/invalid spend bound and POST /api/hf/download
+// with missing fields both returned HTTP 500 with a validation message.
+// The message was right; the status lied (500 = our bug, retryable; 400 =
+// caller error, fix the shape). Pins the corrected contract.
+func TestValidationRefusalsAre400Not500(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
+	h := srv.Handler()
+
+	post := func(path, token string, body any) (int, string) {
+		t.Helper()
+		raw, _ := json.Marshal(body)
+		req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(raw))
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		return w.Code, w.Body.String()
+	}
+
+	if code, body := post("/api/loops", "", map[string]any{}); code != http.StatusBadRequest {
+		t.Errorf("POST /api/loops {} must 400, got %d (%s)", code, body)
+	} else if !strings.Contains(body, "maxSteps") {
+		t.Errorf("POST /api/loops {} 400 must name maxSteps, got %s", body)
+	}
+	if code, body := post("/api/loops", "", map[string]any{"session_id": "s1"}); code != http.StatusBadRequest {
+		t.Errorf("POST /api/loops without max_steps must 400, got %d (%s)", code, body)
+	}
+	if code, body := post("/api/hf/download", "op-token", map[string]any{}); code != http.StatusBadRequest {
+		t.Errorf("POST /api/hf/download {} must 400, got %d (%s)", code, body)
+	} else if !strings.Contains(body, "repo_id and filename are required") {
+		t.Errorf("POST /api/hf/download {} 400 must name the missing fields, got %s", body)
+	}
+	if code, body := post("/api/hf/download", "op-token", map[string]any{"repo_id": "a/b"}); code != http.StatusBadRequest {
+		t.Errorf("POST /api/hf/download without filename must 400, got %d (%s)", code, body)
+	}
+}
+
+// Audit 2026-10-21: hex-decode-then-length-check wrapped a possibly-nil err
+// with %w, leaking "%!w(<nil>)" into user-facing errors (mandates, ledger).
+// Pins: wrong-length keys name actual vs wanted bytes, never a format verb.
+func TestInvalidKeyErrorsNameByteCounts(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+
+	raw, _ := json.Marshal(map[string]any{})
+	req := httptest.NewRequest(http.MethodPost, "/api/mandates/verify", bytes.NewReader(raw))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("verify must 200 with valid:false, got %d", w.Code)
+	}
+	if strings.Contains(w.Body.String(), "%!") {
+		t.Errorf("verify error must not leak a format verb, got %s", w.Body.String())
+	}
+	if !strings.Contains(w.Body.String(), "0 bytes (want 32)") {
+		t.Errorf("verify error must name byte counts, got %s", w.Body.String())
+	}
+}
+
 // K3: the custom-agent registry validates shape, protects seeds, persists
 // across restarts, and gates writes on the operator token.
 func TestCustomAgentRegistryGuards(t *testing.T) {
