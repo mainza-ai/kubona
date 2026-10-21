@@ -43,6 +43,15 @@ export function HuggingFaceModelHub() {
   const [downloads, setDownloads] = useState<HFDownloadTask[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastTone, setToastTone] = useState<'info' | 'error'>('info');
+  // T-11: one click never starts a multi-GB fetch. Known sizes at or
+  // above threshold route through an explicit confirm dialog; the server
+  // enforces the same bound (confirmed:true) so the dialog is not
+  // bypassable via raw POST.
+  const [confirmDownload, setConfirmDownload] = useState<{ repoId: string; filename: string; sizeBytes: number } | null>(null);
+  // T-11: pending cancel survives the 3 s poll re-render (component-level
+  // state, not row-level) and disables the button, so the control stays
+  // actionable mid-click instead of vanishing under the cursor.
+  const [cancelling, setCancelling] = useState<string | null>(null);
 
   const showToast = (msg: string, tone: 'info' | 'error' = 'info') => {
     setToastMessage(msg);
@@ -132,9 +141,16 @@ export function HuggingFaceModelHub() {
     }
   };
 
-  const handleDownload = async (repoId: string, filename: string) => {
+  const HF_DOWNLOAD_CONFIRM_BYTES = 100 * 1024 * 1024;
+
+  const handleDownload = async (repoId: string, filename: string, sizeBytes?: number, confirmed = false) => {
+    if (!confirmed && typeof sizeBytes === 'number' && Number.isFinite(sizeBytes) && sizeBytes >= HF_DOWNLOAD_CONFIRM_BYTES) {
+      setConfirmDownload({ repoId, filename, sizeBytes });
+      return;
+    }
+    setConfirmDownload(null);
     try {
-      const task = await startHFDownload(repoId, filename);
+      const task = await startHFDownload(repoId, filename, sizeBytes, confirmed);
       if (task) {
         showToast(`Download started: ${filename}`, 'info');
         refreshDownloads();
@@ -147,12 +163,16 @@ export function HuggingFaceModelHub() {
   };
 
   const handleCancel = async (taskId: string) => {
+    if (cancelling !== null) return;
+    setCancelling(taskId);
     try {
       const ok = await cancelHFDownload(taskId);
       if (!ok) showToast(`Cancel refused for ${taskId.slice(0, 8)} — task may have finished.`, 'error');
       refreshDownloads();
     } catch (err) {
       showToast(`Failed to cancel download (${err instanceof Error ? err.message : String(err)}).`, 'error');
+    } finally {
+      setCancelling(null);
     }
   };
 
@@ -277,9 +297,11 @@ export function HuggingFaceModelHub() {
                 {task.status === 'downloading' && (
                   <button
                     onClick={() => handleCancel(task.task_id)}
-                    className="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 text-xs font-mono shrink-0"
+                    disabled={cancelling === task.task_id}
+                    aria-label={`Cancel download ${task.filename}`}
+                    className="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 text-xs font-mono shrink-0 disabled:opacity-50"
                   >
-                    Cancel
+                    {cancelling === task.task_id ? 'Cancelling…' : 'Cancel'}
                   </button>
                 )}
               </div>
@@ -473,7 +495,8 @@ export function HuggingFaceModelHub() {
                       </div>
 
                       <button
-                        onClick={() => handleDownload(selectedModel.id, q.filename)}
+                        onClick={() => handleDownload(selectedModel.id, q.filename, q.size_bytes)}
+                        aria-label={`Download ${q.filename}`}
                         className="px-3.5 py-1.5 rounded-xl bg-cyan-600/30 hover:bg-cyan-600/50 border border-cyan-500/40 text-cyan-200 text-xs font-semibold flex items-center space-x-1.5 transition-all shadow-md shrink-0"
                       >
                         <Download className="w-3.5 h-3.5 text-cyan-400" />
@@ -484,6 +507,43 @@ export function HuggingFaceModelHub() {
                 </div>
               )}
             </div>
+
+            {/* T-11: size-confirmation dialog. Over-threshold fetches stop
+                here — Confirm posts with confirmed:true (the server
+                enforces the same bound); Dismiss posts nothing. */}
+            {confirmDownload && (
+              <div
+                role="alertdialog"
+                aria-modal="true"
+                aria-label={`Confirm download ${confirmDownload.filename}`}
+                className="m-4 p-4 rounded-xl bg-amber-500/10 border border-amber-500/40 space-y-2"
+              >
+                <div className="text-xs font-semibold text-amber-200">
+                  Large download — {(confirmDownload.sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB
+                </div>
+                <p className="text-[11px] font-mono text-slate-300 break-all">
+                  {confirmDownload.filename} ({confirmDownload.repoId})
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleDownload(confirmDownload.repoId, confirmDownload.filename, confirmDownload.sizeBytes, true)}
+                    aria-label={`Confirm download ${confirmDownload.filename}`}
+                    className="px-3 py-1.5 rounded-xl bg-amber-500/30 hover:bg-amber-500/40 border border-amber-500/50 text-amber-100 text-xs font-semibold"
+                  >
+                    Download {(confirmDownload.sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setConfirmDownload(null)}
+                    aria-label="Dismiss download confirmation"
+                    className="px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-slate-200 text-xs font-semibold"
+                  >
+                    Keep looking
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Modal Footer */}
             <div className="p-4 border-t border-white/10 bg-black/40 flex items-center justify-between text-xs text-slate-400">

@@ -1507,6 +1507,42 @@ func TestValidationRefusalsAre400Not500(t *testing.T) {
 	}
 }
 
+// T-11: over-threshold fetches without confirmed:true refuse with a
+// named 400 (no download starts); the same body with confirmed:true
+// passes the gate (network may still fail downstream — the gate, not
+// the fetch, is what's pinned). Small/unknown sizes pass ungated.
+func TestHFDownloadSizeConfirmGate(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
+	h := srv.Handler()
+
+	post := func(body any) (int, string) {
+		t.Helper()
+		raw, _ := json.Marshal(body)
+		req := httptest.NewRequest(http.MethodPost, "/api/hf/download", bytes.NewReader(raw))
+		req.Header.Set("Authorization", "Bearer op-token")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		return w.Code, w.Body.String()
+	}
+
+	big := map[string]any{"repo_id": "a/b", "filename": "model.gguf", "size_bytes": 4_360_000_000}
+	if code, body := post(big); code != http.StatusBadRequest {
+		t.Errorf("4.36 GB unconfirmed fetch must 400, got %d (%s)", code, body)
+	} else if !strings.Contains(body, "confirmed:true") {
+		t.Errorf("400 must name the confirmed:true remedy, got %s", body)
+	}
+	small := map[string]any{"repo_id": "a/b", "filename": "tiny.gguf", "size_bytes": 1024}
+	if code, _ := post(small); code == http.StatusBadRequest {
+		t.Errorf("1 KiB fetch must pass the gate, got %d", code)
+	}
+	unknown := map[string]any{"repo_id": "a/b", "filename": "mystery.gguf"}
+	if code, _ := post(unknown); code == http.StatusBadRequest {
+		t.Errorf("unknown-size fetch must pass the gate, got %d", code)
+	}
+}
+
 // Audit 2026-10-21: an empty job list serialized as "jobs":null, forcing
 // every consumer to null-guard. Empty reads as [] on the wire.
 func TestEmptyJobsListIsArray(t *testing.T) {
