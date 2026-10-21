@@ -166,6 +166,7 @@ func TestPolicyParityTable(t *testing.T) {
 		}
 		sessBody, _ := json.Marshal(map[string]any{"title": "parity metered", "tenant_id": "parity-grantee"})
 		sessReq := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewReader(sessBody))
+		sessReq.Header.Set("Authorization", "Bearer op-token") // T-09b: fixtures mint as operator
 		sessW := httptest.NewRecorder()
 		h.ServeHTTP(sessW, sessReq)
 		var sessResp struct {
@@ -265,6 +266,7 @@ func l0ParityVerdict(t *testing.T, post func(string, any) (int, map[string]any),
 	}
 	sessBody, _ := json.Marshal(map[string]any{"title": "parity l0", "tenant_id": "parity-l0"})
 	sessReq := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewReader(sessBody))
+	sessReq.Header.Set("Authorization", "Bearer op-token") // T-09b: fixtures mint as operator
 	sessW := httptest.NewRecorder()
 	h.ServeHTTP(sessW, sessReq)
 	var sessResp struct {

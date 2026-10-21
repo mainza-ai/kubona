@@ -175,6 +175,45 @@ func (m *Manager) ListSessions(limit int) ([]Session, error) {
 	return sessions, nil
 }
 
+// ListSessionsByTenant is the lab-scoped list for credentialed callers
+// (T-09a). Same shape as ListSessions, filtered — the public list stays
+// operator/anonymous-single-lab only.
+func (m *Manager) ListSessionsByTenant(tenantID string, limit int) ([]Session, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	query := `SELECT id, title, tenant_id, created_at, updated_at, status, spend_limit_usd, current_spend_usd FROM sessions WHERE tenant_id = ? ORDER BY updated_at DESC LIMIT ?`
+	rows, err := m.ledger.DB().Query(query, tenantID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	sessions := []Session{}
+	for rows.Next() {
+		var s Session
+		if err := rows.Scan(&s.ID, &s.Title, &s.TenantID, &s.CreatedAt, &s.UpdatedAt, &s.Status, &s.SpendLimitUSD, &s.CurrentSpendUSD); err != nil {
+			return nil, err
+		}
+		if s.TenantID == "" {
+			s.TenantID = "default"
+		}
+		sessions = append(sessions, s)
+	}
+	return sessions, nil
+}
+
+// CountDistinctTenants backs single-lab open mode (D-09): anonymous
+// session reads are allowed only while the store holds at most one lab,
+// so the gate closes exactly when multi-tenancy begins.
+func (m *Manager) CountDistinctTenants() (int, error) {
+	var n int
+	if err := m.ledger.DB().QueryRow(`SELECT COUNT(DISTINCT tenant_id) FROM sessions`).Scan(&n); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
 func (m *Manager) AddMessage(sessionID, role, content string, proposal *json.RawMessage) (*ChatMessage, error) {
 	// W2.2: fail-closed ghost refusal — the chat_messages FK is declared
 	// but SQLite does not enforce it unless PRAGMA foreign_keys=ON (off

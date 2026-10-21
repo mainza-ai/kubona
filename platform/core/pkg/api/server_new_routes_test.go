@@ -1023,6 +1023,7 @@ func TestCrossTenantGrantFlow(t *testing.T) {
 	// Session in the grantee lab.
 	sessBody, _ := json.Marshal(map[string]any{"title": "grant drill", "tenant_id": "lab-grantee"})
 	sessReq := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewReader(sessBody))
+	sessReq.Header.Set("Authorization", "Bearer op-token") // T-09b: fixtures mint as operator
 	sessW := httptest.NewRecorder()
 	h.ServeHTTP(sessW, sessReq)
 	var sessResp struct {
@@ -1133,6 +1134,7 @@ func TestGrantLeafRevokeSurgical(t *testing.T) {
 	}
 	sessBody, _ := json.Marshal(map[string]any{"title": "leaf drill", "tenant_id": "lab-leaf-grantee"})
 	sessReq := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewReader(sessBody))
+	sessReq.Header.Set("Authorization", "Bearer op-token") // T-09b: fixtures mint as operator
 	sessW := httptest.NewRecorder()
 	h.ServeHTTP(sessW, sessReq)
 	var sessResp struct {
@@ -1851,6 +1853,7 @@ func TestTenantSuspendLifecycle(t *testing.T) {
 	_ = jobBody
 	sessBody, _ := json.Marshal(map[string]any{"title": "susp drill", "tenant_id": "lab-susp"})
 	sessReq := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewReader(sessBody))
+	sessReq.Header.Set("Authorization", "Bearer op-token") // T-09b: fixtures mint as operator
 	sessW := httptest.NewRecorder()
 	h.ServeHTTP(sessW, sessReq)
 	var sessResp struct {
@@ -1890,19 +1893,27 @@ func TestTribunalAutoresearchEnforceAutonomy(t *testing.T) {
 	srv, l, cleanup := setupIdemServer(t)
 	defer cleanup()
 	h := srv.Handler()
+	// T-09b: fixtures mint as operator (anonymous creation into a named
+	// lab is attribution spoofing). Tribunal/autoresearch calls below
+	// stay anonymous — their spend gates are the behavior under test.
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
 
 	if code, _, _ := idemPost(t, h, "/api/tenants", map[string]any{"id": "lab-w03"}); code != http.StatusCreated {
 		t.Fatalf("register: %d", code)
 	}
-	code, body, _ := idemPost(t, h, "/api/sessions", map[string]any{"title": "w03 drill", "tenant_id": "lab-w03"})
-	if code != http.StatusCreated {
-		t.Fatalf("session: %d %s", code, body)
+	sessRaw, _ := json.Marshal(map[string]any{"title": "w03 drill", "tenant_id": "lab-w03"})
+	sessReq := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewReader(sessRaw))
+	sessReq.Header.Set("Authorization", "Bearer op-token")
+	sessW := httptest.NewRecorder()
+	h.ServeHTTP(sessW, sessReq)
+	if sessW.Code != http.StatusCreated {
+		t.Fatalf("session: %d %s", sessW.Code, sessW.Body.String())
 	}
 	var sess struct {
 		ID string `json:"id"`
 	}
-	if err := json.Unmarshal([]byte(body), &sess); err != nil || sess.ID == "" {
-		t.Fatalf("session decode: %v %s", body, err)
+	if err := json.Unmarshal(sessW.Body.Bytes(), &sess); err != nil || sess.ID == "" {
+		t.Fatalf("session decode: %s %v", sessW.Body.String(), err)
 	}
 	tribBody := map[string]any{"session_id": sess.ID, "prompt": "H2"}
 	arBody := map[string]any{"session_id": sess.ID, "harness_id": "ansatz-search", "max_iterations": 1}

@@ -166,6 +166,12 @@ func (s *Server) handleLedgerExport(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "unknown session: export refused", http.StatusForbidden)
 		return
 	}
+	// T-09b: known session — bind caller to session tenant, in addition
+	// to the record-label check below (which binds records to the
+	// session, not the caller to the session).
+	if !s.authorizeSessionRead(w, r, sess) {
+		return
+	}
 	if req.Format != "json" && req.Format != "markdown" {
 		http.Error(w, "format must be json or markdown", http.StatusBadRequest)
 		return
