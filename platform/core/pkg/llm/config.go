@@ -509,10 +509,23 @@ func (s *Settings) Update(update *Settings, db *sql.DB) error {
 	s.MaxTokens = update.MaxTokens
 	s.DisableDSMLFallback = update.DisableDSMLFallback
 	if update.Providers != nil {
-		// Never wipe a stored secret with an empty form field: an empty
-		// incoming APIKey keeps the existing one (env-supplied keys survive
-		// UI saves that don't include secrets).
+		// No partial provider writes: a struct without BaseURL/TimeoutSec
+		// is a fragment, and storing it would silently zero Enabled,
+		// BaseURL, and the model (G13). The console always sends full
+		// objects (GET-modify-PUT); programmatic clients must do the same.
+		// Unknown provider types are junk, never configuration.
 		for pt, pc := range update.Providers {
+			if _, ok := s.Providers[pt]; !ok {
+				s.mu.Unlock()
+				return fmt.Errorf("provider %q unknown: refusing (known: strata, ollama, olmx, lmstudio, anthropic, openai, opencode, nvidia)", pt)
+			}
+			if strings.TrimSpace(pc.BaseURL) == "" || pc.TimeoutSec == 0 {
+				s.mu.Unlock()
+				return fmt.Errorf("provider %q: partial entry refuses (send the full provider object — GET first, modify, PUT back)", pt)
+			}
+			// Never wipe a stored secret with an empty form field: an empty
+			// incoming APIKey keeps the existing one (env-supplied keys survive
+			// UI saves that don't include secrets).
 			if pc.APIKey == "" {
 				if existing, ok := s.Providers[pt]; ok {
 					pc.APIKey = existing.APIKey
