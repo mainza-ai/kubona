@@ -38,7 +38,7 @@ arrives, place it here first and it will find its page.
 | [[overview]] | Synthesis: what Kubona is, what is decided, and what the prototype has actually answered. |
 | [[roadmap]] | Phases 0–6 read as **acceptance criteria**, not progress: gates, dependencies, team loading. |
 | [[implementation-gaps]] | Prototype gap register: what the scaffold does vs. what production requires. Code facts only. |
-| [[platform-architecture-diagram]] | Mermaid map of the running platform (services, ports, stores, call paths). Snapshot verified 2026-10-12; refresh after any service/port/store change. |
+| [[platform-architecture-diagram]] | Mermaid map of the running platform (services, ports, stores, call paths). Snapshot verified 2026-10-21 (Strata default, codesign rail, radar fix); refresh after any service/port/store change. |
 | [[audit-topology-map]] | Deployment topology as verified live 2026-10-21 (compose + local rails, Strata, gaps marked). Refresh after any compose/port/auth change. |
 | [[cloudroom-adoption-plan]] | Ordered implementation plan for Cloudroom-mined patterns (S1–S8, all landed 2026-10-17). |
 | [[rea-adoption-plan]] | Updated Kubona × REA improvement report + production plan (R0–R6, all landed 2026-10-17). |
