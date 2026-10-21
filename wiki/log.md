@@ -3061,3 +3061,7 @@ skipped is the exact failure this incident is about:
 
 ## [2026-10-21] verification | Platform Architecture Diagram re-snapshotted @ 86afb3a
   - platform-architecture-diagram.md: dd600c2 (2026-10-12) superseded. Strata default provider + :47831 (compose ships model + host route), codesign rail subgraph with F-001, radar --bridge-addr note, ports updated (8787/11434/1234/47831), legacy 19->23 routes (codesign trio duplicated on Go rail), evidence anchors re-verified with current path:line, counts 93 routes / 28 pkgs / 194 tests / 1011 pytest.
+
+## [2026-10-21] fix | Mermaid parse errors in both diagram pages
+  - Both pages failed to render ("Error parsing Mermaid diagram!"): unescaped parentheses inside edge labels (`|gRPC (bridge:50051)|`, `|per-role routing (1500-token turn caps)|`) — proven with the real mermaid parser (mermaid.parse under jsdom): exact failure lines, fixed, both re-parse OK.
+  - Rule learned: edge labels `|...|` must not contain `()`; node labels may (verified). `A & B --> C` multi-edges are valid and kept.

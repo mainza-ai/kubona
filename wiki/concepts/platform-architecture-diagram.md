@@ -106,7 +106,7 @@ flowchart TB
     BSRV --> LIT
     CHEM --> SIM
     JOBS -->|4-tier, mandate-gated| QPU
-    TRIB -->|per-role routing (1500-token turn caps)| STRATA
+    TRIB -->|per-role routing, 1500-token turn caps| STRATA
     TRIB -->|per-role routing, metered| CLOUD
     TRIB -->|standby| OMLX
     TENANT -->|verifyAdmin on every mutation| API
