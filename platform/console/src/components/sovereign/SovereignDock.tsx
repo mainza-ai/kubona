@@ -35,8 +35,12 @@ export const DOCK_SURFACES: Array<{
 ];
 
 function DockTooltip({ title, sub }: { title: string; sub?: string }) {
+  // Hover reveals for mice; focus-within reveals for keyboard (the trigger
+  // buttons are natively focusable and carry aria-labels — the tooltip is
+  // gloss, never the only name). Touch users get the label via the same
+  // tap that activates (tap = focus + click).
   return (
-    <div className="absolute left-16 px-3 py-1.5 rounded-lg bg-[#141720] border border-white/10 text-xs text-white whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-50 shadow-2xl">
+    <div className="absolute left-16 px-3 py-1.5 rounded-lg bg-[#141720] border border-white/10 text-xs text-white whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200 z-50 shadow-2xl" aria-hidden>
       <div className="font-medium">{title}</div>
       {sub && <div className="text-[10px] text-slate-400">{sub}</div>}
     </div>
@@ -72,7 +76,7 @@ export function SovereignDock({
               <circle cx="12" cy="12" r="3" fill="currentColor" />
             </svg>
           </div>
-          <div className="absolute left-16 px-3 py-1.5 rounded-lg bg-[#141720] border border-white/10 text-xs text-white whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-50 shadow-2xl flex items-center gap-2">
+          <div className="absolute left-16 px-3 py-1.5 rounded-lg bg-[#141720] border border-white/10 text-xs text-white whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200 z-50 shadow-2xl flex items-center gap-2" aria-hidden>
             <span className="font-semibold tracking-wide">KUBONA</span>
             <span className="text-[10px] text-cyan-400 font-code">sovereign</span>
           </div>
@@ -107,14 +111,17 @@ export function SovereignDock({
 
       <div className="flex flex-col items-center gap-3">
         <div
-          className={`group relative w-9 h-9 rounded-lg flex items-center justify-center border cursor-default ${
+          role="status"
+          tabIndex={0}
+          aria-label={airGapSovereign ? 'Air-gap: sovereign, zero outbound egress' : 'Air-gap: egress open, network path live'}
+          className={`group relative w-9 h-9 rounded-lg flex items-center justify-center border cursor-default focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none ${
             airGapSovereign
               ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20'
               : 'text-amber-400 bg-amber-400/10 border-amber-400/20'
           }`}
         >
           <Lock className="w-[18px] h-[18px]" />
-          <div className="absolute left-16 px-3 py-1.5 rounded-lg bg-[#141720] border border-white/10 text-xs text-white whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-200 z-50 shadow-2xl">
+          <div className="absolute left-16 px-3 py-1.5 rounded-lg bg-[#141720] border border-white/10 text-xs text-white whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200 z-50 shadow-2xl" aria-hidden>
             <span className={`font-medium ${airGapSovereign ? 'text-emerald-400' : 'text-amber-400'}`}>
               Air-Gap Enclave: {airGapSovereign ? 'Sovereign' : 'Egress Open'}
             </span>

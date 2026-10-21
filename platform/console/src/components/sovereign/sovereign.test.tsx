@@ -94,6 +94,25 @@ describe('SovereignDock', () => {
     });
     expect(onSelect).toHaveBeenCalledWith('arena');
   });
+
+  it('reveals tooltips on focus as well as hover, with no duplicate AT names', () => {
+    const root = render(
+      <SovereignDock active="fleet" onSelect={() => {}} airGapSovereign onOpenSettings={() => {}} onOpenCampaigns={() => {}} />
+    );
+    const tips = root.findAll(
+      (n) => typeof n.type === 'string' && n.type === 'div' && typeof n.props?.className === 'string' && n.props.className.includes('group-hover:opacity-100')
+    );
+    expect(tips.length).toBeGreaterThan(0);
+    for (const t of tips) {
+      expect(t.props.className).toContain('group-focus-within:opacity-100');
+      expect(t.props['aria-hidden']).toBe(true);
+    }
+    const sentinels = root.findAll(
+      (n) => typeof n.type === 'string' && n.type === 'div' && n.props?.role === 'status' && typeof n.props?.['aria-label'] === 'string' && (n.props as { 'aria-label': string })['aria-label'].startsWith('Air-gap')
+    );
+    expect(sentinels.length).toBe(1);
+    expect(sentinels[0].props.tabIndex).toBe(0);
+  });
 });
 
 describe('ArenaHud', () => {

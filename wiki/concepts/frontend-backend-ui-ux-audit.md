@@ -362,11 +362,15 @@ approve/interrupt); no surface renders more than its summary set by default.
 > with expand/collapse-all (`CopilotDrawer`); cockpit informational cards
 > (families/DQI/packs) are native `<details>` collapsed by default —
 > scoring cards stay open (the tool's purpose); page poll aggregates
-> toasts ("N new events — view recorder"), skips fetch while hidden,
-> backs off to 15s at rest (clock untouched). Deferred: SwarmUniverse
-> hover-cards → tap-to-open rebuild (needs state-driven visibility, not
-> a label); fleet tier collapse (tiers ARE the surface's purpose —
-> D1 narrowed on evidence).
+> backs off to 15s at rest (clock untouched). Swarm tap-to-open rebuild
+> landed separately (probes are real buttons, Esc closes, hover retained).
+> Fleet tier collapse narrowed out (tiers ARE the surface's purpose).
+> 2026-10-20 (2.5c): tooltips reveal on keyboard focus too (gloss
+> aria-hidden; buttons already named), air-gap sentinel is a labeled
+> status; micro-labels rejected — they break the adopted icon-only shell.
+> New CheckInStrip (arena, all surfaces): loops by status + server-sealed
+> LLM spend vs cap; no burn-rate, no alerts (needs server series — stated
+> in code). Console 186 green.
 
 **Phase 3 — LLM + spend visibility.**
 Strata provider card + 47831 radar + local=$0 cues (G5); read-only spend
