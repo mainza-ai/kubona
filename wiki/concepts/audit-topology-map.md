@@ -49,7 +49,7 @@ flowchart TB
     UI -->|reads public, writes bearer| KUBONAD
     UI -->|same origin /api/config| CONSOLE
     CONSOLE -->|NEXT_PUBLIC_API_URL| KUBONAD
-    KUBONAD -->|gRPC (bridge:50051)| BRIDGE
+    KUBONAD -->|gRPC bridge:50051| BRIDGE
     KUBONAD -->|exec local venv python| VENV
     KLOCAL -->|gRPC 127.0.0.1:50051| HBRIDGE
     KLOCAL -->|exec ../.venv| VENV
