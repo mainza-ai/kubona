@@ -30,9 +30,16 @@ type DeviceProfile struct {
 }
 
 type FidelityAssessment struct {
-	DeviceName        string            `json:"device_name"`
-	PredictedFidelity float64           `json:"predicted_fidelity"`
-	MeasuredClifford  float64           `json:"measured_clifford"`
+	DeviceName        string  `json:"device_name"`
+	PredictedFidelity float64 `json:"predicted_fidelity"`
+	MeasuredClifford  float64 `json:"measured_clifford"`
+	// ProbeRun reports whether a Clifford probe measurement actually ran.
+	// EvaluateAdmission receives a measurement argument (true); the
+	// floor-only path never probes (false) — a zero MeasuredClifford
+	// beside probe_run:false reads as "not measured", never as a 0.0
+	// probe. T-02: the /api/fidelity handler previously passed a
+	// hardcoded 0.94, so ADMIT cited probe alignment no probe performed.
+	ProbeRun          bool              `json:"probe_run"`
 	Decision          AdmissionDecision `json:"decision"`
 	Reason            string            `json:"reason"`
 	RecommendedAction string            `json:"recommended_action"`
@@ -80,17 +87,17 @@ func (fg *FidelityGate) bootstrapProfiles() {
 		{Name: "ibm_heron", Qubits: 156,
 			T1Us: 180.0, T2Us: 120.0,
 			SingleQubitErr: 0.00012, TwoQubitErr: 0.0021,
-			Source: "IBM Quantum backend calibration medians, Heron r2 class",
+			Source:  "IBM Quantum backend calibration medians, Heron r2 class",
 			Version: "v1-heuristic-2026-10", CalibratedAt: "2026-10-01"},
 		{Name: "quantinuum_h1", Qubits: 20,
 			T1Us: 1000000.0, T2Us: 1000000.0,
 			SingleQubitErr: 0.00003, TwoQubitErr: 0.0015,
-			Source: "Quantinuum H1 published system specs (trapped-ion coherence)",
+			Source:  "Quantinuum H1 published system specs (trapped-ion coherence)",
 			Version: "v1-heuristic-2026-10", CalibratedAt: "2026-10-01"},
 		{Name: "rigetti_aspen", Qubits: 80,
 			T1Us: 35.0, T2Us: 25.0,
 			SingleQubitErr: 0.0005, TwoQubitErr: 0.0080,
-			Source: "Rigetti Aspen-class published medians",
+			Source:  "Rigetti Aspen-class published medians",
 			Version: "v1-heuristic-2026-10", CalibratedAt: "2026-10-01"},
 	} {
 		if p.T2Us > 2*p.T1Us {
@@ -155,6 +162,7 @@ func (fg *FidelityGate) EvaluateAdmission(deviceName string, depth, twoQubitGate
 	if err != nil {
 		return FidelityAssessment{
 			DeviceName:        deviceName,
+			ProbeRun:          true,
 			Decision:          DecisionRefuse,
 			Reason:            err.Error(),
 			RecommendedAction: "Aborting job submission due to invalid device profile",
@@ -169,6 +177,7 @@ func (fg *FidelityGate) EvaluateAdmission(deviceName string, depth, twoQubitGate
 			DeviceName:        deviceName,
 			PredictedFidelity: fPred,
 			MeasuredClifford:  measuredClifford,
+			ProbeRun:          true,
 			Decision:          DecisionDowngrade,
 			Reason:            fmt.Sprintf("Calibration drift detected: |F_pred (%.3f) - F_probe (%.3f)| = %.3f > tolerance %.3f", fPred, measuredClifford, drift, fg.driftTolerance),
 			RecommendedAction: "Downgrade to Aer simulator with noisy snapshot; do not bill client for uncalibrated hardware run",
@@ -181,6 +190,7 @@ func (fg *FidelityGate) EvaluateAdmission(deviceName string, depth, twoQubitGate
 			DeviceName:        deviceName,
 			PredictedFidelity: fPred,
 			MeasuredClifford:  measuredClifford,
+			ProbeRun:          true,
 			Decision:          DecisionMitigate,
 			Reason:            fmt.Sprintf("Predicted fidelity %.3f below floor threshold %.3f", fPred, fg.floorThreshold),
 			RecommendedAction: "Apply PennyLane circuit cutting or Richardson ZNE mitigation to reduce gate depth before dispatching to QPU",
@@ -192,6 +202,7 @@ func (fg *FidelityGate) EvaluateAdmission(deviceName string, depth, twoQubitGate
 		DeviceName:        deviceName,
 		PredictedFidelity: fPred,
 		MeasuredClifford:  measuredClifford,
+		ProbeRun:          true,
 		Decision:          DecisionAdmit,
 		Reason:            "Fidelity exceeds floor and aligns with Clifford probe. Hardware execution authorized.",
 		RecommendedAction: "Proceed with cryptographic AP2 spend mandate signing",

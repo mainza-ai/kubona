@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -88,12 +89,47 @@ func TestAPIRoutes(t *testing.T) {
 		t.Fatalf("expected 200 for /api/agents, got %d", w.Code)
 	}
 
-	// 3. Fidelity
+	// 3. Fidelity (T-02: honest default — no probe runs here, so the
+	// response must never cite probe alignment and must carry
+	// probe_run:false; the old handler passed a hardcoded 0.94).
 	req = httptest.NewRequest(http.MethodGet, "/api/fidelity?device=ibm_heron&depth=6&two_qubit_gates=2", nil)
 	w = httptest.NewRecorder()
 	handler.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200 for /api/fidelity, got %d", w.Code)
+	}
+	var fid struct {
+		Decision        string  `json:"decision"`
+		Reason          string  `json:"reason"`
+		MeasuredClifford float64 `json:"measured_clifford"`
+		ProbeRun        bool    `json:"probe_run"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &fid); err != nil {
+		t.Fatalf("fidelity body must decode: %v", err)
+	}
+	if fid.ProbeRun {
+		t.Errorf("default fidelity assessment must not claim a probe ran: %+v", fid)
+	}
+	if strings.Contains(fid.Reason, "Clifford probe") {
+		t.Errorf("unprobed assessment must not cite probe alignment: %q", fid.Reason)
+	}
+	// Bare call (defaults) admits honestly on prediction, never on a
+	// phantom measurement.
+	req = httptest.NewRequest(http.MethodGet, "/api/fidelity", nil)
+	w = httptest.NewRecorder()
+	handler.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for bare /api/fidelity, got %d", w.Code)
+	}
+	var bare struct {
+		Decision string `json:"decision"`
+		ProbeRun bool   `json:"probe_run"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &bare); err != nil {
+		t.Fatalf("bare fidelity body must decode: %v", err)
+	}
+	if bare.ProbeRun {
+		t.Errorf("bare fidelity call must not claim a probe ran: %+v", bare)
 	}
 
 	// 4. Epistemics (W2.2: session-scoped, no sessions[0] adoption —

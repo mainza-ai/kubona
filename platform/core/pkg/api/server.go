@@ -752,7 +752,12 @@ func (s *Server) handleFidelity(w http.ResponseWriter, r *http.Request) {
 		twoQGates = 8
 	}
 
-	assessment := s.fidelityGate.EvaluateAdmission(device, depth, twoQGates, 0.94)
+	// T-02: honesty over precision. No probe runs on this path, so the
+	// assessment routes through the dispatch-grade floor-only gate
+	// instead of a hardcoded 0.94 "measurement". The response carries
+	// probe_run:false — a zero measured_clifford beside it reads as
+	// "not measured", never as a 0.0 probe.
+	assessment := s.fidelityGate.EvaluateAdmissionFloorOnly(device, depth, twoQGates)
 	writeJSON(w, http.StatusOK, assessment)
 }
 
