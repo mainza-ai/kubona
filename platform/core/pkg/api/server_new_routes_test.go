@@ -1538,6 +1538,42 @@ func TestEmptyJobsListIsArray(t *testing.T) {
 	}
 }
 
+// Audit 2026-10-21: bare "iq3_s" (the Strata default) classified as cloud
+// and refused for spend — the default model could not route. The handler
+// qualifies exact settings matches ("strata/iq3_s"), which routes local.
+func TestMeshRouteQualifiesBareDefaultModel(t *testing.T) {
+	t.Setenv("KUBONA_LLM_PROVIDER", "strata")
+	t.Setenv("STRATA_MODEL", "iq3_s")
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+
+	raw, _ := json.Marshal(map[string]any{"prompt": "route this", "preferred_model": "iq3_s"})
+	req := httptest.NewRequest(http.MethodPost, "/api/mesh/route", bytes.NewReader(raw))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	var out struct {
+		Decision struct {
+			OK       bool    `json:"ok"`
+			Provider string  `json:"provider"`
+			IsLocal  bool    `json:"is_local"`
+			Cost     float64 `json:"estimated_cost_usd"`
+		} `json:"decision"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&out); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !out.Decision.OK || !out.Decision.IsLocal || out.Decision.Provider != "strata" {
+		t.Errorf("bare default model must route local via strata, got %+v", out.Decision)
+	}
+	if out.Decision.Cost != 0 {
+		t.Errorf("local route must cost 0, got %v", out.Decision.Cost)
+	}
+}
+
 // Audit 2026-10-21: hex-decode-then-length-check wrapped a possibly-nil err
 // with %w, leaking "%!w(<nil>)" into user-facing errors (mandates, ledger).
 // Pins: wrong-length keys name actual vs wanted bytes, never a format verb.

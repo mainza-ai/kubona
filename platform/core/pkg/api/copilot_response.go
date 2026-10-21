@@ -143,16 +143,18 @@ func collapseBlankLines(s string) string {
 
 // engineNotice builds a provider-aware failure notice. The label names the
 // engine actually attempted — never a hardcoded provider (2026-10-11: cloud
-// failures were mislabeled "[oMLX Notice]").
+// failures were mislabeled "[oMLX Notice]"). Local engines get the daemon
+// hint via the shared IsLocalProvider home — never a copied triple (audit
+// 2026-10-21: Strata fell through to "check the API key" although it is
+// keyless-local).
 func engineNotice(provider, model string, err error) string {
 	if provider == "" {
 		provider = "unconfigured"
 	}
 	hint := ""
-	switch provider {
-	case "omlx", "ollama", "lmstudio":
+	if llm.IsLocalProvider(llm.ProviderType(provider)) {
 		hint = "Ensure the local engine is running."
-	default:
+	} else {
 		hint = "Check the provider API key and account balance."
 	}
 	return fmt.Sprintf("⚠️ [%s Notice] (%s): %v. %s", provider, model, err, hint)

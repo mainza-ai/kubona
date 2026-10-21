@@ -67,3 +67,27 @@ func TestRouteMultimodalSpendGate(t *testing.T) {
 		t.Errorf("must use the configured fallback, got %q", d.Model)
 	}
 }
+
+// Audit 2026-10-21: bare "iq3_s" (the Strata default) classified as cloud
+// and refused for spend — the default model could not route. Prefixed
+// Strata IDs must route local; bare IDs keep the fail-closed verdict
+// (the handler qualifies exact settings matches, never guesses).
+func TestRouteMultimodalStrataIDs(t *testing.T) {
+	d := RouteMultimodal(MultimodalPayload{Prompt: "compile this", PreferredModel: "strata/iq3_s"}, false, "")
+	if !d.Ok || !d.IsLocal || d.EstimatedCostUSD != 0 {
+		t.Errorf("strata-prefixed model must route local free, got %+v", d)
+	}
+	if d.Provider != "strata" || d.Model != "strata/iq3_s" {
+		t.Errorf("must echo provider and model, got %+v", d)
+	}
+	// Bare unknown IDs still fail closed (never silently free).
+	d = RouteMultimodal(MultimodalPayload{Prompt: "compile this", PreferredModel: "iq3_s"}, false, "")
+	if d.Ok {
+		t.Errorf("bare unrecognized model must refuse, got %+v", d)
+	}
+	// Air-gap: strata-prefixed routes enforced-local.
+	d = RouteMultimodal(MultimodalPayload{Prompt: "x", PreferredModel: "strata/iq3_s"}, true, "")
+	if !d.Ok || !d.AirGapEnforced {
+		t.Errorf("air-gapped strata must route enforced-local, got %+v", d)
+	}
+}

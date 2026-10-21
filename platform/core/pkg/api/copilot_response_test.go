@@ -97,3 +97,15 @@ func TestExtractProposalShared(t *testing.T) {
 		t.Error("refused blocks must still leave the display")
 	}
 }
+
+func TestEngineNoticeStrataIsLocal(t *testing.T) {
+	// Audit 2026-10-21: Strata (keyless local default) fell through to the
+	// cloud hint. The shared home must classify it local.
+	local := engineNotice("strata", "iq3_s", errTest)
+	if !strings.Contains(local, "running") {
+		t.Errorf("strata failure needs a daemon hint, got:\n%s", local)
+	}
+	if strings.Contains(local, "API key") {
+		t.Errorf("strata must never get the cloud key hint, got:\n%s", local)
+	}
+}

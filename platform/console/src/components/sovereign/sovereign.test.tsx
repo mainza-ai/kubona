@@ -614,3 +614,19 @@ describe('ActionGate cost honesty', () => {
     expect(JSON.stringify(tree!.toJSON())).toContain('No program in this campaign');
   });
 });
+
+describe('SwarmUniverse canary honesty', () => {
+  it('marks the template canary until a job fold collapses the campaign', () => {
+    const root = render(<SwarmUniverse campaign={CAMPAIGN} />);
+    const critic = root.findByProps({ 'data-testid': 'probe-critic' });
+    // Fixture status is 'corroborated', not COLLAPSED_VERIFIED: the 0.998
+    // template constant must read as template, never as a probe result.
+    expect(textOf(critic)).toContain('(template)');
+    const verified = {
+      ...CAMPAIGN,
+      epistemics: { ...(CAMPAIGN as { epistemics: object }).epistemics, status: 'COLLAPSED_VERIFIED' },
+    } as unknown as CampaignState;
+    const root2 = render(<SwarmUniverse campaign={verified} />);
+    expect(textOf(root2.findByProps({ 'data-testid': 'probe-critic' }))).not.toContain('(template)');
+  });
+});

@@ -281,7 +281,7 @@ func cloudModel(model string) bool {
 		return true
 	}
 	switch head {
-	case "local", "omlx", "ollama", "lmstudio":
+	case "local", "omlx", "ollama", "lmstudio", "strata":
 		return false
 	default:
 		return true

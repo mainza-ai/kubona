@@ -4046,7 +4046,7 @@ func (s *Server) recordLoopSpend(loopID, role string, promptTokens, completionTo
 	if err != nil {
 		return 0, fmt.Errorf("cannot price role %q: %w", role, err)
 	}
-	if prov == llm.ProviderOMLX || prov == llm.ProviderOllama || prov == llm.ProviderLMStudio {
+	if llm.IsLocalProvider(prov) {
 		return 0, nil
 	}
 	cost, ok := llm.EstimateCostUSD(prov, model, promptTokens, completionTokens)
@@ -5001,6 +5001,31 @@ func (s *Server) handleCustomAgentByID(w http.ResponseWriter, r *http.Request) {
 	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 }
 
+// qualifyBareModelID maps a prefix-less model ID to "provider/model"
+// when it exactly matches a configured provider default (or the active
+// model). Unknown bare IDs return "" — the router keeps its fail-closed
+// cloud verdict for those. Matching is exact and case-sensitive: a
+// near-miss is not a match.
+func qualifyBareModelID(snap llm.Settings, bare string) string {
+	if bare == "" {
+		return ""
+	}
+	if snap.ActiveModel == bare {
+		if prov, ok := snap.Providers[snap.ActiveProvider]; ok && prov.Enabled && strings.TrimSpace(string(snap.ActiveProvider)) != "" {
+			return string(snap.ActiveProvider) + "/" + bare
+		}
+	}
+	for pt, prov := range snap.Providers {
+		if !prov.Enabled {
+			continue
+		}
+		if strings.TrimSpace(prov.DefaultModel) == bare && strings.TrimSpace(string(pt)) != "" {
+			return string(pt) + "/" + bare
+		}
+	}
+	return ""
+}
+
 func (s *Server) handleMeshRoute(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -5026,6 +5051,17 @@ func (s *Server) handleMeshRoute(w http.ResponseWriter, r *http.Request) {
 			fallbackModel = snap.ActiveModel
 			if fallbackModel == "" {
 				fallbackModel = prov.DefaultModel
+			}
+		}
+		// Audit 2026-10-21: bare model IDs (no "provider/" prefix) from
+		// the console free-text field misrouted — "iq3_s" (the Strata
+		// default) classified as cloud and refused for spend. Qualify
+		// exact matches against configured provider defaults (no
+		// invention: the mapping comes from settings, never a guess).
+		// Unknown bare IDs keep the router's fail-closed cloud verdict.
+		if !strings.Contains(req.PreferredModel, "/") {
+			if q := qualifyBareModelID(snap, strings.TrimSpace(req.PreferredModel)); q != "" {
+				req.PreferredModel = q
 			}
 		}
 	}
