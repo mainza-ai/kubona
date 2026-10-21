@@ -147,6 +147,12 @@ providers, reports, workflows, agents, labs, models, settings, `science/*`,
 - Fix (Phase 3): Strata provider card (base URL, model, liveness, local badge);
   add 47831 to the discovery radar; surface the local-bypass spend rule
   ("local inference $0, unmetered") where costs render.
+> **✅ LANDED 2026-10-20.** No strata-specific hardcoding needed — the
+> generic rails cover it: radar now probes 47831 ("Strata Local LLM Engine",
+> rendered by the existing mesh endpoint cards); provider cards already
+> render any active provider with its base URL. The local=$0 cue rides the
+> spend summary (`local_bypass` + active provider name). G5 closed by
+> composition, not special-casing.
 
 ### G6 — Cockpit shows scoring only; ux-plan slices 2–4 still queued
 - Landed: TQ scorer, frontier batch, κ-sweep, local budget math, DQI widget,
@@ -354,6 +360,13 @@ Strata provider card + 47831 radar + local=$0 cues (G5); read-only spend
 summary feeding AutonomyCockpit + mesh router (G10). Acceptance: operator
 can answer "what provider, at what cost, with what remaining" from one
 surface (vision §12 P3 shape).
+> **✅ LANDED 2026-10-20.** `GET /api/cost/summary` (public read, aggregates
+> only): cap (0 = track-only), summed cloud estimates, remaining (null when
+> track-only), blind-stream count, per-provider subtotals, active provider,
+> `local_bypass`, heuristic/currency/track_only labels. Mesh "LLM spend —
+> server-sealed" strip renders spent/cap/remaining + the local=$0 cue +
+> unmetered warning, with refused/loading/empty states distinct. Radar
+> probes 47831. Console 174/174 (2 new strip tests), Go suites green.
 
 **Phase 4 — Contract hygiene.**
 Shared TS codesign types from the goldens; κ-rail parity (G8); hash-shaped
