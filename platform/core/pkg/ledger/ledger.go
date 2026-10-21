@@ -788,8 +788,14 @@ func (l *Ledger) ListLoopStates() ([]LoopPersist, error) {
 
 // ReconcileLoopsOnBoot marks every non-terminal persisted loop sleeping:
 // engines are in-memory, so nothing can be running after a restart.
-// Terminal states (completed/aborted) are untouched. New engines start only
-// via explicit start/wake — never refilled from disk.
+// Terminal states are untouched — the loops table has two writers with
+// two vocabularies (autoresearch engine + supervisor), so the skip set
+// must cover both: completed/aborted (both writers) + killed
+// (supervisor-only). Sleeping rows are already settled, never re-swept.
+// Canonical single source: session.TerminalLoopStatuses
+// (pkg/session/migrate.go) — parity enforced by
+// TestReconcileSkipsAllTerminalLoopStatuses in the session package
+// (ledger cannot import session/supervisor: both import ledger).
 func (l *Ledger) ReconcileLoopsOnBoot() (int, error) {
 	rows, err := l.ListLoopStates()
 	if err != nil {
@@ -797,7 +803,7 @@ func (l *Ledger) ReconcileLoopsOnBoot() (int, error) {
 	}
 	n := 0
 	for _, p := range rows {
-		if p.Status == "completed" || p.Status == "aborted" || p.Status == "sleeping" {
+		if p.Status == "completed" || p.Status == "aborted" || p.Status == "killed" || p.Status == "sleeping" {
 			continue
 		}
 		p.Status = "sleeping"
