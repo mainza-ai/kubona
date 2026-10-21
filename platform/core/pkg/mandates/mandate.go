@@ -67,13 +67,19 @@ func SignMandate(privKey ed25519.PrivateKey, tenantID, jobHash string, maxBudget
 // envelope must fail closed on crypto before learning anything else.
 func (m *SpendMandate) Verify(expectedTenantID, expectedJobHash string, requestedCostUSD float64) error {
 	pubKeyBytes, err := hex.DecodeString(m.PublicKeyHex)
-	if err != nil || len(pubKeyBytes) != ed25519.PublicKeySize {
+	if err != nil {
 		return fmt.Errorf("invalid public key: %w", err)
+	}
+	if len(pubKeyBytes) != ed25519.PublicKeySize {
+		return fmt.Errorf("invalid public key: %d bytes (want %d)", len(pubKeyBytes), ed25519.PublicKeySize)
 	}
 
 	sigBytes, err := hex.DecodeString(m.SignatureHex)
-	if err != nil || len(sigBytes) != ed25519.SignatureSize {
+	if err != nil {
 		return fmt.Errorf("invalid signature format: %w", err)
+	}
+	if len(sigBytes) != ed25519.SignatureSize {
+		return fmt.Errorf("invalid signature format: %d bytes (want %d)", len(sigBytes), ed25519.SignatureSize)
 	}
 
 	if !ed25519.Verify(ed25519.PublicKey(pubKeyBytes), m.CanonicalPayload(), sigBytes) {

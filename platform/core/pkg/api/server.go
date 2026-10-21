@@ -2891,7 +2891,10 @@ func (s *Server) handleLoops(w http.ResponseWriter, r *http.Request) {
 		}
 		loop, err := s.supervisor.RegisterLoop(req.SessionID, req.MaxSteps)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			// RegisterLoop only fails on input validation (maxSteps bound,
+			// session attribution) — a 400, never a 500. Store writes happen
+			// after validation inside the supervisor lock.
+			WriteAPIError(w, "bad_request", err.Error(), nil)
 			return
 		}
 		writeJSON(w, http.StatusCreated, loop)
@@ -4841,6 +4844,13 @@ func (s *Server) handleHFDownload(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// Edge validation: the hub client would refuse these with the same
+	// message, but as a 500. Missing fields are a 400 by contract.
+	if req.RepoID == "" || req.Filename == "" {
+		WriteAPIError(w, "bad_request", "repo_id and filename are required", nil)
 		return
 	}
 
