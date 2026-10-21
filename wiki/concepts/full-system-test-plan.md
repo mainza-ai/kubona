@@ -40,6 +40,7 @@ status: candidate
   `pytest -q` (Python tree untouched since 1011-passed baseline — rerun
   only if the tree changed), `wiki-lint --strict`.
 - [ ] Playwright/Chromium harness in `/tmp` (fresh profile per run).
+- [ ] Diagram snapshot hash under test recorded (traceability).
 
 ## 1. HUMAN — console (13 surfaces, every control)
 
@@ -73,6 +74,13 @@ error vs loading states distinguished, then the surface-specific battery:
   attach file, session pills switch, SESSION MEMORY +, tribunal review
   pills (Launchit/Inspect/Tribunal review), mandate card display,
   command palette (⌘K) coverage, close shortcworks.
+- **Console-token positive paths** (P0 — refusals alone prove nothing
+  about the privileged flows): with `NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN`
+  set in the test env, HF search returns models, download starts +
+  cancels cleanly, custom agent registers and appears in the roster,
+  settings save persists and survives a reload, mandate card flow
+  completes. Every one of these is refusal-tested tokenless already;
+  this battery proves they *work* when authorized.
 - **Cross-surface:** kill kubonad mid-session (banner), kill bridge
   mid-run (fallback + recovery), expired session (logged-out read),
   garbage into every form (inline named errors), 390px pass per
@@ -90,6 +98,10 @@ error vs loading states distinguished, then the surface-specific battery:
   four spend mutations, rate-limit behavior (human-paced buckets),
   CORS allowlist (good vs foreign origin), SSE stream connect + events.
 - `events/stream` + `canvas/layout` save/load round-trip.
+- A2A protocol cycle (own battery — the only external JSON-RPC
+  surface): card, unknown method → `-32601`, unknown task → `-32001`,
+  submit without payment → HTTP 402 + challenge, paid submit refused
+  without a verifier, delegation + `requireDispatchAutonomy` on dispatch.
 - TLS posture with a self-signed cert (refuse without material,
   serve with material).
 
@@ -100,6 +112,8 @@ error vs loading states distinguished, then the surface-specific battery:
   post-change tree), template fallback when LLM absent, tool-failure
   contest path, scribe tag contract (`seen/inferred/unknown` +
   proposal block presence recorded, fallback covers absence).
+  Turn-bundle resume is Go-level only (no HTTP route exists — verify
+  via unit path and record the missing surface as a gap).
 - Mesh route matrix: bare/qualified/unknown models × funded/unfunded ×
   air-gap on/off; custom-agent create/delete with and without token
   (honest in-modal errors); triage endpoint.
@@ -116,6 +130,11 @@ error vs loading states distinguished, then the surface-specific battery:
   COMPLETED/FAILED folds, `jobs:[]` shape.
 - Loops: full lifecycle per action verb; restart-orphan case
   (sleeping DB rows after daemon restart — reported, needs design).
+- **Restart persistence (P0):** daemon restart mid-flight, then verify
+  reconcile behavior — in-flight loops sleep (not vanish), jobs keep
+  terminal state, sessions + campaigns + reservations survive, and the
+  previously-observed orphan rows are accounted for (killable or
+  documented, never silently stuck *and* undeletable).
 - QIR: compile valid/invalid/empty; qir-core CLI vectors
   (`--json`, BaseProfile) via `KUBONA_QIR_CORE`.
 - Sandbox: timeout/refusal paths; quantum-runner image contract
@@ -135,6 +154,11 @@ error vs loading states distinguished, then the surface-specific battery:
   BLOCK 503s new work with Retry-After, reads stay; no real disk fill.
 - Contracts conformance: error-catalog coverage, event-types drift
   check, obligation rules, mcp-catalog digest.
+- **Cross-tenant isolation matrix (P0):** lab A session attempting
+  lab B rows across sessions/jobs/loops/memory/epistemics/campaigns —
+  every read refuses with the tenancy error named, nothing leaks, and
+  the ledger attributes the attempt. Tenant scoping per-store is
+  implemented; this battery proves the seams hold adversarially.
 
 ## 6. RUST + MCP + MEM + BRIDGE + BACKENDS + MODELS + SECRETS + CODESIGN
 
@@ -143,11 +167,15 @@ error vs loading states distinguished, then the surface-specific battery:
   callable through it (auth on/off), catalog digest match.
 - Memory: retain/recall round-trip per bank; tenant scoping;
   pgvector dormant-contract test (no live PG).
-- Bridge (all 9 RPCs): execute valid/invalid/oversize-RAM,
-  cut (incl. kappa-cap + multi-q refusals), anchor per molecule +
-  basis allowlist + variational guard, krylov H2 + non-H2 refusal
-  corridor, mitigate ZNE/PEC/CDR + unknown-method/device refusals,
-  wavefunction verdict matrix, literature live + offline-empty.
+- Bridge (all 7 RPCs, enumerated: `ExecuteCircuit`, `CutCircuit`,
+  `ComputeClassicalAnchor`, `EvaluateWavefunction`, `GroundLiterature`,
+  `ExecuteQuantumKrylov`, `MitigateCircuit` — `proto/kubona.proto:187-193`):
+  execute valid/invalid/oversize-RAM, cut (incl. kappa-cap + multi-q
+  refusals), anchor per molecule + basis allowlist + variational guard,
+  krylov H2 + non-H2 refusal corridor, mitigate ZNE/PEC/CDR +
+  unknown-method/device refusals, wavefunction verdict matrix
+  (advantage-claimed/verified truth table), literature live +
+  offline-empty.
 - Backends: simulator tiers live; QPU paths prove fail-closed
   without credentials (no spend, no silent sim).
 - Models: role resolution per provider, spend silence for local,
@@ -179,6 +207,34 @@ error vs loading states distinguished, then the surface-specific battery:
 - Full-loop load/chaos and real disk-fill (destructive; env-threshold
   simulation covers the logic).
 - Public-repo / outside-contributor flows (private by decision, Q-25).
+
+## Phase 2 — queued, not approved (do not execute yet)
+
+Deep-dive findings parked here so nothing is lost. Each becomes a
+battery only on a second approval:
+
+- **Export-control routing:** declared vs undeclared caller
+  jurisdictions → ELIGIBLE / INELIGIBLE / refused-before-simulation
+  (§2.9, currently zero live coverage).
+- **x402 fail-closed:** settlement refuses without a real verifier
+  (the design) — distinct from skipping the dormant rail.
+- **Tenant suspend/reactivate cycle** (Q-33: spend freeze, admin keeps
+  keys) — ceiling/refund covered, suspend not.
+- **`kubonad grants` CLI** (mint/attenuate/verify) — the operator trust
+  tool has no battery.
+- **Boundary caps:** 64KB ledger append, 256KB canvas, 40-line
+  notebook trim, 50-version campaign cap, per-rail oversize bodies.
+- **Tamper-evident ledger:** mutate a row on a scratch copy, watch
+  `verify --db` fail (the actual point of the chain).
+- **Copilot tool-call rounds** (`resolveWithTools` + `tool_called`
+  attribution) — chat sends never exercise a tool-invoking turn.
+- **Env-var audit:** `.env.example` vs compose vs code defaults
+  consistency table (the Strata lesson, mechanized).
+- **Codesign negatives:** `spec_table` truth-table variant, factory
+  partial-spec refusal at every layer, packs-promotion refusal
+  without ledger refs.
+- **`go test -race`** on `api/supervisor/ledger`; auth/a2a challenge
+  expiry paths; secret rotation drill (procedure-level).
 
 Related: [[platform-architecture-diagram]] · [[audit-topology-map]] ·
 [[frontend-backend-ui-ux-audit]] · [[local-simulation-test-scenarios]] ·
