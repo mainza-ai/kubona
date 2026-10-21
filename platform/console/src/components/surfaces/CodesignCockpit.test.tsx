@@ -149,4 +149,77 @@ describe('CodesignCockpit read-only', () => {
       (globalThis as unknown as { fetch: unknown }).fetch = realFetch;
     }
   });
+
+  it('runs an evaluation and renders validity + counts + factory', async () => {
+    const realFetch = globalThis.fetch;
+    const seen: string[] = [];
+    (globalThis as unknown as { fetch: unknown }).fetch = async (input: unknown, init?: { body?: unknown }) => {
+      const url = String(input);
+      seen.push(url);
+      if (url.includes('/api/codesign/evaluate')) {
+        const body = JSON.parse(String((init?.body as string) ?? '{}'));
+        expect(body.spec_kind).toBe('and2');
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            spec_kind: 'and2',
+            result: {
+              valid: true, toffoli: 1, peak_qubits: 3, eps_bound_97_5: 0.3,
+              depth: 1, toffoli_depth: 1, active_qubits: 3,
+              kappa_sweep: { 1: 3, 2: 30, 3: 300 },
+              factory: { factory: 'gf2019_ccz', serial_seconds_est: 0.0011, within_failure_budget: true },
+            },
+          }),
+          { status: 200 }
+        );
+      }
+      if (url.includes('/api/codesign/verified')) {
+        return new Response(JSON.stringify({ message: 'not ready' }), { status: 503 });
+      }
+      return new Response('not found', { status: 404 });
+    };
+    try {
+      let root: TestRenderer.ReactTestRenderer | undefined;
+      await act(async () => {
+        root = TestRenderer.create(<CodesignCockpit />);
+      });
+      const run = root!.root.findByProps({ children: 'Run evaluation' });
+      await act(async () => {
+        await (run.props as { onClick: () => Promise<void> }).onClick();
+      });
+      const text = textOf(root!.root);
+      expect(seen.some((u) => u.includes('/api/codesign/evaluate'))).toBe(true);
+      expect(text).toContain('VALID');
+      expect(text).toContain('within accuracy budget');
+    } finally {
+      (globalThis as unknown as { fetch: unknown }).fetch = realFetch;
+    }
+  });
+
+  it('refuses to send malformed artifact JSON or partial factory spec', async () => {
+    const realFetch = globalThis.fetch;
+    let calls = 0;
+    (globalThis as unknown as { fetch: unknown }).fetch = async (input: unknown) => {
+      if (String(input).includes('/api/codesign/evaluate')) calls += 1;
+      return new Response(JSON.stringify({ message: 'not ready' }), { status: 503 });
+    };
+    try {
+      let root: TestRenderer.ReactTestRenderer | undefined;
+      await act(async () => {
+        root = TestRenderer.create(<CodesignCockpit />);
+      });
+      const artifact = root!.root.findByProps({ 'aria-label': 'Artifact JSON' });
+      await act(async () => {
+        (artifact.props as { onChange: (e: { target: { value: string } }) => void }).onChange({ target: { value: 'not json{{{' } });
+      });
+      const run = root!.root.findByProps({ children: 'Run evaluation' });
+      await act(async () => {
+        await (run.props as { onClick: () => Promise<void> }).onClick();
+      });
+      expect(textOf(root!.root)).toContain('artifact must be JSON');
+      expect(calls).toBe(0);
+    } finally {
+      (globalThis as unknown as { fetch: unknown }).fetch = realFetch;
+    }
+  });
 });

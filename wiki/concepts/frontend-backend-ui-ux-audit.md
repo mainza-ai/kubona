@@ -115,6 +115,11 @@ providers, reports, workflows, agents, labs, models, settings, `science/*`,
   (Go proxy → bridge RPC → `evaluate(factory, code_distance, cycle_us)`;
   required-params rule preserved end-to-end: partial spec refuses at every
   layer). Read-only, no spend, same threat model as G-tq reads.
+> **✅ LANDED 2026-10-20 (both halves).** Rail: `POST /api/codesign/evaluate`
+> forwards factory trio to the Python validator (partial refuses at every
+> layer). UI: Evaluator Runs card wires factory select + distance + cycle
+> inputs with a client-side completeness check and renders the factory
+> report (serial seconds, budget flag). Console-tested.
 
 ### G4 — Verified RS decoder results are invisible in the product
 - The program's headline artifact (3,928,980T full-radius decoder, pins for
