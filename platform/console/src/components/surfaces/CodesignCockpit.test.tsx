@@ -238,7 +238,11 @@ describe('CodesignCockpit read-only', () => {
             ],
             elites: { direct: { toffoli: 1, qubits: 3, tq: 3, artifact: [] } },
             stagnation: { direct: 0, tower: 0, mbu: 0 },
-            lineage_len: 2, lineage: [],
+            lineage_len: 2,
+            lineage: [
+              { family: 'direct', toffoli: 1, qubits: 3, tq: 3, improved: true, parent: null },
+              { family: 'direct', toffoli: 1, qubits: 3, tq: 3, improved: false, parent: null },
+            ],
             shares: [{ offers: 2, improvements: 1, details: [] }],
             widen_nudge: { family: 'direct', offers_since_improvement: 0, nudge: 'widen direct: propose a rewrite' },
           }),
@@ -264,12 +268,15 @@ describe('CodesignCockpit read-only', () => {
       expect(text).toContain('direct 1T×3Q');
       expect(text).toContain('widen-nudge');
       expect(text).toContain('widen direct');
+      expect(text).toContain('Lineage (');
+      expect(text).toContain('events');
+      expect(text).toContain('no improvement');
     } finally {
       (globalThis as unknown as { fetch: unknown }).fetch = realFetch;
     }
   });
 
-  it('refuses to send malformed family offers', async () => {    const realFetch = globalThis.fetch;
+    it('refuses to send malformed family offers', async () => {    const realFetch = globalThis.fetch;
     let calls = 0;
     (globalThis as unknown as { fetch: unknown }).fetch = async (input: unknown) => {
       if (String(input).includes('/api/codesign/families')) calls += 1;
@@ -342,6 +349,33 @@ describe('CodesignCockpit read-only', () => {
       const text = textOf(root!.root);
       expect(text).toContain('registry down');
       expect(text).not.toContain('0.1.0');
+    } finally {
+      (globalThis as unknown as { fetch: unknown }).fetch = realFetch;
+    }
+  });
+
+  it('scores with a kappa slider (1..3), never a free-text field', async () => {
+    const realFetch = globalThis.fetch;
+    (globalThis as unknown as { fetch: unknown }).fetch = async () =>
+      new Response(JSON.stringify({ message: 'not ready' }), { status: 503 });
+    try {
+      let tree: TestRenderer.ReactTestRenderer | undefined;
+      await act(async () => {
+        tree = TestRenderer.create(<CodesignCockpit />);
+      });
+      const root = tree!.root;
+      const sliders = root.findAllByProps({ 'aria-label': 'Kappa' });
+      expect(sliders.length).toBe(3);
+      for (const s of sliders) {
+        expect((s.props as { type: string }).type).toBe('range');
+        expect((s.props as { min: number }).min).toBe(1);
+        expect((s.props as { max: number }).max).toBe(3);
+      }
+      await act(async () => {
+        (sliders[0].props as { onChange: (e: { target: { value: string } }) => void }).onChange({ target: { value: '3' } });
+      });
+      const after = tree!.root.findAllByProps({ 'aria-label': 'Kappa' });
+      expect((after[0].props as { value: string }).value).toBe('3');
     } finally {
       (globalThis as unknown as { fetch: unknown }).fetch = realFetch;
     }
