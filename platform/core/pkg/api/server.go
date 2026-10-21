@@ -1801,6 +1801,12 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusOK, state)
 		return
 	}
+	// T-10b: settle restart-orphan loops (DB-keyed: the action handler
+	// 404s without an in-memory engine, so orphans need their own path).
+	if strings.HasSuffix(id, "/loops/settle") {
+		s.handleLoopSettle(w, r, strings.TrimSuffix(id, "/loops/settle"))
+		return
+	}
 	if id == "" {
 		http.Error(w, "missing session id", http.StatusBadRequest)
 		return
