@@ -32,6 +32,7 @@ status: adopted
 3. **Slice 4 — Packs:** `numerics → inversion (jstore slider 0/5/9) → DQI (BM/Lanczos/Ψ/stripes) → chemistry (frames, fallback intact) → gauge (4³ only)`, each `kubona-pack/v1` with anchor + evidence reqs.
 > **✅ LANDED 2026-10-20.** `GET|POST /api/codesign/packs` serves the registry live from `packs.py` (no hand-typed list); cockpit Domain-packs card renders version/status/evidence/title per pack with loaded/refused/empty states + the promotion rule. Promotion itself stays a privileged op (ledger refs) — read-only rail. Console-tested, Go-tested.
 4. **Slice 5 — Go migration:** move `console_api` codesign routes into Go via bridge RPC (Python stays evaluator); delete Python duplicates to honor single-surface rule. Needs operator sign-off (contract change).
+> **✅ CLOSED 2026-10-20.** Called paths migrated (`evaluate|evaluate-batch|budget|families|packs|verified`); `serve_console` verified callerless with no compose target — exactly one surface served. `console_api.py` stays as tested reference + harness; `science/*` + stateful routes migrate iff a surface ever calls them.
 
 ## Threat model (reads public, writes gated)
 
