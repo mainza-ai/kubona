@@ -21,6 +21,7 @@ import (
 	"net/http"
 
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/session"
 )
 
 func (s *Server) handleLoopSettle(w http.ResponseWriter, r *http.Request, sessionID string) {
@@ -42,15 +43,25 @@ func (s *Server) handleLoopSettle(w http.ResponseWriter, r *http.Request, sessio
 		return
 	}
 	var orphans []ledger.LoopPersist
+	terminal := map[string]bool{}
+	for _, st := range session.TerminalLoopStatuses {
+		terminal[st] = true
+	}
 	for _, p := range rows {
 		if p.SessionID != sessionID {
 			continue
 		}
-		if p.Status != "sleeping" {
-			http.Error(w, "live loop "+p.ID+" is not a restart orphan: stop it first, settle covers sleeping rows only", http.StatusConflict)
-			return
+		if p.Status == "sleeping" {
+			orphans = append(orphans, p)
+			continue
 		}
-		orphans = append(orphans, p)
+		// Already-terminal rows (killed/aborted/completed) are not
+		// orphans and need no disposition — skip, don't refuse.
+		if terminal[p.Status] {
+			continue
+		}
+		http.Error(w, "live loop "+p.ID+" is not a restart orphan: stop it first, settle covers sleeping rows only", http.StatusConflict)
+		return
 	}
 	settled := []string{}
 	for _, p := range orphans {

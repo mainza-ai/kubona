@@ -73,6 +73,8 @@ func TestLoopSettleOrphansTerminal(t *testing.T) {
 	}
 	seed("orphan-held", "sleeping", 5)
 	seed("orphan-clean", "sleeping", 0)
+	// Already-terminal rows are skipped, not refused and not rewritten.
+	seed("already-dead", "killed", 0)
 
 	code, body := settlePost(t, srv, sess, cookieA)
 	if code != http.StatusOK {
@@ -89,6 +91,9 @@ func TestLoopSettleOrphansTerminal(t *testing.T) {
 		if st.Status != "aborted" {
 			t.Errorf("orphan %s must be terminal aborted, got %q", id, st.Status)
 		}
+	}
+	if st, err := l.GetLoopState("already-dead"); err != nil || st == nil || st.Status != "killed" {
+		t.Errorf("terminal killed row must be skipped untouched, got %+v %v", st, err)
 	}
 	var tenantSpent, sessSpent float64
 	if err := l.DB().QueryRow(`SELECT spent_usd FROM tenants WHERE id = 'lab-a'`).Scan(&tenantSpent); err != nil {
