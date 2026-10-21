@@ -588,6 +588,8 @@ import type {
   CodesignFrontierEntry,
   CodesignFrontierResult,
   CodesignTQResult,
+  CodesignVerifiedComponent,
+  CodesignVerifiedResult,
 } from '@/types';
 
 export type {
@@ -597,6 +599,8 @@ export type {
   CodesignFrontierEntry,
   CodesignFrontierResult,
   CodesignTQResult,
+  CodesignVerifiedComponent,
+  CodesignVerifiedResult,
 };
 
 
@@ -625,10 +629,33 @@ export async function scoreCodesignBudget(
   }
 }
 
+// Versioned verified-results document (G4): numbers served, never verdicts.
+// Shapes live in @/types (single source); this module only fetches.
+export async function fetchCodesignVerified(): Promise<
+  | { ok: true; result: CodesignVerifiedResult }
+  | { ok: false; error: string }
+> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/codesign/verified`, {
+      cache: 'no-store',
+      headers: authHeaders(),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || typeof data.total?.toffoli !== 'number') {
+      const msg =
+        (data && typeof data.message === 'string' && data.message) ||
+        `refused (HTTP ${res.status})`;
+      return { ok: false, error: msg.slice(0, 280) };
+    }
+    return { ok: true, result: data as CodesignVerifiedResult };
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 280) };
+  }
+}
+
 export async function evaluateCodesignArtifact(
   body: Record<string, unknown>
-): Promise<{ ok: true; spec_kind: string; result: Record<string, unknown> } | { ok: false; error: string }> {
-  try {
+): Promise<{ ok: true; spec_kind: string; result: Record<string, unknown> } | { ok: false; error: string }> {  try {
     const res = await apiFetch(`${API_BASE}/api/codesign/evaluate`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),

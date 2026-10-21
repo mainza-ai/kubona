@@ -8,7 +8,9 @@ same inputs (transitivity with slice-51's evaluator proof), A*B*E+B*O=1
 on composed outputs, inputs preserved, every temp clean. One build,
 one sim per planted instance. 7,208,672T pinned (walk 5,764,080 +
 EEA ~985k + omega ~229k + Chien 85,995 + phase scan 217,350, measured
-not summed); 110,132 qubits. This is the first complete paper-scale RS
+not summed); 112,168 qubits addressable and peak-live (corrected 2026-10-20:
+the older 110,132 prose figure was pre-F2 and never pinned; live layout +
+Builder agree). This is the first complete paper-scale RS
 decoder: decode works where the EEA converges (low-error/DQI-typical),
 refuses explicitly elsewhere (flag) — never a silent wrong decode.
 """
