@@ -39,6 +39,7 @@ arrives, place it here first and it will find its page.
 | [[roadmap]] | Phases 0–6 read as **acceptance criteria**, not progress: gates, dependencies, team loading. |
 | [[implementation-gaps]] | Prototype gap register: what the scaffold does vs. what production requires. Code facts only. |
 | [[platform-architecture-diagram]] | Mermaid map of the running platform (services, ports, stores, call paths). Snapshot verified 2026-10-12; refresh after any service/port/store change. |
+| [[audit-topology-map]] | Deployment topology as verified live 2026-10-21 (compose + local rails, Strata, gaps marked). Refresh after any compose/port/auth change. |
 | [[cloudroom-adoption-plan]] | Ordered implementation plan for Cloudroom-mined patterns (S1–S8, all landed 2026-10-17). |
 | [[rea-adoption-plan]] | Updated Kubona × REA improvement report + production plan (R0–R6, all landed 2026-10-17). |
 | [[rea-conflicts-and-remediation]] | Conflicts vs the REA plan (C1–C6) with remediation decisions and landed slices (2026-10-17). |
@@ -65,9 +66,9 @@ Describes **how decided** something is — never how finished.
 | `source` | An ingested source record. Immutable once written. | the 7 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (140 pages = 46 entities · 80 concepts · 9 sources · 5 meta), 2026-10-20:**
-`settled` 5 · `adopted` 53 · `open-question` 8 · `candidate` 13 · `tracked` 37 ·
-`reference` 8 · `source` 9 · `living` 6 (lint-counted). Five `settled` against 53 `adopted`
+**Census (141 pages = 46 entities · 81 concepts · 9 sources · 5 meta), 2026-10-21:**
+`settled` 5 · `adopted` 53 · `open-question` 8 · `candidate` 13 · `tracked` 38 ·
+`reference` 8 · `source` 9 · `living` 7 (lint-counted). Five `settled` against 53 `adopted`
 keeps the honest reading: the load-bearing constraints are **chosen**, everything else
 remains **understood**. `settled` stays small by rule — each entry needed test enforcement
 plus dependents ([[overview]] §Settled constraints); new candidates must meet the same bar.
@@ -222,3 +223,4 @@ Revisit only with a concrete claim that fits nowhere.
 | [[failure-budget-and-frontier]] | Failure-budget design + TQ frontier + domain packs order + magic-state bridge (`adopted`) |
 | [[circuit-codesign-ux-plan]] | Backend→frontend inclusive plan: landed slice 1 + queued slices 2-5, threat model (`adopted`) |
 | [[epistemic-information-lifecycle-and-memory]] | 4-tier storage (tmpfs, Merkle ledger, HippoRAG GraphRAG, strategy bank), refutation index, and RLVR flywheel |
+| [[audit-topology-map]] | Deployment topology as verified live 2026-10-21 (compose + local rails, Strata, gaps marked) (`living`) |
