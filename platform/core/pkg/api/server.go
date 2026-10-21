@@ -3346,7 +3346,11 @@ func (s *Server) handleLLMSettings(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if err := s.llmSettings.Update(&req, s.ledger.DB()); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			// Audit 2026-10-26: Update only fails on input validation
+			// (empty model, unknown provider, fragment entries, bad
+			// numbers) — a 400, never a 500. Same class as the loops /
+			// hf-download / supervisor-loop fixes.
+			WriteAPIError(w, "bad_request", err.Error(), nil)
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"status": "updated", "settings": s.llmSettings.GetPublicSnapshot()})
@@ -4012,6 +4016,11 @@ func (s *Server) handleAutoresearchLoops(w http.ResponseWriter, r *http.Request)
 	var out []*autoresearch.LoopState
 	for _, engine := range s.activeAutoloops {
 		out = append(out, engine.State())
+	}
+	// Audit 2026-10-21: nil slice serializes as "loops":null (same class
+	// as jobs/sessions). Empty reads as [].
+	if out == nil {
+		out = []*autoresearch.LoopState{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"loops": out})
 }
@@ -5023,7 +5032,7 @@ func (s *Server) handleCustomAgentByID(w http.ResponseWriter, r *http.Request) {
 // model). Unknown bare IDs return "" — the router keeps its fail-closed
 // cloud verdict for those. Matching is exact and case-sensitive: a
 // near-miss is not a match.
-func qualifyBareModelID(snap llm.Settings, bare string) string {
+func qualifyBareModelID(snap *llm.Settings, bare string) string {
 	if bare == "" {
 		return ""
 	}
@@ -5077,7 +5086,7 @@ func (s *Server) handleMeshRoute(w http.ResponseWriter, r *http.Request) {
 		// invention: the mapping comes from settings, never a guess).
 		// Unknown bare IDs keep the router's fail-closed cloud verdict.
 		if !strings.Contains(req.PreferredModel, "/") {
-			if q := qualifyBareModelID(snap, strings.TrimSpace(req.PreferredModel)); q != "" {
+			if q := qualifyBareModelID(&snap, strings.TrimSpace(req.PreferredModel)); q != "" {
 				req.PreferredModel = q
 			}
 		}
