@@ -1538,6 +1538,28 @@ func TestEmptyJobsListIsArray(t *testing.T) {
 	}
 }
 
+// Audit 2026-10-21: supervisor "loop not found" errors surfaced as HTTP
+// 500 (same class as the loops/hf-download validation 500s) — including
+// for DB-persisted sleeping loops after a restart dropped the in-memory
+// registry. Unknown ids are 404; only execution failures stay 500.
+func TestUnknownLoopIDIs404(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+
+	for _, action := range []string{"kill", "pause", "step"} {
+		req := httptest.NewRequest(http.MethodPost, "/api/loops/no-such-loop/"+action, nil)
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		if w.Code != http.StatusNotFound {
+			t.Errorf("POST /api/loops/no-such-loop/%s must 404, got %d (%s)", action, w.Code, w.Body.String())
+		}
+		if !strings.Contains(w.Body.String(), "loop not found") {
+			t.Errorf("404 must name the missing loop, got %s", w.Body.String())
+		}
+	}
+}
+
 // Audit 2026-10-21: bare "iq3_s" (the Strata default) classified as cloud
 // and refused for spend — the default model could not route. The handler
 // qualifies exact settings matches ("strata/iq3_s"), which routes local.

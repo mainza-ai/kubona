@@ -1594,10 +1594,10 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 			// Operator "clear chat": messages gone, session + campaign +
 			// ledger history survive, erasure sealed as an event.
 			n, err := s.sessionMgr.ClearMessages(sessionID)
-			if err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-				return
-			}
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 			writeJSON(w, http.StatusOK, map[string]any{"cleared": true, "deleted": n, "session_id": sessionID})
 			return
 		}
@@ -2954,7 +2954,14 @@ func (s *Server) handleLoopActions(w http.ResponseWriter, r *http.Request) {
 		}
 		status, stepErr := s.supervisor.Step(loopID, grad)
 		if stepErr != nil {
-			http.Error(w, stepErr.Error(), http.StatusInternalServerError)
+			// Audit 2026-10-21: unknown loop ids refused with 500.
+			// A missing loop is a 404 (same class as the loops/hf-download
+			// validation 500s); only genuine execution failures stay 500.
+			if strings.Contains(stepErr.Error(), "loop not found") {
+				http.Error(w, stepErr.Error(), http.StatusNotFound)
+			} else {
+				http.Error(w, stepErr.Error(), http.StatusInternalServerError)
+			}
 			return
 		}
 		writeJSON(w, http.StatusOK, map[string]string{"loop_id": loopID, "status": status})
@@ -2965,7 +2972,14 @@ func (s *Server) handleLoopActions(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		// Audit 2026-10-21: unknown supervisor loop ids refused with 500.
+		// A missing loop is a 404 (same class as the loops/hf-download
+		// validation 500s); only genuine execution failures stay 500.
+		if strings.Contains(err.Error(), "loop not found") {
+			http.Error(w, err.Error(), http.StatusNotFound)
+		} else {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+		}
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"loop_id": loopID, "action": action, "status": "ok"})
