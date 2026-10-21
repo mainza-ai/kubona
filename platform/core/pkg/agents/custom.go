@@ -288,6 +288,21 @@ func cloudModel(model string) bool {
 	}
 }
 
+// validModelIDChars bounds the model-id alphabet: provider/model paths
+// and bare names over letters, digits, space and ._-/: — the characters
+// real provider IDs use. Anything else (e.g. "@@@!!!###") is malformed
+// input, refused before it can be attributed or priced.
+func validModelIDChars(model string) bool {
+	for _, r := range model {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') ||
+			r == ' ' || r == '.' || r == '_' || r == '-' || r == '/' || r == ':' {
+			continue
+		}
+		return false
+	}
+	return len(model) > 0
+}
+
 // modelProvider names the provider for a "provider/model" ID, or "" when
 // the ID carries no provider prefix.
 func modelProvider(model string) string {
@@ -311,6 +326,19 @@ func RouteMultimodal(p MultimodalPayload, airGapped bool, fallbackModel string) 
 		return RoutingDecision{
 			Ok:          false,
 			Explanation: "no model configured: pass preferred_model or set a configured default (see .env.example KUBONA_LLM_MODEL / provider *_MODEL)",
+		}
+	}
+	// Audit 2026-10-21: garbage model IDs ("@@@!!!###") sailed through
+	// to a confident "CLOUD ESCALATION ... Provider: omlx, $0.04" card.
+	// Model IDs are provider/model paths or bare names over
+	// [A-Za-z0-9._\-/: ] — anything else is malformed input, refused
+	// (never attributed to a real provider and priced).
+	if !validModelIDChars(model) {
+		return RoutingDecision{
+			Ok:          false,
+			Provider:    "",
+			Model:       model,
+			Explanation: fmt.Sprintf("malformed model id %q: use provider/model or a configured model name — nothing routed", model),
 		}
 	}
 	prov := modelProvider(model)

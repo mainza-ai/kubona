@@ -1557,6 +1557,22 @@ func TestEmptyJobsListIsArray(t *testing.T) {
 	}
 }
 
+// Audit 2026-10-26: empty autoresearch loop list serialized as
+// "loops":null (same null-list class as jobs/sessions). Empty reads [].
+func TestEmptyAutoloopsListIsArray(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	req := httptest.NewRequest(http.MethodGet, "/api/autoresearch/loops", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 for loops list, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), `"loops":[]`) {
+		t.Errorf("empty autoloops list must serialize as [], got %s", w.Body.String())
+	}
+}
+
 // Audit 2026-10-21: supervisor "loop not found" errors surfaced as HTTP
 // 500 (same class as the loops/hf-download validation 500s) — including
 // for DB-persisted sleeping loops after a restart dropped the in-memory
@@ -2048,6 +2064,10 @@ func TestSessionAttributionStrictness(t *testing.T) {
 // W0.19: LLM settings writes get edge auth (reads stay public); provider
 // URLs validate destinations (no plaintext exfiltration endpoints).
 func TestLLMSettingsWriteGated(t *testing.T) {
+	// A configured active model, so clearing it is a refusal (the live
+	// 500 came from a configured stack; an unconfigured one grandfathers).
+	t.Setenv("KUBONA_LLM_PROVIDER", "strata")
+	t.Setenv("STRATA_MODEL", "iq3_s")
 	srv, cleanup := setupTestRoutesServer(t)
 	defer cleanup()
 	h := srv.Handler()
@@ -2073,9 +2093,27 @@ func TestLLMSettingsWriteGated(t *testing.T) {
 	if code := put("", map[string]any{"temperature": 0.5}); code != http.StatusUnauthorized {
 		t.Fatalf("unauthenticated settings write must 401, got %d", code)
 	}
-	// Authenticated benign write succeeds (positive direction).
-	if code := put("op-token", map[string]any{"temperature": 0.5}); code != http.StatusOK {
-		t.Fatalf("authenticated settings write must succeed, got %d", code)
+	// Authenticated benign write succeeds (positive direction) — as a
+	// full object (GET-modify-PUT, like the console), since partial
+	// writes that would clear the configured model refuse (G13).
+	getReq := httptest.NewRequest(http.MethodGet, "/api/llm/settings", nil)
+	getW := httptest.NewRecorder()
+	h.ServeHTTP(getW, getReq)
+	if getW.Code != http.StatusOK {
+		t.Fatalf("settings read must stay public, got %d", getW.Code)
+	}
+	var snap map[string]any
+	if err := json.NewDecoder(getW.Body).Decode(&snap); err != nil {
+		t.Fatalf("decode snapshot: %v", err)
+	}
+	snap["temperature"] = 0.5
+	rawFull, _ := json.Marshal(snap)
+	fullReq := httptest.NewRequest(http.MethodPut, "/api/llm/settings", bytes.NewReader(rawFull))
+	fullReq.Header.Set("Authorization", "Bearer op-token")
+	fullW := httptest.NewRecorder()
+	h.ServeHTTP(fullW, fullReq)
+	if fullW.Code != http.StatusOK {
+		t.Fatalf("authenticated full-object settings write must succeed, got %d (%s)", fullW.Code, fullW.Body.String())
 	}
 	// Plaintext remote endpoint refuses even when authenticated.
 	if code := put("op-token", map[string]any{
@@ -2084,6 +2122,16 @@ func TestLLMSettingsWriteGated(t *testing.T) {
 		},
 	}); code != http.StatusBadRequest {
 		t.Fatalf("plaintext remote endpoint must 400, got %d", code)
+	}
+	// Audit 2026-10-26: Update validation failures (empty model, unknown
+	// provider, fragments) surfaced as HTTP 500. Validation is 400.
+	raw, _ := json.Marshal(map[string]any{})
+	r := httptest.NewRequest(http.MethodPut, "/api/llm/settings", bytes.NewReader(raw))
+	r.Header.Set("Authorization", "Bearer op-token")
+	ww := httptest.NewRecorder()
+	h.ServeHTTP(ww, r)
+	if ww.Code != http.StatusBadRequest {
+		t.Fatalf("empty settings update must 400, got %d (%s)", ww.Code, ww.Body.String())
 	}
 }
 

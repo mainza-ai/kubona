@@ -91,3 +91,25 @@ func TestRouteMultimodalStrataIDs(t *testing.T) {
 		t.Errorf("air-gapped strata must route enforced-local, got %+v", d)
 	}
 }
+
+func TestRouteMultimodalRejectsMalformedModelID(t *testing.T) {
+	// Audit 2026-10-21: garbage IDs sailed through to a confident
+	// "CLOUD ESCALATION ... Provider: omlx, $0.04" card. Malformed IDs
+	// refuse; well-formed unknown bare IDs keep the fail-closed cloud
+	// verdict (never silently free).
+	d := RouteMultimodal(MultimodalPayload{Prompt: "x", PreferredModel: "@@@!!!###", SpendBudgetUSD: 99}, false, "")
+	if d.Ok {
+		t.Errorf("malformed model id must refuse, got %+v", d)
+	}
+	if !strings.Contains(d.Explanation, "malformed model id") {
+		t.Errorf("refusal must name the malformation, got %q", d.Explanation)
+	}
+	d = RouteMultimodal(MultimodalPayload{Prompt: "x", PreferredModel: "gpt-5", SpendBudgetUSD: 99}, false, "")
+	if !d.Ok || d.IsLocal {
+		t.Errorf("well-formed unknown bare id must route cloud (fail-closed), got %+v", d)
+	}
+	d = RouteMultimodal(MultimodalPayload{Prompt: "x", PreferredModel: "strata/iq3_s"}, false, "")
+	if !d.Ok || !d.IsLocal {
+		t.Errorf("prefixed local model must route local, got %+v", d)
+	}
+}
