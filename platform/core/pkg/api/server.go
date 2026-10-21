@@ -770,6 +770,10 @@ func (s *Server) handleEpistemics(w http.ResponseWriter, r *http.Request) {
 		WriteAPIError(w, "ghost_session", fmt.Sprintf("unknown session %q: refusing to show another session", sessionID), nil)
 		return
 	}
+	// T-09b: known session — bind caller to session tenant.
+	if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
+		return
+	}
 
 	alpha := 0.95
 	beta := 0.05
@@ -1290,6 +1294,10 @@ func (s *Server) handleNotebooks(w http.ResponseWriter, r *http.Request) {
 			WriteAPIError(w, "ghost_session", fmt.Sprintf("unknown session %q: refusing to show another session", sessionID), nil)
 			return
 		}
+		// T-09b: known session — bind caller to session tenant.
+		if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
+			return
+		}
 	}
 	// Empty id renders the unscoped template below — a GET never mints a
 	// session, and never adopts the most-recent one (G7).
@@ -1419,10 +1427,38 @@ func (s *Server) handleNotebooks(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		sessions, err := s.sessionMgr.ListSessions(50)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		// T-09a (D-09 single-lab open mode): lab callers list only
+		// their own sessions; bearer lists all (operator); anonymous
+		// lists only while the store holds at most one lab.
+		var sessions []session.Session
+		if hasNoCredentials(r) {
+			if !s.singleTenantStore() {
+				WriteAPIError(w, "unauthorized", "multi-lab store: log in or present the operator token to list sessions", nil)
+				return
+			}
+			var err error
+			sessions, err = s.sessionMgr.ListSessions(50)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		} else if tenant, _, code := s.checkAuth(r); code != http.StatusOK {
+			WriteAPIError(w, "unauthorized", "session required: log in or present the operator token", nil)
 			return
+		} else if tenant == "" {
+			var err error
+			sessions, err = s.sessionMgr.ListSessions(50)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		} else {
+			var err error
+			sessions, err = s.sessionMgr.ListSessionsByTenant(tenant, 50)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 		}
 		if sessions == nil {
 			sessions = []session.Session{}
@@ -1439,6 +1475,26 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
 			return
+		}
+		// T-09b creation-spoof guard: sessions are spend-attributed to
+		// their lab, so minting into another lab is attribution fraud.
+		// Bearer (operator) may mint anywhere; lab callers mint in
+		// their own lab (empty pins to it); anonymous mints only into
+		// the default lab (the zero-login local flow).
+		if hasNoCredentials(r) {
+			if req.TenantID != "" && req.TenantID != "default" {
+				WriteAPIError(w, "forbidden", "anonymous sessions belong to the default lab: log in to use a lab tenant", nil)
+				return
+			}
+			req.TenantID = ""
+		} else if tenant, ok := s.checkCallerAuth(w, r); !ok {
+			return
+		} else if tenant != "" {
+			if req.TenantID != "" && req.TenantID != tenant {
+				WriteAPIError(w, "forbidden", "cannot create sessions in another lab", nil)
+				return
+			}
+			req.TenantID = tenant
 		}
 		sess, err := s.sessionMgr.CreateSession(req.Title, req.SpendLimitUSD, req.TenantID)
 		if err != nil {
@@ -1473,6 +1529,10 @@ func (s *Server) handleSessionExport(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, err := s.sessionMgr.GetSession(req.SessionID); err != nil {
 		http.Error(w, fmt.Sprintf("unknown session %q: nothing to export", req.SessionID), http.StatusNotFound)
+		return
+	}
+	// T-09b: known session — bind caller to session tenant.
+	if _, ok := s.authorizeKnownSession(w, r, req.SessionID); !ok {
 		return
 	}
 	man, err := s.sessionMgr.ExportSession(req.SessionID)
@@ -1545,6 +1605,10 @@ func (s *Server) handleSessionContext(w http.ResponseWriter, r *http.Request) {
 		WriteAPIError(w, "ghost_session", fmt.Sprintf("unknown session %q", sessionID), nil)
 		return
 	}
+	// T-09b: known session — bind caller to session tenant.
+	if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
+		return
+	}
 	msgs, err := s.sessionMgr.GetMessages(sessionID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -1593,6 +1657,12 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 	id := strings.TrimPrefix(r.URL.Path, "/api/sessions/")
 	if strings.HasSuffix(id, "/messages") {
 		sessionID := strings.TrimSuffix(id, "/messages")
+		// T-09b: known session — bind caller to session tenant. Ghosts
+		// keep legacy behavior; the clear-chat DELETE is destruction,
+		// so it takes the same gate as the read.
+		if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
+			return
+		}
 		if r.Method == http.MethodDelete {
 			// Operator "clear chat": messages gone, session + campaign +
 			// ledger history survive, erasure sealed as an event.
@@ -1618,6 +1688,11 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 			Prompt string `json:"prompt"`
 		}
 		json.NewDecoder(r.Body).Decode(&req)
+		// T-09b: known session — bind caller to session tenant (this
+		// endpoint also writes campaign state, so the gate covers both).
+		if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
+			return
+		}
 		sess, err := s.sessionMgr.GetSession(sessionID)
 		if err != nil {
 			http.Error(w, "session not found", http.StatusNotFound)
@@ -1645,6 +1720,11 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 	// Unknown sessions resolve to an empty list, never an error shell.
 	if strings.HasSuffix(id, "/claims") {
 		sessionID := strings.TrimSuffix(id, "/claims")
+		// T-09b: ghosts resolve to an empty list (documented contract);
+		// known sessions bind caller to session tenant.
+		if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
+			return
+		}
 		limit := 50
 		if raw := r.URL.Query().Get("limit"); raw != "" {
 			if n, err := strconv.Atoi(raw); err == nil && n > 0 {
@@ -1667,6 +1747,11 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.HasSuffix(id, "/campaign/versions") {
 		sessionID := strings.TrimSuffix(id, "/campaign/versions")
+		// T-09b: ghosts resolve to an empty list (documented contract);
+		// known sessions bind caller to session tenant.
+		if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
+			return
+		}
 		limit := 50
 		if raw := r.URL.Query().Get("limit"); raw != "" {
 			if n, err := strconv.Atoi(raw); err == nil && n > 0 {
@@ -1689,6 +1774,11 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 	}
 	if strings.HasSuffix(id, "/campaign") {
 		sessionID := strings.TrimSuffix(id, "/campaign")
+		// T-09b: known session — bind caller to session tenant. Ghosts
+		// keep legacy behavior below (state serve or synthesize path).
+		if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
+			return
+		}
 		rawState, err := s.ledger.GetCampaignState(sessionID)
 		if err == nil && len(rawState) > 0 {
 			w.Header().Set("Content-Type", "application/json")
@@ -1716,6 +1806,11 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if r.Method == http.MethodDelete {
+		// T-09b: destruction binds caller to session tenant. Ghosts
+		// keep the legacy not-found mapping below.
+		if _, ok := s.authorizeKnownSession(w, r, id); !ok {
+			return
+		}
 		if err := s.sessionMgr.DeleteSession(id); err != nil {
 			if strings.Contains(err.Error(), "session not found") {
 				http.Error(w, err.Error(), http.StatusNotFound)
@@ -1730,6 +1825,11 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 	sess, err := s.sessionMgr.GetSession(id)
 	if err != nil {
 		http.Error(w, "session not found", http.StatusNotFound)
+		return
+	}
+	// T-09b: known session — bind caller to session tenant (this also
+	// covers the tenant_id field the single-session read discloses).
+	if !s.authorizeSessionRead(w, r, sess) {
 		return
 	}
 	writeJSON(w, http.StatusOK, sess)
@@ -1770,6 +1870,10 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 		}
 		if _, gerr := s.sessionMgr.GetSession(sessionID); gerr != nil {
 			WriteAPIError(w, "ghost_session", fmt.Sprintf("unknown session %q: refusing to read another session", sessionID), nil)
+			return
+		}
+		// T-09b: known session — bind caller to session tenant.
+		if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
 			return
 		}
 		msgs, err := s.sessionMgr.GetMessages(sessionID)
@@ -3002,6 +3106,10 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		WriteAPIError(w, "ghost_session", fmt.Sprintf("unknown session %q: refusing to read another session", sessionID), nil)
 		return
 	}
+	// T-09b: known session — bind caller to session tenant.
+	if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
+		return
+	}
 	limitStr := r.URL.Query().Get("limit")
 	limit := 50
 	if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
@@ -3176,6 +3284,11 @@ func (s *Server) handleCanvasLayout(w http.ResponseWriter, r *http.Request) {
 	}
 	if _, gerr := s.sessionMgr.GetSession(sessionID); gerr != nil {
 		WriteAPIError(w, "ghost_session", fmt.Sprintf("unknown session %q: refusing to show another session", sessionID), nil)
+		return
+	}
+	// T-09b: known session — bind caller to session tenant (reads and
+	// layout writes alike: a layout row is pure session state).
+	if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
 		return
 	}
 

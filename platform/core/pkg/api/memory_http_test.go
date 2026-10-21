@@ -13,8 +13,13 @@ func memoryTestSession(t *testing.T, srv interface {
 	Handler() http.Handler
 }, title, tenantID string) string {
 	t.Helper()
+	// T-09b: fixtures mint lab sessions as operator (bearer). Anonymous
+	// creation into a named lab is attribution spoofing and now 403s;
+	// these tests pin memory scoping, not creation auth.
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
 	body, _ := json.Marshal(map[string]any{"title": title, "tenant_id": tenantID})
 	req := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer op-token")
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
 	if w.Code != http.StatusCreated {
