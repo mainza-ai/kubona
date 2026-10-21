@@ -94,3 +94,36 @@ describe('SessionPortability (U2-a)', () => {
     expect(JSON.stringify(tree.toJSON())).toContain('nothing to export');
   });
 });
+
+describe('SessionPortability import receipt (T-13)', () => {
+  async function importManifest(responseBody: unknown): Promise<string> {
+    stubFetch(() => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify(responseBody),
+      json: async () => responseBody,
+    }));
+    const tree = await render(<SessionPortability sessionId="s1" onSessionImported={() => {}} />);
+    const input = tree.root.findByProps({ 'aria-label': 'Session manifest file' });
+    await act(async () => {
+      await input.props.onChange({
+        target: { files: [{ text: async () => '{"version":1}' }], value: '' },
+      });
+    });
+    return JSON.stringify(tree.toJSON());
+  }
+
+  it('fresh import renders a success receipt naming the session', async () => {
+    const html = await importManifest({ session_id: 's2-fresh', replayed: false });
+    expect(html).toContain('imported session s2-fresh');
+    expect(html).toContain('switched to it');
+    expect(html).toContain('text-emerald-200');
+  });
+
+  it('idempotent replay says so instead of claiming a fresh import', async () => {
+    const html = await importManifest({ session_id: 's2-old', replayed: true });
+    expect(html).toContain('already present');
+    expect(html).toContain('replayed without duplicating');
+    expect(html).not.toContain('imported session s2-old');
+  });
+});
