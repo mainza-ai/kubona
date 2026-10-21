@@ -330,10 +330,14 @@ export function CodesignCockpit() {
       <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
         <div className="text-xs font-semibold text-white">TQ scoring — read-only</div>
         <div className="text-[11px] text-slate-400">TQ = T × Q^κ (κ∈[1,3]). Golden 5×10=50 pinned both sides. Unreproduced gains labeled claimed.</div>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-wrap gap-2 items-center">
           <input aria-label="Toffoli count" value={toffoli} onChange={(e) => setToffoli(e.target.value)} className="w-28 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs" />
           <input aria-label="Qubit count" value={qubits} onChange={(e) => setQubits(e.target.value)} className="w-28 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs" />
-          <input aria-label="Kappa" value={kappa} onChange={(e) => setKappa(e.target.value)} className="w-20 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs" />
+          <label className="flex items-center gap-2 text-[11px] text-slate-400">
+            κ
+            <input aria-label="Kappa" type="range" min={1} max={3} step={1} value={kappa} onChange={(e) => setKappa(e.target.value)} className="w-20 accent-cyan-400" />
+            <span className="font-mono text-white">{parseKappa() ?? '—'}</span>
+          </label>
           <button onClick={scoreTQ} className="rounded-lg bg-cyan-500/15 border border-cyan-400/30 px-3 py-1 text-xs text-cyan-200">Score</button>
         </div>
         {tq !== null && <div className="mt-2 text-xs text-white">TQ = {tq}</div>}
@@ -368,7 +372,10 @@ export function CodesignCockpit() {
             ))}
           </select>
           <input aria-label="Number of tests" value={evalTests} onChange={(e) => setEvalTests(e.target.value)} className="w-20 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
-          <input aria-label="Kappa" value={evalKappa} onChange={(e) => setEvalKappa(e.target.value)} className="w-16 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
+          <label className="flex items-center gap-1 text-[11px] text-slate-400">
+            κ
+            <input aria-label="Kappa" type="range" min={1} max={3} step={1} value={evalKappa} onChange={(e) => setEvalKappa(e.target.value)} className="w-16 accent-cyan-400" />
+          </label>
           <input aria-label="Seed" value={evalSeed} onChange={(e) => setEvalSeed(e.target.value)} className="w-20 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
         </div>
         <textarea aria-label="Artifact JSON" value={evalArtifact} onChange={(e) => setEvalArtifact(e.target.value)} rows={2} className="mt-2 w-full rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
@@ -420,16 +427,22 @@ export function CodesignCockpit() {
           </select>
           <input aria-label="Families (comma list)" value={famFamilies} onChange={(e) => setFamFamilies(e.target.value)} className="w-40 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
           <input aria-label="Share rounds" value={famRounds} onChange={(e) => setFamRounds(e.target.value)} className="w-16 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
-          <input aria-label="Kappa" value={famKappa} onChange={(e) => setFamKappa(e.target.value)} className="w-16 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
+          <label className="flex items-center gap-1 text-[11px] text-slate-400">
+            κ
+            <input aria-label="Kappa" type="range" min={1} max={3} step={1} value={famKappa} onChange={(e) => setFamKappa(e.target.value)} className="w-16 accent-cyan-400" />
+          </label>
           <button onClick={runFamilies} disabled={famBusy} className="rounded-lg bg-cyan-500/15 border border-cyan-400/30 px-3 py-1 text-xs text-cyan-200 disabled:opacity-50">
             {famBusy ? 'Running…' : 'Run families'}
           </button>
         </div>
         <textarea aria-label="Family offers JSON" value={famOffers} onChange={(e) => setFamOffers(e.target.value)} rows={3} className="mt-2 w-full rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
         {famError && <div className="mt-2 text-xs text-rose-300">{famError}</div>}
-        {famRes && (
-          <div className="mt-2 text-xs text-slate-200">
-            <div className="font-mono">elites: {Object.entries(famRes.elites).map(([f, e]) => `${f} ${e.toffoli}T×${e.qubits}Q`).join(' · ') || 'none yet'}</div>
+          {famRes && (
+            <div className="mt-2 text-xs text-slate-200">
+              <div className="font-mono">
+                offers: {famRes.offers.map((o) => `${o.family} ${o.valid ? `${o.toffoli}T ${o.improved ? '✓' : '='}` : 'invalid'}`).join(' · ')}
+              </div>
+              <div className="mt-1 font-mono">elites: {Object.entries(famRes.elites).map(([f, e]) => `${f} ${e.toffoli}T×${e.qubits}Q`).join(' · ') || 'none yet'}</div>
             <div className="mt-1 font-mono text-[11px] text-slate-400">
               stagnation: {Object.entries(famRes.stagnation).map(([f, s]) => `${f}:${s}`).join(' ')} · lineage {famRes.lineage_len}
             </div>
@@ -437,6 +450,17 @@ export function CodesignCockpit() {
             <div className="mt-1 text-[11px] text-slate-300">
               sharing: {famRes.shares.map((s, i) => `round ${i + 1}: ${s.offers} offers → ${s.improvements} improvements`).join('; ') || 'no share rounds'}
             </div>
+            <details className="mt-1">
+              <summary className="cursor-pointer text-[11px] text-cyan-200">Lineage ({famRes.lineage_len} events{famRes.lineage.length < famRes.lineage_len ? `, showing last ${famRes.lineage.length}` : ''})</summary>
+              <ul className="mt-1 space-y-0.5 font-mono text-[11px] text-slate-400">
+                {famRes.lineage.map((e, i) => (
+                  <li key={i}>
+                    {String(e.family)} · {String(e.toffoli)}T {e.improved ? 'improved' : 'no improvement'}
+                    {typeof e.parent === 'string' && e.parent !== '' ? ` · ← ${e.parent}` : ''}
+                  </li>
+                ))}
+              </ul>
+            </details>
           </div>
         )}
       </div>

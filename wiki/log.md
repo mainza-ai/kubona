@@ -3018,3 +3018,8 @@ skipped is the exact failure this incident is about:
   - Probes are real <button>s now (toggle open, aria-expanded, labels); cards render on hover (existing CSS) OR pinned open by tap; Esc closes (SSR-guarded listener); click-inside-card doesn't collapse (stopPropagation).
   - Singularity is display-only (removed misleading cursor-pointer; separate reveal button rules).
   - Console 38 files/181 tests green (new tap-toggle + Esc test with window stub), tsc clean.
+
+## [2026-10-20] feat | Slice-2/3 remainder — kappa sliders, families lineage list
+  - Cockpit kappa inputs (TQ, evaluator, families) are range sliders 1..3 with live value (ux-plan slice 2 asks for the slider explicitly); parseKappa refusal rail intact.
+  - Families result gains offers echo (incl. invalid) + collapsible lineage event list with x-poll parent links (slice-3 lineage remainder).
+  - Console 38 files/182 tests green (slider + lineage tests), tsc clean.
