@@ -3058,3 +3058,6 @@ skipped is the exact failure this incident is about:
   - Null-list class closed further: sessions [] (was null), jobs [] earlier; sweep shows loops/proposals/agents/lists already []; literature q->query was a probe error, live records verified with honest zero citations.
   - Unknown supervisor loop ids 404 (was 500, kill/pause/step). Found live: post-restart sleeping DB loops are unkilleable by id (in-memory registry lost) and block session delete — reported as restart-orphan lifecycle gap, not built here.
   - Full suites: Go 28/28, console 41 files/194 tests, tsc clean, lint clean. Pushed develop+main (4a65051).
+
+## [2026-10-21] verification | Platform Architecture Diagram re-snapshotted @ 86afb3a
+  - platform-architecture-diagram.md: dd600c2 (2026-10-12) superseded. Strata default provider + :47831 (compose ships model + host route), codesign rail subgraph with F-001, radar --bridge-addr note, ports updated (8787/11434/1234/47831), legacy 19->23 routes (codesign trio duplicated on Go rail), evidence anchors re-verified with current path:line, counts 93 routes / 28 pkgs / 194 tests / 1011 pytest.
