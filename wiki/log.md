@@ -3092,3 +3092,9 @@ skipped is the exact failure this incident is about:
 ## [2026-10-26] ingest | Round-1 findings register + remediation plan
   - New pages: wiki/concepts/full-system-audit-2026-10-26.md (findings F-R1-01..F-R1-16 + standing F-001/F-006, evidence-anchored) and wiki/concepts/audit-remediation-plan.md (Now/Next/Gated paths with acceptance tests; nothing implemented). Index census 142 -> 144 (concepts 82 -> 84, tracked 38 -> 40).
   - Cross-links: plan page points at both; findings page points at plan, diagram, audit.
+
+## [2026-10-26] verification | Remediation deep dive + sequenced todo list
+  - Four parallel file-level investigations (Go trust boundary, console, metasearch/ifc/tribunal, gated docker/fidelity) returned file:line-anchored reports.
+  - Two register claims corrected with ⚑ Correction blocks: F-R1-12 returns 400 not 404 and a mint path exists with discarded return (server.go:3958); F-R1-14 has 4 embedded tests, gap is unpinned lattice properties (incl. Rust/Go empty-set asymmetry).
+  - Plan sections R-09/R-10/R-11/R-13/R-12/R-14/R-15/R-01/R-02 enriched with concrete anchors; recommendations: bridge-gRPC chemistry-first (R-01), FloorOnly-now (R-02), telemetry-first (R-15).
+  - New page: wiki/concepts/audit-remediation-todos.md (Phase 0 decisions, Phase 1 Now T-09a..T-15, Phase 2 T-12, Phase 3 gated T-01a..T-03, landing checklist). Index census 144 -> 145 (concepts 84 -> 85, tracked 40 -> 41). Nothing implemented.

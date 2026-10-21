@@ -67,8 +67,8 @@ Describes **how decided** something is — never how finished.
 | `source` | An ingested source record. Immutable once written. | the 7 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (144 pages = 46 entities · 84 concepts · 9 sources · 5 meta), 2026-10-26:**
-`settled` 5 · `adopted` 53 · `open-question` 8 · `candidate` 14 · `tracked` 40 ·
+**Census (145 pages = 46 entities · 85 concepts · 9 sources · 5 meta), 2026-10-26:**
+`settled` 5 · `adopted` 53 · `open-question` 8 · `candidate` 14 · `tracked` 41 ·
 `reference` 8 · `source` 9 · `living` 7 (lint-counted). Five `settled` against 53 `adopted`
 keeps the honest reading: the load-bearing constraints are **chosen**, everything else
 remains **understood**. `settled` stays small by rule — each entry needed test enforcement
@@ -211,6 +211,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[deep-implementation-audit-2026-10-12]] | Line-by-line code verification: completed/partial/absent/poor lists with file:line + J/K/L plan |
 | [[full-system-audit-2026-10-26]] | Round-1 live audit findings register: fixed items with pins + open items with evidence (`tracked`) |
 | [[audit-remediation-plan]] | Fix plan for open audit findings: Now/Next/Gated sequencing with acceptance tests (`tracked`) |
+| [[audit-remediation-todos]] | Sequenced execution list for the remediation plan: Phase-0 decisions, file-anchored slices, pins, landing checklist (`tracked`) |
 | [[autonomous-mathematical-discovery]] | Multi-hour thinking compute search dynamics over open conjectures, counterexample isolation, and proof refactoring |
 | [[formal-proof-verification-lean-comparator]] | Axiomatic formal verification ($\rho = 1.0$) vs empirical simulation, anti-cheating axiom sets, and ledger receipts |
 | [[mathematical-physics-anchors]] | Analytical ground-truth baselines from `openai/math` (Heisenberg ferromagnet, SK model, Haldane gap, MUB-6) enforcing quantum realism |

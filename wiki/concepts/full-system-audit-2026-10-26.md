@@ -51,9 +51,9 @@ status: tracked
 | F-R1-09 | **P1** | **Cross-tenant session reads.** `GET /api/sessions` lists every lab's session IDs publicly; epistemics/campaign/events/messages for another tenant's session read with no auth and no tenant check. Memory recall *is* tenant-scoped and job reads 404 cross-tenant — the hole is specifically the session list + session-keyed reads. | `curl` matrix against `mandlab`/`envlab` sessions; `{"sessions":null}`-then-listed UUIDs replayed into `/api/epistemics`, `/api/campaign`, `/api/events` → 200 with foreign data |
 | F-R1-10 | **P1** | **Restart-orphan loops.** DB `sleeping` rows survive restarts; the reconciler logs them but never rehydrates the supervisor registry, so they are unkillable by id (404 after fix) *and* block session delete ("live loops"). | Volume DB shows `status=running/sleeping` rows; API shows `[]`/404; delete refuses. Discovered while cleaning audit residue |
 | F-R1-11 | **P2** | **ModelHub starts multi-GB downloads with no size confirm**, and the in-progress **Cancel button never stabilizes** (progress re-renders defeat actionability). API cancel works and cleans up. | 4.36 GB download started on one click; `Cancel` click times out; `POST …/cancel` → `cancelled`, 12K residue |
-| F-R1-12 | **P2** | **Metasearch approve/reject/apply rails have no proposer.** `ProposeSearchRefinement` has zero callers outside its own tests, so the mutation rails can only ever 404. Fail-closed and correct — but dead. | `grep` shows no producers; ghost approve/reject refuse with named reasons |
+| F-R1-12 | **P2** | **Metasearch approve/reject/apply rails have no proposer.** `ProposeSearchRefinement` has zero callers outside its own tests, so the mutation rails can only ever 404. Fail-closed and correct — but dead. | `grep` shows no producers; ghost approve/reject refuse with named reasons *(see ⚑ Correction below — 400, and a mint path exists with discarded return)* |
 | F-R1-13 | **P2 (process)** | **Import session succeeds silently** — 200 + `replayed:true`, zero UI confirmation of what changed. | Export→import round-trip verified byte-complete; no toast, diff, or session-switch signal |
-| F-R1-14 | **P3** | **`ifc-core` has zero tests** (qir-core has 13, green). Memory-safety lib, but the lattice logic itself is unasserted. | `cargo test` output: 0 passed/failed |
+| F-R1-14 | **P3** | **`ifc-core` lattice properties unpinned** (4 embedded tests exist — public-flows, private→public denial, one narrowing direction, cross-universe denial — but no transitivity, antisymmetry/reflexivity, empty-`Only({})` vacuous-subset, or join-LUB pins; qir-core has 13). | `lib.rs:70-118` 4 tests; Go pins subset in `lattice_test.go:9-73` |
 | F-R1-15 | **P3 (observation)** | **Tribunal turn 2 is the flaky one** (timeout once, empty reply twice, authored once across 4 runs) while turns 1/3/4 are stable. Caps + session-id + logging all hold; the variance is model-side (Strata iq3_s). | Four runs: authored/timeout/empty/authored-fallback mix, every branch covered by coverage + obligation records |
 | F-R1-16 | **P3 (noted, not pursued)** | **Sandbox timeout path untested live** (would need a >60s job through the container runtime); covered by unit tests + fail-closed review. **Paid/QPU paths** untested (no creds — correct). **Literature offline** untested (would need network isolation). | Code review + unit suite |
 
@@ -66,8 +66,25 @@ status: tracked
 - **Turn-bundle resume has no HTTP route** (Go API only) — recorded as
   the missing surface for a future console flow.
 
-## Coverage achieved (battery → result)
+> ⚑ Correction (2026-10-26 deep dive — F-R1-12): the "404" above is wrong.
+> Unknown proposal ids return **400** (`meta-search proposal not found`,
+> `evolution.go:18`), asserted in `w2_production_bar_test.go:191-198`.
+> More importantly a mint path **exists**: `SetStagnationCallback`
+> (`server.go:3957-3971`) calls `GenerateStagnationProposal`
+> (`evolution.go:206` is its sole production caller) but **discards the
+> return**, so the proposal id never reaches the ledger event or the
+> operator. The dead end is minting visibility, not UI/routes — the
+> console already consumes the rails (`MetasearchPanel.tsx`).
+>
+> ⚑ Correction (2026-10-26 deep dive — F-R1-14): "zero tests" was stale
+> at write time. `crates/ifc-core/src/lib.rs:70-118` holds **4** embedded
+> tests; the row above now states the real gap (unpinned lattice
+> properties). Note the Rust/Go asymmetry this exposed: Go fails closed
+> on empty reader sets via `deny-all` (`lattice.go:100-109`) while Rust
+> `Only({})` flows everywhere by vacuous subset — the new pins must
+> decide whether that asymmetry is intended.
 
+## Coverage achieved (battery → result)
 - HUMAN: all surfaces/tabs/buttons/forms exercised; chat→tribunal→
   mandate→launch→COMPLETED loop twice (UI + server-verified `status: 3`);
   refusal toasts/modals; kill-tests both daemons with recovery;
