@@ -3030,3 +3030,8 @@ skipped is the exact failure this incident is about:
   - Console evaluator card shows first-failure input/reason + capped note. Go asserts details on invalid runs; Python pins recipes/determinism/cap.
   - Caught live: first G13 fix deadlocked (write lock never released on refusal paths) — test exposed it; unlock-before-return. Full suites re-greened after.
   - Verified: Go 28/28, console 38 files/183 tests, Python harness file green, tsc + lint clean.
+
+## [2026-10-20] feat | D5 dock tooltips + D3-lite check-in strip
+  - SovereignDock: tooltips reveal on keyboard focus too (group-focus-within), gloss aria-hidden (buttons already named); air-gap sentinel is a labeled status (role+tabindex+aria-label). Micro-labels rejected on evidence: would break the adopted icon-only shell; focus-tooltips + labels are the fix.
+  - New CheckInStrip (arena, all surfaces): loops by status + server-sealed LLM spend vs cap (or track-only), blind-stream count; no rates, no alerts (needs server series — stated in code, not silently omitted). Degrades to loop counts when spend refuses.
+  - Console 39 files/186 tests green (tooltip + strip tests), tsc clean.
