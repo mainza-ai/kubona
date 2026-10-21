@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { API_BASE, apiFetch, authHeaders, evaluateCodesignArtifact, fetchCodesignVerified, runFamilySearch, scoreCodesignBudget } from '@/lib/api';
-import type { CodesignBudgetResult, CodesignFamiliesResult, CodesignFrontierResult, CodesignVerifiedResult } from '@/lib/api';
+import { API_BASE, apiFetch, authHeaders, evaluateCodesignArtifact, fetchCodesignPacks, fetchCodesignVerified, runFamilySearch, scoreCodesignBudget } from '@/lib/api';
+import type { CodesignBudgetResult, CodesignFamiliesResult, CodesignFrontierResult, CodesignPacksResult, CodesignVerifiedResult } from '@/lib/api';
 
 // Circuit co-design cockpit (read-only scoring).
 // Talks only to Go (:8080) read-only routes; validity ground truth stays
@@ -41,6 +41,8 @@ export function CodesignCockpit() {
   const [frontierError, setFrontierError] = useState<string | null>(null);
   const [verified, setVerified] = useState<CodesignVerifiedResult | null>(null);
   const [verifiedError, setVerifiedError] = useState<string | null>(null);
+  const [packs, setPacks] = useState<CodesignPacksResult | null>(null);
+  const [packsError, setPacksError] = useState<string | null>(null);
   const [evalSpec, setEvalSpec] = useState('and2');
   const [evalArtifact, setEvalArtifact] = useState('[["ccx",[0,1,2],[]]]');
   const [evalTests, setEvalTests] = useState('64');
@@ -68,6 +70,11 @@ export function CodesignCockpit() {
       if (!live) return;
       if (out.ok) setVerified(out.result);
       else setVerifiedError(out.error);
+    });
+    fetchCodesignPacks().then((out) => {
+      if (!live) return;
+      if (out.ok) setPacks(out.result);
+      else setPacksError(out.error);
     });
     return () => {
       live = false;
@@ -466,12 +473,22 @@ export function CodesignCockpit() {
       </details>
 
       <details className="rounded-2xl border border-white/10 bg-black/40 p-4 text-[11px] text-slate-300">
-        <summary className="cursor-pointer text-xs font-semibold text-white">Domain packs — scaffold registry</summary>
-        <ul className="mt-1 space-y-0.5 font-mono">
-          {['numerics', 'inversion', 'dqi', 'chemistry', 'gauge'].map((p) => (
-            <li key={p}>{p} · v0.1.0 · scaffold · anchor-required</li>
-          ))}
-        </ul>
+        <summary className="cursor-pointer text-xs font-semibold text-white">Domain packs — live registry (served, never hand-typed)</summary>
+        {!packs && !packsError && <div className="mt-1 text-slate-400">Loading pack registry…</div>}
+        {packsError && <div className="mt-1 text-rose-300">{packsError}</div>}
+        {packs && (
+          <ul className="mt-1 space-y-1 font-mono">
+            {packs.order.map((name) => {
+              const p = packs.packs.find((x) => x.name === name);
+              if (!p) return null;
+              return (
+                <li key={name} title={p.evidence_reqs.join('; ')}>
+                  {p.name} · v{p.version} · {p.status} · anchor-required{p.anchor_ref ? ` · ${p.anchor_ref}` : ''}{p.proof_ref ? ` · ${p.proof_ref}` : ''}
+                </li>
+              );
+            })}
+          </ul>
+        )}
         <div className="mt-1 text-slate-400">Promotion to active needs anchor_ref + proof_ref in the ledger. A pack name is not a result.</div>
       </details>
 

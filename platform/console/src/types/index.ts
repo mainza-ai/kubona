@@ -324,6 +324,21 @@ export interface CodesignFamiliesResult {
   widen_nudge: { family: string; offers_since_improvement: number; nudge: string };
 }
 
+export interface CodesignPack {
+  name: string;
+  version: string;
+  anchor_required: boolean;
+  evidence_reqs: string[];
+  status: string;
+  anchor_ref: string | null;
+  proof_ref: string | null;
+}
+
+export interface CodesignPacksResult {
+  order: string[];
+  packs: CodesignPack[];
+}
+
 // Cost summary (read-only LLM spend aggregates; heuristic, never billing).
 export interface CostSummary {
   cap_usd: number;

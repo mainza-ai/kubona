@@ -269,8 +269,7 @@ describe('CodesignCockpit read-only', () => {
     }
   });
 
-  it('refuses to send malformed family offers', async () => {
-    const realFetch = globalThis.fetch;
+  it('refuses to send malformed family offers', async () => {    const realFetch = globalThis.fetch;
     let calls = 0;
     (globalThis as unknown as { fetch: unknown }).fetch = async (input: unknown) => {
       if (String(input).includes('/api/codesign/families')) calls += 1;
@@ -291,6 +290,58 @@ describe('CodesignCockpit read-only', () => {
       });
       expect(textOf(root!.root)).toContain('offers must be JSON');
       expect(calls).toBe(0);
+    } finally {
+      (globalThis as unknown as { fetch: unknown }).fetch = realFetch;
+    }
+  });
+
+  it('renders the pack registry live from the server, never hand-typed', async () => {
+    const realFetch = globalThis.fetch;
+    (globalThis as unknown as { fetch: unknown }).fetch = async (input: unknown) => {
+      const url = String(input);
+      if (url.includes('/api/codesign/packs')) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            order: ['numerics', 'inversion'],
+            packs: [
+              { name: 'numerics', version: '0.1.0', anchor_required: true, evidence_reqs: ['dyadic-partition proof'], status: 'scaffold', anchor_ref: null, proof_ref: null },
+              { name: 'inversion', version: '0.1.0', anchor_required: true, evidence_reqs: ['Lean history-decode proof'], status: 'scaffold', anchor_ref: null, proof_ref: null },
+            ],
+          }),
+          { status: 200 }
+        );
+      }
+      return new Response(JSON.stringify({ message: 'not ready' }), { status: 503 });
+    };
+    try {
+      let root: TestRenderer.ReactTestRenderer | undefined;
+      await act(async () => {
+        root = TestRenderer.create(<CodesignCockpit />);
+      });
+      await act(async () => {});
+      const text = textOf(root!.root);
+      expect(text).toContain('live registry');
+      expect(text).toContain('numerics');
+      expect(text).toContain('0.1.0');
+    } finally {
+      (globalThis as unknown as { fetch: unknown }).fetch = realFetch;
+    }
+  });
+
+  it('shows the registry refusal instead of a stale hardcoded list', async () => {
+    const realFetch = globalThis.fetch;
+    (globalThis as unknown as { fetch: unknown }).fetch = async () =>
+      new Response(JSON.stringify({ code: 'unavailable', message: 'registry down' }), { status: 503 });
+    try {
+      let root: TestRenderer.ReactTestRenderer | undefined;
+      await act(async () => {
+        root = TestRenderer.create(<CodesignCockpit />);
+      });
+      await act(async () => {});
+      const text = textOf(root!.root);
+      expect(text).toContain('registry down');
+      expect(text).not.toContain('0.1.0');
     } finally {
       (globalThis as unknown as { fetch: unknown }).fetch = realFetch;
     }

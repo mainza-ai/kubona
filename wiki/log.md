@@ -3004,3 +3004,8 @@ skipped is the exact failure this incident is about:
   - Go: POST /api/codesign/families (bounded evaluated search, same spec, offers<=64, share_rounds<=3, fixed tests; invalid recorded never scored; widen-nudge = max offers-since-improvement).
   - Console: Families card (spec, family list, offers JSON with live-verified presets, share rounds; elites/stagnation/widen-nudge/shares rendered). Replaces the old families process-note (D6).
   - Verified: Go families proxy green (incl. earned-elite sharing + deterministic stagnation nudge), console 38 files/178 tests green (2 new), tsc clean.
+
+## [2026-10-20] feat | Packs registry live (ux-plan slice 4) — served, never hand-typed
+  - Go: GET|POST /api/codesign/packs (generalized proxy rail with GET opt-in; serves packs.py default_registry verbatim).
+  - Console: Domain-packs card replaced hardcoded list with live registry (version/status/evidence/title per pack, loaded/refused/empty states, promotion rule note). Promotion stays privileged (ledger refs).
+  - Verified: Go packs proxy green, console 38 files/180 tests green (2 new), tsc clean.
