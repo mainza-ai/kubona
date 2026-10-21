@@ -3013,3 +3013,8 @@ skipped is the exact failure this incident is about:
 ## [2026-10-20] decision | Phase 1 closed — single served surface verified, science/* stays Python-owned until called
   - Verified: run.py:serve_console has zero callers and no compose target — exactly one surface is SERVED (Go :8080). console_api.py remains as tested, unserved reference + in-process harness (4 test files assert through it).
   - science/* + stateful routes migrate iff a console surface ever calls them; migrating callerless routes would be theater. Single-surface rule constrains the wire, not the test harness. ux-plan slice 5 + audit Phase 1 updated.
+
+## [2026-10-20] feat | Swarm tap-to-open rebuild (keyboard/mouse/touch parity)
+  - Probes are real <button>s now (toggle open, aria-expanded, labels); cards render on hover (existing CSS) OR pinned open by tap; Esc closes (SSR-guarded listener); click-inside-card doesn't collapse (stopPropagation).
+  - Singularity is display-only (removed misleading cursor-pointer; separate reveal button rules).
+  - Console 38 files/181 tests green (new tap-toggle + Esc test with window stub), tsc clean.
