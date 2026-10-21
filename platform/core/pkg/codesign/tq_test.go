@@ -32,3 +32,29 @@ func TestFrontierKeepsMinTQ(t *testing.T) {
 		t.Fatalf("best must be 4T entry, got %+v", b)
 	}
 }
+
+func TestParseVerifiedReportPins(t *testing.T) {
+	rep, err := ParseVerifiedReport()
+	if err != nil {
+		t.Fatalf("embedded verified report must parse: %v", err)
+	}
+	if rep.Total.Toffoli != 3928980 || rep.Total.Qubits != 112168 {
+		t.Fatalf("verified total must pin 3928980T x 112168Q, got %dT x %dQ",
+			rep.Total.Toffoli, rep.Total.Qubits)
+	}
+	if rep.Version < 1 || len(rep.Components) == 0 || len(rep.Proofs) == 0 {
+		t.Fatal("verified report must carry version, components, and proofs")
+	}
+	seen := map[string]bool{}
+	for _, c := range rep.Components {
+		if c.Toffoli <= 0 || c.Pin == "" || c.Scope == "" {
+			t.Fatalf("component %q must carry T-count, scope, and pin", c.Name)
+		}
+		seen[c.Name] = true
+	}
+	for _, want := range []string{"bm_walk_70r", "eea_36b", "chien_scan", "phase_scan", "omega"} {
+		if !seen[want] {
+			t.Fatalf("verified report must include component %q", want)
+		}
+	}
+}

@@ -285,6 +285,24 @@ export interface CodesignBudgetResult {
   union_bound: number;
 }
 
+export interface CodesignVerifiedComponent {
+  name: string;
+  toffoli: number;
+  scope: string;
+  pin: string;
+}
+
+export interface CodesignVerifiedResult {
+  program: string;
+  version: number;
+  generated: string;
+  generator: string;
+  labels: string[];
+  total: { toffoli: number; qubits: number; pin: string };
+  components: CodesignVerifiedComponent[];
+  proofs: string[];
+}
+
 export interface AutoresearchLoop {
   id: string;
   session_id: string;

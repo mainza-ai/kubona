@@ -49,18 +49,19 @@ def test_factory_report_hand_computed():
 
 
 def test_factory_report_decoder_scale_end_to_end():
-    # The verified RS decoder triple (slice 60: 3,928,980T, 110,132Q)
+    # The verified RS decoder triple (slice 60: 3,928,980T, 112,168Q
+    # addressable and peak-live — corrected 2026-10-20 from stale 110,132)
     # through the literature factory at d=27, 1us:
     # serial 3,928,980 * 5.5 * 27 = 583,453,530 cycles ~ 583s (~10 min);
     # accuracy budget 3.9M << 1e10 (single factory suffices on accuracy).
-    rep = factory_report(toffoli=3928980, qubits=110132, toffoli_depth=0,
+    rep = factory_report(toffoli=3928980, qubits=112168, toffoli_depth=0,
                          factory="gf2019_ccz", code_distance=27, cycle_us=1.0)
     assert rep["serial_half_cycles"] == 3928980 * 11 * 27
     assert rep["serial_seconds_est"] == pytest.approx(583.45353, rel=1e-6)
     assert rep["factory_patches"] == 72 * 27 * 27
     assert rep["within_failure_budget"] is True
     assert rep["spacetime_qubit_half_cycles"] == (
-        (110132 + 72 * 27 * 27) * (3928980 * 11 * 27))
+        (112168 + 72 * 27 * 27) * (3928980 * 11 * 27))
 
 
 def test_factory_report_refusals():

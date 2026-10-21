@@ -128,6 +128,15 @@ providers, reports, workflows, agents, labs, models, settings, `science/*`,
   G-tq). This is the single highest-leverage UI addition: it turns the
   blueprint's core result into something a reviewer can see in 60 seconds
   ([[ui-ux-vision]] §12 P2 gate).
+> **✅ LANDED 2026-10-20.** `gen_codesign_verified.py` measures every
+> figure live from the builders (emitter-speed; proofs cited, not re-run)
+> and writes `pkg/codesign/verified.json` (v1: 3,928,980T × 112,168Q, 5
+> pinned components, 4 proof refs, non-summation note). Served verbatim by
+> `GET /api/codesign/verified` (read-only, shape-checked); console headline
+> card renders total + components + labels + collapsible proofs, with a
+> refusal state that invents nothing. Side find, corrected same day:
+> 112,168 qubits (not the stale 110,132 prose figure) — addressable and
+> peak-live agree; the generator asserts it on every run.
 
 ### G5 — Strata is the default provider and the console has never heard of it
 - Zero `strata` references in `platform/console/src` (grep-verified). Model

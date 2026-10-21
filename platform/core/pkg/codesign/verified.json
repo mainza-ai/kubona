@@ -1,0 +1,54 @@
+{
+  "program": "paper-scale RS decoder (Gu et al. arXiv:2610.22367v1, RS thread)",
+  "version": 1,
+  "generated": "2026-10-20",
+  "generator": "platform/scripts/gen_codesign_verified.py (emitter-speed; proofs ran at slice-landing)",
+  "labels": [
+    "measured on simulator (kickmix, Aer-local)",
+    "paper gains Anthropic-claimed until independently rerun",
+    "components are standalone pins; the composed total is authoritative (shared scratch + inlined framing differ \u2014 they do not sum)"
+  ],
+  "total": {
+    "toffoli": 3928980,
+    "qubits": 112168,
+    "pin": "test_codesign_slice60.py::test_rs_composition_end_to_end"
+  },
+  "components": [
+    {
+      "name": "bm_walk_70r",
+      "toffoli": 2422140,
+      "scope": "standalone",
+      "pin": "test_codesign_slice58.py:77 (70 x 34602, MBU mults)"
+    },
+    {
+      "name": "eea_36b",
+      "toffoli": 1193586,
+      "scope": "standalone",
+      "pin": "test_codesign_slice59.py:111 (MBU mults, full radius)"
+    },
+    {
+      "name": "chien_scan",
+      "toffoli": 85995,
+      "scope": "composed-inlined",
+      "pin": "rs12.py:352 in-composition assert"
+    },
+    {
+      "name": "phase_scan",
+      "toffoli": 217350,
+      "scope": "standalone paper-scale",
+      "pin": "test_codesign_slice51.py:82 (54T/pos x 4025)"
+    },
+    {
+      "name": "omega",
+      "toffoli": 95904,
+      "scope": "structural (666 MBU mults)",
+      "pin": "rs12.py:189 + generator-measured return"
+    }
+  ],
+  "proofs": [
+    "slice60 end-to-end (FLAG=1, Chien marks exactly planted roots, composed phase == standalone phase, A*E+B*O=1, inputs preserved, temps clean)",
+    "slice59/F1 EEA 60/60 converge + explicit-refusal flag",
+    "slice58 10 full planted walks end-to-end (inputs preserved, temps clean)",
+    "slice57 700 harvested round-sims (inputs preserved, temps clean)"
+  ]
+}

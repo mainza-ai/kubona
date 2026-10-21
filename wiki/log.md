@@ -2978,3 +2978,9 @@ skipped is the exact failure this incident is about:
   - 2.5b: page poll aggregates toasts, skips fetch while hidden, backs off to 15s at rest (clock untouched).
   - 4a: shared Codesign* types (types/index.ts); sweep κ-independence documented; hash-shaped lean placeholder deleted. 4b: useFocusTrap hook + both custom overlays (role/Esc/trap/return-focus); icon-button/slider/input labels; div-click selections keyboardable (turn headers are real buttons now; orb display-only).
   - Vitest 38 files/170 green, tsc clean. Deferred honestly: Swarm tap-to-open rebuild, SSE decision, dead-code sweep, G13 merge.
+
+## [2026-10-20] feat | G4 — verified-results card live (numbers, never verdicts)
+  - `platform/scripts/gen_codesign_verified.py` (new): measures walk/EEA/scan/omega/total/qubits live from builders (emitter-speed), pins hold, writes pkg/codesign/verified.json (v1). Omega 95,904 = 666x144 measured exactly.
+  - Side find: qubits are 112,168 (addressable == peak-live), not stale prose 110,132 — corrected in slice60 docstring, slice62 test, plan, readiness (⚑ Correction notes); generator asserts every run.
+  - Go: verified.go (embed + shape check) + GET /api/codesign/verified (read-only, 405 on write). Console: headline card (total/components/labels/collapsible proofs + refusal state), typed via shared CodesignVerified* types.
+  - Verified: Go codesign+api tests green, console 38 files/172 tests green, tsc clean, Python slice62 green, wiki lint clean.

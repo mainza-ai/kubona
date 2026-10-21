@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
@@ -110,3 +111,19 @@ func (s *Server) handleCodesignFrontier(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
+
+// handleCodesignVerified serves the versioned verified-results document
+// (G4). Read-only GET; embedded JSON served verbatim (numbers, never
+// verdicts). Shape drift refuses loudly via ParseVerifiedReport.
+func (s *Server) handleCodesignVerified(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed: refusing", http.StatusMethodNotAllowed)
+		return
+	}
+	rep, err := codesign.ParseVerifiedReport()
+	if err != nil {
+		http.Error(w, fmt.Sprintf("verified results unavailable: %v", err), http.StatusInternalServerError)
+		return
+	}
+	writeJSON(w, http.StatusOK, rep)
+}

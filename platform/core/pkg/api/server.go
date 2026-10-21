@@ -510,6 +510,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/codesign/evaluate", s.handleCodesignEvaluate)
 	s.mux.HandleFunc("/api/codesign/evaluate-batch", s.handleCodesignEvaluateBatch)
 	s.mux.HandleFunc("/api/codesign/budget", s.handleCodesignBudget)
+	// Verified results (G4): versioned JSON, numbers not verdicts.
+	s.mux.HandleFunc("/api/codesign/verified", s.handleCodesignVerified)
 
 	// Quantum Krylov Subspace & Mitigation Endpoints
 	s.mux.HandleFunc("/api/krylov/solve", s.handleKrylovSolve)
