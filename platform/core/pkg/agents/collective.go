@@ -652,6 +652,11 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			log.Printf("[Tribunal] Turn 1 (Ansatz Scout) generated via LLM: %s", reply[:min(len(reply), 100)])
 		} else if err != nil {
 			log.Printf("[Tribunal] Turn 1 LLM fallback notice: %v", err)
+		} else {
+			// Audit 2026-10-26: a short/empty reply used to fall back
+			// with no trace (turn 2 once did exactly this). Short
+			// replies are correctly discarded — but silently.
+			log.Printf("[Tribunal] Turn 1 fell back: LLM reply too short (%d chars), treating as un-authored", len(reply))
 		}
 	}
 	t1 := TribunalTurn{
@@ -692,6 +697,8 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			log.Printf("[Tribunal] Turn 2 (Disconfirmation Officer) generated via LLM: %s", reply[:min(len(reply), 100)])
 		} else if err != nil {
 			log.Printf("[Tribunal] Turn 2 LLM fallback notice: %v", err)
+		} else {
+			log.Printf("[Tribunal] Turn 2 fell back: LLM reply too short (%d chars), treating as un-authored", len(reply))
 		}
 	}
 	t2 := TribunalTurn{
@@ -750,13 +757,15 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			turnMsgs, obs3 = ac.observeTurn(tCtx, llmClient, "device-auditor", turnMsgs)
 			reply, _, _, err := llmClient.CompleteCapped(tCtx, "device-auditor", turnMsgs, turnCap)
 			tCancel()
-			if err == nil && len(reply) > 20 {
-				authored3 = true
-				auditContent = reply
-				log.Printf("[Tribunal] Turn 3 (Device Auditor) generated via LLM: %s", reply[:min(len(reply), 100)])
-			} else if err != nil {
-				log.Printf("[Tribunal] Turn 3 LLM fallback notice: %v", err)
-			}
+		if err == nil && len(reply) > 20 {
+			authored3 = true
+			auditContent = reply
+			log.Printf("[Tribunal] Turn 3 (Device Auditor) generated via LLM: %s", reply[:min(len(reply), 100)])
+		} else if err != nil {
+			log.Printf("[Tribunal] Turn 3 LLM fallback notice: %v", err)
+		} else {
+			log.Printf("[Tribunal] Turn 3 fell back: LLM reply too short (%d chars), treating as un-authored", len(reply))
+		}
 		}
 		t3 := TribunalTurn{
 			TurnIndex: 3,
@@ -794,13 +803,15 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			turnMsgs, obs4 = ac.observeTurn(tCtx, llmClient, "epistemic-scribe", turnMsgs)
 			reply, _, _, err := llmClient.CompleteCapped(tCtx, "epistemic-scribe", turnMsgs, turnCap)
 			tCancel()
-			if err == nil && len(reply) > 20 {
-				authored4 = true
-				scribeContent = reply
-				log.Printf("[Tribunal] Turn 4 (Epistemic Scribe) generated via LLM: %s", reply[:min(len(reply), 100)])
-			} else if err != nil {
-				log.Printf("[Tribunal] Turn 4 LLM fallback notice: %v", err)
-			}
+		if err == nil && len(reply) > 20 {
+			authored4 = true
+			scribeContent = reply
+			log.Printf("[Tribunal] Turn 4 (Epistemic Scribe) generated via LLM: %s", reply[:min(len(reply), 100)])
+		} else if err != nil {
+			log.Printf("[Tribunal] Turn 4 LLM fallback notice: %v", err)
+		} else {
+			log.Printf("[Tribunal] Turn 4 fell back: LLM reply too short (%d chars), treating as un-authored", len(reply))
+		}
 		}
 		t4 := TribunalTurn{
 			TurnIndex: 4,
