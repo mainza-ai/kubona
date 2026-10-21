@@ -612,6 +612,18 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		}
 	}
 
+	// T-15 (audit remediation): per-turn telemetry, measurement only —
+	// no prompt, timeout, or fallback change. Captures the already
+	// returned duration and logs prompt/reply sizes on EVERY path
+	// (success logs previously carried neither), so turn-2 variance can
+	// be attributed to prompt size vs anchor-wait vs the len>20 refusal
+	// gate instead of guessed. Thread anchorLive on turn 2: it is the
+	// only turn whose coverage depends on an external measurement.
+	logTurn := func(idx int, role, prompt, reply string, dur time.Duration, callErr error, authored bool, extra string) {
+		log.Printf("[Tribunal] turn-telemetry idx=%d role=%s prompt_runes=%d reply_runes=%d dur_ms=%d timeout_ms=%d turn_cap=%d authored=%v call_err=%v %s",
+			idx, role, len([]rune(prompt)), len([]rune(reply)), dur.Milliseconds(), llmTimeout.Milliseconds(), turnCap, authored, callErr, extra)
+	}
+
 	// Associative memory recall via Hindsight
 	var memoryContext string
 	if store != nil {
@@ -644,7 +656,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			{Role: "user", Content: turn1Prompt},
 		}
 		turnMsgs, obs1 = ac.observeTurn(tCtx, llmClient, "ansatz-scout", turnMsgs)
-		reply, _, _, err := llmClient.CompleteCapped(tCtx, "ansatz-scout", turnMsgs, turnCap)
+		reply, _, turnDur1, err := llmClient.CompleteCapped(tCtx, "ansatz-scout", turnMsgs, turnCap)
 		tCancel()
 		if err == nil && len(reply) > 20 {
 			authored1 = true
@@ -658,6 +670,8 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			// replies are correctly discarded — but silently.
 			log.Printf("[Tribunal] Turn 1 fell back: LLM reply too short (%d chars), treating as un-authored", len(reply))
 		}
+		logTurn(1, "ansatz-scout", turn1Prompt, reply, turnDur1, err, authored1,
+			fmt.Sprintf("sys_runes=%d", len([]rune(string(ac.manifests[RoleAnsatzScout].SystemPrompt)))))
 	}
 	t1 := TribunalTurn{
 		TurnIndex: 1,
@@ -689,7 +703,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			{Role: "user", Content: turn2Prompt},
 		}
 		turnMsgs, obs2 = ac.observeTurn(tCtx, llmClient, "disconfirmation-officer", turnMsgs)
-		reply, _, _, err := llmClient.CompleteCapped(tCtx, "disconfirmation-officer", turnMsgs, turnCap)
+		reply, _, turnDur2, err := llmClient.CompleteCapped(tCtx, "disconfirmation-officer", turnMsgs, turnCap)
 		tCancel()
 		if err == nil && len(reply) > 20 {
 			authored2 = true
@@ -700,6 +714,8 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		} else {
 			log.Printf("[Tribunal] Turn 2 fell back: LLM reply too short (%d chars), treating as un-authored", len(reply))
 		}
+		logTurn(2, "disconfirmation-officer", turn2Prompt, reply, turnDur2, err, authored2,
+			fmt.Sprintf("sys_runes=%d anchor_live=%v anchor=%q", len([]rune(string(ac.manifests[RoleDisconfirmationOfficer].SystemPrompt))), anchorLive, fciAnchor))
 	}
 	t2 := TribunalTurn{
 		TurnIndex: 2,
@@ -755,7 +771,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 				{Role: "user", Content: turn3Prompt},
 			}
 			turnMsgs, obs3 = ac.observeTurn(tCtx, llmClient, "device-auditor", turnMsgs)
-			reply, _, _, err := llmClient.CompleteCapped(tCtx, "device-auditor", turnMsgs, turnCap)
+			reply, _, turnDur3, err := llmClient.CompleteCapped(tCtx, "device-auditor", turnMsgs, turnCap)
 			tCancel()
 		if err == nil && len(reply) > 20 {
 			authored3 = true
@@ -766,6 +782,8 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		} else {
 			log.Printf("[Tribunal] Turn 3 fell back: LLM reply too short (%d chars), treating as un-authored", len(reply))
 		}
+		logTurn(3, "device-auditor", turn3Prompt, reply, turnDur3, err, authored3,
+			fmt.Sprintf("sys_runes=%d", len([]rune(string(ac.manifests[RoleDeviceAuditor].SystemPrompt)))))
 		}
 		t3 := TribunalTurn{
 			TurnIndex: 3,
@@ -801,7 +819,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 				{Role: "user", Content: turn4Prompt},
 			}
 			turnMsgs, obs4 = ac.observeTurn(tCtx, llmClient, "epistemic-scribe", turnMsgs)
-			reply, _, _, err := llmClient.CompleteCapped(tCtx, "epistemic-scribe", turnMsgs, turnCap)
+			reply, _, turnDur4, err := llmClient.CompleteCapped(tCtx, "epistemic-scribe", turnMsgs, turnCap)
 			tCancel()
 		if err == nil && len(reply) > 20 {
 			authored4 = true
@@ -812,6 +830,8 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		} else {
 			log.Printf("[Tribunal] Turn 4 fell back: LLM reply too short (%d chars), treating as un-authored", len(reply))
 		}
+		logTurn(4, "epistemic-scribe", turn4Prompt, reply, turnDur4, err, authored4,
+			fmt.Sprintf("sys_runes=%d", len([]rune(string(ac.manifests[RoleEpistemicScribe].SystemPrompt)))))
 		}
 		t4 := TribunalTurn{
 			TurnIndex: 4,
