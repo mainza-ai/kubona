@@ -143,6 +143,80 @@ except Exception as e:
     print(json.dumps({"ok": False, "error": f"frontier refused: {e}"[:280]}))
 `
 
+// familiesSnippet runs one bounded evaluated family search (ux-plan slice 3):
+// same spec for all tracks (cross-family comparison needs common ground),
+// each artifact evaluated (invalid recorded, never scored), valid offers
+// mature their family frontier, then share_rounds of cross-pollination,
+// then the widen-nudge names the most stagnant track. Deterministic
+// (sorted order, fixed seed basis); humain nudge reads the output.
+const familiesSnippet = `import json, sys
+def strict_int(v, name, lo, hi):
+    if isinstance(v, bool) or not isinstance(v, int) or not (lo <= v <= hi):
+        raise ValueError(f"{name} must be an int in [{lo},{hi}]: refusing")
+    return v
+try:
+    body = json.loads(sys.argv[1])
+    if not isinstance(body, dict):
+        raise ValueError("body must be a JSON object: refusing")
+    from kubona.codesign import (CircuitCodesignHarness, FamilySearch,
+                                  build_spec, build_truth_table_spec)
+    if "spec_table" in body and body["spec_table"] is not None:
+        st = body["spec_table"]
+        if not isinstance(st, dict):
+            raise ValueError("spec_table must be an object: refusing")
+        ins, outs, table = st.get("inputs", []), st.get("outputs", []), st.get("table", {})
+        if not isinstance(ins, list) or not isinstance(outs, list) or not isinstance(table, dict):
+            raise ValueError("spec_table needs inputs[]/outputs[]/table{}: refusing")
+        spec = build_truth_table_spec(
+            strict_int(st.get("num_qubits", 0), "num_qubits", 1, 64),
+            [strict_int(q, "inputs[]", 0, 63) for q in ins],
+            [strict_int(q, "outputs[]", 0, 63) for q in outs],
+            table)
+        label = "table"
+    else:
+        kind = body.get("spec_kind")
+        spec = build_spec(str(kind))
+        label = str(kind)
+    families = body.get("families", [])
+    kappa = strict_int(body.get("kappa", 1), "kappa", 1, 3)
+    if not isinstance(families, list) or not (1 <= len(families) <= 8):
+        raise ValueError("families must be a list of 1..8 distinct names: refusing")
+    offers_in = body.get("offers", [])
+    if not isinstance(offers_in, list) or len(offers_in) > 64:
+        raise ValueError("offers must be a list of <=64: refusing")
+    share_rounds = strict_int(body.get("share_rounds", 1), "share_rounds", 0, 3)
+    num_tests = 32
+    fs = FamilySearch(families, kappa=kappa)
+    h = CircuitCodesignHarness(spec, num_tests=num_tests, max_failures=0,
+                               kappa=kappa, seed=7)
+    offers = []
+    for o in offers_in:
+        if not isinstance(o, dict) or "family" not in o or "artifact" not in o:
+            raise ValueError("each offer needs {family, artifact}: refusing")
+        fam = o["family"]
+        r = h.run(o["artifact"])
+        if not r["valid"]:
+            offers.append({"family": fam, "valid": False})
+            continue
+        improved = fs.offer(fam, o["artifact"], r["toffoli"], r["peak_qubits"])
+        offers.append({"family": fam, "valid": True,
+                       "toffoli": r["toffoli"], "qubits": r["peak_qubits"],
+                       "tq": r["tq"], "improved": improved})
+    shares = []
+    for _ in range(share_rounds):
+        shares.append(fs.share_elites())
+    print(json.dumps({"ok": True, "spec_kind": label, "kappa": kappa,
+                      "offers": offers, "elites": fs.elites(),
+                      "stagnation": dict(fs._stagnant),
+                      "lineage_len": len(fs.lineage),
+                      "lineage": fs.lineage[-128:],
+                      "shares": shares, "widen_nudge": fs.widen_nudge()}))
+except ValueError as e:
+    print(json.dumps({"ok": False, "error": str(e)[:280]}))
+except Exception as e:
+    print(json.dumps({"ok": False, "error": f"families refused: {e}"[:280]}))
+`
+
 // budgetSnippet mirrors codesign_budget (entries<=32, Table-S4 math).
 const budgetSnippet = `import json, sys
 def strict_int(v, name, lo, hi):
@@ -229,6 +303,10 @@ func (s *Server) handleCodesignEvaluate(w http.ResponseWriter, r *http.Request) 
 
 func (s *Server) handleCodesignEvaluateBatch(w http.ResponseWriter, r *http.Request) {
 	s.proxyCodesign(w, r, batchSnippet)
+}
+
+func (s *Server) handleCodesignFamilies(w http.ResponseWriter, r *http.Request) {
+	s.proxyCodesign(w, r, familiesSnippet)
 }
 
 func (s *Server) handleCodesignBudget(w http.ResponseWriter, r *http.Request) {
