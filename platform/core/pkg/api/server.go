@@ -4879,8 +4879,10 @@ func (s *Server) handleHFDownload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req struct {
-		RepoID   string `json:"repo_id"`
-		Filename string `json:"filename"`
+		RepoID    string `json:"repo_id"`
+		Filename  string `json:"filename"`
+		SizeBytes *int64 `json:"size_bytes"`
+		Confirmed bool   `json:"confirmed"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -4891,6 +4893,17 @@ func (s *Server) handleHFDownload(w http.ResponseWriter, r *http.Request) {
 	// message, but as a 500. Missing fields are a 400 by contract.
 	if req.RepoID == "" || req.Filename == "" {
 		WriteAPIError(w, "bad_request", "repo_id and filename are required", nil)
+		return
+	}
+
+	// T-11: size-confirmation gate (server half). The console confirms
+	// over-threshold fetches in a dialog; the server enforces the same
+	// bound so a raw POST cannot skip it. Unknown sizes (nil) proceed —
+	// the stream still finalizes .part only on success, so a surprise
+	// giant can waste bandwidth but never masquerade as a weight file.
+	const hfDownloadConfirmBytes = int64(100 * 1024 * 1024)
+	if req.SizeBytes != nil && *req.SizeBytes >= hfDownloadConfirmBytes && !req.Confirmed {
+		WriteAPIError(w, "bad_request", fmt.Sprintf("fetch is %.2f GB — resend with confirmed:true", float64(*req.SizeBytes)/float64(1024*1024*1024)), nil)
 		return
 	}
 
