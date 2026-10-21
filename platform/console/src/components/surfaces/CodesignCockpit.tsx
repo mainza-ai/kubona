@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { API_BASE, apiFetch, authHeaders, fetchCodesignVerified, scoreCodesignBudget } from '@/lib/api';
+import { API_BASE, apiFetch, authHeaders, evaluateCodesignArtifact, fetchCodesignVerified, scoreCodesignBudget } from '@/lib/api';
 import type { CodesignBudgetResult, CodesignFrontierResult, CodesignVerifiedResult } from '@/lib/api';
 
 // Circuit co-design cockpit (read-only scoring).
@@ -41,6 +41,18 @@ export function CodesignCockpit() {
   const [frontierError, setFrontierError] = useState<string | null>(null);
   const [verified, setVerified] = useState<CodesignVerifiedResult | null>(null);
   const [verifiedError, setVerifiedError] = useState<string | null>(null);
+  const [evalSpec, setEvalSpec] = useState('and2');
+  const [evalArtifact, setEvalArtifact] = useState('[["ccx",[0,1,2],[]]]');
+  const [evalTests, setEvalTests] = useState('64');
+  const [evalKappa, setEvalKappa] = useState('1');
+  const [evalSeed, setEvalSeed] = useState('7');
+  const [evalFactory, setEvalFactory] = useState('');
+  const [evalDistance, setEvalDistance] = useState('');
+  const [evalCycle, setEvalCycle] = useState('');
+  const [evalRes, setEvalRes] = useState<Record<string, unknown> | null>(null);
+  const [evalSpecKind, setEvalSpecKind] = useState<string | null>(null);
+  const [evalError, setEvalError] = useState<string | null>(null);
+  const [evalBusy, setEvalBusy] = useState(false);
 
   useEffect(() => {
     let live = true;
@@ -57,6 +69,65 @@ export function CodesignCockpit() {
   const parseKappa = (): number | null => {
     const k = Number(kappa);
     return Number.isInteger(k) && k >= 1 && k <= 3 ? k : null;
+  };
+
+  // Presets are live-verified valid artifacts (measured, not assumed).
+  const evalPresets: Record<string, string> = {
+    'and2': '[["ccx",[0,1,2],[]]]',
+    'cz-phase': '[["cz",[0,1],[]]]',
+    'copy1': '[["cx",[0,1],[]]]',
+    'xor2': '[["cx",[0,2],[]],["cx",[1,2],[]]]',
+  };
+
+  const pickEvalSpec = (kind: string) => {
+    setEvalSpec(kind);
+    setEvalArtifact(evalPresets[kind] ?? '[]');
+    setEvalRes(null);
+    setEvalSpecKind(null);
+    setEvalError(null);
+  };
+
+  const runEval = async () => {
+    setEvalError(null);
+    setEvalRes(null);
+    setEvalSpecKind(null);
+    let artifact: unknown;
+    try {
+      artifact = JSON.parse(evalArtifact);
+    } catch {
+      setEvalError('artifact must be JSON: refusing to send');
+      return;
+    }
+    if (!Array.isArray(artifact)) {
+      setEvalError('artifact must be a JSON array of [name, qubits, cond]: refusing to send');
+      return;
+    }
+    if (evalFactory && (!evalDistance.trim() || !evalCycle.trim())) {
+      setEvalError('factory diagnostics need code_distance + cycle_us (no silent physics): refusing to send');
+      return;
+    }
+    setEvalBusy(true);
+    try {
+      const out = await evaluateCodesignArtifact({
+        spec_kind: evalSpec,
+        artifact,
+        num_tests: Number(evalTests),
+        max_failures: 0,
+        kappa: Number(evalKappa),
+        seed: Number(evalSeed),
+        ...(evalFactory
+          ? { factory: evalFactory, code_distance: Number(evalDistance), cycle_us: Number(evalCycle) }
+          : {}),
+      });
+      if (!out.ok) {
+        setEvalError(out.error);
+        return;
+      }
+      setEvalSpecKind(out.spec_kind);
+      setEvalRes(out.result);
+    } finally {
+      setEvalBusy(false);
+    }
   };
 
   const scoreTQ = async () => {
@@ -234,6 +305,57 @@ export function CodesignCockpit() {
                 <li key={i}>{e.toffoli}T × {e.qubits}Q = {e.tq}</li>
               ))}
             </ul>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
+        <div className="text-xs font-semibold text-white">Evaluator runs — read-only (validity stays Python-owned)</div>
+        <div className="text-[11px] text-slate-400">Named spec or truth table, artifact as JSON. Factory diagnostics attach the literature model (G3) — needs code distance + cycle time, no silent defaults.</div>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <select aria-label="Spec kind" value={evalSpec} onChange={(e) => pickEvalSpec(e.target.value)} className="rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs text-white">
+            {['and2', 'cz-phase', 'copy1', 'xor2'].map((k) => (
+              <option key={k} value={k} className="bg-black">{k}</option>
+            ))}
+          </select>
+          <input aria-label="Number of tests" value={evalTests} onChange={(e) => setEvalTests(e.target.value)} className="w-20 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
+          <input aria-label="Kappa" value={evalKappa} onChange={(e) => setEvalKappa(e.target.value)} className="w-16 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
+          <input aria-label="Seed" value={evalSeed} onChange={(e) => setEvalSeed(e.target.value)} className="w-20 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
+        </div>
+        <textarea aria-label="Artifact JSON" value={evalArtifact} onChange={(e) => setEvalArtifact(e.target.value)} rows={2} className="mt-2 w-full rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
+        <div className="mt-2 flex flex-wrap gap-2 items-center">
+          <select aria-label="Factory (optional)" value={evalFactory} onChange={(e) => setEvalFactory(e.target.value)} className="rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs text-white">
+            <option value="" className="bg-black">no factory</option>
+            <option value="gf2019_ccz" className="bg-black">gf2019_ccz</option>
+          </select>
+          <input aria-label="Code distance" value={evalDistance} onChange={(e) => setEvalDistance(e.target.value)} placeholder="d" className="w-16 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
+          <input aria-label="Cycle time us" value={evalCycle} onChange={(e) => setEvalCycle(e.target.value)} placeholder="µs" className="w-16 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
+          <button onClick={runEval} disabled={evalBusy} className="rounded-lg bg-cyan-500/15 border border-cyan-400/30 px-3 py-1 text-xs text-cyan-200 disabled:opacity-50">
+            {evalBusy ? 'Running…' : 'Run evaluation'}
+          </button>
+        </div>
+        {evalError && <div className="mt-2 text-xs text-rose-300">{evalError}</div>}
+        {evalRes && (
+          <div className="mt-2 text-xs text-slate-200 font-mono">
+            <div>
+              {evalRes.valid ? (
+                <span className="text-emerald-400">VALID</span>
+              ) : (
+                <span className="text-rose-300">INVALID (refused, never scored)</span>
+              )}
+              {' '}{String(evalRes.toffoli)}T × {String(evalRes.peak_qubits)}Q
+              {typeof evalRes.eps_bound_97_5 === 'number' && <span> · ε ≤ {evalRes.eps_bound_97_5.toExponential(3)}</span>}
+            </div>
+            <div className="mt-1 text-[11px] text-slate-400">
+              depth {String(evalRes.depth)} · Toffoli-depth {String(evalRes.toffoli_depth)} · active {String(evalRes.active_qubits)} · spec {evalSpecKind}
+            </div>
+            {!!evalRes.factory && typeof evalRes.factory === 'object' && (
+              <div className="mt-1 text-[11px] text-slate-300">
+                factory {(evalRes.factory as Record<string, unknown>).factory as string}:{' '}
+                {String((evalRes.factory as Record<string, unknown>).serial_seconds_est)}s serial ·{' '}
+                {(evalRes.factory as Record<string, unknown>).within_failure_budget ? 'within accuracy budget' : 'EXCEEDS accuracy budget'}
+              </div>
+            )}
           </div>
         )}
       </div>

@@ -2989,3 +2989,7 @@ skipped is the exact failure this incident is about:
   - Go: GET /api/cost/summary (public read, aggregates only — cap/spent/remaining/blind-stream/by-provider/active/local_bypass/heuristic labels); radar probes 47831 ("Strata Local LLM Engine"); llmSpendTotal refactored onto llmSpendSummary (identical semantics).
   - Console: fetchCostSummary + shared CostSummary type; mesh "LLM spend — server-sealed" strip (spent/cap/remaining, local=$0 cue, unmetered warning, distinct refused/loading states). No strata hardcoding — generic rails cover it.
   - Verified: Go api/codesign/llm green, console 38 files/174 tests green (2 new strip tests), tsc clean, wiki lint clean.
+
+## [2026-10-20] feat | Evaluator Runs view (ux-plan slice 2.2a) — G3 UI half closed
+  - Cockpit "Evaluator runs" card: spec select (and2/cz-phase/copy1/xor2, live-verified preset artifacts) + editable artifact JSON + tests/kappa/seed + optional factory trio (client-side completeness check) → POST /api/codesign/evaluate → validity badge, T/Q, eps bound, depths, kappa sweep, factory report.
+  - Console 38 files/176 tests green (2 new runs tests), tsc clean.
