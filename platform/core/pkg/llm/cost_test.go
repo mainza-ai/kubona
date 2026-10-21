@@ -14,9 +14,12 @@ import (
 // K4: pricing is heuristic and labeled; unknown/local never prices.
 func TestEstimateCostUSD(t *testing.T) {
 	// Local providers: no spend, never priced.
-	for _, p := range []llm.ProviderType{llm.ProviderOMLX, llm.ProviderOllama, llm.ProviderLMStudio} {
+	for _, p := range []llm.ProviderType{llm.ProviderOMLX, llm.ProviderOllama, llm.ProviderLMStudio, llm.ProviderStrata} {
 		if cost, ok := llm.EstimateCostUSD(p, "anything", 10000, 5000); ok || cost != 0 {
 			t.Errorf("local provider %s must not price, got %v,%v", p, cost, ok)
+		}
+		if !llm.IsLocalProvider(p) {
+			t.Errorf("IsLocalProvider(%s) must be true", p)
 		}
 	}
 	// Unknown cloud model: refuses instead of inventing a rate.
@@ -93,6 +96,46 @@ func TestOnSpendHookFiresCloudOnly(t *testing.T) {
 	}
 }
 
+// Audit 2026-10-21: the spend-silence paths carried inline oMLX/Ollama/
+// LMStudio triples that missed ProviderStrata (the default). Strata
+// completions filed spend records, and usage-omitted Strata calls with
+// MaxTokens=0 refused as "blind cloud spend" for a free local engine.
+// Pins: hook silence + no-refusal without usage, same as oMLX above.
+func TestStrataSpendSilence(t *testing.T) {
+	// Same wire as the cloud test, but the role resolves to strata and
+	// the endpoint reports NO usage at all.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []any{map[string]any{
+				"message":       map[string]any{"content": "hi"},
+				"finish_reason": "stop",
+			}},
+		})
+	}))
+	defer srv.Close()
+
+	s := toolTestSettings(t, srv.URL)
+	snap := s.GetSnapshot()
+	pc := snap.Providers[llm.ProviderStrata]
+	pc.BaseURL = srv.URL
+	snap.Providers[llm.ProviderStrata] = pc
+	snap.RoleAssignments["copilot"] = llm.RoleModelAssignment{Provider: llm.ProviderStrata, Model: "iq3_s"}
+	snap.MaxTokens = 0 // default: no ceiling configured
+	if err := s.Update(&snap, nil); err != nil {
+		t.Fatal(err)
+	}
+	c := llm.NewClient(s)
+	fired := false
+	c.OnSpend = func(llm.SpendRecord) { fired = true }
+	if _, _, _, err := c.Complete(context.Background(), "copilot",
+		[]llm.ChatMessage{{Role: "user", Content: "hi"}}); err != nil {
+		t.Fatalf("strata complete without usage must not refuse: %v", err)
+	}
+	if fired {
+		t.Error("hook must never fire for strata (local provider)")
+	}
+}
+
 // I3: loop iteration bounds price worst-case ceilings per role.
 func TestLoopIterationBound(t *testing.T) {
 	t.Setenv("OPENCODE_API_KEY", "test-key")
@@ -156,5 +199,50 @@ func TestLoopIterationBound(t *testing.T) {
 	}
 	if bound3 != 0 || len(fallbacks) != 0 {
 		t.Fatalf("local roles must bind zero, got %v %v", bound3, fallbacks)
+	}
+}
+
+// Audit 2026-10-21: uncapped tribunal turns rambled past every context
+// timeout on the default Strata stack (~36 tok/s, unbounded generation).
+// CompleteCapped must send an explicit max_tokens; plain Complete must
+// keep omitting it (the deliberate no-clamp default for chat).
+func TestCompleteCappedSendsMaxTokens(t *testing.T) {
+	var gotBody map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotBody = nil // fresh per request: decode merges into maps, never clears
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"choices": []any{map[string]any{
+				"message":       map[string]any{"content": "ok"},
+				"finish_reason": "stop",
+			}},
+			"usage": map[string]any{"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15},
+		})
+	}))
+	defer srv.Close()
+
+	capped := func(maxTokens int) map[string]any {
+		t.Helper()
+		s := toolTestSettings(t, srv.URL)
+		c := llm.NewClient(s)
+		if _, _, _, err := c.CompleteCapped(context.Background(), "copilot",
+			[]llm.ChatMessage{{Role: "user", Content: "hi"}}, maxTokens); err != nil {
+			t.Fatalf("complete: %v", err)
+		}
+		return gotBody
+	}
+
+	if v, present := capped(1500)["max_tokens"]; !present || v != float64(1500) {
+		t.Errorf("CompleteCapped(1500) must send max_tokens=1500, got body %v", capped(1500))
+	}
+	// Plain Complete honors the settings default (0 in tests = omit).
+	s := toolTestSettings(t, srv.URL)
+	c := llm.NewClient(s)
+	if _, _, _, err := c.Complete(context.Background(), "copilot",
+		[]llm.ChatMessage{{Role: "user", Content: "hi"}}); err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	if _, present := gotBody["max_tokens"]; present {
+		t.Errorf("plain Complete with MaxTokens=0 must omit max_tokens, got body %v", gotBody)
 	}
 }

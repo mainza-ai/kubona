@@ -418,6 +418,13 @@ func (ac *AgentCollective) ExecuteTribunalWithSession(ctx context.Context, llmCl
 	return ac.runTribunal(ctx, llmClient, bridgeClient, store, sessionID, userPrompt, NewEvidenceStore("adhoc"), "", nil, onTurn...)
 }
 
+// tribunalTurnMaxTokens bounds one tribunal turn's generation (audit
+// 2026-10-21). 1500 tokens ≈ 55s worst case on a ~36 tok/s local model;
+// four capped turns fit the 660s server WriteTimeout with margin for the
+// observe rounds. Cloud models rarely bind here; when they do,
+// finish_reason=length is visible in the sealed transcript (never silent).
+const tribunalTurnMaxTokens = 1500
+
 // ExecuteTribunalResume continues a tribunal from an exported bundle
 // (R4 turn-bundle flow): ancestor turns seed the new run's evidence store
 // (original content, parent-linked), new turns parent to their same-index
@@ -471,6 +478,14 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 	// (authored=false downstream), a context-budget unknown blocks
 	// closure with the size named. Never silent, never truncated.
 	projectTurn := func(turnIdx int, what string, parts []string) (string, bool) {
+		// Audit 2026-10-21: wired turns withheld the session id, so any
+		// session-scoped tool call (get_campaign, list_jobs) failed with
+		// "unknown session" and contested the run — punishing the model
+		// for doing the right thing. Wired runs name the id verbatim.
+		// Still inside the projection budget: breach falls back as before.
+		if sessionID != "" {
+			parts = append(parts, fmt.Sprintf("Wired session for session-scoped tools (get_campaign, list_jobs, recent_events): %s. Pass it verbatim as session_id; never invent one.", sessionID))
+		}
 		prompt, err := ProjectTurnContext(what, parts, llm.DefaultBudgetConfig().TurnContextRunes)
 		if err == nil {
 			return prompt, false
@@ -583,6 +598,20 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		}
 	}
 
+	// Audit 2026-10-21: uncapped turns ramble past every context timeout
+	// on slow local models (default Strata stack: turns 2-4 never authored
+	// at 90s or 300s — unbounded generation at ~36 tok/s, proven live).
+	// Each turn gets an explicit output ceiling so worst-case latency is
+	// bounded by construction, not by timeout luck. The operator's global
+	// MaxTokens still wins when smaller (a ceiling is a max); the default
+	// 0 (uncapped chat) does not leak into the synchronous debate.
+	turnCap := tribunalTurnMaxTokens
+	if llmClient != nil {
+		if snapMax := llmClient.SettingsMaxTokens(); snapMax > 0 && snapMax < turnCap {
+			turnCap = snapMax
+		}
+	}
+
 	// Associative memory recall via Hindsight
 	var memoryContext string
 	if store != nil {
@@ -615,7 +644,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			{Role: "user", Content: turn1Prompt},
 		}
 		turnMsgs, obs1 = ac.observeTurn(tCtx, llmClient, "ansatz-scout", turnMsgs)
-		reply, _, _, err := llmClient.Complete(tCtx, "ansatz-scout", turnMsgs)
+		reply, _, _, err := llmClient.CompleteCapped(tCtx, "ansatz-scout", turnMsgs, turnCap)
 		tCancel()
 		if err == nil && len(reply) > 20 {
 			authored1 = true
@@ -655,7 +684,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			{Role: "user", Content: turn2Prompt},
 		}
 		turnMsgs, obs2 = ac.observeTurn(tCtx, llmClient, "disconfirmation-officer", turnMsgs)
-		reply, _, _, err := llmClient.Complete(tCtx, "disconfirmation-officer", turnMsgs)
+		reply, _, _, err := llmClient.CompleteCapped(tCtx, "disconfirmation-officer", turnMsgs, turnCap)
 		tCancel()
 		if err == nil && len(reply) > 20 {
 			authored2 = true
@@ -719,7 +748,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 				{Role: "user", Content: turn3Prompt},
 			}
 			turnMsgs, obs3 = ac.observeTurn(tCtx, llmClient, "device-auditor", turnMsgs)
-			reply, _, _, err := llmClient.Complete(tCtx, "device-auditor", turnMsgs)
+			reply, _, _, err := llmClient.CompleteCapped(tCtx, "device-auditor", turnMsgs, turnCap)
 			tCancel()
 			if err == nil && len(reply) > 20 {
 				authored3 = true
@@ -763,7 +792,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 				{Role: "user", Content: turn4Prompt},
 			}
 			turnMsgs, obs4 = ac.observeTurn(tCtx, llmClient, "epistemic-scribe", turnMsgs)
-			reply, _, _, err := llmClient.Complete(tCtx, "epistemic-scribe", turnMsgs)
+			reply, _, _, err := llmClient.CompleteCapped(tCtx, "epistemic-scribe", turnMsgs, turnCap)
 			tCancel()
 			if err == nil && len(reply) > 20 {
 				authored4 = true
