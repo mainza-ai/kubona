@@ -19,13 +19,14 @@ sources: [source-frontier-repo-audit-2026]
 ```mermaid
 flowchart TB
     subgraph HUMAN["Human surface"]
-        CONSOLE["platform/console :3000<br/>Next.js observatory surfaces"]
+        CONSOLE["platform/console :3000<br/>Next.js observatory, 13 surfaces<br/>read-only, no submit surface"]
         SIGN["WebCrypto Ed25519<br/>mandate cards + proposals"]
     end
 
     subgraph EDGE["kubonad edge :8080"]
         API["pkg/api<br/>bearer + per-IP limiters + CORS allowlist"]
         RPC["POST /api/a2a/v1<br/>JSON-RPC: card, status, 402-gated submit"]
+        EV["events/stream SSE<br/>canvas layout persist"]
     end
 
     subgraph COG["Cognition — Go core"]
@@ -33,13 +34,24 @@ flowchart TB
         REPLAN["Replan + MW fold<br/>claim records clm-xxxxxxxx-xxxx"]
         AGENTS["Custom agents + triage<br/>seed-immutable, advisory cap 50"]
         META["Metasearch evolution<br/>approve / reject / apply"]
+        MESH["Mesh router<br/>RouteMultimodal, spend-gated"]
     end
 
     subgraph EXEC["Execution — Go core"]
-        JOBS["Jobs runner<br/>QASM-validated, autonomy-gated dispatch"]
-        LOOPS["Autoresearch loops<br/>5 harnesses, session-attributed"]
-        QIR["QIR Analyze gate<br/>text-IR only"]
-        SB["Sandbox + watchdog<br/>timeouts, abs paths"]
+        JOBS["Jobs runner<br/>QASM-validated, autonomy-gated dispatch<br/>cancel, idempotent replay (S1/S7)"]
+        LOOPS["Autoresearch loops<br/>5 harnesses, session-attributed<br/>sleep/wake/drain/step (S3)"]
+        QIR["QIR Analyze gate<br/>text-IR only (Go Analyze)"]
+        SB["Sandbox + watchdog<br/>timeouts, abs paths<br/>quantum-runner image (ro, net-none)"]
+    end
+
+    subgraph RUST["Rust crates (CI-gated)"]
+        QIRCORE["qir-core CLI<br/>BaseProfile LLVM IR, --json<br/>consumed via KUBONA_QIR_CORE (Python)"]
+        IFCCORE["ifc-core<br/>reader-set IFC primitives"]
+    end
+
+    subgraph MCP["MCP stdio servers (Python)"]
+        MSERV["compiler/execution/cost<br/>provenance/control"]
+        MGW["gateway + catalog<br/>single mount table, 29 tools"]
     end
 
     subgraph TRUST["Trust — Go core"]
@@ -47,6 +59,9 @@ flowchart TB
         TENANT["Tenants = labs<br/>suspend freeze, verifyAdmin choke"]
         GRANTS["Grants + mandates<br/>narrow-only, depth 2, revocable"]
         COST["Budgets + spend caps<br/>150 USD default, global LLM cap"]
+        AUTH["Ed25519 session auth<br/>challenge/response, revoke (A1-A4)"]
+        DISK["Disk guard<br/>WARN/BLOCK hysteresis, /ready probe"]
+        CONTRACTS["contracts/<br/>error-catalog, event-types,<br/>obligation + mcp catalogs"]
     end
 
     subgraph MEM["Memory"]
@@ -58,6 +73,7 @@ flowchart TB
         BSRV["server.py<br/>enveloped errors, never silent"]
         CHEM["chemistry.py<br/>PySCF FCI classical anchor"]
         KRY["krylov + cutting + ZNE<br/>emulation labelled"]
+        FID["fidelity.py<br/>predict + Clifford probe"]
         LIT["literature.py<br/>offline returns empty, never cached"]
     end
 
@@ -91,9 +107,11 @@ flowchart TB
     API --> REPLAN
     API --> AGENTS
     API --> META
+    API --> MESH
     API --> JOBS
     API --> LOOPS
     API --> RECALL
+    API --> EV
     API --> CDPROXY
     CDPROXY -->|local venv exec| PYEVAL
     CDPROXY -.->|no python in prod image = 503| F001
@@ -103,6 +121,7 @@ flowchart TB
     LOOPS -->|gRPC| BSRV
     BSRV --> CHEM
     BSRV --> KRY
+    BSRV --> FID
     BSRV --> LIT
     CHEM --> SIM
     JOBS -->|4-tier, mandate-gated| QPU
@@ -110,6 +129,9 @@ flowchart TB
     TRIB -->|per-role routing, metered| CLOUD
     TRIB -->|standby| OMLX
     TENANT -->|verifyAdmin on every mutation| API
+    TENANT -->|lab admin keys| AUTH
+    API -->|refuseIfDiskBlocked| DISK
+    API -.->|typed errors + taxonomy| CONTRACTS
     JOBS -->|autonomy check| TENANT
     LEDGER <-->|sealed events| API
     LEDGER <-->|sealed events| JOBS
@@ -118,6 +140,9 @@ flowchart TB
     COST -->|caps at entry| API
     BAO -->|lease creds| API
     BAO -->|lease creds| BSRV
+    RECALL -.->|ReaderSet CanFlowTo| IFCCORE
+    QIR -.->|reference compiler, CI-gated| QIRCORE
+    MGW -.->|stdio gateway, unserved in compose| API
     PGVEC -.->|dormant, activation needs operator PG| RECALL
     API -.->|read mirror| LEGACY
 ```
@@ -162,6 +187,16 @@ flowchart TB
   absent (gateway deleted, F-5); `useTelemetry` deleted 2026-10-20 (Phase 4);
   console_api.py holds 23 unserved routes (codesign trio now duplicated on
   the Go rail — documented overlap, migration only on surface need).
+- Added 2026-10-21 (audit coverage): `platform/kubona/mcp/servers/_mount.py`
+  mounts all five stdio servers (single mount table, W2.14) with the
+  29-tool `mcp-catalog` — unserved in compose; `platform/contracts/`
+  (error-catalog, event-types, obligation + mcp catalogs) enforced at Go
+  and Python append chokes; `pkg/disk` WARN/BLOCK hysteresis with
+  `refuseIfDiskBlocked` on new-work entries; Ed25519 session auth
+  (`challenge/login/revoke`, bound to lab admin keys per Q-13); bridge
+  `fidelity.py` predict + Clifford probe; `RouteMultimodal` spend-gated
+  mesh router; `events/stream` SSE + canvas layout persist; `qir-core`
+  CLI consumed via `KUBONA_QIR_CORE` (`kubona/qir/native.py`, allowlisted).
 - Counts this snapshot: 93 routes (`server.go`), 28 Go packages,
   194 Vitest tests across 41 files, 1011 pytest green.
 

@@ -3065,3 +3065,8 @@ skipped is the exact failure this incident is about:
 ## [2026-10-21] fix | Mermaid parse errors in both diagram pages
   - Both pages failed to render ("Error parsing Mermaid diagram!"): unescaped parentheses inside edge labels (`|gRPC (bridge:50051)|`, `|per-role routing (1500-token turn caps)|`) — proven with the real mermaid parser (mermaid.parse under jsdom): exact failure lines, fixed, both re-parse OK.
   - Rule learned: edge labels `|...|` must not contain `()`; node labels may (verified). `A & B --> C` multi-edges are valid and kept.
+
+## [2026-10-21] plan | Full-system test plan filed (candidate, awaiting approval)
+  - New page: wiki/concepts/full-system-test-plan.md — per-diagram-node batteries basic->complex, Strata-generated scenarios with mechanical assertions, entry/exit criteria, explicit out-of-scope list. Status candidate; no execution until approved.
+  - platform-architecture-diagram.md completed: RUST (qir-core/ifc-core), MCP (5 servers + catalog), CONTRACTS, AUTH (lab admin keys), FID, MESH router, EV (SSE + canvas), DISK guard, loop/job/sandbox label truth, 13-surface console, legacy 23 routes. Mermaid re-validated with the real parser (PARSE OK).
+  - Index census 141 -> 142. Audit-topology-map kept as the verified-wiring companion.

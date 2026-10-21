@@ -47,6 +47,7 @@ arrives, place it here first and it will find its page.
 | [[leanrea-conflicts-and-remediation]] | Conflicts vs the lean plan (LC1–LC10) with decided remediations and landed sequencing (2026-10-17). |
 | [[agent-subsystem-consolidation]] | P1-4 design record: inventory, target shape, sequenced migration (Step 1 + Step 2 wire-shape freeze landed 2026-10-17; Steps 3–5 queued). |
 | [[remaining-work]] | Execution leftovers with owners: operator deeds, queued programs, conditionals (landed work recorded in place). |
+| [[full-system-test-plan]] | Diagram-complete test plan: per-node batteries basic → complex, LLM-assisted scenarios, entry/exit criteria (`candidate` — awaiting approval). |
 | [[full-tree-roadmap]] | Code-read implementation roadmap: verified defects and fixes in Waves 0–2 (all 64 items landed 2026-10-17). |
 | [[full-platform-audit-2026-10-12]] | Full completeness audit: 73.0% implemented across 30 scored components, with inventory, evidence tiers, refutations corrected, and remaining work by owner. |
 | [[log]] | Append-only chronological changelog. |
@@ -66,8 +67,8 @@ Describes **how decided** something is — never how finished.
 | `source` | An ingested source record. Immutable once written. | the 7 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (141 pages = 46 entities · 81 concepts · 9 sources · 5 meta), 2026-10-21:**
-`settled` 5 · `adopted` 53 · `open-question` 8 · `candidate` 13 · `tracked` 38 ·
+**Census (142 pages = 46 entities · 82 concepts · 9 sources · 5 meta), 2026-10-21:**
+`settled` 5 · `adopted` 53 · `open-question` 8 · `candidate` 14 · `tracked` 38 ·
 `reference` 8 · `source` 9 · `living` 7 (lint-counted). Five `settled` against 53 `adopted`
 keeps the honest reading: the load-bearing constraints are **chosen**, everything else
 remains **understood**. `settled` stays small by rule — each entry needed test enforcement
@@ -224,3 +225,4 @@ Revisit only with a concrete claim that fits nowhere.
 | [[circuit-codesign-ux-plan]] | Backend→frontend inclusive plan: landed slice 1 + queued slices 2-5, threat model (`adopted`) |
 | [[epistemic-information-lifecycle-and-memory]] | 4-tier storage (tmpfs, Merkle ledger, HippoRAG GraphRAG, strategy bank), refutation index, and RLVR flywheel |
 | [[audit-topology-map]] | Deployment topology as verified live 2026-10-21 (compose + local rails, Strata, gaps marked) (`living`) |
+| [[full-system-test-plan]] | Diagram-complete test plan: per-node batteries basic → complex, LLM-assisted scenarios, entry/exit criteria (`candidate` — awaiting approval) |
