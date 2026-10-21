@@ -10,9 +10,10 @@ status: candidate
 
 # Full-System Test Plan — every node on [[platform-architecture-diagram]]
 
-> **Status: PROPOSED, not started.** Nothing below has been executed in
-> this round. No code changes, no servers started, no suites run for it.
-> Execution begins only on operator approval. The plan is organized by
+> **Status: PROPOSED + ROUND 1 EXECUTED 2026-10-26 (see [[log]] "full-system
+> test round 1").** The batteries below ran once against the Phase-1 tree;
+> findings and the Phase-2 queue live in the log entry. Phase 2 remains
+> unapproved — do not execute it. The plan is organized by
 > diagram node so coverage is checkable: every subgraph on the current
 > [[platform-architecture-diagram]] snapshot has a battery, ordered
 > basic → complex. Prior verified results are cited as the floor, never
