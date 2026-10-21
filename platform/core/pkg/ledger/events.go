@@ -69,6 +69,7 @@ var KnownEventTypes = map[string]bool{
 	"loop_rescoped":                     true,
 	"loop_resumed":                      true,
 	"loop_rollback_executed":            true,
+	"loop_settled":                      true,
 	"loop_snapshot_saved":               true,
 	"loop_spend_released":               true,
 	"loop_stalled_timeout":              true,
