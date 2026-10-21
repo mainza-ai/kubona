@@ -48,4 +48,24 @@ describe('FlightRecorder measured points', () => {
     expect(text).toContain('UNVERIFIED (no measurement)');
     expect(text).not.toContain('(Accuracy Met)');
   });
+
+  it('labels the story card by milestone position, not by raw iteration number', () => {
+    // Audit 2026-10-21: the header read "Iteration 15 of 7" — a global
+    // iteration counter over a milestone count (15 > 7). The position
+    // ("Milestone 1 of 2") and the global counter ("Iteration 15") are
+    // distinct facts; the header must state both, coherently.
+    const campaign = campaignWith([
+      { step: 15, energy: -1.05, loss: 0.4, theta: [0.1], grad_norm: 0.1, watchdog: 'normal', timestamp: '' },
+      { step: 30, energy: -1.13699, loss: 0.0003, theta: [], grad_norm: 0, watchdog: 'measured_krylov', timestamp: '' },
+    ]);
+    let tree: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tree = TestRenderer.create(<FlightRecorder campaign={campaign} />);
+    });
+    const text = JSON.stringify(tree!.toJSON());
+    // Serialized children split the label ("Milestone ","2"," of ","2").
+    expect(text).toContain('"Milestone ","2"," of ","2"');
+    expect(text).toContain('" · Iteration ","30"');
+    expect(text).not.toContain('"Iteration ","30"," of "');
+  });
 });

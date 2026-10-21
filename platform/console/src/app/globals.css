@@ -119,12 +119,16 @@ body {
 }
 
 @keyframes orbCuriosity {
+  /* Audit 2026-10-21: the old 0deg->180deg rotation spun the orb's
+  legible center labels upside down mid-cycle (screenshot-proven).
+  Curiosity reads as a glow + scale pulse now — same language as
+  orbBreathing, text stays readable on every frame. */
   0%, 100% {
-    transform: scale(1) rotate(0deg);
+    transform: scale(1) translateZ(0);
     filter: drop-shadow(0 0 40px rgba(245, 158, 11, 0.4));
   }
   50% {
-    transform: scale(1.05) rotate(180deg);
+    transform: scale(1.05) translateZ(0);
     filter: drop-shadow(0 0 65px rgba(245, 158, 11, 0.65));
   }
 }
