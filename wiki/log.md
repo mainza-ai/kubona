@@ -3050,3 +3050,11 @@ skipped is the exact failure this incident is about:
   - Scribe note (observation, not a fix): authored-but-noncompliant turns (missing json_proposal block) still pass coverage; fallback proposal covers it.
   - Critic probe canary labeled (template) until COLLAPSED_VERIFIED (was bare 0.984 on a template campaign); pin in sovereign.test.
   - Full suites: Go 28/28, console 41 files/194 tests, tsc clean; Python 1011 passed earlier on untouched tree.
+
+## [2026-10-21] fix | Stack-default LLM + null-list class sweep
+  - compose.prod.yml ships STRATA_MODEL=iq3_s default + STRATA_BASE_URL via host.docker.internal (extra_hosts host-gateway); verified live through Docker: Strata models list, chat streams tokens, mesh routes local. Fresh volume boots to strata/iq3_s (persisted blobs intentionally win on existing volumes).
+  - Mesh route qualifies bare default-model IDs against settings ("iq3_s" -> "strata/iq3_s", cloudModel knows strata/); before: misrouted as omlx-cloud and refused.
+  - engineNotice uses IsLocalProvider (Strata failures get the daemon hint, not the API-key hint).
+  - Null-list class closed further: sessions [] (was null), jobs [] earlier; sweep shows loops/proposals/agents/lists already []; literature q->query was a probe error, live records verified with honest zero citations.
+  - Unknown supervisor loop ids 404 (was 500, kill/pause/step). Found live: post-restart sleeping DB loops are unkilleable by id (in-memory registry lost) and block session delete — reported as restart-orphan lifecycle gap, not built here.
+  - Full suites: Go 28/28, console 41 files/194 tests, tsc clean, lint clean. Pushed develop+main (4a65051).
