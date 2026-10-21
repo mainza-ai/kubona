@@ -230,6 +230,32 @@ export async function runTribunal(
   }
 }
 
+// T-16: resume a tribunal from an exported turn bundle (R4 flow). The
+// route exists with no surface yet — this client is the future console
+// flow's calling convention (session-scoped, bearer-or-cookie like
+// runTribunal). Refusals surface verbatim, never null-swallowed.
+export async function resumeTribunal(
+  sessionId: string,
+  prompt: string,
+  bundle: unknown
+): Promise<{ tribunal: import('@/types').TribunalResult; assistant_message: ChatMessage; campaign?: import('@/types').CampaignState } | { error: string } | null> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/tribunal/resume`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ session_id: sessionId, prompt, bundle }),
+    });
+    if (!res.ok) {
+      const text = (await res.text()).trim().slice(0, 280);
+      return { error: text || `HTTP ${res.status}` };
+    }
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to resume tribunal:', err);
+    return null;
+  }
+}
+
 export async function launchProposal(sessionId: string, proposal: unknown): Promise<{ job: Job; loop: Loop } | { error: string } | null> {
   try {
     const res = await apiFetch(`${API_BASE}/api/chat/launch`, {
