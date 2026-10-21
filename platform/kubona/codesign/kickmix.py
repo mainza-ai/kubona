@@ -512,6 +512,15 @@ class KickmixEvaluator:
     #: sampling + Hoeffding bound is the honest route (documented, not silent).
     EXHAUSTIVE_RECORD_CAP = 1024
 
+    #: Failure-detail cap: per-trial records are diagnostics; the counts
+    #: (failures/tests_run) stay authoritative. Each record is a deterministic
+    #: reproduction recipe (seed + trial index + input bits): re-running
+    #: check_one with the same seed reproduces it exactly. Ledger rows are
+    #: NOT written per trial (hundreds of appends per eval belong to the
+    #: Go-owned ledger rail, not the read-only scoring path); the union
+    #: bound (Table-S4) is the ledger-sealed artifact instead.
+    FAILURE_DETAIL_CAP = 32
+
     def check_one(
         self,
         builder: Builder,
@@ -596,6 +605,7 @@ class KickmixEvaluator:
         rng = random.Random(seed)
         failures = 0
         first_reason = "ok"
+        failure_details: list[dict] = []
         tests_run = 0
         # exhaustive when the input domain is small enough to enumerate
         n_inputs = len(spec.inputs)
@@ -633,6 +643,12 @@ class KickmixEvaluator:
                         failures += 1
                         if first_reason == "ok":
                             first_reason = res.reason
+                        if len(failure_details) < self.FAILURE_DETAIL_CAP:
+                            failure_details.append({
+                                "t": tests_run, "input": dict(init),
+                                "record_mask": list(force) if m else None,
+                                "reason": res.reason,
+                            })
                         break
                 if failures > max_failures:
                     break
@@ -663,6 +679,11 @@ class KickmixEvaluator:
                     failures += 1
                     if first_reason == "ok":
                         first_reason = res.reason
+                    if len(failure_details) < self.FAILURE_DETAIL_CAP:
+                        failure_details.append({
+                            "t": tests_run, "input": dict(init),
+                            "record_mask": None, "reason": res.reason,
+                        })
                     if failures > max_failures:
                         break
         valid = failures <= max_failures
@@ -712,6 +733,8 @@ class KickmixEvaluator:
             "peak_qubits": builder.peak_qubits(),
             "eps_bound_97_5": eps_bound,
             "tests": k,
+            "failure_details": failure_details,
+            "failure_details_capped": len(failure_details) < failures,
             "transfer": transfer,
             "depth": circuit_depth(ops),
             "toffoli_depth": toffoli_depth_v,

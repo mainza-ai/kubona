@@ -111,7 +111,6 @@ func (s *Server) handleCodesignFrontier(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-
 // handleCodesignVerified serves the versioned verified-results document
 // (G4). Read-only GET; embedded JSON served verbatim (numbers, never
 // verdicts). Shape drift refuses loudly via ParseVerifiedReport.

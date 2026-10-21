@@ -3023,3 +3023,10 @@ skipped is the exact failure this incident is about:
   - Cockpit kappa inputs (TQ, evaluator, families) are range sliders 1..3 with live value (ux-plan slice 2 asks for the slider explicitly); parseKappa refusal rail intact.
   - Families result gains offers echo (incl. invalid) + collapsible lineage event list with x-poll parent links (slice-3 lineage remainder).
   - Console 38 files/182 tests green (slider + lineage tests), tsc clean.
+
+## [2026-10-20] feat | Per-trial failure details (ux-plan slice 2 remainder, final)
+  - kickmix evaluate() records bounded per-failure recipes (trial index + input bits + reason + record_mask; cap 32, counts authoritative, deterministic replays).
+  - Rationale recorded in-code: no per-trial ledger rows (wrong layer; union bound is the sealed artifact); refs are reproduction recipes.
+  - Console evaluator card shows first-failure input/reason + capped note. Go asserts details on invalid runs; Python pins recipes/determinism/cap.
+  - Caught live: first G13 fix deadlocked (write lock never released on refusal paths) — test exposed it; unlock-before-return. Full suites re-greened after.
+  - Verified: Go 28/28, console 38 files/183 tests, Python harness file green, tsc + lint clean.

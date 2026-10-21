@@ -237,3 +237,46 @@ def test_aer_bell_live_if_available():
     counts = job.result().get_counts()
     assert set(counts) <= {"00", "11", "00 ", "11 "} or set(
         k.replace(" ", "") for k in counts) <= {"00", "11"}
+
+
+def test_evaluate_records_failure_details_with_repro_recipe():
+    # x(2) flips t on every input: every sampled trajectory fails. Details
+    # record trial + input + reason (bounded), each a deterministic
+    # reproduction recipe for (seed, trial).
+    spec = _copy_spec()
+    b = Builder(3)
+    b.x(2)
+    ev = KickmixEvaluator()
+    res = ev.evaluate(b, spec, num_tests=8, seed=7, max_failures=5)
+    assert res["valid"] is False and res["failures"] == 6
+    det = res["failure_details"]
+    assert len(det) == 6 and res["failure_details_capped"] is False
+    assert all(set(d) >= {"t", "input", "reason"} for d in det)
+    assert [d["t"] for d in det] == sorted(d["t"] for d in det)
+    assert all(set(d["input"]) >= {0, 1, 2} for d in det)
+    # determinism: same seed replays the same trials
+    again = ev.evaluate(b, spec, num_tests=8, seed=7, max_failures=5)
+    assert again["failure_details"] == det
+
+
+def test_failure_details_cap_at_scale():
+    # Always-fail program over 64 sampled trials: details stop at the cap,
+    # counts don't; the capped flag says a subset is shown.
+    spec = _copy_spec()
+    b = Builder(3)
+    b.x(2)  # flips t on every input: every trajectory fails
+    ev = KickmixEvaluator()
+    res = ev.evaluate(b, spec, num_tests=64, seed=7, max_failures=47)
+    assert res["valid"] is False and res["failures"] == 48
+    assert len(res["failure_details"]) == 32
+    assert res["failure_details_capped"] is True
+
+
+def test_valid_run_has_empty_uncapped_details():
+    spec = _copy_spec()
+    b = Builder(3)
+    b.ccx(0, 1, 2)
+    ev = KickmixEvaluator()
+    res = ev.evaluate(b, spec, num_tests=8, seed=7)
+    assert res["valid"] is True
+    assert res["failure_details"] == [] and res["failure_details_capped"] is False

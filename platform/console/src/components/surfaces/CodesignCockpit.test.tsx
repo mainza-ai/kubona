@@ -195,8 +195,7 @@ describe('CodesignCockpit read-only', () => {
     }
   });
 
-  it('refuses to send malformed artifact JSON or partial factory spec', async () => {
-    const realFetch = globalThis.fetch;
+  it('refuses to send malformed artifact JSON or partial factory spec', async () => {    const realFetch = globalThis.fetch;
     let calls = 0;
     (globalThis as unknown as { fetch: unknown }).fetch = async (input: unknown) => {
       if (String(input).includes('/api/codesign/evaluate')) calls += 1;
@@ -376,6 +375,43 @@ describe('CodesignCockpit read-only', () => {
       });
       const after = tree!.root.findAllByProps({ 'aria-label': 'Kappa' });
       expect((after[0].props as { value: string }).value).toBe('3');
+    } finally {
+      (globalThis as unknown as { fetch: unknown }).fetch = realFetch;
+    }
+  });
+
+  it('renders the first failure input + reason instead of a bare INVALID', async () => {
+    const realFetch = globalThis.fetch;
+    (globalThis as unknown as { fetch: unknown }).fetch = async (input: unknown, init?: { body?: unknown }) => {
+      const url = String(input);
+      if (url.includes('/api/codesign/evaluate')) {
+        return new Response(
+          JSON.stringify({
+            ok: true, spec_kind: 'and2',
+            result: {
+              valid: false, failures: 2, tests: 8, toffoli: 1, peak_qubits: 3,
+              failure_details: [{ t: 3, input: { 0: 1, 1: 0, 2: 0 }, reason: 'output mismatch' }],
+              failure_details_capped: false,
+            },
+          }),
+          { status: 200 }
+        );
+      }
+      return new Response(JSON.stringify({ message: 'not ready' }), { status: 503 });
+    };
+    try {
+      let root: TestRenderer.ReactTestRenderer | undefined;
+      await act(async () => {
+        root = TestRenderer.create(<CodesignCockpit />);
+      });
+      const run = root!.root.findByProps({ children: 'Run evaluation' });
+      await act(async () => {
+        await (run.props as { onClick: () => Promise<void> }).onClick();
+      });
+      const text = textOf(root!.root);
+      expect(text).toContain('failure');
+      expect(text).toContain('trial');
+      expect(text).toContain('output mismatch');
     } finally {
       (globalThis as unknown as { fetch: unknown }).fetch = realFetch;
     }

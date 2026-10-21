@@ -2072,6 +2072,11 @@ func TestCodesignEvaluateProxy(t *testing.T) {
 	if code != http.StatusOK || m["result"].(map[string]any)["valid"] != false {
 		t.Fatalf("invalid artifact must score valid=false, got %d %v", code, m)
 	}
+	if det, ok := m["result"].(map[string]any)["failure_details"].([]any); !ok || len(det) == 0 {
+		t.Fatalf("invalid runs must carry failure details, got %v", m["result"])
+	} else if d0, ok := det[0].(map[string]any); !ok || d0["reason"] == "" || d0["input"] == nil {
+		t.Fatalf("failure details must name trial input + reason, got %v", det[0])
+	}
 	if code, _ := post("/api/codesign/evaluate", map[string]any{
 		"spec_kind": "and2", "artifact": and2, "num_tests": 4097}); code != http.StatusBadRequest {
 		t.Fatalf("num_tests above the HTTP bound must 400, got %d", code)
