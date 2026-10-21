@@ -212,6 +212,32 @@ status: tracked
 4. One commit per slice, both branches, wiki row updated
    ([[full-system-audit-2026-10-26]] item → fixed with commit).
 
+## Execution record (2026-10-26 — all landed except T-01a/b)
+
+Phase 0 decisions recorded above; implementation ran slice-by-slice,
+each with a stash/mutation-proven pin, full suites, and live drills
+where the finding was found. Commits (develop, all pushed both
+branches with the wiki batch):
+
+- T-10a `8463f25` · T-15 `e5d2dd8` · T-13 `00ed7e8` · T-14 `7889641`
+- T-11 `abcf0a9` · T-09a/b `98f6ad0` (incl. 7 fixture tests re-pinned
+  to operator minting — anonymous named-lab creation was the spoof)
+- T-10b `9ac485a` + `6f298ee` (live drill forced the terminal-skip
+  refinement) · T-12 `a54ce0c` · T-02 `f6f298ee` · T-16 `a54ce0c`
+- T-03 closed by D-09 (posture in `tenant_reads.go` header + R-09).
+- T-09c filed (session-keyed mutations need separate threat analysis).
+- T-01a/b open: toolchain verified (exact plugin versions, regen
+  recipe above), wire change + Docker rebuild kept as its own gated
+  slice.
+
+Live drills (fresh rail, `live-token`): single-lab anon 200 →
+multi-lab anon 401 → bearer 200 → spoof-create 403; killed row
+survived restart, sleeping settled to aborted, session deleted;
+fidelity bare call honest ADMIT with `probe_run:false`; tribunal run
+emitted `turn-telemetry` lines (turn 2's 71 s serial wait visible).
+Suites: Go 29/29, console 42 files / 200 tests, tsc, wiki lint,
+Python taxonomy 4/4, ifc-core 9/9.
+
 Related: [[audit-remediation-plan]] ·
 [[full-system-audit-2026-10-26]] · [[full-system-test-plan]] ·
 [[implementation-gaps]]

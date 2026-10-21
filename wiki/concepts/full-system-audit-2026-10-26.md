@@ -84,6 +84,16 @@ status: tracked
 > `Only({})` flows everywhere by vacuous subset — the new pins must
 > decide whether that asymmetry is intended.
 
+> ⚑ Execution (2026-10-26): every open item except F-001 is now
+> **fixed and landed** — F-R1-09 (T-09a/b `98f6ad0`), F-R1-10
+> (T-10a `8463f25` + T-10b `9ac485a`/`6f298ee`), F-R1-11 (T-11
+> `abcf0a9`), F-R1-12 (T-12 `a54ce0c`), F-R1-13 (T-13 `00ed7e8`),
+> F-R1-14 (T-14 `7889641`, asymmetry decided: intended — different
+> operations), F-R1-15 (T-15 `e5d2dd8`, posture still pending data),
+> F-006 (T-02 `f6f298ee`), plus the noted missing resume route (T-16
+> `a54ce0c`). F-001 (R-01) stays open as the gated T-01a/b slice.
+> Full record: [[audit-remediation-todos]] §Execution record.
+
 ## Coverage achieved (battery → result)
 - HUMAN: all surfaces/tabs/buttons/forms exercised; chat→tribunal→
   mandate→launch→COMPLETED loop twice (UI + server-verified `status: 3`);

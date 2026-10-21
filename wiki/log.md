@@ -3098,3 +3098,9 @@ skipped is the exact failure this incident is about:
   - Two register claims corrected with ⚑ Correction blocks: F-R1-12 returns 400 not 404 and a mint path exists with discarded return (server.go:3958); F-R1-14 has 4 embedded tests, gap is unpinned lattice properties (incl. Rust/Go empty-set asymmetry).
   - Plan sections R-09/R-10/R-11/R-13/R-12/R-14/R-15/R-01/R-02 enriched with concrete anchors; recommendations: bridge-gRPC chemistry-first (R-01), FloorOnly-now (R-02), telemetry-first (R-15).
   - New page: wiki/concepts/audit-remediation-todos.md (Phase 0 decisions, Phase 1 Now T-09a..T-15, Phase 2 T-12, Phase 3 gated T-01a..T-03, landing checklist). Index census 144 -> 145 (concepts 84 -> 85, tracked 40 -> 41). Nothing implemented.
+
+## [2026-10-26] verification | Remediation executed (Phase 1+2, T-02/T-03/T-16)
+  - 12 slices landed on develop: T-10a 8463f25, T-15 e5d2dd8, T-13 00ed7e8, T-14 7889641, T-11 abcf0a9, T-09a/b 98f6ad0, T-10b 9ac485a + 6f298ee, T-12 a54ce0c, T-02 f6f298ee, T-16 a54ce0c, gofmt 0c643bb. Each pin stash/mutation-proven to fail pre-fix.
+  - Live drills on a fresh rail: T-09 matrix (anon 200 single-lab, 401 multi-lab, bearer 200, spoof-create 403); restart drill (killed stays killed, sleeping settles to aborted, session deletes); fidelity honest ADMIT probe_run:false; tribunal turn-telemetry lines observed (turn-2 71s serial wait visible).
+  - Suites: Go 29/29, console 42 files / 200 tests, tsc clean, wiki lint clean, Python taxonomy 4/4, ifc-core 9/9. 7 pre-existing tests re-pinned to operator minting (anonymous named-lab creation was the spoof the guard closes).
+  - Open: T-01a/b (gated; toolchain + regen recipe recorded in todos), T-09c filed (session-keyed mutations), D-15 pending telemetry data. No code touched for these.
