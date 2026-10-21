@@ -28,6 +28,7 @@ import { LLMSettings } from '@/components/surfaces/LLMSettings';
 import { AutonomyCockpit } from '@/components/surfaces/AutonomyCockpit';
 import { SpatialCanvas } from '@/components/surfaces/SpatialCanvas';
 import { BackendStatusBar } from '@/components/common/BackendStatusBar';
+import { CheckInStrip } from '@/components/sovereign/CheckInStrip';
 import { GenerativeUIStudio } from '@/components/surfaces/GenerativeUIStudio';
 import { CodesignCockpit } from '@/components/surfaces/CodesignCockpit';
 
@@ -559,6 +560,7 @@ export default function Home() {
         {/* U1-a: backend liveness always visible — distinguishes "empty"
             from "backend down" on every surface below. */}
         <BackendStatusBar />
+        <CheckInStrip loops={loops} />
         {surface === 'arena' && (
           <main className="relative flex-1 h-full overflow-hidden">
             <ArenaHud

@@ -1,0 +1,69 @@
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { fetchCostSummary, type CostSummary } from '@/lib/api';
+import type { Loop } from '@/types';
+
+function statusOf(loop: Loop): string {
+  return String(loop.status || '').toLowerCase();
+}
+
+// D3-lite: one-glance operational strip (loops by status + LLM spend).
+// Honest subset of the vision §7 calm check-in mode: burn-rate needs
+// server-side time series and anomaly detection needs an anomaly feed —
+// neither exists, so this strip shows measured counts only, never rates
+// or alerts. Failed/diverged loops are called out by text, not color alone.
+const SPEND_POLL_MS = 60000;
+
+export function CheckInStrip({ loops }: { loops: Loop[] }) {
+  const [spend, setSpend] = useState<CostSummary | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    const load = () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
+      fetchCostSummary().then((out) => {
+        if (live && out.ok) setSpend(out.result);
+      });
+    };
+    load();
+    const timer = setInterval(load, SPEND_POLL_MS);
+    return () => {
+      live = false;
+      clearInterval(timer);
+    };
+  }, []);
+
+  let running = 0;
+  let paused = 0;
+  let attention = 0;
+  for (const l of loops) {
+    const s = statusOf(l);
+    if (s === 'running') running += 1;
+    else if (s === 'paused') paused += 1;
+    else if (s === 'diverged' || s === 'failed' || s === 'killed' || l.diverged) attention += 1;
+  }
+
+  return (
+    <div
+      role="status"
+      aria-label={`Check-in: ${loops.length} loops, ${running} running${attention > 0 ? `, ${attention} need attention` : ''}${spend ? `, LLM spend $${spend.spent_usd.toFixed(2)}` : ''}`}
+      className="flex items-center gap-3 px-3 py-1 text-[10px] font-code border-b border-white/[0.06] bg-black/30 text-slate-300"
+    >
+      <span className="truncate">
+        {loops.length} loop{loops.length === 1 ? '' : 's'} · {running} running · {paused} paused
+      </span>
+      {attention > 0 && (
+        <span className="text-rose-300 shrink-0">· {attention} need{attention === 1 ? 's' : ''} attention</span>
+      )}
+      {spend && (
+        <span className="truncate text-slate-400">
+          · LLM ${spend.spent_usd.toFixed(2)}
+          {spend.track_only ? ' · track-only (no cap)' : ` / $${spend.cap_usd.toFixed(0)} cap`}
+          {spend.local_bypass ? ' · local $0' : ''}
+          {spend.unmetered_count > 0 ? ` · ${spend.unmetered_count} blind` : ''}
+        </span>
+      )}
+    </div>
+  );
+}
