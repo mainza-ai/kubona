@@ -321,15 +321,14 @@ route, cockpit budget comment updated to name the real route. Acceptance:
 every console-called path served by exactly one backend; dead module gone or
 documented; `codesign/budget` resolves to a real endpoint or the comment is
 removed. Needs operator sign-off (contract change — existing rule, kept).
-> **✅ DECIDED 2026-10-20: migrate stateless to Go.** Serving as-is rejected
-> (second bearer token, parallel stores — K5 split-brain returns). Landed
-> slice 1: `POST /api/codesign/evaluate|evaluate-batch|budget` via
-> `runBridgePython` (Python stays single validator/implementation;
-> num_tests HTTP-capped 4096; 120s ctx; public reads like existing
-> codesign rails); console budget card rewired to the sealed bound
-> (local math deleted); `evaluateCodesignArtifact` helper landed for the
-> Phase-2 runs view. Go 28/28, console 170/170 green. Stateful duplicates
-> stay retired; `science/*` migration follows the same proxy pattern.
+> **✅ DECIDED 2026-10-20: migrate stateless to Go (slices 1–4 landed).**
+> Called paths migrated (`evaluate|evaluate-batch|budget|families|packs|
+> verified` on the Go rail). Verified this day: `serve_console` has zero
+> callers and no compose target — exactly one surface is served (Go :8080).
+> `console_api.py` stays as tested, unserved reference + in-process harness;
+> `science/*` + stateful routes migrate if and only if a surface ever calls
+> them — migrating callerless routes would be theater, not the
+> single-surface rule (which constrains the wire, not the test harness).
 
 **Phase 2 — Cockpit grows up (ux-plan slices 2–4, updated).**
 2a. Evaluator-runs view + factory card (G3, G6-slice-2): per-trial refs,

@@ -3009,3 +3009,7 @@ skipped is the exact failure this incident is about:
   - Go: GET|POST /api/codesign/packs (generalized proxy rail with GET opt-in; serves packs.py default_registry verbatim).
   - Console: Domain-packs card replaced hardcoded list with live registry (version/status/evidence/title per pack, loaded/refused/empty states, promotion rule note). Promotion stays privileged (ledger refs).
   - Verified: Go packs proxy green, console 38 files/180 tests green (2 new), tsc clean.
+
+## [2026-10-20] decision | Phase 1 closed — single served surface verified, science/* stays Python-owned until called
+  - Verified: run.py:serve_console has zero callers and no compose target — exactly one surface is SERVED (Go :8080). console_api.py remains as tested, unserved reference + in-process harness (4 test files assert through it).
+  - science/* + stateful routes migrate iff a console surface ever calls them; migrating callerless routes would be theater. Single-surface rule constrains the wire, not the test harness. ux-plan slice 5 + audit Phase 1 updated.
