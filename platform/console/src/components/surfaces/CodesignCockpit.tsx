@@ -1,8 +1,8 @@
 'use client';
 
-import React, { useState } from 'react';
-import { API_BASE, apiFetch, authHeaders, scoreCodesignBudget } from '@/lib/api';
-import type { CodesignBudgetResult, CodesignFrontierResult } from '@/lib/api';
+import React, { useEffect, useState } from 'react';
+import { API_BASE, apiFetch, authHeaders, fetchCodesignVerified, scoreCodesignBudget } from '@/lib/api';
+import type { CodesignBudgetResult, CodesignFrontierResult, CodesignVerifiedResult } from '@/lib/api';
 
 // Circuit co-design cockpit (read-only scoring).
 // Talks only to Go (:8080) read-only routes; validity ground truth stays
@@ -39,6 +39,20 @@ export function CodesignCockpit() {
   const [budgetBusy, setBudgetBusy] = useState(false);
   const [frontier, setFrontier] = useState<CodesignFrontierResult | null>(null);
   const [frontierError, setFrontierError] = useState<string | null>(null);
+  const [verified, setVerified] = useState<CodesignVerifiedResult | null>(null);
+  const [verifiedError, setVerifiedError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    fetchCodesignVerified().then((out) => {
+      if (!live) return;
+      if (out.ok) setVerified(out.result);
+      else setVerifiedError(out.error);
+    });
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const parseKappa = (): number | null => {
     const k = Number(kappa);
@@ -164,6 +178,35 @@ export function CodesignCockpit() {
 
   return (
     <div className="space-y-6">
+      <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/5 p-4">
+        <div className="text-xs font-semibold text-white">Verified RS decoder — read-only{verified ? ` · v${verified.version} · ${verified.generated}` : ''}</div>
+        {!verified && !verifiedError && <div className="mt-2 text-[11px] text-slate-400">Loading verified results…</div>}
+        {verifiedError && <div className="mt-2 text-xs text-rose-300">{verifiedError}</div>}
+        {verified && (
+          <div className="mt-2 text-xs text-slate-200">
+            <div className="font-mono">
+              {verified.total.toffoli.toLocaleString('en-US')}T × {verified.total.qubits.toLocaleString('en-US')}Q — composed end-to-end
+            </div>
+            <ul className="mt-2 space-y-0.5 font-mono text-[11px]">
+              {verified.components.map((c) => (
+                <li key={c.name} title={c.pin}>
+                  {c.name}: {c.toffoli.toLocaleString('en-US')}T · {c.scope}
+                </li>
+              ))}
+            </ul>
+            <div className="mt-2 text-[11px] text-slate-400">{verified.labels.join(' · ')}</div>
+            <details className="mt-2">
+              <summary className="cursor-pointer text-[11px] text-cyan-200">Proofs ({verified.proofs.length})</summary>
+              <ul className="mt-1 space-y-0.5 text-[11px] text-slate-300">
+                {verified.proofs.map((p, i) => (
+                  <li key={i}>{p}</li>
+                ))}
+              </ul>
+            </details>
+          </div>
+        )}
+      </div>
+
       <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
         <div className="text-xs font-semibold text-white">TQ scoring — read-only</div>
         <div className="text-[11px] text-slate-400">TQ = T × Q^κ (κ∈[1,3]). Golden 5×10=50 pinned both sides. Unreproduced gains labeled claimed.</div>

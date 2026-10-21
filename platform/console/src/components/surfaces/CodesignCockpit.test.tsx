@@ -88,4 +88,65 @@ describe('CodesignCockpit read-only', () => {
       (globalThis as unknown as { fetch: unknown }).fetch = realFetch;
     }
   });
+
+  it('renders the verified decoder card from the served document', async () => {
+    const realFetch = globalThis.fetch;
+    (globalThis as unknown as { fetch: unknown }).fetch = async (input: unknown) => {
+      const url = String(input);
+      if (url.includes('/api/codesign/verified')) {
+        return new Response(
+          JSON.stringify({
+            program: 'paper-scale RS decoder',
+            version: 1,
+            generated: '2026-10-20',
+            generator: 'gen',
+            labels: ['measured on simulator'],
+            total: { toffoli: 3928980, qubits: 112168, pin: 'slice60' },
+            components: [
+              { name: 'bm_walk_70r', toffoli: 2422140, scope: 'standalone', pin: 'slice58' },
+            ],
+            proofs: ['slice60 end-to-end (FLAG=1)'],
+          }),
+          { status: 200 }
+        );
+      }
+      return new Response('not found', { status: 404 });
+    };
+    try {
+      let root: TestRenderer.ReactTestRenderer | undefined;
+      await act(async () => {
+        root = TestRenderer.create(<CodesignCockpit />);
+      });
+      await act(async () => {});
+      const text = textOf(root!.root);
+      expect(text).toContain('Verified RS decoder');
+      expect(text).toContain('3,928,980');
+      expect(text).toContain('112,168');
+      expect(text).toContain('bm_walk_70r');
+      expect(text).toContain('measured on simulator');
+    } finally {
+      (globalThis as unknown as { fetch: unknown }).fetch = realFetch;
+    }
+  });
+
+  it('shows the verified rail refusal instead of inventing numbers', async () => {
+    const realFetch = globalThis.fetch;
+    (globalThis as unknown as { fetch: unknown }).fetch = async () =>
+      new Response(JSON.stringify({ code: 'unavailable', message: 'verified results unavailable' }), {
+        status: 503,
+      });
+    try {
+      let root: TestRenderer.ReactTestRenderer | undefined;
+      await act(async () => {
+        root = TestRenderer.create(<CodesignCockpit />);
+      });
+      await act(async () => {});
+      const text = textOf(root!.root);
+      expect(text).toContain('Verified RS decoder');
+      expect(text).toContain('verified results unavailable');
+      expect(text).not.toContain('3,928,980');
+    } finally {
+      (globalThis as unknown as { fetch: unknown }).fetch = realFetch;
+    }
+  });
 });

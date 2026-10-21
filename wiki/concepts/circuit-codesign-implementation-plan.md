@@ -24,7 +24,7 @@ status: tracked
 
 ## 0. Verified baseline (do not rebuild)
 
-Single coherent RS decoder, 3,928,980T, 110,132 qubits, proven end to end
+Single coherent RS decoder, 3,928,980T, 112,168 qubits, proven end to end
 on planted instances (FLAG=1, Chien marks exactly the planted roots,
 composed phase == standalone phase, A*E+B*O=1 on composed outputs).
 Components: BM walk 2.42M (70×34.6kT MBU), EEA 1.19M (36 blocks, MBU),
@@ -35,6 +35,11 @@ block of headroom — mechanism of the off-by-one vs the pure bound is an
 open micro-question, harmless (correctness proven + flag safety net)).
 MBU bar ruling recorded (E2: measured circuits allowed on classical-input
 paths; multi-trajectory proving; fail-closed).
+> ⚑ Correction (2026-10-20): the qubit figure was "110,132" in earlier
+> revisions (slice-60 docstring, pre-F2 prose) and was never pinned by a
+> test. Live layout + alloc-aware Builder agree on **112,168** (addressable
+> and peak-live). Corrected everywhere; `gen_codesign_verified.py` asserts
+> it on every regeneration.
 
 ## 1. Unblocked by this investigation (actionable now)
 
@@ -100,7 +105,7 @@ except wiring).
 > (default None = explicitly not computed; partial spec refuses; additive —
 > no existing pin touched, all callers keyword-safe). Proven: hand-computed
 > table pins, 8 refusal probes, decoder-scale end-to-end (3,928,980T /
-> 110,132Q → ~583s serial @ d=27/1µs, within budget), determinism
+> 112,168Q → ~583s serial @ d=27/1µs, within budget), determinism
 > double-run. tq.py POLICY comment updated (ranking stays TQ, factory is
 > diagnostics). TQ variants (`kappa_sweep`) + console kappa slider verified
 > (`CodesignCockpit.test.tsx` green) — no console change needed. 23 tests

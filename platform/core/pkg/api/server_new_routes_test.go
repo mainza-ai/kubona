@@ -2144,3 +2144,43 @@ func TestCodesignEvaluateProxy(t *testing.T) {
 		}
 	}
 }
+
+func TestCodesignVerifiedServesDocument(t *testing.T) {
+	srv, cleanup := setupTestRoutesServer(t)
+	defer cleanup()
+	h := srv.Handler()
+	req := httptest.NewRequest(http.MethodGet, "/api/codesign/verified", nil)
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("verified GET must 200, got %d", w.Code)
+	}
+	var body struct {
+		Total struct {
+			Toffoli int `json:"toffoli"`
+			Qubits  int `json:"qubits"`
+		} `json:"total"`
+		Components []struct {
+			Name    string `json:"name"`
+			Toffoli int    `json:"toffoli"`
+		} `json:"components"`
+		Proofs []string `json:"proofs"`
+		Labels []string `json:"labels"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("verified body must be JSON: %v", err)
+	}
+	if body.Total.Toffoli != 3928980 || body.Total.Qubits != 112168 {
+		t.Fatalf("verified total must pin 3928980T x 112168Q, got %+v", body.Total)
+	}
+	if len(body.Components) == 0 || len(body.Proofs) == 0 || len(body.Labels) == 0 {
+		t.Fatal("verified document must carry components, proofs, and labels")
+	}
+	// Read-only rail: writes refuse.
+	r := httptest.NewRequest(http.MethodPost, "/api/codesign/verified", nil)
+	ww := httptest.NewRecorder()
+	h.ServeHTTP(ww, r)
+	if ww.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("verified POST must 405, got %d", ww.Code)
+	}
+}
