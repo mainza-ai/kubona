@@ -321,3 +321,62 @@ func TestGetPublicSnapshotRedactsKeys(t *testing.T) {
 		t.Fatal("serialized public snapshot must not contain the key material")
 	}
 }
+
+// G13: partial provider writes must refuse, never silently zero fields.
+// Only APIKey merges (empty keeps stored); everything else requires the
+// full object (GET-modify-PUT, the console's exact flow).
+func TestUpdateRefusesPartialProviders(t *testing.T) {
+	t.Setenv("NVIDIA_API_KEY", "test-key")
+	t.Setenv("NVIDIA_MODEL", "nvidia/fleet-model")
+	db := openMem(t)
+	s, err := llm.LoadSettings(db)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	before := s.GetSnapshot().Providers[llm.ProviderNVIDIA]
+
+	// Key-only fragment: refuses, stored config untouched.
+	frag := s.GetSnapshot()
+	frag.Providers = map[llm.ProviderType]llm.ProviderConfig{
+		llm.ProviderNVIDIA: {APIKey: "rotated-key"},
+	}
+	if err := s.Update(&frag, db); err == nil {
+		t.Fatal("partial provider entry must refuse, not clobber")
+	}
+	after := s.GetSnapshot().Providers[llm.ProviderNVIDIA]
+	if after != before {
+		t.Fatalf("refused write must not mutate stored config: %+v -> %+v", before, after)
+	}
+
+	// Unknown provider type: refuses.
+	unk := s.GetSnapshot()
+	unk.Providers["nope"] = llm.ProviderConfig{BaseURL: "https://x.example", TimeoutSec: 30}
+	if err := s.Update(&unk, db); err == nil {
+		t.Fatal("unknown provider type must refuse")
+	}
+
+	// Full-object rotation: succeeds, key updates, nothing else moves.
+	rot := s.GetSnapshot()
+	full := rot.Providers[llm.ProviderNVIDIA]
+	full.APIKey = "rotated-key"
+	rot.Providers = map[llm.ProviderType]llm.ProviderConfig{llm.ProviderNVIDIA: full}
+	if err := s.Update(&rot, db); err != nil {
+		t.Fatalf("full-object rotation must succeed, got: %v", err)
+	}
+	got := s.GetSnapshot().Providers[llm.ProviderNVIDIA]
+	if got.APIKey != "rotated-key" || !got.Enabled || got.BaseURL != before.BaseURL {
+		t.Fatalf("rotation must swap only the key: %+v", got)
+	}
+
+	// Enable-toggle via full object: the console's real flow.
+	dis := s.GetSnapshot()
+	cur := dis.Providers[llm.ProviderNVIDIA]
+	cur.Enabled = false
+	dis.Providers = map[llm.ProviderType]llm.ProviderConfig{llm.ProviderNVIDIA: cur}
+	if err := s.Update(&dis, db); err != nil {
+		t.Fatalf("enable-toggle must succeed, got: %v", err)
+	}
+	if s.GetSnapshot().Providers[llm.ProviderNVIDIA].Enabled {
+		t.Fatal("enable-toggle must take effect")
+	}
+}
