@@ -2993,3 +2993,9 @@ skipped is the exact failure this incident is about:
 ## [2026-10-20] feat | Evaluator Runs view (ux-plan slice 2.2a) — G3 UI half closed
   - Cockpit "Evaluator runs" card: spec select (and2/cz-phase/copy1/xor2, live-verified preset artifacts) + editable artifact JSON + tests/kappa/seed + optional factory trio (client-side completeness check) → POST /api/codesign/evaluate → validity badge, T/Q, eps bound, depths, kappa sweep, factory report.
   - Console 38 files/176 tests green (2 new runs tests), tsc clean.
+
+## [2026-10-20] fix | G13 presence-aware provider merge + dead-code sweep
+  - Update() now refuses unknown provider types and fragment entries (missing BaseURL/TimeoutSec) with a teaching message; APIKey merge preserved; enable-toggle flow intact (full objects).
+  - Caught live: first version leaked the write lock on refusal paths (bare return under explicit Unlock) -> next read deadlocked. Fixed unlock-before-return; TestUpdateRefusesPartialProviders pins refuse + no-mutation + rotation + toggle.
+  - Deleted ObservatoryCockpit.tsx (zero importers) + useTelemetry.ts (disabled, zero callers); fixed stale shortcuts.ts comment. Backend SSE rail stays (served capability, not dead).
+  - Verified: pkg/llm green, pkg/api full green (32s), console tsc + 176 tests green, lint clean.

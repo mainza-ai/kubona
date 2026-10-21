@@ -239,6 +239,15 @@ providers, reports, workflows, agents, labs, models, settings, `science/*`,
   so this is a hardening gap, not a live break. Fix direction: presence-aware
   merge or full-object-or-refuse; must preserve the `{enabled: X}` toggle
   flow. Tracked for Phase 4, not Phase 0 (surgical redaction stays surgical).
+> **✅ LANDED 2026-10-20.** `Update` refuses unknown provider types and
+> fragment entries (missing BaseURL/TimeoutSec) with a teaching message —
+> full-object-or-refuse. All real flows send full objects (console spreads
+> `pc`; enable-toggle flips inside a full object), so nothing legitimate
+> breaks. Caught live during verification: the first version of this fix
+> leaked the write lock on its refusal paths (bare `return` under explicit
+> `Unlock`) and deadlocked the next read — the new test pins it
+> (`TestUpdateRefusesPartialProviders`: refuse + no-mutation + rotation +
+> toggle). Unlock-before-return; explicit-Unlock regions stay explicit.
 
 ## 3. UI/UX assessment vs the vision
 
@@ -378,6 +387,14 @@ Shared TS codesign types from the goldens; κ-rail parity (G8); hash-shaped
 placeholder fixed (G7); SSE enable-or-remove + dead-code sweep (G9);
 new-endpoint rail convention (G11); presence-aware provider merge (G13). Acceptance: `tsc` + vitest + lint clean;
 no behavior change except the fixed items.
+> **✅ LANDED 2026-10-20 (remainder).** G13 (above). Dead-code sweep:
+> deleted `ObservatoryCockpit.tsx` (271-line alternate shell, zero
+> importers) and `useTelemetry.ts` (122-line disabled hook, zero callers);
+> fixed the stale `shortcuts.ts` comment that cited the dead shell. SSR
+> (`/api/events/stream`) stays served for future clients — the dead part
+> was the unmounted client, not the rail. New-rail convention: codified by
+> example in the Phase-1/2 proxies (strict JSON object gate → Python owns
+> validation → typed `ok:false` → 400 mapping); no flag day on old rails.
 > **✅ LANDED 2026-10-20 (4a + 4b, partial).** Shared `Codesign*` types in
 > `types/index.ts` (cockpit + api import, no local duplicates); sweep card
 > documents κ-field independence (behavior correct as-built — sweep

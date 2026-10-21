@@ -1,5 +1,5 @@
 /**
- * Single shortcut const: ObservatoryCockpit tabs, CommandPalette items, and
+ * Single shortcut const: page surfaces, CommandPalette items, and
  * KeyboardShortcutsModal rows all render from here so labels cannot drift.
  */
 export const SHORTCUTS = {
