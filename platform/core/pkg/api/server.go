@@ -4074,19 +4074,7 @@ func (s *Server) handleAutoresearchStart(w http.ResponseWriter, r *http.Request)
 
 	// Hook up Section 13 Meta-Search stagnation trigger
 	engine.SetStagnationCallback(func(lID string, discards int, champion string) {
-		s.metaSearchEngine.GenerateStagnationProposal(
-			context.Background(),
-			lID,
-			req.HarnessID,
-			fmt.Sprintf("Standard instructions for %s", req.HarnessID),
-			champion,
-			discards,
-		)
-		s.ledger.AppendEvent(req.SessionID, "autoresearch_stagnation_triggered", map[string]any{
-			"loop_id":    lID,
-			"discards":   discards,
-			"harness_id": req.HarnessID,
-		})
+		s.onLoopStagnation(req.SessionID, req.HarnessID, lID, discards, champion)
 	})
 
 	// Run initial baseline
