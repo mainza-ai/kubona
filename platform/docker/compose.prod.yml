@@ -49,11 +49,26 @@ services:
     command: ["--bind", "0.0.0.0", "--port", "8080", "--bridge", "bridge:50051"]
     environment:
       KUBONA_API_TOKEN: ${KUBONA_API_TOKEN:-}
+      # Audit 2026-10-21: Strata is the default provider (local, keyless),
+      # but the stack never configured its model — every LLM path refused
+      # with "no model configured" on a stock up. .env.example names iq3_s
+      # as the default; the compose default matches it (overridable via
+      # environment, never a rebuild).
+      STRATA_MODEL: ${STRATA_MODEL:-iq3_s}
+      # Strata serves on the HOST's loopback (serving panel default
+      # 127.0.0.1:47831), which is not the container's loopback.
+      # host.docker.internal resolves on Docker Desktop (Mac/Win) and via
+      # host-gateway on Linux (see extra_hosts below); verified live
+      # 2026-10-21 (models list answers through it). Point STRATA_BASE_URL
+      # elsewhere only if Strata itself moves.
+      STRATA_BASE_URL: ${STRATA_BASE_URL:-http://host.docker.internal:47831/v1}
       # Plain HTTP inside the compose network only: kubonad itself
       # refuses non-loopback plaintext without TLS or this explicit
       # opt-in. TLS terminates in front (reverse proxy) or via mounted
       # PEM + --tls-cert/--tls-key flags — never expose :8080 directly.
       KUBONA_ALLOW_PLAINTEXT: "1"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     ports:
       - "8080:8080"
     # Runbook: if host localhost:8080 answers with sessions the stack
