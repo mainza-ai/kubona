@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Brain, ShieldCheck, CircuitBoard, Scale } from 'lucide-react';
 import { CampaignState, ProbeId } from '@/types';
 
@@ -27,11 +27,13 @@ function HoverCard({
   title,
   body,
   rows,
+  forceOpen = false,
 }: {
   accent: 'amber' | 'emerald' | 'cyan' | 'rose';
   title: string;
   body: string;
   rows: Array<[string, string, string?]>;
+  forceOpen?: boolean;
 }) {
   const border =
     accent === 'amber'
@@ -51,7 +53,10 @@ function HoverCard({
           : 'text-rose-400';
   return (
     <div
-      className={`absolute top-12 left-0 w-64 p-3 rounded-xl bg-[#0D1017]/95 border ${border} backdrop-blur-2xl shadow-2xl opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto transition-all duration-200 z-50`}
+      onClick={(e) => e.stopPropagation()}
+      className={`absolute top-12 left-0 w-64 p-3 rounded-xl bg-[#0D1017]/95 border ${border} backdrop-blur-2xl shadow-2xl transition-all duration-200 z-50 ${
+        forceOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
+      }`}
     >
       <div className={`text-[10px] uppercase font-code ${text} tracking-wider`}>{title}</div>
       <p className="text-xs text-slate-200 mt-1 leading-snug">{body}</p>
@@ -68,6 +73,19 @@ function HoverCard({
 }
 
 export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null, atRest = false }: SwarmUniverseProps) {
+  // Tap-to-open (keyboard/mouse/touch): hover alone excluded touch and
+  // keyboard users. Cards open on hover (existing CSS) OR pinned open by
+  // tap; Esc or re-tap closes. One open at a time (D1: summary first).
+  const [openCard, setOpenCard] = useState<string | null>(null);
+  useEffect(() => {
+    if (openCard === null || typeof window === 'undefined') return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpenCard(null);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [openCard]);
+  const toggleCard = (id: string) => setOpenCard((cur) => (cur === id ? null : id));
   const qf = campaign?.quantum_factors;
   const anchor = campaign?.classical_anchor;
   // No-campaign empty state: no invented H2 default. Without a campaign the
@@ -130,8 +148,8 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
         <line x1="34%" y1="68%" x2="48%" y2="52%" stroke="url(#beamCritic)" strokeWidth="1" className={atRest ? 'opacity-10' : 'opacity-50'} />
       </svg>
 
-      {/* Central target singularity */}
-      <div className="relative z-10 flex flex-col items-center group cursor-pointer">
+      {/* Central target singularity (display-only: numbers already visible) */}
+      <div className="relative z-10 flex flex-col items-center">
         <div className={`w-36 h-36 rounded-full bg-gradient-to-tr from-cyan-500/20 via-amber-500/10 to-transparent border border-cyan-400/30 flex items-center justify-center ${atRest ? '' : 'animate-orb'}`}>
           <div className="w-24 h-24 rounded-full bg-[#0F131C] border border-cyan-400/60 flex items-center justify-center shadow-[0_0_35px_-5px_rgba(0,229,255,0.25)] relative">
             <svg width="44" height="44" viewBox="0 0 24 24" fill="none" className="text-cyan-300">
@@ -159,7 +177,7 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
       </div>
 
       {/* Probe α · Theorist */}
-      <div data-testid="probe-theorist" data-active={activeProbe === 'theorist' ? 'true' : undefined} style={{ animationDelay: '0s' }} className={`absolute ${atRest ? "" : "animate-float-gentle"} top-[32%] left-[28%] group cursor-pointer z-10 transition-transform duration-300 hover:scale-110 ${activeProbe === 'theorist' ? 'scale-110' : ''}`}>
+      <button data-testid="probe-theorist" data-active={activeProbe === 'theorist' ? 'true' : undefined} style={{ animationDelay: '0s' }} onClick={() => toggleCard('theorist')} aria-expanded={openCard === 'theorist'} aria-label="Theorist probe details" className={`absolute ${atRest ? "" : "animate-float-gentle"} top-[32%] left-[28%] group cursor-pointer z-10 transition-transform duration-300 hover:scale-110 ${activeProbe === 'theorist' ? 'scale-110' : ''} bg-transparent border-0 p-0 text-left`}>
         <div className="relative flex items-center gap-2">
           <div className="w-9 h-9 rounded-xl bg-[#141822] border border-amber-400/50 flex items-center justify-center shadow-[0_0_30px_-5px_rgba(255,179,0,0.25)] group-hover:border-amber-400">
             <Brain className="w-[18px] h-[18px] text-amber-400" />
@@ -184,11 +202,12 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
             ['Entanglement Q', meyerWallach != null ? meyerWallach.toFixed(3) : '—', 'text-white'],
             ['BP risk', qf ? bpRisk : '—', qf ? (criticCleared ? 'text-emerald-400' : 'text-amber-400') : 'text-white'],
           ]}
+          forceOpen={openCard === 'theorist'}
         />
-      </div>
+      </button>
 
       {/* Probe β · Formalist */}
-      <div data-testid="probe-formalist" data-active={activeProbe === 'formalist' ? 'true' : undefined} style={{ animationDelay: '0.9s' }} className={`absolute ${atRest ? "" : "animate-float-gentle"} top-[28%] right-[30%] group cursor-pointer z-10 transition-transform duration-300 hover:scale-110 ${activeProbe === 'formalist' ? 'scale-110' : ''}`}>
+      <button data-testid="probe-formalist" data-active={activeProbe === 'formalist' ? 'true' : undefined} style={{ animationDelay: '0.9s' }} onClick={() => toggleCard('formalist')} aria-expanded={openCard === 'formalist'} aria-label="Formalist probe details" className={`absolute ${atRest ? "" : "animate-float-gentle"} top-[28%] right-[30%] group cursor-pointer z-10 transition-transform duration-300 hover:scale-110 ${activeProbe === 'formalist' ? 'scale-110' : ''} bg-transparent border-0 p-0 text-left`}>
         <div className="relative flex items-center gap-2">
           <div className="bg-[#0D1017]/90 backdrop-blur-md border border-white/10 rounded-lg px-2.5 py-1 flex flex-col text-right">
             <div className="flex items-center justify-end gap-1.5">
@@ -215,11 +234,12 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
             ['Contested β', `${campaign?.epistemics?.beta_contested ?? '—'}`],
             ['Literature drift', litDrift != null ? `${litDrift.toFixed(2)} mHa` : '—'],
           ]}
+          forceOpen={openCard === 'formalist'}
         />
-      </div>
+      </button>
 
       {/* Probe γ · Compiler */}
-      <div data-testid="probe-compiler" data-active={activeProbe === 'compiler' ? 'true' : undefined} style={{ animationDelay: '1.8s' }} className={`absolute ${atRest ? "" : "animate-float-gentle"} bottom-[30%] right-[28%] group cursor-pointer z-10 transition-transform duration-300 hover:scale-110 ${activeProbe === 'compiler' ? 'scale-110' : ''}`}>
+      <button data-testid="probe-compiler" data-active={activeProbe === 'compiler' ? 'true' : undefined} style={{ animationDelay: '1.8s' }} onClick={() => toggleCard('compiler')} aria-expanded={openCard === 'compiler'} aria-label="Compiler probe details" className={`absolute ${atRest ? "" : "animate-float-gentle"} bottom-[30%] right-[28%] group cursor-pointer z-10 transition-transform duration-300 hover:scale-110 ${activeProbe === 'compiler' ? 'scale-110' : ''} bg-transparent border-0 p-0 text-left`}>
         <div className="relative flex items-center gap-2">
           <div className="bg-[#0D1017]/90 backdrop-blur-md border border-white/10 rounded-lg px-2.5 py-1 flex flex-col text-right">
             <div className="flex items-center justify-end gap-1.5">
@@ -245,11 +265,12 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
             ['Est. spend', estSpend != null ? `$${estSpend.toFixed(2)}` : '—'],
             ['Canary fidelity', canary != null ? canary.toFixed(4) : '—'],
           ]}
+          forceOpen={openCard === 'compiler'}
         />
-      </div>
+      </button>
 
       {/* Probe δ · Critic */}
-      <div data-testid="probe-critic" data-active={activeProbe === 'critic' ? 'true' : undefined} style={{ animationDelay: '2.7s' }} className={`absolute ${atRest ? "" : "animate-float-gentle"} bottom-[28%] left-[30%] group cursor-pointer z-10 transition-transform duration-300 hover:scale-110 ${activeProbe === 'critic' ? 'scale-110' : ''}`}>
+      <button data-testid="probe-critic" data-active={activeProbe === 'critic' ? 'true' : undefined} style={{ animationDelay: '2.7s' }} onClick={() => toggleCard('critic')} aria-expanded={openCard === 'critic'} aria-label="Critic probe details" className={`absolute ${atRest ? "" : "animate-float-gentle"} bottom-[28%] left-[30%] group cursor-pointer z-10 transition-transform duration-300 hover:scale-110 ${activeProbe === 'critic' ? 'scale-110' : ''} bg-transparent border-0 p-0 text-left`}>
         <div className="relative flex items-center gap-2">
           <div className="w-9 h-9 rounded-xl bg-[#141822] border border-rose-400/50 flex items-center justify-center shadow-xl group-hover:border-rose-400">
             <Scale className="w-[18px] h-[18px] text-rose-400" />
@@ -275,8 +296,9 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
             ['BP risk', qf ? bpRisk : '—', qf ? (criticCleared ? 'text-emerald-400' : 'text-rose-400') : 'text-white'],
             ['∇ variance', gradVar != null ? gradVar.toExponential(2) : '—', 'text-white'],
           ]}
+          forceOpen={openCard === 'critic'}
         />
-      </div>
+      </button>
     </div>
   );
 }

@@ -159,6 +159,42 @@ describe('SwarmUniverse', () => {
     expect(root.findByProps({ 'data-testid': 'probe-theorist' }).props['data-active']).toBe(undefined);
   });
 
+  it('tap-to-open: probe cards toggle on tap and close on Escape', () => {
+    const listeners: Record<string, Array<(e: unknown) => void>> = {};
+    vi.stubGlobal('window', {
+      addEventListener: (t: string, f: (e: unknown) => void) => {
+        listeners[t] = [...(listeners[t] ?? []), f];
+      },
+      removeEventListener: (t: string, f: (e: unknown) => void) => {
+        listeners[t] = (listeners[t] ?? []).filter((g) => g !== f);
+      },
+      dispatchEvent: (e: { type: string }) => {
+        for (const f of listeners[e.type] ?? []) f(e);
+        return true;
+      },
+    });
+    try {
+      let tree: TestRenderer.ReactTestRenderer;
+      act(() => {
+        tree = TestRenderer.create(<SwarmUniverse campaign={CAMPAIGN} />);
+      });
+      const root = tree!.root;
+      const probe = root.findByProps({ 'data-testid': 'probe-theorist' });
+      expect(probe.props['aria-expanded']).toBe(false);
+      act(() => {
+        (probe.props.onClick as () => void)();
+      });
+      expect(root.findByProps({ 'data-testid': 'probe-theorist' }).props['aria-expanded']).toBe(true);
+      act(() => {
+        for (const f of listeners['keydown'] ?? []) f({ key: 'Escape' });
+      });
+      expect(root.findByProps({ 'data-testid': 'probe-theorist' }).props['aria-expanded']).toBe(false);
+      tree!.unmount();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('rests when idle: no sweep, rest note shown', () => {
     const root = render(<SwarmUniverse campaign={CAMPAIGN} atRest />);
     expect(root.findByProps({ 'data-testid': 'swarm-universe' }).props['data-rest']).toBe('true');
