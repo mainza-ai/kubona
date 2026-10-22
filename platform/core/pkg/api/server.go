@@ -3697,12 +3697,33 @@ func findPythonVenv() (string, string) {
 		if err != nil {
 			continue
 		}
-		if _, err := os.Stat(absBin); err == nil {
-			absDir, _ := filepath.Abs(c.dir)
-			return absBin, absDir
+		if _, err := os.Stat(absBin); err != nil {
+			continue
+		}
+		// The interpreter existing is not enough: the paired dir must
+		// exist too, or exec chdirs into nothing (CI 2026-10-22: a
+		// cryptic 503 from a missing dir instead of a named error).
+		if absDir, err := filepath.Abs(c.dir); err == nil {
+			if st, serr := os.Stat(absDir); serr == nil && st.IsDir() {
+				return absBin, absDir
+			}
 		}
 	}
-	return "python3", "platform/bridge"
+	// No venv: fall back to a checkout-anchored bridge dir (CI installs
+	// the kubona package, so only codesign_ops on sys.path matters) and
+	// finally to CWD — never a nonexistent dir, so failures name the
+	// missing interpreter/package instead of failing chdir.
+	for _, d := range []string{"bridge", "platform/bridge", "../bridge", "../../bridge"} {
+		if absDir, err := filepath.Abs(d); err == nil {
+			if st, serr := os.Stat(absDir); serr == nil && st.IsDir() {
+				return "python3", absDir
+			}
+		}
+	}
+	if cwd, err := os.Getwd(); err == nil {
+		return "python3", cwd
+	}
+	return "python3", "."
 }
 
 // runBridgePython executes a bridge snippet with a bounded lifetime and

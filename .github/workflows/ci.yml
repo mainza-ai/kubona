@@ -189,6 +189,17 @@ jobs:
           cache: "pip"
       # W2.4: suite-verified pins (== in pyproject), never floors.
       - run: pip install "numpy==2.4.6" "qiskit==2.5.2" "qiskit-aer==0.17.2"
+      # Launch-day red (2026-10-22): three codesign proxy tests 503d here
+      # while green locally. Two compounding causes: (1) findPythonVenv
+      # handed exec a nonexistent dir whenever no dev venv exists (fixed
+      # in server.go to never return a missing dir); (2) the kubona
+      # package itself was never installed, so even with a valid dir the
+      # snippets died on import. Install it (base set only — the codesign
+      # chain is stdlib-only, verified import graph). Chemistry extras are
+      # deliberately absent: their tests skip without rdkit by design.
+      - name: Install kubona package (local-exec rail for codesign tests)
+        working-directory: platform
+        run: pip install -e .
       - run: go test -v -race ./...
 
   nextjs-console-build:
