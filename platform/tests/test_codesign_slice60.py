@@ -58,6 +58,7 @@ def _instances():
     return out
 
 
+@pytest.mark.slow  # paper-scale ~>300s locally; CI slow lane
 def test_rs_composition_end_to_end():
     positions, nus = _scan_setup()
     b, meta = build_rs_decoder(positions, nus)
@@ -129,6 +130,7 @@ def _split_sigma_vals(sigma):
     return E + [0] * (18 - len(E)), O + [0] * (18 - len(O))
 
 
+@pytest.mark.slow  # paper-scale ~>300s locally; CI slow lane
 def test_rs_pins_determinism_layout():
     positions, nus = _scan_setup()
     L = rs12_layout(0)

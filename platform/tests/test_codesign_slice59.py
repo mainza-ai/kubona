@@ -103,6 +103,7 @@ def _load_eo(L, E, O):
     return init
 
 
+@pytest.mark.slow  # paper-scale ~76s locally; CI slow lane
 def test_eea_circuit_harvested():
     from kubona.codesign.eea12 import _BT_LT
     locs = _locators()
@@ -141,6 +142,7 @@ def test_eea_circuit_harvested():
     assert saw_swap, "no LT=1 fired: swap paths untested (add high-degree cases)"
 
 
+@pytest.mark.slow  # paper-scale ~59s locally; CI slow lane
 def test_eea_flag_refuses():
     # F1 regression: high-degree locators needing 18-35 terms (which flagged
     # at 17 blocks) MUST now converge (flag=1, correct A,B) at 36 blocks.
@@ -182,6 +184,7 @@ def test_eea_flag_refuses():
     assert bits.get(L["FLAG"][0], 0) == 0
 
 
+@pytest.mark.slow  # paper-scale ~132s locally; CI slow lane
 def test_eea_pins_determinism_layout():
     L = eea12_layout(0)
     assert L["nin"] == 432 and L["ntemps"] == 9641
