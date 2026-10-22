@@ -106,6 +106,7 @@ def _dedup(states):
     return uniq
 
 
+@pytest.mark.slow  # paper-scale ~32s locally; CI slow lane
 def test_round_proves_harvested_states():
     (b, regs) = build_bm_round()
     assert regs["kind"] == "bm-round"
