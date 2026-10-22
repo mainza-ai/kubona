@@ -18,7 +18,11 @@ if str(_DIR / "proto") not in sys.path:
     sys.path.insert(0, str(_DIR / "proto"))
 
 from proto import kubona_pb2, kubona_pb2_grpc
-from chemistry import solve_classical_anchor
+from chemistry import (
+    evaluate_candidate_pipeline,
+    evaluate_molecular_admet,
+    solve_classical_anchor,
+)
 from epistemics import evaluate_claim_credibility
 from executor import execute_qasm, cut_circuit_qasm
 from literature import search_arxiv, search_openalex, to_records
@@ -127,6 +131,50 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                 molecule=request.molecule,
                 bond_distance=request.bond_distance,
                 success=False,
+                error_message=str(e),
+            )
+
+    def EvaluateMolecularADMET(self, request, context):
+        # T-01a: chemistry over the typed rail. The science payload rides
+        # as JSON (evolving Dict[str, Any]) — the proto carries transport
+        # framing only. Structured failure per the servicer contract.
+        logger.info("EvaluateMolecularADMET called")
+        try:
+            import json as _json
+
+            res = evaluate_molecular_admet(request.smiles)
+            return kubona_pb2.ChemistryADMETResponse(
+                success=True,
+                result_json=_json.dumps(res),
+                error_message="",
+            )
+        except Exception as e:
+            logger.exception("EvaluateMolecularADMET failed")
+            return kubona_pb2.ChemistryADMETResponse(
+                success=False,
+                result_json="",
+                error_message=str(e),
+            )
+
+    def EvaluateDiscoveryPipeline(self, request, context):
+        # T-01a: same framing as ADMET; the pipeline ranks caller-supplied
+        # candidates (name + smiles each) — no chemistry is invented here.
+        logger.info(f"EvaluateDiscoveryPipeline called for {request.target}")
+        try:
+            import json as _json
+
+            cands = [{"name": c.name, "smiles": c.smiles} for c in request.candidates]
+            res = evaluate_candidate_pipeline(request.target, cands)
+            return kubona_pb2.DiscoveryPipelineResponse(
+                success=True,
+                result_json=_json.dumps(res),
+                error_message="",
+            )
+        except Exception as e:
+            logger.exception("EvaluateDiscoveryPipeline failed")
+            return kubona_pb2.DiscoveryPipelineResponse(
+                success=False,
+                result_json="",
                 error_message=str(e),
             )
 
