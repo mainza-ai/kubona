@@ -84,7 +84,7 @@ export function MolecularActiveSpaceWidget({
     }
 
     return levels;
-  }, [totalE, totalO, gap, activeElectrons, displayName, isDiatomic, nOcc, nVirt]);
+  }, [gap, activeElectrons, isDiatomic, nOcc, nVirt]);
 
   const handleElectronsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseInt(e.target.value, 10);
