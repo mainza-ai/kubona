@@ -6,7 +6,7 @@
 
 ### *See, observe, discover — then know.*
 
-**An open-source, MCP-native quantum-computing and AI-enhanced science discovery platform for autonomous AI agents.**
+**An open-source quantum-computing and AI-enhanced science discovery platform for autonomous AI agents, with an MCP tool layer (5 servers, 29 tools over stdio).**
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License" /></a>
@@ -78,13 +78,23 @@ Kubona structures scientific inquiry for autonomous agents across four determini
 - **Quantum Core**: QIR/MLIR execution pipelines, PySCF/Qiskit bridge, evaluator-guided circuit co-design, and built-in cost governance.
 - **Science Discovery**: Autonomous autoresearch engine, interactive experiment notebooks, and an organized results studio.
 
+### Verifiable Tool Grounding (MCP Layer)
+
+Every epistemic stage translates into concrete, deterministic tools exposed through the MCP layer (5 federated servers, 29 tools over stdio, digest-pinned in [`platform/contracts/mcp-catalog.json`](platform/contracts/mcp-catalog.json)):
+
+* **Observe & Measure**: `execution` server (circuit execution, VQE sweeps, state-vector simulation, hardware capability probes).
+* **Synthesize & Optimize**: `compiler` server (pass portfolio, QIR/OpenQASM3 transpilation, circuit co-design verification).
+* **Record & Attest**: `provenance` server (immutable SQLite WAL ledger, Merkle audit chains, confidentiality lattice labels).
+* **Govern & Gate**: `cost` & `control` servers (spend mandates, pre-flight budget checks, tenant isolation, operator approval cards).
+
 ---
 
 ## 🏛️ System Topology & Codebase Layout
 
 | Directory | Layer | Description |
 |---|---|---|
-| [`platform/core/`](platform/core/) | **Go Orchestrator** | Federated MCP servers, immutable provenance ledger, job coordination, and core API on `:8080`. |
+| [`platform/core/`](platform/core/) | **Go Orchestrator** | Sovereign orchestrator, immutable provenance ledger, job coordination, tribunal, and core API on `:8080`. |
+| [`platform/kubona/mcp/`](platform/kubona/mcp/) | **MCP Tool Layer** | 5 federated Python servers mounting 29 tools over stdio (`compiler`, `execution`, `cost`, `provenance`, `control`)*. |
 | [`platform/console/`](platform/console/) | **Sovereign Console** | Next.js sovereign UI on `:3000` with experiment studio, tribunal, flight recorder, and copilot chat. |
 | [`platform/kubona/`](platform/kubona/) | **Python Runtime** | Agent execution runtime, evaluator-guided circuit co-design program, and ML pipelines. |
 | [`platform/bridge/`](platform/bridge/) | **Quantum Bridge** | PySCF and Qiskit bridge facilitating communication between AI agents, classical chemistry, and quantum hardware/simulators. |
@@ -93,6 +103,8 @@ Kubona structures scientific inquiry for autonomous agents across four determini
 | [`scripts/`](scripts/) | **Tooling & CI** | Automated structural wiki linting (`scripts/wiki-lint.py`) and CI validation runners. |
 | [`assets/misc/`](assets/misc/) | **Media & Presentations** | Platform overview infographic and executive presentation deck. |
 | [`AGENTS.md`](AGENTS.md) | **Maintainer Operating Rules** | Core engineering standards, production bar, and invariants for human and AI collaborators. |
+
+*\*Note on MCP Serving: The 5 MCP servers currently execute over stdio (`python -m kubona.mcp.servers.<name>`) and in-process test harnesses; standalone compose container serving is in progress.*
 
 ---
 
