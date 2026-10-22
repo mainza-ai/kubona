@@ -1923,6 +1923,11 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
 		}
+		// T-09c: content writes bind caller to session tenant (cross-lab
+		// graffiti without it). Same D-09 rule as reads.
+		if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
+			return
+		}
 		if req.Role == "" {
 			req.Role = "user"
 		}
@@ -2028,6 +2033,14 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		emit("error", map[string]any{"error": err.Error()})
 		return
+	}
+	// T-09c: same binding as chat POST — reported as an error event
+	// (SSE headers are already sent; no status line left to write).
+	if sess, gerr := s.sessionMgr.GetSession(sessionID); gerr == nil {
+		if allow, _, msg := s.checkSessionTenant(r, sess); !allow {
+			emit("error", map[string]any{"error": msg})
+			return
+		}
 	}
 	if req.Role == "" {
 		req.Role = "user"
@@ -2149,6 +2162,10 @@ func (s *Server) handleChatRegenerate(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
+	// T-09c: regeneration spends on the session's lab — bind the caller.
+	if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
+		return
+	}
 	prompt, err := s.sessionMgr.DropTrailingAssistant(sessionID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -2207,6 +2224,11 @@ func (s *Server) handleChatFeedback(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "vote must be 'up' or 'down'", http.StatusBadRequest)
 		return
 	}
+	// T-09c: feedback writes to the session's ledger — bind the caller.
+	// Ghosts keep the legacy not-found path below.
+	if _, ok := s.authorizeKnownSession(w, r, req.SessionID); !ok {
+		return
+	}
 	msgs, err := s.sessionMgr.GetMessages(req.SessionID)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -2262,6 +2284,10 @@ func (s *Server) handleChatRewrite(w http.ResponseWriter, r *http.Request) {
 	// ghost messages under one 400).
 	if _, gerr := s.sessionMgr.GetSession(req.SessionID); gerr != nil {
 		http.Error(w, fmt.Sprintf("unknown session %q: nothing to rewrite", req.SessionID), http.StatusNotFound)
+		return
+	}
+	// T-09c: rewrite deletes the session's later rows — bind the caller.
+	if _, ok := s.authorizeKnownSession(w, r, req.SessionID); !ok {
 		return
 	}
 	msg, err := s.sessionMgr.RewriteUserMessage(req.SessionID, req.MessageID, req.Content, req.ExpectedContent)
@@ -2468,6 +2494,11 @@ func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
 	}
+	// T-09c: launch mints spend on the session's lab — bind the caller
+	// (a valid mandate is a capability, not a lab identity).
+	if _, ok := s.authorizeKnownSession(w, r, req.SessionID); !ok {
+		return
+	}
 
 	// R17: proposal attribution transcribed into the job below.
 	designedBy := ""
@@ -2634,6 +2665,10 @@ func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
 	}
+	// T-09c: tribunal spends on the session's lab — bind the caller.
+	if _, ok := s.authorizeKnownSession(w, r, req.SessionID); !ok {
+		return
+	}
 
 	// S1: claim-or-replay on the slow rail (effective prompt post-default,
 	// so a retried empty prompt matches). All side effects below
@@ -2785,6 +2820,12 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 		req.SessionID = sid
 		if err := s.requireDispatchAutonomy(req.SessionID); err != nil {
 			http.Error(w, err.Error(), http.StatusForbidden)
+			return
+		}
+		// T-09c: spend attribution without authorization is another
+		// lab's bill — bind caller to session tenant (ghost/autonomy
+		// already refused above; this is the caller check).
+		if _, ok := s.authorizeKnownSession(w, r, req.SessionID); !ok {
 			return
 		}
 		if req.Shots <= 0 {
@@ -3941,6 +3982,10 @@ func (s *Server) handleAutoresearchStart(w http.ResponseWriter, r *http.Request)
 	// refuse here, like launch/jobs, before the baseline run is built.
 	if err := s.requireDispatchAutonomy(req.SessionID); err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
+		return
+	}
+	// T-09c: loops spend on the session's lab — bind the caller.
+	if _, ok := s.authorizeKnownSession(w, r, req.SessionID); !ok {
 		return
 	}
 	if req.MaxIterations <= 0 {
