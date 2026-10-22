@@ -40,6 +40,7 @@ def _planted(nerr: int):
     return [((i * 137) % 4095 or 1, ((i * 7 + 3) % 4095) or 1) for i in range(nerr)]
 
 
+@pytest.mark.slow  # paper-scale ~32s locally; CI slow lane
 def test_paper_scale_decode_composition():
     from kubona.codesign.kickmix import _sim_trajectory
     (b, regs) = build_chien_scan(ncoeffs=36, field=F2_12)
