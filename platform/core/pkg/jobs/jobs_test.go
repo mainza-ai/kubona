@@ -23,7 +23,12 @@ import (
 // success for every RPC so the runner rail (queue → worker → ledger settle)
 // is exercised end to end. Production code must never substitute canned
 // values like these for measurements.
-type fakeBridge struct{}
+type fakeBridge struct {
+	// T-01: embed the client interface so future RPC additions do not
+	// break this fake (the methods below override the embedded nils
+	// actually exercised; the rest panic loudly if ever called).
+	pb.QuantumBridgeServiceClient
+}
 
 func (f *fakeBridge) ExecuteCircuit(ctx context.Context, in *pb.CircuitExecutionRequest, opts ...grpc.CallOption) (*pb.CircuitExecutionResponse, error) {
 	return &pb.CircuitExecutionResponse{Success: true, JobId: in.JobId}, nil
