@@ -1,12 +1,13 @@
 # Kubona
 
-**Kubona** — Tonga (Zambia), *"to see"* — is an open-source,
+**Kubona** — Chitonga (Tonga, Zambia), *ku-bona*, "to see" — is an open-source,
 MCP-native **quantum-computing and AI-enhanced science discovery platform** for autonomous AI agents:
 multi-user labs, user- and agent-created workflows and agents, and autonomous experiments
 with organized, reproducible results.
 
 > To see is the founding act of science: observe, measure, record, understand.
 > Kubona surfaces quantum phenomena, runs experiments, and shows their results — systematically.
+> The name is the Chitonga infinitive: *ku-* (infinitive) + *-bona* (see, observe, perceive).
 
 ## Repository layout
 

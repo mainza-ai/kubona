@@ -2,7 +2,7 @@
 type: entity
 name: Kubona
 date: 2026-08-16
-updated: 2026-10-17
+updated: 2026-10-22
 tags: [kubona, platform]
 sources: [source-gap-analysis-plan]
 status: open-question
@@ -10,7 +10,10 @@ status: open-question
 
 # Kubona
 
-**Kubona** — from Tonga (Zambia), *"to see"* — is the name of the platform. To see is the founding act of
+**Kubona** — Chitonga (Tonga, Zambia), *ku-bona*, "to see" — is the name of the platform.
+The name is the Chitonga infinitive: *ku-* is the Bantu Class-15 infinitive
+prefix, *-bona* (Proto-Bantu *-bóna*) the root for seeing, observing,
+perceiving. To see is the founding act of
 science: observe, measure, record, understand. The platform surfaces quantum phenomena,
 runs experiments, and shows their results systematically — so the name carries the mission
 (see [[overview]]).
