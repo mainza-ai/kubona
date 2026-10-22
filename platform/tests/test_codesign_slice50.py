@@ -51,7 +51,6 @@ def _beta(pos):
     return F2_12.inv(g)
 
 
-@pytest.mark.slow  # paper-scale ~25s locally; CI slow lane
 def test_cancellation_solves_and_verifies():
     rep = mask_cancellation(_masks(), F2_12)
     assert rep["ncancel"] == 70 and len(rep["canceled"]) == 70
@@ -82,7 +81,6 @@ def test_seventy_first_position_refuses_structurally():
         _solve_field_system([[1, 2], [2, 4]], [1, 1], F2_12)  # singular
 
 
-@pytest.mark.slow  # paper-scale ~25s locally; CI slow lane
 def test_full_scan_phase_composition():
     masks = _masks()
     mus = _mus(masks)
