@@ -36,7 +36,6 @@ export function EpistemicTribunalRoom({
   hypothesisId = 'hyp-qksd-01',
   targetSystem = 'Lithium Hydride (LiH)',
   sessionId = '',
-  campaign,
   onCommitToLedger,
   onCampaignSynthesized,
 }: TribunalRoomProps) {

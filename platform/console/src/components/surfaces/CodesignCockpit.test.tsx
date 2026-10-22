@@ -382,7 +382,7 @@ describe('CodesignCockpit read-only', () => {
 
   it('renders the first failure input + reason instead of a bare INVALID', async () => {
     const realFetch = globalThis.fetch;
-    (globalThis as unknown as { fetch: unknown }).fetch = async (input: unknown, init?: { body?: unknown }) => {
+    (globalThis as unknown as { fetch: unknown }).fetch = async (input: unknown) => {
       const url = String(input);
       if (url.includes('/api/codesign/evaluate')) {
         return new Response(

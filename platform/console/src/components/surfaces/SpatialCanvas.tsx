@@ -93,12 +93,22 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
 
   const [admetProfile, setAdmetProfile] = useState<Record<string, unknown> | null>(null);
   const [admetLoading, setAdmetLoading] = useState(false);
+  const [admetSmiles, setAdmetSmiles] = useState<string | null>(null);
+
+  // Adjust state during render when the target changes (same pattern as
+  // the campaign-key guard above): reset profile + loading synchronously,
+  // then the effect below fetches exactly once per target. This keeps
+  // setState out of the effect body (react-hooks/set-state-in-effect).
+  if (targetSmiles !== admetSmiles) {
+    setAdmetSmiles(targetSmiles);
+    setAdmetProfile(null);
+    setAdmetLoading(!!targetSmiles);
+  }
 
   useEffect(() => {
     let cancelled = false;
-    if (!targetSmiles) return;
-    setAdmetLoading(true);
-    fetchMolecularADMET(targetSmiles)
+    if (!admetSmiles) return;
+    fetchMolecularADMET(admetSmiles)
       .then((data) => {
         if (!cancelled && data && !data.error) {
           setAdmetProfile(data);
@@ -111,7 +121,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
     return () => {
       cancelled = true;
     };
-  }, [targetSmiles]);
+  }, [admetSmiles]);
 
   // Compute energy on the fly based on physical Morse potential anchored to PySCF FCI
   const energyCalculated = useMemo(() => {
