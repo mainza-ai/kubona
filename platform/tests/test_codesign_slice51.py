@@ -72,7 +72,6 @@ def _paper_setup():
     return masks, mus, rep, K, positions, nus
 
 
-@pytest.mark.slow  # paper-scale ~142s locally; CI slow lane
 def test_phase_scan_paper_scale():
     _masks, mus, rep, K, positions, nus = _paper_setup()
     assert len(positions) == 4025

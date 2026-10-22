@@ -189,7 +189,6 @@ def _check(e, L, bits):
     assert (got_d - 256 if got_d >= 128 else got_d) == pd
 
 
-@pytest.mark.slow  # paper-scale ~28s locally; CI slow lane
 def test_round_harvested_walks():
     rng = random.Random(570)
     walks = []

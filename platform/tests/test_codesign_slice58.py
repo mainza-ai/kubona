@@ -71,7 +71,6 @@ def _walks():
     return out
 
 
-@pytest.mark.slow  # paper-scale ~260s locally; CI slow lane
 def test_walk_build_pins():
     b, meta = build_bm12_walk()
     assert meta["rounds"] == 70 and meta["kind"] == "bm12-walk"
@@ -84,7 +83,6 @@ def test_walk_build_pins():
     assert b.emit() == b1.emit()
 
 
-@pytest.mark.slow  # paper-scale ~158s locally; CI slow lane
 def test_walk_harvested_end_to_end():
     walks = _walks()
     assert len(walks) == 10

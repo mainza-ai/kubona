@@ -44,13 +44,15 @@ jobs:
         run: ./scripts/secret-scan.sh
 
   python-tests:
-    name: Python suite (fast lane)
+    name: "Python suite (fast lane: everything except paper-scale slices)"
     runs-on: ubuntu-latest
     needs: [wiki-lint, secret-scan]
     # Launch-day red (2026-10-22): the serial suite died at ~40 min with
-    # the paper-scale hogs still queued. timeout-minutes fails fast and
-    # loud instead of burning an evening silently; --durations names the
-    # next hogs to promote to the slow lane.
+    # the paper-scale hogs still queued. Lane selection is by path, not
+    # by marker: every tests/test_codesign_slice*.py file rides the slow
+    # shards below, so new slice files land there with no tagging step.
+    # timeout-minutes fails fast and loud; --durations names any new hog
+    # that slips into the fast lane.
     timeout-minutes: 60
     defaults:
       run:
@@ -75,7 +77,7 @@ jobs:
       - name: Full python suite, fast lane (KUBONA_QIR_CORE wired)
         env:
           KUBONA_QIR_CORE: ${{ github.workspace }}/platform/crates/qir-core/target/release/qir-core
-        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q -rs -m "not slow" --durations=20
+        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q -rs --ignore-glob='*/test_codesign_slice*.py' --durations=20
       # Bridge contract suite lives outside testpaths (bridge/test_bridge.py)
       # so the default run skips it — a red bridge test went unnoticed.
       # It is fast (~seconds) and hermetic (no creds, no network).
@@ -89,15 +91,16 @@ jobs:
       # R0: wiki-lint is its own fail-fast job (top of this file) —
       # it no longer hides here behind the full suite.
 
-  python-slow-tests:
-    name: Python suite (paper-scale lane)
+  # Paper-scale shards (2026-10-22 launch triage): the codesign slice files
+  # are exhaustive/paper-scale verification by construction — minutes per
+  # test on a 2-core runner. They run here, sharded by file so one slow
+  # family never holds the others hostage. No Rust build: slice tests do
+  # not touch qir-core (verified by grep). Same pip env everywhere so a
+  # passing fast lane plus passing shards means the full suite is green.
+  python-slow-a:
+    name: Python paper-scale A (slices except the three monsters)
     runs-on: ubuntu-latest
     needs: [wiki-lint, secret-scan]
-    # Paper-scale/exhaustive hogs (minutes each; tagged @pytest.mark.slow
-    # with measured local seconds). Runs in parallel with the fast lane
-    # so the gate costs max(fast, slow), not the sum. Same env as the
-    # fast lane; same fail-fast ceiling discipline (tighten to measured
-    # +50% once baselined).
     timeout-minutes: 60
     defaults:
       run:
@@ -108,16 +111,66 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
-        with:
-          cache: true
-      - name: Build Rust qir-core (production compiler core)
-        run: cargo build --release --manifest-path crates/qir-core/Cargo.toml
       - run: pip install -e ".[dev,qiskit,chemistry]" pyscf==2.14.0
-      - name: Paper-scale suite (slow marker only)
-        env:
-          KUBONA_QIR_CORE: ${{ github.workspace }}/platform/crates/qir-core/target/release/qir-core
-        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q -rs -m slow --durations=20
+      - name: Paper-scale slices A (all except 58/59/60)
+        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q -rs tests/test_codesign_slice*.py --ignore=tests/test_codesign_slice58.py --ignore=tests/test_codesign_slice59.py --ignore=tests/test_codesign_slice60.py --durations=20
+
+  python-slow-b:
+    name: Python paper-scale B (slice58 walks)
+    runs-on: ubuntu-latest
+    needs: [wiki-lint, secret-scan]
+    timeout-minutes: 60
+    defaults:
+      run:
+        working-directory: platform
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -e ".[dev,qiskit,chemistry]" pyscf==2.14.0
+      - name: Paper-scale slice58
+        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q -rs tests/test_codesign_slice58.py --durations=20
+
+  python-slow-c:
+    name: Python paper-scale C (slice59 EEA)
+    runs-on: ubuntu-latest
+    needs: [wiki-lint, secret-scan]
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: platform
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -e ".[dev,qiskit,chemistry]" pyscf==2.14.0
+      - name: Paper-scale slice59
+        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q -rs tests/test_codesign_slice59.py --durations=20
+
+  python-slow-d:
+    name: Python paper-scale D (slice60 RS composition)
+    runs-on: ubuntu-latest
+    needs: [wiki-lint, secret-scan]
+    # Slice60's two tests each exceed 5 minutes locally; on a 2-core
+    # runner this shard is the long pole by design. If it nears this
+    # ceiling, split the file — not the timeout.
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: platform
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -e ".[dev,qiskit,chemistry]" pyscf==2.14.0
+      - name: Paper-scale slice60
+        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q -rs tests/test_codesign_slice60.py --durations=20
 
   rust-tests:
     name: Rust crates (qir-core + ifc-core)
@@ -185,7 +238,7 @@ jobs:
     # R0: the release gate actually gates — it runs only when every suite
     # above is green. Previously it ran in parallel, so a red suite and a
     # green gate coexisted and the gate meant nothing.
-    needs: [wiki-lint, secret-scan, python-tests, python-slow-tests, rust-tests, go-core-tests, nextjs-console-build, docker-smoke]
+    needs: [wiki-lint, secret-scan, python-tests, python-slow-a, python-slow-b, python-slow-c, python-slow-d, rust-tests, go-core-tests, nextjs-console-build, docker-smoke]
     defaults:
       run:
         working-directory: platform

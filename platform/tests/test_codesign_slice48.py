@@ -30,7 +30,6 @@ from kubona.codesign.bm import _chien_masks
 from kubona.codesign.packing import emit_zero_test
 
 
-@pytest.mark.slow  # paper-scale ~9s locally; CI slow lane
 def test_masks_basis_exhaustive_paper_params():
     # For every position beta and every sigma basis bit: the mask claims
     # the contribution iff direct field evaluation has it. By F2-linearity
@@ -96,7 +95,6 @@ def _direct_roots(coeffs):
     return out
 
 
-@pytest.mark.slow  # paper-scale ~31s locally; CI slow lane
 def test_planted_roots_end_to_end():
     # Exact root sets by the degree bound (no sampling, no flake):
     # degree-35 -> exactly the 35 planted roots; degree-2 -> its two.
