@@ -55,8 +55,9 @@ include = ["kubona*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-# Launch-day red (2026-10-22): paper-scale/exhaustive tests take minutes
-# each, so the serial suite cannot fit a per-push gate. Marked tests run
-# in the slow CI lane (-m slow); everything else is the fast lane.
-# Tag by measurement (comment cites local seconds), never by guess.
-markers = ["slow: paper-scale or exhaustive test (minutes each); runs in the CI slow lane"]
+# Paper-scale lane selection is path-based (tests/test_codesign_slice*.py),
+# not marker-based: every paper-scale verification file rides the slow
+# shards by location, so new slice files land there with no tagging step.
+# (-m slow was tried 2026-10-22 and abandoned: the hog set was wider than
+# any hand-maintained list; the fast lane's --durations output is the
+# ongoing census instead.)
