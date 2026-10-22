@@ -296,7 +296,7 @@ jobs:
     # R0: the release gate actually gates — it runs only when every suite
     # above is green. Previously it ran in parallel, so a red suite and a
     # green gate coexisted and the gate meant nothing.
-    needs: [wiki-lint, secret-scan, python-tests, python-slow-a, python-slow-b, python-slow-c, python-slow-d1, python-slow-d2, rust-tests, go-core-tests, nextjs-console-build, docker-smoke]
+    needs: [wiki-lint, secret-scan, python-tests, python-slow-a, python-slow-b, python-slow-c, python-slow-d, python-slow-e, python-slow-f, python-slow-g, rust-tests, go-core-tests, nextjs-console-build, docker-smoke]
     defaults:
       run:
         working-directory: platform
