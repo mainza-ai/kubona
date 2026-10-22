@@ -3104,3 +3104,10 @@ skipped is the exact failure this incident is about:
   - Live drills on a fresh rail: T-09 matrix (anon 200 single-lab, 401 multi-lab, bearer 200, spoof-create 403); restart drill (killed stays killed, sleeping settles to aborted, session deletes); fidelity honest ADMIT probe_run:false; tribunal turn-telemetry lines observed (turn-2 71s serial wait visible).
   - Suites: Go 29/29, console 42 files / 200 tests, tsc clean, wiki lint clean, Python taxonomy 4/4, ifc-core 9/9. 7 pre-existing tests re-pinned to operator minting (anonymous named-lab creation was the spoof the guard closes).
   - Open: T-01a/b (gated; toolchain + regen recipe recorded in todos), T-09c filed (session-keyed mutations), D-15 pending telemetry data. No code touched for these.
+
+## [2026-10-26] verification | Round-2 remediation executed (T-01a/b, T-09c)
+  - Investigated then implemented: proto regen dry-run byte-identical (step-0 gate); JSON-string science payloads (no generic exec); closed-vocabulary codesign RPC + codesign_ops.py port (error strings byte-identical, unchanged handler tests prove equivalence).
+  - Landed: T-01a 927f096 (chemistry RPCs, bufconn + servicer pins), T-01b 13a3727 (codesign RPCs, -273 lines Go-embedded Python, bufconn + servicer pins), jobs-fake regen-proofing c3754f2, T-09c 8ddd595 (9 mutation sites, pin shows pre-fix victim-lab job minting).
+  - In-slice finds fixed: bridge image ships contracts/ (KUBONA_EVENT_TYPES) — codesign import needs the closed taxonomy; jobs fake embeds client interface.
+  - Compose live: chemistry ADMET + pipeline via bridge; all 5 codesign rails serve (evaluate T1 Q3 golden, packs x5, budget, batch, families, invalid 400). F-001 closed 7/7.
+  - Suites: Go 29/29, console 42 files / 200 tests, tsc, wiki lint, bridge 40 passed/1 skipped, Python taxonomy 4/4, Rust ifc-core 9/9. Remaining: D-15 (1 telemetry run — insufficient).

@@ -93,6 +93,17 @@ status: tracked
 > F-006 (T-02 `f6f298ee`), plus the noted missing resume route (T-16
 > `a54ce0c`). F-001 (R-01) stays open as the gated T-01a/b slice.
 > Full record: [[audit-remediation-todos]] §Execution record.
+>
+> ⚑ Execution 2026-10-26 (round 2): **F-001 is closed.** T-01a
+> (`927f096`) moved chemistry (ADMET + discovery) onto typed bridge
+> RPCs; T-01b (`13a3727`) moved all 5 codesign rails onto a
+> closed-vocabulary RPC with the snippets ported to
+> `codesign_ops.py` (230 lines of Go-embedded Python deleted).
+> Compose-verified: 7/7 previously-503 rails serve, refusal shapes
+> preserved. In-slice fallout fixed: bridge image ships `contracts/`
+> (`KUBONA_EVENT_TYPES`), jobs test fake embeds the client
+> interface. Remaining: D-15 (needs telemetry volume), T-09c
+> filed separately.
 
 ## Coverage achieved (battery → result)
 - HUMAN: all surfaces/tabs/buttons/forms exercised; chat→tribunal→
