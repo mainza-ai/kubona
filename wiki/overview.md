@@ -1,7 +1,7 @@
 ---
 type: overview
 date: 2026-08-16
-updated: 2026-10-17
+updated: 2026-10-22
 tags: [kubona, synthesis]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-cloudflare-economy,
   source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026, source-openai-math-corpus,
@@ -22,7 +22,7 @@ status: living
 
 ## What Kubona is
 
-Kubona — Tonga (Zambia), *"to see"* — is the name for an **open-source, MCP-native
+Kubona — Chitonga (Tonga, Zambia), *ku-bona*, "to see" — is the name for an **open-source, MCP-native
 quantum-computing platform for autonomous AI agents** — a toolset that lets an LLM agent author, optimize, and
 execute quantum algorithms across a federation of hardware providers
 (IBM, IonQ, Quantinuum, Rigetti, D-Wave, Azure, Google, QuEra/Pasqal, Xanadu, and more)
@@ -32,6 +32,12 @@ AI agent can navigate directly (architecture-paper). Kubona is also an **AI-enha
 science discovery platform**: multi-user labs, user- and agent-created workflows and
 agents, and the ability to conduct its own experiments and return organized,
 reproducible results — see [[science-discovery]].
+
+The name is the Chitonga infinitive *ku-bona*: *ku-* is the Bantu Class-15
+infinitive prefix, *-bona* (Proto-Bantu *-bóna*) the root for seeing,
+observing, perceiving. The platform is held to it literally — a claim the
+system surfaces must trace to something observed (a measured result, a
+ledger receipt, a cited anchor), never to an assertion.
 
 ## The nine sources ingested
 
