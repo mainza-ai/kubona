@@ -3731,6 +3731,25 @@ func (s *Server) handleChemistryADMET(w http.ResponseWriter, r *http.Request) {
 		defaultedSmiles = true
 	}
 
+	// T-01a: bridge rail first (the prod image has no python, so the
+	// local exec below 503s there). Dev machines without a bridge keep
+	// the local rail via fallback inside admetViaBridge's false path.
+	if parsed, ok := s.admetViaBridge(r.Context(), smiles); ok {
+		if _, hasErr := parsed["error"]; !hasErr {
+			parsed["defaulted_smiles"] = defaultedSmiles
+			parsed["evaluated_by"] = "bridge"
+			s.ledger.AppendEvent("system", "molecular_admet_profiled", map[string]any{
+				"smiles":    smiles,
+				"mw":        parsed["molecular_weight"],
+				"logp":      parsed["clogp"],
+				"qed":       parsed["qed"],
+				"defaulted": defaultedSmiles,
+			})
+		}
+		writeJSON(w, http.StatusOK, parsed)
+		return
+	}
+
 	script := `import json, sys
 from chemistry import evaluate_molecular_admet
 try:
@@ -3801,6 +3820,24 @@ func (s *Server) handleDiscoveryPipeline(w http.ResponseWriter, r *http.Request)
 	}
 
 	candsJSON, _ := json.Marshal(req.Candidates)
+
+	// T-01a: bridge rail first (prod); local exec is the dev fallback
+	// (same shape, same ledger event, evaluated_by names the rail).
+	if parsed, ok := s.discoveryViaBridge(r.Context(), req.Target, candsJSON); ok {
+		if _, hasErr := parsed["error"]; !hasErr {
+			parsed["defaulted_target"] = defaultedTarget
+			parsed["defaulted_candidates"] = defaultedCandidates
+			parsed["evaluated_by"] = "bridge"
+			s.ledger.AppendEvent("system", "discovery_pipeline_evaluated", map[string]any{
+				"target":               req.Target,
+				"total_evaluated":      len(req.Candidates),
+				"top_lead":             parsed["top_lead"],
+				"defaulted_candidates": defaultedCandidates,
+			})
+		}
+		writeJSON(w, http.StatusOK, parsed)
+		return
+	}
 
 	script := `import json, sys
 from chemistry import evaluate_candidate_pipeline
