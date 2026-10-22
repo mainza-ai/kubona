@@ -10,6 +10,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License" /></a>
+  <a href="https://creativecommons.org/licenses/by/4.0/"><img src="https://img.shields.io/badge/Docs-CC--BY--4.0-orange.svg" alt="Documentation License" /></a>
   <a href="platform/kubona/"><img src="https://img.shields.io/badge/Python-49.7%25-3776AB?logo=python&logoColor=white" alt="Python" /></a>
   <a href="platform/core/"><img src="https://img.shields.io/badge/Go-33.4%25-00ADD8?logo=go&logoColor=white" alt="Go" /></a>
   <a href="platform/console/"><img src="https://img.shields.io/badge/TypeScript-16.1%25-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
@@ -140,6 +141,8 @@ GitHub: [@mainza-ai](https://github.com/mainza-ai)
 
 ---
 
-## 📄 License
+## 📄 License & Attribution
 
-Kubona is open-source software licensed under the [Apache-2.0 License](LICENSE).
+* **Software & Codebase**: Licensed under the [Apache License, Version 2.0](LICENSE).
+* **Documentation & Living Wiki**: Licensed under the [Creative Commons Attribution 4.0 International (CC-BY-4.0)](https://creativecommons.org/licenses/by/4.0/) license.
+* **Notices & Contributions**: See [`NOTICE`](NOTICE) for copyright and attribution notices, and [`CONTRIBUTING.md`](CONTRIBUTING.md) for contribution guidelines and Developer Certificate of Origin (DCO) details.

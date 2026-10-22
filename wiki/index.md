@@ -15,6 +15,10 @@ query, read this first to find relevant pages, then drill in.
 > shape the platform *before and while* it is implemented. It is not a build log, and the
 > state of the code is not the state of the design. Start at [[questions]] for what is
 > still unresolved; read [[implementation-gaps]] only for prototype facts.
+>
+> **Licence:** This living knowledge base and all blueprint specifications are licensed under
+> [Creative Commons Attribution 4.0 International (CC-BY-4.0)](https://creativecommons.org/licenses/by/4.0/).
+> Platform implementation code is licensed under [Apache-2.0](https://www.apache.org/licenses/LICENSE-2.0).
 
 ## The blueprint layers
 
