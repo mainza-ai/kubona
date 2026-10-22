@@ -1,6 +1,6 @@
 # Contributing to Kubona
 
-Thank you for your interest in contributing to **Kubona** — the open-source, MCP-native quantum-computing and AI-enhanced science discovery platform for autonomous AI agents.
+Thank you for your interest in contributing to **Kubona** — the open-source quantum-computing and AI-enhanced science discovery platform for autonomous AI agents, with an MCP tool layer (5 servers, 29 tools over stdio).
 
 Kubona is built to a high standard of engineering rigor, mathematical correctness, and strict licence discipline. Work is conducted on `develop`; `main` advances by fast-forward only.
 
