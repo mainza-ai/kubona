@@ -19,13 +19,15 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	QuantumBridgeService_ExecuteCircuit_FullMethodName         = "/kubona.QuantumBridgeService/ExecuteCircuit"
-	QuantumBridgeService_CutCircuit_FullMethodName             = "/kubona.QuantumBridgeService/CutCircuit"
-	QuantumBridgeService_ComputeClassicalAnchor_FullMethodName = "/kubona.QuantumBridgeService/ComputeClassicalAnchor"
-	QuantumBridgeService_EvaluateWavefunction_FullMethodName   = "/kubona.QuantumBridgeService/EvaluateWavefunction"
-	QuantumBridgeService_GroundLiterature_FullMethodName       = "/kubona.QuantumBridgeService/GroundLiterature"
-	QuantumBridgeService_ExecuteQuantumKrylov_FullMethodName   = "/kubona.QuantumBridgeService/ExecuteQuantumKrylov"
-	QuantumBridgeService_MitigateCircuit_FullMethodName        = "/kubona.QuantumBridgeService/MitigateCircuit"
+	QuantumBridgeService_ExecuteCircuit_FullMethodName            = "/kubona.QuantumBridgeService/ExecuteCircuit"
+	QuantumBridgeService_CutCircuit_FullMethodName                = "/kubona.QuantumBridgeService/CutCircuit"
+	QuantumBridgeService_ComputeClassicalAnchor_FullMethodName    = "/kubona.QuantumBridgeService/ComputeClassicalAnchor"
+	QuantumBridgeService_EvaluateWavefunction_FullMethodName      = "/kubona.QuantumBridgeService/EvaluateWavefunction"
+	QuantumBridgeService_GroundLiterature_FullMethodName          = "/kubona.QuantumBridgeService/GroundLiterature"
+	QuantumBridgeService_ExecuteQuantumKrylov_FullMethodName      = "/kubona.QuantumBridgeService/ExecuteQuantumKrylov"
+	QuantumBridgeService_MitigateCircuit_FullMethodName           = "/kubona.QuantumBridgeService/MitigateCircuit"
+	QuantumBridgeService_EvaluateMolecularADMET_FullMethodName    = "/kubona.QuantumBridgeService/EvaluateMolecularADMET"
+	QuantumBridgeService_EvaluateDiscoveryPipeline_FullMethodName = "/kubona.QuantumBridgeService/EvaluateDiscoveryPipeline"
 )
 
 // QuantumBridgeServiceClient is the client API for QuantumBridgeService service.
@@ -39,6 +41,8 @@ type QuantumBridgeServiceClient interface {
 	GroundLiterature(ctx context.Context, in *LiteratureGroundingRequest, opts ...grpc.CallOption) (*LiteratureGroundingResponse, error)
 	ExecuteQuantumKrylov(ctx context.Context, in *QuantumKrylovRequest, opts ...grpc.CallOption) (*QuantumKrylovResponse, error)
 	MitigateCircuit(ctx context.Context, in *MitigationRequest, opts ...grpc.CallOption) (*MitigationResponse, error)
+	EvaluateMolecularADMET(ctx context.Context, in *ChemistryADMETRequest, opts ...grpc.CallOption) (*ChemistryADMETResponse, error)
+	EvaluateDiscoveryPipeline(ctx context.Context, in *DiscoveryPipelineRequest, opts ...grpc.CallOption) (*DiscoveryPipelineResponse, error)
 }
 
 type quantumBridgeServiceClient struct {
@@ -119,6 +123,26 @@ func (c *quantumBridgeServiceClient) MitigateCircuit(ctx context.Context, in *Mi
 	return out, nil
 }
 
+func (c *quantumBridgeServiceClient) EvaluateMolecularADMET(ctx context.Context, in *ChemistryADMETRequest, opts ...grpc.CallOption) (*ChemistryADMETResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ChemistryADMETResponse)
+	err := c.cc.Invoke(ctx, QuantumBridgeService_EvaluateMolecularADMET_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *quantumBridgeServiceClient) EvaluateDiscoveryPipeline(ctx context.Context, in *DiscoveryPipelineRequest, opts ...grpc.CallOption) (*DiscoveryPipelineResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DiscoveryPipelineResponse)
+	err := c.cc.Invoke(ctx, QuantumBridgeService_EvaluateDiscoveryPipeline_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // QuantumBridgeServiceServer is the server API for QuantumBridgeService service.
 // All implementations must embed UnimplementedQuantumBridgeServiceServer
 // for forward compatibility.
@@ -130,6 +154,8 @@ type QuantumBridgeServiceServer interface {
 	GroundLiterature(context.Context, *LiteratureGroundingRequest) (*LiteratureGroundingResponse, error)
 	ExecuteQuantumKrylov(context.Context, *QuantumKrylovRequest) (*QuantumKrylovResponse, error)
 	MitigateCircuit(context.Context, *MitigationRequest) (*MitigationResponse, error)
+	EvaluateMolecularADMET(context.Context, *ChemistryADMETRequest) (*ChemistryADMETResponse, error)
+	EvaluateDiscoveryPipeline(context.Context, *DiscoveryPipelineRequest) (*DiscoveryPipelineResponse, error)
 	mustEmbedUnimplementedQuantumBridgeServiceServer()
 }
 
@@ -160,6 +186,12 @@ func (UnimplementedQuantumBridgeServiceServer) ExecuteQuantumKrylov(context.Cont
 }
 func (UnimplementedQuantumBridgeServiceServer) MitigateCircuit(context.Context, *MitigationRequest) (*MitigationResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method MitigateCircuit not implemented")
+}
+func (UnimplementedQuantumBridgeServiceServer) EvaluateMolecularADMET(context.Context, *ChemistryADMETRequest) (*ChemistryADMETResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method EvaluateMolecularADMET not implemented")
+}
+func (UnimplementedQuantumBridgeServiceServer) EvaluateDiscoveryPipeline(context.Context, *DiscoveryPipelineRequest) (*DiscoveryPipelineResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method EvaluateDiscoveryPipeline not implemented")
 }
 func (UnimplementedQuantumBridgeServiceServer) mustEmbedUnimplementedQuantumBridgeServiceServer() {}
 func (UnimplementedQuantumBridgeServiceServer) testEmbeddedByValue()                              {}
@@ -308,6 +340,42 @@ func _QuantumBridgeService_MitigateCircuit_Handler(srv interface{}, ctx context.
 	return interceptor(ctx, in, info, handler)
 }
 
+func _QuantumBridgeService_EvaluateMolecularADMET_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ChemistryADMETRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QuantumBridgeServiceServer).EvaluateMolecularADMET(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QuantumBridgeService_EvaluateMolecularADMET_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QuantumBridgeServiceServer).EvaluateMolecularADMET(ctx, req.(*ChemistryADMETRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _QuantumBridgeService_EvaluateDiscoveryPipeline_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DiscoveryPipelineRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QuantumBridgeServiceServer).EvaluateDiscoveryPipeline(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QuantumBridgeService_EvaluateDiscoveryPipeline_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QuantumBridgeServiceServer).EvaluateDiscoveryPipeline(ctx, req.(*DiscoveryPipelineRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // QuantumBridgeService_ServiceDesc is the grpc.ServiceDesc for QuantumBridgeService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -342,6 +410,14 @@ var QuantumBridgeService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "MitigateCircuit",
 			Handler:    _QuantumBridgeService_MitigateCircuit_Handler,
+		},
+		{
+			MethodName: "EvaluateMolecularADMET",
+			Handler:    _QuantumBridgeService_EvaluateMolecularADMET_Handler,
+		},
+		{
+			MethodName: "EvaluateDiscoveryPipeline",
+			Handler:    _QuantumBridgeService_EvaluateDiscoveryPipeline_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

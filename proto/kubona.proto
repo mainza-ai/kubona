@@ -183,6 +183,39 @@ message MitigationResponse {
   double sampling_overhead_kappa = 7;
 }
 
+// Chemistry rails (T-01a): schemaless science payloads ride as JSON
+// strings. The Python functions return evolving Dict[str, Any] and the Go
+// consumers treat them as map[string]any — a typed mirror would be a
+// third schema to drift. The proto carries transport framing
+// (success/error_message per the servicer failure contract); the JSON
+// carries the science. Never a generic snippet-exec RPC: operations are
+// the closed vocabulary below.
+message ChemistryADMETRequest {
+  string smiles = 1;
+}
+
+message ChemistryADMETResponse {
+  bool success = 1;
+  string result_json = 2;
+  string error_message = 3;
+}
+
+message DiscoveryCandidate {
+  string name = 1;
+  string smiles = 2;
+}
+
+message DiscoveryPipelineRequest {
+  string target = 1;
+  repeated DiscoveryCandidate candidates = 2;
+}
+
+message DiscoveryPipelineResponse {
+  bool success = 1;
+  string result_json = 2;
+  string error_message = 3;
+}
+
 service QuantumBridgeService {
   rpc ExecuteCircuit(CircuitExecutionRequest) returns (CircuitExecutionResponse);
   rpc CutCircuit(CircuitCutRequest) returns (CircuitCutResponse);
@@ -191,6 +224,8 @@ service QuantumBridgeService {
   rpc GroundLiterature(LiteratureGroundingRequest) returns (LiteratureGroundingResponse);
   rpc ExecuteQuantumKrylov(QuantumKrylovRequest) returns (QuantumKrylovResponse);
   rpc MitigateCircuit(MitigationRequest) returns (MitigationResponse);
+  rpc EvaluateMolecularADMET(ChemistryADMETRequest) returns (ChemistryADMETResponse);
+  rpc EvaluateDiscoveryPipeline(DiscoveryPipelineRequest) returns (DiscoveryPipelineResponse);
 }
 
 // R1 — canonical evidence envelope: one receipt identity across both

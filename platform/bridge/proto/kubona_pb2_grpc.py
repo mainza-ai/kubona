@@ -69,6 +69,16 @@ class QuantumBridgeServiceStub(object):
                 request_serializer=kubona__pb2.MitigationRequest.SerializeToString,
                 response_deserializer=kubona__pb2.MitigationResponse.FromString,
                 _registered_method=True)
+        self.EvaluateMolecularADMET = channel.unary_unary(
+                '/kubona.QuantumBridgeService/EvaluateMolecularADMET',
+                request_serializer=kubona__pb2.ChemistryADMETRequest.SerializeToString,
+                response_deserializer=kubona__pb2.ChemistryADMETResponse.FromString,
+                _registered_method=True)
+        self.EvaluateDiscoveryPipeline = channel.unary_unary(
+                '/kubona.QuantumBridgeService/EvaluateDiscoveryPipeline',
+                request_serializer=kubona__pb2.DiscoveryPipelineRequest.SerializeToString,
+                response_deserializer=kubona__pb2.DiscoveryPipelineResponse.FromString,
+                _registered_method=True)
 
 
 class QuantumBridgeServiceServicer(object):
@@ -116,6 +126,18 @@ class QuantumBridgeServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def EvaluateMolecularADMET(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def EvaluateDiscoveryPipeline(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_QuantumBridgeServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -153,6 +175,16 @@ def add_QuantumBridgeServiceServicer_to_server(servicer, server):
                     servicer.MitigateCircuit,
                     request_deserializer=kubona__pb2.MitigationRequest.FromString,
                     response_serializer=kubona__pb2.MitigationResponse.SerializeToString,
+            ),
+            'EvaluateMolecularADMET': grpc.unary_unary_rpc_method_handler(
+                    servicer.EvaluateMolecularADMET,
+                    request_deserializer=kubona__pb2.ChemistryADMETRequest.FromString,
+                    response_serializer=kubona__pb2.ChemistryADMETResponse.SerializeToString,
+            ),
+            'EvaluateDiscoveryPipeline': grpc.unary_unary_rpc_method_handler(
+                    servicer.EvaluateDiscoveryPipeline,
+                    request_deserializer=kubona__pb2.DiscoveryPipelineRequest.FromString,
+                    response_serializer=kubona__pb2.DiscoveryPipelineResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -344,6 +376,60 @@ class QuantumBridgeService(object):
             '/kubona.QuantumBridgeService/MitigateCircuit',
             kubona__pb2.MitigationRequest.SerializeToString,
             kubona__pb2.MitigationResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def EvaluateMolecularADMET(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/kubona.QuantumBridgeService/EvaluateMolecularADMET',
+            kubona__pb2.ChemistryADMETRequest.SerializeToString,
+            kubona__pb2.ChemistryADMETResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def EvaluateDiscoveryPipeline(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/kubona.QuantumBridgeService/EvaluateDiscoveryPipeline',
+            kubona__pb2.DiscoveryPipelineRequest.SerializeToString,
+            kubona__pb2.DiscoveryPipelineResponse.FromString,
             options,
             channel_credentials,
             insecure,

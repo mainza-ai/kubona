@@ -765,3 +765,56 @@ def test_pec_gamma_scales_with_depth():
     assert r_shallow["success"] is True and r_deep["success"] is True
     assert r_deep["pec_gamma"] > r_shallow["pec_gamma"]
     assert r_deep["pec_n_2q"] > r_shallow["pec_n_2q"]
+
+
+def test_chemistry_admet_servicer_roundtrip():
+    """T-01a: the ADMET servicer wraps evaluate_molecular_admet in the
+    transport envelope (success + result_json). Pre-fix the RPC did not
+    exist — this pins the wire path, not just the chemistry function."""
+    import json
+    from types import SimpleNamespace
+
+    from server import QuantumBridgeServicer
+
+    svc = QuantumBridgeServicer()
+    resp = svc.EvaluateMolecularADMET(SimpleNamespace(smiles="CCO"), None)
+    assert resp.success is True
+    assert resp.error_message == ""
+    res = json.loads(resp.result_json)
+    assert res["lipinski"]["pass"] is True
+    assert "qed" in res and "sa_score" in res
+
+
+def test_chemistry_admet_servicer_refuses_structured():
+    """T-01a: invalid SMILES fails structured (success=False + cause),
+    never an unstructured gRPC UNKNOWN and never a fake success."""
+    from types import SimpleNamespace
+
+    from server import QuantumBridgeServicer
+
+    svc = QuantumBridgeServicer()
+    resp = svc.EvaluateMolecularADMET(SimpleNamespace(smiles="not-a-molecule!!!"), None)
+    assert resp.success is False
+    assert resp.result_json == ""
+    assert resp.error_message != ""
+
+
+def test_discovery_pipeline_servicer_roundtrip():
+    """T-01a: the pipeline servicer ranks caller-supplied candidates and
+    returns the same envelope (success + result_json with top_lead)."""
+    import json
+    from types import SimpleNamespace
+
+    from server import QuantumBridgeServicer
+
+    svc = QuantumBridgeServicer()
+    cands = [
+        SimpleNamespace(name="Aspirin", smiles="CC(=O)Oc1ccccc1C(=O)O"),
+        SimpleNamespace(name="junk", smiles="not-a-molecule!!!"),
+    ]
+    resp = svc.EvaluateDiscoveryPipeline(SimpleNamespace(target="COX-2", candidates=cands), None)
+    assert resp.success is True
+    res = json.loads(resp.result_json)
+    assert res["target"] == "COX-2"
+    assert res["total_evaluated"] == 2
+    assert res["top_lead"]["name"] == "Aspirin"
