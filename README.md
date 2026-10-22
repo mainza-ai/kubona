@@ -9,6 +9,14 @@ with organized, reproducible results.
 > Kubona surfaces quantum phenomena, runs experiments, and shows their results — systematically.
 > The name is the Chitonga infinitive: *ku-* (infinitive) + *-bona* (see, observe, perceive).
 
+> [!NOTE]
+> **Kubona is under constant development.** It is a working research platform, not a
+> finished product: APIs, surfaces, and the blueprint itself change frequently, and the
+> repository is currently private while the design settles. Expect breaking changes,
+> unfinished surfaces, and docs that move faster than the code. See
+> [`wiki/roadmap.md`](wiki/roadmap.md) for what is gated on what, and
+> [`wiki/log.md`](wiki/log.md) for the latest state of the work.
+
 ## Repository layout
 
 | Path | What it is |
