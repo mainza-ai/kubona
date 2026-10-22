@@ -225,16 +225,42 @@ branches with the wiki batch):
 - T-10b `9ac485a` + `6f298ee` (live drill forced the terminal-skip
   refinement) · T-12 `a54ce0c` · T-02 `f6f298ee` · T-16 `a54ce0c`
 - T-03 closed by D-09 (posture in `tenant_reads.go` header + R-09).
-- T-09c filed (session-keyed mutations need separate threat analysis).
-- T-01a/b open: toolchain verified (exact plugin versions, regen
-  recipe above), wire change + Docker rebuild kept as its own gated
-  slice.
+- T-09c **`done` 2026-10-26** (`8ddd595`): spend-class (jobs/tribunal/
+  launch/autoresearch/resume) + content-class (chat POST/stream,
+  regenerate, feedback, rewrite) mutations bind caller to session
+  tenant via the same D-09 one-liner (SSE reports through error
+  events — headers already sent). Stash-proof: pre-fix the pins show
+  cross-lab jobs minting on the victim lab (201). Import stays open
+  per its documented rationale.
+- T-01a **`done` 2026-10-26** (`927f096`): ADMET + discovery via
+  `EvaluateMolecularADMET` / `EvaluateDiscoveryPipeline` (JSON-string
+  science payload, transport framing only — no generic exec).
+  Bridge-first with local fallback; bufconn pins + servicer pins +
+  compose live (both rails serve, refusal shape preserved).
+- T-01b **`done` 2026-10-26** (`13a3727`): 5 codesign snippets ported
+  to `bridge/codesign_ops.py`, single closed-vocabulary
+  `EvaluateCodesign` RPC; 230 lines of Go-embedded Python deleted
+  (dev fallback is a 6-line shim into the same module — no fork).
+  Unchanged handler tests pass through the shim (port equivalence);
+  bufconn + servicer pins; compose live — F-001 fully closed
+  (7/7 rails serve).
+- T-01 fallout fixed in-slice: bridge image ships `contracts/` with
+  `KUBONA_EVENT_TYPES` (codesign imports need the closed taxonomy;
+  exposed only because codesign never ran in that image before), and
+  the jobs test fake now embeds the client interface (regen-proof).
+- D-15 still pending: exactly 1 live tribunal run of telemetry
+  exists — insufficient for a posture decision. Revisit with a week
+  of `turn-telemetry` lines.
 
 Live drills (fresh rail, `live-token`): single-lab anon 200 →
 multi-lab anon 401 → bearer 200 → spoof-create 403; killed row
 survived restart, sleeping settled to aborted, session deleted;
 fidelity bare call honest ADMIT with `probe_run:false`; tribunal run
 emitted `turn-telemetry` lines (turn 2's 71 s serial wait visible).
+Compose drills 2026-10-26 (T-01a/b): chemistry ADMET + discovery serve
+via bridge (`evaluated_by: bridge`, refusal shape preserved); all 5
+codesign rails serve (evaluate T1 Q3 golden, packs ×5, budget, batch,
+families, invalid → 400).
 Suites: Go 29/29, console 42 files / 200 tests, tsc, wiki lint,
 Python taxonomy 4/4, ifc-core 9/9.
 
