@@ -61,7 +61,7 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7ac1f938f6d7ec # stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           # R0: this job rebuilds qir-core for the Python suite — without
           # the cargo cache every run recompiled it from scratch.
@@ -108,7 +108,7 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7ac1f938f6d7ec # stable
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           cache: true
       - name: Build Rust qir-core (production compiler core)
