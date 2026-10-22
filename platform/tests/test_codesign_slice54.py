@@ -61,6 +61,7 @@ def test_sqr_basis_and_random():
         assert got == F2_12.mul(x, x), x
 
 
+@pytest.mark.slow  # paper-scale ~27s locally; CI slow lane
 def test_fermat_inverter_exhaustive():
     n_tot = [0]
     for x in range(4096):

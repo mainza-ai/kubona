@@ -55,3 +55,8 @@ include = ["kubona*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Launch-day red (2026-10-22): paper-scale/exhaustive tests take minutes
+# each, so the serial suite cannot fit a per-push gate. Marked tests run
+# in the slow CI lane (-m slow); everything else is the fast lane.
+# Tag by measurement (comment cites local seconds), never by guess.
+markers = ["slow: paper-scale or exhaustive test (minutes each); runs in the CI slow lane"]
