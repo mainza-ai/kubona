@@ -121,8 +121,21 @@ jobs:
           curl -sf http://127.0.0.1:8080/api/ready
       - name: Console serves + bridge answers gRPC
         run: |
+          # D2: the console boots slower than kubonad becomes ready — the
+          # pre-launch smoke curled :3000 in the same second the container
+          # started (exit 56) and failed a healthy stack. Wait like the
+          # /api/ready loop above instead of curling once.
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:3000/ > /dev/null && break || sleep 10
+          done
           curl -sf http://127.0.0.1:3000/ > /dev/null
           docker exec kubona-prod-bridge-1 python -c "import grpc; grpc.channel_ready_future(grpc.insecure_channel('127.0.0.1:50051')).result(timeout=10); print('bridge grpc ok')"
+      - name: Smoke logs on failure (console/bridge/kubonad tails)
+        if: failure()
+        run: |
+          docker compose -f platform/docker/compose.prod.yml logs --tail=60 console || true
+          docker compose -f platform/docker/compose.prod.yml logs --tail=30 bridge || true
+          docker compose -f platform/docker/compose.prod.yml logs --tail=30 kubonad || true
       - name: Unauthenticated abort fails closed (503, never 2xx)
         run: |
           code=$(curl -s -o /dev/null -w '%{http_code}' -X POST http://127.0.0.1:8080/api/supervisor/abort -H 'Content-Type: application/json' -d '{"session_id":"ci-smoke"}')
