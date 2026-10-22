@@ -3712,8 +3712,17 @@ func findPythonVenv() (string, string) {
 	// No venv: fall back to a checkout-anchored bridge dir (CI installs
 	// the kubona package, so only codesign_ops on sys.path matters) and
 	// finally to CWD — never a nonexistent dir, so failures name the
-	// missing interpreter/package instead of failing chdir.
-	for _, d := range []string{"bridge", "platform/bridge", "../bridge", "../../bridge"} {
+	// missing interpreter/package instead of failing chdir. Anchored for
+	// every CWD the daemon and its tests run from: go-test binaries run
+	// in their package dir, three levels below platform/bridge.
+	for _, d := range []string{
+		"bridge",             // CWD=platform
+		"platform/bridge",    // CWD=repo root
+		"../bridge",          // CWD=platform/core
+		"../../bridge",       // CWD=platform/pkg/<x>
+		"../../../bridge",    // CWD=platform/core/pkg/<x> (go test)
+		"../../../../bridge", // deeper test nesting, just in case
+	} {
 		if absDir, err := filepath.Abs(d); err == nil {
 			if st, serr := os.Stat(absDir); serr == nil && st.IsDir() {
 				return "python3", absDir
