@@ -31,8 +31,8 @@ import (
 type fakeCodesignBridge struct {
 	pb.UnimplementedQuantumBridgeServiceServer
 	resultJSON string
-	errMsg    string
-	gotOp     string
+	errMsg     string
+	gotOp      string
 }
 
 func (f *fakeCodesignBridge) EvaluateCodesign(_ context.Context, req *pb.CodesignRequest) (*pb.CodesignResponse, error) {

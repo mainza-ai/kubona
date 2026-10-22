@@ -27,6 +27,13 @@ RUN pip install --no-cache-dir ".[qiskit,chemistry]" \
     && groupadd -g 1000 kubona && useradd -u 1000 -g kubona -m -s /bin/sh kubona
 
 COPY bridge ./bridge
+# T-01b: the closed event taxonomy is a runtime dependency, not just a
+# test fixture — kubona.provenance refuses to import without it
+# (fail-closed by design), and codesign_ops reaches it via
+# kubona.codesign -> autoresearch -> provenance. The loader's designed
+# override (KUBONA_EVENT_TYPES) points at the shipped copy.
+COPY contracts ./contracts
+ENV KUBONA_EVENT_TYPES=/app/contracts/event-types.json
 RUN chown -R kubona:kubona /app
 
 USER kubona
