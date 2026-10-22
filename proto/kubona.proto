@@ -216,6 +216,22 @@ message DiscoveryPipelineResponse {
   string error_message = 3;
 }
 
+// Codesign rail (T-01b): one RPC with a closed operation vocabulary
+// (evaluate/batch/families/packs/budget). The operation selects a
+// function in bridge/codesign_ops.py — never caller-supplied code.
+// Same JSON-string framing as chemistry: the science payload evolves,
+// the proto carries transport only.
+message CodesignRequest {
+  string operation = 1;
+  string request_json = 2;
+}
+
+message CodesignResponse {
+  bool success = 1;
+  string result_json = 2;
+  string error_message = 3;
+}
+
 service QuantumBridgeService {
   rpc ExecuteCircuit(CircuitExecutionRequest) returns (CircuitExecutionResponse);
   rpc CutCircuit(CircuitCutRequest) returns (CircuitCutResponse);
@@ -226,6 +242,7 @@ service QuantumBridgeService {
   rpc MitigateCircuit(MitigationRequest) returns (MitigationResponse);
   rpc EvaluateMolecularADMET(ChemistryADMETRequest) returns (ChemistryADMETResponse);
   rpc EvaluateDiscoveryPipeline(DiscoveryPipelineRequest) returns (DiscoveryPipelineResponse);
+  rpc EvaluateCodesign(CodesignRequest) returns (CodesignResponse);
 }
 
 // R1 — canonical evidence envelope: one receipt identity across both
