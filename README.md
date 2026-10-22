@@ -89,6 +89,20 @@ Every epistemic stage translates into concrete, deterministic tools exposed thro
 
 ---
 
+## 🧱 Design Principles
+
+Kubona runs on three rules. They apply to the code, the agents, and this README.
+
+**1. Receipts don't lie.** Every spend decision, every evaluation result, every agent action is written to a sealed, tamper-proof ledger. If it isn't in the ledger, it didn't happen. Measurements are measurements. Guesses are labeled as guesses.
+
+**2. Refuse loudly.** No silent defaults. No invented numbers. No unchecked boxes. When the platform cannot do the real thing, it says so, in plain language, at the point of failure. A loud refusal beats a quiet lie.
+
+**3. Count the tokens.** Every scaffold, every tool, every agent loop must justify its token tax with a trust property it provides. Scaffolding that doesn't beat the baseline gets taken down.
+
+These are not aspirations. The ledger is sealed, the refusal paths are tested, and the token budgets are capped.
+
+---
+
 ## 🏛️ System Topology & Codebase Layout
 
 | Directory | Layer | Description |
