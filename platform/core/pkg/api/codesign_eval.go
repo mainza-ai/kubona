@@ -31,245 +31,13 @@ import (
 
 const codesignEvalMaxBody = 1 << 20
 
-// evalSnippet runs one harness evaluation. Single validator: every bound
-// below mirrors console_api (num_tests HTTP-capped at 4096 — larger runs
-// belong in the local harness, not behind a request timeout).
-const evalSnippet = `import json, sys
-def strict_int(v, name, lo, hi):
-    if isinstance(v, bool) or not isinstance(v, int) or not (lo <= v <= hi):
-        raise ValueError(f"{name} must be an int in [{lo},{hi}]: refusing")
-    return v
-try:
-    body = json.loads(sys.argv[1])
-    if not isinstance(body, dict):
-        raise ValueError("body must be a JSON object: refusing")
-    from kubona.codesign import (CircuitCodesignHarness, build_spec,
-                                  build_truth_table_spec, kappa_sweep)
-    from kubona.codesign.factories import factory_report
-    if "spec_table" in body and body["spec_table"] is not None:
-        st = body["spec_table"]
-        if not isinstance(st, dict):
-            raise ValueError("spec_table must be an object: refusing")
-        ins, outs, table = st.get("inputs", []), st.get("outputs", []), st.get("table", {})
-        if not isinstance(ins, list) or not isinstance(outs, list) or not isinstance(table, dict):
-            raise ValueError("spec_table needs inputs[]/outputs[]/table{}: refusing")
-        spec = build_truth_table_spec(
-            strict_int(st.get("num_qubits", 0), "num_qubits", 1, 64),
-            [strict_int(q, "inputs[]", 0, 63) for q in ins],
-            [strict_int(q, "outputs[]", 0, 63) for q in outs],
-            table)
-        label = "table"
-    else:
-        kind = body.get("spec_kind")
-        spec = build_spec(str(kind))
-        label = str(kind)
-    num_tests = strict_int(body.get("num_tests", 64), "num_tests", 1, 4096)
-    max_failures = strict_int(body.get("max_failures", 0), "max_failures", 0, num_tests)
-    kappa = strict_int(body.get("kappa", 1), "kappa", 1, 3)
-    seed = strict_int(body.get("seed", 7), "seed", 0, 2**31 - 1)
-    h = CircuitCodesignHarness(spec, num_tests=num_tests,
-                               max_failures=max_failures, kappa=kappa, seed=seed)
-    res = h.run(body.get("artifact", []))
-    if res.get("valid"):
-        res["kappa_sweep"] = {str(k): v for k, v in
-                              kappa_sweep(res["toffoli"], res["peak_qubits"]).items()}
-    fac, cd, cu = body.get("factory"), body.get("code_distance"), body.get("cycle_us")
-    if fac is None and (cd is not None or cu is not None):
-        raise ValueError("factory diagnostics need factory + code_distance + cycle_us together: refusing")
-    if fac is not None:
-        if cd is None or cu is None:
-            raise ValueError("factory diagnostics need factory + code_distance + cycle_us together: refusing (no silent physics)")
-        res["factory"] = factory_report(toffoli=res["toffoli"], qubits=res["peak_qubits"],
-                                        toffoli_depth=res.get("toffoli_depth", 0), factory=fac,
-                                        code_distance=cd, cycle_us=cu)
-    print(json.dumps({"ok": True, "spec_kind": label, "result": res}))
-except ValueError as e:
-    print(json.dumps({"ok": False, "error": str(e)[:280]}))
-except Exception as e:
-    print(json.dumps({"ok": False, "error": f"evaluation refused: {e}"[:280]}))
-`
-
-// batchSnippet mirrors codesign_frontier (fixed num_tests=32, artifacts<=64).
-const batchSnippet = `import json, sys
-def strict_int(v, name, lo, hi):
-    if isinstance(v, bool) or not isinstance(v, int) or not (lo <= v <= hi):
-        raise ValueError(f"{name} must be an int in [{lo},{hi}]: refusing")
-    return v
-try:
-    body = json.loads(sys.argv[1])
-    if not isinstance(body, dict):
-        raise ValueError("body must be a JSON object: refusing")
-    from kubona.codesign import (CircuitCodesignHarness, MapElitesFrontier,
-                                  build_spec, build_truth_table_spec)
-    if "spec_table" in body and body["spec_table"] is not None:
-        st = body["spec_table"]
-        if not isinstance(st, dict):
-            raise ValueError("spec_table must be an object: refusing")
-        ins, outs, table = st.get("inputs", []), st.get("outputs", []), st.get("table", {})
-        if not isinstance(ins, list) or not isinstance(outs, list) or not isinstance(table, dict):
-            raise ValueError("spec_table needs inputs[]/outputs[]/table{}: refusing")
-        spec = build_truth_table_spec(
-            strict_int(st.get("num_qubits", 0), "num_qubits", 1, 64),
-            [strict_int(q, "inputs[]", 0, 63) for q in ins],
-            [strict_int(q, "outputs[]", 0, 63) for q in outs],
-            table)
-        label = "table"
-    else:
-        kind = body.get("spec_kind")
-        spec = build_spec(str(kind))
-        label = str(kind)
-    artifacts = body.get("artifacts", [])
-    kappa = strict_int(body.get("kappa", 1), "kappa", 1, 3)
-    if not isinstance(artifacts, list) or len(artifacts) > 64:
-        raise ValueError("artifacts must be a list of <=64: refusing")
-    h = CircuitCodesignHarness(spec, num_tests=32, kappa=kappa)
-    f = MapElitesFrontier(kappa=kappa)
-    details = []
-    for art in artifacts:
-        r = h.run(art)
-        details.append({"valid": r["valid"], "toffoli": r["toffoli"],
-                        "peak_qubits": r["peak_qubits"], "tq": r["tq"],
-                        "eps_bound_97_5": r.get("eps_bound_97_5"),
-                        "depth": r.get("depth"),
-                        "toffoli_depth": r.get("toffoli_depth"),
-                        "active_qubits": r.get("active_qubits")})
-        if r["valid"]:
-            f.offer(art, r["toffoli"], r["peak_qubits"], {"tq": r["tq"]})
-    print(json.dumps({"ok": True, "spec_kind": label,
-                      "frontier": f.to_dict(), "details": details}))
-except ValueError as e:
-    print(json.dumps({"ok": False, "error": str(e)[:280]}))
-except Exception as e:
-    print(json.dumps({"ok": False, "error": f"frontier refused: {e}"[:280]}))
-`
-
-// familiesSnippet runs one bounded evaluated family search (ux-plan slice 3):
-// same spec for all tracks (cross-family comparison needs common ground),
-// each artifact evaluated (invalid recorded, never scored), valid offers
-// mature their family frontier, then share_rounds of cross-pollination,
-// then the widen-nudge names the most stagnant track. Deterministic
-// (sorted order, fixed seed basis); humain nudge reads the output.
-const familiesSnippet = `import json, sys
-def strict_int(v, name, lo, hi):
-    if isinstance(v, bool) or not isinstance(v, int) or not (lo <= v <= hi):
-        raise ValueError(f"{name} must be an int in [{lo},{hi}]: refusing")
-    return v
-try:
-    body = json.loads(sys.argv[1])
-    if not isinstance(body, dict):
-        raise ValueError("body must be a JSON object: refusing")
-    from kubona.codesign import (CircuitCodesignHarness, FamilySearch,
-                                  build_spec, build_truth_table_spec)
-    if "spec_table" in body and body["spec_table"] is not None:
-        st = body["spec_table"]
-        if not isinstance(st, dict):
-            raise ValueError("spec_table must be an object: refusing")
-        ins, outs, table = st.get("inputs", []), st.get("outputs", []), st.get("table", {})
-        if not isinstance(ins, list) or not isinstance(outs, list) or not isinstance(table, dict):
-            raise ValueError("spec_table needs inputs[]/outputs[]/table{}: refusing")
-        spec = build_truth_table_spec(
-            strict_int(st.get("num_qubits", 0), "num_qubits", 1, 64),
-            [strict_int(q, "inputs[]", 0, 63) for q in ins],
-            [strict_int(q, "outputs[]", 0, 63) for q in outs],
-            table)
-        label = "table"
-    else:
-        kind = body.get("spec_kind")
-        spec = build_spec(str(kind))
-        label = str(kind)
-    families = body.get("families", [])
-    kappa = strict_int(body.get("kappa", 1), "kappa", 1, 3)
-    if not isinstance(families, list) or not (1 <= len(families) <= 8):
-        raise ValueError("families must be a list of 1..8 distinct names: refusing")
-    offers_in = body.get("offers", [])
-    if not isinstance(offers_in, list) or len(offers_in) > 64:
-        raise ValueError("offers must be a list of <=64: refusing")
-    share_rounds = strict_int(body.get("share_rounds", 1), "share_rounds", 0, 3)
-    num_tests = 32
-    fs = FamilySearch(families, kappa=kappa)
-    h = CircuitCodesignHarness(spec, num_tests=num_tests, max_failures=0,
-                               kappa=kappa, seed=7)
-    offers = []
-    for o in offers_in:
-        if not isinstance(o, dict) or "family" not in o or "artifact" not in o:
-            raise ValueError("each offer needs {family, artifact}: refusing")
-        fam = o["family"]
-        r = h.run(o["artifact"])
-        if not r["valid"]:
-            offers.append({"family": fam, "valid": False})
-            continue
-        improved = fs.offer(fam, o["artifact"], r["toffoli"], r["peak_qubits"])
-        offers.append({"family": fam, "valid": True,
-                       "toffoli": r["toffoli"], "qubits": r["peak_qubits"],
-                       "tq": r["tq"], "improved": improved})
-    shares = []
-    for _ in range(share_rounds):
-        shares.append(fs.share_elites())
-    print(json.dumps({"ok": True, "spec_kind": label, "kappa": kappa,
-                      "offers": offers, "elites": fs.elites(),
-                      "stagnation": dict(fs._stagnant),
-                      "lineage_len": len(fs.lineage),
-                      "lineage": fs.lineage[-128:],
-                      "shares": shares, "widen_nudge": fs.widen_nudge()}))
-except ValueError as e:
-    print(json.dumps({"ok": False, "error": str(e)[:280]}))
-except Exception as e:
-    print(json.dumps({"ok": False, "error": f"families refused: {e}"[:280]}))
-`
-
-// packsSnippet serves the pack registry live (ux-plan slice 4): no
-// hand-typed pack list anywhere — the console renders this document.
-// Promotion stays a privileged op (ledger refs); this rail is read-only.
-const packsSnippet = `import json, sys
-try:
-    from kubona.codesign.packs import PACK_ORDER, default_registry
-    reg = default_registry()
-    print(json.dumps({"ok": True, "order": list(PACK_ORDER), "packs": [
-        {"name": name, "version": p.version,
-         "anchor_required": p.anchor_required,
-         "evidence_reqs": list(p.evidence_reqs), "status": p.status,
-         "anchor_ref": p.anchor_ref, "proof_ref": p.proof_ref}
-        for name, p in reg.items()]}))
-except Exception as e:
-    print(json.dumps({"ok": False, "error": f"registry refused: {e}"[:280]}))
-`
-
-// budgetSnippet mirrors codesign_budget (entries<=32, Table-S4 math).
-const budgetSnippet = `import json, sys
-def strict_int(v, name, lo, hi):
-    if isinstance(v, bool) or not isinstance(v, int) or not (lo <= v <= hi):
-        raise ValueError(f"{name} must be an int in [{lo},{hi}]: refusing")
-    return v
-try:
-    body = json.loads(sys.argv[1])
-    if not isinstance(body, dict):
-        raise ValueError("body must be a JSON object: refusing")
-    from kubona.codesign import BudgetEntry, ledger_rows, union_bound
-    raw = body.get("entries", [])
-    if not isinstance(raw, list) or len(raw) > 32:
-        raise ValueError("entries must be a list of <=32: refusing")
-    entries = []
-    for e in raw:
-        if not isinstance(e, dict):
-            raise ValueError(f"entry must be an object, got {e!r}: refusing")
-        rate = e.get("per_use_rate", float("nan"))
-        if isinstance(rate, bool) or not isinstance(rate, (int, float)):
-            raise ValueError(f"per_use_rate must be a number, got {rate!r}: refusing")
-        entries.append(BudgetEntry(str(e.get("source", "")),
-                                   float(rate),
-                                   strict_int(e.get("uses", -1), "uses", 0, 10**9)))
-    print(json.dumps({"ok": True, "rows": ledger_rows(entries),
-                      "union_bound": union_bound(entries)}))
-except ValueError as e:
-    print(json.dumps({"ok": False, "error": str(e)[:280]}))
-except Exception as e:
-    print(json.dumps({"ok": False, "error": f"budget refused: {e}"[:280]}))
-`
-
 // proxyCodesign is the shared rail: method gate, body cap, forward raw,
 // map outer ok flag to status. Python owns all validation (single
-// validator); Go owns transport + timeout + status mapping.
-func (s *Server) proxyCodesign(w http.ResponseWriter, r *http.Request, script string, allowGet ...bool) {
+// validator, now in bridge/codesign_ops.py); Go owns transport +
+// timeout + status mapping. Bridge rail first (prod); the dev fallback
+// runs the same ops module through a 6-line shim — the five retired
+// string constants are gone, not forked.
+func (s *Server) proxyCodesign(w http.ResponseWriter, r *http.Request, operation string, allowGet ...bool) {
 	getOK := len(allowGet) > 0 && allowGet[0]
 	if r.Method != http.MethodPost && !(getOK && r.Method == http.MethodGet) {
 		http.Error(w, "method not allowed: refusing", http.StatusMethodNotAllowed)
@@ -289,11 +57,23 @@ func (s *Server) proxyCodesign(w http.ResponseWriter, r *http.Request, script st
 		WriteAPIError(w, "bad_request", "invalid JSON body: refusing", nil)
 		return
 	}
-	out, _, err := runBridgePython(r.Context(), 120*time.Second, script, string(raw))
+	if out, ok := s.codesignViaBridge(r.Context(), operation, raw); ok {
+		s.writeCodesignResult(w, out)
+		return
+	}
+	shim := "import json, sys\nfrom codesign_ops import run_op\nprint(json.dumps(run_op(sys.argv[1], json.loads(sys.argv[2]))))"
+	out, _, err := runBridgePython(r.Context(), 120*time.Second, shim, operation, string(raw))
 	if err != nil {
 		http.Error(w, fmt.Sprintf("codesign evaluator unavailable: %v", err), http.StatusServiceUnavailable)
 		return
 	}
+	s.writeCodesignResult(w, out)
+}
+
+// writeCodesignResult maps the outer ok flag to status (unchanged
+// contract): unparseable is a 502, ok:false is a 400 naming the refusal,
+// ok:true serves the full document.
+func (s *Server) writeCodesignResult(w http.ResponseWriter, out []byte) {
 	cleanOut := bytes.TrimSpace(out)
 	if idx := bytes.Index(cleanOut, []byte("{")); idx >= 0 {
 		cleanOut = cleanOut[idx:]
@@ -320,21 +100,21 @@ func (s *Server) proxyCodesign(w http.ResponseWriter, r *http.Request, script st
 }
 
 func (s *Server) handleCodesignEvaluate(w http.ResponseWriter, r *http.Request) {
-	s.proxyCodesign(w, r, evalSnippet)
+	s.proxyCodesign(w, r, "evaluate")
 }
 
 func (s *Server) handleCodesignEvaluateBatch(w http.ResponseWriter, r *http.Request) {
-	s.proxyCodesign(w, r, batchSnippet)
+	s.proxyCodesign(w, r, "batch")
 }
 
 func (s *Server) handleCodesignFamilies(w http.ResponseWriter, r *http.Request) {
-	s.proxyCodesign(w, r, familiesSnippet)
+	s.proxyCodesign(w, r, "families")
 }
 
 func (s *Server) handleCodesignBudget(w http.ResponseWriter, r *http.Request) {
-	s.proxyCodesign(w, r, budgetSnippet)
+	s.proxyCodesign(w, r, "budget")
 }
 
 func (s *Server) handleCodesignPacks(w http.ResponseWriter, r *http.Request) {
-	s.proxyCodesign(w, r, packsSnippet, true)
+	s.proxyCodesign(w, r, "packs", true)
 }

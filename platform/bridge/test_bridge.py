@@ -818,3 +818,54 @@ def test_discovery_pipeline_servicer_roundtrip():
     assert res["target"] == "COX-2"
     assert res["total_evaluated"] == 2
     assert res["top_lead"]["name"] == "Aspirin"
+
+
+def test_codesign_servicer_evaluate_roundtrip():
+    """T-01b: the codesign servicer runs the ported op and returns the
+    same envelope the retired snippet printed (ok + spec_kind + result)."""
+    import json
+    from types import SimpleNamespace
+
+    from server import QuantumBridgeServicer
+
+    svc = QuantumBridgeServicer()
+    body = json.dumps({"spec_kind": "and2", "num_tests": 8,
+                       "artifact": [["ccx", [0, 1, 2], []]], "kappa": 1})
+    resp = svc.EvaluateCodesign(SimpleNamespace(operation="evaluate", request_json=body), None)
+    assert resp.success is True
+    assert resp.error_message == ""
+    res = json.loads(resp.result_json)
+    assert res["ok"] is True
+    assert res["spec_kind"] == "and2"
+    # Golden pins mirror the Go handler test (and2 = T1 Q3 TQ3).
+    assert res["result"]["valid"] is True
+    assert res["result"]["toffoli"] == 1
+    assert res["result"]["peak_qubits"] == 3
+
+
+def test_codesign_servicer_closed_vocabulary():
+    """T-01b: unknown operations and unparseable bodies refuse as
+    structured failures — never exec, never a fake success."""
+    from types import SimpleNamespace
+
+    from server import QuantumBridgeServicer
+
+    svc = QuantumBridgeServicer()
+    resp = svc.EvaluateCodesign(SimpleNamespace(operation="rm -rf", request_json="{}"), None)
+    assert resp.success is False
+    assert "unknown codesign operation" in resp.error_message
+    resp = svc.EvaluateCodesign(SimpleNamespace(operation="evaluate", request_json="{nope"), None)
+    assert resp.success is False
+    assert resp.error_message != ""
+
+
+def test_codesign_ops_error_strings_match_retired_snippets():
+    """T-01b: the ported validation speaks the retired snippets'
+    byte-identical refusal strings (handler tests assert them)."""
+    from codesign_ops import run_op
+
+    bad = run_op("evaluate", {"spec_kind": "and2", "kappa": 9, "artifact": []})
+    assert bad == {"ok": False, "error": "kappa must be an int in [1,3]: refusing"}
+    bad = run_op("budget", {"entries": [{"source": "x", "per_use_rate": True, "uses": 1}]})
+    assert bad["ok"] is False
+    assert "per_use_rate must be a number" in bad["error"]
