@@ -67,30 +67,56 @@ func (s *Server) checkCallerAuth(w http.ResponseWriter, r *http.Request) (tenant
 	return tenant, true
 }
 
+// checkSessionTenant is the pure D-09 decision (no writes): whether this
+// request may touch sess, and if not, the refusal to report. HTTP
+// handlers report via authorizeSessionRead (status codes); SSE reports
+// via error events (headers already sent) — one rule, two reporters.
+func (s *Server) checkSessionTenant(r *http.Request, sess *session.Session) (allow bool, code int, msg string) {
+	if hasNoCredentials(r) {
+		if s.singleTenantStore() {
+			return true, http.StatusOK, ""
+		}
+		return false, http.StatusUnauthorized, "multi-lab store: log in or present the operator token to touch sessions"
+	}
+	tenant, _, code := s.checkAuth(r)
+	if code != http.StatusOK {
+		switch code {
+		case http.StatusForbidden:
+			return false, code, "cross-site session use refused: retry same-origin"
+		case http.StatusServiceUnavailable:
+			return false, code, "operator token not configured: cannot authenticate"
+		default:
+			return false, code, "session required: log in or present the operator token"
+		}
+	}
+	if tenant == "" {
+		return true, http.StatusOK, "" // bearer operator: no tenant to scope to, full access
+	}
+	if sess != nil && tenant != sess.TenantID {
+		return false, http.StatusForbidden, "session belongs to another lab: refused"
+	}
+	return true, http.StatusOK, ""
+}
+
 // authorizeSessionRead enforces D-09 on one resolved session row.
 // Callers resolve the session first (ghosts keep their legacy behavior —
 // 404 or empty list — via authorizeKnownSession); this function only
 // compares caller vs session tenant.
 func (s *Server) authorizeSessionRead(w http.ResponseWriter, r *http.Request, sess *session.Session) bool {
-	if hasNoCredentials(r) {
-		if s.singleTenantStore() {
-			return true
-		}
-		WriteAPIError(w, "unauthorized", "multi-lab store: log in or present the operator token to read sessions", nil)
+	allow, code, msg := s.checkSessionTenant(r, sess)
+	if allow {
+		return true
+	}
+	if code == http.StatusServiceUnavailable {
+		http.Error(w, msg, code)
 		return false
 	}
-	tenant, ok := s.checkCallerAuth(w, r)
-	if !ok {
+	if code == http.StatusForbidden {
+		WriteAPIError(w, "forbidden", msg, nil)
 		return false
 	}
-	if tenant == "" {
-		return true // bearer operator: no tenant to scope to, full access
-	}
-	if sess != nil && tenant != sess.TenantID {
-		WriteAPIError(w, "forbidden", "session belongs to another lab: refused", nil)
-		return false
-	}
-	return true
+	WriteAPIError(w, "unauthorized", msg, nil)
+	return false
 }
 
 // authorizeKnownSession resolves the session and, when it exists,

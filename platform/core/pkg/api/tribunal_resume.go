@@ -167,6 +167,11 @@ func (s *Server) handleTribunalResume(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
 	}
+	// T-09c: resumed runs spend on the session's lab — bind the caller
+	// (same rule as a fresh tribunal).
+	if _, ok := s.authorizeKnownSession(w, r, req.SessionID); !ok {
+		return
+	}
 	tribIdem, tribRef := s.idemBegin(req.SessionID, req.RequestID, map[string]any{
 		"session_id": req.SessionID, "prompt": req.Prompt, "bundle": string(req.Bundle),
 	}, idemRailSlow)

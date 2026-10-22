@@ -293,3 +293,69 @@ func TestSessionDeleteBoundToTenant(t *testing.T) {
 		t.Errorf("bearer deleting lab-b session must 200, got %d", code)
 	}
 }
+
+// T-09c: session-keyed mutations bind caller to session tenant. Spend
+// (jobs/tribunal/launch) and content (feedback/rewrite/regenerate)
+// mutations refuse cross-lab cookies with 403; own-lab and bearer flows
+// pass unchanged. Ghost behavior is untouched (404s preserved).
+func TestMutationsBoundToTenant(t *testing.T) {
+	srv, cleanup := setupTenantDrill(t)
+	defer cleanup()
+	drillTenant(t, srv, "lab-a")
+	drillTenant(t, srv, "lab-b")
+	cookieA := drillLogin(t, srv, "lab-a")
+	sessA := drillSession(t, srv, "a-work", "lab-a", "test-token")
+	sessB := drillSession(t, srv, "b-work", "lab-b", "test-token")
+
+	post := func(path string, body any, cookie, token string) (int, string) {
+		t.Helper()
+		raw, _ := json.Marshal(body)
+		req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(raw))
+		if cookie != "" {
+			req.AddCookie(&http.Cookie{Name: "kubona_session", Value: cookie})
+		}
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		w := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w, req)
+		return w.Code, w.Body.String()
+	}
+	qasm := "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\nh q[0];\nmeasure q[0] -> c[0];\n"
+
+	// Spend class: jobs dispatch.
+	jobBody := map[string]any{"session_id": sessB, "qasm": qasm, "backend": "local_simulator", "shots": 100}
+	if code, body := post("/api/jobs", jobBody, cookieA, ""); code != http.StatusForbidden {
+		t.Errorf("cross-lab jobs dispatch must 403, got %d: %s", code, body)
+	}
+	jobBody["session_id"] = sessA
+	if code, body := post("/api/jobs", jobBody, cookieA, ""); code != http.StatusCreated {
+		t.Errorf("own-lab jobs dispatch must 201, got %d: %s", code, body)
+	}
+
+	// Spend class: tribunal + launch refuse before any work.
+	if code, _ := post("/api/chat/tribunal", map[string]any{"session_id": sessB, "prompt": "x"}, cookieA, ""); code != http.StatusForbidden {
+		t.Errorf("cross-lab tribunal must 403, got %d", code)
+	}
+	if code, _ := post("/api/chat/launch", map[string]any{"session_id": sessB, "qasm": qasm, "backend": "local_simulator"}, cookieA, ""); code != http.StatusForbidden {
+		t.Errorf("cross-lab launch must 403, got %d", code)
+	}
+
+	// Content class: feedback / rewrite / regenerate refuse before touching rows.
+	fb := map[string]any{"session_id": sessB, "message_id": "ghost-msg", "vote": "up"}
+	if code, _ := post("/api/chat/feedback", fb, cookieA, ""); code != http.StatusForbidden {
+		t.Errorf("cross-lab feedback must 403, got %d", code)
+	}
+	rw := map[string]any{"session_id": sessB, "message_id": "ghost-msg", "content": "x"}
+	if code, _ := post("/api/chat/rewrite", rw, cookieA, ""); code != http.StatusForbidden {
+		t.Errorf("cross-lab rewrite must 403, got %d", code)
+	}
+	if code, _ := post("/api/chat/regenerate", map[string]any{"session_id": sessB}, cookieA, ""); code != http.StatusForbidden {
+		t.Errorf("cross-lab regenerate must 403, got %d", code)
+	}
+
+	// Bearer operator still crosses labs (delegation-grade credential).
+	if code, _ := post("/api/jobs", map[string]any{"session_id": sessB, "qasm": qasm, "backend": "local_simulator", "shots": 100}, "", "test-token"); code != http.StatusCreated {
+		t.Errorf("bearer cross-lab jobs dispatch must 201, got %d", code)
+	}
+}
