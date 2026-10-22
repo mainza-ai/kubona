@@ -79,6 +79,11 @@ class QuantumBridgeServiceStub(object):
                 request_serializer=kubona__pb2.DiscoveryPipelineRequest.SerializeToString,
                 response_deserializer=kubona__pb2.DiscoveryPipelineResponse.FromString,
                 _registered_method=True)
+        self.EvaluateCodesign = channel.unary_unary(
+                '/kubona.QuantumBridgeService/EvaluateCodesign',
+                request_serializer=kubona__pb2.CodesignRequest.SerializeToString,
+                response_deserializer=kubona__pb2.CodesignResponse.FromString,
+                _registered_method=True)
 
 
 class QuantumBridgeServiceServicer(object):
@@ -138,6 +143,12 @@ class QuantumBridgeServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def EvaluateCodesign(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_QuantumBridgeServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -185,6 +196,11 @@ def add_QuantumBridgeServiceServicer_to_server(servicer, server):
                     servicer.EvaluateDiscoveryPipeline,
                     request_deserializer=kubona__pb2.DiscoveryPipelineRequest.FromString,
                     response_serializer=kubona__pb2.DiscoveryPipelineResponse.SerializeToString,
+            ),
+            'EvaluateCodesign': grpc.unary_unary_rpc_method_handler(
+                    servicer.EvaluateCodesign,
+                    request_deserializer=kubona__pb2.CodesignRequest.FromString,
+                    response_serializer=kubona__pb2.CodesignResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -430,6 +446,33 @@ class QuantumBridgeService(object):
             '/kubona.QuantumBridgeService/EvaluateDiscoveryPipeline',
             kubona__pb2.DiscoveryPipelineRequest.SerializeToString,
             kubona__pb2.DiscoveryPipelineResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def EvaluateCodesign(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/kubona.QuantumBridgeService/EvaluateCodesign',
+            kubona__pb2.CodesignRequest.SerializeToString,
+            kubona__pb2.CodesignResponse.FromString,
             options,
             channel_credentials,
             insecure,

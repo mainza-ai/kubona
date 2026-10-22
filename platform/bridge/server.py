@@ -178,6 +178,37 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                 error_message=str(e),
             )
 
+    def EvaluateCodesign(self, request, context):
+        # T-01b: closed-vocabulary dispatch into codesign_ops — the
+        # operation selects a function, never caller-supplied code.
+        # Structured failure per the servicer failure contract.
+        logger.info(f"EvaluateCodesign called for operation {request.operation}")
+        try:
+            import json as _json
+
+            from codesign_ops import run_op
+
+            body = _json.loads(request.request_json or "{}")
+            res = run_op(request.operation, body)
+            if not res.get("ok"):
+                return kubona_pb2.CodesignResponse(
+                    success=False,
+                    result_json="",
+                    error_message=str(res.get("error", "evaluation refused")),
+                )
+            return kubona_pb2.CodesignResponse(
+                success=True,
+                result_json=_json.dumps(res),
+                error_message="",
+            )
+        except Exception as e:
+            logger.exception("EvaluateCodesign failed")
+            return kubona_pb2.CodesignResponse(
+                success=False,
+                result_json="",
+                error_message=str(e),
+            )
+
     def EvaluateWavefunction(self, request, context):
         logger.info(f"EvaluateWavefunction called for Claim {request.claim_id}")
         try:

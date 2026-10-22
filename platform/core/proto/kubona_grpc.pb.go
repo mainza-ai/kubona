@@ -28,6 +28,7 @@ const (
 	QuantumBridgeService_MitigateCircuit_FullMethodName           = "/kubona.QuantumBridgeService/MitigateCircuit"
 	QuantumBridgeService_EvaluateMolecularADMET_FullMethodName    = "/kubona.QuantumBridgeService/EvaluateMolecularADMET"
 	QuantumBridgeService_EvaluateDiscoveryPipeline_FullMethodName = "/kubona.QuantumBridgeService/EvaluateDiscoveryPipeline"
+	QuantumBridgeService_EvaluateCodesign_FullMethodName          = "/kubona.QuantumBridgeService/EvaluateCodesign"
 )
 
 // QuantumBridgeServiceClient is the client API for QuantumBridgeService service.
@@ -43,6 +44,7 @@ type QuantumBridgeServiceClient interface {
 	MitigateCircuit(ctx context.Context, in *MitigationRequest, opts ...grpc.CallOption) (*MitigationResponse, error)
 	EvaluateMolecularADMET(ctx context.Context, in *ChemistryADMETRequest, opts ...grpc.CallOption) (*ChemistryADMETResponse, error)
 	EvaluateDiscoveryPipeline(ctx context.Context, in *DiscoveryPipelineRequest, opts ...grpc.CallOption) (*DiscoveryPipelineResponse, error)
+	EvaluateCodesign(ctx context.Context, in *CodesignRequest, opts ...grpc.CallOption) (*CodesignResponse, error)
 }
 
 type quantumBridgeServiceClient struct {
@@ -143,6 +145,16 @@ func (c *quantumBridgeServiceClient) EvaluateDiscoveryPipeline(ctx context.Conte
 	return out, nil
 }
 
+func (c *quantumBridgeServiceClient) EvaluateCodesign(ctx context.Context, in *CodesignRequest, opts ...grpc.CallOption) (*CodesignResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CodesignResponse)
+	err := c.cc.Invoke(ctx, QuantumBridgeService_EvaluateCodesign_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // QuantumBridgeServiceServer is the server API for QuantumBridgeService service.
 // All implementations must embed UnimplementedQuantumBridgeServiceServer
 // for forward compatibility.
@@ -156,6 +168,7 @@ type QuantumBridgeServiceServer interface {
 	MitigateCircuit(context.Context, *MitigationRequest) (*MitigationResponse, error)
 	EvaluateMolecularADMET(context.Context, *ChemistryADMETRequest) (*ChemistryADMETResponse, error)
 	EvaluateDiscoveryPipeline(context.Context, *DiscoveryPipelineRequest) (*DiscoveryPipelineResponse, error)
+	EvaluateCodesign(context.Context, *CodesignRequest) (*CodesignResponse, error)
 	mustEmbedUnimplementedQuantumBridgeServiceServer()
 }
 
@@ -192,6 +205,9 @@ func (UnimplementedQuantumBridgeServiceServer) EvaluateMolecularADMET(context.Co
 }
 func (UnimplementedQuantumBridgeServiceServer) EvaluateDiscoveryPipeline(context.Context, *DiscoveryPipelineRequest) (*DiscoveryPipelineResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method EvaluateDiscoveryPipeline not implemented")
+}
+func (UnimplementedQuantumBridgeServiceServer) EvaluateCodesign(context.Context, *CodesignRequest) (*CodesignResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method EvaluateCodesign not implemented")
 }
 func (UnimplementedQuantumBridgeServiceServer) mustEmbedUnimplementedQuantumBridgeServiceServer() {}
 func (UnimplementedQuantumBridgeServiceServer) testEmbeddedByValue()                              {}
@@ -376,6 +392,24 @@ func _QuantumBridgeService_EvaluateDiscoveryPipeline_Handler(srv interface{}, ct
 	return interceptor(ctx, in, info, handler)
 }
 
+func _QuantumBridgeService_EvaluateCodesign_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CodesignRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QuantumBridgeServiceServer).EvaluateCodesign(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QuantumBridgeService_EvaluateCodesign_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QuantumBridgeServiceServer).EvaluateCodesign(ctx, req.(*CodesignRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // QuantumBridgeService_ServiceDesc is the grpc.ServiceDesc for QuantumBridgeService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -418,6 +452,10 @@ var QuantumBridgeService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "EvaluateDiscoveryPipeline",
 			Handler:    _QuantumBridgeService_EvaluateDiscoveryPipeline_Handler,
+		},
+		{
+			MethodName: "EvaluateCodesign",
+			Handler:    _QuantumBridgeService_EvaluateCodesign_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
