@@ -1,14 +1,14 @@
 ---
 type: catalog
 date: 2026-08-16
-updated: 2026-10-17
+updated: 2026-10-23
 tags: [index]
 status: living
 ---
 
 # Index
 
-Catalog of every page in the wiki (129 pages), updated on every ingest. When answering a
+Catalog of every page in the wiki (149 pages), updated on every ingest. When answering a
 query, read this first to find relevant pages, then drill in.
 
 > **What this wiki is.** The **blueprint** for Kubona — the accumulated insight used to
@@ -31,7 +31,7 @@ arrives, place it here first and it will find its page.
 | **L1 · Control** | The governance rail that makes agent spend survivable | [[cost-governance]], [[spend-mandates-and-delegation]], [[security-and-pqc]], [[secrets-and-workload-isolation]], [[secret-rotation-runbook]], [[user-identity-and-profiles]], [[provider-capability-schema]], [[quantum-cloud-pricing]] | `adopted`, with AP2 mandates anchoring the approval gate |
 | **L2 · Compute** | Compilation, providers, mitigation, the machine itself | [[qir-mlir-compilation]], [[agentic-qir-compilation]], [[protocol-strategy]], [[mcp-and-context-flooding]], [[nisq-and-hybrid-orchestration]], [[error-mitigation]], [[circuit-cutting]], [[vqa-vqe]], [[barren-plateau]] + provider entities, [[qiskit-mcp-servers]], [[early-fault-tolerant-quantum-and-subspace-methods]], [[divstep-packing]], [[circuit-codesign-production-readiness]], [[circuit-codesign-followups]], [[circuit-codesign-implementation-plan]] | `adopted` mechanisms, `tracked` vendors, 1 open packing question |
 | **L3 · Research** | Autonomy that compounds: search, meta-search, packs, the discovery loop, memory | [[science-discovery]], [[karpathy-autoresearch]], [[meta-search-and-self-evolution]], [[five-ring-research-loop]], [[multi-agent-research-collective]], [[quantum-domain-packs]], [[agentic-memory-and-observability]], [[autonomous-ansatz-optimization]], [[differentiable-quantum-stack]], [[autonomous-mathematical-discovery]], [[frontier-benchmark-saturation]], [[epistemic-information-lifecycle-and-memory]], [[autonomous-manuscript-synthesis-and-peer-review]], [[multimodal-mission-control-and-custom-agents]] | `adopted` core research mechanisms |
-| **L4 · Surface** | Where a human sees and limits the agent | [[ui-ux-vision]], [[agent-ux-control-plane]], [[workflows-and-agent-authoring]], [[confidentiality-lattice-provenance]], [[scientific-agentic-experience-triad]], [[frontend-backend-ui-ux-audit]] | `adopted` cognitive cockpit & AX triad |
+| **L4 · Surface** | Where a human sees and limits the agent | [[ui-ux-vision]], [[agent-ux-control-plane]], [[workflows-and-agent-authoring]], [[confidentiality-lattice-provenance]], [[scientific-agentic-experience-triad]], [[frontend-backend-ui-ux-audit]], [[observatory-spatial-representation-layer]] | `adopted` cognitive cockpit & AX triad |
 | **L5 · Ecosystem** | How it gets used, funded, and extended by others | [[agent-resource-economy]], [[x402]], [[cloudflare]], [[aaif]], [[a2a]], [[ap2]], [[integration-topology-and-licence-discipline]], [[openai-math]], [[hugging-face-hub]], [[cloudroom]], [[rea]], [[leanrea]] | 1 `settled` policy; standard delegation, model hub, and payment rails; `reference` agent-room + REA + leanrea prior art |
 
 ## Overview & meta
@@ -71,9 +71,9 @@ Describes **how decided** something is — never how finished.
 | `source` | An ingested source record. Immutable once written. | the 7 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (145 pages = 46 entities · 85 concepts · 9 sources · 5 meta), 2026-10-26:**
-`settled` 5 · `adopted` 53 · `open-question` 8 · `candidate` 14 · `tracked` 41 ·
-`reference` 8 · `source` 9 · `living` 7 (lint-counted). Five `settled` against 53 `adopted`
+**Census (149 pages = 47 entities · 87 concepts · 10 sources · 5 meta), 2026-10-23:**
+`settled` 5 · `adopted` 54 · `open-question` 8 · `candidate` 14 · `tracked` 42 ·
+`reference` 9 · `source` 10 · `living` 7 (lint-counted). Five `settled` against 54 `adopted`
 keeps the honest reading: the load-bearing constraints are **chosen**, everything else
 remains **understood**. `settled` stays small by rule — each entry needed test enforcement
 plus dependents ([[overview]] §Settled constraints); new candidates must meet the same bar.
@@ -95,7 +95,7 @@ mapping, author guidance) for no new expressiveness; claims live as concept
 sections backed by ledger records, and the falsifier lives in the linked tests.
 Revisit only with a concrete claim that fits nowhere.
 
-## Sources (9)
+## Sources (10)
 
 | Page | Source doc | Sources this touched |
 |---|---|---|
@@ -108,8 +108,9 @@ Revisit only with a concrete claim that fits nowhere.
 | [[source-leanrea-investigation-2026]] | *leanrea live-repo investigation* — 8 KB skill + benchmark read end-to-end (remote · HEAD · licence, nothing cloned) | [[leanrea]], [[leanrea-adoption-plan]] |
 | [[source-llm-circuit-codesign-2026]] | *LLM-guided quantum circuit co-design* — Gu et al. `arXiv:2610.22367v1` (14pp + SI 29pp, unreproduced) | [[evaluator-guided-circuit-codesign]], [[reversible-co-design-patterns]], [[failure-budget-and-frontier]] |
 | [[source-magic-state-cultivation-2026]] | *Magic-state cultivation on Willow* — Google Quantum AI, Science Oct 2026 (tracked vendor result) | [[failure-budget-and-frontier]], [[fidelity-accounting]] |
+| [[source-world-labs-atlas-2026]] | *World Labs Atlas / Marble 2 beta docs* — full 23-page live-contract read, Oct 2026 (nothing cloned) | [[observatory-spatial-representation-layer]], [[observatory-lens-audit-2026-10-23]], [[world-labs-atlas]] |
 
-## Entities (46)
+## Entities (47)
 
 | Page | What it is |
 |---|---|
@@ -159,8 +160,9 @@ Revisit only with a concrete claim that fits nowhere.
 | [[cloudroom]] | Multi-agent workspace & runtime prior art (idempotency, disk hysteresis, loop sleep/drain, session bundle migration) — method reference, never supply |
 | [[rea]] | Receipt- and obligation-driven agent runtime (`morluto/rea`) — method reference for envelopes, obligations, coverage, and typed error contracts |
 | [[leanrea]] | aicodeking skill: REA results with no MCP server (router + traps + benchmark template) — method reference, never supply |
+| [[world-labs-atlas]] | World Labs: spatial intelligence world model, Marble 2 Beta API, sidecar generative lens for the Observatory |
 
-## Concepts (64; +11 in Overview & meta = 75 total)
+## Concepts (65; +11 in Overview & meta = 76 total)
 
 | Page | What it is |
 |---|---|
@@ -216,6 +218,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[full-system-audit-2026-10-26]] | Round-1 live audit findings register: fixed items with pins + open items with evidence (`tracked`) |
 | [[audit-remediation-plan]] | Fix plan for open audit findings: Now/Next/Gated sequencing with acceptance tests (`tracked`) |
 | [[audit-remediation-todos]] | Sequenced execution list for the remediation plan: Phase-0 decisions, file-anchored slices, pins, landing checklist (`tracked`) |
+| [[observatory-lens-audit-2026-10-23]] | Observatory lens deep-dive audit vs live Atlas contract: handover corrections, missed findings, P0–P6 completion plan (`tracked`) |
 | [[autonomous-mathematical-discovery]] | Multi-hour thinking compute search dynamics over open conjectures, counterexample isolation, and proof refactoring |
 | [[formal-proof-verification-lean-comparator]] | Axiomatic formal verification ($\rho = 1.0$) vs empirical simulation, anti-cheating axiom sets, and ledger receipts |
 | [[mathematical-physics-anchors]] | Analytical ground-truth baselines from `openai/math` (Heisenberg ferromagnet, SK model, Haldane gap, MUB-6) enforcing quantum realism |
@@ -233,3 +236,4 @@ Revisit only with a concrete claim that fits nowhere.
 | [[epistemic-information-lifecycle-and-memory]] | 4-tier storage (tmpfs, Merkle ledger, HippoRAG GraphRAG, strategy bank), refutation index, and RLVR flywheel |
 | [[audit-topology-map]] | Deployment topology as verified live 2026-10-21 (compose + local rails, Strata, gaps marked) (`living`) |
 | [[full-system-test-plan]] | Diagram-complete test plan: per-node batteries basic → complex, LLM-assisted scenarios, entry/exit criteria (`candidate` — awaiting approval) |
+| [[observatory-spatial-representation-layer]] | Optional game-like spatial representation layer (Surfaces 1 & 9); two-tier architecture, Atlas beta lens, pre-registration Vault, calm attention director |

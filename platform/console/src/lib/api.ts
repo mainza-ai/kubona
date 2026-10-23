@@ -1842,3 +1842,192 @@ export async function authRevoke(id: string): Promise<{ ok: true } | { error: st
     return null;
   }
 }
+
+export async function requestObservatoryLens(params: {
+  sessionId: string;
+  targetSystem: string;
+  prompt?: string;
+  taskType?: string;
+  imageUrl?: string;
+}): Promise<{
+  ok: boolean;
+  operation_id?: string;
+  watermark?: string;
+  cost_usd?: number;
+  idempotency_key?: string;
+  error?: string;
+}> {
+  try {
+    // One idempotency key per logical request: transport retries replay the
+    // same Atlas operation instead of minting duplicate $0.50 dispatches.
+    const idemKey =
+      typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `lens-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    const res = await apiFetch(`${API_BASE}/api/observatory/lens`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json', 'Idempotency-Key': idemKey }),
+      body: JSON.stringify({
+        session_id: params.sessionId,
+        target_system: params.targetSystem,
+        prompt: params.prompt,
+        task_type: params.taskType || 'images2PosedRGBD',
+        ...(params.imageUrl ? { image_url: params.imageUrl } : {}),
+      }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { message?: string; code?: string };
+      return { ok: false, error: data.message || `Request failed (${res.status})` };
+    }
+    return (await res.json()) as {
+      ok: boolean;
+      operation_id?: string;
+      watermark?: string;
+      cost_usd?: number;
+      idempotency_key?: string;
+    };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message || 'Network error' };
+  }
+}
+
+export async function fetchObservatoryLensStatus(operationId: string): Promise<Record<string, unknown>> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/observatory/lens?operation_id=${encodeURIComponent(operationId)}`, {
+      headers: authHeaders(),
+    });
+    if (!res.ok) {
+      return { error: `Fetch failed (${res.status})` };
+    }
+    return (await res.json()) as Record<string, unknown>;
+  } catch (err) {
+    return { error: (err as Error).message || 'Network error' };
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Vault pre-registration (P3): seal expectations before compute, evaluate
+// measurements against them. All math lives server-side; the console only
+// renders ledger-bound values (never invented).
+// -----------------------------------------------------------------------------
+
+export interface SealedPrediction {
+  prediction_hash: string;
+  target_system: string;
+  method: string;
+  quantity: string;
+  expected_mean: number;
+  expected_std: number;
+  budget_cap_usd: number;
+  author: string;
+  p_correlated: number;
+}
+
+export interface PredictionEvaluation {
+  prediction_hash: string;
+  measured_value: number;
+  surprise_z: number;
+  surprise_ratio: number;
+  brier_score: number;
+  within_3sigma: boolean;
+  level?: string;
+}
+
+export async function sealPrediction(params: {
+  sessionId: string;
+  targetSystem: string;
+  method: string;
+  quantity: string;
+  expectedMean: number;
+  expectedStd: number;
+  budgetCapUsd?: number;
+  author?: string;
+  pCorrelated?: number;
+}): Promise<{ ok: boolean; prediction_hash?: string; expected_std_used?: number; std_floor_applied?: boolean; error?: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/vault/predictions/seal`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        session_id: params.sessionId,
+        target_system: params.targetSystem,
+        method: params.method,
+        quantity: params.quantity,
+        expected_mean: params.expectedMean,
+        expected_std: params.expectedStd,
+        budget_cap_usd: params.budgetCapUsd ?? 0,
+        author: params.author ?? 'console-operator',
+        p_correlated: params.pCorrelated ?? 0.88,
+      }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      return { ok: false, error: data.message || `Seal failed (${res.status})` };
+    }
+    return (await res.json()) as { ok: boolean; prediction_hash?: string; expected_std_used?: number; std_floor_applied?: boolean };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message || 'Network error' };
+  }
+}
+
+export async function evaluatePrediction(params: {
+  sessionId: string;
+  predictionHash: string;
+  measuredValue: number;
+}): Promise<{
+  ok: boolean;
+  surprise_z?: number;
+  surprise_ratio?: number;
+  brier_score?: number;
+  within_3sigma?: boolean;
+  level?: string;
+  error?: string;
+}> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/vault/predictions/evaluate`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        session_id: params.sessionId,
+        prediction_hash: params.predictionHash,
+        measured_value: params.measuredValue,
+      }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      return { ok: false, error: data.message || `Evaluate failed (${res.status})` };
+    }
+    return (await res.json()) as {
+      ok: boolean;
+      surprise_z?: number;
+      surprise_ratio?: number;
+      brier_score?: number;
+      within_3sigma?: boolean;
+      level?: string;
+    };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message || 'Network error' };
+  }
+}
+
+export async function fetchLatestPrediction(sessionId: string): Promise<{
+  ok: boolean;
+  sealed?: SealedPrediction | null;
+  evaluation?: PredictionEvaluation | null;
+  error?: string;
+}> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/vault/predictions/latest?session_id=${encodeURIComponent(sessionId)}`, {
+      cache: 'no-store',
+      headers: authHeaders(),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      return { ok: false, error: data.message || `Fetch failed (${res.status})` };
+    }
+    return (await res.json()) as { ok: boolean; sealed?: SealedPrediction | null; evaluation?: PredictionEvaluation | null };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message || 'Network error' };
+  }
+}
+

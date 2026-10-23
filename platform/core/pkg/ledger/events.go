@@ -78,6 +78,8 @@ var KnownEventTypes = map[string]bool{
 	"metasearch_applied":                true,
 	"molecular_admet_profiled":          true,
 	"peer_review":                       true,
+	"prediction_evaluated":              true,
+	"prediction_sealed":                 true,
 	"proposal_generated":                true,
 	"session_created":                   true,
 	"session_deleted":                   true,

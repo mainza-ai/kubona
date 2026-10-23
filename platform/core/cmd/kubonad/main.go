@@ -33,7 +33,7 @@ import (
 // already-set vars. No third-party dependency; production uses real env /
 // secret manager instead.
 func loadDotEnv() {
-	paths := []string{".env"}
+	paths := []string{".env", "../.env", "../../.env"}
 	if home, err := os.UserHomeDir(); err == nil {
 		paths = append(paths, filepath.Join(home, ".kubona", ".env"))
 	}
