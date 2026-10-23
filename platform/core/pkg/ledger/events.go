@@ -80,6 +80,7 @@ var KnownEventTypes = map[string]bool{
 	"peer_review":                       true,
 	"prediction_evaluated":              true,
 	"prediction_sealed":                 true,
+	"prediction_asserted":               true,
 	"proposal_generated":                true,
 	"session_created":                   true,
 	"session_deleted":                   true,

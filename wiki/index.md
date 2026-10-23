@@ -8,7 +8,7 @@ status: living
 
 # Index
 
-Catalog of every page in the wiki (149 pages), updated on every ingest. When answering a
+Catalog of every page in the wiki (150 pages), updated on every ingest. When answering a
 query, read this first to find relevant pages, then drill in.
 
 > **What this wiki is.** The **blueprint** for Kubona — the accumulated insight used to
@@ -71,8 +71,8 @@ Describes **how decided** something is — never how finished.
 | `source` | An ingested source record. Immutable once written. | the 7 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (149 pages = 47 entities · 87 concepts · 10 sources · 5 meta), 2026-10-23:**
-`settled` 5 · `adopted` 54 · `open-question` 8 · `candidate` 14 · `tracked` 42 ·
+**Census (150 pages = 47 entities · 88 concepts · 10 sources · 5 meta), 2026-10-23:**
+`settled` 5 · `adopted` 54 · `open-question` 8 · `candidate` 14 · `tracked` 43 ·
 `reference` 9 · `source` 10 · `living` 7 (lint-counted). Five `settled` against 54 `adopted`
 keeps the honest reading: the load-bearing constraints are **chosen**, everything else
 remains **understood**. `settled` stays small by rule — each entry needed test enforcement
@@ -162,7 +162,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[leanrea]] | aicodeking skill: REA results with no MCP server (router + traps + benchmark template) — method reference, never supply |
 | [[world-labs-atlas]] | World Labs: spatial intelligence world model, Marble 2 Beta API, sidecar generative lens for the Observatory |
 
-## Concepts (65; +11 in Overview & meta = 76 total)
+## Concepts (66; +11 in Overview & meta = 77 total)
 
 | Page | What it is |
 |---|---|
@@ -219,6 +219,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[audit-remediation-plan]] | Fix plan for open audit findings: Now/Next/Gated sequencing with acceptance tests (`tracked`) |
 | [[audit-remediation-todos]] | Sequenced execution list for the remediation plan: Phase-0 decisions, file-anchored slices, pins, landing checklist (`tracked`) |
 | [[observatory-lens-audit-2026-10-23]] | Observatory lens deep-dive audit vs live Atlas contract: handover corrections, missed findings, P0–P6 completion plan (`tracked`) |
+| [[observatory-plan-gap-audit-2026-10-23]] | Plan-vs-implementation gap audit: phase-gate verdicts, R-01–R-30 remaining work, live-proof ledger (`tracked`) |
 | [[autonomous-mathematical-discovery]] | Multi-hour thinking compute search dynamics over open conjectures, counterexample isolation, and proof refactoring |
 | [[formal-proof-verification-lean-comparator]] | Axiomatic formal verification ($\rho = 1.0$) vs empirical simulation, anti-cheating axiom sets, and ledger receipts |
 | [[mathematical-physics-anchors]] | Analytical ground-truth baselines from `openai/math` (Heisenberg ferromagnet, SK model, Haldane gap, MUB-6) enforcing quantum realism |

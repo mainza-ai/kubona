@@ -24,6 +24,7 @@ mcp = MCPServer("kubona-world")
 
 CORE_URL = os.environ.get("KUBONA_CORE_URL", "http://localhost:8080").rstrip("/")
 LENS_COST_USD = 0.50  # matches lensCostUSD in platform/core/pkg/api/observatory_lens.go
+LENS_TASKS = ("images2PosedRGBD", "atlasTextToImage", "atlasGenerate", "atlasChisel")
 _SUMMON_WINDOW_S = 3600
 _SUMMON_MAX_PER_WINDOW = 3
 _summon_log: dict[str, list[float]] = {}
@@ -75,10 +76,13 @@ def _append_annotation(session_id: str, payload: dict) -> dict:
     return _post("/api/ledger/append", body)
 
 
-def world_look(session_id: str) -> dict:
+def world_look(session_id: str, request_lens: str = "") -> dict:
     """Return nearby ledger records and camera context for a session.
 
     Free for cached records. Read-only: never bills, never mutates.
+    With request_lens set to a task name, ALSO return a validated,
+    ready-to-dispatch lens request payload (R-29) — the payload is for a
+    human to review and dispatch; this tool never dispatches or reserves.
     """
     out: dict = {"ok": True, "session_id": session_id}
     sess = _get(f"/api/sessions/{session_id}")
@@ -92,6 +96,17 @@ def world_look(session_id: str) -> dict:
         out["sealed"] = pdata.get("sealed")
         out["evaluation"] = pdata.get("evaluation")
     out["camera_hint"] = {"convention": "rub", "grid": [1280, 720], "note": "poses are camera-to-world XYZW quaternions"}
+    if request_lens:
+        if request_lens not in LENS_TASKS:
+            return {"ok": False, "error": f"unknown task_type {request_lens!r}: use one of {sorted(LENS_TASKS)}"}
+        target = (data.get("target_system") or "H2") if isinstance(data, dict) else "H2"
+        out["lens_request"] = {
+            "task_type": request_lens,
+            "target_system": target,
+            "endpoint": "POST /api/observatory/lens",
+            "estimated_cost_usd": LENS_COST_USD,
+            "requires": "explicit human confirmation + confirmed AP2 spend envelope — this tool never dispatches or reserves",
+        }
     return out
 
 

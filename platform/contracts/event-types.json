@@ -841,6 +841,18 @@
         "surprise_ratio"
       ]
     },
+    "prediction_asserted": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Formal scientific assertion minted from a sealed prediction and its evaluation. rho and evidence_refs are caller-supplied judgment, never computed server-side.",
+      "required": [
+        "session_id",
+        "prediction_hash",
+        "rho",
+        "evidence_refs"
+      ]
+    },
     "prediction_sealed": {
       "emitters": [
         "go"

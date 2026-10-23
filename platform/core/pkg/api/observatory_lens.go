@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -21,7 +22,6 @@ type ObservatoryLensRequest struct {
 	TargetSystem   string   `json:"target_system"`
 	TaskType       string   `json:"task_type"` // "images2PosedRGBD" | "atlasTextToImage" | "atlasGenerate" | "atlasChisel"
 	ImageURL       string   `json:"image_url,omitempty"`
-	DepthData      string   `json:"depth_data,omitempty"`
 	DepthAssetID   string   `json:"depth_asset_id,omitempty"` // chisel context depth (P1)
 	VoxelSize      float64  `json:"voxel_size,omitempty"`     // chisel depth quantization, 0-0.4
 	EphemeralPurge bool     `json:"ephemeral_purge,omitempty"`
@@ -180,6 +180,16 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 	// than dispatching a payload the API would 422.
 	if taskType == "atlasGenerate" {
 		WriteAPIError(w, "bad_request", "atlasGenerate needs full RGBD context frames (image + depth + camera) — P2 work; chisel runs prompt-only or depth-conditioned today", nil)
+		return
+	}
+
+	// 4b. Prompt egress hygiene (R-16): fail closed on secrets-shaped
+	// content before it leaves the host. Narrow by construction: API keys,
+	// private-key blocks, and cloud credential prefixes. Scientific prose
+	// (including chemical names) passes untouched; the refusal names what
+	// it blocked so legitimate prompts can be reworded.
+	if bad := detectSecretsInPrompt(req.Prompt); bad != "" {
+		WriteAPIError(w, "bad_request", fmt.Sprintf("prompt refused: looks like %s — remove secrets before cloud synthesis", bad), nil)
 		return
 	}
 
@@ -391,6 +401,45 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 		IdempotencyKey: idemKey,
 	})
 }
+
+// detectSecretsInPrompt scans free-text prompts for secrets-shaped content
+// before cloud egress. Matches are anchored to high-entropy credential
+// shapes (provider key prefixes with long random tails, PEM blocks), not
+// to science vocabulary — "flask-shaped pavilion" must (and does) pass.
+func detectSecretsInPrompt(prompt string) string {
+	lower := strings.ToLower(prompt)
+	for _, marker := range []struct {
+		needle string
+		label  string
+	}{
+		{"wl_live_", "a World Labs API key"},
+		{"sk-live", "a Stripe live secret key"},
+		{"sk_test", "a Stripe test secret key"},
+		{"ghp_", "a GitHub personal access token"},
+		{"gho_", "a GitHub OAuth token"},
+		{"xoxb-", "a Slack bot token"},
+		{"-----begin", "a private key block"},
+	} {
+		if strings.Contains(lower, marker.needle) {
+			return marker.label
+		}
+	}
+	if providerKeyRe.MatchString(prompt) {
+		return "a provider secret key"
+	}
+	if awsKeyRe.MatchString(prompt) {
+		return "an AWS access key id"
+	}
+	return ""
+}
+
+var (
+	// sk-<16+ alnum>: OpenAI-style keys. The length floor keeps words
+	// like "flask-" / "mask-" / "task-" out of the match.
+	providerKeyRe = regexp.MustCompile(`sk-[A-Za-z0-9]{16,}`)
+	// AKIA + 16 uppercase alphanumerics.
+	awsKeyRe = regexp.MustCompile(`AKIA[0-9A-Z]{16}`)
+)
 
 // mapAtlasUpstreamError branches on status + the machine-readable `code`
 // field (docs: Errors and retries) — never on message wording. Callers

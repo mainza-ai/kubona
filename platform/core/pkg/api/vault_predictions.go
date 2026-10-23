@@ -280,6 +280,7 @@ func (s *Server) handlePredictionLatest(w http.ResponseWriter, r *http.Request) 
 	}
 	var latestSeal map[string]any
 	var latestEval map[string]any
+	var latestAssert map[string]any
 	for _, e := range events {
 		if e.EventType == "prediction_sealed" && latestSeal == nil {
 			var p map[string]any
@@ -291,8 +292,13 @@ func (s *Server) handlePredictionLatest(w http.ResponseWriter, r *http.Request) 
 			if err := json.Unmarshal(e.Payload, &p); err == nil {
 				latestEval = p
 			}
+		} else if e.EventType == "prediction_asserted" && latestAssert == nil {
+			var p map[string]any
+			if err := json.Unmarshal(e.Payload, &p); err == nil {
+				latestAssert = p
+			}
 		}
-		if latestSeal != nil && latestEval != nil {
+		if latestSeal != nil && latestEval != nil && latestAssert != nil {
 			break
 		}
 	}
@@ -300,5 +306,255 @@ func (s *Server) handlePredictionLatest(w http.ResponseWriter, r *http.Request) 
 		"ok":         true,
 		"sealed":     latestSeal,
 		"evaluation": latestEval,
+		"assertion":  latestAssert,
 	})
+}
+
+// AssertPredictionRequest mints a formal assertion from a sealed prior and
+// its evaluation. rho and evidence_refs are caller-supplied JUDGMENT — the
+// server validates shape and lineage, never invents credibility.
+type AssertPredictionRequest struct {
+	SessionID      string   `json:"session_id"`
+	PredictionHash string   `json:"prediction_hash"`
+	Rho            float64  `json:"rho"`
+	EvidenceRefs   []string `json:"evidence_refs"`
+}
+
+func (s *Server) handlePredictionAssert(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		WriteAPIError(w, "method_not_allowed", "POST required to assert a prediction", nil)
+		return
+	}
+	var req AssertPredictionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		WriteAPIError(w, "bad_request", "malformed JSON request", nil)
+		return
+	}
+	if req.SessionID == "" || req.PredictionHash == "" {
+		WriteAPIError(w, "bad_request", "session_id and prediction_hash are required", nil)
+		return
+	}
+	if sess, err := s.sessionMgr.GetSession(req.SessionID); err != nil || sess == nil {
+		WriteAPIError(w, "ghost_session", fmt.Sprintf("session %q not found", req.SessionID), nil)
+		return
+	}
+	if math.IsNaN(req.Rho) || req.Rho <= 0 || req.Rho > 1 {
+		WriteAPIError(w, "bad_request", "rho must lie in (0, 1] — state your credibility, the server will not invent it", nil)
+		return
+	}
+	if len(req.EvidenceRefs) == 0 {
+		WriteAPIError(w, "bad_request", "evidence_refs must be non-empty: no evidence-free assertions", nil)
+		return
+	}
+	sealed, err := s.findSealedPrediction(req.SessionID, req.PredictionHash)
+	if err != nil {
+		WriteAPIError(w, "internal", fmt.Sprintf("failed to read sealed predictions: %v", err), nil)
+		return
+	}
+	if sealed == nil {
+		WriteAPIError(w, "not_found", fmt.Sprintf("no sealed prediction %q in this session", req.PredictionHash), nil)
+		return
+	}
+	evaluated, err := s.findEvaluation(req.SessionID, req.PredictionHash)
+	if err != nil {
+		WriteAPIError(w, "internal", fmt.Sprintf("failed to read evaluations: %v", err), nil)
+		return
+	}
+	if evaluated == nil {
+		WriteAPIError(w, "bad_request", "prediction has no evaluation yet: measure before asserting", nil)
+		return
+	}
+
+	if err := s.ledger.AppendEvent(req.SessionID, "prediction_asserted", map[string]any{
+		"session_id":      req.SessionID,
+		"prediction_hash": req.PredictionHash,
+		"rho":             req.Rho,
+		"evidence_refs":   req.EvidenceRefs,
+	}); err != nil {
+		WriteAPIError(w, "internal", fmt.Sprintf("failed to record assertion: %v", err), nil)
+		return
+	}
+	// R-09: mint the formal claim record beside the assertion event, same
+	// convention as tribunal consensus (sentinel -1 alpha/beta/gamma, rho
+	// carried in the statement + rho field is caller-stated, never computed).
+	evBytes, _ := json.Marshal(map[string]any{"evidence_refs": req.EvidenceRefs, "prediction_hash": req.PredictionHash})
+	claimRec, merr := s.ledger.MintClaimRecord(req.SessionID, "vault_assert",
+		fmt.Sprintf("Vault assertion: prediction %s asserted at rho=%.3f", req.PredictionHash, req.Rho),
+		-1, -1, -1, "asserted", string(evBytes))
+	if merr != nil {
+		WriteAPIError(w, "internal", fmt.Sprintf("failed to mint claim record: %v", merr), nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok": true, "prediction_hash": req.PredictionHash, "rho": req.Rho,
+		"claim_record_id": claimRec.ID,
+	})
+}
+
+// findEvaluation returns the newest evaluation for a hash, or nil.
+func (s *Server) findEvaluation(sessionID, hash string) (map[string]any, error) {
+	events, err := s.ledger.GetRecentEvents(sessionID, 500)
+	if err != nil {
+		return nil, err
+	}
+	for _, e := range events {
+		if e.EventType != "prediction_evaluated" {
+			continue
+		}
+		var p map[string]any
+		if err := json.Unmarshal(e.Payload, &p); err != nil {
+			continue
+		}
+		if h, _ := p["prediction_hash"].(string); h == hash {
+			return p, nil
+		}
+	}
+	return nil, nil
+}
+
+// handlePredictionCalibration aggregates per-author calibration from sealed
+// evaluations: counts, mean Brier, mean |z|. Read-only feed for the
+// (human-gated) question of whether calibration should tighten budgets.
+func (s *Server) handlePredictionCalibration(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		WriteAPIError(w, "method_not_allowed", "GET required to read calibration", nil)
+		return
+	}
+	sessionID := r.URL.Query().Get("session_id")
+	if sessionID == "" {
+		WriteAPIError(w, "bad_request", "session_id query parameter is required", nil)
+		return
+	}
+	if sess, err := s.sessionMgr.GetSession(sessionID); err != nil || sess == nil {
+		WriteAPIError(w, "ghost_session", fmt.Sprintf("session %q not found", sessionID), nil)
+		return
+	}
+	events, err := s.ledger.GetRecentEvents(sessionID, 500)
+	if err != nil {
+		WriteAPIError(w, "internal", fmt.Sprintf("failed to read predictions: %v", err), nil)
+		return
+	}
+	type agg struct {
+		Sealed    int     `json:"sealed"`
+		Evaluated int     `json:"evaluated"`
+		MeanBrier float64 `json:"mean_brier_score,omitempty"`
+		MeanAbsZ  float64 `json:"mean_abs_z,omitempty"`
+	}
+	byAuthor := map[string]*agg{}
+	authorOf := map[string]string{}
+	var sumBrier, sumAbsZ float64
+	var nEval int
+	// Two passes: GetRecentEvents is newest-first, so an evaluation usually
+	// precedes its seal in iteration order. Index authors first, then score.
+	for _, e := range events {
+		if e.EventType != "prediction_sealed" {
+			continue
+		}
+		var p map[string]any
+		if err := json.Unmarshal(e.Payload, &p); err != nil {
+			continue
+		}
+		h, _ := p["prediction_hash"].(string)
+		a, _ := p["author"].(string)
+		if h == "" {
+			continue
+		}
+		authorOf[h] = a
+		if byAuthor[a] == nil {
+			byAuthor[a] = &agg{}
+		}
+		byAuthor[a].Sealed++
+	}
+	for _, e := range events {
+		if e.EventType != "prediction_evaluated" {
+			continue
+		}
+		var p map[string]any
+		if err := json.Unmarshal(e.Payload, &p); err != nil {
+			continue
+		}
+		h, _ := p["prediction_hash"].(string)
+		a := authorOf[h]
+		if a == "" {
+			a = "unknown"
+		}
+		if byAuthor[a] == nil {
+			byAuthor[a] = &agg{}
+		}
+		byAuthor[a].Evaluated++
+		if b, ok := p["brier_score"].(float64); ok {
+			byAuthor[a].MeanBrier = (byAuthor[a].MeanBrier*float64(byAuthor[a].Evaluated-1) + b) / float64(byAuthor[a].Evaluated)
+			sumBrier += b
+		}
+		if z, ok := p["surprise_z"].(float64); ok {
+			az := z
+			if az < 0 {
+				az = -az
+			}
+			byAuthor[a].MeanAbsZ = (byAuthor[a].MeanAbsZ*float64(byAuthor[a].Evaluated-1) + az) / float64(byAuthor[a].Evaluated)
+			sumAbsZ += az
+		}
+		nEval++
+	}
+	out := map[string]any{}
+	for a, g := range byAuthor {
+		out[a] = g
+	}
+	resp := map[string]any{"ok": true, "authors": out, "evaluations": nEval}
+	if nEval > 0 {
+		resp["mean_brier_score"] = sumBrier / float64(nEval)
+		resp["mean_abs_z"] = sumAbsZ / float64(nEval)
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// handlePredictionHistory lists a session's sealed/evaluated/asserted
+// predictions newest-first for the replay scrubber. Bounded by limit.
+func (s *Server) handlePredictionHistory(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		WriteAPIError(w, "method_not_allowed", "GET required to read prediction history", nil)
+		return
+	}
+	sessionID := r.URL.Query().Get("session_id")
+	if sessionID == "" {
+		WriteAPIError(w, "bad_request", "session_id query parameter is required", nil)
+		return
+	}
+	if sess, err := s.sessionMgr.GetSession(sessionID); err != nil || sess == nil {
+		WriteAPIError(w, "ghost_session", fmt.Sprintf("session %q not found", sessionID), nil)
+		return
+	}
+	limit := 50
+	if raw := r.URL.Query().Get("limit"); raw != "" {
+		var n int
+		if _, err := fmt.Sscanf(raw, "%d", &n); err == nil && n >= 1 && n <= 200 {
+			limit = n
+		}
+	}
+	events, err := s.ledger.GetRecentEvents(sessionID, 500)
+	if err != nil {
+		WriteAPIError(w, "internal", fmt.Sprintf("failed to read predictions: %v", err), nil)
+		return
+	}
+	var out []map[string]any
+	for _, e := range events {
+		switch e.EventType {
+		case "prediction_sealed", "prediction_evaluated", "prediction_asserted":
+		default:
+			continue
+		}
+		var p map[string]any
+		if err := json.Unmarshal(e.Payload, &p); err != nil {
+			continue
+		}
+		p["event_type"] = e.EventType
+		out = append(out, p)
+		if len(out) >= limit {
+			break
+		}
+	}
+	if out == nil {
+		out = []map[string]any{}
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "count": len(out), "predictions": out})
 }

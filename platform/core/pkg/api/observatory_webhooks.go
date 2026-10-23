@@ -247,15 +247,25 @@ func (s *Server) resolveLensOperation(sessionID, opID string) (map[string]any, e
 	}
 	promptUsed := ""
 	var imageURLs []string
+	var assetIDs []string
 	if op.Response != nil {
 		promptUsed = op.Response.PromptUsed
 		for _, f := range op.Response.Frames {
 			if f.ImageAsset != nil && f.ImageAsset.URL != "" {
 				imageURLs = append(imageURLs, f.ImageAsset.URL)
+				assetIDs = append(assetIDs, f.ImageAsset.AssetID)
 			}
 		}
 	}
+
+	// Ephemeral purge: the dispatch annotation carries the flag. Download
+	// outputs locally first (cloud copies purge ~1h after completion), then
+	// explicitly DELETE the cloud output assets: the per-request purge flag
+	// is the platform mechanism, the DELETE is defense in depth. Source
+	// depth assets (user library inputs) are never touched — only the
+	// frames this operation generated.
 	var localPaths []string
+	var purged []string
 	if disp := findLensAnnotation(s.ledger, sessionID, opID, false); disp != nil {
 		if purge, _ := disp["ephemeral_purge"].(bool); purge && len(imageURLs) > 0 {
 			if dir, err := artifactsDir(); err == nil {
@@ -266,6 +276,16 @@ func (s *Server) resolveLensOperation(sessionID, opID string) (map[string]any, e
 						if dlErr := downloadFile(u, dst, 60*time.Second); dlErr == nil {
 							localPaths = append(localPaths, dst)
 						}
+					}
+				}
+			}
+			if len(localPaths) == len(imageURLs) {
+				for _, aid := range assetIDs {
+					if aid == "" {
+						continue
+					}
+					if derr := deleteAtlasAsset(apiBase, apiKey, aid); derr == nil {
+						purged = append(purged, aid)
 					}
 				}
 			}
@@ -282,6 +302,9 @@ func (s *Server) resolveLensOperation(sessionID, opID string) (map[string]any, e
 		record["local_paths"] = localPaths
 		record["ephemeral_purged"] = true
 	}
+	if len(purged) > 0 {
+		record["purged_assets"] = purged
+	}
 	_ = s.ledger.AppendEvent(sessionID, "annotation", map[string]any{
 		"session_id":   sessionID,
 		"text":         fmt.Sprintf("World Labs Atlas lens resolved: operation %s (%d frames)", opID, len(imageURLs)),
@@ -290,4 +313,26 @@ func (s *Server) resolveLensOperation(sessionID, opID string) (map[string]any, e
 		"resolved":     true,
 	})
 	return record, nil
+}
+
+// deleteAtlasAsset removes one project asset (ephemeral-purge defense in
+// depth). A refusal is returned as error; callers keep the local copy and
+// leave the cloud asset for the platform-side purge window.
+func deleteAtlasAsset(apiBase, apiKey, assetID string) error {
+	req, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/assets/%s", atlasBaseURL(apiBase), assetID), nil)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("WLT-Api-Key", apiKey)
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	io.Copy(io.Discard, resp.Body)
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("asset delete rejected (%d)", resp.StatusCode)
+	}
+	return nil
 }
