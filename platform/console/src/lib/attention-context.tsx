@@ -77,10 +77,17 @@ export function AttentionProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const [tracker, setTracker] = useState<PrecisionTracker>(() => createPrecisionTracker());
+  // Latest-ref mirrors: notify/resolve callbacks stay stable (depend on
+  // [presence] / [] respectively) and read current values through these.
+  // Synced in effects — never written during render (react-hooks/refs).
   const trackerRef = useRef(tracker);
-  trackerRef.current = tracker;
+  useEffect(() => {
+    trackerRef.current = tracker;
+  }, [tracker]);
   const alertRef = useRef<DirectorAlert | null>(null);
-  alertRef.current = alert;
+  useEffect(() => {
+    alertRef.current = alert;
+  }, [alert]);
 
   const notify = useCallback(
     (input: DirectorInput) => {

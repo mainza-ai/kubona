@@ -15,7 +15,12 @@ CONTRACT = Path(__file__).resolve().parents[1] / "contracts" / "error-catalog.cs
 
 def test_codes_match_contract():
     rows = list(csv.DictReader(CONTRACT.read_text().splitlines()))
-    assert len(rows) == 22, f"catalog grew/shrank: {len(rows)} rows"
+    # P6 (observatory lens error mapping) added three codes in 6297093:
+    # credits_unavailable + spend_limit_exceeded (402) + task_not_entitled
+    # (404). The count pins the contract size so silent catalog drift fails
+    # loudly; the named set pins *which* codes the lens rail depends on.
+    assert len(rows) == 25, f"catalog grew/shrank: {len(rows)} rows"
+    assert {"credits_unavailable", "spend_limit_exceeded", "task_not_entitled"} <= {r["code"] for r in rows}
     assert set(ERROR_CATALOG) == {r["code"] for r in rows}
     for code in ERROR_CATALOG:
         e = KubonaError(code, "probe")
