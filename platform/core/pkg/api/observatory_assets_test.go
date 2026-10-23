@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -255,6 +256,16 @@ func TestObservatoryLensResolveEphemeralPurge(t *testing.T) {
 	mux.HandleFunc("/api/v2/operations/op_purge_1", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(opBody))
 	})
+	var deleted []string
+	mux.HandleFunc("/api/v2/assets/", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		deleted = append(deleted, strings.TrimPrefix(r.URL.Path, "/api/v2/assets/"))
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{}`))
+	})
 	atlasMock := httptest.NewServer(mux)
 	defer atlasMock.Close()
 
@@ -281,6 +292,9 @@ func TestObservatoryLensResolveEphemeralPurge(t *testing.T) {
 	}
 	if !bytes.Contains(rec.Body.Bytes(), []byte("local_paths")) {
 		t.Fatalf("expected local_paths in purge record, got: %s", rec.Body.String())
+	}
+	if len(deleted) != 1 || deleted[0] != "a1" {
+		t.Fatalf("expected explicit DELETE of cloud output asset a1, got %v", deleted)
 	}
 	got, err := os.ReadFile(filepath.Join(tmp, "op_purge_1", "frame-0.png"))
 	if err != nil || string(got) != string(imageBytes) {
@@ -438,5 +452,100 @@ func TestObservatoryWebhookEndToEnd(t *testing.T) {
 	rec = deliver(t, unknown, "del_unknown", true)
 	if rec.Code != http.StatusOK || !bytes.Contains(rec.Body.Bytes(), []byte(`"attributed":false`)) {
 		t.Fatalf("expected unattributed accept, got %d (%s)", rec.Code, rec.Body.String())
+	}
+}
+
+func TestObservatoryLensResolveFailedOp(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	opBody := `{"done": true, "error": {"code": 14, "message": "upstream unavailable", "details": []}}`
+	atlasMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(opBody))
+	}))
+	defer atlasMock.Close()
+
+	t.Setenv("WLT_API_KEY", "wl_live_mock_key")
+	t.Setenv("WLT_API_BASE_URL", atlasMock.URL)
+
+	sessID := createLensTestSession(t, srv, 20.0)
+	rec := postObservatory(t, srv, "/api/observatory/lens/resolve", map[string]any{
+		"session_id": sessID, "operation_id": "op_failed_1",
+	})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 with error envelope, got %d", rec.Code)
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"done":true`)) || !bytes.Contains(rec.Body.Bytes(), []byte("upstream unavailable")) {
+		t.Fatalf("expected terminal error surfaced, got: %s", rec.Body.String())
+	}
+	if bytes.Contains(rec.Body.Bytes(), []byte(`"resolved":true`)) {
+		t.Fatalf("failed op must not record a resolution: %s", rec.Body.String())
+	}
+	// Deterministic repeat: no accumulating state on the failure path.
+	rec2 := postObservatory(t, srv, "/api/observatory/lens/resolve", map[string]any{
+		"session_id": sessID, "operation_id": "op_failed_1",
+	})
+	if rec2.Body.String() != rec.Body.String() {
+		t.Fatalf("error resolve not idempotent:\n%s\nvs\n%s", rec.Body.String(), rec2.Body.String())
+	}
+}
+
+func TestObservatoryWebhookKeyRotation(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	pub1, priv1, _ := ed25519.GenerateKey(rand.Reader)
+	pub2, priv2, _ := ed25519.GenerateKey(rand.Reader)
+	cur := pub1
+	jwksSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(fmt.Sprintf(`{"keys":[{"kty":"OKP","crv":"Ed25519","x":%q}]}`, base64.RawURLEncoding.EncodeToString(cur))))
+	}))
+	defer jwksSrv.Close()
+
+	opBody := `{"done": true, "response": {"promptUsed": "rotation pavilion", "frames": []}}`
+	atlasMux := http.NewServeMux()
+	atlasMux.HandleFunc("/api/v2/tasks:atlasChisel", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(`{"operation_id": "op_rot_1", "status": "PENDING"}`))
+	})
+	atlasMux.HandleFunc("/api/v2/operations/op_rot_1", func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(opBody))
+	})
+	atlasMock := httptest.NewServer(atlasMux)
+	defer atlasMock.Close()
+
+	t.Setenv("WLT_API_KEY", "wl_live_mock_key")
+	t.Setenv("WLT_API_BASE_URL", atlasMock.URL)
+	t.Setenv("WLT_JWKS_URL", jwksSrv.URL)
+
+	sessID := createLensTestSession(t, srv, 20.0)
+	if rec := postLens(t, srv, map[string]any{
+		"session_id": sessID, "target_system": "H2", "task_type": "atlasChisel",
+	}, ""); rec.Code != http.StatusOK {
+		t.Fatalf("dispatch failed: %d", rec.Code)
+	}
+
+	deliver := func(body, idem string, priv ed25519.PrivateKey) *httptest.ResponseRecorder {
+		ts := fmt.Sprintf("%d", time.Now().Unix())
+		sig := "v1a," + base64.StdEncoding.EncodeToString(ed25519.Sign(priv, []byte(idem+"."+ts+"."+body)))
+		req := httptest.NewRequest(http.MethodPost, "/api/observatory/webhooks", bytes.NewReader([]byte(body)))
+		req.Header.Set("webhook-id", idem)
+		req.Header.Set("webhook-timestamp", ts)
+		req.Header.Set("webhook-signature", sig)
+		rec := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(rec, req)
+		return rec
+	}
+	delivery := `{"id":"evt_rot_1","type":"task.succeeded","data":{"accountId":"a","projectId":"p","operationId":"op_rot_1","operation":"op_rot_1","taskName":"atlasChisel","state":"SUCCEEDED"}}`
+
+	// Prime the JWKS cache with key1.
+	if rec := deliver(delivery, "del_rot_1", priv1); rec.Code != http.StatusOK {
+		t.Fatalf("key1 delivery failed: %d (%s)", rec.Code, rec.Body.String())
+	}
+	// Rotate the key set; the stale cache must miss, trigger one refetch,
+	// and verify against the fresh key2 document.
+	cur = pub2
+	rec := deliver(delivery, "del_rot_2", priv2)
+	if rec.Code != http.StatusOK || !bytes.Contains(rec.Body.Bytes(), []byte("rotation pavilion")) {
+		t.Fatalf("expected rotation refetch to succeed, got %d (%s)", rec.Code, rec.Body.String())
 	}
 }

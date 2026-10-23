@@ -275,3 +275,145 @@ func TestPredictionRoutesRequireBearer(t *testing.T) {
 		}
 	}
 }
+
+func TestPredictionAssertValidation(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	sessID := createLensTestSession(t, srv, 100.0)
+	hash := sealH2Prediction(t, srv, sessID, -1.137, 0.005)
+
+	cases := []struct {
+		name string
+		body map[string]any
+		want int
+	}{
+		{"no evidence", map[string]any{"session_id": sessID, "prediction_hash": hash, "rho": 0.9, "evidence_refs": []string{}}, http.StatusBadRequest},
+		{"rho zero", map[string]any{"session_id": sessID, "prediction_hash": hash, "rho": 0.0, "evidence_refs": []string{"e1"}}, http.StatusBadRequest},
+		{"rho above one", map[string]any{"session_id": sessID, "prediction_hash": hash, "rho": 1.5, "evidence_refs": []string{"e1"}}, http.StatusBadRequest},
+		{"unknown hash", map[string]any{"session_id": sessID, "prediction_hash": "nope", "rho": 0.9, "evidence_refs": []string{"e1"}}, http.StatusNotFound},
+		{"no evaluation yet", map[string]any{"session_id": sessID, "prediction_hash": hash, "rho": 0.9, "evidence_refs": []string{"e1"}}, http.StatusBadRequest},
+	}
+	for _, tc := range cases {
+		rec := postPrediction(t, srv, "/api/vault/predictions/assert", tc.body)
+		if rec.Code != tc.want {
+			t.Fatalf("%s: expected %d, got %d (%s)", tc.name, tc.want, rec.Code, rec.Body.String())
+		}
+	}
+
+	// Happy path after evaluation.
+	eval := postPrediction(t, srv, "/api/vault/predictions/evaluate", map[string]any{
+		"session_id": sessID, "prediction_hash": hash, "measured_value": -1.1362,
+	})
+	if eval.Code != http.StatusOK {
+		t.Fatalf("evaluate failed: %d", eval.Code)
+	}
+	ok := postPrediction(t, srv, "/api/vault/predictions/assert", map[string]any{
+		"session_id": sessID, "prediction_hash": hash, "rho": 0.9, "evidence_refs": []string{"job_run_1"},
+	})
+	if ok.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (%s)", ok.Code, ok.Body.String())
+	}
+	var out struct {
+		Rho           float64 `json:"rho"`
+		ClaimRecordID string  `json:"claim_record_id"`
+	}
+	_ = json.NewDecoder(ok.Body).Decode(&out)
+	if out.Rho != 0.9 {
+		t.Fatalf("expected echoed rho 0.9, got %v", out.Rho)
+	}
+	if out.ClaimRecordID == "" {
+		t.Fatalf("expected minted claim_record_id in assert response, got %+v", out)
+	}
+}
+
+func TestPredictionCalibration(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	sessID := createLensTestSession(t, srv, 100.0)
+	h1 := sealH2Prediction(t, srv, sessID, -1.137, 0.005)
+	h2 := sealH2Prediction(t, srv, sessID, -1.14, 0.01)
+	for _, tc := range []struct {
+		hash string
+		val  float64
+	}{{h1, -1.1362}, {h2, -1.14}} {
+		rec := postPrediction(t, srv, "/api/vault/predictions/evaluate", map[string]any{
+			"session_id": sessID, "prediction_hash": tc.hash, "measured_value": tc.val,
+		})
+		if rec.Code != http.StatusOK {
+			t.Fatalf("evaluate failed: %d", rec.Code)
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/vault/predictions/calibration?session_id="+sessID, nil)
+	req.Header.Set("Authorization", "Bearer test-token")
+	rec := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	var out struct {
+		Authors map[string]struct {
+			Sealed    int     `json:"sealed"`
+			Evaluated int     `json:"evaluated"`
+			MeanBrier float64 `json:"mean_brier_score"`
+		} `json:"authors"`
+		Evaluations int `json:"evaluations"`
+	}
+	_ = json.NewDecoder(rec.Body).Decode(&out)
+	if out.Evaluations != 2 {
+		t.Fatalf("expected 2 evaluations, got %d", out.Evaluations)
+	}
+	a, ok := out.Authors["agent_ansatz_scout"]
+	if !ok || a.Sealed != 2 || a.Evaluated != 2 {
+		t.Fatalf("expected scout 2/2, got %+v", out.Authors)
+	}
+}
+
+func TestPredictionHistory(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	sessID := createLensTestSession(t, srv, 100.0)
+	get := func() []map[string]any {
+		req := httptest.NewRequest(http.MethodGet, "/api/vault/predictions/history?session_id="+sessID+"&limit=10", nil)
+		req.Header.Set("Authorization", "Bearer test-token")
+		rec := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("history failed: %d (%s)", rec.Code, rec.Body.String())
+		}
+		var out struct {
+			Count int              `json:"count"`
+			Items []map[string]any `json:"predictions"`
+		}
+		_ = json.NewDecoder(rec.Body).Decode(&out)
+		return out.Items
+	}
+
+	if items := get(); len(items) != 0 {
+		t.Fatalf("expected empty history, got %v", items)
+	}
+	hash := sealH2Prediction(t, srv, sessID, -1.137, 0.005)
+	postPrediction(t, srv, "/api/vault/predictions/evaluate", map[string]any{
+		"session_id": sessID, "prediction_hash": hash, "measured_value": -1.1362,
+	})
+	postPrediction(t, srv, "/api/vault/predictions/assert", map[string]any{
+		"session_id": sessID, "prediction_hash": hash, "rho": 0.9, "evidence_refs": []string{"job_1"},
+	})
+	items := get()
+	if len(items) != 3 {
+		t.Fatalf("expected seal+evaluate+assert, got %d: %v", len(items), items)
+	}
+	kinds := map[string]bool{}
+	for _, it := range items {
+		k, _ := it["event_type"].(string)
+		kinds[k] = true
+	}
+	for _, k := range []string{"prediction_sealed", "prediction_evaluated", "prediction_asserted"} {
+		if !kinds[k] {
+			t.Fatalf("missing %s in history: %v", k, kinds)
+		}
+	}
+}

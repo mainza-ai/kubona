@@ -49,8 +49,16 @@ export function CheckInStrip({ loops }: { loops: Loop[] }) {
   // P4: director-routed alert from any surface (observatory surprise,
   // spend gates, deadlocks). Ambient stays text-only; glance and above
   // get a level-colored pill. Mute toggle rides alongside (audio engine).
-  const { alert, muted, toggleMute } = useAttention();
+  // R-10: the presence dial lives here — Hands/Eyes/Ear/Away gates what
+  // the Director may surface, per plan §3.
+  const { alert, muted, toggleMute, presence, setPresence } = useAttention();
   const showAlert = alert && alert.channel !== 'ambient';
+  const PRESENCE: Array<{ id: 'hands' | 'eyes' | 'ear' | 'away'; label: string; hint: string }> = [
+    { id: 'hands', label: 'Hands', hint: 'Direct authoring: non-critical summons suppressed' },
+    { id: 'eyes', label: 'Eyes', hint: 'Spectator/director: glance and above surface' },
+    { id: 'ear', label: 'Ear', hint: 'Ambient: nudge and summon chime, at reduced presence' },
+    { id: 'away', label: 'Away', hint: 'Lighthouse: only Level-3 summons pass' },
+  ];
 
   return (
     <div
@@ -84,8 +92,26 @@ export function CheckInStrip({ loops }: { loops: Loop[] }) {
           title={`${alert.source} · ${alert.reason}`}
         >
           · {alert.channel} {alert.level}: {alert.message.slice(0, 80)}
+          {alert.duplicates > 0 ? ` (×${alert.duplicates + 1})` : ''}
         </span>
       )}
+      <span className="shrink-0 flex items-center gap-0.5" title="Presence dial: your current degree of presence gates what the Director may surface">
+        {PRESENCE.map((p) => (
+          <button
+            key={p.id}
+            onClick={() => setPresence(p.id)}
+            title={p.hint}
+            aria-pressed={presence === p.id}
+            className={`px-1.5 py-0.5 rounded text-[10px] font-code transition-colors ${
+              presence === p.id
+                ? 'bg-cyan-500/20 text-cyan-200'
+                : 'text-slate-500 hover:text-slate-300'
+            }`}
+          >
+            {p.label}
+          </button>
+        ))}
+      </span>
       <button
         onClick={toggleMute}
         title={muted ? 'Unmute ambient laboratory sound' : 'Mute ambient laboratory sound'}
