@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import { Atom, Code, Copy, Check, Sparkles, Orbit } from 'lucide-react';
+import { Atom, Code, Copy, Check, Orbit } from 'lucide-react';
 import { CampaignState } from '@/types';
 import { fetchMolecularADMET, requestObservatoryLens, fetchObservatoryLensStatus, resolveObservatoryLens, fetchLensHistory, type LensHistoryOp } from '@/lib/api';
 import { dissociationEnergyHartree, equilibriumBondDistanceAngstrom, morseEnergyHartree } from '@/lib/morse';
@@ -346,7 +346,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
       anchored: anchorComputed && fciGround != null && nearEquilibrium,
       displaced: !nearEquilibrium,
     };
-  }, [bondDistance, equilibriumR, campaign?.classical_anchor]);
+  }, [bondDistance, equilibriumR, campaign?.classical_anchor, campaign?.target_system]);
 
   // Atom positions for SVG physical rendering
   const atomOffset = useMemo(() => {
