@@ -14,6 +14,7 @@ import { ArenaHud, ArenaView } from '@/components/sovereign/ArenaHud';
 import { SwarmUniverse } from '@/components/sovereign/SwarmUniverse';
 import { ProofDagView } from '@/components/sovereign/ProofDagView';
 import { ActionGate } from '@/components/sovereign/ActionGate';
+import { AttentionProvider } from '@/lib/attention-context';
 import { isMeteredBackend } from '@/lib/approvalPacket';
 import { WidgetStage, CanvasWidgetSpec, CanvasWidgetKind } from '@/components/sovereign/WidgetStage';
 import { FlightRecorder } from '@/components/surfaces/FlightRecorder';
@@ -441,6 +442,7 @@ export default function Home() {
 
   return (
     <div className="flex h-screen w-screen bg-[#07080B] text-slate-100 overflow-hidden font-sovereign select-none">
+      <AttentionProvider>
       {/* Modals & Dialogs */}
       <AboutLabModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
       <CommandPalette
@@ -746,6 +748,7 @@ export default function Home() {
           </kbd>
         </button>
       )}
+      </AttentionProvider>
     </div>
   );
 }

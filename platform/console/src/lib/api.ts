@@ -1849,6 +1849,10 @@ export async function requestObservatoryLens(params: {
   prompt?: string;
   taskType?: string;
   imageUrl?: string;
+  depthAssetId?: string;
+  camera?: { position: number[]; orientation: number[] };
+  voxelSize?: number;
+  ephemeralPurge?: boolean;
 }): Promise<{
   ok: boolean;
   operation_id?: string;
@@ -1873,6 +1877,10 @@ export async function requestObservatoryLens(params: {
         prompt: params.prompt,
         task_type: params.taskType || 'images2PosedRGBD',
         ...(params.imageUrl ? { image_url: params.imageUrl } : {}),
+        ...(params.depthAssetId ? { depth_asset_id: params.depthAssetId } : {}),
+        ...(params.camera ? { camera: params.camera } : {}),
+        ...(params.voxelSize ? { voxel_size: params.voxelSize } : {}),
+        ...(params.ephemeralPurge ? { ephemeral_purge: true } : {}),
       }),
     });
     if (!res.ok) {
@@ -1886,6 +1894,99 @@ export async function requestObservatoryLens(params: {
       cost_usd?: number;
       idempotency_key?: string;
     };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message || 'Network error' };
+  }
+}
+
+/** Upload inline base64 media as an Atlas project asset (P1 rail). */
+export async function uploadObservatoryAsset(params: {
+  sessionId: string;
+  dataBase64: string;
+  displayName?: string;
+}): Promise<{ ok: boolean; asset_id?: string; idempotency_key?: string; error?: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/observatory/assets`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        session_id: params.sessionId,
+        data_base64: params.dataBase64,
+        display_name: params.displayName,
+      }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      return { ok: false, error: data.message || `Upload failed (${res.status})` };
+    }
+    return (await res.json()) as { ok: boolean; asset_id?: string; idempotency_key?: string };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message || 'Network error' };
+  }
+}
+
+/** Resolve a lens operation to its terminal record (persists promptUsed). */
+export async function resolveObservatoryLens(params: {
+  sessionId: string;
+  operationId: string;
+}): Promise<{
+  ok: boolean;
+  done?: boolean;
+  prompt_used?: string;
+  asset_urls?: string[];
+  local_paths?: string[];
+  error?: unknown;
+}> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/observatory/lens/resolve`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ session_id: params.sessionId, operation_id: params.operationId }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      return { ok: false, error: data.message || `Resolve failed (${res.status})` };
+    }
+    return (await res.json()) as {
+      ok: boolean;
+      done?: boolean;
+      prompt_used?: string;
+      asset_urls?: string[];
+      local_paths?: string[];
+      error?: unknown;
+    };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message || 'Network error' };
+  }
+}
+
+/** Per-session lens history from our own reservation ledger (rated
+ * invoices stay on the billing dashboard — present as reservations). */
+export interface LensHistoryOp {
+  operation_id: string;
+  task_type?: string;
+  cost_usd?: number;
+  prompt_used?: string;
+  resolved?: boolean;
+  ephemeral_purge?: boolean;
+  local_paths?: string[];
+}
+
+export async function fetchLensHistory(sessionId: string): Promise<{
+  ok: boolean;
+  operations?: LensHistoryOp[];
+  error?: string;
+}> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/observatory/lens/history?session_id=${encodeURIComponent(sessionId)}`, {
+      cache: 'no-store',
+      headers: authHeaders(),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      return { ok: false, error: data.message || `History failed (${res.status})` };
+    }
+    return (await res.json()) as { ok: boolean; operations?: LensHistoryOp[] };
   } catch (err) {
     return { ok: false, error: (err as Error).message || 'Network error' };
   }

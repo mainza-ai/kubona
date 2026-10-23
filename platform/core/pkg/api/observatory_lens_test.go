@@ -31,7 +31,7 @@ func TestObservatoryLensGhostSession(t *testing.T) {
 
 	body, _ := json.Marshal(api.ObservatoryLensRequest{
 		SessionID: "non-existent-session",
-		TaskType:  "atlasGenerate",
+		TaskType:  "atlasChisel",
 	})
 	req := httptest.NewRequest(http.MethodPost, "/api/observatory/lens", bytes.NewReader(body))
 	req.Header.Set("Authorization", "Bearer test-token")
@@ -86,7 +86,7 @@ func TestObservatoryLensAirGappedRefusal(t *testing.T) {
 	lensReqBody, _ := json.Marshal(api.ObservatoryLensRequest{
 		SessionID:    sessResp.ID,
 		TargetSystem: "H2",
-		TaskType:     "atlasGenerate",
+		TaskType:     "atlasChisel",
 	})
 	lensReq := httptest.NewRequest(http.MethodPost, "/api/observatory/lens", bytes.NewReader(lensReqBody))
 	lensReq.Header.Set("Authorization", "Bearer test-token")
@@ -124,7 +124,7 @@ func TestObservatoryLensSpendLimitExceeded(t *testing.T) {
 	lensReqBody, _ := json.Marshal(api.ObservatoryLensRequest{
 		SessionID:    sessResp.ID,
 		TargetSystem: "H2",
-		TaskType:     "atlasGenerate",
+		TaskType:     "atlasChisel",
 	})
 	lensReq := httptest.NewRequest(http.MethodPost, "/api/observatory/lens", bytes.NewReader(lensReqBody))
 	lensReq.Header.Set("Authorization", "Bearer test-token")
@@ -159,7 +159,7 @@ func TestObservatoryLensMissingAPIKeyRefundsSpend(t *testing.T) {
 	lensReqBody, _ := json.Marshal(api.ObservatoryLensRequest{
 		SessionID:    sessResp.ID,
 		TargetSystem: "H2",
-		TaskType:     "atlasGenerate",
+		TaskType:     "atlasChisel",
 	})
 	lensReq := httptest.NewRequest(http.MethodPost, "/api/observatory/lens", bytes.NewReader(lensReqBody))
 	lensReq.Header.Set("Authorization", "Bearer test-token")
@@ -223,7 +223,7 @@ func TestObservatoryLensMockAtlasDispatch(t *testing.T) {
 	lensReqBody, _ := json.Marshal(api.ObservatoryLensRequest{
 		SessionID:    sessResp.ID,
 		TargetSystem: "LiH",
-		TaskType:     "atlasGenerate",
+		TaskType:     "atlasChisel",
 	})
 	lensReq := httptest.NewRequest(http.MethodPost, "/api/observatory/lens", bytes.NewReader(lensReqBody))
 	lensReq.Header.Set("Authorization", "Bearer test-token")
@@ -560,11 +560,12 @@ func TestObservatoryLensRejectsOversizeSnapshot(t *testing.T) {
 	t.Setenv("WLT_API_KEY", "wl_live_mock_key")
 
 	sessID := createLensTestSession(t, srv, 20.0)
+	// Guard measures DECODED bytes (9.5 MiB cap): ~12.7 MiB of base64.
 	rec := postLens(t, srv, map[string]any{
 		"session_id":    sessID,
 		"target_system": "H2",
 		"task_type":     "images2PosedRGBD",
-		"image_url":     "data:image/png;base64," + string(make([]byte, 9*1024*1024+1)),
+		"image_url":     "data:image/png;base64," + string(make([]byte, 13*1024*1024)),
 	}, "")
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("expected 400 for oversize inline snapshot, got %d", rec.Code)

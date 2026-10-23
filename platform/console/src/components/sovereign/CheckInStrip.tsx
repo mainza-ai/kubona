@@ -1,7 +1,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import { Volume2, VolumeX } from 'lucide-react';
 import { fetchCostSummary, type CostSummary } from '@/lib/api';
+import { useAttention } from '@/lib/attention-context';
 import type { Loop } from '@/types';
 
 function statusOf(loop: Loop): string {
@@ -44,6 +46,12 @@ export function CheckInStrip({ loops }: { loops: Loop[] }) {
     else if (s === 'diverged' || s === 'failed' || s === 'killed' || l.diverged) attention += 1;
   }
 
+  // P4: director-routed alert from any surface (observatory surprise,
+  // spend gates, deadlocks). Ambient stays text-only; glance and above
+  // get a level-colored pill. Mute toggle rides alongside (audio engine).
+  const { alert, muted, toggleMute } = useAttention();
+  const showAlert = alert && alert.channel !== 'ambient';
+
   return (
     <div
       role="status"
@@ -64,6 +72,27 @@ export function CheckInStrip({ loops }: { loops: Loop[] }) {
           {spend.unmetered_count > 0 ? ` · ${spend.unmetered_count} blind` : ''}
         </span>
       )}
+      {showAlert && (
+        <span
+          className={`shrink-0 truncate font-medium ${
+            alert.level === 'anomalous'
+              ? 'text-rose-300 animate-pulse'
+              : alert.level === 'notable'
+                ? 'text-amber-300'
+                : 'text-cyan-300'
+          }`}
+          title={`${alert.source} · ${alert.reason}`}
+        >
+          · {alert.channel} {alert.level}: {alert.message.slice(0, 80)}
+        </span>
+      )}
+      <button
+        onClick={toggleMute}
+        title={muted ? 'Unmute ambient laboratory sound' : 'Mute ambient laboratory sound'}
+        className="shrink-0 text-slate-500 hover:text-slate-300 transition-colors flex items-center"
+      >
+        {muted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+      </button>
     </div>
   );
 }

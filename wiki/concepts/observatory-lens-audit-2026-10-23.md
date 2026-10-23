@@ -133,9 +133,9 @@ The blueprint was describing code that never existed:
 - **P3 landed 2026-10-23:** seal/evaluate/latest endpoints
   (`/api/vault/predictions/*`, `prediction_sealed`/`prediction_evaluated`
   ledger events, σ floor 1e-4, deterministic hash, z + sealed-3σ-Brier +
-  level math pinned); console Vault panel (seal form gated on FCI anchor,
-  ghost bound to sealed μ, z-badge, evaluate-pinned-point loop); F-12/F-13
-  closed. CheckInStrip director levels stay P4 work.
+   level math pinned); console Vault panel (seal form gated on FCI anchor,
+   ghost bound to sealed μ, z-badge, evaluate-pinned-point loop); F-12/F-13
+   closed. CheckInStrip director levels arrived via the P4 context below.
 - **Q-37 landed 2026-10-23:** snapshot capture (preserveDrawingBuffer +
   16:9 cover-crop to exact 1280×720, null-safe fail-closed) + Atlas inline
   asset-upload flow (`data:` URLs → project asset → assetId frame refs,
@@ -145,18 +145,23 @@ The blueprint was describing code that never existed:
   finite-stats) with hermetic EXR round-trip tests proving the row flip;
   interop pin: three r186 EXRExporter ZIP default misdecodes in its own
   EXRLoader — P1 must encode uncompressed (or ZIPS).
-- **P1 — real chisel lens:** planar-depth encoder (offscreen 1280×720
-EXR + log-PNG, CPU row-flip per docs), RUB cameras with computed
-intrinsics, `contextFrames` 1:1 with targets, `enhancePrompt` control +
-`promptUsed` persistence, retention flag (`dev_inspect` per Q-36),
-download artifacts to `~/.kubona/artifacts/`. Gate: unchecked plan §14
-boxes — **entitlement proof DONE 2026-10-23 for pose/chisel/generate**
-(Q-38 probe: pose SUCCEEDED, chisel SUCCEEDED, generate SUCCEEDED with
-exact requested camera; text-to-image 0/4 with sustained
-`TRANSIENT_UPSTREAM`, re-probe another day). Live corrections to the
-plan: chisel requires ≥1 `targetCameras` even prompt-only (422
-otherwise); asset-create returns `{"id": "asset_..."}` (not the
-tutorial's resource-name shape — backend fixed + pinned).
+- **P1 landed 2026-10-23 (browser E2E pending operator run):**
+  encoder (`src/lib/depth-encode.ts`: offscreen 65×65 Morse heightfield,
+  view-space-Z + coverage shader, top-down flip, uncompressed EXR export —
+  hermetic tests pin parity with `morse.ts`, PlaneGeometry vertex order,
+  and the EXR round-trip) + upload rail (`POST /api/observatory/assets`)
+  + chisel context/purge/voxel dispatch + resolve/promptUsed persistence +
+  history rail + console encode→chisel flow with preview/backdrop slots.
+  Row-order ground truth established against real Atlas bytes: file
+  scanline 0 = image BOTTOM (floor-close values at row 0). Live
+  corrections: chisel needs ≥1 `targetCameras` even prompt-only (422);
+  asset-create returns `{"id"}` (backend fixed + pinned); RGBA-half EXR
+  uploads accepted; guarded inline size is DECODED bytes (9.5 MiB cap).
+- **P1-live warp proof DONE (flip-pair, 2 paid chisels):** mirrored depth
+  layouts, same prompt+camera. d(A,B): MAD 92.83 / NCC 0.14 (nearly
+  uncorrelated) vs d(A,flip(B)): MAD 56.58 / NCC 0.62 — the depth layout
+  causally drives the output geometry (warp route consumed the context).
+  Fixtures + op IDs in gitignored `dev-docs/kubona-probe-2026-10-23/`.
   - Workflow-derived rules ([[source-world-labs-atlas-2026]],
   generated-world-edit-workflow): posed RGB output is **never passed
   through verbatim** — strip to depth-only + camera (omit RGB, mask,
@@ -191,21 +196,30 @@ same pinhole schema) as method reference.
   from the lens action; ghost renders the ledger μ±σ band; on run completion
   emit `prediction_evaluated`, compute z, render gap volume
   (cyan/amber/rose), wire to `CheckInStrip` levels.
-- **P4 — Director + audio:** L0–L3 routing, gate batching, duplicate
-  collapse, presence gating, WebAudio hum/clicks/chime + mute.
-- **P5 — Agents + rooms:** `world.{look,probe,anchor,gaze,summon,handoff,
-  replay}` MCP tools with the plan's governance gates; gaze cones; 4D
-  replay; procedural pavilion fallback so air-gap keeps a Tier-1 world.
-- **P6 — Harden:** webhook receiver (Ed25519 `v1a`, JWKS cache, `410`
-handling), live-schema CI check, credit-burn dashboard, op job-record
-persistence. Billing-derived rules: per-project monthly limits (dedicated
-dev project + key), Usage-page grouping by key for attribution, spend
-limits as guardrails with observation lag (dashboard shows ranges, never
-exact estimates), 402 recovery = check limits → add credits → retry the
-*same* idempotency key (already P0b). Q-38 probes run via the official
-`worldlabs` CLI (`tasks list`, asset upload, `--idempotency-key`,
-`operations wait`) — no custom code; operator runs `setup` (key stays
-out of chats, `WLT_API_KEY` env takes precedence).
+- **P4 landed 2026-10-23:** attention core (`src/lib/attention.ts`:
+  L0–L3 routing, Hands/Away suppression flags, worst-pick — pinned by
+  tests), ambient-audio engine (60 Hz hum, tick, brass chime, gesture-gated
+  + persisted mute), `AttentionProvider` context, CheckInStrip level pill +
+  mute toggle, page-level provider, evaluate→notify wiring (vault z lands
+  in the strip). Gate batching deferred: needs the AP2 approval queue.
+- **P5 landed 2026-10-23 (agents):** `world.{look,probe,anchor,gaze,summon,
+  handoff,replay}` MCP tools (`platform/kubona/mcp/servers/world.py`,
+  Go-HTTP-backed, annotation-only writes, probe estimate-only, summon
+  3/hour cap) + gateway mount + `world:read/write` scopes (default-deny
+  preserved) + catalog regen with verdicts (36 tools, count pins updated).
+  Pavilion shell landed (procedural floor/pillars/ring/window-glow —
+  Tier-1 room with zero cloud). Gaze cones + 4D replay scrubber stay
+  follow-up.
+- **P6 landed 2026-10-23:** webhook receiver (Ed25519 `v1a`, JWKS cache +
+  rotation refetch, 300 s tolerance, unit-tested with real keys;
+  end-to-end test proves resolve-on-delivery; unattributed → accepted
+  no-op; route intentionally public — signature IS the auth) + lens
+  history rail (`GET /api/observatory/lens/history`, reservation ledger
+  with billed-amounts caveat, console details block) +
+  `scripts/atlas-schema-check.py` (8 pages, all tokens green live).
+  Remaining: dedicated dev project + monthly limit (operator UI),
+  Usage-page burn reconciliation (no balance API exists), training
+  opt-out confirmation.
 
 ## 6. Decisions (Q-36/Q-37 closed 2026-10-23, Q-38 open)
 

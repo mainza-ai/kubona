@@ -19,12 +19,13 @@ vi.mock('@/lib/api', () => ({
       lipinski: { pass: true, violations: 0 },
     };
   }),
-  // P3 vault predictions: unsealed by default so the ghost reads illustrative.
+  // P3 vault predictions + P6 lens history: unsealed/empty by default so the ghost reads illustrative.
   fetchLatestPrediction: vi.fn().mockImplementation(async () => ({ ok: true, sealed: null, evaluation: null })),
   sealPrediction: vi.fn(),
   evaluatePrediction: vi.fn(),
   requestObservatoryLens: vi.fn(),
   fetchObservatoryLensStatus: vi.fn(),
+  fetchLensHistory: vi.fn().mockImplementation(async () => ({ ok: true, operations: [] })),
 }));
 
 function textOf(node: unknown): string {

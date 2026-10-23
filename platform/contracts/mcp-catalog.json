@@ -1,6 +1,6 @@
 {
   "generated_by": "KUBONA_UPDATE_CATALOG=1 pytest platform/tests/test_mcp_catalog.py",
-  "digest": "fa6b45ec11af6d3069d0e259ce9971ae16fa581e7f2631a7a013a7e4ec86bcd9",
+  "digest": "ad40fd72f716cebc81b3e3ff584f97b7537905393740b32f3df16d1f7b69b6d4",
   "tools": [
     {
       "name": "compile_circuit",
@@ -1074,6 +1074,269 @@
         "bad_request",
         "unauthorized",
         "internal"
+      ]
+    },
+    {
+      "name": "world_anchor",
+      "description": "Attach a hypothesis to a world pose. Requires evidence refs.",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "evidence_refs": {
+            "items": {},
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "pose": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pose"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "evidence_refs",
+          "pose",
+          "note"
+        ],
+        "title": "world_anchorArguments",
+        "type": "object"
+      },
+      "server": "world",
+      "verdict": "keep",
+      "trust_property": "Evidence-gated writes; annotation-only, no spend, no self-mint",
+      "error_codes": [
+        "unauthorized",
+        "bad_request",
+        "forbidden",
+        "rate_limited",
+        "bridge_unavailable"
+      ]
+    },
+    {
+      "name": "world_gaze",
+      "description": "Stream agent orientation and intent. Always on, append-only.",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "position": {
+            "items": {},
+            "title": "Position",
+            "type": "array"
+          },
+          "quaternion": {
+            "items": {},
+            "title": "Quaternion",
+            "type": "array"
+          },
+          "intent": {
+            "title": "Intent",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "position",
+          "quaternion",
+          "intent"
+        ],
+        "title": "world_gazeArguments",
+        "type": "object"
+      },
+      "server": "world",
+      "verdict": "keep",
+      "trust_property": "Validated append-only orientation trail; malformed poses refused",
+      "error_codes": [
+        "unauthorized",
+        "bad_request",
+        "forbidden",
+        "rate_limited",
+        "bridge_unavailable"
+      ]
+    },
+    {
+      "name": "world_handoff",
+      "description": "Pass camera pose + context to a peer agent. Sealed in the ledger.",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "to_agent": {
+            "title": "To Agent",
+            "type": "string"
+          },
+          "camera": {
+            "additionalProperties": true,
+            "title": "Camera",
+            "type": "object"
+          },
+          "context_note": {
+            "title": "Context Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "to_agent",
+          "camera",
+          "context_note"
+        ],
+        "title": "world_handoffArguments",
+        "type": "object"
+      },
+      "server": "world",
+      "verdict": "keep",
+      "trust_property": "Peer+pose-required handoff sealed as annotation",
+      "error_codes": [
+        "unauthorized",
+        "bad_request",
+        "forbidden",
+        "rate_limited",
+        "bridge_unavailable"
+      ]
+    },
+    {
+      "name": "world_look",
+      "description": "Return nearby ledger records and camera context. Read-only.",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "world_lookArguments",
+        "type": "object"
+      },
+      "server": "world",
+      "verdict": "keep",
+      "trust_property": "Read-only session + vault reads; no mutation, no spend",
+      "error_codes": [
+        "unauthorized",
+        "bridge_unavailable"
+      ]
+    },
+    {
+      "name": "world_probe",
+      "description": "Cost estimate for a measurement. Never executes \u2014 dispatch stays human-driven.",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "task_type": {
+            "title": "Task Type",
+            "type": "string"
+          },
+          "target_system": {
+            "title": "Target System",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "task_type",
+          "target_system"
+        ],
+        "title": "world_probeArguments",
+        "type": "object"
+      },
+      "server": "world",
+      "verdict": "keep",
+      "trust_property": "Estimate-only; never executes, reserves, or spends",
+      "error_codes": [
+        "unauthorized",
+        "bad_request"
+      ]
+    },
+    {
+      "name": "world_replay",
+      "description": "Historical trajectory paths for scrubbable playback. Read-only.",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "limit": {
+            "default": 50,
+            "title": "Limit",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "world_replayArguments",
+        "type": "object"
+      },
+      "server": "world",
+      "verdict": "keep",
+      "trust_property": "Read-only ledger export slice; capped at 200",
+      "error_codes": [
+        "unauthorized",
+        "bad_request",
+        "bridge_unavailable"
+      ]
+    },
+    {
+      "name": "world_summon",
+      "description": "Request a human alert. Rate-limited; the Director may delay or refuse.",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "reason": {
+            "title": "Reason",
+            "type": "string"
+          },
+          "level": {
+            "default": "notable",
+            "title": "Level",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "reason"
+        ],
+        "title": "world_summonArguments",
+        "type": "object"
+      },
+      "server": "world",
+      "verdict": "keep",
+      "trust_property": "Rate-limited (3/hour/session) human-alert requests; director may refuse",
+      "error_codes": [
+        "unauthorized",
+        "bad_request",
+        "forbidden",
+        "rate_limited",
+        "bridge_unavailable"
       ]
     }
   ]
