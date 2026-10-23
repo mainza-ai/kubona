@@ -94,8 +94,9 @@ export async function encodeDepthEXR(depthTopDown: Float32Array, width: number, 
  * Thin WebGL glue: render the terrain depth offscreen from a RUB camera.
  * Untested by construction (jsdom has no GL) — keep it boring: the exact
  * same height field as buildTerrainHeightField, a depth+coverage shader,
- * and topDownDepthFromReadback for the CPU handoff. Browser-only; the
- * Python harness in dev-docs mirrors this math for live verification.
+ * and topDownDepthFromReadback for the CPU handoff. Browser-only — no
+ * Python mirror exists; encoder-shaped bytes were live-verified through
+ * the backend lane instead (R-31: 65×65 EXR → SUCCEEDED chisel).
  */
 export function renderTerrainDepthGL(
   heightsTopDown: Float32Array,
