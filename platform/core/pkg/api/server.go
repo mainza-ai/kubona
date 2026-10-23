@@ -504,6 +504,15 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/vault/predictions/evaluate", s.requireBearer(s.handlePredictionEvaluate))
 	s.mux.HandleFunc("/api/vault/predictions/latest", s.requireBearer(s.handlePredictionLatest))
 
+	// Observatory asset upload + operation resolve (P1 rails).
+	s.mux.HandleFunc("/api/observatory/assets", s.requireBearer(s.handleObservatoryAsset))
+	s.mux.HandleFunc("/api/observatory/lens/resolve", s.requireBearer(s.handleObservatoryLensResolve))
+	s.mux.HandleFunc("/api/observatory/lens/history", s.requireBearer(s.handleObservatoryLensHistory))
+	// Atlas webhook delivery (P6): PUBLIC route — the Ed25519 v1a signature
+	// is the authentication (Atlas cannot present our bearer). Verification
+	// before any state change; poll+resolve stays the correctness path.
+	s.mux.HandleFunc("/api/observatory/webhooks", s.handleObservatoryWebhook)
+
 	// Molecular Science & 12-Agent Drug Discovery Pipeline
 	s.mux.HandleFunc("/api/chemistry/admet", s.handleChemistryADMET)
 	s.mux.HandleFunc("/api/discovery/pipeline", s.handleDiscoveryPipeline)

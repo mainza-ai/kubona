@@ -42,6 +42,14 @@ TOOL_SCOPES: dict[str, str] = {
     # provenance
     "provenance/write_record": "provenance:write",
     "provenance/query_records": "provenance:read",
+    # observatory world players (P5): reads observe, writes append only
+    "world/world_look": "world:read",
+    "world/world_probe": "world:read",
+    "world/world_replay": "world:read",
+    "world/world_anchor": "world:write",
+    "world/world_gaze": "world:write",
+    "world/world_summon": "world:write",
+    "world/world_handoff": "world:write",
     # control plane
     "control/register_loop": "control:manage",
     "control/step_loop": "control:manage",

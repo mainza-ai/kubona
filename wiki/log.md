@@ -3155,6 +3155,18 @@ skipped is the exact failure this incident is about:
   - Suites: Go pkg/api full green, console 45 files / 212 tests green, tsc clean, eslint 0 errors, wiki-lint clean. No live Atlas spend; no commits (uncommitted working tree).
   - Questions: Q-36 closed (dev_inspect for beta), Q-37 closed (snapshot-accepting + fail-closed fallback landed).
 
+## [2026-10-23] impl | P1-live + P4 + P5 + P6 landed (flip-pair warp proof, director, world tools, webhooks)
+  - P1-live: offscreen depth encoder (Morse heightfield, view-space-Z + coverage shader, uncompressed EXR; row-order ground truth verified against real Atlas bytes — scanline 0 = image bottom); asset upload rail; chisel context/purge/voxel dispatch; resolve + promptUsed + history rails; console encode→chisel flow with preview/backdrop slots. Flip-pair proof (2 paid chisels): mirrored depths, same prompt+camera — d(A,B) MAD 92.83/NCC 0.14 vs d(A,flip(B)) MAD 56.58/NCC 0.62. Warp route consumes depth: proven.
+  - P4: attention.ts routing (tests), ambient-audio engine (hum/tick/chime, gesture-gated, persisted mute), AttentionProvider, CheckInStrip level pill + mute, page-level wiring, evaluate→notify. Gate batching deferred (needs AP2 queue).
+  - P5: world.* MCP tools (Go-HTTP-backed, annotation-only writes, probe estimate-only, summon 3/hour cap) + mount + world:read/write scopes + catalog regen with verdicts (36 tools); pavilion shell (floor/pillars/ring/window-glow, Tier-1, zero cloud). Gaze cones + 4D scrubber stay follow-up.
+  - P6: webhook receiver (v1a, JWKS cache + rotation, tolerance, unit + e2e tests) + lens history rail + console reservation ledger + atlas-schema-check.py (8 pages green live). Remaining operator items: dev project + limit, burn reconciliation, training opt-out.
+  - Suites: Go pkg/api full green; console 48 files / 229 tests green; tsc clean; eslint 0 errors; Python MCP/policy/catalog/surface green; wiki-lint clean. No commits (uncommitted working tree).
+
+## [2026-10-23] docs | README + overview record the shipped Observatory; push to main & develop
+  - README: new Observatory section (Tier-1 walkable lab, Tier-2 Atlas lens rules, Vault pre-registration, world.* tools), MCP 5/29 -> 6/36 tools, wiki 145+ -> 149 pages, roadmap gains the shipped P0-P6 representation layer.
+  - wiki/overview.md: dated prototype-evidence note (P0-P6 lens facts, live Atlas results incl. text-to-image outage, current suite counts) + updated date.
+  - Push: single commit of the full working tree (prior session's uncommitted observatory work + this session's P0/P3/Q-37/P2/P1-live/P4/P5/P6); scratch/ left untracked.
+
 ## [2026-10-23] verification | Q-38 live probe executed (pose/chisel/generate green, text-to-image outage)
   - Live Atlas evidence (operator-approved spend; no secrets recorded): images2PosedRGBD SUCCEEDED on the camera-studio igloo scene (recovered camera near-identical to the bundle: fx 1211.95, centered principal, position within 1 mm); atlasChisel SUCCEEDED prompt-only-with-1-target (entitlement proven — and chisel requires >=1 targetCameras even with empty context, 422 otherwise); atlasGenerate SUCCEEDED with exact requested +0.25 X camera; atlasTextToImage 0/4 with sustained TRANSIENT_UPSTREAM (code 14, both enhance settings, retries with fresh keys) — service outage, re-probe another day, no further T2I spend.
   - Live-contract correction: asset-create returns {"id": "asset_..."} (not the tutorial's resource-name shape) — backend parser fixed + live-shape test pin.
