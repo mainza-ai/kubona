@@ -494,6 +494,15 @@ func (s *Server) registerRoutes() {
 	// Live Telemetry Event Stream (SSE) & Spatial Canvas Layouts
 	s.mux.HandleFunc("/api/events/stream", s.handleEventsStream)
 	s.mux.HandleFunc("/api/canvas/layout", s.handleCanvasLayout)
+	// Observatory lens: spend-authority writes get edge auth (F-13 — a bare
+	// session UUID must never be able to bill the lab's budget).
+	s.mux.HandleFunc("/api/observatory/lens", s.requireBearer(s.handleObservatoryLens))
+
+	// Vault pre-registration: sealed expectations and surprise evaluations
+	// (reads are session-scoped, writes bill attention — both edge-authed).
+	s.mux.HandleFunc("/api/vault/predictions/seal", s.requireBearer(s.handlePredictionSeal))
+	s.mux.HandleFunc("/api/vault/predictions/evaluate", s.requireBearer(s.handlePredictionEvaluate))
+	s.mux.HandleFunc("/api/vault/predictions/latest", s.requireBearer(s.handlePredictionLatest))
 
 	// Molecular Science & 12-Agent Drug Discovery Pipeline
 	s.mux.HandleFunc("/api/chemistry/admet", s.handleChemistryADMET)

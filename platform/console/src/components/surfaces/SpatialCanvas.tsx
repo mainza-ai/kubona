@@ -1,15 +1,18 @@
 'use client';
 
-import React, { useState, useMemo, useEffect } from 'react';
-import { Atom, Code, Copy, Check } from 'lucide-react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { Atom, Code, Copy, Check, Sparkles, Orbit } from 'lucide-react';
 import { CampaignState } from '@/types';
-import { fetchMolecularADMET } from '@/lib/api';
+import { fetchMolecularADMET, requestObservatoryLens, fetchObservatoryLensStatus } from '@/lib/api';
+import { dissociationEnergyHartree, equilibriumBondDistanceAngstrom, morseEnergyHartree } from '@/lib/morse';
+import { SpatialCanvas3D } from './SpatialCanvas3D';
 
 interface SpatialCanvasProps {
   campaign?: CampaignState | null;
 }
 
 export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
+  const [canvasMode, setCanvasMode] = useState<'workbench' | 'observatory'>('workbench');
   // Discovery target
   const targetSystem = campaign?.target_system || 'H2';
   const isLiH = targetSystem.toUpperCase().includes('LIH');
@@ -51,16 +54,11 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
     return ['H₁', 'H₂'];
   }, [campaign?.quantum_factors?.molecular_formula, campaign?.quantum_factors?.target_molecule]);
 
-  // Equilibrium bond distance
+  // Equilibrium bond distance (single source of truth: @/lib/morse —
+  // shared with the 3D observatory so both surfaces agree).
   const equilibriumR = useMemo(() => {
     if (campaign?.quantum_factors?.bond_distance) return campaign.quantum_factors.bond_distance;
-    const sys = (campaign?.target_system || '').toUpperCase();
-    if (sys.includes('LIH')) return 1.5957;
-    if (sys.includes('BEH')) return 1.3300;
-    if (sys.includes('CO')) return 1.1280;
-    if (sys.includes('N2')) return 1.0980;
-    if (sys.includes('H2O')) return 0.9580;
-    return 0.7414;
+    return equilibriumBondDistanceAngstrom(campaign?.target_system);
   }, [campaign?.quantum_factors?.bond_distance, campaign?.target_system]);
 
   const campaignBondDist = campaign?.quantum_factors?.bond_distance;
@@ -95,6 +93,101 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
   const [admetLoading, setAdmetLoading] = useState(false);
   const [admetSmiles, setAdmetSmiles] = useState<string | null>(null);
 
+  const [isGeneratingLens, setIsGeneratingLens] = useState(false);
+  const [lensError, setLensError] = useState<string | null>(null);
+  const [lensImageUrl, setLensImageUrl] = useState<string | null>(null);
+  const [lensOpId, setLensOpId] = useState<string | null>(null);
+
+  // Compiler-honest scalars: the React Compiler reads `campaign` as a whole
+  // object through optional chaining, so the lens callback depends on these
+  // scalars instead of `campaign?.x` expressions (P0c lint fix).
+  const lensSessionId = campaign?.session_id;
+  const lensTargetSystem = campaign?.target_system || 'H2';
+
+  const handleRequestAtlasLens = useCallback(async (snapshotDataUrl: string | null) => {
+    const sid = lensSessionId;
+    if (!sid) {
+      setLensError('No active campaign session to debit spend');
+      return;
+    }
+    setIsGeneratingLens(true);
+    setLensError(null);
+    try {
+      const resp = await requestObservatoryLens({
+        sessionId: sid,
+        targetSystem: lensTargetSystem,
+        // Q-37: live terrain snapshot when capturable; otherwise undefined
+        // and the backend fail-closes (no stock imagery, ever).
+        imageUrl: snapshotDataUrl ?? undefined,
+      });
+      if (!resp.ok) {
+        setLensError(resp.error || 'Failed to synthesize lens');
+        setIsGeneratingLens(false);
+      } else if (resp.operation_id) {
+        setLensOpId(resp.operation_id);
+      } else {
+        setIsGeneratingLens(false);
+      }
+    } catch (e) {
+      setLensError((e as Error).message);
+      setIsGeneratingLens(false);
+    }
+  }, [lensSessionId, lensTargetSystem]);
+
+  useEffect(() => {
+    if (!lensOpId || lensImageUrl) return;
+    let cancelled = false;
+    // Bounded poll: 40 attempts x 3 s (2 min ceiling) with a terminal
+    // timeout error — never an open-ended interval. P1 adds backoff +
+    // Retry-After honoring for 429s.
+    let attempts = 0;
+    const maxAttempts = 40;
+    const interval = setInterval(async () => {
+      try {
+        attempts += 1;
+        if (attempts > maxAttempts) {
+          if (!cancelled) {
+            setLensError('Timed out waiting for the Atlas operation (2 min): keep the operation ID and check the World Labs console, or retry with the same request');
+            setLensOpId(null);
+            setIsGeneratingLens(false);
+          }
+          clearInterval(interval);
+          return;
+        }
+        const data = await fetchObservatoryLensStatus(lensOpId);
+        if (cancelled) return;
+        if (data.error) {
+          const errMsg = typeof data.error === 'string'
+            ? data.error
+            : (data.error as { message?: string })?.message || 'Atlas operation failed';
+          setLensError(errMsg);
+          setLensOpId(null);
+          setIsGeneratingLens(false);
+          clearInterval(interval);
+          return;
+        }
+        if (data.done) {
+          const resp = data.response as { frames?: Array<{ imageAsset?: { url?: string } }> } | undefined;
+          const url = resp?.frames?.[0]?.imageAsset?.url;
+          if (url) {
+            setLensImageUrl(url);
+          } else {
+            setLensError('Atlas operation completed but returned no image frame');
+          }
+          setLensOpId(null);
+          setIsGeneratingLens(false);
+          clearInterval(interval);
+        }
+      } catch {
+        // keep polling
+      }
+    }, 3000);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [lensOpId, lensImageUrl]);
+
   // Adjust state during render when the target changes (same pattern as
   // the campaign-key guard above): reset profile + loading synchronously,
   // then the effect below fetches exactly once per target. This keeps
@@ -123,7 +216,10 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
     };
   }, [admetSmiles]);
 
-  // Compute energy on the fly based on physical Morse potential anchored to PySCF FCI
+  // Compute energy on the fly from the shared physical Morse potential
+  // (@/lib/morse) anchored to PySCF FCI. Same numbers as the 3D
+  // observatory by construction (P0c: retired the ad-hoc |FCI|*0.15,
+  // a=1.44 workbench-only parameterization).
   const energyCalculated = useMemo(() => {
     const Re = equilibriumR;
     const anchor = campaign?.classical_anchor;
@@ -133,11 +229,9 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
     // No anchor → no Δ, no invented baseline. Model energy renders as
     // Morse extrapolation only when an anchor exists; otherwise UNVERIFIED.
     const fciGround = anchorComputed && fciFinite ? (fciRaw as number) : null;
-    const De = fciGround != null ? Math.abs(fciGround) * 0.15 : 0;
-    const a = 1.44; // Potential width parameter
+    const De = dissociationEnergyHartree(campaign?.target_system);
     const deltaR = bondDistance - Re;
-    const morseTerm = fciGround != null ? De * Math.pow(1 - Math.exp(-a * deltaR), 2) : 0;
-    const energy = fciGround != null ? fciGround + morseTerm : null;
+    const energy = fciGround != null ? morseEnergyHartree(deltaR, 0, De, fciGround) : null;
     const rhfRaw = anchor?.rhf_mean_field_energy;
     const rhfFinite = typeof rhfRaw === 'number' && Number.isFinite(rhfRaw);
     const rhfEnergy = anchorComputed && rhfFinite ? (rhfRaw as number) : null;
@@ -342,25 +436,66 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
           </div>
         </div>
 
-        {/* Calm Truth Status Indicator */}
-        <div className="flex items-center space-x-2.5 px-3.5 py-1.5 rounded-2xl bg-black/40 border border-white/10 backdrop-blur-xl">
-          <div className={`w-2 h-2 rounded-full ${energyCalculated.anchored ? 'bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.8)]' : 'bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.8)]'}`} />
-          <span className="text-xs font-medium text-slate-200">
-            {energyCalculated.anchored
-              ? 'Anchored at computed FCI'
-              : energyCalculated.displaced
-                ? 'Morse extrapolation — not measured at this R'
-                : 'Unverified anchor (bridge unavailable)'}
-          </span>
-          <span className="text-xs text-slate-400">•</span>
-          <span className="text-xs font-mono font-semibold text-slate-200">
-            {energyCalculated.deltaMHa != null && Number.isFinite(energyCalculated.deltaMHa) ? `Δ = ${energyCalculated.deltaMHa.toFixed(2)} mHa` : 'Δ = UNVERIFIED (no anchor)'}
-          </span>
+        <div className="flex items-center gap-3">
+          {/* Mode Switcher: 2D Workbench vs 3D Observatory */}
+          <div className="flex items-center p-1 rounded-2xl bg-black/60 border border-white/10 backdrop-blur-xl shadow-inner">
+            <button
+              onClick={() => setCanvasMode('workbench')}
+              className={`px-3 py-1 rounded-xl text-xs font-medium transition-all ${
+                canvasMode === 'workbench'
+                  ? 'bg-white/20 text-white font-semibold shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              2D Workbench
+            </button>
+            <button
+              onClick={() => setCanvasMode('observatory')}
+              className={`px-3 py-1 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 ${
+                canvasMode === 'observatory'
+                  ? 'bg-cyan-500/25 text-cyan-300 border border-cyan-400/40 font-semibold shadow-sm'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Orbit className="w-3.5 h-3.5 text-cyan-400" />
+              <span>3D Observatory</span>
+            </button>
+          </div>
+
+          {/* Calm Truth Status Indicator */}
+          <div className="flex items-center space-x-2.5 px-3.5 py-1.5 rounded-2xl bg-black/40 border border-white/10 backdrop-blur-xl">
+            <div className={`w-2 h-2 rounded-full ${energyCalculated.anchored ? 'bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.8)]' : 'bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.8)]'}`} />
+            <span className="text-xs font-medium text-slate-200">
+              {energyCalculated.anchored
+                ? 'Anchored at computed FCI'
+                : energyCalculated.displaced
+                  ? 'Morse extrapolation — not measured at this R'
+                  : 'Unverified anchor (bridge unavailable)'}
+            </span>
+            <span className="text-xs text-slate-400">•</span>
+            <span className="text-xs font-mono font-semibold text-slate-200">
+              {energyCalculated.deltaMHa != null && Number.isFinite(energyCalculated.deltaMHa) ? `Δ = ${energyCalculated.deltaMHa.toFixed(2)} mHa` : 'Δ = UNVERIFIED (no anchor)'}
+            </span>
+          </div>
         </div>
       </div>
 
+      {/* 3D Observatory Representation Mode */}
+      {canvasMode === 'observatory' && (
+        <div className="relative z-10 flex-1 my-4">
+          <SpatialCanvas3D
+            campaign={campaign}
+            onSelectPoint={(pt) => setBondDistance(pt.bondDistance)}
+            onRequestAtlasLens={handleRequestAtlasLens}
+            isGeneratingLens={isGeneratingLens}
+            lensError={lensError}
+            lensImageUrl={lensImageUrl}
+          />
+        </div>
+      )}
+
       {/* Central Living Discovery Stage (Depth 1: The Molecular Target) */}
-      {disclosureDepth === 1 && (
+      {canvasMode === 'workbench' && disclosureDepth === 1 && (
         <div className="relative z-10 flex-1 flex flex-col items-center justify-center my-6">
           {/* Tactile Molecular Visualization */}
           <div className="relative w-full max-w-md h-56 flex items-center justify-center">
@@ -490,7 +625,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
       )}
 
       {/* Depth 2: Dynamic Variational Quantum Circuit Flow */}
-      {disclosureDepth === 2 && (
+      {canvasMode === 'workbench' && disclosureDepth === 2 && (
         <div className="relative z-10 flex-1 flex flex-col items-center justify-center my-6">
           <div className="w-full max-w-3xl bg-black/50 border border-white/10 rounded-2xl p-6 backdrop-blur-xl space-y-6">
             <div className="flex flex-wrap items-center justify-between border-b border-white/[0.08] pb-3 gap-3">
@@ -626,7 +761,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
       )}
 
       {/* Depth 3: Exact Molecular Integrals & Hamiltonian */}
-      {disclosureDepth === 3 && (
+      {canvasMode === 'workbench' && disclosureDepth === 3 && (
         <div className="relative z-10 flex-1 flex flex-col items-center justify-center my-6">
           <div className="w-full max-w-2xl bg-black/60 border border-white/10 rounded-2xl p-6 backdrop-blur-xl space-y-4">
             <h3 className="text-sm font-semibold text-white">Full Configuration Interaction (FCI) Benchmark</h3>
@@ -661,53 +796,55 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
       )}
 
       {/* Bottom Floating Control Pill (3-Depth Progressive Disclosure Switcher) */}
-      <div className="relative z-10 flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-white/[0.08]">
-        {/* Real-time energy readouts */}
-        <div className="flex items-center space-x-6 text-xs font-mono">
-          <div>
-            <span className="text-slate-300 font-medium">Morse model at R: </span>
-            <span className="text-white font-bold">{energyCalculated.modelEnergy != null && Number.isFinite(energyCalculated.modelEnergy) ? `${energyCalculated.modelEnergy.toFixed(5)} Ha` : 'UNVERIFIED'}</span>
+      {canvasMode === 'workbench' && (
+        <div className="relative z-10 flex flex-wrap items-center justify-between gap-4 pt-4 border-t border-white/[0.08]">
+          {/* Real-time energy readouts */}
+          <div className="flex items-center space-x-6 text-xs font-mono">
+            <div>
+              <span className="text-slate-300 font-medium">Morse model at R: </span>
+              <span className="text-white font-bold">{energyCalculated.modelEnergy != null && Number.isFinite(energyCalculated.modelEnergy) ? `${energyCalculated.modelEnergy.toFixed(5)} Ha` : 'UNVERIFIED'}</span>
+            </div>
+            <div>
+              <span className="text-slate-300 font-medium">FCI anchor: </span>
+              <span className="text-emerald-400 font-bold">{energyCalculated.anchorFci != null && Number.isFinite(energyCalculated.anchorFci) ? `${energyCalculated.anchorFci.toFixed(5)} Ha` : 'UNVERIFIED'}</span>
+            </div>
           </div>
-          <div>
-            <span className="text-slate-300 font-medium">FCI anchor: </span>
-            <span className="text-emerald-400 font-bold">{energyCalculated.anchorFci != null && Number.isFinite(energyCalculated.anchorFci) ? `${energyCalculated.anchorFci.toFixed(5)} Ha` : 'UNVERIFIED'}</span>
-          </div>
-        </div>
 
-        {/* 3-Depth Progressive Disclosure Segmented Switch */}
-        <div className="flex items-center p-1 rounded-2xl bg-black/60 border border-white/10 backdrop-blur-xl shadow-inner">
-          <button
-            onClick={() => setDisclosureDepth(1)}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
-              disclosureDepth === 1
-                ? 'bg-white/20 text-white shadow-sm font-semibold'
-                : 'text-slate-300 hover:text-white'
-            }`}
-          >
-            1. Physical System
-          </button>
-          <button
-            onClick={() => setDisclosureDepth(2)}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
-              disclosureDepth === 2
-                ? 'bg-white/20 text-white shadow-sm font-semibold'
-                : 'text-slate-300 hover:text-white'
-            }`}
-          >
-            2. Quantum Circuit
-          </button>
-          <button
-            onClick={() => setDisclosureDepth(3)}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
-              disclosureDepth === 3
-                ? 'bg-white/20 text-white shadow-sm font-semibold'
-                : 'text-slate-300 hover:text-white'
-            }`}
-          >
-            3. Exact Integrals
-          </button>
+          {/* 3-Depth Progressive Disclosure Segmented Switch */}
+          <div className="flex items-center p-1 rounded-2xl bg-black/60 border border-white/10 backdrop-blur-xl shadow-inner">
+            <button
+              onClick={() => setDisclosureDepth(1)}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                disclosureDepth === 1
+                  ? 'bg-white/20 text-white shadow-sm font-semibold'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              1. Physical System
+            </button>
+            <button
+              onClick={() => setDisclosureDepth(2)}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                disclosureDepth === 2
+                  ? 'bg-white/20 text-white shadow-sm font-semibold'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              2. Quantum Circuit
+            </button>
+            <button
+              onClick={() => setDisclosureDepth(3)}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
+                disclosureDepth === 3
+                  ? 'bg-white/20 text-white shadow-sm font-semibold'
+                  : 'text-slate-300 hover:text-white'
+              }`}
+            >
+              3. Exact Integrals
+            </button>
+          </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

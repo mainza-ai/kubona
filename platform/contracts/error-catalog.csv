@@ -19,5 +19,8 @@ bridge_unavailable,upstream,502,true,"retry when the Python bridge is reachable;
 llm_unavailable,upstream,503,true,retry when a provider is configured; fallback paths stay open
 unknown_tool,validation,400,false,call a tool from the pinned catalog (/api/capabilities)
 unpriced_model,validation,400,false,pick a priced model in Model Settings for metered loops (unknown models never bill)
+credits_unavailable,budget,402,false,"add World Labs credits, then retry the same idempotency key (no duplicate spend)"
+spend_limit_exceeded,budget,402,false,"raise the Atlas account/project monthly limit or wait for reset, then retry the same idempotency key"
+task_not_entitled,upstream,404,false,enable the Atlas task on this account/project or request beta access
 internal,internal,500,false,report the incident id; do not blind-retry mutations (use idempotency keys)
 server_misconfigured,internal,503,false,set the missing server configuration (see message) and restart

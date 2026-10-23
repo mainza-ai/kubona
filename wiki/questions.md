@@ -2,7 +2,7 @@
 type: catalog
 name: Open Questions & Design Forks
 date: 2026-09-27
-updated: 2026-10-17
+updated: 2026-10-23
 tags: [index, questions, blueprint]
 sources: [source-gap-analysis-plan, source-architecture-paper, source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026]
 status: living
@@ -53,6 +53,7 @@ All initial science-discovery forks are recorded in `## Closed` below (Q-17, Q-1
 | # | Question | Rank | Known | Missing |
 |---|---|---|---|---|
 | **Q-27** | **What must the git history look like before the repo can go public?** Dry-run passed 2026-10-10 on a scratch clone (source untouched): `git filter-repo --path dev-docs --path .obsidian --invert-paths` rewrites 89/89 develop commits, 0 residual objects, both branches + lint clean; stale origin/* refs drop with the remote as expected. Flip-time: rotate the `store` token first, then run the same command, force-push, re-clone. Still operator-gated.
+| **Q-38** | **What live Atlas spend is approved for entitlement + credit-burn metering?** Known: probe executed 2026-10-23 (7 task ops + 4 asset creates; pose/chisel/generate SUCCEEDED, text-to-image 0/4 `TRANSIENT_UPSTREAM` outage — re-probe another day); burn totals need the billing dashboard (no balance API). Missing: dashboard credit totals; standing approval for further live spend.
 
 ## Closed
 
@@ -92,6 +93,8 @@ All initial science-discovery forks are recorded in `## Closed` below (Q-17, Q-1
 | **Q-34** | 2026-10-12 | Dormant by design (x402 precedent): pgvector sidecar is complete but constructed by nothing; labelled in-code with activation criteria; `TestPostgresStoreDormantContract` pins unconfigured + fail-closed. | [[agentic-memory-and-observability]] |
 | **Q-35** | 2026-10-12 | Premise was stale — already exposed: `POST /api/a2a/v1` serves external JSON-RPC (card, status, x402-gated submit) on the same ledger-bound executor and tenant rules; proven live, claim corrected, no transport work. | [[a2a]] |
 | **Q-32** | 2026-10-12 | Lint taught the rule: `status: open-question` requires a row in A–E (index presence insufficient); enforced in `scripts/wiki-lint.py --strict`, negative-tested; rule recorded on [[index]], which no longer enumerates closed rows (Closed table is the single source). | [[index]] |
+| **Q-36** | 2026-10-23 | `dev_inspect` for beta (operator ruling; account-level retention control + training opt-out pending operator check); production gets its own review with purge wiring (P1). | [[observatory-lens-audit-2026-10-23]] §6 |
+| **Q-37** | 2026-10-23 | Yes: cover-cropped exact-1280×720 canvas snapshot rides inline base64 to a project asset, then an assetId frame ref; missing/unreadable capture still fail-closes. Landed + mock-tested, zero live spend. | [[observatory-lens-audit-2026-10-23]] §5 |
 
 ## Reading order for a new session
 

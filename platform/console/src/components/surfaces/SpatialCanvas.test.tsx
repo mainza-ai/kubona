@@ -19,6 +19,12 @@ vi.mock('@/lib/api', () => ({
       lipinski: { pass: true, violations: 0 },
     };
   }),
+  // P3 vault predictions: unsealed by default so the ghost reads illustrative.
+  fetchLatestPrediction: vi.fn().mockImplementation(async () => ({ ok: true, sealed: null, evaluation: null })),
+  sealPrediction: vi.fn(),
+  evaluatePrediction: vi.fn(),
+  requestObservatoryLens: vi.fn(),
+  fetchObservatoryLensStatus: vi.fn(),
 }));
 
 function textOf(node: unknown): string {
@@ -106,5 +112,76 @@ describe('SpatialCanvas', () => {
     text = textOf(tree!.toJSON());
     expect(text).toContain('Full Configuration Interaction (FCI) Benchmark');
     expect(text).toContain('Second-Quantized Hamiltonian Mapping');
+  });
+
+  it('switches between 2D Workbench and 3D Observatory representation mode', async () => {
+    const campaign = {
+      target_system: 'H2',
+      classical_anchor: {
+        anchor_computed: true,
+        fci_exact_energy: -1.137,
+      },
+      epistemics: {
+        p_correlated: 0.92,
+      },
+    } as unknown as CampaignState;
+
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<SpatialCanvas campaign={campaign} />);
+    });
+
+    // Verify 2D Workbench is initially active
+    let text = textOf(tree!.toJSON());
+    expect(text).toContain('2D Workbench');
+    expect(text).toContain('3D Observatory');
+    expect(text).toContain('1. Physical System');
+
+    // Click 3D Observatory mode button
+    const buttons = tree!.root.findAllByType('button');
+    const observatoryBtn = buttons.find((b) => textOf(b.props.children).includes('3D Observatory'));
+    expect(observatoryBtn).toBeDefined();
+
+    await act(async () => {
+      observatoryBtn!.props.onClick();
+    });
+
+    text = textOf(tree!.toJSON());
+    expect(text).toContain('Potential Energy Surface');
+    expect(text).toContain('World Labs Atlas Lens');
+    expect(text).toContain('Vault Ghost');
+    expect(text).toContain('ρ = 0.92');
+  });
+
+  it('renders the Vault pre-registration panel in Observatory mode', async () => {
+    const campaign = {
+      session_id: 'sess-vault-test',
+      target_system: 'H2',
+      classical_anchor: {
+        anchor_computed: true,
+        fci_exact_energy: -1.137,
+      },
+      epistemics: {
+        p_correlated: 0.92,
+      },
+    } as unknown as CampaignState;
+
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<SpatialCanvas campaign={campaign} />);
+    });
+
+    const buttons = tree!.root.findAllByType('button');
+    const observatoryBtn = buttons.find((b) => textOf(b.props.children).includes('3D Observatory'));
+    await act(async () => {
+      observatoryBtn!.props.onClick();
+    });
+
+    const text = textOf(tree!.toJSON());
+    // P3: ledger-bound pre-registration surface (no sealed prediction in
+    // this fixture, so the ghost reads illustrative and sealing is offered).
+    expect(text).toContain('Vault Pre-registration');
+    expect(text).toContain('No sealed prediction');
+    expect(text).toContain('Seal');
   });
 });
