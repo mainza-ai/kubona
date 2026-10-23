@@ -5,7 +5,6 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { 
   Sparkles, 
-  RotateCcw, 
   Maximize2, 
   Minimize2, 
   Layers, 
@@ -90,8 +89,6 @@ export function SpatialCanvas3D({
   isGeneratingLens = false,
   lensError = null,
   airGapped = false,
-  spendLimitUSD = 150,
-  currentSpendUSD = 0,
 }: SpatialCanvas3DProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -157,8 +154,6 @@ export function SpatialCanvas3D({
   const replayEntry = replayIdx == null ? null : replayFrame(history, replayIdx);
   const viewMean = replayEntry?.mean ?? sealedMean;
   const viewStd = replayEntry?.std ?? sealedStd;
-  const viewZ = replayEntry?.z ?? evaluation?.surprise_z ?? null;
-  const viewLevel = replayEntry?.level ?? evaluation?.level ?? null;
 
   // P3: pull the ledger's latest sealed prediction + evaluation whenever
   // the session changes. Ghost and badge re-bind from this state.
@@ -701,7 +696,7 @@ export function SpatialCanvas3D({
 
     const vsupMaterial = new THREE.ShaderMaterial({
       uniforms: {
-        uSealedMean: { value: fciGround },
+        uSealedMean: { value: propsRef.current.fciGround },
         uSealedStd: { value: 1.0 },
         uShowGap: { value: 0 },
       },
