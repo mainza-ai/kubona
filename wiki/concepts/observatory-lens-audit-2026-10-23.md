@@ -109,6 +109,18 @@ was unrelated *content* as the silent default, not the transport.)
   metasearch, vault, HF, ledger, grants, tenants) is wrapped. →
   *Remediated with the P3 routes: lens + all three prediction routes
   wrapped; 401 pin proves no spend moves unauthed.*
+- **F-14 Static price in idle HUD (operator report 2026-10-23):** the
+  observatory lens panel showed `Cost: 500 cr ($0.50) · Marble 2` at all
+  times — implying a standing charge for viewing the free Tier-1 terrain,
+  and hardcoding a rate-card value in client chrome (the beta card can
+  change; cf. [[source-world-labs-atlas-2026]] "never embed model prices").
+  → *Remediated same day: idle HUD shows the neutral descriptor
+  ("On-demand generative lens"), dispatch buttons disclose billing without
+  an amount, and the ONLY dollar figure shown is the actual `cost_usd`
+  from the live dispatch response ("Reserved $X.XX"), reset per dispatch
+  and per session. History already lists per-op reservations. Pinned by
+  `SpatialCanvas3D.test.tsx` (idle shows no price; result shows the
+  returned amount; absent amount shows no line).*
 
 ## 4. Wiki drift corrected alongside (register discipline)
 
@@ -128,8 +140,11 @@ The blueprint was describing code that never existed:
 ## 5. Completion plan (status 2026-10-23)
 
 - **P0 landed:** F-01, F-03, F-04, F-07, F-08 (bounded), F-09, F-12
-  (honesty), F-10 (partial), F-13 (edge auth). Verified: Go lens tests
-  incl. new pins, console suite, `wiki-lint --strict` clean.
+  (honesty), F-10 (partial), F-13 (edge auth), F-14 (idle-HUD price —
+  neutral descriptor idle, in-flight reservation note, actual
+  `cost_usd` from the live dispatch response in the result card, pinned
+  by `SpatialCanvas3D.test.tsx`). Verified: Go lens tests incl. new
+  pins, console suite, `wiki-lint --strict` clean.
 - **P3 landed 2026-10-23:** seal/evaluate/latest endpoints
   (`/api/vault/predictions/*`, `prediction_sealed`/`prediction_evaluated`
   ledger events, σ floor 1e-4, deterministic hash, z + sealed-3σ-Brier +

@@ -503,6 +503,9 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/vault/predictions/seal", s.requireBearer(s.handlePredictionSeal))
 	s.mux.HandleFunc("/api/vault/predictions/evaluate", s.requireBearer(s.handlePredictionEvaluate))
 	s.mux.HandleFunc("/api/vault/predictions/latest", s.requireBearer(s.handlePredictionLatest))
+	s.mux.HandleFunc("/api/vault/predictions/assert", s.requireBearer(s.handlePredictionAssert))
+	s.mux.HandleFunc("/api/vault/predictions/calibration", s.requireBearer(s.handlePredictionCalibration))
+	s.mux.HandleFunc("/api/vault/predictions/history", s.requireBearer(s.handlePredictionHistory))
 
 	// Observatory asset upload + operation resolve (P1 rails).
 	s.mux.HandleFunc("/api/observatory/assets", s.requireBearer(s.handleObservatoryAsset))

@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { CheckInStrip } from './CheckInStrip';
+import { AttentionProvider, useAttention } from '@/lib/attention-context';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -65,6 +66,84 @@ describe('CheckInStrip', () => {
     const strip = root.findByProps({ role: 'status' });
     expect(String(strip.props['aria-label'])).toBe('Check-in: 4 loops, 1 running, 1 need attention');
     expect(text).not.toContain('$');
+    tree!.unmount();
+  });
+
+  it('shows the director pill on summon and collapses duplicates (R-11, R-18)', async () => {
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ message: 'down' }), { status: 503 }));
+    let api: { notify: (i: { level: 'anomalous'; source: string }) => void } | null = null;
+    function Probe({ onReady }: { onReady: (v: { notify: (i: { level: 'anomalous'; source: string }) => void }) => void }) {
+      const v = useAttention();
+      React.useEffect(() => {
+        onReady(v);
+      }, [v, onReady]);
+      return null;
+    }
+    let tree: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      tree = TestRenderer.create(
+        <AttentionProvider>
+          <Probe onReady={(v) => { api = v; }} />
+          <CheckInStrip loops={[]} />
+        </AttentionProvider>,
+      );
+    });
+    // No alert yet: no pill, no directorspeak.
+    expect(textOf(tree!.root)).not.toContain('summon');
+    await act(async () => {
+      api!.notify({ level: 'anomalous', source: 'vault' });
+      api!.notify({ level: 'anomalous', source: 'vault' });
+    });
+    const text = textOf(tree!.root);
+    expect(text).toContain('summon');
+    expect(text).toContain('anomalous');
+    // Duplicate collapsed: counter shows, single pill only.
+    expect(text).toContain('(×2)');
+    const pills = tree!.root.findAll(
+      (n) => typeof n.props?.title === 'string' && (n.props.title as string).startsWith('vault'),
+    );
+    expect(pills).toHaveLength(1);
+    tree!.unmount();
+  });
+
+  it('presence dial gates what surfaces (R-10)', async () => {
+    vi.stubGlobal('fetch', async () => new Response(JSON.stringify({ message: 'down' }), { status: 503 }));
+    let api: {
+      notify: (i: { level: 'notable' | 'anomalous'; source: string }) => void;
+      setPresence: (p: 'hands' | 'eyes' | 'ear' | 'away') => void;
+    } | null = null;
+    function Probe({ onReady }: { onReady: (v: typeof api) => void }) {
+      const v = useAttention();
+      React.useEffect(() => {
+        onReady(v);
+      }, [v, onReady]);
+      return null;
+    }
+    let tree: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      tree = TestRenderer.create(
+        <AttentionProvider>
+          <Probe onReady={(v) => { api = v; }} />
+          <CheckInStrip loops={[]} />
+        </AttentionProvider>,
+      );
+    });
+    // Dial renders all four presence modes.
+    for (const label of ['Hands', 'Eyes', 'Ear', 'Away']) {
+      expect(textOf(tree!.root)).toContain(label);
+    }
+    // Away: notable summons never surface.
+    await act(async () => {
+      api!.setPresence('away');
+      api!.notify({ level: 'notable', source: 'vault' });
+    });
+    expect(textOf(tree!.root)).not.toContain('notable');
+    // Hands: summons still break through.
+    await act(async () => {
+      api!.setPresence('hands');
+      api!.notify({ level: 'anomalous', source: 'vault' });
+    });
+    expect(textOf(tree!.root)).toContain('anomalous');
     tree!.unmount();
   });
 });

@@ -17,13 +17,24 @@ import {
 } from 'lucide-react';
 import { CampaignState } from '@/types';
 import {
+  appendLedgerEvent,
+  assertPrediction,
   evaluatePrediction,
+  fetchCalibration,
+  type AuthorCalibration,
   fetchLatestPrediction,
-  sealPrediction,
-  uploadObservatoryAsset,
+  fetchLedgerExport,
+  fetchPredictionHistory,
+  type HistoryPrediction,
+  type PredictionAssertion,
   type PredictionEvaluation,
   type SealedPrediction,
+  sealPrediction,
+  uploadObservatoryAsset,
 } from '@/lib/api';
+import { ghostBandHeights, replayFrame } from '@/lib/vault-view';
+import { createFpsAccumulator, type FpsAccumulator } from '@/lib/fps';
+import { buildPinPayload, pinValuesFromHit } from '@/lib/pin';
 import { useAttention } from '@/lib/attention-context';
 import {
   buildTerrainHeightField,
@@ -43,6 +54,9 @@ export interface SpatialCanvas3DProps {
   lensImageUrl?: string | null;
   lensWatermark?: string;
   lensPromptUsed?: string | null;
+  // Actual reserved amount from the dispatch response. The ONLY cost figure
+  // the UI may show: no hardcoded prices in idle chrome (F-14).
+  lensCostUsd?: number | null;
   lensHistory?: Array<{
     operation_id: string;
     task_type?: string;
@@ -68,6 +82,7 @@ export function SpatialCanvas3D({
   lensImageUrl = null,
   lensWatermark = 'SYNTHETIC LENS — WORLD LABS ATLAS',
   lensPromptUsed = null,
+  lensCostUsd = null,
   lensHistory = [],
   onSelectPoint,
   onRequestAtlasLens,
@@ -83,7 +98,11 @@ export function SpatialCanvas3D({
   
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showGhostContour, setShowGhostContour] = useState(true);
-  const [selectedCoordinates, setSelectedCoordinates] = useState<{ r: number; energy: number } | null>(null);
+  // R-23 measured FPS (rAF timestamps through the pure accumulator;
+  // state updates at most once per second so the meter costs nothing).
+  const [fps, setFps] = useState<number | null>(null);
+  const fpsRef = useRef<FpsAccumulator | null>(null);
+  const [selectedCoordinates, setSelectedCoordinates] = useState<{ r: number; energy: number; ledgerHash: string | null } | null>(null);
   const [hoveredCoordinates, setHoveredCoordinates] = useState<{ r: number; energy: number } | null>(null);
 
   // P3: ledger-bound pre-registration. `sealed` is the latest sealed
@@ -91,10 +110,23 @@ export function SpatialCanvas3D({
   // `evaluation` is its latest scoring, rendered as the z-badge.
   const [sealed, setSealed] = useState<SealedPrediction | null>(null);
   const [evaluation, setEvaluation] = useState<PredictionEvaluation | null>(null);
+  const [assertion, setAssertion] = useState<PredictionAssertion | null>(null);
   const [sealMeanStr, setSealMeanStr] = useState('');
   const [sealStdStr, setSealStdStr] = useState('');
   const [sealBusy, setSealBusy] = useState(false);
   const [sealMsg, setSealMsg] = useState<string | null>(null);
+  // R-15 replay: scrubbed history index (null = live). The ghost, z-badge
+  // and Vault readouts render the scrubbed entry instead of the ledger tip.
+  const [history, setHistory] = useState<HistoryPrediction[]>([]);
+  const [replayIdx, setReplayIdx] = useState<number | null>(null);
+  // R-09 formal assertion form (rho + evidence are caller judgment).
+  const [assertRho, setAssertRho] = useState('');
+  const [assertEvidence, setAssertEvidence] = useState('');
+  const [assertMsg, setAssertMsg] = useState<string | null>(null);
+  // R-08 calibration table (read-only; enforcement stays human-gated).
+  const [calibration, setCalibration] = useState<Record<string, AuthorCalibration> | null>(null);
+  // R-14 agent gaze trails (latest world.gaze annotations, newest last).
+  const [gazes, setGazes] = useState<Array<{ position: [number, number, number]; quaternion: [number, number, number, number] }>>([]);
 
   // P4: evaluated surprises route to the Attention Director (CheckInStrip
   // pill + ambient sound), closing the watch loop the plan requires.
@@ -115,13 +147,23 @@ export function SpatialCanvas3D({
   const rho = campaign?.epistemics?.p_correlated ?? 0.88;
 
   // Sealed expectation level (null = unbound). The ghost plane renders at
-  // visualHeight(sealedMean) when bound — the ledger's μ, not an offset.
+  // visualHeight(sealedMean) when bound — the ledger's expectation, not an
+  // invented offset. μ±σ band via ghostBandHeights (R-07).
   const sealedMean = sealed?.expected_mean ?? null;
+  const sealedStd = sealed?.expected_std ?? null;
+
+  // Replay view: when scrubbing, the ghost band, gap tint and badge render
+  // the scrubbed entry; null replays the live ledger tip.
+  const replayEntry = replayIdx == null ? null : replayFrame(history, replayIdx);
+  const viewMean = replayEntry?.mean ?? sealedMean;
+  const viewStd = replayEntry?.std ?? sealedStd;
+  const viewZ = replayEntry?.z ?? evaluation?.surprise_z ?? null;
+  const viewLevel = replayEntry?.level ?? evaluation?.level ?? null;
 
   // P3: pull the ledger's latest sealed prediction + evaluation whenever
   // the session changes. Ghost and badge re-bind from this state.
-  // Session-change resets happen during render (campaign-key guard below),
-  // so the effect body never calls setState synchronously.
+  // Session-change resets happen during render (campaign-key guard); the
+  // effect body only fetches.
   useEffect(() => {
     const sid = campaign?.session_id;
     if (!sid) return;
@@ -132,7 +174,43 @@ export function SpatialCanvas3D({
         if (res.ok) {
           setSealed(res.sealed ?? null);
           setEvaluation(res.evaluation ?? null);
+          setAssertion(res.assertion ?? null);
         }
+      })
+      .catch(() => {});
+    fetchCalibration(sid)
+      .then((res) => {
+        if (!cancelled && res.ok) setCalibration(res.authors ?? null);
+      })
+      .catch(() => {});
+    fetchPredictionHistory(sid, 50)
+      .then((res) => {
+        if (cancelled) return;
+        if (res.ok) {
+          setHistory(res.predictions ?? []);
+          setReplayIdx(null);
+        }
+      })
+      .catch(() => {});
+    // R-14 gaze trails: latest world.gaze annotations, newest last.
+    fetchLedgerExport(sid)
+      .then((res) => {
+        if (cancelled || !res.ok || !res.events) return;
+        const trails: Array<{ position: [number, number, number]; quaternion: [number, number, number, number] }> = [];
+        for (const ev of res.events) {
+          const payload = ev['payload'] as Record<string, unknown> | undefined;
+          if (ev['event_type'] !== 'annotation' || !payload || payload['world_tool'] !== 'gaze') continue;
+          const pos = payload['position'];
+          const quat = payload['quaternion'];
+          if (
+            Array.isArray(pos) && pos.length === 3 && pos.every((n) => typeof n === 'number' && Number.isFinite(n)) &&
+            Array.isArray(quat) && quat.length === 4 && quat.every((n) => typeof n === 'number' && Number.isFinite(n))
+          ) {
+            trails.push({ position: [pos[0], pos[1], pos[2]], quaternion: [quat[0], quat[1], quat[2], quat[3]] });
+          }
+          if (trails.length >= 8) break;
+        }
+        setGazes(trails.reverse());
       })
       .catch(() => {});
     return () => {
@@ -148,7 +226,13 @@ export function SpatialCanvas3D({
     setPrevSessionKey(sessionKey);
     setSealed(null);
     setEvaluation(null);
+    setAssertion(null);
+    setCalibration(null);
+    setHistory([]);
+    setReplayIdx(null);
+    setGazes([]);
     setSealMsg(null);
+    setAssertMsg(null);
   }
 
   const handleSeal = useCallback(async () => {
@@ -217,6 +301,46 @@ export function SpatialCanvas3D({
       setSealBusy(false);
     }
   }, [campaign?.session_id, sealed, selectedCoordinates?.energy, sealBusy, notify]);
+
+  // R-09: formal assertion. rho and evidence are caller judgment typed in
+  // by the operator — the server validates shape, lineage, and bounds, and
+  // never invents credibility.
+  const handleAssert = useCallback(async () => {
+    const sid = campaign?.session_id;
+    if (!sid || !sealed || !evaluation || sealBusy) return;
+    const rho = Number(assertRho);
+    const evidence = assertEvidence
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    if (!Number.isFinite(rho) || rho <= 0 || rho > 1) {
+      setAssertMsg('rho must be a number in (0, 1]');
+      return;
+    }
+    if (evidence.length === 0) {
+      setAssertMsg('at least one evidence reference is required');
+      return;
+    }
+    setSealBusy(true);
+    setAssertMsg(null);
+    try {
+      const resp = await assertPrediction({
+        sessionId: sid,
+        predictionHash: sealed.prediction_hash,
+        rho,
+        evidenceRefs: evidence,
+      });
+      if (!resp.ok) {
+        setAssertMsg(resp.error || 'Assert failed');
+        return;
+      }
+      const latest = await fetchLatestPrediction(sid);
+      if (latest.ok) setAssertion(latest.assertion ?? null);
+      setAssertMsg(`Asserted ρ=${rho} on ${sealed.prediction_hash.slice(0, 8)}…`);
+    } finally {
+      setSealBusy(false);
+    }
+  }, [campaign?.session_id, sealed, evaluation, sealBusy, assertRho, assertEvidence]);
 
   // Physical molecular bond dissociation energy De in Hartrees
   // (single source of truth: @/lib/morse).
@@ -337,6 +461,12 @@ export function SpatialCanvas3D({
   const controlsRef = useRef<OrbitControls | null>(null);
   const terrainMeshRef = useRef<THREE.Mesh | null>(null);
   const ghostMeshRef = useRef<THREE.Mesh | null>(null);
+  // R-07 μ±σ band: translucent wireframe shells above/below the μ plane.
+  const ghostUpperRef = useRef<THREE.Mesh | null>(null);
+  const ghostLowerRef = useRef<THREE.Mesh | null>(null);
+  const vsupMaterialRef = useRef<THREE.ShaderMaterial | null>(null);
+  // R-14 agent gaze trails (ArrowHelpers owned by a group).
+  const gazeGroupRef = useRef<THREE.Group | null>(null);
   const selectionPinRef = useRef<THREE.Mesh | null>(null);
   const diamondMeshRef = useRef<THREE.Mesh | null>(null);
 
@@ -346,7 +476,9 @@ export function SpatialCanvas3D({
     fciGround,
     rho,
     targetSystem,
+    sessionId: campaign?.session_id ?? null,
     onSelectPoint,
+    appendLedgerEvent,
     computeEnergy,
     computeVisualHeight,
   });
@@ -356,7 +488,9 @@ export function SpatialCanvas3D({
       fciGround,
       rho,
       targetSystem,
+      sessionId: campaign?.session_id ?? null,
       onSelectPoint,
+      appendLedgerEvent,
       computeEnergy,
       computeVisualHeight,
     };
@@ -367,7 +501,44 @@ export function SpatialCanvas3D({
     if (ghostMeshRef.current) {
       ghostMeshRef.current.visible = showGhostContour;
     }
-  }, [showGhostContour]);
+    if (ghostUpperRef.current) {
+      ghostUpperRef.current.visible = showGhostContour && viewMean != null;
+    }
+    if (ghostLowerRef.current) {
+      ghostLowerRef.current.visible = showGhostContour && viewMean != null;
+    }
+  }, [showGhostContour, viewMean]);
+
+  // R-14: rebuild agent gaze arrows from the latest world.gaze annotations
+  // (cap 8, newest last). Cones point along the agent quaternion (-Z forward).
+  useEffect(() => {
+    const group = gazeGroupRef.current;
+    if (!group) return;
+    for (const c of [...group.children]) {
+      group.remove(c);
+      c.traverse((o) => {
+        const mesh = o as THREE.Mesh;
+        if (mesh.isMesh) {
+          mesh.geometry.dispose();
+          (mesh.material as THREE.Material).dispose();
+        }
+      });
+    }
+    const up = new THREE.Vector3(0, 0, -1);
+    for (const g of gazes.slice(-8)) {
+      const dir = up.clone().applyQuaternion(new THREE.Quaternion(g.quaternion[0], g.quaternion[1], g.quaternion[2], g.quaternion[3]));
+      if (dir.lengthSq() < 1e-12) continue;
+      dir.normalize();
+      const arrow = new THREE.ArrowHelper(dir, new THREE.Vector3(g.position[0], g.position[1], g.position[2]), 0.6, 0x7dd3fc, 0.15, 0.08);
+      const line = arrow.line.material as THREE.Material;
+      const cone = arrow.cone.material as THREE.Material;
+      line.transparent = true;
+      line.opacity = 0.55;
+      cone.transparent = true;
+      cone.opacity = 0.55;
+      group.add(arrow);
+    }
+  }, [gazes]);
 
   // Update terrain mesh in-place if chemical parameters change (without camera reset!)
   useEffect(() => {
@@ -398,30 +569,45 @@ export function SpatialCanvas3D({
     (geo.attributes.confidence as THREE.BufferAttribute).needsUpdate = true;
     geo.computeVertexNormals();
 
-    // Update ghost plane in-place. Bound (P3): flat plane at the sealed μ
-    // height — the ledger's expectation, repositioned whenever it changes.
+    // Update ghost band in-place (R-06/R-07). Bound: flat μ plane plus
+    // μ±σ wireframe shells from the ledger (or the scrubbed replay entry);
+    // the terrain shader tints the divergence gap via uSealedMean/uSealedStd.
     // Unbound: the illustrative +0.12 offset over the live surface.
-    if (ghostMeshRef.current) {
-      const gGeo = ghostMeshRef.current.geometry;
-      const gPos = gGeo.attributes.position;
-      const boundHeight =
-        sealedMean != null && Number.isFinite(sealedMean)
-          ? computeVisualHeight(sealedMean)
-          : null;
-      for (let i = 0; i < gPos.count; i++) {
-        if (boundHeight != null) {
-          gPos.setY(i, boundHeight);
+    const band =
+      viewMean != null && Number.isFinite(viewMean) && viewStd != null && Number.isFinite(viewStd) && viewStd > 0
+        ? ghostBandHeights(viewMean, viewStd, fciGround, De)
+        : null;
+    const setPlaneY = (mesh: THREE.Mesh | null, y: number | null, fallback: (i: number, gx: number, gz: number) => number) => {
+      if (!mesh) return;
+      const g = mesh.geometry;
+      const p = g.attributes.position;
+      for (let i = 0; i < p.count; i++) {
+        if (y != null) {
+          p.setY(i, y);
         } else {
-          const gx = gPos.getX(i);
-          const gz = gPos.getZ(i);
-          const gDeltaR = gx * 0.4;
-          gPos.setY(i, computeVisualHeight(computeEnergy(gDeltaR, gz)) + 0.12);
+          p.setY(i, fallback(i, p.getX(i), p.getZ(i)));
         }
       }
-      gPos.needsUpdate = true;
-      gGeo.computeVertexNormals();
+      p.needsUpdate = true;
+      g.computeVertexNormals();
+    };
+    const illustrative = (_i: number, gx: number, gz: number) =>
+      computeVisualHeight(computeEnergy(gx * 0.4, gz)) + 0.12;
+    setPlaneY(ghostMeshRef.current, band ? band.mid : null, illustrative);
+    setPlaneY(ghostUpperRef.current, band ? band.upper : null, illustrative);
+    setPlaneY(ghostLowerRef.current, band ? band.lower : null, illustrative);
+    if (ghostUpperRef.current) ghostUpperRef.current.visible = showGhostContour && band != null;
+    if (ghostLowerRef.current) ghostLowerRef.current.visible = showGhostContour && band != null;
+
+    // Gap tint (R-06): |z| bands painted onto the terrain. Same cutoffs as
+    // divergenceBand() — the GLSL below mirrors them.
+    const mat = vsupMaterialRef.current;
+    if (mat) {
+      mat.uniforms.uSealedMean.value = viewMean ?? 0;
+      mat.uniforms.uSealedStd.value = viewStd && viewStd > 0 ? viewStd : 1;
+      mat.uniforms.uShowGap.value = band != null ? 1 : 0;
     }
-  }, [computeEnergy, computeVisualHeight, equilibriumR, fciGround, rho, sealedMean]);
+  }, [computeEnergy, computeVisualHeight, equilibriumR, fciGround, rho, viewMean, viewStd, showGhostContour, De]);
 
   // Core Three.js Lifecycle: Mounts ONCE
   useEffect(() => {
@@ -514,6 +700,11 @@ export function SpatialCanvas3D({
     terrainGeo.computeVertexNormals();
 
     const vsupMaterial = new THREE.ShaderMaterial({
+      uniforms: {
+        uSealedMean: { value: fciGround },
+        uSealedStd: { value: 1.0 },
+        uShowGap: { value: 0 },
+      },
       vertexShader: `
         attribute float energy;
         attribute float confidence;
@@ -536,6 +727,9 @@ export function SpatialCanvas3D({
         varying vec3 vNormal;
         varying float vEnergy;
         varying float vConfidence;
+        uniform float uSealedMean;
+        uniform float uSealedStd;
+        uniform float uShowGap;
 
         void main() {
           vec3 lightDir = normalize(vec3(0.5, 1.0, 0.4));
@@ -558,6 +752,24 @@ export function SpatialCanvas3D({
           float gridLine = 1.0 - min(min(grid.x, grid.y), 1.0);
           surfaceColor += vec3(0.12, 0.18, 0.25) * gridLine * 0.35;
 
+          // R-06 surprise gap tint: divergence of this vertex from the
+          // sealed expectation. Cutoffs mirror divergenceBand() in
+          // vault-view.ts (|z|<1 cyan keep, 1-3 amber, >3 rose).
+          if (uShowGap > 0.5 && uSealedStd > 0.0) {
+            float z = (vEnergy - uSealedMean) / uSealedStd;
+            float az = abs(z);
+            vec3 gapColor = vec3(0.0);
+            float gapAmt = 0.0;
+            if (az > 3.0) {
+              gapColor = vec3(1.0, 0.15, 0.35);
+              gapAmt = 0.55;
+            } else if (az >= 1.0) {
+              gapColor = vec3(1.0, 0.65, 0.1);
+              gapAmt = 0.45;
+            }
+            surfaceColor = mix(surfaceColor, gapColor, gapAmt * vConfidence);
+          }
+
           gl_FragColor = vec4(surfaceColor * (diff * 0.85 + 0.35), 0.94);
         }
       `,
@@ -565,9 +777,10 @@ export function SpatialCanvas3D({
       side: THREE.DoubleSide,
     });
 
-    const terrainMesh = new THREE.Mesh(terrainGeo, vsupMaterial);
-    scene.add(terrainMesh);
-    terrainMeshRef.current = terrainMesh;
+  const terrainMesh = new THREE.Mesh(terrainGeo, vsupMaterial);
+  scene.add(terrainMesh);
+  terrainMeshRef.current = terrainMesh;
+  vsupMaterialRef.current = vsupMaterial;
 
     // Coordinate Grid Base
     const gridHelper = new THREE.GridHelper(worldWidth * 1.5, 24, 0x00e5ff, 0x1e293b);
@@ -636,8 +849,12 @@ export function SpatialCanvas3D({
     pavilion.add(ringMesh);
     scene.add(pavilion);
 
-    // Pre-Registration Vault Ghost Plane
-    const ghostGeo = new THREE.PlaneGeometry(worldWidth * 0.8, worldDepth * 0.8, 16, 16);    ghostGeo.rotateX(-Math.PI / 2);
+    // Pre-Registration Vault Ghost Plane + μ±σ band (R-07). Three planes
+    // sharing one footprint: translucent μ sheet + faint wireframe shells.
+    // In-place heights are set by the update effect; unbound, only the mid
+    // plane shows (illustrative +0.12 offset over the live surface).
+    const ghostGeo = new THREE.PlaneGeometry(worldWidth * 0.8, worldDepth * 0.8, 16, 16);
+    ghostGeo.rotateX(-Math.PI / 2);
     const ghostPos = ghostGeo.attributes.position;
     for (let i = 0; i < ghostPos.count; i++) {
       const gx = ghostPos.getX(i);
@@ -657,13 +874,37 @@ export function SpatialCanvas3D({
     scene.add(ghostMesh);
     ghostMeshRef.current = ghostMesh;
 
-    // Selection Indicator Beacon Pin
+    const bandMatOpts = { color: 0x00e5ff, wireframe: true, transparent: true, opacity: 0.15 };
+    const ghostUpper = new THREE.Mesh(ghostGeo.clone(), new THREE.MeshBasicMaterial(bandMatOpts));
+    const ghostLower = new THREE.Mesh(ghostGeo.clone(), new THREE.MeshBasicMaterial(bandMatOpts));
+    ghostUpper.visible = false;
+    ghostLower.visible = false;
+    scene.add(ghostUpper);
+    scene.add(ghostLower);
+    ghostUpperRef.current = ghostUpper;
+    ghostLowerRef.current = ghostLower;
+
+    // Selection Indicator Beacon Pin + provenance stain halo (R-12).
+    // Every pin is a human touch: the click appends a touched:true ledger
+    // record and the amber ring marks the stained coordinates.
     const pinGeo = new THREE.CylinderGeometry(0.02, 0.02, 0.8, 16);
     const pinMat = new THREE.MeshBasicMaterial({ color: 0xffb300 });
     const selectionPin = new THREE.Mesh(pinGeo, pinMat);
     selectionPin.visible = false;
     scene.add(selectionPin);
     selectionPinRef.current = selectionPin;
+    const haloGeo = new THREE.TorusGeometry(0.14, 0.015, 8, 32);
+    haloGeo.rotateX(Math.PI / 2);
+    const haloMat = new THREE.MeshBasicMaterial({ color: 0xffb300, transparent: true, opacity: 0.85 });
+    const stainHalo = new THREE.Mesh(haloGeo, haloMat);
+    stainHalo.visible = false;
+    scene.add(stainHalo);
+
+    // R-14 agent gaze trails: one ArrowHelper per recent world.gaze,
+    // rebuilt by the gaze effect below. Empty until agents look.
+    const gazeGroup = new THREE.Group();
+    scene.add(gazeGroup);
+    gazeGroupRef.current = gazeGroup;
 
     // Raycasting for interactive click & hover
     const raycaster = new THREE.Raycaster();
@@ -695,14 +936,34 @@ export function SpatialCanvas3D({
       const intersects = raycaster.intersectObject(terrainMesh);
       if (intersects.length > 0) {
         const pt = intersects[0].point;
-        const deltaR = pt.x * 0.4;
-        const curEq = propsRef.current.equilibriumR;
-        const rVal = Number((curEq + deltaR).toFixed(4));
-        const eVal = Number(propsRef.current.computeEnergy(deltaR, pt.z).toFixed(5));
+        // R-24: coordinate + payload math lives in lib/pin (unit-tested);
+        // this handler only positions meshes and appends the record.
+        const pin = pinValuesFromHit(pt.x, pt.z, propsRef.current.equilibriumR, propsRef.current.computeEnergy);
+        const rVal = pin.r;
+        const eVal = pin.energy;
 
-        setSelectedCoordinates({ r: rVal, energy: eVal });
+        // R-12/R-24: every pin is a human touch. The coordinates render
+        // immediately; the stain (touched:true ledger record) lands async
+        // and its hash turns the pin into a click-to-ledger-ID.
+        setSelectedCoordinates({ r: rVal, energy: eVal, ledgerHash: null });
         selectionPin.position.set(pt.x, pt.y + 0.3, pt.z);
         selectionPin.visible = true;
+        stainHalo.position.set(pt.x, pt.y + 0.02, pt.z);
+        stainHalo.visible = true;
+
+        const sid = propsRef.current.sessionId;
+        if (sid) {
+          propsRef.current
+            .appendLedgerEvent(sid, 'annotation', buildPinPayload({ r: rVal, energy: eVal }))
+            .then((res) => {
+              if (res.ok && res.record_hash) {
+                setSelectedCoordinates((prev) => (prev ? { ...prev, ledgerHash: res.record_hash as string } : prev));
+              }
+            })
+            .catch(() => {
+              /* stain is advisory; the pin stands without it */
+            });
+        }
 
         if (propsRef.current.onSelectPoint) {
           propsRef.current.onSelectPoint({
@@ -756,10 +1017,14 @@ export function SpatialCanvas3D({
     // Animation Render Loop
     let animId: number;
     const startTime = performance.now();
+    if (!fpsRef.current) fpsRef.current = createFpsAccumulator();
+    const fpsAcc = fpsRef.current;
 
     const animate = () => {
       animId = requestAnimationFrame(animate);
       const elapsed = (performance.now() - startTime) / 1000.0;
+      const sample = fpsAcc.tick(performance.now());
+      if (sample) setFps(Math.round(sample.fps));
 
       if (diamondMeshRef.current) {
         diamondMeshRef.current.rotation.y = elapsed * 0.8;
@@ -788,8 +1053,24 @@ export function SpatialCanvas3D({
       anchorRingMat.dispose();
       ghostGeo.dispose();
       ghostMat.dispose();
+      ghostUpper.geometry.dispose();
+      (ghostUpper.material as THREE.Material).dispose();
+      ghostLower.geometry.dispose();
+      (ghostLower.material as THREE.Material).dispose();
       pinGeo.dispose();
       pinMat.dispose();
+      haloGeo.dispose();
+      haloMat.dispose();
+      gazeGroup.children.slice().forEach((c) => {
+        gazeGroup.remove(c);
+        c.traverse((o) => {
+          const mesh = o as THREE.Mesh;
+          if (mesh.isMesh) {
+            mesh.geometry.dispose();
+            (mesh.material as THREE.Material).dispose();
+          }
+        });
+      });
       gridHelper.dispose();
       floorGeo.dispose();
       floorMat.dispose();
@@ -833,19 +1114,24 @@ export function SpatialCanvas3D({
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
             <span>{`ρ = ${rho.toFixed(2)}`}</span>
           </div>
+          <span className="text-white/20">|</span>
+          <span className="font-code text-[11px] text-slate-400" title="Measured render-loop rate (R-23)">
+            {fps == null ? '… fps' : `${fps} fps`}
+          </span>
         </div>
 
         {/* Viewport Control Badges */}
         <div className="flex items-center gap-2 pointer-events-auto">
-          {/* Ghost contour toggle.
-              P3: bound to the ledger's latest sealed prediction (flat plane
-              at sealed μ) when one exists; illustrative +0.12 offset wireframe
-              otherwise. The Vault panel below seals and evaluates. */}
+        {/* Ghost contour toggle.
+            Bound (P3+R-07): translucent μ plane with ±σ wireframe shells from
+            the ledger (or the replay scrub position). Unbound: illustrative
+            +0.12 offset wireframe. Gap tint (R-06) paints |z| bands on the
+            terrain while bound: cyan &lt;1 · amber 1–3 · rose &gt;3. */}
           <button
             onClick={() => setShowGhostContour((prev) => !prev)}
             title={
               sealed
-                ? `Sealed expectation μ=${sealed.expected_mean} ± ${sealed.expected_std} Ha (${sealed.prediction_hash.slice(0, 8)}…)`
+                ? `Sealed expectation μ=${sealed.expected_mean} ± ${sealed.expected_std} Ha (${sealed.prediction_hash.slice(0, 8)}…); amber/rose = divergence gap`
                 : 'No sealed prediction yet — ghost is an illustrative placeholder; seal one in the Vault panel'
             }
             className={`px-3 py-1.5 rounded-full border text-[11px] font-code transition-all flex items-center gap-1.5 backdrop-blur-xl shadow-lg ${
@@ -854,9 +1140,9 @@ export function SpatialCanvas3D({
                 : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
             }`}
           >
-            <Layers className="w-3.5 h-3.5" />
-            <span>{sealed ? 'Vault Ghost (μ bound)' : 'Vault Ghost (illustrative)'}</span>
-          </button>
+          <Layers className="w-3.5 h-3.5" />
+          <span>{sealed ? 'Vault Ghost (μ±σ bound)' : 'Vault Ghost (illustrative)'}</span>
+        </button>
 
           {/* Fullscreen toggle */}
           <button
@@ -886,12 +1172,20 @@ export function SpatialCanvas3D({
                   {(hoveredCoordinates?.r || selectedCoordinates?.r || 0).toFixed(4)} Å
                 </span>
               </div>
-              <div className="flex justify-between gap-4">
+                <div className="flex justify-between gap-4">
                 <span className="text-slate-400">Energy V(R):</span>
                 <span className="text-cyan-300 font-medium">
                   {(hoveredCoordinates?.energy || selectedCoordinates?.energy || 0).toFixed(5)} Ha
                 </span>
               </div>
+              {!hoveredCoordinates && selectedCoordinates?.ledgerHash && (
+                <div className="flex justify-between gap-4">
+                  <span className="text-slate-400">Ledger stain:</span>
+                  <span className="text-amber-300/90 font-medium truncate" title={selectedCoordinates.ledgerHash}>
+                    #{selectedCoordinates.ledgerHash.slice(0, 12)}…
+                  </span>
+                </div>
+              )}
               <div className="text-[10px] text-slate-500 pt-1 border-t border-white/10">
                 Click terrain to pin coordinates into active campaign.
               </div>
@@ -986,6 +1280,105 @@ export function SpatialCanvas3D({
           >
             Evaluate pinned point
           </button>
+          {assertion && (
+            <div className="mt-1.5 rounded-lg px-2 py-1 text-[11px] font-code bg-violet-500/10 border border-violet-400/30 text-violet-200" title={`Evidence: ${(assertion.evidence_refs ?? []).join(', ') || '—'}`}>
+              Asserted ρ={typeof assertion.rho === 'number' ? assertion.rho.toFixed(2) : '?'}
+            </div>
+          )}
+          {sealed && evaluation && !assertion && (
+            <div className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] p-2">
+              <div className="text-[10px] uppercase font-code tracking-wider text-slate-500 mb-1">Formal assertion (R-09)</div>
+              <div className="flex items-center gap-2">
+                <input
+                  value={assertRho}
+                  onChange={(e) => setAssertRho(e.target.value)}
+                  placeholder="ρ 0.90"
+                  title="Credibility you assert — judged by you, never computed"
+                  disabled={sealBusy}
+                  inputMode="decimal"
+                  className="w-20 bg-white/5 border border-white/10 rounded px-2 py-1 text-xs font-code text-white placeholder:text-slate-600 disabled:opacity-40"
+                />
+                <input
+                  value={assertEvidence}
+                  onChange={(e) => setAssertEvidence(e.target.value)}
+                  placeholder="evidence refs, comma-separated"
+                  title="Evidence references this claim rests on (required)"
+                  disabled={sealBusy}
+                  className="flex-1 min-w-0 bg-white/5 border border-white/10 rounded px-2 py-1 text-xs font-code text-white placeholder:text-slate-600 disabled:opacity-40"
+                />
+                <button
+                  onClick={handleAssert}
+                  disabled={sealBusy}
+                  title="Mint a prediction_asserted event binding hash + rho + evidence"
+                  className="px-3 py-1 rounded-lg text-xs font-medium bg-violet-500/80 hover:bg-violet-400 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                >
+                  Assert
+                </button>
+              </div>
+              {assertMsg && <div className="mt-1 text-[11px] font-code text-rose-300">{assertMsg}</div>}
+            </div>
+          )}
+          {calibration && Object.keys(calibration).length > 0 && (
+            <div className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] p-2">
+              <div className="text-[10px] uppercase font-code tracking-wider text-slate-500 mb-1">Author calibration (read-only)</div>
+              {Object.entries(calibration).slice(0, 4).map(([author, c]) => (
+                <div key={author} className="flex justify-between gap-2 text-[11px] font-code text-slate-300">
+                  <span className="truncate">{author || 'unknown'}</span>
+                  <span>
+                    {c.evaluated}/{c.sealed} eval
+                    {typeof c.mean_brier_score === 'number' ? ` · B ${c.mean_brier_score.toExponential(1)}` : ''}
+                    {typeof c.mean_abs_z === 'number' ? ` · |z| ${c.mean_abs_z.toFixed(2)}` : ''}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          {history.length > 0 && (
+            <div className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] p-2">
+              <div className="text-[10px] uppercase font-code tracking-wider text-slate-500 mb-1">
+                Trajectory replay {replayEntry ? `(step ${history.length - (replayIdx ?? 0)}/${history.length})` : '(live)'}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setReplayIdx((i) => (i == null ? history.length - 1 : Math.min(history.length - 1, i + 1)))}
+                  disabled={replayIdx != null && replayIdx >= history.length - 1}
+                  title="Step one event older (time travel is newest-first: older = forward in time)"
+                  className="px-2 py-1 rounded-md text-[11px] font-code border border-white/10 text-slate-300 hover:bg-white/5 disabled:opacity-40"
+                >
+                  ‹ older
+                </button>
+                <button
+                  onClick={() => setReplayIdx((i) => (i == null ? null : i - 1 < 0 ? null : i - 1))}
+                  disabled={replayIdx == null}
+                  title="Step one event newer"
+                  className="px-2 py-1 rounded-md text-[11px] font-code border border-white/10 text-slate-300 hover:bg-white/5 disabled:opacity-40"
+                >
+                  newer ›
+                </button>
+                <button
+                  onClick={() => setReplayIdx(null)}
+                  disabled={replayIdx == null}
+                  title="Return to the live ledger tip"
+                  className="px-2 py-1 rounded-md text-[11px] font-code border border-cyan-400/30 text-cyan-300 hover:bg-cyan-500/10 disabled:opacity-40"
+                >
+                  live
+                </button>
+              </div>
+              {replayEntry && (
+                <div className="mt-1 text-[11px] font-code text-slate-300 truncate" title={replayEntry.label}>
+                  ◷ {replayEntry.label}
+                  {replayEntry.z != null ? ` · z=${replayEntry.z.toFixed(2)}` : ''}
+                  {replayEntry.mean != null ? ` · μ=${replayEntry.mean.toFixed(4)}` : ''}
+                  {replayEntry.level ? ` · ${replayEntry.level}` : ''}
+                </div>
+              )}
+            </div>
+          )}
+          {gazes.length > 0 && (
+            <div className="mt-1 text-[10px] font-code text-slate-500">
+              {gazes.length} agent gaze{gazes.length === 1 ? '' : 's'} in view
+            </div>
+          )}
           {sealMsg && (
             <div className={`mt-1.5 text-[11px] font-code ${sealMsg.startsWith('Sealed') ? 'text-emerald-300' : 'text-rose-300'}`}>
               {sealMsg}
@@ -1013,8 +1406,10 @@ export function SpatialCanvas3D({
               <div className="text-[10px] font-code text-slate-400">
                 {airGapped ? (
                   <span className="text-amber-400">Air-Gap Locked (Offline)</span>
+                ) : isGeneratingLens ? (
+                  <span>Dispatching — reserving against session cap…</span>
                 ) : (
-                  <span>Cost: 500 cr ($0.50) · Marble 2</span>
+                  <span>On-demand generative lens · Marble 2</span>
                 )}
               </div>
             </div>
@@ -1025,7 +1420,7 @@ export function SpatialCanvas3D({
               title={
                 airGapped
                   ? 'Sovereign Air-Gap active: external cloud synthesis disabled'
-                  : 'Pose the live terrain snapshot via Atlas Marble 2'
+                  : 'Pose the live terrain snapshot via Atlas Marble 2 (billed to the session cap on dispatch)'
               }
               className={`px-3.5 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 shadow-lg ${
                 airGapped
@@ -1067,7 +1462,7 @@ export function SpatialCanvas3D({
                 ? 'Sovereign Air-Gap active: external cloud synthesis disabled'
                 : !anchorComputed
                   ? 'Requires a computed FCI anchor (depth needs ground truth)'
-                  : 'Render terrain depth offscreen, upload as an Atlas asset, chisel the current view'
+                  : 'Render terrain depth offscreen, upload as an Atlas asset, chisel the current view (billed to the session cap on dispatch)'
             }
             className="px-3.5 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 shadow-lg border border-cyan-400/30 text-cyan-300 hover:bg-cyan-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
           >
@@ -1109,6 +1504,11 @@ export function SpatialCanvas3D({
           {lensPromptUsed && (
             <div className="bg-black/80 border border-white/20 text-[10px] font-code text-slate-400 px-2.5 py-1 rounded backdrop-blur-md max-w-56 truncate" title={lensPromptUsed}>
               promptUsed: {lensPromptUsed.slice(0, 80)}
+            </div>
+          )}
+          {lensCostUsd != null && (
+            <div className="bg-black/80 border border-white/20 text-[10px] font-code text-slate-300 px-2.5 py-1 rounded backdrop-blur-md tracking-wider">
+              Reserved ${lensCostUsd.toFixed(2)} against session cap
             </div>
           )}
           {lensImageUrl.startsWith('http') && (

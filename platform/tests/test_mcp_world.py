@@ -112,3 +112,21 @@ def test_look_reads_session_and_predictions():
         assert r["campaign"]["target_system"] == "H2"
         assert r["sealed"]["prediction_hash"] == "h"
         assert r["camera_hint"]["convention"] == "rub"
+
+
+def test_look_lens_request_returns_validated_draft_without_dispatch():
+    def fake_get(path, params=None):
+        if path.startswith("/api/sessions/"):
+            return {"ok": True, "data": {"id": "s", "target_system": "LiH"}}
+        return {"ok": True, "data": {}}
+
+    with patch.dict(os.environ, _env(), clear=False), patch.object(world, "_get", fake_get):
+        r = world.world_look("s", request_lens="nope")
+        assert r["ok"] is False
+        r = world.world_look("s", request_lens="atlasChisel")
+        assert r["ok"] is True
+        draft = r["lens_request"]
+        assert draft["task_type"] == "atlasChisel"
+        assert draft["target_system"] == "LiH"
+        assert draft["estimated_cost_usd"] == 0.50
+        assert "human" in draft["requires"].lower()

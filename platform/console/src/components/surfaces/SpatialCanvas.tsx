@@ -103,6 +103,9 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
   const [lensError, setLensError] = useState<string | null>(null);
   const [lensImageUrl, setLensImageUrl] = useState<string | null>(null);
   const [lensPromptUsed, setLensPromptUsed] = useState<string | null>(null);
+  // Actual reserved amount from the dispatch response — the only cost
+  // figure the UI may show. No hardcoded prices in idle chrome (F-14).
+  const [lensCostUsd, setLensCostUsd] = useState<number | null>(null);
   const [lensHistory, setLensHistory] = useState<LensHistoryOp[]>([]);
   const [lensOpId, setLensOpId] = useState<string | null>(null);
 
@@ -114,6 +117,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
     }
     setIsGeneratingLens(true);
     setLensError(null);
+    setLensCostUsd(null);
     try {
       const resp = await requestObservatoryLens({
         sessionId: sid,
@@ -128,6 +132,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
       } else if (resp.operation_id) {
         setLensImageUrl(null);
         setLensPromptUsed(null);
+        setLensCostUsd(resp.cost_usd ?? null);
         setLensOpId(resp.operation_id);
       } else {
         setIsGeneratingLens(false);
@@ -151,6 +156,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
     }
     setIsGeneratingLens(true);
     setLensError(null);
+    setLensCostUsd(null);
     try {
       const resp = await requestObservatoryLens({
         sessionId: sid,
@@ -165,6 +171,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
       } else if (resp.operation_id) {
         setLensImageUrl(null);
         setLensPromptUsed(null);
+        setLensCostUsd(resp.cost_usd ?? null);
         setLensOpId(resp.operation_id);
       } else {
         setIsGeneratingLens(false);
@@ -185,6 +192,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
     setPrevLensSession(lensSessionKey);
     setLensHistory([]);
     setLensPromptUsed(null);
+    setLensCostUsd(null);
   }
   const refreshLensHistory = useCallback(async (sid: string) => {
     try {
@@ -581,6 +589,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
             lensError={lensError}
             lensImageUrl={lensImageUrl}
             lensPromptUsed={lensPromptUsed}
+            lensCostUsd={lensCostUsd}
             lensHistory={lensHistory}
           />
         </div>

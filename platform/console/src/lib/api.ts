@@ -2111,10 +2111,17 @@ export async function evaluatePrediction(params: {
   }
 }
 
+export interface PredictionAssertion {
+  prediction_hash: string;
+  rho: number;
+  evidence_refs: string[];
+}
+
 export async function fetchLatestPrediction(sessionId: string): Promise<{
   ok: boolean;
   sealed?: SealedPrediction | null;
   evaluation?: PredictionEvaluation | null;
+  assertion?: PredictionAssertion | null;
   error?: string;
 }> {
   try {
@@ -2126,7 +2133,127 @@ export async function fetchLatestPrediction(sessionId: string): Promise<{
       const data = (await res.json().catch(() => ({}))) as { message?: string };
       return { ok: false, error: data.message || `Fetch failed (${res.status})` };
     }
-    return (await res.json()) as { ok: boolean; sealed?: SealedPrediction | null; evaluation?: PredictionEvaluation | null };
+    return (await res.json()) as {
+      ok: boolean;
+      sealed?: SealedPrediction | null;
+      evaluation?: PredictionEvaluation | null;
+      assertion?: PredictionAssertion | null;
+    };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message || 'Network error' };
+  }
+}
+
+export async function assertPrediction(params: {
+  sessionId: string;
+  predictionHash: string;
+  rho: number;
+  evidenceRefs: string[];
+}): Promise<{ ok: boolean; prediction_hash?: string; rho?: number; error?: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/vault/predictions/assert`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        session_id: params.sessionId,
+        prediction_hash: params.predictionHash,
+        rho: params.rho,
+        evidence_refs: params.evidenceRefs,
+      }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      return { ok: false, error: data.message || `Assert failed (${res.status})` };
+    }
+    return (await res.json()) as { ok: boolean; prediction_hash?: string; rho?: number };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message || 'Network error' };
+  }
+}
+
+export interface AuthorCalibration {
+  sealed: number;
+  evaluated: number;
+  mean_brier_score?: number;
+  mean_abs_z?: number;
+}
+
+export async function fetchCalibration(sessionId: string): Promise<{
+  ok: boolean;
+  authors?: Record<string, AuthorCalibration>;
+  evaluations?: number;
+  mean_brier_score?: number;
+  mean_abs_z?: number;
+  error?: string;
+}> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/vault/predictions/calibration?session_id=${encodeURIComponent(sessionId)}`, {
+      cache: 'no-store',
+      headers: authHeaders(),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      return { ok: false, error: data.message || `Calibration failed (${res.status})` };
+    }
+    return (await res.json()) as {
+      ok: boolean;
+      authors?: Record<string, AuthorCalibration>;
+      evaluations?: number;
+      mean_brier_score?: number;
+      mean_abs_z?: number;
+    };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message || 'Network error' };
+  }
+}
+
+export interface HistoryPrediction {
+  event_type?: string;
+  prediction_hash?: string;
+  expected_mean?: number;
+  expected_std?: number;
+  surprise_z?: number;
+  level?: string;
+  rho?: number;
+  [key: string]: unknown;
+}
+
+export async function fetchPredictionHistory(
+  sessionId: string,
+  limit = 50,
+): Promise<{ ok: boolean; count?: number; predictions?: HistoryPrediction[]; error?: string }> {
+  try {
+    const res = await apiFetch(
+      `${API_BASE}/api/vault/predictions/history?session_id=${encodeURIComponent(sessionId)}&limit=${limit}`,
+      { cache: 'no-store', headers: authHeaders() },
+    );
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      return { ok: false, error: data.message || `History failed (${res.status})` };
+    }
+    return (await res.json()) as { ok: boolean; count?: number; predictions?: HistoryPrediction[] };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message || 'Network error' };
+  }
+}
+
+// Ledger export for agent-player overlays (gaze trails) and replay.
+// Returns newest-first records; callers filter by event_type / payload.
+export async function fetchLedgerExport(
+  sessionId: string,
+): Promise<{ ok: boolean; events?: Array<Record<string, unknown>>; error?: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/ledger/export`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ session_id: sessionId, format: 'json' }),
+    });
+    if (!res.ok) {
+      const data = (await res.json().catch(() => ({}))) as { message?: string };
+      return { ok: false, error: data.message || `Export failed (${res.status})` };
+    }
+    const data = (await res.json()) as { events?: Array<Record<string, unknown>> };
+    return { ok: true, events: Array.isArray(data.events) ? data.events : [] };
   } catch (err) {
     return { ok: false, error: (err as Error).message || 'Network error' };
   }

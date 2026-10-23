@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { fetchLensHistory, requestObservatoryLens, resolveObservatoryLens, uploadObservatoryAsset } from './api';
+import { assertPrediction, fetchCalibration, fetchLatestPrediction, fetchLedgerExport, fetchLensHistory, fetchPredictionHistory, requestObservatoryLens, resolveObservatoryLens, uploadObservatoryAsset } from './api';
 
 // Q-37/P0a client pins: snapshot imagery rides through, and every dispatch
 // carries a single-use idempotency key (no key reuse across submissions).
@@ -99,5 +99,59 @@ describe('observatory lens client', () => {
     expect(res.ok).toBe(true);
     expect(res.operations).toHaveLength(1);
     expect(res.operations?.[0].cost_usd).toBe(0.5);
+  });
+
+  it('assert posts caller-judged rho + evidence, never invented values', async () => {
+    mockFetchOk({ ok: true, prediction_hash: 'h', rho: 0.9 });
+    const res = await assertPrediction({ sessionId: 'sess-1', predictionHash: 'h', rho: 0.9, evidenceRefs: ['job_1'] });
+    expect(res.ok).toBe(true);
+    const [, init] = (globalThis.fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(init.body as string);
+    expect(body).toMatchObject({ prediction_hash: 'h', rho: 0.9, evidence_refs: ['job_1'] });
+  });
+
+  it('calibration returns per-author aggregates without enforcement', async () => {
+    mockFetchOk({ ok: true, evaluations: 2, mean_brier_score: 0.001, authors: { scout: { sealed: 2, evaluated: 2 } } });
+    const res = await fetchCalibration('sess-1');
+    expect(res.ok).toBe(true);
+    expect(res.evaluations).toBe(2);
+    expect(res.authors?.scout.evaluated).toBe(2);
+  });
+
+  it('history lists predictions newest-first for the replay scrubber', async () => {
+    mockFetchOk({
+      ok: true,
+      count: 2,
+      predictions: [
+        { event_type: 'prediction_evaluated', prediction_hash: 'h', surprise_z: 0.16 },
+        { event_type: 'prediction_sealed', prediction_hash: 'h', expected_mean: -1.137 },
+      ],
+    });
+    const res = await fetchPredictionHistory('sess-1', 10);
+    expect(res.ok).toBe(true);
+    expect(res.predictions).toHaveLength(2);
+    expect(res.predictions?.[0].event_type).toBe('prediction_evaluated');
+  });
+
+  it('ledger export surfaces raw events for gaze trails', async () => {
+    mockFetchOk({
+      ok: true,
+      events: [{ event_type: 'annotation', payload: { world_tool: 'gaze', position: [0, 1, 2] } }],
+    });
+    const res = await fetchLedgerExport('sess-1');
+    expect(res.ok).toBe(true);
+    expect(res.events).toHaveLength(1);
+  });
+
+  it('latest carries the assertion alongside seal and evaluation', async () => {
+    mockFetchOk({
+      ok: true,
+      sealed: { prediction_hash: 'h' },
+      evaluation: { prediction_hash: 'h', surprise_z: 0.16 },
+      assertion: { prediction_hash: 'h', rho: 0.9, evidence_refs: ['job_1'] },
+    });
+    const res = await fetchLatestPrediction('sess-1');
+    expect(res.ok).toBe(true);
+    expect(res.assertion?.rho).toBe(0.9);
   });
 });

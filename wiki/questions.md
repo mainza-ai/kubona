@@ -54,6 +54,7 @@ All initial science-discovery forks are recorded in `## Closed` below (Q-17, Q-1
 |---|---|---|---|---|
 | **Q-27** | **What must the git history look like before the repo can go public?** Dry-run passed 2026-10-10 on a scratch clone (source untouched): `git filter-repo --path dev-docs --path .obsidian --invert-paths` rewrites 89/89 develop commits, 0 residual objects, both branches + lint clean; stale origin/* refs drop with the remote as expected. Flip-time: rotate the `store` token first, then run the same command, force-push, re-clone. Still operator-gated.
 | **Q-38** | **What live Atlas spend is approved for entitlement + credit-burn metering?** Known: probe executed 2026-10-23 (7 task ops + 4 asset creates; pose/chisel/generate SUCCEEDED, text-to-image 0/4 `TRANSIENT_UPSTREAM` outage — re-probe another day); burn totals need the billing dashboard (no balance API). Missing: dashboard credit totals; standing approval for further live spend.
+| **Q-39** | **Should cached-depth lens views be free (plan §3: "looking is free") or does every dispatch bill $0.50 (current)?** Known: plan distinguishes Lens (free observation over cached depth) from Probe (costly measurement); implementation reserves on every dispatch with no free path. Missing: operator ruling; if free, define what counts as cached (same session + same depth asset?) and keep the spend rail for fresh synthesis. | P2 | Plan text vs shipped behavior; gap audit R-13 | Ruling + (if free) cached-lens read path | [[observatory-plan-gap-audit-2026-10-23]] |
 
 ## Closed
 

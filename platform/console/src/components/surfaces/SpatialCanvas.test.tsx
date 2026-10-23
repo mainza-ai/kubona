@@ -20,9 +20,15 @@ vi.mock('@/lib/api', () => ({
     };
   }),
   // P3 vault predictions + P6 lens history: unsealed/empty by default so the ghost reads illustrative.
-  fetchLatestPrediction: vi.fn().mockImplementation(async () => ({ ok: true, sealed: null, evaluation: null })),
+  fetchLatestPrediction: vi.fn().mockImplementation(async () => ({ ok: true, sealed: null, evaluation: null, assertion: null })),
   sealPrediction: vi.fn(),
   evaluatePrediction: vi.fn(),
+  assertPrediction: vi.fn(),
+  fetchCalibration: vi.fn().mockImplementation(async () => ({ ok: true, authors: {}, evaluations: 0 })),
+  fetchPredictionHistory: vi.fn().mockImplementation(async () => ({ ok: true, count: 0, predictions: [] })),
+  fetchLedgerExport: vi.fn().mockImplementation(async () => ({ ok: true, events: [] })),
+  uploadObservatoryAsset: vi.fn(),
+  appendLedgerEvent: vi.fn().mockImplementation(async () => ({ ok: true, record_hash: 'rec_test_1' })),
   requestObservatoryLens: vi.fn(),
   fetchObservatoryLensStatus: vi.fn(),
   fetchLensHistory: vi.fn().mockImplementation(async () => ({ ok: true, operations: [] })),

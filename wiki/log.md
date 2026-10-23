@@ -3153,7 +3153,7 @@ skipped is the exact failure this incident is about:
   - Q-37: snapshot capture (preserveDrawingBuffer + 16:9 cover-crop to exact 1280x720, null-safe) + Atlas inline asset-upload flow (data URLs to project asset to assetId refs, 9 MiB cap, derived idempotency key) — mock-tested, zero live spend.
   - P2 prep: `src/lib/depth.ts` (half/float EXR decode, bottom-up flip, planar unproject, stats) + hermetic EXR round-trip tests; interop pin: three r186 EXRExporter ZIP default misdecodes in its own EXRLoader — P1 encodes uncompressed.
   - Suites: Go pkg/api full green, console 45 files / 212 tests green, tsc clean, eslint 0 errors, wiki-lint clean. No live Atlas spend; no commits (uncommitted working tree).
-  - Questions: Q-36 closed (dev_inspect for beta), Q-37 closed (snapshot-accepting + fail-closed fallback landed).
+  - Questions: Q-36 closed (dev_inspect for beta), Q-37 closed (snapshot-accepting + fail-closed fallback landed), Q-39 opened (free cached lens vs bill-everything).
 
 ## [2026-10-23] impl | P1-live + P4 + P5 + P6 landed (flip-pair warp proof, director, world tools, webhooks)
   - P1-live: offscreen depth encoder (Morse heightfield, view-space-Z + coverage shader, uncompressed EXR; row-order ground truth verified against real Atlas bytes — scanline 0 = image bottom); asset upload rail; chisel context/purge/voxel dispatch; resolve + promptUsed + history rails; console encode→chisel flow with preview/backdrop slots. Flip-pair proof (2 paid chisels): mirrored depths, same prompt+camera — d(A,B) MAD 92.83/NCC 0.14 vs d(A,flip(B)) MAD 56.58/NCC 0.62. Warp route consumes depth: proven.
@@ -3161,6 +3161,11 @@ skipped is the exact failure this incident is about:
   - P5: world.* MCP tools (Go-HTTP-backed, annotation-only writes, probe estimate-only, summon 3/hour cap) + mount + world:read/write scopes + catalog regen with verdicts (36 tools); pavilion shell (floor/pillars/ring/window-glow, Tier-1, zero cloud). Gaze cones + 4D scrubber stay follow-up.
   - P6: webhook receiver (v1a, JWKS cache + rotation, tolerance, unit + e2e tests) + lens history rail + console reservation ledger + atlas-schema-check.py (8 pages green live). Remaining operator items: dev project + limit, burn reconciliation, training opt-out.
   - Suites: Go pkg/api full green; console 48 files / 229 tests green; tsc clean; eslint 0 errors; Python MCP/policy/catalog/surface green; wiki-lint clean. No commits (uncommitted working tree).
+
+## [2026-10-23] audit | Plan-vs-implementation gap audit (R-01–R-30) + Q-39
+  - New page: wiki/concepts/observatory-plan-gap-audit-2026-10-23.md (tracked) — full re-verification of the master plan against the shipped tree: phase-gate verdicts (P1 Partial, P2 Partial, P3 Partial, P4 Partial, P5 Partial), cross-cutting requirement table, 30 numbered remaining items with acceptance criteria, live-proof ledger (proven live vs mock-only vs never), doc corrections.
+  - Key corrections to prior claims: every Q-38 live op bypassed kubonad (backend dispatch lane itself never live-tested); `world.look` has no lens-request path; gaze is call-driven not streaming; purge relies on per-request flag only (no explicit DELETE); CheckInStrip pill + resolve error-op + webhook rotation paths untested; DepthData is a dead field.
+  - New open design fork Q-39 (P2): free cached-depth lens (plan §3) vs bill-everything (current). Index census 149 -> 150 (concepts 87 -> 88, tracked 42 -> 43).
 
 ## [2026-10-23] docs | README + overview record the shipped Observatory; push to main & develop
   - README: new Observatory section (Tier-1 walkable lab, Tier-2 Atlas lens rules, Vault pre-registration, world.* tools), MCP 5/29 -> 6/36 tools, wiki 145+ -> 149 pages, roadmap gains the shipped P0-P6 representation layer.
@@ -3172,3 +3177,13 @@ skipped is the exact failure this incident is about:
   - Live-contract correction: asset-create returns {"id": "asset_..."} (not the tutorial's resource-name shape) — backend parser fixed + live-shape test pin.
   - Fixtures in gitignored dev-docs/kubona-probe-2026-10-23/ (real Atlas depth EXR + posed/conf/chisel/generate frames + igloo camera + manifest with op/asset IDs for re-fetch). Observed: deterministic depth EXR bytes for identical input; pose/chisel/generate each terminal within ~15 s of submit.
   - Remaining: burn totals need the billing dashboard (no balance API); chisel depth-conditioned + generate depth-reconstruction + A/B gates still await P1/P2 live runs.
+
+## [2026-10-23] fix | Idle-HUD price removed (F-14); cost only in orchestration context
+  - Operator report: `Cost: 500 cr ($0.50) · Marble 2` sat in the observatory HUD at all times, implying a standing charge and hardcoding a rate-card value in client chrome.
+  - Fix: idle subtitle is now neutral ("On-demand generative lens"); in-flight shows an action note with no amount; the only dollar figure shown is the actual `cost_usd` from the live dispatch response ("Reserved $X.XX"), reset per dispatch and per session; button titles disclose billing without amounts; per-op history unchanged.
+  - Pinned by new `SpatialCanvas3D.test.tsx` (idle shows no price; result shows the returned amount; absent amount shows no line). tsc + eslint clean. Plan updated: F-14 filed and closed on [[observatory-lens-audit-2026-10-23]]. No secrets; no commits (uncommitted working tree).
+
+## [2026-10-23] verification | Backend-lane live proof (R-02/R-03/R-20) + pin helper (R-24)
+  - Live through kubonad `:18099` (temp DB, session spend $2.00 / cap $2.50): pose `f82741b9…` done+resolved with `asset_urls`; purge-flagged pose `fd821cad…` resolved with `purged_assets:[asset_e269374e…]`; depth PNG upload `asset_8e6e3d9d…` → chisel `0636eba1…` reached Atlas execution, `code 13 EXECUTION_FAILED` (PNG gradient not valid chisel depth — new R-31: repeat with encoder EXR); T2I `940752e3…` done+resolved (outage cleared). Fixtures: `dev-docs/kubona-probe-2026-10-23/backend-lane-results.json` (15/15 steps).
+  - R-24: `platform/console/src/lib/pin.ts` (`pinValuesFromHit` + `buildPinPayload`) wired into `SpatialCanvas3D` click handler; `pin.test.ts` 4/4 green; tsc clean.
+  - Audit page updated (R-02/R-03/R-20 closed-live, R-24 closed, R-31 opened); README roadmap tempered (R-26: live-proof remainders named).

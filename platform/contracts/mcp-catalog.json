@@ -1,6 +1,6 @@
 {
   "generated_by": "KUBONA_UPDATE_CATALOG=1 pytest platform/tests/test_mcp_catalog.py",
-  "digest": "ad40fd72f716cebc81b3e3ff584f97b7537905393740b32f3df16d1f7b69b6d4",
+  "digest": "0436e4363146604ab17741a3c5a8a151b45b55e10704eb376c8a0f1fd2619cdc",
   "tools": [
     {
       "name": "compile_circuit",
@@ -1221,6 +1221,11 @@
         "properties": {
           "session_id": {
             "title": "Session Id",
+            "type": "string"
+          },
+          "request_lens": {
+            "default": "",
+            "title": "Request Lens",
             "type": "string"
           }
         },

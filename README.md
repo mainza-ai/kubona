@@ -164,7 +164,7 @@ For extended console configuration, see [`platform/console/README.md`](platform/
 
 - **Phases 0–5 (Quantum Core Foundations)**: Federated MCP servers, QIR/MLIR pipelines, cost governance, immutable provenance ledger, autoresearch engine (§11), and meta-level self-evolution loop (§13).
 - **Phase 6 (Science Discovery & Synthesis)**: Multi-user lab identities, workflow and agent authoring studio, interactive experiment notebook, scholarly data integrations, and localized model training.
-- **Observatory Representation Layer (shipped P0–P6)**: Tier-1 walkable lab, Vault pre-registration with surprise scoring, Attention Director, `world.*` agent-player tools, and the opt-in World Labs Atlas lens (snapshot posing, depth-conditioned chisel with a warp-route consumption proof, promptUsed receipts, spend-capped and edge-authed).
+- **Observatory Representation Layer (P0–P6 implementation complete; live-proof ledger in `wiki/concepts/observatory-plan-gap-audit-2026-10-23.md`)**: Tier-1 walkable lab, Vault pre-registration with surprise scoring, Attention Director, `world.*` agent-player tools, and the opt-in World Labs Atlas lens (snapshot posing, depth-conditioned chisel with a warp-route consumption proof, promptUsed receipts, spend-capped and edge-authed). Prove-it-live remainders: operator-browser E2E (R-01/R-05), webhook delivery on a public URL (R-04).
 
 See [`wiki/roadmap.md`](wiki/roadmap.md) for the phased implementation plan and [`wiki/overview.md`](wiki/overview.md) for the architectural synthesis.
 
