@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Atom, Code, Copy, Check, Sparkles, Orbit } from 'lucide-react';
 import { CampaignState } from '@/types';
-import { fetchMolecularADMET, requestObservatoryLens, fetchObservatoryLensStatus } from '@/lib/api';
+import { fetchMolecularADMET, requestObservatoryLens, fetchObservatoryLensStatus, resolveObservatoryLens, fetchLensHistory, type LensHistoryOp } from '@/lib/api';
 import { dissociationEnergyHartree, equilibriumBondDistanceAngstrom, morseEnergyHartree } from '@/lib/morse';
 import { SpatialCanvas3D } from './SpatialCanvas3D';
 
@@ -93,16 +93,18 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
   const [admetLoading, setAdmetLoading] = useState(false);
   const [admetSmiles, setAdmetSmiles] = useState<string | null>(null);
 
-  const [isGeneratingLens, setIsGeneratingLens] = useState(false);
-  const [lensError, setLensError] = useState<string | null>(null);
-  const [lensImageUrl, setLensImageUrl] = useState<string | null>(null);
-  const [lensOpId, setLensOpId] = useState<string | null>(null);
-
   // Compiler-honest scalars: the React Compiler reads `campaign` as a whole
   // object through optional chaining, so the lens callback depends on these
   // scalars instead of `campaign?.x` expressions (P0c lint fix).
   const lensSessionId = campaign?.session_id;
   const lensTargetSystem = campaign?.target_system || 'H2';
+
+  const [isGeneratingLens, setIsGeneratingLens] = useState(false);
+  const [lensError, setLensError] = useState<string | null>(null);
+  const [lensImageUrl, setLensImageUrl] = useState<string | null>(null);
+  const [lensPromptUsed, setLensPromptUsed] = useState<string | null>(null);
+  const [lensHistory, setLensHistory] = useState<LensHistoryOp[]>([]);
+  const [lensOpId, setLensOpId] = useState<string | null>(null);
 
   const handleRequestAtlasLens = useCallback(async (snapshotDataUrl: string | null) => {
     const sid = lensSessionId;
@@ -124,6 +126,8 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
         setLensError(resp.error || 'Failed to synthesize lens');
         setIsGeneratingLens(false);
       } else if (resp.operation_id) {
+        setLensImageUrl(null);
+        setLensPromptUsed(null);
         setLensOpId(resp.operation_id);
       } else {
         setIsGeneratingLens(false);
@@ -133,6 +137,78 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
       setIsGeneratingLens(false);
     }
   }, [lensSessionId, lensTargetSystem]);
+
+  // P1: depth-conditioned chisel from an uploaded encoder depth asset.
+  // Shares the lens rail (spend, poll, resolve) with the snapshot path.
+  const handleRequestDepthChisel = useCallback(async (
+    depthAssetId: string,
+    camera: { position: number[]; orientation: number[] },
+  ) => {
+    const sid = lensSessionId;
+    if (!sid) {
+      setLensError('No active campaign session to debit spend');
+      return;
+    }
+    setIsGeneratingLens(true);
+    setLensError(null);
+    try {
+      const resp = await requestObservatoryLens({
+        sessionId: sid,
+        targetSystem: lensTargetSystem,
+        taskType: 'atlasChisel',
+        depthAssetId,
+        camera,
+      });
+      if (!resp.ok) {
+        setLensError(resp.error || 'Failed to dispatch chisel');
+        setIsGeneratingLens(false);
+      } else if (resp.operation_id) {
+        setLensImageUrl(null);
+        setLensPromptUsed(null);
+        setLensOpId(resp.operation_id);
+      } else {
+        setIsGeneratingLens(false);
+      }
+    } catch (e) {
+      setLensError((e as Error).message);
+      setIsGeneratingLens(false);
+    }
+  }, [lensSessionId, lensTargetSystem]);
+
+  // P6: per-session reservation ledger (our records, not rated invoices).
+  // Session-change resets happen during render (campaign-key guard); the
+  // effect body only fetches. Key is normalized to '' so undefined sessions
+  // don't retrigger every render.
+  const [prevLensSession, setPrevLensSession] = useState<string | null>(null);
+  const lensSessionKey = lensSessionId ?? '';
+  if (lensSessionKey !== (prevLensSession ?? '')) {
+    setPrevLensSession(lensSessionKey);
+    setLensHistory([]);
+    setLensPromptUsed(null);
+  }
+  const refreshLensHistory = useCallback(async (sid: string) => {
+    try {
+      const h = await fetchLensHistory(sid);
+      if (h.ok) setLensHistory(h.operations ?? []);
+    } catch {
+      /* history is advisory */
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!lensSessionId) return;
+    let cancelled = false;
+    // setState lives in the promise callback (same as the poll effect),
+    // never synchronously in the effect body.
+    fetchLensHistory(lensSessionId)
+      .then((h) => {
+        if (!cancelled && h.ok) setLensHistory(h.operations ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [lensSessionId]);
 
   useEffect(() => {
     if (!lensOpId || lensImageUrl) return;
@@ -177,6 +253,19 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
           setLensOpId(null);
           setIsGeneratingLens(false);
           clearInterval(interval);
+          // P1: persist + surface the model-consumed prompt via resolve.
+          const sid = lensSessionId;
+          const opId = lensOpId;
+          if (sid && opId) {
+            resolveObservatoryLens({ sessionId: sid, operationId: opId })
+              .then((r) => {
+                if (!cancelled && r.ok && r.prompt_used) setLensPromptUsed(r.prompt_used);
+                void refreshLensHistory(sid);
+              })
+              .catch(() => {
+                void refreshLensHistory(sid);
+              });
+          }
         }
       } catch {
         // keep polling
@@ -186,7 +275,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
       cancelled = true;
       clearInterval(interval);
     };
-  }, [lensOpId, lensImageUrl]);
+  }, [lensOpId, lensImageUrl, lensSessionId, refreshLensHistory]);
 
   // Adjust state during render when the target changes (same pattern as
   // the campaign-key guard above): reset profile + loading synchronously,
@@ -487,9 +576,12 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
             campaign={campaign}
             onSelectPoint={(pt) => setBondDistance(pt.bondDistance)}
             onRequestAtlasLens={handleRequestAtlasLens}
+            onRequestDepthChisel={handleRequestDepthChisel}
             isGeneratingLens={isGeneratingLens}
             lensError={lensError}
             lensImageUrl={lensImageUrl}
+            lensPromptUsed={lensPromptUsed}
+            lensHistory={lensHistory}
           />
         </div>
       )}

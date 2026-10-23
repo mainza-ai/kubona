@@ -80,12 +80,23 @@ Kubona structures scientific inquiry for autonomous agents across four determini
 
 ### Verifiable Tool Grounding (MCP Layer)
 
-Every epistemic stage translates into concrete, deterministic tools exposed through the MCP layer (5 federated servers, 29 tools over stdio, digest-pinned in [`platform/contracts/mcp-catalog.json`](platform/contracts/mcp-catalog.json)):
+Every epistemic stage translates into concrete, deterministic tools exposed through the MCP layer (6 federated servers, 36 tools over stdio, digest-pinned in [`platform/contracts/mcp-catalog.json`](platform/contracts/mcp-catalog.json)):
 
 * **Observe & Measure**: `execution` server (circuit execution, VQE sweeps, state-vector simulation, hardware capability probes).
 * **Synthesize & Optimize**: `compiler` server (pass portfolio, QIR/OpenQASM3 transpilation, circuit co-design verification).
 * **Record & Attest**: `provenance` server (immutable SQLite WAL ledger, Merkle audit chains, confidentiality lattice labels).
 * **Govern & Gate**: `cost` & `control` servers (spend mandates, pre-flight budget checks, tenant isolation, operator approval cards).
+* **Navigate the World**: `world` server (agents traverse the same observatory as humans — `look`, `probe`, `anchor`, `gaze`, `summon`, `handoff`, `replay` — through governed, ledger-sealed rails; estimates only, agents never spend or dispatch).
+
+### Observatory: See the Science (3D Representation Layer)
+
+The console's Spatial Canvas ships a game-like, diegetic **Observatory** — the same platform, watched instead of read:
+
+* **Tier 1 — Walkable Lab ($0.00, air-gap safe):** a local Three.js potential-energy terrain bound to the PySCF FCI anchor, with a hover/click inspection probe, a procedural pavilion frame, and a calm-technology Attention Director (interrupt hierarchy, ambient sound, CheckInStrip pill).
+* **Tier 2 — Atlas Lens (opt-in, metered):** World Labs Marble 2 renders an illustrative architectural skin over exact local geometry — snapshot posing, depth-conditioned chisel from an offscreen-encoded EXR, `promptUsed` receipts. Every dispatch reserves $0.50 against the session spend cap, requires operator auth, and fails closed without imagery (no stock photos, ever).
+* **Vault pre-registration:** seal μ ± σ expectations before compute, evaluate measurements after — standardized surprise (z), Brier-scored 3σ containment, ghost-contour binding, both stages ledger-sealed.
+
+Design blueprint and full audit trail: [`wiki/concepts/observatory-spatial-representation-layer.md`](wiki/concepts/observatory-spatial-representation-layer.md) and [`wiki/concepts/observatory-lens-audit-2026-10-23.md`](wiki/concepts/observatory-lens-audit-2026-10-23.md). Live Atlas calls are opt-in and metered; everything else in this README runs at $0.00.
 
 ---
 
@@ -108,17 +119,17 @@ These are not aspirations. The ledger is sealed, the refusal paths are tested, a
 | Directory | Layer | Description |
 |---|---|---|
 | [`platform/core/`](platform/core/) | **Go Orchestrator** | Sovereign orchestrator, immutable provenance ledger, job coordination, tribunal, and core API on `:8080`. |
-| [`platform/kubona/mcp/`](platform/kubona/mcp/) | **MCP Tool Layer** | 5 federated Python servers mounting 29 tools over stdio (`compiler`, `execution`, `cost`, `provenance`, `control`)*. |
+| [`platform/kubona/mcp/`](platform/kubona/mcp/) | **MCP Tool Layer** | 6 federated Python servers mounting 36 tools over stdio (`compiler`, `execution`, `cost`, `provenance`, `control`, `world`)*. |
 | [`platform/console/`](platform/console/) | **Sovereign Console** | Next.js sovereign UI on `:3000` with experiment studio, tribunal, flight recorder, and copilot chat. |
 | [`platform/kubona/`](platform/kubona/) | **Python Runtime** | Agent execution runtime, evaluator-guided circuit co-design program, and ML pipelines. |
 | [`platform/bridge/`](platform/bridge/) | **Quantum Bridge** | PySCF and Qiskit bridge facilitating communication between AI agents, classical chemistry, and quantum hardware/simulators. |
-| [`wiki/`](wiki/) | **Obsidian Knowledge Base** | Living blueprint (145+ pages) cataloging entities, concepts, source audits, and ranked open questions. |
+| [`wiki/`](wiki/) | **Obsidian Knowledge Base** | Living blueprint (149 pages) cataloging entities, concepts, source audits, and ranked open questions. |
 | [`raw/`](raw/) | **Immutable Sources** | Read-only ingested source documents, architecture papers, and implementation plans. |
 | [`scripts/`](scripts/) | **Tooling & CI** | Automated structural wiki linting (`scripts/wiki-lint.py`) and CI validation runners. |
 | [`assets/misc/`](assets/misc/) | **Media & Presentations** | Platform overview infographic and executive presentation deck. |
 | [`AGENTS.md`](AGENTS.md) | **Maintainer Operating Rules** | Core engineering standards, production bar, and invariants for human and AI collaborators. |
 
-*\*Note on MCP Serving: The 5 MCP servers currently execute over stdio (`python -m kubona.mcp.servers.<name>`) and in-process test harnesses; standalone compose container serving is in progress.*
+*\*Note on MCP Serving: The 6 MCP servers currently execute over stdio (`python -m kubona.mcp.servers.<name>`) and in-process test harnesses; standalone compose container serving is in progress.*
 
 ---
 
@@ -153,6 +164,7 @@ For extended console configuration, see [`platform/console/README.md`](platform/
 
 - **Phases 0–5 (Quantum Core Foundations)**: Federated MCP servers, QIR/MLIR pipelines, cost governance, immutable provenance ledger, autoresearch engine (§11), and meta-level self-evolution loop (§13).
 - **Phase 6 (Science Discovery & Synthesis)**: Multi-user lab identities, workflow and agent authoring studio, interactive experiment notebook, scholarly data integrations, and localized model training.
+- **Observatory Representation Layer (shipped P0–P6)**: Tier-1 walkable lab, Vault pre-registration with surprise scoring, Attention Director, `world.*` agent-player tools, and the opt-in World Labs Atlas lens (snapshot posing, depth-conditioned chisel with a warp-route consumption proof, promptUsed receipts, spend-capped and edge-authed).
 
 See [`wiki/roadmap.md`](wiki/roadmap.md) for the phased implementation plan and [`wiki/overview.md`](wiki/overview.md) for the architectural synthesis.
 

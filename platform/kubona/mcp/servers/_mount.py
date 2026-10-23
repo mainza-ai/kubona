@@ -1,9 +1,10 @@
-"""Wire the five servers' tools into the gateway registry (shared by tests).
+"""Wire the servers' tools into the gateway registry (shared by tests).
 
 Single mount table (W2.14): `kubona.run.make_gateway` (production auth) and
 every test build through this builder, so the tool surface cannot drift
 between the dev/test gateway and the production one. `compile_circuit` is
 mounted here — it is a real compiler-server tool, not an optional extra.
+`world` exposes the Observatory agent-player tools (P5) backed by kubonad.
 """
 
 from __future__ import annotations
@@ -12,7 +13,7 @@ from typing import Any
 
 from kubona.mcp.gateway import KubonaGateway
 
-from . import compiler, control, cost, execution, provenance
+from . import compiler, control, cost, execution, provenance, world
 
 
 def build_gateway(*, require_auth: bool = True, auth: Any | None = None,
@@ -58,4 +59,13 @@ def build_gateway(*, require_auth: bool = True, auth: Any | None = None,
         "verify_payment": cost.verify_payment,
     })
     gw.mount("provenance", {"write_record": provenance.write_record, "query_records": provenance.query_records})
+    gw.mount("world", {
+        "world_look": world.world_look,
+        "world_probe": world.world_probe,
+        "world_anchor": world.world_anchor,
+        "world_gaze": world.world_gaze,
+        "world_summon": world.world_summon,
+        "world_handoff": world.world_handoff,
+        "world_replay": world.world_replay,
+    })
     return gw

@@ -22,6 +22,9 @@ type ObservatoryLensRequest struct {
 	TaskType       string   `json:"task_type"` // "images2PosedRGBD" | "atlasTextToImage" | "atlasGenerate" | "atlasChisel"
 	ImageURL       string   `json:"image_url,omitempty"`
 	DepthData      string   `json:"depth_data,omitempty"`
+	DepthAssetID   string   `json:"depth_asset_id,omitempty"` // chisel context depth (P1)
+	VoxelSize      float64  `json:"voxel_size,omitempty"`     // chisel depth quantization, 0-0.4
+	EphemeralPurge bool     `json:"ephemeral_purge,omitempty"`
 	Camera         *LensCam `json:"camera,omitempty"`
 	IdempotencyKey string   `json:"idempotency_key,omitempty"`
 }
@@ -166,6 +169,20 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// Voxel size is validated pre-spend: 0 (off) or within (0, 0.4].
+	if req.VoxelSize < 0 || req.VoxelSize > 0.4 {
+		WriteAPIError(w, "bad_request", "voxel_size must be 0 (off) or within (0, 0.4]", nil)
+		return
+	}
+
+	// atlasGenerate needs full RGBD context (image + depth + camera per
+	// frame); P1 builds depth-only chisel context. Refuse loudly rather
+	// than dispatching a payload the API would 422.
+	if taskType == "atlasGenerate" {
+		WriteAPIError(w, "bad_request", "atlasGenerate needs full RGBD context frames (image + depth + camera) — P2 work; chisel runs prompt-only or depth-conditioned today", nil)
+		return
+	}
+
 	// 5. Idempotency key: client header wins, then body field, then a
 	// server UUID. Forwarded to Atlas so transport retries replay the same
 	// operation instead of minting duplicate spend.
@@ -207,9 +224,9 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 		imageURL := strings.TrimSpace(req.ImageURL)
 		imageAsset := map[string]any{"url": imageURL}
 		if strings.HasPrefix(imageURL, "data:") {
-			if len(imageURL) > 9*1024*1024 {
+			if inlineDecodedSize(imageURL) > inlineAssetMaxDecodedBytes {
 				_ = s.sessionMgr.ReleaseSpend(req.SessionID, lensCostUSD)
-				WriteAPIError(w, "bad_request", "inline snapshot exceeds 9 MiB: use the asset upload flow instead", nil)
+				WriteAPIError(w, "bad_request", "inline snapshot exceeds 9.5 MiB decoded: use the asset upload flow instead", nil)
 				return
 			}
 			assetID, err := uploadInlineAssetToAtlas(atlasBaseURL(apiBase), apiKey, idemKey+"-asset", imageURL, fmt.Sprintf("kubona-lens-%s.png", req.SessionID))
@@ -238,6 +255,9 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 			"aspectRatio": "16:9",
 		}
 	default:
+		// Reachable only for atlasChisel (atlasGenerate is refused
+		// pre-spend above): prompt + target cameras, depth-conditioned when
+		// a depth asset is supplied, prompt-only otherwise.
 		prompt := req.Prompt
 		if prompt == "" {
 			prompt = fmt.Sprintf("Minimalist architectural subterranean observatory pavilion overlooking a crystalline %s quantum potential energy landscape, dark titanium trim, 6500K recessed lighting, floor-to-ceiling quartz observation windows", req.TargetSystem)
@@ -258,21 +278,38 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 		// the 1280x720 generation grid. Defaults follow the docs' worked
 		// example (fx=fy=900, centered principal point); P1 replaces these
 		// with calibrated intrinsics from the depth-encoder rig.
+		targetCam := map[string]any{
+			"extrinsics": map[string]any{
+				"position":         camPos,
+				"quaternion":       camQuat,
+				"coordinateSystem": "rub",
+			},
+			"intrinsics": map[string]any{
+				"fx": 900, "fy": 900, "cx": 640, "cy": 360,
+				"width": 1280, "height": 720,
+			},
+		}
 		atlasPayload = map[string]any{
-			"prompt": prompt,
-			"targetCameras": []map[string]any{
+			"prompt":        prompt,
+			"targetCameras": []map[string]any{targetCam},
+		}
+		if req.VoxelSize > 0 {
+			atlasPayload["voxelSize"] = req.VoxelSize
+		}
+		if req.EphemeralPurge {
+			atlasPayload["purgeContentOnOperationCompletion"] = true
+		}
+		if depthID := strings.TrimSpace(req.DepthAssetID); depthID != "" {
+			// Depth-only context, 1:1 with the target: the encoder renders
+			// depth AT this camera, so context and target share the pose.
+			atlasPayload["contextFrames"] = []map[string]any{
 				{
-					"extrinsics": map[string]any{
-						"position":         camPos,
-						"quaternion":       camQuat,
-						"coordinateSystem": "rub",
-					},
-					"intrinsics": map[string]any{
-						"fx": 900, "fy": 900, "cx": 640, "cy": 360,
-						"width": 1280, "height": 720,
+					"camera": targetCam,
+					"depth": map[string]any{
+						"depthAsset": map[string]any{"assetId": depthID},
 					},
 				},
-			},
+			}
 		}
 	}
 
@@ -326,6 +363,8 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 	if opResult.OperationID == "" && opResult.ID != "" {
 		opResult.OperationID = opResult.ID
 	}
+	// Attribution registry for webhook deliveries (best-effort).
+	lensOpSessions.Store(opResult.OperationID, req.SessionID)
 
 	// 8. Commit immutable provenance annotation to the Merkle ledger.
 	// Structured fields (task, operation, idempotency key) ride alongside
@@ -338,6 +377,8 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 		"operation_id":    opResult.OperationID,
 		"idempotency_key": idemKey,
 		"cost_usd":        lensCostUSD,
+		"voxel_size":      req.VoxelSize,
+		"ephemeral_purge": req.EphemeralPurge,
 	})
 
 	writeJSON(w, http.StatusOK, ObservatoryLensResponse{

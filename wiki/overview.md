@@ -1,7 +1,7 @@
 ---
 type: overview
 date: 2026-08-16
-updated: 2026-10-22
+updated: 2026-10-23
 tags: [kubona, synthesis]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-cloudflare-economy,
   source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026, source-openai-math-corpus,
@@ -280,6 +280,20 @@ Each phase below had a gate test, and each passes **on simulators**:
 - **P6** workflow engine, agent registry/personas (no escalation), experiment notebook,
   scholarly integrations, full discovery loop → a tenant-scoped lab completes
   ground→experiment→report→archive with every claim traced to a ledger or citation.
+
+> ⚑ Update (2026-10-23, [[observatory-lens-audit-2026-10-23]]): the
+> Observatory lens (Surface 1/9 AX triad) has since landed P0–P6 as
+> prototype fact — Tier-1 walkable lab (Morse terrain, pavilion,
+> Attention Director, ambient audio), Vault pre-registration with
+> surprise scoring, seven `world.*` MCP tools (catalog 29→36 tools),
+> and the opt-in Atlas sidecar (snapshot posing, depth-conditioned
+> chisel with a live warp-route consumption proof, v1a webhooks,
+> reservation ledger). Live-verified against the beta API: pose, chisel
+> and generate succeed; text-to-image is in sustained upstream outage
+> (0/4, `TRANSIENT_UPSTREAM`). Current suites: Go `pkg/api` full green,
+> console 48 files / 229 tests green, `tsc` + eslint clean, wiki lint
+> clean (149 pages). Browser-run P1 end-to-end and burn-dashboard
+> numbers remain operator-side.
 
 ### What no prototype test can answer
 

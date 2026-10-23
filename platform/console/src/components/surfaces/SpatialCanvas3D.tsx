@@ -20,9 +20,16 @@ import {
   evaluatePrediction,
   fetchLatestPrediction,
   sealPrediction,
+  uploadObservatoryAsset,
   type PredictionEvaluation,
   type SealedPrediction,
 } from '@/lib/api';
+import { useAttention } from '@/lib/attention-context';
+import {
+  buildTerrainHeightField,
+  encodeDepthEXR,
+  renderTerrainDepthGL,
+} from '@/lib/depth-encode';
 import {
   MORSE_WIDTH_A,
   dissociationEnergyHartree,
@@ -35,8 +42,20 @@ export interface SpatialCanvas3DProps {
   campaign?: CampaignState | null;
   lensImageUrl?: string | null;
   lensWatermark?: string;
+  lensPromptUsed?: string | null;
+  lensHistory?: Array<{
+    operation_id: string;
+    task_type?: string;
+    cost_usd?: number;
+    prompt_used?: string;
+    resolved?: boolean;
+  }>;
   onSelectPoint?: (point: { bondDistance: number; energy: number; label?: string }) => void;
   onRequestAtlasLens?: (snapshotDataUrl: string | null) => void;
+  onRequestDepthChisel?: (
+    depthAssetId: string,
+    camera: { position: number[]; orientation: number[] },
+  ) => void;
   isGeneratingLens?: boolean;
   lensError?: string | null;
   airGapped?: boolean;
@@ -48,8 +67,11 @@ export function SpatialCanvas3D({
   campaign,
   lensImageUrl = null,
   lensWatermark = 'SYNTHETIC LENS — WORLD LABS ATLAS',
+  lensPromptUsed = null,
+  lensHistory = [],
   onSelectPoint,
   onRequestAtlasLens,
+  onRequestDepthChisel,
   isGeneratingLens = false,
   lensError = null,
   airGapped = false,
@@ -73,6 +95,10 @@ export function SpatialCanvas3D({
   const [sealStdStr, setSealStdStr] = useState('');
   const [sealBusy, setSealBusy] = useState(false);
   const [sealMsg, setSealMsg] = useState<string | null>(null);
+
+  // P4: evaluated surprises route to the Attention Director (CheckInStrip
+  // pill + ambient sound), closing the watch loop the plan requires.
+  const { notify } = useAttention();
 
   // Target system & equilibrium parameters (single source of truth:
   // @/lib/morse — shared with the 2D workbench so both surfaces agree).
@@ -183,10 +209,14 @@ export function SpatialCanvas3D({
       }
       const latest = await fetchLatestPrediction(sid);
       if (latest.ok) setEvaluation(latest.evaluation ?? null);
+      notify({
+        level: resp.level === 'anomalous' || resp.level === 'notable' ? resp.level : 'normal',
+        source: 'vault',
+      });
     } finally {
       setSealBusy(false);
     }
-  }, [campaign?.session_id, sealed, selectedCoordinates?.energy, sealBusy]);
+  }, [campaign?.session_id, sealed, selectedCoordinates?.energy, sealBusy, notify]);
 
   // Physical molecular bond dissociation energy De in Hartrees
   // (single source of truth: @/lib/morse).
@@ -246,6 +276,59 @@ export function SpatialCanvas3D({
       return null;
     }
   };
+
+  // P1: depth-conditioned chisel. Renders the ledger-grounded terrain
+  // depth offscreen from the CURRENT orbit pose, exports uncompressed EXR,
+  // uploads as a project asset, then dispatches chisel through the parent
+  // rail (spend + poll + promptUsed resolve stay in one place). The orbit
+  // pose arrives as an argument from the click handler (event handlers may
+  // read refs; render-phase callbacks may not).
+  const [chiselBusy, setChiselBusy] = useState(false);
+  const [chiselMsg, setChiselMsg] = useState<string | null>(null);
+
+  const handleEncodeDepthChisel = useCallback(async (
+    camPos: [number, number, number],
+    camQuat: [number, number, number, number],
+  ) => {
+    const sid = campaign?.session_id;
+    if (!sid || !anchorComputed || isGeneratingLens || chiselBusy) return;
+    setChiselBusy(true);
+    setChiselMsg(null);
+    try {
+      const N = 65;
+      const W = 4.0;
+      const heights = buildTerrainHeightField(N, W, De, fciGround);
+      const depth = renderTerrainDepthGL(
+        heights,
+        N,
+        W,
+        { position: camPos, quaternion: camQuat },
+        1280,
+        720,
+      );
+      const exr = await encodeDepthEXR(depth, 1280, 720);
+      let bin = '';
+      const CHUNK = 0x8000;
+      for (let i = 0; i < exr.length; i += CHUNK) {
+        bin += String.fromCharCode(...exr.subarray(i, i + CHUNK));
+      }
+      const dataUrl = `data:image/x-exr;base64,${btoa(bin)}`;
+      const up = await uploadObservatoryAsset({
+        sessionId: sid,
+        dataBase64: dataUrl,
+        displayName: `kubona-pes-${targetSystem}.exr`,
+      });
+      if (!up.ok || !up.asset_id) {
+        setChiselMsg(up.error || 'Depth upload failed');
+        return;
+      }
+      onRequestDepthChisel?.(up.asset_id, { position: [...camPos], orientation: [...camQuat] });
+    } catch (e) {
+      setChiselMsg((e as Error).message || 'Depth encode failed');
+    } finally {
+      setChiselBusy(false);
+    }
+  }, [campaign?.session_id, anchorComputed, isGeneratingLens, chiselBusy, De, fciGround, targetSystem, onRequestDepthChisel]);
 
   // Stable references for Three.js objects
   const sceneRef = useRef<THREE.Scene | null>(null);
@@ -516,9 +599,45 @@ export function SpatialCanvas3D({
     anchorGroup.add(anchorRing);
     scene.add(anchorGroup);
 
+    // Tier-1 Pavilion Shell (P5): procedural architectural frame — obsidian
+    // floor, titanium pillars, quartz window glow, ceiling ring. Pure local
+    // geometry: the room exists with or without Atlas, so air-gap keeps a
+    // walkable world. All pieces disposed in cleanup below.
+    const pavilion = new THREE.Group();
+    const floorGeo = new THREE.CircleGeometry(6.5, 48);
+    floorGeo.rotateX(-Math.PI / 2);
+    const floorMat = new THREE.MeshStandardMaterial({ color: 0x0b0e14, roughness: 0.35, metalness: 0.75 });
+    const floorMesh = new THREE.Mesh(floorGeo, floorMat);
+    floorMesh.position.y = -0.08;
+    pavilion.add(floorMesh);
+
+    const pillarGeo = new THREE.CylinderGeometry(0.06, 0.09, 3.0, 12);
+    const pillarMat = new THREE.MeshStandardMaterial({ color: 0x3a4356, roughness: 0.4, metalness: 0.85 });
+    const glowGeo = new THREE.PlaneGeometry(2.4, 1.5);
+    const glowMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.07, side: THREE.DoubleSide });
+    for (let k = 0; k < 6; k++) {
+      const a = (k / 6) * Math.PI * 2;
+      const px = Math.cos(a) * 4.2;
+      const pz = Math.sin(a) * 4.2;
+      const pillar = new THREE.Mesh(pillarGeo, pillarMat);
+      pillar.position.set(px, 1.42, pz);
+      pavilion.add(pillar);
+      const glow = new THREE.Mesh(glowGeo, glowMat);
+      const na = a + Math.PI / 6;
+      glow.position.set(Math.cos(na) * 4.2, 1.5, Math.sin(na) * 4.2);
+      glow.lookAt(0, 1.5, 0);
+      pavilion.add(glow);
+    }
+    const ringGeo = new THREE.TorusGeometry(4.2, 0.045, 12, 64);
+    ringGeo.rotateX(Math.PI / 2);
+    const ringMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.35 });
+    const ringMesh = new THREE.Mesh(ringGeo, ringMat);
+    ringMesh.position.y = 2.95;
+    pavilion.add(ringMesh);
+    scene.add(pavilion);
+
     // Pre-Registration Vault Ghost Plane
-    const ghostGeo = new THREE.PlaneGeometry(worldWidth * 0.8, worldDepth * 0.8, 16, 16);
-    ghostGeo.rotateX(-Math.PI / 2);
+    const ghostGeo = new THREE.PlaneGeometry(worldWidth * 0.8, worldDepth * 0.8, 16, 16);    ghostGeo.rotateX(-Math.PI / 2);
     const ghostPos = ghostGeo.attributes.position;
     for (let i = 0; i < ghostPos.count; i++) {
       const gx = ghostPos.getX(i);
@@ -672,6 +791,14 @@ export function SpatialCanvas3D({
       pinGeo.dispose();
       pinMat.dispose();
       gridHelper.dispose();
+      floorGeo.dispose();
+      floorMat.dispose();
+      pillarGeo.dispose();
+      pillarMat.dispose();
+      glowGeo.dispose();
+      glowMat.dispose();
+      ringGeo.dispose();
+      ringMat.dispose();
       renderer.dispose();
     };
   }, []); // Run ONCE on mount! Never tear down on state re-renders!
@@ -876,7 +1003,8 @@ export function SpatialCanvas3D({
             </div>
           )}
 
-          <div className="bg-[#0E1117]/90 backdrop-blur-xl border border-white/10 rounded-xl p-3 shadow-2xl flex items-center gap-3">
+          <div className="bg-[#0E1117]/90 backdrop-blur-xl border border-white/10 rounded-xl p-3 shadow-2xl flex flex-col gap-2">
+          <div className="flex items-center gap-3">
             <div className="text-right">
               <div className="text-xs font-medium text-white flex items-center gap-1.5 justify-end">
                 <Camera className="w-3.5 h-3.5 text-cyan-400" />
@@ -897,7 +1025,7 @@ export function SpatialCanvas3D({
               title={
                 airGapped
                   ? 'Sovereign Air-Gap active: external cloud synthesis disabled'
-                  : 'Render depth-conditioned architectural observatory skin via Atlas Marble 2'
+                  : 'Pose the live terrain snapshot via Atlas Marble 2'
               }
               className={`px-3.5 py-2 rounded-lg text-xs font-medium transition-all flex items-center gap-1.5 shadow-lg ${
                 airGapped
@@ -920,6 +1048,55 @@ export function SpatialCanvas3D({
               )}
             </button>
           </div>
+
+          {/* P1: depth-conditioned chisel from the ledger-grounded terrain. */}
+          <button
+            onClick={() => {
+              const cam = cameraRef.current;
+              if (!cam) return;
+              const pos = cam.position.toArray();
+              const quat = cam.quaternion.toArray();
+              void handleEncodeDepthChisel(
+                [pos[0], pos[1], pos[2]],
+                [quat[0], quat[1], quat[2], quat[3]],
+              );
+            }}
+            disabled={airGapped || isGeneratingLens || chiselBusy || !anchorComputed}
+            title={
+              airGapped
+                ? 'Sovereign Air-Gap active: external cloud synthesis disabled'
+                : !anchorComputed
+                  ? 'Requires a computed FCI anchor (depth needs ground truth)'
+                  : 'Render terrain depth offscreen, upload as an Atlas asset, chisel the current view'
+            }
+            className="px-3.5 py-2 rounded-lg text-xs font-medium transition-all flex items-center justify-center gap-1.5 shadow-lg border border-cyan-400/30 text-cyan-300 hover:bg-cyan-500/10 disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>{chiselBusy ? 'Encoding depth…' : 'Depth Chisel (P1)'}</span>
+          </button>
+          {chiselMsg && (
+            <div className="text-[11px] font-code text-rose-300">{chiselMsg}</div>
+          )}
+          {/* P6: our reservation ledger — rated invoices live on the Atlas
+              billing dashboard, never here. */}
+          {lensHistory.length > 0 && (
+            <details className="text-[11px] font-code">
+              <summary className="text-slate-400 cursor-pointer hover:text-slate-200">
+                Reservations ({lensHistory.length}) — not billed amounts
+              </summary>
+              <div className="mt-1 space-y-1 max-h-32 overflow-y-auto">
+                {lensHistory.map((op) => (
+                  <div key={op.operation_id} className="text-slate-500 truncate" title={op.prompt_used || op.operation_id}>
+                    <span className="text-slate-300">{op.operation_id.slice(0, 8)}…</span>
+                    {' · '}{op.task_type ?? 'lens'}
+                    {op.cost_usd != null ? ` · $${op.cost_usd.toFixed(2)} reserved` : ''}
+                    {op.resolved ? ' · resolved' : ' · pending'}
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+          </div>
         </div>
       </div>
 
@@ -929,6 +1106,11 @@ export function SpatialCanvas3D({
           <div className="bg-black/80 border border-white/20 text-[10px] font-code text-slate-300 px-2.5 py-1 rounded backdrop-blur-md tracking-wider">
             [{lensWatermark}]
           </div>
+          {lensPromptUsed && (
+            <div className="bg-black/80 border border-white/20 text-[10px] font-code text-slate-400 px-2.5 py-1 rounded backdrop-blur-md max-w-56 truncate" title={lensPromptUsed}>
+              promptUsed: {lensPromptUsed.slice(0, 80)}
+            </div>
+          )}
           {lensImageUrl.startsWith('http') && (
             <div className="w-56 h-32 rounded-lg overflow-hidden border border-cyan-500/30 shadow-2xl relative group bg-black/60 backdrop-blur-sm">
               {/* eslint-disable-next-line @next/next/no-img-element */}

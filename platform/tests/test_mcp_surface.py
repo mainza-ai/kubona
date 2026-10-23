@@ -17,7 +17,7 @@ from bench.surface import SURFACE_BUDGET_BYTES, measure  # noqa: E402
 
 def test_mcp_surface_within_budget():
     entries, total = measure()
-    assert len(entries) == 29, f"tool count changed: {len(entries)} (review per L5)"
+    assert len(entries) == 36, f"tool count changed: {len(entries)} (review per L5)"
     assert total <= SURFACE_BUDGET_BYTES, (
         f"surface {total} bytes exceeds {SURFACE_BUDGET_BYTES}: "
         "justify per tool (L5) or raise deliberately"
