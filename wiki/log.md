@@ -3111,3 +3111,52 @@ skipped is the exact failure this incident is about:
   - In-slice finds fixed: bridge image ships contracts/ (KUBONA_EVENT_TYPES) — codesign import needs the closed taxonomy; jobs fake embeds client interface.
   - Compose live: chemistry ADMET + pipeline via bridge; all 5 codesign rails serve (evaluate T1 Q3 golden, packs x5, budget, batch, families, invalid 400). F-001 closed 7/7.
   - Suites: Go 29/29, console 42 files / 200 tests, tsc, wiki lint, bridge 40 passed/1 skipped, Python taxonomy 4/4, Rust ifc-core 9/9. Remaining: D-15 (1 telemetry run — insufficient).
+
+## [2026-10-22] ingest | Observatory spatial representation layer & World Labs Atlas sidecar
+  - New pages: `wiki/concepts/observatory-spatial-representation-layer.md` (reconciled master plan for the game-like Observatory layer, Surface 1 & 9 AX triad, two-tier local/Atlas architecture, pre-registration Vault, calm attention director, visual and sensory spec) and `wiki/entities/world-labs-atlas.md` (World Labs Atlas / Marble 2 developer API sidecar integration, 1280x720 pinhole camera and planar depth contracts, asset retention modes, air-gap gating).
+  - Index census: 145 -> 147 pages (concepts 85 -> 86, entities 46 -> 47, adopted 53 -> 54, reference 8 -> 9). Strict wiki lint 100% clean (exit 0).
+
+## [2026-10-22] impl | Observatory representation layer implementation executed (Slices 1–5)
+  - Console: installed `three ^0.186.1` and `@types/three ^0.186.0` in `platform/console`. Authored `SpatialCanvas3D.tsx` (vanilla Three.js WebGL canvas, Morse potential heightfield from FCI classical anchor, Value-Suppressing Uncertainty Palette custom GLSL shaders, interactive raycaster, pre-registration Vault ghost contour, and Atlas lens synthesis trigger).
+  - Console: added seamless `2D Workbench` / `3D Observatory` mode toggle in `SpatialCanvas.tsx` preserving 2D molecular geometry and progressive disclosure; wired `requestObservatoryLens` and `fetchObservatoryLensStatus` in `platform/console/src/lib/api.ts`.
+  - Contracts & Ledger: registered `prediction_sealed` and `prediction_evaluated` in `platform/contracts/event-types.json` and mirrored in `KnownEventTypes` in `platform/core/pkg/ledger/events.go`.
+  - Core & Security: implemented `POST /api/observatory/lens` and status GET in `platform/core/pkg/api/observatory_lens.go`. Enforced fail-closed Sovereign Air-Gap (403 `forbidden` when `air_gapped: true`), session spend envelope reservation ($0.50 per lens), Atlas Marble 2 API client (`tasks:atlasGenerate` / `tasks:atlasChisel` with server-side `WLT_API_KEY`), and Merkle ledger provenance annotations.
+   - Suites: Go `pkg/api` (all 6 new lens tests pass, full suite ok across 29 packages), console vitest (42 test files, 201 tests pass), Python event taxonomy conformance (4/4 pass), strict wiki lint clean (exit 0 across 147 pages).
+
+## [2026-10-23] ingest | World Labs Atlas beta docs as a source page
+  - New page: wiki/sources/source-world-labs-atlas-2026.md (type source, origin: live-docs read — all 23 pages under atlas-beta.worldlabs.ai/docs/* read end to end 2026-10-23, no raw/ doc, beta contract subject to change). Registered `source-world-labs-atlas-2026` in scripts/wiki-lint.py SOURCE_KEYS.
+  - Verified live with the rotated operator key: GET /api/v2/operations?pageSize=1 -> 200 (free read, no spend, no secret printed anywhere). No paid task submitted; entitlement/credit-burn metering awaits approval (Q-38).
+
+## [2026-10-23] audit | Observatory lens deep-dive audit + wiki drift corrections
+  - New page: wiki/concepts/observatory-lens-audit-2026-10-23.md (tracked) — verdict ~15-20% of the master plan; handover corrections C-01/C-02 (no TRANSIENT_UPSTREAM fallback ever existed; chisel branch schema would 422); missed findings F-01..F-12; P0-P6 completion plan; open decisions Q-36/Q-37/Q-38.
+  - Drift corrected with Correction blocks (superseded claims kept): observatory-spatial-representation-layer §10 (three ^0.186.1, default images2PosedRGBD, atlas-beta host, `forbidden` code, no llm_spend_estimated field) and world-labs-atlas (Ed25519 v1a webhooks, not HMAC/WLT-Signature; no AirGapEnforcedError type).
+   - Index census 147 -> 149 (sources 9 -> 10, concepts +1 audit); questions.md gains Q-36/Q-37/Q-38 (section E).
+
+## [2026-10-23] impl | Observatory lens P0 remediation landed (F-01/F-03/F-04/F-07/F-08/F-09/F-10p/F-12)
+  - Go (`platform/core/pkg/api/observatory_lens.go`): task allowlist validated before spend; images2PosedRGBD without image fails closed 400 (no stock imagery ever); Idempotency-Key header/body-or-UUID forwarded upstream, echoed, sealed in the ledger annotation with task/operation/cost; upstream errors branch to catalogued codes (credits_unavailable / spend_limit_exceeded 402, task_not_entitled 404, rate_limited 429 with Retry-After, bridge_unavailable 5xx) with spend refunded; chisel/generate cameras now live-schema PinholeCameras (extrinsics XYZW rub + absolute-pixel intrinsics). New codes registered in both `platform/contracts/error-catalog.csv` and `typerrors.go` (parity tests green); catalog-shape pin legitimately 22 -> 25.
+  - Console: `src/lib/morse.ts` single source of truth (physical De table, a=1.6) adopted by both workbench and 3D canvas (retired |FCI|*0.15/a=1.44 fork); Vault Ghost relabeled illustrative + comment-bound to P3; lens client sends per-request Idempotency-Key; poll loop bounded (40x3 s) with terminal timeout/done-without-frame errors; React-Compiler memoization error fixed via scalar deps.
+  - Suites: Go pkg/api full green; console 42 files / 201 tests green; tsc clean; eslint 0 errors (6 pre-existing warnings untouched); wiki-lint --strict clean (149 pages). No live Atlas spend (free `operations` read only); no commits (uncommitted working tree).
+
+## [2026-10-23] verification | Workflow tutorial folded into the lens plan
+  - Re-read atlas-beta.worldlabs.ai/docs/generated-world-edit-workflow end to end (chain atlasTextToImage -> images2PosedRGBD -> atlasMasked, shell harness, Extend-the-workflow rules).
+  - Amendments filed on [[observatory-lens-audit-2026-10-23]] §5/§6: strip posed output to depth-only+camera for chisel context (never verbatim); no client-side rescale after posing (capture at exact 1280x720); snapshots <10 MiB ride inline base64; N orbit snapshots are legitimate multi-view captures (unlike text-to-image variations); returnDepth only with >=2 translated views; Q-38 probe shaped as the tutorial chain (first submit also disambiguates 403 scope vs 404 entitlement gaps); atlasMasked stays out of scope (internal preview).
+
+## [2026-10-23] verification | Full-utilization pass over all Atlas docs
+  - Re-mined billing, web-quickstart, CLI, atlasGenerate/atlasMasked schemas, quickstart, and both MIT repos (atlas-camera-studio, marble-multiview-inpainting).
+  - New utilization rules on [[observatory-lens-audit-2026-10-23]]: warp-vs-hero route awareness with empirical consumption proof; <=19 frames + centered principal; base64Outputs fast path; orbit snapshots as multi-view rig; MIT repos as method reference + zero-spend EXR fixture; CLI for Q-38 probes; per-project limits + key-grouped usage dashboard + lag caveat; training opt-out check; TS client evaluated-and-declined.
+  - Live free-read evidence: one prior SUCCEEDED images2PosedRGBD op on this account (posing entitlement proven), zero chisel/generate ops (still unknown), assets.read 200.
+  - F-01 fairness nuance recorded (URL mechanism docs-blessed; unrelated content was the fiction).
+
+## [2026-10-23] impl | Observatory P3 + Q-37 + P2 zero-cost prep landed (F-12/F-13 closed, Q-36/Q-37 closed)
+  - P3 vault pre-registration: `POST /api/vault/predictions/seal|evaluate` + `GET latest` (all requireBearer); `prediction_sealed`/`prediction_evaluated` ledger events (sigma floor 1e-4, deterministic sha256 hash, z + sealed-3sigma-containment Brier + level math pinned by tests); console Vault panel (anchor-gated seal form, ghost bound to sealed mu, z-badge, evaluate-pinned-point loop); F-12 closed.
+  - F-13 (found during wiring): lens route lacked edge auth — only spend route without requireBearer; wrapped lens + prediction routes, 401 pin proves no spend moves unauthed.
+  - Q-37: snapshot capture (preserveDrawingBuffer + 16:9 cover-crop to exact 1280x720, null-safe) + Atlas inline asset-upload flow (data URLs to project asset to assetId refs, 9 MiB cap, derived idempotency key) — mock-tested, zero live spend.
+  - P2 prep: `src/lib/depth.ts` (half/float EXR decode, bottom-up flip, planar unproject, stats) + hermetic EXR round-trip tests; interop pin: three r186 EXRExporter ZIP default misdecodes in its own EXRLoader — P1 encodes uncompressed.
+  - Suites: Go pkg/api full green, console 45 files / 212 tests green, tsc clean, eslint 0 errors, wiki-lint clean. No live Atlas spend; no commits (uncommitted working tree).
+  - Questions: Q-36 closed (dev_inspect for beta), Q-37 closed (snapshot-accepting + fail-closed fallback landed).
+
+## [2026-10-23] verification | Q-38 live probe executed (pose/chisel/generate green, text-to-image outage)
+  - Live Atlas evidence (operator-approved spend; no secrets recorded): images2PosedRGBD SUCCEEDED on the camera-studio igloo scene (recovered camera near-identical to the bundle: fx 1211.95, centered principal, position within 1 mm); atlasChisel SUCCEEDED prompt-only-with-1-target (entitlement proven — and chisel requires >=1 targetCameras even with empty context, 422 otherwise); atlasGenerate SUCCEEDED with exact requested +0.25 X camera; atlasTextToImage 0/4 with sustained TRANSIENT_UPSTREAM (code 14, both enhance settings, retries with fresh keys) — service outage, re-probe another day, no further T2I spend.
+  - Live-contract correction: asset-create returns {"id": "asset_..."} (not the tutorial's resource-name shape) — backend parser fixed + live-shape test pin.
+  - Fixtures in gitignored dev-docs/kubona-probe-2026-10-23/ (real Atlas depth EXR + posed/conf/chisel/generate frames + igloo camera + manifest with op/asset IDs for re-fetch). Observed: deterministic depth EXR bytes for identical input; pose/chisel/generate each terminal within ~15 s of submit.
+  - Remaining: burn totals need the billing dashboard (no balance API); chisel depth-conditioned + generate depth-reconstruction + A/B gates still await P1/P2 live runs.
