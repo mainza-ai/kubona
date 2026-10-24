@@ -38,8 +38,23 @@ def test_deep_circuit_refused_with_receipt_not_remediation():
 
 
 def test_unknown_device_refuses_as_unpredictable():
+    # Unpriced hardware (quantinuum ships 0.0 rates) refuses at preflight:
+    # a $0.00 estimate would read as "free tier" downstream, so the money
+    # rail fails closed before the fidelity gate is even reached.
     out = exec_server.submit_job(BELL, provider="quantinuum", shots=100,
                                  budget_ceiling_usd=25.0, caller_jurisdictions=["US", "UK"],
                                  caller_export_class="allied")
     assert out["ok"] is False, out
-    assert "no fidelity profile" in out["error"], out
+    assert "no task/shot rate configured" in out["error"], out
+
+
+def test_fidelity_gate_refuses_priced_but_unprofiled_backend():
+    # The fidelity no-profile branch stays pinned even though no real
+    # provider currently reaches it: a priced ibm-clone (rates intact, no
+    # device mapping) must refuse as unpredictable, never inherit a profile.
+    from kubona.circuits import parse_qasm2
+    from kubona.schema import load_provider
+    cap = load_provider("ibm-qiskit").model_copy(update={"provider": "ibm-clone"})
+    verdict = exec_server._fidelity_gate(cap, parse_qasm2(BELL))
+    assert verdict["admitted"] is False, verdict
+    assert "no fidelity profile" in verdict["rejection_reason"], verdict
