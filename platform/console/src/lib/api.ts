@@ -808,6 +808,70 @@ export async function fetchLLMSettings(): Promise<Record<string, unknown> | null
   }
 }
 
+// Quantum provider selection (human surface). Secrets are never accepted
+// here — credentials live in the daemon environment (KUBONA_* / Bao) and
+// surface only as credential_state. The backend validates provider IDs
+// and refuses unknown ones; the UI mirrors the refusal verbatim.
+export interface QuantumBackendInfo {
+  provider: string;
+  display_name: string;
+  modality: string;
+  device: string;
+  credential_env: string;
+  credential_state: 'ready' | 'credentialless' | 'unavailable' | string;
+  telemetry: 'measured' | 'declared' | string;
+  executable_now: boolean;
+}
+
+export async function fetchQuantumBackends(): Promise<QuantumBackendInfo[]> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/quantum/backends`, { cache: 'no-store', headers: authHeaders() });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { backends?: QuantumBackendInfo[] };
+    return Array.isArray(data.backends) ? data.backends : [];
+  } catch (err) {
+    console.error('Failed to fetch quantum backends:', err);
+    return [];
+  }
+}
+
+export async function fetchQuantumSettings(): Promise<Record<string, unknown> | null> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/quantum/settings`, { cache: 'no-store', headers: authHeaders() });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to fetch quantum settings:', err);
+    return null;
+  }
+}
+
+export async function saveQuantumSettings(
+  settings: Record<string, unknown>
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/quantum/settings`, {
+      method: 'PUT',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(settings),
+    });
+    if (!res.ok) {
+      // Surface the backend reason verbatim — never swallow into generic false.
+      let text = '';
+      try {
+        text = (await res.text()).trim().slice(0, 280);
+      } catch {
+        /* ignore body read failure */
+      }
+      return { ok: false, error: text || `HTTP ${res.status}` };
+    }
+    return { ok: true };
+  } catch (err) {
+    console.error('Failed to save quantum settings:', err);
+    return { ok: false, error: String(err) };
+  }
+}
+
 export async function saveLLMSettings(
   settings: Record<string, unknown>
 ): Promise<{ ok: boolean; error?: string }> {

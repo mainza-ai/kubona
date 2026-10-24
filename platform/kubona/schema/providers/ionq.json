@@ -1,0 +1,26 @@
+{
+  "provider": "ionq",
+  "modality": "trapped_ion",
+  "physical_qubits": 0,
+  "backend": null,
+  "logical_qubits_available": null,
+  "native_gate_set": [],
+  "queue_depth_estimate_s": 0,
+  "pricing": {
+    "model": "per_task_plus_per_shot",
+    "currency": "USD",
+    "per_task_usd": 0.0,
+    "per_shot_usd": 0.0,
+    "notes": "IonQ Cloud credits; NOT live-verified — zero rates refuse estimation until a rate card is recorded",
+    "verified": null,
+    "source": null
+  },
+  "jurisdiction": "US",
+  "export_control_flag": "none",
+  "sdk_bindings": [
+    "qiskit-ionq"
+  ],
+  "status": "planned",
+  "execution_plugin": "kubona.providers.ionq_provider.IonQProvider",
+  "notes": "Planned, not integrated: no live run has ever executed against IonQ Cloud from this tree. Capability fields other than modality/jurisdiction are placeholders. Flip status to registered only after a recorded live verification run."
+}

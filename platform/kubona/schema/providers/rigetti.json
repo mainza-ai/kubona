@@ -13,7 +13,9 @@
     "model": "per_second",
     "currency": "USD",
     "per_second_usd": 0.0,
-    "notes": "Cepheus multi-chip; per-second metering; requires credentials"
+    "notes": "Cepheus multi-chip; per-second metering; requires credentials",
+    "verified": null,
+    "source": null
   },
   "jurisdiction": "US",
   "export_control_flag": "none",

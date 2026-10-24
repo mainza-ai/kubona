@@ -22,7 +22,9 @@
   "queue_depth_estimate_s": 0,
   "pricing": {
     "model": "free",
-    "currency": "USD"
+    "currency": "USD",
+    "verified": null,
+    "source": null
   },
   "jurisdiction": "none",
   "export_control_flag": "none",

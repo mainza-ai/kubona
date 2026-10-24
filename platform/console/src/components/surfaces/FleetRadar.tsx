@@ -305,6 +305,14 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                   <div className="flex items-center space-x-2.5">
                     <Cpu className={`w-4 h-4 ${isRecommended ? 'text-cyan-300' : 'text-slate-400'}`} />
                     <span className="font-bold text-sm text-white font-mono tracking-tight">{b.name}</span>
+                    {b.telemetry === 'declared' && (
+                      <span
+                        className="px-2 py-0.5 rounded-md bg-slate-800/80 text-slate-300 border border-white/10 text-[9px] font-mono font-bold"
+                        title="Vendor catalog, not a live measurement: queue depth and coherence figures are declared values until the live canary proxy lands. Credential state is measured."
+                      >
+                        CATALOG
+                      </span>
+                    )}
                     {isRecommended && (
                       <span className="px-2 py-0.5 rounded-md bg-cyan-950/80 text-cyan-300 border border-cyan-800 text-[9px] font-mono font-bold flex items-center space-x-1">
                         <Star className="w-2.5 h-2.5 fill-cyan-400 text-cyan-400" />

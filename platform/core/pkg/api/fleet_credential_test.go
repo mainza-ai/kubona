@@ -62,6 +62,28 @@ func TestFleetCredentialStates(t *testing.T) {
 	}
 }
 
+func TestFleetTelemetryProvenance(t *testing.T) {
+	// Queue depths and calibration medians on hardware cards are vendor
+	// catalog, not live measurement — the response must say so per card
+	// so no client can present them as telemetry.
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	backends := fleetBackends(t, srv.Handler())
+	if got := backendByName(t, backends, "local_simulator")["telemetry"]; got != "measured" {
+		t.Fatalf("local_simulator telemetry must be measured, got %v", got)
+	}
+	for _, name := range []string{"ibm_heron", "quantinuum_h1", "rigetti_aspen"} {
+		b := backendByName(t, backends, name)
+		if b["telemetry"] != "declared" {
+			t.Fatalf("%s telemetry must be declared, got %v", name, b["telemetry"])
+		}
+		if _, ok := b["catalog_verified"]; !ok {
+			t.Fatalf("%s must carry catalog_verified (null until verified)", name)
+		}
+	}
+}
+
 func TestFleetBridgeLivenessMeasured(t *testing.T) {
 	srv, cleanup := setupTestServer(t)
 	defer cleanup()

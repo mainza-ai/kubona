@@ -220,6 +220,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[audit-remediation-todos]] | Sequenced execution list for the remediation plan: Phase-0 decisions, file-anchored slices, pins, landing checklist (`tracked`) |
 | [[observatory-lens-audit-2026-10-23]] | Observatory lens deep-dive audit vs live Atlas contract: handover corrections, missed findings, P0–P6 completion plan (`tracked`) |
 | [[observatory-plan-gap-audit-2026-10-23]] | Plan-vs-implementation gap audit: phase-gate verdicts, R-01–R-30 remaining work, live-proof ledger (`tracked`) |
+| [[quantum-hardware-gaps-2026-10-24]] | QPU provisioning, provider wiring, frontend config gaps G1–G11 with dispositions; R-32/R-33/R-34 proposals (`tracked`) |
 | [[autonomous-mathematical-discovery]] | Multi-hour thinking compute search dynamics over open conjectures, counterexample isolation, and proof refactoring |
 | [[formal-proof-verification-lean-comparator]] | Axiomatic formal verification ($\rho = 1.0$) vs empirical simulation, anti-cheating axiom sets, and ledger receipts |
 | [[mathematical-physics-anchors]] | Analytical ground-truth baselines from `openai/math` (Heisenberg ferromagnet, SK model, Haldane gap, MUB-6) enforcing quantum realism |
