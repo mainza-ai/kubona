@@ -94,32 +94,14 @@ execution record), [[observatory-spatial-representation-layer]] (design),
 
 **Operator actions (no code):** training opt-out toggle; dedicated dev project + monthly limit; key-scope review (`operations.cancel`, `assets.delete` only if P6 needs them); CLI `setup` for probes; mobile-push endpoint if Away is ever real (R-27).
 
-## 5. Quantum billing completeness + human dispatch (proposals, 2026-10-24 audit)
+## 5. Quantum billing completeness + human dispatch (2026-10-24 audit; implemented hermetic 2026-10-24, live verification pending)
 
-These move money or recall hardware — implementation is gated on an
-operator ruling recorded here first. Status: **proposed, not built**.
+Mechanism is built and hermetically tested (no live keys exist); the
+remaining gates are operator rulings (Q-40, Q-41) and live runs.
 
-- **R-32 Audited refund primitive.** Failed QPU jobs keep accounted spend
-  today (`execution.py`); no refund path exists. Proposal: ledger-sealed
-  refund records, admin-signed, enumerated reasons (vendor-error,
-  fidelity-refusal-after-dispatch, duplicate-spend by idempotency replay);
-  refunds reference the original spend record id. Open questions: who may
-  sign (lab admin only, or tribunal?), refund window, partial refunds for
-  partially-executed jobs.
-- **R-33 Provider-side cancel.** In-flight hardware runs cannot be recalled
-  (`jobs.py`). Proposal: cancel where vendor APIs support it (IBM Runtime
-  cancel exists; QCS/Quantinuum to confirm), ledger-recorded as
-  recall-attempt with the existing honest caveat (work may have run).
-  Cancel never refunds by itself — it pairs with R-32.
-- **R-34 Human quantum dispatch.** The picker (`QuantumSettings`, `/api/quantum/*`,
-  shipped 2026-10-24) selects; nothing dispatches yet. Agents submit via
-  the MCP execution rail; the bridge `ExecuteCircuit` is simulation-only.
-  Proposal: new `QuantumSubmit` bridge RPC that calls the SAME
-  `submit_job` function (identical jurisdiction/fidelity/spend rails, no
-  parallel rail), console → kubonad (bearer + session reservation) →
-  bridge. Requires its own threat analysis (new cross-process spend
-  path) and live verification with operator keys before any real hardware
-  flows through it.
+- **R-32 Audited refund primitive.** ~~No refund path exists~~ **Mechanism done**: Go session `RefundSpend` + `POST /api/sessions/refund` (admin envelope, cross-tenant refusal, no-negative-books, receipted refusals — mirrors tenant `RefundSpend`); Python `SessionStore.release_spend` + governance wrapper (the MCP book had no refund at all). Open policy → Q-41 (signer scope beyond tenant admin, window, partials for partially-executed jobs).
+- **R-33 Provider-side cancel.** ~~In-flight hardware runs cannot be recalled~~ **Done where verifiable**: trait-level `cancel()` (fail-closed default); IBM Runtime cancel + qnexus cancel implemented against current vendor docs and injected-tested; `on_hardware_job` pins vendor ids into job meta at dispatch; `request_provider_recall` + bridge `QuantumCancel` + Go/console wiring. Rigetti/D-Wave/pulser/photonic/IonQ/Braket refuse with exact reasons (submit unwired or unverified — no fabricated SDK calls). Cancel never refunds by itself — pairs with R-32.
+- **R-34 Human quantum dispatch.** **Done (hermetic)**: `QuantumSubmit/JobStatus/Cancel/RunCanary` bridge RPCs calling the SAME `submit_job` rail (idempotency via persisted job meta, dry-run estimates, tenant attribution); Go `/api/quantum/jobs` proxy (bearer + autonomy + allowlist, no Go-side spend reservation — Python book stays single); `QuantumDispatch` console surface (estimate→mandate card→dispatch→poll→cancel). `mandate_ref` recorded, not enforced, pending the Q-10 conformance ruling (new Q-40).
 
 ## 4. Live-proof ledger (what the API actually answered)
 
