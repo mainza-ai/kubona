@@ -298,6 +298,10 @@ func createLensTestSession(t *testing.T, srv interface {
 		"target_molecule": "H2",
 	})
 	createReq := httptest.NewRequest(http.MethodPost, "/api/sessions", bytes.NewReader(sessReq))
+	// Operator flow: sessions that will spend are minted authenticated.
+	// Anonymous creation is pinned to $0 (see TestAnonymousSessionNoBudget);
+	// spend tests present the operator bearer like production.
+	createReq.Header.Set("Authorization", "Bearer test-token")
 	createRec := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(createRec, createReq)
 

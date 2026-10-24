@@ -196,6 +196,9 @@ func sizeRecordingStub(t *testing.T, replyRunes int, maxSeen *int, mu *sync.Mute
 	t.Setenv("OPENCODE_API_KEY", "test-key")
 	settings := llm.DefaultSettings()
 	snap := settings.GetSnapshot()
+	// Evidence tests drive the cloud stub: opt out of the air-gap
+	// default like an operator would.
+	snap.AirGapped = false
 	pc := snap.Providers[llm.ProviderOpenCode]
 	pc.BaseURL = srv.URL
 	snap.Providers[llm.ProviderOpenCode] = pc
@@ -336,6 +339,9 @@ func TestBundleResumeFlow(t *testing.T) {
 	t.Setenv("OPENCODE_API_KEY", "test-key")
 	settings := llm.DefaultSettings()
 	snap := settings.GetSnapshot()
+	// Evidence tests drive the cloud stub: opt out of the air-gap
+	// default like an operator would.
+	snap.AirGapped = false
 	pc := snap.Providers[llm.ProviderOpenCode]
 	pc.BaseURL = srv.URL
 	snap.Providers[llm.ProviderOpenCode] = pc

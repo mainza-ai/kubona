@@ -142,9 +142,11 @@ func TestLoopIterationBound(t *testing.T) {
 	t.Setenv("OPENCODE_MODEL", "deepseek-v4.1-flash")
 	t.Setenv("KUBONA_LLM_PROVIDER", "opencode")
 	// Defaults: coder/critic unassigned and the active provider force-
-	// disabled — nothing billable, bound zero, no fallbacks.
+	// disabled — nothing billable, bound zero, no fallbacks. Cloud math
+	// needs cloud: opt out of the air-gap default like an operator would.
 	s := llm.DefaultSettings()
 	off := s.GetSnapshot()
+	off.AirGapped = false
 	offPc := off.Providers[llm.ProviderOpenCode]
 	offPc.Enabled = false
 	off.Providers[llm.ProviderOpenCode] = offPc

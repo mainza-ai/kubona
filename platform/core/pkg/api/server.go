@@ -1515,6 +1515,15 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			req.TenantID = ""
+			// Anonymous callers cannot reach any ReserveSpend>0 path
+			// (lens, loops, mandates are all authenticated), but they
+			// also get no say in budgets: requested limits above the
+			// default are clamped, so spend authority without identity
+			// can never mint an above-default budget. Smaller requests
+			// (and unset → default) pass through untouched.
+			if req.SpendLimitUSD > session.DefaultBudgetUSD {
+				req.SpendLimitUSD = session.DefaultBudgetUSD
+			}
 		} else if tenant, ok := s.checkCallerAuth(w, r); !ok {
 			return
 		} else if tenant != "" {
