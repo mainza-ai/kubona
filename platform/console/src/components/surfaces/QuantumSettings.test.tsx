@@ -8,12 +8,19 @@ vi.mock('@/lib/api', () => ({
   fetchQuantumBackends: vi.fn(),
   fetchQuantumSettings: vi.fn(),
   saveQuantumSettings: vi.fn(),
+  runQuantumCanary: vi.fn(),
 }));
 
 function textOf(node: unknown): string {
   if (typeof node === 'string' || typeof node === 'number') return String(node);
   const kids = (node as { children?: unknown[] }).children ?? [];
   return kids.map((c) => textOf(c)).join(' ');
+}
+
+async function flush() {
+  await act(async () => {
+    await new Promise((r) => setTimeout(r, 0));
+  });
 }
 
 const BACKENDS = [
@@ -93,5 +100,23 @@ describe('QuantumSettings provider selection', () => {
       await (saveBtn.props as { onClick: () => Promise<void> }).onClick();
     });
     expect(textOf(root!.root)).toContain('unknown default_backend');
+  });
+
+  it('runs the canary and reports honestly', async () => {
+    vi.mocked(api.runQuantumCanary).mockResolvedValue({ ok: true, results: { 'local-simulator': {} }, cached: false });
+    let root: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      root = TestRenderer.create(<QuantumSettings />);
+    });
+    await flush();
+    const buttons = root!.root.findAll((n) => n.type === 'button');
+    const canaryBtn = buttons.find((b) => String((b.props as Record<string, unknown>).title ?? '').includes('canary'));
+    expect(canaryBtn).toBeDefined();
+    await act(async () => {
+      (canaryBtn!.props as { onClick: () => void }).onClick();
+    });
+    await flush();
+    expect(api.runQuantumCanary).toHaveBeenCalled();
+    expect(textOf(root!.root)).toContain('canary ran');
   });
 });

@@ -52,6 +52,31 @@ class TketProvider(Provider):
         # environment otherwise.
         return SecretStore.from_env().get("quantinuum", "api_key")
 
+    def cancel(self, hardware_job_id: str, client_factory=None) -> dict[str, Any]:
+        """Vendor recall via the Nexus client (verified API:
+        qnexus.client.jobs.cancel). client_factory injects the client in
+        tests (no live calls in the suite). Nexus cancellation is
+        best-effort once running — always re-check job status. Legacy
+        pytket-quantinuum submissions predate handle retention; only
+        Nexus-tracked refs are recallable."""
+        token = self._credential()
+        if not token:
+            raise ProviderError(
+                "cannot recall without credentials: KUBONA_QUANTINUUM_API_KEY unset")
+        try:
+            if client_factory is None:
+                import qnexus as qnx
+                qnx.client.jobs.cancel(hardware_job_id)
+            else:
+                client_factory(token).cancel(hardware_job_id)
+        except ImportError as e:
+            raise ProviderError(f"qnexus client not installed: {e}")
+        except Exception as e:  # noqa: BLE001 — vendor refusal is data, not a crash
+            raise ProviderError(f"quantinuum recall refused for job {hardware_job_id!r}: {e}")
+        return {"provider": self.capability.provider, "hardware_job_id": hardware_job_id,
+                "recall_requested": True,
+                "note": "cancel is best-effort once running; re-check job status"}
+
     @property
     def device(self) -> str | None:
         """Target backend, or None when unset (W2.18).
@@ -87,7 +112,8 @@ class TketProvider(Provider):
         c.measure_all()
         return c
 
-    def submit(self, circuit: Circuit, shots: int, seed: int | None = None) -> dict[str, Any]:
+    def submit(self, circuit: Circuit, shots: int, seed: int | None = None,
+               on_hardware_job=None) -> dict[str, Any]:
         if not self._ready:
             raise ProviderError(
                 "quantinuum requires optional deps: pip install pytket pytket-quantinuum "

@@ -27,6 +27,7 @@ import { HuggingFaceModelHub } from '@/components/surfaces/HuggingFaceModelHub';
 import { LabsView } from '@/components/surfaces/LabsView';
 import { LLMSettings } from '@/components/surfaces/LLMSettings';
 import { QuantumSettings } from '@/components/surfaces/QuantumSettings';
+import { QuantumDispatch } from '@/components/surfaces/QuantumDispatch';
 import { AutonomyCockpit } from '@/components/surfaces/AutonomyCockpit';
 import { SpatialCanvas } from '@/components/surfaces/SpatialCanvas';
 import { BackendStatusBar } from '@/components/common/BackendStatusBar';
@@ -699,6 +700,7 @@ export default function Home() {
               {surface === 'mesh' && meshTab === 'labs' && <LabsView />}
               {surface === 'mesh' && meshTab === 'settings' && <LLMSettings />}
               {surface === 'mesh' && meshTab === 'settings' && <QuantumSettings />}
+              {surface === 'mesh' && meshTab === 'settings' && <QuantumDispatch sessionId={currentSessionId || null} />}
             </div>
           </main>
         )}

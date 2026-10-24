@@ -129,3 +129,68 @@ def test_unwired_modalities_report_wiring():
     assert get_provider("neutral-atom-quera-pasqal").health()["wiring"] == "not-wired"
     assert get_provider("xanadu-strawberry-fields").health()["wiring"] == "not-wired"
     assert get_provider("dwave-annealing").health()["wiring"] == "local-plus-leap-branch"
+
+
+class _StubJob:
+    def __init__(self, accepted=True):
+        self._accepted = accepted
+
+    def cancel(self):
+        return self._accepted
+
+
+class _StubService:
+    def __init__(self, seen, accepted=True):
+        self._seen = seen
+        self._accepted = accepted
+
+    def job(self, job_id):
+        self._seen.append(job_id)
+        return _StubJob(self._accepted)
+
+
+def test_ibm_cancel_recalls_via_injected_service(monkeypatch):
+    from kubona.providers import qiskit_provider
+    monkeypatch.setenv("KUBONA_IBM_QISKIT_TOKEN", "test-token")
+    cap = load_provider("ibm-qiskit")
+    prov = qiskit_provider.QiskitProvider(cap, backend_name="ibm_brisbane")
+    seen: list = []
+    out = prov.cancel("hw-123", service_factory=lambda tok: _StubService(seen))
+    assert out["recall_requested"] is True
+    assert out["cancel_accepted"] is True
+    assert seen == ["hw-123"]
+
+
+def test_ibm_cancel_needs_credential(monkeypatch):
+    from kubona.providers import qiskit_provider
+    monkeypatch.delenv("KUBONA_IBM_QISKIT_TOKEN", raising=False)
+    cap = load_provider("ibm-qiskit")
+    prov = qiskit_provider.QiskitProvider(cap, backend_name="ibm_brisbane")
+    with pytest.raises(ProviderError, match="KUBONA_IBM_QISKIT_TOKEN"):
+        prov.cancel("hw-123", service_factory=lambda tok: _StubService([]))
+
+
+def test_quantinuum_cancel_recalls_via_injected_client(monkeypatch):
+    from kubona.providers import tket_provider
+    monkeypatch.setenv("KUBONA_QUANTINUUM_API_KEY", "test-key")
+    cap = load_provider("quantinuum")
+    prov = tket_provider.TketProvider(cap)
+    called: list = []
+
+    class FakeClient:
+        def cancel(self, ref):
+            called.append(ref)
+
+    out = prov.cancel("nano-9", client_factory=lambda tok: FakeClient())
+    assert out["recall_requested"] is True
+    assert called == ["nano-9"]
+
+
+def test_unwired_providers_refuse_cancel():
+    from kubona.providers.base import ProviderError as PE
+    for name in ("rigetti", "dwave-annealing", "neutral-atom-quera-pasqal",
+                 "xanadu-strawberry-fields", "ionq", "aws-braket",
+                 "local-simulator"):
+        prov = get_provider(name)
+        with pytest.raises(PE):
+            prov.cancel("hw-xyz")

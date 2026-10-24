@@ -39,7 +39,8 @@ class AnnealingProvider(Provider):
         from kubona.secrets import SecretStore
         return SecretStore.from_env().get("dwave-annealing", "leap_token")
 
-    def submit(self, circuit: Circuit, shots: int, seed: int | None = None) -> dict[str, Any]:
+    def submit(self, circuit: Circuit, shots: int, seed: int | None = None,
+               on_hardware_job=None) -> dict[str, Any]:
         raise ProviderError(
             "annealing providers solve QUBO/CQM, not gate circuits — use solve_qubo(). "
             f"ocean-sdk present: {self._has_ocean}"

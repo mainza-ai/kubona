@@ -29,6 +29,10 @@ const (
 	QuantumBridgeService_EvaluateMolecularADMET_FullMethodName    = "/kubona.QuantumBridgeService/EvaluateMolecularADMET"
 	QuantumBridgeService_EvaluateDiscoveryPipeline_FullMethodName = "/kubona.QuantumBridgeService/EvaluateDiscoveryPipeline"
 	QuantumBridgeService_EvaluateCodesign_FullMethodName          = "/kubona.QuantumBridgeService/EvaluateCodesign"
+	QuantumBridgeService_QuantumSubmit_FullMethodName             = "/kubona.QuantumBridgeService/QuantumSubmit"
+	QuantumBridgeService_QuantumJobStatus_FullMethodName          = "/kubona.QuantumBridgeService/QuantumJobStatus"
+	QuantumBridgeService_QuantumCancel_FullMethodName             = "/kubona.QuantumBridgeService/QuantumCancel"
+	QuantumBridgeService_RunCanary_FullMethodName                 = "/kubona.QuantumBridgeService/RunCanary"
 )
 
 // QuantumBridgeServiceClient is the client API for QuantumBridgeService service.
@@ -45,6 +49,10 @@ type QuantumBridgeServiceClient interface {
 	EvaluateMolecularADMET(ctx context.Context, in *ChemistryADMETRequest, opts ...grpc.CallOption) (*ChemistryADMETResponse, error)
 	EvaluateDiscoveryPipeline(ctx context.Context, in *DiscoveryPipelineRequest, opts ...grpc.CallOption) (*DiscoveryPipelineResponse, error)
 	EvaluateCodesign(ctx context.Context, in *CodesignRequest, opts ...grpc.CallOption) (*CodesignResponse, error)
+	QuantumSubmit(ctx context.Context, in *QuantumSubmitRequest, opts ...grpc.CallOption) (*QuantumSubmitResponse, error)
+	QuantumJobStatus(ctx context.Context, in *QuantumJobStatusRequest, opts ...grpc.CallOption) (*QuantumJobStatusResponse, error)
+	QuantumCancel(ctx context.Context, in *QuantumCancelRequest, opts ...grpc.CallOption) (*QuantumCancelResponse, error)
+	RunCanary(ctx context.Context, in *CanaryRunRequest, opts ...grpc.CallOption) (*CanaryRunResponse, error)
 }
 
 type quantumBridgeServiceClient struct {
@@ -155,6 +163,46 @@ func (c *quantumBridgeServiceClient) EvaluateCodesign(ctx context.Context, in *C
 	return out, nil
 }
 
+func (c *quantumBridgeServiceClient) QuantumSubmit(ctx context.Context, in *QuantumSubmitRequest, opts ...grpc.CallOption) (*QuantumSubmitResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QuantumSubmitResponse)
+	err := c.cc.Invoke(ctx, QuantumBridgeService_QuantumSubmit_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *quantumBridgeServiceClient) QuantumJobStatus(ctx context.Context, in *QuantumJobStatusRequest, opts ...grpc.CallOption) (*QuantumJobStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QuantumJobStatusResponse)
+	err := c.cc.Invoke(ctx, QuantumBridgeService_QuantumJobStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *quantumBridgeServiceClient) QuantumCancel(ctx context.Context, in *QuantumCancelRequest, opts ...grpc.CallOption) (*QuantumCancelResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(QuantumCancelResponse)
+	err := c.cc.Invoke(ctx, QuantumBridgeService_QuantumCancel_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *quantumBridgeServiceClient) RunCanary(ctx context.Context, in *CanaryRunRequest, opts ...grpc.CallOption) (*CanaryRunResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(CanaryRunResponse)
+	err := c.cc.Invoke(ctx, QuantumBridgeService_RunCanary_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // QuantumBridgeServiceServer is the server API for QuantumBridgeService service.
 // All implementations must embed UnimplementedQuantumBridgeServiceServer
 // for forward compatibility.
@@ -169,6 +217,10 @@ type QuantumBridgeServiceServer interface {
 	EvaluateMolecularADMET(context.Context, *ChemistryADMETRequest) (*ChemistryADMETResponse, error)
 	EvaluateDiscoveryPipeline(context.Context, *DiscoveryPipelineRequest) (*DiscoveryPipelineResponse, error)
 	EvaluateCodesign(context.Context, *CodesignRequest) (*CodesignResponse, error)
+	QuantumSubmit(context.Context, *QuantumSubmitRequest) (*QuantumSubmitResponse, error)
+	QuantumJobStatus(context.Context, *QuantumJobStatusRequest) (*QuantumJobStatusResponse, error)
+	QuantumCancel(context.Context, *QuantumCancelRequest) (*QuantumCancelResponse, error)
+	RunCanary(context.Context, *CanaryRunRequest) (*CanaryRunResponse, error)
 	mustEmbedUnimplementedQuantumBridgeServiceServer()
 }
 
@@ -208,6 +260,18 @@ func (UnimplementedQuantumBridgeServiceServer) EvaluateDiscoveryPipeline(context
 }
 func (UnimplementedQuantumBridgeServiceServer) EvaluateCodesign(context.Context, *CodesignRequest) (*CodesignResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method EvaluateCodesign not implemented")
+}
+func (UnimplementedQuantumBridgeServiceServer) QuantumSubmit(context.Context, *QuantumSubmitRequest) (*QuantumSubmitResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method QuantumSubmit not implemented")
+}
+func (UnimplementedQuantumBridgeServiceServer) QuantumJobStatus(context.Context, *QuantumJobStatusRequest) (*QuantumJobStatusResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method QuantumJobStatus not implemented")
+}
+func (UnimplementedQuantumBridgeServiceServer) QuantumCancel(context.Context, *QuantumCancelRequest) (*QuantumCancelResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method QuantumCancel not implemented")
+}
+func (UnimplementedQuantumBridgeServiceServer) RunCanary(context.Context, *CanaryRunRequest) (*CanaryRunResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method RunCanary not implemented")
 }
 func (UnimplementedQuantumBridgeServiceServer) mustEmbedUnimplementedQuantumBridgeServiceServer() {}
 func (UnimplementedQuantumBridgeServiceServer) testEmbeddedByValue()                              {}
@@ -410,6 +474,78 @@ func _QuantumBridgeService_EvaluateCodesign_Handler(srv interface{}, ctx context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _QuantumBridgeService_QuantumSubmit_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QuantumSubmitRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QuantumBridgeServiceServer).QuantumSubmit(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QuantumBridgeService_QuantumSubmit_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QuantumBridgeServiceServer).QuantumSubmit(ctx, req.(*QuantumSubmitRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _QuantumBridgeService_QuantumJobStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QuantumJobStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QuantumBridgeServiceServer).QuantumJobStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QuantumBridgeService_QuantumJobStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QuantumBridgeServiceServer).QuantumJobStatus(ctx, req.(*QuantumJobStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _QuantumBridgeService_QuantumCancel_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(QuantumCancelRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QuantumBridgeServiceServer).QuantumCancel(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QuantumBridgeService_QuantumCancel_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QuantumBridgeServiceServer).QuantumCancel(ctx, req.(*QuantumCancelRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _QuantumBridgeService_RunCanary_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CanaryRunRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QuantumBridgeServiceServer).RunCanary(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: QuantumBridgeService_RunCanary_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QuantumBridgeServiceServer).RunCanary(ctx, req.(*CanaryRunRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // QuantumBridgeService_ServiceDesc is the grpc.ServiceDesc for QuantumBridgeService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -456,6 +592,22 @@ var QuantumBridgeService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "EvaluateCodesign",
 			Handler:    _QuantumBridgeService_EvaluateCodesign_Handler,
+		},
+		{
+			MethodName: "QuantumSubmit",
+			Handler:    _QuantumBridgeService_QuantumSubmit_Handler,
+		},
+		{
+			MethodName: "QuantumJobStatus",
+			Handler:    _QuantumBridgeService_QuantumJobStatus_Handler,
+		},
+		{
+			MethodName: "QuantumCancel",
+			Handler:    _QuantumBridgeService_QuantumCancel_Handler,
+		},
+		{
+			MethodName: "RunCanary",
+			Handler:    _QuantumBridgeService_RunCanary_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

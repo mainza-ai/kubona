@@ -173,6 +173,33 @@ class JobStore:
     def jobs_for_session(self, session_id: str) -> list[Job]:
         return [j for j in self._load().values() if j.session_id == session_id]
 
+    def record_hardware_job(self, job_id: str, hardware_job_id: str) -> Job | None:
+        """Pin the vendor job id into job meta as soon as the hardware
+        accepts the submission (before results arrive) so later recall
+        knows what to cancel. Status is untouched: this is annotation,
+        not a transition. Refuses on unknown or terminal jobs."""
+        with self._exclusive():
+            j = self._load().get(job_id)
+            if j is None:
+                return None
+            if j.status in ("completed", "failed", "cancelled"):
+                return None
+            j.meta["hardware_job_id"] = hardware_job_id
+            j.updated_at = time.time()
+            self._save(j)
+            return j
+
+    def find_by_idempotency(self, idempotency_key: str) -> Job | None:
+        """Idempotency lookup across restarts: the key is stored in job
+        meta at dispatch, so a retry after process restart replays the
+        original job_id instead of double-submitting hardware spend."""
+        if not idempotency_key:
+            return None
+        for j in self._load().values():
+            if j.meta.get("idempotency_key") == idempotency_key:
+                return j
+        return None
+
 
 class JobRunner:
     """Executes enqueued jobs on a background thread pool; records provenance."""

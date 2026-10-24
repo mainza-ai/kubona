@@ -61,7 +61,8 @@ class LocalSimulator(Provider):
         self.capability = capability
         self._max_qubits = 24  # 2^24 complex128 ~ 256 MB — hard cap for safety
 
-    def submit(self, circuit: Circuit, shots: int, seed: int | None = None) -> dict[str, Any]:
+    def submit(self, circuit: Circuit, shots: int, seed: int | None = None,
+               on_hardware_job=None) -> dict[str, Any]:
         if circuit.num_qubits > self._max_qubits:
             raise ProviderError(f"local simulator cap: {circuit.num_qubits} > {self._max_qubits} qubits")
         if isinstance(shots, bool) or not isinstance(shots, int) or shots <= 0:

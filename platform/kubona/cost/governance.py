@@ -230,6 +230,16 @@ class CostGovernanceService:
             raise GovernanceError(str(e)) from e
         return self.sessions.get(session_id).spent_usd
 
+    def refund_spend(self, session_id: str, usd: float, reason: str) -> float:
+        """Audited session refund (R-32 mechanism). Same fail-closed
+        envelope as record_spend: validation failures raise
+        GovernanceError, never silent partial refunds."""
+        try:
+            self.sessions.release_spend(session_id, usd, reason)
+        except (ValueError, KeyError) as e:
+            raise GovernanceError(str(e)) from e
+        return self.sessions.get(session_id).spent_usd
+
     # -- burn-rate telemetry --------------------------------------------
     def burn_rate(self, session_id: str) -> dict[str, Any]:
         """Average spend rate since session start (W0.10): the old code

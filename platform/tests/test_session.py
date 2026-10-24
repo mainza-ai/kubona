@@ -55,6 +55,29 @@ def test_spend_validation(tmp_path):
             store.create("v", "agent", budget_ceiling_usd=bad_ceiling)
 
 
+def test_release_spend_refunds_with_reason_and_no_negative_books(tmp_path):
+    """R-32 mechanism: audited refund primitive. Explicit amount, mandatory
+    reason, no-negative-books clamp — mirrors the Go tenant RefundSpend."""
+    import pytest
+    store = SessionStore(path=str(tmp_path / "s.jsonl"))
+    s = store.create("v", "agent", budget_ceiling_usd=50.0)
+    store.record_spend(s.session_id, 5.0)
+    s2 = store.release_spend(s.session_id, 2.0, "vendor error, job never ran")
+    assert s2.spent_usd == 3.0
+    # Zero, negative, NaN refuse; empty reason refuses; over-refund refuses.
+    import math
+    for bad in (0.0, -1.0, math.nan, math.inf):
+        with pytest.raises(ValueError):
+            store.release_spend(s.session_id, bad, "r")
+    with pytest.raises(ValueError):
+        store.release_spend(s.session_id, 1.0, "")
+    with pytest.raises(ValueError):
+        store.release_spend(s.session_id, 1.0, "   ")
+    with pytest.raises(ValueError, match="no negative books"):
+        store.release_spend(s.session_id, 4.0, "too much")
+    assert store.get(s.session_id).spent_usd == 3.0
+
+
 def test_concurrent_spend_no_overshoot(tmp_path):
     """W0.13: two concurrent spends serialize under the ceiling."""
     import threading

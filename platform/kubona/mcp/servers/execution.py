@@ -106,7 +106,10 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
                caller_jurisdictions: list[str] | None = None,
                caller_export_class: str = "any",
                require_review: bool = False,
-               wait: bool = True, wait_timeout_s: float = 30.0) -> dict:
+               wait: bool = True, wait_timeout_s: float = 30.0,
+               estimate_only: bool = False,
+               idempotency_key: str | None = None,
+               idempotency_body_hash: str | None = None) -> dict:
     """Submit a circuit through the cost-governance gate, threaded to a session.
 
     Production job/session abstraction: jobs are persisted to the async job farm;
@@ -184,9 +187,14 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
     exec_plugin = get_provider(provider)  # ProviderError if data-only
     circuit_hash = canonical_hash(circuit)
 
-    def _run() -> dict[str, Any]:
-        # returns the provider result; JobRunner records transitions + provenance
-        return exec_plugin.submit(circuit, shots, seed=seed)
+    # Dry run (estimate panel, mandate flow): full validation has passed
+    # if we get here — return the validated estimate + fidelity verdict
+    # with NO spend and NO enqueue. The session row already exists as the
+    # estimate's audit anchor (same as a refused dispatch).
+    if estimate_only:
+        return {"ok": True, "estimate_only": True, "session_id": session_id,
+                "estimate": pf["estimate"], "fidelity": fidelity,
+                "circuit_hash": circuit_hash}
 
     # W0.16 wait discipline: wait=True resolves synchronously ONLY for the
     # fast simulator path. Multi-hour QPU jobs with wait=True used to either
@@ -221,8 +229,20 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
     # long-running (multi-hour QPU) jobs whose status is read back from the store.
     job = _runner.store.create(provider=provider, session_id=session_id,
                                circuit_hash=circuit_hash, circuit_qasm=circuit_qasm,
-                               shots=shots, seed=seed, estimate=pf["estimate"])
+                               shots=shots, seed=seed, estimate=pf["estimate"],
+                               idempotency_key=idempotency_key or "",
+                               body_hash=idempotency_body_hash or "")
     job_id = job.job_id
+
+    def _run() -> dict[str, Any]:
+        # Pin the vendor job id into job meta the moment hardware accepts
+        # the submission (before results arrive) so later recall knows
+        # what to cancel. Simulators never call back — nothing recorded.
+        def _pin(hardware_job_id: str) -> None:
+            _runner.store.record_hardware_job(job_id, hardware_job_id)
+        # returns the provider result; JobRunner records transitions + provenance
+        return exec_plugin.submit(circuit, shots, seed=seed, on_hardware_job=_pin)
+
     try:
         _runner.enqueue(job_id, _run)
     except (KeyError, RuntimeError) as e:
@@ -245,7 +265,7 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
 
     out = {"ok": True, "job_id": job_id, "session_id": session_id,
            "status": done.status, "circuit_hash": circuit_hash,
-           "estimate": pf["estimate"]}
+           "estimate": pf["estimate"], "fidelity": fidelity}
     if wait_note is not None:
         out["note"] = wait_note
     return out
@@ -279,6 +299,49 @@ def cancel_job(job_id: str) -> dict:
     if _runner.cancel(job_id):
         return {"ok": True, "job_id": job_id, "status": "cancelled"}
     return {"ok": False, "job_id": job_id, "error": "job not found or already terminal"}
+
+
+def request_provider_recall(job_id: str) -> dict:
+    """Vendor-side recall for a Kubona job (R-33). Cooperative fence first
+    (always applies); then, if the job's meta carries a hardware_job_id
+    pinned at dispatch, the provider's cancel() is attempted. Recall is
+    best-effort once running — always re-check status — and never implies
+    refund (see the R-32 proposal). Completed jobs with a recorded hardware
+    id are recallable for erroneous-billing disputes; running jobs whose
+    hardware id is not yet visible report exactly that instead of pretending."""
+    job = _runner.store.get(job_id)
+    if job is None:
+        return {"ok": False, "job_id": job_id, "error": "unknown job_id"}
+    if job.status in ("completed", "failed"):
+        hw = (getattr(job, "meta", None) or {}).get("hardware_job_id")
+        if not hw:
+            return {"ok": False, "job_id": job_id, "status": job.status,
+                    "provider_recall_attempted": False,
+                    "error": "terminal job has no recorded hardware id: nothing to recall"}
+        try:
+            rec = get_provider(job.provider).cancel(hw)
+        except ProviderError as e:
+            return {"ok": False, "job_id": job_id, "status": job.status,
+                    "provider_recall_attempted": True, "error": str(e)}
+        return {"ok": True, "job_id": job_id, "status": job.status,
+                "provider_recall_attempted": True, "provider_recall": rec}
+    # Queued/running: fence first, then recall if the hardware id is visible.
+    fenced = _runner.cancel(job_id)
+    refreshed = _runner.store.get(job_id)
+    hw = ((getattr(refreshed, "meta", None) or getattr(job, "meta", None)) or {}).get("hardware_job_id")
+    if not hw:
+        return {"ok": fenced, "job_id": job_id, "status": "cancelled" if fenced else job.status,
+                "provider_recall_attempted": False,
+                "note": "fenced cooperatively; hardware id not yet visible "
+                        "(submit before results) — re-check status; provider "
+                        "work may still complete underneath"}
+    try:
+        rec = get_provider(job.provider).cancel(hw)
+    except ProviderError as e:
+        return {"ok": fenced, "job_id": job_id, "status": "cancelled" if fenced else job.status,
+                "provider_recall_attempted": True, "error": str(e)}
+    return {"ok": True, "job_id": job_id, "status": "cancelled" if fenced else job.status,
+            "provider_recall_attempted": True, "provider_recall": rec}
 
 
 def run_zne_job(circuit_qasm: str, shots: int = 8000, noise_rate: float = 0.02,

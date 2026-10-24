@@ -243,6 +243,88 @@ service QuantumBridgeService {
   rpc EvaluateMolecularADMET(ChemistryADMETRequest) returns (ChemistryADMETResponse);
   rpc EvaluateDiscoveryPipeline(DiscoveryPipelineRequest) returns (DiscoveryPipelineResponse);
   rpc EvaluateCodesign(CodesignRequest) returns (CodesignResponse);
+  rpc QuantumSubmit(QuantumSubmitRequest) returns (QuantumSubmitResponse);
+  rpc QuantumJobStatus(QuantumJobStatusRequest) returns (QuantumJobStatusResponse);
+  rpc QuantumCancel(QuantumCancelRequest) returns (QuantumCancelResponse);
+  rpc RunCanary(CanaryRunRequest) returns (CanaryRunResponse);
+}
+
+// Human quantum dispatch (R-34) + provider cancel (R-33): the transport
+// for the human rail. The handler MUST call the same submit_job the
+// agents use (identical jurisdiction/preflight/fidelity/spend rules) —
+// never a parallel dispatch path. No live QPU calls in the suite.
+message QuantumSubmitRequest {
+  string qasm = 1;
+  string provider = 2;
+  int32 shots = 3;
+  // Python gov session: created by the caller, or empty for an implicit
+  // capped session (same W0.16 rule as agent calls).
+  string session_id = 4;
+  // Attribution recorded in session meta (cross-book audit join).
+  string tenant_id = 5;
+  // REQUIRED: transport-level double-spend guard. Same key + same body
+  // replays the original job_id; same key + different body refuses.
+  string idempotency_key = 6;
+  // Estimate-only: full jurisdiction/preflight/fidelity validation, no
+  // enqueue, no spend. Powers the pre-mandate estimate panel.
+  bool dry_run = 7;
+  // Reserved: enforced only if the Q-10 ruling requires per-job mandates.
+  // Until then the field is recorded, never required.
+  string mandate_ref_json = 8;
+}
+
+message QuantumSubmitResponse {
+  bool ok = 1;
+  string error_message = 2;
+  string job_id = 3;
+  string estimate_json = 4;
+  string fidelity_json = 5;
+  bool queued = 6;
+  string session_id = 7;
+}
+
+message QuantumJobStatusRequest {
+  string job_id = 1;
+}
+
+message QuantumJobStatusResponse {
+  bool ok = 1;
+  string error_message = 2;
+  string job_id = 3;
+  string status = 4;
+  string result_json = 5;
+  string estimate_json = 6;
+}
+
+message QuantumCancelRequest {
+  string job_id = 1;
+  string reason = 2;
+}
+
+message QuantumCancelResponse {
+  bool ok = 1;
+  string error_message = 2;
+  string job_id = 3;
+  // Provider recall was attempted where the vendor API supports it
+  // (IBM cancel, Quantinuum qnexus cancel, Rigetti controller-cancel);
+  // cooperative fence always applies. Recall never implies refund.
+  bool provider_recall_attempted = 4;
+  string provider_recall_status = 5;
+}
+
+// Live canary proxy (fleet honesty): runs the Python canary for the
+// named providers (calibration reads only — cheap, no QPU spend) with
+// a server-side timeout. The Go fleet endpoint caches per provider;
+// failures fall back to declared catalog values, never to zeros.
+message CanaryRunRequest {
+  repeated string providers = 1;
+  int32 max_seconds = 2;
+}
+
+message CanaryRunResponse {
+  bool ok = 1;
+  string error_message = 2;
+  string results_json = 3;
 }
 
 // R1 — canonical evidence envelope: one receipt identity across both
