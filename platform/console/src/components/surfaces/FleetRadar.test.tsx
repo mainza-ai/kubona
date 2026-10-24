@@ -51,4 +51,22 @@ describe('FleetRadar credential dimension', () => {
     });
     expect(textOf(root!.root)).not.toContain('NO CREDENTIALS');
   });
+
+  it('tags declared-catalog cards CATALOG and leaves measured ones untagged', async () => {
+    vi.mocked(api.fetchFleet).mockResolvedValue({
+      backends: [
+        { name: 'local_simulator', type: 'sim', qubits: 32, t1_us: 'inf', status: 'ONLINE', credential_state: 'ready', telemetry: 'measured', queue_depth: 0, cost_per_shot: 0, jurisdiction: 'LOCAL', itar_ear: 'EXEMPT' },
+        { name: 'ibm_heron', type: 'qpu', qubits: 156, t1_us: '180', status: 'READY', credential_state: 'credentialless', telemetry: 'declared', catalog_verified: null, queue_depth: 14, cost_per_shot: 0.0016, jurisdiction: 'US', itar_ear: 'EAR99' },
+      ],
+    });
+    let root: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      root = TestRenderer.create(<FleetRadar />);
+    });
+    const text = textOf(root!.root);
+    // Exactly one CATALOG tag: queue/coherence on the Heron card are
+    // vendor catalog, not live measurement. Absent telemetry (old
+    // daemons) renders no tag rather than a false claim either way.
+    expect(text.match(/CATALOG/g)).toHaveLength(1);
+  });
 });

@@ -15,7 +15,9 @@
     "currency": "USD",
     "per_task_usd": 0.0,
     "per_shot_usd": 0.0,
-    "notes": "photonic / continuous-variable; requires credentials"
+    "notes": "photonic / continuous-variable; requires credentials",
+    "verified": null,
+    "source": null
   },
   "jurisdiction": "CA/US",
   "export_control_flag": "none",

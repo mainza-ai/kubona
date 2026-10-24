@@ -30,6 +30,9 @@ class Modality(str, Enum):
     NEUTRAL_ATOM = "neutral_atom"
     ANNEALING = "annealing"
     PHOTONIC = "photonic"
+    BROKER = "broker"  # multi-vendor broker (AWS Braket): device, gates and
+    # pricing resolve per task, so capability rows stay placeholders until
+    # a device-ARN binding exists.
     STATEVECTOR_SIMULATOR = "statevector_simulator"
     GPU_SIMULATOR = "gpu_simulator"
 
@@ -44,6 +47,12 @@ class PricingModel(BaseModel):
     per_second_usd: float = 0.0
     min_shots_for_mitigation: int | None = None
     notes: str | None = None
+    # Rate provenance: ISO date the numbers were verified against the
+    # vendor's pricing page, plus that page. Null = unverified — the
+    # staleness check (scripts/qpu-provision-check) flags these, and
+    # zero-rate hardware models refuse estimation regardless (never $0).
+    verified: str | None = None
+    source: str | None = None
 
 
 class ProviderAttestation(BaseModel):
@@ -183,8 +192,16 @@ class ProviderCapability(BaseModel):
         p = self.pricing
         basis = p.notes or ""
         if p.model == "per_shot":
+            if p.per_shot_usd <= 0:
+                raise ValueError(
+                    f"provider {self.provider!r} has no per-shot rate configured: "
+                    "refusing $0.00 default (a $0 estimate reads as free tier downstream)")
             total = p.per_shot_usd * shots
         elif p.model == "per_task_plus_per_shot":
+            if p.per_task_usd <= 0 and p.per_shot_usd <= 0:
+                raise ValueError(
+                    f"provider {self.provider!r} has no task/shot rate configured: "
+                    "refusing $0.00 default (a $0 estimate reads as free tier downstream)")
             total = p.per_task_usd + p.per_shot_usd * shots
         elif p.model == "per_second":
             if circuit is None:
