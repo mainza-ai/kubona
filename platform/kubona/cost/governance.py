@@ -205,7 +205,13 @@ class CostGovernanceService:
     # -- pre-flight + spend enforcement ---------------------------------
     def preflight(self, capability: ProviderCapability, circuit: Circuit, shots: int,
                   session: SessionState) -> dict[str, Any]:
-        est = estimate_cost(capability, circuit, shots)
+        # Estimation failures refuse as governed refusals, never as
+        # uncaught exceptions: an unpriced provider (zero rates) must
+        # surface the same {"ok": False} envelope as an over-budget one.
+        try:
+            est = estimate_cost(capability, circuit, shots)
+        except ValueError as e:
+            return {"ok": False, "reason": f"cost estimation refused: {e}", "estimate": None}
         cost = est["estimated_usd"]
         if cost == 0.0:
             return {"ok": True, "reason": "free tier (simulator)", "estimate": est}
