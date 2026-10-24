@@ -19,7 +19,8 @@ class PulserProvider(Provider):
         except ImportError as e:
             self._ready, self._err = False, str(e)
 
-    def submit(self, circuit: Circuit, shots: int, seed: int | None = None) -> dict[str, Any]:
+    def submit(self, circuit: Circuit, shots: int, seed: int | None = None,
+               on_hardware_job=None) -> dict[str, Any]:
         # W2.18: missing-SDK vs not-wired are SEPARATE refusals. The old
         # single message blamed "deps + credentials" together, so an operator
         # could install the SDK and still have no idea execution isn't wired.

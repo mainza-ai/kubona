@@ -10,11 +10,13 @@ import {
   ShieldAlert,
   KeyRound,
   FlaskConical,
+  Activity,
 } from 'lucide-react';
 import {
   fetchQuantumBackends,
   fetchQuantumSettings,
   saveQuantumSettings,
+  runQuantumCanary,
   type QuantumBackendInfo,
 } from '@/lib/api';
 
@@ -34,6 +36,8 @@ export function QuantumSettings() {
   const [baseline, setBaseline] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const [canarying, setCanarying] = useState(false);
+  const [canaryOut, setCanaryOut] = useState<string | null>(null);
 
   const snapshot = useCallback(
     () => JSON.stringify({ default_backend: defaultBackend, harness_backends: harnessMap }),
@@ -119,7 +123,36 @@ export function QuantumSettings() {
         >
           <RefreshCw className="w-4 h-4" />
         </button>
+        <button
+          onClick={() => {
+            setCanarying(true);
+            setCanaryOut(null);
+            void runQuantumCanary().then((r) => {
+              setCanarying(false);
+              if (!r.ok) {
+                setCanaryOut(`canary failed (declared catalog stays): ${r.error ?? 'unknown'}`);
+                return;
+              }
+              const names = Object.keys(r.results ?? {});
+              setCanaryOut(
+                names.length === 0
+                  ? 'canary ran: no provider results (all skipped or credentialless)'
+                  : `canary ran${r.cached ? ' (cached)' : ''}: ${names.join(', ')}`,
+              );
+            });
+          }}
+          disabled={canarying}
+          className="p-2 rounded-xl bg-white/[0.04] border border-white/10 text-slate-300 hover:bg-white/[0.08] disabled:opacity-50"
+          title="Run the live canary (calibration reads only, no QPU spend). Credentialless providers skip; declared catalog stays the fallback."
+        >
+          <Activity className={canarying ? 'w-4 h-4 animate-pulse' : 'w-4 h-4'} />
+        </button>
       </div>
+      {canaryOut && (
+        <div className="text-[11px] text-slate-300 font-mono bg-black/40 border border-white/[0.06] rounded-xl px-3 py-2">
+          {canaryOut}
+        </div>
+      )}
 
       {/* Backend list */}
       <div className="space-y-2">

@@ -70,7 +70,8 @@ class PyQuilProvider(Provider):
             prog.measure(i, ro[i])
         return prog
 
-    def submit(self, circuit: Circuit, shots: int, seed: int | None = None) -> dict[str, Any]:
+    def submit(self, circuit: Circuit, shots: int, seed: int | None = None,
+               on_hardware_job=None) -> dict[str, Any]:
         if not self._ready:
             raise ProviderError(
                 "rigetti requires optional dep: pip install pyquil " f"(missing: {self._err})."

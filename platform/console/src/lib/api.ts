@@ -846,6 +846,29 @@ export async function fetchQuantumSettings(): Promise<Record<string, unknown> | 
   }
 }
 
+export interface QuantumCanaryResult {
+  ok: boolean;
+  results?: Record<string, unknown>;
+  cached?: boolean;
+  error?: string;
+}
+
+export async function runQuantumCanary(providers?: string[], maxSeconds?: number): Promise<QuantumCanaryResult> {
+  try {
+    const params = new URLSearchParams();
+    if (providers && providers.length > 0) params.set('providers', providers.join(','));
+    if (maxSeconds) params.set('max_seconds', String(maxSeconds));
+    const qs = params.toString();
+    const res = await apiFetch(`${API_BASE}/api/quantum/canary${qs ? `?${qs}` : ''}`, { cache: 'no-store', headers: authHeaders() });
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return { ok: false, error: (data.error as string) || `HTTP ${res.status}` };
+    return { ok: true, results: (data.results ?? {}) as Record<string, unknown>, cached: data.cached as boolean | undefined };
+  } catch (err) {
+    console.error('Failed to run quantum canary:', err);
+    return { ok: false, error: String(err) };
+  }
+}
+
 export async function saveQuantumSettings(
   settings: Record<string, unknown>
 ): Promise<{ ok: boolean; error?: string }> {
@@ -868,6 +891,61 @@ export async function saveQuantumSettings(
     return { ok: true };
   } catch (err) {
     console.error('Failed to save quantum settings:', err);
+    return { ok: false, error: String(err) };
+  }
+}
+
+export interface QuantumJobSubmit {
+  session_id?: string;
+  qasm: string;
+  provider: string;
+  shots?: number;
+  idempotency_key: string;
+  dry_run?: boolean;
+  mandate_ref?: string;
+}
+
+export async function submitQuantumJob(
+  job: QuantumJobSubmit
+): Promise<{ ok: boolean; job_id?: string; queued?: boolean; dry_run?: boolean; estimate?: Record<string, unknown>; fidelity?: Record<string, unknown>; session_id?: string; error?: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/quantum/jobs`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(job),
+    });
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return { ok: false, error: (data.error as string) || `HTTP ${res.status}` };
+    return data as { ok: boolean; job_id?: string };
+  } catch (err) {
+    console.error('Failed to submit quantum job:', err);
+    return { ok: false, error: String(err) };
+  }
+}
+
+export async function fetchQuantumJob(jobId: string): Promise<Record<string, unknown> | null> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/quantum/jobs/${encodeURIComponent(jobId)}`, { cache: 'no-store', headers: authHeaders() });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch (err) {
+    console.error('Failed to fetch quantum job:', err);
+    return null;
+  }
+}
+
+export async function cancelQuantumJob(jobId: string, reason?: string): Promise<{ ok: boolean; error?: string; provider_recall_attempted?: boolean; provider_recall_status?: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/quantum/jobs/${encodeURIComponent(jobId)}/cancel`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ reason: reason ?? '' }),
+    });
+    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
+    if (!res.ok) return { ok: false, error: (data.error as string) || `HTTP ${res.status}` };
+    return data as { ok: boolean };
+  } catch (err) {
+    console.error('Failed to cancel quantum job:', err);
     return { ok: false, error: String(err) };
   }
 }

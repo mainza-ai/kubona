@@ -209,6 +209,152 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                 error_message=str(e),
             )
 
+    # -- Human quantum dispatch (R-34) + provider cancel (R-33) --
+    # Thin transport over the MCP execution rail: the SAME submit_job the
+    # agents use (jurisdiction, preflight, fidelity, spend-at-dispatch,
+    # async-only QPU). No parallel governance exists here by construction.
+    def QuantumSubmit(self, request, context):
+        import hashlib as _hl
+        import json as _json
+
+        from kubona.mcp.servers import execution as _exec
+
+        try:
+            if not request.idempotency_key:
+                return kubona_pb2.QuantumSubmitResponse(
+                    ok=False, error_message="idempotency_key is required: "
+                    "retries without a key risk double hardware spend", job_id="")
+            # Restart-resilient idempotency: the key lives in job meta
+            # (persisted store), so a retry after process restart replays
+            # the original job_id instead of double-submitting.
+            body_hash = _hl.sha256(
+                (request.qasm + "\x00" + request.provider + "\x00" + str(request.shots)).encode()
+            ).hexdigest()
+            prior = _exec._runner.store.find_by_idempotency(request.idempotency_key)
+            if prior is not None:
+                if prior.meta.get("body_hash") == body_hash:
+                    return kubona_pb2.QuantumSubmitResponse(
+                        ok=True, error_message="", job_id=prior.job_id,
+                        estimate_json=_json.dumps(prior.meta.get("estimate", {})),
+                        fidelity_json="", queued=prior.status == "queued",
+                        session_id=prior.session_id)
+                return kubona_pb2.QuantumSubmitResponse(
+                    ok=False, error_message="idempotency_key reuse with a different body: "
+                    "replay the original request or mint a new key", job_id="")
+
+            # wait is forced async for QPU inside submit_job; the bridge
+            # never blocks on hardware. Seed derives from the idempotency
+            # key: same key -> same seed -> reproducible retry.
+            seed = int(_hl.sha256(request.idempotency_key.encode()).hexdigest()[:8], 16) % (2 ** 31)
+            out = _exec.submit_job(
+                circuit_qasm=request.qasm, provider=request.provider or "local-simulator",
+                shots=request.shots if request.shots > 0 else 1024,
+                session_id=request.session_id or None,
+                caller_jurisdictions=[], caller_export_class="any",
+                wait=False, seed=seed,
+                estimate_only=bool(request.dry_run),
+                idempotency_key=request.idempotency_key,
+                idempotency_body_hash=body_hash,
+            )
+            if not out.get("ok"):
+                return kubona_pb2.QuantumSubmitResponse(
+                    ok=False, error_message=str(out.get("error", "submit refused")),
+                    job_id=out.get("job_id", ""))
+            if request.dry_run:
+                return kubona_pb2.QuantumSubmitResponse(
+                    ok=True, error_message="", job_id="",
+                    estimate_json=_json.dumps(out.get("estimate", {})),
+                    fidelity_json=_json.dumps(out.get("fidelity", {})),
+                    queued=False, session_id=out.get("session_id", ""))
+            # Tenant attribution (cross-book audit join): advisory merge
+            # into session meta — never fails the dispatch.
+            if request.tenant_id and out.get("session_id"):
+                try:
+                    sess = _exec._sessions.get(out["session_id"])
+                    meta = dict(getattr(sess, "meta", None) or {})
+                    meta.setdefault("tenant_id", request.tenant_id)
+                    meta.setdefault("origin", "quantum-bridge-rpc")
+                    _exec._sessions.update(out["session_id"], meta=meta)
+                except Exception:
+                    logger.warning("tenant attribution merge failed for session %s",
+                                   out.get("session_id"))
+            return kubona_pb2.QuantumSubmitResponse(
+                ok=True, error_message="", job_id=out.get("job_id", ""),
+                estimate_json=_json.dumps(out.get("estimate", {})),
+                fidelity_json=_json.dumps(out.get("fidelity", {})),
+                queued=True, session_id=out.get("session_id", ""))
+        except Exception as e:
+            logger.exception("QuantumSubmit failed")
+            return kubona_pb2.QuantumSubmitResponse(
+                ok=False, error_message=f"quantum submit failed: {e}", job_id="")
+
+    def QuantumJobStatus(self, request, context):
+        import json as _json
+
+        from kubona.mcp.servers import execution as _exec
+
+        try:
+            st = _exec.get_job_status(request.job_id)
+            if not st.get("ok"):
+                return kubona_pb2.QuantumJobStatusResponse(
+                    ok=False, error_message=str(st.get("error", "unknown job")), job_id=request.job_id,
+                    status="", result_json="", estimate_json="")
+            res = _exec.get_result(request.job_id)
+            return kubona_pb2.QuantumJobStatusResponse(
+                ok=True, error_message="", job_id=request.job_id,
+                status=st.get("status", ""),
+                result_json=_json.dumps(res.get("result", {})) if res.get("ok") else "",
+                estimate_json="")
+        except Exception as e:
+            logger.exception("QuantumJobStatus failed")
+            return kubona_pb2.QuantumJobStatusResponse(
+                ok=False, error_message=f"job status failed: {e}", job_id=request.job_id,
+                status="", result_json="", estimate_json="")
+
+    def QuantumCancel(self, request, context):
+        from kubona.mcp.servers import execution as _exec
+
+        try:
+            if not request.job_id:
+                return kubona_pb2.QuantumCancelResponse(
+                    ok=False, error_message="job_id is required", job_id="",
+                    provider_recall_attempted=False, provider_recall_status="")
+            rec = _exec.request_provider_recall(request.job_id)
+            return kubona_pb2.QuantumCancelResponse(
+                ok=bool(rec.get("ok")), error_message=str(rec.get("error") or rec.get("note", "")),
+                job_id=request.job_id,
+                provider_recall_attempted=bool(rec.get("provider_recall_attempted")),
+                provider_recall_status=str(rec.get("provider_recall", rec.get("status", ""))))
+        except Exception as e:
+            logger.exception("QuantumCancel failed")
+            return kubona_pb2.QuantumCancelResponse(
+                ok=False, error_message=f"quantum cancel failed: {e}", job_id=request.job_id,
+                provider_recall_attempted=False, provider_recall_status="")
+
+    def RunCanary(self, request, context):
+        import concurrent.futures as _fut
+        import json as _json
+
+        from kubona.canary import canary as _canary
+
+        try:
+            providers = [p for p in request.providers if p] or None
+            max_seconds = request.max_seconds if request.max_seconds > 0 else 60
+            with _fut.ThreadPoolExecutor(max_workers=1) as pool:
+                fut = pool.submit(_canary.run_all, None, providers)
+                try:
+                    results = fut.result(timeout=max_seconds)
+                except _fut.TimeoutError:
+                    return kubona_pb2.CanaryRunResponse(
+                        ok=False, error_message=f"canary exceeded {max_seconds}s: "
+                        "treat as unmeasured, fall back to declared catalog", results_json="")
+            return kubona_pb2.CanaryRunResponse(
+                ok=True, error_message="", results_json=_json.dumps(results, default=str))
+        except Exception as e:
+            logger.exception("RunCanary failed")
+            return kubona_pb2.CanaryRunResponse(
+                ok=False, error_message=f"canary failed: {e}", results_json="")
+
     def EvaluateWavefunction(self, request, context):
         logger.info(f"EvaluateWavefunction called for Claim {request.claim_id}")
         try:

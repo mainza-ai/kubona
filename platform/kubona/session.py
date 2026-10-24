@@ -200,5 +200,29 @@ class SessionStore:
             self._save(s)
             return s
 
+    def release_spend(self, session_id: str, usd: float, reason: str) -> SessionState:
+        """Audited refund primitive (R-32, conservative core): return spent
+        dollars to the session. Mirrors the Go tenant RefundSpend contract:
+        explicit amount (zero refuses), mandatory reason (unexplained money
+        movement refuses), no-negative-books clamp (over-refund refuses,
+        recorded). Policy still open (who signs, window, partials) — this
+        is the mechanism, gated by the caller (bridge route is bearer-only
+        like every spend path)."""
+        amount = _check_amount(usd, "refund")
+        if amount == 0:
+            raise ValueError("zero refund refused: use an explicit amount or skip the call")
+        if not reason or not reason.strip():
+            raise ValueError("refund needs a reason: unexplained money movement refused")
+        with self._exclusive():
+            s = self.get(session_id)
+            if round(amount, 6) > round(s.spent_usd, 6):
+                raise ValueError(
+                    f"refund of {amount} exceeds recorded spend {s.spent_usd}: "
+                    "refusing (no negative books)")
+            s.spent_usd = round(s.spent_usd - amount, 6)
+            s.updated_at = time.time()
+            self._save(s)
+            return s
+
     def close(self, session_id: str) -> SessionState:
         return self.update(session_id, status="closed")

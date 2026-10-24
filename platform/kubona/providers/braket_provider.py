@@ -30,7 +30,8 @@ class BraketProvider(Provider):
             "hardware_ready": False,
         }
 
-    def submit(self, circuit: Circuit, shots: int, seed: int | None = None) -> dict[str, Any]:
+    def submit(self, circuit: Circuit, shots: int, seed: int | None = None,
+               on_hardware_job=None) -> dict[str, Any]:
         _ = (circuit, shots, seed)
         raise ProviderError(
             "aws-braket execution is not integrated: Braket needs AWS SigV4 "

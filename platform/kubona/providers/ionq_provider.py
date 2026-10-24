@@ -42,7 +42,8 @@ class IonQProvider(Provider):
             "credential_present": self._credential() is not None,
         }
 
-    def submit(self, circuit: Circuit, shots: int, seed: int | None = None) -> dict[str, Any]:
+    def submit(self, circuit: Circuit, shots: int, seed: int | None = None,
+               on_hardware_job=None) -> dict[str, Any]:
         _ = (circuit, shots, seed)
         if not LIVE_VERIFIED:
             raise ProviderError(

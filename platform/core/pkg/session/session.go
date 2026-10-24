@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/tenants"
 )
 
 // ErrInvalidAmount refuses negative/NaN/Inf spend (W0.7, mirrored from the
@@ -497,6 +498,56 @@ func (m *Manager) ReserveSpend(sessionID string, amountUSD float64) error {
 	m.ledger.AppendEvent(sessionID, "session_spend_reserved", map[string]any{
 		"session_id": sessionID, "amount_usd": amountUSD})
 	return nil
+}
+
+// RefundSpend returns consumed spend to a session's books (R-32
+// mechanism, Go rail). Mirrors tenants.RefundSpend exactly: admin envelope
+// binds tenant + session + amount + reason; cross-tenant refund refuses;
+// zero/empty refuses; over-refund refuses without mutating (no negative
+// books); every outcome seals a ledger event. ReleaseSpend stays the
+// reservation-return path (terminal-failed jobs); RefundSpend is the
+// audited money-back path (vendor error, duplicate dispatch).
+func (m *Manager) RefundSpend(action *tenants.AdminAction, sessionID string, amountUSD float64, reason string) (*Session, error) {
+	sess, err := m.GetSession(sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("unknown session %q: refund refused", sessionID)
+	}
+	if action == nil || action.TenantID != sess.TenantID {
+		tenant := ""
+		if action != nil {
+			tenant = action.TenantID
+		}
+		return nil, fmt.Errorf("refund tenant %q does not match session tenant %q: refusing cross-tenant refund", tenant, sess.TenantID)
+	}
+	if err := validAmount(amountUSD); err != nil {
+		return nil, err
+	}
+	if amountUSD == 0 {
+		return nil, fmt.Errorf("zero refund refused: use an explicit amount or skip the call")
+	}
+	if strings.TrimSpace(reason) == "" {
+		return nil, fmt.Errorf("refund needs a reason: unexplained money movement refused")
+	}
+	res, err := m.ledger.DB().Exec(
+		`UPDATE sessions SET current_spend_usd = MAX(0, current_spend_usd - ?) WHERE id = ? AND current_spend_usd + 1e-9 >= ?`,
+		amountUSD, sessionID, amountUSD)
+	if err != nil {
+		return nil, fmt.Errorf("session spend refund failed: %w", err)
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return nil, fmt.Errorf("session spend refund failed: %w", err)
+	}
+	if n != 1 {
+		m.ledger.AppendEvent(sessionID, "session_spend_refund_refused", map[string]any{
+			"session_id": sessionID, "amount_usd": amountUSD, "reason": reason,
+			"admin_fp": tenants.Fingerprint(action.PubkeyHex)})
+		return nil, fmt.Errorf("refund of %.6f exceeds recorded spend: refusing (no negative books)", amountUSD)
+	}
+	m.ledger.AppendEvent(sessionID, "session_spend_refunded", map[string]any{
+		"session_id": sessionID, "amount_usd": amountUSD, "reason": reason,
+		"admin_fp": tenants.Fingerprint(action.PubkeyHex)})
+	return m.GetSession(sessionID)
 }
 
 // ReleaseSpend returns a session reservation (terminal-failed jobs only).

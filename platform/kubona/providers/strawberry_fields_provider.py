@@ -24,7 +24,8 @@ class StrawberryFieldsProvider(Provider):
         except ImportError as e:
             self._ready, self._err = False, str(e)
 
-    def submit(self, circuit: Circuit, shots: int, seed: int | None = None) -> dict[str, Any]:
+    def submit(self, circuit: Circuit, shots: int, seed: int | None = None,
+               on_hardware_job=None) -> dict[str, Any]:
         # W2.18: missing-SDK vs not-wired are SEPARATE refusals (see
         # pulser_provider for the rationale).
         if not self._ready:
