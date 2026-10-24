@@ -62,6 +62,7 @@ type Server struct {
 	harnessReg       *autoresearch.HarnessRegistry
 	llmSettings      *llm.Settings
 	llmClient        *llm.Client
+	quantumSettings  *QuantumSettings
 	toolRegistry     *tools.Registry
 	memoryStore      *memory.HindsightStore
 	metaSearchEngine *metasearch.MetaSearchEngine
@@ -308,6 +309,7 @@ func NewServer(
 		harnessReg:            autoresearch.NewHarnessRegistry(),
 		llmSettings:           llmSet,
 		llmClient:             llmCli,
+		quantumSettings:       mustLoadQuantumSettings(l.DB()),
 		metaSearchEngine:      metaEngine,
 		sandboxRunner:         sbRunner,
 		activeAutoloops:       make(map[string]*autoresearch.LoopEngine),
@@ -482,6 +484,10 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/llm/settings", s.handleLLMSettings)
 	s.mux.HandleFunc("/api/llm/models", s.handleLLMModels)
 	s.mux.HandleFunc("/api/llm/test", s.handleLLMTest)
+	// Quantum provider settings (human selection surface; secrets stay
+	// in env/Bao and are never accepted here).
+	s.mux.HandleFunc("/api/quantum/settings", s.handleQuantumSettings)
+	s.mux.HandleFunc("/api/quantum/backends", s.handleQuantumBackends)
 
 	// Vault Dynamic Leases (OpenBao sidecar bridge)
 	s.mux.HandleFunc("/api/vault/leases", s.requireBearer(s.handleVaultLeases))
@@ -884,7 +890,12 @@ func (s *Server) handleFleet(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, map[string]any{
 		"backends": []map[string]any{
 			{
+				// Telemetry provenance: "measured" fields were read by this
+				// daemon (TCP liveness dial, env presence); "declared"
+				// fields are vendor-catalog placeholders until the live
+				// canary proxy lands — never presented as measurements.
 				"name":             "local_simulator",
+				"telemetry":        "measured",
 				"type":             "Qiskit Aer GPU/CPU Statevector",
 				"qubits":           32,
 				"t1_us":            "Infinite (Exact Numerical)",
@@ -900,6 +911,8 @@ func (s *Server) handleFleet(w http.ResponseWriter, r *http.Request) {
 			},
 			{
 				"name":             "ibm_heron",
+				"telemetry":        "declared",
+				"catalog_verified": nil,
 				"type":             "Superconducting Transmon (Heavy-Hex)",
 				"qubits":           156,
 				"t1_us":            "180.0",
@@ -915,6 +928,8 @@ func (s *Server) handleFleet(w http.ResponseWriter, r *http.Request) {
 			},
 			{
 				"name":             "quantinuum_h1",
+				"telemetry":        "declared",
+				"catalog_verified": nil,
 				"type":             "Trapped Ion Shuttle",
 				"qubits":           20,
 				"t1_us":            ">1,000,000",
@@ -930,6 +945,8 @@ func (s *Server) handleFleet(w http.ResponseWriter, r *http.Request) {
 			},
 			{
 				"name":             "rigetti_aspen",
+				"telemetry":        "declared",
+				"catalog_verified": nil,
 				"type":             "Superconducting Multi-Chip",
 				"qubits":           80,
 				"t1_us":            "35.0",

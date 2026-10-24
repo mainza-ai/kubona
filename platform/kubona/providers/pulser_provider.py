@@ -37,4 +37,5 @@ class PulserProvider(Provider):
             "pulse sequences). Failing closed instead of simulating.")
 
     def health(self) -> dict[str, Any]:
-        return {"provider": self.capability.provider, "ready": self._ready, "error": self._err}
+        return {"provider": self.capability.provider, "ready": self._ready, "error": self._err,
+                "wiring": "not-wired"}

@@ -8,7 +8,7 @@ def test_initial_registry():
     assert set(caps) == {"local-simulator", "ibm-qiskit", "qiskit-aer-simulator",
                          "quantinuum", "rigetti",
                          "neutral-atom-quera-pasqal", "xanadu-strawberry-fields",
-                         "dwave-annealing"}
+                         "dwave-annealing", "ionq", "aws-braket"}
     assert caps["local-simulator"].pricing.model == "free"
     assert caps["local-simulator"].execution_plugin == "kubona.providers.local_simulator.LocalSimulator"
     assert caps["ibm-qiskit"].pricing.model == "per_second"
@@ -39,6 +39,30 @@ def test_per_second_without_circuit_refuses():
     cap = load_provider("ibm-qiskit")
     with pytest.raises(ValueError):
         cap.cost_estimate(4000)
+
+
+def test_zero_rate_hardware_refuses_not_free():
+    # A $0 estimate reads as "free tier" downstream and approves hardware
+    # spend without a budget. Zero-rate hardware models must refuse, never
+    # estimate. (quantinuum/neutral-atom/dwave/ionq/braket ship 0.0
+    # rates today.)
+    import pytest
+    for name in ("quantinuum", "neutral-atom-quera-pasqal", "dwave-annealing",
+                 "ionq", "aws-braket"):
+        cap = load_provider(name)
+        with pytest.raises(ValueError, match="no task/shot rate configured"):
+            cap.cost_estimate(1000)
+
+
+def test_per_shot_zero_rate_refuses():
+    import pytest
+    from kubona.schema.provider import PricingModel
+    cap = load_provider("quantinuum")
+    zeroed = cap.model_copy(update={"pricing": PricingModel(
+        model="per_shot", currency="USD", per_shot_usd=0.0,
+        notes="zero-rate probe")})
+    with pytest.raises(ValueError, match="no per-shot rate configured"):
+        zeroed.cost_estimate(1000)
 
 
 def test_per_second_preflight_requires_ceiling():

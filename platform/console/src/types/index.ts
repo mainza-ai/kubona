@@ -573,6 +573,12 @@ export interface BackendInfo {
   // present) vs 'credentialless' (device may be fine — WE lack credentials).
   // Absent on older daemons: treat as unknown, never as ready.
   credential_state?: string;
+  // Telemetry provenance (fleet): 'measured' fields were read by the
+  // daemon (liveness dial, env presence); 'declared' fields are
+  // vendor-catalog placeholders until the live canary proxy lands.
+  // Absent on older daemons: treat queue/coherence as unprovenanced.
+  telemetry?: string;
+  catalog_verified?: string | null;
   queue_depth: number;
   cost_per_shot: number;
   jurisdiction: string;

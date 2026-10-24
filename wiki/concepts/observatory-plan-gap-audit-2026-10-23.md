@@ -94,6 +94,33 @@ execution record), [[observatory-spatial-representation-layer]] (design),
 
 **Operator actions (no code):** training opt-out toggle; dedicated dev project + monthly limit; key-scope review (`operations.cancel`, `assets.delete` only if P6 needs them); CLI `setup` for probes; mobile-push endpoint if Away is ever real (R-27).
 
+## 5. Quantum billing completeness + human dispatch (proposals, 2026-10-24 audit)
+
+These move money or recall hardware — implementation is gated on an
+operator ruling recorded here first. Status: **proposed, not built**.
+
+- **R-32 Audited refund primitive.** Failed QPU jobs keep accounted spend
+  today (`execution.py`); no refund path exists. Proposal: ledger-sealed
+  refund records, admin-signed, enumerated reasons (vendor-error,
+  fidelity-refusal-after-dispatch, duplicate-spend by idempotency replay);
+  refunds reference the original spend record id. Open questions: who may
+  sign (lab admin only, or tribunal?), refund window, partial refunds for
+  partially-executed jobs.
+- **R-33 Provider-side cancel.** In-flight hardware runs cannot be recalled
+  (`jobs.py`). Proposal: cancel where vendor APIs support it (IBM Runtime
+  cancel exists; QCS/Quantinuum to confirm), ledger-recorded as
+  recall-attempt with the existing honest caveat (work may have run).
+  Cancel never refunds by itself — it pairs with R-32.
+- **R-34 Human quantum dispatch.** The picker (`QuantumSettings`, `/api/quantum/*`,
+  shipped 2026-10-24) selects; nothing dispatches yet. Agents submit via
+  the MCP execution rail; the bridge `ExecuteCircuit` is simulation-only.
+  Proposal: new `QuantumSubmit` bridge RPC that calls the SAME
+  `submit_job` function (identical jurisdiction/fidelity/spend rails, no
+  parallel rail), console → kubonad (bearer + session reservation) →
+  bridge. Requires its own threat analysis (new cross-process spend
+  path) and live verification with operator keys before any real hardware
+  flows through it.
+
 ## 4. Live-proof ledger (what the API actually answered)
 
 Proven live: pose SUCCEEDED (recovered camera within 1 mm of ground truth);
