@@ -247,8 +247,13 @@ func DefaultSettings() *Settings {
 		SchemaVersion:  CurrentSettingsVersion,
 		ActiveProvider: active,
 		ActiveModel:    activeModel,
-		AirGapped:      false,
-		Temperature:    0.2,
+		// Secure default (W0.19): fresh installs are air-gapped — no
+		// non-local egress until the operator explicitly toggles it off
+		// in settings. Local providers (Strata/MLX loopback) are
+		// unaffected. Without keys configured nothing could egress
+		// anyway; this makes the posture explicit instead of implicit.
+		AirGapped:   true,
+		Temperature: 0.2,
 		// MaxTokens 0 = unset: the field is omitted and the model generates
 		// to EOS / its own context window. Any positive value is a per-role
 		// ceiling, not a default — 2048 proved too low for tribunal turns,

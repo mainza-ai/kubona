@@ -41,6 +41,9 @@ func TestWiredTurnPromptsNameSessionID(t *testing.T) {
 	t.Setenv("STRATA_MODEL", "stub-model")
 	s := llm.DefaultSettings()
 	snap := s.GetSnapshot()
+	// Tribunal test drives the local stub: opt out of the air-gap
+	// default like an operator would.
+	snap.AirGapped = false
 	pc := snap.Providers[llm.ProviderStrata]
 	pc.BaseURL = srv.URL
 	snap.Providers[llm.ProviderStrata] = pc

@@ -38,6 +38,12 @@ func setupTestServer(t *testing.T) (*api.Server, func()) { // Tests exercise the
 
 	srv := api.NewServer(l, sm, jr, sup, wd)
 
+	// Configured-operator posture: the secure default is air-gapped, so
+	// the shared fixture explicitly opts out through the same settings
+	// route an operator uses. Tests that need the gap (refusal tests)
+	// toggle it back on themselves.
+	optOutAirGap(t, srv)
+
 	cleanup := func() {
 		l.Close()
 		os.Remove(dbPath)
@@ -46,6 +52,29 @@ func setupTestServer(t *testing.T) (*api.Server, func()) { // Tests exercise the
 	}
 
 	return srv, cleanup
+}
+
+// optOutAirGap flips air_gapped off via the operator settings route
+// (GET → modify → PUT with bearer). Mirrors TestObservatoryLensAirGappedRefusal's
+// round-trip; the flag itself is asserted in both directions by the
+// dedicated refusal + secure-flag tests, never here.
+func optOutAirGap(t *testing.T, srv *api.Server) {
+	t.Helper()
+	getW := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(getW, httptest.NewRequest(http.MethodGet, "/api/llm/settings", nil))
+	var snap map[string]any
+	if err := json.NewDecoder(getW.Body).Decode(&snap); err != nil {
+		t.Fatalf("settings GET: %v", err)
+	}
+	snap["air_gapped"] = false
+	raw, _ := json.Marshal(snap)
+	putReq := httptest.NewRequest(http.MethodPut, "/api/llm/settings", bytes.NewReader(raw))
+	putReq.Header.Set("Authorization", "Bearer test-token")
+	putW := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(putW, putReq)
+	if putW.Code != http.StatusOK {
+		t.Fatalf("settings opt-out: %d %s", putW.Code, putW.Body.String())
+	}
 }
 
 // testAdminEnvelope binds mandate-sign parameters under a tenant admin key,

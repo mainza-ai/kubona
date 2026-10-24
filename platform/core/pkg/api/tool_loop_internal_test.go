@@ -68,6 +68,9 @@ func stubToolServer(t *testing.T, toolName string, usage map[string]any) (*llm.C
 	t.Setenv("OPENCODE_API_KEY", "test-key")
 	settings := llm.DefaultSettings()
 	snap := settings.GetSnapshot()
+	// Tool-loop tests drive the cloud stub: opt out of the air-gap
+	// default like an operator would.
+	snap.AirGapped = false
 	pc := snap.Providers[llm.ProviderOpenCode]
 	pc.BaseURL = srv.URL
 	pc.Enabled = true

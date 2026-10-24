@@ -34,6 +34,9 @@ func setupFundedServer(t *testing.T) (*api.Server, *ledger.Ledger, func()) {
 		t.Fatalf("settings: %v", err)
 	}
 	snap := set.GetSnapshot()
+	// Loop pricing tests run the cloud math: opt out of the air-gap
+	// default like an operator would.
+	snap.AirGapped = false
 	pc := snap.Providers[llm.ProviderOpenCode]
 	pc.Enabled = true
 	snap.Providers[llm.ProviderOpenCode] = pc

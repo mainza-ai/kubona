@@ -19,6 +19,9 @@ func toolTestSettings(t *testing.T, url string) *llm.Settings {
 	t.Setenv("KUBONA_LLM_PROVIDER", "opencode")
 	s := llm.DefaultSettings()
 	snap := s.GetSnapshot()
+	// Cloud-path tests declare cloud: the secure default is air-gapped,
+	// so these explicitly opt out exactly as an operator does in settings.
+	snap.AirGapped = false
 	pc := snap.Providers[llm.ProviderOpenCode]
 	pc.BaseURL = url
 	snap.Providers[llm.ProviderOpenCode] = pc

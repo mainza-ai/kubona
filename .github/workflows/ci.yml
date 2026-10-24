@@ -43,6 +43,24 @@ jobs:
       - name: Scan tracked tree for secrets and local-only paths
         run: ./scripts/secret-scan.sh
 
+  dco-check:
+    name: DCO sign-off on new commits (CONTRIBUTING.md)
+    # Dependabot cannot sign: its updates are reviewed, not authored.
+    if: github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # DCO needs history, not just HEAD: full clone for the range walk.
+          fetch-depth: 0
+      - name: Require Signed-off-by on commits new to the branch
+        run: ./scripts/dco-check.sh
+        env:
+          # push: before..after; pull_request: base..head; dispatch (nothing
+          # landed): NONE sentinel, the gate is vacuously green.
+          DCO_BASE: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.sha || github.event.before || 'NONE' }}
+          DCO_HEAD: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+
   python-tests:
     name: "Python suite (fast lane: everything except paper-scale slices)"
     runs-on: ubuntu-latest

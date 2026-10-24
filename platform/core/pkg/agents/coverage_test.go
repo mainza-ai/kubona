@@ -47,6 +47,9 @@ func provenanceStubClient(t *testing.T) *llm.Client {
 	t.Setenv("OPENCODE_API_KEY", "test-key")
 	settings := llm.DefaultSettings()
 	snap := settings.GetSnapshot()
+	// Coverage tests drive the cloud stub: opt out of the air-gap
+	// default like an operator would.
+	snap.AirGapped = false
 	pc := snap.Providers[llm.ProviderOpenCode]
 	pc.BaseURL = srv.URL
 	snap.Providers[llm.ProviderOpenCode] = pc

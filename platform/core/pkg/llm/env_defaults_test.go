@@ -27,6 +27,13 @@ func TestEnvDrivenDefaults(t *testing.T) {
 	t.Setenv("NVIDIA_MODEL", "nvidia/test-model-1")
 	t.Setenv("KUBONA_LLM_PROVIDER", "nvidia")
 	s := llm.DefaultSettings()
+	// Env-selection tests exercise the cloud path: opt out of the
+	// air-gap default exactly as an operator does in settings.
+	snap := s.GetSnapshot()
+	snap.AirGapped = false
+	if err := s.Update(&snap, nil); err != nil {
+		t.Fatal(err)
+	}
 	if s.ActiveProvider != llm.ProviderNVIDIA {
 		t.Fatalf("env provider must win, got %s", s.ActiveProvider)
 	}
@@ -95,6 +102,13 @@ func TestNvidiaStillExplicitlySelectable(t *testing.T) {
 	t.Setenv("NVIDIA_MODEL", "nvidia/parked-model")
 	t.Setenv("KUBONA_LLM_PROVIDER", "nvidia")
 	s := llm.DefaultSettings()
+	// Same cloud-path opt-out as above: selection, not dispatch, is
+	// under test, and selection of a cloud provider needs cloud.
+	snap := s.GetSnapshot()
+	snap.AirGapped = false
+	if err := s.Update(&snap, nil); err != nil {
+		t.Fatal(err)
+	}
 	prov, model, err := s.GetModelForRole("copilot")
 	if err != nil {
 		t.Fatalf("explicit nvidia selection must still work (parked, not removed): %v", err)
@@ -122,6 +136,13 @@ func TestPerRoleEnvOverride(t *testing.T) {
 	t.Setenv("KUBONA_LLM_PROVIDER", "nvidia")
 	t.Setenv("KUBONA_LLM_COPILOT_MODEL", "nvidia/copilot-special")
 	s := llm.DefaultSettings()
+	// Role-override tests resolve cloud models: opt out of the air-gap
+	// default exactly as an operator does in settings.
+	snap := s.GetSnapshot()
+	snap.AirGapped = false
+	if err := s.Update(&snap, nil); err != nil {
+		t.Fatal(err)
+	}
 	_, model, err := s.GetModelForRole("copilot")
 	if err != nil {
 		t.Fatalf("copilot must resolve: %v", err)
@@ -140,7 +161,8 @@ func TestPerRoleEnvOverride(t *testing.T) {
 
 // A role pointing at a disabled provider refuses — never silently serves
 // the active provider's model.
-func TestDisabledRoleProviderRefuses(t *testing.T) {	t.Setenv("NVIDIA_API_KEY", "test-key")
+func TestDisabledRoleProviderRefuses(t *testing.T) {
+	t.Setenv("NVIDIA_API_KEY", "test-key")
 	t.Setenv("NVIDIA_MODEL", "nvidia/fleet-model")
 	t.Setenv("KUBONA_LLM_PROVIDER", "nvidia")
 	db := openMem(t)

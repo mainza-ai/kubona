@@ -1,0 +1,45 @@
+# Dependabot: security updates for direct dependencies.
+# Public repo (launch-day): secret scanning + push protection are enabled
+# in repository settings; this file keeps versioned, reviewable update
+# cadence in the tree. Grouped minor/patch to keep CI load sane; major
+# bumps stay individual so a breaking change never hides in a group.
+version: 2
+updates:
+  - package-ecosystem: "npm"
+    directory: "/platform/console"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    # pnpm: Dependabot reads pnpm-lock.yaml in the same directory.
+  - package-ecosystem: "gomod"
+    directory: "/platform/core"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+  - package-ecosystem: "pip"
+    directory: "/platform"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    groups:
+      minor-patch:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+  - package-ecosystem: "cargo"
+    directory: "/platform/crates/qir-core"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+  - package-ecosystem: "cargo"
+    directory: "/platform/crates/ifc-core"
+    schedule:
+      interval: "weekly"
+      day: "monday"
