@@ -57,13 +57,19 @@ type Manager struct {
 	ledger *ledger.Ledger
 }
 
+// DefaultBudgetUSD is the session spend limit when none is requested.
+// Single const (production bar: drift-proof shared value) — the API layer
+// also uses it as the ceiling for anonymous session creation, so an
+// unauthenticated caller can never mint an above-default budget.
+const DefaultBudgetUSD = 100.0
+
 func NewManager(l *ledger.Ledger) *Manager {
 	return &Manager{ledger: l}
 }
 
 func (m *Manager) CreateSession(title string, spendLimitUSD float64, tenantID string) (*Session, error) {
 	if spendLimitUSD <= 0 {
-		spendLimitUSD = 100.0 // Default budget mandate
+		spendLimitUSD = DefaultBudgetUSD // Default budget mandate
 	}
 	if tenantID == "" {
 		tenantID = "default"
@@ -101,7 +107,7 @@ func (m *Manager) EnsureSessionWithID(id, title string, spendLimitUSD float64, t
 		return s, nil
 	}
 	if spendLimitUSD <= 0 {
-		spendLimitUSD = 100.0
+		spendLimitUSD = DefaultBudgetUSD
 	}
 	if tenantID == "" {
 		tenantID = "default"

@@ -34,6 +34,21 @@ export async function configureApiBase(): Promise<string> {
 // Never bake a real operator token into a shipped bundle.
 const CONSOLE_TOKEN = process.env.NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN || '';
 
+// NEXT_PUBLIC_* values ship inside the client JS bundle by construction —
+// a real operator token here is a published secret. Local dev (`dev-token`)
+// is the only legitimate use; production must unset it and log in through
+// AuthPanel (Ed25519 session cookie) instead. Warn once, loudly, in
+// production builds; the server never trusts this value without a matching
+// KUBONA_API_TOKEN, but a leaked dev token still invites confusion.
+let prodTokenWarned = false;
+if (CONSOLE_TOKEN && process.env.NODE_ENV === 'production' && typeof console !== 'undefined' && !prodTokenWarned) {
+  prodTokenWarned = true;
+  console.warn(
+    '[kubona] NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN is set in a production build. ' +
+      'This value ships to browsers — unset it and use AuthPanel login instead.',
+  );
+}
+
 function authHeaders(extra: Record<string, string> = {}): Record<string, string> {
   return CONSOLE_TOKEN ? { Authorization: `Bearer ${CONSOLE_TOKEN}`, ...extra } : { ...extra };
 }

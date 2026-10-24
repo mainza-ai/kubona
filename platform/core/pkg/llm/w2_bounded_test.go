@@ -25,6 +25,9 @@ func TestW220BoundedResponseRefuses(t *testing.T) {
 	t.Setenv("KUBONA_LLM_PROVIDER", "opencode")
 	s := llm.DefaultSettings()
 	snap := s.GetSnapshot()
+	// Oversize-body test runs against the cloud stub: opt out of the
+	// air-gap default like an operator would.
+	snap.AirGapped = false
 	pc := snap.Providers[llm.ProviderOpenCode]
 	pc.BaseURL = srv.URL
 	snap.Providers[llm.ProviderOpenCode] = pc

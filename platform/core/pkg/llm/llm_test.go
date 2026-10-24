@@ -28,6 +28,14 @@ func TestLLMSettingsPersistenceAndAirGap(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to load settings: %v", err)
 	}
+	// This test walks both postures: start opted-out (cloud resolves),
+	// then enable the gap and assert the refusal. The secure default is
+	// air-gapped; the first half declares cloud like an operator would.
+	snap0 := settings.GetSnapshot()
+	snap0.AirGapped = false
+	if err := settings.Update(&snap0, db); err != nil {
+		t.Fatalf("failed to opt out of air-gap for test setup: %v", err)
+	}
 
 	// Development default is env-driven (2026-10-17): with the opencode
 	// key + model set, every role resolves to the configured model;
@@ -125,6 +133,8 @@ func TestMissingUsageRefusesOrCeilings(t *testing.T) {
 		t.Helper()
 		st := llm.DefaultSettings()
 		snap := st.GetSnapshot()
+		// Cloud-path helper: opt out of the air-gap default like an operator.
+		snap.AirGapped = false
 		pc := snap.Providers[llm.ProviderOpenCode]
 		pc.BaseURL = url
 		snap.Providers[llm.ProviderOpenCode] = pc

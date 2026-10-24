@@ -45,6 +45,24 @@ func adminFingerprint(pubkeyHex string) string {
 	return tenants.Fingerprint(pubkeyHex)
 }
 
+// cookieSecure decides the Secure flag on the session cookie. Loopback
+// HTTP stays working for local dev (r.TLS == nil → false); anything
+// served over TLS gets Secure cookies. KUBONA_COOKIE_SECURE overrides
+// both ways ("1" forces on — for TLS-terminating proxies where r.TLS is
+// nil by the time we see the request; "0" forces off — local HTTP behind
+// a proxy that sets X-Forwarded-Proto). Without Secure, a future HTTPS
+// deployment would also send the cookie over accidental plain HTTP.
+func cookieSecure(r *http.Request) bool {
+	switch strings.TrimSpace(os.Getenv("KUBONA_COOKIE_SECURE")) {
+	case "1":
+		return true
+	case "0":
+		return false
+	default:
+		return r != nil && r.TLS != nil
+	}
+}
+
 // AuthSessionStore holds single-use login challenges (memory-only: a
 // restart invalidates outstanding challenges, which is safe — the client
 // just fetches a new one) and sessions (SQLite: restarts keep operators
@@ -405,6 +423,7 @@ func (s *Server) handleAuthLogin(w http.ResponseWriter, r *http.Request) {
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   cookieSecure(r),
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   maxAge,
 	})
