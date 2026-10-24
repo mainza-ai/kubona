@@ -49,27 +49,28 @@ import (
 )
 
 type Server struct {
-	ledger           *ledger.Ledger
-	sessionMgr       *session.Manager
-	tenantMgr        *tenants.Manager
-	jobRunner        *jobs.Runner
-	supervisor       *supervisor.Supervisor
-	watchdog         *watchdog.TaskWatchdog
-	collective       *agents.AgentCollective
-	a2aServer        *agents.A2AServer
-	fidelityGate     *fidelity.FidelityGate
-	epistemicGate    *epistemics.EpistemicGate
-	harnessReg       *autoresearch.HarnessRegistry
-	llmSettings      *llm.Settings
-	llmClient        *llm.Client
-	quantumSettings  *QuantumSettings
-	toolRegistry     *tools.Registry
-	memoryStore      *memory.HindsightStore
-	metaSearchEngine *metasearch.MetaSearchEngine
-	sandboxRunner    *sandbox.SandboxRunner
-	autoresearchMu   sync.RWMutex
-	activeAutoloops  map[string]*autoresearch.LoopEngine
-	mux              *http.ServeMux
+	ledger             *ledger.Ledger
+	sessionMgr         *session.Manager
+	tenantMgr          *tenants.Manager
+	jobRunner          *jobs.Runner
+	supervisor         *supervisor.Supervisor
+	watchdog           *watchdog.TaskWatchdog
+	collective         *agents.AgentCollective
+	a2aServer          *agents.A2AServer
+	fidelityGate       *fidelity.FidelityGate
+	epistemicGate      *epistemics.EpistemicGate
+	harnessReg         *autoresearch.HarnessRegistry
+	llmSettings        *llm.Settings
+	llmClient          *llm.Client
+	quantumSettings    *QuantumSettings
+	quantumCanaryCache *canaryCache
+	toolRegistry       *tools.Registry
+	memoryStore        *memory.HindsightStore
+	metaSearchEngine   *metasearch.MetaSearchEngine
+	sandboxRunner      *sandbox.SandboxRunner
+	autoresearchMu     sync.RWMutex
+	activeAutoloops    map[string]*autoresearch.LoopEngine
+	mux                *http.ServeMux
 
 	// Hugging Face Hub client & Custom Agent Registry
 	hfClient     *hf.HubClient
@@ -310,6 +311,7 @@ func NewServer(
 		llmSettings:           llmSet,
 		llmClient:             llmCli,
 		quantumSettings:       mustLoadQuantumSettings(l.DB()),
+		quantumCanaryCache:    newCanaryCache(),
 		metaSearchEngine:      metaEngine,
 		sandboxRunner:         sbRunner,
 		activeAutoloops:       make(map[string]*autoresearch.LoopEngine),
@@ -417,6 +419,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/ready", s.handleReady)
 	s.mux.HandleFunc("/api/capabilities", s.handleCapabilities)
 	s.mux.HandleFunc("/api/sessions", s.handleSessions)
+	s.mux.HandleFunc("/api/sessions/refund", s.requireBearer(s.handleSessionRefund))
 	s.mux.HandleFunc("/api/sessions/export", s.handleSessionExport)
 	s.mux.HandleFunc("/api/sessions/import", s.handleSessionImport)
 	s.mux.HandleFunc("/api/sessions/context", s.handleSessionContext)
@@ -488,6 +491,14 @@ func (s *Server) registerRoutes() {
 	// in env/Bao and are never accepted here).
 	s.mux.HandleFunc("/api/quantum/settings", s.handleQuantumSettings)
 	s.mux.HandleFunc("/api/quantum/backends", s.handleQuantumBackends)
+	// Human quantum dispatch proxy (R-34) + provider cancel (R-33).
+	// Spend authority lives in the Python rail; these routes authenticate,
+	// authorize, validate, and proxy — never reserve QPU spend themselves.
+	s.mux.HandleFunc("/api/quantum/jobs", s.requireBearer(s.handleQuantumJobs))
+	s.mux.HandleFunc("/api/quantum/jobs/", s.requireBearer(s.handleQuantumJobActions))
+	// Live canary proxy (public read like fleet; TTL-cached, fails soft
+	// to declared catalog values — see quantum_canary.go).
+	s.mux.HandleFunc("/api/quantum/canary", s.handleQuantumCanary)
 
 	// Vault Dynamic Leases (OpenBao sidecar bridge)
 	s.mux.HandleFunc("/api/vault/leases", s.requireBearer(s.handleVaultLeases))
@@ -1567,6 +1578,55 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleSessionRefund returns consumed spend to a session's books (R-32
+// mechanism, Go rail). Mirrors handleTenantRefund exactly: admin envelope
+// binds tenant + session + amount + reason (verified against the session's
+// own tenant — cross-tenant refund refuses); zero/empty/over-refund
+// refuse; every outcome seals a ledger event. ReleaseSpend stays the
+// reservation-return path; this is the audited money-back path.
+func (s *Server) handleSessionRefund(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		WriteAPIError(w, "method_not_allowed", "refund is POST-only", nil)
+		return
+	}
+	if !s.tenantLimiter.allow(clientKey(r)) {
+		WriteAPIError(w, "rate_limited", "rate limit exceeded: slow down and retry", nil)
+		return
+	}
+	var req struct {
+		SessionID string              `json:"session_id"`
+		Amount    float64             `json:"amount_usd"`
+		Reason    string              `json:"reason"`
+		Action    tenants.AdminAction `json:"action"`
+	}
+	if err := decodeStrict(r, &req); err != nil {
+		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid request body: %v", err), nil)
+		return
+	}
+	if req.SessionID == "" {
+		WriteAPIError(w, "bad_request", "session_id is required", nil)
+		return
+	}
+	sess, err := s.sessionMgr.GetSession(req.SessionID)
+	if err != nil {
+		WriteAPIError(w, "ghost_session", fmt.Sprintf("session %q not found", req.SessionID), nil)
+		return
+	}
+	bound, err := bindAdminAction(sess.TenantID, "session_refund_spend",
+		map[string]any{"tenant_id": sess.TenantID, "session_id": req.SessionID,
+			"amount_usd": req.Amount, "reason": req.Reason}, req.Action)
+	if err != nil {
+		WriteAPIError(w, "forbidden", err.Error(), nil)
+		return
+	}
+	updated, err := s.sessionMgr.RefundSpend(bound, req.SessionID, req.Amount, req.Reason)
+	if err != nil {
+		WriteAPIError(w, "forbidden", err.Error(), nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, updated)
+}
+
 // handleSessionExport returns the validated migration manifest for one
 // session (S5). A read, open like other session reads; ghosts 404.
 func (s *Server) handleSessionExport(w http.ResponseWriter, r *http.Request) {
@@ -1721,10 +1781,10 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 			// Operator "clear chat": messages gone, session + campaign +
 			// ledger history survive, erasure sealed as an event.
 			n, err := s.sessionMgr.ClearMessages(sessionID)
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
 			writeJSON(w, http.StatusOK, map[string]any{"cleared": true, "deleted": n, "session_id": sessionID})
 			return
 		}

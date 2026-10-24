@@ -25,9 +25,23 @@ class Provider(ABC):
     capability: ProviderCapability
 
     @abstractmethod
-    def submit(self, circuit: Circuit, shots: int, seed: int | None = None) -> dict[str, Any]:
+    def submit(self, circuit: Circuit, shots: int, seed: int | None = None,
+               on_hardware_job=None) -> dict[str, Any]:
         """Run `circuit` and return results: {counts, ...}. Implementations must be
-        deterministic under a given seed (reproducibility via the ledger)."""
+        deterministic under a given seed (reproducibility via the ledger).
+        on_hardware_job, when given, is called with the vendor job id as
+        soon as the hardware accepts the job (before results arrive) so the
+        runner can record it for later recall. Simulators never call it."""
+
+    def cancel(self, hardware_job_id: str) -> dict[str, Any]:
+        """Attempt vendor-side recall of a submitted hardware job. The base
+        implementation refuses: cooperative fence (JobRunner.cancel) is the
+        only recall. Providers with a verified vendor cancel API override
+        this. Recall never implies refund — see the refund proposal (R-32)."""
+        _ = hardware_job_id
+        raise ProviderError(
+            f"provider {self.capability.provider!r} has no vendor recall: "
+            "cooperative fence only (in-flight work runs to completion underneath)")
 
     def health(self) -> dict[str, Any]:
         """Liveness report. MAY include `measured_qubits` (int) when the

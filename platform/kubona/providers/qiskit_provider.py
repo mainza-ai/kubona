@@ -102,7 +102,8 @@ class QiskitProvider(Provider):
         return qc
 
     def submit(self, circuit: Circuit, shots: int, seed: int | None = None,
-               allow_sim_fallback: bool = False) -> dict[str, Any]:
+               allow_sim_fallback: bool = False,
+               on_hardware_job=None) -> dict[str, Any]:
         """Run on real IBM hardware via Qiskit Runtime when credentials exist.
 
         No quantum-washing (W2.18): when this capability is a HARDWARE
@@ -124,7 +125,8 @@ class QiskitProvider(Provider):
         is_simulator = modality in ("statevector_simulator", "gpu_simulator")
         token = self._credential()
         if token and self.backend_name and not is_simulator:
-            return self._submit_ibm_runtime(qc, shots, token)
+            return self._submit_ibm_runtime(qc, shots, token,
+                                            on_hardware_job=on_hardware_job)
         if is_simulator or allow_sim_fallback:
             # credential-free Aer path (open-source first, per maintainer direction)
             from qiskit_aer import AerSimulator
@@ -142,6 +144,32 @@ class QiskitProvider(Provider):
             f"({modality}) but no credential (KUBONA_IBM_QISKIT_TOKEN) or "
             "backend is configured: refusing silent Aer downgrade "
             "(pass allow_sim_fallback=True to explicitly run the simulator)")
+
+    def cancel(self, hardware_job_id: str, service_factory=None) -> dict[str, Any]:
+        """Vendor recall via Qiskit Runtime (verified API: job.cancel() +
+        POST /jobs/{id}/cancel). service_factory injects the service in
+        tests (no live calls in the suite); production builds it from the
+        stored credential. Cancelling is best-effort once running — always
+        re-check job status afterwards."""
+        token = self._credential()
+        if not token:
+            raise ProviderError(
+                "cannot recall without credentials: KUBONA_IBM_QISKIT_TOKEN unset")
+        try:
+            if service_factory is None:
+                from qiskit_ibm_runtime import QiskitRuntimeService
+                service = QiskitRuntimeService(channel="ibm_quantum", token=token)
+            else:
+                service = service_factory(token)
+            job = service.job(hardware_job_id)
+            cancelled = bool(job.cancel())
+        except ImportError as e:
+            raise ProviderError(f"qiskit-ibm-runtime not installed: {e}")
+        except Exception as e:  # noqa: BLE001 — vendor refusal is data, not a crash
+            raise ProviderError(f"ibm recall refused for job {hardware_job_id!r}: {e}")
+        return {"provider": self.capability.provider, "hardware_job_id": hardware_job_id,
+                "recall_requested": True, "cancel_accepted": cancelled,
+                "note": "cancel is best-effort once running; re-check job status"}
 
     def _credential(self) -> str | None:
         # R12: no caching of the default store. An explicitly injected
@@ -164,7 +192,8 @@ class QiskitProvider(Provider):
             return self._backend_name
         return self.capability.backend or None
 
-    def _submit_ibm_runtime(self, qc, shots: int, token: str) -> dict[str, Any]:
+    def _submit_ibm_runtime(self, qc, shots: int, token: str,
+                            on_hardware_job=None) -> dict[str, Any]:
         """Real IBM hardware via Qiskit Runtime (channel: ibm_quantum)."""
         from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2  # noqa: F401
 
@@ -173,6 +202,8 @@ class QiskitProvider(Provider):
         sampler = SamplerV2(backend=backend)
         job = sampler.run([qc], shots=shots)
         job_id = job.job_id()
+        if on_hardware_job is not None:
+            on_hardware_job(job_id)
         result = job.result()
         pub = result[0].data.meas
         counts = {

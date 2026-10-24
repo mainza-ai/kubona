@@ -84,6 +84,26 @@ class QuantumBridgeServiceStub(object):
                 request_serializer=kubona__pb2.CodesignRequest.SerializeToString,
                 response_deserializer=kubona__pb2.CodesignResponse.FromString,
                 _registered_method=True)
+        self.QuantumSubmit = channel.unary_unary(
+                '/kubona.QuantumBridgeService/QuantumSubmit',
+                request_serializer=kubona__pb2.QuantumSubmitRequest.SerializeToString,
+                response_deserializer=kubona__pb2.QuantumSubmitResponse.FromString,
+                _registered_method=True)
+        self.QuantumJobStatus = channel.unary_unary(
+                '/kubona.QuantumBridgeService/QuantumJobStatus',
+                request_serializer=kubona__pb2.QuantumJobStatusRequest.SerializeToString,
+                response_deserializer=kubona__pb2.QuantumJobStatusResponse.FromString,
+                _registered_method=True)
+        self.QuantumCancel = channel.unary_unary(
+                '/kubona.QuantumBridgeService/QuantumCancel',
+                request_serializer=kubona__pb2.QuantumCancelRequest.SerializeToString,
+                response_deserializer=kubona__pb2.QuantumCancelResponse.FromString,
+                _registered_method=True)
+        self.RunCanary = channel.unary_unary(
+                '/kubona.QuantumBridgeService/RunCanary',
+                request_serializer=kubona__pb2.CanaryRunRequest.SerializeToString,
+                response_deserializer=kubona__pb2.CanaryRunResponse.FromString,
+                _registered_method=True)
 
 
 class QuantumBridgeServiceServicer(object):
@@ -149,6 +169,30 @@ class QuantumBridgeServiceServicer(object):
         context.set_details('Method not implemented!')
         raise NotImplementedError('Method not implemented!')
 
+    def QuantumSubmit(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def QuantumJobStatus(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def QuantumCancel(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
+    def RunCanary(self, request, context):
+        """Missing associated documentation comment in .proto file."""
+        context.set_code(grpc.StatusCode.UNIMPLEMENTED)
+        context.set_details('Method not implemented!')
+        raise NotImplementedError('Method not implemented!')
+
 
 def add_QuantumBridgeServiceServicer_to_server(servicer, server):
     rpc_method_handlers = {
@@ -201,6 +245,26 @@ def add_QuantumBridgeServiceServicer_to_server(servicer, server):
                     servicer.EvaluateCodesign,
                     request_deserializer=kubona__pb2.CodesignRequest.FromString,
                     response_serializer=kubona__pb2.CodesignResponse.SerializeToString,
+            ),
+            'QuantumSubmit': grpc.unary_unary_rpc_method_handler(
+                    servicer.QuantumSubmit,
+                    request_deserializer=kubona__pb2.QuantumSubmitRequest.FromString,
+                    response_serializer=kubona__pb2.QuantumSubmitResponse.SerializeToString,
+            ),
+            'QuantumJobStatus': grpc.unary_unary_rpc_method_handler(
+                    servicer.QuantumJobStatus,
+                    request_deserializer=kubona__pb2.QuantumJobStatusRequest.FromString,
+                    response_serializer=kubona__pb2.QuantumJobStatusResponse.SerializeToString,
+            ),
+            'QuantumCancel': grpc.unary_unary_rpc_method_handler(
+                    servicer.QuantumCancel,
+                    request_deserializer=kubona__pb2.QuantumCancelRequest.FromString,
+                    response_serializer=kubona__pb2.QuantumCancelResponse.SerializeToString,
+            ),
+            'RunCanary': grpc.unary_unary_rpc_method_handler(
+                    servicer.RunCanary,
+                    request_deserializer=kubona__pb2.CanaryRunRequest.FromString,
+                    response_serializer=kubona__pb2.CanaryRunResponse.SerializeToString,
             ),
     }
     generic_handler = grpc.method_handlers_generic_handler(
@@ -473,6 +537,114 @@ class QuantumBridgeService(object):
             '/kubona.QuantumBridgeService/EvaluateCodesign',
             kubona__pb2.CodesignRequest.SerializeToString,
             kubona__pb2.CodesignResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def QuantumSubmit(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/kubona.QuantumBridgeService/QuantumSubmit',
+            kubona__pb2.QuantumSubmitRequest.SerializeToString,
+            kubona__pb2.QuantumSubmitResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def QuantumJobStatus(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/kubona.QuantumBridgeService/QuantumJobStatus',
+            kubona__pb2.QuantumJobStatusRequest.SerializeToString,
+            kubona__pb2.QuantumJobStatusResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def QuantumCancel(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/kubona.QuantumBridgeService/QuantumCancel',
+            kubona__pb2.QuantumCancelRequest.SerializeToString,
+            kubona__pb2.QuantumCancelResponse.FromString,
+            options,
+            channel_credentials,
+            insecure,
+            call_credentials,
+            compression,
+            wait_for_ready,
+            timeout,
+            metadata,
+            _registered_method=True)
+
+    @staticmethod
+    def RunCanary(request,
+            target,
+            options=(),
+            channel_credentials=None,
+            call_credentials=None,
+            insecure=False,
+            compression=None,
+            wait_for_ready=None,
+            timeout=None,
+            metadata=None):
+        return grpc.experimental.unary_unary(
+            request,
+            target,
+            '/kubona.QuantumBridgeService/RunCanary',
+            kubona__pb2.CanaryRunRequest.SerializeToString,
+            kubona__pb2.CanaryRunResponse.FromString,
             options,
             channel_credentials,
             insecure,
