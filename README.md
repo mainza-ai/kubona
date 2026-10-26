@@ -6,7 +6,7 @@
 
 ### *See, observe, discover — then know.*
 
-**An open-source quantum-computing and AI-enhanced science discovery platform for autonomous AI agents, with an MCP tool layer (5 servers, 29 tools over stdio).**
+**An open-source quantum-computing and AI-enhanced science discovery platform for autonomous AI agents, with an MCP tool layer (6 servers, 36 tools over stdio).**
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License" /></a>
@@ -14,9 +14,10 @@
   <a href="platform/kubona/"><img src="https://img.shields.io/badge/Python-49.7%25-3776AB?logo=python&logoColor=white" alt="Python" /></a>
   <a href="platform/core/"><img src="https://img.shields.io/badge/Go-33.4%25-00ADD8?logo=go&logoColor=white" alt="Go" /></a>
   <a href="platform/console/"><img src="https://img.shields.io/badge/TypeScript-16.1%25-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
-  <a href="platform/tests/"><img src="https://img.shields.io/badge/Tests-961%20Passed-brightgreen" alt="Tests" /></a>
+  <a href="platform/tests/"><img src="https://img.shields.io/badge/Tests-1000%2B%20Passed-brightgreen" alt="Tests" /></a>
   <a href="wiki/concepts/local-simulation-test-scenarios.md"><img src="https://img.shields.io/badge/Simulation-%240.00%20(Zero--QPU)-success" alt="Simulation" /></a>
-  <a href="wiki/"><img src="https://img.shields.io/badge/Wiki-145%20Pages-purple?logo=obsidian&logoColor=white" alt="Obsidian Knowledge Base" /></a>
+  <a href="wiki/"><img src="https://img.shields.io/badge/Wiki-151%20Pages-purple?logo=obsidian&logoColor=white" alt="Obsidian Knowledge Base" /></a>
+  <a href="wiki/questions.md"><img src="https://img.shields.io/badge/Blueprint-0%20Open%20(Settled)-brightgreen" alt="Blueprint Settled" /></a>
   <a href="https://www.linkedin.com/in/mainza-kangombe-6214295"><img src="https://img.shields.io/badge/Author-Mainza%20Kangombe-0A66C2?logo=linkedin&logoColor=white" alt="Author" /></a>
 </p>
 
@@ -118,16 +119,17 @@ These are not aspirations. The ledger is sealed, the refusal paths are tested, a
 
 | Directory | Layer | Description |
 |---|---|---|
-| [`platform/core/`](platform/core/) | **Go Orchestrator** | Sovereign orchestrator, immutable provenance ledger, job coordination, tribunal, and core API on `:8080`. |
+| [`platform/core/`](platform/core/) | **Go Orchestrator** | Sovereign orchestrator, immutable provenance ledger, job coordination, campaign flight recorder (`GET /api/campaigns/{id}/flight-recorder`), 3-seam IFC lattice, gVisor `runsc` sandbox, and 93 HTTP routes on `:8080`. |
+| [`platform/crates/`](platform/crates/) | **Rust Core** | Native compiler core (`qir-core` lowering OpenQASM 3.0 to LLVM IR) and information-flow lattice (`ifc-core`). |
 | [`platform/kubona/mcp/`](platform/kubona/mcp/) | **MCP Tool Layer** | 6 federated Python servers mounting 36 tools over stdio (`compiler`, `execution`, `cost`, `provenance`, `control`, `world`)*. |
-| [`platform/console/`](platform/console/) | **Sovereign Console** | Next.js sovereign UI on `:3000` with experiment studio, tribunal, flight recorder, and copilot chat. |
-| [`platform/kubona/`](platform/kubona/) | **Python Runtime** | Agent execution runtime, evaluator-guided circuit co-design program, and ML pipelines. |
-| [`platform/bridge/`](platform/bridge/) | **Quantum Bridge** | PySCF and Qiskit bridge facilitating communication between AI agents, classical chemistry, and quantum hardware/simulators. |
-| [`wiki/`](wiki/) | **Obsidian Knowledge Base** | Living blueprint (149 pages) cataloging entities, concepts, source audits, and ranked open questions. |
+| [`platform/console/`](platform/console/) | **Sovereign Console** | Next.js sovereign UI on `:3000` with 8 dynamic surfaces: Spatial Canvas, Flight Recorder card, Epistemic Tribunal, Codesign Cockpit, and WebCrypto Ed25519 signing. |
+| [`platform/kubona/`](platform/kubona/) | **Python Runtime** | Agent execution runtime, single-tape analytical mixed-state autodiff (`diff_stack`), refuted-genome transfer priors (`autoresearch`), and dual-model register packing (`codesign`). |
+| [`platform/bridge/`](platform/bridge/) | **Quantum Bridge** | PySCF, Qiskit Aer, and PennyLane bridge with typed gRPC and Unix Domain Socket RPCs (`unix://...`) for chemical anchors, circuit cutting, and hardware dispatch. |
+| [`wiki/`](wiki/) | **Obsidian Knowledge Base** | Living blueprint (151 pages, 0 open questions) cataloging entities, concepts, source audits, and settled invariants. |
 | [`raw/`](raw/) | **Immutable Sources** | Read-only ingested source documents, architecture papers, and implementation plans. |
-| [`scripts/`](scripts/) | **Tooling & CI** | Automated structural wiki linting (`scripts/wiki-lint.py`) and CI validation runners. |
+| [`scripts/`](scripts/) | **Tooling & CI** | Automated structural wiki linting (`scripts/wiki-lint.py`), DCO check, and secret scanners. |
 | [`assets/misc/`](assets/misc/) | **Media & Presentations** | Platform overview infographic and executive presentation deck. |
-| [`AGENTS.md`](AGENTS.md) | **Maintainer Operating Rules** | Core engineering standards, production bar, and invariants for human and AI collaborators. |
+| [`AGENTS.md`](AGENTS.md) | **Maintainer Operating Rules** | Core engineering standards, 2026-10-12 production bar, and invariants for human and AI collaborators. |
 
 *\*Note on MCP Serving: The 6 MCP servers currently execute over stdio (`python -m kubona.mcp.servers.<name>`) and in-process test harnesses; standalone compose container serving is in progress.*
 
@@ -151,9 +153,22 @@ NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN=dev-token pnpm dev --port 3000
 ```
 *Access the sovereign console at `http://localhost:3000`.*
 
-### 3. Run the Verification Suite
+### 3. Run the Multi-Tier Verification Suite
 ```bash
-platform/.venv/bin/python -m pytest platform/tests/ -q   # 961 passed, 3 skipped
+# Go Core orchestrator (29 packages, 93 HTTP routes)
+cd platform/core && go test ./...
+
+# Rust native QIR compiler & IFC lattice
+cargo test --manifest-path platform/crates/qir-core/Cargo.toml
+
+# Python runtime, autodiff, ansatz transfer, and co-design
+cd platform && pytest tests/test_differentiable_quantum_stack.py tests/test_ansatz_transfer.py tests/test_divstep_dual_model.py
+
+# Next.js sovereign console Vitest suite (56 files / 272 tests)
+cd platform/console && npm test -- --run
+
+# Strict blueprint structural linting (151 pages, 0 open questions)
+python3 scripts/wiki-lint.py --strict
 ```
 
 For extended console configuration, see [`platform/console/README.md`](platform/console/README.md).
@@ -162,9 +177,18 @@ For extended console configuration, see [`platform/console/README.md`](platform/
 
 ## 🧭 Implementation Roadmap
 
-- **Phases 0–5 (Quantum Core Foundations)**: Federated MCP servers, QIR/MLIR pipelines, cost governance, immutable provenance ledger, autoresearch engine (§11), and meta-level self-evolution loop (§13).
+- **Phases 0–5 (Quantum Core Foundations)**: Federated MCP servers, QIR native lowering, cost governance, immutable provenance ledger, autoresearch engine (§11), and meta-level self-evolution loop (§13).
 - **Phase 6 (Science Discovery & Synthesis)**: Multi-user lab identities, workflow and agent authoring studio, interactive experiment notebook, scholarly data integrations, and localized model training.
-- **Observatory Representation Layer (P0–P6 implementation complete; live-proof ledger in `wiki/concepts/observatory-plan-gap-audit-2026-10-23.md`)**: Tier-1 walkable lab, Vault pre-registration with surprise scoring, Attention Director, `world.*` agent-player tools, and the opt-in World Labs Atlas lens (snapshot posing, depth-conditioned chisel with a warp-route consumption proof, promptUsed receipts, spend-capped and edge-authed). Prove-it-live remainders: operator-browser E2E (R-01/R-05), webhook delivery on a public URL (R-04).
+- **Observatory Representation Layer (Complete)**: Tier-1 walkable lab, Vault pre-registration with surprise scoring, Attention Director, `world.*` agent-player tools, and the opt-in World Labs Atlas lens (snapshot posing, depth-conditioned chisel, promptUsed receipts, spend-capped and edge-authed).
+- **Settled Blueprint & Research Invariants (Closed 2026-10-26)**:
+  - **v1 Boundary (Q-01)**: Bound to 5 executable backends (`local-simulator`, `qiskit-aer-simulator`, `ibm-qiskit`, `quantinuum`, `dwave-annealing`) and 4 core modalities (`molecular_chemistry`, `combinatorial_optimization`, `circuit_codesign_and_decoding`, `spatial_generative_synthesis`).
+  - **Flight Recorder (Q-42)**: Unified cold-audit API resolving terminal verdicts, realized spend, and halt reasons in <200ms with Next.js `FlightRecorderCard`.
+  - **Single QIR Dialect (Q-43)**: Standardized on native Rust `qir-core` lowering directly to LLVM IR with OpenQASM 3.0 parsing.
+  - **Refuted-Genome Priors (Q-44)**: 4-tier failure taxonomy with global intrinsic blacklisting and hardware-scoped $T_2$/topology transfer filtering.
+  - **Dual-Model Packing (Q-46)**: `safe_288` (0.000% overflow guarantee) for production and `paper_256` tripwire accounting for research replication.
+  - **Single-Tape Autodiff (Q-45)**: Joint analytical mixed-state parameter-shift differentiation of gate angles $\vec{\theta}$ and channel noise $\phi$ on a single graph via PennyLane `default.mixed`.
+  - **3-Seam IFC Lattice (Q-47)**: Query filtering, sub-DAG export join, and cloud admission with fail-closed refusal of unmodelable legal/usage prose.
+  - **Workload Containment (Q-48)**: gVisor `runsc` sandbox runtime with dropped capabilities, process group `killpg` termination, and 0600 Unix Domain Socket attestation.
 
 See [`wiki/roadmap.md`](wiki/roadmap.md) for the phased implementation plan and [`wiki/overview.md`](wiki/overview.md) for the architectural synthesis.
 
