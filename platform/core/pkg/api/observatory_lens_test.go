@@ -709,3 +709,91 @@ func TestObservatoryLensPromptSanitizer(t *testing.T) {
 		}
 	}
 }
+
+// Q-39: Looking is free for cached views.
+// Proves that when a session already has a resolved depth asset or lens
+// in its ledger, re-opening with cached_view=true or referencing the cached
+// depth asset bills $0.00 (cost_usd=0, cached=true) and deducts zero session spend.
+func TestObservatoryCachedDepthFreeLens(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	atlasMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"operation_id": "op_test_cached_123", "status": "PENDING"}`))
+	}))
+	defer atlasMock.Close()
+
+	t.Setenv("WLT_API_KEY", "wl_live_mock_key")
+	t.Setenv("WLT_API_BASE_URL", atlasMock.URL)
+
+	sessID := createLensTestSession(t, srv, 20.0)
+
+	// 1. First fresh dispatch: charges $0.50
+	rec1 := postLens(t, srv, map[string]any{
+		"session_id": sessID, "target_system": "H2", "task_type": "atlasTextToImage",
+		"image_url": "https://example.com/h2.png", "prompt": "Crystalline H2 potential landscape",
+	}, "test-idem-key-1")
+	if rec1.Code != http.StatusOK {
+		t.Fatalf("first dispatch failed: %d (%s)", rec1.Code, rec1.Body.String())
+	}
+	var resp1 api.ObservatoryLensResponse
+	if err := json.NewDecoder(rec1.Body).Decode(&resp1); err != nil {
+		t.Fatalf("failed to decode resp1: %v", err)
+	}
+	if resp1.CostUSD != 0.50 || resp1.Cached {
+		t.Fatalf("expected $0.50 and cached=false on fresh dispatch, got cost=%f, cached=%v", resp1.CostUSD, resp1.Cached)
+	}
+	if spend := lensSessionSpend(t, srv, sessID); spend != 0.50 {
+		t.Fatalf("expected $0.50 spend recorded, got %f", spend)
+	}
+
+	// Simulate resolution in ledger
+	_ = srv.Ledger().AppendEvent(sessID, "annotation", map[string]any{
+		"session_id":   sessID,
+		"operation_id": resp1.OperationID,
+		"asset_id":     "asset_cached_depth_123",
+		"resolved":     true,
+		"task_type":    "images2PosedRGBD",
+	})
+
+	// 2. Cached view with explicit cached_view=true: bills $0.00, cached=true
+	rec2 := postLens(t, srv, map[string]any{
+		"session_id": sessID, "target_system": "H2", "task_type": "images2PosedRGBD",
+		"cached_view": true,
+	}, "test-idem-key-2")
+	if rec2.Code != http.StatusOK {
+		t.Fatalf("cached view failed: %d (%s)", rec2.Code, rec2.Body.String())
+	}
+	var resp2 api.ObservatoryLensResponse
+	if err := json.NewDecoder(rec2.Body).Decode(&resp2); err != nil {
+		t.Fatalf("failed to decode resp2: %v", err)
+	}
+	if resp2.CostUSD != 0.0 || !resp2.Cached {
+		t.Fatalf("expected $0.00 and cached=true on cached view, got cost=%f, cached=%v", resp2.CostUSD, resp2.Cached)
+	}
+	// Session spend remains unchanged at $0.50
+	if spend := lensSessionSpend(t, srv, sessID); spend != 0.50 {
+		t.Fatalf("expected spend to remain $0.50 after cached view, got %f", spend)
+	}
+
+	// 3. Cached view referencing DepthAssetID without fresh prompt: bills $0.00
+	rec3 := postLens(t, srv, map[string]any{
+		"session_id": sessID, "target_system": "H2", "task_type": "images2PosedRGBD",
+		"depth_asset_id": "asset_cached_depth_123",
+	}, "test-idem-key-3")
+	if rec3.Code != http.StatusOK {
+		t.Fatalf("depth asset view failed: %d (%s)", rec3.Code, rec3.Body.String())
+	}
+	var resp3 api.ObservatoryLensResponse
+	if err := json.NewDecoder(rec3.Body).Decode(&resp3); err != nil {
+		t.Fatalf("failed to decode resp3: %v", err)
+	}
+	if resp3.CostUSD != 0.0 || !resp3.Cached {
+		t.Fatalf("expected $0.00 and cached=true on depth_asset_id hit, got cost=%f, cached=%v", resp3.CostUSD, resp3.Cached)
+	}
+	if spend := lensSessionSpend(t, srv, sessID); spend != 0.50 {
+		t.Fatalf("expected spend to remain $0.50 after depth_asset_id hit, got %f", spend)
+	}
+}
