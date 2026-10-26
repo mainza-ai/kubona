@@ -194,3 +194,271 @@ def test_unwired_providers_refuse_cancel():
         prov = get_provider(name)
         with pytest.raises(PE):
             prov.cancel("hw-xyz")
+
+
+class _StubRuntimeMeas:
+    def __init__(self, counts):
+        self._counts = counts
+
+    def get_counts(self):
+        return self._counts
+
+
+class _StubRuntimePub:
+    def __init__(self, counts):
+        self.data = type("Data", (), {"meas": _StubRuntimeMeas(counts)})()
+
+
+class _StubRuntimeJob:
+    def __init__(self, job_id="ibm-hw-42", status="RUNNING", counts=None, err=None):
+        self._job_id = job_id
+        self.status_val = status
+        self._counts = counts or {"00": 50, "11": 50}
+        self._err = err
+        self.result_called = 0
+
+    def job_id(self):
+        return self._job_id
+
+    def status(self):
+        return self.status_val
+
+    def result(self):
+        self.result_called += 1
+        return [_StubRuntimePub(self._counts)]
+
+    def error_message(self):
+        return self._err
+
+
+class _StubRuntimeService:
+    def __init__(self, job: _StubRuntimeJob):
+        self._job = job
+
+    def backend(self, name):
+        return name
+
+    def sampler(self, backend):
+        job = self._job
+        return type("Sampler", (), {"run": lambda self, pubs, shots=0: job})()
+
+    def job(self, job_id):
+        assert job_id == self._job._job_id
+        return self._job
+
+
+def test_ibm_nonblocking_submit_and_status_poll(monkeypatch):
+    pytest.importorskip("qiskit")
+    from kubona.circuits import parse_qasm2
+    from kubona.providers.qiskit_provider import QiskitProvider
+
+    monkeypatch.setenv("KUBONA_IBM_QISKIT_TOKEN", "test-ibm-token")
+    monkeypatch.delenv("BAO_ADDR", raising=False)
+    cap = load_provider("ibm-qiskit")
+    prov = QiskitProvider(cap, backend_name="ibm_brisbane")
+    bell = parse_qasm2("OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];")
+
+    stub_job = _StubRuntimeJob(job_id="ibm-hw-99", status="QUEUED", counts={"00": 64, "11": 64})
+    svc = _StubRuntimeService(stub_job)
+    pinned: list[str] = []
+
+    out = prov.submit(
+        bell,
+        shots=128,
+        on_hardware_job=pinned.append,
+        wait_for_result=False,
+        service_factory=lambda tok: svc,
+    )
+    assert out["deferred"] is True
+    assert out["status"] == "running"
+    assert out["hardware_job_id"] == "ibm-hw-99"
+    assert pinned == ["ibm-hw-99"]
+    assert stub_job.result_called == 0, "wait_for_result=False must not block on job.result()"
+
+    # First poll: still queued -> running
+    p1 = prov.poll_hardware_job("ibm-hw-99", service_factory=lambda tok: svc)
+    assert p1["status"] == "running" and p1["vendor_status"] == "queued"
+    assert stub_job.result_called == 0
+
+    # Vendor transitions to DONE -> poll returns completed + counts
+    stub_job.status_val = "DONE"
+    p2 = prov.poll_hardware_job("ibm-hw-99", service_factory=lambda tok: svc)
+    assert p2["status"] == "completed"
+    assert p2["result"]["counts"] == {"00": 64, "11": 64}
+    assert stub_job.result_called == 1
+
+    # Vendor ERROR -> poll returns failed + message
+    stub_job.status_val = "ERROR"
+    stub_job._err = "calibration drift exceeded"
+    p3 = prov.poll_hardware_job("ibm-hw-99", service_factory=lambda tok: svc)
+    assert p3["status"] == "failed"
+    assert "calibration drift" in p3["error"]
+
+
+class _StubTketResult:
+    def __init__(self, counts):
+        self._counts = counts
+
+    def get_counts(self):
+        return self._counts
+
+
+class _StubTketBackend:
+    def __init__(self, handle="h1-job-7", status="QUEUED", counts=None, msg=""):
+        self._handle = handle
+        self.status_val = status
+        self._counts = counts or {(0, 0): 32, (1, 1): 32}
+        self._msg = msg
+        self.get_result_called = 0
+
+    def compile_circuit(self, c, optimisation_level=0):
+        return c
+
+    def process_circuit(self, c, n_shots=0):
+        return self._handle
+
+    def circuit_status(self, handle):
+        return type("Status", (), {"status": self.status_val, "message": self._msg})()
+
+    def get_result(self, handle):
+        self.get_result_called += 1
+        return _StubTketResult(self._counts)
+
+
+def test_quantinuum_nonblocking_submit_and_status_poll(monkeypatch):
+    from kubona.circuits import parse_qasm2
+    from kubona.providers.tket_provider import TketProvider
+
+    monkeypatch.setenv("KUBONA_QUANTINUUM_API_KEY", "test-q-key")
+    monkeypatch.delenv("BAO_ADDR", raising=False)
+    cap = load_provider("quantinuum")
+    prov = TketProvider(cap)
+    prov._ready, prov._err = True, None
+    monkeypatch.setattr(prov, "_to_tket", lambda c: c)
+
+    backend = _StubTketBackend(handle="h1-job-77", status="SUBMITTED")
+    pinned: list[str] = []
+    bell = parse_qasm2("OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];")
+
+    out = prov.submit(
+        bell,
+        shots=64,
+        on_hardware_job=pinned.append,
+        wait_for_result=False,
+        backend_factory=lambda tok, dev: backend,
+    )
+    assert out["deferred"] is True
+    assert out["status"] == "running"
+    assert out["hardware_job_id"] == "h1-job-77"
+    assert pinned == ["h1-job-77"]
+    assert backend.get_result_called == 0
+
+    # Poll while SUBMITTED -> running
+    p1 = prov.poll_hardware_job("h1-job-77", backend_factory=lambda tok, dev: backend)
+    assert p1["status"] == "running" and p1["vendor_status"] == "submitted"
+
+    # Poll when COMPLETED -> tuple bitstring keys normalized to strings
+    backend.status_val = "COMPLETED"
+    p2 = prov.poll_hardware_job("h1-job-77", backend_factory=lambda tok, dev: backend)
+    assert p2["status"] == "completed"
+    assert p2["result"]["counts"] == {"00": 32, "11": 32}
+    assert backend.get_result_called == 1
+
+
+def test_execution_deferred_hardware_job_releases_worker_and_polls_to_completion(monkeypatch):
+    import time
+    from kubona.mcp.servers import cost as cost_server
+    from kubona.mcp.servers import execution as exec_server
+
+    bell = "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];"
+    sess = cost_server.create_session("deferred-hw", "researcher", budget_ceiling_usd=150.0)
+
+    vendor_state = {"status": "running"}
+
+    class FakeDeferredIBMProvider:
+        def submit(self, circuit, shots, seed=None, on_hardware_job=None, wait_for_result=True):
+            assert wait_for_result is False, "hardware submit_job must request wait_for_result=False"
+            if on_hardware_job:
+                on_hardware_job("ibm-deferred-1")
+            return {
+                "status": "running",
+                "deferred": True,
+                "hardware_job_id": "ibm-deferred-1",
+                "job_id": "ibm-deferred-1",
+            }
+
+        def poll_hardware_job(self, hardware_job_id):
+            assert hardware_job_id == "ibm-deferred-1"
+            if vendor_state["status"] == "completed":
+                return {
+                    "status": "completed",
+                    "hardware_job_id": hardware_job_id,
+                    "result": {"counts": {"00": 50, "11": 50}, "hardware": True},
+                }
+            return {"status": "running", "hardware_job_id": hardware_job_id}
+
+    monkeypatch.setattr(exec_server, "get_provider", lambda name: FakeDeferredIBMProvider())
+
+    sub = exec_server.submit_job(
+        bell,
+        provider="ibm-qiskit",
+        shots=100,
+        session_id=sess["session_id"],
+        caller_jurisdictions=["US"],
+    )
+    assert sub["ok"] is True
+    job_id = sub["job_id"]
+
+    # Wait briefly for the background worker to finish submitting and release its slot
+    for _ in range(40):
+        st = exec_server.get_job_status(job_id)
+        if st.get("hardware_job_id") == "ibm-deferred-1":
+            break
+        time.sleep(0.02)
+    assert st["status"] == "running"
+    assert st["hardware_job_id"] == "ibm-deferred-1"
+
+    # Flip vendor state to completed -> get_job_status polls vendor and transitions store
+    vendor_state["status"] = "completed"
+    st2 = exec_server.get_job_status(job_id)
+    assert st2["status"] == "completed"
+    res = exec_server.get_result(job_id)
+    assert res["ok"] is True
+    assert res["result"]["counts"] == {"00": 50, "11": 50}
+
+
+def test_submit_qubo_job_and_dwave_annealing_dispatch():
+    from kubona.mcp.servers import execution as exec_server
+
+    # 1. Passing OpenQASM to dwave-annealing refuses with actionable QUBO guidance
+    bad = exec_server.submit_job(
+        "OPENQASM 2.0;\nqreg q[2];\nh q[0];",
+        provider="dwave-annealing",
+        shots=32,
+    )
+    assert bad["ok"] is False
+    assert "QUBO" in bad["error"]
+
+    # 2. Dry-run estimate via submit_job with JSON 2-D QUBO matrix succeeds
+    est = exec_server.submit_job(
+        "[[1.0, -1.0], [-1.0, 1.0]]",
+        provider="dwave-annealing",
+        shots=32,
+        estimate_only=True,
+    )
+    assert est["ok"] is True and est["estimate_only"] is True
+    assert est["estimate"]["estimated_usd"] == 0.0
+    assert est["estimate"]["n_qubits"] == 2
+
+    # 3. Full QUBO dispatch via submit_job resolves to optimal solution
+    dispatched = exec_server.submit_job(
+        "[[1.0, -1.0], [-1.0, 1.0]]",
+        provider="dwave-annealing",
+        shots=32,
+    )
+    assert dispatched["ok"] is True
+    assert dispatched["status"] == "completed"
+    res = exec_server.get_result(dispatched["job_id"])
+    assert res["ok"] is True
+    assert res["result"]["energy"] == pytest.approx(0.0)
+    assert res["result"]["solution"][0] == res["result"]["solution"][1]

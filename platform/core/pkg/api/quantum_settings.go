@@ -53,6 +53,8 @@ type quantumBackendRow struct {
 	CredentialState string `json:"credential_state"`
 	Telemetry       string `json:"telemetry"`
 	Executable      bool   `json:"executable_now"`
+	DispatchReady   bool   `json:"dispatch_ready"`
+	InputFormat     string `json:"input_format"`
 }
 
 // quantumBackendTable is the single provider table for the quantum
@@ -198,24 +200,40 @@ func quantumBackends() []quantumBackendRow {
 	out := make([]quantumBackendRow, 0, len(quantumBackendTable))
 	for _, row := range quantumBackendTable {
 		r := row
+		r.InputFormat = "qasm"
 		switch r.Provider {
 		case "local-simulator", "qiskit-aer-simulator":
 			r.CredentialState = "ready"
 			r.Executable = true
-		case "ibm-qiskit", "rigetti", "quantinuum":
+			r.DispatchReady = true
+		case "ibm-qiskit", "quantinuum":
 			if strings.TrimSpace(os.Getenv(r.CredentialEnv)) != "" {
 				r.CredentialState = "ready"
 				r.Executable = true
+				r.DispatchReady = true
 			} else {
 				r.CredentialState = "credentialless"
 			}
+		case "rigetti":
+			// Rigetti QPU submission (_submit_via_qcs) is not wired to QCS yet;
+			// even when KUBONA_RIGETTI_QCS_TOKEN is present in the environment,
+			// executable_now / dispatch_ready remain false (honest gating).
+			if strings.TrimSpace(os.Getenv(r.CredentialEnv)) != "" {
+				r.CredentialState = "ready"
+			} else {
+				r.CredentialState = "credentialless"
+			}
+			r.Executable = false
+			r.DispatchReady = false
 		default:
 			// dwave-annealing solves locally (executable without a key
-			// for local exact/SA; Leap cloud unwired); unwired and
-			// unintegrated providers never execute.
+			// for local exact/SA via QUBO matrix; Leap cloud requires rates/token);
+			// unwired and unintegrated providers never execute.
 			if r.Provider == "dwave-annealing" {
 				r.CredentialState = "ready"
 				r.Executable = true
+				r.DispatchReady = true
+				r.InputFormat = "qubo"
 			} else {
 				r.CredentialState = "unavailable"
 			}

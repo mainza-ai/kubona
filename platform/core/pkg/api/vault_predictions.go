@@ -123,8 +123,12 @@ func (s *Server) handlePredictionSeal(w http.ResponseWriter, r *http.Request) {
 		WriteAPIError(w, "bad_request", "session_id is required", nil)
 		return
 	}
-	if sess, err := s.sessionMgr.GetSession(req.SessionID); err != nil || sess == nil {
+	sess, err := s.sessionMgr.GetSession(req.SessionID)
+	if err != nil || sess == nil {
 		WriteAPIError(w, "ghost_session", fmt.Sprintf("session %q not found", req.SessionID), nil)
+		return
+	}
+	if !s.authorizeSessionRead(w, r, sess) {
 		return
 	}
 	if req.TargetSystem == "" || req.Method == "" || req.Quantity == "" || req.Author == "" {
@@ -211,8 +215,12 @@ func (s *Server) handlePredictionEvaluate(w http.ResponseWriter, r *http.Request
 		WriteAPIError(w, "bad_request", "measured_value must be finite", nil)
 		return
 	}
-	if sess, err := s.sessionMgr.GetSession(req.SessionID); err != nil || sess == nil {
+	sess, err := s.sessionMgr.GetSession(req.SessionID)
+	if err != nil || sess == nil {
 		WriteAPIError(w, "ghost_session", fmt.Sprintf("session %q not found", req.SessionID), nil)
+		return
+	}
+	if !s.authorizeSessionRead(w, r, sess) {
 		return
 	}
 
@@ -269,8 +277,12 @@ func (s *Server) handlePredictionLatest(w http.ResponseWriter, r *http.Request) 
 		WriteAPIError(w, "bad_request", "session_id query parameter is required", nil)
 		return
 	}
-	if sess, err := s.sessionMgr.GetSession(sessionID); err != nil || sess == nil {
+	sess, err := s.sessionMgr.GetSession(sessionID)
+	if err != nil || sess == nil {
 		WriteAPIError(w, "ghost_session", fmt.Sprintf("session %q not found", sessionID), nil)
+		return
+	}
+	if !s.authorizeSessionRead(w, r, sess) {
 		return
 	}
 	events, err := s.ledger.GetRecentEvents(sessionID, 500)
@@ -334,8 +346,12 @@ func (s *Server) handlePredictionAssert(w http.ResponseWriter, r *http.Request) 
 		WriteAPIError(w, "bad_request", "session_id and prediction_hash are required", nil)
 		return
 	}
-	if sess, err := s.sessionMgr.GetSession(req.SessionID); err != nil || sess == nil {
+	sess, err := s.sessionMgr.GetSession(req.SessionID)
+	if err != nil || sess == nil {
 		WriteAPIError(w, "ghost_session", fmt.Sprintf("session %q not found", req.SessionID), nil)
+		return
+	}
+	if !s.authorizeSessionRead(w, r, sess) {
 		return
 	}
 	if math.IsNaN(req.Rho) || req.Rho <= 0 || req.Rho > 1 {
@@ -425,8 +441,12 @@ func (s *Server) handlePredictionCalibration(w http.ResponseWriter, r *http.Requ
 		WriteAPIError(w, "bad_request", "session_id query parameter is required", nil)
 		return
 	}
-	if sess, err := s.sessionMgr.GetSession(sessionID); err != nil || sess == nil {
+	sess, err := s.sessionMgr.GetSession(sessionID)
+	if err != nil || sess == nil {
 		WriteAPIError(w, "ghost_session", fmt.Sprintf("session %q not found", sessionID), nil)
+		return
+	}
+	if !s.authorizeSessionRead(w, r, sess) {
 		return
 	}
 	events, err := s.ledger.GetRecentEvents(sessionID, 500)
@@ -520,8 +540,12 @@ func (s *Server) handlePredictionHistory(w http.ResponseWriter, r *http.Request)
 		WriteAPIError(w, "bad_request", "session_id query parameter is required", nil)
 		return
 	}
-	if sess, err := s.sessionMgr.GetSession(sessionID); err != nil || sess == nil {
+	sess, err := s.sessionMgr.GetSession(sessionID)
+	if err != nil || sess == nil {
 		WriteAPIError(w, "ghost_session", fmt.Sprintf("session %q not found", sessionID), nil)
+		return
+	}
+	if !s.authorizeSessionRead(w, r, sess) {
 		return
 	}
 	limit := 50

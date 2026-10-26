@@ -139,3 +139,61 @@ def test_canary_proxy_runs_local_providers(isolated_rail):
     import json
     results = json.loads(resp.results_json)
     assert isinstance(results, list) and len(results) >= 1
+
+
+def test_submit_syncs_external_session_and_sets_replay_flag(isolated_rail):
+    sessions, _ = isolated_rail
+    svc = bridge_server.QuantumBridgeServicer()
+    kw = dict(
+        qasm=BELL_QASM,
+        provider="local-simulator",
+        shots=100,
+        session_id="go-sqlite-sess-1",
+        tenant_id="lab-alpha",
+        dry_run=False,
+        mandate_ref_json="",
+        caller_jurisdictions=["US", "EU"],
+        caller_export_class="allied",
+        require_review=False,
+        session_verified=True,
+        session_budget_ceiling_usd=42.5,
+        session_spent_usd=12.0,
+    )
+    first = svc.QuantumSubmit(_req(idempotency_key="sync-idem-1", **kw), None)
+    assert first.ok is True, first.error_message
+    assert first.idempotent_replay is False
+    mirrored = sessions.get("go-sqlite-sess-1")
+    assert mirrored is not None
+    assert mirrored.budget_ceiling_usd == 42.5
+    assert mirrored.meta.get("tenant_id") == "lab-alpha"
+
+    ex._runner.wait(first.job_id, timeout_s=30.0)
+    second = svc.QuantumSubmit(_req(idempotency_key="sync-idem-1", **kw), None)
+    assert second.ok is True
+    assert second.job_id == first.job_id
+    assert second.idempotent_replay is True
+
+    st = svc.QuantumJobStatus(_req(job_id=first.job_id), None)
+    assert st.ok is True
+    assert st.session_id == "go-sqlite-sess-1"
+
+
+def test_quantinuum_provider_maps_to_catalog_fidelity_device():
+    from kubona.fidelity.accounting import DEVICE_CATALOG, FidelityAccountingEngine
+    gate = FidelityAccountingEngine()
+    for prov in ("quantinuum", "quantinuum-tket"):
+        dev = ex._FIDELITY_DEVICE_FOR_PROVIDER.get(prov)
+        assert dev == "quantinuum-h1"
+        assert dev in DEVICE_CATALOG
+        verdict = gate.evaluate_admission(
+            device_name=dev,
+            n_qubits=2,
+            n_single_qubit_gates=1,
+            n_two_qubit_gates=1,
+            fidelity_floor=0.5,
+        )
+        assert verdict.admitted is True
+        assert verdict.predicted_fidelity < 1.0  # real trapped-ion error model, not ideal 1.0 fallback
+
+
+

@@ -358,4 +358,46 @@ func TestMutationsBoundToTenant(t *testing.T) {
 	if code, _ := post("/api/jobs", map[string]any{"session_id": sessB, "qasm": qasm, "backend": "local_simulator", "shots": 100}, "", "test-token"); code != http.StatusCreated {
 		t.Errorf("bearer cross-lab jobs dispatch must 201, got %d", code)
 	}
+
+	// F-NEW-04: Observatory, Vault Predictions, Provenance, Quantum Jobs,
+	// Jobs List/Cancel, Events Stream, and Vault Leases must all refuse
+	// cross-lab cookie access to sessB with 403 Forbidden.
+	crossLabPosts := []struct {
+		name string
+		path string
+		body map[string]any
+	}{
+		{"observatory_lens", "/api/observatory/lens", map[string]any{"session_id": sessB, "prompt": "lab scene"}},
+		{"observatory_assets", "/api/observatory/assets", map[string]any{"session_id": sessB, "data_base64": "data:image/png;base64,AAAA"}},
+		{"observatory_resolve", "/api/observatory/lens/resolve", map[string]any{"session_id": sessB, "operation_id": "op-1"}},
+		{"prediction_seal", "/api/vault/predictions/seal", map[string]any{"session_id": sessB, "target_system": "H2", "method": "VQE", "quantity": "energy_ha", "expected_mean": -1.137, "expected_std": 0.01, "author": "alice"}},
+		{"prediction_evaluate", "/api/vault/predictions/evaluate", map[string]any{"session_id": sessB, "prediction_hash": "abc", "measured_value": -1.13}},
+		{"prediction_assert", "/api/vault/predictions/assert", map[string]any{"session_id": sessB, "prediction_hash": "abc", "rho": 0.8, "evidence_refs": []string{"ev-1"}}},
+		{"ledger_append", "/api/ledger/append", map[string]any{"session_id": sessB, "event_type": "annotation", "payload": map[string]any{"note": "spoof"}}},
+		{"supervisor_abort", "/api/supervisor/abort", map[string]any{"session_id": sessB, "reason": "spoof abort"}},
+		{"quantum_jobs", "/api/quantum/jobs", map[string]any{"session_id": sessB, "qasm": qasm, "provider": "local-simulator", "shots": 100, "idempotency_key": "cross-q-1"}},
+		{"vault_leases", "/api/vault/leases", map[string]any{"session_id": sessB, "scope": "provider:session_token", "ttl_seconds": 60}},
+	}
+	for _, tc := range crossLabPosts {
+		if code, body := post(tc.path, tc.body, cookieA, ""); code != http.StatusForbidden {
+			t.Errorf("%s: cross-lab POST must 403, got %d: %s", tc.name, code, body)
+		}
+	}
+
+	crossLabGets := []struct {
+		name string
+		path string
+	}{
+		{"observatory_history", "/api/observatory/lens/history?session_id=" + sessB},
+		{"prediction_latest", "/api/vault/predictions/latest?session_id=" + sessB},
+		{"prediction_calibration", "/api/vault/predictions/calibration?session_id=" + sessB},
+		{"prediction_history", "/api/vault/predictions/history?session_id=" + sessB},
+		{"jobs_list", "/api/jobs?session_id=" + sessB},
+		{"events_stream", "/api/events/stream?session_id=" + sessB},
+	}
+	for _, tc := range crossLabGets {
+		if code, body := drillGet(t, srv, tc.path, cookieA, ""); code != http.StatusForbidden {
+			t.Errorf("%s: cross-lab GET must 403, got %d: %s", tc.name, code, body)
+		}
+	}
 }

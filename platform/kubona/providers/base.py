@@ -26,12 +26,28 @@ class Provider(ABC):
 
     @abstractmethod
     def submit(self, circuit: Circuit, shots: int, seed: int | None = None,
-               on_hardware_job=None) -> dict[str, Any]:
+               on_hardware_job=None, wait_for_result: bool = True) -> dict[str, Any]:
         """Run `circuit` and return results: {counts, ...}. Implementations must be
         deterministic under a given seed (reproducibility via the ledger).
         on_hardware_job, when given, is called with the vendor job id as
         soon as the hardware accepts the job (before results arrive) so the
-        runner can record it for later recall. Simulators never call it."""
+        runner can record it for later recall. Simulators never call it.
+        When `wait_for_result=False` on hardware modalities, returns a
+        `{"status": "running", "deferred": True, "hardware_job_id": ...}`
+        envelope immediately after submission without blocking on the cloud
+        queue; status is then polled via `poll_hardware_job`."""
+
+    def poll_hardware_job(self, hardware_job_id: str) -> dict[str, Any]:
+        """Poll vendor status for a deferred hardware job (`wait_for_result=False`).
+
+        Returns a dict with `status` in ("running", "completed", "failed", "cancelled")
+        and `result` (when completed) or `error` (when failed). Base implementation
+        refuses: only hardware providers with an async vendor job API override this.
+        """
+        _ = hardware_job_id
+        raise ProviderError(
+            f"provider {self.capability.provider!r} does not support vendor status polling"
+        )
 
     def cancel(self, hardware_job_id: str) -> dict[str, Any]:
         """Attempt vendor-side recall of a submitted hardware job. The base

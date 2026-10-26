@@ -2,16 +2,57 @@ package api_test
 
 import (
 	"bytes"
+	"context"
+	"crypto/ed25519"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"testing"
+
+	"github.com/mainza-ai/kubona/core/pkg/api"
+	"github.com/mainza-ai/kubona/core/pkg/jobs"
+	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/session"
+	"github.com/mainza-ai/kubona/core/pkg/supervisor"
+	"github.com/mainza-ai/kubona/core/pkg/watchdog"
+	pb "github.com/mainza-ai/kubona/core/proto"
+	"google.golang.org/grpc"
 )
 
 // Human dispatch proxy (R-34): Go owns auth + autonomy + validation +
-// routing; execution semantics live in the Python rail (hermetic bridge
-// tests). These pins stop at the bridge boundary — full-path verification
-// needs live keys (see the R-34 runbook).
+// routing + single-ledger spend reservation; execution semantics live in
+// the Python rail (hermetic bridge tests).
+
+type fakeQuantumBridge struct {
+	pb.QuantumBridgeServiceClient
+	lastSubmit *pb.QuantumSubmitRequest
+	submitResp *pb.QuantumSubmitResponse
+	statusResp *pb.QuantumJobStatusResponse
+	cancelResp *pb.QuantumCancelResponse
+	cancels    int
+}
+
+func (f *fakeQuantumBridge) QuantumSubmit(_ context.Context, in *pb.QuantumSubmitRequest, _ ...grpc.CallOption) (*pb.QuantumSubmitResponse, error) {
+	f.lastSubmit = in
+	return f.submitResp, nil
+}
+
+func (f *fakeQuantumBridge) QuantumJobStatus(_ context.Context, _ *pb.QuantumJobStatusRequest, _ ...grpc.CallOption) (*pb.QuantumJobStatusResponse, error) {
+	if f.statusResp != nil {
+		return f.statusResp, nil
+	}
+	return &pb.QuantumJobStatusResponse{Ok: true, JobId: "qjob-1", Status: "completed"}, nil
+}
+
+func (f *fakeQuantumBridge) QuantumCancel(_ context.Context, _ *pb.QuantumCancelRequest, _ ...grpc.CallOption) (*pb.QuantumCancelResponse, error) {
+	f.cancels++
+	if f.cancelResp != nil {
+		return f.cancelResp, nil
+	}
+	return &pb.QuantumCancelResponse{Ok: true, JobId: "qjob-1"}, nil
+}
 
 func postQuantumJob(t *testing.T, h http.Handler, bearer bool, body any) (int, map[string]any) {
 	t.Helper()
@@ -75,3 +116,175 @@ func TestQuantumJobActionsNeedID(t *testing.T) {
 		t.Fatalf("job actions without an id must 400, got %d", w.Code)
 	}
 }
+
+func TestQuantumJobsAirGapAndSessionlessAutonomy(t *testing.T) {
+	t.Setenv("KUBONA_ALLOW_EPHEMERAL_SIGNER", "1")
+	t.Setenv("KUBONA_API_TOKEN", "test-token")
+	l, err := ledger.OpenLedger(filepath.Join(t.TempDir(), "qjobs_airgap.db"))
+	if err != nil {
+		t.Fatalf("open ledger: %v", err)
+	}
+	defer l.Close()
+	sm := session.NewManager(l)
+	jr := jobs.NewRunner(l, nil, 1)
+	sup := supervisor.NewSupervisor(l)
+	wd := watchdog.NewTaskWatchdog(l, sup)
+	srv := api.NewServer(l, sm, jr, sup, wd)
+	h := srv.Handler()
+
+	// Default server boots with Sovereign Air-Gap ON: external cloud QPU must 403 before touching bridge.
+	code, out := postQuantumJob(t, h, true, map[string]any{
+		"qasm":            "OPENQASM 2.0;\nqreg q[1];\nh q[0];",
+		"provider":        "ionq",
+		"shots":           100,
+		"idempotency_key": "airgap-1",
+	})
+	if code != http.StatusForbidden || out["code"] != "forbidden" {
+		t.Fatalf("air-gapped external QPU must 403 forbidden, got %d %v", code, out)
+	}
+
+	// Opt out of air-gap, then suspend default tenant: omitting session_id ("") must NOT bypass tenant autonomy (F-NEW-05).
+	optOutAirGap(t, srv)
+	if _, err := l.DB().Exec(`UPDATE tenants SET status = 'suspended' WHERE id = 'default'`); err != nil {
+		t.Fatalf("suspend default: %v", err)
+	}
+	code, out = postQuantumJob(t, h, true, map[string]any{
+		"qasm":            "OPENQASM 2.0;\nqreg q[1];\nh q[0];",
+		"provider":        "local-simulator",
+		"shots":           100,
+		"idempotency_key": "autonomy-bypass-1",
+	})
+	if code != http.StatusForbidden || out["code"] != "forbidden" {
+		t.Fatalf("suspended tenant with empty session_id must 403 forbidden, got %d %v", code, out)
+	}
+}
+
+func TestQuantumJobsUnifiedSpendBookAndRefundIntegration(t *testing.T) {
+	t.Setenv("KUBONA_ALLOW_EPHEMERAL_SIGNER", "1")
+	t.Setenv("KUBONA_API_TOKEN", "test-token")
+	l, err := ledger.OpenLedger(filepath.Join(t.TempDir(), "qjobs_spend.db"))
+	if err != nil {
+		t.Fatalf("open ledger: %v", err)
+	}
+	defer l.Close()
+
+	fb := &fakeQuantumBridge{}
+	sm := session.NewManager(l)
+	jr := jobs.NewRunner(l, fb, 1)
+	sup := supervisor.NewSupervisor(l)
+	wd := watchdog.NewTaskWatchdog(l, sup)
+	srv := api.NewServer(l, sm, jr, sup, wd)
+	optOutAirGap(t, srv)
+	h := srv.Handler()
+
+	// Create tenant + admin key + session with $50 ceiling.
+	if code, _, _ := idemPost(t, h, "/api/tenants", map[string]any{"id": "lab-qpu", "display_name": "QPU Lab"}); code != http.StatusCreated {
+		t.Fatalf("create tenant: %d", code)
+	}
+	adminPub, adminPriv, _ := ed25519.GenerateKey(nil)
+	adminHex := hex.EncodeToString(adminPub)
+	if _, err := srv.TenantManager().SetAdminKey("lab-qpu", adminHex, nil); err != nil {
+		t.Fatalf("set admin key: %v", err)
+	}
+	sess, err := sm.CreateSession("qpu-exp", 50.0, "lab-qpu")
+	if err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+
+	fb.submitResp = &pb.QuantumSubmitResponse{
+		Ok:               true,
+		JobId:            "qjob-live-1",
+		Queued:           true,
+		SessionId:        sess.ID,
+		EstimateJson:     `{"estimated_usd":12.5,"provider":"ionq"}`,
+		FidelityJson:     `{"admitted":true}`,
+		IdempotentReplay: false,
+	}
+
+	// 1. First submit: forwards session ceiling + default allied jurisdictions, and reserves $12.50 in Go SQLite.
+	code, out := postQuantumJob(t, h, true, map[string]any{
+		"session_id":      sess.ID,
+		"qasm":            "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];",
+		"provider":        "ionq",
+		"shots":           500,
+		"idempotency_key": "qpu-idem-1",
+	})
+	if code != http.StatusOK || out["job_id"] != "qjob-live-1" {
+		t.Fatalf("submit failed: %d %v", code, out)
+	}
+	if fb.lastSubmit == nil || !fb.lastSubmit.SessionVerified || fb.lastSubmit.SessionBudgetCeilingUsd != 50.0 {
+		t.Fatalf("expected verified session ceiling 50.0 forwarded to bridge, got %+v", fb.lastSubmit)
+	}
+	if len(fb.lastSubmit.CallerJurisdictions) == 0 || fb.lastSubmit.CallerExportClass != "allied" {
+		t.Fatalf("expected default allied jurisdictions forwarded to bridge, got %+v", fb.lastSubmit)
+	}
+
+	gotSess, _ := sm.GetSession(sess.ID)
+	if gotSess.CurrentSpendUSD != 12.5 {
+		t.Fatalf("expected session spend 12.50 in SQLite, got %v", gotSess.CurrentSpendUSD)
+	}
+	gotTen, _ := srv.TenantManager().GetTenant("lab-qpu")
+	if gotTen.SpentUSD != 12.5 {
+		t.Fatalf("expected tenant spend 12.50 in SQLite, got %v", gotTen.SpentUSD)
+	}
+
+	// 2. Idempotent replay: must NOT double-reserve spend in SQLite.
+	fb.submitResp.IdempotentReplay = true
+	code, _ = postQuantumJob(t, h, true, map[string]any{
+		"session_id":      sess.ID,
+		"qasm":            "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];",
+		"provider":        "ionq",
+		"shots":           500,
+		"idempotency_key": "qpu-idem-1",
+	})
+	if code != http.StatusOK {
+		t.Fatalf("replay failed: %d", code)
+	}
+	gotSess, _ = sm.GetSession(sess.ID)
+	if gotSess.CurrentSpendUSD != 12.5 {
+		t.Fatalf("idempotent replay must not double-reserve session spend, got %v", gotSess.CurrentSpendUSD)
+	}
+
+	// 3. Single-book job table integration (Phase 1 / F-NEW-05):
+	//    - DeleteBlockers must see the live quantum job and its spend reservation.
+	//    - GET /api/jobs?session_id= must include the job.
+	blockers, berr := sm.DeleteBlockers(sess.ID)
+	if berr != nil || len(blockers) == 0 {
+		t.Fatalf("expected DeleteBlockers to block session deletion while quantum job is queued, got %v (err=%v)", blockers, berr)
+	}
+	storedJob, jerr := jr.GetJob("qjob-live-1")
+	if jerr != nil || storedJob == nil || storedJob.ReservedAmount != 12.5 {
+		t.Fatalf("expected qjob-live-1 recorded in SQLite jobs with ReservedAmount=12.5, got %+v (err=%v)", storedJob, jerr)
+	}
+
+	// 4. POST /api/sessions/refund against the HTTP-dispatched quantum job session succeeds and records session_spend_refunded!
+	refBody := map[string]any{
+		"session_id": sess.ID, "amount_usd": 5.0, "reason": "partial calibration credit",
+		"action": refundSessionAction(t, "lab-qpu", sess.ID, adminHex, adminPriv, 5.0, "partial calibration credit"),
+	}
+	refCode, refOut := postSessionRefund(t, h, true, refBody)
+	if refCode != http.StatusOK || refOut["current_spend_usd"] != 7.5 {
+		t.Fatalf("session refund after quantum dispatch must succeed and leave 7.5, got %d %v", refCode, refOut)
+	}
+
+	// 5. Status transition to completed settles the job row in SQLite jobs.
+	fb.statusResp = &pb.QuantumJobStatusResponse{
+		Ok:         true,
+		JobId:      "qjob-live-1",
+		Status:     "completed",
+		SessionId:  sess.ID,
+		ResultJson: `{"counts":{"00":250,"11":250}}`,
+	}
+	stReq := httptest.NewRequest(http.MethodGet, "/api/quantum/jobs/qjob-live-1", nil)
+	stReq.Header.Set("Authorization", "Bearer test-token")
+	stW := httptest.NewRecorder()
+	h.ServeHTTP(stW, stReq)
+	if stW.Code != http.StatusOK {
+		t.Fatalf("quantum job status failed: %d %s", stW.Code, stW.Body.String())
+	}
+	settledJob, _ := jr.GetJob("qjob-live-1")
+	if settledJob == nil || settledJob.Status != pb.JobStatus_JOB_STATUS_COMPLETED {
+		t.Fatalf("expected SQLite job row transitioned to JOB_STATUS_COMPLETED, got %+v", settledJob)
+	}
+}
+

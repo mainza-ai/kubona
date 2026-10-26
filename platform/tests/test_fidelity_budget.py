@@ -36,3 +36,28 @@ def test_deeper_circuit_shifts_budget_not_verdict_shape():
     assert deep["predicted_fidelity"] < shallow["predicted_fidelity"]
     assert set(e["name"] for e in deep["mechanisms"]) == {
         "decoherence", "single_qubit_gates", "two_qubit_gates", "readout"}
+
+
+def test_fidelity_contract_parity_between_python_and_json():
+    import json
+    from pathlib import Path
+    from kubona.fidelity.accounting import DEVICE_CATALOG, PROVIDER_DEVICE_MAP
+    from kubona.mcp.servers import execution as exec_server
+
+    contract_path = Path(__file__).resolve().parents[1] / "contracts" / "fidelity-devices.json"
+    raw = json.loads(contract_path.read_text(encoding="utf-8"))
+    assert PROVIDER_DEVICE_MAP == raw["provider_device_map"]
+    assert exec_server._FIDELITY_DEVICE_FOR_PROVIDER == raw["provider_device_map"]
+    for dev in raw["devices"]:
+        name = dev["name"]
+        prof = DEVICE_CATALOG[name]
+        assert prof.t1_us == dev["t1_us"]
+        assert prof.t2_us == dev["t2_us"]
+        assert prof.single_qubit_error == dev["single_qubit_error"]
+        assert prof.two_qubit_error == dev["two_qubit_error"]
+        assert prof.readout_error == dev["readout_error"]
+        assert prof.qubits == dev["qubits"]
+        assert prof.source == dev["source"]
+        for alias in dev.get("aliases", []):
+            assert alias in DEVICE_CATALOG
+

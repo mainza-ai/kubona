@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -313,6 +314,93 @@ func (r *Runner) submitJob(sessionID, jobType string, params any, declaredCost f
 	r.ledger.AppendEvent(sessionID, "job_queued", j)
 	r.jobQueue <- j
 	return j, nil
+}
+
+// RecordQuantumBridgeJob persists a job row in SQLite for a job dispatched
+// via the Python QuantumBridgeService (POST /api/quantum/jobs — Phase 1
+// single-book unification, F-NEW-05). The job is NOT placed on Go's internal
+// worker channel (the Python JobRunner executes it), so it never double-runs;
+// recording it in SQLite ensures DeleteBlockers, ListJobs, CancelSessionJobs,
+// and releaseReservation operate on one unified table.
+func (r *Runner) RecordQuantumBridgeJob(jobID, sessionID, provider, qasm string, shots int, tenantID string, reservedUSD float64, mandateRef string) error {
+	if jobID == "" || sessionID == "" {
+		return nil
+	}
+	paramsBytes, _ := json.Marshal(map[string]any{
+		"qasm":              qasm,
+		"requested_backend": provider,
+		"shots":             shots,
+		"max_cost_usd":      reservedUSD,
+		"mandate_ref":       mandateRef,
+		"origin":            "quantum_bridge_rpc",
+	})
+	now := time.Now().UTC()
+	j := &Job{
+		ID:             jobID,
+		SessionID:      sessionID,
+		Status:         pb.JobStatus_JOB_STATUS_QUEUED,
+		JobType:        "circuit_run",
+		ParamsJSON:     paramsBytes,
+		CreatedAt:      now,
+		ReservedTenant: tenantID,
+		ReservedAmount: reservedUSD,
+		MandateRef:     mandateRef,
+	}
+	query := `INSERT OR IGNORE INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount, compiler_used, fallback_estimate, mandate_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', 0, ?)`
+	if _, err := r.ledger.DB().Exec(query, j.ID, j.SessionID, j.Status.String(), j.JobType, string(j.ParamsJSON), j.CreatedAt, j.ReservedTenant, j.ReservedAmount, j.MandateRef); err != nil {
+		return fmt.Errorf("failed to record quantum bridge job: %w", err)
+	}
+	_ = r.ledger.AppendEvent(sessionID, "job_queued", j)
+	return nil
+}
+
+// SyncQuantumBridgeJobStatus reconciles a Python QuantumBridgeService job's
+// status into SQLite jobs (F-NEW-05). Terminal failure or cancellation
+// atomically releases any bound spend reservation via releaseReservation.
+func (r *Runner) SyncQuantumBridgeJobStatus(jobID, bridgeStatus, resultJSON string) {
+	if jobID == "" {
+		return
+	}
+	j, err := r.GetJob(jobID)
+	if err != nil || j == nil {
+		return
+	}
+	switch strings.ToLower(strings.TrimSpace(bridgeStatus)) {
+	case "running":
+		_, _ = r.ledger.DB().Exec(
+			`UPDATE jobs SET status = ? WHERE id = ? AND status = ?`,
+			pb.JobStatus_JOB_STATUS_RUNNING.String(), jobID, pb.JobStatus_JOB_STATUS_QUEUED.String(),
+		)
+	case "completed":
+		now := time.Now().UTC()
+		res, err := r.ledger.DB().Exec(
+			`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ? AND status `+liveStatusClause,
+			append([]any{pb.JobStatus_JOB_STATUS_COMPLETED.String(), resultJSON, now, jobID}, liveStatusArgs...)...,
+		)
+		if err == nil {
+			if n, _ := res.RowsAffected(); n > 0 {
+				j.Status = pb.JobStatus_JOB_STATUS_COMPLETED
+				j.ResultJSON = json.RawMessage(resultJSON)
+				j.CompletedAt = &now
+				_ = r.ledger.AppendEvent(j.SessionID, "job_settled", j)
+			}
+		}
+	case "failed", "cancelled":
+		now := time.Now().UTC()
+		res, err := r.ledger.DB().Exec(
+			`UPDATE jobs SET status = ?, result_json = ?, completed_at = ? WHERE id = ? AND status `+liveStatusClause,
+			append([]any{pb.JobStatus_JOB_STATUS_FAILED.String(), resultJSON, now, jobID}, liveStatusArgs...)...,
+		)
+		if err == nil {
+			if n, _ := res.RowsAffected(); n > 0 {
+				r.releaseReservation(jobID)
+				j.Status = pb.JobStatus_JOB_STATUS_FAILED
+				j.ResultJSON = json.RawMessage(resultJSON)
+				j.CompletedAt = &now
+				_ = r.ledger.AppendEvent(j.SessionID, "job_settled", j)
+			}
+		}
+	}
 }
 
 func (r *Runner) workerLoop() {
@@ -688,18 +776,20 @@ func (r *Runner) CancelJob(id, reason string) (transitioned bool, err error) {
 }
 
 func (r *Runner) GetJob(id string) (*Job, error) {
-	query := `SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, compiler_used, fallback_estimate, mandate_ref FROM jobs WHERE id = ?`
+	query := `SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, reserved_tenant, reserved_amount, compiler_used, fallback_estimate, mandate_ref FROM jobs WHERE id = ?`
 	row := r.ledger.DB().QueryRow(query, id)
 
 	var j Job
 	var statusStr, paramsStr string
 	var resultStr sql.NullString
 	var compAt sql.NullTime
+	var resTenant sql.NullString
+	var resAmount sql.NullFloat64
 	var compilerUsed sql.NullString
 	var fallbackInt sql.NullInt64
 	var mandateRef sql.NullString
 
-	if err := row.Scan(&j.ID, &j.SessionID, &statusStr, &j.JobType, &paramsStr, &resultStr, &j.CreatedAt, &compAt, &compilerUsed, &fallbackInt, &mandateRef); err != nil {
+	if err := row.Scan(&j.ID, &j.SessionID, &statusStr, &j.JobType, &paramsStr, &resultStr, &j.CreatedAt, &compAt, &resTenant, &resAmount, &compilerUsed, &fallbackInt, &mandateRef); err != nil {
 		return nil, err
 	}
 	j.Status = pb.JobStatus(pb.JobStatus_value[statusStr])
@@ -710,6 +800,12 @@ func (r *Runner) GetJob(id string) (*Job, error) {
 	if compAt.Valid {
 		t := compAt.Time
 		j.CompletedAt = &t
+	}
+	if resTenant.Valid {
+		j.ReservedTenant = resTenant.String
+	}
+	if resAmount.Valid {
+		j.ReservedAmount = resAmount.Float64
 	}
 	if compilerUsed.Valid {
 		j.CompilerUsed = compilerUsed.String
@@ -738,12 +834,12 @@ func (r *Runner) ListJobs(sessionID string, limit int) ([]*Job, error) {
 	var err error
 	if sessionID != "" {
 		rows, err = r.ledger.DB().Query(
-			`SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, compiler_used, fallback_estimate, mandate_ref FROM jobs WHERE session_id = ? ORDER BY created_at DESC LIMIT ?`,
+			`SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, reserved_tenant, reserved_amount, compiler_used, fallback_estimate, mandate_ref FROM jobs WHERE session_id = ? ORDER BY created_at DESC LIMIT ?`,
 			sessionID, limit,
 		)
 	} else {
 		rows, err = r.ledger.DB().Query(
-			`SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, compiler_used, fallback_estimate, mandate_ref FROM jobs ORDER BY created_at DESC LIMIT ?`,
+			`SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, reserved_tenant, reserved_amount, compiler_used, fallback_estimate, mandate_ref FROM jobs ORDER BY created_at DESC LIMIT ?`,
 			limit,
 		)
 	}
@@ -758,10 +854,12 @@ func (r *Runner) ListJobs(sessionID string, limit int) ([]*Job, error) {
 		var statusStr, paramsStr string
 		var resultStr sql.NullString
 		var compAt sql.NullTime
+		var resTenant sql.NullString
+		var resAmount sql.NullFloat64
 		var compilerUsed sql.NullString
 		var fallbackInt sql.NullInt64
 		var mandateRef sql.NullString
-		if err := rows.Scan(&j.ID, &j.SessionID, &statusStr, &j.JobType, &paramsStr, &resultStr, &j.CreatedAt, &compAt, &compilerUsed, &fallbackInt, &mandateRef); err != nil {
+		if err := rows.Scan(&j.ID, &j.SessionID, &statusStr, &j.JobType, &paramsStr, &resultStr, &j.CreatedAt, &compAt, &resTenant, &resAmount, &compilerUsed, &fallbackInt, &mandateRef); err != nil {
 			return nil, err
 		}
 		j.Status = pb.JobStatus(pb.JobStatus_value[statusStr])
@@ -772,6 +870,12 @@ func (r *Runner) ListJobs(sessionID string, limit int) ([]*Job, error) {
 		if compAt.Valid {
 			t := compAt.Time
 			j.CompletedAt = &t
+		}
+		if resTenant.Valid {
+			j.ReservedTenant = resTenant.String
+		}
+		if resAmount.Valid {
+			j.ReservedAmount = resAmount.Float64
 		}
 		if compilerUsed.Valid {
 			j.CompilerUsed = compilerUsed.String

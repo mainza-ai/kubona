@@ -103,7 +103,9 @@ class QiskitProvider(Provider):
 
     def submit(self, circuit: Circuit, shots: int, seed: int | None = None,
                allow_sim_fallback: bool = False,
-               on_hardware_job=None) -> dict[str, Any]:
+               on_hardware_job=None,
+               wait_for_result: bool = True,
+               service_factory=None) -> dict[str, Any]:
         """Run on real IBM hardware via Qiskit Runtime when credentials exist.
 
         No quantum-washing (W2.18): when this capability is a HARDWARE
@@ -125,8 +127,12 @@ class QiskitProvider(Provider):
         is_simulator = modality in ("statevector_simulator", "gpu_simulator")
         token = self._credential()
         if token and self.backend_name and not is_simulator:
-            return self._submit_ibm_runtime(qc, shots, token,
-                                            on_hardware_job=on_hardware_job)
+            return self._submit_ibm_runtime(
+                qc, shots, token,
+                on_hardware_job=on_hardware_job,
+                wait_for_result=wait_for_result,
+                service_factory=service_factory,
+            )
         if is_simulator or allow_sim_fallback:
             # credential-free Aer path (open-source first, per maintainer direction)
             from qiskit_aer import AerSimulator
@@ -193,17 +199,39 @@ class QiskitProvider(Provider):
         return self.capability.backend or None
 
     def _submit_ibm_runtime(self, qc, shots: int, token: str,
-                            on_hardware_job=None) -> dict[str, Any]:
+                            on_hardware_job=None,
+                            wait_for_result: bool = True,
+                            service_factory=None) -> dict[str, Any]:
         """Real IBM hardware via Qiskit Runtime (channel: ibm_quantum)."""
-        from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2  # noqa: F401
+        if service_factory is None:
+            from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2  # noqa: F401
 
-        service = QiskitRuntimeService(channel="ibm_quantum", token=token)
-        backend = service.backend(self.backend_name)
-        sampler = SamplerV2(backend=backend)
+            service = QiskitRuntimeService(channel="ibm_quantum", token=token)
+            backend = service.backend(self.backend_name)
+            sampler = SamplerV2(backend=backend)
+        else:
+            service = service_factory(token)
+            backend = service.backend(self.backend_name)
+            if hasattr(service, "sampler"):
+                sampler = service.sampler(backend)
+            else:
+                from qiskit_ibm_runtime import SamplerV2
+                sampler = SamplerV2(backend=backend)
         job = sampler.run([qc], shots=shots)
-        job_id = job.job_id()
+        job_id = str(job.job_id())
         if on_hardware_job is not None:
             on_hardware_job(job_id)
+        if not wait_for_result:
+            return {
+                "status": "running",
+                "deferred": True,
+                "shots": shots,
+                "backend": self.backend_name,
+                "job_id": job_id,
+                "hardware_job_id": job_id,
+                "hardware": True,
+                "channel": "ibm_quantum",
+            }
         result = job.result()
         pub = result[0].data.meas
         counts = {
@@ -212,6 +240,74 @@ class QiskitProvider(Provider):
         }
         return {"counts": counts, "shots": shots, "backend": self.backend_name,
                 "job_id": job_id, "hardware": True, "channel": "ibm_quantum"}
+
+    def poll_hardware_job(self, hardware_job_id: str, service_factory=None) -> dict[str, Any]:
+        """Non-blocking vendor status poll for an IBM Runtime job."""
+        if not hardware_job_id or not str(hardware_job_id).strip():
+            raise ProviderError("hardware_job_id is required")
+        token = self._credential()
+        if not token:
+            raise ProviderError(
+                "cannot poll without credentials: KUBONA_IBM_QISKIT_TOKEN unset"
+            )
+        try:
+            if service_factory is None:
+                from qiskit_ibm_runtime import QiskitRuntimeService
+                service = QiskitRuntimeService(channel="ibm_quantum", token=token)
+            else:
+                service = service_factory(token)
+            job = service.job(hardware_job_id)
+            raw_status = job.status()
+        except ImportError as e:
+            raise ProviderError(f"qiskit-ibm-runtime not installed: {e}")
+        except Exception as e:  # noqa: BLE001
+            raise ProviderError(f"ibm status poll failed for job {hardware_job_id!r}: {e}")
+
+        status_str = getattr(raw_status, "name", str(raw_status)).strip().lower()
+        if status_str in ("done", "completed"):
+            try:
+                result = job.result()
+                pub = result[0].data.meas
+                counts = {
+                    "".join(str(b) for b in k): v
+                    for k, v in pub.get_counts().items()
+                }
+            except Exception as e:  # noqa: BLE001
+                raise ProviderError(
+                    f"ibm job {hardware_job_id!r} reported {status_str} but result read failed: {e}"
+                )
+            return {
+                "status": "completed",
+                "vendor_status": status_str,
+                "hardware_job_id": hardware_job_id,
+                "result": {
+                    "counts": counts,
+                    "backend": self.backend_name,
+                    "job_id": hardware_job_id,
+                    "hardware": True,
+                    "channel": "ibm_quantum",
+                },
+            }
+        if status_str in ("error", "failed"):
+            err_fn = getattr(job, "error_message", None)
+            err_msg = err_fn() if callable(err_fn) else err_fn
+            return {
+                "status": "failed",
+                "vendor_status": status_str,
+                "hardware_job_id": hardware_job_id,
+                "error": str(err_msg or f"ibm runtime job {hardware_job_id} failed ({status_str})"),
+            }
+        if status_str in ("cancelled", "canceled"):
+            return {
+                "status": "cancelled",
+                "vendor_status": status_str,
+                "hardware_job_id": hardware_job_id,
+            }
+        return {
+            "status": "running",
+            "vendor_status": status_str,
+            "hardware_job_id": hardware_job_id,
+        }
 
     def health(self) -> dict[str, Any]:
         return {"provider": self.capability.provider, "ready": self._ready,

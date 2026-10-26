@@ -279,6 +279,17 @@ class JobRunner:
                                  {"job_id": job_id,
                                   "note": "provider work could not be recalled; result discarded"})
                     return
+                if isinstance(result, dict) and result.get("deferred") is True:
+                    # Non-blocking hardware dispatch (Phase 2): the vendor accepted
+                    # the submission (`hardware_job_id` pinned), so keep the job in
+                    # 'running' and release this worker slot immediately. Subsequent
+                    # get_job_status / get_result calls poll the vendor non-blockingly.
+                    hw_id = str(result.get("hardware_job_id") or result.get("job_id") or "")
+                    if hw_id:
+                        self.store.record_hardware_job(job_id, hw_id)
+                    self._record("job_submitted_to_hardware",
+                                 {"job_id": job_id, "hardware_job_id": hw_id})
+                    return
                 self.store.transition(job_id, "completed", result=result)
                 ok = result.get("ok", True) if isinstance(result, dict) else True
                 self._record("job_completed", {"job_id": job_id, "ok": ok})

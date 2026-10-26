@@ -1920,8 +1920,21 @@ type QuantumSubmitRequest struct {
 	// Reserved: enforced only if the Q-10 ruling requires per-job mandates.
 	// Until then the field is recorded, never required.
 	MandateRefJson string `protobuf:"bytes,8,opt,name=mandate_ref_json,json=mandateRefJson,proto3" json:"mandate_ref_json,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// P5 §2.9 routing: caller's declared jurisdictions, export-control class,
+	// and review grant (forwarded to submit_job; empty allow-list refuses on
+	// non-local providers).
+	CallerJurisdictions []string `protobuf:"bytes,9,rep,name=caller_jurisdictions,json=callerJurisdictions,proto3" json:"caller_jurisdictions,omitempty"`
+	CallerExportClass   string   `protobuf:"bytes,10,opt,name=caller_export_class,json=callerExportClass,proto3" json:"caller_export_class,omitempty"`
+	RequireReview       bool     `protobuf:"varint,11,opt,name=require_review,json=requireReview,proto3" json:"require_review,omitempty"`
+	// Cross-rail session authority (F-NEW-01 / F-NEW-05): when Go Core has
+	// verified the session in SQLite, it passes session_verified=true along
+	// with the authoritative ceiling and current spend so Python's SessionStore
+	// mirrors the session before preflight.
+	SessionVerified         bool    `protobuf:"varint,12,opt,name=session_verified,json=sessionVerified,proto3" json:"session_verified,omitempty"`
+	SessionBudgetCeilingUsd float64 `protobuf:"fixed64,13,opt,name=session_budget_ceiling_usd,json=sessionBudgetCeilingUsd,proto3" json:"session_budget_ceiling_usd,omitempty"`
+	SessionSpentUsd         float64 `protobuf:"fixed64,14,opt,name=session_spent_usd,json=sessionSpentUsd,proto3" json:"session_spent_usd,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
 }
 
 func (x *QuantumSubmitRequest) Reset() {
@@ -2010,17 +2023,62 @@ func (x *QuantumSubmitRequest) GetMandateRefJson() string {
 	return ""
 }
 
+func (x *QuantumSubmitRequest) GetCallerJurisdictions() []string {
+	if x != nil {
+		return x.CallerJurisdictions
+	}
+	return nil
+}
+
+func (x *QuantumSubmitRequest) GetCallerExportClass() string {
+	if x != nil {
+		return x.CallerExportClass
+	}
+	return ""
+}
+
+func (x *QuantumSubmitRequest) GetRequireReview() bool {
+	if x != nil {
+		return x.RequireReview
+	}
+	return false
+}
+
+func (x *QuantumSubmitRequest) GetSessionVerified() bool {
+	if x != nil {
+		return x.SessionVerified
+	}
+	return false
+}
+
+func (x *QuantumSubmitRequest) GetSessionBudgetCeilingUsd() float64 {
+	if x != nil {
+		return x.SessionBudgetCeilingUsd
+	}
+	return 0
+}
+
+func (x *QuantumSubmitRequest) GetSessionSpentUsd() float64 {
+	if x != nil {
+		return x.SessionSpentUsd
+	}
+	return 0
+}
+
 type QuantumSubmitResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
-	ErrorMessage  string                 `protobuf:"bytes,2,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
-	JobId         string                 `protobuf:"bytes,3,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
-	EstimateJson  string                 `protobuf:"bytes,4,opt,name=estimate_json,json=estimateJson,proto3" json:"estimate_json,omitempty"`
-	FidelityJson  string                 `protobuf:"bytes,5,opt,name=fidelity_json,json=fidelityJson,proto3" json:"fidelity_json,omitempty"`
-	Queued        bool                   `protobuf:"varint,6,opt,name=queued,proto3" json:"queued,omitempty"`
-	SessionId     string                 `protobuf:"bytes,7,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state        protoimpl.MessageState `protogen:"open.v1"`
+	Ok           bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	ErrorMessage string                 `protobuf:"bytes,2,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	JobId        string                 `protobuf:"bytes,3,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
+	EstimateJson string                 `protobuf:"bytes,4,opt,name=estimate_json,json=estimateJson,proto3" json:"estimate_json,omitempty"`
+	FidelityJson string                 `protobuf:"bytes,5,opt,name=fidelity_json,json=fidelityJson,proto3" json:"fidelity_json,omitempty"`
+	Queued       bool                   `protobuf:"varint,6,opt,name=queued,proto3" json:"queued,omitempty"`
+	SessionId    string                 `protobuf:"bytes,7,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	// True when idempotency_key matched an existing job (Go skips duplicate
+	// SQLite spend reservation on replay).
+	IdempotentReplay bool `protobuf:"varint,8,opt,name=idempotent_replay,json=idempotentReplay,proto3" json:"idempotent_replay,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *QuantumSubmitResponse) Reset() {
@@ -2102,6 +2160,13 @@ func (x *QuantumSubmitResponse) GetSessionId() string {
 	return ""
 }
 
+func (x *QuantumSubmitResponse) GetIdempotentReplay() bool {
+	if x != nil {
+		return x.IdempotentReplay
+	}
+	return false
+}
+
 type QuantumJobStatusRequest struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	JobId         string                 `protobuf:"bytes,1,opt,name=job_id,json=jobId,proto3" json:"job_id,omitempty"`
@@ -2154,6 +2219,7 @@ type QuantumJobStatusResponse struct {
 	Status        string                 `protobuf:"bytes,4,opt,name=status,proto3" json:"status,omitempty"`
 	ResultJson    string                 `protobuf:"bytes,5,opt,name=result_json,json=resultJson,proto3" json:"result_json,omitempty"`
 	EstimateJson  string                 `protobuf:"bytes,6,opt,name=estimate_json,json=estimateJson,proto3" json:"estimate_json,omitempty"`
+	SessionId     string                 `protobuf:"bytes,7,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2226,6 +2292,13 @@ func (x *QuantumJobStatusResponse) GetResultJson() string {
 func (x *QuantumJobStatusResponse) GetEstimateJson() string {
 	if x != nil {
 		return x.EstimateJson
+	}
+	return ""
+}
+
+func (x *QuantumJobStatusResponse) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
 	}
 	return ""
 }
@@ -2725,7 +2798,7 @@ const file_kubona_proto_rawDesc = "" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x1f\n" +
 	"\vresult_json\x18\x02 \x01(\tR\n" +
 	"resultJson\x12#\n" +
-	"\rerror_message\x18\x03 \x01(\tR\ferrorMessage\"\x84\x02\n" +
+	"\rerror_message\x18\x03 \x01(\tR\ferrorMessage\"\xa2\x04\n" +
 	"\x14QuantumSubmitRequest\x12\x12\n" +
 	"\x04qasm\x18\x01 \x01(\tR\x04qasm\x12\x1a\n" +
 	"\bprovider\x18\x02 \x01(\tR\bprovider\x12\x14\n" +
@@ -2735,7 +2808,14 @@ const file_kubona_proto_rawDesc = "" +
 	"\ttenant_id\x18\x05 \x01(\tR\btenantId\x12'\n" +
 	"\x0fidempotency_key\x18\x06 \x01(\tR\x0eidempotencyKey\x12\x17\n" +
 	"\adry_run\x18\a \x01(\bR\x06dryRun\x12(\n" +
-	"\x10mandate_ref_json\x18\b \x01(\tR\x0emandateRefJson\"\xe4\x01\n" +
+	"\x10mandate_ref_json\x18\b \x01(\tR\x0emandateRefJson\x121\n" +
+	"\x14caller_jurisdictions\x18\t \x03(\tR\x13callerJurisdictions\x12.\n" +
+	"\x13caller_export_class\x18\n" +
+	" \x01(\tR\x11callerExportClass\x12%\n" +
+	"\x0erequire_review\x18\v \x01(\bR\rrequireReview\x12)\n" +
+	"\x10session_verified\x18\f \x01(\bR\x0fsessionVerified\x12;\n" +
+	"\x1asession_budget_ceiling_usd\x18\r \x01(\x01R\x17sessionBudgetCeilingUsd\x12*\n" +
+	"\x11session_spent_usd\x18\x0e \x01(\x01R\x0fsessionSpentUsd\"\x91\x02\n" +
 	"\x15QuantumSubmitResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12#\n" +
 	"\rerror_message\x18\x02 \x01(\tR\ferrorMessage\x12\x15\n" +
@@ -2744,9 +2824,10 @@ const file_kubona_proto_rawDesc = "" +
 	"\rfidelity_json\x18\x05 \x01(\tR\ffidelityJson\x12\x16\n" +
 	"\x06queued\x18\x06 \x01(\bR\x06queued\x12\x1d\n" +
 	"\n" +
-	"session_id\x18\a \x01(\tR\tsessionId\"0\n" +
+	"session_id\x18\a \x01(\tR\tsessionId\x12+\n" +
+	"\x11idempotent_replay\x18\b \x01(\bR\x10idempotentReplay\"0\n" +
 	"\x17QuantumJobStatusRequest\x12\x15\n" +
-	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"\xc4\x01\n" +
+	"\x06job_id\x18\x01 \x01(\tR\x05jobId\"\xe3\x01\n" +
 	"\x18QuantumJobStatusResponse\x12\x0e\n" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12#\n" +
 	"\rerror_message\x18\x02 \x01(\tR\ferrorMessage\x12\x15\n" +
@@ -2754,7 +2835,9 @@ const file_kubona_proto_rawDesc = "" +
 	"\x06status\x18\x04 \x01(\tR\x06status\x12\x1f\n" +
 	"\vresult_json\x18\x05 \x01(\tR\n" +
 	"resultJson\x12#\n" +
-	"\restimate_json\x18\x06 \x01(\tR\festimateJson\"E\n" +
+	"\restimate_json\x18\x06 \x01(\tR\festimateJson\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\a \x01(\tR\tsessionId\"E\n" +
 	"\x14QuantumCancelRequest\x12\x15\n" +
 	"\x06job_id\x18\x01 \x01(\tR\x05jobId\x12\x16\n" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\"\xd5\x01\n" +

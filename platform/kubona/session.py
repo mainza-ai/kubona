@@ -226,3 +226,58 @@ class SessionStore:
 
     def close(self, session_id: str) -> SessionState:
         return self.update(session_id, status="closed")
+
+    def sync_external_session(
+        self,
+        session_id: str,
+        name: str = "console-session",
+        owner: str = "human",
+        budget_ceiling_usd: float | None = None,
+        spent_usd: float = 0.0,
+        tenant_id: str = "",
+    ) -> SessionState:
+        """Mirror a verified Go SQLite session into the Python SessionStore
+        (F-NEW-01 / F-NEW-05: Go SQLite is the single financial authority for
+        HTTP-dispatched sessions). Creates the row if absent or synchronizes
+        budget_ceiling_usd and spent_usd under the exclusive store lock so
+        preflight and refunds stay in lockstep across rails."""
+        if not session_id or not isinstance(session_id, str) or not session_id.strip():
+            raise ValueError("session_id must be a non-empty string")
+        if budget_ceiling_usd is not None and (
+            not isinstance(budget_ceiling_usd, (int, float))
+            or not math.isfinite(budget_ceiling_usd)
+            or budget_ceiling_usd < 0
+        ):
+            raise ValueError(f"budget_ceiling_usd must be finite >= 0 or None, got {budget_ceiling_usd!r}")
+        if not isinstance(spent_usd, (int, float)) or not math.isfinite(spent_usd) or spent_usd < 0:
+            raise ValueError(f"spent_usd must be finite >= 0, got {spent_usd!r}")
+        with self._exclusive():
+            existing = self._load().get(session_id)
+            now = time.time()
+            if existing is None:
+                meta: dict[str, Any] = {"origin": "go-sqlite-authority"}
+                if tenant_id:
+                    meta["tenant_id"] = tenant_id
+                s = SessionState(
+                    session_id=session_id,
+                    name=name,
+                    owner=owner,
+                    budget_ceiling_usd=float(budget_ceiling_usd) if budget_ceiling_usd is not None else None,
+                    spent_usd=round(float(spent_usd), 6),
+                    created_at=now,
+                    updated_at=now,
+                    meta=meta,
+                )
+            else:
+                s = existing
+                if budget_ceiling_usd is not None:
+                    s.budget_ceiling_usd = float(budget_ceiling_usd)
+                s.spent_usd = round(float(spent_usd), 6)
+                meta = dict(s.meta or {})
+                meta.setdefault("origin", "go-sqlite-authority")
+                if tenant_id:
+                    meta["tenant_id"] = tenant_id
+                s.meta = meta
+                s.updated_at = now
+            self._save(s)
+            return s

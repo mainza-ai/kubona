@@ -9,10 +9,12 @@ Before a job may spend QPU time or submit to cloud queues, the platform must:
 
 from __future__ import annotations
 
+import json
 import math
 import time
 import dataclasses
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 
@@ -25,6 +27,10 @@ class DeviceNoiseProfile:
     two_qubit_error: float
     readout_error: float
     last_calibrated_epoch: float
+    qubits: int = 0
+    source: str = ""
+    version: str = ""
+    calibrated_at: str = ""
 
     def is_physically_sound(self) -> bool:
         return self.t2_us <= (2.0 * self.t1_us + 1e-6)
@@ -33,36 +39,47 @@ class DeviceNoiseProfile:
         return max(0.0, (time.time() - self.last_calibrated_epoch) / 3600.0)
 
 
-# Standard calibrated device profiles
-DEVICE_CATALOG: Dict[str, DeviceNoiseProfile] = {
-    "ibm-heron": DeviceNoiseProfile(
-        device_name="ibm-heron",
-        t1_us=180.0,
-        t2_us=140.0,
-        single_qubit_error=0.0003,
-        two_qubit_error=0.0035,
-        readout_error=0.012,
-        last_calibrated_epoch=time.time() - 3600.0,
-    ),
-    "rigetti-aspen": DeviceNoiseProfile(
-        device_name="rigetti-aspen",
-        t1_us=25.0,
-        t2_us=30.0,
-        single_qubit_error=0.0015,
-        two_qubit_error=0.0250,
-        readout_error=0.045,
-        last_calibrated_epoch=time.time() - 7200.0,
-    ),
-    "local-simulator": DeviceNoiseProfile(
-        device_name="local-simulator",
-        t1_us=1e6,
-        t2_us=1e6,
-        single_qubit_error=0.0,
-        two_qubit_error=0.0,
-        readout_error=0.0,
-        last_calibrated_epoch=time.time(),
-    ),
-}
+_CONTRACT_PATH = Path(__file__).resolve().parents[2] / "contracts" / "fidelity-devices.json"
+
+
+def _load_fidelity_contract() -> tuple[Dict[str, DeviceNoiseProfile], Dict[str, str], float, float]:
+    raw = json.loads(_CONTRACT_PATH.read_text(encoding="utf-8"))
+    now = time.time()
+    catalog: Dict[str, DeviceNoiseProfile] = {}
+    for entry in raw.get("devices", []):
+        name = str(entry["name"])
+        age_s = float(entry.get("calibration_age_seconds", 0.0))
+        prof = DeviceNoiseProfile(
+            device_name=name,
+            t1_us=float(entry["t1_us"]),
+            t2_us=float(entry["t2_us"]),
+            single_qubit_error=float(entry["single_qubit_error"]),
+            two_qubit_error=float(entry["two_qubit_error"]),
+            readout_error=float(entry.get("readout_error", 0.0)),
+            last_calibrated_epoch=now - age_s,
+            qubits=int(entry.get("qubits", 0)),
+            source=str(entry.get("source", "")),
+            version=str(entry.get("version", "")),
+            calibrated_at=str(entry.get("calibrated_at", "")),
+        )
+        if not prof.is_physically_sound():
+            raise ValueError(f"device profile {name} violates T2 <= 2*T1")
+        if not prof.source or not prof.version or not prof.calibrated_at:
+            raise ValueError(f"device profile {name} lacks provenance")
+        catalog[name] = prof
+        for alias in entry.get("aliases", []):
+            alias_str = str(alias)
+            catalog[alias_str] = dataclasses.replace(prof, device_name=alias_str)
+    prov_map = {str(k): str(v) for k, v in raw.get("provider_device_map", {}).items()}
+    default_floor = float(raw.get("default_floor_python", 0.80))
+    max_age_h = float(raw.get("max_calibration_age_hours", 24.0))
+    return catalog, prov_map, default_floor, max_age_h
+
+
+# Standard calibrated device profiles loaded from platform/contracts/fidelity-devices.json
+DEVICE_CATALOG, PROVIDER_DEVICE_MAP, DEFAULT_FIDELITY_FLOOR, DEFAULT_MAX_CALIBRATION_AGE_HOURS = (
+    _load_fidelity_contract()
+)
 
 
 @dataclass
@@ -152,7 +169,11 @@ class FidelityAccountingEngine:
         fidelity_floor: float | None = None,
     ) -> FidelityAdmissionVerdict:
         floor = fidelity_floor or self.default_floor
-        device = DEVICE_CATALOG.get(device_name, DEVICE_CATALOG["local-simulator"])
+        device = (
+            DEVICE_CATALOG.get(device_name)
+            or DEVICE_CATALOG.get(device_name.replace("_", "-"))
+            or DEVICE_CATALOG["local-simulator"]
+        )
 
         # Check calibration freshness
         age = device.calibration_age_hours()

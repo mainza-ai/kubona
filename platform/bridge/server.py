@@ -237,10 +237,30 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                         ok=True, error_message="", job_id=prior.job_id,
                         estimate_json=_json.dumps(prior.meta.get("estimate", {})),
                         fidelity_json="", queued=prior.status == "queued",
-                        session_id=prior.session_id)
+                        session_id=prior.session_id,
+                        idempotent_replay=True)
                 return kubona_pb2.QuantumSubmitResponse(
                     ok=False, error_message="idempotency_key reuse with a different body: "
                     "replay the original request or mint a new key", job_id="")
+
+            # Cross-rail session authority (F-NEW-01 / F-NEW-05): when Go Core
+            # has verified the session in SQLite, mirror its authoritative
+            # budget ceiling and spent_usd into Python's SessionStore before
+            # submit_job runs preflight.
+            if request.session_id and getattr(request, "session_verified", False):
+                raw_ceiling = getattr(request, "session_budget_ceiling_usd", 0.0)
+                ceiling_usd = float(raw_ceiling) if raw_ceiling and raw_ceiling > 0 else _exec.IMPLICIT_SESSION_CEILING_USD
+                spent_usd = max(0.0, float(getattr(request, "session_spent_usd", 0.0) or 0.0))
+                _exec._sessions.sync_external_session(
+                    session_id=request.session_id,
+                    budget_ceiling_usd=ceiling_usd,
+                    spent_usd=spent_usd,
+                    tenant_id=getattr(request, "tenant_id", "") or "",
+                )
+
+            caller_jurisdictions = list(getattr(request, "caller_jurisdictions", None) or [])
+            caller_export_class = getattr(request, "caller_export_class", "") or "any"
+            require_review = bool(getattr(request, "require_review", False))
 
             # wait is forced async for QPU inside submit_job; the bridge
             # never blocks on hardware. Seed derives from the idempotency
@@ -250,7 +270,9 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                 circuit_qasm=request.qasm, provider=request.provider or "local-simulator",
                 shots=request.shots if request.shots > 0 else 1024,
                 session_id=request.session_id or None,
-                caller_jurisdictions=[], caller_export_class="any",
+                caller_jurisdictions=caller_jurisdictions,
+                caller_export_class=caller_export_class,
+                require_review=require_review,
                 wait=False, seed=seed,
                 estimate_only=bool(request.dry_run),
                 idempotency_key=request.idempotency_key,
@@ -304,7 +326,8 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                 ok=True, error_message="", job_id=request.job_id,
                 status=st.get("status", ""),
                 result_json=_json.dumps(res.get("result", {})) if res.get("ok") else "",
-                estimate_json="")
+                estimate_json="",
+                session_id=str(st.get("session_id", "")))
         except Exception as e:
             logger.exception("QuantumJobStatus failed")
             return kubona_pb2.QuantumJobStatusResponse(

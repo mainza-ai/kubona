@@ -125,8 +125,26 @@ func TestQuantumBackendsListsAllProviders(t *testing.T) {
 	if byID["ionq"]["credential_state"] != "unavailable" {
 		t.Fatalf("unintegrated vendor must read unavailable, got %v", byID["ionq"]["credential_state"])
 	}
-	// dwave-annealing solves locally key-free (Leap cloud unwired).
+	// dwave-annealing solves locally key-free via QUBO matrix.
 	if byID["dwave-annealing"]["executable_now"] != true {
 		t.Fatal("dwave-annealing local solving must be executable")
+	}
+	if byID["dwave-annealing"]["dispatch_ready"] != true || byID["dwave-annealing"]["input_format"] != "qubo" {
+		t.Fatalf("dwave-annealing must report dispatch_ready=true and input_format=qubo, got %v", byID["dwave-annealing"])
+	}
+	// Rigetti QPU submit (_submit_via_qcs) is not wired, so even with a token
+	// set in the environment, executable_now and dispatch_ready stay false.
+	t.Setenv("KUBONA_RIGETTI_QCS_TOKEN", "test-rigetti-token")
+	_, bodyWithToken := quantumGet(t, srv, "/api/quantum/backends")
+	for _, b := range bodyWithToken["backends"].([]any) {
+		m := b.(map[string]any)
+		if m["provider"] == "rigetti" {
+			if m["credential_state"] != "ready" {
+				t.Fatalf("rigetti credential_state must reflect token presence, got %v", m["credential_state"])
+			}
+			if m["executable_now"] != false || m["dispatch_ready"] != false {
+				t.Fatalf("rigetti must stay non-executable while QCS submit is unwired, got %v", m)
+			}
+		}
 	}
 }
