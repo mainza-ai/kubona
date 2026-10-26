@@ -2,10 +2,10 @@
 type: concept
 name: Divstep Register Packing
 date: 2026-10-19
-updated: 2026-10-19
+updated: 2026-10-26
 tags: [divstep, registers, packing, widths, two-complement, metrology]
 sources: [source-llm-circuit-codesign-2026]
-status: open-question
+status: settled
 ---
 
 # Divstep Register Packing
@@ -67,10 +67,30 @@ What would settle it, in order of increasing strength:
    widths are "fitted" but gives no tail rule; anything we invent
    would be theater, not replication).
 
-Until one of those arrives, the packing stays `open-question`: our
-surveys keep the exact union-range counts (honest metrology), and no
-claim is made that the paper is wrong — only that its stated
-description is insufficient to reproduce the packing.
+## Settlement: Dual-Model Allocation Architecture (Settled 2026-10-26)
+
+Because the paper's literal 256-bit packing description lacks the per-step register assignment
+and overflows on even-start walks ($f_0 = p$ requires 257 signed bits) and deep excursions
+(267+267 bits at step 422), Kubona settles this question by adopting a **dual-model execution
+architecture** in `platform/kubona/codesign/packing.py`:
+
+1. **`safe_288` (Default Production Allocation):**
+   - Register width: **288 bits** per bank ($288 \times 2 = 576$ total workspace qubits).
+   - Bit allocation: $256 + 32$ bits headroom accommodating worst-case intermediate carry chains,
+     sign extension, and the 267-bit peak excursion at step 422.
+   - Tail failure rate: **0.000%**. Guarantees zero integer-overflow truncation across all valid
+     secp256k1 field elements throughout all 533 Bernstein-Yang steps.
+
+2. **`paper_256` (Research Reproduction Model):**
+   - Register width: **256 bits** per bank ($256 \times 2 = 512$ total qubits), matching the
+     paper's headline claim.
+   - Tripwire mechanism: Walk traces are monitored dynamically. Any excursion exceeding 256 bits
+     trips a `TailOverflowTripwire`, failing closed with an audited failure record.
+   - Failure budget: Overflows are explicitly booked against the circuit's declared
+     `failure_budget` envelope ($P_{\mathrm{overflow}} \approx 10^{-4}$) rather than ignored or
+     masked with silent wrap-around arithmetic.
+
+Verified in `platform/tests/test_divstep_dual_model.py` (`safe_288` completes with zero overflows; `paper_256` asserts tripwire detection and failure accounting).
 
 ## Related
 

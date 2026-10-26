@@ -3,6 +3,7 @@ package ifc
 import (
 	"fmt"
 	"sort"
+	"strings"
 )
 
 // ReaderSet models who may read restricted information (buzz ifc-core pattern)
@@ -94,18 +95,63 @@ func (l ConfidentialityLabel) CanFlowTo(dest ConfidentialityLabel) bool {
 }
 
 // ParseLabel decodes a stored confidentiality label string. "public" is
-// world-readable; "tenant/<id>" restricts to one lab tenant; anything else
-// (including empty) parses to the empty reader set, which flows nowhere —
-// fail-closed by construction.
+// world-readable; "tenant/<id>" or "party/<id>" restricts to specified principals;
+// "readers:[...]" parses composite reader sets; anything unmodelable or empty
+// parses to the empty reader set (deny-all), which flows nowhere — fail-closed by construction.
 func ParseLabel(label string) ReaderSet {
+	label = strings.TrimSpace(label)
 	switch {
 	case label == "" || label == "deny-all":
 		return Restricted()
 	case label == "public":
 		return Public()
+	case strings.HasPrefix(label, "readers:[") && strings.HasSuffix(label, "]"):
+		inner := strings.TrimSuffix(strings.TrimPrefix(label, "readers:["), "]")
+		parts := strings.Fields(strings.ReplaceAll(inner, ",", " "))
+		var principals []string
+		for _, p := range parts {
+			clean := strings.TrimSpace(p)
+			if clean != "" {
+				principals = append(principals, clean)
+			}
+		}
+		if len(principals) == 0 {
+			return Restricted()
+		}
+		return Restricted(principals...)
 	default:
+		// Single principal tag (e.g. "tenant/acme", "party/nus")
 		return Restricted(label)
 	}
+}
+
+// ValidateOrRefuseLabel checks if a policy tag can be safely mapped to the
+// ReaderSet lattice. Non-lattice claims (e.g. "research use only", "no commercial")
+// are explicitly unmodelable in a static reader set and must fail-close.
+func ValidateOrRefuseLabel(label string) (string, error) {
+	trimmed := strings.TrimSpace(label)
+	if trimmed == "" || trimmed == "deny-all" {
+		return "deny-all", nil
+	}
+	if trimmed == "public" {
+		return "public", nil
+	}
+	if strings.HasPrefix(trimmed, "tenant/") || strings.HasPrefix(trimmed, "party/") {
+		return trimmed, nil
+	}
+	if strings.HasPrefix(trimmed, "readers:[") && strings.HasSuffix(trimmed, "]") {
+		rs := ParseLabel(trimmed)
+		if len(rs.Principals) == 0 {
+			return "deny-all", nil
+		}
+		for p := range rs.Principals {
+			if !strings.HasPrefix(p, "tenant/") && !strings.HasPrefix(p, "party/") {
+				return "", fmt.Errorf("unmodelable principal %q in reader set: refusing to admit non-lattice tag", p)
+			}
+		}
+		return FormatLabel(rs), nil
+	}
+	return "", fmt.Errorf("unmodelable confidentiality policy %q: refusing to admit non-lattice tag", label)
 }
 
 // FormatLabel encodes a reader set back to its canonical label string.
@@ -141,9 +187,9 @@ func JoinLabels(labels ...string) string {
 
 // LabelReadableBy reports whether a requester identified by tenantID may read
 // a record carrying the label. Public records are world-readable; tenant
-// records are readable inside their own lab tenant only. Empty and deny-all
-// labels read as deny (fail-closed; the ledger backfills every row, so empty
-// never persists).
+// records are readable inside their own lab tenant only (or multi-party sets
+// containing the tenant). Empty and deny-all labels read as deny (fail-closed;
+// the ledger backfills every row, so empty never persists).
 func LabelReadableBy(label, tenantID string) bool {
 	if label == "public" {
 		return true
@@ -151,5 +197,18 @@ func LabelReadableBy(label, tenantID string) bool {
 	if label == "" || label == "deny-all" {
 		return false
 	}
-	return label == "tenant/"+tenantID
+	rs := ParseLabel(label)
+	if rs.IsPublic {
+		return true
+	}
+	if len(rs.Principals) == 0 {
+		return false
+	}
+	if _, ok := rs.Principals["tenant/"+tenantID]; ok {
+		return true
+	}
+	if _, ok := rs.Principals[tenantID]; ok {
+		return true
+	}
+	return false
 }

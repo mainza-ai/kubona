@@ -3,8 +3,8 @@ name: Autonomous Ansatz Optimisation
 type: concept
 tags: [frontier, vqa, vqe, qaoa, autoresearch, optimization]
 date: 2026-09-27
-updated: 2026-09-27
-status: open-question
+updated: 2026-10-26
+status: adopted
 sources: [source-frontier-repo-audit-2026, source-architecture-paper]
 ---
 
@@ -89,6 +89,24 @@ Fermi-Hubbard setup; (b) the `Q`-prior rejects a 1-layer `two_local` on a target
 double excitations; (c) gradient-variance pre-check correlates with measured variance on a
 synthetic shallow-circuit suite; (d) energies match published reference values for H₂ and
 LiH within tolerance, with the reference cited as a `raw/` source.
+
+## Settlement: Refuted-Genome Transfer Priors across Devices (Adopted 2026-10-26)
+
+The open question of how refuted-genome priors transfer across heterogeneous quantum devices without either naive restart or false generalization was settled via a **4-tier refutation failure taxonomy** and an empirical transfer library in `platform/kubona/autoresearch/ansatz_transfer.py`:
+
+1. **Failure Taxonomy (`FailureClass`):**
+   - `INTRINSIC_SYMMETRY_VIOLATION`: Genome violates physical state symmetries (e.g. fermionic particle number, $S_z$, or orbital point group). **Global blacklist**: Never retried on any device or simulator.
+   - `INTRINSIC_BARREN_PLATEAU`: Initial gradient variance across random parameters vanishes ($\mathrm{Var}[\nabla_\theta E] < 10^{-6}$). **Global blacklist**: Circuit structure is untrainable regardless of hardware quality.
+   - `INTRINSIC_EXPRESSIBILITY_DEFICIT`: Meyer–Wallach entangling capability $Q < 0.15$ or dynamical Lie algebra reachability rank cannot span the target Hamiltonian's excitation manifold. **Global blacklist**: Ansatz cannot represent the ground state.
+   - `HARDWARE_COHERENCE_LIMIT`: 2-qubit gate depth exceeds device coherence depth ($t_{\mathrm{depth}} > T_2 / \tau_{\mathrm{gate}}$), or simulated fidelity drops below threshold on that device's calibrated noise profile. **Device-scoped blacklist**: Blacklisted for devices with equal or worse $T_2$ coherence; *transferable* to higher-coherence backends.
+   - `ROUTING_OVERHEAD_EXCESS`: Heavy coupling graph mapping incurs $> 2.5\times$ SWAP expansion over native 2-qubit interactions. **Topology-scoped blacklist**: Blacklisted on restricted topologies (e.g. heavy-hex); *transferable* to all-to-all or higher-degree topologies (e.g. trapped ion or neutral atom).
+
+2. **Refuted-Genome Library (`RefutedGenomeLibrary`):**
+   Maintains cryptographic hashes and failure classifications of evaluated ansatz genomes. When proposing candidates for target device $D_{\mathrm{target}}$, candidate genomes are screened against:
+   $$\text{admissible}(G, D_{\mathrm{target}}) = \neg \text{is\_globally\_refuted}(G) \land \neg \text{is\_device\_refuted}(G, D_{\mathrm{target}})$$
+   Where hardware failures transfer only if $T_2(D_{\mathrm{target}}) \le T_2(D_{\mathrm{refuted}})$.
+
+Verified in `platform/tests/test_ansatz_transfer.py` (intrinsic refutations fail closed globally; hardware refutations transfer to worse backends while allowing promotion to higher-coherence architectures).
 
 See also [[vqa-vqe]], [[error-mitigation]], [[nisq-and-hybrid-orchestration]],
 [[qiskit]], [[pennylane]], [[karpathy-autoresearch]].

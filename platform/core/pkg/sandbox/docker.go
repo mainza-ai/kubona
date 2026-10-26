@@ -42,10 +42,12 @@ type Config struct {
 	Network           string        `json:"network"`
 	User              string        `json:"user"`
 	AllowHostFallback bool          `json:"allow_host_fallback"`
+	Runtime           string        `json:"runtime,omitempty"`
 }
 
 // DefaultConfig provides production-grade NemoClaw/OpenClaw security parameters
 func DefaultConfig() Config {
+	runtime := os.Getenv("KUBONA_SANDBOX_RUNTIME")
 	return Config{
 		Image:             "kubona/quantum-runner:latest",
 		Timeout:           60 * time.Second,
@@ -56,6 +58,7 @@ func DefaultConfig() Config {
 		Network:           "none",
 		User:              "1000:1000",
 		AllowHostFallback: false,
+		Runtime:           runtime,
 	}
 }
 
@@ -220,6 +223,10 @@ func (r *SandboxRunner) ExecuteHarness(benchmarkScript, mutableArtifactName, mut
 			"-e", "PYTHONUNBUFFERED=1",
 		}
 
+		if r.cfg.Runtime != "" {
+			args = append(args, "--runtime", r.cfg.Runtime)
+		}
+
 		if r.cfg.User != "" && r.cfg.User != "root" {
 			args = append(args, "--user", r.cfg.User)
 		}
@@ -256,13 +263,17 @@ func (r *SandboxRunner) ExecuteHarness(benchmarkScript, mutableArtifactName, mut
 			}
 		}
 
+		runtimeTag := "docker"
+		if r.cfg.Runtime != "" {
+			runtimeTag = fmt.Sprintf("docker[%s]", r.cfg.Runtime)
+		}
 		return &ExecutionResult{
 			Stdout:       stdoutBuf.String(),
 			Stderr:       stderrBuf.String(),
 			ExitCode:     exitCode,
 			Duration:     duration,
 			Sandboxed:    true,
-			IsolationTag: fmt.Sprintf("docker:%s (net=%s, cpus=%s, mem=%s)", r.cfg.Image, r.cfg.Network, r.cfg.CPULimit, r.cfg.MemoryLimit),
+			IsolationTag: fmt.Sprintf("%s:%s (net=%s, cpus=%s, mem=%s)", runtimeTag, r.cfg.Image, r.cfg.Network, r.cfg.CPULimit, r.cfg.MemoryLimit),
 			Error:        "",
 		}, nil
 	}

@@ -3,8 +3,8 @@ name: Confidentiality Lattice over the Provenance DAG
 type: concept
 tags: [frontier, security, provenance, ifc, multi-tenant, export-control]
 date: 2026-09-27
-updated: 2026-09-27
-status: open-question
+updated: 2026-10-26
+status: adopted
 sources: [source-frontier-repo-audit-2026]
 ---
 
@@ -83,6 +83,22 @@ expiry are **not** expressible as reader sets — those need either purpose tags
 or a delegation expiry, and the system must be able to *refuse* a label it cannot model rather
 than approximate one. Enforcement stays in the query/export layer (Rust core, tested);
 `buzz`-style signed events are the transport, not the authority.
+
+## Settlement: 3-Seam Enforcement & Fail-Closed Refusal (Adopted 2026-10-26)
+
+The information-flow lattice enforcement points and refusal rules are formally settled and implemented in `platform/core/pkg/ifc/lattice.go`:
+
+1. **3-Seam Enforcement:**
+   - **Query Seam (`query_records`):** Requesters are authorized against record labels *before* deserialization and database flooding. A record whose reader set does not include the requester is excluded from result sets, completely mitigating existence leaks and context flooding.
+   - **Export Seam (`export_subdag`):** Sub-DAG export computes the least upper bound (lattice join $\bigsqcup$) of all constituent node labels. Egress to external parties is blocked unless all labels permit the target audience.
+   - **Admission Seam (`admit_job`):** External hardware dispatch checks provider egress clearance against input data labels. A record tagged `{party:nus}` or `{tenant:acme}` cannot be submitted to an unapproved public cloud endpoint.
+
+2. **Fail-Closed Refusal of Unmodelable Policies:**
+   - Reader sets model explicit principal sets: `public`, `tenant:<id>`, `party:<name>`, `internal:<id>`, and composite conjunctions `readers:[p1, p2, ...]`.
+   - Legal/purpose prose (e.g. "Research Use Only", "No Commercial Benchmarking") or temporal expirations ("NDA until 2028") cannot be mapped faithfully to static reader sets without security holes.
+   - **Refusal Invariant:** `ValidateOrRefuseLabel` strictly rejects any unmodelable policy or malformed label fail-closed (`deny-all`). The system refuses the input with an audited rejection instead of approximating or coercing the security boundary.
+
+Verified in `platform/core/pkg/ifc/lattice_test.go` (asserts fail-closed refusal of unmodelable policy strings, composite reader set intersections, and query filtering).
 
 See also [[secrets-and-workload-isolation]], [[provenance-and-reproducibility]],
 [[buzz]], [[multi-agent-research-collective]], [[user-identity-and-profiles]].

@@ -1,14 +1,14 @@
 ---
 type: catalog
 date: 2026-08-16
-updated: 2026-10-23
+updated: 2026-10-26
 tags: [index]
 status: living
 ---
 
 # Index
 
-Catalog of every page in the wiki (150 pages), updated on every ingest. When answering a
+Catalog of every page in the wiki (151 pages), updated on every ingest. When answering a
 query, read this first to find relevant pages, then drill in.
 
 > **What this wiki is.** The **blueprint** for Kubona — the accumulated insight used to
@@ -29,7 +29,7 @@ arrives, place it here first and it will find its page.
 |---|---|---|---|
 | **L0 · Method** | How Kubona is allowed to *know* and *claim*: evidence classes, anchors, credibility, ontology | [[quantum-advantage-realism]], [[evaluation-and-benchmarks]], [[provenance-and-reproducibility]], [[claim-credibility-wavefunctions]], [[epistemic-curvature]], [[fidelity-accounting]], [[forensic-audit-2026]], [[mathematical-physics-anchors]], [[formal-proof-verification-lean-comparator]], [[epistemic-continuum-and-ontology]], [[quantum-triage-engine]] | mostly `adopted` with mathematical grounding |
 | **L1 · Control** | The governance rail that makes agent spend survivable | [[cost-governance]], [[spend-mandates-and-delegation]], [[security-and-pqc]], [[secrets-and-workload-isolation]], [[secret-rotation-runbook]], [[user-identity-and-profiles]], [[provider-capability-schema]], [[quantum-cloud-pricing]] | `adopted`, with AP2 mandates anchoring the approval gate |
-| **L2 · Compute** | Compilation, providers, mitigation, the machine itself | [[qir-mlir-compilation]], [[agentic-qir-compilation]], [[protocol-strategy]], [[mcp-and-context-flooding]], [[nisq-and-hybrid-orchestration]], [[error-mitigation]], [[circuit-cutting]], [[vqa-vqe]], [[barren-plateau]] + provider entities, [[qiskit-mcp-servers]], [[early-fault-tolerant-quantum-and-subspace-methods]], [[divstep-packing]], [[circuit-codesign-production-readiness]], [[circuit-codesign-followups]], [[circuit-codesign-implementation-plan]] | `adopted` mechanisms, `tracked` vendors, 1 open packing question |
+| **L2 · Compute** | Compilation, providers, mitigation, the machine itself | [[qir-mlir-compilation]], [[agentic-qir-compilation]], [[protocol-strategy]], [[mcp-and-context-flooding]], [[nisq-and-hybrid-orchestration]], [[error-mitigation]], [[circuit-cutting]], [[vqa-vqe]], [[barren-plateau]] + provider entities, [[qiskit-mcp-servers]], [[early-fault-tolerant-quantum-and-subspace-methods]], [[divstep-packing]], [[circuit-codesign-production-readiness]], [[circuit-codesign-followups]], [[circuit-codesign-implementation-plan]] | `adopted` mechanisms, `tracked` vendors, dual-model register allocation |
 | **L3 · Research** | Autonomy that compounds: search, meta-search, packs, the discovery loop, memory | [[science-discovery]], [[karpathy-autoresearch]], [[meta-search-and-self-evolution]], [[five-ring-research-loop]], [[multi-agent-research-collective]], [[quantum-domain-packs]], [[agentic-memory-and-observability]], [[autonomous-ansatz-optimization]], [[differentiable-quantum-stack]], [[autonomous-mathematical-discovery]], [[frontier-benchmark-saturation]], [[epistemic-information-lifecycle-and-memory]], [[autonomous-manuscript-synthesis-and-peer-review]], [[multimodal-mission-control-and-custom-agents]] | `adopted` core research mechanisms |
 | **L4 · Surface** | Where a human sees and limits the agent | [[ui-ux-vision]], [[agent-ux-control-plane]], [[workflows-and-agent-authoring]], [[confidentiality-lattice-provenance]], [[scientific-agentic-experience-triad]], [[frontend-backend-ui-ux-audit]], [[observatory-spatial-representation-layer]] | `adopted` cognitive cockpit & AX triad |
 | **L5 · Ecosystem** | How it gets used, funded, and extended by others | [[agent-resource-economy]], [[x402]], [[cloudflare]], [[aaif]], [[a2a]], [[ap2]], [[integration-topology-and-licence-discipline]], [[openai-math]], [[hugging-face-hub]], [[cloudroom]], [[rea]], [[leanrea]] | 1 `settled` policy; standard delegation, model hub, and payment rails; `reference` agent-room + REA + leanrea prior art |
@@ -62,7 +62,7 @@ Describes **how decided** something is — never how finished.
 
 | Value | Meaning | Used by |
 |---|---|---|
-| `settled` | A decision or standing policy. Treat it as a constraint; changing it needs a new decision and a log entry. | [[integration-topology-and-licence-discipline]], [[quantum-advantage-realism]], [[spend-mandates-and-delegation]], [[cost-governance]], [[epistemic-continuum-and-ontology]] |
+| `settled` | A decision or standing policy. Treat it as a constraint; changing it needs a new decision and a log entry. | [[integration-topology-and-licence-discipline]], [[quantum-advantage-realism]], [[spend-mandates-and-delegation]], [[cost-governance]], [[epistemic-continuum-and-ontology]], [[divstep-packing]] |
 | `adopted` | Understood and relied upon; we would build this way today. Weaker than `settled` — the cost may not be known yet. | core mechanism concepts |
 | `open-question` | The insight is incomplete or the fork is undecided. Indexed in [[questions]]. | philosophy pages, autonomy model, discovery layer |
 | `candidate` | Proposed for integration or reuse; integration topology not yet committed. | [[openbao]], [[univer]], [[openqasm]], [[model-optimizer]], own repos |
@@ -71,9 +71,9 @@ Describes **how decided** something is — never how finished.
 | `source` | An ingested source record. Immutable once written. | the 7 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (150 pages = 47 entities · 88 concepts · 10 sources · 5 meta), 2026-10-23:**
-`settled` 5 · `adopted` 54 · `open-question` 8 · `candidate` 14 · `tracked` 44 ·
-`reference` 9 · `source` 10 · `living` 7 (lint-counted). Five `settled` against 54 `adopted`
+**Census (151 pages = 47 entities · 89 concepts · 10 sources · 5 meta), 2026-10-26:**
+`settled` 6 · `adopted` 62 · `open-question` 0 · `candidate` 13 · `tracked` 44 ·
+`reference` 9 · `source` 10 · `living` 7 (lint-counted). Six `settled` against 62 `adopted`
 keeps the honest reading: the load-bearing constraints are **chosen**, everything else
 remains **understood**. `settled` stays small by rule — each entry needed test enforcement
 plus dependents ([[overview]] §Settled constraints); new candidates must meet the same bar.

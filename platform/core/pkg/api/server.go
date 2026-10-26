@@ -424,6 +424,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/sessions/import", s.handleSessionImport)
 	s.mux.HandleFunc("/api/sessions/context", s.handleSessionContext)
 	s.mux.HandleFunc("/api/sessions/", s.handleSessionByID)
+	s.mux.HandleFunc("/api/campaigns/", s.handleCampaignRoute)
 	s.mux.HandleFunc("/api/chat/messages", s.handleChatMessages)
 	s.mux.HandleFunc("/api/chat/stream", s.handleChatStream)
 	s.mux.HandleFunc("/api/chat/regenerate", s.handleChatRegenerate)
@@ -1922,6 +1923,11 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 		stateBytes, _ := json.Marshal(state)
 		s.ledger.SaveCampaignStateWithTrigger(sessionID, stateBytes, "campaign-fetch")
 		writeJSON(w, http.StatusOK, state)
+		return
+	}
+	if strings.HasSuffix(id, "/campaign/flight-recorder") || strings.HasSuffix(id, "/flight-recorder") {
+		sessionID := strings.TrimSuffix(strings.TrimSuffix(id, "/campaign/flight-recorder"), "/flight-recorder")
+		s.handleCampaignFlightRecorder(w, r, sessionID)
 		return
 	}
 	// T-10b: settle restart-orphan loops (DB-keyed: the action handler
