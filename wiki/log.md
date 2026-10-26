@@ -3283,3 +3283,10 @@ skipped is the exact failure this incident is about:
     3. Q-39 (Cached-Depth Lens Billing): Adopted "Looking is free for cached views" rule: switching to an existing depth asset or session manifest returns `$0.00` (`cached: true`); fresh generative synthesis and 3D chisel mutations bill `$0.50`.
     4. Q-40 (L2 Autonomy Mandates): Settled session-level AP2 mandate authorization for iterative subcircuits under the session ceiling, coupled with high-watermark single-job escalation (jobs exceeding `$10.00` or requesting foreign export jurisdictions require an explicit per-job cryptographic mandate card).
     5. Q-41 (Refund Policy Knobs): Codified two-tier refund authority (automatic 100% spend release on system/bridge failures; discretionary post-settlement refunds restricted to Tenant Admin Ed25519 signatures within a 72-hour window, with partial refunds supported bounded by reserved spend).
+
+## [2026-10-26] question | Q-27 — History scrub complete: dev-docs/ and .obsidian/ excised via git-filter-repo, rewritten branches pushed and rule protections restored
+  - Executed `git filter-repo --path dev-docs --path .obsidian --invert-paths --force` across all 474 commits.
+  - Verified 0 residual `dev-docs/` or `.obsidian/` objects in git history (`git log --all --name-only | grep -E '^(dev-docs|\.obsidian)'` returns zero matches).
+  - Unset `credential.helper=store` globally (restoring macOS keychain / `gh auth git-credential` only).
+  - Force-pushed rewritten `develop` and `main` branches to `origin` (`github.com/mainza-ai/kubona.git`) and re-enabled `Kubona-protect-1` branch protection ruleset enforcement.
+  - Closed Q-27 in `wiki/questions.md`, updated `wiki/overview.md` and `wiki/concepts/risks.md`.

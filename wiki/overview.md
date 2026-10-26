@@ -170,8 +170,8 @@ ledger receipt, a cited anchor), never to an assertion.
   insight mining needs no grant, and the only check is at release time.
 ## Where the blueprint is unsettled
 
-The full ledger of undecided and under-understood items is [[questions]] — 41 closed,
-8 open rows (7 unnumbered `open-question` pages in Sections B–C plus Q-27 in Section E), each with what is known, what is missing, and what the answer unblocks.
+The full ledger of undecided and under-understood items is [[questions]] — 42 closed,
+7 open rows (7 unnumbered `open-question` pages in Sections B–C; Section E is fully closed), each with what is known, what is missing, and what the answer unblocks.
 Three tensions are worth naming here because they are strategic rather than technical:
 
 - **Open-source vs. qBraid's 34-device lead.** Kubona deliberately starts with 2–3
@@ -318,6 +318,6 @@ closed while the blueprint is still being designed, because a public repo withou
 direction attracts contributions the project cannot direct. The flip is therefore gated on the
 blueprint becoming *contributor-legible* — Q-01 answered (what `platform/` is for) plus enough
 of the method layer to say what to build first — not on a date and not on Phase 0, which passed
-weeks ago. Apache-2.0 at publication remains committed; the residue in private-remote history
-(the repo has never been public: `dev-docs/`, `.obsidian/`) is the last mechanical prerequisite ([[questions]] Q-27,
-[[risks]]).
+weeks ago. Apache-2.0 at publication remains committed; historical repository residue
+(`dev-docs/`, `.obsidian/`) has been completely excised via `git filter-repo` and rewritten
+history pushed to origin ([[questions]] Q-27, [[risks]]).
