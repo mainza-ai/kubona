@@ -2,7 +2,7 @@
 type: concept
 name: Remaining work queue
 date: 2026-10-17
-updated: 2026-10-17
+updated: 2026-10-26
 tags: [plan, queue, production]
 sources: [source-gap-analysis-plan, source-frontier-repo-audit-2026]
 status: tracked
@@ -211,8 +211,7 @@ status: tracked
 
 ## D · Standing questions
 
-- [[questions]] sections A–E (7 open-question pages) + Q-27 — the
-  insight work-list, separate from this execution queue.
+- All 48 questions in [[questions]] Sections A–E (including Q-01 through Q-48 and Q-27 history scrub) are **settled and closed** as of 2026-10-26 (0 open questions remaining across the entire blueprint).
 
 Related: [[questions]] · [[roadmap]] · [[risks]] · [[full-tree-roadmap]] ·
 [[rea-adoption-plan]] · [[cloudroom-adoption-plan]] ·
