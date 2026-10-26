@@ -706,6 +706,37 @@ func (l *Ledger) GetRecentEvents(sessionID string, limit int) ([]EventRecord, er
 	return events, nil
 }
 
+// CheckBrierCalibration evaluates the session's historical prediction accuracy.
+// If >= 5 predictions have been evaluated and mean Brier score > 0.25, epistemic
+// calibration is degraded and hardware dispatch is refused (R-08).
+func (l *Ledger) CheckBrierCalibration(sessionID string) error {
+	events, err := l.GetRecentEvents(sessionID, 500)
+	if err != nil {
+		return fmt.Errorf("failed to read prediction events: %w", err)
+	}
+	var sumBrier float64
+	var nEval int
+	for _, e := range events {
+		if e.EventType != "prediction_evaluated" {
+			continue
+		}
+		var p struct {
+			BrierScore *float64 `json:"brier_score"`
+		}
+		if err := json.Unmarshal(e.Payload, &p); err == nil && p.BrierScore != nil {
+			sumBrier += *p.BrierScore
+			nEval++
+		}
+	}
+	if nEval >= 5 {
+		meanBrier := sumBrier / float64(nEval)
+		if meanBrier > 0.25 {
+			return fmt.Errorf("epistemic calibration degraded (mean Brier %.3f > 0.25 across %d predictions): autonomous hardware dispatch suspended (R-08), calibrate via simulator before further QPU spend", meanBrier, nEval)
+		}
+	}
+	return nil
+}
+
 func (l *Ledger) SaveCampaignState(sessionID string, stateJSON []byte) error {
 	return l.SaveCampaignStateWithTrigger(sessionID, stateJSON, "")
 }

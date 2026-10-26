@@ -133,6 +133,13 @@ func (s *Server) handleQuantumJobs(w http.ResponseWriter, r *http.Request) {
 			WriteAPIError(w, "forbidden", err.Error(), nil)
 			return
 		}
+		// R-08: Epistemic calibration gate for autonomous hardware dispatch.
+		if provider != "local-simulator" && provider != "qiskit-aer-simulator" && !req.DryRun {
+			if err := s.ledger.CheckBrierCalibration(req.SessionID); err != nil {
+				WriteAPIError(w, "forbidden", err.Error(), nil)
+				return
+			}
+		}
 		sessionVerified = true
 		sessionCeilingUSD = sess.SpendLimitUSD
 		if sessionCeilingUSD <= 0 {

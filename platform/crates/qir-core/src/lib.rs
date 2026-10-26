@@ -42,7 +42,7 @@ pub fn parse(source: &str) -> Result<Circuit, String> {
         // `creg`/`barrier` into calls to undeclared @__quantum__qis__creg__body
         // et al. — invalid IR from valid QASM.
         let lname = line.split_whitespace().next().unwrap_or("");
-        if matches!(lname, "include" | "creg" | "barrier" | "opaque" | "if") {
+        if matches!(lname, "include" | "creg" | "barrier" | "opaque" | "if") || lname.starts_with("bit") {
             if lname == "opaque" || lname == "if" {
                 return Err(format!("unsupported statement '{lname}': refusing"));
             }
@@ -56,6 +56,17 @@ pub fn parse(source: &str) -> Result<Circuit, String> {
                 .map_err(|_| "bad qreg size")?;
             // W1.5: max width across registers (the old overwrite took the
             // last qreg, shrinking multi-register programs).
+            num_qubits = num_qubits.max(n);
+            continue;
+        }
+        if let Some(rest) = line.strip_prefix("qubit") {
+            let rest = rest.trim();
+            let n: usize = if rest.starts_with('[') {
+                let end = rest.find(']').ok_or("malformed qubit declaration")?;
+                rest[1..end].trim().parse().map_err(|_| "bad qubit register size")?
+            } else {
+                1
+            };
             num_qubits = num_qubits.max(n);
             continue;
         }
@@ -205,6 +216,17 @@ mod tests {
         assert_eq!(c.num_qubits, 2);
         assert_eq!(c.gates.len(), 2);
         assert_eq!(c.gates[0].name, "h");
+    }
+
+    #[test]
+    fn parses_openqasm3_subset() {
+        let qasm = "OPENQASM 3.0;\nqubit[2] q;\nbit[2] c;\nh q[0];\ncx q[0], q[1];\nreset q[0];";
+        let c = parse(qasm).unwrap();
+        assert_eq!(c.num_qubits, 2);
+        assert_eq!(c.gates.len(), 3);
+        assert_eq!(c.gates[2].name, "reset");
+        let ir = emit_llvm_ir(&c).unwrap();
+        assert!(ir.contains("@__quantum__qis__reset__body"));
     }
 
     #[test]

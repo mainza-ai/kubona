@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -37,10 +38,83 @@ type Compiler struct {
 	QIRCoreBinaryPath string
 }
 
+func resolveQIRCoreBinary() string {
+	// 1. Explicit environment override
+	if envBin := strings.TrimSpace(os.Getenv("KUBONA_QIR_CORE_BIN")); envBin != "" {
+		if abs, err := filepath.Abs(envBin); err == nil {
+			if _, err := os.Stat(abs); err == nil {
+				return abs
+			}
+		}
+	}
+
+	// 2. Executable-relative lookup (for deployed daemon / CLI processes)
+	if exePath, err := os.Executable(); err == nil && exePath != "" {
+		exeDir := filepath.Dir(exePath)
+		for _, rel := range []string{
+			"qir-core",
+			"../crates/qir-core/target/release/qir-core",
+			"../../crates/qir-core/target/release/qir-core",
+			"../../../crates/qir-core/target/release/qir-core",
+		} {
+			target := filepath.Join(exeDir, rel)
+			if abs, err := filepath.Abs(target); err == nil {
+				if _, err := os.Stat(abs); err == nil {
+					return abs
+				}
+			}
+		}
+	}
+
+	// 3. Known relative workspace search paths from working directory
+	for _, rel := range []string{
+		"../crates/qir-core/target/release/qir-core",
+		"../../crates/qir-core/target/release/qir-core",
+		"platform/crates/qir-core/target/release/qir-core",
+	} {
+		if abs, err := filepath.Abs(rel); err == nil {
+			if _, err := os.Stat(abs); err == nil {
+				return abs
+			}
+		}
+	}
+
+	return "../crates/qir-core/target/release/qir-core"
+}
+
 func NewCompiler() *Compiler {
 	return &Compiler{
-		QIRCoreBinaryPath: "../crates/qir-core/target/release/qir-core",
+		QIRCoreBinaryPath: resolveQIRCoreBinary(),
 	}
+}
+
+func (c *Compiler) binaryCandidates() []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(p string) {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			return
+		}
+		if abs, err := filepath.Abs(p); err == nil && !seen[abs] {
+			seen[abs] = true
+			out = append(out, abs)
+		}
+	}
+	if envBin := os.Getenv("KUBONA_QIR_CORE_BIN"); envBin != "" {
+		add(envBin)
+	}
+	add(c.QIRCoreBinaryPath)
+	if exePath, err := os.Executable(); err == nil && exePath != "" {
+		exeDir := filepath.Dir(exePath)
+		add(filepath.Join(exeDir, "qir-core"))
+		add(filepath.Join(exeDir, "../crates/qir-core/target/release/qir-core"))
+		add(filepath.Join(exeDir, "../../crates/qir-core/target/release/qir-core"))
+	}
+	add("../crates/qir-core/target/release/qir-core")
+	add("../../crates/qir-core/target/release/qir-core")
+	add("platform/crates/qir-core/target/release/qir-core")
+	return out
 }
 
 // LowerToLLVM lowers OpenQASM to QIR BaseProfile LLVM IR
@@ -50,26 +124,19 @@ func (c *Compiler) LowerToLLVM(qasm string) (string, error) {
 	}
 
 	// Try executing native Rust qir-core binary if available
-	candidates := []string{
-		c.QIRCoreBinaryPath,
-		"../../crates/qir-core/target/release/qir-core",
-		"platform/crates/qir-core/target/release/qir-core",
-	}
+	candidates := c.binaryCandidates()
 
-	for _, bin := range candidates {
-		abs, err := filepath.Abs(bin)
-		if err == nil {
-			// W1.9: hung compiler binaries used to hang the API with them.
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			cmd := exec.CommandContext(ctx, abs, "--llvm")
-			cmd.Stdin = strings.NewReader(qasm)
-			var out bytes.Buffer
-			cmd.Stdout = &out
-			err := cmd.Run()
-			cancel()
-			if err == nil && out.Len() > 0 {
-				return out.String(), nil
-			}
+	for _, abs := range candidates {
+		// W1.9: hung compiler binaries used to hang the API with them.
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		cmd := exec.CommandContext(ctx, abs, "--llvm")
+		cmd.Stdin = strings.NewReader(qasm)
+		var out bytes.Buffer
+		cmd.Stdout = &out
+		err := cmd.Run()
+		cancel()
+		if err == nil && out.Len() > 0 {
+			return out.String(), nil
 		}
 	}
 
@@ -79,47 +146,40 @@ func (c *Compiler) LowerToLLVM(qasm string) (string, error) {
 
 // Analyze returns structured circuit summary metrics
 func (c *Compiler) Analyze(qasm string) (*CircuitSummary, error) {
-	candidates := []string{
-		c.QIRCoreBinaryPath,
-		"../../crates/qir-core/target/release/qir-core",
-		"platform/crates/qir-core/target/release/qir-core",
-	}
+	candidates := c.binaryCandidates()
 
-	for _, bin := range candidates {
-		abs, err := filepath.Abs(bin)
-		if err == nil {
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-			cmd := exec.CommandContext(ctx, abs, "--json")
-			cmd.Stdin = strings.NewReader(qasm)
-			var out bytes.Buffer
-			cmd.Stdout = &out
-			runErr := cmd.Run()
-			cancel()
-			if runErr == nil && out.Len() > 0 {
-				var raw struct {
-					InstructionCount int `json:"instruction_count"`
-					QubitAllocations int `json:"qubit_allocations"`
-					GateDepth        int `json:"gate_depth"`
-					SingleQubitGates int `json:"single_qubit_gates"`
-					TwoQubitGates    int `json:"two_qubit_gates"`
-					TotalGates       int `json:"total_gates"`
-				}
-				if err := json.Unmarshal(out.Bytes(), &raw); err == nil && (raw.QubitAllocations > 0 || raw.TotalGates > 0) {
-					llvm, _ := c.LowerToLLVM(qasm)
-					return &CircuitSummary{
-						NumQubits: raw.QubitAllocations,
-						Depth:     raw.GateDepth,
-						GateCount: raw.TotalGates,
-						// W1.9: qir-core emits no T-count — parsed from
-						// source on both paths (t/tdg statements), never 0
+	for _, abs := range candidates {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		cmd := exec.CommandContext(ctx, abs, "--json")
+		cmd.Stdin = strings.NewReader(qasm)
+		var out bytes.Buffer
+		cmd.Stdout = &out
+		runErr := cmd.Run()
+		cancel()
+		if runErr == nil && out.Len() > 0 {
+			var raw struct {
+				InstructionCount int `json:"instruction_count"`
+				QubitAllocations int `json:"qubit_allocations"`
+				GateDepth        int `json:"gate_depth"`
+				SingleQubitGates int `json:"single_qubit_gates"`
+				TwoQubitGates    int `json:"two_qubit_gates"`
+				TotalGates       int `json:"total_gates"`
+			}
+			if err := json.Unmarshal(out.Bytes(), &raw); err == nil && (raw.QubitAllocations > 0 || raw.TotalGates > 0) {
+				llvm, _ := c.LowerToLLVM(qasm)
+				return &CircuitSummary{
+					NumQubits: raw.QubitAllocations,
+					Depth:     raw.GateDepth,
+					GateCount: raw.TotalGates,
+					// W1.9: qir-core emits no T-count — parsed from
+					// source on both paths (t/tdg statements), never 0
 						// by default (QEC consumed the fabricated zero).
-						TCount:           countTStatements(qasm),
-						QIRProfile:       "BaseProfile",
-						LLVMIR:           llvm,
-						CompilerUsed:     "rust-qir-core",
-						FallbackEstimate: false,
-					}, nil
-				}
+					TCount:           countTStatements(qasm),
+					QIRProfile:       "BaseProfile",
+					LLVMIR:           llvm,
+					CompilerUsed:     "rust-qir-core",
+					FallbackEstimate: false,
+				}, nil
 			}
 		}
 	}
@@ -178,8 +238,9 @@ func countTStatements(qasm string) int {
 }
 
 var (
-	qregRe  = regexp.MustCompile(`qreg\s+(\w+)\[(\d+)\]`)
-	qubitRe = regexp.MustCompile(`(\w+)\[(\d+)\]`)
+	qregRe       = regexp.MustCompile(`qreg\s+(\w+)\[(\d+)\]`)
+	qasm3QubitRe = regexp.MustCompile(`qubit(?:\[(\d+)\])?\s+(\w+)`)
+	qubitRe      = regexp.MustCompile(`(\w+)\[(\d+)\]`)
 	// gateRe splits one statement into name, parenthesized params, operands.
 	gateRe = regexp.MustCompile(`^([a-zA-Z_][a-zA-Z0-9_]*)\s*(\(([^)]*)\))?\s*(.*?)\s*;?\s*$`)
 	// angleRe parses rotation angles: decimals or pi multiples (pi, pi/2,
@@ -233,6 +294,21 @@ func parseProgram(qasm string) (*parsedProgram, error) {
 			}
 			regWidth[matches[1]] = n
 			regOffset[matches[1]] = total
+			total += n
+		} else if matches := qasm3QubitRe.FindStringSubmatch(line); len(matches) > 2 {
+			n := 1
+			if matches[1] != "" {
+				n, _ = strconv.Atoi(matches[1])
+			}
+			regName := matches[2]
+			if n <= 0 {
+				return nil, fmt.Errorf("invalid register width in %q", line)
+			}
+			if _, dup := regWidth[regName]; dup {
+				return nil, fmt.Errorf("duplicate register %q", regName)
+			}
+			regWidth[regName] = n
+			regOffset[regName] = total
 			total += n
 		}
 	}
@@ -391,7 +467,7 @@ func parseProgram(qasm string) (*parsedProgram, error) {
 
 func isQASMDirective(line string) bool {
 	lower := strings.ToLower(line)
-	for _, prefix := range []string{"openqasm", "include", "qreg", "creg", "barrier"} {
+	for _, prefix := range []string{"openqasm", "include", "qreg", "creg", "barrier", "qubit", "bit"} {
 		if strings.HasPrefix(lower, prefix) {
 			return true
 		}

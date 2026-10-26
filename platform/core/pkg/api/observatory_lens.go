@@ -178,11 +178,10 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// atlasGenerate needs full RGBD context (image + depth + camera per
-	// frame); P1 builds depth-only chisel context. Refuse loudly rather
-	// than dispatching a payload the API would 422.
-	if taskType == "atlasGenerate" {
-		WriteAPIError(w, "bad_request", "atlasGenerate needs full RGBD context frames (image + depth + camera) — P2 work; chisel runs prompt-only or depth-conditioned today", nil)
+	// atlasGenerate needs full RGBD context (image + depth + camera per frame).
+	// Fail-closed when context is missing (P2 requirement).
+	if taskType == "atlasGenerate" && (strings.TrimSpace(req.ImageURL) == "" || strings.TrimSpace(req.DepthAssetID) == "") {
+		WriteAPIError(w, "bad_request", "atlasGenerate needs full RGBD context frames (image_url and depth_asset_id required for multi-view conditioning)", nil)
 		return
 	}
 
@@ -268,9 +267,8 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 			"aspectRatio": "16:9",
 		}
 	default:
-		// Reachable only for atlasChisel (atlasGenerate is refused
-		// pre-spend above): prompt + target cameras, depth-conditioned when
-		// a depth asset is supplied, prompt-only otherwise.
+		// Handles atlasChisel and atlasGenerate (P2): prompt + target cameras,
+		// depth-conditioned or full RGBD when image and depth assets are supplied.
 		prompt := req.Prompt
 		if prompt == "" {
 			prompt = fmt.Sprintf("Minimalist architectural subterranean observatory pavilion overlooking a crystalline %s quantum potential energy landscape, dark titanium trim, 6500K recessed lighting, floor-to-ceiling quartz observation windows", req.TargetSystem)
@@ -312,17 +310,40 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 		if req.EphemeralPurge {
 			atlasPayload["purgeContentOnOperationCompletion"] = true
 		}
-		if depthID := strings.TrimSpace(req.DepthAssetID); depthID != "" {
-			// Depth-only context, 1:1 with the target: the encoder renders
-			// depth AT this camera, so context and target share the pose.
-			atlasPayload["contextFrames"] = []map[string]any{
-				{
-					"camera": targetCam,
-					"depth": map[string]any{
-						"depthAsset": map[string]any{"assetId": depthID},
-					},
-				},
+
+		var imageAsset map[string]any
+		if imageURL := strings.TrimSpace(req.ImageURL); imageURL != "" {
+			imageAsset = map[string]any{"url": imageURL}
+			if strings.HasPrefix(imageURL, "data:") {
+				if inlineDecodedSize(imageURL) > inlineAssetMaxDecodedBytes {
+					_ = s.sessionMgr.ReleaseSpend(req.SessionID, lensCostUSD)
+					WriteAPIError(w, "bad_request", "inline snapshot exceeds 9.5 MiB decoded: use the asset upload flow instead", nil)
+					return
+				}
+				assetID, err := uploadInlineAssetToAtlas(atlasBaseURL(apiBase), apiKey, idemKey+"-asset", imageURL, fmt.Sprintf("kubona-lens-%s.png", req.SessionID))
+				if err != nil {
+					_ = s.sessionMgr.ReleaseSpend(req.SessionID, lensCostUSD)
+					WriteAPIError(w, "bridge_unavailable", fmt.Sprintf("Atlas asset upload failed: %v", err), nil)
+					return
+				}
+				imageAsset = map[string]any{"assetId": assetID}
 			}
+		}
+
+		depthID := strings.TrimSpace(req.DepthAssetID)
+		if depthID != "" || imageAsset != nil {
+			cf := map[string]any{
+				"camera": targetCam,
+			}
+			if depthID != "" {
+				cf["depth"] = map[string]any{
+					"depthAsset": map[string]any{"assetId": depthID},
+				}
+			}
+			if imageAsset != nil {
+				cf["image"] = imageAsset
+			}
+			atlasPayload["contextFrames"] = []map[string]any{cf}
 		}
 	}
 

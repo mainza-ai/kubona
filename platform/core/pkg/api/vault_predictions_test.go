@@ -7,6 +7,7 @@ import (
 	"math"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/mainza-ai/kubona/core/pkg/api"
@@ -325,6 +326,33 @@ func TestPredictionAssertValidation(t *testing.T) {
 	if out.ClaimRecordID == "" {
 		t.Fatalf("expected minted claim_record_id in assert response, got %+v", out)
 	}
+
+	claims, err := srv.Ledger().ListClaimRecords(sessID, 10)
+	if err != nil || len(claims) == 0 {
+		t.Fatalf("expected claim record in ledger, got: %v (err: %v)", claims, err)
+	}
+	found := false
+	for _, c := range claims {
+		if c.ID == out.ClaimRecordID {
+			found = true
+			if !strings.Contains(c.Statement, "H2") || !strings.Contains(c.Statement, hash) {
+				t.Fatalf("expected statement to link target and hash, got: %s", c.Statement)
+			}
+			var ev map[string]any
+			if err := json.Unmarshal([]byte(c.Evidence), &ev); err != nil {
+				t.Fatalf("failed to unmarshal evidence: %v", err)
+			}
+			if ev["target_system"] != "H2" || ev["method"] != "VQE UCCSD + Qiskit Aer" {
+				t.Fatalf("evidence missing sealed metadata: %v", ev)
+			}
+			if ev["brier_score"] == nil || ev["measured_value"] == nil {
+				t.Fatalf("evidence missing evaluated metrics: %v", ev)
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("claim %s not found in ListClaimRecords", out.ClaimRecordID)
+	}
 }
 
 func TestPredictionCalibration(t *testing.T) {
@@ -415,5 +443,52 @@ func TestPredictionHistory(t *testing.T) {
 		if !kinds[k] {
 			t.Fatalf("missing %s in history: %v", k, kinds)
 		}
+	}
+}
+
+func TestPredictionBrierSuspendsQuantumHardware(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	sessID := createLensTestSession(t, srv, 100.0)
+
+	// Evaluate 5 predictions with extreme error so mean Brier score > 0.25
+	for i := 0; i < 5; i++ {
+		h := sealH2Prediction(t, srv, sessID, -1.137, 0.005)
+		rec := postPrediction(t, srv, "/api/vault/predictions/evaluate", map[string]any{
+			"session_id":      sessID,
+			"prediction_hash": h,
+			"measured_value":  10.0, // huge surprise: ~2000 sigma, outcome 0, brier ~ 0.99
+		})
+		if rec.Code != http.StatusOK {
+			t.Fatalf("evaluate failed: %d", rec.Code)
+		}
+	}
+
+	// 1. Simulator dispatch passes calibration admission (not 403 forbidden)
+	simRec := postPrediction(t, srv, "/api/quantum/jobs", map[string]any{
+		"session_id":      sessID,
+		"qasm":            "OPENQASM 2.0;\nqreg q[2];\nh q[0];\n",
+		"provider":        "local-simulator",
+		"shots":           100,
+		"idempotency_key": "sim-brier-test",
+	})
+	if simRec.Code == http.StatusForbidden {
+		t.Fatalf("simulator must not be forbidden by degraded calibration, got %d (%s)", simRec.Code, simRec.Body.String())
+	}
+
+	// 2. Metered hardware dispatch is REFUSED (403 forbidden)
+	hwRec := postPrediction(t, srv, "/api/quantum/jobs", map[string]any{
+		"session_id":      sessID,
+		"qasm":            "OPENQASM 2.0;\nqreg q[2];\nh q[0];\n",
+		"provider":        "ibm-qiskit",
+		"shots":           100,
+		"idempotency_key": "hw-brier-test",
+	})
+	if hwRec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 forbidden on degraded calibration, got %d (%s)", hwRec.Code, hwRec.Body.String())
+	}
+	if !strings.Contains(hwRec.Body.String(), "epistemic calibration degraded") {
+		t.Fatalf("expected epistemic calibration error message, got: %s", hwRec.Body.String())
 	}
 }
