@@ -143,6 +143,12 @@ func (r *Runner) admitJob(sessionID, jobType string, paramsJSON []byte, declared
 	if isSimulatorBackend(p.RequestedBackend) {
 		return "", 0, nil
 	}
+	// R-08: Epistemic calibration gate. When a session has >= 5 evaluated
+	// predictions and mean Brier > 0.25, epistemic calibration has degraded:
+	// autonomous hardware dispatch is suspended until re-calibrated via simulator.
+	if err := r.ledger.CheckBrierCalibration(sessionID); err != nil {
+		return "", 0, err
+	}
 	// Metered hardware with no declared positive cost refuses: ReserveSpend
 	// treats 0 as a no-op, so admitting here would dispatch unattributed.
 	if p.MaxCostUSD <= 0 {

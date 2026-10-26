@@ -393,9 +393,35 @@ func (s *Server) handlePredictionAssert(w http.ResponseWriter, r *http.Request) 
 	// R-09: mint the formal claim record beside the assertion event, same
 	// convention as tribunal consensus (sentinel -1 alpha/beta/gamma, rho
 	// carried in the statement + rho field is caller-stated, never computed).
-	evBytes, _ := json.Marshal(map[string]any{"evidence_refs": req.EvidenceRefs, "prediction_hash": req.PredictionHash})
+	evMap := map[string]any{
+		"evidence_refs":   req.EvidenceRefs,
+		"prediction_hash": req.PredictionHash,
+		"target_system":   sealed.TargetSystem,
+		"method":          sealed.Method,
+		"quantity":        sealed.Quantity,
+		"expected_mean":   sealed.ExpectedMean,
+		"expected_std":    sealed.ExpectedStd,
+		"author":          sealed.Author,
+		"rho":             req.Rho,
+	}
+	if mv, ok := evaluated["measured_value"]; ok {
+		evMap["measured_value"] = mv
+	}
+	if sz, ok := evaluated["surprise_z"]; ok {
+		evMap["surprise_z"] = sz
+	}
+	if bs, ok := evaluated["brier_score"]; ok {
+		evMap["brier_score"] = bs
+	}
+	if sr, ok := evaluated["surprise_ratio"]; ok {
+		evMap["surprise_ratio"] = sr
+	}
+	if w3, ok := evaluated["within_3sigma"]; ok {
+		evMap["within_3sigma"] = w3
+	}
+	evBytes, _ := json.Marshal(evMap)
 	claimRec, merr := s.ledger.MintClaimRecord(req.SessionID, "vault_assert",
-		fmt.Sprintf("Vault assertion: prediction %s asserted at rho=%.3f", req.PredictionHash, req.Rho),
+		fmt.Sprintf("Vault assertion: prediction %s (%s %s) asserted at rho=%.3f", req.PredictionHash, sealed.TargetSystem, sealed.Quantity, req.Rho),
 		-1, -1, -1, "asserted", string(evBytes))
 	if merr != nil {
 		WriteAPIError(w, "internal", fmt.Sprintf("failed to mint claim record: %v", merr), nil)

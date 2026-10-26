@@ -156,6 +156,58 @@ func TestObservatoryGenerateRefusedWithoutRGBD(t *testing.T) {
 	}
 }
 
+func TestObservatoryGenerateWithRGBD(t *testing.T) {
+	var dispatchedPayload map[string]any
+	atlasMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasSuffix(r.URL.Path, "/tasks:atlasGenerate") {
+			_ = json.NewDecoder(r.Body).Decode(&dispatchedPayload)
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"operation": {"id": "op-gen-rgbd-42"}}`))
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer atlasMock.Close()
+
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	t.Setenv("WLT_API_KEY", "wl_live_mock_key")
+	t.Setenv("WLT_API_BASE_URL", atlasMock.URL)
+
+	sessID := createLensTestSession(t, srv, 20.0)
+	rec := postLens(t, srv, map[string]any{
+		"session_id":     sessID,
+		"target_system":  "H2",
+		"task_type":      "atlasGenerate",
+		"image_url":      "https://images.example.com/obs/h2-pose.png",
+		"depth_asset_id": "asset-metric-depth-999",
+	}, "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for atlasGenerate with RGBD context, got %d (%s)", rec.Code, rec.Body.String())
+	}
+	if spend := lensSessionSpend(t, srv, sessID); spend != 0.50 {
+		t.Fatalf("expected 0.50 spend reserved, got %f", spend)
+	}
+
+	frames, ok := dispatchedPayload["contextFrames"].([]any)
+	if !ok || len(frames) != 1 {
+		t.Fatalf("expected 1 context frame dispatched, got %v", dispatchedPayload["contextFrames"])
+	}
+	cf, ok := frames[0].(map[string]any)
+	if !ok {
+		t.Fatalf("expected frame map, got %v", frames[0])
+	}
+	img, _ := cf["image"].(map[string]any)
+	if img == nil || img["url"] != "https://images.example.com/obs/h2-pose.png" {
+		t.Fatalf("expected image url in context frame, got %v", cf["image"])
+	}
+	depth, _ := cf["depth"].(map[string]any)
+	if depth == nil {
+		t.Fatalf("expected depth in context frame, got %v", cf["depth"])
+	}
+}
+
 func TestObservatoryVoxelValidation(t *testing.T) {
 	srv, cleanup := setupTestServer(t)
 	defer cleanup()

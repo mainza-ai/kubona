@@ -82,6 +82,35 @@ cx q[0], q[1];
 	}
 }
 
+func TestQIRCompilerOpenQASM3(t *testing.T) {
+	c := NewCompiler()
+	qasm := `OPENQASM 3.0;
+qubit[3] q;
+bit[3] c;
+h q[0];
+cx q[0], q[1];
+reset q[0];
+measure q[0] -> c[0];
+`
+	summary, err := c.Analyze(qasm)
+	if err != nil {
+		t.Fatalf("Analyze failed for OpenQASM 3.0: %v", err)
+	}
+	if summary.NumQubits != 3 {
+		t.Errorf("expected 3 qubits, got %d", summary.NumQubits)
+	}
+	if summary.GateCount < 3 {
+		t.Errorf("expected at least 3 gates, got %d", summary.GateCount)
+	}
+	llvm, err := c.LowerToLLVM(qasm)
+	if err != nil {
+		t.Fatalf("LowerToLLVM failed for OpenQASM 3.0: %v", err)
+	}
+	if !strings.Contains(llvm, "reset") {
+		t.Errorf("expected reset instruction in LLVM IR, got:\n%s", llvm)
+	}
+}
+
 // W1.9: the closed set lowers fully; anything outside refuses (never
 // silently dropped); T-count is source-parsed; qubit counts are declared,
 // never invented.

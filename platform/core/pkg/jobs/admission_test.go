@@ -1,6 +1,11 @@
 package jobs
 
-import "testing"
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+	"testing"
+)
 
 // W2.5: two-qubit counting covers the full vocabulary (safe direction) and
 // comments never score.
@@ -35,5 +40,70 @@ measure q[0] -> c[0];
 	q, d, t2 := countQasmGates("OPENQASM 2.0;\nqreg q[2];\nfoo q[0], q[1];\n")
 	if q != 2 || d != 1 || t2 != 1 {
 		t.Fatalf("unknown 2q gate must count entangling: %d %d %d", q, d, t2)
+	}
+}
+
+func TestBrierCalibrationAdmissionGate(t *testing.T) {
+	runner, cleanup := setupRunner(t, &fakeBridge{})
+	defer cleanup()
+
+	sessID := "sess-brier-test"
+	if _, err := runner.ledger.DB().Exec(`INSERT INTO sessions (id, tenant_id, spend_limit_usd, current_spend_usd) VALUES (?, ?, ?, ?)`, sessID, "default", 100.0, 0.0); err != nil {
+		t.Fatalf("failed to insert session: %v", err)
+	}
+
+	// 1. Simulators must pass regardless of prediction history
+	simParams, _ := json.Marshal(map[string]any{
+		"qasm":              "OPENQASM 2.0;\nqreg q[2];\nh q[0];\n",
+		"requested_backend": "local-simulator",
+	})
+	if _, _, err := runner.admitJob(sessID, "circuit_run", simParams, 0); err != nil {
+		t.Fatalf("simulator must be admitted, got err: %v", err)
+	}
+
+	// 2. Append 5 well-calibrated predictions (brier = 0.05 <= 0.25)
+	for i := 0; i < 5; i++ {
+		payload := map[string]any{
+			"prediction_hash": fmt.Sprintf("pred-%d", i),
+			"brier_score":     0.05,
+		}
+		if err := runner.ledger.AppendEvent(sessID, "prediction_evaluated", payload); err != nil {
+			t.Fatalf("failed to append prediction_evaluated: %v", err)
+		}
+	}
+	if err := runner.ledger.CheckBrierCalibration(sessID); err != nil {
+		t.Fatalf("expected well-calibrated, got: %v", err)
+	}
+
+	// 3. Append degraded predictions so mean Brier > 0.25 (5 more with brier = 0.80)
+	for i := 5; i < 10; i++ {
+		payload := map[string]any{
+			"prediction_hash": fmt.Sprintf("pred-%d", i),
+			"brier_score":     0.80,
+		}
+		if err := runner.ledger.AppendEvent(sessID, "prediction_evaluated", payload); err != nil {
+			t.Fatalf("failed to append prediction_evaluated: %v", err)
+		}
+	}
+	// Total: 5*0.05 + 5*0.80 = 4.25 / 10 = 0.425 > 0.25
+	err := runner.ledger.CheckBrierCalibration(sessID)
+	if err == nil || !strings.Contains(err.Error(), "epistemic calibration degraded") {
+		t.Fatalf("expected epistemic calibration degraded error, got: %v", err)
+	}
+
+	// 4. Simulator still admitted!
+	if _, _, err := runner.admitJob(sessID, "circuit_run", simParams, 0); err != nil {
+		t.Fatalf("simulator must still be admitted when degraded, got err: %v", err)
+	}
+
+	// 5. Metered hardware must be REFUSED on degraded calibration!
+	hwParams, _ := json.Marshal(map[string]any{
+		"qasm":                 "OPENQASM 2.0;\nqreg q[2];\nh q[0];\n",
+		"requested_backend":    "ibm_sherbrooke",
+		"max_cost_usd":         10.0,
+		"caller_jurisdictions": []string{"US"},
+	})
+	if _, _, err := runner.admitJob(sessID, "circuit_run", hwParams, 10.0); err == nil || !strings.Contains(err.Error(), "epistemic calibration degraded") {
+		t.Fatalf("metered hardware must be refused on degraded calibration, got: %v", err)
 	}
 }
