@@ -2,10 +2,10 @@
 type: entity
 name: Kubona
 date: 2026-08-16
-updated: 2026-10-22
+updated: 2026-10-26
 tags: [kubona, platform]
 sources: [source-gap-analysis-plan]
-status: open-question
+status: adopted
 ---
 
 # Kubona
@@ -25,20 +25,42 @@ reproducible results (see [[science-discovery]]) — unifying [[qiskit]], [[penn
 [[google-cirq]], and the major quantum cloud providers behind a single, agent-native
 [[mcp-and-context-flooding|MCP]] interface (source-gap-analysis-plan).
 
+## Settled v1 Scope & Negative Scope Boundary (Ruling 2026-10-26, Q-01)
+
+Kubona v1 is the production agent-native platform for **Quantum Circuit Co-Design, Ground-Anchored Molecular Chemistry, Combinatorial Optimization, and 3D Generative Observation**.
+
+- **v1 Executable Hardware Backends (5):**
+  1. `local-simulator`: Ideal Aer statevector and shot-sampling simulation.
+  2. `qiskit-aer-simulator`: Noisy density-matrix and Clifford gate execution via Qiskit Aer.
+  3. `ibm-qiskit`: Real IBM Quantum Qiskit Runtime (`SamplerV2`), non-blocking deferred job handles, status polling, and hardware job recall.
+  4. `quantinuum`: Real trapped-ion execution via `pytket` and `qnexus`, non-blocking polling, bitstring normalization.
+  5. `dwave-annealing`: Exact/SA local solver and Leap Hybrid Sampler adapter.
+
+- **v1 Science Modalities (4):**
+  1. *Molecular Quantum Chemistry:* Ground-state VQE, active orbital space selection, dissociation curves (PES), and classical RHF/FCI anchors via PySCF.
+  2. *Combinatorial Optimization:* Exact and heuristic QUBO / Ising formulations, MaxCut, graph partitioning.
+  3. *Circuit Co-Design & QIR Compilation:* OpenQASM 2.0/3.0 lowering, Stim Clifford probes, PyZX spider fusion, Pauli propagation, full-radius Reed-Solomon decoding.
+  4. *Spatial Observatory & 3D Synthesis:* Gaussian splat rendering, depth-map extraction, and World Labs Atlas RGBD/Chisel synthesis.
+
+- **v1 Negative Scope (What v1 is NOT):**
+  1. Kubona v1 does **not** ship execution support for `rigetti`, `ionq`, `aws-braket`, `neutral-atom-quera-pasqal`, or `xanadu-strawberry-fields`. These backends are catalogued with `dispatch_ready: false` and fail-closed with actionable refusal reasons until v2 drivers land.
+  2. Kubona v1 does **not** support periodic boundary materials simulation or dynamic crystal spectroscopy (deferred to v2).
+  3. Kubona v1 does **not** perform autonomous in-loop LLM weight training (`unsloth` GQE flywheel is deferred to v2).
+  4. Kubona v1 is **not a multi-tenant cloud SaaS with federated OIDC** (external IdP and OAuth are deferred to Phase 4; local Ed25519 tenant lab keys and bearer cookies govern v1).
+
 ## Posture
 
 - Greenfield build, licensed **Apache-2.0**.
 - **Private by decision, not by accident** (ruled 2026-09-27). While the blueprint is being
   designed, opening the repository invites contributions before the project has anything to
   direct them into — so privacy is *load-bearing design protection*, not an unmet gate. The
-  flip is gated on the blueprint becoming **contributor-legible** (a stated role for `platform/`
-  per [[questions]] Q-01, and a method layer that says what to build first), not on a date.
+  flip is gated on the blueprint becoming **contributor-legible** (Q-01 settled above, and a method layer that says what to build first), not on a date.
 
 > ⚑ Correction: this page previously carried "public repo from Phase 0" as a live rule with an
 > ⚑ *Conflict* block, because the Phase-0 gate passed weeks ago and the repository stayed
 > private — which read as drift. The operator has since stated the intent, and it was never
 > "public when tests pass": the trigger is **direction legible enough to onboard strangers**,
-> which the blueprint did not yet have at the time of that ruling (1 `settled` page against 24 `adopted`; now 5 `settled` against 49 `adopted`). The Apache-2.0
+> which the blueprint has now achieved with the closure of Section A (Q-01). The Apache-2.0
 > commitment stands; its timing follows the condition above. Residual hygiene work before any
 > flip (private-remote, never-public `dev-docs/` + `.obsidian/` history) is tracked as [[questions]] Q-27; see
 > [[implementation-gaps]] and [[risks]].
@@ -48,10 +70,6 @@ reproducible results (see [[science-discovery]]) — unifying [[qiskit]], [[penn
 - Defensible product = the **agentic control/governance layer** (cost governance,
   provenance, per-call auth, routing) nobody else has shipped; the hardware-abstraction
   foundation underneath it must be genuinely open source.
-- **`status: open-question` is deliberate for this page.** While Q-01 (`platform/` role),
-  Q-10 (autonomy ladder), and Q-17 (CORE science discovery) are now closed in [[questions]],
-  the explicit v1 scope exclusion statement (what v1 is *not*) remains open in [[questions]]
-  Section A (`[[kubona]] scope`).
 
 ## Architecture at a glance
 

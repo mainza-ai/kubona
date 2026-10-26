@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/mainza-ai/kubona/core/pkg/ledger"
 )
 
 // ObservatoryLensRequest defines the parameter payload for requesting
@@ -27,6 +28,7 @@ type ObservatoryLensRequest struct {
 	EphemeralPurge bool     `json:"ephemeral_purge,omitempty"`
 	Camera         *LensCam `json:"camera,omitempty"`
 	IdempotencyKey string   `json:"idempotency_key,omitempty"`
+	CachedView     bool     `json:"cached_view,omitempty"`
 }
 
 type LensCam struct {
@@ -46,6 +48,7 @@ type ObservatoryLensResponse struct {
 	Status         string  `json:"status"`
 	IdempotencyKey string  `json:"idempotency_key,omitempty"`
 	Message        string  `json:"message,omitempty"`
+	Cached         bool    `json:"cached,omitempty"`
 }
 
 // lensCostUSD is the per-dispatch spend reservation. Single named const —
@@ -146,6 +149,45 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// 1b. Q-39: Looking is free for cached views.
+	// If the client requests a cached view (or references an existing depth asset
+	// without requesting new generative prompt/geometry mutations), verify the
+	// asset in this session's ledger history and return it for $0.00 without spend.
+	taskType := req.TaskType
+	if taskType == "" {
+		taskType = "images2PosedRGBD"
+	}
+	if isCached, cachedOpID, cachedAssetID := isCachedLensRequest(s.ledger, &req); isCached {
+		idemKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
+		if idemKey == "" {
+			idemKey = strings.TrimSpace(req.IdempotencyKey)
+		}
+		if idemKey == "" {
+			idemKey = "lens-cached-" + uuid.NewString()
+		}
+		_ = s.ledger.AppendEvent(req.SessionID, "annotation", map[string]any{
+			"session_id":   req.SessionID,
+			"text":         fmt.Sprintf("World Labs Atlas cached lens view reloaded ($0.00 billed, Q-39): operation %s", cachedOpID),
+			"task_type":    taskType,
+			"operation_id": cachedOpID,
+			"asset_id":     cachedAssetID,
+			"cost_usd":     0.0,
+			"cached":       true,
+		})
+		writeJSON(w, http.StatusOK, ObservatoryLensResponse{
+			OK:             true,
+			OperationID:    cachedOpID,
+			AssetID:        cachedAssetID,
+			TaskType:       taskType,
+			CostUSD:        0.0,
+			Watermark:      "SYNTHETIC LENS — WORLD LABS ATLAS",
+			Status:         "SUCCEEDED",
+			IdempotencyKey: idemKey,
+			Cached:         true,
+		})
+		return
+	}
+
 	// 2. Sovereign Air-Gap Gate: Zero outbound cloud egress when active
 	if s.llmSettings != nil && s.llmSettings.GetSnapshot().AirGapped {
 		WriteAPIError(w, "forbidden", "Sovereign Air-Gap active: external cloud generative synthesis refused", nil)
@@ -155,7 +197,7 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 	// 3. Task allowlist BEFORE spend: an unknown task_type is a client bug
 	// and must never reserve budget. Empty defaults to images2PosedRGBD
 	// (the console's only implemented lens path).
-	taskType := req.TaskType
+	taskType = req.TaskType
 	if taskType == "" {
 		taskType = "images2PosedRGBD"
 	}
@@ -572,4 +614,50 @@ func firstNonEmpty(vals ...string) string {
 		}
 	}
 	return ""
+}
+
+// isCachedLensRequest checks if the request targets an existing resolved lens
+// or uploaded depth asset in this session without requesting fresh generative
+// cloud synthesis (Q-39 ruling: looking is free, probing is costly).
+func isCachedLensRequest(l *ledger.Ledger, req *ObservatoryLensRequest) (bool, string, string) {
+	if req == nil || req.SessionID == "" {
+		return false, "", ""
+	}
+	// Explicit cached_view flag or viewing an existing depth asset with no fresh prompt
+	if !req.CachedView && (strings.TrimSpace(req.DepthAssetID) == "" || strings.TrimSpace(req.Prompt) != "") {
+		return false, "", ""
+	}
+	events, err := l.GetRecentEvents(req.SessionID, 500)
+	if err != nil {
+		return false, "", ""
+	}
+	targetDepth := strings.TrimSpace(req.DepthAssetID)
+	for _, e := range events {
+		if e.EventType != "annotation" {
+			continue
+		}
+		var p map[string]any
+		if err := json.Unmarshal(e.Payload, &p); err != nil {
+			continue
+		}
+		opID, _ := p["operation_id"].(string)
+		assetID, _ := p["asset_id"].(string)
+
+		// Check if DepthAssetID matches a resolved asset in this session
+		if targetDepth != "" && (assetID == targetDepth || strings.Contains(fmt.Sprint(p["asset_urls"]), targetDepth)) {
+			return true, opID, assetID
+		}
+		// If explicit CachedView requested, return the latest resolved lens operation
+		if req.CachedView {
+			if r, _ := p["resolved"].(bool); r && opID != "" {
+				return true, opID, assetID
+			}
+			if req.IdempotencyKey != "" {
+				if idem, _ := p["idempotency_key"].(string); idem == req.IdempotencyKey && opID != "" {
+					return true, opID, assetID
+				}
+			}
+		}
+	}
+	return false, "", ""
 }

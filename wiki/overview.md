@@ -170,8 +170,8 @@ ledger receipt, a cited anchor), never to an assertion.
   insight mining needs no grant, and the only check is at release time.
 ## Where the blueprint is unsettled
 
-The full ledger of undecided and under-understood items is [[questions]] — 36 closed,
-8 open rows (7 unnumbered `open-question` pages in Sections A–C plus Q-27 in Section E), each with what is known, what is missing, and what the answer unblocks.
+The full ledger of undecided and under-understood items is [[questions]] — 41 closed,
+8 open rows (7 unnumbered `open-question` pages in Sections B–C plus Q-27 in Section E), each with what is known, what is missing, and what the answer unblocks.
 Three tensions are worth naming here because they are strategic rather than technical:
 
 - **Open-source vs. qBraid's 34-device lead.** Kubona deliberately starts with 2–3
@@ -181,7 +181,7 @@ Three tensions are worth naming here because they are strategic rather than tech
   to Phase 5, still unresolved at the level of *who is liable*, not which API is called.
 - **Core vs. v2 for science discovery.** Roughly 40% of the concept pages describe the
   discovery platform; roughly one phase and no human surface does. That mismatch is
-  [[questions]] Q-17 (closed 2026-10-10 as CORE, not v2; remaining v1 scope boundary is the [[kubona]] row in [[questions]]).
+  [[questions]] Q-17 (closed 2026-10-10 as CORE, not v2; v1 scope boundary settled 2026-10-26 in [[kubona]]).
 
 ## Settled constraints (Q-02, closed 2026-10-10)
 
@@ -235,11 +235,11 @@ evidence that a design decision has been made. [[questions]] Q-01 asks what the
 prototype's role should be; until that is answered, no phase gate here counts as a
 blueprint milestone.
 
-**Status census (mechanical, 2026-10-17).** 129 pages: `settled` 5 · `adopted` 49 ·
-`open-question` 7 · `candidate` 13 · `tracked` 34 · `reference` 8 · `source` 7 ·
-`living` 6 (meta + diagram). Vocabulary: [[index]] §status legend. Read it as *decidedness*, never
-as completion: five settled policies against 49 adopted mechanisms means the blueprint is
-still mostly "understood", not "chosen".
+**Status census (mechanical, 2026-10-26).** 151 pages: `settled` 5 · `adopted` 56 ·
+`open-question` 7 · `candidate` 13 · `tracked` 44 · `reference` 9 · `source` 10 ·
+`living` 7. Vocabulary: [[index]] §status legend. Read it as *decidedness*, never
+as completion: five settled policies against 56 adopted mechanisms means the blueprint is
+substantively solidified.
 
 ### What the prototype has empirically answered
 

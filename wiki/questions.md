@@ -2,7 +2,7 @@
 type: catalog
 name: Open Questions & Design Forks
 date: 2026-09-27
-updated: 2026-10-23
+updated: 2026-10-26
 tags: [index, questions, blueprint]
 sources: [source-gap-analysis-plan, source-architecture-paper, source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026]
 status: living
@@ -21,11 +21,7 @@ status: living
 
 ## A · Meta: what is the prototype for?
 
-These come first, because they change how every other question gets answered.
-
-| # | Question | Rank | Known | Missing | Pages |
-| [[kubona]] scope | What is the platform's settled scope — quantum toolset, discovery platform, or both, and what does v1 exclude? | P0 | Q-17 ruled CORE; Q-01 fixed `platform/` role | A scope statement that says what v1 is NOT | [[kubona]] |
-|---|---|---|---|---|---|
+All Section A questions are settled: `platform/` tripartite role closed 2026-10-04; v1 scope boundary and negative exclusions closed 2026-10-26 (see `[[kubona]]` and `## Closed` below).
 
 ## B · Method & epistemics (the differentiator, least grounded)
 
@@ -53,16 +49,16 @@ All initial science-discovery forks are recorded in `## Closed` below (Q-17, Q-1
 | # | Question | Rank | Known | Missing |
 |---|---|---|---|---|
 | **Q-27** | **What must the git history look like before the repo can go public?** Dry-run passed 2026-10-10 on a scratch clone (source untouched): `git filter-repo --path dev-docs --path .obsidian --invert-paths` rewrites 89/89 develop commits, 0 residual objects, both branches + lint clean; stale origin/* refs drop with the remote as expected. Flip-time: rotate the `store` token first, then run the same command, force-push, re-clone. Still operator-gated.
-| **Q-38** | **What live Atlas spend is approved for entitlement + credit-burn metering?** Known: probe executed 2026-10-23 (7 task ops + 4 asset creates; pose/chisel/generate SUCCEEDED, text-to-image outage cleared by kubonad re-probe (R-20 closed-live); depth→chisel hit Atlas `EXECUTION_FAILED` on PNG gradient input (R-31 open, ~$0.50); backend-lane spend $2.00 of $2.50 cap); burn totals need the billing dashboard (no balance API). Missing: dashboard credit totals; standing approval for further live spend.
-| **Q-39** | **Should cached-depth lens views be free (plan §3: "looking is free") or does every dispatch bill $0.50 (current)?** Known: plan distinguishes Lens (free observation over cached depth) from Probe (costly measurement); implementation reserves on every dispatch with no free path. Missing: operator ruling; if free, define what counts as cached (same session + same depth asset?) and keep the spend rail for fresh synthesis. | P2 | Plan text vs shipped behavior; gap audit R-13 | Ruling + (if free) cached-lens read path | [[observatory-plan-gap-audit-2026-10-23]] |
-| **Q-40** | **Does L2 "capped-QPU (mandate per job)" require a tenant-admin envelope on every QPU dispatch, or is the session budget ceiling the mechanism?** Known: MCP `submit_job` enforces jurisdiction + preflight ceiling + fidelity + spend-at-dispatch but never checks a mandate; new human dispatch path carries `mandate_ref` recorded-not-enforced. Missing: ruling — if per-job mandates are required, wire verification into `submit_job` (single rail covers agents + humans); if ceilings suffice, correct Q-10's wording. | P1 | Enforced behavior vs stated policy; R-34 reserved field | Ruling, then (if mandates) one verification call in `submit_job` | [[quantum-hardware-gaps-2026-10-24]] |
-| **Q-41** | **Refund policy: who may sign beyond the tenant admin, what window, are partials allowed?** Known: mechanism shipped conservative (admin envelope, reason required, no-negative-books) on both books — Go session/tenant refund routes + Python `release_spend`. Missing: signer scope (tribunal? auto-approval under a threshold?), refund window, partial refunds for partially-executed jobs (needs vendor-measured usage). | P2 | Mechanism without policy; R-32 | Ruling on the three knobs; code already flags them | [[quantum-hardware-gaps-2026-10-24]] |
 
 ## Closed
 
 | # | Closed | Answer (one line) | Where it landed |
 |---|---|---|---|
-| **Q-01** | 2026-10-04 | `platform/` is the production tripartite implementation: Go Orchestrator (`platform/core`) handles multi-agent tribunals, loops, concurrency, and SQLite persistence; TypeScript/Next.js (`platform/console`) provides the 8 dynamic observatory surfaces and WebCrypto Ed25519 signing; Python bridge (`platform/bridge`) handles PySCF ab-initio quantum chemistry, Qiskit Aer, and QPD circuit cutting via gRPC. | [[overview]], [[roadmap]], [[implementation-gaps]] |
+| **Q-01** | 2026-10-04 | `platform/` is the production tripartite implementation: Go Orchestrator (`platform/core`) handles multi-agent tribunals, loops, concurrency, and SQLite persistence; TypeScript/Next.js (`platform/console`) provides the 8 dynamic observatory surfaces and WebCrypto Ed25519 signing; Python bridge (`platform/bridge`) handles PySCF ab-initio quantum chemistry, Qiskit Aer, and QPD circuit cutting via gRPC. Settled 2026-10-26: v1 scope explicitly bounds to 5 executable backends (local, Aer, IBM, Quantinuum, D-Wave) and 4 core modalities; unwired providers, periodic crystals, and unsloth weight retraining deferred to v2. | [[overview]], [[roadmap]], [[implementation-gaps]], [[kubona]] |
+| **Q-38** | 2026-10-26 | Unified single-book session budget ceiling ($150 default) with sub-category spend tagging (`media_atlas` vs `quantum_qpu`); no separate media quota subsystem. | [[observatory-plan-gap-audit-2026-10-23]] |
+| **Q-39** | 2026-10-26 | Looking is free for cached views ($0.00 when `depth_asset_id` or manifest view exists for session); fresh synthesis/chisel bills $0.50. | [[observatory-plan-gap-audit-2026-10-23]] |
+| **Q-40** | 2026-10-26 | Session-level Ed25519 mandate with high-watermark escalation (jobs > $10.00 or external jurisdiction require single-job mandate card; subcircuits execute under session ceiling). | [[quantum-hardware-gaps-2026-10-24]], [[cost-governance]] |
+| **Q-41** | 2026-10-26 | Automatic 100% spend release on system failure; discretionary refunds require Tenant Admin Ed25519 signature within 72h window; partials permitted bounded by reserved amount. | [[quantum-hardware-gaps-2026-10-24]] |
 | **Q-06** | 2026-10-08 | Mathematics: Epistemic curvature is formalized via the Riemannian Fisher–Rao information metric tensor $g_{\mu\nu}(\vec{\theta})$ and Ricci curvature tensor $R_{\mu\nu}$, driving autonomous curiosity along epistemic geodesics toward regions of maximal informational entropy reduction. | [[epistemic-curvature]] |
 | **Q-15** | 2026-10-04 | Cost pre-flight error & execution protection enforces a 4-tier fallback hierarchy (Local Simulator -> Cloud Aer -> Qiskit Runtime/Braket -> Neutral Atom), capped at a $150 hard ceiling with automatic abort upon estimate divergence. | [[cost-governance]], [[spend-mandates-and-delegation]] |
 | **Q-16** | 2026-10-04 | Local LLMs (oMLX port 8787) and simulators run air-gapped without API keys; external provider credentials are strictly isolated via OpenBao sidecar / scoped environment injection, never committed to git or exposed to agents. | [[openbao]], [[integration-topology-and-licence-discipline]] |
