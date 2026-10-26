@@ -1,7 +1,7 @@
 ---
 type: overview
 date: 2026-08-16
-updated: 2026-10-23
+updated: 2026-10-26
 tags: [kubona, synthesis]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-cloudflare-economy,
   source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026, source-openai-math-corpus,
@@ -235,11 +235,11 @@ evidence that a design decision has been made. [[questions]] Q-01 asks what the
 prototype's role should be; until that is answered, no phase gate here counts as a
 blueprint milestone.
 
-**Status census (mechanical, 2026-10-26).** 151 pages: `settled` 5 · `adopted` 56 ·
-`open-question` 7 · `candidate` 13 · `tracked` 44 · `reference` 9 · `source` 10 ·
+**Status census (mechanical, 2026-10-26).** 151 pages: `settled` 6 · `adopted` 62 ·
+`open-question` 0 · `candidate` 13 · `tracked` 44 · `reference` 9 · `source` 10 ·
 `living` 7. Vocabulary: [[index]] §status legend. Read it as *decidedness*, never
-as completion: five settled policies against 56 adopted mechanisms means the blueprint is
-substantively solidified.
+as completion: six settled policies against 62 adopted mechanisms and zero open
+questions means the blueprint is fully settled and contributor-ready.
 
 ### What the prototype has empirically answered
 

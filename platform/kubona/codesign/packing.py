@@ -80,6 +80,28 @@ def pack_or_refuse(width_trace: list[dict[str, int]], cap: int) -> dict:
     return rep
 
 
+def plan_dual_model_packing(width_trace: list[dict[str, int]], mode: str = "safe_288") -> dict:
+    """Dual-representation divstep allocation (B.4).
+
+    - 'safe_288': production mode; sizes shared registers to 288 bits, provably
+      preventing overflow on all 620 divstep walks including deep excursions (peak 267+267).
+    - 'paper_256': simulation mode; enforces the paper's 256-bit bounds and
+      trips a strict tail-failure budget event upon overflow.
+    """
+    if mode == "safe_288":
+        rep = plan_packing(width_trace, cap=288)
+        rep["mode"] = "safe_288"
+        rep["zero_overflow_guarantee"] = rep["fits"]
+        return rep
+    elif mode == "paper_256":
+        rep = plan_packing(width_trace, cap=256)
+        rep["mode"] = "paper_256"
+        rep["tail_overflow_tripped"] = not rep["fits"]
+        return rep
+    else:
+        raise ValueError(f"unknown mode {mode!r}: must be 'safe_288' or 'paper_256'")
+
+
 def emit_zero_test(b, g: list[int], flag: int, temps: list[int]) -> int:
     """Public zero-test emitter (powers scan readouts like Chien's).
 

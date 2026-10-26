@@ -3,8 +3,8 @@ name: Agentic Memory and Observability
 type: concept
 tags: [frontier, memory, observability, multi-agent, transparency, hindsight]
 date: 2026-09-27
-updated: 2026-09-27
-status: open-question
+updated: 2026-10-26
+status: adopted
 sources: [source-frontier-repo-audit-2026]
 ---
 
@@ -109,12 +109,14 @@ with per-tenant banks + HTTP recall/retain (`/api/memory/*`) + `MemoryPanel`
 > ⚑ Correction (2026-10-12): this section previously cited
 > `platform/kubona/observability/` and `kubona/mcp/servers/collective.py`
 > — neither path ever existed. Signed events live in the Go ledger;
-> memory lives in `pkg/memory/hindsight.go` + HTTP surface. The
-> lifecycle-in-Rust-core and one-console-view-per-campaign items remain
-> open (see Q-17 CORE-ENGINE).
+> memory lives in `pkg/memory/hindsight.go` + HTTP surface.
+> Settled (2026-10-26): Memory lifecycle is consolidated natively in Go Core (`pkg/memory`)
+> with LRU eviction and temporal decay, avoiding CGO/FFI overhead. The unified campaign
+> observability surface lives at `GET /api/campaigns/{id}/flight-recorder` paired with
+> `FlightRecorderCard` in the console, answering terminal verdict and realized spend in under 60 seconds.
 
 **Acceptance test:** a cold human auditor answers "why did the agent stop?" and "what did it
-spend?" in under 60 seconds — a measurable gate, added to [[evaluation-and-benchmarks]].
+spend?" in under 60 seconds — a measurable gate, pinned by `TestCampaignFlightRecorderEndpoint` and `FlightRecorderCard.test.tsx`.
 
 ## pgvector sidecar: dormant by design (Q-34, closed 2026-10-12)
 

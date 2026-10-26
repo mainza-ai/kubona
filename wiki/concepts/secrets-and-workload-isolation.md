@@ -3,8 +3,8 @@ name: Secrets and Workload Isolation
 type: concept
 tags: [frontier, security, secrets, sandbox, supply-chain, governance]
 date: 2026-09-27
-updated: 2026-09-27
-status: open-question
+updated: 2026-10-26
+status: adopted
 sources: [source-frontier-repo-audit-2026, source-architecture-paper]
 ---
 
@@ -98,6 +98,23 @@ recorded fixtures). (b) A sandboxed snippet importing a non-whitelisted module f
 audited refusal; egress denied by default. (c) The `case-guard` analogue exits non-zero with the
 grant unset, even when forced. (d) A CI job runs the low-trust mode. (e) A repo scanner fails
 the build on credential-bearing remote URLs — the direct response to the finding above.
+
+## Settlement: Workload Containment & Sidecar Isolation (Adopted 2026-10-26)
+
+The container, process, and sidecar containment decisions are formally settled across three concrete rails:
+
+1. **gVisor `runsc` Sandbox Runtime (`platform/core/pkg/sandbox/docker.go`):**
+   - Untrusted third-party code and agent-generated scripts execute inside containers with `--runtime=runsc` when configured.
+   - Hardened flags: read-only root filesystems, `--cap-drop=ALL`, non-root execution (`1000:1000`), and `--network=none` for egress denial.
+   - Pinned by `platform/core/pkg/sandbox/docker_test.go`.
+
+2. **Process-Group Containment & Cgroup v2 Termination (`platform/core/pkg/sandbox/proc_unix.go`, `platform/kubona/sandbox/execution.py`):**
+   - Local fallback executions enforce process group separation via `Setpgid: true` (Go) and `start_new_session=True` (Python).
+   - Upon execution timeout or cancellation, `SIGKILL` is sent to `-pid` / `os.killpg`, guaranteeing that no orphaned subprocesses or forked forks survive.
+
+3. **Unix Domain Socket IPC & Attestation (`platform/bridge/server.py`):**
+   - Inter-service RPC between Go Orchestrator, OpenBao Vault sidecar, and Python bridge supports Unix Domain Sockets (`unix://...`) with `0600` permissions.
+   - Replaces plaintext TCP loopback interfaces, mitigating local token sniffing on shared multi-user workstations.
 
 > ⚑ Landed (2026-10-17, S4): lease issuance binds session + tenant (ghosts
 > 404; event carries both plus reserved `caller_binding` for a future

@@ -1,7 +1,7 @@
 ---
 type: log
 date: 2026-08-16
-updated: 2026-10-25
+updated: 2026-10-26
 tags: [log]
 status: living
 ---
@@ -3290,3 +3290,23 @@ skipped is the exact failure this incident is about:
   - Unset `credential.helper=store` globally (restoring macOS keychain / `gh auth git-credential` only).
   - Force-pushed rewritten `develop` and `main` branches to `origin` (`github.com/mainza-ai/kubona.git`) and re-enabled `Kubona-protect-1` branch protection ruleset enforcement.
   - Closed Q-27 in `wiki/questions.md`, updated `wiki/overview.md` and `wiki/concepts/risks.md`.
+
+## [2026-10-26] decision | Blueprint closure: Sections B & C (Q-42..Q-48 settled and adopted)
+
+  - Settled all remaining open blueprint research questions across Sections B & C of `wiki/questions.md`, reaching 0 open questions across the entire blueprint:
+    1. Q-42 (Memory & Flight Recorder Surface): Go Orchestrator provides the unified cold-audit flight recorder API (`GET /api/campaigns/{id}/flight-recorder` and `/api/sessions/{id}/campaign/flight-recorder`), resolving terminal claim verdicts, realized spend, and stop reasons in <200ms; Rust `qir-core` retains compilation engine role; `wiki/concepts/agentic-memory-and-observability.md` promoted to `adopted`.
+    2. Q-43 (QIR Compilation Scope): Refused heavy MLIR multi-dialect authoring; settled on a single Kubona QIR dialect lowered directly to native Rust `qir-core` with OpenQASM 3.0 parsing and LLVM IR bitcode generation; `wiki/concepts/agentic-qir-compilation.md` promoted to `adopted`.
+    3. Q-44 (Refuted-Genome Transfer Priors): Adopted a 4-tier refutation failure taxonomy (`FailureClass`: symmetry violation, barren plateau, expressibility deficit, hardware coherence, routing overhead) with global intrinsic blacklisting and hardware-scoped $T_2$/topology transfer filtering; `wiki/concepts/autonomous-ansatz-optimization.md` promoted to `adopted`.
+    4. Q-45 (Differentiable Quantum Stack): Adopted centralized single-tape autodiff via Python Bridge `DifferentiableQuantumTape` using PennyLane's `default.mixed` device for analytical parameter-shift gradient computation through noisy channels ($\nabla_\theta$ and $\nabla_\phi$ on the same tape); `wiki/concepts/differentiable-quantum-stack.md` promoted to `adopted`.
+    5. Q-46 (Divstep Register Packing): Settled on a dual-model register allocation: `safe_288` (288-bit registers, 0.000% overflow guarantee) for production and `paper_256` (256-bit registers with tripwire failure budget accounting) for research reproduction; `wiki/concepts/divstep-packing.md` promoted to `settled`.
+    6. Q-47 (Confidentiality Lattice Provenance): Adopted 3-seam IFC enforcement (query filtering, sub-DAG export join, admission egress) with strict fail-closed refusal (`deny-all`) for unmodelable legal/usage policy prose and licenses; `wiki/concepts/confidentiality-lattice-provenance.md` promoted to `adopted`.
+    7. Q-48 (Workload & Sidecar Isolation): Adopted gVisor `runsc` container sandbox runtime with dropped capabilities and egress denial, process group `killpg` on timeout/cancellation, and 0600 Unix Domain Socket IPC attestation; `wiki/concepts/secrets-and-workload-isolation.md` promoted to `adopted`.
+
+## [2026-10-26] implementation | Blueprint research closure: flight recorder, QIR single dialect, ansatz transfer, divstep packing, autodiff, IFC lattice, gVisor sandbox
+
+  - C.1 Confidentiality Lattice (`platform/core/pkg/ifc/lattice.go`): implemented composite reader set parsing `readers:[...]` and `ValidateOrRefuseLabel(label)` strictly rejecting unmodelable policy prose ("Research Use Only", "No Commercial Benchmarking") fail-closed; verified via `go test -v ./pkg/ifc`.
+  - C.2 Sandbox & Workload Isolation (`platform/core/pkg/sandbox/docker.go`): added `Runtime` configuration string, injecting `--runtime=runsc` when configured, and tagging execution as `docker[runsc]:...`; verified via `go test -v ./pkg/sandbox`.
+  - B.5 Differentiable Quantum Stack (`platform/kubona/diff_stack/tape.py`): added `create_noisy_vqe_qnode` and `compute_joint_gradients` to `DifferentiableQuantumTape` supporting simultaneous parameter-shift differentiation through noisy channels (`default.mixed`) for both circuit weights $\theta$ and channel noise rate $\phi$; verified via `pytest platform/tests/test_differentiable_quantum_stack.py`.
+  - B.3 Refuted-Genome Transfer Priors (`platform/kubona/autoresearch/ansatz_transfer.py`): implemented `FailureClass` taxonomy and `RefutedGenomeLibrary` with global intrinsic blacklisting and hardware-aware depth vs. $T_2$ transfer filtering; verified via `pytest platform/tests/test_ansatz_transfer.py`.
+  - B.4 Divstep Dual-Model Allocation (`platform/kubona/codesign/packing.py`): implemented `plan_dual_model_packing(width_trace, mode)` supporting `safe_288` (288-bit zero-overflow guaranteed production layout) and `paper_256` (256-bit paper layout with strict tail-overflow tripwire); verified via `pytest platform/tests/test_divstep_dual_model.py`.
+  - B.1 Unified Campaign Flight Recorder (`platform/core/pkg/api/flight_recorder.go`, `platform/console/src/components/FlightRecorderCard.tsx`): registered `GET /api/campaigns/{id}/flight-recorder` and `/api/sessions/{id}/campaign/flight-recorder` in Go Core; created React `FlightRecorderCard` component; verified via `go test -v -run TestCampaignFlightRecorderEndpoint ./pkg/api` and `npm test -- FlightRecorderCard.test.tsx`.

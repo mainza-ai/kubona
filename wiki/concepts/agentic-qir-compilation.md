@@ -3,8 +3,8 @@ name: Agentic QIR Compilation
 type: concept
 tags: [frontier, compiler, qir, mlir, qasm3, autoresearch]
 date: 2026-09-27
-updated: 2026-09-27
-status: open-question
+updated: 2026-10-26
+status: adopted
 sources: [source-frontier-repo-audit-2026, source-architecture-paper]
 ---
 
@@ -114,14 +114,15 @@ hermetic env, and a cost model for per-synthesis billing. Valuable but
 operator-gated: account + credentials + supply-chain approval, in that
 order. The constraint-first API above keeps us compatible meanwhile.
 
-## Boundary conditions
+## Scope ruling & boundary conditions (settled 2026-10-26)
 
-- MLIR is an **external binary** with a pinned version contract, never a vendored tree
-  (`llvm-project` is larger than Kubona itself; (repo-audit-2026)).
-- The Rust dialect work is scoped to *one* dialect (Kubona QIR) plus one lowering target
-  (OpenQASM 3.1 → provider gate sets). Multi-vendor Pulse is a later phase, not a promise.
-- Q# / Braket front-ends remain Blueprint until a dialect exists for them
-  ([[microsoft-azure-quantum]], [[aws-braket]]).
+- **MLIR dialect authoring refused:** Kubona refuses out-of-tree C++ LLVM TableGen MLIR authoring;
+  `llvm-project` is a multi-GB binary dependency that adds compile latency without native quantum primitives.
+- **Single Rust QIR dialect (`qir-core`):** The dialect scope is formally ruled as one native
+  Kubona QIR dialect authoritatively implemented in Rust (`crates/qir-core`), supporting basic blocks,
+  typed SSA values, and use-def chains, with compile receipts and pass-portfolio search.
+- Multi-vendor Pulse is a later phase, not a promise. Q# / Braket front-ends remain Blueprint
+  until a native lowering pass is verified ([[microsoft-azure-quantum]], [[aws-braket]]).
 
 See also [[qiskit]], [[evaluation-and-benchmarks]] (correctness-regression harness gates this
 pipeline), [[openqasm]]-grammar via [[qiskit]], [[autonomous-ansatz-optimization]].

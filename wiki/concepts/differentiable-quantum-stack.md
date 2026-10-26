@@ -3,8 +3,8 @@ name: The Differentiable Quantum Stack
 type: concept
 tags: [frontier, differentiation, jax, autodiff, gradients, hybrid]
 date: 2026-09-27
-updated: 2026-09-27
-status: open-question
+updated: 2026-10-26
+status: adopted
 sources: [source-frontier-repo-audit-2026]
 ---
 
@@ -96,6 +96,20 @@ correctness claims ([[quantum-advantage-realism]], `wiki/concepts/risks.md`). Pa
 cost scales with trainable parameters, so gradient strategy is itself a budget decision
 ([[agent-resource-economy]]). `retworkx` (Apache-2.0, `pennylane/pylib`) is a legal dependency;
 pennylane's `diagrams` extras are not required.
+
+## Settlement: Unified Single-Tape Gradient Flow (Adopted 2026-10-26)
+
+Autodiff routing is resolved in favor of the **single unified tape** architecture centered in the Python Bridge (`platform/kubona/diff_stack/tape.py`):
+
+1. **Analytical Mixed-State Differentiation:**
+   `DifferentiableQuantumTape` uses PennyLane's `default.mixed` device with exact parameter-shift rules to compute the Jacobian of expectation values with respect to both circuit parameters $\vec{\theta}$ and channel noise parameters $\phi$ (e.g. depolarizing error rate $p$):
+   $$\nabla_{\theta, \phi} \langle H \rangle = \left[ \frac{\partial \langle H \rangle}{\partial \theta_1}, \dots, \frac{\partial \langle H \rangle}{\partial \theta_m}, \frac{\partial \langle H \rangle}{\partial \phi_1}, \dots, \frac{\partial \langle H \rangle}{\partial \phi_k} \right]$$
+2. **Single Computational Graph:**
+   Circuit ansatz execution and noise channel characterization are not separated into independent steps. Both appear on one tape, ensuring joint optimization of ansatz weights and calibrated error parameters without manual reconciliations.
+3. **Ledger Calibration Provenance:**
+   Gradients evaluated through the noisy channel are logged directly into the provenance ledger, bounding learning rates by the [[fidelity-accounting]] floor.
+
+Verified in `platform/tests/test_differentiable_quantum_stack.py` (simultaneous analytical parameter-shift gradient computation of $\nabla_\theta$ and $\nabla_\phi$ with zero numerical finite-difference drift).
 
 See also [[pennylane]], [[qiskit]], [[error-mitigation]], [[circuit-cutting]],
 [[nisq-and-hybrid-orchestration]].

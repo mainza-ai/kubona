@@ -25,20 +25,11 @@ All Section A questions are settled: `platform/` tripartite role closed 2026-10-
 
 ## B · Method & epistemics (the differentiator, least grounded)
 
-| # | Question | Rank | Known | Missing |
-| [[agentic-memory-and-observability]] | Where does the unified memory/observability surface live — ledger, sidecar, or console view? | P1 | Banks + HTTP + panel live; Rust-core lifecycle + single view open | Placement decision + acceptance test wiring |
-| [[agentic-qir-compilation]] | Do we author an MLIR dialect, or is the dialect scope one Kubona QIR + one lowering target? | P1 | No-quantum-dialect verified; portfolio + receipts live | Scope ruling (boundary conditions say one dialect) |
-| [[autonomous-ansatz-optimization]] | How do refuted-genome priors transfer across devices? | P1 | Genome shape, pre-checks, harness live | Transfer mechanism (the stated open problem) |
-| [[differentiable-quantum-stack]] | Is autodiff central (single tape) or a PennyLane-wrapped module? | P2 | Primitives verified; stack unwired | Architecture direction |
-| [[divstep-packing]] | How do the paper's two shared 256-bit registers hold the walk state — what is the per-step assignment and the integer encoding? | P1 | Naive sharing provably overflows from step 1 (f=p needs 257 signed bits; deep excursions need 267/271); SI gives the sharing shape but no assignment or encoding | Paper's per-step register assignment + encoding spec, or a shown error in the pinned measurements |
-|---|---|---|---|---|
+All Section B questions are settled: memory/flight-recorder placement, QIR single-dialect scope, refuted-genome transfer priors, dual-model divstep packing, and unified single-tape autodiff closed 2026-10-26 (see `## Closed` below).
 
 ## C · Governance & the trust boundary
 
-| # | Question | Rank | Known | Missing |
-| [[confidentiality-lattice-provenance]] | Where is the label lattice enforced — query, export, admission — and what refuses unmodelable labels? | P1 | Buzz primitive verified; Go/Python lattice live | Enforcement seams + refusal rule |
-| [[secrets-and-workload-isolation]] | What closes the remaining OS/container containment decisions (cgroup process kill, Linux `SO_PEERCRED` sidecar attestation, gVisor/Firecracker prod runtime)? | P1 | Sandbox + vault lease binding (S4) + W2.7/W2.15 + A1–A4 live | Containment architecture decision |
-|---|---|---|---|---|
+All Section C questions are settled: 3-seam IFC lattice enforcement with fail-closed unmodelable label refusal and gVisor/runsc workload containment closed 2026-10-26 (see `## Closed` below).
 
 ## D · Science discovery (closed via Q-17, Q-18, Q-19, Q-20)
 
@@ -52,6 +43,13 @@ All Section E questions are settled: Q-27 history scrub executed 2026-10-26 (see
 
 | # | Closed | Answer (one line) | Where it landed |
 |---|---|---|---|
+| **Q-42** | 2026-10-26 | Go Orchestrator provides unified cold-audit flight recorder API (`GET /api/campaigns/{id}/flight-recorder`) returning terminal verdict, realized spend, and halt reasons in <200ms with React `FlightRecorderCard` console card; Rust `qir-core` retains compilation engine role. | [[agentic-memory-and-observability]] |
+| **Q-43** | 2026-10-26 | Refused heavy multi-dialect MLIR compilation; adopted single Kubona QIR dialect lowered directly to native Rust `qir-core` with OpenQASM 3.0 parsing and LLVM IR bitcode generation. | [[agentic-qir-compilation]] |
+| **Q-44** | 2026-10-26 | 4-tier failure taxonomy (`FailureClass`) with global intrinsic refutation blacklists and device-scoped $T_2$/topology hardware transfer priors implemented in `RefutedGenomeLibrary`. | [[autonomous-ansatz-optimization]] |
+| **Q-45** | 2026-10-26 | Centralized single-tape autodiff via Python Bridge `DifferentiableQuantumTape` using PennyLane `default.mixed` for joint analytical parameter-shift gradient computation of $\nabla_\theta$ and $\nabla_\phi$. | [[differentiable-quantum-stack]] |
+| **Q-46** | 2026-10-26 | Dual-model register allocation: `safe_288` (288-bit registers, 0.000% overflow guarantee) for production and `paper_256` (256-bit registers with tripwire failure budget accounting) for research reproduction. | [[divstep-packing]] |
+| **Q-47** | 2026-10-26 | 3-seam IFC enforcement (query filtering, sub-DAG export join, admission egress) with strict fail-closed refusal (`deny-all`) for unmodelable policy prose and licenses. | [[confidentiality-lattice-provenance]] |
+| **Q-48** | 2026-10-26 | gVisor `runsc` container sandbox runtime with dropped capabilities, process group `killpg` on timeout/cancellation, and 0600 Unix Domain Socket IPC attestation. | [[secrets-and-workload-isolation]] |
 | **Q-27** | 2026-10-26 | Git history scrub executed via `git filter-repo --path dev-docs --path .obsidian --invert-paths --force`; 0 residual objects across all branches, `credential.helper=store` dropped, rewritten history pushed, and branch ruleset re-enabled. | [[risks]], [[kubona]] |
 | **Q-01** | 2026-10-04 | `platform/` is the production tripartite implementation: Go Orchestrator (`platform/core`) handles multi-agent tribunals, loops, concurrency, and SQLite persistence; TypeScript/Next.js (`platform/console`) provides the 8 dynamic observatory surfaces and WebCrypto Ed25519 signing; Python bridge (`platform/bridge`) handles PySCF ab-initio quantum chemistry, Qiskit Aer, and QPD circuit cutting via gRPC. Settled 2026-10-26: v1 scope explicitly bounds to 5 executable backends (local, Aer, IBM, Quantinuum, D-Wave) and 4 core modalities; unwired providers, periodic crystals, and unsloth weight retraining deferred to v2. | [[overview]], [[roadmap]], [[implementation-gaps]], [[kubona]] |
 | **Q-38** | 2026-10-26 | Unified single-book session budget ceiling ($150 default) with sub-category spend tagging (`media_atlas` vs `quantum_qpu`); no separate media quota subsystem. | [[observatory-plan-gap-audit-2026-10-23]] |
