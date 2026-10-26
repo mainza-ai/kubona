@@ -1171,6 +1171,41 @@ export async function routeMultimodalPayload(
   }
 }
 
+export async function planWorkflow(payload: {
+  session_id?: string;
+  workflow: import('@/types').WorkflowDefinition;
+  inputs?: Record<string, unknown>;
+}): Promise<import('@/types').WorkflowPlanResponse> {
+  const res = await apiFetch(`${API_BASE}/api/workflows/plan`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`workflow plan refused (HTTP ${res.status}): ${detail.slice(0, 160)}`);
+  }
+  return res.json();
+}
+
+export async function runWorkflow(payload: {
+  session_id: string;
+  workflow: import('@/types').WorkflowDefinition;
+  inputs?: Record<string, unknown>;
+  force?: boolean;
+}): Promise<import('@/types').WorkflowRunResponse> {
+  const res = await apiFetch(`${API_BASE}/api/workflows/run`, {
+    method: 'POST',
+    headers: authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new Error(`workflow run refused (HTTP ${res.status}): ${detail.slice(0, 160)}`);
+  }
+  return res.json();
+}
+
 // ==========================================
 // AP2 SPEND MANDATE CLIENT METHODS
 // ==========================================

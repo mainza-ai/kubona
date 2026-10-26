@@ -1,0 +1,125 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "AgentSpecV1",
+  "description": "Canonical cross-runtime agent manifest schema for Kubona (Go Core and Python runtimes)",
+  "type": "object",
+  "required": ["id", "name", "role", "system_prompt"],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-zA-Z0-9_-]+$",
+      "description": "Unique agent identifier"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable agent display name"
+    },
+    "role": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Agent functional role label"
+    },
+    "description": {
+      "type": "string",
+      "default": "",
+      "description": "Description of agent expertise and scientific scope"
+    },
+    "system_prompt": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Base system prompt instructing agent behavior"
+    },
+    "avatar_emoji": {
+      "type": "string",
+      "default": "🧪",
+      "description": "UI emoji avatar"
+    },
+    "badge_color": {
+      "type": "string",
+      "default": "cyan",
+      "description": "UI badge color theme"
+    },
+    "mode": {
+      "type": "string",
+      "enum": ["prompt", "pipeline"],
+      "default": "prompt",
+      "description": "Agent operational mode: conversational prompt persona or deterministic tool pipeline"
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "tool"],
+        "properties": {
+          "id": { "type": "string" },
+          "tool": { "type": "string" },
+          "args": { "type": "object" },
+          "cost_usd": { "type": "number", "minimum": 0 },
+          "requires_approval": { "type": "boolean" }
+        }
+      },
+      "default": [],
+      "description": "Sequential tool steps executed when mode is pipeline"
+    },
+    "capabilities": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Functional domain capabilities declared by the agent"
+    },
+    "modalities": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": ["text"],
+      "description": "Input/output data modalities supported (text, molecule_3d, circuit_qir, spectroscopy, image)"
+    },
+    "preferred_model": {
+      "type": "string",
+      "default": "",
+      "description": "Model preference hint (empty string denotes unpinned, resolved at dispatch)"
+    },
+    "mcp_tools": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "MCP tools whitelisted for direct agent invocation"
+    },
+    "spend_budget_usd": {
+      "type": "number",
+      "minimum": 0,
+      "default": 0.0,
+      "description": "Autonomous spend budget ceiling in USD"
+    },
+    "memory_scopes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": ["default"],
+      "description": "Memory and hindsight scopes accessible to this agent"
+    },
+    "scopes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": [],
+      "description": "Gateway authorization scopes granted to this agent"
+    },
+    "created_by": {
+      "type": ["string", "null"],
+      "default": null,
+      "description": "Parent creator identity or operator principal"
+    },
+    "is_system_agent": {
+      "type": "boolean",
+      "default": false,
+      "description": "Immutable flag reserved for built-in platform personas"
+    },
+    "created_at": {
+      "type": "string",
+      "description": "ISO 8601 UTC creation timestamp"
+    },
+    "updated_at": {
+      "type": "string",
+      "description": "ISO 8601 UTC last update timestamp"
+    }
+  }
+}

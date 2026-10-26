@@ -12,24 +12,28 @@ import (
 	"github.com/google/uuid"
 )
 
-// CustomAgentManifest defines a user-created agent persona
+// CustomAgentManifest defines a user-created agent persona or workflow pipeline
 type CustomAgentManifest struct {
-	ID             string   `json:"id"`
-	Name           string   `json:"name"`
-	Role           string   `json:"role"`
-	Description    string   `json:"description"`
-	SystemPrompt   string   `json:"system_prompt"`
-	AvatarEmoji    string   `json:"avatar_emoji"`
-	BadgeColor     string   `json:"badge_color"`
-	Capabilities   []string `json:"capabilities"`
-	Modalities     []string `json:"modalities"`
-	PreferredModel string   `json:"preferred_model"`
-	MCPTools       []string `json:"mcp_tools"`
-	SpendBudgetUSD float64  `json:"spend_budget_usd"`
-	MemoryScopes   []string `json:"memory_scopes"`
-	IsSystemAgent  bool     `json:"is_system_agent"`
-	CreatedAt      string   `json:"created_at"`
-	UpdatedAt      string   `json:"updated_at"`
+	ID             string                   `json:"id"`
+	Name           string                   `json:"name"`
+	Role           string                   `json:"role"`
+	Description    string                   `json:"description"`
+	SystemPrompt   string                   `json:"system_prompt"`
+	AvatarEmoji    string                   `json:"avatar_emoji"`
+	BadgeColor     string                   `json:"badge_color"`
+	Mode           string                   `json:"mode,omitempty"`
+	Steps          []map[string]interface{} `json:"steps,omitempty"`
+	Capabilities   []string                 `json:"capabilities"`
+	Modalities     []string                 `json:"modalities"`
+	PreferredModel string                   `json:"preferred_model"`
+	MCPTools       []string                 `json:"mcp_tools"`
+	SpendBudgetUSD float64                  `json:"spend_budget_usd"`
+	MemoryScopes   []string                 `json:"memory_scopes"`
+	Scopes         []string                 `json:"scopes,omitempty"`
+	CreatedBy      string                   `json:"created_by,omitempty"`
+	IsSystemAgent  bool                     `json:"is_system_agent"`
+	CreatedAt      string                   `json:"created_at"`
+	UpdatedAt      string                   `json:"updated_at"`
 }
 
 // CustomAgentRegistry manages user-defined custom agents
@@ -173,6 +177,28 @@ func (r *CustomAgentRegistry) Register(m CustomAgentManifest) (CustomAgentManife
 	}
 	if r.isSeedID(m.ID) {
 		return CustomAgentManifest{}, fmt.Errorf("agent id %q is a reserved system seed", m.ID)
+	}
+	if m.Mode == "" {
+		m.Mode = "prompt"
+	} else if m.Mode != "prompt" && m.Mode != "pipeline" {
+		return CustomAgentManifest{}, fmt.Errorf("mode must be 'prompt' or 'pipeline', got %q", m.Mode)
+	}
+	if m.Mode == "pipeline" {
+		if len(m.Steps) == 0 {
+			return CustomAgentManifest{}, fmt.Errorf("pipeline mode requires at least one step")
+		}
+		for i, s := range m.Steps {
+			sid, _ := s["id"].(string)
+			stool, _ := s["tool"].(string)
+			if strings.TrimSpace(sid) == "" || strings.TrimSpace(stool) == "" {
+				return CustomAgentManifest{}, fmt.Errorf("step %d requires non-empty 'id' and 'tool'", i)
+			}
+		}
+	}
+	for _, sc := range m.Scopes {
+		if strings.TrimSpace(sc) == "" {
+			return CustomAgentManifest{}, fmt.Errorf("scope cannot be empty string")
+		}
 	}
 	now := time.Now().UTC().Format(time.RFC3339)
 	if m.CreatedAt == "" {

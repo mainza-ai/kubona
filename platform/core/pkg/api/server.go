@@ -500,6 +500,12 @@ func (s *Server) registerRoutes() {
 	// to declared catalog values — see quantum_canary.go).
 	s.mux.HandleFunc("/api/quantum/canary", s.handleQuantumCanary)
 
+	// Workflow engine execution and planning routes (Phase 3).
+	// Planning is read-only validation against tools (session-scoped);
+	// running executes MCP steps and requires dispatch autonomy.
+	s.mux.HandleFunc("/api/workflows/plan", s.requireBearer(s.handleWorkflowPlan))
+	s.mux.HandleFunc("/api/workflows/run", s.requireBearer(s.handleWorkflowRun))
+
 	// Vault Dynamic Leases (OpenBao sidecar bridge)
 	s.mux.HandleFunc("/api/vault/leases", s.requireBearer(s.handleVaultLeases))
 	s.mux.HandleFunc("/api/vault/leases/revoke", s.requireBearer(s.handleVaultLeaseRevoke))

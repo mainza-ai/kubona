@@ -58,8 +58,39 @@ func TestCustomAgentRegistryValidationContract(t *testing.T) {
 		t.Fatalf("unknown delete must refuse, got %v", err)
 	}
 
+	// Invalid mode refuses.
+	if _, err := r.Register(CustomAgentManifest{Name: "badmode", Mode: "invalid"}); err == nil ||
+		!strings.Contains(err.Error(), "mode must be 'prompt' or 'pipeline'") {
+		t.Fatalf("invalid mode must refuse, got %v", err)
+	}
+	// Pipeline mode without steps refuses.
+	if _, err := r.Register(CustomAgentManifest{Name: "pipenosteps", Mode: "pipeline"}); err == nil ||
+		!strings.Contains(err.Error(), "pipeline mode requires at least one step") {
+		t.Fatalf("pipeline mode without steps must refuse, got %v", err)
+	}
+	// Pipeline mode with invalid step refuses.
+	if _, err := r.Register(CustomAgentManifest{
+		Name:  "pipebadstep",
+		Mode:  "pipeline",
+		Steps: []map[string]interface{}{{"id": "s1"}}, // missing tool
+	}); err == nil || !strings.Contains(err.Error(), "requires non-empty 'id' and 'tool'") {
+		t.Fatalf("pipeline step missing tool must refuse, got %v", err)
+	}
+	// Empty scope string refuses.
+	if _, err := r.Register(CustomAgentManifest{Name: "badscope", Scopes: []string{"  "}}); err == nil ||
+		!strings.Contains(err.Error(), "scope cannot be empty string") {
+		t.Fatalf("whitespace scope must refuse, got %v", err)
+	}
+
 	// Happy path: empty ID mints one, timestamps set, system flag forced.
-	got, err := r.Register(CustomAgentManifest{Name: "minted"})
+	got, err := r.Register(CustomAgentManifest{
+		Name: "minted",
+		Mode: "pipeline",
+		Steps: []map[string]interface{}{
+			{"id": "step1", "tool": "compiler/transpile_circuit"},
+		},
+		Scopes: []string{"compiler:transpile"},
+	})
 	if err != nil {
 		t.Fatalf("valid register refused: %v", err)
 	}
@@ -71,6 +102,9 @@ func TestCustomAgentRegistryValidationContract(t *testing.T) {
 	}
 	if got.IsSystemAgent {
 		t.Fatal("IsSystemAgent must be forced false")
+	}
+	if got.Mode != "pipeline" || len(got.Steps) != 1 {
+		t.Fatalf("pipeline mode and steps must persist, got mode=%q steps=%v", got.Mode, got.Steps)
 	}
 
 	// Round trip through List, then delete removes.

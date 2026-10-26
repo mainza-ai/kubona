@@ -257,6 +257,13 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     spent_usd=spent_usd,
                     tenant_id=getattr(request, "tenant_id", "") or "",
                 )
+                from kubona.mcp.servers import cost as _cost
+                _cost._sessions.sync_external_session(
+                    session_id=request.session_id,
+                    budget_ceiling_usd=ceiling_usd,
+                    spent_usd=spent_usd,
+                    tenant_id=getattr(request, "tenant_id", "") or "",
+                )
 
             caller_jurisdictions = list(getattr(request, "caller_jurisdictions", None) or [])
             caller_export_class = getattr(request, "caller_export_class", "") or "any"
@@ -509,6 +516,113 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             error_message=res["error_message"],
             sampling_overhead_kappa=float(res.get("sampling_overhead_kappa", 0.0)),
         )
+
+    def WorkflowPlan(self, request, context):
+        import json as _json
+
+        from kubona.mcp.servers._mount import build_gateway
+        from kubona.provenance import Ledger
+        from kubona.workflows.engine import WorkflowEngine, parse_workflow
+
+        logger.info("WorkflowPlan called for session %s", request.session_id)
+        try:
+            raw_wf = _json.loads(request.workflow_json)
+            wf = parse_workflow(raw_wf)
+            inputs = _json.loads(request.inputs_json) if request.inputs_json else {}
+            gw = build_gateway(require_auth=False)
+            ledger = Ledger()
+            engine = WorkflowEngine(gateway=gw, ledger=ledger)
+            res = engine.run(wf, token="dev-plan-token", session_id=request.session_id or None,
+                             inputs=inputs, dry_run=True, force=True)
+            return kubona_pb2.WorkflowPlanResponse(
+                ok=bool(res.get("ok", False)),
+                error_message="",
+                workflow_id=str(res.get("workflow_id", wf.workflow_id)),
+                planned_steps_json=_json.dumps(res.get("steps", [])),
+                unresolved_references=list(res.get("unresolved", [])),
+                compensations_planned_json=_json.dumps(res.get("compensations_planned", [])),
+            )
+        except Exception as e:
+            logger.exception("WorkflowPlan failed")
+            return kubona_pb2.WorkflowPlanResponse(
+                ok=False,
+                error_message=f"workflow plan failed: {e}",
+                workflow_id="",
+                planned_steps_json="",
+                unresolved_references=[],
+                compensations_planned_json="",
+            )
+
+    def WorkflowRun(self, request, context):
+        import json as _json
+
+        from kubona.mcp.servers import execution as _exec
+        from kubona.mcp.servers._mount import build_gateway
+        from kubona.provenance import Ledger
+        from kubona.workflows.engine import WorkflowEngine, parse_workflow
+
+        logger.info("WorkflowRun called for session %s", request.session_id)
+        try:
+            if request.session_id and getattr(request, "session_verified", False):
+                raw_ceiling = getattr(request, "session_budget_ceiling_usd", 0.0)
+                ceiling_usd = float(raw_ceiling) if raw_ceiling and raw_ceiling > 0 else _exec.IMPLICIT_SESSION_CEILING_USD
+                spent_usd = max(0.0, float(getattr(request, "session_spent_usd", 0.0) or 0.0))
+                _exec._sessions.sync_external_session(
+                    session_id=request.session_id,
+                    budget_ceiling_usd=ceiling_usd,
+                    spent_usd=spent_usd,
+                    tenant_id=getattr(request, "tenant_id", "") or "",
+                )
+                from kubona.mcp.servers import cost as _cost
+                _cost._sessions.sync_external_session(
+                    session_id=request.session_id,
+                    budget_ceiling_usd=ceiling_usd,
+                    spent_usd=spent_usd,
+                    tenant_id=getattr(request, "tenant_id", "") or "",
+                )
+
+            raw_wf = _json.loads(request.workflow_json)
+            wf = parse_workflow(raw_wf)
+            inputs = _json.loads(request.inputs_json) if request.inputs_json else {}
+            token = request.token or "dev-token"
+            gw = build_gateway(require_auth=False)
+            ledger = Ledger()
+            engine = WorkflowEngine(gateway=gw, ledger=ledger)
+            res = engine.run(wf, token=token, session_id=request.session_id or None,
+                             inputs=inputs, dry_run=False, force=bool(request.force))
+            if not res.get("ok"):
+                return kubona_pb2.WorkflowRunResponse(
+                    ok=False,
+                    error_message=str(res.get("error", "workflow execution failed")),
+                    workflow_id=str(res.get("workflow_id", wf.workflow_id)),
+                    steps_completed=0,
+                    step_records=list(res.get("step_records", [])),
+                    last_results_json=_json.dumps(res.get("last_results", {})),
+                    spent_usd=float(res.get("spent_usd", 0.0)),
+                    compensations_json=_json.dumps(res.get("compensations", [])),
+                )
+            return kubona_pb2.WorkflowRunResponse(
+                ok=True,
+                error_message="",
+                workflow_id=str(res.get("workflow_id", wf.workflow_id)),
+                steps_completed=int(res.get("steps", 0)),
+                step_records=list(res.get("step_records", [])),
+                last_results_json=_json.dumps(res.get("last_results", {})),
+                spent_usd=float(res.get("spent_usd", 0.0)),
+                compensations_json=_json.dumps(res.get("compensations", [])),
+            )
+        except Exception as e:
+            logger.exception("WorkflowRun failed")
+            return kubona_pb2.WorkflowRunResponse(
+                ok=False,
+                error_message=f"workflow run failed: {e}",
+                workflow_id="",
+                steps_completed=0,
+                step_records=[],
+                last_results_json="",
+                spent_usd=0.0,
+                compensations_json="",
+            )
 
 
 def serve(port: int = 50051):
