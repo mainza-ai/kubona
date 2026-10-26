@@ -6,6 +6,7 @@ and live scientific literature grounding.
 from __future__ import annotations
 
 import logging
+import os
 import sys
 from pathlib import Path
 from concurrent import futures
@@ -625,12 +626,37 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             )
 
 
-def serve(port: int = 50051):
+def serve(port: int = 50051, socket_path: str | None = None):
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=8))
     kubona_pb2_grpc.add_QuantumBridgeServiceServicer_to_server(QuantumBridgeServicer(), server)
-    server.add_insecure_port(f"[::]:{port}")
-    logger.info(f"Starting Python Quantum Bridge server on port {port}...")
+
+    sock = socket_path or os.getenv("KUBONA_BRIDGE_SOCKET")
+    if sock:
+        if sock.startswith("unix://"):
+            sock = sock[7:]
+        sock_dir = os.path.dirname(os.path.abspath(sock))
+        if sock_dir:
+            os.makedirs(sock_dir, exist_ok=True)
+        if os.path.exists(sock):
+            try:
+                os.unlink(sock)
+            except OSError:
+                pass
+        server.add_insecure_port(f"unix://{sock}")
+        logger.info(f"Binding Python Quantum Bridge to unix://{sock}")
+
+    if port > 0:
+        server.add_insecure_port(f"[::]:{port}")
+        logger.info(f"Starting Python Quantum Bridge server on port {port}...")
+
     server.start()
+
+    if sock and os.path.exists(sock):
+        try:
+            os.chmod(sock, 0o600)
+        except OSError:
+            pass
+
     return server
 
 

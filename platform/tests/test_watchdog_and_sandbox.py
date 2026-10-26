@@ -87,6 +87,19 @@ print(f"VAL={math.sqrt(16.0)}")
     assert "VAL=4.0" in res.stdout
 
 
+def test_sandbox_timeout_terminates_process_group():
+    sb = WorkloadSandbox(max_cpu_seconds=5)
+    script = """
+import time
+time.sleep(5)
+print("COMPLETED")
+"""
+    res = sb.execute_script(script, timeout_sec=0.5)
+    assert not res.success
+    assert "timed out" in res.stderr
+    assert res.violation == "timeout"
+
+
 def test_orchestrator_runs_with_active_watchdog():
     harness = build_vqe_ansatz_harness()
     orch = Orchestrator(harness, budget_steps=15, seed=42)
