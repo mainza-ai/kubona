@@ -46,14 +46,13 @@ All initial science-discovery forks are recorded in `## Closed` below (Q-17, Q-1
 
 ## E · Surface, ecosystem, operations
 
-| # | Question | Rank | Known | Missing |
-|---|---|---|---|---|
-| **Q-27** | **What must the git history look like before the repo can go public?** Dry-run passed 2026-10-10 on a scratch clone (source untouched): `git filter-repo --path dev-docs --path .obsidian --invert-paths` rewrites 89/89 develop commits, 0 residual objects, both branches + lint clean; stale origin/* refs drop with the remote as expected. Flip-time: rotate the `store` token first, then run the same command, force-push, re-clone. Still operator-gated.
+All Section E questions are settled: Q-27 history scrub executed 2026-10-26 (see `## Closed` below).
 
 ## Closed
 
 | # | Closed | Answer (one line) | Where it landed |
 |---|---|---|---|
+| **Q-27** | 2026-10-26 | Git history scrub executed via `git filter-repo --path dev-docs --path .obsidian --invert-paths --force`; 0 residual objects across all branches, `credential.helper=store` dropped, rewritten history pushed, and branch ruleset re-enabled. | [[risks]], [[kubona]] |
 | **Q-01** | 2026-10-04 | `platform/` is the production tripartite implementation: Go Orchestrator (`platform/core`) handles multi-agent tribunals, loops, concurrency, and SQLite persistence; TypeScript/Next.js (`platform/console`) provides the 8 dynamic observatory surfaces and WebCrypto Ed25519 signing; Python bridge (`platform/bridge`) handles PySCF ab-initio quantum chemistry, Qiskit Aer, and QPD circuit cutting via gRPC. Settled 2026-10-26: v1 scope explicitly bounds to 5 executable backends (local, Aer, IBM, Quantinuum, D-Wave) and 4 core modalities; unwired providers, periodic crystals, and unsloth weight retraining deferred to v2. | [[overview]], [[roadmap]], [[implementation-gaps]], [[kubona]] |
 | **Q-38** | 2026-10-26 | Unified single-book session budget ceiling ($150 default) with sub-category spend tagging (`media_atlas` vs `quantum_qpu`); no separate media quota subsystem. | [[observatory-plan-gap-audit-2026-10-23]] |
 | **Q-39** | 2026-10-26 | Looking is free for cached views ($0.00 when `depth_asset_id` or manifest view exists for session); fresh synthesis/chisel bills $0.50. | [[observatory-plan-gap-audit-2026-10-23]] |

@@ -20,7 +20,7 @@ the project has no settled direction to direct them into. Publication is gated o
 becoming **contributor-legible** — Q-01 answered (what `platform/` is for) plus enough of the
 method layer to say what to build first — *not* on the Phase-0 gate, which passed weeks ago, and
 not on a date. The old "public once Phase 0 passes" trigger is superseded: Q-25 is closed, and
-the mechanical precondition (`dev-docs/` + `.obsidian/` residue in private-remote history — the repo has never been public) is Q-27.
+the mechanical precondition (`dev-docs/` + `.obsidian/` residue in private-remote history) was completely excised via `git filter-repo` on 2026-10-26 (Q-27 closed).
 
 ## Three layers
 
@@ -178,12 +178,9 @@ cross-cutting policies now wired through the wiki:
 and the least grounded, and Q-01 — what the prototype is *for* — gates how every other
 question may be answered.
 
-**Hygiene (tracked in [[risks]]):** the `ghp_…` PAT in a scratch clone is verified dead (401),
-but `credential.helper=store` leaves a **live** `gho_…` token in plaintext in
-`~/.git-credentials` (revoke the stale grant, drop the `store` helper). `dev-docs/` and
-`.obsidian/` sit in *private-remote history (never public)* although untracked today (no secrets found); the choice
-between publishing as-is, rewriting with `filter-repo`, or starting a clean public history is
-[[questions]] Q-27. Citation provenance (URL + SHA + line) must stay honest. The audited own-repos
+**Hygiene (tracked in [[risks]]):** the `ghp_…` PAT in a scratch clone is verified dead (401);
+`credential.helper=store` was dropped globally (macOS keychain / `gh auth git-credential` only);
+historical `dev-docs/` and `.obsidian/` residue was completely excised via `git filter-repo` on 2026-10-26 (Q-27 closed). Citation provenance (URL + SHA + line) must stay honest. The audited own-repos
 (`chickensoup`, `milimoquantum`, `Milimo-QDD`) are **insight material, not supply** — unfinished
 personal WIP mined for method; there is no licence task, only a release-time check if a derived
 artefact ever ships inside the Apache-2.0 core. Prototype note: the hosted `ci.yml` push pipeline had **never**
