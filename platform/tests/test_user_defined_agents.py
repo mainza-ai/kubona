@@ -93,3 +93,55 @@ def test_validation_contract_edges():
     with pytest.raises(ValueError, match="Cannot delete system agent"):
         reg.delete_custom_agent("sys_lead_theorist")
     assert reg.delete_custom_agent("agent_no_such") is False
+
+
+def test_sqlite_persistence_and_parity(tmp_path: Path):
+    db_file = tmp_path / "kubona_test.db"
+    reg = CustomAgentRegistry(db_path=db_file)
+
+    manifest = UserDefinedAgentManifest(
+        id="agent_sqlite_scout",
+        name="SQLite Scout",
+        role="data_scout",
+        description="Tests SQLite backing store.",
+        system_prompt="Probe database state.",
+        mode="pipeline",
+        steps=[{"id": "s1", "tool": "provenance/query_records"}],
+        scopes=["provenance:query"],
+    )
+    reg.register_custom_agent(manifest)
+
+    # Reopen in new instance from SQLite db
+    reg2 = CustomAgentRegistry(db_path=db_file)
+    loaded = reg2.get("agent_sqlite_scout")
+    assert loaded is not None
+    assert loaded.name == "SQLite Scout"
+    assert loaded.mode == "pipeline"
+    assert len(loaded.steps) == 1
+    assert loaded.steps[0]["tool"] == "provenance/query_records"
+    assert loaded.scopes == ["provenance:query"]
+
+    # Delete persists
+    assert reg2.delete_custom_agent("agent_sqlite_scout") is True
+    reg3 = CustomAgentRegistry(db_path=db_file)
+    assert reg3.get("agent_sqlite_scout") is None
+
+
+def test_pipeline_mode_and_scope_validation():
+    reg = CustomAgentRegistry()
+    # Invalid mode refuses
+    with pytest.raises(ValueError, match="mode must be 'prompt' or 'pipeline'"):
+        reg.register_custom_agent(_manifest(mode="invalid"))
+
+    # Pipeline mode with no steps refuses
+    with pytest.raises(ValueError, match="pipeline mode requires at least one step"):
+        reg.register_custom_agent(_manifest(mode="pipeline", steps=[]))
+
+    # Pipeline mode with malformed step refuses
+    with pytest.raises(ValueError, match="requires non-empty 'id' and 'tool'"):
+        reg.register_custom_agent(_manifest(mode="pipeline", steps=[{"id": "step1"}]))
+
+    # Empty scope string refuses
+    with pytest.raises(ValueError, match="scope cannot be empty string"):
+        reg.register_custom_agent(_manifest(scopes=["   "]))
+

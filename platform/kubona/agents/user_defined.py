@@ -30,12 +30,16 @@ class UserDefinedAgentManifest:
     system_prompt: str
     avatar_emoji: str = "🧪"
     badge_color: str = "cyan"
+    mode: str = "prompt"  # prompt | pipeline
+    steps: list[dict[str, Any]] = field(default_factory=list)
     capabilities: list[str] = field(default_factory=list)
     modalities: list[str] = field(default_factory=lambda: ["text"])
     preferred_model: str = ""  # Unpinned by policy: personas carry no model IDs; resolution happens at dispatch
     mcp_tools: list[str] = field(default_factory=list)
     spend_budget_usd: float = 0.0
     memory_scopes: list[str] = field(default_factory=lambda: ["default"])
+    scopes: list[str] = field(default_factory=list)
+    created_by: str | None = None
     is_system_agent: bool = False
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     updated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
@@ -53,12 +57,16 @@ class UserDefinedAgentManifest:
             system_prompt=data.get("system_prompt", ""),
             avatar_emoji=data.get("avatar_emoji", "🧪"),
             badge_color=data.get("badge_color", "cyan"),
+            mode=data.get("mode", "prompt"),
+            steps=data.get("steps", []),
             capabilities=data.get("capabilities", []),
             modalities=data.get("modalities", ["text"]),
             preferred_model=data.get("preferred_model", ""),
             mcp_tools=data.get("mcp_tools", []),
             spend_budget_usd=float(data.get("spend_budget_usd", 0.0)),
             memory_scopes=data.get("memory_scopes", ["default"]),
+            scopes=data.get("scopes", []),
+            created_by=data.get("created_by"),
             is_system_agent=bool(data.get("is_system_agent", False)),
             created_at=data.get("created_at", datetime.now(timezone.utc).isoformat()),
             updated_at=data.get("updated_at", datetime.now(timezone.utc).isoformat()),
@@ -161,10 +169,17 @@ STANDARD_SYSTEM_AGENTS: list[UserDefinedAgentManifest] = [
 
 
 class CustomAgentRegistry:
-    """Manages system and user-defined agents with validation and persistence."""
+    """Manages system and user-defined agents with validation and persistence.
 
-    def __init__(self, storage_path: Path | None = None):
-        self.storage_path = storage_path
+    Backs either SQLite (kubona.db `custom_agents` table) or JSON file.
+    """
+
+    def __init__(self, storage_path: Path | str | None = None, db_path: Path | str | None = None):
+        self.storage_path = Path(storage_path) if storage_path else None
+        self.db_path = Path(db_path) if db_path else None
+        if self.storage_path and str(self.storage_path).endswith((".db", ".sqlite")):
+            self.db_path = self.storage_path
+            self.storage_path = None
         self._custom_agents: dict[str, UserDefinedAgentManifest] = {}
         self._system_agents: dict[str, UserDefinedAgentManifest] = {
             a.id: a for a in STANDARD_SYSTEM_AGENTS
@@ -172,6 +187,25 @@ class CustomAgentRegistry:
         self._load()
 
     def _load(self) -> None:
+        if self.db_path and self.db_path.exists():
+            import sqlite3
+            try:
+                conn = sqlite3.connect(f"file:{self.db_path}?mode=ro", uri=True)
+                rows = conn.execute("SELECT id, manifest_json FROM custom_agents").fetchall()
+                conn.close()
+                for aid, raw in rows:
+                    try:
+                        d = json.loads(raw)
+                        manifest = UserDefinedAgentManifest.from_dict(d)
+                        manifest.id = aid
+                        manifest.is_system_agent = False
+                        self._custom_agents[aid] = manifest
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+            return
+
         if self.storage_path and self.storage_path.exists():
             try:
                 data = json.loads(self.storage_path.read_text(encoding="utf-8"))
@@ -182,6 +216,27 @@ class CustomAgentRegistry:
                 pass
 
     def _save(self) -> None:
+        if self.db_path:
+            import sqlite3
+            self.db_path.parent.mkdir(parents=True, exist_ok=True)
+            conn = sqlite3.connect(str(self.db_path), timeout=5.0)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS custom_agents (
+                    id TEXT PRIMARY KEY,
+                    manifest_json TEXT NOT NULL DEFAULT '{}',
+                    updated_at DATETIME NOT NULL
+                )
+            """)
+            for aid, manifest in self._custom_agents.items():
+                raw = json.dumps(manifest.to_dict())
+                conn.execute("""
+                    INSERT INTO custom_agents (id, manifest_json, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
+                    ON CONFLICT(id) DO UPDATE SET manifest_json = excluded.manifest_json, updated_at = CURRENT_TIMESTAMP
+                """, (aid, raw))
+            conn.commit()
+            conn.close()
+            return
+
         if self.storage_path:
             self.storage_path.parent.mkdir(parents=True, exist_ok=True)
             payload = {
@@ -211,6 +266,17 @@ class CustomAgentRegistry:
             raise ValueError("Agent name cannot be empty.")
         if not manifest.system_prompt or not manifest.system_prompt.strip():
             raise ValueError("Agent system prompt cannot be empty.")
+        if manifest.mode not in ("prompt", "pipeline"):
+            raise ValueError(f"mode must be 'prompt' or 'pipeline', got {manifest.mode!r}")
+        if manifest.mode == "pipeline":
+            if not manifest.steps:
+                raise ValueError("pipeline mode requires at least one step")
+            for i, step in enumerate(manifest.steps):
+                if not isinstance(step, dict) or not str(step.get("id", "")).strip() or not str(step.get("tool", "")).strip():
+                    raise ValueError(f"step {i} requires non-empty 'id' and 'tool'")
+        for sc in manifest.scopes:
+            if not isinstance(sc, str) or not sc.strip():
+                raise ValueError("scope cannot be empty string")
 
         manifest.is_system_agent = False
         manifest.updated_at = datetime.now(timezone.utc).isoformat()
@@ -223,6 +289,13 @@ class CustomAgentRegistry:
             raise ValueError("Cannot delete system agent.")
         if agent_id in self._custom_agents:
             del self._custom_agents[agent_id]
-            self._save()
+            if self.db_path and self.db_path.exists():
+                import sqlite3
+                conn = sqlite3.connect(str(self.db_path), timeout=5.0)
+                conn.execute("DELETE FROM custom_agents WHERE id = ?", (agent_id,))
+                conn.commit()
+                conn.close()
+            else:
+                self._save()
             return True
         return False

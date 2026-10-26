@@ -40,6 +40,9 @@ def isolated_rail(monkeypatch, tmp_path):
     monkeypatch.setattr(ex, "_sessions", sessions)
     monkeypatch.setattr(ex, "_gov", gov)
     monkeypatch.setattr(ex, "_runner", runner)
+    from kubona.mcp.servers import cost
+    monkeypatch.setattr(cost, "_sessions", sessions)
+    monkeypatch.setattr(cost, "_gov", gov)
     return sessions, runner
 
 
@@ -194,6 +197,124 @@ def test_quantinuum_provider_maps_to_catalog_fidelity_device():
         )
         assert verdict.admitted is True
         assert verdict.predicted_fidelity < 1.0  # real trapped-ion error model, not ideal 1.0 fallback
+
+
+def test_workflow_plan_dry_run():
+    import json
+    svc = bridge_server.QuantumBridgeServicer()
+    wf_payload = {
+        "name": "dry-plan-test",
+        "trigger": "manual",
+        "steps": [
+            {
+                "id": "step1",
+                "tool": "compiler/transpile_circuit",
+                "args": {"qasm": BELL_QASM, "target_basis": "{{input.basis}}"}
+            }
+        ],
+        "on_failure": [
+            {"id": "comp1", "tool": "provenance/write_record", "args": {"msg": "failed"}}
+        ]
+    }
+    req = _req(
+        workflow_json=json.dumps(wf_payload),
+        session_id="test-plan-sess",
+        inputs_json=json.dumps({"basis": "ibm"}),
+    )
+    resp = svc.WorkflowPlan(req, None)
+    assert resp.ok is True, resp.error_message
+    assert resp.workflow_id
+    steps = json.loads(resp.planned_steps_json)
+    assert len(steps) == 1
+    assert steps[0]["args"]["target_basis"] == "ibm"
+    comps = json.loads(resp.compensations_planned_json)
+    assert len(comps) == 1
+
+
+def test_workflow_run_success(isolated_rail):
+    import json
+    sessions, _ = isolated_rail
+    svc = bridge_server.QuantumBridgeServicer()
+    wf_payload = {
+        "name": "run-test",
+        "trigger": "manual",
+        "budget_ceiling_usd": 10.0,
+        "steps": [
+            {
+                "id": "estimate",
+                "tool": "cost/estimate_cost",
+                "args": {"circuit_qasm": BELL_QASM, "provider": "local-simulator", "shots": 100}
+            },
+            {
+                "id": "write_audit",
+                "tool": "provenance/write_record",
+                "args": {"kind": "workflow_result", "payload": {"status": "ok"}}
+            }
+        ]
+    }
+    req = _req(
+        workflow_json=json.dumps(wf_payload),
+        session_id="wf-exec-sess-1",
+        token="test-token",
+        inputs_json="{}",
+        force=True,
+        session_verified=True,
+        session_budget_ceiling_usd=25.0,
+        session_spent_usd=2.0,
+        tenant_id="tenant-alpha",
+    )
+    resp = svc.WorkflowRun(req, None)
+    assert resp.ok is True, resp.error_message
+    assert resp.steps_completed == 2
+    assert len(resp.step_records) >= 1
+    # Check session was mirrored in Python SessionStore
+    mirrored = sessions.get("wf-exec-sess-1")
+    assert mirrored is not None
+    assert mirrored.budget_ceiling_usd == 25.0
+
+
+def test_workflow_run_ceiling_refusal(isolated_rail):
+    import json
+    svc = bridge_server.QuantumBridgeServicer()
+    wf_payload = {
+        "name": "over-ceiling-test",
+        "trigger": "manual",
+        "budget_ceiling_usd": 0.50,
+        "steps": [
+            {
+                "id": "expensive_step",
+                "tool": "cost/estimate_cost",
+                "cost_usd": 1.00,  # declared cost exceeds 0.50 ceiling
+                "args": {"circuit_qasm": BELL_QASM, "provider": "local-simulator", "shots": 100}
+            }
+        ],
+        "on_failure": [
+            {
+                "id": "comp_step",
+                "tool": "provenance/write_record",
+                "args": {"kind": "workflow_result", "payload": {"reason": "breach"}}
+            }
+        ]
+    }
+    req = _req(
+        workflow_json=json.dumps(wf_payload),
+        session_id="wf-fail-sess",
+        token="test-token",
+        inputs_json="{}",
+        force=True,
+        session_verified=False,
+        session_budget_ceiling_usd=0.0,
+        session_spent_usd=0.0,
+        tenant_id="tenant-alpha",
+    )
+    resp = svc.WorkflowRun(req, None)
+    assert resp.ok is False
+    assert "breach ceiling" in resp.error_message
+    comps = json.loads(resp.compensations_json)
+    assert len(comps) == 1
+    assert comps[0]["id"] == "comp_step"
+    assert comps[0]["ok"] is True
+
 
 
 

@@ -2641,6 +2641,359 @@ func (x *EvidenceEnvelope) GetMandateRefJson() string {
 	return ""
 }
 
+// Workflow planning and execution (Phase 3).
+type WorkflowPlanRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	WorkflowJson  string                 `protobuf:"bytes,1,opt,name=workflow_json,json=workflowJson,proto3" json:"workflow_json,omitempty"`
+	SessionId     string                 `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	InputsJson    string                 `protobuf:"bytes,3,opt,name=inputs_json,json=inputsJson,proto3" json:"inputs_json,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WorkflowPlanRequest) Reset() {
+	*x = WorkflowPlanRequest{}
+	mi := &file_kubona_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WorkflowPlanRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WorkflowPlanRequest) ProtoMessage() {}
+
+func (x *WorkflowPlanRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_kubona_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WorkflowPlanRequest.ProtoReflect.Descriptor instead.
+func (*WorkflowPlanRequest) Descriptor() ([]byte, []int) {
+	return file_kubona_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *WorkflowPlanRequest) GetWorkflowJson() string {
+	if x != nil {
+		return x.WorkflowJson
+	}
+	return ""
+}
+
+func (x *WorkflowPlanRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *WorkflowPlanRequest) GetInputsJson() string {
+	if x != nil {
+		return x.InputsJson
+	}
+	return ""
+}
+
+type WorkflowPlanResponse struct {
+	state                    protoimpl.MessageState `protogen:"open.v1"`
+	Ok                       bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	ErrorMessage             string                 `protobuf:"bytes,2,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	WorkflowId               string                 `protobuf:"bytes,3,opt,name=workflow_id,json=workflowId,proto3" json:"workflow_id,omitempty"`
+	PlannedStepsJson         string                 `protobuf:"bytes,4,opt,name=planned_steps_json,json=plannedStepsJson,proto3" json:"planned_steps_json,omitempty"`
+	UnresolvedReferences     []string               `protobuf:"bytes,5,rep,name=unresolved_references,json=unresolvedReferences,proto3" json:"unresolved_references,omitempty"`
+	CompensationsPlannedJson string                 `protobuf:"bytes,6,opt,name=compensations_planned_json,json=compensationsPlannedJson,proto3" json:"compensations_planned_json,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
+}
+
+func (x *WorkflowPlanResponse) Reset() {
+	*x = WorkflowPlanResponse{}
+	mi := &file_kubona_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WorkflowPlanResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WorkflowPlanResponse) ProtoMessage() {}
+
+func (x *WorkflowPlanResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_kubona_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WorkflowPlanResponse.ProtoReflect.Descriptor instead.
+func (*WorkflowPlanResponse) Descriptor() ([]byte, []int) {
+	return file_kubona_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *WorkflowPlanResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *WorkflowPlanResponse) GetErrorMessage() string {
+	if x != nil {
+		return x.ErrorMessage
+	}
+	return ""
+}
+
+func (x *WorkflowPlanResponse) GetWorkflowId() string {
+	if x != nil {
+		return x.WorkflowId
+	}
+	return ""
+}
+
+func (x *WorkflowPlanResponse) GetPlannedStepsJson() string {
+	if x != nil {
+		return x.PlannedStepsJson
+	}
+	return ""
+}
+
+func (x *WorkflowPlanResponse) GetUnresolvedReferences() []string {
+	if x != nil {
+		return x.UnresolvedReferences
+	}
+	return nil
+}
+
+func (x *WorkflowPlanResponse) GetCompensationsPlannedJson() string {
+	if x != nil {
+		return x.CompensationsPlannedJson
+	}
+	return ""
+}
+
+type WorkflowRunRequest struct {
+	state                   protoimpl.MessageState `protogen:"open.v1"`
+	WorkflowJson            string                 `protobuf:"bytes,1,opt,name=workflow_json,json=workflowJson,proto3" json:"workflow_json,omitempty"`
+	SessionId               string                 `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	Token                   string                 `protobuf:"bytes,3,opt,name=token,proto3" json:"token,omitempty"`
+	InputsJson              string                 `protobuf:"bytes,4,opt,name=inputs_json,json=inputsJson,proto3" json:"inputs_json,omitempty"`
+	Force                   bool                   `protobuf:"varint,5,opt,name=force,proto3" json:"force,omitempty"`
+	SessionVerified         bool                   `protobuf:"varint,6,opt,name=session_verified,json=sessionVerified,proto3" json:"session_verified,omitempty"`
+	SessionBudgetCeilingUsd float64                `protobuf:"fixed64,7,opt,name=session_budget_ceiling_usd,json=sessionBudgetCeilingUsd,proto3" json:"session_budget_ceiling_usd,omitempty"`
+	SessionSpentUsd         float64                `protobuf:"fixed64,8,opt,name=session_spent_usd,json=sessionSpentUsd,proto3" json:"session_spent_usd,omitempty"`
+	TenantId                string                 `protobuf:"bytes,9,opt,name=tenant_id,json=tenantId,proto3" json:"tenant_id,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
+}
+
+func (x *WorkflowRunRequest) Reset() {
+	*x = WorkflowRunRequest{}
+	mi := &file_kubona_proto_msgTypes[34]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WorkflowRunRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WorkflowRunRequest) ProtoMessage() {}
+
+func (x *WorkflowRunRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_kubona_proto_msgTypes[34]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WorkflowRunRequest.ProtoReflect.Descriptor instead.
+func (*WorkflowRunRequest) Descriptor() ([]byte, []int) {
+	return file_kubona_proto_rawDescGZIP(), []int{34}
+}
+
+func (x *WorkflowRunRequest) GetWorkflowJson() string {
+	if x != nil {
+		return x.WorkflowJson
+	}
+	return ""
+}
+
+func (x *WorkflowRunRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+func (x *WorkflowRunRequest) GetToken() string {
+	if x != nil {
+		return x.Token
+	}
+	return ""
+}
+
+func (x *WorkflowRunRequest) GetInputsJson() string {
+	if x != nil {
+		return x.InputsJson
+	}
+	return ""
+}
+
+func (x *WorkflowRunRequest) GetForce() bool {
+	if x != nil {
+		return x.Force
+	}
+	return false
+}
+
+func (x *WorkflowRunRequest) GetSessionVerified() bool {
+	if x != nil {
+		return x.SessionVerified
+	}
+	return false
+}
+
+func (x *WorkflowRunRequest) GetSessionBudgetCeilingUsd() float64 {
+	if x != nil {
+		return x.SessionBudgetCeilingUsd
+	}
+	return 0
+}
+
+func (x *WorkflowRunRequest) GetSessionSpentUsd() float64 {
+	if x != nil {
+		return x.SessionSpentUsd
+	}
+	return 0
+}
+
+func (x *WorkflowRunRequest) GetTenantId() string {
+	if x != nil {
+		return x.TenantId
+	}
+	return ""
+}
+
+type WorkflowRunResponse struct {
+	state             protoimpl.MessageState `protogen:"open.v1"`
+	Ok                bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	ErrorMessage      string                 `protobuf:"bytes,2,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
+	WorkflowId        string                 `protobuf:"bytes,3,opt,name=workflow_id,json=workflowId,proto3" json:"workflow_id,omitempty"`
+	StepsCompleted    int32                  `protobuf:"varint,4,opt,name=steps_completed,json=stepsCompleted,proto3" json:"steps_completed,omitempty"`
+	StepRecords       []string               `protobuf:"bytes,5,rep,name=step_records,json=stepRecords,proto3" json:"step_records,omitempty"`
+	LastResultsJson   string                 `protobuf:"bytes,6,opt,name=last_results_json,json=lastResultsJson,proto3" json:"last_results_json,omitempty"`
+	SpentUsd          float64                `protobuf:"fixed64,7,opt,name=spent_usd,json=spentUsd,proto3" json:"spent_usd,omitempty"`
+	CompensationsJson string                 `protobuf:"bytes,8,opt,name=compensations_json,json=compensationsJson,proto3" json:"compensations_json,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *WorkflowRunResponse) Reset() {
+	*x = WorkflowRunResponse{}
+	mi := &file_kubona_proto_msgTypes[35]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WorkflowRunResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WorkflowRunResponse) ProtoMessage() {}
+
+func (x *WorkflowRunResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_kubona_proto_msgTypes[35]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WorkflowRunResponse.ProtoReflect.Descriptor instead.
+func (*WorkflowRunResponse) Descriptor() ([]byte, []int) {
+	return file_kubona_proto_rawDescGZIP(), []int{35}
+}
+
+func (x *WorkflowRunResponse) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *WorkflowRunResponse) GetErrorMessage() string {
+	if x != nil {
+		return x.ErrorMessage
+	}
+	return ""
+}
+
+func (x *WorkflowRunResponse) GetWorkflowId() string {
+	if x != nil {
+		return x.WorkflowId
+	}
+	return ""
+}
+
+func (x *WorkflowRunResponse) GetStepsCompleted() int32 {
+	if x != nil {
+		return x.StepsCompleted
+	}
+	return 0
+}
+
+func (x *WorkflowRunResponse) GetStepRecords() []string {
+	if x != nil {
+		return x.StepRecords
+	}
+	return nil
+}
+
+func (x *WorkflowRunResponse) GetLastResultsJson() string {
+	if x != nil {
+		return x.LastResultsJson
+	}
+	return ""
+}
+
+func (x *WorkflowRunResponse) GetSpentUsd() float64 {
+	if x != nil {
+		return x.SpentUsd
+	}
+	return 0
+}
+
+func (x *WorkflowRunResponse) GetCompensationsJson() string {
+	if x != nil {
+		return x.CompensationsJson
+	}
+	return ""
+}
+
 var File_kubona_proto protoreflect.FileDescriptor
 
 const file_kubona_proto_rawDesc = "" +
@@ -2862,7 +3215,43 @@ const file_kubona_proto_rawDesc = "" +
 	"\x0fraw_result_json\x18\x03 \x01(\tR\rrawResultJson\x122\n" +
 	"\x15analysis_profile_json\x18\x04 \x01(\tR\x13analysisProfileJson\x12\x1b\n" +
 	"\ttenant_id\x18\x05 \x01(\tR\btenantId\x12(\n" +
-	"\x10mandate_ref_json\x18\x06 \x01(\tR\x0emandateRefJson*\xb8\x01\n" +
+	"\x10mandate_ref_json\x18\x06 \x01(\tR\x0emandateRefJson\"z\n" +
+	"\x13WorkflowPlanRequest\x12#\n" +
+	"\rworkflow_json\x18\x01 \x01(\tR\fworkflowJson\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x02 \x01(\tR\tsessionId\x12\x1f\n" +
+	"\vinputs_json\x18\x03 \x01(\tR\n" +
+	"inputsJson\"\x8d\x02\n" +
+	"\x14WorkflowPlanResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12#\n" +
+	"\rerror_message\x18\x02 \x01(\tR\ferrorMessage\x12\x1f\n" +
+	"\vworkflow_id\x18\x03 \x01(\tR\n" +
+	"workflowId\x12,\n" +
+	"\x12planned_steps_json\x18\x04 \x01(\tR\x10plannedStepsJson\x123\n" +
+	"\x15unresolved_references\x18\x05 \x03(\tR\x14unresolvedReferences\x12<\n" +
+	"\x1acompensations_planned_json\x18\x06 \x01(\tR\x18compensationsPlannedJson\"\xd6\x02\n" +
+	"\x12WorkflowRunRequest\x12#\n" +
+	"\rworkflow_json\x18\x01 \x01(\tR\fworkflowJson\x12\x1d\n" +
+	"\n" +
+	"session_id\x18\x02 \x01(\tR\tsessionId\x12\x14\n" +
+	"\x05token\x18\x03 \x01(\tR\x05token\x12\x1f\n" +
+	"\vinputs_json\x18\x04 \x01(\tR\n" +
+	"inputsJson\x12\x14\n" +
+	"\x05force\x18\x05 \x01(\bR\x05force\x12)\n" +
+	"\x10session_verified\x18\x06 \x01(\bR\x0fsessionVerified\x12;\n" +
+	"\x1asession_budget_ceiling_usd\x18\a \x01(\x01R\x17sessionBudgetCeilingUsd\x12*\n" +
+	"\x11session_spent_usd\x18\b \x01(\x01R\x0fsessionSpentUsd\x12\x1b\n" +
+	"\ttenant_id\x18\t \x01(\tR\btenantId\"\xaf\x02\n" +
+	"\x13WorkflowRunResponse\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12#\n" +
+	"\rerror_message\x18\x02 \x01(\tR\ferrorMessage\x12\x1f\n" +
+	"\vworkflow_id\x18\x03 \x01(\tR\n" +
+	"workflowId\x12'\n" +
+	"\x0fsteps_completed\x18\x04 \x01(\x05R\x0estepsCompleted\x12!\n" +
+	"\fstep_records\x18\x05 \x03(\tR\vstepRecords\x12*\n" +
+	"\x11last_results_json\x18\x06 \x01(\tR\x0flastResultsJson\x12\x1b\n" +
+	"\tspent_usd\x18\a \x01(\x01R\bspentUsd\x12-\n" +
+	"\x12compensations_json\x18\b \x01(\tR\x11compensationsJson*\xb8\x01\n" +
 	"\tJobStatus\x12\x1a\n" +
 	"\x16JOB_STATUS_UNSPECIFIED\x10\x00\x12\x15\n" +
 	"\x11JOB_STATUS_QUEUED\x10\x01\x12\x16\n" +
@@ -2876,7 +3265,8 @@ const file_kubona_proto_rawDesc = "" +
 	"\x18DEGRADATION_QPU_HARDWARE\x10\x01\x12\x1d\n" +
 	"\x19DEGRADATION_AER_NOISE_SIM\x10\x02\x12\x1f\n" +
 	"\x1bDEGRADATION_STATEVECTOR_SIM\x10\x03\x12\"\n" +
-	"\x1eDEGRADATION_CLASSICAL_FALLBACK\x10\x042\x97\t\n" +
+	"\x1eDEGRADATION_CLASSICAL_FALLBACK\x10\x042\xaa\n" +
+	"\n" +
 	"\x14QuantumBridgeService\x12S\n" +
 	"\x0eExecuteCircuit\x12\x1f.kubona.CircuitExecutionRequest\x1a .kubona.CircuitExecutionResponse\x12C\n" +
 	"\n" +
@@ -2892,7 +3282,9 @@ const file_kubona_proto_rawDesc = "" +
 	"\rQuantumSubmit\x12\x1c.kubona.QuantumSubmitRequest\x1a\x1d.kubona.QuantumSubmitResponse\x12U\n" +
 	"\x10QuantumJobStatus\x12\x1f.kubona.QuantumJobStatusRequest\x1a .kubona.QuantumJobStatusResponse\x12L\n" +
 	"\rQuantumCancel\x12\x1c.kubona.QuantumCancelRequest\x1a\x1d.kubona.QuantumCancelResponse\x12@\n" +
-	"\tRunCanary\x12\x18.kubona.CanaryRunRequest\x1a\x19.kubona.CanaryRunResponseB4Z2github.com/mainza-ai/kubona/core/proto;kubonaprotob\x06proto3"
+	"\tRunCanary\x12\x18.kubona.CanaryRunRequest\x1a\x19.kubona.CanaryRunResponse\x12I\n" +
+	"\fWorkflowPlan\x12\x1b.kubona.WorkflowPlanRequest\x1a\x1c.kubona.WorkflowPlanResponse\x12F\n" +
+	"\vWorkflowRun\x12\x1a.kubona.WorkflowRunRequest\x1a\x1b.kubona.WorkflowRunResponseB4Z2github.com/mainza-ai/kubona/core/proto;kubonaprotob\x06proto3"
 
 var (
 	file_kubona_proto_rawDescOnce sync.Once
@@ -2907,7 +3299,7 @@ func file_kubona_proto_rawDescGZIP() []byte {
 }
 
 var file_kubona_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_kubona_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
+var file_kubona_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
 var file_kubona_proto_goTypes = []any{
 	(JobStatus)(0),                      // 0: kubona.JobStatus
 	(DegradationLevel)(0),               // 1: kubona.DegradationLevel
@@ -2943,11 +3335,15 @@ var file_kubona_proto_goTypes = []any{
 	(*CanaryRunRequest)(nil),            // 31: kubona.CanaryRunRequest
 	(*CanaryRunResponse)(nil),           // 32: kubona.CanaryRunResponse
 	(*EvidenceEnvelope)(nil),            // 33: kubona.EvidenceEnvelope
-	nil,                                 // 34: kubona.CircuitExecutionResponse.CountsEntry
+	(*WorkflowPlanRequest)(nil),         // 34: kubona.WorkflowPlanRequest
+	(*WorkflowPlanResponse)(nil),        // 35: kubona.WorkflowPlanResponse
+	(*WorkflowRunRequest)(nil),          // 36: kubona.WorkflowRunRequest
+	(*WorkflowRunResponse)(nil),         // 37: kubona.WorkflowRunResponse
+	nil,                                 // 38: kubona.CircuitExecutionResponse.CountsEntry
 }
 var file_kubona_proto_depIdxs = []int32{
 	1,  // 0: kubona.CircuitExecutionResponse.degradation_level:type_name -> kubona.DegradationLevel
-	34, // 1: kubona.CircuitExecutionResponse.counts:type_name -> kubona.CircuitExecutionResponse.CountsEntry
+	38, // 1: kubona.CircuitExecutionResponse.counts:type_name -> kubona.CircuitExecutionResponse.CountsEntry
 	5,  // 2: kubona.CircuitCutResponse.fragments:type_name -> kubona.SubcircuitFragment
 	12, // 3: kubona.LiteratureGroundingResponse.records:type_name -> kubona.LiteratureRecord
 	20, // 4: kubona.DiscoveryPipelineRequest.candidates:type_name -> kubona.DiscoveryCandidate
@@ -2965,22 +3361,26 @@ var file_kubona_proto_depIdxs = []int32{
 	27, // 16: kubona.QuantumBridgeService.QuantumJobStatus:input_type -> kubona.QuantumJobStatusRequest
 	29, // 17: kubona.QuantumBridgeService.QuantumCancel:input_type -> kubona.QuantumCancelRequest
 	31, // 18: kubona.QuantumBridgeService.RunCanary:input_type -> kubona.CanaryRunRequest
-	3,  // 19: kubona.QuantumBridgeService.ExecuteCircuit:output_type -> kubona.CircuitExecutionResponse
-	6,  // 20: kubona.QuantumBridgeService.CutCircuit:output_type -> kubona.CircuitCutResponse
-	8,  // 21: kubona.QuantumBridgeService.ComputeClassicalAnchor:output_type -> kubona.ClassicalAnchorResponse
-	10, // 22: kubona.QuantumBridgeService.EvaluateWavefunction:output_type -> kubona.ClaimEvaluationResponse
-	13, // 23: kubona.QuantumBridgeService.GroundLiterature:output_type -> kubona.LiteratureGroundingResponse
-	15, // 24: kubona.QuantumBridgeService.ExecuteQuantumKrylov:output_type -> kubona.QuantumKrylovResponse
-	17, // 25: kubona.QuantumBridgeService.MitigateCircuit:output_type -> kubona.MitigationResponse
-	19, // 26: kubona.QuantumBridgeService.EvaluateMolecularADMET:output_type -> kubona.ChemistryADMETResponse
-	22, // 27: kubona.QuantumBridgeService.EvaluateDiscoveryPipeline:output_type -> kubona.DiscoveryPipelineResponse
-	24, // 28: kubona.QuantumBridgeService.EvaluateCodesign:output_type -> kubona.CodesignResponse
-	26, // 29: kubona.QuantumBridgeService.QuantumSubmit:output_type -> kubona.QuantumSubmitResponse
-	28, // 30: kubona.QuantumBridgeService.QuantumJobStatus:output_type -> kubona.QuantumJobStatusResponse
-	30, // 31: kubona.QuantumBridgeService.QuantumCancel:output_type -> kubona.QuantumCancelResponse
-	32, // 32: kubona.QuantumBridgeService.RunCanary:output_type -> kubona.CanaryRunResponse
-	19, // [19:33] is the sub-list for method output_type
-	5,  // [5:19] is the sub-list for method input_type
+	34, // 19: kubona.QuantumBridgeService.WorkflowPlan:input_type -> kubona.WorkflowPlanRequest
+	36, // 20: kubona.QuantumBridgeService.WorkflowRun:input_type -> kubona.WorkflowRunRequest
+	3,  // 21: kubona.QuantumBridgeService.ExecuteCircuit:output_type -> kubona.CircuitExecutionResponse
+	6,  // 22: kubona.QuantumBridgeService.CutCircuit:output_type -> kubona.CircuitCutResponse
+	8,  // 23: kubona.QuantumBridgeService.ComputeClassicalAnchor:output_type -> kubona.ClassicalAnchorResponse
+	10, // 24: kubona.QuantumBridgeService.EvaluateWavefunction:output_type -> kubona.ClaimEvaluationResponse
+	13, // 25: kubona.QuantumBridgeService.GroundLiterature:output_type -> kubona.LiteratureGroundingResponse
+	15, // 26: kubona.QuantumBridgeService.ExecuteQuantumKrylov:output_type -> kubona.QuantumKrylovResponse
+	17, // 27: kubona.QuantumBridgeService.MitigateCircuit:output_type -> kubona.MitigationResponse
+	19, // 28: kubona.QuantumBridgeService.EvaluateMolecularADMET:output_type -> kubona.ChemistryADMETResponse
+	22, // 29: kubona.QuantumBridgeService.EvaluateDiscoveryPipeline:output_type -> kubona.DiscoveryPipelineResponse
+	24, // 30: kubona.QuantumBridgeService.EvaluateCodesign:output_type -> kubona.CodesignResponse
+	26, // 31: kubona.QuantumBridgeService.QuantumSubmit:output_type -> kubona.QuantumSubmitResponse
+	28, // 32: kubona.QuantumBridgeService.QuantumJobStatus:output_type -> kubona.QuantumJobStatusResponse
+	30, // 33: kubona.QuantumBridgeService.QuantumCancel:output_type -> kubona.QuantumCancelResponse
+	32, // 34: kubona.QuantumBridgeService.RunCanary:output_type -> kubona.CanaryRunResponse
+	35, // 35: kubona.QuantumBridgeService.WorkflowPlan:output_type -> kubona.WorkflowPlanResponse
+	37, // 36: kubona.QuantumBridgeService.WorkflowRun:output_type -> kubona.WorkflowRunResponse
+	21, // [21:37] is the sub-list for method output_type
+	5,  // [5:21] is the sub-list for method input_type
 	5,  // [5:5] is the sub-list for extension type_name
 	5,  // [5:5] is the sub-list for extension extendee
 	0,  // [0:5] is the sub-list for field type_name
@@ -2997,7 +3397,7 @@ func file_kubona_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_kubona_proto_rawDesc), len(file_kubona_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   33,
+			NumMessages:   37,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

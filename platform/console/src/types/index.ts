@@ -537,15 +537,59 @@ export interface CustomAgentManifest {
   system_prompt: string;
   avatar_emoji: string;
   badge_color: string;
+  mode?: 'prompt' | 'pipeline';
+  steps?: Array<{ id: string; tool: string; args?: Record<string, unknown>; cost_usd?: number; requires_approval?: boolean }>;
   capabilities: string[];
   modalities: string[];
   preferred_model: string;
   mcp_tools: string[];
   spend_budget_usd: number;
   memory_scopes: string[];
+  scopes?: string[];
+  created_by?: string | null;
   is_system_agent?: boolean;
   created_at?: string;
   updated_at?: string;
+}
+
+export interface WorkflowStep {
+  id: string;
+  tool: string;
+  args?: Record<string, unknown>;
+  cost_usd?: number;
+  requires_approval?: boolean;
+}
+
+export interface WorkflowDefinition {
+  name: string;
+  trigger?: 'manual' | 'schedule' | 'event';
+  version?: number;
+  budget_ceiling_usd?: number | null;
+  steps: WorkflowStep[];
+  on_failure?: WorkflowStep[];
+  created_by_agent?: boolean;
+  approved?: boolean;
+}
+
+export interface WorkflowPlanResponse {
+  ok: boolean;
+  dry_run: boolean;
+  workflow_id: string;
+  steps: WorkflowStep[];
+  unresolved_references: string[];
+  compensations_planned: WorkflowStep[];
+  error?: string;
+}
+
+export interface WorkflowRunResponse {
+  ok: boolean;
+  workflow_id: string;
+  steps_completed: number;
+  step_records: string[];
+  spent_usd: number;
+  last_results: Record<string, unknown>;
+  compensations: Array<{ id: string; ok: boolean; result?: unknown; error?: string }>;
+  error?: string;
 }
 
 // -----------------------------------------------------------------------------

@@ -247,6 +247,8 @@ service QuantumBridgeService {
   rpc QuantumJobStatus(QuantumJobStatusRequest) returns (QuantumJobStatusResponse);
   rpc QuantumCancel(QuantumCancelRequest) returns (QuantumCancelResponse);
   rpc RunCanary(CanaryRunRequest) returns (CanaryRunResponse);
+  rpc WorkflowPlan(WorkflowPlanRequest) returns (WorkflowPlanResponse);
+  rpc WorkflowRun(WorkflowRunRequest) returns (WorkflowRunResponse);
 }
 
 // Human quantum dispatch (R-34) + provider cancel (R-33): the transport
@@ -359,4 +361,44 @@ message EvidenceEnvelope {
   string tenant_id = 5;
   string mandate_ref_json = 6;
 }
+
+// Workflow planning and execution (Phase 3).
+message WorkflowPlanRequest {
+  string workflow_json = 1;
+  string session_id = 2;
+  string inputs_json = 3;
+}
+
+message WorkflowPlanResponse {
+  bool ok = 1;
+  string error_message = 2;
+  string workflow_id = 3;
+  string planned_steps_json = 4;
+  repeated string unresolved_references = 5;
+  string compensations_planned_json = 6;
+}
+
+message WorkflowRunRequest {
+  string workflow_json = 1;
+  string session_id = 2;
+  string token = 3;
+  string inputs_json = 4;
+  bool force = 5;
+  bool session_verified = 6;
+  double session_budget_ceiling_usd = 7;
+  double session_spent_usd = 8;
+  string tenant_id = 9;
+}
+
+message WorkflowRunResponse {
+  bool ok = 1;
+  string error_message = 2;
+  string workflow_id = 3;
+  int32 steps_completed = 4;
+  repeated string step_records = 5;
+  string last_results_json = 6;
+  double spent_usd = 7;
+  string compensations_json = 8;
+}
+
 
