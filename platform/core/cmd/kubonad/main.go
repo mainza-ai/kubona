@@ -233,9 +233,17 @@ func main() {
 	}
 
 	// 2. Connect to Python Quantum Bridge via gRPC
-	conn, err := grpc.NewClient(*bridgeAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	bridgeTarget := *bridgeAddr
+	if envSocket := os.Getenv("KUBONA_BRIDGE_SOCKET"); envSocket != "" && *bridgeAddr == "localhost:50051" {
+		if !strings.HasPrefix(envSocket, "unix://") {
+			bridgeTarget = "unix://" + envSocket
+		} else {
+			bridgeTarget = envSocket
+		}
+	}
+	conn, err := grpc.NewClient(bridgeTarget, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		log.Fatalf("Failed to connect to Python bridge: %v", err)
+		log.Fatalf("Failed to connect to Python bridge (%s): %v", bridgeTarget, err)
 	}
 	defer conn.Close()
 	bridgeClient := pb.NewQuantumBridgeServiceClient(conn)

@@ -13,6 +13,7 @@ node_modules/
 dev-docs/
 bench/work/
 bench/results/
+scratch/
 
 # platform build/test artifacts
 .pytest_cache/

@@ -227,6 +227,10 @@ func (r *SandboxRunner) ExecuteHarness(benchmarkScript, mutableArtifactName, mut
 		args = append(args, "--entrypoint", "python3", r.cfg.Image, "/benchmark/eval.py")
 
 		cmd := exec.CommandContext(ctx, "docker", args...)
+		setProcessGroup(cmd)
+		cmd.Cancel = func() error {
+			return killProcessGroup(cmd)
+		}
 		var stdoutBuf, stderrBuf bytes.Buffer
 		cmd.Stdout = &stdoutBuf
 		cmd.Stderr = &stderrBuf
@@ -282,6 +286,10 @@ func (r *SandboxRunner) ExecuteHarness(benchmarkScript, mutableArtifactName, mut
 
 	cmd := exec.CommandContext(ctx, pyBin, evalPath)
 	cmd.Dir = workspaceDir
+	setProcessGroup(cmd)
+	cmd.Cancel = func() error {
+		return killProcessGroup(cmd)
+	}
 
 	pathEnv := os.Getenv("PATH")
 	if pyBin != "python3" {

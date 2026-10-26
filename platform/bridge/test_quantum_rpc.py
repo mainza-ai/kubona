@@ -316,5 +316,22 @@ def test_workflow_run_ceiling_refusal(isolated_rail):
     assert comps[0]["ok"] is True
 
 
+def test_bridge_unix_domain_socket_serving():
+    import os
+    import stat
+    sock_path = f"/tmp/kubona_test_{os.getpid()}.sock"
+    if os.path.exists(sock_path):
+        os.unlink(sock_path)
+    server = bridge_server.serve(port=0, socket_path=sock_path)
+    try:
+        assert os.path.exists(sock_path)
+        mode = stat.S_IMODE(os.stat(sock_path).st_mode)
+        assert mode == 0o600
+    finally:
+        server.stop(0)
+        if os.path.exists(sock_path):
+            os.unlink(sock_path)
+
+
 
 

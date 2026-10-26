@@ -2,7 +2,7 @@
 type: concept
 name: Observatory plan-vs-implementation gap audit (Oct 2026)
 date: 2026-10-23
-updated: 2026-10-23
+updated: 2026-10-25
 status: tracked
 tags: [observatory, audit, gaps, plan-conformance, atlas]
 sources:
@@ -88,7 +88,7 @@ execution record), [[observatory-spatial-representation-layer]] (design),
 
 **Hygiene (minutes each):**
 - **R-19** ~~Remove dead `DepthData` field~~ **Done**: no readers, field removed.
-- **R-25** `scratch/` sits untracked (operator docx + atlas_quickstart): move into `dev-docs/` (ignored) or delete. Still open, operator call.
+- **R-25** ~~`scratch/` sits untracked~~ **Done 2026-10-25**: added `scratch/` to `.gitignore` under `# Local-only working files — never pushed`.
 - **R-26** ~~Temper README roadmap~~ **Done 2026-10-23**: roadmap line now names the live-proof ledger and the prove-it-live remainders (R-01/R-04/R-05).
 - **Q-39** (new, P2): free cached-depth lens vs bill-everything — plan §3 says lenses are free, implementation bills $0.50 per dispatch.
 

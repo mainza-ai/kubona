@@ -234,17 +234,36 @@ class WorkloadSandbox:
             with open(script_path, "w") as f:
                 f.write(code_str)
             try:
-                proc = subprocess.run(
+                proc = subprocess.Popen(
                     [sys.executable, script_path],
                     preexec_fn=_preexec_fn if (_HAS_RESOURCE and os.name == "posix") else None,
+                    start_new_session=(os.name == "posix"),
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True,
-                    timeout=timeout_sec,
                     env=scrubbed_env(),  # W2.15: allowlist env, KUBONA_* dropped
                 )
-                stdout, t1 = _cap(proc.stdout)
-                stderr, t2 = _cap(proc.stderr)
+                try:
+                    stdout_raw, stderr_raw = proc.communicate(timeout=timeout_sec)
+                except subprocess.TimeoutExpired:
+                    if os.name == "posix":
+                        try:
+                            import signal
+                            os.killpg(proc.pid, signal.SIGKILL)
+                        except ProcessLookupError:
+                            pass
+                    else:
+                        proc.kill()
+                    proc.communicate()
+                    return SandboxResult(
+                        success=False,
+                        returncode=-1,
+                        stdout="",
+                        stderr=f"Execution timed out after {timeout_sec}s",
+                        violation="timeout",
+                    )
+                stdout, t1 = _cap(stdout_raw)
+                stderr, t2 = _cap(stderr_raw)
                 return SandboxResult(
                     success=(proc.returncode == 0),
                     returncode=proc.returncode,
@@ -252,13 +271,13 @@ class WorkloadSandbox:
                     stderr=stderr,
                     truncated=(t1 or t2),
                 )
-            except subprocess.TimeoutExpired:
+            except Exception as exc:
                 return SandboxResult(
                     success=False,
                     returncode=-1,
                     stdout="",
-                    stderr=f"Execution timed out after {timeout_sec}s",
-                    violation="timeout",
+                    stderr=str(exc),
+                    violation=str(exc),
                 )
 
 
