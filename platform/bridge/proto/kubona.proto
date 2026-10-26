@@ -271,6 +271,19 @@ message QuantumSubmitRequest {
   // Reserved: enforced only if the Q-10 ruling requires per-job mandates.
   // Until then the field is recorded, never required.
   string mandate_ref_json = 8;
+  // P5 §2.9 routing: caller's declared jurisdictions, export-control class,
+  // and review grant (forwarded to submit_job; empty allow-list refuses on
+  // non-local providers).
+  repeated string caller_jurisdictions = 9;
+  string caller_export_class = 10;
+  bool require_review = 11;
+  // Cross-rail session authority (F-NEW-01 / F-NEW-05): when Go Core has
+  // verified the session in SQLite, it passes session_verified=true along
+  // with the authoritative ceiling and current spend so Python's SessionStore
+  // mirrors the session before preflight.
+  bool session_verified = 12;
+  double session_budget_ceiling_usd = 13;
+  double session_spent_usd = 14;
 }
 
 message QuantumSubmitResponse {
@@ -281,6 +294,9 @@ message QuantumSubmitResponse {
   string fidelity_json = 5;
   bool queued = 6;
   string session_id = 7;
+  // True when idempotency_key matched an existing job (Go skips duplicate
+  // SQLite spend reservation on replay).
+  bool idempotent_replay = 8;
 }
 
 message QuantumJobStatusRequest {
@@ -294,6 +310,7 @@ message QuantumJobStatusResponse {
   string status = 4;
   string result_json = 5;
   string estimate_json = 6;
+  string session_id = 7;
 }
 
 message QuantumCancelRequest {

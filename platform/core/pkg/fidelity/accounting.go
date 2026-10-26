@@ -1,8 +1,13 @@
 package fidelity
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
 	"sync"
 )
 
@@ -16,17 +21,95 @@ const (
 )
 
 type DeviceProfile struct {
-	Name           string  `json:"name"`
-	Qubits         int     `json:"qubits"`
-	T1Us           float64 `json:"t1_us"`
-	T2Us           float64 `json:"t2_us"`
-	SingleQubitErr float64 `json:"single_qubit_error"`
-	TwoQubitErr    float64 `json:"two_qubit_error"`
-	// W2.5 provenance: hardcoded profiles must say where they came from.
+	Name           string   `json:"name"`
+	Aliases        []string `json:"aliases,omitempty"`
+	Qubits         int      `json:"qubits"`
+	T1Us           float64  `json:"t1_us"`
+	T2Us           float64  `json:"t2_us"`
+	SingleQubitErr float64  `json:"single_qubit_error"`
+	TwoQubitErr    float64  `json:"two_qubit_error"`
+	ReadoutErr     float64  `json:"readout_error"`
+	// W2.5 provenance: profiles must say where they came from.
 	// A profile without source/version/date refuses to bootstrap.
 	Source       string `json:"source"`
 	Version      string `json:"version"`
 	CalibratedAt string `json:"calibrated_at"`
+}
+
+type fidelityContract struct {
+	SchemaVersion     string            `json:"schema_version"`
+	DefaultFloorGo    float64           `json:"default_floor_go"`
+	DriftTolerance    float64           `json:"drift_tolerance"`
+	ProviderDeviceMap map[string]string `json:"provider_device_map"`
+	Devices           []DeviceProfile   `json:"devices"`
+}
+
+var (
+	contractOnce   sync.Once
+	loadedContract fidelityContract
+)
+
+func loadFidelityContract() fidelityContract {
+	contractOnce.Do(func() {
+		var candidates []string
+		if _, thisFile, _, ok := runtime.Caller(0); ok {
+			candidates = append(candidates, filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "contracts", "fidelity-devices.json"))
+		}
+		candidates = append(candidates,
+			"../contracts/fidelity-devices.json",
+			"../../contracts/fidelity-devices.json",
+			"../../../contracts/fidelity-devices.json",
+			"platform/contracts/fidelity-devices.json",
+		)
+		var raw []byte
+		var readErr error
+		for _, p := range candidates {
+			raw, readErr = os.ReadFile(p)
+			if readErr == nil {
+				break
+			}
+		}
+		if readErr != nil {
+			panic(fmt.Sprintf("cannot read fidelity-devices.json contract: %v", readErr))
+		}
+		if err := json.Unmarshal(raw, &loadedContract); err != nil {
+			panic(fmt.Sprintf("cannot parse fidelity-devices.json contract: %v", err))
+		}
+	})
+	return loadedContract
+}
+
+// ProviderDeviceMap returns the canonical provider -> device mapping from
+// platform/contracts/fidelity-devices.json.
+func ProviderDeviceMap() map[string]string {
+	c := loadFidelityContract()
+	out := make(map[string]string, len(c.ProviderDeviceMap))
+	for k, v := range c.ProviderDeviceMap {
+		out[k] = v
+	}
+	return out
+}
+
+// ResolveDeviceForBackend maps a requested backend to its calibrated device
+// profile in platform/contracts/fidelity-devices.json (supporting exact match
+// in provider_device_map or ibm/rigetti/quantinuum vendor prefix). Unknown
+// hardware refuses as unpredictable.
+func ResolveDeviceForBackend(backend string) (string, error) {
+	low := strings.ToLower(strings.TrimSpace(backend))
+	c := loadFidelityContract()
+	if dev, ok := c.ProviderDeviceMap[low]; ok && dev != "" {
+		return strings.ReplaceAll(dev, "-", "_"), nil
+	}
+	switch {
+	case strings.HasPrefix(low, "ibm"):
+		return "ibm_heron", nil
+	case strings.HasPrefix(low, "rigetti"):
+		return "rigetti_aspen", nil
+	case strings.HasPrefix(low, "quantinuum"):
+		return "quantinuum_h1", nil
+	default:
+		return "", fmt.Errorf("no fidelity profile for backend %q: unpredictable on this device — refused (register a calibrated profile first)", backend)
+	}
 }
 
 type FidelityAssessment struct {
@@ -53,10 +136,19 @@ type FidelityGate struct {
 }
 
 func NewFidelityGate() *FidelityGate {
+	c := loadFidelityContract()
+	floor := c.DefaultFloorGo
+	if floor <= 0 {
+		floor = 0.60
+	}
+	drift := c.DriftTolerance
+	if drift <= 0 {
+		drift = 0.15
+	}
 	fg := &FidelityGate{
 		profiles:       make(map[string]DeviceProfile),
-		floorThreshold: 0.60, // Minimum acceptable fidelity before hardware spend
-		driftTolerance: 0.15, // Maximum allowed discrepancy between predicted and Clifford probe
+		floorThreshold: floor, // Minimum acceptable fidelity before hardware spend
+		driftTolerance: drift, // Maximum allowed discrepancy between predicted and Clifford probe
 	}
 	fg.bootstrapProfiles()
 	return fg
@@ -77,29 +169,20 @@ func (fg *FidelityGate) DriftTolerance() float64 {
 	return fg.driftTolerance
 }
 
+// Profile returns the registered DeviceProfile for deviceName, if present.
+func (fg *FidelityGate) Profile(deviceName string) (DeviceProfile, bool) {
+	fg.mu.RLock()
+	defer fg.mu.RUnlock()
+	p, ok := fg.profiles[deviceName]
+	return p, ok
+}
+
 func (fg *FidelityGate) bootstrapProfiles() {
-	// W2.5: v1 heuristic device data (order-of-magnitude, labeled). T1/T2
-	// ride along for forensics and calibration display; the floor model
-	// prices gate errors (PredictFidelity), not coherence — T1/T2 are
-	// validated for physicality (T2 <= 2*T1) at bootstrap, never silently
-	// consumed.
-	for _, p := range []DeviceProfile{
-		{Name: "ibm_heron", Qubits: 156,
-			T1Us: 180.0, T2Us: 120.0,
-			SingleQubitErr: 0.00012, TwoQubitErr: 0.0021,
-			Source:  "IBM Quantum backend calibration medians, Heron r2 class",
-			Version: "v1-heuristic-2026-10", CalibratedAt: "2026-10-01"},
-		{Name: "quantinuum_h1", Qubits: 20,
-			T1Us: 1000000.0, T2Us: 1000000.0,
-			SingleQubitErr: 0.00003, TwoQubitErr: 0.0015,
-			Source:  "Quantinuum H1 published system specs (trapped-ion coherence)",
-			Version: "v1-heuristic-2026-10", CalibratedAt: "2026-10-01"},
-		{Name: "rigetti_aspen", Qubits: 80,
-			T1Us: 35.0, T2Us: 25.0,
-			SingleQubitErr: 0.0005, TwoQubitErr: 0.0080,
-			Source:  "Rigetti Aspen-class published medians",
-			Version: "v1-heuristic-2026-10", CalibratedAt: "2026-10-01"},
-	} {
+	// Loaded from platform/contracts/fidelity-devices.json (Phase 1 drift-proof
+	// shared contract across Go and Python). T1/T2 are validated for
+	// physicality (T2 <= 2*T1) and provenance at bootstrap.
+	c := loadFidelityContract()
+	for _, p := range c.Devices {
 		if p.T2Us > 2*p.T1Us {
 			panic(fmt.Sprintf("device profile %s violates T2 <= 2*T1: refusing to boot on unphysical data", p.Name))
 		}
@@ -107,6 +190,21 @@ func (fg *FidelityGate) bootstrapProfiles() {
 			panic(fmt.Sprintf("device profile %s lacks provenance: refusing", p.Name))
 		}
 		fg.profiles[p.Name] = p
+		for _, alias := range p.Aliases {
+			a := p
+			a.Name = alias
+			fg.profiles[alias] = a
+		}
+		if hy := strings.ReplaceAll(p.Name, "_", "-"); hy != p.Name {
+			alias := p
+			alias.Name = hy
+			fg.profiles[hy] = alias
+		}
+		if us := strings.ReplaceAll(p.Name, "-", "_"); us != p.Name {
+			alias := p
+			alias.Name = us
+			fg.profiles[us] = alias
+		}
 	}
 }
 

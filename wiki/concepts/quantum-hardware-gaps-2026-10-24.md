@@ -2,7 +2,7 @@
 type: concept
 name: Quantum hardware completeness audit (Oct 2026)
 date: 2026-10-24
-updated: 2026-10-24
+updated: 2026-10-25
 status: tracked
 tags: [qpu, providers, provisioning, audit, gaps, billing, frontend]
 sources:
@@ -49,6 +49,8 @@ with the exact missing piece named.
 - No refund policy beyond the conservative mechanism (admin-only, reason-required, no-negative-books): signer scope, window, and partials are open questions (new Q-41).
 - No fabricated SDK calls or verification dates: Rigetti cancel, D-Wave cancel, IonQ/Braket/Pulser/photonic execution refuse with the exact missing piece; unverified pricing stays null.
 - No Go-side QPU spend reservation (would double-count the Python book of record); no Go-side refund of Python-book spend.
+
+> ⚑ Correction (2026-10-25 investigative audit, F-NEW-01..F-NEW-07): leaving Go's SQLite ledger out of `/api/quantum/jobs` split session/spend authority across two non-synced stores (`kubonad.db` vs `~/.kubona/sessions.jsonl`), making `POST /api/sessions/refund`, `DeleteBlockers`, and console spend bars blind to HTTP-dispatched quantum spend — and `session_spend_refunded` / `session_spend_refund_refused` were missing from `KnownEventTypes` (`platform/contracts/event-types.json` and `events.go`), so `AppendSignedEvent` silently dropped every session refund receipt. Converged on 2026-10-25 (per [[source-architecture-paper]] single-ledger discipline): Go mirrors verified SQLite session ceilings + current spend into `QuantumSubmitRequest` (`sync_external_session`), threads `caller_jurisdictions` / `caller_export_class` / `require_review`, enforces Sovereign Air-Gap + sessionless tenant autonomy + T-09c cross-tenant isolation, reserves non-replay `estimated_usd` in Go's SQLite (`tenants` + `sessions`), registers the session refund event types, maps `"quantinuum"`/`"quantinuum-tket"` to `"quantinuum-h1"` in both Python and Go fidelity catalogs + wires `on_hardware_job` in `_submit_via_quantinuum`, and indexes `/api/quantum/canary` results per provider key.
 
 ## Live-proof ledger (this audit)
 

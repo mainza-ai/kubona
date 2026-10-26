@@ -275,20 +275,11 @@ func hasScope(scopes []string, want string) bool {
 }
 
 // fidelityDeviceForBackend maps a requested backend to a calibrated fidelity
-// profile. Unknown hardware refuses as unpredictable — it must never inherit
+// profile via the shared platform/contracts/fidelity-devices.json contract.
+// Unknown hardware refuses as unpredictable — it must never inherit
 // a simulator profile (which would admit everything at fidelity ~1.0).
 func fidelityDeviceForBackend(backend string) (string, error) {
-	low := strings.ToLower(strings.TrimSpace(backend))
-	switch {
-	case strings.HasPrefix(low, "ibm"):
-		return "ibm_heron", nil
-	case strings.HasPrefix(low, "rigetti"):
-		return "rigetti_aspen", nil
-	case strings.HasPrefix(low, "quantinuum"):
-		return "quantinuum_h1", nil
-	default:
-		return "", fmt.Errorf("no fidelity profile for backend %q: unpredictable on this device — refused (register a calibrated profile first)", backend)
-	}
+	return fidelity.ResolveDeviceForBackend(backend)
 }
 
 var (

@@ -15,7 +15,7 @@ from mcp.server.mcpserver import MCPServer
 
 from kubona.circuits import canonical_hash, parse_qasm2
 from kubona.cost.governance import CostGovernanceService, GovernanceError
-from kubona.fidelity.accounting import FidelityAccountingEngine
+from kubona.fidelity.accounting import FidelityAccountingEngine, PROVIDER_DEVICE_MAP
 from kubona.jobs import JobRunner
 from kubona.mitigation import run_zne
 from kubona.providers import get_provider, list_providers
@@ -30,13 +30,11 @@ _gov = CostGovernanceService(_sessions)
 _runner = JobRunner()  # persistent, async job farm (production §4.3 abstraction)
 _fidelity = FidelityAccountingEngine()
 
-# Provider -> fidelity device profile. Simulators skip the gate (nothing to
-# predict); every other backend must be catalogued or the job refuses as
-# unpredictable — unknown devices never inherit the perfect simulator profile.
-_FIDELITY_DEVICE_FOR_PROVIDER = {
-    "ibm-qiskit": "ibm-heron",
-    "rigetti": "rigetti-aspen",
-}
+# Provider -> fidelity device profile loaded from platform/contracts/fidelity-devices.json.
+# Simulators skip the gate (nothing to predict); every other backend must be
+# catalogued or the job refuses as unpredictable — unknown devices never
+# inherit the perfect simulator profile.
+_FIDELITY_DEVICE_FOR_PROVIDER: dict[str, str] = dict(PROVIDER_DEVICE_MAP)
 # W2.21: single shared consts from kubona.schema.provider (aliases keep the
 # neighboring _LOCAL_ONLY_PROVIDERS documentation coherent — when adding a
 # simulator provider, list it there AND check the modality set here).
@@ -100,6 +98,166 @@ def _fidelity_gate(capability, circuit) -> dict:
     return verdict
 
 
+def submit_qubo_job(qubo_matrix: list[list[float]] | str, n_samples: int = 64,
+                    session_id: str | None = None, budget_ceiling_usd: float | None = None,
+                    seed: int | None = 7, backend: str = "local",
+                    caller_jurisdictions: list[str] | None = None,
+                    caller_export_class: str = "any",
+                    require_review: bool = False,
+                    estimate_only: bool = False,
+                    idempotency_key: str | None = None,
+                    idempotency_body_hash: str | None = None) -> dict:
+    """Submit a QUBO matrix to the annealing provider (`dwave-annealing`).
+
+    Supports credential-free local solving (`backend="local"`: exact enumeration
+    for n<=16, dimod simulated annealing or labeled single-bit-flip heuristic
+    for n>16) and D-Wave Leap hybrid cloud (`backend="leap"`).
+    """
+    import numpy as np
+    from kubona.providers.annealing_provider import AnnealingProvider
+    from kubona.providers.base import ProviderError
+
+    provider = "dwave-annealing"
+    capability = load_provider(provider)
+    if not isinstance(n_samples, int) or isinstance(n_samples, bool) or n_samples < 1:
+        return {"ok": False, "error": f"n_samples must be an integer >= 1, got {n_samples!r}"}
+    if backend not in ("local", "leap"):
+        return {"ok": False, "error": f"unknown annealing backend {backend!r}: use 'local' or 'leap'"}
+
+    raw_q = qubo_matrix
+    if isinstance(raw_q, str):
+        try:
+            raw_q = json.loads(raw_q)
+        except Exception as e:  # noqa: BLE001
+            return {"ok": False, "error": f"qubo_matrix must be valid JSON 2-D array: {e}"}
+    if not isinstance(raw_q, (list, tuple)):
+        return {"ok": False, "error": "qubo_matrix must be a 2-D square numeric array"}
+    try:
+        Q = np.asarray(raw_q, dtype=float)
+        n_qubits = AnnealingProvider._validate_Q(Q)
+    except (ProviderError, ValueError, TypeError) as e:
+        return {"ok": False, "error": str(e)}
+
+    if backend == "leap" and not caller_jurisdictions:
+        return {"ok": False,
+                "error": f"provider {provider!r} (backend='leap') is not local-only: "
+                         "caller_jurisdictions must declare at least one jurisdiction"}
+    if caller_jurisdictions:
+        from kubona.routing import ROUTE_INELIGIBLE, route
+
+        r = route(capability, caller_jurisdictions=caller_jurisdictions,
+                  caller_export_class=caller_export_class, require_review=require_review)
+        if r.verdict == ROUTE_INELIGIBLE:
+            return {"ok": False, "error": f"routing blocked: {r.reason}",
+                    "routing": r.to_dict()}
+
+    if session_id is None:
+        if budget_ceiling_usd is not None and budget_ceiling_usd > IMPLICIT_SESSION_CEILING_USD:
+            return {"ok": False,
+                    "error": f"implicit session ceiling is capped at "
+                             f"${IMPLICIT_SESSION_CEILING_USD}: open a session via "
+                             "cost/create_session for a larger budget"}
+        session = _sessions.create(name=f"qubo-{n_qubits}q", owner="agent",
+                                   budget_ceiling_usd=budget_ceiling_usd
+                                   if budget_ceiling_usd is not None
+                                   else IMPLICIT_SESSION_CEILING_USD)
+        session_id = session.session_id
+    else:
+        try:
+            session = _sessions.get(session_id)
+        except KeyError:
+            return {"ok": False, "error": f"unknown session_id {session_id!r}"}
+
+    if backend == "local":
+        estimate = {
+            "provider": provider,
+            "pricing_model": "free",
+            "currency": "USD",
+            "estimated_usd": 0.0,
+            "shots": n_samples,
+            "n_qubits": n_qubits,
+            "backend": "local",
+            "notes": "Credential-free local QUBO solver (exact n<=16, SA/heuristic n>16)",
+            "cost_basis": "local-qubo-solver (free tier)",
+        }
+        fidelity = {
+            "admitted": True,
+            "skipped": "annealing local-qubo-solver (non-gate QUBO modality)",
+            "provider": provider,
+            "backend": "local",
+        }
+        fidelity["fidelity_receipt"] = hashlib.sha256(
+            json.dumps(fidelity, sort_keys=True, default=str).encode()
+        ).hexdigest()[:16]
+    else:
+        try:
+            estimate = capability.cost_estimate(n_samples)
+        except ValueError as e:
+            return {"ok": False, "error": f"cost estimation refused: {e}",
+                    "estimate": None, "session_id": session_id}
+        cost_val = estimate["estimated_usd"]
+        if cost_val > 0 and session.budget_ceiling_usd is None:
+            return {"ok": False, "error": "paid provider requires a session budget ceiling",
+                    "estimate": estimate, "session_id": session_id}
+        if cost_val > 0 and cost_val > session.remaining():
+            return {"ok": False,
+                    "error": f"estimate {cost_val} exceeds remaining budget {session.remaining()}",
+                    "estimate": estimate, "session_id": session_id}
+        fidelity = _fidelity_gate(capability, None)
+        if not fidelity["admitted"]:
+            return {"ok": False, "error": fidelity["rejection_reason"],
+                    "fidelity": fidelity, "session_id": session_id}
+
+    exec_plugin = get_provider(provider)
+    qubo_canonical = json.dumps([[float(v) for v in row] for row in Q.tolist()], separators=(",", ":"))
+    qubo_hash = hashlib.sha256(qubo_canonical.encode()).hexdigest()[:16]
+
+    if estimate_only:
+        return {"ok": True, "estimate_only": True, "session_id": session_id,
+                "estimate": estimate, "fidelity": fidelity,
+                "circuit_hash": qubo_hash}
+
+    cost = estimate["estimated_usd"]
+    if cost > 0:
+        try:
+            _gov.record_spend(session_id, cost)
+        except GovernanceError as e:
+            return {"ok": False, "error": f"spend refused at dispatch: {e}",
+                    "session_id": session_id}
+
+    job = _runner.store.create(provider=provider, session_id=session_id,
+                               circuit_hash=qubo_hash, circuit_qasm=qubo_canonical,
+                               shots=n_samples, seed=seed, estimate=estimate,
+                               idempotency_key=idempotency_key or "",
+                               body_hash=idempotency_body_hash or "")
+    job_id = job.job_id
+
+    def _run_qubo() -> dict:
+        return exec_plugin.solve_qubo(Q, n_samples=n_samples, seed=seed, backend=backend)
+
+    try:
+        _runner.enqueue(job_id, _run_qubo)
+    except (KeyError, RuntimeError) as e:
+        return {"ok": False, "error": f"farm refused the job: {e}", "session_id": session_id}
+
+    if backend == "local":
+        try:
+            done = _runner.wait(job_id, timeout_s=30.0)
+        except TimeoutError as e:
+            live = _runner.store.get(job_id)
+            return {"ok": True, "job_id": job_id, "session_id": session_id,
+                    "status": live.status if live else "unknown",
+                    "note": str(e), "circuit_hash": qubo_hash,
+                    "estimate": estimate}
+    else:
+        done = job
+
+    _sessions.record_job(session_id, job_id)
+    return {"ok": True, "job_id": job_id, "session_id": session_id,
+            "status": done.status, "circuit_hash": qubo_hash,
+            "estimate": estimate, "fidelity": fidelity}
+
+
 def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int = 1024,
                session_id: str | None = None, budget_ceiling_usd: float | None = None,
                seed: int | None = 7,
@@ -121,8 +279,32 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
     jurisdictions/export-control class, the provider must be ELIGIBLE or the job
     is blocked BEFORE any execution — the compliance gate, not an afterthought.
     """
-    circuit = parse_qasm2(circuit_qasm)
     capability = load_provider(provider)
+    if getattr(capability.modality, "value", str(capability.modality)) == "annealing":
+        stripped = (circuit_qasm or "").strip()
+        if stripped.startswith("["):
+            return submit_qubo_job(
+                qubo_matrix=stripped,
+                n_samples=shots,
+                session_id=session_id,
+                budget_ceiling_usd=budget_ceiling_usd,
+                seed=seed,
+                backend="local",
+                caller_jurisdictions=caller_jurisdictions,
+                caller_export_class=caller_export_class,
+                require_review=require_review,
+                estimate_only=estimate_only,
+                idempotency_key=idempotency_key,
+                idempotency_body_hash=idempotency_body_hash,
+            )
+        return {
+            "ok": False,
+            "error": (
+                f"provider {provider!r} is an annealing (QUBO) modality: pass a "
+                "JSON 2-D QUBO matrix (e.g. [[-1.0, 2.0], [0.0, -1.0]]) or call submit_qubo_job"
+            ),
+        }
+    circuit = parse_qasm2(circuit_qasm)
     if not isinstance(shots, int) or isinstance(shots, bool) or shots < 1:
         return {"ok": False, "error": f"shots must be an integer >= 1, got {shots!r}"}
     # P5 §2.9: routing declarations are mandatory for anything beyond local
@@ -240,7 +422,20 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
         # what to cancel. Simulators never call back — nothing recorded.
         def _pin(hardware_job_id: str) -> None:
             _runner.store.record_hardware_job(job_id, hardware_job_id)
-        # returns the provider result; JobRunner records transitions + provenance
+        # returns the provider result; JobRunner records transitions + provenance.
+        # Hardware jobs pass wait_for_result=False so the worker thread frees
+        # immediately once the vendor accepts the submission; status is then
+        # polled via poll_hardware_job on get_job_status / get_result.
+        import inspect
+        try:
+            sig = inspect.signature(exec_plugin.submit)
+            if "wait_for_result" in sig.parameters:
+                return exec_plugin.submit(
+                    circuit, shots, seed=seed, on_hardware_job=_pin,
+                    wait_for_result=bool(wait),
+                )
+        except (TypeError, ValueError):
+            pass
         return exec_plugin.submit(circuit, shots, seed=seed, on_hardware_job=_pin)
 
     try:
@@ -271,19 +466,64 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
     return out
 
 
+def _refresh_deferred_hardware_job(job):
+    """If `job` is running with a pinned `hardware_job_id`, poll the vendor
+    status non-blockingly and transition the store on terminal state."""
+    if job is None or job.status != "running":
+        return job, None
+    hw_id = (getattr(job, "meta", None) or {}).get("hardware_job_id")
+    if not hw_id:
+        return job, None
+    try:
+        prov = get_provider(job.provider)
+        polled = prov.poll_hardware_job(str(hw_id))
+    except Exception as e:  # noqa: BLE001 — transient poll errors keep status running
+        return job, str(e)
+    p_status = polled.get("status")
+    try:
+        if p_status == "completed":
+            updated = _runner.store.transition(
+                job.job_id, "completed", result=polled.get("result") or polled
+            )
+            _runner._record("job_completed", {"job_id": job.job_id, "ok": True, "hardware_job_id": hw_id})
+            return updated or job, None
+        if p_status == "failed":
+            err = str(polled.get("error") or f"hardware job {hw_id} failed")
+            updated = _runner.store.transition(job.job_id, "failed", error=err)
+            _runner._record("job_failed", {"job_id": job.job_id, "error": err, "hardware_job_id": hw_id})
+            return updated or job, None
+        if p_status == "cancelled":
+            updated = _runner.store.transition(job.job_id, "cancelled")
+            _runner._record("job_cancelled", {"job_id": job.job_id, "hardware_job_id": hw_id})
+            return updated or job, None
+    except Exception:  # noqa: BLE001 — race with concurrent transition/cancel
+        return _runner.store.get(job.job_id) or job, None
+    return job, None
+
+
 def get_job_status(job_id: str) -> dict:
-    """Status read comes from the PERSISTED store (survives restart)."""
+    """Status read comes from the PERSISTED store (survives restart).
+    When a running hardware job carries a pinned `hardware_job_id`, polls
+    the vendor SDK non-blockingly to advance terminal state."""
     job = _runner.store.get(job_id)
     if job is None:
         return {"ok": False, "error": "unknown job_id"}
-    return {"ok": True, "job_id": job_id, "status": job.status, "provider": job.provider,
-            "session_id": job.session_id, "created_at": job.created_at}
+    job, poll_warn = _refresh_deferred_hardware_job(job)
+    out = {"ok": True, "job_id": job_id, "status": job.status, "provider": job.provider,
+           "session_id": job.session_id, "created_at": job.created_at}
+    hw_id = (getattr(job, "meta", None) or {}).get("hardware_job_id")
+    if hw_id:
+        out["hardware_job_id"] = hw_id
+    if poll_warn:
+        out["poll_warning"] = poll_warn
+    return out
 
 
 def get_result(job_id: str) -> dict:
     job = _runner.store.get(job_id)
     if job is None:
         return {"ok": False, "error": "unknown job_id"}
+    job, _ = _refresh_deferred_hardware_job(job)
     if job.status == "failed":
         return {"ok": False, "job_id": job_id, "status": job.status, "error": job.error}
     if job.status == "cancelled":
@@ -397,6 +637,7 @@ def list_provider_registry() -> dict:
 
 for fn, desc in [
     (submit_job, "Submit a circuit through the cost-governance gate, threaded to a session (async-persistent job farm)."),
+    (submit_qubo_job, "Submit a QUBO matrix to the D-Wave annealing provider (local exact/SA or Leap cloud)."),
     (get_job_status, "Get the persisted status of a submitted job (survives restart)."),
     (get_result, "Get the completed result of a job."),
     (cancel_job, "Cancel a queued or running job (watch-and-interrupt primitive)."),

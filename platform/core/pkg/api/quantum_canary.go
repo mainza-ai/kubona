@@ -116,19 +116,9 @@ func (s *Server) handleQuantumCanary(w http.ResponseWriter, r *http.Request) {
 			writeBridgeUnavailable(w, "quantum_canary", resp.ErrorMessage)
 			return
 		}
-		var perProvider map[string]json.RawMessage
-		if err := json.Unmarshal([]byte(resp.ResultsJson), &perProvider); err != nil {
-			// Canary returns a list; index by provider when shaped so,
-			// else keep the raw blob under each requested provider.
-			for _, p := range stale {
-				s.quantumCanaryCache.put(p, json.RawMessage(resp.ResultsJson), now)
-				merged[p] = json.RawMessage(resp.ResultsJson)
-			}
-		} else {
-			for p, res := range perProvider {
-				s.quantumCanaryCache.put(p, res, now)
-				merged[p] = res
-			}
+		for p, res := range indexCanaryResults(resp.ResultsJson, stale) {
+			s.quantumCanaryCache.put(p, res, now)
+			merged[p] = res
 		}
 		cached = false
 	}
@@ -136,6 +126,44 @@ func (s *Server) handleQuantumCanary(w http.ResponseWriter, r *http.Request) {
 		"ok": true, "results": merged, "cached": cached,
 		"cache_ttl_seconds": int(canaryCacheTTL.Seconds()),
 	})
+}
+
+// indexCanaryResults indexes RunCanary's JSON output by provider id (F-NEW-06).
+// Python's canary.run_all returns a JSON array [{"provider":"...", ...}, ...];
+// map-shaped responses are also accepted. Each entry is stored under its own
+// provider key rather than duplicating the full array under every stale key.
+func indexCanaryResults(raw string, stale []string) map[string]json.RawMessage {
+	out := map[string]json.RawMessage{}
+	var perProvider map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &perProvider); err == nil && len(perProvider) > 0 {
+		for p, res := range perProvider {
+			out[p] = res
+		}
+		return out
+	}
+	var list []json.RawMessage
+	if err := json.Unmarshal([]byte(raw), &list); err == nil {
+		for _, elem := range list {
+			var header struct {
+				Provider string `json:"provider"`
+			}
+			if herr := json.Unmarshal(elem, &header); herr == nil && header.Provider != "" {
+				out[header.Provider] = elem
+			}
+		}
+		if len(out) > 0 {
+			for _, p := range stale {
+				if _, ok := out[p]; !ok {
+					out[p] = json.RawMessage(`{"ok":false,"error":"provider omitted from canary response"}`)
+				}
+			}
+			return out
+		}
+	}
+	for _, p := range stale {
+		out[p] = json.RawMessage(raw)
+	}
+	return out
 }
 
 // parseCanarySeconds parses a positive integer timeout, clamped by the

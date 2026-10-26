@@ -77,3 +77,24 @@ func TestProbeRunSignalHonest(t *testing.T) {
 		t.Errorf("floor-only path must not fabricate a measurement: %+v", unprobed)
 	}
 }
+
+func TestFidelityContractParity(t *testing.T) {
+	fg := NewFidelityGate()
+	pm := ProviderDeviceMap()
+	for _, prov := range []string{"ibm-qiskit", "ibm-quantum", "rigetti", "quantinuum", "quantinuum-tket"} {
+		dev, ok := pm[prov]
+		if !ok || dev == "" {
+			t.Fatalf("missing provider %q in ProviderDeviceMap: %v", prov, pm)
+		}
+		if _, exists := fg.Profile(dev); !exists {
+			t.Fatalf("device %q mapped for %q not registered in FidelityGate", dev, prov)
+		}
+		resolved, err := ResolveDeviceForBackend(prov)
+		if err != nil {
+			t.Fatalf("ResolveDeviceForBackend(%q) failed: %v", prov, err)
+		}
+		if _, exists := fg.Profile(resolved); !exists {
+			t.Fatalf("resolved device %q for %q not registered in FidelityGate", resolved, prov)
+		}
+	}
+}

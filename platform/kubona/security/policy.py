@@ -22,6 +22,7 @@ TOOL_SCOPES: dict[str, str] = {
     "compiler/compile_circuit": "compiler:read",
     # execution
     "execution/submit_job": "execution:submit",
+    "execution/submit_qubo_job": "execution:submit",
     "execution/get_job_status": "execution:read",
     "execution/get_result": "execution:read",
     "execution/run_zne_job": "execution:submit",

@@ -637,9 +637,12 @@ func (s *Server) requireDispatchAutonomy(sessionID string) error {
 	if err != nil {
 		return fmt.Errorf("unknown session %q: dispatch refused", sessionID)
 	}
-	tenantID := sess.TenantID
+	return s.requireTenantDispatchAutonomy(sess.TenantID)
+}
+
+func (s *Server) requireTenantDispatchAutonomy(tenantID string) error {
 	if tenantID == "" {
-		tenantID = "default"
+		tenantID = tenants.DefaultTenantID
 	}
 	t, err := s.tenantMgr.GetTenant(tenantID)
 	if err != nil {
@@ -1988,8 +1991,12 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusOK, map[string]any{"messages": []any{}})
 			return
 		}
-		if _, gerr := s.sessionMgr.GetSession(sessionID); gerr != nil {
+		sess, gerr := s.sessionMgr.GetSession(sessionID)
+		if gerr != nil {
 			WriteAPIError(w, "ghost_session", fmt.Sprintf("unknown session %q: refusing to read another session", sessionID), nil)
+			return
+		}
+		if !s.authorizeSessionRead(w, r, sess) {
 			return
 		}
 		// T-09b: known session — bind caller to session tenant.
@@ -2871,8 +2878,12 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "session_id is required: refusing unscoped job list (would cross tenants)", http.StatusBadRequest)
 			return
 		}
-		if _, gerr := s.sessionMgr.GetSession(sessionID); gerr != nil {
+		sess, gerr := s.sessionMgr.GetSession(sessionID)
+		if gerr != nil {
 			WriteAPIError(w, "ghost_session", fmt.Sprintf("unknown session %q: refusing to read another session", sessionID), nil)
+			return
+		}
+		if !s.authorizeSessionRead(w, r, sess) {
 			return
 		}
 		jobsList, err := s.jobRunner.ListJobs(sessionID, 50)
@@ -3000,6 +3011,11 @@ func (s *Server) handleJobByID(w http.ResponseWriter, r *http.Request) {
 			Reason string `json:"reason"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&req)
+		if existingJob, gerr := s.jobRunner.GetJob(jobID); gerr == nil && existingJob != nil && existingJob.SessionID != "" {
+			if _, ok := s.authorizeKnownSession(w, r, existingJob.SessionID); !ok {
+				return
+			}
+		}
 		transitioned, err := s.jobRunner.CancelJob(jobID, req.Reason)
 		if err != nil {
 			// Unknown ids 404; receipt failures 500 (the cancellation
@@ -3048,6 +3064,9 @@ func (s *Server) handleJobByID(w http.ResponseWriter, r *http.Request) {
 	}
 	if jobSess.TenantID != scopeSess.TenantID {
 		http.Error(w, "job belongs to another tenant: refused", http.StatusForbidden)
+		return
+	}
+	if !s.authorizeSessionRead(w, r, scopeSess) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"job": job})
@@ -3219,8 +3238,12 @@ func (s *Server) handleEventsStream(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "session_id is required: streams must name an existing session", http.StatusNotFound)
 		return
 	}
-	if _, gerr := s.sessionMgr.GetSession(sessionID); gerr != nil {
+	streamSess, gerr := s.sessionMgr.GetSession(sessionID)
+	if gerr != nil {
 		http.Error(w, fmt.Sprintf("unknown session %q: refusing to stream another session", sessionID), http.StatusNotFound)
+		return
+	}
+	if !s.authorizeSessionRead(w, r, streamSess) {
 		return
 	}
 	flusher, ok := w.(http.Flusher)
@@ -3701,6 +3724,9 @@ func (s *Server) handleVaultLeases(w http.ResponseWriter, r *http.Request) {
 		sess, gerr := s.sessionMgr.GetSession(req.SessionID)
 		if gerr != nil {
 			http.Error(w, fmt.Sprintf("unknown session %q: leases bind to real sessions only", req.SessionID), http.StatusNotFound)
+			return
+		}
+		if !s.authorizeSessionRead(w, r, sess) {
 			return
 		}
 		if sess.TenantID != "" {

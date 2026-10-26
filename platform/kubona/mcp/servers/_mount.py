@@ -39,6 +39,7 @@ def build_gateway(*, require_auth: bool = True, auth: Any | None = None,
                           "compile_circuit": compiler.compile_circuit})
     gw.mount("execution", {
         "submit_job": execution.submit_job,
+        "submit_qubo_job": execution.submit_qubo_job,
         "get_job_status": execution.get_job_status,
         "get_result": execution.get_result,
         "run_zne_job": execution.run_zne_job,

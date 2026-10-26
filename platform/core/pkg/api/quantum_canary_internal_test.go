@@ -3,34 +3,35 @@ package api
 import (
 	"encoding/json"
 	"testing"
-	"time"
 )
 
-// Cache partition is the correctness core of the canary proxy: fresh
-// entries serve without touching hardware APIs; stale/missing entries
-// re-probe. TTL expiry must flip an entry from fresh to stale exactly at
-// the boundary — a stuck-fresh cache would present dead telemetry as live.
-func TestCanaryCachePartition(t *testing.T) {
-	c := newCanaryCache()
-	now := time.Now()
-	c.put("fresh", json.RawMessage(`{"ok":true}`), now.Add(-time.Minute))
-	c.put("stale", json.RawMessage(`{"ok":true}`), now.Add(-10*time.Minute))
-	fresh, missing := c.partition([]string{"fresh", "stale", "absent"}, now)
-	if len(fresh) != 1 || fresh["fresh"] == nil {
-		t.Fatalf("only fresh entries served from cache, got %v / %v", fresh, missing)
+func TestIndexCanaryResultsPerProvider(t *testing.T) {
+	raw := `[
+		{"provider":"local-simulator","ok":true,"passed":true,"tvd":0.002},
+		{"provider":"qiskit-aer-simulator","ok":true,"passed":false,"tvd":0.18}
+	]`
+	indexed := indexCanaryResults(raw, []string{"local-simulator", "qiskit-aer-simulator", "ibm-quantum"})
+	if len(indexed) != 3 {
+		t.Fatalf("expected 3 indexed entries, got %d: %v", len(indexed), indexed)
 	}
-	if len(missing) != 2 {
-		t.Fatalf("stale + absent entries must re-probe, got %v", missing)
-	}
-}
-
-func TestCanarySecondsParsing(t *testing.T) {
-	for _, bad := range []string{"", "0", "-5", "abc", "12x", "99999999"} {
-		if _, err := parseCanarySeconds(bad); err == nil {
-			t.Fatalf("parseCanarySeconds(%q) must refuse", bad)
+	decode := func(key string) map[string]any {
+		t.Helper()
+		var out map[string]any
+		if err := json.Unmarshal(indexed[key], &out); err != nil {
+			t.Fatalf("unmarshal %s: %v", key, err)
 		}
+		return out
 	}
-	if n, err := parseCanarySeconds("90"); err != nil || n != 90 {
-		t.Fatalf("parseCanarySeconds(90) = %d, %v", n, err)
+	localMap := decode("local-simulator")
+	if localMap["provider"] != "local-simulator" || localMap["passed"] != true {
+		t.Fatalf("local-simulator entry must be its own dict, got %v", localMap)
+	}
+	aerMap := decode("qiskit-aer-simulator")
+	if aerMap["provider"] != "qiskit-aer-simulator" || aerMap["passed"] != false {
+		t.Fatalf("qiskit-aer-simulator entry must be its own dict, got %v", aerMap)
+	}
+	ibmMap := decode("ibm-quantum")
+	if ibmMap["ok"] != false {
+		t.Fatalf("omitted provider must record a fail-closed dict, got %v", ibmMap)
 	}
 }

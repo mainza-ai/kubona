@@ -113,7 +113,8 @@ class TketProvider(Provider):
         return c
 
     def submit(self, circuit: Circuit, shots: int, seed: int | None = None,
-               on_hardware_job=None) -> dict[str, Any]:
+               on_hardware_job=None, wait_for_result: bool = True,
+               backend_factory=None) -> dict[str, Any]:
         if not self._ready:
             raise ProviderError(
                 "quantinuum requires optional deps: pip install pytket pytket-quantinuum "
@@ -133,22 +134,127 @@ class TketProvider(Provider):
                 "closed without credentials (developer/test path uses the local simulator)."
             )
         c = self._to_tket(circuit)
-        return self._submit_via_quantinuum(c, shots, token)
+        return self._submit_via_quantinuum(
+            c, shots, token,
+            on_hardware_job=on_hardware_job,
+            wait_for_result=wait_for_result,
+            backend_factory=backend_factory,
+        )
 
-    def _submit_via_quantinuum(self, c, shots: int, token: str) -> dict[str, Any]:
+    def _submit_via_quantinuum(self, c, shots: int, token: str,
+                               on_hardware_job=None,
+                               wait_for_result: bool = True,
+                               backend_factory=None) -> dict[str, Any]:
         """Submit via pytket-quantinuum (documented API); result -> counts."""
-        try:
-            from pytket_quantinuum import QuantinuumAPI, QuantinuumBackend
-        except ImportError as e:  # pragma: no cover - SDK optional
-            raise ProviderError(f"pytket-quantinuum not installed: {e}")
-        api = QuantinuumAPI(api_token=token)
-        backend = QuantinuumBackend(device_name=self.device, api_handler=api)
+        if backend_factory is None:
+            try:
+                from pytket_quantinuum import QuantinuumAPI, QuantinuumBackend
+            except ImportError as e:  # pragma: no cover - SDK optional
+                raise ProviderError(f"pytket-quantinuum not installed: {e}")
+            api = QuantinuumAPI(api_token=token)
+            backend = QuantinuumBackend(device_name=self.device, api_handler=api)
+        else:
+            backend = backend_factory(token, self.device)
         compiled = backend.compile_circuit(c, optimisation_level=0)
         handle = backend.process_circuit(compiled, n_shots=shots)
+        handle_str = str(handle)
+        if on_hardware_job is not None and handle is not None:
+            on_hardware_job(handle_str)
+        if not wait_for_result:
+            return {
+                "status": "running",
+                "deferred": True,
+                "shots": shots,
+                "backend": self.device,
+                "job_id": handle_str,
+                "hardware_job_id": handle_str,
+                "provider": "quantinuum",
+                "hardware": True,
+            }
         result = backend.get_result(handle)
-        counts = {k: v for k, v in result.get_counts().items()}
+        counts = {
+            "".join(str(b) for b in k) if isinstance(k, tuple) else str(k): int(v)
+            for k, v in result.get_counts().items()
+        }
         return {"counts": counts, "shots": shots, "backend": self.device,
-                "provider": "quantinuum", "hardware": True}
+                "job_id": handle_str, "provider": "quantinuum", "hardware": True}
+
+    def poll_hardware_job(self, hardware_job_id: str, backend_factory=None) -> dict[str, Any]:
+        """Non-blocking vendor status poll for a Quantinuum H-System job."""
+        if not hardware_job_id or not str(hardware_job_id).strip():
+            raise ProviderError("hardware_job_id is required")
+        if self.device is None:
+            raise ProviderError(
+                "quantinuum poll refuses: no backend configured on the capability"
+            )
+        token = self._credential()
+        if not token:
+            raise ProviderError(
+                "cannot poll without credentials: KUBONA_QUANTINUUM_API_KEY unset"
+            )
+        try:
+            if backend_factory is None:
+                from pytket_quantinuum import QuantinuumAPI, QuantinuumBackend
+                api = QuantinuumAPI(api_token=token)
+                backend = QuantinuumBackend(device_name=self.device, api_handler=api)
+            else:
+                backend = backend_factory(token, self.device)
+            handle: Any = hardware_job_id
+            try:
+                from pytket.backends.resulthandle import ResultHandle
+                handle = ResultHandle.from_str(hardware_job_id)
+            except Exception:  # noqa: BLE001 — non-ResultHandle strings pass through to injected stub
+                handle = hardware_job_id
+            st = backend.circuit_status(handle)
+        except ImportError as e:
+            raise ProviderError(f"pytket-quantinuum not installed: {e}")
+        except Exception as e:  # noqa: BLE001
+            raise ProviderError(f"quantinuum status poll failed for job {hardware_job_id!r}: {e}")
+
+        raw_status = getattr(st, "status", st)
+        status_str = getattr(raw_status, "name", str(raw_status)).strip().lower()
+        if status_str in ("completed", "done"):
+            try:
+                result = backend.get_result(handle)
+                counts = {
+                    "".join(str(b) for b in k) if isinstance(k, tuple) else str(k): int(v)
+                    for k, v in result.get_counts().items()
+                }
+            except Exception as e:  # noqa: BLE001
+                raise ProviderError(
+                    f"quantinuum job {hardware_job_id!r} reported {status_str} but result read failed: {e}"
+                )
+            return {
+                "status": "completed",
+                "vendor_status": status_str,
+                "hardware_job_id": hardware_job_id,
+                "result": {
+                    "counts": counts,
+                    "backend": self.device,
+                    "job_id": hardware_job_id,
+                    "provider": "quantinuum",
+                    "hardware": True,
+                },
+            }
+        if status_str in ("error", "failed"):
+            msg = getattr(st, "message", "") or f"quantinuum job {hardware_job_id} failed ({status_str})"
+            return {
+                "status": "failed",
+                "vendor_status": status_str,
+                "hardware_job_id": hardware_job_id,
+                "error": str(msg),
+            }
+        if status_str in ("cancelled", "canceled"):
+            return {
+                "status": "cancelled",
+                "vendor_status": status_str,
+                "hardware_job_id": hardware_job_id,
+            }
+        return {
+            "status": "running",
+            "vendor_status": status_str,
+            "hardware_job_id": hardware_job_id,
+        }
 
     def health(self) -> dict[str, Any]:
         return {"provider": self.capability.provider, "ready": self._ready,

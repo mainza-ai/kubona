@@ -21,6 +21,11 @@ h q[0];
 cx q[0], q[1];
 measure q -> c;`;
 
+const DEFAULT_QUBO = `[
+  [-1.0, 2.0],
+  [0.0, -1.0]
+]`;
+
 // Human quantum dispatch (R-34 console surface). Flow: pick backend →
 // estimate (dry-run: full validation, no spend, no enqueue) → mandate
 // card when the estimate is non-zero → dispatch (idempotency key minted
@@ -105,6 +110,8 @@ export function QuantumDispatch({
       shots,
       idempotency_key: `estimate-${Date.now()}`,
       dry_run: true,
+      caller_jurisdictions: ['US', 'UK', 'EU', 'CA', 'DE'],
+      caller_export_class: 'allied',
     });
     setEstimating(false);
     if (!res.ok) {
@@ -132,6 +139,8 @@ export function QuantumDispatch({
       idempotency_key: key,
       dry_run: false,
       mandate_ref: mandateRef ?? undefined,
+      caller_jurisdictions: ['US', 'UK', 'EU', 'CA', 'DE'],
+      caller_export_class: 'allied',
     });
     setDispatching(false);
     if (!res.ok || !res.job_id) {
@@ -173,7 +182,26 @@ export function QuantumDispatch({
     void loadRefunds();
   }, [loadRefunds, jobStatus]);
 
-  const executable = backends.filter((b) => b.executable_now);
+  const executable = backends.filter((b) => b.dispatch_ready ?? b.executable_now);
+  const selectedBackend = backends.find((b) => b.provider === provider);
+  const isQuboModality =
+    provider === 'dwave-annealing' ||
+    selectedBackend?.input_format === 'qubo' ||
+    selectedBackend?.modality === 'annealing';
+
+  const handleProviderChange = (nextProvider: string) => {
+    setProvider(nextProvider);
+    const nextBackend = backends.find((b) => b.provider === nextProvider);
+    const nextIsQubo =
+      nextProvider === 'dwave-annealing' ||
+      nextBackend?.input_format === 'qubo' ||
+      nextBackend?.modality === 'annealing';
+    if (nextIsQubo && qasm.trim() === BELL_QASM.trim()) {
+      setQasm(DEFAULT_QUBO);
+    } else if (!nextIsQubo && qasm.trim() === DEFAULT_QUBO.trim()) {
+      setQasm(BELL_QASM);
+    }
+  };
 
   return (
     <div className="relative rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0E17] to-[#06080D] border border-white/[0.08] shadow-2xl p-7 space-y-5">
@@ -192,18 +220,21 @@ export function QuantumDispatch({
           <span className="uppercase tracking-wider text-[11px]">Backend</span>
           <select
             value={provider}
-            onChange={(e) => setProvider(e.target.value)}
+            onChange={(e) => handleProviderChange(e.target.value)}
             className="w-full bg-black/40 border border-white/10 rounded-xl px-3 py-2 text-slate-100"
           >
-            {backends.map((b) => (
-              <option key={b.provider} value={b.provider} disabled={!b.executable_now}>
-                {b.display_name}{b.executable_now ? '' : ' (not executable)'}
-              </option>
-            ))}
+            {backends.map((b) => {
+              const ready = b.dispatch_ready ?? b.executable_now;
+              return (
+                <option key={b.provider} value={b.provider} disabled={!ready}>
+                  {b.display_name}{ready ? '' : ' (not executable)'}
+                </option>
+              );
+            })}
           </select>
         </label>
         <label className="block text-xs font-mono text-slate-300 space-y-1.5">
-          <span className="uppercase tracking-wider text-[11px]">Shots</span>
+          <span className="uppercase tracking-wider text-[11px]">{isQuboModality ? 'Samples / Reads' : 'Shots'}</span>
           <input
             type="number"
             min={1}
@@ -215,7 +246,9 @@ export function QuantumDispatch({
       </div>
 
       <label className="block text-xs font-mono text-slate-300 space-y-1.5">
-        <span className="uppercase tracking-wider text-[11px]">OpenQASM circuit</span>
+        <span className="uppercase tracking-wider text-[11px]">
+          {isQuboModality ? 'QUBO matrix (JSON 2-D array)' : 'OpenQASM circuit'}
+        </span>
         <textarea
           value={qasm}
           onChange={(e) => setQasm(e.target.value)}

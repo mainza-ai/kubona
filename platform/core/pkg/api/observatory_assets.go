@@ -83,8 +83,12 @@ func (s *Server) handleObservatoryAsset(w http.ResponseWriter, r *http.Request) 
 		WriteAPIError(w, "bad_request", "session_id is required", nil)
 		return
 	}
-	if sess, err := s.sessionMgr.GetSession(req.SessionID); err != nil || sess == nil {
+	sess, err := s.sessionMgr.GetSession(req.SessionID)
+	if err != nil || sess == nil {
 		WriteAPIError(w, "ghost_session", fmt.Sprintf("session %q not found", req.SessionID), nil)
+		return
+	}
+	if !s.authorizeSessionRead(w, r, sess) {
 		return
 	}
 	dataURL := strings.TrimSpace(req.DataBase64)
@@ -152,8 +156,12 @@ func (s *Server) handleObservatoryLensResolve(w http.ResponseWriter, r *http.Req
 		WriteAPIError(w, "bad_request", "session_id and operation_id are required", nil)
 		return
 	}
-	if sess, err := s.sessionMgr.GetSession(req.SessionID); err != nil || sess == nil {
+	sess, err := s.sessionMgr.GetSession(req.SessionID)
+	if err != nil || sess == nil {
 		WriteAPIError(w, "ghost_session", fmt.Sprintf("session %q not found", req.SessionID), nil)
+		return
+	}
+	if !s.authorizeSessionRead(w, r, sess) {
 		return
 	}
 
@@ -195,8 +203,12 @@ func (s *Server) handleObservatoryLensHistory(w http.ResponseWriter, r *http.Req
 		WriteAPIError(w, "bad_request", "session_id query parameter is required", nil)
 		return
 	}
-	if sess, err := s.sessionMgr.GetSession(sessionID); err != nil || sess == nil {
+	sess, err := s.sessionMgr.GetSession(sessionID)
+	if err != nil || sess == nil {
 		WriteAPIError(w, "ghost_session", fmt.Sprintf("session %q not found", sessionID), nil)
+		return
+	}
+	if !s.authorizeSessionRead(w, r, sess) {
 		return
 	}
 	events, err := s.ledger.GetRecentEvents(sessionID, 500)

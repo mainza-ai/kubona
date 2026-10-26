@@ -36,8 +36,9 @@ async function flush() {
 }
 
 const BACKENDS = [
-  { provider: 'local-simulator', display_name: 'Local simulator', modality: 'simulator', device: 'local', credential_env: '', credential_state: 'ready', telemetry: 'measured', executable_now: true },
-  { provider: 'ibm-qiskit', display_name: 'IBM Quantum', modality: 'superconducting', device: 'ibm_heron', credential_env: 'KUBONA_IBM_QISKIT_TOKEN', credential_state: 'credentialless', telemetry: 'declared', executable_now: false },
+  { provider: 'local-simulator', display_name: 'Local simulator', modality: 'simulator', device: 'local', credential_env: '', credential_state: 'ready', telemetry: 'measured', executable_now: true, dispatch_ready: true, input_format: 'qasm' },
+  { provider: 'dwave-annealing', display_name: 'D-Wave annealing (local exact/SA)', modality: 'annealing', device: 'local/SA', credential_env: 'KUBONA_DWAVE_ANNEALING_LEAP_TOKEN', credential_state: 'ready', telemetry: 'declared', executable_now: true, dispatch_ready: true, input_format: 'qubo' },
+  { provider: 'ibm-qiskit', display_name: 'IBM Quantum', modality: 'superconducting', device: 'ibm_heron', credential_env: 'KUBONA_IBM_QISKIT_TOKEN', credential_state: 'credentialless', telemetry: 'declared', executable_now: false, dispatch_ready: false, input_format: 'qasm' },
 ];
 
 describe('QuantumDispatch human flow', () => {
@@ -128,5 +129,21 @@ describe('QuantumDispatch human flow', () => {
     });
     await flush();
     expect(textOf(root!.root)).toContain('unknown provider "nope"');
+  });
+
+  it('switches input mode to QUBO matrix when dwave-annealing is selected', async () => {
+    let root: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      root = TestRenderer.create(<QuantumDispatch sessionId="s1" />);
+    });
+    expect(textOf(root!.root)).toContain('OpenQASM circuit');
+    const select = root!.root.find((n) => n.type === 'select');
+    await act(async () => {
+      (select.props as { onChange: (e: { target: { value: string } }) => void }).onChange({
+        target: { value: 'dwave-annealing' },
+      });
+    });
+    expect(textOf(root!.root)).toContain('QUBO matrix (JSON 2-D array)');
+    expect(textOf(root!.root)).toContain('Samples / Reads');
   });
 });

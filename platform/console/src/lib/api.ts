@@ -821,6 +821,8 @@ export interface QuantumBackendInfo {
   credential_state: 'ready' | 'credentialless' | 'unavailable' | string;
   telemetry: 'measured' | 'declared' | string;
   executable_now: boolean;
+  dispatch_ready?: boolean;
+  input_format?: 'qasm' | 'qubo' | string;
 }
 
 export async function fetchQuantumBackends(): Promise<QuantumBackendInfo[]> {
@@ -903,6 +905,9 @@ export interface QuantumJobSubmit {
   idempotency_key: string;
   dry_run?: boolean;
   mandate_ref?: string;
+  caller_jurisdictions?: string[];
+  caller_export_class?: string;
+  require_review?: boolean;
 }
 
 export async function submitQuantumJob(

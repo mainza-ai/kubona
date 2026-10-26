@@ -910,6 +910,28 @@
         "session_id"
       ]
     },
+    "session_spend_refund_refused": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Session spend refund refused because refund amount exceeded recorded spend.",
+      "required": [
+        "session_id",
+        "amount_usd",
+        "reason"
+      ]
+    },
+    "session_spend_refunded": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Session spend refunded via admin envelope.",
+      "required": [
+        "session_id",
+        "amount_usd",
+        "reason"
+      ]
+    },
     "session_spend_release_refused": {
       "emitters": [
         "go"

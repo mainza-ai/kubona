@@ -63,6 +63,9 @@ func (s *Server) handleLedgerAppend(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "session_id is required", http.StatusBadRequest)
 		return
 	}
+	if _, ok := s.authorizeKnownSession(w, r, req.SessionID); !ok {
+		return
+	}
 	if !tribunalLedgerEventTypes[req.EventType] {
 		writeJSON(w, http.StatusForbidden, map[string]any{
 			"ok":    false,
@@ -115,6 +118,9 @@ func (s *Server) handleSupervisorAbort(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.SessionID == "" {
 		http.Error(w, "session_id is required", http.StatusBadRequest)
+		return
+	}
+	if _, ok := s.authorizeKnownSession(w, r, req.SessionID); !ok {
 		return
 	}
 	if req.Reason == "" {

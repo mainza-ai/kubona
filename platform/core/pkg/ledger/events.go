@@ -85,6 +85,8 @@ var KnownEventTypes = map[string]bool{
 	"session_created":                   true,
 	"session_deleted":                   true,
 	"session_imported":                  true,
+	"session_spend_refund_refused":      true,
+	"session_spend_refunded":            true,
 	"session_spend_released":            true,
 	"session_spend_release_refused":     true,
 	"session_spend_reserved":            true,

@@ -136,10 +136,13 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	// 1. Verify session existence
+	// 1. Verify session existence + caller-vs-session tenant binding (T-09c)
 	sess, err := s.sessionMgr.GetSession(req.SessionID)
 	if err != nil || sess == nil {
 		WriteAPIError(w, "ghost_session", fmt.Sprintf("session %q not found", req.SessionID), nil)
+		return
+	}
+	if !s.authorizeSessionRead(w, r, sess) {
 		return
 	}
 

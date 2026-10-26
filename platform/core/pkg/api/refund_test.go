@@ -201,4 +201,23 @@ func TestSessionRefundRoute(t *testing.T) {
 	if got.CurrentSpendUSD != 25.0 {
 		t.Fatalf("refusals must not move books, spent=%v", got.CurrentSpendUSD)
 	}
+	// F-NEW-07: both session_spend_refunded and session_spend_refund_refused
+	// must be registered in KnownEventTypes and sealed in the session ledger
+	// so QuantumDispatch's refund history table sees them.
+	events, err := srv.Ledger().GetRecentEvents(sess.ID, 20)
+	if err != nil {
+		t.Fatalf("GetRecentEvents: %v", err)
+	}
+	var sawRefunded, sawRefused bool
+	for _, ev := range events {
+		switch ev.EventType {
+		case "session_spend_refunded":
+			sawRefunded = true
+		case "session_spend_refund_refused":
+			sawRefused = true
+		}
+	}
+	if !sawRefunded || !sawRefused {
+		t.Fatalf("expected both session_spend_refunded (%v) and session_spend_refund_refused (%v) in ledger events", sawRefunded, sawRefused)
+	}
 }
