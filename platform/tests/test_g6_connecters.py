@@ -64,7 +64,8 @@ def test_pytket_conversion_and_fixture_submission(fake_pytket, monkeypatch):
 
     p = TketProvider(load_provider("quantinuum"))
     out = p.submit(BELL, shots=512)
-    assert out["hardware"] is True and out["counts"] == {(0, 0): 256, (1, 1): 256}
+    # pytket tuple bitstrings (0, 0) are normalized to standard bitstrings "00"
+    assert out["hardware"] is True and out["counts"] == {"00": 256, "11": 256}
     assert out["backend"] == p.device
 
 
