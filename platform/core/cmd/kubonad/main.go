@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -241,7 +242,15 @@ func main() {
 			bridgeTarget = envSocket
 		}
 	}
-	conn, err := grpc.NewClient(bridgeTarget, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	bridgeToken := os.Getenv("KUBONA_BRIDGE_TOKEN")
+	if bridgeToken == "" && !strings.HasPrefix(bridgeTarget, "unix://") && !isLoopbackTarget(bridgeTarget) {
+		log.Fatalf("Refusing non-loopback bridge %q without KUBONA_BRIDGE_TOKEN: set the same token on kubonad and the bridge", bridgeTarget)
+	}
+	dialOpts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+	if bridgeToken != "" {
+		dialOpts = append(dialOpts, grpc.WithPerRPCCredentials(bridgeTokenCreds(bridgeToken)))
+	}
+	conn, err := grpc.NewClient(bridgeTarget, dialOpts...)
 	if err != nil {
 		log.Fatalf("Failed to connect to Python bridge (%s): %v", bridgeTarget, err)
 	}
@@ -318,4 +327,23 @@ func main() {
 	defer cancel()
 	httpServer.Shutdown(ctx)
 	log.Println("[Kubona Core] Clean exit complete.")
+}
+
+// bridgeTokenCreds attaches the shared bridge bearer to every unary RPC.
+// The bridge is a private compute plane; kubonad is its only caller.
+type bridgeTokenCreds string
+
+func (c bridgeTokenCreds) GetRequestMetadata(ctx context.Context, uri ...string) (map[string]string, error) {
+	return map[string]string{"authorization": "Bearer " + string(c)}, nil
+}
+
+func (c bridgeTokenCreds) RequireTransportSecurity() bool { return false }
+
+func isLoopbackTarget(target string) bool {
+	host, _, err := net.SplitHostPort(target)
+	if err != nil {
+		host = target
+	}
+	host = strings.Trim(host, "[]")
+	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }

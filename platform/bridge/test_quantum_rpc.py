@@ -335,3 +335,57 @@ def test_bridge_unix_domain_socket_serving():
 
 
 
+
+
+# ------------------------------------------------- bridge auth (2026-10-26) ---
+
+def test_non_loopback_bridge_without_token_refuses(monkeypatch):
+    monkeypatch.delenv("KUBONA_BRIDGE_TOKEN", raising=False)
+    monkeypatch.delenv("KUBONA_BRIDGE_SOCKET", raising=False)
+    with pytest.raises(SystemExit):
+        bridge_server.serve(port=0, bind="0.0.0.0")
+
+
+def test_bridge_token_auth_is_constant_time_and_narrow():
+    from kubona.core.auth import AuthError
+    auth = bridge_server._BridgeTokenAuth("sekret")
+    principal = auth.verify("sekret")
+    assert principal.sub == "kubonad-bridge"
+    assert principal.role == "operator"
+    with pytest.raises(AuthError):
+        auth.verify("wrong")
+    with pytest.raises(AuthError):
+        auth.verify("")
+
+
+def test_execute_circuit_refuses_hardware_route():
+    svc = bridge_server.QuantumBridgeServicer()
+    req = SimpleNamespace(
+        job_id="hw-attempt", qasm=BELL_QASM, shots=10,
+        requested_backend="ibm_brisbane", allow_classical_fallback=True,
+        caller_jurisdictions=["US"], caller_export_class="any",
+        export_reviewed=True,
+    )
+    resp = svc.ExecuteCircuit(req, None)
+    assert resp.success is False
+    assert "QuantumSubmit" in resp.error_message
+    assert not resp.hardware_job_id
+
+
+def test_workflow_run_requires_token_in_production(monkeypatch):
+    import json
+    monkeypatch.setenv("KUBONA_ENV", "production")
+    monkeypatch.delenv("KUBONA_BRIDGE_TOKEN", raising=False)
+    svc = bridge_server.QuantumBridgeServicer()
+    wf = {
+        "name": "auth-test", "trigger": "manual",
+        "steps": [{"id": "estimate", "tool": "cost/estimate_cost",
+                   "args": {"circuit_qasm": BELL_QASM,
+                            "provider": "local-simulator", "shots": 10}}],
+    }
+    req = SimpleNamespace(workflow_json=json.dumps(wf), inputs_json="",
+                          session_id="", token="", force=False,
+                          session_verified=False)
+    resp = svc.WorkflowRun(req, None)
+    assert resp.ok is False
+    assert "token" in resp.error_message.lower()

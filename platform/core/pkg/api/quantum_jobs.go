@@ -289,6 +289,21 @@ func (s *Server) handleQuantumJobStatus(w http.ResponseWriter, r *http.Request, 
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), quantumJobTimeout)
 	defer cancel()
+	// Ownership comes from the Go record, never from the bridge response:
+	// a missing attribution used to skip the tenant check entirely.
+	sid, ok := s.jobRunner.JobSession(jobID)
+	if !ok {
+		WriteAPIError(w, "not_found", "job is not recorded in this daemon: refusing status read", nil)
+		return
+	}
+	sess, serr := s.sessionMgr.GetSession(sid)
+	if serr != nil || sess == nil {
+		WriteAPIError(w, "not_found", "job session no longer exists: refusing status read", nil)
+		return
+	}
+	if !s.authorizeSessionRead(w, r, sess) {
+		return
+	}
 	resp, err := bridge.QuantumJobStatus(ctx, &pb.QuantumJobStatusRequest{JobId: jobID})
 	if err != nil {
 		writeBridgeUnavailable(w, "quantum_job_status", "QuantumJobStatus RPC failed: "+err.Error())
@@ -297,13 +312,6 @@ func (s *Server) handleQuantumJobStatus(w http.ResponseWriter, r *http.Request, 
 	if !resp.Ok {
 		WriteAPIError(w, "not_found", resp.ErrorMessage, nil)
 		return
-	}
-	if resp.SessionId != "" {
-		if sess, serr := s.sessionMgr.GetSession(resp.SessionId); serr == nil && sess != nil {
-			if !s.authorizeSessionRead(w, r, sess) {
-				return
-			}
-		}
 	}
 	s.jobRunner.SyncQuantumBridgeJobStatus(resp.JobId, resp.Status, firstNonEmpty(resp.ResultJson, "{}"))
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -324,16 +332,22 @@ func (s *Server) handleQuantumJobCancel(w http.ResponseWriter, r *http.Request, 
 	}
 	ctx, cancel := context.WithTimeout(r.Context(), quantumJobTimeout)
 	defer cancel()
-	if stResp, stErr := bridge.QuantumJobStatus(ctx, &pb.QuantumJobStatusRequest{JobId: jobID}); stErr == nil && stResp != nil && stResp.Ok && stResp.SessionId != "" {
-		if sess, serr := s.sessionMgr.GetSession(stResp.SessionId); serr == nil && sess != nil {
-			if !s.authorizeSessionRead(w, r, sess) {
-				return
-			}
-			if err := s.requireDispatchAutonomy(stResp.SessionId); err != nil {
-				WriteAPIError(w, "forbidden", err.Error(), nil)
-				return
-			}
-		}
+	sid, ok := s.jobRunner.JobSession(jobID)
+	if !ok {
+		WriteAPIError(w, "not_found", "job is not recorded in this daemon: refusing cancel", nil)
+		return
+	}
+	sess, serr := s.sessionMgr.GetSession(sid)
+	if serr != nil || sess == nil {
+		WriteAPIError(w, "not_found", "job session no longer exists: refusing cancel", nil)
+		return
+	}
+	if !s.authorizeSessionRead(w, r, sess) {
+		return
+	}
+	if err := s.requireDispatchAutonomy(sid); err != nil {
+		WriteAPIError(w, "forbidden", err.Error(), nil)
+		return
 	}
 	resp, err := bridge.QuantumCancel(ctx, &pb.QuantumCancelRequest{JobId: jobID, Reason: req.Reason})
 	if err != nil {

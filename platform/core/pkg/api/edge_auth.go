@@ -48,6 +48,30 @@ func (s *Server) requireBearer(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// requireA2AAuth gates A2A with the operator token without stealing the
+// `Authorization` header: x402 payments use that header for the signed
+// challenge. Non-payment methods may send `Authorization: Bearer …`;
+// payment methods send `X-Kubona-A2A-Token: …` alongside the x402 header.
+func (s *Server) requireA2AAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
+			s.requireBearer(next)(w, r)
+			return
+		}
+		tok := strings.TrimSpace(r.Header.Get("X-Kubona-A2A-Token"))
+		want := strings.TrimSpace(os.Getenv("KUBONA_API_TOKEN"))
+		if want == "" {
+			WriteAPIError(w, "server_misconfigured", "API token not configured: A2A is closed", nil)
+			return
+		}
+		if tok == "" || subtle.ConstantTimeCompare([]byte(tok), []byte(want)) != 1 {
+			WriteAPIError(w, "unauthorized", "missing or invalid X-Kubona-A2A-Token", nil)
+			return
+		}
+		next(w, r)
+	}
+}
+
 // corsAllowOrigin resolves the Access-Control-Allow-Origin value for a
 // request. Default is an explicit allowlist (local console origins plus
 // KUBONA_CORS_ORIGINS extras); "*" requires the KUBONA_CORS_ANY=1 dev
