@@ -3465,3 +3465,9 @@ skipped is the exact failure this incident is about:
 ## [2026-10-27] verification | Metrics slice green; auth-session test flake observed
 
   - CI run 40557624085 initially failed only TestAuthSessionsListAndRevoke (cookie auth returned 401 after revoke); the same commit passed on rerun, and the test passed 20x locally with -race. Recorded as a CI flake to monitor, not a code change: the gate is green on the rerun.
+
+## [2026-10-27] decision | Structured JSON logging on the request/panic paths
+
+  - logging.Setup sets slog: JSON by default in production, text in dev, with KUBONA_LOG_FORMAT/KUBONA_LOG_LEVEL overrides.
+  - Every HTTP request logs method/path/status/duration_ms/request_id; panics log method/path/request_id/panic/stack; A2A panics log task_id/stack.
+  - A test captures the JSON handler and level override. Legacy log.Printf call sites remain for a later sweep; tracing remains.

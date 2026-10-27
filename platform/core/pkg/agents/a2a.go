@@ -5,7 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"math"
 	"net/http"
 	"runtime/debug"
@@ -411,7 +411,7 @@ func (s *A2AServer) HandleRequest(req *JSONRPCRequest) *JSONRPCResponse {
 			go func(id, taskType string, payload json.RawMessage, ex TaskExecutor) {
 				defer func() {
 					if rec := recover(); rec != nil {
-						log.Printf("[A2A] PANIC task=%s: %v\n%s", id, rec, debug.Stack())
+						slog.Error("a2a_panic", "task_id", id, "panic", fmt.Sprint(rec), "stack", string(debug.Stack()))
 						s.mu.Lock()
 						if t, ok := s.tasks[id]; ok && t.Status != TaskStatusCompleted {
 							t.Status = TaskStatusFailed

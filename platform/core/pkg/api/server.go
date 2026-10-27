@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"net/url"
@@ -430,8 +431,10 @@ func requestIDAndRecovery(next http.Handler) http.Handler {
 		w.Header().Set("X-Request-ID", reqID)
 		defer func() {
 			if rec := recover(); rec != nil {
-				log.Printf("[Kubona Core] PANIC %s %s request_id=%s: %v\n%s",
-					r.Method, r.URL.Path, reqID, rec, debug.Stack())
+				slog.Error("http_panic",
+					"method", r.Method, "path", r.URL.Path,
+					"request_id", reqID, "panic", fmt.Sprint(rec),
+					"stack", string(debug.Stack()))
 				WriteAPIError(w, "internal", "internal error (request id "+reqID+")", nil)
 			}
 		}()
