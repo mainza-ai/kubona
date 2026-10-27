@@ -3393,3 +3393,7 @@ skipped is the exact failure this incident is about:
   - DeleteSession no longer deletes ledger_events: the hash chain and the signed session_deleted receipt outlive the content rows. The receipt is signed by the operator signer and keeps the original tenant attribution (AppendEventWithTenant).
   - GET /api/ledger/verify (bearer) exposes VerifyChain for a session or the whole ledger; a tamper reports ok=false with faults. This is the production caller the audit found missing.
   - Tests: cascade now asserts the surviving chain verifies clean; a tamper test reports a fault; full Go -race suite green.
+
+## [2026-10-27] verification | Ledger retention slice green
+
+  - CI run 40467016495 on 39cc5c9: all 15 checks green. Audit retention (signed session_deleted receipt, surviving chain) and GET /api/ledger/verify are landed.

@@ -664,11 +664,12 @@ Phase 1b landed as `0ee9f9c`; Phase 3a closed the anchor/comparator P0s and the
 largest verified-claim theater; Phase 3b fixed calibration age, the model
 manifest, and template constants; Phase 4a/4b added the console build gate,
 security headers, and quote freshness; the dependency slice cleared all nine
-Dependabot alerts. The full CI gate is green on the latest code (`629dbc0`, run `40458725971`)
+Dependabot alerts. The full CI gate is green on the latest code (`39cc5c9`, run `40467016495`)
 and branch protection is enabled on `main` + `develop` with 15 required checks
-(admin bypass on, linear history, no force-push/delete). The technical rulings
-(Q-49/52/53/54/55/57) are recorded above; only Q-50/Q-51/Q-56 remain for an
-operator call.
+(admin bypass on, linear history, no force-push/delete). All rulings
+(Q-49..Q-57) are recorded above. Residuals: integer micro-USD ledger v2,
+passkey/non-extractable key custody, mandatory-mandate policy (Q-40), and the
+autoresearch benchmark nonce.
 
 ---
 
