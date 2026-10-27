@@ -17,7 +17,7 @@
   <a href="platform/tests/"><img src="https://img.shields.io/badge/Tests-1000%2B%20Passed-brightgreen" alt="Tests" /></a>
   <a href="wiki/concepts/local-simulation-test-scenarios.md"><img src="https://img.shields.io/badge/Simulation-%240.00%20(Zero--QPU)-success" alt="Simulation" /></a>
   <a href="wiki/"><img src="https://img.shields.io/badge/Wiki-151%20Pages-purple?logo=obsidian&logoColor=white" alt="Obsidian Knowledge Base" /></a>
-  <a href="wiki/questions.md"><img src="https://img.shields.io/badge/Blueprint-0%20Open%20(Settled)-brightgreen" alt="Blueprint Settled" /></a>
+  <a href="wiki/questions.md"><img src="https://img.shields.io/badge/Blueprint-9%20Open%20Decisions-orange" alt="Open Decisions" /></a>
   <a href="https://www.linkedin.com/in/mainza-kangombe-6214295"><img src="https://img.shields.io/badge/Author-Mainza%20Kangombe-0A66C2?logo=linkedin&logoColor=white" alt="Author" /></a>
 </p>
 
