@@ -97,3 +97,26 @@ func TestOpaqueExternalProofIsNotClaimedVerified(t *testing.T) {
 		t.Fatalf("opaque proof must be recorded without a false signature fault: %v %v", err, faults)
 	}
 }
+
+func TestLoopSpendMicroExact(t *testing.T) {
+	l, cleanup := openVerifyLedger(t)
+	defer cleanup()
+	if err := l.SaveLoopState(LoopPersist{
+		ID: "loop-micro", SessionID: "s", Status: "running", MaxSteps: 10,
+		ReservedAmount: 1.0, ReservedTenant: "default",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 10_000; i++ {
+		if err := l.AddLoopConsumed("loop-micro", 0.000001); err != nil {
+			t.Fatal(err)
+		}
+	}
+	tenant, refund, ok, err := l.ClaimLoopSpend("loop-micro")
+	if err != nil || !ok || tenant != "default" {
+		t.Fatalf("claim: tenant=%q refund=%v ok=%v err=%v", tenant, refund, ok, err)
+	}
+	if refund != 0.99 {
+		t.Fatalf("micro refund drifted: got %v want 0.99", refund)
+	}
+}
