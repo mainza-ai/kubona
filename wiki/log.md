@@ -3431,3 +3431,8 @@ skipped is the exact failure this incident is about:
   - loops gain reserved/consumed micro columns with an idempotent backfill; SaveLoopState, AddLoopConsumed, and ClaimLoopSpend use integer arithmetic; Get/List project micro to USD. Import restores micro.
   - A 10k x $0.000001 drawdown test yields an exact $0.99 refund.
   - Remaining: remove the REAL compatibility projection after all reads migrate, and passkey/Q-40/autoresearch residuals.
+
+## [2026-10-27] decision | All spend reads use micro; REAL is an atomic compatibility projection
+
+  - Job get/list/export and outstanding-reservation blockers read reserved_amount_micro_usd; GetLoopState reads loop micro columns. No production read path uses the REAL money columns anymore.
+  - REAL columns remain only as a compatibility projection updated in the same statement as micro; they cannot drift at write time. Dropping them is a separate schema-only cleanup (tests/ops still read them).

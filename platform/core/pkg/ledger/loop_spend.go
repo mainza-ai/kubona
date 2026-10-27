@@ -35,18 +35,21 @@ func (l *Ledger) AddLoopConsumed(id string, amount float64) error {
 
 // GetLoopState loads one loop row (nil, nil when absent).
 func (l *Ledger) GetLoopState(id string) (*LoopPersist, error) {
-	row := l.db.QueryRow(`SELECT id, session_id, harness_id, status, step_count, max_steps, last_activity, drain, reserved_amount, reserved_tenant, consumed_amount, updated_at FROM loops WHERE id = ?`, id)
+	row := l.db.QueryRow(`SELECT id, session_id, harness_id, status, step_count, max_steps, last_activity, drain, reserved_amount_micro_usd, reserved_tenant, consumed_amount_micro_usd, updated_at FROM loops WHERE id = ?`, id)
 	var p LoopPersist
 	var lastAct, updated sql.NullString
 	var drain int
+	var reservedMicro, consumedMicro int64
 	if err := row.Scan(&p.ID, &p.SessionID, &p.HarnessID, &p.Status, &p.StepCount, &p.MaxSteps,
-		&lastAct, &drain, &p.ReservedAmount, &p.ReservedTenant, &p.ConsumedAmount, &updated); err != nil {
+		&lastAct, &drain, &reservedMicro, &p.ReservedTenant, &consumedMicro, &updated); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
 		return nil, err
 	}
 	p.Drain = drain != 0
+	p.ReservedAmount = money.MicroUSD(reservedMicro).USD()
+	p.ConsumedAmount = money.MicroUSD(consumedMicro).USD()
 	if lastAct.Valid {
 		if t, err := time.Parse(time.RFC3339, lastAct.String); err == nil {
 			p.LastActivity = t

@@ -808,7 +808,7 @@ func (r *Runner) CancelJob(id, reason string) (transitioned bool, err error) {
 }
 
 func (r *Runner) GetJob(id string) (*Job, error) {
-	query := `SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, reserved_tenant, reserved_amount, compiler_used, fallback_estimate, mandate_ref FROM jobs WHERE id = ?`
+	query := `SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, reserved_tenant, reserved_amount_micro_usd, compiler_used, fallback_estimate, mandate_ref FROM jobs WHERE id = ?`
 	row := r.ledger.DB().QueryRow(query, id)
 
 	var j Job
@@ -816,7 +816,7 @@ func (r *Runner) GetJob(id string) (*Job, error) {
 	var resultStr sql.NullString
 	var compAt sql.NullTime
 	var resTenant sql.NullString
-	var resAmount sql.NullFloat64
+	var resAmount sql.NullInt64
 	var compilerUsed sql.NullString
 	var fallbackInt sql.NullInt64
 	var mandateRef sql.NullString
@@ -837,7 +837,9 @@ func (r *Runner) GetJob(id string) (*Job, error) {
 		j.ReservedTenant = resTenant.String
 	}
 	if resAmount.Valid {
-		j.ReservedAmount = resAmount.Float64
+		if resAmount.Valid {
+			j.ReservedAmount = money.MicroUSD(resAmount.Int64).USD()
+		}
 	}
 	if compilerUsed.Valid {
 		j.CompilerUsed = compilerUsed.String
@@ -866,12 +868,12 @@ func (r *Runner) ListJobs(sessionID string, limit int) ([]*Job, error) {
 	var err error
 	if sessionID != "" {
 		rows, err = r.ledger.DB().Query(
-			`SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, reserved_tenant, reserved_amount, compiler_used, fallback_estimate, mandate_ref FROM jobs WHERE session_id = ? ORDER BY created_at DESC LIMIT ?`,
+			`SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, reserved_tenant, reserved_amount_micro_usd, compiler_used, fallback_estimate, mandate_ref FROM jobs WHERE session_id = ? ORDER BY created_at DESC LIMIT ?`,
 			sessionID, limit,
 		)
 	} else {
 		rows, err = r.ledger.DB().Query(
-			`SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, reserved_tenant, reserved_amount, compiler_used, fallback_estimate, mandate_ref FROM jobs ORDER BY created_at DESC LIMIT ?`,
+			`SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, reserved_tenant, reserved_amount_micro_usd, compiler_used, fallback_estimate, mandate_ref FROM jobs ORDER BY created_at DESC LIMIT ?`,
 			limit,
 		)
 	}
@@ -887,7 +889,7 @@ func (r *Runner) ListJobs(sessionID string, limit int) ([]*Job, error) {
 		var resultStr sql.NullString
 		var compAt sql.NullTime
 		var resTenant sql.NullString
-		var resAmount sql.NullFloat64
+		var resAmount sql.NullInt64
 		var compilerUsed sql.NullString
 		var fallbackInt sql.NullInt64
 		var mandateRef sql.NullString
@@ -907,7 +909,9 @@ func (r *Runner) ListJobs(sessionID string, limit int) ([]*Job, error) {
 			j.ReservedTenant = resTenant.String
 		}
 		if resAmount.Valid {
-			j.ReservedAmount = resAmount.Float64
+			if resAmount.Valid {
+				j.ReservedAmount = money.MicroUSD(resAmount.Int64).USD()
+			}
 		}
 		if compilerUsed.Valid {
 			j.CompilerUsed = compilerUsed.String

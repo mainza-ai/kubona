@@ -371,7 +371,7 @@ func nullIfEmpty(b []byte) []byte {
 }
 
 func (m *Manager) exportJobs(sessionID string) ([]JobRow, error) {
-	rows, err := m.ledger.DB().Query(`SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, reserved_tenant, reserved_amount, compiler_used, fallback_estimate, mandate_ref FROM jobs WHERE session_id = ? ORDER BY created_at`, sessionID)
+	rows, err := m.ledger.DB().Query(`SELECT id, session_id, status, job_type, params_json, result_json, created_at, completed_at, reserved_tenant, reserved_amount_micro_usd, compiler_used, fallback_estimate, mandate_ref FROM jobs WHERE session_id = ? ORDER BY created_at`, sessionID)
 	if err != nil {
 		return nil, err
 	}
@@ -380,9 +380,11 @@ func (m *Manager) exportJobs(sessionID string) ([]JobRow, error) {
 	for rows.Next() {
 		var j JobRow
 		var resultJSON, completedAt, createdAt, mandateRef sql.NullString
-		if err := rows.Scan(&j.ID, &j.SessionID, &j.Status, &j.JobType, &j.ParamsJSON, &resultJSON, &createdAt, &completedAt, &j.ReservedTenant, &j.ReservedAmount, &j.CompilerUsed, &j.FallbackEstimate, &mandateRef); err != nil {
+		var reservedMicro int64
+		if err := rows.Scan(&j.ID, &j.SessionID, &j.Status, &j.JobType, &j.ParamsJSON, &resultJSON, &createdAt, &completedAt, &j.ReservedTenant, &reservedMicro, &j.CompilerUsed, &j.FallbackEstimate, &mandateRef); err != nil {
 			return nil, err
 		}
+		j.ReservedAmount = money.MicroUSD(reservedMicro).USD()
 		if mandateRef.Valid {
 			j.MandateRef = mandateRef.String
 		}
@@ -766,8 +768,8 @@ func (m *Manager) DeleteBlockers(id string) ([]string, error) {
 	for _, q := range []blockerCheck{
 		{jobQ, jobArgs, "non-terminal jobs"},
 		{loopQ, loopArgs, "live loops"},
-		{`SELECT COUNT(*) FROM jobs WHERE session_id = ? AND reserved_amount > 0`, []any{id}, "outstanding spend reservations"},
-		{`SELECT COUNT(*) FROM loops WHERE session_id = ? AND reserved_amount > 0`, []any{id}, "outstanding loop spend reservations"},
+		{`SELECT COUNT(*) FROM jobs WHERE session_id = ? AND reserved_amount_micro_usd > 0`, []any{id}, "outstanding spend reservations"},
+		{`SELECT COUNT(*) FROM loops WHERE session_id = ? AND reserved_amount_micro_usd > 0`, []any{id}, "outstanding loop spend reservations"},
 	} {
 		if err := m.ledger.DB().QueryRow(q.query, q.args...).Scan(&n); err != nil {
 			return nil, err
