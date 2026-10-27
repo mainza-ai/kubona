@@ -632,12 +632,14 @@ console `272 passed`, lint 0, `tsc` 0; Rust 23 passed; wiki-lint green; kubonad
 image builds and boots (health/ready 200); bridge token rejection/acceptance
 verified live; runner image built and the container sandbox executed live.
 Phase 0 + 1a landed as `532708f` (three signed commits) on `develop` + `main`.
-The 1b slice (HMAC session assertion, signed imports, loop tenancy, atomic
-idempotency, container CI) landed as `0ee9f9c`. **Phase 3a** then closed the
-anchor and comparator P0s and removed the largest verified-claim theater
-(HUD, Lean widget, manuscript sign-off, peer-review sign, tribunal AST); the
-remaining theater items are Phase 3b. Branch protection still waits on the
-full protected run (Q-49..Q-57 remain).
+Phase 1b landed as `0ee9f9c`; Phase 3a closed the anchor/comparator P0s and the
+largest verified-claim theater; Phase 3b fixed calibration age, the model
+manifest, and template constants; Phase 4a/4b added the console build gate,
+security headers, and quote freshness; the dependency slice cleared all nine
+Dependabot alerts. **The full CI gate is green on `cbd1328` (run
+`40455512876`)** and branch protection is enabled on `main` + `develop` with
+15 required checks (admin bypass on, linear history, no force-push/delete).
+Q-49..Q-57 still gate the remaining Phase-2/4 decisions.
 
 ---
 

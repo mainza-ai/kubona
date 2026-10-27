@@ -3363,3 +3363,9 @@ skipped is the exact failure this incident is about:
 
   - QuantumDispatch binds a quote to {session, provider, QASM/QUBO, shots}; editing any field makes it stale and disables Dispatch until re-estimation. Missing estimated_usd renders UNPRICED and cannot dispatch (was treated as $0, skipping the mandate gate).
   - Dependabot: all 9 open alerts cleared by the dependency/toolchain slice (GitHub API returns 0 open).
+
+## [2026-10-27] verification | Full CI gate green + branch protection enabled
+
+  - CI run 40455512876 on cbd1328: all 15 checks green (wiki/secret/DCO, Python fast + slow A-E, Rust, Go -race, sandbox container, console, Docker stack, canary gate).
+  - Branch protection enabled on main and develop with those 15 required checks, strict up-to-date, linear history, no force-push/delete, admin bypass on (solo direct-push flow).
+  - Dependabot: 0 open alerts.
