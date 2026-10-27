@@ -3345,3 +3345,9 @@ skipped is the exact failure this incident is about:
   - A production `next build` with NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN set now fails closed (verified with a leaked token); KUBONA_ALLOW_DEV_TOKEN=1 is the explicit local-demo escape hatch.
   - next.config.ts emits CSP (frame-ancestors none, object-src none, base-uri/form-action self, scheme-wide connect for runtime API/SSE), X-Frame-Options DENY, nosniff, strict referrer, and a restrictive Permissions-Policy.
   - Go CORS adds Vary: Origin so shared caches cannot serve one origin's ACAO to another.
+
+## [2026-10-27] verification | Dependency and toolchain remediation
+
+  - Next 16.3.8 -> 16.4.3 and eslint-config-next 16.4.3 (critical advisories); undici pinned to 8.12.3 via the pnpm-workspace override (dev-only jsdom path); go-ipld-prime 0.21 -> 0.24.
+  - Console toolchain aligned to the declared packageManager: Node 22 + pnpm 11.18.0 in CI and Dockerfile.console (was Node 20 + pnpm 9 drift).
+  - Verified: pnpm test 272, lint 0, tsc 0, Next build; console image builds; Go build/test/vet green.

@@ -15,14 +15,13 @@
 #   --build-arg NEXT_PUBLIC_API_URL=http://localhost:8080 \
 #   -t kubona/console:dev platform/console
 
-FROM node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0 AS build
+FROM node:22-bookworm-slim@sha256:de170b39439eb0e5a3444ad7d60b015614a381e10fecae2e30ec9e735122f38d AS build
 
 ENV NEXT_TELEMETRY_DISABLED=1
 WORKDIR /app
-# Same toolchain as CI (ci.yml: node 20 + pnpm 9): corepack would pull the
-# packageManager-pinned pnpm 11, which needs node >=22 — replicating CI
-# exactly instead of mixing lanes.
-RUN npm install -g pnpm@9
+# Same toolchain as CI (ci.yml: node 22 + pnpm 11.18.0) and as the
+# packageManager field. Node 20 + pnpm 9 was the previous drift.
+RUN npm install -g pnpm@11.18.0
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile
 COPY . .
@@ -33,7 +32,7 @@ ARG NEXT_PUBLIC_API_URL=http://localhost:8080
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN pnpm build
 
-FROM node:20-bookworm-slim@sha256:2cf067cfed83d5ea958367df9f966191a942351a2df77d6f0193e162b5febfc0
+FROM node:22-bookworm-slim@sha256:de170b39439eb0e5a3444ad7d60b015614a381e10fecae2e30ec9e735122f38d
 
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
