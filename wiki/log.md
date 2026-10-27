@@ -3410,3 +3410,7 @@ skipped is the exact failure this incident is about:
   - v1 rows keep verifying with the legacy digest (versioned verifier). Import/export carry hash_version + signature_domain.
   - External mandate events use signature_domain=mandate-v1 and verify the reconstructed SpendMandate canonical message (fixes the v1 domain mismatch); opaque x402 proofs are recorded, never claimed verified.
   - Tests: metadata tamper, v1 compatibility, external mandate signature, opaque proof; full Go -race suite green.
+
+## [2026-10-27] decision | Tenant-scoped event attribution
+
+  - resolveTenantLocked now falls back to a tenant row when the session id is a tenant id, so tenant-scoped events keep tenant/lab attribution instead of defaulting to "default" (audit GOD-07). Test pins the row.
