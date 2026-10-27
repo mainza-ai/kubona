@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"fmt"
 	"time"
+
+	"github.com/mainza-ai/kubona/core/pkg/money"
 )
 
 // AddLoopConsumed draws measured iteration spend against the loop's
@@ -20,8 +22,12 @@ func (l *Ledger) AddLoopConsumed(id string, amount float64) error {
 	if amount == 0 {
 		return nil
 	}
-	if _, err := l.db.Exec(`UPDATE loops SET consumed_amount = consumed_amount + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-		amount, id); err != nil {
+	amountMicro, merr := money.FromUSD(amount)
+	if merr != nil {
+		return fmt.Errorf("drawdown amount: %w", merr)
+	}
+	if _, err := l.db.Exec(`UPDATE loops SET consumed_amount_micro_usd = consumed_amount_micro_usd + ?, consumed_amount = (consumed_amount_micro_usd + ?) / 1000000.0, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		int64(amountMicro), int64(amountMicro), id); err != nil {
 		return fmt.Errorf("drawdown failed: %w", err)
 	}
 	return nil
@@ -62,20 +68,20 @@ func (l *Ledger) GetLoopState(id string) (*LoopPersist, error) {
 // OVER-reserved (safe direction, visible in spent_usd, recoverable via
 // the audited refund primitive) — never under, never double.
 func (l *Ledger) ClaimLoopSpend(id string) (tenant string, refund float64, ok bool, err error) {
-	var reserved, consumed float64
+	var reservedMicro, consumedMicro int64
 	var reservedTenant string
-	if err := l.db.QueryRow(`SELECT reserved_amount, consumed_amount, reserved_tenant FROM loops WHERE id = ?`, id).
-		Scan(&reserved, &consumed, &reservedTenant); err != nil {
+	if err := l.db.QueryRow(`SELECT reserved_amount_micro_usd, consumed_amount_micro_usd, reserved_tenant FROM loops WHERE id = ?`, id).
+		Scan(&reservedMicro, &consumedMicro, &reservedTenant); err != nil {
 		if err == sql.ErrNoRows {
 			return "", 0, false, nil
 		}
 		return "", 0, false, err
 	}
-	if reserved <= 0 {
+	if reservedMicro <= 0 {
 		return "", 0, false, nil
 	}
-	res, err := l.db.Exec(`UPDATE loops SET reserved_amount = 0, consumed_amount = 0, updated_at = CURRENT_TIMESTAMP
-		WHERE id = ? AND reserved_amount > 0`, id)
+	res, err := l.db.Exec(`UPDATE loops SET reserved_amount = 0, reserved_amount_micro_usd = 0, consumed_amount = 0, consumed_amount_micro_usd = 0, updated_at = CURRENT_TIMESTAMP
+		WHERE id = ? AND reserved_amount_micro_usd > 0`, id)
 	if err != nil {
 		return "", 0, false, fmt.Errorf("claim loop spend failed: %w", err)
 	}
@@ -86,9 +92,9 @@ func (l *Ledger) ClaimLoopSpend(id string) (tenant string, refund float64, ok bo
 	if n == 0 {
 		return "", 0, false, nil
 	}
-	refund = reserved - consumed
-	if refund < 0 {
-		refund = 0 // overrun: nothing to return (the overrun paused the loop first)
+	refundMicro := reservedMicro - consumedMicro
+	if refundMicro < 0 {
+		refundMicro = 0 // overrun: nothing to return (the overrun paused the loop first)
 	}
-	return reservedTenant, refund, true, nil
+	return reservedTenant, money.MicroUSD(refundMicro).USD(), true, nil
 }

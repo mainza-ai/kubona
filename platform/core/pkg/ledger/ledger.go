@@ -16,6 +16,8 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/mainza-ai/kubona/core/pkg/money"
 )
 
 type EventRecord struct {
@@ -302,6 +304,10 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 	// loop end returns reserved - consumed to reserved_tenant.
 	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN reserved_tenant TEXT NOT NULL DEFAULT ''`)
 	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN consumed_amount REAL NOT NULL DEFAULT 0`)
+	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN reserved_amount_micro_usd INTEGER NOT NULL DEFAULT 0`)
+	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN consumed_amount_micro_usd INTEGER NOT NULL DEFAULT 0`)
+	_, _ = db.Exec(`UPDATE loops SET reserved_amount_micro_usd = CAST(ROUND(reserved_amount * 1000000) AS INTEGER) WHERE reserved_amount_micro_usd = 0 AND reserved_amount > 0`)
+	_, _ = db.Exec(`UPDATE loops SET consumed_amount_micro_usd = CAST(ROUND(consumed_amount * 1000000) AS INTEGER) WHERE consumed_amount_micro_usd = 0 AND consumed_amount > 0`)
 	// Normalize pre-migration rows (ALTER ... DEFAULT '' backfills '').
 	_, _ = db.Exec(`UPDATE ledger_events SET tenant_id = 'default' WHERE tenant_id = ''`)
 	_, _ = db.Exec(`UPDATE sessions SET tenant_id = 'default' WHERE tenant_id = ''`)
@@ -872,12 +878,21 @@ func (l *Ledger) SaveLoopState(p LoopPersist) error {
 	if p.Drain {
 		drain = 1
 	}
-	_, err := l.db.Exec(`INSERT INTO loops (id, session_id, harness_id, status, step_count, max_steps, diverged, created_at, updated_at, last_activity, drain, reserved_amount, reserved_tenant, consumed_amount)
-		VALUES (?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?)
+	reservedMicro, rerr := money.FromUSD(p.ReservedAmount)
+	if rerr != nil {
+		return fmt.Errorf("loop reservation amount: %w", rerr)
+	}
+	consumedMicro, cerr := money.FromUSD(p.ConsumedAmount)
+	if cerr != nil {
+		return fmt.Errorf("loop consumed amount: %w", cerr)
+	}
+	_, err := l.db.Exec(`INSERT INTO loops (id, session_id, harness_id, status, step_count, max_steps, diverged, created_at, updated_at, last_activity, drain, reserved_amount, reserved_amount_micro_usd, reserved_tenant, consumed_amount, consumed_amount_micro_usd)
+		VALUES (?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET status=excluded.status, step_count=excluded.step_count, max_steps=excluded.max_steps,
 		updated_at=CURRENT_TIMESTAMP, last_activity=excluded.last_activity, drain=excluded.drain, reserved_amount=excluded.reserved_amount,
-		reserved_tenant=excluded.reserved_tenant, consumed_amount=excluded.consumed_amount`,
-		p.ID, p.SessionID, p.HarnessID, p.Status, p.StepCount, p.MaxSteps, p.LastActivity.UTC().Format(time.RFC3339), drain, p.ReservedAmount, p.ReservedTenant, p.ConsumedAmount)
+		reserved_amount_micro_usd=excluded.reserved_amount_micro_usd, reserved_tenant=excluded.reserved_tenant,
+		consumed_amount=excluded.consumed_amount, consumed_amount_micro_usd=excluded.consumed_amount_micro_usd`,
+		p.ID, p.SessionID, p.HarnessID, p.Status, p.StepCount, p.MaxSteps, p.LastActivity.UTC().Format(time.RFC3339), drain, p.ReservedAmount, int64(reservedMicro), p.ReservedTenant, p.ConsumedAmount, int64(consumedMicro))
 	if err != nil {
 		return fmt.Errorf("save loop state failed: %w", err)
 	}
@@ -888,7 +903,7 @@ func (l *Ledger) SaveLoopState(p LoopPersist) error {
 func (l *Ledger) ListLoopStates() ([]LoopPersist, error) {
 	l.lock.RLock()
 	defer l.lock.RUnlock()
-	rows, err := l.db.Query(`SELECT id, session_id, harness_id, status, step_count, max_steps, last_activity, drain, reserved_amount, reserved_tenant, consumed_amount, updated_at FROM loops ORDER BY updated_at DESC`)
+	rows, err := l.db.Query(`SELECT id, session_id, harness_id, status, step_count, max_steps, last_activity, drain, reserved_amount_micro_usd, reserved_tenant, consumed_amount_micro_usd, updated_at FROM loops ORDER BY updated_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -898,10 +913,13 @@ func (l *Ledger) ListLoopStates() ([]LoopPersist, error) {
 		var p LoopPersist
 		var lastAct, updated sql.NullString
 		var drain int
-		if err := rows.Scan(&p.ID, &p.SessionID, &p.HarnessID, &p.Status, &p.StepCount, &p.MaxSteps, &lastAct, &drain, &p.ReservedAmount, &p.ReservedTenant, &p.ConsumedAmount, &updated); err != nil {
+		var reservedMicro, consumedMicro int64
+		if err := rows.Scan(&p.ID, &p.SessionID, &p.HarnessID, &p.Status, &p.StepCount, &p.MaxSteps, &lastAct, &drain, &reservedMicro, &p.ReservedTenant, &consumedMicro, &updated); err != nil {
 			return nil, err
 		}
 		p.Drain = drain != 0
+		p.ReservedAmount = money.MicroUSD(reservedMicro).USD()
+		p.ConsumedAmount = money.MicroUSD(consumedMicro).USD()
 		if lastAct.Valid {
 			if t, err := time.Parse(time.RFC3339, lastAct.String); err == nil {
 				p.LastActivity = t

@@ -3425,3 +3425,9 @@ skipped is the exact failure this incident is about:
 
   - jobs gain reserved_amount_micro_usd with an idempotent legacy backfill; SubmitJob and RecordQuantumBridgeJob write micro, releaseReservation reads/zeros micro and releases the exact converted amount, and import restores micro from the manifest.
   - Remaining REAL money: loop reserved/consumed amounts (next), and the REAL projection columns (remove after all reads migrate).
+
+## [2026-10-27] decision | Loop spend joins the micro-USD books
+
+  - loops gain reserved/consumed micro columns with an idempotent backfill; SaveLoopState, AddLoopConsumed, and ClaimLoopSpend use integer arithmetic; Get/List project micro to USD. Import restores micro.
+  - A 10k x $0.000001 drawdown test yields an exact $0.99 refund.
+  - Remaining: remove the REAL compatibility projection after all reads migrate, and passkey/Q-40/autoresearch residuals.
