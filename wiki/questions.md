@@ -39,6 +39,36 @@ All initial science-discovery forks are recorded in `## Closed` below (Q-17, Q-1
 
 All Section E questions are settled: Q-27 history scrub executed 2026-10-26 (see `## Closed` below).
 
+## F · Production-readiness (opened 2026-10-26; technical gates resolved 2026-10-27)
+
+The technical gates are closed with the conservative option recorded in
+[[production-readiness-audit-2026-10-26]] §Rulings. Three product/finance
+choices remain; recommended defaults are named in that table.
+
+| # | Question | Rank | Known | Missing | Links |
+|---|---|---|---|---|---|
+| **Q-50** | **Which store is the single money authority, and in what exact unit?** | P0 | Go SQLite is the authority for API/human/quantum dispatch; Python mirrors it; Atlas is optional and off in production. Go reserves and Python records, so failures can diverge. | Ruling on Go-as-authority + integer micro-USD migration (or Decimal/Postgres); reconciliation for pre-existing REAL values. | [[production-readiness-audit-2026-10-26]] |
+| **Q-51** | **Are failed/pre-vendor jobs refunded automatically, or only by an operator?** | P0 | Python refunds pre-vendor failures; Go releases any failed/cancelled bridge reservation (including post-vendor, which may be too generous); partial refunds are not implemented. | Ruling: auto pre-vendor + keep post-vendor + operator-only partials (recommended) vs another policy; how Go learns the vendor-pin state. | [[production-readiness-audit-2026-10-26]] |
+| **Q-56** | **How does the console authenticate without shipping a bearer or losing its admin key on reload?** | P1 | A baked bearer now fails the production build; CSP is on; the Ed25519 key is module-memory only and is lost on reload; cookie sessions exist server-side. | Ruling: cookie sessions as identity + passkey/non-extractable admin key (recommended) vs another custody model; token distribution/rotation. | [[production-readiness-audit-2026-10-26]] |
+
+## Closed` below).
+
+## B · Method & epistemics (the differentiator, least grounded)
+
+All Section B questions are settled: memory/flight-recorder placement, QIR single-dialect scope, refuted-genome transfer priors, dual-model divstep packing, and unified single-tape autodiff closed 2026-10-26 (see `## Closed` below).
+
+## C · Governance & the trust boundary
+
+All Section C questions are settled: 3-seam IFC lattice enforcement with fail-closed unmodelable label refusal and gVisor/runsc workload containment closed 2026-10-26 (see `## Closed` below).
+
+## D · Science discovery (closed via Q-17, Q-18, Q-19, Q-20)
+
+All initial science-discovery forks are recorded in `## Closed` below (Q-17, Q-18, Q-19, Q-20).
+
+## E · Surface, ecosystem, operations
+
+All Section E questions are settled: Q-27 history scrub executed 2026-10-26 (see `## Closed` below).
+
 ## F · Production-readiness (opened 2026-10-26 by the Round-2 audit)
 
 These are implementation-shape decisions surfaced by
@@ -61,6 +91,12 @@ blocks a Phase-1/2/4 slice. Until answered, the platform is not production-ready
 
 | # | Closed | Answer (one line) | Where it landed |
 |---|---|---|---|
+| **Q-49** | 2026-10-27 | Bridge stays on the private compose network with a shared token + HMAC session assertion; mTLS is deferred until an off-host topology exists. | [[production-readiness-audit-2026-10-26]] |
+| **Q-52** | 2026-10-27 | Session import is operator-only and HMAC-signed; production refuses unsigned manifests, forged links, unknown types, and impossible spend. | [[production-readiness-audit-2026-10-26]] |
+| **Q-53** | 2026-10-27 | A2A/x402 is disabled in production by default (`KUBONA_A2A_ENABLED=1` opts in); the self-signed local challenge is not a settlement rail. | [[production-readiness-audit-2026-10-26]] |
+| **Q-54** | 2026-10-27 | Container isolation is mandatory in production (Docker; runsc optional); numpy/scipy remain allowed inside the container. | [[production-readiness-audit-2026-10-26]] |
+| **Q-55** | 2026-10-27 | Live PySCF is authoritative and geometry-correct for anchors; a fixed table may only be a fallback where a live solver exists. | [[production-readiness-audit-2026-10-26]] |
+| **Q-57** | 2026-10-27 | Production defaults to multi-lab auth reads; `KUBONA_SINGLE_LAB=1` explicitly declares the single-lab quickstart. | [[production-readiness-audit-2026-10-26]] |
 | **Q-42** | 2026-10-26 | Go Orchestrator provides unified cold-audit flight recorder API (`GET /api/campaigns/{id}/flight-recorder`) returning terminal verdict, realized spend, and halt reasons in <200ms with React `FlightRecorderCard` console card; Rust `qir-core` retains compilation engine role. | [[agentic-memory-and-observability]] |
 | **Q-43** | 2026-10-26 | Refused heavy multi-dialect MLIR compilation; adopted single Kubona QIR dialect lowered directly to native Rust `qir-core` with OpenQASM 3.0 parsing and LLVM IR bitcode generation. | [[agentic-qir-compilation]] |
 | **Q-44** | 2026-10-26 | 4-tier failure taxonomy (`FailureClass`) with global intrinsic refutation blacklists and device-scoped $T_2$/topology hardware transfer priors implemented in `RefutedGenomeLibrary`. | [[autonomous-ansatz-optimization]] |

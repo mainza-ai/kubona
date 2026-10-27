@@ -600,6 +600,33 @@ shows only the new session; keyboard-only flows pass.
 
 ---
 
+## Rulings (2026-10-27)
+
+Technical questions were decided with the conservative option and recorded
+here; only genuine product/finance choices remain open.
+
+| # | Ruling | Rationale / implementation |
+|---|---|---|
+| Q-49 | **Private network + shared token + HMAC now; mTLS only when the bridge leaves the host/network.** | The bridge is a compose-internal service (never published), every RPC requires `KUBONA_BRIDGE_TOKEN`, and the session mirror is HMAC-signed. mTLS is deferred until an off-host topology exists (no current requirement). |
+| Q-52 | **Import is operator-only and signed.** | Bearer-gated, HMAC-signed section digests, production refuses unsigned manifests, oldest-first chain ordering, known event types, commit signatures, spend bounds. |
+| Q-53 | **A2A/x402 is disabled in production by default.** | `KUBONA_A2A_ENABLED=1` is required; the self-signed local challenge is not a settlement rail. This preserves the dormant Q-23 posture without exposing a free-spend path. |
+| Q-54 | **Container isolation is mandatory in production; Docker is the runtime, runsc is an optional hardening.** | `WorkloadSandbox` refuses the local AST/rlimit path in production unless `KUBONA_SANDBOX_CONTAINER=1`; the runner image is built and exercised in CI. numpy/scipy remain allowed inside the container. |
+| Q-55 | **Live PySCF is authoritative; a table is only a fallback where a live solver exists.** | H2 now solves RHF+FCI at the requested R; missing PySCF refuses rather than serving a fixed geometry. Test pins the absolute value and R-dependence. |
+| Q-57 | **Production defaults to multi-lab auth reads; single-lab must be declared.** | `KUBONA_SINGLE_LAB=1` is required for anonymous single-lab reads in production; otherwise every session-scoped read needs a cookie/bearer. Compose declares single-lab for the supported quickstart. |
+
+**Atlas / World Labs is optional.** It is off in production unless
+`KUBONA_ATLAS_ENABLED=1` (and a `WLT_API_KEY` is present). Cached/ledger lens
+views remain local and free; no Atlas spend or egress happens on a deployment
+that never opts in. Q-39 is therefore Atlas-only and does not gate production.
+
+**Still needs an operator call:**
+
+| # | Decision | Recommended default |
+|---|---|---|
+| Q-50 | Single money authority + exact unit | **Go SQLite is the authority for API/human/quantum dispatch; Python mirrors it. New ledger v2 uses integer micro-USD; migrate existing REAL once.** |
+| Q-51 | Refund policy | **Auto-refund pre-vendor failures; keep post-vendor charges; operator-only partials.** (Pre-vendor auto-refund is already implemented in Python; Go needs the pin-state reconciliation.) |
+| Q-56 | Console auth/key custody | **Cookie sessions are identity; the client Ed25519 key is optional admin-signing material. Move to passkey/non-extractable storage; never a baked bearer.** |
+
 ## Execution record — Phase 0 + Phase 1 slice (landed 2026-10-27, uncommitted)
 
 **Phase 0 is complete and verified locally.** The gate can now verify changes:

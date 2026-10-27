@@ -73,9 +73,10 @@ Describes **how decided** something is — never how finished.
 
 **Census (153 pages = 47 entities · 91 concepts · 10 sources · 5 meta), 2026-10-26:**
 `settled` 6 · `adopted` 62 · `open-question` 0 pages · `candidate` 13 · `tracked` 46 ·
-`reference` 9 · `source` 10 · `living` 7 (lint-counted). Nine open decisions live as
-rows in [[questions]] §F (Q-49..Q-57, opened by the 2026-10-26 Round-2 audit); they have no
-`status: open-question` page yet, so the page census still shows 0. Six `settled` against 62
+`reference` 9 · `source` 10 · `living` 7 (lint-counted). Three open product/finance
+decisions live as rows in [[questions]] §F (Q-50/Q-51/Q-56); the technical gates (Q-49/52/53/
+54/55/57) were resolved 2026-10-27. They have no `status: open-question` page yet, so the page
+census still shows 0. Six `settled` against 62
 `adopted` keeps the honest reading: the load-bearing constraints are **chosen**, everything
 else remains **understood**. `settled` stays small by rule — each entry needed test
 enforcement plus dependents ([[overview]] §Settled constraints); new candidates must meet

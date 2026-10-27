@@ -40,6 +40,9 @@ func hasNoCredentials(r *http.Request) bool {
 // singleTenantStore reports whether the sessions table holds at most one
 // distinct tenant. Errors fail closed (false = treat as multi-tenant).
 func (s *Server) singleTenantStore() bool {
+	if !singleLabDeclared() {
+		return false
+	}
 	n, err := s.sessionMgr.CountDistinctTenants()
 	if err != nil {
 		return false

@@ -188,6 +188,13 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// 1c. Atlas is an optional, metered lens. Production must opt in
+	// explicitly; cached/ledger reads above stay available.
+	if !atlasLensEnabled() {
+		WriteAPIError(w, "feature_disabled", "optional Atlas lens disabled: set KUBONA_ATLAS_ENABLED=1 to opt in", nil)
+		return
+	}
+
 	// 2. Sovereign Air-Gap Gate: Zero outbound cloud egress when active
 	if s.llmSettings != nil && s.llmSettings.GetSnapshot().AirGapped {
 		WriteAPIError(w, "forbidden", "Sovereign Air-Gap active: external cloud generative synthesis refused", nil)

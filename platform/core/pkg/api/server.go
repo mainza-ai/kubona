@@ -3339,6 +3339,10 @@ func (s *Server) handleEventsStream(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleA2AChallenge(w http.ResponseWriter, r *http.Request) {
+	if !a2aEnabled() {
+		WriteAPIError(w, "feature_disabled", "A2A/x402 is disabled: set KUBONA_A2A_ENABLED=1 after a real settlement rail exists", nil)
+		return
+	}
 	token := r.URL.Query().Get("token")
 	if token == "" {
 		token = "USDC"
@@ -3357,6 +3361,10 @@ func (s *Server) handleA2AChallenge(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleA2A(w http.ResponseWriter, r *http.Request) {
+	if !a2aEnabled() {
+		WriteAPIError(w, "feature_disabled", "A2A/x402 is disabled: set KUBONA_A2A_ENABLED=1 after a real settlement rail exists", nil)
+		return
+	}
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
