@@ -3477,3 +3477,10 @@ skipped is the exact failure this incident is about:
   - AdminAction gains ViaSession (json:"-", server-set only). verifyAdmin skips the client signature only for that marker after tenant/status checks; the API sets it only when the httpOnly session's fingerprint equals the tenant's current admin key.
   - bindAdminActionOrSession accepts a signed envelope (machine/bearer) OR the lab-admin session (console after reload) and binds the exact params hash. Applied to ceiling, status, autonomy, tenant/session refund, grant revoke. Admin-key rotation and mandate signing remain signature-only.
   - Console APIs accept an optional action; LabOpsPanel signs when the browser key matches, otherwise omits the envelope and relies on the session. Test pins the no-envelope fallback; a Go test pins cross-lab refusal.
+
+## [2026-10-27] decision | Measured ansatz-search evaluator (artifact cannot forge the score)
+
+  - Stage 1 is the only stage that imports the artifact; it returns a QASM circuit and nothing else.
+  - Stage 2 runs in a separate sandbox invocation with no artifact mounted; it parses the QASM and computes energy/Meyer-Wallach/depth/2q itself.
+  - The ansatz harness no longer implements SelfReported, so production runs it without the research opt-in. The other four harnesses remain self-reported and production-blocked.
+  - Tests: real two-stage evaluation on the default VQE ansatz; self-reported gate test now pins QAOA as blocked and ansatz as measured.
