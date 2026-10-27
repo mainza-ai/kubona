@@ -20,6 +20,7 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/hf"
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/logging"
 	"github.com/mainza-ai/kubona/core/pkg/qir"
 	"github.com/mainza-ai/kubona/core/pkg/session"
 	"github.com/mainza-ai/kubona/core/pkg/supervisor"
@@ -123,6 +124,7 @@ func loadDotEnvFile(path string) {
 }
 
 func main() {
+	logging.Setup()
 	// R5 CLI exit contract (pinned by cli_exit_test.go): 0 = success
 	// (verify-clean; partial results still 0 — the receipt, not the
 	// code, says what completed), 1 = incomplete (faults, operational
