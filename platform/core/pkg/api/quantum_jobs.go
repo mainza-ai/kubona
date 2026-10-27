@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"os"
 	"strings"
@@ -179,6 +180,19 @@ func (s *Server) handleQuantumJobs(w http.ResponseWriter, r *http.Request) {
 		exportClass = "allied"
 	}
 
+	mandateTenant := tenantID
+	if mandateTenant == "" {
+		if sess, serr := s.sessionMgr.GetSession(req.SessionID); serr == nil && sess != nil {
+			mandateTenant = sess.TenantID
+		}
+	}
+	if !req.DryRun && isHardwareQuantumProvider(provider) {
+		if err := verifyMandateRef(req.MandateRef, mandateTenant, req.SessionID, req.QASM, 0); err != nil {
+			WriteAPIError(w, "forbidden", "mandate refused before dispatch: "+err.Error(), nil)
+			return
+		}
+	}
+
 	bridge := s.quantumBridge(w, "quantum_submit")
 	if bridge == nil {
 		return
@@ -231,14 +245,11 @@ func (s *Server) handleQuantumJobs(w http.ResponseWriter, r *http.Request) {
 		// Verify a canonical mandate when one is supplied. Legacy receipt/hash
 		// refs are recorded but not enforced here (Q-40 policy is still open);
 		// the console sends the full signed mandate so its path is enforced.
-		if strings.TrimSpace(req.MandateRef) != "" {
-			mandateTenant := tenantID
-			if mandateTenant == "" && targetSessionID != "" {
-				if sess, serr := s.sessionMgr.GetSession(targetSessionID); serr == nil && sess != nil {
-					mandateTenant = sess.TenantID
-				}
-			}
+		if est.EstimatedUSD > 0 && isHardwareQuantumProvider(provider) {
 			if err := verifyMandateRef(req.MandateRef, mandateTenant, targetSessionID, req.QASM, est.EstimatedUSD); err != nil {
+				// The bridge already accepted the job; cancel it before refusing
+				// so unmandated hardware cannot run underneath the refusal.
+				_, _ = bridge.QuantumCancel(ctx, &pb.QuantumCancelRequest{JobId: resp.JobId, Reason: "mandate budget refused"})
 				WriteAPIError(w, "forbidden", "mandate refused: "+err.Error(), nil)
 				return
 			}
@@ -383,17 +394,34 @@ func (s *Server) handleQuantumJobCancel(w http.ResponseWriter, r *http.Request, 
 	})
 }
 
-// verifyMandateRef enforces a full signed mandate when the ref parses as one.
-// The job hash must bind the exact session + program, the tenant must match,
-// the signature must verify, the budget must cover the estimate, and the
-// mandate must be unexpired. Bare receipt/hash refs return nil (recorded).
+// isHardwareQuantumProvider is the closed set of non-simulator providers.
+// Human hardware dispatch must carry a signed mandate before the bridge is
+// called, so an unmandated request cannot enqueue hardware and then be
+// refused after the fact.
+func isHardwareQuantumProvider(id string) bool {
+	switch id {
+	case "local-simulator", "qiskit-aer-simulator":
+		return false
+	default:
+		return true
+	}
+}
+
+// verifyMandateRef requires a full signed mandate for a non-zero human
+// hardware dispatch. The job hash must bind the exact session + program,
+// the tenant must match, the signature must verify, the budget must cover
+// the estimate, and the mandate must be unexpired. A bare receipt/hash ref
+// is not a mandate and refuses (Q-40; the console sends the full JSON).
 func verifyMandateRef(ref, tenantID, sessionID, qasm string, costUSD float64) error {
+	if strings.TrimSpace(ref) == "" {
+		return fmt.Errorf("a signed mandate is required for non-zero hardware dispatch")
+	}
 	var m mandates.SpendMandate
 	if err := json.Unmarshal([]byte(ref), &m); err != nil {
-		return nil // legacy receipt/hash ref: recorded, not enforced
+		return fmt.Errorf("mandate_ref must be the signed mandate JSON: %w", err)
 	}
-	if m.SignatureHex == "" || m.JobHash == "" {
-		return nil
+	if m.SignatureHex == "" || m.JobHash == "" || m.PublicKeyHex == "" {
+		return fmt.Errorf("unsigned or unbound mandate refused")
 	}
 	expected := mandates.CanonicalJobBinding("circuit_run", sessionID, qasm)
 	return m.Verify(tenantID, expected, costUSD)

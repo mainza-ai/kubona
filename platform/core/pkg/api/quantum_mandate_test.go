@@ -41,9 +41,9 @@ func TestVerifyMandateRefBindsSessionProgramTenantAndBudget(t *testing.T) {
 	if err := verifyMandateRef(string(tampered), "lab-a", "sess-1", qasm, 1.0); err == nil {
 		t.Fatal("forged signature must refuse")
 	}
-	// Legacy bare ref is recorded, not enforced here.
-	if err := verifyMandateRef("receipt-abc", "lab-a", "sess-1", qasm, 1.0); err != nil {
-		t.Fatalf("bare receipt ref must not refuse: %v", err)
+	// A bare receipt/hash ref is not a mandate and now refuses (Q-40).
+	if err := verifyMandateRef("receipt-abc", "lab-a", "sess-1", qasm, 1.0); err == nil {
+		t.Fatal("bare receipt ref must refuse: a signed mandate is required")
 	}
 	_ = pub
 }
