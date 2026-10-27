@@ -347,10 +347,16 @@ func (l *Ledger) resolveTenantLocked(sessionID string) string {
 		return "default"
 	}
 	var tenant string
-	if err := l.db.QueryRow(`SELECT tenant_id FROM sessions WHERE id = ?`, sessionID).Scan(&tenant); err != nil || tenant == "" {
-		return "default"
+	if err := l.db.QueryRow(`SELECT tenant_id FROM sessions WHERE id = ?`, sessionID).Scan(&tenant); err == nil && tenant != "" {
+		return tenant
 	}
-	return tenant
+	// Tenant-scoped events use the tenant id as the session_id. Without this
+	// fallback they were attributed to "default", leaking lab events into the
+	// wrong tenant's audit view (round-2 audit GOD-07).
+	if err := l.db.QueryRow(`SELECT id FROM tenants WHERE id = ?`, sessionID).Scan(&tenant); err == nil && tenant != "" {
+		return tenant
+	}
+	return "default"
 }
 
 // AppendSignedEvent writes a cryptographic, RFC 8032 Ed25519-signed event record into SQLite WAL
