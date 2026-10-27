@@ -1,4 +1,4 @@
-"""MCP layer: five federated servers + gateway (K5 role clarification).
+"""MCP layer: six federated servers + gateway (K5 role clarification).
 
 Role: this package is the MCP *edge* for external MCP clients —
 compiler, execution, cost-governance, eval/provenance, control servers

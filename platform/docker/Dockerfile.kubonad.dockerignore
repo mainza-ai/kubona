@@ -1,0 +1,8 @@
+# Context is platform/ (shared with the bridge build, whose
+# platform/.dockerignore excludes core/). This Dockerfile-specific ignore
+# is what lets kubonad ship core/ code plus the runtime contracts/.
+*
+!core
+!core/**
+!contracts
+!contracts/**

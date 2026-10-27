@@ -52,6 +52,9 @@ var (
 func loadFidelityContract() fidelityContract {
 	contractOnce.Do(func() {
 		var candidates []string
+		if dir := os.Getenv("KUBONA_CONTRACTS_DIR"); dir != "" {
+			candidates = append(candidates, filepath.Join(dir, "fidelity-devices.json"))
+		}
 		if _, thisFile, _, ok := runtime.Caller(0); ok {
 			candidates = append(candidates, filepath.Join(filepath.Dir(thisFile), "..", "..", "..", "contracts", "fidelity-devices.json"))
 		}

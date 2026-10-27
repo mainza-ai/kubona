@@ -35,3 +35,38 @@ jobs:
           name: canary-ledger
           path: platform/state/
           if-no-files-found: ignore
+
+  # Thesis-scale slices moved out of the PR gate (2026-10-26): each test
+  # exceeded 30 minutes and was preempted on 2-core PR runners. Nightly
+  # gets a 180-minute budget and a fresh runner.
+  slice60-composition:
+    name: Slice60 composition (thesis-scale, nightly)
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: platform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -e ".[dev,qiskit,chemistry]" pyscf==2.14.0
+      - run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q -rs "tests/test_codesign_slice60.py::test_rs_composition_end_to_end" --durations=20
+
+  slice60-determinism:
+    name: Slice60 determinism (thesis-scale, nightly)
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    defaults:
+      run:
+        working-directory: platform
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      - run: pip install -e ".[dev,qiskit,chemistry]" pyscf==2.14.0
+      - run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q -rs "tests/test_codesign_slice60.py::test_rs_pins_determinism_layout" --durations=20

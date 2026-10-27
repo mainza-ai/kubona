@@ -14,13 +14,13 @@ design — `platform/` is a prototype scaffold written before most insights exis
 passing test there answers "is this mechanism feasible", never "is this the right design".
 The work-list is `wiki/questions.md`, not a task tracker.
 
-**Repo status (2026-09-29):** the repo lives at github.com/mainza-ai/kubona and is **private by
-decision**: while the blueprint is still being designed, going public would invite contributions
-the project has no settled direction to direct them into. Publication is gated on the blueprint
-becoming **contributor-legible** — Q-01 answered (what `platform/` is for) plus enough of the
-method layer to say what to build first — *not* on the Phase-0 gate, which passed weeks ago, and
-not on a date. The old "public once Phase 0 passes" trigger is superseded: Q-25 is closed, and
-the mechanical precondition (`dev-docs/` + `.obsidian/` residue in private-remote history) was completely excised via `git filter-repo` on 2026-10-26 (Q-27 closed).
+**Repo status (2026-10-26):** the repo lives at github.com/mainza-ai/kubona and is **public**
+(GitHub API `private:false`). The earlier "private by decision" posture (Q-25) is superseded by
+the actual visibility flip; the mechanical precondition (`dev-docs/` + `.obsidian/` residue in
+history) was excised via `git filter-repo` on 2026-10-26 (Q-27 closed). Going public did **not**
+make the platform production-ready: the Round-2 audit
+([[production-readiness-audit-2026-10-26]]) found ten P0 blockers, and the open decisions are
+Q-49..Q-57 in [[questions]] §F. Do not cite "private" or "production-ready" as current fact.
 
 ## Three layers
 
@@ -120,9 +120,11 @@ the mechanical precondition (`dev-docs/` + `.obsidian/` residue in private-remot
   missing `raw:`/`origin:`, and `path:line` anchors that resolve into `dev-docs/` scratch
   instead of a live URL. Clean (exit 0) as of 2026-09-27; checks were negative-tested against
   a deliberately broken page. **Wired into CI on 2026-09-27** as a *Wiki structural lint* step in
-  `ci.yml`'s `python-tests` job, green in CI since 2026-09-29 (run 36508507064) — added only after
-  the release-gate bug was fixed, because a step in a pipeline that already failed 17/17 adds no
-  signal. It is text-only over `wiki/**`, so it needs neither `dev-docs/` nor the toolchain.
+  `ci.yml`'s `python-tests` job. Honest history: the pipeline was green 2026-09-29..2026-10-17,
+  then red at `da800ea` (Python catalog, console lint, Docker boot, and two thesis-scale slices);
+  branch protection was off. The 2026-10-26 Round-2 pass repaired the code-level causes and moved
+  the thesis-scale slices to nightly. **Do not claim "green since 2026-09-29"** — claim green only
+  after a full protected run, and name the run id. The lint is text-only over `wiki/**`.
 
 ## Production bar (settled 2026-10-12)
 
@@ -154,16 +156,19 @@ bar before it lands. "Works" is necessary and insufficient.
   live in both directions wherever behavior branches, and record
   reversals in the wiki so nobody re-applies them.
 
-## Current state (2026-10-17)
+## Current state (2026-10-26)
 
 **Purpose:** the wiki is Kubona's **blueprint** — insight gathered so the platform can be
 shaped before it is implemented. Implementation is held strictly to the 2026-10-12 Production
 Bar (real logic or fail-closed refusal, no theater, line audit before landing).
 
-**Contents:** 4 sources ingested (see `wiki/log.md`), 129 pages — overview/roadmap/questions/
-index/log, 4 source pages, 44 entities, 76 concepts. The entire wiki and platform code
-(all 852 tracked files across Go core, Rust crates, Python runtime, Bridge, Console, Contracts,
-Docker, and CI) have undergone a zero-shortcut line-by-line audit and production polish.
+**Contents:** 10 source pages (see `wiki/log.md`), 153 pages — overview/roadmap/questions/
+index/log, 47 entities, 91 concepts. A 2026-10-26 Round-2 audit read all 831 in-scope
+source files across Go core, Rust crates, Python runtime, Bridge, Console, Contracts,
+Docker, and CI. Its verdict is **not production-ready**: ten P0 blockers remain at trust
+boundaries (bridge auth, import forgery, sandbox escape, spend settlement, release gate,
+scientific anchors, verification theater). The audit and its phased plan live in
+[[production-readiness-audit-2026-10-26]]; prior "production polish" claims are superseded.
 
 **Domain:** an open-source, MCP-native quantum-computing **and AI-enhanced science-discovery
 platform** for autonomous AI agents. The fourth source, [[source-frontier-repo-audit-2026]],

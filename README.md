@@ -6,7 +6,7 @@
 
 ### *See, observe, discover — then know.*
 
-**An open-source quantum-computing and AI-enhanced science discovery platform for autonomous AI agents, with an MCP tool layer (6 servers, 36 tools over stdio).**
+**An open-source quantum-computing and AI-enhanced science discovery platform for autonomous AI agents, with an MCP tool layer (6 servers, 37 tools over stdio).**
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License" /></a>
@@ -30,6 +30,14 @@
 
 > [!NOTE]
 > **Active Research Platform**: Kubona is under active development. APIs, agent protocols, and the sovereign console evolve rapidly. See [`wiki/roadmap.md`](wiki/roadmap.md) for phased milestones and [`wiki/log.md`](wiki/log.md) for the latest research log.
+
+> [!WARNING]
+> **Production status (2026-10-26): not production-ready yet.** The independent
+> [Round-2 audit](wiki/concepts/production-readiness-audit-2026-10-26.md) found
+> ten P0 blockers at trusted boundaries (bridge auth, ledger import forgery,
+> sandbox escape, spend settlement, release gate, scientific anchors, and
+> verification theater). The architecture is sound; the gate is not. Read the
+> audit and its phased plan before deploying or citing a "verified" result.
 
 ---
 
@@ -81,7 +89,7 @@ Kubona structures scientific inquiry for autonomous agents across four determini
 
 ### Verifiable Tool Grounding (MCP Layer)
 
-Every epistemic stage translates into concrete, deterministic tools exposed through the MCP layer (6 federated servers, 36 tools over stdio, digest-pinned in [`platform/contracts/mcp-catalog.json`](platform/contracts/mcp-catalog.json)):
+Every epistemic stage translates into concrete, deterministic tools exposed through the MCP layer (6 federated servers, 37 tools over stdio, digest-pinned in [`platform/contracts/mcp-catalog.json`](platform/contracts/mcp-catalog.json)):
 
 * **Observe & Measure**: `execution` server (circuit execution, VQE sweeps, state-vector simulation, hardware capability probes).
 * **Synthesize & Optimize**: `compiler` server (pass portfolio, QIR/OpenQASM3 transpilation, circuit co-design verification).
@@ -119,13 +127,13 @@ These are not aspirations. The ledger is sealed, the refusal paths are tested, a
 
 | Directory | Layer | Description |
 |---|---|---|
-| [`platform/core/`](platform/core/) | **Go Orchestrator** | Sovereign orchestrator, immutable provenance ledger, job coordination, campaign flight recorder (`GET /api/campaigns/{id}/flight-recorder`), 3-seam IFC lattice, gVisor `runsc` sandbox, and 93 HTTP routes on `:8080`. |
+| [`platform/core/`](platform/core/) | **Go Orchestrator** | Sovereign orchestrator, hash-chained provenance ledger, job coordination, campaign flight recorder (`GET /api/campaigns/{id}/flight-recorder`), IFC lattice (partial enforcement — see audit), containerized Docker sandbox (`runsc` opt-in; Python agent-code isolation pending), and **114 HTTP routes** on `:8080`. |
 | [`platform/crates/`](platform/crates/) | **Rust Core** | Native compiler core (`qir-core` lowering OpenQASM 3.0 to LLVM IR) and information-flow lattice (`ifc-core`). |
-| [`platform/kubona/mcp/`](platform/kubona/mcp/) | **MCP Tool Layer** | 6 federated Python servers mounting 36 tools over stdio (`compiler`, `execution`, `cost`, `provenance`, `control`, `world`)*. |
-| [`platform/console/`](platform/console/) | **Sovereign Console** | Next.js sovereign UI on `:3000` with 8 dynamic surfaces: Spatial Canvas, Flight Recorder card, Epistemic Tribunal, Codesign Cockpit, and WebCrypto Ed25519 signing. |
+| [`platform/kubona/mcp/`](platform/kubona/mcp/) | **MCP Tool Layer** | 6 federated Python servers mounting 37 tools over stdio (`compiler`, `execution`, `cost`, `provenance`, `control`, `world`)*. |
+| [`platform/console/`](platform/console/) | **Sovereign Console** | Next.js sovereign UI on `:3000` with six dock surfaces plus proof/mesh panels (Spatial Canvas, Flight Recorder, Epistemic Tribunal, Codesign Cockpit) and Ed25519 signing via `@noble/ed25519`. |
 | [`platform/kubona/`](platform/kubona/) | **Python Runtime** | Agent execution runtime, single-tape analytical mixed-state autodiff (`diff_stack`), refuted-genome transfer priors (`autoresearch`), and dual-model register packing (`codesign`). |
 | [`platform/bridge/`](platform/bridge/) | **Quantum Bridge** | PySCF, Qiskit Aer, and PennyLane bridge with typed gRPC and Unix Domain Socket RPCs (`unix://...`) for chemical anchors, circuit cutting, and hardware dispatch. |
-| [`wiki/`](wiki/) | **Obsidian Knowledge Base** | Living blueprint (151 pages, 0 open questions) cataloging entities, concepts, source audits, and settled invariants. |
+| [`wiki/`](wiki/) | **Obsidian Knowledge Base** | Living blueprint (153 pages; nine open production decisions in [`questions.md`](wiki/questions.md) §F) cataloging entities, concepts, source audits, and settled invariants. |
 | [`raw/`](raw/) | **Immutable Sources** | Read-only ingested source documents, architecture papers, and implementation plans. |
 | [`scripts/`](scripts/) | **Tooling & CI** | Automated structural wiki linting (`scripts/wiki-lint.py`), DCO check, and secret scanners. |
 | [`assets/misc/`](assets/misc/) | **Media & Presentations** | Platform overview infographic and executive presentation deck. |
@@ -155,7 +163,7 @@ NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN=dev-token pnpm dev --port 3000
 
 ### 3. Run the Multi-Tier Verification Suite
 ```bash
-# Go Core orchestrator (29 packages, 93 HTTP routes)
+# Go Core orchestrator (29 packages, 114 HTTP routes)
 cd platform/core && go test ./...
 
 # Rust native QIR compiler & IFC lattice
@@ -167,7 +175,7 @@ cd platform && pytest tests/test_differentiable_quantum_stack.py tests/test_ansa
 # Next.js sovereign console Vitest suite (56 files / 272 tests)
 cd platform/console && npm test -- --run
 
-# Strict blueprint structural linting (151 pages, 0 open questions)
+# Strict blueprint structural linting (153 pages; open decisions in questions §F)
 python3 scripts/wiki-lint.py --strict
 ```
 
@@ -182,13 +190,13 @@ For extended console configuration, see [`platform/console/README.md`](platform/
 - **Observatory Representation Layer (Complete)**: Tier-1 walkable lab, Vault pre-registration with surprise scoring, Attention Director, `world.*` agent-player tools, and the opt-in World Labs Atlas lens (snapshot posing, depth-conditioned chisel, promptUsed receipts, spend-capped and edge-authed).
 - **Settled Blueprint & Research Invariants (Closed 2026-10-26)**:
   - **v1 Boundary (Q-01)**: Bound to 5 executable backends (`local-simulator`, `qiskit-aer-simulator`, `ibm-qiskit`, `quantinuum`, `dwave-annealing`) and 4 core modalities (`molecular_chemistry`, `combinatorial_optimization`, `circuit_codesign_and_decoding`, `spatial_generative_synthesis`).
-  - **Flight Recorder (Q-42)**: Unified cold-audit API resolving terminal verdicts, realized spend, and halt reasons in <200ms with Next.js `FlightRecorderCard`.
+  - **Flight Recorder (Q-42)**: Unified cold-audit API resolving terminal verdicts, realized spend, and halt reasons; the <200ms target is not yet load-tested (unit gate is 2s) and the card is not mounted in the console (audit AUD-C10).
   - **Single QIR Dialect (Q-43)**: Standardized on native Rust `qir-core` lowering directly to LLVM IR with OpenQASM 3.0 parsing.
   - **Refuted-Genome Priors (Q-44)**: 4-tier failure taxonomy with global intrinsic blacklisting and hardware-scoped $T_2$/topology transfer filtering.
   - **Dual-Model Packing (Q-46)**: `safe_288` (0.000% overflow guarantee) for production and `paper_256` tripwire accounting for research replication.
   - **Single-Tape Autodiff (Q-45)**: Joint analytical mixed-state parameter-shift differentiation of gate angles $\vec{\theta}$ and channel noise $\phi$ on a single graph via PennyLane `default.mixed`.
   - **3-Seam IFC Lattice (Q-47)**: Query filtering, sub-DAG export join, and cloud admission with fail-closed refusal of unmodelable legal/usage prose.
-  - **Workload Containment (Q-48)**: gVisor `runsc` sandbox runtime with dropped capabilities, process group `killpg` termination, and 0600 Unix Domain Socket attestation.
+  - **Workload Containment (Q-48, partial)**: Docker hardening with dropped capabilities and process-group `killpg` is real; `runsc` is opt-in, and the Python agent-code sandbox is escapable (audit P0-4). Do not describe this rail as a gVisor guarantee until Phase 1 lands.
 
 See [`wiki/roadmap.md`](wiki/roadmap.md) for the phased implementation plan and [`wiki/overview.md`](wiki/overview.md) for the architectural synthesis.
 

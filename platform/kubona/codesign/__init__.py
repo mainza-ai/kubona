@@ -28,7 +28,7 @@ from .gauge import fold_tildeP, representatives, schedule_loops, tildeP_update, 
 from .chemistry import alias_schedule, alias_step_spec, build_alias_step, build_cnot_select, build_swap_select, cnot_select_spec, schedule_alias_words, swap_select_spec
 from .coulomb import LINE_SLOPE_BITS, attainable_d2, build_coulomb_acc, coulomb_acc_spec, coulomb_d2_model, fit_coulomb_lines
 from .frames import apply_frame, apply_perm, cnot_frame, find_blocks, find_blocks_symplectic, group_generated, hadamard_frame, perm_frame, symplectic_group
-from .packing import build_index_match, build_index_match_param, build_zero_flag, build_zero_flag_n, build_zero_flag_param, edge_envelope_index_match, edge_envelope_zero_flag, emit_zero_test, index_match_spec, index_match_spec_param, pack_or_refuse, plan_packing, walk_widths, zero_flag_spec, zero_flag_spec_n, zero_flag_spec_param
+from .packing import build_index_match, build_index_match_param, build_zero_flag, build_zero_flag_n, build_zero_flag_param, edge_envelope_index_match, edge_envelope_zero_flag, emit_zero_test, index_match_spec, index_match_spec_param, pack_or_refuse, plan_dual_model_packing, plan_packing, walk_widths, zero_flag_spec, zero_flag_spec_n, zero_flag_spec_param
 from .psi import eea, fsqrt, padd, pdeg, pderivative, pdivmod, peval, pmul, pmod, pscale, psqr_poly, reciprocal_psi, split_sigma
 from .hhl import (
     LSB_TOL,
@@ -349,6 +349,7 @@ __all__ = [
     "peval",
     "perm_frame",
     "phase_scan_spec",
+    "plan_dual_model_packing",
     "plan_packing",
     "pmul",
     "pmod",

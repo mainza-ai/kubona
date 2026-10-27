@@ -22,6 +22,21 @@ cargo test --lib -q
 popd >/dev/null
 export KUBONA_QIR_CORE="$(pwd)/crates/qir-core/target/release/qir-core"
 
+echo "== 1b. Go orchestrator (build + full suite) =="
+( cd core && go build ./... && go test ./... )
+
+echo "== 1c. Console (tests + lint + typecheck) =="
+( cd console && npm test -- --run && npm run lint && npx tsc --noEmit )
+
+echo "== 1d. Bridge contract + quantum RPC suites =="
+$PY -m pytest -q bridge/test_bridge.py bridge/test_quantum_rpc.py
+
+echo "== 1e. Wiki structural lint =="
+( cd .. && python3 scripts/wiki-lint.py --strict )
+
+echo "== 1f. Secret + local-path scan =="
+bash ../scripts/secret-scan.sh
+
 echo "== 2. full Python suite (Rust core wired) =="
 # -rs: report skip reasons. A count of "N passed, M skipped" without the reasons is
 # how a suite stops covering things unnoticed -- the same legibility rule release_gate()

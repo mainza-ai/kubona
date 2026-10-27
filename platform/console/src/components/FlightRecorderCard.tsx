@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { Tip } from './common/Tip';
+import { API_BASE, apiFetch, authHeaders } from '@/lib/api';
 
 export interface FlightRecorderData {
   ok: boolean;
@@ -27,32 +27,31 @@ export interface FlightRecorderData {
   }>;
 }
 
-export function FlightRecorderCard({ sessionId }: { sessionId: string | null }) {
+function FlightRecorderCardInner({ sessionId }: { sessionId: string }) {
   const [data, setData] = useState<FlightRecorderData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!sessionId) {
-      setData(null);
-      return;
-    }
     let cancelled = false;
     const fetchTelemetry = async () => {
       setLoading(true);
       setError(null);
       try {
-        const res = await fetch(`/api/campaigns/${sessionId}/flight-recorder`);
+        const res = await apiFetch(`${API_BASE}/api/campaigns/${sessionId}/flight-recorder`, {
+          cache: 'no-store',
+          headers: authHeaders(),
+        });
         if (!res.ok) {
           throw new Error(`HTTP ${res.status}`);
         }
-        const json = await res.json();
+        const json = (await res.json()) as FlightRecorderData;
         if (!cancelled) {
           setData(json);
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!cancelled) {
-          setError(err.message || 'Failed to load flight recorder');
+          setError(err instanceof Error ? err.message : 'Failed to load flight recorder');
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -63,8 +62,6 @@ export function FlightRecorderCard({ sessionId }: { sessionId: string | null }) 
       cancelled = true;
     };
   }, [sessionId]);
-
-  if (!sessionId) return null;
 
   return (
     <div className="rounded-lg border border-slate-700 bg-slate-900/95 p-4 text-slate-100 shadow-xl backdrop-blur">
@@ -159,4 +156,11 @@ export function FlightRecorderCard({ sessionId }: { sessionId: string | null }) 
       )}
     </div>
   );
+}
+
+// Key the inner component by session id so switching sessions resets state
+// without a synchronous setState inside an effect (React 19 lint rule).
+export function FlightRecorderCard({ sessionId }: { sessionId: string | null }) {
+  if (!sessionId) return null;
+  return <FlightRecorderCardInner key={sessionId} sessionId={sessionId} />;
 }

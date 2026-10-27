@@ -1,6 +1,6 @@
 {
   "generated_by": "KUBONA_UPDATE_CATALOG=1 pytest platform/tests/test_mcp_catalog.py",
-  "digest": "dbd9e98d50bf1924512b6207d21eb7dc264ba98bf2c2b66f3a839d9046688ccb",
+  "digest": "5c0d9ea430ee09b106339f2286fcb98a997fcb57b8f72bda93a206ddd9692696",
   "tools": [
     {
       "name": "compile_circuit",
@@ -1012,6 +1012,147 @@
       "server": "execution",
       "verdict": "keep",
       "trust_property": "Admission gate (mandate/fidelity/tenant/routing) + idempotent farm submit",
+      "error_codes": [
+        "bad_request",
+        "ghost_session",
+        "ceiling_exceeded",
+        "forbidden",
+        "unauthorized",
+        "internal"
+      ]
+    },
+    {
+      "name": "submit_qubo_job",
+      "description": "Submit a QUBO matrix to the D-Wave annealing provider (local exact/SA or Leap cloud).",
+      "inputSchema": {
+        "properties": {
+          "qubo_matrix": {
+            "anyOf": [
+              {
+                "items": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              {
+                "type": "string"
+              }
+            ],
+            "title": "Qubo Matrix"
+          },
+          "n_samples": {
+            "default": 64,
+            "title": "N Samples",
+            "type": "integer"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Session Id"
+          },
+          "budget_ceiling_usd": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Budget Ceiling Usd"
+          },
+          "seed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": 7,
+            "title": "Seed"
+          },
+          "backend": {
+            "default": "local",
+            "title": "Backend",
+            "type": "string"
+          },
+          "caller_jurisdictions": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Caller Jurisdictions"
+          },
+          "caller_export_class": {
+            "default": "any",
+            "title": "Caller Export Class",
+            "type": "string"
+          },
+          "require_review": {
+            "default": false,
+            "title": "Require Review",
+            "type": "boolean"
+          },
+          "estimate_only": {
+            "default": false,
+            "title": "Estimate Only",
+            "type": "boolean"
+          },
+          "idempotency_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Idempotency Key"
+          },
+          "idempotency_body_hash": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Idempotency Body Hash"
+          }
+        },
+        "required": [
+          "qubo_matrix"
+        ],
+        "title": "submit_qubo_jobArguments",
+        "type": "object"
+      },
+      "server": "execution",
+      "verdict": "keep",
+      "trust_property": "QUBO annealing admission (routing + session ceiling) with labelled local/Leap solve",
       "error_codes": [
         "bad_request",
         "ghost_session",

@@ -193,7 +193,7 @@ func TestBackfillsStrataIntoOldBlobs(t *testing.T) {
 	}
 	snap := s.GetSnapshot()
 	delete(snap.Providers, llm.ProviderStrata)
-	blob, err := json.Marshal(snap)
+	blob, err := json.Marshal(&snap)
 	if err != nil {
 		t.Fatalf("marshal: %v", err)
 	}

@@ -100,7 +100,7 @@ jobs:
       # so the default run skips it — a red bridge test went unnoticed.
       # It is fast (~seconds) and hermetic (no creds, no network).
       - name: Bridge contract suite (credential fail-closed pins)
-        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest bridge/test_bridge.py -q
+        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest bridge/test_bridge.py bridge/test_quantum_rpc.py -q
       - name: doctor (state-root + fail-closed config check)
         run: |
           KUBONA_STATE_DIR="$(mktemp -d)" python -m kubona.run doctor
@@ -212,41 +212,11 @@ jobs:
       - name: Python paper-scale E (slice59 EEA)
         run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q -rs tests/test_codesign_slice59.py --durations=20
 
-  python-slow-f:
-    name: Python paper-scale F (slice60 composition)
-    runs-on: ubuntu-latest
-    needs: [wiki-lint, secret-scan]
-    timeout-minutes: 120
-    defaults:
-      run:
-        working-directory: platform
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-      - run: pip install -e ".[dev,qiskit,chemistry]" pyscf==2.14.0
-      - name: Python paper-scale F (slice60 composition)
-        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q -rs "tests/test_codesign_slice60.py::test_rs_composition_end_to_end" --durations=20
-
-  python-slow-g:
-    name: Python paper-scale G (slice60 determinism)
-    runs-on: ubuntu-latest
-    needs: [wiki-lint, secret-scan]
-    timeout-minutes: 120
-    defaults:
-      run:
-        working-directory: platform
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
-        with:
-          python-version: "3.11"
-          cache: "pip"
-      - run: pip install -e ".[dev,qiskit,chemistry]" pyscf==2.14.0
-      - name: Python paper-scale G (slice60 determinism)
-        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q -rs "tests/test_codesign_slice60.py::test_rs_pins_determinism_layout" --durations=20
+  # Slice60 (composition + determinism) is thesis-scale: each test can
+  # exceed 30 minutes and was being preempted on the PR runners. It now
+  # runs in nightly-canary.yml with a 180-minute budget. The slice-coverage
+  # guard (tests/test_ci_slice_coverage.py) reads every workflow, so moving
+  # a slice here cannot make it invisible.
 
   rust-tests:
     name: Rust crates (qir-core + ifc-core)
@@ -276,6 +246,11 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Bring up the production stack
+        env:
+          # The bridge now refuses non-loopback without a token. Keep the
+          # API token unset so the abort check below still exercises the
+          # fail-closed 503 path.
+          KUBONA_BRIDGE_TOKEN: ci-bridge-token
         run: docker compose -f platform/docker/compose.prod.yml up --build -d
       - name: Kubonad ready on a fresh state root
         run: |
@@ -314,7 +289,7 @@ jobs:
     # R0: the release gate actually gates — it runs only when every suite
     # above is green. Previously it ran in parallel, so a red suite and a
     # green gate coexisted and the gate meant nothing.
-    needs: [wiki-lint, secret-scan, python-tests, python-slow-a, python-slow-b, python-slow-c, python-slow-d, python-slow-e, python-slow-f, python-slow-g, rust-tests, go-core-tests, nextjs-console-build, docker-smoke]
+    needs: [wiki-lint, secret-scan, python-tests, python-slow-a, python-slow-b, python-slow-c, python-slow-d, python-slow-e, rust-tests, go-core-tests, nextjs-console-build, docker-smoke]
     defaults:
       run:
         working-directory: platform
