@@ -267,8 +267,7 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
                wait: bool = True, wait_timeout_s: float = 30.0,
                estimate_only: bool = False,
                idempotency_key: str | None = None,
-               idempotency_body_hash: str | None = None,
-               spend_prepaid: bool = False) -> dict:
+               idempotency_body_hash: str | None = None) -> dict:
     """Submit a circuit through the cost-governance gate, threaded to a session.
 
     Production job/session abstraction: jobs are persisted to the async job farm;
@@ -349,6 +348,10 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
             session = _sessions.get(session_id)
         except KeyError:
             return {"ok": False, "error": f"unknown session_id {session_id!r}"}
+
+    # Go-authoritative sessions are mirrored with spend_prepaid=True: Go
+    # already reserved the job, so Python must not charge/refund its mirror.
+    spend_prepaid = bool((getattr(session, "meta", {}) or {}).get("spend_prepaid"))
 
     pf = _gov.preflight(capability, circuit, shots, session)
     if not pf["ok"]:

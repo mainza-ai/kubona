@@ -235,6 +235,7 @@ class SessionStore:
         budget_ceiling_usd: float | None = None,
         spent_usd: float = 0.0,
         tenant_id: str = "",
+        spend_prepaid: bool = False,
     ) -> SessionState:
         """Mirror a verified Go SQLite session into the Python SessionStore
         (F-NEW-01 / F-NEW-05: Go SQLite is the single financial authority for
@@ -258,6 +259,8 @@ class SessionStore:
                 meta: dict[str, Any] = {"origin": "go-sqlite-authority"}
                 if tenant_id:
                     meta["tenant_id"] = tenant_id
+                if spend_prepaid:
+                    meta["spend_prepaid"] = True
                 s = SessionState(
                     session_id=session_id,
                     name=name,
@@ -277,6 +280,10 @@ class SessionStore:
                 meta.setdefault("origin", "go-sqlite-authority")
                 if tenant_id:
                     meta["tenant_id"] = tenant_id
+                if spend_prepaid:
+                    meta["spend_prepaid"] = True
+                else:
+                    meta.pop("spend_prepaid", None)
                 s.meta = meta
                 s.updated_at = now
             self._save(s)
