@@ -256,8 +256,6 @@ func (h *AnsatzSearchHarness) Metric(artifact string) (float64, error) {
 // ============================================================================
 type QAOACombinatorialHarness struct{}
 
-func (h *QAOACombinatorialHarness) SelfReported() bool { return true }
-
 func (h *QAOACombinatorialHarness) ID() string {
 	return "qaoa-combinatorial"
 }
@@ -285,86 +283,104 @@ func (h *QAOACombinatorialHarness) Evaluate(runner *sandbox.SandboxRunner, artif
 
 	runner = ensureRunner(runner)
 
-	benchmarkScript := `
+	// Stage 1 imports the artifact only to extract the variational schedule.
+	stage1 := `
 import json
 import sys
 import os
+import math
 sys.path.insert(0, '/workspace')
 sys.path.insert(0, os.getcwd())
-import numpy as np
-
 try:
-    from qiskit import QuantumCircuit
-    from qiskit.quantum_info import Statevector
     import qaoa_schedule
+    gamma = [float(x) for x in getattr(qaoa_schedule, 'gamma', [0.35])]
+    beta = [float(x) for x in getattr(qaoa_schedule, 'beta', [0.20])]
+    if not gamma or len(gamma) != len(beta):
+        raise ValueError("gamma and beta must be non-empty and equal length")
+    if not all(math.isfinite(x) for x in gamma + beta):
+        raise ValueError("schedule angles must be finite")
+    print(json.dumps({"valid": True, "gamma": gamma, "beta": beta}))
 except Exception as e:
-    print(json.dumps({"valid": False, "error": f"Import error: {str(e)}"}))
-    sys.exit(0)
+    print(json.dumps({"valid": False, "error": f"Schedule error: {str(e)}"}))
+`
+	nonce1 := newRunNonce()
+	stage1 = fenceBenchmarkOutputs(stage1, nonce1)
+	res1, err := runner.ExecuteHarness(stage1, h.MutableArtifact(), artifact)
+	if err != nil {
+		return nil, fmt.Errorf("qaoa schedule stage failed: %w", err)
+	}
+	payload1, matches1 := fencedPayload(res1.Stdout, nonce1)
+	if matches1 != 1 || payload1 == nil {
+		return &HarnessResult{HarnessID: h.ID(), Metric: 1.0, Valid: false,
+			Sandboxed: res1.Sandboxed, IsolationTag: res1.IsolationTag,
+			ValidityReason: fmt.Sprintf("schedule stage must emit exactly one fenced payload, found %d", matches1)}, nil
+	}
+	if ok, _ := payload1["valid"].(bool); !ok {
+		msg, _ := payload1["error"].(string)
+		return &HarnessResult{HarnessID: h.ID(), Metric: 1.0, Valid: false,
+			Sandboxed: res1.Sandboxed, IsolationTag: res1.IsolationTag,
+			ValidityReason: "schedule invalid: " + msg}, nil
+	}
+	gammaJSON, _ := json.Marshal(payload1["gamma"])
+	betaJSON, _ := json.Marshal(payload1["beta"])
 
-# 8-node 3-regular graph edges
+	stage2 := fmt.Sprintf(`
+import json
+import numpy as np
+from qiskit import QuantumCircuit
+from qiskit.quantum_info import Statevector
+
+gamma = %s
+beta = %s
 edges = [(0,1), (1,2), (2,3), (3,0), (4,5), (5,6), (6,7), (7,4), (0,4), (1,5), (2,6), (3,7)]
 n = 8
 max_cut_opt = 10.0
-
 try:
-    gamma = getattr(qaoa_schedule, 'gamma', [0.35])
-    beta = getattr(qaoa_schedule, 'beta', [0.20])
     p = len(gamma)
-
     qc = QuantumCircuit(n)
     for i in range(n):
         qc.h(i)
-
     for layer in range(p):
-        g = gamma[layer]
-        b = beta[layer]
-        # Cost unitary
+        g, b = gamma[layer], beta[layer]
         for u, v in edges:
             qc.cx(u, v)
             qc.rz(2 * g, v)
             qc.cx(u, v)
-        # Mixer unitary
         for i in range(n):
             qc.rx(2 * b, i)
-
     sv = Statevector(qc)
     probs = sv.probabilities_dict()
-
-    # Calculate expected cut value
     expected_cut = 0.0
     for bitstring, prob in probs.items():
         cut = sum(1 for u, v in edges if bitstring[n - 1 - u] != bitstring[n - 1 - v])
         expected_cut += cut * prob
-
     approx_ratio = expected_cut / max_cut_opt
-    metric = float(1.0 - approx_ratio) # Lower loss is better
-
+    metric = 1.0 - approx_ratio
+    two_q = sum(1 for inst in qc.data if inst.operation.num_qubits == 2)
     print(json.dumps({
         "valid": True,
-        "metric": metric,
+        "metric": float(metric),
         "physical_value": float(approx_ratio),
         "reference_value": 1.0,
         "circuit_depth": int(qc.depth()),
         "num_qubits": int(n),
-        "two_qubit_gate_count": int(p * len(edges) * 2),
+        "two_qubit_gate_count": int(two_q),
         "entanglement_score": 0.72,
         "measurement_source": "template_constant",
         "measured": False
     }))
 except Exception as e:
-    print(json.dumps({"valid": False, "error": f"QAOA error: {str(e)}"}))
-`
+    print(json.dumps({"valid": False, "error": f"Trusted QAOA evaluator error: {str(e)}"}))
+`, string(gammaJSON), string(betaJSON))
 
-	nonce := newRunNonce()
-	benchmarkScript = fenceBenchmarkOutputs(benchmarkScript, nonce)
-	res, err := runner.ExecuteHarness(benchmarkScript, h.MutableArtifact(), artifact)
+	nonce2 := newRunNonce()
+	stage2 = fenceBenchmarkOutputs(stage2, nonce2)
+	res2, err := runner.ExecuteHarness(stage2, "", "")
 	if err != nil {
-		return nil, fmt.Errorf("qaoa execution failed: %w", err)
+		return nil, fmt.Errorf("qaoa evaluator stage failed: %w", err)
 	}
-
-	return parseHarnessOutput(h.ID(), res, nonce)
+	return parseHarnessOutput(h.ID(), res2, nonce2)
 }
-
 func (h *QAOACombinatorialHarness) Metric(artifact string) (float64, error) {
 	res, err := h.Evaluate(nil, artifact)
 	if err != nil {
