@@ -3351,3 +3351,10 @@ skipped is the exact failure this incident is about:
   - Next 16.3.8 -> 16.4.3 and eslint-config-next 16.4.3 (critical advisories); undici pinned to 8.12.3 via the pnpm-workspace override (dev-only jsdom path); go-ipld-prime 0.21 -> 0.24.
   - Console toolchain aligned to the declared packageManager: Node 22 + pnpm 11.18.0 in CI and Dockerfile.console (was Node 20 + pnpm 9 drift).
   - Verified: pnpm test 272, lint 0, tsc 0, Next build; console image builds; Go build/test/vet green.
+
+## [2026-10-27] decision | Phase 3b: real calibration age, spec-only model manifest, labelled template constants
+
+  - Fidelity calibration age is parsed from calibrated_at (missing/unparseable = stale). The shipped 2026-10-01 QPU profiles are now correctly stale and refuse admission; tests refresh fixture epochs and pin the stale-refusal separately.
+  - The GQE adapter manifest is status spec-only, artifact_present false, null size/hash/metrics; README no longer claims a shipped tamper-evident checkpoint.
+  - Autoresearch template entanglement constants carry measurement_source=template_constant and measured=false.
+  - Remaining: HF fallback labeling, benchmark nonce isolation.

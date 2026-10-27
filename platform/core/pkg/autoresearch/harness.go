@@ -298,7 +298,9 @@ try:
         "circuit_depth": int(qc.depth()),
         "num_qubits": int(n),
         "two_qubit_gate_count": int(p * len(edges) * 2),
-        "entanglement_score": 0.72
+        "entanglement_score": 0.72,
+        "measurement_source": "template_constant",
+        "measured": false
     }))
 except Exception as e:
     print(json.dumps({"valid": False, "error": f"QAOA error: {str(e)}"}))
@@ -392,7 +394,9 @@ try:
         "circuit_depth": 12,
         "num_qubits": 4,
         "two_qubit_gate_count": 6,
-        "entanglement_score": 0.85
+        "entanglement_score": 0.85,
+        "measurement_source": "template_constant",
+        "measured": false
     }))
 except Exception as e:
     print(json.dumps({"valid": False, "error": f"Mitigation error: {str(e)}"}))
@@ -489,7 +493,9 @@ try:
         "circuit_depth": int(depth),
         "num_qubits": 4,
         "two_qubit_gate_count": int(two_q_gates),
-        "entanglement_score": 0.88
+        "entanglement_score": 0.88,
+        "measurement_source": "template_constant",
+        "measured": false
     }))
 except Exception as e:
     print(json.dumps({"valid": False, "error": f"Compilation error: {str(e)}"}))
@@ -570,7 +576,9 @@ try:
         "circuit_depth": 2,
         "num_qubits": 2,
         "two_qubit_gate_count": 1,
-        "entanglement_score": 1.0
+        "entanglement_score": 1.0,
+        "measurement_source": "template_constant",
+        "measured": false
     }))
 except Exception as e:
     print(json.dumps({"valid": False, "error": str(e)}))

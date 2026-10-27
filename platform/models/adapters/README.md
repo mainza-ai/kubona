@@ -26,10 +26,13 @@ The GQE model specializes general-purpose code reasoning LLMs into physics-groun
 
 ## Training Data Provenance & Epistemic Curation
 
-Training data is systematically generated through the autonomous Karpathy loop engine and validated against strict classical physics anchors:
-- **Champion Circuits:** 890 verified circuits achieving $< 1.6\text{ mHa}$ chemical accuracy against PySCF Full Configuration Interaction (FCI) calculations.
-- **Hard Negatives:** 530 circuit mutations flagged and rejected by the Epistemic Tribunal due to vanishing cost gradients ($\operatorname{Var}[\partial_{\theta} \langle H \rangle] < 10^{-6}$), excessive circuit depth, or noise susceptibility.
+**Status: specification only — no checkpoint is shipped in this tree.**
+The counts below are targets for the training run, not measurements:
+- **Target champion circuits:** 890 achieving $< 1.6\text{ mHa}$ against PySCF FCI.
+- **Target hard negatives:** 530 mutations rejected for vanishing gradients ($\operatorname{Var}[\partial_{\theta} \langle H \rangle] < 10^{-6}$), depth, or noise.
+
+`manifest.json` carries `status: spec-only`, `artifact_present: false`, and null size/hash. Add the artifact and a verified SHA-256 together before claiming a deployable adapter.
 
 ## Checkpoint Manifest & Verification
 
-The adapter artifacts are tracked in [`manifest.json`](./manifest.json) with SHA-256 integrity checksums to ensure reproducible and tamper-evident deployments across cluster nodes.
+[`manifest.json`](./manifest.json) is a specification, not a distribution. There is no checksum to verify because there is no artifact; do not describe this as a tamper-evident deployment until both exist.

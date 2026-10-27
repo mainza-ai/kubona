@@ -30,15 +30,20 @@
     "positive_champions": 890,
     "hard_negatives_barren_plateaus": 530,
     "training_epochs": 3,
-    "learning_rate": 2e-4,
-    "eval_chemical_accuracy_rate": 0.895,
-    "eval_meyer_wallach_expressibility": 0.824
+    "learning_rate": 0.0002,
+    "eval_chemical_accuracy_rate": null,
+    "eval_meyer_wallach_expressibility": null,
+    "note": "Targets, not measured results: no checkpoint is shipped in this tree."
   },
   "adapter_weights": {
     "format": "safetensors",
     "filename": "adapter_model.safetensors",
     "config_filename": "adapter_config.json",
-    "size_mb": 142.8,
-    "sha256": "4b5d898a39e94bf2b8d0092bc31920dfa1ef3cb02ef2ba59c83696660be24479"
-  }
+    "artifact_present": false,
+    "size_mb": null,
+    "sha256": null,
+    "note": "Declared target; not present. Add the artifact and a verified hash together."
+  },
+  "status": "spec-only",
+  "artifact_present": false
 }

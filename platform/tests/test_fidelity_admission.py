@@ -1,8 +1,27 @@
 """Fidelity gate wiring (Q-07): predict-then-admit beside the money rail."""
 
+import pytest
+
 from kubona.mcp.servers import execution as exec_server
 
 BELL = "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];"
+
+
+@pytest.fixture(autouse=True)
+def fresh_calibration():
+    """Tests exercise admission mechanics; refresh the shipped fixture epochs.
+
+    The contract's real calibrated_at dates are intentionally untouched. The
+    stale-contract refusal is pinned separately below.
+    """
+    import dataclasses
+    import time
+    from kubona.fidelity import accounting
+    for name in ("ibm-heron", "quantinuum-h1", "rigetti-aspen"):
+        prof = accounting.DEVICE_CATALOG.get(name)
+        if prof is not None:
+            accounting.DEVICE_CATALOG[name] = dataclasses.replace(
+                prof, last_calibrated_epoch=time.time())
 
 
 def _deep_qasm(twoq=200):
@@ -58,3 +77,16 @@ def test_fidelity_gate_refuses_priced_but_unprofiled_backend():
     verdict = exec_server._fidelity_gate(cap, parse_qasm2(BELL))
     assert verdict["admitted"] is False, verdict
     assert "no fidelity profile" in verdict["rejection_reason"], verdict
+
+
+def test_stale_calibration_refuses(monkeypatch):
+    """P0-10: calibration age comes from the recorded timestamp, not load time."""
+    import dataclasses
+    from kubona.fidelity import accounting
+    prof = accounting.DEVICE_CATALOG["ibm-heron"]
+    accounting.DEVICE_CATALOG["ibm-heron"] = dataclasses.replace(
+        prof, last_calibrated_epoch=0.0)
+    verdict = accounting.FidelityAccountingEngine().evaluate_admission(
+        "ibm-heron", n_qubits=2, n_single_qubit_gates=4, n_two_qubit_gates=1)
+    assert verdict.admitted is False
+    assert verdict.calibration_fresh is False

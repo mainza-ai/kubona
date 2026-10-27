@@ -8,6 +8,18 @@ from kubona.mcp.servers import execution as exec_server
 
 BELL = "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];"
 
+@pytest.fixture(autouse=True)
+def fresh_calibration():
+    import dataclasses
+    import time
+    from kubona.fidelity import accounting
+    for name in ("ibm-heron", "quantinuum-h1", "rigetti-aspen"):
+        prof = accounting.DEVICE_CATALOG.get(name)
+        if prof is not None:
+            accounting.DEVICE_CATALOG[name] = dataclasses.replace(
+                prof, last_calibrated_epoch=time.time())
+
+
 
 def test_implicit_session_cap_refuses_self_granted_budget():
     out = exec_server.submit_job(BELL, provider="local-simulator", shots=64,
