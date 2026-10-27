@@ -3471,3 +3471,9 @@ skipped is the exact failure this incident is about:
   - logging.Setup sets slog: JSON by default in production, text in dev, with KUBONA_LOG_FORMAT/KUBONA_LOG_LEVEL overrides.
   - Every HTTP request logs method/path/status/duration_ms/request_id; panics log method/path/request_id/panic/stack; A2A panics log task_id/stack.
   - A test captures the JSON handler and level override. Legacy log.Printf call sites remain for a later sweep; tracing remains.
+
+## [2026-10-27] decision | Q-56: lab-admin session authorizes admin writes (no client key after reload)
+
+  - AdminAction gains ViaSession (json:"-", server-set only). verifyAdmin skips the client signature only for that marker after tenant/status checks; the API sets it only when the httpOnly session's fingerprint equals the tenant's current admin key.
+  - bindAdminActionOrSession accepts a signed envelope (machine/bearer) OR the lab-admin session (console after reload) and binds the exact params hash. Applied to ceiling, status, autonomy, tenant/session refund, grant revoke. Admin-key rotation and mandate signing remain signature-only.
+  - Console APIs accept an optional action; LabOpsPanel signs when the browser key matches, otherwise omits the envelope and relies on the session. Test pins the no-envelope fallback; a Go test pins cross-lab refusal.

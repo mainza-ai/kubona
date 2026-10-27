@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/tenants"
 )
@@ -84,6 +85,56 @@ func bindAdminAction(tenantID, actionName string, params any, raw tenants.AdminA
 	return &raw, nil
 }
 
+// sessionAdminAction resolves the httpOnly lab-admin session into an
+// in-process admin action. The cookie already proved possession of the
+// tenant admin key at login; the fingerprint must still match the current
+// registered key (rotation invalidates old sessions' authority).
+func (s *Server) sessionAdminAction(r *http.Request, tenantID string) (*tenants.AdminAction, bool) {
+	if s.authSessions == nil {
+		return nil, false
+	}
+	c, err := r.Cookie(sessionCookieName)
+	if err != nil || c.Value == "" {
+		return nil, false
+	}
+	tid, fp, ok := s.authSessions.validateToken(c.Value)
+	if !ok || tid != tenantID {
+		return nil, false
+	}
+	t, err := s.tenantMgr.GetTenant(tenantID)
+	if err != nil || t.AdminPubkeyHex == "" {
+		return nil, false
+	}
+	if !strings.EqualFold(fp, tenants.Fingerprint(t.AdminPubkeyHex)) {
+		return nil, false
+	}
+	return &tenants.AdminAction{
+		TenantID: tenantID, PubkeyHex: t.AdminPubkeyHex,
+		Expiry: time.Now().UTC().Add(5 * time.Minute), ViaSession: true,
+	}, true
+}
+
+// bindAdminActionOrSession accepts either a signed envelope (machine/bearer
+// callers) or a validated lab-admin session cookie (console after reload).
+// It never falls back to the session when a signature was supplied.
+func (s *Server) bindAdminActionOrSession(r *http.Request, tenantID, actionName string,
+	params any, raw tenants.AdminAction) (*tenants.AdminAction, error) {
+	if raw.SignatureHex != "" || raw.PubkeyHex != "" {
+		return bindAdminAction(tenantID, actionName, params, raw)
+	}
+	act, ok := s.sessionAdminAction(r, tenantID)
+	if !ok {
+		return nil, httpError("admin signature or lab-admin session required")
+	}
+	want, err := tenants.ParamsHashOf(params)
+	if err != nil {
+		return nil, err
+	}
+	act.Action = actionName
+	act.ParamsHash = want
+	return act, nil
+}
+
 type httpErr string
 
 func (e httpErr) Error() string { return string(e) }
@@ -144,7 +195,7 @@ func (s *Server) handleTenantCeiling(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	bound, err := bindAdminAction(req.TenantID, "set_ceiling",
+	bound, err := s.bindAdminActionOrSession(r, req.TenantID, "set_ceiling",
 		map[string]float64{"ceiling_usd": req.Ceiling}, req.Action)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
@@ -180,7 +231,7 @@ func (s *Server) handleTenantRefund(w http.ResponseWriter, r *http.Request) {
 		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid request body: %v", err), nil)
 		return
 	}
-	bound, err := bindAdminAction(req.TenantID, "refund_spend",
+	bound, err := s.bindAdminActionOrSession(r, req.TenantID, "refund_spend",
 		map[string]any{"tenant_id": req.TenantID, "amount_usd": req.Amount, "reason": req.Reason}, req.Action)
 	if err != nil {
 		WriteAPIError(w, "forbidden", err.Error(), nil)
@@ -212,7 +263,7 @@ func (s *Server) handleTenantAutonomy(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	bound, err := bindAdminAction(req.TenantID, "grant_autonomy",
+	bound, err := s.bindAdminActionOrSession(r, req.TenantID, "grant_autonomy",
 		map[string]string{"level": req.Level}, req.Action)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
@@ -246,7 +297,7 @@ func (s *Server) handleTenantStatus(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	bound, err := bindAdminAction(req.TenantID, "set_status",
+	bound, err := s.bindAdminActionOrSession(r, req.TenantID, "set_status",
 		map[string]string{"status": req.Status}, req.Action)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
@@ -278,7 +329,7 @@ func (s *Server) handleTenantRevoke(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
-	bound, err := bindAdminAction(req.TenantID, "revoke_autonomy",
+	bound, err := s.bindAdminActionOrSession(r, req.TenantID, "revoke_autonomy",
 		map[string]string{"reason": req.Reason}, req.Action)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)

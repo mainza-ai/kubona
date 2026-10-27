@@ -1736,24 +1736,24 @@ async function postTenantMutation(
 export function setTenantCeiling(
   tenantId: string,
   ceilingUsd: number,
-  action: import('./adminAction').AdminAction
+  action?: import('./adminAction').AdminAction
 ): Promise<TenantWriteResult | TenantWriteError | null> {
   return postTenantMutation('/api/tenants/ceiling', {
     tenant_id: tenantId,
     ceiling_usd: ceilingUsd,
-    action,
+    ...(action ? { action } : {}),
   });
 }
 
 export function setTenantStatus(
   tenantId: string,
   status: 'active' | 'suspended',
-  action: import('./adminAction').AdminAction
+  action?: import('./adminAction').AdminAction
 ): Promise<TenantWriteResult | TenantWriteError | null> {
   return postTenantMutation('/api/tenants/status', {
     tenant_id: tenantId,
     status,
-    action,
+    ...(action ? { action } : {}),
   });
 }
 
@@ -1761,13 +1761,13 @@ export function refundTenantSpend(
   tenantId: string,
   amountUsd: number,
   reason: string,
-  action: import('./adminAction').AdminAction
+  action?: import('./adminAction').AdminAction
 ): Promise<TenantWriteResult | TenantWriteError | null> {
   return postTenantMutation('/api/tenants/refund', {
     tenant_id: tenantId,
     amount_usd: amountUsd,
     reason,
-    action,
+    ...(action ? { action } : {}),
   });
 }
 

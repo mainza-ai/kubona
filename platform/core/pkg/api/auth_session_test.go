@@ -406,3 +406,47 @@ func TestAuthLifecycleSealedInLedger(t *testing.T) {
 		t.Fatal("auth_login must carry the acting key fingerprint")
 	}
 }
+
+func TestSessionAdminAuthorizesWritesWithoutEnvelope(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
+	pubHex := hex.EncodeToString(pub)
+	authTestSetup(t, srv, pubHex)
+	nonce, _ := authChallenge(t, srv)
+	_, cookie := authLogin(t, srv, "lab-auth", pubHex, priv, nonce)
+	if cookie == "" {
+		t.Fatal("login must issue a session cookie")
+	}
+
+	// No client Ed25519 envelope: the lab-admin session is the authority.
+	body, _ := json.Marshal(map[string]any{"tenant_id": "lab-auth", "ceiling_usd": 250})
+	req := httptest.NewRequest(http.MethodPost, "/api/tenants/ceiling", bytes.NewReader(body))
+	req.AddCookie(&http.Cookie{Name: "kubona_session", Value: cookie})
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("session-admin ceiling must succeed, got %d: %s", w.Code, w.Body.String())
+	}
+	t2, _ := srv.TenantManager().GetTenant("lab-auth")
+	if t2.SpendCeilingUSD != 250 {
+		t.Fatalf("ceiling must be 250, got %v", t2.SpendCeilingUSD)
+	}
+
+	// The same cookie cannot mutate a different lab.
+	other, _ := json.Marshal(map[string]any{"id": "lab-other", "display_name": "Other"})
+	oreq := httptest.NewRequest(http.MethodPost, "/api/tenants", bytes.NewReader(other))
+	ow := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(ow, oreq)
+	if ow.Code != http.StatusCreated {
+		t.Fatalf("create other lab: %d", ow.Code)
+	}
+	body, _ = json.Marshal(map[string]any{"tenant_id": "lab-other", "ceiling_usd": 300})
+	req = httptest.NewRequest(http.MethodPost, "/api/tenants/ceiling", bytes.NewReader(body))
+	req.AddCookie(&http.Cookie{Name: "kubona_session", Value: cookie})
+	w = httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("cross-lab session-admin write must 403, got %d: %s", w.Code, w.Body.String())
+	}
+}

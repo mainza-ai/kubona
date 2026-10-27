@@ -56,21 +56,23 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
   };
 
   const envelope = (action: 'set_ceiling' | 'set_status' | 'refund_spend', params: Record<string, number | string>) => {
-    // Reachable only when isAdmin (buttons gated below), so a keypair
-    // exists in memory — getOrCreate returns it without generating.
+    // When this browser holds the lab admin key we send the signed envelope;
+    // otherwise the server uses the signed-in lab-admin session cookie
+    // (Q-56). The server always re-checks authority.
+    if (!browserPub || !isAdmin) return undefined;
     const keyPair = getOrCreateSessionKeyPair();
     return signAdminAction({ tenantId: lab.id, action, params, keyPair });
   };
 
-  if (!browserPub) {
-    return (
-      <p className="text-[11px] text-slate-500">
-        Operator writes require WebCrypto Ed25519 support in this browser context.
-      </p>
-    );
-  }
-
   if (isBootstrap) {
+    if (!browserPub) {
+      return (
+        <p className="text-[11px] text-slate-500">
+          This lab has no registered admin. Registering one requires an Ed25519 browser key.
+        </p>
+      );
+    }
+    const pub = browserPub;
     return (
       <div className="space-y-1.5">
         <p className="text-[11px] text-amber-200">
@@ -81,25 +83,17 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
           disabled={busy !== null}
           onClick={() =>
             run('bootstrap', () =>
-              registerTenantAdminKey(lab.id, browserPub).then((r) =>
+              registerTenantAdminKey(lab.id, pub).then((r) =>
                 r !== null && 'tenant' in r ? { ok: true as const } : r
               )
             )
           }
           className="px-2 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 hover:bg-cyan-500/25 text-[11px] disabled:opacity-40"
         >
-          Register this browser key ({browserPub.slice(0, 12)}…) as lab admin
+          Register this browser key ({pub.slice(0, 12)}…) as lab admin
         </button>
         {notice && <p className="text-[11px] text-amber-200" role="alert">{notice}</p>}
       </div>
-    );
-  }
-
-  if (!isAdmin) {
-    return (
-      <p className="text-[11px] text-slate-500" title={`lab admin: ${registeredAdmin}\nbrowser key: ${browserPub}`}>
-        This browser key ({browserPub.slice(0, 12)}…) is not this lab&apos;s admin ({registeredAdmin.slice(0, 12)}…) — writes disabled. Rotate the admin key or switch keys.
-      </p>
     );
   }
 
@@ -110,9 +104,14 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
       <div className="flex items-center gap-1.5 text-[11px]">
         <span className="text-slate-400">admin</span>
         <span className="font-code text-emerald-300" title={registeredAdmin}>
-          {registeredAdmin.slice(0, 12)}… (this browser key)
+          {registeredAdmin.slice(0, 12)}… {isAdmin ? '(this browser key)' : '(signed-in lab-admin session)'}
         </span>
       </div>
+      {!isAdmin && (
+        <p className="text-[11px] text-slate-500" title={`lab admin: ${registeredAdmin}\nbrowser key: ${browserPub ?? 'none'}`}>
+          Browser key {browserPub ? `${browserPub.slice(0, 12)}… ` : ''}is not this lab&apos;s admin. Writes use the signed-in lab-admin session; the server enforces it.
+        </p>
+      )}
       <div className="flex flex-wrap items-center gap-1.5">
         <input
           value={ceiling}
