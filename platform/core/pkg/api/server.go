@@ -3542,7 +3542,7 @@ func (s *Server) llmSpendSummary() (spent float64, byProvider map[string]float64
 // hasCloudLLMRole reports whether the active provider or any role assignment
 // resolves to a non-local provider. The old gate only looked at the active
 // provider, so a local-active config with a cloud role bypassed the cap.
-func (s *Server) hasCloudLLMRole(snap llm.Settings) bool {
+func (s *Server) hasCloudLLMRole(snap *llm.Settings) bool {
 	if prov, ok := snap.Providers[snap.ActiveProvider]; ok && !prov.IsLocal {
 		return true
 	}
@@ -3568,7 +3568,7 @@ func (s *Server) checkLLMBudget() error {
 		return nil
 	}
 	snap := s.llmSettings.GetSnapshot()
-	if !s.hasCloudLLMRole(snap) {
+	if !s.hasCloudLLMRole(&snap) {
 		return nil
 	}
 	spent, _, unmetered, err := s.llmSpendSummary()

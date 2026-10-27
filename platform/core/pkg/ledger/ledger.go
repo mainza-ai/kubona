@@ -30,6 +30,13 @@ type EventRecord struct {
 	EntryHash    string          `json:"entry_hash,omitempty"`
 	SignerPubkey string          `json:"signer_pubkey_hex,omitempty"`
 	Signature    string          `json:"signature_hex,omitempty"`
+	// HashVersion: 1 = legacy (prev|session|type|payload), 2 = metadata-
+	// committed digest (tenant/label/timestamp) with canonical payload.
+	HashVersion int `json:"hash_version,omitempty"`
+	// SignatureDomain: "chain" (server signs the chain digest),
+	// "mandate-v1" (external admin mandate over the canonical mandate
+	// message), or "external-opaque" (a proof we cannot reconstruct).
+	SignatureDomain string `json:"signature_domain,omitempty"`
 }
 
 type Ledger struct {
@@ -161,7 +168,9 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 		prev_hash TEXT NOT NULL DEFAULT '',
 		entry_hash TEXT NOT NULL DEFAULT '',
 		signer_pubkey_hex TEXT NOT NULL DEFAULT '',
-		signature_hex TEXT NOT NULL DEFAULT ''
+		signature_hex TEXT NOT NULL DEFAULT '',
+		hash_version INTEGER NOT NULL DEFAULT 1,
+		signature_domain TEXT NOT NULL DEFAULT 'chain'
 	);
 
 	CREATE TABLE IF NOT EXISTS campaign_states (
@@ -252,6 +261,8 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 	for _, col := range []string{"prev_hash", "entry_hash", "signer_pubkey_hex", "signature_hex", "tenant_id", "conf_label"} {
 		_, _ = db.Exec(fmt.Sprintf("ALTER TABLE ledger_events ADD COLUMN %s TEXT NOT NULL DEFAULT ''", col))
 	}
+	_, _ = db.Exec(`ALTER TABLE ledger_events ADD COLUMN hash_version INTEGER NOT NULL DEFAULT 1`)
+	_, _ = db.Exec(`ALTER TABLE ledger_events ADD COLUMN signature_domain TEXT NOT NULL DEFAULT 'chain'`)
 	_, _ = db.Exec(`ALTER TABLE sessions ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`)
 	_, _ = db.Exec(`ALTER TABLE tenants ADD COLUMN spent_usd REAL NOT NULL DEFAULT 0`)
 	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN reserved_tenant TEXT NOT NULL DEFAULT ''`)
@@ -358,8 +369,11 @@ func (l *Ledger) AppendSignedEvent(sessionID string, eventType string, payload a
 		return nil, fmt.Errorf("failed to marshal event payload: %w", err)
 	}
 
+	ts := time.Now().UTC().Format(time.RFC3339)
+	tenantID := l.resolveTenantLocked(sessionID)
+	label := "tenant/" + tenantID
 	prevHash := l.getLatestEntryHashLocked(sessionID)
-	digest := chainDigestBytes(prevHash, sessionID, eventType, string(data))
+	digest := chainDigestBytesV2(prevHash, sessionID, tenantID, label, ts, eventType, data)
 	entryHashHex := hex.EncodeToString(digest[:])
 
 	var signerPubHex, sigHex string
@@ -370,10 +384,8 @@ func (l *Ledger) AppendSignedEvent(sessionID string, eventType string, payload a
 		signerPubHex = hex.EncodeToString(pub)
 	}
 
-	ts := time.Now().UTC().Format(time.RFC3339)
-	tenantID := l.resolveTenantLocked(sessionID)
-	query := `INSERT INTO ledger_events (timestamp, session_id, tenant_id, conf_label, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	res, err := l.db.Exec(query, ts, sessionID, tenantID, "tenant/"+tenantID, eventType, string(data), prevHash, entryHashHex, signerPubHex, sigHex)
+	query := `INSERT INTO ledger_events (timestamp, session_id, tenant_id, conf_label, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex, hash_version, signature_domain) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2, 'chain')`
+	res, err := l.db.Exec(query, ts, sessionID, tenantID, label, eventType, string(data), prevHash, entryHashHex, signerPubHex, sigHex)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert signed event: %w", err)
 	}
@@ -384,17 +396,19 @@ func (l *Ledger) AppendSignedEvent(sessionID string, eventType string, payload a
 	}
 
 	return &EventRecord{
-		ID:           id,
-		Timestamp:    ts,
-		SessionID:    sessionID,
-		TenantID:     tenantID,
-		ConfLabel:    "tenant/" + tenantID,
-		EventType:    eventType,
-		Payload:      json.RawMessage(data),
-		PrevHash:     prevHash,
-		EntryHash:    entryHashHex,
-		SignerPubkey: signerPubHex,
-		Signature:    sigHex,
+		ID:              id,
+		Timestamp:       ts,
+		SessionID:       sessionID,
+		TenantID:        tenantID,
+		ConfLabel:       "tenant/" + tenantID,
+		EventType:       eventType,
+		Payload:         json.RawMessage(data),
+		PrevHash:        prevHash,
+		EntryHash:       entryHashHex,
+		SignerPubkey:    signerPubHex,
+		Signature:       sigHex,
+		HashVersion:     2,
+		SignatureDomain: "chain",
 	}, nil
 }
 
@@ -414,17 +428,18 @@ func (l *Ledger) AppendEventWithTenant(sessionID, tenantID, eventType string, pa
 	if tenantID == "" {
 		tenantID = l.resolveTenantLocked(sessionID)
 	}
+	ts := time.Now().UTC().Format(time.RFC3339)
+	label := "tenant/" + tenantID
 	prevHash := l.getLatestEntryHashLocked(sessionID)
-	digest := chainDigestBytes(prevHash, sessionID, eventType, string(data))
+	digest := chainDigestBytesV2(prevHash, sessionID, tenantID, label, ts, eventType, data)
 	entryHashHex := hex.EncodeToString(digest[:])
 	var signerPubHex, sigHex string
 	if len(privKey) == ed25519.PrivateKeySize {
 		sigHex = hex.EncodeToString(ed25519.Sign(privKey, digest[:]))
 		signerPubHex = hex.EncodeToString(privKey.Public().(ed25519.PublicKey))
 	}
-	ts := time.Now().UTC().Format(time.RFC3339)
-	query := `INSERT INTO ledger_events (timestamp, session_id, tenant_id, conf_label, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	res, err := l.db.Exec(query, ts, sessionID, tenantID, "tenant/"+tenantID, eventType, string(data), prevHash, entryHashHex, signerPubHex, sigHex)
+	query := `INSERT INTO ledger_events (timestamp, session_id, tenant_id, conf_label, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex, hash_version, signature_domain) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2, 'chain')`
+	res, err := l.db.Exec(query, ts, sessionID, tenantID, label, eventType, string(data), prevHash, entryHashHex, signerPubHex, sigHex)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert tenant-scoped event: %w", err)
 	}
@@ -434,6 +449,7 @@ func (l *Ledger) AppendEventWithTenant(sessionID, tenantID, eventType string, pa
 		ConfLabel: "tenant/" + tenantID, EventType: eventType,
 		Payload: json.RawMessage(data), PrevHash: prevHash, EntryHash: entryHashHex,
 		SignerPubkey: signerPubHex, Signature: sigHex,
+		HashVersion: 2, SignatureDomain: "chain",
 	}, nil
 }
 
@@ -591,14 +607,19 @@ func (l *Ledger) AppendExternalEvent(sessionID string, eventType string, payload
 		return nil, fmt.Errorf("failed to marshal event payload: %w", err)
 	}
 
-	prevHash := l.getLatestEntryHashLocked(sessionID)
-	digest := chainDigestBytes(prevHash, sessionID, eventType, string(data))
-	entryHashHex := hex.EncodeToString(digest[:])
-
 	ts := time.Now().UTC().Format(time.RFC3339)
 	tenantID := l.resolveTenantLocked(sessionID)
-	query := `INSERT INTO ledger_events (timestamp, session_id, tenant_id, conf_label, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	res, err := l.db.Exec(query, ts, sessionID, tenantID, "tenant/"+tenantID, eventType, string(data), prevHash, entryHashHex, pubKeyHex, sigHex)
+	label := "tenant/" + tenantID
+	prevHash := l.getLatestEntryHashLocked(sessionID)
+	digest := chainDigestBytesV2(prevHash, sessionID, tenantID, label, ts, eventType, data)
+	entryHashHex := hex.EncodeToString(digest[:])
+
+	sigDomain := "external-opaque"
+	if strings.HasPrefix(eventType, "mandate_verified") {
+		sigDomain = "mandate-v1"
+	}
+	query := `INSERT INTO ledger_events (timestamp, session_id, tenant_id, conf_label, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex, hash_version, signature_domain) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2, ?)`
+	res, err := l.db.Exec(query, ts, sessionID, tenantID, label, eventType, string(data), prevHash, entryHashHex, pubKeyHex, sigHex, sigDomain)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert external event: %w", err)
 	}
@@ -620,6 +641,7 @@ func (l *Ledger) AppendExternalEvent(sessionID string, eventType string, payload
 		EntryHash:    entryHashHex,
 		SignerPubkey: pubKeyHex,
 		Signature:    sigHex,
+		HashVersion:  2, SignatureDomain: sigDomain,
 	}, nil
 }
 
@@ -647,8 +669,10 @@ func (l *Ledger) AppendLabeledEvent(sessionID string, eventType string, payload 
 		return nil, fmt.Errorf("failed to marshal event payload: %w", err)
 	}
 
+	tenantID := l.resolveTenantLocked(sessionID)
+	ts := time.Now().UTC().Format(time.RFC3339)
 	prevHash := l.getLatestEntryHashLocked(sessionID)
-	digest := chainDigestBytes(prevHash, sessionID, eventType, string(data))
+	digest := chainDigestBytesV2(prevHash, sessionID, tenantID, label, ts, eventType, data)
 	entryHashHex := hex.EncodeToString(digest[:])
 
 	var signerPubHex, sigHex string
@@ -659,9 +683,7 @@ func (l *Ledger) AppendLabeledEvent(sessionID string, eventType string, payload 
 		signerPubHex = hex.EncodeToString(pub)
 	}
 
-	tenantID := l.resolveTenantLocked(sessionID)
-	ts := time.Now().UTC().Format(time.RFC3339)
-	query := `INSERT INTO ledger_events (timestamp, session_id, tenant_id, conf_label, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	query := `INSERT INTO ledger_events (timestamp, session_id, tenant_id, conf_label, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex, hash_version, signature_domain) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 2, 'chain')`
 	res, err := l.db.Exec(query, ts, sessionID, tenantID, label, eventType, string(data), prevHash, entryHashHex, signerPubHex, sigHex)
 	if err != nil {
 		return nil, fmt.Errorf("failed to insert labeled event: %w", err)
@@ -684,6 +706,7 @@ func (l *Ledger) AppendLabeledEvent(sessionID string, eventType string, payload 
 		EntryHash:    entryHashHex,
 		SignerPubkey: signerPubHex,
 		Signature:    sigHex,
+		HashVersion:  2, SignatureDomain: "chain",
 	}, nil
 }
 
@@ -712,21 +735,37 @@ func (l *Ledger) VerifyEventSignature(event *EventRecord) (bool, error) {
 		return false, fmt.Errorf("invalid signature size: %d bytes (want %d)", len(sigBytes), ed25519.SignatureSize)
 	}
 
-	digest := chainDigestBytes(event.PrevHash, event.SessionID, event.EventType, string(event.Payload))
+	var digest [32]byte
+	if event.HashVersion >= 2 {
+		digest = chainDigestBytesV2(event.PrevHash, event.SessionID, event.TenantID,
+			event.ConfLabel, event.Timestamp, event.EventType, []byte(event.Payload))
+	} else {
+		digest = chainDigestBytes(event.PrevHash, event.SessionID, event.EventType, string(event.Payload))
+	}
 
 	if hex.EncodeToString(digest[:]) != event.EntryHash {
 		return false, fmt.Errorf("entry hash mismatch: computed %s, recorded %s", hex.EncodeToString(digest[:]), event.EntryHash)
 	}
 
-	valid := ed25519.Verify(pubBytes, digest[:], sigBytes)
-	return valid, nil
+	switch event.SignatureDomain {
+	case "mandate-v1":
+		msg, merr := mandateSignatureMessage([]byte(event.Payload))
+		if merr != nil {
+			return false, merr
+		}
+		return ed25519.Verify(pubBytes, msg, sigBytes), nil
+	case "external-opaque":
+		return false, fmt.Errorf("external-opaque proof is recorded but not verifiable")
+	default:
+		return ed25519.Verify(pubBytes, digest[:], sigBytes), nil
+	}
 }
 
 func (l *Ledger) GetRecentEvents(sessionID string, limit int) ([]EventRecord, error) {
 	l.lock.RLock()
 	defer l.lock.RUnlock()
 
-	query := `SELECT id, timestamp, session_id, tenant_id, conf_label, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex FROM ledger_events WHERE session_id = ? ORDER BY id DESC LIMIT ?`
+	query := `SELECT id, timestamp, session_id, tenant_id, conf_label, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex, hash_version, signature_domain FROM ledger_events WHERE session_id = ? ORDER BY id DESC LIMIT ?`
 	rows, err := l.db.Query(query, sessionID, limit)
 	if err != nil {
 		return nil, err
@@ -737,7 +776,7 @@ func (l *Ledger) GetRecentEvents(sessionID string, limit int) ([]EventRecord, er
 	for rows.Next() {
 		var e EventRecord
 		var payloadStr string
-		if err := rows.Scan(&e.ID, &e.Timestamp, &e.SessionID, &e.TenantID, &e.ConfLabel, &e.EventType, &payloadStr, &e.PrevHash, &e.EntryHash, &e.SignerPubkey, &e.Signature); err != nil {
+		if err := rows.Scan(&e.ID, &e.Timestamp, &e.SessionID, &e.TenantID, &e.ConfLabel, &e.EventType, &payloadStr, &e.PrevHash, &e.EntryHash, &e.SignerPubkey, &e.Signature, &e.HashVersion, &e.SignatureDomain); err != nil {
 			return nil, err
 		}
 		e.Payload = json.RawMessage(payloadStr)
