@@ -692,7 +692,7 @@ export default function Home() {
                   onCampaignSynthesized={(c) => setCampaign(c)}
                 />
               )}
-              {surface === 'proofs' && proofsTab === 'gallery' && <GenerativeUIStudio campaign={campaign} />}
+              {surface === 'proofs' && proofsTab === 'gallery' && <GenerativeUIStudio campaign={campaign} tenantId={sessions.find((s) => s.id === currentSessionId)?.tenant_id} />}
               {surface === 'proofs' && proofsTab === 'circuits' && <CodesignCockpit />}
               {surface === 'mesh' && meshTab === 'mesh' && <CognitiveMesh campaign={campaign} />}
               {surface === 'mesh' && meshTab === 'guardrails' && <AutonomyCockpit campaign={campaign} session={session} />}
@@ -700,7 +700,7 @@ export default function Home() {
               {surface === 'mesh' && meshTab === 'labs' && <LabsView />}
               {surface === 'mesh' && meshTab === 'settings' && <LLMSettings />}
               {surface === 'mesh' && meshTab === 'settings' && <QuantumSettings />}
-              {surface === 'mesh' && meshTab === 'settings' && <QuantumDispatch sessionId={currentSessionId || null} />}
+              {surface === 'mesh' && meshTab === 'settings' && <QuantumDispatch sessionId={currentSessionId || null} tenantId={sessions.find((s) => s.id === currentSessionId)?.tenant_id} />}
             </div>
           </main>
         )}

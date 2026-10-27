@@ -33,8 +33,10 @@ const DEFAULT_QUBO = `[
 // renders verbatim; nothing here can invent a result.
 export function QuantumDispatch({
   sessionId,
+  tenantId,
 }: {
   sessionId: string | null;
+  tenantId?: string;
 }) {
   const [backends, setBackends] = useState<QuantumBackendInfo[]>([]);
   const [provider, setProvider] = useState('local-simulator');
@@ -317,6 +319,7 @@ export function QuantumDispatch({
           estimatedCostUsd={estCost ?? 0}
           targetBackend={provider}
           sessionId={sessionId ?? undefined}
+          tenantId={tenantId}
           programQasm={qasm}
           onAuthorize={(mandateJson) => setMandateRef(mandateJson)}
         />
