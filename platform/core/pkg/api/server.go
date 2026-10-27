@@ -50,6 +50,7 @@ import (
 )
 
 type Server struct {
+	httpMetrics        *httpMetrics
 	ledger             *ledger.Ledger
 	sessionMgr         *session.Manager
 	tenantMgr          *tenants.Manager
@@ -298,6 +299,7 @@ func NewServer(
 	qirComp := qir.NewCompiler()
 
 	s := &Server{
+		httpMetrics:           newHTTPMetrics(),
 		ledger:                l,
 		sessionMgr:            sm,
 		tenantMgr:             tenants.NewManager(l),
@@ -396,7 +398,7 @@ func NewServer(
 }
 
 func (s *Server) Handler() http.Handler {
-	return requestIDAndRecovery(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return s.instrument(requestIDAndRecovery(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if origin := corsAllowOrigin(r); origin != "" {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Add("Vary", "Origin")
@@ -413,7 +415,7 @@ func (s *Server) Handler() http.Handler {
 			return
 		}
 		s.mux.ServeHTTP(w, r)
-	}))
+	})))
 }
 
 // requestIDAndRecovery wraps every route with a request id and a panic
@@ -439,6 +441,7 @@ func requestIDAndRecovery(next http.Handler) http.Handler {
 
 func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/health", s.handleHealth)
+	s.mux.HandleFunc("/metrics", s.requireBearer(s.handleMetrics))
 	s.mux.HandleFunc("/api/ready", s.handleReady)
 	s.mux.HandleFunc("/api/capabilities", s.handleCapabilities)
 	s.mux.HandleFunc("/api/sessions", s.handleSessions)
