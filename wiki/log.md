@@ -3358,3 +3358,8 @@ skipped is the exact failure this incident is about:
   - The GQE adapter manifest is status spec-only, artifact_present false, null size/hash/metrics; README no longer claims a shipped tamper-evident checkpoint.
   - Autoresearch template entanglement constants carry measurement_source=template_constant and measured=false.
   - Remaining: HF fallback labeling, benchmark nonce isolation.
+
+## [2026-10-27] decision | Phase 4b: quantum quote freshness binding
+
+  - QuantumDispatch binds a quote to {session, provider, QASM/QUBO, shots}; editing any field makes it stale and disables Dispatch until re-estimation. Missing estimated_usd renders UNPRICED and cannot dispatch (was treated as $0, skipping the mandate gate).
+  - Dependabot: all 9 open alerts cleared by the dependency/toolchain slice (GitHub API returns 0 open).

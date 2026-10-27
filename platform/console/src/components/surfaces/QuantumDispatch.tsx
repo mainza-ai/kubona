@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Zap, Play, Ban, RefreshCw, Receipt, FlaskConical } from 'lucide-react';
 import {
   submitQuantumJob,
@@ -97,12 +97,21 @@ export function QuantumDispatch({
     pollRef.current = setInterval(() => void tick(), 5000);
   }, []);
 
+  const [quoteFingerprint, setQuoteFingerprint] = useState<string | null>(null);
+  const currentFingerprint = useMemo(
+    () => JSON.stringify({ sessionId: sessionId ?? null, provider, qasm, shots }),
+    [sessionId, provider, qasm, shots],
+  );
+  const quoteFresh = estimate != null && quoteFingerprint === currentFingerprint;
+
   const onEstimate = useCallback(async () => {
     setEstimating(true);
     setEstimateError(null);
     setEstimate(null);
     setFidelity(null);
     setMandateRef(null);
+    setQuoteFingerprint(null);
+    const fingerprint = JSON.stringify({ sessionId: sessionId ?? null, provider, qasm, shots });
     const res = await submitQuantumJob({
       session_id: sessionId ?? undefined,
       qasm,
@@ -120,11 +129,21 @@ export function QuantumDispatch({
     }
     setEstimate((res.estimate ?? {}) as Record<string, unknown>);
     setFidelity((res.fidelity ?? {}) as Record<string, unknown>);
+    setQuoteFingerprint(fingerprint);
   }, [qasm, provider, shots, sessionId]);
 
-  const estCost = typeof estimate?.estimated_usd === 'number' ? estimate.estimated_usd : null;
+  // A quote is only valid for the exact provider/QASM/shots/session it was
+  // produced from (2026-10-26 audit UI-01). Editing any of them makes the
+  // quote stale: the mandate and Dispatch disable until a fresh estimate.
+  const estCost = quoteFresh && typeof estimate?.estimated_usd === 'number'
+    ? estimate.estimated_usd
+    : null;
 
   const onDispatch = useCallback(async () => {
+    if (!quoteFresh || estCost == null) {
+      setJobError('The estimate is stale or unpriced: re-run Estimate for the current provider/QASM/shots/session.');
+      return;
+    }
     setDispatching(true);
     setJobError(null);
     setCancelNote(null);
@@ -150,7 +169,7 @@ export function QuantumDispatch({
     setJobId(res.job_id);
     setJobStatus('queued');
     pollJob(res.job_id);
-  }, [qasm, provider, shots, sessionId, mandateRef, pollJob]);
+  }, [qasm, provider, shots, sessionId, mandateRef, pollJob, quoteFresh, estCost]);
 
   const onCancel = useCallback(async () => {
     if (!jobId) return;
@@ -280,13 +299,19 @@ export function QuantumDispatch({
 
       {estimate && (
         <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 text-[11px] font-mono text-slate-300 space-y-1">
-          <div>Estimated cost: <span className="text-white font-bold">${Number(estCost ?? 0).toFixed(6)}</span></div>
+          <div>Estimated cost: <span className="text-white font-bold">{estCost == null ? 'UNPRICED — re-estimate' : `$${estCost.toFixed(6)}`}</span></div>
           <div>Fidelity: <span className="text-white">{fidelity?.admitted === true ? 'admitted' : fidelity?.admitted === false ? `refused — ${String(fidelity?.rejection_reason ?? 'see receipt').slice(0, 160)}` : String(fidelity?.skipped ?? 'unknown')}</span></div>
           <div className="text-slate-500">Dry run only — nothing enqueued, nothing spent.</div>
         </div>
       )}
 
-      {estimate && (estCost ?? 0) > 0 && !mandateRef && (
+      {estimate && !quoteFresh && (
+        <div className="p-3 rounded-xl bg-amber-950/50 border border-amber-500/40 text-amber-200 text-[11px] font-mono">
+          Estimate is stale: the provider, program, shots, or session changed. Re-estimate before dispatch.
+        </div>
+      )}
+
+      {quoteFresh && estCost != null && estCost > 0 && !mandateRef && (
         <CryptographicMandateCardWidget
           actionDescription={`Quantum job on ${provider} (${shots} shots)`}
           estimatedCostUsd={estCost ?? 0}
@@ -298,14 +323,14 @@ export function QuantumDispatch({
       <div className="flex items-center space-x-3">
         <button
           onClick={() => void onDispatch()}
-          disabled={dispatching || !estimate || ((estCost ?? 0) > 0 && !mandateRef)}
-          title={(estCost ?? 0) > 0 && !mandateRef ? 'Sign the mandate card first' : 'Dispatch'}
+          disabled={dispatching || !quoteFresh || estCost == null || (estCost > 0 && !mandateRef)}
+          title={!quoteFresh || estCost == null ? 'Re-estimate the current provider/QASM/shots/session' : estCost > 0 && !mandateRef ? 'Sign the mandate card first' : 'Dispatch'}
           className="px-4 py-2 rounded-xl font-mono text-xs font-bold flex items-center space-x-2 bg-emerald-600/20 text-emerald-200 border border-emerald-500/50 hover:bg-emerald-600/30 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Play className="w-4 h-4" />
           <span>{dispatching ? 'Dispatching…' : 'Dispatch job'}</span>
         </button>
-        {(estCost ?? 0) > 0 && !mandateRef && estimate && (
+        {quoteFresh && estCost != null && estCost > 0 && !mandateRef && (
           <span className="text-[11px] text-amber-300/90 font-mono">Non-zero estimate: sign the mandate card above first.</span>
         )}
       </div>
