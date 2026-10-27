@@ -3448,3 +3448,10 @@ skipped is the exact failure this incident is about:
   - All current harnesses are marked SelfReported (the artifact runs in the same process as the evaluator; it can forge/patch the score).
   - InitializeBaseline/Step refuse a self-reported harness when KUBONA_ENV=production unless KUBONA_AUTORESEARCH_ALLOW_SELF_REPORTED=1 is set for research-only runs. A measured harness (separate evaluator process) does not implement the marker and is unaffected.
   - The nonce fence remains an output delimiter, not a security boundary.
+
+## [2026-10-27] decision | HTTP panic boundary, request IDs, DB-aware readiness
+
+  - Handler wraps every route with requestIDAndRecovery: a panic is logged with the stack and a request id, and returns a typed 500 instead of killing the daemon.
+  - A2A task goroutines recover panics, log, and mark the task failed.
+  - /api/ready now pings SQLite (2s) in addition to the disk guard; a closed DB is 503, not "ready".
+  - Remaining observability: metrics/tracing and structured JSON logs.

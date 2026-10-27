@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"math"
 	"net/http"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -406,7 +408,21 @@ func (s *A2AServer) HandleRequest(req *JSONRPCRequest) *JSONRPCResponse {
 		// Asynchronous ledger-bound execution. Without an executor the task
 		// honestly remains queued; results are only ever written by runTask.
 		if exec != nil {
-			go s.runTask(taskID, params.TaskType, params.Payload, exec)
+			go func(id, taskType string, payload json.RawMessage, ex TaskExecutor) {
+				defer func() {
+					if rec := recover(); rec != nil {
+						log.Printf("[A2A] PANIC task=%s: %v\n%s", id, rec, debug.Stack())
+						s.mu.Lock()
+						if t, ok := s.tasks[id]; ok && t.Status != TaskStatusCompleted {
+							t.Status = TaskStatusFailed
+							t.Error = "task panicked: internal error"
+							t.UpdatedAt = time.Now().UTC()
+						}
+						s.mu.Unlock()
+					}
+				}()
+				s.runTask(id, taskType, payload, ex)
+			}(taskID, params.TaskType, params.Payload, exec)
 		}
 
 		return &JSONRPCResponse{
