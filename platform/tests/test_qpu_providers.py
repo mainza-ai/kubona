@@ -15,6 +15,23 @@ from kubona.providers.base import ProviderError
 from kubona.schema import load_provider
 
 
+@pytest.fixture(autouse=True)
+def fresh_calibration():
+    """Tests exercise admission mechanics; refresh the shipped fixture epochs.
+
+    The contract's real calibrated_at dates are intentionally untouched. The
+    stale-contract refusal is pinned separately below.
+    """
+    import dataclasses
+    import time
+    from kubona.fidelity import accounting
+    for name in ("ibm-heron", "quantinuum-h1", "rigetti-aspen"):
+        prof = accounting.DEVICE_CATALOG.get(name)
+        if prof is not None:
+            accounting.DEVICE_CATALOG[name] = dataclasses.replace(
+                prof, last_calibrated_epoch=time.time())
+
+
 def test_registry_includes_planned_vendors():
     from kubona.providers import list_providers
     caps = list_providers()

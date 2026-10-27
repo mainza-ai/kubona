@@ -42,13 +42,21 @@ class DeviceNoiseProfile:
 _CONTRACT_PATH = Path(__file__).resolve().parents[2] / "contracts" / "fidelity-devices.json"
 
 
+def _parse_calibrated_at(value: str) -> float:
+    """Real calibration epoch; missing/unparseable is stale (0), never now."""
+    from datetime import datetime, timezone
+    try:
+        return datetime.fromisoformat(str(value).replace("Z", "+00:00")).timestamp()
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def _load_fidelity_contract() -> tuple[Dict[str, DeviceNoiseProfile], Dict[str, str], float, float]:
     raw = json.loads(_CONTRACT_PATH.read_text(encoding="utf-8"))
-    now = time.time()
     catalog: Dict[str, DeviceNoiseProfile] = {}
     for entry in raw.get("devices", []):
         name = str(entry["name"])
-        age_s = float(entry.get("calibration_age_seconds", 0.0))
+        calibrated_epoch = _parse_calibrated_at(str(entry.get("calibrated_at", "")))
         prof = DeviceNoiseProfile(
             device_name=name,
             t1_us=float(entry["t1_us"]),
@@ -56,7 +64,7 @@ def _load_fidelity_contract() -> tuple[Dict[str, DeviceNoiseProfile], Dict[str, 
             single_qubit_error=float(entry["single_qubit_error"]),
             two_qubit_error=float(entry["two_qubit_error"]),
             readout_error=float(entry.get("readout_error", 0.0)),
-            last_calibrated_epoch=now - age_s,
+            last_calibrated_epoch=calibrated_epoch,
             qubits=int(entry.get("qubits", 0)),
             source=str(entry.get("source", "")),
             version=str(entry.get("version", "")),
