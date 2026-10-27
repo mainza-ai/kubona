@@ -3461,3 +3461,7 @@ skipped is the exact failure this incident is about:
   - GET /metrics (bearer) exposes kubona_http_requests_total, duration sum/count by method+status (low cardinality, no path/tenant labels), and inflight requests.
   - Instrumentation wraps recovery so a panicking request is counted as 500, never 200; a test pins the ordering.
   - Remaining observability: tracing and structured JSON logs.
+
+## [2026-10-27] verification | Metrics slice green; auth-session test flake observed
+
+  - CI run 40557624085 initially failed only TestAuthSessionsListAndRevoke (cookie auth returned 401 after revoke); the same commit passed on rerun, and the test passed 20x locally with -race. Recorded as a CI flake to monitor, not a code change: the gate is green on the rerun.
