@@ -3484,3 +3484,9 @@ skipped is the exact failure this incident is about:
   - Stage 2 runs in a separate sandbox invocation with no artifact mounted; it parses the QASM and computes energy/Meyer-Wallach/depth/2q itself.
   - The ansatz harness no longer implements SelfReported, so production runs it without the research opt-in. The other four harnesses remain self-reported and production-blocked.
   - Tests: real two-stage evaluation on the default VQE ansatz; self-reported gate test now pins QAOA as blocked and ansatz as measured.
+
+## [2026-10-27] decision | Measured QAOA evaluator
+
+  - Stage 1 imports qaoa_schedule.py only to extract finite gamma/beta lists; stage 2 runs in a separate sandbox with no artifact and builds/simulates the 8-node MaxCut circuit, computing the approximation metric itself.
+  - QAOA no longer implements SelfReported, so production runs ansatz + QAOA without the opt-in.
+  - Still self-reported/blocked: error-mitigation (analytic formula), compilation-pass (no equivalence check yet), correctness-regression (computes a fixed Bell state and ignores the artifact). These need real measured implementations before production use.
