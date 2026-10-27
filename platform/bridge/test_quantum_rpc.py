@@ -46,6 +46,19 @@ def isolated_rail(monkeypatch, tmp_path):
     return sessions, runner
 
 
+@pytest.fixture(autouse=True)
+def fresh_calibration():
+    import dataclasses
+    import time
+    from kubona.fidelity import accounting
+    for name in ("ibm-heron", "quantinuum-h1", "rigetti-aspen"):
+        prof = accounting.DEVICE_CATALOG.get(name)
+        if prof is not None:
+            accounting.DEVICE_CATALOG[name] = dataclasses.replace(
+                prof, last_calibrated_epoch=time.time())
+
+
+
 def _req(**kw):
     return SimpleNamespace(**kw)
 
