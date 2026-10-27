@@ -430,7 +430,7 @@ func (h *ErrorMitigationHarness) Evaluate(runner *sandbox.SandboxRunner, artifac
 import json
 import math
 try:
-    with open('/workspace/mitigation_config.json') as f:
+    with open('mitigation_config.json') as f:
         cfg = json.load(f)
     scales = [float(x) for x in cfg.get('scale_factors', [])]
     if len(scales) < 2 or len(scales) > 6:
@@ -693,7 +693,7 @@ import json
 import sys
 try:
     from qiskit import qasm2
-    qc = qasm2.loads(open("/workspace/benchmarks.qasm").read())
+    qc = qasm2.loads(open("benchmarks.qasm").read())
     if qc.num_qubits != 2:
         raise ValueError("benchmark must use exactly 2 qubits")
     if qc.num_clbits:

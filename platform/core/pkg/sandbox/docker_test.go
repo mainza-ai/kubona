@@ -145,3 +145,23 @@ func TestSandboxDevModeFallback(t *testing.T) {
 		t.Fatalf("expected output, got: %s", res.Stdout)
 	}
 }
+
+func TestHarnessHostFallbackReadsArtifactFromWorkspaceCWD(t *testing.T) {
+	t.Setenv("KUBONA_ENV", "")
+	t.Setenv("KUBONA_DEV_MODE", "")
+	cfg := DefaultConfig()
+	cfg.AllowHostFallback = true
+	cfg.Timeout = 20 * time.Second
+	runner := NewSandboxRunnerWithConfig(cfg)
+	runner.useDocker = false
+
+	script := `import json
+print(json.dumps({"text": open("artifact.txt").read()}))`
+	res, err := runner.ExecuteHarness(script, "artifact.txt", "relative-path-ok")
+	if err != nil {
+		t.Fatalf("host fallback: %v", err)
+	}
+	if !strings.Contains(res.Stdout, "relative-path-ok") {
+		t.Fatalf("artifact must be readable from the workspace cwd, got: %q (stderr %q)", res.Stdout, res.Stderr)
+	}
+}
