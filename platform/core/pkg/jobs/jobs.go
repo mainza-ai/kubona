@@ -13,6 +13,7 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/disk"
 	"github.com/mainza-ai/kubona/core/pkg/fidelity"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/money"
 	"github.com/mainza-ai/kubona/core/pkg/qir"
 	"github.com/mainza-ai/kubona/core/pkg/session"
 	"github.com/mainza-ai/kubona/core/pkg/tenants"
@@ -298,12 +299,18 @@ func (r *Runner) submitJob(sessionID, jobType string, params any, declaredCost f
 		MandateRef:       mandateRefOf(data),
 	}
 
-	query := `INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount, compiler_used, fallback_estimate, mandate_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	resMicro, merr := money.FromUSD(resAmount)
+	if merr != nil {
+		_ = r.tenantStore().ReleaseSpend(resTenant, resAmount)
+		_ = r.sessionMgr.ReleaseSpend(sessionID, resAmount)
+		return nil, fmt.Errorf("reservation amount: %w", merr)
+	}
+	query := `INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount, reserved_amount_micro_usd, compiler_used, fallback_estimate, mandate_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	fallbackInt := 0
 	if fallbackEstimate {
 		fallbackInt = 1
 	}
-	_, err = r.ledger.DB().Exec(query, j.ID, j.SessionID, j.Status.String(), j.JobType, string(j.ParamsJSON), j.CreatedAt, j.ReservedTenant, j.ReservedAmount, j.CompilerUsed, fallbackInt, j.MandateRef)
+	_, err = r.ledger.DB().Exec(query, j.ID, j.SessionID, j.Status.String(), j.JobType, string(j.ParamsJSON), j.CreatedAt, j.ReservedTenant, j.ReservedAmount, int64(resMicro), j.CompilerUsed, fallbackInt, j.MandateRef)
 	if err != nil {
 		// The job never queued (no row to release from): unwind directly.
 		_ = r.tenantStore().ReleaseSpend(resTenant, resAmount)
@@ -346,8 +353,12 @@ func (r *Runner) RecordQuantumBridgeJob(jobID, sessionID, provider, qasm string,
 		ReservedAmount: reservedUSD,
 		MandateRef:     mandateRef,
 	}
-	query := `INSERT OR IGNORE INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount, compiler_used, fallback_estimate, mandate_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', 0, ?)`
-	if _, err := r.ledger.DB().Exec(query, j.ID, j.SessionID, j.Status.String(), j.JobType, string(j.ParamsJSON), j.CreatedAt, j.ReservedTenant, j.ReservedAmount, j.MandateRef); err != nil {
+	resMicro, merr := money.FromUSD(reservedUSD)
+	if merr != nil {
+		return fmt.Errorf("bridge job reservation: %w", merr)
+	}
+	query := `INSERT OR IGNORE INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount, reserved_amount_micro_usd, compiler_used, fallback_estimate, mandate_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', 0, ?)`
+	if _, err := r.ledger.DB().Exec(query, j.ID, j.SessionID, j.Status.String(), j.JobType, string(j.ParamsJSON), j.CreatedAt, j.ReservedTenant, j.ReservedAmount, int64(resMicro), j.MandateRef); err != nil {
 		return fmt.Errorf("failed to record quantum bridge job: %w", err)
 	}
 	_ = r.ledger.AppendEvent(sessionID, "job_queued", j)
@@ -615,14 +626,15 @@ func (r *Runner) executeJob(j *Job) {
 // call this — kept reservations are the spend.
 func (r *Runner) releaseReservation(jobID string) {
 	var tenant, sessionID string
-	var amount float64
+	var amountMicro int64
 	err := r.ledger.DB().QueryRow(
-		`SELECT reserved_tenant, reserved_amount, session_id FROM jobs WHERE id = ?`, jobID).Scan(&tenant, &amount, &sessionID)
-	if err != nil || tenant == "" || amount <= 0 {
+		`SELECT reserved_tenant, reserved_amount_micro_usd, session_id FROM jobs WHERE id = ?`, jobID).Scan(&tenant, &amountMicro, &sessionID)
+	if err != nil || tenant == "" || amountMicro <= 0 {
 		return
 	}
+	amount := money.MicroUSD(amountMicro).USD()
 	res, err := r.ledger.DB().Exec(
-		`UPDATE jobs SET reserved_amount = 0 WHERE id = ? AND reserved_amount > 0`, jobID)
+		`UPDATE jobs SET reserved_amount_micro_usd = 0, reserved_amount = 0 WHERE id = ? AND reserved_amount_micro_usd > 0`, jobID)
 	if err != nil {
 		return
 	}

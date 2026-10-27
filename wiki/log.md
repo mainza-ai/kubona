@@ -3420,3 +3420,8 @@ skipped is the exact failure this incident is about:
   - Added pkg/money (exact micro-USD, rounding/overflow/invalid refusal) and micro columns for sessions/tenants with an idempotent legacy backfill. Micro is authoritative; REAL remains a compatibility projection updated in the same statement.
   - Session/tenant reserve/release/refund now use guarded integer arithmetic (no epsilon), and reads project micro to USD at the boundary. A 10k x $0.000001 test proves exactness and zero dust.
   - Remaining: job/loop reservation columns are still REAL (converted at the session/tenant boundary); migrate those next.
+
+## [2026-10-27] decision | Job reservations join the micro-USD books
+
+  - jobs gain reserved_amount_micro_usd with an idempotent legacy backfill; SubmitJob and RecordQuantumBridgeJob write micro, releaseReservation reads/zeros micro and releases the exact converted amount, and import restores micro from the manifest.
+  - Remaining REAL money: loop reserved/consumed amounts (next), and the REAL projection columns (remove after all reads migrate).

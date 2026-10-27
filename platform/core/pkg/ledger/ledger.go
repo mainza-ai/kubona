@@ -143,6 +143,7 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 		completed_at DATETIME,
 		reserved_tenant TEXT NOT NULL DEFAULT '',
 		reserved_amount REAL NOT NULL DEFAULT 0,
+		reserved_amount_micro_usd INTEGER NOT NULL DEFAULT 0,
 		compiler_used TEXT NOT NULL DEFAULT '',
 		fallback_estimate INTEGER NOT NULL DEFAULT 0,
 		mandate_ref TEXT NOT NULL DEFAULT '',
@@ -281,6 +282,8 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 	_, _ = db.Exec(`ALTER TABLE tenants ADD COLUMN spent_usd REAL NOT NULL DEFAULT 0`)
 	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN reserved_tenant TEXT NOT NULL DEFAULT ''`)
 	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN reserved_amount REAL NOT NULL DEFAULT 0`)
+	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN reserved_amount_micro_usd INTEGER NOT NULL DEFAULT 0`)
+	_, _ = db.Exec(`UPDATE jobs SET reserved_amount_micro_usd = CAST(ROUND(reserved_amount * 1000000) AS INTEGER) WHERE reserved_amount_micro_usd = 0 AND reserved_amount > 0`)
 	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN compiler_used TEXT NOT NULL DEFAULT ''`)
 	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN fallback_estimate INTEGER NOT NULL DEFAULT 0`)
 	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN mandate_ref TEXT NOT NULL DEFAULT ''`)
