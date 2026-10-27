@@ -16,6 +16,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
+	"sort"
 	"strings"
 	"time"
 
@@ -370,6 +372,15 @@ func (m *Manager) ImportSession(man *SessionManifest) (*ImportResult, error) {
 	if man.Session.ID == "" {
 		return nil, fmt.Errorf("manifest session has no id")
 	}
+	if math.IsNaN(man.Session.SpendLimitUSD) || math.IsInf(man.Session.SpendLimitUSD, 0) ||
+		math.IsNaN(man.Session.CurrentSpendUSD) || math.IsInf(man.Session.CurrentSpendUSD, 0) ||
+		man.Session.SpendLimitUSD < 0 || man.Session.CurrentSpendUSD < 0 {
+		return nil, fmt.Errorf("manifest session spend fields must be finite and non-negative")
+	}
+	if man.Session.CurrentSpendUSD > man.Session.SpendLimitUSD+1e-9 {
+		return nil, fmt.Errorf("manifest current_spend_usd %.6f exceeds its ceiling %.6f: refusing negative books",
+			man.Session.CurrentSpendUSD, man.Session.SpendLimitUSD)
+	}
 	// Validate FIRST, before the existence short-circuit below: a
 	// tampered manifest must refuse even when its session already lives
 	// here (replay-by-existence must never launder corrupt bytes).
@@ -532,9 +543,30 @@ func (m *Manager) ImportSession(man *SessionManifest) (*ImportResult, error) {
 			return nil, fmt.Errorf("import loop %s: %w", p.ID, err)
 		}
 	}
-	for _, e := range man.Events {
+	// Import is oldest-first: export returns newest-first (GetRecentEvents),
+	// and inserting in that order silently reversed the hash chain. Sort a
+	// COPY (never mutate the caller's manifest — its digests are computed
+	// over the original order) so a round-trip preserves VerifyChain.
+	events := append([]ledger.EventRecord(nil), man.Events...)
+	sort.SliceStable(events, func(i, j int) bool { return events[i].ID < events[j].ID })
+	for idx, e := range events {
 		if e.SessionID != s.ID {
 			return nil, fmt.Errorf("import event %d names foreign session %q", e.ID, e.SessionID)
+		}
+		if !ledger.IsKnownEventType(e.EventType) {
+			return nil, fmt.Errorf("import event %d has unregistered type %q", e.ID, e.EventType)
+		}
+		// entry_hash is deliberately not recomputed here: export/import
+		// goes through JSON encoding, which may normalise payload bytes
+		// (HTML escaping/compaction), so a byte-exact recompute would
+		// reject legitimate manifests. The section digest (validated
+		// above) pins content; the link + type + signature checks below
+		// pin ordering and authority.
+		if idx > 0 && e.PrevHash != events[idx-1].EntryHash {
+			return nil, fmt.Errorf("import event %d prev_hash %q does not link to the previous imported event", e.ID, e.PrevHash)
+		}
+		if ledger.CommitEventTypes[e.EventType] && (e.SignerPubkey == "" || e.Signature == "") {
+			return nil, fmt.Errorf("import event %d is commit-class %q but unsigned: refusing forged authority", e.ID, e.EventType)
 		}
 		var idExists int
 		_ = tx.QueryRow(`SELECT COUNT(*) FROM ledger_events WHERE id = ?`, e.ID).Scan(&idExists)

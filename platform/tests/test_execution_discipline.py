@@ -69,3 +69,49 @@ def test_zne_args_validated():
     assert out["ok"] is False
     out = exec_server.run_zne_job(BELL, noise_rate=2.0)
     assert out["ok"] is False
+
+
+def test_prevendor_failure_refunds_reservation(monkeypatch):
+    """2026-10-26 audit PYC-01: a missing credential must not bill the lab.
+
+    Forced async for non-simulators; poll the persisted job, then assert the
+    session spend returned to zero.
+    """
+    import time
+    monkeypatch.delenv("KUBONA_IBM_QISKIT_TOKEN", raising=False)
+    sess = cost_server.create_session("refund-drill", "researcher", budget_ceiling_usd=100.0)
+    sid = sess["session_id"]
+    out = exec_server.submit_job(BELL, provider="ibm-qiskit", shots=64,
+                                 session_id=sid, caller_jurisdictions=["US"], wait=True)
+    assert out["ok"] is True, out
+    job_id = out["job_id"]
+    status = None
+    for _ in range(200):
+        st = exec_server.get_job_status(job_id)
+        status = st.get("status")
+        if status in ("failed", "completed", "cancelled"):
+            break
+        time.sleep(0.05)
+    assert status == "failed", status
+    assert exec_server.session_status(sid)["spent_usd"] == 0, \
+        "pre-vendor failure must refund the reservation"
+
+
+def test_idempotent_replay_returns_same_job():
+    sess = cost_server.create_session("idem-replay", "researcher", budget_ceiling_usd=50.0)
+    sid = sess["session_id"]
+    first = exec_server.submit_job(BELL, provider="local-simulator", shots=32,
+                                   session_id=sid, idempotency_key="idem-1",
+                                   idempotency_body_hash="body-a")
+    assert first["ok"] is True, first
+    replay = exec_server.submit_job(BELL, provider="local-simulator", shots=32,
+                                    session_id=sid, idempotency_key="idem-1",
+                                    idempotency_body_hash="body-a")
+    assert replay["ok"] is True
+    assert replay["idempotent_replay"] is True
+    assert replay["job_id"] == first["job_id"]
+    mismatch = exec_server.submit_job(BELL, provider="local-simulator", shots=32,
+                                      session_id=sid, idempotency_key="idem-1",
+                                      idempotency_body_hash="body-b")
+    assert mismatch["ok"] is False
+    assert "different request body" in mismatch["error"]
