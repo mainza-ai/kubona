@@ -278,6 +278,11 @@ class WorkloadSandbox:
                 f.write(_SANDBOX_PREAMBLE + code_str)
 
             if os.getenv("KUBONA_SANDBOX_CONTAINER") == "1":
+                # The container runs as UID 1000 (sandbox); a 0700 host
+                # tmpdir bind-mounts as unreadable on a real Linux runner
+                # (Docker Desktop masks this locally). Grant read-only.
+                os.chmod(tmpdir, 0o755)
+                os.chmod(script_path, 0o644)
                 image = os.getenv("KUBONA_SANDBOX_IMAGE", "kubona-quantum-runner:1.1.0")
                 if shutil.which("docker") is None:
                     return SandboxResult(success=False, returncode=-1, stdout="",
