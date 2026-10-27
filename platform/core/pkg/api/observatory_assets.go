@@ -143,6 +143,10 @@ func artifactsDir() (string, error) {
 }
 
 func (s *Server) handleObservatoryLensResolve(w http.ResponseWriter, r *http.Request) {
+	if !atlasLensEnabled() {
+		WriteAPIError(w, "feature_disabled", "optional Atlas lens disabled: set KUBONA_ATLAS_ENABLED=1 to opt in", nil)
+		return
+	}
 	if r.Method != http.MethodPost {
 		WriteAPIError(w, "method_not_allowed", "POST required to resolve a lens operation", nil)
 		return

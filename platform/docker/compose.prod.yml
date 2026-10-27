@@ -29,6 +29,7 @@ services:
     expose:
       - "50051"
     environment:
+      KUBONA_ENV: "production"
       # The bridge is a private compute plane. Binding 0.0.0.0 is only
       # allowed because every RPC then requires this bearer; kubonad
       # presents it. If both tokens are unset the bridge refuses to start
@@ -55,6 +56,10 @@ services:
     image: kubona/kubonad:prod
     command: ["--bind", "0.0.0.0", "--port", "8080", "--bridge", "bridge:50051"]
     environment:
+      KUBONA_ENV: "production"
+      # Explicit single-lab posture (Q-57). Set to "0" for a multi-lab
+      # deployment; anonymous session reads then require auth.
+      KUBONA_SINGLE_LAB: ${KUBONA_SINGLE_LAB:-1}
       KUBONA_API_TOKEN: ${KUBONA_API_TOKEN:-}
       # Shared secret for the private bridge RPCs. Defaults to the API
       # token so the supported quickstart needs one value, not two.

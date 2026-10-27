@@ -17,7 +17,7 @@
   <a href="platform/tests/"><img src="https://img.shields.io/badge/Tests-1000%2B%20Passed-brightgreen" alt="Tests" /></a>
   <a href="wiki/concepts/local-simulation-test-scenarios.md"><img src="https://img.shields.io/badge/Simulation-%240.00%20(Zero--QPU)-success" alt="Simulation" /></a>
   <a href="wiki/"><img src="https://img.shields.io/badge/Wiki-151%20Pages-purple?logo=obsidian&logoColor=white" alt="Obsidian Knowledge Base" /></a>
-  <a href="wiki/questions.md"><img src="https://img.shields.io/badge/Blueprint-9%20Open%20Decisions-orange" alt="Open Decisions" /></a>
+  <a href="wiki/questions.md"><img src="https://img.shields.io/badge/Blueprint-3%20Open%20Decisions-orange" alt="Open Decisions" /></a>
   <a href="https://www.linkedin.com/in/mainza-kangombe-6214295"><img src="https://img.shields.io/badge/Author-Mainza%20Kangombe-0A66C2?logo=linkedin&logoColor=white" alt="Author" /></a>
 </p>
 
@@ -133,7 +133,7 @@ These are not aspirations. The ledger is sealed, the refusal paths are tested, a
 | [`platform/console/`](platform/console/) | **Sovereign Console** | Next.js sovereign UI on `:3000` with six dock surfaces plus proof/mesh panels (Spatial Canvas, Flight Recorder, Epistemic Tribunal, Codesign Cockpit) and Ed25519 signing via `@noble/ed25519`. |
 | [`platform/kubona/`](platform/kubona/) | **Python Runtime** | Agent execution runtime, single-tape analytical mixed-state autodiff (`diff_stack`), refuted-genome transfer priors (`autoresearch`), and dual-model register packing (`codesign`). |
 | [`platform/bridge/`](platform/bridge/) | **Quantum Bridge** | PySCF, Qiskit Aer, and PennyLane bridge with typed gRPC and Unix Domain Socket RPCs (`unix://...`) for chemical anchors, circuit cutting, and hardware dispatch. |
-| [`wiki/`](wiki/) | **Obsidian Knowledge Base** | Living blueprint (153 pages; nine open production decisions in [`questions.md`](wiki/questions.md) §F) cataloging entities, concepts, source audits, and settled invariants. |
+| [`wiki/`](wiki/) | **Obsidian Knowledge Base** | Living blueprint (153 pages; three open product/finance decisions in [`questions.md`](wiki/questions.md) §F) cataloging entities, concepts, source audits, and settled invariants. |
 | [`raw/`](raw/) | **Immutable Sources** | Read-only ingested source documents, architecture papers, and implementation plans. |
 | [`scripts/`](scripts/) | **Tooling & CI** | Automated structural wiki linting (`scripts/wiki-lint.py`), DCO check, and secret scanners. |
 | [`assets/misc/`](assets/misc/) | **Media & Presentations** | Platform overview infographic and executive presentation deck. |
