@@ -3414,3 +3414,9 @@ skipped is the exact failure this incident is about:
 ## [2026-10-27] decision | Tenant-scoped event attribution
 
   - resolveTenantLocked now falls back to a tenant row when the session id is a tenant id, so tenant-scoped events keep tenant/lab attribution instead of defaulting to "default" (audit GOD-07). Test pins the row.
+
+## [2026-10-27] decision | Integer micro-USD books for sessions and tenants
+
+  - Added pkg/money (exact micro-USD, rounding/overflow/invalid refusal) and micro columns for sessions/tenants with an idempotent legacy backfill. Micro is authoritative; REAL remains a compatibility projection updated in the same statement.
+  - Session/tenant reserve/release/refund now use guarded integer arithmetic (no epsilon), and reads project micro to USD at the boundary. A 10k x $0.000001 test proves exactness and zero dust.
+  - Remaining: job/loop reservation columns are still REAL (converted at the session/tenant boundary); migrate those next.

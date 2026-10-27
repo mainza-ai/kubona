@@ -27,6 +27,7 @@ import (
 
 	"github.com/mainza-ai/kubona/core/pkg/autoresearch"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/money"
 	"github.com/mainza-ai/kubona/core/pkg/supervisor"
 	pb "github.com/mainza-ai/kubona/core/proto"
 )
@@ -568,8 +569,16 @@ func (m *Manager) ImportSession(man *SessionManifest) (*ImportResult, error) {
 		return e
 	}
 	s := man.Session
-	if err := exec(`INSERT INTO sessions (id, title, tenant_id, created_at, updated_at, status, spend_limit_usd, current_spend_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		s.ID, s.Title, s.TenantID, s.CreatedAt.UTC().Format(time.RFC3339), s.UpdatedAt.UTC().Format(time.RFC3339), s.Status, s.SpendLimitUSD, s.CurrentSpendUSD); err != nil {
+	limitMicro, lerr := money.FromUSD(s.SpendLimitUSD)
+	if lerr != nil {
+		return nil, fmt.Errorf("import session spend limit: %w", lerr)
+	}
+	spendMicro, serr := money.FromUSD(s.CurrentSpendUSD)
+	if serr != nil {
+		return nil, fmt.Errorf("import session spend: %w", serr)
+	}
+	if err := exec(`INSERT INTO sessions (id, title, tenant_id, created_at, updated_at, status, spend_limit_usd, current_spend_usd, spend_limit_micro_usd, current_spend_micro_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		s.ID, s.Title, s.TenantID, s.CreatedAt.UTC().Format(time.RFC3339), s.UpdatedAt.UTC().Format(time.RFC3339), s.Status, s.SpendLimitUSD, s.CurrentSpendUSD, int64(limitMicro), int64(spendMicro)); err != nil {
 		return nil, fmt.Errorf("import session row: %w", err)
 	}
 	for _, msg := range man.Messages {

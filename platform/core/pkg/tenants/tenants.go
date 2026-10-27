@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/money"
 )
 
 var (
@@ -129,9 +130,13 @@ func (m *Manager) CreateTenant(id, displayName string) (*Tenant, error) {
 		Status:          "active",
 		CreatedAt:       time.Now().UTC(),
 	}
+	ceilingMicro, cerr := money.FromUSD(t.SpendCeilingUSD)
+	if cerr != nil {
+		return nil, fmt.Errorf("tenant ceiling: %w", cerr)
+	}
 	_, err := m.ledger.DB().Exec(
-		`INSERT INTO tenants (id, display_name, admin_pubkey_hex, autonomy_level, spend_ceiling_usd, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		t.ID, t.DisplayName, t.AdminPubkeyHex, t.AutonomyLevel, t.SpendCeilingUSD, t.Status, t.CreatedAt,
+		`INSERT INTO tenants (id, display_name, admin_pubkey_hex, autonomy_level, spend_ceiling_usd, spent_usd, spend_ceiling_micro_usd, spent_micro_usd, status, created_at) VALUES (?, ?, ?, ?, ?, 0, ?, 0, ?, ?)`,
+		t.ID, t.DisplayName, t.AdminPubkeyHex, t.AutonomyLevel, t.SpendCeilingUSD, int64(ceilingMicro), t.Status, t.CreatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tenant: %w", err)
@@ -143,12 +148,12 @@ func (m *Manager) CreateTenant(id, displayName string) (*Tenant, error) {
 // GetTenant loads a tenant by id.
 func (m *Manager) GetTenant(id string) (*Tenant, error) {
 	row := m.ledger.DB().QueryRow(
-		`SELECT id, display_name, admin_pubkey_hex, autonomy_level, spend_ceiling_usd, spent_usd, status, created_at FROM tenants WHERE id = ?`, id)
-	var t Tenant
-	if err := row.Scan(&t.ID, &t.DisplayName, &t.AdminPubkeyHex, &t.AutonomyLevel, &t.SpendCeilingUSD, &t.SpentUSD, &t.Status, &t.CreatedAt); err != nil {
+		`SELECT id, display_name, admin_pubkey_hex, autonomy_level, spend_ceiling_micro_usd, spent_micro_usd, status, created_at FROM tenants WHERE id = ?`, id)
+	t, err := scanTenant(row)
+	if err != nil {
 		return nil, ErrTenantNotFound
 	}
-	return &t, nil
+	return t, nil
 }
 
 // verifyAdmin checks the action envelope against the tenant's admin key.
@@ -232,7 +237,11 @@ func (m *Manager) SetCeiling(action *AdminAction, ceilingUSD float64) (*Tenant, 
 	if ceilingUSD <= 0 {
 		return nil, fmt.Errorf("ceiling must be positive")
 	}
-	if _, err := m.ledger.DB().Exec(`UPDATE tenants SET spend_ceiling_usd = ? WHERE id = ?`, ceilingUSD, t.ID); err != nil {
+	ceilingMicro, cerr := money.FromUSD(ceilingUSD)
+	if cerr != nil {
+		return nil, fmt.Errorf("ceiling: %w", cerr)
+	}
+	if _, err := m.ledger.DB().Exec(`UPDATE tenants SET spend_ceiling_usd = ?, spend_ceiling_micro_usd = ? WHERE id = ?`, ceilingUSD, int64(ceilingMicro), t.ID); err != nil {
 		return nil, err
 	}
 	m.ledger.AppendEvent(t.ID, "tenant_ceiling_changed", map[string]any{"tenant_id": t.ID, "spend_ceiling_usd": ceilingUSD, "admin_fp": Fingerprint(action.PubkeyHex)})
@@ -265,9 +274,13 @@ func (m *Manager) RefundSpend(action *AdminAction, tenantID string, amountUSD fl
 	if reason == "" {
 		return nil, fmt.Errorf("refund needs a reason: unexplained money movement refused")
 	}
+	amountMicro, cerr := money.FromUSD(amountUSD)
+	if cerr != nil {
+		return nil, ErrInvalidAmount
+	}
 	res, err := m.ledger.DB().Exec(
-		`UPDATE tenants SET spent_usd = MAX(0, spent_usd - ?) WHERE id = ? AND spent_usd + 1e-9 >= ?`,
-		amountUSD, tenantID, amountUSD)
+		`UPDATE tenants SET spent_micro_usd = spent_micro_usd - ?, spent_usd = (spent_micro_usd - ?) / 1000000.0 WHERE id = ? AND spent_micro_usd >= ?`,
+		int64(amountMicro), int64(amountMicro), tenantID, int64(amountMicro))
 	if err != nil {
 		return nil, fmt.Errorf("spend refund failed: %w", err)
 	}
@@ -342,18 +355,18 @@ func (m *Manager) SetStatus(action *AdminAction, status string) (*Tenant, error)
 // trust roots from admin keys).
 func (m *Manager) ListTenants() ([]Tenant, error) {
 	rows, err := m.ledger.DB().Query(
-		`SELECT id, display_name, admin_pubkey_hex, autonomy_level, spend_ceiling_usd, spent_usd, status, created_at FROM tenants ORDER BY id`)
+		`SELECT id, display_name, admin_pubkey_hex, autonomy_level, spend_ceiling_micro_usd, spent_micro_usd, status, created_at FROM tenants ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	var out []Tenant
 	for rows.Next() {
-		var t Tenant
-		if err := rows.Scan(&t.ID, &t.DisplayName, &t.AdminPubkeyHex, &t.AutonomyLevel, &t.SpendCeilingUSD, &t.SpentUSD, &t.Status, &t.CreatedAt); err != nil {
+		t, err := scanTenant(rows)
+		if err != nil {
 			return nil, err
 		}
-		out = append(out, t)
+		out = append(out, *t)
 	}
 	return out, rows.Err()
 }
@@ -361,6 +374,22 @@ func (m *Manager) ListTenants() ([]Tenant, error) {
 // validAmount rejects negative/NaN/Inf spend (W0.7): NaN comparisons are
 // all false, so an unvalidated NaN sails through every ceiling check and
 // poisons spent_usd in SQL. Zero is a valid no-op probe (liveness only).
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+func scanTenant(sc rowScanner) (*Tenant, error) {
+	var t Tenant
+	var ceilingMicro, spentMicro int64
+	if err := sc.Scan(&t.ID, &t.DisplayName, &t.AdminPubkeyHex, &t.AutonomyLevel,
+		&ceilingMicro, &spentMicro, &t.Status, &t.CreatedAt); err != nil {
+		return nil, err
+	}
+	t.SpendCeilingUSD = money.MicroUSD(ceilingMicro).USD()
+	t.SpentUSD = money.MicroUSD(spentMicro).USD()
+	return &t, nil
+}
+
 func validAmount(amountUSD float64) error {
 	if math.IsNaN(amountUSD) || math.IsInf(amountUSD, 0) || amountUSD < 0 {
 		return ErrInvalidAmount
@@ -401,9 +430,13 @@ func (m *Manager) ReserveSpend(tenantID string, amountUSD float64) error {
 	if amountUSD == 0 {
 		return m.CheckSpend(tenantID, 0)
 	}
+	amountMicro, cerr := money.FromUSD(amountUSD)
+	if cerr != nil {
+		return ErrInvalidAmount
+	}
 	res, err := m.ledger.DB().Exec(
-		`UPDATE tenants SET spent_usd = spent_usd + ? WHERE id = ? AND status = 'active' AND spent_usd + ? <= spend_ceiling_usd AND ? <= spend_ceiling_usd`,
-		amountUSD, tenantID, amountUSD, amountUSD)
+		`UPDATE tenants SET spent_micro_usd = spent_micro_usd + ?, spent_usd = (spent_micro_usd + ?) / 1000000.0 WHERE id = ? AND status = 'active' AND spent_micro_usd + ? <= spend_ceiling_micro_usd AND ? <= spend_ceiling_micro_usd`,
+		int64(amountMicro), int64(amountMicro), tenantID, int64(amountMicro), int64(amountMicro))
 	if err != nil {
 		return fmt.Errorf("spend reservation failed: %w", err)
 	}
@@ -443,9 +476,13 @@ func (m *Manager) ReleaseSpend(tenantID string, amountUSD float64) error {
 	if amountUSD == 0 {
 		return nil
 	}
+	amountMicro, cerr := money.FromUSD(amountUSD)
+	if cerr != nil {
+		return ErrInvalidAmount
+	}
 	res, err := m.ledger.DB().Exec(
-		`UPDATE tenants SET spent_usd = MAX(0, spent_usd - ?) WHERE id = ? AND spent_usd + 1e-9 >= ?`,
-		amountUSD, tenantID, amountUSD)
+		`UPDATE tenants SET spent_micro_usd = spent_micro_usd - ?, spent_usd = (spent_micro_usd - ?) / 1000000.0 WHERE id = ? AND spent_micro_usd >= ?`,
+		int64(amountMicro), int64(amountMicro), tenantID, int64(amountMicro))
 	if err != nil {
 		return fmt.Errorf("spend release failed: %w", err)
 	}

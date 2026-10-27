@@ -55,10 +55,10 @@ func TestLoopSettleOrphansTerminal(t *testing.T) {
 	sess := drillSession(t, srv, "settle-me", "lab-a", "test-token")
 
 	// Real holds on both rails (mirrors ReserveSpend's effect).
-	if _, err := l.DB().Exec(`UPDATE tenants SET spent_usd = 5 WHERE id = 'lab-a'`); err != nil {
+	if _, err := l.DB().Exec(`UPDATE tenants SET spent_usd = 5, spent_micro_usd = 5000000 WHERE id = 'lab-a'`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := l.DB().Exec(`UPDATE sessions SET current_spend_usd = 5 WHERE id = ?`, sess); err != nil {
+	if _, err := l.DB().Exec(`UPDATE sessions SET current_spend_usd = 5, current_spend_micro_usd = 5000000 WHERE id = ?`, sess); err != nil {
 		t.Fatal(err)
 	}
 	seed := func(id, status string, reserved float64) {
