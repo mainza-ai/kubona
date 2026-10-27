@@ -3,42 +3,38 @@
 import React, { useState } from 'react';
 import { CheckCircle2, ShieldCheck, GitBranch, Terminal } from 'lucide-react';
 
+export interface Lean4ProofStep {
+  step: number;
+  tactic: string;
+  state: string;
+  note: string;
+}
+
 interface Lean4GoalTreeInspectorWidgetProps {
   theoremName?: string;
   theoremSignature?: string;
   astHash?: string;
+  // A real comparator receipt must supply the tactic trace, axioms, and
+  // sorryAx count. Without them this widget renders the empty state; there
+  // is no illustrative proof chrome (2026-10-26 audit P0-10).
+  proofSteps?: Lean4ProofStep[];
+  axioms?: string[];
+  sorryAx?: number;
 }
-
-const FALLBACK_STEPS = [
-  {
-    step: 1,
-    tactic: 'intro S hS',
-    state: '1 goal\nS : Spin\nhS : S >= 1/2\n⊢ E_0 / (N * J) <= -1.5',
-    note: 'Introduces spin magnitude and hypothesis.',
-  },
-  {
-    step: 2,
-    tactic: 'apply heisenberg_ground_state_exact_bound S hS',
-    state: '1 goal\nS : Spin\nhS : S >= 1/2\n⊢ sum (neighbors i j) (S_i · S_j) <= -1.5 * N * J',
-    note: 'Invokes Family 271 exact ferromagnetic lattice inequality.',
-  },
-  {
-    step: 3,
-    tactic: 'exact cubic_lattice_exchange_closure',
-    state: 'Goals accomplished! 🎉',
-    note: 'Axioms strictly verified: {propext, Quot.sound, Classical.choice}. No sorryAx.',
-  },
-];
 
 export function Lean4GoalTreeInspectorWidget({
   theoremName,
   theoremSignature,
   astHash,
+  proofSteps: suppliedSteps,
+  axioms,
+  sorryAx,
 }: Lean4GoalTreeInspectorWidgetProps) {
   const [selectedTacticIndex, setSelectedTacticIndex] = useState(2);
   // No hardcoded Bloch/tactics/rho without a live receipt: without all three
   // props the widget renders an empty state, never illustrative proof chrome.
-  const hasReceipt = theoremName != null && theoremSignature != null && astHash != null;
+  const hasReceipt = theoremName != null && theoremSignature != null && astHash != null
+    && Array.isArray(suppliedSteps) && suppliedSteps.length > 0;
   if (!hasReceipt) {
     return (
       <div className="rounded-2xl border border-white/[0.08] bg-black/60 p-5 backdrop-blur-xl text-white space-y-3">
@@ -57,7 +53,7 @@ export function Lean4GoalTreeInspectorWidget({
       </div>
     );
   }
-  const proofSteps = FALLBACK_STEPS;
+  const proofSteps = suppliedSteps ?? [];
 
   return (
     <div className="rounded-2xl border border-white/[0.08] bg-black/60 p-5 backdrop-blur-xl text-white space-y-4">
@@ -75,10 +71,10 @@ export function Lean4GoalTreeInspectorWidget({
         <div className="flex items-center space-x-2">
           <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-[11px] font-mono text-emerald-300 flex items-center space-x-1">
             <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-            <span>ρ = 1.000000</span>
+            <span>{sorryAx === 0 ? 'ρ = 1.000000' : 'ρ = —'}</span>
           </span>
           <span className="px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-[10px] font-mono text-blue-300">
-            0 sorryAx
+            {sorryAx === 0 ? '0 sorryAx' : `${sorryAx ?? '—'} sorryAx`}
           </span>
         </div>
       </div>
@@ -88,6 +84,10 @@ export function Lean4GoalTreeInspectorWidget({
         <code>{theoremSignature}</code>
         <span className="text-[10px] text-white/40 font-mono">{astHash}</span>
       </div>
+
+      {axioms && axioms.length > 0 && (
+        <p className="text-[10px] font-code text-slate-400">axioms: {axioms.join(', ')}</p>
+      )}
 
       {/* Proof Tree & Tactic States */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

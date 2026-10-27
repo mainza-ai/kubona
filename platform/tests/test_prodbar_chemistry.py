@@ -146,8 +146,8 @@ def test_table_anchor_version_provenance_full_precision():
     from kubona.anchors.chemistry import TABLE_ANCHOR_VERSION_V1, MolecularAnchorEngine
     eng = MolecularAnchorEngine()
     d = eng.compute_table_anchor("H2").to_dict()
-    assert d["table_version"] == TABLE_ANCHOR_VERSION_V1
-    assert "tabulated" in d["provenance"]
+    assert d["table_version"] in (TABLE_ANCHOR_VERSION_V1, "live-pyscf")
+    assert "tabulated" in d["provenance"] or d["provenance"].startswith("pyscf-live")
     # Full precision, not round(x, 6).
     assert d["fci_energy_hartree"] != round(d["fci_energy_hartree"], 6) \
         or d["fci_energy_hartree"] == eng.compute_table_anchor("H2").fci_energy_hartree

@@ -90,8 +90,13 @@ class MolecularAnchorEngine:
             "g3": 0.1686,
             "g4": 0.0453,
             "g5": 0.0453,
-            "rhf_energy": -1.050,  # Classical Hartree-Fock energy (-1.050 Ha > FCI -1.0718 Ha)
+            "rhf_energy": -1.116684,  # PySCF RHF/STO-3G at R=0.7414 A
             "qubits": 2,
+            # The table coefficients above are retained as documentation, but
+            # the authoritative path is a live PySCF RHF+FCI solve at the
+            # requested geometry (2026-10-26 audit P0-8: the fixed table was
+            # 65 mHa wrong and ignored bond_distance).
+            "solver": "pyscf-h2",
         },
     }
 
@@ -127,6 +132,9 @@ class MolecularAnchorEngine:
             raise ValueError(f"bond_distance must be finite > 0, got {bond_distance!r}")
         qubits = data["qubits"]
 
+        if data.get("solver") == "pyscf-h2":
+            return self._solve_h2_pyscf(r)
+
         # Exact Hamiltonian matrix construction for Jordan-Wigner mapped 2-qubit active space
         if qubits == 2:
             I = np.eye(2)
@@ -160,6 +168,40 @@ class MolecularAnchorEngine:
             rhf_energy_hartree=rhf_energy,
             fci_energy_hartree=fci_energy,
             active_space_qubits=qubits,
+        )
+
+    def _solve_h2_pyscf(self, r: float) -> MolecularAnchor:
+        """Live RHF + FCI for H2/STO-3G at the requested bond length.
+
+        Fail-closed if PySCF is absent: a fixed table cannot answer a
+        geometry it was not computed for, and the old table was 65 mHa off.
+        """
+        try:
+            from pyscf import fci, gto, scf
+        except ImportError as exc:  # pragma: no cover — chemistry extra absent
+            raise RuntimeError(
+                "live H2 anchor requires PySCF (install kubona[chemistry]); "
+                "refusing to serve a fixed table for an arbitrary geometry"
+            ) from exc
+        mol = gto.M(
+            atom=f"H 0 0 0\nH 0 0 {r:.8f}",
+            basis="STO-3G",
+            unit="Angstrom",
+            verbose=0,
+        )
+        mf = scf.RHF(mol).run()
+        cisolver = fci.FCI(mol, mf.mo_coeff)
+        e_fci, _ = cisolver.kernel()
+        return MolecularAnchor(
+            system_name="H2",
+            geometry_description=f"H2 R={r:.4f}A",
+            basis="STO-3G",
+            rhf_energy_hartree=float(mf.e_tot),
+            fci_energy_hartree=float(e_fci),
+            active_space_qubits=2,
+            classical_method="PySCF RHF + FCI (STO-3G)",
+            table_version="live-pyscf",
+            provenance="pyscf-live: RHF+FCI solved at the requested geometry",
         )
 
     def compute_anchor(self, molecule: str,

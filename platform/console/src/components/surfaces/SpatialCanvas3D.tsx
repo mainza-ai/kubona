@@ -1101,13 +1101,13 @@ export function SpatialCanvas3D({
             Re: {equilibriumR.toFixed(4)} Å
           </span>
           <span className="text-white/20">|</span>
-          <span className="font-code text-[11px] text-slate-300">
-            FCI Anchor: {fciGround.toFixed(4)} Ha
+          <span className="font-code text-[11px] text-slate-300" title={anchorComputed ? 'Computed classical anchor' : 'No computed anchor: terrain is illustrative'}>
+            FCI Anchor: {anchorComputed ? `${fciGround.toFixed(4)} Ha` : 'UNVERIFIED'}
           </span>
           <span className="text-white/20">|</span>
           <div className="flex items-center gap-1.5 text-[11px] font-code text-amber-300">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>{`ρ = ${rho.toFixed(2)}`}</span>
+            <span>{campaign?.epistemics?.p_correlated != null ? `ρ = ${rho.toFixed(2)}` : 'ρ = —'}</span>
           </div>
           <span className="text-white/20">|</span>
           <span className="font-code text-[11px] text-slate-400" title="Measured render-loop rate (R-23)">

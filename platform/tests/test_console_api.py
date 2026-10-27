@@ -185,7 +185,7 @@ def test_science_discovery_endpoints():
         "target_system": "FeMoco",
         "lean4_verified": True,
         "zero_axiom_cheating": True,
-        "verification_mode": "static_ast_containment",
+        "verification_mode": "live_kernel_proven",
         "comparator_ledger_ref": "ledger:comparator:abc123",
         "anchor_ledger_ref": "ledger:anchor:def456",
         "krylov_ledger_ref": "ledger:krylov:ghi789",
@@ -201,8 +201,8 @@ def test_science_discovery_endpoints():
     assert trib_res["verdict"] == "COMMITTED_TO_LEDGER"
     assert len(trib_res["votes"]) == 6
     prover = next(v for v in trib_res["votes"] if v["persona_id"] == "prover-01")
-    assert prover["verification_mode"] == "static_ast_containment"
-    assert "not kernel-proved" in prover["rationale"]
+    assert prover["verification_mode"] == "live_kernel_proven"
+    assert "machine-checked" in prover["rationale"]
 
     # 6b. Unattested evidence must falsify, never silently commit: the same
     # hypothesis with no refs must come back below quorum and rejected.

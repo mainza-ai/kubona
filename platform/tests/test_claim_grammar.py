@@ -161,11 +161,10 @@ def test_worked_vqe_credibility_example():
     assert "policy_digest" in payload and "quantum_provenance" in payload
 
     # The record's rho flows into a report claim's credibility field.
-    # Recalibrated 2026-10-17: the old test hardcoded classical_anchor_value
-    # -1.137 (a stale bridge number) while the engine's H2 FCI anchor is
-    # -1.0718. The claim now derives the anchor value from the engine itself
-    # (delta recomputed from anchor values, never caller-supplied), with the
-    # 95% interval centered on the measured VQE energy.
+    # 2026-10-26 audit P0-8: the H2 anchor is now a live PySCF RHF+FCI
+    # solve (-1.13727 Ha at R=0.7414 A). The claim derives the anchor value
+    # from the engine itself (delta recomputed, never caller-supplied), so
+    # the earlier -1.0718 table value can never come back unnoticed.
     anchor_fci = anchor.fci_energy_hartree
     claim = ScientificClaim(
         **_base_claim(
