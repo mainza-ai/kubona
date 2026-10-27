@@ -606,8 +606,12 @@ func (m *Manager) ImportSession(man *SessionManifest) (*ImportResult, error) {
 		// Empty datetimes store as NULL (SubmitJob semantics: nil time, not
 		// ""). The driver parses DATETIME columns, so "" would read back
 		// as zero-time and break round-trip digests.
-		if err := exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, result_json, created_at, completed_at, reserved_tenant, reserved_amount, compiler_used, fallback_estimate, mandate_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			j.ID, s.ID, j.Status, j.JobType, j.ParamsJSON, j.ResultJSON, nullDatetime(j.CreatedAt), nullDatetime(j.CompletedAt), j.ReservedTenant, j.ReservedAmount, j.CompilerUsed, j.FallbackEstimate, j.MandateRef); err != nil {
+		resMicro, merr := money.FromUSD(j.ReservedAmount)
+		if merr != nil {
+			return nil, fmt.Errorf("import job %s reservation: %w", j.ID, merr)
+		}
+		if err := exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, result_json, created_at, completed_at, reserved_tenant, reserved_amount, reserved_amount_micro_usd, compiler_used, fallback_estimate, mandate_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			j.ID, s.ID, j.Status, j.JobType, j.ParamsJSON, j.ResultJSON, nullDatetime(j.CreatedAt), nullDatetime(j.CompletedAt), j.ReservedTenant, j.ReservedAmount, int64(resMicro), j.CompilerUsed, j.FallbackEstimate, j.MandateRef); err != nil {
 			return nil, fmt.Errorf("import job %s: %w", j.ID, err)
 		}
 	}
