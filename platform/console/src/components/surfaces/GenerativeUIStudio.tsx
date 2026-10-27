@@ -131,6 +131,8 @@ export function GenerativeUIStudio({ campaign }: { campaign?: CampaignState | nu
             estimatedCostUsd={typeof qf?.estimated_spend_usd === 'number' ? qf.estimated_spend_usd : (qf ? 0.0 : undefined)}
             targetBackend={qf?.recommended_backend || 'local_simulator'}
             tenantId={campaign?.session_id}
+            sessionId={campaign?.session_id ?? undefined}
+            programQasm={qf?.qasm ?? undefined}
           />
         )}
       </div>

@@ -78,6 +78,21 @@ describe('authorizeSpend (session-bound, priced-packet-only)', () => {
     }
   });
 
+  it('authorizes direct session/program/estimate overrides', async () => {
+    let seen: { job_hash: string } | null = null;
+    const verify = vi.fn().mockImplementation(async (m: { job_hash: string }) => {
+      seen = { job_hash: m.job_hash };
+      return { valid: true };
+    });
+    const res = await authorizeSpend({
+      sessionId: 'sess-1', tenantId: 'lab-alpha', estimatedUsd: 1.5,
+      programQasm: 'OPENQASM 2.0; qreg q[1];',
+    }, { verify: verify as never });
+    expect(res.ok).toBe(true);
+    const { canonicalJobBinding } = await import('./mandates');
+    expect(seen!.job_hash).toBe(canonicalJobBinding('sess-1', 'OPENQASM 2.0; qreg q[1];'));
+  });
+
   it('refuses when the mandate mint throws (fail-closed)', async () => {
     const c = campaign({ estimated_spend_usd: -5 });
     const res = await authorizeSpend({ session: SESSION, campaign: c });

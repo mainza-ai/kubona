@@ -404,7 +404,16 @@ func (r *Runner) SyncQuantumBridgeJobStatus(jobID, bridgeStatus, resultJSON stri
 		)
 		if err == nil {
 			if n, _ := res.RowsAffected(); n > 0 {
-				r.releaseReservation(jobID)
+				// Pre-vendor failures release the reservation. Once a vendor
+				// job id is pinned the hardware may have run, so keep the
+				// charge (Q-51 policy).
+				var meta struct {
+					HardwareJobID string `json:"hardware_job_id"`
+				}
+				_ = json.Unmarshal([]byte(resultJSON), &meta)
+				if meta.HardwareJobID == "" {
+					r.releaseReservation(jobID)
+				}
 				j.Status = pb.JobStatus_JOB_STATUS_FAILED
 				j.ResultJSON = json.RawMessage(resultJSON)
 				j.CompletedAt = &now

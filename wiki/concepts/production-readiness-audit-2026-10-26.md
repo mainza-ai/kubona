@@ -619,15 +619,15 @@ here; only genuine product/finance choices remain open.
 views remain local and free; no Atlas spend or egress happens on a deployment
 that never opts in. Q-39 is therefore Atlas-only and does not gate production.
 
-**Still needs an operator call:**
+**Resolved 2026-10-27 (operator approved the recommended defaults):**
 
-| # | Decision | Recommended default |
+| # | Ruling | Implementation status |
 |---|---|---|
-| Q-50 | Single money authority + exact unit | **Go SQLite is the authority for API/human/quantum dispatch; Python mirrors it. New ledger v2 uses integer micro-USD; migrate existing REAL once.** |
-| Q-51 | Refund policy | **Auto-refund pre-vendor failures; keep post-vendor charges; operator-only partials.** (Pre-vendor auto-refund is already implemented in Python; Go needs the pin-state reconciliation.) |
-| Q-56 | Console auth/key custody | **Cookie sessions are identity; the client Ed25519 key is optional admin-signing material. Move to passkey/non-extractable storage; never a baked bearer.** |
+| Q-50 | **Go SQLite is the single money authority** for API/human/quantum dispatch; Python mirrors it; new ledger v2 uses integer micro-USD. | **Partial:** Go-verified quantum submissions no longer charge the Python mirror (`spend_prepaid`), and Go reconciles the reservation from the status poll. Integer micro-USD columns/migration remain. |
+| Q-51 | **Auto-refund pre-vendor failures; keep post-vendor charges; operator-only partials.** | **Implemented for quantum dispatch:** Go releases a failed/cancelled reservation only when no `hardware_job_id` is pinned; Python skips its own refund for Go-prepaid jobs. Partial-refund UI/policy remains operator-only. |
+| Q-56 | **Cookie sessions are identity; the admin Ed25519 key is optional signing material; no baked bearer; move to passkey/non-extractable storage.** | **Partial:** production builds reject a baked bearer; the mandate card now signs the canonical session+program binding and requires server verification. Passkey/non-extractable custody remains. |
 
-## Execution record — Phase 0 + Phase 1 slice (landed 2026-10-27, uncommitted)
+## Execution record (landed 2026-10-27)
 
 **Phase 0 is complete and verified locally.** The gate can now verify changes:
 the fidelity contract ships in the image, the production image boots, the MCP

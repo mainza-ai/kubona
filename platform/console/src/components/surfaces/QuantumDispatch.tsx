@@ -316,7 +316,9 @@ export function QuantumDispatch({
           actionDescription={`Quantum job on ${provider} (${shots} shots)`}
           estimatedCostUsd={estCost ?? 0}
           targetBackend={provider}
-          onAuthorize={(sig) => setMandateRef(sig)}
+          sessionId={sessionId ?? undefined}
+          programQasm={qasm}
+          onAuthorize={(mandateJson) => setMandateRef(mandateJson)}
         />
       )}
 

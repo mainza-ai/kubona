@@ -5,6 +5,12 @@ import { verifySpendMandate } from './api';
 export interface AuthorizeSpendInput {
   session?: Session | null;
   campaign?: CampaignState | null;
+  // Direct overrides for surfaces that hold the exact program/cost/session
+  // (e.g. QuantumDispatch) instead of a campaign.
+  sessionId?: string;
+  tenantId?: string;
+  estimatedUsd?: number;
+  programQasm?: string;
   ttlSeconds?: number;
 }
 
@@ -38,19 +44,19 @@ export async function authorizeSpend(
   const session = input.session;
   const campaign = input.campaign;
 
-  const sessionId = (session?.id ?? '').trim();
+  const sessionId = (input.sessionId ?? session?.id ?? '').trim();
   if (!sessionId) {
     return { ok: false, reason: 'No session bound — authorization disabled.' };
   }
-  const estimated = campaign?.quantum_factors?.estimated_spend_usd;
+  const estimated = input.estimatedUsd ?? campaign?.quantum_factors?.estimated_spend_usd;
   if (typeof estimated !== 'number' || !Number.isFinite(estimated)) {
     return { ok: false, reason: 'No cost estimate on this campaign — authorization disabled until priced.' };
   }
-  const programQasm = campaign?.quantum_factors?.qasm ?? '';
+  const programQasm = input.programQasm ?? campaign?.quantum_factors?.qasm ?? '';
   if (!programQasm) {
     return { ok: false, reason: 'No program in this campaign — authorization disabled until a circuit is proposed.' };
   }
-  const tenantId = (session?.tenant_id ?? '').trim() || 'tenant-default';
+  const tenantId = (input.tenantId ?? session?.tenant_id ?? '').trim() || 'tenant-default';
   let jobHash: string;
   try {
     jobHash = canonicalJobBinding(sessionId, programQasm);

@@ -377,6 +377,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                 estimate_only=bool(request.dry_run),
                 idempotency_key=request.idempotency_key,
                 idempotency_body_hash=body_hash,
+                spend_prepaid=bool(getattr(request, "session_verified", False)),
             )
             if not out.get("ok"):
                 return kubona_pb2.QuantumSubmitResponse(
@@ -422,10 +423,18 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     ok=False, error_message=str(st.get("error", "unknown job")), job_id=request.job_id,
                     status="", result_json="", estimate_json="")
             res = _exec.get_result(request.job_id)
+            payload: dict = {}
+            hw = st.get("hardware_job_id")
+            if hw:
+                payload["hardware_job_id"] = str(hw)
+            if res.get("ok"):
+                payload["result"] = res.get("result", {})
+            elif res.get("error"):
+                payload["error"] = str(res.get("error"))
             return kubona_pb2.QuantumJobStatusResponse(
                 ok=True, error_message="", job_id=request.job_id,
                 status=st.get("status", ""),
-                result_json=_json.dumps(res.get("result", {})) if res.get("ok") else "",
+                result_json=_json.dumps(payload) if payload else "",
                 estimate_json="",
                 session_id=str(st.get("session_id", "")))
         except Exception as e:

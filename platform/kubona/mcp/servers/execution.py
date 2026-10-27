@@ -267,7 +267,8 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
                wait: bool = True, wait_timeout_s: float = 30.0,
                estimate_only: bool = False,
                idempotency_key: str | None = None,
-               idempotency_body_hash: str | None = None) -> dict:
+               idempotency_body_hash: str | None = None,
+               spend_prepaid: bool = False) -> dict:
     """Submit a circuit through the cost-governance gate, threaded to a session.
 
     Production job/session abstraction: jobs are persisted to the async job farm;
@@ -434,7 +435,12 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
                 "status": job.status, "idempotent_replay": True,
                 "circuit_hash": (job.meta or {}).get("circuit_hash", circuit_hash)}
 
-    if cost > 0:
+    # spend_prepaid: Go Core already reserved this job against the authoritative
+    # session/tenant book (human/API quantum dispatch). Python must NOT charge
+    # its mirror again and must not refund on failure — Go reconciles the
+    # reservation from the status poll. Agent-created sessions keep the local
+    # Python book (spend_prepaid=False).
+    if cost > 0 and not spend_prepaid:
         try:
             _gov.record_spend(session_id, cost)
         except GovernanceError as e:
@@ -475,7 +481,7 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
             # error) never bought QPU time: return the reservation. Once a
             # hardware job id is pinned the vendor may have run, so keep the
             # charge and record the residual honestly.
-            if pinned["id"] is None and cost > 0:
+            if pinned["id"] is None and cost > 0 and not spend_prepaid:
                 try:
                     _gov.refund_spend(session_id, cost, f"pre-vendor failure: {e}")
                     _runner._record("session_spend_refunded", {
@@ -489,7 +495,7 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
     try:
         _runner.enqueue(job_id, _run)
     except (KeyError, RuntimeError) as e:
-        if cost > 0:
+        if cost > 0 and not spend_prepaid:
             try:
                 _gov.refund_spend(session_id, cost, f"pre-vendor enqueue failure: {e}")
                 _runner._record("session_spend_refunded", {

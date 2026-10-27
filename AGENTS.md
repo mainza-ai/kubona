@@ -19,8 +19,7 @@ The work-list is `wiki/questions.md`, not a task tracker.
 the actual visibility flip; the mechanical precondition (`dev-docs/` + `.obsidian/` residue in
 history) was excised via `git filter-repo` on 2026-10-26 (Q-27 closed). Going public did **not**
 make the platform production-ready: the Round-2 audit
-([[production-readiness-audit-2026-10-26]]) found ten P0 blockers, and the remaining product/finance decisions are
-Q-50/Q-51/Q-56 in [[questions]] §F; Q-49/52/53/54/55/57 were resolved 2026-10-27. Do not cite "private" or "production-ready" as current fact.
+([[production-readiness-audit-2026-10-26]]) found ten P0 blockers, and all production-readiness decisions (Q-49..Q-57) were resolved 2026-10-27; the implementation residuals are tracked in [[production-readiness-audit-2026-10-26]]. Do not cite "private" or "production-ready" as current fact.
 
 ## Three layers
 
