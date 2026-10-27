@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -55,6 +56,9 @@ func migPost(t *testing.T, h http.Handler, path string, body any) (int, map[stri
 	t.Helper()
 	raw, _ := json.Marshal(body)
 	req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(raw))
+	if tok := os.Getenv("KUBONA_API_TOKEN"); tok != "" {
+		req.Header.Set("Authorization", "Bearer "+tok)
+	}
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	out := map[string]any{}
@@ -66,6 +70,7 @@ func migPost(t *testing.T, h http.Handler, path string, body any) (int, map[stri
 func openFreshServer(t *testing.T, dbPath string) (*api.Server, *ledger.Ledger, func()) {
 	t.Helper()
 	t.Setenv("KUBONA_ALLOW_EPHEMERAL_SIGNER", "1")
+	t.Setenv("KUBONA_API_TOKEN", "test-token")
 	l, err := ledger.OpenLedger(dbPath)
 	if err != nil {
 		t.Fatalf("open: %v", err)

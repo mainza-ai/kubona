@@ -58,5 +58,5 @@ func TestSpendMutationsRefuseUnknownFields(t *testing.T) {
 	}, true)
 	postUnknownField(t, h, "/api/loops", map[string]any{
 		"session_id": sid, "max_steps": 3, "bogus_field_xyz": 1,
-	}, false)
+	}, true)
 }

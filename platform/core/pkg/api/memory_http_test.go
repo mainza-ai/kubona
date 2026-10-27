@@ -38,6 +38,7 @@ func retainPost(t *testing.T, h http.Handler, payload map[string]any) (int, map[
 	t.Helper()
 	body, _ := json.Marshal(payload)
 	req := httptest.NewRequest(http.MethodPost, "/api/memory/retain", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer op-token")
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	var out map[string]any
@@ -48,6 +49,7 @@ func retainPost(t *testing.T, h http.Handler, payload map[string]any) (int, map[
 func recallGet(t *testing.T, h http.Handler, query string) (int, map[string]any) {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, "/api/memory/recall?"+query, nil)
+	req.Header.Set("Authorization", "Bearer op-token")
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	var out map[string]any

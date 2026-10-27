@@ -33,6 +33,7 @@ import (
 func setupTestRoutesServer(t *testing.T) (*api.Server, func()) {
 	// Tests exercise the human-reviewer sign endpoint with an ephemeral key.
 	t.Setenv("KUBONA_ALLOW_EPHEMERAL_SIGNER", "1")
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
 	dbPath := "test_new_routes.db"
 	l, err := ledger.OpenLedger(dbPath)
 	if err != nil {
@@ -114,6 +115,7 @@ func TestPQCKeyAndVerifyEndpoints(t *testing.T) {
 	// 3. POST /api/mandates/pqc-verify
 	body, _ := json.Marshal(hybrid)
 	vReq := httptest.NewRequest(http.MethodPost, "/api/mandates/pqc-verify", bytes.NewReader(body))
+	vReq.Header.Set("Authorization", "Bearer op-token")
 	vW := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(vW, vReq)
 
@@ -140,6 +142,7 @@ func TestPQCKeyAndVerifyEndpoints(t *testing.T) {
 	}
 	evilBody, _ := json.Marshal(evilHybrid)
 	evilReq := httptest.NewRequest(http.MethodPost, "/api/mandates/pqc-verify", bytes.NewReader(evilBody))
+	evilReq.Header.Set("Authorization", "Bearer op-token")
 	evilW := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(evilW, evilReq)
 	var evilResp struct {
@@ -1433,6 +1436,7 @@ func TestLoopsSessionScope(t *testing.T) {
 		t.Helper()
 		body, _ := json.Marshal(map[string]any{"session_id": sess, "max_steps": 5})
 		req := httptest.NewRequest(http.MethodPost, "/api/loops", bytes.NewReader(body))
+		req.Header.Set("Authorization", "Bearer op-token")
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, req)
 		if w.Code != http.StatusCreated {
@@ -1446,6 +1450,7 @@ func TestLoopsSessionScope(t *testing.T) {
 	get := func(qs string) int {
 		t.Helper()
 		req := httptest.NewRequest(http.MethodGet, "/api/loops"+qs, nil)
+		req.Header.Set("Authorization", "Bearer op-token")
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, req)
 		var out struct {
@@ -1491,12 +1496,12 @@ func TestValidationRefusalsAre400Not500(t *testing.T) {
 		return w.Code, w.Body.String()
 	}
 
-	if code, body := post("/api/loops", "", map[string]any{}); code != http.StatusBadRequest {
+	if code, body := post("/api/loops", "op-token", map[string]any{}); code != http.StatusBadRequest {
 		t.Errorf("POST /api/loops {} must 400, got %d (%s)", code, body)
 	} else if !strings.Contains(body, "maxSteps") {
 		t.Errorf("POST /api/loops {} 400 must name maxSteps, got %s", body)
 	}
-	if code, body := post("/api/loops", "", map[string]any{"session_id": "s1"}); code != http.StatusBadRequest {
+	if code, body := post("/api/loops", "op-token", map[string]any{"session_id": "s1"}); code != http.StatusBadRequest {
 		t.Errorf("POST /api/loops without max_steps must 400, got %d (%s)", code, body)
 	}
 	if code, body := post("/api/hf/download", "op-token", map[string]any{}); code != http.StatusBadRequest {
@@ -1622,6 +1627,7 @@ func TestUnknownLoopIDIs404(t *testing.T) {
 
 	for _, action := range []string{"kill", "pause", "step"} {
 		req := httptest.NewRequest(http.MethodPost, "/api/loops/no-such-loop/"+action, nil)
+		req.Header.Set("Authorization", "Bearer op-token")
 		w := httptest.NewRecorder()
 		h.ServeHTTP(w, req)
 		if w.Code != http.StatusNotFound {
@@ -2645,11 +2651,11 @@ func TestCodesignPacksRegistryLive(t *testing.T) {
 			var m struct {
 				Order []string `json:"order"`
 				Packs []struct {
-					Name            string   `json:"name"`
-					Version         string   `json:"version"`
-					AnchorRequired  bool     `json:"anchor_required"`
-					EvidenceReqs    []string `json:"evidence_reqs"`
-					Status          string   `json:"status"`
+					Name           string   `json:"name"`
+					Version        string   `json:"version"`
+					AnchorRequired bool     `json:"anchor_required"`
+					EvidenceReqs   []string `json:"evidence_reqs"`
+					Status         string   `json:"status"`
 				} `json:"packs"`
 			}
 			if err := json.Unmarshal(w.Body.Bytes(), &m); err != nil {

@@ -421,7 +421,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/sessions", s.handleSessions)
 	s.mux.HandleFunc("/api/sessions/refund", s.requireBearer(s.handleSessionRefund))
 	s.mux.HandleFunc("/api/sessions/export", s.handleSessionExport)
-	s.mux.HandleFunc("/api/sessions/import", s.handleSessionImport)
+	s.mux.HandleFunc("/api/sessions/import", s.requireBearer(s.handleSessionImport))
 	s.mux.HandleFunc("/api/sessions/context", s.handleSessionContext)
 	s.mux.HandleFunc("/api/sessions/", s.handleSessionByID)
 	s.mux.HandleFunc("/api/campaigns/", s.handleCampaignRoute)
@@ -436,11 +436,11 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/chat/launch", s.handleChatLaunch)
 	s.mux.HandleFunc("/api/jobs", s.handleJobs)
 	s.mux.HandleFunc("/api/jobs/", s.handleJobByID)
-	s.mux.HandleFunc("/api/loops", s.handleLoops)
-	s.mux.HandleFunc("/api/loops/", s.handleLoopActions)
+	s.mux.HandleFunc("/api/loops", s.requireBearer(s.handleLoops))
+	s.mux.HandleFunc("/api/loops/", s.requireBearer(s.handleLoopActions))
 	s.mux.HandleFunc("/api/events", s.handleEvents)
-	s.mux.HandleFunc("/api/memory/recall", s.handleMemoryRecall)
-	s.mux.HandleFunc("/api/memory/retain", s.handleMemoryRetain)
+	s.mux.HandleFunc("/api/memory/recall", s.requireBearer(s.handleMemoryRecall))
+	s.mux.HandleFunc("/api/memory/retain", s.requireBearer(s.handleMemoryRetain))
 
 	// New Observatory control plane endpoints
 	s.mux.HandleFunc("/api/agents", s.handleAgents)
@@ -449,11 +449,10 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/fleet", s.handleFleet)
 	s.mux.HandleFunc("/api/radar", s.handleRadar)
 	s.mux.HandleFunc("/api/mandates/sign", s.requireBearer(s.handleMandateSign))
-	// Verify stays PUBLIC (audit correction): it is a pure cryptographic
-	// check with no state change — gating it on the operator token would
-	// break the console's mandate-display flow (console token ≠ operator
-	// token) while revealing nothing secret. Spray protection comes from
-	// the verify limiter inside the handler, not from identity.
+	// Mandate verification is bearer-gated (2026-10-26 audit): the handler
+	// appends a ledger event + obligation, so the old "no state change"
+	// justification for leaving it public was false. Rate limiting remains
+	// inside the handler as a second layer.
 	s.mux.HandleFunc("/api/mandates/verify", s.handleMandateVerify)
 	// Session auth (A1): challenge-response login bound to lab admin keys.
 	// Challenge + whoami stay public (no identity exists yet); login is
@@ -487,7 +486,7 @@ func (s *Server) registerRoutes() {
 	// Hybrid LLM Configuration Plane endpoints
 	s.mux.HandleFunc("/api/llm/settings", s.handleLLMSettings)
 	s.mux.HandleFunc("/api/llm/models", s.handleLLMModels)
-	s.mux.HandleFunc("/api/llm/test", s.handleLLMTest)
+	s.mux.HandleFunc("/api/llm/test", s.requireBearer(s.handleLLMTest))
 	// Quantum provider settings (human selection surface; secrets stay
 	// in env/Bao and are never accepted here).
 	s.mux.HandleFunc("/api/quantum/settings", s.handleQuantumSettings)
@@ -512,8 +511,8 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/vault/leases/revoke", s.requireBearer(s.handleVaultLeaseRevoke))
 
 	// A2A Inter-Agent Protocol & x402 payment rails
-	s.mux.HandleFunc("/api/a2a/v1", s.handleA2A)
-	s.mux.HandleFunc("/api/a2a/v1/challenge", s.handleA2AChallenge)
+	s.mux.HandleFunc("/api/a2a/v1", s.requireA2AAuth(s.handleA2A))
+	s.mux.HandleFunc("/api/a2a/v1/challenge", s.requireA2AAuth(s.handleA2AChallenge))
 
 	// Live Telemetry Event Stream (SSE) & Spatial Canvas Layouts
 	s.mux.HandleFunc("/api/events/stream", s.handleEventsStream)
@@ -546,7 +545,7 @@ func (s *Server) registerRoutes() {
 
 	// Post-Quantum Cryptography Spend Mandates (ML-KEM-768 + AES-256-GCM)
 	s.mux.HandleFunc("/api/mandates/pqc-key", s.handlePQCPublicKey)
-	s.mux.HandleFunc("/api/mandates/pqc-verify", s.handlePQCVerify)
+	s.mux.HandleFunc("/api/mandates/pqc-verify", s.requireBearer(s.handlePQCVerify))
 
 	// QIR Compilation & Lowering
 	s.mux.HandleFunc("/api/qir/compile", s.handleQIRCompile)
@@ -1627,6 +1626,10 @@ func (s *Server) handleSessionRefund(w http.ResponseWriter, r *http.Request) {
 			"amount_usd": req.Amount, "reason": req.Reason}, req.Action)
 	if err != nil {
 		WriteAPIError(w, "forbidden", err.Error(), nil)
+		return
+	}
+	if _, err := s.tenantMgr.VerifyAdminAction(bound); err != nil {
+		WriteAPIError(w, "forbidden", "refund envelope signature refused: "+err.Error(), nil)
 		return
 	}
 	updated, err := s.sessionMgr.RefundSpend(bound, req.SessionID, req.Amount, req.Reason)

@@ -354,6 +354,17 @@ func (r *Runner) RecordQuantumBridgeJob(jobID, sessionID, provider, qasm string,
 	return nil
 }
 
+// JobSession returns the session a persisted job belongs to. Quantum
+// status/cancel use it to enforce ownership before touching the bridge;
+// missing attribution refuses instead of skipping the tenant check.
+func (r *Runner) JobSession(jobID string) (string, bool) {
+	var sid string
+	if err := r.ledger.DB().QueryRow(`SELECT session_id FROM jobs WHERE id = ?`, jobID).Scan(&sid); err != nil {
+		return "", false
+	}
+	return sid, sid != ""
+}
+
 // SyncQuantumBridgeJobStatus reconciles a Python QuantumBridgeService job's
 // status into SQLite jobs (F-NEW-05). Terminal failure or cancellation
 // atomically releases any bound spend reservation via releaseReservation.

@@ -5,6 +5,7 @@ and live scientific literature grounding.
 """
 from __future__ import annotations
 
+import hmac
 import logging
 import os
 import sys
@@ -35,6 +36,41 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("kubona-bridge")
 
 
+class _BridgeTokenAuth:
+    """Authenticate the bridge-to-kubonad transport token as an operator.
+
+    The bridge is a private compute plane. kubonad is the only intended
+    caller, and it presents KUBONA_BRIDGE_TOKEN. This is intentionally
+    narrow: no user tokens, no anonymous principal.
+    """
+
+    def __init__(self, token: str):
+        self._token = token
+
+    def verify(self, token: str):
+        from kubona.core.auth import AuthError, Principal
+        if not self._token or not hmac.compare_digest(token or "", self._token):
+            raise AuthError("invalid or missing bridge token")
+        return Principal(sub="kubonad-bridge", role="operator", scopes=("*",))
+
+
+class _AuthInterceptor(grpc.ServerInterceptor):
+    """Require `authorization: Bearer <KUBONA_BRIDGE_TOKEN>` on every RPC."""
+
+    def __init__(self, token: str):
+        self._token = token
+
+    def intercept_service(self, continuation, handler_call_details):
+        md = dict(handler_call_details.invocation_metadata or ())
+        got = md.get("authorization", "")
+        if not self._token or not hmac.compare_digest(got, f"Bearer {self._token}"):
+            def _deny(request, context):
+                context.abort(grpc.StatusCode.UNAUTHENTICATED,
+                              "bridge authentication required")
+            return grpc.unary_unary_rpc_method_handler(_deny)
+        return continuation(handler_call_details)
+
+
 class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
     # Failure contract: handlers whose response carries success/error_message
     # return a structured failure (success=False + cause) on unexpected
@@ -53,10 +89,21 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             import hashlib as _hl
             _jid = request.job_id or ""
             _seed = int(_hl.sha256(_jid.encode()).hexdigest()[:8], 16) % (2 ** 31) if _jid else 7
+            from executor import route_backend
+            backend = request.requested_backend or "aer_simulator"
+            if route_backend(backend).startswith("hardware:"):
+                return kubona_pb2.CircuitExecutionResponse(
+                    job_id=request.job_id,
+                    success=False,
+                    error_message=(
+                        "hardware dispatch is not served by ExecuteCircuit: use the "
+                        "governed QuantumSubmit rail (cost/session/idempotency apply)"
+                    ),
+                )
             res = execute_qasm(
                 qasm=request.qasm,
                 shots=request.shots if request.shots > 0 else 1024,
-                requested_backend=request.requested_backend,
+                requested_backend=backend,
                 allow_fallback=request.allow_classical_fallback,
                 caller_jurisdictions=list(request.caller_jurisdictions),
                 caller_export_class=request.caller_export_class or "any",
@@ -88,7 +135,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
     def CutCircuit(self, request, context):
         logger.info(f"CutCircuit called with max_qubits={request.max_subcircuit_qubits}")
         try:
-            res = cut_circuit_qasm(request.qasm, request.max_subcircuit_qubits)
+            res = cut_circuit_qasm(request.qasm, request.max_subcircuit_qubits or 2)
         except Exception as e:
             logger.exception("CutCircuit failed")
             return kubona_pb2.CircuitCutResponse(
@@ -585,8 +632,20 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             raw_wf = _json.loads(request.workflow_json)
             wf = parse_workflow(raw_wf)
             inputs = _json.loads(request.inputs_json) if request.inputs_json else {}
-            token = request.token or "dev-token"
-            gw = build_gateway(require_auth=False)
+            bridge_token = os.getenv("KUBONA_BRIDGE_TOKEN", "")
+            if bridge_token:
+                token = request.token or bridge_token
+                gw = build_gateway(require_auth=True, auth=_BridgeTokenAuth(bridge_token))
+            else:
+                if os.getenv("KUBONA_ENV") == "production":
+                    return kubona_pb2.WorkflowRunResponse(
+                        ok=False,
+                        error_message=("bridge token is not configured: refusing "
+                                       "unauthenticated workflow execution"),
+                        workflow_id="",
+                    )
+                token = request.token or "dev-token"
+                gw = build_gateway(require_auth=False)
             ledger = Ledger()
             engine = WorkflowEngine(gateway=gw, ledger=ledger)
             res = engine.run(wf, token=token, session_id=request.session_id or None,
@@ -626,28 +685,48 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             )
 
 
-def serve(port: int = 50051, socket_path: str | None = None):
-    server = grpc.server(futures.ThreadPoolExecutor(max_workers=8))
+def serve(port: int = 50051, socket_path: str | None = None,
+          bind: str | None = None, token: str | None = None):
+    bind = bind if bind is not None else os.getenv("KUBONA_BRIDGE_BIND", "127.0.0.1")
+    token = token if token is not None else os.getenv("KUBONA_BRIDGE_TOKEN", "")
+    sock = socket_path or os.getenv("KUBONA_BRIDGE_SOCKET")
+
+    if not token and not sock and bind not in ("127.0.0.1", "localhost", "::1"):
+        raise SystemExit(
+            "refusing non-loopback bridge without KUBONA_BRIDGE_TOKEN: "
+            "set the token (compose does) or bind 127.0.0.1"
+        )
+
+    interceptors = [_AuthInterceptor(token)] if token else []
+    server = grpc.server(futures.ThreadPoolExecutor(max_workers=8),
+                         interceptors=interceptors)
     kubona_pb2_grpc.add_QuantumBridgeServiceServicer_to_server(QuantumBridgeServicer(), server)
 
-    sock = socket_path or os.getenv("KUBONA_BRIDGE_SOCKET")
     if sock:
         if sock.startswith("unix://"):
             sock = sock[7:]
         sock_dir = os.path.dirname(os.path.abspath(sock))
         if sock_dir:
-            os.makedirs(sock_dir, exist_ok=True)
+            os.makedirs(sock_dir, exist_ok=True, mode=0o700)
         if os.path.exists(sock):
             try:
                 os.unlink(sock)
             except OSError:
                 pass
-        server.add_insecure_port(f"unix://{sock}")
-        logger.info(f"Binding Python Quantum Bridge to unix://{sock}")
+        # UDS mode is exclusive: do not also open a TCP port (the old
+        # behaviour left an unauthenticated TCP door beside the 0600 socket).
+        old_umask = os.umask(0o077)
+        try:
+            server.add_insecure_port(f"unix://{sock}")
+        finally:
+            os.umask(old_umask)
+        logger.info(f"Binding Python Quantum Bridge to unix://{sock} (TCP disabled)")
+        port = 0
 
     if port > 0:
-        server.add_insecure_port(f"[::]:{port}")
-        logger.info(f"Starting Python Quantum Bridge server on port {port}...")
+        server.add_insecure_port(f"{bind}:{port}")
+        logger.info(f"Starting Python Quantum Bridge on {bind}:{port} "
+                    f"(token={'set' if token else 'NOT SET: loopback/dev only'})")
 
     server.start()
 
@@ -658,7 +737,6 @@ def serve(port: int = 50051, socket_path: str | None = None):
             pass
 
     return server
-
 
 if __name__ == "__main__":
     server = serve()

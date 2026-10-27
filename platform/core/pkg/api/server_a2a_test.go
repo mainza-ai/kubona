@@ -38,7 +38,10 @@ func TestA2A_PaymentRequiredAndSettlement(t *testing.T) {
 		Method:  "a2a.GetAgentCard",
 	}
 	body, _ := json.Marshal(cardReq)
-	resp, err := http.Post(server.URL+"/api/a2a/v1", "application/json", bytes.NewReader(body))
+	req, _ := http.NewRequest("POST", server.URL+"/api/a2a/v1", bytes.NewReader(body))
+	req.Header.Set("X-Kubona-A2A-Token", "test-token")
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		t.Fatalf("failed to call a2a.GetAgentCard: %v", err)
 	}
@@ -69,7 +72,10 @@ func TestA2A_PaymentRequiredAndSettlement(t *testing.T) {
 		Params:  taskParams,
 	}
 	body, _ = json.Marshal(taskReq)
-	resp402, err := http.Post(server.URL+"/api/a2a/v1", "application/json", bytes.NewReader(body))
+	req402, _ := http.NewRequest("POST", server.URL+"/api/a2a/v1", bytes.NewReader(body))
+	req402.Header.Set("Content-Type", "application/json")
+	req402.Header.Set("X-Kubona-A2A-Token", "test-token")
+	resp402, err := http.DefaultClient.Do(req402)
 	if err != nil {
 		t.Fatalf("failed to submit task: %v", err)
 	}
@@ -101,12 +107,13 @@ func TestA2A_PaymentRequiredAndSettlement(t *testing.T) {
 
 	// 4. Submit task WITH valid signed x402 Authorization header
 	client := &http.Client{}
-	req, _ := http.NewRequest("POST", server.URL+"/api/a2a/v1", bytes.NewReader(body))
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf(`x402 challenge="%s", token="USDC", amount="0.05", payer="%s", signature="%s"`,
+	paidReq, _ := http.NewRequest("POST", server.URL+"/api/a2a/v1", bytes.NewReader(body))
+	paidReq.Header.Set("Content-Type", "application/json")
+	paidReq.Header.Set("X-Kubona-A2A-Token", "test-token")
+	paidReq.Header.Set("Authorization", fmt.Sprintf(`x402 challenge="%s", token="USDC", amount="0.05", payer="%s", signature="%s"`,
 		challenge.ChallengeID, hex.EncodeToString(pub), hex.EncodeToString(sig)))
 
-	respPaid, err := client.Do(req)
+	respPaid, err := client.Do(paidReq)
 	if err != nil {
 		t.Fatalf("failed to send paid request: %v", err)
 	}

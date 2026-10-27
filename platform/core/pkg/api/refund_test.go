@@ -197,6 +197,18 @@ func TestSessionRefundRoute(t *testing.T) {
 	if code, _ := postSessionRefund(t, h, true, over); code != http.StatusForbidden {
 		t.Fatalf("over-refund must 403, got %d", code)
 	}
+	// Forged signature: the envelope has the right tenant/action/params hash
+	// but was not signed by the tenant admin. This was the pre-fix P0: the
+	// route bound parameters but never verified the signature.
+	forged := refundSessionAction(t, "lab-sess", sess.ID, adminHex, adminPriv, 15.0, "vendor error, job never ran")
+	forged.SignatureHex = hex.EncodeToString(make([]byte, ed25519.SignatureSize))
+	forgedBody := map[string]any{
+		"session_id": sess.ID, "amount_usd": 15.0, "reason": "vendor error, job never ran",
+		"action": forged,
+	}
+	if code, out := postSessionRefund(t, h, true, forgedBody); code != http.StatusForbidden {
+		t.Fatalf("forged-signature refund must 403, got %d %v", code, out)
+	}
 	got, _ := srv.SessionManager().GetSession(sess.ID)
 	if got.CurrentSpendUSD != 25.0 {
 		t.Fatalf("refusals must not move books, spent=%v", got.CurrentSpendUSD)

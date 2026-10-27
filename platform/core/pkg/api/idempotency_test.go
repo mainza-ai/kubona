@@ -28,6 +28,7 @@ import (
 func setupIdemServer(t *testing.T) (*api.Server, *ledger.Ledger, func()) {
 	t.Helper()
 	t.Setenv("KUBONA_ALLOW_EPHEMERAL_SIGNER", "1")
+	t.Setenv("KUBONA_API_TOKEN", "test-token")
 	dbPath := t.TempDir() + "/idem.db"
 	l, err := ledger.OpenLedger(dbPath)
 	if err != nil {

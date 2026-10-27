@@ -306,6 +306,9 @@ func (s *Server) handleMemoryRecall(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "session_id required", http.StatusBadRequest)
 		return
 	}
+	if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
+		return
+	}
 	tenant, err := s.resolveMemoryTenant(sessionID)
 	if err != nil {
 		http.Error(w, "session not found", http.StatusNotFound)
@@ -379,6 +382,13 @@ func (s *Server) handleMemoryRetain(w http.ResponseWriter, r *http.Request) {
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if req.SessionID == "" {
+		http.Error(w, "session_id required", http.StatusBadRequest)
+		return
+	}
+	if _, ok := s.authorizeKnownSession(w, r, req.SessionID); !ok {
 		return
 	}
 	tenant, err := s.resolveMemoryTenant(req.SessionID)
