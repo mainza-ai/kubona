@@ -843,3 +843,51 @@ func TestBridgeReportedFailureSettlesFailed(t *testing.T) {
 		t.Fatalf("failure reason must name the bridge report: %s", settled.ResultJSON)
 	}
 }
+
+func TestSyncQuantumFailureKeepsPostVendorCharge(t *testing.T) {
+	dbPath := "test_jobs_pin.db"
+	os.Remove(dbPath)
+	l, err := ledger.OpenLedger(dbPath)
+	if err != nil {
+		t.Fatalf("open ledger: %v", err)
+	}
+	defer func() {
+		l.Close()
+		os.Remove(dbPath)
+		os.Remove(dbPath + "-wal")
+		os.Remove(dbPath + "-shm")
+	}()
+	sm := session.NewManager(l)
+	if _, err := sm.EnsureSessionWithID("sess-pin", "pin drill", 500.0, "default"); err != nil {
+		t.Fatalf("seed session: %v", err)
+	}
+	r := NewRunner(l, &fakeBridge{}, 1)
+	defer r.Stop()
+
+	// Two jobs, each with a $10 reservation.
+	for _, id := range []string{"job-hw", "job-nohw"} {
+		if err := r.RecordQuantumBridgeJob(id, "sess-pin", "ibm-qiskit",
+			"OPENQASM 2.0;", 10, "default", 10, ""); err != nil {
+			t.Fatalf("record %s: %v", id, err)
+		}
+	}
+	if _, err := l.DB().Exec(`UPDATE sessions SET current_spend_usd = 20 WHERE id = 'sess-pin'`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.DB().Exec(`UPDATE tenants SET spent_usd = 20 WHERE id = 'default'`); err != nil {
+		t.Fatal(err)
+	}
+
+	// Vendor id pinned: the hardware may have run, so keep the charge.
+	r.SyncQuantumBridgeJobStatus("job-hw", "failed", `{"hardware_job_id":"hw-123"}`)
+	// No vendor id: pre-vendor failure, release.
+	r.SyncQuantumBridgeJobStatus("job-nohw", "failed", `{"error":"missing credential"}`)
+
+	var spent float64
+	if err := l.DB().QueryRow(`SELECT current_spend_usd FROM sessions WHERE id = 'sess-pin'`).Scan(&spent); err != nil {
+		t.Fatal(err)
+	}
+	if spent != 10 {
+		t.Fatalf("post-vendor charge must remain and pre-vendor reservation must release; spent=%v want 10", spent)
+	}
+}

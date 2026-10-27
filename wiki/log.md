@@ -3380,3 +3380,10 @@ skipped is the exact failure this incident is about:
 
   - CI run 40458725971 on 629dbc0: all 15 checks green, including the production compose stack with KUBONA_ENV=production, the sandbox container job, and the HF provenance changes.
   - Open decisions narrowed to Q-50 (money authority/exact unit), Q-51 (refund policy), Q-56 (console auth/key custody); recommended defaults are on the audit page.
+
+## [2026-10-27] decision | Q-50/Q-51/Q-56 approved; single-authority money + canonical mandates
+
+  - Q-50: Go SQLite is the authority for API/human/quantum dispatch. Go-verified QuantumSubmit now passes spend_prepaid to Python, so the mirror is not charged twice and does not refund; Go reconciles the reservation from the status poll.
+  - Q-51: Go releases a failed/cancelled reservation only when no hardware_job_id is pinned; post-vendor failures keep the charge. Python skips its own refund for Go-prepaid jobs.
+  - Q-56: the mandate card signs canonicalJobBinding(session, program) via authorizeSpend (server-verified) and sends the full mandate JSON; the Go proxy verifies tenant/program/budget/expiry when a signed mandate is present. Baked-bearer builds already fail.
+  - Residuals: integer micro-USD migration, passkey/non-extractable custody, Q-40 mandatory-mandate policy.

@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mainza-ai/kubona/core/pkg/mandates"
 	"github.com/mainza-ai/kubona/core/pkg/session"
 	"github.com/mainza-ai/kubona/core/pkg/tenants"
 	pb "github.com/mainza-ai/kubona/core/proto"
@@ -227,6 +228,22 @@ func (s *Server) handleQuantumJobs(w http.ResponseWriter, r *http.Request) {
 		if req.SessionID == "" && targetSessionID != "" {
 			_, _ = s.sessionMgr.EnsureSessionWithID(targetSessionID, "Implicit Quantum Session", 10.0, tenantID)
 		}
+		// Verify a canonical mandate when one is supplied. Legacy receipt/hash
+		// refs are recorded but not enforced here (Q-40 policy is still open);
+		// the console sends the full signed mandate so its path is enforced.
+		if strings.TrimSpace(req.MandateRef) != "" {
+			mandateTenant := tenantID
+			if mandateTenant == "" && targetSessionID != "" {
+				if sess, serr := s.sessionMgr.GetSession(targetSessionID); serr == nil && sess != nil {
+					mandateTenant = sess.TenantID
+				}
+			}
+			if err := verifyMandateRef(req.MandateRef, mandateTenant, targetSessionID, req.QASM, est.EstimatedUSD); err != nil {
+				WriteAPIError(w, "forbidden", "mandate refused: "+err.Error(), nil)
+				return
+			}
+		}
+
 		if est.EstimatedUSD > 0 {
 			if err := s.tenantMgr.ReserveSpend(tenantID, est.EstimatedUSD); err != nil {
 				_, _ = bridge.QuantumCancel(ctx, &pb.QuantumCancelRequest{JobId: resp.JobId, Reason: "tenant ceiling exceeded"})
@@ -364,4 +381,20 @@ func (s *Server) handleQuantumJobCancel(w http.ResponseWriter, r *http.Request, 
 		"provider_recall_attempted": resp.ProviderRecallAttempted,
 		"provider_recall_status":    resp.ProviderRecallStatus,
 	})
+}
+
+// verifyMandateRef enforces a full signed mandate when the ref parses as one.
+// The job hash must bind the exact session + program, the tenant must match,
+// the signature must verify, the budget must cover the estimate, and the
+// mandate must be unexpired. Bare receipt/hash refs return nil (recorded).
+func verifyMandateRef(ref, tenantID, sessionID, qasm string, costUSD float64) error {
+	var m mandates.SpendMandate
+	if err := json.Unmarshal([]byte(ref), &m); err != nil {
+		return nil // legacy receipt/hash ref: recorded, not enforced
+	}
+	if m.SignatureHex == "" || m.JobHash == "" {
+		return nil
+	}
+	expected := mandates.CanonicalJobBinding("circuit_run", sessionID, qasm)
+	return m.Verify(tenantID, expected, costUSD)
 }

@@ -39,6 +39,30 @@ All initial science-discovery forks are recorded in `## Closed` below (Q-17, Q-1
 
 All Section E questions are settled: Q-27 history scrub executed 2026-10-26 (see `## Closed` below).
 
+## F · Production-readiness (opened 2026-10-26, resolved 2026-10-27)
+
+All production-readiness decisions are resolved. Q-50/Q-51/Q-56 were approved
+with the recommended defaults; implementation residuals are tracked in
+[[production-readiness-audit-2026-10-26]] §Execution record.
+
+## Closed` below).
+
+## B · Method & epistemics (the differentiator, least grounded)
+
+All Section B questions are settled: memory/flight-recorder placement, QIR single-dialect scope, refuted-genome transfer priors, dual-model divstep packing, and unified single-tape autodiff closed 2026-10-26 (see `## Closed` below).
+
+## C · Governance & the trust boundary
+
+All Section C questions are settled: 3-seam IFC lattice enforcement with fail-closed unmodelable label refusal and gVisor/runsc workload containment closed 2026-10-26 (see `## Closed` below).
+
+## D · Science discovery (closed via Q-17, Q-18, Q-19, Q-20)
+
+All initial science-discovery forks are recorded in `## Closed` below (Q-17, Q-18, Q-19, Q-20).
+
+## E · Surface, ecosystem, operations
+
+All Section E questions are settled: Q-27 history scrub executed 2026-10-26 (see `## Closed` below).
+
 ## F · Production-readiness (opened 2026-10-26; technical gates resolved 2026-10-27)
 
 The technical gates are closed with the conservative option recorded in
@@ -91,6 +115,9 @@ blocks a Phase-1/2/4 slice. Until answered, the platform is not production-ready
 
 | # | Closed | Answer (one line) | Where it landed |
 |---|---|---|---|
+| **Q-50** | 2026-10-27 | Go SQLite is the single money authority for API/human/quantum dispatch; Python mirrors it; ledger v2 moves to integer micro-USD. | [[production-readiness-audit-2026-10-26]] |
+| **Q-51** | 2026-10-27 | Auto-refund pre-vendor failures, keep post-vendor charges, operator-only partials; Go uses the vendor-pin state. | [[production-readiness-audit-2026-10-26]] |
+| **Q-56** | 2026-10-27 | Cookie sessions are identity; the admin Ed25519 key is optional signing material; no baked bearer; passkey/non-extractable custody next. | [[production-readiness-audit-2026-10-26]] |
 | **Q-49** | 2026-10-27 | Bridge stays on the private compose network with a shared token + HMAC session assertion; mTLS is deferred until an off-host topology exists. | [[production-readiness-audit-2026-10-26]] |
 | **Q-52** | 2026-10-27 | Session import is operator-only and HMAC-signed; production refuses unsigned manifests, forged links, unknown types, and impossible spend. | [[production-readiness-audit-2026-10-26]] |
 | **Q-53** | 2026-10-27 | A2A/x402 is disabled in production by default (`KUBONA_A2A_ENABLED=1` opts in); the self-signed local challenge is not a settlement rail. | [[production-readiness-audit-2026-10-26]] |

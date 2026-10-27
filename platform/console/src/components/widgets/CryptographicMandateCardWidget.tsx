@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { KeyRound,  CheckCircle2, XCircle, ArrowDownCircle } from 'lucide-react';
-import { createSignedSpendMandate, verifySpendMandateLocally } from '@/lib/mandates';
+import { authorizeSpend } from '@/lib/authorizeSpend';
 
 interface CryptographicMandateCardWidgetProps {
   actionDescription?: string;
@@ -11,7 +11,11 @@ interface CryptographicMandateCardWidgetProps {
   // J4: lab tenant the mandate authorizes against. Defaults to
   // tenant-default for static mounts; live callers pass the session lab.
   tenantId?: string;
-  onAuthorize?: (signature: string) => void;
+  // The exact session + program the mandate authorizes. Without both,
+  // authorizeSpend refuses (no unbound signatures).
+  sessionId?: string;
+  programQasm?: string;
+  onAuthorize?: (mandateJson: string) => void;
   onDowngrade?: () => void;
   onAbort?: () => void;
 }
@@ -21,6 +25,8 @@ export function CryptographicMandateCardWidget({
   estimatedCostUsd,
   targetBackend,
   tenantId,
+  sessionId,
+  programQasm,
   onAuthorize,
   onDowngrade,
   onAbort,
@@ -39,36 +45,27 @@ export function CryptographicMandateCardWidget({
     if (!hasProposal) return;
     // Guarded above: all three are defined here. Locals keep TS honest
     // without reintroducing demo fallbacks.
-    const action = actionDescription as string;
     const cost = estimatedCostUsd as number;
     setIsSigning(true);
     setSignError(null);
     setVerifiedLocal(null);
     try {
-      // Deterministically hash the action description for the job hash
-      const encoder = new TextEncoder();
-      const digestBuffer = await window.crypto.subtle.digest(
-        'SHA-256',
-        encoder.encode(`${action}-${cost}`)
-      );
-      const jobHashHex = Array.from(new Uint8Array(digestBuffer))
-        .map((b) => b.toString(16).padStart(2, '0'))
-        .join('');
-
-      // Generate authentic AP2 Ed25519 SpendMandate
-      const mandate = createSignedSpendMandate({
-        tenantId: (tenantId || 'tenant-default').trim() || 'tenant-default',
-        jobHash: jobHashHex,
-        maxBudgetUsd: cost,
-        ttlSeconds: 3600,
+      // Canonical job binding + server verification: the mandate covers
+      // (tenant, session, exact program, budget) and /api/mandates/verify
+      // must accept it before the card reports authorization.
+      const res = await authorizeSpend({
+        sessionId,
+        tenantId,
+        estimatedUsd: cost,
+        programQasm,
       });
-
-      // Verify-or-label-local: the card mints locally, so it verifies
-      // locally and labels the result as local-only (never server-verified).
-      const localOk = verifySpendMandateLocally(mandate);
-      setVerifiedLocal(localOk);
-      setSignedToken(mandate.signature_hex);
-      onAuthorize?.(mandate.signature_hex);
+      if (!res.ok) {
+        throw new Error(res.reason);
+      }
+      const mandateJson = JSON.stringify(res.mandate);
+      setVerifiedLocal(true);
+      setSignedToken(mandateJson);
+      onAuthorize?.(mandateJson);
     } catch (err) {
       setSignError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -127,9 +124,9 @@ export function CryptographicMandateCardWidget({
         <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-center space-x-2 text-xs text-emerald-300">
           <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
           <div className="truncate">
-            <span className="font-bold">Authorized & Signed (local-only{verifiedLocal === false ? ', UNVERIFIED' : ''}): </span>
+            <span className="font-bold">Authorized & Server-Verified{verifiedLocal === false ? ' (UNVERIFIED)' : ''}: </span>
             <span className="font-mono text-[11px] text-emerald-200">{signedToken}</span>
-            <div className="text-[10px] font-code text-slate-400">local Ed25519 signature — not server-verified, nothing dispatched</div>
+            <div className="text-[10px] font-code text-slate-400">canonical session+program mandate — server-verified before dispatch</div>
           </div>
         </div>
       ) : !hasProposal ? (
