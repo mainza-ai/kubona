@@ -3509,3 +3509,9 @@ skipped is the exact failure this incident is about:
   - All 53 non-test log.Printf/Println sites in kubonad, autoresearch, tribunal, campaign synth, server, loop settle, and edge auth now emit structured slog fields.
   - Startup refusal log.Fatalf sites remain fatal exits, not ambient logging.
   - The tribunal telemetry test now captures the process slog handler and still asserts every turn field.
+
+## [2026-10-27] decision | W3C trace context on every request
+
+  - New pkg/tracing continues a valid inbound traceparent or mints a 128-bit trace and 64-bit span; all-zero/malformed input is rejected and replaced.
+  - The HTTP wrapper returns traceparent + X-Trace-Id, puts the span in request context, and logs method/path/status/duration with trace/span/parent ids (debug 2xx, warn 4xx, error 5xx).
+  - Panic logs carry the trace id. No collector is required; spans are structured slog records.

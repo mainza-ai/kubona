@@ -45,6 +45,7 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/supervisor"
 	"github.com/mainza-ai/kubona/core/pkg/tenants"
 	"github.com/mainza-ai/kubona/core/pkg/tools"
+	"github.com/mainza-ai/kubona/core/pkg/tracing"
 	"github.com/mainza-ai/kubona/core/pkg/vault"
 	"github.com/mainza-ai/kubona/core/pkg/watchdog"
 	pb "github.com/mainza-ai/kubona/core/proto"
@@ -423,6 +424,10 @@ func (s *Server) Handler() http.Handler {
 // connection reset. The id is echoed and logged with the stack.
 func requestIDAndRecovery(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracing.Start(r.Context(), r)
+		r = r.WithContext(ctx)
+		w.Header().Set("traceparent", span.Traceparent())
+		w.Header().Set("X-Trace-Id", span.TraceID)
 		reqID := strings.TrimSpace(r.Header.Get("X-Request-ID"))
 		if reqID == "" {
 			reqID = uuid.NewString()
@@ -432,8 +437,8 @@ func requestIDAndRecovery(next http.Handler) http.Handler {
 			if rec := recover(); rec != nil {
 				slog.Error("http_panic",
 					"method", r.Method, "path", r.URL.Path,
-					"request_id", reqID, "panic", fmt.Sprint(rec),
-					"stack", string(debug.Stack()))
+					"request_id", reqID, "trace_id", span.TraceID, "span_id", span.SpanID,
+					"panic", fmt.Sprint(rec), "stack", string(debug.Stack()))
 				WriteAPIError(w, "internal", "internal error (request id "+reqID+")", nil)
 			}
 		}()

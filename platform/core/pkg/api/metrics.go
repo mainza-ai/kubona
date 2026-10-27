@@ -3,10 +3,13 @@ package api
 import (
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/mainza-ai/kubona/core/pkg/tracing"
 )
 
 type httpMetricKey struct {
@@ -122,7 +125,20 @@ func (s *Server) instrument(next http.Handler) http.Handler {
 			if status == 0 {
 				status = http.StatusOK
 			}
-			s.httpMetrics.observe(r.Method, status, time.Since(start))
+			dur := time.Since(start)
+			s.httpMetrics.observe(r.Method, status, dur)
+			if span, ok := tracing.FromContext(r.Context()); ok {
+				level := slog.LevelDebug
+				if status >= 500 {
+					level = slog.LevelError
+				} else if status >= 400 {
+					level = slog.LevelWarn
+				}
+				slog.Log(r.Context(), level, "http_request",
+					"method", r.Method, "path", r.URL.Path, "status", status,
+					"duration_ms", dur.Milliseconds(), "trace_id", span.TraceID,
+					"span_id", span.SpanID, "parent_span_id", span.ParentSpanID)
+			}
 		}()
 		next.ServeHTTP(sw, r)
 	})
