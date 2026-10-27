@@ -394,14 +394,12 @@ func (h *QAOACombinatorialHarness) Metric(artifact string) (float64, error) {
 // ============================================================================
 type ErrorMitigationHarness struct{}
 
-func (h *ErrorMitigationHarness) SelfReported() bool { return true }
-
 func (h *ErrorMitigationHarness) ID() string {
 	return "error-mitigation"
 }
 
 func (h *ErrorMitigationHarness) FixedSetup() string {
-	return "Depolarizing noise model: p1q=0.001, p2q=0.01, Richardson extrapolation zero-noise limit"
+	return "Depolarizing noise simulation: p1q=0.001, p2q=0.01, GHZ-4 ZZ observable; the trusted evaluator simulates each scale and extrapolates to zero noise"
 }
 
 func (h *ErrorMitigationHarness) MutableArtifact() string {
@@ -427,58 +425,103 @@ func (h *ErrorMitigationHarness) Evaluate(runner *sandbox.SandboxRunner, artifac
 
 	runner = ensureRunner(runner)
 
-	benchmarkScript := `
+	// Stage 1 is data-only: it validates the scale factors and returns them.
+	stage1 := `
 import json
-import sys
-import numpy as np
-
+import math
 try:
-    with open("mitigation_config.json") as f:
+    with open('/workspace/mitigation_config.json') as f:
         cfg = json.load(f)
-    scales = cfg.get("scale_factors", [1.0, 2.0, 3.0])
+    scales = [float(x) for x in cfg.get('scale_factors', [])]
+    if len(scales) < 2 or len(scales) > 6:
+        raise ValueError("scale_factors must contain 2..6 values")
+    if not all(math.isfinite(x) and 0 < x <= 50 for x in scales):
+        raise ValueError("scale_factors must be finite and in (0, 50]")
+    print(json.dumps({"valid": True, "scales": scales}))
 except Exception as e:
-    print(json.dumps({"valid": False, "error": f"Config read error: {str(e)}"}))
-    sys.exit(0)
+    print(json.dumps({"valid": False, "error": f"Config error: {str(e)}"}))
+`
+	nonce1 := newRunNonce()
+	stage1 = fenceBenchmarkOutputs(stage1, nonce1)
+	res1, err := runner.ExecuteHarness(stage1, h.MutableArtifact(), artifact)
+	if err != nil {
+		return nil, fmt.Errorf("mitigation config stage failed: %w", err)
+	}
+	payload1, matches1 := fencedPayload(res1.Stdout, nonce1)
+	if matches1 != 1 || payload1 == nil {
+		return &HarnessResult{HarnessID: h.ID(), Metric: 1.0, Valid: false,
+			Sandboxed: res1.Sandboxed, IsolationTag: res1.IsolationTag,
+			ValidityReason: fmt.Sprintf("config stage must emit exactly one fenced payload, found %d", matches1)}, nil
+	}
+	if ok, _ := payload1["valid"].(bool); !ok {
+		msg, _ := payload1["error"].(string)
+		return &HarnessResult{HarnessID: h.ID(), Metric: 1.0, Valid: false,
+			Sandboxed: res1.Sandboxed, IsolationTag: res1.IsolationTag,
+			ValidityReason: "config invalid: " + msg}, nil
+	}
+	scalesJSON, _ := json.Marshal(payload1["scales"])
 
+	// Stage 2 has no artifact: it runs a real noisy density-matrix
+	// simulation at each scale and Richardson-extrapolates the GHZ ZZ
+	// observable to the zero-noise limit.
+	stage2 := fmt.Sprintf(`
+import json
+import numpy as np
+from qiskit import QuantumCircuit
+from qiskit_aer import AerSimulator
+from qiskit_aer.noise import NoiseModel, depolarizing_error
+from qiskit.quantum_info import SparsePauliOp, DensityMatrix
+
+scales = %s
+p1q, p2q = 0.001, 0.01
+ideal = 1.0
+observable = SparsePauliOp.from_list([("ZZII", 1.0)])
 try:
-    # Depolarizing noise model simulation across noise scale factors
-    ideal_exp = 1.0
-    depol_rate = 0.02
+    def ghz():
+        qc = QuantumCircuit(4)
+        qc.h(0)
+        for q in range(3):
+            qc.cx(q, q + 1)
+        qc.save_density_matrix()
+        return qc
 
-    # Expectation value under scaled depolarizing noise: <O>(c) = ideal * (1 - c * p)
-    observed = [ideal_exp * (1.0 - c * depol_rate) for c in scales]
+    observed = []
+    for c in scales:
+        nm = NoiseModel()
+        nm.add_all_qubit_quantum_error(depolarizing_error(min(p1q * c, 0.99), 1), ["h", "x", "rx", "ry", "rz"])
+        nm.add_all_qubit_quantum_error(depolarizing_error(min(p2q * c, 0.99), 2), ["cx"])
+        sim = AerSimulator(noise_model=nm, method="density_matrix")
+        result = sim.run(ghz()).result()
+        rho = DensityMatrix(result.data()["density_matrix"])
+        observed.append(float(np.real(rho.expectation_value(observable))))
 
-    # Richardson extrapolation to zero noise limit (c -> 0)
-    poly = np.polyfit(scales, observed, deg=min(len(scales)-1, 2))
-    mitigated_exp = float(poly[-1]) # y-intercept at c=0
-    residual_error = abs(mitigated_exp - ideal_exp)
-
+    poly = np.polyfit(scales, observed, deg=min(len(scales) - 1, 2))
+    mitigated = float(poly[-1])
+    metric = abs(mitigated - ideal)
     print(json.dumps({
         "valid": True,
-        "metric": float(residual_error),
-        "physical_value": float(mitigated_exp),
-        "reference_value": float(ideal_exp),
-        "circuit_depth": 12,
+        "metric": float(metric),
+        "physical_value": float(mitigated),
+        "reference_value": float(ideal),
+        "circuit_depth": 4,
         "num_qubits": 4,
-        "two_qubit_gate_count": 6,
-        "entanglement_score": 0.85,
-        "measurement_source": "template_constant",
-        "measured": False
+        "two_qubit_gate_count": 3,
+        "entanglement_score": 1.0,
+        "measurement_source": "simulated",
+        "measured": True
     }))
 except Exception as e:
-    print(json.dumps({"valid": False, "error": f"Mitigation error: {str(e)}"}))
-`
+    print(json.dumps({"valid": False, "error": f"Trusted mitigation evaluator error: {str(e)}"}))
+`, string(scalesJSON))
 
-	nonce := newRunNonce()
-	benchmarkScript = fenceBenchmarkOutputs(benchmarkScript, nonce)
-	res, err := runner.ExecuteHarness(benchmarkScript, h.MutableArtifact(), artifact)
+	nonce2 := newRunNonce()
+	stage2 = fenceBenchmarkOutputs(stage2, nonce2)
+	res2, err := runner.ExecuteHarness(stage2, "", "")
 	if err != nil {
-		return nil, fmt.Errorf("mitigation execution failed: %w", err)
+		return nil, fmt.Errorf("mitigation evaluator stage failed: %w", err)
 	}
-
-	return parseHarnessOutput(h.ID(), res, nonce)
+	return parseHarnessOutput(h.ID(), res2, nonce2)
 }
-
 func (h *ErrorMitigationHarness) Metric(artifact string) (float64, error) {
 	res, err := h.Evaluate(nil, artifact)
 	if err != nil {
@@ -492,14 +535,12 @@ func (h *ErrorMitigationHarness) Metric(artifact string) (float64, error) {
 // ============================================================================
 type CompilationPassHarness struct{}
 
-func (h *CompilationPassHarness) SelfReported() bool { return true }
-
 func (h *CompilationPassHarness) ID() string {
 	return "compilation-pass"
 }
 
 func (h *CompilationPassHarness) FixedSetup() string {
-	return "Target coupling: 127-qubit heavy-hex architecture, benchmark circuit: QFT-4"
+	return "Compile QFT-4 to a cz/rz/ry/rx/x basis; the trusted evaluator checks unitary equivalence before scoring depth x 2Q gates"
 }
 
 func (h *CompilationPassHarness) MutableArtifact() string {
@@ -521,65 +562,98 @@ func (h *CompilationPassHarness) Evaluate(runner *sandbox.SandboxRunner, artifac
 
 	runner = ensureRunner(runner)
 
-	benchmarkScript := `
+	// Stage 1 runs the candidate pass manager and returns only the compiled
+	// circuit. It never computes the cost.
+	stage1 := `
 import json
 import sys
 import os
 sys.path.insert(0, '/workspace')
 sys.path.insert(0, os.getcwd())
-
 try:
-    from qiskit import QuantumCircuit, transpile
+    from qiskit import QuantumCircuit, transpile, qasm2
     from qiskit.circuit.library import QFT
     import pass_manager
-except Exception as e:
-    print(json.dumps({"valid": False, "error": f"Import error: {str(e)}"}))
-    sys.exit(0)
-
-try:
-    # Benchmark QFT on 4 qubits
     qc = QuantumCircuit(4)
     qc.append(QFT(4), range(4))
     qc = qc.decompose()
-
-    # Execute custom optimization from pass_manager
     if hasattr(pass_manager, 'optimize_circuit'):
-        compiled_qc = pass_manager.optimize_circuit(qc)
+        out = pass_manager.optimize_circuit(qc)
     else:
-        compiled_qc = transpile(qc, basis_gates=['cz', 'ry', 'rz'], optimization_level=2)
+        out = transpile(qc, basis_gates=['cz', 'rz', 'ry', 'rx', 'x'], optimization_level=2)
+    if not isinstance(out, QuantumCircuit):
+        raise TypeError("optimize_circuit must return a QuantumCircuit")
+    if out.num_qubits != 4:
+        raise ValueError("compiled circuit must have 4 qubits")
+    if out.num_clbits:
+        out.remove_final_measurements(inplace=True)
+    print(json.dumps({"valid": True, "qasm": qasm2.dumps(out)}))
+except Exception as e:
+    print(json.dumps({"valid": False, "error": f"Compilation error: {str(e)}"}))
+`
+	nonce1 := newRunNonce()
+	stage1 = fenceBenchmarkOutputs(stage1, nonce1)
+	res1, err := runner.ExecuteHarness(stage1, h.MutableArtifact(), artifact)
+	if err != nil {
+		return nil, fmt.Errorf("compilation stage failed: %w", err)
+	}
+	payload1, matches1 := fencedPayload(res1.Stdout, nonce1)
+	if matches1 != 1 || payload1 == nil {
+		return &HarnessResult{HarnessID: h.ID(), Metric: 1000.0, Valid: false,
+			Sandboxed: res1.Sandboxed, IsolationTag: res1.IsolationTag,
+			ValidityReason: fmt.Sprintf("compilation stage must emit exactly one fenced payload, found %d", matches1)}, nil
+	}
+	if ok, _ := payload1["valid"].(bool); !ok {
+		msg, _ := payload1["error"].(string)
+		return &HarnessResult{HarnessID: h.ID(), Metric: 1000.0, Valid: false,
+			Sandboxed: res1.Sandboxed, IsolationTag: res1.IsolationTag,
+			ValidityReason: "compilation invalid: " + msg}, nil
+	}
+	qasmText, _ := payload1["qasm"].(string)
+	qasmJSON, _ := json.Marshal(qasmText)
 
-    depth = compiled_qc.depth()
-    two_q_gates = sum(1 for inst in compiled_qc.data if inst.operation.num_qubits == 2)
+	// Stage 2 has no artifact: it verifies the compiled circuit is unitarily
+	// equivalent (up to global phase) to QFT-4, then scores it.
+	stage2 := fmt.Sprintf(`
+import json
+from qiskit import QuantumCircuit, qasm2
+from qiskit.circuit.library import QFT
+from qiskit.quantum_info import Operator
 
-    # Cost objective: Depth * 2Q_gates
-    cost = float(depth * two_q_gates) / 10.0
-
+try:
+    compiled = qasm2.loads(%s)
+    ref = QuantumCircuit(4)
+    ref.append(QFT(4), range(4))
+    ref = ref.decompose()
+    if not Operator(compiled).equiv(Operator(ref)):
+        raise ValueError("compiled circuit is not unitarily equivalent to QFT-4")
+    depth = int(compiled.depth())
+    two_q = int(sum(1 for inst in compiled.data if inst.operation.num_qubits == 2))
+    cost = float(depth * two_q) / 10.0
     print(json.dumps({
         "valid": True,
         "metric": float(cost),
         "physical_value": float(depth),
         "reference_value": 15.0,
-        "circuit_depth": int(depth),
+        "circuit_depth": depth,
         "num_qubits": 4,
-        "two_qubit_gate_count": int(two_q_gates),
+        "two_qubit_gate_count": two_q,
         "entanglement_score": 0.88,
         "measurement_source": "template_constant",
         "measured": False
     }))
 except Exception as e:
-    print(json.dumps({"valid": False, "error": f"Compilation error: {str(e)}"}))
-`
+    print(json.dumps({"valid": False, "error": f"Trusted compilation evaluator error: {str(e)}"}))
+`, string(qasmJSON))
 
-	nonce := newRunNonce()
-	benchmarkScript = fenceBenchmarkOutputs(benchmarkScript, nonce)
-	res, err := runner.ExecuteHarness(benchmarkScript, h.MutableArtifact(), artifact)
+	nonce2 := newRunNonce()
+	stage2 = fenceBenchmarkOutputs(stage2, nonce2)
+	res2, err := runner.ExecuteHarness(stage2, "", "")
 	if err != nil {
-		return nil, fmt.Errorf("compilation-pass execution failed: %w", err)
+		return nil, fmt.Errorf("compilation evaluator stage failed: %w", err)
 	}
-
-	return parseHarnessOutput(h.ID(), res, nonce)
+	return parseHarnessOutput(h.ID(), res2, nonce2)
 }
-
 func (h *CompilationPassHarness) Metric(artifact string) (float64, error) {
 	res, err := h.Evaluate(nil, artifact)
 	if err != nil {
@@ -593,14 +667,12 @@ func (h *CompilationPassHarness) Metric(artifact string) (float64, error) {
 // ============================================================================
 type CorrectnessRegressionHarness struct{}
 
-func (h *CorrectnessRegressionHarness) SelfReported() bool { return true }
-
 func (h *CorrectnessRegressionHarness) ID() string {
 	return "correctness-regression"
 }
 
 func (h *CorrectnessRegressionHarness) FixedSetup() string {
-	return "Deterministic Clifford parity and Bell stabilizer verification suite"
+	return "Submit a 2-qubit Bell-state circuit; the trusted evaluator simulates it and measures fidelity against |Phi+>"
 }
 
 func (h *CorrectnessRegressionHarness) MutableArtifact() string {
@@ -614,57 +686,83 @@ func (h *CorrectnessRegressionHarness) ValidityCheck(artifact string) (bool, str
 func (h *CorrectnessRegressionHarness) Evaluate(runner *sandbox.SandboxRunner, artifact string) (*HarnessResult, error) {
 	runner = ensureRunner(runner)
 
-	benchmarkScript := `
+	// Stage 1 parses the artifact and canonicalizes it to QASM. It never
+	// computes a score: the artifact can only supply a circuit.
+	stage1 := `
+import json
+import sys
+try:
+    from qiskit import qasm2
+    qc = qasm2.loads(open("/workspace/benchmarks.qasm").read())
+    if qc.num_qubits != 2:
+        raise ValueError("benchmark must use exactly 2 qubits")
+    if qc.num_clbits:
+        qc.remove_final_measurements(inplace=True)
+    if any(inst.operation.name == "measure" for inst in qc.data):
+        raise ValueError("only final measurements are supported")
+    print(json.dumps({"valid": True, "qasm": qasm2.dumps(qc)}))
+except Exception as e:
+    print(json.dumps({"valid": False, "error": f"QASM parse error: {str(e)}"}))
+`
+	nonce1 := newRunNonce()
+	stage1 = fenceBenchmarkOutputs(stage1, nonce1)
+	// The artifact is data, not an imported module: stage 1 only parses it.
+	res1, err := runner.ExecuteHarness(stage1, h.MutableArtifact(), artifact)
+	if err != nil {
+		return nil, fmt.Errorf("correctness parse stage failed: %w", err)
+	}
+	payload1, matches1 := fencedPayload(res1.Stdout, nonce1)
+	if matches1 != 1 || payload1 == nil {
+		return &HarnessResult{HarnessID: h.ID(), Metric: 1.0, Valid: false,
+			Sandboxed: res1.Sandboxed, IsolationTag: res1.IsolationTag,
+			ValidityReason: fmt.Sprintf("parse stage must emit exactly one fenced payload, found %d", matches1)}, nil
+	}
+	if ok, _ := payload1["valid"].(bool); !ok {
+		msg, _ := payload1["error"].(string)
+		return &HarnessResult{HarnessID: h.ID(), Metric: 1.0, Valid: false,
+			Sandboxed: res1.Sandboxed, IsolationTag: res1.IsolationTag,
+			ValidityReason: "benchmark invalid: " + msg}, nil
+	}
+	qasmText, _ := payload1["qasm"].(string)
+	qasmJSON, _ := json.Marshal(qasmText)
+
+	stage2 := fmt.Sprintf(`
 import json
 import math
-import sys
+import numpy as np
+from qiskit import qasm2
+from qiskit.quantum_info import Statevector, state_fidelity
 
 try:
-    import numpy as np
-    from qiskit import QuantumCircuit
-    from qiskit.quantum_info import Statevector, state_fidelity
-except Exception as e:
-    print(json.dumps({"valid": False, "error": f"Import error: {str(e)}"}))
-    sys.exit(0)
-
-try:
-    # Deterministic Bell state Phi+ stabilizer verification
-    qc = QuantumCircuit(2)
-    qc.h(0)
-    qc.cx(0, 1)
-
+    qc = qasm2.loads(%s)
     sv = Statevector(qc)
-    # Target exact Bell state 1/sqrt(2) (|00> + |11>)
     ideal_sv = Statevector([1.0 / math.sqrt(2), 0, 0, 1.0 / math.sqrt(2)])
     fidelity = float(state_fidelity(sv, ideal_sv))
-    error = abs(1.0 - fidelity)
-
+    metric = abs(1.0 - fidelity)
     print(json.dumps({
         "valid": True,
-        "metric": float(error),
+        "metric": float(metric),
         "physical_value": float(fidelity),
         "reference_value": 1.0,
-        "circuit_depth": 2,
-        "num_qubits": 2,
-        "two_qubit_gate_count": 1,
+        "circuit_depth": int(qc.depth()),
+        "num_qubits": int(qc.num_qubits),
+        "two_qubit_gate_count": int(sum(1 for inst in qc.data if inst.operation.num_qubits == 2)),
         "entanglement_score": 1.0,
         "measurement_source": "template_constant",
         "measured": False
     }))
 except Exception as e:
-    print(json.dumps({"valid": False, "error": str(e)}))
-    sys.exit(0)
-`
+    print(json.dumps({"valid": False, "error": f"Trusted fidelity evaluator error: {str(e)}"}))
+`, string(qasmJSON))
 
-	nonce := newRunNonce()
-	res, err := runner.ExecuteHarness(fenceBenchmarkOutputs(benchmarkScript, nonce), "benchmarks.qasm", artifact)
+	nonce2 := newRunNonce()
+	stage2 = fenceBenchmarkOutputs(stage2, nonce2)
+	res2, err := runner.ExecuteHarness(stage2, "", "")
 	if err != nil {
-		return nil, fmt.Errorf("regression execution failed: %w", err)
+		return nil, fmt.Errorf("correctness evaluator stage failed: %w", err)
 	}
-
-	return parseHarnessOutput(h.ID(), res, nonce)
+	return parseHarnessOutput(h.ID(), res2, nonce2)
 }
-
 func (h *CorrectnessRegressionHarness) Metric(artifact string) (float64, error) {
 	res, err := h.Evaluate(nil, artifact)
 	if err != nil {
