@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
@@ -490,13 +490,13 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		if err == nil {
 			return prompt, false
 		}
-		log.Printf("[Tribunal] turn %d projection refused (run continues on fallback): %v", turnIdx, err)
+		slog.Warn("tribunal turn projection refused; continuing on fallback", "turn", turnIdx, "error", err)
 		if ac.Ledger != nil && obID != "" {
 			if uerr := ac.Ledger.RecordObligationUnknown(obID, ledger.Unknown{
 				ID:          fmt.Sprintf("context-budget-turn-%d", turnIdx),
 				Description: err.Error(),
 			}); uerr != nil {
-				log.Printf("[Tribunal] record budget unknown failed: %v", uerr)
+				slog.Error("tribunal record budget unknown failed", "error", uerr)
 			}
 		}
 		return "", true
@@ -542,9 +542,9 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		if err == nil && resp.Success {
 			anchorLive = true
 			fciAnchor = fmt.Sprintf("PySCF STO-3G FCI (%.5f Ha)", resp.FciExactEnergy)
-			log.Printf("[Tribunal] Ab-initio PySCF calculated for %s at R=%.4f A: FCI=%.5f Ha, RHF=%.5f Ha", mol, bondDist, resp.FciExactEnergy, resp.RhfEnergy)
+			slog.Info("tribunal ab-initio PySCF anchor", "molecule", mol, "bond_distance_angstrom", bondDist, "fci_hartree", resp.FciExactEnergy, "rhf_hartree", resp.RhfEnergy)
 		} else {
-			log.Printf("[Tribunal] PySCF anchor notice: %v", err)
+			slog.Warn("tribunal PySCF anchor unavailable", "error", err)
 		}
 	}
 
@@ -586,7 +586,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		// Sealing must never fail the run (audit follows evidence, never
 		// blocks it) — but silence hid gaps before, so seal LOUDLY.
 		if err := ac.SealTurn(sessionID, obID, turn, authored, it.ID); err != nil {
-			log.Printf("[Tribunal] seal turn %d failed (run continues): %v", turn.TurnIndex, err)
+			slog.Error("tribunal seal turn failed; run continues", "turn", turn.TurnIndex, "error", err)
 		}
 		return it
 	}
@@ -620,8 +620,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 	// gate instead of guessed. Thread anchorLive on turn 2: it is the
 	// only turn whose coverage depends on an external measurement.
 	logTurn := func(idx int, role, prompt, reply string, dur time.Duration, callErr error, authored bool, extra string) {
-		log.Printf("[Tribunal] turn-telemetry idx=%d role=%s prompt_runes=%d reply_runes=%d dur_ms=%d timeout_ms=%d turn_cap=%d authored=%v call_err=%v %s",
-			idx, role, len([]rune(prompt)), len([]rune(reply)), dur.Milliseconds(), llmTimeout.Milliseconds(), turnCap, authored, callErr, extra)
+		slog.Info("tribunal turn-telemetry", "idx", idx, "role", role, "prompt_runes", len([]rune(prompt)), "reply_runes", len([]rune(reply)), "dur_ms", dur.Milliseconds(), "timeout_ms", llmTimeout.Milliseconds(), "turn_cap", turnCap, "authored", authored, "call_err", callErr, "extra", extra)
 	}
 
 	// Associative memory recall via Hindsight
@@ -661,14 +660,14 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		if err == nil && len(reply) > 20 {
 			authored1 = true
 			scoutContent = reply
-			log.Printf("[Tribunal] Turn 1 (Ansatz Scout) generated via LLM: %s", reply[:min(len(reply), 100)])
+			slog.Info("tribunal turn generated via LLM", "turn", 1, "role", "Ansatz Scout", "preview", reply[:min(len(reply), 100)])
 		} else if err != nil {
-			log.Printf("[Tribunal] Turn 1 LLM fallback notice: %v", err)
+			slog.Warn("tribunal turn LLM fallback", "turn", 1, "role", "Ansatz Scout", "error", err)
 		} else {
 			// Audit 2026-10-26: a short/empty reply used to fall back
 			// with no trace (turn 2 once did exactly this). Short
 			// replies are correctly discarded — but silently.
-			log.Printf("[Tribunal] Turn 1 fell back: LLM reply too short (%d chars), treating as un-authored", len(reply))
+			slog.Warn("tribunal turn fell back: LLM reply too short", "turn", 1, "role", "Ansatz Scout", "reply_chars", len(reply))
 		}
 		logTurn(1, "ansatz-scout", turn1Prompt, reply, turnDur1, err, authored1,
 			fmt.Sprintf("sys_runes=%d", len([]rune(string(ac.manifests[RoleAnsatzScout].SystemPrompt)))))
@@ -708,11 +707,11 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		if err == nil && len(reply) > 20 {
 			authored2 = true
 			discContent = reply
-			log.Printf("[Tribunal] Turn 2 (Disconfirmation Officer) generated via LLM: %s", reply[:min(len(reply), 100)])
+			slog.Info("tribunal turn generated via LLM", "turn", 2, "role", "Disconfirmation Officer", "preview", reply[:min(len(reply), 100)])
 		} else if err != nil {
-			log.Printf("[Tribunal] Turn 2 LLM fallback notice: %v", err)
+			slog.Warn("tribunal turn LLM fallback", "turn", 2, "role", "Disconfirmation Officer", "error", err)
 		} else {
-			log.Printf("[Tribunal] Turn 2 fell back: LLM reply too short (%d chars), treating as un-authored", len(reply))
+			slog.Warn("tribunal turn fell back: LLM reply too short", "turn", 2, "role", "Disconfirmation Officer", "reply_chars", len(reply))
 		}
 		logTurn(2, "disconfirmation-officer", turn2Prompt, reply, turnDur2, err, authored2,
 			fmt.Sprintf("sys_runes=%d anchor_live=%v anchor=%q", len([]rune(string(ac.manifests[RoleDisconfirmationOfficer].SystemPrompt))), anchorLive, fciAnchor))
@@ -739,7 +738,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 	contestedReason := ""
 	if bad := firstFailedObserved(append(append([]ObservedCall{}, obs1...), obs2...)); bad != "" {
 		contestedReason = "tool observation failed: " + bad
-		log.Printf("[Tribunal] Early exit after Turn 2: %s", contestedReason)
+		slog.Info("tribunal early exit after turn 2", "reason", contestedReason)
 	}
 	if contestedReason != "" && wired {
 		// A contested run can never close: record the refutation as a
@@ -747,7 +746,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 		if err := ac.Ledger.RecordObligationCase(obID, ledger.ObligationCase{
 			CaseKind: "deliberation", Verdict: "fail", Authority: "collective", Evidence: contestedReason,
 		}); err != nil {
-			log.Printf("[Tribunal] record deliberation case failed: %v", err)
+			slog.Error("tribunal record deliberation case failed", "error", err)
 		}
 	}
 	// scribeContent feeds the shared proposal-extraction tail; empty on
@@ -773,17 +772,17 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			turnMsgs, obs3 = ac.observeTurn(tCtx, llmClient, "device-auditor", turnMsgs)
 			reply, _, turnDur3, err := llmClient.CompleteCapped(tCtx, "device-auditor", turnMsgs, turnCap)
 			tCancel()
-		if err == nil && len(reply) > 20 {
-			authored3 = true
-			auditContent = reply
-			log.Printf("[Tribunal] Turn 3 (Device Auditor) generated via LLM: %s", reply[:min(len(reply), 100)])
-		} else if err != nil {
-			log.Printf("[Tribunal] Turn 3 LLM fallback notice: %v", err)
-		} else {
-			log.Printf("[Tribunal] Turn 3 fell back: LLM reply too short (%d chars), treating as un-authored", len(reply))
-		}
-		logTurn(3, "device-auditor", turn3Prompt, reply, turnDur3, err, authored3,
-			fmt.Sprintf("sys_runes=%d", len([]rune(string(ac.manifests[RoleDeviceAuditor].SystemPrompt)))))
+			if err == nil && len(reply) > 20 {
+				authored3 = true
+				auditContent = reply
+				slog.Info("tribunal turn generated via LLM", "turn", 3, "role", "Device Auditor", "preview", reply[:min(len(reply), 100)])
+			} else if err != nil {
+				slog.Warn("tribunal turn LLM fallback", "turn", 3, "role", "Device Auditor", "error", err)
+			} else {
+				slog.Warn("tribunal turn fell back: LLM reply too short", "turn", 3, "role", "Device Auditor", "reply_chars", len(reply))
+			}
+			logTurn(3, "device-auditor", turn3Prompt, reply, turnDur3, err, authored3,
+				fmt.Sprintf("sys_runes=%d", len([]rune(string(ac.manifests[RoleDeviceAuditor].SystemPrompt)))))
 		}
 		t3 := TribunalTurn{
 			TurnIndex: 3,
@@ -821,17 +820,17 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			turnMsgs, obs4 = ac.observeTurn(tCtx, llmClient, "epistemic-scribe", turnMsgs)
 			reply, _, turnDur4, err := llmClient.CompleteCapped(tCtx, "epistemic-scribe", turnMsgs, turnCap)
 			tCancel()
-		if err == nil && len(reply) > 20 {
-			authored4 = true
-			scribeContent = reply
-			log.Printf("[Tribunal] Turn 4 (Epistemic Scribe) generated via LLM: %s", reply[:min(len(reply), 100)])
-		} else if err != nil {
-			log.Printf("[Tribunal] Turn 4 LLM fallback notice: %v", err)
-		} else {
-			log.Printf("[Tribunal] Turn 4 fell back: LLM reply too short (%d chars), treating as un-authored", len(reply))
-		}
-		logTurn(4, "epistemic-scribe", turn4Prompt, reply, turnDur4, err, authored4,
-			fmt.Sprintf("sys_runes=%d", len([]rune(string(ac.manifests[RoleEpistemicScribe].SystemPrompt)))))
+			if err == nil && len(reply) > 20 {
+				authored4 = true
+				scribeContent = reply
+				slog.Info("tribunal turn generated via LLM", "turn", 4, "role", "Epistemic Scribe", "preview", reply[:min(len(reply), 100)])
+			} else if err != nil {
+				slog.Warn("tribunal turn LLM fallback", "turn", 4, "role", "Epistemic Scribe", "error", err)
+			} else {
+				slog.Warn("tribunal turn fell back: LLM reply too short", "turn", 4, "role", "Epistemic Scribe", "reply_chars", len(reply))
+			}
+			logTurn(4, "epistemic-scribe", turn4Prompt, reply, turnDur4, err, authored4,
+				fmt.Sprintf("sys_runes=%d", len([]rune(string(ac.manifests[RoleEpistemicScribe].SystemPrompt)))))
 		}
 		t4 := TribunalTurn{
 			TurnIndex: 4,
@@ -907,7 +906,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			ID:          "classical-anchor",
 			Description: "ab-initio anchor unavailable (bridge unreachable): canonical fallback label in use, unverified",
 		}); err != nil {
-			log.Printf("[Tribunal] record anchor unknown failed: %v", err)
+			slog.Error("tribunal record anchor unknown failed", "error", err)
 		}
 	}
 	if result.ConsensusPassed {

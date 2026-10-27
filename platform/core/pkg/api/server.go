@@ -239,8 +239,7 @@ func NewServer(
 	// persisted selection (e.g. a model oMLX no longer serves) is caught at
 	// startup, not misdiagnosed mid-session (2026-10-11).
 	snap := llmSet.GetSnapshot()
-	log.Printf("[Kubona Core] LLM effective: provider=%s model=%s max_tokens=%d (0=server default/EOS)",
-		snap.ActiveProvider, snap.ActiveModel, snap.MaxTokens)
+	slog.Info("[Kubona Core] LLM effective", "provider", snap.ActiveProvider, "model", snap.ActiveModel, "max_tokens", snap.MaxTokens)
 	// W0.19 production posture: a prod boot with cloud inference and no
 	// explicit opt-in refuses here — loudly at startup, never silently
 	// exfiltrating prompts mid-session. Dev/test boot is unaffected.
@@ -387,13 +386,13 @@ func NewServer(
 	// Seed sample claim wavefunctions for the Epistemic Manifold
 	for _, seed := range epistemics.SeedClaims() {
 		if err := s.epistemicGate.RegisterClaim(seed); err != nil {
-			log.Printf("[Epistemics] seed claim refused: %v", err)
+			slog.Error("[Epistemics] seed claim refused", "error", err)
 		}
 	}
 
 	s.registerRoutes()
 	if err := initAuthSessionTable(l.DB()); err != nil {
-		log.Printf("[Auth] session table init failed (%v): login will refuse until the ledger is writable", err)
+		slog.Error("[Auth] session table init failed; login will refuse until the ledger is writable", "error", err)
 	}
 	return s
 }
@@ -1298,7 +1297,7 @@ func (s *Server) recordMandateSettlement(j *jobs.Job) {
 	}
 	ob, err := s.ledger.GetObligationBySubject("mandate", j.MandateRef)
 	if err != nil {
-		log.Printf("[Kubona Core] mandate settlement lookup failed for job %s: %v", j.ID, err)
+		slog.Error("[Kubona Core] mandate settlement lookup failed", "job_id", j.ID, "error", err)
 		return
 	}
 	if ob == nil {
@@ -1314,18 +1313,18 @@ func (s *Server) recordMandateSettlement(j *jobs.Job) {
 			j.MandateRef+"/job/"+j.ID, []string{"settlement"}, []string{"ledger-receipt"},
 			[]string{ob.ID})
 		if ferr != nil {
-			log.Printf("[Kubona Core] mandate follow-up failed for job %s: %v", j.ID, ferr)
+			slog.Error("[Kubona Core] mandate follow-up failed", "job_id", j.ID, "error", ferr)
 			return
 		}
 		if ferr := s.ledger.RecordObligationCase(follow.ID, settlement); ferr != nil {
-			log.Printf("[Kubona Core] mandate follow-up case failed for job %s: %v", j.ID, ferr)
+			slog.Error("[Kubona Core] mandate follow-up case failed", "job_id", j.ID, "error", ferr)
 		}
 		return
 	}
 	if closed, reasons, err := agents.AttemptClose(s.ledger, ob.ID); err != nil {
-		log.Printf("[Kubona Core] mandate close failed for job %s: %v", j.ID, err)
+		slog.Error("[Kubona Core] mandate close failed", "job_id", j.ID, "error", err)
 	} else if !closed {
-		log.Printf("[Kubona Core] mandate %s stays open after job %s: %v", j.MandateRef, j.ID, reasons)
+		slog.Warn("[Kubona Core] mandate stays open after job", "mandate_ref", j.MandateRef, "job_id", j.ID, "reasons", reasons)
 	}
 }
 
@@ -2914,7 +2913,7 @@ func (s *Server) scoreTribunalTranscript(sessionID string, res *agents.TribunalR
 	}
 	if res.ObligationID != "" {
 		if err := s.ledger.RecordTranscriptScores(stored); err != nil {
-			log.Printf("[Tribunal] record transcript scores failed (run stands): %v", err)
+			slog.Error("tribunal record transcript scores failed; run stands", "error", err)
 		}
 	}
 	return rows
@@ -4420,7 +4419,7 @@ func (s *Server) persistLoopRow(engine *autoresearch.LoopEngine) {
 	}); err != nil {
 		// W2.10: loud, timestamped, and audited — the old bare println
 		// vanished into scrollback while DB and memory diverged.
-		log.Printf("[Kubona Core] loop persist FAILED for %s: %v (memory/DB diverged)", st.ID, err)
+		slog.Error("[Kubona Core] loop persist failed; memory/DB diverged", "loop_id", st.ID, "error", err)
 		_ = s.ledger.AppendEvent(st.SessionID, "loop_persist_failed", map[string]any{
 			"loop_id": st.ID, "error": err.Error(),
 		})
@@ -4456,11 +4455,11 @@ func (s *Server) recordLoopSpend(loopID, role string, promptTokens, completionTo
 // AND session books, seal the audit event. Idempotent — already-released
 // loops are a no-op receipt. Returns false only on ledger failure (the
 // reservation may still be held — callers must NOT park the loop then).
-// Stuck money stays visible in spent_usd, recoverable via refund.
+// Stuck money stays visible in the tenant book, recoverable via refund.
 func (s *Server) releaseLoopSpend(loopID, cause string) bool {
 	st, err := s.ledger.GetLoopState(loopID)
 	if err != nil {
-		log.Printf("[Kubona Core] loop spend release failed for %s: %v", loopID, err)
+		slog.Error("[Kubona Core] loop spend release failed", "loop_id", loopID, "error", err)
 		return false
 	}
 	sessionID := ""
@@ -4469,7 +4468,7 @@ func (s *Server) releaseLoopSpend(loopID, cause string) bool {
 	}
 	tenant, refund, ok, err := s.ledger.ClaimLoopSpend(loopID)
 	if err != nil {
-		log.Printf("[Kubona Core] loop spend release failed for %s: %v", loopID, err)
+		slog.Error("[Kubona Core] loop spend release failed", "loop_id", loopID, "error", err)
 		return false
 	}
 	if !ok {
@@ -4485,12 +4484,12 @@ func (s *Server) releaseLoopSpend(loopID, cause string) bool {
 	}
 	if tenant != "" && refund > 0 {
 		if rerr := s.tenantMgr.ReleaseSpend(tenant, refund); rerr != nil {
-			log.Printf("[Kubona Core] loop spend tenant release failed for %s: %v", loopID, rerr)
+			slog.Error("[Kubona Core] loop spend tenant release failed", "loop_id", loopID, "error", rerr)
 		}
 	}
 	if sessionID != "" && refund > 0 {
 		if rerr := s.sessionMgr.ReleaseSpend(sessionID, refund); rerr != nil {
-			log.Printf("[Kubona Core] loop spend session release failed for %s: %v", loopID, rerr)
+			slog.Error("[Kubona Core] loop spend session release failed", "loop_id", loopID, "error", rerr)
 		}
 	}
 	_ = s.ledger.AppendEvent(sessionID, "loop_spend_released", map[string]any{
@@ -4879,7 +4878,7 @@ func (s *Server) handlePQCVerify(w http.ResponseWriter, r *http.Request) {
 		// W0.12: uniform external refusal (decap/decrypt/hex failures are
 		// indistinguishable outside; detail goes to the server log, not
 		// the wire — no oracle, still debuggable).
-		log.Printf("[Kubona Core] PQC mandate rejected: %v", err)
+		slog.Warn("[Kubona Core] PQC mandate rejected", "error", err)
 		writeJSON(w, http.StatusOK, map[string]any{
 			"valid": false,
 			"error": "hybrid mandate rejected",

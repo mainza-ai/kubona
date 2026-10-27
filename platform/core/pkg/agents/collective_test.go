@@ -4,10 +4,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"log"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -325,8 +324,9 @@ func (e errTestProbe) Error() string { return string(e) }
 // length; duration and prompt size were never logged anywhere).
 func TestTribunalEmitsPerTurnTelemetry(t *testing.T) {
 	var buf bytes.Buffer
-	log.SetOutput(&buf)
-	t.Cleanup(func() { log.SetOutput(os.Stderr) })
+	oldLogger := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(&buf, nil)))
+	t.Cleanup(func() { slog.SetDefault(oldLogger) })
 	ac := NewAgentCollective()
 	reg := tools.NewRegistry()
 	_ = reg.Register(tools.Definition{
