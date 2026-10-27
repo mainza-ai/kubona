@@ -7,15 +7,22 @@
 # Health: /api/health + /api/ready are public reads (no bearer), so the
 # HEALTHCHECK needs no token. curl exists in final ONLY for that probe.
 #
-# Build (repo root):  docker build -f platform/docker/Dockerfile.kubonad -t kubona/kubonad:dev platform/core
+# Build (repo root):  docker build -f platform/docker/Dockerfile.kubonad -t kubona/kubonad:dev platform
 # Run (compose is the supported path): see compose.prod.yml.
+# The build context is platform/ (not platform/core) so the runtime can
+# ship the shared contracts/ directory: the fidelity gate fails closed at
+# boot without fidelity-devices.json, and the old core-only context could
+# never contain it.
 
 FROM golang:1.27.1-bookworm@sha256:8d48e12ec56735e9358640898b9d9b9fcca110612ed8a5567438c0a1baa24e66 AS build
 
 WORKDIR /src
-COPY go.mod go.sum ./
+COPY core/go.mod core/go.sum ./
 RUN go mod download
-COPY . .
+COPY core/ .
+# Shared contracts are runtime data (fidelity-devices.json, event types).
+# Copying them into the image is what makes the production boot real.
+COPY contracts ./contracts
 # Trimpath for reproducible builds; CGO required (sqlite).
 RUN CGO_ENABLED=1 go build -trimpath -o /kubonad ./cmd/kubonad
 
@@ -27,6 +34,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && groupadd -g 1000 kubona && useradd -u 1000 -g kubona -m -s /bin/sh kubona
 
 COPY --from=build /kubonad /usr/local/bin/kubonad
+COPY --from=build /src/contracts /contracts
+ENV KUBONA_CONTRACTS_DIR=/contracts
 
 # Seed the state dir with daemon ownership: a fresh named volume inherits
 # the image's directory (owner included); without this the volume mounts

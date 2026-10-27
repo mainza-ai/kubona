@@ -28,6 +28,13 @@ services:
     image: kubona/bridge:prod
     expose:
       - "50051"
+    environment:
+      # The bridge is a private compute plane. Binding 0.0.0.0 is only
+      # allowed because every RPC then requires this bearer; kubonad
+      # presents it. If both tokens are unset the bridge refuses to start
+      # on a non-loopback bind (fail-closed).
+      KUBONA_BRIDGE_BIND: "0.0.0.0"
+      KUBONA_BRIDGE_TOKEN: ${KUBONA_BRIDGE_TOKEN:-${KUBONA_API_TOKEN:-}}
     restart: unless-stopped
     deploy:
       resources:
@@ -43,12 +50,15 @@ services:
 
   kubonad:
     build:
-      context: ../core
-      dockerfile: ../docker/Dockerfile.kubonad
+      context: ..
+      dockerfile: docker/Dockerfile.kubonad
     image: kubona/kubonad:prod
     command: ["--bind", "0.0.0.0", "--port", "8080", "--bridge", "bridge:50051"]
     environment:
       KUBONA_API_TOKEN: ${KUBONA_API_TOKEN:-}
+      # Shared secret for the private bridge RPCs. Defaults to the API
+      # token so the supported quickstart needs one value, not two.
+      KUBONA_BRIDGE_TOKEN: ${KUBONA_BRIDGE_TOKEN:-${KUBONA_API_TOKEN:-}}
       # Audit 2026-10-21: Strata is the default provider (local, keyless),
       # but the stack never configured its model — every LLM path refused
       # with "no model configured" on a stock up. .env.example names iq3_s

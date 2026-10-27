@@ -71,12 +71,15 @@ Describes **how decided** something is — never how finished.
 | `source` | An ingested source record. Immutable once written. | the 7 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (151 pages = 47 entities · 89 concepts · 10 sources · 5 meta), 2026-10-26:**
-`settled` 6 · `adopted` 62 · `open-question` 0 · `candidate` 13 · `tracked` 44 ·
-`reference` 9 · `source` 10 · `living` 7 (lint-counted). Six `settled` against 62 `adopted`
-keeps the honest reading: the load-bearing constraints are **chosen**, everything else
-remains **understood**. `settled` stays small by rule — each entry needed test enforcement
-plus dependents ([[overview]] §Settled constraints); new candidates must meet the same bar.
+**Census (153 pages = 47 entities · 91 concepts · 10 sources · 5 meta), 2026-10-26:**
+`settled` 6 · `adopted` 62 · `open-question` 0 pages · `candidate` 13 · `tracked` 46 ·
+`reference` 9 · `source` 10 · `living` 7 (lint-counted). Nine open decisions live as
+rows in [[questions]] §F (Q-49..Q-57, opened by the 2026-10-26 Round-2 audit); they have no
+`status: open-question` page yet, so the page census still shows 0. Six `settled` against 62
+`adopted` keeps the honest reading: the load-bearing constraints are **chosen**, everything
+else remains **understood**. `settled` stays small by rule — each entry needed test
+enforcement plus dependents ([[overview]] §Settled constraints); new candidates must meet
+the same bar.
 
 **Machine-checkable:** `python3 scripts/wiki-lint.py --strict` enforces this vocabulary, the
 canonical `sources` keys, link and index integrity, and the no-`dev-docs`-anchors rule.
@@ -221,6 +224,8 @@ Revisit only with a concrete claim that fits nowhere.
 | [[observatory-lens-audit-2026-10-23]] | Observatory lens deep-dive audit vs live Atlas contract: handover corrections, missed findings, P0–P6 completion plan (`tracked`) |
 | [[observatory-plan-gap-audit-2026-10-23]] | Plan-vs-implementation gap audit: phase-gate verdicts, R-01–R-30 remaining work, live-proof ledger (`tracked`) |
 | [[quantum-hardware-gaps-2026-10-24]] | QPU provisioning, provider wiring, frontend config gaps G1–G11 with dispositions; R-32/R-33/R-34 proposals (`tracked`) |
+| [[production-readiness-audit-2026-10-26]] | Round-2 full-source production audit: 10 P0 blockers (bridge auth, import forgery, sandbox escape, money rail, CI, anchors, comparator, claim theater), claim ledger, phased plan (`tracked`) |
+| [[production-readiness-audit-2026-10-26-details]] | Round-2 audit appendix: P2/P3 register by domain, exact coverage and verification log (`tracked`) |
 | [[autonomous-mathematical-discovery]] | Multi-hour thinking compute search dynamics over open conjectures, counterexample isolation, and proof refactoring |
 | [[formal-proof-verification-lean-comparator]] | Axiomatic formal verification ($\rho = 1.0$) vs empirical simulation, anti-cheating axiom sets, and ledger receipts |
 | [[mathematical-physics-anchors]] | Analytical ground-truth baselines from `openai/math` (Heisenberg ferromagnet, SK model, Haldane gap, MUB-6) enforcing quantum realism |

@@ -39,6 +39,24 @@ All initial science-discovery forks are recorded in `## Closed` below (Q-17, Q-1
 
 All Section E questions are settled: Q-27 history scrub executed 2026-10-26 (see `## Closed` below).
 
+## F · Production-readiness (opened 2026-10-26 by the Round-2 audit)
+
+These are implementation-shape decisions surfaced by
+[[production-readiness-audit-2026-10-26]]; the code cannot choose them. Each
+blocks a Phase-1/2/4 slice. Until answered, the platform is not production-ready.
+
+| # | Question | Rank | Known | Missing | Links |
+|---|---|---|---|---|---|
+| **Q-49** | **What is the bridge trust boundary — mTLS, HMAC interceptor, or UDS-only — and does the bridge ever run off-host?** | P0 | Bridge binds unauthenticated `[::]:50051`; Go dials insecure; UDS mode still binds TCP. It accepts caller-asserted budget/spend/tenant and can submit IBM hardware outside the governed rail. | Transport choice + whether the deploy topology keeps bridge on the same host/network namespace; key distribution/rotation. | [[production-readiness-audit-2026-10-26]] |
+| **Q-50** | **Which store is the single money authority, and in what exact unit?** | P0 | Three books (Go SQLite REAL, Python JSONL float, Atlas) with epsilon guards; Go reserves QPU spend while Python also records it. | Choice (Go SQLite vs Python vs Postgres), integer micro-USD vs Decimal, migration and Atlas reconciliation policy. | [[production-readiness-audit-2026-10-26]] |
+| **Q-51** | **Are failed/pre-vendor jobs refunded automatically, or only by an operator?** | P0 | Spend is committed at dispatch; failures keep the charge; Python refund is unsigned/unledgered; Go refund requires an envelope but does not verify its signature. | Refund trigger/timing, idempotent replay semantics, partial-vendor-usage policy. | [[production-readiness-audit-2026-10-26]] |
+| **Q-52** | **What is the session-import trust model?** | P0 | Import is unauthenticated and inserts caller-supplied spend, events, hashes, and signatures; this can forge the ledger and mandate receipts. | Operator-only vs remove vs sandboxed staging; manifest signing/key distribution; merge/replay semantics. | [[production-readiness-audit-2026-10-26]] |
+| **Q-53** | **Does A2A/x402 become real, or stay disabled until a settlement rail exists?** | P1 | Public A2A accepts a self-signed challenge, treats it as payment, and defaults the tenant to `default`; Q-23 records x402 as dormant. | Settlement rail/chain staffing, authenticated tenant binding, whether root tasks may exist publicly. | [[production-readiness-audit-2026-10-26]], [[a2a]] |
+| **Q-54** | **What runtime isolates agent-submitted Python, and may numpy/scipy remain allowed?** | P0 | AST filtering is escapable to native code and host filesystem; no `runsc`/container is used for this rail; Q-48 claimed gVisor but the code does not invoke it. | gVisor vs Docker vs WASM; whether the science rail needs native libs; mandatory-vs-optional enforcement. | [[production-readiness-audit-2026-10-26]] |
+| **Q-55** | **Is the anchor source live PySCF per request or a curated table, and which reference values are authoritative?** | P0 | The H2 table returns `-1.0718` at every R (true `-1.13727`), ignores geometry, and the suite was edited to bless it; the repo already contains a correct JW anchor in `eval/truncation.py`. | Cost/latency tolerance for live solves; table curation/verification owner; which molecules must be live. | [[production-readiness-audit-2026-10-26]] |
+| **Q-56** | **How does the console authenticate without shipping a bearer or losing its admin key on reload?** | P1 | A dev bearer is baked by a normal `next build`; the Ed25519 key is module-memory only and is lost on reload; the server already supports cookie sessions. | Server-session-only vs client key custody (passkey/WebCrypto non-extractable); operator token distribution; rotation. | [[production-readiness-audit-2026-10-26]] |
+| **Q-57** | **Which endpoints may stay anonymous in single-lab mode, and how is multi-lab mode detected?** | P0 | Per-handler authz leaves A2A, import, LLM test, loops, memory, and PQC verify open; bearer tokens carry no tenant while cookies do; D-09 is recorded but not applied uniformly. | Explicit public-read allowlist, tenant-bound bearer vs cookie-only, single-lab declaration/flag, route-policy ownership. | [[production-readiness-audit-2026-10-26]] |
+
 ## Closed
 
 | # | Closed | Answer (one line) | Where it landed |
