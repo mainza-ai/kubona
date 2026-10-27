@@ -3521,3 +3521,9 @@ skipped is the exact failure this incident is about:
   - kubona.fidelity.refresh validates a live provider snapshot (positive T1/T2, T2 <= 2*T1, non-negative errors), stamps calibrated_at/version/source, and atomically updates fidelity-devices.json. Unmeasurable input refuses; dry-run is default.
   - kubona.cost.rate_card validates positive rates, USD, ISO verified date, vendor URL, and plan notes, then atomically replaces a provider schema's pricing object. Dry-run is default.
   - Both are operator-gated: live calibration needs the vendor key, and vendor pricing is not scraped. Tests run without keys.
+
+## [2026-10-27] decision | Session-import key rotation
+
+  - Manifests now name a key_id. KUBONA_IMPORT_HMAC_KEYS holds comma-separated kid=key pairs; KUBONA_IMPORT_HMAC_KEY_ID selects the signing key; the legacy single key and API token remain verifier fallbacks.
+  - Verification uses the named key and refuses an unknown/rotated-out kid; keyless legacy manifests try every configured key.
+  - Tests cover active-key export, both keys verifying, unknown kid refusal, and legacy keyless import.

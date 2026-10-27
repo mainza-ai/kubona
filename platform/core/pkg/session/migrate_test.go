@@ -293,3 +293,57 @@ func testDeleteSigner() ed25519.PrivateKey {
 	}
 	return ed25519.NewKeyFromSeed(seed)
 }
+
+func TestManifestKeyRotation(t *testing.T) {
+	t.Setenv("KUBONA_IMPORT_HMAC_KEYS", "old=key-old,new=key-new")
+	t.Setenv("KUBONA_IMPORT_HMAC_KEY", "")
+	t.Setenv("KUBONA_API_TOKEN", "")
+
+	src, _ := mustOpenCascade(t)
+	sess, err := src.CreateSession("rotate-me", 100, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("KUBONA_IMPORT_HMAC_KEY_ID", "new")
+	man, err := src.ExportSession(sess.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if man.KeyID != "new" || man.Signature == "" {
+		t.Fatalf("export must name the active key: kid=%q sig=%q", man.KeyID, man.Signature)
+	}
+	dst, _ := mustOpenCascade(t)
+	if _, err := dst.ImportSession(man); err != nil {
+		t.Fatalf("active-key import: %v", err)
+	}
+
+	t.Setenv("KUBONA_IMPORT_HMAC_KEY_ID", "old")
+	oldMan, err := src.ExportSession(sess.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if oldMan.KeyID != "old" {
+		t.Fatalf("expected old key id, got %q", oldMan.KeyID)
+	}
+	dst2, _ := mustOpenCascade(t)
+	if _, err := dst2.ImportSession(oldMan); err != nil {
+		t.Fatalf("rotated-out-but-configured key must verify: %v", err)
+	}
+
+	// A key id that is not in the keyring refuses even with a valid MAC.
+	forged := *oldMan
+	forged.KeyID = "gone"
+	dst3, _ := mustOpenCascade(t)
+	if _, err := dst3.ImportSession(&forged); err == nil || !strings.Contains(err.Error(), "not configured") {
+		t.Fatalf("unknown key id must refuse, got %v", err)
+	}
+
+	// Legacy manifests (no key_id) still verify against any configured key.
+	legacy := *oldMan
+	legacy.KeyID = ""
+	dst4, _ := mustOpenCascade(t)
+	if _, err := dst4.ImportSession(&legacy); err != nil {
+		t.Fatalf("legacy keyless manifest must verify: %v", err)
+	}
+}
