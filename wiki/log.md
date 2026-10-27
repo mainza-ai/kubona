@@ -3455,3 +3455,9 @@ skipped is the exact failure this incident is about:
   - A2A task goroutines recover panics, log, and mark the task failed.
   - /api/ready now pings SQLite (2s) in addition to the disk guard; a closed DB is 503, not "ready".
   - Remaining observability: metrics/tracing and structured JSON logs.
+
+## [2026-10-27] decision | Prometheus metrics surface
+
+  - GET /metrics (bearer) exposes kubona_http_requests_total, duration sum/count by method+status (low cardinality, no path/tenant labels), and inflight requests.
+  - Instrumentation wraps recovery so a panicking request is counted as 500, never 200; a test pins the ordering.
+  - Remaining observability: tracing and structured JSON logs.
