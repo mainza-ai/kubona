@@ -182,6 +182,8 @@ def test_submit_syncs_external_session_and_sets_replay_flag(isolated_rail):
     assert mirrored is not None
     assert mirrored.budget_ceiling_usd == 42.5
     assert mirrored.meta.get("tenant_id") == "lab-alpha"
+    # Go already reserved this job; Python must not charge the mirror.
+    assert mirrored.meta.get("spend_prepaid") is True
 
     ex._runner.wait(first.job_id, timeout_s=30.0)
     second = svc.QuantumSubmit(_req(idempotency_key="sync-idem-1", **kw), None)

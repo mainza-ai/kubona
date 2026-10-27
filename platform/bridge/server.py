@@ -349,6 +349,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     budget_ceiling_usd=ceiling_usd,
                     spent_usd=spent_usd,
                     tenant_id=getattr(request, "tenant_id", "") or "",
+                    spend_prepaid=True,
                 )
                 from kubona.mcp.servers import cost as _cost
                 _cost._sessions.sync_external_session(
@@ -356,6 +357,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                     budget_ceiling_usd=ceiling_usd,
                     spent_usd=spent_usd,
                     tenant_id=getattr(request, "tenant_id", "") or "",
+                    spend_prepaid=True,
                 )
 
             caller_jurisdictions = list(getattr(request, "caller_jurisdictions", None) or [])
@@ -377,7 +379,6 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                 estimate_only=bool(request.dry_run),
                 idempotency_key=request.idempotency_key,
                 idempotency_body_hash=body_hash,
-                spend_prepaid=bool(getattr(request, "session_verified", False)),
             )
             if not out.get("ok"):
                 return kubona_pb2.QuantumSubmitResponse(
