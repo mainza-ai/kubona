@@ -65,19 +65,29 @@ describe('LabOpsPanel (U1-b)', () => {
     expect(action.pubkey_hex).toBe(PUB);
   });
 
-  it('mismatched keys disable writes with both fingerprints named', async () => {
-    let calls = 0;
-    stubFetch(() => {
-      calls++;
-      return { ok: true, json: async () => ({}) };
+  it('mismatched keys fall back to the lab-admin session without an envelope', async () => {
+    const seen: Array<{ url: string; body: string }> = [];
+    stubFetch((url, init) => {
+      seen.push({ url, body: String(init?.body) });
+      return { ok: true, json: async () => ({ id: 'lab-a' }) };
     });
+    vi.stubGlobal('confirm', () => true);
     const tree = await render(
       <LabOpsPanel lab={lab({ id: 'lab-a', admin_pubkey_hex: 'ab'.repeat(32) })} onChanged={() => {}} />
     );
     const text = JSON.stringify(tree.toJSON());
     expect(text).toContain('is not this lab');
-    expect(tree.root.findAllByType('button')).toHaveLength(0);
-    expect(calls).toBe(0);
+    const input = tree.root.findByProps({ 'aria-label': 'New ceiling for lab-a' });
+    await act(async () => {
+      input.props.onChange({ target: { value: '150' } });
+    });
+    await act(async () => {
+      tree.root.findAllByType('button').find((b) => b.props.children === 'Set ceiling')!.props.onClick();
+    });
+    expect(seen).toHaveLength(1);
+    const body = JSON.parse(seen[0].body) as Record<string, unknown>;
+    expect(body.ceiling_usd).toBe(150);
+    expect('action' in body).toBe(false);
   });
 
   it('bootstraps an admin-less lab with no envelope (first write wins)', async () => {

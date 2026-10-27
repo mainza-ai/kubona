@@ -74,6 +74,10 @@ type AdminAction struct {
 	Expiry       time.Time `json:"expiry"`
 	PubkeyHex    string    `json:"pubkey_hex"`
 	SignatureHex string    `json:"signature_hex"`
+	// ViaSession is set only by the API after it validates an httpOnly
+	// lab-admin session cookie (fingerprint == tenant admin key). It is
+	// never accepted from JSON (json:"-"), so a request cannot forge it.
+	ViaSession bool `json:"-"`
 }
 
 // CanonicalPayload returns the deterministic bytes the admin signs.
@@ -168,6 +172,12 @@ func (m *Manager) verifyAdmin(action *AdminAction) (*Tenant, error) {
 	// is a trap, not a control). Everything else refuses while suspended.
 	if t.Status != "active" && action.Action != "set_status" && action.Action != "set_admin_key" {
 		return nil, ErrTenantSuspended
+	}
+	if action.ViaSession {
+		// The API already proved the cookie belongs to this tenant's admin
+		// key (fingerprint match) and passed CSRF. Do not require a second
+		// client-held signature: the session is the identity.
+		return t, nil
 	}
 	if t.AdminPubkeyHex == "" || !strings.EqualFold(t.AdminPubkeyHex, action.PubkeyHex) {
 		return nil, ErrNotAdmin

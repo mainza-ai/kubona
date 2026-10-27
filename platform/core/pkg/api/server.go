@@ -1659,7 +1659,7 @@ func (s *Server) handleSessionRefund(w http.ResponseWriter, r *http.Request) {
 		WriteAPIError(w, "ghost_session", fmt.Sprintf("session %q not found", req.SessionID), nil)
 		return
 	}
-	bound, err := bindAdminAction(sess.TenantID, "session_refund_spend",
+	bound, err := s.bindAdminActionOrSession(r, sess.TenantID, "session_refund_spend",
 		map[string]any{"tenant_id": sess.TenantID, "session_id": req.SessionID,
 			"amount_usd": req.Amount, "reason": req.Reason}, req.Action)
 	if err != nil {

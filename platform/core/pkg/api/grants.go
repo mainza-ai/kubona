@@ -118,7 +118,7 @@ func (s *Server) handleGrantRevoke(w http.ResponseWriter, r *http.Request) {
 	} else {
 		params["leaf_cid"] = req.LeafCID
 	}
-	bound, err := bindAdminAction(granting, "revoke_grant", params, req.Action)
+	bound, err := s.bindAdminActionOrSession(r, granting, "revoke_grant", params, req.Action)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
