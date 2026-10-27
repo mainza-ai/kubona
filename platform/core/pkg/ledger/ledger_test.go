@@ -176,8 +176,9 @@ func TestLedgerConfidentialityLabels(t *testing.T) {
 	}
 }
 
-func TestMigrationAddsSpendColumns(t *testing.T) {
-	// Simulate a pre-spend-tracking database: old tenants/jobs shapes.
+func TestMigrationDropsRealMoneyProjection(t *testing.T) {
+	// Simulate a pre-micro database with REAL books, then prove the
+	// migration backfills micro and drops the REAL columns.
 	dbPath := "test_ledger_migrate.db"
 	os.Remove(dbPath)
 	defer func() {
@@ -189,13 +190,16 @@ func TestMigrationAddsSpendColumns(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := raw.Exec(`CREATE TABLE tenants (id TEXT PRIMARY KEY, display_name TEXT, admin_pubkey_hex TEXT NOT NULL DEFAULT '', autonomy_level TEXT NOT NULL DEFAULT 'L1', spend_ceiling_usd REAL NOT NULL DEFAULT 150.0, status TEXT NOT NULL DEFAULT 'active', created_at DATETIME)`); err != nil {
+	if _, err := raw.Exec(`CREATE TABLE tenants (id TEXT PRIMARY KEY, display_name TEXT, admin_pubkey_hex TEXT NOT NULL DEFAULT '', autonomy_level TEXT NOT NULL DEFAULT 'L1', spend_ceiling_usd REAL NOT NULL DEFAULT 150.0, spent_usd REAL NOT NULL DEFAULT 0, status TEXT NOT NULL DEFAULT 'active', created_at DATETIME)`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := raw.Exec(`INSERT INTO tenants (id, spend_ceiling_usd, status) VALUES ('old-lab', 150.0, 'active')`); err != nil {
+	if _, err := raw.Exec(`INSERT INTO tenants (id, spend_ceiling_usd, spent_usd, status) VALUES ('old-lab', 150.0, 12.5, 'active')`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := raw.Exec(`CREATE TABLE jobs (id TEXT PRIMARY KEY, session_id TEXT, status TEXT, job_type TEXT, params_json TEXT, result_json TEXT, created_at DATETIME, completed_at DATETIME)`); err != nil {
+	if _, err := raw.Exec(`CREATE TABLE jobs (id TEXT PRIMARY KEY, session_id TEXT, status TEXT, job_type TEXT, params_json TEXT, result_json TEXT, created_at DATETIME, completed_at DATETIME, reserved_amount REAL NOT NULL DEFAULT 0)`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := raw.Exec(`INSERT INTO jobs (id, status, reserved_amount) VALUES ('j-old', 'JOB_STATUS_QUEUED', 25.0)`); err != nil {
 		t.Fatal(err)
 	}
 	raw.Close()
@@ -205,18 +209,40 @@ func TestMigrationAddsSpendColumns(t *testing.T) {
 		t.Fatalf("open must migrate, not fail: %v", err)
 	}
 	defer l.Close()
-	var spent float64
-	if err := l.DB().QueryRow(`SELECT spent_usd FROM tenants WHERE id = 'old-lab'`).Scan(&spent); err != nil {
-		t.Fatalf("migrated spent_usd must read: %v", err)
+
+	var ceiling, spent, reserved int64
+	if err := l.DB().QueryRow(`SELECT spend_ceiling_micro_usd, spent_micro_usd FROM tenants WHERE id = 'old-lab'`).Scan(&ceiling, &spent); err != nil {
+		t.Fatalf("backfilled micro books must read: %v", err)
 	}
-	if spent != 0 {
-		t.Fatalf("pre-tracking spend backfills 0, got %v", spent)
+	if ceiling != 150000000 || spent != 12500000 {
+		t.Fatalf("backfill wrong: ceiling=%d spent=%d", ceiling, spent)
 	}
-	if _, err := l.DB().Exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount) VALUES ('j1','s','x','circuit_run','{}',CURRENT_TIMESTAMP,'old-lab',25.0)`); err != nil {
-		t.Fatalf("migrated jobs columns must accept reservations: %v", err)
+	if err := l.DB().QueryRow(`SELECT reserved_amount_micro_usd FROM jobs WHERE id = 'j-old'`).Scan(&reserved); err != nil {
+		t.Fatalf("backfilled job reservation must read: %v", err)
+	}
+	if reserved != 25000000 {
+		t.Fatalf("job reservation backfill wrong: %d", reserved)
+	}
+	for _, col := range []string{"spend_ceiling_usd", "spent_usd"} {
+		var n int
+		if err := l.DB().QueryRow(`SELECT COUNT(*) FROM pragma_table_info('tenants') WHERE name = ?`, col).Scan(&n); err != nil {
+			t.Fatal(err)
+		}
+		if n != 0 {
+			t.Fatalf("legacy column %s must be dropped", col)
+		}
+	}
+	var n int
+	if err := l.DB().QueryRow(`SELECT COUNT(*) FROM pragma_table_info('jobs') WHERE name = 'reserved_amount'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 0 {
+		t.Fatal("legacy jobs.reserved_amount must be dropped")
+	}
+	if _, err := l.DB().Exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount_micro_usd) VALUES ('j1','s','x','circuit_run','{}',CURRENT_TIMESTAMP,'old-lab',25000000)`); err != nil {
+		t.Fatalf("micro-only jobs insert must work: %v", err)
 	}
 }
-
 func TestCampaignVersions(t *testing.T) {
 	dbPath := "test_campaign_versions.db"
 	defer os.Remove(dbPath)

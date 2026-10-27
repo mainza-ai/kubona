@@ -26,8 +26,8 @@ func (l *Ledger) AddLoopConsumed(id string, amount float64) error {
 	if merr != nil {
 		return fmt.Errorf("drawdown amount: %w", merr)
 	}
-	if _, err := l.db.Exec(`UPDATE loops SET consumed_amount_micro_usd = consumed_amount_micro_usd + ?, consumed_amount = (consumed_amount_micro_usd + ?) / 1000000.0, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
-		int64(amountMicro), int64(amountMicro), id); err != nil {
+	if _, err := l.db.Exec(`UPDATE loops SET consumed_amount_micro_usd = consumed_amount_micro_usd + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+		int64(amountMicro), id); err != nil {
 		return fmt.Errorf("drawdown failed: %w", err)
 	}
 	return nil
@@ -83,7 +83,7 @@ func (l *Ledger) ClaimLoopSpend(id string) (tenant string, refund float64, ok bo
 	if reservedMicro <= 0 {
 		return "", 0, false, nil
 	}
-	res, err := l.db.Exec(`UPDATE loops SET reserved_amount = 0, reserved_amount_micro_usd = 0, consumed_amount = 0, consumed_amount_micro_usd = 0, updated_at = CURRENT_TIMESTAMP
+	res, err := l.db.Exec(`UPDATE loops SET reserved_amount_micro_usd = 0, consumed_amount_micro_usd = 0, updated_at = CURRENT_TIMESTAMP
 		WHERE id = ? AND reserved_amount_micro_usd > 0`, id)
 	if err != nil {
 		return "", 0, false, fmt.Errorf("claim loop spend failed: %w", err)

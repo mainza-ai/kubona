@@ -3497,3 +3497,9 @@ skipped is the exact failure this incident is about:
   - compilation-pass runs the candidate pass manager in stage 1 only; stage 2 checks unitary equivalence to QFT-4 before scoring depth x 2Q gates. A cheaper non-equivalent circuit is refused.
   - error-mitigation validates scale factors only in stage 1; stage 2 runs a real Aer density-matrix depolarizing simulation at each scale and Richardson-extrapolates the GHZ-4 ZZ observable.
   - No shipped harness implements SelfReported. The production gate remains for future harnesses and is tested with a fake.
+
+## [2026-10-27] decision | Real money projection dropped
+
+  - tenants/sessions/jobs/loops no longer create or write spend_ceiling_usd, spent_usd, spend_limit_usd, current_spend_usd, reserved_amount, or consumed_amount.
+  - OpenLedger backfills micro from the legacy REAL columns once, then drops them (SQLite >=3.35); USD JSON fields are projected from micro on read.
+  - Migration test proves backfill values and column removal; all package tests use micro-only fixtures.

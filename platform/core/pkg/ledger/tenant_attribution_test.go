@@ -5,7 +5,7 @@ import "testing"
 func TestTenantScopedEventKeepsLabAttribution(t *testing.T) {
 	l, cleanup := openVerifyLedger(t)
 	defer cleanup()
-	if _, err := l.DB().Exec(`INSERT INTO tenants (id, display_name, spend_ceiling_usd) VALUES ('lab-a', 'Lab A', 10)`); err != nil {
+	if _, err := l.DB().Exec(`INSERT INTO tenants (id, display_name, spend_ceiling_micro_usd) VALUES ('lab-a', 'Lab A', 10000000)`); err != nil {
 		t.Fatal(err)
 	}
 	if err := l.AppendEvent("lab-a", "tenant_ceiling_changed", map[string]any{"tenant_id": "lab-a"}); err != nil {

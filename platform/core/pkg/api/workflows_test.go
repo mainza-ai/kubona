@@ -160,7 +160,7 @@ func TestWorkflowRunEndpoint(t *testing.T) {
 		t.Fatalf("failed to create session: %v", err)
 	}
 	// Cap session spend limit at $5.00
-	_, err = l.DB().Exec(`UPDATE sessions SET spend_limit_usd = 5.0, current_spend_usd = 0.0 WHERE id = ?`, sess.ID)
+	_, err = l.DB().Exec(`UPDATE sessions SET spend_limit_micro_usd = 5000000, current_spend_micro_usd = 0 WHERE id = ?`, sess.ID)
 	if err != nil {
 		t.Fatalf("failed to update spend limit: %v", err)
 	}
@@ -243,7 +243,7 @@ func TestWorkflowRunBridgeFailureReleasesReservation(t *testing.T) {
 	if err != nil {
 		t.Fatalf("failed to create session: %v", err)
 	}
-	_, err = l.DB().Exec(`UPDATE sessions SET spend_limit_usd = 10.0, current_spend_usd = 0.0 WHERE id = ?`, sess.ID)
+	_, err = l.DB().Exec(`UPDATE sessions SET spend_limit_micro_usd = 10000000, current_spend_micro_usd = 0 WHERE id = ?`, sess.ID)
 	if err != nil {
 		t.Fatalf("failed to update spend limit: %v", err)
 	}

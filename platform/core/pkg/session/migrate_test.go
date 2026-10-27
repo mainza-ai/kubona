@@ -25,8 +25,8 @@ func mustOpenCascade(t *testing.T) (*Manager, *ledger.Ledger) {
 func seedCascadeSession(t *testing.T, m *Manager, l *ledger.Ledger, sid string) {
 	t.Helper()
 	s := &Session{ID: sid, Title: "cascade", TenantID: "default", CreatedAt: time.Now().UTC(), UpdatedAt: time.Now().UTC(), Status: "active", SpendLimitUSD: 100}
-	if _, err := l.DB().Exec(`INSERT INTO sessions (id, title, tenant_id, created_at, updated_at, status, spend_limit_usd, current_spend_usd) VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
-		s.ID, s.Title, s.TenantID, s.CreatedAt, s.UpdatedAt, s.Status, s.SpendLimitUSD); err != nil {
+	if _, err := l.DB().Exec(`INSERT INTO sessions (id, title, tenant_id, created_at, updated_at, status, spend_limit_micro_usd, current_spend_micro_usd) VALUES (?, ?, ?, ?, ?, ?, ?, 0)`,
+		s.ID, s.Title, s.TenantID, s.CreatedAt, s.UpdatedAt, s.Status, 100000000); err != nil {
 		t.Fatalf("seed session: %v", err)
 	}
 	if _, err := m.AddMessage(sid, "user", "hello", nil); err != nil {
@@ -49,7 +49,7 @@ func TestDeleteSessionRefusesLiveWork(t *testing.T) {
 		t.Fatalf("refusal must name live loops, got %v", err)
 	}
 	// Non-terminal queued job with a reservation blocks too.
-	if _, err := l.DB().Exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount) VALUES ('j1', 'sess-live', 'JOB_STATUS_QUEUED', 'circuit_run', '{}', CURRENT_TIMESTAMP, 'default', 5.0)`); err != nil {
+	if _, err := l.DB().Exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount_micro_usd) VALUES ('j1', 'sess-live', 'JOB_STATUS_QUEUED', 'circuit_run', '{}', CURRENT_TIMESTAMP, 'default', 5000000)`); err != nil {
 		t.Fatalf("seed job: %v", err)
 	}
 	if err := m.DeleteSession("sess-live", testDeleteSigner()); err == nil {
@@ -72,7 +72,7 @@ func TestDeleteBlockersTerminalJobsDoNotBlock(t *testing.T) {
 		{"j-failed", "JOB_STATUS_FAILED"},
 		{"j-done", "JOB_STATUS_COMPLETED"},
 	} {
-		if _, err := l.DB().Exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount) VALUES (?, 'sess-term', ?, 'circuit_run', '{}', CURRENT_TIMESTAMP, 'default', 0)`, tc.id, tc.status); err != nil {
+		if _, err := l.DB().Exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount_micro_usd) VALUES (?, 'sess-term', ?, 'circuit_run', '{}', CURRENT_TIMESTAMP, 'default', 0)`, tc.id, tc.status); err != nil {
 			t.Fatalf("seed job %s: %v", tc.id, err)
 		}
 	}
@@ -90,7 +90,7 @@ func TestDeleteBlockersTerminalJobsDoNotBlock(t *testing.T) {
 	if _, err := l2.DB().Exec(`UPDATE loops SET status = 'aborted' WHERE session_id = 'sess-live2'`); err != nil {
 		t.Fatalf("settle loop: %v", err)
 	}
-	if _, err := l2.DB().Exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount) VALUES ('j-run', 'sess-live2', 'JOB_STATUS_RUNNING', 'circuit_run', '{}', CURRENT_TIMESTAMP, 'default', 0)`); err != nil {
+	if _, err := l2.DB().Exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount_micro_usd) VALUES ('j-run', 'sess-live2', 'JOB_STATUS_RUNNING', 'circuit_run', '{}', CURRENT_TIMESTAMP, 'default', 0)`); err != nil {
 		t.Fatalf("seed running job: %v", err)
 	}
 	if bl, err := m2.DeleteBlockers("sess-live2"); err != nil {

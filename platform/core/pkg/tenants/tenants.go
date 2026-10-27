@@ -139,8 +139,8 @@ func (m *Manager) CreateTenant(id, displayName string) (*Tenant, error) {
 		return nil, fmt.Errorf("tenant ceiling: %w", cerr)
 	}
 	_, err := m.ledger.DB().Exec(
-		`INSERT INTO tenants (id, display_name, admin_pubkey_hex, autonomy_level, spend_ceiling_usd, spent_usd, spend_ceiling_micro_usd, spent_micro_usd, status, created_at) VALUES (?, ?, ?, ?, ?, 0, ?, 0, ?, ?)`,
-		t.ID, t.DisplayName, t.AdminPubkeyHex, t.AutonomyLevel, t.SpendCeilingUSD, int64(ceilingMicro), t.Status, t.CreatedAt,
+		`INSERT INTO tenants (id, display_name, admin_pubkey_hex, autonomy_level, spend_ceiling_micro_usd, spent_micro_usd, status, created_at) VALUES (?, ?, ?, ?, ?, 0, ?, ?)`,
+		t.ID, t.DisplayName, t.AdminPubkeyHex, t.AutonomyLevel, int64(ceilingMicro), t.Status, t.CreatedAt,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create tenant: %w", err)
@@ -251,7 +251,7 @@ func (m *Manager) SetCeiling(action *AdminAction, ceilingUSD float64) (*Tenant, 
 	if cerr != nil {
 		return nil, fmt.Errorf("ceiling: %w", cerr)
 	}
-	if _, err := m.ledger.DB().Exec(`UPDATE tenants SET spend_ceiling_usd = ?, spend_ceiling_micro_usd = ? WHERE id = ?`, ceilingUSD, int64(ceilingMicro), t.ID); err != nil {
+	if _, err := m.ledger.DB().Exec(`UPDATE tenants SET spend_ceiling_micro_usd = ? WHERE id = ?`, int64(ceilingMicro), t.ID); err != nil {
 		return nil, err
 	}
 	m.ledger.AppendEvent(t.ID, "tenant_ceiling_changed", map[string]any{"tenant_id": t.ID, "spend_ceiling_usd": ceilingUSD, "admin_fp": Fingerprint(action.PubkeyHex)})
@@ -289,8 +289,8 @@ func (m *Manager) RefundSpend(action *AdminAction, tenantID string, amountUSD fl
 		return nil, ErrInvalidAmount
 	}
 	res, err := m.ledger.DB().Exec(
-		`UPDATE tenants SET spent_micro_usd = spent_micro_usd - ?, spent_usd = (spent_micro_usd - ?) / 1000000.0 WHERE id = ? AND spent_micro_usd >= ?`,
-		int64(amountMicro), int64(amountMicro), tenantID, int64(amountMicro))
+		`UPDATE tenants SET spent_micro_usd = spent_micro_usd - ? WHERE id = ? AND spent_micro_usd >= ?`,
+		int64(amountMicro), tenantID, int64(amountMicro))
 	if err != nil {
 		return nil, fmt.Errorf("spend refund failed: %w", err)
 	}
@@ -445,8 +445,8 @@ func (m *Manager) ReserveSpend(tenantID string, amountUSD float64) error {
 		return ErrInvalidAmount
 	}
 	res, err := m.ledger.DB().Exec(
-		`UPDATE tenants SET spent_micro_usd = spent_micro_usd + ?, spent_usd = (spent_micro_usd + ?) / 1000000.0 WHERE id = ? AND status = 'active' AND spent_micro_usd + ? <= spend_ceiling_micro_usd AND ? <= spend_ceiling_micro_usd`,
-		int64(amountMicro), int64(amountMicro), tenantID, int64(amountMicro), int64(amountMicro))
+		`UPDATE tenants SET spent_micro_usd = spent_micro_usd + ? WHERE id = ? AND status = 'active' AND spent_micro_usd + ? <= spend_ceiling_micro_usd AND ? <= spend_ceiling_micro_usd`,
+		int64(amountMicro), tenantID, int64(amountMicro), int64(amountMicro))
 	if err != nil {
 		return fmt.Errorf("spend reservation failed: %w", err)
 	}
@@ -491,8 +491,8 @@ func (m *Manager) ReleaseSpend(tenantID string, amountUSD float64) error {
 		return ErrInvalidAmount
 	}
 	res, err := m.ledger.DB().Exec(
-		`UPDATE tenants SET spent_micro_usd = spent_micro_usd - ?, spent_usd = (spent_micro_usd - ?) / 1000000.0 WHERE id = ? AND spent_micro_usd >= ?`,
-		int64(amountMicro), int64(amountMicro), tenantID, int64(amountMicro))
+		`UPDATE tenants SET spent_micro_usd = spent_micro_usd - ? WHERE id = ? AND spent_micro_usd >= ?`,
+		int64(amountMicro), tenantID, int64(amountMicro))
 	if err != nil {
 		return fmt.Errorf("spend release failed: %w", err)
 	}

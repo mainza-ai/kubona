@@ -48,7 +48,7 @@ func TestBrierCalibrationAdmissionGate(t *testing.T) {
 	defer cleanup()
 
 	sessID := "sess-brier-test"
-	if _, err := runner.ledger.DB().Exec(`INSERT INTO sessions (id, tenant_id, spend_limit_usd, current_spend_usd) VALUES (?, ?, ?, ?)`, sessID, "default", 100.0, 0.0); err != nil {
+	if _, err := runner.ledger.DB().Exec(`INSERT INTO sessions (id, tenant_id, spend_limit_micro_usd, current_spend_micro_usd) VALUES (?, ?, ?, ?)`, sessID, "default", 100000000, 0); err != nil {
 		t.Fatalf("failed to insert session: %v", err)
 	}
 

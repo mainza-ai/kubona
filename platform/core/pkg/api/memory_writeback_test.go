@@ -40,7 +40,7 @@ func TestRetainTurnExperienceRoundTrip(t *testing.T) {
 	// own pair the same way production onboarding does.
 	for _, tid := range []string{"lab-alpha", "lab-beta"} {
 		if _, err := l.DB().Exec(
-			`INSERT OR IGNORE INTO tenants (id, display_name, admin_pubkey_hex, autonomy_level, spend_ceiling_usd, status, created_at) VALUES (?, ?, '', 'L1', 150.0, 'active', CURRENT_TIMESTAMP)`,
+			`INSERT OR IGNORE INTO tenants (id, display_name, admin_pubkey_hex, autonomy_level, spend_ceiling_micro_usd, status, created_at) VALUES (?, ?, '', 'L1', 150000000, 'active', CURRENT_TIMESTAMP)`,
 			tid, tid); err != nil {
 			t.Fatal(err)
 		}

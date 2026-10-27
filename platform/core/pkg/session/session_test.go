@@ -182,7 +182,7 @@ func TestSessionUncappedLimitUnaffected(t *testing.T) {
 
 	// Limit 0 = uncapped (legacy rows; CreateSession normalizes to 100):
 	// pre-enforcement sessions keep working exactly.
-	if _, err := l.DB().Exec(`INSERT INTO sessions (id, title, tenant_id, created_at, updated_at, status, spend_limit_usd, current_spend_usd) VALUES ('legacy-nolimit','t','default',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'active',0,0)`); err != nil {
+	if _, err := l.DB().Exec(`INSERT INTO sessions (id, title, tenant_id, created_at, updated_at, status, spend_limit_micro_usd, current_spend_micro_usd) VALUES ('legacy-nolimit','t','default',CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,'active',0,0)`); err != nil {
 		t.Fatal(err)
 	}
 	if err := mgr.ReserveSpend("legacy-nolimit", 1000000); err != nil {

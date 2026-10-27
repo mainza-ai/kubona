@@ -93,7 +93,7 @@ func TestWatchdogSettledFailedAndLoops(t *testing.T) {
 		t.Fatalf("failed-only session must fingerprint settled, got %q %v", fp, err)
 	}
 	if _, err := l.DB().Exec(
-		`INSERT INTO loops (id, session_id, harness_id, status, step_count, max_steps, diverged, created_at, updated_at, last_activity, drain, reserved_amount) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO loops (id, session_id, harness_id, status, step_count, max_steps, diverged, created_at, updated_at, last_activity, drain, reserved_amount_micro_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		"loop-live", "sess-f", "ansatz-search", "running", 1, 5, 0,
 		"2026-10-09T00:00:00Z", "2026-10-09T00:00:00Z", "2026-10-09T00:00:00Z", 0, 0,
 	); err != nil {

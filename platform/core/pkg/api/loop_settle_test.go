@@ -55,10 +55,10 @@ func TestLoopSettleOrphansTerminal(t *testing.T) {
 	sess := drillSession(t, srv, "settle-me", "lab-a", "test-token")
 
 	// Real holds on both rails (mirrors ReserveSpend's effect).
-	if _, err := l.DB().Exec(`UPDATE tenants SET spent_usd = 5, spent_micro_usd = 5000000 WHERE id = 'lab-a'`); err != nil {
+	if _, err := l.DB().Exec(`UPDATE tenants SET spent_micro_usd = 5000000 WHERE id = 'lab-a'`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := l.DB().Exec(`UPDATE sessions SET current_spend_usd = 5, current_spend_micro_usd = 5000000 WHERE id = ?`, sess); err != nil {
+	if _, err := l.DB().Exec(`UPDATE sessions SET current_spend_micro_usd = 5000000 WHERE id = ?`, sess); err != nil {
 		t.Fatal(err)
 	}
 	seed := func(id, status string, reserved float64) {
@@ -95,11 +95,11 @@ func TestLoopSettleOrphansTerminal(t *testing.T) {
 	if st, err := l.GetLoopState("already-dead"); err != nil || st == nil || st.Status != "killed" {
 		t.Errorf("terminal killed row must be skipped untouched, got %+v %v", st, err)
 	}
-	var tenantSpent, sessSpent float64
-	if err := l.DB().QueryRow(`SELECT spent_usd FROM tenants WHERE id = 'lab-a'`).Scan(&tenantSpent); err != nil {
+	var tenantSpent, sessSpent int64
+	if err := l.DB().QueryRow(`SELECT spent_micro_usd FROM tenants WHERE id = 'lab-a'`).Scan(&tenantSpent); err != nil {
 		t.Fatal(err)
 	}
-	if err := l.DB().QueryRow(`SELECT current_spend_usd FROM sessions WHERE id = ?`, sess).Scan(&sessSpent); err != nil {
+	if err := l.DB().QueryRow(`SELECT current_spend_micro_usd FROM sessions WHERE id = ?`, sess).Scan(&sessSpent); err != nil {
 		t.Fatal(err)
 	}
 	if tenantSpent != 0 || sessSpent != 0 {

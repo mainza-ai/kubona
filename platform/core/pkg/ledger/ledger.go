@@ -103,8 +103,6 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 		display_name TEXT,
 		admin_pubkey_hex TEXT NOT NULL DEFAULT '',
 		autonomy_level TEXT NOT NULL DEFAULT 'L1',
-		spend_ceiling_usd REAL NOT NULL DEFAULT 150.0,
-		spent_usd REAL NOT NULL DEFAULT 0,
 		spend_ceiling_micro_usd INTEGER NOT NULL DEFAULT 150000000,
 		spent_micro_usd INTEGER NOT NULL DEFAULT 0,
 		status TEXT NOT NULL DEFAULT 'active',
@@ -118,8 +116,6 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 		created_at DATETIME,
 		updated_at DATETIME,
 		status TEXT,
-		spend_limit_usd REAL,
-		current_spend_usd REAL,
 		spend_limit_micro_usd INTEGER NOT NULL DEFAULT 0,
 		current_spend_micro_usd INTEGER NOT NULL DEFAULT 0
 	);
@@ -144,7 +140,6 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 		created_at DATETIME,
 		completed_at DATETIME,
 		reserved_tenant TEXT NOT NULL DEFAULT '',
-		reserved_amount REAL NOT NULL DEFAULT 0,
 		reserved_amount_micro_usd INTEGER NOT NULL DEFAULT 0,
 		compiler_used TEXT NOT NULL DEFAULT '',
 		fallback_estimate INTEGER NOT NULL DEFAULT 0,
@@ -281,9 +276,7 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 	_, _ = db.Exec(`UPDATE tenants SET spend_ceiling_micro_usd = CAST(ROUND(spend_ceiling_usd * 1000000) AS INTEGER) WHERE spend_ceiling_micro_usd = 0 AND spend_ceiling_usd IS NOT NULL AND spend_ceiling_usd <> 0`)
 	_, _ = db.Exec(`UPDATE tenants SET spent_micro_usd = CAST(ROUND(spent_usd * 1000000) AS INTEGER) WHERE spent_micro_usd = 0 AND spent_usd IS NOT NULL AND spent_usd <> 0`)
 	_, _ = db.Exec(`ALTER TABLE sessions ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`)
-	_, _ = db.Exec(`ALTER TABLE tenants ADD COLUMN spent_usd REAL NOT NULL DEFAULT 0`)
 	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN reserved_tenant TEXT NOT NULL DEFAULT ''`)
-	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN reserved_amount REAL NOT NULL DEFAULT 0`)
 	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN reserved_amount_micro_usd INTEGER NOT NULL DEFAULT 0`)
 	_, _ = db.Exec(`UPDATE jobs SET reserved_amount_micro_usd = CAST(ROUND(reserved_amount * 1000000) AS INTEGER) WHERE reserved_amount_micro_usd = 0 AND reserved_amount > 0`)
 	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN compiler_used TEXT NOT NULL DEFAULT ''`)
@@ -298,12 +291,10 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN harness_id TEXT NOT NULL DEFAULT ''`)
 	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN last_activity DATETIME`)
 	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN drain INTEGER NOT NULL DEFAULT 0`)
-	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN reserved_amount REAL NOT NULL DEFAULT 0`)
 	// I3: per-iteration loop accounting — who funded the reservation and
 	// how much of it the iterations have consumed (drawdown). Release at
 	// loop end returns reserved - consumed to reserved_tenant.
 	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN reserved_tenant TEXT NOT NULL DEFAULT ''`)
-	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN consumed_amount REAL NOT NULL DEFAULT 0`)
 	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN reserved_amount_micro_usd INTEGER NOT NULL DEFAULT 0`)
 	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN consumed_amount_micro_usd INTEGER NOT NULL DEFAULT 0`)
 	_, _ = db.Exec(`UPDATE loops SET reserved_amount_micro_usd = CAST(ROUND(reserved_amount * 1000000) AS INTEGER) WHERE reserved_amount_micro_usd = 0 AND reserved_amount > 0`)
@@ -319,8 +310,24 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 	// Seed the default lab tenant (first-write admin key bootstrap happens in
 	// the tenants package; the row must exist for FK-less joins to resolve).
 	_, _ = db.Exec(
-		`INSERT OR IGNORE INTO tenants (id, display_name, admin_pubkey_hex, autonomy_level, spend_ceiling_usd, status, created_at) VALUES ('default', 'Default lab', '', 'L1', 150.0, 'active', CURRENT_TIMESTAMP)`,
+		`INSERT OR IGNORE INTO tenants (id, display_name, admin_pubkey_hex, autonomy_level, spend_ceiling_micro_usd, status, created_at) VALUES ('default', 'Default lab', '', 'L1', 150000000, 'active', CURRENT_TIMESTAMP)`,
 	)
+
+	// Drop the legacy REAL money projection. The micro columns are the only
+	// books; USD wire fields are projected from them. Old databases are
+	// backfilled above first. SQLite <3.35 has no DROP COLUMN: ignore the
+	// error there — the columns are then dead but never read or written.
+	for _, stmt := range []string{
+		`ALTER TABLE sessions DROP COLUMN spend_limit_usd`,
+		`ALTER TABLE sessions DROP COLUMN current_spend_usd`,
+		`ALTER TABLE tenants DROP COLUMN spend_ceiling_usd`,
+		`ALTER TABLE tenants DROP COLUMN spent_usd`,
+		`ALTER TABLE jobs DROP COLUMN reserved_amount`,
+		`ALTER TABLE loops DROP COLUMN reserved_amount`,
+		`ALTER TABLE loops DROP COLUMN consumed_amount`,
+	} {
+		_, _ = db.Exec(stmt)
+	}
 
 	return &Ledger{db: db, lockFile: lockFile}, nil
 }
@@ -886,13 +893,13 @@ func (l *Ledger) SaveLoopState(p LoopPersist) error {
 	if cerr != nil {
 		return fmt.Errorf("loop consumed amount: %w", cerr)
 	}
-	_, err := l.db.Exec(`INSERT INTO loops (id, session_id, harness_id, status, step_count, max_steps, diverged, created_at, updated_at, last_activity, drain, reserved_amount, reserved_amount_micro_usd, reserved_tenant, consumed_amount, consumed_amount_micro_usd)
-		VALUES (?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?)
+	_, err := l.db.Exec(`INSERT INTO loops (id, session_id, harness_id, status, step_count, max_steps, diverged, created_at, updated_at, last_activity, drain, reserved_amount_micro_usd, reserved_tenant, consumed_amount_micro_usd)
+		VALUES (?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?)
 		ON CONFLICT(id) DO UPDATE SET status=excluded.status, step_count=excluded.step_count, max_steps=excluded.max_steps,
-		updated_at=CURRENT_TIMESTAMP, last_activity=excluded.last_activity, drain=excluded.drain, reserved_amount=excluded.reserved_amount,
+		updated_at=CURRENT_TIMESTAMP, last_activity=excluded.last_activity, drain=excluded.drain,
 		reserved_amount_micro_usd=excluded.reserved_amount_micro_usd, reserved_tenant=excluded.reserved_tenant,
-		consumed_amount=excluded.consumed_amount, consumed_amount_micro_usd=excluded.consumed_amount_micro_usd`,
-		p.ID, p.SessionID, p.HarnessID, p.Status, p.StepCount, p.MaxSteps, p.LastActivity.UTC().Format(time.RFC3339), drain, p.ReservedAmount, int64(reservedMicro), p.ReservedTenant, p.ConsumedAmount, int64(consumedMicro))
+		consumed_amount_micro_usd=excluded.consumed_amount_micro_usd`,
+		p.ID, p.SessionID, p.HarnessID, p.Status, p.StepCount, p.MaxSteps, p.LastActivity.UTC().Format(time.RFC3339), drain, int64(reservedMicro), p.ReservedTenant, int64(consumedMicro))
 	if err != nil {
 		return fmt.Errorf("save loop state failed: %w", err)
 	}

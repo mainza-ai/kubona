@@ -305,12 +305,12 @@ func (r *Runner) submitJob(sessionID, jobType string, params any, declaredCost f
 		_ = r.sessionMgr.ReleaseSpend(sessionID, resAmount)
 		return nil, fmt.Errorf("reservation amount: %w", merr)
 	}
-	query := `INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount, reserved_amount_micro_usd, compiler_used, fallback_estimate, mandate_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	query := `INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount_micro_usd, compiler_used, fallback_estimate, mandate_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	fallbackInt := 0
 	if fallbackEstimate {
 		fallbackInt = 1
 	}
-	_, err = r.ledger.DB().Exec(query, j.ID, j.SessionID, j.Status.String(), j.JobType, string(j.ParamsJSON), j.CreatedAt, j.ReservedTenant, j.ReservedAmount, int64(resMicro), j.CompilerUsed, fallbackInt, j.MandateRef)
+	_, err = r.ledger.DB().Exec(query, j.ID, j.SessionID, j.Status.String(), j.JobType, string(j.ParamsJSON), j.CreatedAt, j.ReservedTenant, int64(resMicro), j.CompilerUsed, fallbackInt, j.MandateRef)
 	if err != nil {
 		// The job never queued (no row to release from): unwind directly.
 		_ = r.tenantStore().ReleaseSpend(resTenant, resAmount)
@@ -357,8 +357,8 @@ func (r *Runner) RecordQuantumBridgeJob(jobID, sessionID, provider, qasm string,
 	if merr != nil {
 		return fmt.Errorf("bridge job reservation: %w", merr)
 	}
-	query := `INSERT OR IGNORE INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount, reserved_amount_micro_usd, compiler_used, fallback_estimate, mandate_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, '', 0, ?)`
-	if _, err := r.ledger.DB().Exec(query, j.ID, j.SessionID, j.Status.String(), j.JobType, string(j.ParamsJSON), j.CreatedAt, j.ReservedTenant, j.ReservedAmount, int64(resMicro), j.MandateRef); err != nil {
+	query := `INSERT OR IGNORE INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount_micro_usd, compiler_used, fallback_estimate, mandate_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, '', 0, ?)`
+	if _, err := r.ledger.DB().Exec(query, j.ID, j.SessionID, j.Status.String(), j.JobType, string(j.ParamsJSON), j.CreatedAt, j.ReservedTenant, int64(resMicro), j.MandateRef); err != nil {
 		return fmt.Errorf("failed to record quantum bridge job: %w", err)
 	}
 	_ = r.ledger.AppendEvent(sessionID, "job_queued", j)
@@ -621,7 +621,7 @@ func (r *Runner) executeJob(j *Job) {
 }
 
 // releaseReservation returns a job's bound spend to its lab. Idempotent:
-// it zeroes the row's reserved_amount first, so double-release (cancel racing
+// it zeroes the row's reservation first, so double-release (cancel racing
 // worker settlement) can never mint spend back twice. Completed jobs never
 // call this — kept reservations are the spend.
 func (r *Runner) releaseReservation(jobID string) {
@@ -634,7 +634,7 @@ func (r *Runner) releaseReservation(jobID string) {
 	}
 	amount := money.MicroUSD(amountMicro).USD()
 	res, err := r.ledger.DB().Exec(
-		`UPDATE jobs SET reserved_amount_micro_usd = 0, reserved_amount = 0 WHERE id = ? AND reserved_amount_micro_usd > 0`, jobID)
+		`UPDATE jobs SET reserved_amount_micro_usd = 0 WHERE id = ? AND reserved_amount_micro_usd > 0`, jobID)
 	if err != nil {
 		return
 	}

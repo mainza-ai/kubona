@@ -53,7 +53,7 @@ func TestJobCancelQueued(t *testing.T) {
 	}
 	// Reservation unwinds exactly once; terminal event sealed.
 	var reserved float64
-	if err := l.DB().QueryRow(`SELECT reserved_amount FROM jobs WHERE id = ?`, job.ID).Scan(&reserved); err != nil {
+	if err := l.DB().QueryRow(`SELECT reserved_amount_micro_usd FROM jobs WHERE id = ?`, job.ID).Scan(&reserved); err != nil {
 		t.Fatalf("row: %v", err)
 	}
 	_ = reserved

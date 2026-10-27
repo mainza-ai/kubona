@@ -239,8 +239,8 @@ func TestRunnerCancelTenantJobs(t *testing.T) {
 	seedSession := func(id, tenant string) {
 		t.Helper()
 		if _, err := r.ledger.DB().Exec(
-			`INSERT INTO sessions (id, title, tenant_id, created_at, updated_at, status, spend_limit_usd, current_spend_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-			id, "t", tenant, "2026-10-09T00:00:00Z", "2026-10-09T00:00:00Z", "active", 100.0, 0.0,
+			`INSERT INTO sessions (id, title, tenant_id, created_at, updated_at, status, spend_limit_micro_usd, current_spend_micro_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+			id, "t", tenant, "2026-10-09T00:00:00Z", "2026-10-09T00:00:00Z", "active", 100000000, 0,
 		); err != nil {
 			t.Fatalf("seed session: %v", err)
 		}
@@ -550,8 +550,8 @@ func TestFailedJobReleasesReservation(t *testing.T) {
 		t.Fatal(err)
 	}
 	r.failJob(stored, "drill failure")
-	spent := 0.0
-	if err := l.DB().QueryRow(`SELECT spent_usd FROM tenants WHERE id = 'default'`).Scan(&spent); err != nil {
+	spent := int64(1)
+	if err := l.DB().QueryRow(`SELECT spent_micro_usd FROM tenants WHERE id = 'default'`).Scan(&spent); err != nil {
 		t.Fatal(err)
 	}
 	if spent != 0 {
@@ -559,7 +559,7 @@ func TestFailedJobReleasesReservation(t *testing.T) {
 	}
 	// Double-release is a no-op: refusing nothing, minting nothing.
 	r.failJob(stored, "drill failure again")
-	if err := l.DB().QueryRow(`SELECT spent_usd FROM tenants WHERE id = 'default'`).Scan(&spent); err != nil {
+	if err := l.DB().QueryRow(`SELECT spent_micro_usd FROM tenants WHERE id = 'default'`).Scan(&spent); err != nil {
 		t.Fatal(err)
 	}
 	if spent != 0 {
@@ -871,10 +871,10 @@ func TestSyncQuantumFailureKeepsPostVendorCharge(t *testing.T) {
 			t.Fatalf("record %s: %v", id, err)
 		}
 	}
-	if _, err := l.DB().Exec(`UPDATE sessions SET current_spend_usd = 20, current_spend_micro_usd = 20000000 WHERE id = 'sess-pin'`); err != nil {
+	if _, err := l.DB().Exec(`UPDATE sessions SET current_spend_micro_usd = 20000000 WHERE id = 'sess-pin'`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := l.DB().Exec(`UPDATE tenants SET spent_usd = 20, spent_micro_usd = 20000000 WHERE id = 'default'`); err != nil {
+	if _, err := l.DB().Exec(`UPDATE tenants SET spent_micro_usd = 20000000 WHERE id = 'default'`); err != nil {
 		t.Fatal(err)
 	}
 
@@ -883,11 +883,11 @@ func TestSyncQuantumFailureKeepsPostVendorCharge(t *testing.T) {
 	// No vendor id: pre-vendor failure, release.
 	r.SyncQuantumBridgeJobStatus("job-nohw", "failed", `{"error":"missing credential"}`)
 
-	var spent float64
-	if err := l.DB().QueryRow(`SELECT current_spend_usd FROM sessions WHERE id = 'sess-pin'`).Scan(&spent); err != nil {
+	var spent int64
+	if err := l.DB().QueryRow(`SELECT current_spend_micro_usd FROM sessions WHERE id = 'sess-pin'`).Scan(&spent); err != nil {
 		t.Fatal(err)
 	}
-	if spent != 10 {
+	if spent != 10000000 {
 		t.Fatalf("post-vendor charge must remain and pre-vendor reservation must release; spent=%v want 10", spent)
 	}
 }
