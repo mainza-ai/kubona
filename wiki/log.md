@@ -3397,3 +3397,9 @@ skipped is the exact failure this incident is about:
 ## [2026-10-27] verification | Ledger retention slice green
 
   - CI run 40467016495 on 39cc5c9: all 15 checks green. Audit retention (signed session_deleted receipt, surviving chain) and GET /api/ledger/verify are landed.
+
+## [2026-10-27] decision | LLM budget gate: full scan, fail-closed, all cloud roles
+
+  - llmSpendSummary scans the full llm_spend_estimated ledger (no 10k LIMIT) and returns query/scan/JSON errors; checkLLMBudget refuses when the total cannot be verified instead of treating it as zero.
+  - The gate now trips when the active provider OR any role assignment is non-local (a local-active config with a cloud role used to bypass the cap).
+  - cost summary returns a typed 500 when spend cannot be verified; added the (event_type,id) index for the scan.
