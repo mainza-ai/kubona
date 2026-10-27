@@ -23,7 +23,7 @@ import {
 
 type WidgetTab = 'all' | 'molecule' | 'circuit' | 'lean4' | 'shadows' | 'manifold' | 'mandate';
 
-export function GenerativeUIStudio({ campaign }: { campaign?: CampaignState | null }) {
+export function GenerativeUIStudio({ campaign, tenantId }: { campaign?: CampaignState | null; tenantId?: string }) {
   const [activeWidgetTab, setActiveWidgetTab] = useState<WidgetTab>('all');
   const hasLive = campaign != null;
 
@@ -130,7 +130,7 @@ export function GenerativeUIStudio({ campaign }: { campaign?: CampaignState | nu
             actionDescription={campaign?.research_goal || (campaign?.target_system ? `Execute VQE on ${campaign.target_system}` : undefined)}
             estimatedCostUsd={typeof qf?.estimated_spend_usd === 'number' ? qf.estimated_spend_usd : (qf ? 0.0 : undefined)}
             targetBackend={qf?.recommended_backend || 'local_simulator'}
-            tenantId={campaign?.session_id}
+            tenantId={tenantId}
             sessionId={campaign?.session_id ?? undefined}
             programQasm={qf?.qasm ?? undefined}
           />
