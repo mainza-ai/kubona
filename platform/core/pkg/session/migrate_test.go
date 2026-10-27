@@ -4,6 +4,7 @@ package session
 // or money trails silently (G6: previously orphaned 5 of 8 tables).
 
 import (
+	"crypto/ed25519"
 	"strings"
 	"testing"
 	"time"
@@ -42,7 +43,7 @@ func seedCascadeSession(t *testing.T, m *Manager, l *ledger.Ledger, sid string) 
 func TestDeleteSessionRefusesLiveWork(t *testing.T) {
 	m, l := mustOpenCascade(t)
 	seedCascadeSession(t, m, l, "sess-live")
-	if err := m.DeleteSession("sess-live"); err == nil {
+	if err := m.DeleteSession("sess-live", testDeleteSigner()); err == nil {
 		t.Fatalf("delete with a running loop must refuse")
 	} else if !strings.Contains(strings.ToLower(err.Error()), "live loops") {
 		t.Fatalf("refusal must name live loops, got %v", err)
@@ -51,7 +52,7 @@ func TestDeleteSessionRefusesLiveWork(t *testing.T) {
 	if _, err := l.DB().Exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount) VALUES ('j1', 'sess-live', 'JOB_STATUS_QUEUED', 'circuit_run', '{}', CURRENT_TIMESTAMP, 'default', 5.0)`); err != nil {
 		t.Fatalf("seed job: %v", err)
 	}
-	if err := m.DeleteSession("sess-live"); err == nil {
+	if err := m.DeleteSession("sess-live", testDeleteSigner()); err == nil {
 		t.Fatalf("delete with reserved job must refuse")
 	} else if !strings.Contains(strings.ToLower(err.Error()), "non-terminal jobs") {
 		t.Fatalf("refusal must name non-terminal jobs, got %v", err)
@@ -80,7 +81,7 @@ func TestDeleteBlockersTerminalJobsDoNotBlock(t *testing.T) {
 	} else if len(bl) != 0 {
 		t.Fatalf("terminal jobs must not block, got %v", bl)
 	}
-	if err := m.DeleteSession("sess-term"); err != nil {
+	if err := m.DeleteSession("sess-term", testDeleteSigner()); err != nil {
 		t.Fatalf("settled delete must succeed: %v", err)
 	}
 	// A running job still blocks (fail-closed direction preserved).
@@ -106,7 +107,7 @@ func TestDeleteSessionCascadesAll(t *testing.T) {
 	if _, err := l.DB().Exec(`UPDATE loops SET status = 'aborted' WHERE session_id = 'sess-gone'`); err != nil {
 		t.Fatalf("settle loop: %v", err)
 	}
-	if err := m.DeleteSession("sess-gone"); err != nil {
+	if err := m.DeleteSession("sess-gone", testDeleteSigner()); err != nil {
 		t.Fatalf("settled delete must succeed: %v", err)
 	}
 	tables := map[string]string{
@@ -125,17 +126,19 @@ func TestDeleteSessionCascadesAll(t *testing.T) {
 			t.Fatalf("table %s must be empty after cascade, got %d rows", table, n)
 		}
 	}
-	// Exactly one event survives by design: the session_deleted receipt,
-	// which must outlive the rows it attests.
+	// The whole audit chain survives; the last event is the receipt.
 	var evs int
-	if err := l.DB().QueryRow(`SELECT COUNT(*) FROM ledger_events WHERE session_id = ?`, "sess-gone").Scan(&evs); err != nil || evs != 1 {
-		t.Fatalf("exactly the deletion receipt must survive: %v %d", err, evs)
+	if err := l.DB().QueryRow(`SELECT COUNT(*) FROM ledger_events WHERE session_id = ?`, "sess-gone").Scan(&evs); err != nil || evs < 2 {
+		t.Fatalf("audit chain and deletion receipt must survive: %v %d", err, evs)
 	}
 	var etype string
-	if err := l.DB().QueryRow(`SELECT event_type FROM ledger_events WHERE session_id = ?`, "sess-gone").Scan(&etype); err != nil || etype != "session_deleted" {
-		t.Fatalf("survivor must be session_deleted, got %v %q", err, etype)
+	if err := l.DB().QueryRow(`SELECT event_type FROM ledger_events WHERE session_id = ? ORDER BY id DESC LIMIT 1`, "sess-gone").Scan(&etype); err != nil || etype != "session_deleted" {
+		t.Fatalf("last event must be session_deleted, got %v %q", err, etype)
 	}
-	if err := m.DeleteSession("sess-ghost"); err == nil {
+	if faults, err := l.VerifyChain("sess-gone"); err != nil || len(faults) != 0 {
+		t.Fatalf("surviving audit chain must verify clean: %v %v", err, faults)
+	}
+	if err := m.DeleteSession("sess-ghost", testDeleteSigner()); err == nil {
 		t.Fatalf("ghost delete must refuse")
 	}
 }
@@ -281,4 +284,12 @@ func TestReconcileSkipsAllTerminalLoopStatuses(t *testing.T) {
 	if got := byID["loop-running"]; got != "sleeping" {
 		t.Fatalf("running row must flip to sleeping, got %q", got)
 	}
+}
+
+func testDeleteSigner() ed25519.PrivateKey {
+	seed := make([]byte, ed25519.SeedSize)
+	for i := range seed {
+		seed[i] = byte(i + 1)
+	}
+	return ed25519.NewKeyFromSeed(seed)
 }

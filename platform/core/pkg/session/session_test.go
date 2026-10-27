@@ -1,6 +1,7 @@
 package session_test
 
 import (
+	"crypto/ed25519"
 	"encoding/json"
 	"math"
 	"os"
@@ -56,7 +57,7 @@ func TestSessionLifecycleAndDelete(t *testing.T) {
 	}
 
 	// Delete session
-	if err := mgr.DeleteSession(sess.ID); err != nil {
+	if err := mgr.DeleteSession(sess.ID, testDeleteSigner()); err != nil {
 		t.Fatalf("failed to delete session: %v", err)
 	}
 
@@ -318,4 +319,12 @@ func TestRewriteUserMessageBranches(t *testing.T) {
 	if _, err := mgr.RewriteUserMessage(sess.ID, u1.ID, "second edit", "edited question"); err != nil {
 		t.Errorf("matching CAS must proceed: %v", err)
 	}
+}
+
+func testDeleteSigner() ed25519.PrivateKey {
+	seed := make([]byte, ed25519.SeedSize)
+	for i := range seed {
+		seed[i] = byte(i + 1)
+	}
+	return ed25519.NewKeyFromSeed(seed)
 }

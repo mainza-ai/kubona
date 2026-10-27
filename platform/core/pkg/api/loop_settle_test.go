@@ -105,9 +105,8 @@ func TestLoopSettleOrphansTerminal(t *testing.T) {
 	if tenantSpent != 0 || sessSpent != 0 {
 		t.Errorf("both rails must zero out, tenant=%v session=%v", tenantSpent, sessSpent)
 	}
-	// Ledger carries the terminal receipts (hash-chain contract).
-	// Asserted BEFORE the delete below: DeleteSession cascades
-	// ledger_events, so post-delete reads are empty by design.
+	// Ledger carries the terminal receipts (hash-chain contract); the
+	// chain now survives DeleteSession (audit retention).
 	events, err := l.GetRecentEvents(sess, 50)
 	if err != nil {
 		t.Fatal(err)

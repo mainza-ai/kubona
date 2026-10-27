@@ -1,6 +1,7 @@
 package session
 
 import (
+	"crypto/ed25519"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -429,7 +430,7 @@ func (m *Manager) SetMessageUsage(messageID string, durationMs int64, usage *jso
 	return err
 }
 
-func (m *Manager) DeleteSession(id string) error {
+func (m *Manager) DeleteSession(id string, signer ed25519.PrivateKey) error {
 	// I4 fail-closed cascade (S5): refuse while live work or money trails
 	// exist; else delete ALL session rows (previously only chat +
 	// campaign_states + sessions, orphaning jobs/loops/events/claims/
@@ -445,7 +446,15 @@ func (m *Manager) DeleteSession(id string) error {
 	}
 	defer tx.Rollback()
 
-	for _, table := range []string{"chat_messages", "campaign_states", "campaign_versions", "claim_records", "canvas_layouts", "jobs", "loops", "ledger_events", "idempotency_keys"} {
+	// ledger_events is deliberately NOT deleted: the audit chain (and the
+	// session_deleted receipt appended below) must outlive the content rows
+	// it attests. The tenant is captured before the row disappears so the
+	// receipt keeps its lab attribution.
+	sess, err := m.GetSession(id)
+	if err != nil {
+		return fmt.Errorf("session not found: %s", id)
+	}
+	for _, table := range []string{"chat_messages", "campaign_states", "campaign_versions", "claim_records", "canvas_layouts", "jobs", "loops", "idempotency_keys"} {
 		if _, err := tx.Exec(fmt.Sprintf(`DELETE FROM %s WHERE session_id = ?`, table), id); err != nil {
 			return err
 		}
@@ -463,7 +472,9 @@ func (m *Manager) DeleteSession(id string) error {
 		return err
 	}
 
-	m.ledger.AppendEvent(id, "session_deleted", map[string]string{"id": id})
+	if _, err := m.ledger.AppendEventWithTenant(id, sess.TenantID, "session_deleted", map[string]string{"id": id}, signer); err != nil {
+		return fmt.Errorf("session deleted but audit receipt failed: %w", err)
+	}
 	return nil
 }
 

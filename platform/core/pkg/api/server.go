@@ -449,6 +449,7 @@ func (s *Server) registerRoutes() {
 	s.mux.HandleFunc("/api/epistemics", s.handleEpistemics)
 	s.mux.HandleFunc("/api/fleet", s.handleFleet)
 	s.mux.HandleFunc("/api/radar", s.handleRadar)
+	s.mux.HandleFunc("/api/ledger/verify", s.requireBearer(s.handleLedgerVerify))
 	s.mux.HandleFunc("/api/mandates/sign", s.requireBearer(s.handleMandateSign))
 	// Mandate verification is bearer-gated (2026-10-26 audit): the handler
 	// appends a ledger event + obligation, so the old "no state change"
@@ -1950,7 +1951,7 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 		if _, ok := s.authorizeKnownSession(w, r, id); !ok {
 			return
 		}
-		if err := s.sessionMgr.DeleteSession(id); err != nil {
+		if err := s.sessionMgr.DeleteSession(id, s.signerPrivKey); err != nil {
 			if strings.Contains(err.Error(), "session not found") {
 				http.Error(w, err.Error(), http.StatusNotFound)
 			} else {

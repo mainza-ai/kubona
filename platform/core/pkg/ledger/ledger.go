@@ -397,6 +397,45 @@ func (l *Ledger) AppendSignedEvent(sessionID string, eventType string, payload a
 	}, nil
 }
 
+// AppendEventWithTenant writes an unsigned event with an explicit tenant
+// scope. Used for receipts that must outlive the session row (session_deleted)
+// so the event carries the lab attribution instead of resolving to default.
+func (l *Ledger) AppendEventWithTenant(sessionID, tenantID, eventType string, payload any, privKey ed25519.PrivateKey) (*EventRecord, error) {
+	if !IsKnownEventType(eventType) {
+		return nil, fmt.Errorf("unregistered event_type %q: add it to KnownEventTypes (pkg/ledger/events.go) with its payload contract", eventType)
+	}
+	l.lock.Lock()
+	defer l.lock.Unlock()
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal event payload: %w", err)
+	}
+	if tenantID == "" {
+		tenantID = l.resolveTenantLocked(sessionID)
+	}
+	prevHash := l.getLatestEntryHashLocked(sessionID)
+	digest := chainDigestBytes(prevHash, sessionID, eventType, string(data))
+	entryHashHex := hex.EncodeToString(digest[:])
+	var signerPubHex, sigHex string
+	if len(privKey) == ed25519.PrivateKeySize {
+		sigHex = hex.EncodeToString(ed25519.Sign(privKey, digest[:]))
+		signerPubHex = hex.EncodeToString(privKey.Public().(ed25519.PublicKey))
+	}
+	ts := time.Now().UTC().Format(time.RFC3339)
+	query := `INSERT INTO ledger_events (timestamp, session_id, tenant_id, conf_label, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	res, err := l.db.Exec(query, ts, sessionID, tenantID, "tenant/"+tenantID, eventType, string(data), prevHash, entryHashHex, signerPubHex, sigHex)
+	if err != nil {
+		return nil, fmt.Errorf("failed to insert tenant-scoped event: %w", err)
+	}
+	id, _ := res.LastInsertId()
+	return &EventRecord{
+		ID: id, Timestamp: ts, SessionID: sessionID, TenantID: tenantID,
+		ConfLabel: "tenant/" + tenantID, EventType: eventType,
+		Payload: json.RawMessage(data), PrevHash: prevHash, EntryHash: entryHashHex,
+		SignerPubkey: signerPubHex, Signature: sigHex,
+	}, nil
+}
+
 // AppendEvent writes an unsigned event with cryptographic hash chaining
 func (l *Ledger) AppendEvent(sessionID string, eventType string, payload any) error {
 	_, err := l.AppendSignedEvent(sessionID, eventType, payload, nil)
