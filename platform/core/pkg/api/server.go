@@ -17,6 +17,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime/debug"
 	"sort"
 	"strconv"
 	"strings"
@@ -395,7 +396,7 @@ func NewServer(
 }
 
 func (s *Server) Handler() http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	return requestIDAndRecovery(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if origin := corsAllowOrigin(r); origin != "" {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Add("Vary", "Origin")
@@ -412,6 +413,27 @@ func (s *Server) Handler() http.Handler {
 			return
 		}
 		s.mux.ServeHTTP(w, r)
+	}))
+}
+
+// requestIDAndRecovery wraps every route with a request id and a panic
+// boundary: one handler bug must not take the daemon down or emit a bare
+// connection reset. The id is echoed and logged with the stack.
+func requestIDAndRecovery(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reqID := strings.TrimSpace(r.Header.Get("X-Request-ID"))
+		if reqID == "" {
+			reqID = uuid.NewString()
+		}
+		w.Header().Set("X-Request-ID", reqID)
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Printf("[Kubona Core] PANIC %s %s request_id=%s: %v\n%s",
+					r.Method, r.URL.Path, reqID, rec, debug.Stack())
+				WriteAPIError(w, "internal", "internal error (request id "+reqID+")", nil)
+			}
+		}()
+		next.ServeHTTP(w, r)
 	})
 }
 
@@ -714,6 +736,14 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	if blocked, reason := s.diskBlocked(); blocked {
 		WriteAPIError(w, "not_ready", fmt.Sprintf("not ready: %s", reason), nil)
+		return
+	}
+	// Disk alone is not readiness: a closed/locked SQLite handle means every
+	// write fails after the load balancer already routed traffic here.
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
+	defer cancel()
+	if err := s.ledger.DB().PingContext(ctx); err != nil {
+		WriteAPIError(w, "not_ready", "database unavailable: "+err.Error(), nil)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"ready": true})
