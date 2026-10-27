@@ -3515,3 +3515,9 @@ skipped is the exact failure this incident is about:
   - New pkg/tracing continues a valid inbound traceparent or mints a 128-bit trace and 64-bit span; all-zero/malformed input is rejected and replaced.
   - The HTTP wrapper returns traceparent + X-Trace-Id, puts the span in request context, and logs method/path/status/duration with trace/span/parent ids (debug 2xx, warn 4xx, error 5xx).
   - Panic logs carry the trace id. No collector is required; spans are structured slog records.
+
+## [2026-10-27] decision | Calibration and rate-card refresh tools
+
+  - kubona.fidelity.refresh validates a live provider snapshot (positive T1/T2, T2 <= 2*T1, non-negative errors), stamps calibrated_at/version/source, and atomically updates fidelity-devices.json. Unmeasurable input refuses; dry-run is default.
+  - kubona.cost.rate_card validates positive rates, USD, ISO verified date, vendor URL, and plan notes, then atomically replaces a provider schema's pricing object. Dry-run is default.
+  - Both are operator-gated: live calibration needs the vendor key, and vendor pricing is not scraped. Tests run without keys.
