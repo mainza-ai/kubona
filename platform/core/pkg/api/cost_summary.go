@@ -14,7 +14,11 @@ func (s *Server) handleCostSummary(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed: refusing", http.StatusMethodNotAllowed)
 		return
 	}
-	spent, byProvider, unmetered := s.llmSpendSummary()
+	spent, byProvider, unmetered, err := s.llmSpendSummary()
+	if err != nil {
+		WriteAPIError(w, "cost_summary_unavailable", "cannot verify LLM spend: "+err.Error(), nil)
+		return
+	}
 	cap := llmBudgetCapUSD()
 	var remaining *float64
 	if cap > 0 {

@@ -220,6 +220,7 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 	CREATE INDEX IF NOT EXISTS idx_chat_session ON chat_messages(session_id);
 	CREATE INDEX IF NOT EXISTS idx_jobs_session ON jobs(session_id);
 	CREATE INDEX IF NOT EXISTS idx_ledger_session ON ledger_events(session_id);
+	CREATE INDEX IF NOT EXISTS idx_ledger_type ON ledger_events(event_type, id);
 
 	-- Idempotency receipts (S1): content-bound deduplication keys for spend
 	-- mutations. One row per (session, request_id): the first execution

@@ -3488,22 +3488,27 @@ func llmBudgetCapUSD() float64 {
 	return v
 }
 
-// llmSpendTotal sums recorded cloud-LLM estimates lifetime (bounded scan;
-// unpriced records contribute nothing — they were allowed, not hidden).
+// llmSpendTotal is a convenience read for callers that cannot surface an
+// error. The budget gate uses llmSpendSummary directly so a DB failure is
+// fail-closed, never a fabricated zero.
 func (s *Server) llmSpendTotal() float64 {
-	spent, _, _ := s.llmSpendSummary()
+	spent, _, _, err := s.llmSpendSummary()
+	if err != nil {
+		return 0
+	}
 	return spent
 }
 
-// llmSpendSummary aggregates one bounded scan: total cloud estimates,
-// per-provider subtotals, and the blind-stream (unmetered) record count
-// the budget gate trips on when capped.
-func (s *Server) llmSpendSummary() (spent float64, byProvider map[string]float64, unmetered int) {
+// llmSpendSummary aggregates the full LLM spend ledger: total cloud
+// estimates, per-provider subtotals, and the blind-stream (unmetered) count.
+// No LIMIT: a cap that silently stops counting after 10k records is a
+// bypass. A query/scan error is returned so the gate can refuse.
+func (s *Server) llmSpendSummary() (spent float64, byProvider map[string]float64, unmetered int, err error) {
 	byProvider = map[string]float64{}
-	rows, err := s.ledger.DB().Query(
-		`SELECT payload FROM ledger_events WHERE event_type = 'llm_spend_estimated' ORDER BY id DESC LIMIT 10000`)
-	if err != nil {
-		return 0, byProvider, 0
+	rows, queryErr := s.ledger.DB().Query(
+		`SELECT payload FROM ledger_events WHERE event_type = 'llm_spend_estimated' ORDER BY id`)
+	if queryErr != nil {
+		return 0, byProvider, 0, queryErr
 	}
 	defer rows.Close()
 	for rows.Next() {
@@ -3513,11 +3518,11 @@ func (s *Server) llmSpendSummary() (spent float64, byProvider map[string]float64
 			Provider     string   `json:"provider"`
 			Unmetered    *bool    `json:"unmetered"`
 		}
-		if err := rows.Scan(&payloadStr); err != nil {
-			continue
+		if scanErr := rows.Scan(&payloadStr); scanErr != nil {
+			return 0, byProvider, 0, scanErr
 		}
-		if err := json.Unmarshal([]byte(payloadStr), &payload); err != nil {
-			continue
+		if jsonErr := json.Unmarshal([]byte(payloadStr), &payload); jsonErr != nil {
+			return 0, byProvider, 0, jsonErr
 		}
 		if payload.Unmetered != nil && *payload.Unmetered {
 			unmetered++
@@ -3528,7 +3533,25 @@ func (s *Server) llmSpendSummary() (spent float64, byProvider map[string]float64
 			byProvider[payload.Provider] += *payload.EstimatedUSD
 		}
 	}
-	return spent, byProvider, unmetered
+	if rowErr := rows.Err(); rowErr != nil {
+		return 0, byProvider, 0, rowErr
+	}
+	return spent, byProvider, unmetered, nil
+}
+
+// hasCloudLLMRole reports whether the active provider or any role assignment
+// resolves to a non-local provider. The old gate only looked at the active
+// provider, so a local-active config with a cloud role bypassed the cap.
+func (s *Server) hasCloudLLMRole(snap llm.Settings) bool {
+	if prov, ok := snap.Providers[snap.ActiveProvider]; ok && !prov.IsLocal {
+		return true
+	}
+	for _, ra := range snap.RoleAssignments {
+		if prov, ok := snap.Providers[ra.Provider]; ok && !prov.IsLocal {
+			return true
+		}
+	}
+	return false
 }
 
 // checkLLMBudget refuses new cloud LLM entries once the operator's global
@@ -3545,31 +3568,18 @@ func (s *Server) checkLLMBudget() error {
 		return nil
 	}
 	snap := s.llmSettings.GetSnapshot()
-	if prov, ok := snap.Providers[snap.ActiveProvider]; ok && prov.IsLocal {
+	if !s.hasCloudLLMRole(snap) {
 		return nil
 	}
-	rows, err := s.ledger.DB().Query(
-		`SELECT payload FROM ledger_events WHERE event_type = 'llm_spend_estimated' ORDER BY id DESC LIMIT 10000`)
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var payloadStr string
-			var payload struct {
-				Unmetered *bool `json:"unmetered"`
-			}
-			if err := rows.Scan(&payloadStr); err != nil {
-				continue
-			}
-			if err := json.Unmarshal([]byte(payloadStr), &payload); err != nil {
-				continue
-			}
-			if payload.Unmetered != nil && *payload.Unmetered {
-				return fmt.Errorf("blind cloud spend detected (unmetered stream records): refusing new entries until usage reporting or max_tokens ceiling is configured")
-			}
-		}
+	spent, _, unmetered, err := s.llmSpendSummary()
+	if err != nil {
+		return fmt.Errorf("cloud LLM budget cannot be verified (ledger read failed): refusing new entries: %w", err)
 	}
-	if total := s.llmSpendTotal(); total >= cap {
-		return fmt.Errorf("cloud LLM budget exhausted: spent ~$%.4f of $%.4f cap (KUBONA_LLM_BUDGET_USD) — switch to a local provider or raise the cap", total, cap)
+	if unmetered > 0 {
+		return fmt.Errorf("blind cloud spend detected (%d unmetered stream record(s)): refusing new entries until usage reporting or max_tokens ceiling is configured", unmetered)
+	}
+	if spent >= cap {
+		return fmt.Errorf("cloud LLM budget exhausted: spent ~$%.4f of $%.4f cap (KUBONA_LLM_BUDGET_USD) — switch to a local provider or raise the cap", spent, cap)
 	}
 	return nil
 }
