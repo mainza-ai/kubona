@@ -3375,3 +3375,8 @@ skipped is the exact failure this incident is about:
   - HF summaries carry source=live|fallback and estimated=true on the offline sovereign catalog; GetModelDetails tries live first and only falls back on a network error (404 still refuses). Tests pin the provenance.
   - Atlas lens is opt-in in production (KUBONA_ATLAS_ENABLED=1; WLT key still required); cached/ledger reads stay local. A2A is opt-in (KUBONA_A2A_ENABLED=1). Production defaults to multi-lab auth reads unless KUBONA_SINGLE_LAB=1; compose declares single-lab and KUBONA_ENV=production. Feature-gate tests added.
   - Remaining Phase 3c: autoresearch benchmark nonce isolation (artifact output is still self-reported).
+
+## [2026-10-27] verification | Latest green gate after governance + HF provenance
+
+  - CI run 40458725971 on 629dbc0: all 15 checks green, including the production compose stack with KUBONA_ENV=production, the sandbox container job, and the HF provenance changes.
+  - Open decisions narrowed to Q-50 (money authority/exact unit), Q-51 (refund policy), Q-56 (console auth/key custody); recommended defaults are on the audit page.
