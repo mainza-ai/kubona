@@ -13,10 +13,14 @@ package session
 // ever written to a disk path).
 
 import (
+	"crypto/hmac"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
 	"sort"
 	"strings"
 	"time"
@@ -122,6 +126,12 @@ type SessionManifest struct {
 	// "null" instead of "[]" and fail import. Pre-S5b manifests without
 	// the digest row refuse under the strict roster (decided).
 	PythonLedger []PythonRecord `json:"python_ledger"`
+	// Operator signature over the canonical manifest (HMAC-SHA256 with
+	// KUBONA_IMPORT_HMAC_KEY, falling back to KUBONA_API_TOKEN). Import is
+	// operator-only; the signature binds the bytes so a manifest edited
+	// on disk cannot be replayed as authority. Production requires it.
+	SignatureAlg string `json:"signature_alg,omitempty"`
+	Signature    string `json:"signature,omitempty"`
 }
 
 // JobRow mirrors the jobs table (session package cannot import jobs:
@@ -158,6 +168,43 @@ func sectionDigest(v any) (string, error) {
 		return "", err
 	}
 	return ledger.CanonicalHash(norm)
+}
+
+// importHMACKey is the operator key that seals manifests. It is separate
+// from the reviewer key so rotating the audit signer does not invalidate
+// old migrations.
+func importHMACKey() string {
+	if k := strings.TrimSpace(os.Getenv("KUBONA_IMPORT_HMAC_KEY")); k != "" {
+		return k
+	}
+	return strings.TrimSpace(os.Getenv("KUBONA_API_TOKEN"))
+}
+
+func signedImportRequired() bool {
+	return os.Getenv("KUBONA_ENV") == "production" ||
+		os.Getenv("KUBONA_REQUIRE_SIGNED_IMPORT") == "1"
+}
+
+func manifestSignature(man *SessionManifest, key string) string {
+	// Sign the section digests, not the encoded struct: a JSON round-trip
+	// through map[string]any (the HTTP path) may normalise number/slice
+	// encodings, but digest names+values are stable. Digests already pin
+	// every section; this binds them to the operator key.
+	names := make([]string, 0, len(man.Digests))
+	for name := range man.Digests {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	var b strings.Builder
+	b.WriteString("kubona-manifest-v1\n")
+	fmt.Fprintf(&b, "%s\n%s\n%s\n", man.Version, man.Session.ID, man.Session.TenantID)
+	fmt.Fprintf(&b, "events_truncated=%t\nclaims_truncated=%t\n", man.EventsTruncated, man.ClaimsTruncated)
+	for _, name := range names {
+		fmt.Fprintf(&b, "%s=%s\n", name, man.Digests[name])
+	}
+	mac := hmac.New(sha256.New, []byte(key))
+	mac.Write([]byte(b.String()))
+	return hex.EncodeToString(mac.Sum(nil))
 }
 
 // ExportSession sweeps every session-scoped table for id (8 content
@@ -306,6 +353,12 @@ func (m *Manager) ExportSession(id string) (*SessionManifest, error) {
 	if len(raw) > MaxManifestBytes {
 		return nil, fmt.Errorf("manifest %d bytes exceeds %d cap: session too large to migrate", len(raw), MaxManifestBytes)
 	}
+	if key := importHMACKey(); key != "" {
+		out.SignatureAlg = "hmac-sha256"
+		out.Signature = manifestSignature(out, key)
+	} else if signedImportRequired() {
+		return nil, fmt.Errorf("manifest signing key not configured: refusing an unsigned export in production")
+	}
 	return out, nil
 }
 
@@ -368,6 +421,21 @@ func (m *Manager) ImportSession(man *SessionManifest) (*ImportResult, error) {
 	major := strings.SplitN(man.Version, ".", 2)[0]
 	if major != "1" {
 		return nil, fmt.Errorf("unsupported_manifest_version %q: this importer reads major 1 only", man.Version)
+	}
+	if man.Signature != "" {
+		key := importHMACKey()
+		if key == "" {
+			return nil, fmt.Errorf("manifest signature present but no import key configured: refusing")
+		}
+		if man.SignatureAlg != "" && man.SignatureAlg != "hmac-sha256" {
+			return nil, fmt.Errorf("unsupported manifest signature_alg %q", man.SignatureAlg)
+		}
+		want := manifestSignature(man, key)
+		if !hmac.Equal([]byte(want), []byte(man.Signature)) {
+			return nil, fmt.Errorf("manifest signature invalid: refusing tampered or foreign bytes")
+		}
+	} else if signedImportRequired() {
+		return nil, fmt.Errorf("unsigned manifest refused: production imports must be operator-signed")
 	}
 	if man.Session.ID == "" {
 		return nil, fmt.Errorf("manifest session has no id")

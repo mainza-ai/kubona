@@ -248,7 +248,10 @@ func main() {
 	}
 	dialOpts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
 	if bridgeToken != "" {
-		dialOpts = append(dialOpts, grpc.WithPerRPCCredentials(bridgeTokenCreds(bridgeToken)))
+		dialOpts = append(dialOpts,
+			grpc.WithPerRPCCredentials(bridgeTokenCreds(bridgeToken)),
+			grpc.WithChainUnaryInterceptor(bridgeSessionAssertionInterceptor(bridgeToken)),
+		)
 	}
 	conn, err := grpc.NewClient(bridgeTarget, dialOpts...)
 	if err != nil {

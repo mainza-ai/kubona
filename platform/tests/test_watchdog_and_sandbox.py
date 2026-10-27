@@ -167,3 +167,17 @@ def test_sandbox_blocks_native_and_file_escape_names():
     ):
         with pytest.raises(SecurityPolicyViolation):
             sb.validate_ast(code)
+
+
+def test_container_sandbox_runs_pure_math(monkeypatch):
+    """Container path (opt-in): the production rail must actually execute."""
+    import os
+    import shutil
+    if os.getenv("KUBONA_SANDBOX_CONTAINER") != "1" or shutil.which("docker") is None:
+        pytest.skip("container sandbox not configured (CI builds the runner image)")
+    monkeypatch.setenv("KUBONA_SANDBOX_CONTAINER", "1")
+    monkeypatch.setenv("KUBONA_SANDBOX_IMAGE",
+                       os.getenv("KUBONA_SANDBOX_IMAGE", "kubona-quantum-runner:1.1.0"))
+    res = WorkloadSandbox().execute_script("import math\nprint(f'CONTAINER_OK={math.sqrt(9.0)}')")
+    assert res.success, res.stderr
+    assert "CONTAINER_OK=3.0" in res.stdout

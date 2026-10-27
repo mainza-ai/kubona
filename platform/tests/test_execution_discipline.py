@@ -115,3 +115,20 @@ def test_idempotent_replay_returns_same_job():
                                       idempotency_body_hash="body-b")
     assert mismatch["ok"] is False
     assert "different request body" in mismatch["error"]
+
+
+def test_concurrent_same_key_creates_one_job():
+    from concurrent.futures import ThreadPoolExecutor
+    sess = cost_server.create_session("idem-race", "researcher", budget_ceiling_usd=50.0)
+    sid = sess["session_id"]
+
+    def submit(_):
+        return exec_server.submit_job(BELL, provider="local-simulator", shots=32,
+                                      session_id=sid, idempotency_key="race-key",
+                                      idempotency_body_hash="race-body")
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(submit, range(2)))
+    assert all(r["ok"] for r in results), results
+    ids = {r["job_id"] for r in results}
+    assert len(ids) == 1, ids

@@ -406,6 +406,23 @@ func (s *Supervisor) transitionLoop(loopID, to string, eventType string, extra m
 	return nil
 }
 
+// GetLoop returns a copy of one loop (nil,false when unknown). Callers use
+// it to bind the loop's session to the requester before acting.
+func (s *Supervisor) GetLoop(loopID string) (*ManagedLoop, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	l, ok := s.loops[loopID]
+	if !ok {
+		return nil, false
+	}
+	cp := *l
+	if l.LatestSnapshot != nil {
+		snap := *l.LatestSnapshot
+		cp.LatestSnapshot = &snap
+	}
+	return &cp, true
+}
+
 func (s *Supervisor) ListLoops() []*ManagedLoop {
 	s.mu.RLock()
 	defer s.mu.RUnlock()

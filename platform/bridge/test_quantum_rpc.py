@@ -389,3 +389,37 @@ def test_workflow_run_requires_token_in_production(monkeypatch):
     resp = svc.WorkflowRun(req, None)
     assert resp.ok is False
     assert "token" in resp.error_message.lower()
+
+
+# ------------------------------------- session assertion (2026-10-26) ---
+
+def test_session_assertion_vector_matches_go():
+    req = SimpleNamespace(session_id="s1", session_budget_ceiling_usd=25.0,
+                          session_spent_usd=0.25, tenant_id="lab",
+                          session_verified=True)
+    got = bridge_server._session_assertion_mac("k", req)
+    want = "4e0b142452c9b1d33d7d916a409ef2434b24a97d1c6a9d4acdc842178530c7ea"
+    assert got == want
+
+
+def test_session_assertion_rejects_self_declared_money():
+    class Ctx:
+        def __init__(self, md):
+            self._md = md
+        def invocation_metadata(self):
+            return self._md
+        def abort(self, code, msg):
+            raise RuntimeError(msg)
+
+    req = SimpleNamespace(session_id="s1", session_budget_ceiling_usd=999999.0,
+                          session_spent_usd=-5.0, tenant_id="evil",
+                          session_verified=True)
+    # Signed for the honest values, replayed against a tampered request.
+    honest = SimpleNamespace(session_id="s1", session_budget_ceiling_usd=25.0,
+                             session_spent_usd=0.25, tenant_id="lab",
+                             session_verified=True)
+    sig = bridge_server._session_assertion_mac("k", honest)
+    with pytest.raises(RuntimeError):
+        bridge_server._verify_session_assertion(req, Ctx((("x-kubona-session-assertion", sig),)), "k")
+    # Correct signature passes.
+    bridge_server._verify_session_assertion(honest, Ctx((("x-kubona-session-assertion", sig),)), "k")
