@@ -3332,3 +3332,10 @@ skipped is the exact failure this incident is about:
   - Money: idempotency is claimed atomically (find_or_create under the store lock) before spend; refunds emit session_spend_refunded when a ledger is wired; concurrent same-key test.
   - Sandbox: a sandbox-container CI job builds the runner image and executes the live container path (verified locally).
   - Verification: Go all green + vet clean; Python fast 786 passed/4 skipped; bridge 60/1; Rust 23; console 272 + lint 0 + tsc 0; wiki-lint clean.
+
+## [2026-10-27] decision | Phase 3a: live H2 anchor, fail-closed comparator, claim theater removed
+
+  - H2 anchor is a live PySCF RHF+FCI solve at the requested bond length (-1.137270 Ha at 0.7414 A; -0.948641 at 2.0 A); tests pin the value, geometry dependence, and provenance. The 65 mHa table is no longer served.
+  - Comparator toolchain absence returns ok=False / verification_unavailable with no synthesized axioms; the AST path is not a pass. Tribunal no longer counts static AST as Lean verification.
+  - Theater: 3D HUD shows UNVERIFIED and rho = — without computed data; Lean widget requires a real tactic/axiom/sorryAx receipt; manuscript deposit re-verifies sign-off/content hash; peer review uses abs(discrepancy).
+  - Remaining Phase 3b: HF fallback label, calibration timestamps, autoresearch nonce/constants, absent model artifact.

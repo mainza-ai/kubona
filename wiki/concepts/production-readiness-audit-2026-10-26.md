@@ -622,9 +622,9 @@ honesty).
 | P0-5 money | **Partial** | Idempotency is checked before spend and **claimed atomically** (`find_or_create` under the store lock) before money moves; replay returns the original job; body mismatch refuses; pre-vendor/enqueue failures refund and emit a ledger event when a ledger is wired; a 2-thread race test pins one job/one charge. | Single book/tenant-scoped key/full body hash (Q-50/Q-51); ledger must be wired in production (PYC-10). |
 | P0-6 refund | **Closed** | `VerifyAdminAction` runs before `sessionMgr.RefundSpend`; forged-signature 403 pin added. | — |
 | P0-7 release | **Partial** | Docker contract + build context fixed and boot verified (`/api/health`/`/api/ready` 200); catalog 37; packing export; console lint; slice guard; nightly F/G; bridge RPC tests in CI; jq/vet clean. | Branch protection + a full protected green run (needs push); CI secret/token env for the new bridge. |
-| P0-8 anchor | **Open** | — | Restore `-1.13727` + geometry-correct anchor. |
-| P0-9 comparator | **Open** | — | Fail closed without the toolchain. |
-| P0-10 theater | **Open** | — | Remove every unlabeled fabricated "verified" value. |
+| P0-8 anchor | **Closed** | H2 is now a live PySCF RHF+FCI solve at the requested bond length (`-1.137270…` at R=0.7414, different at R=2.0); table provenance is retained only for non-live entries; tests pin the value and geometry dependence. | — |
+| P0-9 comparator | **Closed** | Toolchain absence returns `ok=False`, `verification_mode="verification_unavailable"`, empty `axioms_used`, and no proof claim; the AST path is no longer a pass. | — |
+| P0-10 theater | **Partial** | 3D HUD renders `UNVERIFIED`/`ρ = —` without a computed anchor; the Lean widget requires a real tactic/axiom/sorryAx receipt and no longer synthesizes one from the campaign target; the manuscript sign-off is re-verified at deposit, content changes refuse, and peer review uses `abs(discrepancy)`; the tribunal no longer counts static AST as Lean verification. | HF fallback labeling, calibration timestamps, autoresearch hardcoded constants/nonce, and the absent model artifact remain (Phase 3b). |
 
 **Verification run (local, 2026-10-27):** Go `build`/`vet`/`test ./...` green;
 Python fast lane `786 passed, 4 skipped`; bridge `60 passed, 1 skipped`;
@@ -633,8 +633,11 @@ image builds and boots (health/ready 200); bridge token rejection/acceptance
 verified live; runner image built and the container sandbox executed live.
 Phase 0 + 1a landed as `532708f` (three signed commits) on `develop` + `main`.
 The 1b slice (HMAC session assertion, signed imports, loop tenancy, atomic
-idempotency, container CI) is the next commit; branch protection still waits on
-the full protected run (Q-49..Q-57 remain).
+idempotency, container CI) landed as `0ee9f9c`. **Phase 3a** then closed the
+anchor and comparator P0s and removed the largest verified-claim theater
+(HUD, Lean widget, manuscript sign-off, peer-review sign, tribunal AST); the
+remaining theater items are Phase 3b. Branch protection still waits on the
+full protected run (Q-49..Q-57 remain).
 
 ---
 

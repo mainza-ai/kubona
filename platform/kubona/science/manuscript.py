@@ -56,6 +56,9 @@ class ManuscriptSignoff:
     signer_pubkey_hex: str
     signature_hex: str
     signed_at: str = ""
+    # Bound at attach time so deposit can re-verify without trusting the
+    # caller to pass the same expiry again.
+    expiry: str = ""
 
     def canonical_payload(self, expiry: str) -> bytes:
         return f"manuscript-signoff:{self.manuscript_id}:{self.content_hash}:{expiry}".encode()
@@ -505,11 +508,11 @@ class ManuscriptGenerator:
         if disc is None:
             grounding = 5.0
             critiques.append("No measured anchor discrepancy supplied; grounding unattested.")
-        elif disc <= 1.6:
+        elif abs(disc) <= 1.6:
             grounding = 9.5
-        elif disc <= 5.0:
+        elif abs(disc) <= 5.0:
             grounding = 8.0
-        elif disc <= 16.0:
+        elif abs(disc) <= 16.0:
             grounding = 7.0
         else:
             grounding = 5.0
@@ -571,6 +574,7 @@ class ManuscriptGenerator:
             raise ValueError("sign-off content hash mismatch: refused (stale approval)")
         if not signoff.verify(expiry):
             raise ValueError("sign-off signature invalid: refused")
+        signoff.expiry = expiry
         manuscript.signoff = signoff
         return manuscript
 
@@ -592,6 +596,13 @@ class ManuscriptGenerator:
                 f"(mean {review.mean_score():.2f}, hygiene {review.axiomatic_hygiene_score})")
         if manuscript.signoff is None:
             raise ValueError("deposit refused: no verified human sign-off attached")
+        import hashlib as _hl
+        current_hash = _hl.sha256(manuscript.compile_latex().encode()).hexdigest()
+        signoff = manuscript.signoff
+        if signoff.content_hash != current_hash:
+            raise ValueError("deposit refused: manuscript changed after sign-off")
+        if not signoff.expiry or not signoff.verify(signoff.expiry):
+            raise ValueError("deposit refused: sign-off is expired or invalid")
         target_dir.mkdir(parents=True, exist_ok=True)
         manifest = {
             "state": "staged-needs-human-upload",

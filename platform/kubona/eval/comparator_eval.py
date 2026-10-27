@@ -387,19 +387,22 @@ class ComparatorChallengeRegistry:
             except (FileNotFoundError, PermissionError):
                 pass
 
-        # Toolchain absent on host: fallback gracefully to validated AST containment
-        fallback_res = self.verify_axioms(
-            challenge_name,
-            list(spec.permitted_axioms),
-            ledger=ledger,
+        # Toolchain absent: no proof was checked. Never synthesize the
+        # permitted axiom list and never report ok=True (2026-10-26 audit
+        # P0-9: the old fallback passed every challenge without reading it).
+        return VerificationResult(
+            challenge_name=challenge_name,
+            ok=False,
+            axioms_used=[],
+            unpermitted_axioms=[],
+            theorem_names=spec.theorem_names,
+            error_message=(
+                "live kernel unavailable (no sandbox image/daemon or host "
+                "toolchain); verification unavailable — no proof was checked"),
+            ledger_ref=None,
+            verification_mode="verification_unavailable",
+            kernel_execution_skipped=True,
         )
-        fallback_res.verification_mode = "static_ast_containment"
-        fallback_res.kernel_execution_skipped = True
-        if fallback_res.error_message is None:
-            fallback_res.error_message = (
-                "live kernel unavailable (no sandbox image/daemon or host toolchain); "
-                "AST containment only")
-        return fallback_res
 
     def _verify_sandboxed(
         self,

@@ -570,8 +570,8 @@ async def science_tribunal_deliberate(request: Request) -> JSONResponse:
     sentinel_ok = bool(mandate_ledger_ref)
     prover_weight = 1.0 if verification_mode == "live_kernel_proven" else 0.90
 
-    prover_ok = bool(lean4_verified and zero_axiom_cheating and verification_mode in (
-        "live_kernel_proven", "static_ast_containment"))
+    prover_ok = bool(lean4_verified and zero_axiom_cheating
+                     and verification_mode == "live_kernel_proven")
     if verification_mode == "live_kernel_proven":
         prover_rho, prover_claim = 1.0, "machine-checked kernel proof"
     elif verification_mode == "static_ast_containment":

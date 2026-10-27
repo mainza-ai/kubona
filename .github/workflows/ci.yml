@@ -238,7 +238,7 @@ jobs:
         env:
           KUBONA_SANDBOX_CONTAINER: "1"
           KUBONA_SANDBOX_IMAGE: kubona-quantum-runner:1.1.0
-        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q tests/test_watchdog_and_sandbox.py
+        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q tests/test_watchdog_and_sandbox.py -k container_sandbox
 
   rust-tests:
     name: Rust crates (qir-core + ifc-core)

@@ -83,15 +83,17 @@ def test_comparator_live_or_fallback(tmp_path):
     registry = ComparatorChallengeRegistry()
     ledger = Ledger(path=str(tmp_path / "ledger_live.jsonl"))
 
-    # When lake is absent (standard host), verify_lean4_live falls back gracefully to AST containment
+    # When lake is absent (standard host), no proof is checked: fail closed.
     res = registry.verify_lean4_live("QuasiRiemannHypothesis", ledger=ledger)
-    assert res.ok
-    assert res.verification_mode in ("live_kernel_proven", "static_ast_containment")
-    if res.verification_mode == "static_ast_containment":
-        assert res.kernel_execution_skipped is True
-    else:
+    if res.verification_mode == "live_kernel_proven":
+        assert res.ok is True
         assert res.kernel_execution_skipped is False
-    assert res.ledger_ref is not None
+        assert res.ledger_ref is not None
+    else:
+        assert res.ok is False
+        assert res.verification_mode == "verification_unavailable"
+        assert res.kernel_execution_skipped is True
+        assert res.axioms_used == []
 
 
 
@@ -122,7 +124,8 @@ def test_lean_sandbox_absent_daemon_falls_back(tmp_path):
         ledger = Ledger(path=str(tmp_path / "ledger_sandbox.jsonl"))
         res = registry.verify_lean4_live(
             "QuasiRiemannHypothesis", sandbox=LeanSandboxConfig(), ledger=ledger)
-        assert res.verification_mode == "static_ast_containment"
+        assert res.verification_mode == "verification_unavailable"
+        assert res.ok is False
         assert res.kernel_execution_skipped is True
         assert res.error_message is not None and "sandbox" in res.error_message
     finally:

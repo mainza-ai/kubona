@@ -83,9 +83,9 @@ def test_molecular_anchor_engine():
 def test_discovery_campaign_with_epistemics_and_anchors(tmp_path):
     campaign = DiscoveryCampaign(problem="H2-dissociation", hamiltonian="H2", ground_state=-1.137, budget_steps=10)
     result = campaign.run(source="mock")
-    # Honest-signals consequence (2026-10-17): the VQE harness minimizes
-    # ZZ+0.5XX (ground ≈ -1.118) while the H2 FCI anchor sits at ≈ -1.0718,
-    # and ZNE now runs on the campaign's own best circuit instead of voting
+    # Honest-signals consequence (2026-10-26): the VQE harness minimizes
+    # ZZ+0.5XX (ansatz optimum ≈ -1.118) while the live H2 FCI anchor sits at
+    # -1.13727, and ZNE now runs on the campaign's own best circuit instead of voting
     # contest from unrelated X-circuit physics. Split evidence genuinely does
     # not collapse at the 0.75 gate — so the campaign must HOLD the claim as
     # a qualified hypothesis (fail-closed), never crash and never assert it.
@@ -136,3 +136,16 @@ def test_fisher_rao_credibility_manifold():
     assert summary["trajectory_steps"] == 6
     assert "endpoints" in summary
 
+
+
+def test_h2_anchor_is_live_and_geometry_dependent():
+    """P0-8 pin: the anchor must match PySCF at the requested R, not a table."""
+    from kubona.anchors.chemistry import MolecularAnchorEngine
+    eng = MolecularAnchorEngine()
+    near = eng.compute_table_anchor("H2", bond_distance=0.7414)
+    far = eng.compute_table_anchor("H2", bond_distance=2.0)
+    assert abs(near.fci_energy_hartree - (-1.137270174660904)) < 1e-9
+    assert abs(near.rhf_energy_hartree - (-1.116684387085341)) < 1e-9
+    assert far.fci_energy_hartree != near.fci_energy_hartree
+    assert near.provenance.startswith("pyscf-live")
+    assert near.classical_method.startswith("PySCF")
