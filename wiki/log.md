@@ -3339,3 +3339,9 @@ skipped is the exact failure this incident is about:
   - Comparator toolchain absence returns ok=False / verification_unavailable with no synthesized axioms; the AST path is not a pass. Tribunal no longer counts static AST as Lean verification.
   - Theater: 3D HUD shows UNVERIFIED and rho = — without computed data; Lean widget requires a real tactic/axiom/sorryAx receipt; manuscript deposit re-verifies sign-off/content hash; peer review uses abs(discrepancy).
   - Remaining Phase 3b: HF fallback label, calibration timestamps, autoresearch nonce/constants, absent model artifact.
+
+## [2026-10-27] decision | Phase 4a: console build gate + security headers
+
+  - A production `next build` with NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN set now fails closed (verified with a leaked token); KUBONA_ALLOW_DEV_TOKEN=1 is the explicit local-demo escape hatch.
+  - next.config.ts emits CSP (frame-ancestors none, object-src none, base-uri/form-action self, scheme-wide connect for runtime API/SSE), X-Frame-Options DENY, nosniff, strict referrer, and a restrictive Permissions-Policy.
+  - Go CORS adds Vary: Origin so shared caches cannot serve one origin's ACAO to another.

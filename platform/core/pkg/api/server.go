@@ -398,6 +398,7 @@ func (s *Server) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if origin := corsAllowOrigin(r); origin != "" {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Add("Vary", "Origin")
 			// Credentialed requests (session cookie) only work cross-origin
 			// with this header; the origin above is allowlisted, never "*",
 			// so browsers accept it. Reads stay public; writes still need
