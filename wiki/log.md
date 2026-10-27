@@ -3403,3 +3403,10 @@ skipped is the exact failure this incident is about:
   - llmSpendSummary scans the full llm_spend_estimated ledger (no 10k LIMIT) and returns query/scan/JSON errors; checkLLMBudget refuses when the total cannot be verified instead of treating it as zero.
   - The gate now trips when the active provider OR any role assignment is non-local (a local-active config with a cloud role used to bypass the cap).
   - cost summary returns a typed 500 when spend cannot be verified; added the (event_type,id) index for the scan.
+
+## [2026-10-27] decision | Ledger v2: metadata-committed, canonical, versioned
+
+  - New events use hash_version=2: tenant/label/timestamp/type + a canonical-payload hash are inside the digest, so relabelling or moving an event breaks the chain.
+  - v1 rows keep verifying with the legacy digest (versioned verifier). Import/export carry hash_version + signature_domain.
+  - External mandate events use signature_domain=mandate-v1 and verify the reconstructed SpendMandate canonical message (fixes the v1 domain mismatch); opaque x402 proofs are recorded, never claimed verified.
+  - Tests: metadata tamper, v1 compatibility, external mandate signature, opaque proof; full Go -race suite green.

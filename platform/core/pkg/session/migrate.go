@@ -638,13 +638,21 @@ func (m *Manager) ImportSession(man *SessionManifest) (*ImportResult, error) {
 		}
 		var idExists int
 		_ = tx.QueryRow(`SELECT COUNT(*) FROM ledger_events WHERE id = ?`, e.ID).Scan(&idExists)
+		hver := e.HashVersion
+		if hver == 0 {
+			hver = 1
+		}
+		sdom := e.SignatureDomain
+		if sdom == "" {
+			sdom = "chain"
+		}
 		var insertErr error
 		if idExists > 0 {
-			insertErr = exec(`INSERT INTO ledger_events (timestamp, session_id, tenant_id, conf_label, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				e.Timestamp, s.ID, e.TenantID, e.ConfLabel, e.EventType, string(e.Payload), e.PrevHash, e.EntryHash, e.SignerPubkey, e.Signature)
+			insertErr = exec(`INSERT INTO ledger_events (timestamp, session_id, tenant_id, conf_label, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex, hash_version, signature_domain) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				e.Timestamp, s.ID, e.TenantID, e.ConfLabel, e.EventType, string(e.Payload), e.PrevHash, e.EntryHash, e.SignerPubkey, e.Signature, hver, sdom)
 		} else {
-			insertErr = exec(`INSERT INTO ledger_events (id, timestamp, session_id, tenant_id, conf_label, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				e.ID, e.Timestamp, s.ID, e.TenantID, e.ConfLabel, e.EventType, string(e.Payload), e.PrevHash, e.EntryHash, e.SignerPubkey, e.Signature)
+			insertErr = exec(`INSERT INTO ledger_events (id, timestamp, session_id, tenant_id, conf_label, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex, hash_version, signature_domain) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+				e.ID, e.Timestamp, s.ID, e.TenantID, e.ConfLabel, e.EventType, string(e.Payload), e.PrevHash, e.EntryHash, e.SignerPubkey, e.Signature, hver, sdom)
 		}
 		if insertErr != nil {
 			return nil, fmt.Errorf("import event %d: %w", e.ID, insertErr)
