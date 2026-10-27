@@ -133,6 +133,10 @@ type SessionManifest struct {
 	// on disk cannot be replayed as authority. Production requires it.
 	SignatureAlg string `json:"signature_alg,omitempty"`
 	Signature    string `json:"signature,omitempty"`
+	// KeyID names the rotation key that produced Signature. Absent means a
+	// legacy single-key manifest; verification then tries every configured
+	// key. New exports always set it.
+	KeyID string `json:"key_id,omitempty"`
 }
 
 // JobRow mirrors the jobs table (session package cannot import jobs:
@@ -171,14 +175,63 @@ func sectionDigest(v any) (string, error) {
 	return ledger.CanonicalHash(norm)
 }
 
-// importHMACKey is the operator key that seals manifests. It is separate
-// from the reviewer key so rotating the audit signer does not invalidate
-// old migrations.
-func importHMACKey() string {
-	if k := strings.TrimSpace(os.Getenv("KUBONA_IMPORT_HMAC_KEY")); k != "" {
-		return k
+// importHMACKeys is the operator keyring that seals manifests. It is
+// separate from the reviewer key so rotating the audit signer does not
+// invalidate old migrations. KUBONA_IMPORT_HMAC_KEYS carries comma-separated
+// kid=key pairs; KUBONA_IMPORT_HMAC_KEY is the legacy single key ("legacy"),
+// and KUBONA_API_TOKEN is the final dev fallback ("api-token").
+func importHMACKeys() map[string]string {
+	keys := map[string]string{}
+	for _, entry := range strings.Split(os.Getenv("KUBONA_IMPORT_HMAC_KEYS"), ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		kid, key, ok := strings.Cut(entry, "=")
+		if !ok {
+			kid, key, ok = strings.Cut(entry, ":")
+		}
+		if ok && strings.TrimSpace(kid) != "" && strings.TrimSpace(key) != "" {
+			keys[strings.TrimSpace(kid)] = strings.TrimSpace(key)
+		}
 	}
-	return strings.TrimSpace(os.Getenv("KUBONA_API_TOKEN"))
+	if k := strings.TrimSpace(os.Getenv("KUBONA_IMPORT_HMAC_KEY")); k != "" {
+		keys["legacy"] = k
+	}
+	if len(keys) == 0 {
+		if k := strings.TrimSpace(os.Getenv("KUBONA_API_TOKEN")); k != "" {
+			keys["api-token"] = k
+		}
+	}
+	return keys
+}
+
+// activeImportKey selects the key used for new exports. An explicit
+// KUBONA_IMPORT_HMAC_KEY_ID wins; otherwise the legacy key, else a stable
+// sorted first key (single-key configs are unambiguous).
+func activeImportKey() (string, string) {
+	keys := importHMACKeys()
+	if id := strings.TrimSpace(os.Getenv("KUBONA_IMPORT_HMAC_KEY_ID")); id != "" {
+		if key, ok := keys[id]; ok {
+			return id, key
+		}
+		return id, ""
+	}
+	if key, ok := keys["legacy"]; ok {
+		return "legacy", key
+	}
+	if key, ok := keys["api-token"]; ok {
+		return "api-token", key
+	}
+	kids := make([]string, 0, len(keys))
+	for kid := range keys {
+		kids = append(kids, kid)
+	}
+	if len(kids) == 0 {
+		return "", ""
+	}
+	sort.Strings(kids)
+	return kids[0], keys[kids[0]]
 }
 
 func signedImportRequired() bool {
@@ -354,8 +407,9 @@ func (m *Manager) ExportSession(id string) (*SessionManifest, error) {
 	if len(raw) > MaxManifestBytes {
 		return nil, fmt.Errorf("manifest %d bytes exceeds %d cap: session too large to migrate", len(raw), MaxManifestBytes)
 	}
-	if key := importHMACKey(); key != "" {
+	if kid, key := activeImportKey(); key != "" {
 		out.SignatureAlg = "hmac-sha256"
+		out.KeyID = kid
 		out.Signature = manifestSignature(out, key)
 	} else if signedImportRequired() {
 		return nil, fmt.Errorf("manifest signing key not configured: refusing an unsigned export in production")
@@ -426,15 +480,29 @@ func (m *Manager) ImportSession(man *SessionManifest) (*ImportResult, error) {
 		return nil, fmt.Errorf("unsupported_manifest_version %q: this importer reads major 1 only", man.Version)
 	}
 	if man.Signature != "" {
-		key := importHMACKey()
-		if key == "" {
+		keys := importHMACKeys()
+		if len(keys) == 0 {
 			return nil, fmt.Errorf("manifest signature present but no import key configured: refusing")
 		}
 		if man.SignatureAlg != "" && man.SignatureAlg != "hmac-sha256" {
 			return nil, fmt.Errorf("unsupported manifest signature_alg %q", man.SignatureAlg)
 		}
-		want := manifestSignature(man, key)
-		if !hmac.Equal([]byte(want), []byte(man.Signature)) {
+		verified := false
+		if man.KeyID != "" {
+			key, ok := keys[man.KeyID]
+			if !ok {
+				return nil, fmt.Errorf("manifest key_id %q is not configured: refusing (rotated-out or foreign key)", man.KeyID)
+			}
+			verified = hmac.Equal([]byte(manifestSignature(man, key)), []byte(man.Signature))
+		} else {
+			for _, key := range keys {
+				if hmac.Equal([]byte(manifestSignature(man, key)), []byte(man.Signature)) {
+					verified = true
+					break
+				}
+			}
+		}
+		if !verified {
 			return nil, fmt.Errorf("manifest signature invalid: refusing tampered or foreign bytes")
 		}
 	} else if signedImportRequired() {
