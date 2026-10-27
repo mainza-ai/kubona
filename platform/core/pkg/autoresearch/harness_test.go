@@ -158,6 +158,46 @@ func TestErrorMitigationHarnessEvaluation(t *testing.T) {
 	}
 }
 
+func TestCompilationPassHarnessMeasurementAndEquivalence(t *testing.T) {
+	reg := NewHarnessRegistry()
+	h, _ := reg.Get("compilation-pass")
+
+	cfg := sandbox.DefaultConfig()
+	cfg.Timeout = 20 * time.Second
+	cfg.AllowHostFallback = true
+	runner := sandbox.NewSandboxRunnerWithConfig(cfg)
+
+	pm := `from qiskit import transpile
+
+def optimize_circuit(qc):
+    return transpile(qc, basis_gates=['cz', 'rz', 'ry', 'rx', 'x'], optimization_level=1)
+`
+	res, err := h.Evaluate(runner, pm)
+	if err != nil {
+		t.Fatalf("compilation harness failed: %v", err)
+	}
+	if !res.Valid {
+		t.Fatalf("expected valid compilation, reason: %s", res.ValidityReason)
+	}
+	if res.CircuitDepth <= 0 || res.Metric <= 0 {
+		t.Fatalf("expected measured depth/cost, got depth=%d metric=%f", res.CircuitDepth, res.Metric)
+	}
+
+	// A circuit that is not QFT-4 must be rejected even though it is cheaper.
+	cheat := `from qiskit import QuantumCircuit
+
+def optimize_circuit(qc):
+    return QuantumCircuit(4)
+`
+	bad, err := h.Evaluate(runner, cheat)
+	if err != nil {
+		t.Fatalf("cheat artifact should return a result, not an error: %v", err)
+	}
+	if bad.Valid {
+		t.Fatal("non-equivalent compiled circuit must be invalid")
+	}
+}
+
 func TestCorrectnessRegressionHarnessEvaluation(t *testing.T) {
 	reg := NewHarnessRegistry()
 	regHarness, _ := reg.Get("correctness-regression")
@@ -167,7 +207,14 @@ func TestCorrectnessRegressionHarnessEvaluation(t *testing.T) {
 	cfg.AllowHostFallback = true
 	runner := sandbox.NewSandboxRunnerWithConfig(cfg)
 
-	res, err := regHarness.Evaluate(runner, "")
+	bell := `OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[2];
+creg c[2];
+h q[0];
+cx q[0],q[1];
+measure q -> c;`
+	res, err := regHarness.Evaluate(runner, bell)
 	if err != nil {
 		t.Fatalf("failed to evaluate correctness regression: %v", err)
 	}
@@ -178,6 +225,14 @@ func TestCorrectnessRegressionHarnessEvaluation(t *testing.T) {
 
 	if res.PhysicalValue < 0.99 {
 		t.Fatalf("expected fidelity ~1.0 on Bell state, got %f", res.PhysicalValue)
+	}
+	// An empty artifact must not silently score as a perfect Bell state.
+	invalid, err := regHarness.Evaluate(runner, "")
+	if err != nil {
+		t.Fatalf("invalid artifact should return a result, not an error: %v", err)
+	}
+	if invalid.Valid {
+		t.Fatal("empty artifact must be invalid")
 	}
 }
 

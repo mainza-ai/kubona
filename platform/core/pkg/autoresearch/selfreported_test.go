@@ -6,6 +6,11 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/sandbox"
 )
 
+type fakeSelfReported struct{ measuredHarness }
+
+func (fakeSelfReported) ID() string         { return "fake-self-reported" }
+func (fakeSelfReported) SelfReported() bool { return true }
+
 type measuredHarness struct{}
 
 func (measuredHarness) ID() string                          { return "measured" }
@@ -20,7 +25,7 @@ func (measuredHarness) Evaluate(*sandbox.SandboxRunner, string) (*HarnessResult,
 func TestSelfReportedHarnessRefusedInProduction(t *testing.T) {
 	t.Setenv("KUBONA_ENV", "production")
 	t.Setenv("KUBONA_AUTORESEARCH_ALLOW_SELF_REPORTED", "")
-	if err := refuseSelfReportedInProduction(&ErrorMitigationHarness{}); err == nil {
+	if err := refuseSelfReportedInProduction(fakeSelfReported{}); err == nil {
 		t.Fatal("self-reported harness must refuse in production")
 	}
 	// The ansatz and QAOA harnesses are measured (artifact stage separate
@@ -32,7 +37,7 @@ func TestSelfReportedHarnessRefusedInProduction(t *testing.T) {
 		t.Fatalf("measured QAOA harness must not be blocked: %v", err)
 	}
 	t.Setenv("KUBONA_AUTORESEARCH_ALLOW_SELF_REPORTED", "1")
-	if err := refuseSelfReportedInProduction(&ErrorMitigationHarness{}); err != nil {
+	if err := refuseSelfReportedInProduction(fakeSelfReported{}); err != nil {
 		t.Fatalf("explicit research opt-in must allow: %v", err)
 	}
 	if err := refuseSelfReportedInProduction(measuredHarness{}); err != nil {
@@ -42,7 +47,7 @@ func TestSelfReportedHarnessRefusedInProduction(t *testing.T) {
 
 func TestSelfReportedHarnessAllowedInDev(t *testing.T) {
 	t.Setenv("KUBONA_ENV", "")
-	if err := refuseSelfReportedInProduction(&ErrorMitigationHarness{}); err != nil {
+	if err := refuseSelfReportedInProduction(fakeSelfReported{}); err != nil {
 		t.Fatalf("dev must keep self-reported harnesses available: %v", err)
 	}
 }

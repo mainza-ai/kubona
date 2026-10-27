@@ -3490,3 +3490,10 @@ skipped is the exact failure this incident is about:
   - Stage 1 imports qaoa_schedule.py only to extract finite gamma/beta lists; stage 2 runs in a separate sandbox with no artifact and builds/simulates the 8-node MaxCut circuit, computing the approximation metric itself.
   - QAOA no longer implements SelfReported, so production runs ansatz + QAOA without the opt-in.
   - Still self-reported/blocked: error-mitigation (analytic formula), compilation-pass (no equivalence check yet), correctness-regression (computes a fixed Bell state and ignores the artifact). These need real measured implementations before production use.
+
+## [2026-10-27] decision | All five autoresearch harnesses measured
+
+  - correctness-regression now parses the submitted QASM as data and simulates it; the trusted stage scores fidelity against |Phi+>. An empty artifact is invalid, not a perfect Bell state.
+  - compilation-pass runs the candidate pass manager in stage 1 only; stage 2 checks unitary equivalence to QFT-4 before scoring depth x 2Q gates. A cheaper non-equivalent circuit is refused.
+  - error-mitigation validates scale factors only in stage 1; stage 2 runs a real Aer density-matrix depolarizing simulation at each scale and Richardson-extrapolates the GHZ-4 ZZ observable.
+  - No shipped harness implements SelfReported. The production gate remains for future harnesses and is tested with a fake.
