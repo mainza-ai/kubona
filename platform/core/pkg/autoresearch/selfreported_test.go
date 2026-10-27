@@ -20,11 +20,16 @@ func (measuredHarness) Evaluate(*sandbox.SandboxRunner, string) (*HarnessResult,
 func TestSelfReportedHarnessRefusedInProduction(t *testing.T) {
 	t.Setenv("KUBONA_ENV", "production")
 	t.Setenv("KUBONA_AUTORESEARCH_ALLOW_SELF_REPORTED", "")
-	if err := refuseSelfReportedInProduction(&AnsatzSearchHarness{}); err == nil {
+	if err := refuseSelfReportedInProduction(&QAOACombinatorialHarness{}); err == nil {
 		t.Fatal("self-reported harness must refuse in production")
 	}
-	t.Setenv("KUBONA_AUTORESEARCH_ALLOW_SELF_REPORTED", "1")
+	// The ansatz harness is now measured (artifact stage separate from the
+	// trusted evaluator), so it is allowed even in production.
 	if err := refuseSelfReportedInProduction(&AnsatzSearchHarness{}); err != nil {
+		t.Fatalf("measured ansatz harness must not be blocked: %v", err)
+	}
+	t.Setenv("KUBONA_AUTORESEARCH_ALLOW_SELF_REPORTED", "1")
+	if err := refuseSelfReportedInProduction(&QAOACombinatorialHarness{}); err != nil {
 		t.Fatalf("explicit research opt-in must allow: %v", err)
 	}
 	if err := refuseSelfReportedInProduction(measuredHarness{}); err != nil {
@@ -34,7 +39,7 @@ func TestSelfReportedHarnessRefusedInProduction(t *testing.T) {
 
 func TestSelfReportedHarnessAllowedInDev(t *testing.T) {
 	t.Setenv("KUBONA_ENV", "")
-	if err := refuseSelfReportedInProduction(&AnsatzSearchHarness{}); err != nil {
+	if err := refuseSelfReportedInProduction(&QAOACombinatorialHarness{}); err != nil {
 		t.Fatalf("dev must keep self-reported harnesses available: %v", err)
 	}
 }

@@ -87,8 +87,6 @@ func NewAnsatzSearchHarness(targetFCI float64) *AnsatzSearchHarness {
 	return &AnsatzSearchHarness{TargetFCI: targetFCI}
 }
 
-func (h *AnsatzSearchHarness) SelfReported() bool { return true }
-
 func (h *AnsatzSearchHarness) ID() string {
 	return "ansatz-search"
 }
@@ -127,43 +125,85 @@ func (h *AnsatzSearchHarness) Evaluate(runner *sandbox.SandboxRunner, artifact s
 
 	runner = ensureRunner(runner)
 
-	benchmarkScript := fmt.Sprintf(`
+	// Stage 1 is the ONLY stage that imports the artifact. It returns a
+	// circuit (QASM) and nothing else. Stage 2 runs in a separate sandbox
+	// invocation with no artifact mounted and computes the metric itself,
+	// so the artifact cannot forge or patch the score.
+	stage1 := `
 import json
 import sys
 import os
 sys.path.insert(0, '/workspace')
 sys.path.insert(0, os.getcwd())
-import numpy as np
 
 try:
-    from qiskit import QuantumCircuit
-    from qiskit.quantum_info import SparsePauliOp, Statevector
     import ansatz
+    qc = ansatz.build_circuit() if hasattr(ansatz, 'build_circuit') else ansatz.qc
+    if qc.num_parameters > 0:
+        qc = qc.assign_parameters([0.5] * qc.num_parameters)
+    try:
+        from qiskit import qasm2
+        qasm_text = qasm2.dumps(qc)
+    except Exception:
+        qasm_text = qc.qasm()
+    print(json.dumps({"valid": True, "qasm": qasm_text}))
 except Exception as e:
-    print(json.dumps({"valid": False, "error": f"Import error: {str(e)}"}))
-    sys.exit(0)
+    print(json.dumps({"valid": False, "error": f"Artifact error: {str(e)}"}))
+`
+	nonce1 := newRunNonce()
+	stage1 = fenceBenchmarkOutputs(stage1, nonce1)
+	res1, err := runner.ExecuteHarness(stage1, h.MutableArtifact(), artifact)
+	if err != nil {
+		return nil, fmt.Errorf("ansatz-search artifact stage failed: %w", err)
+	}
+	payload1, matches1 := fencedPayload(res1.Stdout, nonce1)
+	if matches1 != 1 || payload1 == nil {
+		return &HarnessResult{
+			HarnessID: h.ID(), Metric: 999.0, Valid: false,
+			Sandboxed: res1.Sandboxed, IsolationTag: res1.IsolationTag,
+			ValidityReason: fmt.Sprintf("artifact stage must emit exactly one fenced payload, found %d", matches1),
+		}, nil
+	}
+	if ok, _ := payload1["valid"].(bool); !ok {
+		msg, _ := payload1["error"].(string)
+		return &HarnessResult{
+			HarnessID: h.ID(), Metric: 999.0, Valid: false,
+			Sandboxed: res1.Sandboxed, IsolationTag: res1.IsolationTag,
+			ValidityReason: "artifact invalid: " + msg,
+		}, nil
+	}
+	qasm, _ := payload1["qasm"].(string)
+	if strings.TrimSpace(qasm) == "" {
+		return &HarnessResult{
+			HarnessID: h.ID(), Metric: 999.0, Valid: false,
+			Sandboxed: res1.Sandboxed, IsolationTag: res1.IsolationTag,
+			ValidityReason: "artifact returned an empty circuit",
+		}, nil
+	}
+	qasmJSON, _ := json.Marshal(qasm)
 
-H_list = [
+	stage2 := fmt.Sprintf(`
+import json
+import sys
+import numpy as np
+from qiskit import QuantumCircuit
+from qiskit.quantum_info import SparsePauliOp, Statevector
+
+qasm = %s
+target_fci = %.6f
+H = SparsePauliOp.from_list([
     ("II", -1.0523732),
     ("IZ", 0.3979374),
     ("ZI", -0.3979374),
     ("ZZ", -0.0112801),
     ("XX", 0.1809312),
-]
-H = SparsePauliOp.from_list(H_list)
-target_fci = %.6f
-
+])
 try:
-    qc = ansatz.build_circuit() if hasattr(ansatz, 'build_circuit') else ansatz.qc
-    if qc.num_parameters > 0:
-        # Default assigned parameters for ansatz evaluation
-        qc = qc.assign_parameters([0.5] * qc.num_parameters)
-
+    qc = QuantumCircuit.from_qasm_str(qasm)
+    qc.remove_final_measurements(inplace=True)
     sv = Statevector(qc)
     energy = float(np.real(sv.expectation_value(H)))
     delta_e = abs(energy - target_fci)
-
-    # Calculate Meyer-Wallach global entanglement score
     n = qc.num_qubits
     mw = 0.0
     if n >= 2:
@@ -173,14 +213,10 @@ try:
             rho_k = np.tensordot(arr, arr.conj(), axes=(other_axes, other_axes))
             mw += 2.0 * (1.0 - float(np.real(np.trace(rho_k @ rho_k))))
         mw = mw / n
-
     two_q_gates = sum(1 for inst in qc.data if inst.operation.num_qubits == 2)
-
-    # Entanglement penalty if separable
     metric = delta_e
     if mw < 0.30:
-        metric += 5.0 # Meyer-Wallach separable penalty
-
+        metric += 5.0
     print(json.dumps({
         "valid": True,
         "metric": float(metric),
@@ -192,19 +228,18 @@ try:
         "entanglement_score": float(mw)
     }))
 except Exception as e:
-    print(json.dumps({"valid": False, "error": f"Execution error: {str(e)}"}))
-`, h.TargetFCI)
+    print(json.dumps({"valid": False, "error": f"Trusted evaluator error: {str(e)}"}))
+`, string(qasmJSON), h.TargetFCI)
 
-	nonce := newRunNonce()
-	benchmarkScript = fenceBenchmarkOutputs(benchmarkScript, nonce)
-	res, err := runner.ExecuteHarness(benchmarkScript, h.MutableArtifact(), artifact)
+	nonce2 := newRunNonce()
+	stage2 = fenceBenchmarkOutputs(stage2, nonce2)
+	// No artifact is mounted in the evaluator stage: it can only see the QASM.
+	res2, err := runner.ExecuteHarness(stage2, "", "")
 	if err != nil {
-		return nil, fmt.Errorf("ansatz-search execution failed: %w", err)
+		return nil, fmt.Errorf("ansatz-search evaluator stage failed: %w", err)
 	}
-
-	return parseHarnessOutput(h.ID(), res, nonce)
+	return parseHarnessOutput(h.ID(), res2, nonce2)
 }
-
 func (h *AnsatzSearchHarness) Metric(artifact string) (float64, error) {
 	res, err := h.Evaluate(nil, artifact)
 	if err != nil {
@@ -644,6 +679,30 @@ func fenceBenchmarkOutputs(script, nonce string) string {
 func newRunNonce() string {
 	return uuid.NewString()
 }
+
+// fencedPayload extracts exactly one nonce-fenced JSON object from stdout.
+// Zero or multiple matches are ambiguous and must invalidate, never resolve.
+func fencedPayload(stdout, nonce string) (map[string]any, int) {
+	fence := resultFencePrefix + " " + nonce + " "
+	var parsed map[string]any
+	matches := 0
+	for _, line := range strings.Split(stdout, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, fence) {
+			continue
+		}
+		matches++
+		if matches > 1 {
+			break
+		}
+		var m map[string]any
+		if err := json.Unmarshal([]byte(strings.TrimPrefix(line, fence)), &m); err == nil {
+			parsed = m
+		}
+	}
+	return parsed, matches
+}
+
 func parseHarnessOutput(harnessID string, res *sandbox.ExecutionResult, nonce string) (*HarnessResult, error) {
 	// S6: bound agent-controlled output at this choke (the single point
 	// where sandbox streams enter persisted structures). Unbounded stderr
@@ -668,23 +727,7 @@ func parseHarnessOutput(harnessID string, res *sandbox.ExecutionResult, nonce st
 	// never reported; two or more means something else printed a fenced
 	// line (forgery or bug) — ambiguous payloads invalidate, never resolve
 	// by position.
-	fence := resultFencePrefix + " " + nonce + " "
-	var parsedPayload map[string]any
-	matches := 0
-	for _, line := range strings.Split(stdout, "\n") {
-		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, fence) {
-			continue
-		}
-		matches++
-		if matches > 1 {
-			break
-		}
-		var m map[string]any
-		if err := json.Unmarshal([]byte(strings.TrimPrefix(line, fence)), &m); err == nil {
-			parsedPayload = m
-		}
-	}
+	parsedPayload, matches := fencedPayload(stdout, nonce)
 
 	if matches != 1 || parsedPayload == nil {
 		hr.Valid = false
