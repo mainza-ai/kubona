@@ -43,6 +43,10 @@ type HFModelSummary struct {
 	Tags          []string              `json:"tags"`
 	Quantizations []HFModelQuantization `json:"quantizations"`
 	Description   string                `json:"description,omitempty"`
+	// Provenance: live Hub metadata vs the offline sovereign catalog.
+	// Fallback counts are illustrative and must never read as measured.
+	Source    string `json:"source,omitempty"` // "live" | "fallback"
+	Estimated bool   `json:"estimated,omitempty"`
 }
 
 // HFDownloadTask tracks an asynchronous model weight download
@@ -260,6 +264,7 @@ func (c *HubClient) SearchModels(ctx context.Context, query, library string, lim
 			Tags:          item.Tags,
 			Quantizations: quants,
 			Description:   item.Description,
+			Source:        "live",
 		})
 	}
 
@@ -277,6 +282,8 @@ func (c *HubClient) filterFallback(query, library string, limit int) []HFModelSu
 		if q == "" || strings.Contains(strings.ToLower(m.ID), q) ||
 			strings.Contains(strings.ToLower(m.Author), q) ||
 			strings.Contains(strings.ToLower(m.Description), q) {
+			m.Source = "fallback"
+			m.Estimated = true
 			matched = append(matched, m)
 		}
 		if len(matched) >= limit {
@@ -288,12 +295,6 @@ func (c *HubClient) filterFallback(query, library string, limit int) []HFModelSu
 
 // GetModelDetails returns detailed metadata and available quantizations for a model
 func (c *HubClient) GetModelDetails(ctx context.Context, repoID string) (*HFModelSummary, error) {
-	for _, m := range fallbackCatalog {
-		if strings.EqualFold(m.ID, repoID) {
-			return &m, nil
-		}
-	}
-
 	endpoint := fmt.Sprintf("%s/models/%s", HFAPIBase, repoID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
 	if err != nil {
@@ -310,6 +311,9 @@ func (c *HubClient) GetModelDetails(ctx context.Context, repoID string) (*HFMode
 		// errors (HTTP 404 upstream), never as plausible-looking records with
 		// fabricated download counts and guessed filenames.
 		if err != nil {
+			if fb := fallbackModel(repoID); fb != nil {
+				return fb, nil
+			}
 			return nil, fmt.Errorf("huggingface metadata request failed for %q: %w", repoID, err)
 		}
 		return nil, fmt.Errorf("huggingface has no model %q (status %d)", repoID, resp.StatusCode)
@@ -355,7 +359,19 @@ func (c *HubClient) GetModelDetails(ctx context.Context, repoID string) (*HFMode
 		Tags:          item.Tags,
 		Quantizations: quants,
 		Description:   item.Description,
+		Source:        "live",
 	}, nil
+}
+
+func fallbackModel(repoID string) *HFModelSummary {
+	for _, m := range fallbackCatalog {
+		if strings.EqualFold(m.ID, repoID) {
+			m.Source = "fallback"
+			m.Estimated = true
+			return &m
+		}
+	}
+	return nil
 }
 
 // StartDownload initiates an asynchronous in-platform model weight download.

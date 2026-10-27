@@ -29,7 +29,12 @@ func TestHubClientSearch(t *testing.T) {
 	for _, m := range models {
 		if m.ID != "" && m.Author != "" {
 			foundQwen = true
-			break
+		}
+		if m.Source == "fallback" && !m.Estimated {
+			t.Fatalf("fallback model %q must be marked estimated", m.ID)
+		}
+		if m.Source != "live" && m.Source != "fallback" {
+			t.Fatalf("model %q has no provenance source", m.ID)
 		}
 	}
 	if !foundQwen {
@@ -48,6 +53,9 @@ func TestHubClientModelDetails(t *testing.T) {
 	}
 	if detail.ID == "" || len(detail.Quantizations) == 0 {
 		t.Fatalf("expected model details with quantizations: %+v", detail)
+	}
+	if detail.Source == "fallback" && !detail.Estimated {
+		t.Fatalf("fallback details must be marked estimated: %+v", detail)
 	}
 }
 
