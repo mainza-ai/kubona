@@ -42,6 +42,13 @@ func chainDigestBytes(prevHash, sessionID, eventType, payload string) [32]byte {
 	return sha256.Sum256([]byte(fmt.Sprintf("%s|%s|%s|%s", prevHash, sessionID, eventType, payload)))
 }
 
+// ChainDigest is the exported, single-source digest used by import
+// validation. It must stay byte-identical to the writer and VerifyChain.
+func ChainDigest(prevHash, sessionID, eventType, payload string) string {
+	d := chainDigestBytes(prevHash, sessionID, eventType, payload)
+	return hex.EncodeToString(d[:])
+}
+
 // VerifyChain audits the ledger hash chain(s): per-session prev_hash linkage,
 // entry-hash recomputation, Ed25519 signatures where present, and signature
 // presence on commit-class events. Unsigned non-commit events check linkage +
@@ -96,7 +103,7 @@ func (l *Ledger) VerifyChain(sessionID string) ([]ChainFault, error) {
 				Detail: fmt.Sprintf("prev_hash %q breaks chain (expected %q)", ev.PrevHash, want)})
 		}
 		digest := chainDigestBytes(ev.PrevHash, ev.SessionID, ev.EventType, string(ev.Payload))
-		recomputed := hex.EncodeToString(digest[:])
+		recomputed := ChainDigest(ev.PrevHash, ev.SessionID, ev.EventType, string(ev.Payload))
 		if recomputed != ev.EntryHash {
 			faults = append(faults, ChainFault{EventID: id, Session: ev.SessionID,
 				Kind:   "hash",

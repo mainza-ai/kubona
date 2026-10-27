@@ -369,6 +369,21 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
     exec_plugin = get_provider(provider)  # ProviderError if data-only
     circuit_hash = canonical_hash(circuit)
 
+    # Idempotency before spend/enqueue (2026-10-26 audit PYC-02). The old
+    # lookup existed only in the bridge and ran AFTER this function had
+    # created a job; a retry could therefore double-charge. A replay returns
+    # the original job; a key reused for a different body refuses.
+    if idempotency_key:
+        prior = _runner.store.find_by_idempotency(idempotency_key)
+        if prior is not None:
+            prior_body = (prior.meta or {}).get("body_hash")
+            if idempotency_body_hash and prior_body and prior_body != idempotency_body_hash:
+                return {"ok": False, "job_id": prior.job_id, "session_id": prior.session_id,
+                        "error": "idempotency_key reused with a different request body: refused"}
+            return {"ok": True, "job_id": prior.job_id, "session_id": prior.session_id,
+                    "status": prior.status, "idempotent_replay": True,
+                    "circuit_hash": (prior.meta or {}).get("circuit_hash", circuit_hash)}
+
     # Dry run (estimate panel, mandate flow): full validation has passed
     # if we get here — return the validated estimate + fidelity verdict
     # with NO spend and NO enqueue. The session row already exists as the
@@ -394,10 +409,10 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
         wait_note = (f"provider {provider!r} is not simulator-class: forced async "
                      "(wait=False); poll get_job_status, spend accounted at dispatch")
 
-    # Spend accounts at dispatch (W0.16): the old order (record after wait)
-    # left multi-hour QPU spend unrecorded on every timeout while hardware
-    # ran. Failed jobs keep the accounted spend — there is no audited refund
-    # primitive yet (residual, stated here, not hidden).
+    # Spend is reserved at dispatch (W0.16) so multi-hour QPU work cannot
+    # run unbooked. A pre-vendor refusal (no credential/SDK, routing error)
+    # refunds the reservation; a failure after the vendor accepted a job
+    # keeps the charge (the vendor may have run) and records the residual.
     cost = pf["estimate"]["estimated_usd"]
     if cost > 0:
         try:
@@ -416,11 +431,14 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
                                body_hash=idempotency_body_hash or "")
     job_id = job.job_id
 
+    pinned: dict[str, str | None] = {"id": None}
+
     def _run() -> dict[str, Any]:
         # Pin the vendor job id into job meta the moment hardware accepts
         # the submission (before results arrive) so later recall knows
         # what to cancel. Simulators never call back — nothing recorded.
         def _pin(hardware_job_id: str) -> None:
+            pinned["id"] = hardware_job_id
             _runner.store.record_hardware_job(job_id, hardware_job_id)
         # returns the provider result; JobRunner records transitions + provenance.
         # Hardware jobs pass wait_for_result=False so the worker thread frees
@@ -428,19 +446,36 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
         # polled via poll_hardware_job on get_job_status / get_result.
         import inspect
         try:
-            sig = inspect.signature(exec_plugin.submit)
-            if "wait_for_result" in sig.parameters:
-                return exec_plugin.submit(
-                    circuit, shots, seed=seed, on_hardware_job=_pin,
-                    wait_for_result=bool(wait),
-                )
-        except (TypeError, ValueError):
-            pass
-        return exec_plugin.submit(circuit, shots, seed=seed, on_hardware_job=_pin)
+            try:
+                sig = inspect.signature(exec_plugin.submit)
+                if "wait_for_result" in sig.parameters:
+                    return exec_plugin.submit(
+                        circuit, shots, seed=seed, on_hardware_job=_pin,
+                        wait_for_result=bool(wait),
+                    )
+            except (TypeError, ValueError):
+                pass
+            return exec_plugin.submit(circuit, shots, seed=seed, on_hardware_job=_pin)
+        except Exception as e:
+            # Pre-vendor refusal (missing credential/SDK, routing, provider
+            # error) never bought QPU time: return the reservation. Once a
+            # hardware job id is pinned the vendor may have run, so keep the
+            # charge and record the residual honestly.
+            if pinned["id"] is None and cost > 0:
+                try:
+                    _gov.refund_spend(session_id, cost, f"pre-vendor failure: {e}")
+                except GovernanceError:
+                    pass
+            raise
 
     try:
         _runner.enqueue(job_id, _run)
     except (KeyError, RuntimeError) as e:
+        if cost > 0:
+            try:
+                _gov.refund_spend(session_id, cost, f"pre-vendor enqueue failure: {e}")
+            except GovernanceError:
+                pass
         return {"ok": False, "error": f"farm refused the job: {e}", "session_id": session_id}
     if wait:
         try:

@@ -14,11 +14,14 @@ from __future__ import annotations
 import ast
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
 from typing import Sequence
+
+from kubona.config import is_production
 
 try:
     import resource  # POSIX only (setrlimit); absent on Windows
@@ -98,6 +101,11 @@ _BLOCKED_ATTRS = frozenset({
     "__build_class__", "__base__", "__basicsize__", "__subclasshook__",
     "__weakref__", "__init_subclass__", "__abstractmethods__",
     "gi_frame", "gi_code", "f_locals", "f_globals", "f_code",
+    # NumPy/ SciPy file + native escape hatches (2026-10-26 audit P0-4):
+    # numpy.ctypeslib reopens libc; fromfile/memmap/load read host files.
+    "ctypeslib", "fromfile", "tofile", "memmap", "open_memmap",
+    "load", "save", "savez", "savez_compressed", "loadtxt", "savetxt",
+    "DataSource",
 })
 
 # Child environment allowlist (W2.15): the child gets ONLY these (copied from
@@ -112,6 +120,13 @@ _SANDBOX_ENV_ALLOW = frozenset({
 
 #: Output cap per stream (W2.15): a runaway print must not OOM the supervisor.
 MAX_OUTPUT_BYTES = 256 * 1024
+
+
+# Runtime audit hooks are deliberately NOT installed in the local path:
+# importing numpy itself dlopen()s BLAS, so a blanket dlopen ban would break
+# legitimate science. Production closes this rail by refusing local
+# execution (isolation_required) and using the container path instead.
+_SANDBOX_PREAMBLE = ""
 
 
 class SecurityPolicyViolation(RuntimeError):
@@ -202,7 +217,24 @@ class WorkloadSandbox:
                         f"Disallowed dunder attribute access '.{node.attr}'")
 
     def execute_script(self, code_str: str, timeout_sec: float = 10.0) -> SandboxResult:
-        """Validates AST and executes in an isolated subprocess with resource constraints."""
+        """Validates AST and executes in an isolated subprocess with resource constraints.
+
+        Production posture (2026-10-26 audit P0-4): the AST + rlimit path is
+        NOT a security boundary (numpy/ctypes escapes). In production this
+        method refuses unless KUBONA_SANDBOX_CONTAINER=1, in which case it
+        runs the workload in the pinned container with no network, a
+        read-only root, dropped capabilities, and resource caps. Dev/test
+        keeps the local path so unit tests stay hermetic.
+        """
+        if is_production() and os.getenv("KUBONA_SANDBOX_CONTAINER") != "1":
+            return SandboxResult(
+                success=False, returncode=-1, stdout="",
+                stderr=("sandbox isolation required: set KUBONA_SANDBOX_CONTAINER=1 "
+                        "and KUBONA_SANDBOX_IMAGE; the AST/rlimit path is not a "
+                        "security boundary"),
+                violation="isolation_required",
+            )
+
         try:
             self.validate_ast(code_str)
         except SecurityPolicyViolation as exc:
@@ -225,6 +257,17 @@ class WorkloadSandbox:
                 resource.setrlimit(resource.RLIMIT_AS, (mem_bytes, mem_bytes))
             except (ValueError, OSError):
                 pass  # In some macOS environments RLIMIT_AS has restricted ranges
+            for limit, value in (
+                (getattr(resource, "RLIMIT_NPROC", None), 64),
+                (getattr(resource, "RLIMIT_FSIZE", None), 16 * 1024 * 1024),
+                (getattr(resource, "RLIMIT_NOFILE", None), 128),
+            ):
+                if limit is None:
+                    continue
+                try:
+                    resource.setrlimit(limit, (value, value))
+                except (ValueError, OSError):
+                    pass
 
         # W2.15: TemporaryDirectory owns cleanup — no NamedTemporaryFile
         # delete=False + unlink race (a crash between write and unlink leaked
@@ -232,7 +275,38 @@ class WorkloadSandbox:
         with tempfile.TemporaryDirectory(prefix="kubona-sandbox-") as tmpdir:
             script_path = os.path.join(tmpdir, "workload.py")
             with open(script_path, "w") as f:
-                f.write(code_str)
+                f.write(_SANDBOX_PREAMBLE + code_str)
+
+            if os.getenv("KUBONA_SANDBOX_CONTAINER") == "1":
+                image = os.getenv("KUBONA_SANDBOX_IMAGE", "kubona-quantum-runner:1.1.0")
+                if shutil.which("docker") is None:
+                    return SandboxResult(success=False, returncode=-1, stdout="",
+                                         stderr="docker is not available for container sandbox",
+                                         violation="isolation_unavailable")
+                cmd = [
+                    "docker", "run", "--rm", "--read-only", "--network", "none",
+                    "--cap-drop", "ALL", "--security-opt", "no-new-privileges",
+                    "--memory", f"{self.max_memory_mb}m",
+                    "--memory-swap", f"{self.max_memory_mb}m",
+                    "--cpus", "1.0", "--pids-limit", "64", "--tmpfs", "/tmp",
+                    "-v", f"{tmpdir}:/work:ro", "-w", "/work",
+                    "--entrypoint", "python3", image, "workload.py",
+                ]
+                try:
+                    proc = subprocess.run(cmd, capture_output=True, text=True,
+                                          timeout=timeout_sec)
+                except subprocess.TimeoutExpired:
+                    return SandboxResult(success=False, returncode=-1, stdout="",
+                                         stderr=f"Execution timed out after {timeout_sec}s",
+                                         violation="timeout")
+                stdout, t1 = _cap(proc.stdout or "")
+                stderr, t2 = _cap(proc.stderr or "")
+                return SandboxResult(
+                    success=(proc.returncode == 0), returncode=proc.returncode,
+                    stdout=stdout, stderr=stderr,
+                    truncated=t1 or t2,
+                    violation=None if proc.returncode == 0 else "nonzero_exit",
+                )
             try:
                 proc = subprocess.Popen(
                     [sys.executable, script_path],

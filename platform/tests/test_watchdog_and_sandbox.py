@@ -145,3 +145,25 @@ def test_mcclean_cerezo_barren_plateau_detector_and_negative_certificate():
     assert metrics_2["is_barren_plateau"] is False
     assert metrics_2["mean_variance"] > 1e-3
 
+
+
+def test_sandbox_refuses_local_execution_in_production(monkeypatch):
+    """2026-10-26 audit P0-4: AST + rlimit is not a security boundary.
+    Production must refuse the local path unless the container rail is on."""
+    monkeypatch.setenv("KUBONA_ENV", "production")
+    monkeypatch.delenv("KUBONA_SANDBOX_CONTAINER", raising=False)
+    res = WorkloadSandbox().execute_script("print('should not run')")
+    assert res.success is False
+    assert res.violation == "isolation_required"
+    assert "KUBONA_SANDBOX_CONTAINER" in res.stderr
+
+
+def test_sandbox_blocks_native_and_file_escape_names():
+    sb = WorkloadSandbox()
+    for code in (
+        "import numpy\nnumpy.ctypeslib.ctypes.CDLL(None)",
+        "import numpy\nnumpy.fromfile('/etc/hosts')",
+        "import numpy\nnumpy.load('/etc/passwd.npy')",
+    ):
+        with pytest.raises(SecurityPolicyViolation):
+            sb.validate_ast(code)
