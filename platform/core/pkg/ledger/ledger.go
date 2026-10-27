@@ -103,6 +103,8 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 		autonomy_level TEXT NOT NULL DEFAULT 'L1',
 		spend_ceiling_usd REAL NOT NULL DEFAULT 150.0,
 		spent_usd REAL NOT NULL DEFAULT 0,
+		spend_ceiling_micro_usd INTEGER NOT NULL DEFAULT 150000000,
+		spent_micro_usd INTEGER NOT NULL DEFAULT 0,
 		status TEXT NOT NULL DEFAULT 'active',
 		created_at DATETIME
 	);
@@ -115,7 +117,9 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 		updated_at DATETIME,
 		status TEXT,
 		spend_limit_usd REAL,
-		current_spend_usd REAL
+		current_spend_usd REAL,
+		spend_limit_micro_usd INTEGER NOT NULL DEFAULT 0,
+		current_spend_micro_usd INTEGER NOT NULL DEFAULT 0
 	);
 
 	CREATE TABLE IF NOT EXISTS chat_messages (
@@ -263,6 +267,16 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 	}
 	_, _ = db.Exec(`ALTER TABLE ledger_events ADD COLUMN hash_version INTEGER NOT NULL DEFAULT 1`)
 	_, _ = db.Exec(`ALTER TABLE ledger_events ADD COLUMN signature_domain TEXT NOT NULL DEFAULT 'chain'`)
+	_, _ = db.Exec(`ALTER TABLE sessions ADD COLUMN spend_limit_micro_usd INTEGER NOT NULL DEFAULT 0`)
+	_, _ = db.Exec(`ALTER TABLE sessions ADD COLUMN current_spend_micro_usd INTEGER NOT NULL DEFAULT 0`)
+	_, _ = db.Exec(`ALTER TABLE tenants ADD COLUMN spend_ceiling_micro_usd INTEGER NOT NULL DEFAULT 150000000`)
+	_, _ = db.Exec(`ALTER TABLE tenants ADD COLUMN spent_micro_usd INTEGER NOT NULL DEFAULT 0`)
+	// One-time idempotent backfill: rows with a non-zero REAL value and a
+	// zero micro value predate the integer books. New writes set both.
+	_, _ = db.Exec(`UPDATE sessions SET spend_limit_micro_usd = CAST(ROUND(spend_limit_usd * 1000000) AS INTEGER) WHERE spend_limit_micro_usd = 0 AND spend_limit_usd IS NOT NULL AND spend_limit_usd <> 0`)
+	_, _ = db.Exec(`UPDATE sessions SET current_spend_micro_usd = CAST(ROUND(current_spend_usd * 1000000) AS INTEGER) WHERE current_spend_micro_usd = 0 AND current_spend_usd IS NOT NULL AND current_spend_usd <> 0`)
+	_, _ = db.Exec(`UPDATE tenants SET spend_ceiling_micro_usd = CAST(ROUND(spend_ceiling_usd * 1000000) AS INTEGER) WHERE spend_ceiling_micro_usd = 0 AND spend_ceiling_usd IS NOT NULL AND spend_ceiling_usd <> 0`)
+	_, _ = db.Exec(`UPDATE tenants SET spent_micro_usd = CAST(ROUND(spent_usd * 1000000) AS INTEGER) WHERE spent_micro_usd = 0 AND spent_usd IS NOT NULL AND spent_usd <> 0`)
 	_, _ = db.Exec(`ALTER TABLE sessions ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`)
 	_, _ = db.Exec(`ALTER TABLE tenants ADD COLUMN spent_usd REAL NOT NULL DEFAULT 0`)
 	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN reserved_tenant TEXT NOT NULL DEFAULT ''`)

@@ -328,3 +328,37 @@ func testDeleteSigner() ed25519.PrivateKey {
 	}
 	return ed25519.NewKeyFromSeed(seed)
 }
+
+func TestSessionSpendMicroArithmeticIsExact(t *testing.T) {
+	l, err := ledger.OpenLedger(t.TempDir() + "/micro.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	mgr := session.NewManager(l)
+	sess, err := mgr.CreateSession("micro-drill", 1000.0, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// 10k x $0.000001 is exactly $0.01 in micro-USD; float accumulation
+	// would drift (the old REAL path did).
+	for i := 0; i < 10_000; i++ {
+		if err := mgr.ReserveSpend(sess.ID, 0.000001); err != nil {
+			t.Fatalf("reserve %d: %v", i, err)
+		}
+	}
+	got, err := mgr.GetSession(sess.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.CurrentSpendUSD != 0.01 {
+		t.Fatalf("micro reserve drifted: got %v want 0.01", got.CurrentSpendUSD)
+	}
+	if err := mgr.ReleaseSpend(sess.ID, 0.01); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = mgr.GetSession(sess.ID)
+	if got.CurrentSpendUSD != 0 {
+		t.Fatalf("micro release left dust: %v", got.CurrentSpendUSD)
+	}
+}

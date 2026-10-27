@@ -871,10 +871,10 @@ func TestSyncQuantumFailureKeepsPostVendorCharge(t *testing.T) {
 			t.Fatalf("record %s: %v", id, err)
 		}
 	}
-	if _, err := l.DB().Exec(`UPDATE sessions SET current_spend_usd = 20 WHERE id = 'sess-pin'`); err != nil {
+	if _, err := l.DB().Exec(`UPDATE sessions SET current_spend_usd = 20, current_spend_micro_usd = 20000000 WHERE id = 'sess-pin'`); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := l.DB().Exec(`UPDATE tenants SET spent_usd = 20 WHERE id = 'default'`); err != nil {
+	if _, err := l.DB().Exec(`UPDATE tenants SET spent_usd = 20, spent_micro_usd = 20000000 WHERE id = 'default'`); err != nil {
 		t.Fatal(err)
 	}
 

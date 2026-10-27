@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/money"
 	"github.com/mainza-ai/kubona/core/pkg/tenants"
 )
 
@@ -25,6 +26,27 @@ func validAmount(amountUSD float64) error {
 		return ErrInvalidAmount
 	}
 	return nil
+}
+
+type rowScanner interface {
+	Scan(dest ...any) error
+}
+
+// scanSession reads the authoritative micro columns and projects them to the
+// USD wire fields. REAL columns exist only as a compatibility projection.
+func scanSession(sc rowScanner) (*Session, error) {
+	var s Session
+	var limitMicro, spendMicro int64
+	if err := sc.Scan(&s.ID, &s.Title, &s.TenantID, &s.CreatedAt, &s.UpdatedAt,
+		&s.Status, &limitMicro, &spendMicro); err != nil {
+		return nil, err
+	}
+	s.SpendLimitUSD = money.MicroUSD(limitMicro).USD()
+	s.CurrentSpendUSD = money.MicroUSD(spendMicro).USD()
+	if s.TenantID == "" {
+		s.TenantID = "default"
+	}
+	return &s, nil
 }
 
 // ErrContentMismatch is returned when expected_content CAS fails (re-read
@@ -91,8 +113,12 @@ func (m *Manager) CreateSession(title string, spendLimitUSD float64, tenantID st
 		CurrentSpendUSD: 0.0,
 	}
 
-	query := `INSERT INTO sessions (id, title, tenant_id, created_at, updated_at, status, spend_limit_usd, current_spend_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-	_, err := m.ledger.DB().Exec(query, s.ID, s.Title, s.TenantID, s.CreatedAt, s.UpdatedAt, s.Status, s.SpendLimitUSD, s.CurrentSpendUSD)
+	limitMicro, err := money.FromUSD(s.SpendLimitUSD)
+	if err != nil {
+		return nil, fmt.Errorf("session spend limit: %w", err)
+	}
+	query := `INSERT INTO sessions (id, title, tenant_id, created_at, updated_at, status, spend_limit_usd, current_spend_usd, spend_limit_micro_usd, current_spend_micro_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err = m.ledger.DB().Exec(query, s.ID, s.Title, s.TenantID, s.CreatedAt, s.UpdatedAt, s.Status, s.SpendLimitUSD, 0.0, int64(limitMicro), 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
@@ -129,8 +155,12 @@ func (m *Manager) EnsureSessionWithID(id, title string, spendLimitUSD float64, t
 		SpendLimitUSD:   spendLimitUSD,
 		CurrentSpendUSD: 0.0,
 	}
-	query := `INSERT INTO sessions (id, title, tenant_id, created_at, updated_at, status, spend_limit_usd, current_spend_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-	if _, err := m.ledger.DB().Exec(query, s.ID, s.Title, s.TenantID, s.CreatedAt, s.UpdatedAt, s.Status, s.SpendLimitUSD, s.CurrentSpendUSD); err != nil {
+	limitMicro, lerr := money.FromUSD(s.SpendLimitUSD)
+	if lerr != nil {
+		return nil, fmt.Errorf("session spend limit: %w", lerr)
+	}
+	query := `INSERT INTO sessions (id, title, tenant_id, created_at, updated_at, status, spend_limit_usd, current_spend_usd, spend_limit_micro_usd, current_spend_micro_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	if _, err := m.ledger.DB().Exec(query, s.ID, s.Title, s.TenantID, s.CreatedAt, s.UpdatedAt, s.Status, s.SpendLimitUSD, 0.0, int64(limitMicro), 0); err != nil {
 		// Lost a creation race: re-read whatever is there now.
 		if existing, rerr := m.GetSession(id); rerr == nil {
 			return existing, nil
@@ -142,27 +172,22 @@ func (m *Manager) EnsureSessionWithID(id, title string, spendLimitUSD float64, t
 }
 
 func (m *Manager) GetSession(id string) (*Session, error) {
-	query := `SELECT id, title, tenant_id, created_at, updated_at, status, spend_limit_usd, current_spend_usd FROM sessions WHERE id = ?`
-	row := m.ledger.DB().QueryRow(query, id)
-
-	var s Session
-	if err := row.Scan(&s.ID, &s.Title, &s.TenantID, &s.CreatedAt, &s.UpdatedAt, &s.Status, &s.SpendLimitUSD, &s.CurrentSpendUSD); err != nil {
+	query := `SELECT id, title, tenant_id, created_at, updated_at, status, spend_limit_micro_usd, current_spend_micro_usd FROM sessions WHERE id = ?`
+	s, err := scanSession(m.ledger.DB().QueryRow(query, id))
+	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("session not found: %s", id)
 		}
 		return nil, err
 	}
-	if s.TenantID == "" {
-		s.TenantID = "default"
-	}
-	return &s, nil
+	return s, nil
 }
 
 func (m *Manager) ListSessions(limit int) ([]Session, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	query := `SELECT id, title, tenant_id, created_at, updated_at, status, spend_limit_usd, current_spend_usd FROM sessions ORDER BY updated_at DESC LIMIT ?`
+	query := `SELECT id, title, tenant_id, created_at, updated_at, status, spend_limit_micro_usd, current_spend_micro_usd FROM sessions ORDER BY updated_at DESC LIMIT ?`
 	rows, err := m.ledger.DB().Query(query, limit)
 	if err != nil {
 		return nil, err
@@ -171,14 +196,11 @@ func (m *Manager) ListSessions(limit int) ([]Session, error) {
 
 	var sessions []Session
 	for rows.Next() {
-		var s Session
-		if err := rows.Scan(&s.ID, &s.Title, &s.TenantID, &s.CreatedAt, &s.UpdatedAt, &s.Status, &s.SpendLimitUSD, &s.CurrentSpendUSD); err != nil {
+		s, err := scanSession(rows)
+		if err != nil {
 			return nil, err
 		}
-		if s.TenantID == "" {
-			s.TenantID = "default"
-		}
-		sessions = append(sessions, s)
+		sessions = append(sessions, *s)
 	}
 	return sessions, nil
 }
@@ -190,7 +212,7 @@ func (m *Manager) ListSessionsByTenant(tenantID string, limit int) ([]Session, e
 	if limit <= 0 {
 		limit = 50
 	}
-	query := `SELECT id, title, tenant_id, created_at, updated_at, status, spend_limit_usd, current_spend_usd FROM sessions WHERE tenant_id = ? ORDER BY updated_at DESC LIMIT ?`
+	query := `SELECT id, title, tenant_id, created_at, updated_at, status, spend_limit_micro_usd, current_spend_micro_usd FROM sessions WHERE tenant_id = ? ORDER BY updated_at DESC LIMIT ?`
 	rows, err := m.ledger.DB().Query(query, tenantID, limit)
 	if err != nil {
 		return nil, err
@@ -199,14 +221,11 @@ func (m *Manager) ListSessionsByTenant(tenantID string, limit int) ([]Session, e
 
 	sessions := []Session{}
 	for rows.Next() {
-		var s Session
-		if err := rows.Scan(&s.ID, &s.Title, &s.TenantID, &s.CreatedAt, &s.UpdatedAt, &s.Status, &s.SpendLimitUSD, &s.CurrentSpendUSD); err != nil {
+		s, err := scanSession(rows)
+		if err != nil {
 			return nil, err
 		}
-		if s.TenantID == "" {
-			s.TenantID = "default"
-		}
-		sessions = append(sessions, s)
+		sessions = append(sessions, *s)
 	}
 	return sessions, nil
 }
@@ -489,9 +508,13 @@ func (m *Manager) ReserveSpend(sessionID string, amountUSD float64) error {
 	if amountUSD == 0 {
 		return nil
 	}
+	amountMicro, cerr := money.FromUSD(amountUSD)
+	if cerr != nil {
+		return ErrInvalidAmount
+	}
 	res, err := m.ledger.DB().Exec(
-		`UPDATE sessions SET current_spend_usd = current_spend_usd + ? WHERE id = ? AND (spend_limit_usd <= 0 OR current_spend_usd + ? <= spend_limit_usd)`,
-		amountUSD, sessionID, amountUSD)
+		`UPDATE sessions SET current_spend_micro_usd = current_spend_micro_usd + ?, current_spend_usd = (current_spend_micro_usd + ?) / 1000000.0 WHERE id = ? AND (spend_limit_micro_usd <= 0 OR current_spend_micro_usd + ? <= spend_limit_micro_usd)`,
+		int64(amountMicro), int64(amountMicro), sessionID, int64(amountMicro))
 	if err != nil {
 		return fmt.Errorf("session spend reservation failed: %w", err)
 	}
@@ -539,9 +562,13 @@ func (m *Manager) RefundSpend(action *tenants.AdminAction, sessionID string, amo
 	if strings.TrimSpace(reason) == "" {
 		return nil, fmt.Errorf("refund needs a reason: unexplained money movement refused")
 	}
+	amountMicro, cerr := money.FromUSD(amountUSD)
+	if cerr != nil {
+		return nil, ErrInvalidAmount
+	}
 	res, err := m.ledger.DB().Exec(
-		`UPDATE sessions SET current_spend_usd = MAX(0, current_spend_usd - ?) WHERE id = ? AND current_spend_usd + 1e-9 >= ?`,
-		amountUSD, sessionID, amountUSD)
+		`UPDATE sessions SET current_spend_micro_usd = current_spend_micro_usd - ?, current_spend_usd = (current_spend_micro_usd - ?) / 1000000.0 WHERE id = ? AND current_spend_micro_usd >= ?`,
+		int64(amountMicro), int64(amountMicro), sessionID, int64(amountMicro))
 	if err != nil {
 		return nil, fmt.Errorf("session spend refund failed: %w", err)
 	}
@@ -573,9 +600,13 @@ func (m *Manager) ReleaseSpend(sessionID string, amountUSD float64) error {
 	if amountUSD == 0 {
 		return nil
 	}
+	amountMicro, cerr := money.FromUSD(amountUSD)
+	if cerr != nil {
+		return ErrInvalidAmount
+	}
 	res, err := m.ledger.DB().Exec(
-		`UPDATE sessions SET current_spend_usd = MAX(0, current_spend_usd - ?) WHERE id = ? AND current_spend_usd + 1e-9 >= ?`,
-		amountUSD, sessionID, amountUSD)
+		`UPDATE sessions SET current_spend_micro_usd = current_spend_micro_usd - ?, current_spend_usd = (current_spend_micro_usd - ?) / 1000000.0 WHERE id = ? AND current_spend_micro_usd >= ?`,
+		int64(amountMicro), int64(amountMicro), sessionID, int64(amountMicro))
 	if err != nil {
 		return fmt.Errorf("session spend release failed: %w", err)
 	}
