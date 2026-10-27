@@ -325,3 +325,34 @@ func TestManifestSignatureAndProductionRefusal(t *testing.T) {
 		t.Fatalf("unsigned production import must 400, got %d %v", code, body)
 	}
 }
+
+func TestLedgerVerifyReportsTamper(t *testing.T) {
+	srv, l, cleanup := setupIdemServer(t)
+	defer cleanup()
+	h := srv.Handler()
+	sid := idemSession(t, h, "tamper-verify")
+
+	getVerify := func() (int, map[string]any) {
+		req := httptest.NewRequest(http.MethodGet, "/api/ledger/verify?session_id="+sid, nil)
+		req.Header.Set("Authorization", "Bearer test-token")
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, req)
+		var out map[string]any
+		_ = json.Unmarshal(w.Body.Bytes(), &out)
+		return w.Code, out
+	}
+	code, out := getVerify()
+	if code != http.StatusOK || out["ok"] != true {
+		t.Fatalf("clean chain must verify, got %d %v", code, out)
+	}
+	if _, err := l.DB().Exec(`UPDATE ledger_events SET payload = '{"evil":true}' WHERE id = (SELECT MIN(id) FROM ledger_events WHERE session_id = ?)`, sid); err != nil {
+		t.Fatalf("tamper: %v", err)
+	}
+	code, out = getVerify()
+	if code != http.StatusOK || out["ok"] != false {
+		t.Fatalf("tampered chain must report ok=false, got %d %v", code, out)
+	}
+	if out["fault_count"].(float64) < 1 {
+		t.Fatalf("tampered chain must report a fault: %v", out)
+	}
+}

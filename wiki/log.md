@@ -3387,3 +3387,9 @@ skipped is the exact failure this incident is about:
   - Q-51: Go releases a failed/cancelled reservation only when no hardware_job_id is pinned; post-vendor failures keep the charge. Python skips its own refund for Go-prepaid jobs.
   - Q-56: the mandate card signs canonicalJobBinding(session, program) via authorizeSpend (server-verified) and sends the full mandate JSON; the Go proxy verifies tenant/program/budget/expiry when a signed mandate is present. Baked-bearer builds already fail.
   - Residuals: integer micro-USD migration, passkey/non-extractable custody, Q-40 mandatory-mandate policy.
+
+## [2026-10-27] decision | Ledger audit retention + production VerifyChain surface
+
+  - DeleteSession no longer deletes ledger_events: the hash chain and the signed session_deleted receipt outlive the content rows. The receipt is signed by the operator signer and keeps the original tenant attribution (AppendEventWithTenant).
+  - GET /api/ledger/verify (bearer) exposes VerifyChain for a session or the whole ledger; a tamper reports ok=false with faults. This is the production caller the audit found missing.
+  - Tests: cascade now asserts the surviving chain verifies clean; a tamper test reports a fault; full Go -race suite green.
