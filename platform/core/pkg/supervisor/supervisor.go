@@ -165,6 +165,7 @@ func NewSupervisor(l *ledger.Ledger) *Supervisor {
 		ctx:       ctx,
 		cancel:    cancel,
 	}
+	s.sweepWg.Add(1)
 	go s.heartbeatWatchdogSweep()
 	return s
 }
@@ -443,7 +444,6 @@ func (s *Supervisor) ListLoops() []*ManagedLoop {
 
 // heartbeatWatchdogSweep detects stalled subtrees and terminates zombie loops
 func (s *Supervisor) heartbeatWatchdogSweep() {
-	s.sweepWg.Add(1)
 	defer s.sweepWg.Done()
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
