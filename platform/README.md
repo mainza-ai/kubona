@@ -306,3 +306,30 @@ Run everything: `uv run --project . pytest -q` or `.venv/bin/python -m pytest -q
 - Provenance: write/query over JSONL ledger (ledger-as-MCP-resource = Phase 3).
 - Providers: local simulator runs; ibm-qiskit and cuda-q-simulator are registered
   capability data (ibm-qiskit needs credentials + Qiskit/Aer optional deps).
+
+## Operator refresh: calibration and rate cards
+
+Both refreshes are **dry-run by default**; `--write` is explicit. They refuse
+unmeasured or unverified input rather than stamping stale data as fresh.
+
+```bash
+# Live device calibration from a provider plugin (needs that vendor's key,
+# e.g. QISKIT_IBM_TOKEN for ibm-qiskit). Unmeasurable => exit 2, no write.
+cd platform
+.venv/bin/python -m kubona.fidelity.refresh \
+  --device ibm-heron --provider ibm-qiskit --write
+
+# Or from a captured snapshot:
+.venv/bin/python -m kubona.fidelity.refresh \
+  --device ibm-heron --input snapshot.json --write
+
+# Verified vendor rate card (date + pricing URL + plan notes are required).
+.venv/bin/python -m kubona.cost.rate_card \
+  --provider ionq --input rate-card.json --write
+```
+
+`refresh` recomputes `calibrated_at`/`version`/`source`; the fidelity gate
+treats a missing or old stamp as stale. `rate_card` validates positive rates,
+USD, an ISO `verified` date, and the vendor URL before atomically replacing
+the provider schema's `pricing` object. Vendor pricing pages are not scraped:
+an operator records the verified card. CI runs both suites without keys.
