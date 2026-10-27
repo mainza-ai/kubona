@@ -3092,12 +3092,24 @@ func (s *Server) handleLoops(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		loops := s.supervisor.ListLoops()
 		// K2: optional session scope. Unfiltered (all loops) stays for
-		// global views; the console passes its session so headers count
-		// this session's loops instead of the fleet's.
+		// operators; a lab cookie only sees loops whose session belongs
+		// to that lab (2026-10-26 audit AUD-A1).
 		if sid := r.URL.Query().Get("session_id"); sid != "" {
+			if _, ok := s.authorizeKnownSession(w, r, sid); !ok {
+				return
+			}
 			scoped := loops[:0:0]
 			for _, l := range loops {
 				if l.SessionID == sid {
+					scoped = append(scoped, l)
+				}
+			}
+			loops = scoped
+		} else if tenant, _, code := s.checkAuth(r); code == http.StatusOK && tenant != "" {
+			scoped := loops[:0:0]
+			for _, l := range loops {
+				sess, err := s.sessionMgr.GetSession(l.SessionID)
+				if err == nil && sess != nil && sess.TenantID == tenant {
 					scoped = append(scoped, l)
 				}
 			}
@@ -3111,6 +3123,9 @@ func (s *Server) handleLoops(w http.ResponseWriter, r *http.Request) {
 		}
 		if err := decodeStrict(r, &req); err != nil {
 			WriteAPIError(w, "bad_request", fmt.Sprintf("invalid request body: %v", err), nil)
+			return
+		}
+		if _, ok := s.authorizeKnownSession(w, r, req.SessionID); !ok {
 			return
 		}
 		loop, err := s.supervisor.RegisterLoop(req.SessionID, req.MaxSteps)
@@ -3136,6 +3151,19 @@ func (s *Server) handleLoopActions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	action := parts[1]
+
+	// Bind the loop's session to the caller before any mutation. Unknown
+	// ids stay 404; a lab cookie cannot pause/kill another lab's loop.
+	loop, ok := s.supervisor.GetLoop(loopID)
+	if !ok {
+		http.Error(w, "loop not found", http.StatusNotFound)
+		return
+	}
+	if sess, serr := s.sessionMgr.GetSession(loop.SessionID); serr == nil && sess != nil {
+		if !s.authorizeSessionRead(w, r, sess) {
+			return
+		}
+	}
 
 	var err error
 	switch action {

@@ -5,6 +5,7 @@ and live scientific literature grounding.
 """
 from __future__ import annotations
 
+import hashlib
 import hmac
 import logging
 import os
@@ -54,6 +55,39 @@ class _BridgeTokenAuth:
         return Principal(sub="kubonad-bridge", role="operator", scopes=("*",))
 
 
+# Must match cmd/kubonad/bridge_auth.go byte-for-byte. The shared vector in
+# both test suites catches drift before it can authorize a wrong ceiling.
+_SESSION_ASSERTION_METHODS = {
+    "/kubona.QuantumBridgeService/QuantumSubmit",
+    "/kubona.QuantumBridgeService/WorkflowRun",
+}
+
+
+def _session_assertion_payload(request) -> str:
+    return (f"{getattr(request, 'session_id', '')}|"
+            f"{float(getattr(request, 'session_budget_ceiling_usd', 0.0) or 0.0):.6f}|"
+            f"{float(getattr(request, 'session_spent_usd', 0.0) or 0.0):.6f}|"
+            f"{getattr(request, 'tenant_id', '') or ''}|"
+            f"{'true' if getattr(request, 'session_verified', False) else 'false'}")
+
+
+def _session_assertion_mac(token: str, request) -> str:
+    return hmac.new(token.encode(), _session_assertion_payload(request).encode(),
+                    hashlib.sha256).hexdigest()
+
+
+def _verify_session_assertion(request, context, token: str) -> None:
+    """Refuse a session mirror whose money/tenant fields are not Go-signed."""
+    if not getattr(request, "session_verified", False):
+        return
+    md = dict(getattr(context, "invocation_metadata", lambda: ())() or ())
+    got = md.get("x-kubona-session-assertion", "")
+    want = _session_assertion_mac(token, request)
+    if not got or not hmac.compare_digest(got, want):
+        context.abort(grpc.StatusCode.UNAUTHENTICATED,
+                      "session assertion missing or invalid: refusing self-declared money/tenant")
+
+
 class _AuthInterceptor(grpc.ServerInterceptor):
     """Require `authorization: Bearer <KUBONA_BRIDGE_TOKEN>` on every RPC."""
 
@@ -68,7 +102,18 @@ class _AuthInterceptor(grpc.ServerInterceptor):
                 context.abort(grpc.StatusCode.UNAUTHENTICATED,
                               "bridge authentication required")
             return grpc.unary_unary_rpc_method_handler(_deny)
-        return continuation(handler_call_details)
+        handler = continuation(handler_call_details)
+        method = getattr(handler_call_details, "method", "")
+        if handler is not None and method in _SESSION_ASSERTION_METHODS:
+            inner = handler.unary_unary
+            def _wrapped(request, context):
+                _verify_session_assertion(request, context, self._token)
+                return inner(request, context)
+            return grpc.unary_unary_rpc_method_handler(
+                _wrapped,
+                request_deserializer=handler.request_deserializer,
+                response_serializer=handler.response_serializer)
+        return handler
 
 
 class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):

@@ -414,22 +414,36 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
     # refunds the reservation; a failure after the vendor accepted a job
     # keeps the charge (the vendor may have run) and records the residual.
     cost = pf["estimate"]["estimated_usd"]
+
+    # Atomically claim the idempotency key BEFORE money moves. The old
+    # check-then-create raced two retries into two charges/dispatches.
+    job, created = _runner.store.find_or_create(
+        provider=provider, session_id=session_id,
+        idempotency_key=idempotency_key or "",
+        body_hash=idempotency_body_hash or "",
+        circuit_hash=circuit_hash, circuit_qasm=circuit_qasm,
+        shots=shots, seed=seed, estimate=pf["estimate"],
+    )
+    job_id = job.job_id
+    if not created:
+        prior_body = (job.meta or {}).get("body_hash")
+        if idempotency_body_hash and prior_body and prior_body != idempotency_body_hash:
+            return {"ok": False, "job_id": job_id, "session_id": job.session_id,
+                    "error": "idempotency_key reused with a different request body: refused"}
+        return {"ok": True, "job_id": job_id, "session_id": job.session_id,
+                "status": job.status, "idempotent_replay": True,
+                "circuit_hash": (job.meta or {}).get("circuit_hash", circuit_hash)}
+
     if cost > 0:
         try:
             _gov.record_spend(session_id, cost)
         except GovernanceError as e:
+            try:
+                _runner.store.transition(job_id, "failed", error=f"spend refused: {e}")
+            except Exception:  # noqa: BLE001 — best-effort ghost cleanup
+                pass
             return {"ok": False, "error": f"spend refused at dispatch: {e}",
                     "session_id": session_id}
-
-    # enqueue the job on the persistent farm; wait=True resolves synchronously for
-    # the fast local-simulator/agent path, wait=False returns immediately for real
-    # long-running (multi-hour QPU) jobs whose status is read back from the store.
-    job = _runner.store.create(provider=provider, session_id=session_id,
-                               circuit_hash=circuit_hash, circuit_qasm=circuit_qasm,
-                               shots=shots, seed=seed, estimate=pf["estimate"],
-                               idempotency_key=idempotency_key or "",
-                               body_hash=idempotency_body_hash or "")
-    job_id = job.job_id
 
     pinned: dict[str, str | None] = {"id": None}
 
@@ -464,6 +478,10 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
             if pinned["id"] is None and cost > 0:
                 try:
                     _gov.refund_spend(session_id, cost, f"pre-vendor failure: {e}")
+                    _runner._record("session_spend_refunded", {
+                        "session_id": session_id, "job_id": job_id,
+                        "amount_usd": cost, "reason": f"pre-vendor failure: {e}",
+                    })
                 except GovernanceError:
                     pass
             raise
@@ -474,8 +492,16 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
         if cost > 0:
             try:
                 _gov.refund_spend(session_id, cost, f"pre-vendor enqueue failure: {e}")
+                _runner._record("session_spend_refunded", {
+                    "session_id": session_id, "job_id": job_id,
+                    "amount_usd": cost, "reason": f"pre-vendor enqueue failure: {e}",
+                })
             except GovernanceError:
                 pass
+        try:
+            _runner.store.transition(job_id, "failed", error=f"farm refused: {e}")
+        except Exception:  # noqa: BLE001 — best-effort ghost cleanup
+            pass
         return {"ok": False, "error": f"farm refused the job: {e}", "session_id": session_id}
     if wait:
         try:

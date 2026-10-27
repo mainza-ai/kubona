@@ -3323,3 +3323,12 @@ skipped is the exact failure this incident is about:
   - Phase 0: fidelity contract ships in the kubonad image (build context platform/, Dockerfile-specific ignore, KUBONA_CONTRACTS_DIR) and the image boots health/ready 200; MCP catalog regenerated to 37 tools and reviewed; plan_dual_model_packing exported; console lint 0; slice-coverage guard parses every workflow; thesis-scale slice60 moved to nightly; bridge RPC tests + local ci.sh parity; false README/AGENTS claims corrected.
   - Phase 1 partial: bridge shared-token interceptor (live: no token UNAUTHENTICATED, token accepted), non-loopback refusal, UDS exclusive, Go client token, ExecuteCircuit simulator-only + hardware refusal, WorkflowRun token gate; import/A2A/LLM-test/loops/memory/PQC routes bearer-gated (A2A via X-Kubona-A2A-Token to preserve x402 Authorization); session refund verifies the admin signature; import validates known event types, links, commit signatures, spend bounds and sorts oldest-first; bridge wire-trusted session fields, A2A settlement, anchor, comparator, and claim theater remain open.
   - Verification: Go all green (build/vet/test), Python fast 785 passed/3 skipped, bridge 58/1, console 272 + lint 0 + tsc 0, Rust 23, wiki-lint clean, Docker boot + bridge auth live. No commit/push.
+
+## [2026-10-27] decision | Phase 1b: signed session assertion, signed imports, loop tenancy, atomic idempotency, container sandbox CI
+
+  - Bridge: the session mirror's ceiling/spent/tenant now carries an HMAC-SHA256 assertion from Go (KUBONA_BRIDGE_TOKEN), verified by a server interceptor with a shared Go/Python vector; self-declared money/tenant is refused.
+  - Import: manifests are operator-signed over the section digests; production refuses unsigned manifests; tampered-digest and unsigned-production pins added.
+  - Loops: listings filter by caller tenant; actions resolve the loop and bind its session; unknown ids stay 404.
+  - Money: idempotency is claimed atomically (find_or_create under the store lock) before spend; refunds emit session_spend_refunded when a ledger is wired; concurrent same-key test.
+  - Sandbox: a sandbox-container CI job builds the runner image and executes the live container path (verified locally).
+  - Verification: Go all green + vet clean; Python fast 786 passed/4 skipped; bridge 60/1; Rust 23; console 272 + lint 0 + tsc 0; wiki-lint clean.

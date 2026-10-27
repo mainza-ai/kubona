@@ -144,6 +144,28 @@ class JobStore:
             self._save(j)
             return j
 
+    def find_or_create(self, provider: str, session_id: str,
+                       idempotency_key: str = "", body_hash: str = "",
+                       **meta: Any) -> tuple[Job, bool]:
+        """Atomically return the job for `idempotency_key` or create one.
+
+        The old check-then-create in execution.submit_job raced: two retries
+        could both miss the lookup, charge twice, and dispatch twice. This
+        holds the store's cross-process lock across lookup+insert.
+        """
+        with self._exclusive():
+            if idempotency_key:
+                for j in self._load().values():
+                    if j.meta.get("idempotency_key") == idempotency_key:
+                        return j, False
+            meta = dict(meta)
+            meta["idempotency_key"] = idempotency_key
+            meta["body_hash"] = body_hash
+            j = Job(job_id=uuid.uuid4().hex[:16], provider=provider,
+                    session_id=session_id, meta=meta)
+            self._save(j)
+            return j, True
+
     def get(self, job_id: str) -> Job | None:
         with self._lock:
             return self._load().get(job_id)

@@ -615,11 +615,11 @@ honesty).
 
 | P0 | Status | What landed | What remains |
 |---|---|---|---|
-| P0-1 bridge | **Partial** | Shared-token interceptor on every RPC (verified live: no token → `UNAUTHENTICATED`; token → call proceeds); non-loopback bind refuses without a token; UDS mode no longer also opens TCP; Go client sends the token; `ExecuteCircuit` refuses hardware (verified live) and defaults to `aer_simulator`; `WorkflowRun` requires the bridge token outside dev. | Remove wire-trusted `session_verified`/budget/spend/tenant (needs a signed Go→bridge envelope); job status/cancel ownership in the bridge; mTLS decision (Q-49). |
-| P0-2 control routes | **Partial** | Import, A2A, LLM test, loops, memory recall/retain, and PQC verify are bearer-gated; A2A keeps the x402 `Authorization` header separate via `X-Kubona-A2A-Token`; route-auth matrix pin added. Memory reads/writes now bind caller↔session tenant. | Loop control still resolves the loop's session only after auth; tenant filter on loop listings; session-list/read posture remains Q-57. |
+| P0-1 bridge | **Partial** | Shared-token interceptor on every RPC (verified live: no token → `UNAUTHENTICATED`; token → call proceeds); non-loopback bind refuses without a token; UDS mode no longer also opens TCP; Go client sends the token; `ExecuteCircuit` refuses hardware (verified live) and defaults to `aer_simulator`; `WorkflowRun` requires the bridge token outside dev. **1b:** the session mirror's money/tenant fields now carry an HMAC-SHA256 assertion from Go, verified by the bridge with a cross-language vector. | mTLS decision (Q-49); bridge-side job ownership (Go already enforces it). |
+| P0-2 control routes | **Partial** | Import, A2A, LLM test, loops, memory recall/retain, and PQC verify are bearer-gated; A2A keeps the x402 `Authorization` header separate via `X-Kubona-A2A-Token`; route-auth matrix pin added. Memory reads/writes bind caller↔session tenant. **1b:** loop listings filter by caller tenant, loop actions bind the loop's session, and imports are operator-signed (HMAC over section digests) with a production unsigned-refusal pin. | Session-list/read posture remains Q-57; import key rotation (Q-52). |
 | P0-3 A2A | **Partial** | Public submit is no longer anonymous; operator token required. | Self-signed x402 "settlement" and `tenant="default"` remain (Q-53). |
-| P0-4 sandbox | **Partial** | Production refuses the local AST/rlimit path (`isolation_required`) unless `KUBONA_SANDBOX_CONTAINER=1`; container path added with no network/RO root/caps/memory/pids; ctypeslib/fromfile/load family blocked; rlimit NPROC/FSIZE/NOFILE added; negative pins landed. | Build/exercise the runner image in CI; full container-path test; decide runtime (Q-54). |
-| P0-5 money | **Partial** | Idempotency is checked before spend (replay returns the original job; body mismatch refuses); pre-vendor failures refund the reservation; enqueue failures refund; tests (refund + replay + mismatch) green. | Atomic insert-or-get under the store lock; ledger-sealed refund event; body hash includes all security fields; tenant-scoped key. |
+| P0-4 sandbox | **Partial** | Production refuses the local AST/rlimit path (`isolation_required`) unless `KUBONA_SANDBOX_CONTAINER=1`; container path added with no network/RO root/caps/memory/pids; ctypeslib/fromfile/load family blocked; rlimit NPROC/FSIZE/NOFILE added; negative pins landed. **1b:** a `sandbox-container` CI job builds the runner image and executes the live path; verified locally. | Runtime decision (Q-54); exercise the container path in the release gate. |
+| P0-5 money | **Partial** | Idempotency is checked before spend and **claimed atomically** (`find_or_create` under the store lock) before money moves; replay returns the original job; body mismatch refuses; pre-vendor/enqueue failures refund and emit a ledger event when a ledger is wired; a 2-thread race test pins one job/one charge. | Single book/tenant-scoped key/full body hash (Q-50/Q-51); ledger must be wired in production (PYC-10). |
 | P0-6 refund | **Closed** | `VerifyAdminAction` runs before `sessionMgr.RefundSpend`; forged-signature 403 pin added. | — |
 | P0-7 release | **Partial** | Docker contract + build context fixed and boot verified (`/api/health`/`/api/ready` 200); catalog 37; packing export; console lint; slice guard; nightly F/G; bridge RPC tests in CI; jq/vet clean. | Branch protection + a full protected green run (needs push); CI secret/token env for the new bridge. |
 | P0-8 anchor | **Open** | — | Restore `-1.13727` + geometry-correct anchor. |
@@ -627,12 +627,14 @@ honesty).
 | P0-10 theater | **Open** | — | Remove every unlabeled fabricated "verified" value. |
 
 **Verification run (local, 2026-10-27):** Go `build`/`vet`/`test ./...` green;
-Python fast lane `785 passed, 3 skipped`; bridge `58 passed, 1 skipped`;
+Python fast lane `786 passed, 4 skipped`; bridge `60 passed, 1 skipped`;
 console `272 passed`, lint 0, `tsc` 0; Rust 23 passed; wiki-lint green; kubonad
 image builds and boots (health/ready 200); bridge token rejection/acceptance
-verified live. **Nothing is committed or pushed** — the next action is a
-reviewed slice commit, a full CI run, then branch protection (Q-49..Q-57 still
-gate the remaining Phase-1/2 decisions).
+verified live; runner image built and the container sandbox executed live.
+Phase 0 + 1a landed as `532708f` (three signed commits) on `develop` + `main`.
+The 1b slice (HMAC session assertion, signed imports, loop tenancy, atomic
+idempotency, container CI) is the next commit; branch protection still waits on
+the full protected run (Q-49..Q-57 remain).
 
 ---
 

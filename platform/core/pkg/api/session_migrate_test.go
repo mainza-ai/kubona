@@ -288,3 +288,40 @@ func TestSessionContextReadout(t *testing.T) {
 		t.Fatalf("small transcript drops nothing, got %v", full)
 	}
 }
+
+func TestManifestSignatureAndProductionRefusal(t *testing.T) {
+	srv, _, cleanup := setupIdemServer(t)
+	defer cleanup()
+	h := srv.Handler()
+	sid := idemSession(t, h, "signed-import")
+	code, exp := migPost(t, h, "/api/sessions/export", map[string]any{"session_id": sid})
+	if code != http.StatusOK {
+		t.Fatalf("export: %d %v", code, exp)
+	}
+	if exp["signature"] == nil || exp["signature"] == "" {
+		t.Fatalf("export must be operator-signed: %v", exp)
+	}
+	if exp["signature_alg"] != "hmac-sha256" {
+		t.Fatalf("unexpected signature_alg: %v", exp["signature_alg"])
+	}
+	// Tampered digest: signature no longer matches.
+	raw, _ := json.Marshal(exp)
+	var tampered map[string]any
+	_ = json.Unmarshal(raw, &tampered)
+	tampered["digests"].(map[string]any)["messages"] = "00"
+	if code, body := migPost(t, h, "/api/sessions/import", map[string]any{"manifest": tampered}); code != http.StatusBadRequest {
+		t.Fatalf("tampered digest must 400, got %d %v", code, body)
+	}
+	// Production refuses an unsigned manifest even if the bearer is valid.
+	t.Setenv("KUBONA_ENV", "production")
+	unsigned := map[string]any{}
+	for k, v := range exp {
+		if k == "_raw" || k == "signature" || k == "signature_alg" {
+			continue
+		}
+		unsigned[k] = v
+	}
+	if code, body := migPost(t, h, "/api/sessions/import", map[string]any{"manifest": unsigned}); code != http.StatusBadRequest {
+		t.Fatalf("unsigned production import must 400, got %d %v", code, body)
+	}
+}
