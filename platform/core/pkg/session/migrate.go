@@ -579,8 +579,8 @@ func (m *Manager) ImportSession(man *SessionManifest) (*ImportResult, error) {
 	if serr != nil {
 		return nil, fmt.Errorf("import session spend: %w", serr)
 	}
-	if err := exec(`INSERT INTO sessions (id, title, tenant_id, created_at, updated_at, status, spend_limit_usd, current_spend_usd, spend_limit_micro_usd, current_spend_micro_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		s.ID, s.Title, s.TenantID, s.CreatedAt.UTC().Format(time.RFC3339), s.UpdatedAt.UTC().Format(time.RFC3339), s.Status, s.SpendLimitUSD, s.CurrentSpendUSD, int64(limitMicro), int64(spendMicro)); err != nil {
+	if err := exec(`INSERT INTO sessions (id, title, tenant_id, created_at, updated_at, status, spend_limit_micro_usd, current_spend_micro_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		s.ID, s.Title, s.TenantID, s.CreatedAt.UTC().Format(time.RFC3339), s.UpdatedAt.UTC().Format(time.RFC3339), s.Status, int64(limitMicro), int64(spendMicro)); err != nil {
 		return nil, fmt.Errorf("import session row: %w", err)
 	}
 	for _, msg := range man.Messages {
@@ -612,8 +612,8 @@ func (m *Manager) ImportSession(man *SessionManifest) (*ImportResult, error) {
 		if merr != nil {
 			return nil, fmt.Errorf("import job %s reservation: %w", j.ID, merr)
 		}
-		if err := exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, result_json, created_at, completed_at, reserved_tenant, reserved_amount, reserved_amount_micro_usd, compiler_used, fallback_estimate, mandate_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-			j.ID, s.ID, j.Status, j.JobType, j.ParamsJSON, j.ResultJSON, nullDatetime(j.CreatedAt), nullDatetime(j.CompletedAt), j.ReservedTenant, j.ReservedAmount, int64(resMicro), j.CompilerUsed, j.FallbackEstimate, j.MandateRef); err != nil {
+		if err := exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, result_json, created_at, completed_at, reserved_tenant, reserved_amount_micro_usd, compiler_used, fallback_estimate, mandate_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			j.ID, s.ID, j.Status, j.JobType, j.ParamsJSON, j.ResultJSON, nullDatetime(j.CreatedAt), nullDatetime(j.CompletedAt), j.ReservedTenant, int64(resMicro), j.CompilerUsed, j.FallbackEstimate, j.MandateRef); err != nil {
 			return nil, fmt.Errorf("import job %s: %w", j.ID, err)
 		}
 	}
@@ -629,8 +629,8 @@ func (m *Manager) ImportSession(man *SessionManifest) (*ImportResult, error) {
 		if cerr != nil {
 			return nil, fmt.Errorf("import loop %s consumed: %w", p.ID, cerr)
 		}
-		if err := exec(`INSERT INTO loops (id, session_id, harness_id, status, step_count, max_steps, diverged, created_at, updated_at, last_activity, drain, reserved_amount, reserved_amount_micro_usd, reserved_tenant, consumed_amount, consumed_amount_micro_usd) VALUES (?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?, ?, ?)`,
-			p.ID, s.ID, p.HarnessID, p.Status, p.StepCount, p.MaxSteps, p.LastActivity.UTC().Format(time.RFC3339), boolInt(p.Drain), p.ReservedAmount, int64(resMicro), p.ReservedTenant, p.ConsumedAmount, int64(consMicro)); err != nil {
+		if err := exec(`INSERT INTO loops (id, session_id, harness_id, status, step_count, max_steps, diverged, created_at, updated_at, last_activity, drain, reserved_amount_micro_usd, reserved_tenant, consumed_amount_micro_usd) VALUES (?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ?, ?, ?, ?, ?)`,
+			p.ID, s.ID, p.HarnessID, p.Status, p.StepCount, p.MaxSteps, p.LastActivity.UTC().Format(time.RFC3339), boolInt(p.Drain), int64(resMicro), p.ReservedTenant, int64(consMicro)); err != nil {
 			return nil, fmt.Errorf("import loop %s: %w", p.ID, err)
 		}
 	}

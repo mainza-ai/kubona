@@ -151,8 +151,8 @@ func mustOpenCoverageLedger(t *testing.T) (*ledger.Ledger, string) {
 	sid := "sess-coverage-r3"
 	now := time.Now().UTC()
 	if _, err := l.DB().Exec(`INSERT INTO sessions
-		(id, title, tenant_id, created_at, updated_at, status, spend_limit_usd, current_spend_usd)
-		VALUES (?, 't', 'default', ?, ?, 'active', 100, 0)`, sid, now, now); err != nil {
+		(id, title, tenant_id, created_at, updated_at, status, spend_limit_micro_usd, current_spend_micro_usd)
+		VALUES (?, 't', 'default', ?, ?, 'active', 100000000, 0)`, sid, now, now); err != nil {
 		t.Fatalf("seed session: %v", err)
 	}
 	return l, sid

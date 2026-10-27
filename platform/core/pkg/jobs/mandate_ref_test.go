@@ -19,8 +19,8 @@ func mustOpenJobsLedger(t *testing.T) (*ledger.Ledger, *Runner) {
 	t.Cleanup(func() { l.Close() })
 	now := time.Now().UTC()
 	if _, err := l.DB().Exec(`INSERT INTO sessions
-		(id, title, tenant_id, created_at, updated_at, status, spend_limit_usd, current_spend_usd)
-		VALUES ('sess-r2b', 't', 'default', ?, ?, 'active', 150, 0)`, now, now); err != nil {
+		(id, title, tenant_id, created_at, updated_at, status, spend_limit_micro_usd, current_spend_micro_usd)
+		VALUES ('sess-r2b', 't', 'default', ?, ?, 'active', 150000000, 0)`, now, now); err != nil {
 		t.Fatalf("seed session: %v", err)
 	}
 	return l, NewRunner(l, nil, 1)

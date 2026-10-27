@@ -117,8 +117,8 @@ func (m *Manager) CreateSession(title string, spendLimitUSD float64, tenantID st
 	if err != nil {
 		return nil, fmt.Errorf("session spend limit: %w", err)
 	}
-	query := `INSERT INTO sessions (id, title, tenant_id, created_at, updated_at, status, spend_limit_usd, current_spend_usd, spend_limit_micro_usd, current_spend_micro_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	_, err = m.ledger.DB().Exec(query, s.ID, s.Title, s.TenantID, s.CreatedAt, s.UpdatedAt, s.Status, s.SpendLimitUSD, 0.0, int64(limitMicro), 0)
+	query := `INSERT INTO sessions (id, title, tenant_id, created_at, updated_at, status, spend_limit_micro_usd, current_spend_micro_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	_, err = m.ledger.DB().Exec(query, s.ID, s.Title, s.TenantID, s.CreatedAt, s.UpdatedAt, s.Status, int64(limitMicro), 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create session: %w", err)
 	}
@@ -159,8 +159,8 @@ func (m *Manager) EnsureSessionWithID(id, title string, spendLimitUSD float64, t
 	if lerr != nil {
 		return nil, fmt.Errorf("session spend limit: %w", lerr)
 	}
-	query := `INSERT INTO sessions (id, title, tenant_id, created_at, updated_at, status, spend_limit_usd, current_spend_usd, spend_limit_micro_usd, current_spend_micro_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	if _, err := m.ledger.DB().Exec(query, s.ID, s.Title, s.TenantID, s.CreatedAt, s.UpdatedAt, s.Status, s.SpendLimitUSD, 0.0, int64(limitMicro), 0); err != nil {
+	query := `INSERT INTO sessions (id, title, tenant_id, created_at, updated_at, status, spend_limit_micro_usd, current_spend_micro_usd) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+	if _, err := m.ledger.DB().Exec(query, s.ID, s.Title, s.TenantID, s.CreatedAt, s.UpdatedAt, s.Status, int64(limitMicro), 0); err != nil {
 		// Lost a creation race: re-read whatever is there now.
 		if existing, rerr := m.GetSession(id); rerr == nil {
 			return existing, nil
@@ -513,8 +513,8 @@ func (m *Manager) ReserveSpend(sessionID string, amountUSD float64) error {
 		return ErrInvalidAmount
 	}
 	res, err := m.ledger.DB().Exec(
-		`UPDATE sessions SET current_spend_micro_usd = current_spend_micro_usd + ?, current_spend_usd = (current_spend_micro_usd + ?) / 1000000.0 WHERE id = ? AND (spend_limit_micro_usd <= 0 OR current_spend_micro_usd + ? <= spend_limit_micro_usd)`,
-		int64(amountMicro), int64(amountMicro), sessionID, int64(amountMicro))
+		`UPDATE sessions SET current_spend_micro_usd = current_spend_micro_usd + ? WHERE id = ? AND (spend_limit_micro_usd <= 0 OR current_spend_micro_usd + ? <= spend_limit_micro_usd)`,
+		int64(amountMicro), sessionID, int64(amountMicro))
 	if err != nil {
 		return fmt.Errorf("session spend reservation failed: %w", err)
 	}
@@ -567,8 +567,8 @@ func (m *Manager) RefundSpend(action *tenants.AdminAction, sessionID string, amo
 		return nil, ErrInvalidAmount
 	}
 	res, err := m.ledger.DB().Exec(
-		`UPDATE sessions SET current_spend_micro_usd = current_spend_micro_usd - ?, current_spend_usd = (current_spend_micro_usd - ?) / 1000000.0 WHERE id = ? AND current_spend_micro_usd >= ?`,
-		int64(amountMicro), int64(amountMicro), sessionID, int64(amountMicro))
+		`UPDATE sessions SET current_spend_micro_usd = current_spend_micro_usd - ? WHERE id = ? AND current_spend_micro_usd >= ?`,
+		int64(amountMicro), sessionID, int64(amountMicro))
 	if err != nil {
 		return nil, fmt.Errorf("session spend refund failed: %w", err)
 	}
@@ -605,8 +605,8 @@ func (m *Manager) ReleaseSpend(sessionID string, amountUSD float64) error {
 		return ErrInvalidAmount
 	}
 	res, err := m.ledger.DB().Exec(
-		`UPDATE sessions SET current_spend_micro_usd = current_spend_micro_usd - ?, current_spend_usd = (current_spend_micro_usd - ?) / 1000000.0 WHERE id = ? AND current_spend_micro_usd >= ?`,
-		int64(amountMicro), int64(amountMicro), sessionID, int64(amountMicro))
+		`UPDATE sessions SET current_spend_micro_usd = current_spend_micro_usd - ? WHERE id = ? AND current_spend_micro_usd >= ?`,
+		int64(amountMicro), sessionID, int64(amountMicro))
 	if err != nil {
 		return fmt.Errorf("session spend release failed: %w", err)
 	}
