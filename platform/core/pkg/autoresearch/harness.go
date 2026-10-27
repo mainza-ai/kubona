@@ -22,6 +22,16 @@ type Harness interface {
 	Evaluate(runner *sandbox.SandboxRunner, artifact string) (*HarnessResult, error)
 }
 
+// SelfReportedHarness marks a harness whose metric is printed by the
+// artifact/evaluator in the SAME process that imports the artifact. Such a
+// score is forgeable (the artifact can patch the evaluator or print a fake
+// payload). Production refuses these unless the operator explicitly opts in
+// for research; a measured harness (separate evaluator process) does not
+// implement this interface.
+type SelfReportedHarness interface {
+	SelfReported() bool
+}
+
 // HarnessResult stores detailed physics metrics and execution telemetry
 type HarnessResult struct {
 	HarnessID         string  `json:"harness_id"`
@@ -76,6 +86,8 @@ func NewAnsatzSearchHarness(targetFCI float64) *AnsatzSearchHarness {
 	}
 	return &AnsatzSearchHarness{TargetFCI: targetFCI}
 }
+
+func (h *AnsatzSearchHarness) SelfReported() bool { return true }
 
 func (h *AnsatzSearchHarness) ID() string {
 	return "ansatz-search"
@@ -209,6 +221,8 @@ func (h *AnsatzSearchHarness) Metric(artifact string) (float64, error) {
 // ============================================================================
 type QAOACombinatorialHarness struct{}
 
+func (h *QAOACombinatorialHarness) SelfReported() bool { return true }
+
 func (h *QAOACombinatorialHarness) ID() string {
 	return "qaoa-combinatorial"
 }
@@ -329,6 +343,8 @@ func (h *QAOACombinatorialHarness) Metric(artifact string) (float64, error) {
 // ============================================================================
 type ErrorMitigationHarness struct{}
 
+func (h *ErrorMitigationHarness) SelfReported() bool { return true }
+
 func (h *ErrorMitigationHarness) ID() string {
 	return "error-mitigation"
 }
@@ -424,6 +440,8 @@ func (h *ErrorMitigationHarness) Metric(artifact string) (float64, error) {
 // 4. CompilationPassHarness — Quantum transpile pass manager sequencing
 // ============================================================================
 type CompilationPassHarness struct{}
+
+func (h *CompilationPassHarness) SelfReported() bool { return true }
 
 func (h *CompilationPassHarness) ID() string {
 	return "compilation-pass"
@@ -523,6 +541,8 @@ func (h *CompilationPassHarness) Metric(artifact string) (float64, error) {
 // 5. CorrectnessRegressionHarness — Deterministic Clifford stabilizer parity
 // ============================================================================
 type CorrectnessRegressionHarness struct{}
+
+func (h *CorrectnessRegressionHarness) SelfReported() bool { return true }
 
 func (h *CorrectnessRegressionHarness) ID() string {
 	return "correctness-regression"

@@ -3442,3 +3442,9 @@ skipped is the exact failure this incident is about:
   - /api/quantum/jobs now requires a full signed mandate for non-simulator, non-dry-run submissions BEFORE calling the bridge; a missing/bare/forged mandate refuses with no enqueue.
   - The pre-call check binds signature/tenant/exact program/expiry; the post-estimate check binds budget and cancels the bridge job if the estimate exceeds it.
   - Simulators and dry-run estimates stay mandate-free. The console already sends the canonical mandate.
+
+## [2026-10-27] decision | Autoresearch refuses forgeable self-reported scores in production
+
+  - All current harnesses are marked SelfReported (the artifact runs in the same process as the evaluator; it can forge/patch the score).
+  - InitializeBaseline/Step refuse a self-reported harness when KUBONA_ENV=production unless KUBONA_AUTORESEARCH_ALLOW_SELF_REPORTED=1 is set for research-only runs. A measured harness (separate evaluator process) does not implement the marker and is unaffected.
+  - The nonce fence remains an output delimiter, not a security boundary.

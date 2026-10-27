@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"regexp"
 	"strings"
 	"sync"
@@ -93,6 +94,22 @@ type LoopState struct {
 	// I3: spend books telemetry (mirrored from the engine + row).
 	ReservedAmount float64 `json:"reserved_amount"`
 	ConsumedAmount float64 `json:"consumed_amount"`
+}
+
+// refuseSelfReportedInProduction fails closed on a forgeable in-process
+// benchmark unless the operator explicitly opts in for research-only runs.
+func refuseSelfReportedInProduction(h Harness) error {
+	sr, ok := h.(SelfReportedHarness)
+	if !ok || !sr.SelfReported() {
+		return nil
+	}
+	if os.Getenv("KUBONA_ENV") != "production" {
+		return nil
+	}
+	if os.Getenv("KUBONA_AUTORESEARCH_ALLOW_SELF_REPORTED") == "1" {
+		return nil
+	}
+	return fmt.Errorf("refusing self-reported benchmark %q in production: artifact output is forgeable; set KUBONA_AUTORESEARCH_ALLOW_SELF_REPORTED=1 for research-only runs or use a measured harness", h.ID())
 }
 
 // LoopEngine orchestrates the unattended Karpathy experiment cycle
@@ -300,6 +317,9 @@ func (e *LoopEngine) SetBranchManager(bm *BranchManager) {
 
 // InitializeBaseline evaluates the starting baseline before mutations begin
 func (e *LoopEngine) InitializeBaseline(ctx context.Context) (*IterationRecord, error) {
+	if err := refuseSelfReportedInProduction(e.harness); err != nil {
+		return nil, err
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -395,6 +415,9 @@ def build_circuit():
 // Step performs a single unattended optimization experiment:
 // Propose -> Stage -> Run in Sandbox -> Pareto Evaluate -> Keep/Discard -> Log
 func (e *LoopEngine) Step(ctx context.Context) (*IterationRecord, error) {
+	if err := refuseSelfReportedInProduction(e.harness); err != nil {
+		return nil, err
+	}
 	e.mu.Lock()
 	if e.state.Status != StatusRunning {
 		e.mu.Unlock()
