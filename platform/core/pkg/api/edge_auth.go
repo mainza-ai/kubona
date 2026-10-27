@@ -2,7 +2,7 @@ package api
 
 import (
 	"crypto/subtle"
-	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -83,7 +83,7 @@ func (s *Server) requireA2AAuth(next http.HandlerFunc) http.HandlerFunc {
 // that minted a trusted origin for non-browser clients).
 func corsAllowOrigin(r *http.Request) string {
 	if os.Getenv("KUBONA_CORS_ANY") == "1" {
-		log.Printf("[Kubona Core] WARNING: KUBONA_CORS_ANY=1 — CORS wide open (*); dev only, never production")
+		slog.Warn("[Kubona Core] KUBONA_CORS_ANY=1: CORS is wide open (*); dev only, never production")
 		return "*"
 	}
 	allow := []string{"http://localhost:3000", "http://127.0.0.1:3000"}

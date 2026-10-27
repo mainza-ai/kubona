@@ -3503,3 +3503,9 @@ skipped is the exact failure this incident is about:
   - tenants/sessions/jobs/loops no longer create or write spend_ceiling_usd, spent_usd, spend_limit_usd, current_spend_usd, reserved_amount, or consumed_amount.
   - OpenLedger backfills micro from the legacy REAL columns once, then drops them (SQLite >=3.35); USD JSON fields are projected from micro on read.
   - Migration test proves backfill values and column removal; all package tests use micro-only fixtures.
+
+## [2026-10-27] decision | Legacy log.Printf sites removed
+
+  - All 53 non-test log.Printf/Println sites in kubonad, autoresearch, tribunal, campaign synth, server, loop settle, and edge auth now emit structured slog fields.
+  - Startup refusal log.Fatalf sites remain fatal exits, not ambient logging.
+  - The tribunal telemetry test now captures the process slog handler and still asserts every turn field.

@@ -3,7 +3,7 @@ package agents
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"math"
 	"regexp"
 	"strconv"
@@ -193,7 +193,7 @@ func SynthesizeCampaignStateWithOpts(
 	if m := bondRegex.FindStringSubmatch(prompt); len(m) > 1 {
 		if parsedDist, err := strconv.ParseFloat(m[1], 64); err == nil && parsedDist >= 0.3 && parsedDist <= 10.0 {
 			bondDist = parsedDist
-			log.Printf("[CampaignSynth] User specified custom bond distance: R=%.4f A", bondDist)
+			slog.Info("campaign synth custom bond distance", "bond_distance_angstrom", bondDist)
 		}
 	}
 
@@ -215,9 +215,9 @@ func SynthesizeCampaignStateWithOpts(
 			rhfVal = resp.RhfEnergy
 			fciVal = resp.FciExactEnergy
 			anchorComputed = true
-			log.Printf("[CampaignSynth] Ab-initio PySCF calculated for %s at R=%.4f A: FCI=%.5f Ha, RHF=%.5f Ha", mol, bondDist, fciVal, rhfVal)
+			slog.Info("campaign synth ab-initio PySCF anchor", "molecule", mol, "bond_distance_angstrom", bondDist, "fci_hartree", fciVal, "rhf_hartree", rhfVal)
 		} else if err != nil {
-			log.Printf("[CampaignSynth] Bridge anchor failed for %s, using hardcoded fallback (labeled): %v", mol, err)
+			slog.Warn("campaign synth bridge anchor failed; using labeled fallback", "molecule", mol, "error", err)
 		}
 	}
 	anchorSource := "hardcoded-fallback"

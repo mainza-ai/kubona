@@ -3,7 +3,7 @@ package autoresearch
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"regexp"
 	"strings"
@@ -175,7 +175,7 @@ func (e *LoopEngine) recordSpend(role string, promptTokens, completionTokens int
 	}
 	cost, err := rec(role, promptTokens, completionTokens)
 	if err != nil {
-		log.Printf("[autoresearch] loop %s spend record failed (pausing): %v", e.state.ID, err)
+		slog.Error("[autoresearch] loop spend record failed, pausing", "loop_id", e.state.ID, "error", err)
 		e.Pause()
 		return
 	}
@@ -184,7 +184,7 @@ func (e *LoopEngine) recordSpend(role string, promptTokens, completionTokens int
 	consumed := e.spendConsumed
 	e.mu.Unlock()
 	if reserved > 0 && consumed > reserved {
-		log.Printf("[autoresearch] loop %s spend overrun %.4f > reserved %.4f (pausing)", e.state.ID, consumed, reserved)
+		slog.Error("[autoresearch] loop spend overrun, pausing", "loop_id", e.state.ID, "consumed_usd", consumed, "reserved_usd", reserved)
 		e.Pause()
 	}
 }

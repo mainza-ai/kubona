@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"log/slog"
 	"net"
 	"net/http"
 	"os"
@@ -173,8 +174,8 @@ func main() {
 		log.Fatalf("Serve configuration refused: --db path must be absolute (got %q)", resolvedDB)
 	}
 
-	log.Printf("[Kubona Core] Starting orchestrator daemon on port %d...", *port)
-	log.Printf("[Kubona Core] Ledger path: %s", resolvedDB)
+	slog.Info("[Kubona Core] starting orchestrator daemon", "port", *port)
+	slog.Info("[Kubona Core] ledger path", "path", resolvedDB)
 
 	// D1: ensure the state the daemon measures before the disk guard
 	// reads it. A fresh state root (new volume) otherwise never becomes
@@ -216,15 +217,15 @@ func main() {
 				"level": snap.Level, "avail_bytes": snap.AvailBytes,
 				"paths": snap.Paths, "reason": snap.Reason,
 			})
-			log.Printf("[Kubona Core] disk guard: %s (%s)", snap.Level, snap.Reason)
+			slog.Warn("[Kubona Core] disk guard", "level", snap.Level, "reason", snap.Reason)
 		})
 	diskGuard.PollOnce() // fail-closed first reading before serving
 	diskStop := make(chan struct{})
 	defer close(diskStop)
 	go diskGuard.Start(diskStop, time.Duration(diskPollSeconds)*time.Second)
-	log.Printf("[Kubona Core] Disk guard watching %s + %s (warn/block/resume %d/%d/%d bytes)",
-		filepath.Dir(resolvedDB), hf.DefaultModelsDir(),
-		diskThresholds.WarnBytes, diskThresholds.BlockBytes, diskThresholds.ResumeBytes)
+	slog.Info("[Kubona Core] disk guard watching",
+		"db_dir", filepath.Dir(resolvedDB), "models_dir", hf.DefaultModelsDir(),
+		"warn_bytes", diskThresholds.WarnBytes, "block_bytes", diskThresholds.BlockBytes, "resume_bytes", diskThresholds.ResumeBytes)
 
 	// 1c. S3: reconcile persisted loops. Engines are in-memory, so nothing
 	// can be running after a restart — non-terminal rows sleep (history
@@ -232,7 +233,7 @@ func main() {
 	if reconciled, rerr := l.ReconcileLoopsOnBoot(); rerr != nil {
 		log.Fatalf("Loop reconcile refused: %v", rerr)
 	} else if reconciled > 0 {
-		log.Printf("[Kubona Core] Reconciled %d persisted loops to sleeping", reconciled)
+		slog.Info("[Kubona Core] reconciled persisted loops to sleeping", "count", reconciled)
 	}
 
 	// 2. Connect to Python Quantum Bridge via gRPC
@@ -300,13 +301,13 @@ func main() {
 		// Declared-LAN posture (see transport decision): audible, never silent.
 		// Reached only with KUBONA_ALLOW_PLAINTEXT=1 (validateServeConfig
 		// refuses otherwise) — the opt-in is logged, not assumed.
-		log.Printf("[Kubona Core] WARNING: serving plain HTTP on non-loopback %s with KUBONA_ALLOW_PLAINTEXT=1 — TLS termination belongs at the deployment edge; set --tls-cert/--tls-key or --bind 127.0.0.1", *bindAddr)
+		slog.Warn("[Kubona Core] serving plain HTTP on non-loopback with KUBONA_ALLOW_PLAINTEXT=1; TLS termination belongs at the deployment edge", "bind", *bindAddr)
 	}
 
 	go func() {
 		var err error
 		if useTLS {
-			log.Printf("[Kubona Core] Serving HTTPS on %s", httpServer.Addr)
+			slog.Info("[Kubona Core] serving HTTPS", "addr", httpServer.Addr)
 			err = httpServer.ListenAndServeTLS(*tlsCert, *tlsKey)
 		} else {
 			err = httpServer.ListenAndServe()
@@ -320,18 +321,18 @@ func main() {
 	if *tlsCert != "" && *tlsKey != "" {
 		scheme = "https"
 	}
-	log.Printf("[Kubona Core] Daemon running at %s://%s:%d", scheme, *bindAddr, *port)
+	slog.Info("[Kubona Core] daemon running", "scheme", scheme, "bind", *bindAddr, "port", *port)
 
 	// Graceful shutdown handling
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 	<-sigCh
 
-	log.Println("[Kubona Core] Shutting down gracefully...")
+	slog.Info("[Kubona Core] shutting down gracefully")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	httpServer.Shutdown(ctx)
-	log.Println("[Kubona Core] Clean exit complete.")
+	slog.Info("[Kubona Core] clean exit complete")
 }
 
 // bridgeTokenCreds attaches the shared bridge bearer to every unary RPC.

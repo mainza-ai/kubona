@@ -17,7 +17,7 @@ package api
 // sessions 404. Caller-vs-session binding via authorizeKnownSession.
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
@@ -91,7 +91,7 @@ func (s *Server) handleLoopSettle(w http.ResponseWriter, r *http.Request, sessio
 			"loop_id": p.ID, "previous_status": p.Status,
 			"cause": "restart orphan: in-memory engine gone, archived terminal",
 		}); aerr != nil {
-			log.Printf("[Kubona Core] loop_settled receipt failed for %s: %v", p.ID, aerr)
+			slog.Error("[Kubona Core] loop_settled receipt failed", "loop_id", p.ID, "error", aerr)
 			http.Error(w, "loop "+p.ID+" settled terminal but the receipt failed: "+aerr.Error(), http.StatusInternalServerError)
 			return
 		}
