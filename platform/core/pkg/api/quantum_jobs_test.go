@@ -10,10 +10,12 @@ import (
 	"net/http/httptest"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/api"
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/mandates"
 	"github.com/mainza-ai/kubona/core/pkg/session"
 	"github.com/mainza-ai/kubona/core/pkg/supervisor"
 	"github.com/mainza-ai/kubona/core/pkg/watchdog"
@@ -190,6 +192,14 @@ func TestQuantumJobsUnifiedSpendBookAndRefundIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create session: %v", err)
 	}
+	qasm := "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];"
+	mandate, merr := mandates.SignMandate(adminPriv, "lab-qpu",
+		mandates.CanonicalJobBinding("circuit_run", sess.ID, qasm), 12.5,
+		time.Now().UTC().Add(time.Hour))
+	if merr != nil {
+		t.Fatalf("sign mandate: %v", merr)
+	}
+	mandateJSON, _ := json.Marshal(mandate)
 
 	fb.submitResp = &pb.QuantumSubmitResponse{
 		Ok:               true,
@@ -201,13 +211,27 @@ func TestQuantumJobsUnifiedSpendBookAndRefundIntegration(t *testing.T) {
 		IdempotentReplay: false,
 	}
 
+	// 0. Hardware dispatch without a signed mandate refuses BEFORE the bridge
+	// is called: unmandated hardware must never enqueue.
+	fb.lastSubmit = nil
+	if code, out := postQuantumJob(t, h, true, map[string]any{
+		"session_id":      sess.ID,
+		"qasm":            qasm,
+		"provider":        "ionq",
+		"shots":           500,
+		"idempotency_key": "qpu-no-mandate",
+	}); code != http.StatusForbidden || fb.lastSubmit != nil {
+		t.Fatalf("unmandated hardware must 403 before dispatch, got %d %v", code, out)
+	}
+
 	// 1. First submit: forwards session ceiling + default allied jurisdictions, and reserves $12.50 in Go SQLite.
 	code, out := postQuantumJob(t, h, true, map[string]any{
 		"session_id":      sess.ID,
-		"qasm":            "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];",
+		"qasm":            qasm,
 		"provider":        "ionq",
 		"shots":           500,
 		"idempotency_key": "qpu-idem-1",
+		"mandate_ref":     string(mandateJSON),
 	})
 	if code != http.StatusOK || out["job_id"] != "qjob-live-1" {
 		t.Fatalf("submit failed: %d %v", code, out)
@@ -232,10 +256,11 @@ func TestQuantumJobsUnifiedSpendBookAndRefundIntegration(t *testing.T) {
 	fb.submitResp.IdempotentReplay = true
 	code, _ = postQuantumJob(t, h, true, map[string]any{
 		"session_id":      sess.ID,
-		"qasm":            "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];",
+		"qasm":            qasm,
 		"provider":        "ionq",
 		"shots":           500,
 		"idempotency_key": "qpu-idem-1",
+		"mandate_ref":     string(mandateJSON),
 	})
 	if code != http.StatusOK {
 		t.Fatalf("replay failed: %d", code)
@@ -287,4 +312,3 @@ func TestQuantumJobsUnifiedSpendBookAndRefundIntegration(t *testing.T) {
 		t.Fatalf("expected SQLite job row transitioned to JOB_STATUS_COMPLETED, got %+v", settledJob)
 	}
 }
-

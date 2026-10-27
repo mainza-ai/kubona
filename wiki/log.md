@@ -3436,3 +3436,9 @@ skipped is the exact failure this incident is about:
 
   - Job get/list/export and outstanding-reservation blockers read reserved_amount_micro_usd; GetLoopState reads loop micro columns. No production read path uses the REAL money columns anymore.
   - REAL columns remain only as a compatibility projection updated in the same statement as micro; they cannot drift at write time. Dropping them is a separate schema-only cleanup (tests/ops still read them).
+
+## [2026-10-27] decision | Q-40: signed mandate required before human hardware dispatch
+
+  - /api/quantum/jobs now requires a full signed mandate for non-simulator, non-dry-run submissions BEFORE calling the bridge; a missing/bare/forged mandate refuses with no enqueue.
+  - The pre-call check binds signature/tenant/exact program/expiry; the post-estimate check binds budget and cancels the bridge job if the estimate exceeds it.
+  - Simulators and dry-run estimates stay mandate-free. The console already sends the canonical mandate.
