@@ -61,3 +61,11 @@ testpaths = ["tests"]
 # (-m slow was tried 2026-10-22 and abandoned: the hog set was wider than
 # any hand-maintained list; the fast lane's --durations output is the
 # ongoing census instead.)
+
+[tool.ruff]
+# Phase-1 lint gate (see ci.yml python-lint job + .github/ruff-baseline.txt).
+# target-version pins rule applicability to the CI interpreter (3.11) so
+# local runs on newer Pythons count identically; default select (E4/E7/E9/F)
+# is intentionally unchanged — the gate is a hold-the-line COUNT ratchet,
+# not a curated subset, so narrowing rules here would silently move the goal.
+target-version = "py311"

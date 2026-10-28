@@ -8,6 +8,7 @@ exportable to JSON / Markdown; credential-safe shareable.
 from __future__ import annotations
 
 
+import os
 import uuid
 from dataclasses import dataclass, field
 from typing import Any

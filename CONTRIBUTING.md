@@ -126,6 +126,10 @@ Lane mapping to CI: `test:fast` ≈ `wiki-lint` + `secret-scan` jobs; `test:boun
 - Go: always `-count=1`; cached passes have hidden real breaks.
 - Never commit `dev-docs/` or `.obsidian/` (pre-commit guard enforces); never commit `.env`.
 
+## 🛡️ Branch protection posture
+
+Required checks gate every merge to `main`/`develop`, but `enforce_admins` is **off** and required signatures are **not** required: admins can still push past a red gate and commits are not verified by signature. This is a deliberate Phase-1 trade-off — velocity while the gate suite is still hardening — not an oversight. Do not rely on it: land only on green checks with `git commit -s`, and treat any admin bypass as an incident to explain in the PR, not a shortcut.
+
 ---
 
 ## 🚀 Submitting Contributions

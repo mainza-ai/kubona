@@ -18,12 +18,12 @@ var verifiedJSON []byte
 
 // VerifiedReport is the served shape (mirrors verified.json).
 type VerifiedReport struct {
-	Program     string   `json:"program"`
-	Version     int      `json:"version"`
-	Generated   string   `json:"generated"`
-	Generator   string   `json:"generator"`
-	Labels      []string `json:"labels"`
-	Total       struct {
+	Program   string   `json:"program"`
+	Version   int      `json:"version"`
+	Generated string   `json:"generated"`
+	Generator string   `json:"generator"`
+	Labels    []string `json:"labels"`
+	Total     struct {
 		Toffoli int    `json:"toffoli"`
 		Qubits  int    `json:"qubits"`
 		Pin     string `json:"pin"`

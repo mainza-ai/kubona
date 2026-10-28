@@ -6,6 +6,8 @@ evaluate_codegen contract; the built-in reference tasks pin the evaluator.
 
 from __future__ import annotations
 
+from typing import Callable
+
 from kubona.circuits import Circuit, Gate, parse_qasm2
 from kubona.providers import get_provider
 

@@ -1,0 +1,14 @@
+# Trivy hold-the-line for the `image-scan` job in .github/workflows/ci.yml.
+# The job fails on ANY Critical not listed here — this file is the ratchet,
+# not a waiver: each entry names one CVE with why it is accepted and when it
+# must be re-examined. Never add a CVE without all three (reason + surface
+# analysis + review date). `exp:` dates make old acceptances fail loudly.
+#
+# CVE-2023-45853 (zlib1g 1:1.2.13.dfsg-1, console image, MiniZip
+# zipOpenNewFileInZip overflow): Debian 12 carries NO fixed version, so no
+# dependency bump can clear it — only a base-image migration (structural,
+# tracked as follow-up). The vulnerable path is MiniZip *archive creation*;
+# the Next.js console has no request surface that routes attacker input into
+# minizip zip creation. Re-examine when the console image leaves Debian 12.
+# Triaged 2026-10-28 against locally built kubona/console:prod.
+CVE-2023-45853 exp:2027-02-01

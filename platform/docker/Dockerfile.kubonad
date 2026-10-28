@@ -3,7 +3,8 @@
 # Multi-stage: builder compiles the static-ish binary (CGO stays ON:
 # mattn/go-sqlite3 needs gcc; the amalgamation links statically so the
 # final image needs no libsqlite3), final is debian-slim + nonroot.
-# Go toolchain pinned to the CI lane (go.mod / ci.yml: 1.27.1).
+# Go toolchain pinned to the CI lane (go.mod / ci.yml: 1.27.2 — patch bump
+# for Trivy CRITICAL CVE-2026-56857, fixed in Go 1.27.2).
 # Health: /api/health + /api/ready are public reads (no bearer), so the
 # HEALTHCHECK needs no token. curl exists in final ONLY for that probe.
 #
@@ -14,7 +15,7 @@
 # boot without fidelity-devices.json, and the old core-only context could
 # never contain it.
 
-FROM golang:1.27.1-bookworm@sha256:8d48e12ec56735e9358640898b9d9b9fcca110612ed8a5567438c0a1baa24e66 AS build
+FROM golang:1.27.2-bookworm@sha256:5cf287a799e6b94384bad13d16b14904c531f51ba65792237e122ce42b392f61 AS build
 
 WORKDIR /src
 COPY core/go.mod core/go.sum ./
@@ -28,7 +29,12 @@ RUN CGO_ENABLED=1 go build -trimpath -o /kubonad ./cmd/kubonad
 
 FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# upgrade -y: the Trivy image-scan gate fails on CRITICALs in this layer
+# (libbrotli/perl CVEs observed 2026-10-28). The base digest stays pinned
+# for reproducibility; upgrade applies the archive's security fixes on top
+# at every build so a stale base cannot fail a fresh build.
+RUN apt-get update && apt-get upgrade -y --no-install-recommends \
+    && apt-get install -y --no-install-recommends \
     ca-certificates curl \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -g 1000 kubona && useradd -u 1000 -g kubona -m -s /bin/sh kubona

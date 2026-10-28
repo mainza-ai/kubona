@@ -12,6 +12,7 @@ import random
 import time
 import uuid
 from dataclasses import dataclass, field
+from typing import Any
 from kubona.control.watchdog import Ring0Watchdog, WatchdogVerdict
 from kubona.provenance import Ledger
 

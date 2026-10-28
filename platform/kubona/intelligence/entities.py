@@ -39,8 +39,12 @@ def _normalize(name: str) -> str:
 
 
 def deterministic_id(kind: str, name: str) -> str:
-    """Stable id from (kind, normalized name) — same input, same id."""
-    digest = hashlib.sha1(f"{kind}:{_normalize(name)}".encode()).hexdigest()[:16]
+    """Stable id from (kind, normalized name) — same input, same id.
+
+    SHA-1 here is content addressing, not a security boundary (no secrets,
+    no integrity promises); usedforsecurity=False documents that intent.
+    """
+    digest = hashlib.sha1(f"{kind}:{_normalize(name)}".encode(), usedforsecurity=False).hexdigest()[:16]
     return f"{kind}-{digest}"
 
 

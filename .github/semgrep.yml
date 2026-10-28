@@ -1,0 +1,166 @@
+# Kubona Phase-1 SAST ruleset (minimal, high-signal, hold-the-line).
+#
+# DESIGN: every rule below is GREEN on the tree as of 2026-10-28. CI runs
+#   semgrep --config .github/semgrep.yml --error
+# so any NEW match fails the build. This is a ratchet, not a census: it does
+# not claim to find all bugs, it guarantees no NEW instance of these
+# well-understood dangerous patterns lands without triage.
+#
+# TRIAGE PROTOCOL for a future hit (do not just add exclusions):
+#   1. Decide genuine-vs-by-design with a code comment pointing at the threat
+#      model (who controls the input? what breaks if it is hostile?).
+#   2. Genuine  -> fix the code in the same PR.
+#   3. By-design -> narrow the RULE (not the file) or add a `nosemgrep`
+#      with a justification comment referencing this file.
+#
+# Residuals (audited 2026-10-28, deliberately OUT of this ruleset):
+#   - Bandit mediums (B108 tempdir, B314 XML bipartisan, B310 urlopen audit):
+#     real hardening backlog (defusedxml, scheme allow-lists), tracked outside
+#     this gate; see CI job comments. Gosec on platform/core reports
+#     164 findings (mostly G104 unhandled-error LOWs) — too noisy to gate on.
+rules:
+  # -- Python: shell execution -------------------------------------------
+  - id: kubona-py-subprocess-shell-true
+    languages: [python]
+    severity: ERROR
+    message: >-
+      subprocess with shell=True passes the command through /bin/sh; a
+      single attacker-controlled interpolation becomes RCE. Build argv
+      lists instead (shell=False), or justify with nosemgrep + threat model.
+    patterns:
+      - pattern-either:
+          - pattern: subprocess.call(..., shell=True, ...)
+          - pattern: subprocess.run(..., shell=True, ...)
+          - pattern: subprocess.Popen(..., shell=True, ...)
+          - pattern: subprocess.check_call(..., shell=True, ...)
+          - pattern: subprocess.check_output(..., shell=True, ...)
+  - id: kubona-py-os-system-popen
+    languages: [python]
+    severity: ERROR
+    message: >-
+      os.system/os.popen always invoke a shell (same RCE class as
+      shell=True). Use subprocess argv lists instead, or justify.
+    patterns:
+      - pattern-either:
+          - pattern: os.system(...)
+          - pattern: os.popen(...)
+  - id: kubona-py-os-exec
+    languages: [python]
+    severity: ERROR
+    message: >-
+      os.exec*/os.spawn* replace the process image; in a daemon/bridge
+      context an attacker-influenced path or argv is process takeover.
+      Justify with nosemgrep + threat model.
+    patterns:
+      - pattern-either:
+          - pattern: os.execl(...)
+          - pattern: os.execle(...)
+          - pattern: os.execlp(...)
+          - pattern: os.execv(...)
+          - pattern: os.execve(...)
+          - pattern: os.execvp(...)
+          - pattern: os.spawnl(...)
+          - pattern: os.spawnlp(...)
+  # -- Python: weak hashes where security is claimed ----------------------
+  # hashlib.sha1/md5 WITHOUT usedforsecurity=False is flagged; content
+  # addressing that passes the kwarg (e.g. intelligence/entities.py
+  # deterministic_id) is explicitly out of scope and stays green.
+  - id: kubona-py-weak-hash-no-flag
+    languages: [python]
+    severity: ERROR
+    message: >-
+      hashlib.sha1/md5 without usedforsecurity=False. If this is a security
+      boundary (integrity, dedup-against-adversary) use SHA-256+; if it is
+      pure content addressing, pass usedforsecurity=False to document intent.
+    patterns:
+      - pattern-either:
+          - pattern: hashlib.sha1(...)
+          - pattern: hashlib.md5(...)
+      - pattern-not: hashlib.sha1(..., usedforsecurity=False, ...)
+      - pattern-not: hashlib.md5(..., usedforsecurity=False, ...)
+  # -- Python: TLS verification disabled ----------------------------------
+  - id: kubona-py-requests-verify-false
+    languages: [python]
+    severity: ERROR
+    message: >-
+      requests with verify=False disables TLS MITM protection. Never ship
+      this against a production host; pin the CA bundle instead.
+    patterns:
+      - pattern-either:
+          - pattern: requests.get(..., verify=False, ...)
+          - pattern: requests.post(..., verify=False, ...)
+          - pattern: requests.put(..., verify=False, ...)
+          - pattern: requests.delete(..., verify=False, ...)
+          - pattern: requests.request(..., verify=False, ...)
+          - pattern: requests.Session().request(..., verify=False, ...)
+  - id: kubona-py-ssl-unverified-context
+    languages: [python]
+    severity: ERROR
+    message: >-
+      ssl._create_unverified_context / CERT_NONE disables certificate
+      verification. Justify with nosemgrep + threat model or remove.
+    patterns:
+      - pattern-either:
+          - pattern: ssl._create_unverified_context(...)
+          - pattern: ssl.CERT_NONE
+  # -- Python: unsafe deserialization -------------------------------------
+  - id: kubona-py-yaml-unsafe-load
+    languages: [python]
+    severity: ERROR
+    message: >-
+      yaml.load without SafeLoader executes arbitrary objects from the
+      document. Use yaml.safe_load (or SafeLoader explicitly).
+    patterns:
+      - pattern-either:
+          - pattern: yaml.load(...)
+      - pattern-not: yaml.load(..., Loader=yaml.SafeLoader, ...)
+      - pattern-not: yaml.load(..., Loader=yaml.CSafeLoader, ...)
+      - pattern-not: yaml.safe_load(...)
+  - id: kubona-py-pickle-loads
+    languages: [python]
+    severity: ERROR
+    message: >-
+      pickle/cPickle/dill deserialization executes arbitrary code from the
+      byte stream. Never unpickle adversarial input; use a typed format.
+    patterns:
+      - pattern-either:
+          - pattern: pickle.loads(...)
+          - pattern: pickle.load(...)
+          - pattern: cPickle.loads(...)
+          - pattern: dill.loads(...)
+  # -- Go: shell execution -------------------------------------------------
+  - id: kubona-go-exec-shell-dash-c
+    languages: [go]
+    severity: ERROR
+    message: >-
+      exec.Command("sh"/"bash"/"cmd", "-c"/"/c", ...) runs a shell: same RCE
+      class as Python shell=True. Prefer argv exec, or justify with nosemgrep.
+    patterns:
+      - pattern-either:
+          - pattern: exec.Command("sh", "-c", ...)
+          - pattern: exec.Command("bash", "-c", ...)
+          - pattern: exec.Command("/bin/sh", "-c", ...)
+          - pattern: exec.Command("/bin/bash", "-c", ...)
+  # -- Go: weak hashes -----------------------------------------------------
+  - id: kubona-go-weak-hash
+    languages: [go]
+    severity: ERROR
+    message: >-
+      crypto/md5 and crypto/sha1 are broken for integrity/adversarial
+      contexts. Use crypto/sha256+; non-security content addressing must
+      carry a comment saying so (then narrow this rule, do not delete it).
+    patterns:
+      - pattern-either:
+          - pattern: md5.New(...)
+          - pattern: md5.Sum(...)
+          - pattern: sha1.New(...)
+          - pattern: sha1.Sum(...)
+  # -- Go: TLS verification disabled ---------------------------------------
+  - id: kubona-go-insecure-skip-verify
+    languages: [go]
+    severity: ERROR
+    message: >-
+      InsecureSkipVerify disables TLS MITM protection. Never ship true
+      against production; configure RootCAs instead.
+    patterns:
+      - pattern: "InsecureSkipVerify: true"

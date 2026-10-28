@@ -22,10 +22,10 @@ var (
 
 // OpenBaoConfig declares connection parameters for OpenBao sidecar
 type OpenBaoConfig struct {
-	Addr       string        `json:"addr"`        // e.g. "http://localhost:8200"
-	RoleID     string        `json:"role_id"`     // AppRole role_id
-	SecretID   string        `json:"secret_id"`   // AppRole secret_id
-	Token      string        `json:"token"`       // Direct client token (dev/override)
+	Addr       string        `json:"addr"`      // e.g. "http://localhost:8200"
+	RoleID     string        `json:"role_id"`   // AppRole role_id
+	SecretID   string        `json:"secret_id"` // AppRole secret_id
+	Token      string        `json:"token"`     // Direct client token (dev/override)
 	Timeout    time.Duration `json:"timeout"`
 	HTTPClient *http.Client  `json:"-"`
 }
