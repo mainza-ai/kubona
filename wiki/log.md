@@ -3624,3 +3624,7 @@ skipped is the exact failure this incident is about:
 ## [2026-10-28] decision | Session store appends are fsynced and record_job is atomic
 
   - record_job now does its read-modify-write under the exclusive lock (concurrent job ids no longer overwrite each other), and every JSONL append flushes+fsyncs before returning.
+
+## [2026-10-28] decision | JSON stores are atomic and locked
+
+  - Added kubona.jsonstore (per-path thread+flock exclusive, temp+fsync+replace). LabRegistry and IdentityRegistry now reload under the lock before mutate and write atomically; concurrent lab creates are tested.

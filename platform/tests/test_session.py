@@ -139,3 +139,24 @@ def test_record_job_concurrent_appends_do_not_lose_ids(tmp_path):
         t.join()
     got = store.get(sess.session_id)
     assert set(got.jobs) == {f"job-{i}" for i in range(12)}
+
+
+def test_lab_registry_concurrent_creates_do_not_lose_rows(tmp_path):
+    import threading
+    from kubona.labs import LabRegistry
+    labs = LabRegistry(path=str(tmp_path / "labs.json"))
+    errors = []
+
+    def make(i):
+        try:
+            labs.create(f"Lab {i}", "owner")
+        except Exception as e:  # noqa: BLE001
+            errors.append(e)
+
+    threads = [threading.Thread(target=make, args=(i,)) for i in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert not errors, errors
+    assert len(labs.all()) == 8
