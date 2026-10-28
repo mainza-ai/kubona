@@ -3673,3 +3673,8 @@ skipped is the exact failure this incident is about:
   - Provider completion now returns usage_seconds + actual_usd (per-second card, 1 s minimum).
   - Go SyncQuantumBridgeJobStatus parses result.actual_usd and CAS-settles the job reservation to the measured amount, releasing reserved-actual to tenant and session; zero usage releases the full reservation. No double-release (CAS on the reserved value).
   - Go test covers 8.00 reserved -> 3.20 actual across job, session, and tenant books.
+
+## [2026-10-28] investigation | Marrakesh direct-run anomaly
+
+  - Direct `Circuit` and governed QASM produce identical ISA circuits (initial layout q0/q1; rz/sx/cz/measure; ideal Aer 00/11), so conversion is not the cause.
+  - Governed rerun on ibm_marrakesh produced 92% 00/11; the 44% |10> direct result did not reproduce. Job records do not retain the physical layout, so bad-pair/readout remains suspected but unproven. Future hardware jobs should log the selected layout.
