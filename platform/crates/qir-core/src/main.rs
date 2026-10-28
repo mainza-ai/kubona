@@ -47,7 +47,10 @@ fn main() {
         Err(e) => { eprintln!("parse error: {e}"); std::process::exit(1); }
     };
 
-    let native = qir_core::transpile_to_native(&circuit);
+    let native = match qir_core::transpile_to_native(&circuit) {
+        Ok(n) => n,
+        Err(e) => { eprintln!("transpile error: {e}"); std::process::exit(1); }
+    };
 
     if json_mode {
         if let Err(e) = qir_core::emit_llvm_ir(&native) {
