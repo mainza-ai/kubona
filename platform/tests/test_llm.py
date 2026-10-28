@@ -184,3 +184,18 @@ def test_agent_loop_enforces_allowlist_and_token():
     assert out2["transcript"][0]["action"] == "parse-error"
     # result hashes make truncation checkable
     assert "result_hash" in out["transcript"][0] and len(out["transcript"][0]["result_hash"]) == 64
+
+
+def test_available_requires_200_not_just_a_response():
+    import httpx
+    from kubona.llm import OpenAICompatLLM, OllamaLLM
+
+    def resp(code):
+        return httpx.Response(code, json={}, request=httpx.Request("GET", "http://x"))
+
+    for cls, path in ((OpenAICompatLLM, "/v1/models"), (OllamaLLM, "/api/tags")):
+        obj = cls("http://127.0.0.1:9") if cls is OpenAICompatLLM else cls("http://127.0.0.1:9")
+        obj._client = httpx.Client(transport=httpx.MockTransport(lambda req: resp(401)))
+        assert obj.available is False
+        obj._client = httpx.Client(transport=httpx.MockTransport(lambda req: resp(200)))
+        assert obj.available is True

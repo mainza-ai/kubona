@@ -27,8 +27,8 @@ class OpenAICompatLLM(AbstractLLM):
     @property
     def available(self) -> bool:
         try:
-            self._client.get(f"{self.base_url}/v1/models", timeout=3)
-            return True
+            r = self._client.get(f"{self.base_url}/v1/models", timeout=3)
+            return r.status_code == 200
         except Exception:  # noqa: BLE001
             return False
 
