@@ -17,7 +17,36 @@ import (
 // every mutation after that requires the admin's signature.
 func (s *Server) handleTenants(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodGet {
-		// Labs view: every registered lab with ceiling, spent, autonomy.
+		// Labs view: anonymous access is single-lab-only (Q-57); multi-lab
+		// callers authenticate, and a lab session sees only its own row.
+		// Tenant rows carry admin key ids and spend totals, so the old public
+		// list leaked the whole estate to any network reader.
+		if hasNoCredentials(r) {
+			all, err := s.tenantMgr.ListTenants()
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			if len(all) > 1 {
+				WriteAPIError(w, "unauthorized", "multi-lab store: log in or present the operator token to list labs", nil)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"tenants": all})
+			return
+		}
+		tenant, ok := s.checkCallerAuth(w, r)
+		if !ok {
+			return
+		}
+		if tenant != "" {
+			t, err := s.tenantMgr.GetTenant(tenant)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"tenants": []tenants.Tenant{*t}})
+			return
+		}
 		all, err := s.tenantMgr.ListTenants()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)

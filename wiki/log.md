@@ -3683,3 +3683,7 @@ skipped is the exact failure this incident is about:
 ## [2026-10-28] decision | Hardware jobs retain their transpiler layout
 
   - QiskitProvider returns the logical→physical initial/final layout on submission/results; the deferred job meta stores it, and the bridge status payload exposes it. Go keeps it in result_json. Future Marrakesh-style anomalies can be tied to the actual physical pair instead of guessed.
+
+## [2026-10-28] decision | Tenant list is auth-scoped
+
+  - GET /api/tenants is anonymous only when the store actually has one tenant; multi-lab requires a session/bearer, and a lab session sees only its own row. This closes the public exposure of admin key ids, ceilings, and spend totals.
