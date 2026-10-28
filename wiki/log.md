@@ -3635,3 +3635,9 @@ skipped is the exact failure this incident is about:
   - Applied: local `generate_preset_pass_manager` ISA transpilation before Sampler; client-side `executor_sampler.Sampler` for qiskit-ibm-runtime 0.50; `max_execution_time` (default 600 s, env-bounded 1..10800); <=10M executions / <=5M 2q / backend-capacity preflight; `least_busy` fallback; optional instance CRN; shots cap 1M; cancel no longer treats IBM's None return as rejection.
   - Read-only live check: Bell circuit transpiled against ibm_fez to `{'rz','sx','cz','measure','barrier'}` (ISA; no job submitted).
   - Note: Open Plan is 10 QPU minutes per 28-day window; no QPU job/spend was authorized or submitted.
+
+## [2026-10-28] fix | IBM provider test/version fallback and instance binding
+
+  - qiskit-ibm-runtime <0.50 (and the CI stub) has no executor_sampler; fall back to legacy SamplerV2 while keeping ISA transpilation when the backend exposes a target.
+  - Kept the historical "positive int" shots error while adding the 1M upper bound (W2 regex compatibility).
+  - Retrieved the Open Plan instance CRN via service.instances() and stored it as KUBONA_IBM_QISKIT_INSTANCE in .env (mode 600, never printed/committed); the service now binds the instance explicitly instead of relying on auto-selection.
