@@ -72,6 +72,9 @@ func (s *Server) handleQuantumJobs(w http.ResponseWriter, r *http.Request) {
 		WriteAPIError(w, "method_not_allowed", "POST required to submit a quantum job", nil)
 		return
 	}
+	if s.refuseIfDiskBlocked(w) {
+		return
+	}
 	var req struct {
 		SessionID           string    `json:"session_id"`
 		QASM                string    `json:"qasm"`

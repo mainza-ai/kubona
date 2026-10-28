@@ -3553,3 +3553,7 @@ skipped is the exact failure this incident is about:
 
   - Every HTTP request is capped at 64 MiB (KUBONA_MAX_REQUEST_BODY_BYTES overrides within 1 MiB..512 MiB); oversized Content-Length gets a typed 413 `request_too_large` before any handler work, and chunked bodies are still bounded by MaxBytesReader.
   - Added the code to the CSV + Go registry and a test that oversize chat writes never persist.
+
+## [2026-10-27] decision | Disk guard covers every spend rail
+
+  - Lens dispatch, quantum submit, workflow run, memory retain, and session import now refuse with storage_blocked before decoding or spending when the disk guard is blocked. The disk-gate test pins all five.

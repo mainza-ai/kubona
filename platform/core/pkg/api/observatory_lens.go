@@ -128,6 +128,9 @@ func (s *Server) handleObservatoryLensStatus(w http.ResponseWriter, r *http.Requ
 }
 
 func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Request) {
+	if s.refuseIfDiskBlocked(w) {
+		return
+	}
 	var req ObservatoryLensRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		WriteAPIError(w, "bad_request", "malformed JSON request", nil)

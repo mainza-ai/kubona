@@ -91,11 +91,11 @@ func (s *Server) handleWorkflowPlan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, map[string]interface{}{
-		"ok":                     true,
-		"dry_run":                true,
-		"workflow_id":            resp.WorkflowId,
-		"steps":                  plannedSteps,
-		"unresolved_references":  resp.UnresolvedReferences,
+		"ok":                    true,
+		"dry_run":               true,
+		"workflow_id":           resp.WorkflowId,
+		"steps":                 plannedSteps,
+		"unresolved_references": resp.UnresolvedReferences,
 		"compensations_planned": compensationsPlanned,
 	})
 }
@@ -104,6 +104,9 @@ func (s *Server) handleWorkflowPlan(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		WriteAPIError(w, "method_not_allowed", "POST required to run a workflow", nil)
+		return
+	}
+	if s.refuseIfDiskBlocked(w) {
 		return
 	}
 	var req WorkflowRunPayload
@@ -166,15 +169,15 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 	defer cancel()
 
 	resp, err := bridge.WorkflowRun(ctx, &pb.WorkflowRunRequest{
-		WorkflowJson:             string(req.Workflow),
-		SessionId:                sess.ID,
-		Token:                    "dev-token",
-		InputsJson:               inputsJSON,
-		Force:                    req.Force,
-		SessionVerified:          true,
-		SessionBudgetCeilingUsd:  sess.SpendLimitUSD,
-		SessionSpentUsd:          sess.CurrentSpendUSD,
-		TenantId:                 sess.TenantID,
+		WorkflowJson:            string(req.Workflow),
+		SessionId:               sess.ID,
+		Token:                   "dev-token",
+		InputsJson:              inputsJSON,
+		Force:                   req.Force,
+		SessionVerified:         true,
+		SessionBudgetCeilingUsd: sess.SpendLimitUSD,
+		SessionSpentUsd:         sess.CurrentSpendUSD,
+		TenantId:                sess.TenantID,
 	})
 	if err != nil {
 		if reservedUSD > 0 {
