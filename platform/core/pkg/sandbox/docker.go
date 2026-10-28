@@ -127,25 +127,10 @@ func NewSandboxRunnerWithConfig(cfg Config) *SandboxRunner {
 		}
 	}
 
-	if useDocker {
-		_ = EnsureWarmRunner(cfg.Image)
-	}
-
 	return &SandboxRunner{
 		cfg:       cfg,
 		useDocker: useDocker,
 	}
-}
-
-// EnsureWarmRunner ensures that a persistent warm runner container is active in Docker Desktop
-func EnsureWarmRunner(image string) error {
-	out, err := exec.Command("docker", "ps", "--filter", "name=kubona-quantum-runner", "--format", "{{.Names}}").Output()
-	if err == nil && strings.TrimSpace(string(out)) == "kubona-quantum-runner" {
-		return nil
-	}
-	_ = exec.Command("docker", "rm", "-f", "kubona-quantum-runner").Run()
-	cmd := exec.Command("docker", "run", "-d", "--name", "kubona-quantum-runner", "--restart", "unless-stopped", "--entrypoint", "tail", image, "-f", "/dev/null")
-	return cmd.Run()
 }
 
 // Config returns the active runner configuration
