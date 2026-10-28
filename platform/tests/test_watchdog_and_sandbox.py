@@ -4,6 +4,7 @@ import pytest
 from kubona.autoresearch import Orchestrator, build_vqe_ansatz_harness
 from kubona.control.watchdog import Ring0Watchdog, WatchdogThresholds
 from kubona.sandbox import SecurityPolicyViolation, WorkloadSandbox
+from kubona.sandbox.execution import SANDBOX_IMAGE_DEFAULT
 
 
 def test_watchdog_nominal_continue():
@@ -76,7 +77,13 @@ def test_sandbox_ast_validation_blocks_eval_exec():
     assert "Disallowed call to builtin" in str(exc.value)
 
 
-def test_sandbox_subprocess_execution():
+def test_sandbox_subprocess_execution(monkeypatch):
+    # Dev-only hermetic runner: explicit acknowledgement fixture
+    # (KUBONA_SANDBOX_UNSAFE_LOCAL=1) plus pinned non-production env so the
+    # test is hermetic regardless of ambient KUBONA_* spellings.
+    monkeypatch.setenv("KUBONA_ENV", "test")
+    monkeypatch.setenv("KUBONA_SANDBOX_UNSAFE_LOCAL", "1")
+    monkeypatch.delenv("KUBONA_SANDBOX_CONTAINER", raising=False)
     sb = WorkloadSandbox(max_cpu_seconds=2)
     script = """
 import math
@@ -87,7 +94,10 @@ print(f"VAL={math.sqrt(16.0)}")
     assert "VAL=4.0" in res.stdout
 
 
-def test_sandbox_timeout_terminates_process_group():
+def test_sandbox_timeout_terminates_process_group(monkeypatch):
+    monkeypatch.setenv("KUBONA_ENV", "test")
+    monkeypatch.setenv("KUBONA_SANDBOX_UNSAFE_LOCAL", "1")
+    monkeypatch.delenv("KUBONA_SANDBOX_CONTAINER", raising=False)
     sb = WorkloadSandbox(max_cpu_seconds=5)
     script = """
 import time
@@ -158,6 +168,27 @@ def test_sandbox_refuses_local_execution_in_production(monkeypatch):
     assert "KUBONA_SANDBOX_CONTAINER" in res.stderr
 
 
+def test_sandbox_unsafe_local_flag_never_bypasses_production(monkeypatch):
+    """Phase-1: KUBONA_SANDBOX_UNSAFE_LOCAL=1 is dev-only acknowledgement,
+    never a production bypass — the refusal holds regardless of its value."""
+    monkeypatch.setenv("KUBONA_ENV", "production")
+    monkeypatch.setenv("KUBONA_SANDBOX_UNSAFE_LOCAL", "1")
+    monkeypatch.delenv("KUBONA_SANDBOX_CONTAINER", raising=False)
+    res = WorkloadSandbox().execute_script("print('should not run')")
+    assert res.success is False
+    assert res.violation == "isolation_required"
+
+
+def test_sandbox_unknown_env_spelling_fails_closed(monkeypatch):
+    """Phase-1: a KUBONA_ENV typo (e.g. "prod") must not silently re-enable
+    the local runner — unknown spellings refuse like production."""
+    monkeypatch.setenv("KUBONA_ENV", "prod")
+    monkeypatch.delenv("KUBONA_SANDBOX_CONTAINER", raising=False)
+    res = WorkloadSandbox().execute_script("print('should not run')")
+    assert res.success is False
+    assert res.violation == "isolation_required"
+
+
 def test_sandbox_blocks_native_and_file_escape_names():
     sb = WorkloadSandbox()
     for code in (
@@ -177,7 +208,7 @@ def test_container_sandbox_runs_pure_math(monkeypatch):
         pytest.skip("container sandbox not configured (CI builds the runner image)")
     monkeypatch.setenv("KUBONA_SANDBOX_CONTAINER", "1")
     monkeypatch.setenv("KUBONA_SANDBOX_IMAGE",
-                       os.getenv("KUBONA_SANDBOX_IMAGE", "kubona-quantum-runner:1.1.0"))
+                       os.getenv("KUBONA_SANDBOX_IMAGE", SANDBOX_IMAGE_DEFAULT))
     res = WorkloadSandbox().execute_script("import math\nprint(f'CONTAINER_OK={math.sqrt(9.0)}')")
     assert res.success, res.stderr
     assert "CONTAINER_OK=3.0" in res.stdout
