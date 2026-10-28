@@ -118,14 +118,18 @@ class KubonaGateway:
             self._authorize(principal, server, tool)
         builder = self._approval.get(f"{server}/{tool}")
         if builder is not None:
-            if self._approval_secret is None:
-                raise AuthError("approval gate armed without a state secret: refusing to run")
             sub = principal.sub if principal else "anon"
             if approval_response is None:
                 packet = builder(principal, dict(args))
                 if packet is None:
-                    pass  # auto-allowed below
+                    pass  # auto-allowed below (free-tier: no secret needed)
                 else:
+                    # Paid path: sealing demands the secret. Free-tier
+                    # auto-allows never reach here, so unconfigured
+                    # deployments keep working for simulators while paid
+                    # dispatches refuse loudly instead of running unsealed.
+                    if self._approval_secret is None:
+                        raise AuthError("approval gate armed without a state secret: refusing to run")
                     if not packet.args:
                         packet.args = dict(args)
                     return self._request_approval(sub, packet)
@@ -205,7 +209,16 @@ class KubonaGateway:
         self._audit_event({"packet_id": state["packet_id"], "phase": "approval_granted",
                            "server": server, "tool": tool, "sub": sub,
                            "decision": content["decision"]})
-        result = fn(**args)
+        # Phase-0: the in-function paid-dispatch gate honors this verified
+        # round via ambient context (scope + cost cover re-checked there);
+        # direct calls never carry it and must present their own approval.
+        from .approval import gateway_approved_call
+        record = {"server": server, "tool": tool, "sub": sub,
+                  "packet_id": state["packet_id"],
+                  "cost_max_usd": float(state.get("cost_max_usd", 0.0)),
+                  "nonce": state.get("nonce", "")}
+        with gateway_approved_call(record):
+            result = fn(**args)
         self._audit_event({"server": server, "tool": tool, "args_keys": sorted(args),
                            "sub": sub, "via": "approved:" + state["packet_id"],
                            "packet_id": state["packet_id"], "phase": "execution_completed"})

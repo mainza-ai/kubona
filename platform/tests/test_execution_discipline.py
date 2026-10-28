@@ -8,6 +8,25 @@ from kubona.mcp.servers import execution as exec_server
 
 BELL = "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];"
 
+def _approve_paid_dispatch(session_id: str, amount_usd: float,
+                           tenant_id: str = "lab-a", job_hash: str | None = None) -> str:
+    """Real approval machinery (never a stubbed gate): REVIEW -> HOLD ->
+    APPROVED with a freshly minted operator-signed mandate bound to the lab
+    + program. Returns the approval_id for paid submit calls."""
+    import os
+    from kubona.cost.mandate import canonical_job_binding
+    gov = exec_server._gov
+    key = os.urandom(32)
+    req = gov.request_approval(session_id, amount_usd, "phase-0 paid dispatch test")
+    gov.hold_approval(req.approval_id, reviewer="test-operator")
+    approved = gov.approve(
+        req.approval_id, reviewer="test-operator", note="phase-0 test",
+        tenant_id=tenant_id,
+        job_hash=job_hash or canonical_job_binding("circuit_run", session_id, BELL),
+        signing_key=key)
+    assert approved.state == "APPROVED" and approved.mandate_token
+    return approved.approval_id
+
 @pytest.fixture(autouse=True)
 def fresh_calibration():
     import dataclasses
@@ -34,9 +53,10 @@ def test_implicit_session_cap_refuses_self_granted_budget():
 
 def test_non_simulator_forced_async():
     sess = cost_server.create_session("qpu-async", "researcher", budget_ceiling_usd=500.0)
+    approval_id = _approve_paid_dispatch(sess["session_id"], 500.0)
     out = exec_server.submit_job(BELL, provider="ibm-qiskit", shots=100,
                                  session_id=sess["session_id"], wait=True,
-                                 caller_jurisdictions=["US"])
+                                 caller_jurisdictions=["US"], approval_id=approval_id)
     assert out["ok"] is True, out
     assert out["status"] in ("queued", "running"), out
     assert "async" in out.get("note", ""), out
@@ -93,8 +113,10 @@ def test_prevendor_failure_refunds_reservation(monkeypatch):
     monkeypatch.delenv("KUBONA_IBM_QISKIT_TOKEN", raising=False)
     sess = cost_server.create_session("refund-drill", "researcher", budget_ceiling_usd=100.0)
     sid = sess["session_id"]
+    approval_id = _approve_paid_dispatch(sid, 100.0)
     out = exec_server.submit_job(BELL, provider="ibm-qiskit", shots=64,
-                                 session_id=sid, caller_jurisdictions=["US"], wait=True)
+                                 session_id=sid, caller_jurisdictions=["US"], wait=True,
+                                 approval_id=approval_id)
     assert out["ok"] is True, out
     job_id = out["job_id"]
     status = None
@@ -159,3 +181,278 @@ def test_session_status_bounds_job_ids():
     assert out["jobs_returned"] == 100
     assert out["jobs_truncated"] is True
     assert out["jobs"] == [f"job-{i}" for i in range(50, 150)]
+
+
+# -- Phase-0 money rail ----------------------------------------------------
+
+def test_paid_submit_without_approval_refuses_and_free_proceeds():
+    """Bypass-refusal: a paid dispatch with no approval books nothing and
+    creates no job; the free tier is unaffected."""
+    sess = cost_server.create_session("approval-bypass", "researcher", budget_ceiling_usd=100.0)
+    sid = sess["session_id"]
+    out = exec_server.submit_job(BELL, provider="ibm-qiskit", shots=64,
+                                 session_id=sid, caller_jurisdictions=["US"], wait=True)
+    assert out["ok"] is False, out
+    assert "approval" in out["error"].lower(), out
+    assert exec_server.session_status(sid)["spent_usd"] == 0
+    assert exec_server.session_status(sid)["jobs_total"] == 0
+    # Free tier proceeds approval-free.
+    free = exec_server.submit_job(BELL, provider="local-simulator", shots=32,
+                                  session_id=sid)
+    assert free["ok"] is True, free
+
+
+def test_paid_approval_binding_refusals():
+    """The gate checks state, session binding, and cover — not just presence."""
+    import os
+    gov = exec_server._gov
+    sess = cost_server.create_session("approval-binding", "researcher", budget_ceiling_usd=500.0)
+    sid = sess["session_id"]
+    other = cost_server.create_session("approval-binding-other", "researcher",
+                                       budget_ceiling_usd=500.0)
+    key = os.urandom(32)
+
+    def _submit(**kw):
+        return exec_server.submit_job(BELL, provider="ibm-qiskit", shots=64,
+                                      session_id=sid, caller_jurisdictions=["US"],
+                                      wait=True, **kw)
+
+    # REVIEW-stage (never held/approved) refuses.
+    pending = gov.request_approval(sid, 500.0, "binding test")
+    out = _submit(approval_id=pending.approval_id)
+    assert out["ok"] is False and "APPROVED" in out["error"], out
+    # Approved for a DIFFERENT session refuses (no cross-session spend).
+    foreign = gov.request_approval(other["session_id"], 500.0, "binding test")
+    gov.hold_approval(foreign.approval_id, reviewer="test-operator")
+    gov.approve(foreign.approval_id, reviewer="test-operator", tenant_id="lab-a",
+                job_hash="job-foreign", signing_key=key)
+    out = _submit(approval_id=foreign.approval_id)
+    assert out["ok"] is False and "not this dispatch" in out["error"], out
+    # Under-cover approval refuses.
+    tiny = gov.request_approval(sid, 0.01, "binding test")
+    gov.hold_approval(tiny.approval_id, reviewer="test-operator")
+    gov.approve(tiny.approval_id, reviewer="test-operator", tenant_id="lab-a",
+                job_hash="job-tiny", signing_key=key)
+    out = _submit(approval_id=tiny.approval_id)
+    assert out["ok"] is False and "covers" in out["error"], out
+    # Unknown id refuses.
+    out = _submit(approval_id="ghost-approval")
+    assert out["ok"] is False and "unknown approval_id" in out["error"], out
+    assert exec_server.session_status(sid)["spent_usd"] == 0
+
+
+def test_gateway_paid_submit_gated_by_approval_packet(monkeypatch):
+    """Gateway wiring: paid submit without approval never executes (first
+    call asks); the full MRTR round sealed with KUBONA_APPROVAL_SECRET then
+    executes exactly once. Free tier executes immediately."""
+    import uuid
+    from kubona.mcp.approval import APPROVAL_SECRET_ENV, open_state
+    from kubona.mcp.servers._mount import build_gateway
+
+    monkeypatch.setenv(APPROVAL_SECRET_ENV, "phase0-test-secret-32-bytes!!")
+    monkeypatch.delenv("KUBONA_IBM_QISKIT_TOKEN", raising=False)
+    gw = build_gateway()
+    sess = cost_server.create_session("gateway-paid-gate", "researcher",
+                                      budget_ceiling_usd=500.0)
+    sid = sess["session_id"]
+    paid_args = {"circuit_qasm": BELL, "provider": "ibm-qiskit", "shots": 64,
+                 "session_id": sid, "caller_jurisdictions": ["US"], "wait": True,
+                 "idempotency_key": f"gw-paid-{uuid.uuid4().hex[:8]}",
+                 "idempotency_body_hash": "gw-paid-body"}
+
+    first = gw.call("execution", "submit_job", dict(paid_args), token="dev-token")
+    assert first["resultType"] == "input_required", first
+    assert "requestState" in first
+    state = open_state(first["requestState"], b"phase0-test-secret-32-bytes!!")
+    assert state["cost_max_usd"] > 0
+
+    # Wrong cost ack refuses; the nonce is single-use even on failure, so the
+    # success leg needs a fresh approval round (same as a human re-asking).
+    import pytest
+    with pytest.raises(Exception):
+        gw.call("execution", "submit_job", dict(paid_args), token="dev-token",
+                approval_response={"action": "accept",
+                                   "content": {"decision": "approve_once",
+                                               "cost_ack_usd": 0.01}},
+                request_state=first["requestState"])
+    fresh = gw.call("execution", "submit_job", dict(paid_args), token="dev-token")
+    assert fresh["resultType"] == "input_required", fresh
+    fresh_state = open_state(fresh["requestState"], b"phase0-test-secret-32-bytes!!")
+    second = gw.call("execution", "submit_job", dict(paid_args), token="dev-token",
+                     approval_response={"action": "accept",
+                                        "content": {"decision": "approve_once",
+                                                    "cost_ack_usd": fresh_state["cost_max_usd"]}},
+                     request_state=fresh["requestState"])
+    assert second["ok"] is True and second["job_id"], second
+
+    # Free tier on the same gated gateway executes with no approval round.
+    free = gw.call("execution", "submit_job",
+                   {"circuit_qasm": BELL, "provider": "local-simulator", "shots": 32},
+                   token="dev-token")
+    assert free.get("resultType") != "input_required" and free["ok"] is True, free
+
+
+def test_qubo_idempotent_retry_single_charge(monkeypatch):
+    """Phase-0 P0: a retried Leap dispatch replays the original job — one
+    reservation, never two — and a reused key with a different body refuses."""
+    import threading
+    import time
+    import uuid
+    from kubona.providers.annealing_provider import AnnealingProvider
+
+    # Paid Leap pricing (shipped JSON has zero rates and refuses estimation):
+    # per-task $2.00 + $0.01/shot x 64 = $2.64 deterministic.
+    real_load = exec_server.load_provider
+
+    def paid_load(name):
+        cap = real_load(name)
+        if name == "dwave-annealing":
+            cap = cap.model_copy(update={"pricing": cap.pricing.model_copy(
+                update={"model": "per_task_plus_per_shot",
+                        "per_task_usd": 2.0, "per_shot_usd": 0.01})})
+        return cap
+
+    monkeypatch.setattr(exec_server, "load_provider", paid_load)
+    monkeypatch.setattr(exec_server, "_fidelity_gate",
+                        lambda capability, circuit: {"admitted": True,
+                                                    "provider": capability.provider,
+                                                    "fidelity_receipt": "test"})
+    monkeypatch.delenv("KUBONA_DWAVE_ANNEALING_LEAP_TOKEN", raising=False)
+    # Hold the worker mid-flight so the retry deterministically lands while
+    # the first dispatch still holds its single reservation.
+    gate = threading.Event()
+    real_solve = AnnealingProvider.solve_qubo
+
+    def gated_solve(self, Q, n_samples=64, seed=7, backend="local", sampler_factory=None):
+        assert gate.wait(timeout=15), "worker never started"
+        return real_solve(Q, n_samples=n_samples, seed=seed,
+                          backend=backend, sampler_factory=sampler_factory)
+
+    monkeypatch.setattr(AnnealingProvider, "solve_qubo", gated_solve)
+
+    sess = cost_server.create_session("qubo-idem", "researcher", budget_ceiling_usd=100.0)
+    sid = sess["session_id"]
+    approval_id = _approve_paid_dispatch(sid, 100.0)
+    Q = [[-1.0, 2.0], [0.0, -1.0]]
+    key = f"qubo-idem-{uuid.uuid4().hex[:8]}"
+    kw = dict(qubo_matrix=Q, n_samples=64, backend="leap", session_id=sid,
+              caller_jurisdictions=["US"], approval_id=approval_id)
+
+    first = exec_server.submit_qubo_job(**kw, idempotency_key=key,
+                                        idempotency_body_hash="qubo-body-a")
+    assert first["ok"] is True, first
+    # Wait until the worker picked the job up (single $2.64 reservation live).
+    deadline = time.time() + 10
+    while exec_server._runner.store.get(first["job_id"]).status == "queued" \
+            and time.time() < deadline:
+        time.sleep(0.02)
+    retry = exec_server.submit_qubo_job(**kw, idempotency_key=key,
+                                        idempotency_body_hash="qubo-body-a")
+    assert retry["ok"] is True and retry.get("idempotent_replay") is True, retry
+    assert retry["job_id"] == first["job_id"]
+    assert exec_server.session_status(sid)["spent_usd"] == 2.64, \
+        "retry must not double-charge the reservation"
+    mismatch = exec_server.submit_qubo_job(**kw, idempotency_key=key,
+                                           idempotency_body_hash="qubo-body-B")
+    assert mismatch["ok"] is False and "different request body" in mismatch["error"]
+
+    gate.set()  # Leap refuses without credentials -> pre-vendor failure refunds.
+    terminal = None
+    for _ in range(200):
+        st = exec_server.get_job_status(first["job_id"])
+        terminal = st.get("status")
+        if terminal in ("failed", "completed", "cancelled"):
+            break
+        time.sleep(0.05)
+    assert terminal == "failed", terminal
+    assert exec_server.session_status(sid)["spent_usd"] == 0, \
+        "unpinned Leap failure must refund the single reservation"
+
+
+def test_settle_on_completion_releases_difference_idempotent():
+    """Phase-0 P0: terminal completion with reported usage settles
+    reserved->actual to the session; settling again is a no-op. Go-prepaid
+    mirrors are never touched (Go settles its own rail)."""
+    import time
+    # $8.00 reservation, vendor reports $3.20 of usage.
+    sess = cost_server.create_session("settle-drill", "researcher", budget_ceiling_usd=100.0)
+    sid = sess["session_id"]
+    exec_server._gov.record_spend(sid, 8.0)
+    job = exec_server._runner.store.create(
+        provider="ibm-qiskit", session_id=sid, circuit_hash="settle-test",
+        estimate={"estimated_usd": 8.0}, reserved_usd=8.0)
+    exec_server._runner.store.transition(job.job_id, "running")
+    exec_server._runner.store.transition(
+        job.job_id, "completed",
+        result={"counts": {"00": 64}, "usage_seconds": 2.0, "actual_usd": 3.2})
+    out = exec_server.get_result(job.job_id)
+    assert out["ok"] is True, out
+    assert out.get("settlement", {}).get("refunded_usd") == 4.8, out
+    assert exec_server.session_status(sid)["spent_usd"] == 3.2
+    # Second read: already settled — a no-op, money unmoved.
+    out2 = exec_server.get_result(job.job_id)
+    assert out2["ok"] is True
+    assert "settlement" not in out2, out2
+    assert exec_server.session_status(sid)["spent_usd"] == 3.2
+    assert exec_server._runner.store.get(job.job_id).meta.get("settled") is True
+
+    # Go-prepaid mirror: same completion shape, Python releases nothing.
+    pre = cost_server.create_session("settle-prepaid", "researcher", budget_ceiling_usd=100.0)
+    psid = pre["session_id"]
+    exec_server._sessions.update(
+        psid, meta={**(exec_server._sessions.get(psid).meta or {}), "spend_prepaid": True})
+    exec_server._gov.record_spend(psid, 8.0)  # Go-book mirror
+    pjob = exec_server._runner.store.create(
+        provider="ibm-qiskit", session_id=psid, circuit_hash="settle-prepaid",
+        estimate={"estimated_usd": 8.0}, reserved_usd=0.0)
+    exec_server._runner.store.transition(pjob.job_id, "running")
+    exec_server._runner.store.transition(
+        pjob.job_id, "completed",
+        result={"counts": {"00": 64}, "usage_seconds": 2.0, "actual_usd": 3.2})
+    assert exec_server.get_result(pjob.job_id)["ok"] is True
+    assert exec_server.session_status(psid)["spent_usd"] == 8.0, \
+        "Go-prepaid mirrors must not be settled on the Python rail"
+    assert time.time() > 0  # keep the import honest if the loop above is skipped
+
+
+def test_cancel_pre_vendor_refunds_full_reservation():
+    """Phase-0 P0: cancelling before the vendor ran returns the whole
+    reservation, ledger-sealed, with the policy stated in the receipt."""
+    sess = cost_server.create_session("cancel-refund", "researcher", budget_ceiling_usd=100.0)
+    sid = sess["session_id"]
+    exec_server._gov.record_spend(sid, 8.0)
+    job = exec_server._runner.store.create(
+        provider="ibm-qiskit", session_id=sid, circuit_hash="cancel-pre",
+        estimate={"estimated_usd": 8.0}, reserved_usd=8.0)
+    out = exec_server.cancel_job(job.job_id)
+    assert out["ok"] is True and out["status"] == "cancelled", out
+    assert out["refund_usd"] == 8.0, out
+    assert "pre-vendor" in out["spend_policy"], out
+    assert exec_server.session_status(sid)["spent_usd"] == 0
+    assert exec_server._runner.store.get(job.job_id).status == "cancelled"
+
+
+def test_cancel_post_vendor_keeps_charge(monkeypatch):
+    """Phase-0 P0: a pinned hardware id means the vendor may have run — the
+    charge stands, recall is attempted, and the receipt says so."""
+    from kubona.providers.base import ProviderError
+
+    class RefusingRecall:
+        def cancel(self, hardware_job_id):
+            raise ProviderError("vendor recall refused: already running")
+
+    monkeypatch.setattr(exec_server, "get_provider", lambda provider: RefusingRecall())
+    sess = cost_server.create_session("cancel-kept", "researcher", budget_ceiling_usd=100.0)
+    sid = sess["session_id"]
+    exec_server._gov.record_spend(sid, 8.0)
+    job = exec_server._runner.store.create(
+        provider="ibm-qiskit", session_id=sid, circuit_hash="cancel-post",
+        estimate={"estimated_usd": 8.0}, reserved_usd=8.0,
+        hardware_job_id="hw-1")
+    out = exec_server.cancel_job(job.job_id)
+    assert out["ok"] is True and out["status"] == "cancelled", out
+    assert out["provider_recall_attempted"] is True, out
+    assert out["charge_kept_usd"] == 8.0, out
+    assert "post-vendor" in out["spend_policy"], out
+    assert exec_server.session_status(sid)["spent_usd"] == 8.0, \
+        "post-vendor cancel keeps the charge (vendor may have run)"

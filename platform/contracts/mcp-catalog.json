@@ -1,6 +1,6 @@
 {
   "generated_by": "KUBONA_UPDATE_CATALOG=1 pytest platform/tests/test_mcp_catalog.py",
-  "digest": "d3e2a09511e848084710e738052b10bb2ee3f5d1ea645e41fd7088e03990c1d2",
+  "digest": "72fe310559e0ab1a42899d73ad3d78c1f7c38896549442e527161bbd7f2da3c5",
   "tools": [
     {
       "name": "compile_circuit",
@@ -1006,6 +1006,18 @@
             ],
             "default": null,
             "title": "Idempotency Body Hash"
+          },
+          "approval_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Approval Id"
           }
         },
         "required": [
@@ -1147,6 +1159,18 @@
             ],
             "default": null,
             "title": "Idempotency Body Hash"
+          },
+          "approval_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Approval Id"
           }
         },
         "required": [

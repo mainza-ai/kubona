@@ -9,6 +9,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import math
 import uuid
 
 from mcp.server.mcpserver import MCPServer
@@ -17,6 +18,10 @@ from kubona.circuits import canonical_hash, parse_qasm2
 from kubona.cost.governance import GovernanceError
 from kubona.fidelity.accounting import FidelityAccountingEngine, PROVIDER_DEVICE_MAP
 from kubona.jobs import JobRunner
+from kubona.mcp.approval import (
+    build_packet,
+    current_gateway_approval,
+)
 from kubona.mitigation import run_zne
 from kubona.providers import get_provider, list_providers
 from kubona.providers.base import ProviderError
@@ -53,6 +58,18 @@ _LOCAL_ONLY_PROVIDERS = frozenset({"local-simulator", "qiskit-aer-simulator"})
 # Above the cap, open a session via cost/create_session (cost:manage-gated)
 # and submit with its id. v1 heuristic, labeled.
 IMPLICIT_SESSION_CEILING_USD = 50.0
+
+# Cancel spend policy (Phase-0, single shared const): the receipt states it
+# verbatim so pre/post-vendor treatment is never ambiguous downstream.
+CANCEL_SPEND_POLICY = (
+    "spend policy: pre-vendor cancel refunds the full reservation "
+    "(the vendor never ran); post-vendor cancel keeps the charge "
+    "(a pinned hardware id means the vendor may have run)"
+)
+
+# Tools whose gateway MRTR approval the in-function paid gate honors
+# (ambient context, scope re-checked at dispatch).
+_APPROVED_SUBMIT_TOOLS = frozenset({"submit_job", "submit_qubo_job"})
 
 
 def _fidelity_gate(capability, circuit) -> dict:
@@ -97,6 +114,277 @@ def _fidelity_gate(capability, circuit) -> dict:
     return verdict
 
 
+def _is_spend_prepaid(session) -> bool:
+    """Go-authoritative mirrors carry `spend_prepaid` in session meta: Go
+    already reserved the job against the authoritative book, so Python must
+    not charge, refund, settle, or demand approval for its mirror."""
+    return bool((getattr(session, "meta", {}) or {}).get("spend_prepaid"))
+
+
+def _reserved_for_job(job) -> float:
+    """Python-recorded reservation for a job (dispatch estimate). 0.0 means
+    no Python reservation exists (free tier or Go-prepaid mirror)."""
+    meta = (getattr(job, "meta", None) or {})
+    reserved = meta.get("reserved_usd")
+    if reserved is None:
+        est = meta.get("estimate")
+        reserved = est.get("estimated_usd", 0.0) if isinstance(est, dict) else 0.0
+    try:
+        return round(float(reserved), 6)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _extract_actual_usd(result) -> float | None:
+    """Reported usage from a completed result. Providers carry it top-level
+    (synchronous wait path) or nested under `result` (deferred poll path) —
+    both shapes settle identically; anything else means usage unknown."""
+    if not isinstance(result, dict):
+        return None
+    raw = result.get("actual_usd")
+    if raw is None:
+        inner = result.get("result")
+        if isinstance(inner, dict):
+            raw = inner.get("actual_usd")
+    try:
+        value = round(float(raw), 6)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(value) or value < 0:
+        return None
+    return value
+
+
+def _maybe_settle_job(job) -> dict | None:
+    """Mirror the Go CAS-settle semantics on the Python rail: on terminal
+    completion with reported usage below the reservation, release the
+    difference back to the session. Crash-safe (the store CAS marks first,
+    so a crash under-refunds rather than double-releasing) and idempotent
+    (an already-settled job is a no-op). Returns a receipt when it acted or
+    when it observed a prior settle, else None (nothing reserved / Go-owned).
+    """
+    if job is None or getattr(job, "status", None) != "completed":
+        return None
+    actual = _extract_actual_usd(getattr(job, "result", None))
+    try:
+        _, did_mark, reserved = _runner.store.cas_mark_settled(
+            job.job_id, actual)
+    except Exception:  # noqa: BLE001 — store failure must never break a status read
+        return None
+    if not did_mark:
+        return {"settled": True, "already_settled": True, "refunded_usd": 0.0,
+                "note": "settle replay: already settled, no money moved"}
+    if reserved <= 0:
+        return {"settled": True, "reserved_usd": 0.0, "actual_usd": actual,
+                "refunded_usd": 0.0, "note": "no Python reservation to settle"}
+    try:
+        session = _sessions.get(job.session_id)
+    except KeyError:
+        return {"settled": True, "reserved_usd": reserved, "actual_usd": actual,
+                "refunded_usd": 0.0, "note": "session gone: reservation kept, no refund"}
+    if _is_spend_prepaid(session):
+        # Dual-rail: Go settles its own rail from the status poll. Touching
+        # the Python mirror would double-settle the same usage.
+        return {"settled": True, "reserved_usd": reserved, "actual_usd": actual,
+                "refunded_usd": 0.0, "note": "go-prepaid mirror: Go reconciles, Python holds no reservation"}
+    if actual is None or actual >= reserved:
+        _runner._record("job_settle_skipped", {
+            "job_id": job.job_id, "session_id": job.session_id,
+            "reserved_usd": reserved, "actual_usd": actual,
+            "reason": "actual_usd_missing" if actual is None else "actual_usd_above_reserved",
+        })
+        return {"settled": True, "reserved_usd": reserved, "actual_usd": actual,
+                "refunded_usd": 0.0, "note": "usage unknown or at/above estimate: estimate stands"}
+    diff = round(reserved - actual, 6)
+    if diff <= 0:
+        return {"settled": True, "reserved_usd": reserved, "actual_usd": actual,
+                "refunded_usd": 0.0}
+    try:
+        _gov.refund_spend(job.session_id, diff,
+                          f"settle {job.job_id}: reserved ${reserved} -> actual ${actual}")
+        _runner._record("job_settled", {
+            "job_id": job.job_id, "session_id": job.session_id,
+            "reserved_usd": reserved, "actual_usd": actual, "refunded_usd": diff,
+        })
+    except GovernanceError as e:
+        # Marker is already set (no retry will double-release); the lab keeps
+        # the estimate and the failure is stated, never silent.
+        return {"settled": True, "reserved_usd": reserved, "actual_usd": actual,
+                "refunded_usd": 0.0, "refund_failed": str(e)}
+    return {"settled": True, "reserved_usd": reserved, "actual_usd": actual,
+            "refunded_usd": diff}
+
+
+def _paid_dispatch_authorized(*, tool: str, session, session_id: str,
+                              cost_usd: float, approval_id: str | None) -> dict | None:
+    """Fail-closed paid-dispatch gate (Phase-0). Returns None when the spend
+    is authorized; otherwise the refusal envelope (ok False + error).
+
+    Authorized when: the dispatch is free (zero-cost simulators proceed
+    without approval); the session is a Go-prepaid mirror (Go verified the
+    mandate on its rail); the enclosing gateway call just survived a full
+    MRTR round for this tool covering the cost; or `approval_id` names a
+    governance APPROVED approval bound to this session, covering the cost,
+    with a minted mandate. Anything else refuses — approval-free spend to
+    the session ceiling is gone."""
+    try:
+        cost = round(float(cost_usd), 6)
+    except (TypeError, ValueError):
+        return {"ok": False, "session_id": session_id,
+                "error": f"unpriced dispatch (cost {cost_usd!r}): refusing unbound spend"}
+    if not math.isfinite(cost):
+        return {"ok": False, "session_id": session_id,
+                "error": f"unpriced dispatch (non-finite cost {cost_usd!r}): refusing unbound spend"}
+    if cost <= 0:
+        return None
+    if _is_spend_prepaid(session):
+        return None
+    ambient = current_gateway_approval()
+    if isinstance(ambient, dict) and ambient.get("server") == "execution" \
+            and ambient.get("tool") == tool and tool in _APPROVED_SUBMIT_TOOLS:
+        try:
+            covered = float(ambient.get("cost_max_usd", 0.0))
+        except (TypeError, ValueError):
+            covered = 0.0
+        if covered >= cost:
+            return None
+        return {"ok": False, "session_id": session_id,
+                "error": f"gateway approval covers ${covered} < dispatch cost ${cost}: refused"}
+    if not approval_id or not str(approval_id).strip():
+        return {"ok": False, "session_id": session_id,
+                "error": "paid dispatch requires an approval: pass approval_id for a governance "
+                         "APPROVED approval (cost/request_approval -> hold -> approve) covering "
+                         f"${cost}, or dispatch through the approval-gated gateway: refusing "
+                         "approval-free spend"}
+    try:
+        approvals = _gov._load_approvals()  # same-process store the gateway/tests share
+    except Exception as e:  # noqa: BLE001 — unreadable approvals fail closed
+        return {"ok": False, "session_id": session_id,
+                "error": f"approval store unreadable: refusing paid dispatch ({e})"}
+    approval = approvals.get(str(approval_id))
+    if approval is None:
+        return {"ok": False, "session_id": session_id,
+                "error": f"unknown approval_id {str(approval_id)!r}: refusing paid dispatch"}
+    if approval.state != "APPROVED":
+        return {"ok": False, "session_id": session_id,
+                "error": f"approval {approval.approval_id} is {approval.state}, not APPROVED "
+                         "(request -> hold -> approve): refusing paid dispatch"}
+    if approval.session_id != session_id:
+        return {"ok": False, "session_id": session_id,
+                "error": f"approval {approval.approval_id} binds session {approval.session_id!r}, "
+                         "not this dispatch: refusing cross-session spend"}
+    try:
+        covered_amount = float(approval.amount_requested_usd)
+    except (TypeError, ValueError):
+        covered_amount = 0.0
+    if covered_amount < cost:
+        return {"ok": False, "session_id": session_id,
+                "error": f"approval {approval.approval_id} covers ${covered_amount} < dispatch "
+                         f"cost ${cost}: refusing under-approved spend"}
+    if not approval.mandate_token or not approval.mandate_digest:
+        return {"ok": False, "session_id": session_id,
+                "error": f"approval {approval.approval_id} carries no minted mandate: refusing"}
+    return None
+
+
+def _submit_packet_builder(*, tool: str, principal, args: dict) -> dict | None:
+    """Shared core for the gateway approval packet builders: returns None to
+    auto-allow (free tier, dry run, a valid governance approval already
+    presented, or anything the tool itself will refuse before spend), else a
+    real ApprovalPacket (the gateway seals it with the shared
+    `APPROVAL_SECRET_ENV` secret from `kubona.mcp.approval`).
+
+    Ordering matters: this builder runs BEFORE the tool's routing, session,
+    and fidelity gates. On any estimation/validation uncertainty it defers
+    (None) so the tool's precise refusal — routing-blocked, unknown session,
+    unpriced provider — is never masked by an approval ask or a builder
+    raise. Enforcement lives in the tool (`_paid_dispatch_authorized`,
+    checked after routing/fidelity and before money moves); the packet is
+    the early human ask for dispatches that provably spend, never the lock.
+    Only an unknown provider raises (the tool raises KeyError there too —
+    fail-closed on both rails)."""
+    a = dict(args or {})
+    if a.get("estimate_only") is True:
+        return None  # dry run moves no money (Go parity: mandate only for real dispatch)
+    provider = a.get("provider", "local-simulator")
+    try:
+        capability = load_provider(provider)
+    except KeyError as e:
+        raise ValueError(f"unknown provider {provider!r}: refusing unbound spend") from e
+    modality = getattr(capability.modality, "value", str(capability.modality))
+    try:
+        if tool == "submit_qubo_job" or modality == "annealing":
+            n_samples = a.get("n_samples", a.get("shots", 64))
+            if not isinstance(n_samples, int) or isinstance(n_samples, bool) or n_samples < 1:
+                return None  # tool refuses shots precisely
+            backend = a.get("backend", "local")
+            if backend == "local":
+                return None  # credential-free local solver: free tier
+            if backend != "leap":
+                return None  # tool refuses the backend precisely
+            estimate = capability.cost_estimate(n_samples)
+            program_hash = hashlib.sha256(
+                json.dumps(a.get("qubo_matrix", ""), sort_keys=True, default=str).encode()
+            ).hexdigest()[:16]
+            qubits = 0
+            shots = n_samples
+        else:
+            circuit = parse_qasm2(a.get("circuit_qasm", ""))
+            shots = a.get("shots", 1024)
+            if not isinstance(shots, int) or isinstance(shots, bool) or shots < 1:
+                return None  # tool refuses shots precisely
+            estimate = capability.cost_estimate(shots, circuit)
+            program_hash = canonical_hash(circuit)
+            qubits = getattr(circuit, "num_qubits", 0)
+    except ValueError:
+        # Unpriced/unparseable: the tool refuses precisely (preflight/
+        # routing/fidelity envelope) — never mask it, never read as free.
+        return None
+    try:
+        cost = round(float(estimate.get("estimated_usd", 0.0)), 6)
+    except (TypeError, ValueError):
+        return None  # unpriced: tool refuses precisely
+    if cost <= 0:
+        # Zero-cost simulators auto-allow; $0.00 non-simulators are refused
+        # by the tool itself (reads as free tier downstream) — defer to it.
+        return None
+    session_id = a.get("session_id")
+    remaining: float = IMPLICIT_SESSION_CEILING_USD
+    if session_id:
+        try:
+            sess = _sessions.get(session_id)
+        except KeyError:
+            return None  # tool refuses unknown sessions precisely
+        rem = sess.remaining()
+        remaining = float(rem) if rem is not None else IMPLICIT_SESSION_CEILING_USD
+        presented = a.get("approval_id")
+        if presented and _paid_dispatch_authorized(
+                tool=tool, session=sess, session_id=session_id,
+                cost_usd=cost, approval_id=presented) is None:
+            return None  # valid governance approval rides along: no MRTR theater
+    sub = getattr(principal, "sub", None) or "anon"
+    basis = estimate.get("cost_basis") or estimate.get("notes") or ""
+    return build_packet(
+        agent_id=sub, server="execution", tool=tool, backend=provider,
+        program_hash=program_hash, cost_max_usd=cost,
+        budget_remaining_usd=remaining, cost_basis=str(basis),
+        qubits=int(qubits or 0), shots=int(shots or 0),
+        evidence={"estimate": estimate, "session_id": session_id,
+                  "implicit_session": session_id is None},
+        args=dict(a),
+    )
+
+
+def submit_job_approval_builder(principal, args):
+    """Gateway approval gate for execution/submit_job (Phase-0 wiring)."""
+    return _submit_packet_builder(tool="submit_job", principal=principal, args=args)
+
+
+def submit_qubo_job_approval_builder(principal, args):
+    """Gateway approval gate for execution/submit_qubo_job (Phase-0 wiring)."""
+    return _submit_packet_builder(tool="submit_qubo_job", principal=principal, args=args)
+
+
 def submit_qubo_job(qubo_matrix: list[list[float]] | str, n_samples: int = 64,
                     session_id: str | None = None, budget_ceiling_usd: float | None = None,
                     seed: int | None = 7, backend: str = "local",
@@ -105,12 +393,19 @@ def submit_qubo_job(qubo_matrix: list[list[float]] | str, n_samples: int = 64,
                     require_review: bool = False,
                     estimate_only: bool = False,
                     idempotency_key: str | None = None,
-                    idempotency_body_hash: str | None = None) -> dict:
+                    idempotency_body_hash: str | None = None,
+                    approval_id: str | None = None) -> dict:
     """Submit a QUBO matrix to the annealing provider (`dwave-annealing`).
 
     Supports credential-free local solving (`backend="local"`: exact enumeration
     for n<=16, dimod simulated annealing or labeled single-bit-flip heuristic
     for n>16) and D-Wave Leap hybrid cloud (`backend="leap"`).
+
+    Money discipline mirrors `submit_job`: the idempotency key is claimed
+    atomically BEFORE any spend (a retried dispatch replays, never
+    double-charges), and paid Leap dispatches require an approval (governance
+    APPROVED approval via `approval_id`, a gateway MRTR round, or a
+    Go-prepaid mirror session) — free local solves proceed without one.
     """
     import numpy as np
     from kubona.providers.annealing_provider import AnnealingProvider
@@ -166,6 +461,10 @@ def submit_qubo_job(qubo_matrix: list[list[float]] | str, n_samples: int = 64,
         except KeyError:
             return {"ok": False, "error": f"unknown session_id {session_id!r}"}
 
+    # Go-authoritative mirrors (spend_prepaid): Go already reserved the job —
+    # Python must not charge, refund, settle, or demand approval for its copy.
+    spend_prepaid = _is_spend_prepaid(session)
+
     if backend == "local":
         estimate = {
             "provider": provider,
@@ -216,26 +515,86 @@ def submit_qubo_job(qubo_matrix: list[list[float]] | str, n_samples: int = 64,
                 "circuit_hash": qubo_hash}
 
     cost = estimate["estimated_usd"]
-    if cost > 0:
+
+    # Paid Leap dispatches move money: fail closed without an approval.
+    # (Free local solves skip — same rule as submit_job; estimate_only
+    # already returned above, so this gates real spend only.)
+    if not estimate_only:
+        refusal = _paid_dispatch_authorized(
+            tool="submit_qubo_job", session=session, session_id=session_id,
+            cost_usd=cost, approval_id=approval_id)
+        if refusal is not None:
+            return refusal
+
+    # Atomically claim the idempotency key BEFORE money moves (Phase-0 P0):
+    # the old spend-before-create double-charged a retried dispatch. A
+    # replay returns the original job with no new spend; a key reused for a
+    # different body refuses — the same body-hash rule as submit_job.
+    job, created = _runner.store.find_or_create(
+        provider=provider, session_id=session_id,
+        idempotency_key=idempotency_key or "",
+        body_hash=idempotency_body_hash or "",
+        circuit_hash=qubo_hash, circuit_qasm=qubo_canonical,
+        shots=n_samples, seed=seed, estimate=estimate,
+        reserved_usd=0.0 if spend_prepaid else cost,
+    )
+    job_id = job.job_id
+    if not created:
+        prior_body = (job.meta or {}).get("body_hash")
+        if idempotency_body_hash and prior_body and prior_body != idempotency_body_hash:
+            return {"ok": False, "job_id": job_id, "session_id": job.session_id,
+                    "error": "idempotency_key reused with a different request body: refused"}
+        return {"ok": True, "job_id": job_id, "session_id": job.session_id,
+                "status": job.status, "idempotent_replay": True,
+                "circuit_hash": (job.meta or {}).get("circuit_hash", qubo_hash)}
+
+    if cost > 0 and not spend_prepaid:
         try:
             _gov.record_spend(session_id, cost)
         except GovernanceError as e:
+            try:
+                _runner.store.transition(job_id, "failed", error=f"spend refused: {e}")
+            except Exception:  # noqa: BLE001 — best-effort ghost cleanup
+                pass
             return {"ok": False, "error": f"spend refused at dispatch: {e}",
                     "session_id": session_id}
 
-    job = _runner.store.create(provider=provider, session_id=session_id,
-                               circuit_hash=qubo_hash, circuit_qasm=qubo_canonical,
-                               shots=n_samples, seed=seed, estimate=estimate,
-                               idempotency_key=idempotency_key or "",
-                               body_hash=idempotency_body_hash or "")
-    job_id = job.job_id
-
     def _run_qubo() -> dict:
-        return exec_plugin.solve_qubo(Q, n_samples=n_samples, seed=seed, backend=backend)
+        try:
+            return exec_plugin.solve_qubo(Q, n_samples=n_samples, seed=seed, backend=backend)
+        except Exception as e:
+            # No hardware-id pin exists on this path (unlike submit_job's
+            # _pin callback): a worker failure is treated as pre-vendor —
+            # the reservation returns (Go parity for unpinned failures).
+            # Once Leap surfaces a vendor job id, pin it here and keep the
+            # charge instead (post-vendor-cancel policy).
+            if cost > 0 and not spend_prepaid:
+                try:
+                    _gov.refund_spend(session_id, cost, f"qubo worker failure: {e}")
+                    _runner._record("session_spend_refunded", {
+                        "session_id": session_id, "job_id": job_id,
+                        "amount_usd": cost, "reason": f"qubo worker failure: {e}",
+                    })
+                except GovernanceError:
+                    pass
+            raise
 
     try:
         _runner.enqueue(job_id, _run_qubo)
     except (KeyError, RuntimeError) as e:
+        if cost > 0 and not spend_prepaid:
+            try:
+                _gov.refund_spend(session_id, cost, f"pre-vendor enqueue failure: {e}")
+                _runner._record("session_spend_refunded", {
+                    "session_id": session_id, "job_id": job_id,
+                    "amount_usd": cost, "reason": f"pre-vendor enqueue failure: {e}",
+                })
+            except GovernanceError:
+                pass
+        try:
+            _runner.store.transition(job_id, "failed", error=f"farm refused: {e}")
+        except Exception:  # noqa: BLE001 — best-effort ghost cleanup
+            pass
         return {"ok": False, "error": f"farm refused the job: {e}", "session_id": session_id}
 
     if backend == "local":
@@ -265,7 +624,8 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
                wait: bool = True, wait_timeout_s: float = 30.0,
                estimate_only: bool = False,
                idempotency_key: str | None = None,
-               idempotency_body_hash: str | None = None) -> dict:
+               idempotency_body_hash: str | None = None,
+               approval_id: str | None = None) -> dict:
     """Submit a circuit through the cost-governance gate, threaded to a session.
 
     Production job/session abstraction: jobs are persisted to the async job farm;
@@ -276,6 +636,11 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
     Routing enforcement (Phase 5 / §2.9): when the caller declares its
     jurisdictions/export-control class, the provider must be ELIGIBLE or the job
     is blocked BEFORE any execution — the compliance gate, not an afterthought.
+
+    Money (Phase-0): free-tier simulator dispatches proceed without approval;
+    ANY dispatch that can spend > 0 requires one — a governance APPROVED
+    approval via `approval_id`, a gateway MRTR round, or a Go-prepaid mirror
+    session — else the submit refuses approval-free spend.
     """
     capability = load_provider(provider)
     if getattr(capability.modality, "value", str(capability.modality)) == "annealing":
@@ -294,6 +659,7 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
                 estimate_only=estimate_only,
                 idempotency_key=idempotency_key,
                 idempotency_body_hash=idempotency_body_hash,
+                approval_id=approval_id,
             )
         return {
             "ok": False,
@@ -348,8 +714,9 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
             return {"ok": False, "error": f"unknown session_id {session_id!r}"}
 
     # Go-authoritative sessions are mirrored with spend_prepaid=True: Go
-    # already reserved the job, so Python must not charge/refund its mirror.
-    spend_prepaid = bool((getattr(session, "meta", {}) or {}).get("spend_prepaid"))
+    # already reserved the job, so Python must not charge/refund/settle its
+    # mirror or demand approval for it.
+    spend_prepaid = _is_spend_prepaid(session)
 
     pf = _gov.preflight(capability, circuit, shots, session)
     if not pf["ok"]:
@@ -367,6 +734,16 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
     if not fidelity["admitted"]:
         return {"ok": False, "error": fidelity["rejection_reason"],
                 "fidelity": fidelity, "session_id": session_id}
+
+    # Phase-0 approval gate: anything that can spend > 0 refuses without an
+    # approval (free simulators skip). Checked BEFORE the idempotency claim
+    # so an approval-free retry learns nothing and books nothing.
+    if not estimate_only:
+        refusal = _paid_dispatch_authorized(
+            tool="submit_job", session=session, session_id=session_id,
+            cost_usd=pf["estimate"]["estimated_usd"], approval_id=approval_id)
+        if refusal is not None:
+            return refusal
 
     exec_plugin = get_provider(provider)  # ProviderError if data-only
     circuit_hash = canonical_hash(circuit)
@@ -419,12 +796,15 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
 
     # Atomically claim the idempotency key BEFORE money moves. The old
     # check-then-create raced two retries into two charges/dispatches.
+    # `reserved_usd` records the Python reservation for settle/cancel; Go
+    # mirrors hold no Python reservation (0.0 — Go reconciles its own rail).
     job, created = _runner.store.find_or_create(
         provider=provider, session_id=session_id,
         idempotency_key=idempotency_key or "",
         body_hash=idempotency_body_hash or "",
         circuit_hash=circuit_hash, circuit_qasm=circuit_qasm,
         shots=shots, seed=seed, estimate=pf["estimate"],
+        reserved_usd=0.0 if spend_prepaid else cost,
     )
     job_id = job.job_id
     if not created:
@@ -554,6 +934,9 @@ def _refresh_deferred_hardware_job(job):
                 job.job_id, "completed", result=polled.get("result") or polled
             )
             _runner._record("job_completed", {"job_id": job.job_id, "ok": True, "hardware_job_id": hw_id})
+            # Phase-0 settle: the vendor reported usage — release
+            # reserved→actual to the session (idempotent, Go-mirror-safe).
+            _maybe_settle_job(updated or job)
             return updated or job, None
         if p_status == "failed":
             err = str(polled.get("error") or f"hardware job {hw_id} failed")
@@ -577,6 +960,10 @@ def get_job_status(job_id: str) -> dict:
     if job is None:
         return {"ok": False, "error": "unknown job_id"}
     job, poll_warn = _refresh_deferred_hardware_job(job)
+    if job.status == "completed":
+        # Worker-completed jobs (synchronous path) settle here; deferred ones
+        # settled at the poll transition above. Idempotent either way.
+        _maybe_settle_job(job)
     out = {"ok": True, "job_id": job_id, "status": job.status, "provider": job.provider,
            "session_id": job.session_id, "created_at": job.created_at}
     hw_id = (getattr(job, "meta", None) or {}).get("hardware_job_id")
@@ -601,8 +988,12 @@ def get_result(job_id: str) -> dict:
         return {"ok": False, "job_id": job_id, "status": job.status, "error": "job cancelled"}
     if job.status != "completed":
         return {"ok": False, "job_id": job_id, "status": job.status, "error": "not completed"}
-    return {"ok": True, "job_id": job_id, "provider": job.provider, "session_id": job.session_id,
-            "result": job.result}
+    settle = _maybe_settle_job(job)
+    out = {"ok": True, "job_id": job_id, "provider": job.provider, "session_id": job.session_id,
+           "result": job.result}
+    if isinstance(settle, dict) and settle.get("refunded_usd", 0.0) > 0:
+        out["settlement"] = settle
+    return out
 
 
 def cancel_job(job_id: str) -> dict:
@@ -612,21 +1003,66 @@ def cancel_job(job_id: str) -> dict:
     id was pinned at dispatch, also call the provider's cancel() — best
     effort, never implying refund. A vendor refusal does not resurrect the
     job: the fence already stopped Kubona from accepting the result.
+
+    Money (Phase-0): pre-vendor cancel (no hardware id pinned — the vendor
+    never ran) refunds the FULL Python reservation, ledger-sealed;
+    post-vendor cancel keeps the charge (the vendor may have run), stated in
+    the receipt. Go-prepaid mirrors never refund on this rail.
     """
     job = _runner.store.get(job_id)
     if job is None:
         return {"ok": False, "job_id": job_id, "error": "job not found or already terminal"}
+    hw = (getattr(job, "meta", None) or {}).get("hardware_job_id")
+    reserved = _reserved_for_job(job)
     fenced = _runner.cancel(job_id)
     if not fenced:
         return {"ok": False, "job_id": job_id, "error": "job not found or already terminal"}
-    out = {"ok": True, "job_id": job_id, "status": "cancelled"}
-    hw = (getattr(job, "meta", None) or {}).get("hardware_job_id")
+    out: dict = {"ok": True, "job_id": job_id, "status": "cancelled",
+                 "spend_policy": CANCEL_SPEND_POLICY}
     if hw:
         out["provider_recall_attempted"] = True
         try:
             out["provider_recall"] = get_provider(job.provider).cancel(str(hw))
         except ProviderError as exc:
             out["provider_recall_error"] = str(exc)
+        # Post-vendor cancel: the vendor may have run, so the charge stands
+        # (Go parity: pinned hardware ids keep the reservation on failure).
+        if reserved > 0:
+            out["charge_kept_usd"] = reserved
+            out["charge_kept_reason"] = (
+                "post-vendor cancel: hardware job id was pinned, the vendor "
+                "may have run — reservation kept")
+        return out
+    # Pre-vendor cancel: the vendor never ran — return the full reservation.
+    # The fence transition above is atomic (terminal states are immutable),
+    # so exactly one canceller can reach this refund: no double-release.
+    if reserved <= 0:
+        out["refund_usd"] = 0.0
+        out["refund_note"] = "no Python reservation (free tier or Go-prepaid mirror): nothing to refund"
+        return out
+    try:
+        session = _sessions.get(job.session_id)
+    except KeyError:
+        out["refund_usd"] = 0.0
+        out["refund_error"] = "session gone: reservation kept, no refund issued"
+        return out
+    if _is_spend_prepaid(session):
+        out["refund_usd"] = 0.0
+        out["refund_note"] = "go-prepaid mirror: Go reconciles its own rail, Python refunds nothing"
+        return out
+    try:
+        _gov.refund_spend(job.session_id, reserved,
+                          f"pre-vendor cancel {job_id}: vendor never ran, full reservation returned")
+        _runner._record("session_spend_refunded", {
+            "session_id": job.session_id, "job_id": job_id,
+            "amount_usd": reserved, "reason": f"pre-vendor cancel {job_id}",
+        })
+    except GovernanceError as e:
+        out["refund_usd"] = 0.0
+        out["refund_error"] = str(e)
+        return out
+    out["refund_usd"] = reserved
+    out["refund_reason"] = f"pre-vendor cancel {job_id}: vendor never ran (no hardware id pinned)"
     return out
 
 
