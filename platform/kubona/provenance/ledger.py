@@ -185,6 +185,7 @@ class Ledger:
                 fd = os.open(self.path, os.O_WRONLY | os.O_CREAT | os.O_APPEND, 0o644)
                 try:
                     os.write(fd, (record.to_json() + "\n").encode())
+                    os.fsync(fd)
                 finally:
                     os.close(fd)
                 return record
@@ -194,7 +195,16 @@ class Ledger:
     def __iter__(self) -> Iterator[LedgerRecord]:
         if not self.path.exists():
             return
-        for line in self.path.read_text().splitlines():
+        # Shared flock: a concurrent append must not be observed as a torn
+        # final line (the writer holds LOCK_EX across tail-read + write).
+        lock_path = self.path.parent / (self.path.name + ".lock")
+        with open(lock_path, "a+b") as lf:
+            fcntl.flock(lf.fileno(), fcntl.LOCK_SH)
+            try:
+                raw = self.path.read_text()
+            finally:
+                fcntl.flock(lf.fileno(), fcntl.LOCK_UN)
+        for line in raw.splitlines():
             if line.strip():
                 yield LedgerRecord.from_json(line)
 
@@ -217,7 +227,7 @@ class Ledger:
         return sum(1 for _ in self)
 
 
-def readable(record: LedgerRecord, requester: str | None) -> bool:
+def readable(record: LedgerRecord, requester: str | None, file_tenant: str | None = None) -> bool:
     """Pre-serialization readership check (IFC seam 1 of 3).
 
     Public and pre-label ("") records are world-readable; tenant records are
@@ -231,9 +241,12 @@ def readable(record: LedgerRecord, requester: str | None) -> bool:
     if label == "public":
         return True
     if not label:
-        # Legacy pre-label rows: files are sharded per tenant, so the file
-        # itself is the boundary. Preserves exact pre-label behavior.
-        return True
+        # Legacy pre-label rows: the file's own tenant is the boundary. An
+        # ambient reader (requester None) must NOT inherit that tenant just
+        # because the row predates labels; a named reader must match it.
+        if requester is None or file_tenant is None:
+            return False
+        return requester == file_tenant
     if requester is None:
         return False
     return label == f"tenant/{requester}"
