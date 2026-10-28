@@ -14,7 +14,7 @@ import uuid
 from mcp.server.mcpserver import MCPServer
 
 from kubona.circuits import canonical_hash, parse_qasm2
-from kubona.cost.governance import CostGovernanceService, GovernanceError
+from kubona.cost.governance import GovernanceError
 from kubona.fidelity.accounting import FidelityAccountingEngine, PROVIDER_DEVICE_MAP
 from kubona.jobs import JobRunner
 from kubona.mitigation import run_zne
@@ -22,12 +22,10 @@ from kubona.providers import get_provider, list_providers
 from kubona.providers.base import ProviderError
 from kubona.schema import load_provider
 from kubona.schema.provider import MODALITIES_SIMULATOR, TWO_Q_GATES
-from kubona.session import SessionStore
+from kubona.mcp.servers._stores import GOVERNANCE as _gov, SESSIONS as _sessions
 
 mcp = MCPServer("kubona-execution")
 
-_sessions = SessionStore()
-_gov = CostGovernanceService(_sessions)
 _runner = JobRunner()  # persistent, async job farm (production §4.3 abstraction)
 _fidelity = FidelityAccountingEngine()
 

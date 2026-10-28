@@ -14,7 +14,7 @@ import argparse
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -46,7 +46,20 @@ def apply_snapshot(device: str, snapshot: dict[str, Any] | None, *,
     target = next((d for d in doc.get("devices", []) if d.get("name") == device), None)
     if target is None:
         raise CalibrationError(f"unknown device {device!r}")
-    stamp = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).replace(microsecond=0).isoformat()
+    measured = snapshot.get("calibrated_at")
+    if measured:
+        try:
+            stamp_dt = datetime.fromisoformat(str(measured).replace("Z", "+00:00"))
+            if stamp_dt.tzinfo is None:
+                stamp_dt = stamp_dt.replace(tzinfo=timezone.utc)
+            stamp_dt = stamp_dt.astimezone(timezone.utc)
+            if stamp_dt > datetime.now(timezone.utc) + timedelta(minutes=5):
+                raise CalibrationError("snapshot calibrated_at is in the future: refusing")
+            stamp = (now or stamp_dt).astimezone(timezone.utc).replace(microsecond=0).isoformat()
+        except ValueError as exc:
+            raise CalibrationError("snapshot calibrated_at is not ISO-8601") from exc
+    else:
+        stamp = (now or datetime.now(timezone.utc)).astimezone(timezone.utc).replace(microsecond=0).isoformat()
     target.update(values)
     target["calibrated_at"] = stamp
     target["version"] = "live-" + stamp
