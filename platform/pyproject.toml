@@ -7,7 +7,7 @@ dependencies = [
     # Pinned == : the suite-verified set (2026-10-12). Floors rot CI into
     # untested version combos; absent extras keep >= (unverifiable here).
     "mcp==2.3.0",
-    "pydantic==2.13.5",
+    "pydantic==2.14.1",
     # numpy is interpreter-sensitive: 2.5.x needs Python >=3.12 but CI runs
     # 3.11, so the pin splits by marker — each lane is the suite-verified
     # version for that interpreter (2.4.6 is what >= floors resolved on 3.11).
@@ -17,9 +17,9 @@ dependencies = [
     "cryptography==50.0.2",
     "PyNaCl==1.6.2",
     "PyYAML==6.0.3",
-    "starlette==1.7.0",
+    "starlette==1.10.0",
     "uvicorn==0.54.0",
-    "grpcio==1.84.0",
+    "grpcio==1.84.1",
     "protobuf==5.29.6",
     # W2.4: scipy + pennylane were imported but undeclared (krylov needs
     # scipy.linalg; cutting/diff-stack need pennylane) — CI resolved them
@@ -34,9 +34,9 @@ dependencies = [
 kubona = "kubona.run:_cli"
 
 [project.optional-dependencies]
-dev = ["pytest==9.1.1", "pytest-asyncio==1.4.0"]
-qiskit = ["qiskit==2.5.2", "qiskit-aer==0.17.2", "qiskit-ibm-runtime==0.50.0"]
-chemistry = ["pyscf==2.14.0", "rdkit==2026.3.6"]
+dev = ["pytest==9.1.1", "pytest-asyncio==1.4.1"]
+qiskit = ["qiskit==2.6.1", "qiskit-aer==0.18.0", "qiskit-ibm-runtime==0.51.0"]
+chemistry = ["pyscf==2.14.0", "rdkit==2026.9.1"]
 providers = [
     "pytket>=0.50", "pytket-quantinuum",   # Quantinuum (real SDK conversion validated)
     "pyquil>=3.5",                          # Rigetti (WavefunctionSimulator is credential-free w/ qvm)
