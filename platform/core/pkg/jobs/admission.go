@@ -66,9 +66,37 @@ type mandateReceipt struct {
 // unexpired, budget-covering spend-mandate ledger receipt.
 // On success it returns the spend reservation (bound tenant + authorized
 // amount), already debited: SubmitJob persists it on the job row, and every
-// terminal-failed path releases it. Completed jobs keep it — the authorized
-// amount is the spend.
+// terminal path settles it (measured usage wins; unknown post-vendor usage
+// keeps the estimate loudly; pre-vendor failure releases it).
+//
+// Atomicity: the validation lives in planAdmission (no money movement —
+// CheckSpend only). admitJob plans then reserves via the manager CAS path
+// (kept for direct callers and tests); SubmitJob plans then reserves inside
+// the SAME SQLite transaction as the job-row INSERT (reserveAndInsertJobTx),
+// so a crash between ReserveSpend and INSERT cannot leak a reservation.
 func (r *Runner) admitJob(sessionID, jobType string, paramsJSON []byte, declaredCost float64) (string, float64, error) {
+	resTenant, resAmount, err := r.planAdmission(sessionID, jobType, paramsJSON, declaredCost)
+	if err != nil || resAmount <= 0 {
+		return resTenant, resAmount, err
+	}
+	if err := r.tenantStore().ReserveSpend(resTenant, resAmount); err != nil {
+		return "", 0, err
+	}
+	if err := r.sessionMgr.ReserveSpend(sessionID, resAmount); err != nil {
+		_ = r.tenantStore().ReleaseSpend(resTenant, resAmount)
+		return "", 0, err
+	}
+	return resTenant, resAmount, nil
+}
+
+// planAdmission validates a submission and returns the spend plan (bound
+// tenant + authorized amount) WITHOUT moving money. It performs every check
+// admitJob performs — autonomy, routing, fidelity, mandate/grant binding,
+// ceiling checks via CheckSpend — but reserves nothing, so callers can debit
+// the plan atomically (SubmitJob's reserveAndInsertJobTx). CheckSpend and the
+// transactional CAS re-check the same ceilings, so plan-then-reserve cannot
+// overspend under concurrency: the tx CAS is authoritative.
+func (r *Runner) planAdmission(sessionID, jobType string, paramsJSON []byte, declaredCost float64) (string, float64, error) {
 	var tenantID string
 	err := r.ledger.DB().QueryRow(`SELECT tenant_id FROM sessions WHERE id = ?`, sessionID).Scan(&tenantID)
 	if err != nil {
@@ -92,7 +120,7 @@ func (r *Runner) admitJob(sessionID, jobType string, paramsJSON []byte, declared
 	}
 
 	if jobType != "circuit_run" {
-		return r.admitNonCircuitRun(tenantID, sessionID, jobType, paramsJSON, declaredCost)
+		return r.planNonCircuitRun(tenantID, sessionID, jobType, paramsJSON, declaredCost)
 	}
 	var p circuitRunParams
 	if err := json.Unmarshal(paramsJSON, &p); err != nil {
@@ -177,12 +205,13 @@ func (r *Runner) admitJob(sessionID, jobType string, paramsJSON []byte, declared
 		return "", 0, err
 	}
 	if grant != nil {
-		// Spend binds to the granting lab's ceiling: reserve before admitting.
-		if err := r.tenantStore().ReserveSpend(grant.GrantingTenant, p.MaxCostUSD); err != nil {
+		// Spend binds to the granting lab's ceiling: the caller debits the
+		// plan (admitJob reserves; SubmitJob reserves in-tx). These checks
+		// are advisory — the CAS debit is authoritative under concurrency.
+		if err := r.tenantStore().CheckSpend(grant.GrantingTenant, p.MaxCostUSD); err != nil {
 			return "", 0, err
 		}
-		if err := r.sessionMgr.ReserveSpend(sessionID, p.MaxCostUSD); err != nil {
-			_ = r.tenantStore().ReleaseSpend(grant.GrantingTenant, p.MaxCostUSD)
+		if err := r.checkSessionSpend(sessionID, p.MaxCostUSD); err != nil {
 			return "", 0, err
 		}
 		return grant.GrantingTenant, p.MaxCostUSD, nil
@@ -195,14 +224,36 @@ func (r *Runner) admitJob(sessionID, jobType string, paramsJSON []byte, declared
 	if err := r.verifyMandateReceipt(p.MandateRef, tenantID, p.MaxCostUSD, mandates.CanonicalJobBinding("circuit_run", sessionID, p.QASM)); err != nil {
 		return "", 0, err
 	}
-	if err := r.tenantStore().ReserveSpend(tenantID, p.MaxCostUSD); err != nil {
+	if err := r.tenantStore().CheckSpend(tenantID, p.MaxCostUSD); err != nil {
 		return "", 0, err
 	}
-	if err := r.sessionMgr.ReserveSpend(sessionID, p.MaxCostUSD); err != nil {
-		_ = r.tenantStore().ReleaseSpend(tenantID, p.MaxCostUSD)
+	if err := r.checkSessionSpend(sessionID, p.MaxCostUSD); err != nil {
 		return "", 0, err
 	}
 	return tenantID, p.MaxCostUSD, nil
+}
+
+// checkSessionSpend is the read-only advisory twin of session ReserveSpend
+// (the session manager exposes no CheckSpend — this package must not grow
+// one there; file scope). It mirrors the ReserveSpend refusal vocabulary
+// (unknown session / limit exceeded) so planAdmission refuses identically
+// whether the debit lands via admitJob or the SubmitJob transaction. The
+// transactional CAS debit remains authoritative under concurrency.
+func (r *Runner) checkSessionSpend(sessionID string, amountUSD float64) error {
+	if math.IsNaN(amountUSD) || math.IsInf(amountUSD, 0) || amountUSD < 0 {
+		return fmt.Errorf("spend amount must be finite, got %v", amountUSD)
+	}
+	if amountUSD == 0 {
+		return nil
+	}
+	sess, err := r.sessionMgr.GetSession(sessionID)
+	if err != nil {
+		return fmt.Errorf("unknown session %q: dispatch refused", sessionID)
+	}
+	if sess.SpendLimitUSD > 0 && sess.CurrentSpendUSD+amountUSD > sess.SpendLimitUSD {
+		return fmt.Errorf("session %q spend limit exceeded: dispatch refused", sessionID)
+	}
+	return nil
 }
 
 // jobCostEnvelope is the explicit spend declaration for job types whose
@@ -220,6 +271,24 @@ type jobCostEnvelope struct {
 // dispatch, and these types never touch hardware — the exemption is
 // recorded here, not silent, and the reservation is the receipt.
 func (r *Runner) admitNonCircuitRun(tenantID, sessionID, jobType string, paramsJSON []byte, declaredCost float64) (string, float64, error) {
+	resTenant, resAmount, err := r.planNonCircuitRun(tenantID, sessionID, jobType, paramsJSON, declaredCost)
+	if err != nil || resAmount <= 0 {
+		return resTenant, resAmount, err
+	}
+	if err := r.tenantStore().ReserveSpend(resTenant, resAmount); err != nil {
+		return "", 0, err
+	}
+	if err := r.sessionMgr.ReserveSpend(sessionID, resAmount); err != nil {
+		_ = r.tenantStore().ReleaseSpend(resTenant, resAmount)
+		return "", 0, err
+	}
+	return resTenant, resAmount, nil
+}
+
+// planNonCircuitRun is the money-movement-free twin of admitNonCircuitRun
+// (see planAdmission): validates the declared cost and advisory-checks both
+// ceilings so SubmitJob can debit the plan inside reserveAndInsertJobTx.
+func (r *Runner) planNonCircuitRun(tenantID, sessionID, jobType string, paramsJSON []byte, declaredCost float64) (string, float64, error) {
 	maxCost := declaredCost
 	if maxCost <= 0 {
 		var c jobCostEnvelope
@@ -230,11 +299,10 @@ func (r *Runner) admitNonCircuitRun(tenantID, sessionID, jobType string, paramsJ
 	if math.IsNaN(maxCost) || math.IsInf(maxCost, 0) || maxCost <= 0 {
 		return "", 0, fmt.Errorf("%s declares no positive max_cost_usd: dispatch refused", jobType)
 	}
-	if err := r.tenantStore().ReserveSpend(tenantID, maxCost); err != nil {
+	if err := r.tenantStore().CheckSpend(tenantID, maxCost); err != nil {
 		return "", 0, err
 	}
-	if err := r.sessionMgr.ReserveSpend(sessionID, maxCost); err != nil {
-		_ = r.tenantStore().ReleaseSpend(tenantID, maxCost)
+	if err := r.checkSessionSpend(sessionID, maxCost); err != nil {
 		return "", 0, err
 	}
 	return tenantID, maxCost, nil

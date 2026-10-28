@@ -278,10 +278,14 @@ func (r *Runner) submitJob(sessionID, jobType string, params any, declaredCost f
 
 	// Pre-QPU admission gate: autonomy + hardware/mandate rules. Refusals
 	// happen here, before any queue or ledger write, so rejected jobs leave
-	// no residue and cost nothing. Success reserves spend against the bound
-	// lab's ceiling (persisted on the job row; released on terminal failure,
-	// kept on completion).
-	resTenant, resAmount, err := r.admitJob(sessionID, jobType, data, declaredCost)
+	// no residue and cost nothing. Success PLANS spend (bound lab +
+	// authorized amount, nothing debited yet); the plan is debited inside
+	// the SAME SQLite transaction as the job-row INSERT below
+	// (reserveAndInsertJobTx), so a crash between ReserveSpend and INSERT
+	// cannot leak a reservation. All three books (tenants, sessions, jobs)
+	// live in the one ledger SQLite file (see ledger.OpenLedger initSchema),
+	// so a single transaction covers them — no marker rows, no reaper.
+	resTenant, resAmount, err := r.planAdmission(sessionID, jobType, data, declaredCost)
 	if err != nil {
 		return nil, err
 	}
@@ -300,28 +304,126 @@ func (r *Runner) submitJob(sessionID, jobType string, params any, declaredCost f
 		MandateRef:       mandateRefOf(data),
 	}
 
-	resMicro, merr := money.FromUSD(resAmount)
-	if merr != nil {
-		_ = r.tenantStore().ReleaseSpend(resTenant, resAmount)
-		_ = r.sessionMgr.ReleaseSpend(sessionID, resAmount)
+	// money.FromUSD rejects NaN/Inf/out-of-range before anything moves.
+	if _, merr := money.FromUSD(resAmount); merr != nil {
 		return nil, fmt.Errorf("reservation amount: %w", merr)
 	}
-	query := `INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount_micro_usd, compiler_used, fallback_estimate, mandate_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	fallbackInt := 0
-	if fallbackEstimate {
-		fallbackInt = 1
-	}
-	_, err = r.ledger.DB().Exec(query, j.ID, j.SessionID, j.Status.String(), j.JobType, string(j.ParamsJSON), j.CreatedAt, j.ReservedTenant, int64(resMicro), j.CompilerUsed, fallbackInt, j.MandateRef)
-	if err != nil {
-		// The job never queued (no row to release from): unwind directly.
-		_ = r.tenantStore().ReleaseSpend(resTenant, resAmount)
-		_ = r.sessionMgr.ReleaseSpend(sessionID, resAmount)
-		return nil, fmt.Errorf("failed to save job to db: %w", err)
+	if err := r.reserveAndInsertJobTx(j); err != nil {
+		return nil, err
 	}
 
-	r.ledger.AppendEvent(sessionID, "job_queued", j)
 	r.jobQueue <- j
 	return j, nil
+}
+
+// reserveAndInsertJobTx debits the admission plan (tenant + session CAS
+// guards) and persists the job row in ONE SQLite transaction, then seals the
+// audit events. Commit is the atomic point: a crash before it rolls back
+// BOTH the counters and the row (no leaked reservation, no orphan row); a
+// crash after it leaves consistent books (the post-commit events are audit
+// only and never move money twice — settle/release are CAS-guarded).
+//
+// The CAS UPDATEs replicate the manager discipline (tenants.ReserveSpend /
+// session ReserveSpend) statement-for-statement inside the tx because those
+// managers execute on the bare *sql.DB handle, not a tx. The single source
+// of the guard predicates stays those managers; this tx mirrors them and
+// names them. Failure maps to the same refusal vocabulary.
+//
+// Test hook: when testCrashBeforeCommit is true, the tx rolls back after the
+// INSERT instead of committing, simulating a crash between reserve and
+// insert. Production never sets it.
+var testCrashBeforeCommit = false
+
+func (r *Runner) reserveAndInsertJobTx(j *Job) error {
+	resMicro, merr := money.FromUSD(j.ReservedAmount)
+	if merr != nil {
+		return fmt.Errorf("reservation amount: %w", merr)
+	}
+	db := r.ledger.DB()
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin admission transaction: %w", err)
+	}
+	// Rollback is a no-op after a successful Commit.
+	defer tx.Rollback()
+
+	if int64(resMicro) > 0 {
+		res, err := tx.Exec(
+			`UPDATE tenants SET spent_micro_usd = spent_micro_usd + ? WHERE id = ? AND status = 'active' AND spent_micro_usd + ? <= spend_ceiling_micro_usd AND ? <= spend_ceiling_micro_usd`,
+			int64(resMicro), j.ReservedTenant, int64(resMicro), int64(resMicro))
+		if err != nil {
+			return fmt.Errorf("spend reservation failed: %w", err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("spend reservation failed: %w", err)
+		}
+		if n == 0 {
+			return r.mapTenantReserveFailureTx(tx, j.ReservedTenant)
+		}
+		res, err = tx.Exec(
+			`UPDATE sessions SET current_spend_micro_usd = current_spend_micro_usd + ? WHERE id = ? AND (spend_limit_micro_usd <= 0 OR current_spend_micro_usd + ? <= spend_limit_micro_usd)`,
+			int64(resMicro), j.SessionID, int64(resMicro))
+		if err != nil {
+			return fmt.Errorf("session spend reservation failed: %w", err)
+		}
+		n, err = res.RowsAffected()
+		if err != nil {
+			return fmt.Errorf("session spend reservation failed: %w", err)
+		}
+		if n == 0 {
+			return r.mapSessionReserveFailureTx(tx, j.SessionID)
+		}
+	}
+	fallbackInt := 0
+	if j.FallbackEstimate {
+		fallbackInt = 1
+	}
+	query := `INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at, reserved_tenant, reserved_amount_micro_usd, compiler_used, fallback_estimate, mandate_ref) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	if _, err := tx.Exec(query, j.ID, j.SessionID, j.Status.String(), j.JobType, string(j.ParamsJSON), j.CreatedAt, j.ReservedTenant, int64(resMicro), j.CompilerUsed, fallbackInt, j.MandateRef); err != nil {
+		return fmt.Errorf("failed to save job to db: %w", err)
+	}
+	if testCrashBeforeCommit {
+		// Simulated crash after reserve+insert, before commit: the
+		// deferred Rollback unwinds both. Callers observe an error and
+		// the books must show zero movement (proven by test).
+		return fmt.Errorf("simulated crash between reserve and insert: rolled back")
+	}
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit admission transaction: %w", err)
+	}
+	// Post-commit audit only (money already moved atomically).
+	if int64(resMicro) > 0 {
+		_ = r.ledger.AppendEvent(j.ReservedTenant, "tenant_spend_reserved", map[string]any{
+			"tenant_id": j.ReservedTenant, "amount_usd": j.ReservedAmount})
+		_ = r.ledger.AppendEvent(j.SessionID, "session_spend_reserved", map[string]any{
+			"session_id": j.SessionID, "amount_usd": j.ReservedAmount})
+	}
+	_ = r.ledger.AppendEvent(j.SessionID, "job_queued", j)
+	return nil
+}
+
+// mapTenantReserveFailureTx names a failed in-tx tenant debit with the same
+// vocabulary as tenants.ReserveSpend (unknown / suspended / ceiling).
+func (r *Runner) mapTenantReserveFailureTx(tx *sql.Tx, tenantID string) error {
+	var status, id string
+	if err := tx.QueryRow(`SELECT id, status FROM tenants WHERE id = ?`, tenantID).Scan(&id, &status); err != nil {
+		return fmt.Errorf("unknown tenant %q: dispatch refused", tenantID)
+	}
+	if status != "active" {
+		return tenants.ErrTenantSuspended
+	}
+	return tenants.ErrCeilingExceeded
+}
+
+// mapSessionReserveFailureTx names a failed in-tx session debit with the
+// same vocabulary as session ReserveSpend (unknown session / limit).
+func (r *Runner) mapSessionReserveFailureTx(tx *sql.Tx, sessionID string) error {
+	var id string
+	if err := tx.QueryRow(`SELECT id FROM sessions WHERE id = ?`, sessionID).Scan(&id); err != nil {
+		return fmt.Errorf("unknown session %q: dispatch refused", sessionID)
+	}
+	return fmt.Errorf("session %q spend limit exceeded: dispatch refused", sessionID)
 }
 
 // RecordQuantumBridgeJob persists a job row in SQLite for a job dispatched
@@ -378,8 +480,12 @@ func (r *Runner) JobSession(jobID string) (string, bool) {
 }
 
 // SyncQuantumBridgeJobStatus reconciles a Python QuantumBridgeService job's
-// status into SQLite jobs (F-NEW-05). Terminal failure or cancellation
-// atomically releases any bound spend reservation via releaseReservation.
+// status into SQLite jobs (F-NEW-05). Every terminal state (completed,
+// failed, cancelled) settles the spend reservation against reported vendor
+// usage — measured usage always wins; unknown usage keeps the estimate
+// loudly (settlement_skipped_unknown_usage); explicit zero usage releases
+// everything. Pre-vendor terminals (no hardware id, no usage — the vendor
+// never ran) release the reservation.
 func (r *Runner) SyncQuantumBridgeJobStatus(jobID, bridgeStatus, resultJSON string) {
 	if jobID == "" {
 		return
@@ -413,22 +519,11 @@ func (r *Runner) SyncQuantumBridgeJobStatus(jobID, bridgeStatus, resultJSON stri
 				// ONLY when usage is present, finite, and within
 				// 0 <= actual <= reserved; otherwise the reservation stands and
 				// a settlement_skipped_unknown_usage event seals why.
-				var usage struct {
-					Result struct {
-						ActualUSD *float64 `json:"actual_usd"`
-					} `json:"result"`
-				}
-				if uerr := json.Unmarshal([]byte(resultJSON), &usage); uerr != nil {
-					r.emitSettlementSkipped(j, "result_unreadable")
-				} else if usage.Result.ActualUSD == nil {
-					r.emitSettlementSkipped(j, "actual_usd_missing")
-				} else if actual := *usage.Result.ActualUSD; math.IsNaN(actual) || math.IsInf(actual, 0) || actual < 0 {
-					r.emitSettlementSkipped(j, "actual_usd_not_finite_nonnegative")
-				} else if j.ReservedAmount > 0 && actual > j.ReservedAmount {
-					r.emitSettlementSkipped(j, "actual_usd_above_reserved")
-				} else {
-					r.settleReservation(j, actual)
-				}
+				// Measured usage always wins — including on failure/cancel
+				// terminals below; unknown usage keeps the estimate loudly
+				// (extended Q-51: the old "hardware-id failure keeps the full
+				// estimate" rule now applies ONLY when no usage was reported).
+				r.settleTerminalFromResult(j, resultJSON)
 				_ = r.ledger.AppendEvent(j.SessionID, "job_settled", j)
 			}
 		}
@@ -440,23 +535,115 @@ func (r *Runner) SyncQuantumBridgeJobStatus(jobID, bridgeStatus, resultJSON stri
 		)
 		if err == nil {
 			if n, _ := res.RowsAffected(); n > 0 {
-				// Pre-vendor failures release the reservation. Once a vendor
-				// job id is pinned the hardware may have run, so keep the
-				// charge (Q-51 policy).
-				var meta struct {
-					HardwareJobID string `json:"hardware_job_id"`
-				}
-				_ = json.Unmarshal([]byte(resultJSON), &meta)
-				if meta.HardwareJobID == "" {
-					r.releaseReservation(jobID)
-				}
 				j.Status = pb.JobStatus_JOB_STATUS_FAILED
 				j.ResultJSON = json.RawMessage(resultJSON)
 				j.CompletedAt = &now
+				// Failure/cancel settlement (extended Q-51): measured vendor
+				// usage settles reserved→actual exactly like a completion
+				// (CAS-guarded, single-flight, idempotent). Zero-usage
+				// terminals release everything. A terminal with NO usage
+				// report keeps the estimate and seals a settlement_skipped
+				// event — except pre-vendor failures (no hardware id pinned:
+				// the vendor never ran), which release.
+				r.settleTerminalFromResult(j, resultJSON)
 				_ = r.ledger.AppendEvent(j.SessionID, "job_settled", j)
 			}
 		}
 	}
+}
+
+// terminalUsage is every shape a vendor result reports spend-relevant usage
+// in. Providers carry actual_usd top-level (synchronous wait path) or nested
+// under result (deferred poll path) — both settle identically. usage_seconds
+// is the raw meter: an explicit 0 means the vendor reports nothing ran
+// (release everything), while a missing reading means unknown (keep loudly).
+// hardware_job_id marks post-vendor terminals (the vendor may have run).
+type terminalUsage struct {
+	ActualUSD     *float64 `json:"actual_usd"`
+	UsageSeconds  *float64 `json:"usage_seconds"`
+	HardwareJobID string   `json:"hardware_job_id"`
+	Result        struct {
+		ActualUSD    *float64 `json:"actual_usd"`
+		UsageSeconds *float64 `json:"usage_seconds"`
+	} `json:"result"`
+}
+
+// extractTerminalUsage parses a terminal result payload. ok=false means the
+// payload is unreadable (unknown usage, never zero).
+func extractTerminalUsage(resultJSON string) (actual *float64, usageSeconds *float64, hardwareJobID string, ok bool) {
+	var u terminalUsage
+	if err := json.Unmarshal([]byte(resultJSON), &u); err != nil {
+		return nil, nil, "", false
+	}
+	actual = u.ActualUSD
+	if actual == nil {
+		actual = u.Result.ActualUSD
+	}
+	usageSeconds = u.UsageSeconds
+	if usageSeconds == nil {
+		usageSeconds = u.Result.UsageSeconds
+	}
+	return actual, usageSeconds, u.HardwareJobID, true
+}
+
+// settleTerminalFromResult settles one terminal job (any terminal status)
+// from its reported vendor usage. It is the single settlement funnel for
+// completed/failed/cancelled bridge terminals — one vocabulary, one CAS
+// discipline:
+//
+//   - measured actual_usd (finite, >= 0, <= reserved): settleReservation
+//     down to actual (actual == 0 settles to zero = full release);
+//   - actual_usd above the reservation or non-finite/negative: keep the
+//     estimate + seal settlement_skipped with the cause;
+//   - no actual_usd but explicit usage_seconds == 0: the vendor reports
+//     nothing ran — release everything;
+//   - no usage at all: pre-vendor terminals (no hardware id — the vendor
+//     never ran) release; post-vendor terminals keep the estimate and seal
+//     settlement_skipped (actual_usd_missing), because the hardware may
+//     have run despite reporting nothing.
+//
+// No reservation (reserved <= 0) is a no-op. settleReservation and
+// releaseReservation are CAS-guarded, so concurrent terminal racers settle
+// exactly once.
+func (r *Runner) settleTerminalFromResult(j *Job, resultJSON string) {
+	if j == nil {
+		return
+	}
+	actual, usageSeconds, hardwareJobID, ok := extractTerminalUsage(resultJSON)
+	if j.ReservedAmount <= 0 && !ok {
+		return
+	}
+	if !ok {
+		if hardwareJobID != "" {
+			r.emitSettlementSkipped(j, "result_unreadable")
+			return
+		}
+		r.releaseReservation(j.ID)
+		return
+	}
+	if actual != nil {
+		a := *actual
+		if math.IsNaN(a) || math.IsInf(a, 0) || a < 0 {
+			r.emitSettlementSkipped(j, "actual_usd_not_finite_nonnegative")
+			return
+		}
+		if j.ReservedAmount > 0 && a > j.ReservedAmount {
+			r.emitSettlementSkipped(j, "actual_usd_above_reserved")
+			return
+		}
+		// 0 <= actual <= reserved (or unreserved): settle down to measured.
+		r.settleReservation(j, a)
+		return
+	}
+	if usageSeconds != nil && *usageSeconds == 0 {
+		r.releaseReservation(j.ID)
+		return
+	}
+	if hardwareJobID != "" {
+		r.emitSettlementSkipped(j, "actual_usd_missing")
+		return
+	}
+	r.releaseReservation(j.ID)
 }
 
 func (r *Runner) workerLoop() {
@@ -619,6 +806,9 @@ func (r *Runner) executeJob(j *Job) {
 	}
 	// An abort that landed mid-flight wins over the late completion, but the
 	// computed result is preserved for provenance instead of being dropped.
+	// Settlement funnels through settleTerminalFromResult like every other
+	// terminal: measured usage wins, zero usage releases, unknown pre-vendor
+	// usage releases, unknown post-vendor usage keeps loudly.
 	if r.isAborted(j.ID) {
 		j.Status = pb.JobStatus_JOB_STATUS_FAILED
 		if len(resultData) > 0 {
@@ -627,7 +817,7 @@ func (r *Runner) executeJob(j *Job) {
 			errRes, _ := json.Marshal(map[string]string{"error": "aborted by supervisor during execution"})
 			j.ResultJSON = errRes
 		}
-		r.releaseReservation(j.ID)
+		r.settleTerminalFromResult(j, string(j.ResultJSON))
 	} else {
 		j.Status = pb.JobStatus_JOB_STATUS_COMPLETED
 		j.ResultJSON = resultData
@@ -670,10 +860,13 @@ func (r *Runner) releaseReservation(jobID string) {
 	_ = r.sessionMgr.ReleaseSpend(sessionID, amount)
 }
 
-// emitSettlementSkipped seals WHY a completed job kept its full estimate
+// emitSettlementSkipped seals WHY a terminal job kept its full estimate
 // reservation (P0 backfill: unknown usage never refunds). The reservation
 // stands — this event is the audit trail, keyed by the shared taxonomy
-// const (never a copied literal).
+// const (never a copied literal). The reason vocabulary is shared across
+// all terminal states (completed/failed/cancelled): result_unreadable,
+// actual_usd_missing, actual_usd_not_finite_nonnegative,
+// actual_usd_above_reserved.
 func (r *Runner) emitSettlementSkipped(j *Job, reason string) {
 	if j == nil {
 		return
@@ -723,7 +916,11 @@ func (r *Runner) settleReservation(j *Job, actualUSD float64) {
 	}
 }
 
-// failJob records a failed job with a reason string.
+// failJob records a failed job with a reason string. Settlement funnels
+// through settleTerminalFromResult like every other terminal: a bare error
+// receipt carries no usage and no hardware id, so pre-vendor failures
+// release (the vendor never ran); a result that reports measured usage
+// settles reserved→actual even on this path.
 func (r *Runner) failJob(j *Job, reason string) {
 	now := time.Now().UTC()
 	j.CompletedAt = &now
@@ -735,7 +932,22 @@ func (r *Runner) failJob(j *Job, reason string) {
 		j.Status.String(), string(j.ResultJSON), j.CompletedAt, j.ID,
 	)
 	r.ledger.AppendEvent(j.SessionID, "job_settled", j)
-	r.releaseReservation(j.ID)
+	r.settleTerminalFromResult(j, string(j.ResultJSON))
+}
+
+// settleCancelledJob settles one job cancelled via the supervisor paths
+// (CancelJob/CancelSessionJobs/CancelTenantJobs) from its PRE-CANCEL state:
+// prev carries the snapshot read before the terminal UPDATE overwrote
+// result_json, so vendor usage or a pinned hardware id is still visible.
+// Measured usage settles; zero usage releases; unknown pre-vendor usage
+// releases (the vendor never ran); unknown post-vendor usage keeps the
+// estimate loudly. CAS-guarded — a worker that settles first wins and this
+// is a no-op.
+func (r *Runner) settleCancelledJob(prev *Job) {
+	if prev == nil {
+		return
+	}
+	r.settleTerminalFromResult(prev, string(prev.ResultJSON))
 }
 
 func (r *Runner) isAborted(id string) bool {
@@ -769,6 +981,7 @@ func (r *Runner) CancelTenantJobs(tenantID, reason string) (int, error) {
 	now := time.Now().UTC()
 	errRes, _ := json.Marshal(map[string]string{"error": reason})
 	for _, id := range ids {
+		prev, _ := r.GetJob(id)
 		r.mu.Lock()
 		r.aborted[id] = true
 		r.mu.Unlock()
@@ -777,7 +990,7 @@ func (r *Runner) CancelTenantJobs(tenantID, reason string) (int, error) {
 			append([]any{pb.JobStatus_JOB_STATUS_FAILED.String(), string(errRes), now, id}, liveStatusArgs...)...,
 		)
 		if n, _ := res.RowsAffected(); n > 0 {
-			r.releaseReservation(id) // terminal-failed here: unwind spend
+			r.settleCancelledJob(prev) // terminal-failed here: settle from pre-cancel state
 		}
 	}
 	r.ledger.AppendEvent(tenantID, "tenant_jobs_aborted", map[string]any{
@@ -815,6 +1028,7 @@ func (r *Runner) CancelSessionJobs(sessionID, reason string) (int, error) {
 	now := time.Now().UTC()
 	errRes, _ := json.Marshal(map[string]string{"error": reason})
 	for _, id := range ids {
+		prev, _ := r.GetJob(id)
 		r.mu.Lock()
 		r.aborted[id] = true
 		r.mu.Unlock()
@@ -823,7 +1037,7 @@ func (r *Runner) CancelSessionJobs(sessionID, reason string) (int, error) {
 			append([]any{pb.JobStatus_JOB_STATUS_FAILED.String(), string(errRes), now, id}, liveStatusArgs...)...,
 		)
 		if n, _ := res.RowsAffected(); n > 0 {
-			r.releaseReservation(id) // terminal-failed here: unwind spend
+			r.settleCancelledJob(prev) // terminal-failed here: settle from pre-cancel state
 		}
 	}
 	r.ledger.AppendEvent(sessionID, "supervisor_abort", map[string]any{
@@ -839,7 +1053,8 @@ func (r *Runner) CancelSessionJobs(sessionID, reason string) (int, error) {
 // RUNNING jobs are fenced via the abort registry so a late completion
 // cannot overwrite the cancellation. Terminal jobs replay success
 // (already-terminal is a stable answer, not an error); unknown ids
-// refuse. Spend reservations unwind exactly once via the CAS guard.
+// refuse. Spend settles from the pre-cancel state exactly once via the CAS
+// guard (measured usage wins; unknown post-vendor usage keeps loudly).
 func (r *Runner) CancelJob(id, reason string) (transitioned bool, err error) {
 	if reason == "" {
 		reason = "cancelled by operator"
@@ -873,7 +1088,7 @@ func (r *Runner) CancelJob(id, reason string) (transitioned bool, err error) {
 		// terminal state, not a phantom cancellation.
 		return false, nil
 	}
-	r.releaseReservation(id)
+	r.settleCancelledJob(j)
 	// The receipt is load-bearing (audit of who cancelled what): a
 	// cancellation that cannot be recorded fails loudly so the client
 	// retries into the already-terminal replay — never a silent loss.

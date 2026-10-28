@@ -1011,3 +1011,243 @@ func TestCompletedBridgeJobWithoutUsageKeepsReservation(t *testing.T) {
 		t.Fatalf("skip event must name the cause, got %s", reason2)
 	}
 }
+
+// Failure/cancel settlement (extended Q-51): measured vendor usage settles
+// reserved→actual on EVERY terminal, not just completions. Unknown post-vendor
+// usage keeps the estimate loudly; explicit zero usage releases everything;
+// pre-vendor terminals (no hardware id, no usage) release.
+func TestFailedBridgeJobSettlesMeasuredUsage(t *testing.T) {
+	r, cleanup := setupRunner(t, &fakeBridge{})
+	defer cleanup()
+	sid := "sess-fail-settle"
+	if _, err := r.sessionMgr.EnsureSessionWithID(sid, "fail-settle", 100, "default"); err != nil {
+		t.Fatal(err)
+	}
+	seed := func(id string, amount float64) {
+		t.Helper()
+		if err := r.tenantStore().ReserveSpend("default", amount); err != nil {
+			t.Fatal(err)
+		}
+		if err := r.sessionMgr.ReserveSpend(sid, amount); err != nil {
+			t.Fatal(err)
+		}
+		if err := r.RecordQuantumBridgeJob(id, sid, "ibm-qiskit", "OPENQASM 2.0;", 100, "default", amount, ""); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// Nested result shape, failed terminal: $8.00 → $3.20.
+	seed("job-fail-nested", 8.0)
+	r.SyncQuantumBridgeJobStatus("job-fail-nested", "failed", `{"hardware_job_id":"hw","result":{"actual_usd":3.2}}`)
+	j, err := r.GetJob("job-fail-nested")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.Status != pb.JobStatus_JOB_STATUS_FAILED {
+		t.Fatalf("status=%s", j.Status)
+	}
+	if j.ReservedAmount != 3.2 {
+		t.Fatalf("failed job must settle to measured $3.20, got %v", j.ReservedAmount)
+	}
+	// Top-level actual_usd shape, cancelled terminal: $8.00 → $1.00.
+	seed("job-cancel-top", 8.0)
+	r.SyncQuantumBridgeJobStatus("job-cancel-top", "cancelled", `{"hardware_job_id":"hw","actual_usd":1.0}`)
+	jc, err := r.GetJob("job-cancel-top")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if jc.ReservedAmount != 1.0 {
+		t.Fatalf("cancelled job must settle to measured $1.00, got %v", jc.ReservedAmount)
+	}
+	sess, err := r.sessionMgr.GetSession(sid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sess.CurrentSpendUSD != 4.2 {
+		t.Fatalf("session spend must be 3.2+1.0=4.2, got %v", sess.CurrentSpendUSD)
+	}
+	// Idempotent replay: a second terminal sync moves no more money.
+	r.SyncQuantumBridgeJobStatus("job-fail-nested", "failed", `{"hardware_job_id":"hw","result":{"actual_usd":0.5}}`)
+	jj, err := r.GetJob("job-fail-nested")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if jj.ReservedAmount != 3.2 {
+		t.Fatalf("replay must not re-settle, got %v", jj.ReservedAmount)
+	}
+}
+
+func TestFailedBridgeJobZeroUsageReleasesEverything(t *testing.T) {
+	r, cleanup := setupRunner(t, &fakeBridge{})
+	defer cleanup()
+	sid := "sess-fail-zero"
+	if _, err := r.sessionMgr.EnsureSessionWithID(sid, "fail-zero", 100, "default"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.tenantStore().ReserveSpend("default", 8.0); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.sessionMgr.ReserveSpend(sid, 8.0); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.RecordQuantumBridgeJob("job-fail-zero", sid, "ibm-qiskit", "OPENQASM 2.0;", 100, "default", 8.0, ""); err != nil {
+		t.Fatal(err)
+	}
+	// Vendor reports 0s of QPU time despite the pinned id: nothing ran.
+	r.SyncQuantumBridgeJobStatus("job-fail-zero", "failed", `{"hardware_job_id":"hw","result":{"actual_usd":0}}`)
+	j, err := r.GetJob("job-fail-zero")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.ReservedAmount != 0 {
+		t.Fatalf("zero-usage failure must release everything, got %v", j.ReservedAmount)
+	}
+	sess, err := r.sessionMgr.GetSession(sid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sess.CurrentSpendUSD != 0 {
+		t.Fatalf("session spend must be 0 after zero-usage release, got %v", sess.CurrentSpendUSD)
+	}
+}
+
+func TestFailedBridgeJobUnknownPostVendorUsageKeepsLoudly(t *testing.T) {
+	r, cleanup := setupRunner(t, &fakeBridge{})
+	defer cleanup()
+	sid := "sess-fail-unknown"
+	if _, err := r.sessionMgr.EnsureSessionWithID(sid, "fail-unknown", 100, "default"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.tenantStore().ReserveSpend("default", 8.0); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.sessionMgr.ReserveSpend(sid, 8.0); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.RecordQuantumBridgeJob("job-fail-unk", sid, "ibm-qiskit", "OPENQASM 2.0;", 100, "default", 8.0, ""); err != nil {
+		t.Fatal(err)
+	}
+	// Hardware id pinned, no usage at all: the vendor may have run.
+	r.SyncQuantumBridgeJobStatus("job-fail-unk", "failed", `{"hardware_job_id":"hw-9"}`)
+	j, err := r.GetJob("job-fail-unk")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.ReservedAmount != 8.0 {
+		t.Fatalf("unknown post-vendor usage must keep the $8 estimate, got %v", j.ReservedAmount)
+	}
+	var reason string
+	if err := r.ledger.DB().QueryRow(
+		`SELECT payload FROM ledger_events WHERE event_type = ? AND session_id = ? ORDER BY id DESC LIMIT 1`,
+		ledger.SettlementSkippedUnknownUsageEvent, sid).Scan(&reason); err != nil {
+		t.Fatalf("settlement_skipped event must be sealed: %v", err)
+	}
+	if !strings.Contains(reason, "actual_usd_missing") {
+		t.Fatalf("skip event must name the cause, got %s", reason)
+	}
+}
+
+func TestCancelledBridgeJobSettlesFromPreCancelUsage(t *testing.T) {
+	dbPath := "test_jobs_cancel_settle.db"
+	os.Remove(dbPath)
+	l, err := ledger.OpenLedger(dbPath)
+	if err != nil {
+		t.Fatalf("open ledger: %v", err)
+	}
+	defer func() {
+		l.Close()
+		os.Remove(dbPath)
+		os.Remove(dbPath + "-wal")
+		os.Remove(dbPath + "-shm")
+	}()
+	sm := session.NewManager(l)
+	if _, err := sm.EnsureSessionWithID("sess-cancel", "cancel drill", 500.0, "default"); err != nil {
+		t.Fatalf("seed session: %v", err)
+	}
+	r := NewRunner(l, &fakeBridge{}, 1)
+	defer r.Stop()
+
+	// Seed a RUNNING job whose pre-cancel result already reports usage
+	// (e.g. a vendor poll landed usage before the supervisor cancelled).
+	if err := r.RecordQuantumBridgeJob("job-cancel-use", "sess-cancel", "ibm-qiskit",
+		"OPENQASM 2.0;", 100, "default", 8.0, ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := l.DB().Exec(`UPDATE jobs SET status = ?, result_json = ? WHERE id = ?`,
+		pb.JobStatus_JOB_STATUS_RUNNING.String(),
+		`{"hardware_job_id":"hw","result":{"actual_usd":2.5}}`, "job-cancel-use"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.tenantStore().ReserveSpend("default", 8.0); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.sessionMgr.ReserveSpend("sess-cancel", 8.0); err != nil {
+		t.Fatal(err)
+	}
+	ok, err := r.CancelJob("job-cancel-use", "operator stop")
+	if err != nil || !ok {
+		t.Fatalf("cancel must transition: ok=%v err=%v", ok, err)
+	}
+	j, err := r.GetJob("job-cancel-use")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.ReservedAmount != 2.5 {
+		t.Fatalf("cancel with pre-cancel usage must settle to $2.50, got %v", j.ReservedAmount)
+	}
+}
+
+// Reservation atomicity: a crash between ReserveSpend and the job-row INSERT
+// must leave the books untouched. The test hook forces reserveAndInsertJobTx
+// to roll back after the INSERT instead of committing (the crash point);
+// SubmitJob must then fail AND both ceilings must read exactly as before.
+func TestSubmitCrashBetweenReserveAndInsertRestoresCeilings(t *testing.T) {
+	r, cleanup := setupRunner(t, &fakeBridge{})
+	defer cleanup()
+
+	getSpent := func() (tenantSpent, sessionSpent float64) {
+		t.Helper()
+		tn, err := r.tenantStore().GetTenant("default")
+		if err != nil {
+			t.Fatal(err)
+		}
+		sess, err := r.sessionMgr.GetSession("sess-1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		return tn.SpentUSD, sess.CurrentSpendUSD
+	}
+	beforeTenant, beforeSession := getSpent()
+
+	testCrashBeforeCommit = true
+	defer func() { testCrashBeforeCommit = false }()
+	_, err := r.SubmitJob("sess-1", "mitigate", map[string]any{
+		"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "method": "ZNE", "max_cost_usd": 7.5})
+	if err == nil {
+		t.Fatalf("simulated crash must fail the submit")
+	}
+	afterTenant, afterSession := getSpent()
+	if afterTenant != beforeTenant || afterSession != beforeSession {
+		t.Fatalf("crash must roll back both books: tenant %v→%v session %v→%v",
+			beforeTenant, afterTenant, beforeSession, afterSession)
+	}
+	listed, err := r.ListJobs("sess-1", 50)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, j := range listed {
+		if j.JobType == "mitigate" && j.ReservedAmount == 7.5 {
+			t.Fatalf("rolled-back submit must leave no job row")
+		}
+	}
+	// And the ceiling is whole: the same job admits cleanly after the crash.
+	testCrashBeforeCommit = false
+	jj, err := r.SubmitJob("sess-1", "mitigate", map[string]any{
+		"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "method": "ZNE", "max_cost_usd": 7.5})
+	if err != nil {
+		t.Fatalf("submit after crash must admit: %v", err)
+	}
+	settled := pollJob(t, r, jj.ID)
+	if settled.Status != pb.JobStatus_JOB_STATUS_COMPLETED {
+		t.Fatalf("post-crash job must settle, got %+v", settled)
+	}
+}

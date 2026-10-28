@@ -16,6 +16,7 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/api"
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/sandbox"
 	"github.com/mainza-ai/kubona/core/pkg/session"
 	"github.com/mainza-ai/kubona/core/pkg/supervisor"
 	"github.com/mainza-ai/kubona/core/pkg/tenants"
@@ -351,8 +352,8 @@ func TestAutoresearchAndMetasearchAPIs(t *testing.T) {
 	if len(harnessResp.Harnesses) != 5 {
 		t.Fatalf("expected 5 shipping harnesses, got %d", len(harnessResp.Harnesses))
 	}
-	if harnessResp.DockerRunner.Image != "kubona/quantum-runner:latest" {
-		t.Fatalf("expected docker runner image kubona/quantum-runner:latest, got %s", harnessResp.DockerRunner.Image)
+	if harnessResp.DockerRunner.Image != sandbox.DefaultRunnerImage {
+		t.Fatalf("expected docker runner image %s, got %s", sandbox.DefaultRunnerImage, harnessResp.DockerRunner.Image)
 	}
 
 	// 2. Start Loop (G7: loop spend is session-attributed — create an
