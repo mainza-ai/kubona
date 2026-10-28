@@ -12,6 +12,7 @@ from __future__ import annotations
 import os
 import shutil
 import subprocess
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 
 import httpx
@@ -89,12 +90,18 @@ class LocalModelRegistry:
                 port = body.rsplit(":", 1)[-1]
                 out[f"manual:{body}"] = {"base_url": body, "port": port, **hit,
                                          "manual": True}
-        for port in self.ports:
+        # Probe in parallel: 11 sequential 2 s timeouts could block discovery
+        # for 22 s on a machine with no local server.
+        def _one(port: int):
             base = f"http://127.0.0.1:{port}"
-            hit = _probe(base)
-            if hit:
-                out[str(port)] = {"base_url": base, "port": port,
-                                  "provider": hit["provider"], "models": hit["models"]}
+            return port, base, _probe(base)
+
+        if self.ports:
+            with ThreadPoolExecutor(max_workers=min(11, len(self.ports))) as pool:
+                for port, base, hit in pool.map(_one, self.ports):
+                    if hit:
+                        out[str(port)] = {"base_url": base, "port": port,
+                                          "provider": hit["provider"], "models": hit["models"]}
         out["summary"] = {k: v["provider"] for k, v in out.items() if k != "summary"}
         return out
 

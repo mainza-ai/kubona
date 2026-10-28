@@ -3611,3 +3611,7 @@ skipped is the exact failure this incident is about:
   - Live medians (156q Heron r2, backend update 2026-10-28T04:28:02Z): T1 144.19 µs, T2 99.35 µs, 1q error 0.000293, 2q error 0.002517, readout 0.01001. fidelity-devices.json refreshed via the validated `--write` path; no QPU job was submitted.
   - Fixed Qiskit 2.5 qubit-property parsing (T1/T2/readout are per-qubit accessors; some qubits lack T2) and excluded virtual/measurement gates from the 1q error median.
   - MCP cost and execution now share one process-wide SessionStore; a session created by one was previously invisible to the other's import-time cache.
+
+## [2026-10-28] decision | Local model discovery is parallel and honest
+
+  - Registry probes the configured ports concurrently (bounded pool) instead of 11 sequential 2 s timeouts, and both adapters require HTTP 200 for `available` (a 401/404 response is not a working server).
