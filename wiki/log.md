@@ -3578,3 +3578,7 @@ skipped is the exact failure this incident is about:
 
   - The console tribunal recorder no longer labels a quorum as COMMITTED_TO_LEDGER; it returns QUORUM_MET with ledger_committed:false because it writes no ledger event.
   - Metasearch List/Get return deep copies and approve/reject require a named human signer.
+
+## [2026-10-27] decision | Suspension stops execution
+
+  - Suspending a tenant now cancels every unsettled job in its sessions and pauses every active autoresearch engine owned by that lab. Reactivation remains admin-signed; dispatch was already refused while suspended.
