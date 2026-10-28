@@ -32,12 +32,18 @@
 > **Active Research Platform**: Kubona is under active development. APIs, agent protocols, and the sovereign console evolve rapidly. See [`wiki/roadmap.md`](wiki/roadmap.md) for phased milestones and [`wiki/log.md`](wiki/log.md) for the latest research log.
 
 > [!WARNING]
-> **Production status (2026-10-26): not production-ready yet.** The independent
+> **Production status (2026-10-28): not production-ready yet.** The independent
 > [Round-2 audit](wiki/concepts/production-readiness-audit-2026-10-26.md) found
 > ten P0 blockers at trusted boundaries (bridge auth, ledger import forgery,
 > sandbox escape, spend settlement, release gate, scientific anchors, and
-> verification theater). The architecture is sound; the gate is not. Read the
-> audit and its phased plan before deploying or citing a "verified" result.
+> verification theater). A full-tree Round-3 re-audit on 2026-10-28 re-verified
+> every P0 against current code: the money/trust blockers are fixed on
+> `develop` (settlement, admission crypto, A2A binding, approval gate, bridge
+> confinement, manuscript evidence, route policy) with CI green under branch
+> protection — but hardening residuals still block production (sandbox
+> env-dependence, failure-path settlement, unsigned-receipt trust, verification
+> depth in CI). The architecture is sound; the gate is not. Read the audit
+> and its phased plan before deploying or citing a "verified" result.
 
 ---
 
