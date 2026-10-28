@@ -339,7 +339,13 @@ func TestManifestKeyRotation(t *testing.T) {
 		t.Fatalf("unknown key id must refuse, got %v", err)
 	}
 
+	t.Setenv("KUBONA_IMPORT_HMAC_KEY_ID", "missing")
+	if _, err := src.ExportSession(sess.ID); err == nil || !strings.Contains(err.Error(), "not configured") {
+		t.Fatalf("missing active key id must refuse export, got %v", err)
+	}
+
 	// Legacy manifests (no key_id) still verify against any configured key.
+	t.Setenv("KUBONA_IMPORT_HMAC_KEY_ID", "")
 	legacy := *oldMan
 	legacy.KeyID = ""
 	dst4, _ := mustOpenCascade(t)

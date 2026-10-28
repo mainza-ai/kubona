@@ -145,13 +145,15 @@ def attest_capacity(provider_name: str, canary_ok: bool) -> dict[str, Any]:
         "canary_ok": bool(canary_ok),
         "checked_at": checked_at,
     }
-    snapshot["snapshot_hash"] = hashlib.sha256(
-        json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
     snapshot["calibration"] = attest_calibration(provider_name)
     # A lying schema fails the canary: measured calibration outside tolerance
     # of the declared numbers is a rejected claim (Q-14), not a warning.
     if snapshot["calibration"].get("calibration_ok") is False:
         snapshot["calibration_rejection"] = snapshot["calibration"].get("mismatches")
+    # Seal EVERY field, including calibration, so the hash cannot bless a
+    # snapshot whose calibration was swapped after sealing.
+    snapshot["snapshot_hash"] = hashlib.sha256(
+        json.dumps(snapshot, sort_keys=True).encode()).hexdigest()
     return snapshot
 
 

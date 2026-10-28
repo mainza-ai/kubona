@@ -110,3 +110,25 @@ def test_library_full_pipeline_cost_approved(tmp_path):
     entry = lib.best(h.name, direction="max")
     assert entry is not None and entry.ledger_ref == rec.record_id
     assert ledger.validate_chain()[0] is True
+
+
+def test_watchdog_halt_does_not_run_refinement():
+    from kubona.autoresearch.base import Orchestrator
+    from kubona.control.watchdog import WatchdogVerdict
+
+    class AbortWatchdog:
+        def record_step(self, step, metric, params):
+            return WatchdogVerdict("ABORT_TO_SNAPSHOT", "drill: stop now", step=step)
+
+    h = build_vqe_ansatz_harness()
+    history = Orchestrator(h, budget_steps=5, watchdog=AbortWatchdog()).search()
+    assert len(history) == 1, history
+
+
+def test_shadow_compare_handles_negative_scores():
+    from kubona.autoresearch.meta import MetaLoop
+    m = MetaLoop.__new__(MetaLoop)
+    assert m.shadow_compare(-2.0, -1.5) is True       # +0.5 gain
+    assert m.shadow_compare(-1.0, -1.005) is False    # 0.5% < 2%
+    assert m.shadow_compare(0.0, 0.01) is False       # absolute floor at 0
+    assert m.shadow_compare(0.0, 0.03) is True

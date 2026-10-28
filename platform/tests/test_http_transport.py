@@ -132,3 +132,14 @@ def test_require_secure_refuses_plaintext_rpc():
                     headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 400
     assert "secure envelope required" in r.json()["error"]
+
+
+def test_secret_get_required_fails_closed(monkeypatch):
+    from kubona.secrets import SecretStore
+    monkeypatch.delenv("KUBONA_IONQ_API_KEY", raising=False)
+    try:
+        SecretStore().get("ionq", "api_key", required=True)
+    except KeyError as exc:
+        assert "ionq" in str(exc)
+    else:
+        raise AssertionError("required missing secret must raise, not return None")

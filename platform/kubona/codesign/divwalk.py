@@ -32,6 +32,12 @@ truncated-carry/comparison-limit patterns from the same section.
 from __future__ import annotations
 
 
+def _require(condition: bool, message: str) -> None:
+    """Load-bearing invariant check; explicit so ``python -O`` cannot strip it."""
+    if not condition:
+        raise AssertionError(message)
+
+
 def modinv_odd(a: int, mod: int) -> int:
     """Inverse of odd a modulo a power of two (extended Euclid)."""
     if mod <= 0 or mod & (mod - 1):
@@ -112,55 +118,55 @@ def run_walk(p: int, w: int, cap: int = 10_000) -> dict:
         new_state, s, b = step(state)
         zp, fp, gp, fvp, gvp = new_state
         # Lemma A1 on the new state
-        assert fp * gvp - gp * fvp == p, "determinant broken (implementation bug)"
-        assert fp % 2 == 1 and gvp % 2 == 1 and fvp % 2 == 0, "parity broken"
+        _require(fp * gvp - gp * fvp == p, "determinant broken (implementation bug)")
+        _require(fp % 2 == 1 and gvp % 2 == 1 and fvp % 2 == 0, "parity broken")
         checks["determinant"] += 1
         checks["parity"] += 1
         # Lemma A4.1: swap visible from v2(f'v), with v2(0) = +inf:
         # an early even-step doubling of fv=0 leaves f'v=0 (divisible by 4,
         # valuation infinite, hence not 1) — the nonswap side still holds.
-        assert (fvp != 0 and v2(fvp) == 1) == (s == 1), "swap visibility broken"
+        _require((fvp != 0 and v2(fvp) == 1) == (s == 1), "swap visibility broken")
         checks["swap_visible"] += 1
         if s == 1:
-            assert z >= 0 and b == 1, "swap shape broken"
+            _require(z >= 0 and b == 1, "swap shape broken")
             if z > 0:
                 win_expected, win_j = 1, 1  # A9: window opens as {1} at depth 1
             else:
                 win_expected, win_j = None, None  # D=0: part-1 regime, no window
         else:
-            assert fvp % 4 == 0, "nonswap f'v not divisible by 4"
+            _require(fvp % 4 == 0, "nonswap f'v not divisible by 4")
             if zp >= 1:
-                assert b == 0, "z-rule broken"
+                _require(b == 0, "z-rule broken")
                 checks["z_rule"] += 1
             if zp >= 0:
                 # Lemma A.5 part 1: the window chain resets in this regime
-                assert fvp % (1 << (zp + 1)) == 0, "A5-part1 divisibility broken"
+                _require(fvp % (1 << (zp + 1)) == 0, "A5-part1 divisibility broken")
                 checks["divisibility"] += 1
                 win_expected, win_j = None, None
             else:
                 # began z<0 (lands z'<0): part-2 premise + window recurrence
-                assert fv != 0, "A5-part2 premise (z<0 => fv!=0) broken"
-                assert win_expected is not None and win_j is not None, \
-                    "window chain broken (began z<0 outside a D>0 excursion)"
-                assert fvp != 0, "doubled nonzero fv vanished (implementation bug)"
+                _require(fv != 0, "A5-part2 premise (z<0 => fv!=0) broken")
+                _require(win_expected is not None and win_j is not None,
+                         "window chain broken (began z<0 outside a D>0 excursion)")
+                _require(fvp != 0, "doubled nonzero fv vanished (implementation bug)")
                 j = v2(fvp)
-                assert j == win_j + 1, "excursion depth must advance by doubling"
+                _require(j == win_j + 1, "excursion depth must advance by doubling")
                 q = fvp // (1 << j)
-                assert q % 2 == 1, "odd part must be odd (implementation bug)"
+                _require(q % 2 == 1, "odd part must be odd (implementation bug)")
                 M = 1 << j
                 win = (gvp * modinv_odd(q % M, M)) % M  # g'v*q^-1 mod 2^j
-                assert win == win_expected + b * (1 << (j - 1)), \
-                    "window recurrence A10/A12 broken"
+                _require(win == win_expected + b * (1 << (j - 1)),
+                         "window recurrence A10/A12 broken")
                 checks["window"] += 1
-                assert b == ((win >> (j - 1)) & 1), "A11 first form broken"
+                _require(b == ((win >> (j - 1)) & 1), "A11 first form broken")
                 checks["decode1"] += 1
-                assert fp % 2 == 1, "f' must stay odd (implementation bug)"
+                _require(fp % 2 == 1, "f' must stay odd (implementation bug)")
                 m2 = (p % M) * modinv_odd((fp * q) % M, M) % M
-                assert bit(m2, j - 1) == b, "A11 second form broken"
+                _require(bit(m2, j - 1) == b, "A11 second form broken")
                 checks["decode2"] += 1
                 win_expected, win_j = win, j
         if gp == 0:
-            assert b == 1, "zero-rule broken"
+            _require(b == 1, "zero-rule broken")
             checks["zero_rule"] += 1
         # Ambiguous = negative-counter nonswap, non-terminating
         ambiguous = (s == 0 and z < 0 and gp != 0)
@@ -169,26 +175,26 @@ def run_walk(p: int, w: int, cap: int = 10_000) -> dict:
             depth = v2(fvp)
             hist[depth] = hist.get(depth, 0) + 1
             if depth == 2:
-                assert b == (bit(gvp, 1) ^ bit(fvp, 3)), "Cor A8 broken"
+                _require(b == (bit(gvp, 1) ^ bit(fvp, 3)), "Cor A8 broken")
                 checks["depth2"] += 1
         # Prop A2 scaling on the new state (t+1 active steps)
-        assert (fvp * w - pow(2, t + 1, p) * fp) % p == 0, "f-scaling broken"
-        assert (gvp * w - pow(2, t + 1, p) * gp) % p == 0, "g-scaling broken"
+        _require((fvp * w - pow(2, t + 1, p) * fp) % p == 0, "f-scaling broken")
+        _require((gvp * w - pow(2, t + 1, p) * gp) % p == 0, "g-scaling broken")
         checks["scaling"] += 1
         steps.append({"s": s, "b": b, "depth": depth, "z": zp})
         state = new_state
         t += 1
     z, f, g, fv, gv = state
-    assert abs(f) == 1, "non-trivial gcd (p prime, w != 0)"
+    _require(abs(f) == 1, "non-trivial gcd (p prime, w != 0)")
     inv = (f * fv * pow(pow(2, t, p), -1, p)) % p  # Prop A2 Eq A6
-    assert (w * inv) % p == 1, "inverse incorrect (implementation bug)"
+    _require((w * inv) % p == 1, "inverse incorrect (implementation bug)")
     return {"p": p, "w": w, "frozen": False, "active_steps": t,
             "steps": steps, "hist": hist, "checks": checks, "inverse": inv}
 
 
 def _check_invariants(state: tuple, p: int) -> None:
     z, f, g, fv, gv = state
-    assert f * gv - g * fv == p
+    _require(f * gv - g * fv == p, "determinant invariant broken")
 
 
 def batch_report(p: int, ws: list[int]) -> dict:

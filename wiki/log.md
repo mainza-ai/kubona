@@ -3527,3 +3527,13 @@ skipped is the exact failure this incident is about:
   - Manifests now name a key_id. KUBONA_IMPORT_HMAC_KEYS holds comma-separated kid=key pairs; KUBONA_IMPORT_HMAC_KEY_ID selects the signing key; the legacy single key and API token remain verifier fallbacks.
   - Verification uses the named key and refuses an unknown/rotated-out kid; keyless legacy manifests try every configured key.
   - Tests cover active-key export, both keys verifying, unknown kid refusal, and legacy keyless import.
+
+## [2026-10-27] decision | P2 integrity and fail-closed sweep
+
+  - Mandates: API refuses empty job_hash, non-finite/non-positive budgets, and TTL > 24h; Verify rejects an unbound or NaN-budget mandate only after signature verification (no mismatch oracle).
+  - Loop spend release CASes reserved+consumed (retry on movement), so a concurrent consumption cannot cause a stale over-refund.
+  - Parser: unknown registers refuse instead of aliasing raw indices; reset refuses in unitary-only contexts.
+  - Autoresearch: watchdog ABORT/PAUSE stops before refinement; shadow comparison handles negative scores; halt returns best-first history.
+  - Canary snapshot_hash now seals calibration; fidelity gate refuses unknown devices and over-capacity qubit counts; secret get(required=True) raises.
+  - Library: validation proofs must be non-phantom and resolve against a wired ledger; saves are atomic+fsynced. Critic requires at least one applicable mutant.
+  - Qiskit Runtime uses ibm_quantum_platform (legacy channel via env override); cancel_job attempts vendor recall and the latent ProviderError NameError is fixed.

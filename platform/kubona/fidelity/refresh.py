@@ -28,7 +28,7 @@ class CalibrationError(ValueError):
 
 def _number(snapshot: dict[str, Any], key: str, *, allow_zero: bool = False) -> float:
     value = snapshot.get(key)
-    if not isinstance(value, (int, float)) or value < 0 or (not allow_zero and value == 0):
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0 or (not allow_zero and value == 0):
         raise CalibrationError(f"{key} must be a measured {'non-negative' if allow_zero else 'positive'} number")
     return float(value)
 
@@ -53,7 +53,10 @@ def apply_snapshot(device: str, snapshot: dict[str, Any] | None, *,
     target["source"] = str(snapshot.get("source") or "provider calibration snapshot")
     if write:
         tmp = path.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(doc, indent=2) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
         os.replace(tmp, path)
     return target
 

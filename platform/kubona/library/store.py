@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import time
 import uuid
 from dataclasses import asdict, dataclass, field
@@ -80,6 +81,7 @@ class AlgorithmLibrary:
     ):
         self.path = Path(path) if path else state_path("library.json")
         self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._has_ledger = ledger_resolver is not None or ledger is not None
         if ledger_resolver is not None:
             self._resolve_ref = ledger_resolver
         elif ledger is not None:
@@ -123,11 +125,22 @@ class AlgorithmLibrary:
             raise LibraryError(f"artifact/meta not JSON-serializable — refusing: {e}") from e
         # Ledger resolution at add-time (reject phantoms).
         resolved_ref = self._resolve_ref(ledger_ref)
-        # Validation requires an explicit proof path.
-        if validated and not (isinstance(validation_proof, str) and validation_proof.strip()):
-            raise LibraryError(
-                "validated=True requires validation_proof (explicit proof path) — refusing"
-            )
+        # Validation requires an explicit, non-phantom proof. With a ledger
+        # wired the proof must resolve to a real record; without one the
+        # strict local policy can only reject known-bad values.
+        if validated:
+            proof = validation_proof.strip() if isinstance(validation_proof, str) else ""
+            if not proof or proof.lower() in PHANTOM_REFS:
+                raise LibraryError(
+                    "validated=True requires validation_proof (explicit proof path) — refusing"
+                )
+            if len(proof) < 8:
+                raise LibraryError(
+                    f"validation_proof {proof!r} is too short to be a proof — refusing"
+                )
+            if self._has_ledger:
+                proof = self._resolve_ref(proof)
+            validation_proof = proof
         entry = LibraryEntry(entry_id=uuid.uuid4().hex[:16], harness=harness,
                              artifact=artifact, metric=float(metric), cost_usd=float(cost_usd),
                              ledger_ref=resolved_ref, validated=bool(validated),
@@ -184,7 +197,13 @@ class AlgorithmLibrary:
         return list(self._entries)
 
     def _save(self) -> None:
-        self.path.write_text(json.dumps([asdict(e) for e in self._entries], indent=2))
+        """Atomic replace: a crash never leaves a half-written library."""
+        tmp = self.path.with_suffix(self.path.suffix + ".tmp")
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps([asdict(e) for e in self._entries], indent=2))
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, self.path)
 
     def __len__(self) -> int:
         return len(self._entries)

@@ -38,7 +38,7 @@ def validate_rate_card(provider: str, card: dict[str, Any]) -> dict[str, Any]:
         raise RateCardError("only USD rate cards are supported")
     for key in ("per_shot_usd", "per_task_usd", "per_second_usd"):
         value = card.get(key, 0.0)
-        if not isinstance(value, (int, float)) or value < 0:
+        if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
             raise RateCardError(f"{key} must be a non-negative number")
     if model == "per_shot" and float(card.get("per_shot_usd", 0)) <= 0:
         raise RateCardError("per_shot card must carry a positive per_shot_usd")
@@ -83,7 +83,10 @@ def apply_rate_card(provider: str, card: dict[str, Any], *, write: bool = False,
     doc["pricing"] = pricing
     if write:
         tmp = path.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps(doc, indent=2) + "\n", encoding="utf-8")
+        with open(tmp, "w", encoding="utf-8") as fh:
+            fh.write(json.dumps(doc, indent=2) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
         os.replace(tmp, path)
     return doc
 

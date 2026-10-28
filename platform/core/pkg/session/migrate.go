@@ -407,6 +407,11 @@ func (m *Manager) ExportSession(id string) (*SessionManifest, error) {
 	if len(raw) > MaxManifestBytes {
 		return nil, fmt.Errorf("manifest %d bytes exceeds %d cap: session too large to migrate", len(raw), MaxManifestBytes)
 	}
+	if id := strings.TrimSpace(os.Getenv("KUBONA_IMPORT_HMAC_KEY_ID")); id != "" {
+		if _, key := activeImportKey(); key == "" {
+			return nil, fmt.Errorf("import signing key id %q is not configured: refusing to export unsigned", id)
+		}
+	}
 	if kid, key := activeImportKey(); key != "" {
 		out.SignatureAlg = "hmac-sha256"
 		out.KeyID = kid

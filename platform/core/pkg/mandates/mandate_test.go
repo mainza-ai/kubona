@@ -4,6 +4,7 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/hex"
+	"math"
 	"testing"
 	"time"
 
@@ -107,5 +108,23 @@ func TestCanonicalJobBindingVector(t *testing.T) {
 		if other == base {
 			t.Fatalf("binding must change with session/program/type")
 		}
+	}
+}
+
+func TestVerifyRefusesSignedUnboundMandate(t *testing.T) {
+	_, priv, _ := ed25519.GenerateKey(rand.Reader)
+	m, err := mandates.SignMandate(priv, "", "job", 1, time.Now().Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := m.Verify("", "", 0); err == nil {
+		t.Fatal("valid signature over an unbound mandate must still refuse")
+	}
+	nan, err := mandates.SignMandate(priv, "lab", "job", math.NaN(), time.Now().Add(time.Hour))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := nan.Verify("lab", "job", 1); err == nil {
+		t.Fatal("NaN budget must refuse")
 	}
 }

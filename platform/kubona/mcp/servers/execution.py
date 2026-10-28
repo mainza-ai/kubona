@@ -19,6 +19,7 @@ from kubona.fidelity.accounting import FidelityAccountingEngine, PROVIDER_DEVICE
 from kubona.jobs import JobRunner
 from kubona.mitigation import run_zne
 from kubona.providers import get_provider, list_providers
+from kubona.providers.base import ProviderError
 from kubona.schema import load_provider
 from kubona.schema.provider import MODALITIES_SIMULATOR, TWO_Q_GATES
 from kubona.session import SessionStore
@@ -115,7 +116,6 @@ def submit_qubo_job(qubo_matrix: list[list[float]] | str, n_samples: int = 64,
     """
     import numpy as np
     from kubona.providers.annealing_provider import AnnealingProvider
-    from kubona.providers.base import ProviderError
 
     provider = "dwave-annealing"
     capability = load_provider(provider)
@@ -605,10 +605,28 @@ def get_result(job_id: str) -> dict:
 
 
 def cancel_job(job_id: str) -> dict:
-    """Cancel a queued/running job (the P2 watch-and-interrupt primitive)."""
-    if _runner.cancel(job_id):
-        return {"ok": True, "job_id": job_id, "status": "cancelled"}
-    return {"ok": False, "job_id": job_id, "error": "job not found or already terminal"}
+    """Cancel a queued/running job and attempt vendor recall.
+
+    The cooperative fence is authoritative for Kubona state. If a hardware
+    id was pinned at dispatch, also call the provider's cancel() — best
+    effort, never implying refund. A vendor refusal does not resurrect the
+    job: the fence already stopped Kubona from accepting the result.
+    """
+    job = _runner.store.get(job_id)
+    if job is None:
+        return {"ok": False, "job_id": job_id, "error": "job not found or already terminal"}
+    fenced = _runner.cancel(job_id)
+    if not fenced:
+        return {"ok": False, "job_id": job_id, "error": "job not found or already terminal"}
+    out = {"ok": True, "job_id": job_id, "status": "cancelled"}
+    hw = (getattr(job, "meta", None) or {}).get("hardware_job_id")
+    if hw:
+        out["provider_recall_attempted"] = True
+        try:
+            out["provider_recall"] = get_provider(job.provider).cancel(str(hw))
+        except ProviderError as exc:
+            out["provider_recall_error"] = str(exc)
+    return out
 
 
 def request_provider_recall(job_id: str) -> dict:

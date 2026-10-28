@@ -479,3 +479,21 @@ func TestMetaRoutesBearerGate(t *testing.T) {
 		t.Errorf("proposals listing must stay public, got %d", w.Code)
 	}
 }
+
+func TestMandateSignRefusesUnboundAndOverlongMandates(t *testing.T) {
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	unbound := mandateSignBody(t, "default", "", 1.0, 60, nil, "mandate_sign")
+	if w := authedSignRequest(t, srv, unbound, "test-token"); w.Code != http.StatusBadRequest {
+		t.Fatalf("empty job_hash must 400, got %d: %s", w.Code, w.Body.String())
+	}
+	overlong := mandateSignBody(t, "default", "job-hash", 1.0, 24*3600+1, nil, "mandate_sign")
+	if w := authedSignRequest(t, srv, overlong, "test-token"); w.Code != http.StatusBadRequest {
+		t.Fatalf("ttl over 24h must 400, got %d: %s", w.Code, w.Body.String())
+	}
+	nanBudget := mandateSignBody(t, "default", "job-hash", 0, 60, nil, "mandate_sign")
+	if w := authedSignRequest(t, srv, nanBudget, "test-token"); w.Code != http.StatusBadRequest {
+		t.Fatalf("zero budget must 400, got %d: %s", w.Code, w.Body.String())
+	}
+}

@@ -583,3 +583,18 @@ def test_canary_capacity_range_rule():
     finally:
         schema_pkg.load_provider = real_load
     assert attest_capacity("local-simulator", True)["qubit_count_ok"] is True
+
+
+def test_library_rejects_short_or_phantom_proof(tmp_path):
+    from kubona.library import AlgorithmLibrary, LibraryError
+    from kubona.provenance import Ledger
+    ledger = Ledger(path=str(tmp_path / "l.jsonl"))
+    lib = AlgorithmLibrary(path=str(tmp_path / "lib.json"), ledger=ledger)
+    ref = ledger.append("trial", {"h": 1}).record_id
+    for proof in ("", "none", "short"):
+        with pytest.raises(LibraryError, match="validation_proof|proof"):
+            lib.add(harness="h", artifact=1.0, metric=1.0, cost_usd=0.0,
+                    ledger_ref=ref, validated=True, validation_proof=proof)
+    with pytest.raises(LibraryError, match="no ledger record"):
+        lib.add(harness="h", artifact=1.0, metric=1.0, cost_usd=0.0,
+                ledger_ref=ref, validated=True, validation_proof="deadbeef-nope")
