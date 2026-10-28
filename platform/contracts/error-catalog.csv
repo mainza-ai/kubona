@@ -24,3 +24,4 @@ spend_limit_exceeded,budget,402,false,"raise the Atlas account/project monthly l
 task_not_entitled,upstream,404,false,enable the Atlas task on this account/project or request beta access
 internal,internal,500,false,report the incident id; do not blind-retry mutations (use idempotency keys)
 server_misconfigured,internal,503,false,set the missing server configuration (see message) and restart
+request_too_large,validation,413,false,reduce the request body or raise KUBONA_MAX_REQUEST_BODY_BYTES within the hard ceiling

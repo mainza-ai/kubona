@@ -558,6 +558,9 @@ func TestObservatoryLensUploadsSnapshotAsAsset(t *testing.T) {
 }
 
 func TestObservatoryLensRejectsOversizeSnapshot(t *testing.T) {
+	// Let the request reach the handler's DECODED-byte guard; the global
+	// wire-body cap is a separate (larger) ceiling.
+	t.Setenv("KUBONA_MAX_REQUEST_BODY_BYTES", "134217728")
 	srv, cleanup := setupTestServer(t)
 	defer cleanup()
 

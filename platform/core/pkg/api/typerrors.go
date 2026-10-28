@@ -57,6 +57,7 @@ var errorRegistry = map[string]errorSpec{
 	"bridge_unavailable":   {"upstream", 502, true, "retry when the Python bridge is reachable; sim-only paths stay available"},
 	"llm_unavailable":      {"upstream", 503, true, "retry when a provider is configured; fallback paths stay open"},
 	"unknown_tool":         {"validation", 400, false, "call a tool from the pinned catalog (/api/capabilities)"},
+	"request_too_large":    {"validation", 413, false, "reduce the request body or raise KUBONA_MAX_REQUEST_BODY_BYTES within the hard ceiling"},
 	"unpriced_model":       {"validation", 400, false, "pick a priced model in Model Settings for metered loops (unknown models never bill)"},
 	"credits_unavailable":  {"budget", 402, false, "add World Labs credits, then retry the same idempotency key (no duplicate spend)"},
 	"spend_limit_exceeded": {"budget", 402, false, "raise the Atlas account/project monthly limit or wait for reset, then retry the same idempotency key"},

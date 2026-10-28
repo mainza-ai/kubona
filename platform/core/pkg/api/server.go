@@ -401,6 +401,15 @@ func NewServer(
 
 func (s *Server) Handler() http.Handler {
 	return s.instrument(requestIDAndRecovery(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Global body cap: unbounded write bodies are a cheap memory DoS.
+		// Per-route readers may impose tighter limits; none may exceed this.
+		limit := maxRequestBodyBytes()
+		if r.ContentLength > limit {
+			WriteAPIError(w, "request_too_large",
+				fmt.Sprintf("request body exceeds %d bytes", limit), nil)
+			return
+		}
+		r.Body = http.MaxBytesReader(w, r.Body, limit)
 		if origin := corsAllowOrigin(r); origin != "" {
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Add("Vary", "Origin")
@@ -418,6 +427,26 @@ func (s *Server) Handler() http.Handler {
 		}
 		s.mux.ServeHTTP(w, r)
 	})))
+}
+
+// maxRequestBodyBytes is the process-wide write-body ceiling. Override with
+// KUBONA_MAX_REQUEST_BODY_BYTES for unusually large (but bounded) imports.
+func maxRequestBodyBytes() int64 {
+	const def = 64 << 20
+	const floor = 1 << 20
+	const ceiling = 512 << 20
+	raw := strings.TrimSpace(os.Getenv("KUBONA_MAX_REQUEST_BODY_BYTES"))
+	if raw == "" {
+		return def
+	}
+	n, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || n < floor {
+		return def
+	}
+	if n > ceiling {
+		return ceiling
+	}
+	return n
 }
 
 // requestIDAndRecovery wraps every route with a request id and a panic
