@@ -173,7 +173,7 @@ func (c *Compiler) Analyze(qasm string) (*CircuitSummary, error) {
 					GateCount: raw.TotalGates,
 					// W1.9: qir-core emits no T-count — parsed from
 					// source on both paths (t/tdg statements), never 0
-						// by default (QEC consumed the fabricated zero).
+					// by default (QEC consumed the fabricated zero).
 					TCount:           countTStatements(qasm),
 					QIRProfile:       "BaseProfile",
 					LLVMIR:           llvm,
@@ -200,7 +200,7 @@ func (c *Compiler) Analyze(qasm string) (*CircuitSummary, error) {
 		Depth:            parsed.gateCount,
 		GateCount:        parsed.gateCount,
 		TCount:           parsed.tCount,
-		QIRProfile:       "BaseProfile-Estimate",
+		QIRProfile:       "CustomProfile-Estimate",
 		LLVMIR:           llvm,
 		CompilerUsed:     "go-fallback-estimate",
 		FallbackEstimate: true,
