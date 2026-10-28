@@ -92,8 +92,10 @@ async def test_phase1_gate_vqe_with_budget_and_provenance():
     assert br["ok"] and br["spent_usd"] == 0.0 and br["ceiling_usd"] == 50.0
     assert br["remaining_usd"] == 50.0
 
-    # 5. step-level provenance is queryable
-    q = await _call("kubona.mcp.servers.provenance", "query_records", {"kind": "vqe_step"})
+    # 5. step-level provenance is queryable (explicit tenant scope: the old
+    # silent default-tenant read is gone — ambient queries see public rows only)
+    q = await _call("kubona.mcp.servers.provenance", "query_records",
+                    {"kind": "vqe_step", "requester": "default"})
     assert q["count"] >= 3
     assert "vqe_step" in q["records"][-1] or "step" in q["records"][-1]
 

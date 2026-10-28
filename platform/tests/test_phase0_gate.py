@@ -100,7 +100,8 @@ async def test_phase0_gate_over_mcp():
         assert rec["ok"] is True and rec["chain_ok"] is True
         assert rec["record_hash"] and rec["content_hash"]
 
-        q = await _call(prov_s, "query_records", {"kind": "experiment"})
+        q = await _call(prov_s, "query_records", {"kind": "experiment",
+                                                         "requester": "default"})
         assert q["count"] >= 1
         assert "local-simulator" in q["records"][-1]
     finally:

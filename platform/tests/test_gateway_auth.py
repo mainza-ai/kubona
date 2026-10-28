@@ -47,3 +47,40 @@ def test_oauth2_real_issuer_contract():
 def test_dev_auth_rejects_bad_token():
     with pytest.raises(AuthError):
         DevAuthProvider().verify("nope")
+
+
+def test_gateway_binds_principal_tenant_server_side(tmp_path):
+    """Phase-1: the gateway injects the verified principal's tenant into
+    tool args — an omitted tenant binds to it, and the audit records it."""
+    from kubona.control import LoopSupervisor
+    import kubona.mcp.servers.control as control
+    iss = OAuth2TokenIssuer()
+    gw = build_gateway(auth=OAuth2AccessTokenProvider(iss))
+    control._supervisor = LoopSupervisor(path=tmp_path / "loops.jsonl")
+    token = iss.issue("op", role="user",
+                      scopes=("control:read", "control:manage", "control:override"),
+                      tenant="lab-a")
+    out = gw.call("control", "register_loop",
+                  {"name": "bound", "session_id": "s"}, token=token)
+    assert out["ok"] is True and out["tenant"] == "lab-a"
+    entry = gw.audit_log()[-1]
+    assert entry["sub"] == "op" and entry["tenant"] == "lab-a"
+
+
+def test_gateway_spoofed_tenant_refuses():
+    """A caller-supplied tenant that differs from the principal's tenant
+    refuses with the named cross-tenant error (fail-closed)."""
+    iss = OAuth2TokenIssuer()
+    gw = build_gateway(auth=OAuth2AccessTokenProvider(iss))
+    token = iss.issue("op", role="user",
+                      scopes=("control:read", "control:manage", "control:override"),
+                      tenant="lab-a")
+    out = gw.call("control", "register_loop",
+                  {"name": "x", "session_id": "s", "tenant": "lab-b"}, token=token)
+    assert out["ok"] is False
+    assert "cross-tenant" in out["error"]
+
+    from kubona.security.tenant import CrossTenantRefusal
+    with pytest.raises(CrossTenantRefusal):
+        from kubona.security.tenant import resolve_tenant
+        resolve_tenant(supplied="lab-b", caller={"sub": "op", "tenant": "lab-a"})

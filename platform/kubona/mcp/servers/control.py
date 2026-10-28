@@ -4,11 +4,16 @@ Tools: list_loops / loop_status / pause_loop / resume_loop / kill_loop — the
 live loop inspector feed (watch + interrupt).
 
 Tenant isolation: loops carry an owning-tenant label (set at register);
-reads and overrides take a requester and see/touch only that tenant's
-loops. The gateway capability gate (control:read/manage/override)
-authorizes WHO may call; the label scopes WHICH loops. step_loop is the
-exception: the loop reporting to itself, authorized by possession of the
-unguessable loop_id (no requester threaded — documented, not omitted).
+reads and overrides see/touch only that tenant's loops. The gateway capability
+gate (control:read/manage/override) authorizes WHO may call; the label scopes
+WHICH loops. On the gateway path the verified principal's tenant (server-side
+`caller`, injected by the gateway — never from client args) governs: a
+caller-supplied tenant/requester that differs from it refuses (fail-closed, no
+cross-tenant grant exists yet). Direct in-process / stdio callers are
+transport-trusted: their explicit tenant is strictly validated (refuse-don't-
+collapse — " Default " refuses) but honored. step_loop is the exception: the
+loop reporting to itself, authorized by possession of the unguessable loop_id
+(no requester threaded — documented, not omitted).
 """
 
 from __future__ import annotations
@@ -18,6 +23,7 @@ import asyncio
 from mcp.server.mcpserver import MCPServer
 
 from kubona.control import LoopSupervisor
+from kubona.security.tenant import CrossTenantRefusal, resolve_tenant
 from kubona.session import SessionStore
 
 mcp = MCPServer("kubona-control")
@@ -29,10 +35,24 @@ def _refused(loop_id: str) -> dict:
     return {"ok": False, "error": f"loop {loop_id!r} belongs to another lab tenant: refusing"}
 
 
+def _cross_tenant_refused(detail: str) -> dict:
+    return {"ok": False, "error": f"cross-tenant request refused: {detail}"}
+
+
 def register_loop(name: str, session_id: str, total_steps: int = 100,
-                  tenant: str = "default") -> dict:
-    """A running loop announces itself to the control plane (the harness calls this)."""
-    h = _supervisor.register(name, session_id, total_steps, tenant=tenant or "default")
+                  tenant: str | None = None,
+                  caller: dict | None = None) -> dict:
+    """A running loop announces itself to the control plane (the harness calls this).
+
+    Gateway-injected `caller` governs; a differing tenant/requester refuses.
+    """
+    try:
+        ten = resolve_tenant(supplied=tenant, caller=caller)
+    except CrossTenantRefusal as e:
+        return _cross_tenant_refused(str(e))
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
+    h = _supervisor.register(name, session_id, total_steps, tenant=ten)
     return {"ok": True, "loop_id": h.loop_id, "status": h.status, "tenant": h.tenant}
 
 
@@ -47,22 +67,55 @@ def step_loop(loop_id: str, step_desc: str) -> dict:
         return {"ok": False, "error": f"unknown loop_id {loop_id!r}"}
 
 
-def list_loops(requester: str | None = "default") -> dict:
-    return {"ok": True, "loops": _supervisor.list_for(requester)}
+def _effective_requester(requester: str | None,
+                         caller: dict | None) -> str:
+    """Tenant scope for a read/override call (injected identity wins)."""
+    return resolve_tenant(supplied=requester, caller=caller)
 
 
-def loop_status(loop_id: str, requester: str | None = "default") -> dict:
+def list_loops(requester: str | None = None,
+               caller: dict | None = None) -> dict:
     try:
-        return {"ok": True, **_supervisor.get_for(loop_id, requester).to_dict()}
+        want = _effective_requester(requester, caller)
+    except CrossTenantRefusal as e:
+        return _cross_tenant_refused(str(e))
+    except (ValueError, PermissionError) as e:
+        return {"ok": False, "error": str(e)}
+    try:
+        return {"ok": True, "loops": _supervisor.list_for(want)}
+    except PermissionError as e:
+        # Absent identity on an authenticated path refuses (fail-closed);
+        # list_for only raises for None/empty requesters, which cannot reach
+        # here with a resolved tenant — defensive.
+        return {"ok": False, "error": str(e)}
+
+
+def loop_status(loop_id: str, requester: str | None = None,
+                caller: dict | None = None) -> dict:
+    try:
+        want = _effective_requester(requester, caller)
+    except CrossTenantRefusal as e:
+        return _cross_tenant_refused(str(e))
+    except (ValueError, PermissionError) as e:
+        return {"ok": False, "error": str(e)}
+    try:
+        return {"ok": True, **_supervisor.get_for(loop_id, want).to_dict()}
     except KeyError:
         return {"ok": False, "error": f"unknown loop_id {loop_id!r}"}
     except PermissionError:
         return _refused(loop_id)
 
 
-def pause_loop(loop_id: str, requester: str | None = "default") -> dict:
+def pause_loop(loop_id: str, requester: str | None = None,
+               caller: dict | None = None) -> dict:
     try:
-        _supervisor.get_for(loop_id, requester)
+        want = _effective_requester(requester, caller)
+    except CrossTenantRefusal as e:
+        return _cross_tenant_refused(str(e))
+    except (ValueError, PermissionError) as e:
+        return {"ok": False, "error": str(e)}
+    try:
+        _supervisor.get_for(loop_id, want)
         h = _supervisor.pause(loop_id)
         return {"ok": True, "loop_id": loop_id, "status": h.status}
     except KeyError:
@@ -71,9 +124,16 @@ def pause_loop(loop_id: str, requester: str | None = "default") -> dict:
         return _refused(loop_id)
 
 
-def resume_loop(loop_id: str, requester: str | None = "default") -> dict:
+def resume_loop(loop_id: str, requester: str | None = None,
+                caller: dict | None = None) -> dict:
     try:
-        _supervisor.get_for(loop_id, requester)
+        want = _effective_requester(requester, caller)
+    except CrossTenantRefusal as e:
+        return _cross_tenant_refused(str(e))
+    except (ValueError, PermissionError) as e:
+        return {"ok": False, "error": str(e)}
+    try:
+        _supervisor.get_for(loop_id, want)
         h = _supervisor.resume(loop_id)
         return {"ok": True, "loop_id": loop_id, "status": h.status}
     except KeyError:
@@ -82,9 +142,16 @@ def resume_loop(loop_id: str, requester: str | None = "default") -> dict:
         return _refused(loop_id)
 
 
-def kill_loop(loop_id: str, requester: str | None = "default") -> dict:
+def kill_loop(loop_id: str, requester: str | None = None,
+              caller: dict | None = None) -> dict:
     try:
-        _supervisor.get_for(loop_id, requester)
+        want = _effective_requester(requester, caller)
+    except CrossTenantRefusal as e:
+        return _cross_tenant_refused(str(e))
+    except (ValueError, PermissionError) as e:
+        return {"ok": False, "error": str(e)}
+    try:
+        _supervisor.get_for(loop_id, want)
         h = _supervisor.kill(loop_id)
         return {"ok": True, "loop_id": loop_id, "status": h.status}
     except KeyError:

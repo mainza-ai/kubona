@@ -18,6 +18,7 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
 from kubona.mcp.auth import AuthError, AuthProvider, Principal
+from kubona.session import strict_tenant_slug
 
 
 def _b64url(data: bytes) -> str:
@@ -86,9 +87,13 @@ class OAuth2TokenIssuer:
             serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
 
     def issue(self, sub: str, role: str = "user", scopes: tuple[str, ...] = (),
-              ttl_s: int | None = None) -> str:
+              ttl_s: int | None = None, tenant: str = "default") -> str:
         # W0.13: no god-mode defaults. Every field validated: empty sub,
         # empty scopes, off-vocabulary scopes, and unbounded TTLs refuse.
+        # Phase-1: the tenant claim is validated too (strict slug — padded or
+        # decorated names refuse instead of collapsing onto a neighbor tenant)
+        # and embedded in the signed payload, so the gateway can bind the
+        # principal to its tenant server-side.
         if not sub or not sub.strip():
             raise AuthError("token sub is required: refusing to mint anonymous bearers")
         if not scopes:
@@ -98,13 +103,17 @@ class OAuth2TokenIssuer:
             if not _scope_ok(s):
                 raise AuthError(f"token scope {s!r} is off-vocabulary: refusing")
             clean.append(s)
+        try:
+            tenant_claim = strict_tenant_slug(tenant)
+        except ValueError as e:
+            raise AuthError(f"token tenant invalid: refusing ({e})") from e
         ttl = ttl_s if ttl_s is not None else self.ttl_s
         if ttl <= 0:
             raise AuthError("token TTL must be positive: refusing")
         now = int(time.time())
         header = {"alg": "EdDSA", "typ": "JWT"}
         payload = {"iss": self.issuer, "aud": self.audience, "sub": sub, "role": role,
-                   "scopes": clean, "iat": now, "nbf": now,
+                   "scopes": clean, "tenant": tenant_claim, "iat": now, "nbf": now,
                    "exp": now + min(ttl, MAX_TTL_S)}
         h = _b64url(json.dumps(header, separators=(",", ":")).encode())
         p = _b64url(json.dumps(payload, separators=(",", ":")).encode())
@@ -140,12 +149,26 @@ class OAuth2TokenIssuer:
         raw_scopes = payload.get("scopes", ())
         if not sub or not isinstance(raw_scopes, list):
             raise AuthError("token missing sub/scopes: refusing")
-        return Principal(sub=sub, role=payload.get("role", "user"),
-                         scopes=tuple(raw_scopes))
+        # Phase-1 tenant claim: validated strictly (a forged claim cannot
+        # exist — the payload is signed — but defense in depth refuses garbage
+        # rather than collapsing it). Absent claims (pre-claim tokens, still
+        # within their short TTL) resolve to "default"; new issues always
+        # carry an explicit tenant. Attached to the Principal for the
+        # gateway's server-side binding (see kubona.security.tenant).
+        # Follow-up (teammate scope): promote `tenant` to a first-class
+        # `Principal` field in kubona.core.auth instead of this attachment.
+        try:
+            tenant_claim = strict_tenant_slug(payload.get("tenant", "default"))
+        except ValueError as e:
+            raise AuthError(f"token carries an invalid tenant claim: refusing ({e})") from e
+        principal = Principal(sub=sub, role=payload.get("role", "user"),
+                              scopes=tuple(raw_scopes))
+        object.__setattr__(principal, "tenant", tenant_claim)
+        return principal
 
     def bearer(self, principal_name: str, role: str, scopes: tuple[str, ...],
-               ttl_s: int | None = None) -> str:
-        return self.issue(principal_name, role, scopes, ttl_s)
+               ttl_s: int | None = None, tenant: str = "default") -> str:
+        return self.issue(principal_name, role, scopes, ttl_s, tenant)
 
 
 class OAuth2AccessTokenProvider(AuthProvider):

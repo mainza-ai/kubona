@@ -21,6 +21,7 @@ from typing import Any, Callable
 from .auth import AuthError, AuthProvider, DevAuthProvider, Principal
 from .transport import InProcessTransport, TransportProvider
 from kubona.security.policy import PolicyEngine
+from kubona.security.tenant import caller_from_principal
 from .approval import (
     ApprovalPacket, ApprovalRegistry, elicitation_form, open_state, seal_state,
 )
@@ -31,6 +32,15 @@ ToolFn = Callable[..., dict]
 ApprovalPacketBuilder = Callable[..., ApprovalPacket | None]
 
 logger = logging.getLogger(__name__)
+
+
+def _accepts_caller(fn: ToolFn) -> bool:
+    """Whether a tool declares the server-side `caller` identity parameter."""
+    import inspect
+    try:
+        return "caller" in inspect.signature(fn).parameters
+    except (TypeError, ValueError):
+        return False
 
 
 class KubonaGateway:
@@ -54,6 +64,10 @@ class KubonaGateway:
         self._nonces = ApprovalRegistry()
         self._audit: list[dict] = []
         self._audit_path = audit_path  # optional persistent JSONL audit export
+        # Tools that declare a `caller` parameter receive the server-side
+        # caller identity (sub + tenant claim), injected per call below.
+        # Precomputed at mount; unknown mounts fall back to inspection.
+        self._caller_tools: set[str] = set()
         # Loud-failure counter (W2.7): audit/ledger sinks must never fail
         # silently. Every swallowed sink error increments this and logs at
         # warning — the call path still never breaks, but ops can alert on it.
@@ -84,8 +98,46 @@ class KubonaGateway:
                     f"mount conflict: {server_name}/{name} is already mounted "
                     "(refusing silent overwrite — unmount or rename first)")
             existing[name] = fn
+            if _accepts_caller(fn):
+                self._caller_tools.add(f"{server_name}/{name}")
         if isinstance(self.transport, InProcessTransport):
             self.transport._registry = self._registry
+
+    def _caller_for(self, principal: Principal | None) -> dict[str, str] | None:
+        """Server-side caller identity for tool injection (Phase-1).
+
+        Derived from the VERIFIED principal only — never from client args.
+        None when auth is off (local/test): tools fall back to their
+        transport-trusted direct-call behavior.
+        """
+        if principal is None:
+            return None
+        return caller_from_principal(principal)
+
+    def _inject_caller(self, server: str, tool: str, args: dict[str, Any],
+                       caller: dict[str, str] | None) -> dict[str, Any]:
+        """Bind the server-side caller identity into tool args (overwrite).
+
+        A client-supplied `caller` is attacker-controlled and is always
+        replaced; tools that declare `caller` then prefer it over any
+        caller-supplied requester/tenant string and refuse mismatches.
+        """
+        if caller is None:
+            return args
+        key = f"{server}/{tool}"
+        if key in self._caller_tools:
+            args = dict(args)
+            args["caller"] = caller
+        else:
+            try:
+                fn = self._registry[server][tool]
+            except KeyError:
+                return args
+            if _accepts_caller(fn):
+                self._caller_tools.add(key)
+                args = dict(args)
+                args["caller"] = caller
+        return args
 
     def _authorize(self, principal: Principal, server: str, tool: str) -> None:
         """Per-call identity-aware authorization (Phase 3): fine-grained scopes,
@@ -116,6 +168,13 @@ class KubonaGateway:
             raise KeyError(f"unknown server/tool: {server}/{tool}")
         if self.require_auth:  # authorization is meaningless when auth is off (local/test)
             self._authorize(principal, server, tool)
+        # Phase-1: bind the verified principal's identity server-side.
+        # Injected (overwriting any client-supplied `caller`); tools prefer
+        # it over caller-supplied requester/tenant strings and refuse
+        # mismatches. principal_tenant fail-closed: a malformed claim refuses
+        # here, before any tool runs.
+        caller = self._caller_for(principal)
+        args = self._inject_caller(server, tool, dict(args), caller)
         builder = self._approval.get(f"{server}/{tool}")
         if builder is not None:
             sub = principal.sub if principal else "anon"
@@ -140,6 +199,7 @@ class KubonaGateway:
         entry = {
             "server": server, "tool": tool, "args_keys": sorted(args),
             "sub": principal.sub if principal else "anon",
+            "tenant": caller["tenant"] if caller is not None else "ambient",
         }
         self._audit.append(entry)
         if self._audit_path is not None:  # persistent audit export (JSONL, append-only)

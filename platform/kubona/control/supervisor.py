@@ -172,12 +172,21 @@ class LoopSupervisor:
         Unknown ids raise KeyError (unchanged); a loop owned by another
         tenant raises PermissionError — callers render it as a refusal,
         never as existence-or-absence signal beyond the refusal itself.
-        requester None means ambient access: sees default-tenant loops
-        only (never another tenant's).
+        requester None (or empty) means ABSENT identity: it refuses with
+        PermissionError instead of silently scoping to the default tenant
+        (the old `requester or "default"` conflation let ambient holders
+        assert default-tenant readership). Authenticated callers pass their
+        gateway-bound tenant (control tools resolve it server-side);
+        ambient holders use step_loop possession or public provenance.
         """
+        if not isinstance(requester, str) or not requester:
+            raise PermissionError(
+                "absent caller identity on an authenticated path: refusing "
+                "(ambient holders use step_loop possession; readers pass "
+                "their tenant)"
+            )
         h = self._loops[loop_id]
-        want = requester or "default"
-        if h.tenant != want:
+        if h.tenant != requester:
             raise PermissionError(
                 f"loop {loop_id!r} belongs to another lab tenant: refusing"
             )
@@ -191,9 +200,15 @@ class LoopSupervisor:
 
     def list_for(self, requester: str | None) -> list[dict[str, Any]]:
         """Tenant-scoped listing (never global-with-redaction: existence
-        is information, same doctrine as provenance reads)."""
-        want = requester or "default"
-        return [h.to_dict() for h in self._loops.values() if h.tenant == want]
+        is information, same doctrine as provenance reads). Absent identity
+        (None/empty) refuses — see get_for."""
+        if not isinstance(requester, str) or not requester:
+            raise PermissionError(
+                "absent caller identity on an authenticated path: refusing "
+                "(ambient holders use step_loop possession; readers pass "
+                "their tenant)"
+            )
+        return [h.to_dict() for h in self._loops.values() if h.tenant == requester]
 
     # -- step gate: called by the loop before each step -------------------
     def step(self, loop_id: str, step_desc: str, metric: float | None = None,
