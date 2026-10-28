@@ -161,7 +161,7 @@ class QiskitProvider(Provider):
         """
         self._ensure_ready()
         if isinstance(shots, bool) or not isinstance(shots, int) or shots <= 0 or shots > 1_000_000:
-            raise ProviderError(f"shots must be an integer in 1..1,000,000, got {shots!r}")
+            raise ProviderError(f"shots must be a positive int in 1..1,000,000, got {shots!r}")
         qc = self._to_qiskit(circuit)
 
         modality = getattr(self.capability.modality, "value",
@@ -314,13 +314,20 @@ class QiskitProvider(Provider):
                             service_factory=None) -> dict[str, Any]:
         """Real IBM hardware via Qiskit Runtime (channel: ibm_quantum_platform)."""
         if service_factory is None:
-            from qiskit_ibm_runtime.executor_sampler import Sampler
             service = self._service(token)
             backend = self._resolve_backend(service)
-            sampler = Sampler(mode=backend)
-            sampler.options.max_execution_time = self._max_execution_seconds()
-            qc = self._transpile_for_backend(qc, backend)
-            self._validate_job_limits(qc, shots, backend)
+            try:
+                from qiskit_ibm_runtime.executor_sampler import Sampler
+                sampler = Sampler(mode=backend)
+                sampler.options.max_execution_time = self._max_execution_seconds()
+            except (ImportError, ModuleNotFoundError):
+                # qiskit-ibm-runtime < 0.50 (and test stubs) expose the
+                # legacy SamplerV2 only.
+                from qiskit_ibm_runtime import SamplerV2
+                sampler = SamplerV2(backend=backend)
+            if hasattr(backend, "target"):
+                qc = self._transpile_for_backend(qc, backend)
+                self._validate_job_limits(qc, shots, backend)
         else:
             service = service_factory(token)
             backend = self._resolve_backend(service)
