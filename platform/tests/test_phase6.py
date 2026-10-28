@@ -33,9 +33,10 @@ def test_parse_and_execute_user_workflow(tmp_path):
     engine = WorkflowEngine(gw, ledger=ledger)
     wf = parse_workflow(VQE_WORKFLOW)
     assert not wf.requires_approval()  # user-created
-    # create a real session (the governed chain needs one)
+    # create a real session (the governed chain needs one; Phase-1
+    # ownership: the owner must equal the gateway principal's sub)
     sid = gw.call("cost", "create_session",
-                  {"name": "wf", "owner": "researcher", "budget_ceiling_usd": 10.0},
+                  {"name": "wf", "owner": "researcher@kubona.local", "budget_ceiling_usd": 10.0},
                   token="dev-token")["session_id"]
     out = engine.run(wf, token="dev-token", session_id=sid)
     assert out["ok"] and out["steps"] == 3
@@ -162,7 +163,7 @@ def test_workflow_schedule_trigger_needs_force(tmp_path):
                          "schedule": {"interval_s": 3600}})
     assert wf.schedule == {"interval_s": 3600}
     sid = gw.call("cost", "create_session",
-                  {"name": "wf-trig", "owner": "researcher", "budget_ceiling_usd": 10.0},
+                  {"name": "wf-trig", "owner": "researcher@kubona.local", "budget_ceiling_usd": 10.0},
                   token="dev-token")["session_id"]
     with pytest.raises(WorkflowError):
         engine.run(wf, token="dev-token", session_id=sid)
@@ -209,7 +210,7 @@ def test_workflow_ledger_failure_marks_failed_not_running(tmp_path):
         {"id": "cost", "tool": "cost/estimate_cost",
          "args": {"circuit_qasm": BELL, "provider": "local-simulator", "shots": 8}}]})
     sid = gw.call("cost", "create_session",
-                  {"name": "wf-fail", "owner": "researcher", "budget_ceiling_usd": 1.0},
+                  {"name": "wf-fail", "owner": "researcher@kubona.local", "budget_ceiling_usd": 1.0},
                   token="dev-token")["session_id"]
     out = engine.run(wf, token="dev-token", session_id=sid)
     assert out["ok"] is False and "receipt failed" in out["error"]

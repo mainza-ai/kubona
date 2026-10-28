@@ -44,8 +44,30 @@ def tenant_slug(tenant: str) -> str:
     return slug
 
 
+def strict_tenant_slug(tenant: str) -> str:
+    """Exact-match tenant validation (Phase-1 hardening): refuse-don't-strip
+    AND refuse-don't-collapse.
+
+    `tenant_slug` refuses hostile names but strips/collapses the rest
+    (``" Default "`` -> ``"Default"``). Here the input must already equal its
+    canonical slug, so padded, decorated, or otherwise non-canonical variants
+    refuse instead of landing in a neighboring tenant's namespace. Sharding
+    entry points (`_tenant_dir`) and authorization boundaries (control /
+    provenance tools via `kubona.security.tenant`) enforce this form.
+    """
+    slug = tenant_slug(tenant)  # raises ValueError on hostile/empty/overlong
+    if tenant != slug:
+        raise ValueError(
+            f"tenant {tenant!r} is not canonical (canonical form {slug!r}): "
+            "refusing — pass the exact slug, never padded or decorated names"
+        )
+    return slug
+
+
 def _tenant_dir(tenant: str) -> str:
-    return tenant_slug(tenant)
+    # Sharding entry point: strict — a non-canonical tenant refuses instead
+    # of collapsing onto another tenant's directory (cross-lab bleed).
+    return strict_tenant_slug(tenant)
 
 
 # update() may only write these fields (W0.13): the old arbitrary setattr

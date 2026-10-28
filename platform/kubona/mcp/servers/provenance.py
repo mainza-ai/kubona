@@ -13,6 +13,8 @@ from collections import deque
 from mcp.server.mcpserver import MCPServer
 
 from kubona.provenance import Ledger
+from kubona.security.tenant import CrossTenantRefusal, resolve_tenant
+from kubona.session import strict_tenant_slug
 
 mcp = MCPServer("kubona-provenance")
 
@@ -25,24 +27,94 @@ MAX_SCAN_RECORDS = 10000
 from kubona.provenance import Ledger, readable
 
 
-def write_record(kind: str, payload: dict, label: str | None = None) -> dict:
+def _resolve_write_label(label: str | None, caller: dict | None) -> str | None:
+    """Label for a new record (injected identity wins, fail-closed).
+
+    - With an injected caller: omitted labels bind to the principal's own
+      tenant file-label; "public" stays public; an explicit "tenant/<other>"
+      refuses (label spoofing across tenants). Malformed labels refuse.
+    - Without one (direct in-process / stdio callers): legacy behavior —
+      omitted stays omitted (the ledger defaults to its file tenant), but an
+      explicit "tenant/<id>" is strictly validated (refuse-don't-collapse).
+
+    Residual: the module-global `_ledger` is the default-tenant file, so a
+    non-default caller tenant is recorded as a `tenant/<T>` label inside the
+    default file. Read isolation holds via the label check, but physical
+    sharding per tenant (a Ledger registry keyed by validated tenant) is a
+    follow-up for the ledger owner.
+    """
+    if caller is not None:
+        mine = caller["tenant"]
+        if label is None or label == "":
+            return f"tenant/{mine}"
+        if label == "public":
+            return "public"
+        if label.startswith("tenant/"):
+            want = label[len("tenant/"):]
+            try:
+                strict_tenant_slug(want)
+            except ValueError as e:
+                raise CrossTenantRefusal(f"malformed tenant label {label!r}: refusing ({e})")
+            if want != mine:
+                raise CrossTenantRefusal(
+                    f"label {label!r} claims another lab tenant (principal is {mine!r}): "
+                    "refusing — cross-tenant writes belong to the caller's own tenant file "
+                    "(no cross-tenant grant mechanism exists yet)")
+            return label
+        raise CrossTenantRefusal(f"unknown label shape {label!r}: refusing")
+    if label is not None and label.startswith("tenant/"):
+        strict_tenant_slug(label[len("tenant/"):])  # refuse-don't-collapse, fail-closed
+    return label
+
+
+def write_record(kind: str, payload: dict, label: str | None = None,
+                 caller: dict | None = None) -> dict:
     """Append an immutable, content-addressed record to the provenance ledger.
 
     `label` is "public" or omitted (defaults to the ledger's lab tenant).
     Cross-tenant writes belong to the caller's own tenant file.
+    Gateway-injected `caller` binds the label; spoofs refuse.
     """
-    record = _ledger.append(kind, payload, label=label)
+    try:
+        resolved = _resolve_write_label(label, caller)
+    except CrossTenantRefusal as e:
+        return {"ok": False, "error": f"cross-tenant write refused: {e}"}
+    except ValueError as e:
+        return {"ok": False, "error": str(e)}
+    record = _ledger.append(kind, payload, label=resolved)
     return {"ok": True, "record_id": record.record_id, "record_hash": record.record_hash,
             "content_hash": record.content_hash, "chain_ok": _ledger.validate_chain()[0],
             "label": record.label}
 
 
-def query_records(kind: str | None = None, requester: str | None = "default",
-                  limit: int = 100, offset: int = 0) -> dict:
+def query_records(kind: str | None = None, requester: str | None = None,
+                   limit: int = 100, offset: int = 0,
+                   caller: dict | None = None) -> dict:
+    """Query ledger records with pre-serialization readership enforcement.
+
+    Scoped to the injected `caller` identity when present (a differing
+    requester refuses); without one, omitted requester = ambient (public
+    rows only) and explicit requesters are strictly validated. Bounded
+    scan + page.
+    """
+    try:
+        if caller is not None:
+            effective = resolve_tenant(supplied=requester, caller=caller)
+        elif requester is None:
+            effective = None  # ambient: public rows only (never a default-tenant scope)
+        else:
+            effective = strict_tenant_slug(requester)
+    except CrossTenantRefusal as e:
+        return {"ok": False, "error": f"cross-tenant read refused: {e}",
+                "count": 0, "returned": 0, "offset": offset if isinstance(offset, int) else 0,
+                "limit": limit if isinstance(limit, int) else 100, "truncated": False, "records": []}
+    except ValueError as e:
+        return {"ok": False, "error": str(e),
+                "count": 0, "returned": 0, "offset": offset if isinstance(offset, int) else 0,
+                "limit": limit if isinstance(limit, int) else 100, "truncated": False, "records": []}
     # Readership is enforced BEFORE serialization (never after flooding):
-    # tenant rows are visible inside their own lab tenant only. The default
-    # requester preserves single-operator behavior; ambient callers pass None
-    # and see public rows. Both the scan and the page are bounded.
+    # tenant rows are visible inside their own lab tenant only. Ambient
+    # callers (requester None) see public rows. Both the scan and the page are bounded.
     if not isinstance(limit, int) or isinstance(limit, bool):
         limit = 100
     limit = min(max(limit, 1), MAX_QUERY_RECORDS)
@@ -59,7 +131,7 @@ def query_records(kind: str | None = None, requester: str | None = "default",
             break
         if kind is not None and r.kind != kind:
             continue
-        if not readable(r, requester, _ledger.tenant or "default"):
+        if not readable(r, effective, _ledger.tenant or "default"):
             continue
         matched += 1
         if matched > offset and len(page) < limit:
@@ -114,8 +186,12 @@ def _aggregate(kind: str | None = None, requester: str | None = None) -> dict:
               description="Immutable experiment/audit records from the content-addressed ledger.",
               mime_type="application/json")
 def records_resource() -> str:
-    # Ambient resource context carries no requester: public rows only.
-    # Tenant rows are reachable via query_records with an explicit requester.
+    # Ambient resource context carries no requester: public rows only
+    # (legitimately public — MCP resources carry no identity; this is the
+    # documented ambient path, alongside best_resource's public-only
+    # aggregation and control step_loop's loop-id possession).
+    # Tenant rows are reachable via query_records under an authenticated
+    # (gateway-bound) identity.
     records: deque[dict] = deque(maxlen=MAX_QUERY_RECORDS)
     truncated = False
     for r in _ledger:

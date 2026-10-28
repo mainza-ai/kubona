@@ -126,6 +126,28 @@ def test_tenant_slug_and_labs(tmp_path):
         labs.create("Lab A", "owner")  # same slug collides
 
 
+def test_strict_tenant_slug_refuses_non_canonical(tmp_path):
+    """Phase-1: padded/decorated names refuse instead of collapsing onto a
+    neighbor tenant (" Default " never becomes "Default"); sharding entry
+    points enforce the strict form."""
+    import pytest
+    from kubona.session import SessionStore, strict_tenant_slug
+    assert strict_tenant_slug("lab-a") == "lab-a"
+    assert strict_tenant_slug("default") == "default"
+    for bad in (" Default ", "lab-a ", " lab-a", "a/b", "a b", "", "...", "x" * 65):
+        with pytest.raises(ValueError):
+            strict_tenant_slug(bad)
+    # Sharding entry point enforces the strict form (isolated state dir).
+    import os
+    os.environ["KUBONA_STATE_DIR"] = str(tmp_path / "state")
+    try:
+        with pytest.raises(ValueError):
+            SessionStore(tenant=" lab-a ")
+        SessionStore(tenant="lab-a")  # canonical still shards fine
+    finally:
+        del os.environ["KUBONA_STATE_DIR"]
+
+
 def test_record_job_concurrent_appends_do_not_lose_ids(tmp_path):
     import threading
     from kubona.session import SessionStore

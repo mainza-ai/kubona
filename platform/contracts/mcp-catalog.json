@@ -1,6 +1,6 @@
 {
   "generated_by": "KUBONA_UPDATE_CATALOG=1 pytest platform/tests/test_mcp_catalog.py",
-  "digest": "72fe310559e0ab1a42899d73ad3d78c1f7c38896549442e527161bbd7f2da3c5",
+  "digest": "9371e5d925efa76dac3f44e591510a9aab94da0d15e494e5fcbb8919e07e66ef",
   "tools": [
     {
       "name": "compile_circuit",
@@ -125,8 +125,21 @@
                 "type": "null"
               }
             ],
-            "default": "default",
+            "default": null,
             "title": "Requester"
+          },
+          "caller": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Caller"
           }
         },
         "required": [
@@ -159,8 +172,21 @@
                 "type": "null"
               }
             ],
-            "default": "default",
+            "default": null,
             "title": "Requester"
+          },
+          "caller": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Caller"
           }
         },
         "title": "list_loopsArguments",
@@ -192,8 +218,21 @@
                 "type": "null"
               }
             ],
-            "default": "default",
+            "default": null,
             "title": "Requester"
+          },
+          "caller": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Caller"
           }
         },
         "required": [
@@ -229,8 +268,21 @@
                 "type": "null"
               }
             ],
-            "default": "default",
+            "default": null,
             "title": "Requester"
+          },
+          "caller": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Caller"
           }
         },
         "required": [
@@ -268,9 +320,29 @@
             "type": "integer"
           },
           "tenant": {
-            "default": "default",
-            "title": "Tenant",
-            "type": "string"
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Tenant"
+          },
+          "caller": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Caller"
           }
         },
         "required": [
@@ -307,8 +379,21 @@
                 "type": "null"
               }
             ],
-            "default": "default",
+            "default": null,
             "title": "Requester"
+          },
+          "caller": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Caller"
           }
         },
         "required": [
@@ -703,6 +788,19 @@
           "job_id": {
             "title": "Job Id",
             "type": "string"
+          },
+          "caller": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Caller"
           }
         },
         "required": [
@@ -754,6 +852,19 @@
           "job_id": {
             "title": "Job Id",
             "type": "string"
+          },
+          "caller": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Caller"
           }
         },
         "required": [
@@ -779,6 +890,19 @@
           "job_id": {
             "title": "Job Id",
             "type": "string"
+          },
+          "caller": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Caller"
           }
         },
         "required": [
@@ -871,6 +995,19 @@
             "default": 100,
             "title": "Jobs Limit",
             "type": "integer"
+          },
+          "caller": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Caller"
           }
         },
         "required": [
@@ -1018,6 +1155,19 @@
             ],
             "default": null,
             "title": "Approval Id"
+          },
+          "caller": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Caller"
           }
         },
         "required": [
@@ -1217,7 +1367,7 @@
                 "type": "null"
               }
             ],
-            "default": "default",
+            "default": null,
             "title": "Requester"
           },
           "limit": {
@@ -1229,6 +1379,19 @@
             "default": 0,
             "title": "Offset",
             "type": "integer"
+          },
+          "caller": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Caller"
           }
         },
         "title": "query_recordsArguments",
@@ -1267,6 +1430,19 @@
             ],
             "default": null,
             "title": "Label"
+          },
+          "caller": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Caller"
           }
         },
         "required": [
