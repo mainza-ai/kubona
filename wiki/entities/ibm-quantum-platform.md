@@ -109,6 +109,13 @@ path CAS-settles `reserved - actual` back to tenant+session (full release when m
 usage is zero), and the job row records the measured amount. Covered by a Go test; the
 already-created validation session was not retroactively adjusted.
 
+**Anomaly investigation (same day):** the direct-run circuit and the governed QASM produce
+the same ISA (initial layout q0/q1, `rz/sx/cz/measure`; ideal Aer `00/11`), so this is not a
+conversion defect. The governed rerun on the same backend produced 92% `00/11`; the direct
+run's 44% `|10>` was not reproduced. Job records do not retain the physical layout, so the
+suspected bad-pair/readout cause cannot be proven from the completed jobs. Treat it as an
+unresolved device/layout observation; log the selected layout on future hardware jobs.
+
 ## Agent rules
 
 1. Read the linked IBM page before quoting a limit, price, backend, or API shape.
