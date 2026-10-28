@@ -36,6 +36,14 @@ services:
       # on a non-loopback bind (fail-closed).
       KUBONA_BRIDGE_BIND: "0.0.0.0"
       KUBONA_BRIDGE_TOKEN: ${KUBONA_BRIDGE_TOKEN:-${KUBONA_API_TOKEN:-}}
+      # IBM credentials are consumed by the bridge's qiskit provider, not
+      # by kubonad. Keep them explicit so the private compute plane can
+      # dispatch without baking secrets into the image.
+      KUBONA_IBM_QISKIT_TOKEN: ${KUBONA_IBM_QISKIT_TOKEN:-}
+      KUBONA_IBM_QISKIT_INSTANCE: ${KUBONA_IBM_QISKIT_INSTANCE:-}
+      KUBONA_IBM_QISKIT_CHANNEL: ${KUBONA_IBM_QISKIT_CHANNEL:-ibm_quantum_platform}
+      KUBONA_IBM_QISKIT_BACKEND: ${KUBONA_IBM_QISKIT_BACKEND:-}
+      KUBONA_IBM_MAX_EXECUTION_SECONDS: ${KUBONA_IBM_MAX_EXECUTION_SECONDS:-600}
     restart: unless-stopped
     deploy:
       resources:

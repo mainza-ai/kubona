@@ -3660,3 +3660,10 @@ skipped is the exact failure this incident is about:
   - Submitted a 100-shot transpiled Bell circuit to ibm_marrakesh; job dbgva40te5oc738j0ui0 completed with QPU usage 2 seconds. Counts: 11:52, 10:44, 00:3, 01:1.
   - Honest verdict: the hardware path (ISA → Sampler → job → result) works, but the distribution is not a clean Bell; q1 readout error was ~15.7% yet 44% |10> needs layout/calibration investigation. No fidelity/advantage claim.
   - An earlier ibm_fez attempt was queued >15 min and canceled with 0 usage. KUBONA_IBM_MAX_EXECUTION_SECONDS=120 is now set in the operator .env, so future runs cannot exceed 2 QPU minutes.
+
+## [2026-10-28] verification | Platform-governed IBM dispatch proven
+
+  - Go /api/quantum/jobs → bridge → ibm-qiskit completed under a tenant-admin mandate: job 6631e996179d48bb, IBM dbh02i9t9uhs73c93fk0, ibm_marrakesh, 100 shots, 2 s usage, counts 00:52/11:40/10:6/01:2.
+  - Prereqs: air-gap off via /api/llm/settings, bridge env for IBM token/instance/backend/max-execution, canonical job hash + integer-valued budget in the admin params hash.
+  - Finding recorded: estimate $8.000568 was reserved; completion keeps the estimate instead of settling to measured usage (~$3.20 at the card rate). Provider now returns usage_seconds; Go settlement is the follow-up.
+  - Env: KUBONA_IBM_QISKIT_BACKEND override and compose passthrough for IBM credentials; QPU cap stays 120 s.

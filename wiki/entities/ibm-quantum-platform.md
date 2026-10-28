@@ -72,6 +72,42 @@ submitted. Re-verify before dispatch.
 - No advantage or fidelity claim is made from this run. Total QPU spend: 2 seconds of the
   2-minute operator cap.
 
+## Platform-governed dispatch (verified 2026-10-28)
+
+The Go → Python-bridge → IBM path ran end-to-end. It is **not** a direct provider call:
+the Go `/api/quantum/jobs` route enforces session/tenant/mandate/settlement before the
+bridge calls the provider.
+
+Sequence (bearer = `KUBONA_API_TOKEN`):
+
+1. `POST /api/tenants` → create the lab; `POST /api/tenants/admin-key` (bearer) bootstraps
+   its Ed25519 admin key.
+2. `POST /api/sessions` (bearer, `tenant_id`, budget) → session id.
+3. `job_hash = sha256("kubona-job-v1\ncircuit_run\n" + session_id + "\n" + qasm)`.
+4. Sign the tenant-admin envelope over `mandate_sign` params
+   `{job_hash, max_budget_usd, ttl_seconds}`; `POST /api/mandates/sign` mints the reviewer
+   mandate. The params hash is Go `json.Marshal` bytes — integer-valued budgets must be
+   encoded as integers (`5`, not `5.0`) or the envelope hash differs.
+5. `POST /api/quantum/jobs` with `session_id`, `qasm`, `provider=ibm-qiskit`, `shots`,
+   a unique `idempotency_key`, and `mandate_ref` = the signed mandate JSON.
+6. Poll `GET /api/quantum/jobs/<id>`; the Go row is attributed from its own record, not
+   the bridge response.
+
+Prerequisites uncovered during the run: disable the Sovereign Air-Gap through
+`/api/llm/settings` for a deliberate hardware dispatch; the bridge must receive the IBM
+token/instance/backend/max-execution env (compose now passes them); and a hardware
+mandate must be used even though a dry run succeeds without one.
+
+**Observed run:** governed job `6631e996179d48bb` → IBM `dbh02i9t9uhs73c93fk0`,
+`ibm_marrakesh`, 100 shots, **2 s usage**, counts `00:52, 11:40, 10:6, 01:2` (a noisy
+Bell; no fidelity claim). The pre-dispatch estimate was `$8.000568` (5.000 s billed at
+the $1.60/s card); the session/tenant books were reserved at that estimate.
+
+**Gap found:** completion does not settle down to measured usage. The provider now returns
+`usage_seconds`, but `SyncQuantumBridgeJobStatus` keeps the full estimate reservation. At
+the card rate a 2 s job should settle near `$3.20`, not `$8.00`. Follow-up: settle
+`reserved - actual` on completion (and define the zero-usage/system-error case).
+
 ## Agent rules
 
 1. Read the linked IBM page before quoting a limit, price, backend, or API shape.
