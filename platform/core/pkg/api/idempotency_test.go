@@ -393,3 +393,20 @@ func TestChatRejectsClientSuppliedSystemRole(t *testing.T) {
 		t.Fatalf("system role must 400, got %d: %s", code, body)
 	}
 }
+
+func TestGlobalRequestBodyCapRefusesOversize(t *testing.T) {
+	t.Setenv("KUBONA_MAX_REQUEST_BODY_BYTES", "1048576")
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+	h := srv.Handler()
+	sid := idemSession(t, h, "body-cap")
+	code, body, _ := idemPost(t, h, "/api/chat/messages", map[string]any{
+		"session_id": sid, "content": strings.Repeat("x", 2<<20),
+	})
+	if code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("oversize write must 413, got %d: %s", code, body)
+	}
+	if !strings.Contains(body, "exceeds") {
+		t.Fatalf("oversize refusal must name the cap, got %q", body)
+	}
+}

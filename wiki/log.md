@@ -3548,3 +3548,8 @@ skipped is the exact failure this incident is about:
   - Chat writes accept only user/assistant roles; a client-supplied system role is refused before persistence (internal system notices still use the manager directly).
   - Grant revocation registry reads and corrupt rows fail closed (API 503, admission refuses); grant budget NaN/Inf is refused.
   - Cleaned wiki/questions.md duplicate sections and marked the audit decision table resolved.
+
+## [2026-10-27] decision | Global request-body ceiling
+
+  - Every HTTP request is capped at 64 MiB (KUBONA_MAX_REQUEST_BODY_BYTES overrides within 1 MiB..512 MiB); oversized Content-Length gets a typed 413 `request_too_large` before any handler work, and chunked bodies are still bounded by MaxBytesReader.
+  - Added the code to the CSV + Go registry and a test that oversize chat writes never persist.
