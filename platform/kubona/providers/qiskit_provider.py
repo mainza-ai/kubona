@@ -316,18 +316,20 @@ class QiskitProvider(Provider):
         if service_factory is None:
             service = self._service(token)
             backend = self._resolve_backend(service)
-            try:
-                from qiskit_ibm_runtime.executor_sampler import Sampler
-                sampler = Sampler(mode=backend)
-                sampler.options.max_execution_time = self._max_execution_seconds()
-            except (ImportError, ModuleNotFoundError):
-                # qiskit-ibm-runtime < 0.50 (and test stubs) expose the
-                # legacy SamplerV2 only.
-                from qiskit_ibm_runtime import SamplerV2
-                sampler = SamplerV2(backend=backend)
             if hasattr(backend, "target"):
+                try:
+                    from qiskit_ibm_runtime.executor_sampler import Sampler
+                    sampler = Sampler(mode=backend)
+                    sampler.options.max_execution_time = self._max_execution_seconds()
+                except (ImportError, ModuleNotFoundError):
+                    from qiskit_ibm_runtime import SamplerV2
+                    sampler = SamplerV2(backend=backend)
                 qc = self._transpile_for_backend(qc, backend)
                 self._validate_job_limits(qc, shots, backend)
+            else:
+                # Test/older stub that does not expose BackendV2.target.
+                from qiskit_ibm_runtime import SamplerV2
+                sampler = SamplerV2(backend=backend)
         else:
             service = service_factory(token)
             backend = self._resolve_backend(service)

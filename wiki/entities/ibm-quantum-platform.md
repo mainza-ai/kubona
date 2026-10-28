@@ -58,6 +58,20 @@ submitted. Re-verify before dispatch.
   600 s; local checks for 10M executions, 5M two-qubit gates, backend capacity, 1M shots.
 - Open Plan: 10 QPU minutes per 28-day rolling window.
 
+## First live validation (2026-10-28)
+
+- Job `dbgva40te5oc738j0ui0`, backend `ibm_marrakesh`, 100 shots, reported QPU usage
+  **2 seconds** (operator cap: 120 s; set via `KUBONA_IBM_MAX_EXECUTION_SECONDS`).
+- Counts: `11:52, 10:44, 00:3, 01:1`.
+- **Verdict: hardware path works, but this is not a clean Bell result.** The queue,
+  transpilation, submission, execution, and result return are proven; the observed
+  distribution is far from ideal (ideal ISA simulation: `00/11`). Qubit 1's readout error was
+  ~15.7% at job time, but that alone does not explain 44% `10`; investigate layout/calibration
+  before any fidelity claim. An earlier `ibm_fez` submission was canceled while queued with
+  0 usage.
+- No advantage or fidelity claim is made from this run. Total QPU spend: 2 seconds of the
+  2-minute operator cap.
+
 ## Agent rules
 
 1. Read the linked IBM page before quoting a limit, price, backend, or API shape.

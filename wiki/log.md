@@ -3654,3 +3654,9 @@ skipped is the exact failure this incident is about:
 ## [2026-10-28] decision | Workflow ledger failure is terminal and visible
 
   - A workflow_step receipt failure now marks the workflow failed and returns ok=False; the workflow can no longer remain "running" after a successful step whose audit receipt could not be written.
+
+## [2026-10-28] verification | First live IBM QPU run under the 2-minute cap
+
+  - Submitted a 100-shot transpiled Bell circuit to ibm_marrakesh; job dbgva40te5oc738j0ui0 completed with QPU usage 2 seconds. Counts: 11:52, 10:44, 00:3, 01:1.
+  - Honest verdict: the hardware path (ISA → Sampler → job → result) works, but the distribution is not a clean Bell; q1 readout error was ~15.7% yet 44% |10> needs layout/calibration investigation. No fidelity/advantage claim.
+  - An earlier ibm_fez attempt was queued >15 min and canceled with 0 usage. KUBONA_IBM_MAX_EXECUTION_SECONDS=120 is now set in the operator .env, so future runs cannot exceed 2 QPU minutes.
