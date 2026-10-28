@@ -233,6 +233,36 @@ class JobStore:
                 return j
         return None
 
+    def cas_mark_settled(self, job_id: str, actual_usd: float | None) -> tuple[Job | None, bool, float]:
+        """Atomically mark a job settled to `actual_usd` (Python mirror of the
+        Go settleReservation CAS): the FIRST caller wins (`did_mark=True`);
+        concurrent/late settlers get `did_mark=False` and must not move money.
+        Returns (job, did_mark, reserved_usd). `reserved_usd` is the Python
+        reservation recorded at dispatch (`meta.reserved_usd`, falling back to
+        `meta.estimate.estimated_usd` for pre-marker jobs); 0.0 means no
+        Python reservation exists (free tier or Go-prepaid mirror)."""
+        with self._exclusive():
+            j = self._load().get(job_id)
+            if j is None:
+                return None, False, 0.0
+            meta = dict(j.meta or {})
+            reserved = meta.get("reserved_usd")
+            if reserved is None:
+                est = meta.get("estimate")
+                reserved = est.get("estimated_usd", 0.0) if isinstance(est, dict) else 0.0
+            try:
+                reserved_f = round(float(reserved), 6)
+            except (TypeError, ValueError):
+                reserved_f = 0.0
+            if meta.get("settled"):
+                return j, False, reserved_f
+            meta["settled"] = True
+            meta["actual_usd"] = actual_usd
+            j.meta = meta
+            j.updated_at = time.time()
+            self._save(j)
+            return j, True, reserved_f
+
 
 class JobRunner:
     """Executes enqueued jobs on a background thread pool; records provenance."""

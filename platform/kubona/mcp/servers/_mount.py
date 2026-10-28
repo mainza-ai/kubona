@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from kubona.mcp.gateway import KubonaGateway
+from kubona.mcp.approval import approval_secret_from_env
 
 from . import compiler, control, cost, execution, provenance, world
 
@@ -69,4 +70,14 @@ def build_gateway(*, require_auth: bool = True, auth: Any | None = None,
         "world_handoff": world.world_handoff,
         "world_replay": world.world_replay,
     })
+    # Phase-0 money rail: paid dispatches behind human approval. Free-tier
+    # simulators auto-allow inside the builders; anything that can spend > 0
+    # demands a packet sealed with KUBONA_APPROVAL_SECRET (unconfigured
+    # deployments fail closed on paid paths, free paths unaffected).
+    gw.require_approval("execution", "submit_job",
+                        execution.submit_job_approval_builder,
+                        secret=approval_secret_from_env())
+    gw.require_approval("execution", "submit_qubo_job",
+                        execution.submit_qubo_job_approval_builder,
+                        secret=approval_secret_from_env())
     return gw

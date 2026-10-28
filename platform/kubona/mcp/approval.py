@@ -15,11 +15,14 @@ payment credentials (URL mode would, but approvals need no secrets).
 
 from __future__ import annotations
 
+import contextvars
 import hashlib
 import hmac
 import json
+import os
 import secrets
 import time
+from contextlib import contextmanager
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable
 
@@ -27,6 +30,51 @@ from typing import Any, Callable
 APPROVAL_METHOD = "elicitation/create"
 DEFAULT_APPROVAL_TTL_S = 900  # 15 minutes: approvals rot fast
 MAX_PENDING_NONCES = 10000
+
+# Single shared const for the MRTR state-seal secret (Phase-0 money rail):
+# the gateway approval builders, the execution submit gates, and every test
+# fixture read this name — never re-list the string elsewhere.
+APPROVAL_SECRET_ENV = "KUBONA_APPROVAL_SECRET"
+
+
+def approval_secret_from_env() -> bytes | None:
+    """Seal secret for approval requestState. None when unconfigured —
+    callers fail closed for paid paths (the gateway refuses to seal) while
+    free-tier auto-allows never need it."""
+    raw = os.environ.get(APPROVAL_SECRET_ENV, "")
+    if not raw or not raw.strip():
+        return None
+    return raw.strip().encode("utf-8")
+
+
+# Ambient gateway approval (Phase-0): after the gateway verifies an MRTR
+# approval round (HMAC state, principal match, args digest, single-use
+# nonce, exact cost ack), it executes the tool inside this context so the
+# in-function paid-dispatch gate can honor the human decision without a
+# second, weaker token. Direct calls never see it (default None) and must
+# present a governance APPROVED approval instead. The record carries the
+# verified server/tool/cost ceiling; the submit path re-checks scope + cover.
+_GATEWAY_APPROVAL: contextvars.ContextVar[dict[str, Any] | None] = (
+    contextvars.ContextVar("kubona_gateway_approval", default=None)
+)
+
+
+@contextmanager
+def gateway_approved_call(record: dict[str, Any]):
+    """Mark the enclosed tool execution as gateway-approved (MRTR-verified)."""
+    token = _GATEWAY_APPROVAL.set(dict(record))
+    try:
+        yield record
+    finally:
+        _GATEWAY_APPROVAL.reset(token)
+
+
+def current_gateway_approval() -> dict[str, Any] | None:
+    """The ambient MRTR approval for this execution context, if any."""
+    try:
+        return _GATEWAY_APPROVAL.get()
+    except LookupError:
+        return None
 
 
 @dataclass

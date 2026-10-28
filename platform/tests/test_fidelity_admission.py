@@ -38,11 +38,25 @@ def test_simulator_skips_fidelity_gate():
 def test_shallow_qpu_circuit_admitted_with_verdict():
     # W0.16: budgets above the implicit cap travel on explicit sessions
     # (opened via cost/create_session), never self-granted implicitly.
+    # Phase-0: paid dispatches also carry a real approval (REVIEW -> HOLD ->
+    # APPROVED with a minted mandate) — the fidelity verdict asserts below
+    # are unchanged, the spend is now authorized spend.
+    import os
+    from kubona.cost.mandate import canonical_job_binding
     from kubona.mcp.servers import cost as cost_server
     sess = cost_server.create_session("qpu-shallow", "researcher", budget_ceiling_usd=150.0)
+    sid = sess["session_id"]
+    gov = exec_server._gov
+    req = gov.request_approval(sid, 150.0, "fidelity admission test")
+    gov.hold_approval(req.approval_id, reviewer="test-operator")
+    approved = gov.approve(
+        req.approval_id, reviewer="test-operator", tenant_id="lab-a",
+        job_hash=canonical_job_binding("circuit_run", sid, BELL),
+        signing_key=os.urandom(32))
     out = exec_server.submit_job(BELL, provider="ibm-qiskit", shots=100,
-                                 session_id=sess["session_id"],
-                                 caller_jurisdictions=["US"])
+                                 session_id=sid,
+                                 caller_jurisdictions=["US"],
+                                 approval_id=approved.approval_id)
     assert out["ok"] is True, out
     assert out["status"] in ("queued", "running", "completed"), out
 
