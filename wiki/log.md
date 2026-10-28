@@ -3590,3 +3590,8 @@ skipped is the exact failure this incident is about:
 ## [2026-10-27] decision | Output downloads are SSRF-checked
 
   - downloadFile validates scheme/host, requires https + non-private resolution in production, revalidates every redirect, caps the body at 64 MiB, and validates Atlas asset ids before URL interpolation. Dev loopback fixtures remain allowed.
+
+## [2026-10-27] decision | Import verifies event hashes and canonicalizes v1 payloads
+
+  - Import recomputes every event's v1/v2 entry hash before insert; v1 payloads re-encoded by JSON round-trips are canonicalized when that reproduces the recorded hash, otherwise the import refuses.
+  - Chain-domain signatures are verified over the recomputed digest during import (external mandate domains remain read-time verified). Tests pin tamper refusal and a pretty-printed v1 manifest importing into a clean VerifyChain.

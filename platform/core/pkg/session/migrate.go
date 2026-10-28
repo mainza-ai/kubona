@@ -13,6 +13,7 @@ package session
 // ever written to a disk path).
 
 import (
+	"crypto/ed25519"
 	"crypto/hmac"
 	"crypto/sha256"
 	"database/sql"
@@ -742,13 +743,46 @@ func (m *Manager) ImportSession(man *SessionManifest) (*ImportResult, error) {
 		if sdom == "" {
 			sdom = "chain"
 		}
+		payload := []byte(e.Payload)
+		var digest [32]byte
+		if hver == 1 {
+			digest = ledger.ChainDigestBytesV1(e.PrevHash, s.ID, e.EventType, string(payload))
+			if hex.EncodeToString(digest[:]) != e.EntryHash {
+				// Legacy v1 hashes the raw payload bytes. A JSON round-trip
+				// may pretty-print/reorder them; canonicalizing recovers the
+				// digest without weakening the hash (same canonical form v2
+				// already uses).
+				canon := ledger.CanonicalPayload(payload)
+				cd := ledger.ChainDigestBytesV1(e.PrevHash, s.ID, e.EventType, string(canon))
+				if hex.EncodeToString(cd[:]) != e.EntryHash {
+					return nil, fmt.Errorf("import event %d entry_hash mismatch: refusing tampered or non-canonical payload", e.ID)
+				}
+				payload = canon
+				digest = cd
+			}
+		} else {
+			digest = ledger.ChainDigestBytesV2(e.PrevHash, s.ID, e.TenantID, e.ConfLabel, e.Timestamp, e.EventType, payload)
+			if hex.EncodeToString(digest[:]) != e.EntryHash {
+				return nil, fmt.Errorf("import event %d entry_hash mismatch: refusing tampered metadata/payload", e.ID)
+			}
+		}
+		if sdom == "chain" && e.Signature != "" {
+			pub, perr := hex.DecodeString(e.SignerPubkey)
+			sig, serr := hex.DecodeString(e.Signature)
+			if perr != nil || serr != nil || len(pub) != ed25519.PublicKeySize || len(sig) != ed25519.SignatureSize {
+				return nil, fmt.Errorf("import event %d has malformed chain signature", e.ID)
+			}
+			if !ed25519.Verify(ed25519.PublicKey(pub), digest[:], sig) {
+				return nil, fmt.Errorf("import event %d chain signature invalid", e.ID)
+			}
+		}
 		var insertErr error
 		if idExists > 0 {
 			insertErr = exec(`INSERT INTO ledger_events (timestamp, session_id, tenant_id, conf_label, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex, hash_version, signature_domain) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				e.Timestamp, s.ID, e.TenantID, e.ConfLabel, e.EventType, string(e.Payload), e.PrevHash, e.EntryHash, e.SignerPubkey, e.Signature, hver, sdom)
+				e.Timestamp, s.ID, e.TenantID, e.ConfLabel, e.EventType, string(payload), e.PrevHash, e.EntryHash, e.SignerPubkey, e.Signature, hver, sdom)
 		} else {
 			insertErr = exec(`INSERT INTO ledger_events (id, timestamp, session_id, tenant_id, conf_label, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex, hash_version, signature_domain) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-				e.ID, e.Timestamp, s.ID, e.TenantID, e.ConfLabel, e.EventType, string(e.Payload), e.PrevHash, e.EntryHash, e.SignerPubkey, e.Signature, hver, sdom)
+				e.ID, e.Timestamp, s.ID, e.TenantID, e.ConfLabel, e.EventType, string(payload), e.PrevHash, e.EntryHash, e.SignerPubkey, e.Signature, hver, sdom)
 		}
 		if insertErr != nil {
 			return nil, fmt.Errorf("import event %d: %w", e.ID, insertErr)
