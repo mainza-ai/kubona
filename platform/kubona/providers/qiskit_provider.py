@@ -14,6 +14,48 @@ from kubona.schema import ProviderCapability
 from .base import Provider, ProviderError
 
 
+def _snapshot_from_properties(props: Any, backend_name: str) -> dict[str, Any] | None:
+    """Median calibration from BackendProperties; missing values are skipped,
+    never zero-filled. Kept separate so tests exercise the real parsing."""
+    import statistics
+    n = len(props.qubits)
+
+    def _vals(fn):
+        out = []
+        for q in range(n):
+            try:
+                v = fn(q)
+            except Exception:
+                continue
+            if v is not None:
+                out.append(v)
+        return out
+
+    t1_vals, t2_vals, ro_vals = _vals(props.t1), _vals(props.t2), _vals(props.readout_error)
+    if not t1_vals or not t2_vals or not ro_vals:
+        return None
+    t1 = statistics.median(t1_vals)
+    t2 = statistics.median(t2_vals)
+    ro = statistics.median(ro_vals)
+    # Representative native 1q gates; id/rx/rz are virtual and measure/reset
+    # are not coherent gate errors.
+    oneq = [g.parameters[0].value for g in props.gates
+            if len(getattr(g, "qubits", [])) == 1
+            and str(g.name).rstrip("0123456789") in ("sx", "x")]
+    twoq = [g.parameters[0].value for g in props.gates if len(getattr(g, "qubits", [])) == 2]
+    snap: dict[str, Any] = {
+        "t1_us": float(t1 * 1e6), "t2_us": float(t2 * 1e6),
+        "readout_error": float(ro), "source": f"backend-properties:{backend_name}"}
+    measured = getattr(props, "last_update_date", None)
+    if measured is not None:
+        snap["calibrated_at"] = measured.isoformat() if hasattr(measured, "isoformat") else str(measured)
+    if oneq:
+        snap["single_qubit_error"] = float(statistics.median(oneq))
+    if twoq:
+        snap["two_qubit_error"] = float(statistics.median(twoq))
+    return snap
+
+
 class QiskitProvider(Provider):
     def __init__(self, capability: ProviderCapability, secrets=None, backend_name: str | None = None):
         self.capability = capability
@@ -186,6 +228,25 @@ class QiskitProvider(Provider):
         from qiskit_ibm_runtime import QiskitRuntimeService
         return QiskitRuntimeService(channel=self._channel(), token=token)
 
+    def _resolve_backend(self, service):
+        """Return the configured backend or the first operational hardware
+        backend. Backend names retire (ibm_brisbane did); a stale contract
+        name must not turn every calibration/dispatch into a hard failure.
+        """
+        name = self.backend_name
+        if name:
+            try:
+                return service.backend(name)
+            except Exception:
+                pass
+        candidates = sorted(
+            (b for b in service.backends(simulator=False, operational=True)),
+            key=lambda b: getattr(b, "name", ""),
+        )
+        if not candidates:
+            raise ProviderError("no operational IBM hardware backend is available")
+        return candidates[0]
+
     def _credential(self) -> str | None:
         # R12: no caching of the default store. An explicitly injected
         # store (constructor arg — tests, deliberate wiring) is honored;
@@ -216,11 +277,11 @@ class QiskitProvider(Provider):
             from qiskit_ibm_runtime import SamplerV2  # noqa: F401
 
             service = self._service(token)
-            backend = service.backend(self.backend_name)
+            backend = self._resolve_backend(service)
             sampler = SamplerV2(backend=backend)
         else:
             service = service_factory(token)
-            backend = service.backend(self.backend_name)
+            backend = self._resolve_backend(service)
             if hasattr(service, "sampler"):
                 sampler = service.sampler(backend)
             else:
@@ -235,7 +296,7 @@ class QiskitProvider(Provider):
                 "status": "running",
                 "deferred": True,
                 "shots": shots,
-                "backend": self.backend_name,
+                "backend": backend.name,
                 "job_id": job_id,
                 "hardware_job_id": job_id,
                 "hardware": True,
@@ -330,24 +391,10 @@ class QiskitProvider(Provider):
             if not token or not self.backend_name:
                 return None
             service = self._service(token)
-            props = service.backend(self.backend_name).properties()
+            backend = self._resolve_backend(service)
+            props = backend.properties()
             if props is None:
                 return None
-            import statistics
-            t1 = statistics.median([q.t1 for q in props.qubits])
-            t2 = statistics.median([q.t2 for q in props.qubits])
-            ro = statistics.median([q.readout_error for q in props.qubits])
-            twoq = [g.parameters[0].value for g in props.gates if len(getattr(g, "qubits", [])) == 2]
-            oneq = [g.parameters[0].value for g in props.gates if len(getattr(g, "qubits", [])) == 1]
-            snap: dict[str, Any] = {
-                "t1_us": float(t1 * 1e6), "t2_us": float(t2 * 1e6),
-                "readout_error": float(ro), "source": "backend-properties"}
-            # Only report what was actually measured; absent keys compare as
-            # unknown downstream, never as fabricated zeros.
-            if oneq:
-                snap["single_qubit_error"] = float(statistics.median(oneq))
-            if twoq:
-                snap["two_qubit_error"] = float(statistics.median(twoq))
-            return snap
+            return _snapshot_from_properties(props, backend.name)
         except Exception:
             return None

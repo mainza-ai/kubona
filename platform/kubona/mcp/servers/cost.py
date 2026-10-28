@@ -14,15 +14,12 @@ import threading
 from mcp.server.mcpserver import MCPServer
 
 from kubona.circuits import parse_qasm2
-from kubona.cost.governance import CostGovernanceService
 from kubona.cost.payment import payments_for
 from kubona.schema import load_provider
-from kubona.session import SessionStore
+from kubona.mcp.servers._stores import GOVERNANCE as _gov, SESSIONS as _sessions
 
 mcp = MCPServer("kubona-cost")
 
-_sessions = SessionStore()
-_gov = CostGovernanceService(_sessions)
 
 # Stored quotes (W0.16): verify_payment checks the proof against the amount
 # OWED (the stored quote for this session), never a caller-supplied amount —

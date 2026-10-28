@@ -1,8 +1,8 @@
 {
   "schema_version": "1.0",
   "description": "Single source-of-truth calibrated device noise catalog and provider-to-device mapping shared across Go Core and Python MCP runtime (Ring 3 fidelity gate).",
-  "default_floor_go": 0.60,
-  "default_floor_python": 0.80,
+  "default_floor_go": 0.6,
+  "default_floor_python": 0.8,
   "drift_tolerance": 0.15,
   "max_calibration_age_hours": 24.0,
   "provider_device_map": {
@@ -15,25 +15,29 @@
   "devices": [
     {
       "name": "ibm-heron",
-      "aliases": ["ibm_heron"],
+      "aliases": [
+        "ibm_heron"
+      ],
       "qubits": 156,
-      "t1_us": 180.0,
-      "t2_us": 140.0,
-      "single_qubit_error": 0.0003,
-      "two_qubit_error": 0.0035,
-      "readout_error": 0.012,
+      "t1_us": 144.18691782348233,
+      "t2_us": 99.35106824436869,
+      "single_qubit_error": 0.0002933337197292548,
+      "two_qubit_error": 0.0025166756011914537,
+      "readout_error": 0.010009765625,
       "calibration_age_seconds": 3600.0,
-      "source": "IBM Quantum backend calibration medians, Heron r2 class",
-      "version": "v1-heuristic-2026-10",
-      "calibrated_at": "2026-10-01"
+      "source": "backend-properties:ibm_fez",
+      "version": "live-2026-10-28T04:28:02+00:00",
+      "calibrated_at": "2026-10-28T04:28:02+00:00"
     },
     {
       "name": "quantinuum-h1",
-      "aliases": ["quantinuum_h1"],
+      "aliases": [
+        "quantinuum_h1"
+      ],
       "qubits": 20,
       "t1_us": 1000000.0,
       "t2_us": 1000000.0,
-      "single_qubit_error": 0.00003,
+      "single_qubit_error": 3e-05,
       "two_qubit_error": 0.0015,
       "readout_error": 0.003,
       "calibration_age_seconds": 3600.0,
@@ -43,12 +47,14 @@
     },
     {
       "name": "rigetti-aspen",
-      "aliases": ["rigetti_aspen"],
+      "aliases": [
+        "rigetti_aspen"
+      ],
       "qubits": 80,
       "t1_us": 35.0,
       "t2_us": 25.0,
       "single_qubit_error": 0.0005,
-      "two_qubit_error": 0.0080,
+      "two_qubit_error": 0.008,
       "readout_error": 0.045,
       "calibration_age_seconds": 7200.0,
       "source": "Rigetti Aspen-class published medians",
@@ -57,7 +63,9 @@
     },
     {
       "name": "local-simulator",
-      "aliases": ["local_simulator"],
+      "aliases": [
+        "local_simulator"
+      ],
       "qubits": 32,
       "t1_us": 1000000.0,
       "t2_us": 1000000.0,

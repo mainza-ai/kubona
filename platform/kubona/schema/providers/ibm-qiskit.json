@@ -1,7 +1,7 @@
 {
   "provider": "ibm-qiskit",
   "modality": "superconducting",
-  "physical_qubits": 127,
+  "physical_qubits": 156,
   "logical_qubits_available": null,
   "native_gate_set": [
     "ecr",
@@ -28,5 +28,5 @@
   ],
   "status": "registered",
   "execution_plugin": "kubona.providers.qiskit_provider.QiskitProvider",
-  "backend": "ibm_brisbane"
+  "backend": "ibm_fez"
 }

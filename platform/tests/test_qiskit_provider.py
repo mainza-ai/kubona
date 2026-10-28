@@ -116,3 +116,39 @@ async def test_gateway_chain_over_qiskit():
                     "provider": "qiskit-aer-simulator", "shots": 2048,
                     "results": result["result"]["counts"], "cost_usd": 0.0}})
     assert rec["chain_ok"] is True
+
+
+def test_calibration_snapshot_parsing_skips_missing_and_measurement():
+    from types import SimpleNamespace
+    from datetime import datetime, timezone
+    from kubona.providers.qiskit_provider import _snapshot_from_properties
+
+    class Props:
+        qubits = [None, None]
+        last_update_date = datetime(2026, 10, 27, 12, 0, tzinfo=timezone.utc)
+        gates = [
+            SimpleNamespace(name="sx0", qubits=[0], parameters=[SimpleNamespace(value=0.0002)]),
+            SimpleNamespace(name="x1", qubits=[1], parameters=[SimpleNamespace(value=0.0004)]),
+            SimpleNamespace(name="xslow0", qubits=[0], parameters=[SimpleNamespace(value=0.9)]),
+            SimpleNamespace(name="measure0", qubits=[0], parameters=[SimpleNamespace(value=0.9)]),
+            SimpleNamespace(name="cz0_1", qubits=[0, 1], parameters=[SimpleNamespace(value=0.003)]),
+        ]
+
+        def t1(self, q):
+            return {0: 100e-6, 1: 200e-6}[q]
+
+        def t2(self, q):
+            if q == 1:
+                raise RuntimeError("missing T2")
+            return 90e-6
+
+        def readout_error(self, q):
+            return 0.01
+
+    snap = _snapshot_from_properties(Props(), "ibm_fez")
+    assert snap["t1_us"] == 150.0  # median over available
+    assert snap["t2_us"] == 90.0
+    assert snap["single_qubit_error"] == pytest.approx(0.0003)
+    assert snap["two_qubit_error"] == pytest.approx(0.003)
+    assert snap["source"] == "backend-properties:ibm_fez"
+    assert snap["calibrated_at"].startswith("2026-10-27T12:00:00")
