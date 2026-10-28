@@ -376,8 +376,23 @@ func (m *Manager) RewriteUserMessage(sessionID, messageID, content, expectedCont
 		return nil, err
 	}
 	defer tx.Rollback()
-	if _, err := tx.Exec(`UPDATE chat_messages SET content = ? WHERE id = ?`, content, messageID); err != nil {
+	// CAS lives in the UPDATE (not a pre-check): a concurrent edit between
+	// the read and the write must lose, not silently last-writer-win.
+	updateSQL := `UPDATE chat_messages SET content = ? WHERE id = ? AND session_id = ?`
+	args := []any{content, messageID, sessionID}
+	if expectedContent != "" {
+		updateSQL += ` AND content = ?`
+		args = append(args, expectedContent)
+	}
+	res, err := tx.Exec(updateSQL, args...)
+	if err != nil {
 		return nil, fmt.Errorf("failed to rewrite message: %w", err)
+	}
+	if n, _ := res.RowsAffected(); n != 1 {
+		if expectedContent != "" {
+			return nil, ErrContentMismatch
+		}
+		return nil, fmt.Errorf("message not found in session")
 	}
 	// Positional truncation (not timestamp comparison: same-second inserts
 	// share created_at granularity, so time comparison under-deletes).
