@@ -32,7 +32,7 @@ var lensOpSessions sync.Map // opID string -> sessionID string
 
 // atlasJWKS is the cached JWKS document with its expiry.
 var atlasJWKS struct {
-	sync.Mutex
+	sync.RWMutex
 	doc     map[string]any
 	expires time.Time
 }
@@ -47,11 +47,15 @@ func atlasJWKSURL() string {
 
 // fetchAtlasJWKS returns the cached JWKS document, refreshing past expiry.
 func fetchAtlasJWKS() (map[string]any, error) {
-	atlasJWKS.Lock()
-	defer atlasJWKS.Unlock()
+	// Read the cache under RLock, but never hold a lock over network I/O:
+	// a slow/hung JWKS endpoint must not serialize every webhook request.
+	atlasJWKS.RLock()
 	if atlasJWKS.doc != nil && time.Now().Before(atlasJWKS.expires) {
-		return atlasJWKS.doc, nil
+		doc := atlasJWKS.doc
+		atlasJWKS.RUnlock()
+		return doc, nil
 	}
+	atlasJWKS.RUnlock()
 	client := &http.Client{Timeout: 15 * time.Second}
 	resp, err := client.Get(atlasJWKSURL())
 	if err != nil {
@@ -69,8 +73,10 @@ func fetchAtlasJWKS() (map[string]any, error) {
 	if err := json.Unmarshal(body, &doc); err != nil {
 		return nil, err
 	}
+	atlasJWKS.Lock()
 	atlasJWKS.doc = doc
 	atlasJWKS.expires = time.Now().Add(24 * time.Hour)
+	atlasJWKS.Unlock()
 	return doc, nil
 }
 

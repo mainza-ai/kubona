@@ -3582,3 +3582,7 @@ skipped is the exact failure this incident is about:
 ## [2026-10-27] decision | Suspension stops execution
 
   - Suspending a tenant now cancels every unsettled job in its sessions and pauses every active autoresearch engine owned by that lab. Reactivation remains admin-signed; dispatch was already refused while suspended.
+
+## [2026-10-27] decision | JWKS cache never holds the lock over I/O
+
+  - fetchAtlasJWKS reads under RLock, fetches without a lock, and stores under Lock. A hung JWKS endpoint no longer serializes every webhook request; concurrent refreshes may duplicate one fetch.
