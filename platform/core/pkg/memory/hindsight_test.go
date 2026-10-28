@@ -381,3 +381,25 @@ func TestListRecentInventory(t *testing.T) {
 		t.Errorf("budget must bound listing, got %d", len(got))
 	}
 }
+
+func TestEvictionIsTenantScoped(t *testing.T) {
+	store := NewHindsightStoreWithConfig(StoreConfig{MaxItemsPerBank: 2, MaxTokensPerBank: 100000})
+	store.RetainScoped("lab-a", "tenant/lab-a", BankExperiences, "a1", 0.1, nil)
+	store.RetainScoped("lab-a", "tenant/lab-a", BankExperiences, "a2", 0.2, nil)
+	store.RetainScoped("lab-b", "tenant/lab-b", BankExperiences, "b1", 0.9, nil)
+	store.RetainScoped("lab-a", "tenant/lab-a", BankExperiences, "a3", 0.3, nil)
+	for _, item := range store.items {
+		if item.TenantID == "lab-b" && item.Content != "b1" {
+			t.Fatalf("lab-b memory evicted by lab-a pressure: %+v", item)
+		}
+	}
+	var bCount int
+	for _, item := range store.items {
+		if item.TenantID == "lab-b" {
+			bCount++
+		}
+	}
+	if bCount != 1 {
+		t.Fatalf("lab-b must retain its memory, got %d", bCount)
+	}
+}
