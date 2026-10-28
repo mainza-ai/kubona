@@ -160,8 +160,8 @@ class QiskitProvider(Provider):
         run Aer directly with no flag — no downgrade is involved.
         """
         self._ensure_ready()
-        if isinstance(shots, bool) or not isinstance(shots, int) or shots <= 0:
-            raise ProviderError(f"shots must be a positive int, got {shots!r}")
+        if isinstance(shots, bool) or not isinstance(shots, int) or shots <= 0 or shots > 1_000_000:
+            raise ProviderError(f"shots must be an integer in 1..1,000,000, got {shots!r}")
         qc = self._to_qiskit(circuit)
 
         modality = getattr(self.capability.modality, "value",
@@ -206,7 +206,9 @@ class QiskitProvider(Provider):
         try:
             service = self._service(token, service_factory)
             job = service.job(hardware_job_id)
-            cancelled = bool(job.cancel())
+            cancelled = job.cancel()  # IBM's cancel() returns None; don't claim acceptance
+            if cancelled is not None:
+                cancelled = bool(cancelled)
         except ImportError as e:
             raise ProviderError(f"qiskit-ibm-runtime not installed: {e}")
         except Exception as e:  # noqa: BLE001 — vendor refusal is data, not a crash
@@ -225,8 +227,13 @@ class QiskitProvider(Provider):
     def _service(self, token: str, service_factory=None):
         if service_factory is not None:
             return service_factory(token)
+        import os
         from qiskit_ibm_runtime import QiskitRuntimeService
-        return QiskitRuntimeService(channel=self._channel(), token=token)
+        kwargs = {"channel": self._channel(), "token": token}
+        instance = os.environ.get("KUBONA_IBM_QISKIT_INSTANCE", "").strip()
+        if instance:
+            kwargs["instance"] = instance
+        return QiskitRuntimeService(**kwargs)
 
     def _resolve_backend(self, service):
         """Return the configured backend or the first operational hardware
@@ -239,6 +246,10 @@ class QiskitProvider(Provider):
                 return service.backend(name)
             except Exception:
                 pass
+        try:
+            return service.least_busy(operational=True, simulator=False)
+        except Exception:
+            pass
         candidates = sorted(
             (b for b in service.backends(simulator=False, operational=True)),
             key=lambda b: getattr(b, "name", ""),
@@ -268,20 +279,54 @@ class QiskitProvider(Provider):
             return self._backend_name
         return self.capability.backend or None
 
+    def _transpile_for_backend(self, qc, backend):
+        # ISA is mandatory on IBM hardware; transpile locally before Sampler.
+        from qiskit.transpiler import generate_preset_pass_manager
+        return generate_preset_pass_manager(optimization_level=1, backend=backend).run(qc)
+
+    def _validate_job_limits(self, qc, shots: int, backend) -> None:
+        # IBM validates after transpilation: <=10M executions (circuit x shots)
+        # and <=5M two-qubit gates per circuit. Fail locally with a clear
+        # message instead of queueing a guaranteed validation failure.
+        if shots > 10_000_000:
+            raise ProviderError("Sampler executions exceed the 10M per-job IBM limit")
+        num_qubits = getattr(backend, "num_qubits", None)
+        if isinstance(num_qubits, int) and qc.num_qubits > num_qubits:
+            raise ProviderError(
+                f"circuit uses {qc.num_qubits} qubits but {getattr(backend, 'name', 'backend')} "
+                f"has {num_qubits}")
+        twoq = sum(1 for inst in qc.data if len(inst.qubits) == 2)
+        if twoq > 5_000_000:
+            raise ProviderError("circuit exceeds the 5M two-qubit-gate IBM limit")
+
+    def _max_execution_seconds(self) -> int:
+        import os
+        raw = os.environ.get("KUBONA_IBM_MAX_EXECUTION_SECONDS", "600").strip()
+        try:
+            n = int(raw)
+        except ValueError:
+            return 600
+        return min(max(n, 1), 10800)
+
     def _submit_ibm_runtime(self, qc, shots: int, token: str,
                             on_hardware_job=None,
                             wait_for_result: bool = True,
                             service_factory=None) -> dict[str, Any]:
         """Real IBM hardware via Qiskit Runtime (channel: ibm_quantum_platform)."""
         if service_factory is None:
-            from qiskit_ibm_runtime import SamplerV2  # noqa: F401
-
+            from qiskit_ibm_runtime.executor_sampler import Sampler
             service = self._service(token)
             backend = self._resolve_backend(service)
-            sampler = SamplerV2(backend=backend)
+            sampler = Sampler(mode=backend)
+            sampler.options.max_execution_time = self._max_execution_seconds()
+            qc = self._transpile_for_backend(qc, backend)
+            self._validate_job_limits(qc, shots, backend)
         else:
             service = service_factory(token)
             backend = self._resolve_backend(service)
+            if hasattr(backend, "target"):
+                qc = self._transpile_for_backend(qc, backend)
+                self._validate_job_limits(qc, shots, backend)
             if hasattr(service, "sampler"):
                 sampler = service.sampler(backend)
             else:
