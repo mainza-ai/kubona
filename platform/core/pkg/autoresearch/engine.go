@@ -372,7 +372,7 @@ def build_circuit():
 	isoTag := res.IsolationTag
 	if isoTag == "" {
 		if res.Sandboxed {
-			isoTag = "docker:kubona/quantum-runner:latest"
+			isoTag = "docker:" + sandbox.DefaultRunnerImage
 		} else {
 			isoTag = "host-fallback"
 		}
@@ -505,8 +505,16 @@ func (e *LoopEngine) Step(ctx context.Context) (*IterationRecord, error) {
 			Rationale:       rationale,
 			DurationMs:      duration.Milliseconds(),
 			Sandboxed:       harnessRes != nil && harnessRes.Sandboxed,
-			IsolationTag:    "docker:kubona/quantum-runner:latest",
-			Error:           errStr,
+			// The harness reports the tag it actually ran under (which names
+			// the image); the const-derived tag is only the fallback. Never
+			// a copied image literal — those rot apart (see sandbox package).
+			IsolationTag: func() string {
+				if harnessRes != nil && harnessRes.IsolationTag != "" {
+					return harnessRes.IsolationTag
+				}
+				return "docker:" + sandbox.DefaultRunnerImage
+			}(),
+			Error: errStr,
 		}
 		e.state.Iterations = append(e.state.Iterations, record)
 		e.checkStagnationLocked()

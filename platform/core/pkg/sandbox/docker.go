@@ -19,6 +19,14 @@ var (
 	ErrDevModeInProduction    = errors.New("KUBONA_DEV_MODE is strictly prohibited in production")
 )
 
+// DefaultRunnerImage is the single Go-side pin of the quantum-runner image.
+// It MUST match the Python rail literal `kubona-quantum-runner:1.1.0` used in
+// platform/kubona/sandbox/execution.py (KUBONA_SANDBOX_IMAGE default),
+// platform/kubona/eval/codeexec.py, and the platform/tests expectations.
+// Both rails pull the same image so a harness verified in one sandbox runs
+// byte-identical in the other; bump both rails together, never one alone.
+const DefaultRunnerImage = "kubona-quantum-runner:1.1.0"
+
 // ExecutionResult captures the output, metrics, and security attributes of a run
 type ExecutionResult struct {
 	Stdout       string        `json:"stdout"`
@@ -49,7 +57,7 @@ type Config struct {
 func DefaultConfig() Config {
 	runtime := os.Getenv("KUBONA_SANDBOX_RUNTIME")
 	return Config{
-		Image:             "kubona/quantum-runner:latest",
+		Image:             DefaultRunnerImage,
 		Timeout:           60 * time.Second,
 		CPULimit:          "2.0",
 		MemoryLimit:       "4g",
@@ -83,7 +91,7 @@ func NewSandboxRunner(image string, timeout time.Duration) *SandboxRunner {
 // NewSandboxRunnerWithConfig creates a runner with custom security configurations
 func NewSandboxRunnerWithConfig(cfg Config) *SandboxRunner {
 	if cfg.Image == "" {
-		cfg.Image = "kubona/quantum-runner:latest"
+		cfg.Image = DefaultRunnerImage
 	}
 	if cfg.Timeout <= 0 {
 		cfg.Timeout = 60 * time.Second
