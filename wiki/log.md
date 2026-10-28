@@ -3569,3 +3569,7 @@ skipped is the exact failure this incident is about:
 ## [2026-10-27] decision | Memory eviction is tenant-scoped
 
   - Hindsight capacity/eviction now filters on bank + tenant + readership, so one lab filling its bank cannot evict another lab's memories. Persistence errors on retain still need a typed path.
+
+## [2026-10-27] decision | Message rewrite CAS is atomic
+
+  - RewriteUserMessage's expected-content compare now lives in the UPDATE ... AND content = ?; a concurrent edit loses (ErrContentMismatch) instead of silently last-writer-winning between a pre-check and write.
