@@ -1,7 +1,8 @@
 # Kubona production stack (D1 skeleton).
 #
 #   kubonad :8080  <- console + operator (Go orchestrator, SQLite ledger)
-#   bridge  :50051  <- kubonad only (Python gRPC compute; NOT published)
+#   bridge  unix:///run/kubona/bridge.sock <- kubonad only (Python gRPC
+#             compute over a shared-volume UDS; NO TCP in production)
 #   console :3000  <- browser (Next.js standalone)
 #
 # Deliberately absent: vault (dev-only compose; promotion needs real
@@ -26,15 +27,17 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.bridge
     image: kubona/bridge:prod
-    expose:
-      - "50051"
     environment:
       KUBONA_ENV: "production"
-      # The bridge is a private compute plane. Binding 0.0.0.0 is only
-      # allowed because every RPC then requires this bearer; kubonad
-      # presents it. If both tokens are unset the bridge refuses to start
-      # on a non-loopback bind (fail-closed).
-      KUBONA_BRIDGE_BIND: "0.0.0.0"
+      # The bridge is a private compute plane. Production transport is
+      # UDS-exclusive over the shared bridge-sock volume: no TCP socket
+      # exists at all (the bridge refuses TCP in KUBONA_ENV=production),
+      # so there is nothing to sniff or to bind. kubonad dials the same
+      # socket path. Both images run as UID 1000 and both bake
+      # /run/kubona owned by kubona:kubona so the seeded volume is
+      # writable. If the token is unset the bridge still refuses to
+      # serve authenticated RPCs (fail-closed).
+      KUBONA_BRIDGE_SOCKET: /run/kubona/bridge.sock
       KUBONA_BRIDGE_TOKEN: ${KUBONA_BRIDGE_TOKEN:-${KUBONA_API_TOKEN:-}}
       # IBM credentials are consumed by the bridge's qiskit provider, not
       # by kubonad. Keep them explicit so the private compute plane can
@@ -44,6 +47,8 @@ services:
       KUBONA_IBM_QISKIT_CHANNEL: ${KUBONA_IBM_QISKIT_CHANNEL:-ibm_quantum_platform}
       KUBONA_IBM_QISKIT_BACKEND: ${KUBONA_IBM_QISKIT_BACKEND:-}
       KUBONA_IBM_MAX_EXECUTION_SECONDS: ${KUBONA_IBM_MAX_EXECUTION_SECONDS:-600}
+    volumes:
+      - bridge-sock:/run/kubona
     restart: unless-stopped
     deploy:
       resources:
@@ -51,7 +56,7 @@ services:
           cpus: '2.0'
           memory: 4G
     healthcheck:
-      test: ["CMD", "python", "-c", "import grpc; grpc.channel_ready_future(grpc.insecure_channel('127.0.0.1:50051')).result(timeout=4)"]
+      test: ["CMD", "python", "-c", "import grpc; grpc.channel_ready_future(grpc.insecure_channel('unix:///run/kubona/bridge.sock')).result(timeout=4)"]
       interval: 15s
       timeout: 6s
       retries: 3
@@ -62,9 +67,13 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.kubonad
     image: kubona/kubonad:prod
-    command: ["--bind", "0.0.0.0", "--port", "8080", "--bridge", "bridge:50051"]
+    command: ["--bind", "0.0.0.0", "--port", "8080"]
     environment:
       KUBONA_ENV: "production"
+      # Bridge dial: --bridge flag intentionally left at its default
+      # (localhost:50051) so KUBONA_BRIDGE_SOCKET takes precedence in
+      # kubonad's dial logic — the Go side joins the same UDS, never TCP.
+      KUBONA_BRIDGE_SOCKET: /run/kubona/bridge.sock
       # Explicit single-lab posture (Q-57). Set to "0" for a multi-lab
       # deployment; anonymous session reads then require auth.
       KUBONA_SINGLE_LAB: ${KUBONA_SINGLE_LAB:-1}
@@ -101,6 +110,7 @@ services:
     # dev daemon before trusting host-port curls.
     volumes:
       - kubona-state:/home/kubona/.kubona
+      - bridge-sock:/run/kubona
     depends_on:
       bridge:
         condition: service_healthy
@@ -138,3 +148,4 @@ services:
 
 volumes:
   kubona-state:
+  bridge-sock:

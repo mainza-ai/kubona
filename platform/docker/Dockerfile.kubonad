@@ -42,6 +42,11 @@ ENV KUBONA_CONTRACTS_DIR=/contracts
 # root-owned and the nonroot daemon cannot create its state (boot refuses,
 # fail-closed — observed live before this line existed).
 RUN mkdir -p /home/kubona/.kubona/models && chown -R kubona:kubona /home/kubona/.kubona
+# Seed the bridge socket dir with daemon ownership (same volume-seeding
+# pattern as above): kubonad joins the bridge's UDS as UID 1000, so the
+# shared bridge-sock volume must not mount root-owned. The bridge seeds
+# the same path in its own image; either side mounting first wins safely.
+RUN mkdir -p /run/kubona && chown kubona:kubona /run/kubona
 
 USER kubona
 EXPOSE 8080
