@@ -1,8 +1,9 @@
 package api_test
 
 // R2b HTTP test: verifying a mandate opens its closure obligation
-// (receipt-scoped, admin-owned); re-verifying the same mandate opens a
-// distinct receipt obligation (never forks, never merges).
+// (receipt-scoped, admin-owned); re-verifying the SAME signed mandate is
+// an idempotent replay (one receipt, one obligation — public spam cannot
+// grow the ledger).
 
 import (
 	"bytes"
@@ -96,14 +97,20 @@ func TestVerifyOpensMandateObligation(t *testing.T) {
 	if ob.Disposition != "open" {
 		t.Fatalf("fresh obligation must be open, got %q", ob.Disposition)
 	}
-	// Re-verify: new receipt, distinct obligation (receipt-scoped).
+	// Re-verify: identical signed bytes replay the same receipt/obligation.
 	out2 := verifyMandate(t, h, "lab-r2b", adminHex, adminPriv)
 	receipt2, _ := out2["receipt"].(string)
-	if receipt2 == "" || receipt2 == receipt {
-		t.Fatalf("re-verify must mint a distinct receipt: %q vs %q", receipt2, receipt)
+	if receipt2 != receipt {
+		t.Fatalf("re-verify must replay the same receipt: %q vs %q", receipt2, receipt)
 	}
-	ob2, err := l.GetObligationBySubject("mandate", receipt2)
-	if err != nil || ob2 == nil || ob2.ID == ob.ID {
-		t.Fatalf("re-verify must open a distinct obligation: %+v %v", ob2, err)
+	if out2["replayed"] != true {
+		t.Fatalf("re-verify must mark the replay: %v", out2)
+	}
+	var n int
+	if err := l.DB().QueryRow(`SELECT COUNT(*) FROM ledger_events WHERE event_type = 'mandate_verified_client'`).Scan(&n); err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("replay must not append a second receipt, got %d", n)
 	}
 }

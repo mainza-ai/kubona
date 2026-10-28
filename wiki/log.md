@@ -3557,3 +3557,7 @@ skipped is the exact failure this incident is about:
 ## [2026-10-27] decision | Disk guard covers every spend rail
 
   - Lens dispatch, quantum submit, workflow run, memory retain, and session import now refuse with storage_blocked before decoding or spending when the disk guard is blocked. The disk-gate test pins all five.
+
+## [2026-10-27] decision | Mandate verification replay is idempotent
+
+  - Re-verifying the exact signed mandate returns the original receipt and obligation (replayed:true) instead of appending another ledger event; a missing obligation is healed. Public verification with a fresh valid mandate still appends exactly one receipt.

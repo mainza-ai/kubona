@@ -1262,6 +1262,29 @@ func (s *Server) handleMandateVerify(w http.ResponseWriter, r *http.Request) {
 	if !isAdmin {
 		via = "reviewer"
 	}
+	owner := "admin:" + req.PublicKeyHex
+	if !isAdmin {
+		owner = "reviewer:" + req.PublicKeyHex
+	}
+
+	// Re-verifying the same signed mandate must not mint a second receipt or
+	// obligation: the route is public, so replay has to be a no-op (spam
+	// cannot grow the ledger). A missing obligation is healed on replay.
+	if receipt, ok := s.existingMandateReceipt(req.TenantID, req.JobHash, req.SignatureHex); ok {
+		if ob, err := s.ledger.GetObligationBySubject("mandate", receipt); err != nil || ob == nil {
+			if oerr := s.openMandateObligation(req.TenantID, owner, receipt); oerr != nil {
+				writeJSON(w, http.StatusOK, map[string]any{
+					"valid": false, "code": "mandate_invalid", "error": oerr.Error(),
+				})
+				return
+			}
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"valid": true, "mandate": req, "receipt": receipt, "replayed": true,
+			"verified_at": time.Now().UTC().Format(time.RFC3339),
+		})
+		return
+	}
 
 	rec, rerr := s.ledger.AppendExternalEvent(req.TenantID, "mandate_verified_client", map[string]any{
 		"tenant_id":        req.TenantID,
@@ -1285,10 +1308,6 @@ func (s *Server) handleMandateVerify(w http.ResponseWriter, r *http.Request) {
 	// accountable key: tenant admin on the admin path, the reviewer on
 	// the reviewer path. Opening failure fails verification (no
 	// unattributed mandates).
-	owner := "admin:" + req.PublicKeyHex
-	if !isAdmin {
-		owner = "reviewer:" + req.PublicKeyHex
-	}
 	if oerr := s.openMandateObligation(req.TenantID, owner, rec.EntryHash); oerr != nil {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"valid": false,
@@ -1304,6 +1323,15 @@ func (s *Server) handleMandateVerify(w http.ResponseWriter, r *http.Request) {
 		"verified_at": time.Now().UTC().Format(time.RFC3339),
 		"receipt":     rec.EntryHash,
 	})
+}
+
+// existingMandateReceipt finds a prior receipt for the exact signed mandate.
+func (s *Server) existingMandateReceipt(tenantID, jobHash, signatureHex string) (string, bool) {
+	var receipt string
+	err := s.ledger.DB().QueryRow(
+		`SELECT entry_hash FROM ledger_events WHERE event_type = 'mandate_verified_client' AND tenant_id = ? AND json_extract(payload, '$.job_hash') = ? AND json_extract(payload, '$.signature_hex') = ? ORDER BY id DESC LIMIT 1`,
+		tenantID, jobHash, signatureHex).Scan(&receipt)
+	return receipt, err == nil && receipt != ""
 }
 
 // openMandateObligation opens (idempotently) the closure obligation for
