@@ -701,12 +701,27 @@ def run_zne_job(circuit_qasm: str, shots: int = 8000, noise_rate: float = 0.02,
     return {"ok": True, **result.to_dict()}
 
 
-def session_status(session_id: str) -> dict:
+def session_status(session_id: str, jobs_limit: int = 100) -> dict:
+    """Session state with a bounded job-id page.
+
+    The store may accumulate thousands of job ids; returning them all is an
+    unbounded read. Keep the newest `jobs_limit` (1..1000), with totals and an
+    explicit truncation flag so callers know to page/filter.
+    """
+    if not isinstance(jobs_limit, int) or isinstance(jobs_limit, bool):
+        jobs_limit = 100
+    jobs_limit = min(max(jobs_limit, 1), 1000)
     try:
-        return {"ok": True, **{k: v for k, v in _sessions.get(session_id).__dict__.items()
-                               if k != "meta"}}
+        state = _sessions.get(session_id)
     except KeyError:
         return {"ok": False, "error": f"unknown session_id {session_id!r}"}
+    out = {"ok": True, **{k: v for k, v in state.__dict__.items() if k not in ("meta", "jobs")}}
+    total = len(state.jobs)
+    out["jobs_total"] = total
+    out["jobs"] = list(state.jobs[-jobs_limit:])
+    out["jobs_returned"] = len(out["jobs"])
+    out["jobs_truncated"] = total > jobs_limit
+    return out
 
 
 def close_session(session_id: str) -> dict:

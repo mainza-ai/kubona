@@ -1,6 +1,6 @@
 {
   "generated_by": "KUBONA_UPDATE_CATALOG=1 pytest platform/tests/test_mcp_catalog.py",
-  "digest": "d9d031849579fefa515872a8b0970399a228ec5b389f0eb95d3fc1461dcaca39",
+  "digest": "d3e2a09511e848084710e738052b10bb2ee3f5d1ea645e41fd7088e03990c1d2",
   "tools": [
     {
       "name": "compile_circuit",
@@ -866,6 +866,11 @@
           "session_id": {
             "title": "Session Id",
             "type": "string"
+          },
+          "jobs_limit": {
+            "default": 100,
+            "title": "Jobs Limit",
+            "type": "integer"
           }
         },
         "required": [
