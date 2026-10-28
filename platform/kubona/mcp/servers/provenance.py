@@ -39,7 +39,7 @@ def query_records(kind: str | None = None, requester: str | None = "default") ->
     # requester preserves single-operator behavior; ambient callers pass None
     # and see public rows.
     records = [r for r in _ledger
-               if (kind is None or r.kind == kind) and readable(r, requester)]
+               if (kind is None or r.kind == kind) and readable(r, requester, _ledger.tenant or "default")]
     return {"count": len(records), "records": [r.to_json() for r in records]}
 
 
@@ -57,7 +57,7 @@ def _aggregate(kind: str | None = None, requester: str | None = None) -> dict:
     global-with-redaction (existence is information).
     """
     records = [r for r in _ledger
-               if (kind is None or r.kind == kind) and readable(r, requester)]
+               if (kind is None or r.kind == kind) and readable(r, requester, _ledger.tenant or "default")]
     by_hash: dict[str, dict] = {}
     for r in records:
         p = r.payload
@@ -82,7 +82,7 @@ def _aggregate(kind: str | None = None, requester: str | None = None) -> dict:
 def records_resource() -> str:
     # Ambient resource context carries no requester: public rows only.
     # Tenant rows are reachable via query_records with an explicit requester.
-    return json.dumps({"records": [r.to_json() for r in _ledger if readable(r, None)]})
+    return json.dumps({"records": [r.to_json() for r in _ledger if readable(r, None, _ledger.tenant or "default")]})
 
 
 @mcp.resource("provenance://best", name="provenance-best",

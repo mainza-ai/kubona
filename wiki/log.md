@@ -3615,3 +3615,8 @@ skipped is the exact failure this incident is about:
 ## [2026-10-28] decision | Local model discovery is parallel and honest
 
   - Registry probes the configured ports concurrently (bounded pool) instead of 11 sequential 2 s timeouts, and both adapters require HTTP 200 for `available` (a 401/404 response is not a working server).
+
+## [2026-10-28] decision | Python ledger reads are tenant-bound and lock-consistent
+
+  - Pre-label rows are no longer ambient-readable: a named requester must match the file's tenant; ambient (None) sees public rows only.
+  - Reads take a shared flock (no torn tail), and appends fsync before close.

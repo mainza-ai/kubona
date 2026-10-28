@@ -78,7 +78,9 @@ def test_readable_and_derive_label():
     assert readable(mk("tenant/lab-a"), "lab-a") is True
     assert readable(mk("tenant/lab-a"), "lab-b") is False
     assert readable(mk("tenant/lab-a"), None) is False
-    assert readable(mk(""), "lab-b") is True  # legacy rows: file-shard scoping
+    assert readable(mk(""), "lab-a", "lab-a") is True
+    assert readable(mk(""), "lab-b", "lab-a") is False
+    assert readable(mk(""), None, "lab-a") is False  # ambient never inherits a tenant
     assert derive_label(["public", "public"], "lab-a") == "public"
     assert derive_label(["public", "tenant/lab-a"], "lab-a") == "tenant/lab-a"
 
