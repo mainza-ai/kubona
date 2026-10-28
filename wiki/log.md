@@ -3628,3 +3628,10 @@ skipped is the exact failure this incident is about:
 ## [2026-10-28] decision | JSON stores are atomic and locked
 
   - Added kubona.jsonstore (per-path thread+flock exclusive, temp+fsync+replace). LabRegistry and IdentityRegistry now reload under the lock before mutate and write atomically; concurrent lab creates are tested.
+
+## [2026-10-28] verification | IBM Quantum documentation applied to the provider
+
+  - Reviewed the IBM guide index and the execution-critical pages: quickstart/install, account initialization and instance auto-selection, Sampler quickstart + options, transpilation/ISA, job limits, maximum execution time, usage/cancellation, cost management, calibration/benchmarking, local testing, and the retired-QPU table.
+  - Applied: local `generate_preset_pass_manager` ISA transpilation before Sampler; client-side `executor_sampler.Sampler` for qiskit-ibm-runtime 0.50; `max_execution_time` (default 600 s, env-bounded 1..10800); <=10M executions / <=5M 2q / backend-capacity preflight; `least_busy` fallback; optional instance CRN; shots cap 1M; cancel no longer treats IBM's None return as rejection.
+  - Read-only live check: Bell circuit transpiled against ibm_fez to `{'rz','sx','cz','measure','barrier'}` (ISA; no job submitted).
+  - Note: Open Plan is 10 QPU minutes per 28-day window; no QPU job/spend was authorized or submitted.

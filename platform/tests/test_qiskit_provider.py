@@ -152,3 +152,48 @@ def test_calibration_snapshot_parsing_skips_missing_and_measurement():
     assert snap["two_qubit_error"] == pytest.approx(0.003)
     assert snap["source"] == "backend-properties:ibm_fez"
     assert snap["calibrated_at"].startswith("2026-10-27T12:00:00")
+
+
+def test_max_execution_time_is_bounded(monkeypatch):
+    from kubona.providers import get_provider
+    p = get_provider("ibm-qiskit")
+    monkeypatch.delenv("KUBONA_IBM_MAX_EXECUTION_SECONDS", raising=False)
+    assert p._max_execution_seconds() == 600
+    monkeypatch.setenv("KUBONA_IBM_MAX_EXECUTION_SECONDS", "0")
+    assert p._max_execution_seconds() == 1
+    monkeypatch.setenv("KUBONA_IBM_MAX_EXECUTION_SECONDS", "999999")
+    assert p._max_execution_seconds() == 10800
+    monkeypatch.setenv("KUBONA_IBM_MAX_EXECUTION_SECONDS", "nonsense")
+    assert p._max_execution_seconds() == 600
+
+
+def test_ibm_job_limits_are_checked_locally():
+    from types import SimpleNamespace
+    from qiskit import QuantumCircuit
+    from kubona.providers import get_provider
+
+    p = get_provider("ibm-qiskit")
+    backend = SimpleNamespace(num_qubits=2, name="ibm_fez")
+    qc = QuantumCircuit(3)
+    qc.measure_all()
+    try:
+        p._validate_job_limits(qc, 100, backend)
+    except Exception as exc:
+        assert "qubits" in str(exc)
+    else:
+        raise AssertionError("over-capacity circuit must be refused")
+    p._validate_job_limits(QuantumCircuit(2), 100, backend)
+
+
+def test_ibm_transpile_produces_isa_circuit():
+    from qiskit import QuantumCircuit
+    from qiskit_ibm_runtime.fake_provider import FakeManilaV2
+    from kubona.providers import get_provider
+
+    qc = QuantumCircuit(2)
+    qc.h(0)
+    qc.cx(0, 1)
+    qc.measure_all()
+    isa = get_provider("ibm-qiskit")._transpile_for_backend(qc, FakeManilaV2())
+    assert "measure" in isa.count_ops()
+    assert set(isa.count_ops()) - {"barrier"} <= set(FakeManilaV2().operation_names)
