@@ -139,6 +139,8 @@ class SessionStore:
         maybe_rotate(self.path)
         with open(self.path, "a") as f:
             f.write(json.dumps(asdict(s), sort_keys=True) + "\n")
+            f.flush()
+            os.fsync(f.fileno())
 
     def create(self, name: str, owner: str, budget_ceiling_usd: float | None = None) -> SessionState:
         if budget_ceiling_usd is not None and (
@@ -180,10 +182,17 @@ class SessionStore:
             return s
 
     def record_job(self, session_id: str, job_id: str) -> SessionState:
-        s = self.get(session_id)
-        if job_id not in s.jobs:
-            s.jobs.append(job_id)
-        return self.update(session_id, jobs=s.jobs)
+        # Read-modify-write under one lock: the old get-then-update lost a
+        # concurrent job id (both read the same list, last append won).
+        with self._exclusive():
+            s = self._load().get(session_id)
+            if s is None:
+                raise KeyError(f"unknown session {session_id!r}")
+            if job_id not in s.jobs:
+                s.jobs.append(job_id)
+            s.updated_at = time.time()
+            self._save(s)
+            return s
 
     def record_spend(self, session_id: str, usd: float) -> SessionState:
         amount = _check_amount(usd, "spend")

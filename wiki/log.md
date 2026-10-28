@@ -3620,3 +3620,7 @@ skipped is the exact failure this incident is about:
 
   - Pre-label rows are no longer ambient-readable: a named requester must match the file's tenant; ambient (None) sees public rows only.
   - Reads take a shared flock (no torn tail), and appends fsync before close.
+
+## [2026-10-28] decision | Session store appends are fsynced and record_job is atomic
+
+  - record_job now does its read-modify-write under the exclusive lock (concurrent job ids no longer overwrite each other), and every JSONL append flushes+fsyncs before returning.
