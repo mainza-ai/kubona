@@ -275,8 +275,12 @@ class QiskitProvider(Provider):
 
     @property
     def backend_name(self) -> str | None:
+        import os
         if self._backend_name:
             return self._backend_name
+        override = os.environ.get("KUBONA_IBM_QISKIT_BACKEND", "").strip()
+        if override:
+            return override
         return self.capability.backend or None
 
     def _transpile_for_backend(self, qc, backend):
@@ -396,18 +400,25 @@ class QiskitProvider(Provider):
                 raise ProviderError(
                     f"ibm job {hardware_job_id!r} reported {status_str} but result read failed: {e}"
                 )
-            return {
+            result = {
                 "status": "completed",
                 "vendor_status": status_str,
                 "hardware_job_id": hardware_job_id,
                 "result": {
                     "counts": counts,
-                    "backend": self.backend_name,
+                    "backend": getattr(job, "backend", lambda: self.backend_name)(),
                     "job_id": hardware_job_id,
                     "hardware": True,
                     "channel": self._channel(),
                 },
             }
+            try:
+                usage = job.usage()
+                if usage is not None:
+                    result["result"]["usage_seconds"] = float(usage)
+            except Exception:
+                pass
+            return result
         if status_str in ("error", "failed"):
             err_fn = getattr(job, "error_message", None)
             err_msg = err_fn() if callable(err_fn) else err_fn
