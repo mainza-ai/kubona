@@ -1270,7 +1270,12 @@ func (s *Server) handleMandateVerify(w http.ResponseWriter, r *http.Request) {
 	// Re-verifying the same signed mandate must not mint a second receipt or
 	// obligation: the route is public, so replay has to be a no-op (spam
 	// cannot grow the ledger). A missing obligation is healed on replay.
-	if receipt, ok := s.existingMandateReceipt(req.TenantID, req.JobHash, req.SignatureHex); ok {
+	receipt, replay, rerr := s.existingMandateReceipt(req.TenantID, req.JobHash, req.SignatureHex)
+	if rerr != nil {
+		WriteAPIError(w, "server_misconfigured", "mandate replay registry unreadable: refusing verification", nil)
+		return
+	}
+	if replay {
 		if ob, err := s.ledger.GetObligationBySubject("mandate", receipt); err != nil || ob == nil {
 			if oerr := s.openMandateObligation(req.TenantID, owner, receipt); oerr != nil {
 				writeJSON(w, http.StatusOK, map[string]any{
@@ -1326,12 +1331,31 @@ func (s *Server) handleMandateVerify(w http.ResponseWriter, r *http.Request) {
 }
 
 // existingMandateReceipt finds a prior receipt for the exact signed mandate.
-func (s *Server) existingMandateReceipt(tenantID, jobHash, signatureHex string) (string, bool) {
-	var receipt string
-	err := s.ledger.DB().QueryRow(
-		`SELECT entry_hash FROM ledger_events WHERE event_type = 'mandate_verified_client' AND tenant_id = ? AND json_extract(payload, '$.job_hash') = ? AND json_extract(payload, '$.signature_hex') = ? ORDER BY id DESC LIMIT 1`,
-		tenantID, jobHash, signatureHex).Scan(&receipt)
-	return receipt, err == nil && receipt != ""
+func (s *Server) existingMandateReceipt(tenantID, jobHash, signatureHex string) (string, bool, error) {
+	rows, err := s.ledger.DB().Query(
+		`SELECT entry_hash, payload FROM ledger_events WHERE event_type = 'mandate_verified_client' AND tenant_id = ? ORDER BY id DESC`,
+		tenantID)
+	if err != nil {
+		return "", false, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var receipt, payload string
+		if err := rows.Scan(&receipt, &payload); err != nil {
+			return "", false, err
+		}
+		var rec struct {
+			JobHash   string `json:"job_hash"`
+			Signature string `json:"signature_hex"`
+		}
+		if err := json.Unmarshal([]byte(payload), &rec); err != nil {
+			return "", false, fmt.Errorf("mandate receipt payload corrupt: %w", err)
+		}
+		if rec.JobHash == jobHash && rec.Signature == signatureHex {
+			return receipt, true, nil
+		}
+	}
+	return "", false, rows.Err()
 }
 
 // openMandateObligation opens (idempotently) the closure obligation for
