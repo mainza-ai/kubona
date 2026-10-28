@@ -3595,3 +3595,7 @@ skipped is the exact failure this incident is about:
 
   - Import recomputes every event's v1/v2 entry hash before insert; v1 payloads re-encoded by JSON round-trips are canonicalized when that reproduces the recorded hash, otherwise the import refuses.
   - Chain-domain signatures are verified over the recomputed digest during import (external mandate domains remain read-time verified). Tests pin tamper refusal and a pretty-printed v1 manifest importing into a clean VerifyChain.
+
+## [2026-10-27] decision | Console science inputs are bounded
+
+  - triage electrons/orbitals/charges, krylov matrix dimension + time step, shadow qubits/snapshots/observables, QEC logical qubits/gate counts/error rate, and memory max_hops now return typed 400s outside hard bounds. The 40-qubit/10^9-snapshot class of DoS is refused before allocation.
