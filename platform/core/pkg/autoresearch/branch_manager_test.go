@@ -118,9 +118,9 @@ type testHarness struct {
 	idx    int
 }
 
-func (h *testHarness) ID() string               { return h.id }
-func (h *testHarness) FixedSetup() string       { return "test" }
-func (h *testHarness) MutableArtifact() string  { return "circuit" }
+func (h *testHarness) ID() string              { return h.id }
+func (h *testHarness) FixedSetup() string      { return "test" }
+func (h *testHarness) MutableArtifact() string { return "circuit" }
 func (h *testHarness) Metric(artifact string) (float64, error) {
 	return 0, nil
 }

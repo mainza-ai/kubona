@@ -82,7 +82,7 @@ class IdentityRegistry:
             self._save()
             return p
 
-    def get(self, sub: str) -> Principal | None:
+    def get(self, sub: str) -> Identity | None:
         return self._principals.get(sub)
 
     def agents_of(self, owner: str) -> list[Identity]:

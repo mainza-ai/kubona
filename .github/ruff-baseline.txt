@@ -1,0 +1,23 @@
+# Ruff hold-the-line baseline (consumed by the `python-lint` job in
+# .github/workflows/ci.yml — read the job comments before touching this).
+#
+# Number = violations reported by (run from platform/ with the pinned ruff):
+#   ruff check kubona bridge tests --output-format concise 2>/dev/null \
+#     | grep -cE ":[0-9]+:[0-9]+:"
+# The grep filters the two-line human summary so the count is violations only.
+#
+# History:
+# - 2026-10-28: 375. Measured on HEAD + this slice (isolated via worktree:
+#   other in-flight worktree churn measured 373/377 at different moments, so
+#   the baseline was re-taken on exactly the committable state). Breakdown:
+#   208 F401 unused-import, 53 E402 module-import-not-at-top, 38 E741
+#   ambiguous-name, 27 E702 semi-colon-stmt, 27 F841 unused-variable,
+#   9 F811 redefined-while-unused, 6 E731 lambda-assignment, 3 F541,
+#   2 E401, 2 E701, 0 F821 (21 genuine undefined-names fixed same-slice:
+#   missing typing/os imports, one wrong annotation).
+#   `ruff format --check` left OUT of CI: 356 files unformatted.
+#
+# Ratchet rule: CI fails only if the count RISES above this number. Lower it
+# only in a PR that fixes violations (re-measure with the pinned ruff, never
+# by hand-waving). Never raise it without a written justification.
+375

@@ -91,11 +91,18 @@ jobs:
       # W2.4: install the suite-verified set — qiskit/chemistry extras pinned
       # == in pyproject (floors previously resolved untested combos; the
       # chemistry extra was missing so RDKit coverage silently skipped).
-      - run: pip install -e ".[dev,qiskit,chemistry]" pyscf==2.14.0
+      - run: pip install -e ".[dev,qiskit,chemistry]" pyscf==2.14.0 "pytest-cov==7.1.0"
+      # Phase-1 depth: coverage hold-the-line floor. Measured 57% 2026-10-28
+      # (fast lane: tests/ minus paper-scale slices, --cov=kubona; local
+      # py3.12/macOS vs CI py3.11/ubuntu, so the floor carries epsilon).
+      # Floor 55 = measured minus epsilon: the ratchet never drops, only
+      # rises — raise --cov-fail-under after a sustained green run higher.
+      # bridge/ is exercised by its own suite below but excluded from the
+      # floor (unify the coverage invocations as follow-up).
       - name: Full python suite, fast lane (KUBONA_QIR_CORE wired)
         env:
           KUBONA_QIR_CORE: ${{ github.workspace }}/platform/crates/qir-core/target/release/qir-core
-        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q -rs --ignore-glob='*/test_codesign_slice*.py' --durations=20
+        run: KUBONA_STATE_DIR="$(mktemp -d)" python -m pytest -q -rs --ignore-glob='*/test_codesign_slice*.py' --durations=20 --cov=kubona --cov-report=term-missing --cov-fail-under=55
       # Bridge contract suite lives outside testpaths (bridge/test_bridge.py)
       # so the default run skips it — a red bridge test went unnoticed.
       # It is fast (~seconds) and hermetic (no creds, no network).
@@ -311,7 +318,12 @@ jobs:
     # R0: the release gate actually gates — it runs only when every suite
     # above is green. Previously it ran in parallel, so a red suite and a
     # green gate coexisted and the gate meant nothing.
-    needs: [wiki-lint, secret-scan, python-tests, python-slow-a, python-slow-b, python-slow-c, python-slow-d, python-slow-e, rust-tests, go-core-tests, nextjs-console-build, docker-smoke, sandbox-container]
+    # Phase-1 depth: the hermetic gates (go-lint, python-lint, rust-lint,
+    # sast) join the release gate — no release ships with new lint, SAST, or
+    # coverage-floor debt. image-scan stays out of needs until its first
+    # verified-green CI run (it still fails the workflow red on any new
+    # CRITICAL); promote it into needs after that observation.
+    needs: [wiki-lint, secret-scan, python-tests, python-slow-a, python-slow-b, python-slow-c, python-slow-d, python-slow-e, rust-tests, go-core-tests, nextjs-console-build, docker-smoke, sandbox-container, go-lint, python-lint, rust-lint, sast]
     defaults:
       run:
         working-directory: platform
@@ -340,7 +352,9 @@ jobs:
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
           # W2.4: must match go.mod (1.23 silently built a newer toolchain's code).
-          go-version: "1.27.1"
+          # 1.27.2 (was 1.27.1): patch bump for Go stdlib Trivy CRITICAL
+          # CVE-2026-56857, fixed in 1.27.2 — the image-scan gate demands it.
+          go-version: "1.27.2"
           cache-dependency-path: platform/core/go.sum
       # Harness tests shell out to host python3 for embedded eval scripts
       # (numpy+qiskit): without them every harness test fails on import.
@@ -361,7 +375,22 @@ jobs:
       - name: Install kubona package (local-exec rail for codesign tests)
         working-directory: platform
         run: pip install -e .
-      - run: go test -v -race ./...
+      - run: go test -v -race -coverprofile="$RUNNER_TEMP/cover.out" ./...
+      # Phase-1 depth: Go coverage hold-the-line floor. MEASURED 66.3%
+      # with the pinned go1.27.2 toolchain (full ./..., local macOS).
+      # Caution, learned 2026-10-28: the same tree measures 74.4% under
+      # go1.27.1 — coverage instrumentation granularity changed between
+      # the two toolchains, so the ruler is toolchain-dependent. Always
+      # re-baseline this floor when go.mod moves, and record both numbers
+      # here. Floor 64 = 66.3 minus epsilon; the ratchet never drops,
+      # only rises — raise it after a sustained green run at a higher
+      # number. Generated `core/proto` (0% by construction) is included
+      # in the total; excluding it is a follow-up, not a silent tweak.
+      - name: Coverage floor (ratchet, fail below 64%)
+        run: |
+          total=$(go tool cover -func="$RUNNER_TEMP/cover.out" | awk '/^total:/ {gsub(/%/, "", $NF); print $NF}')
+          echo "Go total coverage: ${total}% (floor 64%, toolchain go1.27.2)"
+          awk "BEGIN {exit !((${total:-0} + 0) >= 64)}" || { echo "Go coverage ${total}% below floor 64%"; exit 1; }
 
   nextjs-console-build:
     name: Next.js Observatory Console (tests + lint + build)
@@ -387,4 +416,156 @@ jobs:
       - run: pnpm test
       - run: pnpm lint
       - run: pnpm build
+
+  # Phase-1 verification depth (2026-10-28): lint + SAST + image scan.
+  # ADD jobs, never rename required-check contexts (branch protection keys
+  # on job names). Every depth gate fails the build on violation — there is
+  # no warnings-only mode anywhere in this section.
+  go-lint:
+    name: Go vet + gofmt (fail on violation)
+    runs-on: ubuntu-latest
+    needs: [wiki-lint, secret-scan]
+    defaults:
+      run:
+        working-directory: platform/core
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version: "1.27.2"
+          cache-dependency-path: platform/core/go.sum
+      # go vet is the type-level gate; gofmt -l is the formatting gate.
+      # Verified green 2026-10-28 (3 misaligned files fixed with gofmt -w
+      # in the same slice; `go vet ./...` was already clean).
+      - run: go vet ./...
+      - name: gofmt clean (fail on any unformatted file)
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then echo "gofmt violations:"; echo "$unformatted"; exit 1; fi
+
+  python-lint:
+    name: Ruff check (hold-the-line ratchet)
+    runs-on: ubuntu-latest
+    needs: [wiki-lint, secret-scan]
+    defaults:
+      run:
+        working-directory: platform
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      # The tree carries 375 pre-existing violations (2026-10-28; mostly
+      # F401 unused-imports and E402 path bootstraps — see
+      # .github/ruff-baseline.txt for the breakdown, measured on HEAD plus
+      # this slice's own fixes). Full `ruff check` green is the backlog
+      # goal; until then this job fails ONLY when the count rises above the
+      # pinned baseline — never on the existing debt, never silently on new
+      # debt. `ruff format --check` is deliberately absent: 356 files are
+      # unformatted, so a format gate would cry wolf on day one (check-only
+      # lane; revisit after a formatting pass).
+      - run: pip install "ruff==0.15.21"
+      - name: Ruff hold-the-line (fail if violations increase)
+        run: |
+          ruff check kubona bridge tests --output-format concise > /tmp/ruff.out 2> /tmp/ruff.err || true
+          count=$(grep -cE ":[0-9]+:[0-9]+:" /tmp/ruff.out || true)
+          if grep -q "All checks passed" /tmp/ruff.out; then reported=0; else reported=$(grep -oE "Found [0-9]+ errors" /tmp/ruff.out | grep -oE "[0-9]+" || true); fi
+          baseline=$(grep -v '^#' "${{ github.workspace }}/.github/ruff-baseline.txt")
+          echo "ruff violations: ${count} (baseline ${baseline}, $(ruff --version))"
+          if [ -z "$reported" ]; then echo "ruff produced no summary — tool or config failure:"; cat /tmp/ruff.err; exit 1; fi
+          if [ "$count" != "$reported" ]; then echo "ruff parse mismatch (parsed ${count} vs reported ${reported})"; exit 1; fi
+          if [ "$count" -gt "$baseline" ]; then echo "ruff violations rose ${baseline} -> ${count}: fix the code, do not raise the baseline without justification"; exit 1; fi
+
+  rust-lint:
+    name: Cargo clippy (deny warnings)
+    runs-on: ubuntu-latest
+    needs: [wiki-lint, secret-scan]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          components: clippy
+          cache: true
+      # clippy -D warnings fails the build on any lint (libs + tests + bins
+      # via --all-targets). Verified green 2026-10-28 on qir-core and
+      # ifc-core. Known maintenance trade-off: a future stable toolchain can
+      # add lints that fail this job with no code change — that failure is
+      # real signal (fix the lint), not flake.
+      - name: Clippy qir-core (deny warnings)
+        working-directory: platform/crates/qir-core
+        run: cargo clippy --all-targets -- -D warnings
+      - name: Clippy ifc-core (deny warnings)
+        working-directory: platform/crates/ifc-core
+        run: cargo clippy --all-targets -- -D warnings
+
+  sast:
+    name: Semgrep SAST (vendored high-signal ruleset)
+    runs-on: ubuntu-latest
+    needs: [wiki-lint, secret-scan]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+      # One SAST gate, not two: Semgrep with a vendored 11-rule python+go
+      # ruleset (.github/semgrep.yml) instead of Bandit+Gosec. Why: a single
+      # hermetic offline run (vendored rules, no --config auto network
+      # fetch) covering the same high-signal classes (shell-True/os.system/
+      # os.exec*, weak hashes without usedforsecurity=False, requests
+      # verify=False / CERT_NONE, yaml.load/pickle, Go sh -c / md5-sha1 /
+      # InsecureSkipVerify). Bandit high/high needed the identical sha1 fix
+      # and Gosec reports 164 findings (mostly G104 unhandled-error LOWs) —
+      # too noisy to gate on; both are documented residuals, not gates.
+      # --error exits 1 on any match: a new dangerous pattern fails the
+      # build. Ruleset verified green 2026-10-28 AND verified to fire on
+      # planted bad patterns (not vacuous).
+      - run: pip install "semgrep==1.182.1"
+      - name: Semgrep (fail on any match)
+        env:
+          SEMGREP_SEND_METRICS: "off"
+        run: semgrep --config .github/semgrep.yml --error platform/kubona platform/bridge platform/core
+
+  image-scan:
+    name: Trivy image scan (prod images, CRITICAL gate)
+    runs-on: ubuntu-latest
+    needs: [wiki-lint, secret-scan]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      # Trivy scans the three prod images docker-smoke deploys
+      # (kubonad/bridge/console). Threshold: CRITICAL. Why not HIGH: the
+      # three images carry 80/46/67 HIGHs today (mostly distro churn) — a
+      # HIGH gate would cry wolf on day one; ratchet to HIGH after the
+      # backlog is triaged. Images build fresh here (hermetic, no registry).
+      # .trivyignore pins the ONE accepted residual (console zlib1g, no
+      # distro fix available); every other CRITICAL fails the build.
+      # Verified locally 2026-10-28: kubonad needed a go1.27.2 bump
+      # (CVE-2026-56857, fixed same-slice) plus apt-get upgrade in the final
+      # stage for brotli/perl CRITICALs; bridge/console green modulo the
+      # zlib pin. Not yet in canary-gate needs: promote after the first
+      # verified-green CI run (it still fails the workflow red meanwhile).
+      - name: Build prod images
+        run: docker compose -f platform/docker/compose.prod.yml build
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: kubona/kubonad:prod
+          format: table
+          severity: CRITICAL
+          exit-code: "1"
+          trivyignores: .trivyignore
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: kubona/bridge:prod
+          format: table
+          severity: CRITICAL
+          exit-code: "1"
+          trivyignores: .trivyignore
+      - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: kubona/console:prod
+          format: table
+          severity: CRITICAL
+          exit-code: "1"
+          trivyignores: .trivyignore
 

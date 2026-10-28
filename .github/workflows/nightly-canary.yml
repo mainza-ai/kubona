@@ -1,6 +1,8 @@
 name: Nightly Canary
 
 # Same least-privilege posture as CI: read-only tree, no publishing.
+# Actions pin to commit SHAs (tag in trailing comment), mirroring ci.yml —
+# re-pin deliberately, never by floating forward.
 permissions:
   contents: read
 
@@ -16,8 +18,8 @@ jobs:
       run:
         working-directory: platform
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
       - run: pip install -e ".[dev,qiskit]"
@@ -30,7 +32,7 @@ jobs:
           KUBONA_STATE_DIR="$PWD/state" python -m pytest tests/test_autoresearch.py -k correctness -q
       - name: Upload canary ledger
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: canary-ledger
           path: platform/state/
@@ -47,8 +49,8 @@ jobs:
       run:
         working-directory: platform
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
           cache: "pip"
@@ -63,8 +65,8 @@ jobs:
       run:
         working-directory: platform
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.11"
           cache: "pip"
