@@ -211,6 +211,17 @@ class JobStore:
             self._save(j)
             return j
 
+    def record_hardware_layout(self, job_id: str, layout: Any) -> Job | None:
+        """Persist the transpiler layout for post-hoc device diagnosis."""
+        with self._exclusive():
+            j = self._load().get(job_id)
+            if j is None:
+                return None
+            j.meta["layout"] = layout
+            j.updated_at = time.time()
+            self._save(j)
+            return j
+
     def find_by_idempotency(self, idempotency_key: str) -> Job | None:
         """Idempotency lookup across restarts: the key is stored in job
         meta at dispatch, so a retry after process restart replays the
@@ -309,6 +320,8 @@ class JobRunner:
                     hw_id = str(result.get("hardware_job_id") or result.get("job_id") or "")
                     if hw_id:
                         self.store.record_hardware_job(job_id, hw_id)
+                    if result.get("layout"):
+                        self.store.record_hardware_layout(job_id, result.get("layout"))
                     self._record("job_submitted_to_hardware",
                                  {"job_id": job_id, "hardware_job_id": hw_id})
                     return

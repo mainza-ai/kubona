@@ -288,6 +288,25 @@ class QiskitProvider(Provider):
         from qiskit.transpiler import generate_preset_pass_manager
         return generate_preset_pass_manager(optimization_level=1, backend=backend).run(qc)
 
+    def _layout_summary(self, original, isa) -> dict[str, Any] | None:
+        """Logical→physical mapping for post-hoc device/layout diagnosis."""
+        layout = getattr(isa, "layout", None)
+        if layout is None or getattr(layout, "initial_layout", None) is None:
+            return None
+        out: dict[str, Any] = {"initial": {}, "final": {}}
+        try:
+            for i, q in enumerate(original.qubits):
+                out["initial"][str(i)] = int(layout.initial_layout[q])
+        except Exception:
+            return None
+        try:
+            if getattr(layout, "final_layout", None) is not None:
+                for i, q in enumerate(original.qubits):
+                    out["final"][str(i)] = int(layout.final_layout[q])
+        except Exception:
+            out["final"] = {}
+        return out
+
     def _validate_job_limits(self, qc, shots: int, backend) -> None:
         # IBM validates after transpilation: <=10M executions (circuit x shots)
         # and <=5M two-qubit gates per circuit. Fail locally with a clear
@@ -323,6 +342,7 @@ class QiskitProvider(Provider):
                             wait_for_result: bool = True,
                             service_factory=None) -> dict[str, Any]:
         """Real IBM hardware via Qiskit Runtime (channel: ibm_quantum_platform)."""
+        layout = None
         if service_factory is None:
             service = self._service(token)
             backend = self._resolve_backend(service)
@@ -334,17 +354,22 @@ class QiskitProvider(Provider):
                 except (ImportError, ModuleNotFoundError):
                     from qiskit_ibm_runtime import SamplerV2
                     sampler = SamplerV2(backend=backend)
+                original = qc
                 qc = self._transpile_for_backend(qc, backend)
+                layout = self._layout_summary(original, qc)
                 self._validate_job_limits(qc, shots, backend)
             else:
                 # Test/older stub that does not expose BackendV2.target.
                 from qiskit_ibm_runtime import SamplerV2
                 sampler = SamplerV2(backend=backend)
+                layout = None
         else:
             service = service_factory(token)
             backend = self._resolve_backend(service)
             if hasattr(backend, "target"):
+                original = qc
                 qc = self._transpile_for_backend(qc, backend)
+                layout = self._layout_summary(original, qc)
                 self._validate_job_limits(qc, shots, backend)
             if hasattr(service, "sampler"):
                 sampler = service.sampler(backend)
@@ -365,6 +390,7 @@ class QiskitProvider(Provider):
                 "hardware_job_id": job_id,
                 "hardware": True,
                 "channel": self._channel(),
+                "layout": layout,
             }
         result = job.result()
         pub = result[0].data.meas

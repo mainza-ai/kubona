@@ -114,7 +114,9 @@ the same ISA (initial layout q0/q1, `rz/sx/cz/measure`; ideal Aer `00/11`), so t
 conversion defect. The governed rerun on the same backend produced 92% `00/11`; the direct
 run's 44% `|10>` was not reproduced. Job records do not retain the physical layout, so the
 suspected bad-pair/readout cause cannot be proven from the completed jobs. Treat it as an
-unresolved device/layout observation; log the selected layout on future hardware jobs.
+unresolved device/layout observation. The provider now records the logical→physical
+transpiler layout in the job result/meta (and the bridge status payload), so the next
+hardware run can distinguish layout/readout from gate errors.
 
 ## Agent rules
 
