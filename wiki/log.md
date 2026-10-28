@@ -3586,3 +3586,7 @@ skipped is the exact failure this incident is about:
 ## [2026-10-27] decision | JWKS cache never holds the lock over I/O
 
   - fetchAtlasJWKS reads under RLock, fetches without a lock, and stores under Lock. A hung JWKS endpoint no longer serializes every webhook request; concurrent refreshes may duplicate one fetch.
+
+## [2026-10-27] decision | Output downloads are SSRF-checked
+
+  - downloadFile validates scheme/host, requires https + non-private resolution in production, revalidates every redirect, caps the body at 64 MiB, and validates Atlas asset ids before URL interpolation. Dev loopback fixtures remain allowed.

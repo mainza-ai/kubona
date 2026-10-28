@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -320,9 +322,52 @@ func findLensAnnotation(l *ledger.Ledger, sessionID, opID string, resolved bool)
 	return nil
 }
 
-func downloadFile(url, dst string, timeout time.Duration) error {
-	client := &http.Client{Timeout: timeout}
-	resp, err := client.Get(url) //nolint:gosec // output URLs are https Atlas storage links from a verified operation record
+const maxDownloadBytes = 64 << 20
+
+// validateDownloadURL refuses non-HTTP schemes and, in production, any
+// target that resolves to a private/loopback/link-local address. Output
+// URLs come from an upstream operation, but a compromised/malicious record
+// must not turn the daemon into an SSRF proxy.
+func validateDownloadURL(raw string) error {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return fmt.Errorf("invalid download URL: %w", err)
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return fmt.Errorf("download URL scheme %q refused: http(s) only", u.Scheme)
+	}
+	if u.User != nil || u.Hostname() == "" {
+		return fmt.Errorf("download URL must be a plain http(s) origin URL")
+	}
+	if os.Getenv("KUBONA_ENV") != "production" {
+		return nil
+	}
+	if u.Scheme != "https" {
+		return fmt.Errorf("production downloads require https, got %q", u.Scheme)
+	}
+	ips, err := net.LookupIP(u.Hostname())
+	if err != nil || len(ips) == 0 {
+		return fmt.Errorf("download host %q did not resolve: %v", u.Hostname(), err)
+	}
+	for _, ip := range ips {
+		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsUnspecified() {
+			return fmt.Errorf("download host %q resolves to a non-public address: refused", u.Hostname())
+		}
+	}
+	return nil
+}
+
+func downloadFile(rawURL, dst string, timeout time.Duration) error {
+	if err := validateDownloadURL(rawURL); err != nil {
+		return err
+	}
+	client := &http.Client{
+		Timeout: timeout,
+		CheckRedirect: func(req *http.Request, _ []*http.Request) error {
+			return validateDownloadURL(req.URL.String())
+		},
+	}
+	resp, err := client.Get(rawURL) //nolint:gosec // validated above (scheme + non-public target in production)
 	if err != nil {
 		return err
 	}
@@ -330,11 +375,21 @@ func downloadFile(url, dst string, timeout time.Duration) error {
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return fmt.Errorf("download rejected (%d)", resp.StatusCode)
 	}
+	if resp.ContentLength > maxDownloadBytes {
+		return fmt.Errorf("download %d bytes exceeds %d cap: refusing", resp.ContentLength, maxDownloadBytes)
+	}
 	f, err := os.Create(dst)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
-	_, err = io.Copy(f, resp.Body)
-	return err
+	n, err := io.Copy(f, io.LimitReader(resp.Body, maxDownloadBytes+1))
+	if err != nil {
+		return err
+	}
+	if n > maxDownloadBytes {
+		_ = os.Remove(dst)
+		return fmt.Errorf("download exceeded %d bytes: refusing", maxDownloadBytes)
+	}
+	return nil
 }
