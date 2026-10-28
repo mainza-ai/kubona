@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import time
 import math
+import threading
 from typing import Dict, Any, List, Tuple
 import numpy as np
 
@@ -93,6 +94,70 @@ def calculate_meyer_wallach(statevector: np.ndarray) -> float:
 
 MAX_STATEVECTOR_QUBITS = 28  # Safe 4GB RAM ceiling (2^28 * 16 bytes = 4.29 GB)
 MAX_AER_SIM_QUBITS = 30      # 16GB Aer density matrix / MPS simulation limit
+
+#: Bytes of one maximum single-job statevector (2^28 complex128).
+_SINGLE_JOB_CEILING_BYTES = (2 ** MAX_STATEVECTOR_QUBITS) * 16
+
+
+def _global_inflight_cap_bytes() -> int:
+    """Process-wide cap on concurrent simulation bytes.
+
+    Default is 2x the single-job ceiling: two max-size statevectors may
+    coexist, but 8 bridge workers each holding 4GB cannot OOM the host.
+    Env-tunable via KUBONA_BRIDGE_MAX_INFLIGHT_BYTES (host-aware operators
+    lower it on small boxes, raise it on big iron). Unparseable/empty reads
+    fail closed to the default, never to unbounded.
+    """
+    import os as _os
+
+    raw = (_os.getenv("KUBONA_BRIDGE_MAX_INFLIGHT_BYTES") or "").strip()
+    if raw:
+        try:
+            cap_bytes = int(raw)
+        except ValueError:
+            cap_bytes = 0
+        if cap_bytes > 0:
+            return cap_bytes
+    return 2 * _SINGLE_JOB_CEILING_BYTES
+
+
+# Process-wide in-flight simulation bytes (global RAM admission). execute_qasm
+# holds `required_bytes` here for the duration of one simulation so concurrent
+# workers cannot jointly exceed the cap. Guarded by _INFLIGHT_LOCK; never
+# negative (releases are clamped, never trusted blindly).
+_INFLIGHT_LOCK = threading.Lock()
+_INFLIGHT_BYTES = 0
+
+
+def _inflight_try_acquire(required_bytes: int) -> bool:
+    """Reserve `required_bytes` against the global cap. Returns True and holds
+    the bytes on success; returns False holding nothing when a new job would
+    exceed the cap (caller refuses fail-closed). Non-positive requests always
+    succeed without moving the counter."""
+    global _INFLIGHT_BYTES
+    if required_bytes <= 0:
+        return True
+    with _INFLIGHT_LOCK:
+        if _INFLIGHT_BYTES + required_bytes > _global_inflight_cap_bytes():
+            return False
+        _INFLIGHT_BYTES += required_bytes
+        return True
+
+
+def _inflight_release(held_bytes: int) -> None:
+    """Return bytes held by _inflight_try_acquire. Clamped at zero: a double
+    release (caller bug) must not mint negative headroom for the next job."""
+    global _INFLIGHT_BYTES
+    if held_bytes <= 0:
+        return
+    with _INFLIGHT_LOCK:
+        _INFLIGHT_BYTES = max(0, _INFLIGHT_BYTES - held_bytes)
+
+
+def inflight_bytes() -> int:
+    """Current process-wide held simulation bytes (observability for tests)."""
+    with _INFLIGHT_LOCK:
+        return _INFLIGHT_BYTES
 
 # --- Shared consts (single source; no inline magic) ---
 #: Cap for QPD sampling overhead kappa=4^K (v1 heuristic). Above this the
@@ -238,6 +303,81 @@ def _execute_ibm_hardware(qasm: str, shots: int, requested_backend: str, seed: i
 
 
 def execute_qasm(
+    qasm: str,
+    shots: int = 1024,
+    requested_backend: str = "aer_simulator",
+    allow_fallback: bool = True,
+    caller_jurisdictions: list | None = None,
+    caller_export_class: str = "any",
+    export_reviewed: bool = False,
+    seed: int | None = None,
+) -> Dict[str, Any]:
+    """Global RAM admission wrapper (process-wide in-flight-bytes semaphore).
+
+    The per-job 28-qubit guard inside _execute_qasm_inner stays as-is; this
+    wrapper adds the host-level rail: 8 bridge workers each holding a 4GB
+    statevector would OOM the host, so a new simulation whose estimated bytes
+    would push process-wide held bytes over the cap refuses fail-closed
+    (INFLIGHT_RAM_EXCEEDED) before allocating. The hold lasts exactly one
+    inner call (try/finally — exceptions and refusals release). Env-tunable
+    via KUBONA_BRIDGE_MAX_INFLIGHT_BYTES, default 2x the single-job ceiling.
+    """
+    t0 = time.time()
+    try:
+        qc = circuit_from_qasm(qasm)
+        bounds = check_circuit_memory_bounds(qc)
+        required_bytes = bounds["required_bytes"]
+    except Exception:
+        # Unparseable input holds nothing: the inner call refuses precisely.
+        return _execute_qasm_inner(
+            qasm, shots, requested_backend, allow_fallback,
+            caller_jurisdictions, caller_export_class, export_reviewed, seed)
+    if not _inflight_try_acquire(required_bytes):
+        if bounds["exceeds_statevector_limit"]:
+            # Also fails the per-job guard: the inner refusal
+            # (PREFLIGHT_RAM_EXCEEDED, partition plan included) is the
+            # precise one. Nothing is held, so delegation is safe. The
+            # global rail governs admittable-size concurrency (the 8×4GB
+            # OOM class); oversize jobs are owned by the per-job guard.
+            return _execute_qasm_inner(
+                qasm, shots, requested_backend, allow_fallback,
+                caller_jurisdictions, caller_export_class, export_reviewed, seed)
+        return {
+            "success": False,
+            "resolved_backend": "none",
+            "degradation_level": 0,
+            "degradation_reason": (
+                "Global RAM admission refused: holding "
+                f"{inflight_bytes()} bytes process-wide, a further "
+                f"{required_bytes} bytes would exceed the "
+                f"{_global_inflight_cap_bytes()} byte cap "
+                "(KUBONA_BRIDGE_MAX_INFLIGHT_BYTES) — refusing instead of "
+                "risking a host OOM"
+            ),
+            "counts": {},
+            "statevector_real": [],
+            "statevector_imag": [],
+            "meyer_wallach": 0.0,
+            "seed": seed,
+            "required_bytes": required_bytes,
+            "inflight_bytes": inflight_bytes(),
+            "execution_time_ms": (time.time() - t0) * 1000.0,
+            "error_message": (
+                f"INFLIGHT_RAM_EXCEEDED: {required_bytes} bytes requested, "
+                f"{inflight_bytes()} bytes already held process-wide, cap "
+                f"{_global_inflight_cap_bytes()} bytes — refusing concurrent "
+                "simulation (retry when in-flight work drains)"
+            ),
+        }
+    try:
+        return _execute_qasm_inner(
+            qasm, shots, requested_backend, allow_fallback,
+            caller_jurisdictions, caller_export_class, export_reviewed, seed)
+    finally:
+        _inflight_release(required_bytes)
+
+
+def _execute_qasm_inner(
     qasm: str,
     shots: int = 1024,
     requested_backend: str = "aer_simulator",

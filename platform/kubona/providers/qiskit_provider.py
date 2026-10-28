@@ -572,18 +572,44 @@ class QiskitProvider(Provider):
         if status_str in ("error", "failed"):
             err_fn = getattr(job, "error_message", None)
             err_msg = err_fn() if callable(err_fn) else err_fn
-            return {
+            out = {
                 "status": "failed",
                 "vendor_status": status_str,
                 "hardware_job_id": hardware_job_id,
                 "error": str(err_msg or f"ibm runtime job {hardware_job_id} failed ({status_str})"),
             }
+            # Failure/cancel usage reporting: the vendor meter ran even
+            # though the job produced no counts. Report usage_seconds (and
+            # the priced actual_usd) on the failure/cancel envelope so
+            # settlement can reconcile measured usage instead of keeping the
+            # full estimate blindly. Best-effort: an unreadable meter leaves
+            # the envelope without usage (unknown), never a fabricated zero.
+            try:
+                usage = job.usage()
+                if usage is not None:
+                    out["usage_seconds"] = float(usage)
+                    actual = self._actual_usd(float(usage))
+                    if actual is not None:
+                        out["actual_usd"] = actual
+            except Exception:
+                pass
+            return out
         if status_str in ("cancelled", "canceled"):
-            return {
+            out = {
                 "status": "cancelled",
                 "vendor_status": status_str,
                 "hardware_job_id": hardware_job_id,
             }
+            try:
+                usage = job.usage()
+                if usage is not None:
+                    out["usage_seconds"] = float(usage)
+                    actual = self._actual_usd(float(usage))
+                    if actual is not None:
+                        out["actual_usd"] = actual
+            except Exception:
+                pass
+            return out
         return {
             "status": "running",
             "vendor_status": status_str,

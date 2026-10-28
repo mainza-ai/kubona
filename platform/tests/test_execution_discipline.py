@@ -252,7 +252,10 @@ def test_gateway_paid_submit_gated_by_approval_packet(monkeypatch):
     monkeypatch.setenv(APPROVAL_SECRET_ENV, "phase0-test-secret-32-bytes!!")
     monkeypatch.delenv("KUBONA_IBM_QISKIT_TOKEN", raising=False)
     gw = build_gateway()
-    sess = cost_server.create_session("gateway-paid-gate", "researcher",
+    # Phase-1 ownership: the explicit session must be owned by the gateway
+    # principal (dev-token authenticates as researcher@kubona.local) or the
+    # submit refuses with unknown-session (no oracle).
+    sess = cost_server.create_session("gateway-paid-gate", "researcher@kubona.local",
                                       budget_ceiling_usd=500.0)
     sid = sess["session_id"]
     paid_args = {"circuit_qasm": BELL, "provider": "ibm-qiskit", "shots": 64,
@@ -456,3 +459,140 @@ def test_cancel_post_vendor_keeps_charge(monkeypatch):
     assert "post-vendor" in out["spend_policy"], out
     assert exec_server.session_status(sid)["spent_usd"] == 8.0, \
         "post-vendor cancel keeps the charge (vendor may have run)"
+
+
+# -- failure/cancel settlement (measured usage always wins) -----------------
+
+def _spend_status(sid: str) -> float:
+    from kubona.mcp.servers import execution as execution_server
+    return execution_server.session_status(sid)["spent_usd"]
+
+
+def test_failed_job_with_reported_usage_settles_to_actual():
+    """Post-vendor failure with metered usage settles reserved->actual on the
+    read path (idempotent replay moves nothing); second read replays."""
+    from kubona.mcp.servers import execution as execution_server
+
+    sess = cost_server.create_session("fail-settle", "researcher", budget_ceiling_usd=100.0)
+    sid = sess["session_id"]
+    execution_server._gov.record_spend(sid, 8.0)
+    job = execution_server._runner.store.create(
+        provider="ibm-qiskit", session_id=sid, circuit_hash="fail-settle",
+        estimate={"estimated_usd": 8.0}, reserved_usd=8.0,
+        hardware_job_id="hw-9")
+    execution_server._runner.store.transition(job.job_id, "running")
+    execution_server._runner.store.transition(
+        job.job_id, "failed", error="vendor boom",
+        result={"usage_seconds": 2.0, "actual_usd": 3.2, "hardware_job_id": "hw-9"})
+    out = execution_server.get_result(job.job_id)
+    assert out["ok"] is False and out["status"] == "failed", out
+    assert out.get("settlement", {}).get("refunded_usd") == 4.8, out
+    assert _spend_status(sid) == 3.2
+    replay = execution_server.get_result(job.job_id)
+    assert replay["ok"] is False and "settlement" not in replay, replay
+    assert _spend_status(sid) == 3.2
+
+
+def test_failed_pre_vendor_without_usage_settles_nothing():
+    """No hardware id + no usage: the dispatch path owns the refund; the
+    settle mirror must not misrecord a kept estimate against it."""
+    from kubona.mcp.servers import execution as execution_server
+
+    sess = cost_server.create_session("fail-prevendor", "researcher", budget_ceiling_usd=100.0)
+    sid = sess["session_id"]
+    execution_server._gov.record_spend(sid, 8.0)
+    job = execution_server._runner.store.create(
+        provider="ibm-qiskit", session_id=sid, circuit_hash="fail-pre",
+        estimate={"estimated_usd": 8.0}, reserved_usd=8.0)
+    execution_server._runner.store.transition(job.job_id, "running")
+    execution_server._runner.store.transition(job.job_id, "failed", error="no credential")
+    out = execution_server.get_result(job.job_id)
+    assert out["ok"] is False, out
+    assert "settlement" not in out, out
+    # Reservation untouched by the mirror (dispatch refunded it separately).
+    assert _spend_status(sid) == 8.0
+
+
+def test_post_vendor_failed_without_usage_keeps_charge():
+    """Pinned hardware id + zero reported usage: the vendor may have run, so
+    the estimate stands (loudly — no refund, no settle receipt)."""
+    from kubona.mcp.servers import execution as execution_server
+
+    sess = cost_server.create_session("fail-kept", "researcher", budget_ceiling_usd=100.0)
+    sid = sess["session_id"]
+    execution_server._gov.record_spend(sid, 8.0)
+    job = execution_server._runner.store.create(
+        provider="ibm-qiskit", session_id=sid, circuit_hash="fail-kept",
+        estimate={"estimated_usd": 8.0}, reserved_usd=8.0,
+        hardware_job_id="hw-kept")
+    execution_server._runner.store.transition(job.job_id, "running")
+    execution_server._runner.store.transition(job.job_id, "failed", error="vendor boom")
+    out = execution_server.get_result(job.job_id)
+    assert out["ok"] is False, out
+    assert "settlement" not in out, out
+    assert _spend_status(sid) == 8.0
+
+
+def test_deferred_poll_failure_settles_from_vendor_usage(monkeypatch):
+    """End to end: a deferred hardware poll reporting failure WITH usage
+    settles reserved->actual (provider usage reporting + poll settle)."""
+    from kubona.mcp.servers import execution as execution_server
+
+    class _FailingVendor:
+        def poll_hardware_job(self, hardware_job_id):
+            return {"status": "failed", "vendor_status": "error",
+                    "hardware_job_id": hardware_job_id,
+                    "error": "ibm runtime job blew up",
+                    "usage_seconds": 120.0, "actual_usd": 192.0}
+
+        def cancel(self, hardware_job_id):
+            raise AssertionError("cancel must not run on this path")
+
+    monkeypatch.setattr(execution_server, "get_provider", lambda provider: _FailingVendor())
+    sess = cost_server.create_session("poll-fail-settle", "researcher", budget_ceiling_usd=500.0)
+    sid = sess["session_id"]
+    execution_server._gov.record_spend(sid, 200.0)
+    job = execution_server._runner.store.create(
+        provider="ibm-qiskit", session_id=sid, circuit_hash="poll-fail",
+        estimate={"estimated_usd": 200.0}, reserved_usd=200.0,
+        hardware_job_id="hw-poll-1")
+    execution_server._runner.store.transition(job.job_id, "running")
+    st = execution_server.get_job_status(job.job_id)
+    assert st["status"] == "failed", st
+    assert _spend_status(sid) == 192.0
+
+
+def test_cancel_post_vendor_with_reported_usage_settles_difference():
+    """Post-vendor cancel where the job result already reports usage settles
+    to actual instead of keeping the full charge."""
+    from kubona.mcp.servers import execution as execution_server
+    from kubona.providers.base import ProviderError
+
+    class _RefusingRecall:
+        def cancel(self, hardware_job_id):
+            raise ProviderError("vendor recall refused: already running")
+
+    import kubona.mcp.servers.execution as exec_mod
+    orig_get_provider = exec_mod.get_provider
+    exec_mod.get_provider = lambda provider: _RefusingRecall()
+    try:
+        sess = cost_server.create_session("cancel-settle", "researcher", budget_ceiling_usd=100.0)
+        sid = sess["session_id"]
+        execution_server._gov.record_spend(sid, 8.0)
+        job = execution_server._runner.store.create(
+            provider="ibm-qiskit", session_id=sid, circuit_hash="cancel-use",
+            estimate={"estimated_usd": 8.0}, reserved_usd=8.0,
+            hardware_job_id="hw-cancel-1")
+        # Vendor metered $2.50 before the supervisor cancelled: store the
+        # usage on the live (running) job so the cancel path can settle it.
+        stored = execution_server._runner.store.get(job.job_id)
+        stored.result = {"usage_seconds": 1.0, "actual_usd": 2.5,
+                         "hardware_job_id": "hw-cancel-1"}
+        execution_server._runner.store._save(stored)
+        out = execution_server.cancel_job(job.job_id)
+        assert out["ok"] is True and out["status"] == "cancelled", out
+        assert out.get("refunded_usd") == 5.5, out
+        assert out.get("settled_to_actual_usd") == 2.5, out
+        assert _spend_status(sid) == 2.5
+    finally:
+        exec_mod.get_provider = orig_get_provider

@@ -869,3 +869,82 @@ def test_codesign_ops_error_strings_match_retired_snippets():
     bad = run_op("budget", {"entries": [{"source": "x", "per_use_rate": True, "uses": 1}]})
     assert bad["ok"] is False
     assert "per_use_rate must be a number" in bad["error"]
+
+
+# --------------------------------------- global RAM admission (in-flight) ---
+
+def test_global_inflight_cap_defaults_to_twice_single_job_ceiling():
+    from executor import (
+        _SINGLE_JOB_CEILING_BYTES,
+        _global_inflight_cap_bytes,
+        check_circuit_memory_bounds,
+    )
+    from qiskit import QuantumCircuit
+
+    assert _SINGLE_JOB_CEILING_BYTES == (2 ** 28) * 16
+    assert _global_inflight_cap_bytes() == 2 * _SINGLE_JOB_CEILING_BYTES
+    # Any per-job-admittable solo simulation always fits an empty semaphore:
+    # the largest admittable estimate (28 qubits) is half the default cap.
+    assert check_circuit_memory_bounds(QuantumCircuit(28))["required_bytes"] * 2 \
+        <= _global_inflight_cap_bytes()
+
+
+def test_global_inflight_refuses_and_releases_cleanly():
+    import executor
+    from executor import execute_qasm, inflight_bytes
+
+    bell = ("OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[2];\ncreg c[2];\n"
+            "h q[0];\ncx q[0], q[1];\nmeasure q[0] -> c[0];\nmeasure q[1] -> c[1];\n")
+    assert inflight_bytes() == 0
+    # Saturate the process-wide cap by hand, then a small job must refuse
+    # fail-closed (INFLIGHT marker, no counts, counter untouched).
+    assert executor._inflight_try_acquire(executor._global_inflight_cap_bytes())
+    try:
+        assert inflight_bytes() == executor._global_inflight_cap_bytes()
+        refused = execute_qasm(bell, shots=16, requested_backend="aer_simulator", seed=7)
+        assert refused["success"] is False
+        assert "INFLIGHT_RAM_EXCEEDED" in refused["error_message"]
+        assert refused["counts"] == {}
+        assert inflight_bytes() == executor._global_inflight_cap_bytes()
+    finally:
+        executor._inflight_release(executor._global_inflight_cap_bytes())
+    assert inflight_bytes() == 0
+    # Drained: the same job simulates and the hold does not leak.
+    ok = execute_qasm(bell, shots=16, requested_backend="aer_simulator", seed=7)
+    assert ok["success"] is True, ok
+    assert inflight_bytes() == 0
+
+
+def test_global_inflight_precedence_keeps_precise_per_job_refusal():
+    from executor import execute_qasm
+
+    qasm_32 = ("OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[32];\n"
+               "h q[0];\ncx q[0], q[1];\n")
+    # 32 qubits fails BOTH rails: the precise per-job refusal (partition
+    # plan included) must win over the global marker, solo or saturated.
+    solo = execute_qasm(qasm_32, requested_backend="aer_simulator",
+                        allow_fallback=False, seed=7)
+    assert solo["success"] is False
+    assert "PREFLIGHT_RAM_EXCEEDED" in solo["error_message"]
+
+
+def test_global_inflight_release_clamps_and_env_cap_parses():
+    import executor
+
+    assert executor.inflight_bytes() == 0
+    executor._inflight_release(1 << 40)  # double-release must not mint headroom
+    assert executor.inflight_bytes() == 0
+    assert executor._inflight_try_acquire(0) is True  # non-positive: no-op hold
+    assert executor.inflight_bytes() == 0
+    import os
+    old = os.environ.get("KUBONA_BRIDGE_MAX_INFLIGHT_BYTES")
+    try:
+        os.environ["KUBONA_BRIDGE_MAX_INFLIGHT_BYTES"] = "not-a-number"
+        assert executor._global_inflight_cap_bytes() == 2 * executor._SINGLE_JOB_CEILING_BYTES
+        os.environ["KUBONA_BRIDGE_MAX_INFLIGHT_BYTES"] = "12345"
+        assert executor._global_inflight_cap_bytes() == 12345
+    finally:
+        if old is None:
+            os.environ.pop("KUBONA_BRIDGE_MAX_INFLIGHT_BYTES", None)
+        else:
+            os.environ["KUBONA_BRIDGE_MAX_INFLIGHT_BYTES"] = old
