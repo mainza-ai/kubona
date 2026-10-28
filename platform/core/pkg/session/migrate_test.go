@@ -5,6 +5,7 @@ package session
 
 import (
 	"crypto/ed25519"
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -352,4 +353,77 @@ func TestManifestKeyRotation(t *testing.T) {
 	if _, err := dst4.ImportSession(&legacy); err != nil {
 		t.Fatalf("legacy keyless manifest must verify: %v", err)
 	}
+}
+
+func TestImportRejectsTamperedEventHash(t *testing.T) {
+	t.Setenv("KUBONA_ENV", "")
+	src, _ := mustOpenCascade(t)
+	sess, err := src.CreateSession("tamper", 100, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	man, err := src.ExportSession(sess.ID)
+	if err != nil || len(man.Events) == 0 {
+		t.Fatalf("export: %v events=%d", err, len(man.Events))
+	}
+	man.SectionEnvelopes = nil
+	man.Events[0].EntryHash = strings.Repeat("0", 64)
+	man.Digests["events"], err = sectionDigest(man.Events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	man.Signature = ""
+	man.SignatureAlg = ""
+	man.KeyID = ""
+	dst, _ := mustOpenCascade(t)
+	if _, err := dst.ImportSession(man); err == nil || !strings.Contains(err.Error(), "entry_hash mismatch") {
+		t.Fatalf("tampered event hash must refuse, got %v", err)
+	}
+}
+
+func TestImportCanonicalizesLegacyV1Payload(t *testing.T) {
+	t.Setenv("KUBONA_ENV", "")
+	src, _ := mustOpenCascade(t)
+	sess, err := src.CreateSession("v1", 100, "default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	man, err := src.ExportSession(sess.ID)
+	if err != nil || len(man.Events) != 1 {
+		t.Fatalf("export: %v events=%d", err, len(man.Events))
+	}
+	man.SectionEnvelopes = nil
+	e := &man.Events[0]
+	// Legacy v1 hash over compact payload, with the manifest carrying
+	// pretty-printed bytes (the JSON round-trip case).
+	var compact any
+	if err := json.Unmarshal(e.Payload, &compact); err != nil {
+		t.Fatal(err)
+	}
+	canonical, _ := json.Marshal(compact)
+	e.Payload = json.RawMessage(prettyJSON(t, compact))
+	e.HashVersion = 1
+	e.EntryHash = ledger.ChainDigest(e.PrevHash, sess.ID, e.EventType, string(canonical))
+	e.SignerPubkey, e.Signature, e.SignatureDomain = "", "", ""
+	man.Digests["events"], err = sectionDigest(man.Events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	man.Signature, man.SignatureAlg, man.KeyID = "", "", ""
+	dst, dl := mustOpenCascade(t)
+	if _, err := dst.ImportSession(man); err != nil {
+		t.Fatalf("canonicalized v1 import must succeed: %v", err)
+	}
+	if faults, err := dl.VerifyChain(sess.ID); err != nil || len(faults) != 0 {
+		t.Fatalf("imported v1 chain must verify: %v %+v", err, faults)
+	}
+}
+
+func prettyJSON(t *testing.T, v any) []byte {
+	t.Helper()
+	raw, err := json.MarshalIndent(v, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return raw
 }

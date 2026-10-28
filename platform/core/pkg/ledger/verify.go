@@ -49,6 +49,20 @@ func ChainDigest(prevHash, sessionID, eventType, payload string) string {
 	return hex.EncodeToString(d[:])
 }
 
+// CanonicalPayload is the exported deterministic JSON re-encoding used by
+// v2 hashing and by import normalization of legacy v1 payload bytes.
+func CanonicalPayload(payload []byte) []byte { return canonicalPayload(payload) }
+
+// ChainDigestBytesV1 is the raw 32-byte v1 digest for signature checks.
+func ChainDigestBytesV1(prevHash, sessionID, eventType, payload string) [32]byte {
+	return chainDigestBytes(prevHash, sessionID, eventType, payload)
+}
+
+// ChainDigestBytesV2 is the raw 32-byte v2 digest for signature checks.
+func ChainDigestBytesV2(prevHash, sessionID, tenantID, confLabel, timestamp, eventType string, payload []byte) [32]byte {
+	return chainDigestBytesV2(prevHash, sessionID, tenantID, confLabel, timestamp, eventType, payload)
+}
+
 // canonicalPayload re-encodes a JSON payload deterministically (sorted keys,
 // no insignificant whitespace). v2 hashes this, so an export/import JSON
 // round-trip cannot invalidate the chain by normalising payload bytes.
