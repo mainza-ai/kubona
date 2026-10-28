@@ -1196,7 +1196,14 @@ func TestTenantsListForLabsView(t *testing.T) {
 		t.Fatalf("create lab-b, got %d", code)
 	}
 
+	anon := httptest.NewRequest(http.MethodGet, "/api/tenants", nil)
+	anonW := httptest.NewRecorder()
+	h.ServeHTTP(anonW, anon)
+	if anonW.Code != http.StatusUnauthorized {
+		t.Fatalf("anonymous multi-lab tenant list must 401, got %d", anonW.Code)
+	}
 	req := httptest.NewRequest(http.MethodGet, "/api/tenants", nil)
+	req.Header.Set("Authorization", "Bearer op-token")
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
