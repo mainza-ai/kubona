@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/mainza-ai/kubona/core/pkg/autoresearch"
 	"github.com/mainza-ai/kubona/core/pkg/tenants"
 )
 
@@ -307,6 +308,31 @@ func (s *Server) handleTenantStatus(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusForbidden)
 		return
+	}
+	if t.Status == "suspended" {
+		if _, err := s.jobRunner.CancelTenantJobs(t.ID, "tenant suspended: execution stops until reactivation"); err != nil {
+			http.Error(w, "tenant suspended but job cancellation failed: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+		// Pause every active autoresearch engine owned by this lab. The
+		// engine's session carries the tenant; jobs are already fenced.
+		s.autoresearchMu.RLock()
+		type loopRef struct {
+			id string
+			e  *autoresearch.LoopEngine
+		}
+		var loops []loopRef
+		for id, engine := range s.activeAutoloops {
+			st := engine.State()
+			if sess, serr := s.sessionMgr.GetSession(st.SessionID); serr == nil && sess.TenantID == t.ID {
+				loops = append(loops, loopRef{id: id, e: engine})
+			}
+		}
+		s.autoresearchMu.RUnlock()
+		for _, l := range loops {
+			l.e.Pause()
+			_ = s.supervisor.Pause(l.id)
+		}
 	}
 	writeJSON(w, http.StatusOK, t)
 }
