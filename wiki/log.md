@@ -3687,3 +3687,7 @@ skipped is the exact failure this incident is about:
 ## [2026-10-28] decision | Tenant list is auth-scoped
 
   - GET /api/tenants is anonymous only when the store actually has one tenant; multi-lab requires a session/bearer, and a lab session sees only its own row. This closes the public exposure of admin key ids, ceilings, and spend totals.
+
+## [2026-10-28] decision | Provenance reads are bounded
+
+  - query_records now clamps limit to 1..1000 with offset, returns count/returned/truncated, and scans at most 10k records. The ambient records resource returns the latest 1000 with a truncation flag; aggregation is capped at 10k and reports __truncated__.

@@ -60,3 +60,8 @@ async def test_provenance_resource_readable():
             q = await session.call_tool("query_records", {"kind": "experiment",
                                                           "requester": "default"})
             assert q is not None
+            limited = await session.call_tool("query_records", {
+                "kind": "experiment", "requester": "default", "limit": 1})
+            payload = json.loads(limited.content[0].text)
+            assert payload["returned"] <= 1 and payload["limit"] == 1
+            assert payload["count"] >= payload["returned"]

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections import deque
 
 from mcp.server.mcpserver import MCPServer
 
@@ -16,6 +17,9 @@ from kubona.provenance import Ledger
 mcp = MCPServer("kubona-provenance")
 
 _ledger = Ledger()
+
+MAX_QUERY_RECORDS = 1000
+MAX_SCAN_RECORDS = 10000
 
 
 from kubona.provenance import Ledger, readable
@@ -33,14 +37,37 @@ def write_record(kind: str, payload: dict, label: str | None = None) -> dict:
             "label": record.label}
 
 
-def query_records(kind: str | None = None, requester: str | None = "default") -> dict:
+def query_records(kind: str | None = None, requester: str | None = "default",
+                  limit: int = 100, offset: int = 0) -> dict:
     # Readership is enforced BEFORE serialization (never after flooding):
     # tenant rows are visible inside their own lab tenant only. The default
     # requester preserves single-operator behavior; ambient callers pass None
-    # and see public rows.
-    records = [r for r in _ledger
-               if (kind is None or r.kind == kind) and readable(r, requester, _ledger.tenant or "default")]
-    return {"count": len(records), "records": [r.to_json() for r in records]}
+    # and see public rows. Both the scan and the page are bounded.
+    if not isinstance(limit, int) or isinstance(limit, bool):
+        limit = 100
+    limit = min(max(limit, 1), MAX_QUERY_RECORDS)
+    if not isinstance(offset, int) or isinstance(offset, bool) or offset < 0:
+        offset = 0
+    matched = 0
+    page: list[dict] = []
+    truncated = False
+    scanned = 0
+    for r in _ledger:
+        scanned += 1
+        if scanned > MAX_SCAN_RECORDS:
+            truncated = True
+            break
+        if kind is not None and r.kind != kind:
+            continue
+        if not readable(r, requester, _ledger.tenant or "default"):
+            continue
+        matched += 1
+        if matched > offset and len(page) < limit:
+            page.append(r.to_json())
+    if matched > offset + len(page):
+        truncated = True
+    return {"count": matched, "returned": len(page), "offset": offset,
+            "limit": limit, "truncated": truncated, "records": page}
 
 
 mcp.add_tool(write_record, name="write_record",
@@ -56,8 +83,14 @@ def _aggregate(kind: str | None = None, requester: str | None = None) -> dict:
     the counts, so dashboards are label-scoped by construction — never
     global-with-redaction (existence is information).
     """
-    records = [r for r in _ledger
-               if (kind is None or r.kind == kind) and readable(r, requester, _ledger.tenant or "default")]
+    records = []
+    truncated = False
+    for i, r in enumerate(_ledger):
+        if i >= MAX_SCAN_RECORDS:
+            truncated = True
+            break
+        if (kind is None or r.kind == kind) and readable(r, requester, _ledger.tenant or "default"):
+            records.append(r)
     by_hash: dict[str, dict] = {}
     for r in records:
         p = r.payload
@@ -73,6 +106,7 @@ def _aggregate(kind: str | None = None, requester: str | None = None) -> dict:
         out[key] = {"count": agg["count"],
                     "providers": sorted(agg["providers"]),
                     "avg_cost_usd": round(sum(agg["costs"]) / len(agg["costs"]), 6) if agg["costs"] else None}
+    out["__truncated__"] = truncated
     return out
 
 
@@ -82,7 +116,14 @@ def _aggregate(kind: str | None = None, requester: str | None = None) -> dict:
 def records_resource() -> str:
     # Ambient resource context carries no requester: public rows only.
     # Tenant rows are reachable via query_records with an explicit requester.
-    return json.dumps({"records": [r.to_json() for r in _ledger if readable(r, None, _ledger.tenant or "default")]})
+    records: deque[dict] = deque(maxlen=MAX_QUERY_RECORDS)
+    truncated = False
+    for r in _ledger:
+        if readable(r, None, _ledger.tenant or "default"):
+            if len(records) == MAX_QUERY_RECORDS:
+                truncated = True
+            records.append(r.to_json())
+    return json.dumps({"records": list(records), "returned": len(records), "truncated": truncated})
 
 
 @mcp.resource("provenance://best", name="provenance-best",
