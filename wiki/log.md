@@ -3561,3 +3561,7 @@ skipped is the exact failure this incident is about:
 ## [2026-10-27] decision | Mandate verification replay is idempotent
 
   - Re-verifying the exact signed mandate returns the original receipt and obligation (replayed:true) instead of appending another ledger event; a missing obligation is healed. Public verification with a fresh valid mandate still appends exactly one receipt.
+
+## [2026-10-27] decision | Supervisor abort seals its own receipt
+
+  - /api/supervisor/abort now appends a signed `supervisor_abort` event carrying the session, aborted count, and reason, and returns that receipt. It no longer returns whichever event happened to be last.

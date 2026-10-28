@@ -133,16 +133,18 @@ func (s *Server) handleSupervisorAbort(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	events, err := s.ledger.GetRecentEvents(req.SessionID, 1)
-	if err != nil || len(events) == 0 {
-		http.Error(w, "abort executed but receipt unreadable", http.StatusInternalServerError)
+	rec, aerr := s.ledger.AppendSignedEvent(req.SessionID, "supervisor_abort", map[string]any{
+		"session_id": req.SessionID, "aborted_count": count, "reason": req.Reason,
+	}, nil)
+	if aerr != nil {
+		http.Error(w, "abort executed but receipt could not be sealed: "+aerr.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":            true,
 		"aborted_count": count,
-		"abort_receipt": events[0].EntryHash,
+		"abort_receipt": rec.EntryHash,
 		"session_id":    req.SessionID,
 	})
 }
