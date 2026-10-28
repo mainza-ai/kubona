@@ -56,8 +56,25 @@ pub fn analyze_circuit(c: &Circuit) -> QirAnalysisSummary {
     }
 
     let gate_depth = qubit_layers.into_iter().max().unwrap_or(0);
-    // Instruction count = allocations (n) + gate calls (g) + record outputs (n) + releases (n) + ret (1)
-    let instruction_count = c.num_qubits * 3 + c.gates.len() + 1;
+    // Instruction count mirrors emit_llvm_ir line-for-line: allocations (n)
+    // + releases (n) + ret (1), plus one call per plain gate, two lines
+    // (mz + record_output) per explicit measure, and — only when the
+    // circuit has no explicit measure — the legacy full sweep (2 lines per
+    // qubit). `id` emits nothing.
+    let has_measure = c
+        .gates
+        .iter()
+        .any(|g| matches!(g.name.as_str(), "measure" | "mz" | "m"));
+    let mut per_gate = 0usize;
+    for g in &c.gates {
+        per_gate += match g.name.as_str() {
+            "id" => 0,
+            "measure" | "mz" | "m" => 2,
+            _ => 1,
+        };
+    }
+    let sweep = if has_measure { 0 } else { 2 * c.num_qubits };
+    let instruction_count = 2 * c.num_qubits + 1 + per_gate + sweep;
 
     QirAnalysisSummary {
         instruction_count,
@@ -84,7 +101,7 @@ fn qis_intrinsic(name: &str) -> Option<&'static str> {
         "rx" => "rx",
         "ry" => "ry",
         "rz" => "rz",
-        "cx" => "cnot",
+        "cx" | "cnot" => "cnot",
         "cz" => "cz",
         "swap" => "swap",
         "reset" => "reset",
@@ -141,9 +158,9 @@ pub fn emit_llvm_ir(c: &Circuit) -> Result<String, String> {
     }
 
     // Gate invocations through the closed intrinsic set. `id` emits
-    // nothing (identity, validated at parse). Measurements thread their
-    // classical bit: %res_{idx} names the gate result (W1.5 — the old code
-    // dropped the bit and called an undeclared measure intrinsic).
+    // nothing (identity, validated at parse). Each explicit measurement
+    // emits one mz on its qubit plus a record_output addressed by its
+    // CLASSICAL bit (q[i] -> c[j] records i64 j, not i64 i).
     for (idx, g) in c.gates.iter().enumerate() {
         let gate_name = g.name.as_str();
         if gate_name == "id" {
@@ -151,8 +168,14 @@ pub fn emit_llvm_ir(c: &Circuit) -> Result<String, String> {
         }
         if gate_name == "measure" || gate_name == "mz" || gate_name == "m" {
             let q = g.qubits.first().copied().ok_or_else(|| format!("measure gate {idx} addresses no qubit"))?;
+            // parse() always sets cbit; a hand-built gate without one falls
+            // back to the identity mapping instead of panicking.
+            let cbit = g.cbit.unwrap_or(q);
             out.push_str(&format!(
                 "  %res_{idx} = call %Result* @__quantum__qis__mz__body(%Qubit* %q{q})\n"
+            ));
+            out.push_str(&format!(
+                "  call void @__quantum__rt__record_output(i64 {cbit}, %Result* %res_{idx})\n"
             ));
             continue;
         }
@@ -172,14 +195,24 @@ pub fn emit_llvm_ir(c: &Circuit) -> Result<String, String> {
         }
     }
 
-    // Output recording
-    for q in 0..c.num_qubits {
-        out.push_str(&format!(
-            "  %r{q} = call %Result* @__quantum__qis__mz__body(%Qubit* %q{q})\n"
-        ));
-        out.push_str(&format!(
-            "  call void @__quantum__rt__record_output(i64 {q}, %Result* %r{q})\n"
-        ));
+    // Output recording. Explicit measures already recorded above with
+    // their classical targets, so no sweep then (a sweep would duplicate
+    // each mz and re-record under the wrong identity mapping). With no
+    // explicit measure, keep the legacy full sweep: every qubit is measured
+    // to its same-indexed bit so the module still records output.
+    let has_measure = c
+        .gates
+        .iter()
+        .any(|g| matches!(g.name.as_str(), "measure" | "mz" | "m"));
+    if !has_measure {
+        for q in 0..c.num_qubits {
+            out.push_str(&format!(
+                "  %r{q} = call %Result* @__quantum__qis__mz__body(%Qubit* %q{q})\n"
+            ));
+            out.push_str(&format!(
+                "  call void @__quantum__rt__record_output(i64 {q}, %Result* %r{q})\n"
+            ));
+        }
     }
 
     // Qubit releases
