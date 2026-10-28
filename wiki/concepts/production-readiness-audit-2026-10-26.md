@@ -707,6 +707,28 @@ TCP; proven live both directions). Full gate green on the final tree
 (`0972ffc`, run `40777490046`, all 15 checks success).
 Full per-blocker evidence: Round-3 report (local planning docs, 2026-10-28).
 
+Phase 6 (Round-3 Phase-1 hardening) landed 2026-10-29 as `2f11c61`,
+`1d88c1d`, `5e4cfd4`, `9df7d4c`, `bef47ba`, `c05f0f9` (six signed commits)
+on `develop`: terminal settlement funnel on EVERY terminal state (measured
+usage always wins, unknown keeps loudly; same-DB transaction makes
+reserve+insert atomic, crash-tested — no reaper needed); sandbox local path
+refuses unconditionally in production and on unknown env spellings, container
+flags at Go parity, escape matrix as tests (all fail); principal-bound
+identity (server-side caller overwrites client strings, cross-tenant refuses,
+strict tenant_slug, ownership gates with indistinguishability); Python
+failure/cancel settlement + global RAM semaphore (8 GiB default); Rust cbit
+routing exact (single mz + record_output per measure, Toffoli via transpile,
+fallible API); CI depth (vet/gofmt, ruff ratchet 375, clippy -D, semgrep,
+Trivy CRITICAL, coverage floors py55/go64, nightly pinned, posture recorded).
+Full gate green with all 20 checks (run `40786519756`); image-scan promoted
+into canary-gate needs on that evidence. REMAINING (still not production):
+cross-tenant grant mechanism, ledger physical sharding, custom seccomp,
+deny-by-default local flip, stale public numbers, HSTS/static chrome,
+flight-recorder card + latency proof, operator deeds (reviewer key, R6,
+mandate queue), dependabot branch triage. Toolchain note: go1.27.2
+coverage instrumentation counts differently than go1.27.1 (same tree:
+66.3% vs 74.4%) — floors re-baseline on every toolchain move.
+
 ---
 
 ## Appendix

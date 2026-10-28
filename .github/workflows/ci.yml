@@ -319,11 +319,11 @@ jobs:
     # above is green. Previously it ran in parallel, so a red suite and a
     # green gate coexisted and the gate meant nothing.
     # Phase-1 depth: the hermetic gates (go-lint, python-lint, rust-lint,
+    # image-scan promoted into needs 2026-10-29 after its first
+    # verified-green CI run (run 40786519756, all 20 checks green).
     # sast) join the release gate — no release ships with new lint, SAST, or
-    # coverage-floor debt. image-scan stays out of needs until its first
-    # verified-green CI run (it still fails the workflow red on any new
-    # CRITICAL); promote it into needs after that observation.
-    needs: [wiki-lint, secret-scan, python-tests, python-slow-a, python-slow-b, python-slow-c, python-slow-d, python-slow-e, rust-tests, go-core-tests, nextjs-console-build, docker-smoke, sandbox-container, go-lint, python-lint, rust-lint, sast]
+    # coverage-floor debt.
+    needs: [wiki-lint, secret-scan, python-tests, python-slow-a, python-slow-b, python-slow-c, python-slow-d, python-slow-e, rust-tests, go-core-tests, nextjs-console-build, docker-smoke, sandbox-container, go-lint, python-lint, rust-lint, sast, image-scan]
     defaults:
       run:
         working-directory: platform
@@ -543,8 +543,8 @@ jobs:
       # Verified locally 2026-10-28: kubonad needed a go1.27.2 bump
       # (CVE-2026-56857, fixed same-slice) plus apt-get upgrade in the final
       # stage for brotli/perl CRITICALs; bridge/console green modulo the
-      # zlib pin. Not yet in canary-gate needs: promote after the first
-      # verified-green CI run (it still fails the workflow red meanwhile).
+      # zlib pin. Promoted into canary-gate needs 2026-10-29 after the
+      # first verified-green run.
       - name: Build prod images
         run: docker compose -f platform/docker/compose.prod.yml build
       - uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
