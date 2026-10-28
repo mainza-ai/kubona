@@ -18,11 +18,18 @@ REST API with V2 Primitives**, which superseded V1.
 
 - Circuits must be fully **transpiled to the target QPU's Instruction Set Architecture**
   before submission; hidden server-side compilation is disabled.
-- **SamplerV2** — takes an ISA circuit + optional parameter sets; returns per-shot
-  measurement bitstrings preserving shot order (needed for dynamic circuits/post-processing).
+- **Sampler** — qiskit-ibm-runtime 0.50 uses the client-side `executor_sampler.Sampler`
+  (legacy `SamplerV2` remains an interface); it takes an ISA circuit + optional parameter
+  sets and returns per-shot measurement bitstrings.
 - **EstimatorV2** — takes an ISA circuit, observables (e.g. Pauli strings), parameter sets,
   and a target precision.
 - Agent-facing unit: **Primitive Unified Blocs (PUBs)** — the parameterized submission unit.
+
+## Live IBM documentation
+
+The authoritative, changing IBM facts (backends, limits, prices, channels) live in IBM's
+docs, not here. Start at [[ibm-quantum-platform]] for the curated link hub and the current
+Kubona provider snapshot.
 
 ## Role in Kubona
 
@@ -35,5 +42,5 @@ REST API with V2 Primitives**, which superseded V1.
 
 ## Related
 
-[[qir-mlir-compilation]] (OpenQASM 3.0 → QIR) · [[microsoft-azure-quantum]] ·
+[[qir-mlir-compilation]] (OpenQASM 3.0 → QIR) · [[ibm-quantum-platform]] · [[microsoft-azure-quantum]] ·
 [[error-mitigation]] · [[qiskit-circuit-knitting]] · [[vqa-vqe]]

@@ -71,8 +71,8 @@ Describes **how decided** something is — never how finished.
 | `source` | An ingested source record. Immutable once written. | the 7 pages under `sources/` |
 | `living` | Meta pages that never settle. | overview, roadmap, index, log, questions |
 
-**Census (153 pages = 47 entities · 91 concepts · 10 sources · 5 meta), 2026-10-26:**
-`settled` 6 · `adopted` 62 · `open-question` 0 pages · `candidate` 13 · `tracked` 46 ·
+**Census (154 pages = 48 entities · 91 concepts · 10 sources · 5 meta), 2026-10-28:**
+`settled` 6 · `adopted` 62 · `open-question` 0 pages · `candidate` 13 · `tracked` 47 ·
 `reference` 9 · `source` 10 · `living` 7 (lint-counted). All production-readiness decisions
 (Q-49..Q-57) were resolved 2026-10-27; implementation residuals are tracked in
 [[production-readiness-audit-2026-10-26]]. No page carries `status: open-question`, so the page
@@ -141,6 +141,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[ap2]] | Agent Payments Protocol: Google/industry open standard for signed spending mandates |
 | [[qiskit-mcp-servers]] | IBM's official MCP server collection for Qiskit and IBM Quantum |
 | [[qiskit]] | IBM's SDK; V2 primitives (Sampler/Estimator), transpilation to ISA, runtime |
+| [[ibm-quantum-platform]] | IBM Quantum Compute Service live-document hub: guides, instances, Sampler/ISA, limits, calibration, retired QPUs |
 | [[pennylane]] | Quantum ML / VQA framework; differentiable circuits, parameter-shift |
 | [[microsoft-azure-quantum]] | Q# language + QDK + Resource Estimator; topo/Majorana target |
 | [[google-cirq]] | Pulse-level, fine-grained gate control; Google hardware |
