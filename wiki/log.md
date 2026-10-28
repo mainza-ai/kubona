@@ -3537,3 +3537,7 @@ skipped is the exact failure this incident is about:
   - Canary snapshot_hash now seals calibration; fidelity gate refuses unknown devices and over-capacity qubit counts; secret get(required=True) raises.
   - Library: validation proofs must be non-phantom and resolve against a wired ledger; saves are atomic+fsynced. Critic requires at least one applicable mutant.
   - Qiskit Runtime uses ibm_quantum_platform (legacy channel via env override); cancel_job attempts vendor recall and the latent ProviderError NameError is fixed.
+
+## [2026-10-27] decision | Bridge trace propagation
+
+  - The gRPC client chain injects the inbound W3C traceparent into outgoing metadata, so a human dispatch and its bridge work share one trace id. Background jobs with no request span are unchanged.
