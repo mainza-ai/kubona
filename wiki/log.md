@@ -3573,3 +3573,8 @@ skipped is the exact failure this incident is about:
 ## [2026-10-27] decision | Message rewrite CAS is atomic
 
   - RewriteUserMessage's expected-content compare now lives in the UPDATE ... AND content = ?; a concurrent edit loses (ErrContentMismatch) instead of silently last-writer-winning between a pre-check and write.
+
+## [2026-10-27] decision | Honest tribunal verdict + metasearch copies
+
+  - The console tribunal recorder no longer labels a quorum as COMMITTED_TO_LEDGER; it returns QUORUM_MET with ledger_committed:false because it writes no ledger event.
+  - Metasearch List/Get return deep copies and approve/reject require a named human signer.
