@@ -3565,3 +3565,7 @@ skipped is the exact failure this incident is about:
 ## [2026-10-27] decision | Supervisor abort seals its own receipt
 
   - /api/supervisor/abort now appends a signed `supervisor_abort` event carrying the session, aborted count, and reason, and returns that receipt. It no longer returns whichever event happened to be last.
+
+## [2026-10-27] decision | Memory eviction is tenant-scoped
+
+  - Hindsight capacity/eviction now filters on bank + tenant + readership, so one lab filling its bank cannot evict another lab's memories. Persistence errors on retain still need a typed path.

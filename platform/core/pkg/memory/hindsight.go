@@ -229,18 +229,20 @@ func (s *HindsightStore) RetainScoped(
 		`, item.ID, encodedBlob)
 	}
 
-	// Enforce capacity bounds and LRU eviction
-	s.evictIfExceededLocked(bank)
+	// Enforce capacity bounds and LRU eviction within the SAME tenant +
+	// readership: one lab filling its bank must never evict another lab's
+	// memories (availability isolation).
+	s.evictIfExceededLocked(bank, tenantID, readership)
 
 	return item
 }
 
 // evictIfExceededLocked removes low-scoring / least recently accessed memories when bank limits are exceeded
-func (s *HindsightStore) evictIfExceededLocked(bank MemoryBank) int {
+func (s *HindsightStore) evictIfExceededLocked(bank MemoryBank, tenantID, readership string) int {
 	var bankItems []*MemoryItem
 	totalTokens := 0
 	for _, item := range s.items {
-		if item.Bank == bank {
+		if item.Bank == bank && item.TenantID == tenantID && item.Readership == readership {
 			bankItems = append(bankItems, item)
 			totalTokens += item.TokensEstimate
 		}
