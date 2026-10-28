@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -136,6 +137,16 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// No dev fallback: the workflow gateway token is the bridge token in
+	// ALL envs. The bridge builds a require_auth gateway around it; a
+	// literal "dev-token" (or an empty token) would run bridged tools
+	// unauthenticated, so refuse before any spend is reserved.
+	bridgeToken := strings.TrimSpace(os.Getenv("KUBONA_BRIDGE_TOKEN"))
+	if bridgeToken == "" {
+		WriteAPIError(w, "bad_request", "KUBONA_BRIDGE_TOKEN is not configured: refusing unauthenticated workflow execution", nil)
+		return
+	}
+
 	// Inspect declared ceiling for SQLite spend reservation
 	var wfHeader struct {
 		Name             string   `json:"name"`
@@ -171,7 +182,7 @@ func (s *Server) handleWorkflowRun(w http.ResponseWriter, r *http.Request) {
 	resp, err := bridge.WorkflowRun(ctx, &pb.WorkflowRunRequest{
 		WorkflowJson:            string(req.Workflow),
 		SessionId:               sess.ID,
-		Token:                   "dev-token",
+		Token:                   bridgeToken,
 		InputsJson:              inputsJSON,
 		Force:                   req.Force,
 		SessionVerified:         true,

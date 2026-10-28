@@ -61,6 +61,9 @@ func setupWorkflowServer(t *testing.T, fb pb.QuantumBridgeServiceClient) (*api.S
 	t.Helper()
 	t.Setenv("KUBONA_ALLOW_EPHEMERAL_SIGNER", "1")
 	t.Setenv("KUBONA_API_TOKEN", "test-token")
+	// Workflow execution requires the bridge token in ALL envs (no
+	// dev-token fallback on either side of the bridge).
+	t.Setenv("KUBONA_BRIDGE_TOKEN", "test-bridge-token")
 	l, err := ledger.OpenLedger(filepath.Join(t.TempDir(), "wf_test.db"))
 	if err != nil {
 		t.Fatalf("open ledger: %v", err)
@@ -223,6 +226,10 @@ func TestWorkflowRunEndpoint(t *testing.T) {
 	}
 	if fb.lastRunRequest.TenantId != "default" {
 		t.Fatalf("expected tenant_id 'default', got %q", fb.lastRunRequest.TenantId)
+	}
+	// No dev-token fallback: the gateway token is the bridge token.
+	if fb.lastRunRequest.Token != "test-bridge-token" {
+		t.Fatalf("expected bridge token forwarded, got %q", fb.lastRunRequest.Token)
 	}
 }
 
