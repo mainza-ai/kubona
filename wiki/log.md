@@ -3650,3 +3650,7 @@ skipped is the exact failure this incident is about:
 ## [2026-10-28] decision | No unhardened warm sandbox container
 
   - Removed EnsureWarmRunner: construction no longer starts a persistent privileged/networked `tail -f /dev/null` container that nothing executed in. Every sandbox run is the existing ephemeral `docker run --rm --read-only --cap-drop=ALL --network=none` invocation (runsc optional via KUBONA_SANDBOX_RUNTIME).
+
+## [2026-10-28] decision | Workflow ledger failure is terminal and visible
+
+  - A workflow_step receipt failure now marks the workflow failed and returns ok=False; the workflow can no longer remain "running" after a successful step whose audit receipt could not be written.
