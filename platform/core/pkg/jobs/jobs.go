@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -404,6 +405,16 @@ func (r *Runner) SyncQuantumBridgeJobStatus(jobID, bridgeStatus, resultJSON stri
 				j.Status = pb.JobStatus_JOB_STATUS_COMPLETED
 				j.ResultJSON = json.RawMessage(resultJSON)
 				j.CompletedAt = &now
+				// Settle the reservation down to measured usage when the
+				// provider reports it; the estimate is a ceiling, not the bill.
+				var usage struct {
+					Result struct {
+						ActualUSD float64 `json:"actual_usd"`
+					} `json:"result"`
+				}
+				if uerr := json.Unmarshal([]byte(resultJSON), &usage); uerr == nil && usage.Result.ActualUSD >= 0 {
+					r.settleReservation(j, usage.Result.ActualUSD)
+				}
 				_ = r.ledger.AppendEvent(j.SessionID, "job_settled", j)
 			}
 		}
@@ -643,6 +654,43 @@ func (r *Runner) releaseReservation(jobID string) {
 	}
 	_ = r.tenantStore().ReleaseSpend(tenant, amount)
 	_ = r.sessionMgr.ReleaseSpend(sessionID, amount)
+}
+
+// settleReservation releases the difference between the estimate reservation
+// and measured usage. It is a no-op when usage is unknown or >= the reserve;
+// a CAS prevents a double release racing a cancel/settle.
+func (r *Runner) settleReservation(j *Job, actualUSD float64) {
+	if j == nil || actualUSD < 0 || math.IsNaN(actualUSD) || math.IsInf(actualUSD, 0) {
+		return
+	}
+	var tenant, sessionID string
+	var reservedMicro int64
+	if err := r.ledger.DB().QueryRow(
+		`SELECT reserved_tenant, reserved_amount_micro_usd, session_id FROM jobs WHERE id = ?`, j.ID).
+		Scan(&tenant, &reservedMicro, &sessionID); err != nil || reservedMicro <= 0 {
+		return
+	}
+	actualMicro, err := money.FromUSD(actualUSD)
+	if err != nil || int64(actualMicro) >= reservedMicro {
+		return
+	}
+	res, err := r.ledger.DB().Exec(
+		`UPDATE jobs SET reserved_amount_micro_usd = ? WHERE id = ? AND reserved_amount_micro_usd = ?`,
+		int64(actualMicro), j.ID, reservedMicro)
+	if err != nil {
+		return
+	}
+	if n, _ := res.RowsAffected(); n != 1 {
+		return
+	}
+	j.ReservedAmount = money.MicroUSD(actualMicro).USD()
+	refund := money.MicroUSD(reservedMicro - int64(actualMicro)).USD()
+	if tenant != "" {
+		_ = r.tenantStore().ReleaseSpend(tenant, refund)
+	}
+	if sessionID != "" {
+		_ = r.sessionMgr.ReleaseSpend(sessionID, refund)
+	}
 }
 
 // failJob records a failed job with a reason string.

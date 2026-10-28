@@ -3667,3 +3667,9 @@ skipped is the exact failure this incident is about:
   - Prereqs: air-gap off via /api/llm/settings, bridge env for IBM token/instance/backend/max-execution, canonical job hash + integer-valued budget in the admin params hash.
   - Finding recorded: estimate $8.000568 was reserved; completion keeps the estimate instead of settling to measured usage (~$3.20 at the card rate). Provider now returns usage_seconds; Go settlement is the follow-up.
   - Env: KUBONA_IBM_QISKIT_BACKEND override and compose passthrough for IBM credentials; QPU cap stays 120 s.
+
+## [2026-10-28] decision | QPU reservations settle to measured usage
+
+  - Provider completion now returns usage_seconds + actual_usd (per-second card, 1 s minimum).
+  - Go SyncQuantumBridgeJobStatus parses result.actual_usd and CAS-settles the job reservation to the measured amount, releasing reserved-actual to tenant and session; zero usage releases the full reservation. No double-release (CAS on the reserved value).
+  - Go test covers 8.00 reserved -> 3.20 actual across job, session, and tenant books.

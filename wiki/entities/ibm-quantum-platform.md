@@ -103,10 +103,11 @@ mandate must be used even though a dry run succeeds without one.
 Bell; no fidelity claim). The pre-dispatch estimate was `$8.000568` (5.000 s billed at
 the $1.60/s card); the session/tenant books were reserved at that estimate.
 
-**Gap found:** completion does not settle down to measured usage. The provider now returns
-`usage_seconds`, but `SyncQuantumBridgeJobStatus` keeps the full estimate reservation. At
-the card rate a 2 s job should settle near `$3.20`, not `$8.00`. Follow-up: settle
-`reserved - actual` on completion (and define the zero-usage/system-error case).
+**Gap found and fixed in code (2026-10-28):** completion previously kept the full estimate
+reservation. The provider now returns `usage_seconds` and `actual_usd`; the Go completion
+path CAS-settles `reserved - actual` back to tenant+session (full release when measured
+usage is zero), and the job row records the measured amount. Covered by a Go test; the
+already-created validation session was not retroactively adjusted.
 
 ## Agent rules
 

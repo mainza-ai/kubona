@@ -891,3 +891,46 @@ func TestSyncQuantumFailureKeepsPostVendorCharge(t *testing.T) {
 		t.Fatalf("post-vendor charge must remain and pre-vendor reservation must release; spent=%v want 10", spent)
 	}
 }
+
+func TestCompletedBridgeJobSettlesMeasuredUsage(t *testing.T) {
+	r, cleanup := setupRunner(t, &fakeBridge{})
+	defer cleanup()
+	sid := "sess-settle"
+	if _, err := r.sessionMgr.EnsureSessionWithID(sid, "settle", 100, "default"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.tenantStore().ReserveSpend("default", 8.0); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.sessionMgr.ReserveSpend(sid, 8.0); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.RecordQuantumBridgeJob("job-settle", sid, "ibm-qiskit", "OPENQASM 2.0;", 100, "default", 8.0, ""); err != nil {
+		t.Fatal(err)
+	}
+	r.SyncQuantumBridgeJobStatus("job-settle", "completed", `{"hardware_job_id":"hw","result":{"actual_usd":3.2}}`)
+	j, err := r.GetJob("job-settle")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.Status != pb.JobStatus_JOB_STATUS_COMPLETED {
+		t.Fatalf("status=%s", j.Status)
+	}
+	if j.ReservedAmount != 3.2 {
+		t.Fatalf("job reservation must settle to actual, got %v", j.ReservedAmount)
+	}
+	sess, err := r.sessionMgr.GetSession(sid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sess.CurrentSpendUSD != 3.2 {
+		t.Fatalf("session spend must settle to actual, got %v", sess.CurrentSpendUSD)
+	}
+	tenant, err := r.tenantStore().GetTenant("default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tenant.SpentUSD != 3.2 {
+		t.Fatalf("tenant spend must settle to actual, got %v", tenant.SpentUSD)
+	}
+}
