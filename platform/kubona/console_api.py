@@ -673,7 +673,8 @@ async def science_tribunal_deliberate(request: Request) -> JSONResponse:
         and prover_ok
         and (gradient_variance >= 1e-4)
     )
-    verdict = "COMMITTED_TO_LEDGER" if supermajority_met else "FALSIFIED_OR_REJECTED"
+    # This recorder does not write a ledger event; never claim it did.
+    verdict = "QUORUM_MET" if supermajority_met else "FALSIFIED_OR_REJECTED"
 
     return _json({
         "ok": True,
@@ -682,6 +683,7 @@ async def science_tribunal_deliberate(request: Request) -> JSONResponse:
         "current_phase": "PHASE_5_QUORUM_VOTING",
         "quorum_percentage": quorum_pct,
         "verdict": verdict,
+        "ledger_committed": False,
         "votes": votes,
     })
 

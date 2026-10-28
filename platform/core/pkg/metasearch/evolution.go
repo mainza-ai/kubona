@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -209,6 +210,9 @@ Output ONLY the unified diff.`, harnessID, discards, currentInstructions, champi
 
 // ApproveProposal records human-in-the-loop capability sign-off
 func (e *MetaSearchEngine) ApproveProposal(proposalID, humanSigner string) error {
+	if strings.TrimSpace(humanSigner) == "" {
+		return fmt.Errorf("approval requires a named human signer")
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -230,6 +234,9 @@ func (e *MetaSearchEngine) ApproveProposal(proposalID, humanSigner string) error
 
 // RejectProposal records human rejection
 func (e *MetaSearchEngine) RejectProposal(proposalID, humanSigner string) error {
+	if strings.TrimSpace(humanSigner) == "" {
+		return fmt.Errorf("rejection requires a named human signer")
+	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
@@ -279,7 +286,7 @@ func (e *MetaSearchEngine) ListProposals() []*MetaProposal {
 
 	list := make([]*MetaProposal, 0, len(e.proposals))
 	for _, p := range e.proposals {
-		list = append(list, p)
+		list = append(list, cloneProposal(p))
 	}
 	return list
 }
@@ -292,5 +299,18 @@ func (e *MetaSearchEngine) GetProposal(proposalID string) (*MetaProposal, error)
 	if !exists {
 		return nil, ErrProposalNotFound
 	}
-	return p, nil
+	return cloneProposal(p), nil
+}
+
+// cloneProposal prevents callers from mutating engine state through a read.
+func cloneProposal(p *MetaProposal) *MetaProposal {
+	if p == nil {
+		return nil
+	}
+	c := *p
+	if p.ResolvedAt != nil {
+		t := *p.ResolvedAt
+		c.ResolvedAt = &t
+	}
+	return &c
 }

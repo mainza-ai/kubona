@@ -155,3 +155,24 @@ func TestMetaSearchDoubleApplyRefused(t *testing.T) {
 		t.Fatalf("status must stay applied, got %s", p.Status)
 	}
 }
+
+func TestListProposalsReturnsCopies(t *testing.T) {
+	e := NewMetaSearchEngine()
+	p := e.ProposeSearchRefinement("loop", "harness", "search.md", "old", "diff", "why")
+	list := e.ListProposals()
+	for _, got := range list {
+		if got.ID == p.ID {
+			got.Status = ProposalApplied
+		}
+	}
+	again, err := e.GetProposal(p.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.Status != ProposalPending {
+		t.Fatalf("read must not expose mutable engine state, got %s", again.Status)
+	}
+	if err := e.ApproveProposal(p.ID, "  "); err == nil {
+		t.Fatal("empty human signer must refuse")
+	}
+}

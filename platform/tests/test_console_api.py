@@ -198,7 +198,8 @@ def test_science_discovery_endpoints():
     trib_res = r.json()
     assert trib_res["ok"] is True
     assert trib_res["quorum_percentage"] >= 75.0
-    assert trib_res["verdict"] == "COMMITTED_TO_LEDGER"
+    assert trib_res["verdict"] == "QUORUM_MET"
+    assert trib_res["ledger_committed"] is False
     assert len(trib_res["votes"]) == 6
     prover = next(v for v in trib_res["votes"] if v["persona_id"] == "prover-01")
     assert prover["verification_mode"] == "live_kernel_proven"
