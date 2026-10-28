@@ -14,6 +14,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from kubona.config import state_path
+from kubona.jsonstore import atomic_write_json, exclusive
 from kubona.session import tenant_slug
 from typing import Any
 
@@ -36,24 +37,30 @@ class LabRegistry:
         self.path = Path(path) if path else state_path("labs.json")
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._labs: list[Lab] = []
-        if self.path.exists():
-            self._labs = [Lab(**l) for l in json.loads(self.path.read_text())]
+        self._load()
+
+    def _load(self) -> None:
+        self._labs = ([Lab(**l) for l in json.loads(self.path.read_text())]
+                      if self.path.exists() else [])
 
     def create(self, name: str, owner: str, members: list[str] | None = None) -> Lab:
         # W0.13: tenant derives through the single shared slug rule — the old
         # inline lower/replace let hostile names collapse onto shared
         # namespaces (cross-lab session/budget bleed). Invalid names refuse.
         slug = tenant_slug(name)
-        if any(l.tenant == slug for l in self._labs):
-            raise ValueError(f"tenant {slug!r} already exists: lab names must not collide")
-        lab = Lab(lab_id=uuid.uuid4().hex[:8], name=name, owner=owner,
-                  tenant=slug, members=members or [owner])
-        self._labs.append(lab)
-        self._save()
-        return lab
+        with exclusive(self.path):
+            self._load()
+            if any(l.tenant == slug for l in self._labs):
+                raise ValueError(f"tenant {slug!r} already exists: lab names must not collide")
+            lab = Lab(lab_id=uuid.uuid4().hex[:8], name=name, owner=owner,
+                      tenant=slug, members=members or [owner])
+            self._labs.append(lab)
+            self._save()
+            return lab
 
     def all(self) -> list[dict[str, Any]]:
+        self._load()
         return [l.to_dict() for l in self._labs]
 
     def _save(self) -> None:
-        self.path.write_text(json.dumps([l.to_dict() for l in self._labs], indent=2))
+        atomic_write_json(self.path, [l.to_dict() for l in self._labs])

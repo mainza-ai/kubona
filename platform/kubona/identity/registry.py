@@ -20,6 +20,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.exceptions import InvalidSignature
 
 from kubona.config import state_path
+from kubona.jsonstore import atomic_write_json, exclusive
 
 
 @dataclass(frozen=True)
@@ -70,14 +71,16 @@ class IdentityRegistry:
             "principals": {k: p.to_dict() for k, p in self._principals.items()},
             "delegations": {k: asdict(d) for k, d in self._delegations.items()},
         }
-        self.path.write_text(json.dumps(data, indent=2, sort_keys=True))
+        atomic_write_json(self.path, data)
 
     # -- principals -------------------------------------------------------
     def register(self, sub: str, kind: str, pubkey_hex: str, owner: str | None = None) -> Identity:
-        p = Identity(sub=sub, kind=kind, pubkey_hex=pubkey_hex, owner=owner)
-        self._principals[sub] = p
-        self._save()
-        return p
+        with exclusive(self.path):
+            self._load()
+            p = Identity(sub=sub, kind=kind, pubkey_hex=pubkey_hex, owner=owner)
+            self._principals[sub] = p
+            self._save()
+            return p
 
     def get(self, sub: str) -> Principal | None:
         return self._principals.get(sub)
@@ -88,20 +91,24 @@ class IdentityRegistry:
     # -- delegations ------------------------------------------------------
     def delegate(self, owner: str, agent: str, scopes: tuple[str, ...],
                  expires_at: float | None = None) -> Delegation:
-        if self.get(owner) is None or self.get(agent) is None:
-            raise KeyError("owner and agent must both be registered")
-        d = Delegation(delegation_id=f"{owner}:{agent}", owner=owner, agent=agent,
-                       scopes=scopes, issued_at=time.time(), expires_at=expires_at)
-        self._delegations[d.delegation_id] = d
-        self._save()
-        return d
+        with exclusive(self.path):
+            self._load()
+            if self.get(owner) is None or self.get(agent) is None:
+                raise KeyError("owner and agent must both be registered")
+            d = Delegation(delegation_id=f"{owner}:{agent}", owner=owner, agent=agent,
+                           scopes=scopes, issued_at=time.time(), expires_at=expires_at)
+            self._delegations[d.delegation_id] = d
+            self._save()
+            return d
 
     def revoke(self, delegation_id: str) -> Delegation:
-        d = self._delegations[delegation_id]
-        d = Delegation(**{**asdict(d), "revoked": True})
-        self._delegations[delegation_id] = d
-        self._save()
-        return d
+        with exclusive(self.path):
+            self._load()
+            d = self._delegations[delegation_id]
+            d = Delegation(**{**asdict(d), "revoked": True})
+            self._delegations[delegation_id] = d
+            self._save()
+            return d
 
     def revoke_all_for(self, owner: str) -> list[str]:
         """Revoke every delegation owned by `owner` — instant cascade."""
