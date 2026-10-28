@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -284,8 +285,8 @@ func readGrantMeta(tok *delegation.Token) (grantMeta, error) {
 		return m, fmt.Errorf("grant lacks %s meta: refused", MetaTenant)
 	}
 	budget, err := tok.Meta().GetFloat64(MetaBudget)
-	if err != nil || budget <= 0 {
-		return m, fmt.Errorf("grant lacks positive %s meta: refused", MetaBudget)
+	if err != nil || math.IsNaN(budget) || math.IsInf(budget, 0) || budget <= 0 {
+		return m, fmt.Errorf("grant lacks a finite positive %s meta: refused", MetaBudget)
 	}
 	scopesStr, _ := tok.Meta().GetString(MetaScopes)
 	var scopes []string
@@ -483,11 +484,11 @@ func DecodeChainB64(strs []string) ([][]byte, error) {
 // envelope's CID, so leaf revocation propagates without killing siblings).
 // Previously only roots were recorded, so leaf revocation was unexpressible
 // although the verifier already checked every level.
-func RevokedCIDs(db *sql.DB) map[string]bool {
+func RevokedCIDs(db *sql.DB) (map[string]bool, error) {
 	out := map[string]bool{}
 	rows, err := db.Query(`SELECT payload FROM ledger_events WHERE event_type = 'grant_revoked'`)
 	if err != nil {
-		return out
+		return nil, fmt.Errorf("revocation registry unreadable: %w", err)
 	}
 	defer rows.Close()
 	for rows.Next() {
@@ -497,10 +498,10 @@ func RevokedCIDs(db *sql.DB) map[string]bool {
 			LeafCID string `json:"leaf_cid"`
 		}
 		if err := rows.Scan(&payloadStr); err != nil {
-			continue
+			return nil, fmt.Errorf("revocation registry scan failed: %w", err)
 		}
 		if err := json.Unmarshal([]byte(payloadStr), &rec); err != nil {
-			continue
+			return nil, fmt.Errorf("revocation registry payload corrupt: %w", err)
 		}
 		if rec.RootCID != "" {
 			out[rec.RootCID] = true
@@ -509,7 +510,10 @@ func RevokedCIDs(db *sql.DB) map[string]bool {
 			out[rec.LeafCID] = true
 		}
 	}
-	return out
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("revocation registry read failed: %w", err)
+	}
+	return out, nil
 }
 
 // AdminDID is the minimal admin-key view TrustRootsForTenants needs, so

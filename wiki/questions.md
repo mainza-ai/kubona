@@ -41,75 +41,9 @@ All Section E questions are settled: Q-27 history scrub executed 2026-10-26 (see
 
 ## F · Production-readiness (opened 2026-10-26, resolved 2026-10-27)
 
-All production-readiness decisions are resolved. Q-50/Q-51/Q-56 were approved
-with the recommended defaults; implementation residuals are tracked in
+All production-readiness decisions are resolved; the answer for each question is
+in the Closed table. Implementation residuals are tracked in
 [[production-readiness-audit-2026-10-26]] §Execution record.
-
-## Closed` below).
-
-## B · Method & epistemics (the differentiator, least grounded)
-
-All Section B questions are settled: memory/flight-recorder placement, QIR single-dialect scope, refuted-genome transfer priors, dual-model divstep packing, and unified single-tape autodiff closed 2026-10-26 (see `## Closed` below).
-
-## C · Governance & the trust boundary
-
-All Section C questions are settled: 3-seam IFC lattice enforcement with fail-closed unmodelable label refusal and gVisor/runsc workload containment closed 2026-10-26 (see `## Closed` below).
-
-## D · Science discovery (closed via Q-17, Q-18, Q-19, Q-20)
-
-All initial science-discovery forks are recorded in `## Closed` below (Q-17, Q-18, Q-19, Q-20).
-
-## E · Surface, ecosystem, operations
-
-All Section E questions are settled: Q-27 history scrub executed 2026-10-26 (see `## Closed` below).
-
-## F · Production-readiness (opened 2026-10-26; technical gates resolved 2026-10-27)
-
-The technical gates are closed with the conservative option recorded in
-[[production-readiness-audit-2026-10-26]] §Rulings. Three product/finance
-choices remain; recommended defaults are named in that table.
-
-| # | Question | Rank | Known | Missing | Links |
-|---|---|---|---|---|---|
-| **Q-50** | **Which store is the single money authority, and in what exact unit?** | P0 | Go SQLite is the authority for API/human/quantum dispatch; Python mirrors it; Atlas is optional and off in production. Go reserves and Python records, so failures can diverge. | Ruling on Go-as-authority + integer micro-USD migration (or Decimal/Postgres); reconciliation for pre-existing REAL values. | [[production-readiness-audit-2026-10-26]] |
-| **Q-51** | **Are failed/pre-vendor jobs refunded automatically, or only by an operator?** | P0 | Python refunds pre-vendor failures; Go releases any failed/cancelled bridge reservation (including post-vendor, which may be too generous); partial refunds are not implemented. | Ruling: auto pre-vendor + keep post-vendor + operator-only partials (recommended) vs another policy; how Go learns the vendor-pin state. | [[production-readiness-audit-2026-10-26]] |
-| **Q-56** | **How does the console authenticate without shipping a bearer or losing its admin key on reload?** | P1 | A baked bearer now fails the production build; CSP is on; the Ed25519 key is module-memory only and is lost on reload; cookie sessions exist server-side. | Ruling: cookie sessions as identity + passkey/non-extractable admin key (recommended) vs another custody model; token distribution/rotation. | [[production-readiness-audit-2026-10-26]] |
-
-## Closed` below).
-
-## B · Method & epistemics (the differentiator, least grounded)
-
-All Section B questions are settled: memory/flight-recorder placement, QIR single-dialect scope, refuted-genome transfer priors, dual-model divstep packing, and unified single-tape autodiff closed 2026-10-26 (see `## Closed` below).
-
-## C · Governance & the trust boundary
-
-All Section C questions are settled: 3-seam IFC lattice enforcement with fail-closed unmodelable label refusal and gVisor/runsc workload containment closed 2026-10-26 (see `## Closed` below).
-
-## D · Science discovery (closed via Q-17, Q-18, Q-19, Q-20)
-
-All initial science-discovery forks are recorded in `## Closed` below (Q-17, Q-18, Q-19, Q-20).
-
-## E · Surface, ecosystem, operations
-
-All Section E questions are settled: Q-27 history scrub executed 2026-10-26 (see `## Closed` below).
-
-## F · Production-readiness (opened 2026-10-26 by the Round-2 audit)
-
-These are implementation-shape decisions surfaced by
-[[production-readiness-audit-2026-10-26]]; the code cannot choose them. Each
-blocks a Phase-1/2/4 slice. Until answered, the platform is not production-ready.
-
-| # | Question | Rank | Known | Missing | Links |
-|---|---|---|---|---|---|
-| **Q-49** | **What is the bridge trust boundary — mTLS, HMAC interceptor, or UDS-only — and does the bridge ever run off-host?** | P0 | Bridge binds unauthenticated `[::]:50051`; Go dials insecure; UDS mode still binds TCP. It accepts caller-asserted budget/spend/tenant and can submit IBM hardware outside the governed rail. | Transport choice + whether the deploy topology keeps bridge on the same host/network namespace; key distribution/rotation. | [[production-readiness-audit-2026-10-26]] |
-| **Q-50** | **Which store is the single money authority, and in what exact unit?** | P0 | Three books (Go SQLite REAL, Python JSONL float, Atlas) with epsilon guards; Go reserves QPU spend while Python also records it. | Choice (Go SQLite vs Python vs Postgres), integer micro-USD vs Decimal, migration and Atlas reconciliation policy. | [[production-readiness-audit-2026-10-26]] |
-| **Q-51** | **Are failed/pre-vendor jobs refunded automatically, or only by an operator?** | P0 | Spend is committed at dispatch; failures keep the charge; Python refund is unsigned/unledgered; Go refund requires an envelope but does not verify its signature. | Refund trigger/timing, idempotent replay semantics, partial-vendor-usage policy. | [[production-readiness-audit-2026-10-26]] |
-| **Q-52** | **What is the session-import trust model?** | P0 | Import is unauthenticated and inserts caller-supplied spend, events, hashes, and signatures; this can forge the ledger and mandate receipts. | Operator-only vs remove vs sandboxed staging; manifest signing/key distribution; merge/replay semantics. | [[production-readiness-audit-2026-10-26]] |
-| **Q-53** | **Does A2A/x402 become real, or stay disabled until a settlement rail exists?** | P1 | Public A2A accepts a self-signed challenge, treats it as payment, and defaults the tenant to `default`; Q-23 records x402 as dormant. | Settlement rail/chain staffing, authenticated tenant binding, whether root tasks may exist publicly. | [[production-readiness-audit-2026-10-26]], [[a2a]] |
-| **Q-54** | **What runtime isolates agent-submitted Python, and may numpy/scipy remain allowed?** | P0 | AST filtering is escapable to native code and host filesystem; no `runsc`/container is used for this rail; Q-48 claimed gVisor but the code does not invoke it. | gVisor vs Docker vs WASM; whether the science rail needs native libs; mandatory-vs-optional enforcement. | [[production-readiness-audit-2026-10-26]] |
-| **Q-55** | **Is the anchor source live PySCF per request or a curated table, and which reference values are authoritative?** | P0 | The H2 table returns `-1.0718` at every R (true `-1.13727`), ignores geometry, and the suite was edited to bless it; the repo already contains a correct JW anchor in `eval/truncation.py`. | Cost/latency tolerance for live solves; table curation/verification owner; which molecules must be live. | [[production-readiness-audit-2026-10-26]] |
-| **Q-56** | **How does the console authenticate without shipping a bearer or losing its admin key on reload?** | P1 | A dev bearer is baked by a normal `next build`; the Ed25519 key is module-memory only and is lost on reload; the server already supports cookie sessions. | Server-session-only vs client key custody (passkey/WebCrypto non-extractable); operator token distribution; rotation. | [[production-readiness-audit-2026-10-26]] |
-| **Q-57** | **Which endpoints may stay anonymous in single-lab mode, and how is multi-lab mode detected?** | P0 | Per-handler authz leaves A2A, import, LLM test, loops, memory, and PQC verify open; bearer tokens carry no tenant while cookies do; D-09 is recorded but not applied uniformly. | Explicit public-read allowlist, tenant-bound bearer vs cookie-only, single-lab declaration/flag, route-policy ownership. | [[production-readiness-audit-2026-10-26]] |
 
 ## Closed
 

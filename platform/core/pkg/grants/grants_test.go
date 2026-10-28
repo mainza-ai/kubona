@@ -3,9 +3,12 @@ package grants
 import (
 	"crypto/ed25519"
 	"crypto/rand"
+	"database/sql"
 	"encoding/hex"
 	"testing"
 	"time"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 func testKeys(t *testing.T) (privHex, pubHex, didStr string) {
@@ -252,4 +255,15 @@ func TestGrantLeafRevocationSurgical(t *testing.T) {
 		t.Fatalf("root-revoked chain must refuse")
 	}
 	_ = rootCID
+}
+
+func TestRevokedCIDsFailsClosedOnUnreadableRegistry(t *testing.T) {
+	db, err := sql.Open("sqlite3", t.TempDir()+"/revoked.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	db.Close()
+	if _, err := RevokedCIDs(db); err == nil {
+		t.Fatal("closed registry must return an error, not an empty allow-list")
+	}
 }

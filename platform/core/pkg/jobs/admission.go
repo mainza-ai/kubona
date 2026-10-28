@@ -409,9 +409,13 @@ func (r *Runner) verifyGrantChain(chainB64 []string, jobTenant, requiredScope st
 		admins = append(admins, grants.AdminDID{TenantID: t.ID, AdminPubkeyHex: t.AdminPubkeyHex, Status: t.Status})
 	}
 	roots := grants.TrustRootsForTenants(admins)
+	revoked, rerr := grants.RevokedCIDs(r.ledger.DB())
+	if rerr != nil {
+		return nil, rerr
+	}
 	vg, err := grants.VerifyChain(chain, grants.VerifyOptions{
 		TrustedRoots:  roots,
-		Revoked:       grants.RevokedCIDs(r.ledger.DB()),
+		Revoked:       revoked,
 		RequiredScope: requiredScope,
 	})
 	if err != nil {

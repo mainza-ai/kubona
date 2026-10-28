@@ -3541,3 +3541,10 @@ skipped is the exact failure this incident is about:
 ## [2026-10-27] decision | Bridge trace propagation
 
   - The gRPC client chain injects the inbound W3C traceparent into outgoing metadata, so a human dispatch and its bridge work share one trace id. Background jobs with no request span are unchanged.
+
+## [2026-10-27] decision | More fail-closed boundaries
+
+  - Atlas operation ids are bounded to [A-Za-z0-9_-]{1,128} before URL interpolation or filesystem use; invalid ids refuse at the handler, fetch helper, and webhook resolver.
+  - Chat writes accept only user/assistant roles; a client-supplied system role is refused before persistence (internal system notices still use the manager directly).
+  - Grant revocation registry reads and corrupt rows fail closed (API 503, admission refuses); grant budget NaN/Inf is refused.
+  - Cleaned wiki/questions.md duplicate sections and marked the audit decision table resolved.

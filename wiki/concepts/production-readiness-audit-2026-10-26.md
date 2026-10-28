@@ -561,9 +561,12 @@ shows only the new session; keyboard-only flows pass.
 
 ---
 
-## Open decisions (filed as Q-49..Q-57)
+## Decisions resolved 2026-10-27 (Q-49..Q-57)
 
-| # | Decision | Why it blocks |
+All nine were answered with the conservative option; answers are in the
+Rulings table above. The question list is retained as the audit record.
+
+| # | Decision | Why it blocked |
 |---|---|---|
 | Q-49 | Bridge trust boundary: mTLS vs HMAC vs UDS-only; does the bridge ever run off-host? | Determines Phase 1 transport and deployment topology. |
 | Q-50 | Single money authority and exact unit: Go SQLite vs Python JSONL; integer micro-USD; Atlas reconciliation. | Determines the Phase 2 migration and API shape. |

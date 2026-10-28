@@ -206,6 +206,9 @@ func (s *Server) handleObservatoryWebhook(w http.ResponseWriter, r *http.Request
 
 // resolveLensOperation is the shared resolve path (handler + webhook).
 func (s *Server) resolveLensOperation(sessionID, opID string) (map[string]any, error) {
+	if !validAtlasOperationID(opID) {
+		return nil, fmt.Errorf("invalid Atlas operation id %q", opID)
+	}
 	apiKey := os.Getenv("WLT_API_KEY")
 	apiBase := os.Getenv("WLT_API_BASE_URL")
 	if apiKey == "" {
