@@ -14,6 +14,7 @@ incremental Go migration. Do not re-add a route Go already serves.
 from __future__ import annotations
 
 import hmac
+import math
 import os
 import json
 from typing import Any
@@ -57,6 +58,10 @@ def _auth_error() -> JSONResponse:
 
 def _json(data: dict[str, Any], status: int = 200) -> JSONResponse:
     return JSONResponse(data, status_code=status)
+
+
+def _bad_input(message: str) -> JSONResponse:
+    return _json({"ok": False, "error": message}, 400)
 
 
 async def health(request: Request) -> JSONResponse:
@@ -382,14 +387,21 @@ async def science_triage(request: Request) -> JSONResponse:
         return _auth_error()
     from kubona.science.triage import QuantumTriageEngine, MolecularSystem
     body = await request.json()
+    electrons = int(body.get("num_electrons", 2))
+    orbitals = int(body.get("estimated_active_space_orbitals", 4))
+    charges = body.get("nuclear_charges", [1, 1])
+    if not isinstance(charges, list) or len(charges) > 256:
+        return _bad_input("nuclear_charges must be a list of at most 256 values")
+    if not (0 <= electrons <= 10000) or not (1 <= orbitals <= 10000):
+        return _bad_input("num_electrons must be 0..10000 and active orbitals 1..10000")
     system = MolecularSystem(
-        molecule_id=body.get("molecule_id", "mol_custom"),
-        formula=body.get("formula", "H2"),
-        num_electrons=int(body.get("num_electrons", 2)),
-        nuclear_charges=body.get("nuclear_charges", [1, 1]),
+        molecule_id=str(body.get("molecule_id", "mol_custom"))[:128],
+        formula=str(body.get("formula", "H2"))[:64],
+        num_electrons=electrons,
+        nuclear_charges=[int(z) for z in charges],
         is_multi_reference=bool(body.get("is_multi_reference", False)),
         coulomb_continuum=bool(body.get("coulomb_continuum", True)),
-        estimated_active_space_orbitals=int(body.get("estimated_active_space_orbitals", 4)),
+        estimated_active_space_orbitals=orbitals,
     )
     res = QuantumTriageEngine.triage(system)
     return _json({"ok": True, "triage": res})
@@ -403,9 +415,16 @@ async def science_krylov(request: Request) -> JSONResponse:
     body = await request.json()
     subspace_dim = int(body.get("subspace_dim", 4))
     dt = float(body.get("time_step", 0.2))
+    if not (1 <= subspace_dim <= 32):
+        return _bad_input("subspace_dim must be 1..32")
+    if not (math.isfinite(dt) and 0 < dt <= 1e3):
+        return _bad_input("time_step must be finite and in (0, 1000]")
 
     if "hamiltonian" in body:
         H = np.array(body["hamiltonian"], dtype=complex)
+        if H.ndim != 2 or H.shape[0] != H.shape[1] or H.shape[0] > 64 or H.shape[0] & (H.shape[0] - 1):
+            return _bad_input("hamiltonian must be a square 2^n matrix with n <= 6")
+        subspace_dim = min(subspace_dim, H.shape[0])
     else:
         Z = np.array([[1, 0], [0, -1]], dtype=complex)
         X = np.array([[0, 1], [1, 0]], dtype=complex)
@@ -431,6 +450,13 @@ async def science_shadows(request: Request) -> JSONResponse:
     num_qubits = int(body.get("num_qubits", 2))
     num_snapshots = int(body.get("num_snapshots", 400))
     observables = body.get("observables", ["ZZ", "XX", "YY"])
+    if not (1 <= num_qubits <= 12):
+        return _bad_input("num_qubits must be 1..12")
+    if not (1 <= num_snapshots <= 10000):
+        return _bad_input("num_snapshots must be 1..10000")
+    if not isinstance(observables, list) or len(observables) > 64 or any(
+            not isinstance(o, str) or len(o) > 32 for o in observables):
+        return _bad_input("observables must be a list of at most 64 short strings")
 
     state = np.zeros(2**num_qubits, dtype=complex)
     state[0] = 1.0 / np.sqrt(2)
@@ -514,8 +540,10 @@ async def science_memory_query(request: Request) -> JSONResponse:
     mgr.index_entity(e2)
     mgr.index_relation(KnowledgeRelation("ent_femoco", "ent_family278", "FAILS_ON", 1.0))
 
-    start_id = body.get("start_id", "ent_femoco")
+    start_id = str(body.get("start_id", "ent_femoco"))[:128]
     max_hops = int(body.get("max_hops", 2))
+    if not (0 <= max_hops <= 8):
+        return _bad_input("max_hops must be 0..8")
     recall = mgr.associative_recall(start_id, max_hops=max_hops)
     ppr = mgr.personalized_pagerank([start_id])
     formatted_recall = []
@@ -696,6 +724,12 @@ async def science_qec_estimate(request: Request) -> JSONResponse:
     clifford_count = int(body.get("logical_clifford_count", 1000))
     t_count = int(body.get("logical_t_count", 250))
     physical_error_rate = float(body.get("physical_error_rate", 0.001))
+    if not (1 <= logical_qubits <= 10000):
+        return _bad_input("num_logical_qubits must be 1..10000")
+    if not (0 <= clifford_count <= 1_000_000_000) or not (0 <= t_count <= 1_000_000_000):
+        return _bad_input("gate counts must be 0..1e9")
+    if not (math.isfinite(physical_error_rate) and 0 < physical_error_rate < 0.5):
+        return _bad_input("physical_error_rate must be finite and in (0, 0.5)")
 
     neutral_capacity_ok = logical_qubits <= 48
     neutral_atoms_total = logical_qubits * 8 if neutral_capacity_ok else None

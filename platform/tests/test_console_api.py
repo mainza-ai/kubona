@@ -271,3 +271,20 @@ def test_cors_preflight_restricts_methods_and_headers():
     assert "PATCH" not in allow_methods and "POST" in allow_methods
     allow_headers = r.headers.get("access-control-allow-headers", "")
     assert "X-Custom" not in allow_headers and "Authorization" in allow_headers
+
+
+def test_science_endpoints_refuse_unbounded_inputs():
+    cases = [
+        ("/api/science/krylov", {"subspace_dim": 10000}),
+        ("/api/science/krylov", {"hamiltonian": [[1, 0], [0, 1]], "subspace_dim": 4, "time_step": 1e9}),
+        ("/api/science/shadows", {"num_qubits": 40, "num_snapshots": 400}),
+        ("/api/science/shadows", {"num_qubits": 2, "num_snapshots": 10**9}),
+        ("/api/science/qec/estimate", {"num_logical_qubits": 0}),
+        ("/api/science/qec/estimate", {"physical_error_rate": 2.0}),
+        ("/api/science/memory/query", {"max_hops": 999}),
+        ("/api/science/triage", {"num_electrons": -1}),
+    ]
+    for path, body in cases:
+        r = client.post(path, json=body, headers=_h())
+        assert r.status_code == 400, (path, body, r.status_code, r.text)
+        assert r.json()["ok"] is False
