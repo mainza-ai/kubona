@@ -1,6 +1,7 @@
 import * as ed from '@noble/ed25519';
 import { sha512, sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
+import { signWithCustody } from './custody';
 
 // Configure synchronous sha512 for noble-ed25519 v3
 ed.hashes.sha512 = (...m: Uint8Array[]) => sha512(ed.etc.concatBytes(...m));
@@ -23,16 +24,24 @@ export interface SpendMandateParams {
 
 let sessionKeyPair: { secretKey: Uint8Array; publicKey: Uint8Array } | null = null;
 
-// Key custody (honest limitation, 2026-10-17): the Ed25519 session keypair
-// lives in module memory only — it is generated on first use, never
-// persisted to disk/indexedDB, never rotated, and lost on reload. There is
-// no persisted/rotated custody in this console build. Do not present these
-// mandates as hardware-backed or durable: they are ephemeral in-memory
-// signatures verified against the bundled public key for the session only.
+// Key custody (Q-56 C5, 2026-10-28): production paths use lib/custody.ts —
+// a non-extractable WebCrypto Ed25519 key persisted in IndexedDB. The
+// synchronous keypair helpers below are the explicit-keypair/legacy path
+// (tests and deliberate injection); production surfaces must call the
+// *WithCustody variants instead.
 
 // Signs an auth challenge for /api/auth/login. The exact bytes the server
 // verifies: "kubona-auth/v1 login " + nonce (must match the daemon's
 // loginChallengeMessage — never add fields here without updating both).
+/** Production path: non-extractable WebCrypto custody (Q-56 C5). */
+export async function signLoginChallengeWithCustody(
+  nonce: string
+): Promise<{ pubkey_hex: string; signature_hex: string }> {
+  const msg = new TextEncoder().encode(`kubona-auth/v1 login ${nonce}`);
+  const { publicKeyHex, signature } = await signWithCustody(msg);
+  return { pubkey_hex: publicKeyHex, signature_hex: bytesToHex(signature) };
+}
+
 export function signLoginChallenge(
   nonce: string,
   keyPair: { secretKey: Uint8Array; publicKey: Uint8Array }
@@ -90,6 +99,31 @@ export function canonicalJobBinding(sessionId: string, qasm: string, jobType = '
  * Fail-closed: missing tenant/job throws (no fail-open defaults), and a
  * non-finite or non-positive budget throws — callers must refuse, never mint.
  */
+export async function createSignedSpendMandateWithCustody(params: SpendMandateParams): Promise<SpendMandate> {
+  const tenantId = (params.tenantId ?? '').trim();
+  const jobHash = (params.jobHash ?? '').trim();
+  const maxBudgetUsd = params.maxBudgetUsd;
+  if (!tenantId) throw new Error('refused: tenant_id is required (no fail-open default)');
+  if (!jobHash) throw new Error('refused: job_hash is required (no fail-open default)');
+  if (typeof maxBudgetUsd !== 'number' || !Number.isFinite(maxBudgetUsd) || maxBudgetUsd <= 0) {
+    throw new Error('refused: maxBudgetUsd must be a finite number > 0');
+  }
+  const ttlSeconds = params.ttlSeconds || 3600;
+  const expirySeconds = Math.floor(Date.now() / 1000) + ttlSeconds;
+  const expiry = new Date(expirySeconds * 1000);
+  const expiryIso = expiry.toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const payloadBytes = computeCanonicalPayload(tenantId, jobHash, maxBudgetUsd, expiryIso);
+  const { publicKeyHex, signature } = await signWithCustody(payloadBytes);
+  return {
+    tenant_id: tenantId,
+    job_hash: jobHash,
+    max_budget_usd: maxBudgetUsd,
+    expiry_timestamp: expiryIso,
+    public_key_hex: publicKeyHex,
+    signature_hex: bytesToHex(signature),
+  };
+}
+
 export function createSignedSpendMandate(params: SpendMandateParams): SpendMandate {
   const tenantId = (params.tenantId ?? '').trim();
   const jobHash = (params.jobHash ?? '').trim();

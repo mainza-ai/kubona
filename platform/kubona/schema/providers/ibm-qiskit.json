@@ -16,8 +16,8 @@
     "model": "per_second",
     "currency": "USD",
     "per_second_usd": 1.6,
-    "notes": "IBM Quantum Pay-As-You-Go: $96/min billed per second ($1.60/s), 1-second minimum, no commitment. Verified 2026-10-10 against ibm.com/quantum/pricing. Open Plan (10 min/month free) and Flex/Premium tiers are separate plans, not this rate.",
-    "verified": "2026-10-10",
+    "notes": "IBM Quantum Pay-As-You-Go: $96/min billed per second ($1.60/s), 1-second minimum, no commitment. Verified 2026-10-28 against ibm.com/quantum/pricing (Open Plan: 10 min/month free; Flex/Premium are separate plans).",
+    "verified": "2026-10-28",
     "source": "https://www.ibm.com/quantum/pricing"
   },
   "jurisdiction": "US",

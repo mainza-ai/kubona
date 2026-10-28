@@ -213,3 +213,27 @@ def test_layout_summary_records_logical_to_physical():
     layout = p._layout_summary(qc, isa)
     assert layout and set(layout["initial"]) == {"0", "1"}
     assert all(isinstance(v, int) for v in layout["initial"].values())
+
+
+def test_calibrated_layout_avoids_bad_readout_pair():
+    from types import SimpleNamespace
+    from qiskit import QuantumCircuit
+    from kubona.providers import get_provider
+
+    class Props:
+        def readout_error(self, q):
+            return {0: 0.30, 1: 0.157, 2: 0.003, 3: 0.004}[q]
+
+        def gate_error(self, gate, qubits):
+            return 0.004
+
+    backend = SimpleNamespace(
+        name="ibm_test", num_qubits=4, coupling_map=[[0, 1], [1, 2], [2, 3]],
+        properties=lambda: Props(),
+    )
+    layout = get_provider("ibm-qiskit")._calibrated_initial_layout(
+        QuantumCircuit(2), backend)
+    assert set(layout) == {2, 3}
+    quality = get_provider("ibm-qiskit")._layout_quality(layout, backend)
+    assert quality["max_readout_error"] == pytest.approx(0.004)
+    assert quality["suspicious"] is False

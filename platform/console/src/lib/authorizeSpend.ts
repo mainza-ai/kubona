@@ -1,5 +1,5 @@
 import type { CampaignState, Session } from '@/types';
-import { canonicalJobBinding, createSignedSpendMandate, type SpendMandate } from './mandates';
+import { canonicalJobBinding, createSignedSpendMandateWithCustody, type SpendMandate } from './mandates';
 import { verifySpendMandate } from './api';
 
 export interface AuthorizeSpendInput {
@@ -19,7 +19,7 @@ export type AuthorizeSpendResult =
   | { ok: false; reason: string };
 
 export interface AuthorizeSpendDeps {
-  create?: typeof createSignedSpendMandate;
+  create?: typeof createSignedSpendMandateWithCustody;
   verify?: typeof verifySpendMandate;
 }
 
@@ -39,7 +39,7 @@ export async function authorizeSpend(
   input: AuthorizeSpendInput,
   deps: AuthorizeSpendDeps = {}
 ): Promise<AuthorizeSpendResult> {
-  const create = deps.create ?? createSignedSpendMandate;
+  const create = deps.create ?? createSignedSpendMandateWithCustody;
   const verify = deps.verify ?? verifySpendMandate;
   const session = input.session;
   const campaign = input.campaign;
@@ -65,7 +65,7 @@ export async function authorizeSpend(
   }
   let mandate: SpendMandate;
   try {
-    mandate = create({
+    mandate = await create({
       tenantId,
       jobHash,
       maxBudgetUsd: estimated,

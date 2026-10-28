@@ -517,7 +517,8 @@ returns unavailable; `python -O` still enforces exactness gates.
 2. **C3/C4** Fail production builds when a bearer is configured; add CSP,
    frame-ancestors, nosniff, referrer, permissions; rotate the dev token.
 3. **C5** Persist the admin key (passkey/WebCrypto non-extractable or explicit
-   import/export) and server sessions as the identity.
+   import/export) and server sessions as the identity. **Landed 2026-10-28:**
+   non-extractable WebCrypto key in IndexedDB; passkey ceremony optional.
 4. **C6/C7/C9/C10/C12** Reset state on session change with abort guards; adopt a
    discriminated result type for refusals; add timeouts/error boundaries;
    mount/fix or delete FlightRecorderCard; isolate the 1 s clock.
@@ -629,7 +630,7 @@ that never opts in. Q-39 is therefore Atlas-only and does not gate production.
 | Q-50 | **Go SQLite is the single money authority** for API/human/quantum dispatch; Python mirrors it; new ledger v2 uses integer micro-USD. | **Partial:** Go-verified quantum submissions no longer charge the Python mirror (`spend_prepaid`), and Go reconciles the reservation from the status poll. Integer micro-USD columns/migration remain. |
 | Q-51 | **Auto-refund pre-vendor failures; keep post-vendor charges; operator-only partials.** | **Implemented for quantum dispatch:** Go releases a failed/cancelled reservation only when no `hardware_job_id` is pinned; Python skips its own refund for Go-prepaid jobs. Partial-refund UI/policy remains operator-only. |
 | Q-40 | **Human non-zero hardware dispatch requires a signed mandate.** | **Implemented:** pre-bridge signature/tenant/program/expiry gate; post-estimate budget check cancels on overrun. Simulators/dry-run exempt; MCP agents use the separate `submit_job` rail. |
-| Q-56 | **Cookie sessions are identity; the admin Ed25519 key is optional signing material; no baked bearer; move to passkey/non-extractable storage.** | **Partial:** production builds reject a baked bearer; the mandate card now signs the canonical session+program binding and requires server verification. Passkey/non-extractable custody remains. |
+| Q-56 | **Cookie sessions are identity; the admin Ed25519 key is optional signing material; no baked bearer; move to passkey/non-extractable storage.** | **Implemented:** production builds reject a baked bearer; mandates/admin envelopes use a non-extractable WebCrypto Ed25519 key persisted in IndexedDB (in-memory noble only outside production). A WebAuthn/passkey ceremony remains an optional hardware-backed upgrade, not the custody mechanism. |
 
 ## Execution record (landed 2026-10-27)
 

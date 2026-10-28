@@ -51,7 +51,7 @@ in the Closed table. Implementation residuals are tracked in
 |---|---|---|---|
 | **Q-50** | 2026-10-27 | Go SQLite is the single money authority for API/human/quantum dispatch; Python mirrors it; ledger v2 moves to integer micro-USD. | [[production-readiness-audit-2026-10-26]] |
 | **Q-51** | 2026-10-27 | Auto-refund pre-vendor failures, keep post-vendor charges, operator-only partials; Go uses the vendor-pin state. | [[production-readiness-audit-2026-10-26]] |
-| **Q-56** | 2026-10-27 | Cookie sessions are identity; the admin Ed25519 key is optional signing material; no baked bearer; passkey/non-extractable custody next. | [[production-readiness-audit-2026-10-26]] |
+| **Q-56** | 2026-10-27 | Cookie sessions are identity; the admin Ed25519 key is optional signing material; no baked bearer. Non-extractable WebCrypto custody landed 2026-10-28; a passkey ceremony is an optional upgrade. | [[production-readiness-audit-2026-10-26]] |
 | **Q-49** | 2026-10-27 | Bridge stays on the private compose network with a shared token + HMAC session assertion; mTLS is deferred until an off-host topology exists. | [[production-readiness-audit-2026-10-26]] |
 | **Q-52** | 2026-10-27 | Session import is operator-only and HMAC-signed; production refuses unsigned manifests, forged links, unknown types, and impossible spend. | [[production-readiness-audit-2026-10-26]] |
 | **Q-53** | 2026-10-27 | A2A/x402 is disabled in production by default (`KUBONA_A2A_ENABLED=1` opts in); the self-signed local challenge is not a settlement rail. | [[production-readiness-audit-2026-10-26]] |

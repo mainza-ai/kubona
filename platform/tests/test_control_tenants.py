@@ -6,13 +6,13 @@ import kubona.mcp.servers.control as control
 from kubona.control import LoopSupervisor
 
 
-def _isolated():
-    control._supervisor = LoopSupervisor()
+def _isolated(tmp_path):
+    control._supervisor = LoopSupervisor(path=tmp_path / "loops.jsonl")
     return control._supervisor
 
 
-def test_cross_tenant_override_refused():
-    _isolated()
+def test_cross_tenant_override_refused(tmp_path):
+    _isolated(tmp_path)
     mine = control.register_loop("a", "s1", tenant="lab-a")["loop_id"]
     theirs = control.register_loop("b", "s2", tenant="lab-b")["loop_id"]
 
@@ -27,8 +27,8 @@ def test_cross_tenant_override_refused():
     assert control.kill_loop(theirs, requester="lab-b")["status"] == "killed"
 
 
-def test_listing_never_leaks():
-    _isolated()
+def test_listing_never_leaks(tmp_path):
+    _isolated(tmp_path)
     control.register_loop("a", "s1", tenant="lab-a")
     control.register_loop("b", "s2", tenant="lab-b")
 
@@ -41,7 +41,7 @@ def test_listing_never_leaks():
     assert [l["name"] for l in control.list_loops()["loops"]] == ["c"]
 
 
-def test_unknown_loop_still_404s():
-    _isolated()
+def test_unknown_loop_still_404s(tmp_path):
+    _isolated(tmp_path)
     assert control.loop_status("nope", requester="lab-a") == {
         "ok": False, "error": "unknown loop_id 'nope'"}

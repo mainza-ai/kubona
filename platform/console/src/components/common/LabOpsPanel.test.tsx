@@ -1,9 +1,8 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest';
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { LabOpsPanel } from './LabOpsPanel';
-import { getOrCreateSessionKeyPair, peekSessionPubkeyHex } from '@/lib/mandates';
-import { bytesToHex } from '@noble/hashes/utils.js';
+import { getOrCreateSigner } from '@/lib/custody';
 import type { Lab } from '@/types';
 
 afterEach(() => {
@@ -19,6 +18,12 @@ function lab(partial: Partial<Lab> & { id: string }): Lab {
   };
 }
 
+function textOf(node: unknown): string {
+  if (typeof node === 'string' || typeof node === 'number') return String(node);
+  const kids = (node as { children?: unknown[] }).children ?? [];
+  return kids.map((c) => textOf(c)).join(' ');
+}
+
 function stubFetch(handler: (url: string, init?: RequestInit) => unknown) {
   vi.stubGlobal('fetch', async (url: string, init?: RequestInit) => handler(url, init) as Response);
 }
@@ -31,9 +36,10 @@ async function render(el: React.ReactElement): Promise<TestRenderer.ReactTestRen
   return tree!;
 }
 
-const kp = getOrCreateSessionKeyPair();
-const PUB = bytesToHex(kp.publicKey);
-if (!peekSessionPubkeyHex()) throw new Error('test setup: keypair must exist');
+let PUB = '';
+beforeAll(async () => {
+  PUB = (await getOrCreateSigner()).publicKeyHex;
+});
 
 describe('LabOpsPanel (U1-b)', () => {
   it('ceilings carry the golden params_hash end-to-end (UI → envelope → Go)', async () => {
@@ -46,6 +52,7 @@ describe('LabOpsPanel (U1-b)', () => {
     const tree = await render(
       <LabOpsPanel lab={lab({ id: 'lab-a', admin_pubkey_hex: PUB })} onChanged={() => {}} />
     );
+    await vi.waitFor(() => expect(textOf(tree.root)).toContain('this browser key'));
     const input = tree.root.findByProps({ 'aria-label': 'New ceiling for lab-a' });
     await act(async () => {
       input.props.onChange({ target: { value: '150' } });
@@ -53,7 +60,7 @@ describe('LabOpsPanel (U1-b)', () => {
     await act(async () => {
       tree.root.findAllByType('button').find((b) => b.props.children === 'Set ceiling')!.props.onClick();
     });
-    expect(seen).toHaveLength(1);
+    await vi.waitFor(() => expect(seen).toHaveLength(1));
     expect(seen[0].url).toBe('http://localhost:8080/api/tenants/ceiling');
     const body = JSON.parse(seen[0].body) as Record<string, unknown>;
     expect(body.tenant_id).toBe('lab-a');
@@ -75,8 +82,7 @@ describe('LabOpsPanel (U1-b)', () => {
     const tree = await render(
       <LabOpsPanel lab={lab({ id: 'lab-a', admin_pubkey_hex: 'ab'.repeat(32) })} onChanged={() => {}} />
     );
-    const text = JSON.stringify(tree.toJSON());
-    expect(text).toContain('is not this lab');
+    await vi.waitFor(() => expect(textOf(tree.root)).toContain('is not this lab'));
     const input = tree.root.findByProps({ 'aria-label': 'New ceiling for lab-a' });
     await act(async () => {
       input.props.onChange({ target: { value: '150' } });
@@ -84,7 +90,7 @@ describe('LabOpsPanel (U1-b)', () => {
     await act(async () => {
       tree.root.findAllByType('button').find((b) => b.props.children === 'Set ceiling')!.props.onClick();
     });
-    expect(seen).toHaveLength(1);
+    await vi.waitFor(() => expect(seen).toHaveLength(1));
     const body = JSON.parse(seen[0].body) as Record<string, unknown>;
     expect(body.ceiling_usd).toBe(150);
     expect('action' in body).toBe(false);
@@ -97,6 +103,7 @@ describe('LabOpsPanel (U1-b)', () => {
       return { ok: true, json: async () => ({ id: 'lab-new' }) };
     });
     const tree = await render(<LabOpsPanel lab={lab({ id: 'lab-new' })} onChanged={() => {}} />);
+    await vi.waitFor(() => expect(textOf(tree.root)).toContain('No admin registered'));
     await act(async () => {
       tree.root.findByType('button').props.onClick();
     });

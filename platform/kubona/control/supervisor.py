@@ -8,12 +8,21 @@ only; killing is an override, never a new execution path).
 
 from __future__ import annotations
 
+import fcntl
+import json
+import os
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Callable
 
+from kubona.config import state_path
 from kubona.session import SessionStore
+
+
+MAX_HISTORY = 5000
 
 
 @dataclass
@@ -40,17 +49,121 @@ class LoopHandle:
 
 
 class LoopSupervisor:
-    """Tracks loops; runs one step at a time with pause/kill checks and flight recorder history."""
+    """Tracks loops; runs one step at a time with pause/kill checks and flight recorder history.
 
-    def __init__(self, sessions: SessionStore | None = None):
+    State is append-only JSONL under the shared state root (or an injected
+    path). A restart reconstructs loops instead of silently forgetting them;
+    loops that were ``running`` at shutdown are recovered as ``paused`` — a
+    process restart is not evidence that the loop is still alive.
+    """
+
+    def __init__(self, sessions: SessionStore | None = None,
+                 path: str | os.PathLike | None = None):
+        self.path = Path(path) if path is not None else state_path("loops.jsonl")
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self._lock = threading.Lock()
+        self._lock_path = self.path.parent / (self.path.name + ".lock")
         self._loops: dict[str, LoopHandle] = {}
         self.sessions = sessions or SessionStore()
+        self._load()
+
+    def _exclusive(self):
+        class _Ctx:
+            def __init__(self, outer):
+                self.outer = outer
+                self.lf = None
+
+            def __enter__(self):
+                self.outer._lock.acquire()
+                self.lf = open(self.outer._lock_path, "a+b")
+                fcntl.flock(self.lf.fileno(), fcntl.LOCK_EX)
+                return self
+
+            def __exit__(self, *exc):
+                try:
+                    fcntl.flock(self.lf.fileno(), fcntl.LOCK_UN)
+                finally:
+                    self.lf.close()
+                    self.outer._lock.release()
+                return False
+        return _Ctx(self)
+
+    def _load(self) -> None:
+        if not self.path.exists():
+            return
+        for line in self.path.read_text().splitlines():
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except ValueError:
+                continue
+            try:
+                event = row.get("event")
+                if event == "register" or event == "snapshot":
+                    h = LoopHandle(**row["loop"])
+                    self._loops[h.loop_id] = h
+                elif event == "step":
+                    h = self._loops.get(row["loop_id"])
+                    if h is None:
+                        continue
+                    h.step = int(row["step"])
+                    h.current_step_desc = row.get("desc", "")
+                    h.heartbeat = float(row.get("timestamp", h.heartbeat))
+                    h.status = row.get("status", h.status)
+                    if "entry" in row:
+                        h.history.append(row["entry"])
+                elif event == "status":
+                    h = self._loops.get(row["loop_id"])
+                    if h is None:
+                        continue
+                    h.status = row["status"]
+                    h.paused_at = row.get("paused_at")
+                    h.current_step_desc = row.get("current_step_desc", h.current_step_desc)
+                    h.heartbeat = float(row.get("timestamp", h.heartbeat))
+                else:
+                    # Legacy full-snapshot row (pre-event log).
+                    h = LoopHandle(**row)
+                    self._loops[h.loop_id] = h
+                if len(h.history) > MAX_HISTORY:
+                    h.history = h.history[-MAX_HISTORY:]
+            except (TypeError, KeyError):
+                continue
+        for h in self._loops.values():
+            if h.status == "running":
+                h.status = "paused"
+                h.paused_at = time.time()
+                h.meta = dict(h.meta or {})
+                h.meta["recovered_after_restart"] = True
+
+    def _append(self, row: dict[str, Any]) -> None:
+        with self._exclusive():
+            with open(self.path, "a") as f:
+                f.write(json.dumps(row, sort_keys=True) + "\n")
+                f.flush()
+                os.fsync(f.fileno())
+
+    def _snapshot(self, h: LoopHandle) -> None:
+        self._append({"event": "snapshot", "loop": h.to_dict()})
+
+    def _status_event(self, h: LoopHandle) -> None:
+        self._append({
+            "event": "status", "loop_id": h.loop_id, "status": h.status,
+            "paused_at": h.paused_at, "current_step_desc": h.current_step_desc,
+            "timestamp": time.time(),
+        })
+
+    def persist(self, loop_id: str) -> LoopHandle:
+        h = self._loops[loop_id]
+        self._snapshot(h)
+        return h
 
     def register(self, name: str, session_id: str, total_steps: int,
                  meta: dict[str, Any] | None = None, tenant: str = "default") -> LoopHandle:
         h = LoopHandle(loop_id=uuid.uuid4().hex[:16], name=name, session_id=session_id,
                        total_steps=total_steps, meta=meta or {}, tenant=tenant or "default")
         self._loops[h.loop_id] = h
+        self._append({"event": "register", "loop": h.to_dict()})
         return h
 
     def get_for(self, loop_id: str, requester: str | None) -> LoopHandle:
@@ -95,14 +208,20 @@ class LoopSupervisor:
         h.step += 1
         h.current_step_desc = step_desc
         # Append to 4D flight recorder history
-        h.history.append({
+        entry = {
             "step": h.step,
             "desc": step_desc,
             "metric": metric,
             "params": params,
             "watchdog": watchdog_verdict,
             "timestamp": time.time(),
-        })
+        }
+        h.history.append(entry)
+        if len(h.history) > MAX_HISTORY:
+            h.history = h.history[-MAX_HISTORY:]
+        self._append({"event": "step", "loop_id": h.loop_id, "step": h.step,
+                      "desc": step_desc, "status": h.status,
+                      "timestamp": entry["timestamp"], "entry": entry})
         return True
 
     def pause(self, loop_id: str) -> LoopHandle:
@@ -110,21 +229,25 @@ class LoopSupervisor:
         if h.status == "running":
             h.status = "paused"
             h.paused_at = time.time()
+        self._status_event(h)
         return h
 
     def resume(self, loop_id: str) -> LoopHandle:
         h = self._loops[loop_id]
         if h.status == "paused":
             h.status = "running"
+        self._status_event(h)
         return h
 
     def kill(self, loop_id: str) -> LoopHandle:
         h = self._loops[loop_id]
         h.status = "killed"
         h.current_step_desc = "interrupted by operator"
+        self._status_event(h)
         return h
 
     def complete(self, loop_id: str) -> LoopHandle:
         h = self._loops[loop_id]
         h.status = "completed"
+        self._status_event(h)
         return h

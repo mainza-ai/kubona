@@ -11,16 +11,21 @@ at all (W0.9) — "cryptographically verified" was fiction. It is real now.
 
 from __future__ import annotations
 
+import json
 import math
+import os
 import threading
 import time
 import uuid
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Dict, List, Optional
 
 from nacl.exceptions import BadSignatureError
 from nacl.signing import SigningKey, VerifyKey
+
+from kubona.config import atomic_write_text, state_path
 
 
 class DelegationError(ValueError):
@@ -73,7 +78,7 @@ class SpendMandate:
 
 
 class SpendDelegationManager:
-    def __init__(self, signing_key: bytes | None = None):
+    def __init__(self, signing_key: bytes | None = None, path: str | os.PathLike | None = None):
         # No default key: the old hardcoded "kubona-dev-signing-key" let
         # anyone holding the source forge mandates. Fail-closed instead.
         if not isinstance(signing_key, (bytes, bytearray)) or len(signing_key) != 32:
@@ -85,6 +90,43 @@ class SpendDelegationManager:
         self._mandates: Dict[str, SpendMandate] = {}
         self._revoked: set[str] = set()
         self._lock = threading.Lock()
+        self.path = Path(path) if path is not None else state_path("delegations.json")
+        self._load()
+
+    def _load(self) -> None:
+        if not self.path.exists():
+            return
+        try:
+            doc = json.loads(self.path.read_text())
+        except (OSError, ValueError):
+            return
+        revoked = doc.get("revoked", [])
+        if isinstance(revoked, list):
+            self._revoked = {str(r) for r in revoked}
+        for raw in doc.get("mandates", []):
+            try:
+                m = SpendMandate(**raw)
+            except (TypeError, ValueError):
+                continue
+            # A restart with a different signing key cannot inherit old
+            # mandates: keep only rows whose signature re-verifies now.
+            try:
+                VerifyKey(bytes.fromhex(m.public_key_hex)).verify(
+                    bytes.fromhex(m.signature) + self._payload(
+                        m.mandate_id, m.tenant_id, m.agent_id,
+                        m.budget_ceiling_usd, m.expires_at
+                    )
+                )
+            except (BadSignatureError, ValueError):
+                continue
+            self._mandates[m.mandate_id] = m
+
+    def _save(self) -> None:
+        doc = {
+            "mandates": [m.to_dict() for m in self._mandates.values()],
+            "revoked": sorted(self._revoked),
+        }
+        atomic_write_text(self.path, json.dumps(doc, sort_keys=True))
 
     @property
     def public_key_hex(self) -> str:
@@ -141,6 +183,7 @@ class SpendDelegationManager:
         )
         with self._lock:
             self._mandates[mid] = m
+            self._save()
         return m
 
     def delegate_sub_mandate(
@@ -184,6 +227,7 @@ class SpendDelegationManager:
                 signature=sig,
             )
             self._mandates[cid] = child
+            self._save()
             return child
 
     def record_spend(self, mandate_id: str, usd: float) -> float:
@@ -211,6 +255,7 @@ class SpendDelegationManager:
                     curr = parent
                 else:
                     break
+            self._save()
             return m.spent_usd
 
     def revoke(self, mandate_id: str) -> List[str]:
@@ -232,4 +277,5 @@ class SpendDelegationManager:
                         self._revoked.add(m.mandate_id)
                         revoked.append(m.mandate_id)
                         changed = True
+            self._save()
             return revoked

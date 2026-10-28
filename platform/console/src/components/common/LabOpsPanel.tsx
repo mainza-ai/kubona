@@ -1,14 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   setTenantCeiling,
   setTenantStatus,
   refundTenantSpend,
   registerTenantAdminKey,
 } from '@/lib/api';
-import { signAdminAction } from '@/lib/adminAction';
-import { getOrCreateSessionKeyPair, peekSessionPubkeyHex } from '@/lib/mandates';
+import { signAdminActionWithCustody, type AdminAction } from '@/lib/adminAction';
+import { peekSignerPubkeyHex } from '@/lib/custody';
 import type { Lab } from '@/types';
 
 // U1-b: per-lab operator writes. Every mutation carries BOTH rails: the
@@ -29,7 +29,12 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const browserPub = peekSessionPubkeyHex();
+  const [browserPub, setBrowserPub] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    peekSignerPubkeyHex().then((pub) => { if (active) setBrowserPub(pub); });
+    return () => { active = false; };
+  }, []);
   const registeredAdmin = (lab.admin_pubkey_hex || '').trim();
   const isBootstrap = registeredAdmin === '';
   const isAdmin = !isBootstrap && !!browserPub && registeredAdmin.toLowerCase() === browserPub.toLowerCase();
@@ -55,13 +60,13 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
     }
   };
 
-  const envelope = (action: 'set_ceiling' | 'set_status' | 'refund_spend', params: Record<string, number | string>) => {
+  const envelope = async (action: 'set_ceiling' | 'set_status' | 'refund_spend',
+                           params: Record<string, number | string>): Promise<AdminAction | undefined> => {
     // When this browser holds the lab admin key we send the signed envelope;
     // otherwise the server uses the signed-in lab-admin session cookie
     // (Q-56). The server always re-checks authority.
     if (!browserPub || !isAdmin) return undefined;
-    const keyPair = getOrCreateSessionKeyPair();
-    return signAdminAction({ tenantId: lab.id, action, params, keyPair });
+    return signAdminActionWithCustody({ tenantId: lab.id, action, params });
   };
 
   if (isBootstrap) {
@@ -132,7 +137,7 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
               return;
             }
             if (!ask(`Set ${lab.id} ceiling to $${v}?`)) return;
-            void run('ceiling', () => setTenantCeiling(lab.id, v, envelope('set_ceiling', { ceiling_usd: v })));
+            void run('ceiling', async () => setTenantCeiling(lab.id, v, await envelope('set_ceiling', { ceiling_usd: v })));
           }}
           className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] text-slate-200 disabled:opacity-40"
         >
@@ -144,8 +149,8 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
           onClick={() => {
             const next = suspended ? 'active' : 'suspended';
             if (!ask(suspended ? `Resume lab ${lab.id}? Spend gates re-open.` : `Suspend lab ${lab.id}? Spend-affecting actions freeze.`)) return;
-            void run('status', () =>
-              setTenantStatus(lab.id, next, envelope('set_status', { status: next }))
+            void run('status', async () =>
+              setTenantStatus(lab.id, next, await envelope('set_status', { status: next }))
             );
           }}
           aria-label={`${suspended ? 'Resume' : 'Suspend'} lab ${lab.id}`}
@@ -190,8 +195,8 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
             }
             if (!ask(`Refund $${v} to ${lab.id} (“${refundReason.trim()}”)? Audited, irreversible.`)) return;
             const reason = refundReason.trim();
-            void run('refund', () =>
-              refundTenantSpend(lab.id, v, reason, envelope('refund_spend', { tenant_id: lab.id, amount_usd: v, reason }))
+            void run('refund', async () =>
+              refundTenantSpend(lab.id, v, reason, await envelope('refund_spend', { tenant_id: lab.id, amount_usd: v, reason }))
             );
           }}
           className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] text-slate-200 disabled:opacity-40"

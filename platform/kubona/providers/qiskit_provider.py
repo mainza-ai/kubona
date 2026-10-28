@@ -283,10 +283,105 @@ class QiskitProvider(Provider):
             return override
         return self.capability.backend or None
 
-    def _transpile_for_backend(self, qc, backend):
+    def _calibrated_initial_layout(self, qc, backend) -> list[int] | None:
+        """Pick a low-error connected physical subgraph for this circuit.
+
+        The default pass-manager layout is topology-only: on 2026-10-28 it put
+        a Bell pair on physical qubits 0/1 while q1's readout error was 15.7%
+        (and |1> measured as 0 far more often than that calibration implies).
+        Selecting from live readout/edge calibration is the minimum needed to
+        avoid knowingly running on a bad pair. Returns None when calibration
+        is unavailable (fall back to the pass manager's own layout).
+        """
+        try:
+            props = backend.properties()
+        except Exception:
+            return None
+        if props is None:
+            return None
+        n = qc.num_qubits
+        try:
+            nphys = int(backend.num_qubits)
+            readout = [float(props.readout_error(q)) for q in range(nphys)]
+        except Exception:
+            return None
+        if n > nphys:
+            return None
+
+        coupling = getattr(backend, "coupling_map", None)
+        if coupling is None:
+            try:
+                target = backend.target
+                coupling = target.build_coupling_map()
+            except Exception:
+                coupling = None
+        edges: dict[frozenset[int], float] = {}
+        if coupling is not None:
+            for a, b in coupling:
+                key = frozenset((int(a), int(b)))
+                if len(key) != 2:
+                    continue
+                best = edges.get(key, float("inf"))
+                for gate in ("cx", "ecr", "cz"):
+                    try:
+                        err = float(props.gate_error(gate, [int(a), int(b)]))
+                    except Exception:
+                        continue
+                    best = min(best, err)
+                edges[key] = best
+
+        def neighbours(q: int) -> set[int]:
+            return {next(iter(e - {q})) for e in edges if q in e}
+
+        selected: list[int] = []
+        if n >= 2 and edges:
+            # Best first edge: readout on both ends plus the native 2q error.
+            a, b = min(
+                (tuple(e) for e in edges),
+                key=lambda pair: (readout[pair[0]] + readout[pair[1]]
+                                  + (edges[frozenset(pair)] if edges[frozenset(pair)] < float("inf") else 0.0)),
+            )
+            selected = [a, b]
+        if not selected:
+            selected = [min(range(nphys), key=lambda q: readout[q])]
+        while len(selected) < n:
+            candidates = set().union(*(neighbours(q) for q in selected)) - set(selected)
+            if not candidates:
+                candidates = set(range(nphys)) - set(selected)
+            def cost(q: int) -> tuple[float, float]:
+                edge_cost = min(
+                    (edges.get(frozenset((q, s)), 0.0) for s in selected
+                     if frozenset((q, s)) in edges), default=0.0)
+                return (readout[q] + edge_cost, readout[q])
+            selected.append(min(candidates, key=cost))
+        return selected
+
+    def _layout_quality(self, layout: list[int] | None, backend) -> dict[str, Any] | None:
+        """Calibration summary for the chosen physical qubits (post-hoc trust)."""
+        if not layout:
+            return None
+        try:
+            props = backend.properties()
+            readouts = {str(q): float(props.readout_error(q)) for q in layout}
+        except Exception:
+            return None
+        return {
+            "physical_qubits": list(layout),
+            "readout_error": readouts,
+            "max_readout_error": max(readouts.values()) if readouts else None,
+            "suspicious": any(v > 0.05 for v in readouts.values()),
+            "source": f"backend-properties:{getattr(backend, 'name', 'backend')}",
+        }
+
+    def _transpile_for_backend(self, qc, backend, initial_layout=None):
         # ISA is mandatory on IBM hardware; transpile locally before Sampler.
         from qiskit.transpiler import generate_preset_pass_manager
-        return generate_preset_pass_manager(optimization_level=1, backend=backend).run(qc)
+        layout = initial_layout
+        if layout is None:
+            layout = self._calibrated_initial_layout(qc, backend)
+        return generate_preset_pass_manager(
+            optimization_level=1, backend=backend, initial_layout=layout
+        ).run(qc)
 
     def _layout_summary(self, original, isa) -> dict[str, Any] | None:
         """Logical→physical mapping for post-hoc device/layout diagnosis."""
@@ -355,8 +450,11 @@ class QiskitProvider(Provider):
                     from qiskit_ibm_runtime import SamplerV2
                     sampler = SamplerV2(backend=backend)
                 original = qc
-                qc = self._transpile_for_backend(qc, backend)
+                chosen = self._calibrated_initial_layout(original, backend)
+                qc = self._transpile_for_backend(original, backend, chosen)
                 layout = self._layout_summary(original, qc)
+                if layout is not None:
+                    layout["quality"] = self._layout_quality(chosen, backend)
                 self._validate_job_limits(qc, shots, backend)
             else:
                 # Test/older stub that does not expose BackendV2.target.
@@ -368,8 +466,11 @@ class QiskitProvider(Provider):
             backend = self._resolve_backend(service)
             if hasattr(backend, "target"):
                 original = qc
-                qc = self._transpile_for_backend(qc, backend)
+                chosen = self._calibrated_initial_layout(original, backend)
+                qc = self._transpile_for_backend(original, backend, chosen)
                 layout = self._layout_summary(original, qc)
+                if layout is not None:
+                    layout["quality"] = self._layout_quality(chosen, backend)
                 self._validate_job_limits(qc, shots, backend)
             if hasattr(service, "sampler"):
                 sampler = service.sampler(backend)
@@ -398,8 +499,22 @@ class QiskitProvider(Provider):
             "".join(str(b) for b in k): v
             for k, v in pub.get_counts().items()
         }
-        return {"counts": counts, "shots": shots, "backend": self.backend_name,
-                "job_id": job_id, "hardware": True, "channel": "ibm_quantum"}
+        out: dict[str, Any] = {
+            "counts": counts, "shots": shots,
+            "backend": getattr(backend, "name", self.backend_name),
+            "job_id": job_id, "hardware": True,
+            "channel": self._channel(), "layout": layout,
+        }
+        try:
+            usage = job.usage()
+            if usage is not None:
+                out["usage_seconds"] = float(usage)
+                actual = self._actual_usd(float(usage))
+                if actual is not None:
+                    out["actual_usd"] = actual
+        except Exception:
+            pass
+        return out
 
     def poll_hardware_job(self, hardware_job_id: str, service_factory=None) -> dict[str, Any]:
         """Non-blocking vendor status poll for an IBM Runtime job."""
