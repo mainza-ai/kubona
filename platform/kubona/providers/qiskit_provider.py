@@ -296,7 +296,7 @@ class QiskitProvider(Provider):
                 "status": "running",
                 "deferred": True,
                 "shots": shots,
-                "backend": backend.name,
+                "backend": getattr(backend, "name", str(backend)),
                 "job_id": job_id,
                 "hardware_job_id": job_id,
                 "hardware": True,
