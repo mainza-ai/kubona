@@ -390,6 +390,21 @@ def test_execution_deferred_hardware_job_releases_worker_and_polls_to_completion
     bell = "OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0],q[1];"
     sess = cost_server.create_session("deferred-hw", "researcher", budget_ceiling_usd=150.0)
 
+    # Paid dispatch requires a real approval (Phase-0 gate): REVIEW -> HOLD
+    # -> APPROVED with an operator-signed mandate bound to this session +
+    # program. Never stubbed — this test proves the paid path end to end.
+    import os
+    from kubona.cost.mandate import canonical_job_binding
+    gov = exec_server._gov
+    req = gov.request_approval(sess["session_id"], 150.0, "deferred-hw test approval")
+    gov.hold_approval(req.approval_id, reviewer="test-operator")
+    approved = gov.approve(
+        req.approval_id, reviewer="test-operator", note="deferred-hw test",
+        tenant_id="lab-a",
+        job_hash=canonical_job_binding("circuit_run", sess["session_id"], bell),
+        signing_key=os.urandom(32))
+    assert approved.state == "APPROVED" and approved.mandate_token
+
     vendor_state = {"status": "running"}
 
     class FakeDeferredIBMProvider:
@@ -422,6 +437,7 @@ def test_execution_deferred_hardware_job_releases_worker_and_polls_to_completion
         shots=100,
         session_id=sess["session_id"],
         caller_jurisdictions=["US"],
+        approval_id=approved.approval_id,
     )
     assert sub["ok"] is True
     job_id = sub["job_id"]

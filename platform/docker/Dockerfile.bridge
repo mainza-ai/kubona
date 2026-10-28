@@ -4,8 +4,9 @@
 # pyproject.toml — same discipline as CI). Slimming the chemistry deps
 # out of this image is a follow-up, not this slice: the bridge imports
 # them at module load (server.py), so omitting them is a crash, not a diet.
-# Nonroot; HEALTHCHECK dials the gRPC port with plain grpc (no reflection
-# needed — channel_ready only proves the socket accepts).
+# Nonroot; HEALTHCHECK dials the UDS with plain grpc (no reflection
+# needed — channel_ready only proves the socket accepts). Production
+# transport is UDS-exclusive (no TCP socket exists): see compose.prod.yml.
 #
 # Build (repo root): docker build -f platform/docker/Dockerfile.bridge -t kubona/bridge:dev platform
 # Run (compose is the supported path): see compose.prod.yml.
@@ -35,11 +36,15 @@ COPY bridge ./bridge
 COPY contracts ./contracts
 ENV KUBONA_EVENT_TYPES=/app/contracts/event-types.json
 RUN chown -R kubona:kubona /app
+# Seed the socket dir with daemon ownership: the shared bridge-sock volume
+# inherits the image's directory (owner included); without this the volume
+# mounts root-owned and the nonroot bridge cannot create its socket
+# (same pattern as kubonad's state dir in Dockerfile.kubonad).
+RUN mkdir -p /run/kubona && chown kubona:kubona /run/kubona
 
 USER kubona
 WORKDIR /app/bridge
-EXPOSE 50051
 HEALTHCHECK --interval=10s --timeout=5s --retries=3 --start-period=30s \
-    CMD python -c "import grpc; grpc.channel_ready_future(grpc.insecure_channel('127.0.0.1:50051')).result(timeout=4)"
+    CMD python -c "import grpc; grpc.channel_ready_future(grpc.insecure_channel('unix:///run/kubona/bridge.sock')).result(timeout=4)"
 
 CMD ["python", "server.py"]
