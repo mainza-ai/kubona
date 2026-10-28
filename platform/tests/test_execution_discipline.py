@@ -144,3 +144,18 @@ def test_concurrent_same_key_creates_one_job():
     assert all(r["ok"] for r in results), results
     ids = {r["job_id"] for r in results}
     assert len(ids) == 1, ids
+
+
+def test_session_status_bounds_job_ids():
+    from kubona.mcp.servers import execution as execution_server
+    from kubona.mcp.servers import cost as cost_server
+
+    sess = cost_server.create_session("bounded-jobs", "tester", budget_ceiling_usd=1.0)
+    sid = sess["session_id"]
+    for i in range(150):
+        execution_server._sessions.record_job(sid, f"job-{i}")
+    out = execution_server.session_status(sid, jobs_limit=100)
+    assert out["jobs_total"] == 150
+    assert out["jobs_returned"] == 100
+    assert out["jobs_truncated"] is True
+    assert out["jobs"] == [f"job-{i}" for i in range(50, 150)]

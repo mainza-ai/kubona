@@ -3691,3 +3691,7 @@ skipped is the exact failure this incident is about:
 ## [2026-10-28] decision | Provenance reads are bounded
 
   - query_records now clamps limit to 1..1000 with offset, returns count/returned/truncated, and scans at most 10k records. The ambient records resource returns the latest 1000 with a truncation flag; aggregation is capped at 10k and reports __truncated__.
+
+## [2026-10-28] decision | Session job lists are paginated
+
+  - execution.session_status returns a bounded newest-first page of job ids (jobs_limit 1..1000, default 100) with jobs_total/jobs_returned/jobs_truncated. The store still retains history, but the MCP read can no longer grow without bound.
