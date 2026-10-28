@@ -124,3 +124,18 @@ def test_tenant_slug_and_labs(tmp_path):
     assert a.tenant == "LabA"
     with pytest.raises(ValueError):
         labs.create("Lab A", "owner")  # same slug collides
+
+
+def test_record_job_concurrent_appends_do_not_lose_ids(tmp_path):
+    import threading
+    from kubona.session import SessionStore
+    store = SessionStore(path=str(tmp_path / "sessions.jsonl"))
+    sess = store.create("race", "owner")
+    threads = [threading.Thread(target=store.record_job, args=(sess.session_id, f"job-{i}"))
+               for i in range(12)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    got = store.get(sess.session_id)
+    assert set(got.jobs) == {f"job-{i}" for i in range(12)}
