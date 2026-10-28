@@ -3678,3 +3678,8 @@ skipped is the exact failure this incident is about:
 
   - Direct `Circuit` and governed QASM produce identical ISA circuits (initial layout q0/q1; rz/sx/cz/measure; ideal Aer 00/11), so conversion is not the cause.
   - Governed rerun on ibm_marrakesh produced 92% 00/11; the 44% |10> direct result did not reproduce. Job records do not retain the physical layout, so bad-pair/readout remains suspected but unproven. Future hardware jobs should log the selected layout.
+
+
+## [2026-10-28] decision | Hardware jobs retain their transpiler layout
+
+  - QiskitProvider returns the logical→physical initial/final layout on submission/results; the deferred job meta stores it, and the bridge status payload exposes it. Go keeps it in result_json. Future Marrakesh-style anomalies can be tied to the actual physical pair instead of guessed.

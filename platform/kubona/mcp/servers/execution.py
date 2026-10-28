@@ -582,6 +582,9 @@ def get_job_status(job_id: str) -> dict:
     hw_id = (getattr(job, "meta", None) or {}).get("hardware_job_id")
     if hw_id:
         out["hardware_job_id"] = hw_id
+    layout = (getattr(job, "meta", None) or {}).get("layout")
+    if layout:
+        out["layout"] = layout
     if poll_warn:
         out["poll_warning"] = poll_warn
     return out

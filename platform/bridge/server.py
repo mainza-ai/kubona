@@ -428,6 +428,8 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             hw = st.get("hardware_job_id")
             if hw:
                 payload["hardware_job_id"] = str(hw)
+            if st.get("layout"):
+                payload["layout"] = st.get("layout")
             if res.get("ok"):
                 payload["result"] = res.get("result", {})
             elif res.get("error"):

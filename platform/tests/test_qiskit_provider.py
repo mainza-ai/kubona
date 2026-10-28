@@ -197,3 +197,19 @@ def test_ibm_transpile_produces_isa_circuit():
     isa = get_provider("ibm-qiskit")._transpile_for_backend(qc, FakeManilaV2())
     assert "measure" in isa.count_ops()
     assert set(isa.count_ops()) - {"barrier"} <= set(FakeManilaV2().operation_names)
+
+
+def test_layout_summary_records_logical_to_physical():
+    from qiskit import QuantumCircuit
+    from qiskit_ibm_runtime.fake_provider import FakeManilaV2
+    from kubona.providers import get_provider
+
+    qc = QuantumCircuit(2)
+    qc.h(0)
+    qc.cx(0, 1)
+    qc.measure_all()
+    p = get_provider("ibm-qiskit")
+    isa = p._transpile_for_backend(qc, FakeManilaV2())
+    layout = p._layout_summary(qc, isa)
+    assert layout and set(layout["initial"]) == {"0", "1"}
+    assert all(isinstance(v, int) for v in layout["initial"].values())
