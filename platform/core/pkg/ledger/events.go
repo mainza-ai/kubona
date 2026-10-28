@@ -20,6 +20,14 @@ package ledger
 // emitters:["python"] — one registry, not two. This map holds exactly the
 // go-emitter rows; TestEventTypesMatchContract enforces it.
 
+// SettlementSkippedUnknownUsageEvent is the single shared name for the
+// ledger event emitted when a completed bridge job reports no usable
+// actual_usd: the estimate reservation is kept (never refunded on unknown
+// usage). jobs.SyncQuantumBridgeJobStatus emits it; the taxonomy row below
+// and the platform/contracts/event-types.json row register it. Never copy
+// the literal elsewhere — reference this const.
+const SettlementSkippedUnknownUsageEvent = "settlement_skipped_unknown_usage"
+
 var KnownEventTypes = map[string]bool{
 	"auth_login":                        true,
 	"auth_login_refused":                true,
@@ -90,6 +98,7 @@ var KnownEventTypes = map[string]bool{
 	"session_spend_released":            true,
 	"session_spend_release_refused":     true,
 	"session_spend_reserved":            true,
+	SettlementSkippedUnknownUsageEvent:  true,
 	"spend_refund_refused":              true,
 	"spend_release_refused":             true,
 	"supervisor_abort":                  true,

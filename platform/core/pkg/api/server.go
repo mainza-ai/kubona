@@ -130,6 +130,13 @@ type Server struct {
 	// Empty = unconfigured: fleet reports local_simulator UNKNOWN
 	// instead of claiming ONLINE behind a nil client that never fails.
 	bridgeAddr string
+
+	// Route policy registry: every pattern registered in registerRoutes is
+	// recorded here (via s.route, never s.mux.HandleFunc directly) and
+	// pinned 1:1 against the policy table in route_policy.go. A route
+	// registered but unlisted fails the policy test — the class this kills
+	// is "auth_matrix pins ~10 of ~116 routes while new writers land open".
+	registeredRoutes []string
 }
 
 // SetDiskGuard attaches the S2 disk guard. Nil detaches (tests).
@@ -376,6 +383,24 @@ func NewServer(
 		}
 		return t.AutonomyLevel, nil
 	})
+	// Parent-mandate key→tenant binding at A2A submit (same rule as
+	// handleMandateVerify: tenant admin or configured reviewer key).
+	// Without this a self-signed mandate naming a victim tenant would
+	// attribute spend to a lab that never authorized it.
+	s.a2aServer.SetMandateKeyChecker(func(tenantID, pubkeyHex string) error {
+		lab, err := s.tenantMgr.GetTenant(tenantID)
+		if err != nil {
+			return err
+		}
+		if lab.AdminPubkeyHex != "" && strings.EqualFold(lab.AdminPubkeyHex, pubkeyHex) {
+			return nil
+		}
+		if strings.EqualFold(hex.EncodeToString(s.signerPubKey), pubkeyHex) &&
+			(s.reviewerKeyConfigured || os.Getenv("KUBONA_ALLOW_EPHEMERAL_SIGNER") == "1") {
+			return nil
+		}
+		return fmt.Errorf("key is not the tenant admin key (bootstrap an admin key or use the reviewer-signed path)")
+	})
 
 	// Bootstrap the default lab tenant's admin key from the environment when
 	// provided (first-write-wins; sealed in the ledger). The private key never
@@ -477,164 +502,190 @@ func requestIDAndRecovery(next http.Handler) http.Handler {
 	})
 }
 
+// route registers one HTTP pattern AND records it for the route policy
+// table (route_policy.go). All registrations must go through here — never
+// s.mux.HandleFunc directly — so the policy test sees every route. The
+// wrapper (requireBearer / requireA2AAuth / requireBearerForWrites / none)
+// is part of the call site: auth posture is visible at registration, not
+// buried in handler bodies.
+func (s *Server) route(pattern string, handler http.HandlerFunc) {
+	s.registeredRoutes = append(s.registeredRoutes, pattern)
+	s.mux.HandleFunc(pattern, handler)
+}
+
+// RegisteredRoutes returns the patterns registered in registerRoutes, in
+// registration order. The policy test pins them 1:1 against the table.
+func (s *Server) RegisteredRoutes() []string {
+	return append([]string(nil), s.registeredRoutes...)
+}
+
 func (s *Server) registerRoutes() {
-	s.mux.HandleFunc("/api/health", s.handleHealth)
-	s.mux.HandleFunc("/metrics", s.requireBearer(s.handleMetrics))
-	s.mux.HandleFunc("/api/ready", s.handleReady)
-	s.mux.HandleFunc("/api/capabilities", s.handleCapabilities)
-	s.mux.HandleFunc("/api/sessions", s.handleSessions)
-	s.mux.HandleFunc("/api/sessions/refund", s.requireBearer(s.handleSessionRefund))
-	s.mux.HandleFunc("/api/sessions/export", s.handleSessionExport)
-	s.mux.HandleFunc("/api/sessions/import", s.requireBearer(s.handleSessionImport))
-	s.mux.HandleFunc("/api/sessions/context", s.handleSessionContext)
-	s.mux.HandleFunc("/api/sessions/", s.handleSessionByID)
-	s.mux.HandleFunc("/api/campaigns/", s.handleCampaignRoute)
-	s.mux.HandleFunc("/api/chat/messages", s.handleChatMessages)
-	s.mux.HandleFunc("/api/chat/stream", s.handleChatStream)
-	s.mux.HandleFunc("/api/chat/regenerate", s.handleChatRegenerate)
-	s.mux.HandleFunc("/api/chat/rewrite", s.handleChatRewrite)
-	s.mux.HandleFunc("/api/chat/feedback", s.handleChatFeedback)
-	s.mux.HandleFunc("/api/chat/tribunal", s.handleChatTribunal)
+	s.route("/api/health", s.handleHealth)
+	s.route("/metrics", s.requireBearer(s.handleMetrics))
+	s.route("/api/ready", s.handleReady)
+	s.route("/api/capabilities", s.handleCapabilities)
+	s.route("/api/sessions", s.handleSessions)
+	s.route("/api/sessions/refund", s.requireBearer(s.handleSessionRefund))
+	s.route("/api/sessions/export", s.handleSessionExport)
+	s.route("/api/sessions/import", s.requireBearer(s.handleSessionImport))
+	s.route("/api/sessions/context", s.handleSessionContext)
+	s.route("/api/sessions/", s.handleSessionByID)
+	s.route("/api/campaigns/", s.handleCampaignRoute)
+	s.route("/api/chat/messages", s.handleChatMessages)
+	s.route("/api/chat/stream", s.handleChatStream)
+	s.route("/api/chat/regenerate", s.handleChatRegenerate)
+	s.route("/api/chat/rewrite", s.handleChatRewrite)
+	s.route("/api/chat/feedback", s.handleChatFeedback)
+	s.route("/api/chat/tribunal", s.handleChatTribunal)
 	// T-16: resume a tribunal from an exported turn bundle (R4 flow).
-	s.mux.HandleFunc("/api/tribunal/resume", s.handleTribunalResume)
-	s.mux.HandleFunc("/api/chat/launch", s.handleChatLaunch)
-	s.mux.HandleFunc("/api/jobs", s.handleJobs)
-	s.mux.HandleFunc("/api/jobs/", s.handleJobByID)
-	s.mux.HandleFunc("/api/loops", s.requireBearer(s.handleLoops))
-	s.mux.HandleFunc("/api/loops/", s.requireBearer(s.handleLoopActions))
-	s.mux.HandleFunc("/api/events", s.handleEvents)
-	s.mux.HandleFunc("/api/memory/recall", s.requireBearer(s.handleMemoryRecall))
-	s.mux.HandleFunc("/api/memory/retain", s.requireBearer(s.handleMemoryRetain))
+	s.route("/api/tribunal/resume", s.handleTribunalResume)
+	s.route("/api/chat/launch", s.handleChatLaunch)
+	s.route("/api/jobs", s.handleJobs)
+	s.route("/api/jobs/", s.handleJobByID)
+	s.route("/api/loops", s.requireBearer(s.handleLoops))
+	s.route("/api/loops/", s.requireBearer(s.handleLoopActions))
+	s.route("/api/events", s.handleEvents)
+	s.route("/api/memory/recall", s.requireBearer(s.handleMemoryRecall))
+	s.route("/api/memory/retain", s.requireBearer(s.handleMemoryRetain))
 
 	// New Observatory control plane endpoints
-	s.mux.HandleFunc("/api/agents", s.handleAgents)
-	s.mux.HandleFunc("/api/fidelity", s.handleFidelity)
-	s.mux.HandleFunc("/api/epistemics", s.handleEpistemics)
-	s.mux.HandleFunc("/api/fleet", s.handleFleet)
-	s.mux.HandleFunc("/api/radar", s.handleRadar)
-	s.mux.HandleFunc("/api/ledger/verify", s.requireBearer(s.handleLedgerVerify))
-	s.mux.HandleFunc("/api/mandates/sign", s.requireBearer(s.handleMandateSign))
+	s.route("/api/agents", s.handleAgents)
+	s.route("/api/fidelity", s.handleFidelity)
+	s.route("/api/epistemics", s.handleEpistemics)
+	s.route("/api/fleet", s.handleFleet)
+	s.route("/api/radar", s.handleRadar)
+	s.route("/api/ledger/verify", s.requireBearer(s.handleLedgerVerify))
+	s.route("/api/mandates/sign", s.requireBearer(s.handleMandateSign))
 	// Mandate verification is bearer-gated (2026-10-26 audit): the handler
 	// appends a ledger event + obligation, so the old "no state change"
 	// justification for leaving it public was false. Rate limiting remains
 	// inside the handler as a second layer.
-	s.mux.HandleFunc("/api/mandates/verify", s.handleMandateVerify)
+	s.route("/api/mandates/verify", s.requireBearer(s.handleMandateVerify))
 	// Session auth (A1): challenge-response login bound to lab admin keys.
 	// Challenge + whoami stay public (no identity exists yet); login is
 	// rate-limited with ledger-sealed refusals; whoami/sessions/revoke
 	// need a session except logout, which always succeeds.
-	s.mux.HandleFunc("/api/auth/challenge", s.handleAuthChallenge)
-	s.mux.HandleFunc("/api/auth/login", s.handleAuthLogin)
-	s.mux.HandleFunc("/api/auth/logout", s.handleAuthLogout)
-	s.mux.HandleFunc("/api/auth/whoami", s.handleAuthWhoami)
-	s.mux.HandleFunc("/api/auth/sessions", s.handleAuthSessions)
-	s.mux.HandleFunc("/api/auth/revoke", s.handleAuthRevoke)
-	s.mux.HandleFunc("/api/harnesses", s.handleHarnesses)
-	s.mux.HandleFunc("/api/results/notebooks", s.handleNotebooks)
-	s.mux.HandleFunc("/api/literature", s.handleLiterature)
+	s.route("/api/auth/challenge", s.handleAuthChallenge)
+	s.route("/api/auth/login", s.handleAuthLogin)
+	s.route("/api/auth/logout", s.handleAuthLogout)
+	s.route("/api/auth/whoami", s.handleAuthWhoami)
+	s.route("/api/auth/sessions", s.handleAuthSessions)
+	s.route("/api/auth/revoke", s.handleAuthRevoke)
+	s.route("/api/harnesses", s.handleHarnesses)
+	s.route("/api/results/notebooks", s.handleNotebooks)
+	s.route("/api/literature", s.handleLiterature)
 
 	// Autoresearch Loop & Section 13 Meta-Search Endpoints
-	s.mux.HandleFunc("/api/autoresearch/harnesses", s.handleAutoresearchHarnesses)
-	s.mux.HandleFunc("/api/autoresearch/start", s.handleAutoresearchStart)
-	s.mux.HandleFunc("/api/autoresearch/loops", s.handleAutoresearchLoops)
-	s.mux.HandleFunc("/api/autoresearch/loops/", s.handleAutoresearchLoopAction)
-	s.mux.HandleFunc("/api/metasearch/proposals", s.handleMetasearchProposals)
+	s.route("/api/autoresearch/harnesses", s.handleAutoresearchHarnesses)
+	s.route("/api/autoresearch/start", s.handleAutoresearchStart)
+	s.route("/api/autoresearch/loops", s.handleAutoresearchLoops)
+	s.route("/api/autoresearch/loops/", s.handleAutoresearchLoopAction)
+	s.route("/api/metasearch/proposals", s.handleMetasearchProposals)
 	// J3: meta-approve/reject/apply are capability mutations (they mark
 	// strategy changes approved and resume loops). The signer field is an
 	// attribution label, not authentication — the bearer token proves
 	// operator possession. Unauthenticated callers get 401 before any
 	// proposal state is touched. Listing stays public (read-only).
-	s.mux.HandleFunc("/api/metasearch/approve", s.requireBearer(s.handleMetasearchApprove))
-	s.mux.HandleFunc("/api/metasearch/reject", s.requireBearer(s.handleMetasearchReject))
-	s.mux.HandleFunc("/api/metasearch/apply", s.requireBearer(s.handleMetasearchApply))
+	s.route("/api/metasearch/approve", s.requireBearer(s.handleMetasearchApprove))
+	s.route("/api/metasearch/reject", s.requireBearer(s.handleMetasearchReject))
+	s.route("/api/metasearch/apply", s.requireBearer(s.handleMetasearchApply))
 
-	// Hybrid LLM Configuration Plane endpoints
-	s.mux.HandleFunc("/api/llm/settings", s.handleLLMSettings)
-	s.mux.HandleFunc("/api/llm/models", s.handleLLMModels)
-	s.mux.HandleFunc("/api/llm/test", s.requireBearer(s.handleLLMTest))
+	// Hybrid LLM Configuration Plane endpoints. Settings reads stay public;
+	// settings writes (provider/endpoint flips redirect prompts+secrets) are
+	// bearer-gated HERE at registration — see requireBearerForWrites.
+	s.route("/api/llm/settings", s.requireBearerForWrites(s.handleLLMSettings))
+	s.route("/api/llm/models", s.handleLLMModels)
+	s.route("/api/llm/test", s.requireBearer(s.handleLLMTest))
 	// Quantum provider settings (human selection surface; secrets stay
-	// in env/Bao and are never accepted here).
-	s.mux.HandleFunc("/api/quantum/settings", s.handleQuantumSettings)
-	s.mux.HandleFunc("/api/quantum/backends", s.handleQuantumBackends)
+	// in env/Bao and are never accepted here). Same mixed posture as LLM
+	// settings: public reads, registration-gated writes.
+	s.route("/api/quantum/settings", s.requireBearerForWrites(s.handleQuantumSettings))
+	s.route("/api/quantum/backends", s.handleQuantumBackends)
 	// Human quantum dispatch proxy (R-34) + provider cancel (R-33).
 	// Spend authority lives in the Python rail; these routes authenticate,
 	// authorize, validate, and proxy — never reserve QPU spend themselves.
-	s.mux.HandleFunc("/api/quantum/jobs", s.requireBearer(s.handleQuantumJobs))
-	s.mux.HandleFunc("/api/quantum/jobs/", s.requireBearer(s.handleQuantumJobActions))
+	s.route("/api/quantum/jobs", s.requireBearer(s.handleQuantumJobs))
+	s.route("/api/quantum/jobs/", s.requireBearer(s.handleQuantumJobActions))
 	// Live canary proxy (public read like fleet; TTL-cached, fails soft
 	// to declared catalog values — see quantum_canary.go).
-	s.mux.HandleFunc("/api/quantum/canary", s.handleQuantumCanary)
+	s.route("/api/quantum/canary", s.handleQuantumCanary)
 
 	// Workflow engine execution and planning routes (Phase 3).
 	// Planning is read-only validation against tools (session-scoped);
 	// running executes MCP steps and requires dispatch autonomy.
-	s.mux.HandleFunc("/api/workflows/plan", s.requireBearer(s.handleWorkflowPlan))
-	s.mux.HandleFunc("/api/workflows/run", s.requireBearer(s.handleWorkflowRun))
+	s.route("/api/workflows/plan", s.requireBearer(s.handleWorkflowPlan))
+	s.route("/api/workflows/run", s.requireBearer(s.handleWorkflowRun))
 
 	// Vault Dynamic Leases (OpenBao sidecar bridge)
-	s.mux.HandleFunc("/api/vault/leases", s.requireBearer(s.handleVaultLeases))
-	s.mux.HandleFunc("/api/vault/leases/revoke", s.requireBearer(s.handleVaultLeaseRevoke))
+	s.route("/api/vault/leases", s.requireBearer(s.handleVaultLeases))
+	s.route("/api/vault/leases/revoke", s.requireBearer(s.handleVaultLeaseRevoke))
 
 	// A2A Inter-Agent Protocol & x402 payment rails
-	s.mux.HandleFunc("/api/a2a/v1", s.requireA2AAuth(s.handleA2A))
-	s.mux.HandleFunc("/api/a2a/v1/challenge", s.requireA2AAuth(s.handleA2AChallenge))
+	s.route("/api/a2a/v1", s.requireA2AAuth(s.handleA2A))
+	s.route("/api/a2a/v1/challenge", s.requireA2AAuth(s.handleA2AChallenge))
 
 	// Live Telemetry Event Stream (SSE) & Spatial Canvas Layouts
-	s.mux.HandleFunc("/api/events/stream", s.handleEventsStream)
-	s.mux.HandleFunc("/api/canvas/layout", s.handleCanvasLayout)
+	s.route("/api/events/stream", s.handleEventsStream)
+	s.route("/api/canvas/layout", s.handleCanvasLayout)
 	// Observatory lens: spend-authority writes get edge auth (F-13 — a bare
 	// session UUID must never be able to bill the lab's budget).
-	s.mux.HandleFunc("/api/observatory/lens", s.requireBearer(s.handleObservatoryLens))
+	s.route("/api/observatory/lens", s.requireBearer(s.handleObservatoryLens))
 
 	// Vault pre-registration: sealed expectations and surprise evaluations
 	// (reads are session-scoped, writes bill attention — both edge-authed).
-	s.mux.HandleFunc("/api/vault/predictions/seal", s.requireBearer(s.handlePredictionSeal))
-	s.mux.HandleFunc("/api/vault/predictions/evaluate", s.requireBearer(s.handlePredictionEvaluate))
-	s.mux.HandleFunc("/api/vault/predictions/latest", s.requireBearer(s.handlePredictionLatest))
-	s.mux.HandleFunc("/api/vault/predictions/assert", s.requireBearer(s.handlePredictionAssert))
-	s.mux.HandleFunc("/api/vault/predictions/calibration", s.requireBearer(s.handlePredictionCalibration))
-	s.mux.HandleFunc("/api/vault/predictions/history", s.requireBearer(s.handlePredictionHistory))
+	s.route("/api/vault/predictions/seal", s.requireBearer(s.handlePredictionSeal))
+	s.route("/api/vault/predictions/evaluate", s.requireBearer(s.handlePredictionEvaluate))
+	s.route("/api/vault/predictions/latest", s.requireBearer(s.handlePredictionLatest))
+	s.route("/api/vault/predictions/assert", s.requireBearer(s.handlePredictionAssert))
+	s.route("/api/vault/predictions/calibration", s.requireBearer(s.handlePredictionCalibration))
+	s.route("/api/vault/predictions/history", s.requireBearer(s.handlePredictionHistory))
 
 	// Observatory asset upload + operation resolve (P1 rails).
-	s.mux.HandleFunc("/api/observatory/assets", s.requireBearer(s.handleObservatoryAsset))
-	s.mux.HandleFunc("/api/observatory/lens/resolve", s.requireBearer(s.handleObservatoryLensResolve))
-	s.mux.HandleFunc("/api/observatory/lens/history", s.requireBearer(s.handleObservatoryLensHistory))
+	s.route("/api/observatory/assets", s.requireBearer(s.handleObservatoryAsset))
+	s.route("/api/observatory/lens/resolve", s.requireBearer(s.handleObservatoryLensResolve))
+	s.route("/api/observatory/lens/history", s.requireBearer(s.handleObservatoryLensHistory))
 	// Atlas webhook delivery (P6): PUBLIC route — the Ed25519 v1a signature
 	// is the authentication (Atlas cannot present our bearer). Verification
 	// before any state change; poll+resolve stays the correctness path.
-	s.mux.HandleFunc("/api/observatory/webhooks", s.handleObservatoryWebhook)
+	s.route("/api/observatory/webhooks", s.handleObservatoryWebhook)
 
 	// Molecular Science & 12-Agent Drug Discovery Pipeline
-	s.mux.HandleFunc("/api/chemistry/admet", s.handleChemistryADMET)
-	s.mux.HandleFunc("/api/discovery/pipeline", s.handleDiscoveryPipeline)
+	s.route("/api/chemistry/admet", s.handleChemistryADMET)
+	s.route("/api/discovery/pipeline", s.handleDiscoveryPipeline)
 
 	// Post-Quantum Cryptography Spend Mandates (ML-KEM-768 + AES-256-GCM)
-	s.mux.HandleFunc("/api/mandates/pqc-key", s.handlePQCPublicKey)
-	s.mux.HandleFunc("/api/mandates/pqc-verify", s.requireBearer(s.handlePQCVerify))
+	s.route("/api/mandates/pqc-key", s.handlePQCPublicKey)
+	s.route("/api/mandates/pqc-verify", s.requireBearer(s.handlePQCVerify))
 
 	// QIR Compilation & Lowering
-	s.mux.HandleFunc("/api/qir/compile", s.handleQIRCompile)
+	s.route("/api/qir/compile", s.handleQIRCompile)
 	// Circuit co-design scoring (read-only; validity stays Python-owned)
-	s.mux.HandleFunc("/api/codesign/tq", s.handleCodesignTQ)
-	s.mux.HandleFunc("/api/codesign/frontier", s.handleCodesignFrontier)
+	s.route("/api/codesign/tq", s.handleCodesignTQ)
+	s.route("/api/codesign/frontier", s.handleCodesignFrontier)
 	// Evaluator proxy (Phase 1 migration): stateless Python compute only.
-	s.mux.HandleFunc("/api/codesign/evaluate", s.handleCodesignEvaluate)
-	s.mux.HandleFunc("/api/codesign/evaluate-batch", s.handleCodesignEvaluateBatch)
-	s.mux.HandleFunc("/api/codesign/families", s.handleCodesignFamilies)
-	s.mux.HandleFunc("/api/codesign/budget", s.handleCodesignBudget)
+	s.route("/api/codesign/evaluate", s.handleCodesignEvaluate)
+	s.route("/api/codesign/evaluate-batch", s.handleCodesignEvaluateBatch)
+	s.route("/api/codesign/families", s.handleCodesignFamilies)
+	s.route("/api/codesign/budget", s.handleCodesignBudget)
 	// Verified results (G4): versioned JSON, numbers not verdicts.
-	s.mux.HandleFunc("/api/codesign/verified", s.handleCodesignVerified)
+	s.route("/api/codesign/verified", s.handleCodesignVerified)
 	// Pack registry (ux-plan slice 4): served live, never hand-typed.
-	s.mux.HandleFunc("/api/codesign/packs", s.handleCodesignPacks)
+	s.route("/api/codesign/packs", s.handleCodesignPacks)
 
-	// Quantum Krylov Subspace & Mitigation Endpoints
-	s.mux.HandleFunc("/api/krylov/solve", s.handleKrylovSolve)
-	s.mux.HandleFunc("/api/mitigation/apply", s.handleMitigationApply)
-	s.mux.HandleFunc("/api/cost/settle", s.handlePaymentSettle)
+	// Quantum Krylov Subspace & Mitigation Endpoints. Spend-adjacent:
+	// both proxy metered quantum compute through the bridge with no
+	// mandate/admission gate of their own, so both sit behind the bearer
+	// rail (fail-closed 503 without a bridge either way).
+	s.route("/api/krylov/solve", s.requireBearer(s.handleKrylovSolve))
+	s.route("/api/mitigation/apply", s.requireBearer(s.handleMitigationApply))
+	// x402 settlement mints ledger receipts: bearer-gated + idempotent
+	// (request_id) inside the handler. Anonymous callers 401 before any
+	// challenge state is touched.
+	s.route("/api/cost/settle", s.requireBearer(s.handlePaymentSettle))
 	// Spend visibility (G10): read-only LLM cost summary for the console.
 	// Aggregates only (no per-session/tenant attribution is recorded);
 	// heuristic estimates, never metered billing.
-	s.mux.HandleFunc("/api/cost/summary", s.handleCostSummary)
+	s.route("/api/cost/summary", s.handleCostSummary)
 
 	// Hugging Face Model Hub & In-Platform Downloader
 	// W2.1 threat model: reads stay public behind limiters in general,
@@ -642,40 +693,43 @@ func (s *Server) registerRoutes() {
 	// "search" fans out to huggingface.co and caches), so every HF route
 	// is an operator-gated write-class rail: bearer auth, no anonymous
 	// fetch-or-store primitive.
-	s.mux.HandleFunc("/api/hf/search", s.requireBearer(s.handleHFSearch))
-	s.mux.HandleFunc("/api/hf/models/", s.requireBearer(s.handleHFModelDetails))
-	s.mux.HandleFunc("/api/hf/download", s.requireBearer(s.handleHFDownload))
-	s.mux.HandleFunc("/api/hf/downloads", s.requireBearer(s.handleHFDownloads))
-	s.mux.HandleFunc("/api/hf/downloads/", s.requireBearer(s.handleHFDownloadAction))
+	s.route("/api/hf/search", s.requireBearer(s.handleHFSearch))
+	s.route("/api/hf/models/", s.requireBearer(s.handleHFModelDetails))
+	s.route("/api/hf/download", s.requireBearer(s.handleHFDownload))
+	s.route("/api/hf/downloads", s.requireBearer(s.handleHFDownloads))
+	s.route("/api/hf/downloads/", s.requireBearer(s.handleHFDownloadAction))
 
 	// Custom Agents & Multimodal Mesh Router
 	// K3: agent create/delete are registry mutations — bearer-gated like
 	// the other operator mutations (same human-paced limiter bucket).
-	// Listing stays public.
-	s.mux.HandleFunc("/api/agents/custom", s.handleCustomAgents)
-	s.mux.HandleFunc("/api/agents/custom/", s.handleCustomAgentByID)
-	s.mux.HandleFunc("/api/mesh/route", s.handleMeshRoute)
+	// Listing stays public. The gate lives HERE at registration (not as an
+	// inner checkAuth inside the handlers) so the policy table pins it.
+	s.route("/api/agents/custom", s.requireBearerForWrites(s.handleCustomAgents))
+	s.route("/api/agents/custom/", s.requireBearer(s.handleCustomAgentByID))
+	// Mesh routing is a stateless, spend-free routing decision (no jobs, no
+	// ledger writes, no secrets): public by policy-table justification.
+	s.route("/api/mesh/route", s.handleMeshRoute)
 	// W2.1 threat model: ledger append forges tribunal/review provenance
 	// and the abort rail is an availability kill-switch — both are writes,
 	// so both get edge auth + their own limiter. Reads stay public behind
 	// limiters; these two never serve anonymous callers.
-	s.mux.HandleFunc("/api/ledger/append", s.requireBearer(s.handleLedgerAppend))
-	s.mux.HandleFunc("/api/ledger/export", s.handleLedgerExport)
-	s.mux.HandleFunc("/api/supervisor/abort", s.requireBearer(s.handleSupervisorAbort))
-	s.mux.HandleFunc("/api/tenants", s.handleTenants)
-	s.mux.HandleFunc("/api/tenants/", s.handleTenantByID)
+	s.route("/api/ledger/append", s.requireBearer(s.handleLedgerAppend))
+	s.route("/api/ledger/export", s.handleLedgerExport)
+	s.route("/api/supervisor/abort", s.requireBearer(s.handleSupervisorAbort))
+	s.route("/api/tenants", s.handleTenants)
+	s.route("/api/tenants/", s.handleTenantByID)
 	// R4: spend-adjacent mutations sit behind the bearer rail as well as
 	// their own cryptographic envelopes. Tenant self-provisioning
 	// (POST /api/tenants) stays open by design — first SetAdminKey wins —
 	// but rate-limited against creation spam. Pure reads stay open.
-	s.mux.HandleFunc("/api/grants/register", s.requireBearer(s.handleGrantRegister))
-	s.mux.HandleFunc("/api/grants/revoke", s.requireBearer(s.handleGrantRevoke))
-	s.mux.HandleFunc("/api/tenants/admin-key", s.requireBearer(s.handleTenantAdminKey))
-	s.mux.HandleFunc("/api/tenants/ceiling", s.requireBearer(s.handleTenantCeiling))
-	s.mux.HandleFunc("/api/tenants/refund", s.requireBearer(s.handleTenantRefund))
-	s.mux.HandleFunc("/api/tenants/autonomy", s.requireBearer(s.handleTenantAutonomy))
-	s.mux.HandleFunc("/api/tenants/revoke", s.requireBearer(s.handleTenantRevoke))
-	s.mux.HandleFunc("/api/tenants/status", s.requireBearer(s.handleTenantStatus))
+	s.route("/api/grants/register", s.requireBearer(s.handleGrantRegister))
+	s.route("/api/grants/revoke", s.requireBearer(s.handleGrantRevoke))
+	s.route("/api/tenants/admin-key", s.requireBearer(s.handleTenantAdminKey))
+	s.route("/api/tenants/ceiling", s.requireBearer(s.handleTenantCeiling))
+	s.route("/api/tenants/refund", s.requireBearer(s.handleTenantRefund))
+	s.route("/api/tenants/autonomy", s.requireBearer(s.handleTenantAutonomy))
+	s.route("/api/tenants/revoke", s.requireBearer(s.handleTenantRevoke))
+	s.route("/api/tenants/status", s.requireBearer(s.handleTenantStatus))
 }
 
 func (s *Server) PQCKeypair() *mandates.RecipientKeypair {
@@ -1269,8 +1323,9 @@ func (s *Server) handleMandateVerify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Re-verifying the same signed mandate must not mint a second receipt or
-	// obligation: the route is public, so replay has to be a no-op (spam
-	// cannot grow the ledger). A missing obligation is healed on replay.
+	// obligation: the route is bearer-gated, but replay must still be a
+	// no-op (retries cannot grow the ledger). A missing obligation is
+	// healed on replay.
 	receipt, replay, rerr := s.existingMandateReceipt(req.TenantID, req.JobHash, req.SignatureHex)
 	if rerr != nil {
 		WriteAPIError(w, "server_misconfigured", "mandate replay registry unreadable: refusing verification", nil)
@@ -1808,9 +1863,9 @@ func (s *Server) handleSessionExport(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleSessionImport validates a manifest and activates it with ONE
-// ledger record (S5). Open like other session-content writes (chat POST,
-// jobs POST are open; validation is the control, not bearer —
-// bearer-gating here while chat stays open would be consistency theater).
+// ledger record (S5). Bearer-gated at registration: import mints sessions
+// (identity + spend attribution), so anonymous callers cannot mint them —
+// validation is the content control, the bearer is the identity control.
 // An already-present session ID replays the current export (200 +
 // replayed:true) instead of forking a duplicate.
 func (s *Server) handleSessionImport(w http.ResponseWriter, r *http.Request) {
@@ -3735,21 +3790,10 @@ func (s *Server) handleLLMSettings(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		writeJSON(w, http.StatusOK, s.llmSettings.GetPublicSnapshot())
 	case http.MethodPut, http.MethodPost:
-		// W0.19: reads stay public behind limiters; writes get edge auth.
-		// An unauthenticated settings write flips providers/endpoints —
-		// redirecting prompts (and their secrets) to an attacker URL.
-		switch _, _, code := s.checkAuth(r); code {
-		case http.StatusOK:
-		case http.StatusServiceUnavailable:
-			http.Error(w, "API token not configured: set KUBONA_API_TOKEN", http.StatusServiceUnavailable)
-			return
-		case http.StatusForbidden:
-			WriteAPIError(w, "forbidden", "cross-site session use refused: retry same-origin", nil)
-			return
-		default:
-			http.Error(w, "missing or invalid bearer token", http.StatusUnauthorized)
-			return
-		}
+		// W0.19: reads stay public behind limiters; writes get edge auth
+		// at REGISTRATION (requireBearerForWrites) — an unauthenticated
+		// settings write flips providers/endpoints, redirecting prompts
+		// (and their secrets) to an attacker URL.
 		var req llm.Settings
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "invalid request body", http.StatusBadRequest)
@@ -5260,15 +5304,47 @@ func (s *Server) handlePaymentSettle(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Receipt cost.PaymentReceipt `json:"receipt"`
 		Network string              `json:"network"`
+		// S1: optional content-bound idempotency key (see handleJobs).
+		// Same (scope, request_id, content) replays the stored receipt;
+		// same ID with different content 409s. Empty = current behavior.
+		RequestID string `json:"request_id"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
 
+	// S1: claim-or-replay before SettlePayment (settlement mints the
+	// ledger receipt below — a retried POST must not settle twice).
+	// The rail is session-keyed, so settlements scope under the shared
+	// payment-settlement scope const (never a copied literal).
+	idem, iref := s.idemBegin(idemScopePaymentSettle, req.RequestID, map[string]any{
+		"challenge_id": req.Receipt.ChallengeID, "token": req.Receipt.Token,
+		"amount": req.Receipt.Amount, "payer": req.Receipt.PayerPubHex,
+		"signature": req.Receipt.Signature, "timestamp": req.Receipt.Timestamp,
+		"network": req.Network,
+	}, idemRailJob)
+	if iref != nil {
+		iref.write(w)
+		return
+	}
+	if idem.replay {
+		s.idemReplay(w, idem)
+		return
+	}
+
 	pm := s.a2aServer.PaymentManager()
 	settlement, err := pm.SettlePayment(&req.Receipt, req.Network)
 	if err != nil {
+		// Failure envelope unchanged (200 + settled:false): sealed
+		// byte-identical when a key is present, served live otherwise.
+		raw, merr := json.Marshal(map[string]any{
+			"settled": false,
+			"error":   err.Error(),
+		})
+		if merr == nil && idem.active {
+			_, _ = s.ledger.IdemComplete(idem.sessionID, idem.requestID, http.StatusOK, "json", string(raw))
+		}
 		writeJSON(w, http.StatusOK, map[string]any{
 			"settled": false,
 			"error":   err.Error(),
@@ -5286,7 +5362,7 @@ func (s *Server) handlePaymentSettle(w http.ResponseWriter, r *http.Request) {
 		"payer":        req.Receipt.PayerPubHex,
 	}, req.Receipt.PayerPubHex, req.Receipt.Signature)
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	s.idemFinishJSON(w, idem, http.StatusOK, map[string]any{
 		"settled":   settlement.Settled,
 		"simulated": settlement.Simulated,
 		"reference": settlement.Reference,
@@ -5447,11 +5523,8 @@ func (s *Server) handleCustomAgents(w http.ResponseWriter, r *http.Request) {
 			"agents": s.customAgents.List(),
 		})
 	case http.MethodPost:
-		// K3: registry writes are operator mutations.
-		if _, _, code := s.checkAuth(r); code != http.StatusOK {
-			http.Error(w, "custom agent registration requires the operator token", code)
-			return
-		}
+		// K3: registry writes are operator mutations — gated at
+		// registration (requireBearerForWrites), not here.
 		if !s.tenantLimiter.allow(clientKey(r)) {
 			WriteAPIError(w, "rate_limited", "rate limit exceeded: slow down and retry", nil)
 			return
@@ -5492,11 +5565,8 @@ func (s *Server) handleCustomAgentByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if r.Method == http.MethodDelete {
-		// K3: registry deletes are operator mutations.
-		if _, _, code := s.checkAuth(r); code != http.StatusOK {
-			http.Error(w, "custom agent deletion requires the operator token", code)
-			return
-		}
+		// K3: registry deletes are operator mutations — gated at
+		// registration (requireBearer), not here.
 		if !s.tenantLimiter.allow(clientKey(r)) {
 			WriteAPIError(w, "rate_limited", "rate limit exceeded: slow down and retry", nil)
 			return

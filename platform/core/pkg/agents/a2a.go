@@ -134,6 +134,15 @@ type A2AServer struct {
 	// L0 refuses execution at dispatch; unknown tenants fail closed.
 	// Nil means unchecked (tests / standalone use).
 	autonomyChecker func(tenantID string) (string, error)
+	// mandateKeyChecker attributes a parent-mandate signing key to its
+	// tenant: the key must be the tenant's current admin key or a
+	// configured reviewer key (same rule as the HTTP mandate-verify path).
+	// A self-signed mandate naming a victim tenant refuses here — the
+	// signature alone is never authority to spend another lab's ceiling.
+	// Nil refuses every parent-mandate-bound task (fail-closed): without
+	// attribution there is no safe sub-mandate. Wire it via
+	// SetMandateKeyChecker; unmandated tasks are unaffected.
+	mandateKeyChecker func(tenantID, pubkeyHex string) error
 	// customAgents, when attached, constrains dispatches that name an
 	// agent_id to that manifest's declared scopes and spend envelope.
 	customAgents *CustomAgentRegistry
@@ -193,6 +202,16 @@ func (s *A2AServer) SetAutonomyChecker(checker func(tenantID string) (string, er
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.autonomyChecker = checker
+}
+
+// SetMandateKeyChecker attaches parent-mandate key→tenant attribution at
+// submit. The checker must answer whether pubkeyHex may authorize spend for
+// tenantID (tenant admin or reviewer rule). Nil (or an error, or a refusal)
+// fails closed on every task carrying a parent mandate.
+func (s *A2AServer) SetMandateKeyChecker(checker func(tenantID, pubkeyHex string) error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.mandateKeyChecker = checker
 }
 
 // SetCustomAgents attaches the custom-agent registry used to enforce
@@ -423,6 +442,19 @@ func (s *A2AServer) HandleRequest(req *JSONRPCRequest) *JSONRPCResponse {
 						Message: fmt.Sprintf("invalid parent mandate (sub-mandate refused): %v", err),
 					},
 				}
+			}
+			// Key→tenant binding (same rule as the HTTP mandate-verify path):
+			// a VALID signature from an UNATTRIBUTED key spends nobody's
+			// ceiling. Self-signed mandates naming a victim tenant refuse
+			// here, before any budget or lineage is recorded.
+			s.mu.RLock()
+			keyChecker := s.mandateKeyChecker
+			s.mu.RUnlock()
+			if keyChecker == nil {
+				return rpcError(req.ID, -32602, "parent mandate key attribution unavailable: sub-mandate refused (fail-closed)")
+			}
+			if err := keyChecker(pm.TenantID, pm.PublicKeyHex); err != nil {
+				return rpcError(req.ID, -32602, fmt.Sprintf("parent mandate key is not the tenant admin key: self-signed spend refused (%v)", err))
 			}
 			parentJobHash = pm.JobHash
 			tenantID = pm.TenantID

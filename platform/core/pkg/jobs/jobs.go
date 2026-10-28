@@ -407,13 +407,27 @@ func (r *Runner) SyncQuantumBridgeJobStatus(jobID, bridgeStatus, resultJSON stri
 				j.CompletedAt = &now
 				// Settle the reservation down to measured usage when the
 				// provider reports it; the estimate is a ceiling, not the bill.
+				// P0: actual_usd is a POINTER — a completion LACKING actual_usd
+				// unmarshals to nil (unknown), never to 0. Settling an unknown
+				// 0 would refund the entire estimate as if nothing ran. Settle
+				// ONLY when usage is present, finite, and within
+				// 0 <= actual <= reserved; otherwise the reservation stands and
+				// a settlement_skipped_unknown_usage event seals why.
 				var usage struct {
 					Result struct {
-						ActualUSD float64 `json:"actual_usd"`
+						ActualUSD *float64 `json:"actual_usd"`
 					} `json:"result"`
 				}
-				if uerr := json.Unmarshal([]byte(resultJSON), &usage); uerr == nil && usage.Result.ActualUSD >= 0 {
-					r.settleReservation(j, usage.Result.ActualUSD)
+				if uerr := json.Unmarshal([]byte(resultJSON), &usage); uerr != nil {
+					r.emitSettlementSkipped(j, "result_unreadable")
+				} else if usage.Result.ActualUSD == nil {
+					r.emitSettlementSkipped(j, "actual_usd_missing")
+				} else if actual := *usage.Result.ActualUSD; math.IsNaN(actual) || math.IsInf(actual, 0) || actual < 0 {
+					r.emitSettlementSkipped(j, "actual_usd_not_finite_nonnegative")
+				} else if j.ReservedAmount > 0 && actual > j.ReservedAmount {
+					r.emitSettlementSkipped(j, "actual_usd_above_reserved")
+				} else {
+					r.settleReservation(j, actual)
 				}
 				_ = r.ledger.AppendEvent(j.SessionID, "job_settled", j)
 			}
@@ -654,6 +668,22 @@ func (r *Runner) releaseReservation(jobID string) {
 	}
 	_ = r.tenantStore().ReleaseSpend(tenant, amount)
 	_ = r.sessionMgr.ReleaseSpend(sessionID, amount)
+}
+
+// emitSettlementSkipped seals WHY a completed job kept its full estimate
+// reservation (P0 backfill: unknown usage never refunds). The reservation
+// stands — this event is the audit trail, keyed by the shared taxonomy
+// const (never a copied literal).
+func (r *Runner) emitSettlementSkipped(j *Job, reason string) {
+	if j == nil {
+		return
+	}
+	_ = r.ledger.AppendEvent(j.SessionID, ledger.SettlementSkippedUnknownUsageEvent, map[string]any{
+		"job_id":              j.ID,
+		"reserved_amount_usd": j.ReservedAmount,
+		"reserved_tenant":     j.ReservedTenant,
+		"reason":              reason,
+	})
 }
 
 // settleReservation releases the difference between the estimate reservation

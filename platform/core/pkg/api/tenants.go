@@ -90,6 +90,27 @@ func (s *Server) handleTenantByID(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "missing tenant id", http.StatusBadRequest)
 		return
 	}
+	// D-09 caller-vs-tenant binding (same rule as the list above): tenant
+	// rows carry admin key ids and spend totals, so an unscoped read leaks
+	// the estate lab by lab. Anonymous reads only while the store holds a
+	// single lab (same tenants-table count as the list); lab callers read
+	// only their own row; bearer reads all.
+	if hasNoCredentials(r) {
+		all, err := s.tenantMgr.ListTenants()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if len(all) > 1 {
+			WriteAPIError(w, "unauthorized", "multi-lab store: log in or present the operator token to read labs", nil)
+			return
+		}
+	} else if tenant, ok := s.checkCallerAuth(w, r); !ok {
+		return
+	} else if tenant != "" && tenant != id {
+		WriteAPIError(w, "forbidden", "tenant belongs to another lab: refused", nil)
+		return
+	}
 	t, err := s.tenantMgr.GetTenant(id)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)

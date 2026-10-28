@@ -32,10 +32,26 @@ type PaymentReceipt struct {
 	Timestamp   int64  `json:"timestamp"`
 }
 
-// PaymentManager manages x402 payment challenges and receipt verification
+// PaymentManager manages x402 payment challenges and receipt verification.
+// Challenge lifecycle is a three-state machine — challenge → authorized →
+// settled — so a real payment authorizes once and settles once:
+//
+//	challenge open:      issued by GenerateChallenge, awaiting a receipt.
+//	authorized:           VerifyPayment checked the Ed25519 receipt against
+//	                     the challenge (token+amount+recipient binding).
+//	                     Authorization is single-use: a second VerifyPayment
+//	                     refuses (replay protection).
+//	settled:              SettlePayment finalized the authorized challenge
+//	                     into a local-only Settlement record. Settling twice
+//	                     refuses (already settled).
+//
+// The old shape marked authorized inside VerifyPayment under the settled
+// flag, so SettlePayment (which re-verified) always 400'd "already settled"
+// and no real payment could ever settle. The two flags are separate now.
 type PaymentManager struct {
 	mu         sync.RWMutex
 	challenges map[string]*PaymentChallenge
+	authorized map[string]bool
 	settled    map[string]bool
 	recipient  string
 }
@@ -47,6 +63,7 @@ func NewPaymentManager(recipient string) *PaymentManager {
 	}
 	return &PaymentManager{
 		challenges: make(map[string]*PaymentChallenge),
+		authorized: make(map[string]bool),
 		settled:    make(map[string]bool),
 		recipient:  recipient,
 	}
@@ -99,6 +116,13 @@ func (m *PaymentManager) GenerateChallenge(token, amount string) (*PaymentChalle
 			}
 		}
 	}
+	for id, done := range m.authorized {
+		if done {
+			if _, ok := m.challenges[id]; !ok {
+				delete(m.authorized, id)
+			}
+		}
+	}
 	if len(m.challenges) >= maxOpenChallenges {
 		return nil, fmt.Errorf("challenge registry full: refusing (never grow unbounded)")
 	}
@@ -129,7 +153,9 @@ func (m *PaymentManager) FormatWWWAuthenticate(c *PaymentChallenge) string {
 		c.Token, c.Amount, c.Recipient, c.ChallengeID, c.ExpiresAt.Unix())
 }
 
-// VerifyPayment validates a signed payment receipt against the open challenge
+// VerifyPayment validates a signed payment receipt against the open challenge.
+// Success moves the challenge open → authorized (single-use: a second verify
+// refuses, settled or not). Settlement is a separate step — see SettlePayment.
 func (m *PaymentManager) VerifyPayment(receipt *PaymentReceipt) (bool, error) {
 	if receipt == nil {
 		return false, fmt.Errorf("receipt is nil")
@@ -151,48 +177,61 @@ func (m *PaymentManager) VerifyPayment(receipt *PaymentReceipt) (bool, error) {
 	if m.settled[receipt.ChallengeID] {
 		return false, fmt.Errorf("challenge %s already settled (replay protection)", receipt.ChallengeID)
 	}
+	if m.authorized[receipt.ChallengeID] {
+		return false, fmt.Errorf("challenge %s already authorized (replay protection)", receipt.ChallengeID)
+	}
 
-	// W0.17 exact challenge match: the receipt's token and amount must equal
+	if err := checkReceiptAgainstChallenge(receipt, challenge); err != nil {
+		return false, err
+	}
+
+	m.authorized[receipt.ChallengeID] = true
+	return true, nil
+}
+
+// checkReceiptAgainstChallenge enforces the exact challenge match plus the
+// Ed25519 payer authorization over the challenge payload. It is the single
+// crypto core shared by VerifyPayment (authorize) and SettlePayment
+// (finalize): one verifier, never two that can rot apart.
+func checkReceiptAgainstChallenge(receipt *PaymentReceipt, challenge *PaymentChallenge) error { // W0.17 exact challenge match: the receipt's token and amount must equal
 	// the challenged ones. The signature authorizes the CHALLENGE payload —
 	// without this comparison a $0.05 authorization settled with receipt
 	// fields claiming $100 in another token (settlement records use the
 	// receipt's fields). Amounts compare as exact rationals, so "0.05" and
 	// "0.050" match while anything else refuses.
 	if receipt.Token != challenge.Token {
-		return false, fmt.Errorf("receipt token %q does not match challenged %q: refusing", receipt.Token, challenge.Token)
+		return fmt.Errorf("receipt token %q does not match challenged %q: refusing", receipt.Token, challenge.Token)
 	}
 	wantAmt, err := parseAmount(challenge.Amount)
 	if err != nil {
-		return false, fmt.Errorf("stored challenge amount corrupt: %w", err)
+		return fmt.Errorf("stored challenge amount corrupt: %w", err)
 	}
 	gotAmt, err := parseAmount(receipt.Amount)
 	if err != nil {
-		return false, fmt.Errorf("receipt amount invalid: %w", err)
+		return fmt.Errorf("receipt amount invalid: %w", err)
 	}
 	if wantAmt.Cmp(gotAmt) != 0 {
-		return false, fmt.Errorf("receipt amount %q does not match challenged %q: refusing", receipt.Amount, challenge.Amount)
+		return fmt.Errorf("receipt amount %q does not match challenged %q: refusing", receipt.Amount, challenge.Amount)
 	}
 
 	// Verify public key format
 	pubBytes, err := hex.DecodeString(receipt.PayerPubHex)
 	if err != nil || len(pubBytes) != ed25519.PublicKeySize {
-		return false, fmt.Errorf("invalid ed25519 payer public key: %v", err)
+		return fmt.Errorf("invalid ed25519 payer public key: %v", err)
 	}
 
 	// Verify signature format
 	sigBytes, err := hex.DecodeString(receipt.Signature)
 	if err != nil || len(sigBytes) != ed25519.SignatureSize {
-		return false, fmt.Errorf("invalid ed25519 signature format: %v", err)
+		return fmt.Errorf("invalid ed25519 signature format: %v", err)
 	}
 
 	// Message is hash of challenge payload
 	msgHash := sha256.Sum256([]byte(challenge.Payload))
 	if !ed25519.Verify(pubBytes, msgHash[:], sigBytes) {
-		return false, fmt.Errorf("cryptographic signature verification failed for x402 payment")
+		return fmt.Errorf("cryptographic signature verification failed for x402 payment")
 	}
-
-	m.settled[receipt.ChallengeID] = true
-	return true, nil
+	return nil
 }
 
 // ParseAuthorizationHeader extracts a PaymentReceipt from "Authorization: x402 ..." header
@@ -248,10 +287,30 @@ type Settlement struct {
 	Settled   bool   `json:"settled"`
 }
 
-// SettlePayment finalizes payment against an escrow ledger or payment network
+// SettlePayment finalizes payment against an escrow ledger or payment network.
+// It moves the challenge authorized → settled (or open → settled when the
+// payer settles without a prior VerifyPayment call — the crypto verifies
+// either way). A real payment settles exactly once: settling an already
+// settled challenge refuses.
 func (m *PaymentManager) SettlePayment(receipt *PaymentReceipt, network string) (*Settlement, error) {
-	ok, err := m.VerifyPayment(receipt)
-	if !ok || err != nil {
+	if receipt == nil {
+		return nil, fmt.Errorf("payment verification failed: receipt is nil")
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	challenge, exists := m.challenges[receipt.ChallengeID]
+	if !exists {
+		return nil, fmt.Errorf("payment verification failed: challenge %s not found or expired", receipt.ChallengeID)
+	}
+	if time.Now().UTC().After(challenge.ExpiresAt) {
+		delete(m.challenges, receipt.ChallengeID)
+		return nil, fmt.Errorf("payment verification failed: challenge %s has expired", receipt.ChallengeID)
+	}
+	if m.settled[receipt.ChallengeID] {
+		return nil, fmt.Errorf("payment verification failed: challenge %s already settled (settlement is single-use)", receipt.ChallengeID)
+	}
+	if err := checkReceiptAgainstChallenge(receipt, challenge); err != nil {
 		return nil, fmt.Errorf("payment verification failed: %w", err)
 	}
 
@@ -263,9 +322,8 @@ func (m *PaymentManager) SettlePayment(receipt *PaymentReceipt, network string) 
 	txHash := sha256.Sum256([]byte(txData))
 	ref := "local:" + hex.EncodeToString(txHash[:])
 
-	m.mu.Lock()
+	m.authorized[receipt.ChallengeID] = true
 	m.settled[receipt.ChallengeID] = true
-	m.mu.Unlock()
 
 	return &Settlement{Reference: ref, Network: network, Simulated: true, Settled: true}, nil
 }

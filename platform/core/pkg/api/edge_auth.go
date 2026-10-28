@@ -48,6 +48,26 @@ func (s *Server) requireBearer(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// requireBearerForWrites gates only state-changing methods (POST/PUT/DELETE)
+// on mixed routes whose reads stay public (settings snapshots, agent
+// listings). It is a REGISTRATION-time wrapper so the auth posture is
+// visible in registerRoutes and pinned by the route policy table — inner
+// handler checkAuth switches for the same job are the class this kills
+// (a re-registration that drops the wrapper fails the policy test, while
+// a deleted inner check compiled silently). Reads pass through untouched;
+// CSRF 403s keep their status exactly like requireBearer.
+func (s *Server) requireBearerForWrites(next http.HandlerFunc) http.HandlerFunc {
+	gated := s.requireBearer(next)
+	return func(w http.ResponseWriter, r *http.Request) {
+		switch r.Method {
+		case http.MethodPost, http.MethodPut, http.MethodDelete, http.MethodPatch:
+			gated(w, r)
+		default:
+			next(w, r)
+		}
+	}
+}
+
 // requireA2AAuth gates A2A with the operator token without stealing the
 // `Authorization` header: x402 payments use that header for the signed
 // challenge. Non-payment methods may send `Authorization: Bearer …`;

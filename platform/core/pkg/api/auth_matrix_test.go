@@ -28,6 +28,14 @@ func TestStateChangingRoutesRefuseAnonymous(t *testing.T) {
 		{http.MethodGet, "/api/memory/recall?session_id=x"},
 		{http.MethodPost, "/api/memory/retain"},
 		{http.MethodPost, "/api/mandates/pqc-verify"},
+		// Phase-0 gates: spend/compute writers that were reachable
+		// without any credential (mandate verification mints ledger
+		// receipts + obligations; settle mints settlement receipts;
+		// krylov/mitigation proxy metered compute).
+		{http.MethodPost, "/api/mandates/verify"},
+		{http.MethodPost, "/api/cost/settle"},
+		{http.MethodPost, "/api/krylov/solve"},
+		{http.MethodPost, "/api/mitigation/apply"},
 	}
 	for _, c := range cases {
 		req := httptest.NewRequest(c.method, c.path, strings.NewReader("{}"))

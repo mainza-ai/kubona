@@ -216,6 +216,14 @@ func TestA2AServer_SubMandateCapEnforced(t *testing.T) {
 	if err != nil {
 		t.Fatalf("sign parent: %v", err)
 	}
+	// Key→tenant attribution fixture: the test key is tenant-a's admin.
+	// Production wires the tenant registry + reviewer key here.
+	server.SetMandateKeyChecker(func(tenantID, pubkeyHex string) error {
+		if tenantID == "tenant-a" && pubkeyHex == parent.PublicKeyHex {
+			return nil
+		}
+		return errors.New("key is not the tenant admin key")
+	})
 
 	// Within budget: accepted and bound recorded.
 	task := submitTask(t, server, TaskSubmitParams{
@@ -249,6 +257,37 @@ func TestA2AServer_SubMandateCapEnforced(t *testing.T) {
 	resp = server.HandleRequest(&JSONRPCRequest{JSONRPC: "2.0", ID: 14, Method: "a2a.SubmitTask", Params: tampRaw})
 	if resp.Error == nil {
 		t.Fatalf("expected refusal for tampered parent mandate, got %+v", resp.Result)
+	}
+
+	// Valid signature, unattributed key (self-signed for a victim tenant):
+	// refused at the key→tenant binding even though crypto passes.
+	_, evilPriv, _ := ed25519.GenerateKey(nil)
+	evil, err := mandates.SignMandate(evilPriv, "tenant-a", "jobhash-parent", 50.0, time.Now().UTC().Add(time.Hour))
+	if err != nil {
+		t.Fatalf("sign evil parent: %v", err)
+	}
+	evilRaw, _ := json.Marshal(TaskSubmitParams{
+		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
+		Scopes:       []string{"molecular_ground_state_pyscf"},
+		MaxBudgetUSD: 10.0, ParentMandate: evil,
+	})
+	resp = server.HandleRequest(&JSONRPCRequest{JSONRPC: "2.0", ID: 15, Method: "a2a.SubmitTask", Params: evilRaw})
+	if resp.Error == nil {
+		t.Fatalf("self-signed parent mandate for a victim tenant must refuse, got %+v", resp.Result)
+	}
+
+	// No attribution checker wired: every parent-mandate-bound task refuses
+	// fail-closed (unmandated tasks are unaffected — proven by the other
+	// tests on checker-less servers).
+	bare := NewA2AServer("0x123", nil, nil)
+	bare.SetTaskExecutor(&fakeExecutor{result: map[string]any{"ok": true}})
+	goodRaw, _ := json.Marshal(TaskSubmitParams{
+		TaskType: "molecular_ground_state_pyscf", Payload: json.RawMessage(`{"molecule":"H2"}`),
+		Scopes:       []string{"molecular_ground_state_pyscf"},
+		MaxBudgetUSD: 10.0, ParentMandate: parent,
+	})
+	if resp := bare.HandleRequest(&JSONRPCRequest{JSONRPC: "2.0", ID: 16, Method: "a2a.SubmitTask", Params: goodRaw}); resp.Error == nil {
+		t.Fatalf("parent mandate without an attribution checker must refuse fail-closed, got %+v", resp.Result)
 	}
 }
 

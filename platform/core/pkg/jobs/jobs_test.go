@@ -2,8 +2,8 @@ package jobs
 
 import (
 	"context"
+	"crypto/ed25519"
 	"encoding/json"
-	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -93,6 +93,34 @@ func pollJob(t *testing.T, r *Runner, id string) *Job {
 	}
 	t.Fatalf("job %s never settled", id)
 	return nil
+}
+
+// seedSignedMandateReceipt inserts a mandate_verified_client receipt whose
+// payload carries a REAL Ed25519 signature over the canonical mandate
+// bytes (admission re-verifies crypto — unsigned or tampered rows refuse).
+// The payload is the signed mandate itself, so tenant/budget/binding/expiry
+// refusals below exercise the crypto-bound fields, not bare strings.
+func seedSignedMandateReceipt(t *testing.T, l *ledger.Ledger, sessionID, entryHash, tenantID, jobHash string, budget float64) {
+	t.Helper()
+	_, priv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatalf("keygen: %v", err)
+	}
+	m, err := mandates.SignMandate(priv, tenantID, jobHash, budget, time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("sign mandate: %v", err)
+	}
+	payload, err := json.Marshal(m)
+	if err != nil {
+		t.Fatalf("marshal mandate: %v", err)
+	}
+	if _, err := l.DB().Exec(
+		`INSERT INTO ledger_events (timestamp, session_id, tenant_id, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"2026-10-09T00:00:00Z", sessionID, tenantID, "mandate_verified_client", string(payload),
+		"0", entryHash, m.PublicKeyHex, m.SignatureHex,
+	); err != nil {
+		t.Fatalf("seed receipt: %v", err)
+	}
 }
 
 func TestRunnerAllJobTypesSettle(t *testing.T) {
@@ -327,16 +355,10 @@ func TestAdmissionQPUNeedsMandateReceipt(t *testing.T) {
 		t.Fatalf("simulator job must complete: %+v", settled)
 	}
 
-	// Seed a verified mandate receipt (tenant default, $100, unexpired).
-	payload := fmt.Sprintf(`{"tenant_id":"default","job_hash":"%s","max_budget_usd":100,"expiry_timestamp":"2030-01-01T00:00:00Z"}`,
-		mandates.CanonicalJobBinding("circuit_run", "sess-qpu", "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"))
-	if _, err := l.DB().Exec(
-		`INSERT INTO ledger_events (timestamp, session_id, tenant_id, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		"2026-10-09T00:00:00Z", "sess-qpu", "default", "mandate_verified_client", payload,
-		"0", "receipt-hash-1", "pub", "sig",
-	); err != nil {
-		t.Fatalf("seed receipt: %v", err)
-	}
+	// Seed a verified mandate receipt (tenant default, $100, unexpired,
+	// really signed — admission re-verifies the Ed25519 signature).
+	seedSignedMandateReceipt(t, l, "sess-qpu", "receipt-hash-1", "default",
+		mandates.CanonicalJobBinding("circuit_run", "sess-qpu", "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"), 100)
 	qpu["mandate_ref"] = "receipt-hash-1"
 	j2, err := r.SubmitJob("sess-qpu", "circuit_run", qpu)
 	if err != nil {
@@ -353,16 +375,10 @@ func TestAdmissionQPUNeedsMandateReceipt(t *testing.T) {
 		t.Fatalf("job above mandate budget must refuse")
 	}
 
-	// Wrong-tenant receipt: refused.
-	badPayload := fmt.Sprintf(`{"tenant_id":"lab-other","job_hash":"%s","max_budget_usd":10000,"expiry_timestamp":"2030-01-01T00:00:00Z"}`,
-		mandates.CanonicalJobBinding("circuit_run", "sess-qpu", "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"))
-	if _, err := l.DB().Exec(
-		`INSERT INTO ledger_events (timestamp, session_id, tenant_id, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		"2026-10-09T00:00:00Z", "sess-qpu", "default", "mandate_verified_client", badPayload,
-		"0", "receipt-hash-2", "pub", "sig",
-	); err != nil {
-		t.Fatalf("seed receipt: %v", err)
-	}
+	// Wrong-tenant receipt: refused (signed, so the refusal names the
+	// tenant binding — crypto passes, attribution fails).
+	seedSignedMandateReceipt(t, l, "sess-qpu", "receipt-hash-2", "lab-other",
+		mandates.CanonicalJobBinding("circuit_run", "sess-qpu", "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"), 10000)
 	qpu["mandate_ref"] = "receipt-hash-2"
 	qpu["max_cost_usd"] = 25.0
 	if _, err := r.SubmitJob("sess-qpu", "circuit_run", qpu); err == nil {
@@ -371,14 +387,7 @@ func TestAdmissionQPUNeedsMandateReceipt(t *testing.T) {
 	// W0.4: receipt bound to a DIFFERENT program refuses even when tenant
 	// and budget cover — a mandate for one circuit cannot ride another.
 	otherBinding := mandates.CanonicalJobBinding("circuit_run", "sess-qpu", "OPENQASM 2.0;\nqreg q[9];\ncreg c[9];\n")
-	otherPayload := fmt.Sprintf(`{"tenant_id":"default","job_hash":"%s","max_budget_usd":100,"expiry_timestamp":"2030-01-01T00:00:00Z"}`, otherBinding)
-	if _, err := l.DB().Exec(
-		`INSERT INTO ledger_events (timestamp, session_id, tenant_id, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		"2026-10-09T00:00:00Z", "sess-qpu", "default", "mandate_verified_client", otherPayload,
-		"0", "receipt-hash-3", "pub", "sig",
-	); err != nil {
-		t.Fatalf("seed receipt: %v", err)
-	}
+	seedSignedMandateReceipt(t, l, "sess-qpu", "receipt-hash-3", "default", otherBinding, 100)
 	qpu["mandate_ref"] = "receipt-hash-3"
 	if _, err := r.SubmitJob("sess-qpu", "circuit_run", qpu); err == nil {
 		t.Fatalf("cross-program receipt must refuse")
@@ -465,15 +474,8 @@ func TestCumulativeCeilingAcrossJobs(t *testing.T) {
 	defer r.Stop()
 
 	// Deep receipt budget so only the tenant ceiling binds (default 150).
-	payload := fmt.Sprintf(`{"tenant_id":"default","job_hash":"%s","max_budget_usd":10000,"expiry_timestamp":"2030-01-01T00:00:00Z"}`,
-		mandates.CanonicalJobBinding("circuit_run", "sess-spend", "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"))
-	if _, err := l.DB().Exec(
-		`INSERT INTO ledger_events (timestamp, session_id, tenant_id, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		"2026-10-09T00:00:00Z", "sess-spend", "default", "mandate_verified_client", payload,
-		"0", "receipt-spend-1", "pub", "sig",
-	); err != nil {
-		t.Fatalf("seed receipt: %v", err)
-	}
+	seedSignedMandateReceipt(t, l, "sess-spend", "receipt-spend-1", "default",
+		mandates.CanonicalJobBinding("circuit_run", "sess-spend", "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"), 10000)
 	qpu := func(cost float64) map[string]any {
 		return map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "requested_backend": "ibm_brisbane",
 			"shots": 100, "max_cost_usd": cost, "mandate_ref": "receipt-spend-1",
@@ -526,15 +528,8 @@ func TestFailedJobReleasesReservation(t *testing.T) {
 	// the terminal transition via failJob directly (deterministic, no race).
 	defer r.Stop()
 
-	payload := fmt.Sprintf(`{"tenant_id":"default","job_hash":"%s","max_budget_usd":10000,"expiry_timestamp":"2030-01-01T00:00:00Z"}`,
-		mandates.CanonicalJobBinding("circuit_run", "sess-rel", "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"))
-	if _, err := l.DB().Exec(
-		`INSERT INTO ledger_events (timestamp, session_id, tenant_id, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		"2026-10-09T00:00:00Z", "sess-rel", "default", "mandate_verified_client", payload,
-		"0", "receipt-rel-1", "pub", "sig",
-	); err != nil {
-		t.Fatalf("seed receipt: %v", err)
-	}
+	seedSignedMandateReceipt(t, l, "sess-rel", "receipt-rel-1", "default",
+		mandates.CanonicalJobBinding("circuit_run", "sess-rel", "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"), 10000)
 	qpu := map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "requested_backend": "ibm_brisbane",
 		"shots": 100, "max_cost_usd": 100, "mandate_ref": "receipt-rel-1",
 		"caller_jurisdictions": []string{"US"}}
@@ -593,15 +588,8 @@ func TestSessionLimitBindsEndToEnd(t *testing.T) {
 	r.Start()
 	defer r.Stop()
 
-	payload := fmt.Sprintf(`{"tenant_id":"default","job_hash":"%s","max_budget_usd":10000,"expiry_timestamp":"2030-01-01T00:00:00Z"}`,
-		mandates.CanonicalJobBinding("circuit_run", "sess-cap", "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"))
-	if _, err := l.DB().Exec(
-		`INSERT INTO ledger_events (timestamp, session_id, tenant_id, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		"2026-10-09T00:00:00Z", "sess-cap", "default", "mandate_verified_client", payload,
-		"0", "receipt-cap-1", "pub", "sig",
-	); err != nil {
-		t.Fatalf("seed receipt: %v", err)
-	}
+	seedSignedMandateReceipt(t, l, "sess-cap", "receipt-cap-1", "default",
+		mandates.CanonicalJobBinding("circuit_run", "sess-cap", "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n"), 10000)
 	qpu := func(cost float64) map[string]any {
 		return map[string]any{"qasm": "OPENQASM 2.0;\nqreg q[1];\ncreg c[1];\n", "requested_backend": "ibm_brisbane",
 			"shots": 100, "max_cost_usd": cost, "mandate_ref": "receipt-cap-1",
@@ -932,5 +920,94 @@ func TestCompletedBridgeJobSettlesMeasuredUsage(t *testing.T) {
 	}
 	if tenant.SpentUSD != 3.2 {
 		t.Fatalf("tenant spend must settle to actual, got %v", tenant.SpentUSD)
+	}
+}
+
+// P0 backfill: a completion LACKING actual_usd must keep the full estimate
+// reservation — never settle to 0 (which refunds the entire estimate as if
+// nothing ran) — and seal a settlement_skipped_unknown_usage event.
+func TestCompletedBridgeJobWithoutUsageKeepsReservation(t *testing.T) {
+	r, cleanup := setupRunner(t, &fakeBridge{})
+	defer cleanup()
+	sid := "sess-settle-missing"
+	if _, err := r.sessionMgr.EnsureSessionWithID(sid, "settle-missing", 100, "default"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.tenantStore().ReserveSpend("default", 8.0); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.sessionMgr.ReserveSpend(sid, 8.0); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.RecordQuantumBridgeJob("job-settle-missing", sid, "ibm-qiskit", "OPENQASM 2.0;", 100, "default", 8.0, ""); err != nil {
+		t.Fatal(err)
+	}
+	// Completion reports success but no measured usage at all.
+	r.SyncQuantumBridgeJobStatus("job-settle-missing", "completed", `{"hardware_job_id":"hw"}`)
+	j, err := r.GetJob("job-settle-missing")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j.Status != pb.JobStatus_JOB_STATUS_COMPLETED {
+		t.Fatalf("status=%s", j.Status)
+	}
+	if j.ReservedAmount != 8.0 {
+		t.Fatalf("missing actual_usd must keep the full $8 reservation, got %v", j.ReservedAmount)
+	}
+	sess, err := r.sessionMgr.GetSession(sid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sess.CurrentSpendUSD != 8.0 {
+		t.Fatalf("session spend must stay $8 on unknown usage, got %v", sess.CurrentSpendUSD)
+	}
+	tenant, err := r.tenantStore().GetTenant("default")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tenant.SpentUSD != 8.0 {
+		t.Fatalf("tenant spend must stay $8 on unknown usage, got %v", tenant.SpentUSD)
+	}
+	var reason string
+	if err := r.ledger.DB().QueryRow(
+		`SELECT payload FROM ledger_events WHERE event_type = ? AND session_id = ? ORDER BY id DESC LIMIT 1`,
+		ledger.SettlementSkippedUnknownUsageEvent, sid).Scan(&reason); err != nil {
+		t.Fatalf("settlement_skipped_unknown_usage event must be sealed: %v", err)
+	}
+	if !strings.Contains(reason, "actual_usd_missing") {
+		t.Fatalf("skip event must name the cause, got %s", reason)
+	}
+
+	// Over-reserved usage (actual above the estimate) is equally unknown as
+	// a bill: keep the reservation, seal the skip.
+	if err := r.tenantStore().ReserveSpend("default", 8.0); err != nil {
+		t.Fatal(err)
+	}
+	sid2 := "sess-settle-over"
+	if _, err := r.sessionMgr.EnsureSessionWithID(sid2, "settle-over", 100, "default"); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.sessionMgr.ReserveSpend(sid2, 8.0); err != nil {
+		t.Fatal(err)
+	}
+	if err := r.RecordQuantumBridgeJob("job-settle-over", sid2, "ibm-qiskit", "OPENQASM 2.0;", 100, "default", 8.0, ""); err != nil {
+		t.Fatal(err)
+	}
+	r.SyncQuantumBridgeJobStatus("job-settle-over", "completed", `{"hardware_job_id":"hw","result":{"actual_usd":80.0}}`)
+	j2, err := r.GetJob("job-settle-over")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if j2.ReservedAmount != 8.0 {
+		t.Fatalf("above-reserved actual_usd must keep the $8 reservation, got %v", j2.ReservedAmount)
+	}
+	var reason2 string
+	if err := r.ledger.DB().QueryRow(
+		`SELECT payload FROM ledger_events WHERE event_type = ? AND session_id = ? ORDER BY id DESC LIMIT 1`,
+		ledger.SettlementSkippedUnknownUsageEvent, sid2).Scan(&reason2); err != nil {
+		t.Fatalf("above-reserved skip event must be sealed: %v", err)
+	}
+	if !strings.Contains(reason2, "actual_usd_above_reserved") {
+		t.Fatalf("skip event must name the cause, got %s", reason2)
 	}
 }
