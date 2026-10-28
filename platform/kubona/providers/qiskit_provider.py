@@ -303,6 +303,12 @@ class QiskitProvider(Provider):
         if twoq > 5_000_000:
             raise ProviderError("circuit exceeds the 5M two-qubit-gate IBM limit")
 
+    def _actual_usd(self, usage_seconds: float) -> float | None:
+        pricing = self.capability.pricing
+        if pricing.model != "per_second" or pricing.per_second_usd <= 0:
+            return None
+        return round(max(1.0, float(usage_seconds)) * pricing.per_second_usd, 6)
+
     def _max_execution_seconds(self) -> int:
         import os
         raw = os.environ.get("KUBONA_IBM_MAX_EXECUTION_SECONDS", "600").strip()
@@ -416,6 +422,9 @@ class QiskitProvider(Provider):
                 usage = job.usage()
                 if usage is not None:
                     result["result"]["usage_seconds"] = float(usage)
+                    actual = self._actual_usd(float(usage))
+                    if actual is not None:
+                        result["result"]["actual_usd"] = actual
             except Exception:
                 pass
             return result
