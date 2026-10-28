@@ -1,6 +1,6 @@
 {
   "generated_by": "KUBONA_UPDATE_CATALOG=1 pytest platform/tests/test_mcp_catalog.py",
-  "digest": "5c0d9ea430ee09b106339f2286fcb98a997fcb57b8f72bda93a206ddd9692696",
+  "digest": "d9d031849579fefa515872a8b0970399a228ec5b389f0eb95d3fc1461dcaca39",
   "tools": [
     {
       "name": "compile_circuit",
@@ -1190,6 +1190,16 @@
             ],
             "default": "default",
             "title": "Requester"
+          },
+          "limit": {
+            "default": 100,
+            "title": "Limit",
+            "type": "integer"
+          },
+          "offset": {
+            "default": 0,
+            "title": "Offset",
+            "type": "integer"
           }
         },
         "title": "query_recordsArguments",
