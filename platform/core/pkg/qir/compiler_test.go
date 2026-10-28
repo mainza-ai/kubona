@@ -47,7 +47,7 @@ t q[2];
 	if summary.GateCount == 0 {
 		t.Errorf("expected gate count > 0")
 	}
-	if !strings.HasPrefix(summary.QIRProfile, "BaseProfile") {
+	if !strings.HasPrefix(summary.QIRProfile, "CustomProfile") {
 		t.Errorf("expected BaseProfile dialect target, got %s", summary.QIRProfile)
 	}
 	if summary.CompilerUsed == "" {

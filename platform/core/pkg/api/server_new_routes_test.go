@@ -175,7 +175,7 @@ func TestQIRCompileEndpoint(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&summary); err != nil {
 		t.Fatalf("failed to decode summary: %v", err)
 	}
-	if summary.NumQubits < 2 || !strings.HasPrefix(summary.QIRProfile, "BaseProfile") {
+	if summary.NumQubits < 2 || !strings.HasPrefix(summary.QIRProfile, "CustomProfile") {
 		t.Fatalf("unexpected summary: %+v", summary)
 	}
 

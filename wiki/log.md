@@ -3599,3 +3599,7 @@ skipped is the exact failure this incident is about:
 ## [2026-10-27] decision | Console science inputs are bounded
 
   - triage electrons/orbitals/charges, krylov matrix dimension + time step, shadow qubits/snapshots/observables, QEC logical qubits/gate counts/error rate, and memory max_hops now return typed 400s outside hard bounds. The 40-qubit/10^9-snapshot class of DoS is refused before allocation.
+
+## [2026-10-27] decision | Go QIR fallback labels its real profile
+
+  - The pure-Go fallback emits `qir_profiles="custom"` / inttoptr IR, so it now reports `CustomProfile-Estimate` instead of claiming BaseProfile-Estimate. The Rust core remains the BaseProfile path.
