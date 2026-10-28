@@ -389,12 +389,19 @@ class WorkflowEngine:
             ctx["prev"] = prev
             rec = None
             if self.ledger is not None:
-                rec = self.ledger.append("workflow_step", {"workflow": workflow.name,
-                                                           "trigger": workflow.trigger,
-                                                           "step": sid, "tool": tool,
-                                                           "result_summary": str(result)[:400],
-                                                           "spent_usd": spent_usd,
-                                                           "session_id": session_id})
+                try:
+                    rec = self.ledger.append("workflow_step", {"workflow": workflow.name,
+                                                               "trigger": workflow.trigger,
+                                                               "step": sid, "tool": tool,
+                                                               "result_summary": str(result)[:400],
+                                                               "spent_usd": spent_usd,
+                                                               "session_id": session_id})
+                except Exception as e:  # noqa: BLE001 — no receipt means no completed claim
+                    with self._status_locked():
+                        workflow.status = "failed"
+                    return {"ok": False, "workflow_id": workflow.workflow_id,
+                            "steps": len(workflow.steps), "step_records": step_records,
+                            "error": f"workflow receipt failed after step {sid}: {e}"}
                 step_records.append(rec.record_id)
 
         with self._status_locked():

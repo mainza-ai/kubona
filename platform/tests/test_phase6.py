@@ -195,3 +195,22 @@ def test_workflow_dry_run_refuses_unknown_tools(tmp_path):
     bad = parse_workflow({**VQE_WORKFLOW, "steps": [{"id": "x", "tool": "nope/does_not_exist"}]})
     with pytest.raises(WorkflowError):
         engine.run(bad, token="dev-token", dry_run=True)
+
+
+def test_workflow_ledger_failure_marks_failed_not_running(tmp_path):
+    gw = build_gateway()
+
+    class BrokenLedger:
+        def append(self, *a, **k):
+            raise RuntimeError("ledger unavailable")
+
+    engine = WorkflowEngine(gw, ledger=BrokenLedger())
+    wf = parse_workflow({"name": "one", "steps": [
+        {"id": "cost", "tool": "cost/estimate_cost",
+         "args": {"circuit_qasm": BELL, "provider": "local-simulator", "shots": 8}}]})
+    sid = gw.call("cost", "create_session",
+                  {"name": "wf-fail", "owner": "researcher", "budget_ceiling_usd": 1.0},
+                  token="dev-token")["session_id"]
+    out = engine.run(wf, token="dev-token", session_id=sid)
+    assert out["ok"] is False and "receipt failed" in out["error"]
+    assert wf.status == "failed"
