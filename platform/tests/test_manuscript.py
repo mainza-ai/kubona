@@ -219,3 +219,106 @@ def test_deposit_refused_without_accept_or_signoff(tmp_path):
         raise AssertionError("deposit without ACCEPT/sign-off must refuse")
     except ValueError:
         pass
+
+
+# ---- Phase-0 P0: manuscript evidence (no verified prose from raw floats) ----
+
+_VERIFIED_SENTENCES = (
+    "matching analytical bounds within certified tolerance",
+    "Formal invariants were verified under the Lean 4 comparator protocol",
+    "without axioms outside the standard whitelist",
+)
+
+
+def _draft(**kw):
+    from kubona.science.manuscript import ManuscriptGenerator
+    base = dict(title="T", target_system="H2", authors=["A"], abstract="B",
+                analytical_anchor_name="H2", analytical_anchor_val=-1.137,
+                measured_val=-1.137)
+    base.update(kw)
+    return ManuscriptGenerator.create_discovery_manuscript(**base)
+
+
+def test_draft_emits_no_verification_prose():
+    ms = _draft(measured_val=-1.5, lean4_proof_hash=None)  # 363 mHa off
+    latex = ms.compile_latex()
+    for sentence in _VERIFIED_SENTENCES:
+        assert sentence not in latex
+    assert "UNVERIFIED" in latex  # hash slot honestly marked
+    # The discrepancy is computed server-side from the raw floats.
+    assert "363.0000 mHa" in latex
+
+
+def test_draft_with_hash_still_claims_no_verification():
+    """A hash string's mere presence proves nothing: the draft path emits
+    no verification prose even when a proof hash is supplied."""
+    ms = _draft(measured_val=-1.137, lean4_proof_hash="0xHASH")
+    latex = ms.compile_latex()
+    for sentence in _VERIFIED_SENTENCES:
+        assert sentence not in latex
+    assert "0.0000 mHa" in latex
+
+
+def test_certified_requires_evidence_and_proof():
+    from kubona.science.manuscript import ManuscriptGenerator
+    with pytest.raises(ValueError):
+        ManuscriptGenerator.create_certified_discovery_manuscript(
+            title="T", target_system="H2", authors=["A"], abstract="B",
+            analytical_anchor_name="H2", analytical_anchor_val=-1.137,
+            measured_val=-1.137, lean4_proof_hash="0xHASH",
+            evidence=None)  # no comparator verdict
+    with pytest.raises(ValueError):
+        ManuscriptGenerator.create_certified_discovery_manuscript(
+            title="T", target_system="H2", authors=["A"], abstract="B",
+            analytical_anchor_name="H2", analytical_anchor_val=-1.137,
+            measured_val=-1.137, lean4_proof_hash=None,  # never render proof sentence
+            evidence=_live_evidence())
+
+
+def test_certified_refuses_non_kernel_verdicts():
+    from kubona.science.manuscript import ManuscriptGenerator, ReviewEvidence
+    for verdict, sorry in (("static_ast_containment", 0), ("failed", 0),
+                           ("live_kernel_proven", 2), ("live_kernel_proven", None)):
+        ev = ReviewEvidence(comparator_verdict=verdict, sorry_ax_count=sorry,
+                            anchor_discrepancy_mha=0.0,
+                            provenance_receipts=["0xHASH"])
+        with pytest.raises(ValueError):
+            ManuscriptGenerator.create_certified_discovery_manuscript(
+                title="T", target_system="H2", authors=["A"], abstract="B",
+                analytical_anchor_name="H2", analytical_anchor_val=-1.137,
+                measured_val=-1.137, lean4_proof_hash="0xHASH", evidence=ev)
+
+
+def test_certified_refuses_beyond_chemical_accuracy():
+    from kubona.science.manuscript import ManuscriptGenerator, ReviewEvidence
+    ev = ReviewEvidence(comparator_verdict="live_kernel_proven", sorry_ax_count=0,
+                        anchor_discrepancy_mha=10.0, provenance_receipts=["0xHASH"])
+    with pytest.raises(ValueError, match="chemical accuracy"):
+        ManuscriptGenerator.create_certified_discovery_manuscript(
+            title="T", target_system="H2", authors=["A"], abstract="B",
+            analytical_anchor_name="H2", analytical_anchor_val=-1.137,
+            measured_val=-1.147,  # 10 mHa off
+            lean4_proof_hash="0xHASH", evidence=ev)
+
+
+def test_certified_refuses_contradictory_evidence():
+    from kubona.science.manuscript import ManuscriptGenerator, ReviewEvidence
+    ev = ReviewEvidence(comparator_verdict="live_kernel_proven", sorry_ax_count=0,
+                        anchor_discrepancy_mha=999.0, provenance_receipts=["0xHASH"])
+    with pytest.raises(ValueError, match="contradicts"):
+        ManuscriptGenerator.create_certified_discovery_manuscript(
+            title="T", target_system="H2", authors=["A"], abstract="B",
+            analytical_anchor_name="H2", analytical_anchor_val=-1.137,
+            measured_val=-1.137, lean4_proof_hash="0xHASH", evidence=ev)
+
+
+def test_certified_happy_path_emits_verified_prose():
+    from kubona.science.manuscript import ManuscriptGenerator
+    ms = ManuscriptGenerator.create_certified_discovery_manuscript(
+        title="T", target_system="H2", authors=["A"], abstract="B",
+        analytical_anchor_name="H2", analytical_anchor_val=-1.137,
+        measured_val=-1.137, lean4_proof_hash="0xHASH",
+        evidence=_live_evidence(disc_mha=0.0))
+    latex = ms.compile_latex()
+    for sentence in _VERIFIED_SENTENCES:
+        assert sentence in latex

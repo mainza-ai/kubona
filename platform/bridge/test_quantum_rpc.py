@@ -30,6 +30,15 @@ cx q[0], q[1];
 
 
 @pytest.fixture()
+def bridge_token(monkeypatch):
+    """Workflow execution requires KUBONA_BRIDGE_TOKEN in ALL envs (no dev
+    fallback). Tests provide it explicitly via this fixture instead of
+    weakening the gate."""
+    monkeypatch.setenv("KUBONA_BRIDGE_TOKEN", "test-bridge-token")
+    return "test-bridge-token"
+
+
+@pytest.fixture()
 def isolated_rail(monkeypatch, tmp_path):
     """Swap the MCP rail's module singletons for tmp-backed ones so tests
     never touch the operator's KUBONA_STATE_DIR."""
@@ -214,7 +223,7 @@ def test_quantinuum_provider_maps_to_catalog_fidelity_device():
         assert verdict.predicted_fidelity < 1.0  # real trapped-ion error model, not ideal 1.0 fallback
 
 
-def test_workflow_plan_dry_run():
+def test_workflow_plan_dry_run(bridge_token):
     import json
     svc = bridge_server.QuantumBridgeServicer()
     wf_payload = {
@@ -246,7 +255,7 @@ def test_workflow_plan_dry_run():
     assert len(comps) == 1
 
 
-def test_workflow_run_success(isolated_rail):
+def test_workflow_run_success(isolated_rail, bridge_token):
     import json
     sessions, _ = isolated_rail
     svc = bridge_server.QuantumBridgeServicer()
@@ -270,7 +279,7 @@ def test_workflow_run_success(isolated_rail):
     req = _req(
         workflow_json=json.dumps(wf_payload),
         session_id="wf-exec-sess-1",
-        token="test-token",
+        token=bridge_token,
         inputs_json="{}",
         force=True,
         session_verified=True,
@@ -288,7 +297,7 @@ def test_workflow_run_success(isolated_rail):
     assert mirrored.budget_ceiling_usd == 25.0
 
 
-def test_workflow_run_ceiling_refusal(isolated_rail):
+def test_workflow_run_ceiling_refusal(isolated_rail, bridge_token):
     import json
     svc = bridge_server.QuantumBridgeServicer()
     wf_payload = {
@@ -314,7 +323,7 @@ def test_workflow_run_ceiling_refusal(isolated_rail):
     req = _req(
         workflow_json=json.dumps(wf_payload),
         session_id="wf-fail-sess",
-        token="test-token",
+        token=bridge_token,
         inputs_json="{}",
         force=True,
         session_verified=False,
@@ -367,10 +376,26 @@ def test_bridge_token_auth_is_constant_time_and_narrow():
     principal = auth.verify("sekret")
     assert principal.sub == "kubonad-bridge"
     assert principal.role == "operator"
+    # Scoped per caller, never god-mode: no "*" even by default.
+    assert "*" not in principal.scopes
+    assert "execution:submit" in principal.scopes
+    assert "control:override" not in principal.scopes
+    assert "cost:approve" not in principal.scopes
+    assert "execution:override" not in principal.scopes
     with pytest.raises(AuthError):
         auth.verify("wrong")
     with pytest.raises(AuthError):
         auth.verify("")
+
+
+def test_bridge_token_auth_scopes_principal_per_caller():
+    from kubona.core.auth import AuthError
+    auth = bridge_server._BridgeTokenAuth("sekret", sub="kubonad-bridge:run:lab-a:s1")
+    principal = auth.verify("sekret")
+    assert principal.sub == "kubonad-bridge:run:lab-a:s1"
+    assert "*" not in principal.scopes
+    with pytest.raises(AuthError):
+        auth.verify("nope")
 
 
 def test_execute_circuit_refuses_hardware_route():
@@ -406,6 +431,64 @@ def test_workflow_run_requires_token_in_production(monkeypatch):
     assert "token" in resp.error_message.lower()
 
 
+def test_workflow_run_requires_token_in_dev_too(monkeypatch, isolated_rail):
+    """No dev fallback: without KUBONA_BRIDGE_TOKEN the run refuses in
+    every env, not just production."""
+    import json
+    monkeypatch.delenv("KUBONA_ENV", raising=False)
+    monkeypatch.delenv("KUBONA_BRIDGE_TOKEN", raising=False)
+    svc = bridge_server.QuantumBridgeServicer()
+    wf = {
+        "name": "auth-test", "trigger": "manual",
+        "steps": [{"id": "estimate", "tool": "cost/estimate_cost",
+                   "args": {"circuit_qasm": BELL_QASM,
+                            "provider": "local-simulator", "shots": 10}}],
+    }
+    req = SimpleNamespace(workflow_json=json.dumps(wf), inputs_json="",
+                          session_id="", token="", force=False,
+                          session_verified=False)
+    resp = svc.WorkflowRun(req, None)
+    assert resp.ok is False
+    assert "token" in resp.error_message.lower()
+
+
+def test_workflow_run_wrong_token_refuses(isolated_rail, bridge_token):
+    """A caller token that is not the bridge token fails gateway auth:
+    the workflow fails closed instead of running unauthenticated."""
+    import json
+    svc = bridge_server.QuantumBridgeServicer()
+    wf = {
+        "name": "auth-test", "trigger": "manual",
+        "steps": [{"id": "estimate", "tool": "cost/estimate_cost",
+                   "args": {"circuit_qasm": BELL_QASM,
+                            "provider": "local-simulator", "shots": 10}}],
+    }
+    req = SimpleNamespace(workflow_json=json.dumps(wf), inputs_json="",
+                          session_id="wrong-token-sess", token="not-the-bridge-token",
+                          force=True, session_verified=False)
+    resp = svc.WorkflowRun(req, None)
+    assert resp.ok is False
+
+
+def test_workflow_run_scopes_forbid_cancel(isolated_rail, bridge_token):
+    """The per-caller gateway principal cannot cancel jobs
+    (execution:override excluded): a workflow reaching for cancel_job
+    fails that step instead of fencing another job."""
+    import json
+    svc = bridge_server.QuantumBridgeServicer()
+    wf = {
+        "name": "cancel-attempt", "trigger": "manual",
+        "steps": [{"id": "evil", "tool": "execution/cancel_job",
+                   "args": {"job_id": "someone-elses-job"}}],
+    }
+    req = SimpleNamespace(workflow_json=json.dumps(wf), inputs_json="",
+                          session_id="scope-sess", token=bridge_token,
+                          force=True, session_verified=False)
+    resp = svc.WorkflowRun(req, None)
+    assert resp.ok is False
+    assert "cancel_job" in resp.error_message or "lacks" in resp.error_message
+
+
 # ------------------------------------- session assertion (2026-10-26) ---
 
 def test_session_assertion_vector_matches_go():
@@ -438,3 +521,244 @@ def test_session_assertion_rejects_self_declared_money():
         bridge_server._verify_session_assertion(req, Ctx((("x-kubona-session-assertion", sig),)), "k")
     # Correct signature passes.
     bridge_server._verify_session_assertion(honest, Ctx((("x-kubona-session-assertion", sig),)), "k")
+
+
+# --------------------------------- spend-mandate gate (Phase-0 P0) ---
+
+_PAID_PROVIDER = "ibm-qiskit"
+_PAID_JURISDICTIONS = ["US"]
+
+
+def _mint_mandate(tenant, session_id, qasm, budget, expiry):
+    import json as _json
+    from kubona.cost.mandate import canonical_job_binding, create_mandate
+    from nacl.signing import SigningKey
+    key = SigningKey.generate()
+    m = create_mandate(key.encode(), tenant,
+                       canonical_job_binding("circuit_run", session_id, qasm),
+                       budget, expiry)
+    return _json.dumps(m.to_dict())
+
+
+def _paid_submit_kw(session_id="mandate-sess-1", tenant="lab-mandate",
+                    key="mandate-1", mandate_ref_json=""):
+    return dict(
+        qasm=BELL_QASM, provider=_PAID_PROVIDER, shots=100,
+        session_id=session_id, tenant_id=tenant,
+        idempotency_key=key, dry_run=False,
+        mandate_ref_json=mandate_ref_json,
+        caller_jurisdictions=list(_PAID_JURISDICTIONS),
+        caller_export_class="allied", require_review=False,
+        session_verified=True,
+        session_budget_ceiling_usd=42.5, session_spent_usd=0.0,
+    )
+
+
+def test_paid_submit_without_mandate_refuses(isolated_rail):
+    svc = bridge_server.QuantumBridgeServicer()
+    resp = svc.QuantumSubmit(_req(**_paid_submit_kw()), None)
+    assert resp.ok is False
+    assert "mandate" in resp.error_message.lower()
+    assert resp.job_id == ""
+
+
+def test_paid_submit_with_valid_mandate_dispatches(isolated_rail):
+    import datetime
+    sessions, runner = isolated_rail
+    svc = bridge_server.QuantumBridgeServicer()
+    ref = _mint_mandate("lab-mandate", "mandate-sess-1", BELL_QASM, 25.0,
+                        datetime.datetime(2030, 1, 1, tzinfo=datetime.timezone.utc))
+    resp = svc.QuantumSubmit(_req(**_paid_submit_kw(mandate_ref_json=ref)), None)
+    assert resp.ok is True, resp.error_message
+    assert resp.job_id and resp.queued is True
+    # Estimate (~$8) is covered by the $25 mandate; the job is real.
+    assert runner.store.get(resp.job_id) is not None
+
+
+def test_paid_submit_with_tampered_mandate_refuses(isolated_rail):
+    import datetime
+    import json as _json
+    svc = bridge_server.QuantumBridgeServicer()
+    ref = _mint_mandate("lab-mandate", "mandate-sess-1", BELL_QASM, 25.0,
+                        datetime.datetime(2030, 1, 1, tzinfo=datetime.timezone.utc))
+    data = _json.loads(ref)
+    data["max_budget_usd"] = 999999.0  # tamper after signing
+    resp = svc.QuantumSubmit(
+        _req(**_paid_submit_kw(key="mandate-tamper", mandate_ref_json=_json.dumps(data))), None)
+    assert resp.ok is False
+    assert "mandate" in resp.error_message.lower()
+
+
+def test_paid_submit_wrong_tenant_or_program_refuses(isolated_rail):
+    import datetime
+    svc = bridge_server.QuantumBridgeServicer()
+    # Bound to a different tenant.
+    ref = _mint_mandate("lab-other", "mandate-sess-1", BELL_QASM, 25.0,
+                        datetime.datetime(2030, 1, 1, tzinfo=datetime.timezone.utc))
+    resp = svc.QuantumSubmit(
+        _req(**_paid_submit_kw(key="mandate-tenant", mandate_ref_json=ref)), None)
+    assert resp.ok is False
+    assert "mandate" in resp.error_message.lower()
+    # Bound to a different program (different session binding).
+    ref = _mint_mandate("lab-mandate", "some-other-session", BELL_QASM, 25.0,
+                        datetime.datetime(2030, 1, 1, tzinfo=datetime.timezone.utc))
+    resp = svc.QuantumSubmit(
+        _req(**_paid_submit_kw(key="mandate-prog", mandate_ref_json=ref)), None)
+    assert resp.ok is False
+    assert "mandate" in resp.error_message.lower()
+
+
+def test_paid_submit_underfunded_mandate_refuses(isolated_rail):
+    import datetime
+    svc = bridge_server.QuantumBridgeServicer()
+    # Estimate is ~$8; a $0.50 mandate cannot cover it.
+    ref = _mint_mandate("lab-mandate", "mandate-sess-1", BELL_QASM, 0.50,
+                        datetime.datetime(2030, 1, 1, tzinfo=datetime.timezone.utc))
+    resp = svc.QuantumSubmit(
+        _req(**_paid_submit_kw(key="mandate-poor", mandate_ref_json=ref)), None)
+    assert resp.ok is False
+    assert "mandate" in resp.error_message.lower()
+
+
+def test_paid_submit_expired_mandate_refuses(isolated_rail):
+    import datetime
+    import json as _json
+    from kubona.cost.mandate import SpendMandate, canonical_job_binding
+    from nacl.signing import SigningKey
+    svc = bridge_server.QuantumBridgeServicer()
+    tenant, job_hash = "lab-mandate", canonical_job_binding(
+        "circuit_run", "mandate-sess-1", BELL_QASM)
+    expiry = "2001-01-01T00:00:00Z"  # past, but signed correctly
+    sk = SigningKey.generate()
+    payload = f"{tenant}:{job_hash}:{25.0:.4f}:{expiry}".encode()
+    m = SpendMandate(tenant, job_hash, 25.0, expiry,
+                     sk.verify_key.encode().hex(), sk.sign(payload).signature.hex())
+    resp = svc.QuantumSubmit(
+        _req(**_paid_submit_kw(key="mandate-old", mandate_ref_json=_json.dumps(m.to_dict()))),
+        None)
+    assert resp.ok is False
+    assert "mandate" in resp.error_message.lower()
+
+
+def test_free_simulator_ignores_mandate_absence(isolated_rail):
+    """Free simulators proceed with no mandate — the gate is money-gated."""
+    svc = bridge_server.QuantumBridgeServicer()
+    resp = svc.QuantumSubmit(_req(qasm=BELL_QASM, provider="local-simulator",
+                                 shots=100, session_id="", tenant_id="lab-test",
+                                 idempotency_key="free-no-mandate", dry_run=False,
+                                 mandate_ref_json=""), None)
+    assert resp.ok is True, resp.error_message
+
+
+def test_paid_dry_run_skips_mandate_gate(isolated_rail):
+    """Dry-run is the pre-mandate estimate panel: validated, never enqueued,
+    never spend-gated by mandate."""
+    sessions, runner = isolated_rail
+    svc = bridge_server.QuantumBridgeServicer()
+    resp = svc.QuantumSubmit(_req(**_paid_submit_kw(key="dry-nomandate",
+                                                   mandate_ref_json="")), None)
+    assert resp.ok is False and "mandate" in resp.error_message.lower()
+    kw = _paid_submit_kw(key="dry-nomandate-2", mandate_ref_json="")
+    kw["dry_run"] = True
+    resp = svc.QuantumSubmit(_req(**kw), None)
+    assert resp.ok is True, resp.error_message
+    assert resp.queued is False and resp.job_id == ""
+
+
+# --------------------------------- job ownership (Phase-0 P0) ---
+
+def test_status_wrong_session_refuses(isolated_rail):
+    svc = bridge_server.QuantumBridgeServicer()
+    resp = svc.QuantumSubmit(_req(qasm=BELL_QASM, provider="local-simulator",
+                                 shots=100, session_id="", tenant_id="lab-own",
+                                 idempotency_key="own-1", dry_run=False,
+                                 mandate_ref_json=""), None)
+    assert resp.ok is True
+    owner_session = resp.session_id
+    st = svc.QuantumJobStatus(_req(job_id=resp.job_id,
+                                   caller_session_id=owner_session,
+                                   caller_tenant_id="lab-own"), None)
+    assert st.ok is True, st.error_message
+    st = svc.QuantumJobStatus(_req(job_id=resp.job_id,
+                                   caller_session_id="attacker-session",
+                                   caller_tenant_id="lab-own"), None)
+    assert st.ok is False
+    assert "session" in st.error_message.lower()
+    st = svc.QuantumJobStatus(_req(job_id=resp.job_id,
+                                   caller_session_id=owner_session,
+                                   caller_tenant_id="lab-evil"), None)
+    assert st.ok is False
+    assert "tenant" in st.error_message.lower()
+
+
+def test_cancel_wrong_session_refuses_without_fencing(isolated_rail):
+    _, runner = isolated_rail
+    job = runner.store.create(provider="local-simulator", session_id="owner-s")
+    svc = bridge_server.QuantumBridgeServicer()
+    rec = svc.QuantumCancel(_req(job_id=job.job_id, reason="evil",
+                                 caller_session_id="attacker-s"), None)
+    assert rec.ok is False
+    assert "session" in rec.error_message.lower()
+    assert rec.provider_recall_attempted is False
+    # Not fenced: the refusal happened before any state mutation.
+    assert runner.store.get(job.job_id).status == "queued"
+
+
+def test_cancel_owner_session_allowed(isolated_rail):
+    _, runner = isolated_rail
+    job = runner.store.create(provider="local-simulator", session_id="owner-s")
+    svc = bridge_server.QuantumBridgeServicer()
+    rec = svc.QuantumCancel(_req(job_id=job.job_id, reason="owner stop",
+                                 caller_session_id="owner-s"), None)
+    assert rec.ok is True
+    assert runner.store.get(job.job_id).status == "cancelled"
+
+
+def test_status_unknown_job_still_refuses(isolated_rail):
+    svc = bridge_server.QuantumBridgeServicer()
+    st = svc.QuantumJobStatus(_req(job_id="nope",
+                                   caller_session_id="any"), None)
+    assert st.ok is False
+
+
+# --------------------------------- prod transport (Phase-0 P0) ---
+
+def test_prod_tcp_bridge_refuses(monkeypatch):
+    monkeypatch.setenv("KUBONA_ENV", "production")
+    monkeypatch.delenv("KUBONA_BRIDGE_SOCKET", raising=False)
+    monkeypatch.setenv("KUBONA_BRIDGE_TOKEN", "tok")
+    with pytest.raises(SystemExit, match="production"):
+        bridge_server.serve(port=50099, bind="127.0.0.1")
+
+
+def test_prod_uds_bridge_allowed(monkeypatch, tmp_path):
+    import os
+    import stat
+    monkeypatch.setenv("KUBONA_ENV", "production")
+    monkeypatch.delenv("KUBONA_BRIDGE_TOKEN", raising=False)
+    # UDS paths must fit sun_path (<=103 chars): short /tmp name, not tmp_path.
+    sock_path = f"/tmp/kubona_prod_{os.getpid()}.sock"
+    if os.path.exists(sock_path):
+        os.unlink(sock_path)
+    server = bridge_server.serve(port=0, socket_path=sock_path)
+    try:
+        assert os.path.exists(sock_path)
+        assert stat.S_IMODE(os.stat(sock_path).st_mode) == 0o600
+    finally:
+        server.stop(0)
+        if os.path.exists(sock_path):
+            os.unlink(sock_path)
+
+
+def test_dev_loopback_tcp_logs_mode(monkeypatch, caplog):
+    import logging
+    monkeypatch.delenv("KUBONA_ENV", raising=False)
+    monkeypatch.delenv("KUBONA_BRIDGE_SOCKET", raising=False)
+    monkeypatch.setenv("KUBONA_BRIDGE_TOKEN", "tok")
+    with caplog.at_level(logging.INFO, logger="kubona-bridge"):
+        server = bridge_server.serve(port=17921, bind="127.0.0.1")
+    try:
+        assert any("loopback-tcp" in r.message for r in caplog.records), \
+            [r.message for r in caplog.records]
+    finally:
+        server.stop(0)

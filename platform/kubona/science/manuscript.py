@@ -312,7 +312,29 @@ def generate_convergence_svg(energies: List[float], anchor_val: float) -> str:
 
 
 class ManuscriptGenerator:
-    """Builds full manuscripts from campaign results and machine-checked proofs."""
+    """Builds full manuscripts from campaign results and machine-checked proofs.
+
+    Two constructors, one honesty rule: verification prose is NEVER emitted
+    from raw floats. ``create_discovery_manuscript`` is the DRAFT path — it
+    states measured-vs-anchor numbers and their discrepancy factually and
+    marks unproven results UNVERIFIED. ``create_certified_discovery_manuscript``
+    is the CERTIFIED path — it additionally requires the Lean proof hash AND
+    a comparator ReviewEvidence verdict before any "verified" sentence, and
+    refuses (fail-closed) when the discrepancy exceeds chemical accuracy.
+    """
+
+    #: Chemical-accuracy bar for certification (mHa). A discrepancy above
+    #: this refuses certified prose — a manuscript must not claim to match
+    #: analytical bounds it demonstrably misses.
+    CHEMICAL_ACCURACY_MHA = 1.6
+
+    #: Comparator verdicts that count as machine-checked proof.
+    _KERNEL_PROVEN_VERDICTS = frozenset({"live_kernel_proven"})
+
+    @staticmethod
+    def _discrepancy_mha(analytical_anchor_val: float, measured_val: float) -> float:
+        """Server-side discrepancy computation (mHa), never caller-asserted."""
+        return abs(float(measured_val) - float(analytical_anchor_val)) * 1000.0
 
     @staticmethod
     def create_discovery_manuscript(
@@ -326,6 +348,17 @@ class ManuscriptGenerator:
         lean4_proof_hash: Optional[str] = None,
         negative_certificates: Optional[List[str]] = None
     ) -> ScientificManuscript:
+        """DRAFT constructor: states numbers factually, claims no verification.
+
+        The discrepancy is computed here from the two raw floats — never
+        caller-asserted — and reported as a number. No "verified" sentence
+        is ever emitted on this path (not even when a proof hash is
+        supplied: a hash string's mere presence proves nothing). Use
+        ``create_certified_discovery_manuscript`` with comparator evidence
+        for attested verification prose.
+        """
+        discrepancy_mha = ManuscriptGenerator._discrepancy_mha(
+            analytical_anchor_val, measured_val)
         sections = []
         
         # Section 1: Introduction & Physical Problem
@@ -341,14 +374,20 @@ class ManuscriptGenerator:
         ))
 
         # Section 2: Exact Analytical Anchoring & Deductive Sieve
+        # DRAFT prose: factual numbers only. No "matching ... within certified
+        # tolerance" and no comparator sentence — those require the certified
+        # constructor with attested evidence (a hash alone proves nothing).
         sections.append(ManuscriptSection(
             slug="analytical_anchors",
             title="Exact Analytical Ground Truth & Complexity Sieve",
             latex_content=(
                 f"The physical model is calibrated against the exact analytical anchor "
                 f"\\texttt{{{analytical_anchor_name}}} with theoretical value ${analytical_anchor_val}$. "
-                f"Physical simulation yielded ${measured_val}$, matching analytical bounds within certified tolerance. "
-                f"Formal invariants were verified under the Lean 4 comparator protocol without axioms outside the standard whitelist."
+                f"Physical simulation yielded ${measured_val}$, a discrepancy of "
+                f"{discrepancy_mha:.4f} mHa against the anchor "
+                f"(chemical accuracy requires $\\leq$ {ManuscriptGenerator.CHEMICAL_ACCURACY_MHA} mHa). "
+                "Attested verification of these invariants is recorded in the peer-review record, "
+                "not asserted here."
             ),
             bibtex_keys=["openai_math_corpus_2026"]
         ))
@@ -406,6 +445,89 @@ class ManuscriptGenerator:
             bibtex_entries=bibtex,
             lean4_proof_hash=lean4_proof_hash
         )
+
+    @staticmethod
+    def create_certified_discovery_manuscript(
+        title: str,
+        target_system: str,
+        authors: List[str],
+        abstract: str,
+        analytical_anchor_name: str,
+        analytical_anchor_val: float,
+        measured_val: float,
+        lean4_proof_hash: Optional[str] = None,
+        evidence: Optional["ReviewEvidence"] = None,
+        negative_certificates: Optional[List[str]] = None,
+    ) -> ScientificManuscript:
+        """CERTIFIED constructor: emits verification prose only on attested proof.
+
+        Fail-closed gates (each refuses with ValueError instead of hedging):
+        - ``lean4_proof_hash`` must be present — the proof sentence is NEVER
+          rendered when the hash is None.
+        - ``evidence`` must carry ``comparator_verdict == "live_kernel_proven"``
+          with ``sorry_ax_count == 0`` — static containment is attested, not
+          kernel-proved, and never earns "verified" prose here.
+        - the computed discrepancy must be within chemical accuracy
+          (<= 1.6 mHa); a miss refuses certification of the match.
+        - when the evidence carries its own ``anchor_discrepancy_mha`` it must
+          agree with the computed value (contradictory evidence refuses).
+        """
+        if lean4_proof_hash is None:
+            raise ValueError(
+                "certified manuscript refused: lean4_proof_hash is required — "
+                "the proof sentence is never rendered for unverified output")
+        if evidence is None:
+            raise ValueError(
+                "certified manuscript refused: comparator ReviewEvidence is required — "
+                "verification prose needs an attested verdict, never raw floats")
+        if (evidence.comparator_verdict not in
+                ManuscriptGenerator._KERNEL_PROVEN_VERDICTS):
+            raise ValueError(
+                f"certified manuscript refused: comparator verdict "
+                f"{evidence.comparator_verdict!r} is not a kernel proof — "
+                "static containment or failure never earns 'verified' prose")
+        if evidence.sorry_ax_count != 0:
+            raise ValueError(
+                f"certified manuscript refused: sorry_ax_count="
+                f"{evidence.sorry_ax_count!r} (need exactly 0 for certification)")
+        discrepancy_mha = ManuscriptGenerator._discrepancy_mha(
+            analytical_anchor_val, measured_val)
+        if discrepancy_mha > ManuscriptGenerator.CHEMICAL_ACCURACY_MHA:
+            raise ValueError(
+                f"certified manuscript refused: discrepancy {discrepancy_mha:.4f} mHa "
+                f"exceeds chemical accuracy ({ManuscriptGenerator.CHEMICAL_ACCURACY_MHA} mHa)")
+        if (evidence.anchor_discrepancy_mha is not None
+                and abs(evidence.anchor_discrepancy_mha - discrepancy_mha) > 1e-6):
+            raise ValueError(
+                f"certified manuscript refused: evidence discrepancy "
+                f"{evidence.anchor_discrepancy_mha} mHa contradicts the computed "
+                f"{discrepancy_mha:.4f} mHa")
+
+        manuscript = ManuscriptGenerator.create_discovery_manuscript(
+            title=title,
+            target_system=target_system,
+            authors=authors,
+            abstract=abstract,
+            analytical_anchor_name=analytical_anchor_name,
+            analytical_anchor_val=analytical_anchor_val,
+            measured_val=measured_val,
+            lean4_proof_hash=lean4_proof_hash,
+            negative_certificates=negative_certificates,
+        )
+        # Replace the draft anchor section with attested verification prose —
+        # reachable only past every gate above.
+        for sec in manuscript.sections:
+            if sec.slug == "analytical_anchors":
+                sec.latex_content = (
+                    f"The physical model is calibrated against the exact analytical anchor "
+                    f"\\texttt{{{analytical_anchor_name}}} with theoretical value ${analytical_anchor_val}$. "
+                    f"Physical simulation yielded ${measured_val}$, matching analytical bounds within certified tolerance "
+                    f"(discrepancy {discrepancy_mha:.4f} mHa $\\leq$ "
+                    f"{ManuscriptGenerator.CHEMICAL_ACCURACY_MHA} mHa). "
+                    f"Formal invariants were verified under the Lean 4 comparator protocol "
+                    f"(live kernel proof, 0 sorryAx) without axioms outside the standard whitelist."
+                )
+        return manuscript
 
     @classmethod
     def create_bilingual_discovery_manuscript(

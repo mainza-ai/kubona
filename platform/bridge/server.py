@@ -37,22 +37,59 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("kubona-bridge")
 
 
+# Workflow gateway scopes (least privilege for bridge-executed workflows).
+# Everything the workflow tools legitimately need (compiler reads, submit +
+# read, cost reads + session management, provider catalog, provenance,
+# observatory, loop management) — and deliberately NOT execution:override
+# (cancel others' jobs), control:override (kill/pause others' loops) or
+# cost:approve (approve spend). The old scopes=("*") made every bridged
+# workflow god-mode; a forgotten kwargs change must never do that again.
+_WORKFLOW_GATEWAY_SCOPES = (
+    "compiler:read",
+    "execution:submit", "execution:read",
+    "cost:read", "cost:manage",
+    "providers:read",
+    "provenance:read", "provenance:write",
+    "world:read", "world:write",
+    "control:read", "control:manage",
+)
+
+
 class _BridgeTokenAuth:
-    """Authenticate the bridge-to-kubonad transport token as an operator.
+    """Authenticate the bridge-to-kubonad transport token as a per-caller operator.
 
     The bridge is a private compute plane. kubonad is the only intended
-    caller, and it presents KUBONA_BRIDGE_TOKEN. This is intentionally
-    narrow: no user tokens, no anonymous principal.
+    caller, and it presents KUBONA_BRIDGE_TOKEN. The principal is scoped to
+    the workflow tools above and labeled per caller (tenant/session) so
+    audit entries attribute the bridged execution — never a bare god-mode
+    ("*") principal shared by every caller.
     """
 
-    def __init__(self, token: str):
+    def __init__(self, token: str, sub: str = "kubonad-bridge",
+                 scopes: tuple = _WORKFLOW_GATEWAY_SCOPES):
         self._token = token
+        self._sub = sub
+        self._scopes = scopes
 
     def verify(self, token: str):
         from kubona.core.auth import AuthError, Principal
         if not self._token or not hmac.compare_digest(token or "", self._token):
             raise AuthError("invalid or missing bridge token")
-        return Principal(sub="kubonad-bridge", role="operator", scopes=("*",))
+        return Principal(sub=self._sub, role="operator", scopes=tuple(self._scopes))
+
+
+def _workflow_auth(caller_label: str):
+    """Gateway auth for one bridged workflow execution, fail-closed.
+
+    The bridge token is required in ALL envs (no dev fallback): without it
+    there is no authenticated principal to run workflow tools under.
+    """
+    token = os.getenv("KUBONA_BRIDGE_TOKEN", "")
+    if not token:
+        return None, ("bridge token is not configured: refusing "
+                      "unauthenticated workflow execution")
+    label = (caller_label or "").strip() or "uncategorized"
+    return _BridgeTokenAuth(token, sub=f"kubonad-bridge:{label}"), ""
 
 
 # Must match cmd/kubonad/bridge_auth.go byte-for-byte. The shared vector in
@@ -86,6 +123,119 @@ def _verify_session_assertion(request, context, token: str) -> None:
     if not got or not hmac.compare_digest(got, want):
         context.abort(grpc.StatusCode.UNAUTHENTICATED,
                       "session assertion missing or invalid: refusing self-declared money/tenant")
+
+
+# Simulator-class backends are zero-cost local execution (mirrors Go
+# jobs.isSimulatorBackend + Python execution._LOCAL_ONLY_PROVIDERS). Every
+# other backend string names metered hardware and additionally requires a
+# verified spend mandate — the bridge never relies solely on the Go edge
+# for money.
+_FREE_SIMULATOR_BACKENDS = frozenset({
+    "", "local-simulator", "local_simulator",
+    "aer", "qiskit-aer", "qiskit-aer-simulator",
+    "statevector", "statevector_simulator",
+    "gpu_simulator", "gpu-simulator",
+})
+
+
+def _is_paid_backend(provider: str) -> bool:
+    return (provider or "").strip().lower() not in _FREE_SIMULATOR_BACKENDS
+
+
+class _MandateRefused(ValueError):
+    """Spend-mandate verification refused (fail-closed money gate)."""
+
+
+def _verify_spend_mandate(mandate_ref_json: str, *, tenant_id: str,
+                           session_id: str, qasm: str,
+                           estimated_cost_usd: float) -> None:
+    """Verify the spend mandate inside QuantumSubmit before dispatch.
+
+    Tenant + job-hash binding, budget cover, expiry, and Ed25519 signature
+    (mirrors Go verifyMandateRef / Python verify_mandate). Raises
+    _MandateRefused on invalid/missing mandate — the caller gets ok=False,
+    never an enqueue.
+    """
+    from kubona.cost.mandate import (
+        SpendMandate, canonical_job_binding, verify_mandate,
+    )
+
+    if not (mandate_ref_json or "").strip():
+        raise _MandateRefused(
+            "a signed spend mandate is required for paid-backend dispatch "
+            "(mandate_ref_json missing)")
+    try:
+        import json as _json
+        data = _json.loads(mandate_ref_json)
+        mandate = SpendMandate(
+            tenant_id=data["tenant_id"],
+            job_hash=data["job_hash"],
+            max_budget_usd=float(data["max_budget_usd"]),
+            expiry_timestamp=data["expiry_timestamp"],
+            public_key_hex=data["public_key_hex"],
+            signature_hex=data["signature_hex"],
+        )
+    except Exception as e:
+        raise _MandateRefused(
+            f"mandate_ref_json must be the signed mandate JSON: {e}")
+    if not mandate.signature_hex or not mandate.job_hash or not mandate.public_key_hex:
+        raise _MandateRefused("unsigned or unbound mandate refused")
+    expected_job_hash = canonical_job_binding("circuit_run", session_id or "", qasm or "")
+    ok, reason = verify_mandate(mandate, tenant_id or "",
+                                expected_job_hash, float(estimated_cost_usd or 0.0))
+    if not ok:
+        raise _MandateRefused(f"spend mandate invalid: {reason}")
+
+
+def _job_recorded_session(job_id: str):
+    """Authoritative (server-side) session/tenant for a job, from the record.
+
+    Returns (session_id, tenant_id); tenant comes from the session store's
+    meta (never from request fields). Raises KeyError for unknown jobs.
+    """
+    from kubona.mcp.servers import execution as _exec
+
+    job = _exec._runner.store.get(job_id)
+    if job is None:
+        raise KeyError(f"unknown job_id {job_id!r}")
+    session_id = job.session_id or ""
+    tenant_id = ""
+    if session_id:
+        try:
+            sess = _exec._sessions.get(session_id)
+            tenant_id = str((getattr(sess, "meta", None) or {}).get("tenant_id", "") or "")
+        except KeyError:
+            tenant_id = ""
+    return session_id, tenant_id
+
+
+def _enforce_job_ownership(job_id: str, caller_session_id: str,
+                            caller_tenant_id: str):
+    """Enforce caller session/tenant against the job's recorded session.
+
+    The job's session/tenant are derived server-side from the job record
+    (never from the request). A caller claim that mismatches the record
+    refuses fail-closed. An absent claim is the Go-edge path (kubonad
+    authorizes status/cancel via JobSession + authorizeSessionRead before
+    proxying) and is allowed here — the bridge check is defense-in-depth
+    for direct bridge callers, never a bypass.
+    Returns (job, "") when allowed, (None, reason) when refused.
+    """
+    from kubona.mcp.servers import execution as _exec
+
+    job = _exec._runner.store.get(job_id)
+    if job is None:
+        return None, "unknown job_id"
+    recorded_session, recorded_tenant = _job_recorded_session(job_id)
+    caller_session_id = (caller_session_id or "").strip()
+    caller_tenant_id = (caller_tenant_id or "").strip()
+    if caller_session_id and caller_session_id != recorded_session:
+        return None, ("caller session does not own this job: refusing "
+                       "cross-session read/cancel")
+    if caller_tenant_id and caller_tenant_id != (recorded_tenant or ""):
+        return None, ("caller tenant does not own this job: refusing "
+                       "cross-tenant read/cancel")
+    return job, ""
 
 
 class _AuthInterceptor(grpc.ServerInterceptor):
@@ -364,6 +514,53 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             caller_export_class = getattr(request, "caller_export_class", "") or "any"
             require_review = bool(getattr(request, "require_review", False))
 
+            # Spend-mandate gate (money): for any paid backend the bridge
+            # verifies the mandate itself before dispatch — it never relies
+            # solely on the Go edge. Free simulators proceed without one;
+            # dry-run is the pre-mandate estimate panel and skips the gate.
+            effective_session_id = request.session_id or None
+            if not request.dry_run and _is_paid_backend(request.provider):
+                seed = int(_hl.sha256(request.idempotency_key.encode()).hexdigest()[:8], 16) % (2 ** 31)
+                pre = _exec.submit_job(
+                    circuit_qasm=request.qasm, provider=request.provider or "local-simulator",
+                    shots=request.shots if request.shots > 0 else 1024,
+                    session_id=request.session_id or None,
+                    caller_jurisdictions=caller_jurisdictions,
+                    caller_export_class=caller_export_class,
+                    require_review=require_review,
+                    wait=False, seed=seed,
+                    estimate_only=True,
+                    idempotency_key=None,
+                    idempotency_body_hash=None,
+                )
+                if not pre.get("ok"):
+                    return kubona_pb2.QuantumSubmitResponse(
+                        ok=False, error_message=str(pre.get("error", "submit refused")),
+                        job_id="")
+                effective_session_id = pre.get("session_id") or request.session_id or ""
+                try:
+                    est_cost = float((pre.get("estimate") or {}).get("estimated_usd", 0.0) or 0.0)
+                except (TypeError, ValueError):
+                    est_cost = 0.0
+                effective_tenant = (getattr(request, "tenant_id", "") or "").strip()
+                if not effective_tenant and effective_session_id:
+                    try:
+                        sess = _exec._sessions.get(effective_session_id)
+                        effective_tenant = str((getattr(sess, "meta", None) or {}).get("tenant_id", "") or "")
+                    except KeyError:
+                        effective_tenant = ""
+                try:
+                    _verify_spend_mandate(
+                        getattr(request, "mandate_ref_json", "") or "",
+                        tenant_id=effective_tenant,
+                        session_id=effective_session_id or "",
+                        qasm=request.qasm,
+                        estimated_cost_usd=est_cost,
+                    )
+                except _MandateRefused as e:
+                    return kubona_pb2.QuantumSubmitResponse(
+                        ok=False, error_message=f"spend mandate refused: {e}", job_id="")
+
             # wait is forced async for QPU inside submit_job; the bridge
             # never blocks on hardware. Seed derives from the idempotency
             # key: same key -> same seed -> reproducible retry.
@@ -371,7 +568,7 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             out = _exec.submit_job(
                 circuit_qasm=request.qasm, provider=request.provider or "local-simulator",
                 shots=request.shots if request.shots > 0 else 1024,
-                session_id=request.session_id or None,
+                session_id=effective_session_id,
                 caller_jurisdictions=caller_jurisdictions,
                 caller_export_class=caller_export_class,
                 require_review=require_review,
@@ -418,6 +615,17 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
         from kubona.mcp.servers import execution as _exec
 
         try:
+            # Ownership: the caller's session/tenant (when presented) must
+            # match the job's recorded session — derived server-side from
+            # the job record, never from request fields.
+            _, refusal = _enforce_job_ownership(
+                request.job_id,
+                getattr(request, "caller_session_id", "") or "",
+                getattr(request, "caller_tenant_id", "") or "")
+            if refusal:
+                return kubona_pb2.QuantumJobStatusResponse(
+                    ok=False, error_message=refusal, job_id=request.job_id,
+                    status="", result_json="", estimate_json="")
             st = _exec.get_job_status(request.job_id)
             if not st.get("ok"):
                 return kubona_pb2.QuantumJobStatusResponse(
@@ -453,6 +661,16 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             if not request.job_id:
                 return kubona_pb2.QuantumCancelResponse(
                     ok=False, error_message="job_id is required", job_id="",
+                    provider_recall_attempted=False, provider_recall_status="")
+            # Ownership before the fence: a mismatched caller must not
+            # cancel (or fence) another session's job.
+            _, refusal = _enforce_job_ownership(
+                request.job_id,
+                getattr(request, "caller_session_id", "") or "",
+                getattr(request, "caller_tenant_id", "") or "")
+            if refusal:
+                return kubona_pb2.QuantumCancelResponse(
+                    ok=False, error_message=refusal, job_id=request.job_id,
                     provider_recall_attempted=False, provider_recall_status="")
             rec = _exec.request_provider_recall(request.job_id)
             return kubona_pb2.QuantumCancelResponse(
@@ -631,13 +849,28 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
 
         logger.info("WorkflowPlan called for session %s", request.session_id)
         try:
+            # Authenticated planning: no unauthenticated compute, even dry-run.
+            # The plan never touches tools, but the transport bearer plus a
+            # configured bridge token are still required to reach it.
+            auth, refusal = _workflow_auth(
+                f"plan:{getattr(request, 'session_id', '') or 'no-session'}")
+            if auth is None:
+                return kubona_pb2.WorkflowPlanResponse(
+                    ok=False,
+                    error_message=refusal,
+                    workflow_id="",
+                    planned_steps_json="",
+                    unresolved_references=[],
+                    compensations_planned_json="",
+                )
             raw_wf = _json.loads(request.workflow_json)
             wf = parse_workflow(raw_wf)
             inputs = _json.loads(request.inputs_json) if request.inputs_json else {}
-            gw = build_gateway(require_auth=False)
+            gw = build_gateway(require_auth=True, auth=auth)
             ledger = Ledger()
             engine = WorkflowEngine(gateway=gw, ledger=ledger)
-            res = engine.run(wf, token="dev-plan-token", session_id=request.session_id or None,
+            res = engine.run(wf, token=os.getenv("KUBONA_BRIDGE_TOKEN", ""),
+                             session_id=request.session_id or None,
                              inputs=inputs, dry_run=True, force=True)
             return kubona_pb2.WorkflowPlanResponse(
                 ok=bool(res.get("ok", False)),
@@ -689,20 +922,21 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
             raw_wf = _json.loads(request.workflow_json)
             wf = parse_workflow(raw_wf)
             inputs = _json.loads(request.inputs_json) if request.inputs_json else {}
+            # No dev fallback: the bridge token is required in ALL envs for
+            # workflow execution. Tests provide it via fixture; production
+            # refuses without it instead of running god-mode locally.
+            auth, refusal = _workflow_auth(
+                f"run:{getattr(request, 'tenant_id', '') or 'no-tenant'}:"
+                f"{getattr(request, 'session_id', '') or 'no-session'}")
+            if auth is None:
+                return kubona_pb2.WorkflowRunResponse(
+                    ok=False,
+                    error_message=refusal,
+                    workflow_id="",
+                )
             bridge_token = os.getenv("KUBONA_BRIDGE_TOKEN", "")
-            if bridge_token:
-                token = request.token or bridge_token
-                gw = build_gateway(require_auth=True, auth=_BridgeTokenAuth(bridge_token))
-            else:
-                if os.getenv("KUBONA_ENV") == "production":
-                    return kubona_pb2.WorkflowRunResponse(
-                        ok=False,
-                        error_message=("bridge token is not configured: refusing "
-                                       "unauthenticated workflow execution"),
-                        workflow_id="",
-                    )
-                token = request.token or "dev-token"
-                gw = build_gateway(require_auth=False)
+            token = request.token or bridge_token
+            gw = build_gateway(require_auth=True, auth=auth)
             ledger = Ledger()
             engine = WorkflowEngine(gateway=gw, ledger=ledger)
             res = engine.run(wf, token=token, session_id=request.session_id or None,
@@ -754,6 +988,16 @@ def serve(port: int = 50051, socket_path: str | None = None,
             "set the token (compose does) or bind 127.0.0.1"
         )
 
+    # P0 confinement: in production a TCP bridge is refused outright — the
+    # only production transport is UDS-exclusive (both ends already support
+    # it: the socket branch below and kubonad's KUBONA_BRIDGE_SOCKET dial).
+    # Loopback TCP + token remains allowed for dev/CI.
+    if os.getenv("KUBONA_ENV") == "production" and not sock and port > 0:
+        raise SystemExit(
+            "refusing TCP bridge in KUBONA_ENV=production: use UDS-exclusive "
+            "mode (KUBONA_BRIDGE_SOCKET) — loopback+token is dev/CI only"
+        )
+
     interceptors = [_AuthInterceptor(token)] if token else []
     server = grpc.server(futures.ThreadPoolExecutor(max_workers=8),
                          interceptors=interceptors)
@@ -777,13 +1021,14 @@ def serve(port: int = 50051, socket_path: str | None = None,
             server.add_insecure_port(f"unix://{sock}")
         finally:
             os.umask(old_umask)
-        logger.info(f"Binding Python Quantum Bridge to unix://{sock} (TCP disabled)")
+        logger.info("Bridge transport mode: uds-exclusive (unix://%s, TCP disabled, token %s)",
+                    sock, 'set' if token else 'NOT SET')
         port = 0
 
     if port > 0:
         server.add_insecure_port(f"{bind}:{port}")
-        logger.info(f"Starting Python Quantum Bridge on {bind}:{port} "
-                    f"(token={'set' if token else 'NOT SET: loopback/dev only'})")
+        logger.info("Bridge transport mode: loopback-tcp (%s:%d, token %s)",
+                    bind, port, 'set' if token else 'NOT SET: loopback/dev only')
 
     server.start()
 
