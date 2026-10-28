@@ -370,6 +370,9 @@ func (s *Server) handleMemoryRetain(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if s.refuseIfDiskBlocked(w) {
+		return
+	}
 	if s.memoryStore == nil {
 		http.Error(w, "memory store unavailable", http.StatusServiceUnavailable)
 		return

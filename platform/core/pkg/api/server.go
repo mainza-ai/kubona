@@ -1765,6 +1765,9 @@ func (s *Server) handleSessionImport(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+	if s.refuseIfDiskBlocked(w) {
+		return
+	}
 	var req struct {
 		Manifest json.RawMessage `json:"manifest"`
 	}

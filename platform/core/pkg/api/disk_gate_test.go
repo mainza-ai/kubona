@@ -63,6 +63,11 @@ func TestDiskBlockedRefusesNewWork(t *testing.T) {
 		"/api/metasearch/apply":   map[string]any{"proposal_id": "nope"},
 		"/api/chat/messages":      map[string]any{"session_id": sid, "content": "hi"},
 		"/api/chat/regenerate":    map[string]any{"session_id": sid},
+		"/api/observatory/lens":   map[string]any{"session_id": sid, "target_system": "H2", "task_type": "images2PosedRGBD"},
+		"/api/quantum/jobs":       map[string]any{"session_id": sid, "qasm": idemQASM, "provider": "local-simulator", "shots": 8, "idempotency_key": "disk-q"},
+		"/api/workflows/run":      map[string]any{"session_id": sid, "workflow": map[string]any{"name": "disk"}},
+		"/api/memory/retain":      map[string]any{"session_id": sid, "content": "disk drill"},
+		"/api/sessions/import":    map[string]any{"manifest": map[string]any{}},
 	}
 	for path, body := range entries {
 		code, resp, hdr := diskPost(t, h, path, body)
