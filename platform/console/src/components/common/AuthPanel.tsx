@@ -11,7 +11,8 @@ import {
   type AuthServerSession,
 } from '@/lib/api';
 import type { Lab } from '@/types';
-import { getOrCreateSessionKeyPair, peekSessionPubkeyHex, signLoginChallenge } from '@/lib/mandates';
+import { signLoginChallengeWithCustody } from '@/lib/mandates';
+import { peekSignerPubkeyHex } from '@/lib/custody';
 
 // Session auth (A3/A4): challenge-response login bound to a lab admin key.
 // The browser key (same in-memory keypair the mandate flows use) signs the
@@ -25,14 +26,14 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
   const [sessions, setSessions] = useState<AuthServerSession[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [browserKey, setBrowserKey] = useState<string | null>(() => peekSessionPubkeyHex());
+  const [browserKey, setBrowserKey] = useState<string | null>(null);
 
   const tenantId =
     selectedTenantId || (labs.find((l) => l.id === 'default') || labs[0])?.id || '';
 
   const refresh = async () => {
     const me = await authWhoami();
-    setBrowserKey(peekSessionPubkeyHex());
+    setBrowserKey(await peekSignerPubkeyHex());
     setWhoami(me);
     if (me?.authenticated) {
       const list = await authSessions();
@@ -47,7 +48,7 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
     authWhoami()
       .then(async (me) => {
         if (!active) return;
-        setBrowserKey(peekSessionPubkeyHex());
+        setBrowserKey(await peekSignerPubkeyHex());
         setWhoami(me);
         if (me?.authenticated) {
           const list = await authSessions();
@@ -71,6 +72,8 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
     setNotice(null);
     try {
       await fn();
+    } catch (e) {
+      setNotice(`failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(null);
     }
@@ -82,10 +85,8 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
         setNotice('pick a lab first.');
         return;
       }
-      // getOrCreateSessionKeyPair mints on first use — an explicit operator
-      // action (this button), never a render side effect.
-      const kp = getOrCreateSessionKeyPair();
-      setBrowserKey(peekSessionPubkeyHex());
+      // getOrCreateSigner mints (or reloads the durable non-extractable
+      // key) only on this explicit operator action — never a render effect.
       const ch = await authChallenge();
       if (ch === null) {
         setNotice('backend unreachable — nothing sent.');
@@ -95,7 +96,8 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
         setNotice(`challenge refused: ${ch.error}`);
         return;
       }
-      const { pubkey_hex, signature_hex } = signLoginChallenge(ch.nonce, kp);
+      const { pubkey_hex, signature_hex } = await signLoginChallengeWithCustody(ch.nonce);
+      setBrowserKey(pubkey_hex);
       const res = await authLogin(tenantId, pubkey_hex, ch.nonce, signature_hex);
       if (res === null) {
         setNotice('backend unreachable — nothing changed.');
@@ -162,7 +164,7 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
           </button>
           {!browserKey && (
             <span className="text-[11px] text-slate-500">
-              No browser key yet — create one in the keyring first (it signs the challenge).
+              No browser key yet — logging in mints a non-extractable Ed25519 key in this browser.
             </span>
           )}
         </div>

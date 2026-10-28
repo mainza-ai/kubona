@@ -69,8 +69,9 @@ submitted. Re-verify before dispatch.
   ~15.7% at job time, but that alone does not explain 44% `10`; investigate layout/calibration
   before any fidelity claim. An earlier `ibm_fez` submission was canceled while queued with
   0 usage.
-- No advantage or fidelity claim is made from this run. Total QPU spend: 2 seconds of the
-  2-minute operator cap.
+- No advantage or fidelity claim is made from this run. Total QPU spend through the
+  2026-10-28 anomaly replay: **13 seconds** (operator cap raised to five minutes for that
+  replay; 4 s earlier + 3 s Bell + 3 s `|11>` + 3 s layout-guarded Bell).
 
 ## Platform-governed dispatch (verified 2026-10-28)
 
@@ -109,14 +110,22 @@ path CAS-settles `reserved - actual` back to tenant+session (full release when m
 usage is zero), and the job row records the measured amount. Covered by a Go test; the
 already-created validation session was not retroactively adjusted.
 
-**Anomaly investigation (same day):** the direct-run circuit and the governed QASM produce
-the same ISA (initial layout q0/q1, `rz/sx/cz/measure`; ideal Aer `00/11`), so this is not a
-conversion defect. The governed rerun on the same backend produced 92% `00/11`; the direct
-run's 44% `|10>` was not reproduced. Job records do not retain the physical layout, so the
-suspected bad-pair/readout cause cannot be proven from the completed jobs. Treat it as an
-unresolved device/layout observation. The provider now records the logical→physical
-transpiler layout in the job result/meta (and the bridge status payload), so the next
-hardware run can distinguish layout/readout from gate errors.
+**Anomaly investigation — root cause found 2026-10-28.** The direct-run circuit and the
+governed QASM produce the same ISA, so conversion is not the cause. A controlled replay on
+`ibm_marrakesh` (3 QPU seconds, 2000 shots) passed through the default pass-manager layout
+`q0→0, q1→1` and produced `00:1024, 01:610, 10:22, 11:344` for a Bell circuit; a `|11>`
+preparation on the same pair produced `01:1295, 11:656, 00:35, 10:14`, while `|00>` was
+`00:2000/2000`. That is a physical-qubit readout/preparation failure on the pair, not gate
+conversion: the backend's live calibration put **q1's readout error at 0.157** (q0 was
+0.0032). The earlier direct run's 44% `|10>` is the same failure seen through a different
+logical order (the old job did not record its layout). No fidelity claim is made.
+
+The provider now selects a low-error connected physical subgraph from live
+readout/edge calibration instead of trusting the topology-only default. Retranspiling the
+same Bell circuit selected physical **86/87** (readout 0.0049/0.0029), layout recorded in
+the result, and job `dbh4sspq260s73buh8o0` returned
+`00:1001, 01:34, 10:29, 11:936` (96.85% `00/11`) in 3 QPU seconds. This validates the
+layout guard, not a full device-fidelity claim.
 
 ## Agent rules
 

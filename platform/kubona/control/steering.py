@@ -33,6 +33,7 @@ class SteeringService:
             "timestamp": time.time(),
         }
         rec.history.append(nudge_entry)
+        self.loop_supervisor.persist(loop_id)
         return rec
 
     def swap_optimizer(self, loop_id: str, new_optimizer: str, options: Optional[Dict[str, Any]] = None) -> LoopHandle:
@@ -46,6 +47,7 @@ class SteeringService:
             "timestamp": time.time(),
         }
         rec.history.append(swap_entry)
+        self.loop_supervisor.persist(loop_id)
         return rec
 
     def fork_counterfactual(self, parent_loop_id: str, fork_step: int, fork_name: Optional[str] = None) -> LoopHandle:
@@ -70,9 +72,11 @@ class SteeringService:
             name=name,
             session_id=parent.session_id,
             total_steps=parent.total_steps,
+            tenant=parent.tenant,
         )
         child.loop_id = child_id
         child.step = fork_step
         child.history = forked_history
         self.loop_supervisor._loops[child_id] = child
+        self.loop_supervisor.persist(child_id)
         return child

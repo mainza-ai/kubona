@@ -78,6 +78,8 @@ describe('AuthPanel (A4 session auth UI)', () => {
     await act(async () => {
       await signInBtn!.props.onClick();
     });
+    // login() is void-returning; wait for the custody sign + login promises.
+    await vi.waitFor(() => expect(api.authLogin).toHaveBeenCalled());
 
     expect(api.authChallenge).toHaveBeenCalledTimes(1);
     expect(api.authLogin).toHaveBeenCalledTimes(1);
@@ -115,6 +117,7 @@ describe('AuthPanel (A4 session auth UI)', () => {
     await act(async () => {
       await signInBtn!.props.onClick();
     });
+    await vi.waitFor(() => expect(api.authLogin).toHaveBeenCalled());
 
     const text = textOf(root!.root);
     expect(text).toContain("login refused: unauthorized: key is not this lab's admin");

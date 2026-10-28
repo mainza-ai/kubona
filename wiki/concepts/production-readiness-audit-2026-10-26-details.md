@@ -106,12 +106,12 @@ bodies beyond structural verification.
 | PYC-19 | P2 | Cancellation never calls vendor recall; `request_provider_recall` unmounted and has a latent `NameError` | `execution.py:537-584`; `_mount.py:40-50` |
 | PYC-20 | P2 | Unbounded ledger/session reads and science matrix/qubit sizes | `provenance.py:41-85`; `execution.py:615-618`; `console_api.py:407-437` |
 | PYC-21 | P2 | Unknown fidelity device inherits the perfect simulator; qubit count unchecked | `fidelity/accounting.py:172-176` |
-| PYC-22 | P2 | Loop/steering/delegation state is process-local; fork loses parent tenant | `control/supervisor.py:42-53`; `steering.py:69-77`; `governance/delegation.py:85` |
+| PYC-22 | **Closed** | Loop/steering/delegation state now persists (loops.jsonl, delegations.json); restart recovery is paused/fail-closed; forks inherit parent tenant. | tests: `test_control.py`, `test_delegation_crypto.py` |
 | PYC-23 | P2 | Non-atomic JSON stores; lost-update in `record_job`; corrupt-line crashes | `labs.py:58`; `identity/registry.py:68`; `session.py:182-186` |
 | PYC-24 | P2 | Ledger pre-label rows readable by ambient; reads without flock; no fsync | `provenance/ledger.py:185-236` |
 | PYC-25 | P2 | Canary snapshot hash computed before the calibration field is attached | `canary/canary.py:140-150` |
 | PYC-26 | P2 | Stale provider SDK assumptions (IBM `ibm_quantum`, Heron mismatch, QCS stub, Leap sampler), no retry/backoff | `qiskit_provider.py:167,209,256`; `pyquil_provider.py:133-140`; `annealing_provider.py:143-148` |
-| PYC-27 | P2 | Custom-agent scopes/budget/sandbox stored but never enforced; two agent registries | `agents/user_defined.py:38-41`; `console_api.py:157-162` |
+| PYC-27 | **Closed** | A2A dispatch now enforces a named custom agent's declared scopes and spend envelope (`AuthorizeTask`); unknown/out-of-envelope requests refuse before queueing. The Go registry is the runtime authority and shares the `custom_agents` table with the Python manifest view. | `agents/custom.go`; `a2a.go`; `a2a_test.go` |
 | PYC-28 | P2 | Console science endpoints can be DoSed; tribunal "COMMITTED_TO_LEDGER" writes nothing | `console_api.py:407-421,435-437,676,693-696` |
 | PYC-29 | P2 | Audit only successful calls; internal error text leaked; approval nonces per process | `gateway.py:135-151`; `http_gateway.py:122-126`; `approval.py:172-193` |
 | PYC-30 | P2 | `SecretStore.get(required=True)` returns `None`; corrupt stores crash rather than quarantine | `secrets.py:191-195`; `governance.py:80-83`; `identity/registry.py:64` |

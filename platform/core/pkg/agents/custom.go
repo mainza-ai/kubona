@@ -153,6 +153,53 @@ func (r *CustomAgentRegistry) List() []CustomAgentManifest {
 	return list
 }
 
+// Get returns a registered manifest by id (system seeds included).
+func (r *CustomAgentRegistry) Get(id string) (CustomAgentManifest, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	m, ok := r.agents[id]
+	return m, ok
+}
+
+// AuthorizeTask applies the manifest's declared runtime envelope. A custom
+// agent may only run a task type listed in its scopes, may never request a
+// budget above its declared ceiling, and may not ask for scopes it was not
+// granted. Registration is not authority; this is the dispatch check.
+func (r *CustomAgentRegistry) AuthorizeTask(id, taskType string, maxBudgetUSD float64, requested []string) (CustomAgentManifest, error) {
+	m, ok := r.Get(id)
+	if !ok {
+		return CustomAgentManifest{}, fmt.Errorf("agent %q is not registered", id)
+	}
+	if strings.TrimSpace(taskType) == "" {
+		return CustomAgentManifest{}, fmt.Errorf("task type is required for agent dispatch")
+	}
+	if math.IsNaN(maxBudgetUSD) || math.IsInf(maxBudgetUSD, 0) || maxBudgetUSD <= 0 {
+		return CustomAgentManifest{}, fmt.Errorf("agent task budget must be a positive finite number")
+	}
+	if m.SpendBudgetUSD <= 0 {
+		return CustomAgentManifest{}, fmt.Errorf("agent %q has no spend envelope: dispatch refused", id)
+	}
+	if maxBudgetUSD > m.SpendBudgetUSD {
+		return CustomAgentManifest{}, fmt.Errorf("agent %q budget %.4f exceeds declared envelope %.4f: dispatch refused", id, maxBudgetUSD, m.SpendBudgetUSD)
+	}
+	if len(m.Scopes) == 0 {
+		return CustomAgentManifest{}, fmt.Errorf("agent %q declares no scopes: default-deny, dispatch refused", id)
+	}
+	allowed := make(map[string]bool, len(m.Scopes))
+	for _, sc := range m.Scopes {
+		allowed[sc] = true
+	}
+	if !allowed[taskType] {
+		return CustomAgentManifest{}, fmt.Errorf("task type %q is outside agent %q scopes: dispatch refused", taskType, id)
+	}
+	for _, sc := range requested {
+		if !allowed[sc] {
+			return CustomAgentManifest{}, fmt.Errorf("scope %q is outside agent %q envelope: dispatch refused", sc, id)
+		}
+	}
+	return m, nil
+}
+
 // Register adds or updates a user-defined custom agent manifest, validated
 // and persisted. K3: previously anything went — empty names, negative
 // budgets, IsSystemAgent forgery, seed-ID overwrite (then deletable).

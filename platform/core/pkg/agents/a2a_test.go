@@ -476,3 +476,55 @@ func TestA2AW05DelegationRail(t *testing.T) {
 		}
 	}
 }
+
+func TestCustomAgentScopesAndBudgetEnforcedAtDispatch(t *testing.T) {
+	server := NewA2AServer("0x123", nil, nil)
+	reg := NewCustomAgentRegistry()
+	m, err := reg.Register(CustomAgentManifest{
+		Name: "Mitigator", SpendBudgetUSD: 2.0,
+		Scopes: []string{"zne_error_mitigation"},
+	})
+	if err != nil {
+		t.Fatalf("register: %v", err)
+	}
+
+	// Without the registry, an agent_id is unverifiable and must refuse.
+	resp := submitRaw(t, server, "a2a.SubmitTask", TaskSubmitParams{
+		TaskType: "zne_error_mitigation", AgentID: m.ID,
+		MaxBudgetUSD: 1.0, Scopes: []string{"zne_error_mitigation"},
+	}, 90)
+	if resp.Error == nil {
+		t.Fatal("agent dispatch without a registry must refuse")
+	}
+
+	server.SetCustomAgents(reg)
+
+	// Root scopes default to the manifest's declared scopes.
+	root := submitTask(t, server, TaskSubmitParams{
+		TaskType: "zne_error_mitigation", AgentID: m.ID, MaxBudgetUSD: 1.0,
+	}, 91)
+	if root.AgentID != m.ID || len(root.Scopes) != 1 || root.Scopes[0] != "zne_error_mitigation" {
+		t.Fatalf("manifest scopes must be applied: %+v", root)
+	}
+
+	// Over-budget and out-of-scope dispatches refuse before queueing.
+	for i, p := range []TaskSubmitParams{
+		{TaskType: "zne_error_mitigation", AgentID: m.ID, MaxBudgetUSD: 3.0},
+		{TaskType: "circuit_cutting_recombination", AgentID: m.ID, MaxBudgetUSD: 1.0},
+	} {
+		resp := submitRaw(t, server, "a2a.SubmitTask", p, 92+i)
+		if resp.Error == nil {
+			t.Fatalf("invalid agent dispatch %d must refuse: %+v", i, p)
+		}
+	}
+
+	// A child cannot ask for scopes outside the agent envelope even when
+	// the parent chain would otherwise allow them.
+	childResp := submitRaw(t, server, "a2a.SubmitTask", TaskSubmitParams{
+		TaskType: "zne_error_mitigation", AgentID: m.ID, ParentTaskID: root.ID,
+		MaxBudgetUSD: 1.0, Scopes: []string{"zne_error_mitigation", "circuit_cutting_recombination"},
+	}, 94)
+	if childResp.Error == nil {
+		t.Fatal("child scope widening outside the agent envelope must refuse")
+	}
+}

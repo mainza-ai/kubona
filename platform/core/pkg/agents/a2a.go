@@ -73,6 +73,7 @@ const MaxDelegationDepth = 2
 type A2ATask struct {
 	ID        string         `json:"id"`
 	TaskType  string         `json:"task_type"`
+	AgentID   string         `json:"agent_id,omitempty"`
 	Status    A2ATaskStatus  `json:"status"`
 	CreatedAt time.Time      `json:"created_at"`
 	UpdatedAt time.Time      `json:"updated_at"`
@@ -108,6 +109,7 @@ type TaskExecutor interface {
 // TaskSubmitParams represents the input parameters for a2a.SubmitTask
 type TaskSubmitParams struct {
 	TaskType      string                 `json:"task_type"`
+	AgentID       string                 `json:"agent_id,omitempty"`
 	Payload       json.RawMessage        `json:"payload"`
 	MaxBudgetUSD  float64                `json:"max_budget_usd,omitempty"`
 	ParentMandate *mandates.SpendMandate `json:"parent_mandate,omitempty"`
@@ -132,6 +134,9 @@ type A2AServer struct {
 	// L0 refuses execution at dispatch; unknown tenants fail closed.
 	// Nil means unchecked (tests / standalone use).
 	autonomyChecker func(tenantID string) (string, error)
+	// customAgents, when attached, constrains dispatches that name an
+	// agent_id to that manifest's declared scopes and spend envelope.
+	customAgents *CustomAgentRegistry
 }
 
 // NewA2AServer creates a new A2A server instance
@@ -188,6 +193,14 @@ func (s *A2AServer) SetAutonomyChecker(checker func(tenantID string) (string, er
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.autonomyChecker = checker
+}
+
+// SetCustomAgents attaches the custom-agent registry used to enforce
+// manifest scopes/budgets for dispatches that name an agent_id.
+func (s *A2AServer) SetCustomAgents(reg *CustomAgentRegistry) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.customAgents = reg
 }
 
 // GetAgentCard returns the static agent capabilities card
@@ -290,6 +303,20 @@ func (s *A2AServer) HandleRequest(req *JSONRPCRequest) *JSONRPCResponse {
 		if math.IsNaN(params.MaxBudgetUSD) || math.IsInf(params.MaxBudgetUSD, 0) || params.MaxBudgetUSD <= 0 {
 			return rpcError(req.ID, -32602, "max_budget_usd must be a positive finite number: delegation without a budget is refused")
 		}
+		var agentScopes []string
+		if params.AgentID != "" {
+			s.mu.RLock()
+			reg := s.customAgents
+			s.mu.RUnlock()
+			if reg == nil {
+				return rpcError(req.ID, -32602, "agent_id dispatch requires the custom-agent registry: refused")
+			}
+			m, err := reg.AuthorizeTask(params.AgentID, params.TaskType, params.MaxBudgetUSD, params.Scopes)
+			if err != nil {
+				return rpcError(req.ID, -32602, err.Error())
+			}
+			agentScopes = append([]string(nil), m.Scopes...)
+		}
 		depth := 0
 		parentScopes := append([]string(nil), s.card.Capabilities...)
 		isRoot := params.ParentTaskID == ""
@@ -325,9 +352,13 @@ func (s *A2AServer) HandleRequest(req *JSONRPCRequest) *JSONRPCResponse {
 		scopes := params.Scopes
 		if len(scopes) == 0 {
 			if isRoot {
-				return rpcError(req.ID, -32602, "root tasks must declare scopes explicitly: default-deny, never the full capability set")
+				if len(agentScopes) == 0 {
+					return rpcError(req.ID, -32602, "root tasks must declare scopes explicitly: default-deny, never the full capability set")
+				}
+				scopes = append([]string(nil), agentScopes...)
+			} else {
+				scopes = append([]string(nil), parentScopes...)
 			}
-			scopes = append([]string(nil), parentScopes...)
 		} else {
 			allowed := make(map[string]bool, len(parentScopes))
 			for _, sc := range parentScopes {
@@ -339,6 +370,28 @@ func (s *A2AServer) HandleRequest(req *JSONRPCRequest) *JSONRPCResponse {
 						return rpcError(req.ID, -32602, fmt.Sprintf("scope %q is not an advertised capability: refused", sc))
 					}
 					return rpcError(req.ID, -32602, fmt.Sprintf("scope %q exceeds parent delegation: refused", sc))
+				}
+			}
+		}
+		if len(agentScopes) > 0 {
+			allowed := make(map[string]bool, len(agentScopes))
+			for _, sc := range agentScopes {
+				allowed[sc] = true
+			}
+			for _, sc := range scopes {
+				if !allowed[sc] {
+					return rpcError(req.ID, -32602, fmt.Sprintf("scope %q is outside agent %q envelope: dispatch refused", sc, params.AgentID))
+				}
+			}
+		}
+		if isRoot {
+			advertised := make(map[string]bool, len(parentScopes))
+			for _, sc := range parentScopes {
+				advertised[sc] = true
+			}
+			for _, sc := range scopes {
+				if !advertised[sc] {
+					return rpcError(req.ID, -32602, fmt.Sprintf("scope %q is not an advertised capability: refused", sc))
 				}
 			}
 		}
@@ -386,6 +439,7 @@ func (s *A2AServer) HandleRequest(req *JSONRPCRequest) *JSONRPCResponse {
 		task := &A2ATask{
 			ID:            taskID,
 			TaskType:      params.TaskType,
+			AgentID:       params.AgentID,
 			Status:        TaskStatusQueued,
 			CreatedAt:     time.Now().UTC(),
 			UpdatedAt:     time.Now().UTC(),

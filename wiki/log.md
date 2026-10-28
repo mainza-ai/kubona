@@ -3695,3 +3695,23 @@ skipped is the exact failure this incident is about:
 ## [2026-10-28] decision | Session job lists are paginated
 
   - execution.session_status returns a bounded newest-first page of job ids (jobs_limit 1..1000, default 100) with jobs_total/jobs_returned/jobs_truncated. The store still retains history, but the MCP read can no longer grow without bound.
+
+## [2026-10-28] verification | Marrakesh |10> root cause: bad physical pair, not conversion
+
+  - Controlled 2000-shot replay on the default layout q0→0/q1→1: Bell 00:1024/01:610/10:22/11:344; |11> 01:1295/11:656/00:35/10:14; |00> 2000/2000. The failing qubit is physical q1 (live readout error 0.157); q0 was 0.0032. The earlier 44% |10> was the same bad physical qubit seen through an unlogged logical order.
+  - Provider now chooses a low-error connected physical subgraph from live calibration. Same Bell retranspiled onto physical 86/87 (readout 0.0049/0.0029) returned 00:1001/01:34/10:29/11:936 (96.85% 00/11) in 3 s, job dbh4sspq260s73buh8o0.
+  - QPU spend 13 s total (4 s prior + 9 s replay), under the operator's five-minute cap. No fidelity/advantage claim.
+
+## [2026-10-28] decision | Loop, steering, and delegation state persist
+
+  - LoopSupervisor writes append-only loop snapshots to state/loops.jsonl and reconstructs on start; a loop that was running at shutdown recovers as paused, never falsely alive. Steering events and forked children persist; the fork inherits the parent's tenant.
+  - SpendDelegationManager persists signed mandates plus revocations and reloads only rows whose signature still verifies under the current key. Restart preserves spent ceilings and kill-switches.
+
+## [2026-10-28] decision | Console admin key is non-extractable and durable
+
+  - New `console/src/lib/custody.ts` stores an Ed25519 private key as a non-extractable WebCrypto CryptoKey in IndexedDB; production refuses an extractable/memory key if durable custody is unavailable. Login challenges, spend mandates, and admin envelopes sign through it. The synchronous noble keypair helpers remain only for tests/explicit injection.
+  - This closes the Q-56 C5 custody residual; WebAuthn/passkey attestation is now an optional hardware-backed upgrade, not required for basic custody.
+
+## [2026-10-28] verification | IBM Pay-As-You-Go rate card re-checked
+
+  - ibm.com/quantum/pricing still lists Pay-As-You-Go at $96/min (billed per second, 1-second minimum) = $1.60/s; Flex $72/min and Premium $48/min are separate plans. `ibm-qiskit.json` provenance date updated to 2026-10-28. No new QPU spend.
