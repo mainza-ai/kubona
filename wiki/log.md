@@ -3641,3 +3641,8 @@ skipped is the exact failure this incident is about:
   - qiskit-ibm-runtime <0.50 (and the CI stub) has no executor_sampler; fall back to legacy SamplerV2 while keeping ISA transpilation when the backend exposes a target.
   - Kept the historical "positive int" shots error while adding the 1M upper bound (W2 regex compatibility).
   - Retrieved the Open Plan instance CRN via service.instances() and stored it as KUBONA_IBM_QISKIT_INSTANCE in .env (mode 600, never printed/committed); the service now binds the instance explicitly instead of relying on auto-selection.
+
+## [2026-10-28] verification | IBM docs link hub for agents
+
+  - Added [[ibm-quantum-platform]]: canonical live IBM guide URLs (compute service, instances, Sampler/options, transpile/ISA, job limits, max execution, usage/cost, monitoring, calibration, retired QPUs, local testing, errors) plus the 2026-10-28 Kubona provider snapshot and agent rules.
+  - Updated [[qiskit]] to point at the hub and to describe the client-side Sampler (0.50) rather than only SamplerV2.

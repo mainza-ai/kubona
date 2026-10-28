@@ -161,8 +161,8 @@ bar before it lands. "Works" is necessary and insufficient.
 shaped before it is implemented. Implementation is held strictly to the 2026-10-12 Production
 Bar (real logic or fail-closed refusal, no theater, line audit before landing).
 
-**Contents:** 10 source pages (see `wiki/log.md`), 153 pages — overview/roadmap/questions/
-index/log, 47 entities, 91 concepts. A 2026-10-26 Round-2 audit read all 831 in-scope
+**Contents:** 10 source pages (see `wiki/log.md`), 154 pages — overview/roadmap/questions/
+index/log, 48 entities, 91 concepts. A 2026-10-26 Round-2 audit read all 831 in-scope
 source files across Go core, Rust crates, Python runtime, Bridge, Console, Contracts,
 Docker, and CI. Its verdict is **not production-ready**: ten P0 blockers remain at trust
 boundaries (bridge auth, import forgery, sandbox escape, spend settlement, release gate,
