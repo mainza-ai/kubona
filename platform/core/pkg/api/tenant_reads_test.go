@@ -164,6 +164,54 @@ func TestTenantReadsScopedByCookie(t *testing.T) {
 	}
 }
 
+// GET /api/tenants/:id binds the caller like the list (D-09): lab callers
+// read only their own row, bearer reads all, anonymous reads only while the
+// store holds a single lab. Pre-fix the path had no caller check at all.
+func TestTenantByIDScopedByCaller(t *testing.T) {
+	srv, cleanup := setupTenantDrill(t)
+	defer cleanup()
+
+	// Single-lab store (default only): anonymous reads work (local flow).
+	if code, _ := drillGet(t, srv, "/api/tenants/default", "", ""); code != http.StatusOK {
+		t.Errorf("single-lab anonymous tenant read must 200, got %d", code)
+	}
+
+	drillTenant(t, srv, "lab-a")
+	drillTenant(t, srv, "lab-b")
+	cookieA := drillLogin(t, srv, "lab-a")
+
+	// Own-lab row reads fine.
+	if code, body := drillGet(t, srv, "/api/tenants/lab-a", cookieA, ""); code != http.StatusOK {
+		t.Errorf("own-lab tenant read must 200, got %d: %s", code, body)
+	} else if !strings.Contains(body, "lab-a") {
+		t.Errorf("own-lab read must return the lab row: %s", body)
+	}
+	// Cross-lab row refuses and names the boundary.
+	if code, body := drillGet(t, srv, "/api/tenants/lab-b", cookieA, ""); code != http.StatusForbidden {
+		t.Errorf("cross-lab tenant read must 403, got %d: %s", code, body)
+	} else if !strings.Contains(body, "another lab") {
+		t.Errorf("cross-lab refusal must name the lab boundary: %s", body)
+	}
+	// Bearer operator reads across labs.
+	if code, _ := drillGet(t, srv, "/api/tenants/lab-b", "", "test-token"); code != http.StatusOK {
+		t.Errorf("bearer cross-lab tenant read must 200, got %d", code)
+	}
+	// Multi-lab store: anonymous reads close.
+	if code, _ := drillGet(t, srv, "/api/tenants/lab-a", "", ""); code != http.StatusUnauthorized {
+		t.Errorf("multi-lab anonymous tenant read must 401, got %d", code)
+	}
+	// Ghost tenants: no existence oracle — a lab caller guessing another
+	// id gets the same 403 as an existing foreign row, never a 404 that
+	// confirms absence (tenant ids are human-chosen, unlike session UUIDs).
+	if code, _ := drillGet(t, srv, "/api/tenants/ghost-lab", cookieA, ""); code != http.StatusForbidden {
+		t.Errorf("lab caller guessing a tenant id must 403 (no oracle), got %d", code)
+	}
+	// Bearer still distinguishes ghosts (operator sees the registry as-is).
+	if code, _ := drillGet(t, srv, "/api/tenants/ghost-lab", "", "test-token"); code != http.StatusNotFound {
+		t.Errorf("bearer ghost tenant read must stay 404, got %d", code)
+	}
+}
+
 func TestAnonymousReadsSingleLabOpen(t *testing.T) {
 	srv, cleanup := setupTenantDrill(t)
 	defer cleanup()

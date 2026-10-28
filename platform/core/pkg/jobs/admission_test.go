@@ -1,10 +1,14 @@
 package jobs
 
 import (
+	"crypto/ed25519"
 	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/mainza-ai/kubona/core/pkg/mandates"
 )
 
 // W2.5: two-qubit counting covers the full vocabulary (safe direction) and
@@ -115,5 +119,73 @@ func TestCountQASMGatesHandlesAnyRegisterAndMultipleQregs(t *testing.T) {
 	}
 	if twoQ != 1 {
 		t.Fatalf("non-q registers must still count as 2q operands, got twoQ=%d", twoQ)
+	}
+}
+
+// A payment-settlement row must NEVER satisfy mandate admission, even when
+// cited as mandate_ref: settlement is not authorization. Pinned here so a
+// future event-type drift cannot turn a settled payment into QPU spend.
+func TestSettlementRowNeverPassesAdmission(t *testing.T) {
+	runner, cleanup := setupRunner(t, &fakeBridge{})
+	defer cleanup()
+
+	if _, err := runner.ledger.DB().Exec(
+		`INSERT INTO ledger_events (timestamp, session_id, tenant_id, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"2026-10-09T00:00:00Z", "payment-settlement", "default", "x402_payment_settled",
+		`{"challenge_id":"ch-1","reference":"local:abc","simulated":true}`,
+		"0", "settle-hash-1", "pub", "sig",
+	); err != nil {
+		t.Fatalf("seed settlement: %v", err)
+	}
+	err := runner.verifyMandateReceipt("settle-hash-1", "default", 1.0,
+		mandates.CanonicalJobBinding("circuit_run", "sess-1", "OPENQASM 2.0;\nqreg q[1];\n"))
+	if err == nil {
+		t.Fatal("payment-settlement row must NOT pass mandate admission")
+	}
+	if !strings.Contains(err.Error(), "not a spend mandate") {
+		t.Fatalf("refusal must name the settlement confusion, got: %v", err)
+	}
+}
+
+// A forged mandate_verified row — right tenant, covering budget, exact job
+// binding, but a signature transplanted from a DIFFERENT mandate (the DB
+// writer's classic move) — must refuse. Row fields alone are not authority;
+// the Ed25519 signature over the canonical payload is.
+func TestForgedMandateReceiptRefusesAdmission(t *testing.T) {
+	runner, cleanup := setupRunner(t, &fakeBridge{})
+	defer cleanup()
+
+	binding := mandates.CanonicalJobBinding("circuit_run", "sess-1", "OPENQASM 2.0;\nqreg q[1];\n")
+	_, priv, err := ed25519.GenerateKey(nil)
+	if err != nil {
+		t.Fatalf("keygen: %v", err)
+	}
+	// Sign a $1 mandate, then transplant its signature onto a $10000 row.
+	small, err := mandates.SignMandate(priv, "default", binding, 1.0,
+		time.Date(2030, 1, 1, 0, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	forged, err := json.Marshal(map[string]any{
+		"tenant_id": "default", "job_hash": binding, "max_budget_usd": 10000,
+		"expiry_timestamp": "2030-01-01T00:00:00Z",
+		"public_key_hex":   small.PublicKeyHex, "signature_hex": small.SignatureHex,
+	})
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if _, err := runner.ledger.DB().Exec(
+		`INSERT INTO ledger_events (timestamp, session_id, tenant_id, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		"2026-10-09T00:00:00Z", "sess-1", "default", "mandate_verified_client", string(forged),
+		"0", "forged-hash-1", small.PublicKeyHex, small.SignatureHex,
+	); err != nil {
+		t.Fatalf("seed forged receipt: %v", err)
+	}
+	err = runner.verifyMandateReceipt("forged-hash-1", "default", 25.0, binding)
+	if err == nil {
+		t.Fatal("forged mandate receipt (transplanted signature) must NOT pass admission")
+	}
+	if !strings.Contains(err.Error(), "signature refused") {
+		t.Fatalf("refusal must name the signature, got: %v", err)
 	}
 }

@@ -314,8 +314,6 @@ func TestVaultLeaseRequiresKey(t *testing.T) {
 // R4: spend-adjacent mutations sit behind the bearer rail as well as their
 // own cryptographic envelopes. No token → 401 on all six; a valid token
 // passes through to the handler's own verdict (never 401).
-// NOTE: /api/mandates/verify is deliberately NOT here — it is a pure
-// read-only check (see TestMandateVerifyStaysPublic).
 func TestEdgeBearerOnAdjacentRoutes(t *testing.T) {
 	srv, cleanup := setupTestRoutesServer(t)
 	defer cleanup()
@@ -389,39 +387,52 @@ func TestTenantCreationOpenButLimited(t *testing.T) {
 	}
 }
 
-// Audit correction: mandate verification is a pure read-only
-// cryptographic check (no ledger write, no secret revealed), so it stays
-// public behind its rate limiter — the console verifies mandate cards
-// with the console token, which must never require the operator token.
-// Gating it would break the display flow for zero security gain.
-func TestMandateVerifyStaysPublic(t *testing.T) {
+// Phase-0 correction: mandate verification appends a ledger event +
+// obligation, so the old "no state change" justification for leaving it
+// public was false. It is bearer-gated like the other spend-adjacent
+// mutations: anonymous callers 401 before any parsing/acting; a valid
+// token reaches the handler's own verdict (200 valid:false for unattributed
+// keys, never 401); the human-paced limiter still bites tokened spray.
+func TestMandateVerifyRequiresBearer(t *testing.T) {
 	srv, cleanup := setupTestRoutesServer(t)
 	defer cleanup()
 	t.Setenv("KUBONA_API_TOKEN", "op-token")
 
-	call := func(body string) int {
+	call := func(body, token string) int {
 		req := httptest.NewRequest(http.MethodPost, "/api/mandates/verify", bytes.NewReader([]byte(body)))
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
 		req.RemoteAddr = "127.0.0.1:0"
 		req.Header.Set("X-Forwarded-For", nextTestIP())
 		w := httptest.NewRecorder()
 		srv.Handler().ServeHTTP(w, req)
 		return w.Code
 	}
-	// No bearer, well-formed body: the check runs, the fake mandate fails
-	// closed as invalid — 200 with valid:false, never 401.
-	if got := call(`{"tenant_id":"t","job_hash":"h","max_budget_usd":1}`); got != http.StatusOK {
-		t.Errorf("public verify must answer 200 without a token, got %d", got)
+	// No bearer, well-formed body: 401 before the check runs.
+	if got := call(`{"tenant_id":"t","job_hash":"h","max_budget_usd":1}`, ""); got != http.StatusUnauthorized {
+		t.Errorf("verify without token must 401, got %d", got)
 	}
-	// No bearer, garbage body: 400 from the handler, never 401.
-	if got := call(`not json`); got != http.StatusBadRequest {
-		t.Errorf("garbage body must 400 without a token, got %d", got)
+	// No bearer, garbage body: still 401 (auth runs before parsing).
+	if got := call(`not json`, ""); got != http.StatusUnauthorized {
+		t.Errorf("garbage body without token must 401, got %d", got)
 	}
-	// The limiter still guards the public endpoint: one client hammering
-	// past the 20rps/50-burst budget must see 429s.
+	// Valid token, unattributed key: the check runs and fails closed —
+	// 200 with valid:false, never 401.
+	if got := call(`{"tenant_id":"t","job_hash":"h","max_budget_usd":1}`, "op-token"); got != http.StatusOK {
+		t.Errorf("tokened verify must reach the handler (200), got %d", got)
+	}
+	// Valid token, garbage body: 400 from the handler, never 401.
+	if got := call(`not json`, "op-token"); got != http.StatusBadRequest {
+		t.Errorf("tokened garbage body must 400, got %d", got)
+	}
+	// The limiter still guards the gated endpoint: one tokened client
+	// hammering past the 20rps/50-burst budget must see 429s.
 	ip := nextTestIP()
 	var limited bool
 	for i := 0; i < 70; i++ {
 		req := httptest.NewRequest(http.MethodPost, "/api/mandates/verify", bytes.NewReader([]byte(`{}`)))
+		req.Header.Set("Authorization", "Bearer op-token")
 		req.RemoteAddr = "127.0.0.1:0"
 		req.Header.Set("X-Forwarded-For", ip)
 		w := httptest.NewRecorder()
@@ -432,7 +443,7 @@ func TestMandateVerifyStaysPublic(t *testing.T) {
 		}
 	}
 	if !limited {
-		t.Error("public verify must still rate-limit a hammering client")
+		t.Error("gated verify must still rate-limit a hammering client")
 	}
 }
 

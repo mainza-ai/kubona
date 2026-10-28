@@ -248,20 +248,9 @@ func (s *Server) handleQuantumSettings(w http.ResponseWriter, r *http.Request) {
 	case http.MethodGet:
 		writeJSON(w, http.StatusOK, s.quantumSettings)
 	case http.MethodPut, http.MethodPost:
-		// Writes get edge auth (same rule as LLM settings): a settings
-		// writer could redirect human runs at an expensive backend.
-		switch _, _, code := s.checkAuth(r); code {
-		case http.StatusOK:
-		case http.StatusServiceUnavailable:
-			http.Error(w, "API token not configured: set KUBONA_API_TOKEN", http.StatusServiceUnavailable)
-			return
-		case http.StatusForbidden:
-			WriteAPIError(w, "forbidden", "cross-site session use refused: retry same-origin", nil)
-			return
-		default:
-			http.Error(w, "missing or invalid bearer token", http.StatusUnauthorized)
-			return
-		}
+		// Writes get edge auth at REGISTRATION (requireBearerForWrites,
+		// same rule as LLM settings): a settings writer could redirect
+		// human runs at an expensive backend.
 		var req QuantumSettings
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			WriteAPIError(w, "bad_request", "malformed JSON request", nil)

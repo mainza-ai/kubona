@@ -167,8 +167,7 @@ func TestParseAuthorizationHeaderRequiresAllFields(t *testing.T) {
 	}
 }
 
-// X402 reboot-safety proof (residual investigation 2026-10-17): the
-// settled map is in-memory, but single-use does NOT depend on it across
+// X402 reboot-safety proof (residual investigation 2026-10-17): the// settled map is in-memory, but single-use does NOT depend on it across
 // restarts — verification requires a LIVE challenge, and challenges die
 // with the process. A rebooted manager holds no challenges, so every
 // pre-restart receipt refuses at lookup (fail-closed), settled or not.
@@ -206,5 +205,72 @@ func TestPaymentManager_RebootRefusesOldReceipts(t *testing.T) {
 	// And the pre-restart manager still refuses the replay in-window.
 	if valid, err := mgr.VerifyPayment(receipt); valid || err == nil {
 		t.Fatalf("in-window replay must refuse, got valid=%v err=%v", valid, err)
+	}
+}
+
+// Challenge → authorized → settled: a real payment authorizes once via
+// VerifyPayment and then settles exactly once via SettlePayment (the old
+// shape always 400'd "already settled" here — no payment could settle).
+// A second settle, or any verify after settlement, refuses.
+func TestPaymentManager_AuthorizeThenSettleOnce(t *testing.T) {
+	mgr := NewPaymentManager("0xEscrowAddress")
+	c, err := mgr.GenerateChallenge("USDC", "0.05")
+	if err != nil {
+		t.Fatalf("challenge: %v", err)
+	}
+	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
+	msgHash := sha256.Sum256([]byte(c.Payload))
+	sig := ed25519.Sign(priv, msgHash[:])
+	receipt := &PaymentReceipt{
+		ChallengeID: c.ChallengeID,
+		Token:       "USDC",
+		Amount:      "0.05",
+		PayerPubHex: hex.EncodeToString(pub),
+		Signature:   hex.EncodeToString(sig),
+		Timestamp:   time.Now().Unix(),
+	}
+
+	// 1. Authorize.
+	if ok, err := mgr.VerifyPayment(receipt); !ok || err != nil {
+		t.Fatalf("authorize must pass, got %v %v", ok, err)
+	}
+	// 2. Re-authorize refuses (single-use authorization).
+	if ok, err := mgr.VerifyPayment(receipt); ok || err == nil {
+		t.Fatalf("second verify must refuse, got %v %v", ok, err)
+	}
+	// 3. Settle the authorized challenge: must SUCCEED exactly once.
+	st, err := mgr.SettlePayment(receipt, "base-sepolia")
+	if err != nil || !st.Settled || !st.Simulated || st.Reference == "" {
+		t.Fatalf("settle-after-authorize must succeed once: %+v %v", st, err)
+	}
+	// 4. Settle again refuses (single-use settlement).
+	if _, err := mgr.SettlePayment(receipt, "base-sepolia"); err == nil {
+		t.Fatal("second settle must refuse (already settled)")
+	} else if !strings.Contains(err.Error(), "already settled") {
+		t.Fatalf("refusal must name the settled state, got: %v", err)
+	}
+	// 5. Verify after settlement refuses too.
+	if ok, err := mgr.VerifyPayment(receipt); ok || err == nil {
+		t.Fatalf("verify-after-settle must refuse, got %v %v", ok, err)
+	}
+
+	// 6. Direct settle without a prior verify also works once (open → settled).
+	c2, err := mgr.GenerateChallenge("USDC", "0.10")
+	if err != nil {
+		t.Fatalf("challenge: %v", err)
+	}
+	pub2, priv2, _ := ed25519.GenerateKey(rand.Reader)
+	h2 := sha256.Sum256([]byte(c2.Payload))
+	sig2 := ed25519.Sign(priv2, h2[:])
+	direct := &PaymentReceipt{
+		ChallengeID: c2.ChallengeID,
+		Token:       "USDC",
+		Amount:      "0.10",
+		PayerPubHex: hex.EncodeToString(pub2),
+		Signature:   hex.EncodeToString(sig2),
+		Timestamp:   time.Now().Unix(),
+	}
+	if _, err := mgr.SettlePayment(direct, ""); err != nil {
+		t.Fatalf("direct settle must succeed: %v", err)
 	}
 }

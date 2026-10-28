@@ -47,6 +47,11 @@ const (
 	idemPollEvery = 100 * time.Millisecond
 )
 
+// idemScopePaymentSettle is the single shared idempotency scope for x402
+// settlement (the rail is session-keyed but settlement has no session).
+// handlePaymentSettle references this const — never a copied literal.
+const idemScopePaymentSettle = "payment-settlement"
+
 var requestIDRe = regexp.MustCompile(`^[A-Za-z0-9_-]{1,64}$`)
 
 // ValidateRequestID enforces the request_id alphabet. Empty means "no key"

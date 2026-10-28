@@ -194,11 +194,24 @@ func TestQIRCompileEndpoint(t *testing.T) {
 func TestKrylovAndMitigationEndpoints(t *testing.T) {
 	srv, cleanup := setupTestRoutesServer(t)
 	defer cleanup()
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
+
+	// Spend-adjacent compute proxies: anonymous callers 401 before any
+	// bridge state is touched.
+	for _, path := range []string{"/api/krylov/solve", "/api/mitigation/apply"} {
+		anon := httptest.NewRequest(http.MethodPost, path, bytes.NewReader([]byte(`{}`)))
+		anonW := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(anonW, anon)
+		if anonW.Code != http.StatusUnauthorized {
+			t.Fatalf("bearerless %s must 401, got %d", path, anonW.Code)
+		}
+	}
 
 	// 1. POST /api/krylov/solve with no bridge client must fail closed (503),
 	// never return a canned energy as a measurement.
 	kBody := []byte(`{"molecule":"H2","bond_distance":0.7414,"subspace_dimension":4,"time_step":0.2}`)
 	kReq := httptest.NewRequest(http.MethodPost, "/api/krylov/solve", bytes.NewReader(kBody))
+	kReq.Header.Set("Authorization", "Bearer op-token")
 	kW := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(kW, kReq)
 
@@ -227,6 +240,7 @@ func TestKrylovAndMitigationEndpoints(t *testing.T) {
 	// 2. POST /api/mitigation/apply with no bridge client must fail closed too.
 	mBody := []byte(`{"qasm":"OPENQASM 2.0;\nqreg q[2];\nh q[0];\ncx q[0], q[1];","method":"ZNE","scale_factors":[1.0, 1.5, 2.0]}`)
 	mReq := httptest.NewRequest(http.MethodPost, "/api/mitigation/apply", bytes.NewReader(mBody))
+	mReq.Header.Set("Authorization", "Bearer op-token")
 	mW := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(mW, mReq)
 
@@ -271,6 +285,7 @@ func TestMandateSignRefusesEphemeralByDefault(t *testing.T) {
 func TestPaymentSettleEndpoint(t *testing.T) {
 	srv, cleanup := setupTestRoutesServer(t)
 	defer cleanup()
+	t.Setenv("KUBONA_API_TOKEN", "op-token")
 
 	pm := srv.A2AServer().PaymentManager()
 	ch, err := pm.GenerateChallenge("USDC", "0.25")
@@ -290,13 +305,26 @@ func TestPaymentSettleEndpoint(t *testing.T) {
 		Timestamp:   time.Now().Unix(),
 	}
 
-	body, _ := json.Marshal(map[string]any{
-		"receipt": receipt,
-		"network": "base-mainnet",
-	})
-	req := httptest.NewRequest(http.MethodPost, "/api/cost/settle", bytes.NewReader(body))
-	w := httptest.NewRecorder()
-	srv.Handler().ServeHTTP(w, req)
+	settle := func(body any, token string) *httptest.ResponseRecorder {
+		raw, _ := json.Marshal(body)
+		req := httptest.NewRequest(http.MethodPost, "/api/cost/settle", bytes.NewReader(raw))
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		w := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w, req)
+		return w
+	}
+
+	// Bearerless settlement 401s before any challenge state is touched.
+	if w := settle(map[string]any{"receipt": receipt, "network": "base-mainnet"}, ""); w.Code != http.StatusUnauthorized {
+		t.Fatalf("bearerless settle must 401, got %d", w.Code)
+	}
+
+	body := map[string]any{
+		"receipt": receipt, "network": "base-mainnet", "request_id": "settle-drill-1",
+	}
+	w := settle(body, "op-token")
 
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", w.Code)
@@ -313,6 +341,35 @@ func TestPaymentSettleEndpoint(t *testing.T) {
 	}
 	if !sResp.Settled || !sResp.Simulated || sResp.Reference == "" || sResp.Network != "base-mainnet" {
 		t.Fatalf("settle must be explicit local-only: %+v", sResp)
+	}
+
+	// Same key + identical content replays the stored receipt byte-identical
+	// (the challenge is single-use — without the rail this retry would fail
+	// as already-settled instead of replaying success).
+	replayW := settle(body, "op-token")
+	if replayW.Code != http.StatusOK {
+		t.Fatalf("idempotent replay must 200, got %d", replayW.Code)
+	}
+	if replayW.Header().Get("X-Idempotent-Replay") != "true" {
+		t.Fatal("idempotent replay must carry X-Idempotent-Replay:true")
+	}
+	var replayResp struct {
+		Settled   bool   `json:"settled"`
+		Reference string `json:"reference"`
+	}
+	if err := json.NewDecoder(replayW.Body).Decode(&replayResp); err != nil {
+		t.Fatalf("decode replay: %v", err)
+	}
+	if !replayResp.Settled || replayResp.Reference != sResp.Reference {
+		t.Fatalf("replay must return the original receipt: %+v vs %+v", replayResp, sResp)
+	}
+
+	// Same key + different content 409s (never settles twice under one key).
+	conflictBody := map[string]any{
+		"receipt": receipt, "network": "base-other", "request_id": "settle-drill-1",
+	}
+	if w := settle(conflictBody, "op-token"); w.Code != http.StatusConflict {
+		t.Fatalf("conflicting reuse of request_id must 409, got %d", w.Code)
 	}
 }
 
@@ -1692,6 +1749,7 @@ func TestInvalidKeyErrorsNameByteCounts(t *testing.T) {
 
 	raw, _ := json.Marshal(map[string]any{})
 	req := httptest.NewRequest(http.MethodPost, "/api/mandates/verify", bytes.NewReader(raw))
+	req.Header.Set("Authorization", "Bearer op-token")
 	w := httptest.NewRecorder()
 	h.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {

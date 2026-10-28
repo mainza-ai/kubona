@@ -963,6 +963,16 @@
         "amount_usd"
       ]
     },
+    "settlement_skipped_unknown_usage": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Bridge completion reported no usable actual_usd: the estimate reservation is kept, nothing refunded.",
+      "required": [
+        "job_id",
+        "reserved_amount_usd"
+      ]
+    },
     "spend_refund_refused": {
       "emitters": [
         "go"

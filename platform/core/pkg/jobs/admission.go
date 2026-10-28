@@ -3,6 +3,7 @@ package jobs
 import (
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -50,6 +51,12 @@ type mandateReceipt struct {
 	JobHash         string  `json:"job_hash"`
 	MaxBudgetUSD    float64 `json:"max_budget_usd"`
 	ExpiryTimestamp string  `json:"expiry_timestamp"`
+	// The receipt's own Ed25519 mandate signature over the canonical
+	// payload (tenant + job binding + budget + expiry). Admission
+	// re-verifies it — row fields alone are never trusted, so a bare DB
+	// writer cannot forge admission-passing receipts.
+	PublicKeyHex string `json:"public_key_hex"`
+	SignatureHex string `json:"signature_hex"`
 }
 
 // admitJob is the pre-QPU admission gate, enforced inside SubmitJob so every
@@ -238,10 +245,17 @@ func (r *Runner) admitNonCircuitRun(tenantID, sessionID, jobType string, paramsJ
 // submitted program (W0.4: expectedJobHash is the canonical binding
 // recomputed from the submission — a receipt for another program refuses
 // even when tenant and budget cover).
+//
+// Admission crypto: the receipt's Ed25519 mandate signature is re-verified
+// over the canonical payload (mandates.SpendMandate.Verify — signature
+// FIRST, then bindings). Row fields alone are never trusted: a DB writer
+// that inserts a forged mandate_verified row (or a copied settlement row)
+// must not pass admission. Settlement rows (x402_payment_settled) are
+// refused explicitly, never silently treated as mandates.
 func (r *Runner) verifyMandateReceipt(entryHash, tenantID string, costUSD float64, expectedJobHash string) error {
 	var eventType, payloadStr string
 	err := r.ledger.DB().QueryRow(
-		`SELECT event_type, payload FROM ledger_events WHERE entry_hash = ? AND event_type IN ('mandate_verified_client', 'mandate_verified_pqc_mlkem768')`,
+		`SELECT event_type, payload FROM ledger_events WHERE entry_hash = ?`,
 		entryHash).Scan(&eventType, &payloadStr)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -249,23 +263,47 @@ func (r *Runner) verifyMandateReceipt(entryHash, tenantID string, costUSD float6
 		}
 		return fmt.Errorf("mandate receipt lookup failed: %w", err)
 	}
+	switch eventType {
+	case "mandate_verified_client", "mandate_verified_pqc_mlkem768":
+		// Admitted kinds below.
+	case "x402_payment_settled":
+		return fmt.Errorf("receipt %q is a payment settlement, not a spend mandate: QPU dispatch refused", entryHash)
+	default:
+		return fmt.Errorf("receipt %q is event %q, not a spend-mandate verification: QPU dispatch refused", entryHash, eventType)
+	}
 	var rec mandateReceipt
 	if err := json.Unmarshal([]byte(payloadStr), &rec); err != nil {
 		return fmt.Errorf("mandate receipt unreadable: %w", err)
 	}
-	if rec.TenantID != tenantID {
-		return fmt.Errorf("mandate receipt belongs to tenant %q: dispatch refused", rec.TenantID)
+	if rec.PublicKeyHex == "" || rec.SignatureHex == "" {
+		return fmt.Errorf("mandate receipt carries no mandate signature: QPU dispatch refused")
 	}
-	if rec.JobHash != expectedJobHash {
-		return fmt.Errorf("mandate receipt binds a different program (job_hash mismatch): dispatch refused")
+	expiry, err := time.Parse(time.RFC3339, rec.ExpiryTimestamp)
+	if err != nil {
+		return fmt.Errorf("mandate receipt expiry unreadable: dispatch refused")
 	}
-	if costUSD > rec.MaxBudgetUSD {
-		return fmt.Errorf("job cost %.4f exceeds mandate budget %.4f: dispatch refused", costUSD, rec.MaxBudgetUSD)
+	signed := &mandates.SpendMandate{
+		TenantID:        rec.TenantID,
+		JobHash:         rec.JobHash,
+		MaxBudgetUSD:    rec.MaxBudgetUSD,
+		ExpiryTimestamp: expiry,
+		PublicKeyHex:    rec.PublicKeyHex,
+		SignatureHex:    rec.SignatureHex,
 	}
-	if rec.ExpiryTimestamp != "" {
-		expiry, err := time.Parse(time.RFC3339, rec.ExpiryTimestamp)
-		if err != nil || !time.Now().UTC().Before(expiry) {
+	// Signature first (no mismatch oracle inside Verify); the binding
+	// errors below preserve the admission refusal vocabulary callers pin.
+	if verr := signed.Verify(tenantID, expectedJobHash, costUSD); verr != nil {
+		switch {
+		case errors.Is(verr, mandates.ErrJobHashMismatch):
+			return fmt.Errorf("mandate receipt binds a different program (job_hash mismatch): dispatch refused")
+		case errors.Is(verr, mandates.ErrTenantMismatch):
+			return fmt.Errorf("mandate receipt belongs to tenant %q: dispatch refused", rec.TenantID)
+		case errors.Is(verr, mandates.ErrMandateExceeded):
+			return fmt.Errorf("job cost %.4f exceeds mandate budget %.4f: dispatch refused", costUSD, rec.MaxBudgetUSD)
+		case errors.Is(verr, mandates.ErrMandateExpired):
 			return fmt.Errorf("mandate receipt expired: dispatch refused")
+		default:
+			return fmt.Errorf("mandate receipt signature refused (%v): dispatch refused", verr)
 		}
 	}
 	return nil
