@@ -700,6 +700,11 @@ fallback deleted in all envs. CI green under the 15-check gate; Dependabot
 (local path escapable, unreachable from MCP), failure-path settlement keeps
 estimates, unsigned non-commit receipts trusted at runtime, no coverage/SAST/
 lint gates in CI, Rust cbit routing dropped, flight-recorder card unmounted.
+CI follow-ups found by the gate itself and fixed same-day: paid-test approval
+(`test_qpu_providers` deferred-hw now mints a real mandate) and prod bridge
+transport migrated to shared-volume UDS-exclusive (`bridge-sock`, no bridge
+TCP; proven live both directions). Full gate green on the final tree
+(`0972ffc`, run `40777490046`, all 15 checks success).
 Full per-blocker evidence: Round-3 report (local planning docs, 2026-10-28).
 
 ---
