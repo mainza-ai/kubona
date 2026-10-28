@@ -25,10 +25,12 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/qir"
 	"github.com/mainza-ai/kubona/core/pkg/session"
 	"github.com/mainza-ai/kubona/core/pkg/supervisor"
+	"github.com/mainza-ai/kubona/core/pkg/tracing"
 	"github.com/mainza-ai/kubona/core/pkg/watchdog"
 	pb "github.com/mainza-ai/kubona/core/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 )
 
 // loadDotEnv reads KEY=VALUE lines from ./.env (repo, gitignored) then
@@ -250,12 +252,12 @@ func main() {
 		log.Fatalf("Refusing non-loopback bridge %q without KUBONA_BRIDGE_TOKEN: set the same token on kubonad and the bridge", bridgeTarget)
 	}
 	dialOpts := []grpc.DialOption{grpc.WithTransportCredentials(insecure.NewCredentials())}
+	interceptors := []grpc.UnaryClientInterceptor{traceBridgeInterceptor}
 	if bridgeToken != "" {
-		dialOpts = append(dialOpts,
-			grpc.WithPerRPCCredentials(bridgeTokenCreds(bridgeToken)),
-			grpc.WithChainUnaryInterceptor(bridgeSessionAssertionInterceptor(bridgeToken)),
-		)
+		dialOpts = append(dialOpts, grpc.WithPerRPCCredentials(bridgeTokenCreds(bridgeToken)))
+		interceptors = append(interceptors, bridgeSessionAssertionInterceptor(bridgeToken))
 	}
+	dialOpts = append(dialOpts, grpc.WithChainUnaryInterceptor(interceptors...))
 	conn, err := grpc.NewClient(bridgeTarget, dialOpts...)
 	if err != nil {
 		log.Fatalf("Failed to connect to Python bridge (%s): %v", bridgeTarget, err)
@@ -333,6 +335,24 @@ func main() {
 	defer cancel()
 	httpServer.Shutdown(ctx)
 	slog.Info("[Kubona Core] clean exit complete")
+}
+
+// traceBridgeInterceptor propagates the inbound W3C trace to the bridge.
+// Worker/gRPC paths that carry the HTTP request context keep one trace;
+// background jobs have no span and are unchanged.
+func traceBridgeInterceptor(ctx context.Context, method string, req, reply any,
+	cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+	if span, ok := tracing.FromContext(ctx); ok {
+		md, _ := metadata.FromOutgoingContext(ctx)
+		if md == nil {
+			md = metadata.MD{}
+		} else {
+			md = md.Copy()
+		}
+		md.Set("traceparent", span.Traceparent())
+		ctx = metadata.NewOutgoingContext(ctx, md)
+	}
+	return invoker(ctx, method, req, reply, cc, opts...)
 }
 
 // bridgeTokenCreds attaches the shared bridge bearer to every unary RPC.
