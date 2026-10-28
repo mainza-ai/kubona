@@ -11,6 +11,7 @@ import hashlib
 import json
 import math
 import uuid
+from typing import Any
 
 from mcp.server.mcpserver import MCPServer
 
@@ -63,7 +64,9 @@ IMPLICIT_SESSION_CEILING_USD = 50.0
 # verbatim so pre/post-vendor treatment is never ambiguous downstream.
 CANCEL_SPEND_POLICY = (
     "spend policy: pre-vendor cancel refunds the full reservation "
-    "(the vendor never ran); post-vendor cancel keeps the charge "
+    "(the vendor never ran); post-vendor cancel settles to reported usage "
+    "when the vendor metered any (measured usage wins, difference refunded), "
+    "otherwise keeps the charge "
     "(a pinned hardware id means the vendor may have run)"
 )
 
@@ -121,6 +124,35 @@ def _is_spend_prepaid(session) -> bool:
     return bool((getattr(session, "meta", {}) or {}).get("spend_prepaid"))
 
 
+def _session_owned_by(session, caller: dict | None) -> bool:
+    """Ownership check (Phase-1): the caller's session/tenant owns the id.
+
+    Derived from the SESSION RECORD server-side (owner + tenant binding),
+    never from request strings. Owner must equal the caller sub; a recorded
+    session tenant (`meta.tenant`, bound at gateway creation) must match the
+    caller tenant when present. Legacy rows without a recorded tenant fall
+    back to owner-sub matching. Go-authoritative mirrors carry their tenant
+    under `meta.tenant_id` on the Go rail — the Python rail does not
+    reinterpret it (documented, not conflated).
+    """
+    if caller is None:
+        return True  # direct in-process / stdio callers are transport-trusted
+    if getattr(session, "owner", None) != caller.get("sub"):
+        return False
+    recorded = (getattr(session, "meta", None) or {}).get("tenant")
+    if recorded is not None and recorded != caller.get("tenant"):
+        return False
+    return True
+
+
+def _job_owner_session(job):
+    """Session record backing a job (server-side), or None when gone."""
+    try:
+        return _sessions.get(job.session_id)
+    except KeyError:
+        return None
+
+
 def _reserved_for_job(job) -> float:
     """Python-recorded reservation for a job (dispatch estimate). 0.0 means
     no Python reservation exists (free tier or Go-prepaid mirror)."""
@@ -156,16 +188,27 @@ def _extract_actual_usd(result) -> float | None:
 
 
 def _maybe_settle_job(job) -> dict | None:
-    """Mirror the Go CAS-settle semantics on the Python rail: on terminal
-    completion with reported usage below the reservation, release the
-    difference back to the session. Crash-safe (the store CAS marks first,
+    """Mirror the Go CAS-settle semantics on the Python rail: on EVERY terminal
+    (completed/failed/cancelled) with reported usage below the reservation,
+    release the difference back to the session. Measured usage always wins;
+    unknown usage keeps the estimate loudly (job_settle_skipped); explicit
+    zero usage refunds everything. Crash-safe (the store CAS marks first,
     so a crash under-refunds rather than double-releasing) and idempotent
     (an already-settled job is a no-op). Returns a receipt when it acted or
-    when it observed a prior settle, else None (nothing reserved / Go-owned).
+    when it observed a prior settle, else None (nothing reserved / Go-owned /
+    pre-vendor failure the dispatch path already refunded).
     """
-    if job is None or getattr(job, "status", None) != "completed":
+    if job is None or getattr(job, "status", None) not in ("completed", "failed", "cancelled"):
         return None
     actual = _extract_actual_usd(getattr(job, "result", None))
+    if actual is None and getattr(job, "status", None) in ("failed", "cancelled"):
+        hw = (getattr(job, "meta", None) or {}).get("hardware_job_id")
+        if not hw:
+            # Pre-vendor terminal (no hardware id — the vendor never ran):
+            # the dispatch path already refunded the reservation, so there
+            # is nothing to reconcile here. Settling would misrecord a kept
+            # estimate against already-returned money.
+            return None
     try:
         _, did_mark, reserved = _runner.store.cas_mark_settled(
             job.job_id, actual)
@@ -625,7 +668,8 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
                estimate_only: bool = False,
                idempotency_key: str | None = None,
                idempotency_body_hash: str | None = None,
-               approval_id: str | None = None) -> dict:
+               approval_id: str | None = None,
+               caller: dict | None = None) -> dict:
     """Submit a circuit through the cost-governance gate, threaded to a session.
 
     Production job/session abstraction: jobs are persisted to the async job farm;
@@ -641,6 +685,10 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
     ANY dispatch that can spend > 0 requires one — a governance APPROVED
     approval via `approval_id`, a gateway MRTR round, or a Go-prepaid mirror
     session — else the submit refuses approval-free spend.
+
+    Ownership (Phase-1): the gateway-injected `caller` owns implicit
+    sessions (owner=sub, tenant in meta); an explicit session_id the caller
+    does not own refuses with the unknown-session envelope (no oracle).
     """
     capability = load_provider(provider)
     if getattr(capability.modality, "value", str(capability.modality)) == "annealing":
@@ -702,15 +750,29 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
                     "error": f"implicit session ceiling is capped at "
                              f"${IMPLICIT_SESSION_CEILING_USD}: open a session via "
                              "cost/create_session for a larger budget"}
-        session = _sessions.create(name=circuit.name, owner="agent",
+        # Phase-1 ownership: the implicit session is owned by the verified
+        # caller (owner=sub, tenant bound in meta). Transport-trusted direct
+        # callers keep the legacy owner label.
+        owner = caller["sub"] if caller is not None else "agent"
+        session = _sessions.create(name=circuit.name, owner=owner,
                                    budget_ceiling_usd=budget_ceiling_usd
                                    if budget_ceiling_usd is not None
                                    else IMPLICIT_SESSION_CEILING_USD)
+        if caller is not None:
+            _sessions.update(session.session_id,
+                             meta={**(session.meta or {}),
+                                   "tenant": caller["tenant"],
+                                   "created_by": caller["sub"]})
+            session = _sessions.get(session.session_id)
         session_id = session.session_id
     else:
         try:
             session = _sessions.get(session_id)
         except KeyError:
+            return {"ok": False, "error": f"unknown session_id {session_id!r}"}
+        if not _session_owned_by(session, caller):
+            # Indistinguishable from unknown (no oracle): the id is
+            # caller-supplied either way, so echoing it leaks nothing new.
             return {"ok": False, "error": f"unknown session_id {session_id!r}"}
 
     # Go-authoritative sessions are mirrored with spend_prepaid=True: Go
@@ -940,29 +1002,54 @@ def _refresh_deferred_hardware_job(job):
             return updated or job, None
         if p_status == "failed":
             err = str(polled.get("error") or f"hardware job {hw_id} failed")
-            updated = _runner.store.transition(job.job_id, "failed", error=err)
+            usage_result = {k: polled[k] for k in ("usage_seconds", "actual_usd") if polled.get(k) is not None}
+            if usage_result:
+                usage_result["hardware_job_id"] = hw_id
+                updated = _runner.store.transition(
+                    job.job_id, "failed", error=err, result=usage_result)
+            else:
+                updated = _runner.store.transition(job.job_id, "failed", error=err)
             _runner._record("job_failed", {"job_id": job.job_id, "error": err, "hardware_job_id": hw_id})
+            # Failure settlement: reported usage settles reserved→actual
+            # the same way a completion settles (idempotent, Go-mirror-safe).
+            _maybe_settle_job(updated or job)
             return updated or job, None
         if p_status == "cancelled":
-            updated = _runner.store.transition(job.job_id, "cancelled")
+            usage_result = {k: polled[k] for k in ("usage_seconds", "actual_usd") if polled.get(k) is not None}
+            if usage_result:
+                usage_result["hardware_job_id"] = hw_id
+                updated = _runner.store.transition(
+                    job.job_id, "cancelled", result=usage_result)
+            else:
+                updated = _runner.store.transition(job.job_id, "cancelled")
             _runner._record("job_cancelled", {"job_id": job.job_id, "hardware_job_id": hw_id})
+            _maybe_settle_job(updated or job)
             return updated or job, None
     except Exception:  # noqa: BLE001 — race with concurrent transition/cancel
         return _runner.store.get(job.job_id) or job, None
     return job, None
 
 
-def get_job_status(job_id: str) -> dict:
+def get_job_status(job_id: str, caller: dict | None = None) -> dict:
     """Status read comes from the PERSISTED store (survives restart).
     When a running hardware job carries a pinned `hardware_job_id`, polls
-    the vendor SDK non-blockingly to advance terminal state."""
+    the vendor SDK non-blockingly to advance terminal state.
+
+    Ownership-gated before poll/settle: unowned reads return the unknown
+    envelope (no oracle)."""
     job = _runner.store.get(job_id)
     if job is None:
         return {"ok": False, "error": "unknown job_id"}
+    if caller is not None:
+        owner_session = _job_owner_session(job)
+        if owner_session is None or not _session_owned_by(owner_session, caller):
+            return {"ok": False, "error": "unknown job_id"}
     job, poll_warn = _refresh_deferred_hardware_job(job)
-    if job.status == "completed":
-        # Worker-completed jobs (synchronous path) settle here; deferred ones
-        # settled at the poll transition above. Idempotent either way.
+    if job.status in ("completed", "failed", "cancelled"):
+        # Terminal jobs settle here when the transition did not (synchronous
+        # worker path); deferred ones settled at the poll transition above.
+        # Idempotent either way; pre-vendor failures are a no-op (the
+        # dispatch path already refunded — nothing to reconcile).
         _maybe_settle_job(job)
     out = {"ok": True, "job_id": job_id, "status": job.status, "provider": job.provider,
            "session_id": job.session_id, "created_at": job.created_at}
@@ -977,15 +1064,29 @@ def get_job_status(job_id: str) -> dict:
     return out
 
 
-def get_result(job_id: str) -> dict:
+def get_result(job_id: str, caller: dict | None = None) -> dict:
+    """Ownership-gated like get_job_status (unknown and unowned share the
+    envelope; gated before poll/settle)."""
     job = _runner.store.get(job_id)
     if job is None:
         return {"ok": False, "error": "unknown job_id"}
+    if caller is not None:
+        owner_session = _job_owner_session(job)
+        if owner_session is None or not _session_owned_by(owner_session, caller):
+            return {"ok": False, "error": "unknown job_id"}
     job, _ = _refresh_deferred_hardware_job(job)
     if job.status == "failed":
-        return {"ok": False, "job_id": job_id, "status": job.status, "error": job.error}
+        out = {"ok": False, "job_id": job_id, "status": job.status, "error": job.error}
+        settle = _maybe_settle_job(job)
+        if isinstance(settle, dict) and settle.get("refunded_usd", 0.0) > 0:
+            out["settlement"] = settle
+        return out
     if job.status == "cancelled":
-        return {"ok": False, "job_id": job_id, "status": job.status, "error": "job cancelled"}
+        out = {"ok": False, "job_id": job_id, "status": job.status, "error": "job cancelled"}
+        settle = _maybe_settle_job(job)
+        if isinstance(settle, dict) and settle.get("refunded_usd", 0.0) > 0:
+            out["settlement"] = settle
+        return out
     if job.status != "completed":
         return {"ok": False, "job_id": job_id, "status": job.status, "error": "not completed"}
     settle = _maybe_settle_job(job)
@@ -996,8 +1097,11 @@ def get_result(job_id: str) -> dict:
     return out
 
 
-def cancel_job(job_id: str) -> dict:
+def cancel_job(job_id: str, caller: dict | None = None) -> dict:
     """Cancel a queued/running job and attempt vendor recall.
+
+    Ownership-gated before the fence, vendor recall, and refund: unowned
+    ids return the not-found envelope (no oracle) with zero side effects.
 
     The cooperative fence is authoritative for Kubona state. If a hardware
     id was pinned at dispatch, also call the provider's cancel() — best
@@ -1006,12 +1110,18 @@ def cancel_job(job_id: str) -> dict:
 
     Money (Phase-0): pre-vendor cancel (no hardware id pinned — the vendor
     never ran) refunds the FULL Python reservation, ledger-sealed;
-    post-vendor cancel keeps the charge (the vendor may have run), stated in
-    the receipt. Go-prepaid mirrors never refund on this rail.
+    post-vendor cancel settles to reported usage when the vendor metered any
+    (measured usage always wins — the difference is refunded), otherwise keeps
+    the charge (the vendor may have run), stated in the receipt. Go-prepaid
+    mirrors never refund on this rail.
     """
     job = _runner.store.get(job_id)
     if job is None:
         return {"ok": False, "job_id": job_id, "error": "job not found or already terminal"}
+    if caller is not None:
+        owner_session = _job_owner_session(job)
+        if owner_session is None or not _session_owned_by(owner_session, caller):
+            return {"ok": False, "job_id": job_id, "error": "job not found or already terminal"}
     hw = (getattr(job, "meta", None) or {}).get("hardware_job_id")
     reserved = _reserved_for_job(job)
     fenced = _runner.cancel(job_id)
@@ -1025,8 +1135,19 @@ def cancel_job(job_id: str) -> dict:
             out["provider_recall"] = get_provider(job.provider).cancel(str(hw))
         except ProviderError as exc:
             out["provider_recall_error"] = str(exc)
-        # Post-vendor cancel: the vendor may have run, so the charge stands
-        # (Go parity: pinned hardware ids keep the reservation on failure).
+        # Post-vendor cancel: measured usage wins when reported (settle
+        # reserved→actual, refunding the difference — Go parity for
+        # failure/cancel settlement); otherwise the charge stands (the vendor
+        # may have run), stated in the receipt.
+        fresh = _runner.store.get(job_id)
+        settle = _maybe_settle_job(fresh) if fresh is not None else None
+        if isinstance(settle, dict) and settle.get("refunded_usd", 0.0) > 0:
+            out["settled_to_actual_usd"] = settle.get("actual_usd")
+            out["refunded_usd"] = settle["refunded_usd"]
+            out["settle_note"] = (
+                "post-vendor cancel with reported usage: settled to actual, "
+                "difference refunded (the billed part may still have run)")
+            return out
         if reserved > 0:
             out["charge_kept_usd"] = reserved
             out["charge_kept_reason"] = (
@@ -1137,12 +1258,15 @@ def run_zne_job(circuit_qasm: str, shots: int = 8000, noise_rate: float = 0.02,
     return {"ok": True, **result.to_dict()}
 
 
-def session_status(session_id: str, jobs_limit: int = 100) -> dict:
+def session_status(session_id: str, jobs_limit: int = 100,
+                   caller: dict | None = None) -> dict:
     """Session state with a bounded job-id page.
 
     The store may accumulate thousands of job ids; returning them all is an
     unbounded read. Keep the newest `jobs_limit` (1..1000), with totals and an
     explicit truncation flag so callers know to page/filter.
+
+    Ownership-gated: unowned sessions return the unknown envelope (no oracle).
     """
     if not isinstance(jobs_limit, int) or isinstance(jobs_limit, bool):
         jobs_limit = 100
@@ -1150,6 +1274,8 @@ def session_status(session_id: str, jobs_limit: int = 100) -> dict:
     try:
         state = _sessions.get(session_id)
     except KeyError:
+        return {"ok": False, "error": f"unknown session_id {session_id!r}"}
+    if not _session_owned_by(state, caller):
         return {"ok": False, "error": f"unknown session_id {session_id!r}"}
     out = {"ok": True, **{k: v for k, v in state.__dict__.items() if k not in ("meta", "jobs")}}
     total = len(state.jobs)

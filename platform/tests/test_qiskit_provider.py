@@ -237,3 +237,69 @@ def test_calibrated_layout_avoids_bad_readout_pair():
     quality = get_provider("ibm-qiskit")._layout_quality(layout, backend)
     assert quality["max_readout_error"] == pytest.approx(0.004)
     assert quality["suspicious"] is False
+
+
+def _fake_poll_service(status_name: str, usage_seconds, error="boom"):
+    """Minimal Qiskit Runtime service/job double for poll_hardware_job."""
+    from types import SimpleNamespace
+
+    class _Job:
+        def status(self):
+            return SimpleNamespace(name=status_name)
+
+        def usage(self):
+            if isinstance(usage_seconds, Exception):
+                raise usage_seconds
+            return usage_seconds
+
+        def error_message(self):
+            return error
+
+    class _Service:
+        def job(self, hardware_job_id):
+            assert hardware_job_id == "hw-1"
+            return _Job()
+
+    return lambda token: _Service()
+
+
+def test_poll_failure_carries_vendor_usage(monkeypatch):
+    """A failed vendor job still reports its meter: usage_seconds + priced
+    actual_usd ride the failure envelope so settlement can reconcile."""
+    import os
+
+    from kubona.providers import get_provider
+
+    monkeypatch.setenv("KUBONA_IBM_QISKIT_TOKEN", "test-token")
+    p = get_provider("ibm-qiskit")
+    out = p.poll_hardware_job("hw-1", service_factory=_fake_poll_service("Error", 120.0))
+    assert out["status"] == "failed", out
+    assert out["usage_seconds"] == 120.0, out
+    # per-second pricing ($1.60/s, 1s minimum): 120s prices deterministically.
+    assert out["actual_usd"] == round(max(1.0, 120.0) * 1.6, 6), out
+
+
+def test_poll_cancel_carries_vendor_usage(monkeypatch):
+    from kubona.providers import get_provider
+
+    monkeypatch.setenv("KUBONA_IBM_QISKIT_TOKEN", "test-token")
+    p = get_provider("ibm-qiskit")
+    out = p.poll_hardware_job("hw-1", service_factory=_fake_poll_service("Cancelled", 30.0))
+    assert out["status"] == "cancelled", out
+    assert out["usage_seconds"] == 30.0, out
+    assert out["actual_usd"] == round(max(1.0, 30.0) * 1.6, 6), out
+
+
+def test_poll_failure_without_meter_reports_unknown(monkeypatch):
+    """An unreadable meter leaves the envelope without usage (unknown), never
+    a fabricated zero — settlement keeps the estimate loudly instead."""
+    from kubona.providers import get_provider
+
+    monkeypatch.setenv("KUBONA_IBM_QISKIT_TOKEN", "test-token")
+    p = get_provider("ibm-qiskit")
+    out = p.poll_hardware_job(
+        "hw-1", service_factory=_fake_poll_service("Error", RuntimeError("meter down")))
+    assert out["status"] == "failed", out
+    assert "usage_seconds" not in out, out
+    assert "actual_usd" not in out, out
+    assert out["error"] != "", out
