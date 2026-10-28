@@ -551,6 +551,20 @@ func mapAtlasUpstreamError(resp *http.Response, body []byte) (string, string) {
 }
 
 // atlasBaseURL normalizes the configured root to the /api/v2 Developer API.
+// validAtlasOperationID bounds the id before it is interpolated into an
+// upstream URL and a filesystem path. Atlas ids are opaque alphanumerics.
+func validAtlasOperationID(id string) bool {
+	if len(id) == 0 || len(id) > 128 {
+		return false
+	}
+	for _, r := range id {
+		if !(r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z' || r >= '0' && r <= '9' || r == '_' || r == '-') {
+			return false
+		}
+	}
+	return true
+}
+
 func atlasBaseURL(apiBase string) string {
 	baseURL := strings.TrimRight(apiBase, "/")
 	if !strings.HasSuffix(baseURL, "/api/v2") {

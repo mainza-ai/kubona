@@ -2115,6 +2115,10 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 		if req.Role == "" {
 			req.Role = "user"
 		}
+		if req.Role != "user" && req.Role != "assistant" {
+			WriteAPIError(w, "bad_request", "role must be 'user' or 'assistant'", nil)
+			return
+		}
 
 		userMsg, err := s.sessionMgr.AddMessage(sessionID, req.Role, req.Content, nil)
 		if err != nil {
@@ -2228,6 +2232,10 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.Role == "" {
 		req.Role = "user"
+	}
+	if req.Role != "user" && req.Role != "assistant" {
+		emit("error", map[string]any{"error": "role must be 'user' or 'assistant'"})
+		return
 	}
 	userMsg, err := s.sessionMgr.AddMessage(sessionID, req.Role, req.Content, nil)
 	if err != nil {

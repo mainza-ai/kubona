@@ -49,6 +49,9 @@ type ObservatoryAssetRequest struct {
 
 // fetchAtlasOperation GETs one Atlas operation; callers own the body.
 func fetchAtlasOperation(apiBase, apiKey, opID string) (*http.Response, []byte, error) {
+	if !validAtlasOperationID(opID) {
+		return nil, nil, fmt.Errorf("invalid Atlas operation id %q", opID)
+	}
 	baseURL := atlasBaseURL(apiBase)
 	reqURL := fmt.Sprintf("%s/operations/%s", baseURL, opID)
 	req, err := http.NewRequest(http.MethodGet, reqURL, nil)

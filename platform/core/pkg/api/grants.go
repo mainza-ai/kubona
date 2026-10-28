@@ -52,9 +52,14 @@ func (s *Server) handleGrantRegister(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	revoked, rerr := grants.RevokedCIDs(s.ledger.DB())
+	if rerr != nil {
+		http.Error(w, rerr.Error(), http.StatusServiceUnavailable)
+		return
+	}
 	vg, err := grants.VerifyChain(chain, grants.VerifyOptions{
 		TrustedRoots: roots,
-		Revoked:      grants.RevokedCIDs(s.ledger.DB()),
+		Revoked:      revoked,
 	})
 	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": false, "error": err.Error()})
