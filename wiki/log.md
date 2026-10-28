@@ -3646,3 +3646,7 @@ skipped is the exact failure this incident is about:
 
   - Added [[ibm-quantum-platform]]: canonical live IBM guide URLs (compute service, instances, Sampler/options, transpile/ISA, job limits, max execution, usage/cost, monitoring, calibration, retired QPUs, local testing, errors) plus the 2026-10-28 Kubona provider snapshot and agent rules.
   - Updated [[qiskit]] to point at the hub and to describe the client-side Sampler (0.50) rather than only SamplerV2.
+
+## [2026-10-28] decision | No unhardened warm sandbox container
+
+  - Removed EnsureWarmRunner: construction no longer starts a persistent privileged/networked `tail -f /dev/null` container that nothing executed in. Every sandbox run is the existing ephemeral `docker run --rm --read-only --cap-drop=ALL --network=none` invocation (runsc optional via KUBONA_SANDBOX_RUNTIME).
