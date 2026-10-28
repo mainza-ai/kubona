@@ -2,7 +2,7 @@
 type: concept
 name: Production Readiness Audit — Round 2 (2026-10-26)
 date: 2026-10-26
-updated: 2026-10-26
+updated: 2026-10-28
 tags: [audit, production, security, money, honesty, ci, plan]
 sources: [source-architecture-paper, source-gap-analysis-plan]
 status: tracked
@@ -679,6 +679,28 @@ and branch protection is enabled on `main` + `develop` with 15 required checks
 (Q-49..Q-57) are recorded above. Residuals: integer micro-USD ledger v2,
 passkey/non-extractable key custody, mandatory-mandate policy (Q-40), and the
 autoresearch benchmark nonce.
+
+Phase 5 (Round-3 re-audit + Phase-0 fixes) landed 2026-10-28 as `e11fd94`,
+`7bf72c4`, `1549661` (three signed commits) on `develop`. A full-tree
+re-audit (Go/Python/bridge/console/Rust/science/CI, ~221k LOC, evidence at
+file:line in the Round-3 report) re-verified every P0 against current code:
+FIXED — unknown-usage full-refund settlement bug (actual_usd now `*float64`,
+skip sealed), `mandates/verify` + `cost/settle` bearer-gated (settle
+idempotent, never satisfies admission), `tenants/:id` caller-scoped, A2A
+parent-mandate key→tenant binding (fail-closed), admission re-verifies
+mandate Ed25519 (settlement rows refused), Verify→Settle state machine,
+route-policy table (116 routes, test fails on unlisted), QUBO
+find-or-create-before-spend, Python settle-on-completion + pre-vendor cancel
+refund, approval gate wired into paid submits (bypass-refusal tested),
+manuscript draft/certified split (no verification prose without
+`live_kernel_proven` evidence + ≤1.6 mHa), bridge TCP refused in prod,
+mandate verified inside QuantumSubmit, status/cancel ownership, dev-token
+fallback deleted in all envs. CI green under the 15-check gate; Dependabot
+0 open. STILL OPEN (production still blocked): sandbox rests on env flags
+(local path escapable, unreachable from MCP), failure-path settlement keeps
+estimates, unsigned non-commit receipts trusted at runtime, no coverage/SAST/
+lint gates in CI, Rust cbit routing dropped, flight-recorder card unmounted.
+Full per-blocker evidence: Round-3 report (local planning docs, 2026-10-28).
 
 ---
 
