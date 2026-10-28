@@ -81,7 +81,6 @@ class ComputationalHypothesis:
             "anchor": self.anchor_system or "",
             "circuit": self.circuit_qir or "",
             "budget": self.spend_budget_usd,
-            "signature": self.mandate_signature or "",
             "target_delta_s": self.target_entropy_reduction,
             "description": self.description,
         }

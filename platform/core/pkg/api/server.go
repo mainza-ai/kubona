@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"log"
 	"log/slog"
+	"math"
 	"net"
 	"net/http"
 	"net/url"
@@ -1099,6 +1100,18 @@ func (s *Server) handleMandateSign(w http.ResponseWriter, r *http.Request) {
 
 	if req.TtlSeconds <= 0 {
 		req.TtlSeconds = 3600
+	}
+	if req.TtlSeconds > 24*3600 {
+		WriteAPIError(w, "bad_request", "ttl_seconds exceeds the 24h mandate ceiling", nil)
+		return
+	}
+	if strings.TrimSpace(req.JobHash) == "" {
+		WriteAPIError(w, "bad_request", "job_hash is required: an unbound mandate cannot authorize a program", nil)
+		return
+	}
+	if math.IsNaN(req.MaxBudgetUSD) || math.IsInf(req.MaxBudgetUSD, 0) || req.MaxBudgetUSD <= 0 {
+		WriteAPIError(w, "bad_request", "max_budget_usd must be a finite positive amount", nil)
+		return
 	}
 	if !s.reviewerKeyConfigured && os.Getenv("KUBONA_ALLOW_EPHEMERAL_SIGNER") != "1" {
 		writeJSON(w, http.StatusForbidden, map[string]any{

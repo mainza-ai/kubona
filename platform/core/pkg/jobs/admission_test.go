@@ -107,3 +107,13 @@ func TestBrierCalibrationAdmissionGate(t *testing.T) {
 		t.Fatalf("metered hardware must be refused on degraded calibration, got: %v", err)
 	}
 }
+
+func TestCountQASMGatesHandlesAnyRegisterAndMultipleQregs(t *testing.T) {
+	qubits, _, twoQ := countQasmGates("OPENQASM 2.0;\nqreg a[2];\nqreg b[3];\ncx a[0],b[1];")
+	if qubits != 5 {
+		t.Fatalf("qreg widths must accumulate, got qubits=%d", qubits)
+	}
+	if twoQ != 1 {
+		t.Fatalf("non-q registers must still count as 2q operands, got twoQ=%d", twoQ)
+	}
+}

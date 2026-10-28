@@ -90,3 +90,20 @@ def test_stale_calibration_refuses(monkeypatch):
         "ibm-heron", n_qubits=2, n_single_qubit_gates=4, n_two_qubit_gates=1)
     assert verdict.admitted is False
     assert verdict.calibration_fresh is False
+
+
+def test_unknown_device_never_inherits_simulator():
+    from kubona.fidelity import accounting
+    v = accounting.FidelityAccountingEngine().evaluate_admission(
+        "not-a-device", n_qubits=2, n_single_qubit_gates=4, n_two_qubit_gates=1)
+    assert v.admitted is False
+    assert "unknown fidelity device" in (v.rejection_reason or "")
+    assert v.recommended_action == "REJECT"
+
+
+def test_qubit_count_capacity_is_enforced():
+    from kubona.fidelity import accounting
+    v = accounting.FidelityAccountingEngine().evaluate_admission(
+        "ibm-heron", n_qubits=10_000, n_single_qubit_gates=1, n_two_qubit_gates=0)
+    assert v.admitted is False
+    assert "qubits" in (v.rejection_reason or "")

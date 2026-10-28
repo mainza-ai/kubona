@@ -180,8 +180,32 @@ class FidelityAccountingEngine:
         device = (
             DEVICE_CATALOG.get(device_name)
             or DEVICE_CATALOG.get(device_name.replace("_", "-"))
-            or DEVICE_CATALOG["local-simulator"]
         )
+        if device is None:
+            return FidelityAdmissionVerdict(
+                admitted=False,
+                predicted_fidelity=0.0,
+                fidelity_floor=floor,
+                calibration_fresh=False,
+                recommended_action="REJECT",
+                rejection_reason=(
+                    f"unknown fidelity device {device_name!r}: refusing to inherit the "
+                    "simulator profile (no silent simulation)"),
+            )
+        if n_qubits < 0 or n_single_qubit_gates < 0 or n_two_qubit_gates < 0:
+            return FidelityAdmissionVerdict(
+                admitted=False, predicted_fidelity=0.0, fidelity_floor=floor,
+                calibration_fresh=False, recommended_action="REJECT",
+                rejection_reason="negative circuit counts: refusing admission",
+            )
+        if device.qubits and n_qubits > device.qubits:
+            return FidelityAdmissionVerdict(
+                admitted=False, predicted_fidelity=0.0, fidelity_floor=floor,
+                calibration_fresh=False, recommended_action="REJECT",
+                rejection_reason=(
+                    f"circuit uses {n_qubits} qubits but {device.device_name} has "
+                    f"{device.qubits}: refusing admission"),
+            )
 
         # Check calibration freshness
         age = device.calibration_age_hours()

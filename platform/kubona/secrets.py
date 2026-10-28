@@ -191,7 +191,10 @@ class SecretStore:
     def get(self, provider: str, key: str, *, required: bool = False) -> str | None:
         v = self.source.get(provider, key)
         if required and not v:
-            return None
+            raise KeyError(
+                f"{provider} requires credential '{key}' — set {_env_key(provider, key)} "
+                "(or provide a SecretStore/Source backend). Providers fail closed."
+            )
         return v
 
     def require(self, provider: str, key: str) -> str:

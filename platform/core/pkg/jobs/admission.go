@@ -289,7 +289,8 @@ func fidelityDeviceForBackend(backend string) (string, error) {
 }
 
 var (
-	qasmQregRe = regexp.MustCompile(`qreg\s+\w+\[(\d+)\]`)
+	qasmQregRe    = regexp.MustCompile(`qreg\s+\w+\s*\[\s*(\d+)\s*\]`)
+	qasmOperandRe = regexp.MustCompile(`[A-Za-z_]\w*\s*\[\s*\d+\s*\]`)
 	// W2.5 closed 2-qubit vocabulary (case-insensitive): the old set
 	// (cx|cz|swap|cp|ecr|rzz) missed cnot/cy/ch/crx/cry/crz/cu/rxx/ryy and
 	// friends — undercounting 2q gates OVER-predicts fidelity, the unsafe
@@ -313,9 +314,7 @@ func countQasmGates(qasm string) (qubits, depth, twoQ int) {
 			if m := qasmQregRe.FindStringSubmatch(line); len(m) > 1 {
 				var n int
 				fmt.Sscanf(m[1], "%d", &n)
-				if n > qubits {
-					qubits = n
-				}
+				qubits += n
 			}
 			continue
 		}
@@ -330,7 +329,7 @@ func countQasmGates(qasm string) (qubits, depth, twoQ int) {
 		// W2.5 operand fallback: an unlisted gate touching 2+ qubits
 		// counts as entangling (fail-closed direction — unknown ops must
 		// lower the prediction, never raise it).
-		if strings.Count(line, "q[") >= 2 {
+		if len(qasmOperandRe.FindAllString(line, -1)) >= 2 {
 			twoQ++
 		}
 	}

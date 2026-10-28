@@ -142,6 +142,7 @@ class Orchestrator:
         """Run the keep-or-discard loop for `budget_steps`; returns all trials (sorted best first via history)."""
         current = initial if initial is not None else self.harness.mutable_artifact()
         history: list[Trial] = []
+        halted = False
         for step_idx in range(self.budget_steps):
             trial = self.run_trial(current)
             history.append(trial)
@@ -154,8 +155,10 @@ class Orchestrator:
                 on_step(trial)
 
             if verdict.action == "ABORT_TO_SNAPSHOT":
+                halted = True
                 break
             elif verdict.action == "PAUSE":
+                halted = True
                 break
             elif verdict.action == "RE_SCOPE":
                 # Barren plateau hit: re-seed from clean artifact to escape barren manifold
@@ -164,6 +167,10 @@ class Orchestrator:
                 current = self.harness.mutable_artifact()
             else:
                 current = self.propose(current)
+        # A watchdog halt is a stop, not a hint to keep spending: never run
+        # refinement trials after ABORT/PAUSE.
+        if halted:
+            return sorted(history, key=lambda t: t.metric, reverse=True)
         # coarse-to-fine: refine around the best found
         refined = self._refine(history)
         if refined is not None:

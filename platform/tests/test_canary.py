@@ -117,6 +117,11 @@ def test_canary_attests_declared_qubits():
     assert att["measured_qubits"] == 24, att
     assert att["qubit_count_ok"] is True, att
     assert len(att["snapshot_hash"]) == 64, att
+    sealed = {k: v for k, v in att.items() if k != "snapshot_hash"}
+    import hashlib, json
+    assert att["snapshot_hash"] == hashlib.sha256(
+        json.dumps(sealed, sort_keys=True).encode()).hexdigest()
+    assert "calibration" in sealed
 
 
 def test_canary_flags_schema_lie():

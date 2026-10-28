@@ -28,3 +28,15 @@ def test_unsupported_gate_rejected():
     # Fail-closed at parse: unknown gates refuse before reaching any provider.
     with pytest.raises(ValueError, match="unknown gate"):
         parse_qasm2(qasm)
+
+
+def test_unknown_register_is_rejected_not_aliased():
+    with pytest.raises(ValueError, match="unknown register"):
+        parse_qasm2("OPENQASM 2.0;\nqreg q[1];\nh r[0];")
+
+
+def test_reset_is_refused_in_unitary_context():
+    qasm = "OPENQASM 2.0;\nqreg q[1];\nh q[0];\nreset q[0];"
+    assert parse_qasm2(qasm).skipped_directives  # recorded in general parsing
+    with pytest.raises(ValueError, match="reset statement refused"):
+        parse_qasm2(qasm, refuse_measure=True)

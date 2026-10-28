@@ -101,5 +101,7 @@ def criticize_task(task_name: str, qasm: str, check: Callable,
             continue
         verdicts[name] = {"applicable": True, "expected": expected,
                           "got": got, "ok": got == expected}
-    ok = all(v.get("ok", True) for v in verdicts.values())
+    applicable = [v for v in verdicts.values() if v.get("applicable")]
+    # Fail closed: no mutants/no applicable mutant means no evidence, not a pass.
+    ok = bool(applicable) and all(v.get("ok") is True for v in applicable)
     return {"task": task_name, "ok": ok, "verdicts": verdicts}

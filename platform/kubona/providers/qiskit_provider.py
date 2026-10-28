@@ -162,11 +162,7 @@ class QiskitProvider(Provider):
             raise ProviderError(
                 "cannot recall without credentials: KUBONA_IBM_QISKIT_TOKEN unset")
         try:
-            if service_factory is None:
-                from qiskit_ibm_runtime import QiskitRuntimeService
-                service = QiskitRuntimeService(channel="ibm_quantum", token=token)
-            else:
-                service = service_factory(token)
+            service = self._service(token, service_factory)
             job = service.job(hardware_job_id)
             cancelled = bool(job.cancel())
         except ImportError as e:
@@ -176,6 +172,19 @@ class QiskitProvider(Provider):
         return {"provider": self.capability.provider, "hardware_job_id": hardware_job_id,
                 "recall_requested": True, "cancel_accepted": cancelled,
                 "note": "cancel is best-effort once running; re-check job status"}
+
+    def _channel(self) -> str:
+        """Runtime channel; Qiskit 2.x uses ibm_quantum_platform. The legacy
+        ibm_quantum channel was retired, so it is an explicit override only."""
+        import os
+        value = os.environ.get("KUBONA_IBM_QISKIT_CHANNEL", "").strip()
+        return value or "ibm_quantum_platform"
+
+    def _service(self, token: str, service_factory=None):
+        if service_factory is not None:
+            return service_factory(token)
+        from qiskit_ibm_runtime import QiskitRuntimeService
+        return QiskitRuntimeService(channel=self._channel(), token=token)
 
     def _credential(self) -> str | None:
         # R12: no caching of the default store. An explicitly injected
@@ -202,11 +211,11 @@ class QiskitProvider(Provider):
                             on_hardware_job=None,
                             wait_for_result: bool = True,
                             service_factory=None) -> dict[str, Any]:
-        """Real IBM hardware via Qiskit Runtime (channel: ibm_quantum)."""
+        """Real IBM hardware via Qiskit Runtime (channel: ibm_quantum_platform)."""
         if service_factory is None:
-            from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2  # noqa: F401
+            from qiskit_ibm_runtime import SamplerV2  # noqa: F401
 
-            service = QiskitRuntimeService(channel="ibm_quantum", token=token)
+            service = self._service(token)
             backend = service.backend(self.backend_name)
             sampler = SamplerV2(backend=backend)
         else:
@@ -230,7 +239,7 @@ class QiskitProvider(Provider):
                 "job_id": job_id,
                 "hardware_job_id": job_id,
                 "hardware": True,
-                "channel": "ibm_quantum",
+                "channel": self._channel(),
             }
         result = job.result()
         pub = result[0].data.meas
@@ -251,11 +260,7 @@ class QiskitProvider(Provider):
                 "cannot poll without credentials: KUBONA_IBM_QISKIT_TOKEN unset"
             )
         try:
-            if service_factory is None:
-                from qiskit_ibm_runtime import QiskitRuntimeService
-                service = QiskitRuntimeService(channel="ibm_quantum", token=token)
-            else:
-                service = service_factory(token)
+            service = self._service(token, service_factory)
             job = service.job(hardware_job_id)
             raw_status = job.status()
         except ImportError as e:
@@ -285,7 +290,7 @@ class QiskitProvider(Provider):
                     "backend": self.backend_name,
                     "job_id": hardware_job_id,
                     "hardware": True,
-                    "channel": "ibm_quantum",
+                    "channel": self._channel(),
                 },
             }
         if status_str in ("error", "failed"):
@@ -324,8 +329,7 @@ class QiskitProvider(Provider):
             token = self._credential()
             if not token or not self.backend_name:
                 return None
-            from qiskit_ibm_runtime import QiskitRuntimeService
-            service = QiskitRuntimeService(channel="ibm_quantum", token=token)
+            service = self._service(token)
             props = service.backend(self.backend_name).properties()
             if props is None:
                 return None

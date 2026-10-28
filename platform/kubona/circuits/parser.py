@@ -75,9 +75,9 @@ def parse_qasm2(source: str, name: str | None = None,
             continue
         first = ln.split()[0].rstrip(";") if ln.split() else ""
         if first in SKIPPED_DIRECTIVES:
-            if first == "measure" and refuse_measure:
+            if first in ("measure", "reset") and refuse_measure:
                 raise ValueError(
-                    f"measure statement refused (unitary-only context): {ln!r}"
+                    f"{first} statement refused (unitary-only context): {ln!r}"
                 )
             if first == "opaque":
                 # Skip the whole opaque definition through its endopaque
@@ -130,15 +130,19 @@ def parse_qasm2(source: str, name: str | None = None,
             qs_list = []
             for reg, idx_str in tokens:
                 idx = int(idx_str)
-                if reg in qreg_offsets:
-                    if idx >= qreg_sizes[reg]:
-                        raise ValueError(
-                            f"qubit index {idx} out of range for register {reg}[{qreg_sizes[reg]}] "
-                            f"(beyond circuit width) in {ln!r}"
-                        )
-                    qs_list.append(qreg_offsets[reg] + idx)
-                else:
-                    qs_list.append(idx)
+                if reg not in qreg_offsets:
+                    # A raw index would silently alias a different qubit:
+                    # registers are the only valid QASM 2 qubit namespace.
+                    raise ValueError(
+                        f"unknown register {reg!r} in statement {ln!r}: "
+                        "declare it with qreg before use"
+                    )
+                if idx >= qreg_sizes[reg]:
+                    raise ValueError(
+                        f"qubit index {idx} out of range for register {reg}[{qreg_sizes[reg]}] "
+                        f"(beyond circuit width) in {ln!r}"
+                    )
+                qs_list.append(qreg_offsets[reg] + idx)
             qs = tuple(qs_list)
         else:
             qs = tuple(int(q) for q in re.findall(r"\[(\d+)\]", m.group("qubits")))

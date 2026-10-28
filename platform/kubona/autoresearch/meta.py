@@ -54,8 +54,16 @@ class MetaLoop:
 
     def shadow_compare(self, incumbent_score: float, proposed_score: float,
                        improvement_threshold: float = 0.02) -> bool:
-        """Shadow-mode comparison: does the proposed strategy beat the incumbent?"""
-        return proposed_score > incumbent_score * (1 + improvement_threshold)
+        """Shadow-mode comparison: does the proposed strategy beat the incumbent?
+
+        Relative improvement is measured on the true score axis: for a
+        negative incumbent, multiplying by (1+threshold) makes the bar MORE
+        negative, silently demanding a larger gain. Require
+        proposed - incumbent > |incumbent| * threshold instead.
+        """
+        gain = proposed_score - incumbent_score
+        required = abs(incumbent_score) * improvement_threshold if incumbent_score != 0 else improvement_threshold
+        return gain > required
 
     def propose_strategy_change(self, kind: str, incumbent: Any, proposed: Any,
                                  rationale: str, shadow_evidence: dict[str, Any]) -> ReflectionProposal:

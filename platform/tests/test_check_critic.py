@@ -87,3 +87,9 @@ def test_every_check_kind_has_breaking_coverage():
             covered[kinds[name]] = True
     missing = [k for k, v in covered.items() if not v]
     assert not missing, f"check kinds without breaking coverage: {missing}"
+
+
+def test_no_applicable_mutants_is_not_a_pass():
+    report = cc.criticize_task("empty", "OPENQASM 2.0;\nqreg q[1];\nh q[0];",
+                               "bell_entangled", {})
+    assert report["ok"] is False

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"time"
 )
 
@@ -84,6 +85,15 @@ func (m *SpendMandate) Verify(expectedTenantID, expectedJobHash string, requeste
 
 	if !ed25519.Verify(ed25519.PublicKey(pubKeyBytes), m.CanonicalPayload(), sigBytes) {
 		return ErrInvalidSignature
+	}
+
+	// Signature first (no mismatch oracle); only then refuse an unbound
+	// mandate. A valid signature over an empty binding still has no job.
+	if m.TenantID == "" || m.JobHash == "" {
+		return fmt.Errorf("mandate is unbound: tenant_id and job_hash are required")
+	}
+	if math.IsNaN(m.MaxBudgetUSD) || math.IsInf(m.MaxBudgetUSD, 0) || m.MaxBudgetUSD < 0 {
+		return fmt.Errorf("mandate budget must be finite and non-negative")
 	}
 
 	if expectedTenantID != "" && m.TenantID != expectedTenantID {

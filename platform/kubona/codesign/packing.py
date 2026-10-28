@@ -152,7 +152,8 @@ def _emit_zero_flag_n(b, g: list[int], flag: int, temps: list[int]) -> int:
             b.free(q)
     for q in g:
         b.x(q)
-    assert n_ccx == (1 if n == 2 else 2 * n - 3)
+    if n_ccx != (1 if n == 2 else 2 * n - 3):
+        raise AssertionError("zero-flag CCX count does not match the proven kernel")
     return n_ccx
 
 

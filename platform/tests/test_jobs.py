@@ -169,3 +169,19 @@ def test_cancel_job_scoped_via_policy(tmp_path):
     import pytest
     with pytest.raises(AuthError):
         gw.call("execution", "cancel_job", {"job_id": "x"}, token="anything")
+
+
+def test_cancel_attempts_vendor_recall_when_hardware_id_pinned(monkeypatch):
+    from kubona.mcp.servers import execution
+
+    class FakeProvider:
+        def cancel(self, hardware_job_id):
+            return {"cancelled": True, "hardware_job_id": hardware_job_id}
+
+    monkeypatch.setattr(execution, "get_provider", lambda provider: FakeProvider())
+    job = execution._runner.store.create(
+        provider="ibm-qiskit", session_id="sess-recall", hardware_job_id="hw-1")
+    out = execution.cancel_job(job.job_id)
+    assert out["ok"] is True, out
+    assert out["provider_recall_attempted"] is True, out
+    assert out["provider_recall"]["cancelled"] is True, out

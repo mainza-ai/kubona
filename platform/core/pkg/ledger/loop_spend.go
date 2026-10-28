@@ -68,36 +68,43 @@ func (l *Ledger) GetLoopState(id string) (*LoopPersist, error) {
 // zero is the claim — concurrent releasers (kill racing completion)
 // release exactly once (the loser reads the win or finds n==0 and
 // skips). A crash between zero and the tenant release leaves the tenant
-// OVER-reserved (safe direction, visible in spent_usd, recoverable via
+// OVER-reserved (safe direction, visible in the tenant book, recoverable via
 // the audited refund primitive) — never under, never double.
 func (l *Ledger) ClaimLoopSpend(id string) (tenant string, refund float64, ok bool, err error) {
-	var reservedMicro, consumedMicro int64
-	var reservedTenant string
-	if err := l.db.QueryRow(`SELECT reserved_amount_micro_usd, consumed_amount_micro_usd, reserved_tenant FROM loops WHERE id = ?`, id).
-		Scan(&reservedMicro, &consumedMicro, &reservedTenant); err != nil {
-		if err == sql.ErrNoRows {
+	// CAS on BOTH reserved and consumed: a plain read-then-zero could
+	// refund a stale consumed amount if AddLoopConsumed landed in between
+	// (over-refund). A failed CAS means the row moved, so re-read.
+	for attempt := 0; attempt < 3; attempt++ {
+		var reservedMicro, consumedMicro int64
+		var reservedTenant string
+		if err := l.db.QueryRow(`SELECT reserved_amount_micro_usd, consumed_amount_micro_usd, reserved_tenant FROM loops WHERE id = ?`, id).
+			Scan(&reservedMicro, &consumedMicro, &reservedTenant); err != nil {
+			if err == sql.ErrNoRows {
+				return "", 0, false, nil
+			}
+			return "", 0, false, err
+		}
+		if reservedMicro <= 0 {
 			return "", 0, false, nil
 		}
-		return "", 0, false, err
+		res, err := l.db.Exec(`UPDATE loops SET reserved_amount_micro_usd = 0, consumed_amount_micro_usd = 0, updated_at = CURRENT_TIMESTAMP
+			WHERE id = ? AND reserved_amount_micro_usd = ? AND consumed_amount_micro_usd = ?`,
+			id, reservedMicro, consumedMicro)
+		if err != nil {
+			return "", 0, false, fmt.Errorf("claim loop spend failed: %w", err)
+		}
+		n, err := res.RowsAffected()
+		if err != nil {
+			return "", 0, false, fmt.Errorf("claim loop spend failed: %w", err)
+		}
+		if n == 0 {
+			continue
+		}
+		refundMicro := reservedMicro - consumedMicro
+		if refundMicro < 0 {
+			refundMicro = 0 // overrun: nothing to return (the overrun paused the loop first)
+		}
+		return reservedTenant, money.MicroUSD(refundMicro).USD(), true, nil
 	}
-	if reservedMicro <= 0 {
-		return "", 0, false, nil
-	}
-	res, err := l.db.Exec(`UPDATE loops SET reserved_amount_micro_usd = 0, consumed_amount_micro_usd = 0, updated_at = CURRENT_TIMESTAMP
-		WHERE id = ? AND reserved_amount_micro_usd > 0`, id)
-	if err != nil {
-		return "", 0, false, fmt.Errorf("claim loop spend failed: %w", err)
-	}
-	n, err := res.RowsAffected()
-	if err != nil {
-		return "", 0, false, fmt.Errorf("claim loop spend failed: %w", err)
-	}
-	if n == 0 {
-		return "", 0, false, nil
-	}
-	refundMicro := reservedMicro - consumedMicro
-	if refundMicro < 0 {
-		refundMicro = 0 // overrun: nothing to return (the overrun paused the loop first)
-	}
-	return reservedTenant, money.MicroUSD(refundMicro).USD(), true, nil
+	return "", 0, false, fmt.Errorf("claim loop spend contended: loop %s kept changing; retry", id)
 }

@@ -39,6 +39,9 @@ def test_computational_hypothesis_hashing():
     d = hyp.to_dict()
     assert d["hypothesis_id"] == "h_test_01"
     assert d["content_hash"] == h_hash
+    # Hash-then-sign: rotating the signature must not move the content address.
+    import dataclasses
+    assert dataclasses.replace(hyp, mandate_signature="different_signature").content_hash() == h_hash
 
     # Fisher stopping rule
     should_stop = EpistemicContinuum.evaluate_fisher_stopping_rule(
