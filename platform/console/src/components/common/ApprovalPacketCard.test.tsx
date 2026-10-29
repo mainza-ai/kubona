@@ -69,16 +69,19 @@ describe('ApprovalPacketCard (Q-11 burden-scaled packet)', () => {
     }
   });
 
-  it('approve-once and approve-up-to-max are distinct actions', () => {
+  it('approve-once and approve-up-to-max are distinct actions (up-to-max restates $X.XX)', () => {
     const once = vi.fn();
     const upToMax = vi.fn();
     const tree = renderCard({ onApproveOnce: once, onApproveUpToMax: upToMax });
+    // Wave-2 money copy: the button restates the exact bound at 2dp.
+    const upToMaxBtn = buttonByText(tree.root, 'Approve up to $48.00');
+    expect(textOf(tree.root)).toContain('Approve up to $48.00');
     act(() => {
       buttonByText(tree.root, 'Approve once').props.onClick();
     });
     expect(once).toHaveBeenCalledTimes(1);
     act(() => {
-      buttonByText(tree.root, 'Approve up to max').props.onClick();
+      upToMaxBtn.props.onClick();
     });
     expect(upToMax).toHaveBeenCalledTimes(1);
   });
@@ -108,5 +111,25 @@ describe('ApprovalPacketCard (Q-11 burden-scaled packet)', () => {
     const once = vi.fn();
     const tree = renderCard({ onApproveOnce: once, decisionError: 'mandate REJECTED: expired' });
     expect(textOf(tree.root)).toContain('mandate REJECTED');
+  });
+
+  it('deny-reason and budget-breach behavior are unchanged', () => {
+    // Breach disables BOTH approve actions but leaves Deny enabled.
+    const tree = renderCard({ packet: { ...PACKET, budgetBreached: true } });
+    expect(textOf(tree.root)).toContain('OVERSPENT');
+    const approveOnce = buttonByText(tree.root, 'Approve once');
+    const upToMax = buttonByText(tree.root, 'Approve up to $48.00');
+    expect(approveOnce.props.disabled).toBe(true);
+    expect(upToMax.props.disabled).toBe(true);
+    const deny = buttonByText(tree.root, 'Deny');
+    expect(deny.props.disabled).not.toBe(true);
+  });
+
+  it('unpriced packet falls back to the generic up-to-max label', () => {
+    const tree = renderCard({
+      packet: { ...PACKET, costMaxUsd: NaN },
+    });
+    expect(textOf(tree.root)).toContain('Approve up to max');
+    expect(textOf(tree.root)).not.toContain('Approve up to $');
   });
 });

@@ -355,9 +355,9 @@ ${bibtex}
                 <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-cyan-400">
                   {claimVerified && proofVerified ? 'Verified Research Finding' : 'Projected Research Draft'}
                 </span>
-                <h1 className="text-lg md:text-xl font-bold text-white tracking-tight leading-snug mt-1">
+                <h2 className="text-lg md:text-xl font-bold text-white tracking-tight leading-snug mt-1">
                   {campaign?.notebook?.title || `Variational Quantum Ground State of ${target} Anchored to Full Configuration Interaction`}
-                </h1>
+                </h2>
                 <div className="flex flex-wrap items-center gap-3 text-xs text-slate-400 pt-2 font-mono">
                   <span>By Kubona Autonomous Epistemic Swarm</span>
                   <span>•</span>

@@ -114,3 +114,108 @@ describe('LLMSettings model management (M2)', () => {
     expect(JSON.parse(seen[0]).disable_dsml_fallback).toBe(true);
   });
 });
+
+describe('LLMSettings labels + save-refusal mapping (Wave-2)', () => {
+  it('associates every label with its input', async () => {
+    stubFetch((url) => {
+      if (url.includes('/api/llm/models')) return { ok: true, status: 200, json: async () => ({ models: [] }) };
+      return { ok: true, status: 200, json: async () => settings() };
+    });
+    const tree = await render();
+    const labels = tree.root.findAllByType('label');
+    expect(labels.length).toBeGreaterThan(0);
+    for (const label of labels) {
+      const htmlFor = (label.props as { htmlFor?: string }).htmlFor;
+      expect(htmlFor, `label "${textOf(label.props.children)}" has no htmlFor`).toBeTruthy();
+      const targets = tree.root.findAll(
+        (n) => (n.props as { id?: string }).id === htmlFor && (n.type === 'input' || n.type === 'select'),
+      );
+      expect(targets.length, `no input/select with id "${htmlFor}"`).toBeGreaterThan(0);
+    }
+  });
+
+  it('maps a provider save refusal adjacent to the offending group, verbatim', async () => {
+    const refusal = 'unknown provider "nvidia": backend refused to persist';
+    stubFetch((url, init) => {
+      if (url.includes('/api/llm/models')) return { ok: true, status: 200, json: async () => ({ models: [] }) };
+      if (url.includes('/api/llm/settings') && init?.method === 'POST') {
+        return { ok: false, status: 400, text: async () => refusal, json: async () => ({}) };
+      }
+      return { ok: true, status: 200, json: async () => settings() };
+    });
+    const tree = await render();
+    await act(async () => {
+      const save = tree.root.findAllByType('button').find((b) => textOf(b.props.children).includes('Save'));
+      await save!.props.onClick();
+    });
+    const adjacent = tree.root.findByProps({ 'data-testid': 'llm-save-error-nvidia' });
+    expect(textOf(adjacent)).toContain(refusal);
+    expect(textOf(tree.root.findByProps({ 'data-testid': 'llm-save-status' }))).toContain('provider NVIDIA NIM');
+  });
+
+  it('labels an unrecognized refusal as a general section error', async () => {
+    stubFetch((url, init) => {
+      if (url.includes('/api/llm/models')) return { ok: true, status: 200, json: async () => ({ models: [] }) };
+      if (url.includes('/api/llm/settings') && init?.method === 'POST') {
+        return { ok: false, status: 500, text: async () => 'disk full on ledger', json: async () => ({}) };
+      }
+      return { ok: true, status: 200, json: async () => settings() };
+    });
+    const tree = await render();
+    await act(async () => {
+      const save = tree.root.findAllByType('button').find((b) => textOf(b.props.children).includes('Save'));
+      await save!.props.onClick();
+    });
+    const banner = textOf(tree.root.findByProps({ 'data-testid': 'llm-save-status' }));
+    expect(banner).toContain('general');
+    expect(banner).toContain('disk full on ledger');
+    expect(tree.root.findAll((n) => String((n.props as { 'data-testid'?: string })['data-testid'] ?? '').startsWith('llm-save-error-'))).toHaveLength(0);
+  });
+
+  it('keeps the dirty gate: edit marks unsaved, save clears it', async () => {
+    stubFetch((url, init) => {
+      if (url.includes('/api/llm/models')) return { ok: true, status: 200, json: async () => ({ models: [] }) };
+      if (url.includes('/api/llm/settings') && init?.method === 'POST') {
+        return { ok: true, status: 200, json: async () => ({ ok: true }), text: async () => '' };
+      }
+      return { ok: true, status: 200, json: async () => settings() };
+    });
+    const tree = await render();
+    expect(JSON.stringify(tree.toJSON())).not.toContain('Unsaved changes');
+    await act(async () => {
+      tree.root.findByProps({ 'aria-label': 'NVIDIA NIM default model' }).props.onChange({ target: { value: 'nvidia/other' } });
+    });
+    expect(JSON.stringify(tree.toJSON())).toContain('Unsaved changes');
+    await act(async () => {
+      const save = tree.root.findAllByType('button').find((b) => textOf(b.props.children).includes('Save'));
+      expect(save!.props.disabled).toBe(false);
+      await save!.props.onClick();
+    });
+    expect(JSON.stringify(tree.toJSON())).toContain('persisted successfully');
+    expect(JSON.stringify(tree.toJSON())).not.toContain('Unsaved changes');
+  });
+
+  it('disables Save while a save is in flight', async () => {
+    let release!: () => void;
+    const gate = new Promise((resolve) => {
+      release = () => resolve({ ok: true, status: 200, json: async () => ({ ok: true }), text: async () => '' });
+    });
+    stubFetch((url, init) => {
+      if (url.includes('/api/llm/models')) return { ok: true, status: 200, json: async () => ({ models: [] }) };
+      if (url.includes('/api/llm/settings') && init?.method === 'POST') return gate;
+      return { ok: true, status: 200, json: async () => settings() };
+    });
+    const tree = await render();
+    let pending: Promise<void> | undefined;
+    act(() => {
+      const save = tree.root.findAllByType('button').find((b) => textOf(b.props.children).includes('Save'));
+      pending = save!.props.onClick() as Promise<void>;
+    });
+    expect(tree.root.findAllByType('button').find((b) => textOf(b.props.children).includes('Save'))!.props.disabled).toBe(true);
+    await act(async () => {
+      release();
+      await pending;
+    });
+    expect(tree.root.findAllByType('button').find((b) => textOf(b.props.children).includes('Save'))!.props.disabled).toBe(false);
+  });
+});

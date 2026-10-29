@@ -120,3 +120,53 @@ describe('QuantumSettings provider selection', () => {
     expect(textOf(root!.root)).toContain('canary ran');
   });
 });
+
+describe('QuantumSettings labels + icon-button names (Wave-2)', () => {
+  beforeEach(() => {
+    vi.mocked(api.fetchQuantumBackends).mockResolvedValue(BACKENDS);
+    vi.mocked(api.fetchQuantumSettings).mockResolvedValue({
+      default_backend: 'local-simulator',
+      harness_backends: { 'vqe-ansatz': 'local-simulator' },
+    });
+    vi.mocked(api.saveQuantumSettings).mockResolvedValue({ ok: true });
+  });
+
+  it('names the icon-only reload/canary buttons and keeps their tooltips', async () => {
+    let root: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      root = TestRenderer.create(<QuantumSettings />);
+    });
+    await flush();
+    const reload = root!.root.findByProps({ 'aria-label': 'Reload backends and saved selection' });
+    expect(reload.props.title).toBe('Reload backends and saved selection');
+    const canary = root!.root.findByProps({ 'aria-label': 'Run live canary check' });
+    expect(String(canary.props.title)).toContain('canary');
+  });
+
+  it('associates harness labels with their inputs', async () => {
+    let root: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      root = TestRenderer.create(<QuantumSettings />);
+    });
+    await flush();
+    // Per-row override select is named for its harness…
+    expect(root!.root.findByProps({ 'aria-label': 'Backend for harness vqe-ansatz' }).type).toBe('select');
+    // …and the remove button is named for its harness too.
+    expect(root!.root.findByProps({ 'aria-label': 'Remove harness vqe-ansatz' }).type).toBe('button');
+    // New-harness controls are labeled.
+    expect(root!.root.findByProps({ 'aria-label': 'New harness name' }).type).toBe('input');
+    expect(root!.root.findByProps({ 'aria-label': 'Backend for new harness' }).type).toBe('select');
+    // Every label element is associated with an input.
+    for (const label of root!.root.findAll((n) => n.type === 'label')) {
+      const htmlFor = (label.props as { htmlFor?: string }).htmlFor;
+      const wrapped = label.findAll((n) => n.type === 'input' || n.type === 'select');
+      if (htmlFor) {
+        const targets = root!.root.findAll((n) => (n.props as { id?: string }).id === htmlFor);
+        expect(targets.length).toBeGreaterThan(0);
+      } else {
+        // Implicit association: the label wraps its control.
+        expect(wrapped.length).toBeGreaterThan(0);
+      }
+    }
+  });
+});

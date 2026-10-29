@@ -3,6 +3,7 @@
 import React, { useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { X, ShieldCheck, Cpu,  Lock,  Sparkles } from 'lucide-react';
+import { useFocusTrap } from '@/lib/useFocusTrap';
 
 interface AboutLabModalProps {
   isOpen: boolean;
@@ -12,7 +13,12 @@ interface AboutLabModalProps {
 export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
 
+  // Wave-2 a11y: trap Tab inside the dialog, land focus on entry, restore
+  // the invoker on close. Escape handling below is unchanged.
+  useFocusTrap(isOpen, modalRef);
+
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
         onClose();

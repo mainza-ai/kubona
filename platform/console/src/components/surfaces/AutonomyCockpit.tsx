@@ -144,9 +144,16 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
     }
   };
 
-  // Air-gap switch persists to intelligence settings (same backend control
-  // as Cognitive Mesh) — never a visual-only toggle. Fetch-merge-save so a
-  // toggle never wipes unrelated settings; revert + banner on failure.
+  // Air-gap switch: Wave-2 staging decision — this surface keeps
+  // IMMEDIATE persist with revert-on-failure (fetch-merge-save below) and
+  // does NOT add a "staged — Save to apply" pending state. Why: the toggle
+  // is a single boolean mirrored from live intelligence settings (same
+  // control as Cognitive Mesh); a staged Save would add pending/dirty +
+  // Save/discard plumbing for one bit with no safety gain — the current
+  // path is already fail-closed (revert + banner, nothing silently kept).
+  // NOTE: no DSML toggle lives on this surface; DisableDSMLFallback lives
+  // in LLMSettings (out of scope), so only the Sovereign Air-Gap toggle is
+  // governed here.
   const handleToggleAirGap = async () => {
     const next = !airGap;
     const prev = airGap;
@@ -300,13 +307,17 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
             }}
           />
           <div className="flex items-center space-x-3 pt-2">
+            {/* Money-adjacent: local simulation spends exactly $0.00 (the
+                spend_estimate minted in handleSimulateOffline) — 2dp, no
+                invented figure. Approve buttons carrying the priced estimate
+                live in ApprovalPacketCard ("Approve up to $X.XX"). */}
             <button
               onClick={handleSimulateOffline}
               disabled={isSubmitting || !session?.id || !campaign?.quantum_factors?.qasm}
-              title={!campaign?.quantum_factors?.qasm ? 'Needs a campaign circuit first' : 'Dispatch to local simulator'}
+              title={!campaign?.quantum_factors?.qasm ? 'Needs a campaign circuit first' : 'Dispatch to local simulator ($0.00 spend)'}
               className="flex-1 py-2.5 px-4 bg-white/05 hover:bg-white/10 text-slate-300 text-xs font-medium rounded-xl transition-all disabled:opacity-40"
             >
-              Simulate Offline
+              Simulate Offline — $0.00
             </button>
           </div>
         </div>

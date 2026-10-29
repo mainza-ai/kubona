@@ -88,6 +88,12 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
   const [spendLimit, setSpendLimit] = useState<number>(100);
   const [isFresh, setIsFresh] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  // Inline validation state: invalid input blocks onCreate (never a silent
+  // fallback to the preset), and a server/transport refusal renders verbatim
+  // with the modal kept OPEN.
+  const [titleError, setTitleError] = useState<string | null>(null);
+  const [moleculeError, setMoleculeError] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -95,7 +101,31 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
   const handleSelectPreset = (preset: MoleculePreset) => {
     setSelectedMolecule(preset.id);
     setCustomMolecule('');
+    setMoleculeError(null);
     setTitle(preset.defaultTitle);
+    setTitleError(null);
+  };
+
+  // Inline validators (Wave-2): trimmed title >= 3 chars; a non-empty custom
+  // molecule must look like a chemical formula or SMILES. An invalid custom
+  // value is an error next to the field — never a silent fallback to the
+  // selected preset.
+  const validateTitle = (v: string): string | null =>
+    v.trim().length >= 3 ? null : 'Campaign name must be at least 3 characters (leading/trailing spaces ignored).';
+
+  const validateCustomMolecule = (v: string): string | null => {
+    const t = v.trim();
+    if (t === '') return null;
+    if (t.length > 200) {
+      return `Custom molecule is ${t.length} characters (max 200) — shorten it or clear the field to use the preset.`;
+    }
+    if (!/[A-Za-z]/.test(t)) {
+      return `Custom molecule "${t}" must contain an element symbol — fix it or clear the field to use the preset.`;
+    }
+    if (!/^[A-Za-z0-9@+\-\[\]\(\)=#$%\/\\.:*]+$/.test(t)) {
+      return `Custom molecule "${t}" is not a valid formula/SMILES (no spaces; allowed: letters, digits, []()=#+@/%\\.:*-) — fix it or clear the field to use the preset.`;
+    }
+    return null;
   };
 
   useEffect(() => {
@@ -113,10 +143,18 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isSubmitting) return;
+    // Inline gate: refuse to send while a field is invalid. No silent
+    // fallback — an invalid custom molecule never degrades to the preset.
+    const tErr = validateTitle(title);
+    const mErr = validateCustomMolecule(customMolecule);
+    setTitleError(tErr);
+    setMoleculeError(mErr);
+    if (tErr || mErr) return;
     const finalMolecule = customMolecule.trim() ? customMolecule.trim() : selectedMolecule;
-    const finalTitle = title.trim() || `${finalMolecule} Research Campaign`;
+    const finalTitle = title.trim();
 
     setIsSubmitting(true);
+    setSubmitError(null);
     try {
       await onCreate({
         title: finalTitle,
@@ -125,6 +163,9 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
         fresh: isFresh,
       });
       onClose();
+    } catch (err) {
+      // Server/transport refusal: keep the modal OPEN and show it verbatim.
+      setSubmitError(err instanceof Error ? err.message : String(err));
     } finally {
       setIsSubmitting(false);
     }
@@ -179,18 +220,28 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
 
           {/* Campaign Title / Hypothesis */}
           <div className="space-y-1.5">
-            <label className="block text-xs font-semibold text-slate-200">
+            <label htmlFor="new-campaign-title-input" className="block text-xs font-semibold text-slate-200">
               Research Campaign Name / Hypothesis
             </label>
             <input
+              id="new-campaign-title-input"
               type="text"
               value={title}
               aria-label="Research campaign name or hypothesis"
-              onChange={(e) => setTitle(e.target.value)}
+              aria-invalid={titleError !== null}
+              aria-describedby={titleError ? 'new-campaign-title-error' : undefined}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                if (titleError) setTitleError(validateTitle(e.target.value));
+              }}
               placeholder="e.g., Lithium Hydride Ground State Dissociation"
               className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/10 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/40 transition-all font-sans"
-              required
             />
+            {titleError && (
+              <p id="new-campaign-title-error" role="alert" data-testid="campaign-title-error" className="text-[11px] text-rose-300 font-sans">
+                {titleError}
+              </p>
+            )}
           </div>
 
           {/* Molecule Target Presets */}
@@ -239,19 +290,32 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
 
             {/* Custom Molecule Input */}
             <div className="pt-1">
+              <label htmlFor="new-campaign-molecule-input" className="sr-only">
+                Custom chemical formula or SMILES
+              </label>
               <input
+                id="new-campaign-molecule-input"
                 type="text"
                 value={customMolecule}
                 aria-label="Custom chemical formula or SMILES"
+                aria-invalid={moleculeError !== null}
+                aria-describedby={moleculeError ? 'new-campaign-molecule-error' : undefined}
                 onChange={(e) => {
                   setCustomMolecule(e.target.value);
+                  setMoleculeError(validateCustomMolecule(e.target.value));
                   if (e.target.value.trim()) {
                     setTitle(`${e.target.value.trim()} Ground State Optimization`);
+                    setTitleError(null);
                   }
                 }}
                 placeholder="Or specify custom chemical formula or SMILES (e.g. HF, CH4, Caffeine)..."
                 className="w-full px-3.5 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-slate-200 placeholder-slate-400 focus:outline-none focus:border-cyan-400 transition-all font-mono"
               />
+              {moleculeError && (
+                <p id="new-campaign-molecule-error" role="alert" data-testid="campaign-molecule-error" className="mt-1 text-[11px] text-rose-300 font-sans">
+                  {moleculeError}
+                </p>
+              )}
             </div>
           </div>
 
@@ -361,6 +425,13 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
             </div>
           </div>
 
+          {/* Server refusal (verbatim, modal stays open) */}
+          {submitError && (
+            <div role="alert" data-testid="campaign-create-error" className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-xs">
+              Campaign creation refused — nothing created ({submitError}).
+            </div>
+          )}
+
           {/* Form Actions Footer */}
           <div className="pt-2 border-t border-white/[0.08] flex items-center justify-between">
             <button
@@ -374,7 +445,7 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
 
             <button
               type="submit"
-              disabled={isSubmitting || !title.trim()}
+              disabled={isSubmitting}
               className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white text-xs font-semibold flex items-center space-x-2 transition-all shadow-lg active:scale-95 disabled:opacity-50"
             >
               <Sparkles className="w-3.5 h-3.5" />

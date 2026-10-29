@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest';
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { LabOpsPanel } from './LabOpsPanel';
+import ConfirmDialog from './ConfirmDialog';
 import { getOrCreateSigner } from '@/lib/custody';
 import type { Lab } from '@/types';
 
@@ -146,5 +147,133 @@ describe('LabOpsPanel (U1-b)', () => {
       tree.root.findByProps({ 'aria-label': 'Suspend lab lab-a' }).props.onClick();
     });
     expect(calls).toBe(0);
+  });
+});
+
+describe('LabOpsPanel refund typed gate (Wave-2)', () => {
+  async function openRefundGate(
+    seen: Array<{ url: string; body: string }>,
+    opts: { amount?: string; reason?: string } = {},
+  ): Promise<TestRenderer.ReactTestRenderer> {
+    const tree = await render(
+      <LabOpsPanel lab={lab({ id: 'lab-a', admin_pubkey_hex: PUB })} onChanged={() => {}} />
+    );
+    await vi.waitFor(() => expect(textOf(tree.root)).toContain('this browser key'));
+    await act(async () => {
+      tree.root.findByProps({ 'aria-label': 'Refund amount for lab-a' }).props.onChange({
+        target: { value: opts.amount ?? '10' },
+      });
+    });
+    await act(async () => {
+      tree.root.findByProps({ 'aria-label': 'Refund reason for lab-a' }).props.onChange({
+        target: { value: opts.reason ?? 'overcharge correction' },
+      });
+    });
+    expect(seen).toHaveLength(0);
+    await act(async () => {
+      tree.root.findAllByType('button').find((b) => b.props.children === 'Refund')!.props.onClick();
+    });
+    return tree;
+  }
+
+  function gateOf(tree: TestRenderer.ReactTestRenderer) {
+    return tree.root.findByType(ConfirmDialog);
+  }
+
+  function confirmBtn(gate: TestRenderer.ReactTestInstance) {
+    const btns = gate.findAllByType('button');
+    return btns.find((b) => typeof b.props.children === 'string' && b.props.children.startsWith('Refund $'))!;
+  }
+
+  it('requires the exact "$X.XX": wrong text keeps confirm disabled, exact text enables + fires', async () => {
+    const seen: Array<{ url: string; body: string }> = [];
+    stubFetch((url, init) => {
+      seen.push({ url, body: String(init?.body) });
+      return { ok: true, json: async () => ({ id: 'lab-a' }) };
+    });
+    let changed = 0;
+    const tree = await render(
+      <LabOpsPanel lab={lab({ id: 'lab-a', admin_pubkey_hex: PUB })} onChanged={() => { changed++; }} />
+    );
+    await vi.waitFor(() => expect(textOf(tree.root)).toContain('this browser key'));
+    await act(async () => {
+      tree.root.findByProps({ 'aria-label': 'Refund amount for lab-a' }).props.onChange({ target: { value: '10' } });
+    });
+    await act(async () => {
+      tree.root.findByProps({ 'aria-label': 'Refund reason for lab-a' }).props.onChange({ target: { value: 'overcharge correction' } });
+    });
+    await act(async () => {
+      tree.root.findAllByType('button').find((b) => b.props.children === 'Refund')!.props.onClick();
+    });
+    // No native confirm, no network until the typed acknowledgement.
+    expect(seen).toHaveLength(0);
+    const gate = gateOf(tree);
+    expect(gate.props.requireText).toBe('$10.00');
+    expect(gate.props.confirmLabel).toBe('Refund $10.00');
+    expect(textOf(tree.root)).toContain('Audited, irreversible');
+    const input = gate.findByType('input');
+    await act(async () => {
+      input.props.onChange({ target: { value: '10.00' } });
+    });
+    expect(confirmBtn(gateOf(tree)).props.disabled).toBe(true);
+    await act(async () => {
+      gateOf(tree).findByType('input').props.onChange({ target: { value: '$10.00' } });
+    });
+    expect(confirmBtn(gateOf(tree)).props.disabled).not.toBe(true);
+    await act(async () => {
+      gateOf(tree).props.onConfirm();
+    });
+    await vi.waitFor(() => expect(seen).toHaveLength(1));
+    expect(seen[0].url).toBe('http://localhost:8080/api/tenants/refund');
+    const body = JSON.parse(seen[0].body) as Record<string, unknown>;
+    expect(body.amount_usd).toBe(10);
+    await vi.waitFor(() => expect(changed).toBe(1));
+    // Success closes the gate.
+    expect(tree.root.findAllByType(ConfirmDialog)).toHaveLength(0);
+  });
+
+  it('busy disables the gate; backend refusal surfaces in the dialog error slot with no silent close', async () => {
+    const seen: Array<{ url: string; body: string }> = [];
+    stubFetch((url, init) => {
+      seen.push({ url, body: String(init?.body) });
+      return { ok: false, status: 403, text: async () => 'not-admin' };
+    });
+    const tree = await openRefundGate(seen);
+    const gate = gateOf(tree);
+    await act(async () => {
+      gate.findByType('input').props.onChange({ target: { value: '$10.00' } });
+    });
+    await act(async () => {
+      gateOf(tree).props.onConfirm();
+    });
+    // Refused: the gate stays open with the backend reason verbatim.
+    await vi.waitFor(() => expect(String(gateOf(tree).props.error)).toContain('not-admin'));
+    expect(tree.root.findAllByType(ConfirmDialog)).toHaveLength(1);
+    expect(seen).toHaveLength(1);
+  });
+
+  it('backdrop/cancel dismisses the gate with no network', async () => {
+    const seen: Array<{ url: string; body: string }> = [];
+    stubFetch((url, init) => {
+      seen.push({ url, body: String(init?.body) });
+      return { ok: true, json: async () => ({ id: 'lab-a' }) };
+    });
+    const tree = await openRefundGate(seen);
+    expect(tree.root.findAllByType(ConfirmDialog)).toHaveLength(1);
+    // Backdrop click funnels to onCancel.
+    await act(async () => {
+      gateOf(tree).findByProps({ role: 'presentation' }).props.onClick();
+    });
+    expect(tree.root.findAllByType(ConfirmDialog)).toHaveLength(0);
+    expect(seen).toHaveLength(0);
+    // Escape funnels to the same onCancel (trapped dialog contract).
+    await openRefundGate(seen).then(async (tree2) => {
+      expect(tree2.root.findAllByType(ConfirmDialog)).toHaveLength(1);
+      await act(async () => {
+        tree2.root.findByType(ConfirmDialog).props.onCancel();
+      });
+      expect(tree2.root.findAllByType(ConfirmDialog)).toHaveLength(0);
+      expect(seen).toHaveLength(0);
+    });
   });
 });

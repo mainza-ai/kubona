@@ -156,7 +156,15 @@ export function LabsView() {
                 )}
               </span>
             </button>
-            <div className="mt-2 h-1.5 rounded-full bg-white/[0.06]">
+            <div
+              className="mt-2 h-1.5 rounded-full bg-white/[0.06]"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-valuenow={unbounded ? 100 : (used ?? 0)}
+              aria-valuetext={unbounded ? 'unbounded (no ceiling)' : `${used ?? '—'}% of ceiling`}
+              aria-label={`Spend for ${lab.display_name || lab.id}`}
+            >
               {unbounded ? (
                 <div className="h-1.5 rounded-full bg-rose-400/70" style={{ width: '100%' }} title="No ceiling — unbounded spend alarm" />
               ) : (

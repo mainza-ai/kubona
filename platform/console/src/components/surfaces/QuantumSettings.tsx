@@ -118,6 +118,7 @@ export function QuantumSettings() {
         </div>
         <button
           onClick={() => void load()}
+          aria-label="Reload backends and saved selection"
           className="p-2 rounded-xl bg-white/[0.04] border border-white/10 text-slate-300 hover:bg-white/[0.08]"
           title="Reload backends and saved selection"
         >
@@ -142,6 +143,7 @@ export function QuantumSettings() {
             });
           }}
           disabled={canarying}
+          aria-label="Run live canary check"
           className="p-2 rounded-xl bg-white/[0.04] border border-white/10 text-slate-300 hover:bg-white/[0.08] disabled:opacity-50"
           title="Run the live canary (calibration reads only, no QPU spend). Credentialless providers skip; declared catalog stays the fallback."
         >
@@ -222,8 +224,11 @@ export function QuantumSettings() {
           <div key={harness} className="flex items-center space-x-2 text-xs font-mono">
             <span className="text-white bg-white/[0.04] border border-white/10 rounded-lg px-3 py-2 flex-1">{harness}</span>
             <span className="text-slate-500">→</span>
+            <label htmlFor={`quantum-harness-backend-${harness}`} className="sr-only">Backend for harness {harness}</label>
             <select
+              id={`quantum-harness-backend-${harness}`}
               value={backend}
+              aria-label={`Backend for harness ${harness}`}
               onChange={(e) => setHarnessMap((m) => ({ ...m, [harness]: e.target.value }))}
               className="bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-slate-200"
             >
@@ -241,6 +246,7 @@ export function QuantumSettings() {
                   return next;
                 })
               }
+              aria-label={`Remove harness ${harness}`}
               className="px-3 py-2 rounded-lg bg-white/[0.04] border border-white/10 text-slate-400 hover:bg-white/[0.08]"
             >
               remove
@@ -248,15 +254,21 @@ export function QuantumSettings() {
           </div>
         ))}
         <div className="flex items-center space-x-2 text-xs font-mono">
+          <label htmlFor="quantum-new-harness" className="sr-only">New harness name</label>
           <input
+            id="quantum-new-harness"
             value={newHarness}
+            aria-label="New harness name"
             onChange={(e) => setNewHarness(e.target.value)}
             placeholder="harness name (e.g. vqe-ansatz)"
             className="bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-slate-200 flex-1 placeholder:text-slate-600"
           />
           <span className="text-slate-500">→</span>
+          <label htmlFor="quantum-new-harness-backend" className="sr-only">Backend for new harness</label>
           <select
+            id="quantum-new-harness-backend"
             value={newBackend}
+            aria-label="Backend for new harness"
             onChange={(e) => setNewBackend(e.target.value)}
             className="bg-black/40 border border-white/10 rounded-lg px-3 py-2 text-slate-200"
           >

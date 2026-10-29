@@ -9,6 +9,7 @@ import { CopilotDrawer } from '@/components/CopilotDrawer';
 import { AboutLabModal } from '@/components/AboutLabModal';
 import { CommandPalette } from '@/components/CommandPalette';
 import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { NewCampaignModal } from '@/components/modals/NewCampaignModal';
 import { SovereignDock, DockSurface } from '@/components/sovereign/SovereignDock';
 import { ArenaHud, ArenaView } from '@/components/sovereign/ArenaHud';
@@ -101,6 +102,78 @@ export function describeCreateFailure(result: Session | null, error: unknown): s
   return 'Create campaign failed: backend refused (createSession returned null) — nothing was created.';
 }
 
+// Deep-link URL sync (Wave-2 shell): the dock surface (+ the active sub-tab
+// for proofs/mesh/arena) round-trips through ?surface= & ?tab= so views are
+// bookmarkable and palette/dock navigation updates the URL without reload.
+// Unknown values fall back to defaults — never a crash. Pure (no window
+// access) so tests can exercise it without mounting Home.
+export type ProofsTab = 'manuscripts' | 'tribunal' | 'gallery' | 'circuits';
+export type MeshTab = 'mesh' | 'guardrails' | 'models' | 'labs' | 'settings';
+
+export interface ShellParams {
+  surface: DockSurface;
+  proofsTab: ProofsTab;
+  meshTab: MeshTab;
+  arenaView: ArenaView;
+}
+
+const SHELL_DEFAULTS: ShellParams = {
+  surface: 'arena',
+  proofsTab: 'manuscripts',
+  meshTab: 'mesh',
+  arenaView: 'orbital',
+};
+
+const VALID_SURFACES: DockSurface[] = ['arena', 'recorder', 'manifold', 'fleet', 'proofs', 'mesh'];
+const VALID_PROOFS_TABS: ProofsTab[] = ['manuscripts', 'tribunal', 'gallery', 'circuits'];
+const VALID_MESH_TABS: MeshTab[] = ['mesh', 'guardrails', 'models', 'labs', 'settings'];
+const VALID_ARENA_VIEWS: ArenaView[] = ['orbital', 'proof-dag', 'hardware-qpu'];
+
+export function parseShellParams(search: string): ShellParams {
+  const out: ShellParams = { ...SHELL_DEFAULTS };
+  try {
+    const params = new URLSearchParams(search);
+    const surface = params.get('surface');
+    if (surface !== null && (VALID_SURFACES as string[]).includes(surface)) {
+      out.surface = surface as DockSurface;
+    }
+    const tab = params.get('tab');
+    if (tab === null) return out;
+    if (out.surface === 'proofs' && (VALID_PROOFS_TABS as string[]).includes(tab)) {
+      out.proofsTab = tab as ProofsTab;
+    } else if (out.surface === 'mesh' && (VALID_MESH_TABS as string[]).includes(tab)) {
+      out.meshTab = tab as MeshTab;
+    } else if (out.surface === 'arena' && (VALID_ARENA_VIEWS as string[]).includes(tab)) {
+      out.arenaView = tab as ArenaView;
+    }
+    return out;
+  } catch {
+    return { ...SHELL_DEFAULTS };
+  }
+}
+
+/** Sub-tab carried in ?tab= for the given surface (null = no tab param). */
+export function tabForSurface(surface: DockSurface, tabs: Pick<ShellParams, 'proofsTab' | 'meshTab' | 'arenaView'>): string | null {
+  switch (surface) {
+    case 'proofs':
+      return tabs.proofsTab;
+    case 'mesh':
+      return tabs.meshTab;
+    case 'arena':
+      return tabs.arenaView;
+    default:
+      return null;
+  }
+}
+
+export function buildShellSearch(surface: DockSurface, tab: string | null): string {
+  const params = new URLSearchParams();
+  params.set('surface', surface);
+  if (tab !== null && tab !== '') params.set('tab', tab);
+  const s = params.toString();
+  return s ? `?${s}` : '';
+}
+
 export default function Home() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
@@ -144,7 +217,19 @@ export default function Home() {
   // after onCreate resolves — state alone would not have flushed yet.
   const [createError, setCreateError] = useState<string | null>(null);
   const createFailedRef = useRef(false);
-  const [showCopilot, setShowCopilot] = useState(true);
+  // Responsive shell (Wave-2): below lg the copilot is a closed-by-default
+  // overlay drawer, not a fixed side panel. Default closed on narrow screens
+  // via matchMedia at mount; the existing toggle reopens it as an overlay.
+  const [showCopilot, setShowCopilot] = useState(() => {
+    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
+      try {
+        if (window.matchMedia('(max-width: 1023.98px)').matches) return false;
+      } catch {
+        // matchMedia unavailable (tests/SSR) — fall through to open default.
+      }
+    }
+    return true;
+  });
   const [isCopilotExpanded, setIsCopilotExpanded] = useState(false);
   const [showCampaignMenu, setShowCampaignMenu] = useState(false);
   const [campaignFilter, setCampaignFilter] = useState('');
@@ -375,28 +460,46 @@ export default function Home() {
     [sessions, currentSessionId, switchSession]
   );
 
-  const handleEmergencyAbort = useCallback(async () => {
+  // Emergency abort via typed ConfirmDialog (Wave-2): the destructive
+  // request (endpoint, body, refusal/success handling) is identical to the
+  // old native-confirm flow — only the acknowledgement is now typed
+  // (session short-id) instead of a blocking confirm(). Failure text is the
+  // same string, surfaced in-dialog so the user can retry or cancel.
+  const [isAbortOpen, setIsAbortOpen] = useState(false);
+  const [abortBusy, setAbortBusy] = useState(false);
+  const [abortError, setAbortError] = useState<string | null>(null);
+
+  const handleEmergencyAbort = useCallback(() => {
     if (!currentSessionId) {
       alert('No active session: open or create a session before triggering an abort.');
       return;
     }
-    if (confirm('EMERGENCY ABORT: Settle every unsettled job in this session as failed?')) {
-      try {
-        const res = await apiFetch(`${API_BASE}/api/supervisor/abort`, {
-          method: 'POST',
-          headers: authHeaders({ 'Content-Type': 'application/json' }),
-          body: JSON.stringify({ session_id: currentSessionId }),
-        });
-        if (!res.ok) {
-          throw new Error(`supervisor refused the abort (HTTP ${res.status})`);
-        }
-        const data = await res.json();
-        alert(
-          `Ring 0 Reflex Intercept complete: ${data.aborted_count} job(s) settled failed.\nAbort receipt: ${data.abort_receipt}`
-        );
-      } catch (err) {
-        alert(`Abort failed and nothing was settled: ${err instanceof Error ? err.message : String(err)}`);
+    setAbortError(null);
+    setIsAbortOpen(true);
+  }, [currentSessionId]);
+
+  const handleConfirmAbort = useCallback(async () => {
+    if (!currentSessionId) return;
+    setAbortBusy(true);
+    setAbortError(null);
+    try {
+      const res = await apiFetch(`${API_BASE}/api/supervisor/abort`, {
+        method: 'POST',
+        headers: authHeaders({ 'Content-Type': 'application/json' }),
+        body: JSON.stringify({ session_id: currentSessionId }),
+      });
+      if (!res.ok) {
+        throw new Error(`supervisor refused the abort (HTTP ${res.status})`);
       }
+      const data = await res.json();
+      setIsAbortOpen(false);
+      alert(
+        `Ring 0 Reflex Intercept complete: ${data.aborted_count} job(s) settled failed.\nAbort receipt: ${data.abort_receipt}`
+      );
+    } catch (err) {
+      setAbortError(`Abort failed and nothing was settled: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setAbortBusy(false);
     }
   }, [currentSessionId]);
 
@@ -583,14 +686,57 @@ export default function Home() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [navigateToTarget]);
 
+  // Deep-link URL sync (Wave-2): read ?surface=&?tab= once on mount (plus
+  // back/forward via popstate), and reflect every navigation with
+  // replaceState (no reload). Palette/dock clicks all funnel through the
+  // surface/tab setters above, so the write effect below covers them.
+  // hardware-qpu is a redirect at runtime (arena view jumps to the dock
+  // fleet surface), so a deep link carrying it lands on fleet.
+  const urlReady = useRef(false);
+  useEffect(() => {
+    if (typeof window === 'undefined' || urlReady.current) return;
+    urlReady.current = true;
+    const parsed = parseShellParams(window.location?.search ?? '');
+    const landedSurface = parsed.surface === 'arena' && parsed.arenaView === 'hardware-qpu'
+      ? 'fleet'
+      : parsed.surface;
+    setSurface(landedSurface);
+    setProofsTab(parsed.proofsTab);
+    setMeshTab(parsed.meshTab);
+    setArenaView(parsed.arenaView === 'hardware-qpu' ? 'orbital' : parsed.arenaView);
+  }, []);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onPopState = () => {
+      const parsed = parseShellParams(window.location?.search ?? '');
+      const landedSurface = parsed.surface === 'arena' && parsed.arenaView === 'hardware-qpu'
+        ? 'fleet'
+        : parsed.surface;
+      setSurface(landedSurface);
+      setProofsTab(parsed.proofsTab);
+      setMeshTab(parsed.meshTab);
+      setArenaView(parsed.arenaView === 'hardware-qpu' ? 'orbital' : parsed.arenaView);
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, []);
+  useEffect(() => {
+    if (typeof window === 'undefined' || !urlReady.current) return;
+    const tab = tabForSurface(surface, { proofsTab, meshTab, arenaView });
+    const next = buildShellSearch(surface, tab);
+    if (window.location?.search !== next && typeof window.history?.replaceState === 'function') {
+      window.history.replaceState(null, '', `${window.location.pathname}${next}${window.location.hash}`);
+    }
+  }, [surface, proofsTab, meshTab, arenaView]);
+
   const session = sessions.find((s) => s.id === currentSessionId) || null;
   const targetShort = campaign?.quantum_factors?.target_molecule || campaign?.target_system || '';
   const targetLabel = targetShort ? `${targetShort.slice(0, 28)} · Ground State Target` : 'No Target · Idle';
   void nowTick;
 
   const subToggle = (options: Array<{ id: string; label: string }>, value: string, onChange: (id: string) => void) => (
-    <div className="flex items-center justify-center pt-4">
-      <div className="bg-[#0E1117]/85 backdrop-blur-xl border border-white/10 rounded-full p-1 flex items-center shadow-2xl">
+    <div className="flex items-center justify-center px-4 pt-4">
+      <div className="bg-[#0E1117]/85 backdrop-blur-xl border border-white/10 rounded-2xl sm:rounded-full p-1 flex flex-wrap items-center justify-center max-w-full shadow-2xl">
         {options.map((o) => (
           <button
             key={o.id}
@@ -624,6 +770,28 @@ export default function Home() {
       <KeyboardShortcutsModal
         isOpen={isShortcutsOpen}
         onClose={() => setIsShortcutsOpen(false)}
+      />
+      <ConfirmDialog
+        open={isAbortOpen}
+        title="Emergency abort"
+        body={
+          <>
+            EMERGENCY ABORT: settle every unsettled job in session{' '}
+            <code className="rounded bg-white/10 px-1 font-mono">{currentSessionId}</code> as
+            failed? This cannot be undone.
+          </>
+        }
+        requireText={currentSessionId.slice(0, 8) || undefined}
+        confirmLabel="Abort all jobs"
+        danger
+        busy={abortBusy}
+        error={abortError}
+        onConfirm={() => void handleConfirmAbort()}
+        onCancel={() => {
+          if (abortBusy) return;
+          setIsAbortOpen(false);
+          setAbortError(null);
+        }}
       />
       <NewCampaignModal
         isOpen={isNewCampaignModalOpen}
@@ -676,7 +844,7 @@ export default function Home() {
         }
         const ordered = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
         return (
-        <div className="absolute left-20 bottom-6 z-50 w-80 rounded-2xl bg-[#0E1117]/95 backdrop-blur-2xl border border-white/10 shadow-2xl p-3 space-y-2">
+        <div className="absolute left-14 lg:left-20 bottom-6 z-50 w-[min(20rem,calc(100vw-3rem))] max-w-[calc(100vw-3rem)] rounded-2xl bg-[#0E1117]/95 backdrop-blur-2xl border border-white/10 shadow-2xl p-3 space-y-2">
           <div className="flex items-center justify-between px-1">
             <span className="text-[10px] font-code uppercase tracking-wider text-slate-400">
               Campaigns ({sessions.length})
@@ -742,7 +910,7 @@ export default function Home() {
               </div>
             ))}
           </div>
-          <div className="flex items-center justify-between pt-2 border-t border-white/[0.06] text-[11px]">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/[0.06] text-[11px]">
             <button onClick={() => { setShowCampaignMenu(false); handleEmergencyAbort(); }} className="flex items-center gap-1.5 text-red-300 hover:text-red-200 transition-colors">
               <Zap className="w-3.5 h-3.5" /> Ring 0 Intercept
             </button>
@@ -842,7 +1010,7 @@ export default function Home() {
               />
             )}
             {gateNotice && (
-              <div className="absolute bottom-6 left-6 z-20 w-80 p-3 rounded-2xl bg-[#0E1117]/90 border border-white/10 text-[11px] text-slate-200 shadow-2xl">
+              <div className="absolute bottom-6 left-6 z-20 w-[min(20rem,calc(100vw-3rem))] max-w-[calc(100vw-3rem)] p-3 rounded-2xl bg-[#0E1117]/90 border border-white/10 text-[11px] text-slate-200 shadow-2xl">
                 {gateNotice}
               </div>
             )}
@@ -918,13 +1086,22 @@ export default function Home() {
       </div>
 
       {/* Right: native co-pilot surface */}
+      {/* Right: native co-pilot surface. Below lg this is an overlay drawer
+          (closed by default at mount) over a dimmed backdrop; at lg+ it is
+          the fixed side panel. The existing toggle opens/closes both. */}
       {showCopilot ? (
-        <aside
-          aria-label="Kubona co-pilot"
-          className={`${
-            isCopilotExpanded ? 'w-[640px] xl:w-[700px]' : 'w-96'
-          } flex flex-col shrink-0 border-l border-white/5 bg-[#0A0C10]/95 backdrop-blur-2xl transition-all duration-300 shadow-2xl overflow-hidden`}
-        >
+        <>
+          <div
+            aria-hidden
+            onClick={() => setShowCopilot(false)}
+            className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+          />
+          <aside
+            aria-label="Kubona co-pilot"
+            className={`${
+              isCopilotExpanded ? 'lg:w-[640px] xl:w-[700px]' : 'lg:w-96'
+            } fixed inset-y-0 right-0 z-50 flex w-[min(24rem,calc(100vw-3rem))] flex-col shrink-0 border-l border-white/5 bg-[#0A0C10]/95 backdrop-blur-2xl transition-all duration-300 shadow-2xl overflow-hidden lg:static lg:z-auto`}
+          >
           <CopilotDrawer
             sessionId={currentSessionId}
             campaign={campaign}
@@ -945,6 +1122,7 @@ export default function Home() {
             onClose={() => setShowCopilot(false)}
           />
         </aside>
+        </>
       ) : (
         <button
           onClick={() => setShowCopilot(true)}

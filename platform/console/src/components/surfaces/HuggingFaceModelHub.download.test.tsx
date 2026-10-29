@@ -220,3 +220,51 @@ describe('HuggingFaceModelHub download confirm (T-11)', () => {
     expect(cancels).toHaveLength(1);
   });
 });
+
+describe('HuggingFaceModelHub icon-only button names (Wave-2)', () => {
+  function buttonText(b: TestRenderer.ReactTestInstance): string {
+    const walk = (n: unknown): string => {
+      if (typeof n === 'string' || typeof n === 'number') return String(n);
+      if (Array.isArray(n)) return n.map(walk).join('');
+      if (n !== null && typeof n === 'object' && 'props' in n) {
+        return walk((n as { props: { children?: unknown } }).props.children);
+      }
+      return '';
+    };
+    return walk((b.props as { children?: unknown }).children);
+  }
+
+  it('names every icon-only button and keeps existing tooltips', async () => {
+    const posted: Array<{ url: string; body: string }> = [];
+    stubHub(posted, [
+      {
+        task_id: 'dl-9',
+        repo_id: 'org/big-GGUF',
+        filename: 'big-q6k.gguf',
+        status: 'downloading',
+        bytes_downloaded: 1,
+        total_bytes: BIG,
+        progress_percent: 1,
+        speed_mb_s: 5,
+        local_path: '/tmp/x',
+        started_at: 1,
+      },
+    ]);
+    const tree = await render();
+    await openQuantPanel(tree);
+    const buttons = tree.root.findAllByType('button');
+    expect(buttons.length).toBeGreaterThan(0);
+    for (const b of buttons) {
+      if (buttonText(b).trim() === '') {
+        expect(
+          String((b.props as { 'aria-label'?: unknown })['aria-label'] ?? ''),
+          'icon-only button without an accessible name',
+        ).not.toBe('');
+      }
+    }
+    // Existing tooltips are kept.
+    expect(tree.root.findByProps({ 'aria-label': 'Refresh downloads' }).props.title).toBe('Refresh Downloads');
+    expect(tree.root.findByProps({ 'aria-label': 'Cancel download big-q6k.gguf' }).props.title).toBe('Cancel download big-q6k.gguf');
+    expect(tree.root.findByProps({ 'aria-label': 'Download big-q6k.gguf' }).props.title).toBe('Download big-q6k.gguf');
+  });
+});

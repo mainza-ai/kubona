@@ -187,3 +187,78 @@ describe('AutonomyCockpit envelope line (per-dispatch receipt)', () => {
     expect(json).not.toContain('Envelope Verified Statelessly');
   });
 });
+
+describe('AutonomyCockpit Wave-2 money copy + toggle staging', () => {
+  function stubSettingsAirGap(airGapped: boolean, onSave?: (init?: RequestInit) => unknown) {
+    vi.stubGlobal(
+      'fetch',
+      async (url: string, init?: RequestInit) => {
+        const u = String(url);
+        if (u.includes('/api/llm/settings')) {
+          if ((init as RequestInit | undefined)?.method === 'POST') {
+            return (onSave?.(init) ?? { ok: true, json: async () => ({}) }) as Response;
+          }
+          return { ok: true, json: async () => ({ air_gapped: airGapped }) } as unknown as Response;
+        }
+        if (u.includes('/api/health')) {
+          return { ok: true, json: async () => ({ service: 'kubonad-test', version: '0.0.0' }) } as unknown as Response;
+        }
+        if (u.includes('/api/ready')) {
+          return { ok: true, json: async () => ({ ready: true }) } as unknown as Response;
+        }
+        if (u.includes('/api/metasearch/proposals')) {
+          return { ok: true, json: async () => ({ proposals: [] }) } as unknown as Response;
+        }
+        return { ok: false, status: 404, json: async () => ({}) } as unknown as Response;
+      }
+    );
+  }
+
+  function airGapToggle(tree: TestRenderer.ReactTestRenderer) {
+    return tree.root
+      .findAllByType('button')
+      .find((b) => String(b.props.title ?? '').includes('Persists to intelligence'))!;
+  }
+
+  function fullText(tree: TestRenderer.ReactTestRenderer): string {
+    return JSON.stringify(tree.toJSON());
+  }
+
+  it('Simulate Offline states the in-scope $0.00 amount (2dp)', async () => {
+    stubBackend({ airGapped: true, reachable: true, ready: true });
+    const tree = await renderCockpit();
+    const offline = tree.root
+      .findAllByType('button')
+      .find((b) => instanceText(b).includes('Simulate Offline'))!;
+    expect(instanceText(offline)).toContain('Simulate Offline — $0.00');
+  });
+
+  it('Air-Gap toggle persists immediately with revert-on-failure: success reports persisted', async () => {
+    const saved: string[] = [];
+    stubSettingsAirGap(true, (init) => {
+      saved.push(String(init?.body));
+      return { ok: true, json: async () => ({}) };
+    });
+    const tree = await renderCockpit();
+    await vi.waitFor(() => expect(airGapToggle(tree).props.disabled).toBe(false));
+    await act(async () => {
+      await airGapToggle(tree).props.onClick();
+    });
+    await vi.waitFor(() => expect(fullText(tree)).toContain('released (persisted)'));
+    expect(saved).toHaveLength(1);
+    expect(JSON.parse(saved[0]).air_gapped).toBe(false);
+  });
+
+  it('Air-Gap refusal reverts the switch with a reverted banner (nothing silently kept)', async () => {
+    stubSettingsAirGap(true, () => ({ ok: false, status: 500, text: async () => 'disk blocked' }));
+    const tree = await renderCockpit();
+    await vi.waitFor(() => expect(airGapToggle(tree).props.disabled).toBe(false));
+    await act(async () => {
+      await airGapToggle(tree).props.onClick();
+    });
+    await vi.waitFor(() => expect(fullText(tree)).toContain('reverted'));
+    expect(fullText(tree)).toContain('disk blocked');
+    // Reverted: the badge still derives the engaged predicate (no silent flip).
+    expect(badgeText(tree)).toContain('Sentinel Protection Active');
+  });
+});

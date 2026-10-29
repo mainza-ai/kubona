@@ -190,6 +190,18 @@ export function QuantumDispatch({
     ? estimate.estimated_usd
     : null;
 
+  // Wave-2 money copy: the Dispatch button restates the ALREADY-COMPUTED
+  // estimate at 2dp with the provider — no new fetching, no invented
+  // figure (falls back to the generic label while unpriced/stale).
+  // Exception: the dry-run quote line above stays 6dp by spec.
+  const dispatchPriced = quoteFresh && estCost != null;
+  const dispatchLabel = dispatching
+    ? dispatchPriced
+      ? `Dispatching — $${(estCost as number).toFixed(2)} on ${provider}…`
+      : 'Dispatching…'
+    : dispatchPriced
+      ? `Dispatch — $${(estCost as number).toFixed(2)} on ${provider}`
+      : 'Dispatch job';
   const onDispatch = useCallback(async () => {
     if (!quoteFresh || estCost == null) {
       setJobError('The estimate is stale or unpriced: re-run Estimate for the current provider/QASM/shots/session.');
@@ -382,7 +394,7 @@ export function QuantumDispatch({
           className="px-4 py-2 rounded-xl font-mono text-xs font-bold flex items-center space-x-2 bg-emerald-600/20 text-emerald-200 border border-emerald-500/50 hover:bg-emerald-600/30 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Play className="w-4 h-4" />
-          <span>{dispatching ? 'Dispatching…' : 'Dispatch job'}</span>
+          <span>{dispatchLabel}</span>
         </button>
         {quoteFresh && estCost != null && estCost > 0 && !mandateRef && (
           <span className="text-[11px] text-amber-300/90 font-mono">Non-zero estimate: sign the mandate card above first.</span>

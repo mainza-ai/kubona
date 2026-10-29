@@ -9,17 +9,51 @@ import type { CodesignBudgetResult, CodesignFamiliesResult, CodesignFrontierResu
 // Python-owned (kickmix evaluator). No job-submission endpoints (hard rule).
 // Local-classical only; unreproduced paper gains are labeled as claimed.
 
+// Client-side range gate (Wave-2): malformed numerics are refused here with
+// a named-field error and never sent. The server stays the source of truth
+// — a well-formed send can still be refused verbatim by the rail.
+const MAX_COUNT = 1000000000;
+
+function namedInt(raw: string, field: string, min: number, max: number): { ok: true; value: number } | { ok: false; error: string } {
+  const t = raw.trim();
+  if (t === '') return { ok: false, error: `${field} is empty — enter an integer ${min}..${max}: refusing to send` };
+  const v = Number(t);
+  if (!Number.isInteger(v) || v < min || v > max) {
+    return { ok: false, error: `${field} must be an integer ${min}..${max} (got "${t.slice(0, 40)}"): refusing to send` };
+  }
+  return { ok: true, value: v };
+}
+
+function namedNum(raw: string, field: string, min: number, max: number): { ok: true; value: number } | { ok: false; error: string } {
+  const t = raw.trim();
+  if (t === '') return { ok: false, error: `${field} is empty — enter a number ${min}..${max}: refusing to send` };
+  const v = Number(t);
+  if (!Number.isFinite(v) || v < min || v > max) {
+    return { ok: false, error: `${field} must be a number ${min}..${max} (got "${t.slice(0, 40)}"): refusing to send` };
+  }
+  return { ok: true, value: v };
+}
+
 function DqiBoundWidget() {
   const [eps, setEps] = useState('0.002434');
   const [f, setF] = useState('0.5763');
   const e = eps.trim() === '' ? NaN : Number(eps);
   const fv = f.trim() === '' ? NaN : Number(f);
-  const loss = Number.isFinite(e) && Number.isFinite(fv) && e >= 0 && e <= 1 && fv >= 0 ? 4 * e * fv : null;
+  const epsOk = Number.isFinite(e) && e >= 0 && e <= 1;
+  const fOk = Number.isFinite(fv) && fv >= 0;
+  const loss = epsOk && fOk ? 4 * e * fv : null;
+  const epsErr = epsOk ? null : `Epsilon must be a number 0..1 (got "${eps.trim().slice(0, 40)}"): local estimate withheld`;
+  const fErr = fOk ? null : `F value must be a finite number ≥ 0 (got "${f.trim().slice(0, 40)}"): local estimate withheld`;
   return (
     <div className="mt-3 flex flex-wrap items-center gap-2">
-      <input aria-label="Epsilon" value={eps} onChange={(ev) => setEps(ev.target.value)} className="w-28 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
-      <input aria-label="F value" value={f} onChange={(ev) => setF(ev.target.value)} className="w-28 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
+      <input aria-label="Epsilon" value={eps} onChange={(ev) => setEps(ev.target.value)} aria-invalid={!epsOk} className="w-28 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
+      <input aria-label="F value" value={f} onChange={(ev) => setF(ev.target.value)} aria-invalid={!fOk} className="w-28 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
       {loss !== null && <span className="text-xs text-white font-mono">loss ≤ {loss.toExponential(3)}</span>}
+      {(epsErr || fErr) && (
+        <span role="alert" className="text-xs text-rose-300">
+          {[epsErr, fErr].filter(Boolean).join(' ')}
+        </span>
+      )}
     </div>
   );
 }
@@ -121,17 +155,48 @@ export function CodesignCockpit() {
       setEvalError('factory diagnostics need code_distance + cycle_us (no silent physics): refusing to send');
       return;
     }
+    const tests = namedInt(evalTests, 'Number of tests', 1, 100000);
+    if (!tests.ok) {
+      setEvalError(tests.error);
+      return;
+    }
+    const kappaEval = namedInt(evalKappa, 'Kappa (evaluation)', 1, 3);
+    if (!kappaEval.ok) {
+      setEvalError(kappaEval.error);
+      return;
+    }
+    const seed = namedInt(evalSeed, 'Seed', Number.MIN_SAFE_INTEGER, Number.MAX_SAFE_INTEGER);
+    if (!seed.ok) {
+      setEvalError(seed.error);
+      return;
+    }
+    let distance = 0;
+    let cycle = 0;
+    if (evalFactory) {
+      const d = namedInt(evalDistance, 'Code distance', 1, MAX_COUNT);
+      if (!d.ok) {
+        setEvalError(d.error);
+        return;
+      }
+      const c = namedNum(evalCycle, 'Cycle time us', 0, MAX_COUNT);
+      if (!c.ok || !(Number(evalCycle) > 0)) {
+        setEvalError(!c.ok ? c.error : `Cycle time us must be a number > 0 (got "${evalCycle.trim().slice(0, 40)}"): refusing to send`);
+        return;
+      }
+      distance = d.value;
+      cycle = c.value;
+    }
     setEvalBusy(true);
     try {
       const out = await evaluateCodesignArtifact({
         spec_kind: evalSpec,
         artifact,
-        num_tests: Number(evalTests),
+        num_tests: tests.value,
         max_failures: 0,
-        kappa: Number(evalKappa),
-        seed: Number(evalSeed),
+        kappa: kappaEval.value,
+        seed: seed.value,
         ...(evalFactory
-          ? { factory: evalFactory, code_distance: Number(evalDistance), cycle_us: Number(evalCycle) }
+          ? { factory: evalFactory, code_distance: distance, cycle_us: cycle }
           : {}),
       });
       if (!out.ok) {
@@ -152,9 +217,21 @@ export function CodesignCockpit() {
       setTqError('kappa must be 1, 2, or 3: refusing to score as κ=1');
       return;
     }
+    const t = namedInt(toffoli, 'Toffoli count', 0, MAX_COUNT);
+    if (!t.ok) {
+      setTq(null);
+      setTqError(t.error);
+      return;
+    }
+    const q = namedInt(qubits, 'Qubit count', 1, MAX_COUNT);
+    if (!q.ok) {
+      setTq(null);
+      setTqError(q.error);
+      return;
+    }
     try {
       const res = await apiFetch(
-        `${API_BASE}/api/codesign/tq?toffoli=${encodeURIComponent(toffoli)}&qubits=${encodeURIComponent(qubits)}&kappa=${encodeURIComponent(kappa)}`,
+        `${API_BASE}/api/codesign/tq?toffoli=${encodeURIComponent(toffoli.trim())}&qubits=${encodeURIComponent(qubits.trim())}&kappa=${encodeURIComponent(kappa)}`,
         { cache: 'no-store', headers: authHeaders() }
       );
       if (!res.ok) {
@@ -178,14 +255,39 @@ export function CodesignCockpit() {
       return;
     }
     try {
-      const entries = batch
-        .split('\n')
-        .map((l) => l.trim())
-        .filter(Boolean)
-        .map((l) => {
-          const [t, q] = l.split(',').map((s) => Number(s.trim()));
-          return { toffoli: t, qubits: q };
-        });
+      const lines = batch.split('\n').map((l) => l.trim()).filter(Boolean);
+      if (lines.length === 0) {
+        setFrontier(null);
+        setFrontierError('Frontier batch lists no entries — enter one T,Q per line: refusing to send');
+        return;
+      }
+      if (lines.length > 64) {
+        setFrontier(null);
+        setFrontierError(`Frontier batch holds ${lines.length} entries (max 64): refusing to send`);
+        return;
+      }
+      const entries: Array<{ toffoli: number; qubits: number }> = [];
+      for (let i = 0; i < lines.length; i += 1) {
+        const parts = lines[i].split(',');
+        if (parts.length !== 2) {
+          setFrontier(null);
+          setFrontierError(`Frontier batch line ${i + 1} ("${lines[i].slice(0, 40)}") must be "toffoli,qubits": refusing to send`);
+          return;
+        }
+        const t = namedInt(parts[0], `Frontier batch Toffoli count (line ${i + 1})`, 0, MAX_COUNT);
+        if (!t.ok) {
+          setFrontier(null);
+          setFrontierError(t.error);
+          return;
+        }
+        const q = namedInt(parts[1], `Frontier batch Qubit count (line ${i + 1})`, 1, MAX_COUNT);
+        if (!q.ok) {
+          setFrontier(null);
+          setFrontierError(q.error);
+          return;
+        }
+        entries.push({ toffoli: t.value, qubits: q.value });
+      }
       const res = await apiFetch(`${API_BASE}/api/codesign/frontier`, {
         method: 'POST',
         headers: authHeaders({ 'Content-Type': 'application/json' }),
@@ -219,14 +321,28 @@ export function CodesignCockpit() {
       return;
     }
     const families = famFamilies.split(',').map((s) => s.trim()).filter(Boolean);
+    if (families.length === 0) {
+      setFamError('Families (comma list) names no family — enter at least one: refusing to send');
+      return;
+    }
+    const rounds = namedInt(famRounds, 'Share rounds', 0, 1024);
+    if (!rounds.ok) {
+      setFamError(rounds.error);
+      return;
+    }
+    const kappaFam = namedInt(famKappa, 'Kappa (families)', 1, 3);
+    if (!kappaFam.ok) {
+      setFamError(kappaFam.error);
+      return;
+    }
     setFamBusy(true);
     try {
       const out = await runFamilySearch({
         spec_kind: famSpec,
         families,
-        kappa: Number(famKappa),
+        kappa: kappaFam.value,
         offers,
-        share_rounds: Number(famRounds),
+        share_rounds: rounds.value,
       });
       if (!out.ok) {
         setFamError(out.error);
@@ -240,6 +356,18 @@ export function CodesignCockpit() {
 
   const scoreSweep = async () => {
     setSweepError(null);
+    const t = namedInt(toffoli, 'Toffoli count', 0, MAX_COUNT);
+    if (!t.ok) {
+      setSweep(null);
+      setSweepError(t.error);
+      return;
+    }
+    const q = namedInt(qubits, 'Qubit count', 1, MAX_COUNT);
+    if (!q.ok) {
+      setSweep(null);
+      setSweepError(q.error);
+      return;
+    }
     try {
       const qs = (k: number) =>
         apiFetch(
@@ -267,20 +395,22 @@ export function CodesignCockpit() {
     setBudget(null);
     const entries: Array<{ source: string; per_use_rate: number; uses: number }> = [];
     try {
-      for (const line of budgetRows.split('\n')) {
-        const t = line.trim();
-        if (!t) continue;
+      const lines = budgetRows.split('\n').map((l) => l.trim()).filter(Boolean);
+      if (lines.length === 0) {
+        throw new Error('Budget rows list no entries — enter one source,rate,uses per line');
+      }
+      for (let i = 0; i < lines.length; i += 1) {
+        const t = lines[i];
         const [src, rateS, usesS] = t.split(',').map((s) => s.trim());
-        if (!src || rateS === undefined || usesS === undefined) throw new Error(`bad row ${t}`);
-        const rate = Number(rateS);
-        const uses = Number(usesS);
-        if (!Number.isFinite(rate) || rate < 0 || rate > 1 || !Number.isInteger(uses) || uses < 0) {
-          throw new Error(`bad row ${t}`);
-        }
-        entries.push({ source: src, per_use_rate: rate, uses });
+        if (!src || rateS === undefined || usesS === undefined) throw new Error(`Budget row ${i + 1} ("${t.slice(0, 40)}") must be "source,per_use_rate,uses"`);
+        const rate = namedNum(rateS, `Budget row ${i + 1} per-use rate`, 0, 1);
+        if (!rate.ok) throw new Error(rate.error.replace(': refusing to send', ''));
+        const uses = namedInt(usesS, `Budget row ${i + 1} uses`, 0, MAX_COUNT);
+        if (!uses.ok) throw new Error(uses.error.replace(': refusing to send', ''));
+        entries.push({ source: src, per_use_rate: rate.value, uses: uses.value });
       }
     } catch (err) {
-      setBudgetError(err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200));
+      setBudgetError(`${err instanceof Error ? err.message : String(err).slice(0, 200)}: refusing to send`);
       return;
     }
     setBudgetBusy(true);
@@ -341,7 +471,7 @@ export function CodesignCockpit() {
           <button onClick={scoreTQ} className="rounded-lg bg-cyan-500/15 border border-cyan-400/30 px-3 py-1 text-xs text-cyan-200">Score</button>
         </div>
         {tq !== null && <div className="mt-2 text-xs text-white">TQ = {tq}</div>}
-        {tqError && <div className="mt-2 text-xs text-rose-300">{tqError}</div>}
+        {tqError && <div role="alert" className="mt-2 text-xs text-rose-300">{tqError}</div>}
       </div>
 
       <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
@@ -349,7 +479,7 @@ export function CodesignCockpit() {
         <div className="text-[11px] text-slate-400">One T,Q per line. Min-TQ per cell survives. Paper reference points: HHL 1348/115, Gaussian 1583/139.</div>
         <textarea aria-label="Frontier batch" value={batch} onChange={(e) => setBatch(e.target.value)} rows={4} className="mt-3 w-full rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
         <button onClick={scoreFrontier} className="mt-2 rounded-lg bg-cyan-500/15 border border-cyan-400/30 px-3 py-1 text-xs text-cyan-200">Score frontier</button>
-        {frontierError && <div className="mt-2 text-xs text-rose-300">{frontierError}</div>}
+        {frontierError && <div role="alert" className="mt-2 text-xs text-rose-300">{frontierError}</div>}
         {frontier && (
           <div className="mt-2 text-xs text-slate-200">
             <div>cells: {frontier.cells} · best: {frontier.best ? `${frontier.best.toffoli}T × ${frontier.best.qubits}Q = ${frontier.best.tq}` : 'none'}</div>
@@ -390,7 +520,7 @@ export function CodesignCockpit() {
             {evalBusy ? 'Running…' : 'Run evaluation'}
           </button>
         </div>
-        {evalError && <div className="mt-2 text-xs text-rose-300">{evalError}</div>}
+        {evalError && <div role="alert" className="mt-2 text-xs text-rose-300">{evalError}</div>}
         {evalRes && (
           <div className="mt-2 text-xs text-slate-200 font-mono">
             <div>
@@ -446,7 +576,7 @@ export function CodesignCockpit() {
           </button>
         </div>
         <textarea aria-label="Family offers JSON" value={famOffers} onChange={(e) => setFamOffers(e.target.value)} rows={3} className="mt-2 w-full rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
-        {famError && <div className="mt-2 text-xs text-rose-300">{famError}</div>}
+        {famError && <div role="alert" className="mt-2 text-xs text-rose-300">{famError}</div>}
           {famRes && (
             <div className="mt-2 text-xs text-slate-200">
               <div className="font-mono">
@@ -481,7 +611,7 @@ export function CodesignCockpit() {
         <div className="mt-3 flex flex-wrap gap-2">
           <button onClick={scoreSweep} className="rounded-lg bg-cyan-500/15 border border-cyan-400/30 px-3 py-1 text-xs text-cyan-200">Sweep κ=1..3</button>
           {sweep && <span className="text-xs text-white font-mono">κ1={sweep.k1} κ2={sweep.k2} κ3={sweep.k3}</span>}
-          {sweepError && <span className="text-xs text-rose-300">{sweepError}</span>}
+          {sweepError && <span role="alert" className="text-xs text-rose-300">{sweepError}</span>}
         </div>
         <textarea aria-label="Budget rows" value={budgetRows} onChange={(e) => setBudgetRows(e.target.value)} rows={2} className="mt-3 w-full rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
         <button onClick={scoreBudgetServer} disabled={budgetBusy} className="mt-2 rounded-lg bg-cyan-500/15 border border-cyan-400/30 px-3 py-1 text-xs text-cyan-200 disabled:opacity-50">
@@ -497,7 +627,7 @@ export function CodesignCockpit() {
             <div className="mt-1">union ≤ {budget.union_bound.toExponential(3)} (server-sealed)</div>
           </div>
         )}
-        {budgetError && <div className="mt-2 text-xs text-rose-300">{budgetError}</div>}
+        {budgetError && <div role="alert" className="mt-2 text-xs text-rose-300">{budgetError}</div>}
       </div>
 
       <details className="rounded-2xl border border-white/10 bg-black/40 p-4">

@@ -46,8 +46,8 @@ export function ArenaHud({
   const capFinite = typeof spendCapUsd === 'number' && Number.isFinite(spendCapUsd) && spendCapUsd > 0;
   const overCap = spendFinite && capFinite && (spendUsd as number) > (spendCapUsd as number);
   return (
-    <header className="absolute top-4 left-6 right-6 z-20 flex items-center justify-between pointer-events-none">
-      <div className="flex items-center gap-3 pointer-events-auto bg-[#0E1117]/80 backdrop-blur-xl border border-white/10 rounded-full px-4 py-2 shadow-2xl">
+    <header className="absolute top-4 left-6 right-6 z-20 flex flex-wrap items-center gap-2 justify-between pointer-events-none">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 max-w-full pointer-events-auto bg-[#0E1117]/80 backdrop-blur-xl border border-white/10 rounded-2xl sm:rounded-full px-4 py-2 shadow-2xl">
         <span className={`w-2 h-2 rounded-full ${statusText ? 'bg-cyan-400 animate-ping' : 'bg-emerald-400 animate-pulse'}`} />
         <span className="font-code text-xs text-white font-medium tracking-wide">{targetLabel}</span>
         <span className="text-white/20">|</span>
@@ -61,7 +61,7 @@ export function ArenaHud({
       <div
         role="tablist"
         aria-label="Arena view mode"
-        className="pointer-events-auto bg-[#0E1117]/85 backdrop-blur-xl border border-white/10 rounded-full p-1 flex items-center shadow-2xl"
+        className="pointer-events-auto bg-[#0E1117]/85 backdrop-blur-xl border border-white/10 rounded-2xl sm:rounded-full p-1 flex items-center max-w-full overflow-x-auto shadow-2xl"
       >
         {VIEW_MODES.map((m) => {
           const Icon = m.icon;
@@ -73,7 +73,7 @@ export function ArenaHud({
               aria-selected={isActive}
               data-testid={`arena-view-${m.id}`}
               onClick={() => onViewChange(m.id)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 transition-all focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none ${
+              className={`px-3.5 py-1.5 rounded-full text-xs font-medium flex shrink-0 items-center gap-1.5 transition-all focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none ${
                 isActive ? 'bg-white/10 text-white' : 'text-slate-400 hover:text-white'
               }`}
             >
@@ -84,9 +84,9 @@ export function ArenaHud({
         })}
       </div>
 
-      <div className="flex items-center gap-2 pointer-events-auto">
+      <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full pointer-events-auto">
         <div
-          className={`bg-[#0E1117]/80 backdrop-blur-xl border rounded-full px-3.5 py-2 flex items-center gap-3 shadow-2xl ${overCap ? 'border-rose-500/60' : 'border-white/10'}`}
+          className={`bg-[#0E1117]/80 backdrop-blur-xl border rounded-full px-3.5 py-2 flex flex-wrap items-center gap-3 max-w-full shadow-2xl ${overCap ? 'border-rose-500/60' : 'border-white/10'}`}
           data-testid="hud-spend"
           data-breach={overCap ? 'true' : undefined}
         >

@@ -67,6 +67,44 @@ interface TestResult {
   error?: string;
 }
 
+// Best-effort save-refusal mapper (Wave-2): attribute a backend refusal to
+// the offending section so it can render adjacent to the relevant provider
+// group. Matching is substring-based on provider keys/display names and
+// known section keywords; anything unrecognized stays a general error.
+function locateSaveSection(
+  reason: string,
+  settings: SettingsPayload,
+): { section: string; provider?: string; message: string } {
+  const lower = reason.toLowerCase();
+  for (const [pt, pc] of Object.entries(settings.providers)) {
+    if (lower.includes(pt.toLowerCase()) || (pc.name && lower.includes(pc.name.toLowerCase()))) {
+      return { section: `provider ${pc.name}`, provider: pt, message: reason };
+    }
+  }
+  if (lower.includes('temperature') || lower.includes('max_token') || lower.includes('max token')) {
+    return { section: 'generation defaults', message: reason };
+  }
+  if (lower.includes('active_model') || lower.includes('active model')) {
+    return { section: 'generation defaults', message: reason };
+  }
+  if (lower.includes('active_provider') || lower.includes('active provider')) {
+    return { section: 'generation defaults', message: reason };
+  }
+  if (lower.includes('role') || lower.includes('routing') || lower.includes('assign')) {
+    return { section: 'agent routing', message: reason };
+  }
+  if (lower.includes('air_gap') || lower.includes('air-gap') || lower.includes('airgap')) {
+    return { section: 'air-gap controls', message: reason };
+  }
+  if (lower.includes('dsml')) {
+    return { section: 'air-gap controls', message: reason };
+  }
+  if (lower.includes('api key') || lower.includes('api_key') || lower.includes('apikey')) {
+    return { section: 'provider credentials', message: reason };
+  }
+  return { section: 'general', message: reason };
+}
+
 export function LLMSettings() {
   const [settings, setSettings] = useState<SettingsPayload | null>(null);
   const [baseline, setBaseline] = useState<string | null>(null);
@@ -76,6 +114,7 @@ export function LLMSettings() {
   const [testResult, setTestResult] = useState<TestResult | null>(null);
   const [testPrompt, setTestPrompt] = useState('Confirm you are active and describe how you optimize a VQE ansatz.');
   const [saveStatus, setSaveStatus] = useState<string>('');
+  const [saveSectionError, setSaveSectionError] = useState<{ section: string; provider?: string; message: string } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [tokenError, setTokenError] = useState<string | null>(null);
   // Key edits live outside settings state: secrets are never rendered and
@@ -141,6 +180,7 @@ export function LLMSettings() {
     if (!settings) return;
     setSaving(true);
     setSaveStatus('');
+    setSaveSectionError(null);
     try {
       // Merge key edits; untouched providers send "" (backend keeps stored).
       const providers: Record<string, ProviderConfig> = {};
@@ -151,12 +191,21 @@ export function LLMSettings() {
       if (res.ok) {
         setSaveStatus('✅ Settings persisted successfully to SQLite ledger.');
         setKeyEdits({});
-        setBaseline(JSON.stringify({ ...settings, providers }));
+        // Dirty reference is the live settings shape: key edits are never
+        // part of settings state (empty payload keys mean "keep stored"),
+        // so baselining the merged payload would pin the gate dirty forever.
+        setBaseline(JSON.stringify(settings));
       } else {
-        setSaveStatus(`❌ Failed to persist settings — backend refused (${res.error || 'no reason'}). Nothing changed.`);
+        const reason = res.error || 'no reason';
+        const mapped = locateSaveSection(reason, settings);
+        setSaveSectionError(mapped);
+        setSaveStatus(`❌ Failed to persist settings — backend refused (${mapped.section}: ${reason}). Nothing changed.`);
       }
     } catch (err) {
-      setSaveStatus(`❌ Network error: ${err instanceof Error ? err.message : String(err)} — nothing changed.`);
+      const reason = err instanceof Error ? err.message : String(err);
+      const mapped = locateSaveSection(reason, settings);
+      setSaveSectionError(mapped);
+      setSaveStatus(`❌ Network error (${mapped.section}: ${reason}) — nothing changed.`);
     } finally {
       setSaving(false);
     }
@@ -330,7 +379,7 @@ export function LLMSettings() {
       </div>
 
       {saveStatus && (
-        <div className="p-3 bg-white/[0.03] border border-white/10 text-xs font-medium rounded-xl text-slate-200">
+        <div role={saveSectionError ? 'alert' : undefined} data-testid="llm-save-status" className="p-3 bg-white/[0.03] border border-white/10 text-xs font-medium rounded-xl text-slate-200">
           {saveStatus}
         </div>
       )}
@@ -385,8 +434,9 @@ export function LLMSettings() {
                   <span className="text-slate-200 truncate max-w-[220px]">{pc.base_url}</span>
                 </div>
                 <div className="flex justify-between items-center gap-2 text-slate-400 font-mono text-[11px]">
-                  <span className="shrink-0" title="Empty clears the default — calls then fail naming the variable to set">Default model:</span>
+                  <label htmlFor={`llm-default-model-${pt}`} className="shrink-0" title="Empty clears the default — calls then fail naming the variable to set">Default model:</label>
                   <input
+                    id={`llm-default-model-${pt}`}
                     value={pc.default_model || ''}
                     onChange={(e) => setProvider(pt, { default_model: e.target.value.trim() })}
                     placeholder="(unset — configure per .env or here)"
@@ -402,16 +452,22 @@ export function LLMSettings() {
                 </div>
                 {!pc.is_local && (
                   <div>
-                    <label className="block text-slate-400 mb-1 text-[11px]">
+                    <label htmlFor={`llm-api-key-${pt}`} className="block text-slate-400 mb-1 text-[11px]">
                       API key {pc.enabled ? <span className="text-emerald-400 font-mono">(stored ●●●)</span> : <span className="text-amber-400 font-mono">(not set)</span>}
                     </label>
                     <input
+                      id={`llm-api-key-${pt}`}
                       type="password"
                       value={keyEdits[pt] ?? ''}
                       placeholder={pc.enabled ? 'Stored — type to rotate' : 'Paste key…'}
                       onChange={(e) => setKeyEdits((prev) => ({ ...prev, [pt]: e.target.value }))}
                       className="w-full bg-black/60 border border-white/10 rounded-xl p-2.5 text-xs text-slate-200 font-mono focus:border-indigo-500 focus:outline-none"
                     />
+                  </div>
+                )}
+                {saveSectionError?.provider === pt && (
+                  <div role="alert" data-testid={`llm-save-error-${pt}`} className="p-2 rounded-lg bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[11px]">
+                    Save refused (provider {pc.name}): {saveSectionError.message} — nothing changed.
                   </div>
                 )}
               </div>
@@ -422,8 +478,9 @@ export function LLMSettings() {
             <div className="text-xs font-semibold text-white">Generation defaults</div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-slate-400 text-[11px] mb-1">Temperature:</label>
+                <label htmlFor="llm-temperature" className="block text-slate-400 text-[11px] mb-1">Temperature:</label>
                 <input
+                  id="llm-temperature"
                   type="number"
                   step="0.05"
                   min="0"
@@ -442,8 +499,9 @@ export function LLMSettings() {
                 />
               </div>
               <div>
-                <label className="block text-slate-400 text-[11px] mb-1">Max tokens (0 = uncapped):</label>
+                <label htmlFor="llm-max-tokens" className="block text-slate-400 text-[11px] mb-1">Max tokens (0 = uncapped):</label>
                 <input
+                  id="llm-max-tokens"
                   type="number"
                   step="128"
                   min="0"
@@ -474,8 +532,9 @@ export function LLMSettings() {
             )}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label className="block text-slate-400 mb-1 text-[11px]">Active provider:</label>
+                <label htmlFor="llm-active-provider" className="block text-slate-400 mb-1 text-[11px]">Active provider:</label>
                 <select
+                  id="llm-active-provider"
                   value={settings.active_provider}
                   onChange={(e) =>
                     setSettings({ ...settings, active_provider: e.target.value })
@@ -491,8 +550,9 @@ export function LLMSettings() {
                 </select>
               </div>
               <div>
-                <label className="block text-slate-400 mb-1 text-[11px]">Active model (used when a role has no assignment):</label>
+                <label htmlFor="llm-active-model" className="block text-slate-400 mb-1 text-[11px]">Active model (used when a role has no assignment):</label>
                 <input
+                  id="llm-active-model"
                   value={settings.active_model}
                   onChange={(e) =>
                     setSettings({ ...settings, active_model: e.target.value.trim() })
@@ -536,26 +596,34 @@ export function LLMSettings() {
                 <div key={role} className="p-2.5 bg-white/[0.03] rounded-xl border border-white/10 space-y-2">
                   <div className="font-mono text-cyan-300 font-semibold">{role}</div>
                   <div className="grid grid-cols-2 gap-2">
-                    <select
-                      aria-label={`${role} provider`}
-                      value={assign.provider}
-                      onChange={(e) => setRole(role, { provider: e.target.value })}
-                      className="bg-black/60 border border-white/10 rounded-lg p-1.5 text-[11px] text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
-                    >
-                      {Object.entries(settings.providers).map(([pt, pc]) => (
-                        <option key={pt} value={pt}>
-                          {pt}{pc.enabled ? '' : ' (off)'}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      aria-label={`${role} model`}
-                      value={assign.model}
-                      list={`kubona-role-models-${role}`}
-                      onChange={(e) => setRole(role, { model: e.target.value.trim() })}
-                      placeholder="(unset — resolve fails naming the variable)"
-                      className="bg-black/60 border border-white/10 rounded-lg p-1.5 text-[11px] text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
-                    />
+                    <div>
+                      <label htmlFor={`llm-role-provider-${role}`} className="sr-only">{role} provider</label>
+                      <select
+                        id={`llm-role-provider-${role}`}
+                        aria-label={`${role} provider`}
+                        value={assign.provider}
+                        onChange={(e) => setRole(role, { provider: e.target.value })}
+                        className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-[11px] text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
+                      >
+                        {Object.entries(settings.providers).map(([pt, pc]) => (
+                          <option key={pt} value={pt}>
+                            {pt}{pc.enabled ? '' : ' (off)'}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor={`llm-role-model-${role}`} className="sr-only">{role} model</label>
+                      <input
+                        id={`llm-role-model-${role}`}
+                        aria-label={`${role} model`}
+                        value={assign.model}
+                        list={`kubona-role-models-${role}`}
+                        onChange={(e) => setRole(role, { model: e.target.value.trim() })}
+                        placeholder="(unset — resolve fails naming the variable)"
+                        className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-[11px] text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
+                      />
+                    </div>
                     <datalist id={`kubona-role-models-${role}`}>
                       {modelOptions(assign.model).map((m) => (
                         <option key={m} value={m} />
@@ -585,9 +653,12 @@ export function LLMSettings() {
 
         <div className="space-y-3">
           <div className="flex space-x-2">
+            <label htmlFor="llm-benchmark-prompt" className="sr-only">Benchmark prompt</label>
             <input
+              id="llm-benchmark-prompt"
               type="text"
               value={testPrompt}
+              aria-label="Benchmark prompt"
               onChange={(e) => setTestPrompt(e.target.value)}
               className="flex-1 bg-black/60 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-cyan-500 font-mono"
               placeholder="Enter benchmark prompt..."
