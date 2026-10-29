@@ -913,7 +913,7 @@ export function CopilotDrawer({
 
   return (
     <div
-      className="flex flex-col h-full w-full bg-[#0A0C10]/95 backdrop-blur-2xl text-slate-100 select-none font-sovereign overflow-hidden"
+      className="flex flex-col h-full w-full bg-[#0A0C10]/95 backdrop-blur-2xl text-slate-100 font-sovereign overflow-hidden"
     >
       {/* Header: Kubona Copilot identity */}
       <div className="px-5 py-4 border-b border-white/5 flex items-center justify-between shrink-0">

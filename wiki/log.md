@@ -3832,3 +3832,12 @@ skipped is the exact failure this incident is about:
     backfills run only when the legacy column exists. A legacy-row test proves
     backfill + drop + idempotent reopen. FK enforcement and retention remain
     open.
+
+## [2026-10-29] implementation | Console a11y + API-base retry
+
+  - NewCampaignModal now uses the shared focus trap. The shell, Copilot
+    drawer, and ResultsStudio no longer apply global `select-none`, so
+    results and provenance hashes are copyable again.
+  - `configureApiBase` retries a transient network/5xx failure after 5s;
+    a valid config or a 4xx (older bundle/static export) still pins the
+    answer, so a missing route cannot hammer the console.

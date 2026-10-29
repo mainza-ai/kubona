@@ -781,7 +781,7 @@ export default function Home() {
   );
 
   return (
-    <div className="flex h-screen w-screen bg-[#07080B] text-slate-100 overflow-hidden font-sovereign select-none">
+    <div className="flex h-screen w-screen bg-[#07080B] text-slate-100 overflow-hidden font-sovereign">
       <AttentionProvider>
       {/* Modals & Dialogs */}
       <AboutLabModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />

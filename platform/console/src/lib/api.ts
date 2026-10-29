@@ -6,14 +6,17 @@ import { Session, ChatMessage, Job, Loop, LedgerEvent, Lab } from '@/types';
 export let API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 
 let apiBaseConfigured = false;
+let apiBaseRetryAt = 0;
+const API_BASE_RETRY_MS = 5000;
 
-// Reads the runtime backend URL once (first call wins) and switches all
-// subsequent API calls to it. Failure keeps the build-time default —
-// never bricks the console when the route is missing (older bundles,
-// static export).
+// Reads the runtime backend URL and switches all subsequent API calls to
+// it. A definitive answer pins it: a valid apiUrl, or a 4xx (older bundle /
+// static export with no /api/config). A transient network/5xx failure keeps
+// the build-time default for this call but allows a bounded retry, so one
+// blip at boot cannot pin localhost for the whole session.
 export async function configureApiBase(): Promise<string> {
   if (apiBaseConfigured) return API_BASE;
-  apiBaseConfigured = true;
+  if (apiBaseRetryAt !== 0 && Date.now() < apiBaseRetryAt) return API_BASE;
   try {
     const res = await apiFetch('/api/config', { cache: 'no-store' });
     if (res.ok) {
@@ -21,9 +24,14 @@ export async function configureApiBase(): Promise<string> {
       if (typeof data.apiUrl === 'string' && /^https?:\/\//.test(data.apiUrl)) {
         API_BASE = data.apiUrl.replace(/\/$/, '');
       }
+      apiBaseConfigured = true;
+    } else if (res.status >= 400 && res.status < 500) {
+      apiBaseConfigured = true;
+    } else {
+      apiBaseRetryAt = Date.now() + API_BASE_RETRY_MS;
     }
   } catch {
-    /* keep build-time default */
+    apiBaseRetryAt = Date.now() + API_BASE_RETRY_MS;
   }
   return API_BASE;
 }

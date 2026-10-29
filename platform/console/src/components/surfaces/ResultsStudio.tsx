@@ -252,7 +252,7 @@ ${bibtex}
   const isChemAccMet = campaign?.notebook?.chemical_accuracy ?? (deltaMHa != null && deltaMHa <= 1.6);
 
   return (
-    <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0F19] to-[#07090E] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-6 select-none space-y-6">
+    <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0F19] to-[#07090E] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-6 space-y-6">
       {!hasVerifiedData && (
         <div className="p-3 rounded-2xl bg-amber-950/60 border border-amber-500/50 text-amber-200 text-xs font-medium text-center">
           UNVERIFIED DRAFT — this session carries no ledger-backed execution telemetry. All figures below are placeholders, not measurements.

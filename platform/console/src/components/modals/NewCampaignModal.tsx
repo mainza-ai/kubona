@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { X, Sparkles, Atom,  DollarSign, Check } from 'lucide-react';
+import { useFocusTrap } from '@/lib/useFocusTrap';
 
 interface NewCampaignModalProps {
   isOpen: boolean;
@@ -96,6 +97,7 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   const modalRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(isOpen, modalRef);
 
   // Auto-update title when selecting preset if title was defaulted
   const handleSelectPreset = (preset: MoleculePreset) => {
