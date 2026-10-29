@@ -1,6 +1,11 @@
 package llm
 
-import "fmt"
+import (
+	"fmt"
+	"time"
+
+	"github.com/mainza-ai/kubona/core/pkg/rates"
+)
 
 // Cloud LLM spend accounting (K4). Tribunal and copilot turns can call
 // metered cloud models (opencode/deepseek, anthropic, openai); without a
@@ -9,32 +14,10 @@ import "fmt"
 // usage; the server records per-call events and enforces an optional
 // global cap (KUBONA_LLM_BUDGET_USD).
 //
-// RATES ARE V1 HEURISTICS (2026-10-12), NOT vendor price sheets. Every
-// estimate carries heuristic:true; unknown models refuse to price
-// (ok=false) instead of inventing a rate. The cap therefore enforces on
-// approximate spend — a guardrail, not a meter. Calibrate before
-// treating any number as a bill.
-type modelRate struct {
-	inputPer1K  float64
-	outputPer1K float64
-}
-
-var heuristicRates = map[string]modelRate{
-	// Flash-class distilled models, order-of-magnitude.
-	"deepseek-v4.1-flash": {inputPer1K: 0.0001, outputPer1K: 0.0004},
-	"deepseek-chat":       {inputPer1K: 0.0002, outputPer1K: 0.0008},
-	// Frontier classes, order-of-magnitude.
-	"claude-3-5-sonnet": {inputPer1K: 0.003, outputPer1K: 0.015},
-	"claude-3-7-sonnet": {inputPer1K: 0.003, outputPer1K: 0.015},
-	"gpt-4o":            {inputPer1K: 0.0025, outputPer1K: 0.01},
-	"o3":                {inputPer1K: 0.01, outputPer1K: 0.04},
-	"gemini-2.5-pro":    {inputPer1K: 0.00125, outputPer1K: 0.01},
-	// NVIDIA NIM hosted models, order-of-magnitude.
-	"nvidia/nemotron-3.5-super-vl-120b-a12b": {inputPer1K: 0.0007, outputPer1K: 0.0015},
-	"meta/llama-3.1-70b-instruct":            {inputPer1K: 0.0007, outputPer1K: 0.0015},
-	"meta/llama-3.3-70b-instruct":            {inputPer1K: 0.0007, outputPer1K: 0.0015},
-}
-
+// Rates live in platform/contracts/rate-cards.json (embedded by pkg/rates).
+// The card is explicitly heuristic until a vendor sheet replaces it; a stale
+// card refuses to price. Unknown models still return ok=false — refusing to
+// price beats inventing a rate.
 // isLocalProvider is the single home for the local set — a new local
 // engine updates this one predicate, not every call site (drift-proofing
 // per the production bar).
@@ -62,12 +45,15 @@ func EstimateCostUSD(provider ProviderType, model string, promptTokens, completi
 	if isLocalProvider(provider) {
 		return 0, false
 	}
-	rate, ok := heuristicRates[model]
+	if rates.IsStale(time.Now().UTC()) {
+		return 0, false
+	}
+	rate, ok := rates.LookupModelRate(model)
 	if !ok {
 		return 0, false
 	}
-	return rate.inputPer1K*float64(promptTokens)/1000.0 +
-		rate.outputPer1K*float64(completionTokens)/1000.0, true
+	return rate.InputPer1KUSD*float64(promptTokens)/1000.0 +
+		rate.OutputPer1KUSD*float64(completionTokens)/1000.0, true
 }
 
 // LoopIterationBound prices one worst-case loop iteration (I3): the sum
@@ -105,11 +91,14 @@ func EstimateCeilingCostUSD(provider ProviderType, model string, ceilingTokens i
 	if isLocalProvider(provider) {
 		return 0, false
 	}
-	rate, ok := heuristicRates[model]
+	if rates.IsStale(time.Now().UTC()) {
+		return 0, false
+	}
+	rate, ok := rates.LookupModelRate(model)
 	if !ok {
 		return 0, false
 	}
-	return rate.outputPer1K * float64(ceilingTokens) / 1000.0, true
+	return rate.OutputPer1KUSD * float64(ceilingTokens) / 1000.0, true
 }
 
 // SpendRecord reports one metered cloud completion for cost accounting.

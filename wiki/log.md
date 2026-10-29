@@ -3889,3 +3889,11 @@ skipped is the exact failure this incident is about:
     weeks, and never touches directories, symlinks, or unparseable names.
     All-zero retention is refused. Tests cover dry-run, apply, and the
     delete-all refusal.
+
+## [2026-10-29] implementation | Versioned rate-card contract
+
+  - Lens and LLM rates moved to `platform/contracts/rate-cards.json`, embedded
+    by `pkg/rates` with a canonical/embedded parity test. The card is
+    `heuristic:true` with source, effective date, and a 30-day window; a stale
+    card refuses at daemon startup, LLM pricing, and Atlas lens dispatch.
+    Vendor reconciliation with `heuristic:false` remains a release-time task.

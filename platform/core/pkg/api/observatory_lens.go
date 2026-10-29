@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
+	"github.com/mainza-ai/kubona/core/pkg/rates"
 )
 
 // ObservatoryLensRequest defines the parameter payload for requesting
@@ -51,11 +52,10 @@ type ObservatoryLensResponse struct {
 	Cached         bool    `json:"cached,omitempty"`
 }
 
-// lensCostUSD is the per-dispatch spend reservation. Single named const —
-// never a second copy. TODO(P1): reconcile against the live Atlas rate card
-// (billing dashboard per-task burn); the beta card can change and must not
-// be embedded in client code.
-const lensCostUSD = 0.50
+// lensCostUSD is the per-dispatch spend reservation. The value lives in
+// platform/contracts/rate-cards.json; the card is explicitly heuristic and
+// refuses to start when stale. Never embed a second copy here.
+var lensCostUSD = rates.MustLensCostUSD("atlas-lens")
 
 // observatoryTaskAllowlist is the closed task vocabulary. Unknown task
 // types are refused BEFORE spend is reserved — a typo must never bill.
@@ -258,7 +258,12 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 		idemKey = "lens-" + uuid.NewString()
 	}
 
-	// 6. Cost Governance: 500 Atlas credits = $0.50 USD
+	// 6. Cost Governance: the card is the source of the per-dispatch cost.
+	// A stale card refuses before any budget is reserved.
+	if err := rates.Validate(time.Now().UTC()); err != nil {
+		WriteAPIError(w, "rate_card_stale", "lens rate card is stale; update platform/contracts/rate-cards.json before dispatching", nil)
+		return
+	}
 	if err := s.sessionMgr.ReserveSpend(req.SessionID, lensCostUSD); err != nil {
 		WriteAPIError(w, "ceiling_exceeded", fmt.Sprintf("spend limit exceeded: %v", err), nil)
 		return

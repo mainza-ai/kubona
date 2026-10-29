@@ -23,6 +23,7 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
 	"github.com/mainza-ai/kubona/core/pkg/logging"
 	"github.com/mainza-ai/kubona/core/pkg/qir"
+	"github.com/mainza-ai/kubona/core/pkg/rates"
 	"github.com/mainza-ai/kubona/core/pkg/session"
 	"github.com/mainza-ai/kubona/core/pkg/supervisor"
 	"github.com/mainza-ai/kubona/core/pkg/tracing"
@@ -201,6 +202,12 @@ func main() {
 	// refuses boot (unmeasurable state storage is unstartable storage).
 	if err := ensureStateDirs(); err != nil {
 		log.Fatalf("Cannot create daemon state directories: %v", err)
+	}
+
+	// Rate cards: a stale card is a hard refusal, never an estimate that
+	// silently becomes a bill. The card is pinned in platform/contracts.
+	if err := rates.Validate(time.Now().UTC()); err != nil {
+		log.Fatalf("Rate card refused: %v", err)
 	}
 
 	// 1. Initialize SQLite WAL Ledger. Production (or an explicit

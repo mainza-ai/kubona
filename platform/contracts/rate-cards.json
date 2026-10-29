@@ -1,0 +1,56 @@
+{
+  "version": 1,
+  "source": "internal-heuristic-2026-10-12",
+  "effective_date": "2026-10-12",
+  "stale_after_days": 30,
+  "heuristic": true,
+  "notes": "V1 order-of-magnitude heuristics, not vendor price sheets. Replace with per-provider sheets and set heuristic=false before billing. A stale card refuses to price.",
+  "lens": {
+    "atlas-lens": {
+      "cost_usd": 0.5,
+      "unit": "per-dispatch"
+    }
+  },
+  "models": {
+    "deepseek-v4.1-flash": {
+      "input_per_1k_usd": 0.0001,
+      "output_per_1k_usd": 0.0004
+    },
+    "deepseek-chat": {
+      "input_per_1k_usd": 0.0002,
+      "output_per_1k_usd": 0.0008
+    },
+    "claude-3-5-sonnet": {
+      "input_per_1k_usd": 0.003,
+      "output_per_1k_usd": 0.015
+    },
+    "claude-3-7-sonnet": {
+      "input_per_1k_usd": 0.003,
+      "output_per_1k_usd": 0.015
+    },
+    "gpt-4o": {
+      "input_per_1k_usd": 0.0025,
+      "output_per_1k_usd": 0.01
+    },
+    "o3": {
+      "input_per_1k_usd": 0.01,
+      "output_per_1k_usd": 0.04
+    },
+    "gemini-2.5-pro": {
+      "input_per_1k_usd": 0.00125,
+      "output_per_1k_usd": 0.01
+    },
+    "nvidia/nemotron-3.5-super-vl-120b-a12b": {
+      "input_per_1k_usd": 0.0007,
+      "output_per_1k_usd": 0.0015
+    },
+    "meta/llama-3.1-70b-instruct": {
+      "input_per_1k_usd": 0.0007,
+      "output_per_1k_usd": 0.0015
+    },
+    "meta/llama-3.3-70b-instruct": {
+      "input_per_1k_usd": 0.0007,
+      "output_per_1k_usd": 0.0015
+    }
+  }
+}
