@@ -23,6 +23,14 @@ const HFAPIBase = "https://huggingface.co/api"
 // HFResolveBase is the file-download origin. It is a variable (not a const)
 // so tests can point it at an httptest server; production always uses
 // https://huggingface.co.
+//
+// WORKERS MUST NEVER READ THIS GLOBAL: a test (or operator) that reassigns
+// it races any in-flight download worker that reads it lazily (2026-10-29
+// CI race: TestHubClientRealDownloadBytes vs a prior test's worker).
+// NewHubClient snapshots the current value into the client; StartDownload
+// hands that snapshot to the worker, so a later reassignment cannot divert
+// an already-spawned download. Tests set the global BEFORE constructing
+// the client (existing suites already do).
 var HFResolveBase = "https://huggingface.co"
 
 // HFModelQuantization represents an individual model file (e.g. GGUF format)
@@ -72,8 +80,11 @@ type HFDownloadTask struct {
 type HubClient struct {
 	httpClient *http.Client
 	storageDir string
-	mu         sync.RWMutex
-	tasks      map[string]*HFDownloadTask
+	// resolveBase snapshots HFResolveBase at construction: workers use
+	// this, never the global (see above).
+	resolveBase string
+	mu          sync.RWMutex
+	tasks       map[string]*HFDownloadTask
 }
 
 // DefaultModelsDir resolves the model storage directory: ~/.kubona/models,
@@ -95,9 +106,10 @@ func NewHubClient(storageDir string) *HubClient {
 	_ = os.MkdirAll(storageDir, 0755)
 
 	return &HubClient{
-		httpClient: &http.Client{Timeout: 10 * time.Second},
-		storageDir: storageDir,
-		tasks:      make(map[string]*HFDownloadTask),
+		httpClient:  &http.Client{Timeout: 10 * time.Second},
+		storageDir:  storageDir,
+		resolveBase: HFResolveBase,
+		tasks:       make(map[string]*HFDownloadTask),
 	}
 }
 
@@ -412,8 +424,13 @@ func (c *HubClient) StartDownload(repoID, filename string) (*HFDownloadTask, err
 	// memory with the stored task (race detector proved they do).
 	taskCopy := *task
 
+	// The download origin is snapshotted here, under the client lock:
+	// the worker must never read the HFResolveBase global itself, or a
+	// later reassignment diverts an in-flight download (2026-10-29 race).
+	base := c.resolveBase
+
 	// Run background download worker (real bytes, see runDownload).
-	go c.runDownload(ctx, task)
+	go c.runDownload(ctx, task, base)
 
 	return &taskCopy, nil
 }
@@ -455,8 +472,8 @@ func (c *HubClient) setTerminal(task *HFDownloadTask, status, errMsg string) {
 	}
 }
 
-func (c *HubClient) runDownload(ctx context.Context, task *HFDownloadTask) {
-	downloadURL := fmt.Sprintf("%s/%s/resolve/main/%s", HFResolveBase, task.RepoID, task.Filename)
+func (c *HubClient) runDownload(ctx context.Context, task *HFDownloadTask, baseURL string) {
+	downloadURL := fmt.Sprintf("%s/%s/resolve/main/%s", baseURL, task.RepoID, task.Filename)
 
 	// A dedicated client without the metadata client's 10s overall timeout:
 	// weight files are gigabytes and stream for minutes.
