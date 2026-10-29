@@ -55,14 +55,28 @@ status: tracked
 - Device/emulator recalibration (keyed hardware; canary verifies
   live-vs-declared meanwhile per Q-14).
 - Protogen venv re-pin (`grpcio-tools` 1.71.x) + regen Python pb2 stubs
-  (`EvidenceEnvelope` message waits on it).
-- Confirm or reverse the recorded R-series defaults: R1 fields
-  (+mandate/tenant), R2 authority (tribunal quorum), R0 lanes
-  (fast+boundary required), P1-4 timing.
-- R6 gating policy: scores are recorded, never enforced — set the
-  threshold (if any) before any gate reads them.
-- Failed-mandate review queue is steady-state ops: open obligations
-  without settlement are the queue; refund primitive + close rules exist.
+  (`EvidenceEnvelope` message waits on it). ✅ CLOSED 2026-10-29: scratch
+  venv `/tmp/protogen` re-pinned to 1.71.0, regen reproduced byte-identical
+  output (1-line stamp delta only), `EvidenceEnvelope` imports cleanly
+  under the pinned 5.29.6 runtime; deterministic regen proven.
+- R-series defaults CONFIRMED 2026-10-29 (operator decision, no code change —
+  all four were already implemented as recorded): R1 extend (+tenant
+  mandatory, +mandate_ref optional; envelope.go both rails + byte-identical
+  vectors); R2 tribunal-quorum authority = the four seated roles as required
+  authorities + `ledger-receipt` for mandate settlement (AttemptClose
+  enforces; Lean proof / human sign-off stay future authorities, not
+  required today); R0 lanes fast+boundary required, changed advisory
+  (CONTRIBUTING.md + CI mapping); P1-4 consolidation stays queued behind
+  R1–R3 (single maintainer, gate is green without it — revisit when the
+  contracts drive a need, not before).
+- R6 gating policy RESOLVED 2026-10-29 (operator decision, recorded in
+  `platform/core/pkg/agents/scoring.go` header): advisory-only, permanently.
+  Substring heuristics are gameable — no gate may branch on scores. Scores
+  surface in tribunal responses + the review queue (human prioritization).
+- Failed-mandate review queue ✅ LANDED 2026-10-29: `GET
+  /api/obligations/open` (lab-scoped list + close-readiness reasons) and
+  `POST /api/obligations/{id}/close` (owner session or owner-key signature;
+  bearer alone never sufficient; double-close idempotent; no oracle).
 
 ## B · Queued programs (unblocked, beyond a single slice)
 
