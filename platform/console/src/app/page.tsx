@@ -3,7 +3,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Sparkles, Plus, Zap, Info, HelpCircle, Trash2, Clock, Box, X } from 'lucide-react';
 import { Session, Loop, LedgerEvent, CampaignState, RunPhase, ProbeId } from '@/types';
-import { fetchSessions, createSession, deleteSession, fetchLoops, fetchEvents, fetchCampaignState, API_BASE, authHeaders, configureApiBase, apiFetch } from '@/lib/api';
+import { fetchSessions, createSession, deleteSession, fetchLoops, fetchEvents, fetchCampaignState, API_BASE, authHeaders, configureApiBase, apiFetch, UNAUTH_EVENT } from '@/lib/api';
+import { SHORTCUTS, SHORTCUT_TARGETS, KEY_TO_SHORTCUT, type ShortcutKey } from '@/lib/shortcuts';
 import { CopilotDrawer } from '@/components/CopilotDrawer';
 import { AboutLabModal } from '@/components/AboutLabModal';
 import { CommandPalette } from '@/components/CommandPalette';
@@ -41,9 +42,63 @@ function formatElapsed(createdAt: string): string {
   if (!Number.isFinite(ms) || ms < 0) return '00:00:00';
   const s = Math.floor(ms / 1000);
   const hh = String(Math.floor(s / 3600)).padStart(2, '0');
-  const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+  const mm = String(Math.floor((s % 60) / 60)).padStart(2, '0');
   const ss = String(s % 60).padStart(2, '0');
   return `${hh}:${mm}:${ss}`;
+}
+
+// Session-expired banner: subscribes to UNAUTH_EVENT (dispatched by api.ts
+// on any HTTP 401) and surfaces "log in again" with a jump straight to the
+// mesh→labs AuthPanel. Dismissible; unsubscribes on unmount. Exported for
+// tests — Home mounts exactly one instance below.
+export function SessionExpiredBanner({ onOpenLabs }: { onOpenLabs: () => void }) {
+  const [visible, setVisible] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const show = () => setVisible(true);
+    window.addEventListener(UNAUTH_EVENT, show);
+    return () => window.removeEventListener(UNAUTH_EVENT, show);
+  }, []);
+  if (!visible) return null;
+  return (
+    <div
+      data-testid="auth-expired-banner"
+      role="alert"
+      className="flex items-center justify-between gap-3 px-4 py-2 bg-amber-950/90 border-b border-amber-500/40 text-amber-100 text-xs"
+    >
+      <span>Session expired — log in again.</span>
+      <span className="flex items-center gap-2 shrink-0">
+        <button
+          data-testid="auth-banner-login"
+          onClick={onOpenLabs}
+          className="px-2.5 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 hover:bg-cyan-500/25 transition-all"
+        >
+          Log in (Mesh → Labs)
+        </button>
+        <button
+          data-testid="auth-banner-dismiss"
+          onClick={() => setVisible(false)}
+          aria-label="Dismiss session expired banner"
+          className="p-1 rounded-lg text-amber-200/70 hover:text-amber-100 hover:bg-white/10 transition-all"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
+      </span>
+    </div>
+  );
+}
+
+// Verbatim failure for a refused campaign creation. createSession resolves
+// null on refusal (no body to quote) and the modal cannot render it (owns
+// its own close), so the shell keeps the modal open and renders this text
+// itself — never a silent close.
+export function describeCreateFailure(result: Session | null, error: unknown): string | null {
+  if (result) return null;
+  if (error !== undefined && error !== null) {
+    const detail = error instanceof Error ? error.message : String(error);
+    return `Create campaign failed: ${detail}`;
+  }
+  return 'Create campaign failed: backend refused (createSession returned null) — nothing was created.';
 }
 
 export default function Home() {
@@ -74,15 +129,25 @@ export default function Home() {
   const [toast, setToast] = useState<{ key: number; text: string } | null>(null);
   const lastToastEventId = useRef(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Tick serialization (no overlapping polls) + outage-episode toast latch:
+  // exactly one "backend unreachable" toast per outage, reset on success.
+  const tickBusy = useRef(false);
+  const outageNotified = useRef(false);
 
   // Modals & Panels Visibility
   const [isAboutOpen, setIsAboutOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isShortcutsOpen, setIsShortcutsOpen] = useState(false);
   const [isNewCampaignModalOpen, setIsNewCampaignModalOpen] = useState(false);
+  // createSession null/refusal text, rendered verbatim while the modal stays
+  // open. Mirrored in a ref because the modal calls onClose synchronously
+  // after onCreate resolves — state alone would not have flushed yet.
+  const [createError, setCreateError] = useState<string | null>(null);
+  const createFailedRef = useRef(false);
   const [showCopilot, setShowCopilot] = useState(true);
   const [isCopilotExpanded, setIsCopilotExpanded] = useState(false);
   const [showCampaignMenu, setShowCampaignMenu] = useState(false);
+  const [campaignFilter, setCampaignFilter] = useState('');
 
   const refreshData = useCallback(async () => {
     const sid = currentSessionId || undefined;
@@ -169,14 +234,25 @@ export default function Home() {
 
     // D4 (2.5b): aggregate heartbeat toasts (one per poll, never per event),
     // skip fetch work while the tab is hidden, back off to 15s at rest.
+    // Hardened: serialized (no overlapping ticks — a slow backend cannot
+    // stack polls) with a single outage toast per episode (reset on the
+    // next successful tick), so a dead backend nags once, not every 3.5s.
     // The 1s clock below is untouched (elapsed displays need it).
     let tickTimer: ReturnType<typeof setTimeout>;
-    const tick = () => {
+    const tick = async () => {
       if (!mounted) return;
-      if (!document.hidden) {
-        fetchLoops(currentSessionId || undefined).then((l) => { if (mounted) setLoops(l); });
-        if (currentSessionId) {
-          fetchEvents(currentSessionId).then((e) => {
+      if (tickBusy.current) {
+        tickTimer = setTimeout(tick, 3500);
+        return;
+      }
+      tickBusy.current = true;
+      try {
+        if (!document.hidden) {
+          const loopList = await fetchLoops(currentSessionId || undefined);
+          if (!mounted) return;
+          setLoops(loopList);
+          if (currentSessionId) {
+            const e = await fetchEvents(currentSessionId);
             if (!mounted) return;
             setEvents(e);
             // Heartbeat toasts: while a run is live, surface fresh ledger events
@@ -196,11 +272,24 @@ export default function Home() {
               lastToastEventId.current = Math.max(...e.map((ev) => ev.id));
             }
             prevPhase.current = runPhase;
-          });
+          }
         }
+        // A clean tick closes the outage episode: the next failure toasts again.
+        outageNotified.current = false;
+      } catch (err) {
+        if (!outageNotified.current) {
+          outageNotified.current = true;
+          const detail = err instanceof Error ? err.message : String(err);
+          setToast({ key: Date.now(), text: `Backend unreachable — retrying (${detail.slice(0, 120)})` });
+          if (toastTimer.current) clearTimeout(toastTimer.current);
+          toastTimer.current = setTimeout(() => { if (mounted) setToast(null); }, 4000);
+        }
+      } finally {
+        tickBusy.current = false;
+        if (!mounted) return;
+        const atRest = runPhaseRef.current === 'idle';
+        tickTimer = setTimeout(tick, document.hidden || atRest ? 15000 : 3500);
       }
-      const atRest = runPhaseRef.current === 'idle';
-      tickTimer = setTimeout(tick, document.hidden || atRest ? 15000 : 3500);
     };
     tickTimer = setTimeout(tick, 3500);
     const clock = setInterval(() => {
@@ -224,20 +313,33 @@ export default function Home() {
       spendLimitUSD: number;
       fresh: boolean;
     }) => {
-      const newSess = await createSession(
-        params.title,
-        params.spendLimitUSD,
-        params.targetMolecule,
-        params.fresh
-      );
-      if (newSess) {
-        setSessions((prev) => [newSess, ...prev]);
-        switchSession(newSess.id);
-        const newCamp = await fetchCampaignState(newSess.id);
-        if (newCamp) {
-          setCampaign(newCamp);
+      // Null (refusal) or throw (transport) keeps the modal OPEN with the
+      // failure rendered verbatim — closing would be silent success theater
+      // (cf. the 2026-10-21 agent-registration audit). The modal calls
+      // onClose after onCreate resolves, so the failure is latched in
+      // createFailedRef and the onClose below refuses to close on it.
+      let failure: string | null = null;
+      try {
+        const newSess = await createSession(
+          params.title,
+          params.spendLimitUSD,
+          params.targetMolecule,
+          params.fresh
+        );
+        failure = describeCreateFailure(newSess, null);
+        if (!failure && newSess) {
+          setSessions((prev) => [newSess, ...prev]);
+          switchSession(newSess.id);
+          const newCamp = await fetchCampaignState(newSess.id);
+          if (newCamp) {
+            setCampaign(newCamp);
+          }
         }
+      } catch (err) {
+        failure = describeCreateFailure(null, err);
       }
+      createFailedRef.current = failure !== null;
+      setCreateError(failure);
     },
     [switchSession]
   );
@@ -301,6 +403,69 @@ export default function Home() {
   const handleSelectDockSurface = useCallback((s: DockSurface) => {
     setSurface(s);
     if (s === 'arena') setShowLegacyCanvas(false);
+  }, []);
+
+  // Single dispatch for keyboard shortcuts AND palette selections: targets
+  // resolve through SHORTCUT_TARGETS (lib/shortcuts) so the two cannot
+  // drift — every handler branch names a palette item id and vice versa.
+  const navigateToTarget = useCallback((target: string) => {
+    switch (target) {
+      case 'arena':
+      case 'recorder':
+      case 'manifold':
+      case 'fleet':
+      case 'proofs':
+      case 'mesh':
+        handleSelectDockSurface(target as DockSurface);
+        break;
+      case 'guardrails':
+        setSurface('mesh'); setMeshTab('guardrails'); break;
+      case 'models':
+        setSurface('mesh'); setMeshTab('models'); break;
+      case 'labs':
+        setSurface('mesh'); setMeshTab('labs'); break;
+      case 'settings':
+        setSurface('mesh'); setMeshTab('settings'); break;
+      case 'tribunal':
+        setSurface('proofs'); setProofsTab('tribunal'); break;
+      case 'gallery':
+        setSurface('proofs'); setProofsTab('gallery'); break;
+      case 'manuscripts':
+        setSurface('proofs'); setProofsTab('manuscripts'); break;
+      case 'circuits':
+        setSurface('proofs'); setProofsTab('circuits'); break;
+      case 'arena-orbital':
+        setSurface('arena'); setShowLegacyCanvas(false); setArenaView('orbital'); break;
+      case 'arena-proof-dag':
+        setSurface('arena'); setShowLegacyCanvas(false); setArenaView('proof-dag'); break;
+      case 'palette':
+        setIsCommandPaletteOpen((v) => !v); break;
+      case 'copilot':
+        setShowCopilot((v) => !v); break;
+      case 'about':
+        setIsAboutOpen(true); break;
+      case 'new':
+        setIsNewCampaignModalOpen(true); break;
+      case 'abort':
+        void handleEmergencyAbort(); break;
+      case 'help':
+        setIsShortcutsOpen(true); break;
+      default:
+        break;
+    }
+  }, [handleEmergencyAbort, handleSelectDockSurface]);
+
+  // FleetRadar double-mount fix: FleetRadar owns radar+fleet pollers, so
+  // mounting it in the arena hardware-qpu view AND on the dock fleet
+  // surface polls the backend twice. The arena tab now jumps to the single
+  // dock instance instead of mounting a second one (simplest correct —
+  // no lifted state, no second poller).
+  const handleArenaViewChange = useCallback((v: ArenaView) => {
+    if (v === 'hardware-qpu') {
+      setSurface('fleet');
+      return;
+    }
+    setArenaView(v);
   }, []);
 
   const handleCopilotSurface = useCallback((surf: string) => {
@@ -383,42 +548,40 @@ export default function Home() {
     setTimeout(() => setGateNotice(null), 6000);
   }, [gateOpen]);
 
-  // Global Keyboard Shortcuts
+  // Global keyboard shortcuts — driven by lib/shortcuts (KEY_TO_SHORTCUT +
+  // SHORTCUT_TARGETS), the same table the palette labels. Digits are
+  // meta-only (Ctrl+digits keep switching browser tabs on non-macOS);
+  // letters keep Cmd-or-Ctrl. Inside text inputs only the palette toggle
+  // survives (the escape hatch) so typing is never stolen. '?' keeps its
+  // historic no-modifier behavior outside inputs.
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const isCmdOrCtrl = e.metaKey || e.ctrlKey;
-
-      if (isCmdOrCtrl && e.key.toLowerCase() === 'k') {
-        e.preventDefault();
-        setIsCommandPaletteOpen((prev) => !prev);
-      } else if (isCmdOrCtrl && e.key.toLowerCase() === 'j') {
-        e.preventDefault();
-        setShowCopilot((prev) => !prev);
-      } else if (isCmdOrCtrl && e.key.toLowerCase() === 'i') {
-        e.preventDefault();
-        setIsAboutOpen(true);
-      } else if (isCmdOrCtrl && e.key.toLowerCase() === 'n') {
-        e.preventDefault();
-        handleCreateSession();
-      } else if (isCmdOrCtrl && e.key === '.') {
-        e.preventDefault();
-        handleEmergencyAbort();
-      } else if (e.key === '?' && !['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement).tagName)) {
-        e.preventDefault();
-        setIsShortcutsOpen(true);
-      } else if (isCmdOrCtrl && ['1', '2', '3', '4', '5', '6'].includes(e.key)) {
-        e.preventDefault();
-        const dockMap: Record<string, DockSurface> = {
-          '1': 'arena', '2': 'recorder', '3': 'manifold',
-          '4': 'fleet', '5': 'proofs', '6': 'mesh',
-        };
-        handleSelectDockSurface(dockMap[e.key]);
+      const el = e.target as HTMLElement | null;
+      const tag = el?.tagName;
+      const inField =
+        tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable === true;
+      const key = e.key.toLowerCase();
+      if (key === '?') {
+        if (!inField) {
+          e.preventDefault();
+          navigateToTarget('help');
+        }
+        return;
       }
+      const shortcutName = KEY_TO_SHORTCUT[key];
+      if (!shortcutName) return;
+      const target = SHORTCUT_TARGETS[shortcutName as ShortcutKey];
+      const isDigit = /^[0-9]$/.test(e.key);
+      const modOk = isDigit ? e.metaKey && !e.ctrlKey : e.metaKey || e.ctrlKey;
+      if (!modOk) return;
+      if (inField && target !== 'palette') return;
+      e.preventDefault();
+      navigateToTarget(target);
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [handleCreateSession, handleEmergencyAbort, handleSelectDockSurface]);
+  }, [navigateToTarget]);
 
   const session = sessions.find((s) => s.id === currentSessionId) || null;
   const targetShort = campaign?.quantum_factors?.target_molecule || campaign?.target_system || '';
@@ -451,32 +614,12 @@ export default function Home() {
       <CommandPalette
         isOpen={isCommandPaletteOpen}
         onClose={() => setIsCommandPaletteOpen(false)}
-        onSelectSurface={(surfId) => {
-          if (surfId === 'tribunal') {
-            setSurface('proofs');
-            setProofsTab('tribunal');
-          } else if (surfId === 'gallery') {
-            setSurface('proofs');
-            setProofsTab('gallery');
-          } else if (surfId === 'guardrails') {
-            setSurface('mesh');
-            setMeshTab('guardrails');
-          } else if (surfId === 'models') {
-            setSurface('mesh');
-            setMeshTab('models');
-          } else if (surfId === 'labs') {
-            setSurface('mesh');
-            setMeshTab('labs');
-          } else if (surfId === 'settings') {
-            setSurface('mesh');
-            setMeshTab('settings');
-          } else {
-            handleSelectDockSurface(surfId as DockSurface);
-          }
-        }}
+        onSelectSurface={navigateToTarget}
         onNewCampaign={handleCreateSession}
         onEmergencyAbort={handleEmergencyAbort}
         onOpenAbout={() => setIsAboutOpen(true)}
+        onToggleCopilot={() => setShowCopilot((v) => !v)}
+        onOpenShortcuts={() => setIsShortcutsOpen(true)}
       />
       <KeyboardShortcutsModal
         isOpen={isShortcutsOpen}
@@ -484,9 +627,25 @@ export default function Home() {
       />
       <NewCampaignModal
         isOpen={isNewCampaignModalOpen}
-        onClose={() => setIsNewCampaignModalOpen(false)}
+        // A refused creation latches createFailedRef: the modal calls onClose
+        // right after onCreate resolves, and closing there would swallow the
+        // verbatim failure. Refuse the close; the error renders below.
+        onClose={() => {
+          if (createFailedRef.current) return;
+          setCreateError(null);
+          setIsNewCampaignModalOpen(false);
+        }}
         onCreate={handleConfirmCreateCampaign}
       />
+      {isNewCampaignModalOpen && createError && (
+        <div
+          data-testid="create-campaign-error"
+          role="alert"
+          className="fixed top-6 left-1/2 -translate-x-1/2 z-[60] max-w-lg px-4 py-2.5 rounded-2xl bg-rose-950/95 border border-rose-500/40 text-rose-100 text-xs shadow-2xl"
+        >
+          {createError}
+        </div>
+      )}
 
       {/* Icon-only sovereign dock */}
       <SovereignDock
@@ -497,8 +656,26 @@ export default function Home() {
         onOpenCampaigns={() => setShowCampaignMenu((v) => !v)}
       />
 
-      {/* Campaign menu (avatar popover) */}
-      {showCampaignMenu && (
+      {/* Campaign menu (avatar popover) — grouped by tenant, filterable.
+          Tenant ids ride on the already-loaded sessions (same pattern as
+          LabsView's byLab grouping); no extra fetch, no lab-metadata
+          dependency — LabsView stays the source of truth for lab state. */}
+      {showCampaignMenu ? (() => {
+        const q = campaignFilter.trim().toLowerCase();
+        const matches = (s: Session) =>
+          q === '' ||
+          (s.title || '').toLowerCase().includes(q) ||
+          s.id.toLowerCase().includes(q) ||
+          (s.tenant_id || 'default').toLowerCase().includes(q);
+        const groups = new Map<string, Session[]>();
+        for (const s of sessions) {
+          if (!matches(s)) continue;
+          const tenant = s.tenant_id || 'default';
+          if (!groups.has(tenant)) groups.set(tenant, []);
+          groups.get(tenant)!.push(s);
+        }
+        const ordered = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
+        return (
         <div className="absolute left-20 bottom-6 z-50 w-80 rounded-2xl bg-[#0E1117]/95 backdrop-blur-2xl border border-white/10 shadow-2xl p-3 space-y-2">
           <div className="flex items-center justify-between px-1">
             <span className="text-[10px] font-code uppercase tracking-wider text-slate-400">
@@ -508,15 +685,32 @@ export default function Home() {
               onClick={() => { setShowCampaignMenu(false); handleCreateSession(); }}
               className="flex items-center gap-1 px-2 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 text-[11px] hover:bg-cyan-500/25 transition-all"
             >
-              <Plus className="w-3 h-3" /> New <kbd className="font-code text-[9px]">⌘N</kbd>
+              <Plus className="w-3 h-3" /> New <kbd className="font-code text-[9px]">{SHORTCUTS.newCampaign}</kbd>
             </button>
           </div>
-          <div className="max-h-64 overflow-y-auto space-y-1.5">
-            {sessions.map((s) => {
-              const isSelected = s.id === currentSessionId;
-              const spend = s.current_spend_usd || 0;
-              const limit = s.spend_limit_usd || 150;
-              return (
+          <input
+            data-testid="campaign-filter"
+            type="text"
+            value={campaignFilter}
+            onChange={(e) => setCampaignFilter(e.target.value)}
+            placeholder="Filter by title or lab…"
+            aria-label="Filter campaigns by title or lab"
+            className="w-full px-2.5 py-1.5 rounded-xl bg-black/40 border border-white/10 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-cyan-400/50"
+          />
+          <div className="max-h-64 overflow-y-auto space-y-3">
+            {ordered.length === 0 && (
+              <div className="text-[11px] text-slate-500 px-1 py-2">No campaigns match.</div>
+            )}
+            {ordered.map(([tenant, list]) => (
+              <div key={tenant} className="space-y-1.5">
+                <div className="px-1 text-[10px] font-code uppercase tracking-wider text-slate-500">
+                  Lab: {tenant} ({list.length})
+                </div>
+                {list.map((s) => {
+                  const isSelected = s.id === currentSessionId;
+                  const spend = s.current_spend_usd || 0;
+                  const limit = s.spend_limit_usd || 150;
+                  return (
                 <div key={s.id} className="relative group">
                   <button
                     onClick={() => { switchSession(s.id); setShowCampaignMenu(false); }}
@@ -544,7 +738,9 @@ export default function Home() {
                   </button>
                 </div>
               );
-            })}
+                })}
+              </div>
+            ))}
           </div>
           <div className="flex items-center justify-between pt-2 border-t border-white/[0.06] text-[11px]">
             <button onClick={() => { setShowCampaignMenu(false); handleEmergencyAbort(); }} className="flex items-center gap-1.5 text-red-300 hover:text-red-200 transition-colors">
@@ -558,12 +754,19 @@ export default function Home() {
             </button>
           </div>
         </div>
-      )}
+        );
+      })() : null}
 
       {/* Center stage */}
       <div className="flex-1 flex flex-col min-w-0 relative grid-bg">
         {/* U1-a: backend liveness always visible — distinguishes "empty"
             from "backend down" on every surface below. */}
+        <SessionExpiredBanner
+          onOpenLabs={() => {
+            setSurface('mesh');
+            setMeshTab('labs');
+          }}
+        />
         <BackendStatusBar />
         <CheckInStrip loops={loops} />
         {surface === 'arena' && (
@@ -571,8 +774,8 @@ export default function Home() {
             <ArenaHud
               targetLabel={targetLabel}
               swarmDetail={runPhase === 'idle' ? 'idle · at rest' : `${loops.length} Loops Live`}
-              view={arenaView}
-              onViewChange={setArenaView}
+                view={arenaView}
+                onViewChange={handleArenaViewChange}
               spendUsd={session?.current_spend_usd ?? 0}
               spendCapUsd={session?.spend_limit_usd ?? 150}
               sessionElapsed={session ? formatElapsed(session.created_at) : '00:00:00'}
@@ -586,11 +789,9 @@ export default function Home() {
             {arenaView === 'proof-dag' && !showLegacyCanvas && (
               <ProofDagView campaign={campaign} />
             )}
-            {arenaView === 'hardware-qpu' && !showLegacyCanvas && (
-              <div className="absolute inset-0 overflow-y-auto pt-20 px-6 pb-6">
-                <FleetRadar campaign={campaign} />
-              </div>
-            )}
+            {/* hardware-qpu intentionally renders no second FleetRadar here:
+                handleArenaViewChange jumps to the dock fleet surface instead
+                (single mount, single poller — see FleetRadar double-mount). */}
             {showLegacyCanvas && (
               <div className="absolute inset-0 overflow-y-auto pt-20 px-6 pb-6 bg-[#07080B]/95">
                 <div className="flex items-center justify-end max-w-6xl mx-auto pb-2">
@@ -748,7 +949,7 @@ export default function Home() {
         <button
           onClick={() => setShowCopilot(true)}
           className="fixed bottom-6 right-6 z-40 px-4 py-2.5 rounded-full bg-[#0C101A] border border-cyan-500/40 hover:border-cyan-400 text-white shadow-2xl backdrop-blur-2xl flex items-center space-x-2.5 group transition-all duration-200 hover:scale-105 active:scale-95"
-          title="Open Kubona Copilot (⌘J)"
+          title={`Open Kubona Copilot (${SHORTCUTS.copilot})`}
         >
           <div className="relative">
             <Sparkles className="w-4 h-4 text-cyan-400 animate-float-gentle" />
@@ -758,7 +959,7 @@ export default function Home() {
             Kubona Copilot
           </span>
           <kbd className="px-1.5 py-0.5 rounded bg-black/50 text-[10px] font-code text-cyan-300 border border-white/10">
-            ⌘J
+            {SHORTCUTS.copilot}
           </kbd>
         </button>
       )}
