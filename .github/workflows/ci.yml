@@ -424,7 +424,7 @@ jobs:
       # U0: the 103 vitest tests + eslint previously ran nowhere in CI —
       # the console could rot green while build-only stayed green. Test
       # first (fastest signal), then lint, then build.
-      - run: pnpm test
+      - run: pnpm test:coverage
       - run: pnpm lint
       - run: pnpm build
 

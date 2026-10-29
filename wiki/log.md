@@ -3841,3 +3841,10 @@ skipped is the exact failure this incident is about:
   - `configureApiBase` retries a transient network/5xx failure after 5s;
     a valid config or a 4xx (older bundle/static export) still pins the
     answer, so a missing route cannot hammer the console.
+
+## [2026-10-29] implementation | Console coverage floor
+
+  - Add `@vitest/coverage-v8` and `pnpm test:coverage`; the console CI job
+    now enforces hold-the-line floors. Measured 54.5/55.3/52.6/57.1
+    statements/branches/functions/lines; floors 53/54/51/56. Raise after a
+    sustained green run; never lower to make a red pass.
