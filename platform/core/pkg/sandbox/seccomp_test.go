@@ -8,7 +8,9 @@ package sandbox
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -123,7 +125,7 @@ func TestEmbeddedProfileMatchesBridgeCanonical(t *testing.T) {
 
 func TestDockerArgsApplySeccompDefaultOn(t *testing.T) {
 	r := &SandboxRunner{cfg: DefaultConfig()}
-	args := r.dockerArgs("/bench", "/work", "/tmp/scratch/seccomp-profile.json")
+	args := r.dockerArgs("/bench", "/work", "/tmp/scratch/seccomp-profile.json", "deadbeef0123")
 	joined := strings.Join(args, " ")
 	if !strings.Contains(joined, "--security-opt seccomp=/tmp/scratch/seccomp-profile.json") {
 		t.Fatalf("default-on seccomp flag missing from docker args: %q", joined)
@@ -279,5 +281,138 @@ func TestLiveSeccompDeniesInetAtSyscall(t *testing.T) {
 	}
 	if res.ExitCode != 0 || !strings.Contains(res.Stdout, "UNIX_OK") {
 		t.Fatalf("AF_UNIX must keep working (stdout %q, stderr %q)", res.Stdout, res.Stderr)
+	}
+}
+
+func TestDockerArgsNameAndLabelContainers(t *testing.T) {
+	r := &SandboxRunner{cfg: DefaultConfig()}
+	args := r.dockerArgs("/bench", "/work", "/tmp/scratch/seccomp-profile.json", "aabbccddeeff0011")
+	joined := strings.Join(args, " ")
+	if !strings.Contains(joined, "--name kubona-sandbox-aabbccdd") {
+		t.Fatalf("container must be named kubona-sandbox-<8hex>: %q", joined)
+	}
+	if !strings.Contains(joined, "--label kubona.managed=sandbox") {
+		t.Fatalf("container must carry the managed label: %q", joined)
+	}
+	if !strings.Contains(joined, "--label kubona.run-id=aabbccddeeff0011") {
+		t.Fatalf("container must carry the run id label: %q", joined)
+	}
+	if r.dockerArgs("/bench", "/work", "/tmp/scratch/seccomp-profile.json", "") != nil {
+		t.Fatal("empty run id must refuse the build (no unnamed containers)")
+	}
+}
+
+func managedNames(t *testing.T) map[string]bool {
+	t.Helper()
+	out, err := exec.Command("docker", "ps", "-a", "--filter",
+		"label=kubona.managed=sandbox", "--format", "{{.Names}}").Output()
+	if err != nil {
+		t.Fatalf("docker ps failed: %v", err)
+	}
+	names := map[string]bool{}
+	for _, n := range strings.Fields(string(out)) {
+		names[n] = true
+	}
+	return names
+}
+
+func managedNamesSince(t *testing.T, before map[string]bool) map[string]bool {
+	t.Helper()
+	now := managedNames(t)
+	for n := range before {
+		delete(now, n)
+	}
+	return now
+}
+
+func waitGone(names map[string]bool, timeout time.Duration) map[string]bool {
+	deadline := time.Now().Add(timeout)
+	remaining := map[string]bool{}
+	for k := range names {
+		remaining[k] = true
+	}
+	for len(remaining) > 0 && time.Now().Before(deadline) {
+		time.Sleep(time.Second)
+		cur := managedNamesRaw()
+		next := map[string]bool{}
+		for k := range remaining {
+			if cur[k] {
+				next[k] = true
+			}
+		}
+		remaining = next
+	}
+	return remaining
+}
+
+func managedNamesRaw() map[string]bool {
+	out, err := exec.Command("docker", "ps", "-a", "--filter",
+		"label=kubona.managed=sandbox", "--format", "{{.Names}}").Output()
+	if err != nil {
+		return map[string]bool{}
+	}
+	names := map[string]bool{}
+	for _, n := range strings.Fields(string(out)) {
+		names[n] = true
+	}
+	return names
+}
+
+func TestTimeoutKillsContainerNotJustClient(t *testing.T) {
+	cfg := DefaultConfig()
+	cfg.Timeout = 8 * time.Second
+	runner := &SandboxRunner{cfg: cfg, useDocker: true}
+	if out, err := exec.Command("docker", "image", "inspect", cfg.Image).CombinedOutput(); err != nil {
+		t.Skipf("pinned image %s absent: %s", cfg.Image, strings.TrimSpace(string(out)))
+	}
+	before := managedNames(t)
+	res, err := runner.ExecutePython("while True:\n pass")
+	if err == nil {
+		t.Fatal("infinite loop must time out")
+	}
+	if !errors.Is(err, ErrExecutionTimeout) {
+		t.Fatalf("timeout must surface ErrExecutionTimeout, got: %v", err)
+	}
+	if res == nil || res.ExitCode != 124 {
+		t.Fatalf("timeout must report exit 124, got: %+v", res)
+	}
+	if leaked := waitGone(managedNamesSince(t, before), 30*time.Second); len(leaked) != 0 {
+		names := []string{}
+		for n := range leaked {
+			names = append(names, n)
+		}
+		t.Fatalf("orphaned sandbox containers: %v", names)
+	}
+}
+
+func TestReaperSweepsLabelScopedOrphansOnly(t *testing.T) {
+	if out, err := exec.Command("docker", "info").CombinedOutput(); err != nil {
+		t.Skipf("docker daemon not available: %s", strings.TrimSpace(string(out)))
+	}
+	name := "kubona-sandbox-reaptest001"
+	out, err := exec.Command("docker", "run", "-d", "--rm",
+		"--label", "kubona.managed=sandbox",
+		"--label", "kubona.run-id=reaptest001",
+		"--name", name, "--entrypoint", "sleep",
+		DefaultRunnerImage, "300").CombinedOutput()
+	if err != nil {
+		t.Skipf("cannot plant sleeper (image %s?): %s", DefaultRunnerImage, strings.TrimSpace(string(out)))
+	}
+	defer exec.Command("docker", "rm", "-f", name).Run()
+	// Let the planted container age past the threshold (a fresh container
+	// younger than maxAge is correctly left alone).
+	time.Sleep(1500 * time.Millisecond)
+	reaped := ReapStaleSandboxes(time.Second)
+	found := false
+	for _, n := range reaped {
+		if n == name {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("reaper missed the planted orphan: %v", reaped)
+	}
+	if left := waitGone(map[string]bool{name: true}, 30*time.Second); len(left) != 0 {
+		t.Fatalf("reaped container still present: %v", left)
 	}
 }

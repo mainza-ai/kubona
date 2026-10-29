@@ -3,7 +3,9 @@ package sandbox
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	_ "embed"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
@@ -11,6 +13,21 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+)
+
+// Sandbox container identity (shared with the Python rail
+// platform/kubona/sandbox/execution.py, which selects the same label):
+// every container gets --name kubona-sandbox-<8 hex> and the
+// kubona.managed=sandbox label, so the timeout path can stop exactly its
+// own container and the reaper can sweep orphans — never unnamed. Killing
+// the `docker run` client does NOT stop the container (2026-10-29 orphan
+// incident: nine 100%-CPU workload.py containers from killed test
+// clients); only `docker stop <name>` does.
+const (
+	sandboxNamePrefix = "kubona-sandbox-"
+	sandboxManagedKey = "kubona.managed"
+	sandboxManagedVal = "sandbox"
+	sandboxRunIDKey   = "kubona.run-id"
 )
 
 // defaultSeccompProfile is the shipped Phase-2 seccomp profile, embedded so
@@ -249,7 +266,21 @@ func (r *SandboxRunner) ExecuteHarness(benchmarkScript, mutableArtifactName, mut
 	startTime := time.Now()
 
 	if r.useDocker {
-		args := r.dockerArgs(benchmarkDir, workspaceDir, profilePath)
+		// Best-effort orphan sweep before each run (never fails the run).
+		// Threshold is deliberately hours, not seconds: parallel legit
+		// runs must never be reaped (a zero threshold would eat a sibling
+		// worker's container); the timeout path below handles same-run
+		// cleanup deterministically, the reaper only the crash case.
+		_ = ReapStaleSandboxes(time.Hour)
+		runID := newRunID()
+		if runID == "" {
+			return nil, fmt.Errorf("cannot mint sandbox run id: refusing unnamed container (fail closed)")
+		}
+		cname := sandboxName(runID)
+		args := r.dockerArgs(benchmarkDir, workspaceDir, profilePath, runID)
+		if args == nil {
+			return nil, fmt.Errorf("cannot build named sandbox invocation: refusing unnamed container (fail closed)")
+		}
 
 		cmd := exec.CommandContext(ctx, "docker", args...)
 		setProcessGroup(cmd)
@@ -265,9 +296,18 @@ func (r *SandboxRunner) ExecuteHarness(benchmarkScript, mutableArtifactName, mut
 
 		exitCode := 0
 		if runErr != nil {
-			if exitErr, ok := runErr.(*exec.ExitError); ok {
-				exitCode = exitErr.ExitCode()
-			} else if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+			// Deadline first: when OUR context expired the run timed out,
+			// regardless of what the kill produced (a signal-killed process
+			// surfaces as *exec.ExitError with ExitCode -1 — checking the
+			// type first would misclassify every timeout as exit -1 with
+			// no error, which is exactly how the orphan class hid: no
+			// timeout verdict, no container stop).
+			if errors.Is(ctx.Err(), context.DeadlineExceeded) {
+				// Killing the `docker run` client does NOT stop the
+				// container (2026-10-29 orphan incident) — stop the NAMED
+				// container itself. Best-effort: the verdict stays
+				// timeout either way.
+				stopSandboxContainer(cname)
 				return &ExecutionResult{
 					Stderr:       "Execution timed out in sandbox",
 					ExitCode:     124,
@@ -276,6 +316,9 @@ func (r *SandboxRunner) ExecuteHarness(benchmarkScript, mutableArtifactName, mut
 					IsolationTag: "docker-hardened",
 					Error:        ErrExecutionTimeout.Error(),
 				}, ErrExecutionTimeout
+			}
+			if exitErr, ok := runErr.(*exec.ExitError); ok {
+				exitCode = exitErr.ExitCode()
 			} else {
 				exitCode = 1
 			}
@@ -399,9 +442,96 @@ func (r *SandboxRunner) resolveSeccompProfile(tmpDir string) (string, error) {
 // with NemoClaw / OpenClaw. profilePath is always a concrete profile file
 // (see resolveSeccompProfile) — the seccomp flag is unconditional
 // (Phase-2 default-on); seccomp=unconfined is never emitted.
-func (r *SandboxRunner) dockerArgs(benchmarkDir, workspaceDir, profilePath string) []string {
+// newRunID mints a per-execution hex id (fail-closed callers treat an
+// empty id as "cannot name, cannot run").
+func newRunID() string {
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return ""
+	}
+	return hex.EncodeToString(b[:])
+}
+
+// sandboxName derives the container name from a run id.
+func sandboxName(runID string) string {
+	if len(runID) > 8 {
+		runID = runID[:8]
+	}
+	return sandboxNamePrefix + runID
+}
+
+// stopSandboxContainer force-stops one named sandbox container (best
+// effort: returns false instead of failing the caller on any error).
+func stopSandboxContainer(name string) bool {
+	if name == "" {
+		return false
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "docker", "stop", "-t", "0", name)
+	return cmd.Run() == nil
+}
+
+// ReapStaleSandboxes stops label-scoped sandbox containers older than
+// maxAge (default 1h when <=0). Only kubona.managed=sandbox containers
+// are ever matched — never unlabelled ones. Normal runs last seconds, so
+// anything older is an orphan by construction (client killed mid-run
+// after the container started). Best-effort: daemon errors yield an
+// empty list, never an error (callers must not fail a run because a
+// cleanup sweep failed).
+func ReapStaleSandboxes(maxAge time.Duration) []string {
+	if maxAge <= 0 {
+		maxAge = time.Hour
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	out, err := exec.CommandContext(ctx, "docker", "ps", "-q",
+		"--filter", "label="+sandboxManagedKey+"="+sandboxManagedVal).Output()
+	if err != nil {
+		return nil
+	}
+	var reaped []string
+	cutoff := time.Now().Add(-maxAge)
+	for _, id := range strings.Fields(string(out)) {
+		inspectCtx, inspectCancel := context.WithTimeout(context.Background(), 30*time.Second)
+		raw, err := exec.CommandContext(inspectCtx, "docker", "inspect",
+			"-f", "{{.Name}} {{.Created}}", id).Output()
+		inspectCancel()
+		if err != nil {
+			continue
+		}
+		fields := strings.Fields(string(raw))
+		if len(fields) != 2 {
+			continue
+		}
+		created, err := time.Parse(time.RFC3339Nano, fields[1])
+		if err != nil {
+			continue
+		}
+		if created.After(cutoff) {
+			continue
+		}
+		name := strings.TrimPrefix(fields[0], "/")
+		if stopSandboxContainer(name) {
+			reaped = append(reaped, name)
+		}
+	}
+	return reaped
+}
+
+// dockerArgs builds the hardened container invocation. runID names the
+// container (kubona-sandbox-<8hex>) and labels it for the timeout path
+// and the reaper — unnamed containers are unreapable (2026-10-29 orphan
+// incident); empty runID refuses the build rather than emitting one.
+func (r *SandboxRunner) dockerArgs(benchmarkDir, workspaceDir, profilePath, runID string) []string {
+	if runID == "" {
+		return nil
+	}
 	args := []string{
 		"run", "--rm",
+		"--name", sandboxName(runID),
+		"--label", sandboxManagedKey + "=" + sandboxManagedVal,
+		"--label", sandboxRunIDKey + "=" + runID,
 		"--read-only",
 		"--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",
 		"--cap-drop=ALL",
