@@ -154,11 +154,12 @@ describe('SpatialCanvas', () => {
       observatoryBtn!.props.onClick();
     });
 
+    // Wave-3 code-split: three.js stays off first paint, so the observatory
+    // branch renders the honest loading skeleton (never blank) instead of
+    // the 3D scene synchronously. Full 3D content is pinned in
+    // SpatialCanvas3D.test.tsx, which imports the module directly.
     text = textOf(tree!.toJSON());
-    expect(text).toContain('Potential Energy Surface');
-    expect(text).toContain('World Labs Atlas Lens');
-    expect(text).toContain('Vault Ghost');
-    expect(text).toContain('ρ = 0.92');
+    expect(text).toContain('Loading 3D observatory…');
   });
 
   it('renders missing synthesizability as missing, never as a flattering grade (H2)', async () => {
@@ -246,11 +247,41 @@ describe('SpatialCanvas', () => {
       observatoryBtn!.props.onClick();
     });
 
+    // Wave-3 code-split: the observatory branch renders the loading
+    // skeleton first (the Vault panel itself lives in SpatialCanvas3D,
+    // covered directly in SpatialCanvas3D.test.tsx).
     const text = textOf(tree!.toJSON());
-    // P3: ledger-bound pre-registration surface (no sealed prediction in
-    // this fixture, so the ghost reads illustrative and sealing is offered).
-    expect(text).toContain('Vault Pre-registration');
-    expect(text).toContain('No sealed prediction');
-    expect(text).toContain('Seal');
+    expect(text).toContain('Loading 3D observatory…');
+  });
+});
+
+describe('SpatialCanvas Wave-3 code-split', () => {
+  const campaign = {
+    target_system: 'H2',
+    classical_anchor: { anchor_computed: true, fci_exact_energy: -1.137 },
+  } as unknown as CampaignState;
+
+  it('workbench first paint never mounts the 3D fallback', async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<SpatialCanvas campaign={campaign} />);
+    });
+    // three.js stays unloaded: no observatory skeleton on first paint.
+    expect(textOf(tree!.toJSON())).not.toContain('Loading 3D observatory…');
+  });
+
+  it('observatory fallback is an honest skeleton, never blank', async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<SpatialCanvas campaign={campaign} />);
+    });
+    const buttons = tree!.root.findAllByType('button');
+    const observatoryBtn = buttons.find((b) => textOf(b.props.children).includes('3D Observatory'));
+    await act(async () => {
+      observatoryBtn!.props.onClick();
+    });
+    const withStatus = tree!.root.findAllByProps({ role: 'status' });
+    expect(withStatus.length).toBeGreaterThan(0);
+    expect(textOf(tree!.toJSON())).toContain('Loading 3D observatory…');
   });
 });

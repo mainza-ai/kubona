@@ -87,7 +87,14 @@ export async function encodeDepthEXR(depthTopDown: Float32Array, width: number, 
   }
   const tex = new THREE.DataTexture(rgba, width, height, THREE.RGBAFormat, THREE.FloatType);
   tex.needsUpdate = true;
-  return new EXRExporter().parse(tex, { compression: 0 });
+  // Wave-3 heap hygiene: EXRExporter.parse reads the texture synchronously,
+  // so dispose the GPU-side DataTexture immediately after parse — otherwise
+  // every chisel dispatch leaks one 1280x720 RGBA float texture.
+  try {
+    return new EXRExporter().parse(tex, { compression: 0 });
+  } finally {
+    tex.dispose();
+  }
 }
 
 /**

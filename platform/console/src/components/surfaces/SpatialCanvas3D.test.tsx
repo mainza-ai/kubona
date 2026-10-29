@@ -1,7 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { SpatialCanvas3D } from './SpatialCanvas3D';
+import {
+  SpatialCanvas3D,
+  WEBGL_UNAVAILABLE_MESSAGE,
+  roundHoverReading,
+  hoverReadingChanged,
+  initialPixelRatioCap,
+  touchProbeHint,
+} from './SpatialCanvas3D';
 import type { CampaignState } from '@/types';
 
 // F-14: no hardcoded price may appear in idle chrome. Cost figures surface
@@ -112,5 +119,41 @@ describe('observatory anchor honesty (H1)', () => {
     const text = textOf(tree!.toJSON());
     expect(text).toContain('ρ = 0.92');
     expect(text).not.toContain('UNVERIFIED terrain — illustrative');
+  });
+});
+
+describe('observatory Wave-3 contracts (pure helpers, no DOM/GL)', () => {
+  it('fail-closed message names the 2D fallback', () => {
+    expect(WEBGL_UNAVAILABLE_MESSAGE).toBe('3D unavailable — 2D workbench below');
+  });
+
+  it('roundHoverReading quantizes to display precision', () => {
+    // 4dp on R, 5dp on energy — the exact precision the HUD renders.
+    expect(roundHoverReading(0.74146, -1.137001)).toEqual({ r: 0.7415, energy: -1.137 });
+    expect(roundHoverReading(1.59567, -7.8820123)).toEqual({ r: 1.5957, energy: -7.88201 });
+  });
+
+  it('hoverReadingChanged fires only on real rounded change', () => {
+    expect(hoverReadingChanged(null, { r: 1, energy: 2 })).toBe(true);
+    // Sub-display-precision jitter collapses after rounding.
+    const a = roundHoverReading(0.74141, -1.137);
+    const b = roundHoverReading(0.74142, -1.137);
+    expect(hoverReadingChanged(a, b)).toBe(false);
+    expect(hoverReadingChanged(a, roundHoverReading(0.75, -1.137))).toBe(true);
+    expect(hoverReadingChanged(a, roundHoverReading(0.7414, -1.2))).toBe(true);
+  });
+
+  it('initialPixelRatioCap honors the coarse-pointer 1.5 cap', () => {
+    expect(initialPixelRatioCap(3, true)).toBe(1.5);
+    expect(initialPixelRatioCap(1.25, true)).toBe(1.25);
+    expect(initialPixelRatioCap(3, false)).toBe(2);
+    expect(initialPixelRatioCap(1, false)).toBe(1);
+    expect(initialPixelRatioCap(NaN, false)).toBe(1);
+  });
+
+  it('touchProbeHint swaps to tap/drag copy on coarse pointers', () => {
+    expect(touchProbeHint(true)).toContain('Tap to pin');
+    expect(touchProbeHint(true)).toContain('drag to orbit');
+    expect(touchProbeHint(false)).toContain('Click terrain to pin');
   });
 });

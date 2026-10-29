@@ -32,14 +32,13 @@ import {
   uploadObservatoryAsset,
 } from '@/lib/api';
 import { ghostBandHeights, replayFrame } from '@/lib/vault-view';
-import { createFpsAccumulator, type FpsAccumulator } from '@/lib/fps';
+import { createFpsAccumulator, pixelRatioStepDown, COARSE_DPR_CAP, DESKTOP_DPR_CAP, type FpsAccumulator } from '@/lib/fps';
 import { buildPinPayload, pinValuesFromHit } from '@/lib/pin';
 import { useAttention } from '@/lib/attention-context';
-import {
-  buildTerrainHeightField,
-  encodeDepthEXR,
-  renderTerrainDepthGL,
-} from '@/lib/depth-encode';
+// Wave-3 code-split: the depth-encode chisel path (three + EXRExporter via
+// @/lib/depth-encode) is dynamically imported inside handleEncodeDepthChisel
+// so it never joins the first-paint bundle — or even the initial 3D chunk —
+// until the operator actually clicks "Depth Chisel".
 import {
   MORSE_WIDTH_A,
   dissociationEnergyHartree,
@@ -47,6 +46,46 @@ import {
   morseEnergyHartree,
   morseVisualHeight,
 } from '@/lib/morse';
+
+// Wave-3 pure helpers (hermetic — unit-tested, no DOM/GL):
+//
+// - WEBGL_UNAVAILABLE_MESSAGE: the single fail-closed string the panel
+//   renders when renderer creation throws or the GPU context is lost. The
+//   panel replaces the live-looking HUD entirely — never a blank canvas
+//   with live numbers.
+// - roundHoverReading / hoverReadingChanged: hover state updates only when
+//   the rounded (r, energy) actually changes, so mousemove storms collapse
+//   to meaningful updates under the rAF throttle.
+// - initialPixelRatioCap: coarse pointers (touch) start at 1.5, fine
+//   pointers at 2. Exported for tests; the mount effect applies it.
+// - touchProbeHint: coarse-pointer copy for the inspection probe.
+export const WEBGL_UNAVAILABLE_MESSAGE = '3D unavailable — 2D workbench below';
+
+export function roundHoverReading(r: number, energy: number): { r: number; energy: number } {
+  return {
+    r: Math.round(r * 10000) / 10000,
+    energy: Math.round(energy * 100000) / 100000,
+  };
+}
+
+export function hoverReadingChanged(
+  prev: { r: number; energy: number } | null,
+  next: { r: number; energy: number },
+): boolean {
+  if (!prev) return true;
+  return prev.r !== next.r || prev.energy !== next.energy;
+}
+
+export function initialPixelRatioCap(devicePixelRatio: number, isCoarsePointer: boolean): number {
+  const dpr = Number.isFinite(devicePixelRatio) && devicePixelRatio > 0 ? devicePixelRatio : 1;
+  return Math.min(dpr, isCoarsePointer ? COARSE_DPR_CAP : DESKTOP_DPR_CAP);
+}
+
+export function touchProbeHint(isCoarsePointer: boolean): string {
+  return isCoarsePointer
+    ? 'Tap to pin, drag to orbit.'
+    : 'Click terrain to pin coordinates into active campaign.';
+}
 
 export interface SpatialCanvas3DProps {
   campaign?: CampaignState | null;
@@ -101,6 +140,30 @@ export function SpatialCanvas3D({
   const fpsRef = useRef<FpsAccumulator | null>(null);
   const [selectedCoordinates, setSelectedCoordinates] = useState<{ r: number; energy: number; ledgerHash: string | null } | null>(null);
   const [hoveredCoordinates, setHoveredCoordinates] = useState<{ r: number; energy: number } | null>(null);
+  // Wave-3 WebGL fail-closed: renderer creation throws (or the GPU context
+  // is lost) → this carries the message and the render below swaps the
+  // entire live HUD for the fail-closed panel. Never a blank canvas with
+  // live-looking numbers.
+  const [webglError, setWebglError] = useState<string | null>(null);
+  // Wave-3 mobile: coarse pointers (touch) get a 1.5 DPR cap + touch copy.
+  // Lazy initializer (not an effect) so SSR/test-renderer (no window)
+  // stays false without a set-state-in-effect.
+  const [isCoarsePointer, setIsCoarsePointer] = useState(
+    () =>
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(pointer: coarse)').matches,
+  );
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mq = window.matchMedia('(pointer: coarse)');
+    const onChange = (e: MediaQueryListEvent) => setIsCoarsePointer(e.matches);
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', onChange);
+      return () => mq.removeEventListener('change', onChange);
+    }
+    return undefined;
+  }, []);
 
   // P3: ledger-bound pre-registration. `sealed` is the latest sealed
   // expectation for this session (null = ghost stays illustrative);
@@ -414,6 +477,10 @@ export function SpatialCanvas3D({
     setChiselBusy(true);
     setChiselMsg(null);
     try {
+      // Wave-3: three + EXRExporter enter only here (dynamic import), so
+      // the chisel path never costs first paint — or initial 3D open.
+      const { buildTerrainHeightField, renderTerrainDepthGL, encodeDepthEXR } =
+        await import('@/lib/depth-encode');
       const N = 65;
       const W = 4.0;
       const heights = buildTerrainHeightField(N, W, De, fciGround);
@@ -621,11 +688,24 @@ export function SpatialCanvas3D({
         // drawing buffer may be cleared before toDataURL runs.
         preserveDrawingBuffer: true,
       });
-    } catch {
+    } catch (e) {
+      // Wave-3 fail-closed: no GL → no live-looking HUD. The panel below
+      // replaces the whole observatory chrome (message constant is exported
+      // for tests: WEBGL_UNAVAILABLE_MESSAGE). Deferred to a microtask so
+      // the mount effect never setStates synchronously (render-phase rules).
+      const message = (e as Error)?.message || 'WebGL unavailable';
+      queueMicrotask(() => setWebglError(message));
       return;
     }
 
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    // Wave-3 mobile: coarse pointers cap at 1.5 DPR; desktop caps at 2.
+    // Recomputed here (not from state) so the mount-time value is exact
+    // even before the coarse-pointer effect above commits.
+    const coarseNow =
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(pointer: coarse)').matches;
+    renderer.setPixelRatio(initialPixelRatioCap(window.devicePixelRatio || 1, coarseNow));
     renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 1.1;
@@ -908,6 +988,9 @@ export function SpatialCanvas3D({
     // Separate Drag/Orbit from Click
     let pointerDownPos = { x: 0, y: 0 };
     let isPointerDown = false;
+    // Declared early: the context-lost handler (below) must cancel the
+    // loop, and `let` bindings are TDZ-sensitive.
+    let animId = 0;
 
     const handlePointerDown = (e: MouseEvent) => {
       isPointerDown = true;
@@ -970,27 +1053,65 @@ export function SpatialCanvas3D({
       }
     };
 
-    const handlePointerMove = (e: MouseEvent) => {
-      // Don't raycast hover while orbiting/dragging
-      if (isPointerDown) return;
-
-      const rect = canvas.getBoundingClientRect();
-      pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
-      pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-
+    // Wave-3 hover: rAF-coalesce the mousemove raycast. Pointer events only
+    // stash NDC; a single rAF per frame does the raycast + setState, and
+    // setState fires only when the rounded (r, energy) actually changes.
+    // This collapses mousemove storms to ≤1 raycast/frame with no HUD churn.
+    let hoverRaf = 0;
+    const pendingPointer = { x: 0, y: 0, has: false };
+    const lastHoverRef: { current: { r: number; energy: number } | null } = { current: null };
+    const runHoverRaycast = () => {
+      hoverRaf = 0;
+      if (!pendingPointer.has) return;
+      pendingPointer.has = false;
+      pointer.x = pendingPointer.x;
+      pointer.y = pendingPointer.y;
       raycaster.setFromCamera(pointer, camera);
       const intersects = raycaster.intersectObject(terrainMesh);
       if (intersects.length > 0) {
         const pt = intersects[0].point;
         const deltaR = pt.x * 0.4;
         const curEq = propsRef.current.equilibriumR;
-        const rVal = curEq + deltaR;
-        const eVal = propsRef.current.computeEnergy(deltaR, pt.z);
-        setHoveredCoordinates({ r: rVal, energy: eVal });
-      } else {
+        const rounded = roundHoverReading(
+          curEq + deltaR,
+          propsRef.current.computeEnergy(deltaR, pt.z),
+        );
+        if (hoverReadingChanged(lastHoverRef.current, rounded)) {
+          lastHoverRef.current = rounded;
+          setHoveredCoordinates(rounded);
+        }
+      } else if (lastHoverRef.current !== null) {
+        lastHoverRef.current = null;
         setHoveredCoordinates(null);
       }
     };
+
+    const handlePointerMove = (e: MouseEvent) => {
+      // Don't raycast hover while orbiting/dragging
+      if (isPointerDown) return;
+
+      const rect = canvas.getBoundingClientRect();
+      pendingPointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      pendingPointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      pendingPointer.has = true;
+      if (hoverRaf === 0) {
+        hoverRaf = requestAnimationFrame(runHoverRaycast);
+      }
+    };
+
+    // Wave-3 fail-closed: a lost GPU context can never leave a blank canvas
+    // under a live-looking HUD. Prevent the default (which would allow a
+    // silent restore into a stale scene) and swap to the panel instead.
+    const handleContextLost = (e: Event) => {
+      e.preventDefault();
+      cancelAnimationFrame(animId);
+      if (hoverRaf !== 0) {
+        cancelAnimationFrame(hoverRaf);
+        hoverRaf = 0;
+      }
+      setWebglError('GPU context lost');
+    };
+    canvas.addEventListener('webglcontextlost', handleContextLost);
 
     canvas.addEventListener('pointerdown', handlePointerDown);
     window.addEventListener('pointerup', handlePointerUp);
@@ -1010,7 +1131,6 @@ export function SpatialCanvas3D({
     resizeObserver.observe(container);
 
     // Animation Render Loop
-    let animId: number;
     const startTime = performance.now();
     if (!fpsRef.current) fpsRef.current = createFpsAccumulator();
     const fpsAcc = fpsRef.current;
@@ -1019,7 +1139,14 @@ export function SpatialCanvas3D({
       animId = requestAnimationFrame(animate);
       const elapsed = (performance.now() - startTime) / 1000.0;
       const sample = fpsAcc.tick(performance.now());
-      if (sample) setFps(Math.round(sample.fps));
+      if (sample) {
+        setFps(Math.round(sample.fps));
+        // Wave-3 fps-driven step-down: when measured fps sags, drop the
+        // pixel ratio a notch (pure policy in @/lib/fps). One-way per
+        // sample so a single bad second can't collapse to MIN_DPR.
+        const stepped = pixelRatioStepDown(renderer.getPixelRatio(), sample.fps);
+        if (stepped !== renderer.getPixelRatio()) renderer.setPixelRatio(stepped);
+      }
 
       if (diamondMeshRef.current) {
         diamondMeshRef.current.rotation.y = elapsed * 0.8;
@@ -1034,10 +1161,12 @@ export function SpatialCanvas3D({
 
     return () => {
       cancelAnimationFrame(animId);
+      if (hoverRaf !== 0) cancelAnimationFrame(hoverRaf);
       resizeObserver.disconnect();
       canvas.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('pointerup', handlePointerUp);
       canvas.removeEventListener('mousemove', handlePointerMove);
+      canvas.removeEventListener('webglcontextlost', handleContextLost);
 
       controls.dispose();
       terrainGeo.dispose();
@@ -1078,6 +1207,25 @@ export function SpatialCanvas3D({
       renderer.dispose();
     };
   }, []); // Run ONCE on mount! Never tear down on state re-renders!
+
+  // Wave-3 fail-closed: renderer creation threw or the GPU context was
+  // lost. Render the panel INSTEAD of the canvas + live HUD — a blank
+  // WebGL canvas under live-looking numbers is the failure mode this
+  // replaces. The 2D workbench (parent) stays mounted below.
+  if (webglError) {
+    return (
+      <div
+        role="alert"
+        className="relative w-full h-full min-h-[520px] rounded-2xl overflow-hidden bg-[#07080B] border border-amber-400/30 flex flex-col items-center justify-center gap-2 p-8 text-center"
+      >
+        <span className="text-sm font-medium text-amber-200">{WEBGL_UNAVAILABLE_MESSAGE}</span>
+        <span className="text-[11px] font-mono text-slate-400 max-w-sm">
+          The GPU renderer could not start ({webglError}). Your campaign data
+          is intact — continue in the 2D workbench.
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -1187,12 +1335,14 @@ export function SpatialCanvas3D({
                 </div>
               )}
               <div className="text-[10px] text-slate-500 pt-1 border-t border-white/10">
-                Click terrain to pin coordinates into active campaign.
+                {touchProbeHint(isCoarsePointer)}
               </div>
             </div>
           ) : (
             <div className="font-code text-xs text-slate-400">
-              Hover or click anywhere on the PES landscape to read exact Hamiltonian coordinates.
+              {isCoarsePointer
+                ? 'Tap to pin, drag to orbit — Hamiltonian coordinates read out here.'
+                : 'Hover or click anywhere on the PES landscape to read exact Hamiltonian coordinates.'}
             </div>
           )}
         </div>

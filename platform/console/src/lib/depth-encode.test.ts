@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { buildTerrainHeightField, encodeDepthEXR, pinholeFromFov, topDownDepthFromReadback } from './depth-encode';
 import { parseLinearDepthEXR } from './depth';
 import { dissociationEnergyHartree, morseEnergyHartree, morseVisualHeight } from './morse';
@@ -84,5 +84,15 @@ describe('depth encoder', () => {
       // Half-float EXR: relative error up to ~5e-4 per the Atlas docs.
       expect(back.data[i]).toBeCloseTo(depth[i], 2);
     }
+  });
+
+  it('disposes the DataTexture after EXR parse (no heap leak per chisel)', async () => {
+    const disposeSpy = vi.spyOn(THREE.DataTexture.prototype, 'dispose');
+    const w = 4;
+    const h = 4;
+    const depth = new Float32Array(w * h).fill(2.5);
+    await encodeDepthEXR(depth, w, h);
+    expect(disposeSpy).toHaveBeenCalledTimes(1);
+    disposeSpy.mockRestore();
   });
 });

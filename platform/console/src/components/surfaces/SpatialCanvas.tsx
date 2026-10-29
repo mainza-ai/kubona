@@ -1,11 +1,34 @@
 'use client';
 
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import { Atom, Code, Copy, Check, Orbit } from 'lucide-react';
 import { CampaignState } from '@/types';
 import { fetchMolecularADMET, requestObservatoryLens, fetchObservatoryLensStatus, resolveObservatoryLens, fetchLensHistory, type LensHistoryOp } from '@/lib/api';
 import { dissociationEnergyHartree, equilibriumBondDistanceAngstrom, morseEnergyHartree } from '@/lib/morse';
-import { SpatialCanvas3D } from './SpatialCanvas3D';
+
+// Wave-3 code-split: three.js + EXR must not load on first paint for users
+// who never open 3D. The observatory (SpatialCanvas3D, which statically
+// pulls three + OrbitControls + the depth-encode chisel path) loads only
+// when canvasMode flips to 'observatory'. ssr:false because WebGL has no
+// server render; the loading fallback is an honest skeleton, never blank.
+// The illustrative/schematic gating below (canvasMode === 'observatory'
+// branch) is unchanged — only the import mechanism moved.
+const SpatialCanvas3D = dynamic(
+  () => import('./SpatialCanvas3D').then((m) => m.SpatialCanvas3D),
+  {
+    ssr: false,
+    loading: () => (
+      <div
+        role="status"
+        aria-label="Loading 3D observatory"
+        className="flex-1 flex items-center justify-center min-h-[520px] rounded-2xl border border-white/10 bg-[#07080B] animate-pulse"
+      >
+        <span className="text-xs font-mono text-slate-400">Loading 3D observatory…</span>
+      </div>
+    ),
+  },
+);
 
 interface SpatialCanvasProps {
   campaign?: CampaignState | null;
