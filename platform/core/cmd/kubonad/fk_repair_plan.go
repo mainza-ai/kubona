@@ -104,8 +104,8 @@ func buildFKRepairPlan(orphans []fkOrphan) fkRepairPlan {
 
 func classifyFKOrphan(table string) (class, recommendation string) {
 	switch table {
-	case "chat_messages":
-		return "content", "quarantine before delete; no spend fields, but messages may be evidence"
+	case "chat_messages", "campaign_states":
+		return "content", "quarantine before delete; no spend fields, but content may be evidence"
 	case "jobs":
 		return "spend", "manual review; may carry reservations, estimates, or mandate references"
 	case "loops":

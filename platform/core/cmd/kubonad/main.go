@@ -150,6 +150,9 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "fk-repair-plan" {
 		os.Exit(runFKRepairPlan(os.Args[2:]))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "fk-quarantine" {
+		os.Exit(runFKQuarantine(os.Args[2:]))
+	}
 
 	port := flag.Int("port", 8080, "HTTP API gateway port")
 	dbPath := flag.String("db", "", "Path to SQLite WAL ledger (default: ~/.kubona/kubona.db)")

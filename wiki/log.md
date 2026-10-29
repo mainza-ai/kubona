@@ -3863,3 +3863,12 @@ skipped is the exact failure this incident is about:
     prints counts and a policy, and never writes. Tests prove the row counts
     are unchanged after the plan. Actual quarantine/delete waits for operator
     approval because jobs/loops may carry spend or mandates.
+
+## [2026-10-29] implementation | FK orphan quarantine
+
+  - `kubonad fk-quarantine --db /abs/ledger.db` is dry-run by default;
+    `--apply` copies each full orphan row (JSON) to `_fk_orphans` and deletes
+    it from the live table in one transaction. Unknown tables refuse. Tests
+    prove dry-run writes nothing and apply preserves the orphan fields.
+    FK enforcement remains off until the operator applies the repair and
+    re-runs fk-audit.

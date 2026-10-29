@@ -103,6 +103,22 @@ deletes or re-parents a row. Jobs and loops may carry reservations or mandate
 references, so they need manual review. Take a verified backup first; the
 actual quarantine/delete is an explicit operator action.
 
+## Quarantine (explicit apply)
+
+```bash
+# Dry run: prints counts, writes nothing.
+kubonad fk-quarantine --db /home/kubona/.kubona/kubona.db
+
+# Apply: copies each full row to _fk_orphans, then deletes it from the live
+# table in one transaction. Refuses unknown tables. Does not enable FK.
+kubonad fk-quarantine --db /home/kubona/.kubona/kubona.db --apply
+```
+
+Stop the daemon first (the writer lock is exclusive), take a verified backup,
+and inspect the dry run. Jobs/loops keep their spend, estimate, and mandate
+fields in `_fk_orphans.row_json`; nothing is discarded. After a clean
+`fk-audit`, FK enforcement can be considered.
+
 ## Current limits
 
 The schema has no version table yet and the migration path is not
