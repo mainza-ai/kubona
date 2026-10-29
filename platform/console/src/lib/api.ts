@@ -2505,3 +2505,73 @@ export async function fetchLedgerExport(
   }
 }
 
+// ---------------------------------------------------------------------------
+// Wave-3 data layer (append-only block; every line above is untouched by
+// design — another workstream depends on this file's exact shape above).
+// ---------------------------------------------------------------------------
+
+// Single chokepoint for client-side error reporting. Today this logs via
+// console.error only; it is the future Sentry hook — wire Sentry here once
+// and every surface (incl. ErrorBoundary) reports through it, never via
+// ad-hoc console.error at call sites.
+// Future Sentry wiring (sketch — not a dependency, do not uncomment
+// without adding @sentry/nextjs):
+//   // Sentry.init({ dsn: process.env.NEXT_PUBLIC_SENTRY_DSN });
+//   // Sentry.withScope((scope) => {
+//   //   scope.setTag("context", context);
+//   //   Sentry.captureException(err);
+//   // });
+export function reportError(context: string, err: unknown): void {
+  console.error(`[kubona:${context}]`, err);
+}
+
+// Inflight GET coalescing keyed by URL + request headers. Concurrent
+// identical GETs share one fetch promise; the entry is deleted on settle
+// (fulfilled or rejected) so later calls re-fetch. Non-GET methods
+// (POST/PUT/DELETE, incl. an explicit method in init) never coalesce —
+// they always issue their own fetch.
+const dedupInflight = new Map<string, Promise<unknown>>();
+
+function dedupHeaderKey(init?: RequestInit): string {
+  const h = init?.headers;
+  if (!h) return '';
+  if (h instanceof Headers) {
+    return JSON.stringify([...h.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+  }
+  if (Array.isArray(h)) {
+    return JSON.stringify([...h].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
+  }
+  return JSON.stringify(
+    Object.entries(h as Record<string, string>).sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
+  );
+}
+
+function dedupKeyFor(url: string, init?: RequestInit): string {
+  return `${url}|${dedupHeaderKey(init)}`;
+}
+
+export function dedupedGet<T>(url: string, init?: RequestInit): Promise<T> {
+  const method = (init?.method ?? 'GET').toUpperCase();
+  if (method !== 'GET') {
+    return apiFetch(url, init ?? {}).then(async (res) => ((await res.json()) as T));
+  }
+  const key = dedupKeyFor(url, init);
+  const existing = dedupInflight.get(key);
+  if (existing) return existing as Promise<T>;
+  const pending: Promise<T> = apiFetch(url, { cache: 'no-store', ...init }).then(
+    async (res) => ((await res.json()) as T),
+  );
+  dedupInflight.set(key, pending);
+  const cleanup = (): void => {
+    if (dedupInflight.get(key) === pending) dedupInflight.delete(key);
+  };
+  pending.then(cleanup, cleanup);
+  return pending;
+}
+
+// Test-only: clears the inflight map between cases (module state must not
+// leak across suites).
+export function resetDedupForTests(): void {
+  dedupInflight.clear();
+}
+

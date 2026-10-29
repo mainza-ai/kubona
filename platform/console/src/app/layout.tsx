@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Plus_Jakarta_Sans, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -66,7 +67,7 @@ export default function RootLayout({
           Skip to main content
         </a>
         <h1 className="sr-only">Kubona Sovereign Console</h1>
-        <main id="main-content">{children}</main>
+        <main id="main-content"><ErrorBoundary>{children}</ErrorBoundary></main>
       </body>
     </html>
   );
