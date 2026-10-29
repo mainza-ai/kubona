@@ -729,6 +729,30 @@ mandate queue), dependabot branch triage. Toolchain note: go1.27.2
 coverage instrumentation counts differently than go1.27.1 (same tree:
 66.3% vs 74.4%) — floors re-baseline on every toolchain move.
 
+Phase 7 (Round-3 Phase-2) landed 2026-10-29 as `5e1a15d`, `ec3034d`,
+`6fb936c`, `54714a4`, `9521908` (five signed commits) on `develop`: explicit
+cross-tenant grants end to end (model + HTTP issue/revoke + Go read-path
+and Python gateway enforcement + same allow/deny matrix in both suites +
+fixed cross-language vector); Go tenants DB as the single durable registry
+with a read-only Python lookaside (byte-identical canonicals,
+rotation-safe, nanosecond expiries; fail-closed on any DB fault);
+per-tenant ledger sharding with union reads (public rows stay
+ambient-readable); tenant as first-class Principal field; ownership on the
+remaining dispatch tools; console credibility (HSTS non-loopback, live
+Sentinel predicate, tenant-default refusal, mounted flight card with
+measured latency); tested seccomp profile (live EPERM on AF_INET, env-gated
+for Go parity); deny-by-default local; strict numerics + per-request token;
+pinned extras; simulator-parity contract test; true README numbers
+(116/154/59 files+291 tests); surface budget 16KB→18KB with per-tool
+justification. Full gate green with all checks (run `40794054993`).
+REMAINING (still not production): operator deeds (reviewer key, R6 policy,
+mandate-review queue, EvidenceEnvelope regen, R-series confirmations, QPU
+credentials + first paid run), seccomp default-on across rails, ledger
+legacy-row cleanup migration, load-test proof of the flight budget, Trivy
+HIGH ratchet + Bandit/Gosec backlog, bridge-in-Python-coverage unification,
+7 dependabot branches (closed unmerged; deletion blocked by repo ruleset —
+needs an admin), wrong-arity hand-built-gate validation in transpile.
+
 ---
 
 ## Appendix
