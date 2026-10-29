@@ -31,14 +31,26 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
 
   const effectiveSessionId = sessionId || campaign?.session_id;
 
+  // Loading state: true until the first fetchEpistemics settles, so the
+  // illustrative fallback below never flashes as if it were session data.
+  // Session-change resets happen during render (campaign-key guard); the
+  // effect body only fetches (repo set-state-in-effect pattern).
+  const [epistemicsLoading, setEpistemicsLoading] = useState(() => Boolean(effectiveSessionId));
+  const [prevEpistemicSession, setPrevEpistemicSession] = useState<string | null>(null);
+  const epistemicSessionKey = effectiveSessionId ?? '';
+  if (epistemicSessionKey !== (prevEpistemicSession ?? '')) {
+    setPrevEpistemicSession(epistemicSessionKey);
+    setEpistemicsLoading(epistemicSessionKey !== '');
+  }
+
   useEffect(() => {
-    if (effectiveSessionId) {
-      fetchEpistemics(effectiveSessionId)
-        .then((d) => {
-          if (d && Object.keys(d).length > 0) setData(d as unknown as EpistemicResponse);
-        })
-        .catch((err) => console.error('Failed to load epistemics data:', err));
-    }
+    if (!effectiveSessionId) return;
+    fetchEpistemics(effectiveSessionId)
+      .then((d) => {
+        if (d && Object.keys(d).length > 0) setData(d as unknown as EpistemicResponse);
+      })
+      .catch((err) => console.error('Failed to load epistemics data:', err))
+      .finally(() => setEpistemicsLoading(false));
   }, [effectiveSessionId]);
 
   const liveClaim = campaign?.epistemics ? {
@@ -110,10 +122,10 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
           </div>
         </div>
 
-        <div className="flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-black/40 border border-white/10 backdrop-blur-xl">
-          <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          <span className="text-xs font-mono font-medium text-emerald-300">
-            Ring 1 Epistemic Gate Active
+        <div className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-black/40 border backdrop-blur-xl ${isVerified ? 'border-white/10' : 'border-amber-400/40'}`}>
+          <ShieldCheck className={`w-4 h-4 ${isVerified ? 'text-emerald-400' : 'text-amber-400'}`} />
+          <span className={`text-xs font-mono font-medium ${isVerified ? 'text-emerald-300' : 'text-amber-300'}`}>
+            {isVerified ? 'Ring 1 Epistemic Gate Active' : 'Gate unattested — no live claim'}
           </span>
         </div>
       </div>
@@ -145,8 +157,12 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
                 : 'bg-gradient-to-tr from-amber-600/80 via-orange-500/70 to-amber-400/90 animate-orb-curiosity text-white'
             }`}
           >
+            {/* H4: the headline % is the corroborated amplitude mass α (not the
+                squared probability α² shown in the deep-math panel below).
+                Labelling the basis keeps the number while disambiguating it —
+                coherent because both views now name which power of α they show. */}
             <div className="text-[10px] uppercase font-bold tracking-widest opacity-80">
-              Confidence
+              Confidence · α mass
             </div>
             <div className="text-3xl font-extrabold tracking-tight font-mono mt-0.5">
               {hasLive ? `${Math.round(alpha * 100)}%` : '—'}
@@ -154,9 +170,14 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
             <div className="text-[11px] font-medium opacity-90 mt-1">
               {hasLive ? (isVerified ? 'Verified True' : 'Evaluating') : 'Unverified'}
             </div>
-            {!hasLive && (
+            {!hasLive && !epistemicsLoading && (
               <div className="mt-1 px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-[9px] font-mono text-slate-300">
                 illustrative fallback — not session data
+              </div>
+            )}
+            {!hasLive && epistemicsLoading && (
+              <div className="mt-1 px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-[9px] font-mono text-slate-300 animate-pulse">
+                Loading epistemics…
               </div>
             )}
           </div>
@@ -188,7 +209,10 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
               <>No anchor measured for this session — corroboration unattested.</>
             )}
           </p>
-          {!hasLive && (
+          {!hasLive && epistemicsLoading && (
+            <p className="text-[10px] font-code text-slate-400 animate-pulse">Loading epistemics…</p>
+          )}
+          {!hasLive && !epistemicsLoading && (
             <p className="text-[10px] font-code text-slate-500">Fallback numbers below are illustrative — no live claim.</p>
           )}
         </div>

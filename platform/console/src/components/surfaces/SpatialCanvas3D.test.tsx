@@ -84,3 +84,33 @@ describe('observatory cost honesty (F-14)', () => {
     expect(textOf(tree!.toJSON())).not.toContain('Reserved $');
   });
 });
+
+describe('observatory anchor honesty (H1)', () => {
+  const anchorless = {
+    session_id: 'sess-anchorless',
+    target_system: 'H2',
+    // p_correlated present but no computed anchor: must never look computed.
+    epistemics: { p_correlated: 0.92 },
+  } as unknown as CampaignState;
+
+  it('anchorless terrain shows UNVERIFIED illustrative probe + uncomputed confidence', async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<SpatialCanvas3D campaign={anchorless} />);
+    });
+    const text = textOf(tree!.toJSON());
+    expect(text).toContain('UNVERIFIED terrain — illustrative');
+    expect(text).toContain('ρ uncomputed');
+    expect(text).not.toContain('ρ = 0.92');
+  });
+
+  it('anchored campaign shows the computed rho and no UNVERIFIED probe tag', async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<SpatialCanvas3D campaign={campaign} />);
+    });
+    const text = textOf(tree!.toJSON());
+    expect(text).toContain('ρ = 0.92');
+    expect(text).not.toContain('UNVERIFIED terrain — illustrative');
+  });
+});

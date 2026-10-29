@@ -62,6 +62,9 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
   }, [campaign?.quantum_factors?.bond_distance, campaign?.target_system]);
 
   const campaignBondDist = campaign?.quantum_factors?.bond_distance;
+  // H9: equilibriumR falls back to the Morse table when the campaign carries
+  // no bond distance — the reset label says so.
+  const equilibriumFromTable = campaignBondDist == null;
   const [userBondDistance, setUserBondDistance] = useState<number | null>(null);
   const [prevCampaignKey, setPrevCampaignKey] = useState<string>('');
 
@@ -78,6 +81,9 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
   const [circuitViewMode, setCircuitViewMode] = useState<'schematic' | 'qasm'>('schematic');
   const [copiedQasm, setCopiedQasm] = useState(false);
 
+  // H8: hardcoded map is a fallback only — the display tags it (inferred)
+  // whenever the campaign carries no SMILES of its own.
+  const smilesInferred = !campaign?.smiles;
   const targetSmiles = useMemo(() => {
     if (campaign?.smiles) return campaign.smiles;
     const sys = (campaign?.quantum_factors?.target_molecule || campaign?.target_system || 'H2').toUpperCase();
@@ -653,7 +659,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
                 onClick={() => setBondDistance(equilibriumR)}
                 className="text-xs text-cyan-400 hover:text-cyan-300 transition-colors font-semibold hover:underline"
               >
-                Reset to Equilibrium ({equilibriumR} Å)
+                Reset to Equilibrium ({equilibriumR} Å{equilibriumFromTable ? ' (table)' : ''})
               </button>
             </div>
             <input 
@@ -680,7 +686,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
                 <span>Molecular Pharmacology &amp; ADMET</span>
               </span>
               <span className="text-slate-400 font-mono text-[10px]">
-                SMILES: <code className="text-cyan-300">{targetSmiles}</code>
+                SMILES: <code className="text-cyan-300">{targetSmiles}</code>{smilesInferred ? ' (inferred)' : ''}
               </span>
             </div>
 
@@ -715,9 +721,9 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
 
                 <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
                   <div className="text-[10px] text-slate-400 uppercase">Synthesis</div>
-                  <div className="text-xs font-semibold text-emerald-300 mt-0.5 truncate" title={String(admetProfile.synthesizability || '')}>
-                    {String(admetProfile.synthesizability || 'High').split(' ')[0]}
-                  </div>
+                    <div className="text-xs font-semibold text-emerald-300 mt-0.5 truncate" title={String(admetProfile.synthesizability ?? '')}>
+                      {String(admetProfile.synthesizability ?? '—').split(' ')[0]}
+                    </div>
                 </div>
               </div>
             )}

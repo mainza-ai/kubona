@@ -2,6 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { SpatialCanvas } from './SpatialCanvas';
+import * as api from '@/lib/api';
 import type { CampaignState } from '@/types';
 
 afterEach(() => {
@@ -158,6 +159,67 @@ describe('SpatialCanvas', () => {
     expect(text).toContain('World Labs Atlas Lens');
     expect(text).toContain('Vault Ghost');
     expect(text).toContain('ρ = 0.92');
+  });
+
+  it('renders missing synthesizability as missing, never as a flattering grade (H2)', async () => {
+    vi.mocked(api.fetchMolecularADMET).mockResolvedValueOnce({
+      smiles: '[H][H]',
+      molecular_weight: 2.016,
+      clogp: 0.0,
+      tpsa: 0.0,
+      // no synthesizability key: missing must render as missing.
+    } as unknown as Awaited<ReturnType<typeof api.fetchMolecularADMET>>);
+    const campaign = {
+      target_system: 'H2',
+      classical_anchor: { anchor_computed: true, fci_exact_energy: -1.137 },
+    } as unknown as CampaignState;
+
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<SpatialCanvas campaign={campaign} />);
+    });
+
+    // The synthesis cell carries an empty title exactly when the value is
+    // missing (?? ''), so this pins the missing-renders-missing behavior.
+    const synthCell = tree!.root
+      .findAllByType('div')
+      .find((d) => d.props?.title === '' && typeof textOf(d.props.children) === 'string');
+    expect(synthCell).toBeDefined();
+    expect(textOf(synthCell!.props.children)).toBe('—');
+    expect(textOf(tree!.toJSON())).not.toContain('High');
+  });
+
+  it('tags inferred SMILES and table equilibrium (H8, H9)', async () => {
+    // No campaign SMILES and no bond distance: both fallbacks engage.
+    const campaign = {
+      target_system: 'H2',
+      classical_anchor: { anchor_computed: true, fci_exact_energy: -1.137 },
+    } as unknown as CampaignState;
+
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<SpatialCanvas campaign={campaign} />);
+    });
+
+    let text = textOf(tree!.toJSON());
+    expect(text).toContain('(inferred)');
+    expect(text).toContain('(table)');
+
+    // Campaign-supplied values: no fallback tags.
+    const live = {
+      target_system: 'H2',
+      smiles: '[H][H]',
+      quantum_factors: { target_molecule: 'H2', molecular_formula: 'H2', bond_distance: 0.7414 },
+      classical_anchor: { anchor_computed: true, fci_exact_energy: -1.137 },
+    } as unknown as CampaignState;
+
+    await act(async () => {
+      tree = TestRenderer.create(<SpatialCanvas campaign={live} />);
+    });
+
+    text = textOf(tree!.toJSON());
+    expect(text).not.toContain('(inferred)');
+    expect(text).not.toContain('(table)');
   });
 
   it('renders the Vault pre-registration panel in Observatory mode', async () => {

@@ -26,10 +26,19 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
   const [expandedBackend, setExpandedBackend] = useState<string | null>(null);
   const [refused, setRefused] = useState<string | null>(null);
   const backoffRef = useRef(1000);
+  // H5: mirror of backoffRef for honest liveness chrome (refs don't render).
+  const [pollIntervalMs, setPollIntervalMs] = useState(1000);
+  // Manual refresh affordance: bumping this restarts the effect below for an
+  // immediate fetch, since auto-poll alone makes staleness invisible.
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     let active = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    const noteBackoff = (ms: number) => {
+      backoffRef.current = ms;
+      setPollIntervalMs(ms);
+    };
     const pollRadar = async () => {
       // Visibility-gated: no polling when the tab is hidden.
       if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
@@ -42,16 +51,16 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
         if ((data as { refused?: boolean })?.refused) {
           setRefused((data as { refuse_reason?: string })?.refuse_reason || 'radar refused');
           setRadarEndpoints([]);
-          backoffRef.current = Math.min(backoffRef.current * 1.5, 15000);
+          noteBackoff(Math.min(backoffRef.current * 1.5, 15000));
         } else if (data?.radar_endpoints) {
           setRadarEndpoints(data.radar_endpoints as RadarEndpoint[]);
           setRefused(null);
-          backoffRef.current = 1000;
+          noteBackoff(1000);
         }
       } catch (err) {
         if (!active) return;
         setRefused(err instanceof Error ? err.message : String(err));
-        backoffRef.current = Math.min(backoffRef.current * 1.5, 15000);
+        noteBackoff(Math.min(backoffRef.current * 1.5, 15000));
       }
       if (active) timer = setTimeout(pollRadar, backoffRef.current);
     };
@@ -74,7 +83,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
       active = false;
       if (timer) clearTimeout(timer);
     };
-  }, []);
+  }, [refreshTick]);
 
   const filteredBackends = sovereignOnly
     ? backends.filter((b) => b.jurisdiction === 'LOCAL_SOVEREIGN' || (b.name || '').toLowerCase().includes('local'))
@@ -111,6 +120,17 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
         {/* Local-only list filter (display filter — enforcement lives in routing/admission) */}
         <div className="flex items-center space-x-3">
           <button
+            onClick={() => {
+              backoffRef.current = 1000;
+              setPollIntervalMs(1000);
+              setRefreshTick((t) => t + 1);
+            }}
+            title="Refresh fleet + radar now (auto-poll also runs)"
+            className="px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center space-x-2 border transition-all shadow-sm active:scale-95 bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-300"
+          >
+            <span>Refresh now</span>
+          </button>
+          <button
             onClick={() => setSovereignOnly(!sovereignOnly)}
             title="Filters this list to local backends; does not change enforcement"
             className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center space-x-2 border transition-all shadow-sm active:scale-95 ${
@@ -137,8 +157,8 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
       {/* Continuum Radar Strip */}
       <div className="p-4 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl space-y-3">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-semibold text-slate-300 uppercase tracking-wider font-mono text-[11px]">
-            Quantum Execution Continuum
+          <span className="font-semibold text-slate-300 uppercase tracking-wider font-mono text-[11px]" title="Vendor-declared continuum — not live canary data">
+            Quantum Execution Continuum (declared catalog)
           </span>
           {showEar99 && (
             <span className="text-slate-400 font-mono text-[10px] flex items-center space-x-1.5">
@@ -161,6 +181,9 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
               <p className="text-[11px] text-slate-400 leading-tight font-sans">
                 {t.desc}
               </p>
+              <p className="text-[9px] font-mono text-slate-500" title="Tier list is vendor-declared until live canary data backs it">
+                declared — not live canary data
+              </p>
             </div>
           ))}
         </div>
@@ -170,9 +193,9 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
       <div className="space-y-3">
         <div className="flex items-center justify-between text-xs font-semibold text-slate-300 font-mono uppercase tracking-wider">
           <span>Host Daemon Telemetry &amp; Gateway Links</span>
-          <span className="text-[10px] text-cyan-400 font-mono flex items-center space-x-1.5">
+          <span className="text-[10px] text-cyan-400 font-mono flex items-center space-x-1.5" title={`Current poll interval ${(pollIntervalMs / 1000).toFixed(1)}s — backs off to 15s on refusal/error`}>
             <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
-            <span>1000ms Live Telemetry Radar</span>
+            <span>Adaptive radar · {(pollIntervalMs / 1000).toFixed(1)}s interval (1s nominal, backs off)</span>
           </span>
         </div>
 
@@ -290,6 +313,9 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
             // the device may be fine, this daemon lacks credentials.
             const credState = (b.credential_state || '').toLowerCase();
             const noCreds = credState === 'credentialless';
+            // H6: queue/coherence/cost are only trustworthy when the daemon
+            // says how it got them — otherwise the card says UNPROVENANCED.
+            const unprovenanced = b.telemetry !== 'measured' && b.telemetry !== 'declared';
 
             return (
               <div
@@ -357,6 +383,11 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                     <span className="text-slate-300 block text-[11px] font-medium">Queue</span>
                     <strong className="text-amber-300 text-xs font-bold">{b.queue_depth} jobs</strong>
                   </div>
+                  {unprovenanced && (
+                    <div className="col-span-3 text-[9px] font-mono text-slate-400 border border-white/10 rounded px-1.5 py-0.5" title="Daemon reported no telemetry provenance — queue/coherence are neither measured nor declared">
+                      UNPROVENANCED — queue/coherence unprovenanced
+                    </div>
+                  )}
                 </div>
 
                 {/* Progressive Disclosure Toggle */}
@@ -378,7 +409,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                 {isExpanded && (
                   <div className="p-3.5 rounded-xl bg-black/70 border border-white/10 space-y-2 text-xs font-mono animate-fadeIn">
                     <div className="flex justify-between text-slate-300 font-medium">
-                      <span>Cost per Shot:</span>
+                      <span>Cost per Shot:{unprovenanced ? ' (UNPROVENANCED)' : ''}</span>
                       <strong className="text-emerald-300">${typeof b.cost_per_shot === 'number' && Number.isFinite(b.cost_per_shot) ? b.cost_per_shot.toFixed(4) : '—'}</strong>
                     </div>
                     {b.avg_t2_us !== undefined && b.avg_t2_us > 0 && (
