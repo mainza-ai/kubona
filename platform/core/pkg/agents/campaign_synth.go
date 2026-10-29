@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"math"
+	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -198,9 +199,11 @@ func SynthesizeCampaignStateWithOpts(
 	}
 
 	// 1. Calculate genuine PySCF ab-initio classical anchor via bridge.
-	// When the bridge is unreachable the hardcoded defaults stand in, but
-	// they are labeled as fallback at every surface below — an uncomputed
-	// anchor must never read as a measurement.
+	// When the bridge is unreachable the hardcoded defaults stand in only
+	// for development/illustrative runs. Production refuses instead: a
+	// campaign synthesized on an uncomputed anchor is not a science object,
+	// and a labeled shortcut is still a shortcut. KUBONA_ALLOW_ANCHOR_FALLBACK=1
+	// is the explicit, auditable escape hatch for a throwaway demo.
 	rhfVal := rhfDefault
 	fciVal := fciDefault
 	anchorComputed := false
@@ -219,6 +222,9 @@ func SynthesizeCampaignStateWithOpts(
 		} else if err != nil {
 			slog.Warn("campaign synth bridge anchor failed; using labeled fallback", "molecule", mol, "error", err)
 		}
+	}
+	if !anchorComputed && os.Getenv("KUBONA_ENV") == "production" && os.Getenv("KUBONA_ALLOW_ANCHOR_FALLBACK") != "1" {
+		return nil, fmt.Errorf("classical anchor unavailable for %s at R=%.4f A: bridge unreachable; refusing hardcoded fallback in production (set KUBONA_ALLOW_ANCHOR_FALLBACK=1 only for an explicitly illustrative run)", mol, bondDist)
 	}
 	anchorSource := "hardcoded-fallback"
 	anchorMethod := "Hardcoded fallback (bridge unavailable)"

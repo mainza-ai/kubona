@@ -244,7 +244,7 @@ questions means the blueprint is fully settled and contributor-ready.
 ### What the prototype has empirically answered
 
 `platform/` — 1175 Python tests across 177 files (`pytest platform/tests/`) + bridge
-contract suites + 34 Go packages with 704 test funcs (`go test ./...`, vet clean) +
+contract suites + 34 Go packages (test-func count generated in `docs/repo-counts.md`; `go test ./...`, vet clean) +
 434 console tests across 74 Vitest files + Rust `qir-core` (20 tests) and `ifc-core`
 (9 tests), all green locally and in CI as of 2026-10-29. Live counts are generated
 in `docs/repo-counts.md`; this paragraph is a dated snapshot.

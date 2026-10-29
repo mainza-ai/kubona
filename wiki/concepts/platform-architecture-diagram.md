@@ -189,8 +189,8 @@ flowchart TB
   envelope line derived from live predicates; HSTS on non-loopback;
   flight-recorder card mounted with measured fetch latency; no fabricated
   numbers (UNVERIFIED-by-default discipline, tested).
-- Counts this snapshot (2026-10-29): 120 routes, 34 Go packages, 704 Go test
-  funcs, 177 Python test files (1175 test funcs), 434 Vitest tests across 74
+- Counts this snapshot (2026-10-29): 120 routes, 34 Go packages, Go test funcs
+  generated in `docs/repo-counts.md`, 177 Python test files (1175 test funcs), 434 Vitest tests across 74
   files, Rust qir-core 20 + ifc-core 9 tests, 37 MCP tools across 6 servers.
   The generated source of truth is `docs/repo-counts.md`; the older prose
   counts below are retained as historical anchors.

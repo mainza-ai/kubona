@@ -3802,7 +3802,7 @@ skipped is the exact failure this incident is about:
     ledger v2, metrics/tracing); production ops/docs gaps recorded in the
     operator's private audit notes (not published here) and addressed below.
   - Generated counts landed: `scripts/repo-counts.py` + `docs/repo-counts.md`
-    (120 routes, 34 Go packages, 704 Go tests, 177 Python test files, 74 console
+    (120 routes, 34 Go packages, 705 Go tests, 177 Python test files, 74 console
     files / 434 cases, 29 Rust tests, 6 MCP servers / 37 tools, 154 wiki pages);
     CI runs `--check` so prose counts cannot drift silently.
   - Corrections: README/wiki counts; `implementation-gaps.md` (`pqc.ts` retired,
@@ -3810,3 +3810,13 @@ skipped is the exact failure this incident is about:
     main closed, token/reviewer state qualified); audit page (free-plan probe is
     not a completed paid run; counts stale); AGENTS state correction (push gate
     green, nightly red).
+
+## [2026-10-29] verification | Ledger backup drill + fail-closed anchor
+
+  - `kubonad backup` snapshots a live ledger with `VACUUM INTO`, verifies the
+    copy's hash chain read-only, prints the sha256, and refuses to overwrite.
+    The read-only opener no longer sets `_journal_mode=WAL` (that pragma is a
+    write and refused non-WAL backups); `docs/backup-restore.md` is the runbook.
+  - Production campaign synthesis now refuses a hardcoded classical anchor when
+    the bridge is unreachable; `KUBONA_ALLOW_ANCHOR_FALLBACK=1` is the explicit
+    demo-only escape hatch. Fallback results stay `anchor_computed=false`.
