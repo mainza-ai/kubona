@@ -52,6 +52,68 @@ describe('FleetRadar credential dimension', () => {
     expect(textOf(root!.root)).not.toContain('NO CREDENTIALS');
   });
 
+  it('labels radar liveness honestly with backoff (H5)', async () => {
+    let root: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      root = TestRenderer.create(<FleetRadar />);
+    });
+    const text = textOf(root!.root);
+    expect(text).toContain('Adaptive radar');
+    expect(text).toContain('backs off');
+    expect(text).not.toContain('1000ms Live Telemetry Radar');
+  });
+
+  it('frames tiers as a declared catalog, not live data (H10)', async () => {
+    let root: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      root = TestRenderer.create(<FleetRadar />);
+    });
+    const text = textOf(root!.root);
+    expect(text).toContain('declared catalog');
+    expect(text).toContain('declared — not live canary data');
+  });
+
+  it('offers an explicit manual refresh in addition to auto-poll', async () => {
+    let root: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      root = TestRenderer.create(<FleetRadar />);
+    });
+    const callsBefore = vi.mocked(api.fetchFleet).mock.calls.length;
+    const refreshBtn = root!.root
+      .findAllByType('button')
+      .find((b) => textOf(b).includes('Refresh now'));
+    expect(refreshBtn).toBeDefined();
+    await act(async () => {
+      refreshBtn!.props.onClick();
+    });
+    expect(vi.mocked(api.fetchFleet).mock.calls.length).toBeGreaterThan(callsBefore);
+  });
+
+  it('chips UNPROVENANCED cards on the grid and cost when telemetry is absent (H6)', async () => {
+    vi.mocked(api.fetchFleet).mockResolvedValue({
+      backends: [
+        { name: 'mystery_sim', type: 'sim', qubits: 32, t1_us: 'inf', status: 'ONLINE', queue_depth: 0, cost_per_shot: 0, jurisdiction: 'LOCAL', itar_ear: 'EXEMPT' },
+      ],
+    });
+    let root: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      root = TestRenderer.create(<FleetRadar />);
+    });
+    // Card grid chip renders without expanding.
+    expect(textOf(root!.root)).toContain('UNPROVENANCED');
+    expect(textOf(root!.root)).not.toContain('CATALOG');
+    // Cost line chip renders after expanding the card.
+    const toggle = root!.root
+      .findAllByType('button')
+      .find((b) => textOf(b).includes('Deep Physics'));
+    expect(toggle).toBeDefined();
+    await act(async () => {
+      toggle!.props.onClick();
+    });
+    expect(textOf(root!.root)).toContain('Cost per Shot');
+    expect(textOf(root!.root)).toContain('(UNPROVENANCED)');
+  });
+
   it('tags declared-catalog cards CATALOG and leaves measured ones untagged', async () => {
     vi.mocked(api.fetchFleet).mockResolvedValue({
       backends: [

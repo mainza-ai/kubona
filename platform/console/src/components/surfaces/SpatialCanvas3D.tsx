@@ -1107,7 +1107,7 @@ export function SpatialCanvas3D({
           <span className="text-white/20">|</span>
           <div className="flex items-center gap-1.5 text-[11px] font-code text-amber-300">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-            <span>{campaign?.epistemics?.p_correlated != null ? `ρ = ${rho.toFixed(2)}` : 'ρ = —'}</span>
+            <span title={anchorComputed ? 'Correlated fraction from the live campaign' : 'No computed anchor — confidence uncomputed'}>{anchorComputed && campaign?.epistemics?.p_correlated != null ? `ρ = ${rho.toFixed(2)}` : 'ρ uncomputed'}</span>
           </div>
           <span className="text-white/20">|</span>
           <span className="font-code text-[11px] text-slate-400" title="Measured render-loop rate (R-23)">
@@ -1159,6 +1159,11 @@ export function SpatialCanvas3D({
             <Sparkles className="w-3 h-3 text-cyan-400" />
             <span>Spatial Inspection Probe</span>
           </div>
+          {!anchorComputed && (
+            <div className="mb-1 text-[10px] font-code text-amber-300 border border-amber-400/40 rounded px-1.5 py-0.5">
+              UNVERIFIED terrain — illustrative
+            </div>
+          )}
           {hoveredCoordinates || selectedCoordinates ? (
             <div className="space-y-1 font-code text-xs">
               <div className="flex justify-between gap-4">
