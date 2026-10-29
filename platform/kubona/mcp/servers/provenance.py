@@ -24,7 +24,7 @@ MAX_QUERY_RECORDS = 1000
 MAX_SCAN_RECORDS = 10000
 
 
-from kubona.provenance import Ledger, readable
+from kubona.provenance import Ledger
 
 
 def _resolve_write_label(label: str | None, caller: dict | None) -> str | None:
@@ -37,16 +37,15 @@ def _resolve_write_label(label: str | None, caller: dict | None) -> str | None:
       omitted stays omitted (the ledger defaults to its file tenant), but an
       explicit "tenant/<id>" is strictly validated (refuse-don't-collapse).
 
-    Residual: the module-global `_ledger` is the default-tenant file, so a
-    non-default caller tenant is recorded as a `tenant/<T>` label inside the
-    default file. Read isolation holds via the label check, but physical
-    sharding per tenant (a Ledger registry keyed by validated tenant) is a
-    follow-up for the ledger owner.
+    Residual (closed Phase-2): writes now land in the caller's tenant shard
+    (`Ledger.for_tenant`) — never hand-built `tenant/<T>` labels in the
+    default file. The default file keeps ambient/public rows plus
+    transitional pre-sharding rows (readable via the union read path).
     """
     if caller is not None:
         mine = caller["tenant"]
         if label is None or label == "":
-            return f"tenant/{mine}"
+            return None  # shard file scopes the row; no label needed
         if label == "public":
             return "public"
         if label.startswith("tenant/"):
@@ -58,8 +57,7 @@ def _resolve_write_label(label: str | None, caller: dict | None) -> str | None:
             if want != mine:
                 raise CrossTenantRefusal(
                     f"label {label!r} claims another lab tenant (principal is {mine!r}): "
-                    "refusing — cross-tenant writes belong to the caller's own tenant file "
-                    "(no cross-tenant grant mechanism exists yet)")
+                    "refusing — cross-tenant writes belong to the caller's own tenant file")
             return label
         raise CrossTenantRefusal(f"unknown label shape {label!r}: refusing")
     if label is not None and label.startswith("tenant/"):
@@ -74,6 +72,13 @@ def write_record(kind: str, payload: dict, label: str | None = None,
     `label` is "public" or omitted (defaults to the ledger's lab tenant).
     Cross-tenant writes belong to the caller's own tenant file.
     Gateway-injected `caller` binds the label; spoofs refuse.
+
+    Write routing (Phase-2 sharding): authenticated callers write to their
+    own tenant shard — EXCEPT explicit "public" rows, which land in the
+    default file so they stay ambient-readable ("public" means public: a
+    public row locked in a named shard would be invisible to everyone but
+    that tenant). Unauthenticated explicit `tenant/<T>` labels route to
+    shard T; ambient/public writes stay in the default file.
     """
     try:
         resolved = _resolve_write_label(label, caller)
@@ -81,9 +86,15 @@ def write_record(kind: str, payload: dict, label: str | None = None,
         return {"ok": False, "error": f"cross-tenant write refused: {e}"}
     except ValueError as e:
         return {"ok": False, "error": str(e)}
-    record = _ledger.append(kind, payload, label=resolved)
+    if caller is not None and resolved != "public":
+        target = Ledger.for_tenant(caller["tenant"])
+    elif resolved is not None and resolved.startswith("tenant/"):
+        target = Ledger.for_tenant(resolved[len("tenant/"):])
+    else:
+        target = _ledger
+    record = target.append(kind, payload, label=resolved)
     return {"ok": True, "record_id": record.record_id, "record_hash": record.record_hash,
-            "content_hash": record.content_hash, "chain_ok": _ledger.validate_chain()[0],
+            "content_hash": record.content_hash, "chain_ok": target.validate_chain()[0],
             "label": record.label}
 
 
@@ -113,8 +124,10 @@ def query_records(kind: str | None = None, requester: str | None = None,
                 "count": 0, "returned": 0, "offset": offset if isinstance(offset, int) else 0,
                 "limit": limit if isinstance(limit, int) else 100, "truncated": False, "records": []}
     # Readership is enforced BEFORE serialization (never after flooding):
-    # tenant rows are visible inside their own lab tenant only. Ambient
-    # callers (requester None) see public rows. Both the scan and the page are bounded.
+    # iter_as unions the default file (transitional pre-sharding rows
+    # included) with the requester's shard and filters by readable() —
+    # the MCP layer never re-implements the check. Both the scan and the
+    # page stay bounded (the union read could otherwise grow the scan).
     if not isinstance(limit, int) or isinstance(limit, bool):
         limit = 100
     limit = min(max(limit, 1), MAX_QUERY_RECORDS)
@@ -124,14 +137,18 @@ def query_records(kind: str | None = None, requester: str | None = None,
     page: list[dict] = []
     truncated = False
     scanned = 0
-    for r in _ledger:
+    try:
+        scoped = _ledger.iter_as(effective)
+    except PermissionError as e:
+        return {"ok": False, "error": f"cross-tenant read refused: {e}",
+                "count": 0, "returned": 0, "offset": offset,
+                "limit": limit, "truncated": False, "records": []}
+    for r in scoped:
         scanned += 1
         if scanned > MAX_SCAN_RECORDS:
             truncated = True
             break
         if kind is not None and r.kind != kind:
-            continue
-        if not readable(r, effective, _ledger.tenant or "default"):
             continue
         matched += 1
         if matched > offset and len(page) < limit:
@@ -157,11 +174,13 @@ def _aggregate(kind: str | None = None, requester: str | None = None) -> dict:
     """
     records = []
     truncated = False
-    for i, r in enumerate(_ledger):
+    # iter_as enforces readership (shard union included); kind filters here
+    # under the same scan cap so aggregation stays bounded.
+    for i, r in enumerate(_ledger.iter_as(requester)):
         if i >= MAX_SCAN_RECORDS:
             truncated = True
             break
-        if (kind is None or r.kind == kind) and readable(r, requester, _ledger.tenant or "default"):
+        if kind is None or r.kind == kind:
             records.append(r)
     by_hash: dict[str, dict] = {}
     for r in records:
@@ -194,11 +213,10 @@ def records_resource() -> str:
     # (gateway-bound) identity.
     records: deque[dict] = deque(maxlen=MAX_QUERY_RECORDS)
     truncated = False
-    for r in _ledger:
-        if readable(r, None, _ledger.tenant or "default"):
-            if len(records) == MAX_QUERY_RECORDS:
-                truncated = True
-            records.append(r.to_json())
+    for r in _ledger.iter_as(None):
+        if len(records) == MAX_QUERY_RECORDS:
+            truncated = True
+        records.append(r.to_json())
     return json.dumps({"records": list(records), "returned": len(records), "truncated": truncated})
 
 

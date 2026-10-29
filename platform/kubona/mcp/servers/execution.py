@@ -437,18 +437,23 @@ def submit_qubo_job(qubo_matrix: list[list[float]] | str, n_samples: int = 64,
                     estimate_only: bool = False,
                     idempotency_key: str | None = None,
                     idempotency_body_hash: str | None = None,
-                    approval_id: str | None = None) -> dict:
+                    approval_id: str | None = None,
+                    caller: dict | None = None) -> dict:
     """Submit a QUBO matrix to the annealing provider (`dwave-annealing`).
 
-    Supports credential-free local solving (`backend="local"`: exact enumeration
-    for n<=16, dimod simulated annealing or labeled single-bit-flip heuristic
-    for n>16) and D-Wave Leap hybrid cloud (`backend="leap"`).
+    Supports credential-free local solving (exact enumeration for n<=16,
+    dimod simulated annealing or labeled single-bit-flip heuristic for
+    n>16) and D-Wave Leap hybrid cloud (`backend="leap"`).
 
     Money discipline mirrors `submit_job`: the idempotency key is claimed
     atomically BEFORE any spend (a retried dispatch replays, never
     double-charges), and paid Leap dispatches require an approval (governance
     APPROVED approval via `approval_id`, a gateway MRTR round, or a
     Go-prepaid mirror session) — free local solves proceed without one.
+
+    Ownership (Phase-1): the gateway-injected `caller` owns implicit
+    sessions (owner=sub, tenant in meta); an explicit session_id the caller
+    does not own refuses with the unknown-session envelope (no oracle).
     """
     import numpy as np
     from kubona.providers.annealing_provider import AnnealingProvider
@@ -493,15 +498,29 @@ def submit_qubo_job(qubo_matrix: list[list[float]] | str, n_samples: int = 64,
                     "error": f"implicit session ceiling is capped at "
                              f"${IMPLICIT_SESSION_CEILING_USD}: open a session via "
                              "cost/create_session for a larger budget"}
-        session = _sessions.create(name=f"qubo-{n_qubits}q", owner="agent",
+        # Phase-1 ownership: the implicit session is owned by the verified
+        # caller (owner=sub, tenant bound in meta). Transport-trusted direct
+        # callers keep the legacy owner label.
+        owner = caller["sub"] if caller is not None else "agent"
+        session = _sessions.create(name=f"qubo-{n_qubits}q", owner=owner,
                                    budget_ceiling_usd=budget_ceiling_usd
                                    if budget_ceiling_usd is not None
                                    else IMPLICIT_SESSION_CEILING_USD)
+        if caller is not None:
+            _sessions.update(session.session_id,
+                             meta={**(session.meta or {}),
+                                   "tenant": caller["tenant"],
+                                   "created_by": caller["sub"]})
+            session = _sessions.get(session.session_id)
         session_id = session.session_id
     else:
         try:
             session = _sessions.get(session_id)
         except KeyError:
+            return {"ok": False, "error": f"unknown session_id {session_id!r}"}
+        if not _session_owned_by(session, caller):
+            # Indistinguishable from unknown (no oracle): the id is
+            # caller-supplied either way, so echoing it leaks nothing new.
             return {"ok": False, "error": f"unknown session_id {session_id!r}"}
 
     # Go-authoritative mirrors (spend_prepaid): Go already reserved the job —
@@ -708,6 +727,7 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
                 idempotency_key=idempotency_key,
                 idempotency_body_hash=idempotency_body_hash,
                 approval_id=approval_id,
+                caller=caller,
             )
         return {
             "ok": False,
@@ -1187,17 +1207,25 @@ def cancel_job(job_id: str, caller: dict | None = None) -> dict:
     return out
 
 
-def request_provider_recall(job_id: str) -> dict:
+def request_provider_recall(job_id: str, caller: dict | None = None) -> dict:
     """Vendor-side recall for a Kubona job (R-33). Cooperative fence first
     (always applies); then, if the job's meta carries a hardware_job_id
     pinned at dispatch, the provider's cancel() is attempted. Recall is
     best-effort once running — always re-check status — and never implies
     refund (see the R-32 proposal). Completed jobs with a recorded hardware
     id are recallable for erroneous-billing disputes; running jobs whose
-    hardware id is not yet visible report exactly that instead of pretending."""
+    hardware id is not yet visible report exactly that instead of pretending.
+
+    Ownership-gated before the fence and vendor recall: unowned ids return
+    the unknown envelope (no oracle) with zero side effects.
+    """
     job = _runner.store.get(job_id)
     if job is None:
         return {"ok": False, "job_id": job_id, "error": "unknown job_id"}
+    if caller is not None:
+        owner_session = _job_owner_session(job)
+        if owner_session is None or not _session_owned_by(owner_session, caller):
+            return {"ok": False, "job_id": job_id, "error": "unknown job_id"}
     if job.status in ("completed", "failed"):
         hw = (getattr(job, "meta", None) or {}).get("hardware_job_id")
         if not hw:
@@ -1286,7 +1314,18 @@ def session_status(session_id: str, jobs_limit: int = 100,
     return out
 
 
-def close_session(session_id: str) -> dict:
+def close_session(session_id: str, caller: dict | None = None) -> dict:
+    """Close a session.
+
+    Ownership-gated: unowned sessions return the unknown envelope (no
+    oracle), gated before the close mutates anything.
+    """
+    try:
+        state = _sessions.get(session_id)
+    except KeyError:
+        return {"ok": False, "error": f"unknown session_id {session_id!r}"}
+    if not _session_owned_by(state, caller):
+        return {"ok": False, "error": f"unknown session_id {session_id!r}"}
     try:
         s = _sessions.close(session_id)
         return {"ok": True, "session_id": s.session_id, "status": s.status}

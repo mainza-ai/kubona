@@ -149,22 +149,18 @@ class OAuth2TokenIssuer:
         raw_scopes = payload.get("scopes", ())
         if not sub or not isinstance(raw_scopes, list):
             raise AuthError("token missing sub/scopes: refusing")
-        # Phase-1 tenant claim: validated strictly (a forged claim cannot
+        # Phase-2: tenant claim is validated strictly (a forged claim cannot
         # exist — the payload is signed — but defense in depth refuses garbage
         # rather than collapsing it). Absent claims (pre-claim tokens, still
         # within their short TTL) resolve to "default"; new issues always
-        # carry an explicit tenant. Attached to the Principal for the
-        # gateway's server-side binding (see kubona.security.tenant).
-        # Follow-up (teammate scope): promote `tenant` to a first-class
-        # `Principal` field in kubona.core.auth instead of this attachment.
+        # carry an explicit tenant. Constructed as a first-class Principal
+        # field here at authentication time (not attached at decode).
         try:
             tenant_claim = strict_tenant_slug(payload.get("tenant", "default"))
         except ValueError as e:
             raise AuthError(f"token carries an invalid tenant claim: refusing ({e})") from e
-        principal = Principal(sub=sub, role=payload.get("role", "user"),
-                              scopes=tuple(raw_scopes))
-        object.__setattr__(principal, "tenant", tenant_claim)
-        return principal
+        return Principal(sub=sub, role=payload.get("role", "user"),
+                         scopes=tuple(raw_scopes), tenant=tenant_claim)
 
     def bearer(self, principal_name: str, role: str, scopes: tuple[str, ...],
                ttl_s: int | None = None, tenant: str = "default") -> str:
