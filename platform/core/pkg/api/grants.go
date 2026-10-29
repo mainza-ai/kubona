@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/grants"
 	"github.com/mainza-ai/kubona/core/pkg/tenants"
@@ -151,6 +152,76 @@ func (s *Server) handleGrantRevoke(w http.ResponseWriter, r *http.Request) {
 		"ok": true, "root_cid": req.RootCID, "leaf_cid": req.LeafCID,
 		"ledger_receipt": rec.EntryHash,
 	})
+}
+
+// handleTenantGrantIssue records a cross-tenant read grant. Authorization is
+// the grantor signature itself, verified inside IssueGrant against the SOURCE
+// tenant's CURRENT admin key (rotation-safe; self-signed foreign grantors
+// refuse). Bearer-gated at the edge like every other grant writer; the
+// signature is the authority, the bearer is the transport gate. Grant IDs are
+// content-addressed, so replaying an identical issue is idempotent.
+func (s *Server) handleTenantGrantIssue(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		WriteAPIError(w, "method_not_allowed", "grant issue is POST-only", nil)
+		return
+	}
+	if !s.grantLimiter.allow(clientKey(r)) {
+		WriteAPIError(w, "rate_limited", "rate limit exceeded: slow down and retry", nil)
+		return
+	}
+	var req struct {
+		SourceTenant     string   `json:"source_tenant"`
+		TargetTenant     string   `json:"target_tenant"`
+		Scopes           []string `json:"scopes"`
+		ExpiryRFC3339    string   `json:"expiry"`
+		GrantorPubkeyHex string   `json:"grantor_pubkey_hex"`
+		SignatureHex     string   `json:"signature_hex"`
+	}
+	if err := decodeStrict(r, &req); err != nil {
+		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid request body: %v", err), nil)
+		return
+	}
+	expiry, err := time.Parse(time.RFC3339, req.ExpiryRFC3339)
+	if err != nil {
+		WriteAPIError(w, "bad_request", "expiry must be RFC3339", nil)
+		return
+	}
+	g, err := s.tenantMgr.IssueGrant(req.SourceTenant, req.TargetTenant, req.Scopes, expiry, req.GrantorPubkeyHex, req.SignatureHex)
+	if err != nil {
+		WriteAPIError(w, "forbidden", err.Error(), nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, g)
+}
+
+// handleTenantGrantRevoke revokes a tenant grant. Authorization: a signature
+// over the revoke payload by the grant's SOURCE tenant current admin key —
+// only the lab that issued a grant can revoke it. Effective on next check.
+func (s *Server) handleTenantGrantRevoke(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		WriteAPIError(w, "method_not_allowed", "grant revoke is POST-only", nil)
+		return
+	}
+	if !s.grantLimiter.allow(clientKey(r)) {
+		WriteAPIError(w, "rate_limited", "rate limit exceeded: slow down and retry", nil)
+		return
+	}
+	var req struct {
+		SourceTenant     string `json:"source_tenant"`
+		GrantID          string `json:"grant_id"`
+		Reason           string `json:"reason"`
+		GrantorPubkeyHex string `json:"grantor_pubkey_hex"`
+		SignatureHex     string `json:"signature_hex"`
+	}
+	if err := decodeStrict(r, &req); err != nil {
+		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid request body: %v", err), nil)
+		return
+	}
+	if err := s.tenantMgr.RevokeGrant(req.SourceTenant, req.GrantID, req.Reason, req.GrantorPubkeyHex, req.SignatureHex); err != nil {
+		WriteAPIError(w, "forbidden", err.Error(), nil)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "grant_id": req.GrantID})
 }
 
 // grantingTenantFor resolves which lab issued a registered grant chain,

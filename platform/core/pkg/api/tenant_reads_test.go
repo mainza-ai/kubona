@@ -15,12 +15,14 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/api"
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
 	"github.com/mainza-ai/kubona/core/pkg/session"
 	"github.com/mainza-ai/kubona/core/pkg/supervisor"
+	"github.com/mainza-ai/kubona/core/pkg/tenants"
 	"github.com/mainza-ai/kubona/core/pkg/watchdog"
 )
 
@@ -447,5 +449,204 @@ func TestMutationsBoundToTenant(t *testing.T) {
 		if code, body := drillGet(t, srv, tc.path, cookieA, ""); code != http.StatusForbidden {
 			t.Errorf("%s: cross-lab GET must 403, got %d: %s", tc.name, code, body)
 		}
+	}
+}
+
+// Phase-2 grants on the tenant read paths (same allow/deny matrix as the
+// tenants-package suite, exercised over HTTP): cross-lab reads refuse by
+// default, allow with a live read grant, and refuse again after revoke,
+// after expiry, or when the grant covers a different scope.
+
+// grantDrillLab creates a tenant and bootstraps its admin via the manager
+// (so the test holds the private key for grant issuance), then completes
+// the cookie login flow for that lab.
+func grantDrillLab(t *testing.T, srv *api.Server, tenant string) (ed25519.PrivateKey, string, string) {
+	t.Helper()
+	drillTenant(t, srv, tenant)
+	pub, priv, _ := ed25519.GenerateKey(rand.Reader)
+	pubHex := hex.EncodeToString(pub)
+	if _, err := srv.TenantManager().SetAdminKey(tenant, pubHex, nil); err != nil {
+		t.Fatalf("bootstrap %s: %v", tenant, err)
+	}
+	nonce, _ := authChallenge(t, srv)
+	lw, cookie := authLogin(t, srv, tenant, pubHex, priv, nonce)
+	if lw.Code != http.StatusOK || cookie == "" {
+		t.Fatalf("login %s: got %d, cookie set=%v: %s", tenant, lw.Code, cookie != "", lw.Body.String())
+	}
+	return priv, pubHex, cookie
+}
+
+func grantDrillIssue(t *testing.T, srv *api.Server, priv ed25519.PrivateKey, pubHex, source, target string, scopes []string, expiry time.Time) *tenants.Grant {
+	t.Helper()
+	canonical := tenants.GrantCanonicalPayload(source, target, scopes, expiry)
+	sig := ed25519.Sign(priv, canonical)
+	g, err := srv.TenantManager().IssueGrant(source, target, scopes, expiry, pubHex, hex.EncodeToString(sig))
+	if err != nil {
+		t.Fatalf("issue %s -> %s: %v", source, target, err)
+	}
+	return g
+}
+
+func TestTenantReadsHonorGrants(t *testing.T) {
+	srv, cleanup := setupTenantDrill(t)
+	defer cleanup()
+	_, _, cookieA := grantDrillLab(t, srv, "lab-a")
+	privB, pubB, _ := grantDrillLab(t, srv, "lab-b")
+
+	// No grant: cross-lab row read refuses, list shows only the own row.
+	if code, _ := drillGet(t, srv, "/api/tenants/lab-b", cookieA, ""); code != http.StatusForbidden {
+		t.Fatalf("ungranted cross-lab tenant read must 403, got %d", code)
+	}
+	if code, body := drillGet(t, srv, "/api/tenants", cookieA, ""); code != http.StatusOK || strings.Contains(body, "lab-b") {
+		t.Fatalf("ungranted list must 200 without lab-b, got %d: %s", code, body)
+	}
+
+	// Out-of-scope grant (write, not read): read still refuses.
+	grantDrillIssue(t, srv, privB, pubB, "lab-b", "lab-a", []string{"write"}, time.Now().UTC().Add(time.Hour))
+	if code, _ := drillGet(t, srv, "/api/tenants/lab-b", cookieA, ""); code != http.StatusForbidden {
+		t.Fatalf("out-of-scope grant must still 403 the read, got %d", code)
+	}
+
+	// Live read grant: row read allows, list includes the granting lab.
+	gRead := grantDrillIssue(t, srv, privB, pubB, "lab-b", "lab-a", []string{"read"}, time.Now().UTC().Add(time.Hour))
+	if code, body := drillGet(t, srv, "/api/tenants/lab-b", cookieA, ""); code != http.StatusOK {
+		t.Fatalf("granted cross-lab tenant read must 200, got %d: %s", code, body)
+	} else if !strings.Contains(body, "lab-b") {
+		t.Fatalf("granted read must return the lab row: %s", body)
+	}
+	if code, body := drillGet(t, srv, "/api/tenants", cookieA, ""); code != http.StatusOK {
+		t.Fatalf("granted list must 200, got %d", code)
+	} else if !strings.Contains(body, "lab-b") || !strings.Contains(body, "lab-a") {
+		t.Fatalf("granted list must show own + granting labs: %s", body)
+	}
+
+	// Revoke: the very next read refuses (immediate, no TTL cache).
+	grantDrillRevoke(t, srv, privB, pubB, "lab-b", gRead.GrantID, "drill done")
+	if code, _ := drillGet(t, srv, "/api/tenants/lab-b", cookieA, ""); code != http.StatusForbidden {
+		t.Fatalf("revoked grant must 403 the read again, got %d", code)
+	}
+	if code, body := drillGet(t, srv, "/api/tenants", cookieA, ""); code != http.StatusOK || strings.Contains(body, "lab-b") {
+		t.Fatalf("revoked list must drop lab-b, got %d: %s", code, body)
+	}
+
+	// Ghost oracle preserved under grants: guessing an id still 403s.
+	if code, _ := drillGet(t, srv, "/api/tenants/ghost-lab", cookieA, ""); code != http.StatusForbidden {
+		t.Fatalf("ghost guess must stay 403 under grants, got %d", code)
+	}
+	// Bearer operator still reads across labs (delegation-grade credential).
+	if code, _ := drillGet(t, srv, "/api/tenants/lab-b", "", "test-token"); code != http.StatusOK {
+		t.Fatalf("bearer cross-lab read must stay 200, got %d", code)
+	}
+}
+
+func grantDrillRevoke(t *testing.T, srv *api.Server, priv ed25519.PrivateKey, pubHex, source, grantID, reason string) {
+	t.Helper()
+	sig := ed25519.Sign(priv, tenants.RevokeCanonicalPayload(grantID, reason))
+	if err := srv.TenantManager().RevokeGrant(source, grantID, reason, pubHex, hex.EncodeToString(sig)); err != nil {
+		t.Fatalf("revoke %s: %v", grantID, err)
+	}
+}
+
+// Phase-2 grant HTTP lifecycle: the tenant-grant issue/revoke endpoints are
+// the only way to mint the grants the read paths enforce. Every pin is
+// HTTP-level: anonymous refuses (bearer transport gate), self-signed foreign
+// grantors and wildcard scopes refuse (signature/class gates), and the full
+// issue -> allow -> revoke -> refuse cycle runs over the wire.
+func TestTenantGrantHTTPLifecycle(t *testing.T) {
+	srv, cleanup := setupTenantDrill(t)
+	defer cleanup()
+	_, _, cookieA := grantDrillLab(t, srv, "lab-a")
+	privB, pubB, _ := grantDrillLab(t, srv, "lab-b")
+
+	post := func(path string, body any, token string) (int, string) {
+		t.Helper()
+		raw, _ := json.Marshal(body)
+		req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(raw))
+		if token != "" {
+			req.Header.Set("Authorization", "Bearer "+token)
+		}
+		w := httptest.NewRecorder()
+		srv.Handler().ServeHTTP(w, req)
+		return w.Code, w.Body.String()
+	}
+
+	expiry := time.Now().UTC().Add(time.Hour).Format(time.RFC3339)
+	sign := func(source, target string, scopes []string, exp string, priv ed25519.PrivateKey) string {
+		t.Helper()
+		e, err := time.Parse(time.RFC3339, exp)
+		if err != nil {
+			t.Fatalf("bad expiry: %v", err)
+		}
+		return hex.EncodeToString(ed25519.Sign(priv, tenants.GrantCanonicalPayload(source, target, scopes, e)))
+	}
+
+	// Anonymous: transport gate refuses before crypto is even read.
+	if code, _ := post("/api/tenant-grants/issue", map[string]any{}, ""); code != http.StatusUnauthorized {
+		t.Fatalf("anon grant issue must 401, got %d", code)
+	}
+
+	// Self-signed foreign grantor: valid signature, wrong key for lab-b.
+	evilPub, evilPriv, _ := ed25519.GenerateKey(rand.Reader)
+	if code, _ := post("/api/tenant-grants/issue", map[string]any{
+		"source_tenant": "lab-b", "target_tenant": "lab-a",
+		"scopes": []string{"read"}, "expiry": expiry,
+		"grantor_pubkey_hex": hex.EncodeToString(evilPub),
+		"signature_hex":      sign("lab-b", "lab-a", []string{"read"}, expiry, evilPriv),
+	}, "test-token"); code != http.StatusForbidden {
+		t.Fatalf("self-signed grantor must 403, got %d", code)
+	}
+
+	// Wildcard scope: refused at issue, never mints.
+	if code, _ := post("/api/tenant-grants/issue", map[string]any{
+		"source_tenant": "lab-b", "target_tenant": "lab-a",
+		"scopes": []string{"*"}, "expiry": expiry,
+		"grantor_pubkey_hex": pubB,
+		"signature_hex":      sign("lab-b", "lab-a", []string{"*"}, expiry, privB),
+	}, "test-token"); code != http.StatusForbidden {
+		t.Fatalf("wildcard scope must 403, got %d", code)
+	}
+
+	// Expired: refuses (never mints a dead-on-arrival grant).
+	past := time.Now().UTC().Add(-time.Hour).Format(time.RFC3339)
+	if code, _ := post("/api/tenant-grants/issue", map[string]any{
+		"source_tenant": "lab-b", "target_tenant": "lab-a",
+		"scopes": []string{"read"}, "expiry": past,
+		"grantor_pubkey_hex": pubB,
+		"signature_hex":      sign("lab-b", "lab-a", []string{"read"}, past, privB),
+	}, "test-token"); code != http.StatusForbidden {
+		t.Fatalf("expired grant must 403, got %d", code)
+	}
+
+	// Happy path over HTTP: issue -> cross-lab read allows.
+	code, body := post("/api/tenant-grants/issue", map[string]any{
+		"source_tenant": "lab-b", "target_tenant": "lab-a",
+		"scopes": []string{"read"}, "expiry": expiry,
+		"grantor_pubkey_hex": pubB,
+		"signature_hex":      sign("lab-b", "lab-a", []string{"read"}, expiry, privB),
+	}, "test-token")
+	if code != http.StatusOK {
+		t.Fatalf("grant issue must 200, got %d: %s", code, body)
+	}
+	var issued struct {
+		GrantID string `json:"grant_id"`
+	}
+	if err := json.Unmarshal([]byte(body), &issued); err != nil || issued.GrantID == "" {
+		t.Fatalf("issue must return a grant_id: %s", body)
+	}
+	if code, _ := drillGet(t, srv, "/api/tenants/lab-b", cookieA, ""); code != http.StatusOK {
+		t.Fatalf("granted cross-lab read must 200, got %d", code)
+	}
+
+	// Revoke over HTTP: next read refuses immediately.
+	revSig := hex.EncodeToString(ed25519.Sign(privB, tenants.RevokeCanonicalPayload(issued.GrantID, "http drill done")))
+	if code, body := post("/api/tenant-grants/revoke", map[string]any{
+		"source_tenant": "lab-b", "grant_id": issued.GrantID,
+		"reason":             "http drill done",
+		"grantor_pubkey_hex": pubB, "signature_hex": revSig,
+	}, "test-token"); code != http.StatusOK {
+		t.Fatalf("grant revoke must 200, got %d: %s", code, body)
+	}
+	if code, _ := drillGet(t, srv, "/api/tenants/lab-b", cookieA, ""); code != http.StatusForbidden {
+		t.Fatalf("revoked grant must 403 the read again, got %d", code)
 	}
 }
