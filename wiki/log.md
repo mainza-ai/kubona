@@ -3880,3 +3880,12 @@ skipped is the exact failure this incident is about:
     `PRAGMA foreign_key_check` finds orphans, naming
     `kubonad fk-quarantine --apply`. Dev/test open stays permissive so the
     repair tools can run. Tests cover clean/enforced and orphan/refused.
+
+## [2026-10-29] implementation | Backup retention pruner
+
+  - `kubonad backup-prune --dir /abs/backups [--apply]` is dry-run by
+    default. It only considers `*.backup-YYYYMMDDTHHMMSSZ`, keeps the newest
+    7 overall plus the newest per day for 7 days and per ISO week for 4
+    weeks, and never touches directories, symlinks, or unparseable names.
+    All-zero retention is refused. Tests cover dry-run, apply, and the
+    delete-all refusal.

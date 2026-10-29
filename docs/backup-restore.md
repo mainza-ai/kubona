@@ -136,6 +136,21 @@ on the first insert, with an opaque constraint error. The development/test
 open path stays permissive so the audit, plan, and quarantine tools can
 run against the broken ledger.
 
+## Retention pruner
+
+```bash
+# Dry run: prints would-delete lines, removes nothing.
+kubonad backup-prune --dir /backups
+
+# Apply: only files named *.backup-YYYYMMDDTHHMMSSZ are candidates.
+kubonad backup-prune --dir /backups --apply
+```
+
+Defaults keep the newest 7 backups, the newest backup per UTC day for 7
+days, and the newest backup per ISO week for 4 weeks. Directories, symlinks,
+and unparseable names are never touched; an all-zero retention set is refused.
+Use `--now RFC3339` for a restore drill or a replay.
+
 ## Current limits
 
 The schema has no version table yet and the migration path is not
