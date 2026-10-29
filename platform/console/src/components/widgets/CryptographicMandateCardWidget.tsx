@@ -8,8 +8,9 @@ interface CryptographicMandateCardWidgetProps {
   actionDescription?: string;
   estimatedCostUsd?: number;
   targetBackend?: string;
-  // J4: lab tenant the mandate authorizes against. Defaults to
-  // tenant-default for static mounts; live callers pass the session lab.
+  // J4: lab tenant the mandate authorizes against. Absent means the
+  // authorizeSpend tenant gate refuses (no default attribution) — the
+  // refusal renders verbatim in the sign error, never a silent default.
   tenantId?: string;
   // The exact session + program the mandate authorizes. Without both,
   // authorizeSpend refuses (no unbound signatures).

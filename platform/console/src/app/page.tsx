@@ -18,6 +18,7 @@ import { AttentionProvider } from '@/lib/attention-context';
 import { isMeteredBackend } from '@/lib/approvalPacket';
 import { WidgetStage, CanvasWidgetSpec, CanvasWidgetKind } from '@/components/sovereign/WidgetStage';
 import { FlightRecorder } from '@/components/surfaces/FlightRecorder';
+import { FlightRecorderCard } from '@/components/FlightRecorderCard';
 import { EpistemicManifold } from '@/components/surfaces/EpistemicManifold';
 import { FleetRadar } from '@/components/surfaces/FleetRadar';
 import { ResultsStudio } from '@/components/surfaces/ResultsStudio';
@@ -679,7 +680,16 @@ export default function Home() {
               (id) => setMeshTab(id as typeof meshTab)
             )}
             <div className="p-6 max-w-6xl mx-auto">
-              {surface === 'recorder' && <FlightRecorder loops={loops} events={events} campaign={campaign} onLoopsChanged={refreshLoops} onSessionImported={handleSessionImported} />}
+              {surface === 'recorder' && (
+                <>
+                  <FlightRecorder loops={loops} events={events} campaign={campaign} onLoopsChanged={refreshLoops} onSessionImported={handleSessionImported} />
+                  {/* Auditor flight-recorder telemetry (60s gate) with measured
+                      fetch latency — mounted, not dead code. */}
+                  <div className="mt-4">
+                    <FlightRecorderCard sessionId={currentSessionId || null} />
+                  </div>
+                </>
+              )}
               {surface === 'manifold' && <EpistemicManifold campaign={campaign} sessionId={currentSessionId || null} />}
               {surface === 'fleet' && <FleetRadar campaign={campaign} />}
               {surface === 'proofs' && proofsTab === 'manuscripts' && <ResultsStudio campaign={campaign} sessionId={currentSessionId || null} />}

@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import { hstsHeaderForApiUrl } from "./src/lib/securityHeaders";
 
 // Startup env guard: the console talks to the bridge at NEXT_PUBLIC_API_URL.
 // Unset means the localhost default below — loud in dev, not silent.
@@ -17,7 +18,14 @@ const nextConfig: NextConfig = {
   // allowances Next needs while blocking framing, object embedding, and
   // cross-origin form posts. connect-src stays scheme-wide because the Go
   // API URL is runtime-configurable and SSE uses ws/wss.
+  // HSTS (Phase-2 credibility): sent only for non-local deployments.
+  // Same resolution as the /api/config route (deploy override first,
+  // build-time default, localhost fallback); loopback targets omit it so
+  // local dev can never be HSTS-pinned.
   async headers() {
+    const apiUrl =
+      process.env.KUBONA_CONSOLE_API_URL || process.env.NEXT_PUBLIC_API_URL;
+    const hsts = hstsHeaderForApiUrl(apiUrl);
     const csp = [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline'",
@@ -37,6 +45,7 @@ const nextConfig: NextConfig = {
           { key: 'Content-Security-Policy', value: csp },
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
+          ...(hsts ? [{ key: 'Strict-Transport-Security', value: hsts }] : []),
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
         ],
