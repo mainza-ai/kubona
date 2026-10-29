@@ -7,6 +7,7 @@ import {
   rejectMetasearchProposal,
   applyMetasearchProposal,
 } from '@/lib/api';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
 import type { MetaProposal } from '@/types';
 
 // U1-d: human-approval surface for meta-search strategy proposals.
@@ -20,6 +21,9 @@ export function MetasearchPanel() {
   const [proposals, setProposals] = useState<MetaProposal[] | null>(null);
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState<string | null>(null);
+  // Wave-3: reject stages a typed ConfirmDialog (proposal short-id) instead
+  // of a native confirm(). Approve/apply are unchanged.
+  const [rejectDraft, setRejectDraft] = useState<string | null>(null);
 
   const load = async () => {
     const list = await fetchMetasearchProposals();
@@ -37,11 +41,6 @@ export function MetasearchPanel() {
   }, []);
 
   const act = async (id: string, kind: 'approve' | 'reject' | 'apply') => {
-    if (kind === 'reject') {
-      if (!confirm(`Reject proposal ${id.slice(0, 8)}? The strategy change is closed, loop work stays as-is.`)) {
-        return;
-      }
-    }
     setBusy((prev) => new Set(prev).add(id));
     setNotice(null);
     try {
@@ -108,7 +107,7 @@ export function MetasearchPanel() {
                     <button
                       type="button"
                       disabled={isBusy}
-                      onClick={() => act(p.id, 'reject')}
+                      onClick={() => setRejectDraft(p.id)}
                       aria-label={`Reject proposal ${p.id}`}
                       className="px-2 py-1 rounded-lg bg-rose-500/15 border border-rose-400/30 text-rose-200 hover:bg-rose-500/25 disabled:opacity-40"
                     >
@@ -145,6 +144,31 @@ export function MetasearchPanel() {
         <div className="text-[11px] text-amber-200" role="alert">
           {notice}
         </div>
+      )}
+      {rejectDraft != null && (
+        <ConfirmDialog
+          open
+          title={`Reject proposal ${rejectDraft.slice(0, 8)}?`}
+          body={
+            <span>
+              The strategy change is closed, loop work stays as-is. Type{' '}
+              <code className="rounded bg-white/10 px-1 font-mono">{rejectDraft.slice(0, 8)}</code> to confirm.
+            </span>
+          }
+          requireText={rejectDraft.slice(0, 8)}
+          confirmLabel="Reject proposal"
+          danger
+          busy={busy.has(rejectDraft)}
+          onConfirm={() => {
+            const id = rejectDraft;
+            setRejectDraft(null);
+            void act(id, 'reject');
+          }}
+          onCancel={() => {
+            if (rejectDraft != null && busy.has(rejectDraft)) return;
+            setRejectDraft(null);
+          }}
+        />
       )}
     </div>
   );

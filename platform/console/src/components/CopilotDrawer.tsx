@@ -36,6 +36,7 @@ import { OverflowCard } from './common/OverflowCard';
 import { MathText } from './common/MathText';
 import { Tip } from './common/Tip';
 import { MemoryPanel } from './MemoryPanel';
+import ConfirmDialog from './common/ConfirmDialog';
 import type { CanvasWidgetKind } from './sovereign/WidgetStage';
 
 interface CopilotDrawerProps {
@@ -104,6 +105,9 @@ export function CopilotDrawer({
   // Attachments ride the next direct send as explicit context, then clear.
   const [attachments, setAttachments] = useState<Array<{ name: string; text: string }>>([]);
   const [clearing, setClearing] = useState(false);
+  // Wave-3: clear-chat stages a typed ConfirmDialog (CLEAR) instead of a
+  // native confirm(). The network + message-reset flow is unchanged.
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
   const [regenerating, setRegenerating] = useState(false);
   const [votes, setVotes] = useState<Record<string, 'up' | 'down'>>({});
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -567,16 +571,24 @@ export function CopilotDrawer({
   const canRegenerate =
     messages.length > 0 && messages[messages.length - 1].role !== 'user';
 
-  const handleClearChat = async () => {
+  const handleClearChat = () => {
     if (clearing || loading || runningTribunal || messages.length === 0) return;
+    setClearConfirmOpen(true);
+  };
+
+  const confirmClearChat = async () => {
+    if (clearing || loading || runningTribunal) return;
     const active = await getActiveSessionId();
-    if (active === null) return;
+    if (active === null) {
+      setClearConfirmOpen(false);
+      return;
+    }
     if (isNeedsLogin(active)) {
+      setClearConfirmOpen(false);
       setNeedsLogin(true);
       return;
     }
     const activeSessionId = active.id;
-    if (!confirm('Clear this conversation? Messages are deleted; the session, campaign, and ledger history survive.')) return;
     setClearing(true);
     try {
       const deleted = await clearMessages(activeSessionId);
@@ -592,6 +604,7 @@ export function CopilotDrawer({
       setErrorMessage(err instanceof Error ? err.message : 'Clear failed.');
     } finally {
       setClearing(false);
+      setClearConfirmOpen(false);
     }
   };
 
@@ -1628,6 +1641,27 @@ export function CopilotDrawer({
           <span className="text-[9px] text-slate-600 font-code">Autonomous AI Swarm · Local-first</span>
         </div>
       </div>
+      {clearConfirmOpen && (
+        <ConfirmDialog
+          open
+          title="Clear this conversation?"
+          body={
+            <span>
+              Messages are deleted; the session, campaign, and ledger history survive. Type{' '}
+              <code className="rounded bg-white/10 px-1 font-mono">CLEAR</code> to confirm.
+            </span>
+          }
+          requireText="CLEAR"
+          confirmLabel="Clear conversation"
+          danger
+          busy={clearing}
+          onConfirm={() => void confirmClearChat()}
+          onCancel={() => {
+            if (clearing) return;
+            setClearConfirmOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }

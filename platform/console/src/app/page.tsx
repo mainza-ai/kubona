@@ -429,36 +429,58 @@ export default function Home() {
     [switchSession]
   );
 
+  // Wave-3: delete-campaign stages a typed ConfirmDialog (session short-id)
+  // instead of a native confirm(). The deleteSession + session-list update
+  // is unchanged; refusal stays open with an inline error.
+  const [deleteDraft, setDeleteDraft] = useState<{ id: string; name: string } | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+
   const handleDeleteSession = useCallback(
-    async (e: React.MouseEvent, sessionId: string) => {
+    (e: React.MouseEvent, sessionId: string) => {
       e.stopPropagation();
       const sessionToDelete = sessions.find((s) => s.id === sessionId);
       const name = sessionToDelete?.title || 'this campaign';
-      if (!confirm(`Delete "${name}"? This will permanently remove its state and transcripts.`)) {
+      setDeleteError(null);
+      setDeleteDraft({ id: sessionId, name });
+    },
+    [sessions]
+  );
+
+  const handleConfirmDelete = useCallback(async () => {
+    if (!deleteDraft || deleteBusy) return;
+    const sessionId = deleteDraft.id;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      const success = await deleteSession(sessionId);
+      if (!success) {
+        // Fail-closed: stay open with an inline error, nothing removed.
+        setDeleteError('Delete refused by backend — nothing was deleted.');
         return;
       }
-      const success = await deleteSession(sessionId);
-      if (success) {
-        setSessions((prev) => {
-          const filtered = prev.filter((s) => s.id !== sessionId);
-          if (currentSessionId === sessionId) {
-            const nextSession = filtered[0];
-            if (nextSession) {
-              switchSession(nextSession.id);
-              fetchCampaignState(nextSession.id).then((c) => {
-                if (c) setCampaign(c);
-              });
-            } else {
-              switchSession('');
-              setCampaign(null);
-            }
+      setSessions((prev) => {
+        const filtered = prev.filter((s) => s.id !== sessionId);
+        if (currentSessionId === sessionId) {
+          const nextSession = filtered[0];
+          if (nextSession) {
+            switchSession(nextSession.id);
+            fetchCampaignState(nextSession.id).then((c) => {
+              if (c) setCampaign(c);
+            });
+          } else {
+            switchSession('');
+            setCampaign(null);
           }
-          return filtered;
-        });
-      }
-    },
-    [sessions, currentSessionId, switchSession]
-  );
+        }
+        return filtered;
+      });
+      setDeleteDraft(null);
+      setDeleteError(null);
+    } finally {
+      setDeleteBusy(false);
+    }
+  }, [deleteDraft, deleteBusy, currentSessionId, switchSession]);
 
   // Emergency abort via typed ConfirmDialog (Wave-2): the destructive
   // request (endpoint, body, refusal/success handling) is identical to the
@@ -471,7 +493,11 @@ export default function Home() {
 
   const handleEmergencyAbort = useCallback(() => {
     if (!currentSessionId) {
-      alert('No active session: open or create a session before triggering an abort.');
+      // Wave-3: inline toast instead of a blocking alert(). No session, no
+      // dialog — nothing was dispatched.
+      setToast({ key: Date.now(), text: 'No active session: open or create a session before triggering an abort.' });
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      toastTimer.current = setTimeout(() => setToast(null), 4000);
       return;
     }
     setAbortError(null);
@@ -493,9 +519,11 @@ export default function Home() {
       }
       const data = await res.json();
       setIsAbortOpen(false);
-      alert(
-        `Ring 0 Reflex Intercept complete: ${data.aborted_count} job(s) settled failed.\nAbort receipt: ${data.abort_receipt}`
-      );
+      // Wave-3: inline toast instead of a blocking alert(). The abort
+      // receipt renders in the existing toast slot, auto-dismissed.
+      setToast({ key: Date.now(), text: `Ring 0 Reflex Intercept complete: ${data.aborted_count} job(s) settled failed. Abort receipt: ${data.abort_receipt}` });
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      toastTimer.current = setTimeout(() => setToast(null), 6000);
     } catch (err) {
       setAbortError(`Abort failed and nothing was settled: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
@@ -793,6 +821,29 @@ export default function Home() {
           setAbortError(null);
         }}
       />
+      {deleteDraft != null && (
+        <ConfirmDialog
+          open
+          title={`Delete "${deleteDraft.name}"?`}
+          body={
+            <span>
+              This will permanently remove its state and transcripts. Type{' '}
+              <code className="rounded bg-white/10 px-1 font-mono">{deleteDraft.id.slice(0, 8)}</code> to confirm.
+            </span>
+          }
+          requireText={deleteDraft.id.slice(0, 8)}
+          confirmLabel="Delete campaign"
+          danger
+          busy={deleteBusy}
+          error={deleteError}
+          onConfirm={() => void handleConfirmDelete()}
+          onCancel={() => {
+            if (deleteBusy) return;
+            setDeleteDraft(null);
+            setDeleteError(null);
+          }}
+        />
+      )}
       <NewCampaignModal
         isOpen={isNewCampaignModalOpen}
         // A refused creation latches createFailedRef: the modal calls onClose

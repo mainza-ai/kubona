@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { AuthPanel } from './AuthPanel';
+import ConfirmDialog from './ConfirmDialog';
 import * as api from '@/lib/api';
 
 vi.mock('@/lib/api', () => ({
@@ -163,6 +164,15 @@ describe('AuthPanel (A4 session auth UI)', () => {
     expect(revokeBtn).toBeDefined();
     await act(async () => {
       await revokeBtn!.props.onClick();
+    });
+    // Wave-3: revoke stages a typed ConfirmDialog (session short-id).
+    const gate = root!.root.findByType(ConfirmDialog);
+    expect(gate.props.requireText).toBe('sess-tok');
+    await act(async () => {
+      gate.findByType('input').props.onChange({ target: { value: 'sess-tok' } });
+    });
+    await act(async () => {
+      await root!.root.findByType(ConfirmDialog).props.onConfirm();
     });
     expect(api.authRevoke).toHaveBeenCalledWith('sess-token-01');
 
