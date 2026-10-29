@@ -109,9 +109,7 @@ export { authHeaders };
 
 export async function fetchSessions(): Promise<Session[]> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/sessions`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return [];
-    const data = await res.json();
+    const data = await dedupedGet<{ sessions?: Session[] }>(`${API_BASE}/api/sessions`, { headers: authHeaders() });
     return data.sessions || [];
   } catch (err) {
     console.error('Failed to fetch sessions:', err);
@@ -404,12 +402,12 @@ export async function evaluateDiscoveryPipeline(
 
 export async function fetchCampaignState(sessionId: string): Promise<import('@/types').CampaignState | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/campaign`, {
-      cache: 'no-store',
-      headers: authHeaders(),
-    });
-    if (!res.ok) return null;
-    return await res.json();
+    // Coalesce concurrent reads of the same session: the shell and the
+    // copilot mount together and used to issue duplicate campaign GETs.
+    return await dedupedGet<import('@/types').CampaignState>(
+      `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/campaign`,
+      { headers: authHeaders() },
+    );
   } catch (err) {
     console.error('Failed to fetch campaign state:', err);
     return null;
@@ -1322,9 +1320,7 @@ export async function verifySpendMandate(
 
 export async function fetchLabs(): Promise<Lab[]> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/tenants`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return [];
-    const data = await res.json();
+    const data = await dedupedGet<{ tenants?: Lab[] }>(`${API_BASE}/api/tenants`, { headers: authHeaders() });
     return data.tenants || [];
   } catch (err) {
     console.error('Failed to fetch labs:', err);
@@ -2559,7 +2555,12 @@ export function dedupedGet<T>(url: string, init?: RequestInit): Promise<T> {
   const existing = dedupInflight.get(key);
   if (existing) return existing as Promise<T>;
   const pending: Promise<T> = apiFetch(url, { cache: 'no-store', ...init }).then(
-    async (res) => ((await res.json()) as T),
+    async (res) => {
+      // A refused GET is not a payload. Parsing the error body as T was the
+      // Wave-3 bug: a 401/404 JSON object could masquerade as data.
+      if (!res.ok) throw new Error(`GET ${url} refused (HTTP ${res.status})`);
+      return (await res.json()) as T;
+    },
   );
   dedupInflight.set(key, pending);
   const cleanup = (): void => {

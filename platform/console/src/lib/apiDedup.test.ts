@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { dedupedGet, resetDedupForTests, reportError } from './api';
+import { dedupedGet, fetchCampaignState, resetDedupForTests, reportError } from './api';
 
 // Wave-3 inflight GET coalescing contract: module state is the dedup map,
 // so every case starts from a cleared map and a fresh fetch stub.
@@ -59,6 +59,22 @@ describe('dedupedGet', () => {
     const retry = await dedupedGet<{ v: number }>('http://x/api/flaky');
     expect(retry).toEqual({ v: 2 });
     expect(calls).toBe(2);
+  });
+
+  it('rejects a refused GET instead of parsing the error body as data', async () => {
+    stubFetch(async () => ({ ok: false, status: 401, json: async () => ({ error: 'expired' }) }));
+    await expect(dedupedGet('http://x/api/refused')).rejects.toThrow(/refused/);
+  });
+
+  it('coalesces concurrent campaign reads from co-mounted surfaces', async () => {
+    const fetch = stubFetch(async () => {
+      await new Promise((r) => setTimeout(r, 10));
+      return okJson({ target_system: 'H2' });
+    });
+    const [a, b] = await Promise.all([fetchCampaignState('s1'), fetchCampaignState('s1')]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(a).toEqual({ target_system: 'H2' });
+    expect(b).toEqual({ target_system: 'H2' });
   });
 
   it('never coalesces POSTs', async () => {
