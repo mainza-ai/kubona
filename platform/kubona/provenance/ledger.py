@@ -344,6 +344,16 @@ class Ledger:
             return
         # Default file: own rows first (transitional: pre-sharding
         # tenant/<T> rows still physically sit here and stay readable).
+        # OPERATOR DECISION (ledger-legacy residual, closed): NO data
+        # migration, ever. Sealed rows are content-addressed history —
+        # moving/rewriting them would re-hash and fork the audit trail, so
+        # pre-sharding `tenant/<T>` rows stay in place in the default file
+        # and the transitional `ledger.default.jsonl` (if any) stays in
+        # place. The union below is the PERMANENT read path, not a migration
+        # shim. If a future operator wants physical consolidation it must be
+        # a COPY-with-provenance-link (new rows pointing back, originals
+        # untouched), never a rewrite — and that needs a new decision, not
+        # this one.
         seen_shard = self.path.resolve() if self.path.exists() else self.path
         for rec in self:
             if readable(rec, requester, "default"):

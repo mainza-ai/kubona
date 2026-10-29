@@ -29,6 +29,7 @@ import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Sequence
 
 try:
@@ -68,22 +69,34 @@ SANDBOX_PIDS_LIMIT = 64
 SANDBOX_TMPFS = "/tmp:rw,noexec,nosuid,size=64m"
 
 #: Env override for the seccomp profile (absolute path on the Docker host):
-#: when set, the container runs under that profile INSTEAD of Docker's
-#: default seccomp profile; when unset, no seccomp flag is passed (Docker's
-#: default stays active). The verified profile ships at
-#: platform/bridge/seccomp-profile.json (moby default minus the socket
-#: connection-establishment surface). Kept env-gated, not default-on, for
-#: cross-rail parity: the Go rail (platform/core/pkg/sandbox/docker.go)
-#: carries no seccomp flag either, so both rails default to Docker's
-#: default profile unless the operator opts in.
+#: when set, the container runs under that profile INSTEAD of the shipped
+#: default below. This is an operator custom-profile override, NOT a
+#: disable — there is deliberately NO env knob that runs the container
+#: without a profile (Phase-2 default-on: unconfigured runs apply the
+#: shipped profile; a run that cannot apply a profile refuses instead of
+#: silently falling back to Docker's weaker default).
 SANDBOX_SECCOMP_PROFILE_ENV = "KUBONA_SANDBOX_SECCOMP_PROFILE"
 
-# Seccomp (Phase-2, 2026-10-28): an explicit `--security-opt seccomp=...`
-# flag is applied ONLY when KUBONA_SANDBOX_SECCOMP_PROFILE points at a
-# profile file; otherwise no seccomp flag is passed and Docker's default
-# seccomp profile stays active (verified: Seccomp: 2 in /proc/self/status
-# inside the pinned image under this exact flag set) — we never pass
-# `seccomp=unconfined`.
+
+def _default_seccomp_profile() -> str | None:
+    """Absolute daemon-side path of the shipped Phase-2 profile.
+
+    Resolved from this file's location (platform/kubona/sandbox/ ->
+    platform/bridge/seccomp-profile.json) so the default works from a
+    checkout with zero configuration. Returns None when the shipped file
+    is absent — callers must fail closed (refuse the run), never run
+    profile-less.
+    """
+    candidate = Path(__file__).resolve().parents[2] / "bridge" / "seccomp-profile.json"
+    return str(candidate) if candidate.is_file() else None
+
+
+# Seccomp (Phase-2, 2026-10-28; default-on 2026-10-29): EVERY container run
+# carries an explicit `--security-opt seccomp=<profile>` flag — the shipped
+# profile by default, KUBONA_SANDBOX_SECCOMP_PROFILE when the operator
+# points at a custom file. There is no opt-out: we never pass
+# `seccomp=unconfined`, and a missing profile refuses the run
+# (`isolation_unavailable`) instead of falling back to Docker's default.
 #
 # The shipped profile (platform/bridge/seccomp-profile.json) is the moby
 # default allowlist MINUS the socket connection-establishment surface
@@ -98,7 +111,8 @@ SANDBOX_SECCOMP_PROFILE_ENV = "KUBONA_SANDBOX_SECCOMP_PROFILE"
 # numpy/scipy passes in kubona-quantum-runner:1.1.0 AND kubona/bridge;
 # AF_INET socket() refused with EPERM at the syscall (differential: Docker
 # default CREATES the socket); AF_UNIX socket() still works; Seccomp: 2
-# with 1 filter active under the profile.
+# with 1 filter active under the profile. Re-verified GREEN 2026-10-29 on
+# the default-on path (no env flag): same golden, same EPERM, same UNIX_OK.
 #
 # Do NOT ship a different untested profile without re-running the golden +
 # escape suites against it first: a naive allowlist breaks legitimate
@@ -293,14 +307,25 @@ def build_container_command(*, image: str, workdir: str, max_memory_mb: int,
 
     Parity with the Go rail's hardened ephemeral config
     (platform/core/pkg/sandbox/docker.go :: ExecuteHarness): read-only
-    rootfs, hardened tmpfs, ALL capabilities dropped, no-new-privileges, no
-    network, memory+swap/cpu/pids caps, unprivileged --user, read-only bind
-    of the workload dir, unbuffered output, pinned entrypoint. Docker's
-    default seccomp profile stays active when seccomp_profile is None (we
-    never pass seccomp=unconfined); pass an explicit profile path to run
-    under a custom profile instead (see SANDBOX_SECCOMP_PROFILE_ENV and
-    platform/bridge/seccomp-profile.json for the verified one).
+    rootfs, hardened tmpfs, ALL capabilities dropped, no-new-privileges, the
+    shipped seccomp profile, no network, memory+swap/cpu/pids caps,
+    unprivileged --user, read-only bind of the workload dir, unbuffered
+    output, pinned entrypoint. seccomp_profile=None (the default) resolves
+    to the shipped platform/bridge/seccomp-profile.json via
+    _default_seccomp_profile() and raises FileNotFoundError when it is
+    absent (fail closed — the caller refuses the run); pass an explicit
+    profile path for an operator custom profile; pass "" ONLY for the
+    Docker-default differential in tests (proves the backstop matters — it
+    is never used by execute_script, which has no profile-less path). We
+    never pass seccomp=unconfined.
     """
+    if seccomp_profile is None:
+        seccomp_profile = _default_seccomp_profile()
+        if seccomp_profile is None:
+            raise FileNotFoundError(
+                "shipped seccomp profile absent: refusing to build a "
+                "profile-less container invocation (no silent fallback to "
+                "Docker's default profile)")
     mem = f"{max_memory_mb}m"
     cmd = [
         "docker", "run", "--rm",
@@ -460,7 +485,18 @@ class WorkloadSandbox:
                                          stderr=(f"docker is not available for container sandbox "
                                                  f"(image {image!r}): refusing host-side execution"),
                                          violation="isolation_unavailable")
-                seccomp_profile = os.getenv(SANDBOX_SECCOMP_PROFILE_ENV) or None
+                # Default-on (Phase-2): the shipped profile applies unless
+                # the operator points at a custom file. No disable exists;
+                # a missing profile refuses the run (fail closed).
+                seccomp_profile = (os.getenv(SANDBOX_SECCOMP_PROFILE_ENV)
+                                   or _default_seccomp_profile())
+                if seccomp_profile is None:
+                    return SandboxResult(
+                        success=False, returncode=-1, stdout="",
+                        stderr=("shipped seccomp profile absent and no "
+                                f"{SANDBOX_SECCOMP_PROFILE_ENV} override: refusing "
+                                "container execution without a profile"),
+                        violation="isolation_unavailable")
                 cmd = build_container_command(image=image, workdir=tmpdir,
                                               max_memory_mb=self.max_memory_mb,
                                               seccomp_profile=seccomp_profile)
