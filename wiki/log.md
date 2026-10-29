@@ -3848,3 +3848,10 @@ skipped is the exact failure this incident is about:
     now enforces hold-the-line floors. Measured 54.5/55.3/52.6/57.1
     statements/branches/functions/lines; floors 53/54/51/56. Raise after a
     sustained green run; never lower to make a red pass.
+
+## [2026-10-29] implementation | Read-only foreign-key orphan audit
+
+  - `kubonad fk-audit --db /abs/ledger.db [--json]` runs
+    `PRAGMA foreign_key_check` through a read-only handle, takes no writer
+    lock, and exits 0 clean / 1 orphans / 2 usage. It is the prerequisite
+    for enabling FK enforcement: existing orphan rows must be repaired first.
