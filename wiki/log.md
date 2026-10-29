@@ -3761,3 +3761,27 @@ skipped is the exact failure this incident is about:
     exit -1/nil-error (ExitError asserted before ctx.DeadlineExceeded), so timeouts
     never surfaced ErrExecutionTimeout — the orphan class hid behind it. Deadline now
     checked first; pinned 124 + error + zero leftovers on both rails.
+
+## [2026-10-29] verification | Console Wave-3 slices landed on develop
+
+  - Root ErrorBoundary + `reportError` chokepoint; inflight GET coalescer keyed by
+    URL + headers (contract-tested, not yet wired into call sites).
+  - Native `confirm()`/`alert()` replaced with the shared typed ConfirmDialog for
+    campaign delete, clear-chat, session revoke, loop kill, proposal reject, overflow
+    clear, and lab ceiling/status; abort refusals/receipts use the inline toast slot.
+  - 3D observatory code-split off first paint (`SpatialCanvas3D` dynamic, EXR chisel
+    import on click); WebGL creation/context loss fail closed to a 2D-workbench panel;
+    rAF-coalesced hover raycast; coarse-pointer 1.5 DPR cap + fps step-down; per-chisel
+    EXR DataTexture disposed.
+  - Honest first-load skeletons (fleet, labs, LLM settings) and a stale radar badge
+    gated on the existing backoff mirror.
+  - Hygiene: deleted unreferenced `pqc.ts`; dropped `@noble/post-quantum`,
+    `@noble/curves`, `clsx`, `tailwind-merge`; removed zero-caller
+    `isCorroboratedVerdict`; chatops/workflowApi success tests now assert URL + method
+    + body; CSP decision recorded (remote Atlas lens bytes stay blocked until a
+    same-origin proxy exists).
+  - Verified on the committed tree: console `vitest` 74 files / 434 tests green,
+    `tsc --noEmit` 0, `eslint` 0 errors (1 pre-existing `no-img-element` warning in a
+    test), production `next build` green with the dev token unset. CI on the pushed
+    slices went red only on DCO (unsigned commits); develop forbids force-push, so the
+    history repair could not be applied — this signed follow-up is the repair.
