@@ -13,6 +13,10 @@ export function classifyTribunalVerdict(verdict: string | null | undefined): Exc
   return 'contested';
 }
 
-export function isCorroboratedVerdict(verdict: string | null | undefined): boolean {
-  return classifyTribunalVerdict(verdict) === 'corroborated';
-}
+// Wave-3 hygiene note: isCorroboratedVerdict was a one-line wrapper around
+// classifyTribunalVerdict(…) === 'corroborated' with zero repo-wide callers
+// (EpistemicTribunalRoom calls classifyTribunalVerdict directly for seat
+// filling + quorum counting). Wiring it would mean touching
+// EpistemicTribunalRoom, owned by another surface workstream, so the dead
+// export is deleted here instead of threaded through. Re-add as the
+// one-liner above if a caller ever needs the boolean form.
