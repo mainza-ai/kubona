@@ -9,6 +9,7 @@ import {
 } from '@/lib/api';
 import { signAdminActionWithCustody, type AdminAction } from '@/lib/adminAction';
 import { peekSignerPubkeyHex } from '@/lib/custody';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
 import type { Lab } from '@/types';
 
 // U1-b: per-lab operator writes. Every mutation carries BOTH rails: the
@@ -28,6 +29,13 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
   const [refundReason, setRefundReason] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // Wave-2 typed gate for the IRREVERSIBLE refund: native confirm() is
+  // invisible to screen readers and carries no typed acknowledgement, so
+  // the refund stages a ConfirmDialog requiring the exact "$X.XX" amount.
+  // Backend refusals surface in the dialog error slot with no silent close.
+  const [refundDraft, setRefundDraft] = useState<{ amount: number; reason: string } | null>(null);
+  const [refundBusy, setRefundBusy] = useState(false);
+  const [refundError, setRefundError] = useState<string | null>(null);
 
   const [browserPub, setBrowserPub] = useState<string | null>(null);
   useEffect(() => {
@@ -104,6 +112,40 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
 
   const ask = (msg: string) => confirm(msg);
 
+  const refundAmountText = refundDraft != null ? `$${refundDraft.amount.toFixed(2)}` : null;
+
+  const confirmRefund = async () => {
+    if (!refundDraft || refundBusy) return;
+    const { amount, reason } = refundDraft;
+    setRefundBusy(true);
+    setRefundError(null);
+    try {
+      const res = await refundTenantSpend(
+        lab.id,
+        amount,
+        reason,
+        await envelope('refund_spend', { tenant_id: lab.id, amount_usd: amount, reason })
+      );
+      if (res === null) {
+        // Transport loss: stay open, surface in the dialog error slot.
+        setRefundError('backend unreachable — nothing changed.');
+        return;
+      }
+      if ('error' in res) {
+        setRefundError(`refused: ${res.error}`);
+        return;
+      }
+      setCeiling('');
+      setRefundAmount('');
+      setRefundReason('');
+      setRefundDraft(null);
+      setRefundError(null);
+      onChanged();
+    } finally {
+      setRefundBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-2 pt-1">
       <div className="flex items-center gap-1.5 text-[11px]">
@@ -130,15 +172,15 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
           type="button"
           disabled={busy !== null || suspended}
           title={suspended ? 'suspended labs refuse ceiling changes — resume first' : 'Set spend ceiling'}
-          onClick={() => {
-            const v = Number(ceiling);
-            if (!Number.isFinite(v) || v <= 0) {
-              setNotice('ceiling must be a positive number.');
-              return;
-            }
-            if (!ask(`Set ${lab.id} ceiling to $${v}?`)) return;
-            void run('ceiling', async () => setTenantCeiling(lab.id, v, await envelope('set_ceiling', { ceiling_usd: v })));
-          }}
+            onClick={() => {
+              const v = Number(ceiling);
+              if (!Number.isFinite(v) || v <= 0) {
+                setNotice('ceiling must be a positive number.');
+                return;
+              }
+              if (!ask(`Set ${lab.id} ceiling to $${v.toFixed(2)}?`)) return;
+              void run('ceiling', async () => setTenantCeiling(lab.id, v, await envelope('set_ceiling', { ceiling_usd: v })));
+            }}
           className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] text-slate-200 disabled:opacity-40"
         >
           Set ceiling
@@ -184,21 +226,20 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
           disabled={busy !== null || suspended}
           title={suspended ? 'suspended labs refuse refunds — resume first' : 'Return consumed spend to the lab books (audited)'}
           onClick={() => {
-            const v = Number(refundAmount);
-            if (!Number.isFinite(v) || v <= 0) {
-              setNotice('refund amount must be a positive number.');
-              return;
-            }
-            if (!refundReason.trim()) {
-              setNotice('refund needs a reason — unexplained money movement is refused.');
-              return;
-            }
-            if (!ask(`Refund $${v} to ${lab.id} (“${refundReason.trim()}”)? Audited, irreversible.`)) return;
-            const reason = refundReason.trim();
-            void run('refund', async () =>
-              refundTenantSpend(lab.id, v, reason, await envelope('refund_spend', { tenant_id: lab.id, amount_usd: v, reason }))
-            );
-          }}
+              const v = Number(refundAmount);
+              if (!Number.isFinite(v) || v <= 0) {
+                setNotice('refund amount must be a positive number.');
+                return;
+              }
+              if (!refundReason.trim()) {
+                setNotice('refund needs a reason — unexplained money movement is refused.');
+                return;
+              }
+              // Stage the typed gate — no network until the exact "$X.XX"
+              // acknowledgement lands in the dialog.
+              setRefundError(null);
+              setRefundDraft({ amount: v, reason: refundReason.trim() });
+            }}
           className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] text-slate-200 disabled:opacity-40"
         >
           Refund
@@ -208,6 +249,29 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
         <p className="text-[11px] text-amber-200" role="alert">
           {notice}
         </p>
+      )}
+      {refundDraft != null && refundAmountText != null && (
+        <ConfirmDialog
+          open
+          title={`Refund ${refundAmountText} to ${lab.id}?`}
+          body={
+            <span>
+              Return <strong className="font-semibold text-white">{refundAmountText}</strong> to {lab.id} (“
+              {refundDraft.reason}”). Audited, irreversible — the ledger keeps this refund forever.
+            </span>
+          }
+          requireText={refundAmountText}
+          confirmLabel={`Refund ${refundAmountText}`}
+          danger
+          busy={refundBusy || busy !== null}
+          error={refundError}
+          onConfirm={() => void confirmRefund()}
+          onCancel={() => {
+            if (refundBusy || busy !== null) return;
+            setRefundDraft(null);
+            setRefundError(null);
+          }}
+        />
       )}
     </div>
   );

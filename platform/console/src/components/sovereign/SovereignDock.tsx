@@ -40,7 +40,7 @@ function DockTooltip({ title, sub }: { title: string; sub?: string }) {
   // gloss, never the only name). Touch users get the label via the same
   // tap that activates (tap = focus + click).
   return (
-    <div className="absolute left-16 px-3 py-1.5 rounded-lg bg-[#141720] border border-white/10 text-xs text-white whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200 z-50 shadow-2xl" aria-hidden>
+    <div className="absolute left-14 lg:left-16 px-3 py-1.5 rounded-lg bg-[#141720] border border-white/10 text-xs text-white whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200 z-50 shadow-2xl" aria-hidden>
       <div className="font-medium">{title}</div>
       {sub && <div className="text-[10px] text-slate-400">{sub}</div>}
     </div>
@@ -65,7 +65,7 @@ export function SovereignDock({
   return (
     <aside
       aria-label="Sovereign dock"
-      className="relative z-30 w-16 h-full flex flex-col items-center justify-between py-5 border-r border-white/5 bg-[#0A0C10]/90 backdrop-blur-2xl shrink-0"
+      className="relative z-30 w-12 lg:w-16 h-full flex flex-col items-center justify-between py-5 border-r border-white/5 bg-[#0A0C10]/90 backdrop-blur-2xl shrink-0"
     >
       <div className="flex flex-col items-center gap-6">
         {/* Brand sigil */}
@@ -76,7 +76,7 @@ export function SovereignDock({
               <circle cx="12" cy="12" r="3" fill="currentColor" />
             </svg>
           </div>
-          <div className="absolute left-16 px-3 py-1.5 rounded-lg bg-[#141720] border border-white/10 text-xs text-white whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200 z-50 shadow-2xl flex items-center gap-2" aria-hidden>
+          <div className="absolute left-14 lg:left-16 px-3 py-1.5 rounded-lg bg-[#141720] border border-white/10 text-xs text-white whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200 z-50 shadow-2xl flex items-center gap-2" aria-hidden>
             <span className="font-semibold tracking-wide">KUBONA</span>
             <span className="text-[10px] text-cyan-400 font-code">sovereign</span>
           </div>
@@ -121,7 +121,7 @@ export function SovereignDock({
           }`}
         >
           <Lock className="w-[18px] h-[18px]" />
-          <div className="absolute left-16 px-3 py-1.5 rounded-lg bg-[#141720] border border-white/10 text-xs text-white whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200 z-50 shadow-2xl" aria-hidden>
+          <div className="absolute left-14 lg:left-16 px-3 py-1.5 rounded-lg bg-[#141720] border border-white/10 text-xs text-white whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200 z-50 shadow-2xl" aria-hidden>
             <span className={`font-medium ${airGapSovereign ? 'text-emerald-400' : 'text-amber-400'}`}>
               Air-Gap Enclave: {airGapSovereign ? 'Sovereign' : 'Egress Open'}
             </span>

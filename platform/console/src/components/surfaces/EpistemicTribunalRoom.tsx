@@ -13,6 +13,7 @@ import {
 import { AgentPersona, CampaignState, TribunalTurn } from '@/types';
 import { runTribunal, appendLedgerEvent, synthesizeCampaign, fetchMessages } from '@/lib/api';
 import { classifyTribunalVerdict } from '@/lib/verdict';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
 
 interface TribunalRoomProps {
   hypothesisId?: string;
@@ -49,6 +50,10 @@ export function EpistemicTribunalRoom({
   const [isSynthesizing, setIsSynthesizing] = useState<boolean>(false);
   const [synthNotice, setSynthNotice] = useState<string | null>(null);
   const [turns, setTurns] = useState<TribunalTurn[] | null>(null);
+  // Wave-2 typed gate: the Merkle-ledger commit is single-click no more.
+  // The outer button keeps the exact quorum gating below; it only stages
+  // this dialog, which requires typing the target/session short-id.
+  const [commitOpen, setCommitOpen] = useState(false);
   const [topic, setTopic] = useState(`${targetSystem} ground state electronic structure`);
 
   // Sync topic when targetSystem changes
@@ -249,6 +254,13 @@ export function EpistemicTribunalRoom({
     }
   };
 
+  // Short typed acknowledgement for the ledger commit: the leading 8 of
+  // the bound session id, falling back to the hypothesis id when unbound.
+  // 2dp money rule N/A here — no dollar figure is rendered on this gate.
+  const commitRequireText = (sessionId || '').trim()
+    ? sessionId.trim().slice(0, 8)
+    : hypothesisId;
+
   const handleCommitLedger = async () => {
     if (!sessionId) {
       setCommitError('No active session: open or create a session before committing.');
@@ -265,9 +277,13 @@ export function EpistemicTribunalRoom({
         quorum_percent: quorumPercent,
       });
       if (!res.ok) {
-        throw new Error(res.error || 'ledger refused the commit');
+        // Stay open: the refusal renders in the dialog error slot.
+        setCommitError(res.error || 'ledger refused the commit');
+        return;
       }
       setCommittedReceipt(res.record_hash as string);
+      setCommitOpen(false);
+      setCommitError(null);
       if (onCommitToLedger) {
         onCommitToLedger({
           receipt_hash: res.record_hash,
@@ -333,7 +349,14 @@ export function EpistemicTribunalRoom({
           </button>
 
           <button
-            onClick={handleCommitLedger}
+            onClick={() => {
+              if (!sessionId) {
+                setCommitError('No active session: open or create a session before committing.');
+                return;
+              }
+              setCommitError(null);
+              setCommitOpen(true);
+            }}
             disabled={quorumPercent == null || quorumPercent < 75.0 || committedReceipt !== null || isCommitting}
             className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-xs font-semibold border transition ${
               committedReceipt
@@ -470,13 +493,46 @@ export function EpistemicTribunalRoom({
           </div>
         </div>
 
-        <div className="w-full md:w-64 bg-neutral-800 rounded-full h-3 overflow-hidden border border-neutral-700">
+        <div
+          className="w-full md:w-64 bg-neutral-800 rounded-full h-3 overflow-hidden border border-neutral-700"
+          role="progressbar"
+          aria-label="Tribunal quorum consensus"
+          aria-valuenow={quorumPercent != null ? Math.round(quorumPercent * 10) / 10 : 0}
+          aria-valuemin={0}
+          aria-valuemax={100}
+        >
           <div
             className="bg-gradient-to-r from-emerald-500 to-cyan-400 h-full rounded-full transition-all duration-500"
             style={{ width: `${quorumPercent != null ? Math.min(quorumPercent, 100) : 0}%` }}
           />
         </div>
       </div>
+
+      {commitOpen && (
+        <ConfirmDialog
+          open
+          title="Commit discovery to Merkle ledger?"
+          body={
+            <span>
+              Seal hypothesis <strong className="font-mono text-white">{hypothesisId}</strong> for target{' '}
+              <strong className="text-white">{targetSystem}</strong> at quorum{' '}
+              {quorumPercent != null ? `${quorumPercent.toFixed(1)}%` : '—'} (session{' '}
+              <code className="font-mono">{commitRequireText}</code>). Ledger-sealed and irreversible.
+            </span>
+          }
+          requireText={commitRequireText}
+          confirmLabel="Commit to ledger"
+          danger
+          busy={isCommitting}
+          error={commitError}
+          onConfirm={() => void handleCommitLedger()}
+          onCancel={() => {
+            if (isCommitting) return;
+            setCommitOpen(false);
+            setCommitError(null);
+          }}
+        />
+      )}
 
       {/* Committed Receipt Notice */}
       {committedReceipt && (
@@ -494,8 +550,9 @@ export function EpistemicTribunalRoom({
         </div>
       )}
 
-      {/* Commit Failure Notice */}
-      {commitError && !committedReceipt && (
+      {/* Commit Failure Notice (only when the gate dialog is closed —
+          while open, the refusal lives in the dialog error slot) */}
+      {commitError && !committedReceipt && !commitOpen && (
         <div className="p-3.5 bg-rose-950/30 border border-rose-500/40 rounded-xl flex items-center gap-2">
           <AlertTriangle className="w-4 h-4 text-rose-400 shrink-0" />
           <span className="text-xs text-rose-300">

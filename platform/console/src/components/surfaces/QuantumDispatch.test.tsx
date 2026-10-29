@@ -41,6 +41,13 @@ const BACKENDS = [
   { provider: 'ibm-qiskit', display_name: 'IBM Quantum', modality: 'superconducting', device: 'ibm_heron', credential_env: 'KUBONA_IBM_QISKIT_TOKEN', credential_state: 'credentialless', telemetry: 'declared', executable_now: false, dispatch_ready: false, input_format: 'qasm' },
 ];
 
+// Wave-2 money copy: the Dispatch button restates the already-computed
+// estimate at 2dp with the provider. Find it by the stable 'Dispatch'
+// prefix (the exact suffix carries the priced amount).
+function dispatchBtn(root: TestRenderer.ReactTestRenderer) {
+  return root.root.find((n) => n.type === 'button' && textOf(n).includes('Dispatch'));
+}
+
 describe('QuantumDispatch human flow', () => {
   beforeEach(() => {
     vi.mocked(api.fetchQuantumBackends).mockResolvedValue(BACKENDS);
@@ -72,7 +79,9 @@ describe('QuantumDispatch human flow', () => {
     expect(textOf(root!.root)).toContain('Estimated cost:');
     expect(textOf(root!.root)).toContain('0.000000');
     // Dispatch (zero estimate needs no mandate).
-    const goBtn = root!.root.find((n) => n.type === 'button' && textOf(n).includes('Dispatch job'));
+    // Wave-2: the button restates the priced amount + provider (2dp).
+    const goBtn = dispatchBtn(root!);
+    expect(textOf(goBtn)).toContain('Dispatch — $0.00 on local-simulator');
     await act(async () => {
       (goBtn.props as { onClick: () => void }).onClick();
     });
@@ -101,7 +110,8 @@ describe('QuantumDispatch human flow', () => {
     // Mandate card appears for the non-zero estimate...
     expect(textOf(root!.root)).toContain('mock mandate card');
     // ...and dispatch stays disabled until signing.
-    const goBtn = () => root!.root.find((n) => n.type === 'button' && textOf(n).includes('Dispatch job'));
+    const goBtn = () => dispatchBtn(root!);
+    expect(textOf(goBtn())).toContain('Dispatch — $1.60 on local-simulator');
     expect((goBtn().props as { disabled?: boolean }).disabled).toBe(true);
     // Sign → dispatch carries the mandate reference.
     await act(async () => {
@@ -148,7 +158,7 @@ describe('QuantumDispatch human flow', () => {
       (estBtn.props as { onClick: () => void }).onClick();
     });
     await flush();
-    const goBtn = root!.root.find((n) => n.type === 'button' && textOf(n).includes('Dispatch job'));
+    const goBtn = dispatchBtn(root!);
     await act(async () => {
       await (goBtn.props as { onClick: () => Promise<void> }).onClick();
     });
@@ -207,5 +217,37 @@ describe('QuantumDispatch human flow', () => {
     });
     expect(textOf(root!.root)).toContain('QUBO matrix (JSON 2-D array)');
     expect(textOf(root!.root)).toContain('Samples / Reads');
+  });
+
+  it('dispatch button restates the priced estimate at 2dp with provider (quote line stays 6dp)', async () => {
+    vi.mocked(api.submitQuantumJob).mockResolvedValueOnce({
+      ok: true,
+      estimate: { estimated_usd: 1.6 },
+      fidelity: { admitted: true },
+    });
+    let root: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      root = TestRenderer.create(<QuantumDispatch sessionId="s1" />);
+    });
+    // Unpriced: generic label, no invented figure.
+    expect(textOf(dispatchBtn(root!))).toContain('Dispatch job');
+    const estBtn = root!.root.find((n) => n.type === 'button' && textOf(n).includes('Estimate (dry run)'));
+    await act(async () => {
+      (estBtn.props as { onClick: () => void }).onClick();
+    });
+    await flush();
+    // Priced from the ALREADY-COMPUTED estimate: amount 2dp + provider.
+    expect(textOf(dispatchBtn(root!))).toContain('Dispatch — $1.60 on local-simulator');
+    // Documented exception: the dry-run quote line itself stays 6dp.
+    expect(textOf(root!.root)).toContain('1.600000');
+    // Stale quote (provider changed) drops back to the generic label.
+    const select = root!.root.find((n) => n.type === 'select');
+    await act(async () => {
+      (select.props as { onChange: (e: { target: { value: string } }) => void }).onChange({
+        target: { value: 'ibm-qiskit' },
+      });
+    });
+    expect(textOf(dispatchBtn(root!))).toContain('Dispatch job');
+    expect(textOf(dispatchBtn(root!))).not.toContain('$');
   });
 });

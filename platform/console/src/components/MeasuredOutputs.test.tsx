@@ -61,8 +61,21 @@ describe('MeasuredOutputs', () => {
     expect(text).toContain('(estimate)');
     expect(text).toContain('job-kry'.slice(0, 8));
     // The running job must not appear as a measured row (R7 gate holds);
-    // it renders in the live-progress section instead (S8b/c).
-    expect(text).not.toContain('job-run-');
+    // it renders in the live-progress section instead (S8b/c) — including
+    // its sr-only status announcer, which legitimately names the job id.
+    // So the assertion is scoped to measured <li> rows, not the whole tree.
+    const textOf = (node: unknown): string => {
+      if (typeof node === 'string' || typeof node === 'number') return String(node);
+      if (node == null || typeof node !== 'object') return '';
+      const kids = (node as { children?: unknown; props?: { children?: unknown } }).children
+        ?? (node as { props?: { children?: unknown } }).props?.children;
+      return Array.isArray(kids) ? kids.map(textOf).join('') : textOf(kids);
+    };
+    const rows = tree!.root.findAllByType('li');
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(textOf(row)).not.toContain('job-run-');
+    }
     // The newer FAILED krylov job must not displace (or appear as) measured.
     expect(text).not.toContain('bridge blew up');
     expect(text).not.toContain('job-fail'.slice(0, 8));

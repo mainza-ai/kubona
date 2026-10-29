@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { X, Command } from 'lucide-react';
 import { SHORTCUTS } from '@/lib/shortcuts';
+import { useFocusTrap } from '@/lib/useFocusTrap';
 
 interface KeyboardShortcutsModalProps {
   isOpen: boolean;
@@ -10,7 +11,14 @@ interface KeyboardShortcutsModalProps {
 }
 
 export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsModalProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Wave-2 a11y: trap Tab inside the dialog, land focus on entry, restore
+  // the invoker on close. Escape handling below is unchanged.
+  useFocusTrap(isOpen, panelRef);
+
   useEffect(() => {
+    if (typeof window === 'undefined') return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
         onClose();
@@ -69,7 +77,7 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
       aria-modal="true"
       aria-labelledby="shortcuts-title"
     >
-      <div className="w-full max-w-lg bg-[#0E111A]/95 border border-white/10 rounded-2xl shadow-2xl shadow-black/90 overflow-hidden backdrop-blur-2xl animate-in zoom-in-95 duration-150">
+      <div ref={panelRef} className="w-full max-w-lg bg-[#0E111A]/95 border border-white/10 rounded-2xl shadow-2xl shadow-black/90 overflow-hidden backdrop-blur-2xl animate-in zoom-in-95 duration-150">
         <div className="h-12 px-5 border-b border-white/[0.08] flex items-center justify-between bg-white/[0.02]">
           <div className="flex items-center space-x-2">
             <Command className="w-4 h-4 text-cyan-400" />
@@ -107,6 +115,19 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
               </div>
             </div>
           ))}
+          <div className="space-y-2">
+            <h3 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider font-mono">
+              Deep links
+            </h3>
+            <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.04] text-xs text-slate-300">
+              Share or bookmark <code className="font-mono text-cyan-300">?surface=</code>
+              <span className="font-mono">arena|recorder|manifold|fleet|proofs|mesh</span> with{' '}
+              <code className="font-mono text-cyan-300">?tab=</code>
+              <span className="font-mono">manuscripts|tribunal|gallery|circuits</span> (proofs),{' '}
+              <span className="font-mono">mesh|guardrails|models|labs|settings</span> (mesh),{' '}
+              <span className="font-mono">orbital|proof-dag</span> (arena).
+            </div>
+          </div>
         </div>
 
         <div className="h-10 px-5 border-t border-white/[0.08] bg-white/[0.02] flex items-center justify-end">

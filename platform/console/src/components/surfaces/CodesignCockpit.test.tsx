@@ -417,3 +417,153 @@ describe('CodesignCockpit read-only', () => {
     }
   });
 });
+
+describe('CodesignCockpit numeric range validation (Wave-2)', () => {
+  function stubNotFound(calls: string[]) {
+    const realFetch = globalThis.fetch;
+    (globalThis as unknown as { fetch: unknown }).fetch = async (input: unknown) => {
+      calls.push(String(input));
+      return new Response(JSON.stringify({ message: 'not ready' }), { status: 503 });
+    };
+    return realFetch;
+  }
+
+  async function renderCockpit(): Promise<TestRenderer.ReactTestRenderer> {
+    let root: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      root = TestRenderer.create(<CodesignCockpit />);
+    });
+    return root!;
+  }
+
+  it('refuses a non-numeric Toffoli count with a named-field error and sends nothing', async () => {
+    const calls: string[] = [];
+    const realFetch = stubNotFound(calls);
+    try {
+      const root = await renderCockpit();
+      await act(async () => {
+        (root.root.findByProps({ 'aria-label': 'Toffoli count' }).props as { onChange: (e: { target: { value: string } }) => void }).onChange({ target: { value: 'abc' } });
+      });
+      const score = root.root.findByProps({ children: 'Score' });
+      await act(async () => {
+        await (score.props as { onClick: () => Promise<void> }).onClick();
+      });
+      expect(textOf(root.root)).toContain('Toffoli count must be an integer');
+      expect(calls.filter((u) => u.includes('/api/codesign/tq'))).toHaveLength(0);
+    } finally {
+      (globalThis as unknown as { fetch: unknown }).fetch = realFetch;
+    }
+  });
+
+  it('refuses an out-of-range Qubit count in the sweep with a named-field error', async () => {
+    const calls: string[] = [];
+    const realFetch = stubNotFound(calls);
+    try {
+      const root = await renderCockpit();
+      await act(async () => {
+        (root.root.findByProps({ 'aria-label': 'Qubit count' }).props as { onChange: (e: { target: { value: string } }) => void }).onChange({ target: { value: '0' } });
+      });
+      const sweep = root.root.findByProps({ children: 'Sweep κ=1..3' });
+      await act(async () => {
+        await (sweep.props as { onClick: () => Promise<void> }).onClick();
+      });
+      expect(textOf(root.root)).toContain('Qubit count must be an integer');
+      expect(calls.filter((u) => u.includes('/api/codesign/tq'))).toHaveLength(0);
+    } finally {
+      (globalThis as unknown as { fetch: unknown }).fetch = realFetch;
+    }
+  });
+
+  it('names the offending frontier batch line instead of sending NaN', async () => {
+    const calls: string[] = [];
+    const realFetch = stubNotFound(calls);
+    try {
+      const root = await renderCockpit();
+      await act(async () => {
+        (root.root.findByProps({ 'aria-label': 'Frontier batch' }).props as { onChange: (e: { target: { value: string } }) => void }).onChange({ target: { value: '5,abc' } });
+      });
+      const frontier = root.root.findByProps({ children: 'Score frontier' });
+      await act(async () => {
+        await (frontier.props as { onClick: () => Promise<void> }).onClick();
+      });
+      expect(textOf(root.root)).toContain('Frontier batch Qubit count (line 1)');
+      expect(calls.filter((u) => u.includes('/api/codesign/frontier'))).toHaveLength(0);
+    } finally {
+      (globalThis as unknown as { fetch: unknown }).fetch = realFetch;
+    }
+  });
+
+  it('refuses a zero test count on the evaluator with a named-field error', async () => {
+    const calls: string[] = [];
+    const realFetch = stubNotFound(calls);
+    try {
+      const root = await renderCockpit();
+      await act(async () => {
+        (root.root.findByProps({ 'aria-label': 'Number of tests' }).props as { onChange: (e: { target: { value: string } }) => void }).onChange({ target: { value: '0' } });
+      });
+      const run = root.root.findByProps({ children: 'Run evaluation' });
+      await act(async () => {
+        await (run.props as { onClick: () => Promise<void> }).onClick();
+      });
+      expect(textOf(root.root)).toContain('Number of tests must be an integer');
+      expect(calls.filter((u) => u.includes('/api/codesign/evaluate'))).toHaveLength(0);
+    } finally {
+      (globalThis as unknown as { fetch: unknown }).fetch = realFetch;
+    }
+  });
+
+  it('refuses a bad budget row with named fields and never computes locally', async () => {
+    const calls: string[] = [];
+    const realFetch = stubNotFound(calls);
+    try {
+      const root = await renderCockpit();
+      await act(async () => {
+        (root.root.findByProps({ 'aria-label': 'Budget rows' }).props as { onChange: (e: { target: { value: string } }) => void }).onChange({ target: { value: 'carry,2,40' } });
+      });
+      const seal = root.root.findByProps({ children: 'Seal union bound' });
+      await act(async () => {
+        await (seal.props as { onClick: () => Promise<void> }).onClick();
+      });
+      expect(textOf(root.root)).toContain('Budget row 1 per-use rate');
+      expect(calls.filter((u) => u.includes('/api/codesign/budget'))).toHaveLength(0);
+      expect(textOf(root.root)).not.toContain('union ≤');
+    } finally {
+      (globalThis as unknown as { fetch: unknown }).fetch = realFetch;
+    }
+  });
+
+  it('withholds the local DQI estimate on out-of-range epsilon with a named error', async () => {
+    const calls: string[] = [];
+    const realFetch = stubNotFound(calls);
+    try {
+      const root = await renderCockpit();
+      await act(async () => {
+        (root.root.findByProps({ 'aria-label': 'Epsilon' }).props as { onChange: (e: { target: { value: string } }) => void }).onChange({ target: { value: '2' } });
+      });
+      const text = textOf(root.root);
+      expect(text).toContain('Epsilon must be a number 0..1');
+      expect(text).not.toContain('loss ≤');
+    } finally {
+      (globalThis as unknown as { fetch: unknown }).fetch = realFetch;
+    }
+  });
+
+  it('refuses empty families and non-integer share rounds with named errors', async () => {
+    const calls: string[] = [];
+    const realFetch = stubNotFound(calls);
+    try {
+      const root = await renderCockpit();
+      await act(async () => {
+        (root.root.findByProps({ 'aria-label': 'Families (comma list)' }).props as { onChange: (e: { target: { value: string } }) => void }).onChange({ target: { value: '  ' } });
+      });
+      const run = root.root.findByProps({ children: 'Run families' });
+      await act(async () => {
+        await (run.props as { onClick: () => Promise<void> }).onClick();
+      });
+      expect(textOf(root.root)).toContain('Families (comma list) names no family');
+      expect(calls.filter((u) => u.includes('/api/codesign/families'))).toHaveLength(0);
+    } finally {
+      (globalThis as unknown as { fetch: unknown }).fetch = realFetch;
+    }
+  });
+});

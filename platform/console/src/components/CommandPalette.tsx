@@ -26,6 +26,7 @@ import {
   Keyboard,
 } from 'lucide-react';
 import { SHORTCUTS } from '@/lib/shortcuts';
+import { useFocusTrap } from '@/lib/useFocusTrap';
 
 interface CommandPaletteProps {
   isOpen: boolean;
@@ -51,6 +52,12 @@ export function CommandPalette({
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+
+  // Wave-2 a11y: trap Tab inside the palette, land focus on the search
+  // input (first focusable), restore the invoker on close. Arrow/Enter/
+  // Escape handling below is unchanged.
+  useFocusTrap(isOpen, panelRef);
 
   const items = [
     {
@@ -290,7 +297,7 @@ export function CommandPalette({
       role="dialog"
       aria-modal="true"
     >
-      <div className="w-full max-w-lg bg-[#0E111A]/95 border border-white/10 rounded-2xl shadow-2xl shadow-black/90 overflow-hidden backdrop-blur-2xl animate-in zoom-in-95 duration-150">
+      <div ref={panelRef} className="w-full max-w-lg bg-[#0E111A]/95 border border-white/10 rounded-2xl shadow-2xl shadow-black/90 overflow-hidden backdrop-blur-2xl animate-in zoom-in-95 duration-150">
         {/* Search Input Bar with Apple Spotlight aesthetics */}
         <div className="h-14 px-4 border-b border-white/[0.08] flex items-center space-x-3 bg-white/[0.02]">
           <Search className="w-5 h-5 text-slate-400 shrink-0" />

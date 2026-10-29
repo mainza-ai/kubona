@@ -93,6 +93,12 @@ export function JobProgress({ jobId, sessionId }: { jobId: string; sessionId: st
   const steps = ['QUEUED', 'RUNNING', done ? (failed ? st : 'COMPLETED') : 'SETTLING'];
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-2.5 text-xs" aria-label={`Job ${status}`}>
+      {/* Wave-2 a11y: polite live region announces phase transitions.
+          Text derives from the settled status, so it only changes on
+          phase change. Visual output is identical (sr-only). */}
+      <span aria-live="polite" role="status" className="sr-only">
+        {`Job ${jobId} status ${st}`}
+      </span>
       <div className="flex items-center gap-1.5">
         {steps.map((s, i) => (
           <React.Fragment key={s}>

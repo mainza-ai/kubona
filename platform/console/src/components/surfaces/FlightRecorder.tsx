@@ -181,6 +181,11 @@ export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChang
 
   return (
     <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0F19] to-[#07090E] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-8 select-none">
+      {/* Wave-2 a11y: polite live region announces the playback position.
+          Text derives from safeIndex, so it only changes on step change. */}
+      <div aria-live="polite" role="status" className="sr-only">
+        {`Step ${safeIndex + 1} of ${milestones.length}: ${activeMilestone.title}`}
+      </div>
       {/* Top Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-5">
         <div className="flex items-center space-x-3.5">

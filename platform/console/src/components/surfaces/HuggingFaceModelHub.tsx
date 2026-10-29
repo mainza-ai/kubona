@@ -246,7 +246,7 @@ export function HuggingFaceModelHub() {
             <Download className="w-4 h-4 text-cyan-400 animate-bounce" />
             <span>{toastMessage}</span>
           </div>
-          <button onClick={() => setToastMessage(null)} aria-label="Dismiss notification" className="text-cyan-300 hover:text-white">
+          <button onClick={() => setToastMessage(null)} aria-label="Dismiss notification" title="Dismiss notification" className="text-cyan-300 hover:text-white">
             <X className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -317,6 +317,7 @@ export function HuggingFaceModelHub() {
                     onClick={() => handleCancel(task.task_id)}
                     disabled={cancelling === task.task_id}
                     aria-label={`Cancel download ${task.filename}`}
+                    title={`Cancel download ${task.filename}`}
                     className="px-2.5 py-1 rounded-lg bg-rose-500/20 hover:bg-rose-500/30 border border-rose-500/30 text-rose-300 text-xs font-mono shrink-0 disabled:opacity-50"
                   >
                     {cancelling === task.task_id ? 'Cancelling…' : 'Cancel'}
@@ -473,6 +474,7 @@ export function HuggingFaceModelHub() {
               <button
                 onClick={() => setSelectedModel(null)}
                 aria-label="Close quantization inspector"
+                title="Close quantization inspector"
                 className="p-2 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] text-slate-300 hover:text-white transition-all"
               >
                 <X className="w-4 h-4" />
@@ -529,6 +531,7 @@ export function HuggingFaceModelHub() {
                       <button
                         onClick={() => handleDownload(selectedModel.id, q.filename, q.size_bytes)}
                         aria-label={`Download ${q.filename}`}
+                        title={`Download ${q.filename}`}
                         className="px-3.5 py-1.5 rounded-xl bg-cyan-600/30 hover:bg-cyan-600/50 border border-cyan-500/40 text-cyan-200 text-xs font-semibold flex items-center space-x-1.5 transition-all shadow-md shrink-0"
                       >
                         <Download className="w-3.5 h-3.5 text-cyan-400" />

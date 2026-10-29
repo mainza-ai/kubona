@@ -58,6 +58,12 @@ export function ApprovalPacketCard({
 }: ApprovalPacketCardProps) {
   const [denyReason, setDenyReason] = useState('');
   const [showDeny, setShowDeny] = useState(false);
+  // Wave-2 money copy: the up-to-max button restates the exact dollar bound
+  // (2dp, already in scope) — no invented figure; unpriced falls back.
+  const costMaxLabel =
+    typeof packet.costMaxUsd === 'number' && Number.isFinite(packet.costMaxUsd)
+      ? `$${packet.costMaxUsd.toFixed(2)}`
+      : null;
 
   return (
     <div className="w-full bg-black/60 border border-amber-500/30 rounded-3xl p-6 backdrop-blur-2xl shadow-xl space-y-4">
@@ -155,7 +161,7 @@ export function ApprovalPacketCard({
             disabled={isSubmitting || Boolean(packet.budgetBreached)}
             className="py-2.5 px-4 bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 text-xs font-medium rounded-xl transition-all disabled:opacity-50"
           >
-            Approve up to max
+            {costMaxLabel != null ? `Approve up to ${costMaxLabel}` : 'Approve up to max'}
           </button>
           <button
             onClick={() => setShowDeny(true)}

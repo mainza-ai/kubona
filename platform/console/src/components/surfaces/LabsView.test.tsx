@@ -103,3 +103,56 @@ describe('LabsView', () => {
     expect(textOf(root!.root)).toContain('requires login');
   });
 });
+
+describe('LabsView money precision + spend bar (Wave-2)', () => {
+  beforeEach(() => {
+    vi.mocked(api.fetchLabs).mockResolvedValue([
+      { id: 'lab-a', display_name: 'Lab A', autonomy_level: 'L1', spend_ceiling_usd: 99.9, spent_usd: 10.5, status: 'active' },
+    ]);
+    vi.mocked(api.fetchSessions).mockResolvedValue([
+      { id: 's1', title: 'drill', tenant_id: 'lab-a', created_at: '', updated_at: '', status: 'active', spend_limit_usd: 120.126, current_spend_usd: 3.14159 },
+    ]);
+    vi.mocked(api.authWhoami).mockResolvedValue({ authenticated: true });
+    vi.mocked(api.wasRecentAuthFailure).mockReturnValue(false);
+  });
+
+  it('renders all money at 2dp', async () => {
+    let root: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      root = TestRenderer.create(<LabsView />);
+    });
+    const text = textOf(root!.root);
+    expect(text).toContain('$10.50 / $99.90');
+    await act(async () => {
+      root!.root.findAllByType('button').filter((b) => b.props['aria-expanded'] !== undefined)[0].props.onClick();
+    });
+    expect(textOf(root!.root)).toContain('$3.14 / $120.13');
+  });
+
+  it('exposes the spend bar as a progressbar with value, range, and name', async () => {
+    let root: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      root = TestRenderer.create(<LabsView />);
+    });
+    const bar = root!.root.findByProps({ role: 'progressbar' });
+    expect(bar.props['aria-valuemin']).toBe(0);
+    expect(bar.props['aria-valuemax']).toBe(100);
+    // 10.5 / 99.9 -> 11%.
+    expect(bar.props['aria-valuenow']).toBe(11);
+    expect(String(bar.props['aria-label'])).toMatch(/Lab A/);
+  });
+
+  it('names an unbounded bar without inventing a ceiling', async () => {
+    vi.mocked(api.fetchLabs).mockResolvedValue([
+      { id: 'lab-x', display_name: 'Lab X', autonomy_level: 'L1', spend_ceiling_usd: 0, spent_usd: 5, status: 'active' },
+    ]);
+    let root: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      root = TestRenderer.create(<LabsView />);
+    });
+    const bar = root!.root.findByProps({ role: 'progressbar' });
+    expect(String(bar.props['aria-label'])).toMatch(/Lab X/);
+    expect(String(bar.props['aria-valuetext'])).toMatch(/unbounded/);
+    expect(textOf(root!.root)).toContain('UNBOUNDED');
+  });
+});
