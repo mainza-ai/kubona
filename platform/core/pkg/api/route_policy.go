@@ -188,6 +188,8 @@ var RoutePolicies = []RoutePolicy{
 	{Pattern: "/api/grants/revoke", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/tenant-grants/issue", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/tenant-grants/revoke", Methods: "POST", Class: RouteAuthBearer},
+	{Pattern: "/api/obligations/open", Methods: "GET", Class: RouteAuthBearer},
+	{Pattern: "/api/obligations/", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/tenants/admin-key", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/tenants/ceiling", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/tenants/refund", Methods: "POST", Class: RouteAuthBearer},

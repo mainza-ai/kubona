@@ -207,6 +207,18 @@ func loadReviewerKey() (ed25519.PublicKey, ed25519.PrivateKey, bool) {
 	return pub, priv, false
 }
 
+// ephemeralAllowed reports whether the dev-only ephemeral reviewer signer
+// may stand in for a commissioned reviewer key. The flag's own error
+// message says "local dev only" — this enforces it: production refuses
+// ephemeral authority regardless of the flag. There is deliberately no
+// override: commission KUBONA_REVIEWER_PRIVKEY_HEX instead.
+func ephemeralAllowed() bool {
+	if os.Getenv("KUBONA_ALLOW_EPHEMERAL_SIGNER") != "1" {
+		return false
+	}
+	return os.Getenv("KUBONA_ENV") != "production"
+}
+
 // newVaultLeases builds the server-side lease registry (W2.7). When
 // KUBONA_VAULT_REVOCATIONS names a file, revocations persist there across
 // restarts (a revoked lease stays revoked); unset means dev-only in-memory
@@ -396,7 +408,7 @@ func NewServer(
 			return nil
 		}
 		if strings.EqualFold(hex.EncodeToString(s.signerPubKey), pubkeyHex) &&
-			(s.reviewerKeyConfigured || os.Getenv("KUBONA_ALLOW_EPHEMERAL_SIGNER") == "1") {
+			(s.reviewerKeyConfigured || ephemeralAllowed()) {
 			return nil
 		}
 		return fmt.Errorf("key is not the tenant admin key (bootstrap an admin key or use the reviewer-signed path)")
@@ -539,6 +551,8 @@ func (s *Server) registerRoutes() {
 	s.route("/api/chat/tribunal", s.handleChatTribunal)
 	// T-16: resume a tribunal from an exported turn bundle (R4 flow).
 	s.route("/api/tribunal/resume", s.handleTribunalResume)
+	s.route("/api/obligations/open", s.requireBearer(s.handleObligationsOpen))
+	s.route("/api/obligations/", s.requireBearer(s.handleObligationClose))
 	s.route("/api/chat/launch", s.handleChatLaunch)
 	s.route("/api/jobs", s.handleJobs)
 	s.route("/api/jobs/", s.handleJobByID)
@@ -1199,7 +1213,7 @@ func (s *Server) handleMandateSign(w http.ResponseWriter, r *http.Request) {
 		WriteAPIError(w, "bad_request", "max_budget_usd must be a finite positive amount", nil)
 		return
 	}
-	if !s.reviewerKeyConfigured && os.Getenv("KUBONA_ALLOW_EPHEMERAL_SIGNER") != "1" {
+	if !s.reviewerKeyConfigured && !ephemeralAllowed() {
 		writeJSON(w, http.StatusForbidden, map[string]any{
 			"error": "reviewer signing key not configured: set KUBONA_REVIEWER_PRIVKEY_HEX " +
 				"(or KUBONA_ALLOW_EPHEMERAL_SIGNER=1 for local dev only)",
@@ -1305,7 +1319,7 @@ func (s *Server) handleMandateVerify(w http.ResponseWriter, r *http.Request) {
 	}
 	isAdmin := lab.AdminPubkeyHex != "" && strings.EqualFold(lab.AdminPubkeyHex, req.PublicKeyHex)
 	isReviewer := strings.EqualFold(hex.EncodeToString(s.signerPubKey), req.PublicKeyHex) &&
-		(s.reviewerKeyConfigured || os.Getenv("KUBONA_ALLOW_EPHEMERAL_SIGNER") == "1")
+		(s.reviewerKeyConfigured || ephemeralAllowed())
 	if !isAdmin && !isReviewer {
 		writeJSON(w, http.StatusOK, map[string]any{
 			"valid":       false,

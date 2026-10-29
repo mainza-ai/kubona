@@ -184,6 +184,51 @@ func (l *Ledger) GetObligationBySubject(kind, subject string) (*Obligation, erro
 	return ob, nil
 }
 
+// ListOpenObligations returns non-closed obligations, oldest first
+// (steady-state review order), with optional owner and subject-kind
+// filters (empty = unfiltered). Bounded by limit (<=0 means 100, capped
+// at 1000). Read-only: the review queue reads through this, never around
+// it — no unbounded full-table exposure.
+func (l *Ledger) ListOpenObligations(limit int, owner, subjectKind string) ([]*Obligation, error) {
+	if limit <= 0 {
+		limit = 100
+	}
+	if limit > 1000 {
+		limit = 1000
+	}
+	query := `SELECT id, version, subject_kind, subject_id, owner,
+		required_cases_json, required_authorities_json, dependencies_json, unknowns_json,
+		disposition, created_at, updated_at FROM obligations WHERE disposition != 'closed'`
+	args := []any{}
+	if owner != "" {
+		query += ` AND owner = ?`
+		args = append(args, owner)
+	}
+	if subjectKind != "" {
+		query += ` AND subject_kind = ?`
+		args = append(args, subjectKind)
+	}
+	query += ` ORDER BY updated_at ASC LIMIT ?`
+	args = append(args, limit)
+	rows, err := l.DB().Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []*Obligation
+	for rows.Next() {
+		ob, err := scanObligation(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, ob)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // SetObligationOwner sets the single accountable owner. A second,
 // different owner refuses (duplicate owners keep it open by refusal);
 // re-setting the same owner is a no-op receipt.
