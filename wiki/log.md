@@ -3907,3 +3907,11 @@ skipped is the exact failure this incident is about:
     and the spool fail. Writer startup replays spooled events and removes a
     file only after the ledger accepts it. Tests cover sealed, spooled +
     replayed, and both-failed paths.
+
+## [2026-10-29] implementation | Spool money-critical event appends
+
+  - LLM spend estimates, tenant/session reservations, job queue/settle,
+    settlement-skipped, and loop spend release now go through
+    `AppendEventWithSpool`. On ledger failure the receipt is durably spooled;
+    both failing is logged loudly. The money movement itself remains atomic
+    in SQLite. Test covers the jobs helper with a closed ledger.
