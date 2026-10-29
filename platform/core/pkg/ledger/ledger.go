@@ -61,7 +61,10 @@ func OpenLedgerReadOnly(dbPath string) (*Ledger, error) {
 	if _, err := os.Stat(dbPath); err != nil {
 		return nil, fmt.Errorf("read-only open: %w", err)
 	}
-	dsn := fmt.Sprintf("file:%s?mode=ro&_journal_mode=WAL&_busy_timeout=5000", dbPath)
+	// No _journal_mode pragma here: switching journal mode is a write, and a
+	// read-only handle must be able to open a backup whose journal mode is not
+	// WAL (VACUUM INTO produces one). mode=ro + query_only enforce the contract.
+	dsn := fmt.Sprintf("file:%s?mode=ro&_query_only=1&_busy_timeout=5000", dbPath)
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open sqlite db read-only: %w", err)
