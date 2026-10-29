@@ -1,0 +1,140 @@
+name: Release
+
+# Tag-driven, main-only, CI-verified release. The workflow builds the three
+# production images, pushes them to GHCR with BuildKit provenance + SBOM,
+# signs each digest keyless with cosign, and creates a GitHub release.
+#
+# A tag is not a release by itself: the verify job refuses unless the tag
+# commit is on main and the CI workflow for that exact SHA is green.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to release (for example v0.3.0)
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+  actions: read
+
+concurrency:
+  group: release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  IMAGE_PREFIX: ghcr.io/${{ github.repository }}
+
+jobs:
+  verify:
+    name: Verify tag is on main and CI is green
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      sha: ${{ steps.meta.outputs.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          fetch-depth: 0
+      - id: meta
+        run: |
+          version="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Tag commit must be on main
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor "${{ steps.meta.outputs.sha }}" origin/main; then
+            echo "release refused: ${{ steps.meta.outputs.sha }} is not on origin/main" >&2
+            exit 1
+          fi
+      - name: CI must be green for this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          conclusion=$(gh run list --workflow ci.yml --commit "${{ steps.meta.outputs.sha }}" --json conclusion --jq '.[0].conclusion')
+          if [ "$conclusion" != "success" ]; then
+            echo "release refused: CI for ${{ steps.meta.outputs.sha }} is '$conclusion'" >&2
+            exit 1
+          fi
+
+  build:
+    name: Build, attest, sign ${{ matrix.image }}
+    needs: verify
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: kubonad
+            context: platform
+            dockerfile: platform/docker/Dockerfile.kubonad
+          - image: console
+            context: platform/console
+            dockerfile: platform/docker/Dockerfile.console
+          - image: bridge
+            context: platform
+            dockerfile: platform/docker/Dockerfile.bridge
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: ${{ matrix.context }}
+          file: ${{ matrix.dockerfile }}
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:${{ needs.verify.outputs.version }}
+            ${{ env.IMAGE_PREFIX }}/${{ matrix.image }}:sha-${{ needs.verify.outputs.sha }}
+          build-args: |
+            VERSION=${{ needs.verify.outputs.version }}
+            NEXT_PUBLIC_KUBONA_VERSION=${{ needs.verify.outputs.version }}
+            NEXT_PUBLIC_API_URL=${{ vars.KUBONA_CONSOLE_API_URL || 'http://localhost:8080' }}
+          provenance: true
+          sbom: true
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+      - name: Sign image digest (keyless)
+        run: cosign sign --yes "${{ env.IMAGE_PREFIX }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}"
+      - name: Verify signature
+        run: |
+          cosign verify \
+            --certificate-identity-regexp "https://github.com/${{ github.repository }}/.github/workflows/release.yml@refs/.*" \
+            --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+            "${{ env.IMAGE_PREFIX }}/${{ matrix.image }}@${{ steps.build.outputs.digest }}"
+
+  release:
+    name: Create GitHub release
+    needs: [verify, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+          fetch-depth: 0
+      - name: Create release if missing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "${{ needs.verify.outputs.version }}" >/dev/null 2>&1; then
+            echo "release ${{ needs.verify.outputs.version }} already exists"
+          else
+            gh release create "${{ needs.verify.outputs.version }}" \
+              --title "${{ needs.verify.outputs.version }}" \
+              --generate-notes \
+              --target "${{ needs.verify.outputs.sha }}"
+          fi
