@@ -3785,3 +3785,12 @@ skipped is the exact failure this incident is about:
     test), production `next build` green with the dev token unset. CI on the pushed
     slices went red only on DCO (unsigned commits); develop forbids force-push, so the
     history repair could not be applied — this signed follow-up is the repair.
+
+## [2026-10-29] verification | Wave-3 fast-forwarded to main; DCO repair scoped
+
+  - `main` fast-forwarded to `69a3690` (CI run 40910571410: 19/20 jobs green, DCO red).
+    The range from the previous `main` head includes the five unsigned Wave-3 slices.
+  - The repo ruleset (`Kubona-protect-1`) only forbids deletion and non-fast-forward on
+    `~ALL`, with zero bypass actors, so re-signing by rewriting is impossible on either
+    branch. A signed follow-up on the head is the only repair path; the five unsigned
+    SHAs and the red run stay visible in history rather than being hidden.
