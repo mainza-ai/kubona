@@ -36,7 +36,8 @@ assets or Git LFS. Do not commit build output: `platform/core/bin/`,
 
 ## Coverage
 
-Go and Python have hold-the-line coverage floors in CI (64% and 55% at the
-2026-10-29 snapshot). Console coverage is not measured yet; adding
-`@vitest/coverage-v8` and a floor is a separate dependency slice, not a
-silent config change.
+Go, Python, and console have hold-the-line coverage floors in CI. At the
+2026-10-29 snapshot: Go 64%, Python 55%, console measured 54.5/55.3/52.6/57.1
+(statements/branches/functions/lines) with floors 53/54/51/56. The console
+floor uses `@vitest/coverage-v8` and is enforced by `pnpm test:coverage`;
+raise it after a sustained green run, never lower it to make a red pass.

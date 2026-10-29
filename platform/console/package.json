@@ -7,6 +7,7 @@
     "build": "next build",
     "start": "next start",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "lint": "eslint"
   },
   "dependencies": {
@@ -26,6 +27,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@types/react-test-renderer": "^19.3.0",
+    "@vitest/coverage-v8": "5.0.3",
     "eslint": "^9",
     "eslint-config-next": "16.4.3",
     "react-test-renderer": "19.2.8",
