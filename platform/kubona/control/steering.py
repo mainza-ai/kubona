@@ -51,12 +51,22 @@ class SteeringService:
         return rec
 
     def fork_counterfactual(self, parent_loop_id: str, fork_step: int, fork_name: Optional[str] = None) -> LoopHandle:
-        """Forks a child research run starting from step k of the parent loop."""
+        """Forks a child research run starting from step k of the parent loop.
+
+        The child is registered DIRECTLY under its fork id. The naive
+        register()-then-rekey orphans a loop entry: register() mints a
+        random UUID key in _loops (whose handle no longer matches its key
+        after re-keying) AND appends a register row that the append-only
+        log resurrects after restart. One key, one log row — the child
+        exists only under child_id, never under a stale UUID.
+        """
         parent = self.loop_supervisor.get(parent_loop_id)
         if fork_step > parent.step or fork_step < 0:
             raise ValueError(f"Invalid fork step {fork_step}: parent is at step {parent.step}")
 
         child_id = f"fork-{uuid.uuid4().hex[:8]}"
+        if child_id in self.loop_supervisor._loops:
+            raise ValueError(f"fork id collision {child_id!r}: refusing to overwrite")
         name = fork_name or f"Fork of {parent.name} @ Step {fork_step}"
         
         # Prune history up to fork_step
@@ -68,15 +78,18 @@ class SteeringService:
             "timestamp": time.time(),
         })
 
-        child = self.loop_supervisor.register(
+        child = LoopHandle(
+            loop_id=child_id,
             name=name,
             session_id=parent.session_id,
             total_steps=parent.total_steps,
             tenant=parent.tenant,
         )
-        child.loop_id = child_id
         child.step = fork_step
         child.history = forked_history
+        # Re-register under the child id (no stale UUID key is ever minted);
+        # same row shape LoopSupervisor.register appends, so restart replay
+        # reconstructs exactly one child.
         self.loop_supervisor._loops[child_id] = child
-        self.loop_supervisor.persist(child_id)
+        self.loop_supervisor._append({"event": "register", "loop": child.to_dict()})
         return child

@@ -288,3 +288,52 @@ def test_science_endpoints_refuse_unbounded_inputs():
         r = client.post(path, json=body, headers=_h())
         assert r.status_code == 400, (path, body, r.status_code, r.text)
         assert r.json()["ok"] is False
+
+
+def test_science_malformed_numbers_are_typed_400s():
+    """Malformed numbers must be typed 400s naming the bad field — never 500s
+    (bare int()/float() conversions used to raise ValueError into a 500)."""
+    cases = [
+        ("/api/science/triage", {"num_electrons": "many"}, "num_electrons"),
+        ("/api/science/triage", {"num_electrons": True}, "num_electrons"),
+        ("/api/science/triage", {"num_electrons": 2.5}, "num_electrons"),
+        ("/api/science/triage", {"nuclear_charges": [1, "a"]}, "nuclear_charges[1]"),
+        ("/api/science/krylov", {"subspace_dim": "four"}, "subspace_dim"),
+        ("/api/science/krylov", {"subspace_dim": 2.5}, "subspace_dim"),
+        ("/api/science/krylov", {"time_step": "soon"}, "time_step"),
+        ("/api/science/krylov", {"time_step": True}, "time_step"),
+        ("/api/science/krylov", {"hamiltonian": [["a", "b"], ["c", "d"]]}, "hamiltonian"),
+        ("/api/science/shadows", {"num_qubits": "two"}, "num_qubits"),
+        ("/api/science/shadows", {"num_snapshots": 1.5}, "num_snapshots"),
+        ("/api/science/shadows", {"seed": -1}, "seed"),
+        ("/api/science/manuscripts", {"anchor_val": "low"}, "anchor_val"),
+        ("/api/science/manuscripts", {"measured_val": None}, "measured_val"),
+        ("/api/science/manuscripts", {"sorry_ax_count": "none"}, "sorry_ax_count"),
+        ("/api/science/memory/query", {"max_hops": "far"}, "max_hops"),
+        ("/api/science/memory/query", {"max_hops": True}, "max_hops"),
+        ("/api/science/tribunal/deliberate", {"gradient_variance": "high"}, "gradient_variance"),
+        ("/api/science/qec/estimate", {"num_logical_qubits": "twelve"}, "num_logical_qubits"),
+        ("/api/science/qec/estimate", {"logical_t_count": 1.5}, "logical_t_count"),
+        ("/api/science/qec/estimate", {"physical_error_rate": "tiny"}, "physical_error_rate"),
+    ]
+    for path, body, field in cases:
+        r = client.post(path, json=body, headers=_h())
+        assert r.status_code == 400, (path, body, r.status_code, r.text)
+        assert r.json()["ok"] is False
+        assert field in r.json()["error"], (path, body, r.json())
+
+
+def test_console_token_rotation_without_restart(monkeypatch):
+    """Per-request token read: rotating KUBONA_CONSOLE_TOKEN takes effect on
+    the next request in BOTH directions (new works, old stops) — no reimport,
+    no restart. The old import-time freeze pinned the token for the process."""
+    monkeypatch.setenv("KUBONA_CONSOLE_TOKEN", "tok-A")
+    assert client.get("/api/health",
+                      headers={"Authorization": "Bearer tok-A"}).status_code == 200
+    assert client.get("/api/health",
+                      headers={"Authorization": "Bearer wrong"}).status_code == 401
+    monkeypatch.setenv("KUBONA_CONSOLE_TOKEN", "tok-B")  # rotate
+    assert client.get("/api/health",
+                      headers={"Authorization": "Bearer tok-A"}).status_code == 401
+    assert client.get("/api/health",
+                      headers={"Authorization": "Bearer tok-B"}).status_code == 200
