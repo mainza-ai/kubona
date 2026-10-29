@@ -29,6 +29,45 @@ import (
 // disposition + seals the closure case) or closed=false with the reasons
 // that blocked it. Reasons are stable strings callers surface verbatim.
 func AttemptClose(l *ledger.Ledger, id string) (bool, []string, error) {
+	ready, reasons, err := PreviewClose(l, id)
+	if err != nil || !ready {
+		return ready, reasons, err
+	}
+	ob, err := l.GetObligation(id)
+	if err != nil {
+		return false, nil, err
+	}
+	if ob == nil {
+		return false, nil, fmt.Errorf("unknown obligation %q", id)
+	}
+	if ob.Disposition == "closed" {
+		// Already sealed by an earlier close (PreviewClose reports ready
+		// for closed rows): idempotent receipt, never re-seal — closure
+		// history is immutable, and RecordObligationCase refuses writes
+		// on closed obligations by design.
+		return true, nil, nil
+	}
+	cases, err := l.ListObligationCases(id)
+	if err != nil {
+		return false, nil, err
+	}
+	if err := l.RecordObligationCase(id, ledger.ObligationCase{
+		CaseKind: "closure", Verdict: "pass", Authority: "obligation-engine",
+		Evidence: fmt.Sprintf("owner=%s cases=%d", ob.Owner, len(cases)),
+	}); err != nil {
+		return false, nil, err
+	}
+	if err := l.SetObligationDisposition(id, "closed"); err != nil {
+		return false, nil, err
+	}
+	return true, nil, nil
+}
+
+// PreviewClose runs the exact AttemptClose checks WITHOUT mutating: the
+// review queue (and operators) see why an obligation stays open through
+// this, never by attempting a close. Reasons are byte-identical to the
+// refusal reasons AttemptClose would return.
+func PreviewClose(l *ledger.Ledger, id string) (ready bool, reasons []string, err error) {
 	ob, err := l.GetObligation(id)
 	if err != nil {
 		return false, nil, err
@@ -39,7 +78,6 @@ func AttemptClose(l *ledger.Ledger, id string) (bool, []string, error) {
 	if ob.Disposition == "closed" {
 		return true, nil, nil
 	}
-	var reasons []string
 	if ob.Owner == "" {
 		reasons = append(reasons, "no owner: close requires exactly one accountable owner")
 	}
@@ -103,15 +141,6 @@ func AttemptClose(l *ledger.Ledger, id string) (bool, []string, error) {
 	}
 	if len(reasons) > 0 {
 		return false, reasons, nil
-	}
-	if err := l.RecordObligationCase(id, ledger.ObligationCase{
-		CaseKind: "closure", Verdict: "pass", Authority: "obligation-engine",
-		Evidence: fmt.Sprintf("owner=%s cases=%d", ob.Owner, len(cases)),
-	}); err != nil {
-		return false, nil, err
-	}
-	if err := l.SetObligationDisposition(id, "closed"); err != nil {
-		return false, nil, err
 	}
 	return true, nil, nil
 }

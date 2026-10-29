@@ -2,10 +2,18 @@ package agents
 
 // R6 — transcript scoring pilot: per-role rubric measurements over
 // recorded tribunal transcripts. Rule-based text signals ONLY (Q-26: no
-// LLM judging, licence-clean evaluation): each signal is a documented
+// LLM judging, licence-clean): each signal is a documented
 // substring/regex check on the turn's own content plus its recorded
 // coverage/observation metadata. Scores are RECORDED, never enforced —
 // measurement before gating. Nothing in the run path reads them.
+//
+// R6 RESOLVED (operator decision 2026-10-29): advisory-only, permanently.
+// Substring heuristics are gameable (keyword stuffing passes without
+// understanding) and refuse-gates on them would punish honest sparse
+// transcripts — so NO gate may branch on scores. Scores surface in two
+// places only: the tribunal resume response (recorded evidence) and the
+// mandate-review queue (human prioritization). If a future non-gameable
+// quality signal arrives, it needs its own decision, not this threshold.
 //
 // Rubric (per role, each signal 0/1, score = mean):
 //   ansatz-scout: specificity (names qubit count, mapping, or depth),
