@@ -39,17 +39,18 @@ type LensCam struct {
 
 // ObservatoryLensResponse returns the queued operation or resolved asset.
 type ObservatoryLensResponse struct {
-	OK             bool    `json:"ok"`
-	OperationID    string  `json:"operation_id,omitempty"`
-	AssetID        string  `json:"asset_id,omitempty"`
-	AssetURL       string  `json:"asset_url,omitempty"`
-	TaskType       string  `json:"task_type"`
-	CostUSD        float64 `json:"cost_usd"`
-	Watermark      string  `json:"watermark"`
-	Status         string  `json:"status"`
-	IdempotencyKey string  `json:"idempotency_key,omitempty"`
-	Message        string  `json:"message,omitempty"`
-	Cached         bool    `json:"cached,omitempty"`
+	OK               bool    `json:"ok"`
+	OperationID      string  `json:"operation_id,omitempty"`
+	AssetID          string  `json:"asset_id,omitempty"`
+	AssetURL         string  `json:"asset_url,omitempty"`
+	TaskType         string  `json:"task_type"`
+	CostUSD          float64 `json:"cost_usd"`
+	Watermark        string  `json:"watermark"`
+	Status           string  `json:"status"`
+	IdempotencyKey   string  `json:"idempotency_key,omitempty"`
+	Message          string  `json:"message,omitempty"`
+	Cached           bool    `json:"cached,omitempty"`
+	ProvenanceStatus string  `json:"provenance_status,omitempty"`
 }
 
 // lensCostUSD is the per-dispatch spend reservation. The value lives in
@@ -457,13 +458,14 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 	// Attribution registry for webhook deliveries (best-effort).
 	lensOpSessions.Store(opResult.OperationID, req.SessionID)
 
-	// 8. Commit immutable provenance annotation to the Merkle ledger.
-	// Structured fields (task, operation, idempotency key) ride alongside
-	// the human-readable text so the dispatch is resumable and auditable
-	// without re-querying Atlas.
-	_ = s.ledger.AppendEvent(req.SessionID, "annotation", map[string]any{
+	// 8. Commit immutable provenance annotation to the Merkle ledger. A
+	// ledger failure after dispatch is durably spooled; the response then
+	// says provenance_status=pending instead of pretending the receipt is
+	// sealed. If both the ledger and the spool fail, the dispatch is not
+	// silently reported as fully recorded.
+	sealed, provErr := s.ledger.AppendEventWithSpool(req.SessionID, "annotation", map[string]any{
 		"session_id":      req.SessionID,
-		"text":            fmt.Sprintf("World Labs Atlas lens dispatched (%s): operation %s ($0.50 reserved)", taskType, opResult.OperationID),
+		"text":            fmt.Sprintf("World Labs Atlas lens dispatched (%s): operation %s ($%.2f reserved)", taskType, opResult.OperationID, lensCostUSD),
 		"task_type":       taskType,
 		"operation_id":    opResult.OperationID,
 		"idempotency_key": idemKey,
@@ -471,15 +473,26 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 		"voxel_size":      req.VoxelSize,
 		"ephemeral_purge": req.EphemeralPurge,
 	})
+	if provErr != nil {
+		WriteAPIError(w, "provenance_unavailable",
+			fmt.Sprintf("Atlas dispatch succeeded but provenance is not durable (operation %s): %v", opResult.OperationID, provErr),
+			map[string]any{"operation_id": opResult.OperationID, "idempotency_key": idemKey})
+		return
+	}
+	provenanceStatus := "sealed"
+	if !sealed {
+		provenanceStatus = "pending"
+	}
 
 	writeJSON(w, http.StatusOK, ObservatoryLensResponse{
-		OK:             true,
-		OperationID:    opResult.OperationID,
-		TaskType:       taskType,
-		CostUSD:        lensCostUSD,
-		Watermark:      "SYNTHETIC LENS — WORLD LABS ATLAS",
-		Status:         opResult.Status,
-		IdempotencyKey: idemKey,
+		OK:               true,
+		OperationID:      opResult.OperationID,
+		TaskType:         taskType,
+		CostUSD:          lensCostUSD,
+		Watermark:        "SYNTHETIC LENS — WORLD LABS ATLAS",
+		Status:           opResult.Status,
+		IdempotencyKey:   idemKey,
+		ProvenanceStatus: provenanceStatus,
 	})
 }
 

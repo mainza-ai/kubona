@@ -42,8 +42,9 @@ type EventRecord struct {
 }
 
 type Ledger struct {
-	db   *sql.DB
-	lock sync.RWMutex
+	db     *sql.DB
+	lock   sync.RWMutex
+	dbPath string
 	// lockFile holds an exclusive flock on <dbPath>.lock for the ledger's
 	// lifetime: exactly one read-write daemon per state directory. A second
 	// OpenLedger on the same path refuses instead of split-braining the
@@ -73,7 +74,7 @@ func OpenLedgerReadOnly(dbPath string) (*Ledger, error) {
 		db.Close()
 		return nil, fmt.Errorf("read-only open ping failed: %w", err)
 	}
-	return &Ledger{db: db}, nil
+	return &Ledger{db: db, dbPath: dbPath}, nil
 }
 
 // CurrentSchemaVersion is the newest schema this binary understands. The
@@ -355,7 +356,9 @@ func OpenLedgerWithOptions(dbPath string, opts Options) (*Ledger, error) {
 		}
 	}
 
-	return &Ledger{db: db, lockFile: lockFile}, nil
+	l := &Ledger{db: db, lockFile: lockFile, dbPath: dbPath}
+	l.replayProvenanceSpool()
+	return l, nil
 }
 
 // verifyNoFKOrphans is the production startup gate. It reports a bounded
