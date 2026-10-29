@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"math"
 	"strings"
 	"sync"
@@ -394,12 +395,12 @@ func (r *Runner) reserveAndInsertJobTx(j *Job) error {
 	}
 	// Post-commit audit only (money already moved atomically).
 	if int64(resMicro) > 0 {
-		_ = r.ledger.AppendEvent(j.ReservedTenant, "tenant_spend_reserved", map[string]any{
+		r.appendMoneyEvent(j.ReservedTenant, "tenant_spend_reserved", map[string]any{
 			"tenant_id": j.ReservedTenant, "amount_usd": j.ReservedAmount})
-		_ = r.ledger.AppendEvent(j.SessionID, "session_spend_reserved", map[string]any{
+		r.appendMoneyEvent(j.SessionID, "session_spend_reserved", map[string]any{
 			"session_id": j.SessionID, "amount_usd": j.ReservedAmount})
 	}
-	_ = r.ledger.AppendEvent(j.SessionID, "job_queued", j)
+	r.appendMoneyEvent(j.SessionID, "job_queued", j)
 	return nil
 }
 
@@ -464,7 +465,7 @@ func (r *Runner) RecordQuantumBridgeJob(jobID, sessionID, provider, qasm string,
 	if _, err := r.ledger.DB().Exec(query, j.ID, j.SessionID, j.Status.String(), j.JobType, string(j.ParamsJSON), j.CreatedAt, j.ReservedTenant, int64(resMicro), j.MandateRef); err != nil {
 		return fmt.Errorf("failed to record quantum bridge job: %w", err)
 	}
-	_ = r.ledger.AppendEvent(sessionID, "job_queued", j)
+	r.appendMoneyEvent(sessionID, "job_queued", j)
 	return nil
 }
 
@@ -524,7 +525,7 @@ func (r *Runner) SyncQuantumBridgeJobStatus(jobID, bridgeStatus, resultJSON stri
 				// (extended Q-51: the old "hardware-id failure keeps the full
 				// estimate" rule now applies ONLY when no usage was reported).
 				r.settleTerminalFromResult(j, resultJSON)
-				_ = r.ledger.AppendEvent(j.SessionID, "job_settled", j)
+				r.appendMoneyEvent(j.SessionID, "job_settled", j)
 			}
 		}
 	case "failed", "cancelled":
@@ -546,7 +547,7 @@ func (r *Runner) SyncQuantumBridgeJobStatus(jobID, bridgeStatus, resultJSON stri
 				// event — except pre-vendor failures (no hardware id pinned:
 				// the vendor never ran), which release.
 				r.settleTerminalFromResult(j, resultJSON)
-				_ = r.ledger.AppendEvent(j.SessionID, "job_settled", j)
+				r.appendMoneyEvent(j.SessionID, "job_settled", j)
 			}
 		}
 	}
@@ -860,6 +861,16 @@ func (r *Runner) releaseReservation(jobID string) {
 	_ = r.sessionMgr.ReleaseSpend(sessionID, amount)
 }
 
+// appendMoneyEvent seals a money/provenance event; on ledger failure it
+// writes the event to the durable provenance spool. Both failing is logged
+// loudly, but the money movement itself is already atomic in SQLite, so it
+// does not turn a committed admission/settlement into a rollback.
+func (r *Runner) appendMoneyEvent(sessionID, eventType string, payload any) {
+	if _, err := r.ledger.AppendEventWithSpool(sessionID, eventType, payload); err != nil {
+		slog.Error("[jobs] money event lost (ledger and spool failed)", "event", eventType, "session_id", sessionID, "error", err)
+	}
+}
+
 // emitSettlementSkipped seals WHY a terminal job kept its full estimate
 // reservation (P0 backfill: unknown usage never refunds). The reservation
 // stands — this event is the audit trail, keyed by the shared taxonomy
@@ -871,7 +882,7 @@ func (r *Runner) emitSettlementSkipped(j *Job, reason string) {
 	if j == nil {
 		return
 	}
-	_ = r.ledger.AppendEvent(j.SessionID, ledger.SettlementSkippedUnknownUsageEvent, map[string]any{
+	r.appendMoneyEvent(j.SessionID, ledger.SettlementSkippedUnknownUsageEvent, map[string]any{
 		"job_id":              j.ID,
 		"reserved_amount_usd": j.ReservedAmount,
 		"reserved_tenant":     j.ReservedTenant,

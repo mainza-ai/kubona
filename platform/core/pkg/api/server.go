@@ -303,7 +303,9 @@ func NewServer(
 				payload["estimated_usd"] = nil
 			}
 		}
-		_ = l.AppendEvent("global", "llm_spend_estimated", payload)
+		if _, err := l.AppendEventWithSpool("global", "llm_spend_estimated", payload); err != nil {
+			slog.Error("[Kubona Core] LLM spend event lost (ledger and spool failed)", "error", err)
+		}
 	}
 
 	sbCfg := sandbox.DefaultConfig()
@@ -4664,9 +4666,11 @@ func (s *Server) releaseLoopSpend(loopID, cause string) bool {
 			slog.Error("[Kubona Core] loop spend session release failed", "loop_id", loopID, "error", rerr)
 		}
 	}
-	_ = s.ledger.AppendEvent(sessionID, "loop_spend_released", map[string]any{
+	if _, err := s.ledger.AppendEventWithSpool(sessionID, "loop_spend_released", map[string]any{
 		"loop_id": loopID, "tenant_id": tenant, "amount_usd": refund, "cause": cause,
-	})
+	}); err != nil {
+		slog.Error("[Kubona Core] loop spend release event lost (ledger and spool failed)", "loop_id", loopID, "error", err)
+	}
 	return true
 }
 

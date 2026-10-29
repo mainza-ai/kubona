@@ -14,6 +14,12 @@ current case). `Ledger.AppendEventWithSpool` handles that window:
    `provenance_unavailable` with the operation id. Nothing is silently
    reported as recorded.
 
+Money-critical append sites use the spooled helper: `llm_spend_estimated`,
+`tenant_spend_reserved`, `session_spend_reserved`, `job_queued`, `job_settled`,
+`settlement_skipped_unknown_usage`, and `loop_spend_released`. The money
+movement itself is already atomic in SQLite; the spool protects the receipt,
+not the balance.
+
 On the next writer start, `replayProvenanceSpool` appends each spooled event
 and removes the file only after the ledger accepts it. A malformed or
 unreplayable file is left in place and logged.
