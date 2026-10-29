@@ -20,6 +20,7 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/session"
 	"github.com/mainza-ai/kubona/core/pkg/supervisor"
 	"github.com/mainza-ai/kubona/core/pkg/tenants"
+	"github.com/mainza-ai/kubona/core/pkg/version"
 	"github.com/mainza-ai/kubona/core/pkg/watchdog"
 )
 
@@ -437,5 +438,28 @@ func TestAutoresearchAndMetasearchAPIs(t *testing.T) {
 	handler.ServeHTTP(w, req)
 	if w.Code != http.StatusOK {
 		t.Fatalf("expected 200 for /api/metasearch/proposals, got %d", w.Code)
+	}
+}
+
+func TestHealthReportsBuildVersion(t *testing.T) {
+	old := version.Version
+	version.Version = "v-test"
+	defer func() { version.Version = old }()
+
+	srv, cleanup := setupTestServer(t)
+	defer cleanup()
+
+	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("health status %d", w.Code)
+	}
+	var body map[string]any
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("health body: %v", err)
+	}
+	if body["version"] != "v-test" {
+		t.Fatalf("health version = %v, want v-test (build injection is not wired?)", body["version"])
 	}
 }

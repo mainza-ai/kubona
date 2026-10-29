@@ -17,6 +17,8 @@
 
 FROM golang:1.27.2-bookworm@sha256:5cf287a799e6b94384bad13d16b14904c531f51ba65792237e122ce42b392f61 AS build
 
+ARG VERSION=dev
+
 WORKDIR /src
 COPY core/go.mod core/go.sum ./
 RUN go mod download
@@ -25,7 +27,9 @@ COPY core/ .
 # Copying them into the image is what makes the production boot real.
 COPY contracts ./contracts
 # Trimpath for reproducible builds; CGO required (sqlite).
-RUN CGO_ENABLED=1 go build -trimpath -o /kubonad ./cmd/kubonad
+RUN CGO_ENABLED=1 go build -trimpath \
+    -ldflags "-X github.com/mainza-ai/kubona/core/pkg/version.Version=${VERSION}" \
+    -o /kubonad ./cmd/kubonad
 
 FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587
 

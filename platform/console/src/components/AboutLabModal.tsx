@@ -5,6 +5,11 @@ import Image from 'next/image';
 import { X, ShieldCheck, Cpu,  Lock,  Sparkles } from 'lucide-react';
 import { useFocusTrap } from '@/lib/useFocusTrap';
 
+// Build version is injected by the console image (Dockerfile.console ->
+// NEXT_PUBLIC_KUBONA_VERSION). Local dev falls back to "dev"; a literal
+// version in source is a stale claim, not a build fact.
+const BUILD_VERSION = process.env.NEXT_PUBLIC_KUBONA_VERSION || 'dev';
+
 interface AboutLabModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -122,6 +127,9 @@ export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
               <div className="text-[11px] text-slate-300">
                 Buzz Information Flow Control
               </div>
+              <div className="text-[10px] text-amber-300 font-mono">
+                Vault is dev-compose only; IFC is partial. Neither is claimed as deployed here.
+              </div>
             </div>
 
             <div className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 space-y-1">
@@ -151,16 +159,16 @@ export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
             </div>
           </div>
 
-          {/* Version & Build Bar — static snapshot with as-of dates (no version
-              endpoint wired yet; do not present as live). */}
+          {/* Build version is injected at image build time. There is no live
+              version endpoint yet; do not present this as a live probe. */}
           <div className="p-3.5 rounded-xl bg-black/60 border border-white/10 flex items-center justify-between text-xs font-mono text-slate-300">
             <div>
-              <span className="text-slate-300 font-medium">Core Daemon:</span>{' '}
-              <strong className="text-white font-bold">v0.2.0-ts-go</strong> (as of 2026-10-12)
+              <span className="text-slate-300 font-medium">Build:</span>{' '}
+              <strong className="text-white font-bold">{BUILD_VERSION}</strong>
             </div>
             <div>
               <span className="text-slate-300 font-medium">Bridge:</span>{' '}
-              <strong className="text-cyan-300 font-bold">gRPC</strong> (as of 2026-10-12)
+              <strong className="text-cyan-300 font-bold">gRPC</strong>
             </div>
             <div>
               <span className="text-slate-300 font-medium">License:</span>{' '}

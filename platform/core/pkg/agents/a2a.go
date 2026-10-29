@@ -16,6 +16,7 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/cost"
 	"github.com/mainza-ai/kubona/core/pkg/mandates"
 	"github.com/mainza-ai/kubona/core/pkg/sandbox"
+	"github.com/mainza-ai/kubona/core/pkg/version"
 )
 
 // JSONRPCRequest represents a JSON-RPC 2.0 payload
@@ -156,7 +157,7 @@ func NewA2AServer(escrowAddr string, pm *cost.PaymentManager, runner *sandbox.Sa
 
 	card := AgentCard{
 		Name:        "kubona-agent-collective",
-		Version:     "0.2.0-ts-go",
+		Version:     version.Version,
 		Description: "Autonomous Quantum-Classical Research Agent Node with Post-Quantum Cryptography",
 		// Capabilities is the closed vocabulary this node serves: every
 		// taskType the executor handles must be advertised here, because
