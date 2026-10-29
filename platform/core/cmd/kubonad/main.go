@@ -200,8 +200,11 @@ func main() {
 		log.Fatalf("Cannot create daemon state directories: %v", err)
 	}
 
-	// 1. Initialize SQLite WAL Ledger
-	l, err := ledger.OpenLedger(resolvedDB)
+	// 1. Initialize SQLite WAL Ledger. Production (or an explicit
+	// KUBONA_FK_ENFORCE=1) turns on FK enforcement and refuses to start on
+	// a ledger with orphan rows; the repair is `kubonad fk-quarantine`.
+	enforceFK := os.Getenv("KUBONA_ENV") == "production" || os.Getenv("KUBONA_FK_ENFORCE") == "1"
+	l, err := ledger.OpenLedgerWithOptions(resolvedDB, ledger.Options{EnforceForeignKeys: enforceFK})
 	if err != nil {
 		log.Fatalf("Failed to open ledger: %v", err)
 	}

@@ -121,7 +121,21 @@ func recordSchemaVersion(db *sql.DB) error {
 	return nil
 }
 
+// Options controls optional production postures. The zero value preserves
+// the development/test behavior used by the suite.
+type Options struct {
+	// EnforceForeignKeys turns on SQLite FK enforcement for every pooled
+	// connection and refuses to open a ledger that already contains orphan
+	// rows. Production enables this; the repair is `kubonad fk-quarantine`.
+	EnforceForeignKeys bool
+}
+
+// OpenLedger opens with the development/test options.
 func OpenLedger(dbPath string) (*Ledger, error) {
+	return OpenLedgerWithOptions(dbPath, Options{})
+}
+
+func OpenLedgerWithOptions(dbPath string, opts Options) (*Ledger, error) {
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
 		return nil, fmt.Errorf("failed to create db dir: %w", err)
 	}
@@ -139,6 +153,9 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 	}
 	// Open with SQLite WAL mode and busy timeout for high-throughput concurrent writes
 	dsn := fmt.Sprintf("%s?_journal_mode=WAL&_busy_timeout=5000&_synchronous=NORMAL", dbPath)
+	if opts.EnforceForeignKeys {
+		dsn += "&_foreign_keys=on"
+	}
 	db, err := sql.Open("sqlite3", dsn)
 	if err != nil {
 		releaseLock(lockFile)
@@ -327,7 +344,48 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 		return nil, err
 	}
 
+	// Production posture: refuse to serve a ledger whose FK graph is already
+	// broken. Enabling enforcement without this check would only fail later,
+	// on the first insert, with an opaque constraint error.
+	if opts.EnforceForeignKeys {
+		if err := verifyNoFKOrphans(db); err != nil {
+			db.Close()
+			releaseLock(lockFile)
+			return nil, err
+		}
+	}
+
 	return &Ledger{db: db, lockFile: lockFile}, nil
+}
+
+// verifyNoFKOrphans is the production startup gate. It reports a bounded
+// sample so the operator can act without a wall of row ids.
+func verifyNoFKOrphans(db *sql.DB) error {
+	rows, err := db.Query(`PRAGMA foreign_key_check`)
+	if err != nil {
+		return fmt.Errorf("foreign-key audit: %w", err)
+	}
+	defer rows.Close()
+	count := 0
+	var sample []string
+	for rows.Next() {
+		var table, parent string
+		var rowID, fkID int64
+		if err := rows.Scan(&table, &rowID, &parent, &fkID); err != nil {
+			return fmt.Errorf("foreign-key audit scan: %w", err)
+		}
+		count++
+		if len(sample) < 5 {
+			sample = append(sample, fmt.Sprintf("%s/%d->%s", table, rowID, parent))
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("foreign-key audit rows: %w", err)
+	}
+	if count != 0 {
+		return fmt.Errorf("ledger has %d foreign-key orphan row(s) [%s]: repair with `kubonad fk-quarantine --apply` after a verified backup, then restart", count, strings.Join(sample, ", "))
+	}
+	return nil
 }
 
 // migrateLegacySchema is the compatibility path for databases created

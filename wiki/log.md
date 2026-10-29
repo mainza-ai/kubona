@@ -3872,3 +3872,11 @@ skipped is the exact failure this incident is about:
     prove dry-run writes nothing and apply preserves the orphan fields.
     FK enforcement remains off until the operator applies the repair and
     re-runs fk-audit.
+
+## [2026-10-29] implementation | Fail-closed FK startup gate
+
+  - Production (`KUBONA_ENV=production`) or explicit `KUBONA_FK_ENFORCE=1`
+    opens the ledger with `_foreign_keys=on` and refuses to start when
+    `PRAGMA foreign_key_check` finds orphans, naming
+    `kubonad fk-quarantine --apply`. Dev/test open stays permissive so the
+    repair tools can run. Tests cover clean/enforced and orphan/refused.
