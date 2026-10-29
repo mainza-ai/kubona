@@ -3855,3 +3855,11 @@ skipped is the exact failure this incident is about:
     `PRAGMA foreign_key_check` through a read-only handle, takes no writer
     lock, and exits 0 clean / 1 orphans / 2 usage. It is the prerequisite
     for enabling FK enforcement: existing orphan rows must be repaired first.
+
+## [2026-10-29] implementation | Dry-run FK repair plan
+
+  - `kubonad fk-repair-plan --db /abs/ledger.db [--json]` classifies orphan
+    rows into content (`chat_messages`), spend (`jobs`, `loops`), and unknown,
+    prints counts and a policy, and never writes. Tests prove the row counts
+    are unchanged after the plan. Actual quarantine/delete waits for operator
+    approval because jobs/loops may carry spend or mandates.

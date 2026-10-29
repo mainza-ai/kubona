@@ -87,6 +87,22 @@ restored copy and before a release that turns on FK enforcement. Do not
 enable `PRAGMA foreign_keys=ON` while orphans exist; inserts will start
 failing on rows the migration should have repaired first.
 
+## FK orphan repair plan (dry run)
+
+`fk-audit` finds the rows; `fk-repair-plan` classifies them without touching
+anything:
+
+```bash
+kubonad fk-repair-plan --db /home/kubona/.kubona/kubona.db
+kubonad fk-repair-plan --db /home/kubona/.kubona/kubona.db --json
+```
+
+It groups orphans into `content` (`chat_messages`), `spend` (`jobs`, `loops`),
+and `unknown`, prints counts, and exits 1 when action is needed. It never
+deletes or re-parents a row. Jobs and loops may carry reservations or mandate
+references, so they need manual review. Take a verified backup first; the
+actual quarantine/delete is an explicit operator action.
+
 ## Current limits
 
 The schema has no version table yet and the migration path is not
