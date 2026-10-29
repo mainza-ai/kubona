@@ -76,6 +76,51 @@ func OpenLedgerReadOnly(dbPath string) (*Ledger, error) {
 	return &Ledger{db: db}, nil
 }
 
+// CurrentSchemaVersion is the newest schema this binary understands. The
+// migration ledger records what has been applied; a database from a newer
+// binary refuses to open rather than being silently downgraded.
+const CurrentSchemaVersion = 1
+
+const schemaMigrationsDDL = `CREATE TABLE IF NOT EXISTS schema_migrations (
+	version INTEGER PRIMARY KEY,
+	applied_at TEXT NOT NULL
+)`
+
+// SchemaVersion reports the highest applied migration version.
+func (l *Ledger) SchemaVersion() (int, error) {
+	var version int
+	if err := l.db.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&version); err != nil {
+		return 0, err
+	}
+	return version, nil
+}
+
+// checkSchemaVersion creates the migration ledger and refuses a newer
+// schema before any migration or backfill runs.
+func checkSchemaVersion(db *sql.DB) error {
+	if _, err := db.Exec(schemaMigrationsDDL); err != nil {
+		return fmt.Errorf("create schema_migrations: %w", err)
+	}
+	var version int
+	if err := db.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&version); err != nil {
+		return fmt.Errorf("read schema version: %w", err)
+	}
+	if version > CurrentSchemaVersion {
+		return fmt.Errorf("ledger schema version %d is newer than this binary supports (%d): refusing to open (downgrade protection)", version, CurrentSchemaVersion)
+	}
+	return nil
+}
+
+// recordSchemaVersion records the baseline after the legacy compatibility
+// migrations have run. Future migrations append their version here; an
+// INSERT OR IGNORE makes a restart idempotent.
+func recordSchemaVersion(db *sql.DB) error {
+	if _, err := db.Exec(`INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (?, ?)`, CurrentSchemaVersion, time.Now().UTC().Format(time.RFC3339)); err != nil {
+		return fmt.Errorf("record schema version %d: %w", CurrentSchemaVersion, err)
+	}
+	return nil
+}
+
 func OpenLedger(dbPath string) (*Ledger, error) {
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
 		return nil, fmt.Errorf("failed to create db dir: %w", err)
@@ -98,6 +143,15 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 	if err != nil {
 		releaseLock(lockFile)
 		return nil, fmt.Errorf("failed to open sqlite db: %w", err)
+	}
+
+	// Schema downgrade protection: create/read the migration ledger before
+	// any legacy ALTER/UPDATE runs. A newer schema opened by an older
+	// binary must refuse before it mutates a single row.
+	if err := checkSchemaVersion(db); err != nil {
+		db.Close()
+		releaseLock(lockFile)
+		return nil, err
 	}
 
 	initSchema := `
@@ -320,6 +374,12 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 	// books; USD wire fields are projected from them. Old databases are
 	// backfilled above first. SQLite <3.35 has no DROP COLUMN: ignore the
 	// error there — the columns are then dead but never read or written.
+	if err := recordSchemaVersion(db); err != nil {
+		db.Close()
+		releaseLock(lockFile)
+		return nil, err
+	}
+
 	for _, stmt := range []string{
 		`ALTER TABLE sessions DROP COLUMN spend_limit_usd`,
 		`ALTER TABLE sessions DROP COLUMN current_spend_usd`,

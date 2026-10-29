@@ -3820,3 +3820,13 @@ skipped is the exact failure this incident is about:
   - Production campaign synthesis now refuses a hardcoded classical anchor when
     the bridge is unreachable; `KUBONA_ALLOW_ANCHOR_FALLBACK=1` is the explicit
     demo-only escape hatch. Fallback results stay `anchor_computed=false`.
+
+## [2026-10-29] implementation | Ledger schema version + downgrade protection
+
+  - `schema_migrations` is created and read before any legacy ALTER/UPDATE;
+    a database written by a newer binary refuses to open instead of being
+    silently downgraded. The baseline (version 1) is recorded after the
+    existing compatibility migrations; `Ledger.SchemaVersion()` exposes it.
+  - This is the foundation for fail-closed migrations. The existing legacy
+    ALTER/UPDATE statements still run with their historical ignore rules;
+    converting them to checked migrations remains open.
