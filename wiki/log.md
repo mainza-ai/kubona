@@ -3915,3 +3915,12 @@ skipped is the exact failure this incident is about:
     `AppendEventWithSpool`. On ledger failure the receipt is durably spooled;
     both failing is logged loudly. The money movement itself remains atomic
     in SQLite. Test covers the jobs helper with a closed ledger.
+
+## [2026-10-29] implementation | Tag-driven signed release workflow
+
+  - `.github/workflows/release.yml` verifies the tag commit is on `main` and
+    its `ci.yml` run is green, builds `kubonad`/`console`/`bridge` for
+    `linux/amd64`, pushes GHCR images with BuildKit provenance + SBOM,
+    signs each digest keyless with cosign, and creates the GitHub release.
+    `docs/release.md` records the cut/verify procedure. Not executed yet:
+    it needs a tag and GHCR package permissions.
