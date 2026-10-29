@@ -27,9 +27,22 @@ afterEach(() => {
 });
 
 describe('chat ops client', () => {
-  it('clearMessages returns the deleted count', async () => {
-    mockFetchOnce({ cleared: true, deleted: 4, session_id: 's' });
+  it('clearMessages DELETEs the session messages route and returns the deleted count', async () => {
+    const seen: Array<{ url: string; init?: RequestInit }> = [];
+    (globalThis as { fetch?: unknown }).fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      seen.push({ url: String(url), init });
+      return {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        text: async () => JSON.stringify({ cleared: true, deleted: 4, session_id: 's' }),
+        json: async () => ({ cleared: true, deleted: 4, session_id: 's' }),
+      };
+    });
     await expect(clearMessages('s')).resolves.toBe(4);
+    expect(seen).toHaveLength(1);
+    expect(seen[0].url).toContain('/api/sessions/s/messages');
+    expect(seen[0].init?.method).toBe('DELETE');
   });
 
   it('clearMessages returns null on refusal', async () => {
@@ -37,30 +50,84 @@ describe('chat ops client', () => {
     await expect(clearMessages('s')).resolves.toBeNull();
   });
 
-  it('regenerateChat backfills model and duration', async () => {
+  it('regenerateChat POSTs the regenerate route with session_id and backfills model + duration', async () => {
     const assistant = { id: 'a', role: 'assistant', content: 'again' };
-    mockFetchOnce({ assistant, model: 'deepseek-v4.1-flash', duration_ms: 19000 });
+    const seen: Array<{ url: string; init?: RequestInit }> = [];
+    (globalThis as { fetch?: unknown }).fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      seen.push({ url: String(url), init });
+      const body = { assistant, model: 'deepseek-v4.1-flash', duration_ms: 19000 };
+      return {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        text: async () => JSON.stringify(body),
+        json: async () => body,
+      };
+    });
     const res = await regenerateChat('s');
+    expect(seen[0].url).toContain('/api/chat/regenerate');
+    expect(seen[0].init?.method).toBe('POST');
+    expect(JSON.parse(String(seen[0].init?.body ?? '{}'))).toMatchObject({ session_id: 's' });
     expect(res?.assistant.model).toBe('deepseek-v4.1-flash');
     expect(res?.assistant.duration_ms).toBe(19000);
+    expect(res?.model).toBe('deepseek-v4.1-flash');
   });
 
-  it('sendFeedback posts the vote and reports status', async () => {
-    mockFetchOnce({ recorded: true });
+  it('sendFeedback POSTs the vote with session/message/vote shape and reports status', async () => {
+    const seen: Array<{ url: string; init?: RequestInit }> = [];
+    (globalThis as { fetch?: unknown }).fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      seen.push({ url: String(url), init });
+      return {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        text: async () => JSON.stringify({ recorded: true }),
+        json: async () => ({ recorded: true }),
+      };
+    });
     await expect(sendFeedback('s', 'm', 'up')).resolves.toBe(true);
+    expect(seen[0].url).toContain('/api/chat/feedback');
+    expect(seen[0].init?.method).toBe('POST');
+    expect(JSON.parse(String(seen[0].init?.body ?? '{}'))).toMatchObject({ session_id: 's', message_id: 'm', vote: 'up' });
     mockFetchOnce({}, false, 404);
     await expect(sendFeedback('s', 'm', 'down')).resolves.toBe(false);
   });
 
-  it('rewriteChat returns the rewritten message', async () => {
+  it('rewriteChat POSTs session/message/content and returns the rewritten message', async () => {
     const message = { id: 'u', content: 'edited' };
-    mockFetchOnce({ rewritten: true, message });
+    const seen: Array<{ url: string; init?: RequestInit }> = [];
+    (globalThis as { fetch?: unknown }).fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      seen.push({ url: String(url), init });
+      const body = { rewritten: true, message };
+      return {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        text: async () => JSON.stringify(body),
+        json: async () => body,
+      };
+    });
     await expect(rewriteChat('s', 'u', 'edited')).resolves.toEqual(message);
+    expect(seen[0].url).toContain('/api/chat/rewrite');
+    expect(seen[0].init?.method).toBe('POST');
+    expect(JSON.parse(String(seen[0].init?.body ?? '{}'))).toMatchObject({ session_id: 's', message_id: 'u', content: 'edited' });
   });
 
-  it('fetchJobs returns the session job list', async () => {
-    mockFetchOnce({ jobs: [{ id: 'j1', status: 2 }] });
+  it('fetchJobs GETs the session job list and returns the jobs array shape', async () => {
+    const seen: Array<{ url: string; init?: RequestInit }> = [];
+    (globalThis as { fetch?: unknown }).fetch = vi.fn().mockImplementation(async (url: string, init?: RequestInit) => {
+      seen.push({ url: String(url), init });
+      const body = { jobs: [{ id: 'j1', status: 2 }] };
+      return {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        text: async () => JSON.stringify(body),
+        json: async () => body,
+      };
+    });
     await expect(fetchJobs('s')).resolves.toEqual([{ id: 'j1', status: 2 }]);
+    expect(seen[0].url).toContain('/api/jobs?session_id=s');
   });
 
   it('fetchJobs falls back to empty on refusal', async () => {
