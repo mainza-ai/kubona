@@ -3827,6 +3827,8 @@ skipped is the exact failure this incident is about:
     a database written by a newer binary refuses to open instead of being
     silently downgraded. The baseline (version 1) is recorded after the
     existing compatibility migrations; `Ledger.SchemaVersion()` exposes it.
-  - This is the foundation for fail-closed migrations. The existing legacy
-    ALTER/UPDATE statements still run with their historical ignore rules;
-    converting them to checked migrations remains open.
+  - The legacy ALTER/UPDATE statements are now checked: only duplicate-column,
+    no-such-column, and old-SQLite DROP syntax errors are ignored; REAL
+    backfills run only when the legacy column exists. A legacy-row test proves
+    backfill + drop + idempotent reopen. FK enforcement and retention remain
+    open.
