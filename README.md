@@ -32,29 +32,7 @@
 > **Active Research Platform**: Kubona is under active development. APIs, agent protocols, and the sovereign console evolve rapidly. See [`wiki/roadmap.md`](wiki/roadmap.md) for phased milestones and [`wiki/log.md`](wiki/log.md) for the latest research log.
 
 > [!IMPORTANT]
-> **Production status (2026-10-29): all known production blockers are closed and verified.** The independent
-> [Round-2 audit](wiki/concepts/production-readiness-audit-2026-10-26.md) found
-> ten P0 stop-the-line blockers. A full-tree Round-3 re-audit re-verified
-> every P0 against current code, and the remediation program has since landed
-> with the full gate green (20 checks, branch-protected): Phase-0
-> (settlement, admission crypto, A2A binding, approval gate, bridge
-> confinement, manuscript evidence, route policy), Phase-1 (terminal
-> settlement everywhere, atomic admission, sandbox confinement + escape tests,
-> principal-bound tenancy, RAM admission, Rust measurement fidelity, CI
-> depth), Phase-2 (cross-tenant grants, ledger sharding, console live
-> predicates, tested seccomp, deny-by-default, true public numbers), and the
-> deeds phase (mandate-review queue, ephemeral-prod refusal, canonical-expiry
-> fix, seccomp default-on, load proof, EvidenceEnvelope regen, commissioned
-> reviewer key, live QPU probe with measured $8.00 → $0.00 settlement).
-> Every residual is tracked with evidence in the audit; nothing rots silently.
->
-> **Constant-development disclaimer.** Kubona is under active development:
-> APIs, agent protocols, and the console evolve rapidly, and today's green
-> gate does not promise tomorrow's. Do not deploy on this banner alone —
-> read the audit and its phased plan, re-run the gate (`test:boundary`) on
-> the exact commit you ship, and cite only measured results, never this
-> paragraph. Software is Apache-2.0; the living wiki is CC-BY-4.0; neither
-> license is a warranty.
+> **Under constant development.** Kubona's APIs, agent protocols, and console evolve rapidly — today's green gate does not promise tomorrow's. The current production status lives in the wiki ([production readiness](wiki/concepts/production-readiness-audit-2026-10-26.md)): read it, re-run the gate on the exact commit you ship, and cite only measured results. Software is Apache-2.0, docs CC-BY-4.0; neither is a warranty.
 
 ---
 
