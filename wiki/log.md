@@ -3794,3 +3794,19 @@ skipped is the exact failure this incident is about:
     `~ALL`, with zero bypass actors, so re-signing by rewriting is impossible on either
     branch. A signed follow-up on the head is the only repair path; the five unsigned
     SHAs and the red run stay visible in history rather than being hidden.
+
+## [2026-10-29] verification | Stale-state audit + generated counts
+
+  - Full-tree stale-state audit at `5fda062` (1,165 files, 611 commits): trust rails
+    verified (bridge UDS/token/HMAC, sandbox flags, integer money, route policy,
+    ledger v2, metrics/tracing); production ops/docs gaps recorded in the
+    operator's private audit notes (not published here) and addressed below.
+  - Generated counts landed: `scripts/repo-counts.py` + `docs/repo-counts.md`
+    (120 routes, 34 Go packages, 704 Go tests, 177 Python test files, 74 console
+    files / 434 cases, 29 Rust tests, 6 MCP servers / 37 tools, 154 wiki pages);
+    CI runs `--check` so prose counts cannot drift silently.
+  - Corrections: README/wiki counts; `implementation-gaps.md` (`pqc.ts` retired,
+    A2A gated, observability partial, compose path); `remaining-work.md` (Q-27 and
+    main closed, token/reviewer state qualified); audit page (free-plan probe is
+    not a completed paid run; counts stale); AGENTS state correction (push gate
+    green, nightly red).

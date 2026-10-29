@@ -29,7 +29,7 @@ flowchart TB
 
     subgraph DOCKER["compose.prod.yml (kubona-prod_*)"]
         CONSOLE["console :3000<br/>static bundle, no secrets baked"]
-        KUBONAD["kubonad :8080<br/>116 routes, bearer|session edge auth<br/>--bridge flag dropped (socket by env)"]
+        KUBONAD["kubonad :8080<br/>120 routes, bearer|session edge auth<br/>--bridge flag dropped (socket by env)"]
         BRIDGE["bridge UDS unix:///run/kubona/bridge.sock<br/>shared bridge-sock volume, NO TCP in prod"]
         VOL["kubona-state volume<br/>kubona.db (SQLite, single writer)<br/>bridge-sock volume (UDS only)"]
     end
@@ -130,7 +130,7 @@ flowchart TB
 - Compose: `platform/docker/compose.prod.yml` (kubonad WITHOUT `--bridge`
   flag; `KUBONA_BRIDGE_SOCKET=/run/kubona/bridge.sock` on both services;
   `bridge-sock` volume; `KUBONA_ALLOW_PLAINTEXT=1` in-network only).
-- Routes: 116 `s.route(` in `platform/core/pkg/api/server.go` (recount with
+- Routes: 120 `s.route(` in `platform/core/pkg/api/server.go` (recount with
   `grep -c 's.route('` — `rg` is broken on this host).
 - Radar: kubonad dials `KUBONA_BRIDGE_SOCKET` (unix) when `--bridge` is at
   its localhost default (`cmd/kubonad/main.go`); `SetBridgeAddr` kept for

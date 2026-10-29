@@ -26,26 +26,41 @@ status: tracked
   Rust measurement fidelity, CI depth (vet/gofmt, ruff ratchet, clippy,
   semgrep, Trivy, coverage floors).
 - Phase-2 credibility hygiene landed: stale README numbers corrected to
-  recounted values (116 routes, 154 wiki pages, 57 console files / 276
-  vitest tests), simulator-backend parity contract added
-  (`platform/tests/test_simulator_parity.py`), all 7 dependabot branches
-  triaged (PRs #1–#7 closed unmerged with dispositions; branch deletion
-  blocked by repository rules).
-- No §A operator deed was closed by these phases — every deed below
-  remains open and human-owned. No §B queued item was retired by these
-  phases; landed program items continue to live in [[full-tree-roadmap]]
-  Landed per this page's rule.
+  the recounted values at that commit (116 routes, 154 wiki pages, 57
+  console files / 276 vitest tests); those values are now stale again.
+  The generated source of truth is `docs/repo-counts.md` (2026-10-29:
+  120 routes, 74 console files / 434 tests). The simulator-backend parity
+  contract is `platform/tests/test_simulator_parity.py`; all 7 dependabot
+  branches were triaged (PRs #1–#7 closed unmerged; branch deletion was
+  blocked by the repository ruleset).
+- Some §A deeds were closed after this list was written; closed entries
+  are marked below and kept as a record. No §B queued item was retired by
+  these phases; landed program items continue to live in
+  [[full-tree-roadmap]] Landed per this page's rule.
+
+> ⚑ Stale-state correction (2026-10-29): the 20-job **push** gate is green
+> (run `40914979580`), but the **nightly thesis-scale** gate is red (runs
+> `40854405074`, `40666624246`, `40478035440`; Slice60 was cancelled by
+> runner shutdown, not by an assertion). Do not read "full gate green" as
+> covering nightly until it is green. Counts are generated in
+> `docs/repo-counts.md`.
 
 ## A · Operator deeds (blocked on the human — no slice can deliver these)
 
-- Revoke the live `gho_…` token in `~/.git-credentials` + drop the
-  `credential.helper=store` helper (plaintext live credential).
-- Q-27 history flip: rotate the store token first, then `filter-repo`,
-  force-push, re-clone.
-- Advance `main` to `develop` (standing convention; needs explicit order
-  each time — never assumed).
-- Commission the tenant reviewer key (`KUBONA_REVIEWER_PRIVKEY_HEX`) —
-  the reviewer path runs ephemeral-only until then.
+- `gho_…` token: `credential.helper=store` was dropped globally and
+  `~/.git-credentials` was reported empty ([[risks]]), but the token
+  revocation itself is not proven by the repo record. Treat this as
+  **open until the token is revoked at the provider**, not merely removed
+  from the helper.
+- ~~Q-27 history flip~~ — ✅ CLOSED 2026-10-26: `git filter-repo` scrub,
+  force-push, re-clone, and ruleset re-enable are recorded in [[risks]].
+- ~~Advance `main` to `develop`~~ — ✅ CLOSED 2026-10-29: `main` and
+  `develop` are both `5fda062`.
+- Tenant reviewer key (`KUBONA_REVIEWER_PRIVKEY_HEX`): AGENTS and the
+  2026-10-29 log say it is commissioned; this queue still said open. The
+  authoritative state is the deployment environment, not the repo record.
+  Confirm `reviewer_key_configured=true` on the target host before
+  citing it.
 - QPU credentials + backends: `KUBONA_IBM_QISKIT_TOKEN`, backend choice,
   IBM limits, vendor accounts, GPU host.
 - `KUBONA_CONTACT_EMAIL` (console mailto + polite-pool), HF-token rotation,
