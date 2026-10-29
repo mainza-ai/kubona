@@ -41,11 +41,14 @@
 > confinement, manuscript evidence, route policy) and Phase-1 (terminal
 > settlement everywhere, atomic admission, sandbox confinement + escape tests,
 > principal-bound tenancy, RAM admission, Rust measurement fidelity, CI
-> depth: vet/gofmt, ruff ratchet, clippy, semgrep, Trivy, coverage floors).
-> What still blocks production: cross-tenant grants, ledger sharding,
-> verification-latency proof (flight recorder), stale public numbers, and
-> operator deeds (reviewer key, R6 policy, mandate queue). The architecture is
-> sound; the gate is not. Read the audit and its phased plan before deploying
+> depth: vet/gofmt, ruff ratchet, clippy, semgrep, Trivy, coverage floors)
+> and Phase-2 (cross-tenant grants with HTTP lifecycle + single Go registry,
+> ledger sharding, console live predicates + mounted flight card, tested
+> seccomp, deny-by-default, true public numbers). What still blocks production
+> is now almost entirely operational: reviewer key commissioning, R6 policy,
+> mandate-review queue, EvidenceEnvelope regen, QPU credentials + first paid
+> run, seccomp default-on, load-test proof, and admin cleanup of dependabot
+> branches. The architecture is sound; the gate is not. Read the audit and its phased plan before deploying
 > or citing a "verified" result.
 
 ---
