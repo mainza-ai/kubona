@@ -3747,3 +3747,17 @@ skipped is the exact failure this incident is about:
   - README banner flipped from "not production-ready" to verified-state wording with an explicit
     constant-development disclaimer (gate must be re-run per commit; cite measurements only).
   - `develop` and `main` fast-forwarded together; full gate green on both.
+
+## [2026-10-29] fix | Sandbox orphan containers (9x 100% CPU) + hidden timeout-contract bug
+
+  - Nine `kubona-quantum-runner:1.1.0` containers (`python3 workload.py`, ~100% CPU each)
+    found burning on the operator machine, 2-5h old, plus a stale 2-day-old `latest`
+    warm-runner the 660cba1 removal had orphaned. Root cause: killing the `docker run`
+    client never stops the container, and containers were unnamed/unlabelled (unreapable).
+  - Fix both rails: mandatory `kubona-sandbox-<8hex>` names + `kubona.managed=sandbox`
+    labels, `docker stop` of the NAMED container on timeout (verdict stays timeout),
+    label-scoped reaper (1h default, best-effort).
+  - The timeout path exposed a second, hidden bug: Go classified deadline kills as
+    exit -1/nil-error (ExitError asserted before ctx.DeadlineExceeded), so timeouts
+    never surfaced ErrExecutionTimeout — the orphan class hid behind it. Deadline now
+    checked first; pinned 124 + error + zero leftovers on both rails.
