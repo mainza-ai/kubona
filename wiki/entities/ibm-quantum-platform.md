@@ -2,7 +2,7 @@
 type: entity
 name: IBM Quantum Platform
 date: 2026-10-28
-updated: 2026-10-28
+updated: 2026-10-29
 tags: [provider, ibm, quantum, cloud, sdk]
 sources: [source-architecture-paper, source-gap-analysis-plan]
 status: tracked
@@ -126,6 +126,20 @@ same Bell circuit selected physical **86/87** (readout 0.0049/0.0029), layout re
 the result, and job `dbh4sspq260s73buh8o0` returned
 `00:1001, 01:34, 10:29, 11:936` (96.85% `00/11`) in 3 QPU seconds. This validates the
 layout guard, not a full device-fidelity claim.
+
+## Second governed probe (2026-10-29)
+
+Governed job `39b5e6b832cd4ae3` → IBM `dbha28pq260s73c93fk0`, backend
+`ibm_fez` (least_busy resolution), 100-shot Bell. Pre-dispatch estimate
+$8.000568 held on both rails (Go reservation + Python mirror); the probe
+caught one real cross-language bug first — Go minted fractional-expiry
+mandates the Python rail correctly refused — fixed at the mint
+(whole-second canonical), pinned both rails, rebuilt, re-fired cleanly.
+Vendor job queued ~1h (free-plan queue); cancelled via the governed API
+with vendor recall confirmed. Settlement: **$8.000568 → $0.00 on both
+rails**, ledger-sealed (`job_settled` event). Calibrated-subgraph guard
+recorded physical 146/147, max readout 0.29% — no Marrakesh-class anomaly.
+No fidelity claim; $0 metered (cancelled while queued).
 
 ## Agent rules
 
