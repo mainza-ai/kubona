@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { fetchSessionContext, createSession, clearMessages, type SessionContext } from '@/lib/api';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
 
 // S8b: overflow card — appears only at real context pressure (>=80% of the
 // BudgetHistory caps, same source as ContextReadout). Every action is a
@@ -21,6 +22,9 @@ export function OverflowCard({
   const [ctx, setCtx] = useState<SessionContext | null>(null);
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<string | null>(null);
+  // Wave-3: clear-history stages a typed ConfirmDialog (CLEAR) instead of
+  // window.confirm(). Jobs, ledger and claims are kept either way.
+  const [clearConfirmOpen, setClearConfirmOpen] = useState(false);
 
   // Same key-change reset as ContextReadout (shared data source): never
   // show the old session's pressure card while the new one loads.
@@ -59,13 +63,13 @@ export function OverflowCard({
   };
 
   const clear = async () => {
-    if (!window.confirm('Clear this session\u2019s chat history? Jobs, ledger and claims are kept.')) return;
     setBusy(true);
     try {
       const n = await clearMessages(sessionId);
       setDone(n == null ? 'Clear failed.' : `Cleared ${n} messages. Jobs, ledger and claims kept.`);
     } finally {
       setBusy(false);
+      setClearConfirmOpen(false);
     }
   };
 
@@ -92,7 +96,7 @@ export function OverflowCard({
         </button>
         <button
           type="button"
-          onClick={clear}
+          onClick={() => setClearConfirmOpen(true)}
           disabled={busy}
           className="px-2.5 py-1 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-slate-200 disabled:opacity-40"
         >
@@ -100,6 +104,27 @@ export function OverflowCard({
         </button>
       </div>
       {done && <div className="text-slate-300 mt-1.5">{done}</div>}
+      {clearConfirmOpen && (
+        <ConfirmDialog
+          open
+          title="Clear chat history?"
+          body={
+            <span>
+              This session’s chat history is deleted. Jobs, ledger and claims are kept. Type{' '}
+              <code className="rounded bg-white/10 px-1 font-mono">CLEAR</code> to confirm.
+            </span>
+          }
+          requireText="CLEAR"
+          confirmLabel="Clear history"
+          danger
+          busy={busy}
+          onConfirm={() => void clear()}
+          onCancel={() => {
+            if (busy) return;
+            setClearConfirmOpen(false);
+          }}
+        />
+      )}
     </div>
   );
 }

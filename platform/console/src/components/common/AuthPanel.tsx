@@ -15,6 +15,7 @@ import {
 import type { Lab } from '@/types';
 import { signLoginChallengeWithCustody } from '@/lib/mandates';
 import { peekSignerPubkeyHex } from '@/lib/custody';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
 
 // Relative session-expiry readout: a raw ISO timestamp tells the operator
 // nothing at a glance. Thresholds: seconds (<60s), minutes (<60m), hours
@@ -61,6 +62,9 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
   // wasRecentAuthFailure window lapses (typeof guards keep older
   // api mocks — which lack these exports — rendering instead of crashing).
   const [sawUnauthorized, setSawUnauthorized] = useState(false);
+  // Wave-3: revoke stages a typed ConfirmDialog (session short-id) instead
+  // of a native confirm(). The network + refresh flow is unchanged.
+  const [revokeDraft, setRevokeDraft] = useState<string | null>(null);
 
   useEffect(() => {
     if (typeof window === 'undefined' || typeof UNAUTH_EVENT !== 'string') return;
@@ -177,7 +181,6 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
 
   const revoke = (id: string) =>
     run(`revoke:${id}`, async () => {
-      if (!confirm(`Revoke session ${id.slice(0, 8)}…? Its cookie stops working immediately.`)) return;
       const res = await authRevoke(id);
       if (res === null) {
         setNotice('backend unreachable — nothing changed.');
@@ -282,7 +285,7 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
                   <button
                     type="button"
                     disabled={busy !== null}
-                    onClick={() => void revoke(s.id)}
+                    onClick={() => setRevokeDraft(s.id)}
                     aria-label={`Revoke session ${s.id}`}
                     className="px-2 py-0.5 rounded-lg bg-rose-500/15 border border-rose-400/30 text-rose-200 hover:bg-rose-500/25 disabled:opacity-40 shrink-0"
                   >
@@ -299,6 +302,31 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
         <p className="text-[11px] text-amber-200" role="alert">
           {notice}
         </p>
+      )}
+      {revokeDraft != null && (
+        <ConfirmDialog
+          open
+          title={`Revoke session ${revokeDraft.slice(0, 8)}…?`}
+          body={
+            <span>
+              Session <code className="rounded bg-white/10 px-1 font-mono">{revokeDraft.slice(0, 8)}…</code> stops
+              working immediately. Other sessions are unaffected.
+            </span>
+          }
+          requireText={revokeDraft.slice(0, 8)}
+          confirmLabel="Revoke session"
+          danger
+          busy={busy !== null}
+          onConfirm={() => {
+            const id = revokeDraft;
+            setRevokeDraft(null);
+            void revoke(id);
+          }}
+          onCancel={() => {
+            if (busy !== null) return;
+            setRevokeDraft(null);
+          }}
+        />
       )}
     </div>
   );

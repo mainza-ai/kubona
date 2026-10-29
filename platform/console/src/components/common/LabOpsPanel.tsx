@@ -36,6 +36,11 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
   const [refundDraft, setRefundDraft] = useState<{ amount: number; reason: string } | null>(null);
   const [refundBusy, setRefundBusy] = useState(false);
   const [refundError, setRefundError] = useState<string | null>(null);
+  // Wave-3: ceiling + suspend/resume stage a ConfirmDialog (no typed text —
+  // reversible, so a single explicit confirm suffices per the ConfirmDialog
+  // contract). The refund above keeps the typed "$X.XX" gate: irreversible.
+  const [ceilingDraft, setCeilingDraft] = useState<number | null>(null);
+  const [statusDraft, setStatusDraft] = useState<'active' | 'suspended' | null>(null);
 
   const [browserPub, setBrowserPub] = useState<string | null>(null);
   useEffect(() => {
@@ -110,8 +115,6 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
     );
   }
 
-  const ask = (msg: string) => confirm(msg);
-
   const refundAmountText = refundDraft != null ? `$${refundDraft.amount.toFixed(2)}` : null;
 
   const confirmRefund = async () => {
@@ -178,8 +181,7 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
                 setNotice('ceiling must be a positive number.');
                 return;
               }
-              if (!ask(`Set ${lab.id} ceiling to $${v.toFixed(2)}?`)) return;
-              void run('ceiling', async () => setTenantCeiling(lab.id, v, await envelope('set_ceiling', { ceiling_usd: v })));
+              setCeilingDraft(v);
             }}
           className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] text-slate-200 disabled:opacity-40"
         >
@@ -188,13 +190,10 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
         <button
           type="button"
           disabled={busy !== null}
-          onClick={() => {
-            const next = suspended ? 'active' : 'suspended';
-            if (!ask(suspended ? `Resume lab ${lab.id}? Spend gates re-open.` : `Suspend lab ${lab.id}? Spend-affecting actions freeze.`)) return;
-            void run('status', async () =>
-              setTenantStatus(lab.id, next, await envelope('set_status', { status: next }))
-            );
-          }}
+            onClick={() => {
+              const next = suspended ? 'active' : 'suspended';
+              setStatusDraft(next);
+            }}
           aria-label={`${suspended ? 'Resume' : 'Suspend'} lab ${lab.id}`}
           className={`px-2 py-1 rounded-lg border text-[11px] disabled:opacity-40 ${
             suspended
@@ -249,6 +248,63 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
         <p className="text-[11px] text-amber-200" role="alert">
           {notice}
         </p>
+      )}
+      {ceilingDraft != null && (
+        <ConfirmDialog
+          open
+          title={`Set ${lab.id} ceiling to $${ceilingDraft.toFixed(2)}?`}
+          body={
+            <span>
+              Set the spend ceiling for <strong className="font-semibold text-white">{lab.id}</strong> to{' '}
+              <strong className="font-semibold text-white">${ceilingDraft.toFixed(2)}</strong>. Reversible — the
+              ceiling can be raised or lowered again.
+            </span>
+          }
+          confirmLabel="Set ceiling"
+          busy={busy !== null}
+          onConfirm={() =>
+            void (async () => {
+              const v = ceilingDraft;
+              setCeilingDraft(null);
+              await run('ceiling', async () =>
+                setTenantCeiling(lab.id, v, await envelope('set_ceiling', { ceiling_usd: v }))
+              );
+            })()
+          }
+          onCancel={() => {
+            if (busy !== null) return;
+            setCeilingDraft(null);
+          }}
+        />
+      )}
+      {statusDraft != null && (
+        <ConfirmDialog
+          open
+          title={statusDraft === 'active' ? `Resume lab ${lab.id}?` : `Suspend lab ${lab.id}?`}
+          body={
+            <span>
+              {statusDraft === 'active'
+                ? 'Spend gates re-open. Reversible — the lab can be suspended again.'
+                : 'Spend-affecting actions freeze. Reversible — resume re-opens the gates.'}
+            </span>
+          }
+          confirmLabel={statusDraft === 'active' ? 'Resume lab' : 'Suspend lab'}
+          danger={statusDraft !== 'active'}
+          busy={busy !== null}
+          onConfirm={() =>
+            void (async () => {
+              const next = statusDraft;
+              setStatusDraft(null);
+              await run('status', async () =>
+                setTenantStatus(lab.id, next, await envelope('set_status', { status: next }))
+              );
+            })()
+          }
+          onCancel={() => {
+            if (busy !== null) return;
+            setStatusDraft(null);
+          }}
+        />
       )}
       {refundDraft != null && refundAmountText != null && (
         <ConfirmDialog

@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { loopAction, type LoopAction } from '@/lib/api';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
 import type { Loop } from '@/types';
 
 // U1-c: loop override roster (watch-and-interrupt). Pause shows only on
@@ -26,17 +27,11 @@ export function LoopControlList({
 }) {
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState<string | null>(null);
+  // Wave-3: kill stages a typed ConfirmDialog (loop short-id) instead of a
+  // native confirm(). Pause/resume are reversible single clicks, unchanged.
+  const [killDraft, setKillDraft] = useState<Loop | null>(null);
 
   const run = async (loop: Loop, action: LoopAction) => {
-    if (action === 'kill') {
-      if (
-        !confirm(
-          `Kill loop ${loop.id.slice(0, 8)}? Killed loops never resume — in-flight work is abandoned.`
-        )
-      ) {
-        return;
-      }
-    }
     setBusy((prev) => new Set(prev).add(loop.id));
     setNotice(null);
     try {
@@ -113,7 +108,7 @@ export function LoopControlList({
                   <button
                     type="button"
                     disabled={isBusy}
-                    onClick={() => run(loop, 'kill')}
+                    onClick={() => setKillDraft(loop)}
                     aria-label={`Kill loop ${loop.id}`}
                     className="px-2 py-1 rounded-lg bg-rose-500/15 border border-rose-400/30 text-rose-200 hover:bg-rose-500/25 disabled:opacity-40"
                   >
@@ -129,6 +124,31 @@ export function LoopControlList({
         <div className="text-[11px] text-amber-200" role="alert">
           {notice}
         </div>
+      )}
+      {killDraft != null && (
+        <ConfirmDialog
+          open
+          title={`Kill loop ${killDraft.id.slice(0, 8)}?`}
+          body={
+            <span>
+              Killed loops never resume — in-flight work is abandoned. Type{' '}
+              <code className="rounded bg-white/10 px-1 font-mono">{killDraft.id.slice(0, 8)}</code> to confirm.
+            </span>
+          }
+          requireText={killDraft.id.slice(0, 8)}
+          confirmLabel="Kill loop"
+          danger
+          busy={busy.has(killDraft.id)}
+          onConfirm={() => {
+            const target = killDraft;
+            setKillDraft(null);
+            void run(target, 'kill');
+          }}
+          onCancel={() => {
+            if (killDraft != null && busy.has(killDraft.id)) return;
+            setKillDraft(null);
+          }}
+        />
       )}
     </div>
   );

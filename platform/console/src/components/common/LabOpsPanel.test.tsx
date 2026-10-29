@@ -49,7 +49,6 @@ describe('LabOpsPanel (U1-b)', () => {
       seen.push({ url, body: String(init?.body) });
       return { ok: true, json: async () => ({ id: 'lab-a' }) };
     });
-    vi.stubGlobal('confirm', () => true);
     const tree = await render(
       <LabOpsPanel lab={lab({ id: 'lab-a', admin_pubkey_hex: PUB })} onChanged={() => {}} />
     );
@@ -60,6 +59,10 @@ describe('LabOpsPanel (U1-b)', () => {
     });
     await act(async () => {
       tree.root.findAllByType('button').find((b) => b.props.children === 'Set ceiling')!.props.onClick();
+    });
+    // Wave-3: ceiling stages a ConfirmDialog (reversible, no typed text).
+    await act(async () => {
+      await tree.root.findByType(ConfirmDialog).props.onConfirm();
     });
     await vi.waitFor(() => expect(seen).toHaveLength(1));
     expect(seen[0].url).toBe('http://localhost:8080/api/tenants/ceiling');
@@ -79,7 +82,6 @@ describe('LabOpsPanel (U1-b)', () => {
       seen.push({ url, body: String(init?.body) });
       return { ok: true, json: async () => ({ id: 'lab-a' }) };
     });
-    vi.stubGlobal('confirm', () => true);
     const tree = await render(
       <LabOpsPanel lab={lab({ id: 'lab-a', admin_pubkey_hex: 'ab'.repeat(32) })} onChanged={() => {}} />
     );
@@ -90,6 +92,9 @@ describe('LabOpsPanel (U1-b)', () => {
     });
     await act(async () => {
       tree.root.findAllByType('button').find((b) => b.props.children === 'Set ceiling')!.props.onClick();
+    });
+    await act(async () => {
+      await tree.root.findByType(ConfirmDialog).props.onConfirm();
     });
     await vi.waitFor(() => expect(seen).toHaveLength(1));
     const body = JSON.parse(seen[0].body) as Record<string, unknown>;
