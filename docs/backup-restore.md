@@ -119,6 +119,23 @@ and inspect the dry run. Jobs/loops keep their spend, estimate, and mandate
 fields in `_fk_orphans.row_json`; nothing is discarded. After a clean
 `fk-audit`, FK enforcement can be considered.
 
+## Production startup gate
+
+With `KUBONA_ENV=production` (or the explicit `KUBONA_FK_ENFORCE=1`),
+`kubonad` opens SQLite with `_foreign_keys=on` and runs
+`PRAGMA foreign_key_check` before serving. If any orphan exists, it refuses
+to start and names the repair:
+
+```
+ledger has N foreign-key orphan row(s) [...]: repair with
+`kubonad fk-quarantine --apply` after a verified backup, then restart
+```
+
+This is deliberate: enforcement without the audit would only fail later,
+on the first insert, with an opaque constraint error. The development/test
+open path stays permissive so the audit, plan, and quarantine tools can
+run against the broken ledger.
+
 ## Current limits
 
 The schema has no version table yet and the migration path is not
