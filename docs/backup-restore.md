@@ -72,6 +72,21 @@ do not start the daemon on a faulted ledger.
 - Test a restore monthly. A backup that has never been restored is a hope,
   not a recovery plan.
 
+## Foreign-key orphan audit (before enabling enforcement)
+
+`PRAGMA foreign_key_check` is read-only and does not take the writer lock:
+
+```bash
+kubonad fk-audit --db /home/kubona/.kubona/kubona.db
+kubonad fk-audit --db /home/kubona/.kubona/kubona.db --json
+```
+
+Exit 0 means clean, 1 means orphan rows were found (the report names the
+table, rowid, parent, and fkid), 2 is a usage error. Run this on every
+restored copy and before a release that turns on FK enforcement. Do not
+enable `PRAGMA foreign_keys=ON` while orphans exist; inserts will start
+failing on rows the migration should have repaired first.
+
 ## Current limits
 
 The schema has no version table yet and the migration path is not
