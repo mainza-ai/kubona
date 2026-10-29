@@ -6,7 +6,7 @@ import { useEffect, type RefObject } from 'react';
 // these overlays predate it, so the trap is explicit and tested.
 export function useFocusTrap(active: boolean, panelRef: RefObject<HTMLElement | null>) {
   useEffect(() => {
-    if (!active) return;
+    if (!active || typeof document === 'undefined') return;
     const panel = panelRef.current;
     if (!panel) return;
     const prev = document.activeElement as HTMLElement | null;
