@@ -9,10 +9,22 @@ import inspect
 import json
 import sys
 
-# Surface budget: measured ~8 KB (2026-10-17) → 16 KB headroom.
+# Surface budget: measured ~8 KB (2026-10-17) → 16 KB headroom → 18 KB
+# (2026-10-29, deliberate raise, reviewed per-tool below — NOT drift).
 # Growth past this fails CI (test_mcp_surface.py). Raise deliberately,
 # with a reviewed per-tool justification (L5), never by drift.
-SURFACE_BUDGET_BYTES = 16 * 1024
+#
+# 2026-10-29 composition at 17,197 bytes (per-tool leaders): every paid or
+# mutating tool now carries an injected `caller` identity param (Phase-1
+# tenancy: submit_job 1873, cancel_job 1143, …), paid submits carry
+# `approval_id` (Phase-0 gate: submit_job, submit_qubo_job 1543), and
+# ownership gates added params to close_session + recall paths (Phase-2).
+# All three growth drivers are security-required surface, each asserted by
+# bypass-refusal tests — shrinking them would weaken the gates. The
+# descriptions themselves were NOT trimmed here (agent-facing prose is a
+# separate leanness pass, not a budget dodge). Ratchet still holds: any
+# future growth past 18 KB fails until justified the same way.
+SURFACE_BUDGET_BYTES = 18 * 1024
 
 
 def _schema(fn) -> dict:
