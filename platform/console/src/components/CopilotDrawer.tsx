@@ -30,7 +30,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { ChatMessage, CampaignState, RunPhase, Proposal } from '@/types';
-import { fetchMessages, sendChatMessage, streamChatMessage, createSession, runTribunal, fetchCampaignState, launchProposal, clearMessages, regenerateChat, sendFeedback, rewriteChat, fetchJobs, jobStatusLabel, isTerminalJobStatus } from '@/lib/api';
+import { fetchMessages, sendChatMessage, streamChatMessage, createSession, runTribunal, fetchCampaignState, launchProposal, clearMessages, regenerateChat, sendFeedback, rewriteChat, fetchJobs, jobStatusLabel, isTerminalJobStatus, authWhoami, wasRecentAuthFailure } from '@/lib/api';
 import { ContextReadout } from './common/ContextReadout';
 import { OverflowCard } from './common/OverflowCard';
 import { MathText } from './common/MathText';
@@ -51,6 +51,13 @@ interface CopilotDrawerProps {
   onSessionChange?: (newSessionId: string) => void;
   onClose?: () => void;
 }
+
+// Spend-fork guard outcome: a usable session id, a login redirect (the
+// operator identity is unknown — the caller renders the login affordance
+// instead of minting spend), or null when the backend refused the create.
+type ActiveSession = { id: string } | { needsLogin: true };
+const isNeedsLogin = (r: ActiveSession | null): r is { needsLogin: true } =>
+  r !== null && 'needsLogin' in r;
 
 export function CopilotDrawer({
   sessionId,
@@ -81,6 +88,16 @@ export function CopilotDrawer({
   const [launchedJobs, setLaunchedJobs] = useState<Record<string, string>>({});
   const [streamingId, setStreamingId] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
+  // Spend-fork guard outcome (see getActiveSessionId): either a usable
+  // session id, or a login redirect — never a silently minted session.
+  const [needsLogin, setNeedsLogin] = useState(false);
+  // Mounted guard: stream/token callbacks and late fetch resolutions must
+  // never write into an unmounted tree (abort covers the transport; this
+  // covers already-queued continuations).
+  const mountedRef = useRef(true);
+  // Last prompt sent (ref, not state — the stall Retry button re-sends the
+  // exact same prompt through the existing handleSend(customPrompt) path).
+  const lastPromptRef = useRef<string>('');
   const abortRef = useRef<AbortController | null>(null);
   const idCounter = useRef(0);
   const nextTempId = (prefix: string) => `${prefix}-${++idCounter.current}`;
@@ -125,13 +142,33 @@ export function CopilotDrawer({
   }, [messages, loading, runningTribunal]);
 
   useEffect(() => {
+    // Unmount teardown: cancel any in-flight stream reader so its late
+    // resolution never writes into an unmounted tree.
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+      abortRef.current?.abort();
+      abortRef.current = null;
+    };
+  }, []);
+
+  useEffect(() => {
+    // Session switch cancels any in-flight stream: tokens must never land
+    // in a stale transcript after navigating away mid-stream.
+    abortRef.current?.abort();
+    abortRef.current = null;
+    let live = true;
     if (sessionId) {
       fetchMessages(sessionId).then((msgs) => {
+        if (!live || !mountedRef.current) return;
         if (msgs && msgs.length > 0) {
           setMessages(msgs);
         }
       });
     }
+    return () => {
+      live = false;
+    };
   }, [sessionId]);
 
   useEffect(() => {
@@ -147,14 +184,27 @@ export function CopilotDrawer({
     }
   }, [loading, runningTribunal]);
 
-  const getActiveSessionId = async (): Promise<string> => {
-    if (sessionId) return sessionId;
+  const getActiveSessionId = async (): Promise<ActiveSession | null> => {
+    if (sessionId) return { id: sessionId };
+    // Spend-fork guard: a missing session would otherwise mint fresh spend
+    // on every send. Refuse when the operator identity is unknown — expired
+    // cookie, bearer-only, unreachable whoami, or a recent 401 elsewhere in
+    // the tree. Auth failures never silently mint spend.
+    let me: Awaited<ReturnType<typeof authWhoami>> = null;
+    try {
+      me = await authWhoami();
+    } catch {
+      me = null;
+    }
+    if (!me?.authenticated || wasRecentAuthFailure()) {
+      return { needsLogin: true };
+    }
     const newSess = await createSession('Quantum Research Campaign #1', 150.0);
     if (newSess?.id) {
       onSessionChange?.(newSess.id);
-      return newSess.id;
+      return { id: newSess.id };
     }
-    return '';
+    return null;
   };
 
   const handleSend = async (customPrompt?: string) => {
@@ -171,17 +221,26 @@ export function CopilotDrawer({
     // Attachments ride this send as explicit context, then clear.
     const attached = attachments.map((a) => `[attached ${a.name}]\n${a.text}`).join('\n');
     const textToSend = [attached, rawText].filter(Boolean).join('\n');
+    lastPromptRef.current = textToSend;
     if (attachments.length > 0) setAttachments([]);
 
     if (!customPrompt) setInput('');
     setErrorMessage(null);
     setInfoMessage(null);
 
-    const activeSessionId = await getActiveSessionId();
-    if (!activeSessionId) {
+    const active = await getActiveSessionId();
+    if (active === null) {
       setErrorMessage('Could not create or resolve an active campaign session.');
       return;
     }
+    if (isNeedsLogin(active)) {
+      // Auth unknown — no session minted, no spend. The inline affordance
+      // below jumps to the Labs AuthPanel.
+      setNeedsLogin(true);
+      return;
+    }
+    setNeedsLogin(false);
+    const activeSessionId = active.id;
 
     const tempUserMsg: ChatMessage = {
       id: nextTempId(`temp-user`),
@@ -212,6 +271,7 @@ export function CopilotDrawer({
     abortRef.current = controller;
 
     const settleStream = (done: { user: ChatMessage; assistant: ChatMessage; proposal?: unknown; campaign?: CampaignState; duration_ms?: number; usage?: Record<string, number> }) => {
+      if (!mountedRef.current) return;
       setMessages((prev) => {
         const filtered = prev.filter((m) => m.id !== tempUserMsg.id && m.id !== liveId);
         const assistant: ChatMessage = { ...done.assistant };
@@ -234,7 +294,7 @@ export function CopilotDrawer({
         onCampaignUpdated(done.campaign);
       } else if (onCampaignUpdated) {
         fetchCampaignState(activeSessionId).then((c) => {
-          if (c) onCampaignUpdated(c);
+          if (mountedRef.current && c) onCampaignUpdated(c);
         });
       }
       if (onExperimentLaunched) onExperimentLaunched();
@@ -242,27 +302,38 @@ export function CopilotDrawer({
 
     try {
       const done = await streamChatMessage(activeSessionId, textToSend, (tok) => {
+        if (!mountedRef.current) return;
         setMessages((prev) =>
           prev.map((m) => (m.id === liveId ? { ...m, content: m.content + tok } : m))
         );
       }, controller.signal);
       settleStream(done);
     } catch (streamErr) {
+      if (!mountedRef.current) return;
       if (streamErr instanceof DOMException && streamErr.name === 'AbortError') {
         // Operator stop: drop the partial bubble but keep the sent prompt.
         // The server run may still complete and appear on next history load.
         setMessages((prev) => prev.filter((m) => m.id !== liveId));
         setInfoMessage('Stopped. The backend run may still finish — its result will appear in history.');
-        setTimeout(() => setInfoMessage(null), 6000);
+        setTimeout(() => { if (mountedRef.current) setInfoMessage(null); }, 6000);
         setLoading(false);
         setStreamingId(null);
         abortRef.current = null;
         onRunStateChange?.('idle', '');
         return;
       }
+      if (streamErr instanceof Error && /stream stalled/i.test(streamErr.message)) {
+        // Stall detector fired: the transport went quiet for STREAM_STALL_MS.
+        // No silent unary retry — surface the inline error with a Retry
+        // button (below) that re-sends the same prompt.
+        setMessages((prev) => prev.filter((m) => m.id !== liveId));
+        setErrorMessage(`${streamErr.message} — the backend went quiet. Retry re-sends the same prompt.`);
+        return;
+      }
       console.warn('Stream failed, falling back to unary chat:', streamErr);
       try {
         const res = await sendChatMessage(activeSessionId, textToSend);
+        if (!mountedRef.current) return;
         if (res) {
           setMessages((prev) => {
             const filtered = prev.filter((m) => m.id !== tempUserMsg.id && m.id !== liveId);
@@ -270,7 +341,7 @@ export function CopilotDrawer({
           });
           if (onCampaignUpdated) {
             fetchCampaignState(activeSessionId).then((c) => {
-              if (c) onCampaignUpdated(c);
+              if (mountedRef.current && c) onCampaignUpdated(c);
             });
           }
           if (onExperimentLaunched) onExperimentLaunched();
@@ -279,10 +350,12 @@ export function CopilotDrawer({
           setErrorMessage('AI engine did not respond. Check the model in Sovereign settings (dock → mesh → settings).');
         }
       } catch (err: unknown) {
+        if (!mountedRef.current) return;
         setMessages((prev) => prev.filter((m) => m.id !== liveId));
         setErrorMessage(err instanceof Error ? err.message : 'Connection error to backend.');
       }
     } finally {
+      if (!mountedRef.current) return;
       setLoading(false);
       setStreamingId(null);
       onRunStateChange?.('idle', '');
@@ -296,13 +369,20 @@ export function CopilotDrawer({
     onRunStateChange?.('tribunal', 'Ansatz Scout: proposing parameterization…');
     setErrorMessage(null);
 
-    const activeSessionId = await getActiveSessionId();
-    if (!activeSessionId) {
+    const active = await getActiveSessionId();
+    if (active === null) {
       setRunningTribunal(false);
       onRunStateChange?.('idle', '');
       setErrorMessage('Could not create or resolve an active campaign session.');
       return;
     }
+    if (isNeedsLogin(active)) {
+      setRunningTribunal(false);
+      onRunStateChange?.('idle', '');
+      setNeedsLogin(true);
+      return;
+    }
+    const activeSessionId = active.id;
 
     const tempUserMsg: ChatMessage = {
       id: nextTempId(`temp-tribunal`),
@@ -319,8 +399,13 @@ export function CopilotDrawer({
     // anything created after the prompt that isn't the prompt counts.
     const runStartEpoch = new Date(tempUserMsg.created_at).getTime() - 1000;
     const turnPoll = setInterval(async () => {
+      if (!mountedRef.current) {
+        clearInterval(turnPoll);
+        return;
+      }
       try {
         const fresh = await fetchMessages(activeSessionId);
+        if (!mountedRef.current) return;
         const arrived = fresh.filter(
           (m) => m.role !== 'user' && new Date(m.created_at).getTime() >= runStartEpoch
         );
@@ -343,6 +428,7 @@ export function CopilotDrawer({
 
     try {
       const res = await runTribunal(activeSessionId, topic);
+      if (!mountedRef.current) return;
       if (res && res.assistant_message) {
         const assistantWithTribunal: ChatMessage = {
           ...res.assistant_message,
@@ -358,7 +444,7 @@ export function CopilotDrawer({
           onCampaignUpdated(res.campaign);
         } else if (onCampaignUpdated) {
           fetchCampaignState(activeSessionId).then((c) => {
-            if (c) onCampaignUpdated(c);
+            if (mountedRef.current && c) onCampaignUpdated(c);
           });
         }
         if (onExperimentLaunched) onExperimentLaunched();
@@ -366,9 +452,11 @@ export function CopilotDrawer({
         setErrorMessage('Failed to convene tribunal. Check the model in Sovereign settings and the bridge status in Fleet Radar.');
       }
     } catch (err: unknown) {
+      if (!mountedRef.current) return;
       setErrorMessage(err instanceof Error ? err.message : 'Tribunal connection error.');
     } finally {
       clearInterval(turnPoll);
+      if (!mountedRef.current) return;
       setRunningTribunal(false);
       onRunStateChange?.('idle', '');
     }
@@ -429,7 +517,8 @@ export function CopilotDrawer({
   const matchedIds = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return [];
-    return messages.filter((m) => m.content.toLowerCase().includes(q)).map((m) => m.id);
+    // Malformed transcripts (null/undefined content) must not crash search.
+    return messages.filter((m) => String(m.content ?? '').toLowerCase().includes(q)).map((m) => m.id);
   }, [messages, searchQuery]);
 
   const jumpToMatch = (dir: 1 | -1) => {
@@ -480,8 +569,13 @@ export function CopilotDrawer({
 
   const handleClearChat = async () => {
     if (clearing || loading || runningTribunal || messages.length === 0) return;
-    const activeSessionId = await getActiveSessionId();
-    if (!activeSessionId) return;
+    const active = await getActiveSessionId();
+    if (active === null) return;
+    if (isNeedsLogin(active)) {
+      setNeedsLogin(true);
+      return;
+    }
+    const activeSessionId = active.id;
     if (!confirm('Clear this conversation? Messages are deleted; the session, campaign, and ledger history survive.')) return;
     setClearing(true);
     try {
@@ -503,8 +597,13 @@ export function CopilotDrawer({
 
   const handleRegenerate = async () => {
     if (regenerating || loading || runningTribunal || !canRegenerate) return;
-    const activeSessionId = await getActiveSessionId();
-    if (!activeSessionId) return;
+    const active = await getActiveSessionId();
+    if (active === null) return;
+    if (isNeedsLogin(active)) {
+      setNeedsLogin(true);
+      return;
+    }
+    const activeSessionId = active.id;
     setRegenerating(true);
     setErrorMessage(null);
     onRunStateChange?.('thinking', 'regenerating last answer');
@@ -535,8 +634,13 @@ export function CopilotDrawer({
     }
   };
   const handleVote = async (messageId: string, vote: 'up' | 'down') => {
-    const activeSessionId = await getActiveSessionId();
-    if (!activeSessionId) return;
+    const active = await getActiveSessionId();
+    if (active === null) return;
+    if (isNeedsLogin(active)) {
+      setNeedsLogin(true);
+      return;
+    }
+    const activeSessionId = active.id;
     setVotes((prev) => ({ ...prev, [messageId]: vote }));
     const ok = await sendFeedback(activeSessionId, messageId, vote);
     if (!ok) {
@@ -555,8 +659,13 @@ export function CopilotDrawer({
   const handleRewriteSave = async (messageId: string) => {
     const draft = editDraft.trim();
     if (!draft || rewriting || loading || runningTribunal) return;
-    const activeSessionId = await getActiveSessionId();
-    if (!activeSessionId) return;
+    const active = await getActiveSessionId();
+    if (active === null) return;
+    if (isNeedsLogin(active)) {
+      setNeedsLogin(true);
+      return;
+    }
+    const activeSessionId = active.id;
     setRewriting(true);
     setErrorMessage(null);
     try {
@@ -599,8 +708,13 @@ export function CopilotDrawer({
 
   const handleLaunchProposal = async (messageId: string, proposal: Proposal) => {
     if (launchingId) return;
-    const activeSessionId = await getActiveSessionId();
-    if (!activeSessionId) return;
+    const active = await getActiveSessionId();
+    if (active === null) return;
+    if (isNeedsLogin(active)) {
+      setNeedsLogin(true);
+      return;
+    }
+    const activeSessionId = active.id;
     setLaunchingId(messageId);
     try {
       const res = await launchProposal(activeSessionId, proposal);
@@ -1343,9 +1457,37 @@ export function CopilotDrawer({
           </div>
         )}
 
+        {needsLogin && (
+          <div className="p-3.5 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs font-sans flex items-center justify-between gap-2" role="alert">
+            <span>Session expired — log in again to start a campaign session. No session was created.</span>
+            <button
+              type="button"
+              onClick={() => onSelectSurface?.('labs')}
+              className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/40 text-amber-100 text-[11px] font-semibold transition-all"
+            >
+              Open Labs AuthPanel
+            </button>
+          </div>
+        )}
+
         {errorMessage && (
-          <div className="p-3.5 rounded-2xl bg-red-950/40 border border-red-800/40 text-red-300 text-xs font-sans">
-            {errorMessage}
+          <div className="p-3.5 rounded-2xl bg-red-950/40 border border-red-800/40 text-red-300 text-xs font-sans" role="alert">
+            <div className="flex items-start justify-between gap-2">
+              <span>{errorMessage}</span>
+              {/stream stalled/i.test(errorMessage) && (
+                <button
+                  type="button"
+                  aria-label="Retry stalled stream"
+                  onClick={() => {
+                    setErrorMessage(null);
+                    void handleSend(lastPromptRef.current || undefined);
+                  }}
+                  className="shrink-0 px-2.5 py-1 rounded-lg bg-red-400/15 hover:bg-red-400/25 border border-red-400/40 text-red-100 text-[11px] font-semibold transition-all"
+                >
+                  Retry
+                </button>
+              )}
+            </div>
           </div>
         )}
 
