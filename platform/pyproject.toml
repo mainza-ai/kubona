@@ -38,13 +38,40 @@ dev = ["pytest==9.1.1", "pytest-asyncio==1.4.0"]
 qiskit = ["qiskit==2.5.2", "qiskit-aer==0.17.2", "qiskit-ibm-runtime==0.50.0"]
 chemistry = ["pyscf==2.14.0", "rdkit==2026.3.6"]
 providers = [
-    "pytket>=0.50", "pytket-quantinuum",   # Quantinuum (real SDK conversion validated)
-    "pyquil>=3.5",                          # Rigetti (WavefunctionSimulator is credential-free w/ qvm)
-    "dimod>=0.12",                          # D-Wave annealer (credential-free QUBO solver)
-    "strawberryfields>=0.23",               # Xanadu photonic/CV (modality-gated)
-    "pulser>=0.18",                         # QuEra/Pasqal neutral atom (modality-gated)
+    # Pinned == : the suite-verified set (2026-10-28). Each pin names the
+    # suite that verified it — a pin without a green suite is a guess, not
+    # a pin (same discipline as the core deps above).
+    # pytket: tests/test_g6_real_sdk.py::test_pytket_real_conversion (live
+    # BELL + parametric VQE2 Circuit conversion) + tests/test_qpu_providers.py
+    # + tests/test_sdk_conformance.py, all green with the SDK importable.
+    "pytket==2.18.5",
+    # pytket-quantinuum stays FLOATING on purpose: no suite exercises the
+    # Quantinuum submission path (credential + network gated, fail-closed by
+    # design), and the provider's `from pytket_quantinuum import ...` path
+    # matches no published namespace layout (0.28.0 and 0.59.3 both ship
+    # `pytket.extensions.quantinuum`), so no == is verifiable here —
+    # operators pin per-deployment once the submission path is wired+tested.
+    "pytket-quantinuum",
+    # pyquil: tests/test_g6_real_sdk.py::test_pyquil_real_conversion (live
+    # BELL + parametric conversion incl. CX->CNOT) + tests/test_qpu_providers.py
+    # + tests/test_sdk_conformance.py, all green with the SDK importable.
+    "pyquil==4.22.0",                     # Rigetti (WavefunctionSimulator is credential-free w/ qvm)
+    # dimod: tests/test_w2_production_bar.py::test_annealing_labels_and_validates
+    # (exact + heuristic QUBO paths, non-square/non-finite refusals).
+    "dimod==0.12.23",                     # D-Wave annealer (credential-free QUBO solver)
+    # strawberryfields: FINAL archived release (0.23.0 is the last one).
+    # Verified via tests/test_w2_production_bar.py (SDK-missing branch — the
+    # 0.23.0 `import pkg_resources` fails on modern setuptools, so the
+    # provider stays fail-closed on that branch) + the not-wired branch for
+    # the modality split. Revisit only if the provider is ever wired live.
+    "strawberryfields==0.23.0",           # Xanadu photonic/CV (modality-gated)
+    # pulser: tests/test_w2_production_bar.py::test_neutral_photonic_split_sdk_vs_wiring
+    # takes the not-yet-wired branch with the SDK importable (fail-closed).
+    "pulser==1.9.1",                      # QuEra/Pasqal neutral atom (modality-gated)
 ]
-orchestration = ["langgraph>=0.2"]
+# langgraph: tests/test_langgraph_shim.py (VQE StateGraph end-to-end, runs
+# for real once the extra is installed — skipped without it).
+orchestration = ["langgraph==1.2.18"]
 
 [build-system]
 requires = ["setuptools>=68"]

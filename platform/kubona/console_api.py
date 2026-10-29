@@ -33,21 +33,27 @@ from kubona.session import SessionStore
 
 _sessions = SessionStore()
 _gov = CostGovernanceService(_sessions)
-# console auth is constant-time comparison against DEV_TOKEN (config.console_token())
-
-# Fail-closed: in KUBONA_ENV=production the token MUST be configured; otherwise
-# every request is unauthorized. Outside production the dev token is the local/CI default.
-DEV_TOKEN = config.console_token()
+# console auth is constant-time comparison against the operator token
+# (config.console_token()), read FRESH on every request: an import-time
+# freeze would pin the token until process restart, and even a short-TTL
+# cache would keep accepting the OLD token until expiry after a rotation.
+# Derivation is two os.getenv reads (no I/O, no crypto), so caching buys
+# nothing — per-request read makes rotation (and KUBONA_ENV changes)
+# effective immediately in both directions: new token works, old stops.
+# Fail-closed: in KUBONA_ENV=production the token MUST be configured;
+# otherwise every request is unauthorized. Outside production the dev
+# token is the local/CI default.
 
 
 def _authed(request: Request) -> bool:
-    if DEV_TOKEN is None:
+    current = config.console_token()  # per-request read: rotation without restart
+    if current is None:
         return False  # production fail-closed: no configured token, no access
     if not request.headers.get("authorization", "").startswith("Bearer "):
         return False
     token = request.headers["authorization"][len("Bearer "):]
     # constant-time compare against the configured operator token
-    if hmac.compare_digest(token, DEV_TOKEN):
+    if hmac.compare_digest(token, current):
         return True
     return False
 
@@ -193,6 +199,41 @@ def _strict_int(v: object, name: str, lo: int, hi: int) -> int:
     if not (lo <= v <= hi):
         raise ValueError(f"{name} must be in [{lo},{hi}], got {v!r}: refusing")
     return v
+
+
+def _as_int(v: object, field: str, lo: int | None = None, hi: int | None = None) -> int:
+    """Strict int field read for science routes (same rule as _strict_int).
+
+    JSON floats truncate silently under int() and bools are ints in Python —
+    both refuse instead of narrowing caller data into a different request.
+    Range violations and wrong types raise ValueError NAMING the field, so
+    routes render a typed 400 instead of a 500 on malformed numbers.
+    """
+    if isinstance(v, bool) or not isinstance(v, int):
+        raise ValueError(f"{field} must be an int, got {v!r}: refusing")
+    if (lo is not None and v < lo) or (hi is not None and v > hi):
+        raise ValueError(f"{field} must be in [{lo},{hi}], got {v!r}: refusing")
+    return v
+
+
+def _as_float(v: object, field: str, lo: float | None = None, hi: float | None = None,
+              *, finite: bool = True) -> float:
+    """Strict float field read for science routes (typed 400, never 500)."""
+    if isinstance(v, bool) or not isinstance(v, (int, float)):
+        raise ValueError(f"{field} must be a number, got {v!r}: refusing")
+    f = float(v)
+    if finite and not math.isfinite(f):
+        raise ValueError(f"{field} must be finite, got {v!r}: refusing")
+    if (lo is not None and f < lo) or (hi is not None and f > hi):
+        raise ValueError(f"{field} must be in [{lo},{hi}], got {v!r}: refusing")
+    return f
+
+
+def _science_body(awaitable_json) -> dict:
+    """Awaited request.json() narrowed to a JSON object (typed 400)."""
+    if not isinstance(awaitable_json, dict):
+        raise ValueError(f"body must be a JSON object, got {type(awaitable_json).__name__}: refusing")
+    return awaitable_json
 
 
 def _resolve_codesign_spec(body: dict) -> tuple:
@@ -386,19 +427,22 @@ async def science_triage(request: Request) -> JSONResponse:
     if not _authed(request):
         return _auth_error()
     from kubona.science.triage import QuantumTriageEngine, MolecularSystem
-    body = await request.json()
-    electrons = int(body.get("num_electrons", 2))
-    orbitals = int(body.get("estimated_active_space_orbitals", 4))
-    charges = body.get("nuclear_charges", [1, 1])
-    if not isinstance(charges, list) or len(charges) > 256:
-        return _bad_input("nuclear_charges must be a list of at most 256 values")
-    if not (0 <= electrons <= 10000) or not (1 <= orbitals <= 10000):
-        return _bad_input("num_electrons must be 0..10000 and active orbitals 1..10000")
+    try:
+        body = _science_body(await request.json())
+        electrons = _as_int(body.get("num_electrons", 2), "num_electrons", 0, 10000)
+        orbitals = _as_int(body.get("estimated_active_space_orbitals", 4),
+                            "estimated_active_space_orbitals", 1, 10000)
+        charges = body.get("nuclear_charges", [1, 1])
+        if not isinstance(charges, list) or len(charges) > 256:
+            raise ValueError("nuclear_charges must be a list of at most 256 values: refusing")
+        charges = [_as_int(z, f"nuclear_charges[{i}]") for i, z in enumerate(charges)]
+    except ValueError as e:
+        return _bad_input(str(e)[:280])
     system = MolecularSystem(
         molecule_id=str(body.get("molecule_id", "mol_custom"))[:128],
         formula=str(body.get("formula", "H2"))[:64],
         num_electrons=electrons,
-        nuclear_charges=[int(z) for z in charges],
+        nuclear_charges=charges,
         is_multi_reference=bool(body.get("is_multi_reference", False)),
         coulomb_continuum=bool(body.get("coulomb_continuum", True)),
         estimated_active_space_orbitals=orbitals,
@@ -412,24 +456,31 @@ async def science_krylov(request: Request) -> JSONResponse:
         return _auth_error()
     from kubona.circuits.krylov import QKSDSolver
     import numpy as np
-    body = await request.json()
-    subspace_dim = int(body.get("subspace_dim", 4))
-    dt = float(body.get("time_step", 0.2))
-    if not (1 <= subspace_dim <= 32):
-        return _bad_input("subspace_dim must be 1..32")
-    if not (math.isfinite(dt) and 0 < dt <= 1e3):
-        return _bad_input("time_step must be finite and in (0, 1000]")
+    try:
+        body = _science_body(await request.json())
+        subspace_dim = _as_int(body.get("subspace_dim", 4), "subspace_dim")
+        dt = _as_float(body.get("time_step", 0.2), "time_step")
+        if not (1 <= subspace_dim <= 32):
+            return _bad_input("subspace_dim must be 1..32")
+        if not (math.isfinite(dt) and 0 < dt <= 1e3):
+            return _bad_input("time_step must be finite and in (0, 1000]")
 
-    if "hamiltonian" in body:
-        H = np.array(body["hamiltonian"], dtype=complex)
-        if H.ndim != 2 or H.shape[0] != H.shape[1] or H.shape[0] > 64 or H.shape[0] & (H.shape[0] - 1):
-            return _bad_input("hamiltonian must be a square 2^n matrix with n <= 6")
-        subspace_dim = min(subspace_dim, H.shape[0])
-    else:
-        Z = np.array([[1, 0], [0, -1]], dtype=complex)
-        X = np.array([[0, 1], [1, 0]], dtype=complex)
-        I = np.eye(2, dtype=complex)
-        H = -np.kron(Z, Z) - 0.5 * (np.kron(X, I) + np.kron(I, X))
+        if "hamiltonian" in body:
+            try:
+                H = np.array(body["hamiltonian"], dtype=complex)
+            except (ValueError, TypeError):
+                raise ValueError(
+                    f"hamiltonian entries must be numbers, got {str(body['hamiltonian'])[:64]!r}: refusing")
+            if H.ndim != 2 or H.shape[0] != H.shape[1] or H.shape[0] > 64 or H.shape[0] & (H.shape[0] - 1):
+                return _bad_input("hamiltonian must be a square 2^n matrix with n <= 6")
+            subspace_dim = min(subspace_dim, H.shape[0])
+        else:
+            Z = np.array([[1, 0], [0, -1]], dtype=complex)
+            X = np.array([[0, 1], [1, 0]], dtype=complex)
+            I = np.eye(2, dtype=complex)
+            H = -np.kron(Z, Z) - 0.5 * (np.kron(X, I) + np.kron(I, X))
+    except ValueError as e:
+        return _bad_input(str(e)[:280])
 
     result = QKSDSolver.solve(
         H,
@@ -446,24 +497,23 @@ async def science_shadows(request: Request) -> JSONResponse:
         return _auth_error()
     from kubona.circuits.shadows import ClassicalShadowEngine
     import numpy as np
-    body = await request.json()
-    num_qubits = int(body.get("num_qubits", 2))
-    num_snapshots = int(body.get("num_snapshots", 400))
-    observables = body.get("observables", ["ZZ", "XX", "YY"])
-    if not (1 <= num_qubits <= 12):
-        return _bad_input("num_qubits must be 1..12")
-    if not (1 <= num_snapshots <= 10000):
-        return _bad_input("num_snapshots must be 1..10000")
-    if not isinstance(observables, list) or len(observables) > 64 or any(
-            not isinstance(o, str) or len(o) > 32 for o in observables):
-        return _bad_input("observables must be a list of at most 64 short strings")
+    try:
+        body = _science_body(await request.json())
+        num_qubits = _as_int(body.get("num_qubits", 2), "num_qubits", 1, 12)
+        num_snapshots = _as_int(body.get("num_snapshots", 400), "num_snapshots", 1, 10000)
+        observables = body.get("observables", ["ZZ", "XX", "YY"])
+        if not isinstance(observables, list) or len(observables) > 64 or any(
+                not isinstance(o, str) or len(o) > 32 for o in observables):
+            raise ValueError("observables must be a list of at most 64 short strings: refusing")
+        import secrets as _secrets
+        shadow_seed = _as_int(body.get("seed", _secrets.randbits(63)), "seed", 0, None)
+    except ValueError as e:
+        return _bad_input(str(e)[:280])
 
     state = np.zeros(2**num_qubits, dtype=complex)
     state[0] = 1.0 / np.sqrt(2)
     state[-1] = 1.0 / np.sqrt(2)
 
-    import secrets as _secrets
-    shadow_seed = int(body.get("seed", _secrets.randbits(63)))
     snapshots = ClassicalShadowEngine.sample_shadows_from_state(
         state, num_qubits=num_qubits, num_snapshots=num_snapshots,
         rng=np.random.default_rng(shadow_seed),
@@ -479,9 +529,15 @@ async def science_manuscript_create(request: Request) -> JSONResponse:
     if not _authed(request):
         return _auth_error()
     from kubona.science.manuscript import ManuscriptGenerator, ReviewEvidence
-    body = await request.json()
-    anchor_val = float(body.get("anchor_val", -1.5))
-    measured_val = float(body.get("measured_val", -1.498))
+    try:
+        body = _science_body(await request.json())
+        anchor_val = _as_float(body.get("anchor_val", -1.5), "anchor_val", finite=False)
+        measured_val = _as_float(body.get("measured_val", -1.498), "measured_val", finite=False)
+        sorry_raw = body.get("sorry_ax_count")
+        sorry_ax_count = (None if sorry_raw is None
+                          else _as_int(sorry_raw, "sorry_ax_count", 0, None))
+    except ValueError as e:
+        return _bad_input(str(e)[:280])
     ms = ManuscriptGenerator.create_discovery_manuscript(
         title=body.get("title", "Quantum Subspace Discovery"),
         target_system=body.get("target_system", "H2"),
@@ -496,10 +552,9 @@ async def science_manuscript_create(request: Request) -> JSONResponse:
     # Evidence is caller-attested and fail-closed: unattested dimensions
     # falsify (REVISE/REJECT), never default to ACCEPT. The discrepancy is
     # derived server-side from the submitted numbers, not caller-asserted.
-    sorry_raw = body.get("sorry_ax_count")
     evidence = ReviewEvidence(
         comparator_verdict=body.get("verification_mode"),
-        sorry_ax_count=int(sorry_raw) if sorry_raw is not None else None,
+        sorry_ax_count=sorry_ax_count,
         anchor_discrepancy_mha=abs(measured_val - anchor_val) * 1000.0,
         provenance_receipts=[r for r in body.get("provenance_receipts", []) if r] + (
             [body["lean4_hash"]] if body.get("lean4_hash") else []),
@@ -531,7 +586,12 @@ async def science_memory_query(request: Request) -> JSONResponse:
         return _auth_error()
     from kubona.memory.tiered_storage import TieredStorageManager
     from kubona.science.memory import KnowledgeEntity, KnowledgeRelation
-    body = await request.json()
+    try:
+        body = _science_body(await request.json())
+        start_id = str(body.get("start_id", "ent_femoco"))[:128]
+        max_hops = _as_int(body.get("max_hops", 2), "max_hops", 0, 8)
+    except ValueError as e:
+        return _bad_input(str(e)[:280])
     mgr = TieredStorageManager()
 
     e1 = KnowledgeEntity("ent_femoco", "molecule", "FeMoco Nitrogenase Active Cluster", {"coulomb_continuum": True})
@@ -540,10 +600,6 @@ async def science_memory_query(request: Request) -> JSONResponse:
     mgr.index_entity(e2)
     mgr.index_relation(KnowledgeRelation("ent_femoco", "ent_family278", "FAILS_ON", 1.0))
 
-    start_id = str(body.get("start_id", "ent_femoco"))[:128]
-    max_hops = int(body.get("max_hops", 2))
-    if not (0 <= max_hops <= 8):
-        return _bad_input("max_hops must be 0..8")
     recall = mgr.associative_recall(start_id, max_hops=max_hops)
     ppr = mgr.personalized_pagerank([start_id])
     formatted_recall = []
@@ -575,7 +631,12 @@ async def science_tribunal_deliberate(request: Request) -> JSONResponse:
     """
     if not _authed(request):
         return _auth_error()
-    body = await request.json()
+    try:
+        body = _science_body(await request.json())
+        gradient_variance = _as_float(body.get("gradient_variance", 0.0),
+                                      "gradient_variance", finite=False)
+    except ValueError as e:
+        return _bad_input(str(e)[:280])
     hyp_id = body.get("hypothesis_id", "hyp-femoco-001")
     target_system = body.get("target_system", "FeMoco")
     # Fail-closed attestations: absence of evidence is evidence of absence.
@@ -583,7 +644,6 @@ async def science_tribunal_deliberate(request: Request) -> JSONResponse:
     zero_axiom_cheating = bool(body.get("zero_axiom_cheating", False))
     verification_mode = str(body.get("verification_mode", "unattested"))
     comparator_ledger_ref = body.get("comparator_ledger_ref")
-    gradient_variance = float(body.get("gradient_variance", 0.0))
     anchor_ledger_ref = body.get("anchor_ledger_ref")
     mandate_ledger_ref = body.get("mandate_ledger_ref")
     krylov_ledger_ref = body.get("krylov_ledger_ref")
@@ -719,17 +779,19 @@ async def science_tribunal_deliberate(request: Request) -> JSONResponse:
 async def science_qec_estimate(request: Request) -> JSONResponse:
     if not _authed(request):
         return _auth_error()
-    body = await request.json()
-    logical_qubits = int(body.get("num_logical_qubits", 12))
-    clifford_count = int(body.get("logical_clifford_count", 1000))
-    t_count = int(body.get("logical_t_count", 250))
-    physical_error_rate = float(body.get("physical_error_rate", 0.001))
-    if not (1 <= logical_qubits <= 10000):
-        return _bad_input("num_logical_qubits must be 1..10000")
-    if not (0 <= clifford_count <= 1_000_000_000) or not (0 <= t_count <= 1_000_000_000):
-        return _bad_input("gate counts must be 0..1e9")
-    if not (math.isfinite(physical_error_rate) and 0 < physical_error_rate < 0.5):
-        return _bad_input("physical_error_rate must be finite and in (0, 0.5)")
+    try:
+        body = _science_body(await request.json())
+        logical_qubits = _as_int(body.get("num_logical_qubits", 12), "num_logical_qubits",
+                                 1, 10000)
+        clifford_count = _as_int(body.get("logical_clifford_count", 1000),
+                                 "logical_clifford_count", 0, 1_000_000_000)
+        t_count = _as_int(body.get("logical_t_count", 250), "logical_t_count", 0, 1_000_000_000)
+        physical_error_rate = _as_float(body.get("physical_error_rate", 0.001),
+                                        "physical_error_rate")
+        if not (math.isfinite(physical_error_rate) and 0 < physical_error_rate < 0.5):
+            return _bad_input("physical_error_rate must be finite and in (0, 0.5)")
+    except ValueError as e:
+        return _bad_input(str(e)[:280])
 
     neutral_capacity_ok = logical_qubits <= 48
     neutral_atoms_total = logical_qubits * 8 if neutral_capacity_ok else None

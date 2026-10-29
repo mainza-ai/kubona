@@ -76,3 +76,41 @@ def test_fork_inherits_parent_tenant(tmp_path):
         pass
     else:
         raise AssertionError("fork must not cross tenant boundaries")
+
+
+def test_fork_leaves_no_orphan_entry(tmp_path):
+    """fork_counterfactual registers the child ONLY under its fork id: no
+    stale UUID key may linger in _loops, and every key must match its
+    handle's loop_id (the old register-then-rekey orphaned the minted UUID)."""
+    from kubona.control.steering import SteeringService
+
+    sup = LoopSupervisor(path=tmp_path / "loops.jsonl")
+    parent = sup.register("vqe-loop", "s1", 10)
+    sup.step(parent.loop_id, "step 1")
+    sup.step(parent.loop_id, "step 2")
+    child = SteeringService(sup).fork_counterfactual(parent.loop_id, 1)
+    assert set(sup._loops) == {parent.loop_id, child.loop_id}
+    for key, handle in sup._loops.items():
+        assert handle.loop_id == key, f"orphan entry: key {key!r} holds {handle.loop_id!r}"
+    assert child.loop_id.startswith("fork-")
+    assert child.step == 1
+    assert child.history[-1]["event"] == "fork_created"
+    assert child.history[-1]["parent_id"] == parent.loop_id
+
+
+def test_fork_survives_restart_without_orphan(tmp_path):
+    """The append-only log must replay to exactly parent + child: a stale
+    register row for a minted UUID would resurrect the orphan after restart."""
+    from kubona.control.steering import SteeringService
+
+    path = tmp_path / "loops.jsonl"
+    sup = LoopSupervisor(path=path)
+    parent = sup.register("vqe-loop", "s1", 10)
+    sup.step(parent.loop_id, "step 1")
+    child = SteeringService(sup).fork_counterfactual(parent.loop_id, 1)
+
+    restarted = LoopSupervisor(path=path)
+    assert set(restarted._loops) == {parent.loop_id, child.loop_id}
+    for key, handle in restarted._loops.items():
+        assert handle.loop_id == key, f"resurrected orphan: {key!r} holds {handle.loop_id!r}"
+    assert restarted.get(child.loop_id).history[-1]["event"] == "fork_created"

@@ -544,7 +544,14 @@ def test_sandbox_env_scrub_drops_secrets(monkeypatch):
     assert "env=scrubbed_env()" in src  # the child really runs scrubbed
 
 
-def test_sandbox_caps_output():
+def test_sandbox_caps_output(monkeypatch):
+    # Phase-2 deny-by-default: the hermetic local runner requires the
+    # explicit KUBONA_SANDBOX_UNSAFE_LOCAL=1 acknowledgement (plus a pinned
+    # non-production env so the test is hermetic regardless of ambient
+    # KUBONA_* spellings) — the historic unset-permits-local default is gone.
+    monkeypatch.setenv("KUBONA_ENV", "test")
+    monkeypatch.setenv("KUBONA_SANDBOX_UNSAFE_LOCAL", "1")
+    monkeypatch.delenv("KUBONA_SANDBOX_CONTAINER", raising=False)
     sb = WorkloadSandbox()
     res = sb.execute_script("print('x' * 1000000)")
     assert res.success is True and res.truncated is True
@@ -961,6 +968,28 @@ def test_neutral_photonic_split_sdk_vs_wiring():
         p._ready = True
         with pytest.raises(ProviderError, match="not yet wired"):
             p.submit(parse_qasm2(BELL_QASM), shots=4)
+
+
+def test_provider_extras_pinned_or_documented():
+    """Phase-2: provider/orchestration extras must be ==-pinned with a
+    verifying suite (see the comments in pyproject.toml), or be the single
+    documented floater (pytket-quantinuum: submission path is credential +
+    network gated, no suite can verify an ==). Floors (>=) resolve untested
+    combos on every install — CI never installs these extras, so a floor
+    here is invisible drift, not flexibility."""
+    import pathlib
+    import tomllib
+
+    pyproject = pathlib.Path(__file__).resolve().parent.parent / "pyproject.toml"
+    extras = tomllib.loads(pyproject.read_text())["project"]["optional-dependencies"]
+    checked = extras["providers"] + extras["orchestration"]
+    assert checked, "provider/orchestration extras vanished from pyproject.toml"
+    floaters = [r for r in checked if "==" not in r]
+    assert floaters == ["pytket-quantinuum"], (
+        f"every provider extra must be ==-pinned (or documented): {floaters}")
+    for req in checked:
+        if "==" in req:
+            assert ">=" not in req.split("==")[0], f"mixed floor+pin: {req}"
 
 
 # ---------------------------------------------------------------------------
