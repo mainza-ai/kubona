@@ -753,6 +753,33 @@ HIGH ratchet + Bandit/Gosec backlog, bridge-in-Python-coverage unification,
 7 dependabot branches (closed unmerged; deletion blocked by repo ruleset —
 needs an admin), wrong-arity hand-built-gate validation in transpile.
 
+Phase 8 (deeds + live QPU proof) landed 2026-10-29 as `494b435`,
+`465e79f`, `2bbcff3`, `c577119` (four signed commits) on `develop`:
+mandate-review queue (`GET /api/obligations/open`, `POST
+/api/obligations/{id}/close` with owner-session/owner-key authority, never
+bearer-alone; `PreviewClose` read-only reasons; no oracle); ephemeral
+reviewer signer refused in production unconditionally (flag is dev-only);
+mandate canonical-expiry truncation at mint (`SignMandate` truncates —
+FOUND LIVE: the first Python-side verification of a Go mandate refused a
+real QPU dispatch, exposing Go-nanos vs verbatim-wire drift; fixed at the
+mint, pinned both rails); seccomp default-on both rails (Go embedded
+duplicate + parity test, proven live); flight-recorder load proof
+(`scripts/load-flight-recorder.sh`: soak p50 3.6/p99 9.2ms, burst p50
+5.8/p99 76.7ms, 0 errors, local only); ledger legacy no-migration pin;
+EvidenceEnvelope regen reproduced byte-identical (1.71.x scratch venv).
+LIVE QPU PROOF (2026-10-29): 100-shot Bell via the full governed rail
+(tenant→admin→mandate→estimate→dispatch, $10 cap, idempotent) to
+ibm_fez (least_busy; layout guard recorded physical 146/147, max readout
+0.29%); estimate $8.000568 held on both rails; job queued ~1h on the free
+plan, cancelled via governed API with vendor recall; settlement
+$8.000568 → $0.00 on both rails, ledger-sealed. History reconciled first:
+nothing held anywhere ($0 Python, $0.02 Go simulator dust, 13s IBM minutes
+consumed not held). Full gate green (run `40803947946`). REMAINING:
+commission the generated reviewer key (keypair handed over, never stored
+in-repo); dependabot remote refs already deleted (ruleset disabled,
+deleted, re-enabled byte-identical — needs no admin follow-up); operator
+R-series confirmations recorded; first paid run DONE (this probe).
+
 ---
 
 ## Appendix
