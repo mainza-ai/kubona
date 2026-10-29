@@ -44,11 +44,14 @@
 > depth: vet/gofmt, ruff ratchet, clippy, semgrep, Trivy, coverage floors)
 > and Phase-2 (cross-tenant grants with HTTP lifecycle + single Go registry,
 > ledger sharding, console live predicates + mounted flight card, tested
-> seccomp, deny-by-default, true public numbers). What still blocks production
-> is now almost entirely operational: reviewer key commissioning, R6 policy,
-> mandate-review queue, EvidenceEnvelope regen, QPU credentials + first paid
-> run, seccomp default-on, load-test proof, and admin cleanup of dependabot
-> branches. The architecture is sound; the gate is not. Read the audit and its phased plan before deploying
+> seccomp, deny-by-default, true public numbers) and the deeds phase
+> (mandate-review queue, ephemeral-prod refusal, canonical-expiry fix,
+> seccomp default-on, load proof, EvidenceEnvelope regen, live QPU probe
+> with measured settlement). What still blocks production is now one
+> human step plus hardening tails: commission the generated reviewer key,
+> seccomp default-on already landed, load-test proof recorded (local),
+> ledger legacy pinned, and operator R-series confirmations recorded.
+> The architecture is sound; the gate is not. Read the audit and its phased plan before deploying
 > or citing a "verified" result.
 
 ---
