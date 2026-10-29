@@ -11,6 +11,8 @@ vi.mock('@/lib/api', () => ({
   authLogin: vi.fn(),
   authLogout: vi.fn(),
   authRevoke: vi.fn(),
+  wasRecentAuthFailure: vi.fn(() => false),
+  UNAUTH_EVENT: 'kubona:unauthorized',
 }));
 
 function textOf(node: unknown): string {

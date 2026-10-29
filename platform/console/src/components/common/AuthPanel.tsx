@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   authChallenge,
   authLogin,
@@ -8,11 +8,38 @@ import {
   authRevoke,
   authSessions,
   authWhoami,
+  wasRecentAuthFailure,
+  UNAUTH_EVENT,
   type AuthServerSession,
 } from '@/lib/api';
 import type { Lab } from '@/types';
 import { signLoginChallengeWithCustody } from '@/lib/mandates';
 import { peekSignerPubkeyHex } from '@/lib/custody';
+
+// Relative session-expiry readout: a raw ISO timestamp tells the operator
+// nothing at a glance. Thresholds: seconds (<60s), minutes (<60m), hours
+// (<48h), days beyond — prefixed "expires in" while live, "expired … ago"
+// once past. Unparseable input falls back to the raw value.
+export function formatExpiry(expiresAt: string, nowMs: number = Date.now()): string {
+  const t = new Date(expiresAt).getTime();
+  if (!Number.isFinite(t)) return `until ${expiresAt}`;
+  const diff = t - nowMs;
+  const abs = Math.abs(diff);
+  const secs = Math.round(abs / 1000);
+  let mag: string;
+  if (secs < 60) {
+    mag = `${secs}s`;
+  } else {
+    const mins = Math.round(secs / 60);
+    if (mins < 60) {
+      mag = `${mins}m`;
+    } else {
+      const hours = Math.round(mins / 60);
+      mag = hours < 48 ? `${hours}h` : `${Math.round(hours / 24)}d`;
+    }
+  }
+  return diff >= 0 ? `expires in ${mag}` : `expired ${mag} ago`;
+}
 
 // Session auth (A3/A4): challenge-response login bound to a lab admin key.
 // The browser key (same in-memory keypair the mandate flows use) signs the
@@ -27,6 +54,29 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [browserKey, setBrowserKey] = useState<string | null>(null);
+  const labSelectRef = useRef<HTMLSelectElement | null>(null);
+  const [focusLabSelect, setFocusLabSelect] = useState(false);
+  // Sticky expiry hint: a 401 anywhere in the tree means the cookie died.
+  // The login CTA keeps reading "expired" after the 30s
+  // wasRecentAuthFailure window lapses (typeof guards keep older
+  // api mocks — which lack these exports — rendering instead of crashing).
+  const [sawUnauthorized, setSawUnauthorized] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof UNAUTH_EVENT !== 'string') return;
+    const onUnauth = () => setSawUnauthorized(true);
+    window.addEventListener(UNAUTH_EVENT, onUnauth);
+    return () => window.removeEventListener(UNAUTH_EVENT, onUnauth);
+  }, []);
+
+  // After a Switch-lab logout the selector (which only renders logged out)
+  // appears — move focus to it so the next lab is one keypress away.
+  useEffect(() => {
+    if (focusLabSelect && !whoami?.authenticated && labSelectRef.current) {
+      labSelectRef.current.focus();
+      setFocusLabSelect(false);
+    }
+  }, [focusLabSelect, whoami]);
 
   const tenantId =
     selectedTenantId || (labs.find((l) => l.id === 'default') || labs[0])?.id || '';
@@ -113,6 +163,18 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
       await refresh();
     });
 
+  // Switch lab: log out (no silent tenant stickiness — the explicit
+  // selection is cleared so the fallback default applies), then focus the
+  // lab selector that appears once logged out. Without this the selector
+  // is undiscoverable: it only renders in the logged-out branch.
+  const switchLab = () =>
+    run('logout', async () => {
+      await authLogout();
+      setSelectedTenantId('');
+      await refresh();
+      setFocusLabSelect(true);
+    });
+
   const revoke = (id: string) =>
     run(`revoke:${id}`, async () => {
       if (!confirm(`Revoke session ${id.slice(0, 8)}…? Its cookie stops working immediately.`)) return;
@@ -124,6 +186,13 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
       }
       await refresh();
     });
+
+  // Expired (not merely anonymous): a recent 401 or an observed
+  // unauthorized event since mount means the cookie died — the login
+  // button becomes the "expired" CTA instead of the first-run label.
+  const recentAuthFailure =
+    typeof wasRecentAuthFailure === 'function' ? wasRecentAuthFailure() : false;
+  const sessionExpired = !whoami?.authenticated && (sawUnauthorized || recentAuthFailure);
 
   return (
     <div className="rounded-2xl border border-white/[0.08] bg-black/50 p-4 space-y-3" aria-label="Operator session">
@@ -143,6 +212,7 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
       {!whoami?.authenticated && (
         <div className="flex flex-wrap items-center gap-1.5">
           <select
+            ref={labSelectRef}
             value={tenantId}
             onChange={(e) => setSelectedTenantId(e.target.value)}
             aria-label="Login lab"
@@ -160,7 +230,11 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
             onClick={() => void login()}
             className="px-2 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 hover:bg-cyan-500/25 text-[11px] disabled:opacity-40"
           >
-            {busy === 'login' ? 'Challenging…' : 'Log in with browser key'}
+            {busy === 'login'
+              ? 'Challenging…'
+              : sessionExpired
+                ? 'Session expired — log in again'
+                : 'Log in with browser key'}
           </button>
           {!browserKey && (
             <span className="text-[11px] text-slate-500">
@@ -172,14 +246,25 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
 
       {whoami?.authenticated && (
         <div className="space-y-2">
-          <button
-            type="button"
-            disabled={busy !== null}
-            onClick={() => void logout()}
-            className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] text-slate-300 disabled:opacity-40"
-          >
-            Log out (revokes this session)
-          </button>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => void logout()}
+              className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] text-slate-300 disabled:opacity-40"
+            >
+              Log out (revokes this session)
+            </button>
+            <button
+              type="button"
+              disabled={busy !== null}
+              onClick={() => void switchLab()}
+              title="Log out and pick a different lab — no silent tenant stickiness"
+              className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] text-slate-300 disabled:opacity-40"
+            >
+              Switch lab
+            </button>
+          </div>
           <div>
             <div className="text-[11px] text-slate-400 mb-1">Live sessions in this lab (revoke to kill):</div>
             {sessions !== null && sessions.length === 0 && (
@@ -191,8 +276,8 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
                   key={s.id}
                   className="flex items-center justify-between gap-2 px-2 py-1 rounded-lg bg-white/[0.03] text-[11px] font-mono"
                 >
-                  <span className="text-slate-300 truncate" title={s.id}>
-                    {s.id.slice(0, 8)}… · key {s.pubkey_fp.slice(0, 12)}… · until {s.expires_at}
+                  <span className="text-slate-300 truncate" title={`${s.id} · key ${s.pubkey_fp} · ${s.expires_at}`}>
+                    {s.id.slice(0, 8)}… · key {s.pubkey_fp.slice(0, 12)}… · {formatExpiry(s.expires_at)}
                   </span>
                   <button
                     type="button"
