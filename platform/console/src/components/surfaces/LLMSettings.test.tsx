@@ -219,3 +219,25 @@ describe('LLMSettings labels + save-refusal mapping (Wave-2)', () => {
     expect(tree.root.findAllByType('button').find((b) => textOf(b.props.children).includes('Save'))!.props.disabled).toBe(false);
   });
 });
+
+describe('LLMSettings first-load skeleton (Wave-3)', () => {
+  it('renders an honest loading skeleton while settings load', async () => {
+    stubFetch(() => new Promise(() => undefined));
+    let tree: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      tree = TestRenderer.create(<LLMSettings />);
+    });
+    expect(tree!.root.findByProps({ 'data-testid': 'llm-settings-skeleton' })).toBeDefined();
+    expect(JSON.stringify(tree!.toJSON())).toContain('Loading Sovereign Intelligence Configuration');
+  });
+
+  it('hides the skeleton once the form loads', async () => {
+    stubFetch((url) => {
+      if (url.includes('/api/llm/models')) return { ok: true, status: 200, json: async () => ({ models: [] }) };
+      return { ok: true, status: 200, json: async () => settings() };
+    });
+    const tree = await render();
+    expect(tree.root.findAllByProps({ 'data-testid': 'llm-settings-skeleton' })).toHaveLength(0);
+    expect(JSON.stringify(tree.toJSON())).toContain('Sovereign Intelligence Configuration');
+  });
+});

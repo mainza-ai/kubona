@@ -132,3 +132,57 @@ describe('FleetRadar credential dimension', () => {
     expect(text.match(/CATALOG/g)).toHaveLength(1);
   });
 });
+
+describe('FleetRadar loading + stale chrome (Wave-3)', () => {
+  it('shows a loading skeleton on first load and hides it once the fleet settles', async () => {
+    vi.mocked(api.fetchRadar).mockResolvedValue({ radar_endpoints: [] });
+    // Pending fleet: first paint is the honest skeleton alongside the empty grid.
+    vi.mocked(api.fetchFleet).mockReturnValue(new Promise(() => undefined));
+    let pending: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      pending = TestRenderer.create(<FleetRadar />);
+    });
+    expect(pending!.root.findByProps({ 'data-testid': 'fleet-radar-skeleton' })).toBeDefined();
+    expect(textOf(pending!.root)).not.toContain('local_simulator');
+
+    // Settled fleet: skeleton gone, devices listed.
+    vi.mocked(api.fetchFleet).mockResolvedValue({
+      backends: [
+        { name: 'local_simulator', type: 'sim', qubits: 32, t1_us: 'inf', status: 'ONLINE', credential_state: 'ready', queue_depth: 0, cost_per_shot: 0, jurisdiction: 'LOCAL', itar_ear: 'EXEMPT' },
+      ],
+    });
+    let root: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      root = TestRenderer.create(<FleetRadar />);
+    });
+    expect(root!.root.findAllByProps({ 'data-testid': 'fleet-radar-skeleton' })).toHaveLength(0);
+    expect(textOf(root!.root)).toContain('local_simulator');
+  });
+
+  it('badges stale data when the radar backoff lags past nominal', async () => {
+    // Refused radar grows the poll interval past 1s nominal → stale badge.
+    // (The poll continuation needs a macrotask sleep to flush in this env.)
+    vi.mocked(api.fetchFleet).mockResolvedValue({ backends: [] });
+    vi.mocked(api.fetchRadar).mockResolvedValue({ refused: true, refuse_reason: 'radar down' });
+    let root: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      root = TestRenderer.create(<FleetRadar />);
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    await act(async () => {
+      await new Promise((r) => setTimeout(r, 50));
+    });
+    expect(root!.root.findByProps({ 'data-testid': 'fleet-radar-stale' })).toBeDefined();
+    expect(textOf(root!.root)).toContain('Stale');
+  });
+
+  it('shows no stale badge on a nominal 1s poll', async () => {
+    vi.mocked(api.fetchFleet).mockResolvedValue({ backends: [] });
+    vi.mocked(api.fetchRadar).mockResolvedValue({ radar_endpoints: [] });
+    let root: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      root = TestRenderer.create(<FleetRadar />);
+    });
+    expect(root!.root.findAllByProps({ 'data-testid': 'fleet-radar-stale' })).toHaveLength(0);
+  });
+});

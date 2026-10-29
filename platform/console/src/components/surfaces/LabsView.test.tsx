@@ -156,3 +156,31 @@ describe('LabsView money precision + spend bar (Wave-2)', () => {
     expect(textOf(root!.root)).toContain('UNBOUNDED');
   });
 });
+
+describe('LabsView first-load skeleton (Wave-3)', () => {
+  it('renders an honest loading skeleton while labs load', async () => {
+    vi.mocked(api.fetchLabs).mockReturnValue(new Promise(() => undefined));
+    vi.mocked(api.fetchSessions).mockReturnValue(new Promise(() => undefined));
+    let root: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      root = TestRenderer.create(<LabsView />);
+    });
+    expect(root!.root.findByProps({ 'data-testid': 'labs-skeleton' })).toBeDefined();
+    expect(textOf(root!.root)).toContain('Loading laboratories');
+  });
+
+  it('hides the skeleton once labs settle (refused-vs-empty logic untouched)', async () => {
+    vi.mocked(api.fetchLabs).mockResolvedValue([
+      { id: 'lab-a', display_name: 'Lab A', autonomy_level: 'L1', spend_ceiling_usd: 150, spent_usd: 100, status: 'active' },
+    ]);
+    vi.mocked(api.fetchSessions).mockResolvedValue([]);
+    vi.mocked(api.authWhoami).mockResolvedValue({ authenticated: true });
+    vi.mocked(api.wasRecentAuthFailure).mockReturnValue(false);
+    let root: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      root = TestRenderer.create(<LabsView />);
+    });
+    expect(root!.root.findAllByProps({ 'data-testid': 'labs-skeleton' })).toHaveLength(0);
+    expect(textOf(root!.root)).toContain('Lab A');
+  });
+});

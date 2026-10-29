@@ -69,7 +69,18 @@ export function LabsView() {
   }, [sessions]);
 
   if (!loaded) {
-    return <div className="text-slate-400 text-sm">Loading laboratories…</div>;
+    // Wave-3: honest first-load skeleton for the lab list (gated on the
+    // existing loaded flag — refused-vs-empty logic below is untouched).
+    return (
+      <div className="space-y-2.5">
+        <div className="text-slate-400 text-sm">Loading laboratories…</div>
+        <div data-testid="labs-skeleton" className="space-y-2" aria-hidden="true">
+          <div className="h-16 rounded-2xl bg-white/[0.04] border border-white/[0.06] animate-pulse" />
+          <div className="h-16 rounded-2xl bg-white/[0.04] border border-white/[0.06] animate-pulse" />
+          <div className="h-16 rounded-2xl bg-white/[0.04] border border-white/[0.06] animate-pulse" />
+        </div>
+      </div>
+    );
   }
   if (error) {
     return (
