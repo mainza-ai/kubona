@@ -25,6 +25,10 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
   const [sovereignOnly, setSovereignOnly] = useState(false);
   const [expandedBackend, setExpandedBackend] = useState<string | null>(null);
   const [refused, setRefused] = useState<string | null>(null);
+  // Wave-3: first-load gate for the honest loading skeleton below. Set only
+  // in the one-shot fleet .then/.catch continuations; the radar poll loop,
+  // backoff, and visibility gating are untouched.
+  const [loaded, setLoaded] = useState(false);
   const backoffRef = useRef(1000);
   // H5: mirror of backoffRef for honest liveness chrome (refs don't render).
   const [pollIntervalMs, setPollIntervalMs] = useState(1000);
@@ -73,9 +77,11 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
         } else {
           setBackends((data.backends as BackendInfo[]) || []);
         }
+        setLoaded(true);
       })
       .catch((err) => {
         if (active) setRefused(err instanceof Error ? err.message : String(err));
+        if (active) setLoaded(true);
       });
 
     pollRadar();
@@ -154,6 +160,19 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
         </div>
       </div>
 
+      {/* Wave-3: honest first-load skeleton (gated on the fleet one-shot
+          above — hidden the moment it settles, refused or not). */}
+      {!loaded && !refused && (
+        <div data-testid="fleet-radar-skeleton" className="space-y-2.5" aria-hidden="true">
+          <div className="h-4 w-2/3 rounded bg-white/[0.06] animate-pulse" />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            <div className="h-20 rounded-2xl bg-white/[0.04] border border-white/[0.06] animate-pulse" />
+            <div className="h-20 rounded-2xl bg-white/[0.04] border border-white/[0.06] animate-pulse" />
+          </div>
+          <div className="h-24 rounded-2xl bg-white/[0.04] border border-white/[0.06] animate-pulse" />
+        </div>
+      )}
+
       {/* Continuum Radar Strip */}
       <div className="p-4 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl space-y-3">
         <div className="flex items-center justify-between text-xs">
@@ -198,6 +217,14 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
             <span>Adaptive radar · {(pollIntervalMs / 1000).toFixed(1)}s interval (1s nominal, backs off)</span>
           </span>
         </div>
+        {/* Wave-3: stale-data badge when refresh lags (backoff grew past
+            nominal). Gated on the existing pollIntervalMs mirror — no new
+            timing logic. */}
+        {loaded && pollIntervalMs > 1000 && (
+          <div data-testid="fleet-radar-stale" className="px-2.5 py-1.5 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-200 text-[11px] font-mono">
+            Stale — refresh delayed ({(pollIntervalMs / 1000).toFixed(1)}s interval). Data may be out of date.
+          </div>
+        )}
 
         {refused && (
           <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[11px]">

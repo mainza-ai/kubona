@@ -273,9 +273,19 @@ export function LLMSettings() {
             </button>
           </>
         ) : (
-          <div className="text-slate-400 text-xs flex items-center justify-center space-x-2">
-            <RefreshCw className="w-4 h-4 animate-spin text-cyan-400" />
-            <span>Loading Sovereign Intelligence Configuration...</span>
+          <div className="space-y-3">
+            <div className="text-slate-400 text-xs flex items-center justify-center space-x-2">
+              <RefreshCw className="w-4 h-4 animate-spin text-cyan-400" />
+              <span>Loading Sovereign Intelligence Configuration...</span>
+            </div>
+            {/* Wave-3: honest first-load skeleton for the settings form
+                (gated on settings === null — hidden the moment settings or a
+                refusal lands). */}
+            <div data-testid="llm-settings-skeleton" className="space-y-2 max-w-xl mx-auto" aria-hidden="true">
+              <div className="h-4 w-1/2 mx-auto rounded bg-white/[0.06] animate-pulse" />
+              <div className="h-24 rounded-2xl bg-white/[0.04] border border-white/[0.06] animate-pulse" />
+              <div className="h-24 rounded-2xl bg-white/[0.04] border border-white/[0.06] animate-pulse" />
+            </div>
           </div>
         )}
       </div>
