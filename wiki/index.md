@@ -1,14 +1,14 @@
 ---
 type: catalog
 date: 2026-08-16
-updated: 2026-10-26
+updated: 2026-10-29
 tags: [index]
 status: living
 ---
 
 # Index
 
-Catalog of every page in the wiki (151 pages), updated on every ingest. When answering a
+Catalog of every page in the wiki (154 pages), updated on every ingest. When answering a
 query, read this first to find relevant pages, then drill in.
 
 > **What this wiki is.** The **blueprint** for Kubona — the accumulated insight used to
@@ -114,7 +114,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[source-magic-state-cultivation-2026]] | *Magic-state cultivation on Willow* — Google Quantum AI, Science Oct 2026 (tracked vendor result) | [[failure-budget-and-frontier]], [[fidelity-accounting]] |
 | [[source-world-labs-atlas-2026]] | *World Labs Atlas / Marble 2 beta docs* — full 23-page live-contract read, Oct 2026 (nothing cloned) | [[observatory-spatial-representation-layer]], [[observatory-lens-audit-2026-10-23]], [[world-labs-atlas]] |
 
-## Entities (47)
+## Entities (48)
 
 | Page | What it is |
 |---|---|
@@ -167,7 +167,7 @@ Revisit only with a concrete claim that fits nowhere.
 | [[leanrea]] | aicodeking skill: REA results with no MCP server (router + traps + benchmark template) — method reference, never supply |
 | [[world-labs-atlas]] | World Labs: spatial intelligence world model, Marble 2 Beta API, sidecar generative lens for the Observatory |
 
-## Concepts (66; +11 in Overview & meta = 77 total)
+## Concepts (75; +16 under Overview & meta and the layer map = 91 total)
 
 | Page | What it is |
 |---|---|

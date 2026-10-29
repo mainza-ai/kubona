@@ -2,7 +2,7 @@
 type: concept
 tags: [architecture, diagram, implementation, tripartite]
 date: 2026-10-12
-updated: 2026-10-21
+updated: 2026-10-29
 status: living
 sources: [source-frontier-repo-audit-2026]
 ---
@@ -10,8 +10,9 @@ sources: [source-frontier-repo-audit-2026]
 # Platform Architecture Diagram
 
 > **Snapshot, not blueprint.** Every node below was verified against the running
-> implementation at `mainza-ai/kubona` @ `86afb3a` (2026-10-21, branch `develop`).
-> Previous snapshot: `dd600c2` (2026-10-12) — superseded, kept in [[log]].
+> implementation at `mainza-ai/kubona` @ `d6fff39` (2026-10-29, branches `develop`
+> + `main` fast-forwarded together). Previous snapshot: `86afb3a` (2026-10-21) —
+> superseded, kept in [[log]].
 > Design intent lives on the linked concept pages; this page records only what the
 > prototype does today. **Refresh duty:** re-verify node-by-node after any slice that
 > adds/removes a service, port, store — a stale map is worse than none.
@@ -19,13 +20,13 @@ sources: [source-frontier-repo-audit-2026]
 ```mermaid
 flowchart TB
     subgraph HUMAN["Human surface"]
-        CONSOLE["platform/console :3000<br/>Next.js observatory, 13 surfaces<br/>read-only, no submit surface"]
-        SIGN["WebCrypto Ed25519<br/>mandate cards + proposals"]
+        CONSOLE["platform/console :3000<br/>Next.js observatory, six dock surfaces<br/>+ proof/mesh panels, live predicates only"]
+        SIGN["WebCrypto Ed25519<br/>mandate cards + non-extractable custody"]
     end
 
     subgraph EDGE["kubonad edge :8080"]
-        API["pkg/api<br/>bearer + per-IP limiters + CORS allowlist"]
-        RPC["POST /api/a2a/v1<br/>JSON-RPC: card, status, 402-gated submit"]
+        API["pkg/api<br/>116 routes, bearer + session edge auth<br/>obligations + tenant-grants endpoints"]
+        RPC["POST /api/a2a/v1<br/>JSON-RPC: card, status, 402-gated submit<br/>self-signed delegation refused"]
         EV["events/stream SSE<br/>canvas layout persist"]
     end
 
@@ -38,28 +39,29 @@ flowchart TB
     end
 
     subgraph EXEC["Execution — Go core"]
-        JOBS["Jobs runner<br/>QASM-validated, autonomy-gated dispatch<br/>cancel, idempotent replay (S1/S7)"]
+        JOBS["Jobs runner<br/>QASM-validated, admission-gated dispatch<br/>measured settlement reserved→actual<br/>cancel + idempotent replay"]
         LOOPS["Autoresearch loops<br/>5 harnesses, session-attributed<br/>sleep/wake/drain/step (S3)"]
         QIR["QIR Analyze gate<br/>text-IR only (Go Analyze)"]
-        SB["Sandbox + watchdog<br/>timeouts, abs paths<br/>quantum-runner image (ro, net-none)"]
+        SB["Sandbox + watchdog<br/>timeouts, seccomp default-on<br/>runner image pinned 1.1.0 (ro, net-none)"]
     end
 
-    subgraph RUST["Rust crates (CI-gated)"]
-        QIRCORE["qir-core CLI<br/>BaseProfile LLVM IR, --json<br/>consumed via KUBONA_QIR_CORE (Python)"]
+    subgraph RUST["Rust crates (CI-gated, clippy -D)"]
+        QIRCORE["qir-core CLI<br/>BaseProfile LLVM IR, exact cbit routing<br/>Toffoli via transpile, fallible API"]
         IFCCORE["ifc-core<br/>reader-set IFC primitives"]
     end
 
     subgraph MCP["MCP stdio servers (Python)"]
-        MSERV["compiler/execution/cost<br/>provenance/control"]
-        MGW["gateway + catalog<br/>single mount table, 29 tools"]
+        MSERV["compiler/execution/cost/provenance<br/>control/world — 37 tools, caller identity injected"]
+        MGW["gateway + catalog<br/>single mount table, digest-pinned<br/>principal-bound tenant, cross-tenant grants"]
     end
 
     subgraph TRUST["Trust — Go core"]
-        LEDGER["Ledger<br/>SQLite single-writer flock, sealed events"]
-        TENANT["Tenants = labs<br/>suspend freeze, verifyAdmin choke"]
-        GRANTS["Grants + mandates<br/>narrow-only, depth 2, revocable"]
-        COST["Budgets + spend caps<br/>150 USD default, global LLM cap"]
-        AUTH["Ed25519 session auth<br/>challenge/response, revoke (A1-A4)"]
+        LEDGER["Ledger<br/>SQLite single-writer flock, sealed events<br/>per-tenant shards, union reads"]
+        TENANT["Tenants = labs<br/>suspend freeze, verifyAdmin choke<br/>reviewer key COMMISSIONED"]
+        GRANTS["Grants + mandates<br/>tenant-grants HTTP lifecycle<br/>Go registry = single source of truth"]
+        OBL["Obligations queue<br/>open list + close, owner/key auth<br/>bearer never sufficient"]
+        COST["Budgets + spend caps<br/>micro-USD CAS rail, measured settlement<br/>150 USD default, global LLM cap"]
+        AUTH["Ed25519 session auth<br/>challenge/response, revoke (A1-A4)<br/>ephemeral refused in prod"]
         DISK["Disk guard<br/>WARN/BLOCK hysteresis, /ready probe"]
         CONTRACTS["contracts/<br/>error-catalog, event-types,<br/>obligation + mcp catalogs"]
     end
@@ -69,8 +71,8 @@ flowchart TB
         PGVEC["Postgres + pgvector<br/>DORMANT BY DESIGN"]
     end
 
-    subgraph BRIDGE["platform/bridge :50051 gRPC"]
-        BSRV["server.py<br/>enveloped errors, never silent"]
+    subgraph BRIDGE["platform/bridge gRPC (UDS-exclusive in prod, no TCP)"]
+        BSRV["server.py<br/>mandate verified in QuantumSubmit<br/>status/cancel ownership, seccomp default-on"]
         CHEM["chemistry.py<br/>PySCF FCI classical anchor"]
         KRY["krylov + cutting + ZNE<br/>emulation labelled"]
         FID["fidelity.py<br/>predict + Clifford probe"]
@@ -79,7 +81,7 @@ flowchart TB
 
     subgraph BACKENDS["Backends"]
         SIM["Local sim + Qiskit Aer<br/>credential-free default"]
-        QPU["Runtime / Braket / Neutral atom<br/>4-tier fallback, 150 USD ceiling"]
+        QPU["Runtime hardware, least_busy<br/>live probes marrakesh + fez<br/>calibrated-subgraph guard, measured settle"]
     end
 
     subgraph MODELS["LLMs (verified 2026-10-21)"]
@@ -137,6 +139,7 @@ flowchart TB
     LEDGER <-->|sealed events| JOBS
     LEDGER <-->|sealed events| TENANT
     GRANTS -->|admit or refuse| JOBS
+    OBL -->|close-readiness + closure| JOBS
     COST -->|caps at entry| API
     BAO -->|lease creds| API
     BAO -->|lease creds| BSRV
@@ -155,16 +158,45 @@ flowchart TB
 - **Ports:** console `:3000` needs `NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN`
   (unset in the stock build — bearer-gated console calls refuse honestly);
   `kubonad :8080` binds `127.0.0.1` by default (`--bind` / `--tls-cert` /
-  `--tls-required` for the edge posture); bridge `:50051` loopback in
-  local dev, `bridge:50051` in compose (unpublished — the radar probes
-  the configured `--bridge` addr, fixed 2026-10-21 after a false-OFFLINE);
-  local engines `:8787` oMLX, `:11434` Ollama, `:1234` LM Studio,
-  `:47831` Strata (default; compose routes it via
-  `host.docker.internal`, verified live 2026-10-21).
+  `--tls-required` for the edge posture); bridge transport is **UDS-exclusive
+  in production** (shared-volume socket, no TCP socket exists — TCP is
+  refused outright; loopback+token remains dev/CI only; kubonad dials the
+  same socket via `KUBONA_BRIDGE_SOCKET`); local engines `:8787` oMLX,
+  `:11434` Ollama, `:1234` LM Studio, `:47831` Strata (default; compose
+  routes it via `host.docker.internal`, verified live 2026-10-21).
 - **State:** `~/.kubona/kubona.db` behind `<db>.lock` (second daemon refuses);
   `campaign_versions` capped at 50; canvas layouts capped at 256KB.
 
-## Node evidence (spot-check anchors, re-verified 2026-10-21 @ `86afb3a`)
+## Node evidence (spot-check anchors, re-verified 2026-10-29 @ `d6fff39`)
+
+- Route policy: single path→auth-class table (`platform/core/pkg/api/route_policy.go`)
+  with a test failing on unlisted routes; 116 `s.route(` registrations; obligations
+  (`/api/obligations/open`, `/api/obligations/{id}/close`) + tenant-grants
+  (`/api/tenant-grants/issue|revoke`) endpoints bearer/session-gated.
+- Trust: micro-USD CAS money rail with measured settlement; mandate canonical
+  payload is whole-second expiry (enforced at mint); admission re-verifies
+  mandate Ed25519; A2A parent mandates bound to tenant admin/reviewer keys;
+  reviewer key commissioned; ephemeral signer refused in production.
+- Bridge: UDS-exclusive prod transport (`compose.prod.yml` `bridge-sock`
+  volume; kubonad `--bridge` default + `KUBONA_BRIDGE_SOCKET`); mandate
+  verified inside `QuantumSubmit`; job status/cancel enforce ownership;
+  seccomp profile default-on both rails (Go embedded duplicate + parity test).
+- Live QPU: governed 100-shot Bell via `ibm_fez` (least_busy) 2026-10-29 —
+  estimate $8.000568 held, job queued, cancelled with vendor recall, settled
+  $8.00 → $0.00 both rails, ledger-sealed (`job_settled`); calibrated-subgraph
+  guard recorded physical 146/147, max readout 0.29%.
+- Console: `tsc` + `eslint` clean; 59 files / 291 tests; Sentinel badge and
+  envelope line derived from live predicates; HSTS on non-loopback;
+  flight-recorder card mounted with measured fetch latency; no fabricated
+  numbers (UNVERIFIED-by-default discipline, tested).
+- Counts this snapshot: 116 routes, 33 Go packages, 699 Go test funcs,
+  177 Python test files (1175 test funcs), 291 Vitest tests across 59 files,
+  Rust qir-core 20 + ifc-core 9 tests, 37 MCP tools across 6 servers.
+  Counts are prose and prose rots — recount with
+  `grep -c 's.route(' platform/core/pkg/api/server.go`,
+  `go list ./... | wc -l`, `npm test -- --run`, and the catalog digest test.
+
+### Retained 2026-10-21 anchors (superseded where the 2026-10-29 block above says otherwise)
 
 - Edge auth + limiters: `platform/core/pkg/api/edge_auth.go`, `requireBearer`
   on mutations; tribunal/jobs/launch/autoresearch 404 ghost sessions (G7).

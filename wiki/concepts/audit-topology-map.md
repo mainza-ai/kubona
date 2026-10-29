@@ -2,8 +2,8 @@
 type: concept
 name: Audit Topology & Live Verification Map
 date: 2026-10-21
-updated: 2026-10-21
-tags: [architecture, diagram, audit, deployment, verification]
+updated: 2026-10-29
+tags: [architecture, diagram, deployment, verification, audit]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-llm-circuit-codesign-2026]
 status: living
 ---
@@ -11,14 +11,15 @@ status: living
 # Audit Topology & Live Verification Map
 
 > **What this page is.** The deployment topology as *verified live* on
-> 2026-10-21 — which process listens where, which rail executes which
+> 2026-10-29 — which process listens where, which rail executes which
 > language, what the browser can and cannot reach, and where the audit
 > proved failure. Companion to [[platform-architecture-diagram]] (the
-> design-side map, snapshot 2026-10-12): this page records the *wiring as
+> design-side map, snapshot 2026-10-21): this page records the *wiring as
 > probed*, including the gaps. Refresh duty: re-verify after any
 > compose/Dockerfile/port/auth change — a stale map is worse than none.
-> Evidence class: live `curl` + Playwright/Chromium against the compose
-> stack and an isolated local rail (`--db /tmp/…`, host bridge).
+> Evidence class: live `curl` against the compose stack and isolated local
+> rails (`--db /tmp/…`, host bridge + UDS socket), plus the 2026-10-29
+> governed live-QPU probe (estimate→reserve→cancel→settle, ledger-sealed).
 
 ```mermaid
 flowchart TB
@@ -28,9 +29,9 @@ flowchart TB
 
     subgraph DOCKER["compose.prod.yml (kubona-prod_*)"]
         CONSOLE["console :3000<br/>static bundle, no secrets baked"]
-        KUBONAD["kubonad :8080<br/>93 routes, bearer|session edge auth"]
-        BRIDGE["bridge :50051 (expose only)<br/>Python gRPC, NOT host-reachable"]
-        VOL["kubona-state volume<br/>kubona.db (SQLite, single writer)"]
+        KUBONAD["kubonad :8080<br/>116 routes, bearer|session edge auth<br/>--bridge flag dropped (socket by env)"]
+        BRIDGE["bridge UDS unix:///run/kubona/bridge.sock<br/>shared bridge-sock volume, NO TCP in prod"]
+        VOL["kubona-state volume<br/>kubona.db (SQLite, single writer)<br/>bridge-sock volume (UDS only)"]
     end
 
     subgraph LOCALDEV["Local dev / audit rail"]
@@ -49,9 +50,9 @@ flowchart TB
     UI -->|reads public, writes bearer| KUBONAD
     UI -->|same origin /api/config| CONSOLE
     CONSOLE -->|NEXT_PUBLIC_API_URL| KUBONAD
-    KUBONAD -->|gRPC bridge:50051| BRIDGE
+    KUBONAD -->|gRPC unix:///run/kubona/bridge.sock| BRIDGE
     KUBONAD -->|exec local venv python| VENV
-    KLOCAL -->|gRPC 127.0.0.1:50051| HBRIDGE
+    KLOCAL -->|gRPC 127.0.0.1:50051 (dev only)| HBRIDGE
     KLOCAL -->|exec ../.venv| VENV
     KUBONAD & KLOCAL -->|chat/tribunal turns| STRATA
     KUBONAD --> VOL
@@ -60,9 +61,9 @@ flowchart TB
     KUBONAD & KLOCAL --> GO
     VENV --> PY
 
-    F001["F-001: in DOCKER, exec-rails 503<br/>(no python3 in kubonad image)<br/>codesign evaluate/budget/packs/families,<br/>chemistry, discovery"]
-    F006["F-006: /api/fidelity ADMITS<br/>on empty input (hardcoded 0.94 probe)"]
-    RADAR["Radar 50051 probe: dials<br/>--bridge addr (fixed 2026-10-21),<br/>was loopback → false OFFLINE"]
+    F001["F-001: in DOCKER, exec-rails 503<br/>(no python3 in kubonad image)<br/>codesign evaluate/budget/packs/families,<br/>chemistry, discovery — STILL HOLDS 2026-10-29"]
+    F006["F-006: /api/fidelity ADMITS<br/>on empty input (hardcoded 0.94 probe)<br/>— status unverified since 2026-10-21"]
+    RADAR["Radar probes the bridge addr<br/>(flag removed 2026-10-29: kubonad<br/>dials KUBONA_BRIDGE_SOCKET unix<br/>socket, TCP refused in prod)"]
     HF401["HF/agent rails: bearer-gated by<br/>design; console had no token →<br/>silent [] / silent null (fixed:<br/>throw + in-modal refusal)"]
 
     KUBONAD -.-> F001
@@ -70,6 +71,27 @@ flowchart TB
     KUBONAD -.-> RADAR
     UI -.-> HF401
 ```
+
+## What the arrows proved (2026-10-29, live QPU probe + UDS cutover)
+
+- **kubonad → bridge (UDS):** compose runs the bridge with NO TCP socket —
+  `KUBONA_BRIDGE_SOCKET=/run/kubona/bridge.sock` on a shared volume, TCP
+  refused in `KUBONA_ENV=production`, kubonad dials the same socket
+  (`--bridge` flag removed; env takes precedence over the localhost
+  default). Proven live both directions: UDS boot + `channel_ready` OK,
+  TCP-in-prod refuses fail-closed.
+- **Governed live QPU run (2026-10-29):** 100-shot Bell via `ibm_fez`
+  (least_busy): tenant → admin → session ($10 ceiling) → reviewer mandate
+  → dry-run estimate ($8.000568) → dispatch with mandate + idempotency key
+  → queued ~1h → cancelled via governed API with vendor recall confirmed.
+  Settlement $8.000568 → $0.00 on both rails, ledger-sealed (`job_settled`);
+  calibrated-subgraph guard recorded physical 146/147, max readout 0.29%.
+  The probe caught one real bug first: Go minted fractional-expiry mandates
+  the Python rail correctly refused — fixed at the mint (whole-second
+  canonical), pinned both rails.
+- **Load proof (local handler, not prod):** `scripts/load-flight-recorder.sh`
+  against a throwaway kubonad: soak p50 3.6/p99 9.2ms, burst p50 5.8/p99
+  76.7ms, 0 errors over 1000 fetches.
 
 ## What the arrows proved (2026-10-21)
 
@@ -105,12 +127,14 @@ flowchart TB
 
 ## Node evidence
 
-- Compose: `platform/docker/compose.prod.yml` (kubonad `--bridge
-  bridge:50051`, `KUBONA_ALLOW_PLAINTEXT=1` in-network only).
-- Routes: 93 `HandleFunc` in `platform/core/pkg/api/server.go` (recount
-  with `grep -o 'HandleFunc("[^"]*"'` — `rg` is broken on this host).
-- Radar: `handleRadar` dials `s.bridgeAddr` for 50051
-  (`server.go`, `SetBridgeAddr` from `--bridge`).
+- Compose: `platform/docker/compose.prod.yml` (kubonad WITHOUT `--bridge`
+  flag; `KUBONA_BRIDGE_SOCKET=/run/kubona/bridge.sock` on both services;
+  `bridge-sock` volume; `KUBONA_ALLOW_PLAINTEXT=1` in-network only).
+- Routes: 116 `s.route(` in `platform/core/pkg/api/server.go` (recount with
+  `grep -c 's.route('` — `rg` is broken on this host).
+- Radar: kubonad dials `KUBONA_BRIDGE_SOCKET` (unix) when `--bridge` is at
+  its localhost default (`cmd/kubonad/main.go`); `SetBridgeAddr` kept for
+  explicit overrides.
 - Python exec: `runBridgePython` + `findPythonVenv`
   (`server.go:3577+`); kubonad image has no python
   (`platform/docker/Dockerfile.kubonad`).

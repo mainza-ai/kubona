@@ -1,7 +1,7 @@
 ---
 type: roadmap
 date: 2026-08-16
-updated: 2026-10-26
+updated: 2026-10-29
 tags: [kubona, plan]
 sources: [source-gap-analysis-plan, source-openai-math-corpus]
 status: living
@@ -101,6 +101,20 @@ layer** (maintainer synthesis).
 | **P4 gate** | Week 30 | Public repo + documented plugin API; third-party provider integration merged; Search Mode beats a hand-designed baseline (in simulation) |
 | **P5 gate** | 31+ | Multi-tenant scale + monetization rail live (business-model exploration, §12.7) |
 | **P6 gate** *(synthesis)* | 37+ | A lab runs the full discovery loop — literature ground → experiment → structured report → archived library entry — using user- and agent-created workflows, every claim tracing to a ledger record or citation |
+
+> ⚑ Gate-status readout (2026-10-29, in-repo evidence only — nothing here upgrades the 2026-08/09 simulator-era blocks above):
+>
+> | Gate | Verdict | Evidence (in-repo) |
+> |---|---|---|
+> | P0 simulator+MCP+provenance | **PASSED** (simulator class) | Gate test green end-to-end over stdio MCP, 13 tests ([[log]] 2026-08-16 impl). |
+> | P1 VQE on real QPU, budget+provenance | **PARTIAL** | Proven: budget-enforced, mandate-gated, provenance-logged real-QPU execution — Bell on `ibm_marrakesh` 2026-10-28 ([[ibm-quantum-platform]]) and governed-rail Bell to `ibm_fez` with estimate→settle reconciliation 2026-10-29 ([[production-readiness-audit-2026-10-26]] Phase 8). Missing: no VQE loop has run on a QPU — do **not** read this gate as passed. |
+> | P2 human watch+interrupt from console | **PARTIAL** | Proven: watch/interrupt over MCP in simulation ([[log]] 2026-08-17); cancel wired through the console dispatch surface with vendor recall, hermetic ([[quantum-hardware-gaps-2026-10-24]] R-33). Missing: no recorded interruption of a multi-hour hybrid loop by a human from the console. |
+> | P3 third-party review + staging canary catch | **OPEN** | Mechanism exists (review package, canary with injected-regression proof, [[log]] 2026-09-29). Missing: Round-2/3 were independent in-repo audits, not third-party-human review; no real provider-side regression caught in staging is recorded. |
+> | P4 public repo + outside provider + Search Mode | **PARTIAL** | Proven: repo public (Q-27 closed 2026-10-26; "now-public" [[log]] 2026-10-23); Search Mode beat a hand-designed baseline in simulation, simulator-era ([[log]] 2026-08-17); SDK conformance suite built as the Q-24-C gate artifact ([[log]] 2026-10-10). Missing: no merged outside/third-party provider ("no true external sidecar"); no library entry through the full simulator→approval→hardware pipeline; no correctness-harness staging catch recorded. |
+> | P5 multi-tenant scale + monetization live | **OPEN** | Tenant-scoped ledger + per-tenant sharding landed ([[production-readiness-audit-2026-10-26]] Phase 7); x402 dormant by decision (Q-23, Q-53). Missing: multi-tenant deployment proof and a live monetization rail. |
+> | P6 lab runs the full discovery loop | **PARTIAL** | Proven: simulator-era full-loop gate test green ([[log]] 2026-08-17); workflow engine, labs, literature lane, ResultsStudio landed ([[log]] 2026-10-24). Missing: no recorded lab run of ground→experiment→report→archive with every claim ledger-traced. |
+>
+> Post-audit modern leg: the classical-anchor half is now live PySCF (Q-55; [[production-readiness-audit-2026-10-26]] P0-8) and real-QPU Bell execution with budget settlement is proven (P1 row); a VQE-vs-FCI Ring-1 claim-collapse run is not recorded. CI is green under branch protection (runs `40455512876`, `40467016495`, `40803947946` in [[log]] and the audit execution record).
 
 ## Phase 0 — Foundations (Weeks 1–4) → gate P0
 

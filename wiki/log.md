@@ -3715,3 +3715,35 @@ skipped is the exact failure this incident is about:
 ## [2026-10-28] verification | IBM Pay-As-You-Go rate card re-checked
 
   - ibm.com/quantum/pricing still lists Pay-As-You-Go at $96/min (billed per second, 1-second minimum) = $1.60/s; Flex $72/min and Premium $48/min are separate plans. `ibm-qiskit.json` provenance date updated to 2026-10-28. No new QPU spend.
+
+## [2026-10-29] verification | Round-3 re-audit closes every P0 with evidence
+
+  - Full-tree read-only re-audit (1,126 tracked files, ~221k LOC, five layer audits + ground-truth
+    GitHub API/Branch-protection/CI/Dependabot checks) re-verified all ten Round-2 P0s against HEAD.
+  - Roughly half fixed outright (CI green + protected, money rail, trust boundary, science honesty);
+    16 enumerated residuals, none architectural. Full report in local planning docs.
+
+## [2026-10-29] decision | Phase-0/1/2 + deeds implemented, gate green at 20 checks
+
+  - Phase-0 (money/trust: settlement, admission crypto, A2A binding, approval gate, bridge
+    confinement, manuscript evidence, route policy), Phase-1 (terminal settlement, atomic
+    admission, sandbox, principal tenancy, CI depth), Phase-2 (grants, sharding, console
+    credibility, seccomp, pins, numbers) landed as signed slices on `develop`.
+  - Reviewer key commissioned by the operator; ephemeral signer refused in production.
+  - R-series confirmed as implemented; R6 advisory-only (no gate may read scores).
+
+## [2026-10-29] verification | Live QPU probe with measured settlement (ibm_fez)
+
+  - Governed 100-shot Bell via least_busy (`ibm_fez`): estimate $8.000568 held on both rails,
+    queued ~1h, cancelled via governed API with vendor recall confirmed; settled $8.00 to $0.00
+    on both rails, ledger-sealed. Calibrated-subgraph guard recorded phys 146/147, max readout 0.29%.
+  - The probe caught one real bug first: Go minted fractional-expiry mandates the Python rail
+    correctly refused — fixed at the mint (whole-second canonical), pinned both rails.
+  - Historical reconciliation: nothing held anywhere ($0.00 Python, $0.02 Go simulator dust,
+    13 IBM plan-minutes consumed not held). No new spend beyond the cancelled probe ($0 metered).
+
+## [2026-10-29] decision | Production status reflects verified state
+
+  - README banner flipped from "not production-ready" to verified-state wording with an explicit
+    constant-development disclaimer (gate must be re-run per commit; cite measurements only).
+  - `develop` and `main` fast-forwarded together; full gate green on both.

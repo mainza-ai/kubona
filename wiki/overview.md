@@ -1,7 +1,7 @@
 ---
 type: overview
 date: 2026-08-16
-updated: 2026-10-26
+updated: 2026-10-29
 tags: [kubona, synthesis]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-cloudflare-economy,
   source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026, source-openai-math-corpus,
@@ -170,9 +170,9 @@ ledger receipt, a cited anchor), never to an assertion.
   insight mining needs no grant, and the only check is at release time.
 ## Where the blueprint is unsettled
 
-The full ledger of undecided and under-understood items is [[questions]] — 42 closed,
-7 open rows (7 unnumbered `open-question` pages in Sections B–C; Section E is fully closed), each with what is known, what is missing, and what the answer unblocks.
-Three tensions are worth naming here because they are strategic rather than technical:
+The full ledger of undecided and under-understood items is [[questions]] — all
+sections settled, 0 open rows (mechanically enforced: any `status: open-question`
+page without a questions row fails `wiki-lint --strict`). Three tensions are worth naming here because they are strategic rather than technical:
 
 - **Open-source vs. qBraid's 34-device lead.** Kubona deliberately starts with 2–3
   providers and differentiates on the agentic governance layer. Is that enough? See
@@ -235,20 +235,23 @@ evidence that a design decision has been made. [[questions]] Q-01 asks what the
 prototype's role should be; until that is answered, no phase gate here counts as a
 blueprint milestone.
 
-**Status census (mechanical, 2026-10-26).** 151 pages: `settled` 6 · `adopted` 62 ·
-`open-question` 0 · `candidate` 13 · `tracked` 44 · `reference` 9 · `source` 10 ·
+**Status census (mechanical, 2026-10-29).** 154 pages: `settled` 6 · `adopted` 62 ·
+`open-question` 0 · `candidate` 13 · `tracked` 47 · `reference` 9 · `source` 10 ·
 `living` 7. Vocabulary: [[index]] §status legend. Read it as *decidedness*, never
 as completion: six settled policies against 62 adopted mechanisms and zero open
 questions means the blueprint is fully settled and contributor-ready.
 
 ### What the prototype has empirically answered
 
-`platform/` — 676 Python tests (`pytest platform/tests/`) + 41 gRPC bridge tests
-(`platform/bridge/test_bridge.py`) + 27 Go packages (`go test ./...`, vet clean) +
-149 console tests (Vitest, 32 files) + Rust `qir-core` (13 tests) and `ifc-core`
-(4 tests), all green locally and in CI as of 2026-10-17
-(see [[full-platform-audit-2026-10-12]] and [[remaining-work]]).
-Each phase below had a gate test, and each passes **on simulators**:
+`platform/` — 1175 Python tests across 177 files (`pytest platform/tests/`) + bridge
+contract suites + 33 Go packages with 699 test funcs (`go test ./...`, vet clean) +
+291 console tests across 59 Vitest files + Rust `qir-core` (20 tests) and `ifc-core`
+(9 tests), all green locally and in CI as of 2026-10-29
+(see [[full-platform-audit-2026-10-12]], [[remaining-work]], and the Round-2/3
+production-readiness audits).
+Each phase below had a gate test, and each passes **on simulators** — plus two
+governed live-QPU Bell runs (`ibm_marrakesh` 2026-10-26, `ibm_fez` 2026-10-29)
+with estimate→reserve→settle measured end to end (see [[ibm-quantum-platform]]).
 
 > ⚑ Correction: the 2026-10-08 text here read "213 Python + 58 Go + 3 Rust +
 > 1 Flutter test". The Flutter/Dart stack was retired 2026-10-04 (stack
@@ -297,6 +300,24 @@ Each phase below had a gate test, and each passes **on simulators**:
 
 ### What no prototype test can answer
 
+> ⚑ Update (2026-10-29): three of these have since been answered — a **real QPU run**
+> (governed Bell runs on `ibm_marrakesh` 2026-10-26 and `ibm_fez` 2026-10-29 with
+> full spend governance; see [[ibm-quantum-platform]]), a **public repo** (visibility
+> flipped 2026-10-26, Q-27 closed; dependabot hygiene complete), and a **green release
+> gate** (21 enforced checks, branch protection, runs on record in the audit page).
+> What remains genuinely outside tests: a **third-party-human security review**
+> (Round-2/3 audits were independent but in-repo, not third-party), **business
+> sign-off** on monetization (P5), and the **human surface** at production scale.
+> The release gate that was decorative in September has been green and enforced
+> since 2026-10-28 (runs `40777490046`, `40786519756`, `40803947946`).
+
+> ⚑ Correction (2026-10-29): the passage below is retained verbatim as the
+> pre-October record. Superseded since: the **real QPU run**, the **public repo**,
+> and the **never-passed CI** claims (see Update box above); the **private by
+> decision** posture (repo is public since 2026-10-26, Q-27). Still open as
+> written: third-party-human review, business sign-off, human surface at scale,
+> volume eval corpora, real payment rail, GQE retraining on a GPU host.
+
 These need a human, a wallet, or the outside world — which is why the roadmap's remaining
 work is not "finishing the code": a **real QPU run** (P1/P2 gates say *real QPU*); a
 **third-party security review** (P3); a **public repo plus a merged outside PR** (P4 — which the Q-25 ruling now also defers, since it
@@ -313,11 +334,19 @@ two files and had silently diverged, and one function (`release_gate()`) now dec
 fail-closed production auth, `kubona serve`/`doctor` entrypoints, x402 fail-closed unless
 a real verifier is injected. Full register: [[implementation-gaps]].
 
-**Repo posture.** `github.com/mainza-ai/kubona`, **private by decision**: the operator keeps it
-closed while the blueprint is still being designed, because a public repo without a settled
-direction attracts contributions the project cannot direct. The flip is therefore gated on the
-blueprint becoming *contributor-legible* — Q-01 answered (what `platform/` is for) plus enough
-of the method layer to say what to build first — not on a date and not on Phase 0, which passed
-weeks ago. Apache-2.0 at publication remains committed; historical repository residue
-(`dev-docs/`, `.obsidian/`) has been completely excised via `git filter-repo` and rewritten
-history pushed to origin ([[questions]] Q-27, [[risks]]).
+> ⚑ Correction (2026-10-26, Q-27 closed): the repo posture below is superseded —
+> `github.com/mainza-ai/kubona` is **public** (GitHub API `private:false`). The
+> flip conditions named here were met: Q-01 answered, blueprint contributor-legible
+> (0 open questions, mechanically enforced). Apache-2.0 at publication was
+> honored; historical residue (`dev-docs/`, `.obsidian/`) was excised via
+> `git filter-repo` on 2026-10-26 with history rewritten. Retained verbatim as
+> the pre-flip record:
+>
+> **Repo posture.** `github.com/mainza-ai/kubona`, **private by decision**: the operator keeps it
+> closed while the blueprint is still being designed, because a public repo without a settled
+> direction attracts contributions the project cannot direct. The flip is therefore gated on the
+> blueprint becoming *contributor-legible* — Q-01 answered (what `platform/` is for) plus enough
+> of the method layer to say what to build first — not on a date and not on Phase 0, which passed
+> weeks ago. Apache-2.0 at publication remains committed; historical repository residue
+> (`dev-docs/`, `.obsidian/`) has been completely excised via `git filter-repo` and rewritten
+> history pushed to origin ([[questions]] Q-27, [[risks]]).

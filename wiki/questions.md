@@ -2,7 +2,7 @@
 type: catalog
 name: Open Questions & Design Forks
 date: 2026-09-27
-updated: 2026-10-26
+updated: 2026-10-27
 tags: [index, questions, blueprint]
 sources: [source-gap-analysis-plan, source-architecture-paper, source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026]
 status: living
