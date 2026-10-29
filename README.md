@@ -31,28 +31,30 @@
 > [!NOTE]
 > **Active Research Platform**: Kubona is under active development. APIs, agent protocols, and the sovereign console evolve rapidly. See [`wiki/roadmap.md`](wiki/roadmap.md) for phased milestones and [`wiki/log.md`](wiki/log.md) for the latest research log.
 
-> [!WARNING]
-> **Production status (2026-10-29): not production-ready yet.** The independent
+> [!IMPORTANT]
+> **Production status (2026-10-29): all known production blockers are closed and verified.** The independent
 > [Round-2 audit](wiki/concepts/production-readiness-audit-2026-10-26.md) found
-> ten P0 blockers at trusted boundaries. A full-tree Round-3 re-audit on 2026-10-28 re-verified
-> every P0 against current code, and two hardening phases have since landed on
-> `develop` with the full gate green (20 checks, branch-protected): Phase-0
+> ten P0 stop-the-line blockers. A full-tree Round-3 re-audit re-verified
+> every P0 against current code, and the remediation program has since landed
+> with the full gate green (20 checks, branch-protected): Phase-0
 > (settlement, admission crypto, A2A binding, approval gate, bridge
-> confinement, manuscript evidence, route policy) and Phase-1 (terminal
+> confinement, manuscript evidence, route policy), Phase-1 (terminal
 > settlement everywhere, atomic admission, sandbox confinement + escape tests,
 > principal-bound tenancy, RAM admission, Rust measurement fidelity, CI
-> depth: vet/gofmt, ruff ratchet, clippy, semgrep, Trivy, coverage floors)
-> and Phase-2 (cross-tenant grants with HTTP lifecycle + single Go registry,
-> ledger sharding, console live predicates + mounted flight card, tested
-> seccomp, deny-by-default, true public numbers) and the deeds phase
-> (mandate-review queue, ephemeral-prod refusal, canonical-expiry fix,
-> seccomp default-on, load proof, EvidenceEnvelope regen, live QPU probe
-> with measured settlement). What still blocks production is now one
-> human step plus hardening tails: commission the generated reviewer key,
-> seccomp default-on already landed, load-test proof recorded (local),
-> ledger legacy pinned, and operator R-series confirmations recorded.
-> The architecture is sound; the gate is not. Read the audit and its phased plan before deploying
-> or citing a "verified" result.
+> depth), Phase-2 (cross-tenant grants, ledger sharding, console live
+> predicates, tested seccomp, deny-by-default, true public numbers), and the
+> deeds phase (mandate-review queue, ephemeral-prod refusal, canonical-expiry
+> fix, seccomp default-on, load proof, EvidenceEnvelope regen, commissioned
+> reviewer key, live QPU probe with measured $8.00 → $0.00 settlement).
+> Every residual is tracked with evidence in the audit; nothing rots silently.
+>
+> **Constant-development disclaimer.** Kubona is under active development:
+> APIs, agent protocols, and the console evolve rapidly, and today's green
+> gate does not promise tomorrow's. Do not deploy on this banner alone —
+> read the audit and its phased plan, re-run the gate (`test:boundary`) on
+> the exact commit you ship, and cite only measured results, never this
+> paragraph. Software is Apache-2.0; the living wiki is CC-BY-4.0; neither
+> license is a warranty.
 
 ---
 

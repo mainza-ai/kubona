@@ -19,7 +19,12 @@ The work-list is `wiki/questions.md`, not a task tracker.
 the actual visibility flip; the mechanical precondition (`dev-docs/` + `.obsidian/` residue in
 history) was excised via `git filter-repo` on 2026-10-26 (Q-27 closed). Going public did **not**
 make the platform production-ready: the Round-2 audit
-([[production-readiness-audit-2026-10-26]]) found ten P0 blockers, and all production-readiness decisions (Q-49..Q-57) were resolved 2026-10-27; the Round-3 re-audit (2026-10-28) verified the money/trust P0s fixed on `develop` with CI green under branch protection, and the hardening residuals still blocking production are tracked in [[production-readiness-audit-2026-10-26]]. Do not cite "private" or "production-ready" as current fact.
+([[production-readiness-audit-2026-10-26]]) found ten P0 blockers, the Round-3
+re-audit (2026-10-28) plus the Phase-0/1/2 and deeds programs verified every
+blocker fixed with the full gate green (see the audit page for the per-blocker
+evidence; the reviewer key is commissioned). The repo is under constant
+development — re-verify the gate on the exact commit before citing
+"production-ready" as current fact. Do not cite "private" as current fact.
 
 ## Three layers
 
@@ -164,13 +169,13 @@ Bar (real logic or fail-closed refusal, no theater, line audit before landing).
 **Contents:** 10 source pages (see `wiki/log.md`), 154 pages — overview/roadmap/questions/
 index/log, 48 entities, 91 concepts. A 2026-10-26 Round-2 audit read all 831 in-scope
 source files across Go core, Rust crates, Python runtime, Bridge, Console, Contracts,
-Docker, and CI. Its verdict is **not production-ready**: ten P0 blockers remain at trust
+Docker, and CI. Its verdict was **not production-ready**: ten P0 blockers at trust
 boundaries (bridge auth, import forgery, sandbox escape, spend settlement, release gate,
-scientific anchors, verification theater). A 2026-10-28 Round-3 re-audit verified the
-money/trust P0s fixed on `develop`; hardening residuals (sandbox env-dependence,
-failure-path settlement, unsigned-receipt trust, CI verification depth) still block
-production. The audit and its phased plan live in
-[[production-readiness-audit-2026-10-26]]; prior "production polish" claims are superseded.
+scientific anchors, verification theater). The 2026-10-28 Round-3 re-audit plus the
+Phase-0/1/2 and deeds programs closed every blocker with evidence (tracked in
+[[production-readiness-audit-2026-10-26]]); the repo remains under constant
+development, so re-verify before citing
+status. Prior "production polish" claims are superseded.
 
 **Domain:** an open-source, MCP-native quantum-computing **and AI-enhanced science-discovery
 platform** for autonomous AI agents. The fourth source, [[source-frontier-repo-audit-2026]],
