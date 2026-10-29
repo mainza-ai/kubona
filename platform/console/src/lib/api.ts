@@ -62,11 +62,44 @@ function withCredentials(init: RequestInit): RequestInit {
   return { credentials: 'include' as RequestCredentials, ...init };
 }
 
+// Default per-request timeout (streams excluded — they carry their own
+// caller signal and a stall detector instead). A hung backend must fail
+// loudly, never hang the UI forever: every wrapper below funnels through
+// apiFetch, so this one default covers all of them.
+export const API_TIMEOUT_MS = 15000;
+
+// Stall budget for server-sent streams: a frame (token|done|error) must
+// arrive at least this often or the stream is declared dead. Without it a
+// wedged backend holds an infinite loading cursor with no recovery.
+export const STREAM_STALL_MS = 30000;
+
+// Dispatched on window whenever the backend answers 401 (expired/invalid
+// session or token). The shell listens and surfaces "session expired —
+// log in again" instead of rendering empty states; flows that would
+// otherwise auto-create fresh state on auth failure must check
+// wasRecentAuthFailure() first (see CopilotDrawer getActiveSessionId).
+export const UNAUTH_EVENT = 'kubona:unauthorized';
+let lastAuthFailureAt = 0;
+export function wasRecentAuthFailure(withinMs = 30000): boolean {
+  return Date.now() - lastAuthFailureAt < withinMs;
+}
+function notifyUnauthorized(): void {
+  lastAuthFailureAt = Date.now();
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    window.dispatchEvent(new CustomEvent(UNAUTH_EVENT));
+  }
+}
+
 // Module fetch: every console call goes through here so the session
 // cookie flows cross-origin. Callers pass auth headers as before;
 // credentials are orthogonal (the server checks cookie first, then bearer).
 export function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
-  return fetch(input, withCredentials(init));
+  const withTimeout: RequestInit =
+    init.signal != null ? init : { ...init, signal: AbortSignal.timeout(API_TIMEOUT_MS) };
+  return fetch(input, withCredentials(withTimeout)).then((res) => {
+    if (res.status === 401) notifyUnauthorized();
+    return res;
+  });
 }
 
 // Exported for ledger helpers and any surface that must go through the
@@ -189,9 +222,25 @@ export async function streamChatMessage(
   const decoder = new TextDecoder();
   let buf = '';
   let done: StreamDone | null = null;
+  let lastFrameAt = Date.now();
+  const stallAfter = (ms: number): Promise<never> =>
+    new Promise((_, reject) => {
+      const t = setTimeout(() => reject(new Error('stream stalled — retry')), ms);
+      if (typeof (t as unknown as { unref?: unknown }).unref === 'function') {
+        (t as unknown as { unref(): void }).unref();
+      }
+    });
   for (;;) {
-    const { value, done: readerDone } = await reader.read();
-    if (value) buf += decoder.decode(value, { stream: true });
+    const remaining = STREAM_STALL_MS - (Date.now() - lastFrameAt);
+    if (remaining <= 0) throw new Error('stream stalled — retry');
+    const { value, done: readerDone } = await Promise.race([reader.read(), stallAfter(remaining)]);
+    // Bytes arriving at all proves the transport is alive (server comment
+    // heartbeats carry no data: frames); parsed frames refresh it too.
+    // Only a fully silent socket trips the stall detector.
+    if (value) {
+      lastFrameAt = Date.now();
+      buf += decoder.decode(value, { stream: true });
+    }
     let idx: number;
     while ((idx = buf.indexOf('\n\n')) !== -1) {
       const frame = buf.slice(0, idx);
