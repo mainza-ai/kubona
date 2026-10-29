@@ -316,83 +316,176 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 		return nil, fmt.Errorf("failed to initialize ledger schema: %w", err)
 	}
 
-	// Dynamic column migrations if table existed from an earlier schema version
-	for _, col := range []string{"prev_hash", "entry_hash", "signer_pubkey_hex", "signature_hex", "tenant_id", "conf_label"} {
-		_, _ = db.Exec(fmt.Sprintf("ALTER TABLE ledger_events ADD COLUMN %s TEXT NOT NULL DEFAULT ''", col))
+	if err := migrateLegacySchema(db); err != nil {
+		db.Close()
+		releaseLock(lockFile)
+		return nil, err
 	}
-	_, _ = db.Exec(`ALTER TABLE ledger_events ADD COLUMN hash_version INTEGER NOT NULL DEFAULT 1`)
-	_, _ = db.Exec(`ALTER TABLE ledger_events ADD COLUMN signature_domain TEXT NOT NULL DEFAULT 'chain'`)
-	_, _ = db.Exec(`ALTER TABLE sessions ADD COLUMN spend_limit_micro_usd INTEGER NOT NULL DEFAULT 0`)
-	_, _ = db.Exec(`ALTER TABLE sessions ADD COLUMN current_spend_micro_usd INTEGER NOT NULL DEFAULT 0`)
-	_, _ = db.Exec(`ALTER TABLE tenants ADD COLUMN spend_ceiling_micro_usd INTEGER NOT NULL DEFAULT 150000000`)
-	_, _ = db.Exec(`ALTER TABLE tenants ADD COLUMN spent_micro_usd INTEGER NOT NULL DEFAULT 0`)
-	// One-time idempotent backfill: rows with a non-zero REAL value and a
-	// zero micro value predate the integer books. New writes set both.
-	_, _ = db.Exec(`UPDATE sessions SET spend_limit_micro_usd = CAST(ROUND(spend_limit_usd * 1000000) AS INTEGER) WHERE spend_limit_micro_usd = 0 AND spend_limit_usd IS NOT NULL AND spend_limit_usd <> 0`)
-	_, _ = db.Exec(`UPDATE sessions SET current_spend_micro_usd = CAST(ROUND(current_spend_usd * 1000000) AS INTEGER) WHERE current_spend_micro_usd = 0 AND current_spend_usd IS NOT NULL AND current_spend_usd <> 0`)
-	_, _ = db.Exec(`UPDATE tenants SET spend_ceiling_micro_usd = CAST(ROUND(spend_ceiling_usd * 1000000) AS INTEGER) WHERE spend_ceiling_micro_usd = 0 AND spend_ceiling_usd IS NOT NULL AND spend_ceiling_usd <> 0`)
-	_, _ = db.Exec(`UPDATE tenants SET spent_micro_usd = CAST(ROUND(spent_usd * 1000000) AS INTEGER) WHERE spent_micro_usd = 0 AND spent_usd IS NOT NULL AND spent_usd <> 0`)
-	_, _ = db.Exec(`ALTER TABLE sessions ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`)
-	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN reserved_tenant TEXT NOT NULL DEFAULT ''`)
-	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN reserved_amount_micro_usd INTEGER NOT NULL DEFAULT 0`)
-	_, _ = db.Exec(`UPDATE jobs SET reserved_amount_micro_usd = CAST(ROUND(reserved_amount * 1000000) AS INTEGER) WHERE reserved_amount_micro_usd = 0 AND reserved_amount > 0`)
-	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN compiler_used TEXT NOT NULL DEFAULT ''`)
-	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN fallback_estimate INTEGER NOT NULL DEFAULT 0`)
-	_, _ = db.Exec(`ALTER TABLE jobs ADD COLUMN mandate_ref TEXT NOT NULL DEFAULT ''`)
-	// Measured generation cost on chat messages (NULL = unknown, never zero-filled).
-	_, _ = db.Exec(`ALTER TABLE chat_messages ADD COLUMN duration_ms INTEGER`)
-	_, _ = db.Exec(`ALTER TABLE chat_messages ADD COLUMN usage_json TEXT`)
-	// S3: loop lifecycle persistence. The loops table previously had no
-	// writer (engines lived in memory only); sleep state, drain flags, and
-	// the I3-reserved spend column persist here.
-	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN harness_id TEXT NOT NULL DEFAULT ''`)
-	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN last_activity DATETIME`)
-	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN drain INTEGER NOT NULL DEFAULT 0`)
-	// I3: per-iteration loop accounting — who funded the reservation and
-	// how much of it the iterations have consumed (drawdown). Release at
-	// loop end returns reserved - consumed to reserved_tenant.
-	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN reserved_tenant TEXT NOT NULL DEFAULT ''`)
-	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN reserved_amount_micro_usd INTEGER NOT NULL DEFAULT 0`)
-	_, _ = db.Exec(`ALTER TABLE loops ADD COLUMN consumed_amount_micro_usd INTEGER NOT NULL DEFAULT 0`)
-	_, _ = db.Exec(`UPDATE loops SET reserved_amount_micro_usd = CAST(ROUND(reserved_amount * 1000000) AS INTEGER) WHERE reserved_amount_micro_usd = 0 AND reserved_amount > 0`)
-	_, _ = db.Exec(`UPDATE loops SET consumed_amount_micro_usd = CAST(ROUND(consumed_amount * 1000000) AS INTEGER) WHERE consumed_amount_micro_usd = 0 AND consumed_amount > 0`)
-	// Normalize pre-migration rows (ALTER ... DEFAULT '' backfills '').
-	_, _ = db.Exec(`UPDATE ledger_events SET tenant_id = 'default' WHERE tenant_id = ''`)
-	_, _ = db.Exec(`UPDATE sessions SET tenant_id = 'default' WHERE tenant_id = ''`)
-	// Confidentiality default: every pre-label row belongs to its session's
-	// lab tenant (tenant/<id>), never public. Explicit 'public' is only ever
-	// written by AppendLabeledEvent callers that mean it.
-	_, _ = db.Exec(`UPDATE ledger_events SET conf_label = 'tenant/' || tenant_id WHERE conf_label = ''`)
-
-	// Seed the default lab tenant (first-write admin key bootstrap happens in
-	// the tenants package; the row must exist for FK-less joins to resolve).
-	_, _ = db.Exec(
-		`INSERT OR IGNORE INTO tenants (id, display_name, admin_pubkey_hex, autonomy_level, spend_ceiling_micro_usd, status, created_at) VALUES ('default', 'Default lab', '', 'L1', 150000000, 'active', CURRENT_TIMESTAMP)`,
-	)
-
-	// Drop the legacy REAL money projection. The micro columns are the only
-	// books; USD wire fields are projected from them. Old databases are
-	// backfilled above first. SQLite <3.35 has no DROP COLUMN: ignore the
-	// error there — the columns are then dead but never read or written.
 	if err := recordSchemaVersion(db); err != nil {
 		db.Close()
 		releaseLock(lockFile)
 		return nil, err
 	}
 
-	for _, stmt := range []string{
-		`ALTER TABLE sessions DROP COLUMN spend_limit_usd`,
-		`ALTER TABLE sessions DROP COLUMN current_spend_usd`,
-		`ALTER TABLE tenants DROP COLUMN spend_ceiling_usd`,
-		`ALTER TABLE tenants DROP COLUMN spent_usd`,
-		`ALTER TABLE jobs DROP COLUMN reserved_amount`,
-		`ALTER TABLE loops DROP COLUMN reserved_amount`,
-		`ALTER TABLE loops DROP COLUMN consumed_amount`,
-	} {
-		_, _ = db.Exec(stmt)
+	return &Ledger{db: db, lockFile: lockFile}, nil
+}
+
+// migrateLegacySchema is the compatibility path for databases created
+// before the current schema. It is intentionally explicit rather than a
+// generic migrator: every statement is idempotent on a fresh DB and every
+// unexpected error is returned, not swallowed. "Duplicate column" is the
+// only expected ADD error; "no such column"/"syntax error" are the only
+// expected DROP errors (already absent, or SQLite < 3.35).
+func migrateLegacySchema(db *sql.DB) error {
+	addColumns := []string{
+		`ALTER TABLE ledger_events ADD COLUMN prev_hash TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE ledger_events ADD COLUMN entry_hash TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE ledger_events ADD COLUMN signer_pubkey_hex TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE ledger_events ADD COLUMN signature_hex TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE ledger_events ADD COLUMN tenant_id TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE ledger_events ADD COLUMN conf_label TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE ledger_events ADD COLUMN hash_version INTEGER NOT NULL DEFAULT 1`,
+		`ALTER TABLE ledger_events ADD COLUMN signature_domain TEXT NOT NULL DEFAULT 'chain'`,
+		`ALTER TABLE sessions ADD COLUMN spend_limit_micro_usd INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE sessions ADD COLUMN current_spend_micro_usd INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE sessions ADD COLUMN tenant_id TEXT NOT NULL DEFAULT 'default'`,
+		`ALTER TABLE tenants ADD COLUMN spend_ceiling_micro_usd INTEGER NOT NULL DEFAULT 150000000`,
+		`ALTER TABLE tenants ADD COLUMN spent_micro_usd INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE jobs ADD COLUMN reserved_tenant TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE jobs ADD COLUMN reserved_amount_micro_usd INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE jobs ADD COLUMN compiler_used TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE jobs ADD COLUMN fallback_estimate INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE jobs ADD COLUMN mandate_ref TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE chat_messages ADD COLUMN duration_ms INTEGER`,
+		`ALTER TABLE chat_messages ADD COLUMN usage_json TEXT`,
+		`ALTER TABLE loops ADD COLUMN harness_id TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE loops ADD COLUMN last_activity DATETIME`,
+		`ALTER TABLE loops ADD COLUMN drain INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE loops ADD COLUMN reserved_tenant TEXT NOT NULL DEFAULT ''`,
+		`ALTER TABLE loops ADD COLUMN reserved_amount_micro_usd INTEGER NOT NULL DEFAULT 0`,
+		`ALTER TABLE loops ADD COLUMN consumed_amount_micro_usd INTEGER NOT NULL DEFAULT 0`,
+	}
+	for _, stmt := range addColumns {
+		if err := execMigration(db, stmt, "duplicate column name"); err != nil {
+			return err
+		}
 	}
 
-	return &Ledger{db: db, lockFile: lockFile}, nil
+	// One-time backfills only when the legacy REAL column is present. On a
+	// fresh DB the column never existed; the UPDATE would fail and must not
+	// be treated as an ignorable error.
+	backfills := []struct {
+		table, column, stmt string
+	}{
+		{"sessions", "spend_limit_usd", `UPDATE sessions SET spend_limit_micro_usd = CAST(ROUND(spend_limit_usd * 1000000) AS INTEGER) WHERE spend_limit_micro_usd = 0 AND spend_limit_usd IS NOT NULL AND spend_limit_usd <> 0`},
+		{"sessions", "current_spend_usd", `UPDATE sessions SET current_spend_micro_usd = CAST(ROUND(current_spend_usd * 1000000) AS INTEGER) WHERE current_spend_micro_usd = 0 AND current_spend_usd IS NOT NULL AND current_spend_usd <> 0`},
+		{"tenants", "spend_ceiling_usd", `UPDATE tenants SET spend_ceiling_micro_usd = CAST(ROUND(spend_ceiling_usd * 1000000) AS INTEGER) WHERE spend_ceiling_micro_usd = 0 AND spend_ceiling_usd IS NOT NULL AND spend_ceiling_usd <> 0`},
+		{"tenants", "spent_usd", `UPDATE tenants SET spent_micro_usd = CAST(ROUND(spent_usd * 1000000) AS INTEGER) WHERE spent_micro_usd = 0 AND spent_usd IS NOT NULL AND spent_usd <> 0`},
+		{"jobs", "reserved_amount", `UPDATE jobs SET reserved_amount_micro_usd = CAST(ROUND(reserved_amount * 1000000) AS INTEGER) WHERE reserved_amount_micro_usd = 0 AND reserved_amount > 0`},
+		{"loops", "reserved_amount", `UPDATE loops SET reserved_amount_micro_usd = CAST(ROUND(reserved_amount * 1000000) AS INTEGER) WHERE reserved_amount_micro_usd = 0 AND reserved_amount > 0`},
+		{"loops", "consumed_amount", `UPDATE loops SET consumed_amount_micro_usd = CAST(ROUND(consumed_amount * 1000000) AS INTEGER) WHERE consumed_amount_micro_usd = 0 AND consumed_amount > 0`},
+	}
+	for _, b := range backfills {
+		ok, err := columnExists(db, b.table, b.column)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
+		if err := execMigration(db, b.stmt); err != nil {
+			return err
+		}
+	}
+
+	// Normalize pre-migration rows (ALTER ... DEFAULT '' backfills '').
+	for _, stmt := range []string{
+		`UPDATE ledger_events SET tenant_id = 'default' WHERE tenant_id = ''`,
+		`UPDATE sessions SET tenant_id = 'default' WHERE tenant_id = ''`,
+		`UPDATE ledger_events SET conf_label = 'tenant/' || tenant_id WHERE conf_label = ''`,
+	} {
+		if err := execMigration(db, stmt); err != nil {
+			return err
+		}
+	}
+
+	// Seed the default lab tenant (first-write admin key bootstrap happens
+	// in the tenants package; the row must exist for FK-less joins).
+	if err := execMigration(db, `INSERT OR IGNORE INTO tenants (id, display_name, admin_pubkey_hex, autonomy_level, spend_ceiling_micro_usd, status, created_at) VALUES ('default', 'Default lab', '', 'L1', 150000000, 'active', CURRENT_TIMESTAMP)`); err != nil {
+		return err
+	}
+
+	// Drop the legacy REAL money projection only when present. SQLite <3.35
+	// has no DROP COLUMN; ignore only that syntax error (the columns are
+	// then dead but never read or written).
+	drops := []struct {
+		table, column, stmt string
+	}{
+		{"sessions", "spend_limit_usd", `ALTER TABLE sessions DROP COLUMN spend_limit_usd`},
+		{"sessions", "current_spend_usd", `ALTER TABLE sessions DROP COLUMN current_spend_usd`},
+		{"tenants", "spend_ceiling_usd", `ALTER TABLE tenants DROP COLUMN spend_ceiling_usd`},
+		{"tenants", "spent_usd", `ALTER TABLE tenants DROP COLUMN spent_usd`},
+		{"jobs", "reserved_amount", `ALTER TABLE jobs DROP COLUMN reserved_amount`},
+		{"loops", "reserved_amount", `ALTER TABLE loops DROP COLUMN reserved_amount`},
+		{"loops", "consumed_amount", `ALTER TABLE loops DROP COLUMN consumed_amount`},
+	}
+	for _, d := range drops {
+		ok, err := columnExists(db, d.table, d.column)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			continue
+		}
+		if err := execMigration(db, d.stmt, "no such column", "syntax error"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// execMigration runs one compatibility statement. It ignores only the named
+// expected errors and returns every other failure with the statement that
+// caused it. A migration that fails silently is a schema that lies.
+func execMigration(db *sql.DB, stmt string, ignore ...string) error {
+	_, err := db.Exec(stmt)
+	if err == nil {
+		return nil
+	}
+	msg := strings.ToLower(err.Error())
+	for _, s := range ignore {
+		if strings.Contains(msg, strings.ToLower(s)) {
+			return nil
+		}
+	}
+	return fmt.Errorf("migration failed (%s): %w", stmt, err)
+}
+
+// columnExists reports whether a table currently has a column. Table names
+// are compile-time constants, never caller input.
+func columnExists(db *sql.DB, table, column string) (bool, error) {
+	rows, err := db.Query(fmt.Sprintf("PRAGMA table_info(%s)", table))
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var (
+			cid       int
+			name      string
+			ctype     string
+			notnull   int
+			dfltValue sql.NullString
+			pk        int
+		)
+		if err := rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk); err != nil {
+			return false, err
+		}
+		if strings.EqualFold(name, column) {
+			return true, nil
+		}
+	}
+	return false, rows.Err()
 }
 
 // releaseLock drops a state-dir flock best-effort (open-failure paths).
