@@ -3897,3 +3897,13 @@ skipped is the exact failure this incident is about:
     `heuristic:true` with source, effective date, and a 30-day window; a stale
     card refuses at daemon startup, LLM pricing, and Atlas lens dispatch.
     Vendor reconciliation with `heuristic:false` remains a release-time task.
+
+## [2026-10-29] implementation | Durable provenance spool
+
+  - `Ledger.AppendEventWithSpool` tries the ledger, then atomically writes
+    the exact event to `<state>/provenance-spool` and returns sealed=false.
+    The Atlas lens dispatch reports `provenance_status=pending` instead of a
+    sealed receipt, and returns `provenance_unavailable` if both the ledger
+    and the spool fail. Writer startup replays spooled events and removes a
+    file only after the ledger accepts it. Tests cover sealed, spooled +
+    replayed, and both-failed paths.
