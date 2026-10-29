@@ -44,7 +44,22 @@ func (s *Server) handleTenants(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
-			writeJSON(w, http.StatusOK, map[string]any{"tenants": []tenants.Tenant{*t}})
+			// Phase-2 grants: a lab caller sees its own row plus the rows
+			// of labs that granted it the read scope. No grant = own row
+			// only (default deny preserved; anonymous/bearer paths below
+			// and in handleTenantByID are untouched).
+			visible := []tenants.Tenant{*t}
+			if all, lerr := s.tenantMgr.ListTenants(); lerr == nil {
+				for _, other := range all {
+					if other.ID == tenant {
+						continue
+					}
+					if s.tenantMgr.CheckGrant(other.ID, tenant, "", tenants.ReadScope) == nil {
+						visible = append(visible, other)
+					}
+				}
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"tenants": visible})
 			return
 		}
 		all, err := s.tenantMgr.ListTenants()
@@ -108,8 +123,15 @@ func (s *Server) handleTenantByID(w http.ResponseWriter, r *http.Request) {
 	} else if tenant, ok := s.checkCallerAuth(w, r); !ok {
 		return
 	} else if tenant != "" && tenant != id {
-		WriteAPIError(w, "forbidden", "tenant belongs to another lab: refused", nil)
-		return
+		// Phase-2 grants: a lab caller may read another lab's row when that
+		// lab granted it the read scope (checked live on every read).
+		// Without a covering grant this refuses exactly as before — and a
+		// guessed id still 403s whether or not the lab exists (no oracle:
+		// the grant lookup fails closed for ghosts the same way).
+		if s.tenantMgr.CheckGrant(id, tenant, "", tenants.ReadScope) != nil {
+			WriteAPIError(w, "forbidden", "tenant belongs to another lab: refused", nil)
+			return
+		}
 	}
 	t, err := s.tenantMgr.GetTenant(id)
 	if err != nil {

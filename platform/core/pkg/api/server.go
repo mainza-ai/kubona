@@ -724,6 +724,8 @@ func (s *Server) registerRoutes() {
 	// but rate-limited against creation spam. Pure reads stay open.
 	s.route("/api/grants/register", s.requireBearer(s.handleGrantRegister))
 	s.route("/api/grants/revoke", s.requireBearer(s.handleGrantRevoke))
+	s.route("/api/tenant-grants/issue", s.requireBearer(s.handleTenantGrantIssue))
+	s.route("/api/tenant-grants/revoke", s.requireBearer(s.handleTenantGrantRevoke))
 	s.route("/api/tenants/admin-key", s.requireBearer(s.handleTenantAdminKey))
 	s.route("/api/tenants/ceiling", s.requireBearer(s.handleTenantCeiling))
 	s.route("/api/tenants/refund", s.requireBearer(s.handleTenantRefund))

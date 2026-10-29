@@ -186,6 +186,8 @@ var RoutePolicies = []RoutePolicy{
 	{Pattern: "/api/tenants/", Methods: "GET", Class: RouteAuthSessionScoped, Rationale: "By-ID read binds caller like the list: anon single-lab only, lab callers own row only (cross-lab 403), bearer all."},
 	{Pattern: "/api/grants/register", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/grants/revoke", Methods: "POST", Class: RouteAuthBearer},
+	{Pattern: "/api/tenant-grants/issue", Methods: "POST", Class: RouteAuthBearer},
+	{Pattern: "/api/tenant-grants/revoke", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/tenants/admin-key", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/tenants/ceiling", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/tenants/refund", Methods: "POST", Class: RouteAuthBearer},
