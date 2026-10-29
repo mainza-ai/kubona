@@ -48,6 +48,7 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/tools"
 	"github.com/mainza-ai/kubona/core/pkg/tracing"
 	"github.com/mainza-ai/kubona/core/pkg/vault"
+	"github.com/mainza-ai/kubona/core/pkg/version"
 	"github.com/mainza-ai/kubona/core/pkg/watchdog"
 	pb "github.com/mainza-ai/kubona/core/proto"
 )
@@ -825,7 +826,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	health := map[string]string{
 		"status":    "healthy",
 		"service":   "kubona-core-orchestrator",
-		"version":   "0.2.0-ts-go",
+		"version":   version.Version,
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}
 	// S2: disk readings ride along when a guard is attached (additive —

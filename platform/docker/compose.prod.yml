@@ -66,6 +66,8 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile.kubonad
+      args:
+        VERSION: ${KUBONA_VERSION:-dev}
     image: kubona/kubonad:prod
     command: ["--bind", "0.0.0.0", "--port", "8080"]
     environment:
@@ -133,6 +135,7 @@ services:
       dockerfile: ../docker/Dockerfile.console
       args:
         NEXT_PUBLIC_API_URL: ${KUBONA_CONSOLE_API_URL:-http://localhost:8080}
+        NEXT_PUBLIC_KUBONA_VERSION: ${KUBONA_VERSION:-dev}
     image: kubona/console:prod
     ports:
       - "3000:3000"
