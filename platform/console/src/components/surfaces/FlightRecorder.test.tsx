@@ -49,6 +49,15 @@ describe('FlightRecorder measured points', () => {
     expect(text).not.toContain('(Accuracy Met)');
   });
 
+  it('states "no live loops" (via the override roster) when the loop roster is empty', () => {
+    const campaign = campaignWith([]);
+    let tree: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tree = TestRenderer.create(<FlightRecorder loops={[]} events={[]} campaign={campaign} onLoopsChanged={() => {}} />);
+    });
+    expect(JSON.stringify(tree!.toJSON())).toContain('no live loops');
+  });
+
   it('labels the story card by milestone position, not by raw iteration number', () => {
     // Audit 2026-10-21: the header read "Iteration 15 of 7" — a global
     // iteration counter over a milestone count (15 > 7). The position

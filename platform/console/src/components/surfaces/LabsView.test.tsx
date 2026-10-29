@@ -13,6 +13,7 @@ vi.mock('@/lib/api', () => ({
   authLogin: vi.fn(),
   authLogout: vi.fn(),
   authRevoke: vi.fn(),
+  wasRecentAuthFailure: vi.fn(() => false),
 }));
 
 function textOf(node: unknown): string {
@@ -32,6 +33,7 @@ describe('LabsView', () => {
     ]);
     vi.mocked(api.authWhoami).mockResolvedValue({ authenticated: false });
     vi.mocked(api.authSessions).mockResolvedValue([]);
+    vi.mocked(api.wasRecentAuthFailure).mockReturnValue(false);
   });
 
   it('renders labs with spend figures, autonomy badges, and the operator session auth panel', async () => {
@@ -67,10 +69,37 @@ describe('LabsView', () => {
   it('renders empty state when no labs exist', async () => {
     vi.mocked(api.fetchLabs).mockResolvedValue([]);
     vi.mocked(api.fetchSessions).mockResolvedValue([]);
+    vi.mocked(api.authWhoami).mockResolvedValue({ authenticated: true });
     let root: TestRenderer.ReactTestRenderer | undefined;
     await act(async () => {
       root = TestRenderer.create(<LabsView />);
     });
     expect(textOf(root!.root)).toContain('No laboratories registered.');
+  });
+
+  it('renders a login prompt (not a fake empty) when labs are refused while logged out', async () => {
+    vi.mocked(api.fetchLabs).mockResolvedValue([]);
+    vi.mocked(api.fetchSessions).mockResolvedValue([]);
+    vi.mocked(api.authWhoami).mockResolvedValue({ authenticated: false });
+    let root: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      root = TestRenderer.create(<LabsView />);
+    });
+    const text = textOf(root!.root);
+    expect(text).toContain('requires login');
+    expect(text).toContain('Operator session');
+    expect(text).not.toContain('No laboratories registered.');
+  });
+
+  it('treats a recent 401 as refused even before whoami resolves', async () => {
+    vi.mocked(api.fetchLabs).mockResolvedValue([]);
+    vi.mocked(api.fetchSessions).mockResolvedValue([]);
+    vi.mocked(api.authWhoami).mockResolvedValue({ authenticated: true });
+    vi.mocked(api.wasRecentAuthFailure).mockReturnValue(true);
+    let root: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      root = TestRenderer.create(<LabsView />);
+    });
+    expect(textOf(root!.root)).toContain('requires login');
   });
 });

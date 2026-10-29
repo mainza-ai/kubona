@@ -68,4 +68,37 @@ describe('JobProgress', () => {
     });
     expect(JSON.stringify(tree.toJSON())).toContain('FAILED');
   });
+
+  it('stops polling on repeated null jobs and offers retry — no infinite pulse', async () => {
+    const fetch = vi.fn().mockResolvedValue({ ok: false, status: 404 });
+    vi.stubGlobal('fetch', fetch);
+    let tree!: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<JobProgress jobId="j" sessionId="s" />);
+    });
+    // 1 immediate + 3 interval polls reach the consecutive-null budget.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2100);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2100);
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2100);
+    });
+    const text = JSON.stringify(tree.toJSON());
+    expect(text).toContain('job unavailable');
+    expect(text).toContain('Retry');
+    const calls = fetch.mock.calls.length;
+    // Loop stopped: no more fetches while gone.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10000);
+    });
+    expect(fetch.mock.calls.length).toBe(calls);
+    // Retry restarts polling.
+    await act(async () => {
+      await tree.root.findByType('button').props.onClick();
+    });
+    expect(fetch.mock.calls.length).toBeGreaterThan(calls);
+  });
 });

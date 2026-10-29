@@ -57,7 +57,16 @@ export function LoopControlList({
     }
   };
 
-  if (loops.length === 0) return null;
+  // Honest empty: an empty roster states "no live loops" instead of
+  // rendering nothing (a missing panel reads as a load failure).
+  if (loops.length === 0) {
+    return (
+      <div className="rounded-2xl border border-white/[0.08] bg-black/40 p-4 space-y-2" aria-label="Live loops">
+        <div className="text-xs font-semibold text-white">Live loops · override</div>
+        <div className="text-[11px] text-slate-500">no live loops</div>
+      </div>
+    );
+  }
 
   return (
     <div className="rounded-2xl border border-white/[0.08] bg-black/40 p-4 space-y-2" aria-label="Live loops">

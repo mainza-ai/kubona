@@ -103,6 +103,61 @@ describe('FlightRecorderCard', () => {
     nowSpy.mockRestore();
   });
 
+  it('survives a malformed payload — null numerics render as —, never a toFixed crash', async () => {
+    const malformed = {
+      ok: true,
+      session_id: 'sess-flight-1',
+      tenant_id: 'default',
+      terminal_verdict: 'SURVIVES',
+      spent_usd: null,
+      spend_limit_usd: undefined,
+      duration_seconds: null,
+      step_count: 2,
+      stop_reason: '',
+      last_claims: null,
+      recent_events: null,
+    };
+
+    vi.stubGlobal('fetch', async (url: string) => {
+      if (String(url).includes('/flight-recorder')) {
+        return {
+          ok: true,
+          json: async () => malformed,
+        };
+      }
+      return { ok: false, status: 404 };
+    });
+
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<FlightRecorderCard sessionId="sess-flight-1" />);
+    });
+
+    const json = JSON.stringify(tree!.toJSON());
+    expect(json).toContain('Auditor Flight Recorder');
+    expect(json).toContain('—');
+    expect(json).not.toContain('NaN');
+  });
+
+  it('surfaces a null telemetry body as an error, never a render crash', async () => {
+    vi.stubGlobal('fetch', async (url: string) => {
+      if (String(url).includes('/flight-recorder')) {
+        return {
+          ok: true,
+          json: async () => null,
+        };
+      }
+      return { ok: false, status: 404 };
+    });
+
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<FlightRecorderCard sessionId="sess-flight-1" />);
+    });
+
+    expect(JSON.stringify(tree!.toJSON())).toContain('Error:');
+  });
+
   it('renders an over-budget fetch honestly — never a passing badge', async () => {
     const mockTelemetry = {
       ok: true,

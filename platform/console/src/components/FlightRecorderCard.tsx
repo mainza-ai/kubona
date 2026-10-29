@@ -31,6 +31,16 @@ export interface FlightRecorderData {  ok: boolean;
   }>;
 }
 
+// Malformed-payload guards: backend numerics may arrive null/undefined
+// on a degraded bridge. Finite numbers render; anything else renders
+// '—', never a toFixed crash.
+function fmtUsd(v: unknown): string {
+  return typeof v === 'number' && Number.isFinite(v) ? `$${v.toFixed(2)}` : '—';
+}
+function fmtSecs(v: unknown): string {
+  return typeof v === 'number' && Number.isFinite(v) ? `${v.toFixed(1)}s` : '—';
+}
+
 function FlightRecorderCardInner({ sessionId }: { sessionId: string }) {
   const [data, setData] = useState<FlightRecorderData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -56,6 +66,11 @@ function FlightRecorderCardInner({ sessionId }: { sessionId: string }) {
         }
         const json = (await res.json()) as FlightRecorderData;
         if (!cancelled) {
+          // Malformed-payload guard: a null/non-object body must surface
+          // as an error, never as a render crash on .spent_usd below.
+          if (json == null || typeof json !== 'object') {
+            throw new Error('flight recorder returned no telemetry (null body)');
+          }
           setData(json);
           setLatencyMs(typeof performance !== 'undefined' ? performance.now() - t0 : 0);
         }
@@ -130,9 +145,9 @@ function FlightRecorderCardInner({ sessionId }: { sessionId: string }) {
                 What Did It Spend?
               </span>
               <p className="mt-1 font-mono text-xs text-emerald-400">
-                ${data.spent_usd.toFixed(2)}{' '}
+                {fmtUsd(data.spent_usd)}{' '}
                 <span className="text-slate-500 font-sans">
-                  / ${data.spend_limit_usd.toFixed(2)} limit
+                  / {fmtUsd(data.spend_limit_usd)} limit
                 </span>
               </p>
             </div>
@@ -146,7 +161,7 @@ function FlightRecorderCardInner({ sessionId }: { sessionId: string }) {
             <div className="rounded bg-slate-800/40 p-2">
               <div className="text-[10px] uppercase tracking-wider">Duration</div>
               <div className="mt-0.5 font-mono text-slate-200">
-                {data.duration_seconds.toFixed(1)}s
+                {fmtSecs(data.duration_seconds)}
               </div>
             </div>
             <div className="rounded bg-slate-800/40 p-2">
@@ -155,7 +170,7 @@ function FlightRecorderCardInner({ sessionId }: { sessionId: string }) {
             </div>
           </div>
 
-          {data.last_claims && data.last_claims.length > 0 && (
+          {Array.isArray(data.last_claims) && data.last_claims.length > 0 && (
             <div>
               <span className="text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
                 Primary Claim & Verification Verdict

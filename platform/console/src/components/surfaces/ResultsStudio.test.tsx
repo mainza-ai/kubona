@@ -88,6 +88,33 @@ describe('ResultsStudio verification gating (J1)', () => {
     expect(JSON.stringify(tree!.toJSON())).toContain('UNVERIFIED DRAFT');
   });
 
+  it('marks the optimistic annotation failed (never silently open) when sendChatMessage returns null', async () => {
+    const api = await import('@/lib/api');
+    vi.mocked(api.sendChatMessage).mockResolvedValueOnce(null);
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(
+        <ResultsStudio campaign={campaign('COLLAPSED_VERIFIED')} sessionId="sess-test-456" />
+      );
+    });
+
+    const input = tree!.root.findByType('input');
+    await act(async () => {
+      input.props.onChange({ target: { value: 'Check signs on overlap integrals' } });
+    });
+
+    const form = tree!.root.findByType('form');
+    await act(async () => {
+      await form.props.onSubmit({ preventDefault: () => {} });
+    });
+
+    const text = JSON.stringify(tree!.toJSON());
+    // The comment stays visible but is explicitly failed — never 'open'.
+    expect(text).toContain('Check signs on overlap integrals');
+    expect(text).toContain('failed');
+    expect(text).toContain('returned null');
+  });
+
   it('submits human annotation and dispatches re-verification prompt to active session', async () => {
     const { sendChatMessage } = await import('@/lib/api');
     let tree: TestRenderer.ReactTestRenderer;
