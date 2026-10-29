@@ -14,7 +14,7 @@
   <a href="platform/kubona/"><img src="https://img.shields.io/badge/Python-49.7%25-3776AB?logo=python&logoColor=white" alt="Python" /></a>
   <a href="platform/core/"><img src="https://img.shields.io/badge/Go-33.4%25-00ADD8?logo=go&logoColor=white" alt="Go" /></a>
   <a href="platform/console/"><img src="https://img.shields.io/badge/TypeScript-16.1%25-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
-  <a href="platform/tests/"><img src="https://img.shields.io/badge/Tests-1000%2B%20Passed-brightgreen" alt="Tests" /></a>
+  <a href="platform/tests/"><img src="https://img.shields.io/badge/Tests-2000%2B%20Passed-brightgreen" alt="Tests" /></a>
   <a href="wiki/concepts/local-simulation-test-scenarios.md"><img src="https://img.shields.io/badge/Simulation-%240.00%20(Zero--QPU)-success" alt="Simulation" /></a>
   <a href="wiki/"><img src="https://img.shields.io/badge/Wiki-154%20Pages-purple?logo=obsidian&logoColor=white" alt="Obsidian Knowledge Base" /></a>
   <a href="wiki/questions.md"><img src="https://img.shields.io/badge/Blueprint-0%20Open%20(Resolved)-brightgreen" alt="Open Decisions" /></a>
@@ -122,7 +122,7 @@ These are not aspirations. The ledger is sealed, the refusal paths are tested, a
 
 | Directory | Layer | Description |
 |---|---|---|
-| [`platform/core/`](platform/core/) | **Go Orchestrator** | Sovereign orchestrator, hash-chained provenance ledger, job coordination, campaign flight recorder (`GET /api/campaigns/{id}/flight-recorder`), IFC lattice (partial enforcement — see audit), containerized Docker sandbox (`runsc` opt-in; Python agent-code isolation pending), and **116 HTTP routes** on `:8080`. |
+| [`platform/core/`](platform/core/) | **Go Orchestrator** | Sovereign orchestrator, hash-chained provenance ledger, job coordination, campaign flight recorder (`GET /api/campaigns/{id}/flight-recorder`), IFC lattice (partial enforcement — see audit), containerized Docker sandbox (`runsc` opt-in; Python agent-code isolation pending), and the HTTP route surface (counts generated in [`docs/repo-counts.md`](docs/repo-counts.md)) on `:8080`. |
 | [`platform/crates/`](platform/crates/) | **Rust Core** | Native compiler core (`qir-core` lowering OpenQASM 3.0 to LLVM IR) and information-flow lattice (`ifc-core`). |
 | [`platform/kubona/mcp/`](platform/kubona/mcp/) | **MCP Tool Layer** | 6 federated Python servers mounting 37 tools over stdio (`compiler`, `execution`, `cost`, `provenance`, `control`, `world`)*. |
 | [`platform/console/`](platform/console/) | **Sovereign Console** | Next.js sovereign UI on `:3000` with six dock surfaces plus proof/mesh panels (Spatial Canvas, Flight Recorder, Epistemic Tribunal, Codesign Cockpit) and Ed25519 signing via `@noble/ed25519`. |
@@ -158,7 +158,7 @@ NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN=dev-token pnpm dev --port 3000
 
 ### 3. Run the Multi-Tier Verification Suite
 ```bash
-# Go Core orchestrator (33 packages, 116 HTTP routes)
+# Go Core orchestrator (counts: docs/repo-counts.md)
 cd platform/core && go test ./...
 
 # Rust native QIR compiler & IFC lattice
@@ -167,7 +167,7 @@ cargo test --manifest-path platform/crates/qir-core/Cargo.toml
 # Python runtime, autodiff, ansatz transfer, and co-design
 cd platform && pytest tests/test_differentiable_quantum_stack.py tests/test_ansatz_transfer.py tests/test_divstep_dual_model.py
 
-# Next.js sovereign console Vitest suite (59 files / 291 tests)
+# Next.js sovereign console Vitest suite (counts: docs/repo-counts.md)
 cd platform/console && npm test -- --run
 
 # Strict blueprint structural linting (154 pages; open decisions in questions §F)

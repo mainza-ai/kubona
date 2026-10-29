@@ -81,6 +81,11 @@ jobs:
         with:
           python-version: "3.11"
           cache: "pip"
+      # Counts are generated, not hand-maintained (README/wiki drift fix).
+      # The step is source-only; it does not need Go/Rust/Node.
+      - name: Repository counts are current
+        working-directory: .
+        run: python3 scripts/repo-counts.py --check
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
         with:
           # R0: this job rebuilds qir-core for the Python suite — without
