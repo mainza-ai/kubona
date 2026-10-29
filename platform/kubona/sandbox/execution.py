@@ -28,6 +28,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
@@ -49,6 +50,17 @@ except ImportError:  # pragma: no cover — Windows fallback: timeout-only limit
 #: here, change it there too (this file cannot do it for you) — and the
 #: sandbox-container CI job overrides via KUBONA_SANDBOX_IMAGE either way.
 SANDBOX_IMAGE_DEFAULT = "kubona-quantum-runner:1.1.0"
+#: Label key marking every container this rail starts. The timeout path and
+#: the reaper match ONLY this label — never an unlabelled container.
+SANDBOX_MANAGED_LABEL = "kubona.managed"
+SANDBOX_MANAGED_VALUE = "sandbox"
+#: Name prefix for sandbox containers (run-id suffix makes each unique).
+SANDBOX_NAME_PREFIX = "kubona-sandbox-"
+#: Env override for the reaper age threshold (seconds). Default 3600: normal
+#: runs last seconds, so anything older is an orphan by construction (e.g. a
+#: client killed mid-run after the container started).
+SANDBOX_REAP_AFTER_ENV = "KUBONA_SANDBOX_REAP_AFTER_SEC"
+SANDBOX_REAP_AFTER_DEFAULT = 3600
 #: Env flag selecting the container rail (dev and production).
 SANDBOX_CONTAINER_ENV = "KUBONA_SANDBOX_CONTAINER"
 #: Env override for the image (operator-pinned digest/tag).
@@ -300,10 +312,19 @@ def _is_explicit_dev_environment() -> bool:
 
 
 def build_container_command(*, image: str, workdir: str, max_memory_mb: int,
+                            run_id: str,
                             cpus: str = SANDBOX_CPUS,
                             pids_limit: int = SANDBOX_PIDS_LIMIT,
                             seccomp_profile: str | None = None) -> list[str]:
     """The exact container invocation (unit-tested flag-for-flag).
+
+    run_id (hex, caller-generated per run) names the container
+    (`kubona-sandbox-<8 hex>`) and labels it (`kubona.managed=sandbox`,
+    `kubona.run-id=<id>`) so the timeout path can stop exactly this
+    container and the reaper can sweep orphans — never unnamed, never
+    unlabelled. Unnamed containers are unreapable; the 2026-10-29 orphan
+    incident (nine 100%-CPU `workload.py` containers from killed test
+    clients) is why the name+label are mandatory, not decorative.
 
     Parity with the Go rail's hardened ephemeral config
     (platform/core/pkg/sandbox/docker.go :: ExecuteHarness): read-only
@@ -329,6 +350,9 @@ def build_container_command(*, image: str, workdir: str, max_memory_mb: int,
     mem = f"{max_memory_mb}m"
     cmd = [
         "docker", "run", "--rm",
+        "--name", f"{SANDBOX_NAME_PREFIX}{run_id[:8]}",
+        "--label", f"{SANDBOX_MANAGED_LABEL}={SANDBOX_MANAGED_VALUE}",
+        "--label", f"kubona.run-id={run_id}",
         "--read-only",
         "--tmpfs", SANDBOX_TMPFS,
         "--cap-drop=ALL",
@@ -350,6 +374,71 @@ def build_container_command(*, image: str, workdir: str, max_memory_mb: int,
         image, "workload.py",
     ]
     return cmd
+
+
+def _reap_after_seconds() -> int:
+    """Orphan age threshold (seconds). Env-overridable for tests."""
+    try:
+        return max(0, int(os.getenv(SANDBOX_REAP_AFTER_ENV, "") or SANDBOX_REAP_AFTER_DEFAULT))
+    except ValueError:
+        return SANDBOX_REAP_AFTER_DEFAULT
+
+
+def stop_sandbox_container(name: str, timeout_s: int = 30) -> bool:
+    """Force-stop one sandbox container by name. Best-effort: returns False
+    (never raises) when the daemon is unreachable or the name is gone."""
+    try:
+        r = subprocess.run(["docker", "stop", "-t", "0", name],
+                           capture_output=True, text=True, timeout=timeout_s)
+        return r.returncode == 0
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return False
+
+
+def reap_stale_sandboxes(max_age_sec: int | None = None) -> list[str]:
+    """Stop label-scoped sandbox containers older than the threshold.
+
+    Matches ONLY `kubona.managed=sandbox` (never unlabelled containers).
+    Normal runs last seconds; anything older than the threshold is an
+    orphan by construction (client killed mid-run after the container
+    started — killing the `docker run` client never stops the container).
+    Best-effort: daemon errors yield an empty list, never an exception.
+    Returns the stopped container names.
+    """
+    if max_age_sec is None:
+        max_age_sec = _reap_after_seconds()
+    try:
+        import datetime as _dt
+        listed = subprocess.run(
+            ["docker", "ps", "-q", "--filter",
+             f"label={SANDBOX_MANAGED_LABEL}={SANDBOX_MANAGED_VALUE}"],
+            capture_output=True, text=True, timeout=30)
+        if listed.returncode != 0:
+            return []
+        now = _dt.datetime.now(_dt.timezone.utc)
+        reaped: list[str] = []
+        for cid in listed.stdout.split():
+            cid = cid.strip()
+            if not cid:
+                continue
+            try:
+                probed = subprocess.run(
+                    ["docker", "inspect", "-f", "{{.Name}} {{.Created}}", cid],
+                    capture_output=True, text=True, timeout=30)
+                if probed.returncode != 0:
+                    continue
+                parts = probed.stdout.strip().split(None, 1)
+                if len(parts) != 2:
+                    continue
+                name, created = parts
+                age = (now - _dt.datetime.fromisoformat(created)).total_seconds()
+                if age >= max_age_sec and stop_sandbox_container(name.lstrip("/")):
+                    reaped.append(name.lstrip("/"))
+            except (OSError, ValueError):
+                continue
+        return reaped
+    except (OSError, subprocess.TimeoutExpired, ValueError):
+        return []
 
 
 class WorkloadSandbox:
@@ -499,11 +588,21 @@ class WorkloadSandbox:
                         violation="isolation_unavailable")
                 cmd = build_container_command(image=image, workdir=tmpdir,
                                               max_memory_mb=self.max_memory_mb,
+                                              run_id=uuid.uuid4().hex,
                                               seccomp_profile=seccomp_profile)
+                cname = cmd[cmd.index("--name") + 1] if "--name" in cmd else None
+                # Reap previous orphans best-effort (never fails the run).
+                reap_stale_sandboxes()
                 try:
                     proc = subprocess.run(cmd, capture_output=True, text=True,
                                           timeout=timeout_sec)
                 except subprocess.TimeoutExpired:
+                    # Killing the `docker run` client does NOT stop the
+                    # container (the 2026-10-29 orphan incident: nine 100%-CPU
+                    # containers from killed test clients). Stop the named
+                    # container itself; the verdict stays `timeout` either way.
+                    if cname is not None:
+                        stop_sandbox_container(cname)
                     return SandboxResult(success=False, returncode=-1, stdout="",
                                          stderr=f"Execution timed out after {timeout_sec}s",
                                          violation="timeout")

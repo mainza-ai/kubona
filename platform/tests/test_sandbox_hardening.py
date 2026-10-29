@@ -18,10 +18,15 @@ from kubona.sandbox import SecurityPolicyViolation, WorkloadSandbox
 from kubona.sandbox.execution import (
     SANDBOX_CPUS,
     SANDBOX_IMAGE_DEFAULT,
+    SANDBOX_MANAGED_LABEL,
+    SANDBOX_MANAGED_VALUE,
     SANDBOX_PIDS_LIMIT,
+    SANDBOX_REAP_AFTER_ENV,
     SANDBOX_TMPFS,
     SANDBOX_USER,
     build_container_command,
+    reap_stale_sandboxes,
+    stop_sandbox_container,
 )
 
 GO_DOCKER_RAIL = (
@@ -72,8 +77,12 @@ def test_container_command_reaches_go_parity():
     shipped profile (and never unconfined / never profile-less)."""
     from kubona.sandbox.execution import _default_seccomp_profile
     cmd = build_container_command(image=SANDBOX_IMAGE_DEFAULT,
-                                  workdir="/tmp/w", max_memory_mb=512)
+                                  workdir="/tmp/w", max_memory_mb=512,
+                                  run_id="aaabbbccdd")
     assert cmd[:3] == ["docker", "run", "--rm"]
+    assert "--name" in cmd and "kubona-sandbox-aaabbbcc" in cmd
+    assert "kubona.managed=sandbox" in " ".join(cmd)
+    assert "kubona.run-id=aaabbbccdd" in " ".join(cmd)
     joined = " ".join(cmd)
     for flag in ("--read-only",
                  "--tmpfs " + SANDBOX_TMPFS,
@@ -104,6 +113,7 @@ def test_container_command_applies_seccomp_profile_when_set():
     from kubona.sandbox.execution import SANDBOX_SECCOMP_PROFILE_ENV  # noqa: F401
     cmd = build_container_command(image=SANDBOX_IMAGE_DEFAULT,
                                   workdir="/tmp/w", max_memory_mb=512,
+                                  run_id="1122334455",
                                   seccomp_profile="/profiles/kubona.json")
     joined = " ".join(cmd)
     assert "--security-opt seccomp=/profiles/kubona.json" in joined
@@ -118,6 +128,7 @@ def test_container_command_empty_profile_means_no_flag_test_only():
     path); this exists so the suite can prove the backstop matters."""
     cmd = build_container_command(image=SANDBOX_IMAGE_DEFAULT,
                                   workdir="/tmp/w", max_memory_mb=512,
+                                  run_id="6677889900",
                                   seccomp_profile="")
     assert "seccomp=" not in " ".join(cmd)
 
@@ -129,7 +140,8 @@ def test_container_command_missing_shipped_profile_fails_closed(monkeypatch):
     monkeypatch.setattr(ex, "_default_seccomp_profile", lambda: None)
     with pytest.raises(FileNotFoundError, match="refusing"):
         build_container_command(image=SANDBOX_IMAGE_DEFAULT,
-                                workdir="/tmp/w", max_memory_mb=512)
+                                workdir="/tmp/w", max_memory_mb=512,
+                                run_id="abcdef0123")
 
 
 def test_go_rail_carries_seccomp_default_on():
@@ -472,7 +484,7 @@ def test_live_host_filesystem_is_not_mounted(monkeypatch):
         # 1000, so a 0700 tmpdir bind-mounts unreadable on Linux CI.
         os.chmod(tmpdir, 0o755)
         cmd = build_container_command(image=image, workdir=tmpdir,
-                                      max_memory_mb=256)
+                                      max_memory_mb=256, run_id="livehelper01")
 
         def _run_script(body: str) -> subprocess.CompletedProcess:
             Path(tmpdir, "workload.py").write_text(body)
@@ -540,11 +552,12 @@ def test_live_profile_denies_inet_socket_at_syscall(monkeypatch):
         os.chmod(tmpdir, 0o755)
         # Default path: no seccomp argument (resolves the shipped profile).
         cmd = build_container_command(image=image, workdir=tmpdir,
-                                      max_memory_mb=256)
+                                      max_memory_mb=256, run_id="livediff02")
         assert "seccomp=" in " ".join(cmd)  # the differential below is real
         # Test-only differential: explicit "" recovers Docker's default.
         nocmd = build_container_command(image=image, workdir=tmpdir,
-                                        max_memory_mb=256, seccomp_profile="")
+                                        max_memory_mb=256, run_id="livediff03",
+                                        seccomp_profile="")
 
         def _run_script(cmd: list, body: str) -> subprocess.CompletedProcess:
             Path(tmpdir, "workload.py").write_text(body)
@@ -601,3 +614,69 @@ def test_live_profile_escapes_fail_on_hardened_path(monkeypatch, code):
     _live_default_image(monkeypatch)
     res = WorkloadSandbox().execute_script(code, timeout_sec=60.0)
     assert res.success is False, f"escape succeeded under profile: {code!r}\n{res.stdout}"
+
+
+# ---------------------------------------------------------------------------
+# Orphan prevention (2026-10-29 incident: nine 100%-CPU workload.py
+# containers from killed test clients — killing the `docker run` client
+# never stops the container).
+# ---------------------------------------------------------------------------
+
+def _managed_names() -> set[str]:
+    """Names of currently present label-scoped sandbox containers."""
+    probe = subprocess.run(
+        ["docker", "ps", "-a", "--filter",
+         f"label={SANDBOX_MANAGED_LABEL}={SANDBOX_MANAGED_VALUE}",
+         "--format", "{{.Names}}"],
+        capture_output=True, text=True, timeout=60)
+    assert probe.returncode == 0, probe.stderr
+    return {n.strip() for n in probe.stdout.splitlines() if n.strip()}
+
+
+def _wait_gone(names: set[str], timeout_s: float = 20.0) -> set[str]:
+    """Poll until the named containers disappear (`--rm` removal lags the
+    stop call — asserting immediately after `docker stop` is a race)."""
+    import time as _time
+    deadline = _time.monotonic() + timeout_s
+    remaining = set(names)
+    while remaining and _time.monotonic() < deadline:
+        _time.sleep(1.0)
+        remaining &= _managed_names()
+    return remaining
+
+
+def test_timeout_kills_the_container_not_just_the_client(monkeypatch):
+    """A validator-clean infinite loop must leave zero containers behind:
+    the timeout path stops the NAMED container (client death alone
+    orphans it — the incident this test locks out)."""
+    _live_image(monkeypatch)
+    before = _managed_names()
+    res = WorkloadSandbox().execute_script("while True:\n pass", timeout_sec=8.0)
+    assert res.success is False
+    assert res.violation == "timeout"
+    leaked = _wait_gone(_managed_names() - before)
+    assert not leaked, f"orphaned sandbox containers: {leaked}"
+
+
+def test_reaper_sweeps_label_scoped_orphans_only(monkeypatch):
+    """The reaper stops stale label-scoped containers and touches nothing
+    else (labels are the blast-radius boundary)."""
+    _live_image(monkeypatch)
+    image = os.getenv("KUBONA_SANDBOX_IMAGE", SANDBOX_IMAGE_DEFAULT)
+    planted = f"kubona-sandbox-reaptest{os.getpid() % 100000:05d}"
+    start = subprocess.run(
+        ["docker", "run", "-d", "--rm",
+         "--label", f"{SANDBOX_MANAGED_LABEL}={SANDBOX_MANAGED_VALUE}",
+         "--label", "kubona.run-id=reaptest",
+         "--name", planted, "--entrypoint", "sleep",
+         image, "300"],
+        capture_output=True, text=True, timeout=120)
+    assert start.returncode == 0, start.stderr
+    try:
+        assert planted in _managed_names()
+        monkeypatch.setenv(SANDBOX_REAP_AFTER_ENV, "0")
+        reaped = reap_stale_sandboxes()
+        assert planted in reaped, f"reaper missed the planted orphan: {reaped}"
+        assert not _wait_gone({planted}), "reaped container still present"
+    finally:
+        stop_sandbox_container(planted)
