@@ -29,9 +29,20 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
         { key: SHORTCUTS.livingCanvas, description: 'Active Research Arena' },
         { key: SHORTCUTS.flightRecorder, description: '4D Flight Recorder' },
         { key: SHORTCUTS.epistemicOrb, description: 'Epistemic Manifold' },
-        { key: SHORTCUTS.fleetRadar, description: 'Quantum Fleet Radar' },
         { key: SHORTCUTS.livingNotebook, description: 'Merkle Proofs & Papers' },
+        { key: SHORTCUTS.fleetRadar, description: 'Quantum Fleet Radar' },
         { key: SHORTCUTS.cognitiveMesh, description: 'Local Sovereign Mesh' },
+      ],
+    },
+    {
+      category: 'Deep Links (Surface Tabs)',
+      shortcuts: [
+        { key: SHORTCUTS.sentinelGuardrails, description: 'Autonomy Cockpit & Guardrails' },
+        { key: SHORTCUTS.previewGallery, description: 'Preview Gallery' },
+        { key: SHORTCUTS.huggingFaceHub, description: 'Hugging Face Model Hub' },
+        { key: SHORTCUTS.laboratories, description: 'Experimental Tenant Labs' },
+        { key: SHORTCUTS.sovereignAirGap, description: 'Sovereign Settings' },
+        { key: SHORTCUTS.tribunalRoom, description: 'Epistemic Tribunal Room' },
       ],
     },
     {

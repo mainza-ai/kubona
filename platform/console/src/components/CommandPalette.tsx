@@ -19,6 +19,11 @@ import {
   Database,
   FlaskConical,
   Settings,
+  FileText,
+  CircuitBoard,
+  Rocket,
+  GitBranch,
+  Keyboard,
 } from 'lucide-react';
 import { SHORTCUTS } from '@/lib/shortcuts';
 
@@ -29,6 +34,8 @@ interface CommandPaletteProps {
   onNewCampaign: () => void;
   onEmergencyAbort: () => void;
   onOpenAbout: () => void;
+  onToggleCopilot?: () => void;
+  onOpenShortcuts?: () => void;
 }
 
 export function CommandPalette({
@@ -38,6 +45,8 @@ export function CommandPalette({
   onNewCampaign,
   onEmergencyAbort,
   onOpenAbout,
+  onToggleCopilot,
+  onOpenShortcuts,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -88,7 +97,7 @@ export function CommandPalette({
       id: 'tribunal',
       title: 'Epistemic Tribunal Room (Multi-Agent Cross-Examination)',
       category: 'Proofs & Evidence',
-      shortcut: undefined,
+      shortcut: SHORTCUTS.tribunalRoom,
       icon: Shield,
       action: () => onSelectSurface('tribunal'),
     },
@@ -96,10 +105,44 @@ export function CommandPalette({
       id: 'gallery',
       title: 'Generative UI Studio (Multi-Modal Preview Gallery)',
       category: 'Proofs & Evidence',
-      shortcut: undefined,
+      shortcut: SHORTCUTS.previewGallery,
       icon: Sparkles,
       action: () => onSelectSurface('gallery'),
     },
+    {
+      id: 'manuscripts',
+      title: 'Manuscripts (Proofs · Systematic Notebooks)',
+      category: 'Proofs & Evidence',
+      shortcut: undefined,
+      icon: FileText,
+      action: () => onSelectSurface('manuscripts'),
+    },
+    {
+      id: 'circuits',
+      title: 'Circuit Codesign (Proofs · Hardware-Software Co-Design)',
+      category: 'Proofs & Evidence',
+      shortcut: undefined,
+      icon: CircuitBoard,
+      action: () => onSelectSurface('circuits'),
+    },
+    {
+      id: 'arena-orbital',
+      title: 'Orbital Space (Arena View)',
+      category: 'Arena Views',
+      shortcut: undefined,
+      icon: Rocket,
+      action: () => onSelectSurface('arena-orbital'),
+    },
+    {
+      id: 'arena-proof-dag',
+      title: 'Proof DAG (Arena View)',
+      category: 'Arena Views',
+      shortcut: undefined,
+      icon: GitBranch,
+      action: () => onSelectSurface('arena-proof-dag'),
+    },
+    // No Hardware-QPU entry: that arena tab jumps to the dock Fleet Radar
+    // surface instead of mounting a second live instance (see page.tsx).
     {
       id: 'mesh',
       title: 'Local Sovereign Mesh (MLX · Ollama · Air-Gap)',
@@ -112,7 +155,7 @@ export function CommandPalette({
       id: 'guardrails',
       title: 'Autonomy Cockpit & Guardrails (Spend, Rings & Mandates)',
       category: 'Mesh & Governance',
-      shortcut: undefined,
+      shortcut: SHORTCUTS.sentinelGuardrails,
       icon: SlidersHorizontal,
       action: () => onSelectSurface('guardrails'),
     },
@@ -120,7 +163,7 @@ export function CommandPalette({
       id: 'models',
       title: 'Hugging Face Model Hub (GGUF Quant Discovery)',
       category: 'Mesh & Governance',
-      shortcut: undefined,
+      shortcut: SHORTCUTS.huggingFaceHub,
       icon: Database,
       action: () => onSelectSurface('models'),
     },
@@ -128,7 +171,7 @@ export function CommandPalette({
       id: 'labs',
       title: 'Experimental Tenant Labs (Ed25519 Session Auth)',
       category: 'Mesh & Governance',
-      shortcut: undefined,
+      shortcut: SHORTCUTS.laboratories,
       icon: FlaskConical,
       action: () => onSelectSurface('labs'),
     },
@@ -136,10 +179,34 @@ export function CommandPalette({
       id: 'settings',
       title: 'Sovereign Settings & LLM Configuration (Local-First Air-Gap)',
       category: 'Mesh & Governance',
-      shortcut: undefined,
+      shortcut: SHORTCUTS.sovereignAirGap,
       icon: Settings,
       action: () => onSelectSurface('settings'),
     },
+    ...(onToggleCopilot
+      ? [
+          {
+            id: 'toggle-copilot',
+            title: 'Toggle Kubona Copilot',
+            category: 'Actions',
+            shortcut: SHORTCUTS.copilot,
+            icon: Sparkles,
+            action: onToggleCopilot,
+          },
+        ]
+      : []),
+    ...(onOpenShortcuts
+      ? [
+          {
+            id: 'shortcuts-help',
+            title: 'Keyboard Shortcuts Guide',
+            category: 'Actions',
+            shortcut: SHORTCUTS.help,
+            icon: Keyboard,
+            action: onOpenShortcuts,
+          },
+        ]
+      : []),
     {
       id: 'new-campaign',
       title: 'New Research Campaign',
@@ -162,11 +229,10 @@ export function CommandPalette({
       category: 'Safety',
       shortcut: SHORTCUTS.emergencyAbort,
       icon: Zap,
-      action: () => {
-        if (confirm('EMERGENCY ABORT: Settle every unsettled job in this session as failed?')) {
-          onEmergencyAbort();
-        }
-      },
+      // Single confirm lives at the execution site (page handleEmergencyAbort
+      // — it also covers no-session and surfaces the abort receipt). This
+      // entry delegates without re-confirming so there is exactly one gate.
+      action: onEmergencyAbort,
     },
   ];
 
@@ -298,7 +364,10 @@ export function CommandPalette({
           <span>Navigate with ↑ ↓ · Select with ↵</span>
           <span className="flex items-center space-x-1.5">
             <Command className="w-3.5 h-3.5 text-slate-300" />
-            <span>K to toggle</span>
+            <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-[10px] font-mono text-slate-200 border border-white/10">
+              {SHORTCUTS.commandPalette}
+            </kbd>
+            <span>to toggle</span>
           </span>
         </div>
       </div>
