@@ -40,6 +40,11 @@ export function HuggingFaceModelHub() {
   const quantPanelRef = useRef<HTMLDivElement | null>(null);
   useFocusTrap(selectedModel !== null, quantPanelRef);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  // Honest empty: "No models found" renders only after a search actually
+  // ran clean (searched && !searchFailed). A refused search (401/429/5xx —
+  // the wrapper throws) renders the refusal + retry, never a fake empty.
+  const [searched, setSearched] = useState(false);
+  const [searchFailed, setSearchFailed] = useState<string | null>(null);
   const [downloads, setDownloads] = useState<HFDownloadTask[]>([]);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [toastTone, setToastTone] = useState<'info' | 'error'>('info');
@@ -61,11 +66,16 @@ export function HuggingFaceModelHub() {
 
   const performSearch = useCallback(async (q = query, lib = library) => {
     setLoading(true);
+    setSearchFailed(null);
     try {
       const results = await searchHFModels(q, lib, 16);
-      setModels(results);
+      setModels(Array.isArray(results) ? results : []);
+      setSearched(true);
     } catch (err) {
-      showToast(`Search failed — nothing returned (${err instanceof Error ? err.message : String(err)}).`, 'error');
+      const msg = err instanceof Error ? err.message : String(err);
+      setSearchFailed(msg);
+      setSearched(true);
+      showToast(`Search failed — nothing returned (${msg}).`, 'error');
     } finally {
       setLoading(false);
     }
@@ -85,10 +95,18 @@ export function HuggingFaceModelHub() {
     let timer: ReturnType<typeof setTimeout> | null = null;
     searchHFModels('qwen2.5-coder', 'gguf', 16)
       .then((results) => {
-        if (mounted) setModels(results);
+        if (mounted) {
+          setModels(Array.isArray(results) ? results : []);
+          setSearched(true);
+        }
       })
       .catch((err) => {
-        if (mounted) showToast(`Search failed — hub refused (${err instanceof Error ? err.message : String(err)}).`, 'error');
+        if (mounted) {
+          const msg = err instanceof Error ? err.message : String(err);
+          setSearchFailed(msg);
+          setSearched(true);
+          showToast(`Search failed — hub refused (${msg}).`, 'error');
+        }
       });
 
     listHFDownloads()
@@ -375,12 +393,12 @@ export function HuggingFaceModelHub() {
               </h3>
 
               <div className="flex items-center space-x-3 text-[10px] font-mono text-slate-400">
-                <span>⬇ {model.downloads.toLocaleString()}</span>
-                <span>♥ {model.likes.toLocaleString()}</span>
+                <span>⬇ {(model.downloads ?? 0).toLocaleString()}</span>
+                <span>♥ {(model.likes ?? 0).toLocaleString()}</span>
               </div>
 
               <div className="flex flex-wrap gap-1 pt-1">
-                {model.tags.slice(0, 4).map((t) => (
+                {(model.tags ?? []).slice(0, 4).map((t) => (
                   <span key={t} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/[0.04] text-slate-400">
                     {t}
                   </span>
@@ -412,10 +430,24 @@ export function HuggingFaceModelHub() {
         ))}
       </div>
 
-      {models.length === 0 && !loading && (
+      {models.length === 0 && !loading && searched && !searchFailed && (
         <div className="p-12 text-center text-slate-400 space-y-2 border border-dashed border-white/10 rounded-2xl">
           <Database className="w-8 h-8 mx-auto text-slate-500" />
           <p className="text-xs">No models found on Hugging Face. Try searching for &quot;qwen&quot;, &quot;llama&quot;, or &quot;mlx&quot;.</p>
+        </div>
+      )}
+
+      {models.length === 0 && !loading && searched && searchFailed && (
+        <div className="p-12 text-center space-y-3 border border-dashed border-rose-500/40 rounded-2xl bg-rose-950/30">
+          <Database className="w-8 h-8 mx-auto text-rose-400" />
+          <p className="text-xs text-rose-200">Hugging Face hub refused the search — nothing returned, nothing assumed ({searchFailed.slice(0, 200)}).</p>
+          <button
+            type="button"
+            onClick={() => void performSearch()}
+            className="px-3 py-1.5 rounded-xl bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-slate-200 text-xs font-semibold transition"
+          >
+            Retry search
+          </button>
         </div>
       )}
 
@@ -459,7 +491,7 @@ export function HuggingFaceModelHub() {
                   <RefreshCw className="w-6 h-6 mx-auto animate-spin text-amber-400" />
                   <p className="text-xs">Loading quantization files from Hugging Face Hub…</p>
                 </div>
-              ) : selectedModel.quantizations.length === 0 ? (
+              ) : (selectedModel.quantizations ?? []).length === 0 ? (
                 <div className="p-8 text-center text-slate-400 border border-dashed border-white/10 rounded-xl space-y-2">
                   <FileCode className="w-6 h-6 mx-auto text-slate-500" />
                   <p className="text-xs">No single-file .gguf or .mlx weights detected in repository root.</p>
@@ -475,7 +507,7 @@ export function HuggingFaceModelHub() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {selectedModel.quantizations.map((q) => (
+                  {(selectedModel.quantizations ?? []).map((q) => (
                     <div
                       key={q.filename}
                       className="p-3.5 rounded-xl bg-white/[0.03] border border-white/10 flex items-center justify-between gap-3 hover:bg-white/[0.06] transition-colors"

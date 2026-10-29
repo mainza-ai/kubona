@@ -5,7 +5,14 @@ import { fetchJob, isTerminalJobStatus, jobStatusLabel } from '@/lib/api';
 // 2 s and renders queued → running → settled with elapsed time. Stops on
 // terminal status. Shows only measured states from the record (status,
 // created/completed timestamps) — no invented progress bars.
+//
+// Null-job path: fetchJob returns null on transport loss or unknown id.
+// A single null is a transient blip (keep polling); N consecutive nulls
+// mean the job is gone or the backend is down — stop the loop and render
+// an explicit "job unavailable — retry" state instead of an infinite
+// QUEUED pulse (same discipline as QuantumDispatch's paused polling).
 const POLL_MS = 2000;
+const MAX_CONSECUTIVE_NULLS = 3;
 
 function elapsed(created?: string, completed?: string): string {
   if (!created) return '';
@@ -20,27 +27,64 @@ function elapsed(created?: string, completed?: string): string {
 export function JobProgress({ jobId, sessionId }: { jobId: string; sessionId: string }) {
   const [status, setStatus] = useState<string>('JOB_STATUS_QUEUED');
   const [detail, setDetail] = useState<{ created?: string; completed?: string; jobType?: string; backend?: string }>({});
+  const [gone, setGone] = useState(false);
+  // Bumping retryKey restarts polling after a jobGone stop.
+  const [retryKey, setRetryKey] = useState(0);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     let live = true;
-    const poll = async () => {
-      const job = await fetchJob(jobId, sessionId);
-      if (!live || !job) return;
-      setStatus(String(job.status));
-      setDetail({ created: job.created_at, completed: job.completed_at, jobType: job.job_type });
-      if (isTerminalJobStatus(job.status) && timer.current) {
+    let consecutiveNulls = 0;
+    const stop = () => {
+      if (timer.current) {
         clearInterval(timer.current);
         timer.current = null;
+      }
+    };
+    const poll = async () => {
+      const job = await fetchJob(jobId, sessionId);
+      if (!live) return;
+      if (!job) {
+        consecutiveNulls += 1;
+        if (consecutiveNulls >= MAX_CONSECUTIVE_NULLS) {
+          stop();
+          setGone(true);
+        }
+        return;
+      }
+      consecutiveNulls = 0;
+      setGone(false);
+      setStatus(String(job.status));
+      setDetail({ created: job.created_at, completed: job.completed_at, jobType: job.job_type });
+      if (isTerminalJobStatus(job.status)) {
+        stop();
       }
     };
     poll();
     timer.current = setInterval(poll, POLL_MS);
     return () => {
       live = false;
-      if (timer.current) clearInterval(timer.current);
+      stop();
     };
-  }, [jobId, sessionId]);
+  }, [jobId, sessionId, retryKey]);
+
+  if (gone) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-2.5 text-xs" role="alert" aria-label={`Job ${jobId} unavailable`}>
+        <span className="text-slate-400 font-code">job unavailable — backend returned nothing (transport or unknown id).</span>
+        <button
+          type="button"
+          onClick={() => {
+            setGone(false);
+            setRetryKey((k) => k + 1);
+          }}
+          className="ml-2 px-2 py-1 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-slate-200 text-[11px] font-semibold"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
 
   const st = jobStatusLabel(status);
   const done = isTerminalJobStatus(status);

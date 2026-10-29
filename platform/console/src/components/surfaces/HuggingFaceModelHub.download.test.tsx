@@ -72,6 +72,66 @@ async function openQuantPanel(tree: TestRenderer.ReactTestRenderer) {
   });
 }
 
+describe('HuggingFaceModelHub crash guards + honest empty', () => {
+  it('survives malformed model shapes — null downloads/tags/quantizations never crash', async () => {
+    stubFetch((url) => {
+      if (url.includes('/api/hf/search')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            models: [{ id: 'org/broken', author: 'org', downloads: null, likes: undefined, pipeline_tag: null, tags: null, quantizations: null }],
+          }),
+        };
+      }
+      if (url.includes('/api/hf/models/')) {
+        return { ok: true, status: 200, json: async () => ({ model: null }) };
+      }
+      if (url.includes('/api/hf/downloads')) {
+        return { ok: true, status: 200, json: async () => ({ downloads: [] }) };
+      }
+      throw new Error(`unexpected ${url}`);
+    });
+    const tree = await render();
+    const html = JSON.stringify(tree.toJSON());
+    expect(html).toContain('org/broken');
+    expect(html).not.toContain('No models found');
+  });
+
+  it('shows a refused search with retry — never a fake "No models found"', async () => {
+    stubFetch((url) => {
+      if (url.includes('/api/hf/search')) {
+        return { ok: false, status: 401, json: async () => ({}) };
+      }
+      if (url.includes('/api/hf/downloads')) {
+        return { ok: true, status: 200, json: async () => ({ downloads: [] }) };
+      }
+      throw new Error(`unexpected ${url}`);
+    });
+    const tree = await render();
+    const html = JSON.stringify(tree.toJSON());
+    expect(html).toContain('refused the search');
+    expect(html).toContain('Retry search');
+    expect(html).not.toContain('No models found');
+  });
+
+  it('shows "No models found" only after a search actually ran clean', async () => {
+    stubFetch((url) => {
+      if (url.includes('/api/hf/search')) {
+        return { ok: true, status: 200, json: async () => ({ models: [] }) };
+      }
+      if (url.includes('/api/hf/downloads')) {
+        return { ok: true, status: 200, json: async () => ({ downloads: [] }) };
+      }
+      throw new Error(`unexpected ${url}`);
+    });
+    const tree = await render();
+    const html = JSON.stringify(tree.toJSON());
+    expect(html).toContain('No models found');
+    expect(html).not.toContain('refused the search');
+  });
+});
+
 describe('HuggingFaceModelHub download confirm (T-11)', () => {
   it('big fetch stops at a confirm dialog and posts nothing until confirmed', async () => {
     const posted: Array<{ url: string; body: string }> = [];

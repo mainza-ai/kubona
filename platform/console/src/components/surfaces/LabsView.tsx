@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { FlaskConical, ChevronDown, ChevronUp, AlertTriangle } from 'lucide-react';
 import { Lab, Session } from '@/types';
-import { fetchLabs, fetchSessions } from '@/lib/api';
+import { fetchLabs, fetchSessions, authWhoami, wasRecentAuthFailure } from '@/lib/api';
 import { fmtMoney } from '@/lib/guards';
 import { LabOpsPanel } from '@/components/common/LabOpsPanel';
 import { AuthPanel } from '@/components/common/AuthPanel';
@@ -19,6 +19,10 @@ export function LabsView() {
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Auth signal for the empty state: an empty lab list after a 401 (or
+  // with no authenticated session) is a refusal, not a genuine empty.
+  // The wrapper returns [] for both, so this separate signal decides.
+  const [authed, setAuthed] = useState<boolean | null>(null);
 
   // Refetch labs (U1-b: server owns tenant state — every accepted
   // ceiling/status/refund/admin-key mutation re-reads it).
@@ -40,6 +44,15 @@ export function LabsView() {
         if (!live) return;
         setError(e instanceof Error ? e.message : String(e));
         setLoaded(true);
+      });
+    // Auth check never blocks or fails the lab load — it only labels an
+    // empty result as refused vs genuinely empty.
+    authWhoami()
+      .then((me) => {
+        if (live) setAuthed(me?.authenticated === true);
+      })
+      .catch(() => {
+        if (live) setAuthed(false);
       });
     return () => {
       live = false;
@@ -66,6 +79,26 @@ export function LabsView() {
     );
   }
   if (labs.length === 0) {
+    // Refused (401 / no session) reads as a login prompt anchored to the
+    // Operator session panel — never as a fake "no laboratories" empty.
+    // wasRecentAuthFailure covers a 401 that raced this render; the
+    // whoami result covers a steady logged-out state.
+    if (wasRecentAuthFailure() || authed === false) {
+      return (
+        <div className="space-y-3">
+          <div className="p-3 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-200 text-xs">
+            Laboratories refused — the backend requires login. Nothing loaded, nothing assumed.{' '}
+            <a href="#operator-session" className="underline hover:text-amber-100">
+              Log in below
+            </a>
+            .
+          </div>
+          <div id="operator-session">
+            <AuthPanel labs={[]} />
+          </div>
+        </div>
+      );
+    }
     return <div className="text-slate-400 text-sm">No laboratories registered.</div>;
   }
 

@@ -90,11 +90,12 @@ describe('LoopControlList (U1-c)', () => {
     expect(JSON.stringify(tree.toJSON())).toContain('loop l1 not found');
   });
 
-  it('renders nothing when there are no loops', async () => {
+  it('renders an honest "no live loops" line when there are no loops', async () => {
     stubFetch(() => {
       throw new Error('must not fetch');
     });
     const tree = await render(<LoopControlList loops={[]} onChanged={() => {}} />);
-    expect(tree.toJSON()).toBeNull();
+    expect(tree.toJSON()).not.toBeNull();
+    expect(JSON.stringify(tree.toJSON())).toContain('no live loops');
   });
 });

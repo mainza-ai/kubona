@@ -32,7 +32,10 @@ interface FrameAnnotation {
   targetAnchor: string; // e.g. "§Abstract", "§EnergyTable", "§Lean4Proof"
   author: string;
   comment: string;
-  status: 'open' | 'addressed' | 'verified';
+  // 'failed' marks an annotation whose re-verification prompt never
+  // reached the swarm (transport null/refusal) — it stays visible and
+  // explicitly failed, never silently 'open'.
+  status: 'open' | 'addressed' | 'verified' | 'failed';
   timestamp: string;
 }
 
@@ -223,13 +226,22 @@ ${bibtex}
         const prompt = `[Human Review on ${selectedAnchor}]: ${comment}\nPlease re-verify this derivation against computed classical limits and formal proof bounds.`;
         const result = await sendChatMessage(sessionId, prompt);
         if (!result) {
-          setAnnotationError('Failed to prompt swarm: message send returned null.');
+          // Transport null: the optimistic annotation never reached the
+          // swarm — mark it explicitly failed (kept visible) instead of
+          // leaving it silently 'open'.
+          setAnnotations((prev) =>
+            prev.map((a) => (a.id === annoId ? { ...a, status: 'failed' } : a))
+          );
+          setAnnotationError('Failed to prompt swarm: message send returned null — annotation kept as failed, not sent.');
         } else {
           setAnnotations((prev) =>
             prev.map((a) => (a.id === annoId ? { ...a, status: 'addressed' } : a))
           );
         }
       } catch (err) {
+        setAnnotations((prev) =>
+          prev.map((a) => (a.id === annoId ? { ...a, status: 'failed' } : a))
+        );
         setAnnotationError(err instanceof Error ? err.message : String(err));
       } finally {
         setSubmittingAnnotation(false);
@@ -529,7 +541,9 @@ ${bibtex}
                       className={`text-[9px] font-mono uppercase px-1.5 py-0.5 rounded border ${
                         anno.status === 'verified'
                           ? 'border-emerald-500/40 text-emerald-400 bg-emerald-950/30'
-                          : 'border-cyan-500/40 text-cyan-400 bg-cyan-950/30'
+                          : anno.status === 'failed'
+                            ? 'border-rose-500/40 text-rose-400 bg-rose-950/30'
+                            : 'border-cyan-500/40 text-cyan-400 bg-cyan-950/30'
                       }`}
                     >
                       {anno.status}

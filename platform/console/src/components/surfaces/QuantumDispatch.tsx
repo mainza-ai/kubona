@@ -31,6 +31,14 @@ const DEFAULT_QUBO = `[
 // card when the estimate is non-zero → dispatch (idempotency key minted
 // per human intent) → poll status → cancel if needed. Every refusal
 // renders verbatim; nothing here can invent a result.
+
+// Poll tuning: base cadence, backoff multiplier + ceiling (same shape as
+// FleetRadar's 1.5×/15 s discipline), and the consecutive-transport-loss
+// budget after which polling pauses with an explicit Resume.
+const POLL_BASE_MS = 5000;
+const POLL_BACKOFF_FACTOR = 1.5;
+const POLL_MAX_DELAY_MS = 15000;
+const POLL_MAX_TRANSPORT_FAILURES = 5;
 export function QuantumDispatch({
   sessionId,
   tenantId,
@@ -53,7 +61,15 @@ export function QuantumDispatch({
   const [jobError, setJobError] = useState<string | null>(null);
   const [cancelNote, setCancelNote] = useState<string | null>(null);
   const [refunds, setRefunds] = useState<Array<Record<string, unknown>>>([]);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Poll discipline (mirrors FleetRadar): a chained setTimeout (never a
+  // fixed setInterval) with exponential backoff on transport loss, a
+  // visibility gate, and an explicit pause-with-resume after repeated
+  // transport failures — a dead backend must not spin the loop forever.
+  const [pollPaused, setPollPaused] = useState(false);
+  const pollRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pollFailsRef = useRef(0);
+  const pollDelayRef = useRef(POLL_BASE_MS);
+  const pollJobIdRef = useRef<string | null>(null);
 
   // Independent fetch (same two calls as QuantumSettings, no shared
   // state): the saved default backend seeds the picker.
@@ -72,32 +88,65 @@ export function QuantumDispatch({
 
   useEffect(() => {
     return () => {
-      if (pollRef.current) clearInterval(pollRef.current);
+      if (pollRef.current) clearTimeout(pollRef.current);
     };
   }, []);
 
+  const stopPoll = useCallback(() => {
+    if (pollRef.current) {
+      clearTimeout(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+
   const pollJob = useCallback((id: string) => {
-    if (pollRef.current) clearInterval(pollRef.current);
+    stopPoll();
+    pollJobIdRef.current = id;
+    pollFailsRef.current = 0;
+    pollDelayRef.current = POLL_BASE_MS;
+    setPollPaused(false);
+    const schedule = (ms: number) => {
+      pollRef.current = setTimeout(() => void tick(), ms);
+    };
     const tick = async () => {
+      // Visibility gate: no polling while the tab is hidden — reschedule
+      // without counting a failure (same as FleetRadar / HF hub).
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        if (pollJobIdRef.current === id) schedule(2000);
+        return;
+      }
       const st = await fetchQuantumJob(id);
+      if (pollJobIdRef.current !== id) return;
       if (!st) {
+        pollFailsRef.current += 1;
+        if (pollFailsRef.current >= POLL_MAX_TRANSPORT_FAILURES) {
+          stopPoll();
+          setPollPaused(true);
+          setJobError('backend unreachable — polling paused');
+          return;
+        }
         setJobError('Status fetch failed (transport).');
+        pollDelayRef.current = Math.min(pollDelayRef.current * POLL_BACKOFF_FACTOR, POLL_MAX_DELAY_MS);
+        schedule(pollDelayRef.current);
         return;
       }
       if (!st.ok) {
         setJobError(String(st.error ?? 'unknown status error'));
-        if (pollRef.current) clearInterval(pollRef.current);
+        stopPoll();
         return;
       }
+      pollFailsRef.current = 0;
+      pollDelayRef.current = POLL_BASE_MS;
       const status = String(st.status ?? 'unknown');
       setJobStatus(status);
       if (status !== 'queued' && status !== 'running') {
-        if (pollRef.current) clearInterval(pollRef.current);
+        stopPoll();
+        return;
       }
+      schedule(POLL_BASE_MS);
     };
     void tick();
-    pollRef.current = setInterval(() => void tick(), 5000);
-  }, []);
+  }, [stopPoll]);
 
   const [quoteFingerprint, setQuoteFingerprint] = useState<string | null>(null);
   const currentFingerprint = useMemo(
@@ -365,6 +414,18 @@ export function QuantumDispatch({
               <span>Refresh</span>
             </button>
           </div>
+          {pollPaused && (
+            <div className="p-2.5 rounded-xl bg-amber-950/50 border border-amber-500/40 text-amber-200 text-[11px] font-mono flex items-center justify-between gap-2">
+              <span>backend unreachable — polling paused after repeated transport failures.</span>
+              <button
+                type="button"
+                onClick={() => pollJob(jobId)}
+                className="shrink-0 px-3 py-1.5 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-100 font-semibold"
+              >
+                Resume
+              </button>
+            </div>
+          )}
           {cancelNote && <div className="text-amber-300/90">{cancelNote}</div>}
         </div>
       )}

@@ -131,6 +131,68 @@ describe('QuantumDispatch human flow', () => {
     expect(textOf(root!.root)).toContain('unknown provider "nope"');
   });
 
+  it('pauses polling after repeated transport loss and resumes on demand', async () => {
+    vi.mocked(api.submitQuantumJob)
+      .mockResolvedValueOnce({
+        ok: true,
+        estimate: { estimated_usd: 0 },
+        fidelity: { admitted: true, skipped: 'simulator-class backend' },
+      })
+      .mockResolvedValueOnce({ ok: true, job_id: 'j9', queued: true, session_id: 's1' });
+    let root: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      root = TestRenderer.create(<QuantumDispatch sessionId="s1" />);
+    });
+    const estBtn = root!.root.find((n) => n.type === 'button' && textOf(n).includes('Estimate (dry run)'));
+    await act(async () => {
+      (estBtn.props as { onClick: () => void }).onClick();
+    });
+    await flush();
+    const goBtn = root!.root.find((n) => n.type === 'button' && textOf(n).includes('Dispatch job'));
+    await act(async () => {
+      await (goBtn.props as { onClick: () => Promise<void> }).onClick();
+    });
+    await flush();
+    expect(textOf(root!.root)).toContain('j9');
+    // From here the backend goes dark: every status fetch is a
+    // transport null. Fake timers drive the chained poll timeouts.
+    vi.useFakeTimers();
+    try {
+      vi.mocked(api.fetchQuantumJob).mockResolvedValue(null);
+      const refreshBtn = root!.root.find((n) => n.type === 'button' && textOf(n).includes('Refresh'));
+      await act(async () => {
+        (refreshBtn.props as { onClick: () => void }).onClick();
+      });
+      const callsBefore = vi.mocked(api.fetchQuantumJob).mock.calls.length;
+      // Backoff chain: 7.5s → 11.25s → 15s → 15s; five consecutive
+      // nulls exhaust the transport budget.
+      for (let i = 0; i < 5; i++) {
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(16000);
+        });
+      }
+      expect(vi.mocked(api.fetchQuantumJob).mock.calls.length).toBeGreaterThan(callsBefore);
+      const pausedText = textOf(root!.root);
+      expect(pausedText).toContain('polling paused');
+      expect(pausedText).toContain('Resume');
+      const callsAtPause = vi.mocked(api.fetchQuantumJob).mock.calls.length;
+      // Paused: no further transport attempts while paused.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(60000);
+      });
+      expect(vi.mocked(api.fetchQuantumJob).mock.calls.length).toBe(callsAtPause);
+      // Resume restarts the poll chain (one immediate attempt).
+      const resumeBtn = root!.root.find((n) => n.type === 'button' && textOf(n).includes('Resume'));
+      await act(async () => {
+        (resumeBtn.props as { onClick: () => void }).onClick();
+      });
+      expect(vi.mocked(api.fetchQuantumJob).mock.calls.length).toBeGreaterThan(callsAtPause);
+      expect(textOf(root!.root)).not.toContain('polling paused');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('switches input mode to QUBO matrix when dwave-annealing is selected', async () => {
     let root: TestRenderer.ReactTestRenderer | undefined;
     await act(async () => {
