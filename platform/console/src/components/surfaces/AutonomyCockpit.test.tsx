@@ -262,3 +262,83 @@ describe('AutonomyCockpit Wave-2 money copy + toggle staging', () => {
     expect(badgeText(tree)).toContain('Sentinel Protection Active');
   });
 });
+
+describe('AutonomyCockpit emergency abort typed gate', () => {
+  function stubAbort(result: unknown) {
+    vi.stubGlobal(
+      'fetch',
+      async (url: string) => {
+        const u = String(url);
+        if (u.includes('/api/health')) {
+          return { ok: true, json: async () => ({ service: 'kubonad-test', version: '0.0.0' }) };
+        }
+        if (u.includes('/api/ready')) {
+          return { ok: true, json: async () => ({ ready: true }) };
+        }
+        if (u.includes('/api/llm/settings')) {
+          return { ok: true, json: async () => ({ air_gapped: false }) };
+        }
+        if (u.includes('/api/metasearch/proposals')) {
+          return { ok: true, json: async () => ({ proposals: [] }) };
+        }
+        if (u.includes('abort')) {
+          return result;
+        }
+        return { ok: false, status: 404, json: async () => ({}) };
+      }
+    );
+  }
+
+  function abortButton(tree: TestRenderer.ReactTestRenderer) {
+    const btns = tree.root.findAllByType('button');
+    const btn = btns.find((b) => instanceText(b).includes('Emergency Pause'));
+    if (!btn) throw new Error('abort button not found');
+    return btn;
+  }
+
+  it('opens a typed gate instead of native confirm, and closes on success', async () => {
+    stubAbort({ ok: true, json: async () => ({ aborted_count: 2, abort_receipt: 'r1' }) });
+    const tree = await renderCockpit();
+    await act(async () => {
+      abortButton(tree).props.onClick();
+    });
+    const dialog = tree.root.findByProps({ role: 'alertdialog' });
+    expect(dialog.props['aria-label']).toContain('abort');
+    const confirmOf = () =>
+      dialog.findAllByType('button').find((b) => String(b.props.children).includes('Abort'));
+    expect(confirmOf()).toBeTruthy();
+    expect(confirmOf()!.props.disabled).toBe(true);
+    const input = dialog.findByType('input');
+    await act(async () => {
+      input.props.onChange({ target: { value: 'sess-1X' } });
+    });
+    expect(confirmOf()!.props.disabled).toBe(true);
+    await act(async () => {
+      input.props.onChange({ target: { value: 'sess-1' } });
+    });
+    await act(async () => {
+      await confirmOf()!.props.onClick();
+    });
+    expect(instanceText(tree.root)).toContain('Ring 0 Intercept complete: 2 job(s)');
+  });
+
+  it('keeps the dialog open on refusal with the reason inline', async () => {
+    stubAbort({ ok: false, status: 403, text: async () => 'forbidden' });
+    const tree = await renderCockpit();
+    await act(async () => {
+      abortButton(tree).props.onClick();
+    });
+    const dialog = tree.root.findByProps({ role: 'alertdialog' });
+    const input = dialog.findByType('input');
+    await act(async () => {
+      input.props.onChange({ target: { value: 'sess-1' } });
+    });
+    await act(async () => {
+      await dialog
+        .findAllByType('button')
+        .find((b) => String(b.props.children).includes('Abort'))!.props.onClick();
+    });
+    expect(tree.root.findAllByProps({ role: 'alertdialog' }).length).toBe(1);
+    expect(instanceText(tree.root)).toContain('Abort refused or failed');
+  });
+});

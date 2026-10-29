@@ -5,6 +5,7 @@ import { KeyRound, ShieldCheck, AlertOctagon, Sparkles, ChevronDown, ChevronUp, 
 import { CampaignState, Session } from '@/types';
 import { emergencyAbort, launchProposal, fetchLLMSettings, saveLLMSettings, fetchBackendStatus, type BackendStatus } from '@/lib/api';
 import { ApprovalPacketCard } from '@/components/common/ApprovalPacketCard';
+import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { MetasearchPanel } from '@/components/common/MetasearchPanel';
 import { buildApprovalPacketFromCampaign } from '@/lib/approvalPacket';
 import { authorizeSpend } from '@/lib/authorizeSpend';
@@ -181,12 +182,29 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
       setTimeout(() => setActionMessage(null), 4000);
       return;
     }
-    if (!confirm('EMERGENCY ABORT: Settle every unsettled job in this session as failed?')) return;
-    const res = await emergencyAbort(sid, 'emergency pause from guardrails');
-    if (res) {
-      setActionMessage(`Ring 0 Intercept complete: ${res.aborted_count} job(s) settled failed. Receipt: ${res.abort_receipt}`);
-    } else {
-      setActionMessage('Abort refused or failed — nothing was settled. Retry or use ⌘. from the arena.');
+    setAbortOpen(true);
+  };
+
+  const [abortOpen, setAbortOpen] = useState(false);
+  const [abortBusy, setAbortBusy] = useState(false);
+  const confirmAbort = async () => {
+    const sid = session?.id || campaign?.session_id || '';
+    if (!sid) {
+      setAbortOpen(false);
+      return;
+    }
+    setAbortBusy(true);
+    try {
+      const res = await emergencyAbort(sid, 'emergency pause from guardrails');
+      if (res) {
+        setActionMessage(`Ring 0 Intercept complete: ${res.aborted_count} job(s) settled failed. Receipt: ${res.abort_receipt}`);
+        setAbortOpen(false);
+      } else {
+        // Keep the dialog open on refusal so the operator can retry or cancel.
+        setActionMessage('Abort refused or failed — nothing was settled. Retry or use ⌘. from the arena.');
+      }
+    } finally {
+      setAbortBusy(false);
     }
     setTimeout(() => setActionMessage(null), 6000);
   };
@@ -386,6 +404,17 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
           <AlertOctagon className="w-4 h-4 text-red-400" />
           <span>Emergency Pause All Workloads</span>
         </button>
+        <ConfirmDialog
+          open={abortOpen}
+          title="Emergency abort — settle running work as failed?"
+          body="This settles every unsettled job in this session as FAILED. Type the session short-id to confirm."
+          requireText={(session?.id || campaign?.session_id || '').slice(0, 8)}
+          confirmLabel="Abort all running work"
+          danger
+          busy={abortBusy}
+          onConfirm={() => void confirmAbort()}
+          onCancel={() => { if (!abortBusy) setAbortOpen(false); }}
+        />
 
         {/* Progressive Disclosure: Crypto Attestation */}
         <button
