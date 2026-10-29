@@ -3,6 +3,7 @@ package sandbox
 import (
 	"bytes"
 	"context"
+	_ "embed"
 	"errors"
 	"fmt"
 	"os"
@@ -11,6 +12,43 @@ import (
 	"strings"
 	"time"
 )
+
+// defaultSeccompProfile is the shipped Phase-2 seccomp profile, embedded so
+// the kubonad binary carries it wherever it runs.
+//
+// Why a duplicate + embed + temp file (and not a repo-relative path or a
+// go:embed of the canonical file):
+//   - go:embed is confined to the Go module (platform/core), so the
+//     canonical platform/bridge/seccomp-profile.json CANNOT be embedded
+//     directly; this copy (pkg/sandbox/seccomp-profile.json) is the
+//     embeddable duplicate. A semantic parity test
+//     (seccomp_test.go::TestEmbeddedProfileMatchesBridgeCanonical) fails on
+//     any drift — same defaultAction, arch list, and syscall allow sets,
+//     compared as parsed JSON, not bytes.
+//   - The daemon resolves `--security-opt seccomp=<path>` on ITS OWN host
+//     filesystem, so we cannot pass an in-memory profile: at run time the
+//     embedded bytes are written to the execution scratch dir and THAT path
+//     is passed. The scratch dir is already bind-mounted into the container
+//     (benchmark/workspace), so the profile file inherits exactly the same
+//     daemon visibility as the workload mounts — no new topology
+//     constraint: wherever `docker run -v <tmpdir>:...` works (host-docker
+//     topology: kubonad on the host talking to a local daemon), the profile
+//     path works too.
+//   - Compose topology (platform/docker/compose.prod.yml): kubonad there
+//     mounts NO docker socket, so it cannot run containers at all (already
+//     fail-closed via ErrDockerNotAvailable) — the profile needs no
+//     visibility into compose. If an operator DID mount the socket into a
+//     kubonad container, the temp path would be container-local and the
+//     daemon would reject it; ExecuteHarness then fails closed (the docker
+//     error is returned, never retried without the profile). Fail-closed,
+//     not fallback: silently running under Docker's weaker default would
+//     undo the backstop with zero signal, and a loud fallback would still
+//     execute the workload under a weaker boundary — refusal forces the
+//     operator onto the supported host-docker topology. Tested by
+//     TestSeccompUnconfinedRejected / TestSeccompWriteFailureFailsClosed.
+//
+//go:embed seccomp-profile.json
+var defaultSeccompProfile []byte
 
 var (
 	ErrSandboxExecutionFailed = errors.New("sandbox execution failed")
@@ -51,6 +89,12 @@ type Config struct {
 	User              string        `json:"user"`
 	AllowHostFallback bool          `json:"allow_host_fallback"`
 	Runtime           string        `json:"runtime,omitempty"`
+	// SeccompProfile is an operator override: absolute daemon-side path of
+	// a custom seccomp profile. "" (the default) applies the embedded
+	// shipped profile (Phase-2 default-on). There is deliberately no value
+	// that disables seccomp: "unconfined" is rejected outright, and a run
+	// that cannot materialize a profile refuses (fail closed).
+	SeccompProfile string `json:"seccomp_profile,omitempty"`
 }
 
 // DefaultConfig provides production-grade NemoClaw/OpenClaw security parameters
@@ -194,37 +238,18 @@ func (r *SandboxRunner) ExecuteHarness(benchmarkScript, mutableArtifactName, mut
 		}
 	}
 
+	// Default-on (Phase-2): every docker run carries the seccomp profile.
+	// resolveSeccompProfile refuses the run when no profile can be
+	// materialized — ExecuteHarness never runs profile-less (fail closed).
+	profilePath, err := r.resolveSeccompProfile(tmpDir)
+	if err != nil {
+		return nil, err
+	}
+
 	startTime := time.Now()
 
 	if r.useDocker {
-		// Strict hardened container invocation compliant with NemoClaw / OpenClaw
-		args := []string{
-			"run", "--rm",
-			"--read-only",
-			"--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",
-			"--cap-drop=ALL",
-			"--security-opt=no-new-privileges",
-			"--network", r.cfg.Network,
-			"--memory", r.cfg.MemoryLimit,
-			"--memory-swap", r.cfg.MemorySwap,
-			"--cpus", r.cfg.CPULimit,
-			fmt.Sprintf("--pids-limit=%d", r.cfg.PidsLimit),
-			"-v", fmt.Sprintf("%s:/benchmark:ro", benchmarkDir),
-			"-v", fmt.Sprintf("%s:/workspace:rw", workspaceDir),
-			"-w", "/workspace",
-			"-e", "PYTHONPATH=/workspace",
-			"-e", "PYTHONUNBUFFERED=1",
-		}
-
-		if r.cfg.Runtime != "" {
-			args = append(args, "--runtime", r.cfg.Runtime)
-		}
-
-		if r.cfg.User != "" && r.cfg.User != "root" {
-			args = append(args, "--user", r.cfg.User)
-		}
-
-		args = append(args, "--entrypoint", "python3", r.cfg.Image, "/benchmark/eval.py")
+		args := r.dockerArgs(benchmarkDir, workspaceDir, profilePath)
 
 		cmd := exec.CommandContext(ctx, "docker", args...)
 		setProcessGroup(cmd)
@@ -260,13 +285,17 @@ func (r *SandboxRunner) ExecuteHarness(benchmarkScript, mutableArtifactName, mut
 		if r.cfg.Runtime != "" {
 			runtimeTag = fmt.Sprintf("docker[%s]", r.cfg.Runtime)
 		}
+		seccompTag := "seccomp=kubona-default"
+		if r.cfg.SeccompProfile != "" {
+			seccompTag = "seccomp=custom"
+		}
 		return &ExecutionResult{
 			Stdout:       stdoutBuf.String(),
 			Stderr:       stderrBuf.String(),
 			ExitCode:     exitCode,
 			Duration:     duration,
 			Sandboxed:    true,
-			IsolationTag: fmt.Sprintf("%s:%s (net=%s, cpus=%s, mem=%s)", runtimeTag, r.cfg.Image, r.cfg.Network, r.cfg.CPULimit, r.cfg.MemoryLimit),
+			IsolationTag: fmt.Sprintf("%s:%s (net=%s, cpus=%s, mem=%s, %s)", runtimeTag, r.cfg.Image, r.cfg.Network, r.cfg.CPULimit, r.cfg.MemoryLimit, seccompTag),
 			Error:        "",
 		}, nil
 	}
@@ -345,6 +374,60 @@ func (r *SandboxRunner) ExecuteHarness(benchmarkScript, mutableArtifactName, mut
 		IsolationTag: tag,
 		Error:        errStr,
 	}, nil
+}
+
+// resolveSeccompProfile returns the daemon-side seccomp profile path for
+// this run: the operator override when Config.SeccompProfile is set,
+// otherwise the embedded shipped profile materialized into the execution
+// scratch dir. Any failure refuses the run (fail closed) — the caller
+// never falls back to a profile-less invocation.
+func (r *SandboxRunner) resolveSeccompProfile(tmpDir string) (string, error) {
+	if r.cfg.SeccompProfile == "unconfined" {
+		return "", fmt.Errorf("sandbox seccomp=unconfined is prohibited: refusing to run without the profile")
+	}
+	if r.cfg.SeccompProfile != "" {
+		return r.cfg.SeccompProfile, nil
+	}
+	path := filepath.Join(tmpDir, "seccomp-profile.json")
+	if err := os.WriteFile(path, defaultSeccompProfile, 0644); err != nil {
+		return "", fmt.Errorf("sandbox seccomp profile unavailable: %w: refusing to run without the profile", err)
+	}
+	return path, nil
+}
+
+// dockerArgs builds the strict hardened container invocation compliant
+// with NemoClaw / OpenClaw. profilePath is always a concrete profile file
+// (see resolveSeccompProfile) — the seccomp flag is unconditional
+// (Phase-2 default-on); seccomp=unconfined is never emitted.
+func (r *SandboxRunner) dockerArgs(benchmarkDir, workspaceDir, profilePath string) []string {
+	args := []string{
+		"run", "--rm",
+		"--read-only",
+		"--tmpfs", "/tmp:rw,noexec,nosuid,size=64m",
+		"--cap-drop=ALL",
+		"--security-opt=no-new-privileges",
+		"--security-opt", "seccomp=" + profilePath,
+		"--network", r.cfg.Network,
+		"--memory", r.cfg.MemoryLimit,
+		"--memory-swap", r.cfg.MemorySwap,
+		"--cpus", r.cfg.CPULimit,
+		fmt.Sprintf("--pids-limit=%d", r.cfg.PidsLimit),
+		"-v", fmt.Sprintf("%s:/benchmark:ro", benchmarkDir),
+		"-v", fmt.Sprintf("%s:/workspace:rw", workspaceDir),
+		"-w", "/workspace",
+		"-e", "PYTHONPATH=/workspace",
+		"-e", "PYTHONUNBUFFERED=1",
+	}
+
+	if r.cfg.Runtime != "" {
+		args = append(args, "--runtime", r.cfg.Runtime)
+	}
+
+	if r.cfg.User != "" && r.cfg.User != "root" {
+		args = append(args, "--user", r.cfg.User)
+	}
+
+	return append(args, "--entrypoint", "python3", r.cfg.Image, "/benchmark/eval.py")
 }
 
 // resolvePythonInterpreter searches for a suitable Python 3 executable in virtual environments

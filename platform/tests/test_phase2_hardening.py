@@ -205,3 +205,108 @@ def test_request_provider_recall_unowned_refuses_without_side_effects(stack):
     out = exec_server.request_provider_recall(job.job_id, caller=alice_caller)
     assert out["ok"] is True and out["status"] == "cancelled"
     assert out["provider_recall_attempted"] is False
+
+
+# -- ledger-legacy residual (closed: NO migration, ever) -------------------
+
+def test_ledger_legacy_residual_pinned_no_migration_union_permanent(tmp_path):
+    """Pin the ledger-legacy residual: sealed history is never moved/rewritten.
+
+    Pre-sharding `tenant/lab-x` rows stay in place in the default file and the
+    transitional `ledger.default.jsonl` orphan stays in place; `iter_as` /
+    `query_as` union-reads keep them visible to the right requester (hidden
+    from others/ambient). New writes land in the tenant SHARD (default-tenant
+    writes land in the base file itself, never in the orphan). History is
+    immutable: the sealed lines stay byte-identical and every touched file
+    keeps a valid chain. A cleanup migration that moved sealed rows would
+    re-hash them and fork the audit trail — refused by operator decision.
+    """
+    from kubona.provenance.ledger import (
+        Ledger,
+        base_legacy_default_shard,
+        shard_path_for,
+    )
+
+    base = tmp_path / "ledger.jsonl"
+    default = Ledger(path=base)
+    # Legacy row: written pre-sharding straight into the default file.
+    legacy_labx = default.append(
+        "experiment", {"circuit_hash": "legacy-lab-x"}, label="tenant/lab-x")
+    assert legacy_labx.label == "tenant/lab-x"
+    # Transitional orphan: pre-Phase-2 `Ledger(base, tenant="default")`
+    # writers created `ledger.default.jsonl` beside the base file.
+    legacy_path = base_legacy_default_shard(base)
+    assert legacy_path.name == "ledger.default.jsonl"
+    orphan_ledger = Ledger._open_file(base, legacy_path, "default")
+    orphan = orphan_ledger.append(
+        "experiment", {"circuit_hash": "orphan-default"})
+    assert orphan.label == "tenant/default"
+    assert default.count() == 1  # legacy row only; orphan lives beside base
+    assert orphan_ledger.count() == 1
+    sealed_default_line = base.read_text().splitlines()[0]
+    sealed_orphan_line = legacy_path.read_text().splitlines()[0]
+
+    # Union read: right requester sees its rows via both iter_as and query_as.
+    assert legacy_labx.record_id in {
+        r.record_id for r in default.iter_as("lab-x")}
+    assert legacy_labx.record_id in {
+        r.record_id for r in default.query_as("lab-x")}
+    assert orphan.record_id in {
+        r.record_id for r in default.iter_as("default")}
+    assert orphan.record_id in {
+        r.record_id for r in default.query_as("default")}
+    # Predicate variant stays scoped too.
+    assert [r.record_id for r in default.query_as(
+        "lab-x", predicate=lambda r: r.payload.get("circuit_hash") == "legacy-lab-x")
+    ] == [legacy_labx.record_id]
+    assert default.query_as(
+        "lab-b", predicate=lambda r: r.payload.get("circuit_hash") == "legacy-lab-x"
+    ) == []
+    # Cross-tenant and ambient readers see neither legacy artifact.
+    for other in ("lab-b", None):
+        assert legacy_labx.record_id not in {
+            r.record_id for r in default.iter_as(other)}
+        assert legacy_labx.record_id not in {
+            r.record_id for r in default.query_as(other)}
+        assert orphan.record_id not in {
+            r.record_id for r in default.iter_as(other)}
+        assert orphan.record_id not in {
+            r.record_id for r in default.query_as(other)}
+    # Tenants do not see each other's legacy rows.
+    assert orphan.record_id not in {
+        r.record_id for r in default.query_as("lab-x")}
+    assert legacy_labx.record_id not in {
+        r.record_id for r in default.query_as("default")}
+
+    # New lab-x writes land in the SHARD, not beside the legacy row.
+    shard = Ledger.for_tenant("lab-x", path=base)
+    assert shard.path == shard_path_for(base, "lab-x")
+    assert shard.path != default.path
+    fresh = shard.append("experiment", {"circuit_hash": "fresh-lab-x"})
+    assert fresh.label == "tenant/lab-x"
+    assert default.count() == 1  # default file untouched by the shard write
+    assert fresh.record_id not in {r.record_id for r in default}  # raw rows
+    assert fresh.record_id in {r.record_id for r in default.query_as("lab-x")}
+    assert fresh.record_id in {r.record_id for r in default.iter_as("lab-x")}
+    assert fresh.record_id not in {r.record_id for r in default.query_as("lab-b")}
+    assert fresh.record_id not in {r.record_id for r in default.query_as(None)}
+    assert base.read_text().splitlines()[0] == sealed_default_line
+
+    # New default-tenant writes land in the base file itself, never the orphan.
+    fresh_default = default.append(
+        "experiment", {"circuit_hash": "fresh-default"})
+    assert fresh_default.label == "tenant/default"
+    assert Ledger._open_file(base, legacy_path, "default").count() == 1
+    assert legacy_path.read_text().splitlines()[0] == sealed_orphan_line
+    assert fresh_default.record_id in {
+        r.record_id for r in default.query_as("default")}
+    assert fresh_default.record_id not in {
+        r.record_id for r in default.query_as("lab-x")}
+
+    # Every touched file keeps a valid chain (moved rows would break this).
+    ok, msg = Ledger(path=base).validate_chain()
+    assert ok, msg
+    ok, msg = Ledger(path=base, tenant="lab-x").validate_chain()
+    assert ok, msg
+    ok, msg = Ledger._open_file(base, legacy_path, "default").validate_chain()
+    assert ok, msg

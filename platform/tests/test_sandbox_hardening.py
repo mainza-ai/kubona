@@ -68,6 +68,9 @@ def test_sandbox_user_matches_go_rail():
 # ---------------------------------------------------------------------------
 
 def test_container_command_reaches_go_parity():
+    """Default-on: with no seccomp argument the invocation carries the
+    shipped profile (and never unconfined / never profile-less)."""
+    from kubona.sandbox.execution import _default_seccomp_profile
     cmd = build_container_command(image=SANDBOX_IMAGE_DEFAULT,
                                   workdir="/tmp/w", max_memory_mb=512)
     assert cmd[:3] == ["docker", "run", "--rm"]
@@ -87,13 +90,16 @@ def test_container_command_reaches_go_parity():
     assert "/tmp/w:/work:ro" in cmd
     assert "-w" in cmd and "/work" in cmd
     assert "-e" in cmd and "PYTHONUNBUFFERED=1" in cmd
-    assert "seccomp=unconfined" not in joined  # default profile stays on
-    assert "seccomp=" not in joined  # default: no flag at all (Docker default)
+    assert "seccomp=unconfined" not in joined  # never unconfined
+    default = _default_seccomp_profile()
+    assert default is not None, "shipped profile must resolve in a checkout"
+    assert f"--security-opt seccomp={default}" in joined
+    assert joined.count("seccomp=") == 1  # exactly one profile flag
     assert cmd[-2:] == [SANDBOX_IMAGE_DEFAULT, "workload.py"]
 
 
 def test_container_command_applies_seccomp_profile_when_set():
-    """Opt-in custom profile: an explicit path appends exactly one
+    """Operator custom profile: an explicit path appends exactly one
     --security-opt seccomp=<path> pair (and never seccomp=unconfined)."""
     from kubona.sandbox.execution import SANDBOX_SECCOMP_PROFILE_ENV  # noqa: F401
     cmd = build_container_command(image=SANDBOX_IMAGE_DEFAULT,
@@ -101,8 +107,49 @@ def test_container_command_applies_seccomp_profile_when_set():
                                   seccomp_profile="/profiles/kubona.json")
     joined = " ".join(cmd)
     assert "--security-opt seccomp=/profiles/kubona.json" in joined
+    assert joined.count("seccomp=") == 1
     assert "seccomp=unconfined" not in joined
     assert cmd[-2:] == [SANDBOX_IMAGE_DEFAULT, "workload.py"]
+
+
+def test_container_command_empty_profile_means_no_flag_test_only():
+    """Differential hook: seccomp_profile="" emits no flag (Docker default).
+    Test-only — execute_script never passes "" (it has no profile-less
+    path); this exists so the suite can prove the backstop matters."""
+    cmd = build_container_command(image=SANDBOX_IMAGE_DEFAULT,
+                                  workdir="/tmp/w", max_memory_mb=512,
+                                  seccomp_profile="")
+    assert "seccomp=" not in " ".join(cmd)
+
+
+def test_container_command_missing_shipped_profile_fails_closed(monkeypatch):
+    """No silent fallback: when the shipped file is absent the builder
+    raises instead of emitting a profile-less invocation."""
+    import kubona.sandbox.execution as ex
+    monkeypatch.setattr(ex, "_default_seccomp_profile", lambda: None)
+    with pytest.raises(FileNotFoundError, match="refusing"):
+        build_container_command(image=SANDBOX_IMAGE_DEFAULT,
+                                workdir="/tmp/w", max_memory_mb=512)
+
+
+def test_go_rail_carries_seccomp_default_on():
+    """Cross-rail pin: docker.go must embed the profile, apply it
+    unconditionally, and reject unconfined (parity with this rail)."""
+    src = GO_DOCKER_RAIL.read_text()
+    assert "go:embed seccomp-profile.json" in src
+    assert '"--security-opt", "seccomp=" + profilePath' in src
+    # The "unconfined" literal appears in CODE only in the rejection guard
+    # (the equality check and its error) — the rail builds seccomp=<path>
+    # unconditionally and never emits unconfined as a value. Comment prose
+    # is stripped before checking.
+    code = "\n".join(
+        line.split("//")[0] for line in src.splitlines())
+    hits = [i for i, line in enumerate(code.splitlines()) if '"unconfined"' in line]
+    assert hits, "expected the unconfined rejection guard in docker.go"
+    for i in hits:
+        line = code.splitlines()[i]
+        assert 'SeccompProfile == "unconfined"' in line or "prohibited" in line, \
+            f"unconfined literal outside the rejection guard (line {i + 1}): {line}"
 
 
 def test_container_path_uses_pinned_image_by_default(monkeypatch):
@@ -212,9 +259,10 @@ def test_dev_local_without_exact_ack_refuses(monkeypatch, ack):
     assert "KUBONA_SANDBOX_UNSAFE_LOCAL" in res.stderr
 
 
-def test_container_path_applies_seccomp_profile_from_env(monkeypatch):
-    """Hermetic (docker faked): KUBONA_SANDBOX_SECCOMP_PROFILE=<path> adds
-    exactly one seccomp flag to the invocation; unset adds none."""
+def test_container_path_applies_seccomp_profile_by_default(monkeypatch):
+    """Hermetic (docker faked): default-on — unset env still carries the
+    shipped profile; KUBONA_SANDBOX_SECCOMP_PROFILE=<path> overrides it
+    (custom profile, never a disable)."""
     import kubona.sandbox.execution as ex
 
     monkeypatch.setenv("KUBONA_ENV", "test")
@@ -235,11 +283,66 @@ def test_container_path_applies_seccomp_profile_from_env(monkeypatch):
     monkeypatch.setattr(ex.subprocess, "run", _fake_run)
     res = WorkloadSandbox().execute_script("print('ok')")
     assert res.success
-    assert not any("seccomp=" in c for c in seen["cmd"])
+    default = ex._default_seccomp_profile()
+    assert default is not None
+    assert f"--security-opt seccomp={default}" in " ".join(seen["cmd"])
     monkeypatch.setenv("KUBONA_SANDBOX_SECCOMP_PROFILE", "/profiles/kubona.json")
     res = WorkloadSandbox().execute_script("print('ok')")
     assert res.success
     assert "--security-opt seccomp=/profiles/kubona.json" in " ".join(seen["cmd"])
+
+
+def test_container_path_missing_profile_refuses(monkeypatch):
+    """Fail closed (hermetic, docker faked): no shipped file and no
+    override refuses with isolation_unavailable — never profile-less."""
+    import kubona.sandbox.execution as ex
+
+    monkeypatch.setenv("KUBONA_ENV", "test")
+    monkeypatch.setenv("KUBONA_SANDBOX_CONTAINER", "1")
+    monkeypatch.delenv("KUBONA_SANDBOX_SECCOMP_PROFILE", raising=False)
+    monkeypatch.setattr(shutil, "which", lambda _: "/usr/bin/docker")
+    monkeypatch.setattr(ex, "_default_seccomp_profile", lambda: None)
+    seen: dict = {}
+
+    def _fake_run(cmd, **kw):
+        seen["cmd"] = cmd
+        raise AssertionError("docker must not run without a profile")
+
+    monkeypatch.setattr(ex.subprocess, "run", _fake_run)
+    res = WorkloadSandbox().execute_script("print('ok')")
+    assert res.success is False
+    assert res.violation == "isolation_unavailable"
+    assert "without a profile" in res.stderr
+    assert "cmd" not in seen
+
+
+def test_go_embedded_profile_matches_canonical():
+    """Parity: the Go rail's duplicated seccomp-profile.json must stay
+    semantically identical to the canonical platform/bridge copy (parsed
+    JSON: defaultAction, arch list, syscall allow sets — formatting drift
+    is fine, semantic drift fails)."""
+    import json
+
+    canonical = Path(__file__).resolve().parent.parent / "bridge" / "seccomp-profile.json"
+    duplicate = GO_DOCKER_RAIL.parent / "seccomp-profile.json"
+    assert duplicate.is_file(), "Go embed source missing — re-copy the canonical profile"
+    can = json.loads(canonical.read_text())
+    dup = json.loads(duplicate.read_text())
+    assert dup["defaultAction"] == can["defaultAction"]
+    assert dup.get("defaultErrnoRet") == can.get("defaultErrnoRet")
+    assert {a["architecture"] for a in dup["archMap"]} == {
+        a["architecture"] for a in can["archMap"]}
+
+    def _fingerprint(entries):
+        out = {}
+        for entry in entries:
+            names = tuple(sorted(entry["names"]))
+            rest = {k: v for k, v in entry.items() if k != "names"}
+            key = (names, json.dumps(rest, sort_keys=True))
+            out[key] = out.get(key, 0) + 1
+        return out
+
+    assert _fingerprint(dup["syscalls"]) == _fingerprint(can["syscalls"])
 
 
 # ---------------------------------------------------------------------------
@@ -396,28 +499,29 @@ def test_live_host_filesystem_is_not_mounted(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Custom seccomp profile (Phase-2): the shipped profile is verified green
-# end-to-end (golden workload + syscall backstop), never prose. Live half
-# runs for real in CI's sandbox-container job; skips cleanly without a daemon.
+# Shipped seccomp profile, default-on (Phase-2): the profile is verified
+# green end-to-end (golden workload + syscall backstop) through the NEW
+# default path — no KUBONA_SANDBOX_SECCOMP_PROFILE flag — never prose. Live
+# half runs for real in CI's sandbox-container job; skips cleanly without
+# a daemon.
 # ---------------------------------------------------------------------------
 
-def _live_profile(monkeypatch) -> tuple[str, str]:
-    """(image, profile_path): skip unless the container rail + pinned image
-    exist AND the shipped profile is present — no implicit defaults."""
+def _live_default_image(monkeypatch) -> str:
+    """Pinned image via the default path: refuse when the shipped profile
+    is absent (fail closed — no profile-less live runs)."""
+    from kubona.sandbox.execution import _default_seccomp_profile
     image = _live_image(monkeypatch)
-    profile = Path(__file__).resolve().parent.parent / "bridge" / "seccomp-profile.json"
-    if not profile.exists():
+    monkeypatch.delenv("KUBONA_SANDBOX_SECCOMP_PROFILE", raising=False)
+    if _default_seccomp_profile() is None:
         pytest.skip("shipped seccomp profile absent: refusing to test prose")
-    return image, str(profile)
+    return image
 
 
-def test_live_custom_profile_golden_through_wiring(monkeypatch):
-    """End-to-end: the shipped profile via KUBONA_SANDBOX_SECCOMP_PROFILE
-    runs the numpy/scipy golden through execute_script (proves the env
-    wiring AND the profile agree with the workload)."""
-    _live_image(monkeypatch)
-    _, profile = _live_profile(monkeypatch)
-    monkeypatch.setenv("KUBONA_SANDBOX_SECCOMP_PROFILE", profile)
+def test_live_default_profile_golden_through_wiring(monkeypatch):
+    """End-to-end default-on: the numpy/scipy golden runs through
+    execute_script with NO env flag (proves the default wiring AND the
+    profile agree with the workload)."""
+    _live_default_image(monkeypatch)
     res = WorkloadSandbox().execute_script(
         "import math, numpy, scipy.linalg\n"
         "print(f'GOLDEN={math.sqrt(16.0)},{numpy.pi:.5f},{scipy.linalg.norm([3.0, 4.0])}')")
@@ -426,37 +530,64 @@ def test_live_custom_profile_golden_through_wiring(monkeypatch):
 
 
 def test_live_profile_denies_inet_socket_at_syscall(monkeypatch):
-    """Syscall-layer backstop, differential vs Docker default: under the
-    shipped profile the container is still seccomp-confined (Seccomp: 2),
-    AF_INET socket() dies with EPERM at the syscall (Docker default CREATES
-    the socket — only the netns stops connect there), AF_UNIX still works."""
-    image, profile = _live_profile(monkeypatch)
+    """Syscall-layer backstop on the default path, differential vs Docker
+    default: under the shipped profile the container is still
+    seccomp-confined (Seccomp: 2), AF_INET socket() dies with EPERM at the
+    syscall (Docker default CREATES the socket — only the netns stops
+    connect there), AF_UNIX still works."""
+    image = _live_default_image(monkeypatch)
     with tempfile.TemporaryDirectory(prefix="kubona-sandbox-test-") as tmpdir:
         os.chmod(tmpdir, 0o755)
+        # Default path: no seccomp argument (resolves the shipped profile).
         cmd = build_container_command(image=image, workdir=tmpdir,
-                                      max_memory_mb=256,
-                                      seccomp_profile=profile)
+                                      max_memory_mb=256)
+        assert "seccomp=" in " ".join(cmd)  # the differential below is real
+        # Test-only differential: explicit "" recovers Docker's default.
+        nocmd = build_container_command(image=image, workdir=tmpdir,
+                                        max_memory_mb=256, seccomp_profile="")
 
-        def _run_script(body: str) -> subprocess.CompletedProcess:
+        def _run_script(cmd: list, body: str) -> subprocess.CompletedProcess:
             Path(tmpdir, "workload.py").write_text(body)
             os.chmod(Path(tmpdir, "workload.py"), 0o644)
             return subprocess.run(cmd, capture_output=True, text=True, timeout=120)
 
         proc = _run_script(
-            "print([l for l in open('/proc/self/status').read().splitlines() if 'eccomp' in l])")
+            cmd, "print('\\n'.join(l for l in "
+            "open('/proc/self/status').read().splitlines() if 'eccomp' in l))")
         assert proc.returncode == 0, proc.stderr
-        assert "Seccomp:\\t2" in proc.stdout
-        proc = _run_script("import socket\n"
+        assert "Seccomp:\t2" in proc.stdout
+        assert "Seccomp_filters:\t1" in proc.stdout
+        proc = _run_script(cmd, "import socket\n"
                            "socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n"
                            "print('INET_CREATED')")
         assert proc.returncode != 0
         assert "Operation not permitted" in proc.stderr
         assert "INET_CREATED" not in proc.stdout
-        proc = _run_script("import socket\n"
+        # Differential: Docker's default profile CREATES the socket (only
+        # the netns stops connect) — proves the shipped profile is the
+        # layer doing the refusing.
+        proc = _run_script(nocmd, "import socket\n"
+                           "socket.socket(socket.AF_INET, socket.SOCK_STREAM)\n"
+                           "print('INET_CREATED')")
+        assert proc.returncode == 0, proc.stderr
+        assert "INET_CREATED" in proc.stdout
+        proc = _run_script(cmd, "import socket\n"
                            "s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)\n"
                            "s.close()\nprint('UNIX_OK')")
         assert proc.returncode == 0, proc.stderr
         assert "UNIX_OK" in proc.stdout
+
+
+def test_live_custom_profile_override_still_applies(monkeypatch):
+    """Operator override: an explicit KUBONA_SANDBOX_SECCOMP_PROFILE still
+    selects that file (custom profile, never a disable)."""
+    _live_default_image(monkeypatch)
+    from kubona.sandbox.execution import _default_seccomp_profile
+    monkeypatch.setenv("KUBONA_SANDBOX_SECCOMP_PROFILE",
+                       _default_seccomp_profile())
+    res = WorkloadSandbox().execute_script("import math\nprint(f'OVERRIDE={math.sqrt(16.0)}')")
+    assert res.success, res.stderr
+    assert "OVERRIDE=4.0" in res.stdout
 
 
 @pytest.mark.parametrize("code", [
@@ -467,8 +598,6 @@ def test_live_profile_denies_inet_socket_at_syscall(monkeypatch):
     "import numpy\nnumpy.f2py.run_main(['-c', 'x'])",
 ])
 def test_live_profile_escapes_fail_on_hardened_path(monkeypatch, code):
-    _live_image(monkeypatch)
-    _, profile = _live_profile(monkeypatch)
-    monkeypatch.setenv("KUBONA_SANDBOX_SECCOMP_PROFILE", profile)
+    _live_default_image(monkeypatch)
     res = WorkloadSandbox().execute_script(code, timeout_sec=60.0)
     assert res.success is False, f"escape succeeded under profile: {code!r}\n{res.stdout}"
