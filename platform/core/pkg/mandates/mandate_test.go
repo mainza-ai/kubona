@@ -128,3 +128,34 @@ func TestVerifyRefusesSignedUnboundMandate(t *testing.T) {
 		t.Fatal("NaN budget must refuse")
 	}
 }
+
+// Fractional expiries must mint whole-second canonical mandates: the
+// canonical payload formats expiry without fractions, so signing
+// untruncated time would mint mandates whose wire bytes verify NOWHERE
+// (Python and console verify the verbatim wire timestamp). Found live:
+// the first Python-side verification of a Go-minted mandate refused with
+// "signature forged or corrupt" because the mint signed truncated time
+// but shipped nanos.
+func TestSignMandateTruncatesFractionalExpiry(t *testing.T) {
+	pub, priv, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = pub
+	fractional := time.Now().UTC().Add(time.Hour).Truncate(time.Second)
+	fractional = fractional.Add(123456789 * time.Nanosecond)
+	m, err := mandates.SignMandate(priv, "lab-a", "abc123", 10.0, fractional)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m.ExpiryTimestamp.Nanosecond() != 0 {
+		t.Fatalf("minted mandate must carry whole-second expiry, got %v", m.ExpiryTimestamp)
+	}
+	wantCanon := "lab-a:abc123:10.0000:" + m.ExpiryTimestamp.UTC().Format("2006-01-02T15:04:05Z")
+	if string(m.CanonicalPayload()) != wantCanon {
+		t.Fatalf("canonical payload must use whole-second expiry, got %q", m.CanonicalPayload())
+	}
+	if err := m.Verify("lab-a", "abc123", 5.0); err != nil {
+		t.Fatalf("truncated mandate must verify: %v", err)
+	}
+}
