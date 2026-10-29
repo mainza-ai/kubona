@@ -2,13 +2,25 @@
 type: concept
 name: Production Readiness Audit — Round 2 (2026-10-26)
 date: 2026-10-26
-updated: 2026-10-28
+updated: 2026-10-29
 tags: [audit, production, security, money, honesty, ci, plan]
 sources: [source-architecture-paper, source-gap-analysis-plan]
 status: tracked
 ---
 
 # Production Readiness Audit — Round 2 (2026-10-26)
+
+> **Current status (2026-10-29): all ten P0 blockers below are CLOSED and
+> verified.** A full-tree Round-3 re-audit re-verified every P0 against
+> current code, and the Phase-0/1/2 + deeds program landed with the full
+> gate green (20 enforced checks, branch-protected; run `40803947946`),
+> including a live QPU probe with measured $8.00 → $0.00 settlement. The
+> per-blocker evidence trail is at the bottom of this page (Phase 5–8
+> entries); the living summary is the repository README.
+> This page's Round-2 verdict below is the **historical record** of what
+> was true at `da800ea` — it is kept verbatim so the fix trail stays
+> auditable. Constant development applies: re-run the gate on the exact
+> commit you ship; cite only measured results.
 
 > **What this page is.** An independent, full-source audit of the platform at
 > `da800ea`, performed from code rather than from prior claims. It is **not** a
@@ -19,7 +31,8 @@ status: tracked
 > **trust boundary and the money rail are not production-grade yet**, while
 > several headline claims are false at HEAD.
 >
-> **Verdict: NOT production-ready.** There are 10 P0 blockers: one unauthenticated
+> **Round-2 verdict (2026-10-26, SUPERSEDED — see status above).**
+> **At `da800ea`: NOT production-ready.** There are 10 P0 blockers: one unauthenticated
 > bridge that can spend real QPU money, four unauthenticated Go control routes
 > (including ledger forgery), an escapable Python sandbox, a charge-before-dispatch
 > money rail, a release gate that is red and unprotected, a physically wrong
@@ -52,7 +65,7 @@ status: tracked
   rebuild (the image failure is proven from the build context + CI log, not
   re-run locally).
 
-## Verdict by domain
+## Verdict by domain (Round-2 grades at `da800ea` — superseded; see status banner above)
 
 | Domain | Grade | One-line verdict |
 |---|---|---|
@@ -69,6 +82,11 @@ status: tracked
 ---
 
 ## P0 — stop-the-line blockers
+
+> ⚑ Status (2026-10-29): every blocker below is CLOSED — see the Phase 5–8
+> entries at the bottom of this page for the per-blocker fix evidence. The
+> sections are kept verbatim as the Round-2 record; do not read them as the
+> current state.
 
 ### P0-1 · The bridge is an unauthenticated, caller-authoritative compute and money plane
 **Evidence.** `platform/bridge/server.py:648-650` binds `[::]:{port}` with
@@ -278,7 +296,7 @@ model directory `spec-only` or ship the artifact.
 
 ---
 
-## P1 register (blocking for production, fix after the P0 gate)
+## P1 register (was blocking for production, fix after the P0 gate — worked through in Phase-1/2; see Phase entries below)
 
 ### Authentication / authorization
 | ID | Finding | Evidence |
