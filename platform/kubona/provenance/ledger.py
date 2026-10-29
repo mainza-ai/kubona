@@ -18,6 +18,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Iterator
 
+from kubona.session import strict_tenant_slug
+
 
 @dataclass(frozen=True)
 class LedgerRecord:
@@ -54,8 +56,31 @@ class LedgerRecord:
         return cls(**d)
 
 
-def _safe(tenant: str) -> str:
-    return "".join(ch for ch in tenant if ch.isalnum() or ch in "-_")
+def shard_path_for(base: str | os.PathLike, tenant: str) -> Path:
+    """Shard file for a tenant (Phase-2 physical sharding).
+
+    Strict: non-canonical tenants refuse instead of collapsing onto a
+    neighbor file (the old `_safe` stripped hostile chars — `"..."`
+    collapsed onto the default namespace). The default tenant keeps the
+    base path (no suffix); every other tenant gets
+    `<stem>.<slug><suffix>` beside it.
+    """
+    slug = strict_tenant_slug(tenant)
+    base_p = Path(base)
+    if slug == "default":
+        return base_p
+    return base_p.parent / f"{base_p.stem}.{slug}{base_p.suffix}"
+
+
+def base_legacy_default_shard(base: str | os.PathLike) -> Path:
+    """Pre-Phase-2 `ledger.default.jsonl` beside `base`, if any.
+
+    Transitional back-compat only: old code mapped `tenant="default"` to a
+    suffixed shard; Phase-2 maps it to the base file itself. New code must
+    never write here.
+    """
+    base_p = Path(base)
+    return base_p.parent / f"{base_p.stem}.default{base_p.suffix}"
 
 
 def _content_hash(payload: dict[str, Any], label: str = "") -> str:
@@ -109,24 +134,85 @@ class Ledger:
     """Append-only JSONL ledger with a hash chain (genesis = 64 zeroes).
 
     Multi-tenant (Phase 5): a `tenant`/`namespace` shards records into a
-    tenant-scoped file, so many laboratories/communities never collide in one
-    namespace; global reads (when tenant is None) aggregate them. Appends use an
-    atomic O_APPEND write so concurrent writers cannot corrupt the chain.
+    tenant-scoped file (`<stem>.<slug><suffix>` beside the base path, via
+    `shard_path_for`), so different laboratories never share namespace or
+    files. The default file (tenant None, or the `"default"` slug) holds
+    only unscoped/public rows for new writes; tenant rows go to their
+    shard. Migration (transitional): pre-sharding `tenant/<T>` rows still
+    physically sit in the default file and stay readable through the
+    back-compat read path (`iter_as`/`query_as` union the default file with
+    the requester's shard); cross-tenant reads of another tenant's shard
+    refuse outright. Appends use an atomic O_APPEND write so concurrent
+    writers cannot corrupt the chain.
     """
 
+    # Registry: tenant slug -> shard Ledger for one base path. Process-local
+    # cache so repeated `for_tenant` lookups share the object; the files
+    # themselves are the source of truth (no in-memory state to drift).
+    _registry: dict[tuple[str, str], "Ledger"] = {}
+
     def __init__(self, path: str | os.PathLike | None = None, tenant: str | None = None):
+        if tenant is not None:
+            # Strict entry: hostile/non-canonical tenants refuse instead of
+            # collapsing onto a neighbor file (the old `_safe` stripped
+            # characters — `"a/b"` and `"a b"` landed in the same shard).
+            tenant = strict_tenant_slug(tenant)
         if path is None:
             from kubona.config import ledger_path
 
             base = ledger_path()
         else:
             base = Path(path)
-        target = base if tenant is None else base.parent / f"{base.stem}.{_safe(tenant)}{base.suffix}"
+        if tenant is None:
+            target = base
+            tenant = "default"
+        else:
+            target = shard_path_for(base, tenant)
         self.path = Path(target)
+        self.base = Path(base)
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.tenant = tenant
         self._tail: str = "0" * 64
         self._lock = __import__("threading").Lock()  # serialize tail-read + append
+
+    @classmethod
+    def for_tenant(cls, tenant: str, path: str | os.PathLike | None = None) -> "Ledger":
+        """Registry lookup: the shard Ledger for `tenant` under `path`.
+
+        Strict (non-canonical tenants refuse); cached per (base, slug) so
+        callers share one object per shard. New tenant writes belong here —
+        never hand-built `tenant/<T>` labels in the default file.
+        """
+        slug = strict_tenant_slug(tenant)
+        if path is None:
+            from kubona.config import ledger_path
+
+            base = ledger_path()
+        else:
+            base = Path(path)
+        key = (str(base), slug)
+        hit = cls._registry.get(key)
+        if hit is None:
+            hit = cls(path=base, tenant=slug)
+            cls._registry[key] = hit
+        return hit
+
+    @classmethod
+    def _open_file(cls, base: str | os.PathLike, path: str | os.PathLike,
+                   tenant: str) -> "Ledger":
+        """Open an exact file as a Ledger without shard-path derivation.
+
+        Internal (transitional back-compat reads only): `tenant` labels the
+        file's tenant context for `readable`, `path` is used verbatim.
+        """
+        obj = cls.__new__(cls)
+        obj.path = Path(path)
+        obj.base = Path(base)
+        obj.path.parent.mkdir(parents=True, exist_ok=True)
+        obj.tenant = tenant
+        obj._tail = "0" * 64
+        obj._lock = __import__("threading").Lock()
+        return obj
 
     def _read_tail(self) -> str:
         if self.path.exists() and self.path.stat().st_size:
@@ -168,6 +254,14 @@ class Ledger:
                 # Default label is the file's own lab tenant (files are sharded per
                 # tenant); explicit "public" is the only way to widen readership.
                 resolved = label if label else f"tenant/{self.tenant or 'default'}"
+                if resolved.startswith("tenant/"):
+                    # Strict label derivation: a hostile suffix refuses instead
+                    # of collapsing (the old `_safe` path rule never applied
+                    # here — a hand-built "tenant/a b" label hashed cleanly
+                    # and read back as nobody's tenant).
+                    strict_tenant_slug(resolved[len("tenant/"):])
+                elif resolved not in ("public", ""):
+                    raise ValueError(f"unknown ledger label shape {resolved!r}: refusing")
                 content = _content_hash(payload, resolved)
                 record = LedgerRecord(
                     record_id=uuid.uuid4().hex[:16],
@@ -225,6 +319,65 @@ class Ledger:
 
     def count(self) -> int:
         return sum(1 for _ in self)
+
+    def iter_as(self, requester: str | None) -> Iterator[LedgerRecord]:
+        """Readership-scoped read (Phase-2 physical sharding).
+
+        File-local rows are filtered by `readable` against their own file
+        tenant — never another tenant's rows. A shard (`tenant !=
+        "default"`) additionally refuses the OPEN itself when `requester !=
+        shard tenant` (fail-closed physical boundary, not just a filter:
+        a cross-tenant `Ledger.for_tenant("lab-b").iter_as("lab-a")`
+        raises instead of yielding zero rows). The default file unions its
+        own rows (transitional: pre-sharding `tenant/<T>` rows still sit
+        here) with the requester's shard so one read covers both; other
+        tenants' shards are never touched.
+        """
+        if self.tenant != "default":
+            if requester != self.tenant:
+                raise PermissionError(
+                    f"cross-tenant shard read refused: shard {self.tenant!r} "
+                    f"requested as {requester!r}")
+            for rec in self:
+                if readable(rec, requester, self.tenant):
+                    yield rec
+            return
+        # Default file: own rows first (transitional: pre-sharding
+        # tenant/<T> rows still physically sit here and stay readable).
+        seen_shard = self.path.resolve() if self.path.exists() else self.path
+        for rec in self:
+            if readable(rec, requester, "default"):
+                yield rec
+        if requester is None:
+            return  # ambient reads never touch a named shard
+        try:
+            want = strict_tenant_slug(requester)
+        except ValueError:
+            return  # malformed requester sees default-file rows only (filtered above)
+        if want == "default":
+            # Transitional: pre-Phase-2 `Ledger(base, tenant="default")`
+            # writers created a `ledger.default.jsonl` shard beside the base
+            # file. Union it so those rows stay readable; new "default"
+            # writes land in the base file itself.
+            legacy = base_legacy_default_shard(self.base)
+            if legacy.exists() and legacy.resolve() != seen_shard:
+                for rec in Ledger._open_file(self.base, legacy, "default"):
+                    if readable(rec, requester, "default"):
+                        yield rec
+            return
+        shard = shard_path_for(self.base, want)
+        if shard.resolve() == seen_shard or not shard.exists():
+            return
+        other = Ledger(path=self.base, tenant=want)
+        for rec in other:
+            if readable(rec, requester, want):
+                yield rec
+
+    def query_as(self, requester: str | None,
+                 predicate: Callable[[LedgerRecord], bool] | None = None) -> list[LedgerRecord]:
+        """`iter_as` plus an optional predicate (back-compat read path)."""
+        return [r for r in self.iter_as(requester)
+                if predicate is None or predicate(r)]
 
 
 def readable(record: LedgerRecord, requester: str | None, file_tenant: str | None = None) -> bool:

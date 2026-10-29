@@ -275,6 +275,14 @@ class SessionStore:
         preflight and refunds stay in lockstep across rails."""
         if not session_id or not isinstance(session_id, str) or not session_id.strip():
             raise ValueError("session_id must be a non-empty string")
+        # Sharding-entry strictness (Phase-2): a non-canonical tenant_id
+        # refuses instead of landing in a neighbor's namespace downstream.
+        # Empty stays empty (Go rails without a tenant); anything present
+        # must already be the canonical slug.
+        if tenant_id:
+            if not isinstance(tenant_id, str):
+                raise ValueError(f"tenant_id must be a string, got {type(tenant_id).__name__}")
+            tenant_id = strict_tenant_slug(tenant_id)
         if budget_ceiling_usd is not None and (
             not isinstance(budget_ceiling_usd, (int, float))
             or not math.isfinite(budget_ceiling_usd)

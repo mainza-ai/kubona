@@ -67,6 +67,10 @@ class KubonaGateway:
         # Tools that declare a `caller` parameter receive the server-side
         # caller identity (sub + tenant claim), injected per call below.
         # Precomputed at mount; unknown mounts fall back to inspection.
+        # Tools prefer it over caller-supplied tenant/requester strings and
+        # refuse mismatches unless a live cross-tenant grant covers the
+        # request (kubona.security.tenant.resolve_tenant consults the grant
+        # registry).
         self._caller_tools: set[str] = set()
         # Loud-failure counter (W2.7): audit/ledger sinks must never fail
         # silently. Every swallowed sink error increments this and logs at
@@ -120,7 +124,9 @@ class KubonaGateway:
 
         A client-supplied `caller` is attacker-controlled and is always
         replaced; tools that declare `caller` then prefer it over any
-        caller-supplied requester/tenant string and refuse mismatches.
+        caller-supplied requester/tenant string and refuse mismatches unless
+        a live cross-tenant grant covers the request (see
+        kubona.security.tenant).
         """
         if caller is None:
             return args
@@ -168,11 +174,12 @@ class KubonaGateway:
             raise KeyError(f"unknown server/tool: {server}/{tool}")
         if self.require_auth:  # authorization is meaningless when auth is off (local/test)
             self._authorize(principal, server, tool)
-        # Phase-1: bind the verified principal's identity server-side.
+        # Phase-2: bind the verified principal's identity server-side.
         # Injected (overwriting any client-supplied `caller`); tools prefer
         # it over caller-supplied requester/tenant strings and refuse
-        # mismatches. principal_tenant fail-closed: a malformed claim refuses
-        # here, before any tool runs.
+        # mismatches unless a live cross-tenant grant covers the request.
+        # principal_tenant fail-closed: a malformed claim refuses here,
+        # before any tool runs.
         caller = self._caller_for(principal)
         args = self._inject_caller(server, tool, dict(args), caller)
         builder = self._approval.get(f"{server}/{tool}")

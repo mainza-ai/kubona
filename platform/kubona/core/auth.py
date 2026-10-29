@@ -25,10 +25,16 @@ class Principal:
     explicitly granted. The old defaults (role="operator", scopes=("*",))
     made every `Principal(sub=...)` without kwargs god-mode — forgotten
     kwargs must never equal full authorization.
+
+    Phase-2: `tenant` is a first-class field constructed at authentication
+    time (issuer-signed claim validated strictly, dev provider default), not
+    attached at decode. Consumers read `principal.tenant` directly;
+    `kubona.security.tenant.principal_tenant` still re-validates fail-closed.
     """
     sub: str
     role: str = "user"
     scopes: tuple[str, ...] = ()
+    tenant: str = "default"
 
 
 class AuthProvider(ABC):
@@ -50,15 +56,18 @@ class DevAuthProvider(AuthProvider):
     """
 
     def __init__(self, sub: str = "researcher@kubona.local", role: str = "operator",
-                 scopes: tuple[str, ...] = ("*",), token: str = "dev-token"):
+                  scopes: tuple[str, ...] = ("*",), token: str = "dev-token",
+                  tenant: str = "default"):
         self._sub = sub
         self._role = role
         self._scopes = scopes
         self._token = token
+        self._tenant = tenant
 
     def verify(self, token: str) -> Principal:
         if is_production():
             raise AuthError("dev auth is disabled in production: wire the OAuth2 issuer")
         if not hmac.compare_digest(token or "", self._token):
             raise AuthError("invalid or missing token (dev auth: use 'dev-token')")
-        return Principal(sub=self._sub, role=self._role, scopes=self._scopes)
+        return Principal(sub=self._sub, role=self._role, scopes=self._scopes,
+                         tenant=self._tenant)
