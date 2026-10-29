@@ -2,7 +2,7 @@
 type: concept
 name: Remaining work queue
 date: 2026-10-17
-updated: 2026-10-26
+updated: 2026-10-28
 tags: [plan, queue, production]
 sources: [source-gap-analysis-plan, source-frontier-repo-audit-2026]
 status: tracked
@@ -15,6 +15,26 @@ status: tracked
 > [[rea-adoption-plan]], [[cloudroom-adoption-plan]]). Durable blueprint
 > questions live in [[questions]] — this page tracks execution leftovers
 > only. Screened-out items name their reason; nothing rots silently.
+
+## Phase-0/1/2 execution record (2026-10-28, `develop`)
+
+- Phase-0 + Phase-1 hardening landed on `develop` with the full gate
+  green (20 checks, run 40786519756): settlement, admission crypto, A2A
+  binding, approval gate, bridge confinement, manuscript evidence, route
+  policy; then terminal settlement everywhere, atomic admission, sandbox
+  confinement + escape tests, principal-bound tenancy, RAM admission,
+  Rust measurement fidelity, CI depth (vet/gofmt, ruff ratchet, clippy,
+  semgrep, Trivy, coverage floors).
+- Phase-2 credibility hygiene landed: stale README numbers corrected to
+  recounted values (116 routes, 154 wiki pages, 57 console files / 276
+  vitest tests), simulator-backend parity contract added
+  (`platform/tests/test_simulator_parity.py`), all 7 dependabot branches
+  triaged (PRs #1–#7 closed unmerged with dispositions; branch deletion
+  blocked by repository rules).
+- No §A operator deed was closed by these phases — every deed below
+  remains open and human-owned. No §B queued item was retired by these
+  phases; landed program items continue to live in [[full-tree-roadmap]]
+  Landed per this page's rule.
 
 ## A · Operator deeds (blocked on the human — no slice can deliver these)
 

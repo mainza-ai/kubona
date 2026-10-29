@@ -1,6 +1,6 @@
 {
   "generated_by": "KUBONA_UPDATE_CATALOG=1 pytest platform/tests/test_mcp_catalog.py",
-  "digest": "9371e5d925efa76dac3f44e591510a9aab94da0d15e494e5fcbb8919e07e66ef",
+  "digest": "cd181ebf8392849d0618458686cb7878d79335235d023227b60d828e6f18cd3d",
   "tools": [
     {
       "name": "compile_circuit",
@@ -827,6 +827,19 @@
           "session_id": {
             "title": "Session Id",
             "type": "string"
+          },
+          "caller": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Caller"
           }
         },
         "required": [
@@ -1321,6 +1334,19 @@
             ],
             "default": null,
             "title": "Approval Id"
+          },
+          "caller": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Caller"
           }
         },
         "required": [
