@@ -27,11 +27,15 @@ export interface AuthorizeSpendDeps {
  * Session-bound, priced-packet-only spend authorization (create + verify).
  * Fail-closed gates (same as ActionGate):
  *  - no session id -> refuse (unbound)
+ *  - no tenant bound on the session (or explicit override) -> refuse
+ *    (unattributed). There is no 'tenant-default' fallback: lab-less dev
+ *    sessions must attach a lab tenant (LabsView) before authorizing, so
+ *    dev attribution can never leak into prod accounting as a default.
  *  - no priced estimate (finite number) -> refuse (unpriced)
  *  - no program (empty QASM) -> refuse (unbound program)
- * Tenant resolves from session.tenant_id (never session.id); the
- * 'tenant-default' fallback keeps lab-less dev sessions working without
- * inventing attribution — mandates.ts still throws on a truly empty tenant.
+ * Tenant resolves from the explicit override first, then session.tenant_id
+ * (never session.id). mandates.ts still throws on a truly empty tenant —
+ * defense in depth behind this gate.
  * The job hash is the canonical v1 binding over (session + exact QASM) so a
  * mandate for one program cannot replay against another.
  */
@@ -56,7 +60,10 @@ export async function authorizeSpend(
   if (!programQasm) {
     return { ok: false, reason: 'No program in this campaign — authorization disabled until a circuit is proposed.' };
   }
-  const tenantId = (input.tenantId ?? session?.tenant_id ?? '').trim() || 'tenant-default';
+  const tenantId = (input.tenantId ?? session?.tenant_id ?? '').trim();
+  if (!tenantId) {
+    return { ok: false, reason: 'No tenant bound — authorization disabled until a lab tenant is attached.' };
+  }
   let jobHash: string;
   try {
     jobHash = canonicalJobBinding(sessionId, programQasm);

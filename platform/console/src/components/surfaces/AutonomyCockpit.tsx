@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { KeyRound, ShieldCheck, AlertOctagon, Sparkles, ChevronDown, ChevronUp, Lock } from 'lucide-react';
 import { CampaignState, Session } from '@/types';
-import { emergencyAbort, launchProposal, fetchLLMSettings, saveLLMSettings } from '@/lib/api';
+import { emergencyAbort, launchProposal, fetchLLMSettings, saveLLMSettings, fetchBackendStatus, type BackendStatus } from '@/lib/api';
 import { ApprovalPacketCard } from '@/components/common/ApprovalPacketCard';
 import { MetasearchPanel } from '@/components/common/MetasearchPanel';
 import { buildApprovalPacketFromCampaign } from '@/lib/approvalPacket';
@@ -30,7 +30,16 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
   // Server spend only: refreshed from the session record, never incremented
   // locally. A local prev+estimated increment would invent ledger spend.
   const [currentSpentUSD, setCurrentSpentUSD] = useState(session?.current_spend_usd ?? 0);
-  const [sovereignAirGap, setSovereignAirGap] = useState(true);
+  // Live Sentinel predicates (Phase-2 credibility — never static chrome):
+  // airGap starts UNKNOWN (null) and is set only by live settings; backend
+  // starts unloaded (null) and is set only by the readiness probe. The
+  // badge derives from these — no predicate, no assurance.
+  const [airGap, setAirGap] = useState<boolean | null>(null);
+  const [backend, setBackend] = useState<BackendStatus | null>(null);
+  // Per-dispatch receipt: set only when authorizeSpend verifies a mandate
+  // in this mount. The attestation sheet derives from it — no receipt, no
+  // "verified" claim.
+  const [lastReceipt, setLastReceipt] = useState<{ sigPreview: string; verifiedAt: string; tenant: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCryptoDetails, setShowCryptoDetails] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -48,13 +57,30 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
   }
 
   // Initialize the switch from live settings — never assume engaged.
+  // Unreachable settings leave airGap null (unknown): the badge demotes
+  // to neutral copy and the toggle disables until the state is known.
   useEffect(() => {
     let mounted = true;
     fetchLLMSettings()
       .then((d) => {
         if (mounted && d && typeof (d as { air_gapped?: boolean }).air_gapped === 'boolean') {
-          setSovereignAirGap((d as { air_gapped: boolean }).air_gapped);
+          setAirGap((d as { air_gapped: boolean }).air_gapped);
         }
+      })
+      .catch(() => {});
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  // Backend readiness probe (same /api/health + /api/ready as the status
+  // bar): the second Sentinel predicate. Transport failure leaves backend
+  // null — badge demotes, never claims.
+  useEffect(() => {
+    let mounted = true;
+    fetchBackendStatus()
+      .then((s) => {
+        if (mounted) setBackend(s);
       })
       .catch(() => {});
     return () => {
@@ -76,6 +102,7 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
         return;
       }
       const sigPreview = res.mandate.signature_hex.slice(0, 16);
+      setLastReceipt({ sigPreview, verifiedAt: new Date().toISOString(), tenant: res.tenantId });
       setActionMessage(`Mandate verified (Sig: ${sigPreview}...). Verified, not dispatched — no spend recorded. Refresh the session to see ledger spend.`);
       setTimeout(() => setActionMessage(null), 5000);
     } catch (err) {
@@ -121,9 +148,9 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
   // as Cognitive Mesh) — never a visual-only toggle. Fetch-merge-save so a
   // toggle never wipes unrelated settings; revert + banner on failure.
   const handleToggleAirGap = async () => {
-    const next = !sovereignAirGap;
-    const prev = sovereignAirGap;
-    setSovereignAirGap(next);
+    const next = !airGap;
+    const prev = airGap;
+    setAirGap(next);
     try {
       const current = await fetchLLMSettings();
       if (!current) throw new Error('settings unreachable');
@@ -131,11 +158,11 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
       if (res.ok) {
         setActionMessage(`Sovereign Air-Gap ${next ? 'ENGAGED' : 'released'} (persisted).`);
       } else {
-        setSovereignAirGap(prev);
+        setAirGap(prev);
         setActionMessage(`Air-gap save refused — switch reverted (${res.error || 'no reason'}). Nothing changed.`);
       }
     } catch (e) {
-      setSovereignAirGap(prev);
+      setAirGap(prev);
       setActionMessage(`Air-gap save failed — switch reverted, nothing changed (${e instanceof Error ? e.message : String(e)}).`);
     }
     setTimeout(() => setActionMessage(null), 4000);
@@ -157,6 +184,22 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
     setTimeout(() => setActionMessage(null), 6000);
   };
 
+  // Sentinel badge predicate (Phase-2 credibility): ACTIVE (emerald) iff
+  // the backend is reachable AND ready AND the sovereign air-gap is
+  // engaged per live settings. Reachable predicates that fail either
+  // condition render DEGRADED (amber) with the live reason; unreachable
+  // predicates render NEUTRAL (slate) controls copy — never assurance.
+  const sentinelActive =
+    airGap === true && backend !== null && backend.reachable && backend.ready;
+  const sentinelPredicatesLive =
+    airGap !== null && backend !== null && backend.reachable;
+  const sentinelReason: string | null = !sentinelPredicatesLive
+    ? null
+    : backend !== null && !backend.ready
+      ? backend.message || 'backend not ready'
+      : 'sovereign air-gap released';
+  const sessionTenantLabel = (session?.tenant_id ?? '').trim() || 'unbound';
+
   return (
     <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0F19] to-[#07090E] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-8 select-none">
       {/* Top Header */}
@@ -173,11 +216,38 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
           </div>
         </div>
 
-        {/* Sentinel Shield Badge */}
-        <div className="flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-black/40 border border-white/10 backdrop-blur-xl">
-          <ShieldCheck className="w-4 h-4 text-emerald-400" />
-          <span className="text-xs font-mono font-medium text-emerald-300">
-            Sentinel Protection Active
+        {/* Sentinel Shield Badge — derived from live predicates only:
+            backend reachable+ready AND air-gap engaged (see above).
+            Degraded names the live reason; unknown predicates demote to
+            neutral controls copy. No static assurance chrome remains. */}
+        <div
+          data-testid="sentinel-badge"
+          title={
+            sentinelActive
+              ? 'Live: backend ready and sovereign air-gap engaged'
+              : sentinelPredicatesLive
+                ? `Live: ${sentinelReason}`
+                : 'Predicates unreachable — status unknown, no assurance claimed'
+          }
+          className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-full backdrop-blur-xl ${
+            sentinelActive
+              ? 'bg-black/40 border border-white/10'
+              : sentinelPredicatesLive
+                ? 'bg-amber-950/40 border border-amber-800/50'
+                : 'bg-black/40 border border-white/10'
+          }`}
+        >
+          <ShieldCheck
+            className={`w-4 h-4 ${sentinelActive ? 'text-emerald-400' : sentinelPredicatesLive ? 'text-amber-400' : 'text-slate-400'}`}
+          />
+          <span
+            className={`text-xs font-mono font-medium ${sentinelActive ? 'text-emerald-300' : sentinelPredicatesLive ? 'text-amber-300' : 'text-slate-400'}`}
+          >
+            {sentinelActive
+              ? 'Sentinel Protection Active'
+              : sentinelPredicatesLive
+                ? `Sentinel degraded — ${sentinelReason}`
+                : 'Sentinel controls enabled'}
           </span>
         </div>
       </div>
@@ -268,21 +338,24 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
         {/* Sovereign Air-Gap Toggle & Emergency Pause */}
         <div className="w-full flex items-center justify-between p-4 rounded-2xl bg-black/40 border border-white/10">
           <div className="flex items-center space-x-3">
-            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${sovereignAirGap ? 'bg-cyan-950 text-cyan-400 border border-cyan-800' : 'bg-slate-900 text-slate-400'}`}>
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${airGap === true ? 'bg-cyan-950 text-cyan-400 border border-cyan-800' : 'bg-slate-900 text-slate-400'}`}>
               <Lock className="w-4 h-4" />
             </div>
             <div>
               <div className="text-xs font-semibold text-white">Sovereign Air-Gap Mode</div>
-              <div className="text-[11px] text-slate-400">Strictly keep computations on local Mac hardware</div>
+              <div className="text-[11px] text-slate-400">
+                {airGap === null ? 'State unknown — settings unreachable' : 'Strictly keep computations on local Mac hardware'}
+              </div>
             </div>
           </div>
 
           <button
             onClick={handleToggleAirGap}
-            title="Persists to intelligence settings (same control as Cognitive Mesh)"
-            className={`w-11 h-6 rounded-full transition-colors relative p-0.5 ${sovereignAirGap ? 'bg-cyan-500' : 'bg-slate-700'}`}
+            disabled={airGap === null}
+            title={airGap === null ? 'Air-gap state unknown — settings unreachable' : 'Persists to intelligence settings (same control as Cognitive Mesh)'}
+            className={`w-11 h-6 rounded-full transition-colors relative p-0.5 ${airGap === true ? 'bg-cyan-500' : 'bg-slate-700'} disabled:opacity-40`}
           >
-            <div className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${sovereignAirGap ? 'translate-x-5' : 'translate-x-0'}`} />
+            <div className={`w-5 h-5 rounded-full bg-white shadow-md transform transition-transform ${airGap === true ? 'translate-x-5' : 'translate-x-0'}`} />
           </button>
         </div>
 
@@ -325,7 +398,7 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
             <span className="text-emerald-300 font-bold">SQLite WAL Tamper-Evident Hash Chain</span>
           </div>
           <div className="truncate text-xs text-slate-300 pt-1 border-t border-white/10">
-            Tenant: {session?.tenant_id || 'default'} • Envelope Verified Statelessly
+            Tenant: {sessionTenantLabel} • {lastReceipt ? `Envelope verified ${lastReceipt.verifiedAt} (sig ${lastReceipt.sigPreview}…) for tenant ${lastReceipt.tenant}` : 'No envelope verified yet — authorize a run to mint one.'}
           </div>
         </div>
       )}

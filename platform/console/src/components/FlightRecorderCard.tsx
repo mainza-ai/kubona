@@ -3,8 +3,12 @@
 import React, { useEffect, useState } from 'react';
 import { API_BASE, apiFetch, authHeaders } from '@/lib/api';
 
-export interface FlightRecorderData {
-  ok: boolean;
+// Documented budget, not an invented one: the surface title below names the
+// "(60s Gate)" auditor window. The measured fetch latency renders against
+// it honestly — over budget shows the measured overrun, never a pass.
+export const FLIGHT_RECORDER_GATE_BUDGET_MS = 60_000;
+
+export interface FlightRecorderData {  ok: boolean;
   session_id: string;
   tenant_id: string;
   terminal_verdict: string;
@@ -31,12 +35,17 @@ function FlightRecorderCardInner({ sessionId }: { sessionId: string }) {
   const [data, setData] = useState<FlightRecorderData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Real measured fetch latency (performance.now around the
+  // flight-recorder fetch). Null until a fetch completes — never a
+  // placeholder.
+  const [latencyMs, setLatencyMs] = useState<number | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     const fetchTelemetry = async () => {
       setLoading(true);
       setError(null);
+      const t0 = typeof performance !== 'undefined' ? performance.now() : 0;
       try {
         const res = await apiFetch(`${API_BASE}/api/campaigns/${sessionId}/flight-recorder`, {
           cache: 'no-store',
@@ -48,6 +57,7 @@ function FlightRecorderCardInner({ sessionId }: { sessionId: string }) {
         const json = (await res.json()) as FlightRecorderData;
         if (!cancelled) {
           setData(json);
+          setLatencyMs(typeof performance !== 'undefined' ? performance.now() - t0 : 0);
         }
       } catch (err: unknown) {
         if (!cancelled) {
@@ -91,6 +101,17 @@ function FlightRecorderCardInner({ sessionId }: { sessionId: string }) {
 
       {loading && <p className="mt-3 text-xs text-slate-400">Loading flight recorder telemetry…</p>}
       {error && <p className="mt-3 text-xs text-rose-400">Error: {error}</p>}
+      {/* Measured fetch latency with its documented gate budget. A missed
+          budget renders as an overrun in rose — never a passing badge. */}
+      {latencyMs !== null && (
+        <p
+          data-testid="flight-recorder-latency"
+          className={`mt-3 text-xs font-mono ${latencyMs <= FLIGHT_RECORDER_GATE_BUDGET_MS ? 'text-slate-400' : 'text-rose-400'}`}
+        >
+          telemetry fetch: {Math.round(latencyMs)} ms (gate budget 60,000 ms)
+          {latencyMs > FLIGHT_RECORDER_GATE_BUDGET_MS ? ' — over budget' : ' — within budget'}
+        </p>
+      )}
 
       {data && (
         <div className="mt-3 space-y-4 text-xs">

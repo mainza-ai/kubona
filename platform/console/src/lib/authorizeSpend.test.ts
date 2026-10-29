@@ -60,6 +60,27 @@ describe('authorizeSpend (session-bound, priced-packet-only)', () => {
     expect(verify).toHaveBeenCalledOnce();
   });
 
+  it('refuses tenant-less sessions (no tenant-default fallback)', async () => {
+    const verify = vi.fn().mockResolvedValue({ valid: true });
+    const tenantless = { ...SESSION, tenant_id: undefined };
+    const res = await authorizeSpend({ session: tenantless, campaign: campaign() }, { verify: verify as never });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.reason).toMatch(/No tenant bound/);
+    // Refused before minting: the verifier is never consulted.
+    expect(verify).not.toHaveBeenCalled();
+  });
+
+  it('refuses blank tenant overrides (whitespace is not a tenant)', async () => {
+    const verify = vi.fn().mockResolvedValue({ valid: true });
+    const res = await authorizeSpend({
+      sessionId: 'sess-1', tenantId: '   ', estimatedUsd: 1.5,
+      programQasm: 'OPENQASM 2.0; qreg q[1];',
+    }, { verify: verify as never });
+    expect(res.ok).toBe(false);
+    if (!res.ok) expect(res.reason).toMatch(/No tenant bound/);
+    expect(verify).not.toHaveBeenCalled();
+  });
+
   it('authorizes priced + bound + program with tenant + canonical binding', async () => {
     let seen: { tenant_id: string; job_hash: string } | null = null;
     const verify = vi.fn().mockImplementation(async (m: { tenant_id: string; job_hash: string }) => {
