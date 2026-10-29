@@ -760,9 +760,10 @@ remaining dispatch tools; console credibility (HSTS non-loopback, live
 Sentinel predicate, tenant-default refusal, mounted flight card with
 measured latency); tested seccomp profile (live EPERM on AF_INET, env-gated
 for Go parity); deny-by-default local; strict numerics + per-request token;
-pinned extras; simulator-parity contract test; true README numbers
-(116/154/59 files+291 tests); surface budget 16KB→18KB with per-tool
-justification. Full gate green with all checks (run `40794054993`).
+pinned extras; simulator-parity contract test; README numbers true at that
+commit (116/154/59 files+291 tests; stale at `5fda062`, see correction below);
+surface budget 16KB→18KB with per-tool justification. Full gate green with all
+checks (run `40794054993`).
 REMAINING (still not production): operator deeds (reviewer key, R6 policy,
 mandate-review queue, EvidenceEnvelope regen, R-series confirmations, QPU
 credentials + first paid run), seccomp default-on across rails, ledger
@@ -796,7 +797,21 @@ consumed not held). Full gate green (run `40803947946`). REMAINING:
 commission the generated reviewer key (keypair handed over, never stored
 in-repo); dependabot remote refs already deleted (ruleset disabled,
 deleted, re-enabled byte-identical — needs no admin follow-up); operator
-R-series confirmations recorded; first paid run DONE (this probe).
+R-series confirmations recorded; first paid run: governed free-plan probe
+cancelled and settled to $0.00; a completed paid job remains OPEN (see
+correction below).
+
+> ⚑ Correction (2026-10-29 stale-state audit):
+> - **Counts:** 116 routes / 59 files / 291 tests were true at their commits
+>   but are stale at `5fda062` (120 routes / 74 files / 434 tests). Generated
+>   counts live in `docs/repo-counts.md`.
+> - **"First paid run DONE":** the `ibm_fez` probe was on IBM's free plan and
+>   was cancelled with vendor recall. It held `$8.000568`, settled to `$0.00`
+>   on both rails, and proves hold/cancel/settle, not a completed paid job.
+>   A completed paid job remains open.
+> - **Gate:** the 20-job push gate is green (run `40914979580`); the nightly
+>   thesis-scale gate is red (runs `40854405074`, `40666624246`,
+>   `40478035440`). Do not read "full gate green" as covering nightly.
 
 ---
 

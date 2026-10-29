@@ -26,6 +26,18 @@ evidence; the reviewer key is commissioned). The repo is under constant
 development — re-verify the gate on the exact commit before citing
 "production-ready" as current fact. Do not cite "private" as current fact.
 
+> ⚑ State correction (2026-10-29 stale-state audit): the 20-job **push**
+> gate is green at `5fda062` (run `40914979580`), but the **nightly
+> thesis-scale** gate is red (runs `40854405074`, `40666624246`,
+> `40478035440`); do not call the full gate green until nightly is green.
+> The reviewer-key claim above is recorded as commissioned in this file and
+> the 2026-10-29 log, but `wiki/concepts/remaining-work.md` still listed it
+> open; verify `reviewer_key_configured=true` on the deployment host before
+> citing it. The "first paid run" remains open: the `ibm_fez` probe was a
+> free-plan governed run, cancelled with vendor recall and settled to
+> `$0.00`. Counts are generated in `docs/repo-counts.md`; do not hand-maintain
+> them in prose.
+
 ## Three layers
 
 - `dev-docs/` — local working copies of source documents. **Never committed to git, never pushed —

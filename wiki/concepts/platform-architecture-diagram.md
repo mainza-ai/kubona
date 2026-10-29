@@ -25,7 +25,7 @@ flowchart TB
     end
 
     subgraph EDGE["kubonad edge :8080"]
-        API["pkg/api<br/>116 routes, bearer + session edge auth<br/>obligations + tenant-grants endpoints"]
+        API["pkg/api<br/>120 routes, bearer + session edge auth<br/>obligations + tenant-grants endpoints"]
         RPC["POST /api/a2a/v1<br/>JSON-RPC: card, status, 402-gated submit<br/>self-signed delegation refused"]
         EV["events/stream SSE<br/>canvas layout persist"]
     end
@@ -170,7 +170,7 @@ flowchart TB
 ## Node evidence (spot-check anchors, re-verified 2026-10-29 @ `d6fff39`)
 
 - Route policy: single path→auth-class table (`platform/core/pkg/api/route_policy.go`)
-  with a test failing on unlisted routes; 116 `s.route(` registrations; obligations
+  with a test failing on unlisted routes; 120 `s.route(` registrations; obligations
   (`/api/obligations/open`, `/api/obligations/{id}/close`) + tenant-grants
   (`/api/tenant-grants/issue|revoke`) endpoints bearer/session-gated.
 - Trust: micro-USD CAS money rail with measured settlement; mandate canonical
@@ -185,16 +185,15 @@ flowchart TB
   estimate $8.000568 held, job queued, cancelled with vendor recall, settled
   $8.00 → $0.00 both rails, ledger-sealed (`job_settled`); calibrated-subgraph
   guard recorded physical 146/147, max readout 0.29%.
-- Console: `tsc` + `eslint` clean; 59 files / 291 tests; Sentinel badge and
+- Console: `tsc` + `eslint` clean; 74 files / 434 tests; Sentinel badge and
   envelope line derived from live predicates; HSTS on non-loopback;
   flight-recorder card mounted with measured fetch latency; no fabricated
   numbers (UNVERIFIED-by-default discipline, tested).
-- Counts this snapshot: 116 routes, 33 Go packages, 699 Go test funcs,
-  177 Python test files (1175 test funcs), 291 Vitest tests across 59 files,
-  Rust qir-core 20 + ifc-core 9 tests, 37 MCP tools across 6 servers.
-  Counts are prose and prose rots — recount with
-  `grep -c 's.route(' platform/core/pkg/api/server.go`,
-  `go list ./... | wc -l`, `npm test -- --run`, and the catalog digest test.
+- Counts this snapshot (2026-10-29): 120 routes, 34 Go packages, 704 Go test
+  funcs, 177 Python test files (1175 test funcs), 434 Vitest tests across 74
+  files, Rust qir-core 20 + ifc-core 9 tests, 37 MCP tools across 6 servers.
+  The generated source of truth is `docs/repo-counts.md`; the older prose
+  counts below are retained as historical anchors.
 
 ### Retained 2026-10-21 anchors (superseded where the 2026-10-29 block above says otherwise)
 

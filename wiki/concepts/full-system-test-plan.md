@@ -87,7 +87,7 @@ error vs loading states distinguished, then the surface-specific battery:
   garbage into every form (inline named errors), 390px pass per
   surface, keyboard-only pass of the five highest-traffic flows.
 
-## 2. EDGE — kubonad :8080 (all 93 routes, valid-path + refusal)
+## 2. EDGE — kubonad :8080 (all 120 routes, valid-path + refusal; count generated in `docs/repo-counts.md`)
 
 - Route census recount; every route gets happy-path + one refusal case.
 - Auth matrix: bearerless/wrong-token/admin-without-envelope per gated
