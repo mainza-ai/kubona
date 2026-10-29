@@ -44,7 +44,14 @@ func (m *SpendMandate) CanonicalPayload() []byte {
 	))
 }
 
-// SignMandate creates an Ed25519 signature over the canonical mandate fields
+// SignMandate creates an Ed25519 signature over the canonical mandate fields.
+// The expiry is TRUNCATED to whole UTC seconds before signing AND the
+// truncated value is what the mandate carries: CanonicalPayload formats
+// expiry without fractions, so signing untruncated time would mint a
+// mandate whose wire bytes can never verify on any rail (Python and the
+// console verify the verbatim wire timestamp). Canonical form has
+// whole-second expiry, enforced at the mint — never at verification
+// (non-canonical wire input fails closed there).
 func SignMandate(privKey ed25519.PrivateKey, tenantID, jobHash string, maxBudgetUSD float64, expiry time.Time) (*SpendMandate, error) {
 	pubKey := privKey.Public().(ed25519.PublicKey)
 
@@ -52,7 +59,7 @@ func SignMandate(privKey ed25519.PrivateKey, tenantID, jobHash string, maxBudget
 		TenantID:        tenantID,
 		JobHash:         jobHash,
 		MaxBudgetUSD:    maxBudgetUSD,
-		ExpiryTimestamp: expiry.UTC(),
+		ExpiryTimestamp: expiry.UTC().Truncate(time.Second),
 		PublicKeyHex:    hex.EncodeToString(pubKey),
 	}
 

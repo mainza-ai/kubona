@@ -102,3 +102,28 @@ def test_mint_refusals():
 
 def test_utc_now_plus():
     assert utc_now_plus(60) > datetime.now(timezone.utc)
+
+
+def test_fractional_wire_expiry_refuses():
+    """Canonical form is whole-second expiry. A wire timestamp carrying
+    nanosecond fractions can never match the canonical payload the
+    signature covers — it must refuse (fail-closed), even when the
+    signature itself is valid over the whole-second form. Found live:
+    Go minted with nanos while signing truncated time; the first
+    Python-side verification of a Go mandate caught it."""
+    import os
+    from nacl.signing import SigningKey
+    from kubona.cost.mandate import SpendMandate, verify_mandate
+    key = os.urandom(32)
+    pubhex = SigningKey(key).verify_key.encode().hex()
+    whole = "2030-01-01T00:00:00Z"
+    canon = f"lab-a:job-1:{50.0:.4f}:{whole}".encode()
+    sig = SigningKey(key).sign(canon).signature.hex()
+    good = SpendMandate("lab-a", "job-1", 50.0, whole, pubhex, sig)
+    assert verify_mandate(good, "lab-a", "job-1", 10.0)[0] is True
+    # Same signature bytes, nanos-fraction wire timestamp: the canonical
+    # payload differs, so verification must refuse (not "close enough").
+    nano = SpendMandate("lab-a", "job-1", 50.0,
+                        "2030-01-01T00:00:00.123456789Z", pubhex, sig)
+    ok, reason = verify_mandate(nano, "lab-a", "job-1", 10.0)
+    assert ok is False, reason
