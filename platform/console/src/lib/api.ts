@@ -2046,6 +2046,36 @@ export function revokeTenantAutonomy(
   });
 }
 
+export async function issueTenantGrant(body: Record<string, unknown>): Promise<{ ok: true; grant: Record<string, unknown> } | { ok: false; error: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/tenant-grants/issue`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: String(data.error || data.message || `HTTP ${res.status}`).slice(0, 280) };
+    return { ok: true, grant: data as Record<string, unknown> };
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 280) };
+  }
+}
+
+export async function revokeTenantGrant(body: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/tenant-grants/revoke`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: String(data.error || data.message || `HTTP ${res.status}`).slice(0, 280) };
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 280) };
+  }
+}
+
 export interface ObligationRow {
   id: string;
   subject_kind: string;
