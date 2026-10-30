@@ -27,7 +27,7 @@ development — re-verify the gate on the exact commit before citing
 "production-ready" as current fact. Do not cite "private" as current fact.
 
 > ⚑ State correction (2026-10-29 stale-state audit): the 20-job **push**
-> gate is green at `ddd9d22` (runs `40995438061` on develop, `40995448632`
+> gate is green at `ccd7797` (runs `41003173676` on develop, `41003185157`
 > on main; 20/20 jobs), but the **nightly thesis-scale** gate is red (runs `40854405074`, `40666624246`,
 > `40478035440`); do not call the full gate green until nightly is green.
 > The reviewer-key claim above is recorded as commissioned in this file and

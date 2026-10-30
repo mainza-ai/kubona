@@ -4090,3 +4090,15 @@ skipped is the exact failure this incident is about:
 - Added a best-effort 4 GiB swap step to both thesis-scale jobs and cached
   the 3.9M-op emit lists in `test_codesign_slice60.py` to reduce the memory/
   time spike. Retry pending; do not weaken the test.
+
+## [2026-10-30] verification | Nightly retry still runner-canceled
+
+- Manual dispatch `41003185385` (main `ccd7797`): canary passed; both slice60
+  jobs were canceled by the runner after ~18m (composition) and ~22m
+  (determinism), again with no assertion output. The runner reported 15 GiB
+  RAM and the 4 GiB swap was active, so the failure is not simple OOM.
+- CI on the same head is 20/20 green: develop `41003173676`, main
+  `41003185157`. The nightly gate remains **red/blocked on runner capacity**;
+  move the two slices to a larger or self-hosted runner. Do not weaken them.
+- Code head `ccd7797` on both branches; the paid-run settlement fix and the
+  legacy-chain disposition from earlier entries remain in place.

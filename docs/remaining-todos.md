@@ -35,11 +35,13 @@ Updated 2026-10-30. This is the short execution list; the full queue lives in
       rewritten: its vendor job completed and charged 2 s while the local
       ledger released $8.00. Reconcile/repair that row only with operator
       approval and the vendor invoice.
-- [ ] **Run the manual nightly and record the result.** `workflow_dispatch`
-      run `41000688966` (2026-10-30) failed: the canary passed, but both
-      slice60 jobs were canceled by the runner after ~22–23 min with no test
-      output/assertion. Added a best-effort 4 GiB swap step and cached emit
-      lists; retry pending. Do not weaken the tests.
+- [ ] **Run the manual nightly and record the result — blocked on runner
+      capacity.** `workflow_dispatch` runs `41000688966` and `41003185385`
+      both passed the canary but had both slice60 jobs canceled by the runner
+      after ~18–23 min with no test output/assertion. The second run had
+      15 GiB RAM + 4 GiB swap enabled, so this is not a simple OOM. Run these
+      two slices on a larger/self-hosted runner and attach the run IDs; do not
+      weaken the tests.
 - [x] **Host LLM default decided 2026-10-30:** the host's persisted
       `active=nvidia`, `air_gap=off` is treated as an intentional development
       override (NVIDIA keys are present); it is **not** the shipped default.
@@ -48,8 +50,9 @@ Updated 2026-10-30. This is the short execution list; the full queue lives in
       `KUBONA_LLM_CLOUD=1`; local providers (Strata/oMLX/Ollama/LM Studio)
       do not. Switch the host to Strata + air-gap in the UI if that is the
       desired dev default.
-- [x] **Commit and push.** `ddd9d22` on `develop` and `main`; CI 20/20 green
-      on both (runs `40995438061` and `40995448632`).
+- [x] **Commit and push.** Current code head `ccd7797` on `develop` and
+      `main`; CI 20/20 green (runs `41003173676` and `41003185157`). Earlier
+      green heads: `ddd9d22`, `b318e7e`, `4836f0e`.
 
 ## Optional / follow-up
 
