@@ -4102,3 +4102,11 @@ skipped is the exact failure this incident is about:
   move the two slices to a larger or self-hosted runner. Do not weaken them.
 - Code head `ccd7797` on both branches; the paid-run settlement fix and the
   legacy-chain disposition from earlier entries remain in place.
+
+## [2026-10-30] implementation | Local release dry-run
+
+- Added `scripts/release-dry-run.sh`: refuses a dirty tree, runs the counts/
+  wiki/secret/compose gates, builds the three production images, and prints
+  their local IDs. It never tags, pushes, signs, or creates a release.
+- Optional OTel/Sentry remains backlogged on a backend/DSN choice; no
+  telemetry is enabled by default.

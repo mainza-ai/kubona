@@ -8,6 +8,16 @@
 - The release workflow has `contents: write`, `packages: write`,
   `id-token: write`, and `actions: read`.
 
+## Dry run (no tag, no push)
+
+```bash
+scripts/release-dry-run.sh
+```
+
+This refuses a dirty tree, runs the counts/wiki/secret/compose checks, builds
+all three production images, and prints their local IDs. It does not tag,
+push, sign, or create a release. Use it before cutting the signed tag.
+
 ## Cut a release
 
 ```bash
