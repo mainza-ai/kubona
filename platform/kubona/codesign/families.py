@@ -11,8 +11,11 @@ refused outright, never silently routed.
 
 from __future__ import annotations
 
+import json
 import os
 from typing import Any, Callable
+
+import httpx
 
 from .frontier import MapElitesFrontier
 
@@ -113,14 +116,16 @@ class NvidiaProposer:
     default; NVIDIA NIM (`nvidia`) stays explicitly selectable for
     parked-but-available use and still requires its key. Parked shims
     (oMLX/OpenCode/...) refuse outright: never silently routed.
-    The propose() entrypoint stays unwired (no network inside unit tests).
+    propose() is a bounded OpenAI-compatible call (timeout + one retry on
+    transport/5xx; 4xx is a refusal). Tests use a local stub server.
     """
 
     # NOTE: the class name is historical (it was NVIDIA-only); the
     # contract below is provider-agnostic across the two supported
     # backends. Renaming would churn imports for zero behavior change.
     def __init__(self, provider: str = "strata", model: str | None = None,
-                 base_url: str | None = None):
+                 base_url: str | None = None, timeout_sec: float = 30.0,
+                 max_retries: int = 1, max_tokens: int = 512):
         if provider in PARKED_PROVIDERS:
             raise ValueError(
                 f"provider {provider!r} is parked: refusing (use strata for local dev)")
@@ -144,8 +149,143 @@ class NvidiaProposer:
         if not self.model:
             env_var = "STRATA_MODEL" if provider == "strata" else "NVIDIA_MODEL"
             raise ValueError(f"no model configured: set {env_var} (or pass model= explicitly)")
+        if timeout_sec <= 0 or max_retries < 0 or max_tokens <= 0:
+            raise ValueError("timeout_sec/max_tokens must be positive and max_retries non-negative: refusing")
+        self.timeout_sec = float(timeout_sec)
+        self.max_retries = int(max_retries)
+        self.max_tokens = int(max_tokens)
 
     def propose(self, prompt: str) -> str:
-        raise NotImplementedError(
-            "live proposal is a network call: wire via get_llm() at the "
-            "search-loop edge with ledger sealing, never inside unit tests")
+        """Call the configured OpenAI-compatible endpoint with a bound.
+
+        One retry on transport/5xx only; 4xx is a refusal, not a retry. The
+        deterministic mutator is the explicit test path, never a silent
+        fallback for a broken provider.
+        """
+        if not isinstance(prompt, str) or not prompt.strip():
+            raise ValueError("prompt must be non-blank: refusing")
+        endpoint = self.base_url.rstrip("/") + "/chat/completions"
+        headers = {"Content-Type": "application/json"}
+        if self.api_key:
+            headers["Authorization"] = f"Bearer {self.api_key}"
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": "You propose reversible Kickmix circuits. Reply with JSON only."},
+                {"role": "user", "content": prompt},
+            ],
+            "temperature": 0.2,
+            "max_tokens": self.max_tokens,
+            "stream": False,
+        }
+        last: Exception | None = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                with httpx.Client(timeout=self.timeout_sec) as client:
+                    resp = client.post(endpoint, json=payload, headers=headers)
+                if resp.status_code >= 500:
+                    last = RuntimeError(f"proposer HTTP {resp.status_code}: {resp.text[:160]}")
+                    continue
+                if resp.status_code >= 400:
+                    raise ValueError(f"proposer refused (HTTP {resp.status_code}): {resp.text[:160]}")
+                data = resp.json()
+                content = data.get("choices", [{}])[0].get("message", {}).get("content")
+                if not isinstance(content, str) or not content.strip():
+                    raise ValueError("proposer returned no message content: refusing")
+                return content
+            except (httpx.TransportError, httpx.TimeoutException) as exc:
+                last = exc
+                continue
+        raise RuntimeError(f"proposer unreachable after {self.max_retries + 1} attempt(s): {last}")
+
+
+# The exact gate vocabulary and arity the Kickmix evaluator accepts. `cond`
+# is only meaningful for diagonal gates, but the parser does not invent
+# records; it passes what the model returned to the harness, which re-validates.
+_GATE_ARITY = {
+    "x": 1, "cx": 2, "ccx": 3, "swap": 2,
+    "z": 1, "cz": 2, "ccz": 3, "global_flip": 0, "hmr": 1,
+    "alloc_marker": 1, "free_marker": 1,
+}
+
+
+def parse_gate_proposal(text: str, num_qubits: int, max_ops: int = 64) -> list[tuple]:
+    """Parse a strict JSON gate proposal; raise ValueError on any doubt.
+
+    Accepted shapes: {"ops": [[name, [qubits], [cond]], ...]} or a bare
+    list of the same. Code fences are tolerated because models emit them;
+    everything else is validated against the closed gate/arity set and the
+    circuit width. The returned tuples are what `CircuitCodesignHarness`
+    consumes.
+    """
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError("empty proposal: refusing")
+    raw = text.strip()
+    if raw.startswith("```"):
+        raw = raw.strip("`")
+        if raw.startswith("json"):
+            raw = raw[4:]
+        raw = raw.strip()
+    start = min([i for i in (raw.find("{"), raw.find("[")) if i >= 0], default=-1)
+    if start < 0:
+        raise ValueError("proposal contains no JSON object/array: refusing")
+    try:
+        doc = json.loads(raw[start:])
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"proposal is not valid JSON: {exc}") from exc
+    ops = doc.get("ops") if isinstance(doc, dict) else doc
+    if not isinstance(ops, list) or not ops:
+        raise ValueError("proposal must contain a non-empty ops list: refusing")
+    if len(ops) > max_ops:
+        raise ValueError(f"proposal has {len(ops)} ops, cap is {max_ops}: refusing")
+    out: list[tuple] = []
+    for idx, op in enumerate(ops):
+        if isinstance(op, dict):
+            name = op.get("name")
+            qubits = op.get("qubits", [])
+            cond = op.get("cond", [])
+        elif isinstance(op, (list, tuple)) and len(op) == 3:
+            name, qubits, cond = op
+        else:
+            raise ValueError(f"op {idx} must be {{name,qubits,cond}} or [name,qubits,cond]: refusing")
+        if not isinstance(name, str) or name not in _GATE_ARITY:
+            raise ValueError(f"op {idx} has unknown gate {name!r}: refusing")
+        if not isinstance(qubits, (list, tuple)) or not isinstance(cond, (list, tuple)):
+            raise ValueError(f"op {idx} qubits/cond must be lists: refusing")
+        if len(qubits) != _GATE_ARITY[name]:
+            raise ValueError(f"op {idx} gate {name!r} needs {_GATE_ARITY[name]} qubit(s), got {len(qubits)}: refusing")
+        qs = []
+        for q in qubits:
+            if isinstance(q, bool) or not isinstance(q, int) or q < 0 or q >= num_qubits:
+                raise ValueError(f"op {idx} qubit {q!r} is outside [0,{num_qubits}): refusing")
+            qs.append(q)
+        cs = []
+        for c in cond:
+            if isinstance(c, bool) or not isinstance(c, int) or c < 0:
+                raise ValueError(f"op {idx} cond record {c!r} is invalid: refusing")
+            cs.append(c)
+        out.append((name, tuple(qs), tuple(cs)))
+    return out
+
+
+def make_gate_proposer(proposer: Any, num_qubits: int, max_ops: int = 64) -> Callable[[list, int], list[tuple]]:
+    """Adapt a text proposer to `IndependentRerun`'s (current, step)->ops.
+
+    The LLM sees the current artifact and the closed vocabulary; the parser
+    refuses anything else. A proposer/network failure raises, and the rerun
+    loop records that trial as invalid rather than aborting the run.
+    """
+    if num_qubits < 1 or num_qubits > 64:
+        raise ValueError("num_qubits must be in [1,64]: refusing")
+    gates = ", ".join(sorted(_GATE_ARITY))
+    def propose(current: list, step: int) -> list[tuple]:
+        prompt = (
+            "Complete the reversible Kickmix circuit. "
+            f"Allowed gates and qubit arity: {gates}. "
+            "Only diagonal gates may carry a cond list of measurement-record ids. "
+            f"num_qubits={num_qubits}; step={step}; max_ops={max_ops}. "
+            f"Current ops: {json.dumps(current)}. "
+            'Reply with JSON only: {"ops": [[name, [qubits], [cond]], ...]}.'
+        )
+        return parse_gate_proposal(proposer.propose(prompt), num_qubits, max_ops)
+    return propose
