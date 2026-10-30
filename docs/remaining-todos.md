@@ -36,8 +36,10 @@ Updated 2026-10-30. This is the short execution list; the full queue lives in
       ledger released $8.00. Reconcile/repair that row only with operator
       approval and the vendor invoice.
 - [ ] **Run the manual nightly and record the result.** `workflow_dispatch`
-      is added; trigger `nightly-canary.yml` and attach the run ID. The last
-      scheduled failures were runner shutdowns, not assertions.
+      run `41000688966` (2026-10-30) failed: the canary passed, but both
+      slice60 jobs were canceled by the runner after ~22–23 min with no test
+      output/assertion. Added a best-effort 4 GiB swap step and cached emit
+      lists; retry pending. Do not weaken the tests.
 - [x] **Host LLM default decided 2026-10-30:** the host's persisted
       `active=nvidia`, `air_gap=off` is treated as an intentional development
       override (NVIDIA keys are present); it is **not** the shipped default.

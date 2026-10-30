@@ -4080,3 +4080,13 @@ skipped is the exact failure this incident is about:
   starts on a fresh ledger. The raw snapshot remains at
   `~/.kubona/backups/kubona-pre-fk-20261030T024721Z.db` with sha256
   `c15bffd6843e7263de8c64bb1a9d3b8d9c00c4898ba851cfce4990eb53146f3b`.
+
+## [2026-10-30] verification | Manual nightly still canceled by runner
+
+- `workflow_dispatch` run `41000688966` (main `4836f0e`): canary passed;
+  `slice60-composition` and `slice60-determinism` were canceled by the runner
+  after ~22m/23m with no assertion output. This is the same runner-capacity
+  failure class, not a test verdict.
+- Added a best-effort 4 GiB swap step to both thesis-scale jobs and cached
+  the 3.9M-op emit lists in `test_codesign_slice60.py` to reduce the memory/
+  time spike. Retry pending; do not weaken the test.

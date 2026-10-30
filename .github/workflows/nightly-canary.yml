@@ -68,6 +68,16 @@ jobs:
           free -h
           ulimit -a
           nproc
+      - name: Add swap (thesis-scale memory headroom)
+        continue-on-error: true
+        run: |
+          sudo swapoff /swapfile 2>/dev/null || true
+          sudo rm -f /swapfile
+          sudo fallocate -l 4G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile || echo "swap unavailable on this runner"
+          free -h
       - run: pip install -e ".[dev,qiskit,chemistry]" pyscf==2.14.0
       - name: Slice60 test_rs_composition_end_to_end (bounded)
         env:
@@ -92,6 +102,16 @@ jobs:
           free -h
           ulimit -a
           nproc
+      - name: Add swap (thesis-scale memory headroom)
+        continue-on-error: true
+        run: |
+          sudo swapoff /swapfile 2>/dev/null || true
+          sudo rm -f /swapfile
+          sudo fallocate -l 4G /swapfile || sudo dd if=/dev/zero of=/swapfile bs=1M count=4096
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile || echo "swap unavailable on this runner"
+          free -h
       - run: pip install -e ".[dev,qiskit,chemistry]" pyscf==2.14.0
       - name: Slice60 test_rs_pins_determinism_layout (bounded)
         env:
