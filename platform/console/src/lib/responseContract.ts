@@ -166,12 +166,11 @@ export interface ContractIssue {
 }
 
 function validate(value: unknown, schema: ResponseSchema, path: string): ContractIssue[] {
+  if (schema.type === 'any') return [];
   if (value === null || value === undefined) {
     return schema.nullable ? [] : [{ path, message: `expected ${schema.type}, got ${value === null ? 'null' : 'undefined'}` }];
   }
   switch (schema.type) {
-    case 'any':
-      return [];
     case 'string':
       return typeof value === 'string' ? [] : [{ path, message: `expected string, got ${typeof value}` }];
     case 'number':
