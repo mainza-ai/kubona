@@ -767,6 +767,31 @@ export interface CapabilitiesPayload {
   flags?: Record<string, boolean>;
 }
 
+export async function fetchCanvasLayout(sessionId: string): Promise<Record<string, unknown> | null> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/canvas/layout?session_id=${encodeURIComponent(sessionId)}`, { cache: 'no-store', headers: authHeaders() });
+    if (!res.ok) return null;
+    return (await res.json()) as Record<string, unknown>;
+  } catch (err) {
+    console.error('Failed to fetch canvas layout:', err);
+    return null;
+  }
+}
+
+export async function saveCanvasLayout(sessionId: string, layout: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/canvas/layout?session_id=${encodeURIComponent(sessionId)}`, {
+      method: 'PUT',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(layout),
+    });
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String(err) };
+  }
+}
+
 export async function fetchCapabilities(): Promise<CapabilitiesPayload | null> {
   try {
     const res = await apiFetch(`${API_BASE}/api/capabilities`, { cache: 'no-store', headers: authHeaders() });

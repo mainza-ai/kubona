@@ -4,7 +4,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { Atom, Code, Copy, Check, Orbit } from 'lucide-react';
 import { CampaignState } from '@/types';
-import { fetchMolecularADMET, requestObservatoryLens, fetchObservatoryLensStatus, resolveObservatoryLens, fetchLensHistory, type LensHistoryOp } from '@/lib/api';
+import { fetchCanvasLayout, saveCanvasLayout, fetchMolecularADMET, requestObservatoryLens, fetchObservatoryLensStatus, resolveObservatoryLens, fetchLensHistory, type LensHistoryOp } from '@/lib/api';
 import { dissociationEnergyHartree, equilibriumBondDistanceAngstrom, morseEnergyHartree } from '@/lib/morse';
 
 // Wave-3 code-split: three.js + EXR must not load on first paint for users
@@ -36,6 +36,23 @@ interface SpatialCanvasProps {
 
 export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
   const [canvasMode, setCanvasMode] = useState<'workbench' | 'observatory'>('workbench');
+  const [layoutStatus, setLayoutStatus] = useState<string | null>(null);
+  // Persisted canvas layout is session-scoped; only the display mode is
+  // persisted today (the 3D camera is owned by SpatialCanvas3D).
+  useEffect(() => {
+    const sid = campaign?.session_id;
+    if (!sid) return;
+    let live = true;
+    fetchCanvasLayout(sid).then((layout) => {
+      if (!live || !layout) return;
+      if (layout.canvas_mode === 'observatory' || layout.canvas_mode === 'workbench') {
+        setCanvasMode(layout.canvas_mode);
+        setLayoutStatus('layout restored');
+      }
+    });
+    return () => { live = false; };
+  }, [campaign?.session_id]);
+
   // Discovery target
   const targetSystem = campaign?.target_system || 'H2';
   const isLiH = targetSystem.toUpperCase().includes('LIH');
@@ -587,6 +604,21 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
               <span>3D Observatory</span>
             </button>
           </div>
+
+          <button
+            type="button"
+            onClick={() => {
+              const sid = campaign?.session_id;
+              if (!sid) { setLayoutStatus('no session — layout not saved'); return; }
+              void saveCanvasLayout(sid, { canvas_mode: canvasMode }).then((out) => {
+                setLayoutStatus(out.ok ? 'layout saved' : `layout save refused (${out.error ?? 'unknown'})`);
+              });
+            }}
+            className="px-3 py-1.5 rounded-2xl bg-white/[0.04] border border-white/10 text-xs text-slate-300 hover:bg-white/[0.08]"
+          >
+            Save layout
+          </button>
+          {layoutStatus && <span className="text-[10px] font-code text-slate-400">{layoutStatus}</span>}
 
           {/* Calm Truth Status Indicator */}
           <div className="flex items-center space-x-2.5 px-3.5 py-1.5 rounded-2xl bg-black/40 border border-white/10 backdrop-blur-xl">
