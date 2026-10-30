@@ -7,6 +7,7 @@ import {
   refundTenantSpend,
   registerTenantAdminKey,
   setTenantAutonomy,
+  revokeTenantAutonomy,
 } from '@/lib/api';
 import { signAdminActionWithCustody, type AdminAction } from '@/lib/adminAction';
 import { getOrCreateSigner, peekSignerPubkeyHex } from '@/lib/custody';
@@ -27,6 +28,8 @@ import type { Lab } from '@/types';
 export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => void }) {
   const [ceiling, setCeiling] = useState('');
   const [autonomyDraft, setAutonomyDraft] = useState(lab.autonomy_level);
+  const [revokeReason, setRevokeReason] = useState('');
+  const [revokeDraft, setRevokeDraft] = useState<string | null>(null);
   const [refundAmount, setRefundAmount] = useState('');
   const [refundReason, setRefundReason] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
@@ -232,6 +235,26 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
         <input
+          value={revokeReason}
+          onChange={(e) => setRevokeReason(e.target.value)}
+          placeholder="revoke autonomy reason (required)"
+          aria-label={`Revoke reason for ${lab.id}`}
+          className="flex-1 min-w-40 px-2 py-1 rounded-lg bg-black/60 border border-white/10 text-[11px] text-slate-200"
+        />
+        <button
+          type="button"
+          disabled={busy !== null}
+          onClick={() => {
+            if (!revokeReason.trim()) { setNotice('revoke needs a reason.'); return; }
+            setRevokeDraft(revokeReason.trim());
+          }}
+          className="px-2 py-1 rounded-lg bg-rose-500/15 border border-rose-400/30 text-rose-200 text-[11px] disabled:opacity-40"
+        >
+          Revoke autonomy
+        </button>
+      </div>
+      <div className="flex flex-wrap items-center gap-1.5">
+        <input
           value={ceiling}
           onChange={(e) => setCeiling(e.target.value)}
           placeholder="new ceiling USD"
@@ -316,6 +339,27 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
         <p className="text-[11px] text-amber-200" role="alert">
           {notice}
         </p>
+      )}
+      {revokeDraft != null && (
+        <ConfirmDialog
+          open
+          title={`Revoke autonomy for ${lab.id}?`}
+          body={<span>This aborts every unsettled job in this lab and drops it to L0. Type the lab id to confirm.</span>}
+          requireText={lab.id}
+          confirmLabel="Revoke autonomy"
+          danger
+          busy={busy !== null}
+          onConfirm={() => void (async () => {
+            const reason = revokeDraft;
+            setRevokeDraft(null);
+            await run('revoke', async () => {
+              const action = await envelope('revoke_autonomy', { reason });
+              return revokeTenantAutonomy(lab.id, reason, action);
+            });
+            setRevokeReason('');
+          })()}
+          onCancel={() => { if (busy === null) setRevokeDraft(null); }}
+        />
       )}
       {ceilingDraft != null && (
         <ConfirmDialog

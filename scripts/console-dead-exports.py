@@ -27,15 +27,6 @@ SRC = ROOT / "platform" / "console" / "src"
 ALLOWED = {
     "resumeTribunal": "tribunal resume UI not mounted; runTribunal is the live path",
     "evaluateDiscoveryPipeline": "discovery curation UI deferred",
-    "fetchAutoresearchHarnesses": "autoresearch operator UI deferred (remaining-work)",
-    "startAutoresearchLoop": "autoresearch operator UI deferred (remaining-work)",
-    "fetchAutoresearchLoops": "autoresearch operator UI deferred (remaining-work)",
-    "stepAutoresearchLoop": "autoresearch operator UI deferred (remaining-work)",
-    "pauseAutoresearchLoop": "autoresearch operator UI deferred (remaining-work)",
-    "resumeAutoresearchLoop": "autoresearch operator UI deferred (remaining-work)",
-    "stopAutoresearchLoop": "autoresearch operator UI deferred (remaining-work)",
-    "planWorkflow": "workflow console UI pending; Go endpoints are agent-facing",
-    "runWorkflow": "workflow console UI pending; Go endpoints are agent-facing",
     "requestServerSignedMandate": "server-signed mandate console path declined; client-mint is the console path",
     "resetDedupForTests": "test-only helper for inflight GET coalescing",
 }
