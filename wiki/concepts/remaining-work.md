@@ -88,10 +88,11 @@ status: tracked
 >   assigned models against live `/models`, checks provider-qualified prices,
 >   and can write a used-model-only card. Remaining operator work: replace the
 >   bootstrap with a vendor-invoice/list card before 2026-11-11.
-> - **Nightly memory (2026-10-30):** `Builder` now stores ops in compact
->   typed columns and slice 60 streams them; local peaks fell from ~37 GiB to
->   3.4 GiB (composition) / 5.0 GiB (determinism). A manual hosted run is
->   still required before calling nightly green.
+> - **Nightly green (2026-10-30):** `Builder` stores ops in compact typed
+>   columns and streamed evaluation cut the paper-scale peaks below 5 GiB.
+>   Manual run `41041244412` passed the canary and both slice-60 jobs at
+>   `c7d98f6`; push CI is 20/20 at the same commit. Keep re-verifying the
+>   exact commit; do not cite the older red runs as current.
 > - Remaining operator-side for a production claim: the vendor runtime card,
 >   a green nightly thesis-scale proof, attaching the paid QPU run evidence,
 >   and resolving those 606 pre-existing ledger chain faults before trusting a

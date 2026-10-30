@@ -4150,3 +4150,12 @@ skipped is the exact failure this incident is about:
 - Local slice 51 peak fell from 19.7 GiB to 1.2 GiB (167 s); the full
   paper-scale C set (slices 48-57, 61-62) is 4.9 GiB / 482 s. No assertion
   changed.
+
+## [2026-10-30] verification | Full gate green at c7d98f6
+
+- Push CI 20/20: develop `41039225255`, main `41039230782`.
+- Manual nightly `41041244412` green: canary, slice60 composition, slice60
+  determinism. The nightly thesis-scale blocker is closed at this commit.
+- Remaining operator work is unchanged: vendor runtime rate card, paid QPU
+  invoice/run evidence, and the historical cancelled-vs-completed settlement
+  row. The 606 chain faults remain a disposition, not a rewrite target.
