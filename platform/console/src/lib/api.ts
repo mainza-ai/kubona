@@ -758,6 +758,38 @@ export async function fetchNotebooks(sessionId: string): Promise<{ ok: true; not
   }
 }
 
+export interface CapabilitiesPayload {
+  catalog_digest: string;
+  tools?: unknown;
+  disk?: Record<string, unknown>;
+  harnesses?: string[];
+  budget?: Record<string, number>;
+  flags?: Record<string, boolean>;
+}
+
+export async function fetchCapabilities(): Promise<CapabilitiesPayload | null> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/capabilities`, { cache: 'no-store', headers: authHeaders() });
+    if (!res.ok) return null;
+    return (await res.json()) as CapabilitiesPayload;
+  } catch (err) {
+    console.error('Failed to fetch capabilities:', err);
+    return null;
+  }
+}
+
+export async function fetchFidelity(device: string, depth: number, twoQubitGates: number): Promise<Record<string, unknown> | null> {
+  try {
+    const qs = new URLSearchParams({ device, depth: String(depth), two_qubit_gates: String(twoQubitGates) });
+    const res = await apiFetch(`${API_BASE}/api/fidelity?${qs.toString()}`, { cache: 'no-store', headers: authHeaders() });
+    if (!res.ok) return null;
+    return (await res.json()) as Record<string, unknown>;
+  } catch (err) {
+    console.error('Failed to fetch fidelity:', err);
+    return null;
+  }
+}
+
 export async function fetchEpistemics(sessionId?: string | null): Promise<Record<string, unknown>> {
   try {
     const qs = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : '';

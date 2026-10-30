@@ -38,6 +38,7 @@ import { CheckInStrip } from '@/components/sovereign/CheckInStrip';
 import { GenerativeUIStudio } from '@/components/surfaces/GenerativeUIStudio';
 import { CodesignCockpit } from '@/components/surfaces/CodesignCockpit';
 import { VaultLeasePanel } from '@/components/common/VaultLeasePanel';
+import { SystemReadinessPanel } from '@/components/common/SystemReadinessPanel';
 
 function formatElapsed(createdAt: string): string {
   const ms = Date.now() - new Date(createdAt).getTime();
@@ -1183,6 +1184,7 @@ export default function Home() {
               {surface === 'mesh' && meshTab === 'settings' && <QuantumSettings />}
               {surface === 'mesh' && meshTab === 'settings' && <QuantumDispatch sessionId={currentSessionId || null} tenantId={sessions.find((s) => s.id === currentSessionId)?.tenant_id} />}
               {surface === 'mesh' && meshTab === 'settings' && <VaultLeasePanel sessionId={currentSessionId || undefined} />}
+              {surface === 'mesh' && meshTab === 'settings' && <SystemReadinessPanel />}
             </div>
           </main>
         )}
