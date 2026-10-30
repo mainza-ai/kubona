@@ -58,7 +58,8 @@ Updated 2026-10-30. This is the short execution list; the full queue lives in
 
 - [ ] Opt-in OTel/Sentry exporters (env-gated, scrubbed, sampled, default
       off; no prompts/keys/session ids). Needs a backend/DSN choice.
-- [ ] Local release dry-run/checksum script (build images + SBOM/checksums,
-      verify the tag workflow without publishing).
+- [x] Local release dry-run (`scripts/release-dry-run.sh`): clean-tree
+      refusal, counts/wiki/secret/compose gates, three-image build, no tag/
+      push/sign.
 - [ ] A containerized stdio MCP broker, if a deployment needs one; the
       supported local topology is host-spawned stdio.
