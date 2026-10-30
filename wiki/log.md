@@ -3924,3 +3924,15 @@ skipped is the exact failure this incident is about:
     signs each digest keyless with cosign, and creates the GitHub release.
     `docs/release.md` records the cut/verify procedure. Not executed yet:
     it needs a tag and GHCR package permissions.
+
+## [2026-10-29] implementation | Live LLM proposer + GQE export
+
+  - `NvidiaProposer.propose` now calls an OpenAI-compatible
+    `/chat/completions` endpoint with a bounded timeout, one retry on
+    transport/5xx, and a refusal on 4xx. `make_gate_proposer` adapts it to
+    the rerun loop and validates the closed Kickmix gate/arity vocabulary;
+    tests use a local stub server. The bridge route is intentionally not
+    added yet (ungoverned egress/public-write surface).
+  - `build_gqe_harness` is exported from `kubona.autoresearch`; it remains
+    the n-gram stand-in and is not in the Go harness registry. Labeled
+    experimental.

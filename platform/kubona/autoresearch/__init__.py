@@ -7,6 +7,8 @@ simulator-only by default (§11.3). The §13 meta-loop sits above this engine.
 
 from .base import Harness, Orchestrator, Trial
 from .harnesses import build_vqe_ansatz_harness, build_mitigation_harness, build_correctness_harness
+from .gqe import build_gqe_harness
 
 __all__ = ["Harness", "Orchestrator", "Trial", "build_vqe_ansatz_harness",
-           "build_mitigation_harness", "build_correctness_harness"]
+           "build_mitigation_harness", "build_correctness_harness",
+           "build_gqe_harness"]
