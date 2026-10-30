@@ -20,6 +20,12 @@ func seedOrphans(t *testing.T, path string) {
 	if _, err := l.DB().Exec(`INSERT INTO jobs (id, session_id, status, job_type, created_at) VALUES ('orphan-job', 'ghost-session', 'queued', 'test', CURRENT_TIMESTAMP)`); err != nil {
 		t.Fatalf("insert orphan job: %v", err)
 	}
+	if _, err := l.DB().Exec(`INSERT INTO campaign_versions (session_id, state_json, trigger, created_at) VALUES ('ghost-session', '{}', 'test', CURRENT_TIMESTAMP)`); err != nil {
+		t.Fatalf("insert orphan campaign version: %v", err)
+	}
+	if _, err := l.DB().Exec(`INSERT INTO claim_records (id, session_id, turn_kind, statement, verdict, created_at) VALUES ('orphan-claim', 'ghost-session', 'test', 's', 'v', CURRENT_TIMESTAMP)`); err != nil {
+		t.Fatalf("insert orphan claim: %v", err)
+	}
 	if err := l.Close(); err != nil {
 		t.Fatalf("close ledger: %v", err)
 	}
@@ -77,8 +83,8 @@ func TestFKQuarantineApplyPreservesRowsAndClearsOrphans(t *testing.T) {
 	if messages != 0 || jobs != 0 {
 		t.Fatalf("live rows remain: messages=%d jobs=%d", messages, jobs)
 	}
-	if quarantined != 2 {
-		t.Fatalf("quarantined = %d, want 2", quarantined)
+	if quarantined != 4 {
+		t.Fatalf("quarantined = %d, want 4", quarantined)
 	}
 	var rowJSON string
 	if err := l.DB().QueryRow(`SELECT row_json FROM _fk_orphans WHERE table_name='jobs'`).Scan(&rowJSON); err != nil {

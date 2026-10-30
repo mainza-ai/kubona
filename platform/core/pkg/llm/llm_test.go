@@ -163,6 +163,16 @@ func TestMissingUsageRefusesOrCeilings(t *testing.T) {
 		t.Fatalf("refusal must name the cause, got %v", err)
 	}
 
+	// No usage, no global ceiling, but an explicit per-call cap: the cap is
+	// the configured ceiling, so bill it instead of refusing after spend.
+	cCapped, recsCapped := newClient(0, srv.URL)
+	if _, _, _, err := cCapped.CompleteCapped(ctx, "probe", msgs, 1234); err != nil {
+		t.Fatalf("per-call ceiling must meter blind spend: %v", err)
+	}
+	if len(*recsCapped) != 1 || !(*recsCapped)[0].CeilingApplied || (*recsCapped)[0].CeilingTokens != 1234 {
+		t.Fatalf("per-call ceiling must bill 1234, got %+v", *recsCapped)
+	}
+
 	// No usage, ceiling set: ceiling estimate bills (upper bound), flagged.
 	c2, recs := newClient(4000, srv.URL)
 	if _, _, _, err := c2.Complete(ctx, "probe", msgs); err != nil {
@@ -204,6 +214,39 @@ func TestValidateForProduction(t *testing.T) {
 	t.Setenv("KUBONA_ENV", "")
 	if err := st.ValidateForProduction(); err != nil {
 		t.Fatalf("dev boot unaffected: %v", err)
+	}
+}
+
+// Audit 2026-10-30: production cloud egress is gated on every role, not
+// just the active provider. A local-active config with a cloud role must
+// still refuse without KUBONA_LLM_CLOUD=1.
+func TestValidateForProductionRejectsCloudRole(t *testing.T) {
+	t.Setenv("OPENCODE_API_KEY", "test-key")
+	t.Setenv("OPENCODE_MODEL", "deepseek-v4.1-flash")
+	t.Setenv("KUBONA_LLM_PROVIDER", "strata")
+	t.Setenv("STRATA_MODEL", "iq3_s")
+	t.Setenv("KUBONA_LLM_CODESIGN_PROVIDER", "opencode")
+	t.Setenv("KUBONA_LLM_CODESIGN_MODEL", "deepseek-v4.1-flash")
+	t.Setenv("KUBONA_ENV", "production")
+	t.Setenv("KUBONA_LLM_CLOUD", "")
+	st := llm.DefaultSettings()
+	if err := st.ValidateForProduction(); err == nil {
+		t.Fatal("cloud role without opt-in must refuse production boot")
+	}
+	t.Setenv("KUBONA_LLM_CLOUD", "1")
+	if err := st.ValidateForProduction(); err != nil {
+		t.Fatalf("explicit opt-in must pass: %v", err)
+	}
+	// Per-call gate as well: with air-gap off, the cloud role still refuses
+	// when the opt-in is removed after boot.
+	snap := st.GetSnapshot()
+	snap.AirGapped = false
+	if err := st.Update(&snap, nil); err != nil {
+		t.Fatalf("settings update: %v", err)
+	}
+	t.Setenv("KUBONA_LLM_CLOUD", "")
+	if _, _, err := st.GetModelForRole("codesign"); err == nil {
+		t.Fatal("production cloud role must refuse without opt-in at call time")
 	}
 }
 

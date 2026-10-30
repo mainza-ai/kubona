@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from kubona.mcp.auth import AuthError, Principal
+from kubona.mcp.auth import Principal
 from kubona.identity import IdentityRegistry
 
 # -- fine-grained scopes (tool -> required scope) ---------------------------
@@ -31,6 +31,7 @@ TOOL_SCOPES: dict[str, str] = {
     "execution/close_session": "execution:submit",
     "execution/list_provider_registry": "providers:read",
     # cost governance
+    "cost/codesign_rerun": "cost:manage",
     "cost/create_session": "cost:manage",
     "cost/estimate_cost": "cost:read",
     "cost/request_approval": "cost:manage",

@@ -26,6 +26,14 @@ chain: clean
 
 Any non-zero exit means the copy is not trustworthy. Do not ship it.
 
+If the command reports `chain fault(s)` (for example legacy events with
+`prev_hash=""`), the SQLite snapshot may still be consistent
+(`PRAGMA integrity_check = ok`) but it is **forensic, not a verified restore
+source**. Preserve it, record the fault count, and resolve the chain before
+using it for restore. FK quarantine can still proceed because it is
+transactional and preserves every row in `_fk_orphans`, but state the caveat
+in the operator log.
+
 ## Off-host copy
 
 Copy the verified file and its printed sha256 to storage outside the host.

@@ -150,7 +150,7 @@ func (c *Client) CompleteWithTools(ctx context.Context, role string, messages []
 		parsed.Usage.PromptTokens = parsed.Usage.TotalTokens
 		chatResp.Usage.PromptTokens = parsed.Usage.TotalTokens
 	}
-	if err := c.requireMeteredUsage(providerType, model, usageOK); err != nil {
+	if err := c.requireMeteredUsage(providerType, model, usageOK, 0); err != nil {
 		return "", nil, nil, duration, err
 	}
 	if usageOK {

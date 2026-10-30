@@ -26,7 +26,8 @@ def test_doctor_reports_all_lines(tmp_path, monkeypatch, capsys):
     out = capsys.readouterr().out
     for line in ("state root:", "ledger:", "production:", "token configured:",
                  "signing key:", "providers:", "ledger check:",
-                 "skill:", "taxonomy:"):
+                 "skill:", "taxonomy:", "rate card:", "fk orphans:",
+                 "llm:", "keys:", "bridge:", "daemon:"):
         assert line in out, f"doctor missing {line!r}: {out!r}"
 
 
@@ -89,3 +90,18 @@ def test_mandate_check_usage_errors(tmp_path, monkeypatch, capsys):
     assert _mandate_check([]) == 2
     with __import__("pytest").raises(SystemExit):
         _cli(["prog", "bogus-command"])
+
+def test_doctor_strict_fails_on_fk_orphans(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("KUBONA_STATE_DIR", str(tmp_path / "state"))
+    db = tmp_path / "state" / "kubona.db"
+    db.parent.mkdir(parents=True)
+    conn = sqlite3.connect(str(db))
+    conn.execute("CREATE TABLE parent(id TEXT PRIMARY KEY)")
+    conn.execute("CREATE TABLE child(id TEXT PRIMARY KEY, parent_id TEXT REFERENCES parent(id))")
+    conn.execute("INSERT INTO child(id, parent_id) VALUES ('c1', 'missing')")
+    conn.commit()
+    conn.close()
+    assert _cli(["prog", "doctor", "--strict"]) == 1
+    out = capsys.readouterr().out
+    assert "fk orphans:" in out
+    assert "orphan" in out

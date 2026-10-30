@@ -690,6 +690,7 @@ import type {
   CodesignFamiliesResult,
   CodesignPack,
   CodesignPacksResult,
+  CodesignRerunResult,
   CostSummary,
 } from '@/types';
 
@@ -706,6 +707,7 @@ export type {
   CodesignFamiliesResult,
   CodesignPack,
   CodesignPacksResult,
+  CodesignRerunResult,
   CostSummary,
 };
 
@@ -826,6 +828,33 @@ export async function runFamilySearch(
       return { ok: false, error: msg.slice(0, 280) };
     }
     return { ok: true, result: data as CodesignFamiliesResult };
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 280) };
+  }
+}
+
+// C5b governed rerun: the Go rail owns the loop, BYOK estimate, and
+// sealed receipt. `request_id` is required; reuse it to replay the same
+// receipt after a transient failure (never mint a new id to "retry").
+export async function rerunCodesignProposal(
+  body: Record<string, unknown>
+): Promise<{ ok: true; result: CodesignRerunResult } | { ok: false; error: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/codesign/rerun`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || data.ok !== true) {
+      const raw =
+        (data && typeof data.message === 'string' && data.message) ||
+        (data && typeof data.error === 'string' && data.error) ||
+        `refused (HTTP ${res.status})`;
+      const msg = res.status === 401 ? `login required — ${raw}` : raw;
+      return { ok: false, error: msg.slice(0, 280) };
+    }
+    return { ok: true, result: data as CodesignRerunResult };
   } catch (err) {
     return { ok: false, error: String(err).slice(0, 280) };
   }

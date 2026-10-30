@@ -1,6 +1,6 @@
 {
   "generated_by": "KUBONA_UPDATE_CATALOG=1 pytest platform/tests/test_mcp_catalog.py",
-  "digest": "cd181ebf8392849d0618458686cb7878d79335235d023227b60d828e6f18cd3d",
+  "digest": "9016e5b01552b35f5045fa0b78c4f2c75529f242219ffae05776125ddd77f8d7",
   "tools": [
     {
       "name": "compile_circuit",
@@ -496,6 +496,92 @@
       ]
     },
     {
+      "name": "codesign_rerun",
+      "description": "Run the governed circuit-proposal rerun via the Go API (BYOK estimate).",
+      "inputSchema": {
+        "properties": {
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "spec_kind": {
+            "default": "and2",
+            "title": "Spec Kind",
+            "type": "string"
+          },
+          "budget_steps": {
+            "default": 4,
+            "title": "Budget Steps",
+            "type": "integer"
+          },
+          "seed": {
+            "default": 7,
+            "title": "Seed",
+            "type": "integer"
+          },
+          "num_tests": {
+            "default": 64,
+            "title": "Num Tests",
+            "type": "integer"
+          },
+          "max_failures": {
+            "default": 0,
+            "title": "Max Failures",
+            "type": "integer"
+          },
+          "kappa": {
+            "default": 1,
+            "title": "Kappa",
+            "type": "integer"
+          },
+          "max_tokens_per_step": {
+            "default": 512,
+            "title": "Max Tokens Per Step",
+            "type": "integer"
+          },
+          "max_usd": {
+            "default": 0.0,
+            "title": "Max Usd",
+            "type": "number"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Request Id"
+          }
+        },
+        "required": [
+          "session_id"
+        ],
+        "title": "codesign_rerunArguments",
+        "type": "object"
+      },
+      "server": "cost",
+      "verdict": "keep",
+      "trust_property": "Governed Go rerun: session-scoped bearer auth, request_id idempotency, step/token/time/USD bounds, sealed trial; the MCP server holds no LLM key.",
+      "error_codes": [
+        "bad_request",
+        "unauthorized",
+        "forbidden",
+        "rate_limited",
+        "bridge_unavailable",
+        "llm_unavailable",
+        "unpriced_model",
+        "ceiling_exceeded",
+        "request_conflict",
+        "request_in_progress",
+        "ghost_session",
+        "internal"
+      ]
+    },
+    {
       "name": "create_session",
       "description": "Open a session with a hard budget ceiling.",
       "inputSchema": {
@@ -943,7 +1029,7 @@
       },
       "server": "execution",
       "verdict": "keep",
-      "trust_property": "Sole discovery path for MCP-only clients (~200 bytes; skill covers repo agents) \u2014 reviewed, kept deliberately",
+      "trust_property": "Sole discovery path for MCP-only clients (~200 bytes; skill covers repo agents) — reviewed, kept deliberately",
       "error_codes": [
         "unauthorized",
         "internal"
@@ -1656,7 +1742,7 @@
     },
     {
       "name": "world_probe",
-      "description": "Cost estimate for a measurement. Never executes \u2014 dispatch stays human-driven.",
+      "description": "Cost estimate for a measurement. Never executes — dispatch stays human-driven.",
       "inputSchema": {
         "properties": {
           "session_id": {

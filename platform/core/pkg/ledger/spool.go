@@ -27,15 +27,27 @@ type spooledEvent struct {
 // An error means both the ledger and the spool failed: the caller must not
 // claim a durable receipt.
 func (l *Ledger) AppendEventWithSpool(sessionID, eventType string, payload any) (sealed bool, err error) {
-	appendErr := l.AppendEvent(sessionID, eventType, payload)
+	sealed, _, err = l.AppendEventWithSpoolRef(sessionID, eventType, payload)
+	return sealed, err
+}
+
+// AppendEventWithSpoolRef is AppendEventWithSpool plus the sealed record's
+// durable reference ({id, entry_hash}). Callers that must return a receipt
+// (C5b rerun) use this instead of re-querying the tail and racing another
+// writer. A spooled event has no ledger ref yet: sealed=false, ref=nil.
+func (l *Ledger) AppendEventWithSpoolRef(sessionID, eventType string, payload any) (sealed bool, ref any, err error) {
+	rec, appendErr := l.AppendSignedEvent(sessionID, eventType, payload, nil)
 	if appendErr == nil {
-		return true, nil
+		if rec != nil {
+			ref = map[string]any{"id": rec.ID, "entry_hash": rec.EntryHash}
+		}
+		return true, ref, nil
 	}
 	if spoolErr := l.spoolEvent(sessionID, eventType, payload, appendErr); spoolErr != nil {
-		return false, fmt.Errorf("ledger append failed (%v) and provenance spool failed: %w", appendErr, spoolErr)
+		return false, nil, fmt.Errorf("ledger append failed (%v) and provenance spool failed: %w", appendErr, spoolErr)
 	}
 	slog.Warn("[ledger] provenance append failed; event durably spooled", "session_id", sessionID, "event_type", eventType, "error", appendErr)
-	return false, nil
+	return false, nil, nil
 }
 
 func (l *Ledger) spoolDir() string {

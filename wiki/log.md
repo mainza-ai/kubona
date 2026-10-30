@@ -3944,3 +3944,94 @@ skipped is the exact failure this incident is about:
     `kubona.codesign.__all__`. Export them and rerun the audit. This is an
     API-consistency fix, not a Python-3.4 target: `requires-python = ">=3.11"`
     and CI runs Python 3.11.17.
+
+## [2026-10-30] decision | local-first production: B2 loopback, C5b BYOK rerun, B4 local diagnostics
+
+- **Scope:** "production ready" is defined as **fully functional for a local
+  private deployment**, not a public SaaS. Supported shape: one operator on
+  their own machine/lab host, loopback only; cloud egress is limited to QPU
+  dispatch (bridge) and opt-in cloud LLM (BYOK, Go core).
+- **B2 landed:** `platform/docker/compose.prod.yml` publishes only
+  `127.0.0.1:8080` and `127.0.0.1:3000`, runs read-only with `cap_drop: ALL`
+  and log rotation, and passes no cloud keys by default. Live proof on a
+  fresh volume: health/ready/console green, `scripts/local-deployment-check.sh`
+  exit 0 (no public listener). Runbook: `docs/local-deployment.md`.
+- **C5b landed:** `POST /api/codesign/rerun` (session-scoped, limiter,
+  `request_id` idempotency, step/token/time/USD bounds, sealed `trial`).
+  BYOK billing: `billing:"provider"`, `payer:"user-key"`, estimate only;
+  local providers are free and `billing:"none"`. No QPU cap debit. Bridge
+  gained a stateless `spec` op; no LLM key moved. Docs: `docs/llm-proposer.md`.
+- **B4 decided:** local diagnostics are the default (slog, `/metrics`,
+  health/ready, local trace context); no telemetry. Sentry/OTLP stay opt-in,
+  not release requirements.
+- **Production egress gate:** a cloud role (not just the active provider)
+  now refuses in production without `KUBONA_LLM_CLOUD=1`, at boot and call
+  time; the rerun route also refuses anonymous callers. A per-call
+  `CompleteCapped` ceiling now meters omitted usage instead of refusing after
+  the provider already spent tokens.
+- **Bootstrap:** `kubonad keygen` (reviewer/operator seeds), `.env.example`
+  role/budget entries, README local Docker quickstart.
+- **Verification:** Go full `./...` green; bridge 45 passed/1 skipped;
+  `test_llm_proposer.py` 14 passed; compose config/build/up green; live rerun
+  returned a sealed receipt and an identical idempotent replay. Counts
+  regenerated (121 routes, 738 Go tests).
+- **Still operator-side:** vendor rate-card reconciliation before 2026-11-11,
+  FK quarantine on an existing DB, a green nightly thesis-scale proof, and
+  attaching the paid QPU run's deployment-ledger evidence. Provider keys are
+  present in `.env`. Optional: console rerun panel, MCP wrapper.
+
+## [2026-10-30] verification | First paid QPU run (operator-confirmed; run 2026-10-28)
+
+  - Operator reports the first **paid** QPU run on 2026-10-28. This closes the
+    "first paid run" operator deed (Q-21).
+  - Evidence gap, stated rather than hidden: the local `~/.kubona/kubona.db`
+    read on 2026-10-30 contains only the 2026-10-29 free-plan `ibm_fez` probe
+    (queued, cancelled with vendor recall, settled $0.00 on both rails). The
+    paid run's backend, run id, shots, and settlement must be attached from
+    the deployment ledger before quoting measured numbers. Provider keys are
+    present in `.env` (IBM QPU token, NVIDIA, OpenCode); `KUBONA_LLM_CLOUD`
+    is unset and the active provider is local Strata.
+
+## [2026-10-30] implementation | Doctor, console rerun panel, MCP rerun wrapper
+
+- **Deployment doctor:** `kubona doctor --env-file .env` now reports rate-card
+  freshness, FK orphan count on `~/.kubona/kubona.db`, reviewer/operator/QPU key
+  presence, effective LLM/air-gap/codesign posture, bridge configuration, and
+  daemon readiness. `--strict` exits non-zero. On the author's host it found
+  **127 FK orphans** and a persisted `active=nvidia`/air-gap-off setting with
+  `KUBONA_LLM_CLOUD` unset — recorded as operator-visible, not auto-repaired.
+- **Console rerun panel:** Codesign Cockpit now calls `POST
+  /api/codesign/rerun` with a session picker, `request_id` retry semantics,
+  step/token/test/seed/USD bounds, and a sealed receipt (billing/payer,
+  provider/model, best trial, provenance). Console suite 74 files / 439 tests.
+- **MCP wrapper:** `cost/codesign_rerun` forwards to the Go route with
+  `KUBONA_API_URL` + `KUBONA_API_TOKEN`, holds no LLM key, and returns the
+  request id for replay. Catalog regenerated to **38 tools**; scope
+  `cost:manage`; dispatch tests green.
+- **LLM selection:** LLM Settings already exposed active provider + per-role
+  routing; provider options now label `local` vs `cloud`, and the UI states
+  that local providers need no cloud opt-in while production cloud requires
+  `KUBONA_LLM_CLOUD=1`. The host's persisted `active=nvidia`/air-gap-off is
+  treated as an intentional **development override**, not the shipped default
+  (fresh compose volumes start on Strata); UI settings override env defaults.
+- **Verification:** `test_doctor.py` 6 passed; MCP catalog/surface/rerun 8
+  passed; console 439 passed (`LLMSettings` 11); `tsc --noEmit` clean. Docs:
+  `local-deployment.md`, `llm-proposer.md`, `rate-cards.md`,
+  `remaining-todos.md`.
+
+## [2026-10-30] cleanup | Quarantined 127 FK orphans (backup caveat recorded)
+
+- Stop-the-line check: no daemon held `~/.kubona/kubona.db`; raw snapshot
+  `~/.kubona/backups/kubona-pre-fk-20261030T024721Z.db` (3,596,288 bytes,
+  sha256 `c15bffd6843e7263de8c64bb1a9d3b8d9c00c4898ba851cfce4990eb53146f3b`,
+  SQLite `integrity_check=ok`, 1470 events).
+- **Backup caveat:** `kubonad backup` refused the copy as a verified backup:
+  `606 chain fault(s)` already present in the source (legacy `prev_hash=""`/
+  hash links). The snapshot is SQLite-consistent but **not** a verified
+  provenance backup; restore remains gated on resolving those faults.
+- `fk-quarantine --apply` quarantined **127** orphans: 50 `chat_messages`,
+  40 `campaign_versions`, 23 `jobs`, 12 `loops`, 2 `claim_records`.
+  `PRAGMA foreign_key_check` is now clean; every row is preserved in
+  `_fk_orphans.row_json`. Extended the tool to support the two additional
+  content tables (`campaign_versions`, `claim_records`) with tests.
+- `kubona doctor --env-file .env` now reports `fk orphans: clean (kubona.db)`.

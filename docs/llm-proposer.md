@@ -14,13 +14,29 @@ Kickmix gate vocabulary and arity, checks qubit range and record ids, and
 raises on any doubt. The rerun loop records a proposer failure as an invalid
 trial instead of aborting the run.
 
-## Remaining edge
+## Governed Go rail (C5b)
 
-The bridge does not expose an LLM rerun route yet. A public stateless route
-would be an ungoverned model-egress and public-write surface. The intended
-wiring is at the governed search-loop edge with auth, a spend/egress policy,
-and ledger sealing. Until then the deterministic mutator remains the default
-and the live path is library-only.
+`POST /api/codesign/rerun` is the production rail. It is **session-scoped**
+(not open-write), requires a logged-in session or operator bearer (anonymous
+callers are refused even in single-lab mode), rate-limited, idempotent
+(`request_id` required), and bounded by steps, tokens, timeout, and a per-run
+USD guardrail. The Go core
+owns the LLM call and role (`codesign`); the bridge stays a stateless
+evaluator (`spec` + `evaluate` ops only). No LLM key moves into the bridge.
+
+Billing is BYOK: the provider bills the operator's key. Kubona records an
+**estimate** (`billing:"provider"`, `payer:"user-key"`) and never debits the
+QPU session/tenant cap. Local providers are free (`billing:"none"`,
+`payer:"local"`). Cloud is refused unless `KUBONA_LLM_CLOUD=1` and the
+Sovereign Air-Gap is off. The rate card must be valid; stale/unknown models
+refuse before egress. See `docs/local-deployment.md` for the operator flow.
+
+The Python `IndependentRerun`/`make_gate_proposer` remain the reference and
+test path. The console Codesign Cockpit now has a **Governed proposer rerun**
+panel (session picker, request_id retry, budget fields, sealed receipt), and
+the MCP `cost/codesign_rerun` tool forwards to this route with the operator
+bearer (`KUBONA_API_URL` + `KUBONA_API_TOKEN`). The MCP server holds no LLM
+key; it only carries the scoped budget envelope.
 
 ## GQE
 

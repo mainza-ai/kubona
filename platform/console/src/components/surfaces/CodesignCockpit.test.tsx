@@ -221,6 +221,72 @@ describe('CodesignCockpit read-only', () => {
     }
   });
 
+  it('runs the governed proposer rerun and renders the sealed receipt', async () => {
+    const realFetch = globalThis.fetch;
+    let posted: Record<string, unknown> | null = null;
+    (globalThis as unknown as { fetch: unknown }).fetch = async (input: unknown, init?: { body?: unknown }) => {
+      const url = String(input);
+      if (url.includes('/api/sessions')) {
+        return new Response(JSON.stringify({ sessions: [{ id: 'sess-1', title: 'rerun session' }] }), { status: 200 });
+      }
+      if (url.includes('/api/codesign/rerun')) {
+        posted = JSON.parse(String((init?.body as string) ?? '{}'));
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            run_id: 'run-1',
+            session_id: 'sess-1',
+            spec_kind: 'and2',
+            budget_steps: 2,
+            seed: 7,
+            num_tests: 16,
+            max_failures: 0,
+            kappa: 1,
+            provider: 'strata',
+            model: 'iq3_s',
+            billing: 'none',
+            payer: 'local',
+            estimated_usd: 0,
+            budget_usd: 0,
+            steps: 1,
+            trials: [{ step: 0, valid: true, toffoli: 1, peak_qubits: 3, tq: 3, reason: 'ok', candidate: '1ops:ccx' }],
+            best: { step: 0, valid: true, toffoli: 1, peak_qubits: 3, tq: 3, reason: 'ok', candidate: '1ops:ccx' },
+            provenance_status: 'sealed',
+            ledger_ref: { id: 1 },
+          }),
+          { status: 200 }
+        );
+      }
+      if (url.includes('/api/codesign/packs')) {
+        return new Response(JSON.stringify({ ok: true, order: [], packs: [] }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ message: 'not ready' }), { status: 503 });
+    };
+    try {
+      let root: TestRenderer.ReactTestRenderer | undefined;
+      await act(async () => {
+        root = TestRenderer.create(<CodesignCockpit />);
+      });
+      await act(async () => {});
+      const run = root!.root.findByProps({ children: 'Run proposer' });
+      await act(async () => {
+        await (run.props as { onClick: () => Promise<void> }).onClick();
+      });
+      expect(posted).not.toBeNull();
+      expect(posted!.session_id).toBe('sess-1');
+      expect(typeof posted!.request_id).toBe('string');
+      expect(posted!.spec_kind).toBe('and2');
+      expect(posted!.budget_steps).toBe(2);
+      const text = textOf(root!.root);
+      expect(text).toContain('run-1');
+      expect(text).toContain('sealed');
+      expect(text).toMatch(/billing\s+none/);
+      expect(text).toContain('1T × 3Q = 3');
+    } finally {
+      (globalThis as unknown as { fetch: unknown }).fetch = realFetch;
+    }
+  });
+
   it('runs families and renders elites, stagnation, and the widen-nudge', async () => {
     const realFetch = globalThis.fetch;
     let posted: unknown = null;

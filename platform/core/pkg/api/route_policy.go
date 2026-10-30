@@ -167,6 +167,7 @@ var RoutePolicies = []RoutePolicy{
 	{Pattern: "/api/codesign/budget", Methods: "POST", Class: RouteAuthOpenWrite, Rationale: "Stateless union-bound math proxy: same bounded stateless posture as evaluate."},
 	{Pattern: "/api/codesign/verified", Methods: "GET", Class: RouteAuthPublicRead, Rationale: "Versioned result documents (numbers, not verdicts); read-only."},
 	{Pattern: "/api/codesign/packs", Methods: "GET,POST", Class: RouteAuthOpenWrite, Rationale: "Pack registry served live; POST serves the same read as GET (raw-body passthrough, no mutation server-side); validity stays Python-owned."},
+	{Pattern: "/api/codesign/rerun", Methods: "POST", Class: RouteAuthSessionScoped, Rationale: "Governed LLM circuit-proposal rerun: authenticated caller required (anonymous refused even in single-lab mode), attributed session required (ghosts 404), caller bound to session tenant, per-IP limiter, slow-rail idempotency, bounded steps/tokens/time/USD. BYOK cloud spend is an estimate against a local guardrail, never the QPU session cap; local providers cost zero. Bridge remains stateless."},
 	{Pattern: "/api/krylov/solve", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/mitigation/apply", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/cost/settle", Methods: "POST", Class: RouteAuthBearer},

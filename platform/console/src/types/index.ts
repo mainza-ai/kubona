@@ -339,6 +339,42 @@ export interface CodesignPacksResult {
   packs: CodesignPack[];
 }
 
+// C5b governed proposer rerun (BYOK estimate; no QPU-cap debit).
+export interface CodesignRerunTrial {
+  step: number;
+  valid: boolean;
+  toffoli: number;
+  peak_qubits: number;
+  tq: number;
+  eps_bound_97_5?: number;
+  reason: string;
+  candidate: string;
+}
+
+export interface CodesignRerunResult {
+  ok: true;
+  run_id: string;
+  session_id: string;
+  spec_kind: string;
+  budget_steps: number;
+  seed: number;
+  num_tests: number;
+  max_failures: number;
+  kappa: number;
+  provider: string;
+  model: string;
+  billing: string;
+  payer: string;
+  estimated_usd: number;
+  budget_usd: number;
+  steps: number;
+  trials: CodesignRerunTrial[];
+  best: CodesignRerunTrial | null;
+  stopped_reason?: string;
+  provenance_status: string;
+  ledger_ref?: unknown;
+}
+
 // Cost summary (read-only LLM spend aggregates; heuristic, never billing).
 export interface CostSummary {
   cap_usd: number;

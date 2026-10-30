@@ -20,6 +20,17 @@ status: living
 > Evidence class: live `curl` against the compose stack and isolated local
 > rails (`--db /tmp/…`, host bridge + UDS socket), plus the 2026-10-29
 > governed live-QPU probe (estimate→reserve→cancel→settle, ledger-sealed).
+>
+> ⚑ Update (2026-10-30, local-first production): the supported compose is
+> loopback-only (`127.0.0.1:8080` / `127.0.0.1:3000`), read-only services with
+> dropped caps, and the checked-in `scripts/local-deployment-check.sh` proves
+> no public listener. Live proof: stack up on a fresh volume, health/ready/
+> console green, check exit 0. The console/bridge/kubonad are container-
+> internal `0.0.0.0`; the host binding is the boundary. C5b added a
+> session-scoped `POST /api/codesign/rerun` (BYOK estimate, no QPU-cap debit,
+> sealed `trial`), and the bridge gained a stateless `spec` op. B4 remains
+> local diagnostics by default: no telemetry leaves the host; Sentry/OTLP
+> are opt-in only.
 
 ```mermaid
 flowchart TB
@@ -130,7 +141,7 @@ flowchart TB
 - Compose: `platform/docker/compose.prod.yml` (kubonad WITHOUT `--bridge`
   flag; `KUBONA_BRIDGE_SOCKET=/run/kubona/bridge.sock` on both services;
   `bridge-sock` volume; `KUBONA_ALLOW_PLAINTEXT=1` in-network only).
-- Routes: 120 `s.route(` in `platform/core/pkg/api/server.go` (recount with
+- Routes: 121 `s.route(` in `platform/core/pkg/api/server.go` (recount with
   `grep -c 's.route('` — `rg` is broken on this host).
 - Radar: kubonad dials `KUBONA_BRIDGE_SOCKET` (unix) when `--bridge` is at
   its localhost default (`cmd/kubonad/main.go`); `SetBridgeAddr` kept for
@@ -145,6 +156,12 @@ flowchart TB
   create), `CognitiveMesh.tsx` (in-modal `role=alert`), `globals.css`
   (orb pulse without rotation), `FlightRecorder.tsx` (milestone label),
   `FleetRadar.tsx` (bridgeAddr probe display).
+- Local-first ingress: `platform/docker/compose.prod.yml` (loopback ports,
+  read-only, cap-drop, log rotation) and
+  `scripts/local-deployment-check.sh` (public-listener refusal).
+- C5b rerun: `platform/core/pkg/api/codesign_rerun.go` (session-scoped,
+  idempotent, BYOK guardrail), `platform/bridge/codesign_ops.py` (`spec`),
+  and `docs/llm-proposer.md`.
 
 ## Refresh checklist (after any topology change)
 

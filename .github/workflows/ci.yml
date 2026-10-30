@@ -303,6 +303,8 @@ jobs:
           done
           curl -sf http://127.0.0.1:3000/ > /dev/null
           docker exec kubona-prod-bridge-1 python -c "import grpc; grpc.channel_ready_future(grpc.insecure_channel('unix:///run/kubona/bridge.sock')).result(timeout=10); print('bridge grpc ok (uds-exclusive, no TCP)')"
+      - name: Local-first loopback acceptance
+        run: scripts/local-deployment-check.sh
       - name: Smoke logs on failure (console/bridge/kubonad tails)
         if: failure()
         run: |

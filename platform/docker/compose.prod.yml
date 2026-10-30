@@ -1,25 +1,50 @@
-# Kubona production stack (D1 skeleton).
+# Kubona local-first production stack.
 #
 #   kubonad :8080  <- console + operator (Go orchestrator, SQLite ledger)
 #   bridge  unix:///run/kubona/bridge.sock <- kubonad only (Python gRPC
 #             compute over a shared-volume UDS; NO TCP in production)
 #   console :3000  <- browser (Next.js standalone)
 #
+# LOCAL-FIRST POSTURE: both published ports bind to 127.0.0.1. The stack is
+# unreachable from the LAN/public interface by default. There is no domain,
+# Cloudflare, reverse proxy, or public certificate in the supported path.
+# The only cloud egress is QPU dispatch (bridge) and opt-in cloud LLM
+# (kubonad, KUBONA_LLM_CLOUD=1); everything else works offline.
+#
+# Remote access is an explicit opt-in: SSH tunnel
+#   ssh -L 3000:127.0.0.1:3000 -L 8080:127.0.0.1:8080 user@host
+# or a WireGuard/Tailscale network. For LAN TLS, override the command with
+# --tls-cert/--tls-key and a non-loopback bind, or terminate at a proxy.
+#
 # Deliberately absent: vault (dev-only compose; promotion needs real
 # storage + init/unseal + TLS — see docker-compose.vault.yml header),
 # pgvector (dormant by design, Q-34; start docker-compose.hindsight.yml
 # explicitly if a memory experiment needs it).
 #
-# Up:   docker compose -f platform/docker/compose.prod.yml up --build -d
+# Up:   docker compose --env-file .env -f platform/docker/compose.prod.yml up --build -d
 # Down: docker compose -f platform/docker/compose.prod.yml down
 #
 # Writes need KUBONA_API_TOKEN in the environment (export it first):
 # unset means bearer-gated routes 503 with "API token not configured"
 # (fail-closed, by design). Reads stay public behind limiters.
-# TLS: terminate in front (reverse proxy) or mount PEM into kubonad and
-# extend its command with --tls-cert/--tls-key [--tls-required].
+# Generate operator/reviewer keys with: kubonad keygen
 
 name: kubona-prod
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-hardening: &default-hardening
+  init: true
+  read_only: true
+  cap_drop:
+    - ALL
+  security_opt:
+    - no-new-privileges:true
+  logging: *default-logging
 
 services:
   bridge:
@@ -27,8 +52,11 @@ services:
       context: ..
       dockerfile: docker/Dockerfile.bridge
     image: kubona/bridge:prod
+    <<: *default-hardening
     environment:
       KUBONA_ENV: "production"
+      HOME: /tmp
+      XDG_CACHE_HOME: /tmp/.cache
       # The bridge is a private compute plane. Production transport is
       # UDS-exclusive over the shared bridge-sock volume: no TCP socket
       # exists at all (the bridge refuses TCP in KUBONA_ENV=production),
@@ -47,8 +75,13 @@ services:
       KUBONA_IBM_QISKIT_CHANNEL: ${KUBONA_IBM_QISKIT_CHANNEL:-ibm_quantum_platform}
       KUBONA_IBM_QISKIT_BACKEND: ${KUBONA_IBM_QISKIT_BACKEND:-}
       KUBONA_IBM_MAX_EXECUTION_SECONDS: ${KUBONA_IBM_MAX_EXECUTION_SECONDS:-600}
+      # Bridge-side spend-approval key (cost MCP rail). Optional; unset
+      # refuses to mint rather than inventing authority.
+      KUBONA_OPERATOR_PRIVKEY_HEX: ${KUBONA_OPERATOR_PRIVKEY_HEX:-}
     volumes:
       - bridge-sock:/run/kubona
+    tmpfs:
+      - /tmp
     restart: unless-stopped
     deploy:
       resources:
@@ -69,6 +102,11 @@ services:
       args:
         VERSION: ${KUBONA_VERSION:-dev}
     image: kubona/kubonad:prod
+    <<: *default-hardening
+    # Container-internal bind is 0.0.0.0 so Docker's healthcheck and the
+    # loopback-published host port work. The HOST exposure is the boundary:
+    # ports below publish to 127.0.0.1 only. Do not change the ports block
+    # to a bare "8080:8080" — that is the public-listener regression.
     command: ["--bind", "0.0.0.0", "--port", "8080"]
     environment:
       KUBONA_ENV: "production"
@@ -83,6 +121,29 @@ services:
       # Shared secret for the private bridge RPCs. Defaults to the API
       # token so the supported quickstart needs one value, not two.
       KUBONA_BRIDGE_TOKEN: ${KUBONA_BRIDGE_TOKEN:-${KUBONA_API_TOKEN:-}}
+      # Human-reviewer mandate key. Without it, production refuses to sign
+      # mandates (ephemeral signers are dev-only). Generate with:
+      #   kubonad keygen
+      KUBONA_REVIEWER_PRIVKEY_HEX: ${KUBONA_REVIEWER_PRIVKEY_HEX:-}
+      KUBONA_OPERATOR_PRIVKEY_HEX: ${KUBONA_OPERATOR_PRIVKEY_HEX:-}
+      # Cloud LLM is opt-in, and the provider key is the operator's own
+      # (BYOK): the provider bills that key; Kubona only records an estimate
+      # and enforces a local guardrail. Air-gap stays on by default.
+      KUBONA_LLM_CLOUD: ${KUBONA_LLM_CLOUD:-}
+      KUBONA_LLM_BUDGET_USD: ${KUBONA_LLM_BUDGET_USD:-}
+      KUBONA_CODESIGN_RUN_BUDGET_USD: ${KUBONA_CODESIGN_RUN_BUDGET_USD:-0.50}
+      KUBONA_LLM_PROVIDER: ${KUBONA_LLM_PROVIDER:-}
+      KUBONA_LLM_MODEL: ${KUBONA_LLM_MODEL:-}
+      KUBONA_LLM_CODESIGN_PROVIDER: ${KUBONA_LLM_CODESIGN_PROVIDER:-}
+      KUBONA_LLM_CODESIGN_MODEL: ${KUBONA_LLM_CODESIGN_MODEL:-}
+      NVIDIA_API_KEY: ${NVIDIA_API_KEY:-}
+      NVIDIA_MODEL: ${NVIDIA_MODEL:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
+      OPENCODE_API_KEY: ${OPENCODE_API_KEY:-}
+      OPENCODE_MODEL: ${OPENCODE_MODEL:-}
       # Audit 2026-10-21: Strata is the default provider (local, keyless),
       # but the stack never configured its model — every LLM path refused
       # with "no model configured" on a stock up. .env.example names iq3_s
@@ -104,7 +165,7 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     # Runbook: if host localhost:8080 answers with sessions the stack
     # never created, a dev daemon owns the host port (it binds before /
     # beside Docker's forward). The stack itself is unaffected — probe it
@@ -113,6 +174,8 @@ services:
     volumes:
       - kubona-state:/home/kubona/.kubona
       - bridge-sock:/run/kubona
+    tmpfs:
+      - /tmp
     depends_on:
       bridge:
         condition: service_healthy
@@ -137,8 +200,14 @@ services:
         NEXT_PUBLIC_API_URL: ${KUBONA_CONSOLE_API_URL:-http://localhost:8080}
         NEXT_PUBLIC_KUBONA_VERSION: ${KUBONA_VERSION:-dev}
     image: kubona/console:prod
+    <<: *default-hardening
+    environment:
+      HOME: /tmp
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
+    tmpfs:
+      - /tmp
+      - /app/.next/cache
     depends_on:
       kubonad:
         condition: service_healthy

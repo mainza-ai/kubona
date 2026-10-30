@@ -86,10 +86,12 @@ const quarantineDDL = `CREATE TABLE IF NOT EXISTS _fk_orphans (
 )`
 
 var quarantineTables = map[string]bool{
-	"chat_messages":   true,
-	"jobs":            true,
-	"loops":           true,
-	"campaign_states": true,
+	"chat_messages":     true,
+	"jobs":              true,
+	"loops":             true,
+	"campaign_states":   true,
+	"campaign_versions": true,
+	"claim_records":     true,
 }
 
 func quarantineOrphans(db *sql.DB, orphans []fkOrphan) error {

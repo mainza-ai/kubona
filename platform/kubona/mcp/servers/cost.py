@@ -127,6 +127,95 @@ def verify_payment(session_id: str, proof: str, amount_usd: float) -> dict:
     return pay.verify(proof, quote)
 
 
+def codesign_rerun(
+    session_id: str,
+    spec_kind: str = "and2",
+    budget_steps: int = 4,
+    seed: int = 7,
+    num_tests: int = 64,
+    max_failures: int = 0,
+    kappa: int = 1,
+    max_tokens_per_step: int = 512,
+    max_usd: float = 0.0,
+    request_id: str | None = None,
+) -> dict:
+    """Run the governed circuit-proposal rerun through the Go API.
+
+    This is the scoped agent rail for C5b: the MCP server never holds an LLM
+    key and never calls a model directly. It forwards to
+    `POST /api/codesign/rerun` with the operator bearer; the Go core owns the
+    role/settings, BYOK estimate, bounds, and sealed receipt.
+
+    `request_id` is returned (generated if absent) so a caller can retry the
+    same receipt after a transient failure instead of double-spending.
+    """
+    import json
+    import os
+    import urllib.error
+    import urllib.request
+    import uuid
+
+    token = os.environ.get("KUBONA_API_TOKEN", "").strip()
+    if not token:
+        return {"ok": False, "error": "KUBONA_API_TOKEN absent: rerun requires operator auth (no anonymous spend)"}
+    if not session_id.strip():
+        return {"ok": False, "error": "session_id is required: rerun is spend-attributed"}
+    if not 1 <= budget_steps <= 12:
+        return {"ok": False, "error": "budget_steps must be in [1,12]: refusing"}
+    if not 1 <= max_tokens_per_step <= 1024:
+        return {"ok": False, "error": "max_tokens_per_step must be in [1,1024]: refusing"}
+    if not 1 <= num_tests <= 512:
+        return {"ok": False, "error": "num_tests must be in [1,512]: refusing"}
+    if not 0 <= max_failures <= num_tests:
+        return {"ok": False, "error": "max_failures must be in [0,num_tests]: refusing"}
+    if not 1 <= kappa <= 3:
+        return {"ok": False, "error": "kappa must be in [1,3]: refusing"}
+    if seed < 0:
+        return {"ok": False, "error": "seed must be >= 0: refusing"}
+    if max_usd < 0:
+        return {"ok": False, "error": "max_usd must be >= 0: refusing"}
+    rid = request_id or uuid.uuid4().hex
+    body = {
+        "session_id": session_id,
+        "request_id": rid,
+        "spec_kind": spec_kind,
+        "budget_steps": budget_steps,
+        "seed": seed,
+        "num_tests": num_tests,
+        "max_failures": max_failures,
+        "kappa": kappa,
+        "max_tokens_per_step": max_tokens_per_step,
+        "max_usd": max_usd,
+    }
+    base = os.environ.get("KUBONA_API_URL", "http://127.0.0.1:8080").rstrip("/")
+    req = urllib.request.Request(
+        f"{base}/api/codesign/rerun",
+        data=json.dumps(body).encode("utf-8"),
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {token}",
+        },
+        method="POST",
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=660) as resp:
+            out = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        raw = e.read().decode("utf-8", "replace")
+        try:
+            err = json.loads(raw)
+            msg = err.get("message") or err.get("error") or raw[:280]
+        except Exception:
+            msg = raw[:280]
+        return {"ok": False, "error": str(msg)[:280], "request_id": rid, "http_status": e.code}
+    except Exception as e:  # noqa: BLE001 — transport refusal, never a fake success
+        return {"ok": False, "error": f"rerun API unreachable: {e}"[:280], "request_id": rid}
+    if not isinstance(out, dict) or out.get("ok") is not True:
+        msg = out.get("message") or out.get("error") if isinstance(out, dict) else "unparseable response"
+        return {"ok": False, "error": str(msg)[:280], "request_id": rid}
+    return out
+
+
 for fn, desc in [
     (create_session, "Open a session with a hard budget ceiling."),
     (estimate_cost, "Estimate cost + pre-flight verdict for a circuit on a provider."),
@@ -137,6 +226,7 @@ for fn, desc in [
     (session_burn_rate, "Real-time burn-rate telemetry for a session."),
     (quote_payment, "x402-compatible price quote (the request is the transaction)."),
     (verify_payment, "Verify an x402 payment proof."),
+    (codesign_rerun, "Run the governed circuit-proposal rerun via the Go API (BYOK estimate)."),
 ]:
     mcp.add_tool(fn, name=fn.__name__, description=desc)
 

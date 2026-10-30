@@ -117,6 +117,7 @@ var KnownEventTypes = map[string]bool{
 	"tool_called":                       true,
 	"tool_loop_breaker":                 true,
 	"tool_loop_capped":                  true,
+	"trial":                             true,
 	"tribunal_commit":                   true,
 	"tribunal_turn":                     true,
 	"x402_payment_settled":              true,

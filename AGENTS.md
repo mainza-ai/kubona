@@ -33,10 +33,13 @@ development — re-verify the gate on the exact commit before citing
 > The reviewer-key claim above is recorded as commissioned in this file and
 > the 2026-10-29 log, but `wiki/concepts/remaining-work.md` still listed it
 > open; verify `reviewer_key_configured=true` on the deployment host before
-> citing it. The "first paid run" remains open: the `ibm_fez` probe was a
-> free-plan governed run, cancelled with vendor recall and settled to
-> `$0.00`. Counts are generated in `docs/repo-counts.md`; do not hand-maintain
-> them in prose.
+> citing it. The "first paid run" is **closed by operator confirmation on
+> 2026-10-28**: the operator reports a paid QPU run. The local
+> `~/.kubona/kubona.db` available on 2026-10-30 still contains only the
+> 2026-10-29 free-plan `ibm_fez` probe (cancelled, settled `$0.00`), so the
+> paid run's backend/run id/settlement must be attached from the deployment
+> ledger before citing measured numbers. Counts are generated in
+> `docs/repo-counts.md`; do not hand-maintain them in prose.
 
 ## Three layers
 

@@ -1,7 +1,7 @@
 ---
 type: overview
 date: 2026-08-16
-updated: 2026-10-29
+updated: 2026-10-30
 tags: [kubona, synthesis]
 sources: [source-architecture-paper, source-gap-analysis-plan, source-cloudflare-economy,
   source-frontier-repo-audit-2026, source-agent-protocol-landscape-2026, source-openai-math-corpus,
@@ -38,6 +38,18 @@ infinitive prefix, *-bona* (Proto-Bantu *-bóna*) the root for seeing,
 observing, perceiving. The platform is held to it literally — a claim the
 system surfaces must trace to something observed (a measured result, a
 ledger receipt, a cited anchor), never to an assertion.
+
+> ⚑ Update (2026-10-30): the production bar is now stated for the actual
+> product: **fully functional for a local private deployment**, not a public
+> SaaS. The compose stack publishes only `127.0.0.1:8080`/`:3000`, runs
+> read-only with dropped caps, and the checked-in
+> `scripts/local-deployment-check.sh` refuses a public listener. Cloud egress
+> is limited to QPU dispatch (bridge) and opt-in cloud LLM (BYOK, Go core).
+> C5b added the governed `POST /api/codesign/rerun` (session-scoped,
+> idempotent, estimate-only BYOK; local providers free). B4 keeps diagnostics
+> local by default (no telemetry; Sentry/OTLP opt-in). Runbook:
+> `docs/local-deployment.md`; evidence and residual operator items:
+> [[remaining-work]] and [[audit-topology-map]].
 
 ## The nine sources ingested
 
@@ -253,6 +265,11 @@ production-readiness audits).
 Each phase below had a gate test, and each passes **on simulators** — plus two
 governed live-QPU Bell runs (`ibm_marrakesh` 2026-10-26, `ibm_fez` 2026-10-29)
 with estimate→reserve→settle measured end to end (see [[ibm-quantum-platform]]).
+
+> ⚑ Correction (2026-10-30): the operator confirms the first **paid** QPU run
+> on 2026-10-28. The 2026-10-29 `ibm_fez` entry above remains the free-plan
+> probe that was cancelled and settled to `$0.00`; attach the paid run's
+> deployment ledger/run id before quoting its backend or cost.
 
 > ⚑ Correction: the 2026-10-08 text here read "213 Python + 58 Go + 3 Rust +
 > 1 Flutter test". The Flutter/Dart stack was retired 2026-10-04 (stack

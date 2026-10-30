@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 from kubona import config
 from kubona.mcp.gateway import KubonaGateway
 from kubona.mcp.servers._mount import build_gateway
@@ -159,6 +160,166 @@ def _doctor_taxonomy() -> str:
         return f"unreadable: {e}"
 
 
+def _load_dotenv_file(path: "Path") -> None:
+    """Load KEY=VALUE lines without overriding the process environment."""
+    from pathlib import Path
+
+    try:
+        for line in Path(path).read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            k = k.strip()
+            v = v.strip().strip('"\'')
+            if k and not os.environ.get(k):
+                os.environ[k] = v
+    except Exception:
+        return
+
+
+def _contracts_dir() -> "Path":
+    """Contracts directory (shipped in the repo/image, env-overridable)."""
+    from pathlib import Path
+
+    override = os.environ.get("KUBONA_CONTRACTS_DIR", "").strip()
+    if override:
+        return Path(override).expanduser()
+    import kubona
+
+    return Path(kubona.__file__).resolve().parents[1] / "contracts"
+
+
+def _doctor_rate_card() -> tuple[str, bool]:
+    """Rate-card freshness (hard boot gate). Returns (text, ok)."""
+    import json
+    from datetime import datetime, timedelta, timezone
+
+    path = _contracts_dir() / "rate-cards.json"
+    try:
+        card = json.loads(path.read_text())
+        effective = datetime.strptime(str(card["effective_date"]), "%Y-%m-%d").date()
+        window = int(card["stale_after_days"])
+        stale_on = effective + timedelta(days=window)
+        today = datetime.now(timezone.utc).date()
+        days = (stale_on - today).days
+        text = f"{card.get('version', '?')} effective {effective} (stale {stale_on}, {days:+d}d)"
+        if card.get("heuristic") is True:
+            text += " · heuristic"
+        if days < 0:
+            return f"STALE — {text}; update before cloud/lens pricing", False
+        return text, True
+    except Exception as e:  # noqa: BLE001 — doctor reports, never crashes
+        return f"unreadable: {e}", False
+
+
+def _doctor_fk(db_path: "Path | None" = None) -> tuple[str, bool]:
+    """FK orphan count on the Go ledger (read-only). Missing DB is not a failure."""
+    import sqlite3
+
+    if db_path is None:
+        try:
+            db_path = config.state_path("kubona.db")
+        except Exception as e:  # noqa: BLE001
+            return f"unresolvable: {e}", False
+    if not db_path.exists():
+        return "absent (fresh state — nothing to audit)", True
+    try:
+        conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+        try:
+            rows = conn.execute("PRAGMA foreign_key_check").fetchall()
+        finally:
+            conn.close()
+        if rows:
+            return f"{len(rows)} orphan row(s) — run `kubonad fk-quarantine --apply` after backup", False
+        return f"clean ({db_path.name})", True
+    except Exception as e:  # noqa: BLE001
+        return f"unreadable: {e}", False
+
+
+def _doctor_llm() -> tuple[str, bool]:
+    """Effective LLM posture from the Go settings DB when present, else env."""
+    import json
+    import sqlite3
+
+    provider = os.environ.get("KUBONA_LLM_PROVIDER", "strata") or "strata"
+    air_gap = "unknown"
+    codesign = "unassigned"
+    try:
+        db = config.state_path("kubona.db")
+        if db.exists():
+            conn = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+            try:
+                row = conn.execute(
+                    "SELECT value_json FROM llm_settings WHERE key = 'active_settings'"
+                ).fetchone()
+            finally:
+                conn.close()
+            if row:
+                snap = json.loads(row[0])
+                provider = snap.get("active_provider", provider)
+                air_gap = "on" if snap.get("air_gapped") else "off"
+                role = (snap.get("role_assignments") or {}).get("codesign") or {}
+                if role:
+                    codesign = f"{role.get('provider', '?')}/{role.get('model', '?')}"
+    except Exception as e:  # noqa: BLE001
+        if "no such table" in str(e):
+            return f"active={provider}; settings not initialized (fresh state)", True
+        return f"{provider}; settings unreadable: {e}", False
+    cloud = "allowed" if os.environ.get("KUBONA_LLM_CLOUD") == "1" else "not opted in"
+    return f"active={provider}; air-gap={air_gap}; codesign={codesign}; cloud={cloud}", True
+
+
+def _doctor_keys() -> tuple[str, bool]:
+    """Presence/shape only — never print key values."""
+    import binascii
+
+    reviewer = os.environ.get("KUBONA_REVIEWER_PRIVKEY_HEX", "").strip()
+    operator = os.environ.get("KUBONA_OPERATOR_PRIVKEY_HEX", "").strip()
+    ibm = os.environ.get("KUBONA_IBM_QISKIT_TOKEN", "").strip()
+    if reviewer:
+        try:
+            raw = binascii.unhexlify(reviewer)
+            if len(raw) not in (32, 64):
+                raise ValueError(f"{len(raw)} bytes (want 32-byte seed or 64-byte key)")
+            reviewer_state = f"configured ({len(raw)}B)"
+        except Exception as e:  # noqa: BLE001
+            reviewer_state = f"INVALID: {e}"
+    else:
+        reviewer_state = "absent"
+    text = f"reviewer={reviewer_state}; operator={'configured' if operator else 'absent'}; IBM-QPU={'configured' if ibm else 'absent'}"
+    # Reviewer is the mandate-signing blocker; QPU is optional for local-only
+    # deployments, so its absence is reported but does not fail --strict.
+    ok = reviewer_state.startswith("configured")
+    return text, ok
+
+
+def _doctor_http() -> tuple[str, bool]:
+    """Local daemon readiness; a stopped stack is reported, not treated as fatal."""
+    import urllib.error
+    import urllib.request
+
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:8080/api/ready", timeout=2) as r:
+            return f"ready (HTTP {r.status})", r.status == 200
+    except urllib.error.URLError as e:
+        return f"not running ({e.reason})", True
+    except Exception as e:  # noqa: BLE001
+        return f"unreachable: {e}", True
+
+
+def _doctor_bridge() -> tuple[str, bool]:
+    sock = os.environ.get("KUBONA_BRIDGE_SOCKET", "").strip()
+    addr = os.environ.get("KUBONA_BRIDGE_ADDR", "").strip()
+    if sock:
+        from pathlib import Path
+
+        return (f"UDS {sock} ({'present' if Path(sock).exists() else 'missing'})", Path(sock).exists())
+    if addr:
+        return f"TCP {addr} (configured; fleet probe owns liveness)", True
+    return "unconfigured (compose uses /run/kubona/bridge.sock)", True
+
+
 def _cli(argv: list[str]) -> int:
     cmd = argv[1] if len(argv) > 1 else "serve"
     if cmd == "serve":
@@ -168,6 +329,23 @@ def _cli(argv: list[str]) -> int:
         serve_gateway()
         return 0
     if cmd == "doctor":
+        args = argv[2:]
+        strict = "--strict" in args
+        if "--env-file" in args:
+            i = args.index("--env-file")
+            if i + 1 < len(args):
+                _load_dotenv_file(args[i + 1])
+        failures: list[str] = []
+
+        def report(label: str, value: tuple[str, bool] | str, ok: bool = True) -> None:
+            if isinstance(value, tuple):
+                text, passed = value
+            else:
+                text, passed = value, ok
+            print(f"{label}: {text}")
+            if not passed:
+                failures.append(label)
+
         print("state root:", config.state_root())
         print("ledger:", config.ledger_path())
         print("production:", config.is_production())
@@ -177,6 +355,17 @@ def _cli(argv: list[str]) -> int:
         print("ledger check:", _doctor_ledger())
         print("skill:", _doctor_skill())
         print("taxonomy:", _doctor_taxonomy())
+        report("rate card", _doctor_rate_card())
+        report("fk orphans", _doctor_fk())
+        report("llm", _doctor_llm())
+        report("keys", _doctor_keys())
+        report("bridge", _doctor_bridge())
+        report("daemon", _doctor_http())
+        if strict and failures:
+            print("doctor: FAILED —", ", ".join(failures))
+            return 1
+        if failures:
+            print("doctor: warnings —", ", ".join(failures))
         return 0
     if cmd == "mandate-check":
         return _mandate_check(argv[2:])

@@ -859,6 +859,22 @@ def test_codesign_servicer_closed_vocabulary():
     assert resp.error_message != ""
 
 
+def test_codesign_spec_op_returns_setup_metadata():
+    """C5b: the Go rerun rail sizes its prompt from the same Python spec
+    builder the evaluator uses — no second spec registry."""
+    from codesign_ops import run_op
+
+    res = run_op("spec", {"spec_kind": "and2"})
+    assert res["ok"] is True
+    assert res["spec_kind"] == "and2"
+    assert res["num_qubits"] == 3
+    assert res["inputs"] == [0, 1]
+    assert res["outputs"] == [2]
+    bad = run_op("spec", {"spec_kind": "not-a-kind"})
+    assert bad["ok"] is False
+    assert "unknown spec_kind" in bad["error"]
+
+
 def test_codesign_ops_error_strings_match_retired_snippets():
     """T-01b: the ported validation speaks the retired snippets'
     byte-identical refusal strings (handler tests assert them)."""
