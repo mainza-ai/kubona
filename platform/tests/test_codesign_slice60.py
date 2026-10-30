@@ -66,6 +66,11 @@ def test_rs_composition_end_to_end():
     L = rs12_layout(0)
     # standalone scan for phase transitivity (same inputs, proven vs spec)
     sb, _sregs = build_phase_scan(F2_12, 36, positions, nus)
+    # Cache the emitted op lists: _sim_trajectory does not mutate them, and
+    # re-emitting 3.9M Ops per instance was an avoidable memory/time spike on
+    # the 2-core nightly runner.
+    composed_ops = b.emit()
+    scan_ops = sb.emit()
     for errs in _instances():
         syn = multi_error_syndromes(F2_12, GAMMA, errs, NROUND)
         rep = berlekamp_massey(syn, F2_12)
@@ -75,7 +80,7 @@ def test_rs_composition_end_to_end():
         om = list(crep["omega"])
         # --- composed sim ---
         init = {i: (syn[i // 12] >> (i % 12)) & 1 for i in range(840)}
-        bits, phase, _ = _sim_trajectory(b.emit(), dict(init), random.Random(20))
+        bits, phase, _ = _sim_trajectory(composed_ops, dict(init), random.Random(20))
         # FLAG set (converged; these are low-error instances)
         assert bits.get(meta["outputs"][-1], 0) == 1, errs
         # Chien FOUND marks exactly the planted root betas (field elements)
@@ -107,7 +112,7 @@ def test_rs_composition_end_to_end():
         for k, c in enumerate(list(psi) + [0] * (36 - len(psi))):
             for i in range(12):
                 sinit[864 + k * 12 + i] = (c >> i) & 1
-        _, sphase, _ = _sim_trajectory(sb.emit(), dict(sinit), random.Random(21))
+        _, sphase, _ = _sim_trajectory(scan_ops, dict(sinit), random.Random(21))
         assert phase == sphase, errs
         # A*B*E+B*O == 1 on composed outputs (decode validity, end to end)
         from kubona.codesign.psi import padd, pmul

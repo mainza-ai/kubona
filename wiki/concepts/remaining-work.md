@@ -75,8 +75,11 @@ status: tracked
 >   `~/.kubona/backups/kubona-pre-fk-20261030T024721Z.db`
 >   (sha256 `c15bffd6843e7263de8c64bb1a9d3b8d9c00c4898ba851cfce4990eb53146f3b`).
 >   **Caveat:** `kubonad backup` refused it as a chain-clean backup (606
->   pre-existing ledger chain faults); the snapshot is SQLite-consistent
->   (integrity_check ok, 1470 events) but is forensic, not a verified
+>   pre-existing ledger chain faults: 258 unhashed legacy v1 events,
+>   unsigned commit events, and their link cascade). Resolved by disposition
+>   on 2026-10-30: do not backfill/retro-sign; the host DB is forensic only,
+>   and production must start on a fresh ledger. The snapshot is
+>   SQLite-consistent (integrity_check ok, 1470 events) but not a verified
 >   provenance backup.
 > - Remaining operator-side for a production claim: vendor rate-card
 >   reconciliation before 2026-11-11 (`docs/rate-cards.md`), a green nightly
@@ -122,11 +125,15 @@ status: tracked
   choices, not missing secrets.
 - `KUBONA_CONTACT_EMAIL` (console mailto + polite-pool), HF-token rotation,
   EPO registration.
-- ~~First paid QPU run~~ — ✅ CLOSED 2026-10-28 (operator-confirmed paid run;
-  see [[log]] and [[ibm-quantum-platform]]). Evidence note: this workstation's
-  `~/.kubona/kubona.db` on 2026-10-30 holds only the 2026-10-29 free-plan
-  `ibm_fez` probe, so attach the deployment ledger/run id before citing its
-  measured backend/cost.
+- ~~First paid QPU run~~ — ⚠️ OPERATOR-CONFIRMED 2026-10-28, evidence caveat
+  (2026-10-30): IBM job `dbha28pq260s73busu70` (`ibm_fez`, DONE, 2 s,
+  0.028795 RU, 100 shots, counts 00:58/11:38/10:1/01:3) maps to local job
+  `39b5e6b832cd4ae3` (estimate $8.000568, local cancelled, settled $0.00).
+  The configured IBM instance reports **Open Plan** (600 s/month, 20 s
+  consumed), so a paid invoice cannot be proven from it. The cancel path
+  now fetches vendor status and settles measured usage; the historical row
+  remains for operator reconciliation. Attach the paid instance/invoice or
+  run id before quoting a paid cost.
 - DeepSeek-vs-oMLX transcript delta (keyed providers; harness ready).
 - Device/emulator recalibration (keyed hardware; canary verifies
   live-vs-declared meanwhile per Q-14).

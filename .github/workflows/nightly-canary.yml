@@ -16,6 +16,7 @@ permissions:
 on:
   schedule:
     - cron: "17 3 * * *"   # nightly
+  workflow_dispatch:        # manual repro for runner-capacity investigations
 
 jobs:
   canary:

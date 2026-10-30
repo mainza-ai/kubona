@@ -38,7 +38,13 @@ development — re-verify the gate on the exact commit before citing
 > `~/.kubona/kubona.db` available on 2026-10-30 still contains only the
 > 2026-10-29 free-plan `ibm_fez` probe (cancelled, settled `$0.00`), so the
 > paid run's backend/run id/settlement must be attached from the deployment
-> ledger before citing measured numbers. Counts are generated in
+> ledger before citing measured numbers. The configured IBM instance is
+> **Open Plan** on 2026-10-30 (600 s/month, 20 s consumed), so this repo
+> cannot prove a paid invoice from that instance; attach the paid instance/
+> run id or invoice. IBM job `dbha28pq260s73busu70` is DONE/2 s while local
+> job `39b5e6b832cd4ae3` recorded cancelled/$0.00; the cancel path now
+> queries vendor status and settles measured usage (regression-tested), but
+> the historical row is not rewritten. Counts are generated in
 > `docs/repo-counts.md`; do not hand-maintain them in prose.
 
 ## Three layers

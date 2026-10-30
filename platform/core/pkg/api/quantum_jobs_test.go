@@ -6,9 +6,11 @@ import (
 	"crypto/ed25519"
 	"encoding/hex"
 	"encoding/json"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -21,6 +23,8 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/watchdog"
 	pb "github.com/mainza-ai/kubona/core/proto"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/test/bufconn"
 )
 
 // Human dispatch proxy (R-34): Go owns auth + autonomy + validation +
@@ -310,5 +314,89 @@ func TestQuantumJobsUnifiedSpendBookAndRefundIntegration(t *testing.T) {
 	settledJob, _ := jr.GetJob("qjob-live-1")
 	if settledJob == nil || settledJob.Status != pb.JobStatus_JOB_STATUS_COMPLETED {
 		t.Fatalf("expected SQLite job row transitioned to JOB_STATUS_COMPLETED, got %+v", settledJob)
+	}
+}
+
+// Quantum cancel must not assume the recall won the race. A provider job
+// already DONE when the cancel arrives must sync as completed and settle from
+// measured usage; the old handler always wrote cancelled (and refunded $0).
+// Live finding 2026-10-30: IBM job dbha28pq260s73busu70 was DONE/2s while the
+// local ledger recorded cancelled/$0.00.
+type fakeQuantumCancelServer struct {
+	pb.UnimplementedQuantumBridgeServiceServer
+	status string
+	result string
+}
+
+func (f *fakeQuantumCancelServer) QuantumSubmit(_ context.Context, req *pb.QuantumSubmitRequest) (*pb.QuantumSubmitResponse, error) {
+	return &pb.QuantumSubmitResponse{Ok: true, JobId: "qjob-cancel", EstimateJson: "{}", FidelityJson: "{}", Queued: true, SessionId: req.SessionId}, nil
+}
+
+func (f *fakeQuantumCancelServer) QuantumCancel(_ context.Context, req *pb.QuantumCancelRequest) (*pb.QuantumCancelResponse, error) {
+	return &pb.QuantumCancelResponse{Ok: true, JobId: req.JobId, ProviderRecallAttempted: true, ProviderRecallStatus: "DONE"}, nil
+}
+
+func (f *fakeQuantumCancelServer) QuantumJobStatus(_ context.Context, req *pb.QuantumJobStatusRequest) (*pb.QuantumJobStatusResponse, error) {
+	return &pb.QuantumJobStatusResponse{Ok: true, JobId: req.JobId, Status: f.status, ResultJson: f.result}, nil
+}
+
+func TestQuantumCancelSyncsCompletedVendorStatus(t *testing.T) {
+	t.Setenv("KUBONA_API_TOKEN", "test-token")
+	t.Setenv("KUBONA_ALLOW_EPHEMERAL_SIGNER", "1")
+	l, err := ledger.OpenLedger(t.TempDir() + "/quantum-cancel.db")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+	lis := bufconn.Listen(1024 * 1024)
+	defer lis.Close()
+	fake := &fakeQuantumCancelServer{
+		status: "completed",
+		result: `{"hardware_job_id":"hw-cancel","result":{"actual_usd":3.2,"usage_seconds":2}}`,
+	}
+	gs := grpc.NewServer()
+	pb.RegisterQuantumBridgeServiceServer(gs, fake)
+	go func() { _ = gs.Serve(lis) }()
+	defer gs.Stop()
+	conn, err := grpc.NewClient("passthrough:///bufnet",
+		grpc.WithContextDialer(func(ctx context.Context, _ string) (net.Conn, error) {
+			return lis.DialContext(ctx)
+		}),
+		grpc.WithTransportCredentials(insecure.NewCredentials()),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	sm := session.NewManager(l)
+	jr := jobs.NewRunner(l, pb.NewQuantumBridgeServiceClient(conn), 1)
+	sup := supervisor.NewSupervisor(l)
+	wd := watchdog.NewTaskWatchdog(l, sup)
+	srv := api.NewServer(l, sm, jr, sup, wd)
+	h := srv.Handler()
+	sid := idemSession(t, h, "quantum cancel")
+	code, out := postQuantumJob(t, h, true, map[string]any{
+		"qasm": "OPENQASM 2.0;\nqreg q[1];\nh q[0];", "provider": "local-simulator",
+		"shots": 100, "idempotency_key": "cancel-live-1", "session_id": sid,
+	})
+	if code != http.StatusOK {
+		t.Fatalf("submit: %d %v", code, out)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/quantum/jobs/qjob-cancel/cancel", bytes.NewReader([]byte(`{}`)))
+	req.Header.Set("Authorization", "Bearer test-token")
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("cancel: %d %s", w.Code, w.Body.String())
+	}
+	var status, result string
+	if err := l.DB().QueryRow(`SELECT status, result_json FROM jobs WHERE id = 'qjob-cancel'`).Scan(&status, &result); err != nil {
+		t.Fatal(err)
+	}
+	if status != pb.JobStatus_JOB_STATUS_COMPLETED.String() {
+		t.Fatalf("cancel raced with vendor completion: status=%s result=%s", status, result)
+	}
+	if !strings.Contains(result, "actual_usd") || !strings.Contains(result, "3.2") {
+		t.Fatalf("completed settlement lost measured usage: %s", result)
 	}
 }
