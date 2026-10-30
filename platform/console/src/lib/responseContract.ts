@@ -65,6 +65,84 @@ export const RESPONSE_SCHEMAS = {
       }),
     ),
   }),
+  'messages.list': obj({
+    messages: arr(obj({ id: str, role: str, content: str })),
+  }),
+  'jobs.list': obj({
+    jobs: arr(obj({ id: str, session_id: str, status: str })),
+  }),
+  job: obj({
+    job: obj({ id: str, session_id: str, status: str }),
+  }),
+  radar: obj({
+    radar_endpoints: arr(any),
+  }),
+  'notebooks.list': obj({
+    notebooks: arr(any),
+  }),
+  'agents.system': obj({
+    roles: arr(obj({ role: str, description: str })),
+  }),
+  'agents.custom': obj({
+    agents: arr(any),
+  }),
+  'labs.list': obj({
+    tenants: arr(any),
+  }),
+  'cost.summary': obj({
+    cap_usd: num,
+    spent_usd: num,
+    remaining_usd: { ...num, nullable: true },
+    active_provider: str,
+    currency: str,
+  }),
+  'memory.recall': obj({
+    snippets: arr(any),
+    tenant: str,
+  }),
+  'workflow.plan': obj({
+    ok: bool,
+    dry_run: bool,
+    workflow_id: str,
+    steps: arr(any),
+    unresolved_references: arr(any),
+    compensations_planned: arr(any),
+  }),
+  'workflow.run': obj({
+    ok: bool,
+    workflow_id: str,
+    steps_completed: num,
+    step_records: arr(any),
+    spent_usd: num,
+    last_results: obj(),
+    compensations: arr(any),
+  }),
+  'qir.compile': obj({
+    num_qubits: num,
+    depth: num,
+    gate_count: num,
+    t_count: num,
+    qir_profile: str,
+  }),
+  'session.context': obj({
+    session_id: str,
+    turns: num,
+    turn_cap: num,
+    history_chars: num,
+    history_chars_cap: num,
+    would_drop: num,
+    pressure_pct: num,
+    prompt_tokens: num,
+    completion_tokens: num,
+  }),
+  'auth.challenge': obj({
+    nonce: str,
+    message: str,
+    expires_at: str,
+  }),
+  'auth.whoami': obj({
+    authenticated: bool,
+  }),
   'quantum.backends': obj({
     backends: arr(
       obj({
