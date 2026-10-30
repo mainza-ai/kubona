@@ -595,6 +595,12 @@ export function LLMSettings() {
               <span>Cloud egress blocked while Sovereign Air-Gap is engaged. Roles on cloud providers will refuse.</span>
             </div>
           )}
+          {!settings.air_gapped && (
+            <div className="text-[11px] text-slate-400 bg-white/[0.03] border border-white/10 p-2.5 rounded-xl">
+              Local providers (Strata, oMLX, Ollama, LM Studio) work without a cloud opt-in. In production,
+              cloud providers additionally require the deployment flag <span className="font-mono text-slate-200">KUBONA_LLM_CLOUD=1</span>.
+            </div>
+          )}
 
           {/* Role Routing Matrix (editable) */}
           <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl space-y-3">
@@ -617,7 +623,7 @@ export function LLMSettings() {
                       >
                         {Object.entries(settings.providers).map(([pt, pc]) => (
                           <option key={pt} value={pt}>
-                            {pt}{pc.enabled ? '' : ' (off)'}
+                            {pt} · {pc.is_local ? 'local' : 'cloud'}{pc.enabled ? '' : ' (off)'}
                           </option>
                         ))}
                       </select>

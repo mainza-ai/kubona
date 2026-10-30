@@ -136,6 +136,9 @@ func main() {
 	// Operator subcommands run before flag parsing: `kubonad grants ...`
 	// mints/attenuates/verifies cross-lab UCAN grants with operator-held keys.
 	loadDotEnv()
+	if len(os.Args) > 1 && os.Args[1] == "keygen" {
+		os.Exit(runKeygen(os.Args[2:]))
+	}
 	if len(os.Args) > 1 && os.Args[1] == "grants" {
 		os.Exit(runGrants(os.Args[2:]))
 	}

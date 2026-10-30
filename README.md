@@ -6,7 +6,7 @@
 
 ### *See, observe, discover — then know.*
 
-**An open-source quantum-computing and AI-enhanced science discovery platform for autonomous AI agents, with an MCP tool layer (6 servers, 37 tools over stdio).**
+**An open-source quantum-computing and AI-enhanced science discovery platform for autonomous AI agents, with an MCP tool layer (6 servers, 38 tools over stdio).**
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License" /></a>
@@ -84,7 +84,7 @@ Kubona structures scientific inquiry for autonomous agents across four determini
 
 ### Verifiable Tool Grounding (MCP Layer)
 
-Every epistemic stage translates into concrete, deterministic tools exposed through the MCP layer (6 federated servers, 37 tools over stdio, digest-pinned in [`platform/contracts/mcp-catalog.json`](platform/contracts/mcp-catalog.json)):
+Every epistemic stage translates into concrete, deterministic tools exposed through the MCP layer (6 federated servers, 38 tools over stdio, digest-pinned in [`platform/contracts/mcp-catalog.json`](platform/contracts/mcp-catalog.json)):
 
 * **Observe & Measure**: `execution` server (circuit execution, VQE sweeps, state-vector simulation, hardware capability probes).
 * **Synthesize & Optimize**: `compiler` server (pass portfolio, QIR/OpenQASM3 transpilation, circuit co-design verification).
@@ -124,7 +124,7 @@ These are not aspirations. The ledger is sealed, the refusal paths are tested, a
 |---|---|---|
 | [`platform/core/`](platform/core/) | **Go Orchestrator** | Sovereign orchestrator, hash-chained provenance ledger, job coordination, campaign flight recorder (`GET /api/campaigns/{id}/flight-recorder`), IFC lattice (partial enforcement — see audit), containerized Docker sandbox (`runsc` opt-in; Python agent-code isolation pending), and the HTTP route surface (counts generated in [`docs/repo-counts.md`](docs/repo-counts.md)) on `:8080`. |
 | [`platform/crates/`](platform/crates/) | **Rust Core** | Native compiler core (`qir-core` lowering OpenQASM 3.0 to LLVM IR) and information-flow lattice (`ifc-core`). |
-| [`platform/kubona/mcp/`](platform/kubona/mcp/) | **MCP Tool Layer** | 6 federated Python servers mounting 37 tools over stdio (`compiler`, `execution`, `cost`, `provenance`, `control`, `world`)*. |
+| [`platform/kubona/mcp/`](platform/kubona/mcp/) | **MCP Tool Layer** | 6 federated Python servers mounting 38 tools over stdio (`compiler`, `execution`, `cost`, `provenance`, `control`, `world`)*. |
 | [`platform/console/`](platform/console/) | **Sovereign Console** | Next.js sovereign UI on `:3000` with six dock surfaces plus proof/mesh panels (Spatial Canvas, Flight Recorder, Epistemic Tribunal, Codesign Cockpit) and Ed25519 signing via `@noble/ed25519`. |
 | [`platform/kubona/`](platform/kubona/) | **Python Runtime** | Agent execution runtime, single-tape analytical mixed-state autodiff (`diff_stack`), refuted-genome transfer priors (`autoresearch`), and dual-model register packing (`codesign`). |
 | [`platform/bridge/`](platform/bridge/) | **Quantum Bridge** | PySCF, Qiskit Aer, and PennyLane bridge with typed gRPC and Unix Domain Socket RPCs (`unix://...`) for chemical anchors, circuit cutting, and hardware dispatch. |
@@ -134,9 +134,53 @@ These are not aspirations. The ledger is sealed, the refusal paths are tested, a
 | [`assets/misc/`](assets/misc/) | **Media & Presentations** | Platform overview infographic and executive presentation deck. |
 | [`AGENTS.md`](AGENTS.md) | **Maintainer Operating Rules** | Core engineering standards, 2026-10-12 production bar, and invariants for human and AI collaborators. |
 
-*\*Note on MCP Serving: The 6 MCP servers currently execute over stdio (`python -m kubona.mcp.servers.<name>`) and in-process test harnesses; standalone compose container serving is in progress.*
+*\*Note on MCP Serving: The 6 MCP servers execute over stdio (`python -m kubona.mcp.servers.<name>`) spawned by the agent host; this is the supported local topology, not a long-running compose service. See [`docs/local-deployment.md`](docs/local-deployment.md).*
 
 ---
+
+## 🐳 Local Private Deployment (Docker)
+
+The supported production shape is a **local-first** stack: console and API bind
+to `127.0.0.1`, with no domain, Cloudflare, or public reverse proxy. Cloud is
+used only for QPU dispatch and opt-in cloud LLM (BYOK). Full runbook:
+[`docs/local-deployment.md`](docs/local-deployment.md).
+
+```bash
+cp .env.example .env
+chmod 600 .env
+# Required writes token: openssl rand -hex 32 -> KUBONA_API_TOKEN=
+# Reviewer key: (cd platform/core && go run ./cmd/kubonad keygen)
+docker compose --env-file .env -f platform/docker/compose.prod.yml up --build -d
+curl -fsS http://127.0.0.1:8080/api/health
+# console: http://127.0.0.1:3000
+```
+
+Prove the host is not publicly exposed:
+
+```bash
+scripts/local-deployment-check.sh
+```
+
+Preflight the deployment (rate card, FK orphans, keys, LLM/air-gap, bridge,
+daemon):
+
+```bash
+cd platform && .venv/bin/python -m kubona.run doctor --env-file ../.env
+```
+
+For authenticated writes, open **Labs** in the console and bootstrap/log in
+with the lab admin key, or send `Authorization: Bearer $KUBONA_API_TOKEN` on
+API calls.
+
+### Choosing the LLM
+
+**LLM Settings → Active provider** and the **Agent Routing** matrix select the
+provider/model per role. The shipped default is local Strata (`STRATA_MODEL`,
+`STRATA_BASE_URL`); oMLX, Ollama, and LM Studio are also local. Local providers
+need no cloud opt-in. Cloud providers (NVIDIA, OpenCode, OpenAI, Anthropic) are
+BYOK and, in `KUBONA_ENV=production`, require the deployment flag
+`KUBONA_LLM_CLOUD=1` plus Sovereign Air-Gap off. Persisted UI settings override
+env defaults; the UI is authoritative per user.
 
 ## ⚡ Quickstart: Run It Locally ($0.00 / Zero-QPU)
 

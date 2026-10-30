@@ -137,6 +137,7 @@ func corsAllowOrigin(r *http.Request) string {
 //	KUBONA_RATE_TENANT "5,15"
 //	KUBONA_RATE_GRANT  "5,15"
 //	KUBONA_RATE_LEDGER "5,15"   (ledger append / abort kill-switch)
+//	KUBONA_RATE_CODESIGN "1,3"  (Go-owned LLM rerun; spend + egress)
 //
 // Format is "rate,burst" (float,int); malformed values fall back to the
 // compiled default.

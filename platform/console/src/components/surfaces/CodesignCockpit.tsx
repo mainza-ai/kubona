@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { API_BASE, apiFetch, authHeaders, evaluateCodesignArtifact, fetchCodesignPacks, fetchCodesignVerified, runFamilySearch, scoreCodesignBudget } from '@/lib/api';
-import type { CodesignBudgetResult, CodesignFamiliesResult, CodesignFrontierResult, CodesignPacksResult, CodesignVerifiedResult } from '@/lib/api';
+import { API_BASE, apiFetch, authHeaders, evaluateCodesignArtifact, fetchCodesignPacks, fetchCodesignVerified, fetchSessions, rerunCodesignProposal, runFamilySearch, scoreCodesignBudget } from '@/lib/api';
+import type { CodesignBudgetResult, CodesignFamiliesResult, CodesignFrontierResult, CodesignPacksResult, CodesignRerunResult, CodesignVerifiedResult } from '@/lib/api';
+import type { Session } from '@/types';
 
 // Circuit co-design cockpit (read-only scoring).
 // Talks only to Go (:8080) read-only routes; validity ground truth stays
@@ -97,6 +98,19 @@ export function CodesignCockpit() {
   const [famRes, setFamRes] = useState<CodesignFamiliesResult | null>(null);
   const [famError, setFamError] = useState<string | null>(null);
   const [famBusy, setFamBusy] = useState(false);
+  // C5b proposer rerun: session-scoped, BYOK estimate, sealed receipt.
+  const [rerunSessions, setRerunSessions] = useState<Session[]>([]);
+  const [rerunSessionId, setRerunSessionId] = useState('');
+  const [rerunSpec, setRerunSpec] = useState('and2');
+  const [rerunSteps, setRerunSteps] = useState('2');
+  const [rerunTokens, setRerunTokens] = useState('128');
+  const [rerunTests, setRerunTests] = useState('16');
+  const [rerunSeed, setRerunSeed] = useState('7');
+  const [rerunMaxUsd, setRerunMaxUsd] = useState('0.50');
+  const [rerunRequestId, setRerunRequestId] = useState('');
+  const [rerunBusy, setRerunBusy] = useState(false);
+  const [rerunError, setRerunError] = useState<string | null>(null);
+  const [rerunRes, setRerunRes] = useState<CodesignRerunResult | null>(null);
 
   useEffect(() => {
     let live = true;
@@ -109,6 +123,11 @@ export function CodesignCockpit() {
       if (!live) return;
       if (out.ok) setPacks(out.result);
       else setPacksError(out.error);
+    });
+    fetchSessions().then((list) => {
+      if (!live) return;
+      setRerunSessions(list);
+      setRerunSessionId((cur) => cur || list[0]?.id || '');
     });
     return () => {
       live = false;
@@ -207,6 +226,59 @@ export function CodesignCockpit() {
       setEvalRes(out.result);
     } finally {
       setEvalBusy(false);
+    }
+  };
+
+  const newRerunRequestId = () => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    return `rerun-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+  };
+
+  const runRerun = async () => {
+    setRerunError(null);
+    setRerunRes(null);
+    if (!rerunSessionId) {
+      setRerunError('pick a session first — create one in the Recorder, then retry');
+      return;
+    }
+    const steps = namedInt(rerunSteps, 'Proposer steps', 1, 12);
+    if (!steps.ok) { setRerunError(steps.error); return; }
+    const tokens = namedInt(rerunTokens, 'Max tokens per step', 1, 1024);
+    if (!tokens.ok) { setRerunError(tokens.error); return; }
+    const tests = namedInt(rerunTests, 'Number of tests', 1, 512);
+    if (!tests.ok) { setRerunError(tests.error); return; }
+    const seed = namedInt(rerunSeed, 'Seed', 0, Number.MAX_SAFE_INTEGER);
+    if (!seed.ok) { setRerunError(seed.error); return; }
+    const kappa = namedInt(evalKappa, 'Kappa (rerun)', 1, 3);
+    if (!kappa.ok) { setRerunError(kappa.error); return; }
+    const maxUsd = namedNum(rerunMaxUsd, 'Per-run budget USD', 0, 1000);
+    if (!maxUsd.ok) { setRerunError(maxUsd.error); return; }
+    const requestId = rerunRequestId || newRerunRequestId();
+    setRerunRequestId(requestId);
+    setRerunBusy(true);
+    try {
+      const out = await rerunCodesignProposal({
+        session_id: rerunSessionId,
+        request_id: requestId,
+        spec_kind: rerunSpec,
+        budget_steps: steps.value,
+        seed: seed.value,
+        num_tests: tests.value,
+        max_failures: 0,
+        kappa: kappa.value,
+        max_tokens_per_step: tokens.value,
+        max_usd: maxUsd.value,
+      });
+      if (!out.ok) {
+        setRerunError(out.error);
+        return;
+      }
+      setRerunRes(out.result);
+      setRerunRequestId('');
+    } finally {
+      setRerunBusy(false);
     }
   };
 
@@ -552,6 +624,64 @@ export function CodesignCockpit() {
                 {(evalRes.factory as Record<string, unknown>).within_failure_budget ? 'within accuracy budget' : 'EXCEEDS accuracy budget'}
               </div>
             )}
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-amber-400/20 bg-amber-500/5 p-4">
+        <div className="text-xs font-semibold text-white">Governed proposer rerun — LLM spend, not QPU</div>
+        <div className="text-[11px] text-slate-400">
+          Calls <span className="font-mono">POST /api/codesign/rerun</span>: session-scoped, idempotent, bounded. Local providers cost $0;
+          cloud is BYOK (provider bills your key, Kubona records an estimate) and never debits the QPU session cap.
+        </div>
+        <div className="mt-3 flex flex-wrap gap-2 items-center">
+          <select aria-label="Rerun session" value={rerunSessionId} onChange={(e) => { setRerunSessionId(e.target.value); setRerunRequestId(''); }} className="max-w-[18rem] rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs text-white">
+            {rerunSessions.length === 0 && <option value="" className="bg-black">no sessions — create one in Recorder</option>}
+            {rerunSessions.map((s) => (
+              <option key={s.id} value={s.id} className="bg-black">{s.title || s.id.slice(0, 8)}</option>
+            ))}
+          </select>
+          <select aria-label="Rerun spec" value={rerunSpec} onChange={(e) => { setRerunSpec(e.target.value); setRerunRequestId(''); }} className="rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs text-white">
+            {['and2', 'cz-phase', 'copy1', 'xor2'].map((k) => (
+              <option key={k} value={k} className="bg-black">{k}</option>
+            ))}
+          </select>
+          <input aria-label="Proposer steps" value={rerunSteps} onChange={(e) => { setRerunSteps(e.target.value); setRerunRequestId(''); }} className="w-16 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" title="steps 1..12" />
+          <input aria-label="Max tokens per step" value={rerunTokens} onChange={(e) => { setRerunTokens(e.target.value); setRerunRequestId(''); }} className="w-20 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" title="tokens 1..1024" />
+          <input aria-label="Rerun tests" value={rerunTests} onChange={(e) => { setRerunTests(e.target.value); setRerunRequestId(''); }} className="w-16 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" title="tests 1..512" />
+          <input aria-label="Rerun seed" value={rerunSeed} onChange={(e) => { setRerunSeed(e.target.value); setRerunRequestId(''); }} className="w-16 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
+          <input aria-label="Per-run budget USD" value={rerunMaxUsd} onChange={(e) => { setRerunMaxUsd(e.target.value); setRerunRequestId(''); }} className="w-20 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" title="USD cap for cloud BYOK" />
+          <button onClick={runRerun} disabled={rerunBusy || rerunSessions.length === 0} className="rounded-lg bg-amber-500/15 border border-amber-400/30 px-3 py-1 text-xs text-amber-100 disabled:opacity-50">
+            {rerunBusy ? 'Running…' : rerunRequestId ? 'Retry same request' : 'Run proposer'}
+          </button>
+        </div>
+        {rerunRequestId && (
+          <div className="mt-2 text-[11px] text-slate-400">
+            request_id <span className="font-mono">{rerunRequestId}</span> is pinned for retry;{' '}
+            <button onClick={() => { setRerunRequestId(''); setRerunError(null); }} className="underline text-cyan-200">start a new request</button>{' '}
+            after changing inputs.
+          </div>
+        )}
+        {rerunError && <div role="alert" className="mt-2 text-xs text-rose-300">{rerunError}</div>}
+        {rerunRes && (
+          <div className="mt-2 text-xs text-slate-200 font-mono">
+            <div>run {rerunRes.run_id} · {rerunRes.provider}/{rerunRes.model} · billing {rerunRes.billing} ({rerunRes.payer})</div>
+            <div>est ${rerunRes.estimated_usd.toFixed(4)} / budget ${rerunRes.budget_usd.toFixed(2)} · steps {rerunRes.steps} · provenance {rerunRes.provenance_status}</div>
+            <div>
+              best: {rerunRes.best
+                ? `${rerunRes.best.toffoli}T × ${rerunRes.best.peak_qubits}Q = ${rerunRes.best.tq}`
+                : 'none'} · {rerunRes.stopped_reason || 'ok'}
+            </div>
+            <details className="mt-1">
+              <summary className="cursor-pointer text-[11px] text-cyan-200">Trials ({rerunRes.trials.length})</summary>
+              <ul className="mt-1 space-y-0.5 text-[11px] text-slate-300">
+                {rerunRes.trials.map((t) => (
+                  <li key={t.step}>
+                    step {t.step}: {t.valid ? `${t.toffoli}T × ${t.peak_qubits}Q = ${t.tq}` : 'invalid'} · {t.reason}
+                  </li>
+                ))}
+              </ul>
+            </details>
           </div>
         )}
       </div>

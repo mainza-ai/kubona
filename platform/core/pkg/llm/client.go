@@ -137,14 +137,20 @@ func (c *Client) reportSpendCeiling(providerType ProviderType, model string, cei
 // one is configured, and refuses when it isn't (blind cloud spend with no
 // ceiling is un-meterable — the call fails instead of billing zero).
 // Local providers are exempt (no external spend). Returns nil to proceed.
-func (c *Client) requireMeteredUsage(providerType ProviderType, model string, usageReported bool) error {
+func (c *Client) requireMeteredUsage(providerType ProviderType, model string, usageReported bool, ceilingOverride int) error {
 	if usageReported {
 		return nil
 	}
 	if isLocalProvider(providerType) {
 		return nil
 	}
-	ceiling := c.settings.GetSnapshot().MaxTokens
+	// A per-call ceiling (CompleteCapped) is a configured ceiling for this
+	// call: bill it as the upper bound instead of refusing after the provider
+	// already spent tokens. Fall back to the operator's global max_tokens.
+	ceiling := ceilingOverride
+	if ceiling <= 0 {
+		ceiling = c.settings.GetSnapshot().MaxTokens
+	}
 	if ceiling <= 0 {
 		return fmt.Errorf("provider %s omitted usage and no token ceiling is configured (max_tokens=0): refusing blind cloud spend — set max_tokens or use a reporting provider", providerType)
 	}
@@ -265,7 +271,7 @@ func (c *Client) completeWithMaxTokens(ctx context.Context, role string, message
 	if chatResp.Usage.PromptTokens == 0 && chatResp.Usage.CompletionTokens == 0 && chatResp.Usage.TotalTokens > 0 {
 		chatResp.Usage.PromptTokens = chatResp.Usage.TotalTokens
 	}
-	if err := c.requireMeteredUsage(providerType, model, usageOK); err != nil {
+	if err := c.requireMeteredUsage(providerType, model, usageOK, maxTokens); err != nil {
 		return "", nil, duration, err
 	}
 	if usageOK {
@@ -406,7 +412,7 @@ func (c *Client) CompleteStream(ctx context.Context, role string, messages []Cha
 // without a ceiling the unmetered record is flagged, never priced zero.
 func (c *Client) reportSpendMap(providerType ProviderType, model string, usage map[string]any) {
 	if usage == nil {
-		if err := c.requireMeteredUsage(providerType, model, false); err != nil {
+		if err := c.requireMeteredUsage(providerType, model, false, 0); err != nil {
 			c.reportUnmetered(providerType, model)
 		}
 		return
@@ -426,7 +432,7 @@ func (c *Client) reportSpendMap(providerType ProviderType, model string, usage m
 		c.reportSpend(providerType, model, pt, ct, true)
 		return
 	}
-	if err := c.requireMeteredUsage(providerType, model, false); err != nil {
+	if err := c.requireMeteredUsage(providerType, model, false, 0); err != nil {
 		c.reportUnmetered(providerType, model)
 	}
 }

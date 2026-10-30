@@ -50,6 +50,7 @@ def build_gateway(*, require_auth: bool = True, auth: Any | None = None,
         "list_provider_registry": execution.list_provider_registry,
     })
     gw.mount("cost", {
+        "codesign_rerun": cost.codesign_rerun,
         "create_session": cost.create_session,
         "estimate_cost": cost.estimate_cost,
         "request_approval": cost.request_approval,

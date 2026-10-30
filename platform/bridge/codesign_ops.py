@@ -47,6 +47,16 @@ def _spec_and_label(body):
     return build_spec(str(kind)), str(kind)
 
 
+def op_spec(body):
+    """Return the fixed setup metadata for a spec without evaluating an
+    artifact. Stateless; the Go rerun rail uses it to size the prompt and
+    to fail before any LLM egress when the spec is invalid."""
+    spec, label = _spec_and_label(body)
+    return {"ok": True, "spec_kind": label, "num_qubits": spec.num_qubits,
+            "inputs": list(spec.inputs), "outputs": list(spec.outputs),
+            "ancillas": list(spec.ancillas)}
+
+
 def op_evaluate(body):
     spec, label = _spec_and_label(body)
     num_tests = strict_int(body.get("num_tests", 64), "num_tests", 1, 4096)
@@ -165,6 +175,7 @@ def op_budget(body):
 # execs caller-supplied code. Failure labels match the retired snippets
 # byte-for-byte (handler tests pin them).
 _OPERATIONS = {
+    "spec": (op_spec, "spec refused"),
     "evaluate": (op_evaluate, "evaluation refused"),
     "batch": (op_batch, "frontier refused"),
     "families": (op_families, "families refused"),

@@ -118,6 +118,10 @@ type Server struct {
 	// are human-paced; a guessing campaign against /api/auth/login is
 	// throttled here and every refusal is ledger-sealed (auditAuth).
 	authLimiter *rateLimiter
+	// C5b: rerun spends the operator's LLM key and sends prompts off-box
+	// when cloud is explicitly enabled. Its own human-paced bucket so a
+	// spray cannot burn the global LLM budget or another rail's budget.
+	codesignLimiter *rateLimiter
 	// Auth sessions: challenge-response login bound to lab admin keys.
 	// Set at construction (nil only in tests that never touch auth).
 	authSessions *AuthSessionStore
@@ -357,6 +361,7 @@ func NewServer(
 		ledgerLimiter:         newRateLimiter(rateFromEnv("KUBONA_RATE_LEDGER", 5, 15)),
 		abortLimiter:          newRateLimiter(rateFromEnv("KUBONA_RATE_ABORT", 5, 15)),
 		authLimiter:           newRateLimiter(rateFromEnv("KUBONA_RATE_AUTH", 5, 15)),
+		codesignLimiter:       newRateLimiter(rateFromEnv("KUBONA_RATE_CODESIGN", 1, 3)),
 		authSessions:          newAuthSessionStore(l.DB()),
 		mux:                   http.NewServeMux(),
 	}
@@ -688,6 +693,9 @@ func (s *Server) registerRoutes() {
 	s.route("/api/codesign/verified", s.handleCodesignVerified)
 	// Pack registry (ux-plan slice 4): served live, never hand-typed.
 	s.route("/api/codesign/packs", s.handleCodesignPacks)
+	// C5b: governed LLM circuit-proposal rerun. Session-scoped, rate-limited,
+	// idempotent, BYOK-bounded; the bridge stays a stateless evaluator.
+	s.route("/api/codesign/rerun", s.handleCodesignRerun)
 
 	// Quantum Krylov Subspace & Mitigation Endpoints. Spend-adjacent:
 	// both proxy metered quantum compute through the bridge with no

@@ -1142,7 +1142,8 @@
     },
     "trial": {
       "emitters": [
-        "python"
+        "python",
+        "go"
       ],
       "payload": "Autoresearch harness trial record.",
       "required": [

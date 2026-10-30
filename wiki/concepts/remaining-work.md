@@ -45,6 +45,61 @@ status: tracked
 > covering nightly until it is green. Counts are generated in
 > `docs/repo-counts.md`.
 
+## Local-first production (2026-10-30, landed)
+
+> Scope correction: "production ready" here means **fully functional for a
+> local private deployment**, not a public SaaS. The supported shape is one
+> operator on their own machine/lab host, loopback only; the only cloud
+> egress is QPU dispatch and opt-in cloud LLM (BYOK).
+>
+> - ✅ **B2 local ingress:** `compose.prod.yml` publishes `127.0.0.1:8080` /
+>   `127.0.0.1:3000` only, services are read-only with dropped caps, and
+>   `scripts/local-deployment-check.sh` refuses a public listener. Live
+>   proof 2026-10-30: fresh volume, health/ready/console green, check exit 0.
+>   Full runbook: `docs/local-deployment.md`.
+> - ✅ **C5b governed rerun:** `POST /api/codesign/rerun` is session-scoped (anonymous refused),
+>   rate-limited, idempotent (`request_id` required), bounded by steps/
+>   tokens/time/USD, and sealed as a `trial`. Cloud LLM is BYOK: the provider
+>   bills the operator's key; Kubona records an estimate and never debits the
+>   QPU session cap. Local providers are free. The bridge stays stateless
+>   (new `spec` op; no LLM keys). Docs: `docs/llm-proposer.md`.
+> - ✅ **B4 local diagnostics:** logs, `/metrics`, health/ready, request IDs
+>   and local traces remain on-host; no telemetry by default. Sentry/OTLP
+>   stay opt-in, not release requirements.
+> - ✅ **Bootstrap:** `kubonad keygen` emits reviewer/operator Ed25519 seeds;
+>   `.env.example` and the runbook name the token/key requirements.
+> - ✅ **FK quarantine (2026-10-30):** 127 orphans quarantined from
+>   `~/.kubona/kubona.db` (50 chat_messages, 40 campaign_versions, 23 jobs,
+>   12 loops, 2 claim_records); `PRAGMA foreign_key_check` is clean and all
+>   rows are preserved in `_fk_orphans`. The raw pre-repair snapshot is
+>   `~/.kubona/backups/kubona-pre-fk-20261030T024721Z.db`
+>   (sha256 `c15bffd6843e7263de8c64bb1a9d3b8d9c00c4898ba851cfce4990eb53146f3b`).
+>   **Caveat:** `kubonad backup` refused it as a chain-clean backup (606
+>   pre-existing ledger chain faults); the snapshot is SQLite-consistent
+>   (integrity_check ok, 1470 events) but is forensic, not a verified
+>   provenance backup.
+> - Remaining operator-side for a production claim: vendor rate-card
+>   reconciliation before 2026-11-11 (`docs/rate-cards.md`), a green nightly
+>   thesis-scale proof, attaching the paid QPU run evidence, and resolving
+>   those 606 pre-existing ledger chain faults before trusting a restore.
+>   Provider keys are present in `.env`. These are not code gaps.
+> - ✅ **Console rerun panel** (2026-10-30): Codesign Cockpit session picker,
+>   request_id retry, step/token/USD bounds, sealed receipt; 439 console tests.
+> - ✅ **MCP rerun wrapper** (2026-10-30): `cost/codesign_rerun` forwards to
+>   the governed Go route with the operator bearer and a scoped budget envelope;
+>   no LLM key in the MCP server. Catalog now 38 tools (regenerated).
+> - ✅ **Deployment doctor** (2026-10-30): `kubona doctor --env-file .env`
+>   reports rate-card freshness, FK orphans, key presence, LLM/air-gap posture,
+>   bridge, and daemon readiness; `--strict` exits non-zero. On this host it
+>   found 127 FK orphans in `~/.kubona/kubona.db` and a persisted
+>   `active=nvidia`/air-gap-off setting with `KUBONA_LLM_CLOUD` unset — both
+>   operator-visible now.
+> - Optional remaining: opt-in OTel/Sentry exporters and a local release
+>   dry-run/checksum script.
+> - Short execution list: `docs/remaining-todos.md`. A new blocker surfaced
+>   on 2026-10-30: the host ledger has **606 pre-existing chain faults**, so
+>   the FK-quarantine snapshot is forensic, not a verified restore source.
+
 ## A · Operator deeds (blocked on the human — no slice can deliver these)
 
 - `gho_…` token: `credential.helper=store` was dropped globally and
@@ -61,11 +116,17 @@ status: tracked
   authoritative state is the deployment environment, not the repo record.
   Confirm `reviewer_key_configured=true` on the target host before
   citing it.
-- QPU credentials + backends: `KUBONA_IBM_QISKIT_TOKEN`, backend choice,
-  IBM limits, vendor accounts, GPU host.
+- QPU credentials + backends: ✅ IBM credentials are present in `.env`
+  (`KUBONA_IBM_QISKIT_TOKEN`, instance, `ibm_quantum_platform`, 120 s cap);
+  per-run backend choice and a GPU host for local training remain operator
+  choices, not missing secrets.
 - `KUBONA_CONTACT_EMAIL` (console mailto + polite-pool), HF-token rotation,
   EPO registration.
-- First paid QPU run (human AP2 mandate per Q-21).
+- ~~First paid QPU run~~ — ✅ CLOSED 2026-10-28 (operator-confirmed paid run;
+  see [[log]] and [[ibm-quantum-platform]]). Evidence note: this workstation's
+  `~/.kubona/kubona.db` on 2026-10-30 holds only the 2026-10-29 free-plan
+  `ibm_fez` probe, so attach the deployment ledger/run id before citing its
+  measured backend/cost.
 - DeepSeek-vs-oMLX transcript delta (keyed providers; harness ready).
 - Device/emulator recalibration (keyed hardware; canary verifies
   live-vs-declared meanwhile per Q-14).

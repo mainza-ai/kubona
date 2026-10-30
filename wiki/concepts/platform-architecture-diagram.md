@@ -51,7 +51,7 @@ flowchart TB
     end
 
     subgraph MCP["MCP stdio servers (Python)"]
-        MSERV["compiler/execution/cost/provenance<br/>control/world — 37 tools, caller identity injected"]
+        MSERV["compiler/execution/cost/provenance<br/>control/world — 38 tools, caller identity injected"]
         MGW["gateway + catalog<br/>single mount table, digest-pinned<br/>principal-bound tenant, cross-tenant grants"]
     end
 
@@ -185,12 +185,12 @@ flowchart TB
   estimate $8.000568 held, job queued, cancelled with vendor recall, settled
   $8.00 → $0.00 both rails, ledger-sealed (`job_settled`); calibrated-subgraph
   guard recorded physical 146/147, max readout 0.29%.
-- Console: `tsc` + `eslint` clean; 74 files / 434 tests; Sentinel badge and
+- Console: `tsc` + `eslint` clean; 74 files / 439 tests; Sentinel badge and
   envelope line derived from live predicates; HSTS on non-loopback;
   flight-recorder card mounted with measured fetch latency; no fabricated
   numbers (UNVERIFIED-by-default discipline, tested).
 - Counts this snapshot (2026-10-29): 120 routes, 34 Go packages, Go test funcs
-  generated in `docs/repo-counts.md`, 178 Python test files (case count generated in `docs/repo-counts.md`), Vitest tests across 74 files (case count generated in `docs/repo-counts.md`), Rust qir-core 20 + ifc-core 9 tests, 37 MCP tools across 6 servers.
+  generated in `docs/repo-counts.md`, 178 Python test files (case count generated in `docs/repo-counts.md`), Vitest tests across 74 files (case count generated in `docs/repo-counts.md`), Rust qir-core 20 + ifc-core 9 tests, 38 MCP tools across 6 servers.
   The generated source of truth is `docs/repo-counts.md`; the older prose
   counts below are retained as historical anchors.
 

@@ -33,6 +33,10 @@ var KnownRoles = []string{
 	"ansatz-scout",
 	"disconfirmation-officer",
 	"device-auditor",
+	// codesign is the bounded circuit-proposal role used by the Go-owned
+	// rerun rail. It defaults to the active provider (local Strata unless
+	// the operator explicitly assigns a cloud provider+model).
+	"codesign",
 }
 
 // providerModelEnv maps each provider to the env var carrying its model
@@ -411,13 +415,35 @@ func (s *Settings) ValidateForProduction() error {
 	if !ok || !prov.Enabled {
 		return fmt.Errorf("production: active provider %s is disabled or unconfigured", snap.ActiveProvider)
 	}
-	if prov.IsLocal {
-		return nil
-	}
-	if os.Getenv("KUBONA_LLM_CLOUD") != "1" {
+	// Audit 2026-10-30: the old gate checked only the active provider, so a
+	// local-active config with a cloud ROLE could still egress prompts.
+	// Every enabled role is a possible egress path; refuse any cloud one
+	// without the explicit opt-in.
+	if !prov.IsLocal && !cloudLLMOptIn() {
 		return fmt.Errorf("production: non-local LLM provider %s requires explicit KUBONA_LLM_CLOUD=1 opt-in (prompts would leave the box)", snap.ActiveProvider)
 	}
+	for role, assign := range snap.RoleAssignments {
+		roleProv, ok := snap.Providers[assign.Provider]
+		if !ok || !roleProv.Enabled || roleProv.IsLocal {
+			continue
+		}
+		if !cloudLLMOptIn() {
+			return fmt.Errorf("production: role %q resolves to non-local provider %s and requires explicit KUBONA_LLM_CLOUD=1 opt-in (prompts would leave the box)", role, assign.Provider)
+		}
+	}
 	return nil
+}
+
+// cloudLLMOptIn is the single opt-in predicate for production cloud egress.
+// Key presence alone is not consent; the explicit flag is the decision.
+func cloudLLMOptIn() bool {
+	return os.Getenv("KUBONA_LLM_CLOUD") == "1"
+}
+
+// productionCloudWithoutOptIn reports whether a non-local provider would be
+// used in production without KUBONA_LLM_CLOUD=1. Dev/test is unaffected.
+func productionCloudWithoutOptIn(isLocal bool) bool {
+	return !isLocal && strings.ToLower(strings.TrimSpace(os.Getenv("KUBONA_ENV"))) == "production" && !cloudLLMOptIn()
 }
 
 func (s *Settings) GetSnapshot() Settings { return s.snapshot(false) }
@@ -586,6 +612,9 @@ func (s *Settings) GetModelForRole(role string) (ProviderType, string, error) {
 		if s.AirGapped && !prov.IsLocal {
 			return "", "", fmt.Errorf("provider %s is blocked by Sovereign Air-Gap isolation", assign.Provider)
 		}
+		if productionCloudWithoutOptIn(prov.IsLocal) {
+			return "", "", fmt.Errorf("provider %s is non-local and KUBONA_LLM_CLOUD=1 is not set: refusing production cloud egress", assign.Provider)
+		}
 		if strings.TrimSpace(assign.Model) == "" {
 			env := modelEnvFor(assign.Provider, role)
 			return "", "", fmt.Errorf("role %q has no model configured: set %s", role, env)
@@ -602,6 +631,9 @@ func (s *Settings) GetModelForRole(role string) (ProviderType, string, error) {
 	}
 	if s.AirGapped && !prov.IsLocal {
 		return "", "", fmt.Errorf("active provider %s is blocked by Sovereign Air-Gap isolation", s.ActiveProvider)
+	}
+	if productionCloudWithoutOptIn(prov.IsLocal) {
+		return "", "", fmt.Errorf("active provider %s is non-local and KUBONA_LLM_CLOUD=1 is not set: refusing production cloud egress", s.ActiveProvider)
 	}
 	if strings.TrimSpace(s.ActiveModel) == "" {
 		return "", "", fmt.Errorf("active provider %s has no model configured: set %s", s.ActiveProvider, modelEnvFor(s.ActiveProvider, ""))
