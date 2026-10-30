@@ -285,6 +285,49 @@ export default function Home() {
     setEvents(evtList);
   }, [currentSessionId]);
 
+  // P2: subscribe to the session's SSE telemetry when a session cookie
+  // exists (EventSource cannot carry the dev bearer). Polling stays as the
+  // fallback; frames are merged by ledger id so the two paths cannot
+  // duplicate rows. A dead/expired stream closes after three retries.
+  useEffect(() => {
+    const sid = currentSessionId;
+    if (!sid || typeof window === 'undefined' || typeof EventSource === 'undefined') return;
+    const hasSessionCookie = document.cookie
+      .split(';')
+      .some((part) => part.trim().startsWith('kubona_session='));
+    if (!hasSessionCookie) return;
+    const source = new EventSource(
+      `${API_BASE}/api/events/stream?session_id=${encodeURIComponent(sid)}`,
+      { withCredentials: true },
+    );
+    let errors = 0;
+    const onTelemetry = (event: MessageEvent) => {
+      try {
+        const payload = JSON.parse(String(event.data)) as { events?: LedgerEvent[] };
+        if (!Array.isArray(payload.events) || payload.events.length === 0) return;
+        errors = 0;
+        setEvents((prev) => {
+          const byId = new Map(prev.map((ev) => [ev.id, ev]));
+          for (const ev of payload.events ?? []) {
+            if (ev && typeof ev.id === 'number') byId.set(ev.id, ev);
+          }
+          return Array.from(byId.values()).sort((a, b) => a.id - b.id).slice(-200);
+        });
+      } catch {
+        // A malformed frame is ignored; the next tick/poll still reconciles.
+      }
+    };
+    source.addEventListener('telemetry', onTelemetry as EventListener);
+    source.onerror = () => {
+      errors += 1;
+      if (errors >= 3) source.close();
+    };
+    return () => {
+      source.removeEventListener('telemetry', onTelemetry as EventListener);
+      source.close();
+    };
+  }, [currentSessionId]);
+
   useEffect(() => {
     if (currentSessionId) {
       fetchCampaignState(currentSessionId).then(setCampaign);

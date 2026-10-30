@@ -546,7 +546,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
   }, [campaign?.classical_anchor?.anchor_computed, campaign?.classical_anchor?.fci_exact_energy, circuitData.numQubits]);
 
   return (
-    <div className="relative min-h-[680px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0F19] to-[#07090E] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-8 select-none">
+    <div className="relative min-h-[560px] sm:min-h-[680px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0F19] to-[#07090E] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-4 sm:p-8 select-none">
       {/* Ambient Radial Discovery Lighting */}
       <div 
         className="absolute inset-0 pointer-events-none opacity-40 transition-opacity duration-1000"
@@ -579,7 +579,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           {/* Mode Switcher: 2D Workbench vs 3D Observatory */}
           <div className="flex items-center p-1 rounded-2xl bg-black/60 border border-white/10 backdrop-blur-xl shadow-inner">
             <button
@@ -621,7 +621,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
           {layoutStatus && <span className="text-[10px] font-code text-slate-400">{layoutStatus}</span>}
 
           {/* Calm Truth Status Indicator */}
-          <div className="flex items-center space-x-2.5 px-3.5 py-1.5 rounded-2xl bg-black/40 border border-white/10 backdrop-blur-xl">
+          <div className="flex max-w-full flex-wrap items-center gap-x-2.5 gap-y-1 px-3 py-1.5 rounded-2xl bg-black/40 border border-white/10 backdrop-blur-xl">
             <div className={`w-2 h-2 rounded-full ${energyCalculated.anchored ? 'bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.8)]' : 'bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.8)]'}`} />
             <span className="text-xs font-medium text-slate-200">
               {energyCalculated.anchored
