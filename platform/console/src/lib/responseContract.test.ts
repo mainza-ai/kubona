@@ -64,6 +64,42 @@ describe('response contracts', () => {
     ).toEqual([]);
   });
 
+  it('accepts live chat, job, workflow, auth, and cost payloads', () => {
+    expect(validateResponse('messages.list', { messages: [] })).toEqual([]);
+    expect(validateResponse('jobs.list', { jobs: [] })).toEqual([]);
+    expect(validateResponse('job', { job: { id: 'j1', session_id: 's1', status: 'QUEUED' } })).toEqual([]);
+    expect(validateResponse('auth.whoami', { authenticated: true, tenant_id: 'lab' })).toEqual([]);
+    expect(
+      validateResponse('cost.summary', {
+        cap_usd: 10,
+        spent_usd: 1.5,
+        remaining_usd: null,
+        active_provider: 'local',
+        currency: 'USD',
+        by_provider: {},
+      }),
+    ).toEqual([]);
+    expect(
+      validateResponse('workflow.plan', {
+        ok: true,
+        dry_run: true,
+        workflow_id: 'wf',
+        steps: [],
+        unresolved_references: [],
+        compensations_planned: [],
+      }),
+    ).toEqual([]);
+  });
+
+  it('rejects a cost payload without the spend anchor', () => {
+    const issues = validateResponse('cost.summary', {
+      cap_usd: 10,
+      active_provider: 'local',
+      currency: 'USD',
+    });
+    expect(issues.some((i) => i.path === 'cost.summary.spent_usd')).toBe(true);
+  });
+
   it('reports drift once per contract and returns the payload unchanged', () => {
     const logs = vi.spyOn(console, 'error').mockImplementation(() => {});
     const payload = { not_sessions: [] };

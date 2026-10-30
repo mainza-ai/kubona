@@ -217,6 +217,7 @@ export async function fetchMessages(sessionId: string): Promise<ChatMessage[]> {
     const res = await apiFetch(`${API_BASE}/api/sessions/${sessionId}/messages`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return [];
     const data = await res.json();
+    contract('messages.list', data);
     return data.messages || [];
   } catch (err) {
     console.error('Failed to fetch messages:', err);
@@ -739,7 +740,7 @@ export async function fetchRadar(): Promise<Record<string, unknown>> {
       }
       return { radar_endpoints: [], refused: true, refuse_reason: text || `HTTP ${res.status}` };
     }
-    return await res.json();
+    return contract('radar', await res.json());
   } catch (err) {
     console.error('Failed to fetch radar:', err);
     return { radar_endpoints: [], refused: true, refuse_reason: String(err).slice(0, 280) };
@@ -756,6 +757,7 @@ export async function fetchNotebooks(sessionId: string): Promise<{ ok: true; not
     if (!res.ok || !data || !Array.isArray(data.notebooks)) {
       return { ok: false, error: String(data?.error || data?.message || `HTTP ${res.status}`).slice(0, 280) };
     }
+    contract('notebooks.list', data);
     return { ok: true, notebooks: data.notebooks as import('@/types').SystematicNotebook[] };
   } catch (err) {
     return { ok: false, error: String(err).slice(0, 280) };
@@ -1054,6 +1056,7 @@ export async function fetchCostSummary(): Promise<
         `refused (HTTP ${res.status})`;
       return { ok: false, error: msg.slice(0, 280) };
     }
+    contract('cost.summary', data);
     return { ok: true, result: data as CostSummary };
   } catch (err) {
     return { ok: false, error: String(err).slice(0, 280) };
@@ -1383,6 +1386,7 @@ export async function fetchSystemAgents(): Promise<SystemAgentRole[]> {
     const res = await apiFetch(`${API_BASE}/api/agents`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return [];
     const data = (await res.json()) as { roles?: SystemAgentRole[] };
+    contract('agents.system', data);
     return Array.isArray(data.roles) ? data.roles : [];
   } catch (err) {
     console.error('Failed to fetch system agents:', err);
@@ -1395,6 +1399,7 @@ export async function fetchCustomAgents(): Promise<import('@/types').CustomAgent
     const res = await apiFetch(`${API_BASE}/api/agents/custom`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return [];
     const data = await res.json();
+    contract('agents.custom', data);
     return data.agents || [];
   } catch (err) {
     console.error('Failed to fetch custom agents:', err);
@@ -1467,7 +1472,7 @@ export async function planWorkflow(payload: {
     const detail = await res.text().catch(() => '');
     throw new Error(`workflow plan refused (HTTP ${res.status}): ${detail.slice(0, 160)}`);
   }
-  return res.json();
+  return contract('workflow.plan', await res.json());
 }
 
 export async function runWorkflow(payload: {
@@ -1485,7 +1490,7 @@ export async function runWorkflow(payload: {
     const detail = await res.text().catch(() => '');
     throw new Error(`workflow run refused (HTTP ${res.status}): ${detail.slice(0, 160)}`);
   }
-  return res.json();
+  return contract('workflow.run', await res.json());
 }
 
 // ==========================================
@@ -1556,6 +1561,7 @@ export async function verifySpendMandate(
 export async function fetchLabs(): Promise<Lab[]> {
   try {
     const data = await dedupedGet<{ tenants?: Lab[] }>(`${API_BASE}/api/tenants`, { headers: authHeaders() });
+    contract('labs.list', data);
     return data.tenants || [];
   } catch (err) {
     console.error('Failed to fetch labs:', err);
@@ -1720,6 +1726,7 @@ export async function fetchJobs(sessionId: string): Promise<import('@/types').Jo
     });
     if (!res.ok) return [];
     const data = await res.json();
+    contract('jobs.list', data);
     return data.jobs || [];
   } catch (err) {
     console.error('Failed to fetch jobs:', err);
@@ -1743,6 +1750,7 @@ export async function fetchJob(jobId: string, sessionId: string): Promise<import
     );
     if (!res.ok) return null;
     const data = await res.json();
+    contract('job', data);
     return data.job || null;
   } catch (err) {
     console.error('Failed to fetch job:', err);
@@ -1771,7 +1779,7 @@ export async function fetchMemoryRecall(
       headers: authHeaders(),
     });
     if (!res.ok) return null;
-    return await res.json();
+    return contract('memory.recall', await res.json());
   } catch (err) {
     console.error('Failed to recall memory:', err);
     return null;
@@ -1822,7 +1830,7 @@ export async function fetchQirCompile(qasm: string): Promise<QirCompileReceipt |
     body: JSON.stringify({ qasm }),
   });
   if (!res.ok) return null;
-  return await res.json();
+  return contract('qir.compile', await res.json());
 }
 
 export interface SessionContext {
@@ -1845,7 +1853,7 @@ export async function fetchSessionContext(sessionId: string): Promise<SessionCon
   try {
     const res = await apiFetch(`${API_BASE}/api/sessions/context?session_id=${encodeURIComponent(sessionId)}`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return null;
-    return await res.json();
+    return contract('session.context', await res.json());
   } catch (err) {
     console.error('Failed to fetch session context:', err);
     return null;
@@ -2413,7 +2421,7 @@ export async function authChallenge(): Promise<AuthChallenge | { error: string }
   try {
     const res = await apiFetch(`${API_BASE}/api/auth/challenge`, { method: 'POST' });
     if (!res.ok) return { error: `HTTP ${res.status}` };
-    return (await res.json()) as AuthChallenge;
+    return contract('auth.challenge', (await res.json()) as AuthChallenge);
   } catch (err) {
     console.error('Failed to fetch auth challenge:', err);
     return null;
@@ -2462,7 +2470,7 @@ export async function authWhoami(): Promise<AuthSession | null> {
   try {
     const res = await apiFetch(`${API_BASE}/api/auth/whoami`, { cache: 'no-store' });
     if (!res.ok) return null;
-    return (await res.json()) as AuthSession;
+    return contract('auth.whoami', (await res.json()) as AuthSession);
   } catch (err) {
     console.error('Failed to check session:', err);
     return null;
