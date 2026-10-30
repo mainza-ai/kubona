@@ -594,10 +594,9 @@ class KickmixEvaluator:
         rng: random.Random,
         force_record: list[int] | None = None,
     ) -> TrajectoryResult:
-        ops = builder.emit()
-        # reject non-kickmix at check time too (defense in depth: a
-        # hand-built op list could bypass Builder._gate)
-        for o in ops:
+        # Validate and simulate by streaming. emit() on the paper-scale scan
+        # is 82M Op objects (~16 GiB) and was why the hosted job was killed.
+        for o in builder.iter_ops():
             if o.name in ("free_marker", "alloc_marker"):
                 continue
             if o.name not in KICKMIX_ALL:
@@ -612,7 +611,8 @@ class KickmixEvaluator:
             return TrajectoryResult(
                 False, f"allocs {sorted(leaked)} never freed/measured: refusing")
         try:
-            bits, phase, _record = _sim_trajectory(ops, init_bits, rng, force_record)
+            bits, phase, _record = _sim_trajectory(
+                builder.iter_ops(), init_bits, rng, force_record)
         except _DirtyFree as e:
             return TrajectoryResult(False, str(e))
         # inputs unchanged

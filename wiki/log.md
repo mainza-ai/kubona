@@ -4140,3 +4140,13 @@ skipped is the exact failure this incident is about:
 - Slice 60 composition and determinism stream the builder; local peak RSS is
   now 3.4 GiB / 5.0 GiB (was ~37 GiB). Composition 595 s, determinism 206 s;
   every circuit/assertion is unchanged. Hosted nightly proof still pending.
+
+## [2026-10-30] fix | Stream evaluator ops (paper-scale C OOM)
+
+- `KickmixEvaluator.check_one` validated then simulated from a materialised
+  `emit()` list; on the 82M-op phase scan that was ~16 GiB and the hosted
+  paper-scale C job was killed. It now validates and simulates by streaming
+  `Builder.iter_ops()`, re-creating the iterator for the second pass.
+- Local slice 51 peak fell from 19.7 GiB to 1.2 GiB (167 s); the full
+  paper-scale C set (slices 48-57, 61-62) is 4.9 GiB / 482 s. No assertion
+  changed.
