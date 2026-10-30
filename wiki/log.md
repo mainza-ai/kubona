@@ -3936,3 +3936,11 @@ skipped is the exact failure this incident is about:
   - `build_gqe_harness` is exported from `kubona.autoresearch`; it remains
     the n-gram stand-in and is not in the Go harness registry. Labeled
     experimental.
+
+## [2026-10-30] fix | Codesign proposer helpers exported
+
+  - CI's public-name audit failed because `parse_gate_proposal` and
+    `make_gate_proposer` were defined in `families.py` but absent from
+    `kubona.codesign.__all__`. Export them and rerun the audit. This is an
+    API-consistency fix, not a Python-3.4 target: `requires-python = ">=3.11"`
+    and CI runs Python 3.11.17.

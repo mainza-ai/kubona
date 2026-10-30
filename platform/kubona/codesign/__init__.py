@@ -22,7 +22,7 @@ from .budget import (
     union_bound,
 )
 from .carry import FOLD_C256, compare_top_wrong, escape_bound, escape_probability, fold_reduce, fused_square, fused_square_parts, truncated_add_escape
-from .families import FamilySearch, NvidiaProposer, deterministic_mutator
+from .families import FamilySearch, NvidiaProposer, deterministic_mutator, make_gate_proposer, parse_gate_proposal
 from .bm import berlekamp_massey, berlekamp_massey_toy, bilinear_terms, build_bm12_round, build_bm12_walk, build_bm_round, build_bm_walk, build_chien_scan, build_phase_scan, check_decode, chien_scan_spec, contracted_phase_bit, error_value_from_quotient, key_equation_report, locator_roots, mask_cancellation, multi_error_syndromes, phase_scan_spec, poly_add, poly_eval, poly_scale, single_error_syndromes
 from .gauge import fold_tildeP, representatives, schedule_loops, tildeP_update, transform_cost, unfold_tildeP
 from .chemistry import alias_schedule, alias_step_spec, build_alias_step, build_cnot_select, build_swap_select, cnot_select_spec, schedule_alias_words, swap_select_spec
@@ -146,6 +146,8 @@ __all__ = [
     "default_registry",
     "depth2_corollary_a8",
     "deterministic_mutator",
+    "make_gate_proposer",
+    "parse_gate_proposal",
     "HISTORY_QUBITS",
     "BinaryField",
     "F24",
