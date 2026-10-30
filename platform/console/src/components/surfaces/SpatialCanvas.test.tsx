@@ -10,6 +10,8 @@ afterEach(() => {
 });
 
 vi.mock('@/lib/api', () => ({
+  fetchCanvasLayout: vi.fn().mockImplementation(async () => ({})),
+  saveCanvasLayout: vi.fn().mockImplementation(async () => ({ ok: true })),
   fetchMolecularADMET: vi.fn().mockImplementation(async (smiles: string) => {
     return {
       smiles,
