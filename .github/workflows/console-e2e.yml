@@ -27,7 +27,7 @@ jobs:
       KUBONA_SINGLE_LAB: "1"
       KUBONA_ENV: production
       E2E_OPERATOR_TOKEN: e2e-token
-      PLAYWRIGHT_CHANNEL: chromium
+      PLAYWRIGHT_CHANNEL: chrome
       KUBONA_CONSOLE_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -47,7 +47,7 @@ jobs:
         working-directory: platform/console
         run: |
           pnpm install --frozen-lockfile
-          pnpm exec playwright install --with-deps chromium
+          pnpm exec playwright install --with-deps chrome
 
       - name: Boot production stack
         run: |
