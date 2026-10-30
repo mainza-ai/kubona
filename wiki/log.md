@@ -4035,3 +4035,16 @@ skipped is the exact failure this incident is about:
   `_fk_orphans.row_json`. Extended the tool to support the two additional
   content tables (`campaign_versions`, `claim_records`) with tests.
 - `kubona doctor --env-file .env` now reports `fk orphans: clean (kubona.db)`.
+
+## [2026-10-30] verification | Local-first production pushed to develop + main
+
+- Landed `d751fee` (local-first deployment, governed rerun, doctor, console/
+  MCP rerun, FK quarantine tables) and the CI port-detection fix `ddd9d22`.
+- `develop` and `main` both at `ddd9d22`; CI 20/20 green on both:
+  develop run `40995438061`, main run `40995448632`. The earlier `d751fee`
+  run failed only on the new docker-smoke acceptance step (lsof detection on
+  Ubuntu); fixed by trying `ss` first and matching the host:port colon.
+- Still red: nightly thesis-scale (runner shutdown, not assertion). Still
+  operator-side: vendor rate-card reconciliation, attaching the paid-run
+  ledger evidence, resolving the 606 pre-existing chain faults, and optional
+  OTel/Sentry or release dry-run (`docs/remaining-todos.md`).

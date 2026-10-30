@@ -30,8 +30,8 @@ Updated 2026-10-30. This is the short execution list; the full queue lives in
       `KUBONA_LLM_CLOUD=1`; local providers (Strata/oMLX/Ollama/LM Studio)
       do not. Switch the host to Strata + air-gap in the UI if that is the
       desired dev default.
-- [ ] **Commit and push.** Stage the reviewed changes, commit on `develop`,
-      push, fast-forward `main`, push, and record the CI run IDs.
+- [x] **Commit and push.** `ddd9d22` on `develop` and `main`; CI 20/20 green
+      on both (runs `40995438061` and `40995448632`).
 
 ## Optional / follow-up
 
