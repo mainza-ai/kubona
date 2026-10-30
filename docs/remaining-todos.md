@@ -23,8 +23,14 @@ Updated 2026-10-30. This is the short execution list; the full queue lives in
       results-notebook, batch-evaluation, autoresearch, workflow plan/run,
       and short-lived vault-lease panels; fidelity contract and provider
       schemas packaged into the bridge image.
-- [ ] Still open: tenant grants UI, browser admin-key recovery/rotation,
-      generated API contracts, and the remaining P2 surfaces.
+- [x] Tenant grants UI; browser admin-key recovery/rotation with an
+      encrypted offline kit; route-level console/backend contract gate
+      (109 paths); structural response contracts for live core payloads
+      (sessions, events, loops, fleet, capabilities, canvas, obligations,
+      quantum backends); SSE telemetry with polling fallback; canvas layout
+      persistence; narrow-screen canvas density.
+- [ ] Still open: generated response schemas for the remaining console
+      paths beyond the live core; full mobile/accessibility pass.
 
 ## Production blockers
 
