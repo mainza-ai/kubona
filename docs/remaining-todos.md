@@ -25,10 +25,12 @@ Updated 2026-10-30. This is the short execution list; the full queue lives in
       materialising a 126M-object list. Local peaks: composition 3.4 GiB /
       595 s, determinism 5.0 GiB / 206 s (previously ~37 GiB). The full
       circuit and every assertion are unchanged.
-- [ ] **Nightly thesis-scale green run (pending).** The memory blocker is
-      fixed locally; run `slice60-composition` and `slice60-determinism`
-      manually on the hosted runner, record the run IDs, and do not weaken
-      the tests. Call nightly green only after both jobs pass.
+- [x] **Nightly thesis-scale green run (2026-10-30).** Manual run
+      `41041244412` is green: canary, slice60 composition, and slice60
+      determinism all passed at commit `c7d98f6`. The first green was
+      `41033108173` at `5514997`; earlier red runs (`40854405074`,
+      `40666624246`, `40478035440`, `41000688966`, `41003185385`) are
+      history. Do not weaken the tests.
 - [x] **Attach QPU run evidence (with a paid-status caveat).** IBM job
       `dbha28pq260s73busu70` (`ibm_fez`, created 2026-10-29T01:28:03Z,
       DONE, 2 QPU seconds, 0.028795 RU, 100 shots, counts 00:58/11:38/10:1/
@@ -43,11 +45,10 @@ Updated 2026-10-30. This is the short execution list; the full queue lives in
       rewritten: its vendor job completed and charged 2 s while the local
       ledger released $8.00. Reconcile/repair that row only with operator
       approval and the vendor invoice.
-- [ ] **Run the manual nightly and record the result.** Previous
-      `workflow_dispatch` runs `41000688966` and `41003185385` both passed the
-      canary but had both slice60 jobs canceled by the runner after ~18–23 min
-      with no test output/assertion. The compact-Builder fix now peaks below
-      5 GiB; attach the new run IDs and do not weaken the tests.
+- [x] **Run the manual nightly and record the result.** Run
+      `41041244412` is green at `c7d98f6` (canary + both slice60 jobs). The
+      earlier canceled runs `41000688966` and `41003185385` remain history;
+      the compact Builder + streaming evaluator now peak below 5 GiB.
 - [x] **Host LLM default decided 2026-10-30:** the host's persisted
       `active=nvidia`, `air_gap=off` is treated as an intentional development
       override (NVIDIA keys are present); it is **not** the shipped default.
@@ -56,9 +57,10 @@ Updated 2026-10-30. This is the short execution list; the full queue lives in
       `KUBONA_LLM_CLOUD=1`; local providers (Strata/oMLX/Ollama/LM Studio)
       do not. Switch the host to Strata + air-gap in the UI if that is the
       desired dev default.
-- [x] **Commit and push.** Current code head `ccd7797` on `develop` and
-      `main`; CI 20/20 green (runs `41003173676` and `41003185157`). Earlier
-      green heads: `ddd9d22`, `b318e7e`, `4836f0e`.
+- [x] **Commit and push.** Current code head `c7d98f6` on `develop` and
+      `main`; push CI 20/20 green (runs `41039225255` and `41039230782`);
+      manual nightly `41041244412` green. Earlier green heads: `3e8b45e`,
+      `5514997`, `ccd7797`, `ddd9d22`, `b318e7e`, `4836f0e`.
 
 ## Optional / follow-up
 
