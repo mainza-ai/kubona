@@ -1,6 +1,7 @@
 import * as ed from '@noble/ed25519';
 import { sha512 } from '@noble/hashes/sha2.js';
 import { bytesToHex } from '@noble/hashes/utils.js';
+import { openRecovery, sealRecovery, type RecoveryEnvelope } from './recovery';
 
 ed.hashes.sha512 = (...m: Uint8Array[]) => sha512(ed.etc.concatBytes(...m));
 
@@ -21,6 +22,7 @@ ed.hashes.sha512 = (...m: Uint8Array[]) => sha512(ed.etc.concatBytes(...m));
 const DB_NAME = 'kubona-custody-v1';
 const STORE = 'keys';
 const KEY_ID = 'lab-admin-ed25519';
+const BACKUP_PREFIX = 'lab-admin-ed25519-backup-';
 
 export type CustodyBackend = 'webcrypto' | 'noble-memory';
 
@@ -140,6 +142,72 @@ function memorySkinner(): CustodySigner {
       return ed.sign(bytes, kp.secretKey);
     },
   };
+}
+
+
+export interface RecoverableCustody {
+  signer: CustodySigner;
+  recovery: RecoveryEnvelope;
+  prepare(): Promise<void>;
+  activate(): void;
+  rollback(): Promise<void>;
+}
+
+// Generate a NEW admin key with an offline recovery envelope. The old key is
+// copied to a backup slot before the new key is installed, so a failed or
+// ambiguous rotation remains recoverable. prepare() must run before the server
+// call; activate() after success; rollback() restores the old active key.
+export async function createRecoverableSigner(passphrase: string, tenantId: string): Promise<RecoverableCustody> {
+  if (!cryptoAvailable()) throw new Error('WebCrypto is required to create a recoverable admin key');
+  const old = await loadStored();
+  if (!old) throw new Error('no durable admin key to rotate; mint one first');
+  const pair = (await globalThis.crypto.subtle.generateKey({ name: 'Ed25519' }, true, ['sign', 'verify'])) as CryptoKeyPair;
+  const rawPub = new Uint8Array(await globalThis.crypto.subtle.exportKey('raw', pair.publicKey));
+  const publicKeyHex = bytesToHex(rawPub);
+  const pkcs8 = await globalThis.crypto.subtle.exportKey('pkcs8', pair.privateKey);
+  const recovery = await sealRecovery(pkcs8, passphrase, tenantId, publicKeyHex);
+  const privateKey = await globalThis.crypto.subtle.importKey('pkcs8', pkcs8, { name: 'Ed25519' }, false, ['sign']);
+  const row: StoredKey = { id: KEY_ID, publicKeyHex, privateKey };
+  const oldSigner = webCryptoSkinner(old, true);
+  let prepared = false;
+  return {
+    signer: webCryptoSkinner(row, false),
+    recovery,
+    async prepare() {
+      const backup = { ...old, id: `${BACKUP_PREFIX}${Date.now()}` };
+      if (!(await storeKey(backup))) throw new Error('could not back up the old admin key in this browser');
+      if (!(await storeKey(row))) throw new Error('could not persist the new admin key in this browser');
+      prepared = true;
+    },
+    activate() {
+      if (!prepared) throw new Error('recovery key was not prepared');
+      cached = webCryptoSkinner(row, true);
+    },
+    async rollback() {
+      if (!prepared) return;
+      if (!(await storeKey(old))) throw new Error('could not restore the old admin key; use the downloaded recovery kit');
+      cached = oldSigner;
+      prepared = false;
+    },
+  };
+}
+
+// Restore a recovery envelope into this browser. The imported private key is
+// non-extractable; the envelope's public key is used as the identity and must
+// match the server's registered admin key at login.
+export async function installRecoveryEnvelope(envelope: RecoveryEnvelope, passphrase: string): Promise<CustodySigner> {
+  if (!cryptoAvailable()) throw new Error('WebCrypto is required to restore an admin key');
+  const old = await loadStored();
+  if (old) {
+    const backup = { ...old, id: `${BACKUP_PREFIX}${Date.now()}` };
+    if (!(await storeKey(backup))) throw new Error('could not back up the current admin key before restore');
+  }
+  const pkcs8 = await openRecovery(envelope, passphrase);
+  const privateKey = await globalThis.crypto.subtle.importKey('pkcs8', pkcs8, { name: 'Ed25519' }, false, ['sign']);
+  const row: StoredKey = { id: KEY_ID, publicKeyHex: envelope.public_key_hex, privateKey };
+  if (!(await storeKey(row))) throw new Error('could not persist the restored admin key in this browser');
+  cached = webCryptoSkinner(row, true);
+  return cached;
 }
 
 /** Load or mint the durable signer. Never returns a production memory key. */

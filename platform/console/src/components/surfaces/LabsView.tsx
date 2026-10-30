@@ -9,6 +9,7 @@ import { LabOpsPanel } from '@/components/common/LabOpsPanel';
 import { AuthPanel } from '@/components/common/AuthPanel';
 import { CreateLabPanel } from '@/components/common/CreateLabPanel';
 import { TenantGrantPanel } from '@/components/common/TenantGrantPanel';
+import { KeyRecoveryPanel } from '@/components/common/KeyRecoveryPanel';
 
 function pct(spent: number, ceiling: number): number | null {
   if (!Number.isFinite(spent) || !Number.isFinite(ceiling) || !(ceiling > 0)) return null;
@@ -111,6 +112,7 @@ export function LabsView() {
           </div>
           <CreateLabPanel onCreated={reload} />
       <TenantGrantPanel labs={labs} />
+      <KeyRecoveryPanel labs={labs} />
         </div>
       );
     }

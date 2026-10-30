@@ -1,7 +1,7 @@
 import * as ed from '@noble/ed25519';
 import { sha256 } from '@noble/hashes/sha2.js';
 import { bytesToHex, utf8ToBytes } from '@noble/hashes/utils.js';
-import { signWithCustody } from './custody';
+import { signWithCustody, type CustodySigner } from './custody';
 
 // Tenant-admin mutation envelope (U1-b), mirroring Go byte-for-byte:
 //   tenants.AdminAction{tenant_id, action, params_hash, expiry,
@@ -89,6 +89,26 @@ export async function signAdminActionWithCustody(input: SignAdminActionCustodyIn
   };
 }
 
+/** Sign with a caller-supplied signer (used for rotation before commit). */
+export async function signAdminActionWithSigner(input: SignAdminActionCustodyInput, signer: CustodySigner): Promise<AdminAction> {
+  const tenantId = (input.tenantId || '').trim();
+  if (!tenantId) throw new Error('refused: tenant_id is required for an admin action');
+  if (!input.action) throw new Error('refused: action is required for an admin action');
+  const paramsHash = adminParamsHash(input.params);
+  const expiry = adminExpiryIso(input.ttlSeconds);
+  const payload = adminPayload(tenantId, input.action, paramsHash, expiry);
+  const signature = await signer.sign(utf8ToBytes(payload));
+  return {
+    tenant_id: tenantId,
+    action: input.action,
+    params_hash: paramsHash,
+    expiry,
+    pubkey_hex: signer.publicKeyHex,
+    signature_hex: bytesToHex(signature),
+  };
+}
+
+// Legacy explicit-keypair path (tests and deliberate key injection). UI
 // Legacy explicit-keypair path (tests and deliberate key injection). UI
 // production flows use signAdminActionWithCustody above; do not call this
 // with a raw in-memory secret in a production surface.
