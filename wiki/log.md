@@ -4128,3 +4128,15 @@ skipped is the exact failure this incident is about:
   prices, and writes only the used-model subset. Live run: 5 NVIDIA roles,
   85 live models, clean; production without a runtime card correctly fails.
 - `cost_summary` exposes rate source/version/effective date. Docs updated.
+
+## [2026-10-30] implementation | Compact thesis-scale circuit storage
+
+- `Builder` now stores 126M ops in typed columns (`bytearray` + three
+  `array("i")`) instead of a list of `Op` objects; `emit()`/`iter_ops()` decode
+  on demand and `ops_digest()` gives full-sequence equality without a 30 GiB
+  list.
+- `alloc`/`free`/`hmr` use O(1) liveness checks instead of rebuilding a
+  112k-element set per allocation. Toffoli/measurement counts are incremental.
+- Slice 60 composition and determinism stream the builder; local peak RSS is
+  now 3.4 GiB / 5.0 GiB (was ~37 GiB). Composition 595 s, determinism 206 s;
+  every circuit/assertion is unchanged. Hosted nightly proof still pending.
