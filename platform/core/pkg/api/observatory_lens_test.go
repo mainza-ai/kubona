@@ -106,7 +106,7 @@ func TestObservatoryLensSpendLimitExceeded(t *testing.T) {
 	srv, cleanup := setupTestServer(t)
 	defer cleanup()
 
-	// Create a session with very small budget ($0.20), while lens costs $0.50
+	// Create a session with very small budget ($0.20), while lens costs $1.20
 	sessReq, _ := json.Marshal(map[string]any{
 		"title":           "Budget Limit Test",
 		"spend_limit_usd": 0.20,
@@ -277,8 +277,8 @@ func TestObservatoryLensMockAtlasDispatch(t *testing.T) {
 	if lensResp.OperationID != "op_test_12345" {
 		t.Fatalf("expected operation_id 'op_test_12345', got %q", lensResp.OperationID)
 	}
-	if lensResp.CostUSD != 0.50 {
-		t.Fatalf("expected cost 0.50, got %f", lensResp.CostUSD)
+	if lensResp.CostUSD != 1.20 {
+		t.Fatalf("expected cost 1.20, got %f", lensResp.CostUSD)
 	}
 	if lensResp.Watermark != "SYNTHETIC LENS — WORLD LABS ATLAS" {
 		t.Fatalf("expected non-evidential watermark, got %q", lensResp.Watermark)
@@ -694,8 +694,8 @@ func TestObservatoryLensPromptSanitizer(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("legitimate prompt refused %q: %d (%s)", prompt, rec.Code, rec.Body.String())
 		}
-		if spend := lensSessionSpend(t, srv, sessID); spend != 0.50 {
-			t.Fatalf("expected $0.50 reserved for allowed prompt %q: got %f", prompt, spend)
+		if spend := lensSessionSpend(t, srv, sessID); spend != 1.20 {
+			t.Fatalf("expected $1.20 reserved for allowed prompt %q: got %f", prompt, spend)
 		}
 	}
 	for prompt, what := range blocked {
@@ -733,7 +733,7 @@ func TestObservatoryCachedDepthFreeLens(t *testing.T) {
 
 	sessID := createLensTestSession(t, srv, 20.0)
 
-	// 1. First fresh dispatch: charges $0.50
+	// 1. First fresh dispatch: charges $1.20
 	rec1 := postLens(t, srv, map[string]any{
 		"session_id": sessID, "target_system": "H2", "task_type": "atlasTextToImage",
 		"image_url": "https://example.com/h2.png", "prompt": "Crystalline H2 potential landscape",
@@ -745,11 +745,11 @@ func TestObservatoryCachedDepthFreeLens(t *testing.T) {
 	if err := json.NewDecoder(rec1.Body).Decode(&resp1); err != nil {
 		t.Fatalf("failed to decode resp1: %v", err)
 	}
-	if resp1.CostUSD != 0.50 || resp1.Cached {
-		t.Fatalf("expected $0.50 and cached=false on fresh dispatch, got cost=%f, cached=%v", resp1.CostUSD, resp1.Cached)
+	if resp1.CostUSD != 1.20 || resp1.Cached {
+		t.Fatalf("expected $1.20 and cached=false on fresh dispatch, got cost=%f, cached=%v", resp1.CostUSD, resp1.Cached)
 	}
-	if spend := lensSessionSpend(t, srv, sessID); spend != 0.50 {
-		t.Fatalf("expected $0.50 spend recorded, got %f", spend)
+	if spend := lensSessionSpend(t, srv, sessID); spend != 1.20 {
+		t.Fatalf("expected $1.20 spend recorded, got %f", spend)
 	}
 
 	// Simulate resolution in ledger
@@ -776,9 +776,9 @@ func TestObservatoryCachedDepthFreeLens(t *testing.T) {
 	if resp2.CostUSD != 0.0 || !resp2.Cached {
 		t.Fatalf("expected $0.00 and cached=true on cached view, got cost=%f, cached=%v", resp2.CostUSD, resp2.Cached)
 	}
-	// Session spend remains unchanged at $0.50
-	if spend := lensSessionSpend(t, srv, sessID); spend != 0.50 {
-		t.Fatalf("expected spend to remain $0.50 after cached view, got %f", spend)
+	// Session spend remains unchanged at $1.20
+	if spend := lensSessionSpend(t, srv, sessID); spend != 1.20 {
+		t.Fatalf("expected spend to remain $1.20 after cached view, got %f", spend)
 	}
 
 	// 3. Cached view referencing DepthAssetID without fresh prompt: bills $0.00
@@ -796,7 +796,7 @@ func TestObservatoryCachedDepthFreeLens(t *testing.T) {
 	if resp3.CostUSD != 0.0 || !resp3.Cached {
 		t.Fatalf("expected $0.00 and cached=true on depth_asset_id hit, got cost=%f, cached=%v", resp3.CostUSD, resp3.Cached)
 	}
-	if spend := lensSessionSpend(t, srv, sessID); spend != 0.50 {
-		t.Fatalf("expected spend to remain $0.50 after depth_asset_id hit, got %f", spend)
+	if spend := lensSessionSpend(t, srv, sessID); spend != 1.20 {
+		t.Fatalf("expected spend to remain $1.20 after depth_asset_id hit, got %f", spend)
 	}
 }

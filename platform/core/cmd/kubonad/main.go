@@ -151,6 +151,9 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "fk-audit" {
 		os.Exit(runFKAudit(os.Args[2:]))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "rates-audit" {
+		os.Exit(runRatesAudit(os.Args[2:]))
+	}
 	if len(os.Args) > 1 && os.Args[1] == "fk-repair-plan" {
 		os.Exit(runFKRepairPlan(os.Args[2:]))
 	}
@@ -207,11 +210,18 @@ func main() {
 		log.Fatalf("Cannot create daemon state directories: %v", err)
 	}
 
-	// Rate cards: a stale card is a hard refusal, never an estimate that
-	// silently becomes a bill. The card is pinned in platform/contracts.
+	// Rate cards: load the operator's runtime card when configured; otherwise
+	// the embedded bootstrap remains. A stale card is a hard refusal, never an
+	// estimate that silently becomes a bill. Dynamic file/URL reloads are
+	// watched below so a vendor update does not require a rebuild.
+	if err := rates.ConfigureFromEnv(context.Background()); err != nil {
+		log.Fatalf("Rate card refused: %v", err)
+	}
 	if err := rates.Validate(time.Now().UTC()); err != nil {
 		log.Fatalf("Rate card refused: %v", err)
 	}
+	slog.Info("[Kubona Core] rate card", "source", rates.Source(), "version", rates.CardSnapshot().Version)
+	go rates.Watch(context.Background(), 5*time.Minute)
 
 	// 1. Initialize SQLite WAL Ledger. Production (or an explicit
 	// KUBONA_FK_ENFORCE=1) turns on FK enforcement and refuses to start on

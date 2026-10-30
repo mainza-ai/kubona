@@ -130,6 +130,11 @@ services:
       # (BYOK): the provider bills that key; Kubona only records an estimate
       # and enforces a local guardrail. Air-gap stays on by default.
       KUBONA_LLM_CLOUD: ${KUBONA_LLM_CLOUD:-}
+      # Runtime vendor rate card (preferred for cloud LLM; production cloud
+      # pricing refuses the embedded bootstrap). File paths inside the
+      # container need a mount; a URL is fetched by kubonad with HTTPS.
+      KUBONA_RATE_CARD_PATH: ${KUBONA_RATE_CARD_PATH:-}
+      KUBONA_RATE_CARD_URL: ${KUBONA_RATE_CARD_URL:-}
       KUBONA_LLM_BUDGET_USD: ${KUBONA_LLM_BUDGET_USD:-}
       KUBONA_CODESIGN_RUN_BUDGET_USD: ${KUBONA_CODESIGN_RUN_BUDGET_USD:-0.50}
       KUBONA_LLM_PROVIDER: ${KUBONA_LLM_PROVIDER:-}

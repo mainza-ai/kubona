@@ -2,6 +2,8 @@ package api
 
 import (
 	"net/http"
+
+	"github.com/mainza-ai/kubona/core/pkg/rates"
 )
 
 // handleCostSummary serves the read-only LLM spend summary (G10/Phase 3):
@@ -30,7 +32,12 @@ func (s *Server) handleCostSummary(w http.ResponseWriter, r *http.Request) {
 	if prov, ok := snap.Providers[snap.ActiveProvider]; ok && prov.IsLocal {
 		localBypass = true
 	}
+	card := rates.CardSnapshot()
 	writeJSON(w, http.StatusOK, map[string]any{
+		"rate_source":     rates.Source(),
+		"rate_version":    card.Version,
+		"effective_date":  card.EffectiveDate,
+		"rate_heuristic":  card.Heuristic,
 		"cap_usd":         cap,
 		"spent_usd":       spent,
 		"remaining_usd":   remaining,

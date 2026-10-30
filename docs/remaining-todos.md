@@ -13,9 +13,13 @@ Updated 2026-10-30. This is the short execution list; the full queue lives in
       production must start on a fresh ledger. The raw snapshot remains
       `~/.kubona/backups/kubona-pre-fk-20261030T024721Z.db` (sha256
       `c15bffd6…146f3b`), SQLite-consistent but chain-faulted.
-- [ ] **Vendor rate-card reconciliation before 2026-11-11.** Follow
-      `docs/rate-cards.md` §Reconciliation checklist. Needs the vendor price
-      sheets/invoices and Atlas-lens pricing; not a repo-only change.
+- [ ] **Vendor runtime rate-card reconciliation before 2026-11-11.** The
+      embedded bootstrap was refreshed (retired models removed; current model
+      prices/aliases) and production now requires a runtime
+      `KUBONA_RATE_CARD_PATH`/`URL`; `kubonad rates-audit` verifies assigned
+      models against live `/models` and can write a used-model-only card.
+      Still needs the vendor price sheets/invoices and Atlas-lens evidence for
+      the production card. Follow `docs/rate-cards.md`.
 - [ ] **Nightly thesis-scale green.** Current red runs are runner shutdowns,
       not assertions. Run `slice60-composition` and `slice60-determinism` on
       a runner that can hold the memory/time, record the run IDs, and do not

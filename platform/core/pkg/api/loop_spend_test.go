@@ -109,14 +109,14 @@ func TestLoopAdmissionReserves(t *testing.T) {
 	if err != nil {
 		t.Fatalf("tenant: %v", err)
 	}
-	if tenant.SpentUSD != want {
+	if diff := tenant.SpentUSD - want; diff > 1e-9 || diff < -1e-9 {
 		t.Fatalf("tenant must hold the reservation %.4f, got %.4f", want, tenant.SpentUSD)
 	}
 	row, err := l.GetLoopState(loopID)
 	if err != nil || row == nil {
 		t.Fatalf("loop row: %+v %v", row, err)
 	}
-	if row.ReservedAmount != want || row.ReservedTenant != "default" || row.ConsumedAmount != 0 {
+	if diff := row.ReservedAmount - want; diff > 1e-9 || diff < -1e-9 || row.ReservedTenant != "default" || row.ConsumedAmount != 0 {
 		t.Fatalf("row books wrong: %+v", row)
 	}
 }

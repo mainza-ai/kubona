@@ -186,8 +186,8 @@ func TestObservatoryGenerateWithRGBD(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 for atlasGenerate with RGBD context, got %d (%s)", rec.Code, rec.Body.String())
 	}
-	if spend := lensSessionSpend(t, srv, sessID); spend != 0.50 {
-		t.Fatalf("expected 0.50 spend reserved, got %f", spend)
+	if spend := lensSessionSpend(t, srv, sessID); spend != 1.20 {
+		t.Fatalf("expected 1.20 spend reserved, got %f", spend)
 	}
 
 	frames, ok := dispatchedPayload["contextFrames"].([]any)
@@ -413,7 +413,7 @@ func TestObservatoryLensHistory(t *testing.T) {
 		"session_id": sessID, "target_system": "H2", "task_type": "atlasChisel",
 	}, "")
 	ops := get()
-	if len(ops) != 1 || ops[0]["task_type"] != "atlasChisel" || ops[0]["cost_usd"] != 0.5 {
+	if len(ops) != 1 || ops[0]["task_type"] != "atlasChisel" || ops[0]["cost_usd"] != 1.2 {
 		t.Fatalf("expected dispatch record, got %v", ops)
 	}
 	if _, hasPrompt := ops[0]["prompt_used"]; hasPrompt && ops[0]["prompt_used"] != "" {
