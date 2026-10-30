@@ -81,11 +81,17 @@ status: tracked
 >   and production must start on a fresh ledger. The snapshot is
 >   SQLite-consistent (integrity_check ok, 1470 events) but not a verified
 >   provenance backup.
-> - Remaining operator-side for a production claim: vendor rate-card
->   reconciliation before 2026-11-11 (`docs/rate-cards.md`), a green nightly
->   thesis-scale proof, attaching the paid QPU run evidence, and resolving
->   those 606 pre-existing ledger chain faults before trusting a restore.
->   Provider keys are present in `.env`. These are not code gaps.
+> - **Rate card (2026-10-30):** the embedded bootstrap was refreshed to current
+>   provider models/prices (retired entries removed); production cloud pricing
+>   now **refuses the embedded card** and requires a runtime vendor-derived
+>   card (`KUBONA_RATE_CARD_PATH`/`URL`). `kubonad rates-audit` verifies the
+>   assigned models against live `/models`, checks provider-qualified prices,
+>   and can write a used-model-only card. Remaining operator work: replace the
+>   bootstrap with a vendor-invoice/list card before 2026-11-11.
+> - Remaining operator-side for a production claim: the vendor runtime card,
+>   a green nightly thesis-scale proof, attaching the paid QPU run evidence,
+>   and resolving those 606 pre-existing ledger chain faults before trusting a
+>   restore. Provider keys are present in `.env`. These are not code gaps.
 > - ✅ **Console rerun panel** (2026-10-30): Codesign Cockpit session picker,
 >   request_id retry, step/token/USD bounds, sealed receipt; 439 console tests.
 > - ✅ **MCP rerun wrapper** (2026-10-30): `cost/codesign_rerun` forwards to

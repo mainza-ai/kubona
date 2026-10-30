@@ -377,6 +377,10 @@ export interface CodesignRerunResult {
 
 // Cost summary (read-only LLM spend aggregates; heuristic, never billing).
 export interface CostSummary {
+  rate_source?: string;
+  rate_version?: number;
+  effective_date?: string;
+  rate_heuristic?: boolean;
   cap_usd: number;
   spent_usd: number;
   remaining_usd: number | null;

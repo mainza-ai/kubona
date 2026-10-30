@@ -315,6 +315,31 @@ func LoadSettings(db *sql.DB) (*Settings, error) {
 	return &s, nil
 }
 
+// LoadSettingsReadOnly loads persisted settings without creating/migrating
+// the table. CLI audit paths (kubonad rates-audit) use it against a read-only
+// ledger; a missing table is a fresh state, not an error.
+func LoadSettingsReadOnly(db *sql.DB) (*Settings, error) {
+	var valJSON string
+	err := db.QueryRow("SELECT value_json FROM llm_settings WHERE key = 'active_settings'").Scan(&valJSON)
+	if err == sql.ErrNoRows {
+		return DefaultSettings(), nil
+	}
+	if err != nil {
+		if strings.Contains(strings.ToLower(err.Error()), "no such table") {
+			return DefaultSettings(), nil
+		}
+		return nil, err
+	}
+	var s Settings
+	if err := json.Unmarshal([]byte(valJSON), &s); err != nil {
+		return nil, fmt.Errorf("stored LLM settings are unparseable: %w", err)
+	}
+	if s.SchemaVersion > CurrentSettingsVersion {
+		return nil, fmt.Errorf("llm settings schema v%d is newer than this binary (v%d)", s.SchemaVersion, CurrentSettingsVersion)
+	}
+	return &s, nil
+}
+
 // Save persists the current settings into SQLite
 func (s *Settings) Save(db *sql.DB) error {
 	s.mu.RLock()

@@ -2,6 +2,8 @@ package llm
 
 import (
 	"fmt"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/mainza-ai/kubona/core/pkg/rates"
@@ -45,15 +47,26 @@ func EstimateCostUSD(provider ProviderType, model string, promptTokens, completi
 	if isLocalProvider(provider) {
 		return 0, false
 	}
+	if productionNeedsExternalRateCard() {
+		return 0, false
+	}
 	if rates.IsStale(time.Now().UTC()) {
 		return 0, false
 	}
-	rate, ok := rates.LookupModelRate(model)
+	rate, ok := rates.LookupModelRate(string(provider), model)
 	if !ok {
 		return 0, false
 	}
 	return rate.InputPer1KUSD*float64(promptTokens)/1000.0 +
 		rate.OutputPer1KUSD*float64(completionTokens)/1000.0, true
+}
+
+// productionNeedsExternalRateCard refuses to price cloud spend from the
+// embedded bootstrap in production. The operator must install a runtime
+// vendor-derived card (KUBONA_RATE_CARD_PATH/URL); local providers are free
+// and never reach this check.
+func productionNeedsExternalRateCard() bool {
+	return strings.EqualFold(strings.TrimSpace(os.Getenv("KUBONA_ENV")), "production") && !rates.IsExternal()
 }
 
 // LoopIterationBound prices one worst-case loop iteration (I3): the sum
@@ -91,10 +104,13 @@ func EstimateCeilingCostUSD(provider ProviderType, model string, ceilingTokens i
 	if isLocalProvider(provider) {
 		return 0, false
 	}
+	if productionNeedsExternalRateCard() {
+		return 0, false
+	}
 	if rates.IsStale(time.Now().UTC()) {
 		return 0, false
 	}
-	rate, ok := rates.LookupModelRate(model)
+	rate, ok := rates.LookupModelRate(string(provider), model)
 	if !ok {
 		return 0, false
 	}

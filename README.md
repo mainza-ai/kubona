@@ -180,7 +180,10 @@ provider/model per role. The shipped default is local Strata (`STRATA_MODEL`,
 need no cloud opt-in. Cloud providers (NVIDIA, OpenCode, OpenAI, Anthropic) are
 BYOK and, in `KUBONA_ENV=production`, require the deployment flag
 `KUBONA_LLM_CLOUD=1` plus Sovereign Air-Gap off. Persisted UI settings override
-env defaults; the UI is authoritative per user.
+env defaults; the UI is authoritative per user. Cloud pricing uses a runtime
+vendor-derived rate card (`KUBONA_RATE_CARD_PATH`/`URL`); the embedded card is
+a bootstrap only. Verify assigned models/prices with
+`kubonad rates-audit --db /abs/kubona.db`.
 
 ## ⚡ Quickstart: Run It Locally ($0.00 / Zero-QPU)
 

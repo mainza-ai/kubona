@@ -124,7 +124,11 @@ Cloud LLM is an explicit exception, not a default.
    on), or the provider is blocked by design.
 4. Assign the `codesign` role to that provider/model in LLM Settings, or set
    `KUBONA_LLM_CODESIGN_PROVIDER`/`_MODEL` in `.env`.
-5. Restart the stack.
+5. Supply a **runtime vendor rate card** (`KUBONA_RATE_CARD_PATH` or
+   `KUBONA_RATE_CARD_URL`). The embedded card is a bootstrap; production
+   cloud pricing refuses it. Run `kubonad rates-audit --db ...` to verify the
+   models actually assigned are live and priced.
+6. Restart the stack.
 
 Persisted LLM settings override env defaults: the console **LLM Settings**
 is authoritative per user. Strata/oMLX/Ollama/LM Studio are local and need no
@@ -133,7 +137,7 @@ production. A host showing `active=nvidia`/air-gap off is a development
 override, not the shipped default (fresh compose volumes start on Strata).
 
 Billing reality: the provider bills **your API key**. Kubona is not the payer
-and cannot see the real invoice. Kubona records an **estimate** (heuristic
+and cannot see the real invoice. Kubona records an **estimate** (runtime
 rate card) and enforces:
 
 - `KUBONA_CODESIGN_RUN_BUDGET_USD` (default `0.50`) per rerun,
@@ -194,11 +198,12 @@ and `KUBONA_API_TOKEN`; without the token it refuses (no anonymous spend).
 
 ## 8. Rate cards
 
-`platform/contracts/rate-cards.json` is heuristic, effective 2026-10-12 with a
-30-day window. It becomes stale on 2026-11-11. `kubonad` refuses to boot on a
-stale card (fail-closed), and pricing/lens/cloud-LLM paths refuse at call time
-rather than invent a rate. Local providers are free, but the startup check is
-global — update the card before the window closes. Update procedure:
+The active card is runtime data (`KUBONA_RATE_CARD_PATH`/`URL`; embedded
+bootstrap fallback), effective 2026-10-30 with a 30-day window. It becomes
+stale on 2026-11-29. `kubonad` refuses to boot on a stale configured card
+(fail-closed), and pricing/lens/cloud-LLM paths refuse at call time rather
+than invent a rate. Production cloud pricing requires a runtime card; local
+providers are free. Update procedure and the current model table:
 [`docs/rate-cards.md`](rate-cards.md).
 
 ## 8b. Preflight doctor

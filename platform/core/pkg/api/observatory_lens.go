@@ -53,11 +53,6 @@ type ObservatoryLensResponse struct {
 	ProvenanceStatus string  `json:"provenance_status,omitempty"`
 }
 
-// lensCostUSD is the per-dispatch spend reservation. The value lives in
-// platform/contracts/rate-cards.json; the card is explicitly heuristic and
-// refuses to start when stale. Never embed a second copy here.
-var lensCostUSD = rates.MustLensCostUSD("atlas-lens")
-
 // observatoryTaskAllowlist is the closed task vocabulary. Unknown task
 // types are refused BEFORE spend is reserved — a typo must never bill.
 var observatoryTaskAllowlist = map[string]bool{
@@ -262,10 +257,15 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 	// 6. Cost Governance: the card is the source of the per-dispatch cost.
 	// A stale card refuses before any budget is reserved.
 	if err := rates.Validate(time.Now().UTC()); err != nil {
-		WriteAPIError(w, "rate_card_stale", "lens rate card is stale; update platform/contracts/rate-cards.json before dispatching", nil)
+		WriteAPIError(w, "rate_card_stale", "lens rate card is stale; update the runtime rate card before dispatching", nil)
 		return
 	}
-	if err := s.sessionMgr.ReserveSpend(req.SessionID, lensCostUSD); err != nil {
+	lensCost, ok := rates.LensCostUSD("atlas-lens")
+	if !ok {
+		WriteAPIError(w, "rate_card_stale", "lens rate is unavailable (no external vendor card in production or missing atlas-lens entry); refusing before spend", nil)
+		return
+	}
+	if err := s.sessionMgr.ReserveSpend(req.SessionID, lensCost); err != nil {
 		WriteAPIError(w, "ceiling_exceeded", fmt.Sprintf("spend limit exceeded: %v", err), nil)
 		return
 	}
@@ -279,7 +279,7 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 
 	if apiKey == "" {
 		// Refund spend and fail closed
-		_ = s.sessionMgr.ReleaseSpend(req.SessionID, lensCostUSD)
+		_ = s.sessionMgr.ReleaseSpend(req.SessionID, lensCost)
 		WriteAPIError(w, "llm_unavailable", "World Labs Atlas API key (WLT_API_KEY) unconfigured on server", nil)
 		return
 	}
@@ -295,13 +295,13 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 		imageAsset := map[string]any{"url": imageURL}
 		if strings.HasPrefix(imageURL, "data:") {
 			if inlineDecodedSize(imageURL) > inlineAssetMaxDecodedBytes {
-				_ = s.sessionMgr.ReleaseSpend(req.SessionID, lensCostUSD)
+				_ = s.sessionMgr.ReleaseSpend(req.SessionID, lensCost)
 				WriteAPIError(w, "bad_request", "inline snapshot exceeds 9.5 MiB decoded: use the asset upload flow instead", nil)
 				return
 			}
 			assetID, err := uploadInlineAssetToAtlas(atlasBaseURL(apiBase), apiKey, idemKey+"-asset", imageURL, fmt.Sprintf("kubona-lens-%s.png", req.SessionID))
 			if err != nil {
-				_ = s.sessionMgr.ReleaseSpend(req.SessionID, lensCostUSD)
+				_ = s.sessionMgr.ReleaseSpend(req.SessionID, lensCost)
 				WriteAPIError(w, "bridge_unavailable", fmt.Sprintf("Atlas asset upload failed: %v", err), nil)
 				return
 			}
@@ -374,13 +374,13 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 			imageAsset = map[string]any{"url": imageURL}
 			if strings.HasPrefix(imageURL, "data:") {
 				if inlineDecodedSize(imageURL) > inlineAssetMaxDecodedBytes {
-					_ = s.sessionMgr.ReleaseSpend(req.SessionID, lensCostUSD)
+					_ = s.sessionMgr.ReleaseSpend(req.SessionID, lensCost)
 					WriteAPIError(w, "bad_request", "inline snapshot exceeds 9.5 MiB decoded: use the asset upload flow instead", nil)
 					return
 				}
 				assetID, err := uploadInlineAssetToAtlas(atlasBaseURL(apiBase), apiKey, idemKey+"-asset", imageURL, fmt.Sprintf("kubona-lens-%s.png", req.SessionID))
 				if err != nil {
-					_ = s.sessionMgr.ReleaseSpend(req.SessionID, lensCostUSD)
+					_ = s.sessionMgr.ReleaseSpend(req.SessionID, lensCost)
 					WriteAPIError(w, "bridge_unavailable", fmt.Sprintf("Atlas asset upload failed: %v", err), nil)
 					return
 				}
@@ -407,7 +407,7 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 
 	payloadBytes, err := json.Marshal(atlasPayload)
 	if err != nil {
-		_ = s.sessionMgr.ReleaseSpend(req.SessionID, lensCostUSD)
+		_ = s.sessionMgr.ReleaseSpend(req.SessionID, lensCost)
 		WriteAPIError(w, "bad_request", fmt.Sprintf("failed to serialize Atlas payload: %v", err), nil)
 		return
 	}
@@ -416,7 +416,7 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 	reqURL := fmt.Sprintf("%s/tasks:%s", baseURL, taskType)
 	httpReq, err := http.NewRequest(http.MethodPost, reqURL, bytes.NewReader(payloadBytes))
 	if err != nil {
-		_ = s.sessionMgr.ReleaseSpend(req.SessionID, lensCostUSD)
+		_ = s.sessionMgr.ReleaseSpend(req.SessionID, lensCost)
 		WriteAPIError(w, "bad_request", fmt.Sprintf("failed to construct Atlas request: %v", err), nil)
 		return
 	}
@@ -428,14 +428,14 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(httpReq)
 	if err != nil {
-		_ = s.sessionMgr.ReleaseSpend(req.SessionID, lensCostUSD)
+		_ = s.sessionMgr.ReleaseSpend(req.SessionID, lensCost)
 		WriteAPIError(w, "bridge_unavailable", fmt.Sprintf("upstream Atlas error: %v", err), nil)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		_ = s.sessionMgr.ReleaseSpend(req.SessionID, lensCostUSD)
+		_ = s.sessionMgr.ReleaseSpend(req.SessionID, lensCost)
 		respBody, _ := io.ReadAll(resp.Body)
 		code, msg := mapAtlasUpstreamError(resp, respBody)
 		WriteAPIError(w, code, msg, map[string]any{"idempotency_key": idemKey})
@@ -448,7 +448,7 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 		Status      string `json:"status"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&opResult); err != nil {
-		_ = s.sessionMgr.ReleaseSpend(req.SessionID, lensCostUSD)
+		_ = s.sessionMgr.ReleaseSpend(req.SessionID, lensCost)
 		WriteAPIError(w, "bridge_unavailable", "failed to decode Atlas operation response", nil)
 		return
 	}
@@ -465,11 +465,11 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 	// silently reported as fully recorded.
 	sealed, provErr := s.ledger.AppendEventWithSpool(req.SessionID, "annotation", map[string]any{
 		"session_id":      req.SessionID,
-		"text":            fmt.Sprintf("World Labs Atlas lens dispatched (%s): operation %s ($%.2f reserved)", taskType, opResult.OperationID, lensCostUSD),
+		"text":            fmt.Sprintf("World Labs Atlas lens dispatched (%s): operation %s ($%.2f reserved)", taskType, opResult.OperationID, lensCost),
 		"task_type":       taskType,
 		"operation_id":    opResult.OperationID,
 		"idempotency_key": idemKey,
-		"cost_usd":        lensCostUSD,
+		"cost_usd":        lensCost,
 		"voxel_size":      req.VoxelSize,
 		"ephemeral_purge": req.EphemeralPurge,
 	})
@@ -488,7 +488,7 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 		OK:               true,
 		OperationID:      opResult.OperationID,
 		TaskType:         taskType,
-		CostUSD:          lensCostUSD,
+		CostUSD:          lensCost,
 		Watermark:        "SYNTHETIC LENS — WORLD LABS ATLAS",
 		Status:           opResult.Status,
 		IdempotencyKey:   idemKey,

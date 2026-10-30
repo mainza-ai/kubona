@@ -1,56 +1,117 @@
 {
-  "version": 1,
-  "source": "internal-heuristic-2026-10-12",
-  "effective_date": "2026-10-12",
+  "version": 2,
+  "source": "vendor-list-prices-2026-10-30",
+  "effective_date": "2026-10-30",
   "stale_after_days": 30,
-  "heuristic": true,
-  "notes": "V1 order-of-magnitude heuristics, not vendor price sheets. Replace with per-provider sheets and set heuristic=false before billing. A stale card refuses to price.",
+  "heuristic": false,
+  "notes": "Captured 2026-10-30. OpenAI/Anthropic/DeepSeek/OpenCode from vendor list pages; NVIDIA from CostGoat aggregator (verify before billing). DeepSeek/OpenCode use peak rates as the ceiling. Atlas: 1,500 credits at $1.00/1,250 credits = $1.20. Runtime KUBONA_RATE_CARD_PATH/URL overrides this bootstrap; production cloud pricing refuses the embedded bootstrap.",
   "lens": {
     "atlas-lens": {
-      "cost_usd": 0.5,
-      "unit": "per-dispatch"
+      "cost_usd": 1.2,
+      "unit": "per-dispatch",
+      "provider": "worldlabs",
+      "model": "marble-1.1",
+      "status": "active",
+      "source": "https://docs.worldlabs.ai/api/pricing",
+      "retrieved_at": "2026-10-30"
     }
   },
   "models": {
-    "deepseek-v4.1-flash": {
-      "input_per_1k_usd": 0.0001,
-      "output_per_1k_usd": 0.0004
+    "opencode/deepseek-v4.1-flash": {
+      "input_per_1k_usd": 0.0003,
+      "output_per_1k_usd": 0.0012,
+      "provider": "opencode",
+      "status": "active",
+      "aliases": [
+        "deepseek-v4.1-flash"
+      ],
+      "source": "https://opencode.ai/docs/go",
+      "retrieved_at": "2026-10-30",
+      "confidence": "vendor"
     },
-    "deepseek-chat": {
-      "input_per_1k_usd": 0.0002,
-      "output_per_1k_usd": 0.0008
-    },
-    "claude-3-5-sonnet": {
-      "input_per_1k_usd": 0.003,
-      "output_per_1k_usd": 0.015
-    },
-    "claude-3-7-sonnet": {
-      "input_per_1k_usd": 0.003,
-      "output_per_1k_usd": 0.015
-    },
-    "gpt-4o": {
-      "input_per_1k_usd": 0.0025,
-      "output_per_1k_usd": 0.01
-    },
-    "o3": {
-      "input_per_1k_usd": 0.01,
-      "output_per_1k_usd": 0.04
-    },
-    "gemini-2.5-pro": {
-      "input_per_1k_usd": 0.00125,
-      "output_per_1k_usd": 0.01
+    "opencode/deepseek-v4-pro": {
+      "input_per_1k_usd": 0.00132,
+      "output_per_1k_usd": 0.00396,
+      "provider": "opencode",
+      "status": "deprecated",
+      "aliases": [
+        "deepseek-v4-pro"
+      ],
+      "source": "https://opencode.ai/docs/go",
+      "retrieved_at": "2026-10-30",
+      "confidence": "vendor"
     },
     "nvidia/nemotron-3.5-super-vl-120b-a12b": {
-      "input_per_1k_usd": 0.0007,
-      "output_per_1k_usd": 0.0015
+      "input_per_1k_usd": 6e-05,
+      "output_per_1k_usd": 0.00035,
+      "provider": "nvidia",
+      "status": "active",
+      "source": "https://costgoat.com/pricing/nemotron-api",
+      "retrieved_at": "2026-10-30",
+      "confidence": "aggregator"
     },
-    "meta/llama-3.1-70b-instruct": {
-      "input_per_1k_usd": 0.0007,
-      "output_per_1k_usd": 0.0015
+    "openai/gpt-6-astra": {
+      "input_per_1k_usd": 0.01,
+      "output_per_1k_usd": 0.05,
+      "provider": "openai",
+      "status": "active",
+      "source": "https://openai.com/api/",
+      "retrieved_at": "2026-10-30",
+      "confidence": "vendor"
     },
-    "meta/llama-3.3-70b-instruct": {
-      "input_per_1k_usd": 0.0007,
-      "output_per_1k_usd": 0.0015
+    "openai/gpt-6.1-sol": {
+      "input_per_1k_usd": 0.002,
+      "output_per_1k_usd": 0.01,
+      "provider": "openai",
+      "status": "active",
+      "source": "https://openai.com/api/",
+      "retrieved_at": "2026-10-30",
+      "confidence": "vendor"
+    },
+    "openai/gpt-6.1-terra": {
+      "input_per_1k_usd": 0.001,
+      "output_per_1k_usd": 0.005,
+      "provider": "openai",
+      "status": "active",
+      "source": "https://openai.com/api/",
+      "retrieved_at": "2026-10-30",
+      "confidence": "vendor"
+    },
+    "openai/gpt-6-luna": {
+      "input_per_1k_usd": 0.0001,
+      "output_per_1k_usd": 0.0005,
+      "provider": "openai",
+      "status": "active",
+      "source": "https://openai.com/api/",
+      "retrieved_at": "2026-10-30",
+      "confidence": "vendor"
+    },
+    "anthropic/claude-opus-5-5": {
+      "input_per_1k_usd": 0.004,
+      "output_per_1k_usd": 0.02,
+      "provider": "anthropic",
+      "status": "active",
+      "source": "https://assets.claude.com/5633dc848caa431115468f31c7085d695bbfb9cc.pdf",
+      "retrieved_at": "2026-10-30",
+      "confidence": "vendor"
+    },
+    "anthropic/claude-sonnet-5-5": {
+      "input_per_1k_usd": 0.002,
+      "output_per_1k_usd": 0.01,
+      "provider": "anthropic",
+      "status": "active",
+      "source": "https://platform.claude.com/docs/en/about-claude/pricing",
+      "retrieved_at": "2026-10-30",
+      "confidence": "vendor"
+    },
+    "anthropic/claude-haiku-5-5": {
+      "input_per_1k_usd": 0.0001,
+      "output_per_1k_usd": 0.0005,
+      "provider": "anthropic",
+      "status": "active",
+      "source": "https://standardcompute.com/opencode-pricing",
+      "retrieved_at": "2026-10-30",
+      "confidence": "aggregator"
     }
   }
 }

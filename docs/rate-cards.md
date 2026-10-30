@@ -1,74 +1,115 @@
-# Rate cards
+# Rate cards (runtime, vendor-derived)
 
-`platform/contracts/rate-cards.json` is the single source for the Atlas lens
-per-dispatch cost and the LLM token rates. `platform/core/pkg/rates/rate-cards.json`
-is the build-time copy embedded by `pkg/rates`; a parity test fails if the two
-drift. Copy the canonical file, never hand-edit the duplicate.
+Kubona prices cloud LLM calls and the Atlas lens from a **rate card**, never
+from model IDs hardcoded in Go. The embedded card is a local/dev bootstrap;
+production cloud pricing requires an operator-supplied runtime card.
 
-## What the card is
+- Canonical bootstrap: `platform/contracts/rate-cards.json`
+- Embedded copy: `platform/core/pkg/rates/rate-cards.json` (parity-tested)
+- Runtime source: `KUBONA_RATE_CARD_PATH` (absolute file) or
+  `KUBONA_RATE_CARD_URL` (HTTPS; loopback HTTP allowed). They are mutually
+  exclusive; neither set keeps the embedded bootstrap.
+- The daemon reloads a configured file/URL every 5 minutes. A failed refresh
+  keeps the last good card, which then becomes stale on its own schedule.
+  A stale card is a hard refusal, never an estimate that silently becomes a
+  bill.
 
-- `version`: contract version.
-- `source`: where the numbers came from. The current card is
-  `internal-heuristic-2026-10-12`, not a vendor price sheet.
-- `effective_date` + `stale_after_days`: the validity window.
-- `heuristic`: `true` until a real vendor sheet replaces the values.
-- `lens.atlas-lens.cost_usd`: per-dispatch reservation.
-- `models.*`: input/output USD per 1K tokens.
+## Current bootstrap snapshot (2026-10-30)
 
-## Stale is a refusal
+The embedded card was refreshed from current vendor lists; it is **not** a
+substitute for the operator's runtime card. Prices are USD per 1M tokens
+(the engine converts to per-1K):
 
-`kubonad` calls `rates.Validate` at startup and refuses to serve if the card
-is stale. LLM pricing and Atlas lens dispatch also check at call time, so a
-long-running daemon cannot keep billing from an expired heuristic. Unknown
-models still return `ok=false`; the code never invents a rate.
+| Provider / model | Input | Output | Source | Confidence |
+|---|---:|---:|---|---|
+| `opencode/deepseek-v4.1-flash` | $0.30 | $1.20 | OpenCode Go peak | vendor |
+| `opencode/deepseek-v4-pro` | $1.32 | $3.96 | OpenCode Go peak | vendor |
+| `nvidia/nemotron-3.5-super-vl-120b-a12b` | $0.06 | $0.35 | CostGoat/Nemotron | aggregator |
+| `openai/gpt-6-astra` | $10.00 | $50.00 | OpenAI pricing | vendor |
+| `openai/gpt-6.1-sol` | $2.00 | $10.00 | OpenAI pricing | vendor |
+| `openai/gpt-6.1-terra` | $1.00 | $5.00 | OpenAI pricing | vendor |
+| `openai/gpt-6-luna` | $0.10 | $0.50 | OpenAI pricing | vendor |
+| `anthropic/claude-opus-5-5` | $4.00 | $20.00 | Anthropic list 2026-10-22 | vendor |
+| `anthropic/claude-sonnet-5-5` | $2.00 | $10.00 | Anthropic pricing | vendor |
+| `anthropic/claude-haiku-5-5` | $0.10 | $0.50 | OpenCode/Anthropic list | aggregator |
+| `atlas-lens` (`marble-1.1`) | 1,500 credits | ≈ $1.20/dispatch | World Labs API pricing | vendor |
 
-Local providers (Strata/oMLX/Ollama/LM Studio) are free and never consult the
-card. Cloud LLM is BYOK in the supported local deployment: the provider bills
-the operator's key; the card only produces a **local estimate** for the
-`KUBONA_CODESIGN_RUN_BUDGET_USD` / `KUBONA_LLM_BUDGET_USD` guardrails. It is
-never a Kubona charge and never debits the QPU session/tenant cap. The provider
-dashboard is authoritative.
+Retired/legacy entries (`deepseek-chat`, Claude 3.5/3.7, GPT-4o, o3, old
+Meta Llama rows, etc.) were removed. The provider's live `/models` endpoint is
+the authority for availability, not this table.
 
-## Updating
+DeepSeek/OpenCode use **peak** rates as the ceiling; off-peak is half. The
+provider dashboard/invoice is authoritative for actual billing.
 
-1. Edit `platform/contracts/rate-cards.json` (source, effective date, rates).
-2. Copy it to `platform/core/pkg/rates/rate-cards.json`.
-3. Run `go test ./pkg/rates ./pkg/llm ./pkg/api`.
-4. Raise `version`; do not shorten `stale_after_days` to make a red gate pass.
+## Dynamic audit / capture of what is used
 
-Vendor reconciliation (an actual provider invoice/price sheet with
-`heuristic:false`) remains a release-time task. The current card makes the
-heuristic explicit and stops it from silently outliving its window.
+`kubonad rates-audit --db /abs/path/kubona.db` reads the persisted role
+assignments and, for every non-local role:
+
+1. Verifies the provider is enabled.
+2. Fetches the provider's live `/models` and checks the assigned model still
+   exists (a retired model fails the audit).
+3. Looks up a **provider-qualified** rate in the active card; an unpriced
+   model fails the audit.
+4. Checks the active card is not stale.
+
+Exit 0 is clean; 1 means migrate the model and/or install a current runtime
+card. `--json` emits the machine-readable report. Local providers
+(Strata/oMLX/Ollama/LM Studio) are free and skipped.
+
+This is the "capture what is actually used" rail: only assigned cloud models
+are audited, and no model list or price is compiled into the daemon.
+
+## Stale and production behavior
+
+- `kubonad` loads/validates the active card at boot and refuses a stale or
+  invalid configured source.
+- Cloud pricing checks at call time, so a long-running daemon cannot keep
+  pricing from an expired card.
+- In `KUBONA_ENV=production`, cloud LLM pricing **refuses the embedded
+  bootstrap** and the Atlas lens refuses without a runtime card. Local
+  providers remain free and unaffected. This is deliberate: production rates
+  must be operator-supplied data, not a repo snapshot.
+- BYOK: the provider bills the operator's key. The card produces a local
+  estimate for `KUBONA_CODESIGN_RUN_BUDGET_USD` / `KUBONA_LLM_BUDGET_USD`;
+  it is not a Kubona charge and never debits the QPU session/tenant cap.
+
+## Install / refresh a runtime card
+
+```bash
+# Preferred: host a vendor-derived JSON card and point the daemon at it.
+export KUBONA_RATE_CARD_URL=https://internal.example/kubona/rate-cards.json
+# or a mounted file:
+export KUBONA_RATE_CARD_PATH=/etc/kubona/rate-cards.json
+
+kubonad rates-audit --db /home/kubona/.kubona/kubona.db
+```
+
+For Docker, mount the file read-only and set the container path (for example
+`-v /host/rate-cards.json:/etc/kubona/rate-cards.json:ro` with
+`KUBONA_RATE_CARD_PATH=/etc/kubona/rate-cards.json`), or use a URL. The
+compose file passes both env vars through.
 
 ## Reconciliation checklist (before 2026-11-11)
 
-This is an operator task, not a code-only change. The current card is
-`heuristic:true`; the values must be replaced from authoritative vendor
-documents, not guessed.
+This is an operator task. The embedded bootstrap is not vendor proof; the
+runtime card is.
 
-- [ ] Inventory the models actually routable in this deployment
-      (`/api/llm/settings` role assignments and the console LLM Settings UI).
-      At minimum: NVIDIA NIM, OpenCode/DeepSeek, Anthropic, OpenAI, and any
-      other enabled provider. Remove or explicitly leave unpriced models that
-      are not used (unknown models refuse by design).
-- [ ] Obtain the current vendor price sheet or account invoice for each:
-      input USD per 1K tokens, output USD per 1K tokens, model ID, region,
-      and contracted/enterprise discount if any. Record the URL and retrieval
-      date (or keep the PDF in `raw/` only if redistribution is allowed).
-- [ ] Obtain the World Labs Marble 2 Atlas-lens price (credits or USD per
-      dispatch) and confirm what one dispatch includes.
-- [ ] Decide the effective date and keep `stale_after_days: 30`; do not
-      shorten it to make a red gate pass.
-- [ ] Update `platform/contracts/rate-cards.json`:
-      `version` bump, `source` = vendor document + date, `effective_date`,
-      `heuristic:false`, exact `models.*` rates, and `lens.atlas-lens.cost_usd`.
-- [ ] Copy the canonical file to `platform/core/pkg/rates/rate-cards.json`
-      (the embedded copy; never hand-edit only the duplicate).
-- [ ] Run `go test ./pkg/rates ./pkg/llm ./pkg/api` and boot `kubonad`; confirm
-      no stale-card refusal and that `/api/cost/summary` labels estimates.
+- [ ] Inventory the cloud models actually assigned (console LLM Settings /
+      `kubonad rates-audit`).
+- [ ] Obtain current vendor list/invoice rates: input/output USD per 1M,
+      model ID, region, discounts. Record URL + retrieval date.
+- [ ] Obtain World Labs Marble pricing (1,500 credits for `marble-1.1`;
+      credits are $1.00 per 1,250 → $1.20 per generation).
+- [ ] Build the runtime JSON with `source`, `effective_date`,
+      `stale_after_days: 30`, provider-qualified `models.*` entries, aliases,
+      `status`, and per-row `source`/`confidence`.
+- [ ] Install it via `KUBONA_RATE_CARD_PATH`/`URL`; do not edit only the
+      embedded copy.
+- [ ] Run `kubonad rates-audit`; confirm every assigned model is live and
+      priced, and the card is not stale.
+- [ ] Run `go test ./pkg/rates ./pkg/llm ./pkg/api` and boot `kubonad`.
 - [ ] Record the vendor evidence and the update in the operator log/wiki.
-- [ ] Re-check BYOK semantics: the provider bills the user's key; Kubona's
-      estimate is a guardrail, never a charge or a QPU-cap debit.
 
-If the vendor evidence is unavailable by 2026-11-11, the fail-closed startup
-check refuses to boot. That is intentional; do not disable it or invent rates.
+If no runtime card is installed by 2026-11-11, cloud pricing/Atlas dispatch
+refuses; local providers still work. Do not disable the gate or invent rates.

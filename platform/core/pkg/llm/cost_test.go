@@ -3,6 +3,7 @@ package llm_test
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -31,12 +32,23 @@ func TestEstimateCostUSD(t *testing.T) {
 	if !ok {
 		t.Fatal("known model must price")
 	}
-	want := 0.0001*1000.0/1000.0 + 0.0004*500.0/1000.0
+	want := 0.0003*1000.0/1000.0 + 0.0012*500.0/1000.0
 	if diff := cost - want; diff > 1e-12 || diff < -1e-12 {
 		t.Errorf("cost math wrong: got %v want %v", cost, want)
 	}
 	if cost <= 0 {
 		t.Error("priced call must cost something")
+	}
+}
+
+// Production cloud pricing must not use the embedded bootstrap card: the
+// operator supplies a runtime vendor-derived card via KUBONA_RATE_CARD_PATH/URL.
+func TestProductionCloudRefusesEmbeddedRateCard(t *testing.T) {
+	t.Setenv("KUBONA_ENV", "production")
+	t.Setenv("KUBONA_RATE_CARD_PATH", "")
+	t.Setenv("KUBONA_RATE_CARD_URL", "")
+	if cost, ok := llm.EstimateCostUSD(llm.ProviderOpenCode, "deepseek-v4.1-flash", 1000, 500); ok || cost != 0 {
+		t.Fatalf("production cloud must refuse embedded bootstrap pricing, got %v,%v", cost, ok)
 	}
 }
 
@@ -174,8 +186,8 @@ func TestLoopIterationBound(t *testing.T) {
 	if err != nil {
 		t.Fatalf("priced roles must bind, got: %v", err)
 	}
-	want := 2 * 0.0004 * 150000.0 / 1000.0
-	if bound != want || len(fallbacks) != 0 {
+	want := 2 * 0.0012 * 150000.0 / 1000.0
+	if math.Abs(bound-want) > 1e-12 || len(fallbacks) != 0 {
 		t.Fatalf("priced roles must sum ceiling cost, got %v %v (want %v)", bound, fallbacks, want)
 	}
 	// Unknown metered model fails closed: no bound, no over-reserve —

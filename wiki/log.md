@@ -4110,3 +4110,21 @@ skipped is the exact failure this incident is about:
   their local IDs. It never tags, pushes, signs, or creates a release.
 - Optional OTel/Sentry remains backlogged on a backend/DSN choice; no
   telemetry is enabled by default.
+
+## [2026-10-30] implementation | Runtime rate cards + live model audit
+
+- `pkg/rates` now supports a runtime card (`KUBONA_RATE_CARD_PATH` or
+  `KUBONA_RATE_CARD_URL`, mutually exclusive), atomic validation, a 5-minute
+  watcher, provider-qualified model keys, aliases, retired status, and source
+  metadata. Invalid/stale refreshes never replace the last good card.
+- Production cloud pricing refuses the embedded bootstrap; local providers
+  remain free. Atlas lens resolves per request from the active card.
+- Refreshed the bootstrap from current vendor lists (2026-10-30): removed
+  retired Claude 3.5/3.7, GPT-4o/o3, deepseek-chat, old Meta rows; added
+  current DeepSeek/OpenCode, OpenAI GPT-6.x, Claude 5.5, NVIDIA Nemotron 3.5;
+  Atlas lens 1,500 credits = $1.20. Sources/confidence are per row.
+- Added `kubonad rates-audit [--write-card PATH]`: reads persisted roles,
+  verifies cloud models against live `/models`, checks provider-qualified
+  prices, and writes only the used-model subset. Live run: 5 NVIDIA roles,
+  85 live models, clean; production without a runtime card correctly fails.
+- `cost_summary` exposes rate source/version/effective date. Docs updated.
