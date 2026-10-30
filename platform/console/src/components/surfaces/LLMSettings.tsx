@@ -464,6 +464,7 @@ export function LLMSettings() {
                   <div>
                     <label htmlFor={`llm-api-key-${pt}`} className="block text-slate-400 mb-1 text-[11px]">
                       API key {pc.enabled ? <span className="text-emerald-400 font-mono">(stored ●●●)</span> : <span className="text-amber-400 font-mono">(not set)</span>}
+                      <span className="block text-[10px] text-slate-500">Prefer the daemon env/Bao in production; UI-entered keys are persisted in the local ledger.</span>
                     </label>
                     <input
                       id={`llm-api-key-${pt}`}

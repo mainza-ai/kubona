@@ -77,6 +77,9 @@ function stubBackend(s: Scenario) {
       if (u.includes('/api/metasearch/proposals')) {
         return { ok: true, json: async () => ({ proposals: [] }) };
       }
+      if (u.includes('/api/chat/launch')) {
+        return { ok: true, json: async () => ({ job: { id: 'job-auto-1' }, loop: { id: 'loop-auto-1' } }) };
+      }
       return { ok: false, status: 404, json: async () => ({}) };
     }
   );
@@ -185,6 +188,8 @@ describe('AutonomyCockpit envelope line (per-dispatch receipt)', () => {
     expect(json).toContain('ab12cd34ef56ab12');
     expect(json).toContain('lab-alpha');
     expect(json).not.toContain('Envelope Verified Statelessly');
+    // Approval must produce a real dispatch receipt, not stop at verification.
+    expect(json).toContain('Dispatched job job-auto');
   });
 });
 

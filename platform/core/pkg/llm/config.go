@@ -304,6 +304,14 @@ func LoadSettings(db *sql.DB) (*Settings, error) {
 	if err := json.Unmarshal([]byte(valJSON), &s); err != nil {
 		return DefaultSettings(), nil
 	}
+	for pt, pc := range s.Providers {
+		plain, derr := openSecret(pc.APIKey)
+		if derr != nil {
+			return nil, fmt.Errorf("provider %s: %w", pt, derr)
+		}
+		pc.APIKey = plain
+		s.Providers[pt] = pc
+	}
 	if s.SchemaVersion == 0 {
 		s.SchemaVersion = CurrentSettingsVersion
 		_ = s.Save(db)
@@ -334,6 +342,14 @@ func LoadSettingsReadOnly(db *sql.DB) (*Settings, error) {
 	if err := json.Unmarshal([]byte(valJSON), &s); err != nil {
 		return nil, fmt.Errorf("stored LLM settings are unparseable: %w", err)
 	}
+	for pt, pc := range s.Providers {
+		plain, derr := openSecret(pc.APIKey)
+		if derr != nil {
+			return nil, fmt.Errorf("provider %s: %w", pt, derr)
+		}
+		pc.APIKey = plain
+		s.Providers[pt] = pc
+	}
 	if s.SchemaVersion > CurrentSettingsVersion {
 		return nil, fmt.Errorf("llm settings schema v%d is newer than this binary (v%d)", s.SchemaVersion, CurrentSettingsVersion)
 	}
@@ -345,7 +361,16 @@ func (s *Settings) Save(db *sql.DB) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	data, err := json.Marshal(s)
+	storage := s.snapshot(false)
+	for pt, pc := range storage.Providers {
+		sealed, serr := sealSecret(pc.APIKey)
+		if serr != nil {
+			return serr
+		}
+		pc.APIKey = sealed
+		storage.Providers[pt] = pc
+	}
+	data, err := json.Marshal(&storage)
 	if err != nil {
 		return err
 	}

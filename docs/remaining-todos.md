@@ -3,6 +3,29 @@
 Updated 2026-10-30. This is the short execution list; the full queue lives in
 `wiki/concepts/remaining-work.md`.
 
+## Console/backend integration execution (2026-10-30)
+
+- [x] Multi-lab login fallback: free-text lab ID when anonymous lab listing
+      is refused; first-run lab-admin bootstrap accepts the operator token
+      once and mints the browser key explicitly.
+- [x] Action Gate and Guardrails approval now pass the signed mandate to
+      `/api/chat/launch` and report a real job id (previously verify-only).
+- [x] Fleet telemetry is projected from `/api/quantum/backends`; invented
+      queue/coherence/cost numbers removed (null = unknown).
+- [x] Browser E2E lane added (`.github/workflows/console-e2e.yml`,
+      `platform/console/e2e/`): admin bootstrap, login, local dispatch,
+      codesign, refusal state against the real compose stack.
+- [x] Visible API-refusal banner; session/campaign/job polling; measured
+      outputs and flight recorder refresh.
+- [x] Governance surfaces: lab creation, autonomy, obligations, ledger
+      verify; canary results; honest fallback removal; LLM key sealing with
+      `KUBONA_SECRET_KEY`; same-origin Atlas image proxy; system-agent,
+      results-notebook, batch-evaluation, autoresearch, workflow plan/run,
+      and short-lived vault-lease panels; fidelity contract and provider
+      schemas packaged into the bridge image.
+- [ ] Still open: tenant grants UI, browser admin-key recovery/rotation,
+      generated API contracts, and the remaining P2 surfaces.
+
 ## Production blockers
 
 - [x] **Resolve the 606 pre-existing ledger chain faults — by disposition

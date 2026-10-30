@@ -34,7 +34,13 @@ COPY bridge ./bridge
 # kubona.codesign -> autoresearch -> provenance. The loader's designed
 # override (KUBONA_EVENT_TYPES) points at the shipped copy.
 COPY contracts ./contracts
-ENV KUBONA_EVENT_TYPES=/app/contracts/event-types.json
+# All closed registries are runtime dependencies of the installed package.
+# The package resolves KUBONA_EVENT_TYPES / KUBONA_FIDELITY_DEVICES /
+# KUBONA_ERROR_CATALOG by explicit path; without these an image can boot
+# but its first quantum submit fails with FileNotFoundError.
+ENV KUBONA_EVENT_TYPES=/app/contracts/event-types.json \
+    KUBONA_FIDELITY_DEVICES=/app/contracts/fidelity-devices.json \
+    KUBONA_ERROR_CATALOG=/app/contracts/error-catalog.csv
 RUN chown -R kubona:kubona /app
 # Seed the socket dir with daemon ownership: the shared bridge-sock volume
 # inherits the image's directory (owner included); without this the volume

@@ -7,6 +7,7 @@ import { fetchLabs, fetchSessions, authWhoami, wasRecentAuthFailure } from '@/li
 import { fmtMoney } from '@/lib/guards';
 import { LabOpsPanel } from '@/components/common/LabOpsPanel';
 import { AuthPanel } from '@/components/common/AuthPanel';
+import { CreateLabPanel } from '@/components/common/CreateLabPanel';
 
 function pct(spent: number, ceiling: number): number | null {
   if (!Number.isFinite(spent) || !Number.isFinite(ceiling) || !(ceiling > 0)) return null;
@@ -107,15 +108,22 @@ export function LabsView() {
           <div id="operator-session">
             <AuthPanel labs={[]} />
           </div>
+          <CreateLabPanel onCreated={reload} />
         </div>
       );
     }
-    return <div className="text-slate-400 text-sm">No laboratories registered.</div>;
+    return (
+      <div className="space-y-3">
+        <div className="text-slate-400 text-sm">No laboratories registered.</div>
+        <CreateLabPanel onCreated={reload} />
+      </div>
+    );
   }
 
   return (
     <div className="space-y-4">
       <AuthPanel labs={labs} />
+      <CreateLabPanel onCreated={reload} />
       {labs.map((lab) => {
         const spent = typeof lab.spent_usd === 'number' && Number.isFinite(lab.spent_usd) ? lab.spent_usd : null;
         const ceiling = typeof lab.spend_ceiling_usd === 'number' && Number.isFinite(lab.spend_ceiling_usd) ? lab.spend_ceiling_usd : null;

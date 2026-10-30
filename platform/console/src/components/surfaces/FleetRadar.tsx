@@ -400,15 +400,21 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                 <div className="grid grid-cols-3 gap-2 text-xs font-mono bg-white/[0.03] p-3 rounded-xl border border-white/10">
                   <div>
                     <span className="text-slate-300 block text-[11px] font-medium">Capacity</span>
-                    <strong className="text-white text-xs font-bold">{b.qubits} Qubits</strong>
+                    <strong className="text-white text-xs font-bold">
+                      {typeof b.qubits === 'number' && Number.isFinite(b.qubits) ? `${b.qubits} Qubits` : 'Qubits UNKNOWN'}
+                    </strong>
                   </div>
                   <div>
                     <span className="text-slate-300 block text-[11px] font-medium">Coherence T₁</span>
-                    <strong className="text-cyan-300 text-xs font-bold">{b.t1_us} µs</strong>
+                    <strong className="text-cyan-300 text-xs font-bold">
+                      {b.t1_us && b.t1_us !== 'unknown' ? `${b.t1_us}${/^[0-9.]+$/.test(b.t1_us) ? ' µs' : ''}` : 'T1 UNKNOWN'}
+                    </strong>
                   </div>
                   <div>
                     <span className="text-slate-300 block text-[11px] font-medium">Queue</span>
-                    <strong className="text-amber-300 text-xs font-bold">{b.queue_depth} jobs</strong>
+                    <strong className="text-amber-300 text-xs font-bold">
+                      {typeof b.queue_depth === 'number' && Number.isFinite(b.queue_depth) ? `${b.queue_depth} jobs` : 'queue UNKNOWN'}
+                    </strong>
                   </div>
                   {unprovenanced && (
                     <div className="col-span-3 text-[9px] font-mono text-slate-400 border border-white/10 rounded px-1.5 py-0.5" title="Daemon reported no telemetry provenance — queue/coherence are neither measured nor declared">
@@ -424,7 +430,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                 >
                   <span className="flex items-center space-x-1.5">
                     <MapPin className="w-3.5 h-3.5 text-slate-300" />
-                    <span>{b.jurisdiction} ({b.itar_ear})</span>
+                    <span>{b.jurisdiction || 'jurisdiction UNKNOWN'} ({b.itar_ear || 'export class UNKNOWN'})</span>
                   </span>
                   <span className="flex items-center space-x-1 font-mono text-cyan-300">
                     <span>{isExpanded ? 'Hide Specs' : 'Deep Physics & Pricing'}</span>
@@ -439,7 +445,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                       <span>Cost per Shot:{unprovenanced ? ' (UNPROVENANCED)' : ''}</span>
                       <strong className="text-emerald-300">${typeof b.cost_per_shot === 'number' && Number.isFinite(b.cost_per_shot) ? b.cost_per_shot.toFixed(4) : '—'}</strong>
                     </div>
-                    {b.avg_t2_us !== undefined && b.avg_t2_us > 0 && (
+                    {typeof b.avg_t2_us === 'number' && Number.isFinite(b.avg_t2_us) && b.avg_t2_us > 0 && (
                       <div className="flex justify-between text-slate-300 font-medium">
                         <span>Coherence T₂ (Dephasing):</span>
                         <strong className="text-cyan-300">{b.avg_t2_us} µs</strong>
@@ -447,7 +453,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                     )}
                     <div className="flex justify-between text-slate-300 font-medium">
                       <span>Jurisdiction Policy:</span>
-                      <span className="text-white font-semibold">{b.jurisdiction} · {b.itar_ear}</span>
+                      <span className="text-white font-semibold">{b.jurisdiction || 'jurisdiction UNKNOWN'} · {b.itar_ear || 'export class UNKNOWN'}</span>
                     </div>
                   </div>
                 )}

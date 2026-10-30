@@ -127,6 +127,48 @@ describe('AuthPanel (A4 session auth UI)', () => {
     expect(text).toContain('anonymous (bearer only)');
   });
 
+
+  it('allows typing a lab id when anonymous multi-lab listing is refused', async () => {
+    vi.mocked(api.authWhoami)
+      .mockResolvedValueOnce({ authenticated: false })
+      .mockResolvedValueOnce({
+        authenticated: true,
+        tenant_id: 'lab-secret',
+        pubkey_fp: 'abcdef0123456789',
+      });
+    vi.mocked(api.authChallenge).mockResolvedValue({
+      nonce: 'deadbeef0123456789abcdef01234567',
+      expires_at: '2030-01-01T00:01:00Z',
+      message: 'kubona-auth/v1 login deadbeef0123456789abcdef01234567',
+    });
+    vi.mocked(api.authLogin).mockResolvedValue({
+      ok: true,
+      tenant_id: 'lab-secret',
+      pubkey_fp: 'abcdef0123456789',
+    });
+    vi.mocked(api.authSessions).mockResolvedValue([]);
+
+    let root: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      root = TestRenderer.create(<AuthPanel labs={[]} />);
+    });
+
+    const labInput = root!.root.findByProps({ 'aria-label': 'Lab ID' });
+    await act(async () => {
+      labInput.props.onChange({ target: { value: 'lab-secret' } });
+    });
+
+    const signInBtn = root!.root
+      .findAllByType('button')
+      .find((b) => textOf(b).includes('Log in with browser key'));
+    expect(signInBtn).toBeDefined();
+    await act(async () => {
+      await signInBtn!.props.onClick();
+    });
+    await vi.waitFor(() => expect(api.authLogin).toHaveBeenCalled());
+    expect(vi.mocked(api.authLogin).mock.calls[0][0]).toBe('lab-secret');
+  });
+
   it('revokes a live session and signs out cleanly', async () => {
     vi.mocked(api.authWhoami)
       .mockResolvedValueOnce({

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Sparkles, Plus, Zap, Info, HelpCircle, Trash2, Clock, Box, X } from 'lucide-react';
 import { Session, Loop, LedgerEvent, CampaignState, RunPhase, ProbeId } from '@/types';
-import { fetchSessions, createSession, deleteSession, fetchLoops, fetchEvents, fetchCampaignState, API_BASE, authHeaders, configureApiBase, apiFetch, UNAUTH_EVENT } from '@/lib/api';
+import { fetchSessions, fetchSession, createSession, deleteSession, fetchLoops, fetchEvents, fetchCampaignState, API_BASE, authHeaders, configureApiBase, apiFetch, UNAUTH_EVENT, API_PROBLEM_EVENT, type ApiProblem } from '@/lib/api';
 import { SHORTCUTS, SHORTCUT_TARGETS, KEY_TO_SHORTCUT, type ShortcutKey } from '@/lib/shortcuts';
 import { CopilotDrawer } from '@/components/CopilotDrawer';
 import { AboutLabModal } from '@/components/AboutLabModal';
@@ -37,6 +37,7 @@ import { BackendStatusBar } from '@/components/common/BackendStatusBar';
 import { CheckInStrip } from '@/components/sovereign/CheckInStrip';
 import { GenerativeUIStudio } from '@/components/surfaces/GenerativeUIStudio';
 import { CodesignCockpit } from '@/components/surfaces/CodesignCockpit';
+import { VaultLeasePanel } from '@/components/common/VaultLeasePanel';
 
 function formatElapsed(createdAt: string): string {
   const ms = Date.now() - new Date(createdAt).getTime();
@@ -85,6 +86,41 @@ export function SessionExpiredBanner({ onOpenLabs }: { onOpenLabs: () => void })
           <X className="w-3.5 h-3.5" />
         </button>
       </span>
+    </div>
+  );
+}
+
+// A single visible refusal for any API error, including wrappers that
+// historically returned []/null. Empty data must never be the only signal.
+export function ApiProblemBanner() {
+  const [problem, setProblem] = useState<ApiProblem | null>(null);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onProblem = (event: Event) => {
+      const detail = (event as CustomEvent<ApiProblem>).detail;
+      if (detail) setProblem(detail);
+    };
+    window.addEventListener(API_PROBLEM_EVENT, onProblem);
+    return () => window.removeEventListener(API_PROBLEM_EVENT, onProblem);
+  }, []);
+  if (!problem) return null;
+  return (
+    <div
+      data-testid="api-problem-banner"
+      role="alert"
+      className="flex items-center justify-between gap-3 px-4 py-1.5 bg-rose-950/90 border-b border-rose-500/40 text-rose-100 text-[11px] font-code"
+    >
+      <span className="truncate">
+        API refusal — {problem.path} · {problem.status ?? 'transport'} · {problem.message}. Some surfaces may show empty data until this is fixed.
+      </span>
+      <button
+        type="button"
+        onClick={() => setProblem(null)}
+        aria-label="Dismiss API refusal"
+        className="shrink-0 px-2 py-0.5 rounded border border-rose-400/30 text-rose-200 hover:bg-rose-500/20"
+      >
+        Dismiss
+      </button>
     </div>
   );
 }
@@ -337,6 +373,20 @@ export default function Home() {
           if (!mounted) return;
           setLoops(loopList);
           if (currentSessionId) {
+            const freshSession = await fetchSession(currentSessionId);
+            if (!mounted) return;
+            if (freshSession) {
+              setSessions((prev) => {
+                const idx = prev.findIndex((s) => s.id === freshSession.id);
+                if (idx === -1) return [freshSession, ...prev];
+                const next = [...prev];
+                next[idx] = freshSession;
+                return next;
+              });
+            }
+            const freshCampaign = await fetchCampaignState(currentSessionId);
+            if (!mounted) return;
+            if (freshCampaign) setCampaign(freshCampaign);
             const e = await fetchEvents(currentSessionId);
             if (!mounted) return;
             setEvents(e);
@@ -987,6 +1037,7 @@ export default function Home() {
           }}
         />
         <BackendStatusBar />
+        <ApiProblemBanner />
         <CheckInStrip loops={loops} />
         {surface === 'arena' && (
           <main className="relative flex-1 h-full overflow-hidden">
@@ -1131,6 +1182,7 @@ export default function Home() {
               {surface === 'mesh' && meshTab === 'settings' && <LLMSettings />}
               {surface === 'mesh' && meshTab === 'settings' && <QuantumSettings />}
               {surface === 'mesh' && meshTab === 'settings' && <QuantumDispatch sessionId={currentSessionId || null} tenantId={sessions.find((s) => s.id === currentSessionId)?.tenant_id} />}
+              {surface === 'mesh' && meshTab === 'settings' && <VaultLeasePanel sessionId={currentSessionId || undefined} />}
             </div>
           </main>
         )}

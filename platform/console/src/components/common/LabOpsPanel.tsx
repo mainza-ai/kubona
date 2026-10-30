@@ -6,9 +6,10 @@ import {
   setTenantStatus,
   refundTenantSpend,
   registerTenantAdminKey,
+  setTenantAutonomy,
 } from '@/lib/api';
 import { signAdminActionWithCustody, type AdminAction } from '@/lib/adminAction';
-import { peekSignerPubkeyHex } from '@/lib/custody';
+import { getOrCreateSigner, peekSignerPubkeyHex } from '@/lib/custody';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import type { Lab } from '@/types';
 
@@ -25,6 +26,7 @@ import type { Lab } from '@/types';
 // Refusals render the backend reason verbatim.
 export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => void }) {
   const [ceiling, setCeiling] = useState('');
+  const [autonomyDraft, setAutonomyDraft] = useState(lab.autonomy_level);
   const [refundAmount, setRefundAmount] = useState('');
   const [refundReason, setRefundReason] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
@@ -43,6 +45,11 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
   const [statusDraft, setStatusDraft] = useState<'active' | 'suspended' | null>(null);
 
   const [browserPub, setBrowserPub] = useState<string | null>(null);
+  // First-run bootstrap is the one tenant write that cannot use a lab-admin
+  // session (none exists yet). The backend still requires the operator
+  // bearer on this route, and production must not bake that token into the
+  // bundle. The operator pastes it once; it is held only in component state.
+  const [bootstrapToken, setBootstrapToken] = useState('');
   useEffect(() => {
     let active = true;
     peekSignerPubkeyHex().then((pub) => { if (active) setBrowserPub(pub); });
@@ -73,7 +80,7 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
     }
   };
 
-  const envelope = async (action: 'set_ceiling' | 'set_status' | 'refund_spend',
+  const envelope = async (action: 'set_ceiling' | 'set_status' | 'refund_spend' | 'grant_autonomy' | 'revoke_autonomy',
                            params: Record<string, number | string>): Promise<AdminAction | undefined> => {
     // When this browser holds the lab admin key we send the signed envelope;
     // otherwise the server uses the signed-in lab-admin session cookie
@@ -83,32 +90,69 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
   };
 
   if (isBootstrap) {
-    if (!browserPub) {
-      return (
-        <p className="text-[11px] text-slate-500">
-          This lab has no registered admin. Registering one requires an Ed25519 browser key.
-        </p>
-      );
-    }
-    const pub = browserPub;
+    const createKeyAndRegister = async () => {
+      setBusy('bootstrap');
+      setNotice(null);
+      try {
+        const signer = await getOrCreateSigner();
+        setBrowserPub(signer.publicKeyHex);
+        const res = await registerTenantAdminKey(lab.id, signer.publicKeyHex, undefined, bootstrapToken);
+        if (res === null) {
+          setNotice('backend unreachable — nothing changed.');
+        } else if ('error' in res) {
+          setNotice(`refused: ${res.error}`);
+        } else {
+          setBootstrapToken('');
+          onChanged();
+        }
+      } catch (e) {
+        setNotice(`failed: ${e instanceof Error ? e.message : String(e)}`);
+      } finally {
+        setBusy(null);
+      }
+    };
     return (
       <div className="space-y-1.5">
         <p className="text-[11px] text-amber-200">
           No admin registered for this lab — first write wins (bootstrap, sealed in the ledger).
         </p>
+        <label htmlFor={`lab-bootstrap-token-${lab.id}`} className="block text-[10px] text-slate-400">
+          Operator token (KUBONA_API_TOKEN; used once, not stored)
+        </label>
+        <input
+          id={`lab-bootstrap-token-${lab.id}`}
+          type="password"
+          value={bootstrapToken}
+          onChange={(e) => setBootstrapToken(e.target.value)}
+          aria-label="Operator token"
+          autoComplete="off"
+          className="w-full bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200 font-mono"
+        />
+        {!browserPub && (
+          <p className="text-[11px] text-slate-500">
+            No browser key yet. Creating one is an explicit action; it mints the
+            non-extractable Ed25519 key that will become this lab&apos;s admin.
+          </p>
+        )}
         <button
           type="button"
-          disabled={busy !== null}
-          onClick={() =>
-            run('bootstrap', () =>
-              registerTenantAdminKey(lab.id, pub).then((r) =>
-                r !== null && 'tenant' in r ? { ok: true as const } : r
-              )
-            )
-          }
+          disabled={busy !== null || !bootstrapToken.trim()}
+          onClick={() => {
+            if (browserPub) {
+              void run('bootstrap', () =>
+                registerTenantAdminKey(lab.id, browserPub, undefined, bootstrapToken).then((r) =>
+                  r !== null && 'tenant' in r ? { ok: true as const } : r
+                )
+              );
+            } else {
+              void createKeyAndRegister();
+            }
+          }}
           className="px-2 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 hover:bg-cyan-500/25 text-[11px] disabled:opacity-40"
         >
-          Register this browser key ({pub.slice(0, 12)}…) as lab admin
+          {browserPub
+            ? `Register this browser key (${browserPub.slice(0, 12)}…) as lab admin`
+            : 'Create browser key & register as lab admin'}
         </button>
         {notice && <p className="text-[11px] text-amber-200" role="alert">{notice}</p>}
       </div>
@@ -162,6 +206,30 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
           Browser key {browserPub ? `${browserPub.slice(0, 12)}… ` : ''}is not this lab&apos;s admin. Writes use the signed-in lab-admin session; the server enforces it.
         </p>
       )}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <label htmlFor={`lab-autonomy-${lab.id}`} className="text-[11px] text-slate-400">Autonomy</label>
+        <select
+          id={`lab-autonomy-${lab.id}`}
+          value={autonomyDraft}
+          onChange={(e) => setAutonomyDraft(e.target.value)}
+          disabled={busy !== null || suspended}
+          className="px-2 py-1 rounded-lg bg-black/60 border border-white/10 text-[11px] font-code text-slate-200 disabled:opacity-40"
+        >
+          {['L0', 'L1', 'L2', 'L3'].map((level) => <option key={level} value={level}>{level}</option>)}
+        </select>
+        <button
+          type="button"
+          disabled={busy !== null || suspended || autonomyDraft === lab.autonomy_level}
+          title={suspended ? 'suspended labs cannot change autonomy — resume first' : 'Persist the autonomy level (server enforces dispatch)'}
+          onClick={() => void run('autonomy', async () => {
+            const action = await envelope('grant_autonomy', { level: autonomyDraft });
+            return setTenantAutonomy(lab.id, autonomyDraft as 'L0' | 'L1' | 'L2' | 'L3', action);
+          })}
+          className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] text-slate-200 disabled:opacity-40"
+        >
+          Set autonomy
+        </button>
+      </div>
       <div className="flex flex-wrap items-center gap-1.5">
         <input
           value={ceiling}

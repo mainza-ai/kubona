@@ -20,6 +20,7 @@ import {
   saveLLMSettings,
   fetchCostSummary,
   fetchCustomAgents,
+  fetchSystemAgents,
   createCustomAgent,
   deleteCustomAgent,
   routeMultimodalPayload,
@@ -35,9 +36,11 @@ interface CognitiveMeshProps {
 export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
   const [endpoints, setEndpoints] = useState<RadarEndpoint[]>([]);
   const [radarRefused, setRadarRefused] = useState<string | null>(null);
-  const [airGapped, setAirGapped] = useState(true);
+  // Unknown until the daemon answers; never assume ENGAGED from a default.
+  const [airGapped, setAirGapped] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(false);
   const [agents, setAgents] = useState<CustomAgentManifest[]>([]);
+  const [systemAgents, setSystemAgents] = useState<Array<{ role: string; description: string }>>([]);
   const [isCreatingAgent, setIsCreatingAgent] = useState(false);
   const createAgentPanelRef = useRef<HTMLDivElement | null>(null);
   useFocusTrap(isCreatingAgent, createAgentPanelRef);
@@ -95,6 +98,10 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
   // Fetch-merge-save: never wipe unrelated settings with a partial toggle
   // write. Revert + banner on failure so the switch cannot lie.
   const toggleAirGap = async () => {
+    if (airGapped === null) {
+      setAirGapError('Air-gap state unknown — reload settings before changing it.');
+      return;
+    }
     const prev = airGapped;
     const nextVal = !airGapped;
     setAirGapped(nextVal);
@@ -148,6 +155,10 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
       .catch((err) => {
         if (mounted) setMeshError(`Agents unreachable: ${err instanceof Error ? err.message : String(err)}`);
       });
+
+    fetchSystemAgents().then((roles) => {
+      if (mounted) setSystemAgents(roles);
+    });
 
     fetchCostSummary()
       .then((out) => {
@@ -307,21 +318,30 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
           {/* Sovereign Air-Gap Toggle */}
           <button
             onClick={toggleAirGap}
-            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center space-x-2 border transition-all shadow-sm active:scale-95 ${
-              airGapped
+            disabled={airGapped === null}
+            title={airGapped === null ? 'Air-gap state unknown — settings unreachable' : 'Toggle sovereign air-gap'}
+            className={`px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center space-x-2 border transition-all shadow-sm active:scale-95 disabled:opacity-50 ${
+              airGapped === true
                 ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300 ring-1 ring-emerald-500/20'
-                : 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-300'
+                : airGapped === false
+                  ? 'bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-300'
+                  : 'bg-white/[0.03] border-white/10 text-slate-500'
             }`}
           >
-            {airGapped ? (
+            {airGapped === true ? (
               <>
                 <Lock className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Air-Gap: ENGAGED</span>
               </>
-            ) : (
+            ) : airGapped === false ? (
               <>
                 <Globe className="w-3.5 h-3.5 text-slate-400" />
                 <span>Air-Gap: OFF</span>
+              </>
+            ) : (
+              <>
+                <Globe className="w-3.5 h-3.5 text-slate-500" />
+                <span>Air-Gap: UNKNOWN</span>
               </>
             )}
           </button>
@@ -479,6 +499,22 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
           </div>
         )}
       </div>
+
+      {systemAgents.length > 0 && (
+        <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl space-y-2">
+          <div className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider font-mono">
+            Tribunal system roles ({systemAgents.length})
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {systemAgents.map((role) => (
+              <div key={role.role} className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05] text-[11px]">
+                <div className="font-code text-cyan-200">{role.role}</div>
+                <p className="text-slate-400 font-sans mt-0.5">{role.description}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Agents Matrix: Standard System + User-Defined */}
       <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl space-y-4">

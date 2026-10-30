@@ -31,8 +31,8 @@ describe('apiFetch timeouts + 401 broadcast', () => {
     expect(wasRecentAuthFailure()).toBe(true);
   });
 
-  it('does not broadcast on non-401 failures', async () => {
-    const { apiFetch, wasRecentAuthFailure } = await freshApi();
+  it('broadcasts a visible API problem on non-401 failures (never a silent empty)', async () => {
+    const { apiFetch, API_PROBLEM_EVENT, wasRecentAuthFailure } = await freshApi();
     const seen: string[] = [];
     vi.stubGlobal('window', {
       dispatchEvent: (e: Event) => {
@@ -42,7 +42,7 @@ describe('apiFetch timeouts + 401 broadcast', () => {
     });
     (globalThis as { fetch?: unknown }).fetch = vi.fn(async () => ({ ok: false, status: 503 }));
     await apiFetch('http://x/api/sessions');
-    expect(seen).toEqual([]);
+    expect(seen).toEqual([API_PROBLEM_EVENT]);
     expect(wasRecentAuthFailure()).toBe(false);
   });
 

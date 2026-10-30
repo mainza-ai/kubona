@@ -37,6 +37,8 @@ platform/console/.next/
 platform/console/out/
 platform/console/.dart_tool/
 platform/console/build/
+platform/console/test-results/
+platform/console/playwright-report/
 platform/console/pubspec.lock
 
 # Go binaries (path-anchored: a bare `kubonad` pattern once silently

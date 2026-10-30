@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -702,4 +703,75 @@ func isCachedLensRequest(l *ledger.Ledger, req *ObservatoryLensRequest) (bool, s
 		}
 	}
 	return false, "", ""
+}
+
+// handleObservatoryLensImage proxies an Atlas image through the daemon so the
+// browser never needs a remote img-src exception. The URL must be HTTPS on a
+// World Labs host; redirects are re-validated and the body is size-capped.
+func (s *Server) handleObservatoryLensImage(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		WriteAPIError(w, "method_not_allowed", "GET required for lens image proxy", nil)
+		return
+	}
+	raw := strings.TrimSpace(r.URL.Query().Get("url"))
+	if raw == "" {
+		WriteAPIError(w, "bad_request", "url query parameter is required", nil)
+		return
+	}
+	u, err := url.Parse(raw)
+	if err != nil || u.Scheme != "https" || !allowedAtlasImageHost(u.Hostname()) {
+		WriteAPIError(w, "bad_request", "lens image URL must be HTTPS on a worldlabs.ai host", nil)
+		return
+	}
+	client := &http.Client{
+		Timeout: 25 * time.Second,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if len(via) >= 4 {
+				return fmt.Errorf("too many redirects")
+			}
+			if req.URL.Scheme != "https" || !allowedAtlasImageHost(req.URL.Hostname()) {
+				return fmt.Errorf("redirected outside World Labs HTTPS hosts")
+			}
+			return nil
+		},
+	}
+	req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, u.String(), nil)
+	if err != nil {
+		WriteAPIError(w, "bad_request", "invalid lens image request", nil)
+		return
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		WriteAPIError(w, "bridge_unavailable", "Atlas image fetch failed: "+err.Error(), nil)
+		return
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		WriteAPIError(w, "bridge_unavailable", fmt.Sprintf("Atlas image returned HTTP %d", resp.StatusCode), nil)
+		return
+	}
+	ct := strings.ToLower(strings.TrimSpace(resp.Header.Get("Content-Type")))
+	if !strings.HasPrefix(ct, "image/") {
+		WriteAPIError(w, "bad_gateway", "Atlas image response is not an image", nil)
+		return
+	}
+	const maxBytes = 20 << 20
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
+	if err != nil {
+		WriteAPIError(w, "bridge_unavailable", "failed to read Atlas image", nil)
+		return
+	}
+	if len(body) > maxBytes {
+		WriteAPIError(w, "bad_gateway", "Atlas image exceeds 20 MiB", nil)
+		return
+	}
+	w.Header().Set("Content-Type", ct)
+	w.Header().Set("Cache-Control", "private, max-age=60")
+	w.WriteHeader(http.StatusOK)
+	_, _ = w.Write(body)
+}
+
+func allowedAtlasImageHost(host string) bool {
+	host = strings.ToLower(strings.TrimSpace(host))
+	return host == "worldlabs.ai" || strings.HasSuffix(host, ".worldlabs.ai")
 }

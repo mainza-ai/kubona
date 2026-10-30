@@ -65,7 +65,7 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
   } : data?.active_wavefunctions?.[0];
   // Empty-state discipline: the hardcoded H₂ fallback below is illustrative
   // only — it must never render verified chrome.
-  const hasLive = Boolean(liveClaim);
+  const hasLive = Boolean(liveClaim && (liveClaim.record_id || liveClaim.status !== 'UNVERIFIED'));
   const active = liveClaim || {
     claim_id: 'claim-h2-ground',
     statement: 'H₂ ground state equilibrium energy is -1.13727 Ha at R = 0.7414 Å (illustrative — no live claim)',

@@ -281,3 +281,37 @@ func TestDSMLSingleGrammar(t *testing.T) {
 		t.Fatalf("strip must remove the whole block, got %q", s)
 	}
 }
+
+func TestSettingsSaveSealsAPIKeysAtRest(t *testing.T) {
+	t.Setenv("KUBONA_SECRET_KEY", strings.Repeat("ef", 32))
+	db, err := sql.Open("sqlite3", ":memory:")
+	if err != nil {
+		t.Fatalf("open db: %v", err)
+	}
+	defer db.Close()
+	s, err := llm.LoadSettings(db)
+	if err != nil {
+		t.Fatalf("load: %v", err)
+	}
+	pc := s.Providers[llm.ProviderNVIDIA]
+	pc.APIKey = "key-must-not-be-plaintext"
+	pc.Enabled = true
+	s.Providers[llm.ProviderNVIDIA] = pc
+	if err := s.Save(db); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	var raw string
+	if err := db.QueryRow("SELECT value_json FROM llm_settings WHERE key='active_settings'").Scan(&raw); err != nil {
+		t.Fatalf("read raw: %v", err)
+	}
+	if strings.Contains(raw, "key-must-not-be-plaintext") {
+		t.Fatal("API key was persisted in plaintext")
+	}
+	loaded, err := llm.LoadSettings(db)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if got := loaded.Providers[llm.ProviderNVIDIA].APIKey; got != "key-must-not-be-plaintext" {
+		t.Fatalf("loaded key mismatch: %q", got)
+	}
+}

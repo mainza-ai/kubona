@@ -513,11 +513,17 @@ describe('ActionGate tenant attribution (J4)', () => {
   it('authorizes against the lab tenant, never the session id', async () => {
     vi.unstubAllGlobals();
     let seenBody: { tenant_id?: string; job_hash?: string } | null = null;
+    let seenLaunch: { mandate_ref?: string; qasm?: string; backend?: string } | null = null;
+    const onAuthorized = vi.fn();
     vi.stubGlobal(
       'fetch',
-      async (_url: string, init: { body: string }) => {
-        seenBody = JSON.parse(init.body);
-        return { ok: true, json: async () => ({ valid: true }) };
+      async (url: string, init: { body: string }) => {
+        if (url.includes('/api/mandates/verify')) {
+          seenBody = JSON.parse(init.body);
+          return { ok: true, json: async () => ({ valid: true }) };
+        }
+        seenLaunch = JSON.parse(init.body);
+        return { ok: true, json: async () => ({ job: { id: 'job-gate-1' }, loop: { id: 'loop-gate-1' } }) };
       }
     );
     const session = {
@@ -539,7 +545,7 @@ describe('ActionGate tenant attribution (J4)', () => {
     };
     await act(async () => {
       tree = TestRenderer.create(
-        <ActionGate campaign={withProgram} session={session} onAuthorized={() => {}} onDenied={() => {}} onDowngrade={() => {}} />
+        <ActionGate campaign={withProgram} session={session} onAuthorized={onAuthorized} onDenied={() => {}} onDowngrade={() => {}} />
       );
     });
     const btn = tree!.root.findByProps({ 'data-testid': 'action-gate-authorize' });
@@ -551,6 +557,12 @@ describe('ActionGate tenant attribution (J4)', () => {
     // The minted mandate binds the exact session + program (daemon-side
     // admission recomputes this and refuses anything else).
     expect(seenBody!.job_hash).toBe(canonicalJobBinding('sess-tenant-test', 'OPENQASM 2.0;\nqreg q[1];\n'));
+    // The approval must actually reach /api/chat/launch with the signed
+    // mandate and exact program — a verified receipt alone is not a dispatch.
+    expect(seenLaunch).not.toBeNull();
+    expect(JSON.parse(String(seenLaunch!.mandate_ref)).job_hash).toBe(seenBody!.job_hash);
+    expect(seenLaunch!.qasm).toBe('OPENQASM 2.0;\nqreg q[1];\n');
+    expect(onAuthorized).toHaveBeenCalledTimes(1);
   });
 });
 

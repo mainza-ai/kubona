@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
-import { UNAUTH_EVENT } from '@/lib/api';
-import { SessionExpiredBanner, describeCreateFailure } from './page';
+import { API_PROBLEM_EVENT, UNAUTH_EVENT } from '@/lib/api';
+import { ApiProblemBanner, SessionExpiredBanner, describeCreateFailure } from './page';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -69,6 +69,31 @@ describe('SessionExpiredBanner', () => {
       tree!.unmount();
     });
     expect(removeSpy).toHaveBeenCalledWith(UNAUTH_EVENT, expect.any(Function));
+  });
+});
+
+describe('ApiProblemBanner', () => {
+  it('surfaces a refusal that a legacy wrapper may have collapsed to empty', () => {
+    const target = stubWindow();
+    let tree: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tree = TestRenderer.create(<ApiProblemBanner />);
+    });
+    expect(tree!.toJSON()).toBeNull();
+    act(() => {
+      target.dispatchEvent(new CustomEvent(API_PROBLEM_EVENT, {
+        detail: { path: '/api/loops', status: 500, message: 'Internal Server Error', at: Date.now() },
+      }));
+    });
+    const banner = tree!.root.findByProps({ 'data-testid': 'api-problem-banner' });
+    const text = textOf(banner);
+    expect(text).toContain('/api/loops');
+    expect(text).toContain('500');
+    expect(text).toContain('empty data');
+    act(() => {
+      tree!.root.findByProps({ 'aria-label': 'Dismiss API refusal' }).props.onClick();
+    });
+    expect(tree!.toJSON()).toBeNull();
   });
 });
 

@@ -30,6 +30,7 @@ import {
   type SealedPrediction,
   sealPrediction,
   uploadObservatoryAsset,
+  lensImageProxyUrl,
 } from '@/lib/api';
 import { ghostBandHeights, replayFrame } from '@/lib/vault-view';
 import { createFpsAccumulator, pixelRatioStepDown, COARSE_DPR_CAP, DESKTOP_DPR_CAP, type FpsAccumulator } from '@/lib/fps';
@@ -1665,7 +1666,7 @@ export function SpatialCanvas3D({
             <div className="w-56 h-32 rounded-lg overflow-hidden border border-cyan-500/30 shadow-2xl relative group bg-black/60 backdrop-blur-sm">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={lensImageUrl}
+                src={lensImageProxyUrl(lensImageUrl) ?? lensImageUrl}
                 alt="Atlas Marble 2 Observatory Synthetic Lens"
                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
               />

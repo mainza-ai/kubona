@@ -50,6 +50,11 @@ export function formatExpiry(expiresAt: string, nowMs: number = Date.now()): str
 // (LabOpsPanel), then log in with it here.
 export function AuthPanel({ labs }: { labs: Lab[] }) {
   const [selectedTenantId, setSelectedTenantId] = useState<string>('');
+  // Multi-lab stores refuse anonymous tenant listing (server-side, to avoid
+  // leaking the estate). A fresh browser therefore has no <select> options
+  // but still knows the lab id it is authorised for: let the operator type
+  // it. Without this fallback the login button is permanently disabled.
+  const [manualTenantId, setManualTenantId] = useState<string>('');
   const [whoami, setWhoami] = useState<{ authenticated: boolean; tenant_id?: string; pubkey_fp?: string } | null>(null);
   const [sessions, setSessions] = useState<AuthServerSession[] | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -83,7 +88,7 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
   }, [focusLabSelect, whoami]);
 
   const tenantId =
-    selectedTenantId || (labs.find((l) => l.id === 'default') || labs[0])?.id || '';
+    selectedTenantId || (labs.find((l) => l.id === 'default') || labs[0])?.id || manualTenantId.trim();
 
   const refresh = async () => {
     const me = await authWhoami();
@@ -213,32 +218,51 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
       </div>
 
       {!whoami?.authenticated && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <select
-            ref={labSelectRef}
-            value={tenantId}
-            onChange={(e) => setSelectedTenantId(e.target.value)}
-            aria-label="Login lab"
-            className="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200"
-          >
-            {labs.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.display_name || l.id}
-              </option>
-            ))}
-          </select>
-          <button
+        <div className="space-y-1.5">
+          <div className="flex flex-wrap items-center gap-1.5">
+            {labs.length > 0 ? (
+              <select
+                ref={labSelectRef}
+                value={tenantId}
+                onChange={(e) => setSelectedTenantId(e.target.value)}
+                aria-label="Login lab"
+                className="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200"
+              >
+                {labs.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.display_name || l.id}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                value={manualTenantId}
+                onChange={(e) => { setManualTenantId(e.target.value); setSelectedTenantId(''); }}
+                aria-label="Lab ID"
+                placeholder="Enter your lab ID"
+                autoComplete="off"
+                spellCheck={false}
+                className="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200 font-mono"
+              />
+            )}
+            <button
             type="button"
             disabled={busy !== null || !tenantId}
             onClick={() => void login()}
             className="px-2 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 hover:bg-cyan-500/25 text-[11px] disabled:opacity-40"
-          >
-            {busy === 'login'
-              ? 'Challenging…'
-              : sessionExpired
-                ? 'Session expired — log in again'
-                : 'Log in with browser key'}
-          </button>
+            >
+              {busy === 'login'
+                ? 'Challenging…'
+                : sessionExpired
+                  ? 'Session expired — log in again'
+                  : 'Log in with browser key'}
+            </button>
+          </div>
+          {labs.length === 0 && (
+            <p className="text-[10px] text-slate-500">
+              Multi-lab store: lab listing is private. Enter the lab ID you administer; only its public key can log in.
+            </p>
+          )}
           {!browserKey && (
             <span className="text-[11px] text-slate-500">
               No browser key yet — logging in mints a non-extractable Ed25519 key in this browser.
