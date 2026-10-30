@@ -57,7 +57,7 @@ export function adminPayload(tenantId: string, action: string, paramsHash: strin
 
 export interface SignAdminActionInput {
   tenantId: string;
-  action: 'set_ceiling' | 'set_status' | 'refund_spend' | 'set_admin_key' | 'grant_autonomy' | 'revoke_autonomy';
+  action: 'set_ceiling' | 'set_status' | 'refund_spend' | 'session_refund_spend' | 'set_admin_key' | 'grant_autonomy' | 'revoke_autonomy';
   params: AdminParams;
   keyPair: { secretKey: Uint8Array; publicKey: Uint8Array };
   ttlSeconds?: number;
@@ -65,7 +65,7 @@ export interface SignAdminActionInput {
 
 export interface SignAdminActionCustodyInput {
   tenantId: string;
-  action: 'set_ceiling' | 'set_status' | 'refund_spend' | 'set_admin_key' | 'grant_autonomy' | 'revoke_autonomy';
+  action: 'set_ceiling' | 'set_status' | 'refund_spend' | 'session_refund_spend' | 'set_admin_key' | 'grant_autonomy' | 'revoke_autonomy';
   params: AdminParams;
   ttlSeconds?: number;
 }

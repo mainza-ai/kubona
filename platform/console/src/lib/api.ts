@@ -2054,6 +2054,29 @@ export async function createLab(id: string, displayName: string): Promise<{ ok: 
   }
 }
 
+export async function refundSessionSpend(
+  sessionId: string,
+  amountUsd: number,
+  reason: string,
+  action?: import('./adminAction').AdminAction,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/sessions/refund`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({
+        session_id: sessionId, amount_usd: amountUsd, reason,
+        ...(action ? { action } : {}),
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: String(data.error || data.message || `HTTP ${res.status}`).slice(0, 280) };
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 280) };
+  }
+}
+
 export function setTenantAutonomy(
   tenantId: string,
   level: 'L0' | 'L1' | 'L2' | 'L3',
