@@ -7,6 +7,9 @@ import { emergencyAbort, launchProposal, fetchLLMSettings, saveLLMSettings, fetc
 import { ApprovalPacketCard } from '@/components/common/ApprovalPacketCard';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { MetasearchPanel } from '@/components/common/MetasearchPanel';
+import { ObligationsPanel } from '@/components/common/ObligationsPanel';
+import { AutoresearchPanel } from '@/components/common/AutoresearchPanel';
+import { WorkflowPanel } from '@/components/common/WorkflowPanel';
 import { buildApprovalPacketFromCampaign } from '@/lib/approvalPacket';
 import { authorizeSpend } from '@/lib/authorizeSpend';
 import { fmtFixed } from '@/lib/guards';
@@ -104,8 +107,42 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
       }
       const sigPreview = res.mandate.signature_hex.slice(0, 16);
       setLastReceipt({ sigPreview, verifiedAt: new Date().toISOString(), tenant: res.tenantId });
-      setActionMessage(`Mandate verified (Sig: ${sigPreview}...). Verified, not dispatched — no spend recorded. Refresh the session to see ledger spend.`);
-      setTimeout(() => setActionMessage(null), 5000);
+      if (!session?.id || !campaign?.quantum_factors?.qasm) {
+        setActionMessage('Mandate verified, but no bound session/program exists — nothing was dispatched.');
+        setTimeout(() => setActionMessage(null), 6000);
+        return;
+      }
+      // A verified mandate is a capability, not a run. Hand the exact
+      // program + signed mandate to the Go launch rail and report the real
+      // job id; otherwise the operator would see an approval that never ran.
+      const requestId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `launch-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+      const launched = await launchProposal(
+        session.id,
+        {
+          target: targetName,
+          recommended_tier: recommendedBackend,
+          spend_estimate: `$${estimatedCost.toFixed(2)}`,
+          classical_anchor: campaign.classical_anchor?.method || 'campaign anchor',
+          qasm: campaign.quantum_factors.qasm,
+        },
+        {
+          mandateRef: JSON.stringify(res.mandate),
+          requestId,
+          backend: recommendedBackend,
+          budgetUsd: estimatedCost,
+          qasm: campaign.quantum_factors.qasm,
+        },
+      );
+      if (!launched) {
+        setActionMessage('Mandate verified, but launch transport failed — no job was created. Nothing dispatched.');
+      } else if ('error' in launched) {
+        setActionMessage(`Mandate verified, but dispatch was refused: ${launched.error}`);
+      } else {
+        setActionMessage(`Mandate verified (Sig: ${sigPreview}...). Dispatched job ${String(launched.job.id).slice(0, 8)} to ${recommendedBackend}.`);
+      }
+      setTimeout(() => setActionMessage(null), 6000);
     } catch (err) {
       console.error('Failed to authorize run:', err);
       setActionMessage('Failed to sign mandate envelope. Action halted fail-closed.');
@@ -392,6 +429,9 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
             of the autonomy loop. Approve/reject/apply are bearer-gated;
             refusals render with the backend reason. */}
         <MetasearchPanel />
+        <AutoresearchPanel sessionId={session?.id ?? ''} />
+        <WorkflowPanel sessionId={session?.id ?? ''} />
+        <ObligationsPanel />
       </div>
 
       {/* Bottom Footer: Emergency Pause & Progressive Disclosure */}

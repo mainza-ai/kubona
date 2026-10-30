@@ -111,7 +111,10 @@ describe('LabOpsPanel (U1-b)', () => {
     const tree = await render(<LabOpsPanel lab={lab({ id: 'lab-new' })} onChanged={() => {}} />);
     await vi.waitFor(() => expect(textOf(tree.root)).toContain('No admin registered'));
     await act(async () => {
-      tree.root.findByType('button').props.onClick();
+      tree.root.findByProps({ 'aria-label': 'Operator token' }).props.onChange({ target: { value: 'test-token' } });
+    });
+    await act(async () => {
+      tree.root.findAllByType('button').find((b) => textOf(b).includes('Register this browser key'))!.props.onClick();
     });
     // run() is async — flush.
     await act(async () => {});

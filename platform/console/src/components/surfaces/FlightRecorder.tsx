@@ -7,6 +7,7 @@ import {
 import { Loop, LedgerEvent, CampaignState } from '@/types';
 import { LoopControlList } from '@/components/common/LoopControlList';
 import { SessionPortability } from '@/components/common/SessionPortability';
+import { LedgerVerifyPanel } from '@/components/common/LedgerVerifyPanel';
 
 interface FlightRecorderProps {
   loops?: Loop[];
@@ -225,8 +226,9 @@ export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChang
       {/* U2-a: session + ledger portability — export downloads, import
           switches to the resulting session via the parent. */}
       {onSessionImported && (
-        <div className="mt-4">
+        <div className="mt-4 space-y-3">
           <SessionPortability sessionId={campaign?.session_id ?? null} onSessionImported={onSessionImported} />
+          <LedgerVerifyPanel sessionId={campaign?.session_id ?? null} />
         </div>
       )}
 

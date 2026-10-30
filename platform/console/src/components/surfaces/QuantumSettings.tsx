@@ -38,6 +38,7 @@ export function QuantumSettings() {
   const [message, setMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const [canarying, setCanarying] = useState(false);
   const [canaryOut, setCanaryOut] = useState<string | null>(null);
+  const [canaryResults, setCanaryResults] = useState<Record<string, unknown> | null>(null);
 
   const snapshot = useCallback(
     () => JSON.stringify({ default_backend: defaultBackend, harness_backends: harnessMap }),
@@ -128,13 +129,16 @@ export function QuantumSettings() {
           onClick={() => {
             setCanarying(true);
             setCanaryOut(null);
+            setCanaryResults(null);
             void runQuantumCanary().then((r) => {
               setCanarying(false);
               if (!r.ok) {
                 setCanaryOut(`canary failed (declared catalog stays): ${r.error ?? 'unknown'}`);
                 return;
               }
-              const names = Object.keys(r.results ?? {});
+              const results = r.results ?? {};
+              setCanaryResults(results);
+              const names = Object.keys(results);
               setCanaryOut(
                 names.length === 0
                   ? 'canary ran: no provider results (all skipped or credentialless)'
@@ -154,6 +158,18 @@ export function QuantumSettings() {
         <div className="text-[11px] text-slate-300 font-mono bg-black/40 border border-white/[0.06] rounded-xl px-3 py-2">
           {canaryOut}
         </div>
+      )}
+      {canaryResults && Object.keys(canaryResults).length > 0 && (
+        <details data-testid="canary-results" className="text-[11px] text-slate-300 font-mono bg-black/40 border border-white/[0.06] rounded-xl px-3 py-2">
+          <summary className="cursor-pointer text-cyan-200">Measured canary results (live, no QPU spend)</summary>
+          <ul className="mt-2 space-y-1">
+            {Object.entries(canaryResults).map(([provider, result]) => (
+              <li key={provider} className="break-all">
+                <span className="text-white">{provider}</span>: {JSON.stringify(result).slice(0, 500)}
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
 
       {/* Backend list */}

@@ -144,6 +144,7 @@ var RoutePolicies = []RoutePolicy{
 	{Pattern: "/api/events/stream", Methods: "GET", Class: RouteAuthSessionScoped, Rationale: "SSE over one session's events; caller bound to session tenant (errors surface as events once headers are sent)."},
 	{Pattern: "/api/canvas/layout", Methods: "GET,POST,PUT", Class: RouteAuthSessionScoped, Rationale: "Per-session layout rows (256KB cap, SQLite-persisted); caller bound to session tenant for reads and writes alike."},
 	{Pattern: "/api/observatory/lens", Methods: "POST", Class: RouteAuthBearer},
+	{Pattern: "/api/observatory/lens/image", Methods: "GET", Class: RouteAuthBearer, Rationale: "Same-origin Atlas image proxy; validates HTTPS/worldlabs.ai hosts, redirects, content type, and 20 MiB cap."},
 	{Pattern: "/api/vault/predictions/seal", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/vault/predictions/evaluate", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/vault/predictions/latest", Methods: "GET", Class: RouteAuthBearer},

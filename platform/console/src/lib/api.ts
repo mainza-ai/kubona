@@ -87,6 +87,34 @@ export const STREAM_STALL_MS = 30000;
 // otherwise auto-create fresh state on auth failure must check
 // wasRecentAuthFailure() first (see CopilotDrawer getActiveSessionId).
 export const UNAUTH_EVENT = 'kubona:unauthorized';
+// Any non-2xx/transport failure notifies the shell, even when a legacy
+// wrapper below collapses it to []/null. Surfaces can keep their local
+// empty-state copy without hiding a refusal globally.
+export const API_PROBLEM_EVENT = 'kubona:api-problem';
+export interface ApiProblem {
+  path: string;
+  status: number | null;
+  message: string;
+  at: number;
+}
+let lastProblemKey = '';
+let lastProblemAt = 0;
+function notifyApiProblem(input: RequestInfo | URL, status: number | null, message: string): void {
+  const raw = typeof input === 'string' ? input : input instanceof URL ? input.toString() : String(input.url || '');
+  let path = raw;
+  try { path = new URL(raw, typeof window !== 'undefined' ? window.location.origin : 'http://localhost').pathname; } catch { /* keep raw */ }
+  if (path === '/api/config' || path === '/api/health' || path === '/api/ready') return;
+  const key = `${path}|${status ?? 'transport'}|${message.slice(0, 80)}`;
+  const now = Date.now();
+  if (key === lastProblemKey && now - lastProblemAt < 5000) return;
+  lastProblemKey = key;
+  lastProblemAt = now;
+  if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+    window.dispatchEvent(new CustomEvent<ApiProblem>(API_PROBLEM_EVENT, {
+      detail: { path, status, message: message.slice(0, 240), at: now },
+    }));
+  }
+}
 let lastAuthFailureAt = 0;
 export function wasRecentAuthFailure(withinMs = 30000): boolean {
   return Date.now() - lastAuthFailureAt < withinMs;
@@ -106,7 +134,15 @@ export function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Prom
     init.signal != null ? init : { ...init, signal: AbortSignal.timeout(API_TIMEOUT_MS) };
   return fetch(input, withCredentials(withTimeout)).then((res) => {
     if (res.status === 401) notifyUnauthorized();
+    else if (!res.ok) notifyApiProblem(input, res.status, res.statusText || `HTTP ${res.status}`);
     return res;
+  }).catch((err) => {
+    // A 401/abort is already carried by its own state; report transport
+    // failures so an empty surface cannot be mistaken for a real empty.
+    if (!(err instanceof DOMException && err.name === 'AbortError')) {
+      notifyApiProblem(input, null, err instanceof Error ? err.message : String(err));
+    }
+    throw err;
   });
 }
 
@@ -122,6 +158,17 @@ export async function fetchSessions(): Promise<Session[]> {
   } catch (err) {
     console.error('Failed to fetch sessions:', err);
     return [];
+  }
+}
+
+export async function fetchSession(sessionId: string): Promise<Session | null> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}`, { cache: 'no-store', headers: authHeaders() });
+    if (!res.ok) return null;
+    return (await res.json()) as Session;
+  } catch (err) {
+    console.error('Failed to fetch session:', err);
+    return null;
   }
 }
 
@@ -326,12 +373,42 @@ export async function resumeTribunal(
   }
 }
 
-export async function launchProposal(sessionId: string, proposal: unknown): Promise<{ job: Job; loop: Loop } | { error: string } | null> {
+export interface LaunchProposalOptions {
+  mandateRef?: string;
+  requestId?: string;
+  backend?: string;
+  budgetUsd?: number;
+  qasm?: string;
+  grantChain?: string[];
+  inputLabels?: string[];
+  callerJurisdictions?: string[];
+  callerExportClass?: string;
+  exportReviewed?: boolean;
+}
+
+export async function launchProposal(
+  sessionId: string,
+  proposal: unknown,
+  options: LaunchProposalOptions = {},
+): Promise<{ job: Job; loop: Loop } | { error: string } | null> {
   try {
     const res = await apiFetch(`${API_BASE}/api/chat/launch`, {
       method: 'POST',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ session_id: sessionId, proposal }),
+      body: JSON.stringify({
+        session_id: sessionId,
+        proposal,
+        ...(options.mandateRef !== undefined ? { mandate_ref: options.mandateRef } : {}),
+        ...(options.requestId !== undefined ? { request_id: options.requestId } : {}),
+        ...(options.backend !== undefined ? { backend: options.backend } : {}),
+        ...(options.budgetUsd !== undefined ? { budget_usd: options.budgetUsd } : {}),
+        ...(options.qasm !== undefined ? { qasm: options.qasm } : {}),
+        ...(options.grantChain !== undefined ? { grant_chain: options.grantChain } : {}),
+        ...(options.inputLabels !== undefined ? { input_labels: options.inputLabels } : {}),
+        ...(options.callerJurisdictions !== undefined ? { caller_jurisdictions: options.callerJurisdictions } : {}),
+        ...(options.callerExportClass !== undefined ? { caller_export_class: options.callerExportClass } : {}),
+        ...(options.exportReviewed !== undefined ? { export_reviewed: options.exportReviewed } : {}),
+      }),
     });
     // Refusals carry the backend reason as plain text — surface it, never
     // swallow it into a generic "refused" (2026-10-11: a tier-routing
@@ -665,6 +742,22 @@ export async function fetchRadar(): Promise<Record<string, unknown>> {
   }
 }
 
+export async function fetchNotebooks(sessionId: string): Promise<{ ok: true; notebooks: import('@/types').SystematicNotebook[] } | { ok: false; error: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/results/notebooks?session_id=${encodeURIComponent(sessionId)}`, {
+      cache: 'no-store',
+      headers: authHeaders(),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || !Array.isArray(data.notebooks)) {
+      return { ok: false, error: String(data?.error || data?.message || `HTTP ${res.status}`).slice(0, 280) };
+    }
+    return { ok: true, notebooks: data.notebooks as import('@/types').SystematicNotebook[] };
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 280) };
+  }
+}
+
 export async function fetchEpistemics(sessionId?: string | null): Promise<Record<string, unknown>> {
   try {
     const qs = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : '';
@@ -786,6 +879,31 @@ export async function evaluateCodesignArtifact(
 // Read-only LLM spend summary (G10): server-sealed aggregates, heuristic.
 // Pack registry (ux-plan slice 4): served live, never hand-typed.
 // Promotion stays a privileged op; this rail is read-only.
+export async function evaluateCodesignBatch(
+  body: Record<string, unknown>
+): Promise<{ ok: true; spec_kind: string; frontier: Record<string, unknown>; details: Array<Record<string, unknown>> } | { ok: false; error: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/codesign/evaluate-batch`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || data.ok !== true) {
+      const msg = (data && (data.message || data.error)) || `refused (HTTP ${res.status})`;
+      return { ok: false, error: String(msg).slice(0, 280) };
+    }
+    return {
+      ok: true,
+      spec_kind: String(data.spec_kind ?? ''),
+      frontier: (data.frontier ?? {}) as Record<string, unknown>,
+      details: Array.isArray(data.details) ? data.details as Array<Record<string, unknown>> : [],
+    };
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 280) };
+  }
+}
+
 export async function fetchCodesignPacks(): Promise<
   { ok: true; result: CodesignPacksResult } | { ok: false; error: string }
 > {
@@ -1191,6 +1309,24 @@ export async function cancelHFDownload(taskId: string): Promise<boolean> {
 // -----------------------------------------------------------------------------
 // Custom Agents API
 // -----------------------------------------------------------------------------
+
+export interface SystemAgentRole {
+  role: string;
+  description: string;
+  requires_human_ap2?: boolean;
+}
+
+export async function fetchSystemAgents(): Promise<SystemAgentRole[]> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/agents`, { cache: 'no-store', headers: authHeaders() });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { roles?: SystemAgentRole[] };
+    return Array.isArray(data.roles) ? data.roles : [];
+  } catch (err) {
+    console.error('Failed to fetch system agents:', err);
+    return [];
+  }
+}
 
 export async function fetchCustomAgents(): Promise<import('@/types').CustomAgentManifest[]> {
   try {
@@ -1785,12 +1921,17 @@ export interface TenantWriteError {
 // returns null so the UI can tell "refused" from "unreachable".
 async function postTenantMutation(
   path: string,
-  body: Record<string, unknown>
+  body: Record<string, unknown>,
+  operatorToken?: string,
 ): Promise<TenantWriteResult | TenantWriteError | null> {
   try {
+    const token = (operatorToken ?? '').trim();
     const res = await apiFetch(`${API_BASE}${path}`, {
       method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      headers: authHeaders({
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      }),
       body: JSON.stringify(body),
     });
     if (!res.ok) {
@@ -1856,13 +1997,146 @@ export function refundTenantSpend(
 export function registerTenantAdminKey(
   tenantId: string,
   newAdminPubkeyHex: string,
-  action?: import('./adminAction').AdminAction
+  action?: import('./adminAction').AdminAction,
+  operatorToken?: string,
 ): Promise<TenantWriteResult | TenantWriteError | null> {
   return postTenantMutation('/api/tenants/admin-key', {
     tenant_id: tenantId,
     new_admin_pubkey_hex: newAdminPubkeyHex,
     ...(action ? { action } : {}),
+  }, operatorToken);
+}
+
+export async function createLab(id: string, displayName: string): Promise<{ ok: true; tenant: Lab } | { ok: false; error: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/tenants`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ id, display_name: displayName }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: String(data.error || data.message || `HTTP ${res.status}`).slice(0, 280) };
+    return { ok: true, tenant: data as Lab };
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 280) };
+  }
+}
+
+export function setTenantAutonomy(
+  tenantId: string,
+  level: 'L0' | 'L1' | 'L2' | 'L3',
+  action?: import('./adminAction').AdminAction,
+): Promise<TenantWriteResult | TenantWriteError | null> {
+  return postTenantMutation('/api/tenants/autonomy', {
+    tenant_id: tenantId,
+    level,
+    ...(action ? { action } : {}),
   });
+}
+
+export function revokeTenantAutonomy(
+  tenantId: string,
+  reason: string,
+  action?: import('./adminAction').AdminAction,
+): Promise<TenantWriteResult | TenantWriteError | null> {
+  return postTenantMutation('/api/tenants/revoke', {
+    tenant_id: tenantId,
+    reason,
+    ...(action ? { action } : {}),
+  });
+}
+
+export interface ObligationRow {
+  id: string;
+  subject_kind: string;
+  subject_id: string;
+  owner: string;
+  disposition: string;
+  required_cases: string[];
+  required_authorities: string[];
+  close_ready: boolean;
+  close_reasons: string[];
+}
+
+export async function fetchOpenObligations(): Promise<{ ok: true; obligations: ObligationRow[] } | { ok: false; error: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/obligations/open`, { cache: 'no-store', headers: authHeaders() });
+    const data = await res.json().catch(() => null);
+    if (!res.ok || !data || !Array.isArray(data.obligations)) {
+      return { ok: false, error: (data?.error || data?.message || `HTTP ${res.status}`).slice(0, 280) };
+    }
+    return { ok: true, obligations: data.obligations as ObligationRow[] };
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 280) };
+  }
+}
+
+export async function closeObligation(id: string): Promise<{ ok: boolean; error?: string; reasons?: string[]; closed?: boolean }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/obligations/${encodeURIComponent(id)}`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({}),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: String(data.error || data.message || `HTTP ${res.status}`).slice(0, 280) };
+    return { ok: true, closed: data.closed === true, reasons: data.reasons };
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 280) };
+  }
+}
+
+export interface VaultLease {
+  lease_id: string;
+  scope: string;
+  ttl_seconds: number;
+  lease_signature: string;
+  issued_at: string;
+  expires_at: string;
+  session_id?: string;
+  tenant_id?: string;
+}
+
+export async function issueVaultLease(scope: string, ttlSeconds: number, sessionId?: string): Promise<{ ok: true; lease: VaultLease } | { ok: false; error: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/vault/leases`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ scope, ttl_seconds: ttlSeconds, ...(sessionId ? { session_id: sessionId } : {}) }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: String(data.error || data.message || `HTTP ${res.status}`).slice(0, 280) };
+    return { ok: true, lease: data as VaultLease };
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 280) };
+  }
+}
+
+export async function revokeVaultLease(leaseId: string): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/vault/leases/revoke`, {
+      method: 'POST',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ lease_id: leaseId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: String(data.error || data.message || `HTTP ${res.status}`).slice(0, 280) };
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 280) };
+  }
+}
+
+export async function verifyLedger(sessionId?: string): Promise<{ ok: boolean; fault_count?: number; faults?: unknown[]; error?: string }> {
+  try {
+    const qs = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : '';
+    const res = await apiFetch(`${API_BASE}/api/ledger/verify${qs}`, { cache: 'no-store', headers: authHeaders() });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) return { ok: false, error: String(data.error || data.message || `HTTP ${res.status}`).slice(0, 280) };
+    return { ok: data.ok === true, fault_count: data.fault_count, faults: data.faults };
+  } catch (err) {
+    return { ok: false, error: String(err).slice(0, 280) };
+  }
 }
 
 export interface SessionExport {
@@ -2120,6 +2394,14 @@ export async function authRevoke(id: string): Promise<{ ok: true } | { error: st
     console.error('Failed to revoke session:', err);
     return null;
   }
+}
+
+// Same-origin rendering for Atlas lens bytes. The browser CSP stays
+// img-src 'self'; the Next route forwards the session cookie to Go.
+export function lensImageProxyUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  if (!/^https?:\/\//i.test(url)) return url; // data:/blob: stays inline
+  return `/api/lens-image?url=${encodeURIComponent(url)}`;
 }
 
 export async function requestObservatoryLens(params: {

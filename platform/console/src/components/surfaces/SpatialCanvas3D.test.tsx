@@ -26,6 +26,7 @@ vi.mock('@/lib/api', () => ({
   fetchObservatoryLensStatus: vi.fn(),
   fetchLensHistory: vi.fn().mockImplementation(async () => ({ ok: true, operations: [] })),
   appendLedgerEvent: vi.fn().mockImplementation(async () => ({ ok: true, record_hash: 'rec_test_1' })),
+  lensImageProxyUrl: (url: string | null | undefined) => url ?? null,
 }));
 
 function textOf(node: unknown): string {

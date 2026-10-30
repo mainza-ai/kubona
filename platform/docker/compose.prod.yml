@@ -118,6 +118,12 @@ services:
       # deployment; anonymous session reads then require auth.
       KUBONA_SINGLE_LAB: ${KUBONA_SINGLE_LAB:-1}
       KUBONA_API_TOKEN: ${KUBONA_API_TOKEN:-}
+      # 32-byte hex/base64 key for AES-256-GCM sealing of UI-entered LLM
+      # provider keys in the local ledger. Set it for production; unset
+      # keeps legacy plaintext readable (dev migration) and logs a warning.
+      KUBONA_SECRET_KEY: ${KUBONA_SECRET_KEY:-}
+      # >=32 chars; required for /api/vault/leases (secret lease rail).
+      KUBONA_LEASE_HMAC_KEY: ${KUBONA_LEASE_HMAC_KEY:-}
       # Shared secret for the private bridge RPCs. Defaults to the API
       # token so the supported quickstart needs one value, not two.
       KUBONA_BRIDGE_TOKEN: ${KUBONA_BRIDGE_TOKEN:-${KUBONA_API_TOKEN:-}}
@@ -208,6 +214,8 @@ services:
     <<: *default-hardening
     environment:
       HOME: /tmp
+      # Server-side proxy target for the same-origin Atlas image route.
+      KUBONA_INTERNAL_API_URL: http://kubonad:8080
     ports:
       - "127.0.0.1:3000:3000"
     tmpfs:

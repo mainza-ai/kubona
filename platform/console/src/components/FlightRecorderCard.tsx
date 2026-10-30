@@ -82,9 +82,20 @@ function FlightRecorderCardInner({ sessionId }: { sessionId: string }) {
         if (!cancelled) setLoading(false);
       }
     };
-    fetchTelemetry();
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const poll = async () => {
+      if (cancelled) return;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        timer = setTimeout(poll, 60000);
+        return;
+      }
+      await fetchTelemetry();
+      if (!cancelled) timer = setTimeout(poll, 15000);
+    };
+    void poll();
     return () => {
       cancelled = true;
+      if (timer) clearTimeout(timer);
     };
   }, [sessionId]);
 

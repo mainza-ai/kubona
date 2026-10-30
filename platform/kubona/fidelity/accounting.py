@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import math
+import os
 import time
 import dataclasses
 from dataclasses import dataclass
@@ -39,7 +40,16 @@ class DeviceNoiseProfile:
         return max(0.0, (time.time() - self.last_calibrated_epoch) / 3600.0)
 
 
-_CONTRACT_PATH = Path(__file__).resolve().parents[2] / "contracts" / "fidelity-devices.json"
+def _contract_path() -> Path:
+    # Installed wheels keep contracts at /app/contracts (the image sets
+    # KUBONA_FIDELITY_DEVICES); source checkouts resolve the repo tree.
+    override = os.environ.get("KUBONA_FIDELITY_DEVICES")
+    if override:
+        return Path(override)
+    return Path(__file__).resolve().parents[2] / "contracts" / "fidelity-devices.json"
+
+
+_CONTRACT_PATH = _contract_path()
 
 
 def _parse_calibrated_at(value: str) -> float:

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { API_BASE, apiFetch, authHeaders, evaluateCodesignArtifact, fetchCodesignPacks, fetchCodesignVerified, fetchSessions, rerunCodesignProposal, runFamilySearch, scoreCodesignBudget } from '@/lib/api';
+import { API_BASE, apiFetch, authHeaders, evaluateCodesignArtifact, evaluateCodesignBatch, fetchCodesignPacks, fetchCodesignVerified, fetchSessions, rerunCodesignProposal, runFamilySearch, scoreCodesignBudget } from '@/lib/api';
 import type { CodesignBudgetResult, CodesignFamiliesResult, CodesignFrontierResult, CodesignPacksResult, CodesignRerunResult, CodesignVerifiedResult } from '@/lib/api';
 import type { Session } from '@/types';
 
@@ -90,6 +90,10 @@ export function CodesignCockpit() {
   const [evalSpecKind, setEvalSpecKind] = useState<string | null>(null);
   const [evalError, setEvalError] = useState<string | null>(null);
   const [evalBusy, setEvalBusy] = useState(false);
+  const [batchArtifacts, setBatchArtifacts] = useState('[["ccx",[0,1,2],[]]]\n[["cx",[0,2],[]]]');
+  const [batchRes, setBatchRes] = useState<{ spec_kind: string; frontier: Record<string, unknown>; details: Array<Record<string, unknown>> } | null>(null);
+  const [batchError, setBatchError] = useState<string | null>(null);
+  const [batchBusy, setBatchBusy] = useState(false);
   const [famSpec, setFamSpec] = useState('and2');
   const [famFamilies, setFamFamilies] = useState('direct,tower,mbu');
   const [famOffers, setFamOffers] = useState('[{"family":"direct","artifact":[["ccx",[0,1,2],[]]]},{"family":"tower","artifact":[["cx",[0,2],[]]]},{"family":"mbu","artifact":[["ccx",[0,1,2],[]]]}]');
@@ -375,6 +379,32 @@ export function CodesignCockpit() {
     } catch (err) {
       setFrontier(null);
       setFrontierError(String(err).slice(0, 200));
+    }
+  };
+
+  const runBatch = async () => {
+    setBatchError(null);
+    setBatchRes(null);
+    let artifacts: unknown;
+    try {
+      artifacts = JSON.parse(batchArtifacts);
+    } catch {
+      setBatchError('artifacts must be a JSON array of artifacts: refusing to send');
+      return;
+    }
+    if (!Array.isArray(artifacts)) {
+      setBatchError('artifacts must be a JSON array: refusing to send');
+      return;
+    }
+    const kappa = namedInt(evalKappa, 'Kappa (batch)', 1, 3);
+    if (!kappa.ok) { setBatchError(kappa.error); return; }
+    setBatchBusy(true);
+    try {
+      const out = await evaluateCodesignBatch({ spec_kind: evalSpec, artifacts, kappa: kappa.value });
+      if (!out.ok) { setBatchError(out.error); return; }
+      setBatchRes({ spec_kind: out.spec_kind, frontier: out.frontier, details: out.details });
+    } finally {
+      setBatchBusy(false);
     }
   };
 
@@ -682,6 +712,27 @@ export function CodesignCockpit() {
                 ))}
               </ul>
             </details>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
+        <div className="text-xs font-semibold text-white">Batch evaluation + frontier (≤64 artifacts) — read-only</div>
+        <div className="text-[11px] text-slate-400">Each artifact is scored by the Python evaluator; the returned frontier is the evaluator&apos;s Map-Elites cells, not a client-side summary.</div>
+        <textarea aria-label="Batch artifacts JSON" value={batchArtifacts} onChange={(e) => setBatchArtifacts(e.target.value)} rows={3} className="mt-2 w-full rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
+        <button onClick={() => void runBatch()} disabled={batchBusy} className="mt-2 rounded-lg bg-cyan-500/15 border border-cyan-400/30 px-3 py-1 text-xs text-cyan-200 disabled:opacity-50">
+          {batchBusy ? 'Scoring…' : 'Run batch'}
+        </button>
+        {batchError && <div role="alert" className="mt-2 text-xs text-rose-300">{batchError}</div>}
+        {batchRes && (
+          <div className="mt-2 text-xs text-slate-200 font-mono">
+            <div>spec {batchRes.spec_kind} · artifacts {batchRes.details.length} · valid {batchRes.details.filter((d) => d.valid === true).length}</div>
+            <div className="mt-1 text-[11px] text-slate-400">frontier {JSON.stringify(batchRes.frontier).slice(0, 500)}</div>
+            <ul className="mt-1 max-h-40 overflow-y-auto space-y-0.5 text-[11px]">
+              {batchRes.details.slice(0, 20).map((d, i) => (
+                <li key={i}>{d.valid === true ? `${String(d.toffoli)}T × ${String(d.peak_qubits)}Q = ${String(d.tq)}` : 'invalid'} · ε {String(d.eps_bound_97_5 ?? '—')}</li>
+              ))}
+            </ul>
           </div>
         )}
       </div>

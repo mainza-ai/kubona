@@ -647,11 +647,14 @@ export interface RadarEndpoint {
 
 export interface BackendInfo {
   name: string;
+  provider?: string;
   type: string;
-  qubits: number;
-  t1_us: string;
-  avg_t1_us?: number;
-  avg_t2_us?: number;
+  // Null/absent means the daemon did not measure it. Never render a
+  // fallback number for these fields.
+  qubits?: number | null;
+  t1_us?: string | null;
+  avg_t1_us?: number | null;
+  avg_t2_us?: number | null;
   status: string;
   // Credential dimension (fleet): 'ready' (credential-free sims or token
   // present) vs 'credentialless' (device may be fine — WE lack credentials).
@@ -663,10 +666,13 @@ export interface BackendInfo {
   // Absent on older daemons: treat queue/coherence as unprovenanced.
   telemetry?: string;
   catalog_verified?: string | null;
-  queue_depth: number;
-  cost_per_shot: number;
-  jurisdiction: string;
-  itar_ear: string;
+  queue_depth?: number | null;
+  cost_per_shot?: number | null;
+  jurisdiction?: string | null;
+  itar_ear?: string | null;
+  credential_env?: string;
+  executable_now?: boolean;
+  dispatch_ready?: boolean;
 }
 
 // -----------------------------------------------------------------------------

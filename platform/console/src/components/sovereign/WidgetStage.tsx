@@ -124,22 +124,22 @@ export function WidgetStage({
       <div className="overflow-y-auto overflow-x-hidden p-3">
         {widget.kind === 'circuit' && (
           <QuantumCircuitQIREditorWidget
-            qubits={qf?.qubit_count ?? 2}
-            circuitDepth={qf?.circuit_depth ?? 0}
+            qubits={qf?.qubit_count}
+            circuitDepth={qf?.circuit_depth}
           />
         )}
         {widget.kind === 'shadows' && (
-          <ShadowTomographyRadarWidget numQubits={qf?.qubit_count ?? 2} />
+          <ShadowTomographyRadarWidget numQubits={qf?.qubit_count} />
         )}
         {widget.kind === 'molecule' && (
           <MolecularActiveSpaceWidget
-            moleculeName={qf?.target_molecule || campaign?.target_system || 'LiH'}
-            numElectrons={qf?.active_electrons ?? (qf?.target_molecule?.toUpperCase().includes('LIH') ? 4 : 2)}
-            numOrbitals={qf?.active_orbitals ?? (qf?.target_molecule?.toUpperCase().includes('LIH') ? 4 : 2)}
+            moleculeName={qf?.target_molecule || campaign?.target_system || undefined}
+            numElectrons={qf?.active_electrons}
+            numOrbitals={qf?.active_orbitals}
             homoLumoGapHa={
               typeof campaign?.classical_anchor?.rhf_mean_field_energy === 'number' && typeof campaign?.classical_anchor?.fci_exact_energy === 'number'
                 ? Math.abs(campaign.classical_anchor.rhf_mean_field_energy - campaign.classical_anchor.fci_exact_energy)
-                : 0.042
+                : undefined
             }
           />
         )}

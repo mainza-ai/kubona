@@ -25,7 +25,7 @@ type WidgetTab = 'all' | 'molecule' | 'circuit' | 'lean4' | 'shadows' | 'manifol
 
 export function GenerativeUIStudio({ campaign, tenantId }: { campaign?: CampaignState | null; tenantId?: string }) {
   const [activeWidgetTab, setActiveWidgetTab] = useState<WidgetTab>('all');
-  const hasLive = campaign != null;
+  const hasLive = campaign?.quantum_factors != null;
 
   const tabs: { id: WidgetTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'all', label: 'All Widgets', icon: Sparkles },
@@ -91,21 +91,21 @@ export function GenerativeUIStudio({ campaign, tenantId }: { campaign?: Campaign
       <div className="space-y-6">
         {(activeWidgetTab === 'all' || activeWidgetTab === 'molecule') && (
           <MolecularActiveSpaceWidget
-            moleculeName={qf?.target_molecule || campaign?.target_system || 'LiH'}
-            numElectrons={qf?.active_electrons ?? 4}
-            numOrbitals={qf?.active_orbitals ?? 4}
+            moleculeName={qf?.target_molecule || campaign?.target_system || undefined}
+            numElectrons={qf?.active_electrons}
+            numOrbitals={qf?.active_orbitals}
             homoLumoGapHa={
               typeof campaign?.classical_anchor?.rhf_mean_field_energy === 'number' && typeof campaign?.classical_anchor?.fci_exact_energy === 'number'
                 ? Math.abs(campaign.classical_anchor.rhf_mean_field_energy - campaign.classical_anchor.fci_exact_energy)
-                : 0.042
+                : undefined
             }
           />
         )}
 
         {(activeWidgetTab === 'all' || activeWidgetTab === 'circuit') && (
           <QuantumCircuitQIREditorWidget
-            qubits={qf?.qubit_count ?? 4}
-            circuitDepth={qf?.circuit_depth ?? 8}
+            qubits={qf?.qubit_count}
+            circuitDepth={qf?.circuit_depth}
           />
         )}
 

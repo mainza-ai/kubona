@@ -29,6 +29,7 @@ cp .env.example .env
 chmod 600 .env
 # Required for writes:
 #   KUBONA_API_TOKEN=$(openssl rand -hex 32)
+#   KUBONA_SECRET_KEY=$(openssl rand -hex 32)  # seals UI-entered LLM keys at rest
 # Reviewer key (production refuses an ephemeral signer):
 cd platform/core && go run ./cmd/kubonad keygen
 # paste the printed KUBONA_REVIEWER_PRIVKEY_HEX=... into .env

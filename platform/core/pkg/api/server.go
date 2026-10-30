@@ -652,6 +652,8 @@ func (s *Server) registerRoutes() {
 	// Observatory lens: spend-authority writes get edge auth (F-13 — a bare
 	// session UUID must never be able to bill the lab's budget).
 	s.route("/api/observatory/lens", s.requireBearer(s.handleObservatoryLens))
+	// Same-origin image proxy: the console's CSP never needs a remote img-src.
+	s.route("/api/observatory/lens/image", s.requireBearer(s.handleObservatoryLensImage))
 
 	// Vault pre-registration: sealed expectations and surprise evaluations
 	// (reads are session-scoped, writes bill attention — both edge-authed).
@@ -1049,93 +1051,62 @@ func (s *Server) handleFleet(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Credential dimension (U3): env presence is a fact about this
-	// daemon's ability to submit — not a measurement, stated as such.
-	// Simulators are credential-free by construction ("ready"); QPU
-	// backends without their token are "credentialless" (distinct from
-	// down: the device may be fine, WE lack credentials).
-	credState := func(present bool) string {
-		if present {
-			return "ready"
-		}
-		return "credentialless"
+	// Fleet is a projection of the SAME provider vocabulary as
+	// /api/quantum/backends. Queue depth, coherence, readout error, and
+	// per-shot price are not measured here, so they are null/unknown — no
+	// invented catalog numbers. The live canary supplies measured values
+	// separately (/api/quantum/canary); this response never pretends to.
+	legacyNames := map[string]string{
+		"local-simulator": "local_simulator",
+		"ibm-qiskit":      "ibm_heron",
+		"quantinuum":      "quantinuum_h1",
+		"rigetti":         "rigetti_aspen",
 	}
-
-	writeJSON(w, http.StatusOK, map[string]any{
-		"backends": []map[string]any{
-			{
-				// Telemetry provenance: "measured" fields were read by this
-				// daemon (TCP liveness dial, env presence); "declared"
-				// fields are vendor-catalog placeholders until the live
-				// canary proxy lands — never presented as measurements.
-				"name":             "local_simulator",
-				"telemetry":        "measured",
-				"type":             "Qiskit Aer GPU/CPU Statevector",
-				"qubits":           32,
-				"t1_us":            "Infinite (Exact Numerical)",
-				"status":           localSimStatus,
-				"credential_state": "ready",
-				"queue_depth":      0,
-				"cost_per_shot":    0.0,
-				"jurisdiction":     "LOCAL_SOVEREIGN",
-				"itar_ear":         "EXEMPT",
-				"avg_t1_us":        0.0,
-				"avg_t2_us":        0.0,
-				"readout_error":    0.0,
-			},
-			{
-				"name":             "ibm_heron",
-				"telemetry":        "declared",
-				"catalog_verified": nil,
-				"type":             "Superconducting Transmon (Heavy-Hex)",
-				"qubits":           156,
-				"t1_us":            "180.0",
-				"status":           "READY",
-				"credential_state": credState(os.Getenv("KUBONA_IBM_QISKIT_TOKEN") != ""),
-				"queue_depth":      14,
-				"cost_per_shot":    0.0016,
-				"jurisdiction":     "US_EAST",
-				"itar_ear":         "EAR99_CONTROLLED",
-				"avg_t1_us":        180.0,
-				"avg_t2_us":        145.0,
-				"readout_error":    0.0012,
-			},
-			{
-				"name":             "quantinuum_h1",
-				"telemetry":        "declared",
-				"catalog_verified": nil,
-				"type":             "Trapped Ion Shuttle",
-				"qubits":           20,
-				"t1_us":            ">1,000,000",
-				"status":           "ONLINE",
-				"credential_state": credState(os.Getenv("KUBONA_QUANTINUUM_API_KEY") != ""),
-				"queue_depth":      3,
-				"cost_per_shot":    0.0125,
-				"jurisdiction":     "US_CENTRAL",
-				"itar_ear":         "EAR99_CONTROLLED",
-				"avg_t1_us":        1000000.0,
-				"avg_t2_us":        500000.0,
-				"readout_error":    0.0005,
-			},
-			{
-				"name":             "rigetti_aspen",
-				"telemetry":        "declared",
-				"catalog_verified": nil,
-				"type":             "Superconducting Multi-Chip",
-				"qubits":           80,
-				"t1_us":            "35.0",
-				"status":           "CALIBRATING",
-				"credential_state": credState(os.Getenv("KUBONA_RIGETTI_QCS_TOKEN") != ""),
-				"queue_depth":      28,
-				"cost_per_shot":    0.0008,
-				"jurisdiction":     "US_WEST",
-				"itar_ear":         "EAR99_CONTROLLED",
-				"avg_t1_us":        35.0,
-				"avg_t2_us":        28.0,
-				"readout_error":    0.0035,
-			},
-		},
-	})
+	backends := make([]map[string]any, 0, len(quantumBackendTable))
+	for _, qb := range quantumBackends() {
+		name := qb.Provider
+		if legacy, ok := legacyNames[qb.Provider]; ok {
+			name = legacy
+		}
+		status := "UNKNOWN"
+		switch {
+		case qb.Provider == "local-simulator" || qb.Provider == "qiskit-aer-simulator":
+			status = localSimStatus
+		case qb.DispatchReady:
+			status = "READY"
+		case qb.CredentialState == "credentialless":
+			status = "CREDENTIALLESS"
+		default:
+			status = "UNAVAILABLE"
+		}
+		row := map[string]any{
+			"name":             name,
+			"provider":         qb.Provider,
+			"type":             qb.DisplayName,
+			"qubits":           nil,
+			"t1_us":            "unknown",
+			"avg_t1_us":        nil,
+			"avg_t2_us":        nil,
+			"status":           status,
+			"credential_state": qb.CredentialState,
+			"credential_env":   qb.CredentialEnv,
+			"telemetry":        qb.Telemetry,
+			"catalog_verified": nil,
+			"queue_depth":      nil,
+			"cost_per_shot":    nil,
+			"jurisdiction":     "",
+			"itar_ear":         "",
+			"executable_now":   qb.Executable,
+			"dispatch_ready":   qb.DispatchReady,
+		}
+		if qb.Provider == "local-simulator" || qb.Provider == "qiskit-aer-simulator" {
+			row["jurisdiction"] = "LOCAL_SOVEREIGN"
+			row["itar_ear"] = "EXEMPT"
+			row["cost_per_shot"] = 0.0
+		}
+		backends = append(backends, row)
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"backends": backends})
 }
 
 func (s *Server) handleRadar(w http.ResponseWriter, r *http.Request) {

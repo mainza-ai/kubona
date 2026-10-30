@@ -99,7 +99,14 @@ export function MeasuredOutputs({ sessionId }: { sessionId: string | null }) {
   useEffect(() => {
     if (!sessionId) return;
     let cancelled = false;
-    fetchJobs(sessionId).then((jobs) => {
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const load = async () => {
+      if (cancelled) return;
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        timer = setTimeout(load, 15000);
+        return;
+      }
+      const jobs = await fetchJobs(sessionId);
       if (cancelled) return;
       setActiveIds(
         jobs
@@ -124,9 +131,12 @@ export function MeasuredOutputs({ sessionId }: { sessionId: string | null }) {
       }
       out.sort((a, b) => a.type.localeCompare(b.type));
       setRows(out);
-    });
+      timer = setTimeout(load, 5000);
+    };
+    void load();
     return () => {
       cancelled = true;
+      if (timer) clearTimeout(timer);
     };
   }, [sessionId]);
 

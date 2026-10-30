@@ -80,6 +80,13 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 include = ["kubona*"]
 
+# Runtime data ships with the wheel/image. Setuptools only packages *.py by
+# default; without this, the bridge boots but its first local-simulator
+# submit fails with "no capability schema" (E2E 2026-10-30).
+[tool.setuptools.package-data]
+"kubona.schema" = ["providers/*.json"]
+"kubona.eval" = ["corpora/*.json"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # Paper-scale lane selection is path-based (tests/test_codesign_slice*.py),

@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Fingerprint, ChevronDown, ChevronUp, ArrowDownToLine } from 'lucide-react';
 import { CampaignState, Session } from '@/types';
 import { authorizeSpend } from '@/lib/authorizeSpend';
+import { launchProposal } from '@/lib/api';
 import { ApprovalPacketCard } from '@/components/common/ApprovalPacketCard';
 import { buildApprovalPacketFromCampaign } from '@/lib/approvalPacket';
 
@@ -43,6 +44,7 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied, onDowngr
   const [denyReason, setDenyReason] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [rejected, setRejected] = useState(false);
+  const [dispatchNote, setDispatchNote] = useState<string | null>(null);
 
   const packet = buildApprovalPacketFromCampaign(
     campaign ?? null,
@@ -77,6 +79,46 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied, onDowngr
         setMessage(`${res.reason} Halted fail-closed — nothing dispatched, nothing spent.`);
         return;
       }
+      if (!session?.id) {
+        setRejected(true);
+        setMessage('No session bound — authorization was verified but nothing could be dispatched.');
+        return;
+      }
+      // The mandate is a capability, not a dispatch. Send it with the exact
+      // campaign program so the Go rail can admit the metered job and the
+      // UI can show a real job id instead of an approval receipt.
+      const requestId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
+        ? crypto.randomUUID()
+        : `launch-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+      const launched = await launchProposal(
+        session.id,
+        {
+          target: campaign?.target_system || campaign?.quantum_factors?.target_molecule || 'Campaign run',
+          recommended_tier: recommendedBackend,
+          spend_estimate: `$${(estimatedCost as number).toFixed(2)}`,
+          classical_anchor: campaign?.classical_anchor?.method || 'campaign anchor',
+          qasm: programQasm,
+        },
+        {
+          mandateRef: JSON.stringify(res.mandate),
+          requestId,
+          backend: recommendedBackend,
+          budgetUsd: estimatedCost as number,
+          qasm: programQasm,
+        },
+      );
+      if (!launched) {
+        setRejected(true);
+        setMessage('Mandate verified, but the launch transport failed — no job was created. Re-check and retry.');
+        return;
+      }
+      if ('error' in launched) {
+        setRejected(true);
+        setMessage(`Mandate verified, but dispatch was refused: ${launched.error}`);
+        return;
+      }
+      setRejected(false);
+      setDispatchNote(`Dispatched job ${String(launched.job.id).slice(0, 8)} to ${recommendedBackend}. Track it in Recorder / Measured outputs.`);
       onAuthorized();
     } catch (err) {
       console.error('Failed to authorize pulse:', err);
@@ -113,6 +155,11 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied, onDowngr
       {message && (
         <div className={`mt-2.5 p-2.5 rounded-xl text-[11px] ${rejected ? 'bg-rose-950/60 border border-rose-500/40 text-rose-200' : 'bg-cyan-950/60 border border-cyan-500/40 text-cyan-200'}`}>
           {message}
+        </div>
+      )}
+      {dispatchNote && (
+        <div role="status" className="mt-2.5 p-2.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-[11px]">
+          {dispatchNote}
         </div>
       )}
 
