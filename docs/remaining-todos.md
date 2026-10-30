@@ -20,11 +20,15 @@ Updated 2026-10-30. This is the short execution list; the full queue lives in
       models against live `/models` and can write a used-model-only card.
       Still needs the vendor price sheets/invoices and Atlas-lens evidence for
       the production card. Follow `docs/rate-cards.md`.
-- [ ] **Nightly thesis-scale green.** Current red runs are runner shutdowns,
-      not assertions. Run `slice60-composition` and `slice60-determinism` on
-      a runner that can hold the memory/time, record the run IDs, and do not
-      weaken the tests. If hosted runners cannot, move to a larger or
-      self-hosted runner.
+- [x] **Nightly thesis-scale memory fix (2026-10-30).** `Builder` stores ops
+      in compact typed columns and the slice-60 tests stream them instead of
+      materialising a 126M-object list. Local peaks: composition 3.4 GiB /
+      595 s, determinism 5.0 GiB / 206 s (previously ~37 GiB). The full
+      circuit and every assertion are unchanged.
+- [ ] **Nightly thesis-scale green run (pending).** The memory blocker is
+      fixed locally; run `slice60-composition` and `slice60-determinism`
+      manually on the hosted runner, record the run IDs, and do not weaken
+      the tests. Call nightly green only after both jobs pass.
 - [x] **Attach QPU run evidence (with a paid-status caveat).** IBM job
       `dbha28pq260s73busu70` (`ibm_fez`, created 2026-10-29T01:28:03Z,
       DONE, 2 QPU seconds, 0.028795 RU, 100 shots, counts 00:58/11:38/10:1/
@@ -39,13 +43,11 @@ Updated 2026-10-30. This is the short execution list; the full queue lives in
       rewritten: its vendor job completed and charged 2 s while the local
       ledger released $8.00. Reconcile/repair that row only with operator
       approval and the vendor invoice.
-- [ ] **Run the manual nightly and record the result — blocked on runner
-      capacity.** `workflow_dispatch` runs `41000688966` and `41003185385`
-      both passed the canary but had both slice60 jobs canceled by the runner
-      after ~18–23 min with no test output/assertion. The second run had
-      15 GiB RAM + 4 GiB swap enabled, so this is not a simple OOM. Run these
-      two slices on a larger/self-hosted runner and attach the run IDs; do not
-      weaken the tests.
+- [ ] **Run the manual nightly and record the result.** Previous
+      `workflow_dispatch` runs `41000688966` and `41003185385` both passed the
+      canary but had both slice60 jobs canceled by the runner after ~18–23 min
+      with no test output/assertion. The compact-Builder fix now peaks below
+      5 GiB; attach the new run IDs and do not weaken the tests.
 - [x] **Host LLM default decided 2026-10-30:** the host's persisted
       `active=nvidia`, `air_gap=off` is treated as an intentional development
       override (NVIDIA keys are present); it is **not** the shipped default.

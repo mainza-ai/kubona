@@ -7,9 +7,13 @@ name: Nightly Canary
 # 2026-10-29 stale-state audit: three consecutive nightly runs were
 # cancelled by a runner shutdown, not by an assertion. The thesis-scale
 # tests are bounded at 150 minutes and the runner capacity is printed so a
-# platform/OOM failure is distinguishable from a test hang. If hosted
-# runners cannot hold the thesis-scale memory, move these two jobs to a
-# larger or self-hosted runner; do not weaken the gate.
+# platform/OOM failure is distinguishable from a test hang.
+#
+# 2026-10-30: Builder now stores ops in compact typed columns and the tests
+# stream them instead of materialising a 126M-object list. Local peaks are
+# 3.4 GiB (composition) / 5.0 GiB (determinism), down from ~37 GiB, so the
+# hosted 15 GiB runner should hold them. Keep the gate and the capacity print;
+# prove it with a manual run before calling nightly green.
 permissions:
   contents: read
 

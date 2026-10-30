@@ -22,10 +22,12 @@ Statistics: k passes -> eps <= 1-delta^{1/k}; bounded-failure P_{k,b}.
 
 from __future__ import annotations
 
+import hashlib
 import math
 import random
+from array import array
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any, Callable, Iterable
 
 from .factories import factory_report
 
@@ -40,6 +42,14 @@ KICKMIX_ALL = KICKMIX_REVERSIBLE | KICKMIX_DIAGONAL | KICKMIX_MEASURE
 
 #: Toffoli-equivalent counting: ccx + ccz count equally (paper Methods).
 TOFFOLI_GATES = frozenset({"ccx", "ccz"})
+
+#: Compact op encoding used by Builder. The thesis-scale decoder has 126M
+#: ops; a list of Op objects costs >30 GiB and cannot fit a hosted runner.
+OP_NAMES = (
+    "alloc_marker", "free_marker", "x", "cx", "ccx", "swap",
+    "z", "cz", "ccz", "global_flip", "hmr",
+)
+OP_CODES = {name: i for i, name in enumerate(OP_NAMES)}
 
 
 @dataclass
@@ -97,13 +107,23 @@ class Builder:
         if not isinstance(num_qubits, int) or num_qubits < 1:
             raise ValueError("num_qubits must be positive int")
         self.num_qubits = num_qubits
-        self.ops: list[Op] = []
+        # Compact columns: 126M ops fit in a few GiB, not >30 GiB of objects.
+        self._opcodes = bytearray()
+        self._q1 = array("i")
+        self._q2 = array("i")
+        self._q3 = array("i")
+        self._conds: dict[int, tuple[int, ...]] = {}
         self._alloced: set[int] = set()
         self._freed: set[int] = set()
         self._consumed: set[int] = set()  # allocs released by hmr (no free() needed)
         self._peak = 0
         self._live = 0
         self._next_measure_id = 0
+        self._toffoli = 0
+        self._measurements = 0
+
+    def _is_live(self, q: int) -> bool:
+        return q in self._alloced and q not in self._freed and q not in self._consumed
 
     def _live_allocs(self) -> set[int]:
         return set(self._alloced) - set(self._freed) - set(self._consumed)
@@ -112,11 +132,24 @@ class Builder:
         """Allocs never freed nor measured away (fail-closed verdict input)."""
         return self._live_allocs()
 
+    def _append(self, name: str, qs: tuple[int, ...], cond: tuple[int, ...] = ()) -> None:
+        idx = len(self._opcodes)
+        self._opcodes.append(OP_CODES[name])
+        self._q1.append(qs[0] if len(qs) > 0 else -1)
+        self._q2.append(qs[1] if len(qs) > 1 else -1)
+        self._q3.append(qs[2] if len(qs) > 2 else -1)
+        if cond:
+            self._conds[idx] = tuple(cond)
+        if name in TOFFOLI_GATES:
+            self._toffoli += 1
+        elif name == "hmr":
+            self._measurements += 1
+
     # -- allocation -----------------------------------------------------
     def alloc(self, q: int) -> int:
         if q < 0 or q >= self.num_qubits:
             raise ValueError(f"alloc qubit {q} out of range [0,{self.num_qubits})")
-        if q in self._live_allocs():
+        if self._is_live(q):
             raise ValueError(f"qubit {q} already live: double-alloc refused")
         self._alloced.add(q)
         # re-alloc after free/consume is a fresh live interval
@@ -124,7 +157,7 @@ class Builder:
         self._consumed.discard(q)
         self._live += 1
         self._peak = max(self._peak, self._live)
-        self.ops.append(Op("alloc_marker", (q,)))
+        self._append("alloc_marker", (q,))
         return q
 
     def alloc_many(self, qs: list[int]) -> list[int]:
@@ -133,9 +166,9 @@ class Builder:
     def free(self, q: int) -> None:
         if q in self._consumed:
             raise ValueError(f"qubit {q} already released by measurement: do not free")
-        if q not in self._alloced or q in self._freed:
+        if not self._is_live(q):
             raise ValueError(f"free of non-live qubit {q}: refusing")
-        self.ops.append(Op("free_marker", (q,)))
+        self._append("free_marker", (q,))
         self._freed.add(q)
         self._live -= 1
 
@@ -151,7 +184,7 @@ class Builder:
                 f"measurement record gates basis-changing {name!r}: refusing "
                 "(records may control diagonal corrections only)"
             )
-        self.ops.append(Op(name, qs, cond))
+        self._append(name, qs, cond)
 
     def x(self, q: int) -> None:
         self._gate("x", (q,))
@@ -194,25 +227,57 @@ class Builder:
             raise ValueError(f"hmr qubit {q} out of range")
         rid = self._next_measure_id
         self._next_measure_id += 1
-        self.ops.append(Op("hmr", (q,)))
+        self._append("hmr", (q,))
         # measurement releases a live alloc interval (no free() needed after)
-        if q in self._live_allocs():
+        if self._is_live(q):
             self._consumed.add(q)
             self._live -= 1
         return rid
 
     def num_measurements(self) -> int:
-        return sum(1 for o in self.ops if o.name == "hmr")
+        return self._measurements
 
     def peak_qubits(self) -> int:
         # peak live allocs, floored by total addressable width
         return max(self.num_qubits, self._peak)
 
     def toffoli_count(self) -> int:
-        return sum(1 for o in self.ops if o.name in TOFFOLI_GATES)
+        return self._toffoli
+
+    def __len__(self) -> int:
+        return len(self._opcodes)
+
+    def iter_ops(self) -> Iterable[Op]:
+        """Yield ops without materialising the thesis-scale list."""
+        for i, code in enumerate(self._opcodes):
+            q1 = self._q1[i]
+            q2 = self._q2[i]
+            q3 = self._q3[i]
+            if q1 < 0:
+                qs: tuple[int, ...] = ()
+            elif q2 < 0:
+                qs = (q1,)
+            elif q3 < 0:
+                qs = (q1, q2)
+            else:
+                qs = (q1, q2, q3)
+            yield Op(OP_NAMES[code], qs, self._conds.get(i, ()))
 
     def emit(self) -> list[Op]:
-        return list(self.ops)
+        return list(self.iter_ops())
+
+    def ops_digest(self) -> str:
+        """Stable full-sequence digest for equality proofs without a 30 GiB list."""
+        h = hashlib.sha256()
+        h.update(self._opcodes)
+        for col in (self._q1, self._q2, self._q3):
+            h.update(col.tobytes())
+        for idx in sorted(self._conds):
+            h.update(idx.to_bytes(8, "big"))
+            for c in self._conds[idx]:
+                h.update(c.to_bytes(8, "big"))
+            h.update(b"|")
+        return h.hexdigest()
 
 
 def emit_xor_cover(b: "Builder", n_ccx: list[int],
@@ -264,7 +329,7 @@ class _DirtyFree(ValueError):
 
 
 def _sim_trajectory(
-    ops: list[Op],
+    ops: Iterable[Op],
     init_bits: dict[int, int],
     rng: random.Random,
     force_record: list[int] | None = None,
@@ -487,7 +552,7 @@ def circuit_depth(ops: list) -> int:
 def toffoli_depth(ops: list) -> int:
     """Exact Toffoli depth: distinct layers containing a ccx/ccz."""
     layers = _depth_layers(ops)
-    return len({l for o, l in zip(ops, layers) if o.name in TOFFOLI_GATES})
+    return len({layer for o, layer in zip(ops, layers) if o.name in TOFFOLI_GATES})
 
 
 def active_qubits(ops: list) -> int:
