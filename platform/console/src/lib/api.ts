@@ -1,4 +1,5 @@
 import { Session, ChatMessage, Job, Loop, LedgerEvent, Lab } from '@/types';
+import { contract } from './responseContract';
 
 // Build-time default (local dev). The runtime route /api/config can
 // override this per deployment (see configureApiBase) so one image
@@ -154,6 +155,7 @@ export { authHeaders };
 export async function fetchSessions(): Promise<Session[]> {
   try {
     const data = await dedupedGet<{ sessions?: Session[] }>(`${API_BASE}/api/sessions`, { headers: authHeaders() });
+    contract('sessions.list', data);
     return data.sessions || [];
   } catch (err) {
     console.error('Failed to fetch sessions:', err);
@@ -165,7 +167,7 @@ export async function fetchSession(sessionId: string): Promise<Session | null> {
   try {
     const res = await apiFetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return null;
-    return (await res.json()) as Session;
+    return contract('session', (await res.json()) as Session);
   } catch (err) {
     console.error('Failed to fetch session:', err);
     return null;
@@ -432,6 +434,7 @@ export async function fetchLoops(sessionId?: string | null): Promise<Loop[]> {
     const res = await apiFetch(`${API_BASE}/api/loops${qs}`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return [];
     const data = await res.json();
+    contract('loops.list', data);
     return data.loops || [];
   } catch (err) {
     console.error('Failed to fetch loops:', err);
@@ -446,6 +449,7 @@ export async function fetchEvents(sessionId?: string): Promise<LedgerEvent[]> {
     const res = await apiFetch(url, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return [];
     const data = await res.json();
+    contract('events.list', data);
     return data.events || [];
   } catch (err) {
     console.error('Failed to fetch events:', err);
@@ -716,7 +720,7 @@ export async function fetchFleet(): Promise<Record<string, unknown>> {
       }
       return { backends: [], refused: true, refuse_reason: text || `HTTP ${res.status}` };
     }
-    return await res.json();
+    return contract('fleet', await res.json());
   } catch (err) {
     console.error('Failed to fetch fleet:', err);
     return { backends: [], refused: true, refuse_reason: String(err).slice(0, 280) };
@@ -771,7 +775,7 @@ export async function fetchCanvasLayout(sessionId: string): Promise<Record<strin
   try {
     const res = await apiFetch(`${API_BASE}/api/canvas/layout?session_id=${encodeURIComponent(sessionId)}`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return null;
-    return (await res.json()) as Record<string, unknown>;
+    return contract('canvas.layout', (await res.json()) as Record<string, unknown>);
   } catch (err) {
     console.error('Failed to fetch canvas layout:', err);
     return null;
@@ -796,7 +800,7 @@ export async function fetchCapabilities(): Promise<CapabilitiesPayload | null> {
   try {
     const res = await apiFetch(`${API_BASE}/api/capabilities`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return null;
-    return (await res.json()) as CapabilitiesPayload;
+    return contract('capabilities', (await res.json()) as CapabilitiesPayload);
   } catch (err) {
     console.error('Failed to fetch capabilities:', err);
     return null;
@@ -1089,6 +1093,7 @@ export async function fetchQuantumBackends(): Promise<QuantumBackendInfo[]> {
     const res = await apiFetch(`${API_BASE}/api/quantum/backends`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return [];
     const data = (await res.json()) as { backends?: QuantumBackendInfo[] };
+    contract('quantum.backends', data);
     return Array.isArray(data.backends) ? data.backends : [];
   } catch (err) {
     console.error('Failed to fetch quantum backends:', err);
@@ -2175,6 +2180,7 @@ export async function fetchOpenObligations(): Promise<{ ok: true; obligations: O
     if (!res.ok || !data || !Array.isArray(data.obligations)) {
       return { ok: false, error: (data?.error || data?.message || `HTTP ${res.status}`).slice(0, 280) };
     }
+    contract('obligations.open', data);
     return { ok: true, obligations: data.obligations as ObligationRow[] };
   } catch (err) {
     return { ok: false, error: String(err).slice(0, 280) };
