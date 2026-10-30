@@ -3974,7 +3974,7 @@ skipped is the exact failure this incident is about:
 - **Verification:** Go full `./...` green; bridge 45 passed/1 skipped;
   `test_llm_proposer.py` 14 passed; compose config/build/up green; live rerun
   returned a sealed receipt and an identical idempotent replay. Counts
-  regenerated (121 routes, 738 Go tests).
+  regenerated (121 routes, 739 Go tests).
 - **Still operator-side:** vendor rate-card reconciliation before 2026-11-11,
   FK quarantine on an existing DB, a green nightly thesis-scale proof, and
   attaching the paid QPU run's deployment-ledger evidence. Provider keys are
@@ -4048,3 +4048,35 @@ skipped is the exact failure this incident is about:
   operator-side: vendor rate-card reconciliation, attaching the paid-run
   ledger evidence, resolving the 606 pre-existing chain faults, and optional
   OTel/Sentry or release dry-run (`docs/remaining-todos.md`).
+
+## [2026-10-30] verification | IBM job evidence and the cancelled/completed gap
+
+- Queried the configured IBM instance (token/instance in `.env`) read-only.
+  Account usage: **20 s / 600 s**, **0.263828 / 10.0002 RU**, period
+  2026-10-02..2026-10-30 — i.e. **Open Plan**, not a paid instance. A paid
+  run cannot be proven from this instance; attach the paid instance/invoice
+  or run id if it was a different account.
+- Job `dbha28pq260s73busu70` (`ibm_fez`, created 2026-10-29T01:28:03Z, DONE,
+  usage 2 s, 0.028795 RU, 100 shots, counts `00:58/11:38/10:1/01:3`) maps to
+  local job `39b5e6b832cd4ae3` (estimate $8.000568). The local ledger recorded
+  **cancelled / $0.00**; the vendor had already completed. Historic row left
+  unrewritten for operator reconciliation.
+- Fix: the Go cancel handler now asks the bridge for the terminal status and
+  settles from the returned result instead of blindly writing `cancelled`.
+  Regression test `TestQuantumCancelSyncsCompletedVendorStatus` proves a
+  DONE vendor job stays completed and retains measured `actual_usd`.
+- The scheduled nightly remains red from runner shutdown; added
+  `workflow_dispatch` so the capacity investigation can be reproduced on
+  demand. A manual run is still pending.
+
+## [2026-10-30] decision | Legacy ledger chain faults closed by disposition
+
+- `~/.kubona/kubona.db` has **606 chain faults**: 258 unhashed legacy v1
+  events, unsigned commit-class events, and the resulting link cascade. The
+  FK-quarantine snapshot is SQLite-consistent but is **not** a verified
+  restore source.
+- Decision: do not backfill hashes or retro-sign historical authority (that
+  would launder history). The legacy host DB is forensic/dev-only; production
+  starts on a fresh ledger. The raw snapshot remains at
+  `~/.kubona/backups/kubona-pre-fk-20261030T024721Z.db` with sha256
+  `c15bffd6843e7263de8c64bb1a9d3b8d9c00c4898ba851cfce4990eb53146f3b`.

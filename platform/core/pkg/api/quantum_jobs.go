@@ -389,9 +389,28 @@ func (s *Server) handleQuantumJobCancel(w http.ResponseWriter, r *http.Request, 
 		WriteAPIError(w, "bridge_unavailable", resp.ErrorMessage, nil)
 		return
 	}
-	s.jobRunner.SyncQuantumBridgeJobStatus(resp.JobId, "cancelled", `{"cancelled":true}`)
+	// Do not assume cancel won the race. A provider job may already be DONE
+	// when the recall arrives; marking it cancelled locally would release the
+	// reservation as zero-usage while the vendor actually charged QPU time.
+	// Ask the bridge for the terminal status and settle from that result.
+	// (Observed live 2026-10-30: ibm_fez job dbha28pq260s73busu70 reported
+	// DONE/2s at the vendor while the local ledger recorded cancelled/$0.)
+	status := "cancelled"
+	// Mark the job as post-vendor even when the status RPC fails: the
+	// settlement path then keeps the reservation (unknown usage) instead of
+	// releasing the full estimate as if the vendor never ran. Never refund
+	// unverified vendor work on a fallback path.
+	resultJSON := fmt.Sprintf(`{"cancelled":true,"hardware_job_id":%q,"provider_recall_attempted":%t,"provider_recall_status":%q}`,
+		resp.JobId, resp.ProviderRecallAttempted, resp.ProviderRecallStatus)
+	if st, serr := bridge.QuantumJobStatus(ctx, &pb.QuantumJobStatusRequest{JobId: resp.JobId}); serr == nil && st != nil && st.Ok && st.Status != "" {
+		status = st.Status
+		if st.ResultJson != "" {
+			resultJSON = st.ResultJson
+		}
+	}
+	s.jobRunner.SyncQuantumBridgeJobStatus(resp.JobId, status, resultJSON)
 	writeJSON(w, http.StatusOK, map[string]any{
-		"ok": true, "job_id": resp.JobId,
+		"ok": true, "job_id": resp.JobId, "status": status,
 		"provider_recall_attempted": resp.ProviderRecallAttempted,
 		"provider_recall_status":    resp.ProviderRecallStatus,
 	})
