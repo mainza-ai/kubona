@@ -2,7 +2,7 @@
 type: concept
 name: Remaining work queue
 date: 2026-10-17
-updated: 2026-10-28
+updated: 2026-10-30
 tags: [plan, queue, production]
 sources: [source-gap-analysis-plan, source-frontier-repo-audit-2026]
 status: tracked
@@ -38,11 +38,10 @@ status: tracked
   these phases; landed program items continue to live in
   [[full-tree-roadmap]] Landed per this page's rule.
 
-> ⚑ Stale-state correction (2026-10-29): the 20-job **push** gate is green
-> (run `40914979580`), but the **nightly thesis-scale** gate is red (runs
-> `40854405074`, `40666624246`, `40478035440`; Slice60 was cancelled by
-> runner shutdown, not by an assertion). Do not read "full gate green" as
-> covering nightly until it is green. Counts are generated in
+> ⚑ State correction (2026-10-30): the 20-job **push** gate is green at
+> `c7d98f6` (runs `41039225255` / `41039230782`), and the **nightly
+> thesis-scale** gate is green at the same commit (`41041244412`: canary +
+> both slice-60 jobs). Older red runs are history. Counts are generated in
 > `docs/repo-counts.md`.
 
 ## Local-first production (2026-10-30, landed)
@@ -94,9 +93,10 @@ status: tracked
 >   `c7d98f6`; push CI is 20/20 at the same commit. Keep re-verifying the
 >   exact commit; do not cite the older red runs as current.
 > - Remaining operator-side for a production claim: the vendor runtime card,
->   a green nightly thesis-scale proof, attaching the paid QPU run evidence,
->   and resolving those 606 pre-existing ledger chain faults before trusting a
->   restore. Provider keys are present in `.env`. These are not code gaps.
+>   attaching the paid QPU run evidence, and the historical
+>   cancelled-vs-completed settlement row. The 606 chain faults remain a
+>   disposition (fresh ledger for production), not a rewrite target. Provider
+>   keys are present in `.env`. These are not code gaps.
 > - ✅ **Console rerun panel** (2026-10-30): Codesign Cockpit session picker,
 >   request_id retry, step/token/USD bounds, sealed receipt; 439 console tests.
 > - ✅ **MCP rerun wrapper** (2026-10-30): `cost/codesign_rerun` forwards to
@@ -108,8 +108,8 @@ status: tracked
 >   found 127 FK orphans in `~/.kubona/kubona.db` and a persisted
 >   `active=nvidia`/air-gap-off setting with `KUBONA_LLM_CLOUD` unset — both
 >   operator-visible now.
-> - Optional remaining: opt-in OTel/Sentry exporters and a local release
->   dry-run/checksum script.
+> - Optional remaining: opt-in OTel/Sentry exporters (backend/DSN choice);
+>   the local release dry-run is done.
 > - Short execution list: `docs/remaining-todos.md`. A new blocker surfaced
 >   on 2026-10-30: the host ledger has **606 pre-existing chain faults**, so
 >   the FK-quarantine snapshot is forensic, not a verified restore source.
