@@ -155,6 +155,13 @@ describe('response contracts', () => {
     expect(validateResponse('vault.history', { ok: true, predictions: [] })).toEqual([]);
   });
 
+  it('accepts settings and quantum job envelopes', () => {
+    expect(validateResponse('llm.settings', { provider: 'omlx' })).toEqual([]);
+    expect(validateResponse('quantum.settings', { mode: 'auto' })).toEqual([]);
+    expect(validateResponse('quantum.job', { job_id: 'j1', status: 'QUEUED' })).toEqual([]);
+    expect(validateResponse('quantum.submit', { ok: true, job_id: 'j1' })).toEqual([]);
+  });
+
   it('reports drift once per contract and returns the payload unchanged', () => {
     const logs = vi.spyOn(console, 'error').mockImplementation(() => {});
     const payload = { not_sessions: [] };

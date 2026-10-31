@@ -1077,7 +1077,7 @@ export async function fetchLLMSettings(): Promise<Record<string, unknown> | null
   try {
     const res = await apiFetch(`${API_BASE}/api/llm/settings`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return null;
-    return await res.json();
+    return contract('llm.settings', await res.json());
   } catch (err) {
     console.error('Failed to fetch LLM settings:', err);
     return null;
@@ -1118,7 +1118,7 @@ export async function fetchQuantumSettings(): Promise<Record<string, unknown> | 
   try {
     const res = await apiFetch(`${API_BASE}/api/quantum/settings`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return null;
-    return await res.json();
+    return contract('quantum.settings', await res.json());
   } catch (err) {
     console.error('Failed to fetch quantum settings:', err);
     return null;
@@ -1198,7 +1198,7 @@ export async function submitQuantumJob(
     });
     const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
     if (!res.ok) return { ok: false, error: (data.error as string) || `HTTP ${res.status}` };
-    return data as { ok: boolean; job_id?: string };
+    return contract('quantum.submit', data) as { ok: boolean; job_id?: string };
   } catch (err) {
     console.error('Failed to submit quantum job:', err);
     return { ok: false, error: String(err) };
@@ -1209,7 +1209,7 @@ export async function fetchQuantumJob(jobId: string): Promise<Record<string, unk
   try {
     const res = await apiFetch(`${API_BASE}/api/quantum/jobs/${encodeURIComponent(jobId)}`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return null;
-    return await res.json();
+    return contract('quantum.job', await res.json());
   } catch (err) {
     console.error('Failed to fetch quantum job:', err);
     return null;

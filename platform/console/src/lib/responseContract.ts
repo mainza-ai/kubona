@@ -65,6 +65,12 @@ export const RESPONSE_SCHEMAS = {
       }),
     ),
   }),
+  'llm.settings': obj(),
+  'quantum.settings': obj(),
+  'quantum.job': obj(),
+  'quantum.submit': obj({
+    ok: bool,
+  }),
   'vault.lease': obj({
     lease: obj({
       lease_id: str,
