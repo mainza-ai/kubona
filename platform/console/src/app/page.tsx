@@ -876,12 +876,6 @@ export default function Home() {
 
   return (
     <div className="flex h-screen w-screen bg-[#07080B] text-slate-100 overflow-hidden font-sovereign">
-      <a
-        href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-3 focus:top-3 focus:z-[100] focus:rounded-lg focus:bg-cyan-500 focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-slate-950"
-      >
-        Skip to main content
-      </a>
       <AttentionProvider>
       {/* Modals & Dialogs */}
       <AboutLabModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
@@ -1090,7 +1084,7 @@ export default function Home() {
         <ApiProblemBanner />
         <CheckInStrip loops={loops} />
         {surface === 'arena' && (
-          <main id="main-content" tabIndex={-1} className="relative flex-1 h-full overflow-hidden">
+          <main className="relative flex-1 h-full overflow-hidden">
             <ArenaHud
               targetLabel={targetLabel}
               swarmDetail={runPhase === 'idle' ? 'idle · at rest' : `${loops.length} Loops Live`}
@@ -1180,7 +1174,7 @@ export default function Home() {
         )}
 
         {surface !== 'arena' && (
-          <main id="main-content" tabIndex={-1} className="flex-1 overflow-y-auto">
+          <main className="flex-1 overflow-y-auto">
             {surface === 'proofs' && subToggle(
               [
                 { id: 'manuscripts', label: 'Manuscripts' },
