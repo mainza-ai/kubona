@@ -100,6 +100,38 @@ describe('response contracts', () => {
     expect(issues.some((i) => i.path === 'cost.summary.spent_usd')).toBe(true);
   });
 
+  it('accepts chat, autoresearch, metasearch, codesign, LLM, and HF payloads', () => {
+    expect(validateResponse('chat.send', { user: {}, assistant: {} })).toEqual([]);
+    expect(validateResponse('chat.stream.done', { user: {}, assistant: {} })).toEqual([]);
+    expect(validateResponse('tribunal.run', { tribunal: { turns: [] }, assistant_message: {} })).toEqual([]);
+    expect(validateResponse('chat.launch', { job: {}, loop: {} })).toEqual([]);
+    expect(validateResponse('autoresearch.harnesses', { harnesses: [], docker_runner: null })).toEqual([]);
+    expect(validateResponse('autoresearch.loop', { id: 'l1', session_id: 's1', status: 'running' })).toEqual([]);
+    expect(validateResponse('autoresearch.loops', { loops: [] })).toEqual([]);
+    expect(validateResponse('autoresearch.step', { step: {}, state: {} })).toEqual([]);
+    expect(validateResponse('metasearch.proposals', { proposals: [] })).toEqual([]);
+    expect(validateResponse('codesign.evaluate', { ok: true, spec_kind: 'qasm', result: {} })).toEqual([]);
+    expect(
+      validateResponse('codesign.batch', { ok: true, spec_kind: 'qasm', frontier: {}, details: [] }),
+    ).toEqual([]);
+    expect(validateResponse('codesign.verified', { total: { toffoli: 7 } })).toEqual([]);
+    expect(validateResponse('codesign.packs', { ok: true, packs: [] })).toEqual([]);
+    expect(validateResponse('codesign.families', { ok: true })).toEqual([]);
+    expect(validateResponse('codesign.rerun', { ok: true })).toEqual([]);
+    expect(validateResponse('llm.models', { models: [] })).toEqual([]);
+    expect(validateResponse('hf.search', { models: [] })).toEqual([]);
+    expect(validateResponse('hf.details', { model: null })).toEqual([]);
+    expect(validateResponse('hf.download', { task: null })).toEqual([]);
+    expect(validateResponse('hf.downloads', { downloads: [] })).toEqual([]);
+  });
+
+  it('rejects a codesign verified payload with no numeric anchor', () => {
+    expect(validateResponse('codesign.verified', { total: {} })).toContainEqual({
+      path: 'codesign.verified.total.toffoli',
+      message: 'missing required field',
+    });
+  });
+
   it('reports drift once per contract and returns the payload unchanged', () => {
     const logs = vi.spyOn(console, 'error').mockImplementation(() => {});
     const payload = { not_sessions: [] };

@@ -238,10 +238,10 @@ export async function sendChatMessage(sessionId: string, content: string): Promi
       if (assistant && data.duration_ms != null && assistant.duration_ms == null) {
         assistant.duration_ms = data.duration_ms;
       }
-    return {
+    return contract('chat.send', {
       user: data.user || data.user_message,
       assistant,
-    };
+    });
   } catch (err) {
     console.error('Failed to send chat message:', err);
     return null;
@@ -325,7 +325,7 @@ export async function streamChatMessage(
     if (readerDone) break;
   }
   if (!done) throw new Error('stream ended without done event');
-  return done;
+  return contract('chat.stream.done', done);
 }
 
 export async function runTribunal(
@@ -343,7 +343,7 @@ export async function runTribunal(
       console.error(`Failed to run tribunal (${res.status}):`, text || res.statusText);
       return null;
     }
-    return await res.json();
+    return contract('tribunal.run', await res.json());
   } catch (err) {
     console.error('Failed to run tribunal:', err);
     return null;
@@ -420,7 +420,7 @@ export async function launchProposal(
       const text = (await res.text()).trim().slice(0, 280);
       return { error: text || `HTTP ${res.status}` };
     }
-    return await res.json();
+    return contract('chat.launch', await res.json());
   } catch (err) {
     console.error('Failed to launch proposal:', err);
     return null;
@@ -520,7 +520,7 @@ export async function fetchAutoresearchHarnesses(): Promise<{ harnesses: import(
   try {
     const res = await apiFetch(`${API_BASE}/api/autoresearch/harnesses`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return { harnesses: [], docker_runner: null };
-    return await res.json();
+    return contract('autoresearch.harnesses', await res.json());
   } catch (err) {
     console.error('Failed to fetch autoresearch harnesses:', err);
     return { harnesses: [], docker_runner: null };
@@ -545,7 +545,7 @@ export async function startAutoresearchLoop(
       }),
     });
     if (!res.ok) return null;
-    return await res.json();
+    return contract('autoresearch.loop', await res.json());
   } catch (err) {
     console.error('Failed to start autoresearch loop:', err);
     return null;
@@ -557,6 +557,7 @@ export async function fetchAutoresearchLoops(): Promise<import('@/types').Autore
     const res = await apiFetch(`${API_BASE}/api/autoresearch/loops`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return [];
     const data = await res.json();
+    contract('autoresearch.loops', data);
     return data.loops || [];
   } catch (err) {
     console.error('Failed to fetch autoresearch loops:', err);
@@ -571,7 +572,7 @@ export async function stepAutoresearchLoop(loopId: string): Promise<{ step: impo
       method: 'POST',
     });
     if (!res.ok) return null;
-    return await res.json();
+    return contract('autoresearch.step', await res.json());
   } catch (err) {
     console.error('Failed to step autoresearch loop:', err);
     return null;
@@ -585,7 +586,7 @@ export async function pauseAutoresearchLoop(loopId: string): Promise<import('@/t
       method: 'POST',
     });
     if (!res.ok) return null;
-    return await res.json();
+    return contract('autoresearch.loop', await res.json());
   } catch (err) {
     console.error('Failed to pause autoresearch loop:', err);
     return null;
@@ -599,7 +600,7 @@ export async function resumeAutoresearchLoop(loopId: string): Promise<import('@/
       method: 'POST',
     });
     if (!res.ok) return null;
-    return await res.json();
+    return contract('autoresearch.loop', await res.json());
   } catch (err) {
     console.error('Failed to resume autoresearch loop:', err);
     return null;
@@ -613,7 +614,7 @@ export async function stopAutoresearchLoop(loopId: string): Promise<import('@/ty
       method: 'POST',
     });
     if (!res.ok) return null;
-    return await res.json();
+    return contract('autoresearch.loop', await res.json());
   } catch (err) {
     console.error('Failed to stop autoresearch loop:', err);
     return null;
@@ -625,6 +626,7 @@ export async function fetchMetasearchProposals(): Promise<import('@/types').Meta
     const res = await apiFetch(`${API_BASE}/api/metasearch/proposals`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return [];
     const data = await res.json();
+    contract('metasearch.proposals', data);
     return data.proposals || [];
   } catch (err) {
     console.error('Failed to fetch metasearch proposals:', err);
@@ -911,6 +913,7 @@ export async function fetchCodesignVerified(): Promise<
         `refused (HTTP ${res.status})`;
       return { ok: false, error: msg.slice(0, 280) };
     }
+    contract('codesign.verified', data);
     return { ok: true, result: data as CodesignVerifiedResult };
   } catch (err) {
     return { ok: false, error: String(err).slice(0, 280) };
@@ -933,7 +936,11 @@ export async function evaluateCodesignArtifact(
         `refused (HTTP ${res.status})`;
       return { ok: false, error: msg.slice(0, 280) };
     }
-    return { ok: true, spec_kind: String(data.spec_kind ?? ''), result: (data.result ?? {}) as Record<string, unknown> };
+    return contract('codesign.evaluate', {
+      ok: true,
+      spec_kind: String(data.spec_kind ?? ''),
+      result: (data.result ?? {}) as Record<string, unknown>,
+    }) as { ok: true; spec_kind: string; result: Record<string, unknown> };
   } catch (err) {
     return { ok: false, error: String(err).slice(0, 280) };
   }
@@ -956,12 +963,12 @@ export async function evaluateCodesignBatch(
       const msg = (data && (data.message || data.error)) || `refused (HTTP ${res.status})`;
       return { ok: false, error: String(msg).slice(0, 280) };
     }
-    return {
+    return contract('codesign.batch', {
       ok: true,
       spec_kind: String(data.spec_kind ?? ''),
       frontier: (data.frontier ?? {}) as Record<string, unknown>,
       details: Array.isArray(data.details) ? data.details as Array<Record<string, unknown>> : [],
-    };
+    }) as { ok: true; spec_kind: string; frontier: Record<string, unknown>; details: Array<Record<string, unknown>> };
   } catch (err) {
     return { ok: false, error: String(err).slice(0, 280) };
   }
@@ -983,6 +990,7 @@ export async function fetchCodesignPacks(): Promise<
         `refused (HTTP ${res.status})`;
       return { ok: false, error: msg.slice(0, 280) };
     }
+    contract('codesign.packs', data);
     return { ok: true, result: data as CodesignPacksResult };
   } catch (err) {
     return { ok: false, error: String(err).slice(0, 280) };
@@ -1008,6 +1016,7 @@ export async function runFamilySearch(
         `refused (HTTP ${res.status})`;
       return { ok: false, error: msg.slice(0, 280) };
     }
+    contract('codesign.families', data);
     return { ok: true, result: data as CodesignFamiliesResult };
   } catch (err) {
     return { ok: false, error: String(err).slice(0, 280) };
@@ -1035,6 +1044,7 @@ export async function rerunCodesignProposal(
       const msg = res.status === 401 ? `login required — ${raw}` : raw;
       return { ok: false, error: msg.slice(0, 280) };
     }
+    contract('codesign.rerun', data);
     return { ok: true, result: data as CodesignRerunResult };
   } catch (err) {
     return { ok: false, error: String(err).slice(0, 280) };
@@ -1252,7 +1262,7 @@ export async function fetchLLMModels(provider: string = 'omlx'): Promise<Record<
   try {
     const res = await apiFetch(`${API_BASE}/api/llm/models?provider=${encodeURIComponent(provider)}`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return { models: [] };
-    return await res.json();
+    return contract('llm.models', await res.json());
   } catch (err) {
     console.error('Failed to fetch LLM models:', err);
     return { models: [] };
@@ -1292,6 +1302,7 @@ export async function searchHFModels(
     // throw so callers toast them; only a genuine empty hub reads empty.
     if (!res.ok) throw new Error(`hub refused search (HTTP ${res.status}): no operator token or hub unreachable`);
     const data = await res.json();
+    contract('hf.search', data);
     return data.models || [];
   } catch (err) {
     if (err instanceof Error && err.message.startsWith('hub refused')) throw err;
@@ -1307,6 +1318,7 @@ export async function getHFModelDetails(
     const res = await apiFetch(`${API_BASE}/api/hf/models/${encodeURIComponent(repoId)}`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return null;
     const data = await res.json();
+    contract('hf.details', data);
     return data.model || null;
   } catch (err) {
     console.error('Failed to fetch HF model details:', err);
@@ -1336,6 +1348,7 @@ export async function startHFDownload(
     });
     if (!res.ok) return null;
     const data = await res.json();
+    contract('hf.download', data);
     return data.task || null;
   } catch (err) {
     console.error('Failed to start HF download:', err);
@@ -1350,6 +1363,7 @@ export async function listHFDownloads(): Promise<import('@/types').HFDownloadTas
     // Pollers already swallow rejections silently; manual callers toast.
     if (!res.ok) throw new Error(`hub refused download list (HTTP ${res.status}): no operator token or hub unreachable`);
     const data = await res.json();
+    contract('hf.downloads', data);
     return data.downloads || [];
   } catch (err) {
     if (err instanceof Error && err.message.startsWith('hub refused')) throw err;
