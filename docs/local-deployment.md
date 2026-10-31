@@ -232,6 +232,11 @@ daemon is reported, not treated as a failure; an absent backup directory is
 reported as optional, while a configured-but-empty/stale/failed backup set is
 a `--strict` failure.
 
+`kubonad preflight` is the stack-start gate (compose runs it before kubonad).
+It checks the same rate-card/ledger/FK/backup conditions. Set
+`KUBONA_ALERT_WEBHOOK_URL` to receive a JSON `{"text": ...}` POST when
+preflight or a scheduled backup fails.
+
 ## 9. Diagnostics (local by default)
 
 - Logs: `docker compose ... logs -f kubonad console bridge`.
