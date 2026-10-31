@@ -27,8 +27,8 @@ development — re-verify the gate on the exact commit before citing
 "production-ready" as current fact. Do not cite "private" as current fact.
 
 > ⚑ State correction (2026-10-31): the 20-job **push** gate is green at
-> `fbd40c5` (runs `41231972882` on develop, `41231974985` on main; 20/20),
-> with Console E2E green there too (`41231972906` develop, `41231975052`
+> `52fd21b` (runs `41240078240` on develop, `41240082146` on main; 20/20),
+> with Console E2E green there too (`41240078115` develop, `41240082166`
 > main). The **nightly thesis-scale** gate remains green at `c7d98f6`
 > (`41041244412`: canary + slice60 composition + determinism); console-only
 > commits after it did not rerun that nightly. P0 recovery landed: verified
@@ -37,11 +37,12 @@ development — re-verify the gate on the exact commit before citing
 > camera; preflight gates rate/ledger/FK/backup; OpenAPI is generated for
 > modeled console operations; contract drift reaches the banner and can
 > fail closed with `KUBONA_STRICT_CONTRACTS=1`; structural/reduced-motion
-> a11y checks gate E2E. The paid E2E run found and staged fixes for queued
-> hardware status promotion, terminal/cancel usage settlement, cached Atlas
-> assets, GCS image proxy, and missing compose credentials; see
-> `docs/paid-e2e-readiness-2026-10-31.md`. Do not run another paid test
-> until its validation order is green. The earlier
+> a11y checks gate E2E. The paid E2E run found and fixed queued hardware
+> status promotion, terminal/cancel usage settlement, cached Atlas assets,
+> GCS image proxy, missing compose credentials, bridge state persistence,
+> and Qiskit result serialization; the controlled `ibm_marrakesh` run
+> settled 2 s / $3.20. See `docs/paid-e2e-readiness-2026-10-31.md`. Do not
+> run another paid test until the free validation order is green. The earlier
 > red nightly runs (`40854405074`, `40666624246`, `40478035440`,
 > `41000688966`, `41003185385`) are history, not current state; re-verify the
 > exact commit before citing "green". The reviewer-key claim above is
