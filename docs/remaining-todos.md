@@ -25,12 +25,15 @@ Updated 2026-10-30. This is the short execution list; the full queue lives in
       schemas packaged into the bridge image.
 - [x] Tenant grants UI; browser admin-key recovery/rotation with an
       encrypted offline kit; route-level console/backend contract gate
-      (109 paths); structural response contracts for live core payloads
-      (sessions, events, loops, fleet, capabilities, canvas, obligations,
-      quantum backends); SSE telemetry with polling fallback; canvas layout
-      persistence; narrow-screen canvas density.
+      (109 paths); structural response contracts for the live session and
+      operational payloads (sessions, events, loops, jobs, messages, fleet,
+      capabilities, canvas, obligations, quantum backends, agents, labs,
+      cost, memory, workflows, QIR, auth); SSE telemetry with polling
+      fallback; canvas layout persistence; narrow-screen canvas density;
+      keyboard skip link and live-region toasts.
 - [ ] Still open: generated response schemas for the remaining console
-      paths beyond the live core; full mobile/accessibility pass.
+      paths (chat/tribunal, autoresearch, codesign, LLM/HF, vault/lens,
+      export/import); full mobile/accessibility pass.
 
 ## Production blockers
 
