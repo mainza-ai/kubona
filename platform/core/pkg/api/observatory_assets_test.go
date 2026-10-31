@@ -288,6 +288,9 @@ func TestObservatoryLensResolve(t *testing.T) {
 	if rec2.Code != http.StatusOK || !bytes.Contains(rec2.Body.Bytes(), []byte("test pavilion")) {
 		t.Fatalf("expected stored record on re-resolve, got %d (%s)", rec2.Code, rec2.Body.String())
 	}
+	if !bytes.Contains(rec2.Body.Bytes(), []byte(`"asset_urls"`)) {
+		t.Fatalf("cached resolve dropped asset_urls: %s", rec2.Body.String())
+	}
 }
 
 func TestObservatoryLensResolveEphemeralPurge(t *testing.T) {

@@ -999,7 +999,7 @@ def submit_job(circuit_qasm: str, provider: str = "local-simulator", shots: int 
 def _refresh_deferred_hardware_job(job):
     """If `job` is running with a pinned `hardware_job_id`, poll the vendor
     status non-blockingly and transition the store on terminal state."""
-    if job is None or job.status != "running":
+    if job is None or job.status not in ("queued", "running"):
         return job, None
     hw_id = (getattr(job, "meta", None) or {}).get("hardware_job_id")
     if not hw_id:
@@ -1011,6 +1011,13 @@ def _refresh_deferred_hardware_job(job):
         return job, str(e)
     p_status = polled.get("status")
     try:
+        # Hardware jobs are created queued and never pass through the local
+        # worker; promote only on a terminal poll so the legal lifecycle edge
+        # queued -> running -> terminal is preserved.
+        if job.status == "queued" and p_status in ("completed", "failed", "cancelled"):
+            promoted = _runner.store.transition(job.job_id, "running")
+            if promoted is not None:
+                job = promoted
         if p_status == "completed":
             updated = _runner.store.transition(
                 job.job_id, "completed", result=polled.get("result") or polled
@@ -1081,6 +1088,39 @@ def get_job_status(job_id: str, caller: dict | None = None) -> dict:
         out["layout"] = layout
     if poll_warn:
         out["poll_warning"] = poll_warn
+    # Terminal usage must ride the status envelope: the Go cancel path reads
+    # status (not result) and settles from these fields. Dropping them keeps
+    # the full estimate after a cancelled/zero-usage vendor job.
+    if isinstance(job.result, dict):
+        for key in ("usage_seconds", "actual_usd"):
+            if job.result.get(key) is not None:
+                out[key] = job.result[key]
+    # Cancelled jobs are fenced before the vendor meter settles. Poll the
+    # vendor once on read when terminal usage is still absent so Go can
+    # release/charge the measured amount instead of keeping the estimate.
+    if job.status in ("completed", "failed", "cancelled") and "usage_seconds" not in out:
+        hw_id = (getattr(job, "meta", None) or {}).get("hardware_job_id")
+        if hw_id:
+            try:
+                polled = get_provider(job.provider).poll_hardware_job(str(hw_id))
+                usage = {}
+                for key in ("usage_seconds", "actual_usd"):
+                    value = polled.get(key)
+                    if value is None and isinstance(polled.get("result"), dict):
+                        value = polled["result"].get(key)
+                    if value is not None:
+                        usage[key] = value
+                if usage:
+                    out.update(usage)
+                    # Persist once so a terminal status read does not hit the
+                    # vendor on every UI poll.
+                    merged = dict(job.result or {})
+                    merged.update(usage)
+                    merged["hardware_job_id"] = str(hw_id)
+                    job.result = merged
+                    _runner.store._save(job)
+            except Exception:
+                pass
     return out
 
 
@@ -1097,12 +1137,20 @@ def get_result(job_id: str, caller: dict | None = None) -> dict:
     job, _ = _refresh_deferred_hardware_job(job)
     if job.status == "failed":
         out = {"ok": False, "job_id": job_id, "status": job.status, "error": job.error}
+        if isinstance(job.result, dict):
+            for key in ("usage_seconds", "actual_usd"):
+                if job.result.get(key) is not None:
+                    out[key] = job.result[key]
         settle = _maybe_settle_job(job)
         if isinstance(settle, dict) and settle.get("refunded_usd", 0.0) > 0:
             out["settlement"] = settle
         return out
     if job.status == "cancelled":
         out = {"ok": False, "job_id": job_id, "status": job.status, "error": "job cancelled"}
+        if isinstance(job.result, dict):
+            for key in ("usage_seconds", "actual_usd"):
+                if job.result.get(key) is not None:
+                    out[key] = job.result[key]
         settle = _maybe_settle_job(job)
         if isinstance(settle, dict) and settle.get("refunded_usd", 0.0) > 0:
             out["settlement"] = settle
@@ -1160,6 +1208,21 @@ def cancel_job(job_id: str, caller: dict | None = None) -> dict:
         # failure/cancel settlement); otherwise the charge stands (the vendor
         # may have run), stated in the receipt.
         fresh = _runner.store.get(job_id)
+        # The vendor may already be terminal; persist its measured usage on
+        # the fenced job before settling. Without this the Python rail also
+        # keeps the full estimate after a zero-usage cancel.
+        if fresh is not None:
+            try:
+                polled = get_provider(fresh.provider).poll_hardware_job(str(hw))
+                usage = {k: polled[k] for k in ("usage_seconds", "actual_usd") if polled.get(k) is not None}
+                if not usage and isinstance(polled.get("result"), dict):
+                    usage = {k: polled["result"][k] for k in ("usage_seconds", "actual_usd") if polled["result"].get(k) is not None}
+                if usage:
+                    usage["hardware_job_id"] = str(hw)
+                    fresh.result = usage
+                    _runner.store._save(fresh)
+            except Exception:
+                pass
         settle = _maybe_settle_job(fresh) if fresh is not None else None
         if isinstance(settle, dict) and settle.get("refunded_usd", 0.0) > 0:
             out["settled_to_actual_usd"] = settle.get("actual_usd")

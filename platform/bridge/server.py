@@ -638,6 +638,9 @@ class QuantumBridgeServicer(kubona_pb2_grpc.QuantumBridgeServiceServicer):
                 payload["hardware_job_id"] = str(hw)
             if st.get("layout"):
                 payload["layout"] = st.get("layout")
+            for key in ("usage_seconds", "actual_usd"):
+                if st.get(key) is not None:
+                    payload[key] = st.get(key)
             if res.get("ok"):
                 payload["result"] = res.get("result", {})
             elif res.get("error"):

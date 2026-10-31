@@ -40,6 +40,12 @@ Updated 2026-10-30. This is the short execution list; the full queue lives in
 - [ ] Still open: deep accessibility audit across every modal/surface
       (contrast, focus order, reduced motion, screen-reader transcripts).
 
+## Paid E2E readiness (2026-10-31)
+
+See [`paid-e2e-readiness-2026-10-31.md`](paid-e2e-readiness-2026-10-31.md)
+for the live-run findings, budget consumed, staged fixes, and the required
+validation order before another paid dispatch.
+
 ## Production readiness plan (2026-10-31)
 
 The full gap register, phased plan, and definition of done are in

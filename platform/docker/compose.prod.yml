@@ -163,6 +163,15 @@ services:
       # Shared secret for the private bridge RPCs. Defaults to the API
       # token so the supported quickstart needs one value, not two.
       KUBONA_BRIDGE_TOKEN: ${KUBONA_BRIDGE_TOKEN:-${KUBONA_API_TOKEN:-}}
+      # Provider credentials are held by the bridge; kubonad reads the same
+      # presence for fleet credential_state (never for dispatch). Passing
+      # only to the bridge made a credentialed IBM backend read
+      # "credentialless" in /api/quantum/backends and discouraged dispatch.
+      KUBONA_IBM_QISKIT_TOKEN: ${KUBONA_IBM_QISKIT_TOKEN:-}
+      KUBONA_IBM_QISKIT_INSTANCE: ${KUBONA_IBM_QISKIT_INSTANCE:-}
+      KUBONA_IBM_QISKIT_CHANNEL: ${KUBONA_IBM_QISKIT_CHANNEL:-ibm_quantum_platform}
+      KUBONA_IBM_QISKIT_BACKEND: ${KUBONA_IBM_QISKIT_BACKEND:-}
+      KUBONA_IBM_MAX_EXECUTION_SECONDS: ${KUBONA_IBM_MAX_EXECUTION_SECONDS:-600}
       # Human-reviewer mandate key. Without it, production refuses to sign
       # mandates (ephemeral signers are dev-only). Generate with:
       #   kubonad keygen
@@ -177,6 +186,11 @@ services:
       # container need a mount; a URL is fetched by kubonad with HTTPS.
       KUBONA_RATE_CARD_PATH: ${KUBONA_RATE_CARD_PATH:-}
       KUBONA_RATE_CARD_URL: ${KUBONA_RATE_CARD_URL:-}
+      # Optional Atlas lens (metered separately from QPU/LLM). Keys are
+      # operator-supplied; absent means the lens fails closed.
+      KUBONA_ATLAS_ENABLED: ${KUBONA_ATLAS_ENABLED:-0}
+      WLT_API_KEY: ${WLT_API_KEY:-}
+      WLT_API_BASE_URL: ${WLT_API_BASE_URL:-https://api.atlas-beta.worldlabs.ai}
       KUBONA_LLM_BUDGET_USD: ${KUBONA_LLM_BUDGET_USD:-}
       KUBONA_CODESIGN_RUN_BUDGET_USD: ${KUBONA_CODESIGN_RUN_BUDGET_USD:-0.50}
       KUBONA_LLM_PROVIDER: ${KUBONA_LLM_PROVIDER:-}

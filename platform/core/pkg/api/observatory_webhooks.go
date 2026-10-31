@@ -250,10 +250,6 @@ func (s *Server) resolveLensOperation(sessionID, opID string) (map[string]any, e
 	if op.Error != nil {
 		return map[string]any{"ok": true, "done": true, "error": op.Error}, nil
 	}
-	if existing := findLensAnnotation(s.ledger, sessionID, opID, true); existing != nil {
-		existing["cached"] = true
-		return existing, nil
-	}
 	promptUsed := ""
 	var imageURLs []string
 	var assetIDs []string
@@ -265,6 +261,24 @@ func (s *Server) resolveLensOperation(sessionID, opID string) (map[string]any, e
 				assetIDs = append(assetIDs, f.ImageAsset.AssetID)
 			}
 		}
+	}
+	dispatch := findLensAnnotation(s.ledger, sessionID, opID, false)
+	if promptUsed == "" && dispatch != nil {
+		if p, _ := dispatch["prompt_used"].(string); p != "" {
+			promptUsed = p
+		}
+	}
+	if existing := findLensAnnotation(s.ledger, sessionID, opID, true); existing != nil {
+		existing["cached"] = true
+		// Older resolve rows did not persist asset URLs; enrich them from the
+		// live Atlas operation instead of returning an asset-less terminal.
+		if _, ok := existing["asset_urls"]; !ok && len(imageURLs) > 0 {
+			existing["asset_urls"] = imageURLs
+		}
+		if pu, _ := existing["prompt_used"].(string); pu == "" && promptUsed != "" {
+			existing["prompt_used"] = promptUsed
+		}
+		return existing, nil
 	}
 
 	// Ephemeral purge: the dispatch annotation carries the flag. Download
@@ -319,6 +333,8 @@ func (s *Server) resolveLensOperation(sessionID, opID string) (map[string]any, e
 		"text":         fmt.Sprintf("World Labs Atlas lens resolved: operation %s (%d frames)", opID, len(imageURLs)),
 		"operation_id": opID,
 		"prompt_used":  promptUsed,
+		"asset_urls":   imageURLs,
+		"local_paths":  localPaths,
 		"resolved":     true,
 	})
 	return record, nil

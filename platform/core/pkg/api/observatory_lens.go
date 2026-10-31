@@ -469,6 +469,7 @@ func (s *Server) handleObservatoryLensDispatch(w http.ResponseWriter, r *http.Re
 		"text":            fmt.Sprintf("World Labs Atlas lens dispatched (%s): operation %s ($%.2f reserved)", taskType, opResult.OperationID, lensCost),
 		"task_type":       taskType,
 		"operation_id":    opResult.OperationID,
+		"prompt_used":     req.Prompt,
 		"idempotency_key": idemKey,
 		"cost_usd":        lensCost,
 		"voxel_size":      req.VoxelSize,
@@ -719,8 +720,8 @@ func (s *Server) handleObservatoryLensImage(w http.ResponseWriter, r *http.Reque
 		return
 	}
 	u, err := url.Parse(raw)
-	if err != nil || u.Scheme != "https" || !allowedAtlasImageHost(u.Hostname()) {
-		WriteAPIError(w, "bad_request", "lens image URL must be HTTPS on a worldlabs.ai host", nil)
+	if err != nil || !allowedAtlasImageURL(u) {
+		WriteAPIError(w, "bad_request", "lens image URL must be HTTPS on a worldlabs.ai host or the Atlas output bucket", nil)
 		return
 	}
 	client := &http.Client{
@@ -729,7 +730,7 @@ func (s *Server) handleObservatoryLensImage(w http.ResponseWriter, r *http.Reque
 			if len(via) >= 4 {
 				return fmt.Errorf("too many redirects")
 			}
-			if req.URL.Scheme != "https" || !allowedAtlasImageHost(req.URL.Hostname()) {
+			if !allowedAtlasImageURL(req.URL) {
 				return fmt.Errorf("redirected outside World Labs HTTPS hosts")
 			}
 			return nil
@@ -774,4 +775,17 @@ func (s *Server) handleObservatoryLensImage(w http.ResponseWriter, r *http.Reque
 func allowedAtlasImageHost(host string) bool {
 	host = strings.ToLower(strings.TrimSpace(host))
 	return host == "worldlabs.ai" || strings.HasSuffix(host, ".worldlabs.ai")
+}
+
+// Atlas returns generated frames as signed URLs in its GCS output bucket,
+// not on a worldlabs.ai host. Allow only that bucket path, never all of GCS.
+func allowedAtlasImageURL(u *url.URL) bool {
+	if u == nil || u.Scheme != "https" {
+		return false
+	}
+	if allowedAtlasImageHost(u.Hostname()) {
+		return true
+	}
+	return strings.EqualFold(u.Hostname(), "storage.googleapis.com") &&
+		strings.HasPrefix(u.EscapedPath(), "/wlt-marble-outputs-prod/")
 }
