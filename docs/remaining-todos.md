@@ -55,7 +55,8 @@ The full gap register, phased plan, and definition of done are in
 - [x] P1: SSE event IDs + Last-Event-ID cursor replay (server + client native reconnect).
 - [x] P1: canvas layout now restores the 3D camera position and orbit target.
 - [x] P1: `doctor` reports configured backup freshness and newer failure markers.
-- [x] P1: structural a11y E2E (names, labels, img alt, one main landmark).
+- [x] P1: structural a11y E2E (names, labels, img alt, one main landmark)
+      and command-palette focus trap/Escape.
 - [x] P1: generated response-contract inventory (61 modeled / 68 explicit
       unmodeled / 58 schemas), OpenAPI 3.1 (60 paths), CI freshness checks.
 - [x] P1: optional external JSON webhook on preflight and backup failure.
