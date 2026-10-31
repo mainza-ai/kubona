@@ -94,6 +94,7 @@ export function SovereignDock({
                 data-testid={`dock-${s.id}`}
                 aria-label={s.label}
                 aria-pressed={isActive}
+                aria-current={isActive ? 'page' : undefined}
                 onClick={() => onSelect(s.id)}
                 className={`group relative w-11 h-11 rounded-xl flex items-center justify-center transition-all hover:scale-105 focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none ${
                   isActive

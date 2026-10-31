@@ -30,10 +30,10 @@ Updated 2026-10-30. This is the short execution list; the full queue lives in
       capabilities, canvas, obligations, quantum backends, agents, labs,
       cost, memory, workflows, QIR, auth); SSE telemetry with polling
       fallback; canvas layout persistence; narrow-screen canvas density;
-      keyboard skip link and live-region toasts.
-- [ ] Still open: generated response schemas for the remaining console
-      paths (chat/tribunal, autoresearch, codesign, LLM/HF, vault/lens,
-      export/import); full mobile/accessibility pass.
+      keyboard skip link, live-region toasts, and dock aria-current.
+      Response contracts now cover chat/tribunal, autoresearch/metasearch,
+      codesign, LLM/HF, vault/predictions, lens, ledger, and settings.
+- [ ] Still open: full mobile/accessibility sweep across every surface.
 
 ## Production blockers
 
