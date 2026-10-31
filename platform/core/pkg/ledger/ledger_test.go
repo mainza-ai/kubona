@@ -537,3 +537,33 @@ func TestUnregisteredEventTypeRefused(t *testing.T) {
 		t.Fatalf("registry lookup broken")
 	}
 }
+
+func TestGetEventsSinceReturnsAscendingCursorBatch(t *testing.T) {
+	path := t.TempDir() + "/events.db"
+	l, err := ledger.OpenLedger(path)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	defer l.Close()
+	for _, marker := range []string{"one", "two", "three"} {
+		if err := l.AppendEvent("sess-cursor", "annotation", map[string]any{"marker": marker}); err != nil {
+			t.Fatalf("append %s: %v", marker, err)
+		}
+	}
+	all, err := l.GetRecentEvents("sess-cursor", 10)
+	if err != nil || len(all) != 3 {
+		t.Fatalf("recent: n=%d err=%v", len(all), err)
+	}
+	// GetRecentEvents is newest-first; the cursor API must be oldest-first.
+	cursor := all[2].ID
+	next, err := l.GetEventsSince("sess-cursor", cursor, 10)
+	if err != nil {
+		t.Fatalf("since: %v", err)
+	}
+	if len(next) != 2 || next[0].ID >= next[1].ID || next[0].ID <= cursor {
+		t.Fatalf("cursor batch = %+v, want two ascending rows after %d", next, cursor)
+	}
+	if got, err := l.GetEventsSince("sess-cursor", next[1].ID, 10); err != nil || len(got) != 0 {
+		t.Fatalf("tail batch = %+v err=%v, want empty", got, err)
+	}
+}

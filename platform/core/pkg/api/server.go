@@ -3503,14 +3503,64 @@ func (s *Server) handleEventsStream(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 	}
 
-	// Emit initial connection ACK frame
+	// Cursor replay: Last-Event-ID is the browser's native reconnect cursor;
+	// last_event_id is the explicit query form for non-EventSource clients.
+	// No cursor starts at the current tip (the console already fetched its
+	// snapshot). A cursor ahead of this ledger resets to the tip rather than
+	// suppressing every future event.
+	cursor := int64(0)
+	cursorSet := false
+	if raw := r.Header.Get("Last-Event-ID"); raw != "" {
+		if n, perr := strconv.ParseInt(raw, 10, 64); perr == nil && n >= 0 {
+			cursor, cursorSet = n, true
+		}
+	}
+	if !cursorSet {
+		if raw := r.URL.Query().Get("last_event_id"); raw != "" {
+			if n, perr := strconv.ParseInt(raw, 10, 64); perr == nil && n >= 0 {
+				cursor, cursorSet = n, true
+			}
+		}
+	}
+	latestID := int64(0)
+	if events, lerr := s.ledger.GetRecentEvents(sessionID, 1); lerr == nil && len(events) > 0 {
+		latestID = events[0].ID
+	}
+	if !cursorSet || cursor > latestID {
+		cursor = latestID
+	}
+
+	writeFrames := func(events []ledger.EventRecord) {
+		for _, ev := range events {
+			payload, _ := json.Marshal(map[string]any{
+				"type":      "telemetry_tick",
+				"timestamp": time.Now().UTC().Format(time.RFC3339),
+				"event":     ev,
+			})
+			fmt.Fprintf(w, "id: %d\nevent: telemetry\ndata: %s\n\n", ev.ID, payload)
+		}
+		if len(events) > 0 {
+			flusher.Flush()
+		}
+	}
+
+	// Emit initial connection ACK frame with the effective cursor.
 	initData, _ := json.Marshal(map[string]any{
 		"type":       "connection_ack",
 		"session_id": sessionID,
+		"cursor":     cursor,
 		"timestamp":  time.Now().UTC().Format(time.RFC3339),
 	})
-	fmt.Fprintf(w, "event: connected\ndata: %s\n\n", initData)
+	fmt.Fprintf(w, "event: connected\ndata: %s\nretry: 3000\n\n", initData)
 	flusher.Flush()
+
+	// Replay any gap before entering the live loop.
+	if cursorSet {
+		if events, err := s.ledger.GetEventsSince(sessionID, cursor, 200); err == nil && len(events) > 0 {
+			writeFrames(events)
+			cursor = events[len(events)-1].ID
+		}
+	}
 
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
@@ -3521,15 +3571,10 @@ func (s *Server) handleEventsStream(w http.ResponseWriter, r *http.Request) {
 		case <-notify:
 			return
 		case <-ticker.C:
-			events, err := s.ledger.GetRecentEvents(sessionID, 5)
+			events, err := s.ledger.GetEventsSince(sessionID, cursor, 100)
 			if err == nil && len(events) > 0 {
-				data, _ := json.Marshal(map[string]any{
-					"type":      "telemetry_tick",
-					"timestamp": time.Now().UTC().Format(time.RFC3339),
-					"events":    events,
-				})
-				fmt.Fprintf(w, "event: telemetry\ndata: %s\n\n", data)
-				flusher.Flush()
+				writeFrames(events)
+				cursor = events[len(events)-1].ID
 			} else {
 				fmt.Fprintf(w, ": heartbeat %s\n\n", time.Now().UTC().Format(time.RFC3339))
 				flusher.Flush()
