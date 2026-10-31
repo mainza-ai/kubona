@@ -55,17 +55,18 @@ The full gap register, phased plan, and definition of done are in
 - [x] P1: SSE event IDs + Last-Event-ID cursor replay (server + client native reconnect).
 - [x] P1: canvas layout now restores the 3D camera position and orbit target.
 - [x] P1: `doctor` reports configured backup freshness and newer failure markers.
-- [x] P1: structural a11y E2E (names, labels, img alt, one main landmark)
-      and command-palette focus trap/Escape.
+- [x] P1: structural a11y E2E (names, labels, img alt, one main landmark),
+      command-palette focus trap/Escape, reduced-motion animation check.
 - [x] P1: generated response-contract inventory (61 modeled / 68 explicit
       unmodeled / 58 schemas), OpenAPI 3.1 (60 paths), CI freshness checks.
 - [x] P1: optional external JSON webhook on preflight and backup failure.
 - [x] P1: `kubonad preflight` gate before kubonad starts (rate card, ledger
       chain/schema, FK, optional backup freshness).
-- [ ] P1: strict runtime validation for modeled responses; full OpenAPI
-      coverage for the 68 unmodeled functions.
+- [x] P1: contract drift reaches the API banner; strict mode is opt-in via
+      `KUBONA_STRICT_CONTRACTS=1`.
+- [ ] P1: schemas for the 68 unmodeled API functions.
 - [ ] P1: disk/rate-specific external alert routing beyond preflight/backup.
-- [ ] P1: contrast/modal/reduced-motion/screen-reader audit.
+- [ ] P1: contrast/other-modal/screen-reader audit.
 
 ## Production blockers
 

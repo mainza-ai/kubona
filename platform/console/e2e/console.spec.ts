@@ -161,6 +161,21 @@ test.describe('Kubona console against the real local stack', () => {
     await expect(dialog).toHaveCount(0);
   });
 
+  test('reduced motion disables ambient animation utilities', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/');
+    await expectReady(page);
+    const animation = await page.evaluate(() => {
+      const probe = document.createElement('div');
+      probe.className = 'animate-float-gentle';
+      document.body.appendChild(probe);
+      const name = getComputedStyle(probe).animationName;
+      probe.remove();
+      return name;
+    });
+    expect(animation).toBe('none');
+  });
+
   test('backend refusal is visible instead of a fake empty state', async ({ page }) => {
     const errors = collectPageErrors(page);
     await page.route('**/api/llm/settings', (route) =>

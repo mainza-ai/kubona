@@ -320,12 +320,25 @@ export function validateResponse(name: ContractName, value: unknown): ContractIs
 }
 
 const reported = new Set<ContractName>();
+let driftHandler: ((name: ContractName, issues: ContractIssue[]) => void) | null = null;
+
+export function setContractDriftHandler(
+  handler: ((name: ContractName, issues: ContractIssue[]) => void) | null,
+): void {
+  driftHandler = handler;
+}
+
+export function strictResponseContracts(): boolean {
+  return process.env.NEXT_PUBLIC_KUBONA_STRICT_CONTRACTS === '1';
+}
 
 export function reportResponseContract(name: ContractName, value: unknown): ContractIssue[] {
   const issues = validateResponse(name, value);
   if (issues.length > 0 && !reported.has(name)) {
     reported.add(name);
-    console.error(`[response-contract] ${name} drifted: ${issues.map((i) => `${i.path}: ${i.message}`).join('; ')}`);
+    const detail = issues.map((i) => `${i.path}: ${i.message}`).join('; ');
+    console.error(`[response-contract] ${name} drifted: ${detail}`);
+    driftHandler?.(name, issues);
   }
   return issues;
 }
@@ -335,6 +348,9 @@ export function resetResponseContractReports(): void {
 }
 
 export function contract<T>(name: ContractName, value: T): T {
-  reportResponseContract(name, value);
+  const issues = reportResponseContract(name, value);
+  if (issues.length > 0 && strictResponseContracts()) {
+    throw new Error(`[response-contract] ${name} drifted: ${issues.map((i) => `${i.path}: ${i.message}`).join('; ')}`);
+  }
   return value;
 }
