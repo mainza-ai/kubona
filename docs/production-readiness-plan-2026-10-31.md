@@ -5,6 +5,8 @@ private deployment**: one operator, one host (or a private tunnel to it),
 loopback-published console/API, local ledger and simulator, optional QPU and
 BYOK cloud LLM. It is not a public-SaaS readiness claim.
 
+**Owner:** maintainer. **Review cadence:** after each phase and before any release tag.
+
 **Current verdict.** The code gate is green and a fresh local compose stack is
 functional. The platform is ready for a **controlled fresh-volume deployment**
 with an operator who follows the runbook. It is **not yet operationally
