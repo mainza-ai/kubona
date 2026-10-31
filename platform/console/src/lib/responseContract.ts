@@ -65,6 +65,80 @@ export const RESPONSE_SCHEMAS = {
       }),
     ),
   }),
+  'chat.send': obj({
+    user: any,
+    assistant: any,
+  }),
+  'chat.stream.done': obj({
+    user: any,
+    assistant: any,
+  }),
+  'tribunal.run': obj({
+    tribunal: obj({ turns: arr(any) }),
+    assistant_message: any,
+  }),
+  'chat.launch': obj({
+    job: any,
+    loop: any,
+  }),
+  'autoresearch.harnesses': obj({
+    harnesses: arr(any),
+    docker_runner: any,
+  }),
+  'autoresearch.loop': obj({
+    id: str,
+    session_id: str,
+    status: str,
+  }),
+  'autoresearch.loops': obj({
+    loops: arr(any),
+  }),
+  'autoresearch.step': obj({
+    step: any,
+    state: any,
+  }),
+  'metasearch.proposals': obj({
+    proposals: arr(any),
+  }),
+  'codesign.evaluate': obj({
+    ok: bool,
+    spec_kind: str,
+    result: obj(),
+  }),
+  'codesign.batch': obj({
+    ok: bool,
+    spec_kind: str,
+    frontier: obj(),
+    details: arr(any),
+  }),
+  'codesign.verified': obj({
+    total: obj({ toffoli: num }),
+  }),
+  'codesign.packs': obj({
+    ok: bool,
+    packs: arr(any),
+  }),
+  'codesign.families': obj({
+    ok: bool,
+  }),
+  'codesign.rerun': obj({
+    ok: bool,
+  }),
+  'llm.models': obj({
+    models: arr(any),
+  }),
+  'hf.search': obj({
+    models: arr(any),
+  }),
+  'hf.downloads': obj({
+    downloads: arr(any),
+  }),
+  'hf.details': obj({
+    model: any,
+  }),
+  'hf.download': obj({
+    task: any,
+  }),
   'messages.list': obj({
     messages: arr(obj({ id: str, role: str, content: str })),
   }),
