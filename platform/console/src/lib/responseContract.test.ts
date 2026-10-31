@@ -132,6 +132,29 @@ describe('response contracts', () => {
     });
   });
 
+  it('accepts vault, ledger, and observatory lens payloads', () => {
+    expect(validateResponse('ledger.verify', { ok: true, fault_count: 0 })).toEqual([]);
+    expect(
+      validateResponse('vault.lease', {
+        lease: {
+          lease_id: 'l1',
+          scope: 'read',
+          ttl_seconds: 60,
+          lease_signature: 'sig',
+          issued_at: 'now',
+          expires_at: 'later',
+        },
+      }),
+    ).toEqual([]);
+    expect(validateResponse('lens.request', { ok: true, operation_id: 'op' })).toEqual([]);
+    expect(validateResponse('lens.resolve', { ok: true, done: false })).toEqual([]);
+    expect(validateResponse('lens.history', { ok: true, operations: [] })).toEqual([]);
+    expect(validateResponse('lens.status', { ok: true })).toEqual([]);
+    expect(validateResponse('vault.latest', { ok: true, sealed: null })).toEqual([]);
+    expect(validateResponse('vault.calibration', { ok: true, evaluations: 0 })).toEqual([]);
+    expect(validateResponse('vault.history', { ok: true, predictions: [] })).toEqual([]);
+  });
+
   it('reports drift once per contract and returns the payload unchanged', () => {
     const logs = vi.spyOn(console, 'error').mockImplementation(() => {});
     const payload = { not_sessions: [] };

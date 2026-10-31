@@ -2244,6 +2244,7 @@ export async function issueVaultLease(scope: string, ttlSeconds: number, session
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return { ok: false, error: String(data.error || data.message || `HTTP ${res.status}`).slice(0, 280) };
+    contract('vault.lease', { lease: data });
     return { ok: true, lease: data as VaultLease };
   } catch (err) {
     return { ok: false, error: String(err).slice(0, 280) };
@@ -2271,6 +2272,7 @@ export async function verifyLedger(sessionId?: string): Promise<{ ok: boolean; f
     const res = await apiFetch(`${API_BASE}/api/ledger/verify${qs}`, { cache: 'no-store', headers: authHeaders() });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return { ok: false, error: String(data.error || data.message || `HTTP ${res.status}`).slice(0, 280) };
+    contract('ledger.verify', data);
     return { ok: data.ok === true, fault_count: data.fault_count, faults: data.faults };
   } catch (err) {
     return { ok: false, error: String(err).slice(0, 280) };
@@ -2586,7 +2588,7 @@ export async function requestObservatoryLens(params: {
       const data = (await res.json().catch(() => ({}))) as { message?: string; code?: string };
       return { ok: false, error: data.message || `Request failed (${res.status})` };
     }
-    return (await res.json()) as {
+    return contract('lens.request', await res.json()) as {
       ok: boolean;
       operation_id?: string;
       watermark?: string;
@@ -2646,7 +2648,7 @@ export async function resolveObservatoryLens(params: {
       const data = (await res.json().catch(() => ({}))) as { message?: string };
       return { ok: false, error: data.message || `Resolve failed (${res.status})` };
     }
-    return (await res.json()) as {
+    return contract('lens.resolve', await res.json()) as {
       ok: boolean;
       done?: boolean;
       prompt_used?: string;
@@ -2685,7 +2687,7 @@ export async function fetchLensHistory(sessionId: string): Promise<{
       const data = (await res.json().catch(() => ({}))) as { message?: string };
       return { ok: false, error: data.message || `History failed (${res.status})` };
     }
-    return (await res.json()) as { ok: boolean; operations?: LensHistoryOp[] };
+    return contract('lens.history', await res.json()) as { ok: boolean; operations?: LensHistoryOp[] };
   } catch (err) {
     return { ok: false, error: (err as Error).message || 'Network error' };
   }
@@ -2699,7 +2701,7 @@ export async function fetchObservatoryLensStatus(operationId: string): Promise<R
     if (!res.ok) {
       return { error: `Fetch failed (${res.status})` };
     }
-    return (await res.json()) as Record<string, unknown>;
+    return contract('lens.status', await res.json()) as Record<string, unknown>;
   } catch (err) {
     return { error: (err as Error).message || 'Network error' };
   }
@@ -2832,7 +2834,7 @@ export async function fetchLatestPrediction(sessionId: string): Promise<{
       const data = (await res.json().catch(() => ({}))) as { message?: string };
       return { ok: false, error: data.message || `Fetch failed (${res.status})` };
     }
-    return (await res.json()) as {
+    return contract('vault.latest', await res.json()) as {
       ok: boolean;
       sealed?: SealedPrediction | null;
       evaluation?: PredictionEvaluation | null;
@@ -2894,7 +2896,7 @@ export async function fetchCalibration(sessionId: string): Promise<{
       const data = (await res.json().catch(() => ({}))) as { message?: string };
       return { ok: false, error: data.message || `Calibration failed (${res.status})` };
     }
-    return (await res.json()) as {
+    return contract('vault.calibration', await res.json()) as {
       ok: boolean;
       authors?: Record<string, AuthorCalibration>;
       evaluations?: number;
@@ -2930,7 +2932,7 @@ export async function fetchPredictionHistory(
       const data = (await res.json().catch(() => ({}))) as { message?: string };
       return { ok: false, error: data.message || `History failed (${res.status})` };
     }
-    return (await res.json()) as { ok: boolean; count?: number; predictions?: HistoryPrediction[] };
+    return contract('vault.history', await res.json()) as { ok: boolean; count?: number; predictions?: HistoryPrediction[] };
   } catch (err) {
     return { ok: false, error: (err as Error).message || 'Network error' };
   }
