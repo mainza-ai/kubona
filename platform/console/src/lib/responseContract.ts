@@ -65,6 +65,40 @@ export const RESPONSE_SCHEMAS = {
       }),
     ),
   }),
+  'vault.lease': obj({
+    lease: obj({
+      lease_id: str,
+      scope: str,
+      ttl_seconds: num,
+      lease_signature: str,
+      issued_at: str,
+      expires_at: str,
+    }),
+  }),
+  'ledger.verify': obj({
+    ok: bool,
+  }),
+  'lens.request': obj({
+    ok: bool,
+  }),
+  'lens.resolve': obj({
+    ok: bool,
+  }),
+  'lens.history': obj({
+    ok: bool,
+    operations: arr(any),
+  }),
+  'lens.status': obj(),
+  'vault.latest': obj({
+    ok: bool,
+  }),
+  'vault.calibration': obj({
+    ok: bool,
+  }),
+  'vault.history': obj({
+    ok: bool,
+    predictions: arr(any),
+  }),
   'chat.send': obj({
     user: any,
     assistant: any,
