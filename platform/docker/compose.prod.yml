@@ -100,6 +100,11 @@ services:
   # set KUBONA_PREFLIGHT_REQUIRE_BACKUP=1 once the backup profile is active.
   preflight:
     image: kubona/kubonad:prod
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.kubonad
+      args:
+        VERSION: ${KUBONA_VERSION:-dev}
     <<: *default-hardening
     entrypoint: ["/usr/local/bin/kubonad", "preflight"]
     command:
@@ -244,6 +249,11 @@ services:
   backup:
     profiles: ["backup"]
     image: kubona/kubonad:prod
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.kubonad
+      args:
+        VERSION: ${KUBONA_VERSION:-dev}
     <<: *default-hardening
     entrypoint: ["/bin/sh", "/usr/local/bin/backup-loop.sh"]
     environment:
