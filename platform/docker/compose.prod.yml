@@ -119,8 +119,10 @@ services:
       KUBONA_RATE_CARD_URL: ${KUBONA_RATE_CARD_URL:-}
       KUBONA_LLM_CLOUD: ${KUBONA_LLM_CLOUD:-}
     volumes:
-      - kubona-state:/home/kubona/.kubona:ro
-      - kubona-backups:/backups:ro
+      # rw, not ro: SQLite WAL readers may need the shared-memory sidecar;
+      # preflight itself writes nothing.
+      - kubona-state:/home/kubona/.kubona
+      - kubona-backups:/backups
     restart: "no"
 
   kubonad:
