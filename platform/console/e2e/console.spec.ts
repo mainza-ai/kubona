@@ -52,7 +52,12 @@ test.describe('Kubona console against the real local stack', () => {
     const errors = collectPageErrors(page);
     await page.goto('/');
     await expectReady(page);
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('link', { name: 'Skip to main content' })).toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#main-content')).toBeFocused();
     await expect(page.getByTestId('dock-arena')).toBeVisible();
+    await expect(page.getByTestId('dock-arena')).toHaveAttribute('aria-current', 'page');
     await expect(page.getByRole('button', { name: 'Campaigns' })).toBeVisible();
     expect(errors).toEqual([]);
   });
@@ -86,6 +91,18 @@ test.describe('Kubona console against the real local stack', () => {
     await expect(page.getByText('TQ scoring', { exact: false })).toBeVisible();
     await page.getByRole('button', { name: 'Score', exact: true }).click();
     await expect(page.getByText('TQ = 50', { exact: true })).toBeVisible();
+  });
+
+  test('mobile shell keeps the copilot closed until opened as an overlay', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    await expectReady(page);
+    const openCopilot = page.getByRole('button', { name: /Kubona Copilot/ });
+    await expect(openCopilot).toBeVisible();
+    await expect(page.getByRole('button', { name: /Close Copilot/ })).toHaveCount(0);
+    await openCopilot.click();
+    await expect(page.getByRole('button', { name: /Close Copilot/ })).toBeVisible();
+    await expect(page.getByRole('complementary', { name: 'Kubona co-pilot' })).toBeVisible();
   });
 
   test('backend refusal is visible instead of a fake empty state', async ({ page }) => {

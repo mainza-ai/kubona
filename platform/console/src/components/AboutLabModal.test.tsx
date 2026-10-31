@@ -3,7 +3,7 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 
 vi.mock('next/image', () => ({
-  default: (props: Record<string, unknown>) => <img alt="" {...(props as object)} />,
+  default: () => <div data-testid="next-image" />,
 }));
 
 import { AboutLabModal } from './AboutLabModal';
