@@ -95,6 +95,34 @@ services:
       retries: 3
       start_period: 60s
 
+  # Preflight gate: read-only rate-card, ledger chain/schema, FK, and backup
+  # checks. kubonad starts only after this exits 0. A fresh state is valid;
+  # set KUBONA_PREFLIGHT_REQUIRE_BACKUP=1 once the backup profile is active.
+  preflight:
+    image: kubona/kubonad:prod
+    <<: *default-hardening
+    entrypoint: ["/usr/local/bin/kubonad", "preflight"]
+    command:
+      - "--db"
+      - "/home/kubona/.kubona/kubona.db"
+      - "--backup-dir"
+      - "/backups"
+      - "--max-backup-age"
+      - "${KUBONA_BACKUP_MAX_AGE:-26h}"
+    environment:
+      KUBONA_ENV: "production"
+      KUBONA_DB_PATH: /home/kubona/.kubona/kubona.db
+      KUBONA_BACKUP_DIR: /backups
+      KUBONA_BACKUP_MAX_AGE: ${KUBONA_BACKUP_MAX_AGE:-26h}
+      KUBONA_PREFLIGHT_REQUIRE_BACKUP: ${KUBONA_PREFLIGHT_REQUIRE_BACKUP:-0}
+      KUBONA_RATE_CARD_PATH: ${KUBONA_RATE_CARD_PATH:-}
+      KUBONA_RATE_CARD_URL: ${KUBONA_RATE_CARD_URL:-}
+      KUBONA_LLM_CLOUD: ${KUBONA_LLM_CLOUD:-}
+    volumes:
+      - kubona-state:/home/kubona/.kubona:ro
+      - kubona-backups:/backups:ro
+    restart: "no"
+
   kubonad:
     build:
       context: ..
@@ -190,6 +218,8 @@ services:
     depends_on:
       bridge:
         condition: service_healthy
+      preflight:
+        condition: service_completed_successfully
     restart: unless-stopped
     deploy:
       resources:

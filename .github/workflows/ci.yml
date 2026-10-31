@@ -428,6 +428,9 @@ jobs:
       - name: Console API route contract
         working-directory: .
         run: python3 scripts/console-api-contract.py
+      - name: Console response-contract inventory is current
+        working-directory: .
+        run: python3 scripts/console-contract-inventory.py --check
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 11.18.0

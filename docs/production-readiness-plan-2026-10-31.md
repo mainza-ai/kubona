@@ -17,7 +17,7 @@ outside evidence.
 ## Evidence at this revision
 
 - `develop` and `main` at the green code gate; CI 20/20 and Console E2E green.
-- Generated counts: 122 Go routes, 760 Go tests, 467 console tests, 180 Python
+- Generated counts: 122 Go routes, 763 Go tests, 467 console tests, 180 Python
   test files, 29 Rust tests, 38 MCP tools, 154 wiki pages.
 - Local compose acceptance: loopback-only ports, fresh state root, health/ready,
   console boot, dispatch, codesign, refusal state.
@@ -44,7 +44,7 @@ outside evidence.
 | ID | Gap | Why it matters |
 |---|---|---|
 | P1-1 | **CLOSED 2026-10-31.** SSE emits `id:` frames, honors `Last-Event-ID`/`last_event_id`, replays the gap from the ledger cursor, and resets a future cursor to the tip. | Reconnect now replays rather than skipping rows. |
-| P1-2 | Response contracts cover major surfaces but are advisory, hand-maintained, and not a generated OpenAPI/schema artifact. | Drift is logged, not prevented; new endpoints can ship without a contract. |
+| P1-2 | **PARTIAL 2026-10-31.** A generated inventory records 61 modeled API functions, 68 explicit unmodeled functions, and 58 schemas; CI rejects contract/schema/path drift. It is not an OpenAPI document and runtime validation remains advisory. | Drift is visible and gated; full OpenAPI schemas remain. |
 | P1-3 | Secrets are `.env`-based; the ledger is plaintext SQLite. | Acceptable for a single trusted host, but no Docker secrets/KMS/at-rest encryption path. |
 | P1-4 | **PARTIAL 2026-10-31.** `doctor --strict` now reports configured backup freshness and newer failure markers alongside rate-card/FK/key state; stack-start enforcement and external alerts remain open. | Backup outages are visible in preflight, not only in container health. |
 | P1-5 | **PARTIAL 2026-10-31.** E2E now rejects unnamed buttons/links, unlabeled form fields, missing image alt text, and multiple main landmarks. Contrast, every modal, reduced-motion coverage, and screen-reader transcripts remain. | Structural a11y regressions now gate E2E. |
