@@ -1,10 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,11 +33,13 @@ func runPreflight(args []string) int {
 	}
 
 	fail := false
+	var failures []string
 	report := func(label string, ok bool, detail string) {
 		status := "ok"
 		if !ok {
 			status = "FAIL"
 			fail = true
+			failures = append(failures, label+": "+detail)
 		}
 		fmt.Printf("preflight: %-14s %s %s\n", label, status, detail)
 	}
@@ -122,11 +127,33 @@ func runPreflight(args []string) int {
 	}
 
 	if fail {
+		notifyPreflight(failures)
 		fmt.Fprintln(os.Stderr, "preflight: FAILED")
 		return 1
 	}
 	fmt.Println("preflight: clean")
 	return 0
+}
+
+func notifyPreflight(failures []string) {
+	url := strings.TrimSpace(os.Getenv("KUBONA_ALERT_WEBHOOK_URL"))
+	if url == "" {
+		return
+	}
+	host, _ := os.Hostname()
+	body, _ := json.Marshal(map[string]string{
+		"text": "Kubona preflight failed on " + host + ": " + strings.Join(failures, "; "),
+	})
+	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return
+	}
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{Timeout: 5 * time.Second}
+	resp, err := client.Do(req)
+	if err == nil {
+		_ = resp.Body.Close()
+	}
 }
 
 func checkForeignKeys(path string) error {

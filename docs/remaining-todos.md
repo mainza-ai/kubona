@@ -58,12 +58,12 @@ The full gap register, phased plan, and definition of done are in
 - [x] P1: structural a11y E2E (names, labels, img alt, one main landmark).
 - [x] P1: generated response-contract inventory (61 modeled / 68 explicit
       unmodeled / 58 schemas), OpenAPI 3.1 (60 paths), CI freshness checks.
-- [x] P1: optional external JSON webhook on backup failure.
+- [x] P1: optional external JSON webhook on preflight and backup failure.
 - [x] P1: `kubonad preflight` gate before kubonad starts (rate card, ledger
       chain/schema, FK, optional backup freshness).
 - [ ] P1: strict runtime validation for modeled responses; full OpenAPI
       coverage for the 68 unmodeled functions.
-- [ ] P1: external alerts beyond backup failure (disk/rate/preflight).
+- [ ] P1: disk/rate-specific external alert routing beyond preflight/backup.
 - [ ] P1: contrast/modal/reduced-motion/screen-reader audit.
 
 ## Production blockers
