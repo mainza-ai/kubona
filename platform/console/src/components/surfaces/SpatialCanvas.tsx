@@ -37,8 +37,12 @@ interface SpatialCanvasProps {
 export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
   const [canvasMode, setCanvasMode] = useState<'workbench' | 'observatory'>('workbench');
   const [layoutStatus, setLayoutStatus] = useState<string | null>(null);
-  // Persisted canvas layout is session-scoped; only the display mode is
-  // persisted today (the 3D camera is owned by SpatialCanvas3D).
+  const [canvasCamera, setCanvasCamera] = useState<{
+    position: [number, number, number];
+    target: [number, number, number];
+  } | null>(null);
+  // Persisted canvas layout is session-scoped: display mode plus the
+  // operator-arranged 3D camera (position + orbit target).
   useEffect(() => {
     const sid = campaign?.session_id;
     if (!sid) return;
@@ -47,8 +51,14 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
       if (!live || !layout) return;
       if (layout.canvas_mode === 'observatory' || layout.canvas_mode === 'workbench') {
         setCanvasMode(layout.canvas_mode);
-        setLayoutStatus('layout restored');
       }
+      const cam = layout.canvas_camera as { position?: unknown; target?: unknown } | undefined;
+      const isVec3 = (v: unknown): v is [number, number, number] =>
+        Array.isArray(v) && v.length === 3 && v.every((n) => typeof n === 'number' && Number.isFinite(n));
+      if (cam && isVec3(cam.position) && isVec3(cam.target)) {
+        setCanvasCamera({ position: cam.position, target: cam.target });
+      }
+      setLayoutStatus('layout restored');
     });
     return () => { live = false; };
   }, [campaign?.session_id]);
@@ -612,7 +622,10 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
             onClick={() => {
               const sid = campaign?.session_id;
               if (!sid) { setLayoutStatus('no session — layout not saved'); return; }
-              void saveCanvasLayout(sid, { canvas_mode: canvasMode }).then((out) => {
+              void saveCanvasLayout(sid, {
+                canvas_mode: canvasMode,
+                ...(canvasCamera ? { canvas_camera: canvasCamera } : {}),
+              }).then((out) => {
                 setLayoutStatus(out.ok ? 'layout saved' : `layout save refused (${out.error ?? 'unknown'})`);
               });
             }}
@@ -645,6 +658,8 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
         <div className="relative z-10 flex-1 my-4">
           <SpatialCanvas3D
             campaign={campaign}
+            initialCamera={canvasCamera}
+            onCameraChange={setCanvasCamera}
             onSelectPoint={(pt) => setBondDistance(pt.bondDistance)}
             onRequestAtlasLens={handleRequestAtlasLens}
             onRequestDepthChisel={handleRequestDepthChisel}
