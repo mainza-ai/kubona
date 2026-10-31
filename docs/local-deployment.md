@@ -225,9 +225,12 @@ cd platform
 ```
 
 It checks the state root/ledger, provider inventory, event taxonomy, rate-card
-freshness, FK orphan count on `~/.kubona/kubona.db`, reviewer/operator/QPU key
-presence, effective LLM/air-gap posture, bridge configuration, and daemon
-readiness. A stopped daemon is reported, not treated as a failure.
+freshness, FK orphan count on `~/.kubona/kubona.db`, configured backup
+freshness/last failure, reviewer/operator/QPU key presence, effective
+LLM/air-gap posture, bridge configuration, and daemon readiness. A stopped
+daemon is reported, not treated as a failure; an absent backup directory is
+reported as optional, while a configured-but-empty/stale/failed backup set is
+a `--strict` failure.
 
 ## 9. Diagnostics (local by default)
 

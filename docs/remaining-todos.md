@@ -54,7 +54,8 @@ The full gap register, phased plan, and definition of done are in
 - [ ] Operator: paid IBM evidence + historical settlement reconciliation.
 - [x] P1: SSE event IDs + Last-Event-ID cursor replay (server + client native reconnect).
 - [x] P1: canvas layout now restores the 3D camera position and orbit target.
-- [ ] P1: generated contracts/OpenAPI, preflight/alerts, deep a11y.
+- [x] P1: `doctor` reports configured backup freshness and newer failure markers.
+- [ ] P1: generated contracts/OpenAPI, stack-start preflight/alerts, deep a11y.
 
 ## Production blockers
 

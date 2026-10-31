@@ -237,6 +237,64 @@ def _doctor_fk(db_path: "Path | None" = None) -> tuple[str, bool]:
         return f"unreadable: {e}", False
 
 
+def _doctor_backups() -> tuple[str, bool]:
+    """Scheduled-backup freshness/failure. Absence is optional, not fatal."""
+    import re
+    from datetime import datetime, timedelta, timezone
+
+    raw_dir = os.environ.get("KUBONA_BACKUP_DIR", "").strip()
+    try:
+        backup_dir = Path(raw_dir) if raw_dir else config.state_path("backups")
+    except Exception as e:  # noqa: BLE001
+        return f"unresolvable: {e}", False
+    if not backup_dir.exists():
+        return "absent (backup profile not enabled)", True
+    pattern = re.compile(r"\.backup-(\d{8}T\d{6}Z)(?:\.age)?$")
+    newest = None
+    count = 0
+    try:
+        for entry in backup_dir.iterdir():
+            if not entry.is_file():
+                continue
+            m = pattern.search(entry.name)
+            if not m:
+                continue
+            count += 1
+            try:
+                at = datetime.strptime(m.group(1), "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+            if newest is None or at > newest:
+                newest = at
+    except Exception as e:  # noqa: BLE001
+        return f"unreadable: {e}", False
+    if count == 0 or newest is None:
+        return f"no verified backups in {backup_dir}", False
+    max_age_text = os.environ.get("KUBONA_BACKUP_MAX_AGE", "26h").strip()
+    try:
+        unit = max_age_text[-1]
+        amount = int(max_age_text[:-1])
+        if unit == "h":
+            max_age = timedelta(hours=amount)
+        elif unit == "m":
+            max_age = timedelta(minutes=amount)
+        elif unit == "d":
+            max_age = timedelta(days=amount)
+        else:
+            raise ValueError("use h/m/d suffix")
+    except Exception:
+        return f"invalid KUBONA_BACKUP_MAX_AGE={max_age_text!r}", False
+    age = datetime.now(timezone.utc) - newest
+    if age > max_age:
+        return f"STALE — newest {newest.isoformat()} ({age} old, max {max_age_text})", False
+    # A failed attempt newer than the last success is a silent backup outage.
+    success = backup_dir / ".last-success"
+    failure = backup_dir / ".last-failure"
+    if failure.exists() and (not success.exists() or failure.stat().st_mtime > success.stat().st_mtime):
+        return f"last attempt FAILED; newest copy {age} old", False
+    return f"{count} verified artifact(s); newest {age} old (max {max_age_text})", True
+
+
 def _doctor_llm() -> tuple[str, bool]:
     """Effective LLM posture from the Go settings DB when present, else env."""
     import json
@@ -358,6 +416,7 @@ def _cli(argv: list[str]) -> int:
         report("rate card", _doctor_rate_card())
         report("fk orphans", _doctor_fk())
         report("llm", _doctor_llm())
+        report("backups", _doctor_backups())
         report("keys", _doctor_keys())
         report("bridge", _doctor_bridge())
         report("daemon", _doctor_http())
