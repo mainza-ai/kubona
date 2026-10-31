@@ -148,6 +148,9 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "backup" {
 		os.Exit(runBackup(os.Args[2:]))
 	}
+	if len(os.Args) > 1 && os.Args[1] == "restore" {
+		os.Exit(runRestore(os.Args[2:]))
+	}
 	if len(os.Args) > 1 && os.Args[1] == "fk-audit" {
 		os.Exit(runFKAudit(os.Args[2:]))
 	}
@@ -162,6 +165,9 @@ func main() {
 	}
 	if len(os.Args) > 1 && os.Args[1] == "backup-prune" {
 		os.Exit(runBackupPrune(os.Args[2:]))
+	}
+	if len(os.Args) > 1 && os.Args[1] == "backup-status" {
+		os.Exit(runBackupStatus(os.Args[2:]))
 	}
 
 	port := flag.Int("port", 8080, "HTTP API gateway port")
@@ -227,11 +233,14 @@ func main() {
 	// KUBONA_FK_ENFORCE=1) turns on FK enforcement and refuses to start on
 	// a ledger with orphan rows; the repair is `kubonad fk-quarantine`.
 	enforceFK := os.Getenv("KUBONA_ENV") == "production" || os.Getenv("KUBONA_FK_ENFORCE") == "1"
-	l, err := ledger.OpenLedgerWithOptions(resolvedDB, ledger.Options{EnforceForeignKeys: enforceFK})
+	l, err := ledger.OpenLedgerWithOptions(resolvedDB, ledger.Options{EnforceForeignKeys: enforceFK, BackupBeforeMigration: true})
 	if err != nil {
 		log.Fatalf("Failed to open ledger: %v", err)
 	}
 	defer l.Close()
+	if backup := l.PreMigrationBackupPath(); backup != "" {
+		slog.Info("[Kubona Core] pre-migration backup verified", "path", backup)
+	}
 
 	// 1b. S2 disk guard: watch the filesystems holding state (DB dir +
 	// HF models dir — guarding / while state lives elsewhere is fiction).

@@ -46,31 +46,77 @@ sha256sum /backups/kubona-*.db
 Encrypt at rest if the storage is shared (for example `age` or `gpg`). The
 ledger contains spend, tenant, and provenance records.
 
-## Restore drill
+## Restore
 
-Run this on a scratch host before trusting the procedure in an incident.
+Restore is a two-step command. The default is a dry run; `--apply` refuses
+while the daemon holds the state lock.
 
 ```bash
-# 1. Stop the daemon (single-writer lock is a file lock, not a DB lock).
-systemctl stop kubonad   # or the deployment's stop command
+# Dry run: verify the source and show what would move.
+kubonad restore \
+  --from /backups/kubona.db.backup-20261031T030000Z \
+  --db /home/kubona/.kubona/kubona.db
 
-# 2. Preserve the current DB for forensics; never delete it first.
-mv /home/kubona/.kubona/kubona.db /home/kubona/.kubona/kubona.db.pre-restore
-
-# 3. Install the verified backup and remove stale WAL sidecars.
-cp /backups/kubona-20261029T180000Z.db /home/kubona/.kubona/kubona.db
-rm -f /home/kubona/.kubona/kubona.db-wal /home/kubona/.kubona/kubona.db-shm
-
-# 4. Verify before serving.
-kubonad verify --db /home/kubona/.kubona/kubona.db
-
-# 5. Start the daemon and check /api/ready.
+# Stop the daemon, then apply.
+systemctl stop kubonad
+kubonad restore \
+  --from /backups/kubona.db.backup-20261031T030000Z \
+  --db /home/kubona/.kubona/kubona.db \
+  --apply
 systemctl start kubonad
+curl -fsS http://127.0.0.1:8080/api/ready
 ```
 
-`kubonad verify` must print `chain clean (all sessions)` before the service
-is exposed. If it reports faults, keep the pre-restore file and escalate;
-do not start the daemon on a faulted ledger.
+`--apply` verifies the source chain and `PRAGMA integrity_check`, stages the
+copy in the target directory, atomically renames it into place, and verifies
+the installed ledger again. The current database and its WAL/SHM sidecars
+are moved to `<db>.pre-restore-<UTC>/ledger.db` (never deleted). If the
+installed copy fails verification, the command restores the preserved state.
+
+The command exits non-zero and changes nothing when the source is faulted,
+the daemon lock is held, the paths are relative, or source and target are
+the same. Do not start the daemon on a faulted ledger; keep the preservation
+directory and escalate.
+
+## Scheduled backups
+
+`compose.prod.yml` includes an opt-in `backup` profile:
+
+```bash
+# In .env:
+#   KUBONA_BACKUP_AGE_RECIPIENT=age1...     # recommended
+#   KUBONA_BACKUP_REQUIRE_ENCRYPTION=1      # fail closed if it is missing
+docker compose --env-file .env -f platform/docker/compose.prod.yml \
+  --profile backup up -d
+```
+
+The backup loop runs `kubonad backup`, optionally encrypts with `age`, writes
+a sha256 receipt, and keeps the newest `KUBONA_BACKUP_KEEP` artifacts
+(default 7). `kubonad restore` accepts a plaintext verified backup; decrypt an
+`.age` artifact first:
+
+```bash
+age -d -i /secure/kubona-backup.key \
+  /backups/kubona.db.backup-20261031T030000Z.age > /tmp/restore.db
+kubonad restore --from /tmp/restore.db --db /home/kubona/.kubona/kubona.db
+``` A failed backup leaves the previous verified copy in place and
+records `.last-failure`. The healthcheck runs:
+
+```bash
+kubonad backup-status --dir /backups --max-age 26h
+```
+
+It is unhealthy when no backup exists or the newest is older than the age
+budget. The backup directory is the `kubona-backups` volume; copy its
+encrypted artifacts off-host as part of the retention policy.
+
+## Manual recovery fallback
+
+If the CLI is unavailable, the previous shell procedure is still documented
+here as an emergency fallback: stop the daemon, move the live DB and sidecars
+aside, copy the verified backup, remove stale sidecars, run `kubonad verify`,
+then start the daemon. Prefer the command path because it verifies before and
+after the swap and performs rollback on failure.
 
 ## Retention and cadence
 
@@ -159,8 +205,14 @@ days, and the newest backup per ISO week for 4 weeks. Directories, symlinks,
 and unparseable names are never touched; an all-zero retention set is refused.
 Use `--now RFC3339` for a restore drill or a replay.
 
-## Current limits
+## Schema upgrades
 
-The schema has no version table yet and the migration path is not
-fail-closed (see the 2026-10-29 stale-state audit, P0-3). Until that lands,
-take a fresh backup before every upgrade and keep the pre-upgrade file.
+The ledger records `schema_migrations` and refuses a database written by a
+newer binary. When an older schema is opened, the daemon takes a verified
+`VACUUM INTO` snapshot at `<db>.pre-migration-<UTC>` before any migration;
+a failed snapshot or chain verification refuses the upgrade. The snapshot is
+the rollback point for that upgrade. Future migrations must append a version
+and keep the same fail-closed behavior.
+
+Take a fresh verified backup before every upgrade as an independent control.
+Do not restore a backup over a running daemon.
