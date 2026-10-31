@@ -27,14 +27,14 @@ development — re-verify the gate on the exact commit before citing
 "production-ready" as current fact. Do not cite "private" as current fact.
 
 > ⚑ State correction (2026-10-31): the 20-job **push** gate is green at
-> `6654808` (runs `41178142397` on develop, `41178145099` on main; 20/20),
-> with Console E2E green there too (`41178142425` develop, `41178145063`
+> `82f3c80` (runs `41184407850` on develop, `41184410433` on main; 20/20),
+> with Console E2E green there too (`41184407889` develop, `41184410478`
 > main). The **nightly thesis-scale** gate remains green at `c7d98f6`
 > (`41041244412`: canary + slice60 composition + determinism); console-only
 > commits after it did not rerun that nightly. P0 recovery landed: verified
 > `kubonad restore`, scheduled backup profile, and pre-migration snapshots;
 > SSE replay honors `Last-Event-ID`; the canvas layout restores the
-> observatory camera. The earlier
+> observatory camera; structural a11y checks gate E2E. The earlier
 > red nightly runs (`40854405074`, `40666624246`, `40478035440`,
 > `41000688966`, `41003185385`) are history, not current state; re-verify the
 > exact commit before citing "green". The reviewer-key claim above is
