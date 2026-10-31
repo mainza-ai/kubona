@@ -17,7 +17,7 @@ outside evidence.
 ## Evidence at this revision
 
 - `develop` and `main` at the green code gate; CI 20/20 and Console E2E green.
-- Generated counts: 122 Go routes, 760 Go tests, 467 console tests, 179 Python
+- Generated counts: 122 Go routes, 760 Go tests, 467 console tests, 180 Python
   test files, 29 Rust tests, 38 MCP tools, 154 wiki pages.
 - Local compose acceptance: loopback-only ports, fresh state root, health/ready,
   console boot, dispatch, codesign, refusal state.
@@ -46,7 +46,7 @@ outside evidence.
 | P1-1 | **CLOSED 2026-10-31.** SSE emits `id:` frames, honors `Last-Event-ID`/`last_event_id`, replays the gap from the ledger cursor, and resets a future cursor to the tip. | Reconnect now replays rather than skipping rows. |
 | P1-2 | Response contracts cover major surfaces but are advisory, hand-maintained, and not a generated OpenAPI/schema artifact. | Drift is logged, not prevented; new endpoints can ship without a contract. |
 | P1-3 | Secrets are `.env`-based; the ledger is plaintext SQLite. | Acceptable for a single trusted host, but no Docker secrets/KMS/at-rest encryption path. |
-| P1-4 | `doctor --strict`, backup freshness, disk pressure, and rate-card expiry are not enforced at stack start or surfaced as alerts. | Failures are detectable but not proactive. |
+| P1-4 | **PARTIAL 2026-10-31.** `doctor --strict` now reports configured backup freshness and newer failure markers alongside rate-card/FK/key state; stack-start enforcement and external alerts remain open. | Backup outages are visible in preflight, not only in container health. |
 | P1-5 | Deep accessibility audit is incomplete: contrast, every modal, reduced-motion coverage, and screen-reader transcripts. | Keyboard/mobile smoke is covered; full WCAG pass is not. |
 | P1-6 | **PARTIAL 2026-10-31.** Canvas layout now stores the 3D camera position and orbit target (zoom is represented by camera distance); point selection is still campaign state, not layout. | A saved observatory view restores on reopen. |
 
