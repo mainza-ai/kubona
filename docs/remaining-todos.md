@@ -33,7 +33,11 @@ Updated 2026-10-30. This is the short execution list; the full queue lives in
       keyboard skip link, live-region toasts, and dock aria-current.
       Response contracts now cover chat/tribunal, autoresearch/metasearch,
       codesign, LLM/HF, vault/predictions, lens, ledger, and settings.
-- [ ] Still open: full mobile/accessibility sweep across every surface.
+- [x] Mobile/keyboard smoke gate: one skip target, one main landmark,
+      `aria-current` on the dock, live-region toasts, and a narrow-viewport
+      E2E proving the copilot starts closed and opens as an overlay.
+- [ ] Still open: deep accessibility audit across every modal/surface
+      (contrast, focus order, reduced motion, screen-reader transcripts).
 
 ## Production blockers
 
