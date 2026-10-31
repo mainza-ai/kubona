@@ -293,6 +293,7 @@ services:
       args:
         NEXT_PUBLIC_API_URL: ${KUBONA_CONSOLE_API_URL:-http://localhost:8080}
         NEXT_PUBLIC_KUBONA_VERSION: ${KUBONA_VERSION:-dev}
+        NEXT_PUBLIC_KUBONA_STRICT_CONTRACTS: ${KUBONA_STRICT_CONTRACTS:-0}
     image: kubona/console:prod
     <<: *default-hardening
     environment:

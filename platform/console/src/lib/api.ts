@@ -1,5 +1,5 @@
 import { Session, ChatMessage, Job, Loop, LedgerEvent, Lab } from '@/types';
-import { contract } from './responseContract';
+import { contract, setContractDriftHandler } from './responseContract';
 
 // Build-time default (local dev). The runtime route /api/config can
 // override this per deployment (see configureApiBase) so one image
@@ -116,6 +116,14 @@ function notifyApiProblem(input: RequestInfo | URL, status: number | null, messa
     }));
   }
 }
+// Console contract drift is an API problem: route it through the existing
+// banner once per schema, and let NEXT_PUBLIC_KUBONA_STRICT_CONTRACTS=1 make
+// the response fail instead of only logging.
+setContractDriftHandler((name, issues) => {
+  const detail = issues.map((i) => `${i.path}: ${i.message}`).join('; ');
+  notifyApiProblem(`contract:${name}`, null, `response contract drifted: ${detail}`);
+});
+
 let lastAuthFailureAt = 0;
 export function wasRecentAuthFailure(withinMs = 30000): boolean {
   return Date.now() - lastAuthFailureAt < withinMs;

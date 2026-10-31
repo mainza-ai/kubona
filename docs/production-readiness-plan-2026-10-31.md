@@ -17,7 +17,7 @@ outside evidence.
 ## Evidence at this revision
 
 - `develop` and `main` at the green code gate; CI 20/20 and Console E2E green.
-- Generated counts: 122 Go routes, 764 Go tests, 467 console tests, 180 Python
+- Generated counts: 122 Go routes, 764 Go tests, 468 console tests, 180 Python
   test files, 29 Rust tests, 38 MCP tools, 154 wiki pages.
 - Local compose acceptance: loopback-only ports, fresh state root, health/ready,
   console boot, dispatch, codesign, refusal state.
@@ -44,10 +44,10 @@ outside evidence.
 | ID | Gap | Why it matters |
 |---|---|---|
 | P1-1 | **CLOSED 2026-10-31.** SSE emits `id:` frames, honors `Last-Event-ID`/`last_event_id`, replays the gap from the ledger cursor, and resets a future cursor to the tip. | Reconnect now replays rather than skipping rows. |
-| P1-2 | **PARTIAL 2026-10-31.** Generated OpenAPI 3.1 now documents 60 paths with 58 response schemas plus 68 explicit unmodeled functions; CI rejects inventory/OpenAPI drift. Runtime validation remains advisory. | The contract artifact is real and gated; unmodeled paths remain explicit. |
+| P1-2 | **PARTIAL 2026-10-31.** Generated OpenAPI 3.1 documents 60 paths with 58 response schemas; draft/OpenAPI drift is gated. Drift now reaches the API banner, and `KUBONA_STRICT_CONTRACTS=1` fails the response. The 68 unmodeled functions still need schemas. | Runtime validation is strict on demand; unmodeled paths remain explicit. |
 | P1-3 | Secrets are `.env`-based; the ledger is plaintext SQLite. | Acceptable for a single trusted host, but no Docker secrets/KMS/at-rest encryption path. |
 | P1-4 | **PARTIAL 2026-10-31.** `doctor --strict` reports backup freshness/failure; `kubonad preflight` gates stack start on rate/ledger/FK/backup; optional `KUBONA_ALERT_WEBHOOK_URL` posts preflight and scheduled-backup failures. Disk/rate-specific alert routing remains open. | Local start failures and backup failures can reach an external webhook. |
-| P1-5 | **PARTIAL 2026-10-31.** E2E rejects unnamed buttons/links, unlabeled fields, missing image alt text, and multiple main landmarks; the command palette is labelled and focus-trapped. Contrast, reduced-motion coverage, other modals, and screen-reader transcripts remain. | Structural and modal-focus regressions gate E2E. |
+| P1-5 | **PARTIAL 2026-10-31.** E2E rejects unnamed controls/unlabeled fields/missing alt/multiple main landmarks, checks reduced-motion disables ambient animation, and verifies the command palette focus trap. Contrast, other modals, and screen-reader transcripts remain. | Structural, reduced-motion, and modal-focus regressions gate E2E. |
 | P1-6 | **PARTIAL 2026-10-31.** Canvas layout now stores the 3D camera position and orbit target (zoom is represented by camera distance); point selection is still campaign state, not layout. | A saved observatory view restores on reopen. |
 
 ### P2 — enhancements, not local-production blockers

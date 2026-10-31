@@ -4,11 +4,15 @@ import {
   contract,
   reportResponseContract,
   resetResponseContractReports,
+  setContractDriftHandler,
+  strictResponseContracts,
   validateResponse,
 } from './responseContract';
 
 afterEach(() => {
   resetResponseContractReports();
+  setContractDriftHandler(null);
+  delete process.env.NEXT_PUBLIC_KUBONA_STRICT_CONTRACTS;
   vi.restoreAllMocks();
 });
 
@@ -160,6 +164,22 @@ describe('response contracts', () => {
     expect(validateResponse('quantum.settings', { mode: 'auto' })).toEqual([]);
     expect(validateResponse('quantum.job', { job_id: 'j1', status: 'QUEUED' })).toEqual([]);
     expect(validateResponse('quantum.submit', { ok: true, job_id: 'j1' })).toEqual([]);
+  });
+
+  it('routes drift to the banner handler once and supports strict mode', () => {
+    const logs = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const handler = vi.fn();
+    setContractDriftHandler(handler);
+    const payload = { not_sessions: [] };
+    contract('sessions.list', payload);
+    contract('sessions.list', payload);
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(logs).toHaveBeenCalledTimes(1);
+
+    process.env.NEXT_PUBLIC_KUBONA_STRICT_CONTRACTS = '1';
+    expect(strictResponseContracts()).toBe(true);
+    resetResponseContractReports();
+    expect(() => contract('sessions.list', payload)).toThrow(/drifted/);
   });
 
   it('reports drift once per contract and returns the payload unchanged', () => {
