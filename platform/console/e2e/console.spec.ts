@@ -62,6 +62,47 @@ test.describe('Kubona console against the real local stack', () => {
     expect(errors).toEqual([]);
   });
 
+  test('interactive controls expose an accessible name', async ({ page }) => {
+    await page.goto('/');
+    await expectReady(page);
+    const unnamed = await page.locator('button, a[href]').evaluateAll((nodes) =>
+      nodes
+        .filter((el) => el.getAttribute('aria-hidden') !== 'true')
+        .filter((el) => {
+          const name = (
+            el.getAttribute('aria-label') ||
+            el.getAttribute('title') ||
+            el.textContent ||
+            ''
+          ).trim();
+          return name.length === 0;
+        })
+        .map((el) => `${el.tagName}: ${el.outerHTML.slice(0, 180)}`),
+    );
+    expect(unnamed).toEqual([]);
+
+    const unlabeledFields = await page.locator('input:not([type="hidden"]), select, textarea').evaluateAll((nodes) =>
+      nodes
+        .filter((el) => {
+          const id = el.getAttribute('id');
+          const labelled = id ? document.querySelector(`label[for="${CSS.escape(id)}"]`) : null;
+          const name = (
+            el.getAttribute('aria-label') ||
+            el.getAttribute('title') ||
+            el.getAttribute('placeholder') ||
+            labelled?.textContent ||
+            ''
+          ).trim();
+          return name.length === 0;
+        })
+        .map((el) => `${el.tagName}: ${el.outerHTML.slice(0, 180)}`),
+    );
+    expect(unlabeledFields).toEqual([]);
+    await expect(page.locator('main')).toHaveCount(1);
+    const missingAlt = await page.locator('img:not([alt])').count();
+    expect(missingAlt).toBe(0);
+  });
+
   test('recorder and session portability render without a blank state', async ({ page }) => {
     await page.goto('/');
     await expectReady(page);

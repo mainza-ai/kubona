@@ -55,7 +55,9 @@ The full gap register, phased plan, and definition of done are in
 - [x] P1: SSE event IDs + Last-Event-ID cursor replay (server + client native reconnect).
 - [x] P1: canvas layout now restores the 3D camera position and orbit target.
 - [x] P1: `doctor` reports configured backup freshness and newer failure markers.
-- [ ] P1: generated contracts/OpenAPI, stack-start preflight/alerts, deep a11y.
+- [x] P1: structural a11y E2E (names, labels, img alt, one main landmark).
+- [ ] P1: generated contracts/OpenAPI, stack-start preflight/alerts, contrast/
+      modal/reduced-motion/screen-reader audit.
 
 ## Production blockers
 

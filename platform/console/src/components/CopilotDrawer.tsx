@@ -1577,6 +1577,7 @@ export function CopilotDrawer({
             ref={attachInputRef}
             type="file"
             accept=".pdb,.cif,.xyz,.mol,.sdf,.txt,.md"
+            aria-label="Attach molecular structure or notes"
             className="hidden"
             onChange={handleAttachFile}
           />
