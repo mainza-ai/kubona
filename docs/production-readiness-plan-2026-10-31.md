@@ -17,7 +17,7 @@ outside evidence.
 ## Evidence at this revision
 
 - `develop` and `main` at the green code gate; CI 20/20 and Console E2E green.
-- Generated counts: 122 Go routes, 759 Go tests, 467 console tests, 179 Python
+- Generated counts: 122 Go routes, 760 Go tests, 467 console tests, 179 Python
   test files, 29 Rust tests, 38 MCP tools, 154 wiki pages.
 - Local compose acceptance: loopback-only ports, fresh state root, health/ready,
   console boot, dispatch, codesign, refusal state.
@@ -43,7 +43,7 @@ outside evidence.
 
 | ID | Gap | Why it matters |
 |---|---|---|
-| P1-1 | SSE has no event cursor/`Last-Event-ID` replay; the server emits the latest five events every 2 s and the client dedupes by id. | A reconnect longer than five events can miss rows until the next full poll; replay semantics are implicit. |
+| P1-1 | **CLOSED 2026-10-31.** SSE emits `id:` frames, honors `Last-Event-ID`/`last_event_id`, replays the gap from the ledger cursor, and resets a future cursor to the tip. | Reconnect now replays rather than skipping rows. |
 | P1-2 | Response contracts cover major surfaces but are advisory, hand-maintained, and not a generated OpenAPI/schema artifact. | Drift is logged, not prevented; new endpoints can ship without a contract. |
 | P1-3 | Secrets are `.env`-based; the ledger is plaintext SQLite. | Acceptable for a single trusted host, but no Docker secrets/KMS/at-rest encryption path. |
 | P1-4 | `doctor --strict`, backup freshness, disk pressure, and rate-card expiry are not enforced at stack start or surfaced as alerts. | Failures are detectable but not proactive. |

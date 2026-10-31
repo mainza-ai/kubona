@@ -1143,6 +1143,30 @@ func (l *Ledger) GetRecentEvents(sessionID string, limit int) ([]EventRecord, er
 	return events, nil
 }
 
+// GetEventsSince returns events with id > afterID in ascending order. SSE
+// reconnect replay uses this cursor; the limit bounds a single frame batch.
+func (l *Ledger) GetEventsSince(sessionID string, afterID int64, limit int) ([]EventRecord, error) {
+	l.lock.RLock()
+	defer l.lock.RUnlock()
+	query := `SELECT id, timestamp, session_id, tenant_id, conf_label, event_type, payload, prev_hash, entry_hash, signer_pubkey_hex, signature_hex, hash_version, signature_domain FROM ledger_events WHERE session_id = ? AND id > ? ORDER BY id ASC LIMIT ?`
+	rows, err := l.db.Query(query, sessionID, afterID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var events []EventRecord
+	for rows.Next() {
+		var e EventRecord
+		var payloadStr string
+		if err := rows.Scan(&e.ID, &e.Timestamp, &e.SessionID, &e.TenantID, &e.ConfLabel, &e.EventType, &payloadStr, &e.PrevHash, &e.EntryHash, &e.SignerPubkey, &e.Signature, &e.HashVersion, &e.SignatureDomain); err != nil {
+			return nil, err
+		}
+		e.Payload = json.RawMessage(payloadStr)
+		events = append(events, e)
+	}
+	return events, rows.Err()
+}
+
 // CheckBrierCalibration evaluates the session's historical prediction accuracy.
 // If >= 5 predictions have been evaluated and mean Brier score > 0.25, epistemic
 // calibration is degraded and hardware dispatch is refused (R-08).
