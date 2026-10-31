@@ -1,0 +1,772 @@
+{
+  "generated_by": "scripts/console-contract-inventory.py",
+  "contracts": [
+    "agents.custom",
+    "agents.system",
+    "auth.challenge",
+    "auth.whoami",
+    "autoresearch.harnesses",
+    "autoresearch.loop",
+    "autoresearch.loops",
+    "autoresearch.step",
+    "canvas.layout",
+    "capabilities",
+    "chat.launch",
+    "chat.send",
+    "chat.stream.done",
+    "codesign.batch",
+    "codesign.evaluate",
+    "codesign.families",
+    "codesign.packs",
+    "codesign.rerun",
+    "codesign.verified",
+    "cost.summary",
+    "events.list",
+    "fleet",
+    "hf.details",
+    "hf.download",
+    "hf.downloads",
+    "hf.search",
+    "job",
+    "jobs.list",
+    "labs.list",
+    "ledger.verify",
+    "lens.history",
+    "lens.request",
+    "lens.resolve",
+    "lens.status",
+    "llm.models",
+    "llm.settings",
+    "loops.list",
+    "memory.recall",
+    "messages.list",
+    "metasearch.proposals",
+    "notebooks.list",
+    "obligations.open",
+    "qir.compile",
+    "quantum.backends",
+    "quantum.job",
+    "quantum.settings",
+    "quantum.submit",
+    "radar",
+    "session",
+    "session.context",
+    "sessions.list",
+    "tribunal.run",
+    "vault.calibration",
+    "vault.history",
+    "vault.latest",
+    "vault.lease",
+    "workflow.plan",
+    "workflow.run"
+  ],
+  "schemas": [
+    "agents.custom",
+    "agents.system",
+    "auth.challenge",
+    "auth.whoami",
+    "autoresearch.harnesses",
+    "autoresearch.loop",
+    "autoresearch.loops",
+    "autoresearch.step",
+    "canvas.layout",
+    "capabilities",
+    "chat.launch",
+    "chat.send",
+    "chat.stream.done",
+    "codesign.batch",
+    "codesign.evaluate",
+    "codesign.families",
+    "codesign.packs",
+    "codesign.rerun",
+    "codesign.verified",
+    "cost.summary",
+    "events.list",
+    "fleet",
+    "hf.details",
+    "hf.download",
+    "hf.downloads",
+    "hf.search",
+    "job",
+    "jobs.list",
+    "labs.list",
+    "ledger.verify",
+    "lens.history",
+    "lens.request",
+    "lens.resolve",
+    "lens.status",
+    "llm.models",
+    "llm.settings",
+    "loops.list",
+    "memory.recall",
+    "messages.list",
+    "metasearch.proposals",
+    "notebooks.list",
+    "obligations.open",
+    "qir.compile",
+    "quantum.backends",
+    "quantum.job",
+    "quantum.settings",
+    "quantum.submit",
+    "radar",
+    "session",
+    "session.context",
+    "sessions.list",
+    "tribunal.run",
+    "vault.calibration",
+    "vault.history",
+    "vault.latest",
+    "vault.lease",
+    "workflow.plan",
+    "workflow.run"
+  ],
+  "modeled_functions": [
+    {
+      "function": "authChallenge",
+      "path": "/api/auth/challenge",
+      "contract": "auth.challenge"
+    },
+    {
+      "function": "authWhoami",
+      "path": "/api/auth/whoami",
+      "contract": "auth.whoami"
+    },
+    {
+      "function": "evaluateCodesignArtifact",
+      "path": "/api/codesign/evaluate",
+      "contract": "codesign.evaluate"
+    },
+    {
+      "function": "evaluateCodesignBatch",
+      "path": "/api/codesign/evaluate-batch",
+      "contract": "codesign.batch"
+    },
+    {
+      "function": "fetchAutoresearchHarnesses",
+      "path": "/api/autoresearch/harnesses",
+      "contract": "autoresearch.harnesses"
+    },
+    {
+      "function": "fetchAutoresearchLoops",
+      "path": "/api/autoresearch/loops",
+      "contract": "autoresearch.loops"
+    },
+    {
+      "function": "fetchCalibration",
+      "path": "/api/vault/predictions/calibration",
+      "contract": "vault.calibration"
+    },
+    {
+      "function": "fetchCanvasLayout",
+      "path": "/api/canvas/layout",
+      "contract": "canvas.layout"
+    },
+    {
+      "function": "fetchCapabilities",
+      "path": "/api/capabilities",
+      "contract": "capabilities"
+    },
+    {
+      "function": "fetchCodesignPacks",
+      "path": "/api/codesign/packs",
+      "contract": "codesign.packs"
+    },
+    {
+      "function": "fetchCodesignVerified",
+      "path": "/api/codesign/verified",
+      "contract": "codesign.verified"
+    },
+    {
+      "function": "fetchCostSummary",
+      "path": "/api/cost/summary",
+      "contract": "cost.summary"
+    },
+    {
+      "function": "fetchCustomAgents",
+      "path": "/api/agents/custom",
+      "contract": "agents.custom"
+    },
+    {
+      "function": "fetchEvents",
+      "path": "/api/events",
+      "contract": "events.list"
+    },
+    {
+      "function": "fetchFleet",
+      "path": "/api/fleet",
+      "contract": "fleet"
+    },
+    {
+      "function": "fetchJob",
+      "path": "/api/jobs/:id",
+      "contract": "job"
+    },
+    {
+      "function": "fetchJobs",
+      "path": "/api/jobs",
+      "contract": "jobs.list"
+    },
+    {
+      "function": "fetchLLMModels",
+      "path": "/api/llm/models",
+      "contract": "llm.models"
+    },
+    {
+      "function": "fetchLLMSettings",
+      "path": "/api/llm/settings",
+      "contract": "llm.settings"
+    },
+    {
+      "function": "fetchLabs",
+      "path": "/api/tenants",
+      "contract": "labs.list"
+    },
+    {
+      "function": "fetchLatestPrediction",
+      "path": "/api/vault/predictions/latest",
+      "contract": "vault.latest"
+    },
+    {
+      "function": "fetchLensHistory",
+      "path": "/api/observatory/lens/history",
+      "contract": "lens.history"
+    },
+    {
+      "function": "fetchLoops",
+      "path": "/api/loops",
+      "contract": "loops.list"
+    },
+    {
+      "function": "fetchMemoryRecall",
+      "path": "/api/memory/recall",
+      "contract": "memory.recall"
+    },
+    {
+      "function": "fetchMessages",
+      "path": "/api/sessions/:id/messages",
+      "contract": "messages.list"
+    },
+    {
+      "function": "fetchMetasearchProposals",
+      "path": "/api/metasearch/proposals",
+      "contract": "metasearch.proposals"
+    },
+    {
+      "function": "fetchNotebooks",
+      "path": "/api/results/notebooks",
+      "contract": "notebooks.list"
+    },
+    {
+      "function": "fetchObservatoryLensStatus",
+      "path": "/api/observatory/lens",
+      "contract": "lens.status"
+    },
+    {
+      "function": "fetchOpenObligations",
+      "path": "/api/obligations/open",
+      "contract": "obligations.open"
+    },
+    {
+      "function": "fetchPredictionHistory",
+      "path": "/api/vault/predictions/history",
+      "contract": "vault.history"
+    },
+    {
+      "function": "fetchQirCompile",
+      "path": "/api/qir/compile",
+      "contract": "qir.compile"
+    },
+    {
+      "function": "fetchQuantumBackends",
+      "path": "/api/quantum/backends",
+      "contract": "quantum.backends"
+    },
+    {
+      "function": "fetchQuantumJob",
+      "path": "/api/quantum/jobs/:id",
+      "contract": "quantum.job"
+    },
+    {
+      "function": "fetchQuantumSettings",
+      "path": "/api/quantum/settings",
+      "contract": "quantum.settings"
+    },
+    {
+      "function": "fetchRadar",
+      "path": "/api/radar",
+      "contract": "radar"
+    },
+    {
+      "function": "fetchSession",
+      "path": "/api/sessions/:id",
+      "contract": "session"
+    },
+    {
+      "function": "fetchSessionContext",
+      "path": "/api/sessions/context",
+      "contract": "session.context"
+    },
+    {
+      "function": "fetchSessions",
+      "path": "/api/sessions",
+      "contract": "sessions.list"
+    },
+    {
+      "function": "fetchSystemAgents",
+      "path": "/api/agents",
+      "contract": "agents.system"
+    },
+    {
+      "function": "getHFModelDetails",
+      "path": "/api/hf/models/:id",
+      "contract": "hf.details"
+    },
+    {
+      "function": "issueVaultLease",
+      "path": "/api/vault/leases",
+      "contract": "vault.lease"
+    },
+    {
+      "function": "launchProposal",
+      "path": "/api/chat/launch",
+      "contract": "chat.launch"
+    },
+    {
+      "function": "listHFDownloads",
+      "path": "/api/hf/downloads",
+      "contract": "hf.downloads"
+    },
+    {
+      "function": "pauseAutoresearchLoop",
+      "path": "/api/autoresearch/loops/:id/pause",
+      "contract": "autoresearch.loop"
+    },
+    {
+      "function": "planWorkflow",
+      "path": "/api/workflows/plan",
+      "contract": "workflow.plan"
+    },
+    {
+      "function": "requestObservatoryLens",
+      "path": "/api/observatory/lens",
+      "contract": "lens.request"
+    },
+    {
+      "function": "rerunCodesignProposal",
+      "path": "/api/codesign/rerun",
+      "contract": "codesign.rerun"
+    },
+    {
+      "function": "resolveObservatoryLens",
+      "path": "/api/observatory/lens/resolve",
+      "contract": "lens.resolve"
+    },
+    {
+      "function": "resumeAutoresearchLoop",
+      "path": "/api/autoresearch/loops/:id/resume",
+      "contract": "autoresearch.loop"
+    },
+    {
+      "function": "runFamilySearch",
+      "path": "/api/codesign/families",
+      "contract": "codesign.families"
+    },
+    {
+      "function": "runTribunal",
+      "path": "/api/chat/tribunal",
+      "contract": "tribunal.run"
+    },
+    {
+      "function": "runWorkflow",
+      "path": "/api/workflows/run",
+      "contract": "workflow.run"
+    },
+    {
+      "function": "searchHFModels",
+      "path": "/api/hf/search",
+      "contract": "hf.search"
+    },
+    {
+      "function": "sendChatMessage",
+      "path": "/api/chat/messages",
+      "contract": "chat.send"
+    },
+    {
+      "function": "startAutoresearchLoop",
+      "path": "/api/autoresearch/start",
+      "contract": "autoresearch.loop"
+    },
+    {
+      "function": "startHFDownload",
+      "path": "/api/hf/download",
+      "contract": "hf.download"
+    },
+    {
+      "function": "stepAutoresearchLoop",
+      "path": "/api/autoresearch/loops/:id/step",
+      "contract": "autoresearch.step"
+    },
+    {
+      "function": "stopAutoresearchLoop",
+      "path": "/api/autoresearch/loops/:id/stop",
+      "contract": "autoresearch.loop"
+    },
+    {
+      "function": "streamChatMessage",
+      "path": "/api/chat/stream",
+      "contract": "chat.stream.done"
+    },
+    {
+      "function": "submitQuantumJob",
+      "path": "/api/quantum/jobs",
+      "contract": "quantum.submit"
+    },
+    {
+      "function": "verifyLedger",
+      "path": "/api/ledger/verify",
+      "contract": "ledger.verify"
+    }
+  ],
+  "unmodeled_functions": [
+    {
+      "function": "apiFetch",
+      "path": null,
+      "contract": null
+    },
+    {
+      "function": "appendLedgerEvent",
+      "path": "/api/ledger/append",
+      "contract": null
+    },
+    {
+      "function": "applyMetasearchProposal",
+      "path": "/api/metasearch/apply",
+      "contract": null
+    },
+    {
+      "function": "approveMetasearchProposal",
+      "path": "/api/metasearch/approve",
+      "contract": null
+    },
+    {
+      "function": "assertPrediction",
+      "path": "/api/vault/predictions/assert",
+      "contract": null
+    },
+    {
+      "function": "authLogin",
+      "path": "/api/auth/login",
+      "contract": null
+    },
+    {
+      "function": "authLogout",
+      "path": "/api/auth/logout",
+      "contract": null
+    },
+    {
+      "function": "authRevoke",
+      "path": "/api/auth/revoke",
+      "contract": null
+    },
+    {
+      "function": "authSessions",
+      "path": "/api/auth/sessions",
+      "contract": null
+    },
+    {
+      "function": "cancelHFDownload",
+      "path": "/api/hf/downloads/:id/cancel",
+      "contract": null
+    },
+    {
+      "function": "cancelQuantumJob",
+      "path": "/api/quantum/jobs/:id/cancel",
+      "contract": null
+    },
+    {
+      "function": "clearMessages",
+      "path": "/api/sessions/:id/messages",
+      "contract": null
+    },
+    {
+      "function": "closeObligation",
+      "path": "/api/obligations/:id",
+      "contract": null
+    },
+    {
+      "function": "configureApiBase",
+      "path": "/api/config",
+      "contract": null
+    },
+    {
+      "function": "createCustomAgent",
+      "path": "/api/agents/custom",
+      "contract": null
+    },
+    {
+      "function": "createLab",
+      "path": "/api/tenants",
+      "contract": null
+    },
+    {
+      "function": "createSession",
+      "path": "/api/sessions",
+      "contract": null
+    },
+    {
+      "function": "deleteCustomAgent",
+      "path": "/api/agents/custom/:id",
+      "contract": null
+    },
+    {
+      "function": "deleteSession",
+      "path": "/api/sessions/:id",
+      "contract": null
+    },
+    {
+      "function": "downloadFile",
+      "path": null,
+      "contract": null
+    },
+    {
+      "function": "emergencyAbort",
+      "path": "/api/supervisor/abort",
+      "contract": null
+    },
+    {
+      "function": "evaluateDiscoveryPipeline",
+      "path": "/api/discovery/pipeline",
+      "contract": null
+    },
+    {
+      "function": "evaluatePrediction",
+      "path": "/api/vault/predictions/evaluate",
+      "contract": null
+    },
+    {
+      "function": "exportLedger",
+      "path": "/api/ledger/export",
+      "contract": null
+    },
+    {
+      "function": "exportSession",
+      "path": "/api/sessions/export",
+      "contract": null
+    },
+    {
+      "function": "fetchBackendStatus",
+      "path": "/api/health",
+      "contract": null
+    },
+    {
+      "function": "fetchCampaignState",
+      "path": "/api/sessions/:id/campaign",
+      "contract": null
+    },
+    {
+      "function": "fetchEpistemics",
+      "path": "/api/epistemics",
+      "contract": null
+    },
+    {
+      "function": "fetchFidelity",
+      "path": "/api/fidelity",
+      "contract": null
+    },
+    {
+      "function": "fetchLedgerExport",
+      "path": "/api/ledger/export",
+      "contract": null
+    },
+    {
+      "function": "fetchMolecularADMET",
+      "path": "/api/chemistry/admet",
+      "contract": null
+    },
+    {
+      "function": "importSession",
+      "path": "/api/sessions/import",
+      "contract": null
+    },
+    {
+      "function": "isTerminalJobStatus",
+      "path": null,
+      "contract": null
+    },
+    {
+      "function": "issueTenantGrant",
+      "path": "/api/tenant-grants/issue",
+      "contract": null
+    },
+    {
+      "function": "jobStatusLabel",
+      "path": null,
+      "contract": null
+    },
+    {
+      "function": "lensImageProxyUrl",
+      "path": null,
+      "contract": null
+    },
+    {
+      "function": "loopAction",
+      "path": "/api/loops/:id/:id",
+      "contract": null
+    },
+    {
+      "function": "refundSessionSpend",
+      "path": "/api/sessions/refund",
+      "contract": null
+    },
+    {
+      "function": "refundTenantSpend",
+      "path": "/api/tenants/refund",
+      "contract": null
+    },
+    {
+      "function": "regenerateChat",
+      "path": "/api/chat/regenerate",
+      "contract": null
+    },
+    {
+      "function": "registerTenantAdminKey",
+      "path": "/api/tenants/admin-key",
+      "contract": null
+    },
+    {
+      "function": "rejectMetasearchProposal",
+      "path": "/api/metasearch/reject",
+      "contract": null
+    },
+    {
+      "function": "reportError",
+      "path": null,
+      "contract": null
+    },
+    {
+      "function": "requestServerSignedMandate",
+      "path": "/api/mandates/sign",
+      "contract": null
+    },
+    {
+      "function": "resetDedupForTests",
+      "path": null,
+      "contract": null
+    },
+    {
+      "function": "resumeTribunal",
+      "path": "/api/tribunal/resume",
+      "contract": null
+    },
+    {
+      "function": "retainMemory",
+      "path": "/api/memory/retain",
+      "contract": null
+    },
+    {
+      "function": "revokeTenantAutonomy",
+      "path": "/api/tenants/revoke",
+      "contract": null
+    },
+    {
+      "function": "revokeTenantGrant",
+      "path": "/api/tenant-grants/revoke",
+      "contract": null
+    },
+    {
+      "function": "revokeVaultLease",
+      "path": "/api/vault/leases/revoke",
+      "contract": null
+    },
+    {
+      "function": "rewriteChat",
+      "path": "/api/chat/rewrite",
+      "contract": null
+    },
+    {
+      "function": "routeMultimodalPayload",
+      "path": "/api/mesh/route",
+      "contract": null
+    },
+    {
+      "function": "runQuantumCanary",
+      "path": "/api/quantum/canary",
+      "contract": null
+    },
+    {
+      "function": "saveCanvasLayout",
+      "path": "/api/canvas/layout",
+      "contract": null
+    },
+    {
+      "function": "saveLLMSettings",
+      "path": "/api/llm/settings",
+      "contract": null
+    },
+    {
+      "function": "saveQuantumSettings",
+      "path": "/api/quantum/settings",
+      "contract": null
+    },
+    {
+      "function": "scoreCodesignBudget",
+      "path": "/api/codesign/budget",
+      "contract": null
+    },
+    {
+      "function": "sealPrediction",
+      "path": "/api/vault/predictions/seal",
+      "contract": null
+    },
+    {
+      "function": "searchLiterature",
+      "path": "/api/literature",
+      "contract": null
+    },
+    {
+      "function": "sendFeedback",
+      "path": "/api/chat/feedback",
+      "contract": null
+    },
+    {
+      "function": "setTenantAutonomy",
+      "path": "/api/tenants/autonomy",
+      "contract": null
+    },
+    {
+      "function": "setTenantCeiling",
+      "path": "/api/tenants/ceiling",
+      "contract": null
+    },
+    {
+      "function": "setTenantStatus",
+      "path": "/api/tenants/status",
+      "contract": null
+    },
+    {
+      "function": "synthesizeCampaign",
+      "path": "/api/sessions/:id/campaign/synthesize",
+      "contract": null
+    },
+    {
+      "function": "testLLM",
+      "path": "/api/llm/test",
+      "contract": null
+    },
+    {
+      "function": "uploadObservatoryAsset",
+      "path": "/api/observatory/assets",
+      "contract": null
+    },
+    {
+      "function": "verifySpendMandate",
+      "path": "/api/mandates/verify",
+      "contract": null
+    },
+    {
+      "function": "wasRecentAuthFailure",
+      "path": null,
+      "contract": null
+    }
+  ]
+}

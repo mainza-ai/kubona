@@ -56,8 +56,12 @@ The full gap register, phased plan, and definition of done are in
 - [x] P1: canvas layout now restores the 3D camera position and orbit target.
 - [x] P1: `doctor` reports configured backup freshness and newer failure markers.
 - [x] P1: structural a11y E2E (names, labels, img alt, one main landmark).
-- [ ] P1: generated contracts/OpenAPI, stack-start preflight/alerts, contrast/
-      modal/reduced-motion/screen-reader audit.
+- [x] P1: generated response-contract inventory (61 modeled / 68 explicit
+      unmodeled / 58 schemas), CI freshness check.
+- [x] P1: `kubonad preflight` gate before kubonad starts (rate card, ledger
+      chain/schema, FK, optional backup freshness).
+- [ ] P1: full OpenAPI response schemas, external alerts, contrast/modal/
+      reduced-motion/screen-reader audit.
 
 ## Production blockers
 
