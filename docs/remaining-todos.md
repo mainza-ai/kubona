@@ -53,7 +53,8 @@ The full gap register, phased plan, and definition of done are in
 - [ ] Operator: runtime vendor rate card before 2026-11-29.
 - [ ] Operator: paid IBM evidence + historical settlement reconciliation.
 - [x] P1: SSE event IDs + Last-Event-ID cursor replay (server + client native reconnect).
-- [ ] P1: generated contracts/OpenAPI, preflight/alerts, deep a11y, full canvas state.
+- [x] P1: canvas layout now restores the 3D camera position and orbit target.
+- [ ] P1: generated contracts/OpenAPI, preflight/alerts, deep a11y.
 
 ## Production blockers
 

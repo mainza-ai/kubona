@@ -48,7 +48,7 @@ outside evidence.
 | P1-3 | Secrets are `.env`-based; the ledger is plaintext SQLite. | Acceptable for a single trusted host, but no Docker secrets/KMS/at-rest encryption path. |
 | P1-4 | `doctor --strict`, backup freshness, disk pressure, and rate-card expiry are not enforced at stack start or surfaced as alerts. | Failures are detectable but not proactive. |
 | P1-5 | Deep accessibility audit is incomplete: contrast, every modal, reduced-motion coverage, and screen-reader transcripts. | Keyboard/mobile smoke is covered; full WCAG pass is not. |
-| P1-6 | Canvas layout persistence stores only 2D/3D mode, not camera/zoom/selection. | “Save layout” does not restore the view an operator arranged. |
+| P1-6 | **PARTIAL 2026-10-31.** Canvas layout now stores the 3D camera position and orbit target (zoom is represented by camera distance); point selection is still campaign state, not layout. | A saved observatory view restores on reopen. |
 
 ### P2 — enhancements, not local-production blockers
 

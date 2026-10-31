@@ -88,8 +88,15 @@ export function touchProbeHint(isCoarsePointer: boolean): string {
     : 'Click terrain to pin coordinates into active campaign.';
 }
 
+export interface CanvasCamera {
+  position: [number, number, number];
+  target: [number, number, number];
+}
+
 export interface SpatialCanvas3DProps {
   campaign?: CampaignState | null;
+  initialCamera?: CanvasCamera | null;
+  onCameraChange?: (camera: CanvasCamera) => void;
   lensImageUrl?: string | null;
   lensWatermark?: string;
   lensPromptUsed?: string | null;
@@ -118,6 +125,8 @@ export interface SpatialCanvas3DProps {
 
 export function SpatialCanvas3D({
   campaign,
+  initialCamera = null,
+  onCameraChange,
   lensImageUrl = null,
   lensWatermark = 'SYNTHETIC LENS — WORLD LABS ATLAS',
   lensPromptUsed = null,
@@ -522,6 +531,15 @@ export function SpatialCanvas3D({
   const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
   const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
   const controlsRef = useRef<OrbitControls | null>(null);
+  const onCameraChangeRef = useRef<typeof onCameraChange>(onCameraChange);
+  const initialCameraRef = useRef(initialCamera);
+  const cameraSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    onCameraChangeRef.current = onCameraChange;
+  }, [onCameraChange]);
+  useEffect(() => {
+    initialCameraRef.current = initialCamera;
+  }, [initialCamera]);
   const terrainMeshRef = useRef<THREE.Mesh | null>(null);
   const ghostMeshRef = useRef<THREE.Mesh | null>(null);
   // R-07 μ±σ band: translucent wireframe shells above/below the μ plane.
@@ -732,7 +750,26 @@ export function SpatialCanvas3D({
     controls.minDistance = 1.5;
     controls.maxDistance = 12.0;
     controls.target.set(0, 0, 0);
+    const startCamera = initialCameraRef.current;
+    if (startCamera && startCamera.position.every(Number.isFinite) && startCamera.target.every(Number.isFinite)) {
+      camera.position.set(...startCamera.position);
+      controls.target.set(...startCamera.target);
+      controls.update();
+    }
     controlsRef.current = controls;
+
+    // Persist operator-arranged views without saving every damping frame.
+    const onControlsChange = () => {
+      if (cameraSaveTimerRef.current) clearTimeout(cameraSaveTimerRef.current);
+      cameraSaveTimerRef.current = setTimeout(() => {
+        if (!onCameraChangeRef.current) return;
+        onCameraChangeRef.current({
+          position: [camera.position.x, camera.position.y, camera.position.z],
+          target: [controls.target.x, controls.target.y, controls.target.z],
+        });
+      }, 400);
+    };
+    controls.addEventListener('change', onControlsChange);
 
     // Diegetic Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.45);
@@ -1169,6 +1206,8 @@ export function SpatialCanvas3D({
       canvas.removeEventListener('mousemove', handlePointerMove);
       canvas.removeEventListener('webglcontextlost', handleContextLost);
 
+      controls.removeEventListener('change', onControlsChange);
+      if (cameraSaveTimerRef.current) clearTimeout(cameraSaveTimerRef.current);
       controls.dispose();
       terrainGeo.dispose();
       vsupMaterial.dispose();
