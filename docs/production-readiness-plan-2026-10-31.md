@@ -47,7 +47,7 @@ outside evidence.
 | P1-2 | Response contracts cover major surfaces but are advisory, hand-maintained, and not a generated OpenAPI/schema artifact. | Drift is logged, not prevented; new endpoints can ship without a contract. |
 | P1-3 | Secrets are `.env`-based; the ledger is plaintext SQLite. | Acceptable for a single trusted host, but no Docker secrets/KMS/at-rest encryption path. |
 | P1-4 | **PARTIAL 2026-10-31.** `doctor --strict` now reports configured backup freshness and newer failure markers alongside rate-card/FK/key state; stack-start enforcement and external alerts remain open. | Backup outages are visible in preflight, not only in container health. |
-| P1-5 | Deep accessibility audit is incomplete: contrast, every modal, reduced-motion coverage, and screen-reader transcripts. | Keyboard/mobile smoke is covered; full WCAG pass is not. |
+| P1-5 | **PARTIAL 2026-10-31.** E2E now rejects unnamed buttons/links, unlabeled form fields, missing image alt text, and multiple main landmarks. Contrast, every modal, reduced-motion coverage, and screen-reader transcripts remain. | Structural a11y regressions now gate E2E. |
 | P1-6 | **PARTIAL 2026-10-31.** Canvas layout now stores the 3D camera position and orbit target (zoom is represented by camera distance); point selection is still campaign state, not layout. | A saved observatory view restores on reopen. |
 
 ### P2 — enhancements, not local-production blockers
