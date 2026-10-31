@@ -27,8 +27,8 @@ development — re-verify the gate on the exact commit before citing
 "production-ready" as current fact. Do not cite "private" as current fact.
 
 > ⚑ State correction (2026-10-30): the 20-job **push** gate is green at
-> `720a81f` (runs `41146278707` on develop, `41146281458` on main; 20/20),
-> with Console E2E green there too (`41146278760` develop, `41146281476`
+> `ae3cdd9` (runs `41155146044` on develop, `41155148540` on main; 20/20),
+> with Console E2E green there too (`41155146028` develop, `41155148548`
 > main). The **nightly thesis-scale** gate remains green at `c7d98f6`
 > (`41041244412`: canary + slice60 composition + determinism); console-only
 > commits after it did not rerun that nightly. The earlier
