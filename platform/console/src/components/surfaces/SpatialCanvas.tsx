@@ -581,9 +581,10 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
 
         <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           {/* Mode Switcher: 2D Workbench vs 3D Observatory */}
-          <div className="flex items-center p-1 rounded-2xl bg-black/60 border border-white/10 backdrop-blur-xl shadow-inner">
+          <div role="group" aria-label="Canvas mode" className="flex items-center p-1 rounded-2xl bg-black/60 border border-white/10 backdrop-blur-xl shadow-inner">
             <button
               onClick={() => setCanvasMode('workbench')}
+              aria-pressed={canvasMode === 'workbench'}
               className={`px-3 py-1 rounded-xl text-xs font-medium transition-all ${
                 canvasMode === 'workbench'
                   ? 'bg-white/20 text-white font-semibold shadow-sm'
@@ -594,6 +595,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
             </button>
             <button
               onClick={() => setCanvasMode('observatory')}
+              aria-pressed={canvasMode === 'observatory'}
               className={`px-3 py-1 rounded-xl text-xs font-medium transition-all flex items-center gap-1.5 ${
                 canvasMode === 'observatory'
                   ? 'bg-cyan-500/25 text-cyan-300 border border-cyan-400/40 font-semibold shadow-sm'
@@ -973,7 +975,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
           </div>
 
           {/* 3-Depth Progressive Disclosure Segmented Switch */}
-          <div className="flex items-center p-1 rounded-2xl bg-black/60 border border-white/10 backdrop-blur-xl shadow-inner">
+          <div role="group" aria-label="Canvas mode" className="flex items-center p-1 rounded-2xl bg-black/60 border border-white/10 backdrop-blur-xl shadow-inner">
             <button
               onClick={() => setDisclosureDepth(1)}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all ${
