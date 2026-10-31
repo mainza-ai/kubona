@@ -52,7 +52,7 @@ export function ArenaHud({
         <span className="font-code text-xs text-white font-medium tracking-wide">{targetLabel}</span>
         <span className="text-white/20">|</span>
         {statusText ? (
-          <span data-testid="hud-status" className="font-code text-[11px] text-cyan-300">{statusText}</span>
+          <span data-testid="hud-status" aria-live="polite" aria-atomic="true" className="font-code text-[11px] text-cyan-300">{statusText}</span>
         ) : (
           <span className="font-code text-[11px] text-cyan-400">{swarmDetail}</span>
         )}
