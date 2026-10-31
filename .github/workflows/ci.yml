@@ -436,9 +436,6 @@ jobs:
       - name: Console response-contract inventory is current
         working-directory: .
         run: python3 scripts/console-contract-inventory.py --check
-      - name: Console OpenAPI is current
-        working-directory: .
-        run: node scripts/console-openapi.mjs --check
       - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
         with:
           version: 11.18.0
@@ -448,6 +445,9 @@ jobs:
           cache: "pnpm"
           cache-dependency-path: platform/console/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      - name: Console OpenAPI is current
+        working-directory: .
+        run: node scripts/console-openapi.mjs --check
       # U0: the 103 vitest tests + eslint previously ran nowhere in CI —
       # the console could rot green while build-only stayed green. Test
       # first (fastest signal), then lint, then build.
