@@ -13,6 +13,15 @@ INTERVAL="${KUBONA_BACKUP_INTERVAL_SECONDS:-86400}"
 KEEP="${KUBONA_BACKUP_KEEP:-7}"
 RECIPIENT="${KUBONA_BACKUP_AGE_RECIPIENT:-}"
 REQUIRE_ENCRYPTION="${KUBONA_BACKUP_REQUIRE_ENCRYPTION:-0}"
+ALERT_WEBHOOK="${KUBONA_ALERT_WEBHOOK_URL:-}"
+
+notify() {
+  # Keep failures visible off-host without making the backup loop depend on
+  # the alert rail. Never print the webhook URL (it may contain a token).
+  if [ -z "$ALERT_WEBHOOK" ]; then return 0; fi
+  curl -fsS --max-time 5 -X POST -H 'Content-Type: application/json' \
+    --data-binary "{\"text\":\"$1\"}" "$ALERT_WEBHOOK" >/dev/null 2>&1 || true
+}
 
 mkdir -p "$BACKUP_DIR"
 if [ -n "$RECIPIENT" ] && ! command -v age >/dev/null 2>&1; then
@@ -48,6 +57,7 @@ while :; do
   else
     printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$BACKUP_DIR/.last-failure"
     echo "backup-loop: backup failed; leaving the previous verified copy in place" >&2
+    notify "Kubona backup failed on $(hostname) at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
   fi
 
   # Retention: newest KEEP backup artifacts (plaintext or .age). Sidecars are

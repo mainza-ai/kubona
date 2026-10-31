@@ -124,306 +124,367 @@
     {
       "function": "authChallenge",
       "path": "/api/auth/challenge",
+      "method": "POST",
       "contract": "auth.challenge"
     },
     {
       "function": "authWhoami",
       "path": "/api/auth/whoami",
+      "method": "GET",
       "contract": "auth.whoami"
     },
     {
       "function": "evaluateCodesignArtifact",
       "path": "/api/codesign/evaluate",
+      "method": "POST",
       "contract": "codesign.evaluate"
     },
     {
       "function": "evaluateCodesignBatch",
       "path": "/api/codesign/evaluate-batch",
+      "method": "POST",
       "contract": "codesign.batch"
     },
     {
       "function": "fetchAutoresearchHarnesses",
       "path": "/api/autoresearch/harnesses",
+      "method": "GET",
       "contract": "autoresearch.harnesses"
     },
     {
       "function": "fetchAutoresearchLoops",
       "path": "/api/autoresearch/loops",
+      "method": "GET",
       "contract": "autoresearch.loops"
     },
     {
       "function": "fetchCalibration",
       "path": "/api/vault/predictions/calibration",
+      "method": "GET",
       "contract": "vault.calibration"
     },
     {
       "function": "fetchCanvasLayout",
       "path": "/api/canvas/layout",
+      "method": "GET",
       "contract": "canvas.layout"
     },
     {
       "function": "fetchCapabilities",
       "path": "/api/capabilities",
+      "method": "GET",
       "contract": "capabilities"
     },
     {
       "function": "fetchCodesignPacks",
       "path": "/api/codesign/packs",
+      "method": "GET",
       "contract": "codesign.packs"
     },
     {
       "function": "fetchCodesignVerified",
       "path": "/api/codesign/verified",
+      "method": "GET",
       "contract": "codesign.verified"
     },
     {
       "function": "fetchCostSummary",
       "path": "/api/cost/summary",
+      "method": "GET",
       "contract": "cost.summary"
     },
     {
       "function": "fetchCustomAgents",
       "path": "/api/agents/custom",
+      "method": "GET",
       "contract": "agents.custom"
     },
     {
       "function": "fetchEvents",
       "path": "/api/events",
+      "method": "GET",
       "contract": "events.list"
     },
     {
       "function": "fetchFleet",
       "path": "/api/fleet",
+      "method": "GET",
       "contract": "fleet"
     },
     {
       "function": "fetchJob",
       "path": "/api/jobs/:id",
+      "method": "GET",
       "contract": "job"
     },
     {
       "function": "fetchJobs",
       "path": "/api/jobs",
+      "method": "GET",
       "contract": "jobs.list"
     },
     {
       "function": "fetchLLMModels",
       "path": "/api/llm/models",
+      "method": "GET",
       "contract": "llm.models"
     },
     {
       "function": "fetchLLMSettings",
       "path": "/api/llm/settings",
+      "method": "GET",
       "contract": "llm.settings"
     },
     {
       "function": "fetchLabs",
       "path": "/api/tenants",
+      "method": "GET",
       "contract": "labs.list"
     },
     {
       "function": "fetchLatestPrediction",
       "path": "/api/vault/predictions/latest",
+      "method": "GET",
       "contract": "vault.latest"
     },
     {
       "function": "fetchLensHistory",
       "path": "/api/observatory/lens/history",
+      "method": "GET",
       "contract": "lens.history"
     },
     {
       "function": "fetchLoops",
       "path": "/api/loops",
+      "method": "GET",
       "contract": "loops.list"
     },
     {
       "function": "fetchMemoryRecall",
       "path": "/api/memory/recall",
+      "method": "GET",
       "contract": "memory.recall"
     },
     {
       "function": "fetchMessages",
       "path": "/api/sessions/:id/messages",
+      "method": "GET",
       "contract": "messages.list"
     },
     {
       "function": "fetchMetasearchProposals",
       "path": "/api/metasearch/proposals",
+      "method": "GET",
       "contract": "metasearch.proposals"
     },
     {
       "function": "fetchNotebooks",
       "path": "/api/results/notebooks",
+      "method": "GET",
       "contract": "notebooks.list"
     },
     {
       "function": "fetchObservatoryLensStatus",
       "path": "/api/observatory/lens",
+      "method": "GET",
       "contract": "lens.status"
     },
     {
       "function": "fetchOpenObligations",
       "path": "/api/obligations/open",
+      "method": "GET",
       "contract": "obligations.open"
     },
     {
       "function": "fetchPredictionHistory",
       "path": "/api/vault/predictions/history",
+      "method": "GET",
       "contract": "vault.history"
     },
     {
       "function": "fetchQirCompile",
       "path": "/api/qir/compile",
+      "method": "POST",
       "contract": "qir.compile"
     },
     {
       "function": "fetchQuantumBackends",
       "path": "/api/quantum/backends",
+      "method": "GET",
       "contract": "quantum.backends"
     },
     {
       "function": "fetchQuantumJob",
       "path": "/api/quantum/jobs/:id",
+      "method": "GET",
       "contract": "quantum.job"
     },
     {
       "function": "fetchQuantumSettings",
       "path": "/api/quantum/settings",
+      "method": "GET",
       "contract": "quantum.settings"
     },
     {
       "function": "fetchRadar",
       "path": "/api/radar",
+      "method": "GET",
       "contract": "radar"
     },
     {
       "function": "fetchSession",
       "path": "/api/sessions/:id",
+      "method": "GET",
       "contract": "session"
     },
     {
       "function": "fetchSessionContext",
       "path": "/api/sessions/context",
+      "method": "GET",
       "contract": "session.context"
     },
     {
       "function": "fetchSessions",
       "path": "/api/sessions",
+      "method": "GET",
       "contract": "sessions.list"
     },
     {
       "function": "fetchSystemAgents",
       "path": "/api/agents",
+      "method": "GET",
       "contract": "agents.system"
     },
     {
       "function": "getHFModelDetails",
       "path": "/api/hf/models/:id",
+      "method": "GET",
       "contract": "hf.details"
     },
     {
       "function": "issueVaultLease",
       "path": "/api/vault/leases",
+      "method": "POST",
       "contract": "vault.lease"
     },
     {
       "function": "launchProposal",
       "path": "/api/chat/launch",
+      "method": "POST",
       "contract": "chat.launch"
     },
     {
       "function": "listHFDownloads",
       "path": "/api/hf/downloads",
+      "method": "GET",
       "contract": "hf.downloads"
     },
     {
       "function": "pauseAutoresearchLoop",
       "path": "/api/autoresearch/loops/:id/pause",
+      "method": "POST",
       "contract": "autoresearch.loop"
     },
     {
       "function": "planWorkflow",
       "path": "/api/workflows/plan",
+      "method": "POST",
       "contract": "workflow.plan"
     },
     {
       "function": "requestObservatoryLens",
       "path": "/api/observatory/lens",
+      "method": "POST",
       "contract": "lens.request"
     },
     {
       "function": "rerunCodesignProposal",
       "path": "/api/codesign/rerun",
+      "method": "POST",
       "contract": "codesign.rerun"
     },
     {
       "function": "resolveObservatoryLens",
       "path": "/api/observatory/lens/resolve",
+      "method": "POST",
       "contract": "lens.resolve"
     },
     {
       "function": "resumeAutoresearchLoop",
       "path": "/api/autoresearch/loops/:id/resume",
+      "method": "POST",
       "contract": "autoresearch.loop"
     },
     {
       "function": "runFamilySearch",
       "path": "/api/codesign/families",
+      "method": "POST",
       "contract": "codesign.families"
     },
     {
       "function": "runTribunal",
       "path": "/api/chat/tribunal",
+      "method": "POST",
       "contract": "tribunal.run"
     },
     {
       "function": "runWorkflow",
       "path": "/api/workflows/run",
+      "method": "POST",
       "contract": "workflow.run"
     },
     {
       "function": "searchHFModels",
       "path": "/api/hf/search",
+      "method": "GET",
       "contract": "hf.search"
     },
     {
       "function": "sendChatMessage",
       "path": "/api/chat/messages",
+      "method": "POST",
       "contract": "chat.send"
     },
     {
       "function": "startAutoresearchLoop",
       "path": "/api/autoresearch/start",
+      "method": "POST",
       "contract": "autoresearch.loop"
     },
     {
       "function": "startHFDownload",
       "path": "/api/hf/download",
+      "method": "POST",
       "contract": "hf.download"
     },
     {
       "function": "stepAutoresearchLoop",
       "path": "/api/autoresearch/loops/:id/step",
+      "method": "POST",
       "contract": "autoresearch.step"
     },
     {
       "function": "stopAutoresearchLoop",
       "path": "/api/autoresearch/loops/:id/stop",
+      "method": "POST",
       "contract": "autoresearch.loop"
     },
     {
       "function": "streamChatMessage",
       "path": "/api/chat/stream",
+      "method": "POST",
       "contract": "chat.stream.done"
     },
     {
       "function": "submitQuantumJob",
       "path": "/api/quantum/jobs",
+      "method": "POST",
       "contract": "quantum.submit"
     },
     {
       "function": "verifyLedger",
       "path": "/api/ledger/verify",
+      "method": "GET",
       "contract": "ledger.verify"
     }
   ],
@@ -431,341 +492,409 @@
     {
       "function": "apiFetch",
       "path": null,
+      "method": null,
       "contract": null
     },
     {
       "function": "appendLedgerEvent",
       "path": "/api/ledger/append",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "applyMetasearchProposal",
       "path": "/api/metasearch/apply",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "approveMetasearchProposal",
       "path": "/api/metasearch/approve",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "assertPrediction",
       "path": "/api/vault/predictions/assert",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "authLogin",
       "path": "/api/auth/login",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "authLogout",
       "path": "/api/auth/logout",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "authRevoke",
       "path": "/api/auth/revoke",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "authSessions",
       "path": "/api/auth/sessions",
+      "method": "GET",
       "contract": null
     },
     {
       "function": "cancelHFDownload",
       "path": "/api/hf/downloads/:id/cancel",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "cancelQuantumJob",
       "path": "/api/quantum/jobs/:id/cancel",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "clearMessages",
       "path": "/api/sessions/:id/messages",
+      "method": "DELETE",
       "contract": null
     },
     {
       "function": "closeObligation",
       "path": "/api/obligations/:id",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "configureApiBase",
       "path": "/api/config",
+      "method": "GET",
       "contract": null
     },
     {
       "function": "createCustomAgent",
       "path": "/api/agents/custom",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "createLab",
       "path": "/api/tenants",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "createSession",
       "path": "/api/sessions",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "deleteCustomAgent",
       "path": "/api/agents/custom/:id",
+      "method": "DELETE",
       "contract": null
     },
     {
       "function": "deleteSession",
       "path": "/api/sessions/:id",
+      "method": "DELETE",
       "contract": null
     },
     {
       "function": "downloadFile",
       "path": null,
+      "method": null,
       "contract": null
     },
     {
       "function": "emergencyAbort",
       "path": "/api/supervisor/abort",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "evaluateDiscoveryPipeline",
       "path": "/api/discovery/pipeline",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "evaluatePrediction",
       "path": "/api/vault/predictions/evaluate",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "exportLedger",
       "path": "/api/ledger/export",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "exportSession",
       "path": "/api/sessions/export",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "fetchBackendStatus",
       "path": "/api/health",
+      "method": "GET",
       "contract": null
     },
     {
       "function": "fetchCampaignState",
       "path": "/api/sessions/:id/campaign",
+      "method": "GET",
       "contract": null
     },
     {
       "function": "fetchEpistemics",
       "path": "/api/epistemics",
+      "method": "GET",
       "contract": null
     },
     {
       "function": "fetchFidelity",
       "path": "/api/fidelity",
+      "method": "GET",
       "contract": null
     },
     {
       "function": "fetchLedgerExport",
       "path": "/api/ledger/export",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "fetchMolecularADMET",
       "path": "/api/chemistry/admet",
+      "method": "GET",
       "contract": null
     },
     {
       "function": "importSession",
       "path": "/api/sessions/import",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "isTerminalJobStatus",
       "path": null,
+      "method": null,
       "contract": null
     },
     {
       "function": "issueTenantGrant",
       "path": "/api/tenant-grants/issue",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "jobStatusLabel",
       "path": null,
+      "method": null,
       "contract": null
     },
     {
       "function": "lensImageProxyUrl",
       "path": null,
+      "method": null,
       "contract": null
     },
     {
       "function": "loopAction",
       "path": "/api/loops/:id/:id",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "refundSessionSpend",
       "path": "/api/sessions/refund",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "refundTenantSpend",
       "path": "/api/tenants/refund",
+      "method": "GET",
       "contract": null
     },
     {
       "function": "regenerateChat",
       "path": "/api/chat/regenerate",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "registerTenantAdminKey",
       "path": "/api/tenants/admin-key",
+      "method": "GET",
       "contract": null
     },
     {
       "function": "rejectMetasearchProposal",
       "path": "/api/metasearch/reject",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "reportError",
       "path": null,
+      "method": null,
       "contract": null
     },
     {
       "function": "requestServerSignedMandate",
       "path": "/api/mandates/sign",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "resetDedupForTests",
       "path": null,
+      "method": null,
       "contract": null
     },
     {
       "function": "resumeTribunal",
       "path": "/api/tribunal/resume",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "retainMemory",
       "path": "/api/memory/retain",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "revokeTenantAutonomy",
       "path": "/api/tenants/revoke",
+      "method": "GET",
       "contract": null
     },
     {
       "function": "revokeTenantGrant",
       "path": "/api/tenant-grants/revoke",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "revokeVaultLease",
       "path": "/api/vault/leases/revoke",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "rewriteChat",
       "path": "/api/chat/rewrite",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "routeMultimodalPayload",
       "path": "/api/mesh/route",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "runQuantumCanary",
       "path": "/api/quantum/canary",
+      "method": "GET",
       "contract": null
     },
     {
       "function": "saveCanvasLayout",
       "path": "/api/canvas/layout",
+      "method": "PUT",
       "contract": null
     },
     {
       "function": "saveLLMSettings",
       "path": "/api/llm/settings",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "saveQuantumSettings",
       "path": "/api/quantum/settings",
+      "method": "PUT",
       "contract": null
     },
     {
       "function": "scoreCodesignBudget",
       "path": "/api/codesign/budget",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "sealPrediction",
       "path": "/api/vault/predictions/seal",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "searchLiterature",
       "path": "/api/literature",
+      "method": "GET",
       "contract": null
     },
     {
       "function": "sendFeedback",
       "path": "/api/chat/feedback",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "setTenantAutonomy",
       "path": "/api/tenants/autonomy",
+      "method": "GET",
       "contract": null
     },
     {
       "function": "setTenantCeiling",
       "path": "/api/tenants/ceiling",
+      "method": "GET",
       "contract": null
     },
     {
       "function": "setTenantStatus",
       "path": "/api/tenants/status",
+      "method": "GET",
       "contract": null
     },
     {
       "function": "synthesizeCampaign",
       "path": "/api/sessions/:id/campaign/synthesize",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "testLLM",
       "path": "/api/llm/test",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "uploadObservatoryAsset",
       "path": "/api/observatory/assets",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "verifySpendMandate",
       "path": "/api/mandates/verify",
+      "method": "POST",
       "contract": null
     },
     {
       "function": "wasRecentAuthFailure",
       "path": null,
+      "method": null,
       "contract": null
     }
   ]
