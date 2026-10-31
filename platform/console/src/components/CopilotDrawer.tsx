@@ -1603,7 +1603,7 @@ export function CopilotDrawer({
                 <Paperclip className="w-4 h-4" />
               </button>
               </Tip>
-              <span className="text-[10px] font-code text-slate-600 ml-1">⌘K</span>
+              <span className="text-[10px] font-code text-slate-400 ml-1">⌘K</span>
               <ContextReadout sessionId={sessionId} refreshKey={messages.length} />
             </div>
             <Tip label={streamingId ? 'Stop generation' : 'Send directive'} position="top">
@@ -1639,7 +1639,7 @@ export function CopilotDrawer({
           <span>Convene Multi-Agent Research Tribunal</span>
         </button>
         <div className="text-center">
-          <span className="text-[9px] text-slate-600 font-code">Autonomous AI Swarm · Local-first</span>
+          <span className="text-[9px] text-slate-400 font-code">Autonomous AI Swarm · Local-first</span>
         </div>
       </div>
       {clearConfirmOpen && (

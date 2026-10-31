@@ -8,7 +8,9 @@ production cloud pricing requires an operator-supplied runtime card.
 - Embedded copy: `platform/core/pkg/rates/rate-cards.json` (parity-tested)
 - Runtime source: `KUBONA_RATE_CARD_PATH` (absolute file) or
   `KUBONA_RATE_CARD_URL` (HTTPS; loopback HTTP allowed). They are mutually
-  exclusive; neither set keeps the embedded bootstrap.
+  exclusive; neither set keeps the embedded bootstrap. The compose `.env.example`
+  starts with `/contracts/rate-cards.json` as the local-private runtime card;
+  replace it with an invoice/discount-derived card before quoting cloud bills.
 - The daemon reloads a configured file/URL every 5 minutes. A failed refresh
   keeps the last good card, which then becomes stale on its own schedule.
   A stale card is a hard refusal, never an estimate that silently becomes a

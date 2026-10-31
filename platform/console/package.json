@@ -23,6 +23,7 @@
     "three": "^0.186.1"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.10.2",
     "@playwright/test": "1.51.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",

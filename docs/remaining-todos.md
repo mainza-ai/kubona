@@ -40,6 +40,13 @@ Updated 2026-10-30. This is the short execution list; the full queue lives in
 - [ ] Still open: deep accessibility audit across every modal/surface
       (contrast, focus order, reduced motion, screen-reader transcripts).
 
+## Vendor evidence (2026-10-31)
+
+See [`vendor-evidence-2026-10-31.md`](vendor-evidence-2026-10-31.md) for the
+runtime-card basis, new IBM/Atlas receipts, and the historical-row
+disposition. The historical row is preserved; the operator must choose
+free/Open-Plan (`$0`) or attach a paid invoice for a correction.
+
 ## Paid E2E readiness (2026-10-31)
 
 See [`paid-e2e-readiness-2026-10-31.md`](paid-e2e-readiness-2026-10-31.md)
