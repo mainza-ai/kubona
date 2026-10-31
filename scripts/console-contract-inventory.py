@@ -28,6 +28,7 @@ NEXT_EXPORT_RE = re.compile(r"\nexport\s+(?:async\s+)?(?:function|const|interfac
 PATH_RE = re.compile(r"\$\{API_BASE\}(/api/[^`\"\s]*)")
 QUOTED_PATH_RE = re.compile(r"['\"](/api/[^'\"]+)['\"]")
 CONTRACT_RE = re.compile(r"\b(?:contract|reportResponseContract|validateResponse)\(\s*['\"]([^'\"]+)['\"]")
+METHOD_RE = re.compile(r"\bmethod:\s*['\"]([A-Za-z]+)['\"]")
 SCHEMA_RE = re.compile(r"^\s{2}(?:'([^']+)'|([A-Za-z0-9_.]+)):\s*obj\(", re.MULTILINE)
 
 
@@ -54,10 +55,12 @@ def api_functions() -> list[dict[str, object]]:
         if m:
             path = normalize(m.group(1).split("?")[0])
         contract_match = CONTRACT_RE.search(body)
+        method_match = METHOD_RE.search(body)
         out.append(
             {
                 "function": match.group(1),
                 "path": path,
+                "method": method_match.group(1).upper() if method_match else ("GET" if path else None),
                 "contract": contract_match.group(1) if contract_match else None,
             }
         )

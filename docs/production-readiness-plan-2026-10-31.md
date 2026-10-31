@@ -44,7 +44,7 @@ outside evidence.
 | ID | Gap | Why it matters |
 |---|---|---|
 | P1-1 | **CLOSED 2026-10-31.** SSE emits `id:` frames, honors `Last-Event-ID`/`last_event_id`, replays the gap from the ledger cursor, and resets a future cursor to the tip. | Reconnect now replays rather than skipping rows. |
-| P1-2 | **PARTIAL 2026-10-31.** A generated inventory records 61 modeled API functions, 68 explicit unmodeled functions, and 58 schemas; CI rejects contract/schema/path drift. It is not an OpenAPI document and runtime validation remains advisory. | Drift is visible and gated; full OpenAPI schemas remain. |
+| P1-2 | **PARTIAL 2026-10-31.** Generated OpenAPI 3.1 now documents 60 paths with 58 response schemas plus 68 explicit unmodeled functions; CI rejects inventory/OpenAPI drift. Runtime validation remains advisory. | The contract artifact is real and gated; unmodeled paths remain explicit. |
 | P1-3 | Secrets are `.env`-based; the ledger is plaintext SQLite. | Acceptable for a single trusted host, but no Docker secrets/KMS/at-rest encryption path. |
 | P1-4 | **PARTIAL 2026-10-31.** `doctor --strict` now reports configured backup freshness and newer failure markers alongside rate-card/FK/key state; stack-start enforcement and external alerts remain open. | Backup outages are visible in preflight, not only in container health. |
 | P1-5 | **PARTIAL 2026-10-31.** E2E now rejects unnamed buttons/links, unlabeled form fields, missing image alt text, and multiple main landmarks. Contrast, every modal, reduced-motion coverage, and screen-reader transcripts remain. | Structural a11y regressions now gate E2E. |

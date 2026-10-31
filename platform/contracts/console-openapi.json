@@ -1,0 +1,2486 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Kubona Console API",
+    "version": "1.0.0",
+    "description": "Generated from the console contract inventory. Only modeled operations are documented; unmodeled functions are listed explicitly."
+  },
+  "paths": {
+    "/api/auth/challenge": {
+      "post": {
+        "operationId": "authChallenge",
+        "tags": [
+          "auth"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: auth.challenge",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/auth.challenge"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/whoami": {
+      "get": {
+        "operationId": "authWhoami",
+        "tags": [
+          "auth"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: auth.whoami",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/auth.whoami"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/codesign/evaluate": {
+      "post": {
+        "operationId": "evaluateCodesignArtifact",
+        "tags": [
+          "codesign"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: codesign.evaluate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/codesign.evaluate"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/codesign/evaluate-batch": {
+      "post": {
+        "operationId": "evaluateCodesignBatch",
+        "tags": [
+          "codesign"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: codesign.batch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/codesign.batch"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/autoresearch/harnesses": {
+      "get": {
+        "operationId": "fetchAutoresearchHarnesses",
+        "tags": [
+          "autoresearch"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: autoresearch.harnesses",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/autoresearch.harnesses"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/autoresearch/loops": {
+      "get": {
+        "operationId": "fetchAutoresearchLoops",
+        "tags": [
+          "autoresearch"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: autoresearch.loops",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/autoresearch.loops"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vault/predictions/calibration": {
+      "get": {
+        "operationId": "fetchCalibration",
+        "tags": [
+          "vault"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: vault.calibration",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/vault.calibration"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/canvas/layout": {
+      "get": {
+        "operationId": "fetchCanvasLayout",
+        "tags": [
+          "canvas"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: canvas.layout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/canvas.layout"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/capabilities": {
+      "get": {
+        "operationId": "fetchCapabilities",
+        "tags": [
+          "capabilities"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: capabilities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/capabilities"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/codesign/packs": {
+      "get": {
+        "operationId": "fetchCodesignPacks",
+        "tags": [
+          "codesign"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: codesign.packs",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/codesign.packs"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/codesign/verified": {
+      "get": {
+        "operationId": "fetchCodesignVerified",
+        "tags": [
+          "codesign"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: codesign.verified",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/codesign.verified"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/cost/summary": {
+      "get": {
+        "operationId": "fetchCostSummary",
+        "tags": [
+          "cost"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: cost.summary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/cost.summary"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents/custom": {
+      "get": {
+        "operationId": "fetchCustomAgents",
+        "tags": [
+          "agents"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: agents.custom",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/agents.custom"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/events": {
+      "get": {
+        "operationId": "fetchEvents",
+        "tags": [
+          "events"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: events.list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/events.list"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fleet": {
+      "get": {
+        "operationId": "fetchFleet",
+        "tags": [
+          "fleet"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: fleet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/fleet"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs/{id}": {
+      "get": {
+        "operationId": "fetchJob",
+        "tags": [
+          "jobs"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: job",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/job"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/jobs": {
+      "get": {
+        "operationId": "fetchJobs",
+        "tags": [
+          "jobs"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: jobs.list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/jobs.list"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/models": {
+      "get": {
+        "operationId": "fetchLLMModels",
+        "tags": [
+          "llm"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: llm.models",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/llm.models"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/settings": {
+      "get": {
+        "operationId": "fetchLLMSettings",
+        "tags": [
+          "llm"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: llm.settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/llm.settings"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenants": {
+      "get": {
+        "operationId": "fetchLabs",
+        "tags": [
+          "tenants"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: labs.list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/labs.list"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vault/predictions/latest": {
+      "get": {
+        "operationId": "fetchLatestPrediction",
+        "tags": [
+          "vault"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: vault.latest",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/vault.latest"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/observatory/lens/history": {
+      "get": {
+        "operationId": "fetchLensHistory",
+        "tags": [
+          "observatory"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: lens.history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/lens.history"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/loops": {
+      "get": {
+        "operationId": "fetchLoops",
+        "tags": [
+          "loops"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: loops.list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/loops.list"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/memory/recall": {
+      "get": {
+        "operationId": "fetchMemoryRecall",
+        "tags": [
+          "memory"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: memory.recall",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/memory.recall"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{id}/messages": {
+      "get": {
+        "operationId": "fetchMessages",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: messages.list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/messages.list"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/metasearch/proposals": {
+      "get": {
+        "operationId": "fetchMetasearchProposals",
+        "tags": [
+          "metasearch"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: metasearch.proposals",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/metasearch.proposals"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/results/notebooks": {
+      "get": {
+        "operationId": "fetchNotebooks",
+        "tags": [
+          "results"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: notebooks.list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/notebooks.list"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/observatory/lens": {
+      "get": {
+        "operationId": "fetchObservatoryLensStatus",
+        "tags": [
+          "observatory"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: lens.status",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/lens.status"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "requestObservatoryLens",
+        "tags": [
+          "observatory"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: lens.request",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/lens.request"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/obligations/open": {
+      "get": {
+        "operationId": "fetchOpenObligations",
+        "tags": [
+          "obligations"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: obligations.open",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/obligations.open"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vault/predictions/history": {
+      "get": {
+        "operationId": "fetchPredictionHistory",
+        "tags": [
+          "vault"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: vault.history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/vault.history"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/qir/compile": {
+      "post": {
+        "operationId": "fetchQirCompile",
+        "tags": [
+          "qir"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: qir.compile",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/qir.compile"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/quantum/backends": {
+      "get": {
+        "operationId": "fetchQuantumBackends",
+        "tags": [
+          "quantum"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: quantum.backends",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/quantum.backends"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/quantum/jobs/{id}": {
+      "get": {
+        "operationId": "fetchQuantumJob",
+        "tags": [
+          "quantum"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: quantum.job",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/quantum.job"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/quantum/settings": {
+      "get": {
+        "operationId": "fetchQuantumSettings",
+        "tags": [
+          "quantum"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: quantum.settings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/quantum.settings"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/radar": {
+      "get": {
+        "operationId": "fetchRadar",
+        "tags": [
+          "radar"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: radar",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/radar"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{id}": {
+      "get": {
+        "operationId": "fetchSession",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/session"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/context": {
+      "get": {
+        "operationId": "fetchSessionContext",
+        "tags": [
+          "sessions"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: session.context",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/session.context"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions": {
+      "get": {
+        "operationId": "fetchSessions",
+        "tags": [
+          "sessions"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: sessions.list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/sessions.list"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents": {
+      "get": {
+        "operationId": "fetchSystemAgents",
+        "tags": [
+          "agents"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: agents.system",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/agents.system"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hf/models/{id}": {
+      "get": {
+        "operationId": "getHFModelDetails",
+        "tags": [
+          "hf"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: hf.details",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/hf.details"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vault/leases": {
+      "post": {
+        "operationId": "issueVaultLease",
+        "tags": [
+          "vault"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: vault.lease",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/vault.lease"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/launch": {
+      "post": {
+        "operationId": "launchProposal",
+        "tags": [
+          "chat"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: chat.launch",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/chat.launch"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hf/downloads": {
+      "get": {
+        "operationId": "listHFDownloads",
+        "tags": [
+          "hf"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: hf.downloads",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/hf.downloads"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/autoresearch/loops/{id}/pause": {
+      "post": {
+        "operationId": "pauseAutoresearchLoop",
+        "tags": [
+          "autoresearch"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: autoresearch.loop",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/autoresearch.loop"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workflows/plan": {
+      "post": {
+        "operationId": "planWorkflow",
+        "tags": [
+          "workflows"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: workflow.plan",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/workflow.plan"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/codesign/rerun": {
+      "post": {
+        "operationId": "rerunCodesignProposal",
+        "tags": [
+          "codesign"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: codesign.rerun",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/codesign.rerun"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/observatory/lens/resolve": {
+      "post": {
+        "operationId": "resolveObservatoryLens",
+        "tags": [
+          "observatory"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: lens.resolve",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/lens.resolve"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/autoresearch/loops/{id}/resume": {
+      "post": {
+        "operationId": "resumeAutoresearchLoop",
+        "tags": [
+          "autoresearch"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: autoresearch.loop",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/autoresearch.loop"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/codesign/families": {
+      "post": {
+        "operationId": "runFamilySearch",
+        "tags": [
+          "codesign"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: codesign.families",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/codesign.families"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/tribunal": {
+      "post": {
+        "operationId": "runTribunal",
+        "tags": [
+          "chat"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: tribunal.run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/tribunal.run"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workflows/run": {
+      "post": {
+        "operationId": "runWorkflow",
+        "tags": [
+          "workflows"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: workflow.run",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/workflow.run"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hf/search": {
+      "get": {
+        "operationId": "searchHFModels",
+        "tags": [
+          "hf"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: hf.search",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/hf.search"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/messages": {
+      "post": {
+        "operationId": "sendChatMessage",
+        "tags": [
+          "chat"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: chat.send",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/chat.send"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/autoresearch/start": {
+      "post": {
+        "operationId": "startAutoresearchLoop",
+        "tags": [
+          "autoresearch"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: autoresearch.loop",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/autoresearch.loop"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/hf/download": {
+      "post": {
+        "operationId": "startHFDownload",
+        "tags": [
+          "hf"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: hf.download",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/hf.download"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/autoresearch/loops/{id}/step": {
+      "post": {
+        "operationId": "stepAutoresearchLoop",
+        "tags": [
+          "autoresearch"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: autoresearch.step",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/autoresearch.step"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/autoresearch/loops/{id}/stop": {
+      "post": {
+        "operationId": "stopAutoresearchLoop",
+        "tags": [
+          "autoresearch"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: autoresearch.loop",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/autoresearch.loop"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/stream": {
+      "post": {
+        "operationId": "streamChatMessage",
+        "tags": [
+          "chat"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: chat.stream.done",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/chat.stream.done"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/quantum/jobs": {
+      "post": {
+        "operationId": "submitQuantumJob",
+        "tags": [
+          "quantum"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: quantum.submit",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/quantum.submit"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ledger/verify": {
+      "get": {
+        "operationId": "verifyLedger",
+        "tags": [
+          "ledger"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: ledger.verify",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ledger.verify"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "sessions.list": {
+        "type": "object",
+        "required": [
+          "sessions"
+        ],
+        "properties": {
+          "sessions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "title",
+                "status",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "session": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        }
+      },
+      "loops.list": {
+        "type": "object",
+        "required": [
+          "loops"
+        ],
+        "properties": {
+          "loops": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "session_id",
+                "status",
+                "step_count",
+                "max_steps"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "session_id": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "step_count": {
+                  "type": "number"
+                },
+                "max_steps": {
+                  "type": "number"
+                }
+              }
+            }
+          }
+        }
+      },
+      "events.list": {
+        "type": "object",
+        "required": [
+          "events"
+        ],
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "timestamp",
+                "session_id",
+                "event_type",
+                "payload"
+              ],
+              "properties": {
+                "id": {
+                  "type": "number"
+                },
+                "timestamp": {
+                  "type": "string"
+                },
+                "session_id": {
+                  "type": "string"
+                },
+                "event_type": {
+                  "type": "string"
+                },
+                "payload": {
+                  "type": "object",
+                  "required": [],
+                  "properties": {}
+                }
+              }
+            }
+          }
+        }
+      },
+      "fleet": {
+        "type": "object",
+        "required": [
+          "backends"
+        ],
+        "properties": {
+          "backends": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "capabilities": {
+        "type": "object",
+        "required": [
+          "catalog_digest",
+          "harnesses",
+          "budget",
+          "flags"
+        ],
+        "properties": {
+          "catalog_digest": {
+            "type": "string"
+          },
+          "harnesses": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "budget": {
+            "type": "object",
+            "required": [],
+            "properties": {}
+          },
+          "flags": {
+            "type": "object",
+            "required": [],
+            "properties": {}
+          }
+        }
+      },
+      "canvas.layout": {
+        "type": "object",
+        "required": [],
+        "properties": {}
+      },
+      "obligations.open": {
+        "type": "object",
+        "required": [
+          "obligations"
+        ],
+        "properties": {
+          "obligations": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "subject_kind",
+                "subject_id",
+                "owner",
+                "disposition",
+                "close_ready"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "subject_kind": {
+                  "type": "string"
+                },
+                "subject_id": {
+                  "type": "string"
+                },
+                "owner": {
+                  "type": "string"
+                },
+                "disposition": {
+                  "type": "string"
+                },
+                "close_ready": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      },
+      "llm.settings": {
+        "type": "object",
+        "required": [],
+        "properties": {}
+      },
+      "quantum.settings": {
+        "type": "object",
+        "required": [],
+        "properties": {}
+      },
+      "quantum.job": {
+        "type": "object",
+        "required": [],
+        "properties": {}
+      },
+      "quantum.submit": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        }
+      },
+      "vault.lease": {
+        "type": "object",
+        "required": [
+          "lease"
+        ],
+        "properties": {
+          "lease": {
+            "type": "object",
+            "required": [
+              "lease_id",
+              "scope",
+              "ttl_seconds",
+              "lease_signature",
+              "issued_at",
+              "expires_at"
+            ],
+            "properties": {
+              "lease_id": {
+                "type": "string"
+              },
+              "scope": {
+                "type": "string"
+              },
+              "ttl_seconds": {
+                "type": "number"
+              },
+              "lease_signature": {
+                "type": "string"
+              },
+              "issued_at": {
+                "type": "string"
+              },
+              "expires_at": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "ledger.verify": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        }
+      },
+      "lens.request": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        }
+      },
+      "lens.resolve": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        }
+      },
+      "lens.history": {
+        "type": "object",
+        "required": [
+          "ok",
+          "operations"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "operations": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "lens.status": {
+        "type": "object",
+        "required": [],
+        "properties": {}
+      },
+      "vault.latest": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        }
+      },
+      "vault.calibration": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        }
+      },
+      "vault.history": {
+        "type": "object",
+        "required": [
+          "ok",
+          "predictions"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "predictions": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "chat.send": {
+        "type": "object",
+        "required": [
+          "user",
+          "assistant"
+        ],
+        "properties": {
+          "user": {},
+          "assistant": {}
+        }
+      },
+      "chat.stream.done": {
+        "type": "object",
+        "required": [
+          "user",
+          "assistant"
+        ],
+        "properties": {
+          "user": {},
+          "assistant": {}
+        }
+      },
+      "tribunal.run": {
+        "type": "object",
+        "required": [
+          "tribunal",
+          "assistant_message"
+        ],
+        "properties": {
+          "tribunal": {
+            "type": "object",
+            "required": [
+              "turns"
+            ],
+            "properties": {
+              "turns": {
+                "type": "array",
+                "items": {}
+              }
+            }
+          },
+          "assistant_message": {}
+        }
+      },
+      "chat.launch": {
+        "type": "object",
+        "required": [
+          "job",
+          "loop"
+        ],
+        "properties": {
+          "job": {},
+          "loop": {}
+        }
+      },
+      "autoresearch.harnesses": {
+        "type": "object",
+        "required": [
+          "harnesses",
+          "docker_runner"
+        ],
+        "properties": {
+          "harnesses": {
+            "type": "array",
+            "items": {}
+          },
+          "docker_runner": {}
+        }
+      },
+      "autoresearch.loop": {
+        "type": "object",
+        "required": [
+          "id",
+          "session_id",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "autoresearch.loops": {
+        "type": "object",
+        "required": [
+          "loops"
+        ],
+        "properties": {
+          "loops": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "autoresearch.step": {
+        "type": "object",
+        "required": [
+          "step",
+          "state"
+        ],
+        "properties": {
+          "step": {},
+          "state": {}
+        }
+      },
+      "metasearch.proposals": {
+        "type": "object",
+        "required": [
+          "proposals"
+        ],
+        "properties": {
+          "proposals": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "codesign.evaluate": {
+        "type": "object",
+        "required": [
+          "ok",
+          "spec_kind",
+          "result"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "spec_kind": {
+            "type": "string"
+          },
+          "result": {
+            "type": "object",
+            "required": [],
+            "properties": {}
+          }
+        }
+      },
+      "codesign.batch": {
+        "type": "object",
+        "required": [
+          "ok",
+          "spec_kind",
+          "frontier",
+          "details"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "spec_kind": {
+            "type": "string"
+          },
+          "frontier": {
+            "type": "object",
+            "required": [],
+            "properties": {}
+          },
+          "details": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "codesign.verified": {
+        "type": "object",
+        "required": [
+          "total"
+        ],
+        "properties": {
+          "total": {
+            "type": "object",
+            "required": [
+              "toffoli"
+            ],
+            "properties": {
+              "toffoli": {
+                "type": "number"
+              }
+            }
+          }
+        }
+      },
+      "codesign.packs": {
+        "type": "object",
+        "required": [
+          "ok",
+          "packs"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "packs": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "codesign.families": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        }
+      },
+      "codesign.rerun": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        }
+      },
+      "llm.models": {
+        "type": "object",
+        "required": [
+          "models"
+        ],
+        "properties": {
+          "models": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "hf.search": {
+        "type": "object",
+        "required": [
+          "models"
+        ],
+        "properties": {
+          "models": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "hf.downloads": {
+        "type": "object",
+        "required": [
+          "downloads"
+        ],
+        "properties": {
+          "downloads": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "hf.details": {
+        "type": "object",
+        "required": [
+          "model"
+        ],
+        "properties": {
+          "model": {}
+        }
+      },
+      "hf.download": {
+        "type": "object",
+        "required": [
+          "task"
+        ],
+        "properties": {
+          "task": {}
+        }
+      },
+      "messages.list": {
+        "type": "object",
+        "required": [
+          "messages"
+        ],
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "role",
+                "content"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "role": {
+                  "type": "string"
+                },
+                "content": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "jobs.list": {
+        "type": "object",
+        "required": [
+          "jobs"
+        ],
+        "properties": {
+          "jobs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "session_id",
+                "status"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "session_id": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "job": {
+        "type": "object",
+        "required": [
+          "job"
+        ],
+        "properties": {
+          "job": {
+            "type": "object",
+            "required": [
+              "id",
+              "session_id",
+              "status"
+            ],
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "session_id": {
+                "type": "string"
+              },
+              "status": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "radar": {
+        "type": "object",
+        "required": [
+          "radar_endpoints"
+        ],
+        "properties": {
+          "radar_endpoints": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "notebooks.list": {
+        "type": "object",
+        "required": [
+          "notebooks"
+        ],
+        "properties": {
+          "notebooks": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "agents.system": {
+        "type": "object",
+        "required": [
+          "roles"
+        ],
+        "properties": {
+          "roles": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "role",
+                "description"
+              ],
+              "properties": {
+                "role": {
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
+      "agents.custom": {
+        "type": "object",
+        "required": [
+          "agents"
+        ],
+        "properties": {
+          "agents": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "labs.list": {
+        "type": "object",
+        "required": [
+          "tenants"
+        ],
+        "properties": {
+          "tenants": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "cost.summary": {
+        "type": "object",
+        "required": [
+          "cap_usd",
+          "spent_usd",
+          "remaining_usd",
+          "active_provider",
+          "currency"
+        ],
+        "properties": {
+          "cap_usd": {
+            "type": "number"
+          },
+          "spent_usd": {
+            "type": "number"
+          },
+          "remaining_usd": {
+            "type": "number",
+            "nullable": true
+          },
+          "active_provider": {
+            "type": "string"
+          },
+          "currency": {
+            "type": "string"
+          }
+        }
+      },
+      "memory.recall": {
+        "type": "object",
+        "required": [
+          "snippets",
+          "tenant"
+        ],
+        "properties": {
+          "snippets": {
+            "type": "array",
+            "items": {}
+          },
+          "tenant": {
+            "type": "string"
+          }
+        }
+      },
+      "workflow.plan": {
+        "type": "object",
+        "required": [
+          "ok",
+          "dry_run",
+          "workflow_id",
+          "steps",
+          "unresolved_references",
+          "compensations_planned"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "dry_run": {
+            "type": "boolean"
+          },
+          "workflow_id": {
+            "type": "string"
+          },
+          "steps": {
+            "type": "array",
+            "items": {}
+          },
+          "unresolved_references": {
+            "type": "array",
+            "items": {}
+          },
+          "compensations_planned": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "workflow.run": {
+        "type": "object",
+        "required": [
+          "ok",
+          "workflow_id",
+          "steps_completed",
+          "step_records",
+          "spent_usd",
+          "last_results",
+          "compensations"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "workflow_id": {
+            "type": "string"
+          },
+          "steps_completed": {
+            "type": "number"
+          },
+          "step_records": {
+            "type": "array",
+            "items": {}
+          },
+          "spent_usd": {
+            "type": "number"
+          },
+          "last_results": {
+            "type": "object",
+            "required": [],
+            "properties": {}
+          },
+          "compensations": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "qir.compile": {
+        "type": "object",
+        "required": [
+          "num_qubits",
+          "depth",
+          "gate_count",
+          "t_count",
+          "qir_profile"
+        ],
+        "properties": {
+          "num_qubits": {
+            "type": "number"
+          },
+          "depth": {
+            "type": "number"
+          },
+          "gate_count": {
+            "type": "number"
+          },
+          "t_count": {
+            "type": "number"
+          },
+          "qir_profile": {
+            "type": "string"
+          }
+        }
+      },
+      "session.context": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "turns",
+          "turn_cap",
+          "history_chars",
+          "history_chars_cap",
+          "would_drop",
+          "pressure_pct",
+          "prompt_tokens",
+          "completion_tokens"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "turns": {
+            "type": "number"
+          },
+          "turn_cap": {
+            "type": "number"
+          },
+          "history_chars": {
+            "type": "number"
+          },
+          "history_chars_cap": {
+            "type": "number"
+          },
+          "would_drop": {
+            "type": "number"
+          },
+          "pressure_pct": {
+            "type": "number"
+          },
+          "prompt_tokens": {
+            "type": "number"
+          },
+          "completion_tokens": {
+            "type": "number"
+          }
+        }
+      },
+      "auth.challenge": {
+        "type": "object",
+        "required": [
+          "nonce",
+          "message",
+          "expires_at"
+        ],
+        "properties": {
+          "nonce": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "expires_at": {
+            "type": "string"
+          }
+        }
+      },
+      "auth.whoami": {
+        "type": "object",
+        "required": [
+          "authenticated"
+        ],
+        "properties": {
+          "authenticated": {
+            "type": "boolean"
+          }
+        }
+      },
+      "quantum.backends": {
+        "type": "object",
+        "required": [
+          "backends"
+        ],
+        "properties": {
+          "backends": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "provider",
+                "display_name",
+                "modality",
+                "device",
+                "credential_state",
+                "telemetry",
+                "executable_now"
+              ],
+              "properties": {
+                "provider": {
+                  "type": "string"
+                },
+                "display_name": {
+                  "type": "string"
+                },
+                "modality": {
+                  "type": "string"
+                },
+                "device": {
+                  "type": "string"
+                },
+                "credential_state": {
+                  "type": "string"
+                },
+                "telemetry": {
+                  "type": "string"
+                },
+                "executable_now": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "x-kubona-unmodeled-functions": [
+    "apiFetch",
+    "appendLedgerEvent",
+    "applyMetasearchProposal",
+    "approveMetasearchProposal",
+    "assertPrediction",
+    "authLogin",
+    "authLogout",
+    "authRevoke",
+    "authSessions",
+    "cancelHFDownload",
+    "cancelQuantumJob",
+    "clearMessages",
+    "closeObligation",
+    "configureApiBase",
+    "createCustomAgent",
+    "createLab",
+    "createSession",
+    "deleteCustomAgent",
+    "deleteSession",
+    "downloadFile",
+    "emergencyAbort",
+    "evaluateDiscoveryPipeline",
+    "evaluatePrediction",
+    "exportLedger",
+    "exportSession",
+    "fetchBackendStatus",
+    "fetchCampaignState",
+    "fetchEpistemics",
+    "fetchFidelity",
+    "fetchLedgerExport",
+    "fetchMolecularADMET",
+    "importSession",
+    "isTerminalJobStatus",
+    "issueTenantGrant",
+    "jobStatusLabel",
+    "lensImageProxyUrl",
+    "loopAction",
+    "refundSessionSpend",
+    "refundTenantSpend",
+    "regenerateChat",
+    "registerTenantAdminKey",
+    "rejectMetasearchProposal",
+    "reportError",
+    "requestServerSignedMandate",
+    "resetDedupForTests",
+    "resumeTribunal",
+    "retainMemory",
+    "revokeTenantAutonomy",
+    "revokeTenantGrant",
+    "revokeVaultLease",
+    "rewriteChat",
+    "routeMultimodalPayload",
+    "runQuantumCanary",
+    "saveCanvasLayout",
+    "saveLLMSettings",
+    "saveQuantumSettings",
+    "scoreCodesignBudget",
+    "sealPrediction",
+    "searchLiterature",
+    "sendFeedback",
+    "setTenantAutonomy",
+    "setTenantCeiling",
+    "setTenantStatus",
+    "synthesizeCampaign",
+    "testLLM",
+    "uploadObservatoryAsset",
+    "verifySpendMandate",
+    "wasRecentAuthFailure"
+  ]
+}
