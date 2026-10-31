@@ -203,6 +203,46 @@ services:
       retries: 3
       start_period: 15s
 
+  # Optional profile: verified scheduled backups. Enable with
+  #   docker compose ... --profile backup up -d
+  # Set KUBONA_BACKUP_AGE_RECIPIENT (and KUBONA_BACKUP_REQUIRE_ENCRYPTION=1
+  # for a hard requirement). The healthcheck goes unhealthy when the newest
+  # verified backup is older than KUBONA_BACKUP_MAX_AGE.
+  backup:
+    profiles: ["backup"]
+    image: kubona/kubonad:prod
+    <<: *default-hardening
+    entrypoint: ["/bin/sh", "/usr/local/bin/backup-loop.sh"]
+    environment:
+      HOME: /home/kubona
+      KUBONA_DB_PATH: /home/kubona/.kubona/kubona.db
+      KUBONA_BACKUP_DIR: /backups
+      KUBONA_BACKUP_INTERVAL_SECONDS: ${KUBONA_BACKUP_INTERVAL_SECONDS:-86400}
+      KUBONA_BACKUP_KEEP: ${KUBONA_BACKUP_KEEP:-7}
+      KUBONA_BACKUP_AGE_RECIPIENT: ${KUBONA_BACKUP_AGE_RECIPIENT:-}
+      KUBONA_BACKUP_REQUIRE_ENCRYPTION: ${KUBONA_BACKUP_REQUIRE_ENCRYPTION:-0}
+      KUBONA_BACKUP_MAX_AGE: ${KUBONA_BACKUP_MAX_AGE:-26h}
+    volumes:
+      - kubona-state:/home/kubona/.kubona
+      - kubona-backups:/backups
+    tmpfs:
+      - /tmp
+    depends_on:
+      kubonad:
+        condition: service_healthy
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/kubonad", "backup-status", "--dir", "/backups", "--max-age", "${KUBONA_BACKUP_MAX_AGE:-26h}"]
+      interval: 5m
+      timeout: 10s
+      retries: 2
+      start_period: 60s
+
   console:
     build:
       context: ../console
@@ -233,4 +273,5 @@ services:
 
 volumes:
   kubona-state:
+  kubona-backups:
   bridge-sock:

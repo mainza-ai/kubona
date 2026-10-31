@@ -185,8 +185,15 @@ and `KUBONA_API_TOKEN`; without the token it refuses (no anonymous spend).
 - Secrets: `.env` (chmod 600) for a local install; Docker secrets/OpenBao for
   a shared host. Never commit `.env`; it is gitignored. `kubonad keygen`
   prints the reviewer/operator seeds; write them to `.env`, not shell history.
-- Backup/restore, FK audit/quarantine, and retention:
-  [`docs/backup-restore.md`](backup-restore.md).
+- Backup/restore, scheduled `backup` profile, FK audit/quarantine, and
+  retention: [`docs/backup-restore.md`](backup-restore.md).
+- Scheduled encrypted backups (optional profile):
+  ```bash
+  # add KUBONA_BACKUP_AGE_RECIPIENT=age1... to .env
+  docker compose --env-file .env -f platform/docker/compose.prod.yml \
+    --profile backup up -d
+  ```
+  Check freshness with `kubonad backup-status --dir /backups --max-age 26h`.
 - Existing DB: production refuses to start on FK orphans. Back up, stop the
   daemon, then:
   ```bash
@@ -237,9 +244,11 @@ git pull
 docker compose --env-file .env -f platform/docker/compose.prod.yml up --build -d
 ```
 
-Back up first. To roll back, check out the previous commit and rebuild; the
-ledger schema refuses a downgrade only when the on-disk version is newer
-(see `docs/backup-restore.md`). Never restore a backup over a running daemon.
+Back up first. The daemon takes a verified pre-migration snapshot when it
+opens an older schema, and refuses the upgrade if that snapshot fails. To
+roll back, stop the daemon, restore the pre-migration snapshot with
+`kubonad restore`, then check out the previous commit and rebuild. Never
+restore a backup over a running daemon.
 
 ## 11. Acceptance checklist
 
@@ -250,7 +259,10 @@ ledger schema refuses a downgrade only when the on-disk version is newer
 - [ ] `ss`/`lsof` shows loopback only for 8080/3000.
 - [ ] A request from another host fails.
 - [ ] Writes without `KUBONA_API_TOKEN` fail closed (503).
-- [ ] Backup restores into a scratch path and `kubonad verify` passes.
+- [ ] `kubonad restore --from ... --db ...` dry run is clean; `--apply` on a
+      scratch path verifies and leaves a preservation directory.
+- [ ] `kubonad backup-status --dir /backups --max-age 26h` is fresh with the
+      `backup` profile enabled.
 - [ ] Local LLM answers; cloud LLM refuses without `KUBONA_LLM_CLOUD=1`.
 - [ ] `POST /api/codesign/rerun` with bearer returns a sealed receipt;
       anonymous callers get 401 and no LLM egress.

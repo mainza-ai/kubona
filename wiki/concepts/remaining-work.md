@@ -38,11 +38,11 @@ status: tracked
   these phases; landed program items continue to live in
   [[full-tree-roadmap]] Landed per this page's rule.
 
-> ⚑ State correction (2026-10-30): the 20-job **push** gate is green at
-> `c7d98f6` (runs `41039225255` / `41039230782`), and the **nightly
-> thesis-scale** gate is green at the same commit (`41041244412`: canary +
-> both slice-60 jobs). Older red runs are history. Counts are generated in
-> `docs/repo-counts.md`.
+> ⚑ State correction (2026-10-31): the 20-job **push** gate is green on the
+> latest `develop` and `main`; the exact runs live in `AGENTS.md` and the
+> current counts in `docs/repo-counts.md`. The **nightly thesis-scale** gate
+> remains green at `c7d98f6` (`41041244412`: canary + both slice-60 jobs).
+> Older red runs are history.
 
 ## Local-first production (2026-10-30, landed)
 

@@ -44,8 +44,15 @@ Updated 2026-10-30. This is the short execution list; the full queue lives in
 
 The full gap register, phased plan, and definition of done are in
 [`production-readiness-plan-2026-10-31.md`](production-readiness-plan-2026-10-31.md).
-P0 execution order: verified restore + scheduled backup, migration backup
-gate, documentation truth, then operator rate-card/settlement evidence.
+
+- [x] `kubonad restore` verified atomic restore + rollback tests.
+- [x] Scheduled `backup` compose profile with optional age encryption,
+      retention, sha256 receipts, and `backup-status` freshness/health.
+- [x] Verified pre-migration snapshot gate for older schemas.
+- [x] Restore/backup/upgrade documentation truth pass.
+- [ ] Operator: runtime vendor rate card before 2026-11-29.
+- [ ] Operator: paid IBM evidence + historical settlement reconciliation.
+- [ ] P1: SSE replay, generated contracts, preflight/alerts, deep a11y.
 
 ## Production blockers
 

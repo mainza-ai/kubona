@@ -17,7 +17,7 @@ outside evidence.
 ## Evidence at this revision
 
 - `develop` and `main` at the green code gate; CI 20/20 and Console E2E green.
-- Generated counts: 122 Go routes, 745 Go tests, 467 console tests, 179 Python
+- Generated counts: 122 Go routes, 759 Go tests, 467 console tests, 179 Python
   test files, 29 Rust tests, 38 MCP tools, 154 wiki pages.
 - Local compose acceptance: loopback-only ports, fresh state root, health/ready,
   console boot, dispatch, codesign, refusal state.
@@ -32,10 +32,10 @@ outside evidence.
 
 | ID | Gap | Why it matters | Evidence |
 |---|---|---|---|
-| P0-1 | Restore is a manual shell procedure; no `kubonad restore` command, no atomic verified swap, no restore-drill test in CI. | A backup that has never been restored is not a recovery plan. Operator error during an incident is likely. | `docs/backup-restore.md` restore drill; `platform/core/cmd/kubonad` has `backup`/`backup-prune`, no `restore`. |
-| P0-2 | No scheduled, encrypted backup path in the compose deployment. | A verified backup that is not taken on a schedule still loses data. Plaintext off-host copies expose spend/provenance. | `platform/docker/compose.prod.yml` has no backup service; backup doc leaves cadence/encryption manual. |
-| P0-3 | Schema versioning exists, but migrations have no mandatory pre-migration verified backup or automated compatibility test against the prior on-disk schema. | An upgrade failure needs a known-good rollback point; a newer binary is protected, an upgrade in progress is not. | `platform/core/pkg/ledger/ledger.go` (`CurrentSchemaVersion`, `checkSchemaVersion`, `recordSchemaVersion`). |
-| P0-4 | Operational documentation drift. `docs/backup-restore.md` still says there is no schema version table; the wiki gate snapshot cites an older head. | Operators make decisions from stale safety claims. | `docs/backup-restore.md` “Current limits”; `wiki/concepts/remaining-work.md` state correction. |
+| P0-1 | **CLOSED 2026-10-31.** `kubonad restore` with dry-run/apply, source chain + integrity verification, atomic install, preservation directory, and rollback-on-verify-failure. | No longer manual. | `platform/core/cmd/kubonad/restore.go`; restore tests. |
+| P0-2 | **CLOSED 2026-10-31.** Opt-in compose `backup` profile runs verified scheduled backups, optional `age` encryption, retention, and `backup-status` freshness/failure checks. | No longer manual cadence. | `platform/docker/backup-loop.sh`; `backup` service; `backup-status`. |
+| P0-3 | **CLOSED 2026-10-31.** Older schemas take a verified `VACUUM INTO` pre-migration snapshot; a failed snapshot/chain refuses the upgrade. | Upgrade has a rollback point. | `platform/core/pkg/ledger/ledger.go`; `migration_backup_test.go`. |
+| P0-4 | **CLOSED 2026-10-31 (code/docs).** Restore, backup-status, scheduled profile, and migration behavior documented; stale schema-version claim removed. | Operators can follow the real path. | `docs/backup-restore.md`, `docs/local-deployment.md`. |
 | P0-5 | Vendor runtime rate card is not reconciled; embedded card becomes stale 2026-11-29. Production cloud pricing intentionally refuses without a runtime card. | Cloud LLM/Atlas/QPU estimates cannot be shown as vendor-current; local simulator remains unaffected. | `docs/rate-cards.md`; `docs/remaining-todos.md` production blockers. |
 | P0-6 | Historical QPU settlement row is unreconciled: vendor completed/charged 2 s while the local row is cancelled/$0.00. | Ledger spend is not a complete picture of that run until operator evidence is attached. | IBM job `dbha28pq260s73busu70`; local job `39b5e6b832cd4ae3`; `docs/remaining-todos.md`. |
 
@@ -60,33 +60,23 @@ outside evidence.
 
 ## Implementation plan
 
-### Phase 1 — recovery and upgrade safety (P0)
+### Phase 1 — recovery and upgrade safety (P0) — CODE LANDED 2026-10-31
 
-1. **Add `kubonad restore`.**
-   - `--from`, `--db`, `--dry-run`, `--apply`.
-   - Verify the source chain and `PRAGMA integrity_check` before touching the
-     live path.
-   - Preserve the current DB as `*.pre-restore-<UTC>`, remove stale WAL/SHM,
-     atomically install the verified copy, then re-verify.
-   - Refuse while the daemon holds the state lock.
-   - Tests: happy path, chain-fault refusal, existing-target preservation,
-     dry-run no-write, post-restore verify.
-2. **Add a scheduled backup profile.**
-   - Compose profile or sidecar: verified `kubonad backup`, retention via
-     `backup-prune`, optional `age`/`gpg` encryption.
-   - Surface last-success timestamp and failure count.
-   - Document restore cadence and key custody.
-3. **Gate migrations on a verified backup.**
-   - If the on-disk schema is older than the binary, require a verified backup
-     path (or emit one automatically before migration).
-   - Add a fixture test that upgrades a prior-schema DB and reopens it.
-4. **Make docs truthful.**
-   - Correct the schema-version claim, current gate head, and restore procedure.
-   - Link this report from `docs/remaining-todos.md`.
+1. **`kubonad restore`** — landed with dry-run/apply, chain + integrity
+   verification, atomic install, preservation directory, rollback on failed
+   post-install verification, and daemon-lock refusal.
+2. **Scheduled backup profile** — landed as `backup` compose profile with
+   `backup-loop.sh`, optional `age`, sha256 receipts, retention, and
+   `backup-status` freshness/failure health.
+3. **Migration backup gate** — landed: older schemas take a verified
+   `VACUUM INTO` snapshot before migration; failure refuses the open.
+4. **Docs truth** — restore, backup profile, backup-status, and schema upgrade
+   behavior documented; stale schema-version claim removed.
 
 **Exit criteria:** a scratch restore passes `kubonad verify` and `/api/ready`;
-an upgrade from the prior schema refuses without a backup and succeeds with
-one; backup age is visible to the operator.
+an older schema refuses when its pre-migration snapshot cannot verify; backup
+age and last failure are visible to the operator. Remaining Phase-1 work is
+operator evidence for P0-5/P0-6.
 
 ### Phase 2 — live-state and contract hardening (P1)
 

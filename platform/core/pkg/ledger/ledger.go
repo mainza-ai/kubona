@@ -45,6 +45,9 @@ type Ledger struct {
 	db     *sql.DB
 	lock   sync.RWMutex
 	dbPath string
+	// preMigrationBackup is the verified snapshot taken before a schema
+	// upgrade. Empty when no upgrade backup was needed.
+	preMigrationBackup string
 	// lockFile holds an exclusive flock on <dbPath>.lock for the ledger's
 	// lifetime: exactly one read-write daemon per state directory. A second
 	// OpenLedger on the same path refuses instead of split-braining the
@@ -96,6 +99,82 @@ func (l *Ledger) SchemaVersion() (int, error) {
 	return version, nil
 }
 
+// PreMigrationBackupPath reports the verified snapshot taken for this open,
+// or empty when no upgrade backup was required.
+func (l *Ledger) PreMigrationBackupPath() string { return l.preMigrationBackup }
+
+func peekSchemaVersion(db *sql.DB) (int, error) {
+	var exists int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='schema_migrations'`).Scan(&exists); err != nil {
+		return 0, fmt.Errorf("inspect schema_migrations: %w", err)
+	}
+	if exists == 0 {
+		return 0, nil
+	}
+	var version int
+	if err := db.QueryRow(`SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&version); err != nil {
+		return 0, fmt.Errorf("read schema version: %w", err)
+	}
+	return version, nil
+}
+
+// snapshotBeforeMigration writes a consistent VACUUM INTO copy and verifies
+// it before the caller mutates the live schema. A failed verification removes
+// the copy and refuses the upgrade.
+func snapshotBeforeMigration(db *sql.DB, target string) error {
+	if _, err := os.Stat(target); err == nil {
+		return fmt.Errorf("refusing to overwrite existing migration backup %s", target)
+	}
+	quoted := "'" + strings.ReplaceAll(target, "'", "''") + "'"
+	if _, err := db.Exec("VACUUM INTO " + quoted); err != nil {
+		return fmt.Errorf("snapshot: %w", err)
+	}
+	cleanup := func() { _ = os.Remove(target) }
+	ro, err := sql.Open("sqlite3", fmt.Sprintf("file:%s?mode=ro&_query_only=1", target))
+	if err != nil {
+		cleanup()
+		return fmt.Errorf("open snapshot: %w", err)
+	}
+	var integrity string
+	if err := ro.QueryRow("PRAGMA integrity_check").Scan(&integrity); err != nil {
+		ro.Close()
+		cleanup()
+		return fmt.Errorf("snapshot integrity check: %w", err)
+	}
+	if integrity != "ok" {
+		ro.Close()
+		cleanup()
+		return fmt.Errorf("snapshot integrity_check: %s", integrity)
+	}
+	// Chain-verify only when the ledger table exists (legacy pre-ledger
+	// schemas have no events to verify yet).
+	var hasEvents int
+	if err := ro.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='ledger_events'`).Scan(&hasEvents); err != nil {
+		ro.Close()
+		cleanup()
+		return fmt.Errorf("snapshot schema inspect: %w", err)
+	}
+	ro.Close()
+	if hasEvents > 0 {
+		l, err := OpenLedgerReadOnly(target)
+		if err != nil {
+			cleanup()
+			return fmt.Errorf("open snapshot for chain verify: %w", err)
+		}
+		faults, verr := l.VerifyChain("")
+		l.Close()
+		if verr != nil {
+			cleanup()
+			return fmt.Errorf("snapshot chain verify: %w", verr)
+		}
+		if len(faults) != 0 {
+			cleanup()
+			return fmt.Errorf("snapshot has %d chain fault(s)", len(faults))
+		}
+	}
+	return nil
+}
+
 // checkSchemaVersion creates the migration ledger and refuses a newer
 // schema before any migration or backfill runs.
 func checkSchemaVersion(db *sql.DB) error {
@@ -129,6 +208,11 @@ type Options struct {
 	// connection and refuses to open a ledger that already contains orphan
 	// rows. Production enables this; the repair is `kubonad fk-quarantine`.
 	EnforceForeignKeys bool
+	// BackupBeforeMigration takes a verified SQLite snapshot before an
+	// existing older schema is migrated. Failure refuses the open: an
+	// upgrade without a rollback point is not production-safe. Fresh
+	// databases and current schemas take no snapshot.
+	BackupBeforeMigration bool
 }
 
 // OpenLedger opens with the development/test options.
@@ -139,6 +223,10 @@ func OpenLedger(dbPath string) (*Ledger, error) {
 func OpenLedgerWithOptions(dbPath string, opts Options) (*Ledger, error) {
 	if err := os.MkdirAll(filepath.Dir(dbPath), 0755); err != nil {
 		return nil, fmt.Errorf("failed to create db dir: %w", err)
+	}
+	existed := false
+	if st, err := os.Stat(dbPath); err == nil && st.Size() > 0 {
+		existed = true
 	}
 	// Single-writer guard: refuse a second read-write daemon on this state
 	// directory instead of running split-brain. SQLite serializes writes,
@@ -170,6 +258,23 @@ func OpenLedgerWithOptions(dbPath string, opts Options) (*Ledger, error) {
 		db.Close()
 		releaseLock(lockFile)
 		return nil, err
+	}
+	backupPath := ""
+	if opts.BackupBeforeMigration && existed {
+		version, verr := peekSchemaVersion(db)
+		if verr != nil {
+			db.Close()
+			releaseLock(lockFile)
+			return nil, verr
+		}
+		if version < CurrentSchemaVersion {
+			backupPath = fmt.Sprintf("%s.pre-migration-%s", dbPath, time.Now().UTC().Format("20060102T150405.000000000Z"))
+			if err := snapshotBeforeMigration(db, backupPath); err != nil {
+				db.Close()
+				releaseLock(lockFile)
+				return nil, fmt.Errorf("pre-migration backup required but failed: %w", err)
+			}
+		}
 	}
 
 	initSchema := `
@@ -356,7 +461,7 @@ func OpenLedgerWithOptions(dbPath string, opts Options) (*Ledger, error) {
 		}
 	}
 
-	l := &Ledger{db: db, lockFile: lockFile, dbPath: dbPath}
+	l := &Ledger{db: db, lockFile: lockFile, dbPath: dbPath, preMigrationBackup: backupPath}
 	l.replayProvenanceSpool()
 	return l, nil
 }

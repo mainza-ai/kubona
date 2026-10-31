@@ -39,19 +39,21 @@ FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595
 # at every build so a stale base cannot fail a fresh build.
 RUN apt-get update && apt-get upgrade -y --no-install-recommends \
     && apt-get install -y --no-install-recommends \
-    ca-certificates curl \
+    ca-certificates curl age \
     && rm -rf /var/lib/apt/lists/* \
     && groupadd -g 1000 kubona && useradd -u 1000 -g kubona -m -s /bin/sh kubona
 
 COPY --from=build /kubonad /usr/local/bin/kubonad
 COPY --from=build /src/contracts /contracts
+COPY docker/backup-loop.sh /usr/local/bin/backup-loop.sh
+RUN chmod 0755 /usr/local/bin/backup-loop.sh
 ENV KUBONA_CONTRACTS_DIR=/contracts
 
 # Seed the state dir with daemon ownership: a fresh named volume inherits
 # the image's directory (owner included); without this the volume mounts
 # root-owned and the nonroot daemon cannot create its state (boot refuses,
 # fail-closed — observed live before this line existed).
-RUN mkdir -p /home/kubona/.kubona/models && chown -R kubona:kubona /home/kubona/.kubona
+RUN mkdir -p /home/kubona/.kubona/models /backups && chown -R kubona:kubona /home/kubona/.kubona /backups
 # Seed the bridge socket dir with daemon ownership (same volume-seeding
 # pattern as above): kubonad joins the bridge's UDS as UID 1000, so the
 # shared bridge-sock volume must not mount root-owned. The bridge seeds
