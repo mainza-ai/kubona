@@ -296,6 +296,7 @@ export function CommandPalette({
       }}
       role="dialog"
       aria-modal="true"
+      aria-label="Command palette"
     >
       <div ref={panelRef} className="w-full max-w-lg bg-[#0E111A]/95 border border-white/10 rounded-2xl shadow-2xl shadow-black/90 overflow-hidden backdrop-blur-2xl animate-in zoom-in-95 duration-150">
         {/* Search Input Bar with Apple Spotlight aesthetics */}

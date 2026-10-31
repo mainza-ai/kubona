@@ -146,6 +146,21 @@ test.describe('Kubona console against the real local stack', () => {
     await expect(page.getByRole('complementary', { name: 'Kubona co-pilot' })).toBeVisible();
   });
 
+  test('command palette traps focus and Escape closes it', async ({ page }) => {
+    await page.goto('/');
+    await expectReady(page);
+    await page.keyboard.press('Control+k');
+    const dialog = page.getByRole('dialog', { name: 'Command palette' });
+    await expect(dialog).toBeVisible();
+    await expect(page.getByRole('textbox', { name: 'Search surfaces and actions' })).toBeFocused();
+    for (let i = 0; i < 8; i += 1) {
+      await page.keyboard.press('Tab');
+      expect(await dialog.evaluate((el) => el.contains(document.activeElement))).toBe(true);
+    }
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+  });
+
   test('backend refusal is visible instead of a fake empty state', async ({ page }) => {
     const errors = collectPageErrors(page);
     await page.route('**/api/llm/settings', (route) =>
