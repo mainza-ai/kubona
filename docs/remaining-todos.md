@@ -36,6 +36,7 @@ Updated 2026-10-30. This is the short execution list; the full queue lives in
 - [x] Mobile/keyboard smoke gate: one skip target, one main landmark,
       `aria-current` on the dock, live-region toasts, and a narrow-viewport
       E2E proving the copilot starts closed and opens as an overlay.
+- [x] Run-state live region and a named, pressed-state canvas mode group.
 - [ ] Still open: deep accessibility audit across every modal/surface
       (contrast, focus order, reduced motion, screen-reader transcripts).
 
