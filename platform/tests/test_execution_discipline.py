@@ -596,3 +596,75 @@ def test_cancel_post_vendor_with_reported_usage_settles_difference():
         assert _spend_status(sid) == 2.5
     finally:
         exec_mod.get_provider = orig_get_provider
+
+
+def test_job_status_carries_terminal_usage_for_go_settlement():
+    """Go's cancel path reads status, not result: terminal usage must be on
+    the status envelope or a zero-usage vendor cancel keeps the full estimate."""
+    from kubona.mcp.servers import execution as execution_server
+
+    sess = cost_server.create_session("status-usage", "researcher", budget_ceiling_usd=100.0)
+    sid = sess["session_id"]
+    job = execution_server._runner.store.create(
+        provider="ibm-qiskit", session_id=sid, circuit_hash="status-use",
+        estimate={"estimated_usd": 8.0}, reserved_usd=8.0,
+        hardware_job_id="hw-status-1")
+    stored = execution_server._runner.store.get(job.job_id)
+    stored.status = "cancelled"
+    stored.result = {"usage_seconds": 0.0, "actual_usd": 0.0, "hardware_job_id": "hw-status-1"}
+    execution_server._runner.store._save(stored)
+
+    st = execution_server.get_job_status(job.job_id)
+    assert st["status"] == "cancelled", st
+    assert st.get("usage_seconds") == 0.0, st
+    assert st.get("actual_usd") == 0.0, st
+
+
+def test_deferred_status_transitions_and_exposes_usage(monkeypatch):
+    """The bridge status poll must persist a terminal transition and put the
+    vendor usage on the status envelope (Go settles from status)."""
+    from kubona.mcp.servers import execution as execution_server
+
+    class _Provider:
+        def poll_hardware_job(self, hardware_job_id):
+            assert hardware_job_id == "hw-deferred-1"
+            return {
+                "status": "completed",
+                "hardware_job_id": hardware_job_id,
+                "result": {"counts": {"00": 50, "11": 50}, "usage_seconds": 2.0, "actual_usd": 3.2},
+            }
+
+    monkeypatch.setattr(execution_server, "get_provider", lambda _p: _Provider())
+    sess = cost_server.create_session("deferred-status", "researcher", budget_ceiling_usd=100.0)
+    job = execution_server._runner.store.create(
+        provider="ibm-qiskit", session_id=sess["session_id"], circuit_hash="deferred-status",
+        estimate={"estimated_usd": 8.0}, reserved_usd=8.0, hardware_job_id="hw-deferred-1")
+    updated, warn = execution_server._refresh_deferred_hardware_job(job)
+    assert warn is None
+    assert updated.status == "completed", updated
+    st = execution_server.get_job_status(job.job_id)
+    assert st["status"] == "completed", st
+    assert st.get("usage_seconds") == 2.0, st
+    assert st.get("actual_usd") == 3.2, st
+
+
+def test_cancelled_status_polls_terminal_usage_for_go_settlement(monkeypatch):
+    """A cancelled job fenced before usage arrives must report the vendor
+    meter on status (0 is a real reading, not unknown)."""
+    from kubona.mcp.servers import execution as execution_server
+
+    class _Provider:
+        def poll_hardware_job(self, hardware_job_id):
+            return {"status": "cancelled", "hardware_job_id": hardware_job_id,
+                    "usage_seconds": 0.0, "actual_usd": 0.0}
+
+    monkeypatch.setattr(execution_server, "get_provider", lambda _p: _Provider())
+    sess = cost_server.create_session("cancel-status", "researcher", budget_ceiling_usd=100.0)
+    job = execution_server._runner.store.create(
+        provider="ibm-qiskit", session_id=sess["session_id"], circuit_hash="cancel-status",
+        estimate={"estimated_usd": 8.0}, reserved_usd=8.0, hardware_job_id="hw-cancel-status")
+    execution_server._runner.cancel(job.job_id)
+    st = execution_server.get_job_status(job.job_id)
+    assert st["status"] == "cancelled", st
+    assert st.get("usage_seconds") == 0.0, st
+    assert st.get("actual_usd") == 0.0, st

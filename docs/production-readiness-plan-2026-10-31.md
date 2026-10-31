@@ -17,7 +17,7 @@ outside evidence.
 ## Evidence at this revision
 
 - `develop` and `main` at the green code gate; CI 20/20 and Console E2E green.
-- Generated counts: 122 Go routes, 764 Go tests, 468 console tests, 180 Python
+- Generated counts: 122 Go routes, 765 Go tests, 468 console tests, 180 Python
   test files, 29 Rust tests, 38 MCP tools, 154 wiki pages.
 - Local compose acceptance: loopback-only ports, fresh state root, health/ready,
   console boot, dispatch, codesign, refusal state.
