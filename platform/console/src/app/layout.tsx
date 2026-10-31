@@ -67,7 +67,7 @@ export default function RootLayout({
           Skip to main content
         </a>
         <h1 className="sr-only">Kubona Sovereign Console</h1>
-        <main id="main-content"><ErrorBoundary>{children}</ErrorBoundary></main>
+        <div id="main-content" tabIndex={-1}><ErrorBoundary>{children}</ErrorBoundary></div>
       </body>
     </html>
   );
