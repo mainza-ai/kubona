@@ -40,6 +40,13 @@ Updated 2026-10-30. This is the short execution list; the full queue lives in
 - [ ] Still open: deep accessibility audit across every modal/surface
       (contrast, focus order, reduced motion, screen-reader transcripts).
 
+## Production readiness plan (2026-10-31)
+
+The full gap register, phased plan, and definition of done are in
+[`production-readiness-plan-2026-10-31.md`](production-readiness-plan-2026-10-31.md).
+P0 execution order: verified restore + scheduled backup, migration backup
+gate, documentation truth, then operator rate-card/settlement evidence.
+
 ## Production blockers
 
 - [x] **Resolve the 606 pre-existing ledger chain faults — by disposition
