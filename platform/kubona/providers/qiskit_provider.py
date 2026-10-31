@@ -547,13 +547,21 @@ class QiskitProvider(Provider):
                 raise ProviderError(
                     f"ibm job {hardware_job_id!r} reported {status_str} but result read failed: {e}"
                 )
+            backend_name = self.backend_name
+            try:
+                backend_obj = getattr(job, "backend", None)
+                if callable(backend_obj):
+                    backend_obj = backend_obj()
+                backend_name = getattr(backend_obj, "name", backend_name)
+            except Exception:  # noqa: BLE001 — a display label must not fail settlement
+                pass
             result = {
                 "status": "completed",
                 "vendor_status": status_str,
                 "hardware_job_id": hardware_job_id,
                 "result": {
                     "counts": counts,
-                    "backend": getattr(job.backend(), "name", self.backend_name),
+                    "backend": backend_name,
                     "job_id": hardware_job_id,
                     "hardware": True,
                     "channel": self._channel(),
