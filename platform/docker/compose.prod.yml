@@ -57,6 +57,10 @@ services:
       KUBONA_ENV: "production"
       HOME: /tmp
       XDG_CACHE_HOME: /tmp/.cache
+      # The Python job store (jobs.jsonl) must survive bridge restarts. HOME
+      # is /tmp (tmpfs), so without an explicit state dir a rebuild loses
+      # hardware job ids and the Go record points at a ghost.
+      KUBONA_STATE_DIR: /home/kubona/.kubona
       # The bridge is a private compute plane. Production transport is
       # UDS-exclusive over the shared bridge-sock volume: no TCP socket
       # exists at all (the bridge refuses TCP in KUBONA_ENV=production),
@@ -80,6 +84,7 @@ services:
       KUBONA_OPERATOR_PRIVKEY_HEX: ${KUBONA_OPERATOR_PRIVKEY_HEX:-}
     volumes:
       - bridge-sock:/run/kubona
+      - kubona-state:/home/kubona/.kubona
     tmpfs:
       - /tmp
     restart: unless-stopped

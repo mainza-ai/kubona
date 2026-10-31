@@ -2,15 +2,22 @@
 
 ## Status
 
-A real local compose run was executed with one Atlas generation and one IBM
-job. The stack is healthy; the paid run exposed blockers that must be fixed
-before another paid attempt.
+A real local compose run was executed with one Atlas generation and two IBM
+validation jobs. The latest controlled IBM job passed through the normal
+status endpoint and settled to measured vendor usage. Earlier failed jobs
+remain in the disposable test volume and are not valid evidence.
+
+**Latest controlled result:** job `09912676ae2c436c` / vendor
+`dbj4o0gnceqs73aj8n9g`, `ibm_marrakesh`, `DONE`, 100 shots, 2 QPU seconds,
+counts `00:61`, `01:4`, `11:35`, vendor/local `$3.20`, session/tenant spend
+`$3.20`.
 
 ## Budget consumed
 
 - Atlas: **1,500 / 9,000 credits** (one `images2PosedRGBD` generation).
-- IBM: **2 QPU seconds** on `ibm_kingston`; the earlier `ibm_fez` job was
-  canceled while queued with **0 vendor usage**.
+- IBM: **6 QPU seconds total** across diagnostic runs on `ibm_kingston` and
+  `ibm_marrakesh`; the earlier `ibm_fez` job was canceled while queued with
+  **0 vendor usage**.
 - No further paid calls are permitted until the fixes below are validated.
 
 ## Confirmed passing
@@ -89,6 +96,17 @@ volume is disposable; use a fresh project for the next paid run.
      spend all agree.
 5. Do not run another Atlas generation unless the cached-resolve test fails
    for a code reason and a second generation is explicitly approved.
+
+## Additional fixes from the fresh-volume run
+
+- Bridge job state moved from `HOME=/tmp` to the shared state volume
+  (`KUBONA_STATE_DIR=/home/kubona/.kubona`); a bridge restart no longer makes
+  Go job records point at ghost bridge jobs.
+- Qiskit counts are coerced to int and the completed result now stores the
+  backend name string, never an `IBMBackend` object; JSON persistence and
+  settlement now work.
+- Added tests for completed-result JSON serialization and deferred status
+  promotion.
 
 ## Remaining product work after paid validation
 

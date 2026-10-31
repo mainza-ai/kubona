@@ -496,7 +496,7 @@ class QiskitProvider(Provider):
         result = job.result()
         pub = result[0].data.meas
         counts = {
-            "".join(str(b) for b in k): v
+            "".join(str(b) for b in k): int(v)
             for k, v in pub.get_counts().items()
         }
         out: dict[str, Any] = {
@@ -540,7 +540,7 @@ class QiskitProvider(Provider):
                 result = job.result()
                 pub = result[0].data.meas
                 counts = {
-                    "".join(str(b) for b in k): v
+                    "".join(str(b) for b in k): int(v)
                     for k, v in pub.get_counts().items()
                 }
             except Exception as e:  # noqa: BLE001
@@ -553,7 +553,7 @@ class QiskitProvider(Provider):
                 "hardware_job_id": hardware_job_id,
                 "result": {
                     "counts": counts,
-                    "backend": getattr(job, "backend", lambda: self.backend_name)(),
+                    "backend": getattr(job.backend(), "name", self.backend_name),
                     "job_id": hardware_job_id,
                     "hardware": True,
                     "channel": self._channel(),
