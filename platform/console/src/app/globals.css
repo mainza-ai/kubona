@@ -621,3 +621,4 @@ body {
 .k-workbench-hidden { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--color-border); color: var(--color-muted); font-size: var(--text-caption); }
 .k-workbench-hidden strong { flex-basis: 100%; color: var(--color-label-secondary); }
 .k-workbench-hidden button { border: 1px solid var(--color-border); border-radius: var(--radius-control-compact); background: var(--color-fill); color: var(--color-text); font: inherit; font-size: var(--text-label); padding: 4px 8px; }
+.k-workbench-area[data-selected="true"] { border-color: var(--color-info); background: color-mix(in oklab, var(--color-info) 8%, transparent); }

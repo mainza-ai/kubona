@@ -135,7 +135,7 @@ describe('Workbench', () => {
     await act(async () => {
       tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" />);
     });
-    const group = tree!.root.findByProps({ title: 'Group all objects into a spatial area, or clear the area' });
+    const group = tree!.root.findByProps({ title: 'Group all objects into a spatial area' });
     await act(async () => { group.props.onClick(); });
     const title = tree!.root.findByProps({ 'aria-label': 'Area title' });
     await act(async () => { title.props.onChange({ target: { value: 'Evidence chain' } }); });
@@ -204,12 +204,24 @@ describe('Workbench', () => {
     expect(tree!.root.findAllByProps({ 'data-kind': 'hypothesis' })).toHaveLength(0);
   });
 
+  it('creates separate areas from all objects and the current selection', async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => { tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" />); });
+    const groupAll = tree!.root.findByProps({ title: 'Group all objects into a spatial area' });
+    await act(async () => { groupAll.props.onClick(); });
+    const card = tree!.root.findAllByProps({ 'data-kind': 'campaign' })[0];
+    await act(async () => { card.props.onClick({ metaKey: false, ctrlKey: false, shiftKey: false }); });
+    const groupSelected = tree!.root.findByProps({ title: 'Group the selected cards into a spatial area' });
+    await act(async () => { groupSelected.props.onClick(); });
+    expect(tree!.root.findAllByProps({ className: 'k-workbench-area' })).toHaveLength(2);
+  });
+
   it('groups all objects into a persisted spatial area', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
       tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" />);
     });
-    const group = tree!.root.findByProps({ title: 'Group all objects into a spatial area, or clear the area' });
+    const group = tree!.root.findByProps({ title: 'Group all objects into a spatial area' });
     await act(async () => { group.props.onClick(); });
     expect(tree!.root.findByProps({ className: 'k-workbench-area' })).toBeTruthy();
   });
