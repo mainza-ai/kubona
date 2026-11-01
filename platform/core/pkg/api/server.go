@@ -473,6 +473,14 @@ func (s *Server) Handler() http.Handler {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
+		// API v1 is an alias over the same handlers. The legacy /api path
+		// stays live; only the prefix is rewritten, never the route meaning.
+		if strings.HasPrefix(r.URL.Path, "/api/v1/") {
+			clone := r.Clone(r.Context())
+			clone.URL.Path = "/api/" + strings.TrimPrefix(r.URL.Path, "/api/v1/")
+			w.Header().Set("Kubona-API-Version", "1")
+			r = clone
+		}
 		s.mux.ServeHTTP(w, r)
 	})))
 }
