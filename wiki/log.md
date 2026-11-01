@@ -4365,3 +4365,9 @@ skipped is the exact failure this incident is about:
 
 - Campaign synthesis and start/step/pause/resume/stop autoresearch actions
   move onto `requestOperation`. Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Fleet, canvas, and codesign wrappers
+
+- Fleet, legacy canvas layout, and codesign evaluate/batch/family/rerun move
+  onto `requestOperation`, preserving refusal envelopes. Updated
+  [[remaining-work]]; no new page.

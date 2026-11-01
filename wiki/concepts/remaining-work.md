@@ -93,7 +93,8 @@ Still open:
   HF search/details/downloads, and auth challenge/login/whoami/sessions
   wrappers use it, plus codesign packs/verified, HF download start,
   custom-agent create, literature search, ledger verify, lens request,
-  campaign synthesis, and all autoresearch loop actions.
+  campaign synthesis, all autoresearch loop actions, fleet, canvas layout,
+  and codesign evaluate/batch/family/rerun.
   Auth logout/revoke/feedback remain hand-written (not in the generated
   inventory). Typed operation errors carry the backend
   refusal body. Layout and obligation-close writes render

@@ -759,20 +759,14 @@ export async function applyMetasearchProposal(
 
 export async function fetchFleet(): Promise<Record<string, unknown>> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/fleet`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) {
-      let text = '';
-      try {
-        text = (await res.text()).trim().slice(0, 280);
-      } catch {
-        /* ignore */
-      }
-      return { backends: [], refused: true, refuse_reason: text || `HTTP ${res.status}` };
-    }
-    return contract('fleet', await res.json());
+    return (await requestOperation('fetchFleet')) as Record<string, unknown>;
   } catch (err) {
     console.error('Failed to fetch fleet:', err);
-    return { backends: [], refused: true, refuse_reason: String(err).slice(0, 280) };
+    return {
+      backends: [],
+      refused: true,
+      refuse_reason: String(err instanceof Error ? err.message : err).slice(0, 280),
+    };
   }
 }
 
@@ -805,9 +799,9 @@ export interface CapabilitiesPayload {
 
 export async function fetchCanvasLayout(sessionId: string): Promise<Record<string, unknown> | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/canvas/layout?session_id=${encodeURIComponent(sessionId)}`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return null;
-    return contract('canvas.layout', (await res.json()) as Record<string, unknown>);
+    return (await requestOperation('fetchCanvasLayout', {
+      query: { session_id: sessionId },
+    })) as Record<string, unknown>;
   } catch (err) {
     console.error('Failed to fetch canvas layout:', err);
     return null;
@@ -966,27 +960,21 @@ export async function fetchCodesignVerified(): Promise<
 
 export async function evaluateCodesignArtifact(
   body: Record<string, unknown>
-): Promise<{ ok: true; spec_kind: string; result: Record<string, unknown> } | { ok: false; error: string }> {  try {
-    const res = await apiFetch(`${API_BASE}/api/codesign/evaluate`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => null);
-    if (!res.ok || !data || data.ok !== true) {
-      const msg =
-        (data && typeof data.message === 'string' && data.message) ||
-        (data && typeof data.error === 'string' && data.error) ||
-        `refused (HTTP ${res.status})`;
-      return { ok: false, error: msg.slice(0, 280) };
-    }
-    return contract('codesign.evaluate', {
+): Promise<{ ok: true; spec_kind: string; result: Record<string, unknown> } | { ok: false; error: string }> {
+  try {
+    const data = (await requestOperation('evaluateCodesignArtifact', { body })) as {
+      ok?: boolean;
+      spec_kind?: unknown;
+      result?: unknown;
+    };
+    if (data.ok !== true) return { ok: false, error: 'codesign evaluator refused without a reason' };
+    return {
       ok: true,
       spec_kind: String(data.spec_kind ?? ''),
       result: (data.result ?? {}) as Record<string, unknown>,
-    }) as { ok: true; spec_kind: string; result: Record<string, unknown> };
+    };
   } catch (err) {
-    return { ok: false, error: String(err).slice(0, 280) };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
@@ -997,24 +985,21 @@ export async function evaluateCodesignBatch(
   body: Record<string, unknown>
 ): Promise<{ ok: true; spec_kind: string; frontier: Record<string, unknown>; details: Array<Record<string, unknown>> } | { ok: false; error: string }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/codesign/evaluate-batch`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => null);
-    if (!res.ok || !data || data.ok !== true) {
-      const msg = (data && (data.message || data.error)) || `refused (HTTP ${res.status})`;
-      return { ok: false, error: String(msg).slice(0, 280) };
-    }
-    return contract('codesign.batch', {
+    const data = (await requestOperation('evaluateCodesignBatch', { body })) as {
+      ok?: boolean;
+      spec_kind?: unknown;
+      frontier?: unknown;
+      details?: unknown;
+    };
+    if (data.ok !== true) return { ok: false, error: 'codesign batch refused without a reason' };
+    return {
       ok: true,
       spec_kind: String(data.spec_kind ?? ''),
       frontier: (data.frontier ?? {}) as Record<string, unknown>,
-      details: Array.isArray(data.details) ? data.details as Array<Record<string, unknown>> : [],
-    }) as { ok: true; spec_kind: string; frontier: Record<string, unknown>; details: Array<Record<string, unknown>> };
+      details: Array.isArray(data.details) ? (data.details as Array<Record<string, unknown>>) : [],
+    };
   } catch (err) {
-    return { ok: false, error: String(err).slice(0, 280) };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
@@ -1034,23 +1019,11 @@ export async function runFamilySearch(
   body: Record<string, unknown>
 ): Promise<{ ok: true; result: CodesignFamiliesResult } | { ok: false; error: string }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/codesign/families`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => null);
-    if (!res.ok || !data || data.ok !== true) {
-      const msg =
-        (data && typeof data.message === 'string' && data.message) ||
-        (data && typeof data.error === 'string' && data.error) ||
-        `refused (HTTP ${res.status})`;
-      return { ok: false, error: msg.slice(0, 280) };
-    }
-    contract('codesign.families', data);
-    return { ok: true, result: data as CodesignFamiliesResult };
+    const data = (await requestOperation('runFamilySearch', { body })) as CodesignFamiliesResult & { ok?: boolean };
+    if (data.ok !== true) return { ok: false, error: 'family search refused without a reason' };
+    return { ok: true, result: data };
   } catch (err) {
-    return { ok: false, error: String(err).slice(0, 280) };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
@@ -1061,24 +1034,12 @@ export async function rerunCodesignProposal(
   body: Record<string, unknown>
 ): Promise<{ ok: true; result: CodesignRerunResult } | { ok: false; error: string }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/codesign/rerun`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => null);
-    if (!res.ok || !data || data.ok !== true) {
-      const raw =
-        (data && typeof data.message === 'string' && data.message) ||
-        (data && typeof data.error === 'string' && data.error) ||
-        `refused (HTTP ${res.status})`;
-      const msg = res.status === 401 ? `login required — ${raw}` : raw;
-      return { ok: false, error: msg.slice(0, 280) };
-    }
-    contract('codesign.rerun', data);
-    return { ok: true, result: data as CodesignRerunResult };
+    const data = (await requestOperation('rerunCodesignProposal', { body })) as CodesignRerunResult & { ok?: boolean };
+    if (data.ok !== true) return { ok: false, error: 'codesign rerun refused without a reason' };
+    return { ok: true, result: data };
   } catch (err) {
-    return { ok: false, error: String(err).slice(0, 280) };
+    const message = String(err instanceof Error ? err.message : err).slice(0, 280);
+    return { ok: false, error: err instanceof OperationError && err.status === 401 ? `login required — ${message}` : message };
   }
 }
 
