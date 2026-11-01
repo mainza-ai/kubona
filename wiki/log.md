@@ -4214,3 +4214,10 @@ skipped is the exact failure this incident is about:
 - Added response-type generation and a checked `requestOperation()` client on
   top of `API_OPERATIONS`; existing wrappers still own auth, dedupe, and error
   copy. Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Demand-rendered 3D observatory
+
+- Removed the continuous rAF loop and decorative idle rotation/float; the
+  observatory renders one coalesced frame per camera or scene change and
+  stays paused while hidden/offscreen. Updated [[remaining-work]]; no new
+  page.

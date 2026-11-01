@@ -86,6 +86,7 @@ Still open:
   write settlement remains open.
 - Chart bundle budget, manual VoiceOver/NVDA record, 200% zoom/forced-colors
   evidence, route alias/feature-flag cleanup, and legacy-surface removal.
+  The 3D observatory now demand-renders instead of running a rAF loop.
 
 ## Local-first production (2026-10-30, landed)
 
