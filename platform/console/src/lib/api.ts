@@ -525,12 +525,7 @@ export async function fetchEvents(sessionId?: string): Promise<LedgerEvent[]> {
 
 export async function fetchMolecularADMET(smiles: string): Promise<Record<string, unknown> | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/chemistry/admet?smiles=${encodeURIComponent(smiles)}`, {
-      cache: 'no-store',
-      headers: authHeaders(),
-    });
-    if (!res.ok) return null;
-    return contract('admet', await res.json());
+    return (await requestOperation('fetchMolecularADMET', { query: { smiles } })) as Record<string, unknown>;
   } catch (err) {
     console.error('Failed to fetch ADMET profile:', err);
     return null;
@@ -909,10 +904,9 @@ export async function fetchCapabilities(): Promise<CapabilitiesPayload | null> {
 
 export async function fetchFidelity(device: string, depth: number, twoQubitGates: number): Promise<Record<string, unknown> | null> {
   try {
-    const qs = new URLSearchParams({ device, depth: String(depth), two_qubit_gates: String(twoQubitGates) });
-    const res = await apiFetch(`${API_BASE}/api/fidelity?${qs.toString()}`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return null;
-    return contract('fidelity', await res.json()) as Record<string, unknown>;
+    return (await requestOperation('fetchFidelity', {
+      query: { device, depth, two_qubit_gates: twoQubitGates },
+    })) as Record<string, unknown>;
   } catch (err) {
     console.error('Failed to fetch fidelity:', err);
     return null;
@@ -1171,9 +1165,7 @@ export async function fetchCostSummary(): Promise<
 
 export async function fetchLLMSettings(): Promise<Record<string, unknown> | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/llm/settings`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return null;
-    return contract('llm.settings', await res.json());
+    return (await requestOperation('fetchLLMSettings')) as Record<string, unknown>;
   } catch (err) {
     console.error('Failed to fetch LLM settings:', err);
     return null;
@@ -1199,11 +1191,8 @@ export interface QuantumBackendInfo {
 
 export async function fetchQuantumBackends(): Promise<QuantumBackendInfo[]> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/quantum/backends`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return [];
-    const data = (await res.json()) as { backends?: QuantumBackendInfo[] };
-    contract('quantum.backends', data);
-    return Array.isArray(data.backends) ? data.backends : [];
+    const data = await requestOperation('fetchQuantumBackends');
+    return (Array.isArray(data.backends) ? data.backends : []) as unknown as QuantumBackendInfo[];
   } catch (err) {
     console.error('Failed to fetch quantum backends:', err);
     return [];
@@ -1212,9 +1201,7 @@ export async function fetchQuantumBackends(): Promise<QuantumBackendInfo[]> {
 
 export async function fetchQuantumSettings(): Promise<Record<string, unknown> | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/quantum/settings`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return null;
-    return contract('quantum.settings', await res.json());
+    return (await requestOperation('fetchQuantumSettings')) as Record<string, unknown>;
   } catch (err) {
     console.error('Failed to fetch quantum settings:', err);
     return null;
@@ -1493,11 +1480,8 @@ export interface SystemAgentRole {
 
 export async function fetchSystemAgents(): Promise<SystemAgentRole[]> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/agents`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return [];
-    const data = (await res.json()) as { roles?: SystemAgentRole[] };
-    contract('agents.system', data);
-    return Array.isArray(data.roles) ? data.roles : [];
+    const data = await requestOperation('fetchSystemAgents');
+    return (Array.isArray(data.roles) ? data.roles : []) as unknown as SystemAgentRole[];
   } catch (err) {
     console.error('Failed to fetch system agents:', err);
     return [];
@@ -1506,11 +1490,8 @@ export async function fetchSystemAgents(): Promise<SystemAgentRole[]> {
 
 export async function fetchCustomAgents(): Promise<import('@/types').CustomAgentManifest[]> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/agents/custom`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return [];
-    const data = await res.json();
-    contract('agents.custom', data);
-    return data.agents || [];
+    const data = await requestOperation('fetchCustomAgents');
+    return (data.agents || []) as unknown as import('@/types').CustomAgentManifest[];
   } catch (err) {
     console.error('Failed to fetch custom agents:', err);
     return [];

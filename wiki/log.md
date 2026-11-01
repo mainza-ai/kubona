@@ -4274,3 +4274,9 @@ skipped is the exact failure this incident is about:
 
 - The recorded notebook outline projects as a note card; the event list wrapper
   moves onto `requestOperation`. Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | More wrappers on the generated client
+
+- Fidelity, ADMET, custom/system agents, LLM/quantum settings, and quantum
+  backends now request through `requestOperation`; custom refusal/fallback
+  behavior is preserved. Updated [[remaining-work]]; no new page.
