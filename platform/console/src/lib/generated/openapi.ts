@@ -442,6 +442,46 @@ export type MetasearchChange = {
   "message"?: string;
 };
 
+export type SettingsUpdate = {
+  "status": string;
+  "settings": unknown;
+};
+
+export type CanvasSaved = {
+  "status": string;
+  "session_id": string;
+};
+
+export type ChatFeedback = {
+  "recorded": boolean;
+  "message_id": string;
+  "vote": string;
+};
+
+export type LoopAction = {
+  "loop_id": string;
+  "action": string;
+  "status": string;
+};
+
+export type HfCancel = {
+  "ok": boolean;
+  "task_id": string;
+  "status": string;
+};
+
+export type VaultLeaseRevoke = {
+  "lease_id": string;
+  "revoked": boolean;
+};
+
+export type QuantumCanary = {
+  "ok": boolean;
+  "results"?: unknown;
+  "cached"?: boolean;
+  "cache_ttl_seconds"?: number;
+};
+
 export type CostSummary = {
   "cap_usd": number;
   "spent_usd": number;
@@ -525,6 +565,7 @@ export type ApiOperationResponse = {
   authLogin: AuthLogin;
   authSessions: AuthSessions;
   authWhoami: AuthWhoami;
+  cancelHFDownload: HfCancel;
   cancelQuantumJob: QuantumCancel;
   clearMessages: MessagesClear;
   closeObligation: ObligationsClose;
@@ -582,6 +623,7 @@ export type ApiOperationResponse = {
   issueVaultLease: VaultLease;
   launchProposal: ChatLaunch;
   listHFDownloads: HfDownloads;
+  loopAction: LoopAction;
   pauseAutoresearchLoop: AutoresearchLoop;
   planWorkflow: WorkflowPlan;
   regenerateChat: ChatRegenerate;
@@ -593,16 +635,22 @@ export type ApiOperationResponse = {
   resumeAutoresearchLoop: AutoresearchLoop;
   resumeTribunal: TribunalResume;
   retainMemory: MemoryRetain;
+  revokeVaultLease: VaultLeaseRevoke;
   rewriteChat: ChatRewrite;
   routeMultimodalPayload: MeshRoute;
   runFamilySearch: CodesignFamilies;
+  runQuantumCanary: QuantumCanary;
   runTribunal: TribunalRun;
   runWorkflow: WorkflowRun;
+  saveCanvasLayout: CanvasSaved;
+  saveLLMSettings: SettingsUpdate;
+  saveQuantumSettings: SettingsUpdate;
   saveWorkbenchLayout: WorkbenchSave;
   sealPrediction: PredictionSeal;
   searchHFModels: HfSearch;
   searchLiterature: Literature;
   sendChatMessage: ChatSend;
+  sendFeedback: ChatFeedback;
   startAutoresearchLoop: AutoresearchLoop;
   startHFDownload: HfDownload;
   stepAutoresearchLoop: AutoresearchStep;
@@ -625,6 +673,7 @@ export const API_OPERATIONS = {
   authLogin: { method: "post", path: "/api/auth/login", response: "auth.login" },
   authSessions: { method: "get", path: "/api/auth/sessions", response: "auth.sessions" },
   authWhoami: { method: "get", path: "/api/auth/whoami", response: "auth.whoami" },
+  cancelHFDownload: { method: "post", path: "/api/hf/downloads/{id}/cancel", response: "hf.cancel" },
   cancelQuantumJob: { method: "post", path: "/api/quantum/jobs/{id}/cancel", response: "quantum.cancel" },
   clearMessages: { method: "delete", path: "/api/sessions/{id}/messages", response: "messages.clear" },
   closeObligation: { method: "post", path: "/api/obligations/{id}", response: "obligations.close" },
@@ -682,6 +731,7 @@ export const API_OPERATIONS = {
   issueVaultLease: { method: "post", path: "/api/vault/leases", response: "vault.lease" },
   launchProposal: { method: "post", path: "/api/chat/launch", response: "chat.launch" },
   listHFDownloads: { method: "get", path: "/api/hf/downloads", response: "hf.downloads" },
+  loopAction: { method: "post", path: "/api/loops/{id}/{action}", response: "loop.action" },
   pauseAutoresearchLoop: { method: "post", path: "/api/autoresearch/loops/{id}/pause", response: "autoresearch.loop" },
   planWorkflow: { method: "post", path: "/api/workflows/plan", response: "workflow.plan" },
   regenerateChat: { method: "post", path: "/api/chat/regenerate", response: "chat.regenerate" },
@@ -693,16 +743,22 @@ export const API_OPERATIONS = {
   resumeAutoresearchLoop: { method: "post", path: "/api/autoresearch/loops/{id}/resume", response: "autoresearch.loop" },
   resumeTribunal: { method: "post", path: "/api/tribunal/resume", response: "tribunal.resume" },
   retainMemory: { method: "post", path: "/api/memory/retain", response: "memory.retain" },
+  revokeVaultLease: { method: "post", path: "/api/vault/leases/revoke", response: "vault.lease.revoke" },
   rewriteChat: { method: "post", path: "/api/chat/rewrite", response: "chat.rewrite" },
   routeMultimodalPayload: { method: "post", path: "/api/mesh/route", response: "mesh.route" },
   runFamilySearch: { method: "post", path: "/api/codesign/families", response: "codesign.families" },
+  runQuantumCanary: { method: "get", path: "/api/quantum/canary", response: "quantum.canary" },
   runTribunal: { method: "post", path: "/api/chat/tribunal", response: "tribunal.run" },
   runWorkflow: { method: "post", path: "/api/workflows/run", response: "workflow.run" },
+  saveCanvasLayout: { method: "put", path: "/api/canvas/layout", response: "canvas.saved" },
+  saveLLMSettings: { method: "post", path: "/api/llm/settings", response: "settings.update" },
+  saveQuantumSettings: { method: "put", path: "/api/quantum/settings", response: "settings.update" },
   saveWorkbenchLayout: { method: "put", path: "/api/workbench/layout", response: "workbench.save" },
   sealPrediction: { method: "post", path: "/api/vault/predictions/seal", response: "prediction.seal" },
   searchHFModels: { method: "get", path: "/api/hf/search", response: "hf.search" },
   searchLiterature: { method: "get", path: "/api/literature", response: "literature" },
   sendChatMessage: { method: "post", path: "/api/chat/messages", response: "chat.send" },
+  sendFeedback: { method: "post", path: "/api/chat/feedback", response: "chat.feedback" },
   startAutoresearchLoop: { method: "post", path: "/api/autoresearch/start", response: "autoresearch.loop" },
   startHFDownload: { method: "post", path: "/api/hf/download", response: "hf.download" },
   stepAutoresearchLoop: { method: "post", path: "/api/autoresearch/loops/{id}/step", response: "autoresearch.step" },

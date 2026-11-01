@@ -166,6 +166,36 @@
         }
       }
     },
+    "/api/hf/downloads/{id}/cancel": {
+      "post": {
+        "operationId": "cancelHFDownload",
+        "tags": [
+          "hf"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: hf.cancel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/hf.cancel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/quantum/jobs/{id}/cancel": {
       "post": {
         "operationId": "cancelQuantumJob",
@@ -636,6 +666,24 @@
             }
           }
         }
+      },
+      "put": {
+        "operationId": "saveCanvasLayout",
+        "tags": [
+          "canvas"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: canvas.saved",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/canvas.saved"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/capabilities": {
@@ -881,6 +929,24 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/llm.settings"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "operationId": "saveLLMSettings",
+        "tags": [
+          "llm"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: settings.update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/settings.update"
                 }
               }
             }
@@ -1214,6 +1280,24 @@
             }
           }
         }
+      },
+      "put": {
+        "operationId": "saveQuantumSettings",
+        "tags": [
+          "quantum"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: settings.update",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/settings.update"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/radar": {
@@ -1427,6 +1511,44 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/hf.downloads"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/loops/{id}/{action}": {
+      "post": {
+        "operationId": "loopAction",
+        "tags": [
+          "loops"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: loop.action",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/loop.action"
                 }
               }
             }
@@ -1654,6 +1776,26 @@
         }
       }
     },
+    "/api/vault/leases/revoke": {
+      "post": {
+        "operationId": "revokeVaultLease",
+        "tags": [
+          "vault"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: vault.lease.revoke",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/vault.lease.revoke"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/chat/rewrite": {
       "post": {
         "operationId": "rewriteChat",
@@ -1707,6 +1849,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/codesign.families"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/quantum/canary": {
+      "get": {
+        "operationId": "runQuantumCanary",
+        "tags": [
+          "quantum"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: quantum.canary",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/quantum.canary"
                 }
               }
             }
@@ -1827,6 +1989,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/chat.send"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/feedback": {
+      "post": {
+        "operationId": "sendFeedback",
+        "tags": [
+          "chat"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: chat.feedback",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/chat.feedback"
                 }
               }
             }
@@ -3452,6 +3634,124 @@
           }
         }
       },
+      "settings.update": {
+        "type": "object",
+        "required": [
+          "status",
+          "settings"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "settings": {}
+        }
+      },
+      "canvas.saved": {
+        "type": "object",
+        "required": [
+          "status",
+          "session_id"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "chat.feedback": {
+        "type": "object",
+        "required": [
+          "recorded",
+          "message_id",
+          "vote"
+        ],
+        "properties": {
+          "recorded": {
+            "type": "boolean"
+          },
+          "message_id": {
+            "type": "string"
+          },
+          "vote": {
+            "type": "string"
+          }
+        }
+      },
+      "loop.action": {
+        "type": "object",
+        "required": [
+          "loop_id",
+          "action",
+          "status"
+        ],
+        "properties": {
+          "loop_id": {
+            "type": "string"
+          },
+          "action": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "hf.cancel": {
+        "type": "object",
+        "required": [
+          "ok",
+          "task_id",
+          "status"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "task_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "vault.lease.revoke": {
+        "type": "object",
+        "required": [
+          "lease_id",
+          "revoked"
+        ],
+        "properties": {
+          "lease_id": {
+            "type": "string"
+          },
+          "revoked": {
+            "type": "boolean"
+          }
+        }
+      },
+      "quantum.canary": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "results": {},
+          "cached": {
+            "type": "boolean"
+          },
+          "cache_ttl_seconds": {
+            "type": "number"
+          }
+        }
+      },
       "cost.summary": {
         "type": "object",
         "required": [
@@ -3724,7 +4024,6 @@
     "apiFetch",
     "authLogout",
     "authRevoke",
-    "cancelHFDownload",
     "configureApiBase",
     "deleteSession",
     "downloadFile",
@@ -3736,7 +4035,6 @@
     "issueTenantGrant",
     "jobStatusLabel",
     "lensImageProxyUrl",
-    "loopAction",
     "refundSessionSpend",
     "refundTenantSpend",
     "registerTenantAdminKey",
@@ -3744,13 +4042,7 @@
     "resetDedupForTests",
     "revokeTenantAutonomy",
     "revokeTenantGrant",
-    "revokeVaultLease",
-    "runQuantumCanary",
-    "saveCanvasLayout",
-    "saveLLMSettings",
-    "saveQuantumSettings",
     "scoreCodesignBudget",
-    "sendFeedback",
     "setTenantAutonomy",
     "setTenantCeiling",
     "setTenantStatus",

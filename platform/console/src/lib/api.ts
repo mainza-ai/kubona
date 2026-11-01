@@ -803,18 +803,12 @@ export async function saveWorkbenchLayout(
 
 export async function saveCanvasLayout(sessionId: string, layout: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/canvas/layout?session_id=${encodeURIComponent(sessionId)}`, {
-      method: 'PUT',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(layout),
-    });
-    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    await requestOperation('saveCanvasLayout', { query: { session_id: sessionId }, body: layout });
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: String(err) };
+    return { ok: false, error: String(err instanceof Error ? err.message : err) };
   }
 }
-
 export async function fetchCapabilities(): Promise<CapabilitiesPayload | null> {
   try {
     return (await requestOperation('fetchCapabilities')) as CapabilitiesPayload;
@@ -1068,46 +1062,29 @@ export interface QuantumCanaryResult {
 
 export async function runQuantumCanary(providers?: string[], maxSeconds?: number): Promise<QuantumCanaryResult> {
   try {
-    const params = new URLSearchParams();
-    if (providers && providers.length > 0) params.set('providers', providers.join(','));
-    if (maxSeconds) params.set('max_seconds', String(maxSeconds));
-    const qs = params.toString();
-    const res = await apiFetch(`${API_BASE}/api/quantum/canary${qs ? `?${qs}` : ''}`, { cache: 'no-store', headers: authHeaders() });
-    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!res.ok) return { ok: false, error: (data.error as string) || `HTTP ${res.status}` };
-    return { ok: true, results: (data.results ?? {}) as Record<string, unknown>, cached: data.cached as boolean | undefined };
+    const data = await requestOperation('runQuantumCanary', {
+      query: {
+        providers: providers && providers.length > 0 ? providers.join(',') : undefined,
+        max_seconds: maxSeconds || undefined,
+      },
+    });
+    return { ok: true, results: (data.results ?? {}) as Record<string, unknown>, cached: data.cached };
   } catch (err) {
     console.error('Failed to run quantum canary:', err);
-    return { ok: false, error: String(err) };
+    return { ok: false, error: String(err instanceof Error ? err.message : err) };
   }
 }
-
 export async function saveQuantumSettings(
   settings: Record<string, unknown>
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/quantum/settings`, {
-      method: 'PUT',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(settings),
-    });
-    if (!res.ok) {
-      // Surface the backend reason verbatim — never swallow into generic false.
-      let text = '';
-      try {
-        text = (await res.text()).trim().slice(0, 280);
-      } catch {
-        /* ignore body read failure */
-      }
-      return { ok: false, error: text || `HTTP ${res.status}` };
-    }
+    await requestOperation('saveQuantumSettings', { body: settings });
     return { ok: true };
   } catch (err) {
     console.error('Failed to save quantum settings:', err);
-    return { ok: false, error: String(err) };
+    return { ok: false, error: String(err instanceof Error ? err.message : err) };
   }
 }
-
 export interface QuantumJobSubmit {
   session_id?: string;
   qasm: string;
@@ -1162,28 +1139,13 @@ export async function saveLLMSettings(
   settings: Record<string, unknown>
 ): Promise<{ ok: boolean; error?: string }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/llm/settings`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(settings),
-    });
-    if (!res.ok) {
-      // Surface the backend reason verbatim — never swallow into generic false.
-      let text = '';
-      try {
-        text = (await res.text()).trim().slice(0, 280);
-      } catch {
-        /* ignore body read failure */
-      }
-      return { ok: false, error: text || `HTTP ${res.status}` };
-    }
+    await requestOperation('saveLLMSettings', { body: settings });
     return { ok: true };
   } catch (err) {
     console.error('Failed to save LLM settings:', err);
-    return { ok: false, error: String(err) };
+    return { ok: false, error: String(err instanceof Error ? err.message : err) };
   }
 }
-
 export async function fetchLLMModels(provider: string = 'omlx'): Promise<Record<string, unknown>> {
   try {
     return (await requestOperation('fetchLLMModels', { query: { provider } })) as Record<string, unknown>;
@@ -1278,21 +1240,13 @@ export async function listHFDownloads(): Promise<import('@/types').HFDownloadTas
 
 export async function cancelHFDownload(taskId: string): Promise<boolean> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/hf/downloads/${encodeURIComponent(taskId)}/cancel`, {
-      headers: authHeaders(),
-      method: 'POST',
-    });
-    return res.ok;
+    const data = await requestOperation('cancelHFDownload', { params: { id: taskId } });
+    return data.ok === true;
   } catch (err) {
     console.error('Failed to cancel HF download:', err);
     return false;
   }
 }
-
-// -----------------------------------------------------------------------------
-// Custom Agents API
-// -----------------------------------------------------------------------------
-
 export interface SystemAgentRole {
   role: string;
   description: string;
@@ -1517,20 +1471,15 @@ export async function sendFeedback(
   vote: 'up' | 'down'
 ): Promise<boolean> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/chat/feedback`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ session_id: sessionId, message_id: messageId, vote }),
+    const data = await requestOperation('sendFeedback', {
+      body: { session_id: sessionId, message_id: messageId, vote },
     });
-    return res.ok;
+    return data.recorded === true;
   } catch (err) {
     console.error('Failed to send feedback:', err);
     return false;
   }
 }
-
-// Rewrite (edit-resend branching): replaces a user message and deletes every
-// later message, restarting the thread from the edited turn.
 export async function rewriteChat(
   sessionId: string,
   messageId: string,
@@ -1786,26 +1735,14 @@ export async function loopAction(
   action: LoopAction
 ): Promise<{ ok: true } | { error: string } | null> {
   try {
-    const res = await apiFetch(
-      `${API_BASE}/api/loops/${encodeURIComponent(loopId)}/${action}`,
-      { method: 'POST', headers: authHeaders({ 'Content-Type': 'application/json' }) }
-    );
-    if (!res.ok) {
-      let text = '';
-      try {
-        text = (await res.text()).trim().slice(0, 280);
-      } catch {
-        /* ignore body read failure */
-      }
-      return { error: text || `HTTP ${res.status}` };
-    }
+    await requestOperation('loopAction', { params: { id: loopId, action } });
     return { ok: true };
   } catch (err) {
+    if (err instanceof OperationError) return { error: err.message };
     console.error(`Failed loop ${action}:`, err);
     return null;
   }
 }
-
 export interface TenantWriteResult {
   ok: true;
   tenant: import('@/types').Lab;
@@ -2049,19 +1986,12 @@ export async function issueVaultLease(scope: string, ttlSeconds: number, session
 
 export async function revokeVaultLease(leaseId: string): Promise<{ ok: boolean; error?: string }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/vault/leases/revoke`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ lease_id: leaseId }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: String(data.error || data.message || `HTTP ${res.status}`).slice(0, 280) };
-    return { ok: true };
+    const data = await requestOperation('revokeVaultLease', { body: { lease_id: leaseId } });
+    return { ok: data.revoked === true };
   } catch (err) {
-    return { ok: false, error: String(err).slice(0, 280) };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
-
 export async function verifyLedger(sessionId?: string): Promise<{ ok: boolean; fault_count?: number; faults?: unknown[]; error?: string }> {
   try {
     return (await requestOperation('verifyLedger', {
