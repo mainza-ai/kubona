@@ -667,6 +667,7 @@ export default function Home() {
     if (kind === 'chart' || kind === 'agent_run' || kind === 'job') setSurface('recorder');
     else if (kind === 'approval') { setSurface('mesh'); setMeshTab('guardrails'); }
     else if (kind === 'evidence') setSurface('manifold');
+    else if (kind === 'molecule') { setSurface('arena'); setShowLegacyCanvas(true); }
     else if (kind === 'proof' || kind === 'manuscript') {
       setSurface('proofs');
       setProofsTab('manuscripts');

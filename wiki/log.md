@@ -4481,3 +4481,9 @@ skipped is the exact failure this incident is about:
 - The workbench exposes focus/remove via an imperative handle; the inspector
   can open, focus, or remove the selected object without duplicating records.
   Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Molecule object card
+
+- Project the molecule as a typed workbench object and route Open to the
+  existing 2D/3D molecule workbench, preserving a single physics owner.
+  Updated [[remaining-work]]; no new page.

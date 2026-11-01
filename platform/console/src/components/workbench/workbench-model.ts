@@ -18,7 +18,8 @@ export type WorkbenchObjectKind =
   | 'job'
   | 'table'
   | 'approval'
-  | 'note';
+  | 'note'
+  | 'molecule';
 
 export type WorkbenchLink = {
   id: string;
@@ -48,7 +49,7 @@ export type WorkbenchObject = {
 };
 
 export const DEFAULT_CAMERA: WorkbenchCamera = { x: 36, y: 36, zoom: 0.82 };
-export const WORKBENCH_BOUNDS = { width: 1800, height: 1100 };
+export const WORKBENCH_BOUNDS = { width: 1800, height: 1500 };
 
 function finite(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
@@ -372,6 +373,20 @@ export function buildWorkbench(
         { label: 'Authorities', value: obligation.required_authorities.length ? obligation.required_authorities.join(', ') : 'none' },
       ],
     });
+  });
+  objects.push({
+    id: 'molecule',
+    kind: 'molecule',
+    label: 'Molecule',
+    title: value(qf?.target_molecule || campaign.target_system, 'No molecule'),
+    detail: `${value(qf?.molecular_formula, 'formula not recorded')} · bond ${fixed(qf?.bond_distance, 4)} Å`,
+    position: { x: 0, y: 1140 },
+    size: { width: 380, height: 200 },
+    facts: [
+      { label: 'Active electrons', value: value(qf?.active_electrons) },
+      { label: 'Active orbitals', value: value(qf?.active_orbitals) },
+      { label: 'Anchor', value: anchored ? `${fixed(anchor?.fci_exact_energy, 5)} Ha` : 'UNVERIFIED' },
+    ],
   });
   if (notebook?.sections?.length) {
     objects.push({
