@@ -18,7 +18,7 @@ import { CommandPalette } from '@/components/CommandPalette';
 import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import { NewCampaignModal } from '@/components/modals/NewCampaignModal';
-import { SovereignDock, DockSurface } from '@/components/sovereign/SovereignDock';
+import { ModeRail, type ShellMode } from '@/components/shell/ModeRail';
 import { ArenaHud, ArenaView } from '@/components/sovereign/ArenaHud';
 import { SwarmUniverse } from '@/components/sovereign/SwarmUniverse';
 import { ProofDagView } from '@/components/sovereign/ProofDagView';
@@ -152,8 +152,9 @@ export function describeCreateFailure(result: Session | null, error: unknown): s
 // bookmarkable and palette/dock navigation updates the URL without reload.
 // Unknown values fall back to defaults — never a crash. Pure (no window
 // access) so tests can exercise it without mounting Home.
+export type DockSurface = 'arena' | 'recorder' | 'manifold' | 'fleet' | 'proofs' | 'mesh';
 export type ProofsTab = 'manuscripts' | 'tribunal' | 'gallery' | 'circuits';
-export type MeshTab = 'mesh' | 'guardrails' | 'models' | 'labs' | 'settings';
+export type MeshTab = 'fleet' | 'mesh' | 'guardrails' | 'models' | 'labs' | 'settings';
 
 export interface ShellParams {
   surface: DockSurface;
@@ -171,7 +172,7 @@ const SHELL_DEFAULTS: ShellParams = {
 
 const VALID_SURFACES: DockSurface[] = ['arena', 'recorder', 'manifold', 'fleet', 'proofs', 'mesh'];
 const VALID_PROOFS_TABS: ProofsTab[] = ['manuscripts', 'tribunal', 'gallery', 'circuits'];
-const VALID_MESH_TABS: MeshTab[] = ['mesh', 'guardrails', 'models', 'labs', 'settings'];
+const VALID_MESH_TABS: MeshTab[] = ['fleet', 'mesh', 'guardrails', 'models', 'labs', 'settings'];
 const VALID_ARENA_VIEWS: ArenaView[] = ['workbench', 'orbital', 'proof-dag', 'hardware-qpu'];
 
 export function parseShellParams(search: string): ShellParams {
@@ -240,7 +241,7 @@ export default function Home() {
   const [workbenchEnabled, setWorkbenchEnabled] = useState(true);
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [proofsTab, setProofsTab] = useState<'manuscripts' | 'tribunal' | 'gallery' | 'circuits'>('manuscripts');
-  const [meshTab, setMeshTab] = useState<'mesh' | 'guardrails' | 'models' | 'labs' | 'settings'>('mesh');
+  const [meshTab, setMeshTab] = useState<MeshTab>('mesh');
   const [showLegacyCanvas, setShowLegacyCanvas] = useState(false);
   const [gateState, setGateState] = useState<Record<string, 'authorized' | 'denied' | 'downgraded'>>({});
   const [gateNotice, setGateNotice] = useState<string | null>(null);
@@ -590,6 +591,35 @@ export default function Home() {
     if (s === 'arena') setShowLegacyCanvas(false);
   }, []);
 
+  const activeMode: ShellMode = surface === 'proofs'
+    ? 'evidence'
+    : surface === 'mesh'
+      ? (meshTab === 'settings' ? 'settings' : 'operations')
+      : surface === 'fleet'
+        ? 'operations'
+        : 'workbench';
+
+  const handleSelectMode = useCallback((mode: ShellMode) => {
+    if (mode === 'workbench') {
+      setSurface('arena');
+      setArenaView('workbench');
+      setShowLegacyCanvas(false);
+      return;
+    }
+    if (mode === 'evidence') {
+      setSurface('proofs');
+      setProofsTab('manuscripts');
+      return;
+    }
+    if (mode === 'operations') {
+      setSurface('mesh');
+      setMeshTab((current) => (surface === 'mesh' && current !== 'settings' ? current : 'fleet'));
+      return;
+    }
+    setSurface('mesh');
+    setMeshTab('settings');
+  }, [surface]);
+
   // Single dispatch for keyboard shortcuts AND palette selections: targets
   // resolve through SHORTCUT_TARGETS (lib/shortcuts) so the two cannot
   // drift — every handler branch names a palette item id and vice versa.
@@ -926,11 +956,10 @@ export default function Home() {
       )}
 
       {/* Icon-only sovereign dock */}
-      <SovereignDock
-        active={surface}
-        onSelect={handleSelectDockSurface}
+      <ModeRail
+        active={activeMode}
+        onSelect={handleSelectMode}
         airGapSovereign
-        onOpenSettings={() => { setSurface('mesh'); setMeshTab('settings'); }}
         onOpenCampaigns={() => setShowCampaignMenu((v) => !v)}
       />
 
@@ -1184,6 +1213,7 @@ export default function Home() {
             )}
             {surface === 'mesh' && subToggle(
               [
+                { id: 'fleet', label: 'Fleet Radar' },
                 { id: 'mesh', label: 'Cognitive Mesh' },
                 { id: 'guardrails', label: 'Guardrails' },
                 { id: 'models', label: 'Model Hub' },
@@ -1218,6 +1248,7 @@ export default function Home() {
               )}
               {surface === 'proofs' && proofsTab === 'gallery' && <GenerativeUIStudio campaign={campaign} tenantId={sessions.find((s) => s.id === currentSessionId)?.tenant_id} />}
               {surface === 'proofs' && proofsTab === 'circuits' && <CodesignCockpit />}
+              {surface === 'mesh' && meshTab === 'fleet' && <FleetRadar campaign={campaign} />}
               {surface === 'mesh' && meshTab === 'mesh' && <CognitiveMesh campaign={campaign} />}
               {surface === 'mesh' && meshTab === 'guardrails' && <AutonomyCockpit campaign={campaign} session={session} />}
               {surface === 'mesh' && meshTab === 'models' && <HuggingFaceModelHub />}

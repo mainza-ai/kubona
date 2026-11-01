@@ -4402,3 +4402,10 @@ skipped is the exact failure this incident is about:
   default, keyboard/pointer resize, overlay below `lg`, persisted width, and
   selected-object details. Moved job polling to the page projection and made
   polling stores hot-swap their loader. Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Four-mode primary rail
+
+- Replaced the six-destination dock with Workbench/Evidence/Operations/
+  Settings; Fleet is an Operations tab, legacy `?surface` links still resolve,
+  and the old dock test IDs are preserved. Updated [[remaining-work]]; no new
+  page.

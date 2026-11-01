@@ -55,7 +55,7 @@ test.describe('Kubona console against the real local stack', () => {
     await page.keyboard.press('Tab');
     await expect(page.getByRole('link', { name: 'Skip to main content' })).toBeFocused();
     await page.keyboard.press('Enter');
-    await expect(page.locator('#main-content')).toBeFocused();
+    await expect(page.locator('#kubona-main')).toBeFocused();
     await expect(page.getByTestId('dock-arena')).toBeVisible();
     await expect(page.getByTestId('dock-arena')).toHaveAttribute('aria-current', 'page');
     await expect(page.getByRole('button', { name: 'Campaigns' })).toBeVisible();

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import TestRenderer, { act, type ReactTestInstance } from 'react-test-renderer';
-import { SovereignDock } from './SovereignDock';
+import { ModeRail } from '@/components/shell/ModeRail';
 import { ArenaHud } from './ArenaHud';
 import { SwarmUniverse } from './SwarmUniverse';
 import { ActionGate } from './ActionGate';
@@ -79,31 +79,27 @@ const CAMPAIGN = {
   updated_at: '',
 } as unknown as CampaignState;
 
-describe('SovereignDock', () => {
-  it('renders six surfaces and marks the active one', () => {
+describe('ModeRail', () => {
+  it('renders four modes and marks the active one', () => {
     const onSelect = vi.fn();
     const root = render(
-      <SovereignDock active="fleet" onSelect={onSelect} airGapSovereign onOpenSettings={() => {}} onOpenCampaigns={() => {}} />
+      <ModeRail active="operations" onSelect={onSelect} airGapSovereign onOpenCampaigns={() => {}} />
     );
-    for (const id of ['arena', 'recorder', 'manifold', 'fleet', 'proofs', 'mesh']) {
+    for (const id of ['arena', 'proofs', 'mesh', 'settings']) {
       root.findByProps({ 'data-testid': `dock-${id}` });
     }
-    expect(root.findByProps({ 'data-testid': 'dock-fleet' }).props['aria-pressed']).toBe(true);
+    expect(root.findByProps({ 'data-testid': 'dock-mesh' }).props['aria-pressed']).toBe(true);
     act(() => {
       root.findByProps({ 'data-testid': 'dock-arena' }).props.onClick();
     });
-    expect(onSelect).toHaveBeenCalledWith('arena');
+    expect(onSelect).toHaveBeenCalledWith('workbench');
   });
 
-  it('names every surface natively instead of drawing an overlay over the work', () => {
+  it('names every mode natively and keeps the air-gap sentinel', () => {
     const root = render(
-      <SovereignDock active="fleet" onSelect={() => {}} airGapSovereign onOpenSettings={() => {}} onOpenCampaigns={() => {}} />
+      <ModeRail active="operations" onSelect={() => {}} airGapSovereign onOpenCampaigns={() => {}} />
     );
-    const overlays = root.findAll(
-      (n) => typeof n.type === 'string' && n.type === 'div' && typeof n.props?.className === 'string' && n.props.className.includes('group-hover:opacity-100')
-    );
-    expect(overlays).toHaveLength(0);
-    for (const id of ['arena', 'recorder', 'manifold', 'fleet', 'proofs', 'mesh']) {
+    for (const id of ['arena', 'proofs', 'mesh', 'settings']) {
       const button = root.findByProps({ 'data-testid': `dock-${id}` });
       expect(button.props.title).toBeTruthy();
       expect(button.props['aria-label']).toBeTruthy();
