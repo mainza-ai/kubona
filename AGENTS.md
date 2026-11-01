@@ -26,9 +26,9 @@ evidence; the reviewer key is commissioned). The repo is under constant
 development — re-verify the gate on the exact commit before citing
 "production-ready" as current fact. Do not cite "private" as current fact.
 
-> ⚑ State correction (2026-10-31): the 20-job **push** gate is green at
-> `670343f` (runs `41249932054` on develop, `41249934110` on main; 20/20),
-> with Console E2E green there too (`41249932052` develop, `41249934141`
+> ⚑ State correction (2026-11-01): the 20-job **push** gate is green at
+> `0fabccc` (runs `41257415298` on develop, `41257418415` on main; 20/20),
+> with Console E2E green there too (`41257415342` develop, `41257418485`
 > main). The **nightly thesis-scale** gate remains green at `c7d98f6`
 > (`41041244412`: canary + slice60 composition + determinism); console-only
 > commits after it did not rerun that nightly. P0 recovery landed: verified

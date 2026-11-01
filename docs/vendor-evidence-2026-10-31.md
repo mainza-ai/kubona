@@ -21,8 +21,10 @@
   `$1.20` reserved; 1,500 credits consumed.
 - IBM vendor job `dbj4o0gnceqs73aj8n9g`: `ibm_marrakesh`, `DONE`, 100 shots,
   2 QPU seconds, counts `00:61`, `01:4`, `11:35`.
-- Local job `09912676ae2c436c`: completed, local usage 2 s, settlement
-  `$3.20`; session/tenant spend `$3.20`.
+- Local job `09912676ae2c436c`: completed, local usage 2 s. The authenticated
+  instance is `plan=open`, `pricing_type=free`; actual charge is `$0.00`. The
+  pre-fix `$3.20` local settlement was a list-price estimate and is not a
+  vendor charge. The provider now settles free-plan usage at zero.
 - Final vendor evidence file (local only): `/tmp/kubona-paid-e2e/final2-status.json`.
 
 ## Historical IBM row — resolved by vendor API
