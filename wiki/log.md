@@ -4584,3 +4584,9 @@ skipped is the exact failure this incident is about:
 - Added unit coverage for Space select, Enter open, arrow nudge, and
   Delete-with-Undo on workbench cards. The manual VoiceOver/NVDA pass remains
   NOT RUN; automated evidence is recorded in the accessibility note.
+
+## [2026-11-01] verification | Dense workbench axe audit
+
+- Added an E2E axe audit of the mocked 361-object workbench canvas and its
+  list equivalent. It caught a low-contrast composer footer caption; the
+  caption now uses `text-slate-400`. Manual VoiceOver/NVDA remains NOT RUN.

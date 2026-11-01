@@ -143,7 +143,7 @@ export function Composer({
         </button>
       </div>
       {attachError && <p role="alert" className="mt-1 text-[11px] text-amber-300">{attachError}</p>}
-      <p className="mt-1 text-[11px] text-slate-500">Enter sends · Shift+Enter newline · context stays attached</p>
+      <p className="mt-1 text-[11px] text-slate-400">Enter sends · Shift+Enter newline · context stays attached</p>
     </form>
   );
 }

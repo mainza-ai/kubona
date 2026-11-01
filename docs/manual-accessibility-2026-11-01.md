@@ -15,6 +15,9 @@ it does not claim a manual VoiceOver/NVDA pass.
 - Reduced-motion E2E: ambient animation utilities resolve to `none`.
 - Workbench keyboard: Space selects, Enter opens, arrows nudge, and Delete
   removes with Undo (unit coverage in `Workbench.test.tsx`).
+- Dense workbench: axe WCAG 2 A/AA is green on both the 361-object canvas and
+  its list equivalent. This run caught and fixed the composer footer's
+  low-contrast 11 px caption.
 
 ## Manual scripts (pending)
 
