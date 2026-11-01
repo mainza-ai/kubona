@@ -14,6 +14,7 @@ import {
   workbenchPayload,
   type WorkbenchCamera,
   type WorkbenchObject,
+  type WorkbenchObjectKind,
   type WorkbenchPositions,
   type WorkbenchSizes,
 } from './workbench-model';
@@ -21,9 +22,10 @@ import {
 type Props = {
   campaign?: CampaignState | null;
   sessionId?: string;
+  onOpenObject?: (kind: WorkbenchObjectKind) => void;
 };
 
-export function Workbench({ campaign, sessionId }: Props) {
+export function Workbench({ campaign, sessionId, onOpenObject }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const baseLayout = useRef<Record<string, unknown>>({});
   const loaded = useRef(false);
@@ -270,6 +272,7 @@ export function Workbench({ campaign, sessionId }: Props) {
               onResizePointerDown={(event) => onResizePointerDown(event, object)}
               onResizePointerMove={onResizePointerMove}
               onResizePointerUp={onCardPointerUp}
+              onOpen={onOpenObject ? () => onOpenObject(object.kind) : undefined}
             />
           ))}
         </div>
@@ -288,6 +291,7 @@ function WorkCard({
   onResizePointerDown,
   onResizePointerMove,
   onResizePointerUp,
+  onOpen,
 }: {
   object: WorkbenchObject;
   selected: boolean;
@@ -298,6 +302,7 @@ function WorkCard({
   onResizePointerDown: (event: React.PointerEvent<HTMLElement>) => void;
   onResizePointerMove: (event: React.PointerEvent<HTMLElement>) => void;
   onResizePointerUp: () => void;
+  onOpen?: () => void;
 }) {
   return (
     <article
@@ -340,6 +345,18 @@ function WorkCard({
         <div className="k-workbench-chart">
           <Chart spec={object.chart} />
         </div>
+      )}
+      {selected && onOpen && (
+        <button
+          type="button"
+          className="k-workbench-open"
+          onClick={(event) => {
+            event.stopPropagation();
+            onOpen();
+          }}
+        >
+          Open
+        </button>
       )}
       {selected && (
         <span
