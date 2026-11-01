@@ -4305,3 +4305,10 @@ skipped is the exact failure this incident is about:
   boundary recipe for workbench/chart primitives. Added an automated
   forced-colors/no-overflow E2E check; manual AT/zoom remains open. Updated
   [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | 200% zoom check and more wrappers
+
+- Added a 200%-zoom-equivalent E2E guard (720x450) for no horizontal
+  overflow and skip-link focus. Moved autoresearch, metasearch, epistemics,
+  and quantum-job wrappers onto `requestOperation`. Updated
+  [[remaining-work]]; no new page.

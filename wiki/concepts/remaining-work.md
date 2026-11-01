@@ -85,14 +85,15 @@ Still open:
   types, operation metadata, and a checked `requestOperation()` client are
   landed; session, loops, events, jobs, fidelity, ADMET, agents, LLM/quantum
   settings, radar, cost, obligations, notebooks, capabilities,
-  session-context, abort, workflow, quantum-submit, messages, job-detail, and
-  memory-recall wrappers use it. Typed operation errors carry the backend
+  session-context, abort, workflow, quantum-submit, messages, job-detail,
+  memory-recall, autoresearch, metasearch, epistemics, and quantum-job
+  wrappers use it. Typed operation errors carry the backend
   refusal body. Layout and obligation-close writes render
   accepted/applied/refused/unknown settlement.
   Session-list dedupe/custom error copy remain, and settlement is not yet
   uniform across every write.
-- Manual VoiceOver/NVDA and 200% zoom record, and legacy-surface removal.
-  A skip link and forced-colors/no-overflow E2E check are landed. A runtime workbench kill switch
+- Manual VoiceOver/NVDA record and legacy-surface removal. A skip link,
+  forced-colors/no-overflow, and 200%-zoom-equivalent E2E check are landed. A runtime workbench kill switch
   (`KUBONA_CONSOLE_WORKBENCH=0`) falls back to Orbital Space without a rebuild;
   old deep links still resolve. The chart implementation has a CI-enforced
   16.2 KB min / 4.8 KB gzip budget, and the 3D observatory demand-renders.
