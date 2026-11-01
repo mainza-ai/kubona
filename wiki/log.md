@@ -4280,3 +4280,9 @@ skipped is the exact failure this incident is about:
 - Fidelity, ADMET, custom/system agents, LLM/quantum settings, and quantum
   backends now request through `requestOperation`; custom refusal/fallback
   behavior is preserved. Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Refusal bodies and remaining read wrappers
+
+- requestOperation now carries the backend refusal body into typed errors;
+  radar, cost, obligations, and notebooks move onto it. Updated
+  [[remaining-work]]; no new page.

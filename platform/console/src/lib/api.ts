@@ -219,7 +219,23 @@ export async function requestOperation<K extends ApiOperationName>(
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   if (!res.ok) {
-    throw new OperationError(name, res.status, `${operation.method.toUpperCase()} ${operation.path} refused (HTTP ${res.status})`);
+    let detail = '';
+    try {
+      const text = (await res.text()).trim();
+      try {
+        const body = JSON.parse(text) as { message?: unknown; error?: unknown };
+        detail = String(body.message || body.error || text);
+      } catch {
+        detail = text;
+      }
+    } catch {
+      /* no body */
+    }
+    throw new OperationError(
+      name,
+      res.status,
+      (detail || `${operation.method.toUpperCase()} ${operation.path} refused (HTTP ${res.status})`).slice(0, 280),
+    );
   }
   return contract(operation.response as ContractName, await res.json()) as ApiOperationResponse[K];
 }
@@ -793,37 +809,19 @@ export async function fetchFleet(): Promise<Record<string, unknown>> {
 
 export async function fetchRadar(): Promise<Record<string, unknown>> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/radar`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) {
-      let text = '';
-      try {
-        text = (await res.text()).trim().slice(0, 280);
-      } catch {
-        /* ignore */
-      }
-      return { radar_endpoints: [], refused: true, refuse_reason: text || `HTTP ${res.status}` };
-    }
-    return contract('radar', await res.json());
+    return (await requestOperation('fetchRadar')) as Record<string, unknown>;
   } catch (err) {
     console.error('Failed to fetch radar:', err);
-    return { radar_endpoints: [], refused: true, refuse_reason: String(err).slice(0, 280) };
+    return { radar_endpoints: [], refused: true, refuse_reason: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
 export async function fetchNotebooks(sessionId: string): Promise<{ ok: true; notebooks: import('@/types').SystematicNotebook[] } | { ok: false; error: string }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/results/notebooks?session_id=${encodeURIComponent(sessionId)}`, {
-      cache: 'no-store',
-      headers: authHeaders(),
-    });
-    const data = await res.json().catch(() => null);
-    if (!res.ok || !data || !Array.isArray(data.notebooks)) {
-      return { ok: false, error: String(data?.error || data?.message || `HTTP ${res.status}`).slice(0, 280) };
-    }
-    contract('notebooks.list', data);
-    return { ok: true, notebooks: data.notebooks as import('@/types').SystematicNotebook[] };
+    const data = await requestOperation('fetchNotebooks', { query: { session_id: sessionId } });
+    return { ok: true, notebooks: data.notebooks as unknown as import('@/types').SystematicNotebook[] };
   } catch (err) {
-    return { ok: false, error: String(err).slice(0, 280) };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
@@ -1145,21 +1143,9 @@ export async function fetchCostSummary(): Promise<
   { ok: true; result: CostSummary } | { ok: false; error: string }
 > {
   try {
-    const res = await apiFetch(`${API_BASE}/api/cost/summary`, {
-      cache: 'no-store',
-      headers: authHeaders(),
-    });
-    const data = await res.json().catch(() => null);
-    if (!res.ok || !data || typeof data.spent_usd !== 'number') {
-      const msg =
-        (data && typeof data.message === 'string' && data.message) ||
-        `refused (HTTP ${res.status})`;
-      return { ok: false, error: msg.slice(0, 280) };
-    }
-    contract('cost.summary', data);
-    return { ok: true, result: data as CostSummary };
+    return { ok: true, result: (await requestOperation('fetchCostSummary')) as CostSummary };
   } catch (err) {
-    return { ok: false, error: String(err).slice(0, 280) };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
@@ -2273,15 +2259,10 @@ export interface ObligationRow {
 
 export async function fetchOpenObligations(): Promise<{ ok: true; obligations: ObligationRow[] } | { ok: false; error: string }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/obligations/open`, { cache: 'no-store', headers: authHeaders() });
-    const data = await res.json().catch(() => null);
-    if (!res.ok || !data || !Array.isArray(data.obligations)) {
-      return { ok: false, error: (data?.error || data?.message || `HTTP ${res.status}`).slice(0, 280) };
-    }
-    contract('obligations.open', data);
-    return { ok: true, obligations: data.obligations as ObligationRow[] };
+    const data = await requestOperation('fetchOpenObligations');
+    return { ok: true, obligations: data.obligations as unknown as ObligationRow[] };
   } catch (err) {
-    return { ok: false, error: String(err).slice(0, 280) };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
