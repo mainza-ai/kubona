@@ -297,7 +297,11 @@ export default function Home() {
   const onTelemetry = useCallback((incoming: LedgerEvent[]) => {
     setEvents((previous) => mergeSessionEvents(previous, incoming));
   }, []);
-  const streamLive = useSessionStream(currentSessionId || null, onTelemetry);
+  const onStreamGap = useCallback(() => {
+    if (!currentSessionId) return;
+    void fetchEvents(currentSessionId).then((snapshot) => setEvents(snapshot));
+  }, [currentSessionId]);
+  const streamLive = useSessionStream(currentSessionId || null, onTelemetry, onStreamGap);
   const eventsRef = useRef<LedgerEvent[]>([]);
   useEffect(() => {
     eventsRef.current = events;
