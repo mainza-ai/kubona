@@ -30,6 +30,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import { ChatMessage, CampaignState, RunPhase, Proposal } from '@/types';
+import { useTranscript } from '@/domain/transcript-store';
 import { fetchMessages, sendChatMessage, streamChatMessage, createSession, runTribunal, fetchCampaignState, launchProposal, clearMessages, regenerateChat, sendFeedback, rewriteChat, fetchJobs, jobStatusLabel, isTerminalJobStatus, authWhoami, wasRecentAuthFailure } from '@/lib/api';
 import { ContextReadout } from './common/ContextReadout';
 import { OverflowCard } from './common/OverflowCard';
@@ -75,13 +76,11 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
   onSessionChange,
   onClose,
 }, ref) {
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
-  const [loading, setLoading] = useState(false);
+  const { messages, loading, streamingId, errorMessage, setMessages, setLoading, setStreamingId, setErrorMessage } = useTranscript(sessionId);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [runningTribunal, setRunningTribunal] = useState(false);
   const [tribunalStage, setTribunalStage] = useState<string>('Convening multi-agent scientific tribunal...');
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [internalExpanded, setInternalExpanded] = useState(false);
   const isExpanded = externalExpanded !== undefined ? externalExpanded : internalExpanded;
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -89,7 +88,6 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
   const [launchingId, setLaunchingId] = useState<string | null>(null);
   const [launchedNote, setLaunchedNote] = useState<Record<string, string>>({});
   const [launchedJobs, setLaunchedJobs] = useState<Record<string, string>>({});
-  const [streamingId, setStreamingId] = useState<string | null>(null);
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   // Spend-fork guard outcome (see getActiveSessionId): either a usable
   // session id, or a login redirect — never a silently minted session.
@@ -176,7 +174,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
     return () => {
       live = false;
     };
-  }, [sessionId]);
+  }, [sessionId, setMessages]);
 
   useEffect(() => {
     if (loading || runningTribunal) {

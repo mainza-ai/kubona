@@ -4493,3 +4493,9 @@ skipped is the exact failure this incident is about:
 - Raised projection caps for loops/jobs/obligations and added a 300+ object
   projection/serialization median budget (<250 ms). This is a regression guard,
   not a browser FPS claim. Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Shared transcript store
+
+- Moved Copilot messages/loading/streaming/error into a per-session shared
+  store with two-consumer coverage and test reset. Composer and inspector can
+  now read one transcript owner. Updated [[remaining-work]]; no new page.
