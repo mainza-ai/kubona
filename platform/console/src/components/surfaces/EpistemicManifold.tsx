@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { Compass, CheckCircle2, ChevronDown, ChevronUp, Scale, ShieldCheck } from 'lucide-react';
 import { CampaignState } from '@/types';
 import { fetchEpistemics } from '@/lib/api';
+import { Chart } from '@/components/data/DataChart';
+import type { ChartSpec } from '@/components/data/chart';
 
 interface EpistemicWavefunction {
   claim_id: string;
@@ -95,6 +97,28 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
     Number.isFinite(discrepancy) &&
     Boolean(anchorMethod) &&
     anchorMethod !== 'uncomputed';
+  const epistemicSpec: ChartSpec | undefined =
+    hasLive && alphaNum != null && betaNum != null && gammaNum != null
+      ? {
+          kind: 'bars',
+          title: 'Epistemic state probabilities',
+          series: [
+            {
+              name: 'Probability',
+              points: [
+                { x: 'α corroborated', y: alphaNum * alphaNum, display: (alphaNum * alphaNum).toFixed(4) },
+                { x: 'β contested', y: betaNum * betaNum, display: (betaNum * betaNum).toFixed(4) },
+                { x: 'γ unverified', y: gammaNum * gammaNum, display: (gammaNum * gammaNum).toFixed(4) },
+              ],
+            },
+          ],
+          x: { label: 'Component', kind: 'category' },
+          y: { label: 'Probability mass', format: 'number', min: 0, max: 1 },
+          headline: { label: 'α²', value: (alphaNum * alphaNum).toFixed(4) },
+          basis: `Squared amplitudes from ${active.record_id ? `claim record ${active.record_id}` : 'the live campaign projection'}; not a fresh measurement of truth.`,
+          detail: 'full',
+        }
+      : undefined;
 
   return (
     <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0F19] to-[#07090E] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-8 select-none">
@@ -140,7 +164,7 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
           {/* Outer Waveform Rings */}
           <div 
             className={`absolute inset-0 rounded-full border border-dashed transition-all duration-1000 ${
-              isVerified ? 'border-emerald-500/40 animate-wave-spin' : 'border-amber-500/40 animate-wave-spin'
+              isVerified ? 'border-emerald-500/40' : 'border-amber-500/40'
             }`} 
           />
           <div 
@@ -153,8 +177,8 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
           <div 
             className={`w-40 h-40 rounded-full transition-all duration-700 flex flex-col items-center justify-center text-center p-4 shadow-2xl relative ${
               isVerified
-                ? 'bg-gradient-to-tr from-emerald-600/80 via-teal-500/70 to-emerald-400/90 animate-orb-breathing text-white'
-                : 'bg-gradient-to-tr from-amber-600/80 via-orange-500/70 to-amber-400/90 animate-orb-curiosity text-white'
+                ? 'bg-gradient-to-tr from-emerald-600/80 via-teal-500/70 to-emerald-400/90 text-white'
+                : 'bg-gradient-to-tr from-amber-600/80 via-orange-500/70 to-amber-400/90 text-white'
             }`}
           >
             {/* H4: the headline % is the corroborated amplitude mass α (not the
@@ -216,6 +240,11 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
             <p className="text-[12px] font-code text-slate-500">Fallback numbers below are illustrative — no live claim.</p>
           )}
         </div>
+        {epistemicSpec && (
+          <div className="mt-6 w-full max-w-2xl rounded-2xl border border-white/10 bg-black/30 p-4">
+            <Chart spec={epistemicSpec} />
+          </div>
+        )}
       </div>
 
       {/* Progressive Disclosure (button reveals deep math; the orb itself is display-only) */}

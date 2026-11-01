@@ -30,6 +30,11 @@ status: tracked
 
 ## E1 — API versioning (highest compatibility value)
 
+> ⚑ State (2026-11-01): the `/api/v1/...` prefix alias and
+> `Kubona-API-Version: 1` response header are landed; the compatibility
+> `/api/...` paths and route policy are unchanged. Generated client/versioned
+> OpenAPI gating remains open.
+
 **Problem.** The console and agent clients share unversioned `/api/...`
 paths. Generated OpenAPI is a snapshot, not a negotiated contract. A future
 breaking response change has no explicit migration seam.

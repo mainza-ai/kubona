@@ -2,7 +2,7 @@
 type: concept
 name: Remaining work queue
 date: 2026-10-17
-updated: 2026-10-30
+updated: 2026-11-01
 tags: [plan, queue, production]
 sources: [source-gap-analysis-plan, source-frontier-repo-audit-2026]
 status: tracked
@@ -43,6 +43,44 @@ status: tracked
 > current counts in `docs/repo-counts.md`. The **nightly thesis-scale** gate
 > remains green at `c7d98f6` (`41041244412`: canary + both slice-60 jobs).
 > Older red runs are history.
+
+## Interface/runtime upgrade program (2026-11-01)
+
+> Scope: the console interface and runtime projection program. This is
+> **prototype scaffold** evidence unless a gate names a protected run; it is
+> not a claim that the public console is production-ready.
+
+Landed on `develop` and `main` with the console/Go gates green:
+
+- Contract/a11y foundation: canonical empty transcripts, job-status wire
+  union, typed auth state, semantic tokens, readable data/control type,
+  opened-on-demand copilot, and shared Button/Badge/EmptyState primitives.
+- Campaign workbench: default arena view, typed cards, drag/resize, camera
+  and position persistence, explicit links, keyboard nudge/open, a
+  text/table equivalent, and a persisted spatial area.
+- Versioned workbench storage: dedicated v2 table, bounded validation,
+  revision/CAS saves, legacy-layout migration, and a typed 409 conflict.
+- Data/artifacts: dependency-free SVG chart kit with exact values, CSV,
+  provenance, accessible summaries; ResultsStudio, FleetRadar,
+  EpistemicManifold, and Codesign now use it. At-rest fleet/observatory
+  motion removed.
+- Projection/transport: one authoritative session telemetry stream with
+  poll fallback; campaign/loop/session projections moved out of the page;
+  `/api/v1/...` aliases with `Kubona-API-Version: 1`.
+- Rendering: the 3D observatory stops its rAF loop while hidden or offscreen.
+- Runtime: measured QIR lowering benchmark; warm worker deferred because the
+  measured workload does not justify it.
+
+Still open:
+
+- Workbench area rename/resize/assignment, remaining object kinds, and
+  virtualization at 100/300 objects.
+- Remove residual per-widget pollers for fleet, spend, job progress, copilot
+  turns, and recorder telemetry.
+- Revisioned domain events beyond the ledger cursor; generated client and a
+  uniform write-settlement state.
+- Chart bundle budget, manual VoiceOver/NVDA record, 200% zoom/forced-colors
+  evidence, route alias/feature-flag cleanup, and legacy-surface removal.
 
 ## Local-first production (2026-10-30, landed)
 

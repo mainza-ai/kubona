@@ -58,7 +58,12 @@ export function useSessionStream(
     let errors = 0;
     const onTelemetry = (event: MessageEvent) => {
       try {
-        const payload = JSON.parse(String(event.data)) as { events?: LedgerEvent[] };
+        const payload = JSON.parse(String(event.data)) as {
+          events?: LedgerEvent[];
+          domain?: string;
+          kind?: string;
+          revision?: number;
+        };
         if (!Array.isArray(payload.events) || payload.events.length === 0) return;
         errors = 0;
         handler.current(payload.events);

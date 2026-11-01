@@ -3544,9 +3544,13 @@ func (s *Server) handleEventsStream(w http.ResponseWriter, r *http.Request) {
 	writeFrames := func(events []ledger.EventRecord) {
 		for _, ev := range events {
 			payload, _ := json.Marshal(map[string]any{
-				"type":      "telemetry_tick",
-				"timestamp": time.Now().UTC().Format(time.RFC3339),
-				"event":     ev,
+				"type":       "telemetry_tick",
+				"domain":     "ledger",
+				"kind":       ev.EventType,
+				"revision":   ev.ID,
+				"session_id": sessionID,
+				"timestamp":  time.Now().UTC().Format(time.RFC3339),
+				"event":      ev,
 			})
 			fmt.Fprintf(w, "id: %d\nevent: telemetry\ndata: %s\n\n", ev.ID, payload)
 		}
