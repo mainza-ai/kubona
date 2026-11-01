@@ -81,8 +81,9 @@ Still open:
   polling store with terminal-stop support. Copilot tribunal-turn polling is
   a local, run-scoped exception.
 - Revisioned domain events beyond the ledger cursor; generated contract
-  types and operation metadata are landed, but the fetch client is still
-  hand-written and write settlement remains open.
+  types, operation metadata, and a typed `requestOperation()` client are
+  landed. Existing wrappers still own auth/dedupe/error copy, and uniform
+  write settlement remains open.
 - Chart bundle budget, manual VoiceOver/NVDA record, 200% zoom/forced-colors
   evidence, route alias/feature-flag cleanup, and legacy-surface removal.
 

@@ -4208,3 +4208,9 @@ skipped is the exact failure this incident is about:
 - Areas now support rename, drag, resize, and explicit selected-card
   assignment; membership persists in the v2 document. Updated
   [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Generated operation client
+
+- Added response-type generation and a checked `requestOperation()` client on
+  top of `API_OPERATIONS`; existing wrappers still own auth, dedupe, and error
+  copy. Updated [[remaining-work]]; no new page.
