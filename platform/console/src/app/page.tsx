@@ -41,8 +41,7 @@ import { QuantumDispatch } from '@/components/surfaces/QuantumDispatch';
 import { AutonomyCockpit } from '@/components/surfaces/AutonomyCockpit';
 import { SpatialCanvas } from '@/components/surfaces/SpatialCanvas';
 import { Workbench } from '@/components/workbench/Workbench';
-import { BackendStatusBar } from '@/components/common/BackendStatusBar';
-import { CheckInStrip } from '@/components/sovereign/CheckInStrip';
+import { StatusStrip } from '@/components/shell/StatusStrip';
 import { GenerativeUIStudio } from '@/components/surfaces/GenerativeUIStudio';
 import { CodesignCockpit } from '@/components/surfaces/CodesignCockpit';
 import { VaultLeasePanel } from '@/components/common/VaultLeasePanel';
@@ -1074,9 +1073,8 @@ export default function Home() {
             setMeshTab('labs');
           }}
         />
-        <BackendStatusBar />
         <ApiProblemBanner />
-        <CheckInStrip loops={loops} />
+        <StatusStrip loops={loops} />
         {surface === 'arena' && (
           <main id="kubona-main" tabIndex={-1} className="relative flex-1 h-full overflow-hidden">
             <ArenaHud
