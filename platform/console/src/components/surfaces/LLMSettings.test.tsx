@@ -192,6 +192,7 @@ describe('LLMSettings labels + save-refusal mapping (Wave-2)', () => {
       await save!.props.onClick();
     });
     expect(JSON.stringify(tree.toJSON())).toContain('persisted successfully');
+    expect(JSON.stringify(tree.toJSON())).toContain('applied · LLM settings persisted');
     expect(JSON.stringify(tree.toJSON())).not.toContain('Unsaved changes');
   });
 
