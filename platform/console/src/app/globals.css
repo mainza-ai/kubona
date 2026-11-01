@@ -504,3 +504,6 @@ body {
 .k-button-primary { background: var(--color-accent); border-color: var(--color-accent); color: var(--color-on-accent); }
 .k-button-primary:hover { background: var(--color-lit); border-color: var(--color-lit); color: var(--color-on-accent); }
 .k-button-ghost { background: transparent; border-color: transparent; }
+.k-empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--color-muted); text-align: center; }
+.k-empty-state strong { color: var(--color-text); font-size: var(--text-title); }
+.k-empty-state span { max-inline-size: 360px; font-size: var(--text-label); }

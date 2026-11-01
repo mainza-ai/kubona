@@ -6,6 +6,7 @@ import type { CampaignState } from '@/types';
 import { fetchCanvasLayout, saveCanvasLayout } from '@/lib/api';
 import { Chart } from '@/components/data/DataChart';
 import { Button } from '@/components/ui/Button';
+import { EmptyState } from '@/components/ui/EmptyState';
 import {
   WORKBENCH_BOUNDS,
   buildWorkbench,
@@ -235,10 +236,9 @@ export function Workbench({ campaign, sessionId, onOpenObject }: Props) {
       </div>
 
       {objects.length === 0 ? (
-        <div className="k-workbench-empty">
-          <strong>No campaign on the workbench</strong>
-          <span>Create or open a campaign to give the science a place to stand.</span>
-        </div>
+        <EmptyState title="No campaign on the workbench" className="k-workbench-empty">
+          Create or open a campaign to give the science a place to stand.
+        </EmptyState>
       ) : (
         <div
           className="k-workbench-world"
