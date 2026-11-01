@@ -6,6 +6,8 @@ import type { CodesignBudgetResult, CodesignFamiliesResult, CodesignFrontierResu
 import type { Session } from '@/types';
 import { Chart } from '@/components/data/LazyChart';
 import type { ChartSpec } from '@/components/data/chart';
+import { useWriteSettlement } from '@/domain/use-write-settlement';
+import { writeSettlementLabel } from '@/domain/write-settlement';
 
 // Circuit co-design cockpit (read-only scoring).
 // Talks only to Go (:8080) read-only routes; validity ground truth stays
@@ -117,6 +119,7 @@ export function CodesignCockpit() {
   const [rerunBusy, setRerunBusy] = useState(false);
   const [rerunError, setRerunError] = useState<string | null>(null);
   const [rerunRes, setRerunRes] = useState<CodesignRerunResult | null>(null);
+  const rerunWrite = useWriteSettlement();
 
   useEffect(() => {
     let live = true;
@@ -263,6 +266,7 @@ export function CodesignCockpit() {
     if (!maxUsd.ok) { setRerunError(maxUsd.error); return; }
     const requestId = rerunRequestId || newRerunRequestId();
     setRerunRequestId(requestId);
+    const writeId = rerunWrite.begin('codesign rerun');
     setRerunBusy(true);
     try {
       const out = await rerunCodesignProposal({
@@ -278,9 +282,11 @@ export function CodesignCockpit() {
         max_usd: maxUsd.value,
       });
       if (!out.ok) {
+        rerunWrite[out.unknown ? 'unknown' : 'refused'](writeId, out.error);
         setRerunError(out.error);
         return;
       }
+      rerunWrite.applied(writeId, 'codesign rerun sealed');
       setRerunRes(out.result);
       setRerunRequestId('');
     } finally {
@@ -719,6 +725,9 @@ export function CodesignCockpit() {
           </div>
         )}
         {rerunError && <div role="alert" className="mt-2 text-xs text-rose-300">{rerunError}</div>}
+        {writeSettlementLabel(rerunWrite.write) && (
+          <p role="status" className="mt-2 text-xs font-mono text-slate-400">{writeSettlementLabel(rerunWrite.write)}</p>
+        )}
         {rerunRes && (
           <div className="mt-2 text-xs text-slate-200 font-mono">
             <div>run {rerunRes.run_id} · {rerunRes.provider}/{rerunRes.model} · billing {rerunRes.billing} ({rerunRes.payer})</div>
