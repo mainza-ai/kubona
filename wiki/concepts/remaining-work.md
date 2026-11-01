@@ -85,8 +85,9 @@ Still open:
   types, operation metadata, and a checked `requestOperation()` client are
   landed; session, loops, events, jobs, fidelity, ADMET, agents, LLM/quantum
   settings, radar, cost, obligations, notebooks, capabilities,
-  session-context, abort, workflow, and quantum-submit wrappers use it. Typed
-  operation errors carry the backend refusal body. Layout and obligation-close writes render
+  session-context, abort, workflow, quantum-submit, messages, job-detail, and
+  memory-recall wrappers use it. Typed operation errors carry the backend
+  refusal body. Layout and obligation-close writes render
   accepted/applied/refused/unknown settlement.
   Session-list dedupe/custom error copy remain, and settlement is not yet
   uniform across every write.
