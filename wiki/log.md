@@ -4269,3 +4269,8 @@ skipped is the exact failure this incident is about:
 - The obligations panel now uses the shared write settlement for close
   attempts; accepted is not reported as applied. Updated
   [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Notebook note and events wrapper
+
+- The recorded notebook outline projects as a note card; the event list wrapper
+  moves onto `requestOperation`. Updated [[remaining-work]]; no new page.
