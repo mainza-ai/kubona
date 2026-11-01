@@ -4324,3 +4324,9 @@ skipped is the exact failure this incident is about:
 - Prediction seal/evaluate/assert, lens status, and vault lease move onto
   `requestOperation`; tests now provide realistic refusal text. Updated
   [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Mesh, memory, labs, and observatory wrappers
+
+- Mesh routing, memory retain, lab creation, and observatory asset/lens
+  resolution move onto `requestOperation`. Updated [[remaining-work]]; no new
+  page.

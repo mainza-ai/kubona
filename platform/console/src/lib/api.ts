@@ -1512,14 +1512,9 @@ export async function routeMultimodalPayload(
   payload: import('@/types').MultimodalPayload
 ): Promise<import('@/types').RoutingDecision | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/mesh/route`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(payload),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    contract('mesh.route', data);
+    const data = (await requestOperation('routeMultimodalPayload', { body: payload })) as {
+      decision?: import('@/types').RoutingDecision;
+    };
     return data.decision || null;
   } catch (err) {
     console.error('Failed to route multimodal payload:', err);
@@ -1833,18 +1828,14 @@ export async function retainMemory(
   opts?: { bank?: string; importance?: number }
 ): Promise<{ id: string; bank: string; importance: number } | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/memory/retain`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
+    return (await requestOperation('retainMemory', {
+      body: {
         session_id: sessionId,
         content,
         bank: opts?.bank || 'experiences',
         ...(opts?.importance !== undefined ? { importance: opts.importance } : {}),
-      }),
-    });
-    if (!res.ok) return null;
-    return contract('memory.retain', await res.json());
+      },
+    })) as unknown as { id: string; bank: string; importance: number };
   } catch (err) {
     console.error('Failed to retain memory:', err);
     return null;
@@ -2120,16 +2111,12 @@ export function registerTenantAdminKey(
 
 export async function createLab(id: string, displayName: string): Promise<{ ok: true; tenant: Lab } | { ok: false; error: string }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/tenants`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ id, display_name: displayName }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: String(data.error || data.message || `HTTP ${res.status}`).slice(0, 280) };
-    return { ok: true, tenant: contract('lab', data) as Lab };
+    const tenant = (await requestOperation('createLab', {
+      body: { id, display_name: displayName },
+    })) as unknown as Lab;
+    return { ok: true, tenant };
   } catch (err) {
-    return { ok: false, error: String(err).slice(0, 280) };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
@@ -2630,22 +2617,15 @@ export async function uploadObservatoryAsset(params: {
   displayName?: string;
 }): Promise<{ ok: boolean; asset_id?: string; idempotency_key?: string; error?: string }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/observatory/assets`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
+    return (await requestOperation('uploadObservatoryAsset', {
+      body: {
         session_id: params.sessionId,
         data_base64: params.dataBase64,
         display_name: params.displayName,
-      }),
-    });
-    if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { message?: string };
-      return { ok: false, error: data.message || `Upload failed (${res.status})` };
-    }
-    return contract('lens.asset', await res.json()) as { ok: boolean; asset_id?: string; idempotency_key?: string };
+      },
+    })) as { ok: boolean; asset_id?: string; idempotency_key?: string };
   } catch (err) {
-    return { ok: false, error: (err as Error).message || 'Network error' };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
@@ -2662,16 +2642,9 @@ export async function resolveObservatoryLens(params: {
   error?: unknown;
 }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/observatory/lens/resolve`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ session_id: params.sessionId, operation_id: params.operationId }),
-    });
-    if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { message?: string };
-      return { ok: false, error: data.message || `Resolve failed (${res.status})` };
-    }
-    return contract('lens.resolve', await res.json()) as {
+    return (await requestOperation('resolveObservatoryLens', {
+      body: { session_id: params.sessionId, operation_id: params.operationId },
+    })) as {
       ok: boolean;
       done?: boolean;
       prompt_used?: string;
@@ -2680,7 +2653,7 @@ export async function resolveObservatoryLens(params: {
       error?: unknown;
     };
   } catch (err) {
-    return { ok: false, error: (err as Error).message || 'Network error' };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 

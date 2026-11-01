@@ -88,7 +88,9 @@ Still open:
   session-context, abort, workflow, quantum-submit, messages, job-detail,
   memory-recall, autoresearch, metasearch, epistemics, quantum-job, QIR
   compile, calibration, prediction history/latest/seal/evaluate/assert,
-  lens-history/status, vault lease, and ledger-export wrappers use it. Typed operation errors carry the backend
+  lens-history/status, vault lease, ledger export, mesh routing, memory
+  retain, lab creation, and observatory asset/lens resolution wrappers use
+  it. Typed operation errors carry the backend
   refusal body. Layout and obligation-close writes render
   accepted/applied/refused/unknown settlement.
   Session-list dedupe/custom error copy remain, and settlement is not yet
