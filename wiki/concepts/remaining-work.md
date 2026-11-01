@@ -111,7 +111,7 @@ Landed in later slices:
   admin-key and session refund followed; auth logout/revoke, session delete,
   and tenant-grant issue/revoke too; codesign budget and session/ledger
   export/import complete the set, so the inventory is 124 modeled /
-  14 client-only (from 91/40). The remaining names are transport/browser/
+  13 client-only (from 91/40) with zero unmodeled operations. The remaining names are transport/browser/
   auth helpers plus the `fetchSessions` delegating wrapper; none is an
   unmodeled operation; the generator emits alias operations
   sharing one REST path without duplicating the OpenAPI operation;
@@ -153,7 +153,7 @@ Still open:
   vocabulary. Auth logout/revoke still use inline status.
 - Per-send model override has no backend contract; the composer links to Model
   Hub instead of faking one.
-- The 14 remaining client-only names are intentional transport/browser/auth
+- The 13 remaining client-only names are intentional transport/browser/auth
   helpers (plus the delegating `fetchSessions` wrapper), not unmodeled
   operations.
 - Manual VoiceOver/NVDA pass and legacy-surface removal. The manual record is

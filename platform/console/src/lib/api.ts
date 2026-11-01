@@ -136,9 +136,6 @@ let lastAuthFailureAt = 0;
 // True only after this document has observed an authenticated identity (login
 // or whoami). A 401 before that is "sign in required", not "session expired".
 let authenticatedSession = false;
-export function isAuthenticatedSession(): boolean {
-  return authenticatedSession;
-}
 export function wasRecentAuthFailure(withinMs = 30000): boolean {
   return Date.now() - lastAuthFailureAt < withinMs;
 }
@@ -575,11 +572,6 @@ export async function fetchEventsResult(sessionId?: string): Promise<ApiResult<L
     console.error('Failed to fetch events:', err);
     return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
-}
-
-export async function fetchEvents(sessionId?: string): Promise<LedgerEvent[]> {
-  const result = await fetchEventsResult(sessionId);
-  return result.ok ? result.data : [];
 }
 
 export async function fetchMolecularADMET(smiles: string): Promise<Record<string, unknown> | null> {

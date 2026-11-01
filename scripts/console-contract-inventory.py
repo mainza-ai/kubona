@@ -48,7 +48,6 @@ CLIENT_ONLY = {
     "fetchSessions": "delegates to fetchSessionsResult",
     "fetchJobs": "delegates to fetchJobsResult",
     "fetchLoops": "delegates to fetchLoopsResult",
-    "fetchEvents": "delegates to fetchEventsResult",
 }
 NEXT_EXPORT_RE = re.compile(r"\nexport\s+(?:async\s+)?(?:function|const|interface|type|class)\s+")
 PATH_RE = re.compile(r"\$\{API_BASE\}(/api/[^`\"\s]*)")
