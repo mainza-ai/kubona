@@ -284,11 +284,8 @@ export async function createSession(
 
 export async function deleteSession(sessionId: string): Promise<boolean> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}`, {
-      headers: authHeaders(),
-      method: 'DELETE',
-    });
-    return res.ok;
+    const data = await requestOperation('deleteSession', { params: { id: sessionId } });
+    return data.deleted === true;
   } catch (err) {
     console.error('Failed to delete session:', err);
     return false;
@@ -1887,31 +1884,19 @@ export function revokeTenantAutonomy(
 
 export async function issueTenantGrant(body: Record<string, unknown>): Promise<{ ok: true; grant: Record<string, unknown> } | { ok: false; error: string }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/tenant-grants/issue`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: String(data.error || data.message || `HTTP ${res.status}`).slice(0, 280) };
-    return { ok: true, grant: data as Record<string, unknown> };
+    const data = await requestOperation('issueTenantGrant', { body });
+    return { ok: true, grant: data as unknown as Record<string, unknown> };
   } catch (err) {
-    return { ok: false, error: String(err).slice(0, 280) };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
 export async function revokeTenantGrant(body: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/tenant-grants/revoke`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(body),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: String(data.error || data.message || `HTTP ${res.status}`).slice(0, 280) };
-    return { ok: true };
+    const data = await requestOperation('revokeTenantGrant', { body });
+    return { ok: data.ok === true };
   } catch (err) {
-    return { ok: false, error: String(err).slice(0, 280) };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
@@ -2170,9 +2155,9 @@ export async function authLogin(
 
 export async function authLogout(): Promise<boolean> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/auth/logout`, { method: 'POST' });
-    if (res.ok) authenticatedSession = false;
-    return res.ok;
+    const data = await requestOperation('authLogout');
+    if (data.ok === true) authenticatedSession = false;
+    return data.ok === true;
   } catch (err) {
     console.error('Failed to log out:', err);
     return false;
@@ -2203,22 +2188,10 @@ export async function authSessions(): Promise<AuthServerSession[] | { error: str
 
 export async function authRevoke(id: string): Promise<{ ok: true } | { error: string } | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/auth/revoke`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ id }),
-    });
-    if (!res.ok) {
-      let text = '';
-      try {
-        text = (await res.text()).trim().slice(0, 280);
-      } catch {
-        /* ignore */
-      }
-      return { error: text || `HTTP ${res.status}` };
-    }
+    await requestOperation('authRevoke', { body: { id } });
     return { ok: true };
   } catch (err) {
+    if (err instanceof OperationError) return { error: err.message };
     console.error('Failed to revoke session:', err);
     return null;
   }

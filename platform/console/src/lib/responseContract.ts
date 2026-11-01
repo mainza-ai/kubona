@@ -336,6 +336,27 @@ export const RESPONSE_SCHEMAS = {
     id: str,
     current_spend_usd: num,
   }, ['id']),
+  'auth.action': obj({
+    ok: bool,
+  }),
+  'session.delete': obj({
+    deleted: bool,
+    session_id: str,
+  }),
+  'tenant.grant': obj({
+    grant_id: str,
+    source_tenant: str,
+    target_tenant: str,
+    scopes: arr(str),
+    expiry: str,
+    grantor_pubkey_hex: str,
+    signature_hex: str,
+    revoked: bool,
+  }, ['grant_id']),
+  'tenant.grant.revoke': obj({
+    ok: bool,
+    grant_id: str,
+  }),
   'cost.summary': obj({
     cap_usd: num,
     spent_usd: num,
