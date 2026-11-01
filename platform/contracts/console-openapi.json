@@ -3,9 +3,49 @@
   "info": {
     "title": "Kubona Console API",
     "version": "1.0.0",
-    "description": "Generated from the console contract inventory. Only modeled operations are documented; unmodeled functions are listed explicitly."
+    "description": "Generated from the console contract inventory. Modeled operations and response schemas are documented; client-only helpers and any unmodeled functions are listed explicitly."
   },
   "paths": {
+    "/api/ledger/append": {
+      "post": {
+        "operationId": "appendLedgerEvent",
+        "tags": [
+          "ledger"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: ledger.append",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ledger.append"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vault/predictions/assert": {
+      "post": {
+        "operationId": "assertPrediction",
+        "tags": [
+          "vault"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: prediction.assert",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/prediction.assert"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/challenge": {
       "post": {
         "operationId": "authChallenge",
@@ -26,6 +66,46 @@
         }
       }
     },
+    "/api/auth/login": {
+      "post": {
+        "operationId": "authLogin",
+        "tags": [
+          "auth"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: auth.login",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/auth.login"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/sessions": {
+      "get": {
+        "operationId": "authSessions",
+        "tags": [
+          "auth"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: auth.sessions",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/auth.sessions"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/whoami": {
       "get": {
         "operationId": "authWhoami",
@@ -39,6 +119,198 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/auth.whoami"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{id}/messages": {
+      "delete": {
+        "operationId": "clearMessages",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: messages.clear",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/messages.clear"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "fetchMessages",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: messages.list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/messages.list"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents/custom": {
+      "post": {
+        "operationId": "createCustomAgent",
+        "tags": [
+          "agents"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: agent.one",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/agent.one"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "fetchCustomAgents",
+        "tags": [
+          "agents"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: agents.custom",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/agents.custom"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenants": {
+      "post": {
+        "operationId": "createLab",
+        "tags": [
+          "tenants"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: lab",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/lab"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "fetchLabs",
+        "tags": [
+          "tenants"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: labs.list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/labs.list"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions": {
+      "post": {
+        "operationId": "createSession",
+        "tags": [
+          "sessions"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: session.create",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/session.create"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "fetchSessions",
+        "tags": [
+          "sessions"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: sessions.list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/sessions.list"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/supervisor/abort": {
+      "post": {
+        "operationId": "emergencyAbort",
+        "tags": [
+          "supervisor"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: abort",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/abort"
                 }
               }
             }
@@ -79,6 +351,46 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/codesign.batch"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/discovery/pipeline": {
+      "post": {
+        "operationId": "evaluateDiscoveryPipeline",
+        "tags": [
+          "discovery"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: discovery",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/discovery"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/vault/predictions/evaluate": {
+      "post": {
+        "operationId": "evaluatePrediction",
+        "tags": [
+          "vault"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: prediction.evaluate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/prediction.evaluate"
                 }
               }
             }
@@ -139,6 +451,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/vault.calibration"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{id}/campaign": {
+      "get": {
+        "operationId": "fetchCampaignState",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: campaign",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/campaign"
                 }
               }
             }
@@ -246,19 +588,19 @@
         }
       }
     },
-    "/api/agents/custom": {
+    "/api/epistemics": {
       "get": {
-        "operationId": "fetchCustomAgents",
+        "operationId": "fetchEpistemics",
         "tags": [
-          "agents"
+          "epistemics"
         ],
         "responses": {
           "200": {
-            "description": "Response contract: agents.custom",
+            "description": "Response contract: epistemics",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/agents.custom"
+                  "$ref": "#/components/schemas/epistemics"
                 }
               }
             }
@@ -279,6 +621,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/events.list"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fidelity": {
+      "get": {
+        "operationId": "fetchFidelity",
+        "tags": [
+          "fidelity"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: fidelity",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/fidelity"
                 }
               }
             }
@@ -396,26 +758,6 @@
         }
       }
     },
-    "/api/tenants": {
-      "get": {
-        "operationId": "fetchLabs",
-        "tags": [
-          "tenants"
-        ],
-        "responses": {
-          "200": {
-            "description": "Response contract: labs.list",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/labs.list"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/vault/predictions/latest": {
       "get": {
         "operationId": "fetchLatestPrediction",
@@ -429,6 +771,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/vault.latest"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/ledger/export": {
+      "post": {
+        "operationId": "fetchLedgerExport",
+        "tags": [
+          "ledger"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: ledger.export",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ledger.export"
                 }
               }
             }
@@ -496,36 +858,6 @@
         }
       }
     },
-    "/api/sessions/{id}/messages": {
-      "get": {
-        "operationId": "fetchMessages",
-        "tags": [
-          "sessions"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Response contract: messages.list",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/messages.list"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/metasearch/proposals": {
       "get": {
         "operationId": "fetchMetasearchProposals",
@@ -539,6 +871,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/metasearch.proposals"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chemistry/admet": {
+      "get": {
+        "operationId": "fetchMolecularADMET",
+        "tags": [
+          "chemistry"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: admet",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/admet"
                 }
               }
             }
@@ -804,26 +1156,6 @@
         }
       }
     },
-    "/api/sessions": {
-      "get": {
-        "operationId": "fetchSessions",
-        "tags": [
-          "sessions"
-        ],
-        "responses": {
-          "200": {
-            "description": "Response contract: sessions.list",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/sessions.list"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/agents": {
       "get": {
         "operationId": "fetchSystemAgents",
@@ -984,6 +1316,46 @@
         }
       }
     },
+    "/api/chat/regenerate": {
+      "post": {
+        "operationId": "regenerateChat",
+        "tags": [
+          "chat"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: chat.regenerate",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/chat.regenerate"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mandates/sign": {
+      "post": {
+        "operationId": "requestServerSignedMandate",
+        "tags": [
+          "mandates"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: mandate.sign",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/mandate.sign"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/codesign/rerun": {
       "post": {
         "operationId": "rerunCodesignProposal",
@@ -1054,6 +1426,86 @@
         }
       }
     },
+    "/api/tribunal/resume": {
+      "post": {
+        "operationId": "resumeTribunal",
+        "tags": [
+          "tribunal"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: tribunal.resume",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/tribunal.resume"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/memory/retain": {
+      "post": {
+        "operationId": "retainMemory",
+        "tags": [
+          "memory"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: memory.retain",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/memory.retain"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/rewrite": {
+      "post": {
+        "operationId": "rewriteChat",
+        "tags": [
+          "chat"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: chat.rewrite",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/chat.rewrite"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mesh/route": {
+      "post": {
+        "operationId": "routeMultimodalPayload",
+        "tags": [
+          "mesh"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: mesh.route",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/mesh.route"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/codesign/families": {
       "post": {
         "operationId": "runFamilySearch",
@@ -1114,6 +1566,26 @@
         }
       }
     },
+    "/api/vault/predictions/seal": {
+      "post": {
+        "operationId": "sealPrediction",
+        "tags": [
+          "vault"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: prediction.seal",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/prediction.seal"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/hf/search": {
       "get": {
         "operationId": "searchHFModels",
@@ -1127,6 +1599,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/hf.search"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/literature": {
+      "get": {
+        "operationId": "searchLiterature",
+        "tags": [
+          "literature"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: literature",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/literature"
                 }
               }
             }
@@ -1294,6 +1786,76 @@
         }
       }
     },
+    "/api/sessions/{id}/campaign/synthesize": {
+      "post": {
+        "operationId": "synthesizeCampaign",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: campaign",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/campaign"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/llm/test": {
+      "post": {
+        "operationId": "testLLM",
+        "tags": [
+          "llm"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: llm.test",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/llm.test"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/observatory/assets": {
+      "post": {
+        "operationId": "uploadObservatoryAsset",
+        "tags": [
+          "observatory"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: lens.asset",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/lens.asset"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/ledger/verify": {
       "get": {
         "operationId": "verifyLedger",
@@ -1307,6 +1869,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ledger.verify"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/mandates/verify": {
+      "post": {
+        "operationId": "verifySpendMandate",
+        "tags": [
+          "mandates"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: mandate.verify",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/mandate.verify"
                 }
               }
             }
@@ -1987,6 +2569,381 @@
           "task": {}
         }
       },
+      "auth.login": {
+        "type": "object",
+        "required": [
+          "ok",
+          "tenant_id",
+          "pubkey_fp"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "pubkey_fp": {
+            "type": "string"
+          }
+        }
+      },
+      "auth.sessions": {
+        "type": "object",
+        "required": [
+          "sessions"
+        ],
+        "properties": {
+          "sessions": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "agent.one": {
+        "type": "object",
+        "required": [
+          "agent"
+        ],
+        "properties": {
+          "agent": {}
+        }
+      },
+      "lab": {
+        "type": "object",
+        "required": [
+          "id",
+          "display_name",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        }
+      },
+      "session.create": {
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        }
+      },
+      "abort": {
+        "type": "object",
+        "required": [
+          "aborted_count",
+          "abort_receipt"
+        ],
+        "properties": {
+          "aborted_count": {
+            "type": "number"
+          },
+          "abort_receipt": {
+            "type": "string"
+          }
+        }
+      },
+      "discovery": {
+        "type": "object",
+        "required": [],
+        "properties": {}
+      },
+      "campaign": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "quantum_factors",
+          "classical_anchor",
+          "trajectory",
+          "updated_at"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "quantum_factors": {
+            "type": "object",
+            "required": [],
+            "properties": {}
+          },
+          "classical_anchor": {
+            "type": "object",
+            "required": [],
+            "properties": {}
+          },
+          "trajectory": {
+            "type": "array",
+            "items": {}
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        }
+      },
+      "epistemics": {
+        "type": "object",
+        "required": [],
+        "properties": {}
+      },
+      "fidelity": {
+        "type": "object",
+        "required": [
+          "admitted",
+          "predicted_fidelity",
+          "fidelity_floor",
+          "calibration_fresh",
+          "recommended_action"
+        ],
+        "properties": {
+          "admitted": {
+            "type": "boolean"
+          },
+          "predicted_fidelity": {
+            "type": "number"
+          },
+          "fidelity_floor": {
+            "type": "number"
+          },
+          "calibration_fresh": {
+            "type": "boolean"
+          },
+          "recommended_action": {
+            "type": "string"
+          }
+        }
+      },
+      "admet": {
+        "type": "object",
+        "required": [
+          "molecular_weight",
+          "clogp",
+          "tpsa"
+        ],
+        "properties": {
+          "molecular_weight": {
+            "type": "number"
+          },
+          "clogp": {
+            "type": "number"
+          },
+          "tpsa": {
+            "type": "number"
+          }
+        }
+      },
+      "ledger.append": {
+        "type": "object",
+        "required": [
+          "ok",
+          "record_hash"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "record_hash": {}
+        }
+      },
+      "ledger.export": {
+        "type": "object",
+        "required": [
+          "events"
+        ],
+        "properties": {
+          "events": {
+            "type": "array",
+            "items": {}
+          }
+        }
+      },
+      "memory.retain": {
+        "type": "object",
+        "required": [
+          "id",
+          "bank",
+          "importance"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "bank": {
+            "type": "string"
+          },
+          "importance": {
+            "type": "number"
+          }
+        }
+      },
+      "mandate.sign": {
+        "type": "object",
+        "required": [
+          "mandate",
+          "public_key",
+          "verified"
+        ],
+        "properties": {
+          "mandate": {},
+          "public_key": {
+            "type": "string"
+          },
+          "verified": {
+            "type": "boolean"
+          }
+        }
+      },
+      "mandate.verify": {
+        "type": "object",
+        "required": [
+          "valid"
+        ],
+        "properties": {
+          "valid": {
+            "type": "boolean"
+          }
+        }
+      },
+      "tribunal.resume": {
+        "type": "object",
+        "required": [
+          "tribunal",
+          "assistant_message"
+        ],
+        "properties": {
+          "tribunal": {},
+          "assistant_message": {}
+        }
+      },
+      "mesh.route": {
+        "type": "object",
+        "required": [
+          "decision"
+        ],
+        "properties": {
+          "decision": {}
+        }
+      },
+      "literature": {
+        "type": "object",
+        "required": [
+          "records",
+          "cached"
+        ],
+        "properties": {
+          "records": {
+            "type": "array",
+            "items": {}
+          },
+          "cached": {
+            "type": "boolean"
+          }
+        }
+      },
+      "llm.test": {
+        "type": "object",
+        "required": [],
+        "properties": {}
+      },
+      "lens.asset": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        }
+      },
+      "prediction.evaluate": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        }
+      },
+      "prediction.seal": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        }
+      },
+      "prediction.assert": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        }
+      },
+      "messages.clear": {
+        "type": "object",
+        "required": [
+          "deleted"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "number"
+          }
+        }
+      },
+      "chat.regenerate": {
+        "type": "object",
+        "required": [
+          "assistant"
+        ],
+        "properties": {
+          "assistant": {}
+        }
+      },
+      "chat.rewrite": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {}
+        }
+      },
       "messages.list": {
         "type": "object",
         "required": [
@@ -2413,38 +3370,23 @@
       }
     }
   },
-  "x-kubona-unmodeled-functions": [
+  "x-kubona-unmodeled-functions": [],
+  "x-kubona-client-only-functions": [
     "apiFetch",
-    "appendLedgerEvent",
     "applyMetasearchProposal",
     "approveMetasearchProposal",
-    "assertPrediction",
-    "authLogin",
     "authLogout",
     "authRevoke",
-    "authSessions",
     "cancelHFDownload",
     "cancelQuantumJob",
-    "clearMessages",
     "closeObligation",
     "configureApiBase",
-    "createCustomAgent",
-    "createLab",
-    "createSession",
     "deleteCustomAgent",
     "deleteSession",
     "downloadFile",
-    "emergencyAbort",
-    "evaluateDiscoveryPipeline",
-    "evaluatePrediction",
     "exportLedger",
     "exportSession",
     "fetchBackendStatus",
-    "fetchCampaignState",
-    "fetchEpistemics",
-    "fetchFidelity",
-    "fetchLedgerExport",
-    "fetchMolecularADMET",
     "importSession",
     "isTerminalJobStatus",
     "issueTenantGrant",
@@ -2453,34 +3395,22 @@
     "loopAction",
     "refundSessionSpend",
     "refundTenantSpend",
-    "regenerateChat",
     "registerTenantAdminKey",
     "rejectMetasearchProposal",
     "reportError",
-    "requestServerSignedMandate",
     "resetDedupForTests",
-    "resumeTribunal",
-    "retainMemory",
     "revokeTenantAutonomy",
     "revokeTenantGrant",
     "revokeVaultLease",
-    "rewriteChat",
-    "routeMultimodalPayload",
     "runQuantumCanary",
     "saveCanvasLayout",
     "saveLLMSettings",
     "saveQuantumSettings",
     "scoreCodesignBudget",
-    "sealPrediction",
-    "searchLiterature",
     "sendFeedback",
     "setTenantAutonomy",
     "setTenantCeiling",
     "setTenantStatus",
-    "synthesizeCampaign",
-    "testLLM",
-    "uploadObservatoryAsset",
-    "verifySpendMandate",
     "wasRecentAuthFailure"
   ]
 }

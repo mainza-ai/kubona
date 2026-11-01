@@ -99,11 +99,12 @@ function main() {
       title: 'Kubona Console API',
       version: '1.0.0',
       description:
-        'Generated from the console contract inventory. Only modeled operations are documented; unmodeled functions are listed explicitly.',
+        'Generated from the console contract inventory. Modeled operations and response schemas are documented; client-only helpers and any unmodeled functions are listed explicitly.',
     },
     paths,
     components: { schemas: components },
     'x-kubona-unmodeled-functions': inventory.unmodeled_functions.map((f) => f.function),
+    'x-kubona-client-only-functions': (inventory.client_only_functions || []).map((f) => f.function),
   };
   const rendered = JSON.stringify(doc, null, 2) + '\n';
   if (process.argv.includes('--check')) {
@@ -115,7 +116,7 @@ function main() {
       console.error('console-openapi: stale; run node scripts/console-openapi.mjs --write');
       process.exit(1);
     }
-    console.log(`console-openapi: ${Object.keys(paths).length} paths, ${Object.keys(components).length} schemas, ${doc['x-kubona-unmodeled-functions'].length} unmodeled`);
+    console.log(`console-openapi: ${Object.keys(paths).length} paths, ${Object.keys(components).length} schemas, ${doc['x-kubona-unmodeled-functions'].length} unmodeled, ${doc['x-kubona-client-only-functions'].length} client-only`);
     return;
   }
   fs.writeFileSync(OUT, rendered);

@@ -200,7 +200,7 @@ export async function createSession(
       }),
     });
     if (!res.ok) return null;
-    return await res.json();
+    return contract('session.create', await res.json());
   } catch (err) {
     console.error('Failed to create session:', err);
     return null;
@@ -377,7 +377,7 @@ export async function resumeTribunal(
       const text = (await res.text()).trim().slice(0, 280);
       return { error: text || `HTTP ${res.status}` };
     }
-    return await res.json();
+    return contract('tribunal.resume', await res.json());
   } catch (err) {
     console.error('Failed to resume tribunal:', err);
     return null;
@@ -473,7 +473,7 @@ export async function fetchMolecularADMET(smiles: string): Promise<Record<string
       headers: authHeaders(),
     });
     if (!res.ok) return null;
-    return await res.json();
+    return contract('admet', await res.json());
   } catch (err) {
     console.error('Failed to fetch ADMET profile:', err);
     return null;
@@ -491,7 +491,7 @@ export async function evaluateDiscoveryPipeline(
       body: JSON.stringify({ target, candidates }),
     });
     if (!res.ok) return null;
-    return await res.json();
+    return contract('discovery', await res.json());
   } catch (err) {
     console.error('Failed to evaluate discovery pipeline:', err);
     return null;
@@ -502,10 +502,11 @@ export async function fetchCampaignState(sessionId: string): Promise<import('@/t
   try {
     // Coalesce concurrent reads of the same session: the shell and the
     // copilot mount together and used to issue duplicate campaign GETs.
-    return await dedupedGet<import('@/types').CampaignState>(
+    const data = await dedupedGet<import('@/types').CampaignState>(
       `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/campaign`,
       { headers: authHeaders() },
     );
+    return contract('campaign', data);
   } catch (err) {
     console.error('Failed to fetch campaign state:', err);
     return null;
@@ -521,7 +522,7 @@ export async function synthesizeCampaign(sessionId: string, prompt: string): Pro
     body: JSON.stringify({ prompt }),
   });
   if (!res.ok) return null;
-  return await res.json();
+  return contract('campaign', await res.json());
 }
 
 export async function fetchAutoresearchHarnesses(): Promise<{ harnesses: import('@/types').AutoresearchHarness[]; docker_runner: Record<string, unknown> | null }> {
@@ -824,7 +825,7 @@ export async function fetchFidelity(device: string, depth: number, twoQubitGates
     const qs = new URLSearchParams({ device, depth: String(depth), two_qubit_gates: String(twoQubitGates) });
     const res = await apiFetch(`${API_BASE}/api/fidelity?${qs.toString()}`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return null;
-    return (await res.json()) as Record<string, unknown>;
+    return contract('fidelity', await res.json()) as Record<string, unknown>;
   } catch (err) {
     console.error('Failed to fetch fidelity:', err);
     return null;
@@ -836,7 +837,7 @@ export async function fetchEpistemics(sessionId?: string | null): Promise<Record
     const qs = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : '';
     const res = await apiFetch(`${API_BASE}/api/epistemics${qs}`, { cache: 'no-store', headers: authHeaders() });
     if (!res.ok) return {};
-    return await res.json();
+    return contract('epistemics', await res.json());
   } catch (err) {
     console.error('Failed to fetch epistemics:', err);
     return {};
@@ -1285,7 +1286,7 @@ export async function testLLM(prompt: string, role: string = 'copilot'): Promise
       body: JSON.stringify({ role, prompt }),
     });
     if (!res.ok) return null;
-    return await res.json();
+    return contract('llm.test', await res.json());
   } catch (err) {
     console.error('Failed to test LLM:', err);
     return null;
@@ -1445,6 +1446,7 @@ export async function createCustomAgent(
     throw new Error(`agent registration refused (HTTP ${res.status}): ${detail.slice(0, 160) || 'operator token required'}`);
   }
   const data = await res.json();
+  contract('agent.one', data);
   if (!data.agent) throw new Error('agent registration returned no agent: nothing registered');
   return data.agent;
 }
@@ -1473,6 +1475,7 @@ export async function routeMultimodalPayload(
     });
     if (!res.ok) return null;
     const data = await res.json();
+    contract('mesh.route', data);
     return data.decision || null;
   } catch (err) {
     console.error('Failed to route multimodal payload:', err);
@@ -1549,7 +1552,7 @@ export async function requestServerSignedMandate(
       body: JSON.stringify(req),
     });
     if (!res.ok) return null;
-    return await res.json();
+    return contract('mandate.sign', await res.json());
   } catch (err) {
     console.error('Failed to request server signed mandate:', err);
     return null;
@@ -1568,7 +1571,7 @@ export async function verifySpendMandate(
     if (!res.ok) {
       return { valid: false, error: `HTTP ${res.status}: ${res.statusText}` };
     }
-    return await res.json();
+    return contract('mandate.verify', await res.json());
   } catch (err) {
     console.error('Failed to verify spend mandate:', err);
     return { valid: false, error: String(err) };
@@ -1604,7 +1607,7 @@ export async function emergencyAbort(
       body: JSON.stringify({ session_id: sessionId, reason }),
     });
     if (!res.ok) return null;
-    return await res.json();
+    return contract('abort', await res.json());
   } catch (err) {
     console.error('Abort failed and nothing was settled:', err);
     return null;
@@ -1618,7 +1621,7 @@ export async function searchLiterature(query: string, limit = 5): Promise<{ reco
     );
     if (!res.ok) return { records: [], cached: false };
     const data = await res.json();
-    return { records: data.records || [], cached: !!data.cached };
+    return contract('literature', { records: data.records || [], cached: !!data.cached });
   } catch (err) {
     console.error('Failed to search literature:', err);
     return { records: [], cached: false };
@@ -1635,6 +1638,7 @@ export async function clearMessages(sessionId: string): Promise<number | null> {
     });
     if (!res.ok) return null;
     const data = await res.json();
+    contract('messages.clear', data);
     return typeof data.deleted === 'number' ? data.deleted : 0;
   } catch (err) {
     console.error('Failed to clear messages:', err);
@@ -1660,7 +1664,7 @@ export async function regenerateChat(
     if (assistant && data.duration_ms != null && assistant.duration_ms == null) {
       assistant.duration_ms = data.duration_ms;
     }
-    return { assistant, model: data.model, duration_ms: data.duration_ms };
+    return contract('chat.regenerate', { assistant, model: data.model, duration_ms: data.duration_ms });
   } catch (err) {
     console.error('Failed to regenerate:', err);
     return null;
@@ -1701,6 +1705,7 @@ export async function rewriteChat(
     });
     if (!res.ok) return null;
     const data = await res.json();
+    contract('chat.rewrite', { message: data.message });
     return data.message || null;
   } catch (err) {
     console.error('Failed to rewrite message:', err);
@@ -1825,7 +1830,7 @@ export async function retainMemory(
       }),
     });
     if (!res.ok) return null;
-    return await res.json();
+    return contract('memory.retain', await res.json());
   } catch (err) {
     console.error('Failed to retain memory:', err);
     return null;
@@ -1905,6 +1910,7 @@ export async function appendLedgerEvent(
     return { ok: false, error: text || `ledger refused the commit (HTTP ${res.status})` };
   }
   const data = await res.json();
+  contract('ledger.append', data);
   if (!data?.ok || !data?.record_hash) {
     return { ok: false, error: (data?.error as string) || 'ledger returned no record hash' };
   }
@@ -2108,7 +2114,7 @@ export async function createLab(id: string, displayName: string): Promise<{ ok: 
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) return { ok: false, error: String(data.error || data.message || `HTTP ${res.status}`).slice(0, 280) };
-    return { ok: true, tenant: data as Lab };
+    return { ok: true, tenant: contract('lab', data) as Lab };
   } catch (err) {
     return { ok: false, error: String(err).slice(0, 280) };
   }
@@ -2473,7 +2479,7 @@ export async function authLogin(
       }
       return { error: text || `HTTP ${res.status}` };
     }
-    return (await res.json()) as { ok: true; tenant_id: string; pubkey_fp: string };
+    return contract('auth.login', await res.json()) as { ok: true; tenant_id: string; pubkey_fp: string };
   } catch (err) {
     console.error('Failed to log in:', err);
     return null;
@@ -2514,6 +2520,7 @@ export async function authSessions(): Promise<AuthServerSession[] | { error: str
       return { error: text || `HTTP ${res.status}` };
     }
     const data = (await res.json()) as { sessions?: AuthServerSession[] };
+    contract('auth.sessions', data);
     return data.sessions || [];
   } catch (err) {
     console.error('Failed to list sessions:', err);
@@ -2628,7 +2635,7 @@ export async function uploadObservatoryAsset(params: {
       const data = (await res.json().catch(() => ({}))) as { message?: string };
       return { ok: false, error: data.message || `Upload failed (${res.status})` };
     }
-    return (await res.json()) as { ok: boolean; asset_id?: string; idempotency_key?: string };
+    return contract('lens.asset', await res.json()) as { ok: boolean; asset_id?: string; idempotency_key?: string };
   } catch (err) {
     return { ok: false, error: (err as Error).message || 'Network error' };
   }
@@ -2774,7 +2781,7 @@ export async function sealPrediction(params: {
       const data = (await res.json().catch(() => ({}))) as { message?: string };
       return { ok: false, error: data.message || `Seal failed (${res.status})` };
     }
-    return (await res.json()) as { ok: boolean; prediction_hash?: string; expected_std_used?: number; std_floor_applied?: boolean };
+    return contract('prediction.seal', await res.json()) as { ok: boolean; prediction_hash?: string; expected_std_used?: number; std_floor_applied?: boolean };
   } catch (err) {
     return { ok: false, error: (err as Error).message || 'Network error' };
   }
@@ -2807,7 +2814,7 @@ export async function evaluatePrediction(params: {
       const data = (await res.json().catch(() => ({}))) as { message?: string };
       return { ok: false, error: data.message || `Evaluate failed (${res.status})` };
     }
-    return (await res.json()) as {
+    return contract('prediction.evaluate', await res.json()) as {
       ok: boolean;
       surprise_z?: number;
       surprise_ratio?: number;
@@ -2874,7 +2881,7 @@ export async function assertPrediction(params: {
       const data = (await res.json().catch(() => ({}))) as { message?: string };
       return { ok: false, error: data.message || `Assert failed (${res.status})` };
     }
-    return (await res.json()) as { ok: boolean; prediction_hash?: string; rho?: number };
+    return contract('prediction.assert', await res.json()) as { ok: boolean; prediction_hash?: string; rho?: number };
   } catch (err) {
     return { ok: false, error: (err as Error).message || 'Network error' };
   }
@@ -2962,6 +2969,7 @@ export async function fetchLedgerExport(
       return { ok: false, error: data.message || `Export failed (${res.status})` };
     }
     const data = (await res.json()) as { events?: Array<Record<string, unknown>> };
+    contract('ledger.export', data);
     return { ok: true, events: Array.isArray(data.events) ? data.events : [] };
   } catch (err) {
     return { ok: false, error: (err as Error).message || 'Network error' };
