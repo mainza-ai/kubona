@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import { acceptWrite, newWriteRequestId, settleWrite, writeSettlementLabel, IDLE_WRITE, type WriteSettlement } from '@/domain/write-settlement';
 import { Zap, Play, Ban, RefreshCw, Receipt, FlaskConical } from 'lucide-react';
 import {
   submitQuantumJob,
@@ -59,6 +60,7 @@ export function QuantumDispatch({
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<string | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
+  const [dispatchWrite, setDispatchWrite] = useState<WriteSettlement>(IDLE_WRITE);
   const [cancelNote, setCancelNote] = useState<string | null>(null);
   const [refunds, setRefunds] = useState<Array<Record<string, unknown>>>([]);
   // Poll discipline (mirrors FleetRadar): a chained setTimeout (never a
@@ -210,9 +212,8 @@ export function QuantumDispatch({
     setDispatching(true);
     setJobError(null);
     setCancelNote(null);
-    const key = typeof crypto !== 'undefined' && 'randomUUID' in crypto
-      ? crypto.randomUUID()
-      : `q-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+    const key = newWriteRequestId();
+    setDispatchWrite(acceptWrite(key, 'submitting job'));
     const res = await submitQuantumJob({
       session_id: sessionId ?? undefined,
       qasm,
@@ -226,9 +227,11 @@ export function QuantumDispatch({
     });
     setDispatching(false);
     if (!res.ok || !res.job_id) {
+      setDispatchWrite(settleWrite(key, res.unknown ? 'unknown' : 'refused', res.error ?? 'dispatch not confirmed'));
       setJobError(res.error ?? 'Dispatch refused.');
       return;
     }
+    setDispatchWrite(settleWrite(key, 'applied', `job ${res.job_id.slice(0, 8)} queued`));
     setJobId(res.job_id);
     setJobStatus('queued');
     pollJob(res.job_id);
@@ -401,6 +404,9 @@ export function QuantumDispatch({
         )}
       </div>
 
+      {dispatchWrite.phase !== 'idle' && (
+        <p role="status" className="text-[12px] font-mono text-slate-300">{writeSettlementLabel(dispatchWrite)}</p>
+      )}
       {jobError && (
         <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px] font-mono">
           Dispatch refused: {jobError}

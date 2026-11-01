@@ -4348,3 +4348,9 @@ skipped is the exact failure this incident is about:
 - Session creation, message clear, and chat regenerate/rewrite move onto
   `requestOperation`; feedback/logout/revoke stay hand-written because they
   are not modeled operations. Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Quantum-dispatch settlement
+
+- Dispatch now renders accepted → applied/refused/unknown with a retained
+  request id; a network loss is explicitly unknown. Updated
+  [[remaining-work]]; no new page.
