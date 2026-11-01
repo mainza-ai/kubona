@@ -1066,13 +1066,17 @@ export async function runQuantumCanary(providers?: string[], maxSeconds?: number
 }
 export async function saveQuantumSettings(
   settings: Record<string, unknown>
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; unknown?: boolean }> {
   try {
     await requestOperation('saveQuantumSettings', { body: settings });
     return { ok: true };
   } catch (err) {
     console.error('Failed to save quantum settings:', err);
-    return { ok: false, error: String(err instanceof Error ? err.message : err) };
+    return {
+      ok: false,
+      unknown: !(err instanceof OperationError) || err.status === null,
+      error: String(err instanceof Error ? err.message : err),
+    };
   }
 }
 export interface QuantumJobSubmit {

@@ -19,6 +19,8 @@ import {
   runQuantumCanary,
   type QuantumBackendInfo,
 } from '@/lib/api';
+import { useWriteSettlement } from '@/domain/use-write-settlement';
+import { writeSettlementLabel } from '@/domain/write-settlement';
 
 // Quantum provider selection — the human-surface counterpart to the
 // agent execution rail (which picks per MCP call, default
@@ -36,6 +38,7 @@ export function QuantumSettings() {
   const [baseline, setBaseline] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const settlement = useWriteSettlement();
   const [canarying, setCanarying] = useState(false);
   const [canaryOut, setCanaryOut] = useState<string | null>(null);
   const [canaryResults, setCanaryResults] = useState<Record<string, unknown> | null>(null);
@@ -70,15 +73,18 @@ export function QuantumSettings() {
   const onSave = useCallback(async () => {
     setSaving(true);
     setMessage(null);
+    const requestId = settlement.begin('quantum provider selection');
     const res = await saveQuantumSettings({ default_backend: defaultBackend, harness_backends: harnessMap });
     setSaving(false);
     if (res.ok) {
+      settlement.applied(requestId, 'quantum provider selection saved');
       setBaseline(snapshot());
       setMessage({ kind: 'ok', text: 'Quantum provider selection saved.' });
     } else {
+      settlement[res.unknown ? 'unknown' : 'refused'](requestId, res.error || 'save not confirmed');
       setMessage({ kind: 'err', text: res.error || 'Save refused.' });
     }
-  }, [defaultBackend, harnessMap, snapshot]);
+  }, [defaultBackend, harnessMap, snapshot, settlement]);
 
   const credBadge = (b: QuantumBackendInfo) => {
     if (b.credential_state === 'ready') {
@@ -332,6 +338,11 @@ export function QuantumSettings() {
           <span className="text-[12px] text-rose-300 font-mono flex items-center space-x-1.5">
             <AlertCircle className="w-4 h-4" />
             <span>{message.text}</span>
+          </span>
+        )}
+        {writeSettlementLabel(settlement.write) && (
+          <span role="status" className="text-[12px] text-slate-400 font-mono">
+            {writeSettlementLabel(settlement.write)}
           </span>
         )}
         <span className="text-[12px] text-slate-500 font-mono flex items-center space-x-1.5">

@@ -78,6 +78,7 @@ describe('QuantumSettings provider selection', () => {
       harness_backends: {},
     });
     expect(textOf(root!.root)).toContain('saved');
+    expect(textOf(root!.root)).toContain('applied · quantum provider selection');
   });
 
   it('surfaces backend refusals verbatim', async () => {

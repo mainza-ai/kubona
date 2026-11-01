@@ -138,8 +138,8 @@ Still open:
 - Legacy retirement: the molecule canvas and `WidgetStage` stay until object
   cards reach parity and the old aliases have one release of support.
 - Write settlement is not yet uniform across every write; quantum dispatch
-  estimate/dispatch and cancel now render accepted/applied/refused/unknown,
-  including transport-vs-refusal for cancel.
+  estimate/dispatch/cancel and quantum provider settings now render
+  accepted/applied/refused/unknown, including transport-vs-refusal.
 - Per-send model override has no backend contract; the composer links to Model
   Hub instead of faking one.
 - The 11 remaining client-only names are intentional transport/browser/auth
