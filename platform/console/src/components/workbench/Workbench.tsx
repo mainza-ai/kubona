@@ -10,10 +10,12 @@ import {
   buildWorkbench,
   readCamera,
   readPositions,
+  readSizes,
   workbenchPayload,
   type WorkbenchCamera,
   type WorkbenchObject,
   type WorkbenchPositions,
+  type WorkbenchSizes,
 } from './workbench-model';
 
 type Props = {
@@ -27,15 +29,18 @@ export function Workbench({ campaign, sessionId }: Props) {
   const loaded = useRef(false);
   const drag = useRef<{ x: number; y: number; camera: WorkbenchCamera } | null>(null);
   const cardDrag = useRef<{ id: string; x: number; y: number; originX: number; originY: number } | null>(null);
+  const sizeDrag = useRef<{ id: string; x: number; y: number; width: number; height: number } | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [camera, setCamera] = useState<WorkbenchCamera>({ x: 36, y: 36, zoom: 0.82 });
   const [selected, setSelected] = useState<string | null>(null);
   const [positions, setPositions] = useState<WorkbenchPositions>({});
+  const [sizes, setSizes] = useState<WorkbenchSizes>({});
   const [status, setStatus] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const objects = buildWorkbench(campaign).map((object) => ({
     ...object,
     position: positions[object.id] ?? object.position,
+    size: sizes[object.id] ?? object.size,
   }));
 
   const fit = useCallback(() => {
@@ -64,6 +69,7 @@ export function Workbench({ campaign, sessionId }: Props) {
       baseLayout.current = layout ?? {};
       setCamera(readCamera(layout));
       setPositions(readPositions(layout));
+      setSizes(readSizes(layout));
       loaded.current = true;
     });
     return () => {
@@ -79,7 +85,7 @@ export function Workbench({ campaign, sessionId }: Props) {
       setSaving(true);
       void saveCanvasLayout(sessionId, {
         ...baseLayout.current,
-        workbench: workbenchPayload(camera, positions),
+        workbench: workbenchPayload(camera, positions, sizes),
       }).then((out) => {
         setSaving(false);
         if (!out.ok) setStatus(out.error || 'layout save refused');
@@ -89,7 +95,7 @@ export function Workbench({ campaign, sessionId }: Props) {
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [camera, positions, sessionId]);
+  }, [camera, positions, sizes, sessionId]);
 
   // Native, non-passive wheel listener: React's delegated wheel handler is
   // passive, so preventDefault there would be ignored (and log a warning).
@@ -160,6 +166,30 @@ export function Workbench({ campaign, sessionId }: Props) {
 
   const onCardPointerUp = () => {
     cardDrag.current = null;
+    sizeDrag.current = null;
+  };
+
+  const onResizePointerDown = (event: React.PointerEvent<HTMLElement>, object: WorkbenchObject) => {
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    sizeDrag.current = {
+      id: object.id,
+      x: event.clientX,
+      y: event.clientY,
+      width: object.size.width,
+      height: object.size.height,
+    };
+  };
+
+  const onResizePointerMove = (event: React.PointerEvent<HTMLElement>) => {
+    const current = sizeDrag.current;
+    if (!current) return;
+    const width = Math.max(220, Math.min(900, current.width + (event.clientX - current.x) / camera.zoom));
+    const height = Math.max(140, Math.min(900, current.height + (event.clientY - current.y) / camera.zoom));
+    setSizes((previous) => ({
+      ...previous,
+      [current.id]: { width: Math.round(width * 100) / 100, height: Math.round(height * 100) / 100 },
+    }));
   };
 
   return (
@@ -237,6 +267,9 @@ export function Workbench({ campaign, sessionId }: Props) {
               onPointerDown={(event) => onCardPointerDown(event, object)}
               onPointerMove={onCardPointerMove}
               onPointerUp={onCardPointerUp}
+              onResizePointerDown={(event) => onResizePointerDown(event, object)}
+              onResizePointerMove={onResizePointerMove}
+              onResizePointerUp={onCardPointerUp}
             />
           ))}
         </div>
@@ -252,6 +285,9 @@ function WorkCard({
   onPointerDown,
   onPointerMove,
   onPointerUp,
+  onResizePointerDown,
+  onResizePointerMove,
+  onResizePointerUp,
 }: {
   object: WorkbenchObject;
   selected: boolean;
@@ -259,6 +295,9 @@ function WorkCard({
   onPointerDown: (event: React.PointerEvent<HTMLElement>) => void;
   onPointerMove: (event: React.PointerEvent<HTMLElement>) => void;
   onPointerUp: () => void;
+  onResizePointerDown: (event: React.PointerEvent<HTMLElement>) => void;
+  onResizePointerMove: (event: React.PointerEvent<HTMLElement>) => void;
+  onResizePointerUp: () => void;
 }) {
   return (
     <article
@@ -301,6 +340,16 @@ function WorkCard({
         <div className="k-workbench-chart">
           <Chart spec={object.chart} />
         </div>
+      )}
+      {selected && (
+        <span
+          className="k-workbench-resize"
+          aria-hidden="true"
+          onPointerDown={onResizePointerDown}
+          onPointerMove={onResizePointerMove}
+          onPointerUp={onResizePointerUp}
+          onPointerCancel={onResizePointerUp}
+        />
       )}
     </article>
   );

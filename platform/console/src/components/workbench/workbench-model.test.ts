@@ -131,5 +131,12 @@ describe('workbench model', () => {
     expect(readPositions({ workbench: { objects: { campaign: { x: 4, y: 5 }, bad: { x: 'nope', y: 1 } } } })).toEqual({
       campaign: { x: 4, y: 5 },
     });
+    expect(
+      workbenchPayload({ x: 0, y: 0, zoom: 1 }, { campaign: { x: 4, y: 5 } }, { campaign: { width: 380, height: 200 } }),
+    ).toEqual({
+      version: 1,
+      camera: { x: 0, y: 0, zoom: 1 },
+      objects: { campaign: { x: 4, y: 5, width: 380, height: 200 } },
+    });
   });
 });

@@ -456,3 +456,15 @@ body {
 .k-workbench-chart .k-chart { padding: 8px; border: 0; background: transparent; }
 .k-workbench-drag { cursor: grab; touch-action: none; }
 .k-workbench-drag:active { cursor: grabbing; }
+.k-workbench-resize {
+  position: absolute;
+  inset-block-end: 4px;
+  inset-inline-end: 4px;
+  inline-size: 14px;
+  block-size: 14px;
+  border-inline-end: 2px solid var(--color-info);
+  border-block-end: 2px solid var(--color-info);
+  border-end-end-radius: 4px;
+  cursor: nwse-resize;
+  touch-action: none;
+}

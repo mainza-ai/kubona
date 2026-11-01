@@ -3,6 +3,7 @@ import type { ChartSpec } from '@/components/data/chart';
 
 export type WorkbenchCamera = { x: number; y: number; zoom: number };
 export type WorkbenchPositions = Record<string, { x: number; y: number }>;
+export type WorkbenchSizes = Record<string, { width: number; height: number }>;
 export type WorkbenchObjectKind =
   | 'campaign'
   | 'hypothesis'
@@ -58,9 +59,26 @@ export function readPositions(raw: Record<string, unknown> | null): WorkbenchPos
   return out;
 }
 
+export function readSizes(raw: Record<string, unknown> | null): WorkbenchSizes {
+  const workbench = raw?.workbench;
+  if (!workbench || typeof workbench !== 'object') return {};
+  const objects = (workbench as { objects?: unknown }).objects;
+  if (!objects || typeof objects !== 'object') return {};
+  const out: WorkbenchSizes = {};
+  for (const [id, value] of Object.entries(objects as Record<string, unknown>)) {
+    if (!value || typeof value !== 'object') continue;
+    const { width, height } = value as Record<string, unknown>;
+    if (finite(width) && finite(height) && width >= 160 && width <= 4096 && height >= 72 && height <= 4096) {
+      out[id] = { width: Math.round(width * 100) / 100, height: Math.round(height * 100) / 100 };
+    }
+  }
+  return out;
+}
+
 export function workbenchPayload(
   camera: WorkbenchCamera,
   positions: WorkbenchPositions,
+  sizes: WorkbenchSizes = {},
 ): Record<string, unknown> {
   return {
     version: 1,
@@ -72,7 +90,16 @@ export function workbenchPayload(
     objects: Object.fromEntries(
       Object.entries(positions).map(([id, position]) => [
         id,
-        { x: Math.round(position.x * 100) / 100, y: Math.round(position.y * 100) / 100 },
+        {
+          x: Math.round(position.x * 100) / 100,
+          y: Math.round(position.y * 100) / 100,
+          ...(sizes[id]
+            ? {
+                width: Math.round(sizes[id]!.width * 100) / 100,
+                height: Math.round(sizes[id]!.height * 100) / 100,
+              }
+            : {}),
+        },
       ]),
     ),
   };
