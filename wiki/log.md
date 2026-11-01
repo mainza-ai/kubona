@@ -4318,3 +4318,9 @@ skipped is the exact failure this incident is about:
 - QIR compile, calibration, prediction history/latest, lens history, and
   ledger export move onto `requestOperation`, preserving refusal envelopes.
   Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Vault prediction and lease wrappers
+
+- Prediction seal/evaluate/assert, lens status, and vault lease move onto
+  `requestOperation`; tests now provide realistic refusal text. Updated
+  [[remaining-work]]; no new page.
