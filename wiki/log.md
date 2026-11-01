@@ -4177,3 +4177,10 @@ skipped is the exact failure this incident is about:
   [[optional-enhancement-plan-2026-11-01]]; no new page. Remaining: full
   object set/areas/virtualization, residual pollers, revisioned domain
   events, generated client, and the manual accessibility record.
+
+## [2026-11-01] impl | Shared polling resource store
+
+- Added a serialized, visibility-gated, backoff-bounded polling store and
+  migrated backend readiness, spend, fleet/radar, and flight-recorder
+  telemetry to it. Job-progress and copilot-turn timers remain local
+  exceptions. Updated [[remaining-work]]; no new page.

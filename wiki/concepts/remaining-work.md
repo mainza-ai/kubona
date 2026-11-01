@@ -75,8 +75,9 @@ Still open:
 
 - Workbench area rename/resize/assignment, remaining object kinds, and
   virtualization at 100/300 objects.
-- Remove residual per-widget pollers for fleet, spend, job progress, copilot
-  turns, and recorder telemetry.
+- Job-progress and copilot-turn timers remain local; backend readiness, spend,
+  fleet/radar, and flight-recorder telemetry now share a serialized,
+  visibility-gated, backoff-bounded polling store.
 - Revisioned domain events beyond the ledger cursor; generated client and a
   uniform write-settlement state.
 - Chart bundle budget, manual VoiceOver/NVDA record, 200% zoom/forced-colors

@@ -1,15 +1,15 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { fetchBackendStatus, type BackendStatus } from '@/lib/api';
+import { usePollingResource } from '@/domain/use-polling-resource';
 
 // U1-a: always-visible backend status strip. Three states, never merged:
 // healthy (emerald), degraded (amber — ready 503 with the backend's
 // reason), unreachable (rose — transport failed, so every surface below
 // may be showing cached or empty data). Polls slowly (15s): readiness
 // changes on disk/bridge timescales, not interaction timescales.
-// Async continuations only — no synchronous setState in the effect.
-const POLL_MS = 15000;
+// The shared backend store owns polling and visibility gating.
 
 function label(s: BackendStatus | null): { text: string; tone: string; dot: string } {
   if (!s || !s.reachable) {
@@ -38,23 +38,7 @@ function label(s: BackendStatus | null): { text: string; tone: string; dot: stri
 }
 
 export function BackendStatusBar() {
-  const [status, setStatus] = useState<BackendStatus | null>(null);
-
-  useEffect(() => {
-    let live = true;
-    const poll = () => {
-      fetchBackendStatus().then((s) => {
-        if (live) setStatus(s);
-      });
-    };
-    poll();
-    const timer = setInterval(poll, POLL_MS);
-    return () => {
-      live = false;
-      clearInterval(timer);
-    };
-  }, []);
-
+  const { data: status } = usePollingResource(fetchBackendStatus, { intervalMs: 15_000 });
   const { text, tone, dot } = label(status);
   return (
     <div
