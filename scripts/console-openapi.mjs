@@ -100,6 +100,11 @@ function renderTypes(components, operations) {
   for (const [name, schema] of Object.entries(components)) {
     lines.push(`export type ${typeName(name)} = ${tsType(schema)};`, '');
   }
+  lines.push('export type ApiOperationResponse = {');
+  for (const op of operations) {
+    lines.push(`  ${op.operationId}: ${typeName(op.contract)};`);
+  }
+  lines.push('};', '');
   lines.push('export const API_OPERATIONS = {');
   for (const op of operations) {
     lines.push(`  ${op.operationId}: { method: ${JSON.stringify(op.method)}, path: ${JSON.stringify(op.path)}, response: ${JSON.stringify(op.contract)} },`);
