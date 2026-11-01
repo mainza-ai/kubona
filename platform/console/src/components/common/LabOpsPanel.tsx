@@ -103,19 +103,25 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
     const createKeyAndRegister = async () => {
       setBusy('bootstrap');
       setNotice(null);
+      let requestId: string | null = null;
       try {
         const signer = await getOrCreateSigner();
         setBrowserPub(signer.publicKeyHex);
+        requestId = settlement.begin('bootstrap lab admin key');
         const res = await registerTenantAdminKey(lab.id, signer.publicKeyHex, undefined, bootstrapToken);
         if (res === null) {
+          settlement.unknown(requestId, 'backend unreachable — nothing changed');
           setNotice('backend unreachable — nothing changed.');
         } else if ('error' in res) {
+          settlement.refused(requestId, res.error);
           setNotice(`refused: ${res.error}`);
         } else {
+          settlement.applied(requestId, 'lab admin key registered');
           setBootstrapToken('');
           onChanged();
         }
       } catch (e) {
+        if (requestId) settlement.unknown(requestId, e instanceof Error ? e.message : String(e));
         setNotice(`failed: ${e instanceof Error ? e.message : String(e)}`);
       } finally {
         setBusy(null);
