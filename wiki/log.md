@@ -4578,3 +4578,9 @@ skipped is the exact failure this incident is about:
 - Inventory/OpenAPI: 121 modeled / 10 client-only (from 117/14); every
   remaining client-only name is an intentional transport/browser/auth helper.
 - Updated [[remaining-work]]; no page.
+
+## [2026-11-01] verification | Workbench keyboard acceptance
+
+- Added unit coverage for Space select, Enter open, arrow nudge, and
+  Delete-with-Undo on workbench cards. The manual VoiceOver/NVDA pass remains
+  NOT RUN; automated evidence is recorded in the accessibility note.

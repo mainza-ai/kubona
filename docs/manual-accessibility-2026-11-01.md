@@ -13,6 +13,8 @@ it does not claim a manual VoiceOver/NVDA pass.
 - 200%-zoom equivalent (720×450): no horizontal overflow; skip link remains
   reachable.
 - Reduced-motion E2E: ambient animation utilities resolve to `none`.
+- Workbench keyboard: Space selects, Enter opens, arrows nudge, and Delete
+  removes with Undo (unit coverage in `Workbench.test.tsx`).
 
 ## Manual scripts (pending)
 
