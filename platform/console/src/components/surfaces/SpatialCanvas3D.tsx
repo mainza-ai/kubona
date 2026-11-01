@@ -1125,8 +1125,8 @@ export function SpatialCanvas3D({
     };
 
     const handlePointerMove = (e: MouseEvent) => {
-      // Don't raycast hover while orbiting/dragging
-      if (isPointerDown) return;
+      // Don't raycast hover while orbiting/dragging or offscreen/hidden.
+      if (isPointerDown || !shouldRender()) return;
 
       const rect = canvas.getBoundingClientRect();
       pendingPointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
@@ -1168,12 +1168,37 @@ export function SpatialCanvas3D({
     const resizeObserver = new ResizeObserver(handleResize);
     resizeObserver.observe(container);
 
+    // W5: no rAF work while the tab is hidden or the observatory is offscreen.
+    let inView = true;
+    let pageVisible = !document.hidden;
+    const shouldRender = () => inView && pageVisible;
+    const resume = () => {
+      if (animId === 0 && shouldRender()) animId = requestAnimationFrame(animate);
+    };
+    const onVisibility = () => {
+      pageVisible = !document.hidden;
+      resume();
+    };
+    const intersection = new IntersectionObserver(
+      (entries) => {
+        inView = entries.some((entry) => entry.isIntersecting);
+        resume();
+      },
+      { rootMargin: '200px' },
+    );
+    intersection.observe(container);
+    document.addEventListener('visibilitychange', onVisibility);
+
     // Animation Render Loop
     const startTime = performance.now();
     if (!fpsRef.current) fpsRef.current = createFpsAccumulator();
     const fpsAcc = fpsRef.current;
 
     const animate = () => {
+      if (!shouldRender()) {
+        animId = 0;
+        return;
+      }
       animId = requestAnimationFrame(animate);
       const elapsed = (performance.now() - startTime) / 1000.0;
       const sample = fpsAcc.tick(performance.now());
@@ -1199,8 +1224,11 @@ export function SpatialCanvas3D({
 
     return () => {
       cancelAnimationFrame(animId);
+      animId = 0;
       if (hoverRaf !== 0) cancelAnimationFrame(hoverRaf);
       resizeObserver.disconnect();
+      intersection.disconnect();
+      document.removeEventListener('visibilitychange', onVisibility);
       canvas.removeEventListener('pointerdown', handlePointerDown);
       window.removeEventListener('pointerup', handlePointerUp);
       canvas.removeEventListener('mousemove', handlePointerMove);
