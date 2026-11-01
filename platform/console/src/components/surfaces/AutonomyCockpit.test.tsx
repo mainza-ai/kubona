@@ -344,6 +344,6 @@ describe('AutonomyCockpit emergency abort typed gate', () => {
         .find((b) => String(b.props.children).includes('Abort'))!.props.onClick();
     });
     expect(tree.root.findAllByProps({ role: 'alertdialog' }).length).toBe(1);
-    expect(instanceText(tree.root)).toContain('Abort refused or failed');
+    expect(instanceText(tree.root)).toContain('Abort refused');
   });
 });

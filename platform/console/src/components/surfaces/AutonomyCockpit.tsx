@@ -231,6 +231,7 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
 
   const [abortOpen, setAbortOpen] = useState(false);
   const [abortBusy, setAbortBusy] = useState(false);
+  const abortWrite = useWriteSettlement();
   const confirmAbort = async () => {
     const sid = session?.id || campaign?.session_id || '';
     if (!sid) {
@@ -238,14 +239,17 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
       return;
     }
     setAbortBusy(true);
+    const requestId = abortWrite.begin('emergency abort');
     try {
       const res = await emergencyAbort(sid, 'emergency pause from guardrails');
-      if (res) {
+      if (res.ok) {
+        abortWrite.applied(requestId, `${res.aborted_count} job(s) settled failed`);
         setActionMessage(`Ring 0 Intercept complete: ${res.aborted_count} job(s) settled failed. Receipt: ${res.abort_receipt}`);
         setAbortOpen(false);
       } else {
+        abortWrite[res.unknown ? 'unknown' : 'refused'](requestId, res.error);
         // Keep the dialog open on refusal so the operator can retry or cancel.
-        setActionMessage('Abort refused or failed — nothing was settled. Retry or use ⌘. from the arena.');
+        setActionMessage(`Abort ${res.unknown ? 'unconfirmed' : 'refused'} — nothing was settled. Retry or use ⌘. from the arena.`);
       }
     } finally {
       setAbortBusy(false);
@@ -332,6 +336,11 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
         {writeSettlementLabel(airGapWrite.write) && (
           <p role="status" className="text-[12px] font-mono text-slate-400">
             {writeSettlementLabel(airGapWrite.write)}
+          </p>
+        )}
+        {writeSettlementLabel(abortWrite.write) && (
+          <p role="status" className="text-[12px] font-mono text-slate-400">
+            {writeSettlementLabel(abortWrite.write)}
           </p>
         )}
 

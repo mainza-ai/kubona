@@ -142,7 +142,7 @@ Still open:
   the two air-gap toggles now render accepted/applied/refused/unknown,
   including transport-vs-refusal. LabOps ceiling/status/autonomy/revoke and
   refund, tenant grants, session refunds, key rotation, and first-run
-  admin-key bootstrap use the same vocabulary.
+  admin-key bootstrap and emergency abort use the same vocabulary.
 - Per-send model override has no backend contract; the composer links to Model
   Hub instead of faking one.
 - The 11 remaining client-only names are intentional transport/browser/auth
