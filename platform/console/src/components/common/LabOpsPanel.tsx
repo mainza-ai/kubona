@@ -13,6 +13,8 @@ import { signAdminActionWithCustody, type AdminAction } from '@/lib/adminAction'
 import { getOrCreateSigner, peekSignerPubkeyHex } from '@/lib/custody';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import type { Lab } from '@/types';
+import { useWriteSettlement } from '@/domain/use-write-settlement';
+import { writeSettlementLabel } from '@/domain/write-settlement';
 
 // U1-b: per-lab operator writes. Every mutation carries BOTH rails: the
 // bearer token (operator possession) and a lab-admin Ed25519 envelope over
@@ -34,6 +36,7 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
   const [refundReason, setRefundReason] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const settlement = useWriteSettlement();
   // Wave-2 typed gate for the IRREVERSIBLE refund: native confirm() is
   // invisible to screen readers and carries no typed acknowledgement, so
   // the refund stages a ConfirmDialog requiring the exact "$X.XX" amount.
@@ -66,13 +69,17 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
   const run = async (kind: string, fn: () => Promise<{ ok: true } | { error: string } | null>) => {
     setBusy(kind);
     setNotice(null);
+    const requestId = settlement.begin(kind);
     try {
       const res = await fn();
       if (res === null) {
+        settlement.unknown(requestId, 'backend unreachable — nothing changed');
         setNotice('backend unreachable — nothing changed.');
       } else if ('error' in res) {
+        settlement.refused(requestId, res.error);
         setNotice(`refused: ${res.error}`);
       } else {
+        settlement.applied(requestId, `${kind} applied`);
         setCeiling('');
         setRefundAmount('');
         setRefundReason('');
@@ -158,6 +165,9 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
             : 'Create browser key & register as lab admin'}
         </button>
         {notice && <p className="text-[12px] text-amber-200" role="alert">{notice}</p>}
+        {writeSettlementLabel(settlement.write) && (
+          <p role="status" className="text-[12px] font-mono text-slate-400">{writeSettlementLabel(settlement.write)}</p>
+        )}
       </div>
     );
   }
@@ -169,6 +179,7 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
     const { amount, reason } = refundDraft;
     setRefundBusy(true);
     setRefundError(null);
+    const requestId = settlement.begin('refund spend');
     try {
       const res = await refundTenantSpend(
         lab.id,
@@ -178,16 +189,19 @@ export function LabOpsPanel({ lab, onChanged }: { lab: Lab; onChanged: () => voi
       );
       if (res === null) {
         // Transport loss: stay open, surface in the dialog error slot.
+        settlement.unknown(requestId, 'backend unreachable — nothing changed');
         setRefundError('backend unreachable — nothing changed.');
         return;
       }
       if ('error' in res) {
+        settlement.refused(requestId, res.error);
         setRefundError(`refused: ${res.error}`);
         return;
       }
       setCeiling('');
       setRefundAmount('');
       setRefundReason('');
+      settlement.applied(requestId, 'refund applied');
       setRefundDraft(null);
       setRefundError(null);
       onChanged();
