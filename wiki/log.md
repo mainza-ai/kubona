@@ -4526,3 +4526,11 @@ skipped is the exact failure this incident is about:
   explicit loading state. The production renderer chunk is 13 KB min /
   4.6 KB gzip; tests keep the real renderer through a synchronous setup mock.
   Updated [[remaining-work]]; no page.
+
+## [2026-11-01] verification | Generated-route drift gate
+
+- Added a Go test that checks every generated console OpenAPI path/method
+  against `RoutePolicies`. It caught `/api/observatory/lens` classified as POST
+  only while the handler serves GET status too; the row now says GET,POST.
+  Also exposed `Kubona-API-Version` to cross-origin readers. Updated
+  [[remaining-work]]; no page.
