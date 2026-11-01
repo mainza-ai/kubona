@@ -75,7 +75,7 @@ Landed on `develop` and `main` with the console/Go gates green:
 - Runtime: measured QIR lowering benchmark; warm worker deferred because the
   measured workload does not justify it.
 
-Still open:
+Landed in later slices:
 
 - The workbench object-kind set is covered: job, agent-run, table, approval,
   and note cards join the campaign/hypothesis/circuit/measurement/evidence/
@@ -127,12 +127,21 @@ Still open:
   campaign synthesis, all autoresearch loop actions, fleet, canvas layout,
   codesign evaluate/batch/family/rerun, chat send, tribunal run/resume,
   proposal launch, and discovery pipeline.
-  Auth logout/revoke/feedback remain hand-written (not in the generated
-  inventory). Typed operation errors carry the backend
-  refusal body. Layout and obligation-close writes render
-  accepted/applied/refused/unknown settlement.
-  Session-list dedupe/custom error copy remain, and settlement is not yet
-  uniform across every write.
+  Typed operation errors carry the backend refusal body. Layout and
+  obligation-close writes render accepted/applied/refused/unknown settlement.
+
+Still open:
+
+- Manual VoiceOver/NVDA evidence: **NOT RUN**; the automated axe/forced-colors/
+  200%-zoom/reduced-motion checks are green, but they are not a manual pass.
+- Legacy retirement: the molecule canvas and `WidgetStage` stay until object
+  cards reach parity and the old aliases have one release of support.
+- Session-list dedupe and custom error copy.
+- Write settlement is not yet uniform across every write.
+- Per-send model override has no backend contract; the composer links to Model
+  Hub instead of faking one.
+- The 10 remaining client-only names are intentional transport/browser/auth
+  helpers, not unmodeled operations.
 - Manual VoiceOver/NVDA pass and legacy-surface removal. The manual record is
   scaffolded at `docs/manual-accessibility-2026-11-01.md` and explicitly says
   **NOT RUN**; a skip link, forced-colors/no-overflow, and 200%-zoom-equivalent

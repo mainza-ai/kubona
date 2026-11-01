@@ -257,4 +257,49 @@ describe('Workbench', () => {
     await act(async () => { group.props.onClick(); });
     expect(tree!.root.findByProps({ className: 'k-workbench-area' })).toBeTruthy();
   });
+
+  it('selects, opens, and nudges a card from the keyboard', async () => {
+    const onSelectObject = vi.fn();
+    const onOpenObject = vi.fn();
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(
+        <Workbench campaign={campaign} sessionId="s1" onSelectObject={onSelectObject} onOpenObject={onOpenObject} />,
+      );
+    });
+    const card = () => tree!.root.findAllByProps({ className: 'k-workbench-card' })
+      .find((node) => node.props['data-kind'] === 'campaign')!;
+    await act(async () => {
+      card().props.onKeyDown({ key: ' ', preventDefault: vi.fn(), metaKey: false, ctrlKey: false, shiftKey: false });
+    });
+    expect(card().props['data-selected']).toBe('true');
+    expect(onSelectObject).toHaveBeenCalledWith(expect.objectContaining({ id: 'campaign' }));
+    await act(async () => {
+      card().props.onKeyDown({ key: 'Enter', preventDefault: vi.fn(), metaKey: false, ctrlKey: false, shiftKey: false });
+    });
+    expect(onOpenObject).toHaveBeenCalledWith('campaign');
+    const before = card().props.style.left;
+    await act(async () => {
+      card().props.onKeyDown({ key: 'ArrowRight', preventDefault: vi.fn(), metaKey: false, ctrlKey: false, shiftKey: false });
+    });
+    expect(card().props.style.left).toBe(before + 10);
+  });
+
+  it('removes a selected card with Delete and can undo', async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => { tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" />); });
+    const card = () => tree!.root.findAllByProps({ className: 'k-workbench-card' })
+      .find((node) => node.props['data-kind'] === 'campaign')!;
+    await act(async () => {
+      card().props.onKeyDown({ key: ' ', preventDefault: vi.fn(), metaKey: false, ctrlKey: false, shiftKey: false });
+    });
+    const workbench = tree!.root.findByProps({ 'data-testid': 'workbench' });
+    await act(async () => {
+      workbench.props.onKeyDown({ key: 'Delete', preventDefault: vi.fn(), target: { tagName: 'DIV', isContentEditable: false } });
+    });
+    expect(tree!.root.findAllByProps({ 'data-kind': 'campaign' })).toHaveLength(0);
+    const undo = tree!.root.findByProps({ title: 'Restore the last removed card' });
+    await act(async () => { undo.props.onClick(); });
+    expect(tree!.root.findAllByProps({ 'data-kind': 'campaign' })).toHaveLength(1);
+  });
 });
