@@ -7,6 +7,7 @@ import { fetchSessions, fetchSession, createSession, deleteSession, fetchLoops, 
 import { mergeSessionEvents, useSessionStream } from '@/lib/useSessionStream';
 import { useCampaignProjection } from '@/lib/useCampaignProjection';
 import { useLoopsProjection } from '@/lib/useLoopsProjection';
+import { useSessionsProjection } from '@/lib/useSessionsProjection';
 import { SHORTCUTS, SHORTCUT_TARGETS, KEY_TO_SHORTCUT, type ShortcutKey } from '@/lib/shortcuts';
 import { CopilotDrawer } from '@/components/CopilotDrawer';
 import { AboutLabModal } from '@/components/AboutLabModal';
@@ -216,7 +217,7 @@ export function buildShellSearch(surface: DockSurface, tab: string | null): stri
 }
 
 export default function Home() {
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const { sessions, setSessions, upsert: upsertSession } = useSessionsProjection();
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
   const bootstrappedSession = useRef(false);
   const prevPhase = useRef<RunPhase>('idle');
@@ -280,7 +281,7 @@ export default function Home() {
     }
     setLoops(loopList);
     setEvents(evtList);
-  }, [currentSessionId, setLoops]);
+  }, [currentSessionId, setLoops, setSessions]);
 
   const onTelemetry = useCallback((incoming: LedgerEvent[]) => {
     setEvents((previous) => mergeSessionEvents(previous, incoming));
@@ -369,15 +370,7 @@ export default function Home() {
           if (currentSessionId) {
             const freshSession = await fetchSession(currentSessionId);
             if (!mounted) return;
-            if (freshSession) {
-              setSessions((prev) => {
-                const idx = prev.findIndex((s) => s.id === freshSession.id);
-                if (idx === -1) return [freshSession, ...prev];
-                const next = [...prev];
-                next[idx] = freshSession;
-                return next;
-              });
-            }
+            if (freshSession) upsertSession(freshSession, true);
             const freshCampaign = await fetchCampaignState(currentSessionId);
             if (!mounted) return;
             if (freshCampaign) setCampaign(freshCampaign);
@@ -433,7 +426,7 @@ export default function Home() {
       clearTimeout(tickTimer);
       clearInterval(clock);
     };
-  }, [currentSessionId, refreshData, switchSession, runPhase, streamLive, setCampaign, setLoops]);
+  }, [currentSessionId, refreshData, switchSession, runPhase, streamLive, setCampaign, setLoops, setSessions, upsertSession]);
   const handleCreateSession = useCallback(() => {
     setIsNewCampaignModalOpen(true);
   }, []);
@@ -460,7 +453,7 @@ export default function Home() {
         );
         failure = describeCreateFailure(newSess, null);
         if (!failure && newSess) {
-          setSessions((prev) => [newSess, ...prev]);
+          upsertSession(newSess, true);
           switchSession(newSess.id);
           const newCamp = await fetchCampaignState(newSess.id);
           if (newCamp) {
@@ -473,7 +466,7 @@ export default function Home() {
       createFailedRef.current = failure !== null;
       setCreateError(failure);
     },
-    [switchSession, setCampaign]
+    [switchSession, setCampaign, upsertSession]
   );
 
   // Wave-3: delete-campaign stages a typed ConfirmDialog (session short-id)
@@ -527,7 +520,7 @@ export default function Home() {
     } finally {
       setDeleteBusy(false);
     }
-  }, [deleteDraft, deleteBusy, currentSessionId, switchSession, setCampaign]);
+  }, [deleteDraft, deleteBusy, currentSessionId, switchSession, setCampaign, setSessions]);
 
   // Emergency abort via typed ConfirmDialog (Wave-2): the destructive
   // request (endpoint, body, refusal/success handling) is identical to the
