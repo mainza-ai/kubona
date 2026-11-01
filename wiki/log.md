@@ -4604,3 +4604,8 @@ skipped is the exact failure this incident is about:
   Concurrent reads still coalesce through `dedupedGet`.
 - Inventory/OpenAPI: 121 modeled / 11 client-only; the extra client-only name
   is the delegating `fetchSessions` wrapper, not an unmodeled operation.
+
+## [2026-11-01] impl | Quantum settings settlement
+
+- Render quantum provider saves as accepted/applied/refused/unknown and
+  distinguish transport failure from refusal. Existing refusal copy remains.
