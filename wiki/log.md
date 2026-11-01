@@ -4298,3 +4298,10 @@ skipped is the exact failure this incident is about:
 - Messages, job detail, memory recall, abort, workflow, and quantum-submit
   wrappers now call the generated client. Updated [[remaining-work]]; no new
   page.
+
+## [2026-11-01] impl | Skip link and forced-colors guard
+
+- Added a keyboard skip link to the single main landmark and a forced-colors
+  boundary recipe for workbench/chart primitives. Added an automated
+  forced-colors/no-overflow E2E check; manual AT/zoom remains open. Updated
+  [[remaining-work]]; no new page.

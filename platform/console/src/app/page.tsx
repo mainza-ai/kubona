@@ -828,6 +828,7 @@ export default function Home() {
 
   return (
     <div className="flex h-screen w-screen bg-[#07080B] text-slate-100 overflow-hidden font-sovereign">
+      <a href="#kubona-main" className="k-skip-link">Skip to main content</a>
       <AttentionProvider>
       {/* Modals & Dialogs */}
       <AboutLabModal isOpen={isAboutOpen} onClose={() => setIsAboutOpen(false)} />
@@ -1036,7 +1037,7 @@ export default function Home() {
         <ApiProblemBanner />
         <CheckInStrip loops={loops} />
         {surface === 'arena' && (
-          <main className="relative flex-1 h-full overflow-hidden">
+          <main id="kubona-main" tabIndex={-1} className="relative flex-1 h-full overflow-hidden">
             <ArenaHud
               targetLabel={targetLabel}
               swarmDetail={runPhase === 'idle' ? 'idle · at rest' : `${loops.length} Loops Live`}
@@ -1150,7 +1151,7 @@ export default function Home() {
         )}
 
         {surface !== 'arena' && (
-          <main className="flex-1 overflow-y-auto">
+          <main id="kubona-main" tabIndex={-1} className="flex-1 overflow-y-auto">
             {surface === 'proofs' && subToggle(
               [
                 { id: 'manuscripts', label: 'Manuscripts' },
