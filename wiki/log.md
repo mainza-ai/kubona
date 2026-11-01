@@ -4512,3 +4512,10 @@ skipped is the exact failure this incident is about:
 - Applied the shared write-settlement vocabulary to autoresearch transitions
   and metasearch approve/reject/apply. APIs that hide transport-vs-refusal
   are reported as unknown, not success. Updated [[remaining-work]]; no page.
+
+## [2026-11-01] verification | Workbench browser frame budget
+
+- Opt-in Playwright harness (`KUBONA_PERF=1`) with 160 loops, 160 jobs, 32
+  obligations (361 objects): 60.7 fps, p95 16.7 ms, 91 frames in headless
+  Chrome against the production build. Single-machine mock-data observation,
+  not a CI gate. Updated [[remaining-work]]; no page.

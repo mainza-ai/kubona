@@ -83,7 +83,10 @@ Still open:
   assignments, and content bodies are validated at the API. Areas can be
   renamed, moved, resized, and assigned; a 409 exposes the current revision and
   a Reload action instead of overwriting. The canvas virtualizes past 24
-  objects.
+  objects; 300+ object projection/serialization has a <250 ms median guard.
+  An opt-in Playwright harness rendered 361 mocked objects and measured
+  60.7 fps / p95 16.7 ms in headless Chrome on 2026-11-01 — a single-machine
+  observation, not a CI gate.
 - Backend readiness, spend, fleet/radar, flight-recorder telemetry, and
   job progress now share a serialized, visibility-gated, backoff-bounded
   polling store with terminal-stop support. Copilot tribunal-turn polling is
