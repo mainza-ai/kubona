@@ -4677,3 +4677,9 @@ skipped is the exact failure this incident is about:
 - Add a pure pixelRatioStepUp policy and wire it to four sustained healthy FPS
   windows, capped at the existing coarse/desktop DPR ceiling. Step-down still
   wins immediately on sag.
+
+## [2026-11-01] impl | Chat send settlement
+
+- Render chat send as accepted/applied/refused/unknown alongside the transcript:
+  stream completion/unary fallback apply, operator stop and stalls are unknown,
+  and nothing claims a reply that was not stored.

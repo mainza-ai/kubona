@@ -143,8 +143,9 @@ Still open:
   including transport-vs-refusal. LabOps ceiling/status/autonomy/revoke and
   refund, tenant grants, session refunds, key rotation, and first-run
   admin-key bootstrap, emergency abort, codesign rerun, and custom-agent
-  create/delete, workflow runs, and proposal launch use the same vocabulary.
-  Chat writes still use their inline transcript status.
+  create/delete, workflow runs, proposal launch, and chat send use the same
+  vocabulary. Small mutations such as session delete and feedback still use
+  inline status.
 - Per-send model override has no backend contract; the composer links to Model
   Hub instead of faking one.
 - The 11 remaining client-only names are intentional transport/browser/auth
