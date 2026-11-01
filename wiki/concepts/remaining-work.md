@@ -84,9 +84,11 @@ Still open:
   types, operation metadata, and a typed `requestOperation()` client are
   landed. Existing wrappers still own auth/dedupe/error copy, and uniform
   write settlement remains open.
-- Chart bundle budget, manual VoiceOver/NVDA record, 200% zoom/forced-colors
-  evidence, route alias/feature-flag cleanup, and legacy-surface removal.
-  The 3D observatory now demand-renders instead of running a rAF loop.
+- Manual VoiceOver/NVDA record, 200% zoom/forced-colors evidence, route
+  alias/feature-flag cleanup, and legacy-surface removal. The chart
+  implementation has a CI-enforced 16.2 KB min / 4.8 KB gzip budget (60/20 KB
+  ceiling), and the 3D observatory demand-renders instead of running a rAF
+  loop.
 
 ## Local-first production (2026-10-30, landed)
 

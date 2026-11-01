@@ -4221,3 +4221,9 @@ skipped is the exact failure this incident is about:
   observatory renders one coalesced frame per camera or scene change and
   stays paused while hidden/offscreen. Updated [[remaining-work]]; no new
   page.
+
+## [2026-11-01] impl | Chart implementation budget
+
+- Added a deterministic chart implementation budget (transpile + minify +
+  gzip) and wired it into the console CI job. Measured 16.2 KB min / 4.8 KB
+  gzip against 60/20 KB. Updated [[remaining-work]]; no new page.
