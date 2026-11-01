@@ -4409,3 +4409,10 @@ skipped is the exact failure this incident is about:
   Settings; Fleet is an Operations tab, legacy `?surface` links still resolve,
   and the old dock test IDs are preserved. Updated [[remaining-work]]; no new
   page.
+
+## [2026-11-01] impl | One-line operational status strip
+
+- Backend readiness and loop/spend/attention now render on one status line;
+  both components support a compact mode without changing their polling or
+  truth semantics. The composer is deferred to the shared transcript store.
+  Updated [[remaining-work]]; no new page.

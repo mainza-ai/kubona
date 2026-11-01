@@ -17,7 +17,7 @@ function statusOf(loop: Loop): string {
 // neither exists, so this strip shows measured counts only, never rates
 // or alerts. Failed/diverged loops are called out by text, not color alone.
 
-export function CheckInStrip({ loops }: { loops: Loop[] }) {
+export function CheckInStrip({ loops, compact = false }: { loops: Loop[]; compact?: boolean }) {
   const { data: spend } = usePollingResource(async () => {
     const out = await fetchCostSummary();
     if (!out.ok) throw new Error(out.error);
@@ -62,7 +62,7 @@ export function CheckInStrip({ loops }: { loops: Loop[] }) {
     <div
       role="status"
       aria-label={`Check-in: ${loops.length} loops, ${running} running${attention > 0 ? `, ${attention} need attention` : ''}${spend ? `, LLM spend $${spend.spent_usd.toFixed(2)}` : ''}`}
-      className="flex items-center gap-3 px-3 py-1 text-[12px] font-code border-b border-white/[0.06] bg-black/30 text-slate-300"
+      className={`flex min-w-0 items-center gap-3 text-[12px] font-code text-slate-300 ${compact ? 'py-0' : 'border-b border-white/[0.06] bg-black/30 px-3 py-1'}`}
     >
       <span className="truncate">
         {loops.length} loop{loops.length === 1 ? '' : 's'} · {running} running · {paused} paused
