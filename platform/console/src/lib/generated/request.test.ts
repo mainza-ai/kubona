@@ -8,7 +8,7 @@ describe('generated operation client', () => {
     const fetchMock = vi.fn(async () => ({
       ok: true,
       status: 200,
-      json: async () => ({ sessions: [{ id: 's1' }] }),
+      json: async () => ({ sessions: [{ id: 's1', title: 'Campaign', status: 'active', created_at: '2026-11-01T00:00:00Z', updated_at: '2026-11-01T00:00:00Z' }] }),
     }));
     vi.stubGlobal('fetch', fetchMock);
     const data = await requestOperation('fetchSessions');

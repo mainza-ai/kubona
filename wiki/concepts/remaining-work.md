@@ -82,9 +82,9 @@ Still open:
   a local, run-scoped exception.
 - Revisioned domain events beyond the ledger cursor; generated contract
   types, operation metadata, and a checked `requestOperation()` client are
-  landed. Layout saves render accepted/applied/refused/unknown settlement.
-  Existing wrappers still own dedupe/error copy, and settlement is not yet
-  uniform across writes.
+  landed; session, loops, and jobs wrappers now use it. Layout saves render
+  accepted/applied/refused/unknown settlement. Session-list dedupe/custom error
+  copy remain, and settlement is not yet uniform across writes.
 - Manual VoiceOver/NVDA record, 200% zoom/forced-colors evidence, route
   alias/feature-flag cleanup, and legacy-surface removal. The chart
   implementation has a CI-enforced 16.2 KB min / 4.8 KB gzip budget (60/20 KB
