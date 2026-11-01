@@ -4245,3 +4245,9 @@ skipped is the exact failure this incident is about:
 - Moved session, loops, and jobs wrappers onto `requestOperation`; the
   generated client now lives beside the transport to avoid a cycle. Updated
   [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Quantum-factor table and more generated wrappers
+
+- Exact campaign quantum factors project as a table card; capabilities and
+  session-context wrappers move onto `requestOperation`. Updated
+  [[remaining-work]]; no new page.
