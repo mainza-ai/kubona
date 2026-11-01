@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { CampaignState } from '@/types';
-import { buildWorkbench, readCamera, readPositions, workbenchPayload } from './workbench-model';
+import {
+  buildWorkbench,
+  readCamera,
+  readPositions,
+  readWorkbenchDocument,
+  workbenchDocument,
+  workbenchPayload,
+} from './workbench-model';
 
 function campaign(overrides: Partial<CampaignState> = {}): CampaignState {
   return {
@@ -140,3 +147,13 @@ describe('workbench model', () => {
     });
   });
 });
+
+  it('round-trips the v2 document without duplicating content', () => {
+    const objects = buildWorkbench(campaign());
+    const doc = workbenchDocument('s1', objects, {}, {}, { x: 10, y: 20, zoom: 1.1 });
+    const read = readWorkbenchDocument(doc as unknown as Record<string, unknown>);
+    expect(read.camera).toEqual({ x: 10, y: 20, zoom: 1.1 });
+    expect(read.positions.campaign).toEqual({ x: 0, y: 0 });
+    expect(doc.objects[0].ref).toEqual({ domain: 'campaign', id: 's1' });
+    expect('title' in doc.objects[0]).toBe(false);
+  });

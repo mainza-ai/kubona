@@ -271,3 +271,68 @@ export function buildWorkbench(campaign: CampaignState | null | undefined): Work
   }
   return objects;
 }
+
+export type WorkbenchDocument = {
+  version: 2;
+  session_id: string;
+  objects: {
+    id: string;
+    kind: WorkbenchObjectKind;
+    position: { x: number; y: number };
+    size: { width: number; height: number };
+    ref: { domain: string; id: string };
+  }[];
+  links: [];
+  areas: [];
+  camera: WorkbenchCamera;
+  selected: [];
+};
+
+export function readWorkbenchDocument(raw: Record<string, unknown> | null): {
+  camera: WorkbenchCamera;
+  positions: WorkbenchPositions;
+  sizes: WorkbenchSizes;
+} {
+  const camera = readCamera({ workbench: raw });
+  const objects = Array.isArray(raw?.objects) ? raw.objects : [];
+  const positions: WorkbenchPositions = {};
+  const sizes: WorkbenchSizes = {};
+  for (const item of objects) {
+    if (!item || typeof item !== 'object') continue;
+    const object = item as { id?: unknown; position?: unknown; size?: unknown };
+    if (typeof object.id !== 'string') continue;
+    if (object.position && typeof object.position === 'object') {
+      const { x, y } = object.position as Record<string, unknown>;
+      if (finite(x) && finite(y)) positions[object.id] = { x, y };
+    }
+    if (object.size && typeof object.size === 'object') {
+      const { width, height } = object.size as Record<string, unknown>;
+      if (finite(width) && finite(height) && width > 0 && height > 0) sizes[object.id] = { width, height };
+    }
+  }
+  return { camera, positions, sizes };
+}
+
+export function workbenchDocument(
+  sessionId: string,
+  objects: WorkbenchObject[],
+  positions: WorkbenchPositions,
+  sizes: WorkbenchSizes,
+  camera: WorkbenchCamera,
+): WorkbenchDocument {
+  return {
+    version: 2,
+    session_id: sessionId,
+    objects: objects.map((object) => ({
+      id: object.id,
+      kind: object.kind,
+      position: positions[object.id] ?? object.position,
+      size: sizes[object.id] ?? object.size,
+      ref: { domain: 'campaign', id: sessionId },
+    })),
+    links: [],
+    areas: [],
+    camera,
+    selected: [],
+  };
+}

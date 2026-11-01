@@ -807,6 +807,38 @@ export async function fetchCanvasLayout(sessionId: string): Promise<Record<strin
   }
 }
 
+export async function fetchWorkbenchLayout(sessionId: string): Promise<{ revision: number; document: Record<string, unknown> } | null> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/workbench/layout?session_id=${encodeURIComponent(sessionId)}`, { cache: 'no-store', headers: authHeaders() });
+    if (!res.ok) return null;
+    const data = (await res.json()) as { revision?: unknown; document?: unknown };
+    if (typeof data.revision !== 'number' || !data.document || typeof data.document !== 'object') return null;
+    return { revision: data.revision, document: data.document as Record<string, unknown> };
+  } catch {
+    return null;
+  }
+}
+
+export async function saveWorkbenchLayout(
+  sessionId: string,
+  revision: number,
+  document: Record<string, unknown>,
+): Promise<{ ok: boolean; revision?: number; conflict?: boolean; error?: string }> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/workbench/layout?session_id=${encodeURIComponent(sessionId)}`, {
+      method: 'PUT',
+      headers: authHeaders({ 'Content-Type': 'application/json' }),
+      body: JSON.stringify({ revision, document }),
+    });
+    if (res.status === 409) return { ok: false, conflict: true, error: 'Layout changed elsewhere — reload to keep both.' };
+    if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
+    const data = (await res.json()) as { revision?: unknown };
+    return { ok: true, revision: typeof data.revision === 'number' ? data.revision : revision + 1 };
+  } catch (err) {
+    return { ok: false, error: String(err) };
+  }
+}
+
 export async function saveCanvasLayout(sessionId: string, layout: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
   try {
     const res = await apiFetch(`${API_BASE}/api/canvas/layout?session_id=${encodeURIComponent(sessionId)}`, {

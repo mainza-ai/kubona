@@ -6,8 +6,10 @@ import (
 	"crypto/ed25519"
 	"crypto/hmac"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"log/slog"
@@ -649,6 +651,7 @@ func (s *Server) registerRoutes() {
 	// Live Telemetry Event Stream (SSE) & Spatial Canvas Layouts
 	s.route("/api/events/stream", s.handleEventsStream)
 	s.route("/api/canvas/layout", s.handleCanvasLayout)
+	s.route("/api/workbench/layout", s.handleWorkbenchLayout)
 	// Observatory lens: spend-authority writes get edge auth (F-13 — a bare
 	// session UUID must never be able to bill the lab's budget).
 	s.route("/api/observatory/lens", s.requireBearer(s.handleObservatoryLens))
@@ -3724,6 +3727,200 @@ func (s *Server) handleCanvasLayout(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// handleWorkbenchLayout serves the revisioned v2 layout. The legacy
+// canvas_layouts row remains readable through /api/canvas/layout until the old
+// SpatialCanvas is retired; this endpoint never rewrites user layout silently.
+func (s *Server) handleWorkbenchLayout(w http.ResponseWriter, r *http.Request) {
+	sessionID := r.URL.Query().Get("session_id")
+	if sessionID == "" {
+		http.Error(w, "session_id is required: workbench layouts are session-scoped", http.StatusNotFound)
+		return
+	}
+	if _, gerr := s.sessionMgr.GetSession(sessionID); gerr != nil {
+		WriteAPIError(w, "ghost_session", fmt.Sprintf("unknown session %q: refusing to show another session", sessionID), nil)
+		return
+	}
+	if _, ok := s.authorizeKnownSession(w, r, sessionID); !ok {
+		return
+	}
+
+	switch r.Method {
+	case http.MethodGet:
+		var revision int64
+		var document string
+		err := s.ledger.DB().QueryRow(
+			`SELECT revision, document FROM workbench_layouts WHERE session_id = ?`, sessionID,
+		).Scan(&revision, &document)
+		if err != nil {
+			document = `{"version":2,"objects":[],"links":[],"areas":[],"camera":{"x":36,"y":36,"zoom":0.82},"selected":[]}`
+			revision = 0
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("ETag", fmt.Sprintf(`"workbench-%d"`, revision))
+		fmt.Fprintf(w, `{"session_id":%q,"revision":%d,"document":%s}`, sessionID, revision, document)
+	case http.MethodPost, http.MethodPut:
+		var body struct {
+			Revision int64           `json:"revision"`
+			Document json.RawMessage `json:"document"`
+		}
+		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2<<20))
+		if err := dec.Decode(&body); err != nil {
+			http.Error(w, "invalid workbench envelope", http.StatusBadRequest)
+			return
+		}
+		if len(body.Document) == 0 {
+			http.Error(w, "document is required", http.StatusBadRequest)
+			return
+		}
+		if err := validateWorkbenchDocument(body.Document, sessionID); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		var current int64
+		err := s.ledger.DB().QueryRow(`SELECT revision FROM workbench_layouts WHERE session_id = ?`, sessionID).Scan(&current)
+		if err != nil && !errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		if body.Revision != current {
+			writeJSON(w, http.StatusConflict, map[string]any{
+				"error": "revision_conflict", "current_revision": current,
+				"message": "layout changed since this client loaded it; reload before saving",
+			})
+			return
+		}
+		res, err := s.ledger.DB().Exec(
+			`INSERT INTO workbench_layouts (session_id, revision, document, updated_at)
+			 VALUES (?, 1, ?, CURRENT_TIMESTAMP)
+			 ON CONFLICT(session_id) DO UPDATE SET revision = revision + 1,
+			 document = excluded.document, updated_at = CURRENT_TIMESTAMP
+			 WHERE revision = ?`,
+			sessionID, string(body.Document), current,
+		)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		changed, _ := res.RowsAffected()
+		if changed == 0 {
+			writeJSON(w, http.StatusConflict, map[string]any{
+				"error": "revision_conflict", "current_revision": current,
+			})
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{
+			"status": "saved", "session_id": sessionID, "revision": current + 1,
+		})
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+var workbenchKinds = map[string]bool{
+	"campaign": true, "hypothesis": true, "circuit": true, "job": true,
+	"measurement": true, "evidence": true, "proof": true, "manuscript": true,
+	"chart": true, "table": true, "note": true, "task": true,
+	"agent_run": true, "approval": true, "area": true,
+}
+
+// validateWorkbenchDocument bounds the v2 layout. It stores references and
+// view state only: no content bodies, secrets, or invented revisions.
+func validateWorkbenchDocument(raw []byte, sessionID string) error {
+	var doc struct {
+		Version   int    `json:"version"`
+		SessionID string `json:"session_id"`
+		Camera    *struct {
+			X    float64 `json:"x"`
+			Y    float64 `json:"y"`
+			Zoom float64 `json:"zoom"`
+		} `json:"camera"`
+		Objects []struct {
+			ID       string `json:"id"`
+			Kind     string `json:"kind"`
+			Position struct {
+				X float64 `json:"x"`
+				Y float64 `json:"y"`
+			} `json:"position"`
+			Ref *struct {
+				Domain string `json:"domain"`
+				ID     string `json:"id"`
+			} `json:"ref"`
+		} `json:"objects"`
+		Links []struct {
+			ID     string `json:"id"`
+			Source string `json:"source"`
+			Target string `json:"target"`
+			Kind   string `json:"kind"`
+		} `json:"links"`
+		Areas []struct {
+			ID   string `json:"id"`
+			Rect struct {
+				X      float64 `json:"x"`
+				Y      float64 `json:"y"`
+				Width  float64 `json:"width"`
+				Height float64 `json:"height"`
+			} `json:"rect"`
+		} `json:"areas"`
+	}
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return fmt.Errorf("invalid workbench document: %v", err)
+	}
+	if doc.Version != 2 {
+		return fmt.Errorf("unsupported workbench version %d", doc.Version)
+	}
+	if doc.SessionID != "" && doc.SessionID != sessionID {
+		return fmt.Errorf("workbench session_id does not match request")
+	}
+	if doc.Camera != nil {
+		c := doc.Camera
+		if !finiteCanvasNumber(c.X) || !finiteCanvasNumber(c.Y) || !finiteCanvasNumber(c.Zoom) {
+			return fmt.Errorf("invalid workbench camera")
+		}
+		if c.Zoom < 0.25 || c.Zoom > 2.5 {
+			return fmt.Errorf("invalid workbench zoom %.3f: expected 0.25..2.5", c.Zoom)
+		}
+	}
+	if len(doc.Objects) > 512 {
+		return fmt.Errorf("workbench object count %d exceeds 512", len(doc.Objects))
+	}
+	seen := map[string]bool{}
+	for _, object := range doc.Objects {
+		if object.ID == "" || len(object.ID) > 128 || seen[object.ID] {
+			return fmt.Errorf("invalid or duplicate workbench object id %q", object.ID)
+		}
+		seen[object.ID] = true
+		if !workbenchKinds[object.Kind] {
+			return fmt.Errorf("unknown workbench object kind %q", object.Kind)
+		}
+		if !finiteCanvasNumber(object.Position.X) || !finiteCanvasNumber(object.Position.Y) ||
+			math.Abs(object.Position.X) > 1e7 || math.Abs(object.Position.Y) > 1e7 {
+			return fmt.Errorf("invalid workbench position for %q", object.ID)
+		}
+		if object.Ref != nil && (object.Ref.Domain == "" || len(object.Ref.Domain) > 64 || len(object.Ref.ID) > 256) {
+			return fmt.Errorf("invalid workbench reference for %q", object.ID)
+		}
+	}
+	if len(doc.Links) > 1024 {
+		return fmt.Errorf("workbench link count %d exceeds 1024", len(doc.Links))
+	}
+	for _, link := range doc.Links {
+		if link.ID == "" || link.Source == "" || link.Target == "" || link.Kind == "" {
+			return fmt.Errorf("invalid workbench link")
+		}
+	}
+	if len(doc.Areas) > 32 {
+		return fmt.Errorf("workbench area count %d exceeds 32", len(doc.Areas))
+	}
+	for _, area := range doc.Areas {
+		if area.ID == "" || !finiteCanvasNumber(area.Rect.X) || !finiteCanvasNumber(area.Rect.Y) ||
+			!finiteCanvasNumber(area.Rect.Width) || !finiteCanvasNumber(area.Rect.Height) ||
+			area.Rect.Width <= 0 || area.Rect.Height <= 0 {
+			return fmt.Errorf("invalid workbench area %q", area.ID)
+		}
+	}
+	return nil
 }
 
 // validateWorkbenchLayout validates the optional v2 workbench document while
