@@ -52,6 +52,10 @@ status: tracked
 
 Landed on `develop` and `main` with the console/Go gates green:
 
+- Inspector shell: Details/Evidence/Jobs/Copilot tabs, closed by default,
+  keyboard-resizable, overlay below `lg`, selected-workbench-object details;
+  the page now owns the shared jobs projection.
+
 - Contract/a11y foundation: canonical empty transcripts, job-status wire
   union, typed auth state, semantic tokens, readable data/control type,
   opened-on-demand copilot, and shared Button/Badge/EmptyState primitives.

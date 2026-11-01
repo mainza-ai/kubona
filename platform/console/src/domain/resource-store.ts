@@ -28,6 +28,7 @@ export type PollingStore<T> = {
   getSnapshot: () => ResourceState<T>;
   subscribe: (listener: () => void) => () => void;
   refresh: () => void;
+  setLoader: (load: () => Promise<T>) => void;
   dispose: () => void;
 };
 
@@ -65,6 +66,7 @@ export function createPollingStore<T>(
     intervalMs,
   };
   const listeners = new Set<() => void>();
+  let loader = load;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let inFlight = false;
   let active = false;
@@ -93,7 +95,7 @@ export function createPollingStore<T>(
     inFlight = true;
     if (state.data === null) publish({ status: 'loading', error: null });
     try {
-      const data = await load();
+      const data = await loader();
       if (!active) return;
       publish({
         status: 'ready',
@@ -159,6 +161,7 @@ export function createPollingStore<T>(
         if (listeners.size === 0) stop();
       };
     },
+    setLoader: (next) => { loader = next; },
     refresh: () => {
       if (!active) return;
       clearTimer();

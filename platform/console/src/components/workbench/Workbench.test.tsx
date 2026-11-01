@@ -162,6 +162,17 @@ describe('Workbench', () => {
     expect(tree!.root.findAllByProps({ 'data-kind': 'job' }).length).toBe(1);
   });
 
+  it('announces the selected object to the shell inspector', async () => {
+    const onSelectObject = vi.fn();
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" onSelectObject={onSelectObject} />);
+    });
+    const card = tree!.root.findAllByProps({ 'data-kind': 'campaign' })[0];
+    await act(async () => { card.props.onClick(); });
+    expect(onSelectObject).toHaveBeenCalledWith(expect.objectContaining({ id: 'campaign' }));
+  });
+
   it('groups all objects into a persisted spatial area', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
