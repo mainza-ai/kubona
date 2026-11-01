@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { Loop, LedgerEvent, CampaignState } from '@/types';
 import { LoopControlList } from '@/components/common/LoopControlList';
-import { Chart } from '@/components/data/DataChart';
+import { Chart } from '@/components/data/LazyChart';
 import type { ChartSpec } from '@/components/data/chart';
 import { SessionPortability } from '@/components/common/SessionPortability';
 import { LedgerVerifyPanel } from '@/components/common/LedgerVerifyPanel';

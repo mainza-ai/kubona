@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Compass, CheckCircle2, ChevronDown, ChevronUp, Scale, ShieldCheck } from 'lucide-react';
 import { CampaignState } from '@/types';
 import { fetchEpistemics } from '@/lib/api';
-import { Chart } from '@/components/data/DataChart';
+import { Chart } from '@/components/data/LazyChart';
 import type { ChartSpec } from '@/components/data/chart';
 
 interface EpistemicWavefunction {

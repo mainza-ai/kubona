@@ -127,7 +127,9 @@ Still open:
   E2E check are landed. A runtime workbench kill switch
   (`KUBONA_CONSOLE_WORKBENCH=0`) falls back to Orbital Space without a rebuild;
   old deep links still resolve. The chart implementation has a CI-enforced
-  16.2 KB min / 4.8 KB gzip budget, and the 3D observatory demand-renders.
+  16.2 KB min / 4.8 KB gzip budget and now loads as a lazy 13 KB / 4.6 KB
+  gzip client chunk, so figure-free surfaces do not pay for it; the 3D
+  observatory demand-renders.
 
 ## Local-first production (2026-10-30, landed)
 

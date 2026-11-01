@@ -4,7 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { API_BASE, apiFetch, authHeaders, evaluateCodesignArtifact, evaluateCodesignBatch, fetchCodesignPacks, fetchCodesignVerified, fetchSessions, rerunCodesignProposal, runFamilySearch, scoreCodesignBudget } from '@/lib/api';
 import type { CodesignBudgetResult, CodesignFamiliesResult, CodesignFrontierResult, CodesignPacksResult, CodesignRerunResult, CodesignVerifiedResult } from '@/lib/api';
 import type { Session } from '@/types';
-import { Chart } from '@/components/data/DataChart';
+import { Chart } from '@/components/data/LazyChart';
 import type { ChartSpec } from '@/components/data/chart';
 
 // Circuit co-design cockpit (read-only scoring).

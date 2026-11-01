@@ -4519,3 +4519,10 @@ skipped is the exact failure this incident is about:
   obligations (361 objects): 60.7 fps, p95 16.7 ms, 91 frames in headless
   Chrome against the production build. Single-machine mock-data observation,
   not a CI gate. Updated [[remaining-work]]; no page.
+
+## [2026-11-01] impl | Lazy chart boundary
+
+- Moved the dependency-free chart renderer behind `next/dynamic` with an
+  explicit loading state. The production renderer chunk is 13 KB min /
+  4.6 KB gzip; tests keep the real renderer through a synchronous setup mock.
+  Updated [[remaining-work]]; no page.
