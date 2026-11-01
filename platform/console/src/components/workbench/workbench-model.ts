@@ -2,6 +2,7 @@ import type { CampaignState } from '@/types';
 import type { ChartSpec } from '@/components/data/chart';
 
 export type WorkbenchCamera = { x: number; y: number; zoom: number };
+export type WorkbenchPositions = Record<string, { x: number; y: number }>;
 export type WorkbenchObjectKind =
   | 'campaign'
   | 'hypothesis'
@@ -41,7 +42,26 @@ export function readCamera(raw: Record<string, unknown> | null): WorkbenchCamera
   return { x, y, zoom: Math.min(2, Math.max(0.35, zoom)) };
 }
 
-export function cameraPayload(camera: WorkbenchCamera): Record<string, unknown> {
+export function readPositions(raw: Record<string, unknown> | null): WorkbenchPositions {
+  const workbench = raw?.workbench;
+  if (!workbench || typeof workbench !== 'object') return {};
+  const objects = (workbench as { objects?: unknown }).objects;
+  if (!objects || typeof objects !== 'object') return {};
+  const out: WorkbenchPositions = {};
+  for (const [id, value] of Object.entries(objects as Record<string, unknown>)) {
+    if (!value || typeof value !== 'object') continue;
+    const { x, y } = value as Record<string, unknown>;
+    if (finite(x) && finite(y) && Math.abs(x) <= 1e6 && Math.abs(y) <= 1e6) {
+      out[id] = { x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100 };
+    }
+  }
+  return out;
+}
+
+export function workbenchPayload(
+  camera: WorkbenchCamera,
+  positions: WorkbenchPositions,
+): Record<string, unknown> {
   return {
     version: 1,
     camera: {
@@ -49,6 +69,12 @@ export function cameraPayload(camera: WorkbenchCamera): Record<string, unknown> 
       y: Math.round(camera.y * 100) / 100,
       zoom: Math.round(camera.zoom * 1000) / 1000,
     },
+    objects: Object.fromEntries(
+      Object.entries(positions).map(([id, position]) => [
+        id,
+        { x: Math.round(position.x * 100) / 100, y: Math.round(position.y * 100) / 100 },
+      ]),
+    ),
   };
 }
 

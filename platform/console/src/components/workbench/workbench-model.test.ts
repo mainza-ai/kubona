@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CampaignState } from '@/types';
-import { buildWorkbench, cameraPayload, readCamera } from './workbench-model';
+import { buildWorkbench, readCamera, readPositions, workbenchPayload } from './workbench-model';
 
 function campaign(overrides: Partial<CampaignState> = {}): CampaignState {
   return {
@@ -123,9 +123,13 @@ describe('workbench model', () => {
       y: 36,
       zoom: 0.82,
     });
-    expect(cameraPayload({ x: 10.1234, y: 20.9876, zoom: 1.23456 })).toEqual({
+    expect(workbenchPayload({ x: 10.1234, y: 20.9876, zoom: 1.23456 }, { campaign: { x: 1.234, y: -2.345 } })).toEqual({
       version: 1,
       camera: { x: 10.12, y: 20.99, zoom: 1.235 },
+      objects: { campaign: { x: 1.23, y: -2.35 } },
+    });
+    expect(readPositions({ workbench: { objects: { campaign: { x: 4, y: 5 }, bad: { x: 'nope', y: 1 } } } })).toEqual({
+      campaign: { x: 4, y: 5 },
     });
   });
 });

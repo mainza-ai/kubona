@@ -8,5 +8,9 @@ description = "Kubona QIR/MLIR lowering core (Rust) — Phase 1 reference compil
 name = "qir-core"
 path = "src/main.rs"
 
+[[bin]]
+name = "qir-bench"
+path = "src/bin/qir-bench.rs"
+
 [lib]
 path = "src/lib.rs"
