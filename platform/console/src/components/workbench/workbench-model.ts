@@ -1,4 +1,4 @@
-import type { CampaignState, Loop } from '@/types';
+import type { CampaignState, Job, Loop } from '@/types';
 import type { ChartSpec } from '@/components/data/chart';
 
 export type WorkbenchCamera = { x: number; y: number; zoom: number };
@@ -13,7 +13,8 @@ export type WorkbenchObjectKind =
   | 'evidence'
   | 'proof'
   | 'manuscript'
-  | 'agent_run';
+  | 'agent_run'
+  | 'job';
 
 export type WorkbenchLink = {
   id: string;
@@ -162,7 +163,7 @@ function energyChart(campaign: CampaignState): ChartSpec | undefined {
  * duplicated: this is a read-only projection; later slices replace the
  * card bodies with the domain stores' own objects.
  */
-export function buildWorkbench(campaign: CampaignState | null | undefined, loops: Loop[] = []): WorkbenchObject[] {
+export function buildWorkbench(campaign: CampaignState | null | undefined, loops: Loop[] = [], jobs: Job[] = []): WorkbenchObject[] {
   if (!campaign) return [];
   const qf = campaign.quantum_factors;
   const anchor = campaign.classical_anchor;
@@ -284,6 +285,22 @@ export function buildWorkbench(campaign: CampaignState | null | undefined, loops
         { label: 'State', value: state },
         { label: 'Step', value: `${loop.step_count} / ${loop.max_steps}` },
         { label: 'Diverged', value: loop.diverged ? 'YES' : 'no' },
+      ],
+    });
+  });
+  jobs.slice(0, 24).forEach((job, index) => {
+    objects.push({
+      id: `job-${job.id}`,
+      kind: 'job',
+      label: 'Job',
+      title: job.job_type || 'Unnamed job',
+      detail: `Record ${job.id.slice(0, 8)} · ${job.compiler_used || 'compiler not recorded'}`,
+      position: { x: 840, y: 720 + index * 210 },
+      size: { width: 380, height: 180 },
+      facts: [
+        { label: 'Status', value: String(job.status) },
+        { label: 'Created', value: job.created_at || 'not recorded' },
+        { label: 'Completed', value: job.completed_at || 'not yet' },
       ],
     });
   });
