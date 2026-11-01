@@ -75,9 +75,10 @@ Still open:
 
 - Workbench area rename/resize/assignment, remaining object kinds, and
   virtualization at 100/300 objects.
-- Job-progress and copilot-turn timers remain local; backend readiness, spend,
-  fleet/radar, and flight-recorder telemetry now share a serialized,
-  visibility-gated, backoff-bounded polling store.
+- Backend readiness, spend, fleet/radar, flight-recorder telemetry, and
+  job progress now share a serialized, visibility-gated, backoff-bounded
+  polling store with terminal-stop support. Copilot tribunal-turn polling is
+  a local, run-scoped exception.
 - Revisioned domain events beyond the ledger cursor; generated client and a
   uniform write-settlement state.
 - Chart bundle budget, manual VoiceOver/NVDA record, 200% zoom/forced-colors

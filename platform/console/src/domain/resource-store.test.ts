@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createPollingStore } from './resource-store';
+import { StopPolling, createPollingStore } from './resource-store';
 
 describe('createPollingStore', () => {
   afterEach(() => {
@@ -26,6 +26,25 @@ describe('createPollingStore', () => {
     await vi.advanceTimersByTimeAsync(5000);
     expect(load).toHaveBeenCalledTimes(2);
     expect(listener).toHaveBeenCalled();
+  });
+
+  it('stops on a terminal value and on an explicit stop', async () => {
+    vi.useFakeTimers();
+    const load = vi.fn(async () => ({ done: true }));
+    const store = createPollingStore(load, { intervalMs: 1000, shouldContinue: (data) => !data.done });
+    const unsubscribe = store.subscribe(() => {});
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(load).toHaveBeenCalledTimes(1);
+    expect(store.getSnapshot().status).toBe('ready');
+
+    const stopped = vi.fn(async () => { throw new StopPolling('gone'); });
+    const second = createPollingStore(stopped, { intervalMs: 1000 });
+    const off = second.subscribe(() => {});
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(stopped).toHaveBeenCalledTimes(1);
+    expect(second.getSnapshot().status).toBe('refused');
+    off();
+    unsubscribe();
   });
 
   it('keeps the previous snapshot stale and backs off on failure', async () => {

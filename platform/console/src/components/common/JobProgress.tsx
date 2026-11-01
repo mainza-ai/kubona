@@ -1,5 +1,8 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { fetchJob, isTerminalJobStatus, jobStatusLabel } from '@/lib/api';
+import { usePollingResource } from '@/domain/use-polling-resource';
+import { StopPolling } from '@/domain/resource-store';
+import type { Job } from '@/types';
 
 // S8b: stepwise progress for long operations. Polls the job record every
 // 2 s and renders queued → running → settled with elapsed time. Stops on
@@ -25,59 +28,50 @@ function elapsed(created?: string, completed?: string): string {
 }
 
 export function JobProgress({ jobId, sessionId }: { jobId: string; sessionId: string }) {
-  const [status, setStatus] = useState<string>('JOB_STATUS_QUEUED');
-  const [detail, setDetail] = useState<{ created?: string; completed?: string; jobType?: string; backend?: string }>({});
-  const [gone, setGone] = useState(false);
-  // Bumping retryKey restarts polling after a jobGone stop.
   const [retryKey, setRetryKey] = useState(0);
-  const timer = useRef<ReturnType<typeof setInterval> | null>(null);
+  return (
+    <JobProgressInner
+      key={`${sessionId}:${jobId}:${retryKey}`}
+      jobId={jobId}
+      sessionId={sessionId}
+      onRetry={() => setRetryKey((key) => key + 1)}
+    />
+  );
+}
 
-  useEffect(() => {
-    let live = true;
-    let consecutiveNulls = 0;
-    const stop = () => {
-      if (timer.current) {
-        clearInterval(timer.current);
-        timer.current = null;
-      }
-    };
-    const poll = async () => {
-      const job = await fetchJob(jobId, sessionId);
-      if (!live) return;
-      if (!job) {
-        consecutiveNulls += 1;
-        if (consecutiveNulls >= MAX_CONSECUTIVE_NULLS) {
-          stop();
-          setGone(true);
+function JobProgressInner({ jobId, sessionId, onRetry }: { jobId: string; sessionId: string; onRetry: () => void }) {
+  const consecutiveNulls = useRef(0);
+  const { data: job, status: resourceStatus, error } = usePollingResource<Job | null>(
+    async () => {
+      const next = await fetchJob(jobId, sessionId);
+      if (!next) {
+        consecutiveNulls.current += 1;
+        if (consecutiveNulls.current >= MAX_CONSECUTIVE_NULLS) {
+          throw new StopPolling('job unavailable — backend returned nothing (transport or unknown id).');
         }
-        return;
+      } else {
+        consecutiveNulls.current = 0;
       }
-      consecutiveNulls = 0;
-      setGone(false);
-      setStatus(String(job.status));
-      setDetail({ created: job.created_at, completed: job.completed_at, jobType: job.job_type });
-      if (isTerminalJobStatus(job.status)) {
-        stop();
-      }
-    };
-    poll();
-    timer.current = setInterval(poll, POLL_MS);
-    return () => {
-      live = false;
-      stop();
-    };
-  }, [jobId, sessionId, retryKey]);
+      return next;
+    },
+    {
+      intervalMs: POLL_MS,
+      shouldContinue: (next) => !next || !isTerminalJobStatus(next.status),
+    },
+  );
+  const status = job?.status ? String(job.status) : 'JOB_STATUS_QUEUED';
+  const detail = job
+    ? { created: job.created_at, completed: job.completed_at, jobType: job.job_type }
+    : {};
+  const gone = resourceStatus === 'refused' && Boolean(error);
 
   if (gone) {
     return (
       <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-2.5 text-xs" role="alert" aria-label={`Job ${jobId} unavailable`}>
-        <span className="text-slate-400 font-code">job unavailable — backend returned nothing (transport or unknown id).</span>
+        <span className="text-slate-400 font-code">{error}</span>
         <button
           type="button"
-          onClick={() => {
-            setGone(false);
-            setRetryKey((k) => k + 1);
-          }}
+          onClick={onRetry}
           className="ml-2 px-2 py-1 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-slate-200 text-[12px] font-semibold"
         >
           Retry

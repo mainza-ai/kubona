@@ -4184,3 +4184,9 @@ skipped is the exact failure this incident is about:
   migrated backend readiness, spend, fleet/radar, and flight-recorder
   telemetry to it. Job-progress and copilot-turn timers remain local
   exceptions. Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Job progress joins the polling store
+
+- Job progress now uses the shared polling store with terminal-stop support;
+  copilot tribunal-turn polling is the remaining local, run-scoped timer.
+  Updated [[remaining-work]]; no new page.

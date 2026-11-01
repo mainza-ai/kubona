@@ -10,7 +10,7 @@ import { createPollingStore, useResource, type PollingStore } from './resource-s
  */
 export function usePollingResource<T>(
   load: () => Promise<T>,
-  options: { intervalMs: number; hiddenIntervalMs?: number; maxBackoffMs?: number },
+  options: { intervalMs: number; hiddenIntervalMs?: number; maxBackoffMs?: number; shouldContinue?: (data: T) => boolean },
 ) {
   const [current] = useState<PollingStore<T>>(() => createPollingStore(load, options));
   useEffect(() => () => current.dispose(), [current]);
