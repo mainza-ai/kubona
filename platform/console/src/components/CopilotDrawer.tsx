@@ -31,6 +31,8 @@ import {
 } from 'lucide-react';
 import { ChatMessage, CampaignState, RunPhase, Proposal } from '@/types';
 import { useTranscript } from '@/domain/transcript-store';
+import { useWriteSettlement } from '@/domain/use-write-settlement';
+import { writeSettlementLabel } from '@/domain/write-settlement';
 import { fetchMessages, sendChatMessage, streamChatMessage, createSession, runTribunal, fetchCampaignState, launchProposal, clearMessages, regenerateChat, sendFeedback, rewriteChat, fetchJobs, jobStatusLabel, isTerminalJobStatus, authWhoami, wasRecentAuthFailure } from '@/lib/api';
 import { ContextReadout } from './common/ContextReadout';
 import { OverflowCard } from './common/OverflowCard';
@@ -82,6 +84,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
 }, ref) {
   const [input, setInput] = useState('');
   const { messages, loading, streamingId, errorMessage, setMessages, setLoading, setStreamingId, setErrorMessage } = useTranscript(sessionId);
+  const chatWrite = useWriteSettlement();
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [runningTribunal, setRunningTribunal] = useState(false);
   const [tribunalStage, setTribunalStage] = useState<string>('Convening multi-agent scientific tribunal...');
@@ -250,6 +253,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
     }
     setNeedsLogin(false);
     const activeSessionId = active.id;
+    const writeId = chatWrite.begin('chat send');
 
     const tempUserMsg: ChatMessage = {
       id: nextTempId(`temp-user`),
@@ -307,6 +311,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
         });
       }
       if (onExperimentLaunched) onExperimentLaunched();
+      chatWrite.applied(writeId, 'assistant reply stored');
     };
 
     try {
@@ -323,6 +328,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
         // Operator stop: drop the partial bubble but keep the sent prompt.
         // The server run may still complete and appear on next history load.
         setMessages((prev) => prev.filter((m) => m.id !== liveId));
+        chatWrite.unknown(writeId, 'operator stopped; backend may still finish');
         setInfoMessage('Stopped. The backend run may still finish — its result will appear in history.');
         setTimeout(() => { if (mountedRef.current) setInfoMessage(null); }, 6000);
         setLoading(false);
@@ -336,6 +342,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
         // No silent unary retry — surface the inline error with a Retry
         // button (below) that re-sends the same prompt.
         setMessages((prev) => prev.filter((m) => m.id !== liveId));
+        chatWrite.unknown(writeId, 'stream stalled; reply not confirmed');
         setErrorMessage(`${streamErr.message} — the backend went quiet. Retry re-sends the same prompt.`);
         return;
       }
@@ -354,13 +361,16 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
             });
           }
           if (onExperimentLaunched) onExperimentLaunched();
+          chatWrite.applied(writeId, 'assistant reply stored (unary fallback)');
         } else {
           setMessages((prev) => prev.filter((m) => m.id !== liveId));
+          chatWrite.unknown(writeId, 'unary reply not confirmed');
           setErrorMessage('AI engine did not respond. Check the model in Sovereign settings (dock → mesh → settings).');
         }
       } catch (err: unknown) {
         if (!mountedRef.current) return;
         setMessages((prev) => prev.filter((m) => m.id !== liveId));
+        chatWrite.unknown(writeId, err instanceof Error ? err.message : 'connection error');
         setErrorMessage(err instanceof Error ? err.message : 'Connection error to backend.');
       }
     } finally {
@@ -1528,6 +1538,12 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
           <div className="p-3.5 rounded-2xl bg-white/[0.04] border border-white/10 text-slate-300 text-xs font-sans">
             {infoMessage}
           </div>
+        )}
+
+        {writeSettlementLabel(chatWrite.write) && (
+          <p role="status" className="px-1 text-[12px] font-mono text-slate-400">
+            {writeSettlementLabel(chatWrite.write)}
+          </p>
         )}
 
         <div ref={messagesEndRef} />
