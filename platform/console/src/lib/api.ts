@@ -1296,13 +1296,18 @@ export async function createCustomAgent(
   }
 }
 
-export async function deleteCustomAgent(agentId: string): Promise<boolean> {
+export async function deleteCustomAgent(agentId: string): Promise<{ ok: true } | { ok: false; error: string; unknown: boolean }> {
   try {
     const data = await requestOperation('deleteCustomAgent', { params: { id: agentId } });
-    return data.ok === true;
+    if (data.ok !== true) return { ok: false, unknown: false, error: 'delete refused without confirmation' };
+    return { ok: true };
   } catch (err) {
     console.error('Failed to delete custom agent:', err);
-    return false;
+    return {
+      ok: false,
+      unknown: !(err instanceof OperationError) || err.status === null,
+      error: String(err instanceof Error ? err.message : err).slice(0, 280),
+    };
   }
 }
 

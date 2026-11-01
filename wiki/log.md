@@ -4654,3 +4654,9 @@ skipped is the exact failure this incident is about:
 
 - Render the proposer rerun as accepted/applied/refused/unknown, distinguishing
   transport failure from refusal while preserving its server request id.
+
+## [2026-11-01] impl | Custom-agent settlement
+
+- Render custom-agent create/delete as accepted/applied/refused/unknown;
+  deleteCustomAgent now returns an explicit result instead of a boolean that
+  hid transport loss.
