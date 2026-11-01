@@ -57,6 +57,14 @@ export function Workbench({ campaign, sessionId, onOpenObject }: Props) {
     })),
     [baseObjects, positions, sizes],
   );
+  const areaBounds = useMemo(() => {
+    if (objects.length === 0) return null;
+    const minX = Math.min(...objects.map((object) => object.position.x)) - 24;
+    const minY = Math.min(...objects.map((object) => object.position.y)) - 48;
+    const maxX = Math.max(...objects.map((object) => object.position.x + object.size.width)) + 24;
+    const maxY = Math.max(...objects.map((object) => object.position.y + object.size.height)) + 24;
+    return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+  }, [objects]);
 
   const fit = useCallback(() => {
     const host = hostRef.current;
@@ -270,6 +278,16 @@ export function Workbench({ campaign, sessionId, onOpenObject }: Props) {
           {viewMode === 'canvas' ? <List size={14} /> : <LayoutGrid size={14} />}
           {viewMode === 'canvas' ? 'List' : 'Canvas'}
         </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="compact"
+          disabled={!areaBounds || viewMode === 'list'}
+          onClick={() => setAreas((current) => current.length > 0 ? [] : [{ id: 'area-science', title: 'Scientific chain', rect: areaBounds! }])}
+          title="Group all objects into a spatial area, or clear the area"
+        >
+          {areas.length > 0 ? 'Ungroup' : 'Group all'}
+        </Button>
         <span className="k-workbench-state" role="status" aria-live="polite">
           {saving ? 'saving view…' : status || (sessionId ? 'view saved' : 'no campaign selected')}
         </span>
@@ -306,6 +324,15 @@ export function Workbench({ campaign, sessionId, onOpenObject }: Props) {
             transform: `translate3d(${camera.x}px, ${camera.y}px, 0) scale(${camera.zoom})`,
           }}
         >
+          {areas.map((area) => (
+            <div
+              key={area.id}
+              className="k-workbench-area"
+              style={{ left: area.rect.x, top: area.rect.y, width: area.rect.width, height: area.rect.height }}
+            >
+              <span>{area.title}</span>
+            </div>
+          ))}
           <svg className="k-workbench-links" width={WORKBENCH_BOUNDS.width} height={WORKBENCH_BOUNDS.height} aria-hidden="true">
             {links.map((link) => {
               const source = objects.find((object) => object.id === link.source);

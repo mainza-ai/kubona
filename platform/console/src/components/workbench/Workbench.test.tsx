@@ -112,4 +112,14 @@ describe('Workbench', () => {
     expect(tree!.root.findByProps({ className: 'k-workbench-list' })).toBeTruthy();
     expect(tree!.root.findAllByType('table')).toHaveLength(1);
   });
+
+  it('groups all objects into a persisted spatial area', async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" />);
+    });
+    const group = tree!.root.findByProps({ title: 'Group all objects into a spatial area, or clear the area' });
+    await act(async () => { group.props.onClick(); });
+    expect(tree!.root.findByProps({ className: 'k-workbench-area' })).toBeTruthy();
+  });
 });
