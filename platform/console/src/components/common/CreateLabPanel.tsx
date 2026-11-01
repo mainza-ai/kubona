@@ -3,6 +3,8 @@
 import React, { useState } from 'react';
 import { createLab, registerTenantAdminKey } from '@/lib/api';
 import { getOrCreateSigner } from '@/lib/custody';
+import { useWriteSettlement } from '@/domain/use-write-settlement';
+import { writeSettlementLabel } from '@/domain/write-settlement';
 
 // Multi-lab bootstrap: create the lab row, then register the browser key
 // as its first admin in the same operator gesture. Both writes require the
@@ -14,6 +16,7 @@ export function CreateLabPanel({ onCreated }: { onCreated: () => void }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [created, setCreated] = useState<string | null>(null);
+  const settlement = useWriteSettlement();
 
   const create = async () => {
     const labId = id.trim();
@@ -22,18 +25,27 @@ export function CreateLabPanel({ onCreated }: { onCreated: () => void }) {
     setBusy(true);
     setNotice(null);
     setCreated(null);
+    const requestId = settlement.begin('create lab + first admin');
     try {
       const out = await createLab(labId, displayName.trim() || labId);
-      if (!out.ok) { setNotice(`create refused: ${out.error}`); return; }
+      if (!out.ok) {
+        settlement[out.unknown ? 'unknown' : 'refused'](requestId, out.error);
+        setNotice(`create refused: ${out.error}`);
+        return;
+      }
       const signer = await getOrCreateSigner();
       const admin = await registerTenantAdminKey(labId, signer.publicKeyHex, undefined, token);
-      if (admin === null) { setNotice('lab created, but admin registration transport failed. Retry with the token.'); return; }
-      if ('error' in admin) { setNotice(`lab created, but admin registration refused: ${admin.error}`); return; }
+      if (admin === null) { settlement.unknown(requestId, 'lab created, admin registration transport failed'); setNotice('lab created, but admin registration transport failed. Retry with the token.'); return; }
+      if ('error' in admin) { settlement.refused(requestId, admin.error); setNotice(`lab created, but admin registration refused: ${admin.error}`); return; }
+      settlement.applied(requestId, `lab ${labId} created with first admin`);
       setCreated(labId);
       setId('');
       setDisplayName('');
       setToken('');
       onCreated();
+    } catch (err) {
+      settlement.unknown(requestId, err instanceof Error ? err.message : String(err));
+      setNotice(`create failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setBusy(false);
     }
@@ -53,6 +65,9 @@ export function CreateLabPanel({ onCreated }: { onCreated: () => void }) {
       </button>
       {created && <p role="status" className="text-[12px] text-emerald-200">Lab {created} created. Log in with this lab ID after switching lab.</p>}
       {notice && <p role="alert" className="text-[12px] text-amber-200">{notice}</p>}
+      {writeSettlementLabel(settlement.write) && (
+        <p role="status" className="text-[12px] font-mono text-slate-400">{writeSettlementLabel(settlement.write)}</p>
+      )}
     </div>
   );
 }

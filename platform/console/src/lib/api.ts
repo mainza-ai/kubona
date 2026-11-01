@@ -1833,14 +1833,14 @@ export function registerTenantAdminKey(
   }, operatorToken);
 }
 
-export async function createLab(id: string, displayName: string): Promise<{ ok: true; tenant: Lab } | { ok: false; error: string }> {
+export async function createLab(id: string, displayName: string): Promise<{ ok: true; tenant: Lab } | { ok: false; error: string; unknown?: boolean }> {
   try {
     const tenant = (await requestOperation('createLab', {
       body: { id, display_name: displayName },
     })) as unknown as Lab;
     return { ok: true, tenant };
   } catch (err) {
-    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+    return { ok: false, unknown: !(err instanceof OperationError) || err.status === null, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 

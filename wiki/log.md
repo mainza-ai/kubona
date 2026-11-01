@@ -4637,3 +4637,9 @@ skipped is the exact failure this incident is about:
 - Tenant grant issue/revoke, session refund, and admin-key rotation now render
   accepted/applied/refused/unknown; key issue/refund wrappers distinguish
   transport from refusal. First-run admin-key bootstrap remains custom.
+
+## [2026-11-01] impl | First-run admin bootstrap settlement
+
+- Both bootstrap paths (register an existing browser key / create-and-register)
+  and Create Lab + first-admin now render accepted/applied/refused/unknown.
+  createLab distinguishes transport from refusal.
