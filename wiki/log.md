@@ -4665,3 +4665,9 @@ skipped is the exact failure this incident is about:
 
 - Render workflow execution as accepted/applied/refused/unknown while keeping
   the typed confirmation dialog and inline result.
+
+## [2026-11-01] impl | Proposal launch settlement
+
+- Render both Guardrails launch paths (mandate dispatch and offline simulate)
+  as accepted/applied/refused/unknown while keeping the mandate/refusal copy.
+  The idempotency request id now comes from the shared generator.
