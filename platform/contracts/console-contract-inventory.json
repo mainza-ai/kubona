@@ -27,6 +27,7 @@
     "chat.send",
     "chat.stream.done",
     "codesign.batch",
+    "codesign.budget",
     "codesign.evaluate",
     "codesign.families",
     "codesign.packs",
@@ -48,7 +49,7 @@
     "lab",
     "labs.list",
     "ledger.append",
-    "ledger.export",
+    "ledger.export.document",
     "ledger.verify",
     "lens.asset",
     "lens.history",
@@ -88,6 +89,8 @@
     "session.context",
     "session.create",
     "session.delete",
+    "session.export",
+    "session.import",
     "session.refund",
     "sessions.list",
     "settings.update",
@@ -133,6 +136,7 @@
     "chat.send",
     "chat.stream.done",
     "codesign.batch",
+    "codesign.budget",
     "codesign.evaluate",
     "codesign.families",
     "codesign.packs",
@@ -154,7 +158,7 @@
     "lab",
     "labs.list",
     "ledger.append",
-    "ledger.export",
+    "ledger.export.document",
     "ledger.verify",
     "lens.asset",
     "lens.history",
@@ -194,6 +198,8 @@
     "session.context",
     "session.create",
     "session.delete",
+    "session.export",
+    "session.import",
     "session.refund",
     "sessions.list",
     "settings.update",
@@ -358,6 +364,18 @@
       "contract": "prediction.evaluate"
     },
     {
+      "function": "exportLedger",
+      "path": "/api/ledger/export",
+      "method": "POST",
+      "contract": "ledger.export.document"
+    },
+    {
+      "function": "exportSession",
+      "path": "/api/sessions/export",
+      "method": "POST",
+      "contract": "session.export"
+    },
+    {
       "function": "fetchAutoresearchHarnesses",
       "path": "/api/autoresearch/harnesses",
       "method": "GET",
@@ -481,7 +499,7 @@
       "function": "fetchLedgerExport",
       "path": "/api/ledger/export",
       "method": "POST",
-      "contract": "ledger.export"
+      "contract": "ledger.export.document"
     },
     {
       "function": "fetchLensHistory",
@@ -608,6 +626,12 @@
       "path": "/api/hf/models/:id",
       "method": "GET",
       "contract": "hf.details"
+    },
+    {
+      "function": "importSession",
+      "path": "/api/sessions/import",
+      "method": "POST",
+      "contract": "session.import"
     },
     {
       "function": "issueTenantGrant",
@@ -802,6 +826,12 @@
       "contract": "workbench.save"
     },
     {
+      "function": "scoreCodesignBudget",
+      "path": "/api/codesign/budget",
+      "method": "POST",
+      "contract": "codesign.budget"
+    },
+    {
       "function": "sealPrediction",
       "path": "/api/vault/predictions/seal",
       "method": "POST",
@@ -930,20 +960,8 @@
       "reason": "browser file helper"
     },
     {
-      "function": "exportLedger",
-      "reason": "client-constructed export envelope"
-    },
-    {
-      "function": "exportSession",
-      "reason": "client-constructed export envelope"
-    },
-    {
       "function": "fetchBackendStatus",
       "reason": "client-constructed health status"
-    },
-    {
-      "function": "importSession",
-      "reason": "client-constructed import envelope"
     },
     {
       "function": "isTerminalJobStatus",
@@ -964,10 +982,6 @@
     {
       "function": "resetDedupForTests",
       "reason": "test reset helper"
-    },
-    {
-      "function": "scoreCodesignBudget",
-      "reason": "client-constructed ok/result envelope"
     },
     {
       "function": "wasRecentAuthFailure",

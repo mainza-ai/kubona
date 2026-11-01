@@ -109,8 +109,11 @@ Still open:
   loop actions, HF cancel, vault-lease revoke, and quantum canary now use
   generated operation metadata: tenant ceiling/status/autonomy/revoke/refund/
   admin-key and session refund followed; auth logout/revoke, session delete,
-  and tenant-grant issue/revoke too, so the inventory is 117 modeled /
-  14 client-only (from 91/40);
+  and tenant-grant issue/revoke too; codesign budget and session/ledger
+  export/import complete the set, so the inventory is 121 modeled /
+  10 client-only (from 91/40). The 10 remaining names are transport/browser/
+  auth helpers, not unmodeled operations; the generator emits alias operations
+  sharing one REST path without duplicating the OpenAPI operation;
   session, loops, events, jobs, fidelity, ADMET, agents, LLM/quantum
   settings, radar, cost, obligations, notebooks, capabilities,
   session-context, abort, workflow, quantum-submit, messages, job-detail,

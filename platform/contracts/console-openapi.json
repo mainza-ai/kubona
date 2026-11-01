@@ -656,6 +656,46 @@
         }
       }
     },
+    "/api/ledger/export": {
+      "post": {
+        "operationId": "exportLedger",
+        "tags": [
+          "ledger"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: ledger.export.document",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ledger.export.document"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/export": {
+      "post": {
+        "operationId": "exportSession",
+        "tags": [
+          "sessions"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: session.export",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/session.export"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/autoresearch/harnesses": {
       "get": {
         "operationId": "fetchAutoresearchHarnesses",
@@ -1065,26 +1105,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/vault.latest"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/ledger/export": {
-      "post": {
-        "operationId": "fetchLedgerExport",
-        "tags": [
-          "ledger"
-        ],
-        "responses": {
-          "200": {
-            "description": "Response contract: ledger.export",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ledger.export"
                 }
               }
             }
@@ -1519,6 +1539,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/hf.details"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/import": {
+      "post": {
+        "operationId": "importSession",
+        "tags": [
+          "sessions"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: session.import",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/session.import"
                 }
               }
             }
@@ -2097,6 +2137,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/workflow.run"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/codesign/budget": {
+      "post": {
+        "operationId": "scoreCodesignBudget",
+        "tags": [
+          "codesign"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: codesign.budget",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/codesign.budget"
                 }
               }
             }
@@ -3429,18 +3489,6 @@
           "record_hash": {}
         }
       },
-      "ledger.export": {
-        "type": "object",
-        "required": [
-          "events"
-        ],
-        "properties": {
-          "events": {
-            "type": "array",
-            "items": {}
-          }
-        }
-      },
       "memory.retain": {
         "type": "object",
         "required": [
@@ -4113,6 +4161,71 @@
           }
         }
       },
+      "codesign.budget": {
+        "type": "object",
+        "required": [
+          "ok",
+          "rows",
+          "union_bound"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "rows": {
+            "type": "array",
+            "items": {}
+          },
+          "union_bound": {
+            "type": "number"
+          }
+        }
+      },
+      "session.export": {
+        "type": "object",
+        "required": [],
+        "properties": {}
+      },
+      "session.import": {
+        "type": "object",
+        "required": [
+          "session_id"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "manifest_version": {
+            "type": "number"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "manifest": {}
+        }
+      },
+      "ledger.export.document": {
+        "type": "object",
+        "required": [
+          "ok",
+          "session_id"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "events": {
+            "type": "array",
+            "items": {}
+          },
+          "markdown": {
+            "type": "string"
+          }
+        }
+      },
       "cost.summary": {
         "type": "object",
         "required": [
@@ -4385,16 +4498,12 @@
     "apiFetch",
     "configureApiBase",
     "downloadFile",
-    "exportLedger",
-    "exportSession",
     "fetchBackendStatus",
-    "importSession",
     "isTerminalJobStatus",
     "jobStatusLabel",
     "lensImageProxyUrl",
     "reportError",
     "resetDedupForTests",
-    "scoreCodesignBudget",
     "wasRecentAuthFailure"
   ]
 }

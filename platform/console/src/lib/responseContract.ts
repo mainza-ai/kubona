@@ -200,7 +200,6 @@ export const RESPONSE_SCHEMAS = {
   fidelity: obj({ admitted: bool, predicted_fidelity: num, fidelity_floor: num, calibration_fresh: bool, recommended_action: str }),
   admet: obj({ molecular_weight: num, clogp: num, tpsa: num }),
   'ledger.append': obj({ ok: bool, record_hash: any }),
-  'ledger.export': obj({ events: arr(any) }),
   'memory.retain': obj({ id: str, bank: str, importance: num }),
   'mandate.sign': obj({ mandate: any, public_key: str, verified: bool }),
   'mandate.verify': obj({ valid: bool }),
@@ -357,6 +356,24 @@ export const RESPONSE_SCHEMAS = {
     ok: bool,
     grant_id: str,
   }),
+  'codesign.budget': obj({
+    ok: bool,
+    rows: arr(any),
+    union_bound: num,
+  }),
+  'session.export': obj({}),
+  'session.import': obj({
+    session_id: str,
+    manifest_version: num,
+    replayed: bool,
+    manifest: any,
+  }, ['session_id']),
+  'ledger.export.document': obj({
+    ok: bool,
+    session_id: str,
+    events: arr(any),
+    markdown: str,
+  }, ['ok', 'session_id']),
   'cost.summary': obj({
     cap_usd: num,
     spent_usd: num,

@@ -290,10 +290,6 @@ export type LedgerAppend = {
   "record_hash": unknown;
 };
 
-export type LedgerExport = {
-  "events": unknown[];
-};
-
 export type MemoryRetain = {
   "id": string;
   "bank": string;
@@ -520,6 +516,28 @@ export type TenantGrantRevoke = {
   "grant_id": string;
 };
 
+export type CodesignBudget = {
+  "ok": boolean;
+  "rows": unknown[];
+  "union_bound": number;
+};
+
+export type SessionExport = Record<string, unknown>;
+
+export type SessionImport = {
+  "session_id": string;
+  "manifest_version"?: number;
+  "replayed"?: boolean;
+  "manifest"?: unknown;
+};
+
+export type LedgerExportDocument = {
+  "ok": boolean;
+  "session_id": string;
+  "events"?: unknown[];
+  "markdown"?: string;
+};
+
 export type CostSummary = {
   "cap_usd": number;
   "spent_usd": number;
@@ -619,6 +637,8 @@ export type ApiOperationResponse = {
   evaluateCodesignBatch: CodesignBatch;
   evaluateDiscoveryPipeline: Discovery;
   evaluatePrediction: PredictionEvaluate;
+  exportLedger: LedgerExportDocument;
+  exportSession: SessionExport;
   fetchAutoresearchHarnesses: AutoresearchHarnesses;
   fetchAutoresearchLoops: AutoresearchLoops;
   fetchCalibration: VaultCalibration;
@@ -639,7 +659,7 @@ export type ApiOperationResponse = {
   fetchLLMSettings: LlmSettings;
   fetchLabs: LabsList;
   fetchLatestPrediction: VaultLatest;
-  fetchLedgerExport: LedgerExport;
+  fetchLedgerExport: LedgerExportDocument;
   fetchLensHistory: LensHistory;
   fetchLoops: LoopsList;
   fetchMemoryRecall: MemoryRecall;
@@ -661,6 +681,7 @@ export type ApiOperationResponse = {
   fetchSystemAgents: AgentsSystem;
   fetchWorkbenchLayout: WorkbenchLayout;
   getHFModelDetails: HfDetails;
+  importSession: SessionImport;
   issueTenantGrant: TenantGrant;
   issueVaultLease: VaultLease;
   launchProposal: ChatLaunch;
@@ -693,6 +714,7 @@ export type ApiOperationResponse = {
   saveLLMSettings: SettingsUpdate;
   saveQuantumSettings: SettingsUpdate;
   saveWorkbenchLayout: WorkbenchSave;
+  scoreCodesignBudget: CodesignBudget;
   sealPrediction: PredictionSeal;
   searchHFModels: HfSearch;
   searchLiterature: Literature;
@@ -739,6 +761,8 @@ export const API_OPERATIONS = {
   evaluateCodesignBatch: { method: "post", path: "/api/codesign/evaluate-batch", response: "codesign.batch" },
   evaluateDiscoveryPipeline: { method: "post", path: "/api/discovery/pipeline", response: "discovery" },
   evaluatePrediction: { method: "post", path: "/api/vault/predictions/evaluate", response: "prediction.evaluate" },
+  exportLedger: { method: "post", path: "/api/ledger/export", response: "ledger.export.document" },
+  exportSession: { method: "post", path: "/api/sessions/export", response: "session.export" },
   fetchAutoresearchHarnesses: { method: "get", path: "/api/autoresearch/harnesses", response: "autoresearch.harnesses" },
   fetchAutoresearchLoops: { method: "get", path: "/api/autoresearch/loops", response: "autoresearch.loops" },
   fetchCalibration: { method: "get", path: "/api/vault/predictions/calibration", response: "vault.calibration" },
@@ -759,7 +783,7 @@ export const API_OPERATIONS = {
   fetchLLMSettings: { method: "get", path: "/api/llm/settings", response: "llm.settings" },
   fetchLabs: { method: "get", path: "/api/tenants", response: "labs.list" },
   fetchLatestPrediction: { method: "get", path: "/api/vault/predictions/latest", response: "vault.latest" },
-  fetchLedgerExport: { method: "post", path: "/api/ledger/export", response: "ledger.export" },
+  fetchLedgerExport: { method: "post", path: "/api/ledger/export", response: "ledger.export.document" },
   fetchLensHistory: { method: "get", path: "/api/observatory/lens/history", response: "lens.history" },
   fetchLoops: { method: "get", path: "/api/loops", response: "loops.list" },
   fetchMemoryRecall: { method: "get", path: "/api/memory/recall", response: "memory.recall" },
@@ -781,6 +805,7 @@ export const API_OPERATIONS = {
   fetchSystemAgents: { method: "get", path: "/api/agents", response: "agents.system" },
   fetchWorkbenchLayout: { method: "get", path: "/api/workbench/layout", response: "workbench.layout" },
   getHFModelDetails: { method: "get", path: "/api/hf/models/{id}", response: "hf.details" },
+  importSession: { method: "post", path: "/api/sessions/import", response: "session.import" },
   issueTenantGrant: { method: "post", path: "/api/tenant-grants/issue", response: "tenant.grant" },
   issueVaultLease: { method: "post", path: "/api/vault/leases", response: "vault.lease" },
   launchProposal: { method: "post", path: "/api/chat/launch", response: "chat.launch" },
@@ -813,6 +838,7 @@ export const API_OPERATIONS = {
   saveLLMSettings: { method: "post", path: "/api/llm/settings", response: "settings.update" },
   saveQuantumSettings: { method: "put", path: "/api/quantum/settings", response: "settings.update" },
   saveWorkbenchLayout: { method: "put", path: "/api/workbench/layout", response: "workbench.save" },
+  scoreCodesignBudget: { method: "post", path: "/api/codesign/budget", response: "codesign.budget" },
   sealPrediction: { method: "post", path: "/api/vault/predictions/seal", response: "prediction.seal" },
   searchHFModels: { method: "get", path: "/api/hf/search", response: "hf.search" },
   searchLiterature: { method: "get", path: "/api/literature", response: "literature" },

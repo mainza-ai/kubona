@@ -42,12 +42,8 @@ CLIENT_ONLY = {
     "resetDedupForTests": "test reset helper",
     "wasRecentAuthFailure": "auth timing helper",
     "loopAction": "client-constructed ok/error envelope",
-    "exportLedger": "client-constructed export envelope",
-    "exportSession": "client-constructed export envelope",
-    "importSession": "client-constructed import envelope",
     "revokeTenantGrant": "client-constructed ok envelope",
     "runQuantumCanary": "client-constructed canary envelope",
-    "scoreCodesignBudget": "client-constructed ok/result envelope",
     "fetchBackendStatus": "client-constructed health status",
 }
 NEXT_EXPORT_RE = re.compile(r"\nexport\s+(?:async\s+)?(?:function|const|interface|type|class)\s+")
