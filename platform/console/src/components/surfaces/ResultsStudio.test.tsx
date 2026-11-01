@@ -44,6 +44,7 @@ describe('ResultsStudio verification gating (J1)', () => {
     act(() => {
       tree = TestRenderer.create(<ResultsStudio campaign={campaign('PROJECTED')} sessionId={null} />);
     });
+    expect(tree!.root.findAllByProps({ 'data-testid': 'k-chart' }).length).toBe(1);
     const text = JSON.stringify(tree!.toJSON());
     expect(text).not.toContain('converged to an energy');
     expect(text).not.toContain('machine-checked');

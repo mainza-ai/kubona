@@ -31,6 +31,7 @@ describe('FleetRadar credential dimension', () => {
     await act(async () => {
       root = TestRenderer.create(<FleetRadar />);
     });
+    expect(root!.root.findAllByProps({ 'data-testid': 'k-chart' }).length).toBe(1);
     const text = textOf(root!.root);
     // The credentialless device keeps its own status AND gains the badge.
     expect(text).toContain('READY');

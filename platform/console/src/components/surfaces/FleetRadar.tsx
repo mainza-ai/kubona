@@ -14,6 +14,8 @@ import {
 } from 'lucide-react';
 import { CampaignState, BackendInfo, RadarEndpoint } from '@/types';
 import { fetchFleet, fetchRadar } from '@/lib/api';
+import { Chart } from '@/components/data/DataChart';
+import type { ChartSpec } from '@/components/data/chart';
 
 interface FleetRadarProps {
   campaign?: CampaignState | null;
@@ -96,6 +98,30 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
     : backends;
   // EAR99 banner only when a backend flag actually carries it — never static.
   const showEar99 = backends.some((b) => ((b.itar_ear || '') as string).toUpperCase().includes('EAR99'));
+  const queued = backends.filter((b) => typeof b.queue_depth === 'number' && Number.isFinite(b.queue_depth));
+  const queueSpec: ChartSpec | undefined =
+    queued.length > 0
+      ? {
+          kind: 'bars',
+          title: 'Backend queue depth',
+          series: [
+            {
+              name: 'Queued jobs',
+              points: queued.map((backend) => ({
+                x: backend.name,
+                y: backend.queue_depth as number,
+                display: `${backend.queue_depth} jobs`,
+                evidence: [{ key: 'provenance', label: backend.telemetry || 'provenance not reported' }],
+              })),
+            },
+          ],
+          x: { label: 'Backend', kind: 'category' },
+          y: { label: 'Queue', unit: 'jobs', format: 'number' },
+          basis:
+            'Vendor/daemon queue depth as served. Declared catalog values are not live canary measurements; provenance is shown per bar.',
+          detail: 'full',
+        }
+      : undefined;
 
   const tiers = [
     { tier: 0, title: 'Tier 0 · Classical Physics Ground Truth', desc: 'PySCF FCI / RHF ab-initio exact anchor' },
@@ -208,12 +234,18 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
         </div>
       </div>
 
+      {queueSpec && (
+        <div className="rounded-2xl border border-white/[0.06] bg-black/30 p-4">
+          <Chart spec={queueSpec} />
+        </div>
+      )}
+
       {/* Real-Time Host Daemon Telemetry (Ports 8080 & 50051) */}
       <div className="space-y-3">
         <div className="flex items-center justify-between text-xs font-semibold text-slate-300 font-mono uppercase tracking-wider">
           <span>Host Daemon Telemetry &amp; Gateway Links</span>
           <span className="text-[12px] text-cyan-400 font-mono flex items-center space-x-1.5" title={`Current poll interval ${(pollIntervalMs / 1000).toFixed(1)}s — backs off to 15s on refusal/error`}>
-            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
+            <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
             <span>Adaptive radar · {(pollIntervalMs / 1000).toFixed(1)}s interval (1s nominal, backs off)</span>
           </span>
         </div>
@@ -267,7 +299,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                 >
                   <span
                     className={`w-2 h-2 rounded-full ${
-                      state === 'on' ? 'bg-emerald-400 animate-pulse' : state === 'unknown' ? 'bg-slate-400' : 'bg-rose-500'
+                      state === 'on' ? 'bg-emerald-400' : state === 'unknown' ? 'bg-slate-400' : 'bg-rose-500'
                     }`}
                   />
                   <span>{state === 'on' ? 'LISTENING / SOVEREIGN' : state === 'unknown' ? 'UNKNOWN — no endpoint' : 'OFFLINE / DISCONNECTED'}</span>
@@ -309,7 +341,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                 >
                   <span
                     className={`w-2 h-2 rounded-full ${
-                      state === 'on' ? 'bg-emerald-400 animate-pulse' : state === 'unknown' ? 'bg-slate-400' : 'bg-rose-500'
+                      state === 'on' ? 'bg-emerald-400' : state === 'unknown' ? 'bg-slate-400' : 'bg-rose-500'
                     }`}
                   />
                   <span>{state === 'on' ? 'LISTENING / SOVEREIGN' : state === 'unknown' ? 'UNKNOWN — no endpoint' : 'OFFLINE / DISCONNECTED'}</span>

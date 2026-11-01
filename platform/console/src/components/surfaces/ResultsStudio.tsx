@@ -21,6 +21,8 @@ import { CampaignState, SystematicNotebook } from '@/types';
 import { fetchNotebooks, sendChatMessage } from '@/lib/api';
 import { LiteraturePanel } from './LiteraturePanel';
 import { MeasuredOutputs } from '../MeasuredOutputs';
+import { Chart } from '@/components/data/DataChart';
+import type { ChartSpec } from '@/components/data/chart';
 
 interface ResultsStudioProps {
   campaign?: CampaignState | null;
@@ -260,6 +262,40 @@ ${bibtex}
   };
 
   const isChemAccMet = campaign?.notebook?.chemical_accuracy ?? (deltaMHa != null && deltaMHa <= 1.6);
+  const energySpec: ChartSpec | undefined =
+    groundEnergy != null && fciEnergy != null
+      ? {
+          kind: 'line',
+          title: `Energy against the FCI anchor · ${target}`,
+          series: [
+            {
+              name: 'Energy',
+              points: [
+                {
+                  x: 'VQE',
+                  y: groundEnergy,
+                  display: `${fmtEnergy(groundEnergy)} Ha`,
+                  evidence: provenanceHash ? [{ key: 'provenance', label: provenanceShort }] : [],
+                },
+                {
+                  x: 'FCI',
+                  y: fciEnergy,
+                  display: `${fmtEnergy(fciEnergy)} Ha`,
+                  evidence: [{ key: 'anchor', label: 'PySCF FCI anchor' }],
+                },
+              ],
+            },
+          ],
+          x: { label: 'Method', kind: 'category' },
+          y: { label: 'Energy', unit: 'Ha', format: 'number' },
+          headline: deltaMHa != null ? { label: '|Δ| vs FCI', value: `${fmtDelta(deltaMHa)} mHa` } : undefined,
+          basis:
+            deltaMHa != null
+              ? `Measured values recorded in the notebook; discrepancy is ${fmtDelta(deltaMHa)} mHa against the exact FCI anchor.`
+              : 'Values recorded in the notebook; no discrepancy recorded.',
+          detail: 'full',
+        }
+      : undefined;
 
   return (
     <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0F19] to-[#07090E] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-6 space-y-6">
@@ -454,6 +490,7 @@ ${bibtex}
                     <div className="text-sm font-bold text-cyan-300">{fmtDelta(deltaMHa)} mHa</div>
                   </div>
                 </div>
+                {energySpec && <Chart spec={energySpec} className="mt-3" />}
               </div>
 
               {/* Lean 4 & Cryptographic Hashes */}
