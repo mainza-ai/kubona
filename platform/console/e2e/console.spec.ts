@@ -104,9 +104,8 @@ test.describe('Kubona console against the real local stack', () => {
   });
 
   test('recorder and session portability render without a blank state', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/?surface=recorder');
     await expectReady(page);
-    await page.getByTestId('dock-recorder').click();
     await expect(page.getByText('Discovery Flight Recorder', { exact: false })).toBeVisible();
     await expect(page.getByText('Session portability', { exact: false })).toBeVisible();
   });

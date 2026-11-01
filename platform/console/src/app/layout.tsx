@@ -57,15 +57,8 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} ${jakarta.variable} ${jetbrains.variable} dark h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-[#07080B] text-slate-100 font-sovereign selection:bg-cyan-500/30 selection:text-cyan-200">
-        {/* Wave-2 a11y: skip link (visible on focus) + console h1 for AT.
-            page.tsx owns its own <main> landmarks, so this wrapper stays a
-            plain landmark container with no layout classes. */}
-        <a
-          href="#main-content"
-          className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-[100] focus:rounded-lg focus:bg-cyan-500 focus:px-3 focus:py-2 focus:text-sm focus:font-semibold focus:text-black"
-        >
-          Skip to main content
-        </a>
+        {/* Wave-2 a11y: page.tsx owns the single skip link + <main>
+            landmarks; this wrapper stays a plain landmark container. */}
         <h1 className="sr-only">Kubona Sovereign Console</h1>
         <div id="main-content" tabIndex={-1}><ErrorBoundary>{children}</ErrorBoundary></div>
       </body>

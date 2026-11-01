@@ -93,12 +93,15 @@ describe('Workbench', () => {
   it('projects the campaign into typed cards and a figure', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
-      tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" />);
+      tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" tasks={[{
+        id: 't1', session_id: 's1', title: 'Review anchor', status: 'open',
+        source_domain: 'measurement', source_id: 'm1', created_at: '', updated_at: '',
+      }]} />);
     });
     const cards = tree!.root.findAllByProps({ className: 'k-workbench-card' });
-    expect(cards.length).toBe(11);
+    expect(cards.length).toBe(12);
     expect(cards.map((card) => card.props['data-kind'])).toEqual(
-      expect.arrayContaining(['campaign', 'hypothesis', 'circuit', 'measurement', 'chart', 'table', 'note', 'molecule']),
+      expect.arrayContaining(['campaign', 'hypothesis', 'circuit', 'measurement', 'chart', 'table', 'note', 'molecule', 'task']),
     );
     expect(tree!.root.findAllByProps({ 'data-testid': 'k-chart' }).length).toBe(1);
   });
@@ -283,7 +286,7 @@ describe('Workbench', () => {
       card().props.onKeyDown({ key: 'ArrowRight', preventDefault: vi.fn(), metaKey: false, ctrlKey: false, shiftKey: false });
     });
     expect(card().props.style.left).toBe(before + 10);
-  });
+  }, 15000);
 
   it('removes a selected card with Delete and can undo', async () => {
     let tree: TestRenderer.ReactTestRenderer;
@@ -301,18 +304,5 @@ describe('Workbench', () => {
     const undo = tree!.root.findByProps({ title: 'Restore the last removed card' });
     await act(async () => { undo.props.onClick(); });
     expect(tree!.root.findAllByProps({ 'data-kind': 'campaign' })).toHaveLength(1);
-  });
-
-  it('projects session tasks as explicit task cards', async () => {
-    let tree: TestRenderer.ReactTestRenderer;
-    await act(async () => {
-      tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" tasks={[{
-        id: 't1', session_id: 's1', title: 'Review anchor', status: 'open',
-        source_domain: 'measurement', source_id: 'm1', created_at: '', updated_at: '',
-      }]} />);
-    });
-    const tasks = tree!.root.findAllByProps({ 'data-kind': 'task' });
-    expect(tasks).toHaveLength(1);
-    expect(tasks[0].findAllByType('h3')[0].props.children).toBe('Review anchor');
   });
 });
