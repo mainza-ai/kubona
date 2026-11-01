@@ -147,6 +147,20 @@ describe('Workbench', () => {
     expect(JSON.stringify(tree!.toJSON())).toContain('area');
   });
 
+  it('projects a job as a job card', async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(
+        <Workbench
+          campaign={campaign}
+          sessionId="s1"
+          jobs={[{ id: 'job-123456789', session_id: 's1', status: 2, job_type: 'vqe', params_json: {}, created_at: '2026-11-01T00:00:00Z' }]}
+        />,
+      );
+    });
+    expect(tree!.root.findAllByProps({ 'data-kind': 'job' }).length).toBe(1);
+  });
+
   it('groups all objects into a persisted spatial area', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {

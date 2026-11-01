@@ -106,6 +106,15 @@ describe('workbench model', () => {
     expect(run?.facts.find((fact) => fact.label === 'Step')?.value).toBe('3 / 10');
   });
 
+  it('projects job records as job objects', () => {
+    const objects = buildWorkbench(campaign(), [], [
+      { id: 'job-123456789', session_id: 's1', status: 2, job_type: 'vqe', params_json: {}, created_at: '2026-11-01T00:00:00Z', completed_at: '2026-11-01T00:00:02Z' },
+    ]);
+    const job = objects.find((object) => object.kind === 'job');
+    expect(job?.id).toBe('job-job-123456789');
+    expect(job?.facts.find((fact) => fact.label === 'Status')?.value).toBe('2');
+  });
+
   it('labels an uncomputed anchor as UNVERIFIED', () => {
     const unanchored = campaign({
       classical_anchor: {

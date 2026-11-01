@@ -4227,3 +4227,9 @@ skipped is the exact failure this incident is about:
 - Added a deterministic chart implementation budget (transpile + minify +
   gzip) and wired it into the console CI job. Measured 16.2 KB min / 4.8 KB
   gzip against 60/20 KB. Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Job cards and checked request client
+
+- Job records project as `job` cards with measured status/timestamps; the
+  request-operation client now runs the generated response contract. Updated
+  [[remaining-work]]; no new page.

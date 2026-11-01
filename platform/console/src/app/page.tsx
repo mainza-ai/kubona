@@ -1047,11 +1047,12 @@ export default function Home() {
 
             {arenaView === 'workbench' && !showLegacyCanvas && (
               <Workbench
+                key={currentSessionId}
                 campaign={campaign}
                 loops={loops}
                 sessionId={currentSessionId || undefined}
                 onOpenObject={(kind) => {
-                  if (kind === 'chart' || kind === 'agent_run') setSurface('recorder');
+                  if (kind === 'chart' || kind === 'agent_run' || kind === 'job') setSurface('recorder');
                   else if (kind === 'evidence') setSurface('manifold');
                   else if (kind === 'proof' || kind === 'manuscript') {
                     setSurface('proofs');

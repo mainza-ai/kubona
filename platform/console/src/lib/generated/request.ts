@@ -1,6 +1,7 @@
 'use client';
 
 import { API_BASE, apiFetch, authHeaders } from '@/lib/api';
+import { contract, type ContractName } from '@/lib/responseContract';
 import { API_OPERATIONS, type ApiOperationName, type ApiOperationResponse } from './openapi';
 
 export class OperationError extends Error {
@@ -49,5 +50,5 @@ export async function requestOperation<K extends ApiOperationName>(
   if (!res.ok) {
     throw new OperationError(name, res.status, `${operation.method.toUpperCase()} ${operation.path} refused (HTTP ${res.status})`);
   }
-  return (await res.json()) as ApiOperationResponse[K];
+  return contract(operation.response as ContractName, await res.json()) as ApiOperationResponse[K];
 }
