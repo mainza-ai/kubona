@@ -823,7 +823,7 @@ export async function saveWorkbenchLayout(
   sessionId: string,
   revision: number,
   document: Record<string, unknown>,
-): Promise<{ ok: boolean; revision?: number; conflict?: boolean; error?: string }> {
+): Promise<{ ok: boolean; revision?: number; conflict?: boolean; unknown?: boolean; error?: string }> {
   try {
     const res = await apiFetch(`${API_BASE}/api/workbench/layout?session_id=${encodeURIComponent(sessionId)}`, {
       method: 'PUT',
@@ -835,7 +835,7 @@ export async function saveWorkbenchLayout(
     const data = (await res.json()) as { revision?: unknown };
     return { ok: true, revision: typeof data.revision === 'number' ? data.revision : revision + 1 };
   } catch (err) {
-    return { ok: false, error: String(err) };
+    return { ok: false, unknown: true, error: String(err) };
   }
 }
 

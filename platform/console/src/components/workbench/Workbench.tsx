@@ -3,12 +3,14 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutGrid, List, Maximize2, Minus, Plus } from 'lucide-react';
 import type { CampaignState, Job, Loop } from '@/types';
-import { fetchCanvasLayout, fetchJobs, fetchWorkbenchLayout, saveWorkbenchLayout } from '@/lib/api';
+import { fetchCanvasLayout, fetchWorkbenchLayout, saveWorkbenchLayout } from '@/lib/api';
+import { requestOperation } from '@/lib/generated/request';
 import { Chart } from '@/components/data/DataChart';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
 import { usePollingResource } from '@/domain/use-polling-resource';
+import { acceptWrite, settleWrite, writeSettlementLabel, IDLE_WRITE, type WriteSettlement } from '@/domain/write-settlement';
 import {
   WORKBENCH_BOUNDS,
   buildWorkbench,
@@ -49,18 +51,21 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
   const [positions, setPositions] = useState<WorkbenchPositions>({});
   const [sizes, setSizes] = useState<WorkbenchSizes>({});
   const { data: fetchedJobs } = usePollingResource(
-    async () => (sessionId ? fetchJobs(sessionId) : []),
+    async () => {
+      if (!sessionId) return [];
+      const data = await requestOperation('fetchJobs', { query: { session_id: sessionId } });
+      return data.jobs as unknown as Job[];
+    },
     { intervalMs: 5000 },
   );
   const jobs = useMemo(() => suppliedJobs ?? fetchedJobs ?? [], [suppliedJobs, fetchedJobs]);
   const baseObjects = useMemo(() => buildWorkbench(campaign, loops, jobs), [campaign, loops, jobs]);
   const links = useMemo(() => buildWorkbenchLinks(baseObjects), [baseObjects]);
-  const [status, setStatus] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'canvas' | 'list'>('canvas');
   const [areas, setAreas] = useState<WorkbenchArea[]>([]);
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
   const [assignments, setAssignments] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
+  const [write, setWrite] = useState<WriteSettlement>(IDLE_WRITE);
   const objects = useMemo(
     () => baseObjects.map((object) => ({
       ...object,
@@ -131,18 +136,20 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
     if (!sessionId || !loaded.current) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      setSaving(true);
+      const requestId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `layout-${Date.now()}`;
+      setWrite(acceptWrite(requestId, 'saving view'));
       void saveWorkbenchLayout(
         sessionId,
         revision.current,
         workbenchDocument(sessionId, baseObjects, positions, sizes, camera, links, areas, assignments) as unknown as Record<string, unknown>,
       ).then((out) => {
-        setSaving(false);
         if (out.ok) {
           if (typeof out.revision === 'number') revision.current = out.revision;
-          setStatus(null);
+          setWrite(settleWrite(requestId, 'applied', `revision ${revision.current}`));
+        } else if (out.unknown) {
+          setWrite(settleWrite(requestId, 'unknown', 'save outcome not confirmed'));
         } else {
-          setStatus(out.error || 'layout save refused');
+          setWrite(settleWrite(requestId, 'refused', out.error || 'layout save refused'));
         }
       });
     }, 650);
@@ -386,7 +393,7 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
           </Button>
         )}
         <span className="k-workbench-state" role="status" aria-live="polite">
-          {saving ? 'saving view…' : status || (sessionId ? 'view saved' : 'no campaign selected')}
+          {writeSettlementLabel(write) || (sessionId ? 'view saved' : 'no campaign selected')}
         </span>
       </div>
 

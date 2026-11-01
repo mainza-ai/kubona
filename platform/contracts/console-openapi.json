@@ -2987,7 +2987,10 @@
               "required": [
                 "id",
                 "session_id",
-                "status"
+                "status",
+                "job_type",
+                "params_json",
+                "created_at"
               ],
               "properties": {
                 "id": {
@@ -2998,6 +3001,23 @@
                 },
                 "status": {
                   "type": "union"
+                },
+                "job_type": {
+                  "type": "string"
+                },
+                "params_json": {},
+                "result_json": {},
+                "created_at": {
+                  "type": "string"
+                },
+                "completed_at": {
+                  "type": "string"
+                },
+                "compiler_used": {
+                  "type": "string"
+                },
+                "fallback_estimate": {
+                  "type": "boolean"
                 }
               }
             }
@@ -3015,7 +3035,10 @@
             "required": [
               "id",
               "session_id",
-              "status"
+              "status",
+              "job_type",
+              "params_json",
+              "created_at"
             ],
             "properties": {
               "id": {
@@ -3026,6 +3049,23 @@
               },
               "status": {
                 "type": "union"
+              },
+              "job_type": {
+                "type": "string"
+              },
+              "params_json": {},
+              "result_json": {},
+              "created_at": {
+                "type": "string"
+              },
+              "completed_at": {
+                "type": "string"
+              },
+              "compiler_used": {
+                "type": "string"
+              },
+              "fallback_estimate": {
+                "type": "boolean"
               }
             }
           }

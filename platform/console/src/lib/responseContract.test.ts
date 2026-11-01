@@ -71,9 +71,9 @@ describe('response contracts', () => {
   it('accepts live chat, job, workflow, auth, and cost payloads', () => {
     expect(validateResponse('messages.list', { messages: [] })).toEqual([]);
     expect(validateResponse('jobs.list', { jobs: [] })).toEqual([]);
-    expect(validateResponse('jobs.list', { jobs: [{ id: 'j1', session_id: 's1', status: 2 }] })).toEqual([]);
-    expect(validateResponse('job', { job: { id: 'j1', session_id: 's1', status: 'QUEUED' } })).toEqual([]);
-    expect(validateResponse('job', { job: { id: 'j1', session_id: 's1', status: 3 } })).toEqual([]);
+    expect(validateResponse('jobs.list', { jobs: [{ id: 'j1', session_id: 's1', status: 2, job_type: 'vqe', params_json: {}, created_at: '2026-11-01T00:00:00Z' }] })).toEqual([]);
+    expect(validateResponse('job', { job: { id: 'j1', session_id: 's1', status: 'QUEUED', job_type: 'vqe', params_json: '{}', created_at: '2026-11-01T00:00:00Z' } })).toEqual([]);
+    expect(validateResponse('job', { job: { id: 'j1', session_id: 's1', status: 3, job_type: 'vqe', params_json: {}, created_at: '2026-11-01T00:00:00Z' } })).toEqual([]);
     expect(validateResponse('auth.whoami', { authenticated: true, tenant_id: 'lab' })).toEqual([]);
     expect(
       validateResponse('cost.summary', {

@@ -81,9 +81,10 @@ Still open:
   polling store with terminal-stop support. Copilot tribunal-turn polling is
   a local, run-scoped exception.
 - Revisioned domain events beyond the ledger cursor; generated contract
-  types, operation metadata, and a typed `requestOperation()` client (with
-  generated response-contract checks) are landed. Existing wrappers still own
-  dedupe/error copy, and uniform write settlement remains open.
+  types, operation metadata, and a checked `requestOperation()` client are
+  landed. Layout saves render accepted/applied/refused/unknown settlement.
+  Existing wrappers still own dedupe/error copy, and settlement is not yet
+  uniform across writes.
 - Manual VoiceOver/NVDA record, 200% zoom/forced-colors evidence, route
   alias/feature-flag cleanup, and legacy-surface removal. The chart
   implementation has a CI-enforced 16.2 KB min / 4.8 KB gzip budget (60/20 KB

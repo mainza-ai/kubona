@@ -217,10 +217,40 @@ export const RESPONSE_SCHEMAS = {
     messages: arr(obj({ id: str, role: str, content: str })),
   }),
   'jobs.list': obj({
-    jobs: arr(obj({ id: str, session_id: str, status: jobStatus })),
+    jobs: arr(
+      obj(
+        {
+          id: str,
+          session_id: str,
+          status: jobStatus,
+          job_type: str,
+          params_json: any,
+          result_json: any,
+          created_at: str,
+          completed_at: str,
+          compiler_used: str,
+          fallback_estimate: bool,
+        },
+        ['id', 'session_id', 'status', 'job_type', 'params_json', 'created_at'],
+      ),
+    ),
   }),
   job: obj({
-    job: obj({ id: str, session_id: str, status: jobStatus }),
+    job: obj(
+      {
+        id: str,
+        session_id: str,
+        status: jobStatus,
+        job_type: str,
+        params_json: any,
+        result_json: any,
+        created_at: str,
+        completed_at: str,
+        compiler_used: str,
+        fallback_estimate: bool,
+      },
+      ['id', 'session_id', 'status', 'job_type', 'params_json', 'created_at'],
+    ),
   }),
   radar: obj({
     radar_endpoints: arr(any),

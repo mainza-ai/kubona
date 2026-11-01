@@ -355,6 +355,13 @@ export type JobsList = {
   "id": string;
   "session_id": string;
   "status": unknown;
+  "job_type": string;
+  "params_json": unknown;
+  "result_json"?: unknown;
+  "created_at": string;
+  "completed_at"?: string;
+  "compiler_used"?: string;
+  "fallback_estimate"?: boolean;
 }[];
 };
 
@@ -363,6 +370,13 @@ export type Job = {
   "id": string;
   "session_id": string;
   "status": unknown;
+  "job_type": string;
+  "params_json": unknown;
+  "result_json"?: unknown;
+  "created_at": string;
+  "completed_at"?: string;
+  "compiler_used"?: string;
+  "fallback_estimate"?: boolean;
 };
 };
 
