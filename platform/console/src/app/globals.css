@@ -454,3 +454,5 @@ body {
 .k-workbench-card dd { margin: 0; overflow: hidden; font-family: var(--font-geist-mono), monospace; font-size: var(--text-label); text-align: end; text-overflow: ellipsis; white-space: nowrap; }
 .k-workbench-chart { flex: 1; min-block-size: 0; overflow: auto; }
 .k-workbench-chart .k-chart { padding: 8px; border: 0; background: transparent; }
+.k-workbench-drag { cursor: grab; touch-action: none; }
+.k-workbench-drag:active { cursor: grabbing; }
