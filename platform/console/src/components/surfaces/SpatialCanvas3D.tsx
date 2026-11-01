@@ -534,6 +534,7 @@ export function SpatialCanvas3D({
   const onCameraChangeRef = useRef<typeof onCameraChange>(onCameraChange);
   const initialCameraRef = useRef(initialCamera);
   const cameraSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const requestRenderRef = useRef<() => void>(() => {});
   useEffect(() => {
     onCameraChangeRef.current = onCameraChange;
   }, [onCameraChange]);
@@ -690,6 +691,11 @@ export function SpatialCanvas3D({
     }
   }, [computeEnergy, computeVisualHeight, equilibriumR, fciGround, rho, viewMean, viewStd, showGhostContour, De]);
 
+  // Any React-driven scene update requests exactly one frame.
+  useEffect(() => {
+    requestRenderRef.current();
+  });
+
   // Core Three.js Lifecycle: Mounts ONCE
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -744,8 +750,8 @@ export function SpatialCanvas3D({
     cameraRef.current = camera;
 
     const controls = new OrbitControls(camera, canvas);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.05;
+    // Demand rendering: no damping loop, so no frame runs at rest.
+    controls.enableDamping = false;
     controls.maxPolarAngle = Math.PI / 2 + 0.05;
     controls.minDistance = 1.5;
     controls.maxDistance = 12.0;
@@ -1135,6 +1141,7 @@ export function SpatialCanvas3D({
       if (hoverRaf === 0) {
         hoverRaf = requestAnimationFrame(runHoverRaycast);
       }
+      requestFrame();
     };
 
     // Wave-3 fail-closed: a lost GPU context can never leave a blank canvas
@@ -1151,6 +1158,8 @@ export function SpatialCanvas3D({
     };
     canvas.addEventListener('webglcontextlost', handleContextLost);
 
+    let requestFrame = () => {};
+
     canvas.addEventListener('pointerdown', handlePointerDown);
     window.addEventListener('pointerup', handlePointerUp);
     canvas.addEventListener('mousemove', handlePointerMove);
@@ -1163,6 +1172,7 @@ export function SpatialCanvas3D({
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
       renderer.setSize(width, height);
+      requestFrame();
     };
 
     const resizeObserver = new ResizeObserver(handleResize);
@@ -1173,7 +1183,7 @@ export function SpatialCanvas3D({
     let pageVisible = !document.hidden;
     const shouldRender = () => inView && pageVisible;
     const resume = () => {
-      if (animId === 0 && shouldRender()) animId = requestAnimationFrame(animate);
+      requestFrame();
     };
     const onVisibility = () => {
       pageVisible = !document.hidden;
@@ -1189,40 +1199,32 @@ export function SpatialCanvas3D({
     intersection.observe(container);
     document.addEventListener('visibilitychange', onVisibility);
 
-    // Animation Render Loop
-    const startTime = performance.now();
+    // Demand render: one coalesced frame per change, none at rest.
     if (!fpsRef.current) fpsRef.current = createFpsAccumulator();
     const fpsAcc = fpsRef.current;
 
-    const animate = () => {
-      if (!shouldRender()) {
-        animId = 0;
-        return;
-      }
-      animId = requestAnimationFrame(animate);
-      const elapsed = (performance.now() - startTime) / 1000.0;
+    const renderOnce = () => {
+      animId = 0;
+      if (!shouldRender()) return;
       const sample = fpsAcc.tick(performance.now());
       if (sample) {
         setFps(Math.round(sample.fps));
-        // Wave-3 fps-driven step-down: when measured fps sags, drop the
-        // pixel ratio a notch (pure policy in @/lib/fps). One-way per
-        // sample so a single bad second can't collapse to MIN_DPR.
         const stepped = pixelRatioStepDown(renderer.getPixelRatio(), sample.fps);
         if (stepped !== renderer.getPixelRatio()) renderer.setPixelRatio(stepped);
       }
-
-      if (diamondMeshRef.current) {
-        diamondMeshRef.current.rotation.y = elapsed * 0.8;
-        diamondMeshRef.current.position.y = 0.14 + Math.sin(elapsed * 2.0) * 0.02;
-      }
-
       controls.update();
       renderer.render(scene, camera);
     };
-
-    animate();
+    requestFrame = () => {
+      if (animId === 0 && shouldRender()) animId = requestAnimationFrame(renderOnce);
+    };
+    requestRenderRef.current = requestFrame;
+    controls.addEventListener('change', requestFrame);
+    requestFrame();
 
     return () => {
+      requestRenderRef.current = () => {};
+      controls.removeEventListener('change', requestFrame);
       cancelAnimationFrame(animId);
       animId = 0;
       if (hoverRaf !== 0) cancelAnimationFrame(hoverRaf);
