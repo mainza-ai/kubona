@@ -539,3 +539,22 @@ body {
 .k-workbench-list tbody th { color: var(--color-label-secondary); white-space: nowrap; }
 .k-workbench-list td strong { display: block; color: var(--color-text); font-weight: 550; }
 .k-workbench-list td span { display: block; margin-block-start: 2px; color: var(--color-muted); }
+.k-workbench-area {
+  position: absolute;
+  z-index: 0;
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-panel);
+  background: color-mix(in oklab, var(--color-info) 4%, transparent);
+  pointer-events: none;
+}
+.k-workbench-area > span {
+  position: absolute;
+  inset-block-start: 10px;
+  inset-inline-start: 14px;
+  color: var(--color-muted);
+  font-size: var(--text-caption);
+  font-weight: 550;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.k-workbench-card { z-index: 1; }
