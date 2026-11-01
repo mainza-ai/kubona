@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { dedupedGet, fetchCampaignState, resetDedupForTests, reportError } from './api';
+import { dedupedGet, fetchCampaignState, fetchSessionsResult, resetDedupForTests, reportError } from './api';
 
 // Wave-3 inflight GET coalescing contract: module state is the dedup map,
 // so every case starts from a cleared map and a fresh fetch stub.
@@ -66,6 +66,22 @@ describe('dedupedGet', () => {
     await expect(dedupedGet('http://x/api/refused')).rejects.toThrow(/refused/);
   });
 
+
+  it('coalesces session-list reads and reports refusal copy', async () => {
+    const fetch = stubFetch(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      return okJson({ sessions: [{ id: 's1', title: 'Campaign', status: 'active', created_at: '2026-11-01T00:00:00Z', updated_at: '2026-11-01T00:00:00Z' }] });
+    });
+    const [a, b] = await Promise.all([fetchSessionsResult(), fetchSessionsResult()]);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(a.ok && a.sessions[0].id).toBe('s1');
+    expect(b.ok && b.sessions[0].id).toBe('s1');
+    vi.unstubAllGlobals();
+    stubFetch(async () => ({ ok: false, status: 503, text: async () => 'backend unavailable' }));
+    const refused = await fetchSessionsResult();
+    expect(refused.ok).toBe(false);
+    if (!refused.ok) expect(refused.error).toContain('refused');
+  });
   it('coalesces concurrent campaign reads from co-mounted surfaces', async () => {
     const fetch = stubFetch(async () => {
       await new Promise((r) => setTimeout(r, 10));

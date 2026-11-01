@@ -604,7 +604,7 @@
       "contract": "session.context"
     },
     {
-      "function": "fetchSessions",
+      "function": "fetchSessionsResult",
       "path": "/api/sessions",
       "method": "GET",
       "contract": "sessions.list"
@@ -962,6 +962,10 @@
     {
       "function": "fetchBackendStatus",
       "reason": "client-constructed health status"
+    },
+    {
+      "function": "fetchSessions",
+      "reason": "delegates to fetchSessionsResult"
     },
     {
       "function": "isTerminalJobStatus",

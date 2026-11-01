@@ -677,7 +677,7 @@ export type ApiOperationResponse = {
   fetchRadar: Radar;
   fetchSession: Session;
   fetchSessionContext: SessionContext;
-  fetchSessions: SessionsList;
+  fetchSessionsResult: SessionsList;
   fetchSystemAgents: AgentsSystem;
   fetchWorkbenchLayout: WorkbenchLayout;
   getHFModelDetails: HfDetails;
@@ -801,7 +801,7 @@ export const API_OPERATIONS = {
   fetchRadar: { method: "get", path: "/api/radar", response: "radar" },
   fetchSession: { method: "get", path: "/api/sessions/{id}", response: "session" },
   fetchSessionContext: { method: "get", path: "/api/sessions/context", response: "session.context" },
-  fetchSessions: { method: "get", path: "/api/sessions", response: "sessions.list" },
+  fetchSessionsResult: { method: "get", path: "/api/sessions", response: "sessions.list" },
   fetchSystemAgents: { method: "get", path: "/api/agents", response: "agents.system" },
   fetchWorkbenchLayout: { method: "get", path: "/api/workbench/layout", response: "workbench.layout" },
   getHFModelDetails: { method: "get", path: "/api/hf/models/{id}", response: "hf.details" },

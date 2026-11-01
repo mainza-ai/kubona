@@ -45,6 +45,7 @@ CLIENT_ONLY = {
     "revokeTenantGrant": "client-constructed ok envelope",
     "runQuantumCanary": "client-constructed canary envelope",
     "fetchBackendStatus": "client-constructed health status",
+    "fetchSessions": "delegates to fetchSessionsResult",
 }
 NEXT_EXPORT_RE = re.compile(r"\nexport\s+(?:async\s+)?(?:function|const|interface|type|class)\s+")
 PATH_RE = re.compile(r"\$\{API_BASE\}(/api/[^`\"\s]*)")

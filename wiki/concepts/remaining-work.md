@@ -111,8 +111,9 @@ Landed in later slices:
   admin-key and session refund followed; auth logout/revoke, session delete,
   and tenant-grant issue/revoke too; codesign budget and session/ledger
   export/import complete the set, so the inventory is 121 modeled /
-  10 client-only (from 91/40). The 10 remaining names are transport/browser/
-  auth helpers, not unmodeled operations; the generator emits alias operations
+  11 client-only (from 91/40). The remaining names are transport/browser/
+  auth helpers plus the `fetchSessions` delegating wrapper; none is an
+  unmodeled operation; the generator emits alias operations
   sharing one REST path without duplicating the OpenAPI operation;
   session, loops, events, jobs, fidelity, ADMET, agents, LLM/quantum
   settings, radar, cost, obligations, notebooks, capabilities,
@@ -136,14 +137,14 @@ Still open:
   200%-zoom/reduced-motion checks are green, but they are not a manual pass.
 - Legacy retirement: the molecule canvas and `WidgetStage` stay until object
   cards reach parity and the old aliases have one release of support.
-- Session-list dedupe and custom error copy.
 - Write settlement is not yet uniform across every write; quantum dispatch
   estimate/dispatch and cancel now render accepted/applied/refused/unknown,
   including transport-vs-refusal for cancel.
 - Per-send model override has no backend contract; the composer links to Model
   Hub instead of faking one.
-- The 10 remaining client-only names are intentional transport/browser/auth
-  helpers, not unmodeled operations.
+- The 11 remaining client-only names are intentional transport/browser/auth
+  helpers (plus the delegating `fetchSessions` wrapper), not unmodeled
+  operations.
 - Manual VoiceOver/NVDA pass and legacy-surface removal. The manual record is
   scaffolded at `docs/manual-accessibility-2026-11-01.md` and explicitly says
   **NOT RUN**; a skip link, forced-colors/no-overflow, and 200%-zoom-equivalent
