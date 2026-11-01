@@ -101,4 +101,15 @@ describe('Workbench', () => {
     );
     expect(tree!.root.findAllByProps({ 'data-testid': 'k-chart' }).length).toBe(1);
   });
+
+  it('offers a list equivalent of the canvas', async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" />);
+    });
+    const toggle = tree!.root.findByProps({ title: 'Switch between canvas and list (text equivalent)' });
+    await act(async () => { toggle.props.onClick(); });
+    expect(tree!.root.findByProps({ className: 'k-workbench-list' })).toBeTruthy();
+    expect(tree!.root.findAllByType('table')).toHaveLength(1);
+  });
 });
