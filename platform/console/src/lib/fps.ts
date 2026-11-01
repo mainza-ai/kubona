@@ -50,3 +50,11 @@ export function pixelRatioStepDown(current: number, fps: number, min = MIN_DPR):
   const next = Math.round((current - step) * 4) / 4;
   return Math.max(min, next);
 }
+
+/** Step DPR back up only after a sustained healthy window; never above cap. */
+export function pixelRatioStepUp(current: number, fps: number, cap: number): number {
+  if (!Number.isFinite(current) || !Number.isFinite(fps) || !Number.isFinite(cap)) return current;
+  if (fps < 58 || current >= cap) return current;
+  const next = Math.round((current + 0.25) * 4) / 4;
+  return Math.min(cap, next);
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createFpsAccumulator, pixelRatioStepDown, COARSE_DPR_CAP, DESKTOP_DPR_CAP, MIN_DPR } from './fps';
+import { createFpsAccumulator, pixelRatioStepDown, pixelRatioStepUp, COARSE_DPR_CAP, DESKTOP_DPR_CAP, MIN_DPR } from './fps';
 
 describe('fps accumulator (R-23)', () => {
   it('reports fps once a second elapses', () => {
@@ -21,6 +21,20 @@ describe('fps accumulator (R-23)', () => {
     expect(acc.tick(500)).toBeNull();
     acc.reset();
     expect(acc.tick(0)).toBeNull();
+  });
+});
+
+describe('pixelRatioStepUp hysteresis', () => {
+  it('steps up only on sustained healthy fps and never above cap', () => {
+    expect(pixelRatioStepUp(1, 60, 2)).toBe(1.25);
+    expect(pixelRatioStepUp(1.75, 60, 2)).toBe(2);
+    expect(pixelRatioStepUp(2, 60, 2)).toBe(2);
+  });
+
+  it('holds on non-healthy fps or non-finite input', () => {
+    expect(pixelRatioStepUp(1.5, 57.9, 2)).toBe(1.5);
+    expect(pixelRatioStepUp(1.5, 60, NaN)).toBe(1.5);
+    expect(pixelRatioStepUp(NaN, 60, 2)).toBeNaN();
   });
 });
 

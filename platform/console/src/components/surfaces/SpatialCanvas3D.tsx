@@ -33,7 +33,7 @@ import {
   lensImageProxyUrl,
 } from '@/lib/api';
 import { ghostBandHeights, replayFrame } from '@/lib/vault-view';
-import { createFpsAccumulator, pixelRatioStepDown, COARSE_DPR_CAP, DESKTOP_DPR_CAP, type FpsAccumulator } from '@/lib/fps';
+import { createFpsAccumulator, pixelRatioStepDown, pixelRatioStepUp, COARSE_DPR_CAP, DESKTOP_DPR_CAP, type FpsAccumulator } from '@/lib/fps';
 import { buildPinPayload, pinValuesFromHit } from '@/lib/pin';
 import { useAttention } from '@/lib/attention-context';
 // Wave-3 code-split: the depth-encode chisel path (three + EXRExporter via
@@ -148,6 +148,7 @@ export function SpatialCanvas3D({
   // state updates at most once per second so the meter costs nothing).
   const [fps, setFps] = useState<number | null>(null);
   const fpsRef = useRef<FpsAccumulator | null>(null);
+  const fpsHealthyRef = useRef(0);
   const [selectedCoordinates, setSelectedCoordinates] = useState<{ r: number; energy: number; ledgerHash: string | null } | null>(null);
   const [hoveredCoordinates, setHoveredCoordinates] = useState<{ r: number; energy: number } | null>(null);
   // Wave-3 WebGL fail-closed: renderer creation throws (or the GPU context
@@ -1209,8 +1210,21 @@ export function SpatialCanvas3D({
       const sample = fpsAcc.tick(performance.now());
       if (sample) {
         setFps(Math.round(sample.fps));
-        const stepped = pixelRatioStepDown(renderer.getPixelRatio(), sample.fps);
-        if (stepped !== renderer.getPixelRatio()) renderer.setPixelRatio(stepped);
+        const current = renderer.getPixelRatio();
+        let stepped = pixelRatioStepDown(current, sample.fps);
+        if (stepped === current && sample.fps >= 58) {
+          fpsHealthyRef.current += 1;
+          if (fpsHealthyRef.current >= 4) {
+            stepped = pixelRatioStepUp(current, sample.fps, initialPixelRatioCap(
+              window.devicePixelRatio,
+              window.matchMedia('(pointer: coarse)').matches,
+            ));
+            if (stepped !== current) fpsHealthyRef.current = 0;
+          }
+        } else {
+          fpsHealthyRef.current = 0;
+        }
+        if (stepped !== current) renderer.setPixelRatio(stepped);
       }
       controls.update();
       renderer.render(scene, camera);

@@ -4671,3 +4671,9 @@ skipped is the exact failure this incident is about:
 - Render both Guardrails launch paths (mandate dispatch and offline simulate)
   as accepted/applied/refused/unknown while keeping the mandate/refusal copy.
   The idempotency request id now comes from the shared generator.
+
+## [2026-11-01] impl | 3D DPR step-up hysteresis
+
+- Add a pure pixelRatioStepUp policy and wire it to four sustained healthy FPS
+  windows, capped at the existing coarse/desktop DPR ceiling. Step-down still
+  wins immediately on sag.
