@@ -43,6 +43,8 @@ export type WorkbenchObject = {
   size: { width: number; height: number };
   facts: { label: string; value: string }[];
   chart?: ChartSpec;
+  /** Authoritative record this card projects; layout never owns content. */
+  ref?: { domain: string; id: string };
 };
 
 export const DEFAULT_CAMERA: WorkbenchCamera = { x: 36, y: 36, zoom: 0.82 };
@@ -122,6 +124,22 @@ export function workbenchPayload(
       ]),
     ),
   };
+}
+
+function defaultRef(object: WorkbenchObject, campaign: CampaignState): { domain: string; id: string } {
+  const session = campaign.session_id;
+  const notebook = campaign.notebook;
+  switch (object.kind) {
+    case 'campaign':
+      return { domain: 'campaign', id: session };
+    case 'proof':
+      return { domain: 'proof', id: notebook?.provenance_hash || `${session}:proof` };
+    case 'manuscript':
+    case 'note':
+      return { domain: 'notebook', id: notebook?.id || `${session}:notebook` };
+    default:
+      return { domain: 'campaign', id: `${session}:${object.kind}` };
+  }
 }
 
 function value(raw: unknown, fallback = 'UNVERIFIED'): string {
@@ -290,6 +308,7 @@ export function buildWorkbench(
     objects.push({
       id: `agent-run-${loop.id}`,
       kind: 'agent_run',
+      ref: { domain: 'loop', id: loop.id },
       label: 'Agent run',
       title: `Run ${loop.id.slice(0, 8)}`,
       detail: state === 'running' ? 'Agent is working; progress comes from the server record.' : 'Settled or paused; no live claim without a running record.',
@@ -306,6 +325,7 @@ export function buildWorkbench(
     objects.push({
       id: `job-${job.id}`,
       kind: 'job',
+      ref: { domain: 'job', id: job.id },
       label: 'Job',
       title: job.job_type || 'Unnamed job',
       detail: `Record ${job.id.slice(0, 8)} · ${job.compiler_used || 'compiler not recorded'}`,
@@ -340,6 +360,7 @@ export function buildWorkbench(
     objects.push({
       id: `approval-${obligation.id}`,
       kind: 'approval',
+      ref: { domain: 'obligation', id: obligation.id },
       label: 'Approval',
       title: `${obligation.subject_kind} · ${obligation.subject_id.slice(0, 12)}`,
       detail: `${obligation.owner} · ${obligation.disposition}`,
@@ -380,7 +401,7 @@ export function buildWorkbench(
       chart,
     });
   }
-  return objects;
+  return objects.map((object) => ({ ...object, ref: object.ref ?? defaultRef(object, campaign) }));
 }
 
 export type WorkbenchDocument = {
@@ -468,7 +489,7 @@ export function workbenchDocument(
       kind: object.kind,
       position: positions[object.id] ?? object.position,
       size: sizes[object.id] ?? object.size,
-      ref: { domain: 'campaign', id: sessionId },
+      ref: object.ref ?? { domain: 'campaign', id: sessionId },
       area: assignments[object.id] ?? null,
     })),
     links,

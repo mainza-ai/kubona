@@ -458,7 +458,7 @@
         }
       }
     },
-    "/api/sessions/{id}/campaign": {
+    "/api/sessions/${encodeURIComponent}(sessionId)/campaign": {
       "get": {
         "operationId": "fetchCampaignState",
         "tags": [
@@ -466,7 +466,7 @@
         ],
         "parameters": [
           {
-            "name": "id",
+            "name": "encodeURIComponent",
             "in": "path",
             "required": true,
             "schema": {
@@ -1169,6 +1169,44 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/agents.system"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workbench/layout": {
+      "get": {
+        "operationId": "fetchWorkbenchLayout",
+        "tags": [
+          "workbench"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: workbench.layout",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/workbench.layout"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "saveWorkbenchLayout",
+        "tags": [
+          "workbench"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: workbench.save",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/workbench.save"
                 }
               }
             }
@@ -2088,6 +2126,46 @@
         "type": "object",
         "required": [],
         "properties": {}
+      },
+      "workbench.layout": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "revision",
+          "document"
+        ],
+        "properties": {
+          "session_id": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "number"
+          },
+          "document": {
+            "type": "object",
+            "required": [],
+            "properties": {}
+          }
+        }
+      },
+      "workbench.save": {
+        "type": "object",
+        "required": [
+          "status",
+          "session_id",
+          "revision"
+        ],
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "number"
+          }
+        }
       },
       "obligations.open": {
         "type": "object",
@@ -3410,7 +3488,9 @@
       }
     }
   },
-  "x-kubona-unmodeled-functions": [],
+  "x-kubona-unmodeled-functions": [
+    "isAuthenticatedSession"
+  ],
   "x-kubona-client-only-functions": [
     "apiFetch",
     "applyMetasearchProposal",

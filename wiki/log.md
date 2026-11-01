@@ -4384,3 +4384,14 @@ skipped is the exact failure this incident is about:
   `requestOperation`. Added an explicit **NOT RUN** manual VoiceOver/NVDA
   record so the remaining pass is not mistaken for green. Updated
   [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Phase 0 workbench contract hardening
+
+- Workbench objects now persist distinct record refs; the API rejects unknown
+  ref domains, links to missing objects, unknown area assignments, duplicate
+  links/areas, and content bodies. A 409 carries the current revision and the
+  workbench exposes a Reload action.
+- The contract inventory now understands `requestOperation()` wrappers,
+  restoring 91 modeled functions and adding the workbench layout path
+  (85 OpenAPI paths, 87 schemas, 1 unmodeled/streaming). Updated
+  [[remaining-work]]; no new page.

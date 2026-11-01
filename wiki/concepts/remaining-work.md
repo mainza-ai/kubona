@@ -75,8 +75,11 @@ Still open:
 
 - The workbench object-kind set is covered: job, agent-run, table, approval,
   and note cards join the campaign/hypothesis/circuit/measurement/evidence/
-  proof/manuscript/chart cards. Areas can be renamed, moved, resized, and
-  assigned; the canvas virtualizes past 24 objects.
+  proof/manuscript/chart cards. Records now carry distinct refs; links, area
+  assignments, and content bodies are validated at the API. Areas can be
+  renamed, moved, resized, and assigned; a 409 exposes the current revision and
+  a Reload action instead of overwriting. The canvas virtualizes past 24
+  objects.
 - Backend readiness, spend, fleet/radar, flight-recorder telemetry, and
   job progress now share a serialized, visibility-gated, backoff-bounded
   polling store with terminal-stop support. Copilot tribunal-turn polling is

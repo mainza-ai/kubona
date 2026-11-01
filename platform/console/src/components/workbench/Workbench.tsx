@@ -72,6 +72,7 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
   const [areas, setAreas] = useState<WorkbenchArea[]>([]);
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
   const [assignments, setAssignments] = useState<Record<string, string>>({});
+  const [conflictRevision, setConflictRevision] = useState<number | null>(null);
   const [write, setWrite] = useState<WriteSettlement>(IDLE_WRITE);
   const objects = useMemo(
     () => baseObjects.map((object) => ({
@@ -104,6 +105,18 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
     });
   }, []);
 
+  const applySaved = useCallback((saved: { revision: number; document: Record<string, unknown> }) => {
+    revision.current = saved.revision;
+    const doc = readWorkbenchDocument(saved.document);
+    setCamera(doc.camera);
+    setPositions(doc.positions);
+    setSizes(doc.sizes);
+    setAreas(doc.areas);
+    setAssignments(doc.assignments);
+    setConflictRevision(null);
+    loaded.current = true;
+  }, []);
+
   useEffect(() => {
     loaded.current = false;
     if (!sessionId) {
@@ -115,14 +128,7 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
       const saved = await fetchWorkbenchLayout(sessionId);
       if (!live) return;
       if (saved && saved.revision > 0) {
-        revision.current = saved.revision;
-        const doc = readWorkbenchDocument(saved.document);
-        setCamera(doc.camera);
-        setPositions(doc.positions);
-        setSizes(doc.sizes);
-        setAreas(doc.areas);
-        setAssignments(doc.assignments);
-        loaded.current = true;
+        applySaved(saved);
         return;
       }
       const legacy = await fetchCanvasLayout(sessionId);
@@ -136,7 +142,13 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
     return () => {
       live = false;
     };
-  }, [sessionId]);
+  }, [sessionId, applySaved]);
+
+  const reloadLatest = useCallback(async () => {
+    if (!sessionId) return;
+    const saved = await fetchWorkbenchLayout(sessionId);
+    if (saved && saved.revision > 0) applySaved(saved);
+  }, [sessionId, applySaved]);
 
   // Save the camera only, never a duplicate of the campaign content.
   useEffect(() => {
@@ -153,6 +165,9 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
         if (out.ok) {
           if (typeof out.revision === 'number') revision.current = out.revision;
           setWrite(settleWrite(requestId, 'applied', `revision ${revision.current}`));
+        } else if (out.conflict) {
+          setConflictRevision(out.currentRevision ?? null);
+          setWrite(settleWrite(requestId, 'refused', out.error || 'layout changed elsewhere'));
         } else if (out.unknown) {
           setWrite(settleWrite(requestId, 'unknown', 'save outcome not confirmed'));
         } else {
@@ -397,6 +412,11 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
             })}
           >
             {assignments[selected] === areas[0].id ? 'Unassign' : 'Assign to area'}
+          </Button>
+        )}
+        {conflictRevision !== null && (
+          <Button type="button" size="compact" onClick={() => void reloadLatest()} title="Reload the latest server layout; local unsaved layout changes are discarded">
+            Reload layout
           </Button>
         )}
         <span className="k-workbench-state" role="status" aria-live="polite">

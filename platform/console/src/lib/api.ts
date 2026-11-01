@@ -798,6 +798,7 @@ export async function fetchWorkbenchLayout(sessionId: string): Promise<{ revisio
     if (!res.ok) return null;
     const data = (await res.json()) as { revision?: unknown; document?: unknown };
     if (typeof data.revision !== 'number' || !data.document || typeof data.document !== 'object') return null;
+    contract('workbench.layout', data);
     return { revision: data.revision, document: data.document as Record<string, unknown> };
   } catch {
     return null;
@@ -808,17 +809,29 @@ export async function saveWorkbenchLayout(
   sessionId: string,
   revision: number,
   document: Record<string, unknown>,
-): Promise<{ ok: boolean; revision?: number; conflict?: boolean; unknown?: boolean; error?: string }> {
+): Promise<{ ok: boolean; revision?: number; conflict?: boolean; currentRevision?: number; unknown?: boolean; error?: string }> {
   try {
     const res = await apiFetch(`${API_BASE}/api/workbench/layout?session_id=${encodeURIComponent(sessionId)}`, {
       method: 'PUT',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify({ revision, document }),
     });
-    if (res.status === 409) return { ok: false, conflict: true, error: 'Layout changed elsewhere — reload to keep both.' };
+    if (res.status === 409) {
+      const data = (await res.json().catch(() => ({}))) as { current_revision?: unknown };
+      return {
+        ok: false,
+        conflict: true,
+        currentRevision: typeof data.current_revision === 'number' ? data.current_revision : undefined,
+        error: 'Layout changed elsewhere — reload to keep both.',
+      };
+    }
     if (!res.ok) return { ok: false, error: `HTTP ${res.status}` };
     const data = (await res.json()) as { revision?: unknown };
-    return { ok: true, revision: typeof data.revision === 'number' ? data.revision : revision + 1 };
+    if (typeof data.revision === 'number') {
+      contract('workbench.save', data);
+      return { ok: true, revision: data.revision };
+    }
+    return { ok: true, revision: revision + 1 };
   } catch (err) {
     return { ok: false, unknown: true, error: String(err) };
   }
