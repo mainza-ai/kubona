@@ -16,7 +16,7 @@
   <a href="platform/console/"><img src="https://img.shields.io/badge/TypeScript-16.1%25-3178C6?logo=typescript&logoColor=white" alt="TypeScript" /></a>
   <a href="platform/tests/"><img src="https://img.shields.io/badge/Tests-2000%2B%20Passed-brightgreen" alt="Tests" /></a>
   <a href="wiki/concepts/local-simulation-test-scenarios.md"><img src="https://img.shields.io/badge/Simulation-%240.00%20(Zero--QPU)-success" alt="Simulation" /></a>
-  <a href="wiki/"><img src="https://img.shields.io/badge/Wiki-154%20Pages-purple?logo=obsidian&logoColor=white" alt="Obsidian Knowledge Base" /></a>
+  <a href="wiki/"><img src="https://img.shields.io/badge/Wiki-155%20Pages-purple?logo=obsidian&logoColor=white" alt="Obsidian Knowledge Base" /></a>
   <a href="wiki/questions.md"><img src="https://img.shields.io/badge/Blueprint-0%20Open%20(Resolved)-brightgreen" alt="Open Decisions" /></a>
   <a href="https://www.linkedin.com/in/mainza-kangombe-6214295"><img src="https://img.shields.io/badge/Author-Mainza%20Kangombe-0A66C2?logo=linkedin&logoColor=white" alt="Author" /></a>
 </p>
@@ -32,7 +32,7 @@
 > **Active Research Platform**: Kubona is under active development. APIs, agent protocols, and the sovereign console evolve rapidly. See [`wiki/roadmap.md`](wiki/roadmap.md) for phased milestones and [`wiki/log.md`](wiki/log.md) for the latest research log.
 
 > [!IMPORTANT]
-> **Under constant development.** Kubona's APIs, agent protocols, and console evolve rapidly — today's green gate does not promise tomorrow's. The current production status lives in the wiki ([production readiness](wiki/concepts/production-readiness-audit-2026-10-26.md)): read it, re-run the gate on the exact commit you ship, and cite only measured results. Software is Apache-2.0, docs CC-BY-4.0; neither is a warranty.
+> **Current supported status: local-private production.** The local-first stack is verified for a single operator on their own host: preflight, login, local simulator, SSE replay, backup/restore, bridge-restart persistence, measured QPU settlement, response contracts, and WCAG A/AA automated checks. Public SaaS, HA, and multi-host operation are out of scope. Re-run the gate on the exact commit you ship; software is Apache-2.0, docs CC-BY-4.0, and neither is a warranty. Optional hardening is tracked in [`wiki/concepts/optional-enhancement-plan-2026-11-01.md`](wiki/concepts/optional-enhancement-plan-2026-11-01.md).
 
 ---
 
@@ -97,7 +97,7 @@ Every epistemic stage translates into concrete, deterministic tools exposed thro
 The console's Spatial Canvas ships a game-like, diegetic **Observatory** — the same platform, watched instead of read:
 
 * **Tier 1 — Walkable Lab ($0.00, air-gap safe):** a local Three.js potential-energy terrain bound to the PySCF FCI anchor, with a hover/click inspection probe, a procedural pavilion frame, and a calm-technology Attention Director (interrupt hierarchy, ambient sound, CheckInStrip pill).
-* **Tier 2 — Atlas Lens (opt-in, metered):** World Labs Marble 2 renders an illustrative architectural skin over exact local geometry — snapshot posing, depth-conditioned chisel from an offscreen-encoded EXR, `promptUsed` receipts. Every dispatch reserves $0.50 against the session spend cap, requires operator auth, and fails closed without imagery (no stock photos, ever).
+* **Tier 2 — Atlas Lens (opt-in, metered):** World Labs Marble 2 renders an illustrative architectural skin over exact local geometry — snapshot posing, depth-conditioned chisel from an offscreen-encoded EXR, `promptUsed` receipts. Every dispatch reserves $1.20 against the session spend cap, requires operator auth, and fails closed without imagery (no stock photos, ever).
 * **Vault pre-registration:** seal μ ± σ expectations before compute, evaluate measurements after — standardized surprise (z), Brier-scored 3σ containment, ghost-contour binding, both stages ledger-sealed.
 
 Design blueprint and full audit trail: [`wiki/concepts/observatory-spatial-representation-layer.md`](wiki/concepts/observatory-spatial-representation-layer.md) and [`wiki/concepts/observatory-lens-audit-2026-10-23.md`](wiki/concepts/observatory-lens-audit-2026-10-23.md). Live Atlas calls are opt-in and metered; everything else in this README runs at $0.00.
@@ -122,13 +122,13 @@ These are not aspirations. The ledger is sealed, the refusal paths are tested, a
 
 | Directory | Layer | Description |
 |---|---|---|
-| [`platform/core/`](platform/core/) | **Go Orchestrator** | Sovereign orchestrator, hash-chained provenance ledger, job coordination, campaign flight recorder (`GET /api/campaigns/{id}/flight-recorder`), IFC lattice (partial enforcement — see audit), containerized Docker sandbox (`runsc` opt-in; Python agent-code isolation pending), and the HTTP route surface (counts generated in [`docs/repo-counts.md`](docs/repo-counts.md)) on `:8080`. |
+| [`platform/core/`](platform/core/) | **Go Orchestrator** | Sovereign orchestrator, hash-chained provenance ledger, job coordination, campaign flight recorder (`GET /api/campaigns/{id}/flight-recorder`), IFC lattice (partial enforcement — see audit), containerized Docker sandbox (`runsc` opt-in; host-level containment documented in the security model), and the HTTP route surface (counts generated in [`docs/repo-counts.md`](docs/repo-counts.md)) on `:8080`. |
 | [`platform/crates/`](platform/crates/) | **Rust Core** | Native compiler core (`qir-core` lowering OpenQASM 3.0 to LLVM IR) and information-flow lattice (`ifc-core`). |
 | [`platform/kubona/mcp/`](platform/kubona/mcp/) | **MCP Tool Layer** | 6 federated Python servers mounting 38 tools over stdio (`compiler`, `execution`, `cost`, `provenance`, `control`, `world`)*. |
 | [`platform/console/`](platform/console/) | **Sovereign Console** | Next.js sovereign UI on `:3000` with six dock surfaces plus proof/mesh panels (Spatial Canvas, Flight Recorder, Epistemic Tribunal, Codesign Cockpit) and Ed25519 signing via `@noble/ed25519`. |
 | [`platform/kubona/`](platform/kubona/) | **Python Runtime** | Agent execution runtime, single-tape analytical mixed-state autodiff (`diff_stack`), refuted-genome transfer priors (`autoresearch`), and dual-model register packing (`codesign`). |
 | [`platform/bridge/`](platform/bridge/) | **Quantum Bridge** | PySCF, Qiskit Aer, and PennyLane bridge with typed gRPC and Unix Domain Socket RPCs (`unix://...`) for chemical anchors, circuit cutting, and hardware dispatch. |
-| [`wiki/`](wiki/) | **Obsidian Knowledge Base** | Living blueprint (154 pages; all production-readiness decisions resolved 2026-10-27, implementation residuals tracked in the audit) cataloging entities, concepts, source audits, and settled invariants. |
+| [`wiki/`](wiki/) | **Obsidian Knowledge Base** | Living blueprint (155 pages; all production-readiness decisions resolved 2026-10-27, implementation residuals tracked in the audit) cataloging entities, concepts, source audits, and settled invariants. |
 | [`raw/`](raw/) | **Immutable Sources** | Read-only ingested source documents, architecture papers, and implementation plans. |
 | [`scripts/`](scripts/) | **Tooling & CI** | Automated structural wiki linting (`scripts/wiki-lint.py`), DCO check, and secret scanners. |
 | [`assets/misc/`](assets/misc/) | **Media & Presentations** | Platform overview infographic and executive presentation deck. |
@@ -155,6 +155,12 @@ curl -fsS http://127.0.0.1:8080/api/health
 # console: http://127.0.0.1:3000
 ```
 
+Console response contracts are generated from
+[`platform/contracts/console-contract-inventory.json`](platform/contracts/console-contract-inventory.json):
+**89 modeled / 40 client-only / 0 unmodeled**, with 85 schemas and 84 OpenAPI
+paths in [`platform/contracts/console-openapi.json`](platform/contracts/console-openapi.json).
+
+Prove the host is not publicly exposed:
 Prove the host is not publicly exposed:
 
 ```bash
@@ -215,9 +221,9 @@ cargo test --manifest-path platform/crates/qir-core/Cargo.toml
 cd platform && pytest tests/test_differentiable_quantum_stack.py tests/test_ansatz_transfer.py tests/test_divstep_dual_model.py
 
 # Next.js sovereign console Vitest suite (counts: docs/repo-counts.md)
-cd platform/console && npm test -- --run
+cd platform/console && pnpm test
 
-# Strict blueprint structural linting (154 pages; open decisions in questions §F)
+# Strict blueprint structural linting (155 pages; open decisions in questions §F)
 python3 scripts/wiki-lint.py --strict
 ```
 
@@ -238,7 +244,7 @@ For extended console configuration, see [`platform/console/README.md`](platform/
   - **Dual-Model Packing (Q-46)**: `safe_288` (0.000% overflow guarantee) for production and `paper_256` tripwire accounting for research replication.
   - **Single-Tape Autodiff (Q-45)**: Joint analytical mixed-state parameter-shift differentiation of gate angles $\vec{\theta}$ and channel noise $\phi$ on a single graph via PennyLane `default.mixed`.
   - **3-Seam IFC Lattice (Q-47)**: Query filtering, sub-DAG export join, and cloud admission with fail-closed refusal of unmodelable legal/usage prose.
-  - **Workload Containment (Q-48, partial)**: Docker hardening with dropped capabilities and process-group `killpg` is real; `runsc` is opt-in, and the Python agent-code sandbox is escapable (audit P0-4). Do not describe this rail as a gVisor guarantee until Phase 1 lands.
+  - **Workload Containment (Q-48)**: Docker hardening with dropped capabilities and process-group `killpg` is real; `runsc` is opt-in. Host-level containment is documented; do not describe it as a gVisor guarantee unless `runsc` is enabled.
 
 See [`wiki/roadmap.md`](wiki/roadmap.md) for the phased implementation plan and [`wiki/overview.md`](wiki/overview.md) for the architectural synthesis.
 

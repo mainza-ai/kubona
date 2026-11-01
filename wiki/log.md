@@ -4159,3 +4159,10 @@ skipped is the exact failure this incident is about:
 - Remaining operator work is unchanged: vendor runtime rate card, paid QPU
   invoice/run evidence, and the historical cancelled-vs-completed settlement
   row. The 606 chain faults remain a disposition, not a rewrite target.
+
+## [2026-11-01] plan | Optional enhancement program
+
+- Added [[optional-enhancement-plan-2026-11-01]]: API versioning seam,
+  external alert envelope/routing, deeper VoiceOver/NVDA and canvas text
+  audit, and deferred at-rest/observability hardening.
+- Linked it from [[remaining-work]] and [[index]]; census is now 155 pages.

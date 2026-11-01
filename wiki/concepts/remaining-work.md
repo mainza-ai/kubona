@@ -114,6 +114,13 @@ status: tracked
 >   on 2026-10-30: the host ledger has **606 pre-existing chain faults**, so
 >   the FK-quarantine snapshot is forensic, not a verified restore source.
 
+## Optional enhancement program (2026-11-01)
+
+Post-production work is sequenced in
+[[optional-enhancement-plan-2026-11-01]]: API versioning, external alert
+routing, deeper assistive-technology audit, and deferred at-rest/observability
+hardening. None blocks the supported local-private deployment.
+
 ## A · Operator deeds (blocked on the human — no slice can deliver these)
 
 - `gho_…` token: `credential.helper=store` was dropped globally and

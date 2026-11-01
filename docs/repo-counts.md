@@ -14,7 +14,7 @@ CI runs `python3 scripts/repo-counts.py --check` and fails when this file is sta
 | Rust tests | 29 | `#[test]` attributes under `platform/crates` |
 | MCP servers | 6 | reviewed `platform/contracts/mcp-catalog.json` |
 | MCP tools | 38 | reviewed `platform/contracts/mcp-catalog.json` |
-| Wiki pages | 154 | markdown files under `wiki/` |
+| Wiki pages | 155 | markdown files under `wiki/` |
 
 The console case count is a source-level count. Vitest is the runtime authority;
 when it differs, regenerate this file and note the runtime count in the change.
