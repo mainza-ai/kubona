@@ -4475,3 +4475,9 @@ skipped is the exact failure this incident is about:
 - Two selected cards can be linked with supports/uses/depends_on/contradicts/
   same_as/thread; custom links persist and can be removed from the list view.
   Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Inspector object actions
+
+- The workbench exposes focus/remove via an imperative handle; the inspector
+  can open, focus, or remove the selected object without duplicating records.
+  Updated [[remaining-work]]; no new page.
