@@ -1111,12 +1111,16 @@ export async function fetchQuantumJob(jobId: string): Promise<Record<string, unk
   }
 }
 
-export async function cancelQuantumJob(jobId: string, reason?: string): Promise<{ ok: boolean; error?: string; provider_recall_attempted?: boolean; provider_recall_status?: string }> {
+export async function cancelQuantumJob(jobId: string, reason?: string): Promise<{ ok: boolean; error?: string; unknown?: boolean; provider_recall_attempted?: boolean; provider_recall_status?: string }> {
   try {
     const data = await requestOperation('cancelQuantumJob', { params: { id: jobId }, body: { reason: reason ?? '' } });
     return { ok: data.ok === true, provider_recall_attempted: data.provider_recall_attempted, provider_recall_status: data.provider_recall_status };
   } catch (err) {
-    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+    return {
+      ok: false,
+      unknown: !(err instanceof OperationError) || err.status === null,
+      error: String(err instanceof Error ? err.message : err).slice(0, 280),
+    };
   }
 }
 
