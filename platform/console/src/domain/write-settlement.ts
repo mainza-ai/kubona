@@ -6,6 +6,10 @@ export type WriteSettlement = {
   detail: string;
 };
 
+export function newWriteRequestId(): string {
+  return globalThis.crypto?.randomUUID?.() ?? `write-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
 export const IDLE_WRITE: WriteSettlement = { phase: 'idle', requestId: null, detail: '' };
 
 export function acceptWrite(requestId: string, detail = 'request accepted'): WriteSettlement {

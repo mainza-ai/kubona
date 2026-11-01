@@ -4263,3 +4263,9 @@ skipped is the exact failure this incident is about:
 - `/api/config` now serves the workbench flag; disabling it hides the
   Workbench tab and lands the shell on Orbital Space without a rebuild.
   Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Obligation-close settlement
+
+- The obligations panel now uses the shared write settlement for close
+  attempts; accepted is not reported as applied. Updated
+  [[remaining-work]]; no new page.
