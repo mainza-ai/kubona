@@ -134,16 +134,20 @@ test.describe('Kubona console against the real local stack', () => {
     await expect(page.getByText('TQ = 50', { exact: true })).toBeVisible();
   });
 
-  test('mobile shell keeps the copilot closed until opened as an overlay', async ({ page }) => {
+  test('mobile shell keeps the inspector closed until opened as an overlay', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto('/');
     await expectReady(page);
-    const openCopilot = page.getByRole('button', { name: /Kubona Copilot/ });
-    await expect(openCopilot).toBeVisible();
-    await expect(page.getByRole('button', { name: /Close Copilot/ })).toHaveCount(0);
-    await openCopilot.click();
+    const openInspector = page.getByRole('button', { name: /Inspector/ });
+    await expect(openInspector).toBeVisible();
+    await expect(page.getByRole('complementary', { name: 'Inspector' })).toHaveCount(0);
+    await openInspector.click();
+    await expect(page.getByRole('complementary', { name: 'Inspector' })).toBeVisible();
+    await expect(page.getByRole('tab', { name: 'Details' })).toHaveAttribute('aria-selected', 'true');
+    await page.getByRole('tab', { name: 'Copilot' }).click();
     await expect(page.getByRole('button', { name: /Close Copilot/ })).toBeVisible();
-    await expect(page.getByRole('complementary', { name: 'Kubona co-pilot' })).toBeVisible();
+    await page.getByRole('button', { name: 'Close inspector' }).click();
+    await expect(page.getByRole('complementary', { name: 'Inspector' })).toHaveCount(0);
   });
 
   test('command palette traps focus and Escape closes it', async ({ page }) => {

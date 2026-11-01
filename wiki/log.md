@@ -4395,3 +4395,10 @@ skipped is the exact failure this incident is about:
   restoring 91 modeled functions and adding the workbench layout path
   (85 OpenAPI paths, 87 schemas, 1 unmodeled/streaming). Updated
   [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Inspector shell slice
+
+- Added the right-side Inspector with Details/Evidence/Jobs/Copilot, closed by
+  default, keyboard/pointer resize, overlay below `lg`, persisted width, and
+  selected-object details. Moved job polling to the page projection and made
+  polling stores hot-swap their loader. Updated [[remaining-work]]; no new page.

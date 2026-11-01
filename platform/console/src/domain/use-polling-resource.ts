@@ -13,6 +13,7 @@ export function usePollingResource<T>(
   options: { intervalMs: number; hiddenIntervalMs?: number; maxBackoffMs?: number; shouldContinue?: (data: T) => boolean },
 ) {
   const [current] = useState<PollingStore<T>>(() => createPollingStore(load, options));
+  useEffect(() => { current.setLoader(load); }, [current, load]);
   useEffect(() => () => current.dispose(), [current]);
   const state = useResource(current);
   return { ...state, refresh: current.refresh };

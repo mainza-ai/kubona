@@ -4,7 +4,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { LayoutGrid, List, Maximize2, Minus, Plus } from 'lucide-react';
 import type { CampaignState, Job, Loop } from '@/types';
 import { fetchCanvasLayout, fetchOpenObligations, fetchWorkbenchLayout, saveWorkbenchLayout, type ObligationRow } from '@/lib/api';
-import { requestOperation } from '@/lib/generated/request';
 import { Chart } from '@/components/data/DataChart';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -34,10 +33,11 @@ type Props = {
   loops?: Loop[];
   jobs?: Job[];
   obligations?: ObligationRow[];
+  onSelectObject?: (object: WorkbenchObject | null) => void;
   onOpenObject?: (kind: WorkbenchObjectKind) => void;
 };
 
-export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs, obligations: suppliedObligations, onOpenObject }: Props) {
+export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs, obligations: suppliedObligations, onSelectObject, onOpenObject }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const revision = useRef(0);
   const loaded = useRef(false);
@@ -51,15 +51,7 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
   const [selected, setSelected] = useState<string | null>(null);
   const [positions, setPositions] = useState<WorkbenchPositions>({});
   const [sizes, setSizes] = useState<WorkbenchSizes>({});
-  const { data: fetchedJobs } = usePollingResource(
-    async () => {
-      if (!sessionId) return [];
-      const data = await requestOperation('fetchJobs', { query: { session_id: sessionId } });
-      return data.jobs as unknown as Job[];
-    },
-    { intervalMs: 5000 },
-  );
-  const jobs = useMemo(() => suppliedJobs ?? fetchedJobs ?? [], [suppliedJobs, fetchedJobs]);
+  const jobs = useMemo(() => suppliedJobs ?? [], [suppliedJobs]);
   const { data: fetchedObligations } = usePollingResource(async () => {
     const out = await fetchOpenObligations();
     if (!out.ok) throw new Error(out.error);
@@ -74,6 +66,10 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
   const [assignments, setAssignments] = useState<Record<string, string>>({});
   const [conflictRevision, setConflictRevision] = useState<number | null>(null);
   const [write, setWrite] = useState<WriteSettlement>(IDLE_WRITE);
+  useEffect(() => {
+    if (!campaign) onSelectObject?.(null);
+  }, [campaign, onSelectObject]);
+
   const objects = useMemo(
     () => baseObjects.map((object) => ({
       ...object,
@@ -82,6 +78,11 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
     })),
     [baseObjects, positions, sizes],
   );
+  const selectObject = useCallback((object: WorkbenchObject) => {
+    setSelected(object.id);
+    onSelectObject?.(object);
+  }, [onSelectObject]);
+
   const areaBounds = useMemo(() => {
     if (objects.length === 0) return null;
     const minX = Math.min(...objects.map((object) => object.position.x)) - 24;
@@ -502,7 +503,7 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
               object={object}
               selected={selected === object.id}
               assigned={Boolean(areas[0] && assignments[object.id] === areas[0].id)}
-              onSelect={() => setSelected(object.id)}
+              onSelect={() => selectObject(object)}
               onPointerDown={(event) => onCardPointerDown(event, object)}
               onPointerMove={onCardPointerMove}
               onPointerUp={onCardPointerUp}

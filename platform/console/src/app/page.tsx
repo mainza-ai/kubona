@@ -3,7 +3,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Sparkles, Plus, Zap, Info, HelpCircle, Trash2, Clock, Box, X } from 'lucide-react';
 import { Session, LedgerEvent, RunPhase, ProbeId } from '@/types';
-import { fetchSessions, fetchSession, createSession, deleteSession, fetchLoops, fetchEvents, fetchCampaignState, API_BASE, CONSOLE_WORKBENCH_ENABLED, authHeaders, configureApiBase, apiFetch, UNAUTH_EVENT, API_PROBLEM_EVENT, type ApiProblem } from '@/lib/api';
+import { fetchSessions, fetchSession, createSession, deleteSession, fetchLoops, fetchJobs, fetchEvents, fetchCampaignState, API_BASE, CONSOLE_WORKBENCH_ENABLED, authHeaders, configureApiBase, apiFetch, UNAUTH_EVENT, API_PROBLEM_EVENT, type ApiProblem } from '@/lib/api';
+import { usePollingResource } from '@/domain/use-polling-resource';
+import { Inspector, type InspectorTab } from '@/components/shell/Inspector';
+import type { WorkbenchObject } from '@/components/workbench/workbench-model';
 import { mergeSessionEvents, useSessionStream } from '@/lib/useSessionStream';
 import { useCampaignProjection } from '@/lib/useCampaignProjection';
 import { useLoopsProjection } from '@/lib/useLoopsProjection';
@@ -222,6 +225,11 @@ export default function Home() {
   const bootstrappedSession = useRef(false);
   const prevPhase = useRef<RunPhase>('idle');
   const { loops, setLoops, refresh: refreshLoops } = useLoopsProjection(currentSessionId || null);
+  const { data: jobsData } = usePollingResource(
+    async () => (currentSessionId ? fetchJobs(currentSessionId) : []),
+    { intervalMs: 5000 },
+  );
+  const jobs = jobsData ?? [];
   const { campaign, setCampaign, reload: reloadCampaign } = useCampaignProjection(currentSessionId || null);
   const [events, setEvents] = useState<LedgerEvent[]>([]);
   const [nowTick, setNowTick] = useState(0);
@@ -265,8 +273,10 @@ export default function Home() {
   // via matchMedia at mount; the existing toggle reopens it as an overlay.
   // The workbench gets the room first. Copilot opens on demand (the button
   // below, the palette, or a run's question), never as a permanent column.
-  const [showCopilot, setShowCopilot] = useState(false);
+  const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [inspectorTab, setInspectorTab] = useState<InspectorTab>('details');
   const [isCopilotExpanded, setIsCopilotExpanded] = useState(false);
+  const [selectedWorkbenchObject, setSelectedWorkbenchObject] = useState<WorkbenchObject | null>(null);
   const [showCampaignMenu, setShowCampaignMenu] = useState(false);
   const [campaignFilter, setCampaignFilter] = useState('');
 
@@ -618,7 +628,9 @@ export default function Home() {
       case 'palette':
         setIsCommandPaletteOpen((v) => !v); break;
       case 'copilot':
-        setShowCopilot((v) => !v); break;
+        setInspectorOpen((v) => !v);
+        setInspectorTab('copilot');
+        break;
       case 'about':
         setIsAboutOpen(true); break;
       case 'new':
@@ -839,7 +851,7 @@ export default function Home() {
         onNewCampaign={handleCreateSession}
         onEmergencyAbort={handleEmergencyAbort}
         onOpenAbout={() => setIsAboutOpen(true)}
-        onToggleCopilot={() => setShowCopilot((v) => !v)}
+        onToggleCopilot={() => { setInspectorOpen(true); setInspectorTab('copilot'); }}
         onOpenShortcuts={() => setIsShortcutsOpen(true)}
       />
       <KeyboardShortcutsModal
@@ -1056,7 +1068,15 @@ export default function Home() {
                 key={currentSessionId}
                 campaign={campaign}
                 loops={loops}
+                jobs={jobs}
                 sessionId={currentSessionId || undefined}
+                onSelectObject={(object) => {
+                  setSelectedWorkbenchObject(object);
+                  if (object) {
+                    setInspectorTab('details');
+                    setInspectorOpen(true);
+                  }
+                }}
                 onOpenObject={(kind) => {
                   if (kind === 'chart' || kind === 'agent_run' || kind === 'job') setSurface('recorder');
                   else if (kind === 'approval') { setSurface('mesh'); setMeshTab('guardrails'); }
@@ -1212,23 +1232,16 @@ export default function Home() {
         )}
       </div>
 
-      {/* Right: native co-pilot surface */}
-      {/* Right: native co-pilot surface. Below lg this is an overlay drawer
-          (closed by default at mount) over a dimmed backdrop; at lg+ it is
-          the fixed side panel. The existing toggle opens/closes both. */}
-      {showCopilot ? (
-        <>
-          <div
-            aria-hidden
-            onClick={() => setShowCopilot(false)}
-            className="fixed inset-0 z-40 bg-black/60 lg:hidden"
-          />
-          <aside
-            aria-label="Kubona co-pilot"
-            className={`${
-              isCopilotExpanded ? 'lg:w-[640px] xl:w-[700px]' : 'lg:w-96'
-            } fixed inset-y-0 right-0 z-50 flex w-[min(24rem,calc(100vw-3rem))] flex-col shrink-0 border-l border-white/5 bg-[#0A0C10] transition-all duration-300 shadow-2xl overflow-hidden lg:static lg:z-auto`}
-          >
+      <Inspector
+        open={inspectorOpen}
+        tab={inspectorTab}
+        onTab={setInspectorTab}
+        onClose={() => setInspectorOpen(false)}
+        campaign={campaign}
+        selectedObject={selectedWorkbenchObject}
+        jobs={jobs}
+        expanded={isCopilotExpanded}
+        copilot={
           <CopilotDrawer
             sessionId={currentSessionId}
             campaign={campaign}
@@ -1246,26 +1259,22 @@ export default function Home() {
               setCurrentSessionId(id);
               refreshData();
             }}
-            onClose={() => setShowCopilot(false)}
+            onClose={() => setInspectorOpen(false)}
           />
-        </aside>
-        </>
-      ) : (
+        }
+      />
+      {!inspectorOpen && (
         <button
-          onClick={() => setShowCopilot(true)}
+          onClick={() => { setInspectorOpen(true); setInspectorTab('details'); }}
           className="fixed bottom-6 right-6 z-40 px-4 py-2.5 rounded-full bg-[#0C101A] border border-cyan-500/40 hover:border-cyan-400 text-white shadow-2xl flex items-center space-x-2.5 group transition-all duration-200 hover:scale-105 active:scale-95"
-          title={`Open Kubona Copilot (${SHORTCUTS.copilot})`}
+          title={`Open Inspector (${SHORTCUTS.copilot})`}
         >
           <div className="relative">
             <Sparkles className="w-4 h-4 text-cyan-400 animate-float-gentle" />
             <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           </div>
-          <span className="text-xs font-semibold text-slate-200 group-hover:text-white">
-            Kubona Copilot
-          </span>
-          <kbd className="px-1.5 py-0.5 rounded bg-black/50 text-[12px] font-code text-cyan-300 border border-white/10">
-            {SHORTCUTS.copilot}
-          </kbd>
+          <span className="text-xs font-semibold text-slate-200 group-hover:text-white">Inspector</span>
+          <kbd className="px-1.5 py-0.5 rounded bg-black/50 text-[12px] font-code text-cyan-300 border border-white/10">{SHORTCUTS.copilot}</kbd>
         </button>
       )}
       </AttentionProvider>
