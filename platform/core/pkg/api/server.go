@@ -3708,6 +3708,10 @@ func (s *Server) handleCanvasLayout(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "layout too large: max 256KB", http.StatusBadRequest)
 			return
 		}
+		if err := validateWorkbenchLayout(raw); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 		if _, err := s.ledger.DB().Exec(
 			`INSERT INTO canvas_layouts (session_id, layout_json, updated_at) VALUES (?, ?, CURRENT_TIMESTAMP)
 			 ON CONFLICT(session_id) DO UPDATE SET layout_json = excluded.layout_json, updated_at = CURRENT_TIMESTAMP`,
@@ -3720,6 +3724,70 @@ func (s *Server) handleCanvasLayout(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 	}
+}
+
+// validateWorkbenchLayout validates the optional v2 workbench document while
+// preserving the legacy canvas payloads (mode/camera only). It bounds counts,
+// coordinates, and zoom so one client cannot turn a layout row into a hot
+// rendering or storage problem. Content bodies are never accepted: the
+// workbench stores references and view state only.
+func validateWorkbenchLayout(raw []byte) error {
+	var envelope map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		// Legacy layouts may be arrays or scalars; only a workbench document
+		// asks for the stricter object shape.
+		return nil
+	}
+	workbenchRaw, ok := envelope["workbench"]
+	if !ok {
+		return nil
+	}
+	var workbench struct {
+		Version int `json:"version"`
+		Camera  *struct {
+			X    float64 `json:"x"`
+			Y    float64 `json:"y"`
+			Zoom float64 `json:"zoom"`
+		} `json:"camera"`
+		Objects map[string]struct {
+			X float64 `json:"x"`
+			Y float64 `json:"y"`
+		} `json:"objects"`
+	}
+	if err := json.Unmarshal(workbenchRaw, &workbench); err != nil {
+		return fmt.Errorf("invalid workbench layout: %v", err)
+	}
+	if workbench.Version != 1 {
+		return fmt.Errorf("unsupported workbench layout version %d", workbench.Version)
+	}
+	if workbench.Camera != nil {
+		c := workbench.Camera
+		if !finiteCanvasNumber(c.X) || !finiteCanvasNumber(c.Y) || !finiteCanvasNumber(c.Zoom) {
+			return fmt.Errorf("invalid workbench camera: finite x, y, and zoom required")
+		}
+		if c.Zoom < 0.35 || c.Zoom > 2 {
+			return fmt.Errorf("invalid workbench zoom %.3f: expected 0.35..2", c.Zoom)
+		}
+	}
+	if len(workbench.Objects) > 512 {
+		return fmt.Errorf("workbench object count %d exceeds 512", len(workbench.Objects))
+	}
+	for id, position := range workbench.Objects {
+		if id == "" || len(id) > 128 {
+			return fmt.Errorf("invalid workbench object id")
+		}
+		if !finiteCanvasNumber(position.X) || !finiteCanvasNumber(position.Y) {
+			return fmt.Errorf("invalid workbench position for %q", id)
+		}
+		if math.Abs(position.X) > 1e6 || math.Abs(position.Y) > 1e6 {
+			return fmt.Errorf("workbench position for %q is out of bounds", id)
+		}
+	}
+	return nil
+}
+
+func finiteCanvasNumber(value float64) bool {
+	return !math.IsNaN(value) && !math.IsInf(value, 0)
 }
 
 // llmBudgetCapUSD reads the optional global cloud-LLM dollar cap.
