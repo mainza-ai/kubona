@@ -4233,3 +4233,9 @@ skipped is the exact failure this incident is about:
 - Job records project as `job` cards with measured status/timestamps; the
   request-operation client now runs the generated response contract. Updated
   [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Job contract and layout write settlement
+
+- Jobs now pin the fields the console reads; the workbench labels layout
+  saves accepted → applied/refused/unknown instead of a single "saving"
+  state. Updated [[remaining-work]]; no new page.
