@@ -4625,3 +4625,9 @@ skipped is the exact failure this incident is about:
 
 - Render LLM settings saves as accepted/applied/refused/unknown while keeping
   the section-mapped refusal copy and network-error distinction.
+
+## [2026-11-01] impl | Lab Ops settlement
+
+- Lab Ops ceiling/status/autonomy/revoke and tenant refund now render
+  accepted/applied/refused/unknown with revert-on-failure preserved. Key
+  bootstrap/recovery still use their custom copy.
