@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { KeyRound, ShieldCheck, AlertOctagon, Sparkles, ChevronDown, ChevronUp, Lock } from 'lucide-react';
 import { CampaignState, Session } from '@/types';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
-import { writeSettlementLabel } from '@/domain/write-settlement';
+import { newWriteRequestId, writeSettlementLabel } from '@/domain/write-settlement';
 import { emergencyAbort, launchProposal, fetchLLMSettings, saveLLMSettings, fetchBackendStatus, type BackendStatus } from '@/lib/api';
 import { ApprovalPacketCard } from '@/components/common/ApprovalPacketCard';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
@@ -118,9 +118,8 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
       // A verified mandate is a capability, not a run. Hand the exact
       // program + signed mandate to the Go launch rail and report the real
       // job id; otherwise the operator would see an approval that never ran.
-      const requestId = typeof crypto !== 'undefined' && 'randomUUID' in crypto
-        ? crypto.randomUUID()
-        : `launch-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+      const requestId = newWriteRequestId();
+      const writeId = launchWrite.begin('launch proposal');
       const launched = await launchProposal(
         session.id,
         {
@@ -139,10 +138,13 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
         },
       );
       if (!launched) {
+        launchWrite.unknown(writeId, 'launch transport failed — no job created');
         setActionMessage('Mandate verified, but launch transport failed — no job was created. Nothing dispatched.');
       } else if ('error' in launched) {
+        launchWrite.refused(writeId, launched.error);
         setActionMessage(`Mandate verified, but dispatch was refused: ${launched.error}`);
       } else {
+        launchWrite.applied(writeId, `job ${String(launched.job.id).slice(0, 8)} dispatched`);
         setActionMessage(`Mandate verified (Sig: ${sigPreview}...). Dispatched job ${String(launched.job.id).slice(0, 8)} to ${recommendedBackend}.`);
       }
       setTimeout(() => setActionMessage(null), 6000);
@@ -162,6 +164,7 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
     const qf = campaign?.quantum_factors;
     if (!session?.id || !qf?.qasm) return;
     setIsSubmitting(true);
+    const writeId = launchWrite.begin('offline launch');
     try {
       const res = await launchProposal(session.id, {
         target: `${campaign?.target_system || 'Target'} local simulation`,
@@ -171,13 +174,17 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
         qasm: qf.qasm,
       });
       if (res && 'job' in res && res.job) {
+        launchWrite.applied(writeId, `job ${String(res.job.id).slice(0, 8)} dispatched offline`);
         setActionMessage(`Dispatched offline: job ${String(res.job.id).slice(0, 8)} on local simulator.`);
       } else if (res && 'error' in res) {
+        launchWrite.refused(writeId, res.error);
         setActionMessage(`Local dispatch refused: ${res.error}`);
       } else {
+        launchWrite.unknown(writeId, 'local dispatch not confirmed');
         setActionMessage('Local dispatch refused — nothing dispatched, nothing spent.');
       }
     } catch {
+      launchWrite.unknown(writeId, 'local dispatch failed');
       setActionMessage('Local dispatch failed — nothing dispatched.');
     } finally {
       setIsSubmitting(false);
@@ -232,6 +239,7 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
   const [abortOpen, setAbortOpen] = useState(false);
   const [abortBusy, setAbortBusy] = useState(false);
   const abortWrite = useWriteSettlement();
+  const launchWrite = useWriteSettlement();
   const confirmAbort = async () => {
     const sid = session?.id || campaign?.session_id || '';
     if (!sid) {
@@ -341,6 +349,11 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
         {writeSettlementLabel(abortWrite.write) && (
           <p role="status" className="text-[12px] font-mono text-slate-400">
             {writeSettlementLabel(abortWrite.write)}
+          </p>
+        )}
+        {writeSettlementLabel(launchWrite.write) && (
+          <p role="status" className="text-[12px] font-mono text-slate-400">
+            {writeSettlementLabel(launchWrite.write)}
           </p>
         )}
 
