@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef,  useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useImperativeHandle } from 'react';
 import {
   Sparkles,
   Atom,
@@ -60,7 +60,9 @@ type ActiveSession = { id: string } | { needsLogin: true };
 const isNeedsLogin = (r: ActiveSession | null): r is { needsLogin: true } =>
   r !== null && 'needsLogin' in r;
 
-export function CopilotDrawer({
+export type CopilotHandle = { submit: (text: string) => Promise<void> };
+
+export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>(function CopilotDrawer({
   sessionId,
   campaign,
   isExpanded: externalExpanded,
@@ -72,7 +74,7 @@ export function CopilotDrawer({
   onRunStateChange,
   onSessionChange,
   onClose,
-}: CopilotDrawerProps) {
+}, ref) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
@@ -99,6 +101,7 @@ export function CopilotDrawer({
   // Last prompt sent (ref, not state — the stall Retry button re-sends the
   // exact same prompt through the existing handleSend(customPrompt) path).
   const lastPromptRef = useRef<string>('');
+  const handleSendRef = useRef<CopilotHandle['submit'] | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const idCounter = useRef(0);
   const nextTempId = (prefix: string) => `${prefix}-${++idCounter.current}`;
@@ -477,6 +480,13 @@ export function CopilotDrawer({
     setInfoMessage('No proposal in this conversation yet — ask for a simulation first.');
     setTimeout(() => setInfoMessage(null), 4000);
   };
+
+  useEffect(() => {
+    handleSendRef.current = (text: string) => handleSend(text);
+  });
+  useImperativeHandle(ref, () => ({
+    submit: (text: string) => handleSendRef.current?.(text) ?? Promise.resolve(),
+  }), []);
 
   const handleSlash = (raw: string) => {
     const [cmd, ...rest] = raw.slice(1).split(/\s+/);
@@ -1665,4 +1675,4 @@ export function CopilotDrawer({
       )}
     </div>
   );
-}
+});

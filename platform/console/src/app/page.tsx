@@ -12,7 +12,8 @@ import { useCampaignProjection } from '@/lib/useCampaignProjection';
 import { useLoopsProjection } from '@/lib/useLoopsProjection';
 import { useSessionsProjection } from '@/lib/useSessionsProjection';
 import { SHORTCUTS, SHORTCUT_TARGETS, KEY_TO_SHORTCUT, type ShortcutKey } from '@/lib/shortcuts';
-import { CopilotDrawer } from '@/components/CopilotDrawer';
+import { CopilotDrawer, type CopilotHandle } from '@/components/CopilotDrawer';
+import { Composer } from '@/components/shell/Composer';
 import { AboutLabModal } from '@/components/AboutLabModal';
 import { CommandPalette } from '@/components/CommandPalette';
 import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal';
@@ -277,6 +278,8 @@ export default function Home() {
   const [inspectorTab, setInspectorTab] = useState<InspectorTab>('details');
   const [isCopilotExpanded, setIsCopilotExpanded] = useState(false);
   const [selectedWorkbenchObject, setSelectedWorkbenchObject] = useState<WorkbenchObject | null>(null);
+  const copilotRef = useRef<CopilotHandle>(null);
+  const pendingAsk = useRef<string | null>(null);
   const [showCampaignMenu, setShowCampaignMenu] = useState(false);
   const [campaignFilter, setCampaignFilter] = useState('');
 
@@ -622,6 +625,22 @@ export default function Home() {
     setSurface('mesh');
     setMeshTab('settings');
   }, [surface]);
+
+  useEffect(() => {
+    if (!inspectorOpen || inspectorTab !== 'copilot' || !copilotRef.current || !pendingAsk.current) return;
+    const text = pendingAsk.current;
+    pendingAsk.current = null;
+    void copilotRef.current.submit(text);
+  }, [inspectorOpen, inspectorTab]);
+
+  const handleAsk = useCallback((text: string) => {
+    if (inspectorOpen && inspectorTab === 'copilot' && copilotRef.current) {
+      return copilotRef.current.submit(text);
+    }
+    pendingAsk.current = text;
+    setInspectorOpen(true);
+    setInspectorTab('copilot');
+  }, [inspectorOpen, inspectorTab]);
 
   // Single dispatch for keyboard shortcuts AND palette selections: targets
   // resolve through SHORTCUT_TARGETS (lib/shortcuts) so the two cannot
@@ -1080,7 +1099,7 @@ export default function Home() {
         <ApiProblemBanner />
         <StatusStrip loops={loops} />
         {surface === 'arena' && (
-          <main id="kubona-main" tabIndex={-1} className="relative flex-1 h-full overflow-hidden">
+          <main id="kubona-main" tabIndex={-1} className="relative min-h-0 flex-1 overflow-hidden">
             <ArenaHud
               targetLabel={targetLabel}
               swarmDetail={runPhase === 'idle' ? 'idle · at rest' : `${loops.length} Loops Live`}
@@ -1263,6 +1282,13 @@ export default function Home() {
             </div>
           </main>
         )}
+        {surface === 'arena' && (
+          <Composer
+            onSubmit={handleAsk}
+            contextLabel={selectedWorkbenchObject ? `${selectedWorkbenchObject.label}: ${selectedWorkbenchObject.title}` : campaign?.target_system || null}
+            onClearContext={() => setSelectedWorkbenchObject(null)}
+          />
+        )}
       </div>
 
       <Inspector
@@ -1276,6 +1302,7 @@ export default function Home() {
         expanded={isCopilotExpanded}
         copilot={
           <CopilotDrawer
+            ref={copilotRef}
             sessionId={currentSessionId}
             campaign={campaign}
             isExpanded={isCopilotExpanded}
