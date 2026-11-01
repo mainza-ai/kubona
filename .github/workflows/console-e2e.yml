@@ -20,7 +20,8 @@ concurrency:
 jobs:
   console-e2e:
     name: Console E2E (real compose stack)
-    runs-on: ubuntu-latest
+    # Pin the LTS image: Playwright 1.51 ffmpeg does not support ubuntu-26.04 yet.
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       KUBONA_API_TOKEN: e2e-token
