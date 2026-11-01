@@ -47,6 +47,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
   const createAgentPanelRef = useRef<HTMLDivElement | null>(null);
   useFocusTrap(isCreatingAgent, createAgentPanelRef);
   const [meshError, setMeshError] = useState<string | null>(null);
+  const agentWrite = useWriteSettlement();
   const [airGapError, setAirGapError] = useState<string | null>(null);
   const airGapWrite = useWriteSettlement();
   const [costSummary, setCostSummary] = useState<CostSummary | null>(null);
@@ -221,31 +222,40 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
       spend_budget_usd: parsedBudget,
       memory_scopes: ['default'],
     };
+    const requestId = agentWrite.begin('register custom agent');
     try {
       await createCustomAgent(manifest);
       setIsCreatingAgent(false);
       setNewAgentName('');
       setNewAgentDesc('');
       setNewAgentPrompt('');
+      agentWrite.applied(requestId, 'custom agent registered');
       setMeshError(null);
       loadAgents();
     } catch (err) {
-      setMeshError(`Failed to create agent — nothing registered (${err instanceof Error ? err.message : String(err)}).`);
+      const message = err instanceof Error ? err.message : String(err);
+      agentWrite[message.includes('refused (HTTP') ? 'refused' : 'unknown'](requestId, message);
+      setMeshError(`Failed to create agent — nothing registered (${message}).`);
     }
   };
 
   const handleDeleteAgent = async (agentId: string) => {
+    const requestId = agentWrite.begin('delete custom agent');
     try {
       // Audit 2026-10-21: the boolean was ignored, so a refused delete
       // reloaded the roster in false confirmation. Refusals surface.
       const removed = await deleteCustomAgent(agentId);
-      if (!removed) {
-        setMeshError('Failed to delete agent — nothing removed (hub refused: operator token required).');
+      if (!removed.ok) {
+        agentWrite[removed.unknown ? 'unknown' : 'refused'](requestId, removed.error);
+        setMeshError(`Failed to delete agent — nothing removed (${removed.error}).`);
         return;
       }
+      agentWrite.applied(requestId, 'custom agent deleted');
       loadAgents();
     } catch (err) {
-      setMeshError(`Failed to delete agent — nothing removed (${err instanceof Error ? err.message : String(err)}).`);
+      const message = err instanceof Error ? err.message : String(err);
+      agentWrite.unknown(requestId, message);
+      setMeshError(`Failed to delete agent — nothing removed (${message}).`);
     }
   };
 
@@ -289,6 +299,9 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
         <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-xs">
           Mesh error — {meshError} Nothing was changed.
         </div>
+      )}
+      {writeSettlementLabel(agentWrite.write) && (
+        <p role="status" className="text-[12px] font-mono text-slate-400">{writeSettlementLabel(agentWrite.write)}</p>
       )}
       {airGapError && (
         <div className="p-3 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-200 text-xs">

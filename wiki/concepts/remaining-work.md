@@ -142,8 +142,9 @@ Still open:
   the two air-gap toggles now render accepted/applied/refused/unknown,
   including transport-vs-refusal. LabOps ceiling/status/autonomy/revoke and
   refund, tenant grants, session refunds, key rotation, and first-run
-  admin-key bootstrap, emergency abort, and codesign rerun use the same
-  vocabulary. Custom-agent create/delete still use local copy.
+  admin-key bootstrap, emergency abort, codesign rerun, and custom-agent
+  create/delete use the same vocabulary. Chat/launch/workflow writes still use
+  their inline status copy.
 - Per-send model override has no backend contract; the composer links to Model
   Hub instead of faking one.
 - The 11 remaining client-only names are intentional transport/browser/auth
