@@ -4202,3 +4202,9 @@ skipped is the exact failure this incident is about:
 - The OpenAPI generator now emits typed schemas and `API_OPERATIONS` into
   `src/lib/generated/openapi.ts`; `--check` gates JSON and TS freshness.
   Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Editable workbench areas
+
+- Areas now support rename, drag, resize, and explicit selected-card
+  assignment; membership persists in the v2 document. Updated
+  [[remaining-work]]; no new page.

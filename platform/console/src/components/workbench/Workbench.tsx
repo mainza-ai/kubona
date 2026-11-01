@@ -39,6 +39,8 @@ export function Workbench({ campaign, sessionId, loops = [], onOpenObject }: Pro
   const drag = useRef<{ x: number; y: number; camera: WorkbenchCamera } | null>(null);
   const cardDrag = useRef<{ id: string; x: number; y: number; originX: number; originY: number } | null>(null);
   const sizeDrag = useRef<{ id: string; x: number; y: number; width: number; height: number } | null>(null);
+  const areaDrag = useRef<{ x: number; y: number; originX: number; originY: number } | null>(null);
+  const areaResize = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [camera, setCamera] = useState<WorkbenchCamera>({ x: 36, y: 36, zoom: 0.82 });
   const [selected, setSelected] = useState<string | null>(null);
@@ -50,6 +52,7 @@ export function Workbench({ campaign, sessionId, loops = [], onOpenObject }: Pro
   const [viewMode, setViewMode] = useState<'canvas' | 'list'>('canvas');
   const [areas, setAreas] = useState<WorkbenchArea[]>([]);
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
+  const [assignments, setAssignments] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const objects = useMemo(
     () => baseObjects.map((object) => ({
@@ -99,6 +102,7 @@ export function Workbench({ campaign, sessionId, loops = [], onOpenObject }: Pro
         setPositions(doc.positions);
         setSizes(doc.sizes);
         setAreas(doc.areas);
+        setAssignments(doc.assignments);
         loaded.current = true;
         return;
       }
@@ -124,7 +128,7 @@ export function Workbench({ campaign, sessionId, loops = [], onOpenObject }: Pro
       void saveWorkbenchLayout(
         sessionId,
         revision.current,
-        workbenchDocument(sessionId, baseObjects, positions, sizes, camera, links, areas) as unknown as Record<string, unknown>,
+        workbenchDocument(sessionId, baseObjects, positions, sizes, camera, links, areas, assignments) as unknown as Record<string, unknown>,
       ).then((out) => {
         setSaving(false);
         if (out.ok) {
@@ -138,7 +142,7 @@ export function Workbench({ campaign, sessionId, loops = [], onOpenObject }: Pro
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [camera, positions, sizes, sessionId, baseObjects, links, areas]);
+  }, [camera, positions, sizes, sessionId, baseObjects, links, areas, assignments]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -260,6 +264,42 @@ export function Workbench({ campaign, sessionId, loops = [], onOpenObject }: Pro
     }));
   };
 
+  const onAreaPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    const area = areas[0];
+    if (!area || (event.target as HTMLElement).dataset.resize === 'area') return;
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    areaDrag.current = { x: event.clientX, y: event.clientY, originX: area.rect.x, originY: area.rect.y };
+  };
+
+  const onAreaPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const current = areaDrag.current;
+    if (!current) return;
+    const dx = (event.clientX - current.x) / camera.zoom;
+    const dy = (event.clientY - current.y) / camera.zoom;
+    setAreas((previous) => previous.map((area, index) => index === 0
+      ? { ...area, rect: { ...area.rect, x: current.originX + dx, y: current.originY + dy } }
+      : area));
+  };
+
+  const onAreaResizePointerDown = (event: React.PointerEvent<HTMLSpanElement>) => {
+    const area = areas[0];
+    if (!area) return;
+    event.stopPropagation();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    areaResize.current = { x: event.clientX, y: event.clientY, width: area.rect.width, height: area.rect.height };
+  };
+
+  const onAreaResizePointerMove = (event: React.PointerEvent<HTMLSpanElement>) => {
+    const current = areaResize.current;
+    if (!current) return;
+    const width = Math.max(320, current.width + (event.clientX - current.x) / camera.zoom);
+    const height = Math.max(220, current.height + (event.clientY - current.y) / camera.zoom);
+    setAreas((previous) => previous.map((area, index) => index === 0
+      ? { ...area, rect: { ...area.rect, width, height } }
+      : area));
+  };
+
   return (
     <section
       ref={hostRef}
@@ -315,6 +355,29 @@ export function Workbench({ campaign, sessionId, loops = [], onOpenObject }: Pro
         >
           {areas.length > 0 ? 'Ungroup' : 'Group all'}
         </Button>
+        {areas[0] && (
+          <input
+            className="k-workbench-area-title"
+            aria-label="Area title"
+            value={areas[0].title}
+            onChange={(event) => setAreas((previous) => previous.map((area, index) => index === 0 ? { ...area, title: event.target.value } : area))}
+          />
+        )}
+        {selected && areas[0] && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="compact"
+            onClick={() => setAssignments((previous) => {
+              const next = { ...previous };
+              if (next[selected] === areas[0].id) delete next[selected];
+              else next[selected] = areas[0].id;
+              return next;
+            })}
+          >
+            {assignments[selected] === areas[0].id ? 'Unassign' : 'Assign to area'}
+          </Button>
+        )}
         <span className="k-workbench-state" role="status" aria-live="polite">
           {saving ? 'saving view…' : status || (sessionId ? 'view saved' : 'no campaign selected')}
         </span>
@@ -356,8 +419,21 @@ export function Workbench({ campaign, sessionId, loops = [], onOpenObject }: Pro
               key={area.id}
               className="k-workbench-area"
               style={{ left: area.rect.x, top: area.rect.y, width: area.rect.width, height: area.rect.height }}
+              onPointerDown={onAreaPointerDown}
+              onPointerMove={onAreaPointerMove}
+              onPointerUp={() => { areaDrag.current = null; }}
+              onPointerCancel={() => { areaDrag.current = null; }}
             >
               <span>{area.title}</span>
+              <span
+                className="k-workbench-area-resize"
+                data-resize="area"
+                aria-hidden="true"
+                onPointerDown={onAreaResizePointerDown}
+                onPointerMove={onAreaResizePointerMove}
+                onPointerUp={() => { areaResize.current = null; }}
+                onPointerCancel={() => { areaResize.current = null; }}
+              />
             </div>
           ))}
           <svg className="k-workbench-links" width={WORKBENCH_BOUNDS.width} height={WORKBENCH_BOUNDS.height} aria-hidden="true">
@@ -384,6 +460,7 @@ export function Workbench({ campaign, sessionId, loops = [], onOpenObject }: Pro
               key={object.id}
               object={object}
               selected={selected === object.id}
+              assigned={Boolean(areas[0] && assignments[object.id] === areas[0].id)}
               onSelect={() => setSelected(object.id)}
               onPointerDown={(event) => onCardPointerDown(event, object)}
               onPointerMove={onCardPointerMove}
@@ -411,6 +488,7 @@ export function Workbench({ campaign, sessionId, loops = [], onOpenObject }: Pro
 function WorkCard({
   object,
   selected,
+  assigned,
   onSelect,
   onPointerDown,
   onPointerMove,
@@ -423,6 +501,7 @@ function WorkCard({
 }: {
   object: WorkbenchObject;
   selected: boolean;
+  assigned: boolean;
   onSelect: () => void;
   onPointerDown: (event: React.PointerEvent<HTMLElement>) => void;
   onPointerMove: (event: React.PointerEvent<HTMLElement>) => void;
@@ -472,6 +551,7 @@ function WorkCard({
         onPointerCancel={onPointerUp}
       >
         <Badge className="k-workbench-kind" tone={object.kind === 'chart' ? 'info' : 'neutral'}>{object.label}</Badge>
+        {assigned && <Badge tone="info">area</Badge>}
         <h3>{object.title}</h3>
         <p>{object.detail}</p>
       </header>

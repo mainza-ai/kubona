@@ -129,6 +129,24 @@ describe('Workbench', () => {
     expect(JSON.stringify(tree!.toJSON())).toContain('3 / 10');
   });
 
+  it('renames an area and assigns the selected card to it', async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" />);
+    });
+    const group = tree!.root.findByProps({ title: 'Group all objects into a spatial area, or clear the area' });
+    await act(async () => { group.props.onClick(); });
+    const title = tree!.root.findByProps({ 'aria-label': 'Area title' });
+    await act(async () => { title.props.onChange({ target: { value: 'Evidence chain' } }); });
+    expect(tree!.root.findByProps({ className: 'k-workbench-area' }).findAllByType('span')[0].props.children).toBe('Evidence chain');
+
+    const card = tree!.root.findAllByProps({ 'data-kind': 'campaign' })[0];
+    await act(async () => { card.props.onClick(); });
+    const assign = tree!.root.findAllByType('button').find((button) => button.props.children === 'Assign to area');
+    await act(async () => { assign!.props.onClick(); });
+    expect(JSON.stringify(tree!.toJSON())).toContain('area');
+  });
+
   it('groups all objects into a persisted spatial area', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {

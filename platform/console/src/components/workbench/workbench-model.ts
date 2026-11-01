@@ -312,6 +312,7 @@ export type WorkbenchDocument = {
     position: { x: number; y: number };
     size: { width: number; height: number };
     ref: { domain: string; id: string };
+    area?: string | null;
   }[];
   links: WorkbenchLink[];
   areas: WorkbenchArea[];
@@ -325,6 +326,7 @@ export function readWorkbenchDocument(raw: Record<string, unknown> | null): {
   sizes: WorkbenchSizes;
   links: WorkbenchLink[];
   areas: WorkbenchArea[];
+  assignments: Record<string, string>;
 } {
   const camera = readCamera({ workbench: raw });
   const objects = Array.isArray(raw?.objects) ? raw.objects : [];
@@ -332,10 +334,13 @@ export function readWorkbenchDocument(raw: Record<string, unknown> | null): {
   const sizes: WorkbenchSizes = {};
   const links: WorkbenchLink[] = Array.isArray(raw?.links) ? (raw.links as WorkbenchLink[]) : [];
   const areas: WorkbenchArea[] = Array.isArray(raw?.areas) ? (raw.areas as WorkbenchArea[]) : [];
+  const assignments: Record<string, string> = {};
   for (const item of objects) {
     if (!item || typeof item !== 'object') continue;
     const object = item as { id?: unknown; position?: unknown; size?: unknown };
     if (typeof object.id !== 'string') continue;
+    const area = (object as { area?: unknown }).area;
+    if (typeof area === 'string' && area) assignments[object.id] = area;
     if (object.position && typeof object.position === 'object') {
       const { x, y } = object.position as Record<string, unknown>;
       if (finite(x) && finite(y)) positions[object.id] = { x, y };
@@ -345,7 +350,7 @@ export function readWorkbenchDocument(raw: Record<string, unknown> | null): {
       if (finite(width) && finite(height) && width > 0 && height > 0) sizes[object.id] = { width, height };
     }
   }
-  return { camera, positions, sizes, links, areas };
+  return { camera, positions, sizes, links, areas, assignments };
 }
 
 export function buildWorkbenchLinks(objects: WorkbenchObject[]): WorkbenchLink[] {
@@ -373,6 +378,7 @@ export function workbenchDocument(
   camera: WorkbenchCamera,
   links: WorkbenchLink[] = buildWorkbenchLinks(objects),
   areas: WorkbenchArea[] = [],
+  assignments: Record<string, string> = {},
 ): WorkbenchDocument {
   return {
     version: 2,
@@ -383,6 +389,7 @@ export function workbenchDocument(
       position: positions[object.id] ?? object.position,
       size: sizes[object.id] ?? object.size,
       ref: { domain: 'campaign', id: sessionId },
+      area: assignments[object.id] ?? null,
     })),
     links,
     areas,
