@@ -61,6 +61,11 @@ class QiskitProvider(Provider):
         self.capability = capability
         self._secrets = secrets
         self._backend_name = backend_name
+        # Vendor plan is an authorization fact, not a rate guess: Open Plan
+        # QPU time is free, so a usage meter must settle to $0 rather than
+        # list-price dollars. Detected once from the authenticated instance list.
+        self._plan: str | None = None
+        self._pricing_type: str | None = None
         try:
             from qiskit import QuantumCircuit  # noqa: F401
             from qiskit_aer import AerSimulator  # noqa: F401
@@ -233,7 +238,9 @@ class QiskitProvider(Provider):
         instance = os.environ.get("KUBONA_IBM_QISKIT_INSTANCE", "").strip()
         if instance:
             kwargs["instance"] = instance
-        return QiskitRuntimeService(**kwargs)
+        svc = QiskitRuntimeService(**kwargs)
+        self._detect_plan(svc)
+        return svc
 
     def _resolve_backend(self, service):
         """Return the configured backend or the first operational hardware
@@ -417,7 +424,25 @@ class QiskitProvider(Provider):
         if twoq > 5_000_000:
             raise ProviderError("circuit exceeds the 5M two-qubit-gate IBM limit")
 
+    def _detect_plan(self, service) -> None:
+        if self._plan is not None or service is None:
+            return
+        try:
+            for inst in service.instances() or []:
+                if not isinstance(inst, dict):
+                    continue
+                self._plan = str(inst.get("plan") or "").strip().lower() or None
+                self._pricing_type = str(inst.get("pricing_type") or "").strip().lower() or None
+                if self._plan:
+                    return
+        except Exception:  # noqa: BLE001 — unknown plan keeps list-price estimates
+            return
+
     def _actual_usd(self, usage_seconds: float) -> float | None:
+        # Open Plan has no per-second charge. Do not bill the local ledger
+        # list-price dollars for free vendor time.
+        if self._plan in ("open", "free") or self._pricing_type == "free":
+            return 0.0
         pricing = self.capability.pricing
         if pricing.model != "per_second" or pricing.per_second_usd <= 0:
             return None
@@ -527,6 +552,7 @@ class QiskitProvider(Provider):
             )
         try:
             service = self._service(token, service_factory)
+            self._detect_plan(service)
             job = service.job(hardware_job_id)
             raw_status = job.status()
         except ImportError as e:

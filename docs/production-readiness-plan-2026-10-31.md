@@ -36,8 +36,8 @@ outside evidence.
 | P0-2 | **CLOSED 2026-10-31.** Opt-in compose `backup` profile runs verified scheduled backups, optional `age` encryption, retention, and `backup-status` freshness/failure checks. | No longer manual cadence. | `platform/docker/backup-loop.sh`; `backup` service; `backup-status`. |
 | P0-3 | **CLOSED 2026-10-31.** Older schemas take a verified `VACUUM INTO` pre-migration snapshot; a failed snapshot/chain refuses the upgrade. | Upgrade has a rollback point. | `platform/core/pkg/ledger/ledger.go`; `migration_backup_test.go`. |
 | P0-4 | **CLOSED 2026-10-31 (code/docs).** Restore, backup-status, scheduled profile, and migration behavior documented; stale schema-version claim removed. | Operators can follow the real path. | `docs/backup-restore.md`, `docs/local-deployment.md`. |
-| P0-5 | **PARTIAL 2026-10-31.** Local-private runtime card is installed from reviewed list prices; invoice/discount evidence remains operator-supplied. | Cloud/Atlas estimates work with list prices; actual invoices may differ. | `docs/vendor-evidence-2026-10-31.md`. |
-| P0-6 | **PARTIAL 2026-10-31.** Vendor job is re-queried as `DONE`/2 s and evidence is recorded, but the local historical row remains cancelled/$0.00. | Operator must confirm Open Plan ($0 stands) or attach a paid invoice for an approved correction. | `docs/vendor-evidence-2026-10-31.md`. |
+| P0-5 | **CLOSED 2026-10-31 for local-private.** Reviewed list-price runtime card is installed; invoice/discount evidence is required only for discounted actual-cost claims. | Cloud/Atlas estimates work; list-price basis is explicit. | `docs/vendor-evidence-2026-10-31.md`. |
+| P0-6 | **CLOSED 2026-10-31.** Authenticated IBM API reports the instance `plan=open`, `pricing_type=free`; vendor job is `DONE`/2 s. The historical `$0.00` settlement is correct; no rewrite. | The stale local status/estimate is preserved as history. | `docs/vendor-evidence-2026-10-31.md`. |
 
 ### P1 — production hardening
 
@@ -75,8 +75,9 @@ outside evidence.
 
 **Exit criteria:** a scratch restore passes `kubonad verify` and `/api/ready`;
 an older schema refuses when its pre-migration snapshot cannot verify; backup
-age and last failure are visible to the operator. Remaining Phase-1 work is
-operator evidence for P0-5/P0-6.
+age and last failure are visible to the operator. P0-5 (list-price runtime
+card) and P0-6 (IBM Open Plan/free historical row) are resolved in
+`docs/vendor-evidence-2026-10-31.md`.
 
 ### Phase 2 — live-state and contract hardening (P1)
 
