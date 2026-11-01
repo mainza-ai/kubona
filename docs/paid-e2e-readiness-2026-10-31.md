@@ -9,8 +9,11 @@ remain in the disposable test volume and are not valid evidence.
 
 **Latest controlled result:** job `09912676ae2c436c` / vendor
 `dbj4o0gnceqs73aj8n9g`, `ibm_marrakesh`, `DONE`, 100 shots, 2 QPU seconds,
-counts `00:61`, `01:4`, `11:35`, vendor/local `$3.20`, session/tenant spend
-`$3.20`.
+counts `00:61`, `01:4`, `11:35`. The authenticated runtime API reports
+`plan=open`, `pricing_type=free`: the correct actual charge is **$0.00**.
+The `$3.20` local settlement was the pre-fix list-price estimate; the Qiskit
+provider now settles free-plan usage at zero. Vendor/local status and counts
+are valid evidence; the “paid” label is withdrawn.
 
 ## Budget consumed
 
