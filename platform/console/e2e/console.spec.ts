@@ -161,6 +161,19 @@ test.describe('Kubona console against the real local stack', () => {
     await expect(dialog).toHaveCount(0);
   });
 
+  test('skip link reaches main content and forced colors keep the shell usable', async ({ page }) => {
+    await page.emulateMedia({ forcedColors: 'active' });
+    await page.goto('/');
+    await expectReady(page);
+    await page.keyboard.press('Tab');
+    const skip = page.getByRole('link', { name: 'Skip to main content' });
+    await expect(skip).toBeFocused();
+    await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => document.activeElement?.id)).toBe('kubona-main');
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+
   test('reduced motion disables ambient animation utilities', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/');
