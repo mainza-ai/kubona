@@ -336,3 +336,38 @@ def test_poll_completed_result_is_json_serializable(monkeypatch):
     assert out["status"] == "completed", out
     assert out["result"]["backend"] == "ibm_marrakesh", out
     json.dumps(out)  # must not raise (IBMBackend was not serializable)
+
+
+def test_poll_open_plan_prices_free_usage_at_zero(monkeypatch):
+    """Open Plan QPU time is free; the local meter must not invent $3.20."""
+    from types import SimpleNamespace
+
+    from kubona.providers import get_provider
+
+    class _Job:
+        def status(self):
+            return SimpleNamespace(name="DONE")
+
+        def usage(self):
+            return 2.0
+
+        def backend(self):
+            return SimpleNamespace(name="ibm_marrakesh")
+
+        def result(self):
+            meas = SimpleNamespace(get_counts=lambda: {"00": 61, "11": 39})
+            return [SimpleNamespace(data=SimpleNamespace(meas=meas))]
+
+    class _Service:
+        def instances(self):
+            return [{"plan": "open", "pricing_type": "free"}]
+
+        def job(self, hardware_job_id):
+            return _Job()
+
+    monkeypatch.setenv("KUBONA_IBM_QISKIT_TOKEN", "test-token")
+    p = get_provider("ibm-qiskit")
+    out = p.poll_hardware_job("hw-1", service_factory=lambda token: _Service())
+    assert out["status"] == "completed", out
+    assert out["result"]["usage_seconds"] == 2.0, out
+    assert out["result"]["actual_usd"] == 0.0, out

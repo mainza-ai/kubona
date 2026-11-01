@@ -7,10 +7,13 @@
   1,500 credits ≈ `$1.20` per dispatch.
 - This is a reviewed **list-price** card, not an invoice or discounted
   contract. It is functional for local-private estimates and production
-  pricing gates.
-- **Still operator-supplied:** vendor invoice/discount rates, if any. Replace
-  the runtime card before quoting an actual cloud bill; do not derive prices
-  from model IDs or the embedded bootstrap.
+  pricing gates. List prices are sufficient for local-private list estimates;
+  invoice/discount replacement is required only before quoting a discounted
+  actual cloud bill.
+- Atlas credit balance can be read from the documented
+  `GET /marble/v1/credits` endpoint. The current `WLT_API_KEY` is an Atlas
+  beta key and returns 401 against the Marble credits endpoint, so the
+  platform dashboard remains the balance authority for that key.
 
 ## New paid validation evidence
 
@@ -22,23 +25,29 @@
   `$3.20`; session/tenant spend `$3.20`.
 - Final vendor evidence file (local only): `/tmp/kubona-paid-e2e/final2-status.json`.
 
-## Historical IBM row
+## Historical IBM row — resolved by vendor API
 
 - Vendor job `dbha28pq260s73busu70`: `DONE`, 2 QPU seconds.
 - Local job `39b5e6b832cd4ae3`: cancelled, settled `$0.00`, estimate
   `$8.000568`.
-- Current IBM instance: Open Plan; the repo cannot prove a paid invoice.
-- **Disposition:** preserve the row; do not rewrite it. The vendor status and
-  usage are now independently re-queried and recorded here.
-- If the operator has a paid invoice for this run, the row needs an approved
-  monetary correction by the operator. If it was Open Plan/free, `$0` is the
-  correct monetary result and only the local status/evidence is stale.
+- Authenticated runtime API reports the instance:
+  - `plan: open`
+  - `pricing_type: free`
+- **Disposition:** the vendor plan is **free**, so the local `$0.00`
+  monetary result is correct. No invoice or ledger rewrite is required. The
+  local cancelled status and stale estimate remain historical metadata; the
+  vendor evidence is attached here.
+- Code fix: the Qiskit provider now detects `open`/`free` plans and reports
+  `actual_usd: 0` for measured usage, so future free-plan runs do not
+  overcharge the local ledger with list-price dollars.
 
 ## Required operator decision
 
-1. Attach invoice/discount evidence for the runtime rate card, or explicitly
-   accept list prices for local-private estimates.
-2. Decide the historical row: free/Open Plan (`$0` stands) or paid (approved
-   correction amount and evidence).
+1. **Resolved for local-private:** accept the reviewed vendor list prices.
+   Invoice/discount evidence is needed only for a discounted actual-cost
+   claim, not for local estimates.
+2. **Resolved by vendor API:** the historical IBM instance is Open Plan/free;
+   its `$0.00` settlement stands. No historical ledger rewrite is performed.
 
-No code rewrite was performed for the historical row.
+Remaining operator fact: the Atlas beta key’s credit balance is dashboard-only
+with the current key.

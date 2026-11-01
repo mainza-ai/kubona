@@ -64,7 +64,10 @@ The full gap register, phased plan, and definition of done are in
 - [x] Verified pre-migration snapshot gate for older schemas.
 - [x] Restore/backup/upgrade documentation truth pass.
 - [ ] Operator: runtime vendor rate card before 2026-11-29.
-- [ ] Operator: paid IBM evidence + historical settlement reconciliation.
+- [x] Historical IBM row: authenticated vendor API confirms `plan=open`,
+      `pricing_type=free`; the local `$0.00` settlement stands, no rewrite.
+- [x] Local-private runtime rate card: reviewed list prices accepted; invoice
+      replacement remains only for discounted-cost claims.
 - [x] P1: SSE event IDs + Last-Event-ID cursor replay (server + client native reconnect).
 - [x] P1: canvas layout now restores the 3D camera position and orbit target.
 - [x] P1: `doctor` reports configured backup freshness and newer failure markers.
@@ -91,13 +94,13 @@ The full gap register, phased plan, and definition of done are in
       production must start on a fresh ledger. The raw snapshot remains
       `~/.kubona/backups/kubona-pre-fk-20261030T024721Z.db` (sha256
       `c15bffd6…146f3b`), SQLite-consistent but chain-faulted.
-- [ ] **Vendor runtime rate-card reconciliation before 2026-11-11.** The
-      embedded bootstrap was refreshed (retired models removed; current model
-      prices/aliases) and production now requires a runtime
-      `KUBONA_RATE_CARD_PATH`/`URL`; `kubonad rates-audit` verifies assigned
-      models against live `/models` and can write a used-model-only card.
-      Still needs the vendor price sheets/invoices and Atlas-lens evidence for
-      the production card. Follow `docs/rate-cards.md`.
+- [x] **Vendor runtime rate-card reconciliation for local-private
+      (2026-10-31).** The reviewed vendor-list card is the default runtime
+      source (`/contracts/rate-cards.json`); list prices, Atlas 1,500
+      credits/$1.20, and IBM Open Plan/free are recorded in
+      `docs/vendor-evidence-2026-10-31.md`. Invoice/discount evidence is
+      required only for a discounted actual-cost claim. Follow
+      `docs/rate-cards.md`.
 - [x] **Nightly thesis-scale memory fix (2026-10-30).** `Builder` stores ops
       in compact typed columns and the slice-60 tests stream them instead of
       materialising a 126M-object list. Local peaks: composition 3.4 GiB /
@@ -109,20 +112,14 @@ The full gap register, phased plan, and definition of done are in
       `41033108173` at `5514997`; earlier red runs (`40854405074`,
       `40666624246`, `40478035440`, `41000688966`, `41003185385`) are
       history. Do not weaken the tests.
-- [x] **Attach QPU run evidence (with a paid-status caveat).** IBM job
-      `dbha28pq260s73busu70` (`ibm_fez`, created 2026-10-29T01:28:03Z,
-      DONE, 2 QPU seconds, 0.028795 RU, 100 shots, counts 00:58/11:38/10:1/
-      01:3) maps to local job `39b5e6b832cd4ae3` (estimate $8.000568, local
-      status cancelled, settled $0.00). The configured IBM instance reports
-      Open Plan limits (600 s/month; 20 s consumed, 0.263828/10.0002 RU), so
-      this repo cannot prove a paid invoice from that instance. Attach the
-      paid instance/run id or invoice if it was a different account.
-- [ ] **Reconcile the completed-vs-cancelled settlement.** The cancel path
-      now queries the vendor status and settles measured usage
-      (`quantum_jobs.go`, regression test). The historical host row was not
-      rewritten: its vendor job completed and charged 2 s while the local
-      ledger released $8.00. Reconcile/repair that row only with operator
-      approval and the vendor invoice.
+- [x] **Attach QPU run evidence and resolve the historical row
+      (2026-10-31).** IBM job `dbha28pq260s73busu70` (`ibm_fez`, DONE,
+      2 QPU seconds, 0.028795 RU, 100 shots) maps to local job
+      `39b5e6b832cd4ae3` (estimate $8.000568, local status cancelled,
+      settled $0.00). The authenticated Qiskit Runtime API reports the
+      instance `plan=open`, `pricing_type=free`; the local $0.00 monetary
+      result is correct and the row is not rewritten. The stale local status
+      and estimate remain historical metadata.
 - [x] **Run the manual nightly and record the result.** Run
       `41041244412` is green at `c7d98f6` (canary + both slice60 jobs). The
       earlier canceled runs `41000688966` and `41003185385` remain history;
