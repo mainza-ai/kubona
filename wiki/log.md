@@ -4444,3 +4444,10 @@ skipped is the exact failure this incident is about:
 - Jobs/obligations/fleet/cost/backend now share these stores; the obligations
   panel consumes the same projection as the page. Added sharing/disposal tests
   and a global test reset. Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Campaign create/delete settlement
+
+- Added a shared write-settlement hook with retained request ids and applied/
+  refused/unknown phases. Campaign create/delete now use it and emit applied
+  toasts only after the server confirms. Updated [[remaining-work]]; no new
+  page.

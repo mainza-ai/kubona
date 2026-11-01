@@ -6,6 +6,8 @@ import { Session, LedgerEvent, RunPhase, ProbeId } from '@/types';
 import { fetchSessions, fetchSession, createSession, deleteSession, fetchLoops, fetchEvents, fetchCampaignState, API_BASE, CONSOLE_WORKBENCH_ENABLED, authHeaders, configureApiBase, apiFetch, UNAUTH_EVENT, API_PROBLEM_EVENT, type ApiProblem } from '@/lib/api';
 import { useJobsProjection } from '@/domain/useJobsProjection';
 import { useObligationsProjection } from '@/domain/useObligationsProjection';
+import { useWriteSettlement } from '@/domain/use-write-settlement';
+import { settleWrite, writeSettlementLabel } from '@/domain/write-settlement';
 import { Inspector, type InspectorTab } from '@/components/shell/Inspector';
 import type { WorkbenchObject } from '@/components/workbench/workbench-model';
 import { mergeSessionEvents, useSessionStream } from '@/lib/useSessionStream';
@@ -266,6 +268,7 @@ export default function Home() {
   // open. Mirrored in a ref because the modal calls onClose synchronously
   // after onCreate resolves — state alone would not have flushed yet.
   const [createError, setCreateError] = useState<string | null>(null);
+  const createWrite = useWriteSettlement();
   const createFailedRef = useRef(false);
   // Responsive shell (Wave-2): below lg the copilot is a closed-by-default
   // overlay drawer, not a fixed side panel. Default closed on narrow screens
@@ -463,6 +466,8 @@ export default function Home() {
       // onClose after onCreate resolves, so the failure is latched in
       // createFailedRef and the onClose below refuses to close on it.
       let failure: string | null = null;
+      let createdId: string | null = null;
+      const requestId = createWrite.begin('creating campaign');
       try {
         const newSess = await createSession(
           params.title,
@@ -472,6 +477,7 @@ export default function Home() {
         );
         failure = describeCreateFailure(newSess, null);
         if (!failure && newSess) {
+          createdId = newSess.id;
           upsertSession(newSess, true);
           switchSession(newSess.id);
           const newCamp = await fetchCampaignState(newSess.id);
@@ -484,8 +490,16 @@ export default function Home() {
       }
       createFailedRef.current = failure !== null;
       setCreateError(failure);
+      if (failure) {
+        createWrite.refused(requestId, failure);
+      } else {
+        createWrite.applied(requestId, `campaign ${createdId?.slice(0, 8) ?? ''} created`);
+        setToast({ key: Date.now(), text: writeSettlementLabel(settleWrite(requestId, 'applied', `campaign ${createdId?.slice(0, 8) ?? ''} created`)) });
+        if (toastTimer.current) clearTimeout(toastTimer.current);
+        toastTimer.current = setTimeout(() => setToast(null), 4000);
+      }
     },
-    [switchSession, setCampaign, upsertSession]
+    [switchSession, setCampaign, upsertSession, createWrite]
   );
 
   // Wave-3: delete-campaign stages a typed ConfirmDialog (session short-id)
@@ -494,6 +508,7 @@ export default function Home() {
   const [deleteDraft, setDeleteDraft] = useState<{ id: string; name: string } | null>(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const deleteWrite = useWriteSettlement();
 
   const handleDeleteSession = useCallback(
     (e: React.MouseEvent, sessionId: string) => {
@@ -511,13 +526,19 @@ export default function Home() {
     const sessionId = deleteDraft.id;
     setDeleteBusy(true);
     setDeleteError(null);
+    const requestId = deleteWrite.begin(`deleting campaign ${sessionId.slice(0, 8)}`);
     try {
       const success = await deleteSession(sessionId);
       if (!success) {
         // Fail-closed: stay open with an inline error, nothing removed.
+        deleteWrite.refused(requestId, 'backend refused; nothing was deleted');
         setDeleteError('Delete refused by backend — nothing was deleted.');
         return;
       }
+      deleteWrite.applied(requestId, `campaign ${sessionId.slice(0, 8)} deleted`);
+      setToast({ key: Date.now(), text: writeSettlementLabel(settleWrite(requestId, 'applied', `campaign ${sessionId.slice(0, 8)} deleted`)) });
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      toastTimer.current = setTimeout(() => setToast(null), 4000);
       setSessions((prev) => {
         const filtered = prev.filter((s) => s.id !== sessionId);
         if (currentSessionId === sessionId) {
@@ -539,7 +560,7 @@ export default function Home() {
     } finally {
       setDeleteBusy(false);
     }
-  }, [deleteDraft, deleteBusy, currentSessionId, switchSession, setCampaign, setSessions]);
+  }, [deleteDraft, deleteBusy, currentSessionId, switchSession, setCampaign, setSessions, deleteWrite]);
 
   // Emergency abort via typed ConfirmDialog (Wave-2): the destructive
   // request (endpoint, body, refusal/success handling) is identical to the
