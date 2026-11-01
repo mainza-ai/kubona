@@ -292,6 +292,39 @@ export const RESPONSE_SCHEMAS = {
     proposal: any,
     message: str,
   }, ['success']),
+  'settings.update': obj({
+    status: str,
+    settings: any,
+  }),
+  'canvas.saved': obj({
+    status: str,
+    session_id: str,
+  }),
+  'chat.feedback': obj({
+    recorded: bool,
+    message_id: str,
+    vote: str,
+  }),
+  'loop.action': obj({
+    loop_id: str,
+    action: str,
+    status: str,
+  }),
+  'hf.cancel': obj({
+    ok: bool,
+    task_id: str,
+    status: str,
+  }),
+  'vault.lease.revoke': obj({
+    lease_id: str,
+    revoked: bool,
+  }),
+  'quantum.canary': obj({
+    ok: bool,
+    results: any,
+    cached: bool,
+    cache_ttl_seconds: num,
+  }, ['ok']),
   'cost.summary': obj({
     cap_usd: num,
     spent_usd: num,

@@ -105,8 +105,9 @@ Still open:
   landed; a Go drift test checks every generated console path/method against
   the route-policy table (it caught a missing GET on observatory lens).
   Close-obligation, quantum cancel, custom-agent delete, and metasearch
-  approve/reject/apply now use generated operation metadata: 97 modeled /
-  34 client-only (from 91/40);
+  approve/reject/apply, LLM/quantum settings, canvas layout, chat feedback,
+  loop actions, HF cancel, vault-lease revoke, and quantum canary now use
+  generated operation metadata: 105 modeled / 26 client-only (from 91/40);
   session, loops, events, jobs, fidelity, ADMET, agents, LLM/quantum
   settings, radar, cost, obligations, notebooks, capabilities,
   session-context, abort, workflow, quantum-submit, messages, job-detail,

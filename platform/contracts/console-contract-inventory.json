@@ -17,7 +17,9 @@
     "autoresearch.step",
     "campaign",
     "canvas.layout",
+    "canvas.saved",
     "capabilities",
+    "chat.feedback",
     "chat.launch",
     "chat.regenerate",
     "chat.rewrite",
@@ -35,6 +37,7 @@
     "events.list",
     "fidelity",
     "fleet",
+    "hf.cancel",
     "hf.details",
     "hf.download",
     "hf.downloads",
@@ -55,6 +58,7 @@
     "llm.models",
     "llm.settings",
     "llm.test",
+    "loop.action",
     "loops.list",
     "mandate.sign",
     "mandate.verify",
@@ -73,6 +77,7 @@
     "prediction.seal",
     "qir.compile",
     "quantum.backends",
+    "quantum.canary",
     "quantum.cancel",
     "quantum.job",
     "quantum.settings",
@@ -82,12 +87,14 @@
     "session.context",
     "session.create",
     "sessions.list",
+    "settings.update",
     "tribunal.resume",
     "tribunal.run",
     "vault.calibration",
     "vault.history",
     "vault.latest",
     "vault.lease",
+    "vault.lease.revoke",
     "workbench.layout",
     "workbench.save",
     "workflow.plan",
@@ -110,7 +117,9 @@
     "autoresearch.step",
     "campaign",
     "canvas.layout",
+    "canvas.saved",
     "capabilities",
+    "chat.feedback",
     "chat.launch",
     "chat.regenerate",
     "chat.rewrite",
@@ -128,6 +137,7 @@
     "events.list",
     "fidelity",
     "fleet",
+    "hf.cancel",
     "hf.details",
     "hf.download",
     "hf.downloads",
@@ -148,6 +158,7 @@
     "llm.models",
     "llm.settings",
     "llm.test",
+    "loop.action",
     "loops.list",
     "mandate.sign",
     "mandate.verify",
@@ -166,6 +177,7 @@
     "prediction.seal",
     "qir.compile",
     "quantum.backends",
+    "quantum.canary",
     "quantum.cancel",
     "quantum.job",
     "quantum.settings",
@@ -175,12 +187,14 @@
     "session.context",
     "session.create",
     "sessions.list",
+    "settings.update",
     "tribunal.resume",
     "tribunal.run",
     "vault.calibration",
     "vault.history",
     "vault.latest",
     "vault.lease",
+    "vault.lease.revoke",
     "workbench.layout",
     "workbench.save",
     "workflow.plan",
@@ -234,6 +248,12 @@
       "path": "/api/auth/whoami",
       "method": "GET",
       "contract": "auth.whoami"
+    },
+    {
+      "function": "cancelHFDownload",
+      "path": "/api/hf/downloads/:id/cancel",
+      "method": "POST",
+      "contract": "hf.cancel"
     },
     {
       "function": "cancelQuantumJob",
@@ -578,6 +598,12 @@
       "contract": "hf.downloads"
     },
     {
+      "function": "loopAction",
+      "path": "/api/loops/:id/:action",
+      "method": "POST",
+      "contract": "loop.action"
+    },
+    {
       "function": "pauseAutoresearchLoop",
       "path": "/api/autoresearch/loops/:id/pause",
       "method": "POST",
@@ -644,6 +670,12 @@
       "contract": "memory.retain"
     },
     {
+      "function": "revokeVaultLease",
+      "path": "/api/vault/leases/revoke",
+      "method": "POST",
+      "contract": "vault.lease.revoke"
+    },
+    {
       "function": "rewriteChat",
       "path": "/api/chat/rewrite",
       "method": "POST",
@@ -662,6 +694,12 @@
       "contract": "codesign.families"
     },
     {
+      "function": "runQuantumCanary",
+      "path": "/api/quantum/canary",
+      "method": "GET",
+      "contract": "quantum.canary"
+    },
+    {
       "function": "runTribunal",
       "path": "/api/chat/tribunal",
       "method": "POST",
@@ -672,6 +710,24 @@
       "path": "/api/workflows/run",
       "method": "POST",
       "contract": "workflow.run"
+    },
+    {
+      "function": "saveCanvasLayout",
+      "path": "/api/canvas/layout",
+      "method": "PUT",
+      "contract": "canvas.saved"
+    },
+    {
+      "function": "saveLLMSettings",
+      "path": "/api/llm/settings",
+      "method": "POST",
+      "contract": "settings.update"
+    },
+    {
+      "function": "saveQuantumSettings",
+      "path": "/api/quantum/settings",
+      "method": "PUT",
+      "contract": "settings.update"
     },
     {
       "function": "saveWorkbenchLayout",
@@ -702,6 +758,12 @@
       "path": "/api/chat/messages",
       "method": "POST",
       "contract": "chat.send"
+    },
+    {
+      "function": "sendFeedback",
+      "path": "/api/chat/feedback",
+      "method": "POST",
+      "contract": "chat.feedback"
     },
     {
       "function": "startAutoresearchLoop",
@@ -784,10 +846,6 @@
       "reason": "client-constructed ok envelope"
     },
     {
-      "function": "cancelHFDownload",
-      "reason": "boolean HTTP result"
-    },
-    {
       "function": "configureApiBase",
       "reason": "runtime base-URL probe"
     },
@@ -832,10 +890,6 @@
       "reason": "same-origin URL helper"
     },
     {
-      "function": "loopAction",
-      "reason": "client-constructed ok/error envelope"
-    },
-    {
       "function": "refundSessionSpend",
       "reason": "client-constructed ok envelope"
     },
@@ -864,32 +918,8 @@
       "reason": "client-constructed ok envelope"
     },
     {
-      "function": "revokeVaultLease",
-      "reason": "client-constructed ok envelope"
-    },
-    {
-      "function": "runQuantumCanary",
-      "reason": "client-constructed canary envelope"
-    },
-    {
-      "function": "saveCanvasLayout",
-      "reason": "client-constructed ok envelope"
-    },
-    {
-      "function": "saveLLMSettings",
-      "reason": "client-constructed ok envelope"
-    },
-    {
-      "function": "saveQuantumSettings",
-      "reason": "client-constructed ok envelope"
-    },
-    {
       "function": "scoreCodesignBudget",
       "reason": "client-constructed ok/result envelope"
-    },
-    {
-      "function": "sendFeedback",
-      "reason": "boolean HTTP result"
     },
     {
       "function": "setTenantAutonomy",
