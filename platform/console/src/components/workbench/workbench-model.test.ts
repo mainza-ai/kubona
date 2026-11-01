@@ -115,6 +115,15 @@ describe('workbench model', () => {
     expect(job?.facts.find((fact) => fact.label === 'Status')?.value).toBe('2');
   });
 
+  it('projects open obligations as approval objects', () => {
+    const objects = buildWorkbench(campaign(), [], [], [
+      { id: 'ob-1', subject_kind: 'spend', subject_id: 'spend-123456789', owner: 'lab', disposition: 'REVIEW', required_cases: ['owner'], required_authorities: ['treasury'], close_ready: false, close_reasons: [] },
+    ]);
+    const approval = objects.find((object) => object.kind === 'approval');
+    expect(approval?.id).toBe('approval-ob-1');
+    expect(approval?.facts.find((fact) => fact.label === 'Close ready')?.value).toBe('no');
+  });
+
   it('labels an uncomputed anchor as UNVERIFIED', () => {
     const unanchored = campaign({
       classical_anchor: {

@@ -4251,3 +4251,9 @@ skipped is the exact failure this incident is about:
 - Exact campaign quantum factors project as a table card; capabilities and
   session-context wrappers move onto `requestOperation`. Updated
   [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Approval cards
+
+- Open obligations project as `approval` cards with close readiness, required
+  cases, and authorities; opening one goes to the guardrails queue. Updated
+  [[remaining-work]]; no new page.
