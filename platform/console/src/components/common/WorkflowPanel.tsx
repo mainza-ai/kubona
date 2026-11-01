@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { planWorkflow, runWorkflow } from '@/lib/api';
 import type { WorkflowDefinition } from '@/types';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
+import { useWriteSettlement } from '@/domain/use-write-settlement';
+import { writeSettlementLabel } from '@/domain/write-settlement';
 
 const SAMPLE = `{
   "name": "campaign-audit",
@@ -20,6 +22,7 @@ export function WorkflowPanel({ sessionId }: { sessionId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<'plan' | 'run' | null>(null);
   const [confirm, setConfirm] = useState<WorkflowDefinition | null>(null);
+  const runWrite = useWriteSettlement();
 
   const parse = (): WorkflowDefinition | null => {
     setError(null);
@@ -56,12 +59,16 @@ export function WorkflowPanel({ sessionId }: { sessionId: string }) {
     if (!confirm) return;
     setBusy('run');
     setResult(null);
+    const requestId = runWrite.begin('run workflow');
     try {
       const out = await runWorkflow({ session_id: sessionId, workflow: confirm });
+      runWrite.applied(requestId, 'workflow completed');
       setResult(out as unknown as Record<string, unknown>);
       setConfirm(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      const message = err instanceof Error ? err.message : String(err);
+      runWrite[message.includes('refused (HTTP') ? 'refused' : 'unknown'](requestId, message);
+      setError(message);
     } finally {
       setBusy(null);
     }
@@ -83,6 +90,9 @@ export function WorkflowPanel({ sessionId }: { sessionId: string }) {
         </button>
       </div>
       {error && <p role="alert" className="text-[12px] text-rose-300">{error}</p>}
+      {writeSettlementLabel(runWrite.write) && (
+        <p role="status" className="text-[12px] font-mono text-slate-400">{writeSettlementLabel(runWrite.write)}</p>
+      )}
       {plan && (
         <div className="rounded-xl bg-white/[0.03] border border-white/[0.06] p-2 text-[12px] font-code text-slate-300 space-y-0.5">
           <div>plan {String(plan.workflow_id ?? '—')} · dry_run {String(plan.dry_run)} · steps {Array.isArray(plan.steps) ? plan.steps.length : 0}</div>
