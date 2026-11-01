@@ -51,4 +51,28 @@ describe('Inspector', () => {
     const copilotTab = tree!.root.findAllByType('button').find((button) => button.props.children === 'Copilot');
     expect(copilotTab).toBeDefined();
   });
+
+  it('creates a task from a selected record', async () => {
+    const object: WorkbenchObject = { id: 'job-j1', kind: 'job', label: 'Job', title: 'Run 1', detail: '', position: { x: 0, y: 0 }, size: { width: 10, height: 10 }, facts: [], ref: { domain: 'job', id: 'j1' } };
+    const onCreateTask = vi.fn();
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<Inspector open tab="details" onTab={() => {}} onClose={() => {}} campaign={campaign} selectedObject={object} jobs={[]} onCreateTask={onCreateTask} copilot={<div />} />);
+    });
+    const create = tree!.root.findAllByType('button').find((button) => button.props.children === 'Create task');
+    await act(async () => { create!.props.onClick(); });
+    expect(onCreateTask).toHaveBeenCalledWith(object);
+  });
+
+  it('toggles a selected task open or done', async () => {
+    const object: WorkbenchObject = { id: 'task-t1', kind: 'task', label: 'Task', title: 'Review anchor', detail: '', position: { x: 0, y: 0 }, size: { width: 10, height: 10 }, facts: [], ref: { domain: 'task', id: 't1' } };
+    const onTaskStatus = vi.fn();
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<Inspector open tab="details" onTab={() => {}} onClose={() => {}} campaign={campaign} selectedObject={object} jobs={[]} tasks={[{ id: 't1', session_id: 's1', title: 'Review anchor', status: 'open', source_domain: 'measurement', source_id: 'm1', created_at: '', updated_at: '' }]} onTaskStatus={onTaskStatus} copilot={<div />} />);
+    });
+    const done = tree!.root.findAllByType('button').find((button) => button.props.children === 'Mark done');
+    await act(async () => { done!.props.onClick(); });
+    expect(onTaskStatus).toHaveBeenCalledWith('t1', 'done');
+  });
 });
