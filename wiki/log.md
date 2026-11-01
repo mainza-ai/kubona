@@ -4551,3 +4551,12 @@ skipped is the exact failure this incident is about:
   generated operation metadata and response contracts.
 - Inventory: 105 modeled / 26 client-only (from 97/34).
 - Updated [[remaining-work]]; no page.
+
+## [2026-11-01] impl | Tenant mutation envelopes modeled
+
+- Migrate tenant ceiling/status/autonomy/revoke/refund/admin-key and session
+  refund through generated operation metadata, with `tenant.write` and
+  `session.refund` contracts.
+- Teach the inventory the `postTenantMutation(operation, ...)` helper form.
+- Inventory/OpenAPI: 112 modeled / 19 client-only (from 105/26).
+- Updated [[remaining-work]]; no page.

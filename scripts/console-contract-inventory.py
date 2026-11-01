@@ -45,17 +45,10 @@ CLIENT_ONLY = {
     "authRevoke": "client-constructed ok envelope",
     "deleteSession": "boolean HTTP result",
     "loopAction": "client-constructed ok/error envelope",
-    "setTenantAutonomy": "postTenantMutation client helper",
-    "setTenantCeiling": "postTenantMutation client helper",
-    "setTenantStatus": "postTenantMutation client helper",
-    "registerTenantAdminKey": "postTenantMutation client helper",
-    "refundTenantSpend": "postTenantMutation client helper",
-    "revokeTenantAutonomy": "postTenantMutation client helper",
     "exportLedger": "client-constructed export envelope",
     "exportSession": "client-constructed export envelope",
     "importSession": "client-constructed import envelope",
     "issueTenantGrant": "client-constructed grant envelope",
-    "refundSessionSpend": "client-constructed ok envelope",
     "revokeTenantGrant": "client-constructed ok envelope",
     "runQuantumCanary": "client-constructed canary envelope",
     "scoreCodesignBudget": "client-constructed ok/result envelope",
@@ -66,6 +59,7 @@ PATH_RE = re.compile(r"\$\{API_BASE\}(/api/[^`\"\s]*)")
 QUOTED_PATH_RE = re.compile(r"['\"](/api/[^'\"]+)['\"]")
 CONTRACT_RE = re.compile(r"\b(?:contract|reportResponseContract|validateResponse)\(\s*['\"]([^'\"]+)['\"]")
 REQUEST_OP_RE = re.compile(r"requestOperation\(\s*['\"]([^'\"]+)['\"]")
+HELPER_OP_RE = re.compile(r"postTenantMutation\(\s*['\"](\w+)['\"]")
 GENERATED_OP_RE = re.compile(r"^\s{2}(\w+): \{ method: \"(\w+)\", path: \"([^\"]+)\", response: \"([^\"]+)\" \},", re.MULTILINE)
 METHOD_RE = re.compile(r"\bmethod:\s*['\"]([A-Za-z]+)['\"]")
 SCHEMA_RE = re.compile(r"^\s{2}(?:'([^']+)'|([A-Za-z0-9_.]+)):\s*obj\(", re.MULTILINE)
@@ -107,7 +101,7 @@ def api_functions() -> list[dict[str, object]]:
             path = normalize(m.group(1).split("?")[0])
         contract_match = CONTRACT_RE.search(body)
         method_match = METHOD_RE.search(body)
-        operation = REQUEST_OP_RE.search(body)
+        operation = REQUEST_OP_RE.search(body) or HELPER_OP_RE.search(body)
         generated_op = generated.get(operation.group(1)) if operation else None
         if generated_op:
             if path is None:

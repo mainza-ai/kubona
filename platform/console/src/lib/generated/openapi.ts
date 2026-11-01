@@ -482,6 +482,19 @@ export type QuantumCanary = {
   "cache_ttl_seconds"?: number;
 };
 
+export type TenantWrite = {
+  "id": string;
+  "display_name"?: string;
+  "autonomy_level"?: string;
+  "status"?: string;
+  "aborted_jobs_count"?: number;
+};
+
+export type SessionRefund = {
+  "id": string;
+  "current_spend_usd"?: number;
+};
+
 export type CostSummary = {
   "cap_usd": number;
   "spent_usd": number;
@@ -626,7 +639,10 @@ export type ApiOperationResponse = {
   loopAction: LoopAction;
   pauseAutoresearchLoop: AutoresearchLoop;
   planWorkflow: WorkflowPlan;
+  refundSessionSpend: SessionRefund;
+  refundTenantSpend: TenantWrite;
   regenerateChat: ChatRegenerate;
+  registerTenantAdminKey: TenantWrite;
   rejectMetasearchProposal: MetasearchChange;
   requestObservatoryLens: LensRequest;
   requestServerSignedMandate: MandateSign;
@@ -635,6 +651,7 @@ export type ApiOperationResponse = {
   resumeAutoresearchLoop: AutoresearchLoop;
   resumeTribunal: TribunalResume;
   retainMemory: MemoryRetain;
+  revokeTenantAutonomy: TenantWrite;
   revokeVaultLease: VaultLeaseRevoke;
   rewriteChat: ChatRewrite;
   routeMultimodalPayload: MeshRoute;
@@ -651,6 +668,9 @@ export type ApiOperationResponse = {
   searchLiterature: Literature;
   sendChatMessage: ChatSend;
   sendFeedback: ChatFeedback;
+  setTenantAutonomy: TenantWrite;
+  setTenantCeiling: TenantWrite;
+  setTenantStatus: TenantWrite;
   startAutoresearchLoop: AutoresearchLoop;
   startHFDownload: HfDownload;
   stepAutoresearchLoop: AutoresearchStep;
@@ -734,7 +754,10 @@ export const API_OPERATIONS = {
   loopAction: { method: "post", path: "/api/loops/{id}/{action}", response: "loop.action" },
   pauseAutoresearchLoop: { method: "post", path: "/api/autoresearch/loops/{id}/pause", response: "autoresearch.loop" },
   planWorkflow: { method: "post", path: "/api/workflows/plan", response: "workflow.plan" },
+  refundSessionSpend: { method: "post", path: "/api/sessions/refund", response: "session.refund" },
+  refundTenantSpend: { method: "post", path: "/api/tenants/refund", response: "tenant.write" },
   regenerateChat: { method: "post", path: "/api/chat/regenerate", response: "chat.regenerate" },
+  registerTenantAdminKey: { method: "post", path: "/api/tenants/admin-key", response: "tenant.write" },
   rejectMetasearchProposal: { method: "post", path: "/api/metasearch/reject", response: "metasearch.change" },
   requestObservatoryLens: { method: "post", path: "/api/observatory/lens", response: "lens.request" },
   requestServerSignedMandate: { method: "post", path: "/api/mandates/sign", response: "mandate.sign" },
@@ -743,6 +766,7 @@ export const API_OPERATIONS = {
   resumeAutoresearchLoop: { method: "post", path: "/api/autoresearch/loops/{id}/resume", response: "autoresearch.loop" },
   resumeTribunal: { method: "post", path: "/api/tribunal/resume", response: "tribunal.resume" },
   retainMemory: { method: "post", path: "/api/memory/retain", response: "memory.retain" },
+  revokeTenantAutonomy: { method: "post", path: "/api/tenants/revoke", response: "tenant.write" },
   revokeVaultLease: { method: "post", path: "/api/vault/leases/revoke", response: "vault.lease.revoke" },
   rewriteChat: { method: "post", path: "/api/chat/rewrite", response: "chat.rewrite" },
   routeMultimodalPayload: { method: "post", path: "/api/mesh/route", response: "mesh.route" },
@@ -759,6 +783,9 @@ export const API_OPERATIONS = {
   searchLiterature: { method: "get", path: "/api/literature", response: "literature" },
   sendChatMessage: { method: "post", path: "/api/chat/messages", response: "chat.send" },
   sendFeedback: { method: "post", path: "/api/chat/feedback", response: "chat.feedback" },
+  setTenantAutonomy: { method: "post", path: "/api/tenants/autonomy", response: "tenant.write" },
+  setTenantCeiling: { method: "post", path: "/api/tenants/ceiling", response: "tenant.write" },
+  setTenantStatus: { method: "post", path: "/api/tenants/status", response: "tenant.write" },
   startAutoresearchLoop: { method: "post", path: "/api/autoresearch/start", response: "autoresearch.loop" },
   startHFDownload: { method: "post", path: "/api/hf/download", response: "hf.download" },
   stepAutoresearchLoop: { method: "post", path: "/api/autoresearch/loops/{id}/step", response: "autoresearch.step" },
