@@ -4377,3 +4377,10 @@ skipped is the exact failure this incident is about:
 - Chat send, tribunal run/resume, proposal launch, and discovery pipeline move
   onto `requestOperation`, preserving refusal text and envelope normalization.
   Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Mandate/ledger wrappers; manual AT record scaffold
+
+- Server-signed mandate, mandate verification, and ledger append move onto
+  `requestOperation`. Added an explicit **NOT RUN** manual VoiceOver/NVDA
+  record so the remaining pass is not mistaken for green. Updated
+  [[remaining-work]]; no new page.

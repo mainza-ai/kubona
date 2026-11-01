@@ -1448,13 +1448,7 @@ export async function requestServerSignedMandate(
   req: SpendMandateSignRequest
 ): Promise<SpendMandateSignResponse | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/mandates/sign`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(req),
-    });
-    if (!res.ok) return null;
-    return contract('mandate.sign', await res.json());
+    return (await requestOperation('requestServerSignedMandate', { body: req })) as unknown as SpendMandateSignResponse;
   } catch (err) {
     console.error('Failed to request server signed mandate:', err);
     return null;
@@ -1465,18 +1459,10 @@ export async function verifySpendMandate(
   mandate: import('./mandates').SpendMandate
 ): Promise<SpendMandateVerifyResponse> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/mandates/verify`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(mandate),
-    });
-    if (!res.ok) {
-      return { valid: false, error: `HTTP ${res.status}: ${res.statusText}` };
-    }
-    return contract('mandate.verify', await res.json());
+    return (await requestOperation('verifySpendMandate', { body: mandate })) as unknown as SpendMandateVerifyResponse;
   } catch (err) {
     console.error('Failed to verify spend mandate:', err);
-    return { valid: false, error: String(err) };
+    return { valid: false, error: String(err instanceof Error ? err.message : err) };
   }
 }
 
@@ -1753,26 +1739,17 @@ export async function appendLedgerEvent(
   eventType: string,
   payload: Record<string, unknown>
 ): Promise<{ ok: boolean; record_hash?: string; event_id?: string | number; error?: string }> {
-  const res = await apiFetch(`${API_BASE}/api/ledger/append`, {
-    method: 'POST',
-    headers: authHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ session_id: sessionId, event_type: eventType, payload }),
-  });
-  if (!res.ok) {
-    let text = '';
-    try {
-      text = (await res.text()).trim().slice(0, 280);
-    } catch {
-      /* ignore */
+  try {
+    const data = (await requestOperation('appendLedgerEvent', {
+      body: { session_id: sessionId, event_type: eventType, payload },
+    })) as { ok?: boolean; record_hash?: string; event_id?: string | number; error?: string };
+    if (!data?.ok || !data?.record_hash) {
+      return { ok: false, error: data?.error || 'ledger returned no record hash' };
     }
-    return { ok: false, error: text || `ledger refused the commit (HTTP ${res.status})` };
+    return { ok: true, record_hash: data.record_hash, event_id: data.event_id };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
-  const data = await res.json();
-  contract('ledger.append', data);
-  if (!data?.ok || !data?.record_hash) {
-    return { ok: false, error: (data?.error as string) || 'ledger returned no record hash' };
-  }
-  return { ok: true, record_hash: data.record_hash, event_id: data.event_id };
 }
 
 export interface BackendStatus {
