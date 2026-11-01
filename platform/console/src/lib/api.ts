@@ -1319,9 +1319,7 @@ export async function saveLLMSettings(
 
 export async function fetchLLMModels(provider: string = 'omlx'): Promise<Record<string, unknown>> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/llm/models?provider=${encodeURIComponent(provider)}`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return { models: [] };
-    return contract('llm.models', await res.json());
+    return (await requestOperation('fetchLLMModels', { query: { provider } })) as Record<string, unknown>;
   } catch (err) {
     console.error('Failed to fetch LLM models:', err);
     return { models: [] };
@@ -1330,13 +1328,7 @@ export async function fetchLLMModels(provider: string = 'omlx'): Promise<Record<
 
 export async function testLLM(prompt: string, role: string = 'copilot'): Promise<Record<string, unknown> | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/llm/test`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ role, prompt }),
-    });
-    if (!res.ok) return null;
-    return contract('llm.test', await res.json());
+    return (await requestOperation('testLLM', { body: { role, prompt } })) as Record<string, unknown>;
   } catch (err) {
     console.error('Failed to test LLM:', err);
     return null;
@@ -1353,18 +1345,14 @@ export async function searchHFModels(
   limit: number = 15
 ): Promise<import('@/types').HFModelSummary[]> {
   try {
-    const url = `${API_BASE}/api/hf/search?q=${encodeURIComponent(query)}&library=${encodeURIComponent(library)}&limit=${limit}`;
-    const res = await apiFetch(url, { cache: 'no-store', headers: authHeaders() });
-    // Audit 2026-10-21: a bare `return []` here turned every refusal
-    // (401 without an operator token, 429, 5xx) into "No models found"
-    // — a lie the hub surface rendered as an empty result. Refusals
-    // throw so callers toast them; only a genuine empty hub reads empty.
-    if (!res.ok) throw new Error(`hub refused search (HTTP ${res.status}): no operator token or hub unreachable`);
-    const data = await res.json();
-    contract('hf.search', data);
+    const data = (await requestOperation('searchHFModels', {
+      query: { q: query, library, limit },
+    })) as { models?: import('@/types').HFModelSummary[] };
     return data.models || [];
   } catch (err) {
-    if (err instanceof Error && err.message.startsWith('hub refused')) throw err;
+    if (err instanceof OperationError && err.status !== null) {
+      throw new Error(`hub refused search (HTTP ${err.status}): no operator token or hub unreachable`);
+    }
     console.error('Failed to search Hugging Face models:', err);
     return [];
   }
@@ -1374,10 +1362,9 @@ export async function getHFModelDetails(
   repoId: string
 ): Promise<import('@/types').HFModelSummary | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/hf/models/${encodeURIComponent(repoId)}`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return null;
-    const data = await res.json();
-    contract('hf.details', data);
+    const data = (await requestOperation('getHFModelDetails', { params: { id: repoId } })) as {
+      model?: import('@/types').HFModelSummary | null;
+    };
     return data.model || null;
   } catch (err) {
     console.error('Failed to fetch HF model details:', err);
@@ -1417,15 +1404,14 @@ export async function startHFDownload(
 
 export async function listHFDownloads(): Promise<import('@/types').HFDownloadTask[]> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/hf/downloads`, { cache: 'no-store', headers: authHeaders() });
-    // Same audit rule as search: a refused list is not an empty list.
-    // Pollers already swallow rejections silently; manual callers toast.
-    if (!res.ok) throw new Error(`hub refused download list (HTTP ${res.status}): no operator token or hub unreachable`);
-    const data = await res.json();
-    contract('hf.downloads', data);
+    const data = (await requestOperation('listHFDownloads')) as {
+      downloads?: import('@/types').HFDownloadTask[];
+    };
     return data.downloads || [];
   } catch (err) {
-    if (err instanceof Error && err.message.startsWith('hub refused')) throw err;
+    if (err instanceof OperationError && err.status !== null) {
+      throw new Error(`hub refused download list (HTTP ${err.status}): no operator token or hub unreachable`);
+    }
     console.error('Failed to list HF downloads:', err);
     return [];
   }
