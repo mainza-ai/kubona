@@ -93,8 +93,8 @@ Still open:
   fleet/radar, cost, and backend readiness have named domain projections backed
   by a ref-counted store registry; simultaneous consumers share one store and
   the last unsubscribe stops/resets it. Campaign create/delete use shared
-  write settlement; the shared transcript and remaining write settlement stay
-  open; generated contract
+  write settlement; the Copilot transcript is a shared per-session store.
+  Remaining write settlement stays open; generated contract
   types, operation metadata, and a checked `requestOperation()` client are
   landed; session, loops, events, jobs, fidelity, ADMET, agents, LLM/quantum
   settings, radar, cost, obligations, notebooks, capabilities,
