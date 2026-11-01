@@ -396,6 +396,14 @@ func OpenLedgerWithOptions(dbPath string, opts Options) (*Ledger, error) {
 		updated_at DATETIME NOT NULL
 	);
 
+	CREATE TABLE IF NOT EXISTS workbench_layouts (
+		session_id TEXT PRIMARY KEY,
+		revision INTEGER NOT NULL DEFAULT 0,
+		document TEXT NOT NULL DEFAULT '{}',
+		updated_at DATETIME NOT NULL,
+		FOREIGN KEY (session_id) REFERENCES sessions(id)
+	);
+
 	CREATE TABLE IF NOT EXISTS custom_agents (
 		id TEXT PRIMARY KEY,
 		manifest_json TEXT NOT NULL DEFAULT '{}',

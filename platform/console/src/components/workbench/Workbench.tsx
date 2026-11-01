@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Maximize2, Minus, Plus } from 'lucide-react';
 import type { CampaignState } from '@/types';
-import { fetchCanvasLayout, saveCanvasLayout } from '@/lib/api';
+import { fetchCanvasLayout, fetchWorkbenchLayout, saveWorkbenchLayout } from '@/lib/api';
 import { Chart } from '@/components/data/DataChart';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -14,7 +14,8 @@ import {
   readCamera,
   readPositions,
   readSizes,
-  workbenchPayload,
+  readWorkbenchDocument,
+  workbenchDocument,
   type WorkbenchCamera,
   type WorkbenchObject,
   type WorkbenchObjectKind,
@@ -30,7 +31,7 @@ type Props = {
 
 export function Workbench({ campaign, sessionId, onOpenObject }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
-  const baseLayout = useRef<Record<string, unknown>>({});
+  const revision = useRef(0);
   const loaded = useRef(false);
   const drag = useRef<{ x: number; y: number; camera: WorkbenchCamera } | null>(null);
   const cardDrag = useRef<{ id: string; x: number; y: number; originX: number; originY: number } | null>(null);
@@ -69,14 +70,26 @@ export function Workbench({ campaign, sessionId, onOpenObject }: Props) {
       return;
     }
     let live = true;
-    fetchCanvasLayout(sessionId).then((layout) => {
+    void (async () => {
+      const saved = await fetchWorkbenchLayout(sessionId);
       if (!live) return;
-      baseLayout.current = layout ?? {};
-      setCamera(readCamera(layout));
-      setPositions(readPositions(layout));
-      setSizes(readSizes(layout));
+      if (saved && saved.revision > 0) {
+        revision.current = saved.revision;
+        const doc = readWorkbenchDocument(saved.document);
+        setCamera(doc.camera);
+        setPositions(doc.positions);
+        setSizes(doc.sizes);
+        loaded.current = true;
+        return;
+      }
+      const legacy = await fetchCanvasLayout(sessionId);
+      if (!live) return;
+      revision.current = 0;
+      setCamera(readCamera(legacy));
+      setPositions(readPositions(legacy));
+      setSizes(readSizes(legacy));
       loaded.current = true;
-    });
+    })();
     return () => {
       live = false;
     };
@@ -88,19 +101,24 @@ export function Workbench({ campaign, sessionId, onOpenObject }: Props) {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
       setSaving(true);
-      void saveCanvasLayout(sessionId, {
-        ...baseLayout.current,
-        workbench: workbenchPayload(camera, positions, sizes),
-      }).then((out) => {
+      void saveWorkbenchLayout(
+        sessionId,
+        revision.current,
+        workbenchDocument(sessionId, buildWorkbench(campaign), positions, sizes, camera) as unknown as Record<string, unknown>,
+      ).then((out) => {
         setSaving(false);
-        if (!out.ok) setStatus(out.error || 'layout save refused');
-        else setStatus(null);
+        if (out.ok) {
+          if (typeof out.revision === 'number') revision.current = out.revision;
+          setStatus(null);
+        } else {
+          setStatus(out.error || 'layout save refused');
+        }
       });
     }, 650);
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [camera, positions, sizes, sessionId]);
+  }, [camera, positions, sizes, sessionId, campaign]);
 
   // Native, non-passive wheel listener: React's delegated wheel handler is
   // passive, so preventDefault there would be ignored (and log a warning).
