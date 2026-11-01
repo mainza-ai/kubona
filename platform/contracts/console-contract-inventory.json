@@ -5,6 +5,7 @@
     "admet",
     "agent.one",
     "agents.custom",
+    "agents.custom.delete",
     "agents.system",
     "auth.challenge",
     "auth.login",
@@ -62,14 +63,17 @@
     "mesh.route",
     "messages.clear",
     "messages.list",
+    "metasearch.change",
     "metasearch.proposals",
     "notebooks.list",
+    "obligations.close",
     "obligations.open",
     "prediction.assert",
     "prediction.evaluate",
     "prediction.seal",
     "qir.compile",
     "quantum.backends",
+    "quantum.cancel",
     "quantum.job",
     "quantum.settings",
     "quantum.submit",
@@ -94,6 +98,7 @@
     "admet",
     "agent.one",
     "agents.custom",
+    "agents.custom.delete",
     "agents.system",
     "auth.challenge",
     "auth.login",
@@ -151,14 +156,17 @@
     "mesh.route",
     "messages.clear",
     "messages.list",
+    "metasearch.change",
     "metasearch.proposals",
     "notebooks.list",
+    "obligations.close",
     "obligations.open",
     "prediction.assert",
     "prediction.evaluate",
     "prediction.seal",
     "qir.compile",
     "quantum.backends",
+    "quantum.cancel",
     "quantum.job",
     "quantum.settings",
     "quantum.submit",
@@ -184,6 +192,18 @@
       "path": "/api/ledger/append",
       "method": "POST",
       "contract": "ledger.append"
+    },
+    {
+      "function": "applyMetasearchProposal",
+      "path": "/api/metasearch/apply",
+      "method": "POST",
+      "contract": "metasearch.change"
+    },
+    {
+      "function": "approveMetasearchProposal",
+      "path": "/api/metasearch/approve",
+      "method": "POST",
+      "contract": "metasearch.change"
     },
     {
       "function": "assertPrediction",
@@ -216,10 +236,22 @@
       "contract": "auth.whoami"
     },
     {
+      "function": "cancelQuantumJob",
+      "path": "/api/quantum/jobs/:id/cancel",
+      "method": "POST",
+      "contract": "quantum.cancel"
+    },
+    {
       "function": "clearMessages",
       "path": "/api/sessions/:id/messages",
       "method": "DELETE",
       "contract": "messages.clear"
+    },
+    {
+      "function": "closeObligation",
+      "path": "/api/obligations/:id",
+      "method": "POST",
+      "contract": "obligations.close"
     },
     {
       "function": "createCustomAgent",
@@ -238,6 +270,12 @@
       "path": "/api/sessions",
       "method": "POST",
       "contract": "session.create"
+    },
+    {
+      "function": "deleteCustomAgent",
+      "path": "/api/agents/custom/:id",
+      "method": "DELETE",
+      "contract": "agents.custom.delete"
     },
     {
       "function": "emergencyAbort",
@@ -558,6 +596,12 @@
       "contract": "chat.regenerate"
     },
     {
+      "function": "rejectMetasearchProposal",
+      "path": "/api/metasearch/reject",
+      "method": "POST",
+      "contract": "metasearch.change"
+    },
+    {
       "function": "requestObservatoryLens",
       "path": "/api/observatory/lens",
       "method": "POST",
@@ -732,14 +776,6 @@
       "reason": "transport primitive returning Response"
     },
     {
-      "function": "applyMetasearchProposal",
-      "reason": "client-constructed ok envelope"
-    },
-    {
-      "function": "approveMetasearchProposal",
-      "reason": "client-constructed ok envelope"
-    },
-    {
       "function": "authLogout",
       "reason": "boolean HTTP result"
     },
@@ -752,20 +788,8 @@
       "reason": "boolean HTTP result"
     },
     {
-      "function": "cancelQuantumJob",
-      "reason": "client-constructed ok envelope"
-    },
-    {
-      "function": "closeObligation",
-      "reason": "client-constructed ok envelope"
-    },
-    {
       "function": "configureApiBase",
       "reason": "runtime base-URL probe"
-    },
-    {
-      "function": "deleteCustomAgent",
-      "reason": "boolean HTTP result"
     },
     {
       "function": "deleteSession",
@@ -822,10 +846,6 @@
     {
       "function": "registerTenantAdminKey",
       "reason": "postTenantMutation client helper"
-    },
-    {
-      "function": "rejectMetasearchProposal",
-      "reason": "client-constructed ok envelope"
     },
     {
       "function": "reportError",

@@ -103,7 +103,10 @@ Still open:
   vocabulary; collapsed transport/refusal is shown as unknown, never applied; generated contract
   types, operation metadata, and a checked `requestOperation()` client are
   landed; a Go drift test checks every generated console path/method against
-  the route-policy table (it caught a missing GET on observatory lens);
+  the route-policy table (it caught a missing GET on observatory lens).
+  Close-obligation, quantum cancel, custom-agent delete, and metasearch
+  approve/reject/apply now use generated operation metadata: 97 modeled /
+  34 client-only (from 91/40);
   session, loops, events, jobs, fidelity, ADMET, agents, LLM/quantum
   settings, radar, cost, obligations, notebooks, capabilities,
   session-context, abort, workflow, quantum-submit, messages, job-detail,

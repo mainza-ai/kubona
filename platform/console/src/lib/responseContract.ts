@@ -269,6 +269,29 @@ export const RESPONSE_SCHEMAS = {
   'labs.list': obj({
     tenants: arr(any),
   }),
+  'obligations.close': obj({
+    ok: bool,
+    id: str,
+    closed: bool,
+    reasons: arr(str),
+    already_closed: bool,
+  }, ['ok']),
+  'quantum.cancel': obj({
+    ok: bool,
+    job_id: str,
+    status: str,
+    provider_recall_attempted: bool,
+    provider_recall_status: str,
+  }, ['ok']),
+  'agents.custom.delete': obj({
+    ok: bool,
+    agent_id: str,
+  }),
+  'metasearch.change': obj({
+    success: bool,
+    proposal: any,
+    message: str,
+  }, ['success']),
   'cost.summary': obj({
     cap_usd: num,
     spent_usd: num,

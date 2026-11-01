@@ -26,6 +26,46 @@
         }
       }
     },
+    "/api/metasearch/apply": {
+      "post": {
+        "operationId": "applyMetasearchProposal",
+        "tags": [
+          "metasearch"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: metasearch.change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/metasearch.change"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/metasearch/approve": {
+      "post": {
+        "operationId": "approveMetasearchProposal",
+        "tags": [
+          "metasearch"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: metasearch.change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/metasearch.change"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/vault/predictions/assert": {
       "post": {
         "operationId": "assertPrediction",
@@ -126,6 +166,36 @@
         }
       }
     },
+    "/api/quantum/jobs/{id}/cancel": {
+      "post": {
+        "operationId": "cancelQuantumJob",
+        "tags": [
+          "quantum"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: quantum.cancel",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/quantum.cancel"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sessions/{id}/messages": {
       "delete": {
         "operationId": "clearMessages",
@@ -177,6 +247,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/messages.list"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/obligations/{id}": {
+      "post": {
+        "operationId": "closeObligation",
+        "tags": [
+          "obligations"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: obligations.close",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/obligations.close"
                 }
               }
             }
@@ -291,6 +391,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/sessions.list"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/agents/custom/{id}": {
+      "delete": {
+        "operationId": "deleteCustomAgent",
+        "tags": [
+          "agents"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: agents.custom.delete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/agents.custom.delete"
                 }
               }
             }
@@ -1367,6 +1497,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/chat.regenerate"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/metasearch/reject": {
+      "post": {
+        "operationId": "rejectMetasearchProposal",
+        "tags": [
+          "metasearch"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: metasearch.change",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/metasearch.change"
                 }
               }
             }
@@ -3223,6 +3373,85 @@
           }
         }
       },
+      "obligations.close": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "closed": {
+            "type": "boolean"
+          },
+          "reasons": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "already_closed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "quantum.cancel": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "job_id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "provider_recall_attempted": {
+            "type": "boolean"
+          },
+          "provider_recall_status": {
+            "type": "string"
+          }
+        }
+      },
+      "agents.custom.delete": {
+        "type": "object",
+        "required": [
+          "ok",
+          "agent_id"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "agent_id": {
+            "type": "string"
+          }
+        }
+      },
+      "metasearch.change": {
+        "type": "object",
+        "required": [
+          "success"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "proposal": {},
+          "message": {
+            "type": "string"
+          }
+        }
+      },
       "cost.summary": {
         "type": "object",
         "required": [
@@ -3493,15 +3722,10 @@
   ],
   "x-kubona-client-only-functions": [
     "apiFetch",
-    "applyMetasearchProposal",
-    "approveMetasearchProposal",
     "authLogout",
     "authRevoke",
     "cancelHFDownload",
-    "cancelQuantumJob",
-    "closeObligation",
     "configureApiBase",
-    "deleteCustomAgent",
     "deleteSession",
     "downloadFile",
     "exportLedger",
@@ -3516,7 +3740,6 @@
     "refundSessionSpend",
     "refundTenantSpend",
     "registerTenantAdminKey",
-    "rejectMetasearchProposal",
     "reportError",
     "resetDedupForTests",
     "revokeTenantAutonomy",
