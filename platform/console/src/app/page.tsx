@@ -2,10 +2,11 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Sparkles, Plus, Zap, Info, HelpCircle, Trash2, Clock, Box, X } from 'lucide-react';
-import { Session, Loop, LedgerEvent, RunPhase, ProbeId } from '@/types';
+import { Session, LedgerEvent, RunPhase, ProbeId } from '@/types';
 import { fetchSessions, fetchSession, createSession, deleteSession, fetchLoops, fetchEvents, fetchCampaignState, API_BASE, authHeaders, configureApiBase, apiFetch, UNAUTH_EVENT, API_PROBLEM_EVENT, type ApiProblem } from '@/lib/api';
 import { mergeSessionEvents, useSessionStream } from '@/lib/useSessionStream';
 import { useCampaignProjection } from '@/lib/useCampaignProjection';
+import { useLoopsProjection } from '@/lib/useLoopsProjection';
 import { SHORTCUTS, SHORTCUT_TARGETS, KEY_TO_SHORTCUT, type ShortcutKey } from '@/lib/shortcuts';
 import { CopilotDrawer } from '@/components/CopilotDrawer';
 import { AboutLabModal } from '@/components/AboutLabModal';
@@ -219,7 +220,7 @@ export default function Home() {
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
   const bootstrappedSession = useRef(false);
   const prevPhase = useRef<RunPhase>('idle');
-  const [loops, setLoops] = useState<Loop[]>([]);
+  const { loops, setLoops, refresh: refreshLoops } = useLoopsProjection(currentSessionId || null);
   const { campaign, setCampaign, reload: reloadCampaign } = useCampaignProjection(currentSessionId || null);
   const [events, setEvents] = useState<LedgerEvent[]>([]);
   const [nowTick, setNowTick] = useState(0);
@@ -279,7 +280,7 @@ export default function Home() {
     }
     setLoops(loopList);
     setEvents(evtList);
-  }, [currentSessionId]);
+  }, [currentSessionId, setLoops]);
 
   const onTelemetry = useCallback((incoming: LedgerEvent[]) => {
     setEvents((previous) => mergeSessionEvents(previous, incoming));
@@ -294,13 +295,6 @@ export default function Home() {
     setCanvasWidget(null);
     setCurrentSessionId(id);
   }, []);
-
-  // Focused loop refetch for override actions (U1-c): the server owns
-  // loop state, so every accepted pause/resume/kill re-reads it.
-  const refreshLoops = useCallback(async () => {
-    const loopList = await fetchLoops(currentSessionId || undefined);
-    setLoops(loopList);
-  }, [currentSessionId]);
 
   // U2-a: an imported (or replayed) session becomes current — switch to
   // it and load its campaign, same as a fresh creation.
@@ -439,7 +433,7 @@ export default function Home() {
       clearTimeout(tickTimer);
       clearInterval(clock);
     };
-  }, [currentSessionId, refreshData, switchSession, runPhase, streamLive, setCampaign]);
+  }, [currentSessionId, refreshData, switchSession, runPhase, streamLive, setCampaign, setLoops]);
   const handleCreateSession = useCallback(() => {
     setIsNewCampaignModalOpen(true);
   }, []);
