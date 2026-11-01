@@ -4649,3 +4649,8 @@ skipped is the exact failure this incident is about:
 - emergencyAbort now returns an explicit ok/refused/unknown result; the
   Guardrails dialog renders accepted/applied/refused/unknown and no longer
   calls a transport failure a refusal.
+
+## [2026-11-01] impl | Codesign rerun settlement
+
+- Render the proposer rerun as accepted/applied/refused/unknown, distinguishing
+  transport failure from refusal while preserving its server request id.

@@ -977,14 +977,18 @@ export async function runFamilySearch(
 // receipt after a transient failure (never mint a new id to "retry").
 export async function rerunCodesignProposal(
   body: Record<string, unknown>
-): Promise<{ ok: true; result: CodesignRerunResult } | { ok: false; error: string }> {
+): Promise<{ ok: true; result: CodesignRerunResult } | { ok: false; error: string; unknown?: boolean }> {
   try {
     const data = (await requestOperation('rerunCodesignProposal', { body })) as CodesignRerunResult & { ok?: boolean };
     if (data.ok !== true) return { ok: false, error: 'codesign rerun refused without a reason' };
     return { ok: true, result: data };
   } catch (err) {
     const message = String(err instanceof Error ? err.message : err).slice(0, 280);
-    return { ok: false, error: err instanceof OperationError && err.status === 401 ? `login required — ${message}` : message };
+    return {
+      ok: false,
+      unknown: !(err instanceof OperationError) || err.status === null,
+      error: err instanceof OperationError && err.status === 401 ? `login required — ${message}` : message,
+    };
   }
 }
 
