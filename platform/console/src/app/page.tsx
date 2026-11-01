@@ -1053,6 +1053,7 @@ export default function Home() {
                 sessionId={currentSessionId || undefined}
                 onOpenObject={(kind) => {
                   if (kind === 'chart' || kind === 'agent_run' || kind === 'job') setSurface('recorder');
+                  else if (kind === 'approval') { setSurface('mesh'); setMeshTab('guardrails'); }
                   else if (kind === 'evidence') setSurface('manifold');
                   else if (kind === 'proof' || kind === 'manuscript') {
                     setSurface('proofs');

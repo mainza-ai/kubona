@@ -7,6 +7,7 @@ import { Workbench } from './Workbench';
 vi.mock('@/lib/api', () => ({
   fetchCanvasLayout: vi.fn(async () => ({})),
   fetchWorkbenchLayout: vi.fn(async () => null),
+  fetchOpenObligations: vi.fn(async () => ({ ok: true, obligations: [] })),
   saveWorkbenchLayout: vi.fn(async () => ({ ok: true, revision: 1 })),
 }));
 

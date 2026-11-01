@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutGrid, List, Maximize2, Minus, Plus } from 'lucide-react';
 import type { CampaignState, Job, Loop } from '@/types';
-import { fetchCanvasLayout, fetchWorkbenchLayout, saveWorkbenchLayout } from '@/lib/api';
+import { fetchCanvasLayout, fetchOpenObligations, fetchWorkbenchLayout, saveWorkbenchLayout, type ObligationRow } from '@/lib/api';
 import { requestOperation } from '@/lib/generated/request';
 import { Chart } from '@/components/data/DataChart';
 import { Button } from '@/components/ui/Button';
@@ -33,10 +33,11 @@ type Props = {
   sessionId?: string;
   loops?: Loop[];
   jobs?: Job[];
+  obligations?: ObligationRow[];
   onOpenObject?: (kind: WorkbenchObjectKind) => void;
 };
 
-export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs, onOpenObject }: Props) {
+export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs, obligations: suppliedObligations, onOpenObject }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const revision = useRef(0);
   const loaded = useRef(false);
@@ -59,7 +60,13 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
     { intervalMs: 5000 },
   );
   const jobs = useMemo(() => suppliedJobs ?? fetchedJobs ?? [], [suppliedJobs, fetchedJobs]);
-  const baseObjects = useMemo(() => buildWorkbench(campaign, loops, jobs), [campaign, loops, jobs]);
+  const { data: fetchedObligations } = usePollingResource(async () => {
+    const out = await fetchOpenObligations();
+    if (!out.ok) throw new Error(out.error);
+    return out.obligations;
+  }, { intervalMs: 15_000 });
+  const obligations = useMemo(() => suppliedObligations ?? fetchedObligations ?? [], [suppliedObligations, fetchedObligations]);
+  const baseObjects = useMemo(() => buildWorkbench(campaign, loops, jobs, obligations), [campaign, loops, jobs, obligations]);
   const links = useMemo(() => buildWorkbenchLinks(baseObjects), [baseObjects]);
   const [viewMode, setViewMode] = useState<'canvas' | 'list'>('canvas');
   const [areas, setAreas] = useState<WorkbenchArea[]>([]);

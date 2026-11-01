@@ -73,10 +73,10 @@ Landed on `develop` and `main` with the console/Go gates green:
 
 Still open:
 
-- Remaining workbench object kinds (`note`, `approval`); job records, running
-  loops, and exact quantum factors project as `job`/`agent_run`/`table`
-  cards. Areas can be renamed, moved, resized, and assigned cards; the canvas
-  virtualizes past 24 objects.
+- Remaining workbench object kind: `note`. Job records, running loops, exact
+  quantum factors, and open obligations project as `job`/`agent_run`/`table`/
+  `approval` cards. Areas can be renamed, moved, resized, and assigned cards;
+  the canvas virtualizes past 24 objects.
 - Backend readiness, spend, fleet/radar, flight-recorder telemetry, and
   job progress now share a serialized, visibility-gated, backoff-bounded
   polling store with terminal-stop support. Copilot tribunal-turn polling is

@@ -1,4 +1,5 @@
 import type { CampaignState, Job, Loop } from '@/types';
+import type { ObligationRow } from '@/lib/api';
 import type { ChartSpec } from '@/components/data/chart';
 
 export type WorkbenchCamera = { x: number; y: number; zoom: number };
@@ -15,7 +16,8 @@ export type WorkbenchObjectKind =
   | 'manuscript'
   | 'agent_run'
   | 'job'
-  | 'table';
+  | 'table'
+  | 'approval';
 
 export type WorkbenchLink = {
   id: string;
@@ -169,7 +171,12 @@ function energyChart(campaign: CampaignState): ChartSpec | undefined {
  * duplicated: this is a read-only projection; later slices replace the
  * card bodies with the domain stores' own objects.
  */
-export function buildWorkbench(campaign: CampaignState | null | undefined, loops: Loop[] = [], jobs: Job[] = []): WorkbenchObject[] {
+export function buildWorkbench(
+  campaign: CampaignState | null | undefined,
+  loops: Loop[] = [],
+  jobs: Job[] = [],
+  obligations: ObligationRow[] = [],
+): WorkbenchObject[] {
   if (!campaign) return [];
   const qf = campaign.quantum_factors;
   const anchor = campaign.classical_anchor;
@@ -327,6 +334,22 @@ export function buildWorkbench(campaign: CampaignState | null | undefined, loops
       { label: 'Backend', value: value(qf?.recommended_backend) },
       { label: 'Estimated spend', value: typeValue(qf?.estimated_spend_usd) },
     ],
+  });
+  obligations.slice(0, 8).forEach((obligation, index) => {
+    objects.push({
+      id: `approval-${obligation.id}`,
+      kind: 'approval',
+      label: 'Approval',
+      title: `${obligation.subject_kind} · ${obligation.subject_id.slice(0, 12)}`,
+      detail: `${obligation.owner} · ${obligation.disposition}`,
+      position: { x: 1260, y: 470 + index * 210 },
+      size: { width: 380, height: 180 },
+      facts: [
+        { label: 'Close ready', value: obligation.close_ready ? 'YES' : 'no' },
+        { label: 'Cases', value: obligation.required_cases.length ? obligation.required_cases.join(', ') : 'none' },
+        { label: 'Authorities', value: obligation.required_authorities.length ? obligation.required_authorities.join(', ') : 'none' },
+      ],
+    });
   });
   if (chart) {
     objects.push({
