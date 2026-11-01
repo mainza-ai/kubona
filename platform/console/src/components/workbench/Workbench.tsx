@@ -58,6 +58,8 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
   const [areas, setAreas] = useState<WorkbenchArea[]>([]);
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
   const [assignments, setAssignments] = useState<Record<string, string>>({});
+  const [hidden, setHidden] = useState<string[]>([]);
+  const [lastRemoved, setLastRemoved] = useState<string | null>(null);
   const [conflictRevision, setConflictRevision] = useState<number | null>(null);
   const [write, setWrite] = useState<WriteSettlement>(IDLE_WRITE);
   useEffect(() => {
@@ -77,14 +79,30 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
     onSelectObject?.(object);
   }, [onSelectObject]);
 
+  const visibleObjects = useMemo(() => objects.filter((object) => !hidden.includes(object.id)), [objects, hidden]);
+
   const areaBounds = useMemo(() => {
-    if (objects.length === 0) return null;
-    const minX = Math.min(...objects.map((object) => object.position.x)) - 24;
-    const minY = Math.min(...objects.map((object) => object.position.y)) - 48;
-    const maxX = Math.max(...objects.map((object) => object.position.x + object.size.width)) + 24;
-    const maxY = Math.max(...objects.map((object) => object.position.y + object.size.height)) + 24;
+    if (visibleObjects.length === 0) return null;
+    const minX = Math.min(...visibleObjects.map((object) => object.position.x)) - 24;
+    const minY = Math.min(...visibleObjects.map((object) => object.position.y)) - 48;
+    const maxX = Math.max(...visibleObjects.map((object) => object.position.x + object.size.width)) + 24;
+    const maxY = Math.max(...visibleObjects.map((object) => object.position.y + object.size.height)) + 24;
     return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
-  }, [objects]);
+  }, [visibleObjects]);
+
+  const removeSelected = useCallback(() => {
+    if (!selected) return;
+    setHidden((previous) => previous.includes(selected) ? previous : [...previous, selected]);
+    setLastRemoved(selected);
+    setSelected(null);
+    onSelectObject?.(null);
+  }, [selected, onSelectObject]);
+
+  const undoRemove = useCallback(() => {
+    if (!lastRemoved) return;
+    setHidden((previous) => previous.filter((id) => id !== lastRemoved));
+    setLastRemoved(null);
+  }, [lastRemoved]);
 
   const fit = useCallback(() => {
     const host = hostRef.current;
@@ -108,6 +126,7 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
     setSizes(doc.sizes);
     setAreas(doc.areas);
     setAssignments(doc.assignments);
+    setHidden(doc.hidden);
     setConflictRevision(null);
     loaded.current = true;
   }, []);
@@ -155,7 +174,7 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
       void saveWorkbenchLayout(
         sessionId,
         revision.current,
-        workbenchDocument(sessionId, baseObjects, positions, sizes, camera, links, areas, assignments) as unknown as Record<string, unknown>,
+        workbenchDocument(sessionId, baseObjects, positions, sizes, camera, links, areas, assignments, hidden) as unknown as Record<string, unknown>,
       ).then((out) => {
         if (out.ok) {
           if (typeof out.revision === 'number') revision.current = out.revision;
@@ -173,7 +192,7 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [camera, positions, sizes, sessionId, baseObjects, links, areas, assignments]);
+  }, [camera, positions, sizes, sessionId, baseObjects, links, areas, assignments, hidden]);
 
   useEffect(() => {
     const host = hostRef.current;
@@ -186,19 +205,19 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
   }, []);
 
   const visibleIds = useMemo(() => {
-    if (objects.length <= 24 || viewport.width === 0) return null;
+    if (visibleObjects.length <= 24 || viewport.width === 0) return null;
     const margin = 600;
     const left = -camera.x / camera.zoom - margin;
     const top = -camera.y / camera.zoom - margin;
     const right = left + viewport.width / camera.zoom + margin * 2;
     const bottom = top + viewport.height / camera.zoom + margin * 2;
-    return new Set(objects.filter((object) => (
+    return new Set(visibleObjects.filter((object) => (
       object.position.x + object.size.width >= left &&
       object.position.x <= right &&
       object.position.y + object.size.height >= top &&
       object.position.y <= bottom
     )).map((object) => object.id));
-  }, [objects, viewport, camera]);
+  }, [visibleObjects, viewport, camera]);
 
   // Native, non-passive wheel listener: React's delegated wheel handler is
   // passive, so preventDefault there would be ignored (and log a warning).
@@ -352,6 +371,13 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
           event.preventDefault();
           setCamera((current) => ({ ...current, zoom: 1 }));
         }
+        if ((event.key === 'Delete' || event.key === 'Backspace') && selected) {
+          const target = event.target as HTMLElement;
+          if (!/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) && !target.isContentEditable) {
+            event.preventDefault();
+            removeSelected();
+          }
+        }
       }}
     >
       <div className="k-workbench-bar" aria-label="Workbench controls">
@@ -409,6 +435,16 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
             {assignments[selected] === areas[0].id ? 'Unassign' : 'Assign to area'}
           </Button>
         )}
+        {selected && (
+          <Button type="button" variant="ghost" size="compact" onClick={removeSelected} title="Remove the selected card from the canvas; the record is not deleted">
+            Remove
+          </Button>
+        )}
+        {lastRemoved && (
+          <Button type="button" variant="ghost" size="compact" onClick={undoRemove} title="Restore the last removed card">
+            Undo remove
+          </Button>
+        )}
         {conflictRevision !== null && (
           <Button type="button" size="compact" onClick={() => void reloadLatest()} title="Reload the latest server layout; local unsaved layout changes are discarded">
             Reload layout
@@ -419,9 +455,12 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
         </span>
       </div>
 
-      {objects.length === 0 ? (
-        <EmptyState title="No campaign on the workbench" className="k-workbench-empty">
-          Create or open a campaign to give the science a place to stand.
+      {visibleObjects.length === 0 ? (
+        <EmptyState
+          title={objects.length === 0 ? 'No campaign on the workbench' : 'All workbench objects are hidden'}
+          className="k-workbench-empty"
+        >
+          {objects.length === 0 ? 'Create or open a campaign to give the science a place to stand.' : 'Use Undo remove or the list view to restore an object.'}
         </EmptyState>
       ) : (
         viewMode === 'list' ? (
@@ -430,7 +469,7 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
               <caption>Campaign workbench objects — text equivalent of the canvas</caption>
               <thead><tr><th scope="col">Kind</th><th scope="col">Object</th><th scope="col">Recorded facts</th><th scope="col">Open</th></tr></thead>
               <tbody>
-                {objects.map((object) => (
+                {visibleObjects.map((object) => (
                   <tr key={object.id}>
                     <th scope="row">{object.label}</th>
                     <td><strong>{object.title}</strong><span>{object.detail}</span></td>
@@ -440,6 +479,19 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
                 ))}
               </tbody>
             </table>
+            {hidden.length > 0 && (
+              <div className="k-workbench-hidden" aria-label="Hidden objects">
+                <strong>Hidden objects</strong>
+                {hidden.map((id) => {
+                  const object = objects.find((item) => item.id === id);
+                  return object ? (
+                    <button key={id} type="button" onClick={() => setHidden((previous) => previous.filter((item) => item !== id))}>
+                      Restore {object.label}: {object.title}
+                    </button>
+                  ) : null;
+                })}
+              </div>
+            )}
           </div>
         ) : (
         <div
@@ -474,8 +526,8 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
           ))}
           <svg className="k-workbench-links" width={WORKBENCH_BOUNDS.width} height={WORKBENCH_BOUNDS.height} aria-hidden="true">
             {links.map((link) => {
-              const source = objects.find((object) => object.id === link.source);
-              const target = objects.find((object) => object.id === link.target);
+              const source = visibleObjects.find((object) => object.id === link.source);
+              const target = visibleObjects.find((object) => object.id === link.target);
               if (!source || !target) return null;
               const x1 = source.position.x + source.size.width;
               const y1 = source.position.y + source.size.height / 2;
@@ -484,7 +536,7 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
               return <path key={link.id} data-kind={link.kind} d={`M${x1},${y1} C${x1 + 40},${y1} ${x2 - 40},${y2} ${x2},${y2}`} />;
             })}
           </svg>
-          {objects.map((object) => viewport && visibleIds && !visibleIds.has(object.id) ? (
+          {visibleObjects.map((object) => viewport && visibleIds && !visibleIds.has(object.id) ? (
             <div
               key={object.id}
               className="k-workbench-placeholder"

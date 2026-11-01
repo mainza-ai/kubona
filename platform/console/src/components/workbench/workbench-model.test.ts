@@ -184,5 +184,7 @@ describe('workbench model', () => {
     expect('title' in doc.objects[0]).toBe(false);
     expect(doc.links).toEqual(expect.arrayContaining([{ id: 'campaign-hypothesis', source: 'campaign', target: 'hypothesis', kind: 'supports' }]));
     expect(read.links).toHaveLength(doc.links.length);
+    const withHidden = workbenchDocument('s1', objects, {}, {}, { x: 0, y: 0, zoom: 1 }, undefined, undefined, {}, ['campaign']);
+    expect(readWorkbenchDocument(withHidden as unknown as Record<string, unknown>).hidden).toEqual(['campaign']);
   });
 });
