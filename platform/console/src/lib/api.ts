@@ -2259,17 +2259,12 @@ export interface VaultLease {
 
 export async function issueVaultLease(scope: string, ttlSeconds: number, sessionId?: string): Promise<{ ok: true; lease: VaultLease } | { ok: false; error: string }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/vault/leases`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ scope, ttl_seconds: ttlSeconds, ...(sessionId ? { session_id: sessionId } : {}) }),
+    const data = await requestOperation('issueVaultLease', {
+      body: { scope, ttl_seconds: ttlSeconds, ...(sessionId ? { session_id: sessionId } : {}) },
     });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: String(data.error || data.message || `HTTP ${res.status}`).slice(0, 280) };
-    contract('vault.lease', { lease: data });
-    return { ok: true, lease: data as VaultLease };
+    return { ok: true, lease: data.lease as unknown as VaultLease };
   } catch (err) {
-    return { ok: false, error: String(err).slice(0, 280) };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
@@ -2717,13 +2712,9 @@ export async function fetchLensHistory(sessionId: string): Promise<{
 
 export async function fetchObservatoryLensStatus(operationId: string): Promise<Record<string, unknown>> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/observatory/lens?operation_id=${encodeURIComponent(operationId)}`, {
-      headers: authHeaders(),
-    });
-    if (!res.ok) {
-      return { error: `Fetch failed (${res.status})` };
-    }
-    return contract('lens.status', await res.json()) as Record<string, unknown>;
+    return (await requestOperation('fetchObservatoryLensStatus', {
+      query: { operation_id: operationId },
+    })) as Record<string, unknown>;
   } catch (err) {
     return { error: (err as Error).message || 'Network error' };
   }
@@ -2769,10 +2760,8 @@ export async function sealPrediction(params: {
   pCorrelated?: number;
 }): Promise<{ ok: boolean; prediction_hash?: string; expected_std_used?: number; std_floor_applied?: boolean; error?: string }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/vault/predictions/seal`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
+    return (await requestOperation('sealPrediction', {
+      body: {
         session_id: params.sessionId,
         target_system: params.targetSystem,
         method: params.method,
@@ -2782,15 +2771,15 @@ export async function sealPrediction(params: {
         budget_cap_usd: params.budgetCapUsd ?? 0,
         author: params.author ?? 'console-operator',
         p_correlated: params.pCorrelated ?? 0.88,
-      }),
-    });
-    if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { message?: string };
-      return { ok: false, error: data.message || `Seal failed (${res.status})` };
-    }
-    return contract('prediction.seal', await res.json()) as { ok: boolean; prediction_hash?: string; expected_std_used?: number; std_floor_applied?: boolean };
+      },
+    })) as {
+      ok: boolean;
+      prediction_hash?: string;
+      expected_std_used?: number;
+      std_floor_applied?: boolean;
+    };
   } catch (err) {
-    return { ok: false, error: (err as Error).message || 'Network error' };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
@@ -2808,20 +2797,13 @@ export async function evaluatePrediction(params: {
   error?: string;
 }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/vault/predictions/evaluate`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
+    return (await requestOperation('evaluatePrediction', {
+      body: {
         session_id: params.sessionId,
         prediction_hash: params.predictionHash,
         measured_value: params.measuredValue,
-      }),
-    });
-    if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { message?: string };
-      return { ok: false, error: data.message || `Evaluate failed (${res.status})` };
-    }
-    return contract('prediction.evaluate', await res.json()) as {
+      },
+    })) as {
       ok: boolean;
       surprise_z?: number;
       surprise_ratio?: number;
@@ -2830,7 +2812,7 @@ export async function evaluatePrediction(params: {
       level?: string;
     };
   } catch (err) {
-    return { ok: false, error: (err as Error).message || 'Network error' };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
@@ -2868,23 +2850,16 @@ export async function assertPrediction(params: {
   evidenceRefs: string[];
 }): Promise<{ ok: boolean; prediction_hash?: string; rho?: number; error?: string }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/vault/predictions/assert`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
+    return (await requestOperation('assertPrediction', {
+      body: {
         session_id: params.sessionId,
         prediction_hash: params.predictionHash,
         rho: params.rho,
         evidence_refs: params.evidenceRefs,
-      }),
-    });
-    if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { message?: string };
-      return { ok: false, error: data.message || `Assert failed (${res.status})` };
-    }
-    return contract('prediction.assert', await res.json()) as { ok: boolean; prediction_hash?: string; rho?: number };
+      },
+    })) as { ok: boolean; prediction_hash?: string; rho?: number };
   } catch (err) {
-    return { ok: false, error: (err as Error).message || 'Network error' };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
