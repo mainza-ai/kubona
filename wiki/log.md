@@ -4609,3 +4609,8 @@ skipped is the exact failure this incident is about:
 
 - Render quantum provider saves as accepted/applied/refused/unknown and
   distinguish transport failure from refusal. Existing refusal copy remains.
+
+## [2026-11-01] docs | Manual AT script expanded
+
+- Added shared and per-surface VoiceOver/NVDA steps with explicit pass/fail
+  recording. The manual pass itself remains NOT RUN.

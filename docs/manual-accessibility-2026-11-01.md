@@ -22,7 +22,21 @@ it does not claim a manual VoiceOver/NVDA pass.
 ## Manual scripts (pending)
 
 Run each surface with VoiceOver (macOS) and NVDA (Windows), at 100% and 200%
-zoom, in normal and forced-colors modes.
+zoom, in normal and forced-colors modes. Record the exact commit, OS, AT
+version, and pass/fail; do not mark a surface passed without running it.
+
+### Shared checks
+
+1. Load `/`; confirm the skip link is the first Tab stop and moves focus to
+   `#kubona-main`.
+2. Tab through the primary rail; every mode announces its name, pressed state,
+   and destination.
+3. Turn on forced colors; confirm boundaries, focus rings, and chart axes stay
+   visible with no horizontal overflow.
+4. Set the 200%-zoom equivalent (720×450); confirm the shell never scrolls
+   horizontally and the composer remains reachable.
+5. Trigger one backend refusal; confirm the reason is announced once, not per
+   poll or stream frame.
 
 | Surface | VoiceOver | NVDA | Notes |
 |---|---|---|---|
@@ -34,6 +48,23 @@ zoom, in normal and forced-colors modes.
 | Settings | PENDING | PENDING | section nav, form errors |
 | Codesign | PENDING | PENDING | TQ/frontier chart, tables |
 | Quantum Dispatch | PENDING | PENDING | settlement announcements, refusal copy |
+
+### Per-surface script
+
+- **Arena / Workbench**: arrow to a card, press Space (selected announced once),
+  Enter (object view opens), Escape (returns), Delete then Undo (removal and
+  restoration announced). Switch to List; confirm the same object is reachable
+  and its facts read in order.
+- **Copilot / Inspector**: open from the rail, confirm focus enters the
+  composer, send a short prompt, confirm one completion announcement (not per
+  token), close, and confirm focus returns to the opener.
+- **Flight Recorder / Evidence**: confirm the figure exposes its summary, the
+  exact-values table follows it, and CSV copy announces success.
+- **Fleet / Operations**: confirm queue/status labels are not color-only and
+  the credentialless badge is announced with the backend name.
+- **Settings / Codesign / Quantum Dispatch**: confirm form errors are tied to
+  fields, refusal copy is verbatim, and a settled write announces applied,
+  refused, or unknown exactly once.
 
 Record one row per pass with the exact commit, OS, assistive technology
 version, and pass/fail. Do not mark a surface passed without running it.
