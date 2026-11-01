@@ -84,9 +84,10 @@ Still open:
 - Revisioned domain events beyond the ledger cursor; generated contract
   types, operation metadata, and a checked `requestOperation()` client are
   landed; session, loops, jobs, capabilities, and session-context wrappers use
-  it. Layout saves render accepted/applied/refused/unknown settlement.
+  it. Layout and obligation-close writes render
+  accepted/applied/refused/unknown settlement.
   Session-list dedupe/custom error copy remain, and settlement is not yet
-  uniform across writes.
+  uniform across every write.
 - Manual VoiceOver/NVDA record, 200% zoom/forced-colors evidence, and
   legacy-surface removal. A runtime workbench kill switch
   (`KUBONA_CONSOLE_WORKBENCH=0`) falls back to Orbital Space without a rebuild;

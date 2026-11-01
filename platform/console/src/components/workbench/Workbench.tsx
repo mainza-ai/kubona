@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
 import { usePollingResource } from '@/domain/use-polling-resource';
-import { acceptWrite, settleWrite, writeSettlementLabel, IDLE_WRITE, type WriteSettlement } from '@/domain/write-settlement';
+import { acceptWrite, newWriteRequestId, settleWrite, writeSettlementLabel, IDLE_WRITE, type WriteSettlement } from '@/domain/write-settlement';
 import {
   WORKBENCH_BOUNDS,
   buildWorkbench,
@@ -143,7 +143,7 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
     if (!sessionId || !loaded.current) return;
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
-      const requestId = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `layout-${Date.now()}`;
+      const requestId = newWriteRequestId();
       setWrite(acceptWrite(requestId, 'saving view'));
       void saveWorkbenchLayout(
         sessionId,

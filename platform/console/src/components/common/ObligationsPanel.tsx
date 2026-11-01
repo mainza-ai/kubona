@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { closeObligation, fetchOpenObligations, type ObligationRow } from '@/lib/api';
+import { acceptWrite, newWriteRequestId, settleWrite, writeSettlementLabel, IDLE_WRITE, type WriteSettlement } from '@/domain/write-settlement';
 
 // Mandate-review queue (steady-state ops). A closed obligation is decided
 // by the server's AttemptClose rules; this panel only lists open rows and
@@ -10,7 +11,7 @@ export function ObligationsPanel() {
   const [rows, setRows] = useState<ObligationRow[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
-  const [notice, setNotice] = useState<string | null>(null);
+  const [write, setWrite] = useState<WriteSettlement>(IDLE_WRITE);
 
   const load = useCallback(async () => {
     const out = await fetchOpenObligations();
@@ -40,15 +41,16 @@ export function ObligationsPanel() {
 
   const close = async (id: string) => {
     setBusy(id);
-    setNotice(null);
+    const requestId = newWriteRequestId();
+    setWrite(acceptWrite(requestId, `closing ${id.slice(0, 8)}`));
     try {
       const out = await closeObligation(id);
       if (!out.ok) {
-        setNotice(`close refused: ${out.error ?? 'unknown'}`);
+        setWrite(settleWrite(requestId, 'refused', out.error ?? 'unknown'));
       } else if (out.closed) {
-        setNotice(`obligation ${id.slice(0, 8)} closed.`);
+        setWrite(settleWrite(requestId, 'applied', `obligation ${id.slice(0, 8)} closed`));
       } else {
-        setNotice(`obligation ${id.slice(0, 8)} is not close-ready: ${(out.reasons ?? []).join('; ') || 'server gave no reasons'}`);
+        setWrite(settleWrite(requestId, 'refused', `not close-ready: ${(out.reasons ?? []).join('; ') || 'server gave no reasons'}`));
       }
       await load();
     } finally {
@@ -86,7 +88,7 @@ export function ObligationsPanel() {
           {ob.close_reasons.length > 0 && <div className="text-amber-300/80">{ob.close_reasons.join(' · ')}</div>}
         </div>
       ))}
-      {notice && <p role="status" className="text-[12px] text-slate-300">{notice}</p>}
+      {write.phase !== 'idle' && <p role="status" className="text-[12px] text-slate-300">{writeSettlementLabel(write)}</p>}
     </div>
   );
 }
