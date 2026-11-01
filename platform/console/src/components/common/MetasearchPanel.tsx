@@ -9,6 +9,8 @@ import {
 } from '@/lib/api';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
 import type { MetaProposal } from '@/types';
+import { useWriteSettlement } from '@/domain/use-write-settlement';
+import { writeSettlementLabel } from '@/domain/write-settlement';
 
 // U1-d: human-approval surface for meta-search strategy proposals.
 // pending_approval → Approve / Reject (reject confirms: it closes the
@@ -21,6 +23,7 @@ export function MetasearchPanel() {
   const [proposals, setProposals] = useState<MetaProposal[] | null>(null);
   const [busy, setBusy] = useState<Set<string>>(new Set());
   const [notice, setNotice] = useState<string | null>(null);
+  const settlement = useWriteSettlement();
   // Wave-3: reject stages a typed ConfirmDialog (proposal short-id) instead
   // of a native confirm(). Approve/apply are unchanged.
   const [rejectDraft, setRejectDraft] = useState<string | null>(null);
@@ -43,6 +46,7 @@ export function MetasearchPanel() {
   const act = async (id: string, kind: 'approve' | 'reject' | 'apply') => {
     setBusy((prev) => new Set(prev).add(id));
     setNotice(null);
+    const requestId = settlement.begin(`${kind} proposal ${id.slice(0, 8)}`);
     try {
       const res =
         kind === 'approve'
@@ -51,10 +55,11 @@ export function MetasearchPanel() {
             ? await rejectMetasearchProposal(id)
             : await applyMetasearchProposal(id);
       if (res === null) {
-        setNotice(`proposal ${kind} failed: backend unreachable — nothing changed.`);
+        settlement.unknown(requestId, `${kind} not confirmed — backend unreachable`);
       } else if ('error' in res) {
-        setNotice(`proposal ${kind} refused: ${res.error}`);
+        settlement.refused(requestId, res.error);
       } else {
+        settlement.applied(requestId, `${kind} proposal ${id.slice(0, 8)}`);
         await load();
       }
     } finally {
@@ -78,6 +83,9 @@ export function MetasearchPanel() {
           Refresh
         </button>
       </div>
+      {writeSettlementLabel(settlement.write) && (
+        <p role="status" className="text-[12px] font-code text-slate-300">{writeSettlementLabel(settlement.write)}</p>
+      )}
       {proposals === null && (
         <p className="text-[12px] font-code text-slate-500">Loading proposals…</p>
       )}
