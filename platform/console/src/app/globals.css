@@ -558,3 +558,10 @@ body {
   text-transform: uppercase;
 }
 .k-workbench-card { z-index: 1; }
+.k-workbench-placeholder {
+  position: absolute;
+  z-index: 1;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-card);
+  background: color-mix(in oklab, var(--color-surface) 60%, transparent);
+}

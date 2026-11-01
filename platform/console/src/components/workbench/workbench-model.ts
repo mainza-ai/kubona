@@ -1,4 +1,4 @@
-import type { CampaignState } from '@/types';
+import type { CampaignState, Loop } from '@/types';
 import type { ChartSpec } from '@/components/data/chart';
 
 export type WorkbenchCamera = { x: number; y: number; zoom: number };
@@ -12,7 +12,8 @@ export type WorkbenchObjectKind =
   | 'chart'
   | 'evidence'
   | 'proof'
-  | 'manuscript';
+  | 'manuscript'
+  | 'agent_run';
 
 export type WorkbenchLink = {
   id: string;
@@ -161,7 +162,7 @@ function energyChart(campaign: CampaignState): ChartSpec | undefined {
  * duplicated: this is a read-only projection; later slices replace the
  * card bodies with the domain stores' own objects.
  */
-export function buildWorkbench(campaign: CampaignState | null | undefined): WorkbenchObject[] {
+export function buildWorkbench(campaign: CampaignState | null | undefined, loops: Loop[] = []): WorkbenchObject[] {
   if (!campaign) return [];
   const qf = campaign.quantum_factors;
   const anchor = campaign.classical_anchor;
@@ -269,6 +270,23 @@ export function buildWorkbench(campaign: CampaignState | null | undefined): Work
       ],
     },
   ];
+  loops.slice(0, 24).forEach((loop, index) => {
+    const state = String(loop.status || 'unknown');
+    objects.push({
+      id: `agent-run-${loop.id}`,
+      kind: 'agent_run',
+      label: 'Agent run',
+      title: `Run ${loop.id.slice(0, 8)}`,
+      detail: state === 'running' ? 'Agent is working; progress comes from the server record.' : 'Settled or paused; no live claim without a running record.',
+      position: { x: 0, y: 720 + index * 210 },
+      size: { width: 380, height: 180 },
+      facts: [
+        { label: 'State', value: state },
+        { label: 'Step', value: `${loop.step_count} / ${loop.max_steps}` },
+        { label: 'Diverged', value: loop.diverged ? 'YES' : 'no' },
+      ],
+    });
+  });
   if (chart) {
     objects.push({
       id: 'chart',
