@@ -84,7 +84,9 @@ Still open:
 - Revisioned domain events beyond the ledger cursor; generated contract
   types, operation metadata, and a checked `requestOperation()` client are
   landed; session, loops, events, jobs, fidelity, ADMET, agents, LLM/quantum
-  settings, capabilities, and session-context wrappers use it. Layout and obligation-close writes render
+  settings, radar, cost, obligations, notebooks, capabilities, and
+  session-context wrappers use it. Typed operation errors carry the backend
+  refusal body. Layout and obligation-close writes render
   accepted/applied/refused/unknown settlement.
   Session-list dedupe/custom error copy remain, and settlement is not yet
   uniform across every write.
