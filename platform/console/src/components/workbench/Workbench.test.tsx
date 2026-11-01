@@ -216,6 +216,29 @@ describe('Workbench', () => {
     expect(tree!.root.findAllByProps({ className: 'k-workbench-area' })).toHaveLength(2);
   });
 
+  it('creates and removes a typed custom link between two selected cards', async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => { tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" />); });
+    const circuit = tree!.root.findAllByProps({ 'data-kind': 'circuit' })[0];
+    const evidence = tree!.root.findAllByProps({ 'data-kind': 'evidence' })[0];
+    await act(async () => { circuit.props.onClick({ metaKey: false, ctrlKey: false, shiftKey: false }); });
+    await act(async () => { evidence.props.onClick({ metaKey: true, ctrlKey: false, shiftKey: false }); });
+    const link = tree!.root.findAllByType('button').find((button) => button.props.children === 'Link');
+    await act(async () => { link!.props.onClick(); });
+    const toggle = tree!.root.findByProps({ title: 'Switch between canvas and list (text equivalent)' });
+    await act(async () => { toggle.props.onClick(); });
+    const linksSection = tree!.root.findByProps({ 'aria-label': 'Workbench links' });
+    const linkText = (button: TestRenderer.ReactTestInstance) => button.children.map((child) => typeof child === 'string' ? child : '').join('');
+    const isCustomLink = (button: TestRenderer.ReactTestInstance) => {
+      const text = linkText(button);
+      return text.includes('Circuit') && text.includes('Evidence') && text.includes('supports');
+    };
+    const removeLink = linksSection.findAllByType('button').find(isCustomLink);
+    expect(removeLink).toBeDefined();
+    await act(async () => { removeLink!.props.onClick(); });
+    expect(linksSection.findAllByType('button').some(isCustomLink)).toBe(false);
+  });
+
   it('groups all objects into a persisted spatial area', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {

@@ -4469,3 +4469,9 @@ skipped is the exact failure this incident is about:
 - Areas can be created from all objects or the current selection, renamed,
   moved, resized, activated, deleted, and targeted by group assignment. Added
   multi-area coverage. Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Typed custom links
+
+- Two selected cards can be linked with supports/uses/depends_on/contradicts/
+  same_as/thread; custom links persist and can be removed from the list view.
+  Updated [[remaining-work]]; no new page.
