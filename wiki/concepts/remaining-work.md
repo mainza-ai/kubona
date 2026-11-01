@@ -94,7 +94,8 @@ Still open:
   wrappers use it, plus codesign packs/verified, HF download start,
   custom-agent create, literature search, ledger verify, lens request,
   campaign synthesis, all autoresearch loop actions, fleet, canvas layout,
-  and codesign evaluate/batch/family/rerun.
+  codesign evaluate/batch/family/rerun, chat send, tribunal run/resume,
+  proposal launch, and discovery pipeline.
   Auth logout/revoke/feedback remain hand-written (not in the generated
   inventory). Typed operation errors carry the backend
   refusal body. Layout and obligation-close writes render

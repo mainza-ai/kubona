@@ -4371,3 +4371,9 @@ skipped is the exact failure this incident is about:
 - Fleet, legacy canvas layout, and codesign evaluate/batch/family/rerun move
   onto `requestOperation`, preserving refusal envelopes. Updated
   [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Chat, tribunal, and launch wrappers
+
+- Chat send, tribunal run/resume, proposal launch, and discovery pipeline move
+  onto `requestOperation`, preserving refusal text and envelope normalization.
+  Updated [[remaining-work]]; no new page.

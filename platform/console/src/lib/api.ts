@@ -305,23 +305,26 @@ export async function fetchMessages(sessionId: string): Promise<ChatMessage[]> {
   }
 }
 
-export async function sendChatMessage(sessionId: string, content: string): Promise<{ user: ChatMessage; assistant: ChatMessage } | null> {  try {
-    const res = await apiFetch(`${API_BASE}/api/chat/messages?session_id=${encodeURIComponent(sessionId)}`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ session_id: sessionId, role: 'user', content }),
-    });
-      if (!res.ok) return null;
-      const data = await res.json();
-      const assistant = data.assistant || data.assistant_message;
-      if (assistant && data.model && !assistant.model) assistant.model = data.model;
-      if (assistant && data.duration_ms != null && assistant.duration_ms == null) {
-        assistant.duration_ms = data.duration_ms;
-      }
-    return contract('chat.send', {
-      user: data.user || data.user_message,
-      assistant,
-    });
+export async function sendChatMessage(sessionId: string, content: string): Promise<{ user: ChatMessage; assistant: ChatMessage } | null> {
+  try {
+    const data = (await requestOperation('sendChatMessage', {
+      query: { session_id: sessionId },
+      body: { session_id: sessionId, role: 'user', content },
+    })) as unknown as {
+      user?: ChatMessage;
+      user_message?: ChatMessage;
+      assistant?: ChatMessage;
+      assistant_message?: ChatMessage;
+      model?: string;
+      duration_ms?: number;
+    };
+    const assistant = data.assistant || data.assistant_message;
+    if (assistant && data.model && !assistant.model) assistant.model = data.model;
+    if (assistant && data.duration_ms != null && assistant.duration_ms == null) {
+      assistant.duration_ms = data.duration_ms;
+    }
+    const user = data.user || data.user_message;
+    return user && assistant ? { user, assistant } : null;
   } catch (err) {
     console.error('Failed to send chat message:', err);
     return null;
@@ -413,17 +416,13 @@ export async function runTribunal(
   prompt: string
 ): Promise<{ tribunal: import('@/types').TribunalResult; assistant_message: ChatMessage; campaign?: import('@/types').CampaignState } | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/chat/tribunal`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ session_id: sessionId, prompt }),
-    });
-    if (!res.ok) {
-      const text = await res.text().catch(() => '');
-      console.error(`Failed to run tribunal (${res.status}):`, text || res.statusText);
-      return null;
-    }
-    return contract('tribunal.run', await res.json());
+    return (await requestOperation('runTribunal', {
+      body: { session_id: sessionId, prompt },
+    })) as unknown as {
+      tribunal: import('@/types').TribunalResult;
+      assistant_message: ChatMessage;
+      campaign?: import('@/types').CampaignState;
+    };
   } catch (err) {
     console.error('Failed to run tribunal:', err);
     return null;
@@ -440,17 +439,15 @@ export async function resumeTribunal(
   bundle: unknown
 ): Promise<{ tribunal: import('@/types').TribunalResult; assistant_message: ChatMessage; campaign?: import('@/types').CampaignState } | { error: string } | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/tribunal/resume`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ session_id: sessionId, prompt, bundle }),
-    });
-    if (!res.ok) {
-      const text = (await res.text()).trim().slice(0, 280);
-      return { error: text || `HTTP ${res.status}` };
-    }
-    return contract('tribunal.resume', await res.json());
+    return (await requestOperation('resumeTribunal', {
+      body: { session_id: sessionId, prompt, bundle },
+    })) as unknown as {
+      tribunal: import('@/types').TribunalResult;
+      assistant_message: ChatMessage;
+      campaign?: import('@/types').CampaignState;
+    };
   } catch (err) {
+    if (err instanceof OperationError) return { error: err.message };
     console.error('Failed to resume tribunal:', err);
     return null;
   }
@@ -475,10 +472,8 @@ export async function launchProposal(
   options: LaunchProposalOptions = {},
 ): Promise<{ job: Job; loop: Loop } | { error: string } | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/chat/launch`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
+    return (await requestOperation('launchProposal', {
+      body: {
         session_id: sessionId,
         proposal,
         ...(options.mandateRef !== undefined ? { mandate_ref: options.mandateRef } : {}),
@@ -491,17 +486,10 @@ export async function launchProposal(
         ...(options.callerJurisdictions !== undefined ? { caller_jurisdictions: options.callerJurisdictions } : {}),
         ...(options.callerExportClass !== undefined ? { caller_export_class: options.callerExportClass } : {}),
         ...(options.exportReviewed !== undefined ? { export_reviewed: options.exportReviewed } : {}),
-      }),
-    });
-    // Refusals carry the backend reason as plain text — surface it, never
-    // swallow it into a generic "refused" (2026-10-11: a tier-routing
-    // refusal was invisible in the UI).
-    if (!res.ok) {
-      const text = (await res.text()).trim().slice(0, 280);
-      return { error: text || `HTTP ${res.status}` };
-    }
-    return contract('chat.launch', await res.json());
+      },
+    })) as unknown as { job: Job; loop: Loop };
   } catch (err) {
+    if (err instanceof OperationError) return { error: err.message };
     console.error('Failed to launch proposal:', err);
     return null;
   }
@@ -546,13 +534,9 @@ export async function evaluateDiscoveryPipeline(
   candidates: Array<{ name: string; smiles: string }>
 ): Promise<Record<string, unknown> | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/discovery/pipeline`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ target, candidates }),
-    });
-    if (!res.ok) return null;
-    return contract('discovery', await res.json());
+    return (await requestOperation('evaluateDiscoveryPipeline', {
+      body: { target, candidates },
+    })) as Record<string, unknown>;
   } catch (err) {
     console.error('Failed to evaluate discovery pipeline:', err);
     return null;
