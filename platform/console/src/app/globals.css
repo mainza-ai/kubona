@@ -507,3 +507,21 @@ body {
 .k-empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--color-muted); text-align: center; }
 .k-empty-state strong { color: var(--color-text); font-size: var(--text-title); }
 .k-empty-state span { max-inline-size: 360px; font-size: var(--text-label); }
+.k-badge {
+  display: inline-flex;
+  align-items: center;
+  block-size: 20px;
+  padding: 0 7px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  color: var(--color-label-secondary);
+  background: var(--color-fill);
+  font-size: var(--text-caption);
+  font-weight: 550;
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+.k-badge-info { color: var(--color-info); border-color: color-mix(in oklab, var(--color-info) 35%, transparent); background: color-mix(in oklab, var(--color-info) 12%, transparent); }
+.k-badge-success { color: var(--color-success); border-color: color-mix(in oklab, var(--color-success) 35%, transparent); background: color-mix(in oklab, var(--color-success) 12%, transparent); }
+.k-badge-warning { color: var(--color-warning); border-color: color-mix(in oklab, var(--color-warning) 35%, transparent); background: color-mix(in oklab, var(--color-warning) 12%, transparent); }
+.k-badge-danger { color: var(--color-danger); border-color: color-mix(in oklab, var(--color-danger) 35%, transparent); background: color-mix(in oklab, var(--color-danger) 12%, transparent); }
