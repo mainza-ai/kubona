@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { refundSessionSpend } from '@/lib/api';
 import { signAdminActionWithCustody } from '@/lib/adminAction';
 import type { Lab, Session } from '@/types';
+import { useWriteSettlement } from '@/domain/use-write-settlement';
+import { writeSettlementLabel } from '@/domain/write-settlement';
 
 // Audited session refund. The tenant admin envelope binds tenant, session,
 // amount, and reason; the server independently verifies the session's tenant.
@@ -13,6 +15,7 @@ export function SessionRefundPanel({ labs, sessions }: { labs: Lab[]; sessions: 
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
+  const settlement = useWriteSettlement();
 
   const refund = async () => {
     setNotice(null);
@@ -24,18 +27,22 @@ export function SessionRefundPanel({ labs, sessions }: { labs: Lab[]; sessions: 
     const tenantId = s.tenant_id || labs[0]?.id || '';
     if (!tenantId) { setNotice('session has no tenant binding.'); return; }
     setBusy(true);
+    let requestId: string | null = null;
     try {
+      requestId = settlement.begin('session refund');
       const action = await signAdminActionWithCustody({
         tenantId,
         action: 'session_refund_spend',
         params: { tenant_id: tenantId, session_id: sessionId, amount_usd: v, reason: reason.trim() },
       });
       const out = await refundSessionSpend(sessionId, v, reason.trim(), action);
-      if (!out.ok) { setNotice(`refund refused: ${out.error}`); return; }
+      if (!out.ok) { settlement[out.unknown ? 'unknown' : 'refused'](requestId!, out.error || 'not confirmed'); setNotice(`refund refused: ${out.error}`); return; }
+      settlement.applied(requestId, `$${v.toFixed(2)} refunded to ${sessionId.slice(0, 8)}`);
       setNotice(`Refunded $${v.toFixed(2)} to ${sessionId.slice(0, 8)}.`);
       setAmount('');
       setReason('');
     } catch (err) {
+      if (requestId) settlement.unknown(requestId, err instanceof Error ? err.message : String(err));
       setNotice(`refund failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setBusy(false);
@@ -60,6 +67,9 @@ export function SessionRefundPanel({ labs, sessions }: { labs: Lab[]; sessions: 
         <button type="button" onClick={() => void refund()} disabled={busy} className="px-2 py-1 rounded-lg bg-rose-500/15 border border-rose-400/30 text-rose-200 text-[12px] disabled:opacity-40">Refund session</button>
       </div>
       {notice && <p role="status" className="text-[12px] text-slate-300">{notice}</p>}
+      {writeSettlementLabel(settlement.write) && (
+        <p role="status" className="text-[12px] font-mono text-slate-400">{writeSettlementLabel(settlement.write)}</p>
+      )}
     </div>
   );
 }

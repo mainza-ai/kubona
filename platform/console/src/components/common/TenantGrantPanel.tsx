@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import { issueTenantGrant, revokeTenantGrant } from '@/lib/api';
 import { signGrant, signGrantRevoke } from '@/lib/grants';
 import type { Lab } from '@/types';
+import { useWriteSettlement } from '@/domain/use-write-settlement';
+import { writeSettlementLabel } from '@/domain/write-settlement';
 
 // Cross-lab read grants. The browser key must be the SOURCE lab's current
 // admin; the server verifies the canonical signature, so a session alone
@@ -18,26 +20,31 @@ export function TenantGrantPanel({ labs }: { labs: Lab[] }) {
   const [reason, setReason] = useState('operator revoke');
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const settlement = useWriteSettlement();
 
   const issue = async () => {
     setBusy(true);
     setNotice(null);
+    let requestId: string | null = null;
     try {
       const h = Number(hours);
       if (!source.trim() || !target.trim() || !scope.trim() || !Number.isFinite(h) || h <= 0) {
         setNotice('source, target, scope, and a positive expiry are required.'); return;
       }
       const expiry = new Date(Date.now() + h * 3600_000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+      requestId = settlement.begin('issue grant');
       const sig = await signGrant(source.trim(), target.trim(), [scope.trim()], expiry);
       const out = await issueTenantGrant({
         source_tenant: source.trim(), target_tenant: target.trim(),
         scopes: [scope.trim()], expiry, ...sig,
       });
-      if (!out.ok) { setNotice(`grant refused: ${out.error}`); return; }
+      if (!out.ok) { settlement[out.unknown ? 'unknown' : 'refused'](requestId!, out.error || 'not confirmed'); setNotice(`grant refused: ${out.error}`); return; }
       const id = String(out.grant.grant_id ?? '');
+      settlement.applied(requestId, `grant ${id.slice(0, 12)} issued`);
       setGrantId(id);
       setNotice(`Grant issued: ${id}`);
     } catch (err) {
+      if (requestId) settlement.unknown(requestId, err instanceof Error ? err.message : String(err));
       setNotice(`grant failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setBusy(false);
@@ -47,17 +54,21 @@ export function TenantGrantPanel({ labs }: { labs: Lab[] }) {
   const revoke = async () => {
     setBusy(true);
     setNotice(null);
+    let requestId: string | null = null;
     try {
       if (!source.trim() || !grantId.trim() || !reason.trim()) {
         setNotice('source, grant id, and reason are required.'); return;
       }
+      requestId = settlement.begin('revoke grant');
       const sig = await signGrantRevoke(grantId.trim(), reason.trim());
       const out = await revokeTenantGrant({
         source_tenant: source.trim(), grant_id: grantId.trim(), reason: reason.trim(), ...sig,
       });
-      if (!out.ok) { setNotice(`revoke refused: ${out.error}`); return; }
+      if (!out.ok) { settlement[out.unknown ? 'unknown' : 'refused'](requestId!, out.error || 'not confirmed'); setNotice(`revoke refused: ${out.error}`); return; }
+      settlement.applied(requestId, `grant ${grantId.trim().slice(0, 12)} revoked`);
       setNotice(`Grant ${grantId.trim()} revoked.`);
     } catch (err) {
+      if (requestId) settlement.unknown(requestId, err instanceof Error ? err.message : String(err));
       setNotice(`revoke failed: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setBusy(false);
@@ -88,6 +99,9 @@ export function TenantGrantPanel({ labs }: { labs: Lab[] }) {
         <button type="button" onClick={() => void revoke()} disabled={busy} className="px-2 py-1 rounded-lg bg-rose-500/15 border border-rose-400/30 text-rose-200 text-[12px] disabled:opacity-40">Revoke grant</button>
       </div>
       {notice && <p role="status" className="text-[12px] text-slate-300 break-all">{notice}</p>}
+      {writeSettlementLabel(settlement.write) && (
+        <p role="status" className="text-[12px] font-mono text-slate-400">{writeSettlementLabel(settlement.write)}</p>
+      )}
     </div>
   );
 }

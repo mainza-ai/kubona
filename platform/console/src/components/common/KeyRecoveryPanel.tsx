@@ -6,6 +6,8 @@ import { createRecoverableSigner, getOrCreateSigner, installRecoveryEnvelope, pe
 import { signAdminActionWithSigner } from '@/lib/adminAction';
 import { recoveryFilename, validateRecoveryEnvelope, type RecoveryEnvelope } from '@/lib/recovery';
 import type { Lab } from '@/types';
+import { useWriteSettlement } from '@/domain/use-write-settlement';
+import { writeSettlementLabel } from '@/domain/write-settlement';
 
 // Offline recovery + rotation. The live key is non-extractable; rotation
 // creates a new key with a passphrase-encrypted PKCS#8 kit, registers the
@@ -18,6 +20,7 @@ export function KeyRecoveryPanel({ labs }: { labs: Lab[] }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [currentKey, setCurrentKey] = useState<string | null>(null);
+  const settlement = useWriteSettlement();
 
   React.useEffect(() => {
     peekSignerPubkeyHex().then(setCurrentKey);
@@ -51,17 +54,21 @@ export function KeyRecoveryPanel({ labs }: { labs: Lab[] }) {
         action: 'set_admin_key',
         params: { new_admin_pubkey_hex: next.signer.publicKeyHex },
       }, old);
+      const requestId = settlement.begin('rotate lab admin key');
       const out = await registerTenantAdminKey(tenant, next.signer.publicKeyHex, action);
       if (out === null) {
+        settlement.unknown(requestId, 'backend unreachable — old key restored');
         await next.rollback();
         setNotice('backend unreachable — old key restored; recovery kit downloaded for the attempted key.');
         return;
       }
       if ('error' in out) {
+        settlement.refused(requestId, out.error);
         await next.rollback();
         setNotice(`rotation refused: ${out.error} — old key restored; recovery kit downloaded.`);
         return;
       }
+      settlement.applied(requestId, 'lab admin key rotated');
       next.activate();
       setCurrentKey(next.signer.publicKeyHex);
       setNotice('Rotated. Store the downloaded recovery kit offline; the old session was logged out.');
@@ -118,6 +125,9 @@ export function KeyRecoveryPanel({ labs }: { labs: Lab[] }) {
         </label>
       </div>
       {notice && <p role="status" className="text-[12px] text-slate-300 break-all">{notice}</p>}
+      {writeSettlementLabel(settlement.write) && (
+        <p role="status" className="text-[12px] font-mono text-slate-400">{writeSettlementLabel(settlement.write)}</p>
+      )}
     </div>
   );
 }

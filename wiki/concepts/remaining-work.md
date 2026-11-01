@@ -141,8 +141,8 @@ Still open:
   quantum dispatch estimate/dispatch/cancel, quantum provider settings, and
   the two air-gap toggles now render accepted/applied/refused/unknown,
   including transport-vs-refusal. LabOps ceiling/status/autonomy/revoke and
-  refund use the same vocabulary; key bootstrap/recovery still use custom
-  copy.
+  refund, tenant grants, session refunds, and key rotation use the same
+  vocabulary; first-run admin-key bootstrap still uses custom copy.
 - Per-send model override has no backend contract; the composer links to Model
   Hub instead of faking one.
 - The 11 remaining client-only names are intentional transport/browser/auth
