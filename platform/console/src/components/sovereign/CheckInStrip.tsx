@@ -2,8 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { Volume2, VolumeX } from 'lucide-react';
-import { AUTH_REQUIRED_EVENT, fetchCostSummary } from '@/lib/api';
-import { usePollingResource } from '@/domain/use-polling-resource';
+import { AUTH_REQUIRED_EVENT } from '@/lib/api';
+import { useCostProjection } from '@/domain/useCostProjection';
 import { useAttention } from '@/lib/attention-context';
 import type { Loop } from '@/types';
 
@@ -18,11 +18,7 @@ function statusOf(loop: Loop): string {
 // or alerts. Failed/diverged loops are called out by text, not color alone.
 
 export function CheckInStrip({ loops, compact = false }: { loops: Loop[]; compact?: boolean }) {
-  const { data: spend } = usePollingResource(async () => {
-    const out = await fetchCostSummary();
-    if (!out.ok) throw new Error(out.error);
-    return out.result;
-  }, { intervalMs: 60_000 });
+  const { data: spend } = useCostProjection();
   const [readOnly, setReadOnly] = useState(false);
 
   // An anonymous 401 is not an expired session. Keep the sign-in affordance

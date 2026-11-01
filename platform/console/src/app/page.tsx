@@ -3,8 +3,9 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Sparkles, Plus, Zap, Info, HelpCircle, Trash2, Clock, Box, X } from 'lucide-react';
 import { Session, LedgerEvent, RunPhase, ProbeId } from '@/types';
-import { fetchSessions, fetchSession, createSession, deleteSession, fetchLoops, fetchJobs, fetchEvents, fetchCampaignState, API_BASE, CONSOLE_WORKBENCH_ENABLED, authHeaders, configureApiBase, apiFetch, UNAUTH_EVENT, API_PROBLEM_EVENT, type ApiProblem } from '@/lib/api';
-import { usePollingResource } from '@/domain/use-polling-resource';
+import { fetchSessions, fetchSession, createSession, deleteSession, fetchLoops, fetchEvents, fetchCampaignState, API_BASE, CONSOLE_WORKBENCH_ENABLED, authHeaders, configureApiBase, apiFetch, UNAUTH_EVENT, API_PROBLEM_EVENT, type ApiProblem } from '@/lib/api';
+import { useJobsProjection } from '@/domain/useJobsProjection';
+import { useObligationsProjection } from '@/domain/useObligationsProjection';
 import { Inspector, type InspectorTab } from '@/components/shell/Inspector';
 import type { WorkbenchObject } from '@/components/workbench/workbench-model';
 import { mergeSessionEvents, useSessionStream } from '@/lib/useSessionStream';
@@ -226,11 +227,8 @@ export default function Home() {
   const bootstrappedSession = useRef(false);
   const prevPhase = useRef<RunPhase>('idle');
   const { loops, setLoops, refresh: refreshLoops } = useLoopsProjection(currentSessionId || null);
-  const { data: jobsData } = usePollingResource(
-    async () => (currentSessionId ? fetchJobs(currentSessionId) : []),
-    { intervalMs: 5000 },
-  );
-  const jobs = jobsData ?? [];
+  const { jobs } = useJobsProjection(currentSessionId || null);
+  const { obligations } = useObligationsProjection();
   const { campaign, setCampaign, reload: reloadCampaign } = useCampaignProjection(currentSessionId || null);
   const [events, setEvents] = useState<LedgerEvent[]>([]);
   const [nowTick, setNowTick] = useState(0);
@@ -1119,6 +1117,7 @@ export default function Home() {
                 campaign={campaign}
                 loops={loops}
                 jobs={jobs}
+                obligations={obligations}
                 sessionId={currentSessionId || undefined}
                 onSelectObject={(object) => {
                   setSelectedWorkbenchObject(object);
