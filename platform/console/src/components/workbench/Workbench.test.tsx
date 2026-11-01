@@ -188,6 +188,22 @@ describe('Workbench', () => {
     expect(tree!.root.findAllByProps({ 'data-kind': 'campaign' })).toHaveLength(1);
   });
 
+  it('multi-selects cards and removes/restores the group', async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" />);
+    });
+    const cards = tree!.root.findAllByProps({ 'data-kind': 'campaign' });
+    const second = tree!.root.findAllByProps({ 'data-kind': 'hypothesis' })[0];
+    await act(async () => { cards[0].props.onClick({ metaKey: false, ctrlKey: false, shiftKey: false }); });
+    await act(async () => { second.props.onClick({ metaKey: true, ctrlKey: false, shiftKey: false }); });
+    expect(tree!.root.findAll((node) => node.props?.['data-selected'] === 'true')).toHaveLength(2);
+    const remove = tree!.root.findAllByType('button').find((button) => button.props.children === 'Remove (2)');
+    await act(async () => { remove!.props.onClick(); });
+    expect(tree!.root.findAllByProps({ 'data-kind': 'campaign' })).toHaveLength(0);
+    expect(tree!.root.findAllByProps({ 'data-kind': 'hypothesis' })).toHaveLength(0);
+  });
+
   it('groups all objects into a persisted spatial area', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
