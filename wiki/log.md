@@ -4422,3 +4422,10 @@ skipped is the exact failure this incident is about:
 - The session stream now tracks frame revisions, drops stale replay frames, and
   requests a ledger snapshot after a forward gap. Added a pure gap test.
   Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Bottom composer on the single Copilot owner
+
+- Added a bottom composer that submits through Copilot's imperative send
+  handle, with Enter/Shift+Enter/IME rules, selected-object context, and an
+  explicit clear. Attach/model controls remain open. Updated
+  [[remaining-work]]; no new page.
