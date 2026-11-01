@@ -1260,17 +1260,18 @@ export async function submitQuantumJob(
   job: QuantumJobSubmit
 ): Promise<{ ok: boolean; job_id?: string; queued?: boolean; dry_run?: boolean; estimate?: Record<string, unknown>; fidelity?: Record<string, unknown>; session_id?: string; error?: string }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/quantum/jobs`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify(job),
-    });
-    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!res.ok) return { ok: false, error: (data.error as string) || `HTTP ${res.status}` };
-    return contract('quantum.submit', data) as { ok: boolean; job_id?: string };
+    return (await requestOperation('submitQuantumJob', { body: job })) as {
+      ok: boolean;
+      job_id?: string;
+      queued?: boolean;
+      dry_run?: boolean;
+      estimate?: Record<string, unknown>;
+      fidelity?: Record<string, unknown>;
+      session_id?: string;
+    };
   } catch (err) {
     console.error('Failed to submit quantum job:', err);
-    return { ok: false, error: String(err) };
+    return { ok: false, error: String(err instanceof Error ? err.message : err) };
   }
 }
 
@@ -1542,16 +1543,12 @@ export async function planWorkflow(payload: {
   workflow: import('@/types').WorkflowDefinition;
   inputs?: Record<string, unknown>;
 }): Promise<import('@/types').WorkflowPlanResponse> {
-  const res = await apiFetch(`${API_BASE}/api/workflows/plan`, {
-    method: 'POST',
-    headers: authHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(`workflow plan refused (HTTP ${res.status}): ${detail.slice(0, 160)}`);
+  try {
+    return (await requestOperation('planWorkflow', { body: payload })) as unknown as import('@/types').WorkflowPlanResponse;
+  } catch (err) {
+    const status = err instanceof OperationError ? err.status : null;
+    throw new Error(`workflow plan refused${status ? ` (HTTP ${status})` : ''}: ${String(err instanceof Error ? err.message : err).slice(0, 160)}`);
   }
-  return contract('workflow.plan', await res.json());
 }
 
 export async function runWorkflow(payload: {
@@ -1560,16 +1557,12 @@ export async function runWorkflow(payload: {
   inputs?: Record<string, unknown>;
   force?: boolean;
 }): Promise<import('@/types').WorkflowRunResponse> {
-  const res = await apiFetch(`${API_BASE}/api/workflows/run`, {
-    method: 'POST',
-    headers: authHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify(payload),
-  });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(`workflow run refused (HTTP ${res.status}): ${detail.slice(0, 160)}`);
+  try {
+    return (await requestOperation('runWorkflow', { body: payload })) as unknown as import('@/types').WorkflowRunResponse;
+  } catch (err) {
+    const status = err instanceof OperationError ? err.status : null;
+    throw new Error(`workflow run refused${status ? ` (HTTP ${status})` : ''}: ${String(err instanceof Error ? err.message : err).slice(0, 160)}`);
   }
-  return contract('workflow.run', await res.json());
 }
 
 // ==========================================
@@ -1655,13 +1648,9 @@ export async function emergencyAbort(
   reason = 'emergency abort from console'
 ): Promise<{ aborted_count: number; abort_receipt: string } | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/supervisor/abort`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ session_id: sessionId, reason }),
-    });
-    if (!res.ok) return null;
-    return contract('abort', await res.json());
+    return (await requestOperation('emergencyAbort', {
+      body: { session_id: sessionId, reason },
+    })) as { aborted_count: number; abort_receipt: string };
   } catch (err) {
     console.error('Abort failed and nothing was settled:', err);
     return null;

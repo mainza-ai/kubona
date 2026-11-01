@@ -4286,3 +4286,9 @@ skipped is the exact failure this incident is about:
 - requestOperation now carries the backend refusal body into typed errors;
   radar, cost, obligations, and notebooks move onto it. Updated
   [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Abort, workflow, and quantum-submit wrappers
+
+- Emergency abort, workflow plan/run, and quantum-submit move onto
+  `requestOperation`, preserving their fallback/throw contracts. Updated
+  [[remaining-work]]; no new page.
