@@ -7,6 +7,7 @@
     "agents.custom",
     "agents.custom.delete",
     "agents.system",
+    "auth.action",
     "auth.challenge",
     "auth.login",
     "auth.sessions",
@@ -86,9 +87,12 @@
     "session",
     "session.context",
     "session.create",
+    "session.delete",
     "session.refund",
     "sessions.list",
     "settings.update",
+    "tenant.grant",
+    "tenant.grant.revoke",
     "tenant.write",
     "tribunal.resume",
     "tribunal.run",
@@ -109,6 +113,7 @@
     "agents.custom",
     "agents.custom.delete",
     "agents.system",
+    "auth.action",
     "auth.challenge",
     "auth.login",
     "auth.sessions",
@@ -188,9 +193,12 @@
     "session",
     "session.context",
     "session.create",
+    "session.delete",
     "session.refund",
     "sessions.list",
     "settings.update",
+    "tenant.grant",
+    "tenant.grant.revoke",
     "tenant.write",
     "tribunal.resume",
     "tribunal.run",
@@ -240,6 +248,18 @@
       "path": "/api/auth/login",
       "method": "POST",
       "contract": "auth.login"
+    },
+    {
+      "function": "authLogout",
+      "path": "/api/auth/logout",
+      "method": "POST",
+      "contract": "auth.action"
+    },
+    {
+      "function": "authRevoke",
+      "path": "/api/auth/revoke",
+      "method": "POST",
+      "contract": "auth.action"
     },
     {
       "function": "authSessions",
@@ -300,6 +320,12 @@
       "path": "/api/agents/custom/:id",
       "method": "DELETE",
       "contract": "agents.custom.delete"
+    },
+    {
+      "function": "deleteSession",
+      "path": "/api/sessions/:id",
+      "method": "DELETE",
+      "contract": "session.delete"
     },
     {
       "function": "emergencyAbort",
@@ -584,6 +610,12 @@
       "contract": "hf.details"
     },
     {
+      "function": "issueTenantGrant",
+      "path": "/api/tenant-grants/issue",
+      "method": "POST",
+      "contract": "tenant.grant"
+    },
+    {
       "function": "issueVaultLease",
       "path": "/api/vault/leases",
       "method": "POST",
@@ -696,6 +728,12 @@
       "path": "/api/tenants/revoke",
       "method": "POST",
       "contract": "tenant.write"
+    },
+    {
+      "function": "revokeTenantGrant",
+      "path": "/api/tenant-grants/revoke",
+      "method": "POST",
+      "contract": "tenant.grant.revoke"
     },
     {
       "function": "revokeVaultLease",
@@ -884,20 +922,8 @@
       "reason": "transport primitive returning Response"
     },
     {
-      "function": "authLogout",
-      "reason": "boolean HTTP result"
-    },
-    {
-      "function": "authRevoke",
-      "reason": "client-constructed ok envelope"
-    },
-    {
       "function": "configureApiBase",
       "reason": "runtime base-URL probe"
-    },
-    {
-      "function": "deleteSession",
-      "reason": "boolean HTTP result"
     },
     {
       "function": "downloadFile",
@@ -924,10 +950,6 @@
       "reason": "status label helper"
     },
     {
-      "function": "issueTenantGrant",
-      "reason": "client-constructed grant envelope"
-    },
-    {
       "function": "jobStatusLabel",
       "reason": "status label helper"
     },
@@ -942,10 +964,6 @@
     {
       "function": "resetDedupForTests",
       "reason": "test reset helper"
-    },
-    {
-      "function": "revokeTenantGrant",
-      "reason": "client-constructed ok envelope"
     },
     {
       "function": "scoreCodesignBudget",

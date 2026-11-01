@@ -4560,3 +4560,11 @@ skipped is the exact failure this incident is about:
 - Teach the inventory the `postTenantMutation(operation, ...)` helper form.
 - Inventory/OpenAPI: 112 modeled / 19 client-only (from 105/26).
 - Updated [[remaining-work]]; no page.
+
+## [2026-11-01] impl | Auth, session, grant envelopes modeled
+
+- Migrate auth logout/revoke, session delete, and tenant-grant issue/revoke to
+  generated operation metadata with auth.action, session.delete, tenant.grant,
+  and tenant.grant.revoke contracts.
+- Inventory/OpenAPI: 117 modeled / 14 client-only (from 112/19).
+- Updated [[remaining-work]]; no page.

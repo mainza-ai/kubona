@@ -108,8 +108,9 @@ Still open:
   approve/reject/apply, LLM/quantum settings, canvas layout, chat feedback,
   loop actions, HF cancel, vault-lease revoke, and quantum canary now use
   generated operation metadata: tenant ceiling/status/autonomy/revoke/refund/
-  admin-key and session refund followed, so the inventory is 112 modeled /
-  19 client-only (from 91/40);
+  admin-key and session refund followed; auth logout/revoke, session delete,
+  and tenant-grant issue/revoke too, so the inventory is 117 modeled /
+  14 client-only (from 91/40);
   session, loops, events, jobs, fidelity, ADMET, agents, LLM/quantum
   settings, radar, cost, obligations, notebooks, capabilities,
   session-context, abort, workflow, quantum-submit, messages, job-detail,

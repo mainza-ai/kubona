@@ -495,6 +495,31 @@ export type SessionRefund = {
   "current_spend_usd"?: number;
 };
 
+export type AuthAction = {
+  "ok": boolean;
+};
+
+export type SessionDelete = {
+  "deleted": boolean;
+  "session_id": string;
+};
+
+export type TenantGrant = {
+  "grant_id": string;
+  "source_tenant"?: string;
+  "target_tenant"?: string;
+  "scopes"?: string[];
+  "expiry"?: string;
+  "grantor_pubkey_hex"?: string;
+  "signature_hex"?: string;
+  "revoked"?: boolean;
+};
+
+export type TenantGrantRevoke = {
+  "ok": boolean;
+  "grant_id": string;
+};
+
 export type CostSummary = {
   "cap_usd": number;
   "spent_usd": number;
@@ -576,6 +601,8 @@ export type ApiOperationResponse = {
   assertPrediction: PredictionAssert;
   authChallenge: AuthChallenge;
   authLogin: AuthLogin;
+  authLogout: AuthAction;
+  authRevoke: AuthAction;
   authSessions: AuthSessions;
   authWhoami: AuthWhoami;
   cancelHFDownload: HfCancel;
@@ -586,6 +613,7 @@ export type ApiOperationResponse = {
   createLab: Lab;
   createSession: SessionCreate;
   deleteCustomAgent: AgentsCustomDelete;
+  deleteSession: SessionDelete;
   emergencyAbort: Abort;
   evaluateCodesignArtifact: CodesignEvaluate;
   evaluateCodesignBatch: CodesignBatch;
@@ -633,6 +661,7 @@ export type ApiOperationResponse = {
   fetchSystemAgents: AgentsSystem;
   fetchWorkbenchLayout: WorkbenchLayout;
   getHFModelDetails: HfDetails;
+  issueTenantGrant: TenantGrant;
   issueVaultLease: VaultLease;
   launchProposal: ChatLaunch;
   listHFDownloads: HfDownloads;
@@ -652,6 +681,7 @@ export type ApiOperationResponse = {
   resumeTribunal: TribunalResume;
   retainMemory: MemoryRetain;
   revokeTenantAutonomy: TenantWrite;
+  revokeTenantGrant: TenantGrantRevoke;
   revokeVaultLease: VaultLeaseRevoke;
   rewriteChat: ChatRewrite;
   routeMultimodalPayload: MeshRoute;
@@ -691,6 +721,8 @@ export const API_OPERATIONS = {
   assertPrediction: { method: "post", path: "/api/vault/predictions/assert", response: "prediction.assert" },
   authChallenge: { method: "post", path: "/api/auth/challenge", response: "auth.challenge" },
   authLogin: { method: "post", path: "/api/auth/login", response: "auth.login" },
+  authLogout: { method: "post", path: "/api/auth/logout", response: "auth.action" },
+  authRevoke: { method: "post", path: "/api/auth/revoke", response: "auth.action" },
   authSessions: { method: "get", path: "/api/auth/sessions", response: "auth.sessions" },
   authWhoami: { method: "get", path: "/api/auth/whoami", response: "auth.whoami" },
   cancelHFDownload: { method: "post", path: "/api/hf/downloads/{id}/cancel", response: "hf.cancel" },
@@ -701,6 +733,7 @@ export const API_OPERATIONS = {
   createLab: { method: "post", path: "/api/tenants", response: "lab" },
   createSession: { method: "post", path: "/api/sessions", response: "session.create" },
   deleteCustomAgent: { method: "delete", path: "/api/agents/custom/{id}", response: "agents.custom.delete" },
+  deleteSession: { method: "delete", path: "/api/sessions/{id}", response: "session.delete" },
   emergencyAbort: { method: "post", path: "/api/supervisor/abort", response: "abort" },
   evaluateCodesignArtifact: { method: "post", path: "/api/codesign/evaluate", response: "codesign.evaluate" },
   evaluateCodesignBatch: { method: "post", path: "/api/codesign/evaluate-batch", response: "codesign.batch" },
@@ -748,6 +781,7 @@ export const API_OPERATIONS = {
   fetchSystemAgents: { method: "get", path: "/api/agents", response: "agents.system" },
   fetchWorkbenchLayout: { method: "get", path: "/api/workbench/layout", response: "workbench.layout" },
   getHFModelDetails: { method: "get", path: "/api/hf/models/{id}", response: "hf.details" },
+  issueTenantGrant: { method: "post", path: "/api/tenant-grants/issue", response: "tenant.grant" },
   issueVaultLease: { method: "post", path: "/api/vault/leases", response: "vault.lease" },
   launchProposal: { method: "post", path: "/api/chat/launch", response: "chat.launch" },
   listHFDownloads: { method: "get", path: "/api/hf/downloads", response: "hf.downloads" },
@@ -767,6 +801,7 @@ export const API_OPERATIONS = {
   resumeTribunal: { method: "post", path: "/api/tribunal/resume", response: "tribunal.resume" },
   retainMemory: { method: "post", path: "/api/memory/retain", response: "memory.retain" },
   revokeTenantAutonomy: { method: "post", path: "/api/tenants/revoke", response: "tenant.write" },
+  revokeTenantGrant: { method: "post", path: "/api/tenant-grants/revoke", response: "tenant.grant.revoke" },
   revokeVaultLease: { method: "post", path: "/api/vault/leases/revoke", response: "vault.lease.revoke" },
   rewriteChat: { method: "post", path: "/api/chat/rewrite", response: "chat.rewrite" },
   routeMultimodalPayload: { method: "post", path: "/api/mesh/route", response: "mesh.route" },

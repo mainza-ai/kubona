@@ -126,6 +126,46 @@
         }
       }
     },
+    "/api/auth/logout": {
+      "post": {
+        "operationId": "authLogout",
+        "tags": [
+          "auth"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: auth.action",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/auth.action"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/revoke": {
+      "post": {
+        "operationId": "authRevoke",
+        "tags": [
+          "auth"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: auth.action",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/auth.action"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/auth/sessions": {
       "get": {
         "operationId": "authSessions",
@@ -451,6 +491,64 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/agents.custom.delete"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{id}": {
+      "delete": {
+        "operationId": "deleteSession",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: session.delete",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/session.delete"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "fetchSession",
+        "tags": [
+          "sessions"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: session",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/session"
                 }
               }
             }
@@ -1320,36 +1418,6 @@
         }
       }
     },
-    "/api/sessions/{id}": {
-      "get": {
-        "operationId": "fetchSession",
-        "tags": [
-          "sessions"
-        ],
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Response contract: session",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/session"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/sessions/context": {
       "get": {
         "operationId": "fetchSessionContext",
@@ -1451,6 +1519,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/hf.details"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenant-grants/issue": {
+      "post": {
+        "operationId": "issueTenantGrant",
+        "tags": [
+          "tenant-grants"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: tenant.grant",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/tenant.grant"
                 }
               }
             }
@@ -1849,6 +1937,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/tenant.write"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenant-grants/revoke": {
+      "post": {
+        "operationId": "revokeTenantGrant",
+        "tags": [
+          "tenant-grants"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: tenant.grant.revoke",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/tenant.grant.revoke"
                 }
               }
             }
@@ -3929,6 +4037,82 @@
           }
         }
       },
+      "auth.action": {
+        "type": "object",
+        "required": [
+          "ok"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        }
+      },
+      "session.delete": {
+        "type": "object",
+        "required": [
+          "deleted",
+          "session_id"
+        ],
+        "properties": {
+          "deleted": {
+            "type": "boolean"
+          },
+          "session_id": {
+            "type": "string"
+          }
+        }
+      },
+      "tenant.grant": {
+        "type": "object",
+        "required": [
+          "grant_id"
+        ],
+        "properties": {
+          "grant_id": {
+            "type": "string"
+          },
+          "source_tenant": {
+            "type": "string"
+          },
+          "target_tenant": {
+            "type": "string"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expiry": {
+            "type": "string"
+          },
+          "grantor_pubkey_hex": {
+            "type": "string"
+          },
+          "signature_hex": {
+            "type": "string"
+          },
+          "revoked": {
+            "type": "boolean"
+          }
+        }
+      },
+      "tenant.grant.revoke": {
+        "type": "object",
+        "required": [
+          "ok",
+          "grant_id"
+        ],
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "grant_id": {
+            "type": "string"
+          }
+        }
+      },
       "cost.summary": {
         "type": "object",
         "required": [
@@ -4199,22 +4383,17 @@
   ],
   "x-kubona-client-only-functions": [
     "apiFetch",
-    "authLogout",
-    "authRevoke",
     "configureApiBase",
-    "deleteSession",
     "downloadFile",
     "exportLedger",
     "exportSession",
     "fetchBackendStatus",
     "importSession",
     "isTerminalJobStatus",
-    "issueTenantGrant",
     "jobStatusLabel",
     "lensImageProxyUrl",
     "reportError",
     "resetDedupForTests",
-    "revokeTenantGrant",
     "scoreCodesignBudget",
     "wasRecentAuthFailure"
   ]
