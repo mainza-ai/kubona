@@ -901,9 +901,7 @@ export async function saveCanvasLayout(sessionId: string, layout: Record<string,
 
 export async function fetchCapabilities(): Promise<CapabilitiesPayload | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/capabilities`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return null;
-    return contract('capabilities', (await res.json()) as CapabilitiesPayload);
+    return (await requestOperation('fetchCapabilities')) as CapabilitiesPayload;
   } catch (err) {
     console.error('Failed to fetch capabilities:', err);
     return null;
@@ -1962,9 +1960,9 @@ export interface SessionContext {
 // the Go tests, not in the composer).
 export async function fetchSessionContext(sessionId: string): Promise<SessionContext | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/sessions/context?session_id=${encodeURIComponent(sessionId)}`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return null;
-    return contract('session.context', await res.json());
+    return (await requestOperation('fetchSessionContext', {
+      query: { session_id: sessionId },
+    })) as SessionContext;
   } catch (err) {
     console.error('Failed to fetch session context:', err);
     return null;

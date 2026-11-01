@@ -73,18 +73,20 @@ Landed on `develop` and `main` with the console/Go gates green:
 
 Still open:
 
-- Remaining workbench object kinds (`table`, `note`, `approval`); job records
-  and running loops project as `job`/`agent_run` cards. Areas can be renamed,
-  moved, resized, and assigned cards; the canvas virtualizes past 24 objects.
+- Remaining workbench object kinds (`note`, `approval`); job records, running
+  loops, and exact quantum factors project as `job`/`agent_run`/`table`
+  cards. Areas can be renamed, moved, resized, and assigned cards; the canvas
+  virtualizes past 24 objects.
 - Backend readiness, spend, fleet/radar, flight-recorder telemetry, and
   job progress now share a serialized, visibility-gated, backoff-bounded
   polling store with terminal-stop support. Copilot tribunal-turn polling is
   a local, run-scoped exception.
 - Revisioned domain events beyond the ledger cursor; generated contract
   types, operation metadata, and a checked `requestOperation()` client are
-  landed; session, loops, and jobs wrappers now use it. Layout saves render
-  accepted/applied/refused/unknown settlement. Session-list dedupe/custom error
-  copy remain, and settlement is not yet uniform across writes.
+  landed; session, loops, jobs, capabilities, and session-context wrappers use
+  it. Layout saves render accepted/applied/refused/unknown settlement.
+  Session-list dedupe/custom error copy remain, and settlement is not yet
+  uniform across writes.
 - Manual VoiceOver/NVDA record, 200% zoom/forced-colors evidence, route
   alias/feature-flag cleanup, and legacy-surface removal. The chart
   implementation has a CI-enforced 16.2 KB min / 4.8 KB gzip budget (60/20 KB

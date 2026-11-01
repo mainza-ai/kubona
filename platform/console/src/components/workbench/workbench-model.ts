@@ -14,7 +14,8 @@ export type WorkbenchObjectKind =
   | 'proof'
   | 'manuscript'
   | 'agent_run'
-  | 'job';
+  | 'job'
+  | 'table';
 
 export type WorkbenchLink = {
   id: string;
@@ -42,7 +43,7 @@ export type WorkbenchObject = {
 };
 
 export const DEFAULT_CAMERA: WorkbenchCamera = { x: 36, y: 36, zoom: 0.82 };
-export const WORKBENCH_BOUNDS = { width: 1500, height: 760 };
+export const WORKBENCH_BOUNDS = { width: 1800, height: 760 };
 
 function finite(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
@@ -124,6 +125,11 @@ function value(raw: unknown, fallback = 'UNVERIFIED'): string {
   if (typeof raw === 'number' && Number.isFinite(raw)) return String(raw);
   if (typeof raw === 'string' && raw.trim()) return raw;
   return fallback;
+}
+
+function typeValue(raw: unknown): string {
+  if (typeof raw === 'number' && Number.isFinite(raw)) return `$${raw.toFixed(2)}`;
+  return value(raw);
 }
 
 function fixed(raw: unknown, digits: number, fallback = 'UNVERIFIED'): string {
@@ -303,6 +309,24 @@ export function buildWorkbench(campaign: CampaignState | null | undefined, loops
         { label: 'Completed', value: job.completed_at || 'not yet' },
       ],
     });
+  });
+  objects.push({
+    id: 'quantum-factors',
+    kind: 'table',
+    label: 'Table',
+    title: 'Quantum factors',
+    detail: 'Exact campaign fields as recorded; no derived values.',
+    position: { x: 1260, y: 0 },
+    size: { width: 380, height: 430 },
+    facts: [
+      { label: 'Molecule', value: value(qf?.target_molecule) },
+      { label: 'Mapping', value: value(qf?.fermion_mapping) },
+      { label: 'Qubits', value: value(qf?.qubit_count) },
+      { label: 'Depth', value: value(qf?.circuit_depth) },
+      { label: 'Two-qubit gates', value: value(qf?.two_qubit_gates) },
+      { label: 'Backend', value: value(qf?.recommended_backend) },
+      { label: 'Estimated spend', value: typeValue(qf?.estimated_spend_usd) },
+    ],
   });
   if (chart) {
     objects.push({

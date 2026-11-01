@@ -95,9 +95,9 @@ describe('Workbench', () => {
       tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" />);
     });
     const cards = tree!.root.findAllByProps({ className: 'k-workbench-card' });
-    expect(cards.length).toBe(8);
+    expect(cards.length).toBe(9);
     expect(cards.map((card) => card.props['data-kind'])).toEqual(
-      expect.arrayContaining(['campaign', 'hypothesis', 'circuit', 'measurement', 'chart']),
+      expect.arrayContaining(['campaign', 'hypothesis', 'circuit', 'measurement', 'chart', 'table']),
     );
     expect(tree!.root.findAllByProps({ 'data-testid': 'k-chart' }).length).toBe(1);
   });
