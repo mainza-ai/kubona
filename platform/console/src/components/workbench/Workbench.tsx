@@ -20,6 +20,7 @@ import {
   workbenchDocument,
   type WorkbenchArea,
   type WorkbenchCamera,
+  type WorkbenchLink,
   type WorkbenchObject,
   type WorkbenchObjectKind,
   type WorkbenchPositions,
@@ -50,10 +51,12 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
   const [selected, setSelected] = useState<string[]>([]);
   const [positions, setPositions] = useState<WorkbenchPositions>({});
   const [sizes, setSizes] = useState<WorkbenchSizes>({});
+  const [storedLinks, setStoredLinks] = useState<WorkbenchLink[] | null>(null);
+  const [linkKind, setLinkKind] = useState<WorkbenchLink['kind']>('supports');
   const jobs = useMemo(() => suppliedJobs ?? [], [suppliedJobs]);
   const obligations = useMemo(() => suppliedObligations ?? [], [suppliedObligations]);
   const baseObjects = useMemo(() => buildWorkbench(campaign, loops, jobs, obligations), [campaign, loops, jobs, obligations]);
-  const links = useMemo(() => buildWorkbenchLinks(baseObjects), [baseObjects]);
+  const links = useMemo(() => storedLinks ?? buildWorkbenchLinks(baseObjects), [storedLinks, baseObjects]);
   const [viewMode, setViewMode] = useState<'canvas' | 'list'>('canvas');
   const [areas, setAreas] = useState<WorkbenchArea[]>([]);
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
@@ -110,6 +113,20 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
     setHidden((previous) => previous.filter((id) => !lastRemoved.includes(id)));
     setLastRemoved([]);
   }, [lastRemoved]);
+
+  const customLink = useCallback(() => {
+    if (selected.length !== 2) return;
+    const [source, target] = selected;
+    setStoredLinks((previous) => {
+      const current = previous ?? buildWorkbenchLinks(baseObjects);
+      if (current.some((link) => link.source === source && link.target === target && link.kind === linkKind)) return current;
+      return [...current, { id: `${source}-${target}-${linkKind}`, source, target, kind: linkKind }];
+    });
+  }, [selected, linkKind, baseObjects]);
+
+  const removeLink = useCallback((id: string) => {
+    setStoredLinks((previous) => (previous ?? buildWorkbenchLinks(baseObjects)).filter((link) => link.id !== id));
+  }, [baseObjects]);
 
   const fit = useCallback(() => {
     const host = hostRef.current;
@@ -453,6 +470,24 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
         >
           Group selected
         </Button>
+        {selected.length === 2 && (
+          <span className="flex items-center gap-1">
+            <select
+              aria-label="Link kind"
+              value={linkKind}
+              onChange={(event) => setLinkKind(event.target.value as WorkbenchLink['kind'])}
+              className="h-7 rounded-lg border border-white/10 bg-black/30 px-1 text-[12px] text-slate-300"
+            >
+              <option value="supports">supports</option>
+              <option value="uses">uses</option>
+              <option value="depends_on">depends on</option>
+              <option value="contradicts">contradicts</option>
+              <option value="same_as">same as</option>
+              <option value="thread">thread</option>
+            </select>
+            <Button type="button" variant="ghost" size="compact" onClick={customLink} title="Link the two selected cards">Link</Button>
+          </span>
+        )}
         {activeArea && (
           <Button
             type="button"
@@ -540,6 +575,20 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
                 ))}
               </tbody>
             </table>
+            {links.length > 0 && (
+              <div className="k-workbench-hidden" aria-label="Workbench links">
+                <strong>Links</strong>
+                {links.map((link) => {
+                  const source = objects.find((object) => object.id === link.source);
+                  const target = objects.find((object) => object.id === link.target);
+                  return (
+                    <button key={link.id} type="button" onClick={() => removeLink(link.id)} title="Remove this link; the cards and records are not deleted">
+                      {source?.label ?? link.source} → {link.kind} → {target?.label ?? link.target} · Remove
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             {hidden.length > 0 && (
               <div className="k-workbench-hidden" aria-label="Hidden objects">
                 <strong>Hidden objects</strong>
