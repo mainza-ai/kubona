@@ -1485,15 +1485,20 @@ export async function sendFeedback(
   sessionId: string,
   messageId: string,
   vote: 'up' | 'down'
-): Promise<boolean> {
+): Promise<{ ok: true } | { ok: false; error: string; unknown: boolean }> {
   try {
     const data = await requestOperation('sendFeedback', {
       body: { session_id: sessionId, message_id: messageId, vote },
     });
-    return data.recorded === true;
+    if (data.recorded !== true) return { ok: false, unknown: false, error: 'feedback not recorded' };
+    return { ok: true };
   } catch (err) {
     console.error('Failed to send feedback:', err);
-    return false;
+    return {
+      ok: false,
+      unknown: !(err instanceof OperationError) || err.status === null,
+      error: String(err instanceof Error ? err.message : err).slice(0, 280),
+    };
   }
 }
 export async function rewriteChat(

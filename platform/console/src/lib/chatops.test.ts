@@ -85,12 +85,12 @@ describe('chat ops client', () => {
         json: async () => ({ recorded: true }),
       };
     });
-    await expect(sendFeedback('s', 'm', 'up')).resolves.toBe(true);
+    await expect(sendFeedback('s', 'm', 'up')).resolves.toEqual({ ok: true });
     expect(seen[0].url).toContain('/api/chat/feedback');
     expect(seen[0].init?.method).toBe('POST');
     expect(JSON.parse(String(seen[0].init?.body ?? '{}'))).toMatchObject({ session_id: 's', message_id: 'm', vote: 'up' });
     mockFetchOnce({}, false, 404);
-    await expect(sendFeedback('s', 'm', 'down')).resolves.toBe(false);
+    await expect(sendFeedback('s', 'm', 'down')).resolves.toMatchObject({ ok: false, unknown: false });
   });
 
   it('rewriteChat POSTs session/message/content and returns the rewritten message', async () => {

@@ -4683,3 +4683,8 @@ skipped is the exact failure this incident is about:
 - Render chat send as accepted/applied/refused/unknown alongside the transcript:
   stream completion/unary fallback apply, operator stop and stalls are unknown,
   and nothing claims a reply that was not stored.
+
+## [2026-11-01] impl | Chat feedback settlement
+
+- Render assistant feedback as accepted/applied/refused/unknown and distinguish
+  transport failure from refusal. The optimistic vote reverts on failure.
