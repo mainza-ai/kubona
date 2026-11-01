@@ -1410,14 +1410,19 @@ export async function fetchLabs(): Promise<Lab[]> {
 export async function emergencyAbort(
   sessionId: string,
   reason = 'emergency abort from console'
-): Promise<{ aborted_count: number; abort_receipt: string } | null> {
+): Promise<{ ok: true; aborted_count: number; abort_receipt: string } | { ok: false; error: string; unknown: boolean }> {
   try {
-    return (await requestOperation('emergencyAbort', {
+    const data = (await requestOperation('emergencyAbort', {
       body: { session_id: sessionId, reason },
     })) as { aborted_count: number; abort_receipt: string };
+    return { ok: true, ...data };
   } catch (err) {
     console.error('Abort failed and nothing was settled:', err);
-    return null;
+    return {
+      ok: false,
+      unknown: !(err instanceof OperationError) || err.status === null,
+      error: String(err instanceof Error ? err.message : err).slice(0, 280),
+    };
   }
 }
 

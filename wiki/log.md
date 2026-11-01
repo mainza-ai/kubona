@@ -4643,3 +4643,9 @@ skipped is the exact failure this incident is about:
 - Both bootstrap paths (register an existing browser key / create-and-register)
   and Create Lab + first-admin now render accepted/applied/refused/unknown.
   createLab distinguishes transport from refusal.
+
+## [2026-11-01] impl | Emergency abort settlement
+
+- emergencyAbort now returns an explicit ok/refused/unknown result; the
+  Guardrails dialog renders accepted/applied/refused/unknown and no longer
+  calls a transport failure a refusal.
