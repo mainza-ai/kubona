@@ -137,10 +137,10 @@ Still open:
   200%-zoom/reduced-motion checks are green, but they are not a manual pass.
 - Legacy retirement: the molecule canvas and `WidgetStage` stay until object
   cards reach parity and the old aliases have one release of support.
-- Write settlement is not yet uniform across every write; quantum dispatch
-  estimate/dispatch/cancel, quantum provider settings, and the two air-gap
-  toggles now render accepted/applied/refused/unknown, including
-  transport-vs-refusal.
+- Write settlement is not yet uniform across every write; LLM settings,
+  quantum dispatch estimate/dispatch/cancel, quantum provider settings, and
+  the two air-gap toggles now render accepted/applied/refused/unknown,
+  including transport-vs-refusal. Tenant admin panels still use custom copy.
 - Per-send model override has no backend contract; the composer links to Model
   Hub instead of faking one.
 - The 11 remaining client-only names are intentional transport/browser/auth

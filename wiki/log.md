@@ -4620,3 +4620,8 @@ skipped is the exact failure this incident is about:
 - Render both air-gap toggles (Autonomy Cockpit and Cognitive Mesh) as
   accepted/applied/refused/unknown, with revert-on-failure preserved.
 - saveLLMSettings now distinguishes transport from refusal.
+
+## [2026-11-01] impl | LLM settings settlement
+
+- Render LLM settings saves as accepted/applied/refused/unknown while keeping
+  the section-mapped refusal copy and network-error distinction.

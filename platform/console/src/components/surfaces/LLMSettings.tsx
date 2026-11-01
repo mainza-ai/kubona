@@ -20,6 +20,8 @@ import {
   fetchLLMModels,
   testLLM,
 } from '@/lib/api';
+import { useWriteSettlement } from '@/domain/use-write-settlement';
+import { writeSettlementLabel } from '@/domain/write-settlement';
 
 interface ProviderConfig {
   type: string;
@@ -116,6 +118,7 @@ export function LLMSettings() {
   const [saveStatus, setSaveStatus] = useState<string>('');
   const [saveSectionError, setSaveSectionError] = useState<{ section: string; provider?: string; message: string } | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const settlement = useWriteSettlement();
   const [tokenError, setTokenError] = useState<string | null>(null);
   // Key edits live outside settings state: secrets are never rendered and
   // only sent when the operator types them. Empty provider keys in the save
@@ -181,6 +184,7 @@ export function LLMSettings() {
     setSaving(true);
     setSaveStatus('');
     setSaveSectionError(null);
+    const requestId = settlement.begin('LLM settings');
     try {
       // Merge key edits; untouched providers send "" (backend keeps stored).
       const providers: Record<string, ProviderConfig> = {};
@@ -189,6 +193,7 @@ export function LLMSettings() {
       }
       const res = await saveLLMSettings({ ...settings, providers } as unknown as Record<string, unknown>);
       if (res.ok) {
+        settlement.applied(requestId, 'LLM settings persisted');
         setSaveStatus('✅ Settings persisted successfully to SQLite ledger.');
         setKeyEdits({});
         // Dirty reference is the live settings shape: key edits are never
@@ -197,12 +202,14 @@ export function LLMSettings() {
         setBaseline(JSON.stringify(settings));
       } else {
         const reason = res.error || 'no reason';
+        settlement[res.unknown ? 'unknown' : 'refused'](requestId, reason);
         const mapped = locateSaveSection(reason, settings);
         setSaveSectionError(mapped);
         setSaveStatus(`❌ Failed to persist settings — backend refused (${mapped.section}: ${reason}). Nothing changed.`);
       }
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
+      settlement.unknown(requestId, reason);
       const mapped = locateSaveSection(reason, settings);
       setSaveSectionError(mapped);
       setSaveStatus(`❌ Network error (${mapped.section}: ${reason}) — nothing changed.`);
@@ -392,6 +399,9 @@ export function LLMSettings() {
         <div role={saveSectionError ? 'alert' : undefined} data-testid="llm-save-status" className="p-3 bg-white/[0.03] border border-white/10 text-xs font-medium rounded-xl text-slate-200">
           {saveStatus}
         </div>
+      )}
+      {writeSettlementLabel(settlement.write) && (
+        <p role="status" className="text-[12px] font-mono text-slate-400">{writeSettlementLabel(settlement.write)}</p>
       )}
 
       {/* Main Grid: Providers vs Routing */}
