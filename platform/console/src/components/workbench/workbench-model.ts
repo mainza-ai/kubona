@@ -304,7 +304,7 @@ export function buildWorkbench(
       ],
     },
   ];
-  loops.slice(0, 24).forEach((loop, index) => {
+  loops.slice(0, 160).forEach((loop, index) => {
     const state = String(loop.status || 'unknown');
     objects.push({
       id: `agent-run-${loop.id}`,
@@ -322,7 +322,7 @@ export function buildWorkbench(
       ],
     });
   });
-  jobs.slice(0, 24).forEach((job, index) => {
+  jobs.slice(0, 160).forEach((job, index) => {
     objects.push({
       id: `job-${job.id}`,
       kind: 'job',
@@ -357,7 +357,7 @@ export function buildWorkbench(
       { label: 'Estimated spend', value: typeValue(qf?.estimated_spend_usd) },
     ],
   });
-  obligations.slice(0, 8).forEach((obligation, index) => {
+  obligations.slice(0, 32).forEach((obligation, index) => {
     objects.push({
       id: `approval-${obligation.id}`,
       kind: 'approval',
