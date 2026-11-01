@@ -417,6 +417,7 @@ export type WorkbenchDocument = {
   }[];
   links: WorkbenchLink[];
   areas: WorkbenchArea[];
+  hidden: string[];
   camera: WorkbenchCamera;
   selected: [];
 };
@@ -428,6 +429,7 @@ export function readWorkbenchDocument(raw: Record<string, unknown> | null): {
   links: WorkbenchLink[];
   areas: WorkbenchArea[];
   assignments: Record<string, string>;
+  hidden: string[];
 } {
   const camera = readCamera({ workbench: raw });
   const objects = Array.isArray(raw?.objects) ? raw.objects : [];
@@ -436,6 +438,7 @@ export function readWorkbenchDocument(raw: Record<string, unknown> | null): {
   const links: WorkbenchLink[] = Array.isArray(raw?.links) ? (raw.links as WorkbenchLink[]) : [];
   const areas: WorkbenchArea[] = Array.isArray(raw?.areas) ? (raw.areas as WorkbenchArea[]) : [];
   const assignments: Record<string, string> = {};
+  const hidden: string[] = Array.isArray(raw?.hidden) ? raw!.hidden.filter((id): id is string => typeof id === 'string') : [];
   for (const item of objects) {
     if (!item || typeof item !== 'object') continue;
     const object = item as { id?: unknown; position?: unknown; size?: unknown };
@@ -451,7 +454,7 @@ export function readWorkbenchDocument(raw: Record<string, unknown> | null): {
       if (finite(width) && finite(height) && width > 0 && height > 0) sizes[object.id] = { width, height };
     }
   }
-  return { camera, positions, sizes, links, areas, assignments };
+  return { camera, positions, sizes, links, areas, assignments, hidden };
 }
 
 export function buildWorkbenchLinks(objects: WorkbenchObject[]): WorkbenchLink[] {
@@ -480,6 +483,7 @@ export function workbenchDocument(
   links: WorkbenchLink[] = buildWorkbenchLinks(objects),
   areas: WorkbenchArea[] = [],
   assignments: Record<string, string> = {},
+  hidden: string[] = [],
 ): WorkbenchDocument {
   return {
     version: 2,
@@ -494,6 +498,7 @@ export function workbenchDocument(
     })),
     links,
     areas,
+    hidden,
     camera,
     selected: [],
   };

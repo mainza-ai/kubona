@@ -4451,3 +4451,10 @@ skipped is the exact failure this incident is about:
   refused/unknown phases. Campaign create/delete now use it and emit applied
   toasts only after the server confirms. Updated [[remaining-work]]; no new
   page.
+
+## [2026-11-01] impl | Workbench remove/undo and hidden layout state
+
+- Selected cards can be removed from the canvas without deleting records,
+  restored immediately, or restored from the hidden-object list. Hidden ids
+  persist in the v2 document and are validated. Updated [[remaining-work]];
+  no new page.

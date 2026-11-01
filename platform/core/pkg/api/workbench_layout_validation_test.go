@@ -46,4 +46,7 @@ func TestWorkbenchLayoutRejectsUnknownRefsLinksAreasAndBodies(t *testing.T) {
 	if code := put(strings.Replace(base, `"kind":"campaign","position"`, `"kind":"campaign","area":"missing-area","position"`, 1)); code != http.StatusBadRequest {
 		t.Fatalf("unknown area assignment must 400, got %d", code)
 	}
+	if code := put(strings.Replace(base, `"areas":[]`, `"areas":[],"hidden":["ghost"]`, 1)); code != http.StatusBadRequest {
+		t.Fatalf("unknown hidden object must 400, got %d", code)
+	}
 }

@@ -173,6 +173,21 @@ describe('Workbench', () => {
     expect(onSelectObject).toHaveBeenCalledWith(expect.objectContaining({ id: 'campaign' }));
   });
 
+  it('removes a selected card from the canvas and restores it without deleting the record', async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" />);
+    });
+    const card = tree!.root.findAllByProps({ 'data-kind': 'campaign' })[0];
+    await act(async () => { card.props.onClick(); });
+    const remove = tree!.root.findAllByType('button').find((button) => button.props.children === 'Remove');
+    await act(async () => { remove!.props.onClick(); });
+    expect(tree!.root.findAllByProps({ 'data-kind': 'campaign' })).toHaveLength(0);
+    const undo = tree!.root.findAllByType('button').find((button) => button.props.children === 'Undo remove');
+    await act(async () => { undo!.props.onClick(); });
+    expect(tree!.root.findAllByProps({ 'data-kind': 'campaign' })).toHaveLength(1);
+  });
+
   it('groups all objects into a persisted spatial area', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {

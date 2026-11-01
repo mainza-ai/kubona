@@ -3874,7 +3874,8 @@ func validateWorkbenchDocument(raw []byte, sessionID string) error {
 			Target string `json:"target"`
 			Kind   string `json:"kind"`
 		} `json:"links"`
-		Areas []struct {
+		Hidden []string `json:"hidden"`
+		Areas  []struct {
 			ID   string `json:"id"`
 			Rect struct {
 				X      float64 `json:"x"`
@@ -3933,6 +3934,16 @@ func validateWorkbenchDocument(raw []byte, sessionID string) error {
 		if object.Area != "" {
 			objectAreas[object.ID] = object.Area
 		}
+	}
+	if len(doc.Hidden) > 512 {
+		return fmt.Errorf("workbench hidden count %d exceeds 512", len(doc.Hidden))
+	}
+	hiddenSeen := map[string]bool{}
+	for _, id := range doc.Hidden {
+		if !seen[id] || hiddenSeen[id] {
+			return fmt.Errorf("workbench hidden object %q is unknown or duplicated", id)
+		}
+		hiddenSeen[id] = true
 	}
 	if len(doc.Links) > 1024 {
 		return fmt.Errorf("workbench link count %d exceeds 1024", len(doc.Links))
