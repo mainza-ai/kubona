@@ -2425,10 +2425,9 @@ export interface AuthServerSession {
 // whoami is how the UI learns who it is.
 export async function authChallenge(): Promise<AuthChallenge | { error: string } | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/auth/challenge`, { method: 'POST' });
-    if (!res.ok) return { error: `HTTP ${res.status}` };
-    return contract('auth.challenge', (await res.json()) as AuthChallenge);
+    return (await requestOperation('authChallenge', { body: {} })) as unknown as AuthChallenge;
   } catch (err) {
+    if (err instanceof OperationError) return { error: err.message };
     console.error('Failed to fetch auth challenge:', err);
     return null;
   }
@@ -2441,24 +2440,13 @@ export async function authLogin(
   signatureHex: string
 ): Promise<{ ok: true; tenant_id: string; pubkey_fp: string } | { error: string } | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/auth/login`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ tenant_id: tenantId, pubkey_hex: pubkeyHex, nonce, signature_hex: signatureHex }),
-    });
-    if (!res.ok) {
-      let text = '';
-      try {
-        text = (await res.text()).trim().slice(0, 280);
-      } catch {
-        /* ignore */
-      }
-      return { error: text || `HTTP ${res.status}` };
-    }
-    const data = contract('auth.login', await res.json()) as { ok: true; tenant_id: string; pubkey_fp: string };
+    const data = (await requestOperation('authLogin', {
+      body: { tenant_id: tenantId, pubkey_hex: pubkeyHex, nonce, signature_hex: signatureHex },
+    })) as unknown as { ok: true; tenant_id: string; pubkey_fp: string };
     authenticatedSession = true;
     return data;
   } catch (err) {
+    if (err instanceof OperationError) return { error: err.message };
     console.error('Failed to log in:', err);
     return null;
   }
@@ -2477,9 +2465,7 @@ export async function authLogout(): Promise<boolean> {
 
 export async function authWhoami(): Promise<AuthSession | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/auth/whoami`, { cache: 'no-store' });
-    if (!res.ok) return null;
-    const data = contract('auth.whoami', (await res.json()) as AuthSession);
+    const data = (await requestOperation('authWhoami')) as unknown as AuthSession;
     authenticatedSession = data.authenticated === true;
     return data;
   } catch (err) {
@@ -2490,20 +2476,10 @@ export async function authWhoami(): Promise<AuthSession | null> {
 
 export async function authSessions(): Promise<AuthServerSession[] | { error: string } | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/auth/sessions`, { cache: 'no-store' });
-    if (!res.ok) {
-      let text = '';
-      try {
-        text = (await res.text()).trim().slice(0, 280);
-      } catch {
-        /* ignore */
-      }
-      return { error: text || `HTTP ${res.status}` };
-    }
-    const data = (await res.json()) as { sessions?: AuthServerSession[] };
-    contract('auth.sessions', data);
+    const data = (await requestOperation('authSessions')) as { sessions?: AuthServerSession[] };
     return data.sessions || [];
   } catch (err) {
+    if (err instanceof OperationError) return { error: err.message };
     console.error('Failed to list sessions:', err);
     return null;
   }

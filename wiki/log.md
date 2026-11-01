@@ -4336,3 +4336,9 @@ skipped is the exact failure this incident is about:
 - LLM model/test and HF search/details/downloads wrappers move onto
   `requestOperation`, preserving the hub's explicit refusal errors. Updated
   [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Auth session wrappers
+
+- Auth challenge/login/whoami/sessions move onto `requestOperation`; logout
+  and revoke stay hand-written because they are not modeled operations.
+  Updated [[remaining-work]]; no new page.
