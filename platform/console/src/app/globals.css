@@ -468,3 +468,16 @@ body {
   cursor: nwse-resize;
   touch-action: none;
 }
+.k-workbench-open {
+  align-self: flex-start;
+  margin-block-start: auto;
+  block-size: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control-compact);
+  background: var(--color-fill);
+  color: var(--color-label-secondary);
+  font: inherit;
+  font-size: var(--text-label);
+}
+.k-workbench-open:hover { background: var(--color-fill-hover); color: var(--color-text); }

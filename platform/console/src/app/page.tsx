@@ -1094,7 +1094,24 @@ export default function Home() {
             />
 
             {arenaView === 'workbench' && !showLegacyCanvas && (
-              <Workbench campaign={campaign} sessionId={currentSessionId || undefined} />
+              <Workbench
+                campaign={campaign}
+                sessionId={currentSessionId || undefined}
+                onOpenObject={(kind) => {
+                  if (kind === 'chart') setSurface('recorder');
+                  else if (kind === 'evidence') setSurface('manifold');
+                  else if (kind === 'proof' || kind === 'manuscript') {
+                    setSurface('proofs');
+                    setProofsTab('manuscripts');
+                  } else if (kind === 'circuit') {
+                    setSurface('arena');
+                    setArenaView('proof-dag');
+                  } else {
+                    setSurface('arena');
+                    setArenaView('workbench');
+                  }
+                }}
+              />
             )}
             {arenaView === 'orbital' && !showLegacyCanvas && (
               <SwarmUniverse campaign={campaign} recenterSignal={recenterSignal} activeProbe={activeProbe} atRest={runPhase === 'idle'} />
