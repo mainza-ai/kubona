@@ -592,9 +592,10 @@ export async function synthesizeCampaign(sessionId: string, prompt: string): Pro
 
 export async function fetchAutoresearchHarnesses(): Promise<{ harnesses: import('@/types').AutoresearchHarness[]; docker_runner: Record<string, unknown> | null }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/autoresearch/harnesses`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return { harnesses: [], docker_runner: null };
-    return contract('autoresearch.harnesses', await res.json());
+    return (await requestOperation('fetchAutoresearchHarnesses')) as unknown as {
+      harnesses: import('@/types').AutoresearchHarness[];
+      docker_runner: Record<string, unknown> | null;
+    };
   } catch (err) {
     console.error('Failed to fetch autoresearch harnesses:', err);
     return { harnesses: [], docker_runner: null };
@@ -628,11 +629,8 @@ export async function startAutoresearchLoop(
 
 export async function fetchAutoresearchLoops(): Promise<import('@/types').AutoresearchLoop[]> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/autoresearch/loops`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return [];
-    const data = await res.json();
-    contract('autoresearch.loops', data);
-    return data.loops || [];
+    const data = await requestOperation('fetchAutoresearchLoops');
+    return (data.loops || []) as unknown as import('@/types').AutoresearchLoop[];
   } catch (err) {
     console.error('Failed to fetch autoresearch loops:', err);
     return [];
@@ -697,11 +695,8 @@ export async function stopAutoresearchLoop(loopId: string): Promise<import('@/ty
 
 export async function fetchMetasearchProposals(): Promise<import('@/types').MetaProposal[]> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/metasearch/proposals`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return [];
-    const data = await res.json();
-    contract('metasearch.proposals', data);
-    return data.proposals || [];
+    const data = await requestOperation('fetchMetasearchProposals');
+    return (data.proposals || []) as unknown as import('@/types').MetaProposal[];
   } catch (err) {
     console.error('Failed to fetch metasearch proposals:', err);
     return [];
@@ -910,10 +905,9 @@ export async function fetchFidelity(device: string, depth: number, twoQubitGates
 
 export async function fetchEpistemics(sessionId?: string | null): Promise<Record<string, unknown>> {
   try {
-    const qs = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : '';
-    const res = await apiFetch(`${API_BASE}/api/epistemics${qs}`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return {};
-    return contract('epistemics', await res.json());
+    return (await requestOperation('fetchEpistemics', {
+      query: { session_id: sessionId || undefined },
+    })) as Record<string, unknown>;
   } catch (err) {
     console.error('Failed to fetch epistemics:', err);
     return {};
@@ -1274,9 +1268,7 @@ export async function submitQuantumJob(
 
 export async function fetchQuantumJob(jobId: string): Promise<Record<string, unknown> | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/quantum/jobs/${encodeURIComponent(jobId)}`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return null;
-    return contract('quantum.job', await res.json());
+    return (await requestOperation('fetchQuantumJob', { params: { id: jobId } })) as Record<string, unknown>;
   } catch (err) {
     console.error('Failed to fetch quantum job:', err);
     return null;

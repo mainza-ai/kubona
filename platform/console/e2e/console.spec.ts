@@ -161,6 +161,16 @@ test.describe('Kubona console against the real local stack', () => {
     await expect(dialog).toHaveCount(0);
   });
 
+  test('200% zoom equivalent keeps the shell inside the viewport', async ({ page }) => {
+    await page.setViewportSize({ width: 720, height: 450 });
+    await page.goto('/');
+    await expectReady(page);
+    const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+    expect(overflow).toBeLessThanOrEqual(1);
+    await page.keyboard.press('Tab');
+    await expect(page.getByRole('link', { name: 'Skip to main content' })).toBeFocused();
+  });
+
   test('skip link reaches main content and forced colors keep the shell usable', async ({ page }) => {
     await page.emulateMedia({ forcedColors: 'active' });
     await page.goto('/');
