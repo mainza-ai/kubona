@@ -4631,3 +4631,9 @@ skipped is the exact failure this incident is about:
 - Lab Ops ceiling/status/autonomy/revoke and tenant refund now render
   accepted/applied/refused/unknown with revert-on-failure preserved. Key
   bootstrap/recovery still use their custom copy.
+
+## [2026-11-01] impl | Grant and recovery settlement
+
+- Tenant grant issue/revoke, session refund, and admin-key rotation now render
+  accepted/applied/refused/unknown; key issue/refund wrappers distinguish
+  transport from refusal. First-run admin-key bootstrap remains custom.

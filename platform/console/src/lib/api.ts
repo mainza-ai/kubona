@@ -1849,7 +1849,7 @@ export async function refundSessionSpend(
   amountUsd: number,
   reason: string,
   action?: import('./adminAction').AdminAction,
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true } | { ok: false; error: string; unknown?: boolean }> {
   try {
     await requestOperation('refundSessionSpend', {
       body: {
@@ -1859,7 +1859,7 @@ export async function refundSessionSpend(
     });
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+    return { ok: false, unknown: !(err instanceof OperationError) || err.status === null, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
@@ -1887,21 +1887,21 @@ export function revokeTenantAutonomy(
   });
 }
 
-export async function issueTenantGrant(body: Record<string, unknown>): Promise<{ ok: true; grant: Record<string, unknown> } | { ok: false; error: string }> {
+export async function issueTenantGrant(body: Record<string, unknown>): Promise<{ ok: true; grant: Record<string, unknown> } | { ok: false; error: string; unknown?: boolean }> {
   try {
     const data = await requestOperation('issueTenantGrant', { body });
     return { ok: true, grant: data as unknown as Record<string, unknown> };
   } catch (err) {
-    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+    return { ok: false, unknown: !(err instanceof OperationError) || err.status === null, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
-export async function revokeTenantGrant(body: Record<string, unknown>): Promise<{ ok: boolean; error?: string }> {
+export async function revokeTenantGrant(body: Record<string, unknown>): Promise<{ ok: boolean; error?: string; unknown?: boolean }> {
   try {
     const data = await requestOperation('revokeTenantGrant', { body });
     return { ok: data.ok === true };
   } catch (err) {
-    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+    return { ok: false, unknown: !(err instanceof OperationError) || err.status === null, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
