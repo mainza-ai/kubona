@@ -7,6 +7,7 @@ import { fetchCanvasLayout, saveCanvasLayout } from '@/lib/api';
 import { Chart } from '@/components/data/DataChart';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { Badge } from '@/components/ui/Badge';
 import {
   WORKBENCH_BOUNDS,
   buildWorkbench,
@@ -328,7 +329,7 @@ function WorkCard({
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerUp}
       >
-        <span className="k-workbench-kind">{object.label}</span>
+        <Badge className="k-workbench-kind" tone={object.kind === 'chart' ? 'info' : 'neutral'}>{object.label}</Badge>
         <h3>{object.title}</h3>
         <p>{object.detail}</p>
       </header>
