@@ -4312,3 +4312,9 @@ skipped is the exact failure this incident is about:
   overflow and skip-link focus. Moved autoresearch, metasearch, epistemics,
   and quantum-job wrappers onto `requestOperation`. Updated
   [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Prediction, QIR, and ledger wrappers
+
+- QIR compile, calibration, prediction history/latest, lens history, and
+  ledger export move onto `requestOperation`, preserving refusal envelopes.
+  Updated [[remaining-work]]; no new page.

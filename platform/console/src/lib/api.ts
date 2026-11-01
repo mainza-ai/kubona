@@ -1865,13 +1865,12 @@ export interface QirCompileReceipt {
 export async function fetchQirCompile(qasm: string): Promise<QirCompileReceipt | null> {
   // Refusal (HTTP !ok) returns null so the caller renders "refused".
   // Transport failure throws so the caller can distinguish it from refusal.
-  const res = await apiFetch(`${API_BASE}/api/qir/compile`, {
-    method: 'POST',
-    headers: authHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ qasm }),
-  });
-  if (!res.ok) return null;
-  return contract('qir.compile', await res.json());
+  try {
+    return (await requestOperation('fetchQirCompile', { body: { qasm } })) as unknown as QirCompileReceipt;
+  } catch (err) {
+    if (err instanceof OperationError && err.status !== null) return null;
+    throw err;
+  }
 }
 
 export interface SessionContext {
@@ -2708,17 +2707,11 @@ export async function fetchLensHistory(sessionId: string): Promise<{
   error?: string;
 }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/observatory/lens/history?session_id=${encodeURIComponent(sessionId)}`, {
-      cache: 'no-store',
-      headers: authHeaders(),
-    });
-    if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { message?: string };
-      return { ok: false, error: data.message || `History failed (${res.status})` };
-    }
-    return contract('lens.history', await res.json()) as { ok: boolean; operations?: LensHistoryOp[] };
+    return (await requestOperation('fetchLensHistory', {
+      query: { session_id: sessionId },
+    })) as unknown as { ok: boolean; operations?: LensHistoryOp[] };
   } catch (err) {
-    return { ok: false, error: (err as Error).message || 'Network error' };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
@@ -2855,22 +2848,16 @@ export async function fetchLatestPrediction(sessionId: string): Promise<{
   error?: string;
 }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/vault/predictions/latest?session_id=${encodeURIComponent(sessionId)}`, {
-      cache: 'no-store',
-      headers: authHeaders(),
-    });
-    if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { message?: string };
-      return { ok: false, error: data.message || `Fetch failed (${res.status})` };
-    }
-    return contract('vault.latest', await res.json()) as {
+    return (await requestOperation('fetchLatestPrediction', {
+      query: { session_id: sessionId },
+    })) as unknown as {
       ok: boolean;
       sealed?: SealedPrediction | null;
       evaluation?: PredictionEvaluation | null;
       assertion?: PredictionAssertion | null;
     };
   } catch (err) {
-    return { ok: false, error: (err as Error).message || 'Network error' };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
@@ -2917,15 +2904,9 @@ export async function fetchCalibration(sessionId: string): Promise<{
   error?: string;
 }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/vault/predictions/calibration?session_id=${encodeURIComponent(sessionId)}`, {
-      cache: 'no-store',
-      headers: authHeaders(),
-    });
-    if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { message?: string };
-      return { ok: false, error: data.message || `Calibration failed (${res.status})` };
-    }
-    return contract('vault.calibration', await res.json()) as {
+    return (await requestOperation('fetchCalibration', {
+      query: { session_id: sessionId },
+    })) as unknown as {
       ok: boolean;
       authors?: Record<string, AuthorCalibration>;
       evaluations?: number;
@@ -2933,7 +2914,7 @@ export async function fetchCalibration(sessionId: string): Promise<{
       mean_abs_z?: number;
     };
   } catch (err) {
-    return { ok: false, error: (err as Error).message || 'Network error' };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
@@ -2953,17 +2934,11 @@ export async function fetchPredictionHistory(
   limit = 50,
 ): Promise<{ ok: boolean; count?: number; predictions?: HistoryPrediction[]; error?: string }> {
   try {
-    const res = await apiFetch(
-      `${API_BASE}/api/vault/predictions/history?session_id=${encodeURIComponent(sessionId)}&limit=${limit}`,
-      { cache: 'no-store', headers: authHeaders() },
-    );
-    if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { message?: string };
-      return { ok: false, error: data.message || `History failed (${res.status})` };
-    }
-    return contract('vault.history', await res.json()) as { ok: boolean; count?: number; predictions?: HistoryPrediction[] };
+    return (await requestOperation('fetchPredictionHistory', {
+      query: { session_id: sessionId, limit },
+    })) as unknown as { ok: boolean; count?: number; predictions?: HistoryPrediction[] };
   } catch (err) {
-    return { ok: false, error: (err as Error).message || 'Network error' };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
@@ -2973,20 +2948,12 @@ export async function fetchLedgerExport(
   sessionId: string,
 ): Promise<{ ok: boolean; events?: Array<Record<string, unknown>>; error?: string }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/ledger/export`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ session_id: sessionId, format: 'json' }),
-    });
-    if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { message?: string };
-      return { ok: false, error: data.message || `Export failed (${res.status})` };
-    }
-    const data = (await res.json()) as { events?: Array<Record<string, unknown>> };
-    contract('ledger.export', data);
+    const data = (await requestOperation('fetchLedgerExport', {
+      body: { session_id: sessionId, format: 'json' },
+    })) as unknown as { events?: Array<Record<string, unknown>> };
     return { ok: true, events: Array.isArray(data.events) ? data.events : [] };
   } catch (err) {
-    return { ok: false, error: (err as Error).message || 'Network error' };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 

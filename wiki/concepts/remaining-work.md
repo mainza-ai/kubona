@@ -86,8 +86,9 @@ Still open:
   landed; session, loops, events, jobs, fidelity, ADMET, agents, LLM/quantum
   settings, radar, cost, obligations, notebooks, capabilities,
   session-context, abort, workflow, quantum-submit, messages, job-detail,
-  memory-recall, autoresearch, metasearch, epistemics, and quantum-job
-  wrappers use it. Typed operation errors carry the backend
+  memory-recall, autoresearch, metasearch, epistemics, quantum-job, QIR
+  compile, calibration, prediction history/latest, lens-history, and
+  ledger-export wrappers use it. Typed operation errors carry the backend
   refusal body. Layout and obligation-close writes render
   accepted/applied/refused/unknown settlement.
   Session-list dedupe/custom error copy remain, and settlement is not yet
