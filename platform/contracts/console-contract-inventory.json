@@ -84,6 +84,8 @@
     "vault.history",
     "vault.latest",
     "vault.lease",
+    "workbench.layout",
+    "workbench.save",
     "workflow.plan",
     "workflow.run"
   ],
@@ -171,6 +173,8 @@
     "vault.history",
     "vault.latest",
     "vault.lease",
+    "workbench.layout",
+    "workbench.save",
     "workflow.plan",
     "workflow.run"
   ],
@@ -285,7 +289,7 @@
     },
     {
       "function": "fetchCampaignState",
-      "path": "/api/sessions/:id/campaign",
+      "path": "/api/sessions/$:encodeURIComponent(sessionId)/campaign",
       "method": "GET",
       "contract": "campaign"
     },
@@ -506,6 +510,12 @@
       "contract": "agents.system"
     },
     {
+      "function": "fetchWorkbenchLayout",
+      "path": "/api/workbench/layout",
+      "method": "GET",
+      "contract": "workbench.layout"
+    },
+    {
       "function": "getHFModelDetails",
       "path": "/api/hf/models/:id",
       "method": "GET",
@@ -618,6 +628,12 @@
       "path": "/api/workflows/run",
       "method": "POST",
       "contract": "workflow.run"
+    },
+    {
+      "function": "saveWorkbenchLayout",
+      "path": "/api/workbench/layout",
+      "method": "PUT",
+      "contract": "workbench.save"
     },
     {
       "function": "sealPrediction",
@@ -872,5 +888,12 @@
       "reason": "auth timing helper"
     }
   ],
-  "unmodeled_functions": []
+  "unmodeled_functions": [
+    {
+      "function": "isAuthenticatedSession",
+      "path": null,
+      "method": null,
+      "contract": null
+    }
+  ]
 }

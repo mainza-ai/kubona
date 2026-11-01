@@ -22,6 +22,7 @@ ROOT = Path(__file__).resolve().parents[1]
 API = ROOT / "platform" / "console" / "src" / "lib" / "api.ts"
 CONTRACT = ROOT / "platform" / "console" / "src" / "lib" / "responseContract.ts"
 OUT = ROOT / "platform" / "contracts" / "console-contract-inventory.json"
+GENERATED = ROOT / "platform" / "console" / "src" / "lib" / "generated" / "openapi.ts"
 
 FUNC_RE = re.compile(r"export\s+(?:async\s+)?function\s+(\w+)\s*\(")
 NEXT_EXPORT_RE = re.compile(r"\nexport\s+(?:async\s+)?(?:function|const|interface|type|class)\s+")
@@ -76,11 +77,23 @@ NEXT_EXPORT_RE = re.compile(r"\nexport\s+(?:async\s+)?(?:function|const|interfac
 PATH_RE = re.compile(r"\$\{API_BASE\}(/api/[^`\"\s]*)")
 QUOTED_PATH_RE = re.compile(r"['\"](/api/[^'\"]+)['\"]")
 CONTRACT_RE = re.compile(r"\b(?:contract|reportResponseContract|validateResponse)\(\s*['\"]([^'\"]+)['\"]")
+REQUEST_OP_RE = re.compile(r"requestOperation\(\s*['\"]([^'\"]+)['\"]")
+GENERATED_OP_RE = re.compile(r"^\s{2}(\w+): \{ method: \"(\w+)\", path: \"([^\"]+)\", response: \"([^\"]+)\" \},", re.MULTILINE)
 METHOD_RE = re.compile(r"\bmethod:\s*['\"]([A-Za-z]+)['\"]")
 SCHEMA_RE = re.compile(r"^\s{2}(?:'([^']+)'|([A-Za-z0-9_.]+)):\s*obj\(", re.MULTILINE)
 
 
+def generated_operations() -> dict[str, dict[str, str]]:
+    if not GENERATED.exists():
+        return {}
+    return {
+        name: {"method": method.upper(), "path": path, "contract": contract}
+        for name, method, path, contract in GENERATED_OP_RE.findall(GENERATED.read_text(encoding="utf-8"))
+    }
+
+
 def normalize(path: str) -> str:
+    path = re.sub(r"\{([^}]+)\}", r":\1", path)
     path = re.sub(r"\$\{[^}]*\}?", ":id", path)
     path = re.sub(r"//+", "/", path)
     path = re.sub(r"(?<!/):id", "", path)
@@ -89,6 +102,7 @@ def normalize(path: str) -> str:
 
 def api_functions() -> list[dict[str, object]]:
     text = API.read_text(encoding="utf-8")
+    generated = generated_operations()
     matches = list(FUNC_RE.finditer(text))
     out: list[dict[str, object]] = []
     for i, match in enumerate(matches):
@@ -104,12 +118,20 @@ def api_functions() -> list[dict[str, object]]:
             path = normalize(m.group(1).split("?")[0])
         contract_match = CONTRACT_RE.search(body)
         method_match = METHOD_RE.search(body)
+        operation = REQUEST_OP_RE.search(body)
+        generated_op = generated.get(operation.group(1)) if operation else None
+        if generated_op:
+            if path is None:
+                path = normalize(generated_op["path"])
+            method = generated_op["method"]
+        else:
+            method = method_match.group(1).upper() if method_match else ("GET" if path else None)
         out.append(
             {
                 "function": match.group(1),
                 "path": path,
-                "method": method_match.group(1).upper() if method_match else ("GET" if path else None),
-                "contract": contract_match.group(1) if contract_match else None,
+                "method": method,
+                "contract": contract_match.group(1) if contract_match else (generated_op["contract"] if generated_op else None),
             }
         )
     return out

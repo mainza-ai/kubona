@@ -60,6 +60,8 @@ export const RESPONSE_SCHEMAS = {
     flags: obj(),
   }),
   'canvas.layout': obj(),
+  'workbench.layout': obj({ session_id: str, revision: num, document: obj() }),
+  'workbench.save': obj({ status: str, session_id: str, revision: num }),
   'obligations.open': obj({
     obligations: arr(
       obj({

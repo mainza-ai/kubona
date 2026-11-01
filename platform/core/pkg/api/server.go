@@ -3837,6 +3837,11 @@ var workbenchKinds = map[string]bool{
 	"agent_run": true, "approval": true, "area": true,
 }
 
+var workbenchRefDomains = map[string]bool{
+	"campaign": true, "job": true, "loop": true, "obligation": true,
+	"notebook": true, "proof": true, "ledger": true,
+}
+
 // validateWorkbenchDocument bounds the v2 layout. It stores references and
 // view state only: no content bodies, secrets, or invented revisions.
 func validateWorkbenchDocument(raw []byte, sessionID string) error {
@@ -3849,8 +3854,11 @@ func validateWorkbenchDocument(raw []byte, sessionID string) error {
 			Zoom float64 `json:"zoom"`
 		} `json:"camera"`
 		Objects []struct {
-			ID       string `json:"id"`
-			Kind     string `json:"kind"`
+			ID       string          `json:"id"`
+			Kind     string          `json:"kind"`
+			Area     string          `json:"area"`
+			Content  json.RawMessage `json:"content"`
+			Body     json.RawMessage `json:"body"`
 			Position struct {
 				X float64 `json:"x"`
 				Y float64 `json:"y"`
@@ -3898,6 +3906,7 @@ func validateWorkbenchDocument(raw []byte, sessionID string) error {
 		return fmt.Errorf("workbench object count %d exceeds 512", len(doc.Objects))
 	}
 	seen := map[string]bool{}
+	objectAreas := map[string]string{}
 	for _, object := range doc.Objects {
 		if object.ID == "" || len(object.ID) > 128 || seen[object.ID] {
 			return fmt.Errorf("invalid or duplicate workbench object id %q", object.ID)
@@ -3910,26 +3919,49 @@ func validateWorkbenchDocument(raw []byte, sessionID string) error {
 			math.Abs(object.Position.X) > 1e7 || math.Abs(object.Position.Y) > 1e7 {
 			return fmt.Errorf("invalid workbench position for %q", object.ID)
 		}
-		if object.Ref != nil && (object.Ref.Domain == "" || len(object.Ref.Domain) > 64 || len(object.Ref.ID) > 256) {
-			return fmt.Errorf("invalid workbench reference for %q", object.ID)
+		if object.Ref != nil {
+			if object.Ref.Domain == "" || len(object.Ref.Domain) > 64 || object.Ref.ID == "" || len(object.Ref.ID) > 256 {
+				return fmt.Errorf("invalid workbench reference for %q", object.ID)
+			}
+			if !workbenchRefDomains[object.Ref.Domain] {
+				return fmt.Errorf("unknown workbench reference domain %q", object.Ref.Domain)
+			}
+		}
+		if len(object.Content) > 0 || len(object.Body) > 0 {
+			return fmt.Errorf("workbench object %q must not carry content bodies", object.ID)
+		}
+		if object.Area != "" {
+			objectAreas[object.ID] = object.Area
 		}
 	}
 	if len(doc.Links) > 1024 {
 		return fmt.Errorf("workbench link count %d exceeds 1024", len(doc.Links))
 	}
+	linkSeen := map[string]bool{}
 	for _, link := range doc.Links {
-		if link.ID == "" || link.Source == "" || link.Target == "" || link.Kind == "" {
-			return fmt.Errorf("invalid workbench link")
+		if link.ID == "" || link.Source == "" || link.Target == "" || link.Kind == "" || linkSeen[link.ID] {
+			return fmt.Errorf("invalid or duplicate workbench link")
+		}
+		linkSeen[link.ID] = true
+		if !seen[link.Source] || !seen[link.Target] {
+			return fmt.Errorf("workbench link %q points at an unknown object", link.ID)
 		}
 	}
 	if len(doc.Areas) > 32 {
 		return fmt.Errorf("workbench area count %d exceeds 32", len(doc.Areas))
 	}
+	areaIDs := map[string]bool{}
 	for _, area := range doc.Areas {
-		if area.ID == "" || !finiteCanvasNumber(area.Rect.X) || !finiteCanvasNumber(area.Rect.Y) ||
+		if area.ID == "" || areaIDs[area.ID] || !finiteCanvasNumber(area.Rect.X) || !finiteCanvasNumber(area.Rect.Y) ||
 			!finiteCanvasNumber(area.Rect.Width) || !finiteCanvasNumber(area.Rect.Height) ||
 			area.Rect.Width <= 0 || area.Rect.Height <= 0 {
 			return fmt.Errorf("invalid workbench area %q", area.ID)
+		}
+		areaIDs[area.ID] = true
+	}
+	for objectID, areaID := range objectAreas {
+		if !areaIDs[areaID] {
+			return fmt.Errorf("workbench object %q belongs to an unknown area", objectID)
 		}
 	}
 	return nil

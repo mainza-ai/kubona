@@ -52,6 +52,18 @@ export type Capabilities = {
 
 export type CanvasLayout = Record<string, unknown>;
 
+export type WorkbenchLayout = {
+  "session_id": string;
+  "revision": number;
+  "document": Record<string, unknown>;
+};
+
+export type WorkbenchSave = {
+  "status": string;
+  "session_id": string;
+  "revision": number;
+};
+
 export type ObligationsOpen = {
   "obligations": {
   "id": string;
@@ -533,6 +545,7 @@ export type ApiOperationResponse = {
   fetchSessionContext: SessionContext;
   fetchSessions: SessionsList;
   fetchSystemAgents: AgentsSystem;
+  fetchWorkbenchLayout: WorkbenchLayout;
   getHFModelDetails: HfDetails;
   issueVaultLease: VaultLease;
   launchProposal: ChatLaunch;
@@ -552,6 +565,7 @@ export type ApiOperationResponse = {
   runFamilySearch: CodesignFamilies;
   runTribunal: TribunalRun;
   runWorkflow: WorkflowRun;
+  saveWorkbenchLayout: WorkbenchSave;
   sealPrediction: PredictionSeal;
   searchHFModels: HfSearch;
   searchLiterature: Literature;
@@ -588,7 +602,7 @@ export const API_OPERATIONS = {
   fetchAutoresearchHarnesses: { method: "get", path: "/api/autoresearch/harnesses", response: "autoresearch.harnesses" },
   fetchAutoresearchLoops: { method: "get", path: "/api/autoresearch/loops", response: "autoresearch.loops" },
   fetchCalibration: { method: "get", path: "/api/vault/predictions/calibration", response: "vault.calibration" },
-  fetchCampaignState: { method: "get", path: "/api/sessions/{id}/campaign", response: "campaign" },
+  fetchCampaignState: { method: "get", path: "/api/sessions/${encodeURIComponent}(sessionId)/campaign", response: "campaign" },
   fetchCanvasLayout: { method: "get", path: "/api/canvas/layout", response: "canvas.layout" },
   fetchCapabilities: { method: "get", path: "/api/capabilities", response: "capabilities" },
   fetchCodesignPacks: { method: "get", path: "/api/codesign/packs", response: "codesign.packs" },
@@ -625,6 +639,7 @@ export const API_OPERATIONS = {
   fetchSessionContext: { method: "get", path: "/api/sessions/context", response: "session.context" },
   fetchSessions: { method: "get", path: "/api/sessions", response: "sessions.list" },
   fetchSystemAgents: { method: "get", path: "/api/agents", response: "agents.system" },
+  fetchWorkbenchLayout: { method: "get", path: "/api/workbench/layout", response: "workbench.layout" },
   getHFModelDetails: { method: "get", path: "/api/hf/models/{id}", response: "hf.details" },
   issueVaultLease: { method: "post", path: "/api/vault/leases", response: "vault.lease" },
   launchProposal: { method: "post", path: "/api/chat/launch", response: "chat.launch" },
@@ -644,6 +659,7 @@ export const API_OPERATIONS = {
   runFamilySearch: { method: "post", path: "/api/codesign/families", response: "codesign.families" },
   runTribunal: { method: "post", path: "/api/chat/tribunal", response: "tribunal.run" },
   runWorkflow: { method: "post", path: "/api/workflows/run", response: "workflow.run" },
+  saveWorkbenchLayout: { method: "put", path: "/api/workbench/layout", response: "workbench.save" },
   sealPrediction: { method: "post", path: "/api/vault/predictions/seal", response: "prediction.seal" },
   searchHFModels: { method: "get", path: "/api/hf/search", response: "hf.search" },
   searchLiterature: { method: "get", path: "/api/literature", response: "literature" },
