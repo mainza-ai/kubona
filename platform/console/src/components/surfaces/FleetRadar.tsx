@@ -12,40 +12,12 @@ import {
   ChevronUp,
   MapPin,
 } from 'lucide-react';
-import { CampaignState, BackendInfo, RadarEndpoint } from '@/types';
-import { fetchFleet, fetchRadar } from '@/lib/api';
+import type { CampaignState } from '@/types';
+
 import { Chart } from '@/components/data/DataChart';
 import type { ChartSpec } from '@/components/data/chart';
-import { usePollingResource } from '@/domain/use-polling-resource';
-import { ResourceRefusal } from '@/domain/resource-store';
+import { useFleetProjection } from '@/domain/useFleetProjection';
 
-async function loadFleet() {
-  const [fleet, radar] = await Promise.allSettled([fetchFleet(), fetchRadar()]);
-  if (fleet.status === 'rejected' && radar.status === 'rejected') {
-    throw fleet.reason instanceof Error ? fleet.reason : new Error(String(fleet.reason));
-  }
-  let backends: BackendInfo[] = [];
-  let radarEndpoints: RadarEndpoint[] = [];
-  let refused: string | null = null;
-  if (fleet.status === 'fulfilled') {
-    const data = fleet.value as { backends?: BackendInfo[]; refused?: boolean; refuse_reason?: string };
-    if (data.refused) refused = data.refuse_reason || 'fleet refused';
-    else backends = data.backends || [];
-  } else {
-    refused = fleet.reason instanceof Error ? fleet.reason.message : String(fleet.reason);
-  }
-  if (radar.status === 'fulfilled') {
-    const data = radar.value as { radar_endpoints?: RadarEndpoint[]; refused?: boolean; refuse_reason?: string };
-    if (data.refused) refused = data.refuse_reason || 'radar refused';
-    else radarEndpoints = data.radar_endpoints || [];
-  } else if (!refused) {
-    refused = radar.reason instanceof Error ? radar.reason.message : String(radar.reason);
-  }
-  if (refused) {
-    throw new ResourceRefusal(refused, { backends, radarEndpoints, refused });
-  }
-  return { backends, radarEndpoints, refused };
-}
 
 interface FleetRadarProps {
   campaign?: CampaignState | null;
@@ -54,13 +26,10 @@ interface FleetRadarProps {
 export function FleetRadar({ campaign }: FleetRadarProps) {
   const [sovereignOnly, setSovereignOnly] = useState(false);
   const [expandedBackend, setExpandedBackend] = useState<string | null>(null);
-  const { data, status, error, intervalMs, refresh } = usePollingResource(loadFleet, {
-    intervalMs: 1000,
-    maxBackoffMs: 15000,
-  });
-  const backends = data?.backends ?? [];
-  const radarEndpoints = data?.radarEndpoints ?? [];
-  const refused = data?.refused ?? (status === 'refused' ? error : null);
+  const { fleet, status, error, intervalMs, refresh } = useFleetProjection();
+  const backends = fleet.backends;
+  const radarEndpoints = fleet.radarEndpoints;
+  const refused = fleet.refused ?? (status === 'refused' ? error : null);
   const loaded = status === 'ready' || status === 'stale';
   const pollIntervalMs = intervalMs;
 

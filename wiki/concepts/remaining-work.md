@@ -89,7 +89,9 @@ Still open:
   polling store with terminal-stop support. Copilot tribunal-turn polling is
   a local, run-scoped exception.
 - Revisioned domain events beyond the ledger cursor. The stream now gates
-  stale frames and refetches a snapshot after a forward gap; generated contract
+  stale frames and refetches a snapshot after a forward gap; jobs, obligations,
+  fleet/radar, cost, and backend readiness have named domain projections.
+  They are still per-consumer, not one ref-counted singleton per domain; generated contract
   types, operation metadata, and a checked `requestOperation()` client are
   landed; session, loops, events, jobs, fidelity, ADMET, agents, LLM/quantum
   settings, radar, cost, obligations, notebooks, capabilities,

@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { fetchBackendStatus, type BackendStatus } from '@/lib/api';
-import { usePollingResource } from '@/domain/use-polling-resource';
+import type { BackendStatus } from '@/lib/api';
+import { useBackendProjection } from '@/domain/useBackendProjection';
 
 // U1-a: always-visible backend status strip. Three states, never merged:
 // healthy (emerald), degraded (amber — ready 503 with the backend's
@@ -38,7 +38,7 @@ function label(s: BackendStatus | null): { text: string; tone: string; dot: stri
 }
 
 export function BackendStatusBar({ compact = false }: { compact?: boolean } = {}) {
-  const { data: status } = usePollingResource(fetchBackendStatus, { intervalMs: 15_000 });
+  const { data: status } = useBackendProjection();
   const { text, tone, dot } = label(status);
   return (
     <div

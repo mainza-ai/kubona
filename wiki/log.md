@@ -4429,3 +4429,10 @@ skipped is the exact failure this incident is about:
   handle, with Enter/Shift+Enter/IME rules, selected-object context, and an
   explicit clear. Attach/model controls remain open. Updated
   [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Named domain projections
+
+- Jobs/obligations moved to page-level hooks; fleet/radar, cost, and backend
+  readiness moved to named domain hooks without changing polling semantics.
+  The workbench no longer fetches jobs or obligations. Updated
+  [[remaining-work]]; no new page.
