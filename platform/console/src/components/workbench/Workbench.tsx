@@ -5,6 +5,7 @@ import { Maximize2, Minus, Plus } from 'lucide-react';
 import type { CampaignState } from '@/types';
 import { fetchCanvasLayout, saveCanvasLayout } from '@/lib/api';
 import { Chart } from '@/components/data/DataChart';
+import { Button } from '@/components/ui/Button';
 import {
   WORKBENCH_BOUNDS,
   buildWorkbench,
@@ -218,16 +219,16 @@ export function Workbench({ campaign, sessionId, onOpenObject }: Props) {
       }}
     >
       <div className="k-workbench-bar" aria-label="Workbench controls">
-        <button type="button" onClick={fit} title="Fit the whole workbench (0)">
+        <Button type="button" variant="ghost" size="compact" onClick={fit} title="Fit the whole workbench (0)">
           <Maximize2 size={14} /> Fit
-        </button>
-        <button type="button" onClick={() => setCamera((current) => ({ ...current, zoom: Math.max(0.35, current.zoom / 1.2) }))} title="Zoom out">
+        </Button>
+        <Button type="button" variant="ghost" size="compact" aria-label="Zoom out" onClick={() => setCamera((current) => ({ ...current, zoom: Math.max(0.35, current.zoom / 1.2) }))} title="Zoom out">
           <Minus size={14} />
-        </button>
+        </Button>
         <span className="k-workbench-zoom">{Math.round(camera.zoom * 100)}%</span>
-        <button type="button" onClick={() => setCamera((current) => ({ ...current, zoom: Math.min(2, current.zoom * 1.2) }))} title="Zoom in">
+        <Button type="button" variant="ghost" size="compact" aria-label="Zoom in" onClick={() => setCamera((current) => ({ ...current, zoom: Math.min(2, current.zoom * 1.2) }))} title="Zoom in">
           <Plus size={14} />
-        </button>
+        </Button>
         <span className="k-workbench-state" role="status" aria-live="polite">
           {saving ? 'saving view…' : status || (sessionId ? 'view saved' : 'no campaign selected')}
         </span>
@@ -347,8 +348,9 @@ function WorkCard({
         </div>
       )}
       {selected && onOpen && (
-        <button
+        <Button
           type="button"
+          size="compact"
           className="k-workbench-open"
           onClick={(event) => {
             event.stopPropagation();
@@ -356,7 +358,7 @@ function WorkCard({
           }}
         >
           Open
-        </button>
+        </Button>
       )}
       {selected && (
         <span
