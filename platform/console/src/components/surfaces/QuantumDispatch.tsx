@@ -61,6 +61,7 @@ export function QuantumDispatch({
   const [jobStatus, setJobStatus] = useState<string | null>(null);
   const [jobError, setJobError] = useState<string | null>(null);
   const [dispatchWrite, setDispatchWrite] = useState<WriteSettlement>(IDLE_WRITE);
+  const [cancelWrite, setCancelWrite] = useState<WriteSettlement>(IDLE_WRITE);
   const [cancelNote, setCancelNote] = useState<string | null>(null);
   const [refunds, setRefunds] = useState<Array<Record<string, unknown>>>([]);
   // Poll discipline (mirrors FleetRadar): a chained setTimeout (never a
@@ -239,11 +240,19 @@ export function QuantumDispatch({
 
   const onCancel = useCallback(async () => {
     if (!jobId) return;
+    const requestId = newWriteRequestId();
+    setCancelWrite(acceptWrite(requestId, 'cancel requested'));
     const res = await cancelQuantumJob(jobId, 'operator cancel from console');
     if (!res.ok) {
-      setCancelNote(`Cancel refused: ${res.error ?? 'unknown'}`);
+      setCancelWrite(settleWrite(requestId, res.unknown ? 'unknown' : 'refused', res.error ?? 'cancel not confirmed'));
+      setCancelNote(`Cancel ${res.unknown ? 'unconfirmed' : 'refused'}: ${res.error ?? 'unknown'}`);
       return;
     }
+    setCancelWrite(settleWrite(
+      requestId,
+      'applied',
+      res.provider_recall_attempted ? 'fenced; vendor recall attempted' : 'fenced cooperatively',
+    ));
     setCancelNote(
       res.provider_recall_attempted
         ? `Fenced + vendor recall attempted (${res.provider_recall_status ?? 'unknown'}). Re-check status — running work may complete underneath.`
@@ -443,6 +452,9 @@ export function QuantumDispatch({
                 Resume
               </button>
             </div>
+          )}
+          {writeSettlementLabel(cancelWrite) && (
+            <p role="status" className="text-[12px] font-mono text-slate-300">{writeSettlementLabel(cancelWrite)}</p>
           )}
           {cancelNote && <div className="text-amber-300/90">{cancelNote}</div>}
         </div>

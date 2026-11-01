@@ -4590,3 +4590,9 @@ skipped is the exact failure this incident is about:
 - Added an E2E axe audit of the mocked 361-object workbench canvas and its
   list equivalent. It caught a low-contrast composer footer caption; the
   caption now uses `text-slate-400`. Manual VoiceOver/NVDA remains NOT RUN.
+
+## [2026-11-01] impl | Quantum cancel settlement
+
+- Render the quantum-job cancel lifecycle as accepted/applied/refused/unknown;
+  preserve transport-vs-refusal so an unreachable backend is never called a
+  refusal. Dispatch estimate/submit now carries the same unknown flag.
