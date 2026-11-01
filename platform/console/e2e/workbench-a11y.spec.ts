@@ -18,7 +18,7 @@ test('dense workbench canvas and list remain WCAG A/AA clean', async ({ page }) 
   await page.goto('/');
   const workbench = page.getByTestId('workbench');
   await expect(workbench).toBeVisible();
-  expect(Number(await workbench.getAttribute('data-object-count'))).toBeGreaterThanOrEqual(300);
+  await expect.poll(async () => Number(await workbench.getAttribute('data-object-count')), { timeout: 20_000 }).toBeGreaterThanOrEqual(300);
   await audit(page, 'workbench-canvas');
 
   await workbench.getByRole('button', { name: 'List' }).click();
