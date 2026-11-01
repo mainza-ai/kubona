@@ -17,7 +17,8 @@ export type WorkbenchObjectKind =
   | 'agent_run'
   | 'job'
   | 'table'
-  | 'approval';
+  | 'approval'
+  | 'note';
 
 export type WorkbenchLink = {
   id: string;
@@ -45,7 +46,7 @@ export type WorkbenchObject = {
 };
 
 export const DEFAULT_CAMERA: WorkbenchCamera = { x: 36, y: 36, zoom: 0.82 };
-export const WORKBENCH_BOUNDS = { width: 1800, height: 760 };
+export const WORKBENCH_BOUNDS = { width: 1800, height: 1100 };
 
 function finite(value: unknown): value is number {
   return typeof value === 'number' && Number.isFinite(value);
@@ -351,6 +352,21 @@ export function buildWorkbench(
       ],
     });
   });
+  if (notebook?.sections?.length) {
+    objects.push({
+      id: 'notebook-outline',
+      kind: 'note',
+      label: 'Note',
+      title: notebook.title || 'Notebook outline',
+      detail: 'Recorded section titles; the manuscript card owns the prose.',
+      position: { x: 1260, y: 890 },
+      size: { width: 380, height: 190 },
+      facts: notebook.sections.slice(0, 5).map((section, index) => ({
+        label: `Section ${index + 1}`,
+        value: section,
+      })),
+    });
+  }
   if (chart) {
     objects.push({
       id: 'chart',

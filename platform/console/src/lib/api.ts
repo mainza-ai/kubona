@@ -515,12 +515,8 @@ export async function fetchLoops(sessionId?: string | null): Promise<Loop[]> {
 export async function fetchEvents(sessionId?: string): Promise<LedgerEvent[]> {
   if (!sessionId) return [];
   try {
-    const url = `${API_BASE}/api/events?session_id=${encodeURIComponent(sessionId)}`;
-    const res = await apiFetch(url, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return [];
-    const data = await res.json();
-    contract('events.list', data);
-    return data.events || [];
+    const data = await requestOperation('fetchEvents', { query: { session_id: sessionId } });
+    return (data.events || []) as LedgerEvent[];
   } catch (err) {
     console.error('Failed to fetch events:', err);
     return [];

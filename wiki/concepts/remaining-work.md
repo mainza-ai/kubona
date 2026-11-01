@@ -73,18 +73,18 @@ Landed on `develop` and `main` with the console/Go gates green:
 
 Still open:
 
-- Remaining workbench object kind: `note`. Job records, running loops, exact
-  quantum factors, and open obligations project as `job`/`agent_run`/`table`/
-  `approval` cards. Areas can be renamed, moved, resized, and assigned cards;
-  the canvas virtualizes past 24 objects.
+- The workbench object-kind set is covered: job, agent-run, table, approval,
+  and note cards join the campaign/hypothesis/circuit/measurement/evidence/
+  proof/manuscript/chart cards. Areas can be renamed, moved, resized, and
+  assigned; the canvas virtualizes past 24 objects.
 - Backend readiness, spend, fleet/radar, flight-recorder telemetry, and
   job progress now share a serialized, visibility-gated, backoff-bounded
   polling store with terminal-stop support. Copilot tribunal-turn polling is
   a local, run-scoped exception.
 - Revisioned domain events beyond the ledger cursor; generated contract
   types, operation metadata, and a checked `requestOperation()` client are
-  landed; session, loops, jobs, capabilities, and session-context wrappers use
-  it. Layout and obligation-close writes render
+  landed; session, loops, events, jobs, capabilities, and session-context
+  wrappers use it. Layout and obligation-close writes render
   accepted/applied/refused/unknown settlement.
   Session-list dedupe/custom error copy remain, and settlement is not yet
   uniform across every write.
