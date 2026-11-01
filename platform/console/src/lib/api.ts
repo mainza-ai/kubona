@@ -6,6 +6,8 @@ import { API_OPERATIONS, type ApiOperationName, type ApiOperationResponse } from
 // override this per deployment (see configureApiBase) so one image
 // serves any backend without a rebuild.
 export let API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+// Runtime kill switch: defaults on, disabled only by an explicit config answer.
+export let CONSOLE_WORKBENCH_ENABLED = true;
 
 let apiBaseConfigured = false;
 let apiBaseRetryAt = 0;
@@ -22,10 +24,11 @@ export async function configureApiBase(): Promise<string> {
   try {
     const res = await apiFetch('/api/config', { cache: 'no-store' });
     if (res.ok) {
-      const data = (await res.json()) as { apiUrl?: unknown };
+      const data = (await res.json()) as { apiUrl?: unknown; workbench?: unknown };
       if (typeof data.apiUrl === 'string' && /^https?:\/\//.test(data.apiUrl)) {
         API_BASE = data.apiUrl.replace(/\/$/, '');
       }
+      if (typeof data.workbench === 'boolean') CONSOLE_WORKBENCH_ENABLED = data.workbench;
       apiBaseConfigured = true;
     } else if (res.status >= 400 && res.status < 500) {
       apiBaseConfigured = true;

@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Sparkles, Plus, Zap, Info, HelpCircle, Trash2, Clock, Box, X } from 'lucide-react';
 import { Session, LedgerEvent, RunPhase, ProbeId } from '@/types';
-import { fetchSessions, fetchSession, createSession, deleteSession, fetchLoops, fetchEvents, fetchCampaignState, API_BASE, authHeaders, configureApiBase, apiFetch, UNAUTH_EVENT, API_PROBLEM_EVENT, type ApiProblem } from '@/lib/api';
+import { fetchSessions, fetchSession, createSession, deleteSession, fetchLoops, fetchEvents, fetchCampaignState, API_BASE, CONSOLE_WORKBENCH_ENABLED, authHeaders, configureApiBase, apiFetch, UNAUTH_EVENT, API_PROBLEM_EVENT, type ApiProblem } from '@/lib/api';
 import { mergeSessionEvents, useSessionStream } from '@/lib/useSessionStream';
 import { useCampaignProjection } from '@/lib/useCampaignProjection';
 import { useLoopsProjection } from '@/lib/useLoopsProjection';
@@ -229,6 +229,7 @@ export default function Home() {
   // Sovereign shell state
   const [surface, setSurface] = useState<DockSurface>('arena');
   const [arenaView, setArenaView] = useState<ArenaView>('workbench');
+  const [workbenchEnabled, setWorkbenchEnabled] = useState(true);
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [proofsTab, setProofsTab] = useState<'manuscripts' | 'tribunal' | 'gallery' | 'circuits'>('manuscripts');
   const [meshTab, setMeshTab] = useState<'mesh' | 'guardrails' | 'models' | 'labs' | 'settings'>('mesh');
@@ -311,6 +312,9 @@ export default function Home() {
     (async () => {
       // Runtime backend URL first (M5): same image, any backend.
       await configureApiBase();
+      const workbenchOn = CONSOLE_WORKBENCH_ENABLED;
+      setWorkbenchEnabled(workbenchOn);
+      if (!workbenchOn) setArenaView((current) => (current === 'workbench' ? 'orbital' : current));
       const [sessList, loopList] = await Promise.all([
         fetchSessions(),
         fetchLoops(),
@@ -1038,6 +1042,7 @@ export default function Home() {
               swarmDetail={runPhase === 'idle' ? 'idle · at rest' : `${loops.length} Loops Live`}
                 view={arenaView}
                 onViewChange={handleArenaViewChange}
+                showWorkbench={workbenchEnabled}
               spendUsd={session?.current_spend_usd ?? 0}
               spendCapUsd={session?.spend_limit_usd ?? 150}
               sessionElapsed={session ? formatElapsed(session.created_at) : '00:00:00'}
