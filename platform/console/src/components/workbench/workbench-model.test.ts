@@ -146,7 +146,6 @@ describe('workbench model', () => {
       objects: { campaign: { x: 4, y: 5, width: 380, height: 200 } },
     });
   });
-});
 
   it('round-trips the v2 document without duplicating content', () => {
     const objects = buildWorkbench(campaign());
@@ -156,4 +155,7 @@ describe('workbench model', () => {
     expect(read.positions.campaign).toEqual({ x: 0, y: 0 });
     expect(doc.objects[0].ref).toEqual({ domain: 'campaign', id: 's1' });
     expect('title' in doc.objects[0]).toBe(false);
+    expect(doc.links).toEqual(expect.arrayContaining([{ id: 'campaign-hypothesis', source: 'campaign', target: 'hypothesis', kind: 'supports' }]));
+    expect(read.links).toHaveLength(doc.links.length);
   });
+});

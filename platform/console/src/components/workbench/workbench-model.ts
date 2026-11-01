@@ -14,6 +14,19 @@ export type WorkbenchObjectKind =
   | 'proof'
   | 'manuscript';
 
+export type WorkbenchLink = {
+  id: string;
+  source: string;
+  target: string;
+  kind: 'supports' | 'uses' | 'depends_on' | 'contradicts' | 'same_as' | 'thread';
+};
+
+export type WorkbenchArea = {
+  id: string;
+  title: string;
+  rect: { x: number; y: number; width: number; height: number };
+};
+
 export type WorkbenchObject = {
   id: string;
   kind: WorkbenchObjectKind;
@@ -282,8 +295,8 @@ export type WorkbenchDocument = {
     size: { width: number; height: number };
     ref: { domain: string; id: string };
   }[];
-  links: [];
-  areas: [];
+  links: WorkbenchLink[];
+  areas: WorkbenchArea[];
   camera: WorkbenchCamera;
   selected: [];
 };
@@ -292,11 +305,15 @@ export function readWorkbenchDocument(raw: Record<string, unknown> | null): {
   camera: WorkbenchCamera;
   positions: WorkbenchPositions;
   sizes: WorkbenchSizes;
+  links: WorkbenchLink[];
+  areas: WorkbenchArea[];
 } {
   const camera = readCamera({ workbench: raw });
   const objects = Array.isArray(raw?.objects) ? raw.objects : [];
   const positions: WorkbenchPositions = {};
   const sizes: WorkbenchSizes = {};
+  const links: WorkbenchLink[] = Array.isArray(raw?.links) ? (raw.links as WorkbenchLink[]) : [];
+  const areas: WorkbenchArea[] = Array.isArray(raw?.areas) ? (raw.areas as WorkbenchArea[]) : [];
   for (const item of objects) {
     if (!item || typeof item !== 'object') continue;
     const object = item as { id?: unknown; position?: unknown; size?: unknown };
@@ -310,7 +327,24 @@ export function readWorkbenchDocument(raw: Record<string, unknown> | null): {
       if (finite(width) && finite(height) && width > 0 && height > 0) sizes[object.id] = { width, height };
     }
   }
-  return { camera, positions, sizes };
+  return { camera, positions, sizes, links, areas };
+}
+
+export function buildWorkbenchLinks(objects: WorkbenchObject[]): WorkbenchLink[] {
+  const has = new Set(objects.map((object) => object.id));
+  const pairs: [string, string, WorkbenchLink['kind']][] = [
+    ['campaign', 'hypothesis', 'supports'],
+    ['campaign', 'circuit', 'uses'],
+    ['campaign', 'measurement', 'supports'],
+    ['circuit', 'measurement', 'depends_on'],
+    ['measurement', 'evidence', 'supports'],
+    ['evidence', 'proof', 'supports'],
+    ['proof', 'manuscript', 'depends_on'],
+    ['measurement', 'chart', 'uses'],
+  ];
+  return pairs
+    .filter(([source, target]) => has.has(source) && has.has(target))
+    .map(([source, target, kind]) => ({ id: `${source}-${target}`, source, target, kind }));
 }
 
 export function workbenchDocument(
@@ -319,6 +353,8 @@ export function workbenchDocument(
   positions: WorkbenchPositions,
   sizes: WorkbenchSizes,
   camera: WorkbenchCamera,
+  links: WorkbenchLink[] = buildWorkbenchLinks(objects),
+  areas: WorkbenchArea[] = [],
 ): WorkbenchDocument {
   return {
     version: 2,
@@ -330,8 +366,8 @@ export function workbenchDocument(
       size: sizes[object.id] ?? object.size,
       ref: { domain: 'campaign', id: sessionId },
     })),
-    links: [],
-    areas: [],
+    links,
+    areas,
     camera,
     selected: [],
   };

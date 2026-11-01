@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Maximize2, Minus, Plus } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { LayoutGrid, List, Maximize2, Minus, Plus } from 'lucide-react';
 import type { CampaignState } from '@/types';
 import { fetchCanvasLayout, fetchWorkbenchLayout, saveWorkbenchLayout } from '@/lib/api';
 import { Chart } from '@/components/data/DataChart';
@@ -11,11 +11,13 @@ import { Badge } from '@/components/ui/Badge';
 import {
   WORKBENCH_BOUNDS,
   buildWorkbench,
+  buildWorkbenchLinks,
   readCamera,
   readPositions,
   readSizes,
   readWorkbenchDocument,
   workbenchDocument,
+  type WorkbenchArea,
   type WorkbenchCamera,
   type WorkbenchObject,
   type WorkbenchObjectKind,
@@ -41,13 +43,20 @@ export function Workbench({ campaign, sessionId, onOpenObject }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
   const [positions, setPositions] = useState<WorkbenchPositions>({});
   const [sizes, setSizes] = useState<WorkbenchSizes>({});
+  const baseObjects = useMemo(() => buildWorkbench(campaign), [campaign]);
+  const links = useMemo(() => buildWorkbenchLinks(baseObjects), [baseObjects]);
   const [status, setStatus] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<'canvas' | 'list'>('canvas');
+  const [areas, setAreas] = useState<WorkbenchArea[]>([]);
   const [saving, setSaving] = useState(false);
-  const objects = buildWorkbench(campaign).map((object) => ({
-    ...object,
-    position: positions[object.id] ?? object.position,
-    size: sizes[object.id] ?? object.size,
-  }));
+  const objects = useMemo(
+    () => baseObjects.map((object) => ({
+      ...object,
+      position: positions[object.id] ?? object.position,
+      size: sizes[object.id] ?? object.size,
+    })),
+    [baseObjects, positions, sizes],
+  );
 
   const fit = useCallback(() => {
     const host = hostRef.current;
@@ -79,6 +88,7 @@ export function Workbench({ campaign, sessionId, onOpenObject }: Props) {
         setCamera(doc.camera);
         setPositions(doc.positions);
         setSizes(doc.sizes);
+        setAreas(doc.areas);
         loaded.current = true;
         return;
       }
@@ -104,7 +114,7 @@ export function Workbench({ campaign, sessionId, onOpenObject }: Props) {
       void saveWorkbenchLayout(
         sessionId,
         revision.current,
-        workbenchDocument(sessionId, buildWorkbench(campaign), positions, sizes, camera) as unknown as Record<string, unknown>,
+        workbenchDocument(sessionId, buildWorkbench(campaign), positions, sizes, camera, links, areas) as unknown as Record<string, unknown>,
       ).then((out) => {
         setSaving(false);
         if (out.ok) {
@@ -118,7 +128,7 @@ export function Workbench({ campaign, sessionId, onOpenObject }: Props) {
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [camera, positions, sizes, sessionId, campaign]);
+  }, [camera, positions, sizes, sessionId, campaign, links, areas]);
 
   // Native, non-passive wheel listener: React's delegated wheel handler is
   // passive, so preventDefault there would be ignored (and log a warning).
@@ -249,6 +259,17 @@ export function Workbench({ campaign, sessionId, onOpenObject }: Props) {
         <Button type="button" variant="ghost" size="compact" aria-label="Zoom in" onClick={() => setCamera((current) => ({ ...current, zoom: Math.min(2, current.zoom * 1.2) }))} title="Zoom in">
           <Plus size={14} />
         </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="compact"
+          aria-pressed={viewMode === 'list'}
+          onClick={() => setViewMode((current) => (current === 'canvas' ? 'list' : 'canvas'))}
+          title="Switch between canvas and list (text equivalent)"
+        >
+          {viewMode === 'canvas' ? <List size={14} /> : <LayoutGrid size={14} />}
+          {viewMode === 'canvas' ? 'List' : 'Canvas'}
+        </Button>
         <span className="k-workbench-state" role="status" aria-live="polite">
           {saving ? 'saving view…' : status || (sessionId ? 'view saved' : 'no campaign selected')}
         </span>
@@ -259,6 +280,24 @@ export function Workbench({ campaign, sessionId, onOpenObject }: Props) {
           Create or open a campaign to give the science a place to stand.
         </EmptyState>
       ) : (
+        viewMode === 'list' ? (
+          <div className="k-workbench-list">
+            <table>
+              <caption>Campaign workbench objects — text equivalent of the canvas</caption>
+              <thead><tr><th scope="col">Kind</th><th scope="col">Object</th><th scope="col">Recorded facts</th><th scope="col">Open</th></tr></thead>
+              <tbody>
+                {objects.map((object) => (
+                  <tr key={object.id}>
+                    <th scope="row">{object.label}</th>
+                    <td><strong>{object.title}</strong><span>{object.detail}</span></td>
+                    <td>{object.facts.map((fact) => `${fact.label}: ${fact.value}`).join(' · ') || 'No facts recorded'}</td>
+                    <td>{onOpenObject ? <Button type="button" size="compact" variant="ghost" onClick={() => onOpenObject(object.kind)}>Open</Button> : '—'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
         <div
           className="k-workbench-world"
           style={{
@@ -268,17 +307,16 @@ export function Workbench({ campaign, sessionId, onOpenObject }: Props) {
           }}
         >
           <svg className="k-workbench-links" width={WORKBENCH_BOUNDS.width} height={WORKBENCH_BOUNDS.height} aria-hidden="true">
-            {objects
-              .filter((object) => object.id !== 'campaign' && object.id !== 'hypothesis')
-              .map((object) => {
-                const origin = objects.find((candidate) => candidate.id === (object.kind === 'measurement' || object.kind === 'circuit' ? 'campaign' : 'hypothesis'));
-                if (!origin) return null;
-                const x1 = origin.position.x + origin.size.width;
-                const y1 = origin.position.y + origin.size.height / 2;
-                const x2 = object.position.x;
-                const y2 = object.position.y + object.size.height / 2;
-                return <path key={object.id} d={`M${x1},${y1} C${x1 + 40},${y1} ${x2 - 40},${y2} ${x2},${y2}`} />;
-              })}
+            {links.map((link) => {
+              const source = objects.find((object) => object.id === link.source);
+              const target = objects.find((object) => object.id === link.target);
+              if (!source || !target) return null;
+              const x1 = source.position.x + source.size.width;
+              const y1 = source.position.y + source.size.height / 2;
+              const x2 = target.position.x;
+              const y2 = target.position.y + target.size.height / 2;
+              return <path key={link.id} data-kind={link.kind} d={`M${x1},${y1} C${x1 + 40},${y1} ${x2 - 40},${y2} ${x2},${y2}`} />;
+            })}
           </svg>
           {objects.map((object) => (
             <WorkCard
@@ -293,9 +331,17 @@ export function Workbench({ campaign, sessionId, onOpenObject }: Props) {
               onResizePointerMove={onResizePointerMove}
               onResizePointerUp={onCardPointerUp}
               onOpen={onOpenObject ? () => onOpenObject(object.kind) : undefined}
+              onNudge={(dx, dy) => setPositions((previous) => ({
+                ...previous,
+                [object.id]: {
+                  x: (previous[object.id]?.x ?? object.position.x) + dx,
+                  y: (previous[object.id]?.y ?? object.position.y) + dy,
+                },
+              }))}
             />
           ))}
         </div>
+        )
       )}
     </section>
   );
@@ -312,6 +358,7 @@ function WorkCard({
   onResizePointerMove,
   onResizePointerUp,
   onOpen,
+  onNudge,
 }: {
   object: WorkbenchObject;
   selected: boolean;
@@ -323,6 +370,7 @@ function WorkCard({
   onResizePointerMove: (event: React.PointerEvent<HTMLElement>) => void;
   onResizePointerUp: () => void;
   onOpen?: () => void;
+  onNudge: (dx: number, dy: number) => void;
 }) {
   return (
     <article
@@ -339,6 +387,21 @@ function WorkCard({
       aria-label={`${object.label}: ${object.title}`}
       onClick={onSelect}
       onFocus={onSelect}
+      onKeyDown={(event) => {
+        const step = event.shiftKey ? 50 : 10;
+        const moves: Record<string, [number, number]> = {
+          ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step],
+        };
+        const move = moves[event.key];
+        if (move) {
+          event.preventDefault();
+          onNudge(move[0], move[1]);
+        }
+        if (event.key === 'Enter' && onOpen) {
+          event.preventDefault();
+          onOpen();
+        }
+      }}
     >
       <header
         className="k-workbench-drag"

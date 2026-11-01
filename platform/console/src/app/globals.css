@@ -525,3 +525,17 @@ body {
 .k-badge-success { color: var(--color-success); border-color: color-mix(in oklab, var(--color-success) 35%, transparent); background: color-mix(in oklab, var(--color-success) 12%, transparent); }
 .k-badge-warning { color: var(--color-warning); border-color: color-mix(in oklab, var(--color-warning) 35%, transparent); background: color-mix(in oklab, var(--color-warning) 12%, transparent); }
 .k-badge-danger { color: var(--color-danger); border-color: color-mix(in oklab, var(--color-danger) 35%, transparent); background: color-mix(in oklab, var(--color-danger) 12%, transparent); }
+.k-workbench-list {
+  margin: 12px;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  background: var(--color-surface);
+}
+.k-workbench-list table { width: 100%; border-collapse: collapse; font-size: var(--text-label); }
+.k-workbench-list caption { padding: 10px 12px; color: var(--color-muted); text-align: start; font-size: var(--text-caption); }
+.k-workbench-list th, .k-workbench-list td { padding: 9px 12px; border-top: 1px solid var(--color-border); text-align: start; vertical-align: top; }
+.k-workbench-list thead th { color: var(--color-muted); font-weight: 550; }
+.k-workbench-list tbody th { color: var(--color-label-secondary); white-space: nowrap; }
+.k-workbench-list td strong { display: block; color: var(--color-text); font-weight: 550; }
+.k-workbench-list td span { display: block; margin-block-start: 2px; color: var(--color-muted); }
