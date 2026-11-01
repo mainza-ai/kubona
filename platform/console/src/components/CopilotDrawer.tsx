@@ -85,6 +85,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
   const [input, setInput] = useState('');
   const { messages, loading, streamingId, errorMessage, setMessages, setLoading, setStreamingId, setErrorMessage } = useTranscript(sessionId);
   const chatWrite = useWriteSettlement();
+  const feedbackWrite = useWriteSettlement();
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [runningTribunal, setRunningTribunal] = useState(false);
   const [tribunalStage, setTribunalStage] = useState<string>('Convening multi-agent scientific tribunal...');
@@ -685,14 +686,18 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
     }
     const activeSessionId = active.id;
     setVotes((prev) => ({ ...prev, [messageId]: vote }));
-    const ok = await sendFeedback(activeSessionId, messageId, vote);
-    if (!ok) {
+    const requestId = feedbackWrite.begin('chat feedback');
+    const out = await sendFeedback(activeSessionId, messageId, vote);
+    if (!out.ok) {
+      feedbackWrite[out.unknown ? 'unknown' : 'refused'](requestId, out.error);
       setVotes((prev) => {
         const next = { ...prev };
         delete next[messageId];
         return next;
       });
-      setErrorMessage('Feedback not recorded — backend refused.');
+      setErrorMessage(`Feedback not recorded — ${out.unknown ? 'backend unreachable' : 'backend refused'} (${out.error}).`);
+    } else {
+      feedbackWrite.applied(requestId, 'feedback recorded');
     }
   };
 
@@ -1543,6 +1548,11 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
         {writeSettlementLabel(chatWrite.write) && (
           <p role="status" className="px-1 text-[12px] font-mono text-slate-400">
             {writeSettlementLabel(chatWrite.write)}
+          </p>
+        )}
+        {writeSettlementLabel(feedbackWrite.write) && (
+          <p role="status" className="px-1 text-[12px] font-mono text-slate-400">
+            {writeSettlementLabel(feedbackWrite.write)}
           </p>
         )}
 

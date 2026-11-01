@@ -144,8 +144,7 @@ Still open:
   refund, tenant grants, session refunds, key rotation, and first-run
   admin-key bootstrap, emergency abort, codesign rerun, and custom-agent
   create/delete, workflow runs, proposal launch, and chat send use the same
-  vocabulary. Small mutations such as session delete and feedback still use
-  inline status.
+  vocabulary. Auth logout/revoke still use inline status.
 - Per-send model override has no backend contract; the composer links to Model
   Hub instead of faking one.
 - The 11 remaining client-only names are intentional transport/browser/auth
