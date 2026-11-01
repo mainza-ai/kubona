@@ -21,7 +21,7 @@ import { CampaignState, SystematicNotebook } from '@/types';
 import { fetchNotebooks, sendChatMessage } from '@/lib/api';
 import { LiteraturePanel } from './LiteraturePanel';
 import { MeasuredOutputs } from '../MeasuredOutputs';
-import { Chart } from '@/components/data/DataChart';
+import { Chart } from '@/components/data/LazyChart';
 import type { ChartSpec } from '@/components/data/chart';
 
 interface ResultsStudioProps {

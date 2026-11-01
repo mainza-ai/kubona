@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import type { CampaignState } from '@/types';
 
-import { Chart } from '@/components/data/DataChart';
+import { Chart } from '@/components/data/LazyChart';
 import type { ChartSpec } from '@/components/data/chart';
 import { useFleetProjection } from '@/domain/useFleetProjection';
 

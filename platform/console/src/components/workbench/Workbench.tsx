@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, us
 import { LayoutGrid, List, Maximize2, Minus, Plus } from 'lucide-react';
 import type { CampaignState, Job, Loop } from '@/types';
 import { fetchCanvasLayout, fetchWorkbenchLayout, saveWorkbenchLayout, type ObligationRow } from '@/lib/api';
-import { Chart } from '@/components/data/DataChart';
+import { Chart } from '@/components/data/LazyChart';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
