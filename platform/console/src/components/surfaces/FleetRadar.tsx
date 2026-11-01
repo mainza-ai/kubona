@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import {
   Radio,
   ShieldCheck,
@@ -16,82 +16,53 @@ import { CampaignState, BackendInfo, RadarEndpoint } from '@/types';
 import { fetchFleet, fetchRadar } from '@/lib/api';
 import { Chart } from '@/components/data/DataChart';
 import type { ChartSpec } from '@/components/data/chart';
+import { usePollingResource } from '@/domain/use-polling-resource';
+import { ResourceRefusal } from '@/domain/resource-store';
+
+async function loadFleet() {
+  const [fleet, radar] = await Promise.allSettled([fetchFleet(), fetchRadar()]);
+  if (fleet.status === 'rejected' && radar.status === 'rejected') {
+    throw fleet.reason instanceof Error ? fleet.reason : new Error(String(fleet.reason));
+  }
+  let backends: BackendInfo[] = [];
+  let radarEndpoints: RadarEndpoint[] = [];
+  let refused: string | null = null;
+  if (fleet.status === 'fulfilled') {
+    const data = fleet.value as { backends?: BackendInfo[]; refused?: boolean; refuse_reason?: string };
+    if (data.refused) refused = data.refuse_reason || 'fleet refused';
+    else backends = data.backends || [];
+  } else {
+    refused = fleet.reason instanceof Error ? fleet.reason.message : String(fleet.reason);
+  }
+  if (radar.status === 'fulfilled') {
+    const data = radar.value as { radar_endpoints?: RadarEndpoint[]; refused?: boolean; refuse_reason?: string };
+    if (data.refused) refused = data.refuse_reason || 'radar refused';
+    else radarEndpoints = data.radar_endpoints || [];
+  } else if (!refused) {
+    refused = radar.reason instanceof Error ? radar.reason.message : String(radar.reason);
+  }
+  if (refused) {
+    throw new ResourceRefusal(refused, { backends, radarEndpoints, refused });
+  }
+  return { backends, radarEndpoints, refused };
+}
 
 interface FleetRadarProps {
   campaign?: CampaignState | null;
 }
 
 export function FleetRadar({ campaign }: FleetRadarProps) {
-  const [backends, setBackends] = useState<BackendInfo[]>([]);
-  const [radarEndpoints, setRadarEndpoints] = useState<RadarEndpoint[]>([]);
   const [sovereignOnly, setSovereignOnly] = useState(false);
   const [expandedBackend, setExpandedBackend] = useState<string | null>(null);
-  const [refused, setRefused] = useState<string | null>(null);
-  // Wave-3: first-load gate for the honest loading skeleton below. Set only
-  // in the one-shot fleet .then/.catch continuations; the radar poll loop,
-  // backoff, and visibility gating are untouched.
-  const [loaded, setLoaded] = useState(false);
-  const backoffRef = useRef(1000);
-  // H5: mirror of backoffRef for honest liveness chrome (refs don't render).
-  const [pollIntervalMs, setPollIntervalMs] = useState(1000);
-  // Manual refresh affordance: bumping this restarts the effect below for an
-  // immediate fetch, since auto-poll alone makes staleness invisible.
-  const [refreshTick, setRefreshTick] = useState(0);
-
-  useEffect(() => {
-    let active = true;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const noteBackoff = (ms: number) => {
-      backoffRef.current = ms;
-      setPollIntervalMs(ms);
-    };
-    const pollRadar = async () => {
-      // Visibility-gated: no polling when the tab is hidden.
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-        if (active) timer = setTimeout(pollRadar, 2000);
-        return;
-      }
-      try {
-        const data = await fetchRadar();
-        if (!active) return;
-        if ((data as { refused?: boolean })?.refused) {
-          setRefused((data as { refuse_reason?: string })?.refuse_reason || 'radar refused');
-          setRadarEndpoints([]);
-          noteBackoff(Math.min(backoffRef.current * 1.5, 15000));
-        } else if (data?.radar_endpoints) {
-          setRadarEndpoints(data.radar_endpoints as RadarEndpoint[]);
-          setRefused(null);
-          noteBackoff(1000);
-        }
-      } catch (err) {
-        if (!active) return;
-        setRefused(err instanceof Error ? err.message : String(err));
-        noteBackoff(Math.min(backoffRef.current * 1.5, 15000));
-      }
-      if (active) timer = setTimeout(pollRadar, backoffRef.current);
-    };
-    fetchFleet()
-      .then((data) => {
-        if (!active) return;
-        if ((data as { refused?: boolean })?.refused) {
-          setRefused((data as { refuse_reason?: string })?.refuse_reason || 'fleet refused');
-          setBackends([]);
-        } else {
-          setBackends((data.backends as BackendInfo[]) || []);
-        }
-        setLoaded(true);
-      })
-      .catch((err) => {
-        if (active) setRefused(err instanceof Error ? err.message : String(err));
-        if (active) setLoaded(true);
-      });
-
-    pollRadar();
-    return () => {
-      active = false;
-      if (timer) clearTimeout(timer);
-    };
-  }, [refreshTick]);
+  const { data, status, error, intervalMs, refresh } = usePollingResource(loadFleet, {
+    intervalMs: 1000,
+    maxBackoffMs: 15000,
+  });
+  const backends = data?.backends ?? [];
+  const radarEndpoints = data?.radarEndpoints ?? [];
+  const refused = data?.refused ?? (status === 'refused' ? error : null);
+  const loaded = status === 'ready' || status === 'stale';
+  const pollIntervalMs = intervalMs;
 
   const filteredBackends = sovereignOnly
     ? backends.filter((b) => b.jurisdiction === 'LOCAL_SOVEREIGN' || (b.name || '').toLowerCase().includes('local'))
@@ -153,9 +124,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
         <div className="flex items-center space-x-3">
           <button
             onClick={() => {
-              backoffRef.current = 1000;
-              setPollIntervalMs(1000);
-              setRefreshTick((t) => t + 1);
+              refresh();
             }}
             title="Refresh fleet + radar now (auto-poll also runs)"
             className="px-3.5 py-1.5 rounded-xl text-xs font-semibold flex items-center space-x-2 border transition-all shadow-sm active:scale-95 bg-white/[0.04] hover:bg-white/[0.08] border-white/10 text-slate-300"

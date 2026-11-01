@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState } from 'react';
 import { Volume2, VolumeX } from 'lucide-react';
-import { AUTH_REQUIRED_EVENT, fetchCostSummary, type CostSummary } from '@/lib/api';
+import { AUTH_REQUIRED_EVENT, fetchCostSummary } from '@/lib/api';
+import { usePollingResource } from '@/domain/use-polling-resource';
 import { useAttention } from '@/lib/attention-context';
 import type { Loop } from '@/types';
 
@@ -15,10 +16,13 @@ function statusOf(loop: Loop): string {
 // server-side time series and anomaly detection needs an anomaly feed —
 // neither exists, so this strip shows measured counts only, never rates
 // or alerts. Failed/diverged loops are called out by text, not color alone.
-const SPEND_POLL_MS = 60000;
 
 export function CheckInStrip({ loops }: { loops: Loop[] }) {
-  const [spend, setSpend] = useState<CostSummary | null>(null);
+  const { data: spend } = usePollingResource(async () => {
+    const out = await fetchCostSummary();
+    if (!out.ok) throw new Error(out.error);
+    return out.result;
+  }, { intervalMs: 60_000 });
   const [readOnly, setReadOnly] = useState(false);
 
   // An anonymous 401 is not an expired session. Keep the sign-in affordance
@@ -28,22 +32,6 @@ export function CheckInStrip({ loops }: { loops: Loop[] }) {
     const onRequired = () => setReadOnly(true);
     window.addEventListener(AUTH_REQUIRED_EVENT, onRequired);
     return () => window.removeEventListener(AUTH_REQUIRED_EVENT, onRequired);
-  }, []);
-
-  useEffect(() => {
-    let live = true;
-    const load = () => {
-      if (typeof document !== 'undefined' && document.hidden) return;
-      fetchCostSummary().then((out) => {
-        if (live && out.ok) setSpend(out.result);
-      });
-    };
-    load();
-    const timer = setInterval(load, SPEND_POLL_MS);
-    return () => {
-      live = false;
-      clearInterval(timer);
-    };
   }, []);
 
   let running = 0;

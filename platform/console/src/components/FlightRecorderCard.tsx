@@ -1,7 +1,8 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { API_BASE, apiFetch, authHeaders } from '@/lib/api';
+import { usePollingResource } from '@/domain/use-polling-resource';
 
 // Documented budget, not an invented one: the surface title below names the
 // "(60s Gate)" auditor window. The measured fetch latency renders against
@@ -42,68 +43,31 @@ function fmtSecs(v: unknown): string {
 }
 
 function FlightRecorderCardInner({ sessionId }: { sessionId: string }) {
-  const [data, setData] = useState<FlightRecorderData | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  // Real measured fetch latency (performance.now around the
-  // flight-recorder fetch). Null until a fetch completes — never a
-  // placeholder.
-  const [latencyMs, setLatencyMs] = useState<number | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    const fetchTelemetry = async () => {
-      setLoading(true);
-      setError(null);
+  const { data: telemetry, status, error } = usePollingResource(
+    async () => {
       const t0 = typeof performance !== 'undefined' ? performance.now() : 0;
-      try {
-        const res = await apiFetch(`${API_BASE}/api/campaigns/${sessionId}/flight-recorder`, {
-          cache: 'no-store',
-          headers: authHeaders(),
-        });
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
-        }
-        const json = (await res.json()) as FlightRecorderData;
-        if (!cancelled) {
-          // Malformed-payload guard: a null/non-object body must surface
-          // as an error, never as a render crash on .spent_usd below.
-          if (json == null || typeof json !== 'object') {
-            throw new Error('flight recorder returned no telemetry (null body)');
-          }
-          setData(json);
-          setLatencyMs(typeof performance !== 'undefined' ? performance.now() - t0 : 0);
-        }
-      } catch (err: unknown) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to load flight recorder');
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+      const res = await apiFetch(`${API_BASE}/api/campaigns/${sessionId}/flight-recorder`, {
+        cache: 'no-store',
+        headers: authHeaders(),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const json = (await res.json()) as FlightRecorderData;
+      if (json == null || typeof json !== 'object') {
+        throw new Error('flight recorder returned no telemetry (null body)');
       }
-    };
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const poll = async () => {
-      if (cancelled) return;
-      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
-        timer = setTimeout(poll, 60000);
-        return;
-      }
-      await fetchTelemetry();
-      if (!cancelled) timer = setTimeout(poll, 15000);
-    };
-    void poll();
-    return () => {
-      cancelled = true;
-      if (timer) clearTimeout(timer);
-    };
-  }, [sessionId]);
+      return { json, latencyMs: typeof performance !== 'undefined' ? performance.now() - t0 : 0 };
+    },
+    { intervalMs: 15_000 },
+  );
+  const data = telemetry?.json ?? null;
+  const latencyMs = telemetry?.latencyMs ?? null;
+  const loading = status === 'loading';
 
   return (
     <div className="rounded-lg border border-slate-700 bg-slate-900/95 p-4 text-slate-100 shadow-xl backdrop-blur">
       <div className="flex items-center justify-between border-b border-slate-800 pb-3">
         <div className="flex items-center space-x-2">
-          <span className="flex h-2.5 w-2.5 rounded-full bg-cyan-400 animate-pulse" />
+          <span className="flex h-2.5 w-2.5 rounded-full bg-cyan-400" />
           <h3 className="text-sm font-semibold tracking-wide uppercase text-slate-200">
             Auditor Flight Recorder (60s Gate)
           </h3>
