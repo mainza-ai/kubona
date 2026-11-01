@@ -4239,3 +4239,9 @@ skipped is the exact failure this incident is about:
 - Jobs now pin the fields the console reads; the workbench labels layout
   saves accepted → applied/refused/unknown instead of a single "saving"
   state. Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Wrappers on the generated operation client
+
+- Moved session, loops, and jobs wrappers onto `requestOperation`; the
+  generated client now lives beside the transport to avoid a cycle. Updated
+  [[remaining-work]]; no new page.

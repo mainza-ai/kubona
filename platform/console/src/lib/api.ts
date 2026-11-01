@@ -1,5 +1,6 @@
 import { Session, ChatMessage, Job, Loop, LedgerEvent, Lab } from '@/types';
-import { contract, setContractDriftHandler } from './responseContract';
+import { contract, setContractDriftHandler, type ContractName } from './responseContract';
+import { API_OPERATIONS, type ApiOperationName, type ApiOperationResponse } from './generated/openapi';
 
 // Build-time default (local dev). The runtime route /api/config can
 // override this per deployment (see configureApiBase) so one image
@@ -171,6 +172,55 @@ export function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Prom
 // authenticated bridge path (no raw unauthed fetch to /api/*).
 export { authHeaders };
 
+export class OperationError extends Error {
+  constructor(
+    readonly operation: string,
+    readonly status: number | null,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'OperationError';
+  }
+}
+
+export type OperationRequestOptions = {
+  params?: Record<string, string>;
+  query?: Record<string, string | number | boolean | undefined>;
+  body?: unknown;
+  headers?: Record<string, string>;
+};
+
+/**
+ * Typed request for a modeled operation. The generated path/method/response
+ * mapping is the contract; callers supply only parameters and body.
+ */
+export async function requestOperation<K extends ApiOperationName>(
+  name: K,
+  { params = {}, query = {}, body, headers }: OperationRequestOptions = {},
+): Promise<ApiOperationResponse[K]> {
+  const operation = API_OPERATIONS[name];
+  const path = operation.path.replace(/\{([^}]+)\}/g, (_, key: string) => {
+    const value = params[key];
+    if (!value) throw new OperationError(name, null, `missing path parameter ${key}`);
+    return encodeURIComponent(value);
+  });
+  const qs = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    if (value !== undefined) qs.set(key, String(value));
+  }
+  const url = `${API_BASE}${path}${qs.toString() ? `?${qs.toString()}` : ''}`;
+  const res = await apiFetch(url, {
+    method: operation.method.toUpperCase(),
+    cache: 'no-store',
+    headers: authHeaders(body === undefined ? headers : { 'Content-Type': 'application/json', ...headers }),
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+  });
+  if (!res.ok) {
+    throw new OperationError(name, res.status, `${operation.method.toUpperCase()} ${operation.path} refused (HTTP ${res.status})`);
+  }
+  return contract(operation.response as ContractName, await res.json()) as ApiOperationResponse[K];
+}
+
 
 export async function fetchSessions(): Promise<Session[]> {
   try {
@@ -185,9 +235,7 @@ export async function fetchSessions(): Promise<Session[]> {
 
 export async function fetchSession(sessionId: string): Promise<Session | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return null;
-    return contract('session', (await res.json()) as Session);
+    return (await requestOperation('fetchSession', { params: { id: sessionId } })) as Session;
   } catch (err) {
     console.error('Failed to fetch session:', err);
     return null;
@@ -451,12 +499,10 @@ export async function fetchLoops(sessionId?: string | null): Promise<Loop[]> {
   try {
     // K2: session-scoped when a session is active — the header counts
     // this session's loops, not the fleet's. Unset keeps the global view.
-    const qs = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : '';
-    const res = await apiFetch(`${API_BASE}/api/loops${qs}`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return [];
-    const data = await res.json();
-    contract('loops.list', data);
-    return data.loops || [];
+    const data = await requestOperation('fetchLoops', {
+      query: { session_id: sessionId || undefined },
+    });
+    return (data.loops || []) as Loop[];
   } catch (err) {
     console.error('Failed to fetch loops:', err);
     return [];
@@ -1789,16 +1835,10 @@ export function isTerminalJobStatus(status: unknown): boolean {
 }
 
 // Jobs: session-scoped run list for inline launch tracking.
-export async function fetchJobs(sessionId: string): Promise<import('@/types').Job[]> {
+export async function fetchJobs(sessionId: string): Promise<Job[]> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/jobs?session_id=${encodeURIComponent(sessionId)}`, {
-      cache: 'no-store',
-      headers: authHeaders(),
-    });
-    if (!res.ok) return [];
-    const data = await res.json();
-    contract('jobs.list', data);
-    return data.jobs || [];
+    const data = await requestOperation('fetchJobs', { query: { session_id: sessionId } });
+    return (data.jobs || []) as unknown as Job[];
   } catch (err) {
     console.error('Failed to fetch jobs:', err);
     return [];
