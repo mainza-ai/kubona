@@ -1,17 +1,25 @@
 {
   "generated_by": "scripts/console-contract-inventory.py",
   "contracts": [
+    "abort",
+    "admet",
+    "agent.one",
     "agents.custom",
     "agents.system",
     "auth.challenge",
+    "auth.login",
+    "auth.sessions",
     "auth.whoami",
     "autoresearch.harnesses",
     "autoresearch.loop",
     "autoresearch.loops",
     "autoresearch.step",
+    "campaign",
     "canvas.layout",
     "capabilities",
     "chat.launch",
+    "chat.regenerate",
+    "chat.rewrite",
     "chat.send",
     "chat.stream.done",
     "codesign.batch",
@@ -21,7 +29,10 @@
     "codesign.rerun",
     "codesign.verified",
     "cost.summary",
+    "discovery",
+    "epistemics",
     "events.list",
+    "fidelity",
     "fleet",
     "hf.details",
     "hf.download",
@@ -29,20 +40,34 @@
     "hf.search",
     "job",
     "jobs.list",
+    "lab",
     "labs.list",
+    "ledger.append",
+    "ledger.export",
     "ledger.verify",
+    "lens.asset",
     "lens.history",
     "lens.request",
     "lens.resolve",
     "lens.status",
+    "literature",
     "llm.models",
     "llm.settings",
+    "llm.test",
     "loops.list",
+    "mandate.sign",
+    "mandate.verify",
     "memory.recall",
+    "memory.retain",
+    "mesh.route",
+    "messages.clear",
     "messages.list",
     "metasearch.proposals",
     "notebooks.list",
     "obligations.open",
+    "prediction.assert",
+    "prediction.evaluate",
+    "prediction.seal",
     "qir.compile",
     "quantum.backends",
     "quantum.job",
@@ -51,7 +76,9 @@
     "radar",
     "session",
     "session.context",
+    "session.create",
     "sessions.list",
+    "tribunal.resume",
     "tribunal.run",
     "vault.calibration",
     "vault.history",
@@ -61,17 +88,25 @@
     "workflow.run"
   ],
   "schemas": [
+    "abort",
+    "admet",
+    "agent.one",
     "agents.custom",
     "agents.system",
     "auth.challenge",
+    "auth.login",
+    "auth.sessions",
     "auth.whoami",
     "autoresearch.harnesses",
     "autoresearch.loop",
     "autoresearch.loops",
     "autoresearch.step",
+    "campaign",
     "canvas.layout",
     "capabilities",
     "chat.launch",
+    "chat.regenerate",
+    "chat.rewrite",
     "chat.send",
     "chat.stream.done",
     "codesign.batch",
@@ -81,7 +116,10 @@
     "codesign.rerun",
     "codesign.verified",
     "cost.summary",
+    "discovery",
+    "epistemics",
     "events.list",
+    "fidelity",
     "fleet",
     "hf.details",
     "hf.download",
@@ -89,20 +127,34 @@
     "hf.search",
     "job",
     "jobs.list",
+    "lab",
     "labs.list",
+    "ledger.append",
+    "ledger.export",
     "ledger.verify",
+    "lens.asset",
     "lens.history",
     "lens.request",
     "lens.resolve",
     "lens.status",
+    "literature",
     "llm.models",
     "llm.settings",
+    "llm.test",
     "loops.list",
+    "mandate.sign",
+    "mandate.verify",
     "memory.recall",
+    "memory.retain",
+    "mesh.route",
+    "messages.clear",
     "messages.list",
     "metasearch.proposals",
     "notebooks.list",
     "obligations.open",
+    "prediction.assert",
+    "prediction.evaluate",
+    "prediction.seal",
     "qir.compile",
     "quantum.backends",
     "quantum.job",
@@ -111,7 +163,9 @@
     "radar",
     "session",
     "session.context",
+    "session.create",
     "sessions.list",
+    "tribunal.resume",
     "tribunal.run",
     "vault.calibration",
     "vault.history",
@@ -122,16 +176,70 @@
   ],
   "modeled_functions": [
     {
+      "function": "appendLedgerEvent",
+      "path": "/api/ledger/append",
+      "method": "POST",
+      "contract": "ledger.append"
+    },
+    {
+      "function": "assertPrediction",
+      "path": "/api/vault/predictions/assert",
+      "method": "POST",
+      "contract": "prediction.assert"
+    },
+    {
       "function": "authChallenge",
       "path": "/api/auth/challenge",
       "method": "POST",
       "contract": "auth.challenge"
     },
     {
+      "function": "authLogin",
+      "path": "/api/auth/login",
+      "method": "POST",
+      "contract": "auth.login"
+    },
+    {
+      "function": "authSessions",
+      "path": "/api/auth/sessions",
+      "method": "GET",
+      "contract": "auth.sessions"
+    },
+    {
       "function": "authWhoami",
       "path": "/api/auth/whoami",
       "method": "GET",
       "contract": "auth.whoami"
+    },
+    {
+      "function": "clearMessages",
+      "path": "/api/sessions/:id/messages",
+      "method": "DELETE",
+      "contract": "messages.clear"
+    },
+    {
+      "function": "createCustomAgent",
+      "path": "/api/agents/custom",
+      "method": "POST",
+      "contract": "agent.one"
+    },
+    {
+      "function": "createLab",
+      "path": "/api/tenants",
+      "method": "POST",
+      "contract": "lab"
+    },
+    {
+      "function": "createSession",
+      "path": "/api/sessions",
+      "method": "POST",
+      "contract": "session.create"
+    },
+    {
+      "function": "emergencyAbort",
+      "path": "/api/supervisor/abort",
+      "method": "POST",
+      "contract": "abort"
     },
     {
       "function": "evaluateCodesignArtifact",
@@ -144,6 +252,18 @@
       "path": "/api/codesign/evaluate-batch",
       "method": "POST",
       "contract": "codesign.batch"
+    },
+    {
+      "function": "evaluateDiscoveryPipeline",
+      "path": "/api/discovery/pipeline",
+      "method": "POST",
+      "contract": "discovery"
+    },
+    {
+      "function": "evaluatePrediction",
+      "path": "/api/vault/predictions/evaluate",
+      "method": "POST",
+      "contract": "prediction.evaluate"
     },
     {
       "function": "fetchAutoresearchHarnesses",
@@ -162,6 +282,12 @@
       "path": "/api/vault/predictions/calibration",
       "method": "GET",
       "contract": "vault.calibration"
+    },
+    {
+      "function": "fetchCampaignState",
+      "path": "/api/sessions/:id/campaign",
+      "method": "GET",
+      "contract": "campaign"
     },
     {
       "function": "fetchCanvasLayout",
@@ -200,10 +326,22 @@
       "contract": "agents.custom"
     },
     {
+      "function": "fetchEpistemics",
+      "path": "/api/epistemics",
+      "method": "GET",
+      "contract": "epistemics"
+    },
+    {
       "function": "fetchEvents",
       "path": "/api/events",
       "method": "GET",
       "contract": "events.list"
+    },
+    {
+      "function": "fetchFidelity",
+      "path": "/api/fidelity",
+      "method": "GET",
+      "contract": "fidelity"
     },
     {
       "function": "fetchFleet",
@@ -248,6 +386,12 @@
       "contract": "vault.latest"
     },
     {
+      "function": "fetchLedgerExport",
+      "path": "/api/ledger/export",
+      "method": "POST",
+      "contract": "ledger.export"
+    },
+    {
       "function": "fetchLensHistory",
       "path": "/api/observatory/lens/history",
       "method": "GET",
@@ -276,6 +420,12 @@
       "path": "/api/metasearch/proposals",
       "method": "GET",
       "contract": "metasearch.proposals"
+    },
+    {
+      "function": "fetchMolecularADMET",
+      "path": "/api/chemistry/admet",
+      "method": "GET",
+      "contract": "admet"
     },
     {
       "function": "fetchNotebooks",
@@ -392,10 +542,22 @@
       "contract": "workflow.plan"
     },
     {
+      "function": "regenerateChat",
+      "path": "/api/chat/regenerate",
+      "method": "POST",
+      "contract": "chat.regenerate"
+    },
+    {
       "function": "requestObservatoryLens",
       "path": "/api/observatory/lens",
       "method": "POST",
       "contract": "lens.request"
+    },
+    {
+      "function": "requestServerSignedMandate",
+      "path": "/api/mandates/sign",
+      "method": "POST",
+      "contract": "mandate.sign"
     },
     {
       "function": "rerunCodesignProposal",
@@ -416,6 +578,30 @@
       "contract": "autoresearch.loop"
     },
     {
+      "function": "resumeTribunal",
+      "path": "/api/tribunal/resume",
+      "method": "POST",
+      "contract": "tribunal.resume"
+    },
+    {
+      "function": "retainMemory",
+      "path": "/api/memory/retain",
+      "method": "POST",
+      "contract": "memory.retain"
+    },
+    {
+      "function": "rewriteChat",
+      "path": "/api/chat/rewrite",
+      "method": "POST",
+      "contract": "chat.rewrite"
+    },
+    {
+      "function": "routeMultimodalPayload",
+      "path": "/api/mesh/route",
+      "method": "POST",
+      "contract": "mesh.route"
+    },
+    {
       "function": "runFamilySearch",
       "path": "/api/codesign/families",
       "method": "POST",
@@ -434,10 +620,22 @@
       "contract": "workflow.run"
     },
     {
+      "function": "sealPrediction",
+      "path": "/api/vault/predictions/seal",
+      "method": "POST",
+      "contract": "prediction.seal"
+    },
+    {
       "function": "searchHFModels",
       "path": "/api/hf/search",
       "method": "GET",
       "contract": "hf.search"
+    },
+    {
+      "function": "searchLiterature",
+      "path": "/api/literature",
+      "method": "GET",
+      "contract": "literature"
     },
     {
       "function": "sendChatMessage",
@@ -482,420 +680,197 @@
       "contract": "quantum.submit"
     },
     {
-      "function": "verifyLedger",
-      "path": "/api/ledger/verify",
-      "method": "GET",
-      "contract": "ledger.verify"
-    }
-  ],
-  "unmodeled_functions": [
-    {
-      "function": "apiFetch",
-      "path": null,
-      "method": null,
-      "contract": null
-    },
-    {
-      "function": "appendLedgerEvent",
-      "path": "/api/ledger/append",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "applyMetasearchProposal",
-      "path": "/api/metasearch/apply",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "approveMetasearchProposal",
-      "path": "/api/metasearch/approve",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "assertPrediction",
-      "path": "/api/vault/predictions/assert",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "authLogin",
-      "path": "/api/auth/login",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "authLogout",
-      "path": "/api/auth/logout",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "authRevoke",
-      "path": "/api/auth/revoke",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "authSessions",
-      "path": "/api/auth/sessions",
-      "method": "GET",
-      "contract": null
-    },
-    {
-      "function": "cancelHFDownload",
-      "path": "/api/hf/downloads/:id/cancel",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "cancelQuantumJob",
-      "path": "/api/quantum/jobs/:id/cancel",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "clearMessages",
-      "path": "/api/sessions/:id/messages",
-      "method": "DELETE",
-      "contract": null
-    },
-    {
-      "function": "closeObligation",
-      "path": "/api/obligations/:id",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "configureApiBase",
-      "path": "/api/config",
-      "method": "GET",
-      "contract": null
-    },
-    {
-      "function": "createCustomAgent",
-      "path": "/api/agents/custom",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "createLab",
-      "path": "/api/tenants",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "createSession",
-      "path": "/api/sessions",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "deleteCustomAgent",
-      "path": "/api/agents/custom/:id",
-      "method": "DELETE",
-      "contract": null
-    },
-    {
-      "function": "deleteSession",
-      "path": "/api/sessions/:id",
-      "method": "DELETE",
-      "contract": null
-    },
-    {
-      "function": "downloadFile",
-      "path": null,
-      "method": null,
-      "contract": null
-    },
-    {
-      "function": "emergencyAbort",
-      "path": "/api/supervisor/abort",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "evaluateDiscoveryPipeline",
-      "path": "/api/discovery/pipeline",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "evaluatePrediction",
-      "path": "/api/vault/predictions/evaluate",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "exportLedger",
-      "path": "/api/ledger/export",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "exportSession",
-      "path": "/api/sessions/export",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "fetchBackendStatus",
-      "path": "/api/health",
-      "method": "GET",
-      "contract": null
-    },
-    {
-      "function": "fetchCampaignState",
-      "path": "/api/sessions/:id/campaign",
-      "method": "GET",
-      "contract": null
-    },
-    {
-      "function": "fetchEpistemics",
-      "path": "/api/epistemics",
-      "method": "GET",
-      "contract": null
-    },
-    {
-      "function": "fetchFidelity",
-      "path": "/api/fidelity",
-      "method": "GET",
-      "contract": null
-    },
-    {
-      "function": "fetchLedgerExport",
-      "path": "/api/ledger/export",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "fetchMolecularADMET",
-      "path": "/api/chemistry/admet",
-      "method": "GET",
-      "contract": null
-    },
-    {
-      "function": "importSession",
-      "path": "/api/sessions/import",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "isTerminalJobStatus",
-      "path": null,
-      "method": null,
-      "contract": null
-    },
-    {
-      "function": "issueTenantGrant",
-      "path": "/api/tenant-grants/issue",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "jobStatusLabel",
-      "path": null,
-      "method": null,
-      "contract": null
-    },
-    {
-      "function": "lensImageProxyUrl",
-      "path": null,
-      "method": null,
-      "contract": null
-    },
-    {
-      "function": "loopAction",
-      "path": "/api/loops/:id/:id",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "refundSessionSpend",
-      "path": "/api/sessions/refund",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "refundTenantSpend",
-      "path": "/api/tenants/refund",
-      "method": "GET",
-      "contract": null
-    },
-    {
-      "function": "regenerateChat",
-      "path": "/api/chat/regenerate",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "registerTenantAdminKey",
-      "path": "/api/tenants/admin-key",
-      "method": "GET",
-      "contract": null
-    },
-    {
-      "function": "rejectMetasearchProposal",
-      "path": "/api/metasearch/reject",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "reportError",
-      "path": null,
-      "method": null,
-      "contract": null
-    },
-    {
-      "function": "requestServerSignedMandate",
-      "path": "/api/mandates/sign",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "resetDedupForTests",
-      "path": null,
-      "method": null,
-      "contract": null
-    },
-    {
-      "function": "resumeTribunal",
-      "path": "/api/tribunal/resume",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "retainMemory",
-      "path": "/api/memory/retain",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "revokeTenantAutonomy",
-      "path": "/api/tenants/revoke",
-      "method": "GET",
-      "contract": null
-    },
-    {
-      "function": "revokeTenantGrant",
-      "path": "/api/tenant-grants/revoke",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "revokeVaultLease",
-      "path": "/api/vault/leases/revoke",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "rewriteChat",
-      "path": "/api/chat/rewrite",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "routeMultimodalPayload",
-      "path": "/api/mesh/route",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "runQuantumCanary",
-      "path": "/api/quantum/canary",
-      "method": "GET",
-      "contract": null
-    },
-    {
-      "function": "saveCanvasLayout",
-      "path": "/api/canvas/layout",
-      "method": "PUT",
-      "contract": null
-    },
-    {
-      "function": "saveLLMSettings",
-      "path": "/api/llm/settings",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "saveQuantumSettings",
-      "path": "/api/quantum/settings",
-      "method": "PUT",
-      "contract": null
-    },
-    {
-      "function": "scoreCodesignBudget",
-      "path": "/api/codesign/budget",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "sealPrediction",
-      "path": "/api/vault/predictions/seal",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "searchLiterature",
-      "path": "/api/literature",
-      "method": "GET",
-      "contract": null
-    },
-    {
-      "function": "sendFeedback",
-      "path": "/api/chat/feedback",
-      "method": "POST",
-      "contract": null
-    },
-    {
-      "function": "setTenantAutonomy",
-      "path": "/api/tenants/autonomy",
-      "method": "GET",
-      "contract": null
-    },
-    {
-      "function": "setTenantCeiling",
-      "path": "/api/tenants/ceiling",
-      "method": "GET",
-      "contract": null
-    },
-    {
-      "function": "setTenantStatus",
-      "path": "/api/tenants/status",
-      "method": "GET",
-      "contract": null
-    },
-    {
       "function": "synthesizeCampaign",
       "path": "/api/sessions/:id/campaign/synthesize",
       "method": "POST",
-      "contract": null
+      "contract": "campaign"
     },
     {
       "function": "testLLM",
       "path": "/api/llm/test",
       "method": "POST",
-      "contract": null
+      "contract": "llm.test"
     },
     {
       "function": "uploadObservatoryAsset",
       "path": "/api/observatory/assets",
       "method": "POST",
-      "contract": null
+      "contract": "lens.asset"
+    },
+    {
+      "function": "verifyLedger",
+      "path": "/api/ledger/verify",
+      "method": "GET",
+      "contract": "ledger.verify"
     },
     {
       "function": "verifySpendMandate",
       "path": "/api/mandates/verify",
       "method": "POST",
-      "contract": null
+      "contract": "mandate.verify"
+    }
+  ],
+  "client_only_functions": [
+    {
+      "function": "apiFetch",
+      "reason": "transport primitive returning Response"
+    },
+    {
+      "function": "applyMetasearchProposal",
+      "reason": "client-constructed ok envelope"
+    },
+    {
+      "function": "approveMetasearchProposal",
+      "reason": "client-constructed ok envelope"
+    },
+    {
+      "function": "authLogout",
+      "reason": "boolean HTTP result"
+    },
+    {
+      "function": "authRevoke",
+      "reason": "client-constructed ok envelope"
+    },
+    {
+      "function": "cancelHFDownload",
+      "reason": "boolean HTTP result"
+    },
+    {
+      "function": "cancelQuantumJob",
+      "reason": "client-constructed ok envelope"
+    },
+    {
+      "function": "closeObligation",
+      "reason": "client-constructed ok envelope"
+    },
+    {
+      "function": "configureApiBase",
+      "reason": "runtime base-URL probe"
+    },
+    {
+      "function": "deleteCustomAgent",
+      "reason": "boolean HTTP result"
+    },
+    {
+      "function": "deleteSession",
+      "reason": "boolean HTTP result"
+    },
+    {
+      "function": "downloadFile",
+      "reason": "browser file helper"
+    },
+    {
+      "function": "exportLedger",
+      "reason": "client-constructed export envelope"
+    },
+    {
+      "function": "exportSession",
+      "reason": "client-constructed export envelope"
+    },
+    {
+      "function": "fetchBackendStatus",
+      "reason": "client-constructed health status"
+    },
+    {
+      "function": "importSession",
+      "reason": "client-constructed import envelope"
+    },
+    {
+      "function": "isTerminalJobStatus",
+      "reason": "status label helper"
+    },
+    {
+      "function": "issueTenantGrant",
+      "reason": "client-constructed grant envelope"
+    },
+    {
+      "function": "jobStatusLabel",
+      "reason": "status label helper"
+    },
+    {
+      "function": "lensImageProxyUrl",
+      "reason": "same-origin URL helper"
+    },
+    {
+      "function": "loopAction",
+      "reason": "client-constructed ok/error envelope"
+    },
+    {
+      "function": "refundSessionSpend",
+      "reason": "client-constructed ok envelope"
+    },
+    {
+      "function": "refundTenantSpend",
+      "reason": "postTenantMutation client helper"
+    },
+    {
+      "function": "registerTenantAdminKey",
+      "reason": "postTenantMutation client helper"
+    },
+    {
+      "function": "rejectMetasearchProposal",
+      "reason": "client-constructed ok envelope"
+    },
+    {
+      "function": "reportError",
+      "reason": "console error reporter"
+    },
+    {
+      "function": "resetDedupForTests",
+      "reason": "test reset helper"
+    },
+    {
+      "function": "revokeTenantAutonomy",
+      "reason": "postTenantMutation client helper"
+    },
+    {
+      "function": "revokeTenantGrant",
+      "reason": "client-constructed ok envelope"
+    },
+    {
+      "function": "revokeVaultLease",
+      "reason": "client-constructed ok envelope"
+    },
+    {
+      "function": "runQuantumCanary",
+      "reason": "client-constructed canary envelope"
+    },
+    {
+      "function": "saveCanvasLayout",
+      "reason": "client-constructed ok envelope"
+    },
+    {
+      "function": "saveLLMSettings",
+      "reason": "client-constructed ok envelope"
+    },
+    {
+      "function": "saveQuantumSettings",
+      "reason": "client-constructed ok envelope"
+    },
+    {
+      "function": "scoreCodesignBudget",
+      "reason": "client-constructed ok/result envelope"
+    },
+    {
+      "function": "sendFeedback",
+      "reason": "boolean HTTP result"
+    },
+    {
+      "function": "setTenantAutonomy",
+      "reason": "postTenantMutation client helper"
+    },
+    {
+      "function": "setTenantCeiling",
+      "reason": "postTenantMutation client helper"
+    },
+    {
+      "function": "setTenantStatus",
+      "reason": "postTenantMutation client helper"
     },
     {
       "function": "wasRecentAuthFailure",
-      "path": null,
-      "method": null,
-      "contract": null
+      "reason": "auth timing helper"
     }
-  ]
+  ],
+  "unmodeled_functions": []
 }

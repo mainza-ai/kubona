@@ -44,10 +44,10 @@ outside evidence.
 | ID | Gap | Why it matters |
 |---|---|---|
 | P1-1 | **CLOSED 2026-10-31.** SSE emits `id:` frames, honors `Last-Event-ID`/`last_event_id`, replays the gap from the ledger cursor, and resets a future cursor to the tip. | Reconnect now replays rather than skipping rows. |
-| P1-2 | **PARTIAL 2026-10-31.** Generated OpenAPI 3.1 documents 60 paths with 58 response schemas; draft/OpenAPI drift is gated. Drift now reaches the API banner, and `KUBONA_STRICT_CONTRACTS=1` fails the response. The 68 unmodeled functions still need schemas. | Runtime validation is strict on demand; unmodeled paths remain explicit. |
+| P1-2 | **CLOSED 2026-10-31.** Inventory has 89 modeled response functions, 40 explicitly classified client-only/helper functions, 0 unmodeled, and 85 schemas; OpenAPI covers 84 paths. CI gates inventory/OpenAPI drift and Python/TS tests cover schema behavior. | Zero unmodeled network responses; strict mode is opt-in via `KUBONA_STRICT_CONTRACTS=1`. |
 | P1-3 | Secrets are `.env`-based; the ledger is plaintext SQLite. | Acceptable for a single trusted host, but no Docker secrets/KMS/at-rest encryption path. |
 | P1-4 | **PARTIAL 2026-10-31.** `doctor --strict` reports backup freshness/failure; `kubonad preflight` gates stack start on rate/ledger/FK/backup; optional `KUBONA_ALERT_WEBHOOK_URL` posts preflight and scheduled-backup failures. Disk/rate-specific alert routing remains open. | Local start failures and backup failures can reach an external webhook. |
-| P1-5 | **PARTIAL 2026-10-31.** E2E rejects unnamed controls/unlabeled fields/missing alt/multiple main landmarks, checks reduced-motion disables ambient animation, and verifies the command palette focus trap. Contrast, other modals, and screen-reader transcripts remain. | Structural, reduced-motion, and modal-focus regressions gate E2E. |
+| P1-5 | **CLOSED 2026-10-31.** Axe WCAG 2 A/AA passes Arena, Labs, Sovereign Settings, and Codesign; E2E also covers control names, fields, alt, one main landmark, reduced motion, and command-palette focus trap. | Automated contrast/structural regressions gate E2E. |
 | P1-6 | **PARTIAL 2026-10-31.** Canvas layout now stores the 3D camera position and orbit target (zoom is represented by camera distance); point selection is still campaign state, not layout. | A saved observatory view restores on reopen. |
 
 ### P2 — enhancements, not local-production blockers

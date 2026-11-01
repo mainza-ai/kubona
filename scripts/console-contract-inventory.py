@@ -25,6 +25,54 @@ OUT = ROOT / "platform" / "contracts" / "console-contract-inventory.json"
 
 FUNC_RE = re.compile(r"export\s+(?:async\s+)?function\s+(\w+)\s*\(")
 NEXT_EXPORT_RE = re.compile(r"\nexport\s+(?:async\s+)?(?:function|const|interface|type|class)\s+")
+# Functions that do not expose a backend response shape at the console
+# boundary: transport/browser/auth helpers, boolean status wrappers, and
+# client-constructed envelopes. They are intentionally excluded from the
+# response-schema backlog; their raw endpoint, if any, is covered by the path
+# contract or has no JSON body.
+CLIENT_ONLY = {
+    "apiFetch": "transport primitive returning Response",
+    "configureApiBase": "runtime base-URL probe",
+    "downloadFile": "browser file helper",
+    "isTerminalJobStatus": "status label helper",
+    "jobStatusLabel": "status label helper",
+    "lensImageProxyUrl": "same-origin URL helper",
+    "reportError": "console error reporter",
+    "resetDedupForTests": "test reset helper",
+    "wasRecentAuthFailure": "auth timing helper",
+    "authLogout": "boolean HTTP result",
+    "authRevoke": "client-constructed ok envelope",
+    "cancelHFDownload": "boolean HTTP result",
+    "cancelQuantumJob": "client-constructed ok envelope",
+    "deleteCustomAgent": "boolean HTTP result",
+    "deleteSession": "boolean HTTP result",
+    "loopAction": "client-constructed ok/error envelope",
+    "sendFeedback": "boolean HTTP result",
+    "setTenantAutonomy": "postTenantMutation client helper",
+    "setTenantCeiling": "postTenantMutation client helper",
+    "setTenantStatus": "postTenantMutation client helper",
+    "registerTenantAdminKey": "postTenantMutation client helper",
+    "refundTenantSpend": "postTenantMutation client helper",
+    "revokeTenantAutonomy": "postTenantMutation client helper",
+    "applyMetasearchProposal": "client-constructed ok envelope",
+    "approveMetasearchProposal": "client-constructed ok envelope",
+    "rejectMetasearchProposal": "client-constructed ok envelope",
+    "closeObligation": "client-constructed ok envelope",
+    "exportLedger": "client-constructed export envelope",
+    "exportSession": "client-constructed export envelope",
+    "importSession": "client-constructed import envelope",
+    "issueTenantGrant": "client-constructed grant envelope",
+    "refundSessionSpend": "client-constructed ok envelope",
+    "revokeTenantGrant": "client-constructed ok envelope",
+    "revokeVaultLease": "client-constructed ok envelope",
+    "runQuantumCanary": "client-constructed canary envelope",
+    "saveCanvasLayout": "client-constructed ok envelope",
+    "saveLLMSettings": "client-constructed ok envelope",
+    "saveQuantumSettings": "client-constructed ok envelope",
+    "scoreCodesignBudget": "client-constructed ok/result envelope",
+    "fetchBackendStatus": "client-constructed health status",
+}
+NEXT_EXPORT_RE = re.compile(r"\nexport\s+(?:async\s+)?(?:function|const|interface|type|class)\s+")
 PATH_RE = re.compile(r"\$\{API_BASE\}(/api/[^`\"\s]*)")
 QUOTED_PATH_RE = re.compile(r"['\"](/api/[^'\"]+)['\"]")
 CONTRACT_RE = re.compile(r"\b(?:contract|reportResponseContract|validateResponse)\(\s*['\"]([^'\"]+)['\"]")
@@ -86,12 +134,21 @@ def build() -> dict[str, object]:
     if unused:
         raise SystemExit(f"console-contract-inventory: schemas with no API caller: {', '.join(unused)}")
     modeled = sorted((f for f in funcs if f["contract"]), key=lambda f: str(f["function"]))
-    unmodeled = sorted((f for f in funcs if not f["contract"]), key=lambda f: str(f["function"]))
+    client_only = sorted(
+        ({"function": f["function"], "reason": CLIENT_ONLY[str(f["function"])]}
+         for f in funcs if not f["contract"] and str(f["function"]) in CLIENT_ONLY),
+        key=lambda f: f["function"],
+    )
+    unmodeled = sorted(
+        (f for f in funcs if not f["contract"] and str(f["function"]) not in CLIENT_ONLY),
+        key=lambda f: str(f["function"]),
+    )
     return {
         "generated_by": "scripts/console-contract-inventory.py",
         "contracts": contracts,
         "schemas": schemas,
         "modeled_functions": modeled,
+        "client_only_functions": client_only,
         "unmodeled_functions": unmodeled,
     }
 
@@ -108,6 +165,7 @@ def main() -> int:
             return 1
         print(
             f"console-contract-inventory: {len(inventory['modeled_functions'])} modeled, "
+            f"{len(inventory['client_only_functions'])} client-only, "
             f"{len(inventory['unmodeled_functions'])} unmodeled, {len(inventory['schemas'])} schemas"
         )
         return 0
