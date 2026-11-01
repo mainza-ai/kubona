@@ -1245,7 +1245,7 @@ export interface QuantumJobSubmit {
 
 export async function submitQuantumJob(
   job: QuantumJobSubmit
-): Promise<{ ok: boolean; job_id?: string; queued?: boolean; dry_run?: boolean; estimate?: Record<string, unknown>; fidelity?: Record<string, unknown>; session_id?: string; error?: string }> {
+): Promise<{ ok: boolean; job_id?: string; queued?: boolean; dry_run?: boolean; estimate?: Record<string, unknown>; fidelity?: Record<string, unknown>; session_id?: string; unknown?: boolean; error?: string }> {
   try {
     return (await requestOperation('submitQuantumJob', { body: job })) as {
       ok: boolean;
@@ -1258,7 +1258,7 @@ export async function submitQuantumJob(
     };
   } catch (err) {
     console.error('Failed to submit quantum job:', err);
-    return { ok: false, error: String(err instanceof Error ? err.message : err) };
+    return { ok: false, unknown: !(err instanceof OperationError) || err.status === null, error: String(err instanceof Error ? err.message : err) };
   }
 }
 
