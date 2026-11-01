@@ -43,8 +43,8 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
   const drag = useRef<{ x: number; y: number; camera: WorkbenchCamera } | null>(null);
   const cardDrag = useRef<{ ids: string[]; x: number; y: number; origins: Record<string, { x: number; y: number }> } | null>(null);
   const sizeDrag = useRef<{ id: string; x: number; y: number; width: number; height: number } | null>(null);
-  const areaDrag = useRef<{ x: number; y: number; originX: number; originY: number } | null>(null);
-  const areaResize = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
+  const areaDrag = useRef<{ id: string; x: number; y: number; originX: number; originY: number } | null>(null);
+  const areaResize = useRef<{ id: string; x: number; y: number; width: number; height: number } | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [camera, setCamera] = useState<WorkbenchCamera>({ x: 36, y: 36, zoom: 0.82 });
   const [selected, setSelected] = useState<string[]>([]);
@@ -60,6 +60,7 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
   const [assignments, setAssignments] = useState<Record<string, string>>({});
   const [hidden, setHidden] = useState<string[]>([]);
   const [lastRemoved, setLastRemoved] = useState<string[]>([]);
+  const [activeAreaId, setActiveAreaId] = useState<string | null>(null);
   const [conflictRevision, setConflictRevision] = useState<number | null>(null);
   const [write, setWrite] = useState<WriteSettlement>(IDLE_WRITE);
   useEffect(() => {
@@ -85,6 +86,7 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
   }, [onSelectObject]);
 
   const visibleObjects = useMemo(() => objects.filter((object) => !hidden.includes(object.id)), [objects, hidden]);
+  const activeArea = areas.find((area) => area.id === activeAreaId) ?? areas[0] ?? null;
 
   const areaBounds = useMemo(() => {
     if (visibleObjects.length === 0) return null;
@@ -328,12 +330,12 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
     }));
   };
 
-  const onAreaPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    const area = areas[0];
-    if (!area || (event.target as HTMLElement).dataset.resize === 'area') return;
+  const onAreaPointerDown = (event: React.PointerEvent<HTMLDivElement>, area: WorkbenchArea) => {
+    if ((event.target as HTMLElement).dataset.resize === 'area') return;
     event.stopPropagation();
+    setActiveAreaId(area.id);
     event.currentTarget.setPointerCapture(event.pointerId);
-    areaDrag.current = { x: event.clientX, y: event.clientY, originX: area.rect.x, originY: area.rect.y };
+    areaDrag.current = { id: area.id, x: event.clientX, y: event.clientY, originX: area.rect.x, originY: area.rect.y };
   };
 
   const onAreaPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -341,17 +343,16 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
     if (!current) return;
     const dx = (event.clientX - current.x) / camera.zoom;
     const dy = (event.clientY - current.y) / camera.zoom;
-    setAreas((previous) => previous.map((area, index) => index === 0
+    setAreas((previous) => previous.map((area) => area.id === current.id
       ? { ...area, rect: { ...area.rect, x: current.originX + dx, y: current.originY + dy } }
       : area));
   };
 
-  const onAreaResizePointerDown = (event: React.PointerEvent<HTMLSpanElement>) => {
-    const area = areas[0];
-    if (!area) return;
+  const onAreaResizePointerDown = (event: React.PointerEvent<HTMLSpanElement>, area: WorkbenchArea) => {
     event.stopPropagation();
+    setActiveAreaId(area.id);
     event.currentTarget.setPointerCapture(event.pointerId);
-    areaResize.current = { x: event.clientX, y: event.clientY, width: area.rect.width, height: area.rect.height };
+    areaResize.current = { id: area.id, x: event.clientX, y: event.clientY, width: area.rect.width, height: area.rect.height };
   };
 
   const onAreaResizePointerMove = (event: React.PointerEvent<HTMLSpanElement>) => {
@@ -359,10 +360,26 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
     if (!current) return;
     const width = Math.max(320, current.width + (event.clientX - current.x) / camera.zoom);
     const height = Math.max(220, current.height + (event.clientY - current.y) / camera.zoom);
-    setAreas((previous) => previous.map((area, index) => index === 0
+    setAreas((previous) => previous.map((area) => area.id === current.id
       ? { ...area, rect: { ...area.rect, width, height } }
       : area));
   };
+
+  const createArea = useCallback((title: string, rect: { x: number; y: number; width: number; height: number }) => {
+    const id = newWriteRequestId();
+    setAreas((previous) => [...previous, { id, title, rect }]);
+    setActiveAreaId(id);
+  }, []);
+
+  const groupSelected = useCallback(() => {
+    const items = visibleObjects.filter((object) => selected.includes(object.id));
+    if (items.length === 0) return;
+    const minX = Math.min(...items.map((object) => object.position.x)) - 24;
+    const minY = Math.min(...items.map((object) => object.position.y)) - 48;
+    const maxX = Math.max(...items.map((object) => object.position.x + object.size.width)) + 24;
+    const maxY = Math.max(...items.map((object) => object.position.y + object.size.height)) + 24;
+    createArea(`Area ${areas.length + 1}`, { x: minX, y: minY, width: maxX - minX, height: maxY - minY });
+  }, [visibleObjects, selected, areas.length, createArea]);
 
   return (
     <section
@@ -421,27 +438,53 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
           variant="ghost"
           size="compact"
           disabled={!areaBounds || viewMode === 'list'}
-          onClick={() => setAreas((current) => current.length > 0 ? [] : [{ id: 'area-science', title: 'Scientific chain', rect: areaBounds! }])}
-          title="Group all objects into a spatial area, or clear the area"
+          onClick={() => createArea(`Area ${areas.length + 1}`, areaBounds!)}
+          title="Group all objects into a spatial area"
         >
-          {areas.length > 0 ? 'Ungroup' : 'Group all'}
+          Group all
         </Button>
-        {areas[0] && (
+        <Button
+          type="button"
+          variant="ghost"
+          size="compact"
+          disabled={selected.length === 0 || viewMode === 'list'}
+          onClick={groupSelected}
+          title="Group the selected cards into a spatial area"
+        >
+          Group selected
+        </Button>
+        {activeArea && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="compact"
+            onClick={() => {
+              const id = activeArea.id;
+              setAreas((previous) => previous.filter((area) => area.id !== id));
+              setAssignments((previous) => Object.fromEntries(Object.entries(previous).filter(([, areaId]) => areaId !== id)));
+              setActiveAreaId(areas.find((area) => area.id !== id)?.id ?? null);
+            }}
+            title="Delete the active area; cards stay on the canvas"
+          >
+            Delete area
+          </Button>
+        )}
+        {activeArea && (
           <input
             className="k-workbench-area-title"
             aria-label="Area title"
-            value={areas[0].title}
-            onChange={(event) => setAreas((previous) => previous.map((area, index) => index === 0 ? { ...area, title: event.target.value } : area))}
+            value={activeArea.title}
+            onChange={(event) => setAreas((previous) => previous.map((area) => area.id === activeArea.id ? { ...area, title: event.target.value } : area))}
           />
         )}
-        {selected.length > 0 && areas[0] && (
+        {selected.length > 0 && activeArea && (
           <Button
             type="button"
             variant="ghost"
             size="compact"
             onClick={() => setAssignments((previous) => {
               const next = { ...previous };
-              const areaId = areas[0].id;
+              const areaId = activeArea.id;
               const allAssigned = selected.every((id) => previous[id] === areaId);
               for (const id of selected) {
                 if (allAssigned) delete next[id];
@@ -450,7 +493,7 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
               return next;
             })}
           >
-            {selected.every((id) => assignments[id] === areas[0].id) ? 'Unassign' : 'Assign to area'}
+            {selected.every((id) => assignments[id] === activeArea.id) ? 'Unassign' : 'Assign to area'}
           </Button>
         )}
         {selected.length > 0 && (
@@ -524,8 +567,9 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
             <div
               key={area.id}
               className="k-workbench-area"
+              data-selected={activeArea?.id === area.id ? 'true' : undefined}
               style={{ left: area.rect.x, top: area.rect.y, width: area.rect.width, height: area.rect.height }}
-              onPointerDown={onAreaPointerDown}
+              onPointerDown={(event) => onAreaPointerDown(event, area)}
               onPointerMove={onAreaPointerMove}
               onPointerUp={() => { areaDrag.current = null; }}
               onPointerCancel={() => { areaDrag.current = null; }}
@@ -535,7 +579,7 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
                 className="k-workbench-area-resize"
                 data-resize="area"
                 aria-hidden="true"
-                onPointerDown={onAreaResizePointerDown}
+                onPointerDown={(event) => onAreaResizePointerDown(event, area)}
                 onPointerMove={onAreaResizePointerMove}
                 onPointerUp={() => { areaResize.current = null; }}
                 onPointerCancel={() => { areaResize.current = null; }}
