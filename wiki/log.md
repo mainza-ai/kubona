@@ -4292,3 +4292,9 @@ skipped is the exact failure this incident is about:
 - Emergency abort, workflow plan/run, and quantum-submit move onto
   `requestOperation`, preserving their fallback/throw contracts. Updated
   [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | More wrappers on requestOperation
+
+- Messages, job detail, memory recall, abort, workflow, and quantum-submit
+  wrappers now call the generated client. Updated [[remaining-work]]; no new
+  page.

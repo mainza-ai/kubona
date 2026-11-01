@@ -301,11 +301,8 @@ export async function deleteSession(sessionId: string): Promise<boolean> {
 
 export async function fetchMessages(sessionId: string): Promise<ChatMessage[]> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/sessions/${sessionId}/messages`, { cache: 'no-store', headers: authHeaders() });
-    if (!res.ok) return [];
-    const data = await res.json();
-    contract('messages.list', data);
-    return data.messages || [];
+    const data = await requestOperation('fetchMessages', { params: { id: sessionId } });
+    return (data.messages || []) as unknown as ChatMessage[];
   } catch (err) {
     console.error('Failed to fetch messages:', err);
     return [];
@@ -1802,20 +1799,14 @@ export async function fetchJobs(sessionId: string): Promise<Job[]> {
 // Unknown ids 404 → null (never an empty shell). sessionId is REQUIRED:
 // the backend scopes jobs per tenant session and refuses unscopend reads
 // (400) — the client never makes a call it knows will fail.
-export async function fetchJob(jobId: string, sessionId: string): Promise<import('@/types').Job | null> {
+export async function fetchJob(jobId: string, sessionId: string): Promise<Job | null> {
   if (!sessionId) return null;
   try {
-    const res = await apiFetch(
-      `${API_BASE}/api/jobs/${encodeURIComponent(jobId)}?session_id=${encodeURIComponent(sessionId)}`,
-      {
-        cache: 'no-store',
-        headers: authHeaders(),
-      }
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    contract('job', data);
-    return data.job || null;
+    const data = await requestOperation('fetchJob', {
+      params: { id: jobId },
+      query: { session_id: sessionId },
+    });
+    return (data.job || null) as unknown as Job | null;
   } catch (err) {
     console.error('Failed to fetch job:', err);
     return null;
@@ -1835,15 +1826,9 @@ export async function fetchMemoryRecall(
   opts?: { bank?: string; limit?: number }
 ): Promise<{ snippets: MemorySnippet[]; tenant: string } | null> {
   try {
-    const params = new URLSearchParams({ session_id: sessionId, q: query });
-    if (opts?.bank) params.set('bank', opts.bank);
-    if (opts?.limit) params.set('limit', String(opts.limit));
-    const res = await apiFetch(`${API_BASE}/api/memory/recall?${params.toString()}`, {
-      cache: 'no-store',
-      headers: authHeaders(),
-    });
-    if (!res.ok) return null;
-    return contract('memory.recall', await res.json());
+    return (await requestOperation('fetchMemoryRecall', {
+      query: { session_id: sessionId, q: query, bank: opts?.bank, limit: opts?.limit },
+    })) as unknown as { snippets: MemorySnippet[]; tenant: string };
   } catch (err) {
     console.error('Failed to recall memory:', err);
     return null;
