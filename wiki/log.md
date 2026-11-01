@@ -4354,3 +4354,9 @@ skipped is the exact failure this incident is about:
 - Dispatch now renders accepted → applied/refused/unknown with a retained
   request id; a network loss is explicitly unknown. Updated
   [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Codesign, HF, literature, ledger, lens wrappers
+
+- Codesign packs/verified, HF download start, custom-agent create, literature
+  search, ledger verify, and observatory lens request move onto
+  `requestOperation`. Updated [[remaining-work]]; no new page.
