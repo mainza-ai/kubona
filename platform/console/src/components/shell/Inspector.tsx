@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { CampaignState, Job } from '@/types';
 import type { WorkbenchObject } from '@/components/workbench/workbench-model';
 import { jobStatusLabel } from '@/lib/api';
+import { Button } from '@/components/ui/Button';
 
 export type InspectorTab = 'details' | 'evidence' | 'jobs' | 'copilot';
 
@@ -26,7 +27,7 @@ function Fact({ label, value }: { label: string; value: string }) {
 }
 
 export function Inspector({
-  open, tab, onTab, onClose, campaign, selectedObject, jobs, copilot, expanded = false,
+  open, tab, onTab, onClose, campaign, selectedObject, jobs, copilot, expanded = false, onOpenObject, onFocusObject, onRemoveObject,
 }: {
   open: boolean;
   tab: InspectorTab;
@@ -37,6 +38,9 @@ export function Inspector({
   jobs: Job[];
   copilot: ReactNode;
   expanded?: boolean;
+  onOpenObject?: (object: WorkbenchObject) => void;
+  onFocusObject?: (object: WorkbenchObject) => void;
+  onRemoveObject?: (object: WorkbenchObject) => void;
 }) {
   const [width, setWidth] = useState(() => {
     if (typeof window === 'undefined' || !window.localStorage) return 380;
@@ -124,6 +128,11 @@ export function Inspector({
                   </div>
                   <dl className="space-y-2 text-[12px]">{selectedObject.facts.map((fact) => <Fact key={fact.label} label={fact.label} value={fact.value} />)}</dl>
                   {selectedObject.ref && <p className="font-mono text-[12px] text-slate-500">{selectedObject.ref.domain}:{selectedObject.ref.id}</p>}
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    {onOpenObject && <Button type="button" size="compact" onClick={() => onOpenObject(selectedObject)}>Open</Button>}
+                    {onFocusObject && <Button type="button" size="compact" variant="ghost" onClick={() => onFocusObject(selectedObject)}>Focus</Button>}
+                    {onRemoveObject && <Button type="button" size="compact" variant="ghost" onClick={() => onRemoveObject(selectedObject)}>Remove from canvas</Button>}
+                  </div>
                 </>
               ) : campaign ? (
                 <>

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import type { CampaignState } from '@/types';
-import { Workbench } from './Workbench';
+import { Workbench, type WorkbenchHandle } from './Workbench';
 
 vi.mock('@/lib/api', () => ({
   fetchCanvasLayout: vi.fn(async () => ({})),
@@ -237,6 +237,15 @@ describe('Workbench', () => {
     expect(removeLink).toBeDefined();
     await act(async () => { removeLink!.props.onClick(); });
     expect(linksSection.findAllByType('button').some(isCustomLink)).toBe(false);
+  });
+
+  it('exposes focus and remove actions to the inspector', async () => {
+    const ref = React.createRef<WorkbenchHandle>();
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => { tree = TestRenderer.create(<Workbench ref={ref} campaign={campaign} sessionId="s1" />); });
+    await act(async () => { ref.current!.focusObject('campaign'); });
+    await act(async () => { ref.current!.removeObject('campaign'); });
+    expect(tree!.root.findAllByProps({ 'data-kind': 'campaign' })).toHaveLength(0);
   });
 
   it('groups all objects into a persisted spatial area', async () => {

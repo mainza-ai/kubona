@@ -9,7 +9,8 @@ import { useObligationsProjection } from '@/domain/useObligationsProjection';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
 import { settleWrite, writeSettlementLabel } from '@/domain/write-settlement';
 import { Inspector, type InspectorTab } from '@/components/shell/Inspector';
-import type { WorkbenchObject } from '@/components/workbench/workbench-model';
+import type { WorkbenchObject, WorkbenchObjectKind } from '@/components/workbench/workbench-model';
+import type { WorkbenchHandle } from '@/components/workbench/Workbench';
 import { mergeSessionEvents, useSessionStream } from '@/lib/useSessionStream';
 import { useCampaignProjection } from '@/lib/useCampaignProjection';
 import { useLoopsProjection } from '@/lib/useLoopsProjection';
@@ -280,6 +281,7 @@ export default function Home() {
   const [isCopilotExpanded, setIsCopilotExpanded] = useState(false);
   const [selectedWorkbenchObject, setSelectedWorkbenchObject] = useState<WorkbenchObject | null>(null);
   const copilotRef = useRef<CopilotHandle>(null);
+  const workbenchRef = useRef<WorkbenchHandle>(null);
   const pendingAsk = useRef<string | null>(null);
   const [showCampaignMenu, setShowCampaignMenu] = useState(false);
   const [campaignFilter, setCampaignFilter] = useState('');
@@ -660,6 +662,22 @@ export default function Home() {
     setInspectorOpen(true);
     setInspectorTab('copilot');
   }, [inspectorOpen, inspectorTab]);
+
+  const handleOpenWorkbenchObject = useCallback((kind: WorkbenchObjectKind) => {
+    if (kind === 'chart' || kind === 'agent_run' || kind === 'job') setSurface('recorder');
+    else if (kind === 'approval') { setSurface('mesh'); setMeshTab('guardrails'); }
+    else if (kind === 'evidence') setSurface('manifold');
+    else if (kind === 'proof' || kind === 'manuscript') {
+      setSurface('proofs');
+      setProofsTab('manuscripts');
+    } else if (kind === 'circuit') {
+      setSurface('arena');
+      setArenaView('proof-dag');
+    } else {
+      setSurface('arena');
+      setArenaView('workbench');
+    }
+  }, []);
 
   // Single dispatch for keyboard shortcuts AND palette selections: targets
   // resolve through SHORTCUT_TARGETS (lib/shortcuts) so the two cannot
@@ -1135,6 +1153,7 @@ export default function Home() {
             {arenaView === 'workbench' && !showLegacyCanvas && (
               <Workbench
                 key={currentSessionId}
+                ref={workbenchRef}
                 campaign={campaign}
                 loops={loops}
                 jobs={jobs}
@@ -1147,21 +1166,7 @@ export default function Home() {
                     setInspectorOpen(true);
                   }
                 }}
-                onOpenObject={(kind) => {
-                  if (kind === 'chart' || kind === 'agent_run' || kind === 'job') setSurface('recorder');
-                  else if (kind === 'approval') { setSurface('mesh'); setMeshTab('guardrails'); }
-                  else if (kind === 'evidence') setSurface('manifold');
-                  else if (kind === 'proof' || kind === 'manuscript') {
-                    setSurface('proofs');
-                    setProofsTab('manuscripts');
-                  } else if (kind === 'circuit') {
-                    setSurface('arena');
-                    setArenaView('proof-dag');
-                  } else {
-                    setSurface('arena');
-                    setArenaView('workbench');
-                  }
-                }}
+                onOpenObject={handleOpenWorkbenchObject}
               />
             )}
             {arenaView === 'orbital' && !showLegacyCanvas && (
@@ -1320,6 +1325,9 @@ export default function Home() {
         selectedObject={selectedWorkbenchObject}
         jobs={jobs}
         expanded={isCopilotExpanded}
+        onOpenObject={(object) => handleOpenWorkbenchObject(object.kind)}
+        onFocusObject={(object) => workbenchRef.current?.focusObject(object.id)}
+        onRemoveObject={(object) => workbenchRef.current?.removeObject(object.id)}
         copilot={
           <CopilotDrawer
             ref={copilotRef}

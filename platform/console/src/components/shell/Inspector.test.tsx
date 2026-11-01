@@ -3,6 +3,7 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { Inspector } from './Inspector';
 import type { CampaignState } from '@/types';
+import type { WorkbenchObject } from '@/components/workbench/workbench-model';
 
 const campaign = {
   session_id: 's1',
@@ -16,6 +17,21 @@ const campaign = {
 } as unknown as CampaignState;
 
 describe('Inspector', () => {
+  it('offers open/focus/remove actions for a selected object', async () => {
+    const object: WorkbenchObject = { id: 'campaign', kind: 'campaign', label: 'Campaign', title: 'H2', detail: 'goal', position: { x: 0, y: 0 }, size: { width: 10, height: 10 }, facts: [] };
+    const onFocusObject = vi.fn();
+    const onRemoveObject = vi.fn();
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<Inspector open tab="details" onTab={() => {}} onClose={() => {}} campaign={campaign} selectedObject={object} jobs={[]} copilot={<div />} onFocusObject={onFocusObject} onRemoveObject={onRemoveObject} />);
+    });
+    const focus = tree!.root.findAllByType('button').find((button) => button.props.children === 'Focus');
+    const remove = tree!.root.findAllByType('button').find((button) => button.props.children === 'Remove from canvas');
+    await act(async () => { focus!.props.onClick(); remove!.props.onClick(); });
+    expect(onFocusObject).toHaveBeenCalledWith(object);
+    expect(onRemoveObject).toHaveBeenCalledWith(object);
+  });
+
   it('is absent while closed and exposes real tabs when open', async () => {
     const onClose = vi.fn();
     let tree: TestRenderer.ReactTestRenderer;

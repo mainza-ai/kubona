@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { LayoutGrid, List, Maximize2, Minus, Plus } from 'lucide-react';
 import type { CampaignState, Job, Loop } from '@/types';
 import { fetchCanvasLayout, fetchWorkbenchLayout, saveWorkbenchLayout, type ObligationRow } from '@/lib/api';
@@ -37,7 +37,14 @@ type Props = {
   onOpenObject?: (kind: WorkbenchObjectKind) => void;
 };
 
-export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs, obligations: suppliedObligations, onSelectObject, onOpenObject }: Props) {
+export type WorkbenchHandle = {
+  focusObject: (id: string) => void;
+  removeObject: (id: string) => void;
+};
+
+export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workbench({
+  campaign, sessionId, loops = [], jobs: suppliedJobs, obligations: suppliedObligations, onSelectObject, onOpenObject,
+}, ref) {
   const hostRef = useRef<HTMLDivElement>(null);
   const revision = useRef(0);
   const loaded = useRef(false);
@@ -127,6 +134,26 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
   const removeLink = useCallback((id: string) => {
     setStoredLinks((previous) => (previous ?? buildWorkbenchLinks(baseObjects)).filter((link) => link.id !== id));
   }, [baseObjects]);
+
+  useImperativeHandle(ref, () => ({
+    focusObject: (id: string) => {
+      const object = objects.find((item) => item.id === id);
+      const host = hostRef.current;
+      if (!object || !host) return;
+      const zoom = Math.min(1.5, Math.max(0.35, camera.zoom));
+      setCamera({
+        x: host.clientWidth / 2 - (object.position.x + object.size.width / 2) * zoom,
+        y: host.clientHeight / 2 - (object.position.y + object.size.height / 2) * zoom,
+        zoom,
+      });
+    },
+    removeObject: (id: string) => {
+      setHidden((previous) => previous.includes(id) ? previous : [...previous, id]);
+      setLastRemoved([id]);
+      setSelected((previous) => previous.filter((item) => item !== id));
+      onSelectObject?.(null);
+    },
+  }), [objects, camera.zoom, onSelectObject]);
 
   const fit = useCallback(() => {
     const host = hostRef.current;
@@ -682,7 +709,7 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
       )}
     </section>
   );
-}
+});
 
 function WorkCard({
   object,
