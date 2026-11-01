@@ -24,6 +24,25 @@ describe('Composer', () => {
     expect(tree.root.findByType('textarea').props.value).toBe('');
   });
 
+  it('attaches a readable text file and detaches it', async () => {
+    const onAttach = vi.fn();
+    const onDetach = vi.fn();
+    const onOpenModel = vi.fn();
+    let tree: TestRenderer.ReactTestRenderer;
+    act(() => { tree = TestRenderer.create(<Composer onSubmit={vi.fn()} onAttach={onAttach} onDetach={onDetach} onOpenModel={onOpenModel} />); });
+    const input = tree!.root.findByType('input');
+    await act(async () => {
+      await input.props.onChange({ target: { files: [{ name: 'notes.txt', text: async () => 'hello' }], value: 'x' } });
+    });
+    expect(onAttach).toHaveBeenCalledWith('notes.txt', 'hello');
+    expect(tree!.root.findAll((node) => node.props.children === 'notes.txt')).toHaveLength(1);
+    const remove = tree!.root.findByProps({ 'aria-label': 'Remove notes.txt' });
+    act(() => { remove.props.onClick(); });
+    expect(onDetach).toHaveBeenCalledWith('notes.txt');
+    act(() => { tree!.root.findByProps({ 'aria-label': 'Open Model Hub' }).props.onClick(); });
+    expect(onOpenModel).toHaveBeenCalled();
+  });
+
   it('keeps Shift+Enter and IME composition as text entry', async () => {
     const onSubmit = vi.fn();
     const tree = render(onSubmit);

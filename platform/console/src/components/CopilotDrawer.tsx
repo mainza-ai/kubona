@@ -61,7 +61,11 @@ type ActiveSession = { id: string } | { needsLogin: true };
 const isNeedsLogin = (r: ActiveSession | null): r is { needsLogin: true } =>
   r !== null && 'needsLogin' in r;
 
-export type CopilotHandle = { submit: (text: string) => Promise<void> };
+export type CopilotHandle = {
+  submit: (text: string) => Promise<void>;
+  attach: (name: string, text: string) => void;
+  detach: (name: string) => void;
+};
 
 export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>(function CopilotDrawer({
   sessionId,
@@ -482,8 +486,16 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
   useEffect(() => {
     handleSendRef.current = (text: string) => handleSend(text);
   });
+  const attachText = (name: string, text: string) => {
+    setAttachments((previous) => [...previous.filter((item) => item.name !== name), { name, text }]);
+  };
+  const detachText = (name: string) => {
+    setAttachments((previous) => previous.filter((item) => item.name !== name));
+  };
   useImperativeHandle(ref, () => ({
     submit: (text: string) => handleSendRef.current?.(text) ?? Promise.resolve(),
+    attach: attachText,
+    detach: detachText,
   }), []);
 
   const handleSlash = (raw: string) => {
