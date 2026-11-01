@@ -94,7 +94,9 @@ Still open:
   by a ref-counted store registry; simultaneous consumers share one store and
   the last unsubscribe stops/resets it. Campaign create/delete use shared
   write settlement; the Copilot transcript is a shared per-session store.
-  Remaining write settlement stays open; generated contract
+  The composer attaches readable text files into that transcript and links to
+  Model Hub; per-send model switching has no backend contract and is not
+  faked. Remaining write settlement stays open; generated contract
   types, operation metadata, and a checked `requestOperation()` client are
   landed; session, loops, events, jobs, fidelity, ADMET, agents, LLM/quantum
   settings, radar, cost, obligations, notebooks, capabilities,

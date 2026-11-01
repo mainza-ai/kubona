@@ -283,6 +283,7 @@ export default function Home() {
   const copilotRef = useRef<CopilotHandle>(null);
   const workbenchRef = useRef<WorkbenchHandle>(null);
   const pendingAsk = useRef<string | null>(null);
+  const pendingAttach = useRef<Array<{ name: string; text: string }>>([]);
   const [showCampaignMenu, setShowCampaignMenu] = useState(false);
   const [campaignFilter, setCampaignFilter] = useState('');
 
@@ -648,11 +649,31 @@ export default function Home() {
   }, [surface]);
 
   useEffect(() => {
-    if (!inspectorOpen || inspectorTab !== 'copilot' || !copilotRef.current || !pendingAsk.current) return;
+    if (!inspectorOpen || inspectorTab !== 'copilot' || !copilotRef.current) return;
+    for (const item of pendingAttach.current) copilotRef.current.attach(item.name, item.text);
+    pendingAttach.current = [];
+    if (!pendingAsk.current) return;
     const text = pendingAsk.current;
     pendingAsk.current = null;
-    void copilotRef.current.submit(text);
+    // Attachments are React state; let the attach commits land before send
+    // reads the transcript's attachment list.
+    setTimeout(() => { void copilotRef.current?.submit(text); }, 0);
   }, [inspectorOpen, inspectorTab]);
+
+  const handleAttach = useCallback((name: string, text: string) => {
+    if (inspectorOpen && inspectorTab === 'copilot' && copilotRef.current) {
+      copilotRef.current.attach(name, text);
+      return;
+    }
+    pendingAttach.current = [...pendingAttach.current.filter((item) => item.name !== name), { name, text }];
+    setInspectorOpen(true);
+    setInspectorTab('copilot');
+  }, [inspectorOpen, inspectorTab]);
+
+  const handleDetach = useCallback((name: string) => {
+    pendingAttach.current = pendingAttach.current.filter((item) => item.name !== name);
+    copilotRef.current?.detach(name);
+  }, []);
 
   const handleAsk = useCallback((text: string) => {
     if (inspectorOpen && inspectorTab === 'copilot' && copilotRef.current) {
@@ -1313,6 +1334,10 @@ export default function Home() {
             onSubmit={handleAsk}
             contextLabel={selectedWorkbenchObject ? `${selectedWorkbenchObject.label}: ${selectedWorkbenchObject.title}` : campaign?.target_system || null}
             onClearContext={() => setSelectedWorkbenchObject(null)}
+            onAttach={handleAttach}
+            onDetach={handleDetach}
+            onOpenModel={() => { setSurface('mesh'); setMeshTab('models'); }}
+            modelLabel="Model Hub"
           />
         )}
       </div>

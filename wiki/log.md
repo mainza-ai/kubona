@@ -4499,3 +4499,10 @@ skipped is the exact failure this incident is about:
 - Moved Copilot messages/loading/streaming/error into a per-session shared
   store with two-consumer coverage and test reset. Composer and inspector can
   now read one transcript owner. Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Composer attachments and Model Hub entry
+
+- Added the composer paperclip with a 4,000-character text attachment cap,
+  attach/detach chips, pending attachment flush into Copilot, and a Model Hub
+  entry. No per-send model override: there is no backend contract for one.
+  Updated [[remaining-work]]; no new page.
