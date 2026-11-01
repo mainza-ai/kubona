@@ -2997,7 +2997,7 @@
                   "type": "string"
                 },
                 "status": {
-                  "type": "string"
+                  "type": "union"
                 }
               }
             }
@@ -3025,7 +3025,7 @@
                 "type": "string"
               },
               "status": {
-                "type": "string"
+                "type": "union"
               }
             }
           }

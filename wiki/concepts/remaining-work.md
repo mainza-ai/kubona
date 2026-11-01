@@ -80,8 +80,9 @@ Still open:
   job progress now share a serialized, visibility-gated, backoff-bounded
   polling store with terminal-stop support. Copilot tribunal-turn polling is
   a local, run-scoped exception.
-- Revisioned domain events beyond the ledger cursor; generated client and a
-  uniform write-settlement state.
+- Revisioned domain events beyond the ledger cursor; generated contract
+  types and operation metadata are landed, but the fetch client is still
+  hand-written and write settlement remains open.
 - Chart bundle budget, manual VoiceOver/NVDA record, 200% zoom/forced-colors
   evidence, route alias/feature-flag cleanup, and legacy-surface removal.
 
