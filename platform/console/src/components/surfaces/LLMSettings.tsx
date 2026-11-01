@@ -313,7 +313,7 @@ export function LLMSettings() {
 
         <div className="flex items-center space-x-3">
           {dirty && (
-            <span className="px-2.5 py-1 rounded-full text-[10px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/40">
+            <span className="px-2.5 py-1 rounded-full text-[12px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/40">
               Unsaved changes
             </span>
           )}
@@ -405,7 +405,7 @@ export function LLMSettings() {
             </h3>
             <button
               onClick={loadModels}
-              className="text-[11px] text-slate-400 hover:text-cyan-300 flex items-center space-x-1 transition-colors"
+              className="text-[12px] text-slate-400 hover:text-cyan-300 flex items-center space-x-1 transition-colors"
             >
               <RefreshCw className="w-3 h-3" />
               <span>Refresh Models</span>
@@ -419,16 +419,16 @@ export function LLMSettings() {
                   <span className={`w-2 h-2 rounded-full ${pc.enabled ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`} />
                   <span className="font-semibold text-xs text-white">{pc.name}</span>
                   {pc.is_local && (
-                    <span className="text-[9px] font-mono text-emerald-300 bg-emerald-950/60 px-1.5 py-0.5 rounded-full border border-emerald-800">LOCAL</span>
+                    <span className="text-[12px] font-mono text-emerald-300 bg-emerald-950/60 px-1.5 py-0.5 rounded-full border border-emerald-800">LOCAL</span>
                   )}
                   {!pc.is_local && (
-                    <span className="text-[9px] font-mono text-indigo-300 bg-indigo-950/60 px-1.5 py-0.5 rounded-full border border-indigo-800">CLOUD</span>
+                    <span className="text-[12px] font-mono text-indigo-300 bg-indigo-950/60 px-1.5 py-0.5 rounded-full border border-indigo-800">CLOUD</span>
                   )}
                 </div>
                 <button
                   onClick={() => setProvider(pt, { enabled: !pc.enabled })}
                   aria-label={`Toggle ${pc.name}`}
-                  className={`text-[10px] font-mono px-2 py-0.5 rounded-full border transition-all ${
+                  className={`text-[12px] font-mono px-2 py-0.5 rounded-full border transition-all ${
                     pc.enabled
                       ? 'text-emerald-400 bg-emerald-950/60 border-emerald-800'
                       : 'text-slate-500 bg-white/[0.03] border-white/10 hover:text-slate-300'
@@ -439,11 +439,11 @@ export function LLMSettings() {
               </div>
 
               <div className="space-y-2.5 text-xs">
-                <div className="flex justify-between items-center text-slate-400 font-mono text-[11px]">
+                <div className="flex justify-between items-center text-slate-400 font-mono text-[12px]">
                   <span>Base URL:</span>
                   <span className="text-slate-200 truncate max-w-[220px]">{pc.base_url}</span>
                 </div>
-                <div className="flex justify-between items-center gap-2 text-slate-400 font-mono text-[11px]">
+                <div className="flex justify-between items-center gap-2 text-slate-400 font-mono text-[12px]">
                   <label htmlFor={`llm-default-model-${pt}`} className="shrink-0" title="Empty clears the default — calls then fail naming the variable to set">Default model:</label>
                   <input
                     id={`llm-default-model-${pt}`}
@@ -451,10 +451,10 @@ export function LLMSettings() {
                     onChange={(e) => setProvider(pt, { default_model: e.target.value.trim() })}
                     placeholder="(unset — configure per .env or here)"
                     aria-label={`${pc.name} default model`}
-                    className="flex-1 min-w-0 bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
+                    className="flex-1 min-w-0 bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
                   />
                 </div>
-                <div className="flex justify-between items-center text-slate-400 font-mono text-[11px]">
+                <div className="flex justify-between items-center text-slate-400 font-mono text-[12px]">
                   <span>Last success:</span>
                   <span className="text-slate-200" title="Process-lifetime signal: last completed call via this provider. Unknown until the next success after a restart.">
                     {pc.last_success_at ? new Date(pc.last_success_at).toLocaleString() : 'never here'}
@@ -462,9 +462,9 @@ export function LLMSettings() {
                 </div>
                 {!pc.is_local && (
                   <div>
-                    <label htmlFor={`llm-api-key-${pt}`} className="block text-slate-400 mb-1 text-[11px]">
+                    <label htmlFor={`llm-api-key-${pt}`} className="block text-slate-400 mb-1 text-[12px]">
                       API key {pc.enabled ? <span className="text-emerald-400 font-mono">(stored ●●●)</span> : <span className="text-amber-400 font-mono">(not set)</span>}
-                      <span className="block text-[10px] text-slate-500">Prefer the daemon env/Bao in production; UI-entered keys are persisted in the local ledger.</span>
+                      <span className="block text-[12px] text-slate-500">Prefer the daemon env/Bao in production; UI-entered keys are persisted in the local ledger.</span>
                     </label>
                     <input
                       id={`llm-api-key-${pt}`}
@@ -477,7 +477,7 @@ export function LLMSettings() {
                   </div>
                 )}
                 {saveSectionError?.provider === pt && (
-                  <div role="alert" data-testid={`llm-save-error-${pt}`} className="p-2 rounded-lg bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[11px]">
+                  <div role="alert" data-testid={`llm-save-error-${pt}`} className="p-2 rounded-lg bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px]">
                     Save refused (provider {pc.name}): {saveSectionError.message} — nothing changed.
                   </div>
                 )}
@@ -489,7 +489,7 @@ export function LLMSettings() {
             <div className="text-xs font-semibold text-white">Generation defaults</div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label htmlFor="llm-temperature" className="block text-slate-400 text-[11px] mb-1">Temperature:</label>
+                <label htmlFor="llm-temperature" className="block text-slate-400 text-[12px] mb-1">Temperature:</label>
                 <input
                   id="llm-temperature"
                   type="number"
@@ -510,7 +510,7 @@ export function LLMSettings() {
                 />
               </div>
               <div>
-                <label htmlFor="llm-max-tokens" className="block text-slate-400 text-[11px] mb-1">Max tokens (0 = uncapped):</label>
+                <label htmlFor="llm-max-tokens" className="block text-slate-400 text-[12px] mb-1">Max tokens (0 = uncapped):</label>
                 <input
                   id="llm-max-tokens"
                   type="number"
@@ -537,13 +537,13 @@ export function LLMSettings() {
               </div>
             </div>
             {tokenError && (
-              <div className="p-2 rounded-lg bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[11px]">
+              <div className="p-2 rounded-lg bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px]">
                 {tokenError}
               </div>
             )}
             <div className="grid grid-cols-2 gap-2">
               <div>
-                <label htmlFor="llm-active-provider" className="block text-slate-400 mb-1 text-[11px]">Active provider:</label>
+                <label htmlFor="llm-active-provider" className="block text-slate-400 mb-1 text-[12px]">Active provider:</label>
                 <select
                   id="llm-active-provider"
                   value={settings.active_provider}
@@ -561,7 +561,7 @@ export function LLMSettings() {
                 </select>
               </div>
               <div>
-                <label htmlFor="llm-active-model" className="block text-slate-400 mb-1 text-[11px]">Active model (used when a role has no assignment):</label>
+                <label htmlFor="llm-active-model" className="block text-slate-400 mb-1 text-[12px]">Active model (used when a role has no assignment):</label>
                 <input
                   id="llm-active-model"
                   value={settings.active_model}
@@ -591,13 +591,13 @@ export function LLMSettings() {
           </h3>
 
           {settings.air_gapped && (
-            <div className="text-[11px] text-amber-300 bg-amber-950/40 border border-amber-800/40 p-2.5 rounded-xl flex items-center space-x-2">
+            <div className="text-[12px] text-amber-300 bg-amber-950/40 border border-amber-800/40 p-2.5 rounded-xl flex items-center space-x-2">
               <AlertCircle className="w-3.5 h-3.5 shrink-0 text-amber-400" />
               <span>Cloud egress blocked while Sovereign Air-Gap is engaged. Roles on cloud providers will refuse.</span>
             </div>
           )}
           {!settings.air_gapped && (
-            <div className="text-[11px] text-slate-400 bg-white/[0.03] border border-white/10 p-2.5 rounded-xl">
+            <div className="text-[12px] text-slate-400 bg-white/[0.03] border border-white/10 p-2.5 rounded-xl">
               Local providers (Strata, oMLX, Ollama, LM Studio) work without a cloud opt-in. In production,
               cloud providers additionally require the deployment flag <span className="font-mono text-slate-200">KUBONA_LLM_CLOUD=1</span>.
             </div>
@@ -620,7 +620,7 @@ export function LLMSettings() {
                         aria-label={`${role} provider`}
                         value={assign.provider}
                         onChange={(e) => setRole(role, { provider: e.target.value })}
-                        className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-[11px] text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
+                        className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-[12px] text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
                       >
                         {Object.entries(settings.providers).map(([pt, pc]) => (
                           <option key={pt} value={pt}>
@@ -638,7 +638,7 @@ export function LLMSettings() {
                         list={`kubona-role-models-${role}`}
                         onChange={(e) => setRole(role, { model: e.target.value.trim() })}
                         placeholder="(unset — resolve fails naming the variable)"
-                        className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-[11px] text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
+                        className="w-full bg-black/60 border border-white/10 rounded-lg p-1.5 text-[12px] text-slate-200 font-mono focus:border-cyan-500 focus:outline-none"
                       />
                     </div>
                     <datalist id={`kubona-role-models-${role}`}>
@@ -663,7 +663,7 @@ export function LLMSettings() {
               Live Model Verification &amp; Latency Benchmark
             </h3>
           </div>
-          <span className="text-[11px] font-mono text-cyan-300">
+          <span className="text-[12px] font-mono text-cyan-300">
             Target: {settings.active_model}
           </span>
         </div>

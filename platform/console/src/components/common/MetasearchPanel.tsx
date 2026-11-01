@@ -73,21 +73,21 @@ export function MetasearchPanel() {
         <button
           type="button"
           onClick={() => load()}
-          className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] text-slate-300"
+          className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[12px] text-slate-300"
         >
           Refresh
         </button>
       </div>
       {proposals === null && (
-        <p className="text-[11px] font-code text-slate-500">Loading proposals…</p>
+        <p className="text-[12px] font-code text-slate-500">Loading proposals…</p>
       )}
       {proposals !== null && proposals.length === 0 && (
-        <p className="text-[11px] text-slate-400">No proposals pending — meta-search has proposed nothing.</p>
+        <p className="text-[12px] text-slate-400">No proposals pending — meta-search has proposed nothing.</p>
       )}
       {(proposals ?? []).map((p) => {
         const isBusy = busy.has(p.id);
         return (
-          <div key={p.id} className="px-2.5 py-2 rounded-xl bg-white/[0.03] text-[11px] space-y-1.5">
+          <div key={p.id} className="px-2.5 py-2 rounded-xl bg-white/[0.03] text-[12px] space-y-1.5">
             <div className="flex items-center justify-between gap-2">
               <span className="font-code text-slate-300 truncate" title={p.id}>
                 {p.id.slice(0, 8)} · {p.status}
@@ -133,7 +133,7 @@ export function MetasearchPanel() {
             </p>
             <details className="text-slate-500">
               <summary className="cursor-pointer hover:text-slate-300">proposed diff</summary>
-              <pre className="mt-1 p-2 rounded-lg bg-black/60 overflow-x-auto font-code text-[10px] whitespace-pre-wrap">
+              <pre className="mt-1 p-2 rounded-lg bg-black/60 overflow-x-auto font-code text-[12px] whitespace-pre-wrap">
                 {p.proposed_diff || '(no diff recorded)'}
               </pre>
             </details>
@@ -141,7 +141,7 @@ export function MetasearchPanel() {
         );
       })}
       {notice && (
-        <div className="text-[11px] text-amber-200" role="alert">
+        <div className="text-[12px] text-amber-200" role="alert">
           {notice}
         </div>
       )}

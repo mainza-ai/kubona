@@ -6,7 +6,7 @@
 // reported once per contract name and never replaces the payload — callers
 // keep their existing empty/refused fallbacks.
 
-export type SchemaType = 'object' | 'array' | 'string' | 'number' | 'boolean' | 'any';
+export type SchemaType = 'object' | 'array' | 'string' | 'number' | 'boolean' | 'union' | 'any';
 
 export interface ResponseSchema {
   type: SchemaType;
@@ -14,6 +14,8 @@ export interface ResponseSchema {
   properties?: Record<string, ResponseSchema>;
   items?: ResponseSchema;
   nullable?: boolean;
+  /** Exactly one member's validation must pass. Used for legacy wire unions. */
+  anyOf?: ResponseSchema[];
 }
 
 const any: ResponseSchema = { type: 'any' };
@@ -25,6 +27,11 @@ const obj = (
   required: string[] = Object.keys(properties),
 ): ResponseSchema => ({ type: 'object', properties, required });
 const arr = (items: ResponseSchema): ResponseSchema => ({ type: 'array', items });
+const union = (...anyOf: ResponseSchema[]): ResponseSchema => ({ type: 'union', anyOf });
+// The Go API serializes the proto JobStatus enum as a number; older/test
+// payloads may still carry the DB string (JOB_STATUS_*). Both are the same
+// closed enum, not drift.
+const jobStatus = union(num, str);
 
 export const RESPONSE_SCHEMAS = {
   'sessions.list': obj({
@@ -210,10 +217,10 @@ export const RESPONSE_SCHEMAS = {
     messages: arr(obj({ id: str, role: str, content: str })),
   }),
   'jobs.list': obj({
-    jobs: arr(obj({ id: str, session_id: str, status: str })),
+    jobs: arr(obj({ id: str, session_id: str, status: jobStatus })),
   }),
   job: obj({
-    job: obj({ id: str, session_id: str, status: str }),
+    job: obj({ id: str, session_id: str, status: jobStatus }),
   }),
   radar: obj({
     radar_endpoints: arr(any),
@@ -312,6 +319,11 @@ function validate(value: unknown, schema: ResponseSchema, path: string): Contrac
     return schema.nullable ? [] : [{ path, message: `expected ${schema.type}, got ${value === null ? 'null' : 'undefined'}` }];
   }
   switch (schema.type) {
+    case 'union': {
+      const members = schema.anyOf ?? [];
+      if (members.some((member) => validate(value, member, path).length === 0)) return [];
+      return [{ path, message: `expected one of ${members.map((member) => member.type).join(', ')}` }];
+    }
     case 'string':
       return typeof value === 'string' ? [] : [{ path, message: `expected string, got ${typeof value}` }];
     case 'number':

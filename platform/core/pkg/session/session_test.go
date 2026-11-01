@@ -77,6 +77,37 @@ func TestSessionLifecycleAndDelete(t *testing.T) {
 	}
 }
 
+func TestEmptyMessagesSerializeAsArray(t *testing.T) {
+	dbPath := "test_session_empty_messages.db"
+	defer os.Remove(dbPath)
+
+	l, err := ledger.OpenLedger(dbPath)
+	if err != nil {
+		t.Fatalf("failed to open ledger: %v", err)
+	}
+	defer l.Close()
+
+	mgr := session.NewManager(l)
+	sess, err := mgr.CreateSession("Empty transcript", 1.0, "default")
+	if err != nil {
+		t.Fatalf("failed to create session: %v", err)
+	}
+	msgs, err := mgr.GetMessages(sess.ID)
+	if err != nil {
+		t.Fatalf("failed to get messages: %v", err)
+	}
+	if msgs == nil {
+		t.Fatal("empty transcript must be an empty slice, not nil")
+	}
+	raw, err := json.Marshal(map[string]any{"messages": msgs})
+	if err != nil {
+		t.Fatalf("marshal messages: %v", err)
+	}
+	if string(raw) != `{"messages":[]}` {
+		t.Fatalf("empty transcript must serialize as [], got %s", raw)
+	}
+}
+
 func TestSessionTenantBinding(t *testing.T) {
 	dbPath := "test_session_tenant.db"
 	defer os.Remove(dbPath)

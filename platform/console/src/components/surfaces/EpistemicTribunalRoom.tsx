@@ -313,7 +313,7 @@ export function EpistemicTribunalRoom({
             <h2 className="text-xl font-bold text-white tracking-wide">
               Epistemic Tribunal Room & Swarm Deliberation
             </h2>
-            <span className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded-full border ${
+            <span className={`text-[12px] font-mono uppercase px-2 py-0.5 rounded-full border ${
               isSimulating
                 ? 'bg-cyan-950/60 border-cyan-500/30 text-cyan-400 animate-pulse'
                 : turns
@@ -414,7 +414,7 @@ export function EpistemicTribunalRoom({
                 }`}
               >
                 <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] font-mono text-neutral-400">Phase {p.num}</span>
+                  <span className="text-[12px] font-mono text-neutral-400">Phase {p.num}</span>
                   {isDone ? (
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
                   ) : isCurrent ? (
@@ -424,7 +424,7 @@ export function EpistemicTribunalRoom({
                   )}
                 </div>
                 <div className="text-xs font-bold text-white mb-0.5">{p.label}</div>
-                <div className="text-[11px] text-neutral-400 leading-tight">{p.desc}</div>
+                <div className="text-[12px] text-neutral-400 leading-tight">{p.desc}</div>
               </div>
             );
           })}
@@ -544,7 +544,7 @@ export function EpistemicTribunalRoom({
               <code className="font-mono text-emerald-200">{committedReceipt}</code>
             </span>
           </div>
-          <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-emerald-900/60 text-emerald-300 border border-emerald-500/30">
+          <span className="text-[12px] font-mono uppercase px-2 py-0.5 rounded bg-emerald-900/60 text-emerald-300 border border-emerald-500/30">
             Quorum-sealed · server receipt
           </span>
         </div>
@@ -575,11 +575,11 @@ export function EpistemicTribunalRoom({
                   <span className="text-xl">{item.persona.avatar_emoji}</span>
                   <div>
                     <h3 className="text-xs font-bold text-white leading-tight">{item.persona.name}</h3>
-                    <span className="text-[10px] font-mono text-neutral-500">{item.persona.role}</span>
+                    <span className="text-[12px] font-mono text-neutral-500">{item.persona.role}</span>
                   </div>
                 </div>
                 <span
-                  className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded border ${
+                  className={`text-[12px] font-mono uppercase px-2 py-0.5 rounded border ${
                     item.vote === 'corroborated'
                       ? 'border-emerald-500/40 text-emerald-400 bg-emerald-950/30'
                       : item.vote === 'pending'
@@ -598,7 +598,7 @@ export function EpistemicTribunalRoom({
             </div>
 
             {/* Seat footer */}
-            <div className="pt-2 border-t border-neutral-800/80 flex items-center justify-between text-[11px] font-mono text-neutral-400">
+            <div className="pt-2 border-t border-neutral-800/80 flex items-center justify-between text-[12px] font-mono text-neutral-400">
               <div className="flex items-center gap-1">
                 <span>{item.statement ? 'live turn' : 'seat empty'}</span>
               </div>

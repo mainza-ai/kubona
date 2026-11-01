@@ -24,6 +24,7 @@ import {
   Rocket,
   GitBranch,
   Keyboard,
+  LayoutDashboard,
 } from 'lucide-react';
 import { SHORTCUTS } from '@/lib/shortcuts';
 import { useFocusTrap } from '@/lib/useFocusTrap';
@@ -131,6 +132,14 @@ export function CommandPalette({
       shortcut: undefined,
       icon: CircuitBoard,
       action: () => onSelectSurface('circuits'),
+    },
+    {
+      id: 'arena-workbench',
+      title: 'Campaign Workbench (persistent research canvas)',
+      category: 'Arena Views',
+      shortcut: undefined,
+      icon: LayoutDashboard,
+      action: () => onSelectSurface('arena-workbench'),
     },
     {
       id: 'arena-orbital',
@@ -314,7 +323,7 @@ export function CommandPalette({
             className="flex-1 bg-transparent text-sm text-white placeholder-slate-500 focus:outline-none"
             aria-label="Search surfaces and actions"
           />
-          <kbd className="px-2 py-0.5 rounded bg-white/10 text-[10px] font-mono text-slate-400 border border-white/10">
+          <kbd className="px-2 py-0.5 rounded bg-white/10 text-[12px] font-mono text-slate-400 border border-white/10">
             Esc
           </kbd>
         </div>
@@ -353,11 +362,11 @@ export function CommandPalette({
                     </div>
                     <div>
                       <div className="font-medium text-slate-100">{item.title}</div>
-                      <div className="text-[11px] text-slate-300 font-medium">{item.category}</div>
+                      <div className="text-[12px] text-slate-300 font-medium">{item.category}</div>
                     </div>
                   </div>
                   {item.shortcut && (
-                    <kbd className="px-2 py-0.5 rounded bg-white/10 text-[10px] font-mono text-slate-200 border border-white/15 font-semibold">
+                    <kbd className="px-2 py-0.5 rounded bg-white/10 text-[12px] font-mono text-slate-200 border border-white/15 font-semibold">
                       {item.shortcut}
                     </kbd>
                   )}
@@ -372,7 +381,7 @@ export function CommandPalette({
           <span>Navigate with ↑ ↓ · Select with ↵</span>
           <span className="flex items-center space-x-1.5">
             <Command className="w-3.5 h-3.5 text-slate-300" />
-            <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-[10px] font-mono text-slate-200 border border-white/10">
+            <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-[12px] font-mono text-slate-200 border border-white/10">
               {SHORTCUTS.commandPalette}
             </kbd>
             <span>to toggle</span>

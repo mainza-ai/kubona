@@ -153,16 +153,16 @@ export function LabsView() {
                 <span className="text-white font-medium text-sm">
                   {lab.display_name || lab.id}
                 </span>
-                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border bg-white/[0.06] text-slate-300 border-white/10">
+                <span className="text-[12px] font-mono px-1.5 py-0.5 rounded border bg-white/[0.06] text-slate-300 border-white/10">
                   {lab.autonomy_level}
                 </span>
                 {lab.status !== 'active' && (
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border bg-amber-500/20 text-amber-200 border-amber-400/30">
+                  <span className="text-[12px] font-mono px-1.5 py-0.5 rounded border bg-amber-500/20 text-amber-200 border-amber-400/30">
                     {lab.status}
                   </span>
                 )}
                 {unbounded && (
-                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded border bg-rose-500/20 text-rose-200 border-rose-400/40">
+                  <span className="text-[12px] font-mono px-1.5 py-0.5 rounded border bg-rose-500/20 text-rose-200 border-rose-400/40">
                     NO-CEILING · UNBOUNDED
                   </span>
                 )}

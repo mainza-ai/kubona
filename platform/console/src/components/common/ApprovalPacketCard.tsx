@@ -72,54 +72,54 @@ export function ApprovalPacketCard({
           <ShieldCheck className="w-4 h-4 text-amber-400" />
           <span>Approval Packet</span>
         </span>
-        <span className="text-[11px] font-mono text-amber-300 bg-amber-950/80 px-2.5 py-0.5 rounded-full border border-amber-800/40">
+        <span className="text-[12px] font-mono text-amber-300 bg-amber-950/80 px-2.5 py-0.5 rounded-full border border-amber-800/40">
           ≤ ${typeof packet.costMaxUsd === 'number' && Number.isFinite(packet.costMaxUsd) ? packet.costMaxUsd.toFixed(2) : '—'} · ${typeof packet.budgetRemainingUsd === 'number' && Number.isFinite(packet.budgetRemainingUsd) ? packet.budgetRemainingUsd.toFixed(2) : '—'} left{packet.budgetBreached ? ' · OVERSPENT' : ''}
         </span>
       </div>
       {packet.budgetBreached && (
-        <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[11px] font-code text-center">
+        <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px] font-code text-center">
           Budget breached — ceiling exceeded. Authorization must refuse until funded.
         </div>
       )}
 
       <div className="grid grid-cols-2 gap-3 text-xs">
         <div>
-          <span className="text-white/40 block text-[10px]">Backend</span>
+          <span className="text-white/40 block text-[12px]">Backend</span>
           <span className="font-mono text-cyan-300">{packet.backend}</span>
         </div>
         <div>
-          <span className="text-white/40 block text-[10px]">Program</span>
+          <span className="text-white/40 block text-[12px]">Program</span>
           <span className="font-mono text-slate-200">{packet.programHash}</span>
         </div>
         <div>
-          <span className="text-white/40 block text-[10px]">Qubits × Shots</span>
+          <span className="text-white/40 block text-[12px]">Qubits × Shots</span>
           <span className="font-mono text-slate-200">
             {packet.qubits} × {packet.shots.toLocaleString()}
           </span>
         </div>
         <div>
-          <span className="text-white/40 block text-[10px]">Cost basis</span>
+          <span className="text-white/40 block text-[12px]">Cost basis</span>
           <span className="text-slate-300">{packet.costBasis}</span>
         </div>
         <div>
-          <span className="text-white/40 block text-[10px]">Blast radius</span>
+          <span className="text-white/40 block text-[12px]">Blast radius</span>
           <span className="text-slate-300">{packet.blastRadius}</span>
         </div>
         <div>
-          <span className="text-white/40 block text-[10px]">Reversibility</span>
+          <span className="text-white/40 block text-[12px]">Reversibility</span>
           <span className="text-slate-300">{packet.reversibility}</span>
         </div>
       </div>
 
       {(packet.evidence.dryRun || packet.evidence.classicalAnchor) && (
-        <div className="p-3 rounded-xl bg-cyan-950/40 border border-cyan-800/40 text-[11px] text-cyan-200 space-y-1">
+        <div className="p-3 rounded-xl bg-cyan-950/40 border border-cyan-800/40 text-[12px] text-cyan-200 space-y-1">
           {packet.evidence.dryRun && <div>Dry run: {packet.evidence.dryRun}</div>}
           {packet.evidence.classicalAnchor && <div>Anchor: {packet.evidence.classicalAnchor}</div>}
         </div>
       )}
 
       {(packet.alternatives.simFirstSavings || packet.alternatives.fewerShotsSavings) && (
-        <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 text-[11px] text-slate-300 space-y-1">
+        <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 text-[12px] text-slate-300 space-y-1">
           {packet.alternatives.simFirstSavings && (
             <div>Sim first: {packet.alternatives.simFirstSavings}</div>
           )}
@@ -129,7 +129,7 @@ export function ApprovalPacketCard({
         </div>
       )}
 
-      <div className="flex items-center justify-between text-[11px] font-mono text-slate-400">
+      <div className="flex items-center justify-between text-[12px] font-mono text-slate-400">
         <span className="flex items-center space-x-1">
           <Clock className="w-3 h-3" />
           <span>Expires {packet.expiresAtIso}</span>
@@ -203,7 +203,7 @@ export function ApprovalPacketCard({
       )}
 
       {packet.evidence.notebookUrl || packet.evidence.quoteUrl ? (
-        <div className="flex items-center gap-3 text-[11px]">
+        <div className="flex items-center gap-3 text-[12px]">
           {packet.evidence.notebookUrl && (
             <a
               href={packet.evidence.notebookUrl}

@@ -95,7 +95,8 @@ export interface ChatMessage {
 export interface Job {
   id: string;
   session_id: string;
-  status: string;
+  /** Proto enum number (canonical API) or legacy JOB_STATUS_* string. */
+  status: string | number;
   job_type: string;
   // The bridge may return params/result as a JSON string (large payloads)
   // or as a decoded object; consumers must handle both via asRecord().

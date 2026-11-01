@@ -213,7 +213,7 @@ export function HuggingFaceModelHub() {
           <div>
             <h2 className="text-base font-semibold text-white tracking-tight flex items-center space-x-2">
               <span>Hugging Face Model Explorer</span>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30">
+              <span className="px-2 py-0.5 rounded-full text-[12px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30">
                 Hub &amp; Downloader
               </span>
             </h2>
@@ -260,7 +260,7 @@ export function HuggingFaceModelHub() {
               <Download className="w-4 h-4 text-cyan-400" />
               <span>In-Platform Streaming Downloads ({downloads.length})</span>
             </span>
-            <span className="text-[10px] font-mono text-slate-400">Background Stream &amp; SHA-256 Verification</span>
+            <span className="text-[12px] font-mono text-slate-400">Background Stream &amp; SHA-256 Verification</span>
           </div>
 
           <div className="space-y-2">
@@ -272,9 +272,9 @@ export function HuggingFaceModelHub() {
                 <div className="space-y-1 min-w-0 flex-1">
                   <div className="flex items-center space-x-2">
                     <span className="text-xs font-semibold text-white truncate">{task.filename}</span>
-                    <span className="text-[10px] font-mono text-slate-400 truncate">({task.repo_id})</span>
+                    <span className="text-[12px] font-mono text-slate-400 truncate">({task.repo_id})</span>
                     <span
-                      className={`text-[9px] px-1.5 py-0.5 rounded font-mono font-medium ${
+                      className={`text-[12px] px-1.5 py-0.5 rounded font-mono font-medium ${
                         task.status === 'completed'
                           ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
                           : task.status === 'downloading'
@@ -298,7 +298,7 @@ export function HuggingFaceModelHub() {
                     />
                   </div>
 
-                  <div className="flex items-center justify-between text-[10px] font-mono text-slate-400">
+                  <div className="flex items-center justify-between text-[12px] font-mono text-slate-400">
                     <span>
                       {typeof task.bytes_downloaded === 'number' && Number.isFinite(task.bytes_downloaded) ? (task.bytes_downloaded / (1024 * 1024)).toFixed(1) : '—'} MB
                       {typeof task.total_bytes === 'number' && Number.isFinite(task.total_bytes) && task.total_bytes > 0 && ` / ${(task.total_bytes / (1024 * 1024)).toFixed(1)} MB`} ({typeof task.progress_percent === 'number' && Number.isFinite(task.progress_percent) ? task.progress_percent : '—'}%)
@@ -357,7 +357,7 @@ export function HuggingFaceModelHub() {
 
         {/* Quick Filter Chips */}
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] text-slate-400 font-mono">Curated:</span>
+          <span className="text-[12px] text-slate-400 font-mono">Curated:</span>
           {quickFilters.map((qf) => (
             <button
               key={qf.label}
@@ -384,7 +384,7 @@ export function HuggingFaceModelHub() {
             <div className="space-y-2">
               <div className="flex items-start justify-between gap-2">
                 <span className="text-xs font-mono text-amber-400 font-semibold truncate">{model.author}</span>
-                <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-white/[0.06] text-slate-300 border border-white/10">
+                <span className="text-[12px] font-mono px-2 py-0.5 rounded bg-white/[0.06] text-slate-300 border border-white/10">
                   {model.pipeline_tag || 'text-generation'}
                 </span>
               </div>
@@ -393,14 +393,14 @@ export function HuggingFaceModelHub() {
                 {model.id.split('/')[1] || model.id}
               </h3>
 
-              <div className="flex items-center space-x-3 text-[10px] font-mono text-slate-400">
+              <div className="flex items-center space-x-3 text-[12px] font-mono text-slate-400">
                 <span>⬇ {(model.downloads ?? 0).toLocaleString()}</span>
                 <span>♥ {(model.likes ?? 0).toLocaleString()}</span>
               </div>
 
               <div className="flex flex-wrap gap-1 pt-1">
                 {(model.tags ?? []).slice(0, 4).map((t) => (
-                  <span key={t} className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-white/[0.04] text-slate-400">
+                  <span key={t} className="text-[12px] font-mono px-1.5 py-0.5 rounded bg-white/[0.04] text-slate-400">
                     {t}
                   </span>
                 ))}
@@ -517,12 +517,12 @@ export function HuggingFaceModelHub() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center space-x-2">
                           <span className="text-xs font-semibold text-white truncate">{q.filename}</span>
-                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                          <span className="text-[12px] font-mono px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30">
                             {q.quant_type}
                           </span>
                         </div>
                         {typeof q.size_bytes === 'number' && Number.isFinite(q.size_bytes) && (
-                          <span className="text-[10px] font-mono text-slate-400">
+                          <span className="text-[12px] font-mono text-slate-400">
                             Size: {(q.size_bytes / (1024 * 1024 * 1024)).toFixed(2)} GB
                           </span>
                         )}
@@ -556,7 +556,7 @@ export function HuggingFaceModelHub() {
                 <div className="text-xs font-semibold text-amber-200">
                   Large download — {(confirmDownload.sizeBytes / (1024 * 1024 * 1024)).toFixed(2)} GB
                 </div>
-                <p className="text-[11px] font-mono text-slate-300 break-all">
+                <p className="text-[12px] font-mono text-slate-300 break-all">
                   {confirmDownload.filename} ({confirmDownload.repoId})
                 </p>
                 <div className="flex items-center gap-2">

@@ -1259,7 +1259,7 @@ export function SpatialCanvas3D({
         className="relative w-full h-full min-h-[520px] rounded-2xl overflow-hidden bg-[#07080B] border border-amber-400/30 flex flex-col items-center justify-center gap-2 p-8 text-center"
       >
         <span className="text-sm font-medium text-amber-200">{WEBGL_UNAVAILABLE_MESSAGE}</span>
-        <span className="text-[11px] font-mono text-slate-400 max-w-sm">
+        <span className="text-[12px] font-mono text-slate-400 max-w-sm">
           The GPU renderer could not start ({webglError}). Your campaign data
           is intact — continue in the 2D workbench.
         </span>
@@ -1285,20 +1285,20 @@ export function SpatialCanvas3D({
             {targetSystem} Potential Energy Surface
           </span>
           <span className="text-white/20">|</span>
-          <span className="font-code text-[11px] text-cyan-400">
+          <span className="font-code text-[12px] text-cyan-400">
             Re: {equilibriumR.toFixed(4)} Å
           </span>
           <span className="text-white/20">|</span>
-          <span className="font-code text-[11px] text-slate-300" title={anchorComputed ? 'Computed classical anchor' : 'No computed anchor: terrain is illustrative'}>
+          <span className="font-code text-[12px] text-slate-300" title={anchorComputed ? 'Computed classical anchor' : 'No computed anchor: terrain is illustrative'}>
             FCI Anchor: {anchorComputed ? `${fciGround.toFixed(4)} Ha` : 'UNVERIFIED'}
           </span>
           <span className="text-white/20">|</span>
-          <div className="flex items-center gap-1.5 text-[11px] font-code text-amber-300">
+          <div className="flex items-center gap-1.5 text-[12px] font-code text-amber-300">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
             <span title={anchorComputed ? 'Correlated fraction from the live campaign' : 'No computed anchor — confidence uncomputed'}>{anchorComputed && campaign?.epistemics?.p_correlated != null ? `ρ = ${rho.toFixed(2)}` : 'ρ uncomputed'}</span>
           </div>
           <span className="text-white/20">|</span>
-          <span className="font-code text-[11px] text-slate-400" title="Measured render-loop rate (R-23)">
+          <span className="font-code text-[12px] text-slate-400" title="Measured render-loop rate (R-23)">
             {fps == null ? '… fps' : `${fps} fps`}
           </span>
         </div>
@@ -1317,7 +1317,7 @@ export function SpatialCanvas3D({
                 ? `Sealed expectation μ=${sealed.expected_mean} ± ${sealed.expected_std} Ha (${sealed.prediction_hash.slice(0, 8)}…); amber/rose = divergence gap`
                 : 'No sealed prediction yet — ghost is an illustrative placeholder; seal one in the Vault panel'
             }
-            className={`px-3 py-1.5 rounded-full border text-[11px] font-code transition-all flex items-center gap-1.5 backdrop-blur-xl shadow-lg ${
+            className={`px-3 py-1.5 rounded-full border text-[12px] font-code transition-all flex items-center gap-1.5 backdrop-blur-xl shadow-lg ${
               showGhostContour
                 ? 'bg-cyan-500/15 border-cyan-400/40 text-cyan-300'
                 : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
@@ -1343,12 +1343,12 @@ export function SpatialCanvas3D({
         <div className="pointer-events-auto flex flex-col gap-2 max-w-sm">
         {/* Raycasted Coordinates Readout */}
         <div className="bg-[#0E1117]/90 backdrop-blur-xl border border-white/10 rounded-xl p-3 shadow-2xl">
-          <div className="text-[10px] uppercase font-code tracking-wider text-slate-400 mb-1 flex items-center gap-1.5">
+          <div className="text-[12px] uppercase font-code tracking-wider text-slate-400 mb-1 flex items-center gap-1.5">
             <Sparkles className="w-3 h-3 text-cyan-400" />
             <span>Spatial Inspection Probe</span>
           </div>
           {!anchorComputed && (
-            <div className="mb-1 text-[10px] font-code text-amber-300 border border-amber-400/40 rounded px-1.5 py-0.5">
+            <div className="mb-1 text-[12px] font-code text-amber-300 border border-amber-400/40 rounded px-1.5 py-0.5">
               UNVERIFIED terrain — illustrative
             </div>
           )}
@@ -1374,7 +1374,7 @@ export function SpatialCanvas3D({
                   </span>
                 </div>
               )}
-              <div className="text-[10px] text-slate-500 pt-1 border-t border-white/10">
+              <div className="text-[12px] text-slate-500 pt-1 border-t border-white/10">
                 {touchProbeHint(isCoarsePointer)}
               </div>
             </div>
@@ -1391,7 +1391,7 @@ export function SpatialCanvas3D({
             evaluate pinned measurements against them. Ghost binds to the
             sealed μ; the badge renders the ledger-scored surprise. */}
         <div className="bg-[#0E1117]/90 backdrop-blur-xl border border-white/10 rounded-xl p-3 shadow-2xl">
-          <div className="text-[10px] uppercase font-code tracking-wider text-slate-400 mb-1 flex items-center gap-1.5">
+          <div className="text-[12px] uppercase font-code tracking-wider text-slate-400 mb-1 flex items-center gap-1.5">
             <ShieldCheck className="w-3 h-3 text-emerald-400" />
             <span>Vault Pre-registration</span>
             {sealed && (
@@ -1409,7 +1409,7 @@ export function SpatialCanvas3D({
               {evaluation && (
                 <div
                   title={`Brier ${evaluation.brier_score.toExponential(2)} · measured ${evaluation.measured_value.toFixed(5)} Ha`}
-                  className={`rounded-lg px-2 py-1.5 text-[11px] font-medium border ${
+                  className={`rounded-lg px-2 py-1.5 text-[12px] font-medium border ${
                     evaluation.level === 'anomalous'
                       ? 'bg-rose-500/10 border-rose-400/40 text-rose-200 animate-pulse'
                       : evaluation.level === 'notable'
@@ -1471,13 +1471,13 @@ export function SpatialCanvas3D({
             Evaluate pinned point
           </button>
           {assertion && (
-            <div className="mt-1.5 rounded-lg px-2 py-1 text-[11px] font-code bg-violet-500/10 border border-violet-400/30 text-violet-200" title={`Evidence: ${(assertion.evidence_refs ?? []).join(', ') || '—'}`}>
+            <div className="mt-1.5 rounded-lg px-2 py-1 text-[12px] font-code bg-violet-500/10 border border-violet-400/30 text-violet-200" title={`Evidence: ${(assertion.evidence_refs ?? []).join(', ') || '—'}`}>
               Asserted ρ={typeof assertion.rho === 'number' ? assertion.rho.toFixed(2) : '?'}
             </div>
           )}
           {sealed && evaluation && !assertion && (
             <div className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] p-2">
-              <div className="text-[10px] uppercase font-code tracking-wider text-slate-500 mb-1">Formal assertion (R-09)</div>
+              <div className="text-[12px] uppercase font-code tracking-wider text-slate-500 mb-1">Formal assertion (R-09)</div>
               <div className="flex items-center gap-2">
                 <input
                   value={assertRho}
@@ -1505,14 +1505,14 @@ export function SpatialCanvas3D({
                   Assert
                 </button>
               </div>
-              {assertMsg && <div className="mt-1 text-[11px] font-code text-rose-300">{assertMsg}</div>}
+              {assertMsg && <div className="mt-1 text-[12px] font-code text-rose-300">{assertMsg}</div>}
             </div>
           )}
           {calibration && Object.keys(calibration).length > 0 && (
             <div className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] p-2">
-              <div className="text-[10px] uppercase font-code tracking-wider text-slate-500 mb-1">Author calibration (read-only)</div>
+              <div className="text-[12px] uppercase font-code tracking-wider text-slate-500 mb-1">Author calibration (read-only)</div>
               {Object.entries(calibration).slice(0, 4).map(([author, c]) => (
-                <div key={author} className="flex justify-between gap-2 text-[11px] font-code text-slate-300">
+                <div key={author} className="flex justify-between gap-2 text-[12px] font-code text-slate-300">
                   <span className="truncate">{author || 'unknown'}</span>
                   <span>
                     {c.evaluated}/{c.sealed} eval
@@ -1525,7 +1525,7 @@ export function SpatialCanvas3D({
           )}
           {history.length > 0 && (
             <div className="mt-2 rounded-lg border border-white/10 bg-white/[0.03] p-2">
-              <div className="text-[10px] uppercase font-code tracking-wider text-slate-500 mb-1">
+              <div className="text-[12px] uppercase font-code tracking-wider text-slate-500 mb-1">
                 Trajectory replay {replayEntry ? `(step ${history.length - (replayIdx ?? 0)}/${history.length})` : '(live)'}
               </div>
               <div className="flex items-center gap-2">
@@ -1533,7 +1533,7 @@ export function SpatialCanvas3D({
                   onClick={() => setReplayIdx((i) => (i == null ? history.length - 1 : Math.min(history.length - 1, i + 1)))}
                   disabled={replayIdx != null && replayIdx >= history.length - 1}
                   title="Step one event older (time travel is newest-first: older = forward in time)"
-                  className="px-2 py-1 rounded-md text-[11px] font-code border border-white/10 text-slate-300 hover:bg-white/5 disabled:opacity-40"
+                  className="px-2 py-1 rounded-md text-[12px] font-code border border-white/10 text-slate-300 hover:bg-white/5 disabled:opacity-40"
                 >
                   ‹ older
                 </button>
@@ -1541,7 +1541,7 @@ export function SpatialCanvas3D({
                   onClick={() => setReplayIdx((i) => (i == null ? null : i - 1 < 0 ? null : i - 1))}
                   disabled={replayIdx == null}
                   title="Step one event newer"
-                  className="px-2 py-1 rounded-md text-[11px] font-code border border-white/10 text-slate-300 hover:bg-white/5 disabled:opacity-40"
+                  className="px-2 py-1 rounded-md text-[12px] font-code border border-white/10 text-slate-300 hover:bg-white/5 disabled:opacity-40"
                 >
                   newer ›
                 </button>
@@ -1549,13 +1549,13 @@ export function SpatialCanvas3D({
                   onClick={() => setReplayIdx(null)}
                   disabled={replayIdx == null}
                   title="Return to the live ledger tip"
-                  className="px-2 py-1 rounded-md text-[11px] font-code border border-cyan-400/30 text-cyan-300 hover:bg-cyan-500/10 disabled:opacity-40"
+                  className="px-2 py-1 rounded-md text-[12px] font-code border border-cyan-400/30 text-cyan-300 hover:bg-cyan-500/10 disabled:opacity-40"
                 >
                   live
                 </button>
               </div>
               {replayEntry && (
-                <div className="mt-1 text-[11px] font-code text-slate-300 truncate" title={replayEntry.label}>
+                <div className="mt-1 text-[12px] font-code text-slate-300 truncate" title={replayEntry.label}>
                   ◷ {replayEntry.label}
                   {replayEntry.z != null ? ` · z=${replayEntry.z.toFixed(2)}` : ''}
                   {replayEntry.mean != null ? ` · μ=${replayEntry.mean.toFixed(4)}` : ''}
@@ -1565,12 +1565,12 @@ export function SpatialCanvas3D({
             </div>
           )}
           {gazes.length > 0 && (
-            <div className="mt-1 text-[10px] font-code text-slate-500">
+            <div className="mt-1 text-[12px] font-code text-slate-500">
               {gazes.length} agent gaze{gazes.length === 1 ? '' : 's'} in view
             </div>
           )}
           {sealMsg && (
-            <div className={`mt-1.5 text-[11px] font-code ${sealMsg.startsWith('Sealed') ? 'text-emerald-300' : 'text-rose-300'}`}>
+            <div className={`mt-1.5 text-[12px] font-code ${sealMsg.startsWith('Sealed') ? 'text-emerald-300' : 'text-rose-300'}`}>
               {sealMsg}
             </div>
           )}
@@ -1593,7 +1593,7 @@ export function SpatialCanvas3D({
                 <Camera className="w-3.5 h-3.5 text-cyan-400" />
                 <span>World Labs Atlas Lens</span>
               </div>
-              <div className="text-[10px] font-code text-slate-400">
+              <div className="text-[12px] font-code text-slate-400">
                 {airGapped ? (
                   <span className="text-amber-400">Air-Gap Locked (Offline)</span>
                 ) : isGeneratingLens ? (
@@ -1660,12 +1660,12 @@ export function SpatialCanvas3D({
             <span>{chiselBusy ? 'Encoding depth…' : 'Depth Chisel (P1)'}</span>
           </button>
           {chiselMsg && (
-            <div className="text-[11px] font-code text-rose-300">{chiselMsg}</div>
+            <div className="text-[12px] font-code text-rose-300">{chiselMsg}</div>
           )}
           {/* P6: our reservation ledger — rated invoices live on the Atlas
               billing dashboard, never here. */}
           {lensHistory.length > 0 && (
-            <details className="text-[11px] font-code">
+            <details className="text-[12px] font-code">
               <summary className="text-slate-400 cursor-pointer hover:text-slate-200">
                 Reservations ({lensHistory.length}) — not billed amounts
               </summary>
@@ -1688,16 +1688,16 @@ export function SpatialCanvas3D({
       {/* Atlas Synthetic Lens Non-Evidential Watermark & Preview */}
       {lensImageUrl && (
         <div className="absolute top-16 right-4 z-20 flex flex-col items-end gap-2">
-          <div className="bg-black/80 border border-white/20 text-[10px] font-code text-slate-300 px-2.5 py-1 rounded backdrop-blur-md tracking-wider">
+          <div className="bg-black/80 border border-white/20 text-[12px] font-code text-slate-300 px-2.5 py-1 rounded backdrop-blur-md tracking-wider">
             [{lensWatermark}]
           </div>
           {lensPromptUsed && (
-            <div className="bg-black/80 border border-white/20 text-[10px] font-code text-slate-400 px-2.5 py-1 rounded backdrop-blur-md max-w-56 truncate" title={lensPromptUsed}>
+            <div className="bg-black/80 border border-white/20 text-[12px] font-code text-slate-400 px-2.5 py-1 rounded backdrop-blur-md max-w-56 truncate" title={lensPromptUsed}>
               promptUsed: {lensPromptUsed.slice(0, 80)}
             </div>
           )}
           {lensCostUsd != null && (
-            <div className="bg-black/80 border border-white/20 text-[10px] font-code text-slate-300 px-2.5 py-1 rounded backdrop-blur-md tracking-wider">
+            <div className="bg-black/80 border border-white/20 text-[12px] font-code text-slate-300 px-2.5 py-1 rounded backdrop-blur-md tracking-wider">
               Reserved ${lensCostUsd.toFixed(2)} against session cap
             </div>
           )}
@@ -1709,7 +1709,7 @@ export function SpatialCanvas3D({
                 alt="Atlas Marble 2 Observatory Synthetic Lens"
                 className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
               />
-              <div className="absolute bottom-1 right-1.5 text-[9px] font-mono text-cyan-300/80 bg-black/70 px-1 rounded">
+              <div className="absolute bottom-1 right-1.5 text-[12px] font-mono text-cyan-300/80 bg-black/70 px-1 rounded">
                 Atlas Lens
               </div>
             </div>

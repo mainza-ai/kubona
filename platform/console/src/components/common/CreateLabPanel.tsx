@@ -42,17 +42,17 @@ export function CreateLabPanel({ onCreated }: { onCreated: () => void }) {
   return (
     <div className="rounded-2xl border border-white/[0.08] bg-black/40 p-4 space-y-2" aria-label="Create laboratory">
       <div className="text-xs font-semibold text-white">Create laboratory</div>
-      <p className="text-[10px] text-slate-500">Creates the lab and registers this browser key as its first admin. The operator token is used once and not stored.</p>
+      <p className="text-[12px] text-slate-500">Creates the lab and registers this browser key as its first admin. The operator token is used once and not stored.</p>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-        <input value={id} onChange={(e) => setId(e.target.value)} aria-label="New lab ID" placeholder="lab id (e.g. materials-lab)" className="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200 font-mono" />
-        <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} aria-label="New lab display name" placeholder="display name" className="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200" />
+        <input value={id} onChange={(e) => setId(e.target.value)} aria-label="New lab ID" placeholder="lab id (e.g. materials-lab)" className="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-slate-200 font-mono" />
+        <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} aria-label="New lab display name" placeholder="display name" className="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-slate-200" />
       </div>
-      <input value={token} onChange={(e) => setToken(e.target.value)} type="password" aria-label="New lab operator token" placeholder="operator token (KUBONA_API_TOKEN)" className="w-full bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200 font-mono" />
-      <button type="button" onClick={() => void create()} disabled={busy || !id.trim() || !token.trim()} className="px-2 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 text-[11px] disabled:opacity-40">
+      <input value={token} onChange={(e) => setToken(e.target.value)} type="password" aria-label="New lab operator token" placeholder="operator token (KUBONA_API_TOKEN)" className="w-full bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-slate-200 font-mono" />
+      <button type="button" onClick={() => void create()} disabled={busy || !id.trim() || !token.trim()} className="px-2 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 text-[12px] disabled:opacity-40">
         {busy ? 'Creating…' : 'Create lab + register admin'}
       </button>
-      {created && <p role="status" className="text-[11px] text-emerald-200">Lab {created} created. Log in with this lab ID after switching lab.</p>}
-      {notice && <p role="alert" className="text-[11px] text-amber-200">{notice}</p>}
+      {created && <p role="status" className="text-[12px] text-emerald-200">Lab {created} created. Log in with this lab ID after switching lab.</p>}
+      {notice && <p role="alert" className="text-[12px] text-amber-200">{notice}</p>}
     </div>
   );
 }

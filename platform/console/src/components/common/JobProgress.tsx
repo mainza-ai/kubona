@@ -78,7 +78,7 @@ export function JobProgress({ jobId, sessionId }: { jobId: string; sessionId: st
             setGone(false);
             setRetryKey((k) => k + 1);
           }}
-          className="ml-2 px-2 py-1 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-slate-200 text-[11px] font-semibold"
+          className="ml-2 px-2 py-1 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-slate-200 text-[12px] font-semibold"
         >
           Retry
         </button>
@@ -104,7 +104,7 @@ export function JobProgress({ jobId, sessionId }: { jobId: string; sessionId: st
           <React.Fragment key={s}>
             {i > 0 && <span className="text-slate-600">→</span>}
             <span
-              className={`px-1.5 py-0.5 rounded-full font-code text-[10px] ${
+              className={`px-1.5 py-0.5 rounded-full font-code text-[12px] ${
                 done
                   ? failed && i === 2
                     ? 'bg-rose-500/20 text-rose-200'
@@ -122,7 +122,7 @@ export function JobProgress({ jobId, sessionId }: { jobId: string; sessionId: st
         ))}
         <span className="text-slate-500 font-code ml-auto">{elapsed(detail.created, detail.completed)}</span>
       </div>
-      {detail.jobType && <div className="text-slate-500 mt-1 font-code text-[10px]">{detail.jobType}</div>}
+      {detail.jobType && <div className="text-slate-500 mt-1 font-code text-[12px]">{detail.jobType}</div>}
     </div>
   );
 }

@@ -144,7 +144,7 @@ function FlightRecorderCardInner({ sessionId }: { sessionId: string }) {
           {/* Key Auditor Questions (Top summary) */}
           <div className="grid grid-cols-2 gap-3 rounded bg-slate-950/80 p-3 border border-slate-800">
             <div>
-              <span className="text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
+              <span className="text-[12px] font-semibold tracking-wider text-slate-400 uppercase">
                 Why Did Agent Stop?
               </span>
               <p className="mt-1 font-mono text-xs text-slate-200 break-words">
@@ -152,7 +152,7 @@ function FlightRecorderCardInner({ sessionId }: { sessionId: string }) {
               </p>
             </div>
             <div>
-              <span className="text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
+              <span className="text-[12px] font-semibold tracking-wider text-slate-400 uppercase">
                 What Did It Spend?
               </span>
               <p className="mt-1 font-mono text-xs text-emerald-400">
@@ -166,29 +166,29 @@ function FlightRecorderCardInner({ sessionId }: { sessionId: string }) {
 
           <div className="grid grid-cols-3 gap-2 text-center text-slate-400">
             <div className="rounded bg-slate-800/40 p-2">
-              <div className="text-[10px] uppercase tracking-wider">Tenant</div>
+              <div className="text-[12px] uppercase tracking-wider">Tenant</div>
               <div className="mt-0.5 font-mono text-slate-200">{data.tenant_id}</div>
             </div>
             <div className="rounded bg-slate-800/40 p-2">
-              <div className="text-[10px] uppercase tracking-wider">Duration</div>
+              <div className="text-[12px] uppercase tracking-wider">Duration</div>
               <div className="mt-0.5 font-mono text-slate-200">
                 {fmtSecs(data.duration_seconds)}
               </div>
             </div>
             <div className="rounded bg-slate-800/40 p-2">
-              <div className="text-[10px] uppercase tracking-wider">Step Count</div>
+              <div className="text-[12px] uppercase tracking-wider">Step Count</div>
               <div className="mt-0.5 font-mono text-slate-200">{data.step_count}</div>
             </div>
           </div>
 
           {Array.isArray(data.last_claims) && data.last_claims.length > 0 && (
             <div>
-              <span className="text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
+              <span className="text-[12px] font-semibold tracking-wider text-slate-400 uppercase">
                 Primary Claim & Verification Verdict
               </span>
               <div className="mt-1 rounded bg-slate-950/50 p-2 border border-slate-800/80">
                 <div className="flex items-center justify-between">
-                  <span className="font-mono text-[11px] text-cyan-300">
+                  <span className="font-mono text-[12px] text-cyan-300">
                     {data.last_claims[0].id}
                   </span>
                   <span className="font-bold text-amber-300">

@@ -330,7 +330,7 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
               <Sparkles className="w-4 h-4 text-cyan-400" />
               <span>Sentinel Approval Request</span>
             </span>
-            <span className="text-[11px] font-mono text-cyan-300 bg-cyan-950/80 px-2.5 py-0.5 rounded-full border border-cyan-800/40">
+            <span className="text-[12px] font-mono text-cyan-300 bg-cyan-950/80 px-2.5 py-0.5 rounded-full border border-cyan-800/40">
               {costKnown ? `Est. Cost: $${fmtFixed(rawEstimated, 2)}` : 'UNPRICED — authorization disabled'}
             </span>
           </div>
@@ -339,10 +339,10 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
             Ansatz Scout has prepared an optimized variational trial for {targetName}. Would you like to run 1,024 shots on the {recommendedBackend}?
           </p>
           {!sessionBound && (
-            <p className="text-[11px] font-code text-amber-300">No session bound — authorization disabled until a session is attached.</p>
+            <p className="text-[12px] font-code text-amber-300">No session bound — authorization disabled until a session is attached.</p>
           )}
           {!costKnown && (
-            <p className="text-[11px] font-code text-amber-300">No priced estimate on this campaign — authorization disabled until priced.</p>
+            <p className="text-[12px] font-code text-amber-300">No priced estimate on this campaign — authorization disabled until priced.</p>
           )}
 
           <ApprovalPacketCard
@@ -394,11 +394,11 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
             className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400 focus:outline-none"
           />
 
-          <div className="flex justify-between items-center text-[11px] text-slate-400 font-mono pt-1">
+          <div className="flex justify-between items-center text-[12px] text-slate-400 font-mono pt-1">
             <span>Spent (server): ${fmtFixed(session?.current_spend_usd ?? currentSpentUSD, 2)}</span>
             <span>Available: ${fmtFixed((session?.spend_limit_usd ?? budgetUSD) - (session?.current_spend_usd ?? currentSpentUSD), 2)}</span>
           </div>
-          <p className="text-[10px] font-code text-slate-500">Spend refreshes from the session/ledger only — this view never invents ledger spend.</p>
+          <p className="text-[12px] font-code text-slate-500">Spend refreshes from the session/ledger only — this view never invents ledger spend.</p>
         </div>
 
         {/* Sovereign Air-Gap Toggle & Emergency Pause */}
@@ -409,7 +409,7 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
             </div>
             <div>
               <div className="text-xs font-semibold text-white">Sovereign Air-Gap Mode</div>
-              <div className="text-[11px] text-slate-400">
+              <div className="text-[12px] text-slate-400">
                 {airGap === null ? 'State unknown — settings unreachable' : 'Strictly keep computations on local Mac hardware'}
               </div>
             </div>

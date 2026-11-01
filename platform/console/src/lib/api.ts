@@ -88,6 +88,10 @@ export const STREAM_STALL_MS = 30000;
 // otherwise auto-create fresh state on auth failure must check
 // wasRecentAuthFailure() first (see CopilotDrawer getActiveSessionId).
 export const UNAUTH_EVENT = 'kubona:unauthorized';
+// A 401 while anonymous is a sign-in affordance, not an expired session.
+// Surfaces listen to this locally; it must never render the global
+// "Session expired" banner.
+export const AUTH_REQUIRED_EVENT = 'kubona:auth-required';
 // Any non-2xx/transport failure notifies the shell, even when a legacy
 // wrapper below collapses it to []/null. Surfaces can keep their local
 // empty-state copy without hiding a refusal globally.
@@ -125,13 +129,21 @@ setContractDriftHandler((name, issues) => {
 });
 
 let lastAuthFailureAt = 0;
+// True only after this document has observed an authenticated identity (login
+// or whoami). A 401 before that is "sign in required", not "session expired".
+let authenticatedSession = false;
+export function isAuthenticatedSession(): boolean {
+  return authenticatedSession;
+}
 export function wasRecentAuthFailure(withinMs = 30000): boolean {
   return Date.now() - lastAuthFailureAt < withinMs;
 }
 function notifyUnauthorized(): void {
+  const expired = authenticatedSession;
+  authenticatedSession = false;
   lastAuthFailureAt = Date.now();
   if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
-    window.dispatchEvent(new CustomEvent(UNAUTH_EVENT));
+    window.dispatchEvent(new CustomEvent(expired ? UNAUTH_EVENT : AUTH_REQUIRED_EVENT));
   }
 }
 
@@ -2479,7 +2491,9 @@ export async function authLogin(
       }
       return { error: text || `HTTP ${res.status}` };
     }
-    return contract('auth.login', await res.json()) as { ok: true; tenant_id: string; pubkey_fp: string };
+    const data = contract('auth.login', await res.json()) as { ok: true; tenant_id: string; pubkey_fp: string };
+    authenticatedSession = true;
+    return data;
   } catch (err) {
     console.error('Failed to log in:', err);
     return null;
@@ -2489,6 +2503,7 @@ export async function authLogin(
 export async function authLogout(): Promise<boolean> {
   try {
     const res = await apiFetch(`${API_BASE}/api/auth/logout`, { method: 'POST' });
+    if (res.ok) authenticatedSession = false;
     return res.ok;
   } catch (err) {
     console.error('Failed to log out:', err);
@@ -2500,7 +2515,9 @@ export async function authWhoami(): Promise<AuthSession | null> {
   try {
     const res = await apiFetch(`${API_BASE}/api/auth/whoami`, { cache: 'no-store' });
     if (!res.ok) return null;
-    return contract('auth.whoami', (await res.json()) as AuthSession);
+    const data = contract('auth.whoami', (await res.json()) as AuthSession);
+    authenticatedSession = data.authenticated === true;
+    return data;
   } catch (err) {
     console.error('Failed to check session:', err);
     return null;

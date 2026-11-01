@@ -95,17 +95,18 @@ describe('SovereignDock', () => {
     expect(onSelect).toHaveBeenCalledWith('arena');
   });
 
-  it('reveals tooltips on focus as well as hover, with no duplicate AT names', () => {
+  it('names every surface natively instead of drawing an overlay over the work', () => {
     const root = render(
       <SovereignDock active="fleet" onSelect={() => {}} airGapSovereign onOpenSettings={() => {}} onOpenCampaigns={() => {}} />
     );
-    const tips = root.findAll(
+    const overlays = root.findAll(
       (n) => typeof n.type === 'string' && n.type === 'div' && typeof n.props?.className === 'string' && n.props.className.includes('group-hover:opacity-100')
     );
-    expect(tips.length).toBeGreaterThan(0);
-    for (const t of tips) {
-      expect(t.props.className).toContain('group-focus-within:opacity-100');
-      expect(t.props['aria-hidden']).toBe(true);
+    expect(overlays).toHaveLength(0);
+    for (const id of ['arena', 'recorder', 'manifold', 'fleet', 'proofs', 'mesh']) {
+      const button = root.findByProps({ 'data-testid': `dock-${id}` });
+      expect(button.props.title).toBeTruthy();
+      expect(button.props['aria-label']).toBeTruthy();
     }
     const sentinels = root.findAll(
       (n) => typeof n.type === 'string' && n.type === 'div' && n.props?.role === 'status' && typeof n.props?.['aria-label'] === 'string' && (n.props as { 'aria-label': string })['aria-label'].startsWith('Air-gap')

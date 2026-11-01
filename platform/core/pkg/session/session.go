@@ -282,7 +282,9 @@ func (m *Manager) GetMessages(sessionID string) ([]ChatMessage, error) {
 	}
 	defer rows.Close()
 
-	var msgs []ChatMessage
+	// An empty transcript is an empty list, never a nil slice that serializes as
+	// JSON null. The console contract (and every list caller) expects [].
+	msgs := make([]ChatMessage, 0)
 	for rows.Next() {
 		var msg ChatMessage
 		var propStr sql.NullString

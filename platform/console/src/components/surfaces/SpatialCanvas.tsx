@@ -576,14 +576,14 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
               <h2 className="text-base font-semibold text-white tracking-tight">
                 {systemDisplayName}
               </h2>
-              <span className="text-[11px] font-mono font-medium px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-300 border border-cyan-800/50">
+              <span className="text-[12px] font-mono font-medium px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-300 border border-cyan-800/50">
                 Ground State PES
               </span>
             </div>
             <p className="text-xs text-slate-300 mt-0.5">
               Direct physical manipulation of nuclear coordinates and electronic structure
             </p>
-            <p className="text-[10px] font-code text-slate-500 mt-0.5">
+            <p className="text-[12px] font-code text-slate-500 mt-0.5">
               2-atom schematic only — larger systems still render two bubbles
             </p>
           </div>
@@ -633,7 +633,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
           >
             Save layout
           </button>
-          {layoutStatus && <span className="text-[10px] font-code text-slate-400">{layoutStatus}</span>}
+          {layoutStatus && <span className="text-[12px] font-code text-slate-400">{layoutStatus}</span>}
 
           {/* Calm Truth Status Indicator */}
           <div className="flex max-w-full flex-wrap items-center gap-x-2.5 gap-y-1 px-3 py-1.5 rounded-2xl bg-black/40 border border-white/10 backdrop-blur-xl">
@@ -703,7 +703,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
               <div className="w-14 h-14 rounded-full bg-gradient-to-br from-cyan-400 to-blue-600 shadow-xl flex items-center justify-center text-white font-bold text-base border-2 border-white/20">
                 {atom1}
               </div>
-              <span className="text-[10px] font-mono text-cyan-300 mt-2 font-medium">Nuclear Core</span>
+              <span className="text-[12px] font-mono text-cyan-300 mt-2 font-medium">Nuclear Core</span>
             </div>
 
             {/* Right Nucleus */}
@@ -714,11 +714,11 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
               <div className="w-14 h-14 rounded-full bg-gradient-to-br from-emerald-400 to-teal-600 shadow-xl flex items-center justify-center text-white font-bold text-base border-2 border-white/20">
                 {atom2}
               </div>
-              <span className="text-[10px] font-mono text-emerald-300 mt-2 font-medium">Nuclear Core</span>
+              <span className="text-[12px] font-mono text-emerald-300 mt-2 font-medium">Nuclear Core</span>
             </div>
 
             {/* Bond Length Badge (Floating on bond center) */}
-            <div className="absolute -top-4 px-3 py-1 rounded-full bg-black/70 border border-white/15 backdrop-blur-md text-[11px] font-mono font-bold text-cyan-200 shadow-md">
+            <div className="absolute -top-4 px-3 py-1 rounded-full bg-black/70 border border-white/15 backdrop-blur-md text-[12px] font-mono font-bold text-cyan-200 shadow-md">
               R = {typeof bondDistance === 'number' && Number.isFinite(bondDistance) ? bondDistance.toFixed(4) : 'UNVERIFIED'} Å
             </div>
           </div>
@@ -753,11 +753,11 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
           {/* Molecular Pharmacology & ADMET Profile (RDKit Bridge Anchored) */}
           <div className="w-full max-w-md mt-5 p-4 rounded-2xl bg-black/40 border border-white/[0.08] backdrop-blur-xl space-y-3">
             <div className="flex items-center justify-between text-xs">
-              <span className="font-semibold text-slate-300 uppercase tracking-wider font-mono text-[11px] flex items-center space-x-2">
+              <span className="font-semibold text-slate-300 uppercase tracking-wider font-mono text-[12px] flex items-center space-x-2">
                 <Atom className="w-4 h-4 text-emerald-400" />
                 <span>Molecular Pharmacology &amp; ADMET</span>
               </span>
-              <span className="text-slate-400 font-mono text-[10px]">
+              <span className="text-slate-400 font-mono text-[12px]">
                 SMILES: <code className="text-cyan-300">{targetSmiles}</code>{smilesInferred ? ' (inferred)' : ''}
               </span>
             </div>
@@ -771,28 +771,28 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
             {admetProfile && (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-mono">
                 <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
-                  <div className="text-[10px] text-slate-400 uppercase">Mol Weight</div>
+                  <div className="text-[12px] text-slate-400 uppercase">Mol Weight</div>
                   <div className="text-xs font-semibold text-white mt-0.5">
                     {typeof admetProfile.molecular_weight === 'number' ? (admetProfile.molecular_weight as number).toFixed(2) : '—'} Da
                   </div>
                 </div>
 
                 <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
-                  <div className="text-[10px] text-slate-400 uppercase">cLogP</div>
+                  <div className="text-[12px] text-slate-400 uppercase">cLogP</div>
                   <div className="text-xs font-semibold text-white mt-0.5">
                     {typeof admetProfile.clogp === 'number' ? (admetProfile.clogp as number).toFixed(2) : '—'}
                   </div>
                 </div>
 
                 <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
-                  <div className="text-[10px] text-slate-400 uppercase">TPSA</div>
+                  <div className="text-[12px] text-slate-400 uppercase">TPSA</div>
                   <div className="text-xs font-semibold text-white mt-0.5">
                     {typeof admetProfile.tpsa === 'number' ? (admetProfile.tpsa as number).toFixed(1) : '—'} Å²
                   </div>
                 </div>
 
                 <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05]">
-                  <div className="text-[10px] text-slate-400 uppercase">Synthesis</div>
+                  <div className="text-[12px] text-slate-400 uppercase">Synthesis</div>
                     <div className="text-xs font-semibold text-emerald-300 mt-0.5 truncate" title={String(admetProfile.synthesizability ?? '')}>
                       {String(admetProfile.synthesizability ?? '—').split(' ')[0]}
                     </div>
@@ -811,7 +811,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
               <div>
                 <div className="flex items-center space-x-2">
                   <h3 className="text-sm font-semibold text-white">{circuitData.ansatzTitle}</h3>
-                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-md bg-cyan-950/80 text-cyan-300 border border-cyan-800/50">
+                  <span className="text-[12px] font-mono px-2 py-0.5 rounded-md bg-cyan-950/80 text-cyan-300 border border-cyan-800/50">
                     {circuitData.numQubits} QUBITS
                   </span>
                 </div>
@@ -880,7 +880,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
                             return (
                               <div
                                 key={gate.id}
-                                className="w-5 h-5 rounded-full border-2 border-indigo-400 flex items-center justify-center text-[10px] font-bold text-indigo-300 bg-black z-10"
+                                className="w-5 h-5 rounded-full border-2 border-indigo-400 flex items-center justify-center text-[12px] font-bold text-indigo-300 bg-black z-10"
                                 title={`CNOT Target from q[${gate.targetQubit}]`}
                               >
                                 +
@@ -890,7 +890,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
                           return (
                             <div
                               key={gate.id}
-                              className={`px-2.5 py-1 rounded-xl border text-[11px] font-mono font-bold shadow-lg z-10 ${gate.color}`}
+                              className={`px-2.5 py-1 rounded-xl border text-[12px] font-mono font-bold shadow-lg z-10 ${gate.color}`}
                             >
                               {gate.label}
                             </div>
@@ -947,7 +947,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
             
             <div className="grid grid-cols-2 gap-4">
               <div className="p-4 rounded-xl bg-white/[0.03] border border-white/05 space-y-1">
-                <span className="text-[11px] text-slate-300 uppercase tracking-wider font-semibold">Exact FCI Anchor</span>
+                <span className="text-[12px] text-slate-300 uppercase tracking-wider font-semibold">Exact FCI Anchor</span>
                 <div className="text-base font-mono font-bold text-emerald-400">
                   {energyCalculated.anchorFci != null && Number.isFinite(energyCalculated.anchorFci) ? `${energyCalculated.anchorFci.toFixed(6)} Ha` : 'UNVERIFIED'}
                 </div>
@@ -955,7 +955,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
               </div>
 
               <div className="p-4 rounded-xl bg-white/[0.03] border border-white/05 space-y-1">
-                <span className="text-[11px] text-slate-300 uppercase tracking-wider font-semibold">Classical Hartree-Fock</span>
+                <span className="text-[12px] text-slate-300 uppercase tracking-wider font-semibold">Classical Hartree-Fock</span>
                 <div className="text-base font-mono font-bold text-slate-200">
                   {energyCalculated.rhf != null && Number.isFinite(energyCalculated.rhf) ? `${energyCalculated.rhf.toFixed(6)} Ha` : 'UNVERIFIED (no RHF baseline)'}
                 </div>
@@ -965,7 +965,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
 
             <div className="p-4 rounded-xl bg-black/40 border border-white/05 space-y-2">
               <span className="text-xs font-semibold text-slate-200">Second-Quantized Hamiltonian Mapping</span>
-              <p className="text-[10px] font-code text-slate-500">Illustrative Pauli form — coefficients schematic, anchor value live</p>
+              <p className="text-[12px] font-code text-slate-500">Illustrative Pauli form — coefficients schematic, anchor value live</p>
               <p className="text-xs font-mono text-cyan-300 leading-relaxed overflow-x-auto whitespace-nowrap scrollbar-thin">
                 {hamiltonianString}
               </p>

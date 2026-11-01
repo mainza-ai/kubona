@@ -46,20 +46,20 @@ export function SessionRefundPanel({ labs, sessions }: { labs: Lab[]; sessions: 
     <div className="rounded-2xl border border-white/[0.08] bg-black/40 p-4 space-y-2" aria-label="Session refunds">
       <div>
         <div className="text-xs font-semibold text-white">Session spend refund</div>
-        <p className="text-[10px] text-slate-500">Admin-signed, tenant-bound, reason-required. Refunds return consumed spend; they do not alter vendor charges.</p>
+        <p className="text-[12px] text-slate-500">Admin-signed, tenant-bound, reason-required. Refunds return consumed spend; they do not alter vendor charges.</p>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-        <select aria-label="Refund session" value={sessionId} onChange={(e) => setSessionId(e.target.value)} className="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200 font-mono">
+        <select aria-label="Refund session" value={sessionId} onChange={(e) => setSessionId(e.target.value)} className="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-slate-200 font-mono">
           {sessions.length === 0 && <option value="">no sessions</option>}
           {sessions.map((s) => <option key={s.id} value={s.id}>{s.title || s.id.slice(0, 12)}</option>)}
         </select>
-        <input aria-label="Session refund amount" value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="amount USD" className="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200 font-mono" />
+        <input aria-label="Session refund amount" value={amount} onChange={(e) => setAmount(e.target.value)} inputMode="decimal" placeholder="amount USD" className="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-slate-200 font-mono" />
       </div>
       <div className="flex gap-1.5">
-        <input aria-label="Session refund reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="reason (required)" className="flex-1 bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200" />
-        <button type="button" onClick={() => void refund()} disabled={busy} className="px-2 py-1 rounded-lg bg-rose-500/15 border border-rose-400/30 text-rose-200 text-[11px] disabled:opacity-40">Refund session</button>
+        <input aria-label="Session refund reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="reason (required)" className="flex-1 bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-slate-200" />
+        <button type="button" onClick={() => void refund()} disabled={busy} className="px-2 py-1 rounded-lg bg-rose-500/15 border border-rose-400/30 text-rose-200 text-[12px] disabled:opacity-40">Refund session</button>
       </div>
-      {notice && <p role="status" className="text-[11px] text-slate-300">{notice}</p>}
+      {notice && <p role="status" className="text-[12px] text-slate-300">{notice}</p>}
     </div>
   );
 }

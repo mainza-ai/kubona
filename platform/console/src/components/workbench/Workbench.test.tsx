@@ -1,0 +1,103 @@
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import React from 'react';
+import TestRenderer, { act } from 'react-test-renderer';
+import type { CampaignState } from '@/types';
+import { Workbench } from './Workbench';
+
+vi.mock('@/lib/api', () => ({
+  fetchCanvasLayout: vi.fn(async () => ({})),
+  saveCanvasLayout: vi.fn(async () => ({ ok: true })),
+}));
+
+afterEach(() => {
+  vi.clearAllMocks();
+});
+
+const campaign = {
+  session_id: 's1',
+  research_goal: 'Find the ground state',
+  target_system: 'H2',
+  quantum_factors: {
+    target_molecule: 'H2',
+    molecular_formula: 'H2',
+    bond_distance: 0.7414,
+    active_electrons: 2,
+    active_orbitals: 2,
+    fermion_mapping: 'jordan_wigner',
+    qubit_count: 4,
+    circuit_depth: 6,
+    two_qubit_gates: 3,
+    ansatz_family: 'UCCSD',
+    meyer_wallach_q: 0.1,
+    gradient_variance: 0.01,
+    barren_plateau_risk: 'low',
+    clifford_fidelity: 0.99,
+    recommended_backend: 'local_simulator',
+    estimated_spend_usd: 0,
+    qasm: '',
+    dag_nodes: [],
+    dag_edges: [],
+    wire_cuts: [],
+  },
+  classical_anchor: {
+    method: 'PySCF FCI',
+    rhf_mean_field_energy: -1.11,
+    fci_exact_energy: -1.13727,
+    vqe_expectation_energy: -1.13,
+    discrepancy_mha: 7.27,
+    chemical_accuracy_passed: false,
+    chemical_accuracy_limit: 1.6,
+    anchor_computed: true,
+  },
+  trajectory: [{ step: 0, energy: -1.1, loss: 0.1, theta: [], grad_norm: 0.1, watchdog: '', timestamp: '' }],
+  branches: [],
+  epistemics: {
+    alpha_corroborated: 0.8,
+    beta_contested: 0.1,
+    gamma_unverified: 0.1,
+    p_correlated: 0.7,
+    status: 'COLLAPSED_VERIFIED',
+    literature_drift_mha: 0.2,
+    statement: 'The ground state is within chemical accuracy.',
+    sources: ['ledger:1'],
+  },
+  notebook: {
+    id: 'n1',
+    title: 'Hydrogen notebook',
+    created_at: '',
+    classical_anchor: 'PySCF FCI',
+    quantum_energy: -1.13,
+    classical_energy: -1.13727,
+    delta_mha: 7.27,
+    chemical_accuracy: false,
+    provenance_hash: 'sha256:abc',
+    epistemic_verdict: 'VERIFIED',
+    sections: ['Abstract', 'Results'],
+  },
+  updated_at: '',
+} as unknown as CampaignState;
+
+describe('Workbench', () => {
+  it('shows an explicit empty state without a campaign', async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<Workbench campaign={null} />);
+    });
+    expect(tree!.root.findByProps({ 'data-testid': 'workbench' })).toBeTruthy();
+    expect(tree!.root.findAllByProps({ className: 'k-workbench-card' })).toHaveLength(0);
+    expect(tree!.root.findByProps({ className: 'k-workbench-empty' })).toBeTruthy();
+  });
+
+  it('projects the campaign into typed cards and a figure', async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" />);
+    });
+    const cards = tree!.root.findAllByProps({ className: 'k-workbench-card' });
+    expect(cards.length).toBe(8);
+    expect(cards.map((card) => card.props['data-kind'])).toEqual(
+      expect.arrayContaining(['campaign', 'hypothesis', 'circuit', 'measurement', 'chart']),
+    );
+    expect(tree!.root.findAllByProps({ 'data-testid': 'k-chart' }).length).toBe(1);
+  });
+});

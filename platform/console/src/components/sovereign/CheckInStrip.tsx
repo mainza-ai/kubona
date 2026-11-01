@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Volume2, VolumeX } from 'lucide-react';
-import { fetchCostSummary, type CostSummary } from '@/lib/api';
+import { AUTH_REQUIRED_EVENT, fetchCostSummary, type CostSummary } from '@/lib/api';
 import { useAttention } from '@/lib/attention-context';
 import type { Loop } from '@/types';
 
@@ -19,6 +19,16 @@ const SPEND_POLL_MS = 60000;
 
 export function CheckInStrip({ loops }: { loops: Loop[] }) {
   const [spend, setSpend] = useState<CostSummary | null>(null);
+  const [readOnly, setReadOnly] = useState(false);
+
+  // An anonymous 401 is not an expired session. Keep the sign-in affordance
+  // local to this strip instead of raising the global destructive banner.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onRequired = () => setReadOnly(true);
+    window.addEventListener(AUTH_REQUIRED_EVENT, onRequired);
+    return () => window.removeEventListener(AUTH_REQUIRED_EVENT, onRequired);
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -64,11 +74,16 @@ export function CheckInStrip({ loops }: { loops: Loop[] }) {
     <div
       role="status"
       aria-label={`Check-in: ${loops.length} loops, ${running} running${attention > 0 ? `, ${attention} need attention` : ''}${spend ? `, LLM spend $${spend.spent_usd.toFixed(2)}` : ''}`}
-      className="flex items-center gap-3 px-3 py-1 text-[10px] font-code border-b border-white/[0.06] bg-black/30 text-slate-300"
+      className="flex items-center gap-3 px-3 py-1 text-[12px] font-code border-b border-white/[0.06] bg-black/30 text-slate-300"
     >
       <span className="truncate">
         {loops.length} loop{loops.length === 1 ? '' : 's'} · {running} running · {paused} paused
       </span>
+      {readOnly && (
+        <span className="truncate text-slate-500" title="Read-only access: sign in through Mesh → Labs for live loops and writes">
+          · read-only · sign in for live loops
+        </span>
+      )}
       {attention > 0 && (
         <span className="text-rose-300 shrink-0">· {attention} need{attention === 1 ? 's' : ''} attention</span>
       )}
@@ -102,7 +117,7 @@ export function CheckInStrip({ loops }: { loops: Loop[] }) {
             onClick={() => setPresence(p.id)}
             title={p.hint}
             aria-pressed={presence === p.id}
-            className={`px-1.5 py-0.5 rounded text-[10px] font-code transition-colors ${
+            className={`px-1.5 py-0.5 rounded text-[12px] font-code transition-colors ${
               presence === p.id
                 ? 'bg-cyan-500/20 text-cyan-200'
                 : 'text-slate-500 hover:text-slate-300'

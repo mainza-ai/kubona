@@ -269,7 +269,7 @@ ${bibtex}
         </div>
       )}
       {notebookError && (
-        <div role="alert" className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[11px]">
+        <div role="alert" className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px]">
           Notebook projection unavailable — {notebookError}. Nothing synthesized.
         </div>
       )}
@@ -367,7 +367,7 @@ ${bibtex}
                   selectedAnchor === '§Title' ? 'border-indigo-500/60 bg-indigo-950/20' : 'border-white/[0.08] bg-white/[0.02]'
                 }`}
               >
-                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-cyan-400">
+                <span className="text-[12px] font-mono font-bold uppercase tracking-wider text-cyan-400">
                   {claimVerified && proofVerified ? 'Verified Research Finding' : 'Projected Research Draft'}
                 </span>
                 <h2 className="text-lg md:text-xl font-bold text-white tracking-tight leading-snug mt-1">
@@ -404,7 +404,7 @@ ${bibtex}
               >
                 <div className="flex items-center justify-between mb-1.5">
                   <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider font-mono">Abstract</h3>
-                  <span className="text-[10px] font-mono text-neutral-500">Anchor: §Abstract</span>
+                  <span className="text-[12px] font-mono text-neutral-500">Anchor: §Abstract</span>
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed font-sans">
                   {hasVerifiedData ? (
@@ -438,7 +438,7 @@ ${bibtex}
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-xs font-mono text-slate-300 font-semibold uppercase">§GroundStateIntegrals</span>
-                  <span className="text-[10px] font-mono text-neutral-500">Anchor: §GroundStateIntegrals</span>
+                  <span className="text-[12px] font-mono text-neutral-500">Anchor: §GroundStateIntegrals</span>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 font-mono text-xs">
                   <div className="p-3 rounded-lg bg-black/40 border border-white/5 space-y-1">
@@ -475,9 +475,9 @@ ${bibtex}
               >
                 <div className="flex items-center justify-between mb-1.5">
                   <h3 className="text-xs font-semibold text-slate-300 uppercase tracking-wider font-mono">Formal Verification & Provenance</h3>
-                  <span className="text-[10px] font-mono text-emerald-400">{proofVerified ? 'Zero sorryAx (ρ=1.000)' : 'Unverified'}</span>
+                  <span className="text-[12px] font-mono text-emerald-400">{proofVerified ? 'Zero sorryAx (ρ=1.000)' : 'Unverified'}</span>
                 </div>
-                <div className="space-y-1.5 font-mono text-[11px] text-slate-300">
+                <div className="space-y-1.5 font-mono text-[12px] text-slate-300">
                   <div className="bg-black/60 p-2 rounded border border-white/10 truncate">
                     Lean 4 AST Hash: <span className="text-emerald-300">{lean4AstHash}</span>
                   </div>
@@ -491,7 +491,7 @@ ${bibtex}
 
           {activeTab === 'latex' && (
             <div className="space-y-3 font-mono text-xs">
-              <div className="flex items-center justify-between text-neutral-400 text-[11px]">
+              <div className="flex items-center justify-between text-neutral-400 text-[12px]">
                 <span>LaTeX Project (main.tex)</span>
                 <span className="text-cyan-400">{hasVerifiedData ? 'Draft preview — not submitted' : 'Unattested draft — not submitted'}</span>
               </div>
@@ -503,7 +503,7 @@ ${bibtex}
 
           {activeTab === 'lean4' && (
             <div className="space-y-3 font-mono text-xs">
-              <div className="flex items-center justify-between text-neutral-400 text-[11px]">
+              <div className="flex items-center justify-between text-neutral-400 text-[12px]">
                 <span>Lean 4 Theorem Declaration (Lake Comparator Whitelist)</span>
                 <span className="text-emerald-400">{proofVerified ? 'Axioms ⊆ {propext, Quot.sound, Classical.choice}' : 'No verified declaration'}</span>
               </div>
@@ -528,12 +528,12 @@ ${bibtex}
                   Frame-Anchored Review
                 </h3>
               </div>
-              <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-indigo-950/60 text-indigo-300 border border-indigo-500/30">
+              <span className="text-[12px] font-mono px-2 py-0.5 rounded bg-indigo-950/60 text-indigo-300 border border-indigo-500/30">
                 The Buzz Pattern
               </span>
             </div>
 
-            <p className="text-[11px] text-neutral-400 leading-normal">
+            <p className="text-[12px] text-neutral-400 leading-normal">
               Highlight equations, sections, or proof tokens to leave targeted annotations. Prompt the agent swarm to re-verify specific derivations.
             </p>
 
@@ -551,9 +551,9 @@ ${bibtex}
                   className="p-3 rounded-xl bg-neutral-900/60 border border-neutral-800 space-y-1.5 text-xs"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="font-semibold text-white text-[11px]">{anno.author}</span>
+                    <span className="font-semibold text-white text-[12px]">{anno.author}</span>
                     <span
-                      className={`text-[9px] font-mono uppercase px-1.5 py-0.5 rounded border ${
+                      className={`text-[12px] font-mono uppercase px-1.5 py-0.5 rounded border ${
                         anno.status === 'verified'
                           ? 'border-emerald-500/40 text-emerald-400 bg-emerald-950/30'
                           : anno.status === 'failed'
@@ -564,8 +564,8 @@ ${bibtex}
                       {anno.status}
                     </span>
                   </div>
-                  <div className="text-[10px] font-mono text-neutral-400">{anno.targetAnchor} • {anno.timestamp}</div>
-                  <p className="text-neutral-300 text-[11px] leading-relaxed">{anno.comment}</p>
+                  <div className="text-[12px] font-mono text-neutral-400">{anno.targetAnchor} • {anno.timestamp}</div>
+                  <p className="text-neutral-300 text-[12px] leading-relaxed">{anno.comment}</p>
                 </div>
               ))}
             </div>
@@ -574,7 +574,7 @@ ${bibtex}
           {/* New Annotation Input Form */}
           <form onSubmit={handleAddAnnotation} className="pt-3 border-t border-white/[0.08] space-y-2 mt-3">
             {annotationError && (
-              <div className="p-2 rounded-lg bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[10px]">
+              <div className="p-2 rounded-lg bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px]">
                 {annotationError}
               </div>
             )}

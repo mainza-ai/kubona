@@ -100,16 +100,16 @@ export function CryptographicMandateCardWidget({
       ) : (
       <div className="p-4 rounded-xl bg-black/60 border border-rose-500/10 space-y-3 text-xs">
         <div>
-          <span className="text-white/40 block text-[10px]">Action Request</span>
+          <span className="text-white/40 block text-[12px]">Action Request</span>
           <p className="font-semibold text-white/90 text-sm mt-0.5">{actionDescription}</p>
         </div>
         <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/[0.04]">
           <div>
-            <span className="text-white/40 block text-[10px]">Target QPU Backend</span>
+            <span className="text-white/40 block text-[12px]">Target QPU Backend</span>
             <span className="font-mono text-cyan-300">{targetBackend}</span>
           </div>
           <div>
-            <span className="text-white/40 block text-[10px]">Estimated QPU Spend</span>
+            <span className="text-white/40 block text-[12px]">Estimated QPU Spend</span>
             {costFinite ? (
               <span className="font-mono text-amber-300 text-sm font-bold">${(estimatedCostUsd as number).toFixed(2)} USD</span>
             ) : (
@@ -126,12 +126,12 @@ export function CryptographicMandateCardWidget({
           <CheckCircle2 className="w-4 h-4 text-emerald-400 flex-shrink-0" />
           <div className="truncate">
             <span className="font-bold">Authorized & Server-Verified{verifiedLocal === false ? ' (UNVERIFIED)' : ''}: </span>
-            <span className="font-mono text-[11px] text-emerald-200">{signedToken}</span>
-            <div className="text-[10px] font-code text-slate-400">canonical session+program mandate — server-verified before dispatch</div>
+            <span className="font-mono text-[12px] text-emerald-200">{signedToken}</span>
+            <div className="text-[12px] font-code text-slate-400">canonical session+program mandate — server-verified before dispatch</div>
           </div>
         </div>
       ) : !hasProposal ? (
-        <p className="text-[11px] font-code text-slate-500">Authorize disabled — no proposal bound.</p>
+        <p className="text-[12px] font-code text-slate-500">Authorize disabled — no proposal bound.</p>
       ) : (
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <button
@@ -160,7 +160,7 @@ export function CryptographicMandateCardWidget({
         </div>
       )}
       {signError && (
-        <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[11px]">
+        <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px]">
           Sign failed — nothing authorized, nothing dispatched ({signError.slice(0, 200)}).
         </div>
       )}

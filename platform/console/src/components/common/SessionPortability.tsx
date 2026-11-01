@@ -120,7 +120,7 @@ export function SessionPortability({
   return (
     <div className="rounded-2xl border border-white/[0.08] bg-black/40 p-4 space-y-2" aria-label="Session portability">
       <div className="text-xs font-semibold text-white">Session portability · export / import</div>
-      <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+      <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
         <button
           type="button"
           disabled={busy !== null || !sessionId}
@@ -172,7 +172,7 @@ export function SessionPortability({
       </div>
       {notice && (
         <p
-          className={notice.tone === 'ok' ? 'text-[11px] text-emerald-200' : 'text-[11px] text-amber-200'}
+          className={notice.tone === 'ok' ? 'text-[12px] text-emerald-200' : 'text-[12px] text-amber-200'}
           role="alert"
         >
           {notice.text}

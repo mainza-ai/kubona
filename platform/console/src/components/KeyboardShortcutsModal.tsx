@@ -97,7 +97,7 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
         <div className="p-5 space-y-5 max-h-[70vh] overflow-y-auto">
           {shortcutGroups.map((group) => (
             <div key={group.category} className="space-y-2">
-              <h3 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider font-mono">
+              <h3 className="text-[12px] font-semibold text-slate-400 uppercase tracking-wider font-mono">
                 {group.category}
               </h3>
               <div className="space-y-1.5">
@@ -107,7 +107,7 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
                     className="flex items-center justify-between p-2 rounded-xl bg-white/[0.03] border border-white/[0.04] text-xs"
                   >
                     <span className="text-slate-200">{sc.description}</span>
-                    <kbd className="px-2 py-0.5 rounded-md bg-white/10 text-[11px] font-mono text-cyan-300 border border-white/10 shadow-sm">
+                    <kbd className="px-2 py-0.5 rounded-md bg-white/10 text-[12px] font-mono text-cyan-300 border border-white/10 shadow-sm">
                       {sc.key}
                     </kbd>
                   </div>
@@ -116,7 +116,7 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
             </div>
           ))}
           <div className="space-y-2">
-            <h3 className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider font-mono">
+            <h3 className="text-[12px] font-semibold text-slate-400 uppercase tracking-wider font-mono">
               Deep links
             </h3>
             <div className="p-3 rounded-xl bg-white/[0.03] border border-white/[0.04] text-xs text-slate-300">

@@ -60,7 +60,7 @@ export function BackendStatusBar() {
     <div
       role="status"
       aria-label={`Backend status: ${text}`}
-      className={`flex items-center gap-2 px-3 py-1 text-[10px] font-code border-b border-white/[0.06] ${tone}`}
+      className={`flex items-center gap-2 px-3 py-1 text-[12px] font-code border-b border-white/[0.06] ${tone}`}
     >
       <span className={`w-1.5 h-1.5 rounded-full ${dot}`} aria-hidden="true" />
       <span className="truncate">{text}</span>

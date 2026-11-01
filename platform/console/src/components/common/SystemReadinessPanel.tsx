@@ -34,9 +34,9 @@ export function SystemReadinessPanel() {
     <div className="rounded-2xl border border-white/[0.08] bg-black/40 p-4 space-y-2" aria-label="System readiness">
       <div>
         <div className="text-xs font-semibold text-white">Capabilities &amp; fidelity</div>
-        <p className="text-[10px] text-slate-500">Runtime discovery plus the dispatch-grade floor assessment (no probe is run here).</p>
+        <p className="text-[12px] text-slate-500">Runtime discovery plus the dispatch-grade floor assessment (no probe is run here).</p>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[11px] font-mono text-slate-300">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-[12px] font-mono text-slate-300">
         <div className="p-2 rounded-xl bg-white/[0.03] border border-white/[0.06] space-y-0.5">
           <div>catalog {caps?.catalog_digest?.slice(0, 16) ?? '—'}…</div>
           <div>harnesses {caps?.harnesses?.length ?? '—'} · tools {Array.isArray(caps?.tools) ? caps?.tools.length : '—'}</div>
@@ -57,7 +57,7 @@ export function SystemReadinessPanel() {
           )}
         </div>
       </div>
-      {error && <p role="alert" className="text-[11px] text-rose-300">{error}</p>}
+      {error && <p role="alert" className="text-[12px] text-rose-300">{error}</p>}
     </div>
   );
 }

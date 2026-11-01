@@ -71,7 +71,9 @@ describe('response contracts', () => {
   it('accepts live chat, job, workflow, auth, and cost payloads', () => {
     expect(validateResponse('messages.list', { messages: [] })).toEqual([]);
     expect(validateResponse('jobs.list', { jobs: [] })).toEqual([]);
+    expect(validateResponse('jobs.list', { jobs: [{ id: 'j1', session_id: 's1', status: 2 }] })).toEqual([]);
     expect(validateResponse('job', { job: { id: 'j1', session_id: 's1', status: 'QUEUED' } })).toEqual([]);
+    expect(validateResponse('job', { job: { id: 'j1', session_id: 's1', status: 3 } })).toEqual([]);
     expect(validateResponse('auth.whoami', { authenticated: true, tenant_id: 'lab' })).toEqual([]);
     expect(
       validateResponse('cost.summary', {
@@ -93,6 +95,17 @@ describe('response contracts', () => {
         compensations_planned: [],
       }),
     ).toEqual([]);
+  });
+
+  it('rejects a null transcript and a missing job status', () => {
+    expect(validateResponse('messages.list', { messages: null })).toContainEqual({
+      path: 'messages.list.messages',
+      message: 'expected array, got null',
+    });
+    expect(validateResponse('jobs.list', { jobs: [{ id: 'j1', session_id: 's1' }] })).toContainEqual({
+      path: 'jobs.list.jobs[0].status',
+      message: 'missing required field',
+    });
   });
 
   it('rejects a cost payload without the spend anchor', () => {

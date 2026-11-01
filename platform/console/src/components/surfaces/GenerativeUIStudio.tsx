@@ -45,7 +45,7 @@ export function GenerativeUIStudio({ campaign, tenantId }: { campaign?: Campaign
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-3xl bg-gradient-to-r from-purple-950/40 via-black to-blue-950/40 border border-white/[0.08] backdrop-blur-2xl">
         <div className="space-y-1">
           <div className="flex items-center space-x-2">
-            <span className="px-2.5 py-0.5 rounded-full text-[10px] font-mono tracking-wider uppercase bg-purple-500/20 text-purple-300 border border-purple-500/30">
+            <span className="px-2.5 py-0.5 rounded-full text-[12px] font-mono tracking-wider uppercase bg-purple-500/20 text-purple-300 border border-purple-500/30">
               Surface 9 · Preview Gallery
             </span>
             <span className="text-white/40 text-xs">• Agent-to-User Generative Scientific Widgets</span>
@@ -58,7 +58,7 @@ export function GenerativeUIStudio({ campaign, tenantId }: { campaign?: Campaign
             Interactive visual components dynamically rendered by autonomous agent collectives: 3D molecular active spaces, post-QIR circuits, Lean 4 goal trees, classical shadow tomography, and high-friction spend mandate cards.
           </p>
           {!hasLive && (
-            <p className="text-[11px] font-code text-amber-300 border border-amber-400/40 bg-amber-950/40 rounded-xl px-3 py-2 mt-2">
+            <p className="text-[12px] font-code text-amber-300 border border-amber-400/40 bg-amber-950/40 rounded-xl px-3 py-2 mt-2">
               synthetic demo — not session data. Connect a live campaign to populate these widgets with measured values.
             </p>
           )}
