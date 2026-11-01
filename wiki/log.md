@@ -4614,3 +4614,9 @@ skipped is the exact failure this incident is about:
 
 - Added shared and per-surface VoiceOver/NVDA steps with explicit pass/fail
   recording. The manual pass itself remains NOT RUN.
+
+## [2026-11-01] impl | Air-gap toggle settlement
+
+- Render both air-gap toggles (Autonomy Cockpit and Cognitive Mesh) as
+  accepted/applied/refused/unknown, with revert-on-failure preserved.
+- saveLLMSettings now distinguishes transport from refusal.

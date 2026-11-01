@@ -1135,13 +1135,17 @@ export async function cancelQuantumJob(jobId: string, reason?: string): Promise<
 
 export async function saveLLMSettings(
   settings: Record<string, unknown>
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; error?: string; unknown?: boolean }> {
   try {
     await requestOperation('saveLLMSettings', { body: settings });
     return { ok: true };
   } catch (err) {
     console.error('Failed to save LLM settings:', err);
-    return { ok: false, error: String(err instanceof Error ? err.message : err) };
+    return {
+      ok: false,
+      unknown: !(err instanceof OperationError) || err.status === null,
+      error: String(err instanceof Error ? err.message : err),
+    };
   }
 }
 export async function fetchLLMModels(provider: string = 'omlx'): Promise<Record<string, unknown>> {
