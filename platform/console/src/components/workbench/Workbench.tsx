@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { LayoutGrid, List, Maximize2, Minus, Plus } from 'lucide-react';
-import type { CampaignState } from '@/types';
+import type { CampaignState, Loop } from '@/types';
 import { fetchCanvasLayout, fetchWorkbenchLayout, saveWorkbenchLayout } from '@/lib/api';
 import { Chart } from '@/components/data/DataChart';
 import { Button } from '@/components/ui/Button';
@@ -28,10 +28,11 @@ import {
 type Props = {
   campaign?: CampaignState | null;
   sessionId?: string;
+  loops?: Loop[];
   onOpenObject?: (kind: WorkbenchObjectKind) => void;
 };
 
-export function Workbench({ campaign, sessionId, onOpenObject }: Props) {
+export function Workbench({ campaign, sessionId, loops = [], onOpenObject }: Props) {
   const hostRef = useRef<HTMLDivElement>(null);
   const revision = useRef(0);
   const loaded = useRef(false);
@@ -43,11 +44,12 @@ export function Workbench({ campaign, sessionId, onOpenObject }: Props) {
   const [selected, setSelected] = useState<string | null>(null);
   const [positions, setPositions] = useState<WorkbenchPositions>({});
   const [sizes, setSizes] = useState<WorkbenchSizes>({});
-  const baseObjects = useMemo(() => buildWorkbench(campaign), [campaign]);
+  const baseObjects = useMemo(() => buildWorkbench(campaign, loops), [campaign, loops]);
   const links = useMemo(() => buildWorkbenchLinks(baseObjects), [baseObjects]);
   const [status, setStatus] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<'canvas' | 'list'>('canvas');
   const [areas, setAreas] = useState<WorkbenchArea[]>([]);
+  const [viewport, setViewport] = useState({ width: 0, height: 0 });
   const [saving, setSaving] = useState(false);
   const objects = useMemo(
     () => baseObjects.map((object) => ({
@@ -122,7 +124,7 @@ export function Workbench({ campaign, sessionId, onOpenObject }: Props) {
       void saveWorkbenchLayout(
         sessionId,
         revision.current,
-        workbenchDocument(sessionId, buildWorkbench(campaign), positions, sizes, camera, links, areas) as unknown as Record<string, unknown>,
+        workbenchDocument(sessionId, baseObjects, positions, sizes, camera, links, areas) as unknown as Record<string, unknown>,
       ).then((out) => {
         setSaving(false);
         if (out.ok) {
@@ -136,7 +138,32 @@ export function Workbench({ campaign, sessionId, onOpenObject }: Props) {
     return () => {
       if (saveTimer.current) clearTimeout(saveTimer.current);
     };
-  }, [camera, positions, sizes, sessionId, campaign, links, areas]);
+  }, [camera, positions, sizes, sessionId, baseObjects, links, areas]);
+
+  useEffect(() => {
+    const host = hostRef.current;
+    if (!host) return;
+    const update = () => setViewport({ width: host.clientWidth, height: host.clientHeight });
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(host);
+    return () => observer.disconnect();
+  }, []);
+
+  const visibleIds = useMemo(() => {
+    if (objects.length <= 24 || viewport.width === 0) return null;
+    const margin = 600;
+    const left = -camera.x / camera.zoom - margin;
+    const top = -camera.y / camera.zoom - margin;
+    const right = left + viewport.width / camera.zoom + margin * 2;
+    const bottom = top + viewport.height / camera.zoom + margin * 2;
+    return new Set(objects.filter((object) => (
+      object.position.x + object.size.width >= left &&
+      object.position.x <= right &&
+      object.position.y + object.size.height >= top &&
+      object.position.y <= bottom
+    )).map((object) => object.id));
+  }, [objects, viewport, camera]);
 
   // Native, non-passive wheel listener: React's delegated wheel handler is
   // passive, so preventDefault there would be ignored (and log a warning).
@@ -345,7 +372,14 @@ export function Workbench({ campaign, sessionId, onOpenObject }: Props) {
               return <path key={link.id} data-kind={link.kind} d={`M${x1},${y1} C${x1 + 40},${y1} ${x2 - 40},${y2} ${x2},${y2}`} />;
             })}
           </svg>
-          {objects.map((object) => (
+          {objects.map((object) => viewport && visibleIds && !visibleIds.has(object.id) ? (
+            <div
+              key={object.id}
+              className="k-workbench-placeholder"
+              style={{ left: object.position.x, top: object.position.y, width: object.size.width, height: object.size.height }}
+              aria-hidden="true"
+            />
+          ) : (
             <WorkCard
               key={object.id}
               object={object}

@@ -97,6 +97,15 @@ describe('workbench model', () => {
     expect(chart.chart?.series[1]?.name).toBe('FCI anchor');
   });
 
+  it('projects loop records as agent-run objects', () => {
+    const objects = buildWorkbench(campaign(), [
+      { id: 'loop-123456789', session_id: 's1', status: 'running', step_count: 3, max_steps: 10, diverged: false, created_at: '', updated_at: '' },
+    ]);
+    const run = objects.find((object) => object.kind === 'agent_run');
+    expect(run?.id).toBe('agent-run-loop-123456789');
+    expect(run?.facts.find((fact) => fact.label === 'Step')?.value).toBe('3 / 10');
+  });
+
   it('labels an uncomputed anchor as UNVERIFIED', () => {
     const unanchored = campaign({
       classical_anchor: {

@@ -4190,3 +4190,9 @@ skipped is the exact failure this incident is about:
 - Job progress now uses the shared polling store with terminal-stop support;
   copilot tribunal-turn polling is the remaining local, run-scoped timer.
   Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Agent runs and workbench virtualization
+
+- Running loops project as `agent_run` cards with their measured step/state;
+  the canvas renders placeholders past 24 objects and keeps the list view as
+  the complete access path. Updated [[remaining-work]]; no new page.

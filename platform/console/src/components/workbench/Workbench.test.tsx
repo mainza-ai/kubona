@@ -113,6 +113,22 @@ describe('Workbench', () => {
     expect(tree!.root.findAllByType('table')).toHaveLength(1);
   });
 
+  it('projects a running loop as an agent-run card', async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(
+        <Workbench
+          campaign={campaign}
+          sessionId="s1"
+          loops={[{ id: 'loop-123456789', session_id: 's1', status: 'running', step_count: 3, max_steps: 10, diverged: false, created_at: '', updated_at: '' }]}
+        />,
+      );
+    });
+    const runs = tree!.root.findAllByProps({ 'data-kind': 'agent_run' });
+    expect(runs.length).toBe(1);
+    expect(JSON.stringify(tree!.toJSON())).toContain('3 / 10');
+  });
+
   it('groups all objects into a persisted spatial area', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {

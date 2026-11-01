@@ -73,8 +73,9 @@ Landed on `develop` and `main` with the console/Go gates green:
 
 Still open:
 
-- Workbench area rename/resize/assignment, remaining object kinds, and
-  virtualization at 100/300 objects.
+- Workbench area rename/resize/assignment and remaining object kinds
+  (`job`, `table`, `note`, `approval`); running loops now project as
+  `agent_run` cards and the canvas virtualizes past 24 objects.
 - Backend readiness, spend, fleet/radar, flight-recorder telemetry, and
   job progress now share a serialized, visibility-gated, backoff-bounded
   polling store with terminal-stop support. Copilot tribunal-turn polling is
