@@ -25,9 +25,6 @@ SRC = ROOT / "platform" / "console" / "src"
 # Every entry needs a reason and a decision owner. Remove an entry when the
 # export is wired or deleted; the check fails on a stale allowlist entry.
 ALLOWED = {
-    "resumeTribunal": "tribunal resume UI not mounted; runTribunal is the live path",
-    "evaluateDiscoveryPipeline": "discovery curation UI deferred",
-    "requestServerSignedMandate": "server-signed mandate console path declined; client-mint is the console path",
     "resetDedupForTests": "test-only helper for inflight GET coalescing",
 }
 

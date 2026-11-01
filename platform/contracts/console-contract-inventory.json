@@ -986,10 +986,6 @@
       "reason": "client-constructed health status"
     },
     {
-      "function": "fetchEvents",
-      "reason": "delegates to fetchEventsResult"
-    },
-    {
       "function": "fetchJobs",
       "reason": "delegates to fetchJobsResult"
     },
@@ -1026,12 +1022,5 @@
       "reason": "auth timing helper"
     }
   ],
-  "unmodeled_functions": [
-    {
-      "function": "isAuthenticatedSession",
-      "path": null,
-      "method": null,
-      "contract": null
-    }
-  ]
+  "unmodeled_functions": []
 }

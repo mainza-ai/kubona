@@ -4640,15 +4640,12 @@
       }
     }
   },
-  "x-kubona-unmodeled-functions": [
-    "isAuthenticatedSession"
-  ],
+  "x-kubona-unmodeled-functions": [],
   "x-kubona-client-only-functions": [
     "apiFetch",
     "configureApiBase",
     "downloadFile",
     "fetchBackendStatus",
-    "fetchEvents",
     "fetchJobs",
     "fetchLoops",
     "fetchSessions",
