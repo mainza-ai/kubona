@@ -374,6 +374,19 @@ export const RESPONSE_SCHEMAS = {
     events: arr(any),
     markdown: str,
   }, ['ok', 'session_id']),
+  'task': obj({
+    id: str,
+    session_id: str,
+    title: str,
+    status: str,
+    source_domain: str,
+    source_id: str,
+    created_at: str,
+    updated_at: str,
+  }),
+  'tasks.list': obj({
+    tasks: arr(obj({ id: str, session_id: str, title: str, status: str, created_at: str, updated_at: str })),
+  }),
   'cost.summary': obj({
     cap_usd: num,
     spent_usd: num,

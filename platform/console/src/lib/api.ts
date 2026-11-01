@@ -186,6 +186,8 @@ export class OperationError extends Error {
   }
 }
 
+export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };
+
 export type OperationRequestOptions = {
   params?: Record<string, string>;
   query?: Record<string, string | number | boolean | undefined>;
@@ -497,29 +499,87 @@ export async function launchProposal(
   }
 }
 
-export async function fetchLoops(sessionId?: string | null): Promise<Loop[]> {
+export async function fetchTasksResult(sessionId: string): Promise<ApiResult<import('@/types').Task[]>> {
+  try {
+    const data = await requestOperation('fetchTasksResult', { query: { session_id: sessionId } });
+    return { ok: true, data: (data.tasks || []) as import('@/types').Task[] };
+  } catch (err) {
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+  }
+}
+
+export async function createTask(
+  sessionId: string,
+  title: string,
+  sourceDomain = '',
+  sourceId = '',
+): Promise<{ ok: true; task: import('@/types').Task } | { ok: false; error: string; unknown: boolean }> {
+  try {
+    const task = (await requestOperation('createTask', {
+      body: { session_id: sessionId, title, source_domain: sourceDomain, source_id: sourceId },
+    })) as import('@/types').Task;
+    return { ok: true, task };
+  } catch (err) {
+    return {
+      ok: false,
+      unknown: !(err instanceof OperationError) || err.status === null,
+      error: String(err instanceof Error ? err.message : err).slice(0, 280),
+    };
+  }
+}
+
+export async function updateTaskStatus(
+  taskId: string,
+  sessionId: string,
+  status: 'open' | 'done',
+): Promise<{ ok: true; task: import('@/types').Task } | { ok: false; error: string; unknown: boolean }> {
+  try {
+    const task = (await requestOperation('updateTaskStatus', {
+      params: { id: taskId }, body: { session_id: sessionId, status },
+    })) as import('@/types').Task;
+    return { ok: true, task };
+  } catch (err) {
+    return {
+      ok: false,
+      unknown: !(err instanceof OperationError) || err.status === null,
+      error: String(err instanceof Error ? err.message : err).slice(0, 280),
+    };
+  }
+}
+
+export async function fetchLoopsResult(sessionId?: string | null): Promise<ApiResult<Loop[]>> {
   try {
     // K2: session-scoped when a session is active — the header counts
     // this session's loops, not the fleet's. Unset keeps the global view.
-    const data = await requestOperation('fetchLoops', {
+    const data = await requestOperation('fetchLoopsResult', {
       query: { session_id: sessionId || undefined },
     });
-    return (data.loops || []) as Loop[];
+    return { ok: true, data: (data.loops || []) as Loop[] };
   } catch (err) {
     console.error('Failed to fetch loops:', err);
-    return [];
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+  }
+}
+
+export async function fetchLoops(sessionId?: string | null): Promise<Loop[]> {
+  const result = await fetchLoopsResult(sessionId);
+  return result.ok ? result.data : [];
+}
+
+export async function fetchEventsResult(sessionId?: string): Promise<ApiResult<LedgerEvent[]>> {
+  if (!sessionId) return { ok: true, data: [] };
+  try {
+    const data = await requestOperation('fetchEventsResult', { query: { session_id: sessionId } });
+    return { ok: true, data: (data.events || []) as LedgerEvent[] };
+  } catch (err) {
+    console.error('Failed to fetch events:', err);
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
 export async function fetchEvents(sessionId?: string): Promise<LedgerEvent[]> {
-  if (!sessionId) return [];
-  try {
-    const data = await requestOperation('fetchEvents', { query: { session_id: sessionId } });
-    return (data.events || []) as LedgerEvent[];
-  } catch (err) {
-    console.error('Failed to fetch events:', err);
-    return [];
-  }
+  const result = await fetchEventsResult(sessionId);
+  return result.ok ? result.data : [];
 }
 
 export async function fetchMolecularADMET(smiles: string): Promise<Record<string, unknown> | null> {
@@ -1549,14 +1609,19 @@ export function isTerminalJobStatus(status: unknown): boolean {
 }
 
 // Jobs: session-scoped run list for inline launch tracking.
-export async function fetchJobs(sessionId: string): Promise<Job[]> {
+export async function fetchJobsResult(sessionId: string): Promise<ApiResult<Job[]>> {
   try {
-    const data = await requestOperation('fetchJobs', { query: { session_id: sessionId } });
-    return (data.jobs || []) as unknown as Job[];
+    const data = await requestOperation('fetchJobsResult', { query: { session_id: sessionId } });
+    return { ok: true, data: (data.jobs || []) as unknown as Job[] };
   } catch (err) {
     console.error('Failed to fetch jobs:', err);
-    return [];
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
+}
+
+export async function fetchJobs(sessionId: string): Promise<Job[]> {
+  const result = await fetchJobsResult(sessionId);
+  return result.ok ? result.data : [];
 }
 
 // Job detail: full params + result payloads for the click-through view.

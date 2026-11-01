@@ -572,6 +572,8 @@ func (s *Server) registerRoutes() {
 	s.route("/api/tribunal/resume", s.handleTribunalResume)
 	s.route("/api/obligations/open", s.requireBearer(s.handleObligationsOpen))
 	s.route("/api/obligations/", s.requireBearer(s.handleObligationClose))
+	s.route("/api/tasks", s.handleTasks)
+	s.route("/api/tasks/", s.handleTaskByID)
 	s.route("/api/chat/launch", s.handleChatLaunch)
 	s.route("/api/jobs", s.handleJobs)
 	s.route("/api/jobs/", s.handleJobByID)

@@ -3,9 +3,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Sparkles, Plus, Zap, Info, HelpCircle, Trash2, Clock, Box, X } from 'lucide-react';
 import { Session, LedgerEvent, RunPhase, ProbeId } from '@/types';
-import { fetchSessionsResult, fetchSession, createSession, deleteSession, fetchLoops, fetchEvents, fetchCampaignState, API_BASE, CONSOLE_WORKBENCH_ENABLED, authHeaders, configureApiBase, apiFetch, UNAUTH_EVENT, API_PROBLEM_EVENT, type ApiProblem } from '@/lib/api';
+import { fetchSessionsResult, fetchSession, createSession, deleteSession, createTask, updateTaskStatus, fetchLoopsResult, fetchEventsResult, fetchCampaignState, API_BASE, CONSOLE_WORKBENCH_ENABLED, authHeaders, configureApiBase, apiFetch, UNAUTH_EVENT, API_PROBLEM_EVENT, type ApiProblem } from '@/lib/api';
 import { useJobsProjection } from '@/domain/useJobsProjection';
 import { useObligationsProjection } from '@/domain/useObligationsProjection';
+import { useTasksProjection } from '@/domain/useTasksProjection';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
 import { settleWrite, writeSettlementLabel } from '@/domain/write-settlement';
 import { Inspector, type InspectorTab } from '@/components/shell/Inspector';
@@ -230,8 +231,9 @@ export default function Home() {
   const bootstrappedSession = useRef(false);
   const prevPhase = useRef<RunPhase>('idle');
   const { loops, setLoops, refresh: refreshLoops } = useLoopsProjection(currentSessionId || null);
-  const { jobs } = useJobsProjection(currentSessionId || null);
+  const { jobs, status: jobsStatus, error: jobsError, refresh: refreshJobs } = useJobsProjection(currentSessionId || null);
   const { obligations } = useObligationsProjection();
+  const { tasks, refresh: refreshTasks } = useTasksProjection(currentSessionId || null);
   const { campaign, setCampaign, reload: reloadCampaign } = useCampaignProjection(currentSessionId || null);
   const [events, setEvents] = useState<LedgerEvent[]>([]);
   const [nowTick, setNowTick] = useState(0);
@@ -270,6 +272,7 @@ export default function Home() {
   // after onCreate resolves — state alone would not have flushed yet.
   const [createError, setCreateError] = useState<string | null>(null);
   const createWrite = useWriteSettlement();
+  const taskWrite = useWriteSettlement();
   const createFailedRef = useRef(false);
   // Responsive shell (Wave-2): below lg the copilot is a closed-by-default
   // overlay drawer, not a fixed side panel. Default closed on narrow screens
@@ -287,13 +290,14 @@ export default function Home() {
   const [showCampaignMenu, setShowCampaignMenu] = useState(false);
   const [campaignFilter, setCampaignFilter] = useState('');
   const [sessionListError, setSessionListError] = useState<string | null>(null);
+  const [dataError, setDataError] = useState<string | null>(null);
 
   const refreshData = useCallback(async () => {
     const sid = currentSessionId || undefined;
-    const [sessResult, loopList, evtList] = await Promise.all([
+    const [sessResult, loopResult, evtResult] = await Promise.all([
       fetchSessionsResult(),
-      fetchLoops(sid),
-      fetchEvents(sid),
+      fetchLoopsResult(sid),
+      fetchEventsResult(sid),
     ]);
     if (sessResult.ok) {
       setSessionListError(null);
@@ -301,8 +305,10 @@ export default function Home() {
     } else {
       setSessionListError(sessResult.error);
     }
-    setLoops(loopList);
-    setEvents(evtList);
+    if (loopResult.ok) setLoops(loopResult.data);
+    if (evtResult.ok) setEvents(evtResult.data);
+    const readError = !loopResult.ok ? loopResult.error : !evtResult.ok ? evtResult.error : null;
+    setDataError(readError);
   }, [currentSessionId, setLoops, setSessions]);
 
   const onTelemetry = useCallback((incoming: LedgerEvent[]) => {
@@ -310,7 +316,10 @@ export default function Home() {
   }, []);
   const onStreamGap = useCallback(() => {
     if (!currentSessionId) return;
-    void fetchEvents(currentSessionId).then((snapshot) => setEvents(snapshot));
+    void fetchEventsResult(currentSessionId).then((result) => {
+      if (result.ok) setEvents(result.data);
+      else setDataError(result.error);
+    });
   }, [currentSessionId]);
   const streamLive = useSessionStream(currentSessionId || null, onTelemetry, onStreamGap);
   const eventsRef = useRef<LedgerEvent[]>([]);
@@ -340,17 +349,20 @@ export default function Home() {
       const workbenchOn = CONSOLE_WORKBENCH_ENABLED;
       setWorkbenchEnabled(workbenchOn);
       if (!workbenchOn) setArenaView((current) => (current === 'workbench' ? 'orbital' : current));
-      const [sessResult, loopList] = await Promise.all([
+      const [sessResult, loopResult] = await Promise.all([
         fetchSessionsResult(),
-        fetchLoops(),
+        fetchLoopsResult(),
       ]);
       if (!mounted) return;
       if (!sessResult.ok) {
         setSessionListError(sessResult.error);
-        setLoops(loopList);
+        if (loopResult.ok) setLoops(loopResult.data);
+        setDataError(loopResult.ok ? sessResult.error : loopResult.error);
         return;
       }
       setSessionListError(null);
+      if (!loopResult.ok) setDataError(loopResult.error);
+      else setDataError(null);
       const sessList = sessResult.sessions;
       let targetSessionId = currentSessionId;
       if (sessList.length === 0) {
@@ -376,10 +388,12 @@ export default function Home() {
           });
         }
       }
-      setLoops(loopList);
+      if (loopResult.ok) setLoops(loopResult.data);
       if (targetSessionId) {
-        fetchEvents(targetSessionId).then((e) => {
-          if (mounted) setEvents(e);
+        void fetchEventsResult(targetSessionId).then((result) => {
+          if (!mounted) return;
+          if (result.ok) setEvents(result.data);
+          else setDataError(result.error);
         });
       }
     })();
@@ -400,9 +414,11 @@ export default function Home() {
       tickBusy.current = true;
       try {
         if (!document.hidden) {
-          const loopList = await fetchLoops(currentSessionId || undefined);
+          const loopResult = await fetchLoopsResult(currentSessionId || undefined);
           if (!mounted) return;
-          setLoops(loopList);
+          if (!loopResult.ok) throw new Error(loopResult.error);
+          setLoops(loopResult.data);
+          setDataError(null);
           if (currentSessionId) {
             const freshSession = await fetchSession(currentSessionId);
             if (!mounted) return;
@@ -412,8 +428,10 @@ export default function Home() {
             if (freshCampaign) setCampaign(freshCampaign);
             let e = eventsRef.current;
             if (!streamLive) {
-              e = await fetchEvents(currentSessionId);
+              const eventResult = await fetchEventsResult(currentSessionId);
               if (!mounted) return;
+              if (!eventResult.ok) throw new Error(eventResult.error);
+              e = eventResult.data;
               setEvents(e);
             }
             // Heartbeat toasts: while a run is live, surface fresh ledger events
@@ -711,6 +729,38 @@ export default function Home() {
       setArenaView('workbench');
     }
   }, []);
+
+  const handleCreateTask = useCallback(async (object: WorkbenchObject) => {
+    if (!currentSessionId) return;
+    const ref = object.ref ?? { domain: 'campaign', id: currentSessionId };
+    const requestId = taskWrite.begin('create task');
+    const out = await createTask(currentSessionId, `Review ${object.title}`, ref.domain, ref.id);
+    if (out.ok) {
+      taskWrite.applied(requestId, `task ${out.task.id.slice(0, 8)} created`);
+      refreshTasks();
+      setToast({ key: Date.now(), text: `Task created for ${object.title}.` });
+    } else {
+      taskWrite[out.unknown ? 'unknown' : 'refused'](requestId, out.error);
+      setToast({ key: Date.now(), text: `Task ${out.unknown ? 'unconfirmed' : 'refused'}: ${out.error}` });
+    }
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 4000);
+  }, [currentSessionId, refreshTasks, taskWrite]);
+
+  const handleTaskStatus = useCallback(async (taskId: string, status: 'open' | 'done') => {
+    if (!currentSessionId) return;
+    const requestId = taskWrite.begin(`task ${status}`);
+    const out = await updateTaskStatus(taskId, currentSessionId, status);
+    if (out.ok) {
+      taskWrite.applied(requestId, `task ${status}`);
+      refreshTasks();
+    } else {
+      taskWrite[out.unknown ? 'unknown' : 'refused'](requestId, out.error);
+      setToast({ key: Date.now(), text: `Task update ${out.unknown ? 'unconfirmed' : 'refused'}: ${out.error}` });
+      if (toastTimer.current) clearTimeout(toastTimer.current);
+      toastTimer.current = setTimeout(() => setToast(null), 4000);
+    }
+  }, [currentSessionId, refreshTasks, taskWrite]);
 
   // Single dispatch for keyboard shortcuts AND palette selections: targets
   // resolve through SHORTCUT_TARGETS (lib/shortcuts) so the two cannot
@@ -1176,7 +1226,12 @@ export default function Home() {
           }}
         />
         <ApiProblemBanner />
-        <StatusStrip loops={loops} />
+        <StatusStrip
+          loops={loops}
+          error={dataError}
+          streamLive={streamLive}
+          lastEventAt={events.length > 0 ? events[events.length - 1]?.timestamp : null}
+        />
         {surface === 'arena' && (
           <main id="kubona-main" tabIndex={-1} className="relative min-h-0 flex-1 overflow-hidden">
             <ArenaHud
@@ -1200,6 +1255,7 @@ export default function Home() {
                 loops={loops}
                 jobs={jobs}
                 obligations={obligations}
+                tasks={tasks}
                 sessionId={currentSessionId || undefined}
                 onSelectObject={(object) => {
                   setSelectedWorkbenchObject(object);
@@ -1370,6 +1426,12 @@ export default function Home() {
         campaign={campaign}
         selectedObject={selectedWorkbenchObject}
         jobs={jobs}
+        tasks={tasks}
+        onCreateTask={handleCreateTask}
+        onTaskStatus={handleTaskStatus}
+        jobsStatus={jobsStatus}
+        jobsError={jobsError}
+        onRefreshJobs={refreshJobs}
         expanded={isCopilotExpanded}
         onOpenObject={(object) => handleOpenWorkbenchObject(object.kind)}
         onFocusObject={(object) => workbenchRef.current?.focusObject(object.id)}

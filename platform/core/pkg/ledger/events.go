@@ -50,6 +50,8 @@ var KnownEventTypes = map[string]bool{
 	"chat_feedback":                     true,
 	"chat_message_appended":             true,
 	"chat_rewritten":                    true,
+	"task_created":                      true,
+	"task_status_changed":               true,
 	"custom_agent_deleted":              true,
 	"custom_agent_registered":           true,
 	"discovery_pipeline_evaluated":      true,

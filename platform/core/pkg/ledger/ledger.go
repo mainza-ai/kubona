@@ -404,6 +404,19 @@ func OpenLedgerWithOptions(dbPath string, opts Options) (*Ledger, error) {
 		FOREIGN KEY (session_id) REFERENCES sessions(id)
 	);
 
+	CREATE TABLE IF NOT EXISTS tasks (
+		id TEXT PRIMARY KEY,
+		session_id TEXT NOT NULL,
+		title TEXT NOT NULL,
+		status TEXT NOT NULL DEFAULT 'open',
+		source_domain TEXT NOT NULL DEFAULT '',
+		source_id TEXT NOT NULL DEFAULT '',
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL,
+		FOREIGN KEY (session_id) REFERENCES sessions(id)
+	);
+	CREATE INDEX IF NOT EXISTS idx_tasks_session ON tasks(session_id);
+
 	CREATE TABLE IF NOT EXISTS custom_agents (
 		id TEXT PRIMARY KEY,
 		manifest_json TEXT NOT NULL DEFAULT '{}',

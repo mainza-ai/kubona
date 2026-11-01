@@ -94,6 +94,8 @@
     "session.refund",
     "sessions.list",
     "settings.update",
+    "task",
+    "tasks.list",
     "tenant.grant",
     "tenant.grant.revoke",
     "tenant.write",
@@ -203,6 +205,8 @@
     "session.refund",
     "sessions.list",
     "settings.update",
+    "task",
+    "tasks.list",
     "tenant.grant",
     "tenant.grant.revoke",
     "tenant.write",
@@ -320,6 +324,12 @@
       "path": "/api/sessions",
       "method": "POST",
       "contract": "session.create"
+    },
+    {
+      "function": "createTask",
+      "path": "/api/tasks",
+      "method": "POST",
+      "contract": "task"
     },
     {
       "function": "deleteCustomAgent",
@@ -442,7 +452,7 @@
       "contract": "epistemics"
     },
     {
-      "function": "fetchEvents",
+      "function": "fetchEventsResult",
       "path": "/api/events",
       "method": "GET",
       "contract": "events.list"
@@ -466,7 +476,7 @@
       "contract": "job"
     },
     {
-      "function": "fetchJobs",
+      "function": "fetchJobsResult",
       "path": "/api/jobs",
       "method": "GET",
       "contract": "jobs.list"
@@ -508,7 +518,7 @@
       "contract": "lens.history"
     },
     {
-      "function": "fetchLoops",
+      "function": "fetchLoopsResult",
       "path": "/api/loops",
       "method": "GET",
       "contract": "loops.list"
@@ -614,6 +624,12 @@
       "path": "/api/agents",
       "method": "GET",
       "contract": "agents.system"
+    },
+    {
+      "function": "fetchTasksResult",
+      "path": "/api/tasks",
+      "method": "GET",
+      "contract": "tasks.list"
     },
     {
       "function": "fetchWorkbenchLayout",
@@ -928,6 +944,12 @@
       "contract": "llm.test"
     },
     {
+      "function": "updateTaskStatus",
+      "path": "/api/tasks/:id",
+      "method": "POST",
+      "contract": "task"
+    },
+    {
       "function": "uploadObservatoryAsset",
       "path": "/api/observatory/assets",
       "method": "POST",
@@ -962,6 +984,18 @@
     {
       "function": "fetchBackendStatus",
       "reason": "client-constructed health status"
+    },
+    {
+      "function": "fetchEvents",
+      "reason": "delegates to fetchEventsResult"
+    },
+    {
+      "function": "fetchJobs",
+      "reason": "delegates to fetchJobsResult"
+    },
+    {
+      "function": "fetchLoops",
+      "reason": "delegates to fetchLoopsResult"
     },
     {
       "function": "fetchSessions",
