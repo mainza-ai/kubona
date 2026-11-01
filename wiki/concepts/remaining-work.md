@@ -88,7 +88,8 @@ Still open:
   job progress now share a serialized, visibility-gated, backoff-bounded
   polling store with terminal-stop support. Copilot tribunal-turn polling is
   a local, run-scoped exception.
-- Revisioned domain events beyond the ledger cursor; generated contract
+- Revisioned domain events beyond the ledger cursor. The stream now gates
+  stale frames and refetches a snapshot after a forward gap; generated contract
   types, operation metadata, and a checked `requestOperation()` client are
   landed; session, loops, events, jobs, fidelity, ADMET, agents, LLM/quantum
   settings, radar, cost, obligations, notebooks, capabilities,

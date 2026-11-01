@@ -4416,3 +4416,9 @@ skipped is the exact failure this incident is about:
   both components support a compact mode without changing their polling or
   truth semantics. The composer is deferred to the shared transcript store.
   Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Stream revision gate and gap snapshot
+
+- The session stream now tracks frame revisions, drops stale replay frames, and
+  requests a ledger snapshot after a forward gap. Added a pure gap test.
+  Updated [[remaining-work]]; no new page.

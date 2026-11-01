@@ -31,18 +31,26 @@ export function hasSessionCookie(): boolean {
  * owns reconnection and exposes whether the stream is authoritative so the
  * polling fallback can yield while frames arrive.
  */
+export function shouldRequestSnapshot(previous: number, next: number): boolean {
+  return previous > 0 && next > previous + 1;
+}
+
 export function useSessionStream(
   sessionId: string | null,
   onEvents: (events: LedgerEvent[]) => void,
+  onGap?: (previous: number, next: number) => void,
 ): boolean {
   const [state, setState] = useState<{ sessionId: string | null; status: StreamStatus }>({
     sessionId: null,
     status: 'idle',
   });
+  const revision = useRef(0);
   const handler = useRef(onEvents);
+  const gapHandler = useRef(onGap);
   useEffect(() => {
     handler.current = onEvents;
-  }, [onEvents]);
+    gapHandler.current = onGap;
+  }, [onEvents, onGap]);
 
   useEffect(() => {
     if (!sessionId || typeof window === 'undefined' || typeof EventSource === 'undefined') {
@@ -51,6 +59,7 @@ export function useSessionStream(
     if (!hasSessionCookie()) {
       return;
     }
+    revision.current = 0;
     const source = new EventSource(
       `${API_BASE}/api/events/stream?session_id=${encodeURIComponent(sessionId)}`,
       { withCredentials: true },
@@ -66,6 +75,14 @@ export function useSessionStream(
         };
         if (!Array.isArray(payload.events) || payload.events.length === 0) return;
         errors = 0;
+        if (typeof payload.revision === 'number' && Number.isFinite(payload.revision)) {
+          const next = payload.revision;
+          if (next <= revision.current) return;
+          if (shouldRequestSnapshot(revision.current, next) && gapHandler.current) {
+            gapHandler.current(revision.current, next);
+          }
+          revision.current = next;
+        }
         handler.current(payload.events);
       } catch {
         // Malformed frame: the next replay/poll reconciles it.
