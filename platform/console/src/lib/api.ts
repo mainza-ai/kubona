@@ -241,15 +241,20 @@ export async function requestOperation<K extends ApiOperationName>(
 }
 
 
-export async function fetchSessions(): Promise<Session[]> {
+export async function fetchSessionsResult(): Promise<{ ok: true; sessions: Session[] } | { ok: false; error: string }> {
   try {
     const data = await dedupedGet<{ sessions?: Session[] }>(`${API_BASE}/api/sessions`, { headers: authHeaders() });
     contract('sessions.list', data);
-    return data.sessions || [];
+    return { ok: true, sessions: data.sessions || [] };
   } catch (err) {
     console.error('Failed to fetch sessions:', err);
-    return [];
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
+}
+
+export async function fetchSessions(): Promise<Session[]> {
+  const result = await fetchSessionsResult();
+  return result.ok ? result.sessions : [];
 }
 
 export async function fetchSession(sessionId: string): Promise<Session | null> {

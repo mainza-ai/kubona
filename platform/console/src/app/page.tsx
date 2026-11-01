@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Sparkles, Plus, Zap, Info, HelpCircle, Trash2, Clock, Box, X } from 'lucide-react';
 import { Session, LedgerEvent, RunPhase, ProbeId } from '@/types';
-import { fetchSessions, fetchSession, createSession, deleteSession, fetchLoops, fetchEvents, fetchCampaignState, API_BASE, CONSOLE_WORKBENCH_ENABLED, authHeaders, configureApiBase, apiFetch, UNAUTH_EVENT, API_PROBLEM_EVENT, type ApiProblem } from '@/lib/api';
+import { fetchSessionsResult, fetchSession, createSession, deleteSession, fetchLoops, fetchEvents, fetchCampaignState, API_BASE, CONSOLE_WORKBENCH_ENABLED, authHeaders, configureApiBase, apiFetch, UNAUTH_EVENT, API_PROBLEM_EVENT, type ApiProblem } from '@/lib/api';
 import { useJobsProjection } from '@/domain/useJobsProjection';
 import { useObligationsProjection } from '@/domain/useObligationsProjection';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
@@ -286,16 +286,20 @@ export default function Home() {
   const pendingAttach = useRef<Array<{ name: string; text: string }>>([]);
   const [showCampaignMenu, setShowCampaignMenu] = useState(false);
   const [campaignFilter, setCampaignFilter] = useState('');
+  const [sessionListError, setSessionListError] = useState<string | null>(null);
 
   const refreshData = useCallback(async () => {
     const sid = currentSessionId || undefined;
-    const [sessList, loopList, evtList] = await Promise.all([
-      fetchSessions(),
+    const [sessResult, loopList, evtList] = await Promise.all([
+      fetchSessionsResult(),
       fetchLoops(sid),
       fetchEvents(sid),
     ]);
-    if (sessList.length > 0) {
-      setSessions(sessList);
+    if (sessResult.ok) {
+      setSessionListError(null);
+      setSessions(sessResult.sessions);
+    } else {
+      setSessionListError(sessResult.error);
     }
     setLoops(loopList);
     setEvents(evtList);
@@ -336,11 +340,18 @@ export default function Home() {
       const workbenchOn = CONSOLE_WORKBENCH_ENABLED;
       setWorkbenchEnabled(workbenchOn);
       if (!workbenchOn) setArenaView((current) => (current === 'workbench' ? 'orbital' : current));
-      const [sessList, loopList] = await Promise.all([
-        fetchSessions(),
+      const [sessResult, loopList] = await Promise.all([
+        fetchSessionsResult(),
         fetchLoops(),
       ]);
       if (!mounted) return;
+      if (!sessResult.ok) {
+        setSessionListError(sessResult.error);
+        setLoops(loopList);
+        return;
+      }
+      setSessionListError(null);
+      const sessList = sessResult.sessions;
       let targetSessionId = currentSessionId;
       if (sessList.length === 0) {
         if (!bootstrappedSession.current) {
@@ -1087,7 +1098,16 @@ export default function Home() {
           />
           <div className="max-h-64 overflow-y-auto space-y-3">
             {ordered.length === 0 && (
-              <div className="text-[12px] text-slate-500 px-1 py-2">No campaigns match.</div>
+              sessionListError ? (
+                <div role="alert" className="text-[12px] text-amber-300/90 px-1 py-2 space-y-1">
+                  <p>Campaigns unavailable: {sessionListError}</p>
+                  <button type="button" onClick={() => void refreshData()} className="text-cyan-200 underline underline-offset-2">
+                    Retry
+                  </button>
+                </div>
+              ) : (
+                <div className="text-[12px] text-slate-500 px-1 py-2">No campaigns match.</div>
+              )
             )}
             {ordered.map(([tenant, list]) => (
               <div key={tenant} className="space-y-1.5">

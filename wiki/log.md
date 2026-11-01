@@ -4596,3 +4596,11 @@ skipped is the exact failure this incident is about:
 - Render the quantum-job cancel lifecycle as accepted/applied/refused/unknown;
   preserve transport-vs-refusal so an unreachable backend is never called a
   refusal. Dispatch estimate/submit now carries the same unknown flag.
+
+## [2026-11-01] impl | Session-list refusal copy
+
+- Split `fetchSessionsResult()` from `fetchSessions()` so the shell can show
+  a custom "Campaigns unavailable" alert with Retry instead of an empty list.
+  Concurrent reads still coalesce through `dedupedGet`.
+- Inventory/OpenAPI: 121 modeled / 11 client-only; the extra client-only name
+  is the delegating `fetchSessions` wrapper, not an unmodeled operation.

@@ -11,7 +11,7 @@ describe('generated operation client', () => {
       json: async () => ({ sessions: [{ id: 's1', title: 'Campaign', status: 'active', created_at: '2026-11-01T00:00:00Z', updated_at: '2026-11-01T00:00:00Z' }] }),
     }));
     vi.stubGlobal('fetch', fetchMock);
-    const data = await requestOperation('fetchSessions');
+    const data = await requestOperation('fetchSessionsResult');
     expect(data.sessions[0].id).toBe('s1');
     expect(String((fetchMock.mock.calls as unknown[][])[0]?.[0])).toContain('/api/sessions');
   });

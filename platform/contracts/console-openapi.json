@@ -450,7 +450,7 @@
         }
       },
       "get": {
-        "operationId": "fetchSessions",
+        "operationId": "fetchSessionsResult",
         "tags": [
           "sessions"
         ],
@@ -4499,6 +4499,7 @@
     "configureApiBase",
     "downloadFile",
     "fetchBackendStatus",
+    "fetchSessions",
     "isTerminalJobStatus",
     "jobStatusLabel",
     "lensImageProxyUrl",
