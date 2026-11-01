@@ -1,8 +1,8 @@
 'use client';
 
 import { fetchBackendStatus } from '@/lib/api';
-import { usePollingResource } from './use-polling-resource';
+import { useSharedResource } from './shared-resource';
 
 export function useBackendProjection() {
-  return usePollingResource(fetchBackendStatus, { intervalMs: 15_000 });
+  return useSharedResource('backend', fetchBackendStatus, { intervalMs: 15_000 });
 }

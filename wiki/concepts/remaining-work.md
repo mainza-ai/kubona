@@ -90,8 +90,10 @@ Still open:
   a local, run-scoped exception.
 - Revisioned domain events beyond the ledger cursor. The stream now gates
   stale frames and refetches a snapshot after a forward gap; jobs, obligations,
-  fleet/radar, cost, and backend readiness have named domain projections.
-  They are still per-consumer, not one ref-counted singleton per domain; generated contract
+  fleet/radar, cost, and backend readiness have named domain projections backed
+  by a ref-counted store registry; simultaneous consumers share one store and
+  the last unsubscribe stops/resets it. Shared transcript and uniform
+  settlement remain; generated contract
   types, operation metadata, and a checked `requestOperation()` client are
   landed; session, loops, events, jobs, fidelity, ADMET, agents, LLM/quantum
   settings, radar, cost, obligations, notebooks, capabilities,

@@ -3,7 +3,7 @@
 import { fetchFleet, fetchRadar } from '@/lib/api';
 import type { BackendInfo, RadarEndpoint } from '@/types';
 import { ResourceRefusal } from './resource-store';
-import { usePollingResource } from './use-polling-resource';
+import { useSharedResource } from './shared-resource';
 
 type FleetProjection = {
   backends: BackendInfo[];
@@ -38,7 +38,7 @@ async function loadFleet(): Promise<FleetProjection> {
 }
 
 export function useFleetProjection() {
-  const state = usePollingResource<FleetProjection>(loadFleet, {
+  const state = useSharedResource<FleetProjection>('fleet', loadFleet, {
     intervalMs: 1000,
     maxBackoffMs: 15_000,
   });
