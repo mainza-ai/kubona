@@ -4360,3 +4360,8 @@ skipped is the exact failure this incident is about:
 - Codesign packs/verified, HF download start, custom-agent create, literature
   search, ledger verify, and observatory lens request move onto
   `requestOperation`. Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Autoresearch and synthesis wrappers
+
+- Campaign synthesis and start/step/pause/resume/stop autoresearch actions
+  move onto `requestOperation`. Updated [[remaining-work]]; no new page.

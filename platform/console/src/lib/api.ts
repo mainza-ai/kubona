@@ -577,13 +577,15 @@ export async function fetchCampaignState(sessionId: string): Promise<import('@/t
 export async function synthesizeCampaign(sessionId: string, prompt: string): Promise<import('@/types').CampaignState | null> {
   // Refusal (HTTP !ok) returns null so the caller renders "refused".
   // Transport failure throws so the caller can distinguish it from refusal.
-  const res = await apiFetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/campaign/synthesize`, {
-    method: 'POST',
-    headers: authHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ prompt }),
-  });
-  if (!res.ok) return null;
-  return contract('campaign', await res.json());
+  try {
+    return (await requestOperation('synthesizeCampaign', {
+      params: { id: sessionId },
+      body: { prompt },
+    })) as unknown as import('@/types').CampaignState;
+  } catch (err) {
+    if (err instanceof OperationError && err.status !== null) return null;
+    throw err;
+  }
 }
 
 export async function fetchAutoresearchHarnesses(): Promise<{ harnesses: import('@/types').AutoresearchHarness[]; docker_runner: Record<string, unknown> | null }> {
@@ -605,18 +607,14 @@ export async function startAutoresearchLoop(
   sessionId?: string
 ): Promise<import('@/types').AutoresearchLoop | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/autoresearch/start`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
+    return (await requestOperation('startAutoresearchLoop', {
+      body: {
         session_id: sessionId || '',
         harness_id: harnessId,
         max_iterations: maxIterations,
         initial_artifact: initialArtifact || '',
-      }),
-    });
-    if (!res.ok) return null;
-    return contract('autoresearch.loop', await res.json());
+      },
+    })) as unknown as import('@/types').AutoresearchLoop;
   } catch (err) {
     console.error('Failed to start autoresearch loop:', err);
     return null;
@@ -635,12 +633,10 @@ export async function fetchAutoresearchLoops(): Promise<import('@/types').Autore
 
 export async function stepAutoresearchLoop(loopId: string): Promise<{ step: import('@/types').IterationRecord; state: import('@/types').AutoresearchLoop } | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/autoresearch/loops/${encodeURIComponent(loopId)}/step`, {
-      headers: authHeaders(),
-      method: 'POST',
-    });
-    if (!res.ok) return null;
-    return contract('autoresearch.step', await res.json());
+    return (await requestOperation('stepAutoresearchLoop', {
+      params: { id: loopId },
+      body: {},
+    })) as unknown as { step: import('@/types').IterationRecord; state: import('@/types').AutoresearchLoop };
   } catch (err) {
     console.error('Failed to step autoresearch loop:', err);
     return null;
@@ -649,12 +645,7 @@ export async function stepAutoresearchLoop(loopId: string): Promise<{ step: impo
 
 export async function pauseAutoresearchLoop(loopId: string): Promise<import('@/types').AutoresearchLoop | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/autoresearch/loops/${encodeURIComponent(loopId)}/pause`, {
-      headers: authHeaders(),
-      method: 'POST',
-    });
-    if (!res.ok) return null;
-    return contract('autoresearch.loop', await res.json());
+    return (await requestOperation('pauseAutoresearchLoop', { params: { id: loopId }, body: {} })) as unknown as import('@/types').AutoresearchLoop;
   } catch (err) {
     console.error('Failed to pause autoresearch loop:', err);
     return null;
@@ -663,12 +654,7 @@ export async function pauseAutoresearchLoop(loopId: string): Promise<import('@/t
 
 export async function resumeAutoresearchLoop(loopId: string): Promise<import('@/types').AutoresearchLoop | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/autoresearch/loops/${encodeURIComponent(loopId)}/resume`, {
-      headers: authHeaders(),
-      method: 'POST',
-    });
-    if (!res.ok) return null;
-    return contract('autoresearch.loop', await res.json());
+    return (await requestOperation('resumeAutoresearchLoop', { params: { id: loopId }, body: {} })) as unknown as import('@/types').AutoresearchLoop;
   } catch (err) {
     console.error('Failed to resume autoresearch loop:', err);
     return null;
@@ -677,12 +663,7 @@ export async function resumeAutoresearchLoop(loopId: string): Promise<import('@/
 
 export async function stopAutoresearchLoop(loopId: string): Promise<import('@/types').AutoresearchLoop | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/autoresearch/loops/${encodeURIComponent(loopId)}/stop`, {
-      headers: authHeaders(),
-      method: 'POST',
-    });
-    if (!res.ok) return null;
-    return contract('autoresearch.loop', await res.json());
+    return (await requestOperation('stopAutoresearchLoop', { params: { id: loopId }, body: {} })) as unknown as import('@/types').AutoresearchLoop;
   } catch (err) {
     console.error('Failed to stop autoresearch loop:', err);
     return null;
