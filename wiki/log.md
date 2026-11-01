@@ -4458,3 +4458,8 @@ skipped is the exact failure this incident is about:
   restored immediately, or restored from the hidden-object list. Hidden ids
   persist in the v2 document and are validated. Updated [[remaining-work]];
   no new page.
+
+## [2026-11-01] impl | Workbench multi-select
+
+- Added modifier multi-select, group drag, group remove/restore, group area
+  assignment, and Space selection. Updated [[remaining-work]]; no new page.

@@ -41,13 +41,13 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
   const revision = useRef(0);
   const loaded = useRef(false);
   const drag = useRef<{ x: number; y: number; camera: WorkbenchCamera } | null>(null);
-  const cardDrag = useRef<{ id: string; x: number; y: number; originX: number; originY: number } | null>(null);
+  const cardDrag = useRef<{ ids: string[]; x: number; y: number; origins: Record<string, { x: number; y: number }> } | null>(null);
   const sizeDrag = useRef<{ id: string; x: number; y: number; width: number; height: number } | null>(null);
   const areaDrag = useRef<{ x: number; y: number; originX: number; originY: number } | null>(null);
   const areaResize = useRef<{ x: number; y: number; width: number; height: number } | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [camera, setCamera] = useState<WorkbenchCamera>({ x: 36, y: 36, zoom: 0.82 });
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string[]>([]);
   const [positions, setPositions] = useState<WorkbenchPositions>({});
   const [sizes, setSizes] = useState<WorkbenchSizes>({});
   const jobs = useMemo(() => suppliedJobs ?? [], [suppliedJobs]);
@@ -59,7 +59,7 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
   const [viewport, setViewport] = useState({ width: 0, height: 0 });
   const [assignments, setAssignments] = useState<Record<string, string>>({});
   const [hidden, setHidden] = useState<string[]>([]);
-  const [lastRemoved, setLastRemoved] = useState<string | null>(null);
+  const [lastRemoved, setLastRemoved] = useState<string[]>([]);
   const [conflictRevision, setConflictRevision] = useState<number | null>(null);
   const [write, setWrite] = useState<WriteSettlement>(IDLE_WRITE);
   useEffect(() => {
@@ -74,8 +74,13 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
     })),
     [baseObjects, positions, sizes],
   );
-  const selectObject = useCallback((object: WorkbenchObject) => {
-    setSelected(object.id);
+  const selectObject = useCallback((object: WorkbenchObject, additive = false) => {
+    setSelected((previous) => {
+      if (!additive) return [object.id];
+      return previous.includes(object.id)
+        ? previous.filter((id) => id !== object.id)
+        : [...previous, object.id];
+    });
     onSelectObject?.(object);
   }, [onSelectObject]);
 
@@ -91,17 +96,17 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
   }, [visibleObjects]);
 
   const removeSelected = useCallback(() => {
-    if (!selected) return;
-    setHidden((previous) => previous.includes(selected) ? previous : [...previous, selected]);
+    if (selected.length === 0) return;
+    setHidden((previous) => Array.from(new Set([...previous, ...selected])));
     setLastRemoved(selected);
-    setSelected(null);
+    setSelected([]);
     onSelectObject?.(null);
   }, [selected, onSelectObject]);
 
   const undoRemove = useCallback(() => {
-    if (!lastRemoved) return;
-    setHidden((previous) => previous.filter((id) => id !== lastRemoved));
-    setLastRemoved(null);
+    if (lastRemoved.length === 0) return;
+    setHidden((previous) => previous.filter((id) => !lastRemoved.includes(id)));
+    setLastRemoved([]);
   }, [lastRemoved]);
 
   const fit = useCallback(() => {
@@ -263,12 +268,16 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
   const onCardPointerDown = (event: React.PointerEvent<HTMLElement>, object: WorkbenchObject) => {
     event.stopPropagation();
     event.currentTarget.setPointerCapture(event.pointerId);
+    const group = selected.includes(object.id) ? selected : [object.id];
+    if (!selected.includes(object.id)) selectObject(object, false);
     cardDrag.current = {
-      id: object.id,
+      ids: group,
       x: event.clientX,
       y: event.clientY,
-      originX: object.position.x,
-      originY: object.position.y,
+      origins: Object.fromEntries(group.map((id) => {
+        const item = objects.find((candidate) => candidate.id === id) ?? object;
+        return [id, { x: item.position.x, y: item.position.y }];
+      })),
     };
   };
 
@@ -277,13 +286,18 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
     if (!current) return;
     const dx = (event.clientX - current.x) / camera.zoom;
     const dy = (event.clientY - current.y) / camera.zoom;
-    setPositions((previous) => ({
-      ...previous,
-      [current.id]: {
-        x: Math.max(-400, Math.min(1800, Math.round((current.originX + dx) * 100) / 100)),
-        y: Math.max(-400, Math.min(1200, Math.round((current.originY + dy) * 100) / 100)),
-      },
-    }));
+    setPositions((previous) => {
+      const next = { ...previous };
+      for (const id of current.ids) {
+        const origin = current.origins[id];
+        if (!origin) continue;
+        next[id] = {
+          x: Math.max(-400, Math.min(1800, Math.round((origin.x + dx) * 100) / 100)),
+          y: Math.max(-400, Math.min(1200, Math.round((origin.y + dy) * 100) / 100)),
+        };
+      }
+      return next;
+    });
   };
 
   const onCardPointerUp = () => {
@@ -371,7 +385,7 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
           event.preventDefault();
           setCamera((current) => ({ ...current, zoom: 1 }));
         }
-        if ((event.key === 'Delete' || event.key === 'Backspace') && selected) {
+        if ((event.key === 'Delete' || event.key === 'Backspace') && selected.length > 0) {
           const target = event.target as HTMLElement;
           if (!/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName) && !target.isContentEditable) {
             event.preventDefault();
@@ -420,27 +434,31 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
             onChange={(event) => setAreas((previous) => previous.map((area, index) => index === 0 ? { ...area, title: event.target.value } : area))}
           />
         )}
-        {selected && areas[0] && (
+        {selected.length > 0 && areas[0] && (
           <Button
             type="button"
             variant="ghost"
             size="compact"
             onClick={() => setAssignments((previous) => {
               const next = { ...previous };
-              if (next[selected] === areas[0].id) delete next[selected];
-              else next[selected] = areas[0].id;
+              const areaId = areas[0].id;
+              const allAssigned = selected.every((id) => previous[id] === areaId);
+              for (const id of selected) {
+                if (allAssigned) delete next[id];
+                else next[id] = areaId;
+              }
               return next;
             })}
           >
-            {assignments[selected] === areas[0].id ? 'Unassign' : 'Assign to area'}
+            {selected.every((id) => assignments[id] === areas[0].id) ? 'Unassign' : 'Assign to area'}
           </Button>
         )}
-        {selected && (
-          <Button type="button" variant="ghost" size="compact" onClick={removeSelected} title="Remove the selected card from the canvas; the record is not deleted">
-            Remove
+        {selected.length > 0 && (
+          <Button type="button" variant="ghost" size="compact" onClick={removeSelected} title="Remove the selected cards from the canvas; records are not deleted">
+            {selected.length > 1 ? `Remove (${selected.length})` : 'Remove'}
           </Button>
         )}
-        {lastRemoved && (
+        {lastRemoved.length > 0 && (
           <Button type="button" variant="ghost" size="compact" onClick={undoRemove} title="Restore the last removed card">
             Undo remove
           </Button>
@@ -547,9 +565,9 @@ export function Workbench({ campaign, sessionId, loops = [], jobs: suppliedJobs,
             <WorkCard
               key={object.id}
               object={object}
-              selected={selected === object.id}
+              selected={selected.includes(object.id)}
               assigned={Boolean(areas[0] && assignments[object.id] === areas[0].id)}
-              onSelect={() => selectObject(object)}
+              onSelect={(additive) => selectObject(object, additive)}
               onPointerDown={(event) => onCardPointerDown(event, object)}
               onPointerMove={onCardPointerMove}
               onPointerUp={onCardPointerUp}
@@ -590,7 +608,7 @@ function WorkCard({
   object: WorkbenchObject;
   selected: boolean;
   assigned: boolean;
-  onSelect: () => void;
+  onSelect: (additive: boolean) => void;
   onPointerDown: (event: React.PointerEvent<HTMLElement>) => void;
   onPointerMove: (event: React.PointerEvent<HTMLElement>) => void;
   onPointerUp: () => void;
@@ -613,8 +631,7 @@ function WorkCard({
       }}
       tabIndex={0}
       aria-label={`${object.label}: ${object.title}`}
-      onClick={onSelect}
-      onFocus={onSelect}
+      onClick={(event) => onSelect(Boolean(event?.metaKey || event?.ctrlKey || event?.shiftKey))}
       onKeyDown={(event) => {
         const step = event.shiftKey ? 50 : 10;
         const moves: Record<string, [number, number]> = {
@@ -624,6 +641,10 @@ function WorkCard({
         if (move) {
           event.preventDefault();
           onNudge(move[0], move[1]);
+        }
+        if (event.key === ' ') {
+          event.preventDefault();
+          onSelect(event.metaKey || event.ctrlKey || event.shiftKey);
         }
         if (event.key === 'Enter' && onOpen) {
           event.preventDefault();
