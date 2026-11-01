@@ -11,6 +11,8 @@ import {
   stopAutoresearchLoop,
 } from '@/lib/api';
 import type { AutoresearchHarness, AutoresearchLoop } from '@/types';
+import { useWriteSettlement } from '@/domain/use-write-settlement';
+import { writeSettlementLabel } from '@/domain/write-settlement';
 
 export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
   const [harnesses, setHarnesses] = useState<AutoresearchHarness[]>([]);
@@ -19,6 +21,7 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
   const [maxIterations, setMaxIterations] = useState('10');
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const settlement = useWriteSettlement();
 
   const load = useCallback(async () => {
     const [h, l] = await Promise.all([fetchAutoresearchHarnesses(), fetchAutoresearchLoops()]);
@@ -41,10 +44,17 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
   const run = async (kind: string, fn: () => Promise<unknown>, success: string) => {
     setBusy(kind);
     setNotice(null);
+    const requestId = settlement.begin(`${kind} loop`);
     try {
       const out = await fn();
-      setNotice(out ? success : `${kind} refused or transport failed — nothing changed.`);
+      if (out) {
+        settlement.applied(requestId, `${kind} loop · ${success.replace(/\.$/, '')}`);
+      } else {
+        settlement.unknown(requestId, `${kind} not confirmed — backend refused or transport failed`);
+      }
       await load();
+    } catch (err) {
+      settlement.unknown(requestId, `${kind} not confirmed — ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setBusy(null);
     }
@@ -73,7 +83,9 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
           Start loop
         </button>
       </div>
-      {notice && <p role="status" className="text-[12px] text-slate-300">{notice}</p>}
+      {(notice || writeSettlementLabel(settlement.write)) && (
+        <p role="status" className="text-[12px] text-slate-300">{writeSettlementLabel(settlement.write) || notice}</p>
+      )}
       {loops === null && <p className="text-[12px] text-slate-500">Loading loops…</p>}
       {loops !== null && loops.length === 0 && <p className="text-[12px] text-slate-400">No autoresearch loops.</p>}
       {(loops ?? []).map((loop) => (

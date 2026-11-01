@@ -4506,3 +4506,9 @@ skipped is the exact failure this incident is about:
   attach/detach chips, pending attachment flush into Copilot, and a Model Hub
   entry. No per-send model override: there is no backend contract for one.
   Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Settlement across loop and proposal writes
+
+- Applied the shared write-settlement vocabulary to autoresearch transitions
+  and metasearch approve/reject/apply. APIs that hide transport-vs-refusal
+  are reported as unknown, not success. Updated [[remaining-work]]; no page.

@@ -96,7 +96,8 @@ Still open:
   write settlement; the Copilot transcript is a shared per-session store.
   The composer attaches readable text files into that transcript and links to
   Model Hub; per-send model switching has no backend contract and is not
-  faked. Remaining write settlement stays open; generated contract
+  faked. Autoresearch and metasearch writes use the shared settlement
+  vocabulary; collapsed transport/refusal is shown as unknown, never applied; generated contract
   types, operation metadata, and a checked `requestOperation()` client are
   landed; session, loops, events, jobs, fidelity, ADMET, agents, LLM/quantum
   settings, radar, cost, obligations, notebooks, capabilities,
