@@ -90,7 +90,9 @@ Still open:
   compile, calibration, prediction history/latest/seal/evaluate/assert,
   lens-history/status, vault lease, ledger export, mesh routing, memory
   retain, lab creation, observatory asset/lens resolution, LLM models/test,
-  and HF search/details/downloads wrappers use it. Typed operation errors carry the backend
+  HF search/details/downloads, and auth challenge/login/whoami/sessions
+  wrappers use it. Auth logout/revoke remain hand-written (not in the
+  generated inventory). Typed operation errors carry the backend
   refusal body. Layout and obligation-close writes render
   accepted/applied/refused/unknown settlement.
   Session-list dedupe/custom error copy remain, and settlement is not yet
