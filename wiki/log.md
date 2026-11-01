@@ -4166,3 +4166,14 @@ skipped is the exact failure this incident is about:
   external alert envelope/routing, deeper VoiceOver/NVDA and canvas text
   audit, and deferred at-rest/observability hardening.
 - Linked it from [[remaining-work]] and [[index]]; census is now 155 pages.
+
+## [2026-11-01] impl | Interface/runtime upgrade slices
+
+- Workbench v2 layout with revision/CAS, typed links, list equivalent,
+  keyboard movement, and spatial area; chart kit adopted by ResultsStudio,
+  FleetRadar, EpistemicManifold, and Codesign; `/api/v1` alias; 3D loop
+  pauses when hidden/offscreen.
+- Updated [[remaining-work]] and the API-versioning status in
+  [[optional-enhancement-plan-2026-11-01]]; no new page. Remaining: full
+  object set/areas/virtualization, residual pollers, revisioned domain
+  events, generated client, and the manual accessibility record.

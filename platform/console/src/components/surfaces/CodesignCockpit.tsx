@@ -4,6 +4,8 @@ import React, { useEffect, useState } from 'react';
 import { API_BASE, apiFetch, authHeaders, evaluateCodesignArtifact, evaluateCodesignBatch, fetchCodesignPacks, fetchCodesignVerified, fetchSessions, rerunCodesignProposal, runFamilySearch, scoreCodesignBudget } from '@/lib/api';
 import type { CodesignBudgetResult, CodesignFamiliesResult, CodesignFrontierResult, CodesignPacksResult, CodesignRerunResult, CodesignVerifiedResult } from '@/lib/api';
 import type { Session } from '@/types';
+import { Chart } from '@/components/data/DataChart';
+import type { ChartSpec } from '@/components/data/chart';
 
 // Circuit co-design cockpit (read-only scoring).
 // Talks only to Go (:8080) read-only routes; validity ground truth stays
@@ -528,6 +530,29 @@ export function CodesignCockpit() {
     }
   };
 
+  const frontierSpec: ChartSpec | undefined =
+    frontier && frontier.entries.length > 0
+      ? {
+          kind: 'bars',
+          title: 'MAP-Elites frontier TQ by cell',
+          series: [
+            {
+              name: 'TQ',
+              points: frontier.entries.slice(0, 12).map((entry) => ({
+                x: `${entry.toffoli}T×${entry.qubits}Q`,
+                y: entry.tq,
+                display: String(entry.tq),
+              })),
+            },
+          ],
+          x: { label: 'Cell (T×Q)', kind: 'category' },
+          y: { label: 'TQ', format: 'number' },
+          headline: frontier.best ? { label: 'best TQ', value: String(frontier.best.tq) } : undefined,
+          basis: `Python evaluator Map-Elites frontier (κ=${frontier.kappa}, ${frontier.cells} cells). Read-only; validity stays Python-owned.`,
+          detail: 'full',
+        }
+      : undefined;
+
   return (
     <div className="space-y-6">
       <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/5 p-4">
@@ -590,6 +615,7 @@ export function CodesignCockpit() {
                 <li key={i}>{e.toffoli}T × {e.qubits}Q = {e.tq}</li>
               ))}
             </ul>
+            {frontierSpec && <Chart spec={frontierSpec} className="mt-3" />}
           </div>
         )}
       </div>
