@@ -31,7 +31,21 @@ export type PollingStore<T> = {
   dispose: () => void;
 };
 
-type Options = { intervalMs: number; hiddenIntervalMs?: number; maxBackoffMs?: number };
+type Options<T> = {
+  intervalMs: number;
+  hiddenIntervalMs?: number;
+  maxBackoffMs?: number;
+  /** A terminal resource (settled job, closed incident) stops polling. */
+  shouldContinue?: (data: T) => boolean;
+};
+
+/** Ends polling without treating the resource as a transport failure. */
+export class StopPolling extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StopPolling';
+  }
+}
 
 /**
  * One owner per shared resource. Polling is visibility-gated, serialized,
@@ -40,7 +54,7 @@ type Options = { intervalMs: number; hiddenIntervalMs?: number; maxBackoffMs?: n
  */
 export function createPollingStore<T>(
   load: () => Promise<T>,
-  { intervalMs, hiddenIntervalMs = 30_000, maxBackoffMs = 30_000 }: Options,
+  { intervalMs, hiddenIntervalMs = 30_000, maxBackoffMs = 30_000, shouldContinue }: Options<T>,
 ): PollingStore<T> {
   let state: ResourceState<T> = {
     status: 'idle',
@@ -89,9 +103,15 @@ export function createPollingStore<T>(
         updatedAt: Date.now(),
         intervalMs,
       });
-      schedule(intervalMs);
+      if (shouldContinue?.(data) === false) clearTimer();
+      else schedule(intervalMs);
     } catch (err) {
       if (!active) return;
+      if (err instanceof StopPolling) {
+        publish({ status: state.data === null ? 'refused' : 'stale', error: err.message });
+        clearTimer();
+        return;
+      }
       const next = Math.min(maxBackoffMs, Math.max(intervalMs, Math.round(state.intervalMs * 1.5)));
       const refusal = err instanceof ResourceRefusal ? (err.data as T | null) : null;
       const data = refusal ?? state.data;
