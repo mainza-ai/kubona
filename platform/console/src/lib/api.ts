@@ -977,21 +977,9 @@ export async function fetchCodesignVerified(): Promise<
   | { ok: false; error: string }
 > {
   try {
-    const res = await apiFetch(`${API_BASE}/api/codesign/verified`, {
-      cache: 'no-store',
-      headers: authHeaders(),
-    });
-    const data = await res.json().catch(() => null);
-    if (!res.ok || !data || typeof data.total?.toffoli !== 'number') {
-      const msg =
-        (data && typeof data.message === 'string' && data.message) ||
-        `refused (HTTP ${res.status})`;
-      return { ok: false, error: msg.slice(0, 280) };
-    }
-    contract('codesign.verified', data);
-    return { ok: true, result: data as CodesignVerifiedResult };
+    return { ok: true, result: (await requestOperation('fetchCodesignVerified')) as unknown as CodesignVerifiedResult };
   } catch (err) {
-    return { ok: false, error: String(err).slice(0, 280) };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
@@ -1053,22 +1041,9 @@ export async function fetchCodesignPacks(): Promise<
   { ok: true; result: CodesignPacksResult } | { ok: false; error: string }
 > {
   try {
-    const res = await apiFetch(`${API_BASE}/api/codesign/packs`, {
-      cache: 'no-store',
-      headers: authHeaders(),
-    });
-    const data = await res.json().catch(() => null);
-    if (!res.ok || !data || data.ok !== true || !Array.isArray(data.packs)) {
-      const msg =
-        (data && typeof data.message === 'string' && data.message) ||
-        (data && typeof data.error === 'string' && data.error) ||
-        `refused (HTTP ${res.status})`;
-      return { ok: false, error: msg.slice(0, 280) };
-    }
-    contract('codesign.packs', data);
-    return { ok: true, result: data as CodesignPacksResult };
+    return { ok: true, result: (await requestOperation('fetchCodesignPacks')) as unknown as CodesignPacksResult };
   } catch (err) {
-    return { ok: false, error: String(err).slice(0, 280) };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
@@ -1371,26 +1346,18 @@ export async function getHFModelDetails(
 export async function startHFDownload(
   repoId: string,
   filename: string,
-  // T-11: client-declared size + explicit confirmation. The server
-  // enforces the same bound, so the confirm dialog is not bypassable
-  // via raw POST; unknown sizes omit the field and pass ungated.
   sizeBytes?: number,
   confirmed?: boolean
 ): Promise<import('@/types').HFDownloadTask | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/hf/download`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
+    const data = (await requestOperation('startHFDownload', {
+      body: {
         repo_id: repoId,
         filename,
         ...(typeof sizeBytes === 'number' && Number.isFinite(sizeBytes) ? { size_bytes: sizeBytes } : {}),
         ...(confirmed ? { confirmed: true } : {}),
-      }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    contract('hf.download', data);
+      },
+    })) as { task?: import('@/types').HFDownloadTask | null };
     return data.task || null;
   } catch (err) {
     console.error('Failed to start HF download:', err);
@@ -1459,22 +1426,18 @@ export async function fetchCustomAgents(): Promise<import('@/types').CustomAgent
 export async function createCustomAgent(
   manifest: import('@/types').CustomAgentManifest
 ): Promise<import('@/types').CustomAgentManifest> {
-  // Audit 2026-10-21: returning null on refusal made the mesh modal
-  // close in silent success theater (roster unchanged, no message).
-  // Refusals throw — the caller's catch toasts them honestly.
-  const res = await apiFetch(`${API_BASE}/api/agents/custom`, {
-    method: 'POST',
-    headers: authHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify(manifest),
-  });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    throw new Error(`agent registration refused (HTTP ${res.status}): ${detail.slice(0, 160) || 'operator token required'}`);
+  try {
+    const data = (await requestOperation('createCustomAgent', { body: manifest })) as {
+      agent?: import('@/types').CustomAgentManifest;
+    };
+    if (!data.agent) throw new Error('agent registration returned no agent: nothing registered');
+    return data.agent;
+  } catch (err) {
+    if (err instanceof OperationError) {
+      throw new Error(`agent registration refused (HTTP ${err.status ?? 'transport'}): ${err.message.slice(0, 160)}`);
+    }
+    throw err;
   }
-  const data = await res.json();
-  contract('agent.one', data);
-  if (!data.agent) throw new Error('agent registration returned no agent: nothing registered');
-  return data.agent;
 }
 
 export async function deleteCustomAgent(agentId: string): Promise<boolean> {
@@ -1623,14 +1586,12 @@ export async function emergencyAbort(
   }
 }
 
-export async function searchLiterature(query: string, limit = 5): Promise<{ records: import('@/types').LiteratureRecord[]; cached: boolean }> {  try {
-    const res = await apiFetch(
-      `${API_BASE}/api/literature?query=${encodeURIComponent(query)}&limit=${limit}`,
-      { cache: 'no-store', headers: authHeaders() }
-    );
-    if (!res.ok) return { records: [], cached: false };
-    const data = await res.json();
-    return contract('literature', { records: data.records || [], cached: !!data.cached });
+export async function searchLiterature(query: string, limit = 5): Promise<{ records: import('@/types').LiteratureRecord[]; cached: boolean }> {
+  try {
+    const data = (await requestOperation('searchLiterature', {
+      query: { query, limit },
+    })) as { records?: import('@/types').LiteratureRecord[]; cached?: boolean };
+    return { records: data.records || [], cached: Boolean(data.cached) };
   } catch (err) {
     console.error('Failed to search literature:', err);
     return { records: [], cached: false };
@@ -2239,14 +2200,11 @@ export async function revokeVaultLease(leaseId: string): Promise<{ ok: boolean; 
 
 export async function verifyLedger(sessionId?: string): Promise<{ ok: boolean; fault_count?: number; faults?: unknown[]; error?: string }> {
   try {
-    const qs = sessionId ? `?session_id=${encodeURIComponent(sessionId)}` : '';
-    const res = await apiFetch(`${API_BASE}/api/ledger/verify${qs}`, { cache: 'no-store', headers: authHeaders() });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: String(data.error || data.message || `HTTP ${res.status}`).slice(0, 280) };
-    contract('ledger.verify', data);
-    return { ok: data.ok === true, fault_count: data.fault_count, faults: data.faults };
+    return (await requestOperation('verifyLedger', {
+      query: { session_id: sessionId || undefined },
+    })) as { ok: boolean; fault_count?: number; faults?: unknown[] };
   } catch (err) {
-    return { ok: false, error: String(err).slice(0, 280) };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
@@ -2516,16 +2474,13 @@ export async function requestObservatoryLens(params: {
   error?: string;
 }> {
   try {
-    // One idempotency key per logical request: transport retries replay the
-    // same Atlas operation instead of minting duplicate $0.50 dispatches.
     const idemKey =
       typeof crypto !== 'undefined' && 'randomUUID' in crypto
         ? crypto.randomUUID()
         : `lens-${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    const res = await apiFetch(`${API_BASE}/api/observatory/lens`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json', 'Idempotency-Key': idemKey }),
-      body: JSON.stringify({
+    return (await requestOperation('requestObservatoryLens', {
+      headers: { 'Idempotency-Key': idemKey },
+      body: {
         session_id: params.sessionId,
         target_system: params.targetSystem,
         prompt: params.prompt,
@@ -2535,13 +2490,8 @@ export async function requestObservatoryLens(params: {
         ...(params.camera ? { camera: params.camera } : {}),
         ...(params.voxelSize ? { voxel_size: params.voxelSize } : {}),
         ...(params.ephemeralPurge ? { ephemeral_purge: true } : {}),
-      }),
-    });
-    if (!res.ok) {
-      const data = (await res.json().catch(() => ({}))) as { message?: string; code?: string };
-      return { ok: false, error: data.message || `Request failed (${res.status})` };
-    }
-    return contract('lens.request', await res.json()) as {
+      },
+    })) as {
       ok: boolean;
       operation_id?: string;
       watermark?: string;
@@ -2549,7 +2499,7 @@ export async function requestObservatoryLens(params: {
       idempotency_key?: string;
     };
   } catch (err) {
-    return { ok: false, error: (err as Error).message || 'Network error' };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
