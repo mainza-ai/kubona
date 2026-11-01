@@ -13,5 +13,6 @@ export async function GET() {
     process.env.KUBONA_CONSOLE_API_URL ||
     process.env.NEXT_PUBLIC_API_URL ||
     'http://localhost:8080';
-  return NextResponse.json({ apiUrl });
+  const workbench = process.env.KUBONA_CONSOLE_WORKBENCH !== '0';
+  return NextResponse.json({ apiUrl, workbench });
 }

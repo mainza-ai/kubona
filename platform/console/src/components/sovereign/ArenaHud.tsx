@@ -26,6 +26,7 @@ interface ArenaHudProps {
   sessionElapsed: string;
   statusText?: string | null;
   onRecenter: () => void;
+  showWorkbench?: boolean;
 }
 
 function fmt(v: unknown): string {
@@ -42,6 +43,7 @@ export function ArenaHud({
   sessionElapsed,
   statusText,
   onRecenter,
+  showWorkbench = true,
 }: ArenaHudProps) {
   const spendFinite = typeof spendUsd === 'number' && Number.isFinite(spendUsd);
   const capFinite = typeof spendCapUsd === 'number' && Number.isFinite(spendCapUsd) && spendCapUsd > 0;
@@ -49,7 +51,7 @@ export function ArenaHud({
   return (
     <header className="absolute top-4 left-6 right-6 z-20 flex flex-wrap items-center gap-2 justify-between pointer-events-none">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 max-w-full pointer-events-auto bg-[#0E1117] border border-white/10 rounded-2xl sm:rounded-full px-4 py-2 shadow-2xl">
-        <span className={`w-2 h-2 rounded-full ${statusText ? 'bg-cyan-400 animate-ping' : 'bg-emerald-400 animate-pulse'}`} />
+        <span className={`w-2 h-2 rounded-full ${statusText ? 'bg-cyan-400' : 'bg-emerald-400'}`} />
         <span className="font-code text-xs text-white font-medium tracking-wide">{targetLabel}</span>
         <span className="text-white/20">|</span>
         {statusText ? (
@@ -64,7 +66,7 @@ export function ArenaHud({
         aria-label="Arena view mode"
         className="pointer-events-auto bg-[#0E1117] border border-white/10 rounded-2xl sm:rounded-full p-1 flex items-center max-w-full overflow-x-auto shadow-2xl"
       >
-        {VIEW_MODES.map((m) => {
+        {VIEW_MODES.filter((m) => showWorkbench || m.id !== 'workbench').map((m) => {
           const Icon = m.icon;
           const isActive = view === m.id;
           return (

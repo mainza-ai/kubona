@@ -4257,3 +4257,9 @@ skipped is the exact failure this incident is about:
 - Open obligations project as `approval` cards with close readiness, required
   cases, and authorities; opening one goes to the guardrails queue. Updated
   [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Runtime workbench kill switch
+
+- `/api/config` now serves the workbench flag; disabling it hides the
+  Workbench tab and lands the shell on Orbital Space without a rebuild.
+  Updated [[remaining-work]]; no new page.
