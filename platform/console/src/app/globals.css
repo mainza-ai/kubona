@@ -565,3 +565,28 @@ body {
   border-radius: var(--radius-card);
   background: color-mix(in oklab, var(--color-surface) 60%, transparent);
 }
+.k-workbench-area-title {
+  inline-size: 160px;
+  block-size: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control-compact);
+  background: var(--color-fill);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--text-label);
+}
+.k-workbench-area { pointer-events: auto; cursor: move; }
+.k-workbench-area > span:first-child { pointer-events: none; }
+.k-workbench-area-resize {
+  position: absolute;
+  inset-block-end: 4px;
+  inset-inline-end: 4px;
+  inline-size: 14px;
+  block-size: 14px;
+  border-inline-end: 2px solid var(--color-info);
+  border-block-end: 2px solid var(--color-info);
+  border-end-end-radius: 4px;
+  cursor: nwse-resize;
+  touch-action: none;
+}
