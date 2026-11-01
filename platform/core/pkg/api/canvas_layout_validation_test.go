@@ -47,6 +47,9 @@ func TestCanvasWorkbenchLayoutValidation(t *testing.T) {
 	if code := put(`{"workbench":{"version":1,"objects":{"far":{"x":1000001,"y":0}}}}`); code != http.StatusBadRequest {
 		t.Fatalf("out-of-bounds position must 400, got %d", code)
 	}
+	if code := put(`{"workbench":{"version":1,"objects":{"tiny":{"x":0,"y":0,"width":10,"height":200}}}}`); code != http.StatusBadRequest {
+		t.Fatalf("out-of-bounds width must 400, got %d", code)
+	}
 	if code := put(`{"workbench":{"version":2}}`); code != http.StatusBadRequest {
 		t.Fatalf("unknown workbench version must 400, got %d", code)
 	}

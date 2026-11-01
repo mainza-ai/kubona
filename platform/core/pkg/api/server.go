@@ -3750,8 +3750,10 @@ func validateWorkbenchLayout(raw []byte) error {
 			Zoom float64 `json:"zoom"`
 		} `json:"camera"`
 		Objects map[string]struct {
-			X float64 `json:"x"`
-			Y float64 `json:"y"`
+			X      float64 `json:"x"`
+			Y      float64 `json:"y"`
+			Width  float64 `json:"width"`
+			Height float64 `json:"height"`
 		} `json:"objects"`
 	}
 	if err := json.Unmarshal(workbenchRaw, &workbench); err != nil {
@@ -3781,6 +3783,12 @@ func validateWorkbenchLayout(raw []byte) error {
 		}
 		if math.Abs(position.X) > 1e6 || math.Abs(position.Y) > 1e6 {
 			return fmt.Errorf("workbench position for %q is out of bounds", id)
+		}
+		if position.Width != 0 && (position.Width < 160 || position.Width > 4096) {
+			return fmt.Errorf("workbench width for %q is out of bounds", id)
+		}
+		if position.Height != 0 && (position.Height < 72 || position.Height > 4096) {
+			return fmt.Errorf("workbench height for %q is out of bounds", id)
 		}
 	}
 	return nil
