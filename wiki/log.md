@@ -4342,3 +4342,9 @@ skipped is the exact failure this incident is about:
 - Auth challenge/login/whoami/sessions move onto `requestOperation`; logout
   and revoke stay hand-written because they are not modeled operations.
   Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Session creation and chat mutations
+
+- Session creation, message clear, and chat regenerate/rewrite move onto
+  `requestOperation`; feedback/logout/revoke stay hand-written because they
+  are not modeled operations. Updated [[remaining-work]]; no new page.

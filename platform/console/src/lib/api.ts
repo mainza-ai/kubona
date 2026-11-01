@@ -268,18 +268,14 @@ export async function createSession(
   fresh?: boolean
 ): Promise<Session | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/sessions`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
+    return (await requestOperation('createSession', {
+      body: {
         title,
         spend_limit_usd: spendLimitUSD,
         target_molecule: targetMolecule,
         fresh: fresh ?? false,
-      }),
-    });
-    if (!res.ok) return null;
-    return contract('session.create', await res.json());
+      },
+    })) as unknown as Session;
   } catch (err) {
     console.error('Failed to create session:', err);
     return null;
@@ -1645,13 +1641,7 @@ export async function searchLiterature(query: string, limit = 5): Promise<{ reco
 // campaign + ledger history survive; the erasure is sealed server-side.
 export async function clearMessages(sessionId: string): Promise<number | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/messages`, {
-      method: 'DELETE',
-      headers: authHeaders(),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    contract('messages.clear', data);
+    const data = await requestOperation('clearMessages', { params: { id: sessionId } });
     return typeof data.deleted === 'number' ? data.deleted : 0;
   } catch (err) {
     console.error('Failed to clear messages:', err);
@@ -1665,19 +1655,15 @@ export async function regenerateChat(
   sessionId: string
 ): Promise<{ assistant: ChatMessage; model?: string; duration_ms?: number } | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/chat/regenerate`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ session_id: sessionId }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
+    const data = (await requestOperation('regenerateChat', {
+      body: { session_id: sessionId },
+    })) as unknown as { assistant?: ChatMessage; assistant_message?: ChatMessage; model?: string; duration_ms?: number };
     const assistant = data.assistant || data.assistant_message;
     if (assistant && data.model && !assistant.model) assistant.model = data.model;
     if (assistant && data.duration_ms != null && assistant.duration_ms == null) {
       assistant.duration_ms = data.duration_ms;
     }
-    return contract('chat.regenerate', { assistant, model: data.model, duration_ms: data.duration_ms });
+    return assistant ? { assistant, model: data.model, duration_ms: data.duration_ms } : null;
   } catch (err) {
     console.error('Failed to regenerate:', err);
     return null;
@@ -1711,14 +1697,9 @@ export async function rewriteChat(
   content: string
 ): Promise<ChatMessage | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/chat/rewrite`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ session_id: sessionId, message_id: messageId, content }),
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    contract('chat.rewrite', { message: data.message });
+    const data = (await requestOperation('rewriteChat', {
+      body: { session_id: sessionId, message_id: messageId, content },
+    })) as { message?: ChatMessage | null };
     return data.message || null;
   } catch (err) {
     console.error('Failed to rewrite message:', err);
