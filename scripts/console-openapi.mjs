@@ -133,6 +133,9 @@ function main() {
       if (existing !== fn.contract) {
         throw new Error(`console-openapi: ${key} has conflicting contracts ${existing} and ${fn.contract}`);
       }
+      // Same REST operation, different client function: keep both names in
+      // the generated operation map. OpenAPI still documents one operation.
+      operations.push({ operationId: operationId(fn.function), method: fn.method.toLowerCase(), path: openapiPath, contract: fn.contract });
       continue;
     }
     used.set(key, fn.contract);

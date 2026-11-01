@@ -4568,3 +4568,13 @@ skipped is the exact failure this incident is about:
   and tenant.grant.revoke contracts.
 - Inventory/OpenAPI: 117 modeled / 14 client-only (from 112/19).
 - Updated [[remaining-work]]; no page.
+
+## [2026-11-01] impl | Remaining operations modeled
+
+- Migrate codesign budget and session/ledger export/import to generated
+  operation metadata.
+- Fix the generator so alias client functions sharing one REST path (ledger
+  export) remain available without duplicating OpenAPI operations.
+- Inventory/OpenAPI: 121 modeled / 10 client-only (from 117/14); every
+  remaining client-only name is an intentional transport/browser/auth helper.
+- Updated [[remaining-work]]; no page.

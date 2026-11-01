@@ -878,22 +878,10 @@ export async function scoreCodesignBudget(
   entries: CodesignBudgetEntry[]
 ): Promise<{ ok: true; result: CodesignBudgetResult } | { ok: false; error: string }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/codesign/budget`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ entries }),
-    });
-    const data = await res.json().catch(() => null);
-    if (!res.ok || !data || data.ok !== true) {
-      const msg =
-        (data && typeof data.message === 'string' && data.message) ||
-        (data && typeof data.error === 'string' && data.error) ||
-        `refused (HTTP ${res.status})`;
-      return { ok: false, error: msg.slice(0, 280) };
-    }
-    return { ok: true, result: data as CodesignBudgetResult };
+    const data = await requestOperation('scoreCodesignBudget', { body: { entries } });
+    return { ok: true, result: data as unknown as CodesignBudgetResult };
   } catch (err) {
-    return { ok: false, error: String(err).slice(0, 280) };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
@@ -1988,97 +1976,41 @@ export interface SessionImportResult {
 // (cross-tenant selections refuse whole, never redacted).
 export async function exportSession(sessionId: string): Promise<SessionExport | { error: string } | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/sessions/export`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ session_id: sessionId }),
-    });
-    if (!res.ok) {
-      let text = '';
-      try {
-        text = (await res.text()).trim().slice(0, 280);
-      } catch {
-        /* ignore */
-      }
-      return { error: text || `HTTP ${res.status}` };
-    }
-    return { ok: true, manifest: (await res.json()) as unknown };
+    const manifest = await requestOperation('exportSession', { body: { session_id: sessionId } });
+    return { ok: true, manifest: manifest as unknown };
   } catch (err) {
+    if (err instanceof OperationError) return { error: err.message };
     console.error('Failed to export session:', err);
     return null;
   }
 }
 
 export async function importSession(manifest: unknown): Promise<SessionImportResult | { error: string } | null> {
-  let raw = '';
   try {
-    const res = await apiFetch(`${API_BASE}/api/sessions/import`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ manifest }),
-    });
-    try {
-      raw = (await res.text()).trim();
-    } catch {
-      raw = '';
-    }
-    if (!res.ok) {
-      return { error: raw.slice(0, 280) || `HTTP ${res.status}` };
-    }
-    let data: { session_id?: unknown; replayed?: unknown } | null = null;
-    try {
-      data = JSON.parse(raw) as { session_id?: unknown; replayed?: unknown };
-    } catch {
-      data = null;
-    }
-    if (!data || typeof data.session_id !== 'string') {
-      return { error: 'import returned no session id' };
-    }
+    const data = await requestOperation('importSession', { body: { manifest } });
     return { ok: true, session_id: data.session_id, replayed: data.replayed === true };
   } catch (err) {
+    if (err instanceof OperationError) return { error: err.message };
     console.error('Failed to import session:', err);
     return null;
   }
 }
 
-export type LedgerExportFormat = 'json' | 'markdown';
-
 export async function exportLedger(
   sessionId: string,
   format: LedgerExportFormat
 ): Promise<{ ok: true; events?: unknown[]; markdown?: string } | { error: string } | null> {
-  let raw = '';
-  let status = 0;
   try {
-    const res = await apiFetch(`${API_BASE}/api/ledger/export`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ session_id: sessionId, format }),
-    });
-    status = res.status;
-    try {
-      raw = (await res.text()).trim();
-    } catch {
-      raw = '';
-    }
-    if (!res.ok) {
-      return { error: raw.slice(0, 280) || `HTTP ${status}` };
-    }
-    let data: { events?: unknown[]; markdown?: string; ok?: boolean; error?: string } | null = null;
-    try {
-      data = JSON.parse(raw) as { events?: unknown[]; markdown?: string; ok?: boolean; error?: string };
-    } catch {
-      data = null;
-    }
-    if (!data || data.ok === false) {
-      return { error: (data && data.error) || 'ledger refused the export' };
-    }
+    const data = await requestOperation('exportLedger', { body: { session_id: sessionId, format } });
     return { ok: true, events: data.events, markdown: data.markdown };
   } catch (err) {
+    if (err instanceof OperationError) return { error: err.message };
     console.error('Failed to export ledger:', err);
     return null;
   }
 }
+
+export type LedgerExportFormat = 'json' | 'markdown';
 
 // Client-side download for exports (U2-a). DOM-guarded: returns false
 // when there is no document (non-browser runtimes) so callers can fall
@@ -2124,6 +2056,7 @@ export interface AuthServerSession {
 // Transport failures return null (unreachable); refusals carry the backend
 // reason. The session cookie is httpOnly — JS never sees the token;
 // whoami is how the UI learns who it is.
+
 export async function authChallenge(): Promise<AuthChallenge | { error: string } | null> {
   try {
     return (await requestOperation('authChallenge', { body: {} })) as unknown as AuthChallenge;
