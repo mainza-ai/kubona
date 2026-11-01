@@ -4196,3 +4196,9 @@ skipped is the exact failure this incident is about:
 - Running loops project as `agent_run` cards with their measured step/state;
   the canvas renders placeholders past 24 objects and keeps the list view as
   the complete access path. Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Generated contract types
+
+- The OpenAPI generator now emits typed schemas and `API_OPERATIONS` into
+  `src/lib/generated/openapi.ts`; `--check` gates JSON and TS freshness.
+  Updated [[remaining-work]]; no new page.
