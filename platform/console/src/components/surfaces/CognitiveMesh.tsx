@@ -27,6 +27,8 @@ import {
 } from '@/lib/api';
 import { fmtFixed } from '@/lib/guards';
 import { useFocusTrap } from '@/lib/useFocusTrap';
+import { useWriteSettlement } from '@/domain/use-write-settlement';
+import { writeSettlementLabel } from '@/domain/write-settlement';
 import type { CostSummary } from '@/lib/api';
 
 interface CognitiveMeshProps {
@@ -46,6 +48,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
   useFocusTrap(isCreatingAgent, createAgentPanelRef);
   const [meshError, setMeshError] = useState<string | null>(null);
   const [airGapError, setAirGapError] = useState<string | null>(null);
+  const airGapWrite = useWriteSettlement();
   const [costSummary, setCostSummary] = useState<CostSummary | null>(null);
   const [costRefused, setCostRefused] = useState<string | null>(null);
   const [routeError, setRouteError] = useState<string | null>(null);
@@ -104,6 +107,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
     }
     const prev = airGapped;
     const nextVal = !airGapped;
+    const requestId = airGapWrite.begin(`air-gap ${nextVal ? 'engage' : 'release'}`);
     setAirGapped(nextVal);
     setAirGapError(null);
     try {
@@ -111,10 +115,14 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
       if (!current) throw new Error('settings unreachable — nothing changed');
       const res = await saveLLMSettings({ ...(current as Record<string, unknown>), air_gapped: nextVal });
       if (!res.ok) {
+        airGapWrite[res.unknown ? 'unknown' : 'refused'](requestId, res.error || 'save not confirmed');
         setAirGapped(prev);
         setAirGapError(`Air-gap save refused — reverted (${res.error || 'no reason'}).`);
+      } else {
+        airGapWrite.applied(requestId, `air-gap ${nextVal ? 'engaged' : 'released'}`);
       }
     } catch (err) {
+      airGapWrite.unknown(requestId, err instanceof Error ? err.message : String(err));
       setAirGapped(prev);
       setAirGapError(`Air-gap save failed — reverted (${err instanceof Error ? err.message : String(err)}).`);
     }
@@ -286,6 +294,11 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
         <div className="p-3 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-200 text-xs">
           {airGapError}
         </div>
+      )}
+      {writeSettlementLabel(airGapWrite.write) && (
+        <p role="status" className="text-[12px] font-mono text-slate-400">
+          {writeSettlementLabel(airGapWrite.write)}
+        </p>
       )}
       {/* Serene Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-5">

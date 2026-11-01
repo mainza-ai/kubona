@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { KeyRound, ShieldCheck, AlertOctagon, Sparkles, ChevronDown, ChevronUp, Lock } from 'lucide-react';
 import { CampaignState, Session } from '@/types';
+import { useWriteSettlement } from '@/domain/use-write-settlement';
+import { writeSettlementLabel } from '@/domain/write-settlement';
 import { emergencyAbort, launchProposal, fetchLLMSettings, saveLLMSettings, fetchBackendStatus, type BackendStatus } from '@/lib/api';
 import { ApprovalPacketCard } from '@/components/common/ApprovalPacketCard';
 import ConfirmDialog from '@/components/common/ConfirmDialog';
@@ -47,6 +49,7 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCryptoDetails, setShowCryptoDetails] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const airGapWrite = useWriteSettlement();
 
   // No stale budget: resync planning view whenever the session changes.
   // Reset during render (key-change pattern, not in the effect below):
@@ -195,18 +198,22 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
   const handleToggleAirGap = async () => {
     const next = !airGap;
     const prev = airGap;
+    const requestId = airGapWrite.begin(`air-gap ${next ? 'engage' : 'release'}`);
     setAirGap(next);
     try {
       const current = await fetchLLMSettings();
       if (!current) throw new Error('settings unreachable');
       const res = await saveLLMSettings({ ...(current as Record<string, unknown>), air_gapped: next });
       if (res.ok) {
+        airGapWrite.applied(requestId, `air-gap ${next ? 'engaged' : 'released'}`);
         setActionMessage(`Sovereign Air-Gap ${next ? 'ENGAGED' : 'released'} (persisted).`);
       } else {
+        airGapWrite[res.unknown ? 'unknown' : 'refused'](requestId, res.error || 'save not confirmed');
         setAirGap(prev);
         setActionMessage(`Air-gap save refused — switch reverted (${res.error || 'no reason'}). Nothing changed.`);
       }
     } catch (e) {
+      airGapWrite.unknown(requestId, e instanceof Error ? e.message : String(e));
       setAirGap(prev);
       setActionMessage(`Air-gap save failed — switch reverted, nothing changed (${e instanceof Error ? e.message : String(e)}).`);
     }
@@ -321,6 +328,11 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
           <div className="w-full p-3.5 rounded-2xl bg-cyan-950/80 border border-cyan-500/50 text-cyan-200 text-xs font-medium text-center animate-pulse">
             {actionMessage}
           </div>
+        )}
+        {writeSettlementLabel(airGapWrite.write) && (
+          <p role="status" className="text-[12px] font-mono text-slate-400">
+            {writeSettlementLabel(airGapWrite.write)}
+          </p>
         )}
 
         {/* Meta Muse-Inspired Proactive Approval Card */}
