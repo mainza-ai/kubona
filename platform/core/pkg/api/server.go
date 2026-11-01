@@ -469,6 +469,7 @@ func (s *Server) Handler() http.Handler {
 		}
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Expose-Headers", "Kubona-API-Version")
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusOK)
 			return

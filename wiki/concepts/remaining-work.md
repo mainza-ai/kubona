@@ -102,7 +102,9 @@ Still open:
   faked. Autoresearch and metasearch writes use the shared settlement
   vocabulary; collapsed transport/refusal is shown as unknown, never applied; generated contract
   types, operation metadata, and a checked `requestOperation()` client are
-  landed; session, loops, events, jobs, fidelity, ADMET, agents, LLM/quantum
+  landed; a Go drift test checks every generated console path/method against
+  the route-policy table (it caught a missing GET on observatory lens);
+  session, loops, events, jobs, fidelity, ADMET, agents, LLM/quantum
   settings, radar, cost, obligations, notebooks, capabilities,
   session-context, abort, workflow, quantum-submit, messages, job-detail,
   memory-recall, autoresearch, metasearch, epistemics, quantum-job, QIR
