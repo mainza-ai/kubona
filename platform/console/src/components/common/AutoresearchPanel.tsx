@@ -55,11 +55,11 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
       <div className="flex items-center justify-between">
         <div>
           <span className="text-xs font-semibold text-white">Autoresearch loops</span>
-          <p className="text-[10px] text-slate-500">Sandboxed harness stepping; each transition re-reads server state.</p>
+          <p className="text-[12px] text-slate-500">Sandboxed harness stepping; each transition re-reads server state.</p>
         </div>
-        <button type="button" onClick={() => void load()} className="px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-[11px] text-slate-300">Refresh</button>
+        <button type="button" onClick={() => void load()} className="px-2 py-1 rounded-lg bg-white/5 border border-white/10 text-[12px] text-slate-300">Refresh</button>
       </div>
-      <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+      <div className="flex flex-wrap items-center gap-1.5 text-[12px]">
         <select aria-label="Autoresearch harness" value={harnessId} onChange={(e) => setHarnessId(e.target.value)} className="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-slate-200 font-mono">
           {harnesses.length === 0 && <option value="">no harnesses</option>}
           {harnesses.map((h) => <option key={h.id} value={h.id}>{h.id}</option>)}
@@ -73,11 +73,11 @@ export function AutoresearchPanel({ sessionId }: { sessionId: string }) {
           Start loop
         </button>
       </div>
-      {notice && <p role="status" className="text-[11px] text-slate-300">{notice}</p>}
-      {loops === null && <p className="text-[11px] text-slate-500">Loading loops…</p>}
-      {loops !== null && loops.length === 0 && <p className="text-[11px] text-slate-400">No autoresearch loops.</p>}
+      {notice && <p role="status" className="text-[12px] text-slate-300">{notice}</p>}
+      {loops === null && <p className="text-[12px] text-slate-500">Loading loops…</p>}
+      {loops !== null && loops.length === 0 && <p className="text-[12px] text-slate-400">No autoresearch loops.</p>}
       {(loops ?? []).map((loop) => (
-        <div key={loop.id} className="px-2.5 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] text-[11px] space-y-1">
+        <div key={loop.id} className="px-2.5 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] text-[12px] space-y-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <span className="font-code text-slate-300">{loop.id.slice(0, 8)} · {loop.harness_id} · {loop.status} · {loop.current_iteration}/{loop.max_iterations}</span>
             <span className="flex items-center gap-1">

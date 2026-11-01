@@ -59,7 +59,7 @@ entry:
   return (
     <div className="rounded-2xl border border-white/[0.08] bg-black/60 p-5 backdrop-blur-xl text-white space-y-4">
       {!hasReceipt && (
-        <div className="p-2.5 rounded-xl bg-amber-950/50 border border-amber-500/40 text-amber-200 text-[11px] font-code text-center">
+        <div className="p-2.5 rounded-xl bg-amber-950/50 border border-amber-500/40 text-amber-200 text-[12px] font-code text-center">
           synthetic demo — not session data. No live synthesis receipt; schematic body is illustrative.
         </div>
       )}
@@ -70,7 +70,7 @@ entry:
             <Cpu className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-white/90">Post-QIR Quantum Circuit Editor (Preview)<span className="ml-2 align-middle text-[9px] font-mono uppercase px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/10 text-slate-400">Illustrative</span></h3>
+            <h3 className="text-sm font-semibold text-white/90">Post-QIR Quantum Circuit Editor (Preview)<span className="ml-2 align-middle text-[12px] font-mono uppercase px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/10 text-slate-400">Illustrative</span></h3>
             <p className="text-xs text-white/50">{displayQubits != null ? displayQubits : '—'} Qubits • Depth {displayDepth != null ? displayDepth : '—'} • Family 279 Clifford+T Synthesis {!hasReceipt ? '· schematic only' : ''}</p>
           </div>
         </div>
@@ -111,19 +111,19 @@ entry:
       {/* Metrics Row */}
       <div className="grid grid-cols-4 gap-3 text-xs">
         <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-          <span className="text-white/40 block text-[10px]">T-Count (Non-Clifford)</span>
+          <span className="text-white/40 block text-[12px]">T-Count (Non-Clifford)</span>
           <span className="font-mono text-base font-semibold text-amber-400">{tCount}</span>
         </div>
         <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-          <span className="text-white/40 block text-[10px]">T-Depth (Family 279)</span>
+          <span className="text-white/40 block text-[12px]">T-Depth (Family 279)</span>
           <span className="font-mono text-base font-semibold text-emerald-400">{tDepth}</span>
         </div>
         <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-          <span className="text-white/40 block text-[10px]">Logical Qubit Overhead</span>
+          <span className="text-white/40 block text-[12px]">Logical Qubit Overhead</span>
           <span className="font-mono text-base font-semibold text-cyan-400">12 : 288 (BB Code)</span>
         </div>
         <div className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.06]">
-          <span className="text-white/40 block text-[10px]">LOCC Sampling Cost</span>
+          <span className="text-white/40 block text-[12px]">LOCC Sampling Cost</span>
           <span className="font-mono text-base font-semibold text-purple-400">4.2x Shots</span>
         </div>
       </div>
@@ -142,7 +142,7 @@ entry:
                   {qIdx === 1 && (
                     <div className="absolute left-[65%] -top-2 flex flex-col items-center z-10">
                       <Scissors className="w-3.5 h-3.5 text-rose-400" />
-                      <span className="text-[9px] font-mono text-rose-400 bg-black/80 px-1 rounded">Cut A</span>
+                      <span className="text-[12px] font-mono text-rose-400 bg-black/80 px-1 rounded">Cut A</span>
                     </div>
                   )}
                   {/* Gates */}

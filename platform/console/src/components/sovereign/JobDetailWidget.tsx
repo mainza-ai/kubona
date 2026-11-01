@@ -8,7 +8,7 @@ import type { Job } from '@/types';
 function kv(label: string, value: string) {
   return (
     <div>
-      <span className="text-white/40 block text-[10px]">{label}</span>
+      <span className="text-white/40 block text-[12px]">{label}</span>
       <span className="font-code text-slate-200 break-all">{value}</span>
     </div>
   );
@@ -120,18 +120,18 @@ export function JobDetailWidget({ jobId, sessionId }: { jobId: string; sessionId
       </div>
       {typeof params.qasm === 'string' && (
         <div>
-          <span className="text-white/40 block text-[10px] mb-1">QASM</span>
-          <pre className="p-2 rounded-lg bg-black/60 border border-white/10 overflow-x-auto font-code text-[10px] text-slate-300 max-h-32 overflow-y-auto">
+          <span className="text-white/40 block text-[12px] mb-1">QASM</span>
+          <pre className="p-2 rounded-lg bg-black/60 border border-white/10 overflow-x-auto font-code text-[12px] text-slate-300 max-h-32 overflow-y-auto">
             {params.qasm}
           </pre>
         </div>
       )}
       {hasCounts ? (
         <div>
-          <span className="text-white/40 block text-[10px] mb-1">Counts (measured)</span>
+          <span className="text-white/40 block text-[12px] mb-1">Counts (measured)</span>
           <div className="space-y-1">
             {countsEntries.map(({ bits, raw, n }) => (
-              <div key={bits} className="flex items-center gap-2 font-code text-[11px]">
+              <div key={bits} className="flex items-center gap-2 font-code text-[12px]">
                 <span className="text-cyan-200">{bits}</span>
                 {n != null ? (
                   <>
@@ -151,18 +151,18 @@ export function JobDetailWidget({ jobId, sessionId }: { jobId: string; sessionId
           </div>
         </div>
       ) : errorText ? (
-        <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[11px]">
+        <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px]">
           {errorText.slice(0, 300)}
         </div>
       ) : (
-        <p className="text-[10px] font-code text-slate-500">No result recorded yet — job still queued or running.</p>
+        <p className="text-[12px] font-code text-slate-500">No result recorded yet — job still queued or running.</p>
       )}
       {(() => {
         const c = job.completed_at;
         if (!c) return null;
         const d = new Date(c);
         return (
-          <p className="text-[10px] font-code text-slate-500">
+          <p className="text-[12px] font-code text-slate-500">
             Completed {Number.isNaN(d.getTime()) ? 'UNVERIFIED (bad timestamp)' : d.toLocaleString()}
           </p>
         );

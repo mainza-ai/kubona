@@ -72,7 +72,7 @@ export function LiteraturePanel({ initialQuery = '' }: { initialQuery?: string }
       </form>
 
       {searched && !failed && (
-        <div className="text-[10px] font-mono text-slate-400">
+        <div className="text-[12px] font-mono text-slate-400">
           {records.length} record{records.length === 1 ? '' : 's'}
           {/* Label invariant: the bridge never fabricates records, so a
               non-empty uncached result genuinely arrived live this session;
@@ -86,13 +86,13 @@ export function LiteraturePanel({ initialQuery = '' }: { initialQuery?: string }
       )}
 
       {searched && failed && (
-        <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[11px]">
+        <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px]">
           <span>search unavailable — the backend did not answer. Nothing returned, nothing assumed.</span>
           <button
             type="button"
             onClick={() => void run()}
             disabled={busy}
-            className="shrink-0 px-2.5 py-1 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-slate-200 text-[10px] font-semibold disabled:opacity-50"
+            className="shrink-0 px-2.5 py-1 rounded-lg bg-white/[0.06] hover:bg-white/[0.1] border border-white/10 text-slate-200 text-[12px] font-semibold disabled:opacity-50"
           >
             Retry
           </button>
@@ -119,14 +119,14 @@ export function LiteraturePanel({ initialQuery = '' }: { initialQuery?: string }
                 </a>
               )}
             </div>
-            <div className="text-[10px] font-mono text-slate-400 flex items-center gap-2">
+            <div className="text-[12px] font-mono text-slate-400 flex items-center gap-2">
               <BookOpen className="w-3 h-3" />
               <span className="truncate">{r.authors}</span>
               {r.publication_year > 0 && <span>· {r.publication_year}</span>}
               <span>· {typeof r.citation_count === 'number' && Number.isFinite(r.citation_count) ? r.citation_count : '—'} citations</span>
             </div>
             {r.abstract && (
-              <p className="text-[11px] text-neutral-400 leading-relaxed">{r.abstract}</p>
+              <p className="text-[12px] text-neutral-400 leading-relaxed">{r.abstract}</p>
             )}
           </div>
         ))}

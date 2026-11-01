@@ -40,7 +40,7 @@ export function ContextReadout({ sessionId, refreshKey }: { sessionId: string; r
     ` · ${totalTok} tokens measured`;
   return (
     <span
-      className={`text-[10px] font-code ml-1 ${hot ? 'text-amber-300' : 'text-slate-400'}`}
+      className={`text-[12px] font-code ml-1 ${hot ? 'text-amber-300' : 'text-slate-400'}`}
       title={title}
       aria-label={`Context pressure ${pct} percent`}
     >

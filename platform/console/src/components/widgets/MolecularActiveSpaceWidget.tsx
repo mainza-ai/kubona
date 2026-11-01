@@ -101,7 +101,7 @@ export function MolecularActiveSpaceWidget({
   return (
     <div className="rounded-2xl border border-white/[0.08] bg-black/60 p-5 backdrop-blur-xl text-white space-y-4">
       {!backed && (
-        <div className="p-2.5 rounded-xl bg-amber-950/50 border border-amber-500/40 text-amber-200 text-[11px] font-code text-center">
+        <div className="p-2.5 rounded-xl bg-amber-950/50 border border-amber-500/40 text-amber-200 text-[12px] font-code text-center">
           synthetic demo — not session data. Sliders disabled until a live campaign backs this view.
         </div>
       )}
@@ -112,7 +112,7 @@ export function MolecularActiveSpaceWidget({
             <Atom className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-white/90">3D Molecular Active Space Viewer (Preview)<span className="ml-2 align-middle text-[9px] font-mono uppercase px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/10 text-slate-400">Illustrative</span></h3>
+            <h3 className="text-sm font-semibold text-white/90">3D Molecular Active Space Viewer (Preview)<span className="ml-2 align-middle text-[12px] font-mono uppercase px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/10 text-slate-400">Illustrative</span></h3>
             <p className="text-xs text-white/50">{displayName} • CASSCF({activeElectrons}e, {activeOrbitals}o){!backed ? ' · layout-only' : ''}</p>
           </div>
         </div>
@@ -176,12 +176,12 @@ export function MolecularActiveSpaceWidget({
                       }`}
                     >
                       <div className="flex items-center space-x-2">
-                        <span className="font-mono text-[10px] w-14 font-semibold">{lvl.name}</span>
-                        <span className="text-[10px] text-white/40 font-mono">({lvl.sym})</span>
+                        <span className="font-mono text-[12px] w-14 font-semibold">{lvl.name}</span>
+                        <span className="text-[12px] text-white/40 font-mono">({lvl.sym})</span>
                       </div>
                       <div className="flex items-center space-x-3">
-                        <span className="text-white/20 font-mono text-[11px]">—</span>
-                        <span className="font-mono text-[10px] text-white/50">{lvl.energy.toFixed(3)}</span>
+                        <span className="text-white/20 font-mono text-[12px]">—</span>
+                        <span className="font-mono text-[12px] text-white/50">{lvl.energy.toFixed(3)}</span>
                       </div>
                     </div>
                   );
@@ -189,7 +189,7 @@ export function MolecularActiveSpaceWidget({
               </div>
 
               {/* In-Flow Clean Fermi Level Divider (Zero Collisions!) */}
-              <div className="my-1.5 py-1 px-3 rounded-lg bg-emerald-500/10 border-y border-dashed border-emerald-500/40 flex items-center justify-between text-[10px] text-emerald-400 font-mono shadow-sm">
+              <div className="my-1.5 py-1 px-3 rounded-lg bg-emerald-500/10 border-y border-dashed border-emerald-500/40 flex items-center justify-between text-[12px] text-emerald-400 font-mono shadow-sm">
                 <span className="flex items-center gap-1.5">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   Fermi Level E_F
@@ -225,13 +225,13 @@ export function MolecularActiveSpaceWidget({
                       }`}
                     >
                       <div className="flex items-center space-x-2">
-                        <span className="font-mono text-[10px] w-14 font-semibold">{lvl.name}</span>
-                        <span className="text-[10px] text-white/40 font-mono">({lvl.sym})</span>
-                        {isActive && <span className="text-[8px] font-mono uppercase px-1 rounded bg-purple-500/20 text-purple-300">Active</span>}
+                        <span className="font-mono text-[12px] w-14 font-semibold">{lvl.name}</span>
+                        <span className="text-[12px] text-white/40 font-mono">({lvl.sym})</span>
+                        {isActive && <span className="text-[12px] font-mono uppercase px-1 rounded bg-purple-500/20 text-purple-300">Active</span>}
                       </div>
                       <div className="flex items-center space-x-3">
-                        <span className="text-purple-400 font-mono font-bold text-[11px]">↑↓</span>
-                        <span className="font-mono text-[10px] text-white/50">{lvl.energy.toFixed(3)}</span>
+                        <span className="text-purple-400 font-mono font-bold text-[12px]">↑↓</span>
+                        <span className="font-mono text-[12px] text-white/50">{lvl.energy.toFixed(3)}</span>
                       </div>
                     </div>
                   );
@@ -242,27 +242,27 @@ export function MolecularActiveSpaceWidget({
             /* Occupancy & Active Space Configuration Mode */
             <div className="flex-1 flex flex-col justify-around py-2 space-y-3 font-mono text-xs">
               <div className="p-3 rounded-xl bg-purple-950/30 border border-purple-500/30 space-y-1.5">
-                <div className="text-[11px] text-purple-300 font-semibold flex items-center justify-between">
+                <div className="text-[12px] text-purple-300 font-semibold flex items-center justify-between">
                   <span>Active Space CASSCF({activeElectrons}e, {activeOrbitals}o)</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-200">Correlated</span>
+                  <span className="text-[12px] px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-200">Correlated</span>
                 </div>
-                <p className="text-[11px] text-slate-300 font-sans leading-relaxed">
+                <p className="text-[12px] text-slate-300 font-sans leading-relaxed">
                   {activeElectrons} valence electrons correlated across {activeOrbitals} active spatial orbitals ($S_z = 0$).
                 </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-2 text-[11px]">
+              <div className="grid grid-cols-2 gap-2 text-[12px]">
                 <div className="p-2.5 rounded-lg bg-black/40 border border-white/[0.06]">
-                  <span className="text-slate-400 block text-[10px]">Frozen Core</span>
+                  <span className="text-slate-400 block text-[12px]">Frozen Core</span>
                   <span className="text-white font-bold">{Math.max(0, totalE - activeElectrons)} e⁻ / {Math.max(0, (totalE - activeElectrons) / 2)} orb</span>
                 </div>
                 <div className="p-2.5 rounded-lg bg-black/40 border border-white/[0.06]">
-                  <span className="text-slate-400 block text-[10px]">Virtual Space</span>
+                  <span className="text-slate-400 block text-[12px]">Virtual Space</span>
                   <span className="text-white font-bold">{Math.max(0, totalO - activeOrbitals - Math.max(0, (totalE - activeElectrons) / 2))} orb</span>
                 </div>
               </div>
 
-              <div className="p-2.5 rounded-lg bg-black/40 border border-white/[0.06] text-[10px] text-slate-400 flex items-center justify-between">
+              <div className="p-2.5 rounded-lg bg-black/40 border border-white/[0.06] text-[12px] text-slate-400 flex items-center justify-between">
                 <span>Multi-Reference Weight:</span>
                 <span className="text-emerald-400 font-semibold">|c₀|² = 0.942 (RHF dominant)</span>
               </div>

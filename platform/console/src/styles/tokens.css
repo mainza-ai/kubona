@@ -1,0 +1,101 @@
+/*
+ * Kubona semantic interface tokens.
+ *
+ * Components should use these names, not raw palette utilities. The ladder is
+ * deliberately neutral: hierarchy comes from surface, spacing and type. Colour
+ * is reserved for state and data.
+ */
+
+:root {
+  /* Surface ladder */
+  --color-canvas: #0b0c0f;
+  --color-page: #101114;
+  --color-chrome: #15161a;
+  --color-surface: #1b1c21;
+  --color-raised: #23242a;
+  --color-float: #2a2b32;
+  --color-menu: #2a2b32;
+
+  /* Text */
+  --color-text: #f1f2f4;
+  --color-label-secondary: #d5d7db;
+  --color-muted: rgb(241 242 244 / 0.68);
+  --color-faint: rgb(241 242 244 / 0.46);
+
+  /* Lines and fills */
+  --color-border: rgb(255 255 255 / 0.08);
+  --color-border-strong: rgb(255 255 255 / 0.14);
+  --color-fill: rgb(255 255 255 / 0.05);
+  --color-fill-hover: rgb(255 255 255 / 0.08);
+  --color-fill-pressed: rgb(255 255 255 / 0.12);
+  --color-control: rgb(255 255 255 / 0.09);
+  --color-control-hover: rgb(255 255 255 / 0.13);
+  --color-field: rgb(255 255 255 / 0.08);
+  --color-field-ring: rgb(255 255 255 / 0.18);
+
+  /* State and data. Semantic colour supplements a label; it never carries
+     meaning alone. */
+  --color-accent: #e8e9ec;
+  --color-on-accent: #111216;
+  --color-lit: #eceef2;
+  --color-success: #7fcaa1;
+  --color-warning: #dcb977;
+  --color-danger: #ef8a8e;
+  --color-info: #8fbcf7;
+  --color-chart-1: #74b9ff;
+  --color-chart-2: #7fcaa1;
+  --color-chart-3: #dcb977;
+  --color-chart-4: #ef8a8e;
+  --color-chart-5: #b3a4f2;
+  --color-chart-6: #6fc6c1;
+  --color-chart-7: #e9a6d8;
+  --color-chart-8: #b8c0cc;
+  --color-chart-other: #7b8492;
+
+  /* Reading sizes: body 13, labels 12, captions 11. */
+  --text-display: 30px;
+  --text-title: 20px;
+  --text-page-title: 16px;
+  --text-body: 13px;
+  --text-label: 12px;
+  --text-caption: 11px;
+  --text-code: 12px;
+
+  /* Role-named radii, never size-named. */
+  --radius-inset: 8px;
+  --radius-control-compact: 10px;
+  --radius-row: 12px;
+  --radius-control: 14px;
+  --radius-card: 18px;
+  --radius-panel: 22px;
+  --radius-capsule: 9999px;
+
+  /* Spacing rhythm */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* One shadow recipe for things that float. */
+  --shadow-float: 0 1px 2px rgb(0 0 0 / 0.18), 0 8px 24px rgb(0 0 0 / 0.16);
+  --shadow-popover: 0 2px 4px rgb(0 0 0 / 0.2), 0 16px 40px rgb(0 0 0 / 0.28);
+
+  /* Motion: transform/opacity only. */
+  --motion-instant: 70ms;
+  --motion-fast: 120ms;
+  --motion-base: 200ms;
+  --motion-slow: 300ms;
+  --motion-page: 400ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-exit: cubic-bezier(0.4, 0, 1, 1);
+
+  --focus-ring: 2px solid var(--color-info);
+}
+
+.text-body { font-size: var(--text-body); line-height: 1.5; }
+.text-label { font-size: var(--text-label); line-height: 1.4; }
+.text-caption { font-size: var(--text-caption); line-height: 1.35; }
+.text-page-title { font-size: var(--text-page-title); line-height: 1.25; }
+.text-title { font-size: var(--text-title); line-height: 1.2; }

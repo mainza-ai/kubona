@@ -33,6 +33,7 @@ import { QuantumSettings } from '@/components/surfaces/QuantumSettings';
 import { QuantumDispatch } from '@/components/surfaces/QuantumDispatch';
 import { AutonomyCockpit } from '@/components/surfaces/AutonomyCockpit';
 import { SpatialCanvas } from '@/components/surfaces/SpatialCanvas';
+import { Workbench } from '@/components/workbench/Workbench';
 import { BackendStatusBar } from '@/components/common/BackendStatusBar';
 import { CheckInStrip } from '@/components/sovereign/CheckInStrip';
 import { GenerativeUIStudio } from '@/components/surfaces/GenerativeUIStudio';
@@ -109,7 +110,7 @@ export function ApiProblemBanner() {
     <div
       data-testid="api-problem-banner"
       role="alert"
-      className="flex items-center justify-between gap-3 px-4 py-1.5 bg-rose-950/90 border-b border-rose-500/40 text-rose-100 text-[11px] font-code"
+      className="flex items-center justify-between gap-3 px-4 py-1.5 bg-rose-950/90 border-b border-rose-500/40 text-rose-100 text-[12px] font-code"
     >
       <span className="truncate">
         API refusal — {problem.path} · {problem.status ?? 'transport'} · {problem.message}. Some surfaces may show empty data until this is fixed.
@@ -158,13 +159,13 @@ const SHELL_DEFAULTS: ShellParams = {
   surface: 'arena',
   proofsTab: 'manuscripts',
   meshTab: 'mesh',
-  arenaView: 'orbital',
+  arenaView: 'workbench',
 };
 
 const VALID_SURFACES: DockSurface[] = ['arena', 'recorder', 'manifold', 'fleet', 'proofs', 'mesh'];
 const VALID_PROOFS_TABS: ProofsTab[] = ['manuscripts', 'tribunal', 'gallery', 'circuits'];
 const VALID_MESH_TABS: MeshTab[] = ['mesh', 'guardrails', 'models', 'labs', 'settings'];
-const VALID_ARENA_VIEWS: ArenaView[] = ['orbital', 'proof-dag', 'hardware-qpu'];
+const VALID_ARENA_VIEWS: ArenaView[] = ['workbench', 'orbital', 'proof-dag', 'hardware-qpu'];
 
 export function parseShellParams(search: string): ShellParams {
   const out: ShellParams = { ...SHELL_DEFAULTS };
@@ -223,7 +224,7 @@ export default function Home() {
 
   // Sovereign shell state
   const [surface, setSurface] = useState<DockSurface>('arena');
-  const [arenaView, setArenaView] = useState<ArenaView>('orbital');
+  const [arenaView, setArenaView] = useState<ArenaView>('workbench');
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [proofsTab, setProofsTab] = useState<'manuscripts' | 'tribunal' | 'gallery' | 'circuits'>('manuscripts');
   const [meshTab, setMeshTab] = useState<'mesh' | 'guardrails' | 'models' | 'labs' | 'settings'>('mesh');
@@ -257,16 +258,9 @@ export default function Home() {
   // Responsive shell (Wave-2): below lg the copilot is a closed-by-default
   // overlay drawer, not a fixed side panel. Default closed on narrow screens
   // via matchMedia at mount; the existing toggle reopens it as an overlay.
-  const [showCopilot, setShowCopilot] = useState(() => {
-    if (typeof window !== 'undefined' && typeof window.matchMedia === 'function') {
-      try {
-        if (window.matchMedia('(max-width: 1023.98px)').matches) return false;
-      } catch {
-        // matchMedia unavailable (tests/SSR) — fall through to open default.
-      }
-    }
-    return true;
-  });
+  // The workbench gets the room first. Copilot opens on demand (the button
+  // below, the palette, or a run's question), never as a permanent column.
+  const [showCopilot, setShowCopilot] = useState(false);
   const [isCopilotExpanded, setIsCopilotExpanded] = useState(false);
   const [showCampaignMenu, setShowCampaignMenu] = useState(false);
   const [campaignFilter, setCampaignFilter] = useState('');
@@ -659,6 +653,8 @@ export default function Home() {
         setSurface('proofs'); setProofsTab('manuscripts'); break;
       case 'circuits':
         setSurface('proofs'); setProofsTab('circuits'); break;
+      case 'arena-workbench':
+        setSurface('arena'); setShowLegacyCanvas(false); setArenaView('workbench'); break;
       case 'arena-orbital':
         setSurface('arena'); setShowLegacyCanvas(false); setArenaView('orbital'); break;
       case 'arena-proof-dag':
@@ -825,7 +821,7 @@ export default function Home() {
     setSurface(landedSurface);
     setProofsTab(parsed.proofsTab);
     setMeshTab(parsed.meshTab);
-    setArenaView(parsed.arenaView === 'hardware-qpu' ? 'orbital' : parsed.arenaView);
+    setArenaView(parsed.arenaView === 'hardware-qpu' ? 'workbench' : parsed.arenaView);
   }, []);
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -837,7 +833,7 @@ export default function Home() {
       setSurface(landedSurface);
       setProofsTab(parsed.proofsTab);
       setMeshTab(parsed.meshTab);
-      setArenaView(parsed.arenaView === 'hardware-qpu' ? 'orbital' : parsed.arenaView);
+      setArenaView(parsed.arenaView === 'hardware-qpu' ? 'workbench' : parsed.arenaView);
     };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
@@ -858,7 +854,7 @@ export default function Home() {
 
   const subToggle = (options: Array<{ id: string; label: string }>, value: string, onChange: (id: string) => void) => (
     <div className="flex items-center justify-center px-4 pt-4">
-      <div className="bg-[#0E1117]/85 backdrop-blur-xl border border-white/10 rounded-2xl sm:rounded-full p-1 flex flex-wrap items-center justify-center max-w-full shadow-2xl">
+      <div className="bg-[#0E1117] border border-white/10 rounded-2xl sm:rounded-full p-1 flex flex-wrap items-center justify-center max-w-full shadow-2xl">
         {options.map((o) => (
           <button
             key={o.id}
@@ -989,16 +985,16 @@ export default function Home() {
         }
         const ordered = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
         return (
-        <div className="absolute left-14 lg:left-20 bottom-6 z-50 w-[min(20rem,calc(100vw-3rem))] max-w-[calc(100vw-3rem)] rounded-2xl bg-[#0E1117]/95 backdrop-blur-2xl border border-white/10 shadow-2xl p-3 space-y-2">
+        <div className="absolute left-14 lg:left-20 bottom-6 z-50 w-[min(20rem,calc(100vw-3rem))] max-w-[calc(100vw-3rem)] rounded-2xl bg-[#0E1117] border border-white/10 shadow-2xl p-3 space-y-2">
           <div className="flex items-center justify-between px-1">
-            <span className="text-[10px] font-code uppercase tracking-wider text-slate-400">
+            <span className="text-[12px] font-code uppercase tracking-wider text-slate-400">
               Campaigns ({sessions.length})
             </span>
             <button
               onClick={() => { setShowCampaignMenu(false); handleCreateSession(); }}
-              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 text-[11px] hover:bg-cyan-500/25 transition-all"
+              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 text-[12px] hover:bg-cyan-500/25 transition-all"
             >
-              <Plus className="w-3 h-3" /> New <kbd className="font-code text-[9px]">{SHORTCUTS.newCampaign}</kbd>
+              <Plus className="w-3 h-3" /> New <kbd className="font-code text-[12px]">{SHORTCUTS.newCampaign}</kbd>
             </button>
           </div>
           <input
@@ -1012,11 +1008,11 @@ export default function Home() {
           />
           <div className="max-h-64 overflow-y-auto space-y-3">
             {ordered.length === 0 && (
-              <div className="text-[11px] text-slate-500 px-1 py-2">No campaigns match.</div>
+              <div className="text-[12px] text-slate-500 px-1 py-2">No campaigns match.</div>
             )}
             {ordered.map(([tenant, list]) => (
               <div key={tenant} className="space-y-1.5">
-                <div className="px-1 text-[10px] font-code uppercase tracking-wider text-slate-500">
+                <div className="px-1 text-[12px] font-code uppercase tracking-wider text-slate-500">
                   Lab: {tenant} ({list.length})
                 </div>
                 {list.map((s) => {
@@ -1034,7 +1030,7 @@ export default function Home() {
                     }`}
                   >
                     <div className="font-semibold truncate">{s.title}</div>
-                    <div className="text-[10px] font-code text-slate-400 flex justify-between mt-0.5">
+                    <div className="text-[12px] font-code text-slate-400 flex justify-between mt-0.5">
                       <span className="flex items-center gap-1">
                         <Clock className="w-3 h-3" />
                         {new Date(s.created_at).toLocaleDateString()}
@@ -1055,7 +1051,7 @@ export default function Home() {
               </div>
             ))}
           </div>
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/[0.06] text-[11px]">
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-white/[0.06] text-[12px]">
             <button onClick={() => { setShowCampaignMenu(false); handleEmergencyAbort(); }} className="flex items-center gap-1.5 text-red-300 hover:text-red-200 transition-colors">
               <Zap className="w-3.5 h-3.5" /> Ring 0 Intercept
             </button>
@@ -1097,6 +1093,9 @@ export default function Home() {
               onRecenter={() => setRecenterSignal((n) => n + 1)}
             />
 
+            {arenaView === 'workbench' && !showLegacyCanvas && (
+              <Workbench campaign={campaign} sessionId={currentSessionId || undefined} />
+            )}
             {arenaView === 'orbital' && !showLegacyCanvas && (
               <SwarmUniverse campaign={campaign} recenterSignal={recenterSignal} activeProbe={activeProbe} atRest={runPhase === 'idle'} />
             )}
@@ -1111,7 +1110,7 @@ export default function Home() {
                 <div className="flex items-center justify-end max-w-6xl mx-auto pb-2">
                   <button
                     onClick={() => setShowLegacyCanvas(false)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-slate-300 hover:text-white transition-all"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[12px] text-slate-300 hover:text-white transition-all"
                   >
                     <X className="w-3.5 h-3.5" /> Back to Universe
                   </button>
@@ -1126,7 +1125,7 @@ export default function Home() {
                 onClick={() => setShowLegacyCanvas(true)}
                 title="Living Canvas (molecule workbench)"
                 aria-label="Living Canvas (molecule workbench)"
-                className="absolute bottom-6 right-6 z-20 w-9 h-9 rounded-full bg-[#0E1117]/80 backdrop-blur-xl border border-white/10 hover:border-cyan-400/40 transition-all shadow-2xl flex items-center justify-center"
+                className="absolute bottom-6 right-6 z-20 w-9 h-9 rounded-full bg-[#0E1117] border border-white/10 hover:border-cyan-400/40 transition-all shadow-2xl flex items-center justify-center"
               >
                 <Box className="w-4 h-4 text-cyan-400" />
               </button>
@@ -1156,7 +1155,7 @@ export default function Home() {
               />
             )}
             {gateNotice && (
-              <div className="absolute bottom-6 left-6 z-20 w-[min(20rem,calc(100vw-3rem))] max-w-[calc(100vw-3rem)] p-3 rounded-2xl bg-[#0E1117]/90 border border-white/10 text-[11px] text-slate-200 shadow-2xl">
+              <div className="absolute bottom-6 left-6 z-20 w-[min(20rem,calc(100vw-3rem))] max-w-[calc(100vw-3rem)] p-3 rounded-2xl bg-[#0E1117]/90 border border-white/10 text-[12px] text-slate-200 shadow-2xl">
                 {gateNotice}
               </div>
             )}
@@ -1165,7 +1164,7 @@ export default function Home() {
                 key={toast.key}
                 role="status"
                 aria-live="polite"
-                className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-full bg-[#0E1117]/90 backdrop-blur-xl border border-cyan-400/25 text-[11px] font-code text-cyan-200 shadow-2xl animate-pulse"
+                className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20 px-4 py-2 rounded-full bg-[#0E1117] border border-cyan-400/25 text-[12px] font-code text-cyan-200 shadow-2xl animate-pulse"
               >
                 {toast.text}
               </div>
@@ -1250,7 +1249,7 @@ export default function Home() {
             aria-label="Kubona co-pilot"
             className={`${
               isCopilotExpanded ? 'lg:w-[640px] xl:w-[700px]' : 'lg:w-96'
-            } fixed inset-y-0 right-0 z-50 flex w-[min(24rem,calc(100vw-3rem))] flex-col shrink-0 border-l border-white/5 bg-[#0A0C10]/95 backdrop-blur-2xl transition-all duration-300 shadow-2xl overflow-hidden lg:static lg:z-auto`}
+            } fixed inset-y-0 right-0 z-50 flex w-[min(24rem,calc(100vw-3rem))] flex-col shrink-0 border-l border-white/5 bg-[#0A0C10] transition-all duration-300 shadow-2xl overflow-hidden lg:static lg:z-auto`}
           >
           <CopilotDrawer
             sessionId={currentSessionId}
@@ -1276,7 +1275,7 @@ export default function Home() {
       ) : (
         <button
           onClick={() => setShowCopilot(true)}
-          className="fixed bottom-6 right-6 z-40 px-4 py-2.5 rounded-full bg-[#0C101A] border border-cyan-500/40 hover:border-cyan-400 text-white shadow-2xl backdrop-blur-2xl flex items-center space-x-2.5 group transition-all duration-200 hover:scale-105 active:scale-95"
+          className="fixed bottom-6 right-6 z-40 px-4 py-2.5 rounded-full bg-[#0C101A] border border-cyan-500/40 hover:border-cyan-400 text-white shadow-2xl flex items-center space-x-2.5 group transition-all duration-200 hover:scale-105 active:scale-95"
           title={`Open Kubona Copilot (${SHORTCUTS.copilot})`}
         >
           <div className="relative">
@@ -1286,7 +1285,7 @@ export default function Home() {
           <span className="text-xs font-semibold text-slate-200 group-hover:text-white">
             Kubona Copilot
           </span>
-          <kbd className="px-1.5 py-0.5 rounded bg-black/50 text-[10px] font-code text-cyan-300 border border-white/10">
+          <kbd className="px-1.5 py-0.5 rounded bg-black/50 text-[12px] font-code text-cyan-300 border border-white/10">
             {SHORTCUTS.copilot}
           </kbd>
         </button>

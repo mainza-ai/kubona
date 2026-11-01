@@ -291,7 +291,7 @@ export function QuantumDispatch({
         <Zap className="w-5 h-5 text-amber-300" />
         <div>
           <h2 className="text-sm font-bold text-white font-mono tracking-tight">Human dispatch</h2>
-          <p className="text-[11px] text-slate-400 font-sans">
+          <p className="text-[12px] text-slate-400 font-sans">
             Estimate first (no spend, no enqueue), mandate when non-zero, then dispatch. Async only — poll for results.
           </p>
         </div>
@@ -299,7 +299,7 @@ export function QuantumDispatch({
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         <label className="block text-xs font-mono text-slate-300 space-y-1.5">
-          <span className="uppercase tracking-wider text-[11px]">Backend</span>
+          <span className="uppercase tracking-wider text-[12px]">Backend</span>
           <select
             value={provider}
             onChange={(e) => handleProviderChange(e.target.value)}
@@ -316,7 +316,7 @@ export function QuantumDispatch({
           </select>
         </label>
         <label className="block text-xs font-mono text-slate-300 space-y-1.5">
-          <span className="uppercase tracking-wider text-[11px]">{isQuboModality ? 'Samples / Reads' : 'Shots'}</span>
+          <span className="uppercase tracking-wider text-[12px]">{isQuboModality ? 'Samples / Reads' : 'Shots'}</span>
           <input
             type="number"
             min={1}
@@ -328,7 +328,7 @@ export function QuantumDispatch({
       </div>
 
       <label className="block text-xs font-mono text-slate-300 space-y-1.5">
-        <span className="uppercase tracking-wider text-[11px]">
+        <span className="uppercase tracking-wider text-[12px]">
           {isQuboModality ? 'QUBO matrix (JSON 2-D array)' : 'OpenQASM circuit'}
         </span>
         <textarea
@@ -350,18 +350,18 @@ export function QuantumDispatch({
           <span>{estimating ? 'Estimating…' : 'Estimate (dry run)'}</span>
         </button>
         {!sessionId && (
-          <span className="text-[11px] text-amber-300/90 font-mono">No session — estimates run on an implicit capped session.</span>
+          <span className="text-[12px] text-amber-300/90 font-mono">No session — estimates run on an implicit capped session.</span>
         )}
       </div>
 
       {estimateError && (
-        <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[11px] font-mono">
+        <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px] font-mono">
           Estimate refused: {estimateError}
         </div>
       )}
 
       {estimate && (
-        <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 text-[11px] font-mono text-slate-300 space-y-1">
+        <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 text-[12px] font-mono text-slate-300 space-y-1">
           <div>Estimated cost: <span className="text-white font-bold">{estCost == null ? 'UNPRICED — re-estimate' : `$${estCost.toFixed(6)}`}</span></div>
           <div>Fidelity: <span className="text-white">{fidelity?.admitted === true ? 'admitted' : fidelity?.admitted === false ? `refused — ${String(fidelity?.rejection_reason ?? 'see receipt').slice(0, 160)}` : String(fidelity?.skipped ?? 'unknown')}</span></div>
           <div className="text-slate-500">Dry run only — nothing enqueued, nothing spent.</div>
@@ -369,7 +369,7 @@ export function QuantumDispatch({
       )}
 
       {estimate && !quoteFresh && (
-        <div className="p-3 rounded-xl bg-amber-950/50 border border-amber-500/40 text-amber-200 text-[11px] font-mono">
+        <div className="p-3 rounded-xl bg-amber-950/50 border border-amber-500/40 text-amber-200 text-[12px] font-mono">
           Estimate is stale: the provider, program, shots, or session changed. Re-estimate before dispatch.
         </div>
       )}
@@ -397,18 +397,18 @@ export function QuantumDispatch({
           <span>{dispatchLabel}</span>
         </button>
         {quoteFresh && estCost != null && estCost > 0 && !mandateRef && (
-          <span className="text-[11px] text-amber-300/90 font-mono">Non-zero estimate: sign the mandate card above first.</span>
+          <span className="text-[12px] text-amber-300/90 font-mono">Non-zero estimate: sign the mandate card above first.</span>
         )}
       </div>
 
       {jobError && (
-        <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[11px] font-mono">
+        <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px] font-mono">
           Dispatch refused: {jobError}
         </div>
       )}
 
       {jobId && (
-        <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 text-[11px] font-mono text-slate-300 space-y-2">
+        <div className="p-3 rounded-xl bg-white/[0.03] border border-white/10 text-[12px] font-mono text-slate-300 space-y-2">
           <div>Job <span className="text-white">{jobId}</span> — status: <span className="text-white font-bold">{jobStatus ?? '…'}</span></div>
           <div className="flex items-center space-x-2">
             <button
@@ -427,7 +427,7 @@ export function QuantumDispatch({
             </button>
           </div>
           {pollPaused && (
-            <div className="p-2.5 rounded-xl bg-amber-950/50 border border-amber-500/40 text-amber-200 text-[11px] font-mono flex items-center justify-between gap-2">
+            <div className="p-2.5 rounded-xl bg-amber-950/50 border border-amber-500/40 text-amber-200 text-[12px] font-mono flex items-center justify-between gap-2">
               <span>backend unreachable — polling paused after repeated transport failures.</span>
               <button
                 type="button"
@@ -443,15 +443,15 @@ export function QuantumDispatch({
       )}
 
       <div className="space-y-2">
-        <div className="text-[11px] font-mono uppercase tracking-wider text-slate-400 flex items-center space-x-2">
+        <div className="text-[12px] font-mono uppercase tracking-wider text-slate-400 flex items-center space-x-2">
           <Receipt className="w-4 h-4" />
           <span>Refunds on this session</span>
         </div>
         {refunds.length === 0 ? (
-          <div className="text-[11px] text-slate-500 font-mono">No refunds recorded. Refunds are requested out-of-band with an admin-signed envelope (see R-32) — they appear here once sealed.</div>
+          <div className="text-[12px] text-slate-500 font-mono">No refunds recorded. Refunds are requested out-of-band with an admin-signed envelope (see R-32) — they appear here once sealed.</div>
         ) : (
           refunds.map((r, i) => (
-            <div key={i} className="p-2.5 rounded-xl bg-emerald-950/30 border border-emerald-800/40 text-[11px] font-mono text-emerald-200">
+            <div key={i} className="p-2.5 rounded-xl bg-emerald-950/30 border border-emerald-800/40 text-[12px] font-mono text-emerald-200">
               refunded ${String((r.payload as Record<string, unknown> | undefined)?.amount_usd ?? (r as Record<string, unknown>).amount_usd ?? '?')} — {String((r.payload as Record<string, unknown> | undefined)?.reason ?? (r as Record<string, unknown>).reason ?? '')}
             </div>
           ))

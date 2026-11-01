@@ -6,6 +6,8 @@ import {
 } from 'lucide-react';
 import { Loop, LedgerEvent, CampaignState } from '@/types';
 import { LoopControlList } from '@/components/common/LoopControlList';
+import { Chart } from '@/components/data/DataChart';
+import type { ChartSpec } from '@/components/data/chart';
 import { SessionPortability } from '@/components/common/SessionPortability';
 import { LedgerVerifyPanel } from '@/components/common/LedgerVerifyPanel';
 
@@ -146,6 +148,40 @@ export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChang
     ];
   }, [trajectory, anchorComputed, fciEnergy, chemLimit, targetSystem, ansatzFamily]);
 
+  const energyChart = useMemo<ChartSpec | null>(() => {
+    if (!trajectory || trajectory.length === 0) return null;
+    const points = trajectory
+      .filter((step) => typeof step.step === 'number' && Number.isFinite(step.step) && Number.isFinite(step.energy))
+      .map((step) => ({
+        x: step.step,
+        y: step.energy,
+        display: `${step.energy.toFixed(5)} Ha`,
+      }));
+    if (points.length === 0) return null;
+    const anchorKnown =
+      campaign?.classical_anchor?.anchor_computed === true &&
+      typeof campaign?.classical_anchor?.fci_exact_energy === 'number' &&
+      Number.isFinite(campaign.classical_anchor.fci_exact_energy);
+    const series: ChartSpec['series'] = [{ name: 'VQE energy', points }];
+    if (anchorKnown) {
+      series.push({
+        name: 'FCI anchor',
+        points: points.map((point) => ({ x: point.x, y: campaign!.classical_anchor!.fci_exact_energy })),
+      });
+    }
+    return {
+      kind: 'line',
+      title: `Energy trajectory · ${campaign?.target_system || 'H₂'}`,
+      series,
+      x: { label: 'Iteration', kind: 'linear' },
+      y: { label: 'Energy', unit: 'Ha', format: 'number' },
+      basis: anchorKnown
+        ? 'Measured trajectory against the computed FCI anchor.'
+        : 'Measured trajectory; no computed FCI anchor, so no reference line.',
+      detail: 'full',
+    };
+  }, [campaign, trajectory]);
+
   const safeIndex = Math.min(Math.max(0, currentStepIndex), Math.max(0, milestones.length - 1));
   const activeMilestone = milestones[safeIndex] || milestones[0];
 
@@ -215,6 +251,12 @@ export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChang
         </button>
       </div>
 
+      {energyChart && (
+        <div className="mt-5">
+          <Chart spec={energyChart} />
+        </div>
+      )}
+
       {/* U1-c: live loop override — pause/resume/kill in-flight loops.
           Renders nothing when the roster is empty. */}
       {onLoopsChanged && (
@@ -236,11 +278,11 @@ export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChang
       <div className="flex-1 flex flex-col items-center justify-center my-8 max-w-xl mx-auto w-full">
         <div className="w-full bg-black/60 border border-white/10 rounded-3xl p-7 backdrop-blur-2xl shadow-2xl space-y-5">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-mono font-bold px-3 py-1 rounded-full bg-white/[0.08] text-slate-200 border border-white/15">
+            <span className="text-[12px] font-mono font-bold px-3 py-1 rounded-full bg-white/[0.08] text-slate-200 border border-white/15">
               Milestone {safeIndex + 1} of {milestones.length} · Iteration {activeMilestone.step}
             </span>
 
-            <span className={`text-[11px] font-mono font-bold px-3 py-1 rounded-full flex items-center space-x-1.5 ${
+            <span className={`text-[12px] font-mono font-bold px-3 py-1 rounded-full flex items-center space-x-1.5 ${
               activeMilestone.verdict === 'keep' || activeMilestone.verdict === 'baseline'
                 ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-800/60'
                 : 'bg-amber-950/80 text-amber-300 border border-amber-800/60'
@@ -278,7 +320,7 @@ export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChang
                 <FileCode className="w-3.5 h-3.5 text-cyan-400" />
                 <span>Quantum Circuit Mutation</span>
               </span>
-              <pre className="p-3 rounded-xl bg-black/80 border border-white/10 text-[11px] font-mono text-cyan-200 overflow-x-auto leading-relaxed">
+              <pre className="p-3 rounded-xl bg-black/80 border border-white/10 text-[12px] font-mono text-cyan-200 overflow-x-auto leading-relaxed">
                 {activeMilestone.codeDiff}
               </pre>
             </div>
@@ -360,7 +402,7 @@ export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChang
                   : 'text-slate-200 hover:text-white bg-white/[0.04] hover:bg-white/[0.08] border-white/10'
               }`}
             >
-              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] shrink-0 font-bold ${
+              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[12px] shrink-0 font-bold ${
                 idx === safeIndex ? 'bg-cyan-400 text-black' : 'bg-white/15 text-slate-200'
               }`}>
                 {m.step}

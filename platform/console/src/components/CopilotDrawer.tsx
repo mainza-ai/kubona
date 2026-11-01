@@ -784,8 +784,8 @@ export function CopilotDrawer({
       if (m.role !== 'user' && !m.tribunal && typeof m.content === 'string' && m.content.includes('Notice]')) {
         return (
           <div className="w-full max-w-[95%] rounded-2xl bg-black/40 border border-amber-400/25 p-3 space-y-1.5" aria-label="No proposal — model unavailable">
-            <div className="text-[11px] font-code text-amber-300">NO PROPOSAL — MODEL UNREACHABLE OR UNCONFIGURED</div>
-            <p className="text-[11px] text-slate-300">
+            <div className="text-[12px] font-code text-amber-300">NO PROPOSAL — MODEL UNREACHABLE OR UNCONFIGURED</div>
+            <p className="text-[12px] text-slate-300">
               Nothing was dispatched. Classical paths still work: open Autonomy
               Cockpit → Simulate Offline (needs a campaign with QASM), or ask
               about H₂ / LiH / BeH₂ / VQE for server-side scaffolding.
@@ -800,7 +800,7 @@ export function CopilotDrawer({
     const jobId = launchedJobs[m.id];
     return (
       <div className="w-full max-w-[95%] rounded-2xl bg-black/40 border border-cyan-400/25 p-3 space-y-2">
-        <div className="flex items-center gap-1.5 text-[10px] font-code text-cyan-400">
+        <div className="flex items-center gap-1.5 text-[12px] font-code text-cyan-400">
           <span>✦</span>
           <span>LAUNCHABLE PROPOSAL</span>
           {p.designed_by === 'server-fallback' && (
@@ -810,11 +810,11 @@ export function CopilotDrawer({
           )}
         </div>
         <div className="text-xs text-white font-medium">{p.target}</div>
-        <div className="grid grid-cols-2 gap-2 text-[10px] font-code text-slate-400">
+        <div className="grid grid-cols-2 gap-2 text-[12px] font-code text-slate-400">
           <div><span className="text-white/40 block">Tier</span><span className="text-cyan-200">{p.recommended_tier}</span></div>
           <div><span className="text-white/40 block">Spend</span><span className="text-amber-300">{p.spend_estimate}</span></div>
         </div>
-        <div className="text-[10px] font-code text-slate-500 truncate" title={p.classical_anchor}>
+        <div className="text-[12px] font-code text-slate-500 truncate" title={p.classical_anchor}>
           anchor · {p.classical_anchor}
         </div>
         {note ? (
@@ -822,18 +822,18 @@ export function CopilotDrawer({
             <button
               onClick={() => onMaterialize?.('job', `Job ${jobId.slice(0, 8)} · detail`, jobId, m.session_id)}
               title="Open full job detail (params, counts, result)"
-              className="w-full text-left text-[11px] font-code text-emerald-300 hover:text-emerald-200 hover:bg-white/5 rounded-lg px-1.5 py-1 transition-all"
+              className="w-full text-left text-[12px] font-code text-emerald-300 hover:text-emerald-200 hover:bg-white/5 rounded-lg px-1.5 py-1 transition-all"
             >
               {note} →
             </button>
           ) : (
-            <div className="text-[11px] font-code text-emerald-300">{note}</div>
+            <div className="text-[12px] font-code text-emerald-300">{note}</div>
           )
         ) : (
           <button
             onClick={() => handleLaunchProposal(m.id, p)}
             disabled={launchingId === m.id}
-            className="w-full py-1.5 px-3 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/30 text-cyan-200 text-[11px] font-semibold transition-all disabled:opacity-50"
+            className="w-full py-1.5 px-3 rounded-xl bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/30 text-cyan-200 text-[12px] font-semibold transition-all disabled:opacity-50"
           >
             {launchingId === m.id ? 'Dispatching…' : 'Launch on local simulator'}
           </button>
@@ -922,9 +922,9 @@ export function CopilotDrawer({
           <div>
             <div className="text-xs font-semibold text-white tracking-wide flex items-center gap-1.5">
               <span>KUBONA COPILOT</span>
-              <span className="px-1.5 py-0.5 rounded bg-cyan-400/10 text-cyan-400 font-code text-[9px]">ACTIVE</span>
+              <span className="px-1.5 py-0.5 rounded bg-cyan-400/10 text-cyan-400 font-code text-[12px]">ACTIVE</span>
             </div>
-            <div className="text-[10px] text-slate-400">
+            <div className="text-[12px] text-slate-400">
               Target: {targetDisplayName} · Δ = {discrepancy != null ? `${discrepancy.toFixed(2)} mHa` : 'UNVERIFIED'}
             </div>
           </div>
@@ -1007,7 +1007,7 @@ export function CopilotDrawer({
       </div>
 
       {/* Active Scientific Focus Ribbon */}
-      <div className="mx-5 mt-3 px-3 py-2 rounded-xl bg-black/40 border border-white/[0.06] backdrop-blur-xl flex items-center justify-between text-[11px] font-code shrink-0">
+      <div className="mx-5 mt-3 px-3 py-2 rounded-xl bg-black/40 border border-white/[0.06] backdrop-blur-xl flex items-center justify-between text-[12px] font-code shrink-0">
         <div className="flex items-center space-x-2 text-slate-300">
           <span className="text-cyan-400 font-bold">TARGET:</span>
           <span className="truncate max-w-[180px]">{targetDisplayName}</span>
@@ -1039,7 +1039,7 @@ export function CopilotDrawer({
             placeholder="Find in conversation…"
             className="flex-1 min-w-0 bg-transparent text-xs text-white placeholder-slate-500 focus:outline-none"
           />
-          <span className="text-[10px] font-code text-slate-500 shrink-0">
+          <span className="text-[12px] font-code text-slate-500 shrink-0">
             {matchedIds.length === 0 ? '0' : `${searchIndex + 1}/${matchedIds.length}`}
           </span>
           <Tip label="Previous match" position="top">
@@ -1066,7 +1066,7 @@ export function CopilotDrawer({
         className="flex-1 overflow-y-auto space-y-4 p-4 scrollbar-thin"
       >
         {messages.length === 0 && (
-          <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 text-[11px] text-slate-400 leading-relaxed">
+          <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 text-[12px] text-slate-400 leading-relaxed">
             <span className="text-white font-medium">Autonomous Swarm Initialized:</span> Exploring {targetDisplayName}. Type your intent or ask for telemetry breakdown on demand.
           </div>
         )}
@@ -1080,7 +1080,7 @@ export function CopilotDrawer({
                 className="w-full p-3 rounded-2xl bg-black/40 hover:bg-black/70 border border-white/10 hover:border-cyan-500/40 text-xs text-slate-200 transition-all flex items-center justify-between group shadow-sm"
               >
                 <div className="flex items-center space-x-2.5">
-                  <span className="text-amber-400 text-[10px]">✦</span>
+                  <span className="text-amber-400 text-[12px]">✦</span>
                   <span className="font-medium">H₂ Potential Energy Surface</span>
                 </div>
                 <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-cyan-300 group-hover:translate-x-0.5 transition-all" />
@@ -1091,7 +1091,7 @@ export function CopilotDrawer({
                 className="w-full p-3 rounded-2xl bg-black/40 hover:bg-black/70 border border-white/10 hover:border-emerald-500/40 text-xs text-slate-200 transition-all flex items-center justify-between group shadow-sm"
               >
                 <div className="flex items-center space-x-2.5">
-                  <span className="text-emerald-400 text-[10px]">✦</span>
+                  <span className="text-emerald-400 text-[12px]">✦</span>
                   <span className="font-medium">Convene Tribunal for LiH</span>
                 </div>
                 <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-emerald-300 group-hover:translate-x-0.5 transition-all" />
@@ -1102,7 +1102,7 @@ export function CopilotDrawer({
                 className="w-full p-3 rounded-2xl bg-black/40 hover:bg-black/70 border border-white/10 hover:border-cyan-500/40 text-xs text-slate-200 transition-all flex items-center justify-between group shadow-sm"
               >
                 <div className="flex items-center space-x-2.5">
-                  <span className="text-cyan-400 text-[10px]">✦</span>
+                  <span className="text-cyan-400 text-[12px]">✦</span>
                   <span className="font-medium">Probe IBM Heron Noise Model</span>
                 </div>
                 <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-cyan-300 group-hover:translate-x-0.5 transition-all" />
@@ -1131,7 +1131,7 @@ export function CopilotDrawer({
               }`}
             >
               {/* Message Meta Info + actions */}
-              <div className="flex items-center space-x-2 text-[10px] text-slate-400 font-mono px-1">
+              <div className="flex items-center space-x-2 text-[12px] text-slate-400 font-mono px-1">
                 <span>{isUser ? 'You' : 'Kubona Tribunal Salon'}</span>
                 <span>•</span>
                 <span>{new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
@@ -1225,14 +1225,14 @@ export function CopilotDrawer({
                     <button
                       onClick={() => setEditingId(null)}
                       disabled={rewriting}
-                      className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[11px] transition-all disabled:opacity-40"
+                      className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 text-[12px] transition-all disabled:opacity-40"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={() => handleRewriteSave(m.id)}
                       disabled={rewriting || !editDraft.trim()}
-                      className="px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/30 text-cyan-200 text-[11px] font-semibold transition-all disabled:opacity-40"
+                      className="px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/30 text-cyan-200 text-[12px] font-semibold transition-all disabled:opacity-40"
                     >
                       {rewriting ? 'Resending…' : 'Resend (branches thread)'}
                     </button>
@@ -1257,7 +1257,7 @@ export function CopilotDrawer({
               {/* Multi-Agent Tribunal Salon Presentation */}
               {hasTribunal && m.tribunal && (
                 <div className="w-full space-y-2">
-                  <div className="flex items-center gap-1.5 text-[10px] font-code text-cyan-400 px-1">
+                  <div className="flex items-center gap-1.5 text-[12px] font-code text-cyan-400 px-1">
                     <Bot className="w-3 h-3" />
                     <span>TRIBUNAL SYNTHESIS</span>
                   </div>
@@ -1270,12 +1270,12 @@ export function CopilotDrawer({
                       </div>
                       <div>
                         <div className="font-bold text-white text-xs">Autonomous Tribunal Deliberation</div>
-                        <div className="text-[10px] text-slate-400 font-mono">Target: {m.tribunal.target || m.tribunal.molecule}</div>
+                        <div className="text-[12px] text-slate-400 font-mono">Target: {m.tribunal.target || m.tribunal.molecule}</div>
                       </div>
                     </div>
 
                     <span
-                      className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-bold border flex items-center space-x-1.5 ${
+                      className={`px-2.5 py-0.5 rounded-full text-[12px] font-mono font-bold border flex items-center space-x-1.5 ${
                         m.tribunal.consensus_passed
                           ? 'bg-emerald-950/70 border-emerald-500/40 text-emerald-300'
                           : 'bg-amber-950/70 border-amber-500/40 text-amber-300'
@@ -1294,7 +1294,7 @@ export function CopilotDrawer({
 
                   {/* 4 Colleague Discourse Cards */}
                   <div className="flex items-center justify-between">
-                    <span className="text-[11px] text-slate-400">{m.tribunal.turns.length} turns</span>
+                    <span className="text-[12px] text-slate-400">{m.tribunal.turns.length} turns</span>
                     <div className="flex gap-2">
                       <button
                         onClick={() =>
@@ -1302,11 +1302,11 @@ export function CopilotDrawer({
                             Object.fromEntries((m.tribunal?.turns ?? []).map((_, idx) => [`${m.id}-turn-${idx}`, true]))
                           )
                         }
-                        className="text-[11px] text-cyan-300 hover:text-cyan-100"
+                        className="text-[12px] text-cyan-300 hover:text-cyan-100"
                       >
                         Expand all
                       </button>
-                      <button onClick={() => setExpandedTurns({})} className="text-[11px] text-slate-400 hover:text-slate-200">
+                      <button onClick={() => setExpandedTurns({})} className="text-[12px] text-slate-400 hover:text-slate-200">
                         Collapse all
                       </button>
                     </div>
@@ -1351,7 +1351,7 @@ export function CopilotDrawer({
                             <div className="flex items-center space-x-2">
                               <RoleIconComponent className={`w-3.5 h-3.5 ${accentColor}`} />
                               <span className="font-bold text-white text-xs tracking-tight">{turn.name || roleTitle}</span>
-                              <span className={`text-[9px] font-mono uppercase px-1.5 py-0.2 rounded border bg-black/40 ${accentColor}`}>
+                              <span className={`text-[12px] font-mono uppercase px-1.5 py-0.2 rounded border bg-black/40 ${accentColor}`}>
                                 {turn.verdict || 'ANALYZED'}
                               </span>
                             </div>
@@ -1390,7 +1390,7 @@ export function CopilotDrawer({
                         {onSelectSurface && (
                           <button
                             onClick={() => onSelectSurface('surface1')}
-                            className="px-3 py-1.5 rounded-xl bg-cyan-600/30 hover:bg-cyan-600/50 border border-cyan-500/40 text-cyan-200 text-[11px] font-semibold flex items-center space-x-1.5 transition-all shadow-sm"
+                            className="px-3 py-1.5 rounded-xl bg-cyan-600/30 hover:bg-cyan-600/50 border border-cyan-500/40 text-cyan-200 text-[12px] font-semibold flex items-center space-x-1.5 transition-all shadow-sm"
                           >
                             <Atom className="w-3.5 h-3.5" />
                             <span>View on Living Canvas</span>
@@ -1399,7 +1399,7 @@ export function CopilotDrawer({
                         {onSelectSurface && (
                           <button
                             onClick={() => onSelectSurface('surface7')}
-                            className="px-3 py-1.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-200 text-[11px] font-semibold flex items-center space-x-1.5 transition-all shadow-sm"
+                            className="px-3 py-1.5 rounded-xl bg-indigo-600/30 hover:bg-indigo-600/50 border border-indigo-500/40 text-indigo-200 text-[12px] font-semibold flex items-center space-x-1.5 transition-all shadow-sm"
                           >
                             <BookOpen className="w-3.5 h-3.5" />
                             <span>Pin to Living Paper</span>
@@ -1407,7 +1407,7 @@ export function CopilotDrawer({
                         )}
                         <button
                           onClick={() => copyToClipboard(m.tribunal?.synthesis || '', m.id)}
-                          className="px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/10 border border-white/10 text-slate-300 text-[11px] font-semibold flex items-center space-x-1.5 transition-all"
+                          className="px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/10 border border-white/10 text-slate-300 text-[12px] font-semibold flex items-center space-x-1.5 transition-all"
                         >
                           {copiedId === m.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                           <span>{copiedId === m.id ? 'Copied' : 'Copy Synthesis'}</span>
@@ -1419,25 +1419,25 @@ export function CopilotDrawer({
                         <div className="pt-1 flex flex-wrap items-center gap-1.5">
                           <button
                             onClick={() => onMaterialize('circuit', 'Circuit · live')}
-                            className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] text-slate-300 transition-all flex items-center gap-1"
+                            className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[12px] text-slate-300 transition-all flex items-center gap-1"
                           >
                             <span className="text-cyan-400">✦</span> Inspect circuit
                           </button>
                           <button
                             onClick={() => onMaterialize('shadows', 'Shadow estimates')}
-                            className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] text-slate-300 transition-all flex items-center gap-1"
+                            className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[12px] text-slate-300 transition-all flex items-center gap-1"
                           >
                             <span className="text-cyan-400">✦</span> Shadow estimates
                           </button>
                           <button
                             onClick={() => onMaterialize('molecule', 'Active space')}
-                            className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] text-slate-300 transition-all flex items-center gap-1"
+                            className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[12px] text-slate-300 transition-all flex items-center gap-1"
                           >
                             <span className="text-amber-400">✦</span> Active space
                           </button>
                           <button
                             onClick={() => onMaterialize('mandate', 'Spend mandate')}
-                            className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] text-slate-300 transition-all flex items-center gap-1"
+                            className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[12px] text-slate-300 transition-all flex items-center gap-1"
                           >
                             <span className="text-amber-400">✦</span> Spend card
                           </button>
@@ -1476,7 +1476,7 @@ export function CopilotDrawer({
             <button
               type="button"
               onClick={() => onSelectSurface?.('labs')}
-              className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/40 text-amber-100 text-[11px] font-semibold transition-all"
+              className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/40 text-amber-100 text-[12px] font-semibold transition-all"
             >
               Open Labs AuthPanel
             </button>
@@ -1495,7 +1495,7 @@ export function CopilotDrawer({
                     setErrorMessage(null);
                     void handleSend(lastPromptRef.current || undefined);
                   }}
-                  className="shrink-0 px-2.5 py-1 rounded-lg bg-red-400/15 hover:bg-red-400/25 border border-red-400/40 text-red-100 text-[11px] font-semibold transition-all"
+                  className="shrink-0 px-2.5 py-1 rounded-lg bg-red-400/15 hover:bg-red-400/25 border border-red-400/40 text-red-100 text-[12px] font-semibold transition-all"
                 >
                   Retry
                 </button>
@@ -1521,7 +1521,7 @@ export function CopilotDrawer({
             <button
               key={f.label}
               onClick={() => runFollowUp(f.key)}
-              className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[10px] text-slate-300 transition-all flex items-center gap-1 whitespace-nowrap"
+              className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-[12px] text-slate-300 transition-all flex items-center gap-1 whitespace-nowrap"
             >
               <span className={f.accent}>✦</span> {f.label}
             </button>
@@ -1543,7 +1543,7 @@ export function CopilotDrawer({
           {attachments.length > 0 && (
             <div className="flex flex-wrap gap-1.5 px-2 pb-1.5">
               {attachments.map((a) => (
-                <span key={a.name} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-400/30 text-[10px] font-code text-cyan-200">
+                <span key={a.name} className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-400/30 text-[12px] font-code text-cyan-200">
                   <Paperclip className="w-3 h-3" />
                   {a.name}
                   <button type="button" onClick={() => removeAttachment(a.name)} aria-label={`Remove ${a.name}`} className="hover:text-white">
@@ -1555,7 +1555,7 @@ export function CopilotDrawer({
           )}
           {/* Slash hint */}
           {input.startsWith('/') && (
-            <div className="px-2 pb-1.5 text-[10px] font-code text-slate-500">
+            <div className="px-2 pb-1.5 text-[12px] font-code text-slate-500">
               <span className="text-cyan-300">/tribunal</span> convene · <span className="text-cyan-300">/launch</span> last proposal · <span className="text-cyan-300">/help</span>
             </div>
           )}
@@ -1603,7 +1603,7 @@ export function CopilotDrawer({
                 <Paperclip className="w-4 h-4" />
               </button>
               </Tip>
-              <span className="text-[10px] font-code text-slate-400 ml-1">⌘K</span>
+              <span className="text-[12px] font-code text-slate-400 ml-1">⌘K</span>
               <ContextReadout sessionId={sessionId} refreshKey={messages.length} />
             </div>
             <Tip label={streamingId ? 'Stop generation' : 'Send directive'} position="top">
@@ -1639,7 +1639,7 @@ export function CopilotDrawer({
           <span>Convene Multi-Agent Research Tribunal</span>
         </button>
         <div className="text-center">
-          <span className="text-[9px] text-slate-400 font-code">Autonomous AI Swarm · Local-first</span>
+          <span className="text-[12px] text-slate-400 font-code">Autonomous AI Swarm · Local-first</span>
         </div>
       </div>
       {clearConfirmOpen && (

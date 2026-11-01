@@ -14,8 +14,8 @@ async function freshApi() {
 }
 
 describe('apiFetch timeouts + 401 broadcast', () => {
-  it('dispatches kubona:unauthorized on 401 without throwing', async () => {
-    const { apiFetch, UNAUTH_EVENT, wasRecentAuthFailure } = await freshApi();
+  it('treats an anonymous 401 as sign-in-required, not an expired session', async () => {
+    const { apiFetch, AUTH_REQUIRED_EVENT, wasRecentAuthFailure } = await freshApi();
     expect(wasRecentAuthFailure()).toBe(false);
     const seen: string[] = [];
     vi.stubGlobal('window', {
@@ -25,6 +25,26 @@ describe('apiFetch timeouts + 401 broadcast', () => {
       },
     });
     (globalThis as { fetch?: unknown }).fetch = vi.fn(async () => ({ ok: false, status: 401 }));
+    const res = await apiFetch('http://x/api/sessions');
+    expect(res.status).toBe(401);
+    expect(seen).toEqual([AUTH_REQUIRED_EVENT]);
+    expect(wasRecentAuthFailure()).toBe(true);
+  });
+
+  it('dispatches kubona:unauthorized only after an authenticated identity was observed', async () => {
+    const { apiFetch, authWhoami, UNAUTH_EVENT, wasRecentAuthFailure } = await freshApi();
+    const seen: string[] = [];
+    vi.stubGlobal('window', {
+      dispatchEvent: (e: Event) => {
+        seen.push(e.type);
+        return true;
+      },
+    });
+    (globalThis as { fetch?: unknown }).fetch = vi
+      .fn()
+      .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ authenticated: true }) })
+      .mockResolvedValueOnce({ ok: false, status: 401 });
+    await authWhoami();
     const res = await apiFetch('http://x/api/sessions');
     expect(res.status).toBe(401);
     expect(seen).toEqual([UNAUTH_EVENT]);

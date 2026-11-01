@@ -350,19 +350,19 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
 
       {/* LLM spend (server-sealed aggregates, heuristic estimates) */}
       <div className="p-4 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl">
-        <div className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider font-mono flex items-center space-x-2">
+        <div className="text-[12px] font-semibold text-slate-300 uppercase tracking-wider font-mono flex items-center space-x-2">
           <span>LLM spend — server-sealed</span>
           {costSummary?.local_bypass && (
             <span className="text-emerald-400 normal-case font-sans">{`local inference $0 · unmetered (active: ${costSummary.active_provider})`}</span>
           )}
         </div>
         {costRefused && (
-          <div className="mt-2 p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[11px]">
+          <div className="mt-2 p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px]">
             Spend refused — {costRefused.slice(0, 200)}. Nothing spent, nothing assumed.
           </div>
         )}
         {!costRefused && !costSummary && (
-          <div className="mt-2 text-[11px] text-slate-400 font-code">Loading spend…</div>
+          <div className="mt-2 text-[12px] text-slate-400 font-code">Loading spend…</div>
         )}
         {costSummary && (
           <div className="mt-1 text-xs text-slate-200 font-mono">
@@ -382,21 +382,21 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
       {/* Host Port Radar Discovery */}
       <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl space-y-3">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-semibold text-slate-300 uppercase tracking-wider font-mono text-[11px] flex items-center space-x-2">
+          <span className="font-semibold text-slate-300 uppercase tracking-wider font-mono text-[12px] flex items-center space-x-2">
             <Terminal className="w-4 h-4 text-cyan-400" />
             <span>Local Host Port Radar (Zero-Config Discovery)</span>
           </span>
-          <span className="text-slate-400 font-mono text-[10px]">
+          <span className="text-slate-400 font-mono text-[12px]">
             Target: 127.0.0.1 (Loopback Only)
           </span>
         </div>
         {radarRefused && (
-          <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[11px]">
+          <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px]">
             Radar refused — {radarRefused.slice(0, 200)}. Nothing discovered, nothing assumed.
           </div>
         )}
         {!radarRefused && endpoints.length === 0 && (
-          <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 text-slate-400 text-[11px] font-code">
+          <div className="p-2.5 rounded-xl bg-white/[0.03] border border-white/10 text-slate-400 text-[12px] font-code">
             No endpoints discovered — radar reachable but empty (not a refusal).
           </div>
         )}
@@ -412,7 +412,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
                 <div className="text-slate-300 text-xs font-mono">127.0.0.1:{ep.port}</div>
               </div>
               <span
-                className={`px-2.5 py-0.5 rounded-full text-[10px] font-semibold flex items-center space-x-1.5 border ${
+                className={`px-2.5 py-0.5 rounded-full text-[12px] font-semibold flex items-center space-x-1.5 border ${
                   ep.listening
                     ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60'
                     : 'bg-white/[0.04] text-slate-300 border-white/10'
@@ -429,11 +429,11 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
       {/* Multimodal Mission Control Route Simulator */}
       <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl space-y-3">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-semibold text-slate-300 uppercase tracking-wider font-mono text-[11px] flex items-center space-x-2">
+          <span className="font-semibold text-slate-300 uppercase tracking-wider font-mono text-[12px] flex items-center space-x-2">
             <Zap className="w-4 h-4 text-amber-400" />
             <span>Mission Control Multimodal Router Evaluator</span>
           </span>
-          <span className="text-slate-400 font-mono text-[10px]">
+          <span className="text-slate-400 font-mono text-[12px]">
             Local-First &amp; Air-Gap Policy Enforcement
           </span>
         </div>
@@ -481,12 +481,12 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
               <span className="text-white font-semibold">
                 Selected Model: <span className="text-cyan-300">{routingDecision.model}</span>
               </span>
-              <span className={`px-2 py-0.5 rounded text-[10px] ${routingDecision.air_gap_enforced ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300'}`}>
+              <span className={`px-2 py-0.5 rounded text-[12px] ${routingDecision.air_gap_enforced ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-amber-500/20 text-amber-300'}`}>
                 {routingDecision.air_gap_enforced ? 'AIR-GAP ENFORCED' : 'CLOUD ESCALATION'}
               </span>
             </div>
             <p className="text-slate-400 font-sans">{routingDecision.explanation}</p>
-            <div className="flex items-center space-x-4 text-[10px] text-slate-400">
+            <div className="flex items-center space-x-4 text-[12px] text-slate-400">
               <span>Provider: {routingDecision.provider}</span>
               <span>Estimated Cost: ${fmtFixed(routingDecision.estimated_cost_usd, 2)}</span>
               <span>Modalities: {(routingDecision.modalities_supported || []).join(', ') || 'general'}</span>
@@ -494,7 +494,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
           </div>
         )}
         {routeError && (
-          <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[11px]">
+          <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px]">
             {routeError}
           </div>
         )}
@@ -502,12 +502,12 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
 
       {systemAgents.length > 0 && (
         <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl space-y-2">
-          <div className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider font-mono">
+          <div className="text-[12px] font-semibold text-slate-300 uppercase tracking-wider font-mono">
             Tribunal system roles ({systemAgents.length})
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
             {systemAgents.map((role) => (
-              <div key={role.role} className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05] text-[11px]">
+              <div key={role.role} className="p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.05] text-[12px]">
                 <div className="font-code text-cyan-200">{role.role}</div>
                 <p className="text-slate-400 font-sans mt-0.5">{role.description}</p>
               </div>
@@ -521,7 +521,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
         <div className="flex items-center justify-between text-xs">
           <div className="flex items-center space-x-2">
             <Users className="w-4 h-4 text-indigo-400" />
-            <span className="font-semibold text-slate-300 uppercase tracking-wider font-mono text-[11px]">
+            <span className="font-semibold text-slate-300 uppercase tracking-wider font-mono text-[12px]">
               Scientific Agent Roster ({agents.length})
             </span>
           </div>
@@ -548,7 +548,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
                     <span className="font-semibold text-white text-xs">{agent.name}</span>
                   </div>
                   <span
-                    className={`text-[9px] font-mono px-2 py-0.5 rounded ${
+                    className={`text-[12px] font-mono px-2 py-0.5 rounded ${
                       agent.is_system_agent
                         ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30'
                         : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
@@ -560,7 +560,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
                 <p className="text-xs text-slate-400 leading-relaxed font-sans">{agent.description}</p>
               </div>
 
-              <div className="space-y-1.5 pt-2 border-t border-white/[0.04] text-[10px] font-mono">
+              <div className="space-y-1.5 pt-2 border-t border-white/[0.04] text-[12px] font-mono">
                 <div className="flex items-center justify-between text-slate-400">
                   <span>Model:</span>
                   <span className="text-cyan-300 truncate max-w-[200px]">{agent.preferred_model}</span>
@@ -666,7 +666,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
                   aria-label="System prompt"
                   onChange={(e) => setNewAgentPrompt(e.target.value)}
                   placeholder="Detailed scientific system prompt guiding the agent's reasoning..."
-                  className="w-full p-2 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-slate-500 font-mono text-[11px]"
+                  className="w-full p-2 rounded-xl bg-black/40 border border-white/10 text-white placeholder:text-slate-500 font-mono text-[12px]"
                 />
               </div>
 
@@ -679,7 +679,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
                     aria-label="Preferred model"
                     placeholder="e.g. local/qwen2.5-coder:32b (required — never assumed)"
                     onChange={(e) => setNewAgentModel(e.target.value)}
-                    className="w-full p-2 rounded-xl bg-black/40 border border-white/10 text-white font-mono text-[11px]"
+                    className="w-full p-2 rounded-xl bg-black/40 border border-white/10 text-white font-mono text-[12px]"
                   />
                 </div>
                 <div>
@@ -703,7 +703,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
               where the user acted — the modal stays open with the form
               intact for retry. */}
               {meshError && (
-                <p role="alert" className="flex-1 text-left text-[11px] text-rose-200 self-center pr-2">
+                <p role="alert" className="flex-1 text-left text-[12px] text-rose-200 self-center pr-2">
                   {meshError}
                 </p>
               )}

@@ -61,15 +61,15 @@ export function ObligationsPanel() {
       <div className="flex items-center justify-between">
         <div>
           <span className="text-xs font-semibold text-white">Open obligations · mandate review</span>
-          <p className="text-[10px] text-slate-500">Closure only triggers the server rule; this panel cannot force-close.</p>
+          <p className="text-[12px] text-slate-500">Closure only triggers the server rule; this panel cannot force-close.</p>
         </div>
-        <button type="button" onClick={() => void load()} className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] text-slate-300">Refresh</button>
+        <button type="button" onClick={() => void load()} className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[12px] text-slate-300">Refresh</button>
       </div>
-      {rows === null && <p className="text-[11px] font-code text-slate-500">Loading obligations…</p>}
-      {error && <p role="alert" className="text-[11px] text-rose-300">Queue unavailable — {error}</p>}
-      {rows !== null && !error && rows.length === 0 && <p className="text-[11px] text-slate-400">No open obligations.</p>}
+      {rows === null && <p className="text-[12px] font-code text-slate-500">Loading obligations…</p>}
+      {error && <p role="alert" className="text-[12px] text-rose-300">Queue unavailable — {error}</p>}
+      {rows !== null && !error && rows.length === 0 && <p className="text-[12px] text-slate-400">No open obligations.</p>}
       {(rows ?? []).map((ob) => (
-        <div key={ob.id} className="px-2.5 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] text-[11px] space-y-1">
+        <div key={ob.id} className="px-2.5 py-2 rounded-xl bg-white/[0.03] border border-white/[0.06] text-[12px] space-y-1">
           <div className="flex items-center justify-between gap-2">
             <span className="font-code text-slate-300 truncate" title={ob.id}>{ob.id.slice(0, 12)} · {ob.subject_kind}/{ob.subject_id.slice(0, 12)}</span>
             <button
@@ -86,7 +86,7 @@ export function ObligationsPanel() {
           {ob.close_reasons.length > 0 && <div className="text-amber-300/80">{ob.close_reasons.join(' · ')}</div>}
         </div>
       ))}
-      {notice && <p role="status" className="text-[11px] text-slate-300">{notice}</p>}
+      {notice && <p role="status" className="text-[12px] text-slate-300">{notice}</p>}
     </div>
   );
 }

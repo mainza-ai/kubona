@@ -83,7 +83,7 @@ export function QuantumSettings() {
   const credBadge = (b: QuantumBackendInfo) => {
     if (b.credential_state === 'ready') {
       return (
-        <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-emerald-950/60 text-emerald-300 border border-emerald-800/60">
+        <span className="px-2 py-0.5 rounded-full text-[12px] font-mono font-semibold bg-emerald-950/60 text-emerald-300 border border-emerald-800/60">
           READY
         </span>
       );
@@ -91,7 +91,7 @@ export function QuantumSettings() {
     if (b.credential_state === 'credentialless') {
       return (
         <span
-          className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-sky-950/60 text-sky-300 border border-sky-800/60"
+          className="px-2 py-0.5 rounded-full text-[12px] font-mono font-semibold bg-sky-950/60 text-sky-300 border border-sky-800/60"
           title={`This daemon holds no credentials — set ${b.credential_env} to enable it.`}
         >
           NO CREDENTIALS
@@ -99,7 +99,7 @@ export function QuantumSettings() {
       );
     }
     return (
-      <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-white/[0.06] text-slate-400 border border-white/10">
+      <span className="px-2 py-0.5 rounded-full text-[12px] font-mono font-semibold bg-white/[0.06] text-slate-400 border border-white/10">
         UNAVAILABLE
       </span>
     );
@@ -112,7 +112,7 @@ export function QuantumSettings() {
           <Cpu className="w-5 h-5 text-cyan-300" />
           <div>
             <h2 className="text-sm font-bold text-white font-mono tracking-tight">Quantum Providers</h2>
-            <p className="text-[11px] text-slate-400 font-sans">
+            <p className="text-[12px] text-slate-400 font-sans">
               Human default backend + per-harness overrides. Agents keep their own per-call selection (default local-simulator).
             </p>
           </div>
@@ -155,12 +155,12 @@ export function QuantumSettings() {
         </button>
       </div>
       {canaryOut && (
-        <div className="text-[11px] text-slate-300 font-mono bg-black/40 border border-white/[0.06] rounded-xl px-3 py-2">
+        <div className="text-[12px] text-slate-300 font-mono bg-black/40 border border-white/[0.06] rounded-xl px-3 py-2">
           {canaryOut}
         </div>
       )}
       {canaryResults && Object.keys(canaryResults).length > 0 && (
-        <details data-testid="canary-results" className="text-[11px] text-slate-300 font-mono bg-black/40 border border-white/[0.06] rounded-xl px-3 py-2">
+        <details data-testid="canary-results" className="text-[12px] text-slate-300 font-mono bg-black/40 border border-white/[0.06] rounded-xl px-3 py-2">
           <summary className="cursor-pointer text-cyan-200">Measured canary results (live, no QPU spend)</summary>
           <ul className="mt-2 space-y-1">
             {Object.entries(canaryResults).map(([provider, result]) => (
@@ -193,11 +193,11 @@ export function QuantumSettings() {
               />
               <div>
                 <div className="text-xs font-bold text-white font-mono">{b.display_name}</div>
-                <div className="text-[11px] text-slate-400 font-mono">
+                <div className="text-[12px] text-slate-400 font-mono">
                   {b.provider} · {b.modality} · {b.device}
                   {b.telemetry === 'declared' && (
                     <span
-                      className="ml-1.5 px-1.5 py-px rounded bg-slate-800/80 text-slate-300 border border-white/10 text-[9px] font-bold"
+                      className="ml-1.5 px-1.5 py-px rounded bg-slate-800/80 text-slate-300 border border-white/10 text-[12px] font-bold"
                       title="Vendor catalog, not a live measurement."
                     >
                       CATALOG
@@ -205,7 +205,7 @@ export function QuantumSettings() {
                   )}
                 </div>
                 {b.credential_env !== '' && b.credential_state !== 'ready' && (
-                  <div className="text-[11px] text-slate-500 font-mono flex items-center space-x-1 mt-0.5">
+                  <div className="text-[12px] text-slate-500 font-mono flex items-center space-x-1 mt-0.5">
                     <KeyRound className="w-3 h-3" />
                     <span>set {b.credential_env} on the daemon to enable</span>
                   </div>
@@ -216,7 +216,7 @@ export function QuantumSettings() {
               {credBadge(b)}
               {!b.executable_now && b.credential_state === 'ready' && (
                 <span
-                  className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-amber-950/60 text-amber-300 border border-amber-800/60"
+                  className="px-2 py-0.5 rounded-full text-[12px] font-mono font-semibold bg-amber-950/60 text-amber-300 border border-amber-800/60"
                   title="Local solving works; the cloud path for this modality is not wired yet."
                 >
                   LOCAL ONLY
@@ -226,7 +226,7 @@ export function QuantumSettings() {
           </label>
         ))}
         {backends.length === 0 && (
-          <div className="text-[11px] text-slate-500 font-mono p-3">No backends reported — is the daemon reachable?</div>
+          <div className="text-[12px] text-slate-500 font-mono p-3">No backends reported — is the daemon reachable?</div>
         )}
       </div>
 
@@ -323,18 +323,18 @@ export function QuantumSettings() {
           <span>{saving ? 'Saving…' : dirty ? 'Save selection' : 'Saved'}</span>
         </button>
         {message?.kind === 'ok' && (
-          <span className="text-[11px] text-emerald-300 font-mono flex items-center space-x-1.5">
+          <span className="text-[12px] text-emerald-300 font-mono flex items-center space-x-1.5">
             <CheckCircle2 className="w-4 h-4" />
             <span>{message.text}</span>
           </span>
         )}
         {message?.kind === 'err' && (
-          <span className="text-[11px] text-rose-300 font-mono flex items-center space-x-1.5">
+          <span className="text-[12px] text-rose-300 font-mono flex items-center space-x-1.5">
             <AlertCircle className="w-4 h-4" />
             <span>{message.text}</span>
           </span>
         )}
-        <span className="text-[11px] text-slate-500 font-mono flex items-center space-x-1.5">
+        <span className="text-[12px] text-slate-500 font-mono flex items-center space-x-1.5">
           <ShieldAlert className="w-3.5 h-3.5" />
           <span>Selection only — keys stay in daemon env/Bao and are never accepted here.</span>
         </span>

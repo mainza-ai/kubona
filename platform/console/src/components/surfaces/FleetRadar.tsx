@@ -176,11 +176,11 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
       {/* Continuum Radar Strip */}
       <div className="p-4 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl space-y-3">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-semibold text-slate-300 uppercase tracking-wider font-mono text-[11px]" title="Vendor-declared continuum — not live canary data">
+          <span className="font-semibold text-slate-300 uppercase tracking-wider font-mono text-[12px]" title="Vendor-declared continuum — not live canary data">
             Quantum Execution Continuum (declared catalog)
           </span>
           {showEar99 && (
-            <span className="text-slate-400 font-mono text-[10px] flex items-center space-x-1.5">
+            <span className="text-slate-400 font-mono text-[12px] flex items-center space-x-1.5">
               <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
               <span>EAR99 Export-Controlled Cloud Filtering Active</span>
             </span>
@@ -197,10 +197,10 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                 <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
                 <span>Tier {t.tier}</span>
               </div>
-              <p className="text-[11px] text-slate-400 leading-tight font-sans">
+              <p className="text-[12px] text-slate-400 leading-tight font-sans">
                 {t.desc}
               </p>
-              <p className="text-[9px] font-mono text-slate-500" title="Tier list is vendor-declared until live canary data backs it">
+              <p className="text-[12px] font-mono text-slate-500" title="Tier list is vendor-declared until live canary data backs it">
                 declared — not live canary data
               </p>
             </div>
@@ -212,7 +212,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
       <div className="space-y-3">
         <div className="flex items-center justify-between text-xs font-semibold text-slate-300 font-mono uppercase tracking-wider">
           <span>Host Daemon Telemetry &amp; Gateway Links</span>
-          <span className="text-[10px] text-cyan-400 font-mono flex items-center space-x-1.5" title={`Current poll interval ${(pollIntervalMs / 1000).toFixed(1)}s — backs off to 15s on refusal/error`}>
+          <span className="text-[12px] text-cyan-400 font-mono flex items-center space-x-1.5" title={`Current poll interval ${(pollIntervalMs / 1000).toFixed(1)}s — backs off to 15s on refusal/error`}>
             <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-ping" />
             <span>Adaptive radar · {(pollIntervalMs / 1000).toFixed(1)}s interval (1s nominal, backs off)</span>
           </span>
@@ -221,13 +221,13 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
             nominal). Gated on the existing pollIntervalMs mirror — no new
             timing logic. */}
         {loaded && pollIntervalMs > 1000 && (
-          <div data-testid="fleet-radar-stale" className="px-2.5 py-1.5 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-200 text-[11px] font-mono">
+          <div data-testid="fleet-radar-stale" className="px-2.5 py-1.5 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-200 text-[12px] font-mono">
             Stale — refresh delayed ({(pollIntervalMs / 1000).toFixed(1)}s interval). Data may be out of date.
           </div>
         )}
 
         {refused && (
-          <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[11px]">
+          <div className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px]">
             Radar refused — {refused.slice(0, 200)}. Nothing discovered, nothing assumed.
           </div>
         )}
@@ -247,7 +247,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                   <div className="flex items-center space-x-2">
                     <span className="w-2 h-2 rounded-full bg-cyan-400" />
                     <span className="text-xs font-mono font-bold text-white">Port 8080</span>
-                    <span className="text-[10px] font-mono text-cyan-300 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-800/40">
+                    <span className="text-[12px] font-mono text-cyan-300 bg-cyan-950/80 px-2 py-0.5 rounded border border-cyan-800/40">
                       HTTP / REST
                     </span>
                   </div>
@@ -257,7 +257,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                 </div>
                 <div
                   data-testid="status-indicator-8080"
-                  className={`px-3 py-1 rounded-full text-[11px] font-mono font-semibold flex items-center space-x-1.5 border transition-all ${
+                  className={`px-3 py-1 rounded-full text-[12px] font-mono font-semibold flex items-center space-x-1.5 border transition-all ${
                     state === 'on'
                       ? 'bg-emerald-950/70 text-emerald-300 border-emerald-700/60'
                       : state === 'unknown'
@@ -289,7 +289,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                   <div className="flex items-center space-x-2">
                     <span className="w-2 h-2 rounded-full bg-indigo-400" />
                     <span className="text-xs font-mono font-bold text-white">Port 50051</span>
-                    <span className="text-[10px] font-mono text-indigo-300 bg-indigo-950/80 px-2 py-0.5 rounded border border-indigo-800/40">
+                    <span className="text-[12px] font-mono text-indigo-300 bg-indigo-950/80 px-2 py-0.5 rounded border border-indigo-800/40">
                       gRPC
                     </span>
                   </div>
@@ -299,7 +299,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                 </div>
                 <div
                   data-testid="status-indicator-50051"
-                  className={`px-3 py-1 rounded-full text-[11px] font-mono font-semibold flex items-center space-x-1.5 border transition-all ${
+                  className={`px-3 py-1 rounded-full text-[12px] font-mono font-semibold flex items-center space-x-1.5 border transition-all ${
                     state === 'on'
                       ? 'bg-emerald-950/70 text-emerald-300 border-emerald-700/60'
                       : state === 'unknown'
@@ -360,14 +360,14 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                     <span className="font-bold text-sm text-white font-mono tracking-tight">{b.name}</span>
                     {b.telemetry === 'declared' && (
                       <span
-                        className="px-2 py-0.5 rounded-md bg-slate-800/80 text-slate-300 border border-white/10 text-[9px] font-mono font-bold"
+                        className="px-2 py-0.5 rounded-md bg-slate-800/80 text-slate-300 border border-white/10 text-[12px] font-mono font-bold"
                         title="Vendor catalog, not a live measurement: queue depth and coherence figures are declared values until the live canary proxy lands. Credential state is measured."
                       >
                         CATALOG
                       </span>
                     )}
                     {isRecommended && (
-                      <span className="px-2 py-0.5 rounded-md bg-cyan-950/80 text-cyan-300 border border-cyan-800 text-[9px] font-mono font-bold flex items-center space-x-1">
+                      <span className="px-2 py-0.5 rounded-md bg-cyan-950/80 text-cyan-300 border border-cyan-800 text-[12px] font-mono font-bold flex items-center space-x-1">
                         <Star className="w-2.5 h-2.5 fill-cyan-400 text-cyan-400" />
                         <span>RECOMMENDED</span>
                       </span>
@@ -375,7 +375,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                   </div>
 
                   <span
-                    className={`px-2.5 py-0.5 rounded-full text-[10px] font-mono font-semibold flex items-center space-x-1.5 border ${
+                    className={`px-2.5 py-0.5 rounded-full text-[12px] font-mono font-semibold flex items-center space-x-1.5 border ${
                       isOnline
                         ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60'
                         : 'bg-amber-950/60 text-amber-300 border-amber-800/60'
@@ -386,7 +386,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                   </span>
                   {noCreds && (
                     <span
-                      className="px-2 py-0.5 rounded-full text-[10px] font-mono font-semibold bg-sky-950/60 text-sky-300 border border-sky-800/60"
+                      className="px-2 py-0.5 rounded-full text-[12px] font-mono font-semibold bg-sky-950/60 text-sky-300 border border-sky-800/60"
                       title="This daemon holds no credentials for this backend — the device may be fine. Set the provider token to enable it."
                     >
                       NO CREDENTIALS
@@ -399,25 +399,25 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                 {/* Depth 1: Essential Metrics */}
                 <div className="grid grid-cols-3 gap-2 text-xs font-mono bg-white/[0.03] p-3 rounded-xl border border-white/10">
                   <div>
-                    <span className="text-slate-300 block text-[11px] font-medium">Capacity</span>
+                    <span className="text-slate-300 block text-[12px] font-medium">Capacity</span>
                     <strong className="text-white text-xs font-bold">
                       {typeof b.qubits === 'number' && Number.isFinite(b.qubits) ? `${b.qubits} Qubits` : 'Qubits UNKNOWN'}
                     </strong>
                   </div>
                   <div>
-                    <span className="text-slate-300 block text-[11px] font-medium">Coherence T₁</span>
+                    <span className="text-slate-300 block text-[12px] font-medium">Coherence T₁</span>
                     <strong className="text-cyan-300 text-xs font-bold">
                       {b.t1_us && b.t1_us !== 'unknown' ? `${b.t1_us}${/^[0-9.]+$/.test(b.t1_us) ? ' µs' : ''}` : 'T1 UNKNOWN'}
                     </strong>
                   </div>
                   <div>
-                    <span className="text-slate-300 block text-[11px] font-medium">Queue</span>
+                    <span className="text-slate-300 block text-[12px] font-medium">Queue</span>
                     <strong className="text-amber-300 text-xs font-bold">
                       {typeof b.queue_depth === 'number' && Number.isFinite(b.queue_depth) ? `${b.queue_depth} jobs` : 'queue UNKNOWN'}
                     </strong>
                   </div>
                   {unprovenanced && (
-                    <div className="col-span-3 text-[9px] font-mono text-slate-400 border border-white/10 rounded px-1.5 py-0.5" title="Daemon reported no telemetry provenance — queue/coherence are neither measured nor declared">
+                    <div className="col-span-3 text-[12px] font-mono text-slate-400 border border-white/10 rounded px-1.5 py-0.5" title="Daemon reported no telemetry provenance — queue/coherence are neither measured nor declared">
                       UNPROVENANCED — queue/coherence unprovenanced
                     </div>
                   )}

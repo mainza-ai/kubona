@@ -532,24 +532,24 @@ export function CodesignCockpit() {
     <div className="space-y-6">
       <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/5 p-4">
         <div className="text-xs font-semibold text-white">Verified RS decoder — read-only{verified ? ` · v${verified.version} · ${verified.generated}` : ''}</div>
-        {!verified && !verifiedError && <div className="mt-2 text-[11px] text-slate-400">Loading verified results…</div>}
+        {!verified && !verifiedError && <div className="mt-2 text-[12px] text-slate-400">Loading verified results…</div>}
         {verifiedError && <div className="mt-2 text-xs text-rose-300">{verifiedError}</div>}
         {verified && (
           <div className="mt-2 text-xs text-slate-200">
             <div className="font-mono">
               {verified.total.toffoli.toLocaleString('en-US')}T × {verified.total.qubits.toLocaleString('en-US')}Q — composed end-to-end
             </div>
-            <ul className="mt-2 space-y-0.5 font-mono text-[11px]">
+            <ul className="mt-2 space-y-0.5 font-mono text-[12px]">
               {verified.components.map((c) => (
                 <li key={c.name} title={c.pin}>
                   {c.name}: {c.toffoli.toLocaleString('en-US')}T · {c.scope}
                 </li>
               ))}
             </ul>
-            <div className="mt-2 text-[11px] text-slate-400">{verified.labels.join(' · ')}</div>
+            <div className="mt-2 text-[12px] text-slate-400">{verified.labels.join(' · ')}</div>
             <details className="mt-2">
-              <summary className="cursor-pointer text-[11px] text-cyan-200">Proofs ({verified.proofs.length})</summary>
-              <ul className="mt-1 space-y-0.5 text-[11px] text-slate-300">
+              <summary className="cursor-pointer text-[12px] text-cyan-200">Proofs ({verified.proofs.length})</summary>
+              <ul className="mt-1 space-y-0.5 text-[12px] text-slate-300">
                 {verified.proofs.map((p, i) => (
                   <li key={i}>{p}</li>
                 ))}
@@ -561,11 +561,11 @@ export function CodesignCockpit() {
 
       <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
         <div className="text-xs font-semibold text-white">TQ scoring — read-only</div>
-        <div className="text-[11px] text-slate-400">TQ = T × Q^κ (κ∈[1,3]). Golden 5×10=50 pinned both sides. Unreproduced gains labeled claimed.</div>
+        <div className="text-[12px] text-slate-400">TQ = T × Q^κ (κ∈[1,3]). Golden 5×10=50 pinned both sides. Unreproduced gains labeled claimed.</div>
         <div className="mt-3 flex flex-wrap gap-2 items-center">
           <input aria-label="Toffoli count" value={toffoli} onChange={(e) => setToffoli(e.target.value)} className="w-28 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs" />
           <input aria-label="Qubit count" value={qubits} onChange={(e) => setQubits(e.target.value)} className="w-28 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs" />
-          <label className="flex items-center gap-2 text-[11px] text-slate-400">
+          <label className="flex items-center gap-2 text-[12px] text-slate-400">
             κ
             <input aria-label="Kappa" type="range" min={1} max={3} step={1} value={kappa} onChange={(e) => setKappa(e.target.value)} className="w-20 accent-cyan-400" />
             <span className="font-mono text-white">{parseKappa() ?? '—'}</span>
@@ -578,7 +578,7 @@ export function CodesignCockpit() {
 
       <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
         <div className="text-xs font-semibold text-white">MAP-Elites frontier — read-only batch (≤64)</div>
-        <div className="text-[11px] text-slate-400">One T,Q per line. Min-TQ per cell survives. Paper reference points: HHL 1348/115, Gaussian 1583/139.</div>
+        <div className="text-[12px] text-slate-400">One T,Q per line. Min-TQ per cell survives. Paper reference points: HHL 1348/115, Gaussian 1583/139.</div>
         <textarea aria-label="Frontier batch" value={batch} onChange={(e) => setBatch(e.target.value)} rows={4} className="mt-3 w-full rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
         <button onClick={scoreFrontier} className="mt-2 rounded-lg bg-cyan-500/15 border border-cyan-400/30 px-3 py-1 text-xs text-cyan-200">Score frontier</button>
         {frontierError && <div role="alert" className="mt-2 text-xs text-rose-300">{frontierError}</div>}
@@ -596,7 +596,7 @@ export function CodesignCockpit() {
 
       <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
         <div className="text-xs font-semibold text-white">Evaluator runs — read-only (validity stays Python-owned)</div>
-        <div className="text-[11px] text-slate-400">Named spec or truth table, artifact as JSON. Factory diagnostics attach the literature model (G3) — needs code distance + cycle time, no silent defaults.</div>
+        <div className="text-[12px] text-slate-400">Named spec or truth table, artifact as JSON. Factory diagnostics attach the literature model (G3) — needs code distance + cycle time, no silent defaults.</div>
         <div className="mt-3 flex flex-wrap gap-2">
           <select aria-label="Spec kind" value={evalSpec} onChange={(e) => pickEvalSpec(e.target.value)} className="rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs text-white">
             {['and2', 'cz-phase', 'copy1', 'xor2'].map((k) => (
@@ -604,7 +604,7 @@ export function CodesignCockpit() {
             ))}
           </select>
           <input aria-label="Number of tests" value={evalTests} onChange={(e) => setEvalTests(e.target.value)} className="w-20 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
-          <label className="flex items-center gap-1 text-[11px] text-slate-400">
+          <label className="flex items-center gap-1 text-[12px] text-slate-400">
             κ
             <input aria-label="Kappa" type="range" min={1} max={3} step={1} value={evalKappa} onChange={(e) => setEvalKappa(e.target.value)} className="w-16 accent-cyan-400" />
           </label>
@@ -634,11 +634,11 @@ export function CodesignCockpit() {
               {' '}{String(evalRes.toffoli)}T × {String(evalRes.peak_qubits)}Q
               {typeof evalRes.eps_bound_97_5 === 'number' && <span> · ε ≤ {evalRes.eps_bound_97_5.toExponential(3)}</span>}
             </div>
-              <div className="mt-1 text-[11px] text-slate-400">
+              <div className="mt-1 text-[12px] text-slate-400">
                 depth {String(evalRes.depth)} · Toffoli-depth {String(evalRes.toffoli_depth)} · active {String(evalRes.active_qubits)} · spec {evalSpecKind}
               </div>
               {typeof evalRes.failures === 'number' && evalRes.failures > 0 && (
-                <div className="mt-1 text-[11px] text-rose-200">
+                <div className="mt-1 text-[12px] text-rose-200">
                   {String(evalRes.failures)} failure{evalRes.failures === 1 ? '' : 's'}
                   {Array.isArray(evalRes.failure_details) && evalRes.failure_details.length > 0 && (() => {
                     const d = evalRes.failure_details[0] as Record<string, unknown>;
@@ -648,7 +648,7 @@ export function CodesignCockpit() {
                 </div>
               )}
             {!!evalRes.factory && typeof evalRes.factory === 'object' && (
-              <div className="mt-1 text-[11px] text-slate-300">
+              <div className="mt-1 text-[12px] text-slate-300">
                 factory {(evalRes.factory as Record<string, unknown>).factory as string}:{' '}
                 {String((evalRes.factory as Record<string, unknown>).serial_seconds_est)}s serial ·{' '}
                 {(evalRes.factory as Record<string, unknown>).within_failure_budget ? 'within accuracy budget' : 'EXCEEDS accuracy budget'}
@@ -660,7 +660,7 @@ export function CodesignCockpit() {
 
       <div className="rounded-2xl border border-amber-400/20 bg-amber-500/5 p-4">
         <div className="text-xs font-semibold text-white">Governed proposer rerun — LLM spend, not QPU</div>
-        <div className="text-[11px] text-slate-400">
+        <div className="text-[12px] text-slate-400">
           Calls <span className="font-mono">POST /api/codesign/rerun</span>: session-scoped, idempotent, bounded. Local providers cost $0;
           cloud is BYOK (provider bills your key, Kubona records an estimate) and never debits the QPU session cap.
         </div>
@@ -686,7 +686,7 @@ export function CodesignCockpit() {
           </button>
         </div>
         {rerunRequestId && (
-          <div className="mt-2 text-[11px] text-slate-400">
+          <div className="mt-2 text-[12px] text-slate-400">
             request_id <span className="font-mono">{rerunRequestId}</span> is pinned for retry;{' '}
             <button onClick={() => { setRerunRequestId(''); setRerunError(null); }} className="underline text-cyan-200">start a new request</button>{' '}
             after changing inputs.
@@ -703,8 +703,8 @@ export function CodesignCockpit() {
                 : 'none'} · {rerunRes.stopped_reason || 'ok'}
             </div>
             <details className="mt-1">
-              <summary className="cursor-pointer text-[11px] text-cyan-200">Trials ({rerunRes.trials.length})</summary>
-              <ul className="mt-1 space-y-0.5 text-[11px] text-slate-300">
+              <summary className="cursor-pointer text-[12px] text-cyan-200">Trials ({rerunRes.trials.length})</summary>
+              <ul className="mt-1 space-y-0.5 text-[12px] text-slate-300">
                 {rerunRes.trials.map((t) => (
                   <li key={t.step}>
                     step {t.step}: {t.valid ? `${t.toffoli}T × ${t.peak_qubits}Q = ${t.tq}` : 'invalid'} · {t.reason}
@@ -718,7 +718,7 @@ export function CodesignCockpit() {
 
       <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
         <div className="text-xs font-semibold text-white">Batch evaluation + frontier (≤64 artifacts) — read-only</div>
-        <div className="text-[11px] text-slate-400">Each artifact is scored by the Python evaluator; the returned frontier is the evaluator&apos;s Map-Elites cells, not a client-side summary.</div>
+        <div className="text-[12px] text-slate-400">Each artifact is scored by the Python evaluator; the returned frontier is the evaluator&apos;s Map-Elites cells, not a client-side summary.</div>
         <textarea aria-label="Batch artifacts JSON" value={batchArtifacts} onChange={(e) => setBatchArtifacts(e.target.value)} rows={3} className="mt-2 w-full rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
         <button onClick={() => void runBatch()} disabled={batchBusy} className="mt-2 rounded-lg bg-cyan-500/15 border border-cyan-400/30 px-3 py-1 text-xs text-cyan-200 disabled:opacity-50">
           {batchBusy ? 'Scoring…' : 'Run batch'}
@@ -727,8 +727,8 @@ export function CodesignCockpit() {
         {batchRes && (
           <div className="mt-2 text-xs text-slate-200 font-mono">
             <div>spec {batchRes.spec_kind} · artifacts {batchRes.details.length} · valid {batchRes.details.filter((d) => d.valid === true).length}</div>
-            <div className="mt-1 text-[11px] text-slate-400">frontier {JSON.stringify(batchRes.frontier).slice(0, 500)}</div>
-            <ul className="mt-1 max-h-40 overflow-y-auto space-y-0.5 text-[11px]">
+            <div className="mt-1 text-[12px] text-slate-400">frontier {JSON.stringify(batchRes.frontier).slice(0, 500)}</div>
+            <ul className="mt-1 max-h-40 overflow-y-auto space-y-0.5 text-[12px]">
               {batchRes.details.slice(0, 20).map((d, i) => (
                 <li key={i}>{d.valid === true ? `${String(d.toffoli)}T × ${String(d.peak_qubits)}Q = ${String(d.tq)}` : 'invalid'} · ε {String(d.eps_bound_97_5 ?? '—')}</li>
               ))}
@@ -739,7 +739,7 @@ export function CodesignCockpit() {
 
       <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
         <div className="text-xs font-semibold text-white">Families (anti-caution fix) — read-only</div>
-        <div className="text-[11px] text-slate-400">N tracks mature separately on one spec, elites cross-pollinate, the widen-nudge names the most stagnant track. Human nudge reads the output — never auto-prompt-injection.</div>
+        <div className="text-[12px] text-slate-400">N tracks mature separately on one spec, elites cross-pollinate, the widen-nudge names the most stagnant track. Human nudge reads the output — never auto-prompt-injection.</div>
         <div className="mt-3 flex flex-wrap gap-2">
           <select aria-label="Family spec" value={famSpec} onChange={(e) => setFamSpec(e.target.value)} className="rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs text-white">
             {['and2', 'cz-phase', 'copy1', 'xor2'].map((k) => (
@@ -748,7 +748,7 @@ export function CodesignCockpit() {
           </select>
           <input aria-label="Families (comma list)" value={famFamilies} onChange={(e) => setFamFamilies(e.target.value)} className="w-40 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
           <input aria-label="Share rounds" value={famRounds} onChange={(e) => setFamRounds(e.target.value)} className="w-16 rounded-lg bg-white/5 border border-white/10 px-2 py-1 text-xs font-mono" />
-          <label className="flex items-center gap-1 text-[11px] text-slate-400">
+          <label className="flex items-center gap-1 text-[12px] text-slate-400">
             κ
             <input aria-label="Kappa" type="range" min={1} max={3} step={1} value={famKappa} onChange={(e) => setFamKappa(e.target.value)} className="w-16 accent-cyan-400" />
           </label>
@@ -764,16 +764,16 @@ export function CodesignCockpit() {
                 offers: {famRes.offers.map((o) => `${o.family} ${o.valid ? `${o.toffoli}T ${o.improved ? '✓' : '='}` : 'invalid'}`).join(' · ')}
               </div>
               <div className="mt-1 font-mono">elites: {Object.entries(famRes.elites).map(([f, e]) => `${f} ${e.toffoli}T×${e.qubits}Q`).join(' · ') || 'none yet'}</div>
-            <div className="mt-1 font-mono text-[11px] text-slate-400">
+            <div className="mt-1 font-mono text-[12px] text-slate-400">
               stagnation: {Object.entries(famRes.stagnation).map(([f, s]) => `${f}:${s}`).join(' ')} · lineage {famRes.lineage_len}
             </div>
-            <div className="mt-1 text-[11px] text-amber-200">widen-nudge: {famRes.widen_nudge.nudge} ({famRes.widen_nudge.offers_since_improvement} offers since improvement)</div>
-            <div className="mt-1 text-[11px] text-slate-300">
+            <div className="mt-1 text-[12px] text-amber-200">widen-nudge: {famRes.widen_nudge.nudge} ({famRes.widen_nudge.offers_since_improvement} offers since improvement)</div>
+            <div className="mt-1 text-[12px] text-slate-300">
               sharing: {famRes.shares.map((s, i) => `round ${i + 1}: ${s.offers} offers → ${s.improvements} improvements`).join('; ') || 'no share rounds'}
             </div>
             <details className="mt-1">
-              <summary className="cursor-pointer text-[11px] text-cyan-200">Lineage ({famRes.lineage_len} events{famRes.lineage.length < famRes.lineage_len ? `, showing last ${famRes.lineage.length}` : ''})</summary>
-              <ul className="mt-1 space-y-0.5 font-mono text-[11px] text-slate-400">
+              <summary className="cursor-pointer text-[12px] text-cyan-200">Lineage ({famRes.lineage_len} events{famRes.lineage.length < famRes.lineage_len ? `, showing last ${famRes.lineage.length}` : ''})</summary>
+              <ul className="mt-1 space-y-0.5 font-mono text-[12px] text-slate-400">
                 {famRes.lineage.map((e, i) => (
                   <li key={i}>
                     {String(e.family)} · {String(e.toffoli)}T {e.improved ? 'improved' : 'no improvement'}
@@ -788,7 +788,7 @@ export function CodesignCockpit() {
 
       <div className="rounded-2xl border border-white/10 bg-black/40 p-4">
         <div className="text-xs font-semibold text-white">Kappa sweep + failure-budget — read-only</div>
-        <div className="text-[11px] text-slate-400">κ=1..3 via the Go rail (same formula both sides). Sweep always covers all three κ — the κ field above is not used here. Budget is the server-sealed Table-S4 union bound (Python math, Go rail).</div>
+        <div className="text-[12px] text-slate-400">κ=1..3 via the Go rail (same formula both sides). Sweep always covers all three κ — the κ field above is not used here. Budget is the server-sealed Table-S4 union bound (Python math, Go rail).</div>
         <div className="mt-3 flex flex-wrap gap-2">
           <button onClick={scoreSweep} className="rounded-lg bg-cyan-500/15 border border-cyan-400/30 px-3 py-1 text-xs text-cyan-200">Sweep κ=1..3</button>
           {sweep && <span className="text-xs text-white font-mono">κ1={sweep.k1} κ2={sweep.k2} κ3={sweep.k3}</span>}
@@ -813,11 +813,11 @@ export function CodesignCockpit() {
 
       <details className="rounded-2xl border border-white/10 bg-black/40 p-4">
         <summary className="cursor-pointer text-xs font-semibold text-white">DQI loss bound (Eq 25) — local estimate</summary>
-        <div className="text-[11px] text-slate-400 mt-1">|⟨f⟩impl−⟨f⟩| ≤ 4ε⟨f⟩. Paper gate 100/100k → ε≤2.434e−3; RS 0.5763/Prange 0.5009 → ≤7.4% of advantage.</div>
+        <div className="text-[12px] text-slate-400 mt-1">|⟨f⟩impl−⟨f⟩| ≤ 4ε⟨f⟩. Paper gate 100/100k → ε≤2.434e−3; RS 0.5763/Prange 0.5009 → ≤7.4% of advantage.</div>
         <DqiBoundWidget />
       </details>
 
-      <details className="rounded-2xl border border-white/10 bg-black/40 p-4 text-[11px] text-slate-300">
+      <details className="rounded-2xl border border-white/10 bg-black/40 p-4 text-[12px] text-slate-300">
         <summary className="cursor-pointer text-xs font-semibold text-white">Domain packs — live registry (served, never hand-typed)</summary>
         {!packs && !packsError && <div className="mt-1 text-slate-400">Loading pack registry…</div>}
         {packsError && <div className="mt-1 text-rose-300">{packsError}</div>}
@@ -837,7 +837,7 @@ export function CodesignCockpit() {
         <div className="mt-1 text-slate-400">Promotion to active needs anchor_ref + proof_ref in the ledger. A pack name is not a result.</div>
       </details>
 
-      <div className="rounded-2xl border border-amber-400/20 bg-amber-500/5 p-4 text-[11px] text-amber-200">
+      <div className="rounded-2xl border border-amber-400/20 bg-amber-500/5 p-4 text-[12px] text-amber-200">
         Validity ground truth is the Python kickmix evaluator (simulator-only, Aer local). This cockpit scores numbers only — never verdicts. Paper gains (12×/32×/39×/…) are Anthropic-claimed until independently rerun.
       </div>
     </div>

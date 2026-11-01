@@ -62,7 +62,7 @@ export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
             <div className="w-3 h-3 rounded-full bg-[#FFBD2E] opacity-75" />
             <div className="w-3 h-3 rounded-full bg-[#27C93F] opacity-75" />
           </div>
-          <span className="text-[11px] font-medium text-slate-400 font-sans tracking-wide">
+          <span className="text-[12px] font-medium text-slate-400 font-sans tracking-wide">
             About Kubona Scientific Laboratory
           </span>
           <div className="w-12" /> {/* Balance spacer */}
@@ -88,7 +88,7 @@ export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
                 <h2 id="about-lab-title" className="text-xl font-bold text-white tracking-tight">
                   Kubona
                 </h2>
-                <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-300 border border-cyan-800/60">
+                <span className="text-[12px] font-mono font-bold px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-300 border border-cyan-800/60">
                   OBSERVATORY PRO
                 </span>
               </div>
@@ -111,7 +111,7 @@ export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
               <div className="font-mono text-xs text-slate-200 font-medium">
                 Ed25519 AP2 Mandates (wired)
               </div>
-              <div className="text-[11px] text-slate-300">
+              <div className="text-[12px] text-slate-300">
                 ML-KEM-768 hybrid encapsulation staged — not wired, no recipient registry yet
               </div>
             </div>
@@ -124,10 +124,10 @@ export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
               <div className="font-mono text-xs text-slate-200 font-medium">
                 OpenBao Dynamic TTL Leases
               </div>
-              <div className="text-[11px] text-slate-300">
+              <div className="text-[12px] text-slate-300">
                 Buzz Information Flow Control
               </div>
-              <div className="text-[10px] text-amber-300 font-mono">
+              <div className="text-[12px] text-amber-300 font-mono">
                 Vault is dev-compose only; IFC is partial. Neither is claimed as deployed here.
               </div>
             </div>
@@ -140,7 +140,7 @@ export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
               <div className="font-mono text-xs text-slate-200 font-medium">
                 PySCF FCI + Qiskit Aer
               </div>
-              <div className="text-[11px] text-slate-300">
+              <div className="text-[12px] text-slate-300">
                 PennyLane QPD &amp; Mitiq ZNE
               </div>
             </div>
@@ -153,7 +153,7 @@ export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
               <div className="font-mono text-xs text-slate-200 font-medium">
                 Env-Driven Provider Routing (NIM / Local)
               </div>
-              <div className="text-[11px] text-slate-300">
+              <div className="text-[12px] text-slate-300">
                 4-Turn Epistemic Tribunal Loop
               </div>
             </div>
@@ -180,7 +180,7 @@ export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
         {/* Modal Footer */}
         <div className="h-12 px-6 border-t border-white/[0.08] bg-white/[0.02] flex items-center justify-between">
           <span className="text-xs text-slate-300">
-            Press <kbd className="px-1.5 py-0.5 rounded bg-white/10 font-mono text-[10px] text-slate-200 border border-white/15">Esc</kbd> to dismiss
+            Press <kbd className="px-1.5 py-0.5 rounded bg-white/10 font-mono text-[12px] text-slate-200 border border-white/15">Esc</kbd> to dismiss
           </span>
           <button
             onClick={onClose}

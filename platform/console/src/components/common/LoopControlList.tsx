@@ -58,7 +58,7 @@ export function LoopControlList({
     return (
       <div className="rounded-2xl border border-white/[0.08] bg-black/40 p-4 space-y-2" aria-label="Live loops">
         <div className="text-xs font-semibold text-white">Live loops · override</div>
-        <div className="text-[11px] text-slate-500">no live loops</div>
+        <div className="text-[12px] text-slate-500">no live loops</div>
       </div>
     );
   }
@@ -76,7 +76,7 @@ export function LoopControlList({
           return (
             <div
               key={loop.id}
-              className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl bg-white/[0.03] text-[11px]"
+              className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl bg-white/[0.03] text-[12px]"
             >
               <span className="font-code text-slate-300 truncate" title={loop.id}>
                 {loop.id.slice(0, 8)} · {st || 'unknown'} · step {loop.step_count}/{loop.max_steps}
@@ -121,7 +121,7 @@ export function LoopControlList({
         })}
       </div>
       {notice && (
-        <div className="text-[11px] text-amber-200" role="alert">
+        <div className="text-[12px] text-amber-200" role="alert">
           {notice}
         </div>
       )}

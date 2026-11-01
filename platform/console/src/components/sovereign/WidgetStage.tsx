@@ -87,10 +87,10 @@ export function WidgetStage({
         <div className="flex items-center gap-2 min-w-0">
           <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${meta.dot}`} />
           <Icon className="w-3.5 h-3.5 text-slate-300 shrink-0" />
-          <span className="text-[11px] font-semibold text-white truncate">{widget.title}</span>
+          <span className="text-[12px] font-semibold text-white truncate">{widget.title}</span>
           <span
             title={feedTitle}
-            className={`px-1.5 py-0.5 rounded font-code text-[9px] shrink-0 ${
+            className={`px-1.5 py-0.5 rounded font-code text-[12px] shrink-0 ${
               feed === 'LIVE'
                 ? 'bg-emerald-400/10 text-emerald-400'
                 : feed === 'MIX'
@@ -157,7 +157,7 @@ export function WidgetStage({
             </div>
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div>
-                <span className="text-white/40 block text-[10px]">Est. spend</span>
+                <span className="text-white/40 block text-[12px]">Est. spend</span>
                 {priced ? (
                   <span className="font-code text-amber-300 font-bold">
                     ${(estRaw as number).toFixed(2)}
@@ -167,17 +167,17 @@ export function WidgetStage({
                 )}
               </div>
               <div>
-                <span className="text-white/40 block text-[10px]">Budget left</span>
+                <span className="text-white/40 block text-[12px]">Budget left</span>
                 <span className={`font-code ${breached ? 'text-rose-300 font-bold' : 'text-slate-200'}`}>
                   {remaining != null ? `$${remaining.toFixed(2)}` : '—'}{breached ? ' · OVER CAP' : ''}
                 </span>
               </div>
               <div>
-                <span className="text-white/40 block text-[10px]">Qubits</span>
+                <span className="text-white/40 block text-[12px]">Qubits</span>
                 <span className="font-code text-slate-200">{qf?.qubit_count ?? '—'}</span>
               </div>
               <div>
-                <span className="text-white/40 block text-[10px]">Canary fidelity</span>
+                <span className="text-white/40 block text-[12px]">Canary fidelity</span>
                 <span className="font-code text-slate-200">
                   {typeof qf?.clifford_fidelity === 'number' && Number.isFinite(qf.clifford_fidelity) ? qf.clifford_fidelity.toFixed(4) : '—'}
                 </span>
@@ -194,11 +194,11 @@ export function WidgetStage({
                 <span>{priced ? 'Review at Action Gate' : 'UNPRICED — gate disabled'}</span>
               </button>
             ) : isMeteredBackend(qf?.recommended_backend) ? (
-              <p className="text-[10px] font-code text-slate-500">
+              <p className="text-[12px] font-code text-slate-500">
                 Gate already decided this session — card is read-only.
               </p>
             ) : (
-              <p className="text-[10px] font-code text-slate-500">
+              <p className="text-[12px] font-code text-slate-500">
                 Local simulator needs no authorization (L1 auto-allow).
               </p>
             )}

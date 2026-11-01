@@ -240,7 +240,7 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
               className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/10 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/40 transition-all font-sans"
             />
             {titleError && (
-              <p id="new-campaign-title-error" role="alert" data-testid="campaign-title-error" className="text-[11px] text-rose-300 font-sans">
+              <p id="new-campaign-title-error" role="alert" data-testid="campaign-title-error" className="text-[12px] text-rose-300 font-sans">
                 {titleError}
               </p>
             )}
@@ -252,7 +252,7 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
               <label className="block text-xs font-semibold text-slate-200">
                 Target Chemical System
               </label>
-              <span className="text-[11px] text-slate-400 font-mono">
+              <span className="text-[12px] text-slate-400 font-mono">
                 PySCF ab-initio anchor available on run
               </span>
             </div>
@@ -275,14 +275,14 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
                       <span className="text-sm font-bold font-mono tracking-tight text-white">
                         {p.symbol}
                       </span>
-                      <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-white/[0.06] text-cyan-300">
+                      <span className="text-[12px] font-mono px-1.5 py-0.2 rounded bg-white/[0.06] text-cyan-300">
                         {p.qubits}q
                       </span>
                     </div>
-                    <div className="text-[11px] font-medium text-slate-300 truncate">
+                    <div className="text-[12px] font-medium text-slate-300 truncate">
                       {p.name}
                     </div>
-                    <div className="text-[10px] text-slate-400 font-mono">
+                    <div className="text-[12px] text-slate-400 font-mono">
                       R = {p.bondDist}
                     </div>
                   </button>
@@ -314,7 +314,7 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
                 className="w-full px-3.5 py-2 rounded-xl bg-black/40 border border-white/10 text-xs text-slate-200 placeholder-slate-400 focus:outline-none focus:border-cyan-400 transition-all font-mono"
               />
               {moleculeError && (
-                <p id="new-campaign-molecule-error" role="alert" data-testid="campaign-molecule-error" className="mt-1 text-[11px] text-rose-300 font-sans">
+                <p id="new-campaign-molecule-error" role="alert" data-testid="campaign-molecule-error" className="mt-1 text-[12px] text-rose-300 font-sans">
                   {moleculeError}
                 </p>
               )}
@@ -354,10 +354,10 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
                   </div>
                   {isFresh && <Check className="w-4 h-4 text-cyan-400" />}
                 </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
+                <p className="text-[12px] text-slate-300 leading-relaxed font-sans">
                   Starts with an unrun, clean canvas. Awaiting user hypothesis and Research Tribunal formulation.
                 </p>
-                <span className="inline-block text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-cyan-900/40 text-cyan-300 border border-cyan-700/40">
+                <span className="inline-block text-[12px] font-mono font-semibold px-2 py-0.5 rounded-full bg-cyan-900/40 text-cyan-300 border border-cyan-700/40">
                   Recommended
                 </span>
               </div>
@@ -388,10 +388,10 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
                   </div>
                   {!isFresh && <Check className="w-4 h-4 text-indigo-400" />}
                 </div>
-                <p className="text-[11px] text-slate-300 leading-relaxed font-sans">
+                <p className="text-[12px] text-slate-300 leading-relaxed font-sans">
                   Pre-computes a full variational trajectory with chemical accuracy convergence proof and notebook.
                 </p>
-                <span className="inline-block text-[10px] font-mono font-semibold px-2 py-0.5 rounded-full bg-indigo-900/40 text-indigo-300 border border-indigo-700/40">
+                <span className="inline-block text-[12px] font-mono font-semibold px-2 py-0.5 rounded-full bg-indigo-900/40 text-indigo-300 border border-indigo-700/40">
                   Reference Demo
                 </span>
               </div>
@@ -420,7 +420,7 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
               className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-400 focus:outline-none"
             />
 
-            <div className="flex justify-between text-[11px] text-slate-400 font-mono">
+            <div className="flex justify-between text-[12px] text-slate-400 font-mono">
               <span>$25.00</span>
               <span>$100.00 (Standard)</span>
               <span>$250.00</span>

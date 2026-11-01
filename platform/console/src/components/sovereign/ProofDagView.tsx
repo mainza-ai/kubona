@@ -194,7 +194,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
         <div className="flex flex-col items-center gap-3 text-center px-6">
           <GitBranch className="w-8 h-8 text-slate-600" />
           <p className="text-xs text-slate-400 font-code">No proof DAG in this campaign yet.</p>
-          <p className="text-[11px] text-slate-600">Run the compiler probe to synthesize a circuit DAG.</p>
+          <p className="text-[12px] text-slate-600">Run the compiler probe to synthesize a circuit DAG.</p>
         </div>
       </div>
     );
@@ -202,7 +202,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
 
   return (
     <div data-testid="proof-dag" className="absolute inset-0 flex flex-col">
-      <div className="pt-20 pb-1 text-center font-code text-[10px] text-slate-500 shrink-0">
+      <div className="pt-20 pb-1 text-center font-code text-[12px] text-slate-500 shrink-0">
         {graph.nodes.length} nodes · {graph.edges.length} edges · {campaign?.target_system || 'untargeted'}
       </div>
       {/* Wire-cut ledger: planned template vs measured cut jobs. Unmeasured
@@ -219,7 +219,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
                 <span
                   key={i}
                   title={`Cut job ${String(w.job_id ?? '?')}`}
-                  className="px-2 py-0.5 rounded-full font-code text-[10px] border bg-emerald-400/10 border-emerald-400/40 text-emerald-300"
+                  className="px-2 py-0.5 rounded-full font-code text-[12px] border bg-emerald-400/10 border-emerald-400/40 text-emerald-300"
                 >
                   {`measured: ${cuts ?? '?'} cuts · ${frags} fragments · job ${String(w.job_id ?? '?').slice(0, 8)}`}
                 </span>
@@ -234,7 +234,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
               <span
                 key={i}
                 title="Synthesis placeholder — no cut has executed"
-                className="px-2 py-0.5 rounded-full font-code text-[10px] border bg-amber-400/10 border-amber-400/40 text-amber-300"
+                className="px-2 py-0.5 rounded-full font-code text-[12px] border bg-amber-400/10 border-amber-400/40 text-amber-300"
               >
                 {known.length > 0 ? `planned: ${known.join(' · ')} (not executed)` : 'planned cut (not executed)'}
               </span>
@@ -246,7 +246,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
         <div className="px-6 pb-1 flex justify-center shrink-0">
           <span
             title="The edge set contains a cycle — layering is a fallback, not a proof order"
-            className="px-2 py-0.5 rounded-full font-code text-[10px] border bg-rose-400/10 border-rose-400/40 text-rose-300"
+            className="px-2 py-0.5 rounded-full font-code text-[12px] border bg-rose-400/10 border-rose-400/40 text-rose-300"
           >
             cycle detected — layout is fallback, not proof order
           </span>
@@ -259,7 +259,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
             <span
               key={i}
               title={s.title}
-              className={`px-2 py-0.5 rounded-full font-code text-[10px] border ${
+              className={`px-2 py-0.5 rounded-full font-code text-[12px] border ${
                 s.tone === 'red'
                   ? 'bg-red-400/10 border-red-400/40 text-red-300'
                   : s.tone === 'amber'
@@ -349,16 +349,16 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
         {selected ? (
           <div className="max-w-2xl mx-auto p-3.5 rounded-2xl bg-[#0E1117]/95 border border-cyan-400/25 space-y-1.5">
             <div className="text-xs font-code text-cyan-200">{selected.label}</div>
-            <div className="text-[10px] font-code text-slate-400">
+            <div className="text-[12px] font-code text-slate-400">
               id {selected.id} · {selected.kind}
               {typeof selected.angle === 'number' && Number.isFinite(selected.angle) ? ` · θ=${selected.angle}` : ''}
             </div>
-            <div className="text-[10px] font-code text-slate-500">
+            <div className="text-[12px] font-code text-slate-500">
               {provenance ? `ledger receipt ${provenance}` : 'no provenance receipt on this campaign'}
             </div>
           </div>
         ) : (
-          <p className="text-center text-[10px] font-code text-slate-600">
+          <p className="text-center text-[12px] font-code text-slate-600">
             Select a node to trace its record.
           </p>
         )}
@@ -367,7 +367,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
           <button
             onClick={() => setCompileOpen((v) => !v)}
             aria-expanded={compileOpen}
-            className="w-full flex items-center justify-between px-3.5 py-2 text-[11px] font-code text-slate-300 hover:text-white transition-colors"
+            className="w-full flex items-center justify-between px-3.5 py-2 text-[12px] font-code text-slate-300 hover:text-white transition-colors"
           >
             <span>Compile receipt (QASM → QIR via backend)</span>
             <span>{compileOpen ? '−' : '+'}</span>
@@ -376,38 +376,38 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
             <div className="px-3.5 pb-3.5 space-y-2">
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <div className="text-[10px] font-code text-slate-500 mb-1">ORIGINAL QASM (campaign)</div>
-                  <pre className="max-h-40 overflow-auto text-[10px] font-code text-slate-300 bg-black/40 rounded-lg p-2 whitespace-pre-wrap">
+                  <div className="text-[12px] font-code text-slate-500 mb-1">ORIGINAL QASM (campaign)</div>
+                  <pre className="max-h-40 overflow-auto text-[12px] font-code text-slate-300 bg-black/40 rounded-lg p-2 whitespace-pre-wrap">
                     {campaign?.quantum_factors?.qasm || 'no circuit in this campaign'}
                   </pre>
                 </div>
                 <div>
-                  <div className="text-[10px] font-code text-slate-500 mb-1">TRANSPILED QIR (backend)</div>
+                  <div className="text-[12px] font-code text-slate-500 mb-1">TRANSPILED QIR (backend)</div>
                   {!receipt && !compileError && (
                     <button
                       onClick={() => void runCompile()}
                       disabled={compiling || !campaign?.quantum_factors?.qasm}
-                      className="px-2.5 py-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/30 text-cyan-200 text-[11px] transition-all disabled:opacity-40"
+                      className="px-2.5 py-1.5 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 border border-cyan-400/30 text-cyan-200 text-[12px] transition-all disabled:opacity-40"
                     >
                       {compiling ? 'Compiling…' : 'Compile via backend'}
                     </button>
                   )}
                   {receipt === null && !compileError && (
-                    <p className="text-[11px] font-code text-rose-400">Compile refused — nothing transpiled.</p>
+                    <p className="text-[12px] font-code text-rose-400">Compile refused — nothing transpiled.</p>
                   )}
                   {compileError && (
-                    <p className="text-[11px] font-code text-amber-300">
+                    <p className="text-[12px] font-code text-amber-300">
                       Compile transport failed — bridge unreachable, not a refusal ({compileError.slice(0, 160)}). Nothing transpiled.
                     </p>
                   )}
                   {receipt && (
                     <div className="space-y-1.5">
-                      <div className="text-[10px] font-code text-slate-400">
+                      <div className="text-[12px] font-code text-slate-400">
                         {receipt.compiler_used || 'unanalyzed'}
                         {receipt.fallback_estimate ? ' · ESTIMATE (not compiler-verified)' : ' · compiler-verified'}
                         {' · '}qubits {receipt.num_qubits}{receipt.fallback_estimate ? ' (EST)' : ''} · depth {receipt.depth}{receipt.fallback_estimate ? ' (EST)' : ''} · gates {receipt.gate_count}{receipt.fallback_estimate ? ' (EST)' : ''} · T {receipt.t_count}{receipt.fallback_estimate ? ' (EST)' : ''}
                       </div>
-                      <pre className="max-h-40 overflow-auto text-[10px] font-code text-slate-300 bg-black/40 rounded-lg p-2 whitespace-pre-wrap">
+                      <pre className="max-h-40 overflow-auto text-[12px] font-code text-slate-300 bg-black/40 rounded-lg p-2 whitespace-pre-wrap">
                         {receiptLineCapped(receipt.llvm_ir)}
                       </pre>
                     </div>

@@ -34,19 +34,6 @@ export const DOCK_SURFACES: Array<{
   { id: 'mesh', label: 'Local Sovereign Mesh', description: 'MLX · Ollama · Air-Gap', icon: Cpu },
 ];
 
-function DockTooltip({ title, sub }: { title: string; sub?: string }) {
-  // Hover reveals for mice; focus-within reveals for keyboard (the trigger
-  // buttons are natively focusable and carry aria-labels — the tooltip is
-  // gloss, never the only name). Touch users get the label via the same
-  // tap that activates (tap = focus + click).
-  return (
-    <div className="absolute left-14 lg:left-16 px-3 py-1.5 rounded-lg bg-[#141720] border border-white/10 text-xs text-white whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200 z-50 shadow-2xl" aria-hidden>
-      <div className="font-medium">{title}</div>
-      {sub && <div className="text-[10px] text-slate-400">{sub}</div>}
-    </div>
-  );
-}
-
 interface SovereignDockProps {
   active: DockSurface;
   onSelect: (surface: DockSurface) => void;
@@ -65,20 +52,19 @@ export function SovereignDock({
   return (
     <aside
       aria-label="Sovereign dock"
-      className="relative z-30 w-12 lg:w-16 h-full flex flex-col items-center justify-between py-5 border-r border-white/5 bg-[#0A0C10]/90 backdrop-blur-2xl shrink-0"
+      className="relative z-30 w-12 lg:w-16 h-full flex flex-col items-center justify-between py-5 border-r border-white/5 bg-[#0A0C10] shrink-0"
     >
       <div className="flex flex-col items-center gap-6">
         {/* Brand sigil */}
-        <div className="group relative flex items-center justify-center cursor-pointer">
-          <div className="w-10 h-10 rounded-xl bg-cyan-400/10 border border-cyan-400/40 flex items-center justify-center transition-all duration-300 hover:scale-105 shadow-[0_0_20px_rgba(0,229,255,0.15)]">
+        <div
+          title="Kubona — sovereign research console"
+          className="flex items-center justify-center"
+        >
+          <div className="w-10 h-10 rounded-xl bg-cyan-400/10 border border-cyan-400/40 flex items-center justify-center">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-cyan-400">
               <polygon points="12,2 22,8.5 22,15.5 12,22 2,15.5 2,8.5" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
               <circle cx="12" cy="12" r="3" fill="currentColor" />
             </svg>
-          </div>
-          <div className="absolute left-14 lg:left-16 px-3 py-1.5 rounded-lg bg-[#141720] border border-white/10 text-xs text-white whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200 z-50 shadow-2xl flex items-center gap-2" aria-hidden>
-            <span className="font-semibold tracking-wide">KUBONA</span>
-            <span className="text-[10px] text-cyan-400 font-code">sovereign</span>
           </div>
         </div>
 
@@ -96,6 +82,7 @@ export function SovereignDock({
                 aria-pressed={isActive}
                 aria-current={isActive ? 'page' : undefined}
                 onClick={() => onSelect(s.id)}
+                title={`${s.label} — ${s.description}`}
                 className={`group relative w-11 h-11 rounded-xl flex items-center justify-center transition-all hover:scale-105 focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none ${
                   isActive
                     ? 'bg-cyan-400/10 border border-cyan-400/40 text-cyan-400'
@@ -103,7 +90,6 @@ export function SovereignDock({
                 }`}
               >
                 <Icon className="w-[21px] h-[21px]" />
-                <DockTooltip title={s.label} sub={s.description} />
               </button>
             );
           })}
@@ -115,6 +101,7 @@ export function SovereignDock({
           role="status"
           tabIndex={0}
           aria-label={airGapSovereign ? 'Air-gap: sovereign, zero outbound egress' : 'Air-gap: egress open, network path live'}
+          title={airGapSovereign ? 'Air-gap enclave: sovereign, 0 outbound egress' : 'Air-gap enclave: egress open'}
           className={`group relative w-9 h-9 rounded-lg flex items-center justify-center border cursor-default focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none ${
             airGapSovereign
               ? 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20'
@@ -122,31 +109,24 @@ export function SovereignDock({
           }`}
         >
           <Lock className="w-[18px] h-[18px]" />
-          <div className="absolute left-14 lg:left-16 px-3 py-1.5 rounded-lg bg-[#141720] border border-white/10 text-xs text-white whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity duration-200 z-50 shadow-2xl" aria-hidden>
-            <span className={`font-medium ${airGapSovereign ? 'text-emerald-400' : 'text-amber-400'}`}>
-              Air-Gap Enclave: {airGapSovereign ? 'Sovereign' : 'Egress Open'}
-            </span>
-            <span className="block text-[10px] text-slate-400 font-code">
-              {airGapSovereign ? '0 Outbound Egress' : 'network path live'}
-            </span>
-          </div>
         </div>
 
         <button
           aria-label="Swarm parameters"
+          title="Swarm parameters"
           onClick={onOpenSettings}
           className="group relative w-9 h-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-white/5 transition-all focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
         >
           <SlidersHorizontal className="w-[19px] h-[19px]" />
-          <DockTooltip title="Swarm Parameters" />
         </button>
 
         <button
           aria-label="Campaigns"
+          title="Campaigns"
           onClick={onOpenCampaigns}
           className="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-500 to-amber-500 p-[1.5px] cursor-pointer hover:scale-105 transition-transform focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
         >
-          <div className="w-full h-full rounded-full bg-black flex items-center justify-center text-[11px] font-code font-bold text-white">
+          <div className="w-full h-full rounded-full bg-black flex items-center justify-center text-[12px] font-code font-bold text-white">
             KB
           </div>
         </button>

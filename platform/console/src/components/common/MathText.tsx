@@ -50,7 +50,7 @@ function protectMath(text: string): { text: string; restore: (s: string) => stri
 function renderInline(s: string): string {
   // s is already HTML-escaped; placeholders contain NUL chars (safe).
   let out = s;
-  out = out.replace(/`([^`]+?)`/g, '<code class="px-1 rounded bg-white/10 font-code text-[11px]">$1</code>');
+  out = out.replace(/`([^`]+?)`/g, '<code class="px-1 rounded bg-white/10 font-code text-[12px]">$1</code>');
   out = out.replace(/\*\*([^*]+?)\*\*/g, '<strong class="font-semibold text-white">$1</strong>');
   out = out.replace(/(^|[^*\w])\*([^*\n]+?)\*(?![*\w])/g, '$1<em>$2</em>');
   return out;
@@ -96,7 +96,7 @@ function renderMarkdownText(text: string): string {
       }
       i += 1; // closing fence
       blocks.push(
-        `<pre class="my-2 p-2.5 rounded-xl bg-black/50 border border-white/10 overflow-x-auto font-code text-[11px] text-slate-200">${escapeHtml(code.join('\n'))}</pre>`
+        `<pre class="my-2 p-2.5 rounded-xl bg-black/50 border border-white/10 overflow-x-auto font-code text-[12px] text-slate-200">${escapeHtml(code.join('\n'))}</pre>`
       );
       continue;
     }
@@ -129,7 +129,7 @@ function renderMarkdownText(text: string): string {
         )
         .join('');
       blocks.push(
-        `<div class="my-2 overflow-x-auto rounded-xl border border-white/10"><table class="w-full text-[11px] border-collapse"><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table></div>`
+        `<div class="my-2 overflow-x-auto rounded-xl border border-white/10"><table class="w-full text-[12px] border-collapse"><thead><tr>${th}</tr></thead><tbody>${tb}</tbody></table></div>`
       );
       continue;
     }

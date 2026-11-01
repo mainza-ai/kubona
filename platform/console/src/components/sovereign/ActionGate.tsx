@@ -137,28 +137,28 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied, onDowngr
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-          <span className="text-[11px] font-bold text-amber-400 font-code uppercase tracking-wider">
+          <span className="text-[12px] font-bold text-amber-400 font-code uppercase tracking-wider">
             Action Gate
           </span>
         </div>
-        <span className="text-[10px] font-code text-slate-400">Pending Authorization</span>
+        <span className="text-[12px] font-code text-slate-400">Pending Authorization</span>
       </div>
 
       <div className="mt-2.5">
         <div className="text-xs text-white font-medium">Authorize {recommendedBackend} Dispatch</div>
-        <div className="text-[11px] text-slate-400 mt-0.5">
+        <div className="text-[12px] text-slate-400 mt-0.5">
           {recommendedBackend} · {qubits} Qubits ·{' '}
           {costKnown ? `$${(estimatedCost as number).toFixed(2)} max` : 'unpriced — authorization disabled'}
         </div>
       </div>
 
       {message && (
-        <div className={`mt-2.5 p-2.5 rounded-xl text-[11px] ${rejected ? 'bg-rose-950/60 border border-rose-500/40 text-rose-200' : 'bg-cyan-950/60 border border-cyan-500/40 text-cyan-200'}`}>
+        <div className={`mt-2.5 p-2.5 rounded-xl text-[12px] ${rejected ? 'bg-rose-950/60 border border-rose-500/40 text-rose-200' : 'bg-cyan-950/60 border border-cyan-500/40 text-cyan-200'}`}>
           {message}
         </div>
       )}
       {dispatchNote && (
-        <div role="status" className="mt-2.5 p-2.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-[11px]">
+        <div role="status" className="mt-2.5 p-2.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-200 text-[12px]">
           {dispatchNote}
         </div>
       )}
@@ -188,7 +188,7 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied, onDowngr
           <div className="flex items-center justify-between">
             <button
               onClick={() => setShowDetail((v) => !v)}
-              className="text-[10px] font-code text-slate-400 hover:text-white flex items-center gap-1 transition-colors"
+              className="text-[12px] font-code text-slate-400 hover:text-white flex items-center gap-1 transition-colors"
             >
               {showDetail ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
               <span>burden packet</span>
@@ -196,7 +196,7 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied, onDowngr
             <button
               onClick={() => setShowDeny(true)}
               disabled={isSubmitting}
-              className="text-[10px] font-code text-rose-300/80 hover:text-rose-200 transition-colors disabled:opacity-50"
+              className="text-[12px] font-code text-rose-300/80 hover:text-rose-200 transition-colors disabled:opacity-50"
             >
               Abort
             </button>

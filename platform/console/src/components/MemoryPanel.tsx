@@ -69,7 +69,7 @@ export function MemoryPanel({ sessionId }: { sessionId: string | null }) {
       <button
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="w-full flex items-center justify-between px-5 py-2.5 text-[11px] text-slate-400 hover:text-white transition-colors"
+        className="w-full flex items-center justify-between px-5 py-2.5 text-[12px] text-slate-400 hover:text-white transition-colors"
       >
         <span className="flex items-center gap-1.5">
           <span className="text-cyan-400">◈</span> SESSION MEMORY
@@ -111,7 +111,7 @@ export function MemoryPanel({ sessionId }: { sessionId: string | null }) {
             </Tip>
           </div>
 
-          {status && <div className="text-[11px] font-code text-slate-400">{status}</div>}
+          {status && <div className="text-[12px] font-code text-slate-400">{status}</div>}
 
           {snippets !== null && snippets.length > 0 && (
             <ul className="space-y-1.5 max-h-48 overflow-y-auto">
@@ -125,7 +125,7 @@ export function MemoryPanel({ sessionId }: { sessionId: string | null }) {
                 return (
                 <li key={`${s.created_at}-${i}`} className="rounded-lg bg-black/40 border border-white/10 px-2.5 py-1.5">
                   <div className="text-xs text-slate-200 leading-relaxed">{s.content}</div>
-                  <div className="mt-0.5 text-[10px] font-code text-slate-500">
+                  <div className="mt-0.5 text-[12px] font-code text-slate-500">
                     {s.bank} · {sim} · {when}
                   </div>
                 </li>

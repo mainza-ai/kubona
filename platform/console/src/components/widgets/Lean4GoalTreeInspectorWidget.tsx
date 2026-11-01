@@ -47,7 +47,7 @@ export function Lean4GoalTreeInspectorWidget({
             <p className="text-xs text-white/50">No live proof receipt — nothing verified</p>
           </div>
         </div>
-        <p className="text-[11px] font-code text-slate-400">
+        <p className="text-[12px] font-code text-slate-400">
           No theorem, tactics, or AST hash bound. Run a comparator verification to produce a receipt; until then no ρ, no tactics, no Bloch claim.
         </p>
       </div>
@@ -64,16 +64,16 @@ export function Lean4GoalTreeInspectorWidget({
             <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-white/90">Lean 4 Goal Tree Inspector (Preview)<span className="ml-2 align-middle text-[9px] font-mono uppercase px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/10 text-slate-400">Illustrative</span></h3>
+            <h3 className="text-sm font-semibold text-white/90">Lean 4 Goal Tree Inspector (Preview)<span className="ml-2 align-middle text-[12px] font-mono uppercase px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/10 text-slate-400">Illustrative</span></h3>
             <p className="text-xs text-white/50">{theoremName} • Comparator Kernel</p>
           </div>
         </div>
         <div className="flex items-center space-x-2">
-          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-[11px] font-mono text-emerald-300 flex items-center space-x-1">
+          <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-[12px] font-mono text-emerald-300 flex items-center space-x-1">
             <CheckCircle2 className="w-3 h-3 text-emerald-400" />
             <span>{sorryAx === 0 ? 'ρ = 1.000000' : 'ρ = —'}</span>
           </span>
-          <span className="px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-[10px] font-mono text-blue-300">
+          <span className="px-2 py-0.5 rounded-full bg-blue-500/10 border border-blue-500/20 text-[12px] font-mono text-blue-300">
             {sorryAx === 0 ? '0 sorryAx' : `${sorryAx ?? '—'} sorryAx`}
           </span>
         </div>
@@ -82,11 +82,11 @@ export function Lean4GoalTreeInspectorWidget({
       {/* Theorem Signature */}
       <div className="p-3 rounded-xl bg-black/80 border border-white/[0.06] font-mono text-xs text-emerald-300/90 flex justify-between items-center">
         <code>{theoremSignature}</code>
-        <span className="text-[10px] text-white/40 font-mono">{astHash}</span>
+        <span className="text-[12px] text-white/40 font-mono">{astHash}</span>
       </div>
 
       {axioms && axioms.length > 0 && (
-        <p className="text-[10px] font-code text-slate-400">axioms: {axioms.join(', ')}</p>
+        <p className="text-[12px] font-code text-slate-400">axioms: {axioms.join(', ')}</p>
       )}
 
       {/* Proof Tree & Tactic States */}
@@ -123,7 +123,7 @@ export function Lean4GoalTreeInspectorWidget({
                   <span className="text-white/40">Step {s.step}</span>
                   <span className="text-emerald-300 font-bold">{s.tactic}</span>
                 </div>
-                <p className="text-[11px] text-white/50 mt-1">{s.note}</p>
+                <p className="text-[12px] text-white/50 mt-1">{s.note}</p>
               </div>
             );
           })}
@@ -141,7 +141,7 @@ export function Lean4GoalTreeInspectorWidget({
             </pre>
           </div>
 
-          <div className="mt-4 pt-2 border-t border-white/[0.06] text-[10px] text-white/40 flex justify-between items-center">
+          <div className="mt-4 pt-2 border-t border-white/[0.06] text-[12px] text-white/40 flex justify-between items-center">
             <span>Axiom Whitelist: propext, Quot.sound, Classical.choice</span>
             <span className="text-emerald-400">Lean v4.34.1</span>
           </div>

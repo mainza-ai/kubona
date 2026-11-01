@@ -1,15 +1,16 @@
 'use client';
 
 import React from 'react';
-import { Orbit, GitBranch, Radar, Zap, Crosshair, AlertTriangle } from 'lucide-react';
+import { Orbit, GitBranch, Radar, Zap, Crosshair, AlertTriangle, LayoutDashboard } from 'lucide-react';
 
-export type ArenaView = 'orbital' | 'proof-dag' | 'hardware-qpu';
+export type ArenaView = 'workbench' | 'orbital' | 'proof-dag' | 'hardware-qpu';
 
 const VIEW_MODES: Array<{
   id: ArenaView;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
 }> = [
+  { id: 'workbench', label: 'Workbench', icon: LayoutDashboard },
   { id: 'orbital', label: 'Orbital Space', icon: Orbit },
   { id: 'proof-dag', label: 'Proof DAG', icon: GitBranch },
   { id: 'hardware-qpu', label: 'Hardware QPU', icon: Radar },
@@ -47,21 +48,21 @@ export function ArenaHud({
   const overCap = spendFinite && capFinite && (spendUsd as number) > (spendCapUsd as number);
   return (
     <header className="absolute top-4 left-6 right-6 z-20 flex flex-wrap items-center gap-2 justify-between pointer-events-none">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 max-w-full pointer-events-auto bg-[#0E1117]/80 backdrop-blur-xl border border-white/10 rounded-2xl sm:rounded-full px-4 py-2 shadow-2xl">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0 max-w-full pointer-events-auto bg-[#0E1117] border border-white/10 rounded-2xl sm:rounded-full px-4 py-2 shadow-2xl">
         <span className={`w-2 h-2 rounded-full ${statusText ? 'bg-cyan-400 animate-ping' : 'bg-emerald-400 animate-pulse'}`} />
         <span className="font-code text-xs text-white font-medium tracking-wide">{targetLabel}</span>
         <span className="text-white/20">|</span>
         {statusText ? (
-          <span data-testid="hud-status" aria-live="polite" aria-atomic="true" className="font-code text-[11px] text-cyan-300">{statusText}</span>
+          <span data-testid="hud-status" aria-live="polite" aria-atomic="true" className="font-code text-[12px] text-cyan-300">{statusText}</span>
         ) : (
-          <span className="font-code text-[11px] text-cyan-400">{swarmDetail}</span>
+          <span className="font-code text-[12px] text-cyan-400">{swarmDetail}</span>
         )}
       </div>
 
       <div
         role="tablist"
         aria-label="Arena view mode"
-        className="pointer-events-auto bg-[#0E1117]/85 backdrop-blur-xl border border-white/10 rounded-2xl sm:rounded-full p-1 flex items-center max-w-full overflow-x-auto shadow-2xl"
+        className="pointer-events-auto bg-[#0E1117] border border-white/10 rounded-2xl sm:rounded-full p-1 flex items-center max-w-full overflow-x-auto shadow-2xl"
       >
         {VIEW_MODES.map((m) => {
           const Icon = m.icon;
@@ -86,7 +87,7 @@ export function ArenaHud({
 
       <div className="flex flex-wrap items-center gap-2 min-w-0 max-w-full pointer-events-auto">
         <div
-          className={`bg-[#0E1117]/80 backdrop-blur-xl border rounded-full px-3.5 py-2 flex flex-wrap items-center gap-3 max-w-full shadow-2xl ${overCap ? 'border-rose-500/60' : 'border-white/10'}`}
+          className={`bg-[#0E1117] border rounded-full px-3.5 py-2 flex flex-wrap items-center gap-3 max-w-full shadow-2xl ${overCap ? 'border-rose-500/60' : 'border-white/10'}`}
           data-testid="hud-spend"
           data-breach={overCap ? 'true' : undefined}
         >
@@ -96,20 +97,20 @@ export function ArenaHud({
               ${fmt(spendUsd)}
             </span>
             {overCap && (
-              <span className="flex items-center gap-1 font-code text-[10px] text-rose-200 bg-rose-950/70 border border-rose-500/50 rounded-full px-1.5 py-0.5">
+              <span className="flex items-center gap-1 font-code text-[12px] text-rose-200 bg-rose-950/70 border border-rose-500/50 rounded-full px-1.5 py-0.5">
                 <AlertTriangle className="w-3 h-3" />
                 OVER CAP
               </span>
             )}
           </div>
           <span className="text-white/20">|</span>
-          <div className="font-code text-[11px] text-slate-300">T+ {sessionElapsed}</div>
+          <div className="font-code text-[12px] text-slate-300">T+ {sessionElapsed}</div>
         </div>
 
         <button
           aria-label="Recenter viewport"
           onClick={onRecenter}
-          className="w-9 h-9 rounded-full bg-[#0E1117]/80 backdrop-blur-xl border border-white/10 text-slate-300 hover:text-white flex items-center justify-center hover:scale-105 transition-all shadow-2xl focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
+          className="w-9 h-9 rounded-full bg-[#0E1117] border border-white/10 text-slate-300 hover:text-white flex items-center justify-center hover:scale-105 transition-all shadow-2xl focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
         >
           <Crosshair className="w-[18px] h-[18px]" />
         </button>

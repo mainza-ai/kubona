@@ -207,11 +207,11 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-white">Operator session</span>
         {whoami?.authenticated ? (
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">
+          <span className="text-[12px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">
             {whoami.tenant_id} · {whoami.pubkey_fp?.slice(0, 12)}…
           </span>
         ) : (
-          <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/5 text-slate-400 border border-white/10">
+          <span className="text-[12px] font-mono px-2 py-0.5 rounded-full bg-white/5 text-slate-400 border border-white/10">
             anonymous (bearer only)
           </span>
         )}
@@ -226,7 +226,7 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
                 value={tenantId}
                 onChange={(e) => setSelectedTenantId(e.target.value)}
                 aria-label="Login lab"
-                className="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200"
+                className="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-slate-200"
               >
                 {labs.map((l) => (
                   <option key={l.id} value={l.id}>
@@ -242,14 +242,14 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
                 placeholder="Enter your lab ID"
                 autoComplete="off"
                 spellCheck={false}
-                className="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[11px] text-slate-200 font-mono"
+                className="bg-black/60 border border-white/10 rounded-lg px-2 py-1 text-[12px] text-slate-200 font-mono"
               />
             )}
             <button
             type="button"
             disabled={busy !== null || !tenantId}
             onClick={() => void login()}
-            className="px-2 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 hover:bg-cyan-500/25 text-[11px] disabled:opacity-40"
+            className="px-2 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 hover:bg-cyan-500/25 text-[12px] disabled:opacity-40"
             >
               {busy === 'login'
                 ? 'Challenging…'
@@ -259,12 +259,12 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
             </button>
           </div>
           {labs.length === 0 && (
-            <p className="text-[10px] text-slate-500">
+            <p className="text-[12px] text-slate-500">
               Multi-lab store: lab listing is private. Enter the lab ID you administer; only its public key can log in.
             </p>
           )}
           {!browserKey && (
-            <span className="text-[11px] text-slate-500">
+            <span className="text-[12px] text-slate-500">
               No browser key yet — logging in mints a non-extractable Ed25519 key in this browser.
             </span>
           )}
@@ -278,7 +278,7 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
               type="button"
               disabled={busy !== null}
               onClick={() => void logout()}
-              className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] text-slate-300 disabled:opacity-40"
+              className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[12px] text-slate-300 disabled:opacity-40"
             >
               Log out (revokes this session)
             </button>
@@ -287,21 +287,21 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
               disabled={busy !== null}
               onClick={() => void switchLab()}
               title="Log out and pick a different lab — no silent tenant stickiness"
-              className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[11px] text-slate-300 disabled:opacity-40"
+              className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[12px] text-slate-300 disabled:opacity-40"
             >
               Switch lab
             </button>
           </div>
           <div>
-            <div className="text-[11px] text-slate-400 mb-1">Live sessions in this lab (revoke to kill):</div>
+            <div className="text-[12px] text-slate-400 mb-1">Live sessions in this lab (revoke to kill):</div>
             {sessions !== null && sessions.length === 0 && (
-              <p className="text-[11px] text-slate-500">No live sessions listed — try Refresh.</p>
+              <p className="text-[12px] text-slate-500">No live sessions listed — try Refresh.</p>
             )}
             <div className="space-y-1">
               {(sessions ?? []).map((s) => (
                 <div
                   key={s.id}
-                  className="flex items-center justify-between gap-2 px-2 py-1 rounded-lg bg-white/[0.03] text-[11px] font-mono"
+                  className="flex items-center justify-between gap-2 px-2 py-1 rounded-lg bg-white/[0.03] text-[12px] font-mono"
                 >
                   <span className="text-slate-300 truncate" title={`${s.id} · key ${s.pubkey_fp} · ${s.expires_at}`}>
                     {s.id.slice(0, 8)}… · key {s.pubkey_fp.slice(0, 12)}… · {formatExpiry(s.expires_at)}
@@ -323,7 +323,7 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
       )}
 
       {notice && (
-        <p className="text-[11px] text-amber-200" role="alert">
+        <p className="text-[12px] text-amber-200" role="alert">
           {notice}
         </p>
       )}

@@ -54,15 +54,15 @@ function HoverCard({
   return (
     <div
       onClick={(e) => e.stopPropagation()}
-      className={`absolute top-12 left-0 w-64 p-3 rounded-xl bg-[#0D1017]/95 border ${border} backdrop-blur-2xl shadow-2xl transition-all duration-200 z-50 ${
+      className={`absolute top-12 left-0 w-64 p-3 rounded-xl bg-[#0D1017] border ${border} shadow-2xl transition-all duration-200 z-50 ${
         forceOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto'
       }`}
     >
-      <div className={`text-[10px] uppercase font-code ${text} tracking-wider`}>{title}</div>
+      <div className={`text-[12px] uppercase font-code ${text} tracking-wider`}>{title}</div>
       <p className="text-xs text-slate-200 mt-1 leading-snug">{body}</p>
       <div className="mt-2 pt-2 border-t border-white/10 space-y-1">
         {rows.map(([k, v, vc]) => (
-          <div key={k} className="flex justify-between text-[10px] font-code text-slate-400">
+          <div key={k} className="flex justify-between text-[12px] font-code text-slate-400">
             <span>{k}</span>
             <span className={vc || 'text-white'}>{v}</span>
           </div>
@@ -167,14 +167,14 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
           </div>
         </div>
         <div className="mt-3 flex flex-col items-center">
-          <div className="px-2.5 py-0.5 rounded-full bg-cyan-950/80 border border-cyan-500/30 text-[10px] font-code text-cyan-300 tracking-wider max-w-[220px] truncate">
+          <div className="px-2.5 py-0.5 rounded-full bg-cyan-950/80 border border-cyan-500/30 text-[12px] font-code text-cyan-300 tracking-wider max-w-[220px] truncate">
             {targetLabel}
           </div>
           <div data-testid="universe-energy" className="font-code text-sm text-white font-semibold mt-1">
             {energyText} <span className="text-xs font-normal text-slate-400">Hartree</span>
           </div>
           {atRest && (
-            <div data-testid="universe-rest-note" className="font-code text-[10px] text-slate-500 mt-1">
+            <div data-testid="universe-rest-note" className="font-code text-[12px] text-slate-500 mt-1">
               idle · at rest
             </div>
           )}
@@ -187,13 +187,13 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
           <div className="w-9 h-9 rounded-xl bg-[#141822] border border-amber-400/50 flex items-center justify-center shadow-[0_0_30px_-5px_rgba(255,179,0,0.25)] group-hover:border-amber-400">
             <Brain className="w-[18px] h-[18px] text-amber-400" />
           </div>
-          <div className="bg-[#0D1017]/90 backdrop-blur-md border border-white/10 rounded-lg px-2.5 py-1 flex flex-col">
+          <div className="bg-[#0D1017] border border-white/10 rounded-lg px-2.5 py-1 flex flex-col">
             <div className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-              <span className="text-[11px] font-bold text-white tracking-wide">Theorist</span>
-              <span className="text-[9px] font-code text-amber-400 ml-1">ORBITING</span>
+              <span className="text-[12px] font-bold text-white tracking-wide">Theorist</span>
+              <span className="text-[12px] font-code text-amber-400 ml-1">ORBITING</span>
             </div>
-            <div className="text-[10px] font-code text-slate-400">
+            <div className="text-[12px] font-code text-slate-400">
               {qf ? `${qf.active_electrons}e/${qf.active_orbitals}o · ${qf.ansatz_family}` : 'ansatz uncharted'}
             </div>
           </div>
@@ -214,15 +214,15 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
       {/* Probe β · Formalist */}
       <button data-testid="probe-formalist" data-active={activeProbe === 'formalist' ? 'true' : undefined} style={{ animationDelay: '0.9s' }} onClick={() => toggleCard('formalist')} aria-expanded={openCard === 'formalist'} aria-label="Formalist probe details" className={`absolute ${atRest ? "" : "animate-float-gentle"} top-[28%] right-[30%] group cursor-pointer z-10 transition-transform duration-300 hover:scale-110 ${activeProbe === 'formalist' ? 'scale-110' : ''} bg-transparent border-0 p-0 text-left`}>
         <div className="relative flex items-center gap-2">
-          <div className="bg-[#0D1017]/90 backdrop-blur-md border border-white/10 rounded-lg px-2.5 py-1 flex flex-col text-right">
+          <div className="bg-[#0D1017] border border-white/10 rounded-lg px-2.5 py-1 flex flex-col text-right">
             <div className="flex items-center justify-end gap-1.5">
-              <span className="text-[9px] font-code text-emerald-400">
+              <span className="text-[12px] font-code text-emerald-400">
                 {pCorr != null ? `ρ ${pCorr.toFixed(3)}` : 'ρ —'}
               </span>
-              <span className="text-[11px] font-bold text-white tracking-wide">Formalist</span>
+              <span className="text-[12px] font-bold text-white tracking-wide">Formalist</span>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
             </div>
-            <div className="text-[10px] font-code text-slate-400">
+            <div className="text-[12px] font-code text-slate-400">
               {campaign?.epistemics?.status || (hasCampaign ? 'Epistemic status' : 'No campaign')}
             </div>
           </div>
@@ -246,15 +246,15 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
       {/* Probe γ · Compiler */}
       <button data-testid="probe-compiler" data-active={activeProbe === 'compiler' ? 'true' : undefined} style={{ animationDelay: '1.8s' }} onClick={() => toggleCard('compiler')} aria-expanded={openCard === 'compiler'} aria-label="Compiler probe details" className={`absolute ${atRest ? "" : "animate-float-gentle"} bottom-[30%] right-[28%] group cursor-pointer z-10 transition-transform duration-300 hover:scale-110 ${activeProbe === 'compiler' ? 'scale-110' : ''} bg-transparent border-0 p-0 text-left`}>
         <div className="relative flex items-center gap-2">
-          <div className="bg-[#0D1017]/90 backdrop-blur-md border border-white/10 rounded-lg px-2.5 py-1 flex flex-col text-right">
+          <div className="bg-[#0D1017] border border-white/10 rounded-lg px-2.5 py-1 flex flex-col text-right">
             <div className="flex items-center justify-end gap-1.5">
-              <span className="text-[9px] font-code text-cyan-400">
+              <span className="text-[12px] font-code text-cyan-400">
                 {qf ? `${qf.qubit_count} Qubits` : '— Qubits'}
               </span>
-              <span className="text-[11px] font-bold text-white tracking-wide">Compiler</span>
+              <span className="text-[12px] font-bold text-white tracking-wide">Compiler</span>
               <span className="w-1.5 h-1.5 rounded-full bg-cyan-400" />
             </div>
-            <div className="text-[10px] font-code text-slate-400">
+            <div className="text-[12px] font-code text-slate-400">
               {qf ? shortBackend(qf.recommended_backend) : 'backend uncharted'}
             </div>
           </div>
@@ -280,15 +280,15 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
           <div className="w-9 h-9 rounded-xl bg-[#141822] border border-rose-400/50 flex items-center justify-center shadow-xl group-hover:border-rose-400">
             <Scale className="w-[18px] h-[18px] text-rose-400" />
           </div>
-          <div className="bg-[#0D1017]/90 backdrop-blur-md border border-white/10 rounded-lg px-2.5 py-1 flex flex-col">
+          <div className="bg-[#0D1017] border border-white/10 rounded-lg px-2.5 py-1 flex flex-col">
             <div className="flex items-center gap-1.5">
               <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
-              <span className="text-[11px] font-bold text-white tracking-wide">Critic</span>
-              <span className="text-[9px] font-code text-rose-400 ml-1">
+              <span className="text-[12px] font-bold text-white tracking-wide">Critic</span>
+              <span className="text-[12px] font-code text-rose-400 ml-1">
                 {criticState}
               </span>
             </div>
-            <div className="text-[10px] font-code text-slate-400">
+            <div className="text-[12px] font-code text-slate-400">
               {canaryLabel}
             </div>
           </div>
