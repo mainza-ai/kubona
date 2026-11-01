@@ -325,6 +325,17 @@ export const RESPONSE_SCHEMAS = {
     cached: bool,
     cache_ttl_seconds: num,
   }, ['ok']),
+  'tenant.write': obj({
+    id: str,
+    display_name: str,
+    autonomy_level: str,
+    status: str,
+    aborted_jobs_count: num,
+  }, ['id']),
+  'session.refund': obj({
+    id: str,
+    current_spend_usd: num,
+  }, ['id']),
   'cost.summary': obj({
     cap_usd: num,
     spent_usd: num,

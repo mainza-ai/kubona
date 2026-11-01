@@ -1757,33 +1757,20 @@ export interface TenantWriteError {
 // (not-admin, expired, suspended, rate-limited…); transport failure
 // returns null so the UI can tell "refused" from "unreachable".
 async function postTenantMutation(
-  path: string,
+  operation: 'setTenantCeiling' | 'setTenantStatus' | 'setTenantAutonomy' | 'revokeTenantAutonomy' | 'refundTenantSpend' | 'registerTenantAdminKey',
   body: Record<string, unknown>,
   operatorToken?: string,
 ): Promise<TenantWriteResult | TenantWriteError | null> {
   try {
     const token = (operatorToken ?? '').trim();
-    const res = await apiFetch(`${API_BASE}${path}`, {
-      method: 'POST',
-      headers: authHeaders({
-        'Content-Type': 'application/json',
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      }),
-      body: JSON.stringify(body),
+    const data = await requestOperation(operation, {
+      body,
+      headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
-    if (!res.ok) {
-      let text = '';
-      try {
-        text = (await res.text()).trim().slice(0, 280);
-      } catch {
-        /* ignore body read failure */
-      }
-      return { error: text || `HTTP ${res.status}` };
-    }
-    const data = await res.json();
     return { ok: true, tenant: data as import('@/types').Lab };
   } catch (err) {
-    console.error(`Tenant mutation ${path} failed:`, err);
+    if (err instanceof OperationError) return { error: err.message };
+    console.error(`Tenant mutation ${operation} failed:`, err);
     return null;
   }
 }
@@ -1798,7 +1785,7 @@ export function setTenantCeiling(
   ceilingUsd: number,
   action?: import('./adminAction').AdminAction
 ): Promise<TenantWriteResult | TenantWriteError | null> {
-  return postTenantMutation('/api/tenants/ceiling', {
+  return postTenantMutation('setTenantCeiling', {
     tenant_id: tenantId,
     ceiling_usd: ceilingUsd,
     ...(action ? { action } : {}),
@@ -1810,7 +1797,7 @@ export function setTenantStatus(
   status: 'active' | 'suspended',
   action?: import('./adminAction').AdminAction
 ): Promise<TenantWriteResult | TenantWriteError | null> {
-  return postTenantMutation('/api/tenants/status', {
+  return postTenantMutation('setTenantStatus', {
     tenant_id: tenantId,
     status,
     ...(action ? { action } : {}),
@@ -1823,7 +1810,7 @@ export function refundTenantSpend(
   reason: string,
   action?: import('./adminAction').AdminAction
 ): Promise<TenantWriteResult | TenantWriteError | null> {
-  return postTenantMutation('/api/tenants/refund', {
+  return postTenantMutation('refundTenantSpend', {
     tenant_id: tenantId,
     amount_usd: amountUsd,
     reason,
@@ -1837,7 +1824,7 @@ export function registerTenantAdminKey(
   action?: import('./adminAction').AdminAction,
   operatorToken?: string,
 ): Promise<TenantWriteResult | TenantWriteError | null> {
-  return postTenantMutation('/api/tenants/admin-key', {
+  return postTenantMutation('registerTenantAdminKey', {
     tenant_id: tenantId,
     new_admin_pubkey_hex: newAdminPubkeyHex,
     ...(action ? { action } : {}),
@@ -1862,19 +1849,15 @@ export async function refundSessionSpend(
   action?: import('./adminAction').AdminAction,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/sessions/refund`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({
+    await requestOperation('refundSessionSpend', {
+      body: {
         session_id: sessionId, amount_usd: amountUsd, reason,
         ...(action ? { action } : {}),
-      }),
+      },
     });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: String(data.error || data.message || `HTTP ${res.status}`).slice(0, 280) };
     return { ok: true };
   } catch (err) {
-    return { ok: false, error: String(err).slice(0, 280) };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
@@ -1883,7 +1866,7 @@ export function setTenantAutonomy(
   level: 'L0' | 'L1' | 'L2' | 'L3',
   action?: import('./adminAction').AdminAction,
 ): Promise<TenantWriteResult | TenantWriteError | null> {
-  return postTenantMutation('/api/tenants/autonomy', {
+  return postTenantMutation('setTenantAutonomy', {
     tenant_id: tenantId,
     level,
     ...(action ? { action } : {}),
@@ -1895,7 +1878,7 @@ export function revokeTenantAutonomy(
   reason: string,
   action?: import('./adminAction').AdminAction,
 ): Promise<TenantWriteResult | TenantWriteError | null> {
-  return postTenantMutation('/api/tenants/revoke', {
+  return postTenantMutation('revokeTenantAutonomy', {
     tenant_id: tenantId,
     reason,
     ...(action ? { action } : {}),

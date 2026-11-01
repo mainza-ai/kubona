@@ -1606,6 +1606,46 @@
         }
       }
     },
+    "/api/sessions/refund": {
+      "post": {
+        "operationId": "refundSessionSpend",
+        "tags": [
+          "sessions"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: session.refund",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/session.refund"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenants/refund": {
+      "post": {
+        "operationId": "refundTenantSpend",
+        "tags": [
+          "tenants"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: tenant.write",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/tenant.write"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/chat/regenerate": {
       "post": {
         "operationId": "regenerateChat",
@@ -1619,6 +1659,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/chat.regenerate"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenants/admin-key": {
+      "post": {
+        "operationId": "registerTenantAdminKey",
+        "tags": [
+          "tenants"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: tenant.write",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/tenant.write"
                 }
               }
             }
@@ -1769,6 +1829,26 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/memory.retain"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenants/revoke": {
+      "post": {
+        "operationId": "revokeTenantAutonomy",
+        "tags": [
+          "tenants"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: tenant.write",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/tenant.write"
                 }
               }
             }
@@ -2009,6 +2089,66 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/chat.feedback"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenants/autonomy": {
+      "post": {
+        "operationId": "setTenantAutonomy",
+        "tags": [
+          "tenants"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: tenant.write",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/tenant.write"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenants/ceiling": {
+      "post": {
+        "operationId": "setTenantCeiling",
+        "tags": [
+          "tenants"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: tenant.write",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/tenant.write"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tenants/status": {
+      "post": {
+        "operationId": "setTenantStatus",
+        "tags": [
+          "tenants"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: tenant.write",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/tenant.write"
                 }
               }
             }
@@ -3752,6 +3892,43 @@
           }
         }
       },
+      "tenant.write": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "display_name": {
+            "type": "string"
+          },
+          "autonomy_level": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "aborted_jobs_count": {
+            "type": "number"
+          }
+        }
+      },
+      "session.refund": {
+        "type": "object",
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "current_spend_usd": {
+            "type": "number"
+          }
+        }
+      },
       "cost.summary": {
         "type": "object",
         "required": [
@@ -4035,17 +4212,10 @@
     "issueTenantGrant",
     "jobStatusLabel",
     "lensImageProxyUrl",
-    "refundSessionSpend",
-    "refundTenantSpend",
-    "registerTenantAdminKey",
     "reportError",
     "resetDedupForTests",
-    "revokeTenantAutonomy",
     "revokeTenantGrant",
     "scoreCodesignBudget",
-    "setTenantAutonomy",
-    "setTenantCeiling",
-    "setTenantStatus",
     "wasRecentAuthFailure"
   ]
 }

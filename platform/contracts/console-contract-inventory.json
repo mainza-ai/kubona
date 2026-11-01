@@ -86,8 +86,10 @@
     "session",
     "session.context",
     "session.create",
+    "session.refund",
     "sessions.list",
     "settings.update",
+    "tenant.write",
     "tribunal.resume",
     "tribunal.run",
     "vault.calibration",
@@ -186,8 +188,10 @@
     "session",
     "session.context",
     "session.create",
+    "session.refund",
     "sessions.list",
     "settings.update",
+    "tenant.write",
     "tribunal.resume",
     "tribunal.run",
     "vault.calibration",
@@ -616,10 +620,28 @@
       "contract": "workflow.plan"
     },
     {
+      "function": "refundSessionSpend",
+      "path": "/api/sessions/refund",
+      "method": "POST",
+      "contract": "session.refund"
+    },
+    {
+      "function": "refundTenantSpend",
+      "path": "/api/tenants/refund",
+      "method": "POST",
+      "contract": "tenant.write"
+    },
+    {
       "function": "regenerateChat",
       "path": "/api/chat/regenerate",
       "method": "POST",
       "contract": "chat.regenerate"
+    },
+    {
+      "function": "registerTenantAdminKey",
+      "path": "/api/tenants/admin-key",
+      "method": "POST",
+      "contract": "tenant.write"
     },
     {
       "function": "rejectMetasearchProposal",
@@ -668,6 +690,12 @@
       "path": "/api/memory/retain",
       "method": "POST",
       "contract": "memory.retain"
+    },
+    {
+      "function": "revokeTenantAutonomy",
+      "path": "/api/tenants/revoke",
+      "method": "POST",
+      "contract": "tenant.write"
     },
     {
       "function": "revokeVaultLease",
@@ -764,6 +792,24 @@
       "path": "/api/chat/feedback",
       "method": "POST",
       "contract": "chat.feedback"
+    },
+    {
+      "function": "setTenantAutonomy",
+      "path": "/api/tenants/autonomy",
+      "method": "POST",
+      "contract": "tenant.write"
+    },
+    {
+      "function": "setTenantCeiling",
+      "path": "/api/tenants/ceiling",
+      "method": "POST",
+      "contract": "tenant.write"
+    },
+    {
+      "function": "setTenantStatus",
+      "path": "/api/tenants/status",
+      "method": "POST",
+      "contract": "tenant.write"
     },
     {
       "function": "startAutoresearchLoop",
@@ -890,18 +936,6 @@
       "reason": "same-origin URL helper"
     },
     {
-      "function": "refundSessionSpend",
-      "reason": "client-constructed ok envelope"
-    },
-    {
-      "function": "refundTenantSpend",
-      "reason": "postTenantMutation client helper"
-    },
-    {
-      "function": "registerTenantAdminKey",
-      "reason": "postTenantMutation client helper"
-    },
-    {
       "function": "reportError",
       "reason": "console error reporter"
     },
@@ -910,28 +944,12 @@
       "reason": "test reset helper"
     },
     {
-      "function": "revokeTenantAutonomy",
-      "reason": "postTenantMutation client helper"
-    },
-    {
       "function": "revokeTenantGrant",
       "reason": "client-constructed ok envelope"
     },
     {
       "function": "scoreCodesignBudget",
       "reason": "client-constructed ok/result envelope"
-    },
-    {
-      "function": "setTenantAutonomy",
-      "reason": "postTenantMutation client helper"
-    },
-    {
-      "function": "setTenantCeiling",
-      "reason": "postTenantMutation client helper"
-    },
-    {
-      "function": "setTenantStatus",
-      "reason": "postTenantMutation client helper"
     },
     {
       "function": "wasRecentAuthFailure",
