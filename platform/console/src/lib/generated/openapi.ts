@@ -415,6 +415,33 @@ export type LabsList = {
   "tenants": unknown[];
 };
 
+export type ObligationsClose = {
+  "ok": boolean;
+  "id"?: string;
+  "closed"?: boolean;
+  "reasons"?: string[];
+  "already_closed"?: boolean;
+};
+
+export type QuantumCancel = {
+  "ok": boolean;
+  "job_id"?: string;
+  "status"?: string;
+  "provider_recall_attempted"?: boolean;
+  "provider_recall_status"?: string;
+};
+
+export type AgentsCustomDelete = {
+  "ok": boolean;
+  "agent_id": string;
+};
+
+export type MetasearchChange = {
+  "success": boolean;
+  "proposal"?: unknown;
+  "message"?: string;
+};
+
 export type CostSummary = {
   "cap_usd": number;
   "spent_usd": number;
@@ -491,15 +518,20 @@ export type QuantumBackends = {
 
 export type ApiOperationResponse = {
   appendLedgerEvent: LedgerAppend;
+  applyMetasearchProposal: MetasearchChange;
+  approveMetasearchProposal: MetasearchChange;
   assertPrediction: PredictionAssert;
   authChallenge: AuthChallenge;
   authLogin: AuthLogin;
   authSessions: AuthSessions;
   authWhoami: AuthWhoami;
+  cancelQuantumJob: QuantumCancel;
   clearMessages: MessagesClear;
+  closeObligation: ObligationsClose;
   createCustomAgent: AgentOne;
   createLab: Lab;
   createSession: SessionCreate;
+  deleteCustomAgent: AgentsCustomDelete;
   emergencyAbort: Abort;
   evaluateCodesignArtifact: CodesignEvaluate;
   evaluateCodesignBatch: CodesignBatch;
@@ -553,6 +585,7 @@ export type ApiOperationResponse = {
   pauseAutoresearchLoop: AutoresearchLoop;
   planWorkflow: WorkflowPlan;
   regenerateChat: ChatRegenerate;
+  rejectMetasearchProposal: MetasearchChange;
   requestObservatoryLens: LensRequest;
   requestServerSignedMandate: MandateSign;
   rerunCodesignProposal: CodesignRerun;
@@ -585,15 +618,20 @@ export type ApiOperationResponse = {
 
 export const API_OPERATIONS = {
   appendLedgerEvent: { method: "post", path: "/api/ledger/append", response: "ledger.append" },
+  applyMetasearchProposal: { method: "post", path: "/api/metasearch/apply", response: "metasearch.change" },
+  approveMetasearchProposal: { method: "post", path: "/api/metasearch/approve", response: "metasearch.change" },
   assertPrediction: { method: "post", path: "/api/vault/predictions/assert", response: "prediction.assert" },
   authChallenge: { method: "post", path: "/api/auth/challenge", response: "auth.challenge" },
   authLogin: { method: "post", path: "/api/auth/login", response: "auth.login" },
   authSessions: { method: "get", path: "/api/auth/sessions", response: "auth.sessions" },
   authWhoami: { method: "get", path: "/api/auth/whoami", response: "auth.whoami" },
+  cancelQuantumJob: { method: "post", path: "/api/quantum/jobs/{id}/cancel", response: "quantum.cancel" },
   clearMessages: { method: "delete", path: "/api/sessions/{id}/messages", response: "messages.clear" },
+  closeObligation: { method: "post", path: "/api/obligations/{id}", response: "obligations.close" },
   createCustomAgent: { method: "post", path: "/api/agents/custom", response: "agent.one" },
   createLab: { method: "post", path: "/api/tenants", response: "lab" },
   createSession: { method: "post", path: "/api/sessions", response: "session.create" },
+  deleteCustomAgent: { method: "delete", path: "/api/agents/custom/{id}", response: "agents.custom.delete" },
   emergencyAbort: { method: "post", path: "/api/supervisor/abort", response: "abort" },
   evaluateCodesignArtifact: { method: "post", path: "/api/codesign/evaluate", response: "codesign.evaluate" },
   evaluateCodesignBatch: { method: "post", path: "/api/codesign/evaluate-batch", response: "codesign.batch" },
@@ -647,6 +685,7 @@ export const API_OPERATIONS = {
   pauseAutoresearchLoop: { method: "post", path: "/api/autoresearch/loops/{id}/pause", response: "autoresearch.loop" },
   planWorkflow: { method: "post", path: "/api/workflows/plan", response: "workflow.plan" },
   regenerateChat: { method: "post", path: "/api/chat/regenerate", response: "chat.regenerate" },
+  rejectMetasearchProposal: { method: "post", path: "/api/metasearch/reject", response: "metasearch.change" },
   requestObservatoryLens: { method: "post", path: "/api/observatory/lens", response: "lens.request" },
   requestServerSignedMandate: { method: "post", path: "/api/mandates/sign", response: "mandate.sign" },
   rerunCodesignProposal: { method: "post", path: "/api/codesign/rerun", response: "codesign.rerun" },

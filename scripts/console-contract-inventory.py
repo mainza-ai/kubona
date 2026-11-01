@@ -44,8 +44,6 @@ CLIENT_ONLY = {
     "authLogout": "boolean HTTP result",
     "authRevoke": "client-constructed ok envelope",
     "cancelHFDownload": "boolean HTTP result",
-    "cancelQuantumJob": "client-constructed ok envelope",
-    "deleteCustomAgent": "boolean HTTP result",
     "deleteSession": "boolean HTTP result",
     "loopAction": "client-constructed ok/error envelope",
     "sendFeedback": "boolean HTTP result",
@@ -55,10 +53,6 @@ CLIENT_ONLY = {
     "registerTenantAdminKey": "postTenantMutation client helper",
     "refundTenantSpend": "postTenantMutation client helper",
     "revokeTenantAutonomy": "postTenantMutation client helper",
-    "applyMetasearchProposal": "client-constructed ok envelope",
-    "approveMetasearchProposal": "client-constructed ok envelope",
-    "rejectMetasearchProposal": "client-constructed ok envelope",
-    "closeObligation": "client-constructed ok envelope",
     "exportLedger": "client-constructed export envelope",
     "exportSession": "client-constructed export envelope",
     "importSession": "client-constructed import envelope",
@@ -94,7 +88,8 @@ def generated_operations() -> dict[str, dict[str, str]]:
 
 def normalize(path: str) -> str:
     path = re.sub(r"\{([^}]+)\}", r":\1", path)
-    path = re.sub(r"\$\{[^}]*\}?", ":id", path)
+    path = re.sub(r"\$\{encodeURIComponent\([^)]*\)\}", ":id", path)
+    path = re.sub(r"\$\{[^}]*\}", ":id", path)
     path = re.sub(r"//+", "/", path)
     path = re.sub(r"(?<!/):id", "", path)
     return path.rstrip("/") if not path.endswith("/") else path

@@ -667,24 +667,12 @@ export async function fetchMetasearchProposals(): Promise<import('@/types').Meta
 export async function approveMetasearchProposal(
   proposalId: string,
   signer: string = 'console-operator'
-): Promise<{ ok: true } | { error: string } | null> {
+): Promise<{ ok: true; success?: boolean; proposal?: unknown; message?: string } | { error: string } | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/metasearch/approve`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ proposal_id: proposalId, signer }),
-    });
-    if (!res.ok) {
-      let text = '';
-      try {
-        text = (await res.text()).trim().slice(0, 280);
-      } catch {
-        /* ignore */
-      }
-      return { error: text || `HTTP ${res.status}` };
-    }
-    return { ok: true };
+    const data = await requestOperation('approveMetasearchProposal', { body: { proposal_id: proposalId, signer } });
+    return { ok: true, ...data };
   } catch (err) {
+    if (err instanceof OperationError) return { error: err.message };
     console.error('Failed to approve proposal:', err);
     return null;
   }
@@ -693,24 +681,12 @@ export async function approveMetasearchProposal(
 export async function rejectMetasearchProposal(
   proposalId: string,
   signer: string = 'console-operator'
-): Promise<{ ok: true } | { error: string } | null> {
+): Promise<{ ok: true; success?: boolean; proposal?: unknown; message?: string } | { error: string } | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/metasearch/reject`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ proposal_id: proposalId, signer }),
-    });
-    if (!res.ok) {
-      let text = '';
-      try {
-        text = (await res.text()).trim().slice(0, 280);
-      } catch {
-        /* ignore */
-      }
-      return { error: text || `HTTP ${res.status}` };
-    }
-    return { ok: true };
+    const data = await requestOperation('rejectMetasearchProposal', { body: { proposal_id: proposalId, signer } });
+    return { ok: true, ...data };
   } catch (err) {
+    if (err instanceof OperationError) return { error: err.message };
     console.error('Failed to reject proposal:', err);
     return null;
   }
@@ -718,24 +694,12 @@ export async function rejectMetasearchProposal(
 
 export async function applyMetasearchProposal(
   proposalId: string
-): Promise<{ ok: true } | { error: string } | null> {
+): Promise<{ ok: true; success?: boolean; proposal?: unknown; message?: string } | { error: string } | null> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/metasearch/apply`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ proposal_id: proposalId }),
-    });
-    if (!res.ok) {
-      let text = '';
-      try {
-        text = (await res.text()).trim().slice(0, 280);
-      } catch {
-        /* ignore */
-      }
-      return { error: text || `HTTP ${res.status}` };
-    }
-    return { ok: true };
+    const data = await requestOperation('applyMetasearchProposal', { body: { proposal_id: proposalId } });
+    return { ok: true, ...data };
   } catch (err) {
+    if (err instanceof OperationError) return { error: err.message };
     console.error('Failed to apply proposal:', err);
     return null;
   }
@@ -1187,17 +1151,10 @@ export async function fetchQuantumJob(jobId: string): Promise<Record<string, unk
 
 export async function cancelQuantumJob(jobId: string, reason?: string): Promise<{ ok: boolean; error?: string; provider_recall_attempted?: boolean; provider_recall_status?: string }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/quantum/jobs/${encodeURIComponent(jobId)}/cancel`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ reason: reason ?? '' }),
-    });
-    const data = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-    if (!res.ok) return { ok: false, error: (data.error as string) || `HTTP ${res.status}` };
-    return data as { ok: boolean };
+    const data = await requestOperation('cancelQuantumJob', { params: { id: jobId }, body: { reason: reason ?? '' } });
+    return { ok: data.ok === true, provider_recall_attempted: data.provider_recall_attempted, provider_recall_status: data.provider_recall_status };
   } catch (err) {
-    console.error('Failed to cancel quantum job:', err);
-    return { ok: false, error: String(err) };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 
@@ -1381,11 +1338,8 @@ export async function createCustomAgent(
 
 export async function deleteCustomAgent(agentId: string): Promise<boolean> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/agents/custom/${encodeURIComponent(agentId)}`, {
-      headers: authHeaders(),
-      method: 'DELETE',
-    });
-    return res.ok;
+    const data = await requestOperation('deleteCustomAgent', { params: { id: agentId } });
+    return data.ok === true;
   } catch (err) {
     console.error('Failed to delete custom agent:', err);
     return false;
@@ -2064,16 +2018,10 @@ export async function fetchOpenObligations(): Promise<{ ok: true; obligations: O
 
 export async function closeObligation(id: string): Promise<{ ok: boolean; error?: string; reasons?: string[]; closed?: boolean }> {
   try {
-    const res = await apiFetch(`${API_BASE}/api/obligations/${encodeURIComponent(id)}`, {
-      method: 'POST',
-      headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({}),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) return { ok: false, error: String(data.error || data.message || `HTTP ${res.status}`).slice(0, 280) };
+    const data = await requestOperation('closeObligation', { params: { id }, body: {} });
     return { ok: true, closed: data.closed === true, reasons: data.reasons };
   } catch (err) {
-    return { ok: false, error: String(err).slice(0, 280) };
+    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }
 }
 

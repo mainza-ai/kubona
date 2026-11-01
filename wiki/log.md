@@ -4534,3 +4534,12 @@ skipped is the exact failure this incident is about:
   only while the handler serves GET status too; the row now says GET,POST.
   Also exposed `Kubona-API-Version` to cross-origin readers. Updated
   [[remaining-work]]; no page.
+
+## [2026-11-01] impl | Modeled write envelopes
+
+- Migrated close-obligation, quantum-job cancel, custom-agent delete, and
+  metasearch approve/reject/apply to generated operation metadata and
+  response contracts. Inventory: 97 modeled / 34 client-only (from 91/40).
+- Fixed the inventory normalizer so encodeURIComponent path params become
+  typed `{id}` parameters, not literal `$...` fragments.
+- Updated [[remaining-work]]; no page.
