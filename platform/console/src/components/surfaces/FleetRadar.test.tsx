@@ -145,6 +145,7 @@ describe('FleetRadar loading + stale chrome (Wave-3)', () => {
     });
     expect(pending!.root.findByProps({ 'data-testid': 'fleet-radar-skeleton' })).toBeDefined();
     expect(textOf(pending!.root)).not.toContain('local_simulator');
+    pending!.unmount();
 
     // Settled fleet: skeleton gone, devices listed.
     vi.mocked(api.fetchFleet).mockResolvedValue({

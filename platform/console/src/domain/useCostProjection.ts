@@ -1,10 +1,11 @@
 'use client';
 
 import { fetchCostSummary, type CostSummary } from '@/lib/api';
-import { usePollingResource } from './use-polling-resource';
+import { useSharedResource } from './shared-resource';
 
 export function useCostProjection() {
-  return usePollingResource<CostSummary>(
+  return useSharedResource<CostSummary>(
+    'cost',
     async () => {
       const out = await fetchCostSummary();
       if (!out.ok) throw new Error(out.error);

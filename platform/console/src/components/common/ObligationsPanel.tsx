@@ -1,43 +1,18 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
-import { closeObligation, fetchOpenObligations, type ObligationRow } from '@/lib/api';
+import React, { useState } from 'react';
+import { closeObligation } from '@/lib/api';
+import { useObligationsProjection } from '@/domain/useObligationsProjection';
 import { acceptWrite, newWriteRequestId, settleWrite, writeSettlementLabel, IDLE_WRITE, type WriteSettlement } from '@/domain/write-settlement';
 
 // Mandate-review queue (steady-state ops). A closed obligation is decided
 // by the server's AttemptClose rules; this panel only lists open rows and
 // lets an authorized session trigger closure. Refusals stay visible.
 export function ObligationsPanel() {
-  const [rows, setRows] = useState<ObligationRow[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { obligations, status, error, refresh } = useObligationsProjection();
+  const rows = status === 'idle' || status === 'loading' ? null : obligations;
   const [busy, setBusy] = useState<string | null>(null);
   const [write, setWrite] = useState<WriteSettlement>(IDLE_WRITE);
-
-  const load = useCallback(async () => {
-    const out = await fetchOpenObligations();
-    if (out.ok) {
-      setRows(out.obligations);
-      setError(null);
-    } else {
-      setRows([]);
-      setError(out.error);
-    }
-  }, []);
-
-  useEffect(() => {
-    let live = true;
-    fetchOpenObligations().then((out) => {
-      if (!live) return;
-      if (out.ok) {
-        setRows(out.obligations);
-        setError(null);
-      } else {
-        setRows([]);
-        setError(out.error);
-      }
-    });
-    return () => { live = false; };
-  }, []);
 
   const close = async (id: string) => {
     setBusy(id);
@@ -52,7 +27,7 @@ export function ObligationsPanel() {
       } else {
         setWrite(settleWrite(requestId, 'refused', `not close-ready: ${(out.reasons ?? []).join('; ') || 'server gave no reasons'}`));
       }
-      await load();
+      refresh();
     } finally {
       setBusy(null);
     }
@@ -65,7 +40,7 @@ export function ObligationsPanel() {
           <span className="text-xs font-semibold text-white">Open obligations · mandate review</span>
           <p className="text-[12px] text-slate-500">Closure only triggers the server rule; this panel cannot force-close.</p>
         </div>
-        <button type="button" onClick={() => void load()} className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[12px] text-slate-300">Refresh</button>
+        <button type="button" onClick={() => void refresh()} className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/10 border border-white/10 text-[12px] text-slate-300">Refresh</button>
       </div>
       {rows === null && <p className="text-[12px] font-code text-slate-500">Loading obligations…</p>}
       {error && <p role="alert" className="text-[12px] text-rose-300">Queue unavailable — {error}</p>}

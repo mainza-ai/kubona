@@ -29,6 +29,7 @@ export type PollingStore<T> = {
   subscribe: (listener: () => void) => () => void;
   refresh: () => void;
   setLoader: (load: () => Promise<T>) => void;
+  reset: () => void;
   dispose: () => void;
 };
 
@@ -70,6 +71,7 @@ export function createPollingStore<T>(
   let timer: ReturnType<typeof setTimeout> | null = null;
   let inFlight = false;
   let active = false;
+  let generation = 0;
 
   const publish = (patch: Partial<ResourceState<T>>) => {
     state = { ...state, ...patch };
@@ -93,10 +95,11 @@ export function createPollingStore<T>(
     }
     if (inFlight) return;
     inFlight = true;
+    const gen = generation;
     if (state.data === null) publish({ status: 'loading', error: null });
     try {
       const data = await loader();
-      if (!active) return;
+      if (!active || gen !== generation) return;
       publish({
         status: 'ready',
         data,
@@ -108,7 +111,7 @@ export function createPollingStore<T>(
       if (shouldContinue?.(data) === false) clearTimer();
       else schedule(intervalMs);
     } catch (err) {
-      if (!active) return;
+      if (!active || gen !== generation) return;
       if (err instanceof StopPolling) {
         publish({ status: state.data === null ? 'refused' : 'stale', error: err.message });
         clearTimer();
@@ -125,7 +128,7 @@ export function createPollingStore<T>(
       });
       schedule(next);
     } finally {
-      inFlight = false;
+      if (gen === generation) inFlight = false;
     }
   };
 
@@ -141,11 +144,15 @@ export function createPollingStore<T>(
 
   const start = () => {
     if (active) return;
+    generation += 1;
+    inFlight = false;
     active = true;
     if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onVisibility);
     void tick();
   };
   const stop = () => {
+    generation += 1;
+    inFlight = false;
     active = false;
     clearTimer();
     if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onVisibility);
@@ -162,6 +169,16 @@ export function createPollingStore<T>(
       };
     },
     setLoader: (next) => { loader = next; },
+    reset: () => {
+      state = {
+        status: 'idle',
+        data: null,
+        error: null,
+        revision: 0,
+        updatedAt: 0,
+        intervalMs,
+      };
+    },
     refresh: () => {
       if (!active) return;
       clearTimer();

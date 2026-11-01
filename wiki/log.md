@@ -4436,3 +4436,11 @@ skipped is the exact failure this incident is about:
   readiness moved to named domain hooks without changing polling semantics.
   The workbench no longer fetches jobs or obligations. Updated
   [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Ref-counted domain stores
+
+- Added a shared resource registry: one store per domain key, ref-counted
+  subscribe, stop/reset at zero, and generation-guarded in-flight loads.
+- Jobs/obligations/fleet/cost/backend now share these stores; the obligations
+  panel consumes the same projection as the page. Added sharing/disposal tests
+  and a global test reset. Updated [[remaining-work]]; no new page.
