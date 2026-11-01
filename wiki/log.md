@@ -4330,3 +4330,9 @@ skipped is the exact failure this incident is about:
 - Mesh routing, memory retain, lab creation, and observatory asset/lens
   resolution move onto `requestOperation`. Updated [[remaining-work]]; no new
   page.
+
+## [2026-11-01] impl | LLM and Hugging Face wrappers
+
+- LLM model/test and HF search/details/downloads wrappers move onto
+  `requestOperation`, preserving the hub's explicit refusal errors. Updated
+  [[remaining-work]]; no new page.
