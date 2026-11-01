@@ -4688,3 +4688,14 @@ skipped is the exact failure this incident is about:
 
 - Render assistant feedback as accepted/applied/refused/unknown and distinguish
   transport failure from refusal. The optimistic vote reverts on failure.
+
+## [2026-11-01] impl | Task domain, refusal truth, and contract fixtures
+
+- Add session tasks (ledger table, session-scoped endpoints, event taxonomy,
+  contracts, projection, workbench cards, create-from-object, status toggle).
+- Split jobs/loops/events into result-shaped reads; projections now surface
+  refused/stale and the status strip shows data refusal, stream state, and last
+  event.
+- Add a Go cross-language contract test against generated OpenAPI schemas.
+- Preserve unknown layout refs as unavailable cards; align 3D/workbench zoom
+  with the server; remove per-pointer React camera updates.

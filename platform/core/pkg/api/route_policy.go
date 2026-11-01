@@ -192,6 +192,8 @@ var RoutePolicies = []RoutePolicy{
 	{Pattern: "/api/tenant-grants/issue", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/tenant-grants/revoke", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/obligations/open", Methods: "GET", Class: RouteAuthBearer},
+	{Pattern: "/api/tasks", Methods: "GET,POST", Class: RouteAuthSessionScoped, Rationale: "Session-scoped task list/create; known sessions bind the caller before any row is touched."},
+	{Pattern: "/api/tasks/", Methods: "POST", Class: RouteAuthSessionScoped, Rationale: "Session-scoped task status update; the task session is bound to the caller before mutation."},
 	{Pattern: "/api/obligations/", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/tenants/admin-key", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/tenants/ceiling", Methods: "POST", Class: RouteAuthBearer},

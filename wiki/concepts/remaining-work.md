@@ -110,8 +110,8 @@ Landed in later slices:
   generated operation metadata: tenant ceiling/status/autonomy/revoke/refund/
   admin-key and session refund followed; auth logout/revoke, session delete,
   and tenant-grant issue/revoke too; codesign budget and session/ledger
-  export/import complete the set, so the inventory is 121 modeled /
-  11 client-only (from 91/40). The remaining names are transport/browser/
+  export/import complete the set, so the inventory is 124 modeled /
+  14 client-only (from 91/40). The remaining names are transport/browser/
   auth helpers plus the `fetchSessions` delegating wrapper; none is an
   unmodeled operation; the generator emits alias operations
   sharing one REST path without duplicating the OpenAPI operation;
@@ -135,6 +135,12 @@ Still open:
 
 - Manual VoiceOver/NVDA evidence: **NOT RUN**; the automated axe/forced-colors/
   200%-zoom/reduced-motion checks are green, but they are not a manual pass.
+- Design-system migration: only Button/Badge/EmptyState exist as shared
+  primitives; raw palette utilities remain and no stylelint rule enforces the
+  token boundary. Shell extraction, glass/DOM budgets, and the remaining chart
+  migrations are still open.
+- Transport hardening: typed auth enum, domain+id event coalescing, chat
+  request ids, and exercising `/api/v1` from the console remain open.
 - Legacy retirement: the molecule canvas and `WidgetStage` stay until object
   cards reach parity and the old aliases have one release of support.
 - Write settlement is not yet uniform across every write; LLM settings,
@@ -147,7 +153,7 @@ Still open:
   vocabulary. Auth logout/revoke still use inline status.
 - Per-send model override has no backend contract; the composer links to Model
   Hub instead of faking one.
-- The 11 remaining client-only names are intentional transport/browser/auth
+- The 14 remaining client-only names are intentional transport/browser/auth
   helpers (plus the delegating `fetchSessions` wrapper), not unmodeled
   operations.
 - Manual VoiceOver/NVDA pass and legacy-surface removal. The manual record is

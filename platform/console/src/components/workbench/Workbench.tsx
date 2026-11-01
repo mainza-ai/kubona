@@ -2,7 +2,7 @@
 
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { LayoutGrid, List, Maximize2, Minus, Plus } from 'lucide-react';
-import type { CampaignState, Job, Loop } from '@/types';
+import type { CampaignState, Job, Loop, Task } from '@/types';
 import { fetchCanvasLayout, fetchWorkbenchLayout, saveWorkbenchLayout, type ObligationRow } from '@/lib/api';
 import { Chart } from '@/components/data/LazyChart';
 import { Button } from '@/components/ui/Button';
@@ -33,6 +33,7 @@ type Props = {
   loops?: Loop[];
   jobs?: Job[];
   obligations?: ObligationRow[];
+  tasks?: Task[];
   onSelectObject?: (object: WorkbenchObject | null) => void;
   onOpenObject?: (kind: WorkbenchObjectKind) => void;
 };
@@ -43,9 +44,10 @@ export type WorkbenchHandle = {
 };
 
 export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workbench({
-  campaign, sessionId, loops = [], jobs: suppliedJobs, obligations: suppliedObligations, onSelectObject, onOpenObject,
+  campaign, sessionId, loops = [], jobs: suppliedJobs, obligations: suppliedObligations, tasks: suppliedTasks, onSelectObject, onOpenObject,
 }, ref) {
   const hostRef = useRef<HTMLDivElement>(null);
+  const worldRef = useRef<HTMLDivElement>(null);
   const revision = useRef(0);
   const loaded = useRef(false);
   const drag = useRef<{ x: number; y: number; camera: WorkbenchCamera } | null>(null);
@@ -55,14 +57,38 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
   const areaResize = useRef<{ id: string; x: number; y: number; width: number; height: number } | null>(null);
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [camera, setCamera] = useState<WorkbenchCamera>({ x: 36, y: 36, zoom: 0.82 });
+  const cameraRef = useRef(camera);
+  const zoomCommit = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [positions, setPositions] = useState<WorkbenchPositions>({});
   const [sizes, setSizes] = useState<WorkbenchSizes>({});
   const [storedLinks, setStoredLinks] = useState<WorkbenchLink[] | null>(null);
+  const [layoutObjects, setLayoutObjects] = useState<{ id: string; kind: WorkbenchObjectKind; ref?: { domain: string; id: string }; position: { x: number; y: number }; size: { width: number; height: number } }[]>([]);
   const [linkKind, setLinkKind] = useState<WorkbenchLink['kind']>('supports');
   const jobs = useMemo(() => suppliedJobs ?? [], [suppliedJobs]);
   const obligations = useMemo(() => suppliedObligations ?? [], [suppliedObligations]);
-  const baseObjects = useMemo(() => buildWorkbench(campaign, loops, jobs, obligations), [campaign, loops, jobs, obligations]);
+  const tasks = useMemo(() => suppliedTasks ?? [], [suppliedTasks]);
+  const baseObjects = useMemo(() => {
+    const projected = buildWorkbench(campaign, loops, jobs, obligations, tasks);
+    const known = new Set(projected.map((object) => object.id));
+    const unavailable: WorkbenchObject[] = layoutObjects
+      .filter((object) => !known.has(object.id) && object.ref)
+      .map((object) => ({
+        id: object.id,
+        kind: object.kind,
+        label: 'Unavailable',
+        title: `${object.ref!.domain} record ${object.ref!.id.slice(0, 12)}`,
+        detail: 'This reference is preserved in the layout but is not in the live projection.',
+        position: object.position,
+        size: object.size,
+        facts: [
+          { label: 'Domain', value: object.ref!.domain },
+          { label: 'Record', value: object.ref!.id },
+        ],
+        ref: object.ref,
+      }));
+    return [...projected, ...unavailable];
+  }, [campaign, loops, jobs, obligations, tasks, layoutObjects]);
   const links = useMemo(() => storedLinks ?? buildWorkbenchLinks(baseObjects), [storedLinks, baseObjects]);
   const [viewMode, setViewMode] = useState<'canvas' | 'list'>('canvas');
   const [areas, setAreas] = useState<WorkbenchArea[]>([]);
@@ -140,7 +166,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
       const object = objects.find((item) => item.id === id);
       const host = hostRef.current;
       if (!object || !host) return;
-      const zoom = Math.min(1.5, Math.max(0.35, camera.zoom));
+      const zoom = Math.min(1.5, Math.max(0.25, camera.zoom));
       setCamera({
         x: host.clientWidth / 2 - (object.position.x + object.size.width / 2) * zoom,
         y: host.clientHeight / 2 - (object.position.y + object.size.height / 2) * zoom,
@@ -154,6 +180,24 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
       onSelectObject?.(null);
     },
   }), [objects, camera.zoom, onSelectObject]);
+
+  const applyCamera = useCallback((next: WorkbenchCamera) => {
+    cameraRef.current = next;
+    if (worldRef.current) {
+      worldRef.current.style.transform = `translate3d(${next.x}px, ${next.y}px, 0) scale(${next.zoom})`;
+    }
+  }, []);
+
+  const commitCamera = useCallback(() => {
+    setCamera(cameraRef.current);
+  }, []);
+
+  useEffect(() => {
+    cameraRef.current = camera;
+    if (worldRef.current) {
+      worldRef.current.style.transform = `translate3d(${camera.x}px, ${camera.y}px, 0) scale(${camera.zoom})`;
+    }
+  }, [camera]);
 
   const fit = useCallback(() => {
     const host = hostRef.current;
@@ -178,6 +222,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
     setAreas(doc.areas);
     setAssignments(doc.assignments);
     setHidden(doc.hidden);
+    setLayoutObjects(doc.objects);
     setConflictRevision(null);
     loaded.current = true;
   }, []);
@@ -202,6 +247,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
       setCamera(readCamera(legacy));
       setPositions(readPositions(legacy));
       setSizes(readSizes(legacy));
+      setLayoutObjects([]);
       loaded.current = true;
     })();
     return () => {
@@ -281,22 +327,26 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
       const px = event.clientX - rect.left;
       const py = event.clientY - rect.top;
       const factor = Math.exp(-event.deltaY * 0.0015);
-      setCamera((current) => {
-        const zoom = Math.min(2, Math.max(0.35, current.zoom * factor));
-        return {
-          x: px - ((px - current.x) / current.zoom) * zoom,
-          y: py - ((py - current.y) / current.zoom) * zoom,
-          zoom,
-        };
+      const current = cameraRef.current;
+      const zoom = Math.min(2.5, Math.max(0.25, current.zoom * factor));
+      applyCamera({
+        x: px - ((px - current.x) / current.zoom) * zoom,
+        y: py - ((py - current.y) / current.zoom) * zoom,
+        zoom,
       });
+      if (zoomCommit.current) clearTimeout(zoomCommit.current);
+      zoomCommit.current = setTimeout(commitCamera, 120);
     };
     host.addEventListener('wheel', onWheel, { passive: false });
-    return () => host.removeEventListener('wheel', onWheel);
-  }, []);
+    return () => {
+      host.removeEventListener('wheel', onWheel);
+      if (zoomCommit.current) clearTimeout(zoomCommit.current);
+    };
+  }, [applyCamera, commitCamera]);
 
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.target !== event.currentTarget) return;
-    drag.current = { x: event.clientX, y: event.clientY, camera };
+    drag.current = { x: event.clientX, y: event.clientY, camera: cameraRef.current };
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
@@ -304,11 +354,13 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
     if (!drag.current) return;
     const dx = event.clientX - drag.current.x;
     const dy = event.clientY - drag.current.y;
-    setCamera({ ...drag.current.camera, x: drag.current.camera.x + dx, y: drag.current.camera.y + dy });
+    applyCamera({ ...drag.current.camera, x: drag.current.camera.x + dx, y: drag.current.camera.y + dy });
   };
 
   const onPointerUp = () => {
+    if (!drag.current) return;
     drag.current = null;
+    commitCamera();
   };
 
   const onCardPointerDown = (event: React.PointerEvent<HTMLElement>, object: WorkbenchObject) => {
@@ -636,6 +688,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
           </div>
         ) : (
         <div
+          ref={worldRef}
           className="k-workbench-world"
           style={{
             width: WORKBENCH_BOUNDS.width,

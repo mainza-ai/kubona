@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState, type ReactNode } from 'react';
-import type { CampaignState, Job } from '@/types';
+import type { CampaignState, Task, Job } from '@/types';
 import type { WorkbenchObject } from '@/components/workbench/workbench-model';
 import { jobStatusLabel } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
@@ -27,7 +27,7 @@ function Fact({ label, value }: { label: string; value: string }) {
 }
 
 export function Inspector({
-  open, tab, onTab, onClose, campaign, selectedObject, jobs, copilot, expanded = false, onOpenObject, onFocusObject, onRemoveObject,
+  open, tab, onTab, onClose, campaign, selectedObject, jobs, tasks = [], jobsStatus = 'ready', jobsError = null, onRefreshJobs, onCreateTask, onTaskStatus, copilot, expanded = false, onOpenObject, onFocusObject, onRemoveObject,
 }: {
   open: boolean;
   tab: InspectorTab;
@@ -36,6 +36,12 @@ export function Inspector({
   campaign: CampaignState | null;
   selectedObject: WorkbenchObject | null;
   jobs: Job[];
+  tasks?: Task[];
+  onCreateTask?: (object: WorkbenchObject) => void;
+  onTaskStatus?: (taskId: string, status: 'open' | 'done') => void;
+  jobsStatus?: 'idle' | 'loading' | 'ready' | 'stale' | 'refused';
+  jobsError?: string | null;
+  onRefreshJobs?: () => void;
   copilot: ReactNode;
   expanded?: boolean;
   onOpenObject?: (object: WorkbenchObject) => void;
@@ -132,6 +138,15 @@ export function Inspector({
                     {onOpenObject && <Button type="button" size="compact" onClick={() => onOpenObject(selectedObject)}>Open</Button>}
                     {onFocusObject && <Button type="button" size="compact" variant="ghost" onClick={() => onFocusObject(selectedObject)}>Focus</Button>}
                     {onRemoveObject && <Button type="button" size="compact" variant="ghost" onClick={() => onRemoveObject(selectedObject)}>Remove from canvas</Button>}
+                    {onCreateTask && selectedObject.kind !== 'task' && selectedObject.ref && (
+                      <Button type="button" size="compact" variant="ghost" onClick={() => onCreateTask(selectedObject)}>Create task</Button>
+                    )}
+                    {onTaskStatus && selectedObject.kind === 'task' && selectedObject.ref && (() => {
+                      const task = tasks.find((item) => item.id === selectedObject.ref!.id);
+                      if (!task) return null;
+                      const next = task.status === 'done' ? 'open' : 'done';
+                      return <Button type="button" size="compact" variant="ghost" onClick={() => onTaskStatus(task.id, next)}>{next === 'done' ? 'Mark done' : 'Reopen task'}</Button>;
+                    })()}
                   </div>
                 </>
               ) : campaign ? (
@@ -180,7 +195,13 @@ export function Inspector({
 
           {tab === 'jobs' && (
             <section role="tabpanel" aria-label="Jobs" className="space-y-2">
-              {jobs.length === 0 ? <p className="text-[12px] text-slate-400">No jobs recorded for this campaign.</p> : jobs.map((job) => (
+              {jobsError && (
+                <div role="alert" className="rounded-xl border border-amber-500/30 bg-amber-950/30 p-2.5 text-[12px] text-amber-200">
+                  <p>Jobs unavailable: {jobsError}</p>
+                  {onRefreshJobs && <button type="button" onClick={onRefreshJobs} className="mt-1 underline underline-offset-2">Retry</button>}
+                </div>
+              )}
+              {!jobsError && jobs.length === 0 ? <p className="text-[12px] text-slate-400">{jobsStatus === 'loading' ? 'Loading jobs…' : 'No jobs recorded for this campaign.'}</p> : jobs.map((job) => (
                 <div key={job.id} className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-2.5 text-[12px]">
                   <div className="flex items-center justify-between gap-2">
                     <span className="font-mono text-slate-300">{job.job_type || 'job'}</span>

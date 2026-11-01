@@ -468,6 +468,44 @@
         }
       }
     },
+    "/api/tasks": {
+      "post": {
+        "operationId": "createTask",
+        "tags": [
+          "tasks"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/task"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "fetchTasksResult",
+        "tags": [
+          "tasks"
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: tasks.list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/tasks.list"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/agents/custom/{id}": {
       "delete": {
         "operationId": "deleteCustomAgent",
@@ -926,7 +964,7 @@
     },
     "/api/events": {
       "get": {
-        "operationId": "fetchEvents",
+        "operationId": "fetchEventsResult",
         "tags": [
           "events"
         ],
@@ -1016,7 +1054,7 @@
     },
     "/api/jobs": {
       "get": {
-        "operationId": "fetchJobs",
+        "operationId": "fetchJobsResult",
         "tags": [
           "jobs"
         ],
@@ -1134,7 +1172,7 @@
     },
     "/api/loops": {
       "get": {
-        "operationId": "fetchLoops",
+        "operationId": "fetchLoopsResult",
         "tags": [
           "loops"
         ],
@@ -2507,6 +2545,36 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/llm.test"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/tasks/{id}": {
+      "post": {
+        "operationId": "updateTaskStatus",
+        "tags": [
+          "tasks"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Response contract: task",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/task"
                 }
               }
             }
@@ -4226,6 +4294,87 @@
           }
         }
       },
+      "task": {
+        "type": "object",
+        "required": [
+          "id",
+          "session_id",
+          "title",
+          "status",
+          "source_domain",
+          "source_id",
+          "created_at",
+          "updated_at"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "session_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "source_domain": {
+            "type": "string"
+          },
+          "source_id": {
+            "type": "string"
+          },
+          "created_at": {
+            "type": "string"
+          },
+          "updated_at": {
+            "type": "string"
+          }
+        }
+      },
+      "tasks.list": {
+        "type": "object",
+        "required": [
+          "tasks"
+        ],
+        "properties": {
+          "tasks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "session_id",
+                "title",
+                "status",
+                "created_at",
+                "updated_at"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "session_id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string"
+                },
+                "created_at": {
+                  "type": "string"
+                },
+                "updated_at": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      },
       "cost.summary": {
         "type": "object",
         "required": [
@@ -4499,6 +4648,9 @@
     "configureApiBase",
     "downloadFile",
     "fetchBackendStatus",
+    "fetchEvents",
+    "fetchJobs",
+    "fetchLoops",
     "fetchSessions",
     "isTerminalJobStatus",
     "jobStatusLabel",

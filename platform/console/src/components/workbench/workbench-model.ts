@@ -1,4 +1,4 @@
-import type { CampaignState, Job, Loop } from '@/types';
+import type { CampaignState, Job, Loop, Task } from '@/types';
 import type { ObligationRow } from '@/lib/api';
 import type { ChartSpec } from '@/components/data/chart';
 
@@ -19,7 +19,8 @@ export type WorkbenchObjectKind =
   | 'table'
   | 'approval'
   | 'note'
-  | 'molecule';
+  | 'molecule'
+  | 'task';
 
 export type WorkbenchLink = {
   id: string;
@@ -62,7 +63,7 @@ export function readCamera(raw: Record<string, unknown> | null): WorkbenchCamera
   if (!camera || typeof camera !== 'object') return DEFAULT_CAMERA;
   const { x, y, zoom } = camera as Record<string, unknown>;
   if (!finite(x) || !finite(y) || !finite(zoom)) return DEFAULT_CAMERA;
-  return { x, y, zoom: Math.min(2, Math.max(0.35, zoom)) };
+  return { x, y, zoom: Math.min(2.5, Math.max(0.25, zoom)) };
 }
 
 export function readPositions(raw: Record<string, unknown> | null): WorkbenchPositions {
@@ -196,6 +197,7 @@ export function buildWorkbench(
   loops: Loop[] = [],
   jobs: Job[] = [],
   obligations: ObligationRow[] = [],
+  tasks: Task[] = [],
 ): WorkbenchObject[] {
   if (!campaign) return [];
   const qf = campaign.quantum_factors;
@@ -216,7 +218,8 @@ export function buildWorkbench(
       facts: [
         { label: 'Target', value: value(campaign.target_system) },
         { label: 'Status', value: value(epistemics?.status) },
-        { label: 'Hypothesis', value: value(campaign.hypothesis_id, 'not recorded') },
+        { label: 'Anchor', value: anchored ? 'computed' : 'UNVERIFIED' },
+        { label: 'Est. spend', value: typeValue(qf?.estimated_spend_usd) },
       ],
     },
     {
@@ -323,6 +326,12 @@ export function buildWorkbench(
     });
   });
   jobs.slice(0, 160).forEach((job, index) => {
+    let params: Record<string, unknown> = {};
+    try {
+      params = typeof job.params_json === 'string' ? JSON.parse(job.params_json) as Record<string, unknown> : job.params_json || {};
+    } catch {
+      params = {};
+    }
     objects.push({
       id: `job-${job.id}`,
       kind: 'job',
@@ -334,8 +343,11 @@ export function buildWorkbench(
       size: { width: 380, height: 180 },
       facts: [
         { label: 'Status', value: String(job.status) },
+        { label: 'Backend', value: value(params.requested_backend ?? params.backend, 'not recorded') },
+        { label: 'Shots', value: value(params.shots, 'not recorded') },
         { label: 'Created', value: job.created_at || 'not recorded' },
         { label: 'Completed', value: job.completed_at || 'not yet' },
+        { label: 'Result', value: job.result_json ? 'recorded' : 'not recorded' },
       ],
     });
   });
@@ -371,6 +383,23 @@ export function buildWorkbench(
         { label: 'Close ready', value: obligation.close_ready ? 'YES' : 'no' },
         { label: 'Cases', value: obligation.required_cases.length ? obligation.required_cases.join(', ') : 'none' },
         { label: 'Authorities', value: obligation.required_authorities.length ? obligation.required_authorities.join(', ') : 'none' },
+      ],
+    });
+  });
+  tasks.slice(0, 160).forEach((task, index) => {
+    objects.push({
+      id: `task-${task.id}`,
+      kind: 'task',
+      ref: { domain: 'task', id: task.id },
+      label: 'Task',
+      title: task.title,
+      detail: task.source_domain ? `${task.source_domain} · ${task.source_id}` : 'No source record',
+      position: { x: 840, y: 1140 + index * 210 },
+      size: { width: 380, height: 180 },
+      facts: [
+        { label: 'Status', value: task.status },
+        { label: 'Source', value: task.source_domain || 'none' },
+        { label: 'Updated', value: task.updated_at || 'not recorded' },
       ],
     });
   });
@@ -439,6 +468,7 @@ export type WorkbenchDocument = {
 
 export function readWorkbenchDocument(raw: Record<string, unknown> | null): {
   camera: WorkbenchCamera;
+  objects: { id: string; kind: WorkbenchObjectKind; ref?: { domain: string; id: string }; position: { x: number; y: number }; size: { width: number; height: number } }[];
   positions: WorkbenchPositions;
   sizes: WorkbenchSizes;
   links: WorkbenchLink[];
@@ -454,6 +484,7 @@ export function readWorkbenchDocument(raw: Record<string, unknown> | null): {
   const areas: WorkbenchArea[] = Array.isArray(raw?.areas) ? (raw.areas as WorkbenchArea[]) : [];
   const assignments: Record<string, string> = {};
   const hidden: string[] = Array.isArray(raw?.hidden) ? raw!.hidden.filter((id): id is string => typeof id === 'string') : [];
+  const layoutObjects: { id: string; kind: WorkbenchObjectKind; ref?: { domain: string; id: string }; position: { x: number; y: number }; size: { width: number; height: number } }[] = [];
   for (const item of objects) {
     if (!item || typeof item !== 'object') continue;
     const object = item as { id?: unknown; position?: unknown; size?: unknown };
@@ -468,8 +499,23 @@ export function readWorkbenchDocument(raw: Record<string, unknown> | null): {
       const { width, height } = object.size as Record<string, unknown>;
       if (finite(width) && finite(height) && width > 0 && height > 0) sizes[object.id] = { width, height };
     }
+    const ref = (item as { ref?: unknown }).ref;
+    const kind = (item as { kind?: unknown }).kind;
+    if (ref && typeof ref === 'object') {
+      const domain = (ref as { domain?: unknown }).domain;
+      const refId = (ref as { id?: unknown }).id;
+      if (typeof domain === 'string' && typeof refId === 'string') {
+        layoutObjects.push({
+          id: object.id,
+          kind: typeof kind === 'string' ? kind as WorkbenchObjectKind : 'note',
+          ref: { domain, id: refId },
+          position: positions[object.id] ?? { x: 0, y: 0 },
+          size: sizes[object.id] ?? { width: 380, height: 180 },
+        });
+      }
+    }
   }
-  return { camera, positions, sizes, links, areas, assignments, hidden };
+  return { camera, objects: layoutObjects, positions, sizes, links, areas, assignments, hidden };
 }
 
 export function buildWorkbenchLinks(objects: WorkbenchObject[]): WorkbenchLink[] {

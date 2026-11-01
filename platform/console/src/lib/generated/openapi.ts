@@ -538,6 +538,28 @@ export type LedgerExportDocument = {
   "markdown"?: string;
 };
 
+export type Task = {
+  "id": string;
+  "session_id": string;
+  "title": string;
+  "status": string;
+  "source_domain": string;
+  "source_id": string;
+  "created_at": string;
+  "updated_at": string;
+};
+
+export type TasksList = {
+  "tasks": {
+  "id": string;
+  "session_id": string;
+  "title": string;
+  "status": string;
+  "created_at": string;
+  "updated_at": string;
+}[];
+};
+
 export type CostSummary = {
   "cap_usd": number;
   "spent_usd": number;
@@ -630,6 +652,7 @@ export type ApiOperationResponse = {
   createCustomAgent: AgentOne;
   createLab: Lab;
   createSession: SessionCreate;
+  createTask: Task;
   deleteCustomAgent: AgentsCustomDelete;
   deleteSession: SessionDelete;
   emergencyAbort: Abort;
@@ -650,18 +673,18 @@ export type ApiOperationResponse = {
   fetchCostSummary: CostSummary;
   fetchCustomAgents: AgentsCustom;
   fetchEpistemics: Epistemics;
-  fetchEvents: EventsList;
+  fetchEventsResult: EventsList;
   fetchFidelity: Fidelity;
   fetchFleet: Fleet;
   fetchJob: Job;
-  fetchJobs: JobsList;
+  fetchJobsResult: JobsList;
   fetchLLMModels: LlmModels;
   fetchLLMSettings: LlmSettings;
   fetchLabs: LabsList;
   fetchLatestPrediction: VaultLatest;
   fetchLedgerExport: LedgerExportDocument;
   fetchLensHistory: LensHistory;
-  fetchLoops: LoopsList;
+  fetchLoopsResult: LoopsList;
   fetchMemoryRecall: MemoryRecall;
   fetchMessages: MessagesList;
   fetchMetasearchProposals: MetasearchProposals;
@@ -679,6 +702,7 @@ export type ApiOperationResponse = {
   fetchSessionContext: SessionContext;
   fetchSessionsResult: SessionsList;
   fetchSystemAgents: AgentsSystem;
+  fetchTasksResult: TasksList;
   fetchWorkbenchLayout: WorkbenchLayout;
   getHFModelDetails: HfDetails;
   importSession: SessionImport;
@@ -731,6 +755,7 @@ export type ApiOperationResponse = {
   submitQuantumJob: QuantumSubmit;
   synthesizeCampaign: Campaign;
   testLLM: LlmTest;
+  updateTaskStatus: Task;
   uploadObservatoryAsset: LensAsset;
   verifyLedger: LedgerVerify;
   verifySpendMandate: MandateVerify;
@@ -754,6 +779,7 @@ export const API_OPERATIONS = {
   createCustomAgent: { method: "post", path: "/api/agents/custom", response: "agent.one" },
   createLab: { method: "post", path: "/api/tenants", response: "lab" },
   createSession: { method: "post", path: "/api/sessions", response: "session.create" },
+  createTask: { method: "post", path: "/api/tasks", response: "task" },
   deleteCustomAgent: { method: "delete", path: "/api/agents/custom/{id}", response: "agents.custom.delete" },
   deleteSession: { method: "delete", path: "/api/sessions/{id}", response: "session.delete" },
   emergencyAbort: { method: "post", path: "/api/supervisor/abort", response: "abort" },
@@ -774,18 +800,18 @@ export const API_OPERATIONS = {
   fetchCostSummary: { method: "get", path: "/api/cost/summary", response: "cost.summary" },
   fetchCustomAgents: { method: "get", path: "/api/agents/custom", response: "agents.custom" },
   fetchEpistemics: { method: "get", path: "/api/epistemics", response: "epistemics" },
-  fetchEvents: { method: "get", path: "/api/events", response: "events.list" },
+  fetchEventsResult: { method: "get", path: "/api/events", response: "events.list" },
   fetchFidelity: { method: "get", path: "/api/fidelity", response: "fidelity" },
   fetchFleet: { method: "get", path: "/api/fleet", response: "fleet" },
   fetchJob: { method: "get", path: "/api/jobs/{id}", response: "job" },
-  fetchJobs: { method: "get", path: "/api/jobs", response: "jobs.list" },
+  fetchJobsResult: { method: "get", path: "/api/jobs", response: "jobs.list" },
   fetchLLMModels: { method: "get", path: "/api/llm/models", response: "llm.models" },
   fetchLLMSettings: { method: "get", path: "/api/llm/settings", response: "llm.settings" },
   fetchLabs: { method: "get", path: "/api/tenants", response: "labs.list" },
   fetchLatestPrediction: { method: "get", path: "/api/vault/predictions/latest", response: "vault.latest" },
   fetchLedgerExport: { method: "post", path: "/api/ledger/export", response: "ledger.export.document" },
   fetchLensHistory: { method: "get", path: "/api/observatory/lens/history", response: "lens.history" },
-  fetchLoops: { method: "get", path: "/api/loops", response: "loops.list" },
+  fetchLoopsResult: { method: "get", path: "/api/loops", response: "loops.list" },
   fetchMemoryRecall: { method: "get", path: "/api/memory/recall", response: "memory.recall" },
   fetchMessages: { method: "get", path: "/api/sessions/{id}/messages", response: "messages.list" },
   fetchMetasearchProposals: { method: "get", path: "/api/metasearch/proposals", response: "metasearch.proposals" },
@@ -803,6 +829,7 @@ export const API_OPERATIONS = {
   fetchSessionContext: { method: "get", path: "/api/sessions/context", response: "session.context" },
   fetchSessionsResult: { method: "get", path: "/api/sessions", response: "sessions.list" },
   fetchSystemAgents: { method: "get", path: "/api/agents", response: "agents.system" },
+  fetchTasksResult: { method: "get", path: "/api/tasks", response: "tasks.list" },
   fetchWorkbenchLayout: { method: "get", path: "/api/workbench/layout", response: "workbench.layout" },
   getHFModelDetails: { method: "get", path: "/api/hf/models/{id}", response: "hf.details" },
   importSession: { method: "post", path: "/api/sessions/import", response: "session.import" },
@@ -855,6 +882,7 @@ export const API_OPERATIONS = {
   submitQuantumJob: { method: "post", path: "/api/quantum/jobs", response: "quantum.submit" },
   synthesizeCampaign: { method: "post", path: "/api/sessions/{id}/campaign/synthesize", response: "campaign" },
   testLLM: { method: "post", path: "/api/llm/test", response: "llm.test" },
+  updateTaskStatus: { method: "post", path: "/api/tasks/{id}", response: "task" },
   uploadObservatoryAsset: { method: "post", path: "/api/observatory/assets", response: "lens.asset" },
   verifyLedger: { method: "get", path: "/api/ledger/verify", response: "ledger.verify" },
   verifySpendMandate: { method: "post", path: "/api/mandates/verify", response: "mandate.verify" },

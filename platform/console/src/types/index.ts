@@ -92,6 +92,17 @@ export interface ChatMessage {
   };
 }
 
+export interface Task {
+  id: string;
+  session_id: string;
+  title: string;
+  status: 'open' | 'done' | string;
+  source_domain: string;
+  source_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Job {
   id: string;
   session_id: string;

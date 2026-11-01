@@ -246,6 +246,26 @@
         "session_id"
       ]
     },
+    "task_created": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Session task created.",
+      "required": [
+        "task_id",
+        "title"
+      ]
+    },
+    "task_status_changed": {
+      "emitters": [
+        "go"
+      ],
+      "payload": "Session task status changed.",
+      "required": [
+        "task_id",
+        "status"
+      ]
+    },
     "chat_rewritten": {
       "emitters": [
         "go"

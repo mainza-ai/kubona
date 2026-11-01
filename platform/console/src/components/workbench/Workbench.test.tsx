@@ -302,4 +302,17 @@ describe('Workbench', () => {
     await act(async () => { undo.props.onClick(); });
     expect(tree!.root.findAllByProps({ 'data-kind': 'campaign' })).toHaveLength(1);
   });
+
+  it('projects session tasks as explicit task cards', async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<Workbench campaign={campaign} sessionId="s1" tasks={[{
+        id: 't1', session_id: 's1', title: 'Review anchor', status: 'open',
+        source_domain: 'measurement', source_id: 'm1', created_at: '', updated_at: '',
+      }]} />);
+    });
+    const tasks = tree!.root.findAllByProps({ 'data-kind': 'task' });
+    expect(tasks).toHaveLength(1);
+    expect(tasks[0].findAllByType('h3')[0].props.children).toBe('Review anchor');
+  });
 });
