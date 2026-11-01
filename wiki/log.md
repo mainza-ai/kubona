@@ -4487,3 +4487,9 @@ skipped is the exact failure this incident is about:
 - Project the molecule as a typed workbench object and route Open to the
   existing 2D/3D molecule workbench, preserving a single physics owner.
   Updated [[remaining-work]]; no new page.
+
+## [2026-11-01] impl | Workbench projection ceiling
+
+- Raised projection caps for loops/jobs/obligations and added a 300+ object
+  projection/serialization median budget (<250 ms). This is a regression guard,
+  not a browser FPS claim. Updated [[remaining-work]]; no new page.
