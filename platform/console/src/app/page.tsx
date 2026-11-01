@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Sparkles, Plus, Zap, Info, HelpCircle, Trash2, Clock, Box, X } from 'lucide-react';
-import { Session, Loop, LedgerEvent, CampaignState, RunPhase, ProbeId } from '@/types';
+import { Session, Loop, LedgerEvent, RunPhase, ProbeId } from '@/types';
 import { fetchSessions, fetchSession, createSession, deleteSession, fetchLoops, fetchEvents, fetchCampaignState, API_BASE, authHeaders, configureApiBase, apiFetch, UNAUTH_EVENT, API_PROBLEM_EVENT, type ApiProblem } from '@/lib/api';
 import { mergeSessionEvents, useSessionStream } from '@/lib/useSessionStream';
+import { useCampaignProjection } from '@/lib/useCampaignProjection';
 import { SHORTCUTS, SHORTCUT_TARGETS, KEY_TO_SHORTCUT, type ShortcutKey } from '@/lib/shortcuts';
 import { CopilotDrawer } from '@/components/CopilotDrawer';
 import { AboutLabModal } from '@/components/AboutLabModal';
@@ -218,8 +219,8 @@ export default function Home() {
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
   const bootstrappedSession = useRef(false);
   const prevPhase = useRef<RunPhase>('idle');
-  const [campaign, setCampaign] = useState<CampaignState | null>(null);
   const [loops, setLoops] = useState<Loop[]>([]);
+  const { campaign, setCampaign, reload: reloadCampaign } = useCampaignProjection(currentSessionId || null);
   const [events, setEvents] = useState<LedgerEvent[]>([]);
   const [nowTick, setNowTick] = useState(0);
 
@@ -289,12 +290,6 @@ export default function Home() {
     eventsRef.current = events;
   }, [events]);
 
-  useEffect(() => {
-    if (currentSessionId) {
-      fetchCampaignState(currentSessionId).then(setCampaign);
-    }
-  }, [currentSessionId]);
-
   const switchSession = useCallback((id: string) => {
     setCanvasWidget(null);
     setCurrentSessionId(id);
@@ -314,7 +309,7 @@ export default function Home() {
     const camp = await fetchCampaignState(sessionId);
     if (camp) setCampaign(camp);
     refreshData();
-  }, [switchSession, refreshData]);
+  }, [switchSession, refreshData, setCampaign]);
 
   useEffect(() => {
     let mounted = true;
@@ -444,7 +439,7 @@ export default function Home() {
       clearTimeout(tickTimer);
       clearInterval(clock);
     };
-  }, [currentSessionId, refreshData, switchSession, runPhase, streamLive]);
+  }, [currentSessionId, refreshData, switchSession, runPhase, streamLive, setCampaign]);
   const handleCreateSession = useCallback(() => {
     setIsNewCampaignModalOpen(true);
   }, []);
@@ -484,7 +479,7 @@ export default function Home() {
       createFailedRef.current = failure !== null;
       setCreateError(failure);
     },
-    [switchSession]
+    [switchSession, setCampaign]
   );
 
   // Wave-3: delete-campaign stages a typed ConfirmDialog (session short-id)
@@ -538,7 +533,7 @@ export default function Home() {
     } finally {
       setDeleteBusy(false);
     }
-  }, [deleteDraft, deleteBusy, currentSessionId, switchSession]);
+  }, [deleteDraft, deleteBusy, currentSessionId, switchSession, setCampaign]);
 
   // Emergency abort via typed ConfirmDialog (Wave-2): the destructive
   // request (endpoint, body, refusal/success handling) is identical to the
@@ -1245,7 +1240,7 @@ export default function Home() {
             onToggleExpand={() => setIsCopilotExpanded((prev) => !prev)}
             onExperimentLaunched={() => {
               refreshData();
-              if (currentSessionId) fetchCampaignState(currentSessionId).then(setCampaign);
+              void reloadCampaign();
             }}
             onCampaignUpdated={(c) => setCampaign(c)}
             onSelectSurface={handleCopilotSurface}
