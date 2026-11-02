@@ -4792,5 +4792,7 @@ skipped is the exact failure this incident is about:
 - Made the operator E2E repeatable by creating a fresh lab and registering its
   browser key, then logging in; it now passes twice on the same database and on
   a fresh database.
-- Verification: 13 real-stack browser tests, 11 mocked regression E2E tests,
-  557 console tests, full Go suite, 23 Rust tests, and 44 related Python tests.
+- Verification: 13 real-stack browser tests (fresh database and repeat runs),
+  11 mocked regression E2E tests, 557 console tests, full Go suite, 23 Rust
+  tests, and 44 related Python tests. CI `41453479027` and Console E2E
+  `41453478802` are green at `301b4cb`.
