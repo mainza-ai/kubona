@@ -43,6 +43,16 @@ export type Fleet = {
   "backends": unknown[];
 };
 
+export type Access = {
+  "mode": string;
+  "role": string;
+  "single_lab": boolean;
+  "anonymous_chat": boolean;
+  "llm_local": boolean;
+  "campaign_create": boolean;
+  "auth_required": boolean;
+};
+
 export type Capabilities = {
   "catalog_digest": string;
   "harnesses": string[];
@@ -664,6 +674,7 @@ export type ApiOperationResponse = {
   evaluatePrediction: PredictionEvaluate;
   exportLedger: LedgerExportDocument;
   exportSession: SessionExport;
+  fetchAccess: Access;
   fetchAutoresearchHarnesses: AutoresearchHarnesses;
   fetchAutoresearchLoops: AutoresearchLoops;
   fetchCalibration: VaultCalibration;
@@ -791,6 +802,7 @@ export const API_OPERATIONS = {
   evaluatePrediction: { method: "post", path: "/api/vault/predictions/evaluate", response: "prediction.evaluate" },
   exportLedger: { method: "post", path: "/api/ledger/export", response: "ledger.export.document" },
   exportSession: { method: "post", path: "/api/sessions/export", response: "session.export" },
+  fetchAccess: { method: "get", path: "/api/access", response: "access" },
   fetchAutoresearchHarnesses: { method: "get", path: "/api/autoresearch/harnesses", response: "autoresearch.harnesses" },
   fetchAutoresearchLoops: { method: "get", path: "/api/autoresearch/loops", response: "autoresearch.loops" },
   fetchCalibration: { method: "get", path: "/api/vault/predictions/calibration", response: "vault.calibration" },

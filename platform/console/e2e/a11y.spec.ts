@@ -18,7 +18,7 @@ test('WCAG 2 A/AA automated audit on core surfaces', async ({ page }) => {
 
   await page.getByTestId('dock-mesh').click();
   await page.getByRole('button', { name: 'Laboratories' }).click();
-  await expect(page.getByText('Operator session')).toBeVisible();
+  await expect(page.getByText('Lab session')).toBeVisible();
   await audit(page, 'labs');
 
   await page.getByRole('button', { name: 'Sovereign Settings' }).click();

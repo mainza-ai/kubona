@@ -4932,3 +4932,17 @@ skipped is the exact failure this incident is about:
   private/researcher with no sign-in and completed a live campaign + Copilot reply.
   Verification: 115 console files / 576 tests, full Go suite, isolated E2E smoke,
   and the final :8080 real-stack E2E smoke.
+
+## [2026-11-02] fix | Workbench layout flicker
+
+- Root cause: `workbenchDocument` stored the `molecule` card kind, while the server's
+  `workbenchKinds` allowlist omitted it. Every layout PUT returned 400, so the toolbar
+  repeatedly showed `refused · HTTP 400` and the Workbench save state oscillated.
+- Added `molecule` to the server layout allowlist and a regression case in the layout
+  validation test. Workbench now skips saves when the serialized layout document is
+  unchanged, preventing redundant revision churn.
+- Also updated E2E expectations from the old `Operator session` label to `Lab session`,
+  regenerated repo-counts/OpenAPI artifacts, and fixed the anonymous Labs setup path so
+  a first admin can still create a lab.
+- Verification: live Workbench PUT 200, toolbar `applied · revision N`; isolated a11y and
+  operator E2E pass; 115 console files / 576 tests; full Go suite; tsc; ESLint; build.

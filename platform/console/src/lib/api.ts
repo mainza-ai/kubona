@@ -102,6 +102,8 @@ export const UNAUTH_EVENT = 'kubona:unauthorized';
 // Surfaces listen to this locally; it must never render the global
 // "Session expired" banner.
 export const AUTH_REQUIRED_EVENT = 'kubona:auth-required';
+/** A real login/logout changed the identity. Labs re-reads its role. */
+export const AUTH_CHANGED_EVENT = 'kubona:auth-changed';
 // Any non-2xx/transport failure notifies the shell, even when a legacy
 // wrapper below collapses it to []/null. Surfaces can keep their local
 // empty-state copy without hiding a refusal globally.
@@ -2223,6 +2225,9 @@ export async function authLogin(
     })) as unknown as { ok: true; tenant_id: string; pubkey_fp: string };
     authenticatedSession = true;
     setAuthPhase('authenticated');
+    if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+      window.dispatchEvent(new CustomEvent(AUTH_CHANGED_EVENT));
+    }
     return data;
   } catch (err) {
     if (err instanceof OperationError) return { error: err.message };
@@ -2237,6 +2242,9 @@ export async function authLogout(): Promise<boolean> {
     if (data.ok === true) {
       authenticatedSession = false;
       setAuthPhase('anonymous');
+      if (typeof window !== 'undefined' && typeof window.dispatchEvent === 'function') {
+        window.dispatchEvent(new CustomEvent(AUTH_CHANGED_EVENT));
+      }
     }
     return data.ok === true;
   } catch (err) {

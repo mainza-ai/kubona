@@ -3810,7 +3810,7 @@ var workbenchKinds = map[string]bool{
 	"campaign": true, "hypothesis": true, "circuit": true, "job": true,
 	"measurement": true, "evidence": true, "proof": true, "manuscript": true,
 	"chart": true, "table": true, "note": true, "task": true,
-	"agent_run": true, "approval": true, "area": true,
+	"agent_run": true, "approval": true, "molecule": true, "area": true,
 }
 
 var workbenchRefDomains = map[string]bool{
