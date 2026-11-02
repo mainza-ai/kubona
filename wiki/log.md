@@ -4740,7 +4740,7 @@ skipped is the exact failure this incident is about:
 - Closed the anonymous 401 outage toast, bootstrapped auth, and put one banner
   slot in the shell.
 - Canonicalized job status to lowercase with a compatibility code; expanded
-  handler contract checks to 25 reads and v1 parity to 12 modeled reads.
+  handler contract checks to 43 reads + 10 writes and v1 parity to 12 modeled reads.
 - Replaced the EventSource client with authenticated fetch-SSE, reconnect and
   domain invalidation; paused projection polls while live; added ledger paging.
 - Added operation receipts/reconciliation and idempotent layout/task writes.
