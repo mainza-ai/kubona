@@ -136,8 +136,8 @@ Still open:
 - Manual VoiceOver/NVDA evidence: **NOT RUN**; the automated axe/forced-colors/
   200%-zoom/reduced-motion checks are green, but they are not a manual pass.
 - Design-system migration: only Button/Badge/EmptyState exist as shared
-  primitives; raw palette utilities remain and no stylelint rule enforces the
-  token boundary. Shell extraction, glass/DOM budgets, and the remaining chart
+  primitives; raw palette utilities remain, but a CI ratchet now blocks new
+  debt (baseline 873 occurrences). Shell extraction, glass/DOM budgets, and the remaining chart
   migrations are still open. Lazy surface chunks cut mocked initial transfer
   from 654 KB to 585 KB, still above the 480 KB target; Arena DOM measured 843
   visible / 923 total against the ≤500 target. The fleet view now has an exact

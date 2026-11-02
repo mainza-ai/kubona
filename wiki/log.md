@@ -4716,3 +4716,9 @@ skipped is the exact failure this incident is about:
 
 - Add an exact fleet capability table (qubits, queue, cost/shot, jurisdiction,
   credential, telemetry) beside the queue chart, with per-row provenance.
+
+## [2026-11-01] chore | Raw-palette hold-the-line ratchet
+
+- Add `scripts/console-token-lint.mjs` and a CI step. Existing raw palette
+  debt is baselined at 873 occurrences; new debt fails CI and reductions can
+  lower the baseline after review.
