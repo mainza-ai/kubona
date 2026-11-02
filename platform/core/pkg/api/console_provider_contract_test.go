@@ -14,10 +14,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/mainza-ai/kubona/core/pkg/agents"
+	"github.com/mainza-ai/kubona/core/pkg/autoresearch"
 	"github.com/mainza-ai/kubona/core/pkg/hf"
 	"github.com/mainza-ai/kubona/core/pkg/jobs"
 	"github.com/mainza-ai/kubona/core/pkg/ledger"
 	"github.com/mainza-ai/kubona/core/pkg/llm"
+	"github.com/mainza-ai/kubona/core/pkg/sandbox"
 	"github.com/mainza-ai/kubona/core/pkg/session"
 	"github.com/mainza-ai/kubona/core/pkg/supervisor"
 	"github.com/mainza-ai/kubona/core/pkg/tenants"
@@ -69,8 +72,10 @@ func (p *providerContractBridge) EvaluateCodesign(_ context.Context, req *pb.Cod
 	switch req.GetOperation() {
 	case "budget":
 		body = `{"ok":true,"rows":[],"union_bound":0}`
+	case "spec":
+		body = `{"ok":true,"spec_kind":"and2","num_qubits":3,"inputs":[0,1],"outputs":[2]}`
 	case "evaluate":
-		body = `{"ok":true,"spec_kind":"tq","result":{}}`
+		body = `{"ok":true,"spec_kind":"and2","result":{"valid":true,"toffoli":1,"peak_qubits":3,"tq":10,"reason":"ok"}}`
 	case "batch":
 		body = `{"ok":true,"spec_kind":"tq","frontier":{},"details":[]}`
 	default:
@@ -644,4 +649,292 @@ func TestConsoleChatContracts(t *testing.T) {
 	if err := validateOpenAPISchema(doc, responseContractFor(t, doc, http.MethodPost, "/api/chat/tribunal"), tribPayload, "$"); err != nil {
 		t.Fatalf("tribunal.run contract: %v", err)
 	}
+}
+
+func TestConsoleMetasearchContracts(t *testing.T) {
+	srv, _, _, cleanup := newProviderContractServer(t)
+	defer cleanup()
+	handler := srv.Handler()
+	doc := loadConsoleOpenAPI(t)
+	approved := srv.metaSearchEngine.ProposeSearchRefinement("loop-a", "ansatz-search", "search.md", "old", "--- a\n+++ b\n", "contract")
+	rejected := srv.metaSearchEngine.ProposeSearchRefinement("loop-b", "ansatz-search", "search.md", "old", "--- a\n+++ b\n", "contract")
+	call := func(path, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer provider-contract-token")
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		return w
+	}
+	steps := []struct {
+		path string
+		body string
+	}{
+		{"/api/metasearch/approve", `{"proposal_id":"` + approved.ID + `","signer":"contract-reviewer"}`},
+		{"/api/metasearch/apply", `{"proposal_id":"` + approved.ID + `"}`},
+		{"/api/metasearch/reject", `{"proposal_id":"` + rejected.ID + `","signer":"contract-reviewer"}`},
+	}
+	for _, step := range steps {
+		w := call(step.path, step.body)
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: %d %s", step.path, w.Code, w.Body.String())
+		}
+		var payload any
+		if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if err := validateOpenAPISchema(doc, responseContractFor(t, doc, http.MethodPost, step.path), payload, "$"); err != nil {
+			t.Fatalf("%s contract: %v", step.path, err)
+		}
+	}
+}
+
+func TestConsoleTribunalResumeContract(t *testing.T) {
+	srv, _, sessID := setupResumeDrill(t)
+	res, err := srv.collective.ExecuteTribunalWithSession(context.Background(), nil, nil, nil, sessID, "contract seed")
+	if err != nil {
+		t.Fatalf("seed tribunal: %v", err)
+	}
+	bundle, err := agents.MarshalTribunalBundle(res)
+	if err != nil {
+		t.Fatalf("bundle: %v", err)
+	}
+	body, _ := json.Marshal(map[string]any{
+		"session_id": sessID, "prompt": "continue", "bundle": json.RawMessage(bundle),
+	})
+	req := httptest.NewRequest(http.MethodPost, "/api/tribunal/resume", bytes.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("resume: %d %s", w.Code, w.Body.String())
+	}
+	doc := loadConsoleOpenAPI(t)
+	var payload any
+	if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateOpenAPISchema(doc, responseContractFor(t, doc, http.MethodPost, "/api/tribunal/resume"), payload, "$"); err != nil {
+		t.Fatalf("tribunal.resume contract: %v", err)
+	}
+}
+
+func TestConsoleCodesignRerunContract(t *testing.T) {
+	t.Setenv("KUBONA_LLM_CLOUD", "1")
+	srv, _, sessionID, cleanup := newProviderContractServer(t)
+	defer cleanup()
+	llmSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"chatcmpl-rerun","model":"contract-model","choices":[{"index":0,"message":{"role":"assistant","content":"{\"ops\":[[\"ccx\",[0,1,2],[]]]}"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`))
+	}))
+	defer llmSrv.Close()
+	snap := srv.llmSettings.GetPublicSnapshot()
+	const pricedModel = "nvidia/nemotron-3.5-super-vl-120b-a12b"
+	snap.ActiveProvider = llm.ProviderNVIDIA
+	snap.ActiveModel = pricedModel
+	snap.AirGapped = false
+	snap.MaxTokens = 128
+	snap.Providers[llm.ProviderNVIDIA] = llm.ProviderConfig{
+		Type: llm.ProviderNVIDIA, Name: "Contract NVIDIA-compatible",
+		BaseURL: llmSrv.URL, DefaultModel: pricedModel, Enabled: true, TimeoutSec: 10,
+	}
+	for role := range snap.RoleAssignments {
+		snap.RoleAssignments[role] = llm.RoleModelAssignment{Role: role, Provider: llm.ProviderNVIDIA, Model: pricedModel}
+	}
+	snap.RoleAssignments["codesign"] = llm.RoleModelAssignment{Role: "codesign", Provider: llm.ProviderNVIDIA, Model: pricedModel}
+	if err := srv.llmSettings.Update(&snap, nil); err != nil {
+		t.Fatalf("llm settings: %v", err)
+	}
+	body := `{"session_id":"` + sessionID + `","request_id":"contract-rerun-1","spec_kind":"and2","budget_steps":1,"num_tests":8,"max_tokens_per_step":128}`
+	req := httptest.NewRequest(http.MethodPost, "/api/codesign/rerun", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer provider-contract-token")
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	srv.Handler().ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("codesign rerun: %d %s", w.Code, w.Body.String())
+	}
+	doc := loadConsoleOpenAPI(t)
+	var payload any
+	if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateOpenAPISchema(doc, responseContractFor(t, doc, http.MethodPost, "/api/codesign/rerun"), payload, "$"); err != nil {
+		t.Fatalf("codesign.rerun contract: %v", err)
+	}
+}
+
+type contractHarness struct{}
+
+func (contractHarness) ID() string                     { return "contract-harness" }
+func (contractHarness) FixedSetup() string             { return "contract fixed setup" }
+func (contractHarness) MutableArtifact() string        { return "artifact.py" }
+func (contractHarness) Metric(string) (float64, error) { return 1, nil }
+func (contractHarness) ValidityCheck(string) (bool, string) {
+	return true, ""
+}
+func (contractHarness) Evaluate(*sandbox.SandboxRunner, string) (*autoresearch.HarnessResult, error) {
+	return &autoresearch.HarnessResult{
+		HarnessID: "contract-harness", Metric: 1, Valid: true,
+		CircuitDepth: 1, NumQubits: 2, IsolationTag: "test",
+	}, nil
+}
+
+func TestConsoleAutoresearchContracts(t *testing.T) {
+	t.Setenv("KUBONA_LLM_CLOUD", "1")
+	srv, _, sessionID, cleanup := newProviderContractServer(t)
+	defer cleanup()
+	srv.harnessReg.Register(contractHarness{})
+
+	llmSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"chatcmpl-autoresearch","model":"contract-model","choices":[{"index":0,"message":{"role":"assistant","content":"def build_circuit():\n    return None"},"finish_reason":"stop"}],"usage":{"prompt_tokens":1,"completion_tokens":1,"total_tokens":2}}`))
+	}))
+	defer llmSrv.Close()
+	snap := srv.llmSettings.GetPublicSnapshot()
+	snap.ActiveProvider = llm.ProviderStrata
+	snap.ActiveModel = "contract-model"
+	snap.AirGapped = true
+	snap.MaxTokens = 64
+	snap.Providers[llm.ProviderStrata] = llm.ProviderConfig{
+		Type: llm.ProviderStrata, Name: "Contract local engine",
+		BaseURL: llmSrv.URL, DefaultModel: "contract-model", Enabled: true, IsLocal: true, TimeoutSec: 10,
+	}
+	for role := range snap.RoleAssignments {
+		snap.RoleAssignments[role] = llm.RoleModelAssignment{Role: role, Provider: llm.ProviderStrata, Model: "contract-model"}
+	}
+	snap.RoleAssignments["coder"] = llm.RoleModelAssignment{Role: "coder", Provider: llm.ProviderStrata, Model: "contract-model"}
+	snap.RoleAssignments["critic"] = llm.RoleModelAssignment{Role: "critic", Provider: llm.ProviderStrata, Model: "contract-model"}
+	if err := srv.llmSettings.Update(&snap, nil); err != nil {
+		t.Fatalf("llm settings: %v", err)
+	}
+
+	handler := srv.Handler()
+	doc := loadConsoleOpenAPI(t)
+	call := func(method, path, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, path, strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer provider-contract-token")
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		return w
+	}
+	validate := func(w *httptest.ResponseRecorder, template string) {
+		t.Helper()
+		if w.Code != http.StatusOK && w.Code != http.StatusCreated {
+			t.Fatalf("%s: %d %s", template, w.Code, w.Body.String())
+		}
+		var payload any
+		if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if err := validateOpenAPISchema(doc, responseContractFor(t, doc, http.MethodPost, template), payload, "$"); err != nil {
+			t.Fatalf("%s contract: %v", template, err)
+		}
+	}
+
+	start := call(http.MethodPost, "/api/autoresearch/start", `{"session_id":"`+sessionID+`","harness_id":"contract-harness","max_iterations":2,"request_id":"autoresearch-contract"}`)
+	if start.Code != http.StatusCreated {
+		t.Fatalf("autoresearch start: %d %s", start.Code, start.Body.String())
+	}
+	validate(start, "/api/autoresearch/start")
+	var state struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(start.Body.Bytes(), &state); err != nil || state.ID == "" {
+		t.Fatalf("autoresearch state: %v %s", err, start.Body.String())
+	}
+
+	validate(call(http.MethodPost, "/api/autoresearch/loops/"+state.ID+"/pause", `{}`), "/api/autoresearch/loops/{id}/pause")
+	validate(call(http.MethodPost, "/api/autoresearch/loops/"+state.ID+"/resume", `{}`), "/api/autoresearch/loops/{id}/resume")
+	validate(call(http.MethodPost, "/api/autoresearch/loops/"+state.ID+"/step", `{}`), "/api/autoresearch/loops/{id}/step")
+	validate(call(http.MethodPost, "/api/autoresearch/loops/"+state.ID+"/stop", `{}`), "/api/autoresearch/loops/{id}/stop")
+
+	managed, err := srv.supervisor.RegisterLoop(sessionID, 5)
+	if err != nil {
+		t.Fatalf("supervisor loop: %v", err)
+	}
+	validate(call(http.MethodPost, "/api/loops/"+managed.ID+"/pause", `{}`), "/api/loops/{id}/{action}")
+}
+
+func TestConsoleObservatoryContracts(t *testing.T) {
+	atlas := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/assets") && r.Method == http.MethodPost:
+			_, _ = w.Write([]byte(`{"id":"asset_contract"}`))
+		case strings.Contains(r.URL.Path, "/tasks:"):
+			_, _ = w.Write([]byte(`{"operation_id":"op_contract","status":"SUCCEEDED"}`))
+		case strings.HasSuffix(r.URL.Path, "/operations/op_contract"):
+			_, _ = w.Write([]byte(`{"done":true,"response":{"promptUsed":"contract prompt","frames":[]}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer atlas.Close()
+	t.Setenv("KUBONA_ATLAS_ENABLED", "1")
+	t.Setenv("WLT_API_KEY", "contract-atlas-key")
+	t.Setenv("WLT_API_BASE_URL", atlas.URL)
+
+	srv, _, sessionID, cleanup := newProviderContractServer(t)
+	defer cleanup()
+	snap := srv.llmSettings.GetPublicSnapshot()
+	snap.AirGapped = false
+	if err := srv.llmSettings.Update(&snap, nil); err != nil {
+		t.Fatalf("settings: %v", err)
+	}
+	handler := srv.Handler()
+	doc := loadConsoleOpenAPI(t)
+	call := func(method, path, body string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, path, strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer provider-contract-token")
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		handler.ServeHTTP(w, req)
+		return w
+	}
+	validate := func(w *httptest.ResponseRecorder, template string) {
+		t.Helper()
+		if w.Code != http.StatusOK {
+			t.Fatalf("%s: %d %s", template, w.Code, w.Body.String())
+		}
+		var payload any
+		if err := json.Unmarshal(w.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if err := validateOpenAPISchema(doc, responseContractFor(t, doc, http.MethodPost, template), payload, "$"); err != nil {
+			t.Fatalf("%s contract: %v", template, err)
+		}
+	}
+
+	asset := call(http.MethodPost, "/api/observatory/assets", `{"session_id":"`+sessionID+`","data_base64":"data:image/png;base64,AAAA","display_name":"contract.png"}`)
+	if asset.Code != http.StatusOK {
+		t.Fatalf("asset upload: %d %s", asset.Code, asset.Body.String())
+	}
+	var assetPayload any
+	if err := json.Unmarshal(asset.Body.Bytes(), &assetPayload); err != nil {
+		t.Fatal(err)
+	}
+	if err := validateOpenAPISchema(doc, responseContractFor(t, doc, http.MethodPost, "/api/observatory/assets"), assetPayload, "$"); err != nil {
+		t.Fatalf("lens.asset contract: %v", err)
+	}
+
+	dispatch := call(http.MethodPost, "/api/observatory/lens", `{"session_id":"`+sessionID+`","task_type":"atlasTextToImage","prompt":"contract observatory"}`)
+	validate(dispatch, "/api/observatory/lens")
+
+	status := call(http.MethodGet, "/api/observatory/lens?operation_id=op_contract", "")
+	if status.Code != http.StatusOK {
+		t.Fatalf("lens status: %d %s", status.Code, status.Body.String())
+	}
+	var statusPayload any
+	if err := json.Unmarshal(status.Body.Bytes(), &statusPayload); err != nil {
+		t.Fatal(err)
+	}
+	// lens.status has no required fields; any JSON object is the contract.
+	if _, ok := statusPayload.(map[string]any); !ok {
+		t.Fatalf("lens.status payload is not an object: %T", statusPayload)
+	}
+
+	resolve := call(http.MethodPost, "/api/observatory/lens/resolve", `{"session_id":"`+sessionID+`","operation_id":"op_contract"}`)
+	validate(resolve, "/api/observatory/lens/resolve")
 }
