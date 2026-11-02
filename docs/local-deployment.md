@@ -39,7 +39,7 @@ cd ../..
 
 docker compose --env-file .env -f platform/docker/compose.prod.yml up --build -d
 curl -fsS http://127.0.0.1:8080/api/health
-open http://127.0.0.1:3000   # macOS; xdg-open on Linux
+open http://localhost:3000   # macOS; xdg-open on Linux
 ```
 
 `docker compose --env-file .env` is deliberate: the compose file lives under
@@ -265,7 +265,7 @@ restore a backup over a running daemon.
 - [ ] `docker compose ... config` is clean.
 - [ ] `kubona doctor --env-file .env` reports no stale rate card or FK orphans.
 - [ ] `/api/health` is 200 and `/api/ready` is 200 on a fresh volume.
-- [ ] Console loads at `http://127.0.0.1:3000`.
+- [ ] Console loads at `http://localhost:3000` (same host as the API so the session cookie stays same-site).
 - [ ] `ss`/`lsof` shows loopback only for 8080/3000.
 - [ ] A request from another host fails.
 - [ ] Writes without `KUBONA_API_TOKEN` fail closed (503).
