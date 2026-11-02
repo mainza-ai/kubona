@@ -4727,3 +4727,10 @@ skipped is the exact failure this incident is about:
 
 - Add LLM spend-by-provider chart with exact values/basis in the fleet view.
 - Carry a request id through chat send/stream and reuse it on retry.
+
+## [2026-11-01] impl | Design foundation, chart coverage, transport hardening
+
+- Added the full shared primitive set and extracted shell banners/URL state.
+- Added measurement-distribution, spend, queue, accuracy-band, and error charts.
+- Fixed the SSE `events` envelope; added domain+id frame coalescing and opt-in v1.
+- Runtime budget: 471 KB static transfer, 458 DOM total, 378 visible.

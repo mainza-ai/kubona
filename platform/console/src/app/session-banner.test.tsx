@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { API_PROBLEM_EVENT, UNAUTH_EVENT } from '@/lib/api';
-import { ApiProblemBanner, SessionExpiredBanner, describeCreateFailure } from './page';
+import { ApiProblemBanner, SessionExpiredBanner, describeCreateFailure } from '@/components/shell/Banners';
 
 afterEach(() => {
   vi.unstubAllGlobals();

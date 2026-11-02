@@ -1,10 +1,44 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { API_BASE } from './api';
+import { API_BASE, versionedApiPath } from './api';
 import type { LedgerEvent } from '@/types';
 
 export type StreamStatus = 'idle' | 'connecting' | 'live' | 'closed';
+
+export function parseTelemetryPayload(event: unknown): LedgerEvent[] {
+  if (!event || typeof event !== 'object') return [];
+  const payload = event as { events?: unknown; event?: unknown };
+  if (Array.isArray(payload.events)) {
+    return payload.events.filter((item): item is LedgerEvent => Boolean(item) && Number.isFinite((item as LedgerEvent).id));
+  }
+  if (payload.event && Number.isFinite((payload.event as LedgerEvent).id)) {
+    return [payload.event as LedgerEvent];
+  }
+  return [];
+}
+
+type TelemetryFrame = { domain?: string; events: LedgerEvent[] };
+
+function payloadId(event: LedgerEvent): string | number | null {
+  const payload = (event as { payload?: unknown }).payload;
+  if (!payload || typeof payload !== 'object') return null;
+  const id = (payload as { id?: unknown }).id;
+  return typeof id === 'string' || typeof id === 'number' ? id : null;
+}
+
+/** Coalesce projection frames by domain + record id; ledger frames stay by id. */
+export function coalesceTelemetryFrames(frames: TelemetryFrame[]): LedgerEvent[] {
+  const byKey = new Map<string, LedgerEvent>();
+  for (const frame of frames) {
+    for (const event of frame.events) {
+      const domain = frame.domain ?? 'ledger';
+      const id = domain === 'ledger' ? event.id : payloadId(event) ?? event.id;
+      byKey.set(`${domain}:${id}`, event);
+    }
+  }
+  return Array.from(byKey.values()).sort((a, b) => a.id - b.id);
+}
 
 /** Merge by ledger id; the SSE replay cursor and poll overlap are idempotent. */
 export function mergeSessionEvents(
@@ -61,19 +95,34 @@ export function useSessionStream(
     }
     revision.current = 0;
     const source = new EventSource(
-      `${API_BASE}/api/events/stream?session_id=${encodeURIComponent(sessionId)}`,
+      `${API_BASE}${versionedApiPath(`/api/events/stream?session_id=${encodeURIComponent(sessionId)}`)}`,
       { withCredentials: true },
     );
     let errors = 0;
+    let pending: TelemetryFrame[] = [];
+    let frame = 0;
+    const flush = () => {
+      frame = 0;
+      const frames = pending;
+      pending = [];
+      const batch = coalesceTelemetryFrames(frames);
+      if (batch.length > 0) handler.current(batch);
+    };
+    const enqueue = (incoming: TelemetryFrame) => {
+      pending.push(incoming);
+      if (frame === 0) frame = requestAnimationFrame(flush);
+    };
     const onTelemetry = (event: MessageEvent) => {
       try {
         const payload = JSON.parse(String(event.data)) as {
-          events?: LedgerEvent[];
+          events?: unknown;
+          event?: unknown;
           domain?: string;
           kind?: string;
           revision?: number;
         };
-        if (!Array.isArray(payload.events) || payload.events.length === 0) return;
+        const incoming = parseTelemetryPayload(payload);
+        if (incoming.length === 0) return;
         errors = 0;
         if (typeof payload.revision === 'number' && Number.isFinite(payload.revision)) {
           const next = payload.revision;
@@ -83,7 +132,7 @@ export function useSessionStream(
           }
           revision.current = next;
         }
-        handler.current(payload.events);
+        enqueue({ domain: payload.domain, events: incoming });
       } catch {
         // Malformed frame: the next replay/poll reconciles it.
       }
@@ -101,6 +150,8 @@ export function useSessionStream(
     return () => {
       source.removeEventListener('telemetry', onTelemetry as EventListener);
       source.close();
+      if (frame !== 0) cancelAnimationFrame(frame);
+      pending = [];
     };
   }, [sessionId]);
 

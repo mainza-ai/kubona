@@ -4654,6 +4654,7 @@
     "lensImageProxyUrl",
     "reportError",
     "resetDedupForTests",
+    "versionedApiPath",
     "wasRecentAuthFailure"
   ]
 }

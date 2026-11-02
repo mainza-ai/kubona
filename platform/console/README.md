@@ -14,6 +14,8 @@ go build -o /tmp/kubonad ./cmd/kubonad   # from platform/core
 # 2. Frontend — from this directory (dev token required: the bridge/core
 #    fail closed without `Authorization: Bearer`; unset in production)
 NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN=dev-token pnpm dev --port 3000
+# Optional: exercise the versioned alias (server keeps /api live).
+# NEXT_PUBLIC_KUBONA_API_VERSION=1
 ```
 
 Open http://localhost:3000. Optional: local oMLX LLM on `:8787` powers chat/tribunal replies.

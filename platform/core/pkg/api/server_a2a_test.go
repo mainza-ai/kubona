@@ -151,7 +151,10 @@ func TestSSE_EventsStreamHandshake(t *testing.T) {
 	if err := json.NewDecoder(sessW.Body).Decode(&sess); err != nil || sess.ID == "" {
 		t.Fatalf("session setup: %v", err)
 	}
-	req, _ := http.NewRequest(http.MethodGet, server.URL+"/api/events/stream?session_id="+sess.ID, nil)
+	if err := srv.Ledger().AppendEvent(sess.ID, "annotation", map[string]any{"text": "sse"}); err != nil {
+		t.Fatalf("append event: %v", err)
+	}
+	req, _ := http.NewRequest(http.MethodGet, server.URL+"/api/events/stream?session_id="+sess.ID+"&last_event_id=0", nil)
 	req.Header.Set("Authorization", "Bearer test-token")
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
@@ -182,6 +185,33 @@ func TestSSE_EventsStreamHandshake(t *testing.T) {
 	}
 	if !strings.HasPrefix(strings.TrimSpace(line2), "data:") {
 		t.Fatalf("expected 'data: ...', got: %s", line2)
+	}
+	for {
+		line, rerr := reader.ReadString('\n')
+		if rerr != nil {
+			t.Fatalf("read telemetry frame: %v", rerr)
+		}
+		if !strings.HasPrefix(strings.TrimSpace(line), "data:") {
+			continue
+		}
+		var frame struct {
+			Domain string `json:"domain"`
+			Kind   string `json:"kind"`
+			Events []struct {
+				ID        int64  `json:"id"`
+				EventType string `json:"event_type"`
+			} `json:"events"`
+		}
+		if err := json.Unmarshal([]byte(strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "data:"))), &frame); err != nil {
+			t.Fatalf("decode telemetry frame: %v", err)
+		}
+		if frame.Kind != "annotation" {
+			continue
+		}
+		if frame.Domain != "ledger" || len(frame.Events) != 1 || frame.Events[0].EventType != "annotation" {
+			t.Fatalf("unexpected telemetry frame: %+v", frame)
+		}
+		return
 	}
 }
 

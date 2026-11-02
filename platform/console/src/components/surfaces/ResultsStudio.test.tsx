@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { ResultsStudio } from './ResultsStudio';
+import * as api from '@/lib/api';
 import type { CampaignState } from '@/types';
 
 vi.mock('@/lib/api', async (importOriginal) => {
@@ -10,6 +11,7 @@ vi.mock('@/lib/api', async (importOriginal) => {
     ...actual,
     sendChatMessage: vi.fn().mockResolvedValue({ user: {}, assistant: {} }),
     fetchJobs: vi.fn().mockResolvedValue([]),
+    fetchJobsResult: vi.fn().mockResolvedValue({ ok: true, data: [] }),
   };
 });
 
@@ -37,6 +39,35 @@ function campaign(status: string) {
     trajectory: [],
   } as unknown as CampaignState;
 }
+
+describe('ResultsStudio measured distribution', () => {
+  it('charts the latest completed job counts with job provenance', async () => {
+    vi.mocked(api.fetchJobsResult).mockResolvedValueOnce({
+      ok: true,
+      data: [{
+        id: 'job-42',
+        session_id: 'sess-test-456',
+        status: 3,
+        job_type: 'circuit_run',
+        params_json: {},
+        result_json: { resolved_backend: 'local_simulator', counts: { '00': 512, '11': 488 } },
+        created_at: '2026-11-01T10:00:00Z',
+        completed_at: '2026-11-01T10:01:00Z',
+      }],
+    });
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<ResultsStudio campaign={campaign('COLLAPSED_VERIFIED')} sessionId="sess-test-456" />);
+      await Promise.resolve();
+    });
+    const charts = tree!.root.findAllByProps({ 'data-testid': 'k-chart' });
+    expect(charts.length).toBe(2);
+    const text = JSON.stringify(tree!.toJSON());
+    expect(text).toContain('Measured bitstring distribution');
+    expect(text).toContain('job-42');
+    expect(text).toContain('local_simulator');
+  });
+});
 
 describe('ResultsStudio verification gating (J1)', () => {
   it('withholds convergence/accuracy/proof claims on a PROJECTED campaign with numbers', () => {

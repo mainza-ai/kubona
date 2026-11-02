@@ -3553,6 +3553,7 @@ func (s *Server) handleEventsStream(w http.ResponseWriter, r *http.Request) {
 				"revision":   ev.ID,
 				"session_id": sessionID,
 				"timestamp":  time.Now().UTC().Format(time.RFC3339),
+				"events":     []ledger.EventRecord{ev},
 				"event":      ev,
 			})
 			fmt.Fprintf(w, "id: %d\nevent: telemetry\ndata: %s\n\n", ev.ID, payload)

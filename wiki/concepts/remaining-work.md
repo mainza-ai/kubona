@@ -135,17 +135,25 @@ Still open:
 
 - Manual VoiceOver/NVDA evidence: **NOT RUN**; the automated axe/forced-colors/
   200%-zoom/reduced-motion checks are green, but they are not a manual pass.
-- Design-system migration: only Button/Badge/EmptyState exist as shared
-  primitives; raw palette utilities remain, but a CI ratchet now blocks new
-  debt (baseline 873 occurrences). Shell extraction, glass/DOM budgets, and the remaining chart
-  migrations are still open. Lazy surface chunks cut mocked initial transfer
-  from 654 KB to 585 KB, still above the 480 KB target; Arena DOM measured 843
-  visible / 923 total against the ≤500 target. The fleet view now has an exact
-  capability matrix plus queue and spend charts.
+- Design-system migration: the shared primitive set now covers Button,
+  IconButton, Field, TextArea, SearchField, Select, SegmentedControl,
+  Checkbox, Toggle, Slider, Badge, Surface, ListRow, Progress, EmptyState,
+  Separator, KeyHint, Disclosure, Menu, Dialog, and Tooltip. Raw palette
+  utilities remain, but the CI ratchet blocks new debt (baseline 873). Banner
+  and shell-parameter state moved out of `page.tsx`. The runtime budget gate
+  now measures **471 KB static transfer / 458 DOM total** against the
+  480 KB / ≤500 targets; virtualization stops emitting offscreen placeholder
+  nodes, and unused font weights were removed. The fleet view has an exact
+  capability matrix plus queue and spend charts; ResultsStudio adds a
+  server-returned measurement distribution, and FlightRecorder adds the
+  chemical-accuracy band plus error-vs-FCI line.
 - Transport hardening: the typed auth phase store is landed (anonymous /
-  checking / authenticated / expired / forbidden) and chat send/stream carry a
-  retained request id across retry; domain+id event coalescing and exercising
-  `/api/v1` from the console remain open.
+  checking / authenticated / expired / forbidden), chat send/stream retain a
+  request id across retry, telemetry frames coalesce once per animation frame
+  by domain+record id (ledger history stays by event id), and the SSE frame
+  now carries the `events` array the console reads. The console can opt into
+  `/api/v1` with `NEXT_PUBLIC_KUBONA_API_VERSION=1`; `/api` remains the
+  default until the rollout date.
 - Legacy retirement: the molecule canvas and `WidgetStage` stay until object
   cards reach parity and the old aliases have one release of support.
 - Write settlement is not yet uniform across every write; LLM settings,
@@ -158,7 +166,7 @@ Still open:
   vocabulary. Auth logout/revoke still use inline status.
 - Per-send model override has no backend contract; the composer links to Model
   Hub instead of faking one.
-- The 13 remaining client-only names are intentional transport/browser/auth
+- The 14 remaining client-only names are intentional transport/browser/auth
   helpers (plus the delegating `fetchSessions` wrapper), not unmodeled
   operations.
 - Manual VoiceOver/NVDA pass and legacy-surface removal. The manual record is

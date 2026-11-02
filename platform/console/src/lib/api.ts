@@ -9,6 +9,10 @@ import { API_OPERATIONS, type ApiOperationName, type ApiOperationResponse } from
 export let API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
 // Runtime kill switch: defaults on, disabled only by an explicit config answer.
 export let CONSOLE_WORKBENCH_ENABLED = true;
+// Opt-in v1 path alias: the server rewrites /api/v1/* to the same handlers
+// and stamps Kubona-API-Version: 1. Legacy /api remains the default until
+// the rollout date in the upgrade plan.
+const API_VERSIONED = process.env.NEXT_PUBLIC_KUBONA_API_VERSION === '1';
 
 let apiBaseConfigured = false;
 let apiBaseRetryAt = 0;
@@ -154,18 +158,48 @@ function notifyUnauthorized(): void {
 // Module fetch: every console call goes through here so the session
 // cookie flows cross-origin. Callers pass auth headers as before;
 // credentials are orthogonal (the server checks cookie first, then bearer).
+/** Rewrite one console path to the versioned alias when the rollout flag is on. */
+export function versionedApiPath(path: string, enabled: boolean = API_VERSIONED): string {
+  if (!enabled || !path.startsWith('/api/') || path.startsWith('/api/v1/')) return path;
+  return `/api/v1${path.slice(4)}`;
+}
+
+function versionedInput(input: RequestInfo | URL): RequestInfo | URL {
+  if (!API_VERSIONED) return input;
+  if (typeof input === 'string') {
+    try {
+      const parsed = new URL(input, typeof window !== 'undefined' ? window.location.origin : 'http://localhost');
+      if (!parsed.pathname.startsWith('/api/') || parsed.pathname.startsWith('/api/v1/')) return input;
+      parsed.pathname = versionedApiPath(parsed.pathname, true);
+      return input.startsWith('http') ? parsed.toString() : `${parsed.pathname}${parsed.search}${parsed.hash}`;
+    } catch {
+      return input;
+    }
+  }
+  if (input instanceof URL) {
+    if (!input.pathname.startsWith('/api/') || input.pathname.startsWith('/api/v1/')) return input;
+    const next = new URL(input.toString());
+    next.pathname = versionedApiPath(next.pathname, true);
+    return next;
+  }
+  // Raw Request objects are not used by the console; leave them untouched
+  // rather than cloning a body that may already be consumed.
+  return input;
+}
+
 export function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+  const request = versionedInput(input);
   const withTimeout: RequestInit =
     init.signal != null ? init : { ...init, signal: AbortSignal.timeout(API_TIMEOUT_MS) };
-  return fetch(input, withCredentials(withTimeout)).then((res) => {
+  return fetch(request, withCredentials(withTimeout)).then((res) => {
     if (res.status === 401) notifyUnauthorized();
-    else if (!res.ok) notifyApiProblem(input, res.status, res.statusText || `HTTP ${res.status}`);
+    else if (!res.ok) notifyApiProblem(request, res.status, res.statusText || `HTTP ${res.status}`);
     return res;
   }).catch((err) => {
     // A 401/abort is already carried by its own state; report transport
     // failures so an empty surface cannot be mistaken for a real empty.
     if (!(err instanceof DOMException && err.name === 'AbortError')) {
-      notifyApiProblem(input, null, err instanceof Error ? err.message : String(err));
+      notifyApiProblem(request, null, err instanceof Error ? err.message : String(err));
     }
     throw err;
   });
