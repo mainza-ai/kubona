@@ -138,7 +138,7 @@ Still open:
   workspace audits are green, but they are not a manual pass.
 - Design-system migration: the shared primitive set exists (Button through
   Tooltip), and Separator/KeyHint are used by the shell; most product surfaces
-  still use raw utility classes. The CI ratchet now holds **867** occurrences,
+  still use raw utility classes. The CI ratchet now holds **865** occurrences,
   down from 873. The shell has a global campaign header outside the arena, the
   status strip is at the bottom, one banner slot outranks API refusal behind
   auth expiry, Settings is a single-column section workspace (189 visible DOM),
@@ -146,10 +146,10 @@ Still open:
   and glass were removed from surfaces, and rest-state float/pulse was removed
   from the shell. Remaining: migrate all forms to Field/Select/Toggle and retire
   the raw-palette debt rather than hold it.
-- Budgets and evidence: `e2e/runtime-budget.spec.ts` now measures **424 KB
-  static / 434 KB all-resource / 452 DOM** on the normal mocked boot, plus
-  **189 visible Settings DOM**; the dense 361-object boot is **424 KB static /
-  452 DOM**. LCP/INP/heap/request-count gates and a CI 100/300-object FPS gate
+- Budgets and evidence: `e2e/runtime-budget.spec.ts` now measures **425 KB
+  static / 435 KB all-resource / 455 DOM** on the normal mocked boot, plus
+  **189 visible Settings DOM**; the dense 361-object boot is **425 KB static /
+  455 DOM**. LCP/INP/heap/request-count gates and a CI 100/300-object FPS gate
   remain open; the FPS harness is still opt-in.
 - Transport hardening: the typed auth phase store now bootstraps through
   `whoami`; anonymous 401s no longer raise an outage toast or expired banner;
@@ -163,8 +163,8 @@ Still open:
   fallbacks.
 - Contract truth: job status is now a canonical lowercase string with a
   `status_code` compatibility field; empty lists are canonical; contract tests
-  cover 25 handler paths and v1 parity for 12 modeled reads; the console sends
-  `Kubona-API-Version: 1` when opted in. The remaining 99 modeled operations are
+  cover 42 handler paths and v1 parity for 12 modeled reads; the console sends
+  `Kubona-API-Version: 1` when opted in. The remaining 82 modeled operations are
   not yet handler-tested; the OpenAPI document is still generated from the
   client response schemas, not the Go route policy. `/api/v1` remains opt-in.
 - Legacy retirement: `WidgetStage` and the legacy molecule canvas stay until

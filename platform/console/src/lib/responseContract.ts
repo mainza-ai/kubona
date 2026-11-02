@@ -195,7 +195,7 @@ export const RESPONSE_SCHEMAS = {
   discovery: obj(),
   campaign: obj({ session_id: str, quantum_factors: obj(), classical_anchor: obj(), trajectory: arr(any), updated_at: str }),
   epistemics: obj(),
-  fidelity: obj({ admitted: bool, predicted_fidelity: num, fidelity_floor: num, calibration_fresh: bool, recommended_action: str }),
+  fidelity: obj({ device_name: str, predicted_fidelity: num, measured_clifford: num, probe_run: bool, decision: str, reason: str, recommended_action: str }, ['device_name', 'decision', 'reason', 'recommended_action']),
   admet: obj({ molecular_weight: num, clogp: num, tpsa: num }),
   'ledger.append': obj({ ok: bool, record_hash: any }),
   'memory.retain': obj({ id: str, bank: str, importance: num }),

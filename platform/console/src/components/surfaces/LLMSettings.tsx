@@ -441,7 +441,7 @@ export function LLMSettings() {
                   className={`text-[12px] font-mono px-2 py-0.5 rounded-full border transition-all ${
                     pc.enabled
                       ? 'text-emerald-400 bg-emerald-950/60 border-emerald-800'
-                      : 'text-slate-500 bg-white/[0.03] border-white/10 hover:text-slate-300'
+                      : 'text-[var(--color-muted)] bg-white/[0.03] border-white/10 hover:text-slate-300'
                   }`}
                 >
                   {pc.enabled ? (pt === 'omlx' ? 'ACTIVE :8787' : 'ENABLED') : 'OFF'}
@@ -474,7 +474,7 @@ export function LLMSettings() {
                   <div>
                     <label htmlFor={`llm-api-key-${pt}`} className="block text-slate-400 mb-1 text-[12px]">
                       API key {pc.enabled ? <span className="text-emerald-400 font-mono">(stored ●●●)</span> : <span className="text-amber-400 font-mono">(not set)</span>}
-                      <span className="block text-[12px] text-slate-500">Prefer the daemon env/Bao in production; UI-entered keys are persisted in the local ledger.</span>
+                      <span className="block text-[12px] text-[var(--color-muted)]">Prefer the daemon env/Bao in production; UI-entered keys are persisted in the local ledger.</span>
                     </label>
                     <input
                       id={`llm-api-key-${pt}`}

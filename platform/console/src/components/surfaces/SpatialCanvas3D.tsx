@@ -34,6 +34,7 @@ import {
 } from '@/lib/api';
 import { ghostBandHeights, replayFrame } from '@/lib/vault-view';
 import { createFpsAccumulator, pixelRatioStepDown, pixelRatioStepUp, COARSE_DPR_CAP, DESKTOP_DPR_CAP, type FpsAccumulator } from '@/lib/fps';
+import { shouldRenderFrame } from '@/lib/render-policy';
 import { buildPinPayload, pinValuesFromHit } from '@/lib/pin';
 import { useAttention } from '@/lib/attention-context';
 // Wave-3 code-split: the depth-encode chisel path (three + EXRExporter via
@@ -1184,7 +1185,7 @@ export function SpatialCanvas3D({
     // W5: no rAF work while the tab is hidden or the observatory is offscreen.
     let inView = true;
     let pageVisible = !document.hidden;
-    const shouldRender = () => inView && pageVisible;
+    const shouldRender = () => shouldRenderFrame(inView, pageVisible);
     const resume = () => {
       requestFrame();
     };

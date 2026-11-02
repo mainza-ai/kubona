@@ -52,7 +52,7 @@ export function SystemReadinessPanel() {
           </div>
           {fidelity && (
             <div className="text-slate-400">
-              admitted {String(fidelity.admitted ?? fidelity.skipped ?? 'unknown')} · forecast {String(fidelity.predicted_fidelity ?? '—')} · floor {String(fidelity.fidelity_floor ?? '—')} · probe_run {String(fidelity.probe_run ?? false)}
+              decision {String(fidelity.decision ?? 'unknown')} · forecast {String(fidelity.predicted_fidelity ?? '—')} · probe_run {String(fidelity.probe_run ?? false)} · {String(fidelity.reason ?? '')}
             </div>
           )}
         </div>

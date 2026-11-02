@@ -68,6 +68,23 @@ func TestConsoleOpenAPIResponseContracts(t *testing.T) {
 		{http.MethodGet, "/api/sessions/context?session_id=" + sess.ID, "/api/sessions/context", http.StatusOK},
 		{http.MethodGet, "/api/epistemics?session_id=" + sess.ID, "/api/epistemics", http.StatusOK},
 		{http.MethodGet, "/api/results/notebooks?session_id=" + sess.ID, "/api/results/notebooks", http.StatusOK},
+		{http.MethodGet, "/api/sessions/" + sess.ID, "/api/sessions/{id}", http.StatusOK},
+		{http.MethodGet, "/api/sessions/context?session_id=" + sess.ID, "/api/sessions/context", http.StatusOK},
+		{http.MethodGet, "/api/canvas/layout?session_id=" + sess.ID, "/api/canvas/layout", http.StatusOK},
+		{http.MethodGet, "/api/sessions/" + sess.ID + "/campaign", "/api/sessions/{id}/campaign", http.StatusOK},
+		{http.MethodGet, "/api/codesign/packs", "/api/codesign/packs", http.StatusOK},
+		{http.MethodGet, "/api/codesign/verified", "/api/codesign/verified", http.StatusOK},
+		{http.MethodGet, "/api/agents/custom", "/api/agents/custom", http.StatusOK},
+		{http.MethodGet, "/api/agents", "/api/agents", http.StatusOK},
+		{http.MethodGet, "/api/epistemics?session_id=" + sess.ID, "/api/epistemics", http.StatusOK},
+		{http.MethodGet, "/api/fidelity?device=local&depth=1&two_qubit_gates=1", "/api/fidelity", http.StatusOK},
+		{http.MethodGet, "/api/llm/models?provider=omlx", "/api/llm/models", http.StatusOK},
+		{http.MethodGet, "/api/vault/predictions/latest?session_id=" + sess.ID, "/api/vault/predictions/latest", http.StatusOK},
+		{http.MethodGet, "/api/vault/predictions/history?session_id=" + sess.ID, "/api/vault/predictions/history", http.StatusOK},
+		{http.MethodGet, "/api/vault/predictions/calibration?session_id=" + sess.ID, "/api/vault/predictions/calibration", http.StatusOK},
+		{http.MethodGet, "/api/metasearch/proposals", "/api/metasearch/proposals", http.StatusOK},
+		{http.MethodGet, "/api/hf/downloads", "/api/hf/downloads", http.StatusOK},
+		{http.MethodGet, "/api/ledger/verify?session_id=" + sess.ID, "/api/ledger/verify", http.StatusOK},
 	}
 	for _, tc := range cases {
 		req := httptest.NewRequest(tc.method, tc.path, nil)

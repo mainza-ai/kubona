@@ -794,7 +794,7 @@
         }
       }
     },
-    "/api/sessions/${encodeURIComponent}(sessionId)/campaign": {
+    "/api/sessions/{id}/campaign": {
       "get": {
         "operationId": "fetchCampaignResult",
         "tags": [
@@ -802,7 +802,7 @@
         ],
         "parameters": [
           {
-            "name": "encodeURIComponent",
+            "name": "id",
             "in": "path",
             "required": true,
             "schema": {
@@ -3501,24 +3501,29 @@
       "fidelity": {
         "type": "object",
         "required": [
-          "admitted",
-          "predicted_fidelity",
-          "fidelity_floor",
-          "calibration_fresh",
+          "device_name",
+          "decision",
+          "reason",
           "recommended_action"
         ],
         "properties": {
-          "admitted": {
-            "type": "boolean"
+          "device_name": {
+            "type": "string"
           },
           "predicted_fidelity": {
             "type": "number"
           },
-          "fidelity_floor": {
+          "measured_clifford": {
             "type": "number"
           },
-          "calibration_fresh": {
+          "probe_run": {
             "type": "boolean"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
           },
           "recommended_action": {
             "type": "string"

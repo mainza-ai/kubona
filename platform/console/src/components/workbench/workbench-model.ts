@@ -281,6 +281,7 @@ export function buildWorkbench(
         { label: 'Unverified γ', value: fixed(epistemics?.gamma_unverified, 3) },
         { label: 'P(correlated)', value: fixed(epistemics?.p_correlated, 3) },
         { label: 'Sources', value: String(epistemics?.sources?.length ?? 0) },
+        { label: 'First source', value: epistemics?.sources?.[0] || 'none recorded' },
       ],
     },
     {

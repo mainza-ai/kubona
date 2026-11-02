@@ -143,6 +143,7 @@ test.describe('Kubona console against the real local stack', () => {
     // fresh-DB path showed "Estimate refused: HTTP 401").
     await page.getByTestId('dock-mesh').click();
     await page.getByRole('button', { name: 'Sovereign Settings' }).click();
+    await page.getByRole('button', { name: 'Quantum dispatch' }).click();
     await expect(page.getByText('Human dispatch')).toBeVisible();
     await page.getByRole('button', { name: /Estimate \(dry run\)/ }).click();
     await expect(page.getByText('Estimated cost:', { exact: false })).toBeVisible();

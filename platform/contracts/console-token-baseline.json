@@ -1,5 +1,5 @@
 {
-  "total": 867,
+  "total": 865,
   "files": {
     "platform/console/src/app/layout.tsx": 2,
     "platform/console/src/app/page.tsx": 17,
@@ -52,7 +52,7 @@
     "platform/console/src/components/surfaces/FleetRadar.tsx": 38,
     "platform/console/src/components/surfaces/FlightRecorder.tsx": 13,
     "platform/console/src/components/surfaces/HuggingFaceModelHub.tsx": 32,
-    "platform/console/src/components/surfaces/LLMSettings.tsx": 38,
+    "platform/console/src/components/surfaces/LLMSettings.tsx": 36,
     "platform/console/src/components/surfaces/LabsView.tsx": 8,
     "platform/console/src/components/surfaces/LiteraturePanel.tsx": 4,
     "platform/console/src/components/surfaces/QuantumDispatch.tsx": 17,

@@ -14,7 +14,7 @@ describe('SystemReadinessPanel', () => {
       catalog_digest: 'abc123456789', harnesses: ['vqe'], tools: [], flags: { reviewer_configured: true, bridge_connected: true },
       budget: { max_tool_rounds: 4, max_observation_chars: 800 },
     });
-    vi.mocked(api.fetchFidelity).mockResolvedValue({ admitted: true, predicted_fidelity: 0.97, fidelity_floor: 0.9, probe_run: false });
+    vi.mocked(api.fetchFidelity).mockResolvedValue({ device_name: 'ibm_heron', predicted_fidelity: 0.97, measured_clifford: 0, probe_run: false, decision: 'ADMIT', reason: 'above floor', recommended_action: 'proceed' });
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => { tree = TestRenderer.create(<SystemReadinessPanel />); });
     await vi.waitFor(() => expect(api.fetchCapabilities).toHaveBeenCalled());
@@ -24,7 +24,8 @@ describe('SystemReadinessPanel', () => {
     await vi.waitFor(() => expect(api.fetchFidelity).toHaveBeenCalled());
     const text = JSON.stringify(tree!.toJSON());
     expect(text).toContain('abc123456789');
-    expect(text).toContain('admitted');
+    expect(text).toContain('ADMIT');
+    expect(text).toContain('decision');
     expect(text).toContain('0.97');
   });
 });
