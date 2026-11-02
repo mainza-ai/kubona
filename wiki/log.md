@@ -4749,3 +4749,5 @@ skipped is the exact failure this incident is about:
   and a collapsed 3D control surface.
 - Added all-resource/Settings runtime budgets, anonymous/alias/reconnect/domain
   invalidation E2E, and structured Rust QIR receipts with a full-path benchmark.
+- Extended handler contract coverage to 43 reads + 6 writes and aligned the
+  fidelity/calibration response schemas with the real Go handlers.
