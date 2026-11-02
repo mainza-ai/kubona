@@ -1181,10 +1181,16 @@ export default function Home() {
                 handleArenaViewChange jumps to the dock fleet surface instead
                 (single mount, single poller — see FleetRadar double-mount). */}
             {showLegacyCanvas && (
-              <div className="absolute inset-0 overflow-y-auto pt-20 px-6 pb-6 bg-[#07080B]/95">
+              <div
+                role="dialog"
+                aria-label="Molecule object view"
+                data-testid="molecule-object-view"
+                className="absolute inset-0 overflow-y-auto pt-20 px-6 pb-6 bg-[#07080B]/95"
+              >
                 <div className="flex items-center justify-end max-w-6xl mx-auto pb-2">
                   <button
                     onClick={() => setShowLegacyCanvas(false)}
+                    aria-label="Close molecule object view"
                     className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 border border-white/10 text-[12px] text-slate-300 hover:text-white transition-all"
                   >
                     <X className="w-3.5 h-3.5" /> Back to Universe
@@ -1194,12 +1200,12 @@ export default function Home() {
               </div>
             )}
 
-            {/* Legacy canvas entry point */}
+            {/* Molecule object view entry point */}
             {!showLegacyCanvas && (
               <button
                 onClick={() => setShowLegacyCanvas(true)}
-                title="Living Canvas (molecule workbench)"
-                aria-label="Living Canvas (molecule workbench)"
+                title="Open molecule object view"
+                aria-label="Open molecule object view"
                 className="absolute bottom-6 right-6 z-20 w-9 h-9 rounded-full bg-[#0E1117] border border-white/10 hover:border-cyan-400/40 transition-all shadow-2xl flex items-center justify-center"
               >
                 <Box className="w-4 h-4 text-cyan-400" />

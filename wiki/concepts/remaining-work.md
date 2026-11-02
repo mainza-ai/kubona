@@ -175,9 +175,9 @@ Still open:
   tasks complete inline, job status is canonical, campaign cards show recorded
   spend, links render only for the selection, and the 3D control stack collapses
   behind one disclosure. Remaining: evidence source/quote cards, measurement
-  uncertainty, new-result highlight, camera-follow, agent-presence fade, and a
-  molecule object view. The 3D hidden/offscreen pause is code-verified but still
-  lacks an instrumentation gate.
+  uncertainty, new-result highlight, camera-follow, agent-presence fade. The molecule now opens as a named object-view dialog;
+  the 3D hidden/offscreen pause has a pure policy test but still lacks a browser
+  instrumentation gate.
 - Rust: the Rust core now returns a structured JSON receipt (QIR text, qubit and
   native-gate counts); Python no longer re-parses QIR on the shipped path. A
   full-process benchmark (`scripts/qir-bench-full.py`) records p50/p95/p99,
