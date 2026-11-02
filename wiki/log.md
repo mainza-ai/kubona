@@ -4767,6 +4767,6 @@ skipped is the exact failure this incident is about:
   read/write fixtures (jobs, settings, QIR, mesh, abort, memory, agents, tenants,
   leases, predictions, exports).
 - Verification: 110 console test files / 557 tests; new 3D and rollback E2E
-  green; Go contract tests green; wiki lint clean. Remaining: 55 unique
-  handler-contract operations, first nightly FPS run, manual AT (waived), W7
-  release-gated retirement.
+  green; Go contract tests green; wiki lint clean. The first nightly 100/300 FPS
+  job is green (run 41418158035, job 125186967816). Remaining: 55 unique
+  handler-contract operations, manual AT (waived), W7 release-gated retirement.
