@@ -82,21 +82,31 @@ func (s *Server) handleWorkflowPlan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var plannedSteps []map[string]interface{}
+	plannedSteps := make([]map[string]interface{}, 0)
 	if resp.PlannedStepsJson != "" {
 		_ = json.Unmarshal([]byte(resp.PlannedStepsJson), &plannedSteps)
 	}
-	var compensationsPlanned []map[string]interface{}
+	if plannedSteps == nil {
+		plannedSteps = make([]map[string]interface{}, 0)
+	}
+	compensationsPlanned := make([]map[string]interface{}, 0)
 	if resp.CompensationsPlannedJson != "" {
 		_ = json.Unmarshal([]byte(resp.CompensationsPlannedJson), &compensationsPlanned)
 	}
+	if compensationsPlanned == nil {
+		compensationsPlanned = make([]map[string]interface{}, 0)
+	}
 
+	unresolved := resp.UnresolvedReferences
+	if unresolved == nil {
+		unresolved = []string{}
+	}
 	writeJSON(w, http.StatusOK, map[string]interface{}{
 		"ok":                    true,
 		"dry_run":               true,
 		"workflow_id":           resp.WorkflowId,
 		"steps":                 plannedSteps,
-		"unresolved_references": resp.UnresolvedReferences,
+		"unresolved_references": unresolved,
 		"compensations_planned": compensationsPlanned,
 	})
 }

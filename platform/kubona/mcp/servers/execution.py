@@ -1292,6 +1292,13 @@ def request_provider_recall(job_id: str, caller: dict | None = None) -> dict:
     if job.status in ("completed", "failed"):
         hw = (getattr(job, "meta", None) or {}).get("hardware_job_id")
         if not hw:
+            # A terminal simulator job has no vendor work to recall: cancel is
+            # an idempotent no-op, not an upstream outage. Hardware terminal
+            # jobs without a recorded id remain a real data gap and refuse.
+            if job.provider in ("local-simulator", "qiskit-aer-simulator"):
+                return {"ok": True, "job_id": job_id, "status": job.status,
+                        "provider_recall_attempted": False,
+                        "provider_recall": "terminal_simulator_no_provider_job"}
             return {"ok": False, "job_id": job_id, "status": job.status,
                     "provider_recall_attempted": False,
                     "error": "terminal job has no recorded hardware id: nothing to recall"}
