@@ -2,6 +2,7 @@
   "generated_by": "scripts/console-contract-inventory.py",
   "contracts": [
     "abort",
+    "access",
     "admet",
     "agent.one",
     "agents.custom",
@@ -113,6 +114,7 @@
   ],
   "schemas": [
     "abort",
+    "access",
     "admet",
     "agent.one",
     "agents.custom",
@@ -384,6 +386,12 @@
       "path": "/api/sessions/export",
       "method": "POST",
       "contract": "session.export"
+    },
+    {
+      "function": "fetchAccess",
+      "path": "/api/access",
+      "method": "GET",
+      "contract": "access"
     },
     {
       "function": "fetchAutoresearchHarnesses",

@@ -4,6 +4,7 @@ import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import { Atom, Code, Copy, Check, Orbit } from 'lucide-react';
 import { CampaignState } from '@/types';
+import { ProvenanceBadge } from '@/components/common/ProvenanceBadge';
 import { fetchCanvasLayout, saveCanvasLayout, fetchMolecularADMET, requestObservatoryLens, fetchObservatoryLensStatus, resolveObservatoryLens, fetchLensHistory, type LensHistoryOp } from '@/lib/api';
 import { dissociationEnergyHartree, equilibriumBondDistanceAngstrom, morseEnergyHartree } from '@/lib/morse';
 
@@ -64,11 +65,10 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
   }, [campaign?.session_id]);
 
   // Discovery target
-  const targetSystem = campaign?.target_system || 'H2';
-  const isLiH = targetSystem.toUpperCase().includes('LIH');
+  const targetSystem = campaign?.target_system || 'No target';
   
   const systemDisplayName = useMemo(() => {
-    const raw = campaign?.quantum_factors?.target_molecule || campaign?.target_system || 'H2';
+    const raw = campaign?.quantum_factors?.target_molecule || campaign?.target_system || 'No target';
     const upper = raw.toUpperCase();
     if (upper === 'H2' || upper === 'H₂' || upper.includes('HYDROGEN')) return 'Hydrogen Molecule (H₂)';
     if (upper.includes('LIH') || upper.includes('LITHIUM')) return 'Lithium Hydride (LiH)';
@@ -93,7 +93,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
 
     // Whitelist valid chemical symbols strictly from formula (never arbitrary English words)
     const validElements = ['H', 'He', 'Li', 'Be', 'B', 'C', 'N', 'O', 'F', 'Ne', 'Na', 'Mg', 'Al', 'Si', 'P', 'S', 'Cl', 'Br', 'I'];
-    const formula = campaign?.quantum_factors?.molecular_formula || campaign?.quantum_factors?.target_molecule || 'H2';
+    const formula = campaign?.quantum_factors?.molecular_formula || campaign?.quantum_factors?.target_molecule || '';
     const matches = (formula.match(/([A-Z][a-z]?)/g) || []).filter((el) => validElements.includes(el));
     if (matches.length >= 2 && matches[0] !== matches[1]) {
       return [matches[0], matches[1]];
@@ -101,7 +101,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
     if (matches.length >= 1) {
       return [`${matches[0]}₁`, `${matches[0]}₂`];
     }
-    return ['H₁', 'H₂'];
+    return ['?', '?'];
   }, [campaign?.quantum_factors?.molecular_formula, campaign?.quantum_factors?.target_molecule]);
 
   // Equilibrium bond distance (single source of truth: @/lib/morse —
@@ -136,7 +136,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
   const smilesInferred = !campaign?.smiles;
   const targetSmiles = useMemo(() => {
     if (campaign?.smiles) return campaign.smiles;
-    const sys = (campaign?.quantum_factors?.target_molecule || campaign?.target_system || 'H2').toUpperCase();
+    const sys = (campaign?.quantum_factors?.target_molecule || campaign?.target_system || 'No target').toUpperCase();
     if (sys.includes('LIH')) return '[Li+].[H-]';
     if (sys.includes('H2O')) return 'O';
     if (sys.includes('CO2')) return 'O=C=O';
@@ -153,7 +153,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
   // object through optional chaining, so the lens callback depends on these
   // scalars instead of `campaign?.x` expressions (P0c lint fix).
   const lensSessionId = campaign?.session_id;
-  const lensTargetSystem = campaign?.target_system || 'H2';
+  const lensTargetSystem = campaign?.target_system || 'No target';
 
   const [isGeneratingLens, setIsGeneratingLens] = useState(false);
   const [lensError, setLensError] = useState<string | null>(null);
@@ -414,23 +414,12 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
   // Dynamic Circuit parser from session QuantumFactors / OpenQASM
   const circuitData = useMemo(() => {
     const qf = campaign?.quantum_factors;
-    const defaultQubits = isLiH ? 4 : 2;
-    const numQubits = (typeof qf?.qubit_count === 'number' && Number.isFinite(qf.qubit_count) ? qf.qubit_count : defaultQubits);
+    const numQubits = (typeof qf?.qubit_count === 'number' && Number.isFinite(qf.qubit_count) ? qf.qubit_count : 0);
     const rawQasm = (qf?.qasm || '').trim();
     // No-circuit refusal state: without QASM there is no circuit to parse.
-    // The schematic below renders only from live QASM; otherwise it refuses.
+    // No schematic fallback is generated.
     const hasCircuit = rawQasm !== '';
-    // Schematic fallback QASM is illustrative only and watermarked as such
-    // in every copyable string — never presented as session data.
-    const qasmText = hasCircuit ? rawQasm : (() => {
-      const q = numQubits;
-      let s = `// schematic — illustrative, not session data (no circuit in this campaign)\nOPENQASM 2.0;\ninclude "qelib1.inc";\nqreg q[${q}];\ncreg c[${q}];\n`;
-      s += 'h q[0];\n';
-      for (let i = 0; i < q; i++) s += `rz(${(0.785 * (i + 1)).toFixed(3)}) q[${i}];\n`;
-      for (let i = 0; i < q - 1; i++) s += `cx q[${i}], q[${i + 1}];\n`;
-      for (let i = 0; i < q; i++) s += `measure q[${i}] -> c[${i}];\n`;
-      return s;
-    })();
+    const qasmText = rawQasm;
 
     interface GateOp {
       id: string;
@@ -526,35 +515,28 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
       connections,
       rawQasm: qasmText,
       hasCircuit,
-      ansatzTitle: qf?.ansatz_family || (isLiH ? 'TwoLocal / RyRz Entangling' : 'UCCSD Parameterized'),
-      depth: typeof depthRaw === 'number' && Number.isFinite(depthRaw) ? depthRaw : (isLiH ? 8 : 4),
+      ansatzTitle: qf?.ansatz_family || 'Ansatz not recorded',
+      depth: typeof depthRaw === 'number' && Number.isFinite(depthRaw) ? depthRaw : 0,
       depthLive: typeof depthRaw === 'number' && Number.isFinite(depthRaw),
-      twoQubitGates: typeof twoQRaw === 'number' && Number.isFinite(twoQRaw) ? twoQRaw : (numQubits - 1),
+      twoQubitGates: typeof twoQRaw === 'number' && Number.isFinite(twoQRaw) ? twoQRaw : 0,
       twoQLive: typeof twoQRaw === 'number' && Number.isFinite(twoQRaw),
     };
-  }, [campaign?.quantum_factors, isLiH]);
+  }, [campaign?.quantum_factors]);
 
-  const hamiltonianString = useMemo(() => {
-    const fciRaw = campaign?.classical_anchor?.fci_exact_energy;
-    const anchorComputed = campaign?.classical_anchor?.anchor_computed === true;
-    const fciOk = anchorComputed && typeof fciRaw === 'number' && Number.isFinite(fciRaw);
-    const fciLabel = fciOk ? (fciRaw as number).toFixed(4) : 'UNVERIFIED';
-    const prefix = '// schematic coefficients — illustrative, anchor value live where shown\n';
-    const n = circuitData.numQubits;
-    if (n === 2) {
-      return `${prefix}H = ${fciLabel} I + 0.3979 Z₀ - 0.3979 Z₁ - 0.0112 Z₀Z₁ + 0.1809 X₀X₁`;
-    }
-    if (n === 4) {
-      return `${prefix}H = ${fciLabel} I + 0.1712 Z₀ - 0.2227 Z₁ + 0.1686 Z₂ - 0.2227 Z₃ + 0.1205 Z₀Z₁ + 0.1658 Z₁Z₂ + 0.0453 X₀X₁Y₂Y₃`;
-    }
-    const terms = [`${fciLabel} I`];
-    for (let i = 0; i < n; i++) {
-      const coeff = (0.25 / (i + 1)).toFixed(4);
-      terms.push(`${i % 2 === 0 ? '+' : '-'} ${coeff} Z${i}`);
-    }
-    terms.push(`+ 0.0412 Z₀Z₁`);
-    return `${prefix}H = ${terms.join(' ')}`;
-  }, [campaign?.classical_anchor?.anchor_computed, campaign?.classical_anchor?.fci_exact_energy, circuitData.numQubits]);
+  // The campaign records no Hamiltonian coefficients. Keep the section's
+  // empty state rather than printing a schematic Pauli expansion.
+  const hamiltonianString = '// Hamiltonian coefficients not recorded for this campaign.';
+
+  if (!campaign) {
+    return (
+      <div className="relative min-h-[560px] sm:min-h-[680px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl flex items-center justify-center p-8 text-center">
+        <div className="space-y-2">
+          <h2 className="text-base font-semibold text-white">Molecular Workbench</h2>
+          <p className="text-xs text-slate-400">No campaign proposal is selected. Create or open a campaign to give the workbench a target.</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-[560px] sm:min-h-[680px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-4 sm:p-8 select-none">
@@ -580,6 +562,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
               <span className="text-[12px] font-mono font-medium px-2 py-0.5 rounded-full bg-cyan-950/80 text-cyan-300 border border-cyan-800/50">
                 Ground State PES
               </span>
+              <ProvenanceBadge kind="model" detail="Morse potential visualization; measured anchors are labeled separately." />
             </div>
             <p className="text-xs text-slate-300 mt-0.5">
               Direct physical manipulation of nuclear coordinates and electronic structure
@@ -639,6 +622,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
           {/* Calm Truth Status Indicator */}
           <div className="flex max-w-full flex-wrap items-center gap-x-2.5 gap-y-1 px-3 py-1.5 rounded-2xl bg-black/40 border border-white/10">
             <div className={`w-2 h-2 rounded-full ${energyCalculated.anchored ? 'bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.8)]' : 'bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.8)]'}`} />
+            <ProvenanceBadge kind={energyCalculated.anchored ? 'measured' : 'model'} detail={energyCalculated.anchored ? 'At the computed FCI anchor.' : 'Morse extrapolation from a model.'} />
             <span className="text-xs font-medium text-slate-200">
               {energyCalculated.anchored
                 ? 'Anchored at computed FCI'
@@ -757,6 +741,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
               <span className="font-semibold text-slate-300 uppercase tracking-wider font-mono text-[12px] flex items-center space-x-2">
                 <Atom className="w-4 h-4 text-emerald-400" />
                 <span>Molecular Pharmacology &amp; ADMET</span>
+                <ProvenanceBadge kind="measured" detail="RDKit bridge profile." />
               </span>
               <span className="text-slate-400 font-mono text-[12px]">
                 SMILES: <code className="text-cyan-300">{targetSmiles}</code>{smilesInferred ? ' (inferred)' : ''}
@@ -817,7 +802,9 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
                   </span>
                 </div>
                 <p className="text-xs text-slate-400 mt-0.5">
-                  Dynamic parameterized circuit mapped for {targetSystem} (Depth: {circuitData.depth}{circuitData.depthLive ? '' : ' (illustrative)'} · {circuitData.twoQubitGates} CNOT{circuitData.twoQLive ? '' : ' (illustrative)'})
+                  {circuitData.hasCircuit
+                    ? `Proposed circuit for ${targetSystem} (Depth: ${circuitData.depthLive ? circuitData.depth : '—'} · ${circuitData.twoQLive ? `${circuitData.twoQubitGates} CNOT` : 'CNOT count not recorded'})`
+                    : `No circuit proposal is recorded for ${targetSystem}.`}
                 </p>
               </div>
 
@@ -844,7 +831,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
                 </div>
 
                 <span className="text-xs font-mono text-cyan-400 bg-cyan-950/60 px-2.5 py-1 rounded-lg border border-cyan-800/40">
-                  Depth = {circuitData.depth}{circuitData.depthLive ? '' : ' (EST)'} | {circuitData.twoQubitGates} CNOT{circuitData.twoQLive ? '' : ' (EST)'}
+                  Depth = {circuitData.depthLive ? circuitData.depth : '—'} | {circuitData.twoQLive ? `${circuitData.twoQubitGates} CNOT` : 'CNOT —'}
                 </span>
               </div>
             </div>
@@ -917,23 +904,31 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
               )
             ) : (
               <div className="space-y-3">
-                <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span className="font-mono">OpenQASM 2.0 Intermediate Representation {!circuitData.hasCircuit ? '(schematic — illustrative)' : ''}</span>
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(circuitData.rawQasm).catch(() => {});
-                      setCopiedQasm(true);
-                      setTimeout(() => setCopiedQasm(false), 2000);
-                    }}
-                    className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/10 text-slate-300 text-xs transition-all border border-white/10"
-                  >
-                    {copiedQasm ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedQasm ? 'Copied' : 'Copy QASM'}</span>
-                  </button>
-                </div>
-                <pre className="p-4 rounded-xl bg-black/80 border border-white/[0.08] text-xs font-mono text-cyan-300 overflow-x-auto max-h-64 leading-relaxed scrollbar-thin">
-                  {circuitData.rawQasm}
-                </pre>
+                {circuitData.hasCircuit ? (
+                  <>
+                    <div className="flex items-center justify-between text-xs text-slate-400">
+                      <span className="font-mono">OpenQASM 2.0 proposed circuit</span>
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(circuitData.rawQasm).catch(() => {});
+                          setCopiedQasm(true);
+                          setTimeout(() => setCopiedQasm(false), 2000);
+                        }}
+                        className="flex items-center space-x-1.5 px-2.5 py-1 rounded-lg bg-white/[0.05] hover:bg-white/10 text-slate-300 text-xs transition-all border border-white/10"
+                      >
+                        {copiedQasm ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        <span>{copiedQasm ? 'Copied' : 'Copy QASM'}</span>
+                      </button>
+                    </div>
+                    <pre className="p-4 rounded-xl bg-black/80 border border-white/[0.08] text-xs font-mono text-cyan-300 overflow-x-auto max-h-64 leading-relaxed scrollbar-thin">
+                      {circuitData.rawQasm}
+                    </pre>
+                  </>
+                ) : (
+                  <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-950/30 text-xs text-rose-200">
+                    No circuit proposal is recorded for this campaign.
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -966,7 +961,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
 
             <div className="p-4 rounded-xl bg-black/40 border border-white/05 space-y-2">
               <span className="text-xs font-semibold text-slate-200">Second-Quantized Hamiltonian Mapping</span>
-              <p className="text-[12px] font-code text-slate-500">Illustrative Pauli form — coefficients schematic, anchor value live</p>
+              <p className="text-[12px] font-code text-slate-500">Coefficient provenance</p>
               <p className="text-xs font-mono text-cyan-300 leading-relaxed overflow-x-auto whitespace-nowrap scrollbar-thin">
                 {hamiltonianString}
               </p>

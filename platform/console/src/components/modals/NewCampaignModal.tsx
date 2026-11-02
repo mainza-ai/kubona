@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { X, Sparkles, Atom,  DollarSign, Check } from 'lucide-react';
+import { X, Sparkles, DollarSign } from 'lucide-react';
 import { useFocusTrap } from '@/lib/useFocusTrap';
 
 interface NewCampaignModalProps {
@@ -87,7 +87,6 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
   const [customMolecule, setCustomMolecule] = useState<string>('');
   const [title, setTitle] = useState<string>('H2 Ground State Potential Energy Surface');
   const [spendLimit, setSpendLimit] = useState<number>(100);
-  const [isFresh, setIsFresh] = useState<boolean>(true);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   // Inline validation state: invalid input blocks onCreate (never a silent
   // fallback to the preset), and a server/transport refusal renders verbatim
@@ -162,7 +161,7 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
         title: finalTitle,
         targetMolecule: finalMolecule,
         spendLimitUSD: spendLimit,
-        fresh: isFresh,
+        fresh: true,
       });
       onClose();
     } catch (err) {
@@ -318,83 +317,6 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
                   {moleculeError}
                 </p>
               )}
-            </div>
-          </div>
-
-          {/* Initial State Mode: Fresh vs Pre-Computed Benchmark */}
-          <div className="space-y-2">
-            <label className="block text-xs font-semibold text-slate-200">
-              Initial Campaign State
-            </label>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {/* Fresh Discovery Canvas */}
-              <div
-                onClick={() => setIsFresh(true)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setIsFresh(true);
-                  }
-                }}
-                role="button"
-                tabIndex={0}
-                aria-pressed={isFresh}
-                aria-label="Fresh discovery canvas"
-                className={`p-3.5 rounded-2xl border cursor-pointer transition-all space-y-1.5 ${
-                  isFresh
-                    ? 'bg-cyan-950/60 border-cyan-500/60 ring-1 ring-cyan-500/30 text-white'
-                    : 'bg-black/40 hover:bg-black/60 border-white/[0.08] text-slate-300'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Atom className="w-4 h-4 text-cyan-400" />
-                    <span className="text-xs font-bold text-white">Fresh Discovery Canvas</span>
-                  </div>
-                  {isFresh && <Check className="w-4 h-4 text-cyan-400" />}
-                </div>
-                <p className="text-[12px] text-slate-300 leading-relaxed font-sans">
-                  Starts with an unrun, clean canvas. Awaiting user hypothesis and Research Tribunal formulation.
-                </p>
-                <span className="inline-block text-[12px] font-mono font-semibold px-2 py-0.5 rounded-full bg-cyan-900/40 text-cyan-300 border border-cyan-700/40">
-                  Recommended
-                </span>
-              </div>
-
-              {/* Synthesize Benchmark Reference */}
-              <div
-                onClick={() => setIsFresh(false)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' || e.key === ' ') {
-                    e.preventDefault();
-                    setIsFresh(false);
-                  }
-                }}
-                role="button"
-                tabIndex={0}
-                aria-pressed={!isFresh}
-                aria-label="Synthesize reference baseline"
-                className={`p-3.5 rounded-2xl border cursor-pointer transition-all space-y-1.5 ${
-                  !isFresh
-                    ? 'bg-indigo-950/60 border-indigo-500/60 ring-1 ring-indigo-500/30 text-white'
-                    : 'bg-black/40 hover:bg-black/60 border-white/[0.08] text-slate-300'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Sparkles className="w-4 h-4 text-indigo-400" />
-                    <span className="text-xs font-bold text-white">Synthesize Reference Baseline</span>
-                  </div>
-                  {!isFresh && <Check className="w-4 h-4 text-indigo-400" />}
-                </div>
-                <p className="text-[12px] text-slate-300 leading-relaxed font-sans">
-                  Pre-computes a full variational trajectory with chemical accuracy convergence proof and notebook.
-                </p>
-                <span className="inline-block text-[12px] font-mono font-semibold px-2 py-0.5 rounded-full bg-indigo-900/40 text-indigo-300 border border-indigo-700/40">
-                  Reference Demo
-                </span>
-              </div>
             </div>
           </div>
 

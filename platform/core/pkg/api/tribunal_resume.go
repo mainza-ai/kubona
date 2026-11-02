@@ -57,12 +57,6 @@ func (s *Server) finishTribunalRun(w http.ResponseWriter, r *http.Request, tribI
 	// Add final assistant consensus with proposal
 	assistantMsg, _ := s.sessionMgr.AddMessage(sessionID, "assistant", res.Synthesis, res.ProposalJSON)
 
-	// Dynamically update campaign state for session
-	campState, _ := agents.SynthesizeCampaignState(r.Context(), sessionID, prompt, s.llmClient, s.jobRunner.BridgeClient())
-	if campState != nil {
-		campBytes, _ := json.Marshal(campState)
-		s.ledger.SaveCampaignStateWithTrigger(sessionID, campBytes, triggerLabel("tribunal", prompt))
-	}
 	tribOutcome := "consensus-failed"
 	tribVerdict := "contested"
 	if res.ConsensusPassed {
@@ -109,7 +103,6 @@ func (s *Server) finishTribunalRun(w http.ResponseWriter, r *http.Request, tribI
 	s.idemFinishJSON(w, tribIdem, http.StatusOK, map[string]any{
 		"tribunal":          res,
 		"assistant_message": assistantMsg,
-		"campaign":          campState,
 		"claim_record_id":   tribRecordID,
 		"obligation_id":     res.ObligationID,
 		"transcript_scores": transcriptScores,

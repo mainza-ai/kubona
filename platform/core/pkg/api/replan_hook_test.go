@@ -16,8 +16,6 @@ import (
 	"github.com/mainza-ai/kubona/core/pkg/session"
 	"github.com/mainza-ai/kubona/core/pkg/supervisor"
 	"github.com/mainza-ai/kubona/core/pkg/watchdog"
-	pb "github.com/mainza-ai/kubona/core/proto"
-	"google.golang.org/grpc"
 )
 
 func replanHookTestServer(t *testing.T, dbPath string) (*Server, *ledger.Ledger, func()) {
@@ -71,7 +69,7 @@ func TestReplanHookFoldsMeasurement(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, err := agents.SynthesizeCampaignState(context.Background(), sess.ID, "H2 ground state VQE", nil, nil)
+	state, err := agents.BuildCampaignProposal(context.Background(), sess.ID, "H2 ground state VQE", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -124,7 +122,7 @@ func TestReplanHookMintsClaimRecord(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	state, err := agents.SynthesizeCampaignState(context.Background(), sess.ID, "H2 ground state VQE", nil, nil)
+	state, err := agents.BuildCampaignProposal(context.Background(), sess.ID, "H2 ground state VQE", "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -170,7 +168,7 @@ func TestReplanHookMintsClaimRecord(t *testing.T) {
 		t.Errorf("version must cite the minted record %q, got %q", rec.ID, last)
 	}
 	if folded.Epistemics.Status != "CONTESTED" {
-		t.Errorf("pass on fallback anchor must withhold collapse: %s", folded.Epistemics.Status)
+		t.Errorf("pass on an uncomputed anchor must withhold collapse: %s", folded.Epistemics.Status)
 	}
 	if !strings.Contains(folded.Epistemics.Statement, "UNCOMPUTED") {
 		t.Errorf("withholding must name the cause: %q", folded.Epistemics.Statement)
@@ -239,88 +237,80 @@ func TestClaimEvalMintsWithoutCampaign(t *testing.T) {
 	}
 }
 
-// R2: the no-campaign notebook path with no bridge behind it must read as
-// an assumed template — UNVERIFIED_FALLBACK, accuracy false, fallback
-// named in the anchor and sections. Never VERIFIED_ACCURATE.
-func TestNotebooksFallbackLabeled(t *testing.T) {
-	srv, _, cleanup := replanHookTestServer(t, "test_notebooks_fallback.db")
+// A proposal has no notebook. The endpoint must not manufacture one from
+// H2 defaults: an empty list is the honest answer until a job folds.
+func TestNotebooksEmptyWithoutMeasurement(t *testing.T) {
+	srv, l, cleanup := replanHookTestServer(t, "test_notebooks_empty.db")
 	defer cleanup()
 
-	req := httptest.NewRequest(http.MethodGet, "/api/results/notebooks", nil)
-	rec := httptest.NewRecorder()
-	srv.handleNotebooks(rec, req)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("notebooks must answer 200, got %d", rec.Code)
-	}
-	var body struct {
-		Notebooks []struct {
-			ClassicalAnchor  string   `json:"classical_anchor"`
-			ChemicalAccuracy bool     `json:"chemical_accuracy"`
-			EpistemicVerdict string   `json:"epistemic_verdict"`
-			Sections         []string `json:"sections"`
-		} `json:"notebooks"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
-		t.Fatal(err)
-	}
-	if len(body.Notebooks) != 1 {
-		t.Fatalf("expected 1 template notebook, got %d", len(body.Notebooks))
-	}
-	nb := body.Notebooks[0]
-	if nb.EpistemicVerdict != "UNVERIFIED_FALLBACK" {
-		t.Errorf("fallback verdict must be UNVERIFIED_FALLBACK, got %q", nb.EpistemicVerdict)
-	}
-	if nb.ChemicalAccuracy {
-		t.Error("accuracy cannot pass on an assumed anchor")
-	}
-	if !strings.Contains(nb.ClassicalAnchor, "fallback") {
-		t.Errorf("anchor must name the fallback: %q", nb.ClassicalAnchor)
-	}
-	if !strings.Contains(nb.Sections[1], "UNAVAILABLE") {
-		t.Errorf("section 2 must disclose the missing anchor: %q", nb.Sections[1])
-	}
-	for _, sec := range nb.Sections {
-		if strings.Contains(sec, "verification (|") {
-			t.Errorf("no verification language on fallback: %q", sec)
-		}
-	}
-}
-
-// stubNotebookBridge answers ComputeClassicalAnchor with fixed H2 numbers
-// so the notebooks template success path is testable without a live bridge.
-// All other RPCs nil-panic if touched — the handler must not touch them.
-type stubNotebookBridge struct {
-	pb.QuantumBridgeServiceClient
-}
-
-func (s stubNotebookBridge) ComputeClassicalAnchor(ctx context.Context, in *pb.ClassicalAnchorRequest, _ ...grpc.CallOption) (*pb.ClassicalAnchorResponse, error) {
-	return &pb.ClassicalAnchorResponse{
-		Success: true, Molecule: in.Molecule,
-		RhfEnergy: -1.11668, FciExactEnergy: -1.13727,
-	}, nil
-}
-
-// Audit fix: even with a REAL anchor, the template path must never claim a
-// VQE execution or a verification — verdict PROJECTION, accuracy false,
-// corridor estimate labeled as such. Only job folds verify.
-func TestNotebooksTemplateSuccessIsProjection(t *testing.T) {
-	l, err := ledger.OpenLedger("test_notebooks_projection.db")
+	sess, err := srv.sessionMgr.CreateSession("no notebook yet", 50, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer func() {
-		l.Close()
-		os.Remove("test_notebooks_projection.db")
-		os.Remove("test_notebooks_projection.db-wal")
-		os.Remove("test_notebooks_projection.db-shm")
-	}()
-	sm := session.NewManager(l)
-	jr := jobs.NewRunner(l, stubNotebookBridge{}, 1)
-	sup := supervisor.NewSupervisor(l)
-	wd := watchdog.NewTaskWatchdog(l, sup)
-	srv := NewServer(l, sm, jr, sup, wd)
+	state, err := agents.BuildCampaignProposal(context.Background(), sess.ID, "H2 ground state VQE", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stateBytes, _ := json.Marshal(state)
+	if err := l.SaveCampaignStateWithTrigger(sess.ID, stateBytes, "session-create"); err != nil {
+		t.Fatal(err)
+	}
 
-	req := httptest.NewRequest(http.MethodGet, "/api/results/notebooks", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/results/notebooks?session_id="+sess.ID, nil)
+	rec := httptest.NewRecorder()
+	srv.handleNotebooks(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("notebooks must answer 200, got %d", rec.Code)
+	}
+	var body struct {
+		Notebooks []any `json:"notebooks"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatal(err)
+	}
+	if len(body.Notebooks) != 0 {
+		t.Fatalf("proposal must not yield a notebook, got %d", len(body.Notebooks))
+	}
+	for _, forbidden := range []string{"H2 Molecular", "1.13727", "1.11668", "0.00047"} {
+		if strings.Contains(rec.Body.String(), forbidden) {
+			t.Errorf("empty notebook response must not contain %q: %s", forbidden, rec.Body.String())
+		}
+	}
+}
+
+// A folded job creates the notebook; the endpoint serves exactly that
+// measured notebook, not a template.
+func TestNotebooksServesFoldedMeasurement(t *testing.T) {
+	srv, l, cleanup := replanHookTestServer(t, "test_notebooks_folded.db")
+	defer cleanup()
+
+	sess, err := srv.sessionMgr.CreateSession("folded notebook", 50, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := agents.BuildCampaignProposal(context.Background(), sess.ID, "H2 ground state VQE", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stateBytes, _ := json.Marshal(state)
+	if err := l.SaveCampaignStateWithTrigger(sess.ID, stateBytes, "session-create"); err != nil {
+		t.Fatal(err)
+	}
+	anchored, anchorChanged, _ := agents.ReplanWithJobResult(stateBytes, "job-anchor1", "classical_anchor",
+		[]byte(`{"success":true,"molecule":"H2","bond_distance":0.7414,"rhf_energy":-1.11668,"fci_exact_energy":-1.13727}`), "")
+	if !anchorChanged {
+		t.Fatal("computed anchor must fold")
+	}
+	updated, changed, _ := agents.ReplanWithJobResult(anchored, "job-measured1", "circuit_run",
+		[]byte(`{"success":true,"resolved_backend":"local_simulator","meyer_wallach_entanglement":0.71,"counts":{"00":100}}`), "")
+	if !changed {
+		t.Fatal("measured circuit must fold")
+	}
+	if err := l.SaveCampaignStateWithTrigger(sess.ID, updated, "replan:circuit_run:job-meas"); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/results/notebooks?session_id="+sess.ID, nil)
 	rec := httptest.NewRecorder()
 	srv.handleNotebooks(rec, req)
 	if rec.Code != http.StatusOK {
@@ -328,35 +318,27 @@ func TestNotebooksTemplateSuccessIsProjection(t *testing.T) {
 	}
 	var body struct {
 		Notebooks []struct {
-			ClassicalAnchor  string   `json:"classical_anchor"`
-			ChemicalAccuracy bool     `json:"chemical_accuracy"`
-			EpistemicVerdict string   `json:"epistemic_verdict"`
-			Sections         []string `json:"sections"`
+			Title          string   `json:"title"`
+			ProvenanceHash string   `json:"provenance_hash"`
+			Sections       []string `json:"sections"`
 		} `json:"notebooks"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatal(err)
 	}
 	if len(body.Notebooks) != 1 {
-		t.Fatalf("expected 1 template notebook, got %d", len(body.Notebooks))
+		t.Fatalf("expected 1 folded notebook, got %d", len(body.Notebooks))
 	}
 	nb := body.Notebooks[0]
-	if nb.EpistemicVerdict != "PROJECTION" {
-		t.Errorf("template with real anchor must be PROJECTION, got %q", nb.EpistemicVerdict)
+	if nb.ProvenanceHash == "" {
+		t.Error("folded notebook must carry provenance")
 	}
-	if nb.ChemicalAccuracy {
-		t.Error("template path must never pass accuracy — only folds decide")
+	joined := strings.Join(nb.Sections, "\n")
+	if !strings.Contains(joined, "classical_anchor") || !strings.Contains(joined, "circuit_run") {
+		t.Errorf("folded notebook must record the jobs: %+v", nb.Sections)
 	}
-	if !strings.Contains(nb.ClassicalAnchor, "PySCF") {
-		t.Errorf("real anchor must be named: %q", nb.ClassicalAnchor)
-	}
-	for _, sec := range nb.Sections {
-		if strings.Contains(sec, "execution on Aer") || strings.Contains(sec, "collapse and chemical accuracy verification") {
-			t.Errorf("no execution/verification fiction on the template path: %q", sec)
-		}
-	}
-	if !strings.Contains(nb.Sections[2], "not measured") || !strings.Contains(nb.Sections[3], "unclaimed until measured") {
-		t.Errorf("estimate must be labeled as unmeasured: %v", nb.Sections[2:4])
+	if strings.Contains(rec.Body.String(), "0.00047") {
+		t.Error("folded notebook must not contain the old template VQE corridor")
 	}
 }
 
@@ -369,6 +351,7 @@ func TestLLMBudgetCapRefusesWhenSpent(t *testing.T) {
 	t.Setenv("KUBONA_LLM_PROVIDER", "opencode")
 	t.Setenv("OPENCODE_API_KEY", "test-key")
 	t.Setenv("OPENCODE_MODEL", "deepseek-v4.1-flash")
+	t.Setenv("KUBONA_API_TOKEN", "budget-test-token")
 	srv, l, cleanup := replanHookTestServer(t, "test_llm_budget.db")
 	defer cleanup()
 
@@ -407,6 +390,7 @@ func TestLLMBudgetCapRefusesWhenSpent(t *testing.T) {
 	// HTTP entry refuses fast (429) without touching any LLM.
 	req := httptest.NewRequest(http.MethodPost, "/api/chat/tribunal",
 		bytes.NewReader([]byte(`{"prompt":"H2","session_id":"s"}`)))
+	req.Header.Set("Authorization", "Bearer budget-test-token")
 	w := httptest.NewRecorder()
 	srv.handleChatTribunal(w, req)
 	if w.Code != http.StatusTooManyRequests {
@@ -414,5 +398,115 @@ func TestLLMBudgetCapRefusesWhenSpent(t *testing.T) {
 	}
 	if got := srv.llmSpendTotal(); got != 999.0 {
 		t.Errorf("spend total must sum recorded estimates, got %v", got)
+	}
+}
+
+// A fresh campaign is a proposal, not a result. The stored state must carry
+// no trajectory, notebook, epistemics, VQE energy, canary fidelity, or cut
+// overhead before any real job/claim folds.
+func TestFreshCampaignIsProposalOnly(t *testing.T) {
+	srv, _, cleanup := replanHookTestServer(t, "test_fresh_proposal.db")
+	defer cleanup()
+
+	createReq := httptest.NewRequest(http.MethodPost, "/api/sessions",
+		strings.NewReader(`{"title":"proposal drill","target_molecule":"H2"}`))
+	createRec := httptest.NewRecorder()
+	srv.handleSessions(createRec, createReq)
+	if createRec.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", createRec.Code, createRec.Body.String())
+	}
+	var sess struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(createRec.Body.Bytes(), &sess); err != nil || sess.ID == "" {
+		t.Fatalf("create decode: %v %s", err, createRec.Body.String())
+	}
+
+	getReq := httptest.NewRequest(http.MethodGet, "/api/sessions/"+sess.ID+"/campaign", nil)
+	getRec := httptest.NewRecorder()
+	srv.handleSessionByID(getRec, getReq)
+	if getRec.Code != http.StatusOK {
+		t.Fatalf("campaign: %d %s", getRec.Code, getRec.Body.String())
+	}
+	var cs agents.CampaignState
+	if err := json.Unmarshal(getRec.Body.Bytes(), &cs); err != nil {
+		t.Fatal(err)
+	}
+	if cs.Notebook != nil || cs.Epistemics != nil {
+		t.Fatalf("proposal carried measurement objects: %+v", cs)
+	}
+	if len(cs.Trajectory) != 0 || len(cs.Branches) != 0 {
+		t.Fatalf("proposal carried trajectory/branches: %+v", cs)
+	}
+	if cs.ClassicalAnchor.VqeExpectationEnergy != 0 || cs.ClassicalAnchor.ChemicalAccuracyPassed {
+		t.Fatalf("proposal carried an energy/verdict: %+v", cs.ClassicalAnchor)
+	}
+	if cs.QuantumFactors.CliffordFidelity != 0 {
+		t.Fatalf("proposal carried canary fidelity: %+v", cs.QuantumFactors)
+	}
+	if len(cs.QuantumFactors.WireCuts) != 0 {
+		t.Fatalf("proposal carried cut overhead: %+v", cs.QuantumFactors.WireCuts)
+	}
+	for _, forbidden := range []string{"vqe_expectation_energy", "clifford_fidelity", "chemical_accuracy_passed", "\"notebook\":{", "\"epistemics\":{"} {
+		if strings.Contains(getRec.Body.String(), forbidden) {
+			t.Errorf("proposal response must not contain %q: %s", forbidden, getRec.Body.String())
+		}
+	}
+
+	epiReq := httptest.NewRequest(http.MethodGet, "/api/epistemics?session_id="+sess.ID, nil)
+	epiRec := httptest.NewRecorder()
+	srv.handleEpistemics(epiRec, epiReq)
+	if epiRec.Code != http.StatusOK {
+		t.Fatalf("epistemics: %d %s", epiRec.Code, epiRec.Body.String())
+	}
+	var epi struct {
+		Active []any `json:"active_wavefunctions"`
+	}
+	if err := json.Unmarshal(epiRec.Body.Bytes(), &epi); err != nil {
+		t.Fatal(err)
+	}
+	if len(epi.Active) != 0 {
+		t.Fatalf("proposal must not expose an active claim: %s", epiRec.Body.String())
+	}
+	for _, forbidden := range []string{"0.95", "1.13727", "0.7414"} {
+		if strings.Contains(epiRec.Body.String(), forbidden) {
+			t.Errorf("empty epistemics must not contain fallback %q: %s", forbidden, epiRec.Body.String())
+		}
+	}
+}
+
+// An explicit synthesize request may refresh a proposal, but it must never
+// overwrite a campaign that already carries measured evidence.
+func TestCampaignSynthesizeRefusesToOverwriteMeasurement(t *testing.T) {
+	srv, l, cleanup := replanHookTestServer(t, "test_synth_overwrite.db")
+	defer cleanup()
+
+	sess, err := srv.sessionMgr.CreateSession("measured campaign", 50, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	state, err := agents.BuildCampaignProposal(context.Background(), sess.ID, "H2 ground state VQE", "", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	stateBytes, _ := json.Marshal(state)
+	updated, changed, _ := agents.ReplanWithJobResult(stateBytes, "job-measured", "circuit_run",
+		[]byte(`{"success":true,"resolved_backend":"local_simulator","meyer_wallach_entanglement":0.71,"counts":{"00":100}}`), "")
+	if !changed {
+		t.Fatal("measurement must fold")
+	}
+	if err := l.SaveCampaignStateWithTrigger(sess.ID, updated, "replan:circuit_run:job-meas"); err != nil {
+		t.Fatal(err)
+	}
+
+	req := httptest.NewRequest(http.MethodPost, "/api/sessions/"+sess.ID+"/campaign/synthesize",
+		strings.NewReader(`{"prompt":"a different target"}`))
+	rec := httptest.NewRecorder()
+	srv.handleSessionByID(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("measured campaign must refuse overwrite, got %d %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "measured evidence") {
+		t.Errorf("refusal must name measured evidence: %s", rec.Body.String())
 	}
 }

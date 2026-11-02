@@ -5,6 +5,7 @@ import { Compass, CheckCircle2, ChevronDown, ChevronUp, Scale, ShieldCheck } fro
 import { CampaignState } from '@/types';
 import { fetchEpistemics } from '@/lib/api';
 import { Chart } from '@/components/data/LazyChart';
+import { ProvenanceBadge } from '@/components/common/ProvenanceBadge';
 import type { ChartSpec } from '@/components/data/chart';
 
 interface EpistemicWavefunction {
@@ -34,7 +35,7 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
   const effectiveSessionId = sessionId || campaign?.session_id;
 
   // Loading state: true until the first fetchEpistemics settles, so the
-  // illustrative fallback below never flashes as if it were session data.
+  // empty state never flashes as if it were a failed live claim.
   // Session-change resets happen during render (campaign-key guard); the
   // effect body only fetches (repo set-state-in-effect pattern).
   const [epistemicsLoading, setEpistemicsLoading] = useState(() => Boolean(effectiveSessionId));
@@ -65,15 +66,13 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
     collapsed: campaign.epistemics.status === 'COLLAPSED_VERIFIED',
     status: campaign.epistemics.status,
   } : data?.active_wavefunctions?.[0];
-  // Empty-state discipline: the hardcoded H₂ fallback below is illustrative
-  // only — it must never render verified chrome.
   const hasLive = Boolean(liveClaim && (liveClaim.record_id || liveClaim.status !== 'UNVERIFIED'));
-  const active = liveClaim || {
-    claim_id: 'claim-h2-ground',
-    statement: 'H₂ ground state equilibrium energy is -1.13727 Ha at R = 0.7414 Å (illustrative — no live claim)',
-    alpha_corr: 0.95,
-    beta_cont: 0.05,
-    gamma_unv: 0.1,
+  const active = liveClaim ?? {
+    claim_id: 'none',
+    statement: 'No evaluated epistemic claim for this session.',
+    alpha_corr: Number.NaN,
+    beta_cont: Number.NaN,
+    gamma_unv: Number.NaN,
     collapsed: false,
     status: 'UNVERIFIED',
   };
@@ -121,7 +120,7 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
       : undefined;
 
   return (
-    <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-8 select-none">
+    <div data-provenance={hasLive ? 'measured' : undefined} className="relative min-h-[640px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-8 select-none">
       {/* Ambient Radial Backlight */}
       <div 
         className="absolute inset-0 pointer-events-none opacity-40 transition-opacity duration-1000"
@@ -139,7 +138,10 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
             <Compass className="w-5 h-5 text-emerald-400" />
           </div>
           <div>
-            <h2 className="text-base font-semibold text-white tracking-tight">Epistemic Truth Gauge</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-semibold text-white tracking-tight">Epistemic Truth Gauge</h2>
+              {hasLive && <ProvenanceBadge kind="measured" detail="Evaluated claim record or live campaign epistemics." />}
+            </div>
             <p className="text-xs text-slate-400 mt-0.5">
               Continuous credibility collapse against classical anchors &amp; quantum evidence
             </p>
@@ -196,7 +198,7 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
             </div>
             {!hasLive && !epistemicsLoading && (
               <div className="mt-1 px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-[12px] font-mono text-slate-300">
-                illustrative fallback — not session data
+                no live claim — not session data
               </div>
             )}
             {!hasLive && epistemicsLoading && (
@@ -220,7 +222,7 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
           {active.record_id ? (
             <p className="text-[12px] font-mono text-cyan-300/80">record {active.record_id} · resolvable under session claims</p>
           ) : (
-            <p className="text-[12px] text-slate-500">no evaluated record yet — synthesis placeholders</p>
+            <p className="text-[12px] text-slate-500">No evaluated record yet.</p>
           )}
           <p className="text-xs text-slate-300 leading-relaxed">
             {anchorStated ? (
@@ -235,9 +237,6 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
           </p>
           {!hasLive && epistemicsLoading && (
             <p className="text-[12px] font-code text-slate-400 animate-pulse">Loading epistemics…</p>
-          )}
-          {!hasLive && !epistemicsLoading && (
-            <p className="text-[12px] font-code text-slate-500">Fallback numbers below are illustrative — no live claim.</p>
           )}
         </div>
         {epistemicSpec && (
@@ -263,19 +262,19 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
         {showDeepMath && (
           <div className="mt-4 p-5 rounded-2xl bg-black/60 border border-white/10 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
             <div className="space-y-1">
-              <span className="text-slate-300 font-semibold">Corroborated (α): {!hasLive && <span className="text-[12px] text-amber-300 border border-amber-400/40 rounded px-1">illustrative</span>}</span>
+              <span className="text-slate-300 font-semibold">Corroborated (α):</span>
               <div className="text-base text-emerald-400 font-bold">{hasLive && alphaNum != null ? (alphaNum * alphaNum).toFixed(4) : '—'}</div>
               <p className="text-xs text-slate-300 font-sans">Probability mass in agreement with physical anchor</p>
             </div>
 
             <div className="space-y-1">
-              <span className="text-slate-300 font-semibold">Contested (β): {!hasLive && <span className="text-[12px] text-amber-300 border border-amber-400/40 rounded px-1">illustrative</span>}</span>
+              <span className="text-slate-300 font-semibold">Contested (β):</span>
               <div className="text-base text-amber-400 font-bold">{hasLive && betaNum != null ? (betaNum * betaNum).toFixed(4) : '—'}</div>
               <p className="text-xs text-slate-300 font-sans">Active disconfirmation signal from tribunal</p>
             </div>
 
             <div className="space-y-1">
-              <span className="text-slate-300 font-semibold">Unverified (γ): {!hasLive && <span className="text-[12px] text-amber-300 border border-amber-400/40 rounded px-1">illustrative</span>}</span>
+              <span className="text-slate-300 font-semibold">Unverified (γ):</span>
               <div className="text-base text-slate-200 font-bold">{hasLive && gammaNum != null ? (gammaNum * gammaNum).toFixed(4) : '—'}</div>
               <p className="text-xs text-slate-300 font-sans">Remaining epistemic uncertainty interval</p>
             </div>

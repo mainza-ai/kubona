@@ -59,6 +59,13 @@ describe('NewCampaignModal inline validation (Wave-2)', () => {
     }
   });
 
+  it('offers no pre-computed reference demo', async () => {
+    const { tree } = await renderModal();
+    const text = JSON.stringify(tree.toJSON());
+    expect(text).not.toContain('Reference Demo');
+    expect(text).not.toContain('Synthesize Reference Baseline');
+  });
+
   it('rejects a short title inline and never calls onCreate', async () => {
     const onCreate = vi.fn<(p: CreateParams) => Promise<void>>();
     const { tree } = await renderModal({ onCreate });

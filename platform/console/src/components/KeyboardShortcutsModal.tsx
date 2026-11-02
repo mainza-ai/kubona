@@ -46,7 +46,7 @@ export function KeyboardShortcutsModal({ isOpen, onClose }: KeyboardShortcutsMod
       category: 'Deep Links (Surface Tabs)',
       shortcuts: [
         { key: SHORTCUTS.sentinelGuardrails, description: 'Autonomy Cockpit & Guardrails' },
-        { key: SHORTCUTS.previewGallery, description: 'Preview Gallery' },
+        { key: SHORTCUTS.previewGallery, description: 'Scientific Widgets' },
         { key: SHORTCUTS.huggingFaceHub, description: 'Hugging Face Model Hub' },
         { key: SHORTCUTS.laboratories, description: 'Experimental Tenant Labs' },
         { key: SHORTCUTS.sovereignAirGap, description: 'Sovereign Settings' },

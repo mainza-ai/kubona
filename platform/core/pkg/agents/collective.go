@@ -762,7 +762,7 @@ func (ac *AgentCollective) runTribunal(ctx context.Context, llmClient *llm.Clien
 			fmt.Sprintf("Prior evidence:\n%s\n%s", Summarize(ev1, 1500), Summarize(ev2, 1500)),
 			fmt.Sprintf("Auditing proposed execution for %s on %s. Hardware constraints: T2 <= 2*T1, Clifford canary probe fidelity >= 95%%, cost estimate %s <= $150.00. State approval status.", target, tier, budget),
 		})
-		auditContent := fmt.Sprintf("Target backend validated on %s. Hardware noise model constraint satisfied (T2 <= 2*T1). Clifford canary probe fidelity: 98.4%% (>= 95%% threshold). Estimated financial spend: %s <= $150.00 ceiling. APPROVED for dispatch.", tier, budget)
+		auditContent := fmt.Sprintf("No device audit was authored for %s (LLM unavailable). T2 <= 2*T1, Clifford canary fidelity, and the %s spend estimate are unverified; no dispatch approval is claimed.", tier, budget)
 		if llmClient != nil && !breached3 {
 			tCtx, tCancel := context.WithTimeout(ctx, llmTimeout)
 			turnMsgs := []llm.ChatMessage{

@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { CheckCircle2, ShieldCheck, GitBranch, Terminal } from 'lucide-react';
+import { ProvenanceBadge } from '@/components/common/ProvenanceBadge';
 
 export interface Lean4ProofStep {
   step: number;
@@ -56,7 +57,7 @@ export function Lean4GoalTreeInspectorWidget({
   const proofSteps = suppliedSteps ?? [];
 
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-black/60 p-5 text-white space-y-4">
+    <div data-provenance="measured" className="rounded-2xl border border-white/[0.08] bg-black/60 p-5 text-white space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
         <div className="flex items-center space-x-3">
@@ -64,7 +65,10 @@ export function Lean4GoalTreeInspectorWidget({
             <ShieldCheck className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-white/90">Lean 4 Goal Tree Inspector (Preview)<span className="ml-2 align-middle text-[12px] font-mono uppercase px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/10 text-slate-400">Illustrative</span></h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-white/90">Lean 4 Goal Tree Inspector</h3>
+              <ProvenanceBadge kind="measured" detail="Comparator proof receipt." />
+            </div>
             <p className="text-xs text-white/50">{theoremName} • Comparator Kernel</p>
           </div>
         </div>

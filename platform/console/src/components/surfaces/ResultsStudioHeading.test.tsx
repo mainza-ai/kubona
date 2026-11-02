@@ -24,6 +24,6 @@ describe('ResultsStudio heading order (Wave-2)', () => {
     expect(tree!.root.findAllByType('h1')).toHaveLength(0);
     const headings = tree!.root.findAllByType('h2');
     expect(headings.length).toBeGreaterThan(0);
-    expect(textOf(tree!.toJSON())).toContain('Variational Quantum Ground State of H2');
+    expect(textOf(tree!.toJSON())).toContain('No citable result is recorded');
   });
 });

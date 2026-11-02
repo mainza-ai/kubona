@@ -555,6 +555,7 @@ func (s *Server) registerRoutes() {
 	s.route("/metrics", s.requireBearer(s.handleMetrics))
 	s.route("/api/ready", s.handleReady)
 	s.route("/api/capabilities", s.handleCapabilities)
+	s.route("/api/access", s.handleAccess)
 	s.route("/api/sessions", s.handleSessions)
 	s.route("/api/sessions/refund", s.requireBearer(s.handleSessionRefund))
 	s.route("/api/sessions/export", s.handleSessionExport)
@@ -872,6 +873,46 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 // handleReady is the deployment readiness probe: 200 only when the disk
 // guard (if attached) is not blocking. Unlike health (always 200 with a
 // body), readiness is status-coded for load balancers and supervisors.
+// handleAccess publishes the deployment's access posture without secrets or
+// tenant rows. The console uses it to choose the first-run experience; the
+// server still enforces every rule independently.
+func (s *Server) handleAccess(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		WriteAPIError(w, "method_not_allowed", "access is GET-only", nil)
+		return
+	}
+	singleLab := s.singleTenantStore()
+	snap := s.llmSettings.GetSnapshot()
+	llmLocal := !s.hasCloudLLMRole(&snap)
+	anonymousChat := singleLab && llmLocal
+	mode := "multi_lab"
+	if singleLab {
+		mode = "local_private"
+	}
+	role := "anonymous"
+	if !hasNoCredentials(r) {
+		if tenant, _, code := s.checkAuth(r); code == http.StatusOK {
+			if tenant == "" {
+				role = "operator"
+			} else {
+				role = "lab_admin"
+			}
+		}
+	}
+	if role == "anonymous" && singleLab {
+		role = "local_researcher"
+	}
+	writeJSON(w, http.StatusOK, map[string]any{
+		"mode":            mode,
+		"role":            role,
+		"single_lab":      singleLab,
+		"anonymous_chat":  anonymousChat,
+		"llm_local":       llmLocal,
+		"campaign_create": singleLab,
+		"auth_required":   !singleLab,
+	})
+}
+
 func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	if blocked, reason := s.diskBlocked(); blocked {
 		WriteAPIError(w, "not_ready", fmt.Sprintf("not ready: %s", reason), nil)
@@ -1000,55 +1041,49 @@ func (s *Server) handleEpistemics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	alpha := 0.95
-	beta := 0.05
-	gamma := 0.10
-	anchor := -1.13727
-	drift := 0.47
-	statement := "H2 ground state equilibrium at 0.7414 A"
-	claimID := "claim-h2-ground"
-	// No campaign means no evaluated claim: the default is explicitly
-	// unverified, never a collapsed verdict over placeholder amplitudes.
-	status := "UNVERIFIED"
-
+	active := []map[string]any{}
+	var canonicalAnchor any
+	var literatureDrift any
+	var stagnationKappa any
 	if raw, err := s.ledger.GetCampaignState(sessionID); err == nil && len(raw) > 0 {
 		var cs agents.CampaignState
-		if json.Unmarshal(raw, &cs) == nil {
-			alpha = cs.Epistemics.AlphaCorroborated
-			beta = cs.Epistemics.BetaContested
-			gamma = cs.Epistemics.GammaUnverified
-			anchor = cs.ClassicalAnchor.FciExactEnergy
-			drift = cs.ClassicalAnchor.DiscrepancyMHa
-			statement = cs.Epistemics.Statement
-			claimID = fmt.Sprintf("claim-%s", strings.ToLower(cs.QuantumFactors.TargetMolecule))
-			status = cs.Epistemics.Status
+		if json.Unmarshal(raw, &cs) == nil && cs.Epistemics != nil {
+			ep := cs.Epistemics
+			claimID := fmt.Sprintf("claim-%s", strings.ToLower(cs.QuantumFactors.TargetMolecule))
+			active = []map[string]any{{
+				"claim_id":   claimID,
+				"record_id":  "",
+				"statement":  ep.Statement,
+				"alpha_corr": ep.AlphaCorroborated,
+				"beta_cont":  ep.BetaContested,
+				"gamma_unv":  ep.GammaUnverified,
+				"collapsed":  ep.Status == "COLLAPSED_VERIFIED",
+				"status":     ep.Status,
+			}}
+			if cs.ClassicalAnchor.AnchorComputed {
+				canonicalAnchor = cs.ClassicalAnchor.FciExactEnergy
+				literatureDrift = cs.ClassicalAnchor.DiscrepancyMHa
+				kappa, _ := epistemics.ComputeEpistemicCurvature(0.12,
+					cs.ClassicalAnchor.FciExactEnergy,
+					cs.ClassicalAnchor.FciExactEnergy+cs.ClassicalAnchor.DiscrepancyMHa/1000.0)
+				stagnationKappa = kappa
+			}
 		}
 	}
-
-	kappa, _ := epistemics.ComputeEpistemicCurvature(0.12, anchor, anchor+drift/1000.0)
-	// Latest claim record: this is what backs the displayed verdict, when
-	// anything evaluated backs it yet. Empty means synthesis placeholders.
+	// Latest claim record backs the displayed verdict, when one exists.
 	recordID := ""
 	if recs, err := s.ledger.ListClaimRecords(sessionID, 1); err == nil && len(recs) > 0 {
 		recordID = recs[0].ID
 	}
+	if len(active) > 0 {
+		active[0]["record_id"] = recordID
+	}
 	writeJSON(w, http.StatusOK, map[string]any{
 		"refusal_ratio":        s.epistemicGate.RefusalRatio(),
-		"stagnation_kappa":     kappa,
-		"literature_drift_mha": drift,
-		"canonical_anchor":     anchor,
-		"active_wavefunctions": []map[string]any{
-			{
-				"claim_id":   claimID,
-				"record_id":  recordID,
-				"statement":  statement,
-				"alpha_corr": alpha,
-				"beta_cont":  beta,
-				"gamma_unv":  gamma,
-				"collapsed":  status == "COLLAPSED_VERIFIED",
-				"status":     status,
-			},
-		},
+		"stagnation_kappa":     stagnationKappa,
+		"literature_drift_mha": literatureDrift,
+		"canonical_anchor":     canonicalAnchor,
+		"active_wavefunctions": active,
 	})
 }
 
@@ -1569,129 +1604,19 @@ func (s *Server) handleNotebooks(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	// Empty id renders the unscoped template below — a GET never mints a
-	// session, and never adopts the most-recent one (G7).
-
 	if raw, err := s.ledger.GetCampaignState(sessionID); err == nil && len(raw) > 0 {
 		var cs agents.CampaignState
-		if json.Unmarshal(raw, &cs) == nil && cs.Notebook.Title != "" {
+		if json.Unmarshal(raw, &cs) == nil && cs.Notebook != nil {
 			writeJSON(w, http.StatusOK, map[string]any{
 				"notebooks": []any{cs.Notebook},
 			})
 			return
 		}
 	}
-
-	// 1. Check if jobs exist for session
-	jobsList, _ := s.jobRunner.ListJobs(sessionID, 5)
-	var latestJob *jobs.Job
-	for _, j := range jobsList {
-		if j.Status == pb.JobStatus_JOB_STATUS_COMPLETED {
-			latestJob = j
-			break
-		}
-	}
-
-	mol := "H2"
-	bondDist := 0.7414
-	targetTitle := "H2 Molecular Potential Energy Surface VQE vs PySCF FCI"
-	classicalAnchorName := "PySCF STO-3G Full Configuration Interaction"
-	var fciEnergy float64 = -1.13727
-	var rhfEnergy float64 = -1.11668
-	var qEnergy float64 = -1.13680
-
-	// Dynamically compute real PySCF classical anchor via bridge. R2: when
-	// the bridge is absent or fails, every number below is an assumed
-	// template default — labeled as such, never as verified integrals.
-	anchorComputed := false
-	if s.jobRunner.BridgeClient() != nil {
-		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
-		resp, err := s.jobRunner.BridgeClient().ComputeClassicalAnchor(ctx, &pb.ClassicalAnchorRequest{
-			Molecule:     mol,
-			BondDistance: bondDist,
-		})
-		cancel()
-		if err == nil && resp.Success {
-			anchorComputed = true
-			fciEnergy = resp.FciExactEnergy
-			rhfEnergy = resp.RhfEnergy
-			// Corridor estimate, not a measurement: nothing has executed
-			// on this template path. qEnergy exists so the notebook shows
-			// the shape of the corridor, labeled as such below.
-			qEnergy = fciEnergy + 0.00047
-		}
-	}
-	if !anchorComputed {
-		classicalAnchorName = "Hardcoded fallback (bridge unavailable) — assumed, no ab-initio integrals computed"
-	}
-
-	deltaMHa := (qEnergy - fciEnergy) * 1000.0
-	if deltaMHa < 0 {
-		deltaMHa = -deltaMHa
-	}
-
-	// Compute real provenance Merkle hash from recent events
-	recentEvents, _ := s.ledger.GetRecentEvents(sessionID, 20)
-	hasher := sha256.New()
-	for _, ev := range recentEvents {
-		hasher.Write([]byte(fmt.Sprintf("%s:%s:%d:%s", ev.EventType, ev.SessionID, ev.ID, string(ev.Payload))))
-	}
-	if len(recentEvents) == 0 {
-		hasher.Write([]byte(fmt.Sprintf("seed:%s:%.5f:%.5f", mol, fciEnergy, qEnergy)))
-	}
-	merkleHash := fmt.Sprintf("sha256:%x", hasher.Sum(nil))
-
-	notebookID := "nb-" + uuid.New().String()[:8]
-	if latestJob != nil {
-		notebookID = "nb-" + latestJob.ID[:8]
-	}
-
-	// The template path never passes chemical accuracy and never claims
-	// verification: qEnergy is a corridor estimate by construction, never a
-	// measured VQE result. Only job folds decide accuracy — the same rule
-	// campaign synthesis obeys. A computed anchor reads as PROJECTION
-	// (the shape of the work, anchor real, execution pending); an assumed
-	// one as UNVERIFIED_FALLBACK.
-	verdict := "PROJECTION"
-	chemAccuracy := false
-	anchorSection := fmt.Sprintf("2. Classical PySCF ab-initio ground state RHF (%.5f Ha) and FCI (%.5f Ha) integrals", rhfEnergy, fciEnergy)
-	vqeSection := fmt.Sprintf("3. Variational Quantum Eigensolver circuit prepared — awaiting execution; corridor estimate E=%.5f Ha (not measured)", qEnergy)
-	collapseSection := fmt.Sprintf("4. Ring 1 Epistemic projection: chemical accuracy unclaimed until measured (|Δ corridor|=%.3f mHa)", deltaMHa)
-	if !anchorComputed {
-		// R2: no bridge, no verification-grade claim of any kind.
-		verdict = "UNVERIFIED_FALLBACK"
-		anchorSection = fmt.Sprintf("2. Classical anchor UNAVAILABLE — hardcoded RHF (%.5f Ha) and FCI (%.5f Ha) assumed (bridge unreachable); no ab-initio integrals computed", rhfEnergy, fciEnergy)
-		vqeSection = fmt.Sprintf("3. Variational Quantum Eigensolver circuit prepared — awaiting execution; template default E=%.5f Ha (not measured)", qEnergy)
-		collapseSection = "4. Ring 1 Epistemic state UNVERIFIED: anchor is a hardcoded fallback, no collapse claimed"
-	}
-
-	writeJSON(w, http.StatusOK, map[string]any{
-		"notebooks": []map[string]any{
-			{
-				"title":             targetTitle,
-				"id":                notebookID,
-				"created_at":        time.Now().UTC().Format(time.RFC3339),
-				"classical_anchor":  classicalAnchorName,
-				"quantum_energy":    qEnergy,
-				"classical_energy":  fciEnergy,
-				"rhf_energy":        rhfEnergy,
-				"delta_mha":         deltaMHa,
-				"chemical_accuracy": chemAccuracy,
-				"provenance_hash":   merkleHash,
-				"epistemic_verdict": verdict,
-				"sections": []string{
-					fmt.Sprintf("1. Scientific Objective & Active-Space Configuration (%s at R=%.4f A)", mol, bondDist),
-					anchorSection,
-					vqeSection,
-					collapseSection,
-					"5. Negative results & barren plateau avoidance ledger (Var(∇E) >= 1e-6)",
-					"6. Pre-flight Clifford canary probe fidelity profile (F >= 95%)",
-					fmt.Sprintf("7. Provenance SHA-256 Merkle DAG hash proof (%s)", merkleHash),
-					fmt.Sprintf("8. Reproduction command: kubona replay --hash %s", merkleHash),
-				},
-			},
-		},
-	})
+	// No measured notebook means no notebook. The old template path
+	// fabricated H2 energies and a provenance hash here; that was a
+	// placeholder, not a result. Folds create the notebook.
+	writeJSON(w, http.StatusOK, map[string]any{"notebooks": []any{}})
 }
 
 func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
@@ -1752,6 +1677,11 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 		// their own lab (empty pins to it); anonymous mints only into
 		// the default lab (the zero-login local flow).
 		if hasNoCredentials(r) {
+			if !s.singleTenantStore() {
+				WriteAPIError(w, "unauthorized",
+					"multi-lab store: sign in to create a campaign", nil)
+				return
+			}
 			if req.TenantID != "" && req.TenantID != "default" {
 				WriteAPIError(w, "forbidden", "anonymous sessions belong to the default lab: log in to use a lab tenant", nil)
 				return
@@ -1775,17 +1705,24 @@ func (s *Server) handleSessions(w http.ResponseWriter, r *http.Request) {
 			}
 			req.TenantID = tenant
 		}
+		// Build the proposal before minting the session: a production store
+		// without a computed anchor must fail closed, not leave a campaignless
+		// spend object behind.
+		campState, cerr := agents.BuildCampaignProposal(r.Context(), "", req.Title, req.TargetMolecule, s.jobRunner.BridgeClient())
+		if cerr != nil {
+			http.Error(w, cerr.Error(), http.StatusServiceUnavailable)
+			return
+		}
 		sess, err := s.sessionMgr.CreateSession(req.Title, req.SpendLimitUSD, req.TenantID)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
-		// Synthesize dynamic campaign state for new session with options
-		campState, _ := agents.SynthesizeCampaignStateWithOpts(r.Context(), sess.ID, sess.Title, req.TargetMolecule, req.Fresh, s.llmClient, s.jobRunner.BridgeClient())
-		if campState != nil {
-			campBytes, _ := json.Marshal(campState)
-			s.ledger.SaveCampaignStateWithTrigger(sess.ID, campBytes, "session-create")
-		}
+		// Every campaign starts as a proposal. Measured fields stay absent
+		// until a real job/claim folds through ReplanWithJobResult.
+		campState.SessionID = sess.ID
+		campBytes, _ := json.Marshal(campState)
+		s.ledger.SaveCampaignStateWithTrigger(sess.ID, campBytes, "session-create")
 		writeJSON(w, http.StatusCreated, sess)
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -2041,7 +1978,15 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 		if prompt == "" {
 			prompt = sess.Title
 		}
-		state, err := agents.SynthesizeCampaignState(r.Context(), sessionID, prompt, s.llmClient, s.jobRunner.BridgeClient())
+		if rawState, gerr := s.ledger.GetCampaignState(sessionID); gerr == nil && len(rawState) > 0 {
+			var existing agents.CampaignState
+			if json.Unmarshal(rawState, &existing) == nil &&
+				(existing.Epistemics != nil || existing.Notebook != nil || len(existing.Trajectory) > 0) {
+				http.Error(w, "campaign already carries measured evidence; a new proposal cannot overwrite it", http.StatusConflict)
+				return
+			}
+		}
+		state, err := agents.BuildCampaignProposal(r.Context(), sessionID, prompt, "", s.jobRunner.BridgeClient())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -2130,7 +2075,7 @@ func (s *Server) handleSessionByID(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "session not found", http.StatusNotFound)
 			return
 		}
-		state, err := agents.SynthesizeCampaignState(r.Context(), sessionID, sess.Title, s.llmClient, s.jobRunner.BridgeClient())
+		state, err := agents.BuildCampaignProposal(r.Context(), sessionID, sess.Title, "", s.jobRunner.BridgeClient())
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
@@ -2237,6 +2182,9 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 		}
 		writeJSON(w, http.StatusOK, map[string]any{"messages": msgs})
 	case http.MethodPost:
+		if s.refuseAnonymousChat(w, r) {
+			return
+		}
 		var req struct {
 			SessionID string `json:"session_id"`
 			Role      string `json:"role"`
@@ -2298,13 +2246,6 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 		// stale selection is visible, never silent (2026-10-11).
 		_, servedModel, _ := s.llmSettings.GetModelForRole("copilot")
 
-		// Dynamically update campaign state for session
-		campState, _ := agents.SynthesizeCampaignState(r.Context(), sessionID, req.Content, s.llmClient, s.jobRunner.BridgeClient())
-		if campState != nil {
-			campBytes, _ := json.Marshal(campState)
-			s.ledger.SaveCampaignStateWithTrigger(sessionID, campBytes, triggerLabel("chat", req.Content))
-		}
-
 		// Memory write-back: this turn's outcome becomes recallable context.
 		// One ledger read: the tool list feeds both the content and the
 		// importance rating.
@@ -2334,6 +2275,9 @@ func (s *Server) handleChatMessages(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.refuseAnonymousChat(w, r) {
 		return
 	}
 	// S2: streaming generation is new work (spend + rows).
@@ -2460,13 +2404,6 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 		assistantMsg.UsageJSON = streamUsage
 	}
 
-	var campState any
-	if cs, _ := agents.SynthesizeCampaignState(r.Context(), sessionID, req.Content, s.llmClient, s.jobRunner.BridgeClient()); cs != nil {
-		if campBytes, merr := json.Marshal(cs); merr == nil {
-			s.ledger.SaveCampaignStateWithTrigger(sessionID, campBytes, triggerLabel("chat-stream", req.Content))
-		}
-		campState = cs
-	}
 	streamOutcome := chatOutcome(display, proposalJSON != nil, streamErr)
 	if streamRes.Finish == "length" {
 		streamOutcome += " (truncated at token budget)"
@@ -2476,7 +2413,7 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 		chatImportance(proposalJSON != nil, streamErr != nil, len(streamTools) > 0))
 	emit("done", map[string]any{
 		"user": userMsg, "assistant": assistantMsg,
-		"proposal": proposalJSON, "campaign": campState, "model": servedModel,
+		"proposal": proposalJSON, "model": servedModel,
 		"duration_ms": streamRes.Duration.Milliseconds(), "usage": streamRes.Usage,
 	})
 }
@@ -2488,6 +2425,9 @@ func (s *Server) handleChatStream(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleChatRegenerate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.refuseAnonymousChat(w, r) {
 		return
 	}
 	// S2: regeneration mints a fresh assistant turn — new work.
@@ -2534,11 +2474,6 @@ func (s *Server) handleChatRegenerate(w http.ResponseWriter, r *http.Request) {
 		assistantMsg.DurationMs = &genMs
 	}
 	_, servedModel, _ := s.llmSettings.GetModelForRole("copilot")
-	if campState, _ := agents.SynthesizeCampaignState(r.Context(), sessionID, prompt, s.llmClient, s.jobRunner.BridgeClient()); campState != nil {
-		if campBytes, merr := json.Marshal(campState); merr == nil {
-			s.ledger.SaveCampaignStateWithTrigger(sessionID, campBytes, "regenerate")
-		}
-	}
 	regenTools := s.toolNamesSince(sessionID, regenEventsBefore)
 	s.retainTurnExperience(sessionID, "regenerate", prompt,
 		chatOutcome(botReply, proposalJSON != nil, genErr), regenTools,
@@ -2960,6 +2895,9 @@ func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleChatTribunal(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if s.refuseAnonymousChat(w, r) {
 		return
 	}
 	// S2: infrastructure before policy — a full disk can't reliably write
@@ -4152,6 +4090,30 @@ func (s *Server) llmSpendSummary() (spent float64, byProvider map[string]float64
 // hasCloudLLMRole reports whether the active provider or any role assignment
 // resolves to a non-local provider. The old gate only looked at the active
 // provider, so a local-active config with a cloud role bypassed the cap.
+// anonymousChatAllowed is the server-side no-spend rule: anonymous chat is
+// open only in a single-lab store whose LLM configuration is entirely local.
+// A cloud provider or cloud role keeps the route authenticated regardless of
+// what the console renders.
+func (s *Server) anonymousChatAllowed() bool {
+	if !s.singleTenantStore() {
+		return false
+	}
+	snap := s.llmSettings.GetSnapshot()
+	return !s.hasCloudLLMRole(&snap)
+}
+
+func (s *Server) refuseAnonymousChat(w http.ResponseWriter, r *http.Request) bool {
+	if !hasNoCredentials(r) {
+		return false
+	}
+	if s.anonymousChatAllowed() {
+		return false
+	}
+	WriteAPIError(w, "unauthorized",
+		"sign in to use cloud LLM chat; anonymous chat is limited to a single-lab local deployment", nil)
+	return true
+}
+
 func (s *Server) hasCloudLLMRole(snap *llm.Settings) bool {
 	if prov, ok := snap.Providers[snap.ActiveProvider]; ok && !prov.IsLocal {
 		return true

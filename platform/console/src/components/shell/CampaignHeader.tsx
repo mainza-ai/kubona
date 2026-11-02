@@ -8,11 +8,13 @@ export function CampaignHeader({
   campaign,
   session,
   statusText,
+  mode,
   onOpenCampaigns,
 }: {
   campaign: CampaignState | null;
   session: Session | null;
   statusText?: string | null;
+  mode?: 'local_private' | 'multi_lab';
   onOpenCampaigns: () => void;
 }) {
   const title = session?.title || 'No campaign selected';
@@ -26,6 +28,14 @@ export function CampaignHeader({
         <ChevronDown aria-hidden="true" size={14} />
       </button>
       <span className="k-campaign-meta">{target}</span>
+      {mode && (
+        <span
+          className={`k-campaign-meta ${mode === 'local_private' ? 'text-emerald-300' : 'text-amber-300'}`}
+          title={mode === 'local_private' ? 'Single-lab local deployment.' : 'Multi-lab deployment: sign in to use lab-scoped chat.'}
+        >
+          {mode === 'local_private' ? 'Local private' : 'Multi-lab'}
+        </span>
+      )}
       <span className="k-campaign-meta">{statusText || 'idle'}</span>
       <span className="k-campaign-spend">
         ${spend.toFixed(2)}{cap != null ? ` / $${cap.toFixed(2)}` : ''}

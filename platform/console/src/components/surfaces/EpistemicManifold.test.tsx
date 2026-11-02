@@ -87,7 +87,7 @@ describe('EpistemicManifold verification chrome', () => {
     expect(JSON.stringify(tree!.toJSON())).toContain('α mass');
   });
 
-  it('shows a loading line — not the illustrative fallback — until the first fetch settles', async () => {
+  it('shows a loading line, then an honest empty state — never a fallback claim', async () => {
     // Never-settling fetch: first paint must be a skeleton, not fallback data.
     vi.mocked(api.fetchEpistemics).mockImplementation(() => new Promise(() => {}));
     let tree: TestRenderer.ReactTestRenderer;
@@ -96,15 +96,16 @@ describe('EpistemicManifold verification chrome', () => {
     });
     let text = JSON.stringify(tree!.toJSON());
     expect(text).toContain('Loading epistemics');
-    expect(text).not.toContain('Fallback numbers below are illustrative');
+    expect(text).not.toContain('H₂ ground state equilibrium energy');
 
-    // Settled empty fetch: loading clears and the illustrative tags remain.
+    // Settled empty fetch: loading clears and no claim is invented.
     vi.mocked(api.fetchEpistemics).mockResolvedValue({});
     await act(async () => {
       tree = TestRenderer.create(<EpistemicManifold sessionId="sess-settled-test" />);
     });
     text = JSON.stringify(tree!.toJSON());
     expect(text).not.toContain('Loading epistemics');
-    expect(text).toContain('illustrative');
+    expect(text).toContain('No evaluated epistemic claim for this session.');
+    expect(text).not.toContain('illustrative');
   });
 });

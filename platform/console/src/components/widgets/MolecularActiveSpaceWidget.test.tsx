@@ -19,7 +19,7 @@ function textOf(node: unknown): string {
 }
 
 describe('MolecularActiveSpaceWidget', () => {
-  it('renders orbital ladder with Fermi level divider and correct molecule name', async () => {
+  it('renders proposal counts and the recorded gap without inventing orbital energies', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
       tree = TestRenderer.create(
@@ -34,49 +34,39 @@ describe('MolecularActiveSpaceWidget', () => {
 
     const text = textOf(tree!.toJSON());
     expect(text).toContain('LiH');
-    expect(text).toContain('Fermi Level');
-    expect(text).toContain('HOMO-LUMO Gap');
-    expect(text).toContain('HOMO');
-    expect(text).toContain('LUMO');
-    expect(text).toContain('Orbital Energy Ladder');
+    expect(text).toContain('CASSCF(4e, 4o)');
+    expect(text).toContain('HOMO-LUMO gap');
+    expect(text).toContain('0.042 Ha');
+    expect(text).toContain('Per-orbital energies are not shown');
+    expect(text).not.toContain('Fermi Level');
+    expect(text).not.toContain('Multi-Reference Weight');
   });
 
-  it('renders demo watermark when not backed by live session', async () => {
+  it('renders an honest empty state when counts are absent', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
       tree = TestRenderer.create(<MolecularActiveSpaceWidget />);
     });
 
     const text = textOf(tree!.toJSON());
-    expect(text).toContain('synthetic demo — not session data');
+    expect(text).toContain('No active-space counts are recorded for this campaign.');
+    expect(text).not.toContain('LiH');
+    expect(text).not.toContain('synthetic demo');
   });
 
-  it('switches between Orbitals and Occupancy tabs cleanly', async () => {
+  it('shows proposal counts when the gap is not recorded', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
       tree = TestRenderer.create(
-        <MolecularActiveSpaceWidget
-          moleculeName="H2"
-          numElectrons={2}
-          numOrbitals={2}
-          homoLumoGapHa={0.05}
-        />
+        <MolecularActiveSpaceWidget moleculeName="H2" numElectrons={2} numOrbitals={2} />
       );
     });
 
-    // Find the Occupancy tab button
-    const buttons = tree!.root.findAllByType('button');
-    const occBtn = buttons.find((b) => textOf(b.props.children).includes('Occupancy'));
-    expect(occBtn).toBeDefined();
-
-    await act(async () => {
-      occBtn!.props.onClick();
-    });
-
     const text = textOf(tree!.toJSON());
-    expect(text).toContain('Active Space Configuration');
-    expect(text).toContain('Frozen Core');
-    expect(text).toContain('Multi-Reference Weight');
+    expect(text).toContain('H2');
+    expect(text).toContain('HOMO-LUMO gap');
+    expect(text).toContain('not recorded');
+    expect(text).not.toContain('0.042');
   });
 
   it('triggers onActiveSpaceChange when backed and slider changes', async () => {

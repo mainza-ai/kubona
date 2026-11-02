@@ -10,6 +10,7 @@ import { Chart } from '@/components/data/LazyChart';
 import { fetchEventsResult } from '@/lib/api';
 import type { ChartSpec } from '@/components/data/chart';
 import { SessionPortability } from '@/components/common/SessionPortability';
+import { ProvenanceBadge } from '@/components/common/ProvenanceBadge';
 import { LedgerVerifyPanel } from '@/components/common/LedgerVerifyPanel';
 
 interface FlightRecorderProps {
@@ -183,7 +184,7 @@ export function FlightRecorder({ loops = [], events = [], sessionId, campaign, o
       Number.isFinite(campaign.classical_anchor.fci_exact_energy);
     const series: ChartSpec['series'] = [{ name: 'VQE energy', points }];
     if (anchorKnown) {
-      const anchor = campaign!.classical_anchor!.fci_exact_energy;
+      const anchor = campaign!.classical_anchor!.fci_exact_energy!;
       const band = Number.isFinite(chemLimit) && chemLimit > 0 ? chemLimit / 1000 : null;
       series.push({
         name: 'FCI anchor',
@@ -220,7 +221,7 @@ export function FlightRecorder({ loops = [], events = [], sessionId, campaign, o
       typeof campaign?.classical_anchor?.fci_exact_energy === 'number' &&
       Number.isFinite(campaign.classical_anchor.fci_exact_energy);
     if (!anchorKnown) return null;
-    const anchor = campaign!.classical_anchor!.fci_exact_energy;
+    const anchor = campaign!.classical_anchor!.fci_exact_energy!;
     const points = trajectory
       .filter((step) => typeof step.step === 'number' && Number.isFinite(step.step) && Number.isFinite(step.energy))
       .map((step) => ({
@@ -291,9 +292,12 @@ export function FlightRecorder({ loops = [], events = [], sessionId, campaign, o
             <Sparkles className="w-5 h-5 text-cyan-400" />
           </div>
           <div>
-            <h2 className="text-base font-semibold text-white tracking-tight">
-              Discovery Flight Recorder · {campaign?.target_system || 'H₂'}
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-semibold text-white tracking-tight">
+                Discovery Flight Recorder · {campaign?.target_system || 'No target'}
+              </h2>
+              {(campaign?.trajectory?.length ?? 0) > 0 && <ProvenanceBadge kind="measured" detail="Trajectory points folded from completed jobs." />}
+            </div>
             <p className="text-xs text-slate-300 mt-0.5">
               Narrative playback of autonomous hypothesis evolution ({loops.length} loops, {events.length} ledger events)
             </p>
@@ -391,7 +395,7 @@ export function FlightRecorder({ loops = [], events = [], sessionId, campaign, o
             {activeMilestone.deltaMHa < 0 ? (
               <span className="font-bold text-slate-400">Δ = UNVERIFIED (no measurement)</span>
             ) : (
-              <span className={`font-bold ${activeMilestone.deltaMHa <= chemLimit ? 'text-emerald-400' : 'text-amber-400'}`}>
+              <span data-metric data-provenance="measured" className={`font-bold ${activeMilestone.deltaMHa <= chemLimit ? 'text-emerald-400' : 'text-amber-400'}`}>
                 Δ = {activeMilestone.deltaMHa.toFixed(2)} mHa {activeMilestone.deltaMHa <= chemLimit ? '(Accuracy Met)' : '(Exploring)'}
               </span>
             )}

@@ -90,6 +90,43 @@ describe('Workbench', () => {
     expect(tree!.root.findByProps({ className: 'k-workbench-empty' })).toBeTruthy();
   });
 
+  it('routes an empty multi-lab workspace to sign-in instead of campaign creation', async () => {
+    const onSignIn = vi.fn();
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<Workbench campaign={null} multiLab onSignIn={onSignIn} />);
+    });
+    const text = JSON.stringify(tree!.toJSON());
+    expect(text).toContain('Multi-lab workspace');
+    expect(tree!.root.findAllByProps({ 'data-testid': 'workbench-create-campaign' })).toHaveLength(0);
+    act(() => { tree!.root.findByProps({ 'data-testid': 'workbench-sign-in' }).props.onClick(); });
+    expect(onSignIn).toHaveBeenCalledTimes(1);
+  });
+
+  it('offers a first-campaign action and a sign-in action for auth refusals', async () => {
+    const onCreateCampaign = vi.fn();
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(
+        <Workbench campaign={null} localMode onCreateCampaign={onCreateCampaign} />,
+      );
+    });
+    const create = tree!.root.findByProps({ 'data-testid': 'workbench-create-campaign' });
+    act(() => { create.props.onClick(); });
+    expect(onCreateCampaign).toHaveBeenCalledTimes(1);
+
+    const onSignIn = vi.fn();
+    await act(async () => {
+      tree = TestRenderer.create(
+        <Workbench campaign={null} error="multi-lab store: log in" authError onSignIn={onSignIn} />,
+      );
+    });
+    expect(JSON.stringify(tree!.toJSON())).toContain('Sign in to open this campaign.');
+    const signIn = tree!.root.findByProps({ 'data-testid': 'workbench-sign-in' });
+    act(() => { signIn.props.onClick(); });
+    expect(onSignIn).toHaveBeenCalledTimes(1);
+  });
+
   it('shows a campaign read refusal instead of an empty campaign', async () => {
     const onRetry = vi.fn();
     let tree: TestRenderer.ReactTestRenderer;
@@ -118,6 +155,20 @@ describe('Workbench', () => {
     expect(cards.map((card) => card.props['data-kind'])).toEqual(
       expect.arrayContaining(['campaign', 'hypothesis', 'circuit', 'measurement', 'chart', 'table', 'note', 'molecule', 'task']),
     );
+    for (const card of cards) {
+      expect(['measured', 'proposed', 'catalog', 'model']).toContain(card.props['data-provenance']);
+    }
+    const metrics = tree!.root.findAll((node) => node.props?.['data-metric'] !== undefined);
+    expect(metrics.length).toBeGreaterThan(0);
+    for (const metric of metrics) {
+      let current: typeof metric | null = metric;
+      let tagged = false;
+      while (current) {
+        if (typeof current.props?.['data-provenance'] === 'string') { tagged = true; break; }
+        current = current.parent;
+      }
+      expect(tagged, 'workbench metric missing provenance').toBe(true);
+    }
     expect(tree!.root.findAllByProps({ 'data-testid': 'k-chart' }).length).toBe(1);
   });
 
@@ -178,6 +229,11 @@ describe('Workbench', () => {
     await act(async () => { toggle.props.onClick(); });
     expect(tree!.root.findByProps({ className: 'k-workbench-list' })).toBeTruthy();
     expect(tree!.root.findAllByType('table')).toHaveLength(1);
+    const rows = tree!.root.findAllByType('tr').filter((row) => row.props['data-provenance']);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(['measured', 'proposed', 'catalog', 'model']).toContain(row.props['data-provenance']);
+    }
   });
 
   it('projects a running loop as an agent-run card', async () => {

@@ -151,10 +151,10 @@ export interface QuantumFactors {
   circuit_depth: number;
   two_qubit_gates: number;
   ansatz_family: string;
-  meyer_wallach_q: number;
-  gradient_variance: number;
-  barren_plateau_risk: string;
-  clifford_fidelity: number;
+  meyer_wallach_q?: number;
+  gradient_variance?: number;
+  barren_plateau_risk?: string;
+  clifford_fidelity?: number;
   recommended_backend: string;
   estimated_spend_usd: number;
   qasm: string;
@@ -165,11 +165,11 @@ export interface QuantumFactors {
 
 export interface ClassicalAnchor {
   method: string;
-  rhf_mean_field_energy: number;
-  fci_exact_energy: number;
-  vqe_expectation_energy: number;
-  discrepancy_mha: number;
-  chemical_accuracy_passed: boolean;
+  rhf_mean_field_energy?: number;
+  fci_exact_energy?: number;
+  vqe_expectation_energy?: number;
+  discrepancy_mha?: number;
+  chemical_accuracy_passed?: boolean;
   chemical_accuracy_limit: number;
   anchor_computed?: boolean;
   anchor_source?: string;
@@ -202,10 +202,10 @@ export interface SystematicNotebook {
   title: string;
   created_at: string;
   classical_anchor: string;
-  quantum_energy: number;
-  classical_energy: number;
-  delta_mha: number;
-  chemical_accuracy: boolean;
+  quantum_energy?: number;
+  classical_energy?: number;
+  delta_mha?: number;
+  chemical_accuracy?: boolean;
   provenance_hash: string;
   epistemic_verdict: string;
   sections: string[];
@@ -221,9 +221,9 @@ export interface CampaignState {
   classical_anchor: ClassicalAnchor;
   trajectory: TrajectoryStep[];
   branches: Array<{ id: string; name: string; step: number; status: string; delta: string }>;
-  epistemics: EpistemicState;
+  epistemics: EpistemicState | null;
   admet?: Record<string, unknown>;
-  notebook: SystematicNotebook;
+  notebook: SystematicNotebook | null;
   updated_at: string;
 }
 

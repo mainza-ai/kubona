@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { Brain, ShieldCheck, CircuitBoard, Scale } from 'lucide-react';
 import { CampaignState, ProbeId } from '@/types';
+import { ProvenanceBadge } from '@/components/common/ProvenanceBadge';
 
 interface SwarmUniverseProps {
   campaign?: CampaignState | null;
@@ -92,7 +93,9 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
   // arena states that it is empty — target, energy, and probes stay silent.
   const hasCampaign = campaign != null;
   const targetLabel = qf?.target_molecule || campaign?.target_system || (hasCampaign ? '—' : 'No campaign — swarm idle');
-  const energyRaw = anchor?.vqe_expectation_energy ?? anchor?.fci_exact_energy;
+  const energyRaw = anchor?.anchor_computed === true
+    ? (anchor.vqe_expectation_energy ?? anchor.fci_exact_energy)
+    : undefined;
   const energyText = typeof energyRaw === 'number' && Number.isFinite(energyRaw) ? energyRaw.toFixed(4) : '—';
 
   const gradVar = typeof qf?.gradient_variance === 'number' && Number.isFinite(qf.gradient_variance) ? qf.gradient_variance : null;
@@ -116,6 +119,7 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
   return (
     <div
       data-testid="swarm-universe"
+      data-provenance={anchor?.anchor_computed === true ? 'measured' : hasCampaign ? 'proposed' : undefined}
       data-rest={atRest ? 'true' : undefined}
       className="absolute inset-0 flex items-center justify-center cursor-crosshair"
     >
@@ -167,8 +171,11 @@ export function SwarmUniverse({ campaign, recenterSignal = 0, activeProbe = null
           </div>
         </div>
         <div className="mt-3 flex flex-col items-center">
-          <div className="px-2.5 py-0.5 rounded-full bg-cyan-950/80 border border-cyan-500/30 text-[12px] font-code text-cyan-300 tracking-wider max-w-[220px] truncate">
-            {targetLabel}
+          <div className="flex items-center gap-1.5">
+            <div className="px-2.5 py-0.5 rounded-full bg-cyan-950/80 border border-cyan-500/30 text-[12px] font-code text-cyan-300 tracking-wider max-w-[220px] truncate">
+              {targetLabel}
+            </div>
+            {hasCampaign && <ProvenanceBadge kind={anchor?.anchor_computed === true ? 'measured' : 'proposed'} detail={anchor?.anchor_computed === true ? 'Computed anchor and campaign state.' : 'Campaign proposal; no measured anchor yet.'} />}
           </div>
           <div data-testid="universe-energy" className="font-code text-sm text-white font-semibold mt-1">
             {energyText} <span className="text-xs font-normal text-slate-400">Hartree</span>

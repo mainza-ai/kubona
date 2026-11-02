@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import Image from 'next/image';
 import { BadgeCheck, LayoutDashboard, Lock, Network, Settings } from 'lucide-react';
 
 export type ShellMode = 'workbench' | 'evidence' | 'operations' | 'settings';
@@ -33,12 +34,14 @@ export function ModeRail({
     <aside aria-label="Primary modes" className="relative z-30 w-14 lg:w-16 h-full flex flex-col items-center justify-between py-5 border-r border-white/5 bg-[#0A0C10] shrink-0">
       <div className="flex flex-col items-center gap-6">
         <div title="Kubona — sovereign research console" className="flex items-center justify-center">
-          <div className="w-10 h-10 rounded-xl bg-cyan-400/10 border border-cyan-400/40 flex items-center justify-center">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-cyan-400" aria-hidden="true">
-              <polygon points="12,2 22,8.5 22,15.5 12,22 2,15.5 2,8.5" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
-              <circle cx="12" cy="12" r="3" fill="currentColor" />
-            </svg>
-          </div>
+          <Image
+            src="/assets/milimo_kubona_logo.png"
+            alt="Kubona"
+            width={40}
+            height={34}
+            priority
+            className="h-9 w-auto object-contain"
+          />
         </div>
 
         <div className="w-6 h-[1px] bg-white/10" />

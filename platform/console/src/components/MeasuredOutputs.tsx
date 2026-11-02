@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { fetchJobs, jobStatusLabel } from '@/lib/api';
 import { asRecord } from '@/lib/guards';
 import { JobProgress } from './common/JobProgress';
+import { ProvenanceBadge } from './common/ProvenanceBadge';
 import type { Job } from '@/types';
 
 function num(v: unknown): number | null {
@@ -143,8 +144,11 @@ export function MeasuredOutputs({ sessionId }: { sessionId: string | null }) {
   if (!sessionId) return null;
 
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-black/40 p-4 space-y-2">
-      <div className="text-xs font-semibold text-white">Measured outputs</div>
+    <div data-provenance="measured" className="rounded-2xl border border-white/[0.08] bg-black/40 p-4 space-y-2">
+      <div className="flex items-center gap-2">
+        <div className="text-xs font-semibold text-white">Measured outputs</div>
+        <ProvenanceBadge kind="measured" detail="Latest completed job per type." />
+      </div>
       <p className="text-[12px] text-slate-500">
         Latest completed job per type — what ran, not what was planned. Notebook energies describe the plan.
       </p>
@@ -167,7 +171,7 @@ export function MeasuredOutputs({ sessionId }: { sessionId: string | null }) {
               className="flex items-baseline justify-between gap-3 rounded-lg bg-white/[0.03] border border-white/[0.06] px-2.5 py-1.5"
             >
               <span className="text-[12px] font-code text-cyan-300 shrink-0">{r.type}</span>
-              <span className="text-[12px] font-code text-slate-200 text-right">{r.text}</span>
+              <span data-metric className="text-[12px] font-code text-slate-200 text-right">{r.text}</span>
             </li>
           ))}
         </ul>

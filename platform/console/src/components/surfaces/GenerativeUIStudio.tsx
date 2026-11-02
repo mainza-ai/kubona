@@ -25,7 +25,8 @@ type WidgetTab = 'all' | 'molecule' | 'circuit' | 'lean4' | 'shadows' | 'manifol
 
 export function GenerativeUIStudio({ campaign, tenantId }: { campaign?: CampaignState | null; tenantId?: string }) {
   const [activeWidgetTab, setActiveWidgetTab] = useState<WidgetTab>('all');
-  const hasLive = campaign?.quantum_factors != null;
+  const hasLive = campaign?.quantum_factors != null &&
+    (campaign.notebook != null || campaign.epistemics != null || (campaign.trajectory?.length ?? 0) > 0);
 
   const tabs: { id: WidgetTab; label: string; icon: React.ComponentType<{ className?: string }> }[] = [
     { id: 'all', label: 'All Widgets', icon: Sparkles },
@@ -46,7 +47,7 @@ export function GenerativeUIStudio({ campaign, tenantId }: { campaign?: Campaign
         <div className="space-y-1">
           <div className="flex items-center space-x-2">
             <span className="px-2.5 py-0.5 rounded-full text-[12px] font-mono tracking-wider uppercase bg-purple-500/20 text-purple-300 border border-purple-500/30">
-              Surface 9 · Preview Gallery
+              Surface 9 · Scientific Widgets
             </span>
             <span className="text-white/40 text-xs">• Agent-to-User Generative Scientific Widgets</span>
           </div>
@@ -55,13 +56,8 @@ export function GenerativeUIStudio({ campaign, tenantId }: { campaign?: Campaign
             <span>Generative Scientific UI Studio</span>
           </h2>
           <p className="text-xs text-white/60 max-w-2xl">
-            Interactive visual components dynamically rendered by autonomous agent collectives: 3D molecular active spaces, post-QIR circuits, Lean 4 goal trees, classical shadow tomography, and high-friction spend mandate cards.
+            Interactive visual components backed by campaign proposals and measured receipts: molecular active spaces, post-QIR circuits, Lean 4 goals, classical shadows, and spend mandate cards.
           </p>
-          {!hasLive && (
-            <p className="text-[12px] font-code text-amber-300 border border-amber-400/40 bg-amber-950/40 rounded-xl px-3 py-2 mt-2">
-              synthetic demo — not session data. Connect a live campaign to populate these widgets with measured values.
-            </p>
-          )}
         </div>
 
         {/* Filter Pills */}
@@ -88,17 +84,20 @@ export function GenerativeUIStudio({ campaign, tenantId }: { campaign?: Campaign
       </div>
 
       {/* Widget Showcase Grid */}
+      {!hasLive ? (
+        <div className="rounded-3xl border border-white/[0.08] bg-[var(--color-page)] p-8 text-center space-y-2">
+          <p className="text-sm font-medium text-white">No measured campaign data for the widget gallery.</p>
+          <p className="text-xs text-slate-400 max-w-xl mx-auto">
+            Widgets appear after a campaign has a measured notebook, epistemic claim, or trajectory. A proposal alone does not populate them with fabricated values.
+          </p>
+        </div>
+      ) : (
       <div className="space-y-6">
         {(activeWidgetTab === 'all' || activeWidgetTab === 'molecule') && (
           <MolecularActiveSpaceWidget
             moleculeName={qf?.target_molecule || campaign?.target_system || undefined}
             numElectrons={qf?.active_electrons}
             numOrbitals={qf?.active_orbitals}
-            homoLumoGapHa={
-              typeof campaign?.classical_anchor?.rhf_mean_field_energy === 'number' && typeof campaign?.classical_anchor?.fci_exact_energy === 'number'
-                ? Math.abs(campaign.classical_anchor.rhf_mean_field_energy - campaign.classical_anchor.fci_exact_energy)
-                : undefined
-            }
           />
         )}
 
@@ -114,21 +113,17 @@ export function GenerativeUIStudio({ campaign, tenantId }: { campaign?: Campaign
         )}
 
         {(activeWidgetTab === 'all' || activeWidgetTab === 'shadows') && (
-          <ShadowTomographyRadarWidget numQubits={qf?.qubit_count ?? 4} />
+          <ShadowTomographyRadarWidget numQubits={qf?.qubit_count} />
         )}
 
         {(activeWidgetTab === 'all' || activeWidgetTab === 'manifold') && (
-          <EpistemicManifoldSurfaceWidget
-            currentCurvatureScalar={typeof campaign?.epistemics?.literature_drift_mha === 'number' ? -Math.max(0.5, campaign.epistemics.literature_drift_mha * 2.5) : undefined}
-            fisherInfoNorm={typeof qf?.gradient_variance === 'number' ? Math.max(1.0, 1.0 / (qf.gradient_variance * 100 + 0.1)) : undefined}
-            entropyReduction={typeof campaign?.epistemics?.p_correlated === 'number' ? (campaign.epistemics.p_correlated / 100) * 0.85 : undefined}
-          />
+          <EpistemicManifoldSurfaceWidget />
         )}
 
         {(activeWidgetTab === 'all' || activeWidgetTab === 'mandate') && (
           <CryptographicMandateCardWidget
             actionDescription={campaign?.research_goal || (campaign?.target_system ? `Execute VQE on ${campaign.target_system}` : undefined)}
-            estimatedCostUsd={typeof qf?.estimated_spend_usd === 'number' ? qf.estimated_spend_usd : (qf ? 0.0 : undefined)}
+            estimatedCostUsd={typeof qf?.estimated_spend_usd === 'number' ? qf.estimated_spend_usd : undefined}
             targetBackend={qf?.recommended_backend || 'local_simulator'}
             tenantId={tenantId}
             sessionId={campaign?.session_id ?? undefined}
@@ -136,6 +131,7 @@ export function GenerativeUIStudio({ campaign, tenantId }: { campaign?: Campaign
           />
         )}
       </div>
+      )}
     </div>
   );
 }

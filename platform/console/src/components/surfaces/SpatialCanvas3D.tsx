@@ -15,6 +15,7 @@ import {
   Camera
 } from 'lucide-react';
 import { CampaignState } from '@/types';
+import { ProvenanceBadge } from '@/components/common/ProvenanceBadge';
 import {
   appendLedgerEvent,
   assertPrediction,
@@ -180,7 +181,7 @@ export function SpatialCanvas3D({
   }, []);
 
   // P3: ledger-bound pre-registration. `sealed` is the latest sealed
-  // expectation for this session (null = ghost stays illustrative);
+  // expectation for this session (null = ghost stays hidden);
   // `evaluation` is its latest scoring, rendered as the z-badge.
   const [sealed, setSealed] = useState<SealedPrediction | null>(null);
   const [evaluation, setEvaluation] = useState<PredictionEvaluation | null>(null);
@@ -208,7 +209,7 @@ export function SpatialCanvas3D({
 
   // Target system & equilibrium parameters (single source of truth:
   // @/lib/morse — shared with the 2D workbench so both surfaces agree).
-  const targetSystem = campaign?.target_system || 'H2';
+  const targetSystem = campaign?.target_system || 'No target';
   const equilibriumR = useMemo(() => {
     if (campaign?.quantum_factors?.bond_distance) return campaign.quantum_factors.bond_distance;
     return equilibriumBondDistanceAngstrom(campaign?.target_system);
@@ -217,8 +218,8 @@ export function SpatialCanvas3D({
   const anchor = campaign?.classical_anchor;
   const anchorComputed = anchor?.anchor_computed === true;
   const fciRaw = anchor?.fci_exact_energy;
-  const fciGround = anchorComputed && typeof fciRaw === 'number' && Number.isFinite(fciRaw) ? fciRaw : -1.137;
-  const rho = campaign?.epistemics?.p_correlated ?? 0.88;
+  const fciGround = anchorComputed && typeof fciRaw === 'number' && Number.isFinite(fciRaw) ? fciRaw : 0;
+  const rho = campaign?.epistemics?.p_correlated ?? 0;
 
   // Sealed expectation level (null = unbound). The ghost plane renders at
   // visualHeight(sealedMean) when bound — the ledger's expectation, not an
@@ -587,18 +588,20 @@ export function SpatialCanvas3D({
     };
   });
 
-  // Toggle Vault Ghost contour visibility without touching camera/controls
+  // Toggle Vault Ghost contour visibility without touching camera/controls.
+  // The ghost is hidden unless a sealed/replayed μ±σ expectation exists.
   useEffect(() => {
+    const bound = showGhostContour && viewMean != null && viewStd != null && Number.isFinite(viewStd) && viewStd > 0;
     if (ghostMeshRef.current) {
-      ghostMeshRef.current.visible = showGhostContour;
+      ghostMeshRef.current.visible = bound;
     }
     if (ghostUpperRef.current) {
-      ghostUpperRef.current.visible = showGhostContour && viewMean != null;
+      ghostUpperRef.current.visible = bound;
     }
     if (ghostLowerRef.current) {
-      ghostLowerRef.current.visible = showGhostContour && viewMean != null;
+      ghostLowerRef.current.visible = bound;
     }
-  }, [showGhostContour, viewMean]);
+  }, [showGhostContour, viewMean, viewStd]);
 
   // R-14: rebuild agent gaze arrows from the latest world.gaze annotations
   // (cap 8, newest last). Cones point along the agent quaternion (-Z forward).
@@ -663,7 +666,7 @@ export function SpatialCanvas3D({
     // Update ghost band in-place (R-06/R-07). Bound: flat μ plane plus
     // μ±σ wireframe shells from the ledger (or the scrubbed replay entry);
     // the terrain shader tints the divergence gap via uSealedMean/uSealedStd.
-    // Unbound: the illustrative +0.12 offset over the live surface.
+    // Unbound: no ghost geometry is shown.
     const band =
       viewMean != null && Number.isFinite(viewMean) && viewStd != null && Number.isFinite(viewStd) && viewStd > 0
         ? ghostBandHeights(viewMean, viewStd, fciGround, De)
@@ -682,11 +685,12 @@ export function SpatialCanvas3D({
       p.needsUpdate = true;
       g.computeVertexNormals();
     };
-    const illustrative = (_i: number, gx: number, gz: number) =>
-      computeVisualHeight(computeEnergy(gx * 0.4, gz)) + 0.12;
-    setPlaneY(ghostMeshRef.current, band ? band.mid : null, illustrative);
-    setPlaneY(ghostUpperRef.current, band ? band.upper : null, illustrative);
-    setPlaneY(ghostLowerRef.current, band ? band.lower : null, illustrative);
+    if (band) {
+      setPlaneY(ghostMeshRef.current, band.mid, () => band.mid);
+      setPlaneY(ghostUpperRef.current, band.upper, () => band.upper);
+      setPlaneY(ghostLowerRef.current, band.lower, () => band.lower);
+    }
+    if (ghostMeshRef.current) ghostMeshRef.current.visible = showGhostContour && band != null;
     if (ghostUpperRef.current) ghostUpperRef.current.visible = showGhostContour && band != null;
     if (ghostLowerRef.current) ghostLowerRef.current.visible = showGhostContour && band != null;
 
@@ -976,17 +980,9 @@ export function SpatialCanvas3D({
 
     // Pre-Registration Vault Ghost Plane + μ±σ band (R-07). Three planes
     // sharing one footprint: translucent μ sheet + faint wireframe shells.
-    // In-place heights are set by the update effect; unbound, only the mid
-    // plane shows (illustrative +0.12 offset over the live surface).
+    // Hidden until a sealed expectation exists; no synthetic offset plane.
     const ghostGeo = new THREE.PlaneGeometry(worldWidth * 0.8, worldDepth * 0.8, 16, 16);
     ghostGeo.rotateX(-Math.PI / 2);
-    const ghostPos = ghostGeo.attributes.position;
-    for (let i = 0; i < ghostPos.count; i++) {
-      const gx = ghostPos.getX(i);
-      const gz = ghostPos.getZ(i);
-      const gDeltaR = gx * 0.4;
-      ghostPos.setY(i, propsRef.current.computeVisualHeight(propsRef.current.computeEnergy(gDeltaR, gz)) + 0.12);
-    }
     ghostGeo.computeVertexNormals();
 
     const ghostMat = new THREE.MeshBasicMaterial({
@@ -996,6 +992,7 @@ export function SpatialCanvas3D({
       opacity: 0.35,
     });
     const ghostMesh = new THREE.Mesh(ghostGeo, ghostMat);
+    ghostMesh.visible = false;
     scene.add(ghostMesh);
     ghostMeshRef.current = ghostMesh;
 
@@ -1349,6 +1346,18 @@ export function SpatialCanvas3D({
     );
   }
 
+  if (!anchorComputed) {
+    return (
+      <div className="relative w-full h-full min-h-[520px] rounded-2xl overflow-hidden bg-[#07080B] border border-amber-400/30 flex flex-col items-center justify-center gap-2 p-8 text-center">
+        <span className="text-sm font-medium text-amber-200">Observatory requires a computed classical anchor.</span>
+        <span className="text-[12px] font-mono text-slate-400 max-w-sm">
+          No PySCF anchor is recorded for this campaign. Use the 2D workbench;
+          the 3D terrain stays hidden rather than inventing a reference surface.
+        </span>
+      </div>
+    );
+  }
+
   return (
     <div
       ref={containerRef}
@@ -1366,6 +1375,7 @@ export function SpatialCanvas3D({
       <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-none">
         <div className="flex items-center gap-3 pointer-events-auto bg-[#0E1117]/85 border border-white/10 rounded-full px-4 py-2 shadow-2xl">
           <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
+          <ProvenanceBadge kind="model" detail="Terrain is the Morse model rendered against the computed anchor." />
           <span className="font-code text-xs text-white font-medium tracking-wide">
             {targetSystem} Potential Energy Surface
           </span>
@@ -1374,9 +1384,10 @@ export function SpatialCanvas3D({
             Re: {equilibriumR.toFixed(4)} Å
           </span>
           <span className="text-white/20">|</span>
-          <span className="font-code text-[12px] text-slate-300" title={anchorComputed ? 'Computed classical anchor' : 'No computed anchor: terrain is illustrative'}>
+          <span className="font-code text-[12px] text-slate-300" title="Computed classical anchor">
             FCI Anchor: {anchorComputed ? `${fciGround.toFixed(4)} Ha` : 'UNVERIFIED'}
           </span>
+          {anchorComputed && <ProvenanceBadge kind="measured" detail="Live PySCF anchor." />}
           <span className="text-white/20">|</span>
           <div className="flex items-center gap-1.5 text-[12px] font-code text-amber-300">
             <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
@@ -1392,27 +1403,26 @@ export function SpatialCanvas3D({
 
         {/* Viewport Control Badges */}
         <div className="flex items-center gap-2 pointer-events-auto">
-        {/* Ghost contour toggle.
-            Bound (P3+R-07): translucent μ plane with ±σ wireframe shells from
-            the ledger (or the replay scrub position). Unbound: illustrative
-            +0.12 offset wireframe. Gap tint (R-06) paints |z| bands on the
-            terrain while bound: cyan &lt;1 · amber 1–3 · rose &gt;3. */}
-          <button
-            onClick={() => setShowGhostContour((prev) => !prev)}
-            title={
-              sealed
-                ? `Sealed expectation μ=${sealed.expected_mean} ± ${sealed.expected_std} Ha (${sealed.prediction_hash.slice(0, 8)}…); amber/rose = divergence gap`
-                : 'No sealed prediction yet — ghost is an illustrative placeholder; seal one in the Vault panel'
-            }
-            className={`px-3 py-1.5 rounded-full border text-[12px] font-code transition-all flex items-center gap-1.5 shadow-lg ${
-              showGhostContour
-                ? 'bg-cyan-500/15 border-cyan-400/40 text-cyan-300'
-                : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
-            }`}
-          >
-          <Layers className="w-3.5 h-3.5" />
-          <span>{sealed ? 'Vault Ghost (μ±σ bound)' : 'Vault Ghost (illustrative)'}</span>
-        </button>
+        {/* Ghost contour toggle. Bound only when the ledger (or replay
+            scrub) supplies μ±σ. No synthetic ghost plane is shown. */}
+          {viewMean != null && viewStd != null ? (
+            <button
+              onClick={() => setShowGhostContour((prev) => !prev)}
+              title={`Sealed expectation μ=${sealed?.expected_mean ?? viewMean} ± ${sealed?.expected_std ?? viewStd} Ha; amber/rose = divergence gap`}
+              className={`px-3 py-1.5 rounded-full border text-[12px] font-code transition-all flex items-center gap-1.5 shadow-lg ${
+                showGhostContour
+                  ? 'bg-cyan-500/15 border-cyan-400/40 text-cyan-300'
+                  : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Vault Ghost (μ±σ bound)</span>
+            </button>
+          ) : (
+            <span className="px-3 py-1.5 rounded-full border border-white/10 bg-white/[0.03] text-[12px] font-code text-slate-500">
+              No sealed prediction
+            </span>
+          )}
 
           {/* Fullscreen toggle */}
           <button
@@ -1438,11 +1448,6 @@ export function SpatialCanvas3D({
             <Sparkles className="w-3 h-3 text-cyan-400" />
             <span>Spatial Inspection Probe</span>
           </div>
-          {!anchorComputed && (
-            <div className="mb-1 text-[12px] font-code text-amber-300 border border-amber-400/40 rounded px-1.5 py-0.5">
-              UNVERIFIED terrain — illustrative
-            </div>
-          )}
           {hoveredCoordinates || selectedCoordinates ? (
             <div className="space-y-1 font-code text-xs">
               <div className="flex justify-between gap-4">
@@ -1515,7 +1520,7 @@ export function SpatialCanvas3D({
           ) : (
             <div className="font-code text-xs text-slate-500">
               {anchorComputed
-                ? 'No sealed prediction — ghost is illustrative.'
+                ? 'No sealed prediction — ghost is hidden.'
                 : 'No FCI anchor — sealing refused (nothing to anchor μ to).'}
             </div>
           )}

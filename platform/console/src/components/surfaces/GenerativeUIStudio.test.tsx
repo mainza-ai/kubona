@@ -93,14 +93,17 @@ describe('GenerativeUIStudio (Surface 9)', () => {
     });
 
     const text = textOf(tree!.toJSON());
-    expect(text).toContain('Surface 9 · Preview Gallery');
+    expect(text).toContain('Surface 9 · Scientific Widgets');
     expect(text).toContain('Generative Scientific UI Studio');
-    expect(text).toContain('3D Molecular Active Space Viewer');
-    expect(text).toContain('Post-QIR Quantum Circuit Editor');
+    expect(text).toContain('Molecular Active Space');
+    expect(text).toContain('Post-QIR Quantum Circuit');
     expect(text).toContain('Lean 4 Goal Tree Inspector');
-    expect(text).toContain('Classical Shadow Tomography Radar');
+    expect(text).toContain('Classical Shadow Tomography');
     expect(text).toContain('Riemannian Epistemic Manifold Surface');
     expect(text).toContain('AP2 High-Friction Spend Mandate Card');
+    expect(text).not.toContain('14.8x');
+    expect(text).not.toContain('99.2%');
+    expect(text).not.toContain('4.2x');
   });
 
   it('filters to individual widget when tab is selected', async () => {
@@ -119,8 +122,8 @@ describe('GenerativeUIStudio (Surface 9)', () => {
     });
 
     const text = textOf(tree!.toJSON());
-    expect(text).toContain('3D Molecular Active Space Viewer');
-    expect(text).not.toContain('Classical Shadow Tomography Radar');
+    expect(text).toContain('Molecular Active Space');
+    expect(text).not.toContain('Classical Shadow Tomography');
   });
 
   it('renders synthetic demo notice when campaign is null', async () => {
@@ -130,6 +133,7 @@ describe('GenerativeUIStudio (Surface 9)', () => {
     });
 
     const text = textOf(tree!.toJSON());
-    expect(text).toContain('synthetic demo — not session data');
+    expect(text).toContain('No measured campaign data for the widget gallery.');
+    expect(text).not.toContain('synthetic demo');
   });
 });

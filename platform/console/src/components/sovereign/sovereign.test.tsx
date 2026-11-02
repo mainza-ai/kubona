@@ -58,6 +58,8 @@ const CAMPAIGN = {
     discrepancy_mha: 1.2,
     chemical_accuracy_passed: true,
     chemical_accuracy_limit: 1.6,
+    anchor_computed: true,
+    anchor_source: 'pyscf-live',
   },
   trajectory: [],
   branches: [],
@@ -93,6 +95,7 @@ describe('ModeRail', () => {
       root.findByProps({ 'data-testid': 'dock-arena' }).props.onClick();
     });
     expect(onSelect).toHaveBeenCalledWith('workbench');
+    expect(root.findByProps({ alt: 'Kubona' }).props.src).toContain('milimo_kubona_logo.png');
   });
 
   it('names every mode natively and keeps the air-gap sentinel', () => {
@@ -160,6 +163,7 @@ describe('SwarmUniverse', () => {
     for (const probe of ['probe-theorist', 'probe-formalist', 'probe-compiler', 'probe-critic']) {
       root.findByProps({ 'data-testid': probe });
     }
+    expect(root.findByProps({ 'data-testid': 'swarm-universe' }).props['data-provenance']).toBe('measured');
     const energy = root.findByProps({ 'data-testid': 'universe-energy' });
     expect(textOf(energy)).toContain('-1984.3418');
   });
@@ -257,7 +261,7 @@ describe('WidgetStage', () => {
     );
     const stage = root.findByProps({ 'data-testid': 'widget-stage' });
     expect(textOf(stage)).toContain('Circuit · live');
-    expect(textOf(stage)).toContain('MIX');
+    expect(textOf(stage)).toContain('EMPTY');
     act(() => {
       root.findByProps({ 'data-testid': 'widget-dismiss' }).props.onClick();
     });
@@ -285,21 +289,21 @@ describe('WidgetStage', () => {
     expect(root.findByProps({ 'data-testid': 'widget-stage' }).props['data-minimized']).toBe('true');
   });
 
-  it('marks static reference content REF, live feeds LIVE', () => {
+  it('marks empty feeds EMPTY, proposal fields PROPOSAL, and live feeds LIVE', () => {
     const shadows = render(
       <WidgetStage widget={{ kind: 'shadows', title: 'Shadow estimates' }} {...base} onDismiss={() => {}} />
     );
-    expect(textOf(shadows.findByProps({ 'data-testid': 'widget-stage' }))).toContain('REF');
+    expect(textOf(shadows.findByProps({ 'data-testid': 'widget-stage' }))).toContain('EMPTY');
     const circuit = render(
-      <WidgetStage widget={{ kind: 'circuit', title: 'Circuit · mixed' }} {...base} onDismiss={() => {}} />
+      <WidgetStage widget={{ kind: 'circuit', title: 'Circuit · empty' }} {...base} onDismiss={() => {}} />
     );
     const circuitText = textOf(circuit.findByProps({ 'data-testid': 'widget-stage' }));
-    expect(circuitText).toContain('MIX');
+    expect(circuitText).toContain('EMPTY');
     expect(circuitText).not.toMatch(/\bLIVE\b/);
     const molecule = render(
       <WidgetStage widget={{ kind: 'molecule', title: 'Molecule' }} {...base} onDismiss={() => {}} />
     );
-    expect(textOf(molecule.findByProps({ 'data-testid': 'widget-stage' }))).toContain('MIX');
+    expect(textOf(molecule.findByProps({ 'data-testid': 'widget-stage' }))).toContain('PROPOSAL');
   });
 
   it('spend card defers the decision to the Action Gate (never signs itself)', () => {    const onRequestGateFocus = vi.fn();
@@ -352,7 +356,13 @@ describe('ProofDagView', () => {
     const root = render(<ProofDagView campaign={broken} />);
     expect(root.findByType('svg').findAllByType('path').length).toBe(0);
     const empty = render(<ProofDagView campaign={CAMPAIGN} />);
-    expect(textOf(empty.findByType(ProofDagView))).toContain('No proof DAG');
+    expect(textOf(empty.findByType(ProofDagView))).toContain('No circuit DAG');
+  });
+
+  it('labels a proposal DAG as proposed, not measured', () => {
+    const proposal = { ...dagCampaign, notebook: null } as unknown as CampaignState;
+    const root = render(<ProofDagView campaign={proposal} />);
+    expect(textOf(root.findByProps({ 'data-testid': 'proof-dag' }))).toContain('Proposed circuit DAG');
   });
 
   it('selecting a node traces its record', () => {

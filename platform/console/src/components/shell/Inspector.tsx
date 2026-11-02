@@ -5,6 +5,7 @@ import type { CampaignState, Task, Job } from '@/types';
 import type { WorkbenchObject } from '@/components/workbench/workbench-model';
 import { jobStatusLabel } from '@/lib/api';
 import { Button } from '@/components/ui/Button';
+import { ProvenanceBadge } from '@/components/common/ProvenanceBadge';
 
 export type InspectorTab = 'details' | 'evidence' | 'jobs' | 'copilot';
 
@@ -183,12 +184,15 @@ export function Inspector({
             <section role="tabpanel" aria-label="Evidence" className="space-y-4 text-[12px]">
               {campaign ? (
                 <>
-                  <div>
-                    <div className="text-[12px] uppercase tracking-wide text-slate-500">Epistemic state</div>
+                  <div data-provenance={epistemics ? 'measured' : undefined}>
+                    <div className="flex items-center gap-2 text-[12px] uppercase tracking-wide text-slate-500">
+                      <span>Epistemic state</span>
+                      {epistemics && <ProvenanceBadge kind="measured" detail="Evaluated claim record." />}
+                    </div>
                     <p className="mt-1 leading-relaxed text-white">{epistemics?.statement || 'No evaluated claim yet.'}</p>
                     <p className="mt-1 text-slate-400">{epistemics?.status || 'UNVERIFIED'}</p>
                   </div>
-                  <dl className="space-y-2">
+                  <dl data-provenance={epistemics || anchor?.anchor_computed ? 'measured' : undefined} className="space-y-2">
                     <Fact label="Corroborated α" value={num(epistemics?.alpha_corroborated, 3)} />
                     <Fact label="Contested β" value={num(epistemics?.beta_contested, 3)} />
                     <Fact label="Unverified γ" value={num(epistemics?.gamma_unverified, 3)} />

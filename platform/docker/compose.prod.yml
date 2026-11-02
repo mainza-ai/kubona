@@ -156,7 +156,8 @@ services:
       # kubonad's dial logic — the Go side joins the same UDS, never TCP.
       KUBONA_BRIDGE_SOCKET: /run/kubona/bridge.sock
       # Explicit single-lab posture (Q-57). Set to "0" for a multi-lab
-      # deployment; anonymous session reads then require auth.
+      # deployment; anonymous campaign creation/chat then require auth, and
+      # cloud LLM roles always do regardless of this flag.
       KUBONA_SINGLE_LAB: ${KUBONA_SINGLE_LAB:-1}
       KUBONA_API_TOKEN: ${KUBONA_API_TOKEN:-}
       # 32-byte hex/base64 key for AES-256-GCM sealing of UI-entered LLM

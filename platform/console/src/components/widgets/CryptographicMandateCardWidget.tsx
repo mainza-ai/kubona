@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import { ProvenanceBadge } from '@/components/common/ProvenanceBadge';
 import { KeyRound,  CheckCircle2, XCircle, ArrowDownCircle } from 'lucide-react';
 import { authorizeSpend } from '@/lib/authorizeSpend';
 
@@ -75,7 +76,7 @@ export function CryptographicMandateCardWidget({
   };
 
   return (
-    <div className="rounded-2xl border border-rose-500/20 bg-rose-950/20 p-5 text-white space-y-4">
+    <div data-provenance={hasProposal ? 'proposed' : undefined} className="rounded-2xl border border-rose-500/20 bg-rose-950/20 p-5 text-white space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-rose-500/20 pb-3">
         <div className="flex items-center space-x-3">
@@ -83,7 +84,10 @@ export function CryptographicMandateCardWidget({
             <KeyRound className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-rose-200">AP2 High-Friction Spend Mandate Card (Preview)</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="text-sm font-semibold text-rose-200">AP2 High-Friction Spend Mandate Card</h3>
+              {hasProposal && <ProvenanceBadge kind="proposed" detail="Spend estimate and target are proposal fields." />}
+            </div>
             <p className="text-xs text-rose-300/60">Autonomous Action Requiring Cryptographic Human Authorization</p>
           </div>
         </div>
