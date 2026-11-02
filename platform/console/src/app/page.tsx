@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { SurfaceLoading } from '@/components/shell/SurfaceLoading';
 import { Sparkles, Plus, Zap, Info, HelpCircle, Trash2, Clock, Box, X } from 'lucide-react';
 import { Session, LedgerEvent, RunPhase, ProbeId } from '@/types';
-import { fetchSessionsResult, fetchSession, createSession, deleteSession, createTask, updateTaskStatus, closeObligation, fetchLoopsResult, fetchEventsResult, fetchCampaignState, authWhoami, ApiFailureError, API_BASE, CONSOLE_WORKBENCH_ENABLED, authHeaders, configureApiBase, apiFetch } from '@/lib/api';
+import { fetchSessionsResult, fetchSession, createSession, deleteSession, createTask, updateTaskStatus, closeObligation, fetchLoopsResult, fetchEventsResult, fetchCampaignState, authWhoami, fetchAccess, wasRecentAuthFailure, type AccessState, ApiFailureError, API_BASE, CONSOLE_WORKBENCH_ENABLED, authHeaders, configureApiBase, apiFetch } from '@/lib/api';
 import { useJobsProjection } from '@/domain/useJobsProjection';
 import { useObligationsProjection } from '@/domain/useObligationsProjection';
 import { useTasksProjection } from '@/domain/useTasksProjection';
@@ -76,7 +76,6 @@ function formatElapsed(createdAt: string): string {
 export default function Home() {
   const { sessions, setSessions, upsert: upsertSession } = useSessionsProjection();
   const [currentSessionId, setCurrentSessionId] = useState<string>('');
-  const bootstrappedSession = useRef(false);
   const prevPhase = useRef<RunPhase>('idle');
   const { loops, setLoops, refresh: refreshLoops } = useLoopsProjection(currentSessionId || null);
   const { jobs, status: jobsStatus, error: jobsError, refresh: refreshJobs } = useJobsProjection(currentSessionId || null);
@@ -153,6 +152,8 @@ export default function Home() {
   const [campaignFilter, setCampaignFilter] = useState('');
   const [sessionListError, setSessionListError] = useState<string | null>(null);
   const [dataError, setDataError] = useState<string | null>(null);
+  const [access, setAccess] = useState<AccessState | null>(null);
+  const campaignAuthError = campaignFailure?.status === 401 || campaignFailure?.status === 403;
 
   const refreshData = useCallback(async () => {
     const sid = currentSessionId || undefined;
@@ -209,6 +210,8 @@ export default function Home() {
     (async () => {
       // Runtime backend URL first (M5): same image, any backend.
       await configureApiBase();
+      const accessState = await fetchAccess();
+      if (mounted) setAccess(accessState);
       const workbenchOn = CONSOLE_WORKBENCH_ENABLED;
       setWorkbenchEnabled(workbenchOn);
       if (!workbenchOn) setArenaView((current) => (current === 'workbench' ? 'orbital' : current));
@@ -220,7 +223,8 @@ export default function Home() {
       if (!sessResult.ok) {
         setSessionListError(sessResult.error);
         if (loopResult.ok) setLoops(loopResult.data);
-        setDataError(loopResult.ok ? sessResult.error : localFailure(loopResult));
+        const authOnly = sessResult.failure.status === 401 || /multi-lab|unauthorized|log in/i.test(sessResult.error);
+        setDataError(authOnly ? (loopResult.ok ? null : localFailure(loopResult)) : (loopResult.ok ? sessResult.error : localFailure(loopResult)));
         return;
       }
       setSessionListError(null);
@@ -228,22 +232,10 @@ export default function Home() {
       else setDataError(null);
       const sessList = sessResult.sessions;
       let targetSessionId = currentSessionId;
-      if (sessList.length === 0) {
-        if (!bootstrappedSession.current) {
-          bootstrappedSession.current = true;
-          const firstSess = await createSession('Quantum Research Campaign #1', 150.0);
-          if (firstSess && mounted) {
-            setSessions([firstSess]);
-            targetSessionId = firstSess.id;
-            switchSession(firstSess.id);
-          }
-        }
-      } else {
-        setSessions(sessList);
-        if (!currentSessionId) {
-          targetSessionId = sessList[0].id;
-          switchSession(sessList[0].id);
-        }
+      setSessions(sessList);
+      if (sessList.length > 0 && !currentSessionId) {
+        targetSessionId = sessList[0].id;
+        switchSession(sessList[0].id);
       }
       if (loopResult.ok) setLoops(loopResult.data);
       if (targetSessionId) {
@@ -379,7 +371,11 @@ export default function Home() {
           params.targetMolecule,
           params.fresh
         );
-        failure = describeCreateFailure(newSess, null);
+        if (!newSess && (sessionListError || wasRecentAuthFailure())) {
+          failure = 'Sign in to create a campaign in this multi-lab workspace. Nothing was created.';
+        } else {
+          failure = describeCreateFailure(newSess, null);
+        }
         if (!failure && newSess) {
           createdId = newSess.id;
           upsertSession(newSess, true);
@@ -403,7 +399,7 @@ export default function Home() {
         toastTimer.current = setTimeout(() => setToast(null), 4000);
       }
     },
-    [switchSession, setCampaign, upsertSession, createWrite]
+    [switchSession, setCampaign, upsertSession, createWrite, sessionListError]
   );
 
   // Wave-3: delete-campaign stages a typed ConfirmDialog (session short-id)
@@ -717,6 +713,7 @@ export default function Home() {
   const handleCopilotSurface = useCallback((surf: string) => {
     if (surf === 'surface1') setSurface('arena');
     else if (surf === 'surface7') { setSurface('proofs'); setProofsTab('manuscripts'); }
+    else if (surf === 'labs') { setSurface('mesh'); setMeshTab('labs'); setInspectorOpen(false); }
     else setSurface(surf as DockSurface);
   }, []);
 
@@ -1047,14 +1044,27 @@ export default function Home() {
           <div className="max-h-64 overflow-y-auto space-y-3">
             {ordered.length === 0 && (
               sessionListError ? (
-                <div role="alert" className="text-[12px] text-amber-300/90 px-1 py-2 space-y-1">
-                  <p>Campaigns unavailable: {sessionListError}</p>
-                  <button type="button" onClick={() => void refreshData()} className="text-cyan-200 underline underline-offset-2">
-                    Retry
-                  </button>
-                </div>
+                /multi-lab|unauthorized|log in/i.test(sessionListError) ? (
+                  <div role="status" className="text-[12px] text-amber-300/90 px-1 py-2 space-y-1">
+                    <p>This is a multi-lab workspace. Sign in to see your lab’s campaigns.</p>
+                    <button
+                      type="button"
+                      onClick={() => { setShowCampaignMenu(false); setSurface('mesh'); setMeshTab('labs'); setInspectorOpen(false); }}
+                      className="text-cyan-200 underline underline-offset-2"
+                    >
+                      Sign in
+                    </button>
+                  </div>
+                ) : (
+                  <div role="alert" className="text-[12px] text-amber-300/90 px-1 py-2 space-y-1">
+                    <p>Campaigns unavailable: {sessionListError}</p>
+                    <button type="button" onClick={() => void refreshData()} className="text-cyan-200 underline underline-offset-2">
+                      Retry
+                    </button>
+                  </div>
+                )
               ) : (
-                <div className="text-[12px] text-slate-500 px-1 py-2">No campaigns match.</div>
+                <div className="text-[12px] text-slate-500 px-1 py-2">{sessions.length === 0 ? 'No campaigns yet.' : 'No campaigns match.'}</div>
               )
             )}
             {ordered.map(([tenant, list]) => (
@@ -1128,6 +1138,7 @@ export default function Home() {
             campaign={campaign}
             session={session}
             statusText={runStatusText}
+            mode={access?.mode}
             onOpenCampaigns={() => setShowCampaignMenu((value) => !value)}
           />
         )}
@@ -1152,12 +1163,18 @@ export default function Home() {
                 ref={workbenchRef}
                 campaign={campaign}
                 error={campaignFailure?.message ?? null}
+                authError={campaignAuthError}
+                onSignIn={() => { setSurface('mesh'); setMeshTab('labs'); setInspectorOpen(false); }}
                 onRetry={reloadCampaign}
                 loops={loops}
                 jobs={jobs}
                 obligations={obligations}
                 tasks={tasks}
                 sessionSpendUsd={session?.current_spend_usd}
+                onCreateCampaign={handleCreateSession}
+                localMode={access?.anonymous_chat === true}
+                multiLab={access?.mode === 'multi_lab'}
+                access={access}
                 onTaskStatus={(taskId, status) => { void handleTaskStatus(taskId, status); }}
                 onCloseObligation={(id) => { void handleCloseObligation(id); }}
                 sessionId={currentSessionId || undefined}
@@ -1388,6 +1405,8 @@ export default function Home() {
             }}
             onCampaignUpdated={(c) => setCampaign(c)}
             onSelectSurface={handleCopilotSurface}
+            onCreateCampaign={handleCreateSession}
+            requiresSignIn={Boolean(sessionListError && /multi-lab|unauthorized|log in/i.test(sessionListError))}
             onMaterialize={handleMaterialize}
             onRunStateChange={handleRunStateChange}
             onSessionChange={(id) => {

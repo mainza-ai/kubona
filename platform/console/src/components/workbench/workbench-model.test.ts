@@ -130,9 +130,10 @@ describe('workbench model', () => {
   });
 
   it('links only absolute HTTP(S) evidence sources and leaves references as text', () => {
+    const base = campaign();
     const linked = campaign({
       epistemics: {
-        ...campaign().epistemics,
+        ...base.epistemics!,
         sources: ['https://example.org/paper', 'ledger:42', 'not a url'],
       },
     });

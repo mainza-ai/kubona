@@ -77,7 +77,7 @@ export function LabsView() {
     // existing loaded flag — refused-vs-empty logic below is untouched).
     return (
       <div className="space-y-2.5">
-        <div className="text-slate-400 text-sm">Loading laboratories…</div>
+        <div className="text-[var(--color-muted)] text-sm">Loading laboratories…</div>
         <div data-testid="labs-skeleton" className="space-y-2" aria-hidden="true">
           <div className="h-16 rounded-2xl bg-white/[0.04] border border-white/[0.06] animate-pulse" />
           <div className="h-16 rounded-2xl bg-white/[0.04] border border-white/[0.06] animate-pulse" />
@@ -102,34 +102,60 @@ export function LabsView() {
       return (
         <div className="space-y-3">
           <div className="p-3 rounded-xl bg-amber-950/60 border border-amber-500/40 text-amber-200 text-xs">
-            Laboratories refused — the backend requires login. Nothing loaded, nothing assumed.{' '}
+            Sign in to manage laboratories. Research campaigns are under Campaigns.{' '}
             <a href="#operator-session" className="underline hover:text-amber-100">
-              Log in below
+              Sign in below
             </a>
             .
           </div>
           <div id="operator-session">
             <AuthPanel labs={[]} />
           </div>
-          <CreateLabPanel onCreated={reload} />
-      <TenantGrantPanel labs={labs} />
-      <KeyRecoveryPanel labs={labs} />
-      <SessionRefundPanel labs={labs} sessions={sessions} />
+          <details className="rounded-2xl border border-white/[0.08] bg-black/30 p-3">
+            <summary className="cursor-pointer text-xs font-semibold text-[var(--color-text)]">Advanced lab administration</summary>
+            <div className="mt-3 space-y-3">
+              <CreateLabPanel onCreated={reload} />
+              {authed === true && (
+                <>
+                  <TenantGrantPanel labs={labs} />
+                  <KeyRecoveryPanel labs={labs} />
+                  <SessionRefundPanel labs={labs} sessions={sessions} />
+                </>
+              )}
+            </div>
+          </details>
         </div>
       );
     }
     return (
       <div className="space-y-3">
-        <div className="text-slate-400 text-sm">No laboratories registered.</div>
+        <div className="text-[var(--color-muted)] text-sm">No laboratories registered.</div>
         <CreateLabPanel onCreated={reload} />
+      </div>
+    );
+  }
+
+  if (labs.length > 0 && authed !== true) {
+    return (
+      <div className="space-y-3">
+        <p className="text-[12px] text-[var(--color-muted)]">
+          Laboratories are administered by a lab admin. Sign in to manage this lab; research campaigns remain under Campaigns.
+        </p>
+        <AuthPanel labs={labs} />
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
+      <p className="text-[12px] text-[var(--color-muted)]">
+        Laboratories are for multi-lab administration. Research campaigns live under Campaigns.
+      </p>
       <AuthPanel labs={labs} />
-      <CreateLabPanel onCreated={reload} />
+      <details className="rounded-2xl border border-white/[0.08] bg-black/30 p-3">
+        <summary className="cursor-pointer text-xs font-semibold text-[var(--color-text)]">Advanced lab administration</summary>
+        <div className="mt-3"><CreateLabPanel onCreated={reload} /></div>
+      </details>
       {labs.map((lab) => {
         const spent = typeof lab.spent_usd === 'number' && Number.isFinite(lab.spent_usd) ? lab.spent_usd : null;
         const ceiling = typeof lab.spend_ceiling_usd === 'number' && Number.isFinite(lab.spend_ceiling_usd) ? lab.spend_ceiling_usd : null;
@@ -205,7 +231,7 @@ export function LabsView() {
                     bearer + admin envelope, refusals verbatim. */}
                 <LabOpsPanel lab={lab} onChanged={reload} />
                 {labSessions.length === 0 && (
-                  <div className="text-xs text-slate-500">No sessions in this lab.</div>
+                  <div className="text-xs text-[var(--color-muted)]">No sessions in this lab.</div>
                 )}
                 {labSessions.map((s) => (
                   <div
@@ -213,7 +239,7 @@ export function LabsView() {
                     className="flex items-center justify-between text-xs px-2 py-1.5 rounded-lg bg-white/[0.04] border border-white/[0.06]"
                   >
                     <span className="text-slate-200">{s.title || s.id}</span>
-                    <span className="text-slate-400 font-mono">
+                    <span className="text-[var(--color-muted)] font-mono">
                       {`${typeof s.current_spend_usd === 'number' && Number.isFinite(s.current_spend_usd) ? fmtMoney(s.current_spend_usd) : '—'} / ${typeof s.spend_limit_usd === 'number' && Number.isFinite(s.spend_limit_usd) ? fmtMoney(s.spend_limit_usd) : '—'} · ${s.status}`}
                     </span>
                   </div>

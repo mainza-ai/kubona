@@ -18,6 +18,7 @@ import {
   
 } from 'lucide-react';
 import { CampaignState, SystematicNotebook, Job } from '@/types';
+import { ProvenanceBadge } from '@/components/common/ProvenanceBadge';
 import { fetchNotebooks, sendChatMessage } from '@/lib/api';
 import { jobStatusLabel } from '@/lib/job-status';
 import { useJobsProjection } from '@/domain/useJobsProjection';
@@ -81,11 +82,10 @@ export function ResultsStudio({ campaign, sessionId }: ResultsStudioProps) {
   const [remoteNotebook, setRemoteNotebook] = useState<SystematicNotebook | null>(null);
   const [notebookError, setNotebookError] = useState<string | null>(null);
 
-  const target = campaign?.target_system || 'H2';
-  // Verified-data gating: when the campaign carries no notebook telemetry,
-  // the studio renders an explicitly UNVERIFIED draft. Plausible-looking
-  // fallback constants are forbidden here — they would present invented
-  // numbers as measurements.
+  const target =
+    campaign?.target_system ||
+    campaign?.quantum_factors?.target_molecule ||
+    'unrecorded target';
   // The campaign payload is the primary source; the results projection is
   // the fallback when a session has a notebook but the campaign read did not
   // carry it. Never synthesize a notebook locally.
@@ -125,14 +125,24 @@ export function ResultsStudio({ campaign, sessionId }: ResultsStudioProps) {
   const groundEnergy: number | undefined = notebook?.quantum_energy ?? campaign?.classical_anchor?.vqe_expectation_energy;
   const fciEnergy: number | undefined = notebook?.classical_energy ?? campaign?.classical_anchor?.fci_exact_energy;
   const deltaMHa: number | undefined = notebook?.delta_mha ?? campaign?.classical_anchor?.discrepancy_mha;
-  const provenanceHash: string | undefined = notebook?.provenance_hash || (campaign?.classical_anchor?.anchor_computed ? 'sha256:pyscf-anchor' : undefined);
-  const lean4AstHash: string =
-    (notebook as { lean4_ast_hash?: string } | undefined)?.lean4_ast_hash ?? 'UNVERIFIED';
+  const provenanceHash: string | undefined = notebook?.provenance_hash;
+  const lean4AstHash =
+    (notebook as { lean4_ast_hash?: string } | undefined)?.lean4_ast_hash ?? null;
+  // A citable studio requires an evaluated claim and a recorded notebook
+  // provenance. Numbers alone (including synthesis corridors) are not a
+  // result; without this gate the page has nothing honest to show.
+  const provenanceRecorded = Boolean(
+    provenanceHash &&
+    provenanceHash.trim() !== '' &&
+    provenanceHash !== 'uncomputed' &&
+    provenanceHash !== 'UNVERIFIED'
+  );
   const hasVerifiedData =
+    campaign?.epistemics?.status === 'COLLAPSED_VERIFIED' &&
     groundEnergy != null &&
     fciEnergy != null &&
     deltaMHa != null &&
-    Boolean(provenanceHash && provenanceHash.trim() !== '' && provenanceHash !== 'uncomputed');
+    provenanceRecorded;
   // J1: numbers-present is not verification. Convergence/accuracy prose
   // requires an evaluated-and-passed claim — COLLAPSED_VERIFIED arrives
   // only via a claim_eval PASS on a computed anchor (R3a-gated), never
@@ -143,8 +153,7 @@ export function ResultsStudio({ campaign, sessionId }: ResultsStudioProps) {
   const proofVerified = Boolean(lean4AstHash && lean4AstHash.trim() !== '' && lean4AstHash !== 'UNVERIFIED');
   const fmtEnergy = (v: number | undefined) => (v == null ? 'UNVERIFIED' : v.toFixed(5));
   const fmtDelta = (v: number | undefined) => (v == null ? 'UNVERIFIED' : v.toFixed(2));
-  const provenanceShort =
-    provenanceHash && provenanceHash.trim() !== '' ? provenanceHash.slice(0, 24) : 'UNVERIFIED';
+  const provenanceShort = provenanceHash ? provenanceHash.slice(0, 24) : 'not recorded';
 
   const bibtex = `@article{kubona_2026_${target.toLowerCase()},
   title = {Autonomous Variational Discovery of ${target} Potential Energy Surface},
@@ -218,20 +227,13 @@ ${proofVerified
   };
 
   const handleExport = () => {
-    // Same qualifiers as the on-screen manuscript: unverified drafts export
-    // UNVERIFIED literals, never measured-looking numbers.
-    const exportHeader = hasVerifiedData
-      ? (claimVerified
-        ? 'We present an autonomously synthesized variational quantum eigensolver ansatz targeting the ground-state electronic energy'
-        : 'PROJECTED DRAFT — corridor estimates, not measured. No claim in this draft is verified')
-      : 'UNVERIFIED DRAFT — this session carries no ledger-backed execution telemetry. All figures below are placeholders, not measurements';
     const mdContent = `# ${campaign?.notebook?.title || `Variational Quantum Ground State of ${target}`}
 By Kubona Autonomous Scientific Tribunal
 Date: ${new Date().toISOString()}
-Status: ${claimVerified && proofVerified ? 'Verified (COLLAPSED_VERIFIED + proof receipt)' : 'UNVERIFIED DRAFT'}
+Status: ${claimVerified && proofVerified ? 'Verified (COLLAPSED_VERIFIED + proof receipt)' : 'Claim verified (COLLAPSED_VERIFIED); no Lean proof receipt'}
 
 ## Abstract
-${exportHeader} of ${target}.
+We present an autonomously synthesized variational quantum eigensolver ansatz targeting the ground-state electronic energy of ${target}.
 
 ## Ground State Integrals
 - VQE Energy: ${fmtEnergy(groundEnergy)} Ha
@@ -243,7 +245,7 @@ ${(campaign?.notebook?.sections || []).map((s) => `- ${s}`).join('\n')}
 
 ## Cryptographic Provenance
 SHA-256 Merkle DAG Hash: ${provenanceHash ?? 'UNVERIFIED'}
-Lean 4 Formal AST Hash: ${lean4AstHash}
+Lean 4 Formal AST Hash: ${lean4AstHash ?? 'UNVERIFIED (no proof receipt)'}
 
 ## BibTeX Citation
 ${bibtex}
@@ -369,13 +371,32 @@ ${bibtex}
       })()
     : undefined;
 
-  return (
-    <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-6 space-y-6">
-      {!hasVerifiedData && (
-        <div className="p-3 rounded-2xl bg-amber-950/60 border border-amber-500/50 text-amber-200 text-xs font-medium text-center">
-          UNVERIFIED DRAFT — this session carries no ledger-backed execution telemetry. All figures below are placeholders, not measurements.
+  if (!hasVerifiedData) {
+    return (
+      <div className="relative min-h-[520px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl p-6 space-y-5">
+        <div className="flex items-center space-x-3.5 border-b border-white/[0.08] pb-4">
+          <div className="w-10 h-10 rounded-2xl bg-white/[0.05] border border-white/10 flex items-center justify-center shadow-inner">
+            <BookOpen className="w-5 h-5 text-indigo-400" />
+          </div>
+          <div>
+            <h2 className="text-base font-semibold text-white tracking-tight">Citable Results Studio &amp; Systematic Notebook</h2>
+            <p className="text-xs text-slate-400 mt-0.5">No citable result is recorded for this campaign.</p>
+          </div>
         </div>
-      )}
+        <MeasuredOutputs sessionId={sessionId ?? null} />
+        <div className="rounded-2xl border border-white/[0.08] bg-black/30 p-6 text-center space-y-2">
+          <p className="text-sm font-medium text-white">No manuscript, citation, or proof receipt yet.</p>
+          <p className="text-[13px] leading-relaxed text-slate-400">
+            A citable studio appears only after an evaluated claim and a ledger-backed notebook exist.
+            Projected corridors and template values are not shown here as results.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div data-provenance="measured" className="relative min-h-[640px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-6 space-y-6">
       {notebookError && (
         <div role="alert" className="p-2.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-[12px]">
           Notebook projection unavailable — {notebookError}. Nothing synthesized.
@@ -388,7 +409,10 @@ ${bibtex}
             <BookOpen className="w-5 h-5 text-indigo-400" />
           </div>
           <div>
-            <h2 className="text-base font-semibold text-white tracking-tight">Citable Results Studio & Systematic Notebook</h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-semibold text-white tracking-tight">Citable Results Studio & Systematic Notebook</h2>
+              <ProvenanceBadge kind="measured" detail="Citable gate passed: evaluated claim, notebook energies, and provenance hash." />
+            </div>
             <p className="text-xs text-slate-400 mt-0.5">
               Structured research preprints with Lean 4 AST synchronization and frame-anchored human-in-the-loop review
             </p>
@@ -515,15 +539,7 @@ ${bibtex}
                   <span className="text-[12px] font-mono text-neutral-500">Anchor: §Abstract</span>
                 </div>
                 <p className="text-xs text-slate-300 leading-relaxed font-sans">
-                  {hasVerifiedData ? (
-                    claimVerified ? (
-                      <>We present an autonomously synthesized variational quantum eigensolver ansatz targeting the ground-state electronic energy of {target}. Using a hardware-efficient entangler geometry with near-zero parameter initialization, the optimization converged to an energy of {fmtEnergy(groundEnergy)} Ha, demonstrating an absolute error of only {fmtDelta(deltaMHa)} mHa against the exact PySCF STO-3G Full Configuration Interaction (FCI) anchor ({fmtEnergy(fciEnergy)} Ha). Claim evaluated and passed on a computed anchor (epistemics COLLAPSED_VERIFIED).</>
-                    ) : (
-                      <>PROJECTED DRAFT — corridor estimates, not measurements: energy {fmtEnergy(groundEnergy)} Ha, |Δ| {fmtDelta(deltaMHa)} mHa against the PySCF STO-3G FCI anchor ({fmtEnergy(fciEnergy)} Ha). Chemical accuracy is unclaimed until measured; no barren-plateau statement is made; no Lean 4 verification has run.</>
-                    )
-                  ) : (
-                    <>UNVERIFIED DRAFT — no verified execution telemetry is attached to this session. No convergence, anchor agreement, or proof claim below is measured; run a campaign to populate this studio with ledger-backed results.</>
-                  )}
+                  We present an autonomously synthesized variational quantum eigensolver ansatz targeting the ground-state electronic energy of {target}. Using a hardware-efficient entangler geometry with near-zero parameter initialization, the optimization converged to an energy of {fmtEnergy(groundEnergy)} Ha, demonstrating an absolute error of only {fmtDelta(deltaMHa)} mHa against the exact PySCF STO-3G Full Configuration Interaction (FCI) anchor ({fmtEnergy(fciEnergy)} Ha). Claim evaluated and passed on a computed anchor (epistemics COLLAPSED_VERIFIED).
                 </p>
               </div>
 

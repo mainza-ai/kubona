@@ -70,33 +70,18 @@ describe('ResultsStudio measured distribution', () => {
 });
 
 describe('ResultsStudio verification gating (J1)', () => {
-  it('withholds convergence/accuracy/proof claims on a PROJECTED campaign with numbers', () => {
+  it('withholds a manuscript on a PROJECTED campaign even when numbers exist', () => {
     let tree: TestRenderer.ReactTestRenderer;
     act(() => {
       tree = TestRenderer.create(<ResultsStudio campaign={campaign('PROJECTED')} sessionId={null} />);
     });
-    expect(tree!.root.findAllByProps({ 'data-testid': 'k-chart' }).length).toBe(1);
     const text = JSON.stringify(tree!.toJSON());
+    expect(text).toContain('No citable result is recorded');
+    expect(text).toContain('No manuscript, citation, or proof receipt yet');
     expect(text).not.toContain('converged to an energy');
-    expect(text).not.toContain('machine-checked');
-    expect(text).not.toContain('0 sorryAx');
-    expect(text).not.toContain('Zero sorryAx (ρ=1.000)');
-    expect(text).not.toContain('satisfy strict chemical accuracy');
-    expect(text).not.toContain('Verified Research Finding');
-    expect(text).not.toContain('Chemical Accuracy Met');
-    expect(text).toContain('PROJECTED DRAFT');
-    expect(text).toContain('Projected Research Draft');
-    expect(text).toContain('Variational Exploration Active');
-    // Lean tab content renders on selection.
-    const leanTab = tree!.root
-      .findAllByType('button')
-      .find((b) => JSON.stringify(b.props.children).includes('Lean 4 Proof AST'));
-    act(() => {
-      (leanTab!.props as { onClick: () => void }).onClick();
-    });
-    const leanText = JSON.stringify(tree!.toJSON());
-    expect(leanText).toContain('No verified Lean 4 declaration exists');
-    expect(leanText).not.toContain('sorryAx_free_check');
+    expect(text).not.toContain('PROJECTED DRAFT');
+    expect(text).not.toContain('Variational Exploration Active');
+    expect(tree!.root.findAllByProps({ 'data-testid': 'k-chart' }).length).toBe(0);
   });
 
   it('states evaluated claims on a COLLAPSED_VERIFIED campaign', () => {
@@ -108,16 +93,20 @@ describe('ResultsStudio verification gating (J1)', () => {
     expect(text).toContain('converged to an energy');
     expect(text).toContain('COLLAPSED_VERIFIED');
     expect(text).not.toContain('PROJECTED DRAFT');
+    expect(tree!.root.findByProps({ 'data-provenance': 'measured' })).toBeTruthy();
   });
 
-  it('renders UNVERIFIED draft with no notebook telemetry', () => {
+  it('renders an empty citable state with no notebook telemetry', () => {
     let tree: TestRenderer.ReactTestRenderer;
     act(() => {
       tree = TestRenderer.create(
         <ResultsStudio campaign={{ target_system: 'H2' } as unknown as CampaignState} sessionId={null} />
       );
     });
-    expect(JSON.stringify(tree!.toJSON())).toContain('UNVERIFIED DRAFT');
+    const text = JSON.stringify(tree!.toJSON());
+    expect(text).toContain('No citable result is recorded');
+    expect(text).not.toContain('UNVERIFIED DRAFT');
+    expect(text).not.toContain('placeholders');
   });
 
   it('marks the optimistic annotation failed (never silently open) when sendChatMessage returns null', async () => {

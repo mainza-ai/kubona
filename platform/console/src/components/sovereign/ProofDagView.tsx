@@ -5,6 +5,7 @@ import { GitBranch } from 'lucide-react';
 import { CampaignState } from '@/types';
 import { fetchQirCompile, type QirCompileReceipt } from '@/lib/api';
 import { asRecord } from '@/lib/guards';
+import { ProvenanceBadge } from '@/components/common/ProvenanceBadge';
 
 export { asRecord };
 
@@ -187,14 +188,16 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
 
   const selected = graph.nodes.find((n) => n.id === selectedId) ?? null;
   const provenance = campaign?.notebook?.provenance_hash;
+  const proposedOnly = campaign?.notebook == null;
+  const dagLabel = proposedOnly ? 'Proposed circuit DAG' : 'Measured campaign DAG';
 
   if (graph.nodes.length === 0) {
     return (
       <div className="absolute inset-0 flex items-center justify-center">
         <div className="flex flex-col items-center gap-3 text-center px-6">
           <GitBranch className="w-8 h-8 text-slate-600" />
-          <p className="text-xs text-slate-400 font-code">No proof DAG in this campaign yet.</p>
-          <p className="text-[12px] text-slate-600">Run the compiler probe to synthesize a circuit DAG.</p>
+          <p className="text-xs text-slate-400 font-code">No circuit DAG is recorded for this campaign.</p>
+          <p className="text-[12px] text-slate-600">Propose a circuit to populate it; no DAG is synthesized from a template.</p>
         </div>
       </div>
     );
@@ -202,12 +205,12 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
 
   return (
     <div data-testid="proof-dag" className="absolute inset-0 flex flex-col">
-      <div className="pt-20 pb-1 text-center font-code text-[12px] text-slate-500 shrink-0">
-        {graph.nodes.length} nodes · {graph.edges.length} edges · {campaign?.target_system || 'untargeted'}
+      <div className="pt-20 pb-1 flex items-center justify-center gap-2 font-code text-[12px] text-slate-500 shrink-0">
+        <ProvenanceBadge kind={proposedOnly ? 'proposed' : 'measured'} detail={proposedOnly ? 'Circuit proposal; not a measurement.' : 'Campaign notebook evidence.'} />
+        <span>{dagLabel} · {graph.nodes.length} nodes · {graph.edges.length} edges · {campaign?.target_system || 'untargeted'}</span>
       </div>
-      {/* Wire-cut ledger: planned template vs measured cut jobs. Unmeasured
-          cuts render their known fields with a planned prefix — never a bare
-          generic chip that hides what was templated. */}
+      {/* Wire-cut ledger: proposed cuts vs measured cut jobs. Proposed cuts
+          are labeled, never presented as executed. */}
       {wireCuts.length > 0 && (
         <div className="px-6 pb-1 flex flex-wrap justify-center gap-1.5 shrink-0">
           {wireCuts.map((w, i) => {
@@ -233,7 +236,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
             return (
               <span
                 key={i}
-                title="Synthesis placeholder — no cut has executed"
+                title="Proposed cut — not executed"
                 className="px-2 py-0.5 rounded-full font-code text-[12px] border bg-amber-400/10 border-amber-400/40 text-amber-300"
               >
                 {known.length > 0 ? `planned: ${known.join(' · ')} (not executed)` : 'planned cut (not executed)'}
@@ -278,7 +281,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
           height={graph.height}
           className="mx-auto max-w-none"
           role="img"
-          aria-label={`Proof DAG: ${graph.nodes.length} nodes, ${graph.edges.length} edges`}
+          aria-label={`Circuit DAG: ${graph.nodes.length} nodes, ${graph.edges.length} edges`}
         >
           <defs>
             <linearGradient id="dagEdge" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -323,7 +326,7 @@ export function ProofDagView({ campaign }: ProofDagViewProps) {
                 role="button"
                 tabIndex={0}
                 aria-pressed={isSel}
-                aria-label={`Select proof node ${n.id}`}
+                aria-label={`Select circuit node ${n.id}`}
                 className="cursor-pointer"
               >
                 <rect

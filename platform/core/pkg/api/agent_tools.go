@@ -125,17 +125,29 @@ func (s *Server) registerAgentTools() *tools.Registry {
 			if err := json.Unmarshal(raw, &cs); err != nil {
 				return nil, fmt.Errorf("stored campaign unreadable: %w", err)
 			}
+			var vqeEnergy, fciEnergy, discrepancy any
+			if cs.ClassicalAnchor.AnchorComputed {
+				if cs.ClassicalAnchor.VqeExpectationEnergy != 0 {
+					vqeEnergy = cs.ClassicalAnchor.VqeExpectationEnergy
+				}
+				fciEnergy = cs.ClassicalAnchor.FciExactEnergy
+				discrepancy = cs.ClassicalAnchor.DiscrepancyMHa
+			}
+			epistemicStatus := "UNVERIFIED"
+			if cs.Epistemics != nil {
+				epistemicStatus = cs.Epistemics.Status
+			}
 			return map[string]any{
 				"session_id":       cs.SessionID,
 				"target":           cs.TargetSystem,
 				"backend":          cs.QuantumFactors.RecommendedBackend,
 				"qubits":           cs.QuantumFactors.QubitCount,
-				"vqe_energy":       cs.ClassicalAnchor.VqeExpectationEnergy,
-				"fci_energy":       cs.ClassicalAnchor.FciExactEnergy,
-				"discrepancy_mha":  cs.ClassicalAnchor.DiscrepancyMHa,
+				"vqe_energy":       vqeEnergy,
+				"fci_energy":       fciEnergy,
+				"discrepancy_mha":  discrepancy,
 				"anchor_computed":  cs.ClassicalAnchor.AnchorComputed,
-				"synthesized":      true,
-				"epistemic_status": cs.Epistemics.Status,
+				"synthesized":      cs.QuantumFactors.Synthesized,
+				"epistemic_status": epistemicStatus,
 			}, nil
 		},
 	})

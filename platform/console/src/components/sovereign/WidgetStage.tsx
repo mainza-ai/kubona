@@ -61,21 +61,21 @@ export function WidgetStage({
   const meta = KIND_META[widget.kind];
   const Icon = meta.icon;
   const qf = campaign?.quantum_factors;
-  // Feed honesty per kind: shadows renders static reference figures;
-  // circuit/molecule mix live labels over illustrative bodies; job and
-  // mandate surfaces read live session data end to end.
-  const feed: 'LIVE' | 'MIX' | 'REF' =
-    widget.kind === 'shadows'
-      ? 'REF'
-      : widget.kind === 'circuit' || widget.kind === 'molecule'
-        ? 'MIX'
-        : 'LIVE';
+  // Feed honesty per kind: job/mandate read live session data; molecule uses
+  // proposal counts; shadows/circuit have no measured body and show an empty
+  // state instead of reference figures or a schematic circuit.
+  const feed: 'LIVE' | 'PROPOSAL' | 'EMPTY' =
+    widget.kind === 'job' || widget.kind === 'mandate'
+      ? 'LIVE'
+      : widget.kind === 'molecule'
+        ? 'PROPOSAL'
+        : 'EMPTY';
   const feedTitle =
     feed === 'LIVE'
       ? 'Fed by live session data'
-      : feed === 'MIX'
-        ? 'Labels live, body illustrative'
-        : 'Static reference figures — illustrative';
+      : feed === 'PROPOSAL'
+        ? 'Proposal fields only'
+        : 'No measured data for this widget';
 
   return (
     <div
@@ -93,7 +93,7 @@ export function WidgetStage({
             className={`px-1.5 py-0.5 rounded font-code text-[12px] shrink-0 ${
               feed === 'LIVE'
                 ? 'bg-emerald-400/10 text-emerald-400'
-                : feed === 'MIX'
+                : feed === 'PROPOSAL'
                   ? 'bg-amber-400/10 text-amber-300'
                   : 'bg-white/[0.06] text-slate-400'
             }`}
@@ -136,11 +136,6 @@ export function WidgetStage({
             moleculeName={qf?.target_molecule || campaign?.target_system || undefined}
             numElectrons={qf?.active_electrons}
             numOrbitals={qf?.active_orbitals}
-            homoLumoGapHa={
-              typeof campaign?.classical_anchor?.rhf_mean_field_energy === 'number' && typeof campaign?.classical_anchor?.fci_exact_energy === 'number'
-                ? Math.abs(campaign.classical_anchor.rhf_mean_field_energy - campaign.classical_anchor.fci_exact_energy)
-                : undefined
-            }
           />
         )}
         {widget.kind === 'mandate' && (() => {

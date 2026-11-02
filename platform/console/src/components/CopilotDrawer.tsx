@@ -33,7 +33,8 @@ import { ChatMessage, CampaignState, RunPhase, Proposal } from '@/types';
 import { useTranscript } from '@/domain/transcript-store';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
 import { newWriteRequestId, writeSettlementLabel } from '@/domain/write-settlement';
-import { fetchMessages, sendChatMessage, streamChatMessage, createSession, runTribunal, fetchCampaignState, launchProposal, clearMessages, regenerateChat, sendFeedback, rewriteChat, fetchJobs, jobStatusLabel, isTerminalJobStatus, authWhoami, wasRecentAuthFailure } from '@/lib/api';
+import { useAuthPhase } from '@/domain/auth-state';
+import { fetchMessages, sendChatMessage, streamChatMessage, createSession, runTribunal, fetchCampaignState, launchProposal, clearMessages, regenerateChat, sendFeedback, rewriteChat, fetchJobs, jobStatusLabel, isTerminalJobStatus, wasRecentAuthFailure } from '@/lib/api';
 import { ContextReadout } from './common/ContextReadout';
 import { OverflowCard } from './common/OverflowCard';
 import { MathText } from './common/MathText';
@@ -50,6 +51,8 @@ interface CopilotDrawerProps {
   onExperimentLaunched?: () => void;
   onCampaignUpdated?: (campaign: CampaignState) => void;
   onSelectSurface?: (surface: string) => void;
+  onCreateCampaign?: () => void;
+  requiresSignIn?: boolean;
   onMaterialize?: (kind: CanvasWidgetKind, title: string, jobId?: string, sessionId?: string) => void;
   onRunStateChange?: (phase: RunPhase, detail: string) => void;
   onSessionChange?: (newSessionId: string) => void;
@@ -77,6 +80,8 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
   onExperimentLaunched,
   onCampaignUpdated,
   onSelectSurface,
+  onCreateCampaign,
+  requiresSignIn = false,
   onMaterialize,
   onRunStateChange,
   onSessionChange,
@@ -100,7 +105,11 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
   const [infoMessage, setInfoMessage] = useState<string | null>(null);
   // Spend-fork guard outcome (see getActiveSessionId): either a usable
   // session id, or a login redirect — never a silently minted session.
+  const authPhase = useAuthPhase();
   const [needsLogin, setNeedsLogin] = useState(false);
+  const authExpired =
+    authPhase === 'expired' ||
+    (authPhase !== 'anonymous' && typeof wasRecentAuthFailure === 'function' && wasRecentAuthFailure());
   // Mounted guard: stream/token callbacks and late fetch resolutions must
   // never write into an unmounted tree (abort covers the transport; this
   // covers already-queued continuations).
@@ -200,17 +209,12 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
 
   const getActiveSessionId = async (): Promise<ActiveSession | null> => {
     if (sessionId) return { id: sessionId };
-    // Spend-fork guard: a missing session would otherwise mint fresh spend
-    // on every send. Refuse when the operator identity is unknown — expired
-    // cookie, bearer-only, unreachable whoami, or a recent 401 elsewhere in
-    // the tree. Auth failures never silently mint spend.
-    let me: Awaited<ReturnType<typeof authWhoami>> = null;
-    try {
-      me = await authWhoami();
-    } catch {
-      me = null;
-    }
-    if (!me?.authenticated || wasRecentAuthFailure()) {
+    // Spend-fork guard: a missing session must not mint session-scoped
+    // work on an identity that the server will refuse. The server is the
+    // authority: single-lab local mode accepts the create; multi-lab and
+    // cloud-LLM mode return 401. We only pre-empt when the page already
+    // observed a multi-lab refusal.
+    if (requiresSignIn || authPhase === 'expired' || authPhase === 'forbidden') {
       return { needsLogin: true };
     }
     const newSess = await createSession('Quantum Research Campaign #1', 150.0);
@@ -218,6 +222,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
       onSessionChange?.(newSess.id);
       return { id: newSess.id };
     }
+    if (wasRecentAuthFailure()) return { needsLogin: true };
     return null;
   };
 
@@ -328,6 +333,15 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
       settleStream(done);
     } catch (streamErr) {
       if (!mountedRef.current) return;
+      if (wasRecentAuthFailure()) {
+        setMessages((prev) => prev.filter((m) => m.id !== tempUserMsg.id && m.id !== liveId));
+        setNeedsLogin(true);
+        setLoading(false);
+        setStreamingId(null);
+        abortRef.current = null;
+        onRunStateChange?.('idle', '');
+        return;
+      }
       if (streamErr instanceof DOMException && streamErr.name === 'AbortError') {
         // Operator stop: drop the partial bubble but keep the sent prompt.
         // The server run may still complete and appear on next history load.
@@ -881,12 +895,12 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
     );
   };
 
-  const targetSystem = campaign?.target_system || 'H2';
+  const targetSystem = campaign?.target_system || 'No campaign';
 
   // Plain function (not memoized): trivial string mapping, and the compiler
   // rejects the optional-chaining dep form.
   const displayNameFor = (rawTarget: string): string => {
-    const raw = rawTarget || 'H2';
+    const raw = rawTarget || 'No campaign';
     if (raw.toUpperCase() === 'H2' || raw === 'H₂') return 'Hydrogen Molecule (H₂)';
     if (raw.toUpperCase().includes('LIH')) return 'Lithium Hydride (LiH)';
     if (raw.toUpperCase().includes('BEH2')) return 'Beryllium Hydride (BeH₂)';
@@ -895,7 +909,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
     if (raw.toUpperCase().includes('CO')) return 'Carbon Monoxide (CO)';
     return raw;
   };
-  const targetDisplayName = displayNameFor(campaign?.target_system || 'H2');
+  const targetDisplayName = campaign ? displayNameFor(campaign.target_system) : 'No campaign selected';
   const rawDiscrepancy = campaign?.classical_anchor?.discrepancy_mha;
   const discrepancy =
     campaign?.classical_anchor?.anchor_computed === true &&
@@ -1106,10 +1120,35 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
       >
         {messages.length === 0 && (
           <div className="p-3 rounded-xl bg-white/[0.02] border border-white/5 text-[12px] text-slate-400 leading-relaxed">
-            <span className="text-white font-medium">Autonomous Swarm Initialized:</span> Exploring {targetDisplayName}. Type your intent or ask for telemetry breakdown on demand.
+            {campaign ? (
+              <div className="space-y-1.5">
+                <p><span className="text-white font-medium">Campaign context:</span> {targetDisplayName}.</p>
+                <p>
+                  {campaign.epistemics?.status === 'COLLAPSED_VERIFIED' && campaign.notebook
+                    ? 'Next: open Results to inspect the citable manuscript.'
+                    : campaign.notebook
+                      ? 'Next: evaluate the recorded notebook claim in the Tribunal, or ask for analysis.'
+                      : 'Next: ask Kubona to propose the first experiment; nothing has executed yet.'}
+                </p>
+                {campaign.epistemics?.status === 'COLLAPSED_VERIFIED' && campaign.notebook && onSelectSurface && (
+                  <button type="button" onClick={() => onSelectSurface('surface7')} className="px-2.5 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 text-[12px] hover:bg-cyan-500/25">
+                    Open Results
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p>No campaign selected. Create or open a campaign to start.</p>
+                {onCreateCampaign && (
+                  <button type="button" onClick={onCreateCampaign} className="px-2.5 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 text-[12px] hover:bg-cyan-500/25">
+                    Create campaign
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
-        {messages.length === 0 && (
+        {messages.length === 0 && campaign && (
           <div className="space-y-2">
 
             {/* Quick Scientific Suggestion Cards */}
@@ -1511,13 +1550,19 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
 
         {needsLogin && (
           <div className="p-3.5 rounded-2xl bg-amber-950/40 border border-amber-500/40 text-amber-200 text-xs font-sans flex items-center justify-between gap-2" role="alert">
-            <span>Session expired — log in again to start a campaign session. No session was created.</span>
+            <span>
+              {authExpired
+                ? 'Session expired — log in again to start a campaign session. No session was created.'
+                : authPhase === 'forbidden'
+                  ? 'This lab forbids the requested write — sign in with an authorized account. No session was created.'
+                  : 'Sign in to start a campaign session. No session was created.'}
+            </span>
             <button
               type="button"
               onClick={() => onSelectSurface?.('labs')}
               className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-400/15 hover:bg-amber-400/25 border border-amber-400/40 text-amber-100 text-[12px] font-semibold transition-all"
             >
-              Open Labs AuthPanel
+              Sign in
             </button>
           </div>
         )}

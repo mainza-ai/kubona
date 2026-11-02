@@ -74,11 +74,11 @@ export function AboutLabModal({ isOpen, onClose }: AboutLabModalProps) {
           <div className="flex items-start space-x-5">
             <div className="relative w-24 h-24 rounded-2xl overflow-hidden ring-1 ring-white/15 shadow-xl bg-black/60 shrink-0">
               <Image
-                src="/kubona_crest.jpeg"
-                alt="Kubona Scientific Laboratory Crest"
+                src="/assets/milimo_kubona_logo.png"
+                alt="Kubona logo"
                 fill
                 sizes="96px"
-                className="object-cover"
+                className="object-contain p-1"
                 priority
               />
             </div>

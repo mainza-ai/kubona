@@ -4827,3 +4827,108 @@ skipped is the exact failure this incident is about:
   test-only; live E2E remains on the real stack.
   CI `41486920480`, Console E2E `41486920592`, and nightly `41488972234` are
   green at `24912cb`.
+
+## [2026-11-02] verification | Placeholder audit, AI 401, and logo pass
+
+- Filed `docs/placeholder-audit-2026-11-02.md`: ResultsStudio's unreachable
+  `UNVERIFIED DRAFT` path is closed behind a citable gate; the console
+  "Synthesize Reference Baseline" entry is removed; the EpistemicManifold H₂
+  fallback is removed. Remaining P0 is `campaign_synth.go`'s result-shaped
+  scaffold and the labelled illustrative widget defaults.
+- Fixed the screenshot's AI dead-end: `labs` now maps to `mesh/labs`, multi-lab
+  401 shows sign-in copy, and anonymous users are not told their session
+  expired. The no-spend auth guard remains.
+- Added `milimo_kubona_logo.png` to the navigation rail and About dialog.
+- Console gate green: 110 files / 558 tests, `tsc`, ESLint, and production
+  build. Live browser verified the logo, campaign sign-in prompt, and Copilot
+  → Labs transition.
+
+## [2026-11-02] implementation | Phase 1 campaign proposal/measurement split
+
+- Replaced result-shaped campaign synthesis with `BuildCampaignProposal`:
+  fresh campaigns now carry empty trajectory/branches, `epistemics:null`,
+  `notebook:null`, no VQE energy, no canary fidelity, and no cut overhead.
+  Only a bridge-computed RHF/FCI anchor is retained.
+- `CampaignState` now uses nullable notebook/epistemics in Go and the console.
+  Chat/regenerate/tribunal no longer rewrite campaign state; `/campaign/synthesize`
+  refuses to overwrite measured evidence; production session creation fails
+  closed if the anchor bridge is unavailable.
+- `/api/results/notebooks` returns `[]` and `/api/epistemics` returns no active
+  claim instead of H2 template data. Replan creates the notebook/epistemics only
+  when a measured job/claim folds.
+- Console empty states updated: no-campaign workbench, anchorless 3D observatory
+  hidden, no energy from an uncomputed anchor, gallery hidden until measured.
+- Verification: full Go suite; 110 console files / 558 tests; `tsc`; ESLint;
+  production build; 3/3 real-stack E2E smoke. Live API on `:8080` returned a
+  fresh proposal with `trajectory:[]`, `branches:[]`, `epistemics:null`,
+  `notebook:null`, and no `vqe_expectation_energy`/`clifford_fidelity`.
+
+## [2026-11-02] implementation | Phase 2 surface de-placeholdering
+
+- Removed the remaining illustrative widget bodies: shadow tomography's
+  14.8x/99.2% table, QIR's sample code/4.2x overhead, molecular LiH/4e/4o/0.042
+  ladder, manifold 4.218/0.64/-1.842 defaults, and the gallery's synthetic demo.
+- Each widget now gates on its real input and renders an explicit empty state;
+  QIR shows only a compiler receipt, molecular shows proposal counts without
+  invented orbital energies, manifold shows supplied geometry only.
+- Removed the 3D `+0.12` ghost plane; the ghost is hidden until a sealed/replayed
+  μ±σ prediction exists. Canvas no longer synthesizes QASM or Hamiltonian
+  coefficients, and the 3D H2 target fallback is gone.
+- `WidgetStage` labels feeds LIVE/PROPOSAL/EMPTY; `ProofDag` labels proposed vs
+  measured DAG and cuts; the tribunal's 98.4% fallback audit text is replaced
+  with an explicit no-audit refusal.
+- Verification: full Go suite; 112 console files / 565 tests; `tsc`; ESLint;
+  production build; real-stack E2E smoke 3/3; live gallery empty-state check;
+  production literal grep clean.
+
+## [2026-11-02] implementation | Phase 3 provenance + regression gate
+
+- Added `ProvenanceBadge` with the controlled vocabulary `measured`,
+  `proposed`, `catalog`, `model`, and wired `data-provenance` through Results,
+  MeasuredOutputs, Workbench cards/list, FlightRecorder, EpistemicManifold,
+  SwarmUniverse, SpatialCanvas/3D, ProofDag, widgets, Inspector, and the model
+  hub. FleetRadar keeps its existing per-row provenance chips.
+- Added `data-metric` markers and `provenance-coverage.test.tsx`: any metric
+  without a provenance ancestor fails, including Workbench canvas and list
+  cards.
+- Added `scripts/check-console-placeholders.py` and wired it into the Next.js
+  CI job. It rejects the old illustrative literals in production component,
+  app, and lib files.
+- Verification: full Go suite; 114 console files / 570 tests; `tsc`; ESLint;
+  production build; real-stack E2E smoke 3/3; placeholder gate clean over 119
+  production files. CI/nightly still need the final run on the exact commit.
+
+## [2026-11-02] verification | UX and access audit
+
+- Filed `docs/ux-access-audit-2026-11-02.md`: the backend already supports a fresh
+  single-lab local flow (anonymous session/campaign/chat all 2xx), but the console
+  client guard blocks chat; multi-lab creation succeeds while the read 401s, leaving
+  an orphan campaign; AuthPanel shows "Session expired" to anonymous users.
+- Recommended a server-enforced local open mode (single-lab + local LLM only),
+  consistency between session create/read, a first-run onboarding/CTA, research vs
+  administration separation, and E2E/local state isolation.
+- This is an audit/plan, not an implementation; existing Phase 0-3 work remains
+  uncommitted.
+
+## [2026-11-02] implementation | UX/access P0-P2
+
+- Added public `GET /api/access` and server-enforced single-lab local chat:
+  anonymous chat is allowed only when the store is single-lab and every LLM role
+  is local; multi-lab or cloud LLM returns 401 before session mutation.
+- Anonymous campaign creation in multi-lab now refuses before creating anything;
+  the console maps the refusal to sign-in instead of leaving an orphan campaign.
+- Console: removed the `authWhoami` chat precondition, removed silent first-session
+  auto-create, added first-campaign CTAs, no-campaign Copilot state, Local/Multi-lab
+  header mode, sign-in CTA for multi-lab empty workbench, and anonymous/expired copy
+  separation in AuthPanel.
+- Labs admin panels are behind an advanced disclosure; research campaigns stay the
+  primary flow.
+- Verification: full Go suite; 115 console files / 576 tests; tsc; ESLint; production
+  build; placeholder gate; wiki lint; E2E smoke. Live isolated single-lab console
+  completed create + Copilot reply with no sign-in. Role-aware Labs views, first-run readiness
+  chips, Copilot next-step guidance, a verified-backup local reset command, and a
+  disposable E2E launcher landed with the same pass. The live :8080 ledger was
+  backed up and reset to a clean single-lab workspace; the UI now reports Local
+  private/researcher with no sign-in and completed a live campaign + Copilot reply.
+  Verification: 115 console files / 576 tests, full Go suite, isolated E2E smoke,
+  and the final :8080 real-stack E2E smoke.

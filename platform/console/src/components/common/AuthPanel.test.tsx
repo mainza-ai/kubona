@@ -71,11 +71,11 @@ describe('AuthPanel (A4 session auth UI)', () => {
       root = TestRenderer.create(<AuthPanel labs={LABS} />);
     });
 
-    expect(textOf(root!.root)).toContain('anonymous (bearer only)');
+    expect(textOf(root!.root)).toContain('not signed in');
 
     const signInBtn = root!.root
       .findAllByType('button')
-      .find((b) => textOf(b).includes('Log in with browser key'));
+      .find((b) => textOf(b).includes('Sign in with browser key'));
     expect(signInBtn).toBeDefined();
 
     await act(async () => {
@@ -116,7 +116,7 @@ describe('AuthPanel (A4 session auth UI)', () => {
 
     const signInBtn = root!.root
       .findAllByType('button')
-      .find((b) => textOf(b).includes('Log in with browser key'));
+      .find((b) => textOf(b).includes('Sign in with browser key'));
     await act(async () => {
       await signInBtn!.props.onClick();
     });
@@ -124,7 +124,7 @@ describe('AuthPanel (A4 session auth UI)', () => {
 
     const text = textOf(root!.root);
     expect(text).toContain("login refused: unauthorized: key is not this lab's admin");
-    expect(text).toContain('anonymous (bearer only)');
+    expect(text).toContain('not signed in');
   });
 
 
@@ -160,7 +160,7 @@ describe('AuthPanel (A4 session auth UI)', () => {
 
     const signInBtn = root!.root
       .findAllByType('button')
-      .find((b) => textOf(b).includes('Log in with browser key'));
+      .find((b) => textOf(b).includes('Sign in with browser key'));
     expect(signInBtn).toBeDefined();
     await act(async () => {
       await signInBtn!.props.onClick();
@@ -226,6 +226,6 @@ describe('AuthPanel (A4 session auth UI)', () => {
       await signOutBtn!.props.onClick();
     });
     expect(api.authLogout).toHaveBeenCalledTimes(1);
-    expect(textOf(root!.root)).toContain('anonymous (bearer only)');
+    expect(textOf(root!.root)).toContain('not signed in');
   });
 });

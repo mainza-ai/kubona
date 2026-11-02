@@ -11,10 +11,9 @@ import (
 	"time"
 )
 
-// Planner replan: campaign synthesis runs on every chat turn, but until now
-// nothing folded settled job results back into the campaign — the plan could
-// describe a run that already happened without knowing its outcome. This
-// file closes that loop: a pure fold of measured results into stored state.
+// Planner replan: campaigns start as unmeasured proposals. This file folds
+// settled job results into stored state, so the plan learns what actually
+// happened instead of carrying a template result.
 //
 // Purity is the point. Replan runs on a job-worker goroutine, so it performs
 // no LLM calls, no bridge calls, no ledger access. It decodes, it folds only
@@ -34,9 +33,10 @@ import (
 //   - classical_anchor: recomputed RHF/FCI replace the anchor; discrepancy
 //     and chemical-accuracy re-derive mechanically; provenance re-hashes.
 //     Skipped on molecule mismatch — a wrong-molecule anchor corrupts.
-//   - claim_eval: evaluated amplitudes replace the synthesis placeholders;
-//     verdict pass/fail drives status. No success field exists on this
-//     response; presence of amplitude keys is the validity signal.
+//   - claim_eval: evaluated amplitudes create the epistemic state (none is
+//     fabricated at proposal time); verdict pass/fail drives status. No
+//     success field exists on this response; presence of amplitude keys is
+//     the validity signal.
 //   - mitigate / circuit_cut: notebook provenance lines only; no state
 //     field honestly holds them.
 // Failed jobs never reach the fold (the hook fires on COMPLETED only).
@@ -168,7 +168,8 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		return b
 	}
 	measureLine := func(format string, args ...any) {
-		state.Notebook.Sections = append(state.Notebook.Sections,
+		nb := ensureNotebook(&state)
+		nb.Sections = append(nb.Sections,
 			"Job "+shortID+" ("+jobType+"): "+fmt.Sprintf(format, args...))
 		trimMeasurementLines(&state)
 	}
@@ -310,26 +311,23 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			state.ClassicalAnchor.DiscrepancyMHa = 0
 			state.ClassicalAnchor.ChemicalAccuracyPassed = false
 		}
-		state.Notebook.ClassicalAnchor = fmt.Sprintf("PySCF STO-3G Full Configuration Interaction (%.5f Ha)", fci)
-		state.Notebook.ProvenanceHash = provenanceHash(state.SessionID,
+		nb := ensureNotebook(&state)
+		nb.ClassicalAnchor = fmt.Sprintf("PySCF STO-3G Full Configuration Interaction (%.5f Ha)", fci)
+		nb.ProvenanceHash = provenanceHash(state.SessionID,
 			state.QuantumFactors.TargetMolecule, state.QuantumFactors.BondDistance, fci,
 			state.QuantumFactors.QASM)
-		// A recomputed anchor repairs fallback epistemics (R3): strip the
-		// hardcoded-fallback caveat and re-attest the PySCF sources. Only
-		// pristine UNVERIFIED states regain projection weights — fresh
-		// HYPOTHESIS_PENDING keeps its pending weights, and anything
-		// already decided (COLLAPSED/CONTESTED/measured PROJECTED) is
-		// never rewritten. The notebook sections stay historical; the
-		// repair is recorded in the measure line below.
-		if strings.Contains(state.Epistemics.Statement, strings.TrimSpace(fallbackCaveat)) {
-			state.Epistemics.Statement = strings.ReplaceAll(state.Epistemics.Statement, fallbackCaveat, "")
-			state.Epistemics.Sources = synthSources(true)
-			if state.Epistemics.Status == "UNVERIFIED" {
-				state.Epistemics.Status = "PROJECTED"
-				state.Epistemics.AlphaCorroborated = liveAlpha
-				state.Epistemics.BetaContested = liveBeta
-				state.Epistemics.GammaUnverified = liveGamma
-				state.Epistemics.PCorrelated = livePCorrelated
+		// Legacy fallback repair remains for already-stored pre-Phase-1
+		// campaigns. New campaigns start with no epistemics at all, so a
+		// computed anchor alone never manufactures projection weights.
+		if ep := state.Epistemics; ep != nil && strings.Contains(ep.Statement, strings.TrimSpace(fallbackCaveat)) {
+			ep.Statement = strings.ReplaceAll(ep.Statement, fallbackCaveat, "")
+			ep.Sources = synthSources(true)
+			if ep.Status == "UNVERIFIED" {
+				ep.Status = "PROJECTED"
+				ep.AlphaCorroborated = liveAlpha
+				ep.BetaContested = liveBeta
+				ep.GammaUnverified = liveGamma
+				ep.PCorrelated = livePCorrelated
 			}
 		}
 		measureLine("anchor recomputed: FCI %.5f -> %.5f Ha, discrepancy %.2f mHa.", oldFCI, fci, delta)
@@ -352,16 +350,17 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 		if alpha == nil && beta == nil && gamma == nil {
 			return nil, false, "no evaluated amplitudes present"
 		}
+		ep := ensureEpistemics(&state)
 		if alpha != nil {
-			state.Epistemics.AlphaCorroborated = *alpha
+			ep.AlphaCorroborated = *alpha
 		}
 		if beta != nil {
-			state.Epistemics.BetaContested = *beta
+			ep.BetaContested = *beta
 		}
 		if gamma != nil {
-			state.Epistemics.GammaUnverified = *gamma
+			ep.GammaUnverified = *gamma
 		}
-		state.Epistemics.PCorrelated = state.Epistemics.AlphaCorroborated * state.Epistemics.AlphaCorroborated * 100.0
+		ep.PCorrelated = ep.AlphaCorroborated * ep.AlphaCorroborated * 100.0
 		passes := false
 		rawPass, ok := present("passes_chemical_accuracy")
 		if !ok {
@@ -387,16 +386,16 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 				// the evaluator blessed fallback numbers. Amplitudes fold
 				// (real tribunal output — the record is transcribed, not
 				// rewritten), but collapse is withheld loudly (R3).
-				state.Epistemics.Status = "CONTESTED"
-				state.Epistemics.Statement = "Evaluated claim passed against an UNCOMPUTED anchor — collapse withheld: " + boundClaim(reason)
+				ep.Status = "CONTESTED"
+				ep.Statement = "Evaluated claim passed against an UNCOMPUTED anchor — collapse withheld: " + boundClaim(reason)
 				measureLine("claim evaluated: PASS WITHHELD (anchor uncomputed). %s%s", boundClaim(reason), citeSuffix(cite))
 			} else {
-				state.Epistemics.Status = "COLLAPSED_VERIFIED"
+				ep.Status = "COLLAPSED_VERIFIED"
 				measureLine("claim evaluated: chemical accuracy PASSED. %s%s", boundClaim(reason), citeSuffix(cite))
 			}
 		} else {
-			state.Epistemics.Status = "CONTESTED"
-			state.Epistemics.Statement = "Evaluated claim failed chemical accuracy: " + boundClaim(reason)
+			ep.Status = "CONTESTED"
+			ep.Statement = "Evaluated claim failed chemical accuracy: " + boundClaim(reason)
 			measureLine("claim evaluated: chemical accuracy FAILED. %s%s", boundClaim(reason), citeSuffix(cite))
 		}
 		// Mechanical contradiction check: the verdict flag and the measured
@@ -568,7 +567,8 @@ func ReplanWithJobResult(stateJSON []byte, jobID, jobType string, resultJSON []b
 			}
 			lines = append(lines, fmt.Sprintf("  coarse FCI minimum near R=%.4f A", best.r))
 		}
-		state.Notebook.Sections = append(state.Notebook.Sections,
+		nb := ensureNotebook(&state)
+		nb.Sections = append(nb.Sections,
 			"Job "+shortID+" (pes_sweep): "+head+"\n"+strings.Join(lines, "\n"))
 		trimMeasurementLines(&state)
 		return marshalReplan(&state, true, "PES table folded")
@@ -592,7 +592,42 @@ func marshalReplan(state *CampaignState, changed bool, note string) ([]byte, boo
 
 // trimMeasurementLines drops the oldest "Job …" provenance lines past the
 // cap. Narrative sections are never candidates for removal.
+func ensureNotebook(state *CampaignState) *SystematicNotebook {
+	if state.Notebook == nil {
+		target := strings.TrimSpace(state.TargetSystem)
+		if target == "" {
+			target = strings.TrimSpace(state.QuantumFactors.TargetMolecule)
+		}
+		if target == "" {
+			target = "campaign"
+		}
+		suffix := state.SessionID
+		if len(suffix) > 8 {
+			suffix = suffix[:8]
+		}
+		state.Notebook = &SystematicNotebook{
+			ID:               "nb-" + strings.ToLower(strings.ReplaceAll(target, " ", "-")) + "-" + suffix,
+			Title:            target + " Campaign Notebook",
+			CreatedAt:        time.Now().UTC().Format(time.RFC3339),
+			ClassicalAnchor:  "not computed",
+			EpistemicVerdict: "PENDING",
+			Sections:         []string{},
+		}
+	}
+	return state.Notebook
+}
+
+func ensureEpistemics(state *CampaignState) *EpistemicState {
+	if state.Epistemics == nil {
+		state.Epistemics = &EpistemicState{Status: "UNVERIFIED", Sources: []string{}}
+	}
+	return state.Epistemics
+}
+
 func trimMeasurementLines(state *CampaignState) {
+	if state.Notebook == nil {
+		return
+	}
 	for len(state.Notebook.Sections) > maxNotebookSections {
 		dropped := false
 		for i, sec := range state.Notebook.Sections {

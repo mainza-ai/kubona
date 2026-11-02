@@ -51,6 +51,15 @@ export const RESPONSE_SCHEMAS = {
   fleet: obj({
     backends: arr(any),
   }),
+  access: obj({
+    mode: str,
+    role: str,
+    single_lab: bool,
+    anonymous_chat: bool,
+    llm_local: bool,
+    campaign_create: bool,
+    auth_required: bool,
+  }),
   capabilities: obj({
     catalog_digest: str,
     harnesses: arr(str),

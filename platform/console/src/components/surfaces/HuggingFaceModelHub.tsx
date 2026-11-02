@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { ProvenanceBadge } from '@/components/common/ProvenanceBadge';
 import {
   Search,
   Download,
@@ -211,12 +212,15 @@ export function HuggingFaceModelHub() {
             <Database className="w-5 h-5 text-amber-400" />
           </div>
           <div>
-            <h2 className="text-base font-semibold text-white tracking-tight flex items-center space-x-2">
-              <span>Hugging Face Model Explorer</span>
-              <span className="px-2 py-0.5 rounded-full text-[12px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                Hub &amp; Downloader
-              </span>
-            </h2>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-semibold text-white tracking-tight flex items-center space-x-2">
+                <span>Hugging Face Model Explorer</span>
+                <span className="px-2 py-0.5 rounded-full text-[12px] font-mono bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                  Hub &amp; Downloader
+                </span>
+              </h2>
+              <ProvenanceBadge kind="catalog" detail="Model catalog data, not a campaign measurement." />
+            </div>
             <p className="text-xs text-slate-400 mt-0.5">
               Discover frontier weights, inspect GGUF / MLX quantizations, and stream directly into local air-gapped storage
             </p>

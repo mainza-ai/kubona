@@ -47,8 +47,12 @@ open http://localhost:3000   # macOS; xdg-open on Linux
 
 ### First-run identity (console writes)
 
-Reads and the zero-login local flow work immediately. Authenticated writes
-(LLM/quantum settings, mandates, rerun) need either:
+Reads and the zero-login local flow work immediately. In the supported
+single-lab deployment (`KUBONA_SINGLE_LAB=1`) with a local LLM, campaign
+creation and chat are open without a sign-in prompt; `GET /api/access` reports
+`mode: "local_private"` and `anonymous_chat: true`. Cloud LLM providers, QPU
+dispatch, settings, mandates, and lab administration still require auth.
+Authenticated writes (LLM/quantum settings, mandates, rerun) need either:
 
 - **Console login:** open **Labs** → bootstrap the lab's admin key (first
   write wins; the key stays in browser custody) → **Log in**. The Ed25519
@@ -56,6 +60,30 @@ Reads and the zero-login local flow work immediately. Authenticated writes
   no public token is baked into the console.
 - **API/agent:** send `Authorization: Bearer $KUBONA_API_TOKEN` (the token
   from `.env`) on gated routes.
+
+### Local reset and isolated E2E
+
+The live ledger contains labs and campaigns. Never point E2E at it: the browser
+suite creates labs. Use the disposable launcher:
+
+```bash
+KUBONA_BRIDGE_SOCKET=/path/to/bridge.sock \
+KUBONA_BRIDGE_TOKEN=... \
+python3 scripts/e2e-isolated.py --build-console
+```
+
+It creates a temporary ledger/state directory, starts isolated API (`:18080`)
+and console (`:13000`) processes, runs Playwright, and tears them down.
+
+To reset a stopped local ledger, take a verified backup first:
+
+```bash
+python3 scripts/local-reset.py --db "$PWD/kubona.db" --yes
+```
+
+The script refuses while the daemon holds the ledger lock, writes a verified
+`*.reset-backup-<UTC>` snapshot, removes the ledger/WAL/SHM files, and leaves
+the backup in place. Restart `kubonad` to create a clean ledger.
 
 ## 3. Prove it is private
 

@@ -80,6 +80,7 @@ var RoutePolicies = []RoutePolicy{
 	{Pattern: "/metrics", Methods: "GET", Class: RouteAuthBearer},
 	{Pattern: "/api/ready", Methods: "GET", Class: RouteAuthPublicRead, Rationale: "readiness probe, no state, no data."},
 	{Pattern: "/api/capabilities", Methods: "GET", Class: RouteAuthPublicRead, Rationale: "static capability advertisement, no state."},
+	{Pattern: "/api/access", Methods: "GET", Class: RouteAuthPublicRead, Rationale: "Deployment mode/access posture only; no secrets, tenant rows, or writes."},
 	{Pattern: "/api/sessions", Methods: "GET,POST", Class: RouteAuthSessionScoped, Rationale: "List: D-09 caller scoping (anon single-lab only, lab callers own-lab, bearer all). Create: spoof-guarded (anon mints default-lab only with clamped budget; lab callers pin to own lab). No spend moves here."},
 	{Pattern: "/api/sessions/refund", Methods: "POST", Class: RouteAuthBearer},
 	{Pattern: "/api/sessions/export", Methods: "POST", Class: RouteAuthSessionScoped, Rationale: "Read-only manifest export; known sessions bind caller to session tenant (ghosts 404)."},

@@ -1,3 +1,4 @@
+import type { ProvenanceKind } from '@/components/common/ProvenanceBadge';
 import type { CampaignState, Job, Loop, Task } from '@/types';
 import { jobStatusLabel } from '@/lib/job-status';
 import type { ObligationRow } from '@/lib/api';
@@ -50,6 +51,8 @@ export type WorkbenchObject = {
   basis?: string;
   /** Source references recorded for this object; URLs are validated before render. */
   sources?: { label: string; url?: string }[];
+  /** Where the numbers on this card come from. */
+  provenance?: ProvenanceKind;
   /** Authoritative record this card projects; layout never owns content. */
   ref?: { domain: string; id: string };
 };
@@ -187,12 +190,13 @@ function energyChart(campaign: CampaignState): ChartSpec | undefined {
     .map((step) => ({ x: step.step, y: step.energy, display: `${step.energy.toFixed(5)} Ha` }));
   if (points.length === 0) return undefined;
   const anchor = campaign.classical_anchor;
-  const anchored = anchor?.anchor_computed === true && Number.isFinite(anchor.fci_exact_energy);
+  const anchorEnergy = anchor?.fci_exact_energy;
+  const anchored = anchor?.anchor_computed === true && typeof anchorEnergy === 'number' && Number.isFinite(anchorEnergy);
   const series: ChartSpec['series'] = [{ name: 'VQE energy', points }];
-  if (anchored) {
+  if (anchored && anchorEnergy != null) {
     series.push({
       name: 'FCI anchor',
-      points: points.map((point) => ({ x: point.x, y: anchor.fci_exact_energy })),
+      points: points.map((point) => ({ x: point.x, y: anchorEnergy })),
     });
   }
   return {
@@ -483,7 +487,39 @@ export function buildWorkbench(
       chart,
     });
   }
-  return objects.map((object) => ({ ...object, ref: object.ref ?? defaultRef(object, campaign) }));
+  const hasMeasurement = Boolean(notebook || epistemics || anchored || (campaign.trajectory?.length ?? 0) > 0);
+  const provenanceFor = (object: WorkbenchObject): ProvenanceKind => {
+    switch (object.kind) {
+      case 'campaign':
+        return hasMeasurement ? 'measured' : 'proposed';
+      case 'hypothesis':
+      case 'evidence':
+        return epistemics ? 'measured' : 'proposed';
+      case 'measurement':
+        return anchored ? 'measured' : 'proposed';
+      case 'proof':
+      case 'manuscript':
+      case 'note':
+        return notebook ? 'measured' : 'proposed';
+      case 'circuit':
+      case 'table':
+      case 'molecule':
+        return 'proposed';
+      case 'chart':
+      case 'agent_run':
+      case 'job':
+      case 'approval':
+      case 'task':
+        return 'measured';
+      default:
+        return 'catalog';
+    }
+  };
+  return objects.map((object) => ({
+    ...object,
+    provenance: object.provenance ?? provenanceFor(object),
+    ref: object.ref ?? defaultRef(object, campaign),
+  }));
 }
 
 export type WorkbenchDocument = {

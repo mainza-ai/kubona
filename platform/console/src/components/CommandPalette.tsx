@@ -116,7 +116,7 @@ export function CommandPalette({
     },
     {
       id: 'gallery',
-      title: 'Generative UI Studio (Multi-Modal Preview Gallery)',
+      title: 'Generative UI Studio (Scientific Widgets)',
       category: 'Proofs & Evidence',
       shortcut: SHORTCUTS.previewGallery,
       icon: Sparkles,

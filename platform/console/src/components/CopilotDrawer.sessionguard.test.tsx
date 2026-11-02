@@ -3,6 +3,7 @@ import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { CopilotDrawer } from './CopilotDrawer';
 import * as api from '@/lib/api';
+import { resetAuthStateForTests } from '@/domain/auth-state';
 import type { ChatMessage } from '@/types';
 
 // Partial mock: auth + session + streaming seams are controlled per test;
@@ -68,6 +69,7 @@ async function sendPrompt(
 describe('CopilotDrawer spend-fork guard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    resetAuthStateForTests();
     vi.mocked(api.wasRecentAuthFailure).mockReturnValue(false);
     vi.mocked(api.fetchMessages).mockResolvedValue([]);
     vi.stubGlobal(
@@ -77,33 +79,27 @@ describe('CopilotDrawer spend-fork guard', () => {
     );
   });
 
-  it('never mints a session when logged out — no createSession, login affordance renders', async () => {
-    vi.mocked(api.authWhoami).mockResolvedValue(null);
-    vi.mocked(api.createSession).mockResolvedValue({
-      id: 'should-never-exist',
-      title: 'x',
-    } as never);
-
+  it('pre-empts a multi-lab refusal before minting any session', async () => {
     const onSelectSurface = vi.fn();
     let tree: TestRenderer.ReactTestRenderer | undefined;
     await act(async () => {
       tree = TestRenderer.create(
-        <CopilotDrawer sessionId="" onSelectSurface={onSelectSurface} />,
+        <CopilotDrawer sessionId="" onSelectSurface={onSelectSurface} requiresSignIn />,
       );
     });
 
     await sendPrompt(tree!, 'map the H2 surface', () =>
-      JSON.stringify(tree!.toJSON()).includes('Session expired'),
+      JSON.stringify(tree!.toJSON()).includes('Sign in to start a campaign session'),
     );
 
-    // THE money assertion: auth unknown → no spend-bearing session created.
+    // The page already knows the store requires auth: do not mint spend work.
     expect(api.createSession).not.toHaveBeenCalled();
     const text = JSON.stringify(tree!.toJSON());
-    expect(text).toContain('Session expired — log in again');
+    expect(text).toContain('Sign in to start a campaign session');
 
     const jumpBtn = tree!.root
       .findAllByType('button')
-      .find((b) => textOf(b).includes('Open Labs AuthPanel'));
+      .find((b) => textOf(b).includes('Sign in'));
     expect(jumpBtn).toBeDefined();
     await act(async () => {
       jumpBtn!.props.onClick();
@@ -111,30 +107,43 @@ describe('CopilotDrawer spend-fork guard', () => {
     expect(onSelectSurface).toHaveBeenCalledWith('labs');
   });
 
-  it('treats a recent 401 as logged out even when whoami still reads authenticated', async () => {
-    vi.mocked(api.authWhoami).mockResolvedValue({
-      authenticated: true,
-      tenant_id: 'lab-alpha',
-    });
+  it('maps a server create refusal to the sign-in affordance', async () => {
+    vi.mocked(api.createSession).mockResolvedValue(null);
     vi.mocked(api.wasRecentAuthFailure).mockReturnValue(true);
-    vi.mocked(api.createSession).mockResolvedValue({
-      id: 'should-never-exist',
-      title: 'x',
-    } as never);
 
     let tree: TestRenderer.ReactTestRenderer | undefined;
     await act(async () => {
       tree = TestRenderer.create(<CopilotDrawer sessionId="" />);
     });
     await sendPrompt(tree!, 'probe fidelity', () =>
-      JSON.stringify(tree!.toJSON()).includes('Session expired'),
+      JSON.stringify(tree!.toJSON()).includes('Sign in to start a campaign session'),
     );
 
-    expect(api.createSession).not.toHaveBeenCalled();
-    expect(JSON.stringify(tree!.toJSON())).toContain(
-      'Session expired — log in again',
-    );
+    // The server is the authority: the create was attempted and refused; no
+    // stream or spend-bearing turn followed.
+    expect(api.createSession).toHaveBeenCalledTimes(1);
+    expect(api.streamChatMessage).not.toHaveBeenCalled();
+    expect(JSON.stringify(tree!.toJSON())).toContain('Sign in to start a campaign session');
   });
+
+  it('allows a single-lab local send without a whoami prerequisite', async () => {
+    vi.mocked(api.createSession).mockResolvedValue({ id: 'local-session', title: 'x' } as never);
+    vi.mocked(api.streamChatMessage).mockResolvedValue({
+      user: userMsg('hello'),
+      assistant: assistantMsg('local reply'),
+    });
+
+    let tree: TestRenderer.ReactTestRenderer | undefined;
+    await act(async () => {
+      tree = TestRenderer.create(<CopilotDrawer sessionId="" />);
+    });
+    await sendPrompt(tree!, 'hello', () => vi.mocked(api.streamChatMessage).mock.calls.length > 0);
+
+    expect(api.createSession).toHaveBeenCalledTimes(1);
+    expect(api.streamChatMessage).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(tree!.toJSON())).toContain('local reply');
+  });
+
 });
 
 describe('CopilotDrawer stream abort', () => {

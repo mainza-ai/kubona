@@ -101,15 +101,26 @@ describe('observatory anchor honesty (H1)', () => {
     epistemics: { p_correlated: 0.92 },
   } as unknown as CampaignState;
 
-  it('anchorless terrain shows UNVERIFIED illustrative probe + uncomputed confidence', async () => {
+  it('anchorless campaign hides the 3D terrain instead of inventing a reference', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
       tree = TestRenderer.create(<SpatialCanvas3D campaign={anchorless} />);
     });
     const text = textOf(tree!.toJSON());
-    expect(text).toContain('UNVERIFIED terrain — illustrative');
-    expect(text).toContain('ρ uncomputed');
+    expect(text).toContain('Observatory requires a computed classical anchor.');
+    expect(text).not.toContain('UNVERIFIED terrain — illustrative');
     expect(text).not.toContain('ρ = 0.92');
+  });
+
+  it('no sealed prediction means no synthetic ghost plane', async () => {
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<SpatialCanvas3D campaign={campaign} />);
+    });
+    const text = textOf(tree!.toJSON());
+    expect(text).toContain('No sealed prediction');
+    expect(text).not.toContain('Vault Ghost (illustrative)');
+    expect(text).not.toContain('ghost is an illustrative placeholder');
   });
 
   it('anchored campaign shows the computed rho and no UNVERIFIED probe tag', async () => {

@@ -8,7 +8,6 @@ import {
   authRevoke,
   authSessions,
   authWhoami,
-  wasRecentAuthFailure,
   UNAUTH_EVENT,
   type AuthServerSession,
 } from '@/lib/api';
@@ -62,10 +61,9 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
   const [browserKey, setBrowserKey] = useState<string | null>(null);
   const labSelectRef = useRef<HTMLSelectElement | null>(null);
   const [focusLabSelect, setFocusLabSelect] = useState(false);
-  // Sticky expiry hint: a 401 anywhere in the tree means the cookie died.
-  // The login CTA keeps reading "expired" after the 30s
-  // wasRecentAuthFailure window lapses (typeof guards keep older
-  // api mocks — which lack these exports — rendering instead of crashing).
+  // Sticky expiry hint: UNAUTH_EVENT is emitted only when an authenticated
+  // session is lost. An anonymous 401 arrives as AUTH_REQUIRED_EVENT and
+  // must not make this panel say "expired".
   const [sawUnauthorized, setSawUnauthorized] = useState(false);
   // Wave-3: revoke stages a typed ConfirmDialog (session short-id) instead
   // of a native confirm(). The network + refresh flow is unchanged.
@@ -198,21 +196,22 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
   // Expired (not merely anonymous): a recent 401 or an observed
   // unauthorized event since mount means the cookie died — the login
   // button becomes the "expired" CTA instead of the first-run label.
-  const recentAuthFailure =
-    typeof wasRecentAuthFailure === 'function' ? wasRecentAuthFailure() : false;
-  const sessionExpired = !whoami?.authenticated && (sawUnauthorized || recentAuthFailure);
+  // Anonymous is not expired. Only a UNAUTH_EVENT after a real authenticated
+  // session flips this to the expired CTA; a recent 401 while anonymous is a
+  // sign-in prompt, not evidence that a session died.
+  const sessionExpired = !whoami?.authenticated && sawUnauthorized;
 
   return (
     <div className="rounded-2xl border border-white/[0.08] bg-black/50 p-4 space-y-3" aria-label="Operator session">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-white">Operator session</span>
+        <span className="text-xs font-semibold text-white">Lab session</span>
         {whoami?.authenticated ? (
           <span className="text-[12px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-200 border border-emerald-400/30">
             {whoami.tenant_id} · {whoami.pubkey_fp?.slice(0, 12)}…
           </span>
         ) : (
           <span className="text-[12px] font-mono px-2 py-0.5 rounded-full bg-white/5 text-slate-400 border border-white/10">
-            anonymous (bearer only)
+            not signed in
           </span>
         )}
       </div>
@@ -254,18 +253,18 @@ export function AuthPanel({ labs }: { labs: Lab[] }) {
               {busy === 'login'
                 ? 'Challenging…'
                 : sessionExpired
-                  ? 'Session expired — log in again'
-                  : 'Log in with browser key'}
+                  ? 'Session expired — sign in again'
+                  : 'Sign in with browser key'}
             </button>
           </div>
           {labs.length === 0 && (
             <p className="text-[12px] text-slate-500">
-              Multi-lab store: lab listing is private. Enter the lab ID you administer; only its public key can log in.
+              This is a multi-lab deployment. Enter the lab ID you administer; only its registered browser key can sign in.
             </p>
           )}
           {!browserKey && (
             <span className="text-[12px] text-slate-500">
-              No browser key yet — logging in mints a non-extractable Ed25519 key in this browser.
+              A browser key will be created for this browser when you sign in.
             </span>
           )}
         </div>

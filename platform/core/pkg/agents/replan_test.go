@@ -6,14 +6,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/mainza-ai/kubona/core/pkg/epistemics"
 	pb "github.com/mainza-ai/kubona/core/proto"
 	"google.golang.org/grpc"
 )
 
 func replanTestState(t *testing.T, prompt string) []byte {
 	t.Helper()
-	state, err := SynthesizeCampaignState(context.Background(), "sess-replan-test", prompt, nil, nil)
+	state, err := BuildCampaignProposal(context.Background(), "sess-replan-test", prompt, "", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,7 +46,7 @@ func TestReplanCircuitRun(t *testing.T) {
 		t.Errorf("MW not replaced: %v", after.QuantumFactors.MeyerWallachQ)
 	}
 	if after.QuantumFactors.MeyerWallachQ == before.QuantumFactors.MeyerWallachQ {
-		t.Error("MW unchanged from synthesis estimate")
+		t.Error("MW unchanged from the unmeasured proposal")
 	}
 	last := after.Notebook.Sections[len(after.Notebook.Sections)-1]
 	if !strings.HasPrefix(last, "Job job-abcd (circuit_run):") || !strings.Contains(last, "1024 shots") {
@@ -88,7 +87,6 @@ func TestReplanKrylov(t *testing.T) {
 
 func TestReplanAnchor(t *testing.T) {
 	raw := replanTestState(t, "H2 ground state VQE")
-	before := decodeReplan(t, raw)
 
 	updated, changed, _ := ReplanWithJobResult(raw, "job-anchor1", "classical_anchor",
 		[]byte(`{"success":true,"molecule":"H2","bond_distance":0.7414,"rhf_energy":-1.11670,"fci_exact_energy":-1.13730}`), "")
@@ -99,11 +97,11 @@ func TestReplanAnchor(t *testing.T) {
 	if after.ClassicalAnchor.FciExactEnergy != -1.13730 {
 		t.Errorf("FCI not replaced: %v", after.ClassicalAnchor.FciExactEnergy)
 	}
-	if after.Notebook.ProvenanceHash == before.Notebook.ProvenanceHash {
-		t.Error("provenance must re-hash when FCI changes")
+	if after.Notebook == nil || after.Notebook.ProvenanceHash == "" {
+		t.Error("anchor fold must create a notebook with provenance")
 	}
-	if !after.ClassicalAnchor.ChemicalAccuracyPassed {
-		t.Error("0.31 mHa discrepancy must pass chemical accuracy")
+	if after.ClassicalAnchor.ChemicalAccuracyPassed {
+		t.Error("anchor alone must not pass chemical accuracy: no VQE measurement exists")
 	}
 
 	// Wrong-molecule anchor corrupts: refuse the fold.
@@ -124,10 +122,10 @@ func TestReplanClaimEval(t *testing.T) {
 		t.Fatal("verdict must fold")
 	}
 	after := decodeReplan(t, updated)
-	// R3: replanTestState synthesizes on a fallback anchor, so a pass
-	// withholds collapse — amplitudes fold, status contests loudly.
+	// The proposal has no computed anchor, so a pass withholds collapse —
+	// amplitudes fold, status contests loudly.
 	if after.Epistemics.Status != "CONTESTED" || after.Epistemics.AlphaCorroborated != 0.97 {
-		t.Errorf("pass on fallback must withhold collapse: %+v", after.Epistemics)
+		t.Errorf("pass on an uncomputed anchor must withhold collapse: %+v", after.Epistemics)
 	}
 	if !strings.Contains(after.Epistemics.Statement, "UNCOMPUTED") {
 		t.Errorf("withholding must name the cause: %q", after.Epistemics.Statement)
@@ -193,11 +191,11 @@ func TestReplanNotebookOnlyAndUnknown(t *testing.T) {
 
 func TestReplanNotebookCap(t *testing.T) {
 	raw := replanTestState(t, "H2 ground state VQE")
-	var state CampaignState
-	if err := json.Unmarshal(raw, &state); err != nil {
-		t.Fatal(err)
-	}
-	narrative := len(state.Notebook.Sections)
+	state := decodeReplan(t, raw)
+	ensureNotebook(&state)
+	state.Notebook.Sections = append(state.Notebook.Sections, "Narrative: campaign objective")
+	narrativeSections := append([]string{}, state.Notebook.Sections...)
+	narrative := len(narrativeSections)
 	for i := 0; i < 60; i++ {
 		state.Notebook.Sections = append(state.Notebook.Sections, "Job filler: old measurement")
 	}
@@ -214,7 +212,7 @@ func TestReplanNotebookCap(t *testing.T) {
 	// Narrative sections survive; only measurement lines fall off.
 	kept := 0
 	for _, sec := range after.Notebook.Sections {
-		for _, orig := range decodeReplan(t, raw).Notebook.Sections {
+		for _, orig := range narrativeSections {
 			if sec == orig {
 				kept++
 				break
@@ -265,40 +263,6 @@ func TestReplanCitesClaimRecord(t *testing.T) {
 	}
 }
 
-// Every synthesized campaign ships Sources to the UI: they must resolve
-// under the evidence vocabulary, never free text.
-func TestSynthSourcesResolve(t *testing.T) {
-	for _, prompt := range []string{"H2 ground state VQE", "LiH dissociation", "fresh water scan"} {
-		state, err := SynthesizeCampaignState(context.Background(), "sess-sources", prompt, nil, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		// R1: a fallback anchor cites nothing — unattested (empty) is
-		// legal, an invented PySCF label is fabrication.
-		if len(state.Epistemics.Sources) != 0 {
-			t.Errorf("%q: fallback must carry no sources, got %v", prompt, state.Epistemics.Sources)
-		}
-		for _, src := range state.Epistemics.Sources {
-			if !epistemics.ValidSourceLabel(src) {
-				t.Errorf("%q: unresolvable source %q", prompt, src)
-			}
-		}
-	}
-	// A computed anchor re-attests the PySCF pair.
-	live, err := SynthesizeCampaignState(context.Background(), "sess-sources-live", "H2 ground state VQE", nil, stubAnchorBridge{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(live.Epistemics.Sources) != 2 {
-		t.Fatalf("computed anchor must carry the PySCF pair, got %v", live.Epistemics.Sources)
-	}
-	for _, src := range live.Epistemics.Sources {
-		if !epistemics.ValidSourceLabel(src) {
-			t.Errorf("unresolvable source %q", src)
-		}
-	}
-}
-
 func TestReplanPesSweep(t *testing.T) {
 	raw := replanTestState(t, "H2 ground state VQE")
 	before := decodeReplan(t, raw)
@@ -341,55 +305,44 @@ func TestReplanPesSweep(t *testing.T) {
 	}
 }
 
-// B0-1: an uncomputed anchor is never verification-grade. Nil bridge =
-// fallback path: labeled everywhere, accuracy fails, no collapse.
-func TestSynthFallbackAnchorNeverVerifies(t *testing.T) {
-	state, err := SynthesizeCampaignState(context.Background(), "sess-fallback", "H2 ground state VQE", nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if state.ClassicalAnchor.AnchorComputed {
-		t.Error("nil bridge must not mark anchor computed")
-	}
-	if state.ClassicalAnchor.AnchorSource != "hardcoded-fallback" {
-		t.Errorf("source must name the fallback, got %q", state.ClassicalAnchor.AnchorSource)
-	}
-	if state.ClassicalAnchor.ChemicalAccuracyPassed {
-		t.Error("chemical accuracy cannot pass on a fallback anchor")
-	}
-	if state.Epistemics.Status != "UNVERIFIED" {
-		t.Errorf("fallback epistemics must be UNVERIFIED, got %q", state.Epistemics.Status)
-	}
-	if state.Epistemics.AlphaCorroborated != 0.50 {
-		t.Errorf("fallback amplitudes must drop to pending, got %v", state.Epistemics.AlphaCorroborated)
-	}
-	if !strings.Contains(state.Epistemics.Statement, "hardcoded fallback") {
-		t.Errorf("statement must carry the caveat: %q", state.Epistemics.Statement)
-	}
-	if state.Notebook.EpistemicVerdict != "UNVERIFIED_FALLBACK" {
-		t.Errorf("notebook verdict must name the fallback, got %q", state.Notebook.EpistemicVerdict)
-	}
-	if !strings.Contains(state.Notebook.Sections[1], "UNAVAILABLE") {
-		t.Errorf("notebook section 2 must disclose the missing anchor: %q", state.Notebook.Sections[1])
-	}
-	if !strings.Contains(state.ClassicalAnchor.Method, "fallback") {
-		t.Errorf("method must not read as PySCF: %q", state.ClassicalAnchor.Method)
-	}
-
-	// Fresh campaigns keep HYPOTHESIS_PENDING (already pending) + caveat.
-	fresh, err := SynthesizeCampaignStateWithOpts(context.Background(), "sess-fresh-fb", "H2", "", true, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if fresh.Epistemics.Status != "HYPOTHESIS_PENDING" {
-		t.Errorf("fresh fallback keeps HYPOTHESIS_PENDING, got %q", fresh.Epistemics.Status)
-	}
-	if !strings.Contains(fresh.Epistemics.Statement, "hardcoded fallback") {
-		t.Errorf("fresh statement must carry the caveat: %q", fresh.Epistemics.Statement)
+// A proposal carries no measured fields, even when a live anchor exists.
+func TestBuildProposalCarriesNoMeasuredFields(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		bridge pb.QuantumBridgeServiceClient
+	}{
+		{name: "uncomputed", bridge: nil},
+		{name: "computed", bridge: stubAnchorBridge{}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			state, err := BuildCampaignProposal(context.Background(), "sess-proposal", "H2 ground state VQE", "", tc.bridge)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(state.Trajectory) != 0 || len(state.Branches) != 0 {
+				t.Fatalf("proposal must not carry trajectory/branches: %+v", state)
+			}
+			if state.Notebook != nil || state.Epistemics != nil {
+				t.Fatalf("proposal must not carry notebook/epistemics: %+v", state)
+			}
+			if state.ClassicalAnchor.VqeExpectationEnergy != 0 || state.ClassicalAnchor.ChemicalAccuracyPassed {
+				t.Fatalf("proposal must not claim an energy/verdict: %+v", state.ClassicalAnchor)
+			}
+			if state.QuantumFactors.CliffordFidelity != 0 {
+				t.Fatalf("proposal must not claim canary fidelity: %+v", state.QuantumFactors)
+			}
+			if !state.QuantumFactors.Synthesized {
+				t.Error("proposal circuit must be marked synthesized")
+			}
+			if len(state.QuantumFactors.WireCuts) != 0 {
+				t.Error("proposal must not carry planned cut overhead")
+			}
+		})
 	}
 }
 
-// A recomputed anchor promotes the campaign back to computed-grade.
+// A recomputed anchor promotes the campaign to computed-grade without
+// manufacturing epistemics: only a claim evaluation may create those.
 func TestReplanAnchorPromotesComputed(t *testing.T) {
 	raw := replanTestState(t, "H2 ground state VQE")
 	updated, changed, _ := ReplanWithJobResult(raw, "job-anchor9", "classical_anchor",
@@ -401,51 +354,11 @@ func TestReplanAnchorPromotesComputed(t *testing.T) {
 	if !after.ClassicalAnchor.AnchorComputed || after.ClassicalAnchor.AnchorSource != "pyscf-live" {
 		t.Errorf("recomputed anchor must promote to computed-grade: %+v", after.ClassicalAnchor)
 	}
-	// R3: the fallback caveat is stripped, sources re-attested, and the
-	// pristine UNVERIFIED state regains projection weights.
-	if strings.Contains(after.Epistemics.Statement, "hardcoded fallback") {
-		t.Errorf("caveat must be stripped after repair: %q", after.Epistemics.Statement)
+	if after.Epistemics != nil {
+		t.Errorf("anchor fold must not invent epistemics: %+v", after.Epistemics)
 	}
-	if after.Epistemics.Status != "PROJECTED" {
-		t.Errorf("repaired fallback must return to PROJECTED, got %q", after.Epistemics.Status)
-	}
-	if after.Epistemics.AlphaCorroborated != 0.95 || after.Epistemics.BetaContested != 0.05 ||
-		after.Epistemics.GammaUnverified != 0.10 || after.Epistemics.PCorrelated != 90.25 {
-		t.Errorf("projection weights not restored: %+v", after.Epistemics)
-	}
-	if len(after.Epistemics.Sources) != 2 || after.Epistemics.Sources[0] != "pyscf:sto-3g:rhf" {
-		t.Errorf("sources must re-attest the PySCF pair, got %v", after.Epistemics.Sources)
-	}
-}
-
-// R3: a fresh HYPOTHESIS_PENDING campaign keeps its pending weights when
-// the anchor arrives — only the caveat is stripped and sources attested.
-func TestReplanFreshAnchorFoldKeepsPending(t *testing.T) {
-	fresh, err := SynthesizeCampaignStateWithOpts(context.Background(), "sess-fresh-repair", "H2", "", true, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	raw, err := json.Marshal(fresh)
-	if err != nil {
-		t.Fatal(err)
-	}
-	updated, changed, _ := ReplanWithJobResult(raw, "job-anchor-fresh", "classical_anchor",
-		[]byte(`{"success":true,"molecule":"H2","bond_distance":0.7414,"rhf_energy":-1.11668,"fci_exact_energy":-1.13727}`), "")
-	if !changed {
-		t.Fatal("expected fold")
-	}
-	after := decodeReplan(t, updated)
-	if after.Epistemics.Status != "HYPOTHESIS_PENDING" {
-		t.Errorf("fresh campaign must keep HYPOTHESIS_PENDING, got %q", after.Epistemics.Status)
-	}
-	if after.Epistemics.AlphaCorroborated != 0.50 {
-		t.Errorf("fresh weights must stay pending, got %v", after.Epistemics.AlphaCorroborated)
-	}
-	if strings.Contains(after.Epistemics.Statement, "hardcoded fallback") {
-		t.Errorf("caveat must be stripped after repair: %q", after.Epistemics.Statement)
-	}
-	if len(after.Epistemics.Sources) != 2 {
-		t.Errorf("sources must re-attest the PySCF pair, got %v", after.Epistemics.Sources)
+	if after.Notebook == nil || after.Notebook.ProvenanceHash == "" {
+		t.Error("anchor fold must record notebook provenance")
 	}
 }
 
@@ -522,64 +435,32 @@ func TestReplanCutPersistsMeasuredWireCuts(t *testing.T) {
 	if len(frags) != 2 {
 		t.Errorf("fragments wrong: %+v", entry)
 	}
-	// Synthesis template carries the planned marker (never measured).
-	synth := decodeReplan(t, raw)
-	first, _ := synth.QuantumFactors.WireCuts[0].(map[string]any)
-	if first["planned"] != true {
-		t.Errorf("synth template must be marked planned: %+v", first)
+	// A proposal carries no planned cut overhead at all.
+	proposal := decodeReplan(t, raw)
+	if len(proposal.QuantumFactors.WireCuts) != 0 {
+		t.Errorf("proposal must not carry planned cut overhead: %+v", proposal.QuantumFactors.WireCuts)
 	}
 }
 
-func TestSynthProjectionFields(t *testing.T) {
-	raw := replanTestState(t, "H2 ground state VQE")
-	state := decodeReplan(t, raw)
-	if state.Epistemics.Status != "UNVERIFIED" {
-		t.Logf("note: nil-bridge synth is UNVERIFIED (fallback), got %q", state.Epistemics.Status)
-	}
-	if state.ClassicalAnchor.ChemicalAccuracyPassed {
-		t.Error("synth must never pass chemical accuracy (folds decide)")
-	}
-	for i, step := range state.Trajectory {
-		if step.Source != "synthesized" {
-			t.Errorf("milestone %d must be marked synthesized, got %q", i, step.Source)
-		}
-	}
-	if state.Notebook.EpistemicVerdict != "UNVERIFIED_FALLBACK" {
-		t.Errorf("nil-bridge notebook verdict wrong: %q", state.Notebook.EpistemicVerdict)
-	}
-}
-
-// Live anchor + template trajectory reads as projection, never verified:
-// status PROJECTED, accuracy unclaimed, milestones marked synthesized.
-func TestSynthLiveAnchorIsProjection(t *testing.T) {
-	state, err := SynthesizeCampaignState(context.Background(), "sess-proj", "H2 ground state VQE", nil, stubAnchorBridge{})
+// A live anchor is a proposal fact, not a projection of results.
+func TestBuildProposalLiveAnchorIsUnmeasured(t *testing.T) {
+	state, err := BuildCampaignProposal(context.Background(), "sess-proj", "H2 ground state VQE", "", stubAnchorBridge{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !state.ClassicalAnchor.AnchorComputed {
 		t.Fatal("stub bridge must yield a computed anchor")
 	}
-	if state.Epistemics.Status != "PROJECTED" {
-		t.Errorf("live template must be PROJECTED, got %q", state.Epistemics.Status)
+	if state.ClassicalAnchor.VqeExpectationEnergy != 0 || state.ClassicalAnchor.DiscrepancyMHa != 0 {
+		t.Errorf("proposal must not derive a VQE number: %+v", state.ClassicalAnchor)
 	}
-	if state.ClassicalAnchor.ChemicalAccuracyPassed {
-		t.Error("synth must never pass chemical accuracy (folds decide)")
-	}
-	if !strings.Contains(state.Epistemics.Statement, "unverified until jobs fold") {
-		t.Errorf("statement must name the projection: %q", state.Epistemics.Statement)
-	}
-	if state.Notebook.EpistemicVerdict != "PROJECTION" {
-		t.Errorf("notebook verdict must be PROJECTION, got %q", state.Notebook.EpistemicVerdict)
-	}
-	for i, step := range state.Trajectory {
-		if step.Source != "synthesized" {
-			t.Errorf("milestone %d must be marked synthesized, got %q", i, step.Source)
-		}
+	if state.Epistemics != nil || state.Notebook != nil || len(state.Trajectory) != 0 {
+		t.Errorf("proposal must not carry result fields: %+v", state)
 	}
 }
 
 // stubAnchorBridge answers ComputeClassicalAnchor with fixed H2 numbers.
-// All other RPCs nil-panic if touched — synth must not touch them.
+// All other RPCs nil-panic if touched — proposal construction must not touch them.
 type stubAnchorBridge struct {
 	pb.QuantumBridgeServiceClient
 }
@@ -629,42 +510,18 @@ func TestReplanKrylovLabelsEmulation(t *testing.T) {
 	}
 }
 
-// D-1c: fallback defaults are reviewed measurements, not inventions. Each
-// family synthesizes (nil bridge) to its verified STO-3G anchor, labeled
-// fallback. If someone "tunes" a default, this test demands the matrix.
-func TestSynthFallbackDefaultsAreVerified(t *testing.T) {
-	cases := []struct {
-		prompt string
-		rhf    float64
-		fci    float64
-	}{
-		{"H2 ground state", -1.11668, -1.13727},
-		{"LiH dissociation", -7.86200, -7.88239},
-		{"BeH2 linear", -15.56010, -15.57580},
-		{"H2O water", -74.96298, -74.97040},
-		{"N2 dinitrogen", -107.49589, -107.62185},
-		{"CO2 carbon dioxide", -185.06522, -185.15720},
-		{"CO carbon monoxide", -111.22459, -111.33095},
-		{"HF fluoride", -98.57076, -98.59659},
-		{"NH3 ammonia", -55.45398, -55.49467},
-		{"CH4 methane", -39.50989, -39.55590},
-		{"Benzene", -227.88822, -227.94430},
-		{"Caffeine", -667.65428, -667.68304},
-		{"Aspirin", -636.60816, -636.64195},
-		{"Paracetamol", -505.83584, -505.89628},
-	}
-	for _, tc := range cases {
-		state, err := SynthesizeCampaignState(context.Background(), "sess-defaults", tc.prompt, nil, nil)
+// The molecule table supplies target geometry, never a borrowed energy.
+func TestBuildProposalDoesNotCopyTableAnchor(t *testing.T) {
+	for _, prompt := range []string{"H2 ground state", "LiH dissociation", "Benzene", "Caffeine"} {
+		state, err := BuildCampaignProposal(context.Background(), "sess-defaults", prompt, "", nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if state.ClassicalAnchor.AnchorComputed {
-			t.Errorf("%q: nil bridge must fall back", tc.prompt)
+			t.Errorf("%q: nil bridge must stay uncomputed", prompt)
 		}
-		if state.ClassicalAnchor.RhfMeanFieldEnergy != tc.rhf || state.ClassicalAnchor.FciExactEnergy != tc.fci {
-			t.Errorf("%q: fallback drifted from verified matrix: got %.5f/%.5f, want %.5f/%.5f",
-				tc.prompt, state.ClassicalAnchor.RhfMeanFieldEnergy, state.ClassicalAnchor.FciExactEnergy,
-				tc.rhf, tc.fci)
+		if state.ClassicalAnchor.RhfMeanFieldEnergy != 0 || state.ClassicalAnchor.FciExactEnergy != 0 {
+			t.Errorf("%q: proposal borrowed table energies: %+v", prompt, state.ClassicalAnchor)
 		}
 	}
 }

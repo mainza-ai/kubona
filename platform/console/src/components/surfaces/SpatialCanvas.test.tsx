@@ -124,6 +124,28 @@ describe('SpatialCanvas', () => {
     expect(text).toContain('Second-Quantized Hamiltonian Mapping');
   });
 
+  it('does not synthesize a schematic QASM when the campaign has no circuit', async () => {
+    const campaign = {
+      target_system: 'H2',
+      classical_anchor: { anchor_computed: true, fci_exact_energy: -1.137 },
+    } as unknown as CampaignState;
+
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<SpatialCanvas campaign={campaign} />);
+    });
+    const depth2Btn = tree!.root
+      .findAllByType('button')
+      .find((b) => textOf(b.props.children).includes('2. Quantum Circuit'));
+    expect(depth2Btn).toBeDefined();
+    await act(async () => {
+      depth2Btn!.props.onClick();
+    });
+    const text = textOf(tree!.toJSON());
+    expect(text).toContain('No circuit proposal is recorded');
+    expect(text).not.toContain('schematic — illustrative');
+  });
+
   it('switches between 2D Workbench and 3D Observatory representation mode', async () => {
     const campaign = {
       target_system: 'H2',

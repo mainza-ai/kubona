@@ -284,6 +284,29 @@ export async function requestOperation<K extends ApiOperationName>(
 }
 
 
+export interface AccessState {
+  mode: 'local_private' | 'multi_lab';
+  role: 'local_researcher' | 'anonymous' | 'lab_admin' | 'operator';
+  single_lab: boolean;
+  anonymous_chat: boolean;
+  llm_local: boolean;
+  campaign_create: boolean;
+  auth_required: boolean;
+}
+
+export async function fetchAccess(): Promise<AccessState | null> {
+  try {
+    const res = await apiFetch(`${API_BASE}/api/access`, { cache: 'no-store', headers: authHeaders() });
+    if (!res.ok) return null;
+    const data = contract('access', (await res.json()) as Record<string, unknown>) as unknown as AccessState;
+    if (data.mode !== 'local_private' && data.mode !== 'multi_lab') return null;
+    return data;
+  } catch (err) {
+    console.error('Failed to fetch access posture:', err);
+    return null;
+  }
+}
+
 export async function fetchSessionsResult(): Promise<{ ok: true; sessions: Session[] } | { ok: false; error: string; failure: ApiFailure }> {
   try {
     const data = await dedupedGet<{ sessions?: Session[] }>(`${API_BASE}/api/sessions`, { headers: authHeaders() });

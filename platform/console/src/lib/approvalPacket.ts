@@ -14,7 +14,7 @@ interface CampaignLike {
   };
   notebook?: {
     provenance_hash?: string;
-  };
+  } | null;
 }
 
 export const APPROVAL_TTL_MS = 15 * 60 * 1000;

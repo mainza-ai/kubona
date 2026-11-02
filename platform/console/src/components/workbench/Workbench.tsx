@@ -3,11 +3,13 @@
 import React, { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { LayoutGrid, List, Maximize2, Minus, Plus } from 'lucide-react';
 import type { CampaignState, Job, Loop, Task } from '@/types';
+import type { AccessState } from '@/lib/api';
 import { fetchCanvasLayout, fetchWorkbenchLayout, saveWorkbenchLayout, type ObligationRow } from '@/lib/api';
 import { Chart } from '@/components/data/LazyChart';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
+import { ProvenanceBadge } from '@/components/common/ProvenanceBadge';
 import { acceptWrite, newWriteRequestId, reconcileOperation, settleWrite, writeSettlementLabel, IDLE_WRITE, type WriteSettlement } from '@/domain/write-settlement';
 import {
   WORKBENCH_BOUNDS,
@@ -41,6 +43,12 @@ type Props = {
   onCloseObligation?: (id: string) => void;
   onSelectObject?: (object: WorkbenchObject | null) => void;
   onOpenObject?: (kind: WorkbenchObjectKind) => void;
+  onCreateCampaign?: () => void;
+  localMode?: boolean;
+  multiLab?: boolean;
+  authError?: boolean;
+  onSignIn?: () => void;
+  access?: AccessState | null;
 };
 
 export type WorkbenchHandle = {
@@ -49,7 +57,7 @@ export type WorkbenchHandle = {
 };
 
 export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workbench({
-  campaign, error = null, onRetry, sessionId, loops = [], jobs: suppliedJobs, obligations: suppliedObligations, tasks: suppliedTasks, sessionSpendUsd, onTaskStatus, onCloseObligation, onSelectObject, onOpenObject,
+  campaign, error = null, onRetry, sessionId, loops = [], jobs: suppliedJobs, obligations: suppliedObligations, tasks: suppliedTasks, sessionSpendUsd, onTaskStatus, onCloseObligation, onSelectObject, onOpenObject, onCreateCampaign, localMode = false, multiLab = false, authError = false, onSignIn, access,
 }, ref) {
   const hostRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
@@ -648,10 +656,37 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
         >
           {error && objects.length === 0 ? (
             <>
-              <span>{error}</span>
-              {onRetry && <Button type="button" size="compact" data-testid="retry-campaign" onClick={onRetry}>Retry campaign read</Button>}
+              <span>{authError ? 'Sign in to open this campaign.' : error}</span>
+              {authError && onSignIn ? (
+                <Button type="button" size="compact" data-testid="workbench-sign-in" onClick={onSignIn}>Sign in</Button>
+              ) : onRetry ? (
+                <Button type="button" size="compact" data-testid="retry-campaign" onClick={onRetry}>Retry campaign read</Button>
+              ) : null}
             </>
-          ) : objects.length === 0 ? 'Create or open a campaign to give the science a place to stand.' : 'Use Undo remove or the list view to restore an object.'}
+          ) : objects.length === 0 ? (
+            <div className="space-y-2">
+              <p>{localMode ? 'Local private mode — no sign-in is required to start.' : multiLab ? 'Multi-lab workspace — sign in to create or open a campaign.' : 'Create or open a campaign to give the science a place to stand.'}</p>
+              <div className="flex flex-wrap justify-center gap-1.5 text-[12px] font-mono">
+                <span className={`px-2 py-0.5 rounded-full border ${access ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300' : 'border-white/10 bg-white/[0.03] text-[var(--color-muted)]'}`}>
+                  {access ? 'backend connected' : 'checking backend'}
+                </span>
+                <span className={`px-2 py-0.5 rounded-full border ${access?.llm_local ? 'border-cyan-400/30 bg-cyan-400/10 text-cyan-300' : 'border-amber-400/30 bg-amber-400/10 text-amber-300'}`}>
+                  {access ? (access.llm_local ? 'local LLM' : 'cloud LLM — sign-in required') : 'checking LLM'}
+                </span>
+                <span className="px-2 py-0.5 rounded-full border border-white/10 bg-white/[0.03] text-[var(--color-muted)]">
+                  {access?.role === 'lab_admin' ? 'lab admin' : access?.role === 'operator' ? 'operator' : 'researcher'}
+                </span>
+                <span className="px-2 py-0.5 rounded-full border border-white/10 bg-white/[0.03] text-[var(--color-muted)]">no campaign yet</span>
+              </div>
+              {multiLab && !sessionId && onSignIn ? (
+                <Button type="button" size="compact" data-testid="workbench-sign-in" onClick={onSignIn}>Sign in</Button>
+              ) : onCreateCampaign ? (
+                <Button type="button" size="compact" onClick={onCreateCampaign} data-testid="workbench-create-campaign">
+                  Create your first campaign
+                </Button>
+              ) : null}
+            </div>
+          ) : 'Use Undo remove or the list view to restore an object.'}
         </EmptyState>
       ) : (
         viewMode === 'list' ? (
@@ -661,8 +696,13 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
               <thead><tr><th scope="col">Kind</th><th scope="col">Object</th><th scope="col">Recorded facts</th><th scope="col">Open</th></tr></thead>
               <tbody>
                 {visibleObjects.map((object) => (
-                  <tr key={object.id}>
-                    <th scope="row">{object.label}</th>
+                  <tr key={object.id} data-provenance={object.provenance ?? 'catalog'}>
+                    <th scope="row">
+                      <div className="flex items-center gap-1.5">
+                        <span>{object.label}</span>
+                        <ProvenanceBadge kind={object.provenance ?? 'catalog'} />
+                      </div>
+                    </th>
                     <td>
                       <strong>{object.title}</strong>
                       <span>{object.detail}</span>
@@ -671,7 +711,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
                         <span>Sources: {object.sources.map((source) => source.label).join(' · ')}</span>
                       ) : null}
                     </td>
-                    <td>{object.facts.map((fact) => `${fact.label}: ${fact.value}`).join(' · ') || 'No facts recorded'}</td>
+                    <td data-metric>{object.facts.map((fact) => `${fact.label}: ${fact.value}`).join(' · ') || 'No facts recorded'}</td>
                     <td>{onOpenObject ? <Button type="button" size="compact" variant="ghost" onClick={() => onOpenObject(object.kind)}>Open</Button> : '—'}</td>
                   </tr>
                 ))}
@@ -826,6 +866,7 @@ function WorkCard({
     <article
       className="k-workbench-card"
       data-kind={object.kind}
+      data-provenance={object.provenance ?? 'catalog'}
       data-selected={selected ? 'true' : undefined}
       style={{
         left: object.position.x,
@@ -865,6 +906,7 @@ function WorkCard({
       >
         <Badge className="k-workbench-kind" tone={object.kind === 'chart' ? 'info' : 'neutral'}>{object.label}</Badge>
         {assigned && <Badge tone="info">area</Badge>}
+        <ProvenanceBadge kind={object.provenance ?? 'catalog'} />
         <h3>{object.title}</h3>
         <p>{object.detail}</p>
       </header>
@@ -873,7 +915,7 @@ function WorkCard({
           {object.facts.map((fact) => (
             <div key={fact.label}>
               <dt>{fact.label}</dt>
-              <dd>{fact.value}</dd>
+              <dd data-metric>{fact.value}</dd>
             </div>
           ))}
         </dl>
@@ -891,7 +933,7 @@ function WorkCard({
         </ul>
       ) : null}
       {object.chart && (
-        <div className="k-workbench-chart">
+        <div className="k-workbench-chart" data-metric data-provenance={object.provenance ?? 'catalog'}>
           <Chart spec={object.chart} />
         </div>
       )}

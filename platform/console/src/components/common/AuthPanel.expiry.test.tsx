@@ -125,7 +125,7 @@ describe('AuthPanel expiry UX', () => {
     expect(row!.props.title).toContain(expiresAt);
   });
 
-  it('recent 401 turns the login button into the expired CTA', async () => {
+  it('recent anonymous 401 keeps the sign-in CTA, not an expired claim', async () => {
     vi.mocked(api.authWhoami).mockResolvedValue({ authenticated: false });
     vi.mocked(api.wasRecentAuthFailure).mockReturnValue(true);
 
@@ -134,11 +134,11 @@ describe('AuthPanel expiry UX', () => {
       root = TestRenderer.create(<AuthPanel labs={LABS} />);
     });
 
-    expect(textOf(root!.root)).toContain('Session expired — log in again');
-    expect(textOf(root!.root)).not.toContain('Log in with browser key');
+    expect(textOf(root!.root)).toContain('Sign in with browser key');
+    expect(textOf(root!.root)).not.toContain('Session expired');
   });
 
-  it('first-run anonymous keeps the plain login label', async () => {
+  it('first-run anonymous keeps the plain sign-in label', async () => {
     vi.mocked(api.authWhoami).mockResolvedValue({ authenticated: false });
     vi.mocked(api.wasRecentAuthFailure).mockReturnValue(false);
 
@@ -147,7 +147,7 @@ describe('AuthPanel expiry UX', () => {
       root = TestRenderer.create(<AuthPanel labs={LABS} />);
     });
 
-    expect(textOf(root!.root)).toContain('Log in with browser key');
+    expect(textOf(root!.root)).toContain('Sign in with browser key');
     expect(textOf(root!.root)).not.toContain('Session expired');
   });
 
@@ -183,6 +183,6 @@ describe('AuthPanel expiry UX', () => {
     // Logged-out branch renders the discoverable lab selector again.
     const select = root!.root.findByProps({ 'aria-label': 'Login lab' });
     expect(select).toBeDefined();
-    expect(textOf(root!.root)).toContain('anonymous (bearer only)');
+    expect(textOf(root!.root)).toContain('not signed in');
   });
 });
