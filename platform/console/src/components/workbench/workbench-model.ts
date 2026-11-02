@@ -1,4 +1,5 @@
 import type { CampaignState, Job, Loop, Task } from '@/types';
+import { jobStatusLabel } from '@/lib/job-status';
 import type { ObligationRow } from '@/lib/api';
 import type { ChartSpec } from '@/components/data/chart';
 
@@ -198,6 +199,7 @@ export function buildWorkbench(
   jobs: Job[] = [],
   obligations: ObligationRow[] = [],
   tasks: Task[] = [],
+  sessionSpendUsd?: number,
 ): WorkbenchObject[] {
   if (!campaign) return [];
   const qf = campaign.quantum_factors;
@@ -219,6 +221,7 @@ export function buildWorkbench(
         { label: 'Target', value: value(campaign.target_system) },
         { label: 'Status', value: value(epistemics?.status) },
         { label: 'Anchor', value: anchored ? 'computed' : 'UNVERIFIED' },
+        { label: 'Spend', value: typeValue(sessionSpendUsd) },
         { label: 'Est. spend', value: typeValue(qf?.estimated_spend_usd) },
       ],
     },
@@ -342,7 +345,7 @@ export function buildWorkbench(
       position: { x: 840, y: 720 + index * 210 },
       size: { width: 380, height: 180 },
       facts: [
-        { label: 'Status', value: String(job.status) },
+        { label: 'Status', value: jobStatusLabel(job.status) },
         { label: 'Backend', value: value(params.requested_backend ?? params.backend, 'not recorded') },
         { label: 'Shots', value: value(params.shots, 'not recorded') },
         { label: 'Created', value: job.created_at || 'not recorded' },

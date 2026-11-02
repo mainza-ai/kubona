@@ -10,18 +10,7 @@ import {
 import { useAuthPhase } from '@/domain/auth-state';
 import type { Session } from '@/types';
 
-export function SessionExpiredBanner({ onOpenLabs }: { onOpenLabs: () => void }) {
-  const [eventVisible, setEventVisible] = useState(false);
-  const [dismissed, setDismissed] = useState(false);
-  const authPhase = useAuthPhase();
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const show = () => setEventVisible(true);
-    window.addEventListener(UNAUTH_EVENT, show);
-    return () => window.removeEventListener(UNAUTH_EVENT, show);
-  }, []);
-  const visible = !dismissed && (authPhase === 'expired' || eventVisible);
-  if (!visible) return null;
+function SessionExpiredView({ onOpenLabs, onDismiss }: { onOpenLabs: () => void; onDismiss: () => void }) {
   return (
     <div
       data-testid="auth-expired-banner"
@@ -33,15 +22,15 @@ export function SessionExpiredBanner({ onOpenLabs }: { onOpenLabs: () => void })
         <button
           data-testid="auth-banner-login"
           onClick={onOpenLabs}
-          className="px-2.5 py-1 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-cyan-200 hover:bg-cyan-500/25 transition-all"
+          className="k-button k-button-compact"
         >
           Log in (Mesh → Labs)
         </button>
         <button
           data-testid="auth-banner-dismiss"
-          onClick={() => { setDismissed(true); setEventVisible(false); }}
+          onClick={onDismiss}
           aria-label="Dismiss session expired banner"
-          className="p-1 rounded-lg text-amber-200/70 hover:text-amber-100 hover:bg-white/10 transition-all"
+          className="k-button k-button-ghost k-button-compact"
         >
           <X className="w-3.5 h-3.5" />
         </button>
@@ -50,18 +39,7 @@ export function SessionExpiredBanner({ onOpenLabs }: { onOpenLabs: () => void })
   );
 }
 
-export function ApiProblemBanner() {
-  const [problem, setProblem] = useState<ApiProblem | null>(null);
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const onProblem = (event: Event) => {
-      const detail = (event as CustomEvent<ApiProblem>).detail;
-      if (detail) setProblem(detail);
-    };
-    window.addEventListener(API_PROBLEM_EVENT, onProblem);
-    return () => window.removeEventListener(API_PROBLEM_EVENT, onProblem);
-  }, []);
-  if (!problem) return null;
+function ApiProblemView({ problem, onDismiss }: { problem: ApiProblem; onDismiss: () => void }) {
   return (
     <div
       data-testid="api-problem-banner"
@@ -73,7 +51,7 @@ export function ApiProblemBanner() {
       </span>
       <button
         type="button"
-        onClick={() => setProblem(null)}
+        onClick={onDismiss}
         aria-label="Dismiss API refusal"
         className="shrink-0 px-2 py-0.5 rounded border border-rose-400/30 text-rose-200 hover:bg-rose-500/20"
       >
@@ -81,6 +59,57 @@ export function ApiProblemBanner() {
       </button>
     </div>
   );
+}
+
+function useExpiredBannerState() {
+  const [eventVisible, setEventVisible] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const authPhase = useAuthPhase();
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const show = () => setEventVisible(true);
+    window.addEventListener(UNAUTH_EVENT, show);
+    return () => window.removeEventListener(UNAUTH_EVENT, show);
+  }, []);
+  return {
+    visible: !dismissed && (authPhase === 'expired' || eventVisible),
+    dismiss: () => { setDismissed(true); setEventVisible(false); },
+  };
+}
+
+function useProblemState() {
+  const [problem, setProblem] = useState<ApiProblem | null>(null);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onProblem = (event: Event) => {
+      const detail = (event as CustomEvent<ApiProblem>).detail;
+      if (detail) setProblem(detail);
+    };
+    window.addEventListener(API_PROBLEM_EVENT, onProblem);
+    return () => window.removeEventListener(API_PROBLEM_EVENT, onProblem);
+  }, []);
+  return { problem, dismiss: () => setProblem(null) };
+}
+
+export function SessionExpiredBanner({ onOpenLabs }: { onOpenLabs: () => void }) {
+  const state = useExpiredBannerState();
+  if (!state.visible) return null;
+  return <SessionExpiredView onOpenLabs={onOpenLabs} onDismiss={state.dismiss} />;
+}
+
+export function ApiProblemBanner() {
+  const state = useProblemState();
+  if (!state.problem) return null;
+  return <ApiProblemView problem={state.problem} onDismiss={state.dismiss} />;
+}
+
+/** One global banner slot: expired/forbidden auth outranks API refusal. */
+export function BannerStack({ onOpenLabs }: { onOpenLabs: () => void }) {
+  const expired = useExpiredBannerState();
+  const problem = useProblemState();
+  if (expired.visible) return <SessionExpiredView onOpenLabs={onOpenLabs} onDismiss={expired.dismiss} />;
+  if (problem.problem) return <ApiProblemView problem={problem.problem} onDismiss={problem.dismiss} />;
+  return null;
 }
 
 export function describeCreateFailure(result: Session | null, error: unknown): string | null {

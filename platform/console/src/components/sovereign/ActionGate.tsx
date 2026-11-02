@@ -132,7 +132,7 @@ export function ActionGate({ campaign, session, onAuthorized, onDenied, onDowngr
   return (
     <div
       data-testid="action-gate"
-      className="absolute bottom-6 left-6 z-20 w-80 bg-[#0E1117]/90 backdrop-blur-2xl border border-white/10 rounded-2xl p-4 shadow-2xl"
+      className="absolute bottom-6 left-6 z-20 w-80 bg-[#0E1117]/90 border border-white/10 rounded-2xl p-4 shadow-2xl"
     >
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">

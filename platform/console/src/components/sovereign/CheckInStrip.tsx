@@ -64,7 +64,7 @@ export function CheckInStrip({ loops, compact = false }: { loops: Loop[]; compac
         {loops.length} loop{loops.length === 1 ? '' : 's'} · {running} running · {paused} paused
       </span>
       {readOnly && (
-        <span className="truncate text-slate-500" title="Read-only access: sign in through Mesh → Labs for live loops and writes">
+        <span className="truncate text-[var(--color-muted)]" title="Read-only access: sign in through Mesh → Labs for live loops and writes">
           · read-only · sign in for live loops
         </span>
       )}
@@ -104,7 +104,7 @@ export function CheckInStrip({ loops, compact = false }: { loops: Loop[]; compac
             className={`px-1.5 py-0.5 rounded text-[12px] font-code transition-colors ${
               presence === p.id
                 ? 'bg-cyan-500/20 text-cyan-200'
-                : 'text-slate-500 hover:text-slate-300'
+                : 'text-[var(--color-muted)] hover:text-slate-300'
             }`}
           >
             {p.label}
@@ -114,7 +114,7 @@ export function CheckInStrip({ loops, compact = false }: { loops: Loop[]; compac
       <button
         onClick={toggleMute}
         title={muted ? 'Unmute ambient laboratory sound' : 'Mute ambient laboratory sound'}
-        className="shrink-0 text-slate-500 hover:text-slate-300 transition-colors flex items-center"
+        className="shrink-0 text-[var(--color-muted)] hover:text-slate-300 transition-colors flex items-center"
       >
         {muted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
       </button>

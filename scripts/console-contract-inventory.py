@@ -35,8 +35,6 @@ CLIENT_ONLY = {
     "apiFetch": "transport primitive returning Response",
     "configureApiBase": "runtime base-URL probe",
     "downloadFile": "browser file helper",
-    "isTerminalJobStatus": "status label helper",
-    "jobStatusLabel": "status label helper",
     "lensImageProxyUrl": "same-origin URL helper",
     "versionedApiPath": "versioned route alias helper",
     "reportError": "console error reporter",
@@ -47,7 +45,9 @@ CLIENT_ONLY = {
     "runQuantumCanary": "client-constructed canary envelope",
     "fetchBackendStatus": "client-constructed health status",
     "fetchSessions": "delegates to fetchSessionsResult",
+    "fetchCampaignState": "delegates to fetchCampaignResult",
     "fetchJobs": "delegates to fetchJobsResult",
+    "hasOperatorBearer": "transport auth helper",
     "fetchLoops": "delegates to fetchLoopsResult",
 }
 NEXT_EXPORT_RE = re.compile(r"\nexport\s+(?:async\s+)?(?:function|const|interface|type|class)\s+")

@@ -27,11 +27,9 @@ const obj = (
   required: string[] = Object.keys(properties),
 ): ResponseSchema => ({ type: 'object', properties, required });
 const arr = (items: ResponseSchema): ResponseSchema => ({ type: 'array', items });
-const union = (...anyOf: ResponseSchema[]): ResponseSchema => ({ type: 'union', anyOf });
-// The Go API serializes the proto JobStatus enum as a number; older/test
-// payloads may still carry the DB string (JOB_STATUS_*). Both are the same
-// closed enum, not drift.
-const jobStatus = union(num, str);
+// Canonical job status is a lowercase string. status_code remains an optional
+// numeric compatibility field for one release window.
+const jobStatus = str;
 
 export const RESPONSE_SCHEMAS = {
   'sessions.list': obj({
@@ -224,6 +222,7 @@ export const RESPONSE_SCHEMAS = {
           id: str,
           session_id: str,
           status: jobStatus,
+          status_code: num,
           job_type: str,
           params_json: any,
           result_json: any,
@@ -242,6 +241,7 @@ export const RESPONSE_SCHEMAS = {
         id: str,
         session_id: str,
         status: jobStatus,
+        status_code: num,
         job_type: str,
         params_json: any,
         result_json: any,

@@ -88,17 +88,17 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
   ];
 
   return (
-    <div className="relative rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0E17] to-[#06080D] border border-white/[0.08] shadow-2xl p-7 space-y-6 select-none">
+    <div className="relative rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl p-7 space-y-6 select-none">
       {/* Serene Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-5">
         <div className="flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 backdrop-blur-xl flex items-center justify-center shadow-inner">
+          <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shadow-inner">
             <Radio className="w-5 h-5 text-cyan-400" />
           </div>
           <div>
             <h2 className="text-base font-semibold text-white tracking-tight flex items-center space-x-2">
               <span>Ambient Hardware Radar</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
               4-Tier classical-quantum continuum with real-time coherence calibration and sovereign routing
@@ -155,7 +155,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
       )}
 
       {/* Continuum Radar Strip */}
-      <div className="p-4 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl space-y-3">
+      <div className="p-4 rounded-2xl bg-black/40 border border-white/[0.06] space-y-3">
         <div className="flex items-center justify-between text-xs">
           <span className="font-semibold text-slate-300 uppercase tracking-wider font-mono text-[12px]" title="Vendor-declared continuum — not live canary data">
             Quantum Execution Continuum (declared catalog)
@@ -265,7 +265,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
             return (
               <div
                 data-testid="radar-endpoint-8080"
-                className="p-4 rounded-2xl bg-black/40 border border-white/[0.08] backdrop-blur-xl flex items-center justify-between transition-all"
+                className="p-4 rounded-2xl bg-black/40 border border-white/[0.08] flex items-center justify-between transition-all"
               >
                 <div className="space-y-1">
                   <div className="flex items-center space-x-2">
@@ -307,7 +307,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
             return (
               <div
                 data-testid="radar-endpoint-50051"
-                className="p-4 rounded-2xl bg-black/40 border border-white/[0.08] backdrop-blur-xl flex items-center justify-between transition-all"
+                className="p-4 rounded-2xl bg-black/40 border border-white/[0.08] flex items-center justify-between transition-all"
               >
                 <div className="space-y-1">
                   <div className="flex items-center space-x-2">
@@ -371,7 +371,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
             return (
               <div
                 key={b.name}
-                className={`p-5 rounded-2xl bg-black/40 border transition-all backdrop-blur-xl space-y-3.5 ${
+                className={`p-5 rounded-2xl bg-black/40 border transition-all space-y-3.5 ${
                   isRecommended
                     ? 'border-cyan-500/50 ring-1 ring-cyan-500/30 shadow-lg shadow-cyan-950/20'
                     : 'border-white/[0.07] hover:border-white/15'
@@ -405,7 +405,7 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
                         : 'bg-amber-950/60 text-amber-300 border-amber-800/60'
                     }`}
                   >
-                    <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
+                    <span className={`w-1.5 h-1.5 rounded-full ${isOnline ? 'bg-emerald-400' : 'bg-amber-400'}`} />
                     <span>{b.status}</span>
                   </span>
                   {noCreds && (

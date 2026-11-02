@@ -37,7 +37,7 @@ export function Lean4GoalTreeInspectorWidget({
     && Array.isArray(suppliedSteps) && suppliedSteps.length > 0;
   if (!hasReceipt) {
     return (
-      <div className="rounded-2xl border border-white/[0.08] bg-black/60 p-5 backdrop-blur-xl text-white space-y-3">
+      <div className="rounded-2xl border border-white/[0.08] bg-black/60 p-5 text-white space-y-3">
         <div className="flex items-center space-x-3">
           <div className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400">
             <ShieldCheck className="w-5 h-5" />
@@ -56,7 +56,7 @@ export function Lean4GoalTreeInspectorWidget({
   const proofSteps = suppliedSteps ?? [];
 
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-black/60 p-5 backdrop-blur-xl text-white space-y-4">
+    <div className="rounded-2xl border border-white/[0.08] bg-black/60 p-5 text-white space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
         <div className="flex items-center space-x-3">

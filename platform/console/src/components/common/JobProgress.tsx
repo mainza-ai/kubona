@@ -1,6 +1,8 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { fetchJob, isTerminalJobStatus, jobStatusLabel } from '@/lib/api';
-import { usePollingResource } from '@/domain/use-polling-resource';
+import { useSharedResource } from '@/domain/shared-resource';
+import { subscribeInvalidation } from '@/domain/invalidation';
+import { useSessionStreamLive } from '@/domain/stream-state';
 import { StopPolling } from '@/domain/resource-store';
 import type { Job } from '@/types';
 
@@ -41,7 +43,8 @@ export function JobProgress({ jobId, sessionId }: { jobId: string; sessionId: st
 
 function JobProgressInner({ jobId, sessionId, onRetry }: { jobId: string; sessionId: string; onRetry: () => void }) {
   const consecutiveNulls = useRef(0);
-  const { data: job, status: resourceStatus, error } = usePollingResource<Job | null>(
+  const live = useSessionStreamLive();
+  const { data: job, status: resourceStatus, error, setPollMs, refresh } = useSharedResource<Job | null>(`job:${sessionId}:${jobId}`,
     async () => {
       const next = await fetchJob(jobId, sessionId);
       if (!next) {
@@ -59,6 +62,8 @@ function JobProgressInner({ jobId, sessionId, onRetry }: { jobId: string; sessio
       shouldContinue: (next) => !next || !isTerminalJobStatus(next.status),
     },
   );
+  useEffect(() => { setPollMs(live ? 0 : POLL_MS); }, [live, setPollMs]);
+  useEffect(() => subscribeInvalidation(['jobs'], refresh), [refresh]);
   const status = job?.status ? String(job.status) : 'JOB_STATUS_QUEUED';
   const detail = job
     ? { created: job.created_at, completed: job.completed_at, jobType: job.job_type }

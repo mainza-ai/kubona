@@ -121,7 +121,7 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
       : undefined;
 
   return (
-    <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0F19] to-[#07090E] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-8 select-none">
+    <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-8 select-none">
       {/* Ambient Radial Backlight */}
       <div 
         className="absolute inset-0 pointer-events-none opacity-40 transition-opacity duration-1000"
@@ -135,7 +135,7 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
       {/* Top Header */}
       <div className="relative z-10 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-2xl bg-white/[0.05] border border-white/10 backdrop-blur-xl flex items-center justify-center shadow-inner">
+          <div className="w-10 h-10 rounded-2xl bg-white/[0.05] border border-white/10 flex items-center justify-center shadow-inner">
             <Compass className="w-5 h-5 text-emerald-400" />
           </div>
           <div>
@@ -146,7 +146,7 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
           </div>
         </div>
 
-        <div className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-black/40 border backdrop-blur-xl ${isVerified ? 'border-white/10' : 'border-amber-400/40'}`}>
+        <div className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-black/40 border ${isVerified ? 'border-white/10' : 'border-amber-400/40'}`}>
           <ShieldCheck className={`w-4 h-4 ${isVerified ? 'text-emerald-400' : 'text-amber-400'}`} />
           <span className={`text-xs font-mono font-medium ${isVerified ? 'text-emerald-300' : 'text-amber-300'}`}>
             {isVerified ? 'Ring 1 Epistemic Gate Active' : 'Gate unattested — no live claim'}
@@ -261,7 +261,7 @@ export function EpistemicManifold({ campaign, sessionId }: EpistemicManifoldProp
         </button>
 
         {showDeepMath && (
-          <div className="mt-4 p-5 rounded-2xl bg-black/60 border border-white/10 backdrop-blur-xl grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
+          <div className="mt-4 p-5 rounded-2xl bg-black/60 border border-white/10 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono">
             <div className="space-y-1">
               <span className="text-slate-300 font-semibold">Corroborated (α): {!hasLive && <span className="text-[12px] text-amber-300 border border-amber-400/40 rounded px-1">illustrative</span>}</span>
               <div className="text-base text-emerald-400 font-bold">{hasLive && alphaNum != null ? (alphaNum * alphaNum).toFixed(4) : '—'}</div>

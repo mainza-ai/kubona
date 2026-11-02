@@ -79,7 +79,7 @@ export function Composer({
       {(contextLabel || attachments.length > 0) && (
         <div className="mb-2 flex flex-wrap items-center gap-1.5">
           {contextLabel && (
-            <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-white/10 bg-white/[0.05] px-2 py-0.5 text-[11px] text-slate-300">
+            <span className="inline-flex max-w-full items-center gap-1 rounded-full border border-white/10 bg-white/[0.05] px-2 py-0.5 text-[12px] text-slate-300">
               <span className="truncate">{contextLabel}</span>
               <button type="button" aria-label="Clear context" onClick={onClearContext} className="text-slate-500 hover:text-white">
                 <X className="h-3 w-3" />
@@ -87,7 +87,7 @@ export function Composer({
             </span>
           )}
           {attachments.map((attachment) => (
-            <span key={attachment.name} className="inline-flex max-w-full items-center gap-1 rounded-full border border-cyan-400/20 bg-cyan-400/5 px-2 py-0.5 text-[11px] text-cyan-100">
+            <span key={attachment.name} className="inline-flex max-w-full items-center gap-1 rounded-full border border-cyan-400/20 bg-cyan-400/5 px-2 py-0.5 text-[12px] text-cyan-100">
               <Paperclip className="h-3 w-3 shrink-0" />
               <span className="truncate">{attachment.name}</span>
               <button type="button" aria-label={`Remove ${attachment.name}`} onClick={() => detach(attachment.name)} className="text-cyan-300/70 hover:text-white">
@@ -120,7 +120,7 @@ export function Composer({
             }
           }}
           aria-label="Ask Kubona"
-          placeholder="Ask, dispatch, or search the campaign…"
+          placeholder="Ask Kubona about this campaign…"
           className="max-h-[132px] min-h-6 flex-1 resize-none bg-transparent py-1 text-[13px] text-slate-100 placeholder:text-slate-500 focus:outline-none"
         />
         <button
@@ -128,7 +128,7 @@ export function Composer({
           aria-label="Open Model Hub"
           title="Open Model Hub"
           onClick={onOpenModel}
-          className="mb-0.5 inline-flex h-8 max-w-28 shrink-0 items-center gap-1 rounded-xl px-2 text-[11px] text-slate-400 hover:bg-white/[0.06] hover:text-white"
+          className="mb-0.5 inline-flex h-8 max-w-28 shrink-0 items-center gap-1 rounded-xl px-2 text-[12px] text-slate-400 hover:bg-white/[0.06] hover:text-white"
         >
           <Cpu className="h-3.5 w-3.5 shrink-0" />
           <span className="truncate">{modelLabel}</span>

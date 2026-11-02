@@ -2,6 +2,7 @@ import { Session, ChatMessage, Job, Loop, LedgerEvent, Lab } from '@/types';
 import { contract, setContractDriftHandler, type ContractName } from './responseContract';
 import { setAuthPhase } from '@/domain/auth-state';
 import { API_OPERATIONS, type ApiOperationName, type ApiOperationResponse } from './generated/openapi';
+import { OperationError, failedResult, type ApiFailure } from './api-errors';
 
 // Build-time default (local dev). The runtime route /api/config can
 // override this per deployment (see configureApiBase) so one image
@@ -191,6 +192,11 @@ export function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Prom
   const request = versionedInput(input);
   const withTimeout: RequestInit =
     init.signal != null ? init : { ...init, signal: AbortSignal.timeout(API_TIMEOUT_MS) };
+  if (API_VERSIONED) {
+    const headers = new Headers(withTimeout.headers);
+    if (!headers.has('Kubona-API-Version')) headers.set('Kubona-API-Version', '1');
+    withTimeout.headers = headers;
+  }
   return fetch(request, withCredentials(withTimeout)).then((res) => {
     if (res.status === 401) notifyUnauthorized();
     else if (!res.ok) notifyApiProblem(request, res.status, res.statusText || `HTTP ${res.status}`);
@@ -208,19 +214,18 @@ export function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Prom
 // Exported for ledger helpers and any surface that must go through the
 // authenticated bridge path (no raw unauthed fetch to /api/*).
 export { authHeaders };
+export function hasOperatorBearer(): boolean { return Boolean(CONSOLE_TOKEN); }
 
-export class OperationError extends Error {
-  constructor(
-    readonly operation: string,
-    readonly status: number | null,
-    message: string,
-  ) {
-    super(message);
-    this.name = 'OperationError';
-  }
-}
+export {
+  ApiFailureError,
+  OperationError,
+  apiFailureFrom,
+  failedResult,
+  type ApiFailure,
+  type ApiFailureKind,
+} from './api-errors';
 
-export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string };
+export type ApiResult<T> = { ok: true; data: T } | { ok: false; error: string; failure: ApiFailure };
 
 export type OperationRequestOptions = {
   params?: Record<string, string>;
@@ -240,7 +245,7 @@ export async function requestOperation<K extends ApiOperationName>(
   const operation = API_OPERATIONS[name];
   const path = operation.path.replace(/\{([^}]+)\}/g, (_, key: string) => {
     const value = params[key];
-    if (!value) throw new OperationError(name, null, `missing path parameter ${key}`);
+    if (!value) throw new OperationError(name, null, `missing path parameter ${key}`, operation.path);
     return encodeURIComponent(value);
   });
   const qs = new URLSearchParams();
@@ -271,20 +276,21 @@ export async function requestOperation<K extends ApiOperationName>(
       name,
       res.status,
       (detail || `${operation.method.toUpperCase()} ${operation.path} refused (HTTP ${res.status})`).slice(0, 280),
+      operation.path,
     );
   }
   return contract(operation.response as ContractName, await res.json()) as ApiOperationResponse[K];
 }
 
 
-export async function fetchSessionsResult(): Promise<{ ok: true; sessions: Session[] } | { ok: false; error: string }> {
+export async function fetchSessionsResult(): Promise<{ ok: true; sessions: Session[] } | { ok: false; error: string; failure: ApiFailure }> {
   try {
     const data = await dedupedGet<{ sessions?: Session[] }>(`${API_BASE}/api/sessions`, { headers: authHeaders() });
     contract('sessions.list', data);
     return { ok: true, sessions: data.sessions || [] };
   } catch (err) {
     console.error('Failed to fetch sessions:', err);
-    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+    return failedResult(err, '/api/sessions');
   }
 }
 
@@ -539,7 +545,7 @@ export async function fetchTasksResult(sessionId: string): Promise<ApiResult<imp
     const data = await requestOperation('fetchTasksResult', { query: { session_id: sessionId } });
     return { ok: true, data: (data.tasks || []) as import('@/types').Task[] };
   } catch (err) {
-    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+    return failedResult(err, `/api/tasks?session_id=${sessionId}`);
   }
 }
 
@@ -548,10 +554,11 @@ export async function createTask(
   title: string,
   sourceDomain = '',
   sourceId = '',
+  requestId?: string,
 ): Promise<{ ok: true; task: import('@/types').Task } | { ok: false; error: string; unknown: boolean }> {
   try {
     const task = (await requestOperation('createTask', {
-      body: { session_id: sessionId, title, source_domain: sourceDomain, source_id: sourceId },
+      body: { session_id: sessionId, title, source_domain: sourceDomain, source_id: sourceId, ...(requestId ? { request_id: requestId } : {}) },
     })) as import('@/types').Task;
     return { ok: true, task };
   } catch (err) {
@@ -567,10 +574,11 @@ export async function updateTaskStatus(
   taskId: string,
   sessionId: string,
   status: 'open' | 'done',
+  requestId?: string,
 ): Promise<{ ok: true; task: import('@/types').Task } | { ok: false; error: string; unknown: boolean }> {
   try {
     const task = (await requestOperation('updateTaskStatus', {
-      params: { id: taskId }, body: { session_id: sessionId, status },
+      params: { id: taskId }, body: { session_id: sessionId, status, ...(requestId ? { request_id: requestId } : {}) },
     })) as import('@/types').Task;
     return { ok: true, task };
   } catch (err) {
@@ -592,7 +600,7 @@ export async function fetchLoopsResult(sessionId?: string | null): Promise<ApiRe
     return { ok: true, data: (data.loops || []) as Loop[] };
   } catch (err) {
     console.error('Failed to fetch loops:', err);
-    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+    return failedResult(err, '/api/loops');
   }
 }
 
@@ -601,14 +609,14 @@ export async function fetchLoops(sessionId?: string | null): Promise<Loop[]> {
   return result.ok ? result.data : [];
 }
 
-export async function fetchEventsResult(sessionId?: string): Promise<ApiResult<LedgerEvent[]>> {
+export async function fetchEventsResult(sessionId?: string, beforeId?: number): Promise<ApiResult<LedgerEvent[]>> {
   if (!sessionId) return { ok: true, data: [] };
   try {
-    const data = await requestOperation('fetchEventsResult', { query: { session_id: sessionId } });
+    const data = await requestOperation('fetchEventsResult', { query: { session_id: sessionId, ...(beforeId ? { before_id: beforeId } : {}) } });
     return { ok: true, data: (data.events || []) as LedgerEvent[] };
   } catch (err) {
     console.error('Failed to fetch events:', err);
-    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+    return failedResult(err, '/api/events');
   }
 }
 
@@ -635,19 +643,23 @@ export async function evaluateDiscoveryPipeline(
   }
 }
 
-export async function fetchCampaignState(sessionId: string): Promise<import('@/types').CampaignState | null> {
+export async function fetchCampaignResult(sessionId: string): Promise<ApiResult<import('@/types').CampaignState | null>> {
+  const path = `/api/sessions/${encodeURIComponent(sessionId)}/campaign`;
   try {
-    // Coalesce concurrent reads of the same session: the shell and the
-    // copilot mount together and used to issue duplicate campaign GETs.
     const data = await dedupedGet<import('@/types').CampaignState>(
       `${API_BASE}/api/sessions/${encodeURIComponent(sessionId)}/campaign`,
       { headers: authHeaders() },
     );
-    return contract('campaign', data);
+    return { ok: true, data: contract('campaign', data) };
   } catch (err) {
     console.error('Failed to fetch campaign state:', err);
-    return null;
+    return failedResult(err, path);
   }
+}
+
+export async function fetchCampaignState(sessionId: string): Promise<import('@/types').CampaignState | null> {
+  const result = await fetchCampaignResult(sessionId);
+  return result.ok ? result.data : null;
 }
 
 export async function synthesizeCampaign(sessionId: string, prompt: string): Promise<import('@/types').CampaignState | null> {
@@ -865,12 +877,13 @@ export async function saveWorkbenchLayout(
   sessionId: string,
   revision: number,
   document: Record<string, unknown>,
+  requestId?: string,
 ): Promise<{ ok: boolean; revision?: number; conflict?: boolean; currentRevision?: number; unknown?: boolean; error?: string }> {
   try {
     const res = await apiFetch(`${API_BASE}/api/workbench/layout?session_id=${encodeURIComponent(sessionId)}`, {
       method: 'PUT',
       headers: authHeaders({ 'Content-Type': 'application/json' }),
-      body: JSON.stringify({ revision, document }),
+      body: JSON.stringify({ revision, document, ...(requestId ? { request_id: requestId } : {}) }),
     });
     if (res.status === 409) {
       const data = (await res.json().catch(() => ({}))) as { current_revision?: unknown };
@@ -887,7 +900,7 @@ export async function saveWorkbenchLayout(
       contract('workbench.save', data);
       return { ok: true, revision: data.revision };
     }
-    return { ok: true, revision: revision + 1 };
+    return { ok: false, unknown: true, error: 'layout save receipt did not carry the new revision' };
   } catch (err) {
     return { ok: false, unknown: true, error: String(err) };
   }
@@ -1083,12 +1096,12 @@ export async function rerunCodesignProposal(
 }
 
 export async function fetchCostSummary(): Promise<
-  { ok: true; result: CostSummary } | { ok: false; error: string }
+  { ok: true; result: CostSummary } | { ok: false; error: string; failure: ApiFailure }
 > {
   try {
     return { ok: true, result: (await requestOperation('fetchCostSummary')) as CostSummary };
   } catch (err) {
-    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+    return failedResult(err, '/api/cost/summary');
   }
 }
 
@@ -1611,32 +1624,7 @@ export async function rewriteChat(
 // proto int32 enum (1/2/3/4…), not names. Map both numeric wire values and
 // DB/string forms (JOB_STATUS_COMPLETED) to canonical labels. Unknown
 // values pass through verbatim — never invented.
-const JOB_STATUS_LABELS: Record<number, string> = {
-  0: 'UNSPECIFIED',
-  1: 'QUEUED',
-  2: 'RUNNING',
-  3: 'COMPLETED',
-  4: 'FAILED',
-  5: 'PAUSED',
-  6: 'CANCELLED',
-};
-
-export function jobStatusLabel(status: unknown): string {
-  if (typeof status === 'number') return JOB_STATUS_LABELS[status] ?? String(status);
-  if (typeof status === 'string') {
-    const upper = status.toUpperCase().replace(/^JOB_STATUS_/, '');
-    if (['QUEUED', 'RUNNING', 'COMPLETED', 'FAILED', 'PAUSED', 'CANCELLED', 'UNSPECIFIED'].includes(upper)) {
-      return upper;
-    }
-    return status;
-  }
-  return 'UNKNOWN';
-}
-
-export function isTerminalJobStatus(status: unknown): boolean {
-  const label = jobStatusLabel(status);
-  return label === 'COMPLETED' || label === 'FAILED' || label === 'CANCELLED';
-}
+export { isTerminalJobStatus, jobStatusLabel } from './job-status';
 
 // Jobs: session-scoped run list for inline launch tracking.
 export async function fetchJobsResult(sessionId: string): Promise<ApiResult<Job[]>> {
@@ -1645,7 +1633,7 @@ export async function fetchJobsResult(sessionId: string): Promise<ApiResult<Job[
     return { ok: true, data: (data.jobs || []) as unknown as Job[] };
   } catch (err) {
     console.error('Failed to fetch jobs:', err);
-    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+    return failedResult(err, '/api/jobs');
   }
 }
 
@@ -2031,12 +2019,12 @@ export interface ObligationRow {
   close_reasons: string[];
 }
 
-export async function fetchOpenObligations(): Promise<{ ok: true; obligations: ObligationRow[] } | { ok: false; error: string }> {
+export async function fetchOpenObligations(): Promise<{ ok: true; obligations: ObligationRow[] } | { ok: false; error: string; failure: ApiFailure }> {
   try {
     const data = await requestOperation('fetchOpenObligations');
     return { ok: true, obligations: data.obligations as unknown as ObligationRow[] };
   } catch (err) {
-    return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
+    return failedResult(err, '/api/obligations/open');
   }
 }
 
@@ -2674,7 +2662,13 @@ export function dedupedGet<T>(url: string, init?: RequestInit): Promise<T> {
     async (res) => {
       // A refused GET is not a payload. Parsing the error body as T was the
       // Wave-3 bug: a 401/404 JSON object could masquerade as data.
-      if (!res.ok) throw new Error(`GET ${url} refused (HTTP ${res.status})`);
+      if (!res.ok) {
+        let detail = '';
+        try { detail = (await res.text()).trim(); } catch { /* no body */ }
+        let path = url;
+        try { path = new URL(url, 'http://localhost').pathname; } catch { /* keep url */ }
+        throw new OperationError('dedupedGet', res.status, detail ? `GET ${path} refused (HTTP ${res.status}): ${detail}` : `GET ${path} refused (HTTP ${res.status})`, path);
+      }
       return (await res.json()) as T;
     },
   );

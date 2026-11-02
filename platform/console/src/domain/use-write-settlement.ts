@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import {
   acceptWrite,
   newWriteRequestId,
+  reconcileOperation,
   settleWrite,
   IDLE_WRITE,
   type WriteSettlement,
@@ -31,5 +32,12 @@ export function useWriteSettlement() {
     setWrite(settleWrite(requestId, 'unknown', detail));
   }, []);
 
-  return { write, begin, applied, refused, unknown };
+  const reconcile = useCallback(async (requestId: string, sessionId: string, detail: string) => {
+    setWrite(settleWrite(requestId, 'unknown', detail));
+    const final = await reconcileOperation(requestId, sessionId);
+    setWrite(final);
+    return final;
+  }, []);
+
+  return { write, begin, applied, refused, unknown, reconcile };
 }

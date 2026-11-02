@@ -42,7 +42,7 @@ describe('ObligationsPanel', () => {
   });
 
   it('renders a refusal instead of an empty queue', async () => {
-    vi.mocked(api.fetchOpenObligations).mockResolvedValue({ ok: false, error: 'login required' });
+    vi.mocked(api.fetchOpenObligations).mockResolvedValue({ ok: false, error: 'login required', failure: { path: '/api/obligations/open', status: 401, kind: 'auth', message: 'login required', at: Date.now() } });
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => { tree = TestRenderer.create(<ObligationsPanel />); });
     await vi.waitFor(() => expect(textOf(tree!.root)).toContain('login required'));

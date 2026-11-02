@@ -8,7 +8,7 @@ import { Chart } from '@/components/data/LazyChart';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Badge } from '@/components/ui/Badge';
-import { acceptWrite, newWriteRequestId, settleWrite, writeSettlementLabel, IDLE_WRITE, type WriteSettlement } from '@/domain/write-settlement';
+import { acceptWrite, newWriteRequestId, reconcileOperation, settleWrite, writeSettlementLabel, IDLE_WRITE, type WriteSettlement } from '@/domain/write-settlement';
 import {
   WORKBENCH_BOUNDS,
   buildWorkbench,
@@ -29,11 +29,16 @@ import {
 
 type Props = {
   campaign?: CampaignState | null;
+  error?: string | null;
+  onRetry?: () => void;
   sessionId?: string;
   loops?: Loop[];
   jobs?: Job[];
   obligations?: ObligationRow[];
   tasks?: Task[];
+  sessionSpendUsd?: number;
+  onTaskStatus?: (taskId: string, status: 'open' | 'done') => void;
+  onCloseObligation?: (id: string) => void;
   onSelectObject?: (object: WorkbenchObject | null) => void;
   onOpenObject?: (kind: WorkbenchObjectKind) => void;
 };
@@ -44,7 +49,7 @@ export type WorkbenchHandle = {
 };
 
 export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workbench({
-  campaign, sessionId, loops = [], jobs: suppliedJobs, obligations: suppliedObligations, tasks: suppliedTasks, onSelectObject, onOpenObject,
+  campaign, error = null, onRetry, sessionId, loops = [], jobs: suppliedJobs, obligations: suppliedObligations, tasks: suppliedTasks, sessionSpendUsd, onTaskStatus, onCloseObligation, onSelectObject, onOpenObject,
 }, ref) {
   const hostRef = useRef<HTMLDivElement>(null);
   const worldRef = useRef<HTMLDivElement>(null);
@@ -69,7 +74,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
   const obligations = useMemo(() => suppliedObligations ?? [], [suppliedObligations]);
   const tasks = useMemo(() => suppliedTasks ?? [], [suppliedTasks]);
   const baseObjects = useMemo(() => {
-    const projected = buildWorkbench(campaign, loops, jobs, obligations, tasks);
+    const projected = buildWorkbench(campaign, loops, jobs, obligations, tasks, sessionSpendUsd);
     const known = new Set(projected.map((object) => object.id));
     const unavailable: WorkbenchObject[] = layoutObjects
       .filter((object) => !known.has(object.id) && object.ref)
@@ -88,7 +93,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
         ref: object.ref,
       }));
     return [...projected, ...unavailable];
-  }, [campaign, loops, jobs, obligations, tasks, layoutObjects]);
+  }, [campaign, loops, jobs, obligations, tasks, sessionSpendUsd, layoutObjects]);
   const links = useMemo(() => storedLinks ?? buildWorkbenchLinks(baseObjects), [storedLinks, baseObjects]);
   const [viewMode, setViewMode] = useState<'canvas' | 'list'>('canvas');
   const [areas, setAreas] = useState<WorkbenchArea[]>([]);
@@ -272,6 +277,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
         sessionId,
         revision.current,
         workbenchDocument(sessionId, baseObjects, positions, sizes, camera, links, areas, assignments, hidden) as unknown as Record<string, unknown>,
+        requestId,
       ).then((out) => {
         if (out.ok) {
           if (typeof out.revision === 'number') revision.current = out.revision;
@@ -281,6 +287,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
           setWrite(settleWrite(requestId, 'refused', out.error || 'layout changed elsewhere'));
         } else if (out.unknown) {
           setWrite(settleWrite(requestId, 'unknown', 'save outcome not confirmed'));
+          void reconcileOperation(requestId, sessionId).then(setWrite);
         } else {
           setWrite(settleWrite(requestId, 'refused', out.error || 'layout save refused'));
         }
@@ -636,10 +643,15 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
 
       {visibleObjects.length === 0 ? (
         <EmptyState
-          title={objects.length === 0 ? 'No campaign on the workbench' : 'All workbench objects are hidden'}
+          title={error && objects.length === 0 ? 'Campaign unavailable' : objects.length === 0 ? 'No campaign on the workbench' : 'All workbench objects are hidden'}
           className="k-workbench-empty"
         >
-          {objects.length === 0 ? 'Create or open a campaign to give the science a place to stand.' : 'Use Undo remove or the list view to restore an object.'}
+          {error && objects.length === 0 ? (
+            <>
+              <span>{error}</span>
+              {onRetry && <Button type="button" size="compact" data-testid="retry-campaign" onClick={onRetry}>Retry campaign read</Button>}
+            </>
+          ) : objects.length === 0 ? 'Create or open a campaign to give the science a place to stand.' : 'Use Undo remove or the list view to restore an object.'}
         </EmptyState>
       ) : (
         viewMode === 'list' ? (
@@ -720,7 +732,7 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
             </div>
           ))}
           <svg className="k-workbench-links" width={WORKBENCH_BOUNDS.width} height={WORKBENCH_BOUNDS.height} aria-hidden="true">
-            {links.map((link) => {
+            {(selected.length > 0 ? links.filter((link) => selected.includes(link.source) || selected.includes(link.target)) : []).map((link) => {
               const source = visibleObjects.find((object) => object.id === link.source);
               const target = visibleObjects.find((object) => object.id === link.target);
               if (!source || !target) return null;
@@ -745,6 +757,13 @@ export const Workbench = React.forwardRef<WorkbenchHandle, Props>(function Workb
               onResizePointerMove={onResizePointerMove}
               onResizePointerUp={onCardPointerUp}
               onOpen={onOpenObject ? () => onOpenObject(object.kind) : undefined}
+              taskStatus={object.kind === 'task' && object.ref ? tasks.find((task) => task.id === object.ref!.id)?.status : undefined}
+              approvalReady={object.kind === 'approval' && object.ref ? Boolean(obligations.find((item) => item.id === object.ref!.id)?.close_ready) : false}
+              onCloseApproval={object.kind === 'approval' && object.ref && onCloseObligation ? () => onCloseObligation(object.ref!.id) : undefined}
+              onTaskStatus={object.kind === 'task' && object.ref && onTaskStatus ? () => {
+                const task = tasks.find((item) => item.id === object.ref!.id);
+                if (task) onTaskStatus(task.id, task.status === 'done' ? 'open' : 'done');
+              } : undefined}
               onNudge={(dx, dy) => setPositions((previous) => ({
                 ...previous,
                 [object.id]: {
@@ -773,6 +792,10 @@ function WorkCard({
   onResizePointerMove,
   onResizePointerUp,
   onOpen,
+  taskStatus,
+  approvalReady = false,
+  onTaskStatus,
+  onCloseApproval,
   onNudge,
 }: {
   object: WorkbenchObject;
@@ -786,6 +809,10 @@ function WorkCard({
   onResizePointerMove: (event: React.PointerEvent<HTMLElement>) => void;
   onResizePointerUp: () => void;
   onOpen?: () => void;
+  taskStatus?: string;
+  approvalReady?: boolean;
+  onTaskStatus?: () => void;
+  onCloseApproval?: () => void;
   onNudge: (dx: number, dy: number) => void;
 }) {
   return (
@@ -849,18 +876,48 @@ function WorkCard({
           <Chart spec={object.chart} />
         </div>
       )}
-      {selected && onOpen && (
-        <Button
-          type="button"
-          size="compact"
-          className="k-workbench-open"
-          onClick={(event) => {
-            event.stopPropagation();
-            onOpen();
-          }}
-        >
-          Open
-        </Button>
+      {selected && (onOpen || onTaskStatus || (onCloseApproval && approvalReady)) && (
+        <div className="k-workbench-actions">
+          {onOpen && (
+            <Button
+              type="button"
+              size="compact"
+              className="k-workbench-open"
+              onClick={(event) => {
+                event.stopPropagation();
+                onOpen();
+              }}
+            >
+              {object.kind === 'approval' ? 'Review approval' : 'Open'}
+            </Button>
+          )}
+          {onCloseApproval && approvalReady && (
+            <Button
+              type="button"
+              size="compact"
+              data-testid="close-approval"
+              onClick={(event) => {
+                event.stopPropagation();
+                onCloseApproval();
+              }}
+            >
+              Close approval
+            </Button>
+          )}
+          {onTaskStatus && (
+            <Button
+              type="button"
+              size="compact"
+              variant="ghost"
+              onClick={(event) => {
+                event.stopPropagation();
+                onTaskStatus();
+              }}
+            >
+              {taskStatus === 'done' ? 'Reopen task' : 'Mark done'}
+            </Button>
+          )}
+        </div>
       )}
       {selected && (
         <span

@@ -567,3 +567,27 @@ func TestGetEventsSinceReturnsAscendingCursorBatch(t *testing.T) {
 		t.Fatalf("tail batch = %+v err=%v, want empty", got, err)
 	}
 }
+
+func TestGetEventsBeforePagesBackwardsWithoutGaps(t *testing.T) {
+	l, err := ledger.OpenLedger(t.TempDir() + "/events_before.db")
+	if err != nil {
+		t.Fatalf("ledger: %v", err)
+	}
+	defer l.Close()
+	for _, marker := range []string{"a", "b", "c"} {
+		if err := l.AppendEvent("sess-page", "annotation", map[string]string{"marker": marker}); err != nil {
+			t.Fatalf("append %s: %v", marker, err)
+		}
+	}
+	recent, err := l.GetRecentEvents("sess-page", 1)
+	if err != nil || len(recent) != 1 {
+		t.Fatalf("recent: %v %d", err, len(recent))
+	}
+	older, err := l.GetEventsBefore("sess-page", recent[0].ID, 10)
+	if err != nil {
+		t.Fatalf("before: %v", err)
+	}
+	if len(older) != 2 || older[0].ID >= older[1].ID || older[1].ID >= recent[0].ID {
+		t.Fatalf("older page must be ascending and before the cursor: %+v", older)
+	}
+}

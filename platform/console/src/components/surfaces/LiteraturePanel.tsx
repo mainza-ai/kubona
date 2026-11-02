@@ -65,7 +65,7 @@ export function LiteraturePanel({ initialQuery = '' }: { initialQuery?: string }
         <button
           type="submit"
           disabled={!query.trim() || busy}
-          className="px-3 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 disabled:opacity-50 text-xs font-semibold text-white transition"
+          className="px-3 py-2 rounded-xl bg-[var(--color-accent)] hover:bg-[var(--color-lit)] disabled:opacity-50 text-xs font-semibold text-[var(--color-on-accent)] transition"
         >
           {busy ? 'Searching…' : 'Search'}
         </button>

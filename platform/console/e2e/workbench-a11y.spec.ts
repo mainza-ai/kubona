@@ -25,3 +25,11 @@ test('dense workbench canvas and list remain WCAG A/AA clean', async ({ page }) 
   await expect(workbench.getByRole('button', { name: 'Canvas' })).toBeVisible();
   await audit(page, 'workbench-list');
 });
+
+test('settings workspace is WCAG A/AA clean', async ({ page }) => {
+  await mockApi(page, { loops: 2, jobs: 2, obligations: 1 });
+  await page.goto('/?surface=mesh&tab=settings');
+  await expect(page.getByTestId('settings-nav')).toBeVisible();
+  await expect(page.getByText('Sovereign Intelligence Configuration')).toBeVisible();
+  await audit(page, 'settings-workspace');
+});

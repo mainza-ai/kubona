@@ -796,7 +796,7 @@
     },
     "/api/sessions/${encodeURIComponent}(sessionId)/campaign": {
       "get": {
-        "operationId": "fetchCampaignState",
+        "operationId": "fetchCampaignResult",
         "tags": [
           "sessions"
         ],
@@ -3774,7 +3774,10 @@
                   "type": "string"
                 },
                 "status": {
-                  "type": "union"
+                  "type": "string"
+                },
+                "status_code": {
+                  "type": "number"
                 },
                 "job_type": {
                   "type": "string"
@@ -3822,7 +3825,10 @@
                 "type": "string"
               },
               "status": {
-                "type": "union"
+                "type": "string"
+              },
+              "status_code": {
+                "type": "number"
               },
               "job_type": {
                 "type": "string"
@@ -4646,11 +4652,11 @@
     "configureApiBase",
     "downloadFile",
     "fetchBackendStatus",
+    "fetchCampaignState",
     "fetchJobs",
     "fetchLoops",
     "fetchSessions",
-    "isTerminalJobStatus",
-    "jobStatusLabel",
+    "hasOperatorBearer",
     "lensImageProxyUrl",
     "reportError",
     "resetDedupForTests",

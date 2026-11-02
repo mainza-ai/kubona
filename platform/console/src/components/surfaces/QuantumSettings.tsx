@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   Cpu,
   RefreshCw,
@@ -13,12 +13,11 @@ import {
   Activity,
 } from 'lucide-react';
 import {
-  fetchQuantumBackends,
-  fetchQuantumSettings,
   saveQuantumSettings,
   runQuantumCanary,
   type QuantumBackendInfo,
 } from '@/lib/api';
+import { useQuantumSettingsProjection } from '@/domain/useQuantumSettingsProjection';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
 import { writeSettlementLabel } from '@/domain/write-settlement';
 
@@ -30,12 +29,38 @@ import { writeSettlementLabel } from '@/domain/write-settlement';
 // only as presence. Selecting a credentialless QPU is allowed (plan
 // before the token arrives); submit still refuses fail-closed.
 export function QuantumSettings() {
-  const [backends, setBackends] = useState<QuantumBackendInfo[]>([]);
-  const [defaultBackend, setDefaultBackend] = useState<string>('local-simulator');
-  const [harnessMap, setHarnessMap] = useState<Record<string, string>>({});
+  const { data, error, refresh } = useQuantumSettingsProjection();
+  if (!data) {
+    return (
+      <div className="rounded-3xl border border-[var(--color-border)] bg-[var(--color-page)] p-7 text-[12px] text-[var(--color-label-secondary)]">
+        <p className="font-medium text-white">Quantum provider catalog unavailable</p>
+        <p className="mt-1 text-[var(--color-muted)]">{error || 'Loading provider catalog and saved selection…'}</p>
+        <button type="button" onClick={refresh} className="mt-3 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-[var(--color-text)]">
+          Retry
+        </button>
+      </div>
+    );
+  }
+  return <QuantumSettingsForm key={JSON.stringify(data.settings ?? {})} initialBackends={data.backends} initialSettings={data.settings} onRefresh={refresh} />;
+}
+
+function QuantumSettingsForm({
+  initialBackends,
+  initialSettings,
+  onRefresh,
+}: {
+  initialBackends: QuantumBackendInfo[];
+  initialSettings: Record<string, unknown> | null;
+  onRefresh: () => void;
+}) {
+  const initialDefault = typeof initialSettings?.default_backend === 'string' ? initialSettings.default_backend : 'local-simulator';
+  const initialHarness = (initialSettings?.harness_backends ?? {}) as Record<string, string>;
+  const backends = initialBackends;
+  const [defaultBackend, setDefaultBackend] = useState<string>(initialDefault);
+  const [harnessMap, setHarnessMap] = useState<Record<string, string>>(initialHarness);
   const [newHarness, setNewHarness] = useState('');
-  const [newBackend, setNewBackend] = useState('local-simulator');
-  const [baseline, setBaseline] = useState('');
+  const [newBackend, setNewBackend] = useState(initialDefault);
+  const [baseline, setBaseline] = useState(JSON.stringify({ default_backend: initialDefault, harness_backends: initialHarness }));
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
   const settlement = useWriteSettlement();
@@ -49,27 +74,6 @@ export function QuantumSettings() {
   );
   const dirty = baseline !== '' && baseline !== snapshot();
 
-  const load = useCallback(() => {
-    // setState lives in .then continuations only (lint-clean in effects):
-    // the effect below merely kicks off the fetch.
-    void Promise.all([fetchQuantumBackends(), fetchQuantumSettings()]).then(([b, s]) => {
-      setMessage(null);
-      setBackends(b);
-      if (s) {
-        const def = typeof s.default_backend === 'string' ? s.default_backend : 'local-simulator';
-        const hm = (s.harness_backends ?? {}) as Record<string, string>;
-        setDefaultBackend(def);
-        setHarnessMap(hm);
-        setNewBackend(def);
-        setBaseline(JSON.stringify({ default_backend: def, harness_backends: hm }));
-      }
-    });
-  }, []);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
   const onSave = useCallback(async () => {
     setSaving(true);
     setMessage(null);
@@ -80,11 +84,12 @@ export function QuantumSettings() {
       settlement.applied(requestId, 'quantum provider selection saved');
       setBaseline(snapshot());
       setMessage({ kind: 'ok', text: 'Quantum provider selection saved.' });
+      onRefresh();
     } else {
       settlement[res.unknown ? 'unknown' : 'refused'](requestId, res.error || 'save not confirmed');
       setMessage({ kind: 'err', text: res.error || 'Save refused.' });
     }
-  }, [defaultBackend, harnessMap, snapshot, settlement]);
+  }, [defaultBackend, harnessMap, onRefresh, snapshot, settlement]);
 
   const credBadge = (b: QuantumBackendInfo) => {
     if (b.credential_state === 'ready') {
@@ -112,7 +117,7 @@ export function QuantumSettings() {
   };
 
   return (
-    <div className="relative rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0E17] to-[#06080D] border border-white/[0.08] shadow-2xl p-7 space-y-6">
+    <div className="relative rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl p-7 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2.5">
           <Cpu className="w-5 h-5 text-cyan-300" />
@@ -124,7 +129,7 @@ export function QuantumSettings() {
           </div>
         </div>
         <button
-          onClick={() => void load()}
+          onClick={onRefresh}
           aria-label="Reload backends and saved selection"
           className="p-2 rounded-xl bg-white/[0.04] border border-white/10 text-slate-300 hover:bg-white/[0.08]"
           title="Reload backends and saved selection"

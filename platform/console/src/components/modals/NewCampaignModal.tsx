@@ -448,7 +448,7 @@ export function NewCampaignModal({ isOpen, onClose, onCreate }: NewCampaignModal
             <button
               type="submit"
               disabled={isSubmitting}
-              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white text-xs font-semibold flex items-center space-x-2 transition-all shadow-lg active:scale-95 disabled:opacity-50"
+              className="px-5 py-2.5 rounded-xl bg-[var(--color-accent)] hover:bg-[var(--color-lit)] text-[var(--color-on-accent)] text-xs font-semibold flex items-center space-x-2 transition-all shadow-lg active:scale-95 disabled:opacity-50"
             >
               <Sparkles className="w-3.5 h-3.5" />
               <span>{isSubmitting ? 'Creating Campaign...' : 'Create Research Campaign'}</span>

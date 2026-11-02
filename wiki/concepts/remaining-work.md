@@ -133,51 +133,61 @@ Landed in later slices:
 
 Still open:
 
-- Manual VoiceOver/NVDA evidence: **NOT RUN**; the automated axe/forced-colors/
-  200%-zoom/reduced-motion checks are green, but they are not a manual pass.
-- Design-system migration: the shared primitive set now covers Button,
-  IconButton, Field, TextArea, SearchField, Select, SegmentedControl,
-  Checkbox, Toggle, Slider, Badge, Surface, ListRow, Progress, EmptyState,
-  Separator, KeyHint, Disclosure, Menu, Dialog, and Tooltip. Raw palette
-  utilities remain, but the CI ratchet blocks new debt (baseline 873). Banner
-  and shell-parameter state moved out of `page.tsx`. The runtime budget gate
-  now measures **471 KB static transfer / 458 DOM total** against the
-  480 KB / ≤500 targets; virtualization stops emitting offscreen placeholder
-  nodes, and unused font weights were removed. The fleet view has an exact
-  capability matrix plus queue and spend charts; ResultsStudio adds a
-  server-returned measurement distribution, and FlightRecorder adds the
-  chemical-accuracy band plus error-vs-FCI line.
-- Transport hardening: the typed auth phase store is landed (anonymous /
-  checking / authenticated / expired / forbidden), chat send/stream retain a
-  request id across retry, telemetry frames coalesce once per animation frame
-  by domain+record id (ledger history stays by event id), and the SSE frame
-  now carries the `events` array the console reads. The console can opt into
-  `/api/v1` with `NEXT_PUBLIC_KUBONA_API_VERSION=1`; `/api` remains the
-  default until the rollout date.
-- Legacy retirement: the molecule canvas and `WidgetStage` stay until object
-  cards reach parity and the old aliases have one release of support.
-- Write settlement is not yet uniform across every write; LLM settings,
-  quantum dispatch estimate/dispatch/cancel, quantum provider settings, and
-  the two air-gap toggles now render accepted/applied/refused/unknown,
-  including transport-vs-refusal. LabOps ceiling/status/autonomy/revoke and
-  refund, tenant grants, session refunds, key rotation, and first-run
-  admin-key bootstrap, emergency abort, codesign rerun, and custom-agent
-  create/delete, workflow runs, proposal launch, and chat send use the same
-  vocabulary. Auth logout/revoke still use inline status.
+- Manual VoiceOver/NVDA evidence: **NOT RUN**; the operator explicitly skipped
+  it. Automated axe, forced-colors, 200%-zoom, reduced-motion and settings
+  workspace audits are green, but they are not a manual pass.
+- Design-system migration: the shared primitive set exists (Button through
+  Tooltip), and Separator/KeyHint are used by the shell; most product surfaces
+  still use raw utility classes. The CI ratchet now holds **867** occurrences,
+  down from 873. The shell has a global campaign header outside the arena, the
+  status strip is at the bottom, one banner slot outranks API refusal behind
+  auth expiry, Settings is a single-column section workspace (189 visible DOM),
+  four font families were reduced to Geist + JetBrains, decorative gradients
+  and glass were removed from surfaces, and rest-state float/pulse was removed
+  from the shell. Remaining: migrate all forms to Field/Select/Toggle and retire
+  the raw-palette debt rather than hold it.
+- Budgets and evidence: `e2e/runtime-budget.spec.ts` now measures **424 KB
+  static / 434 KB all-resource / 452 DOM** on the normal mocked boot, plus
+  **189 visible Settings DOM**; the dense 361-object boot is **424 KB static /
+  452 DOM**. LCP/INP/heap/request-count gates and a CI 100/300-object FPS gate
+  remain open; the FPS harness is still opt-in.
+- Transport hardening: the typed auth phase store now bootstraps through
+  `whoami`; anonymous 401s no longer raise an outage toast or expired banner;
+  the session stream is fetch-based, bearer-capable, bounded-backoff reconnecting,
+  and carries `Last-Event-ID`; telemetry invalidates campaign/jobs/tasks/loops/
+  obligations and pauses their fallback polls while live; ledger history pages
+  backwards. Operation receipts are queryable and layout/task writes are
+  idempotent with retained request ids; unknown writes reconcile against the
+  receipt. Remaining: make every mutation use the receipt rail, and give fleet/
+  spend/readiness an explicit external-poller policy rather than calling them
+  fallbacks.
+- Contract truth: job status is now a canonical lowercase string with a
+  `status_code` compatibility field; empty lists are canonical; contract tests
+  cover 25 handler paths and v1 parity for 12 modeled reads; the console sends
+  `Kubona-API-Version: 1` when opted in. The remaining 99 modeled operations are
+  not yet handler-tested; the OpenAPI document is still generated from the
+  client response schemas, not the Go route policy. `/api/v1` remains opt-in.
+- Legacy retirement: `WidgetStage` and the legacy molecule canvas stay until
+  object cards reach five-widget parity and the old aliases have one release of
+  support. Recorder and Manifold still behave as separate full-page products
+  rather than Workbench views. The shell has no old-shell rollback flag.
+- Workbench content: approval cards now expose review and close-ready close,
+  tasks complete inline, job status is canonical, campaign cards show recorded
+  spend, links render only for the selection, and the 3D control stack collapses
+  behind one disclosure. Remaining: evidence source/quote cards, measurement
+  uncertainty, new-result highlight, camera-follow, agent-presence fade, and a
+  molecule object view. The 3D hidden/offscreen pause is code-verified but still
+  lacks an instrumentation gate.
+- Rust: the Rust core now returns a structured JSON receipt (QIR text, qubit and
+  native-gate counts); Python no longer re-parses QIR on the shipped path. A
+  full-process benchmark (`scripts/qir-bench-full.py`) records p50/p95/p99,
+  receipt bytes, and child RSS and runs in CI as a signal. A warm worker remains
+  deferred until the wrapper measurement justifies it.
 - Per-send model override has no backend contract; the composer links to Model
   Hub instead of faking one.
 - The 14 remaining client-only names are intentional transport/browser/auth
-  helpers (plus the delegating `fetchSessions` wrapper), not unmodeled
-  operations.
-- Manual VoiceOver/NVDA pass and legacy-surface removal. The manual record is
-  scaffolded at `docs/manual-accessibility-2026-11-01.md` and explicitly says
-  **NOT RUN**; a skip link, forced-colors/no-overflow, and 200%-zoom-equivalent
-  E2E check are landed. A runtime workbench kill switch
-  (`KUBONA_CONSOLE_WORKBENCH=0`) falls back to Orbital Space without a rebuild;
-  old deep links still resolve. The chart implementation has a CI-enforced
-  16.2 KB min / 4.8 KB gzip budget and now loads as a lazy 13 KB / 4.6 KB
-  gzip client chunk, so figure-free surfaces do not pay for it; the 3D
-  observatory demand-renders.
+  helpers (plus the delegating `fetchSessions`/`fetchCampaignState` wrappers),
+  not unmodeled operations.
 
 ## Local-first production (2026-10-30, landed)
 

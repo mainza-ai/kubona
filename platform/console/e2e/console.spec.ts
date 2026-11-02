@@ -62,6 +62,32 @@ test.describe('Kubona console against the real local stack', () => {
     expect(errors).toEqual([]);
   });
 
+  test('anonymous boot stays quiet: no expired banner and no outage toast', async ({ page }) => {
+    await page.goto('/');
+    await expectReady(page);
+    await page.waitForTimeout(4500);
+    await expect(page.getByText('Backend unreachable — retrying', { exact: false })).toHaveCount(0);
+    await expect(page.getByTestId('auth-expired-banner')).toHaveCount(0);
+    await expect(page.getByTestId('api-problem-banner')).toHaveCount(0);
+  });
+
+  test('old deep links resolve without a 404 or blank main', async ({ page }) => {
+    const paths = [
+      '/?surface=arena',
+      '/?surface=arena&tab=proof-dag',
+      '/?surface=recorder',
+      '/?surface=manifold',
+      '/?surface=fleet',
+      '/?surface=proofs&tab=manuscripts',
+      '/?surface=mesh&tab=settings',
+    ];
+    for (const path of paths) {
+      await page.goto(path);
+      await expect(page.locator('#kubona-main')).toBeVisible();
+      await expect(page.getByText('404', { exact: true })).toHaveCount(0);
+    }
+  });
+
   test('interactive controls expose an accessible name', async ({ page }) => {
     await page.goto('/');
     await expectReady(page);

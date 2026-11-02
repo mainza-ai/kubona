@@ -75,7 +75,7 @@ export function CryptographicMandateCardWidget({
   };
 
   return (
-    <div className="rounded-2xl border border-rose-500/20 bg-rose-950/20 p-5 backdrop-blur-xl text-white space-y-4">
+    <div className="rounded-2xl border border-rose-500/20 bg-rose-950/20 p-5 text-white space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-rose-500/20 pb-3">
         <div className="flex items-center space-x-3">

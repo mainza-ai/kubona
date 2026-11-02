@@ -4734,3 +4734,18 @@ skipped is the exact failure this incident is about:
 - Added measurement-distribution, spend, queue, accuracy-band, and error charts.
 - Fixed the SSE `events` envelope; added domain+id frame coalescing and opt-in v1.
 - Runtime budget: 471 KB static transfer, 458 DOM total, 378 visible.
+
+## [2026-11-01] impl | Plan execution: truth, transport, shell, evidence
+
+- Closed the anonymous 401 outage toast, bootstrapped auth, and put one banner
+  slot in the shell.
+- Canonicalized job status to lowercase with a compatibility code; expanded
+  handler contract checks to 25 reads and v1 parity to 12 modeled reads.
+- Replaced the EventSource client with authenticated fetch-SSE, reconnect and
+  domain invalidation; paused projection polls while live; added ledger paging.
+- Added operation receipts/reconciliation and idempotent layout/task writes.
+- Added a global campaign header, bottom status, single-column Settings, reduced
+  fonts/gradients/glass/rest-motion, inline task/approval actions, link reveal,
+  and a collapsed 3D control surface.
+- Added all-resource/Settings runtime budgets, anonymous/alias/reconnect/domain
+  invalidation E2E, and structured Rust QIR receipts with a full-path benchmark.

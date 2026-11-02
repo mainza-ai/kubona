@@ -89,7 +89,7 @@ export function ModeRail({
           aria-label="Campaigns"
           title="Campaigns"
           onClick={onOpenCampaigns}
-          className="w-8 h-8 rounded-full bg-gradient-to-tr from-cyan-500 to-amber-500 p-[1.5px] cursor-pointer hover:scale-105 transition-transform focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
+          className="w-8 h-8 rounded-full bg-[var(--color-border-strong)] p-[1px] cursor-pointer hover:scale-105 transition-transform focus-visible:ring-2 focus-visible:ring-cyan-400 focus-visible:outline-none"
         >
           <span className="w-full h-full rounded-full bg-black flex items-center justify-center text-[12px] font-code font-bold text-white">KB</span>
         </button>

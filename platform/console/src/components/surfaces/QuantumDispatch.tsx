@@ -7,12 +7,10 @@ import {
   submitQuantumJob,
   fetchQuantumJob,
   cancelQuantumJob,
-  fetchQuantumBackends,
-  fetchQuantumSettings,
   fetchLedgerExport,
-  type QuantumBackendInfo,
 } from '@/lib/api';
 import { CryptographicMandateCardWidget } from '@/components/widgets/CryptographicMandateCardWidget';
+import { useQuantumSettingsProjection } from '@/domain/useQuantumSettingsProjection';
 
 const BELL_QASM = `OPENQASM 2.0;
 include "qelib1.inc";
@@ -47,8 +45,11 @@ export function QuantumDispatch({
   sessionId: string | null;
   tenantId?: string;
 }) {
-  const [backends, setBackends] = useState<QuantumBackendInfo[]>([]);
-  const [provider, setProvider] = useState('local-simulator');
+  const { data: quantumSettings } = useQuantumSettingsProjection();
+  const backends = quantumSettings?.backends ?? [];
+  const defaultProvider = typeof quantumSettings?.settings?.default_backend === 'string' ? quantumSettings.settings.default_backend : 'local-simulator';
+  const [providerDraft, setProvider] = useState('');
+  const provider = providerDraft || defaultProvider;
   const [qasm, setQasm] = useState(BELL_QASM);
   const [shots, setShots] = useState(1024);
   const [estimating, setEstimating] = useState(false);
@@ -73,21 +74,6 @@ export function QuantumDispatch({
   const pollFailsRef = useRef(0);
   const pollDelayRef = useRef(POLL_BASE_MS);
   const pollJobIdRef = useRef<string | null>(null);
-
-  // Independent fetch (same two calls as QuantumSettings, no shared
-  // state): the saved default backend seeds the picker.
-  useEffect(() => {
-    let active = true;
-    void Promise.all([fetchQuantumBackends(), fetchQuantumSettings()]).then(([b, s]) => {
-      if (!active) return;
-      setBackends(b);
-      const def = typeof s?.default_backend === 'string' ? s.default_backend : 'local-simulator';
-      setProvider(def);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
 
   useEffect(() => {
     return () => {
@@ -298,7 +284,7 @@ export function QuantumDispatch({
   };
 
   return (
-    <div className="relative rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0E17] to-[#06080D] border border-white/[0.08] shadow-2xl p-7 space-y-5">
+    <div className="relative rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl p-7 space-y-5">
       <div className="flex items-center space-x-2.5">
         <Zap className="w-5 h-5 text-amber-300" />
         <div>

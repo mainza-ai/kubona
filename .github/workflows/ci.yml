@@ -93,6 +93,8 @@ jobs:
           cache: true
       - name: Build Rust qir-core (production compiler core)
         run: cargo build --release --manifest-path crates/qir-core/Cargo.toml
+      - name: QIR full-path benchmark (structured receipt)
+        run: python ../scripts/qir-bench-full.py --iterations 10
       # W2.4: install the suite-verified set — qiskit/chemistry extras pinned
       # == in pyproject (floors previously resolved untested combos; the
       # chemistry extra was missing so RDKit coverage silently skipped).
