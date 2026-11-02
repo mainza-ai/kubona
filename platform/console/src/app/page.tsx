@@ -1,18 +1,20 @@
 'use client';
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { SurfaceLoading } from '@/components/shell/SurfaceLoading';
 import { Sparkles, Plus, Zap, Info, HelpCircle, Trash2, Clock, Box, X } from 'lucide-react';
 import { Session, LedgerEvent, RunPhase, ProbeId } from '@/types';
-import { fetchSessionsResult, fetchSession, createSession, deleteSession, createTask, updateTaskStatus, fetchLoopsResult, fetchEventsResult, fetchCampaignState, API_BASE, CONSOLE_WORKBENCH_ENABLED, authHeaders, configureApiBase, apiFetch } from '@/lib/api';
+import { fetchSessionsResult, fetchSession, createSession, deleteSession, createTask, updateTaskStatus, closeObligation, fetchLoopsResult, fetchEventsResult, fetchCampaignState, authWhoami, ApiFailureError, API_BASE, CONSOLE_WORKBENCH_ENABLED, authHeaders, configureApiBase, apiFetch } from '@/lib/api';
 import { useJobsProjection } from '@/domain/useJobsProjection';
 import { useObligationsProjection } from '@/domain/useObligationsProjection';
 import { useTasksProjection } from '@/domain/useTasksProjection';
 import { useWriteSettlement } from '@/domain/use-write-settlement';
 import { settleWrite, writeSettlementLabel } from '@/domain/write-settlement';
+import { setAuthPhase } from '@/domain/auth-state';
+import { subscribeInvalidation } from '@/domain/invalidation';
 import { Inspector, type InspectorTab } from '@/components/shell/Inspector';
-import type { WorkbenchObject, WorkbenchObjectKind } from '@/components/workbench/workbench-model';
+import { buildWorkbench, type WorkbenchObject, type WorkbenchObjectKind } from '@/components/workbench/workbench-model';
 import type { WorkbenchHandle } from '@/components/workbench/Workbench';
 import { mergeSessionEvents, useSessionStream } from '@/lib/useSessionStream';
 import { useCampaignProjection } from '@/lib/useCampaignProjection';
@@ -37,7 +39,9 @@ import type { CanvasWidgetSpec, CanvasWidgetKind } from '@/components/sovereign/
 import { FlightRecorderCard } from '@/components/FlightRecorderCard';
 import { Workbench } from '@/components/workbench/Workbench';
 import { StatusStrip } from '@/components/shell/StatusStrip';
-import { ApiProblemBanner, SessionExpiredBanner, describeCreateFailure } from '@/components/shell/Banners';
+import { BannerStack, describeCreateFailure } from '@/components/shell/Banners';
+import { KeyHint } from '@/components/ui/Controls';
+import { CampaignHeader } from '@/components/shell/CampaignHeader';
 import { buildShellSearch, parseShellParams, tabForSurface, type DockSurface, type MeshTab } from '@/lib/shell-params';
 
 const FlightRecorder = dynamic(() => import('@/components/surfaces/FlightRecorder').then((mod) => ({ default: mod.FlightRecorder })), { ssr: false, loading: () => <SurfaceLoading label="flight recorder" /> });
@@ -76,9 +80,9 @@ export default function Home() {
   const prevPhase = useRef<RunPhase>('idle');
   const { loops, setLoops, refresh: refreshLoops } = useLoopsProjection(currentSessionId || null);
   const { jobs, status: jobsStatus, error: jobsError, refresh: refreshJobs } = useJobsProjection(currentSessionId || null);
-  const { obligations } = useObligationsProjection();
+  const { obligations, refresh: refreshObligations } = useObligationsProjection();
   const { tasks, refresh: refreshTasks } = useTasksProjection(currentSessionId || null);
-  const { campaign, setCampaign, reload: reloadCampaign } = useCampaignProjection(currentSessionId || null);
+  const { campaign, setCampaign, reload: reloadCampaign, failure: campaignFailure } = useCampaignProjection(currentSessionId || null);
   const [events, setEvents] = useState<LedgerEvent[]>([]);
   const [nowTick, setNowTick] = useState(0);
 
@@ -89,6 +93,7 @@ export default function Home() {
   const [recenterSignal, setRecenterSignal] = useState(0);
   const [proofsTab, setProofsTab] = useState<'manuscripts' | 'tribunal' | 'gallery' | 'circuits'>('manuscripts');
   const [meshTab, setMeshTab] = useState<MeshTab>('mesh');
+  const [settingsSection, setSettingsSection] = useState<'models' | 'quantum' | 'dispatch' | 'vault' | 'readiness'>('models');
   const [showLegacyCanvas, setShowLegacyCanvas] = useState(false);
   const [gateState, setGateState] = useState<Record<string, 'authorized' | 'denied' | 'downgraded'>>({});
   const [gateNotice, setGateNotice] = useState<string | null>(null);
@@ -101,6 +106,18 @@ export default function Home() {
   const [toast, setToast] = useState<{ key: number; text: string } | null>(null);
   const lastToastEventId = useRef(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    setAuthPhase('checking');
+    void authWhoami().then((session) => {
+      if (!session) setAuthPhase('anonymous');
+    });
+  }, []);
+
+  const localFailure = useCallback((result: { ok: false; failure: { kind: string }; error: string }) => {
+    if (result.failure.kind === 'auth') return null;
+    return result.error;
+  }, []);
+
   // Tick serialization (no overlapping polls) + outage-episode toast latch:
   // exactly one "backend unreachable" toast per outage, reset on success.
   const tickBusy = useRef(false);
@@ -117,6 +134,7 @@ export default function Home() {
   const [createError, setCreateError] = useState<string | null>(null);
   const createWrite = useWriteSettlement();
   const taskWrite = useWriteSettlement();
+  const obligationWrite = useWriteSettlement();
   const createFailedRef = useRef(false);
   // Responsive shell (Wave-2): below lg the copilot is a closed-by-default
   // overlay drawer, not a fixed side panel. Default closed on narrow screens
@@ -151,9 +169,9 @@ export default function Home() {
     }
     if (loopResult.ok) setLoops(loopResult.data);
     if (evtResult.ok) setEvents(evtResult.data);
-    const readError = !loopResult.ok ? loopResult.error : !evtResult.ok ? evtResult.error : null;
+    const readError = !loopResult.ok ? localFailure(loopResult) : !evtResult.ok ? localFailure(evtResult) : null;
     setDataError(readError);
-  }, [currentSessionId, setLoops, setSessions]);
+  }, [currentSessionId, localFailure, setLoops, setSessions]);
 
   const onTelemetry = useCallback((incoming: LedgerEvent[]) => {
     setEvents((previous) => mergeSessionEvents(previous, incoming));
@@ -166,6 +184,7 @@ export default function Home() {
     });
   }, [currentSessionId]);
   const streamLive = useSessionStream(currentSessionId || null, onTelemetry, onStreamGap);
+  useEffect(() => subscribeInvalidation(['loops'], () => { void refreshLoops(); }), [refreshLoops]);
   const eventsRef = useRef<LedgerEvent[]>([]);
   useEffect(() => {
     eventsRef.current = events;
@@ -201,11 +220,11 @@ export default function Home() {
       if (!sessResult.ok) {
         setSessionListError(sessResult.error);
         if (loopResult.ok) setLoops(loopResult.data);
-        setDataError(loopResult.ok ? sessResult.error : loopResult.error);
+        setDataError(loopResult.ok ? sessResult.error : localFailure(loopResult));
         return;
       }
       setSessionListError(null);
-      if (!loopResult.ok) setDataError(loopResult.error);
+      if (!loopResult.ok) setDataError(localFailure(loopResult));
       else setDataError(null);
       const sessList = sessResult.sessions;
       let targetSessionId = currentSessionId;
@@ -217,9 +236,6 @@ export default function Home() {
             setSessions([firstSess]);
             targetSessionId = firstSess.id;
             switchSession(firstSess.id);
-            fetchCampaignState(firstSess.id).then((c) => {
-              if (mounted) setCampaign(c);
-            });
           }
         }
       } else {
@@ -227,9 +243,6 @@ export default function Home() {
         if (!currentSessionId) {
           targetSessionId = sessList[0].id;
           switchSession(sessList[0].id);
-          fetchCampaignState(sessList[0].id).then((c) => {
-            if (mounted) setCampaign(c);
-          });
         }
       }
       if (loopResult.ok) setLoops(loopResult.data);
@@ -258,25 +271,40 @@ export default function Home() {
       tickBusy.current = true;
       try {
         if (!document.hidden) {
-          const loopResult = await fetchLoopsResult(currentSessionId || undefined);
-          if (!mounted) return;
-          if (!loopResult.ok) throw new Error(loopResult.error);
-          setLoops(loopResult.data);
-          setDataError(null);
+          if (!streamLive) {
+            const loopResult = await fetchLoopsResult(currentSessionId || undefined);
+            if (!mounted) return;
+            if (!loopResult.ok) {
+              if (loopResult.failure.kind === 'transport' || loopResult.failure.kind === 'server') {
+                throw new ApiFailureError(loopResult.failure);
+              }
+              setDataError(localFailure(loopResult));
+            } else {
+              setLoops(loopResult.data);
+              setDataError(null);
+            }
+          }
           if (currentSessionId) {
             const freshSession = await fetchSession(currentSessionId);
             if (!mounted) return;
             if (freshSession) upsertSession(freshSession, true);
-            const freshCampaign = await fetchCampaignState(currentSessionId);
-            if (!mounted) return;
-            if (freshCampaign) setCampaign(freshCampaign);
+            if (!streamLive) {
+              await reloadCampaign();
+              if (!mounted) return;
+            }
             let e = eventsRef.current;
             if (!streamLive) {
               const eventResult = await fetchEventsResult(currentSessionId);
               if (!mounted) return;
-              if (!eventResult.ok) throw new Error(eventResult.error);
-              e = eventResult.data;
-              setEvents(e);
+              if (!eventResult.ok) {
+                if (eventResult.failure.kind === 'transport' || eventResult.failure.kind === 'server') {
+                  throw new ApiFailureError(eventResult.failure);
+                }
+                setDataError(localFailure(eventResult));
+              } else {
+                e = eventResult.data;
+                setEvents(e);
+              }
             }
             // Heartbeat toasts: while a run is live, surface fresh ledger events
             // on the canvas (max one per poll, auto-fading). Baseline on run start.
@@ -311,7 +339,7 @@ export default function Home() {
         tickBusy.current = false;
         if (!mounted) return;
         const atRest = runPhaseRef.current === 'idle';
-        tickTimer = setTimeout(tick, document.hidden || atRest ? 15000 : 3500);
+        tickTimer = setTimeout(tick, document.hidden || atRest || streamLive ? 15000 : 3500);
       }
     };
     tickTimer = setTimeout(tick, 3500);
@@ -324,7 +352,7 @@ export default function Home() {
       clearTimeout(tickTimer);
       clearInterval(clock);
     };
-  }, [currentSessionId, refreshData, switchSession, runPhase, streamLive, setCampaign, setLoops, setSessions, upsertSession]);
+  }, [currentSessionId, refreshData, switchSession, runPhase, streamLive, reloadCampaign, localFailure, setLoops, setSessions, upsertSession]);
   const handleCreateSession = useCallback(() => {
     setIsNewCampaignModalOpen(true);
   }, []);
@@ -578,28 +606,41 @@ export default function Home() {
     if (!currentSessionId) return;
     const ref = object.ref ?? { domain: 'campaign', id: currentSessionId };
     const requestId = taskWrite.begin('create task');
-    const out = await createTask(currentSessionId, `Review ${object.title}`, ref.domain, ref.id);
+    const out = await createTask(currentSessionId, `Review ${object.title}`, ref.domain, ref.id, requestId);
     if (out.ok) {
       taskWrite.applied(requestId, `task ${out.task.id.slice(0, 8)} created`);
       refreshTasks();
       setToast({ key: Date.now(), text: `Task created for ${object.title}.` });
     } else {
-      taskWrite[out.unknown ? 'unknown' : 'refused'](requestId, out.error);
+      if (out.unknown) void taskWrite.reconcile(requestId, currentSessionId, 'task create not confirmed');
+      else taskWrite.refused(requestId, out.error);
       setToast({ key: Date.now(), text: `Task ${out.unknown ? 'unconfirmed' : 'refused'}: ${out.error}` });
     }
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 4000);
   }, [currentSessionId, refreshTasks, taskWrite]);
 
+  const handleCloseObligation = useCallback(async (id: string) => {
+    const requestId = obligationWrite.begin('close obligation');
+    const out = await closeObligation(id);
+    if (out.ok && out.closed) {
+      obligationWrite.applied(requestId, `obligation ${id.slice(0, 8)} closed`);
+      refreshObligations();
+    } else {
+      obligationWrite.refused(requestId, (out.reasons ?? []).join('; ') || out.error || 'not close-ready');
+    }
+  }, [obligationWrite, refreshObligations]);
+
   const handleTaskStatus = useCallback(async (taskId: string, status: 'open' | 'done') => {
     if (!currentSessionId) return;
     const requestId = taskWrite.begin(`task ${status}`);
-    const out = await updateTaskStatus(taskId, currentSessionId, status);
+    const out = await updateTaskStatus(taskId, currentSessionId, status, requestId);
     if (out.ok) {
       taskWrite.applied(requestId, `task ${status}`);
       refreshTasks();
     } else {
-      taskWrite[out.unknown ? 'unknown' : 'refused'](requestId, out.error);
+      if (out.unknown) void taskWrite.reconcile(requestId, currentSessionId, 'task update not confirmed');
+      else taskWrite.refused(requestId, out.error);
       setToast({ key: Date.now(), text: `Task update ${out.unknown ? 'unconfirmed' : 'refused'}: ${out.error}` });
       if (toastTimer.current) clearTimeout(toastTimer.current);
       toastTimer.current = setTimeout(() => setToast(null), 4000);
@@ -836,6 +877,12 @@ export default function Home() {
   const targetLabel = targetShort ? `${targetShort.slice(0, 28)} · Ground State Target` : 'No Target · Idle';
   void nowTick;
 
+  const paletteObjects = useMemo(
+    () => buildWorkbench(campaign, loops, jobs, obligations, tasks, session?.current_spend_usd)
+      .map((object) => ({ id: object.id, label: object.label, title: object.title, kind: object.kind })),
+    [campaign, loops, jobs, obligations, tasks, session?.current_spend_usd],
+  );
+
   const subToggle = (options: Array<{ id: string; label: string }>, value: string, onChange: (id: string) => void) => (
     <div className="flex items-center justify-center px-4 pt-4">
       <div className="bg-[#0E1117] border border-white/10 rounded-2xl sm:rounded-full p-1 flex flex-wrap items-center justify-center max-w-full shadow-2xl">
@@ -869,6 +916,13 @@ export default function Home() {
         onOpenAbout={() => setIsAboutOpen(true)}
         onToggleCopilot={() => { setInspectorOpen(true); setInspectorTab('copilot'); }}
         onOpenShortcuts={() => setIsShortcutsOpen(true)}
+        objects={paletteObjects}
+        onOpenObject={(id) => {
+          setSurface('arena');
+          setArenaView('workbench');
+          setInspectorOpen(true);
+          setTimeout(() => workbenchRef.current?.focusObject(id), 0);
+        }}
       />
       <KeyboardShortcutsModal
         isOpen={isShortcutsOpen}
@@ -1063,19 +1117,20 @@ export default function Home() {
       <div className="flex-1 flex flex-col min-w-0 relative grid-bg">
         {/* U1-a: backend liveness always visible — distinguishes "empty"
             from "backend down" on every surface below. */}
-        <SessionExpiredBanner
+        <BannerStack
           onOpenLabs={() => {
             setSurface('mesh');
             setMeshTab('labs');
           }}
         />
-        <ApiProblemBanner />
-        <StatusStrip
-          loops={loops}
-          error={dataError}
-          streamLive={streamLive}
-          lastEventAt={events.length > 0 ? events[events.length - 1]?.timestamp : null}
-        />
+        {surface !== 'arena' && (
+          <CampaignHeader
+            campaign={campaign}
+            session={session}
+            statusText={runStatusText}
+            onOpenCampaigns={() => setShowCampaignMenu((value) => !value)}
+          />
+        )}
         {surface === 'arena' && (
           <main id="kubona-main" tabIndex={-1} className="relative min-h-0 flex-1 overflow-hidden">
             <ArenaHud
@@ -1096,10 +1151,15 @@ export default function Home() {
                 key={currentSessionId}
                 ref={workbenchRef}
                 campaign={campaign}
+                error={campaignFailure?.message ?? null}
+                onRetry={reloadCampaign}
                 loops={loops}
                 jobs={jobs}
                 obligations={obligations}
                 tasks={tasks}
+                sessionSpendUsd={session?.current_spend_usd}
+                onTaskStatus={(taskId, status) => { void handleTaskStatus(taskId, status); }}
+                onCloseObligation={(id) => { void handleCloseObligation(id); }}
                 sessionId={currentSessionId || undefined}
                 onSelectObject={(object) => {
                   setSelectedWorkbenchObject(object);
@@ -1214,7 +1274,7 @@ export default function Home() {
             <div className="p-6 max-w-6xl mx-auto">
               {surface === 'recorder' && (
                 <>
-                  <FlightRecorder loops={loops} events={events} campaign={campaign} onLoopsChanged={refreshLoops} onSessionImported={handleSessionImported} />
+                  <FlightRecorder loops={loops} events={events} sessionId={currentSessionId || null} campaign={campaign} onLoopsChanged={refreshLoops} onSessionImported={handleSessionImported} />
                   {/* Auditor flight-recorder telemetry (60s gate) with measured
                       fetch latency — mounted, not dead code. */}
                   <div className="mt-4">
@@ -1241,11 +1301,34 @@ export default function Home() {
               {surface === 'mesh' && meshTab === 'guardrails' && <AutonomyCockpit campaign={campaign} session={session} />}
               {surface === 'mesh' && meshTab === 'models' && <HuggingFaceModelHub />}
               {surface === 'mesh' && meshTab === 'labs' && <LabsView />}
-              {surface === 'mesh' && meshTab === 'settings' && <LLMSettings />}
-              {surface === 'mesh' && meshTab === 'settings' && <QuantumSettings />}
-              {surface === 'mesh' && meshTab === 'settings' && <QuantumDispatch sessionId={currentSessionId || null} tenantId={sessions.find((s) => s.id === currentSessionId)?.tenant_id} />}
-              {surface === 'mesh' && meshTab === 'settings' && <VaultLeasePanel sessionId={currentSessionId || undefined} />}
-              {surface === 'mesh' && meshTab === 'settings' && <SystemReadinessPanel />}
+              {surface === 'mesh' && meshTab === 'settings' && (
+                <div className="mx-auto max-w-4xl space-y-4">
+                  <nav className="k-settings-nav" aria-label="Settings sections" data-testid="settings-nav">
+                    {([
+                      ['models', 'Models'],
+                      ['quantum', 'Quantum providers'],
+                      ['dispatch', 'Quantum dispatch'],
+                      ['vault', 'Vault leases'],
+                      ['readiness', 'System readiness'],
+                    ] as const).map(([id, label]) => (
+                      <button
+                        key={id}
+                        type="button"
+                        aria-current={settingsSection === id ? 'page' : undefined}
+                        onClick={() => setSettingsSection(id)}
+                        className={settingsSection === id ? 'is-active' : undefined}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </nav>
+                  {settingsSection === 'models' && <LLMSettings />}
+                  {settingsSection === 'quantum' && <QuantumSettings />}
+                  {settingsSection === 'dispatch' && <QuantumDispatch sessionId={currentSessionId || null} tenantId={sessions.find((s) => s.id === currentSessionId)?.tenant_id} />}
+                  {settingsSection === 'vault' && <VaultLeasePanel sessionId={currentSessionId || undefined} />}
+                  {settingsSection === 'readiness' && <SystemReadinessPanel />}
+                </div>
+              )}
             </div>
           </main>
         )}
@@ -1260,6 +1343,12 @@ export default function Home() {
             modelLabel="Model Hub"
           />
         )}
+        <StatusStrip
+          loops={loops}
+          error={dataError}
+          streamLive={streamLive}
+          lastEventAt={events.length > 0 ? events[events.length - 1]?.timestamp : null}
+        />
       </div>
 
       <Inspector
@@ -1306,15 +1395,15 @@ export default function Home() {
       {!inspectorOpen && (
         <button
           onClick={() => { setInspectorOpen(true); setInspectorTab('details'); }}
-          className="fixed bottom-6 right-6 z-40 px-4 py-2.5 rounded-full bg-[#0C101A] border border-cyan-500/40 hover:border-cyan-400 text-white shadow-2xl flex items-center space-x-2.5 group transition-all duration-200 hover:scale-105 active:scale-95"
+          className="fixed bottom-6 right-6 z-40 px-4 py-2.5 rounded-full bg-[#0C101A] border border-cyan-500/40 hover:border-cyan-400 text-white shadow-2xl flex items-center space-x-2.5 group transition-colors duration-200"
           title={`Open Inspector (${SHORTCUTS.copilot})`}
         >
           <div className="relative">
-            <Sparkles className="w-4 h-4 text-cyan-400 animate-float-gentle" />
-            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <Sparkles className="w-4 h-4 text-cyan-400" />
+            <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-emerald-400" />
           </div>
           <span className="text-xs font-semibold text-slate-200 group-hover:text-white">Inspector</span>
-          <kbd className="px-1.5 py-0.5 rounded bg-black/50 text-[12px] font-code text-cyan-300 border border-white/10">{SHORTCUTS.copilot}</kbd>
+          <KeyHint>{SHORTCUTS.copilot}</KeyHint>
         </button>
       )}
       </AttentionProvider>

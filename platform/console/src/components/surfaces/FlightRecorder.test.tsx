@@ -1,8 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { FlightRecorder } from './FlightRecorder';
-import type { CampaignState } from '@/types';
+import type { CampaignState, LedgerEvent } from '@/types';
+import * as api from '@/lib/api';
 
 function campaignWith(trajectory: CampaignState['trajectory'], anchorComputed = true): CampaignState {
   return {
@@ -56,6 +57,28 @@ describe('FlightRecorder measured points', () => {
       tree = TestRenderer.create(<FlightRecorder loops={[]} events={[]} campaign={campaign} onLoopsChanged={() => {}} />);
     });
     expect(JSON.stringify(tree!.toJSON())).toContain('no live loops');
+  });
+
+  it('pages older ledger events through the cursor endpoint', async () => {
+    const spy = vi.spyOn(api, 'fetchEventsResult').mockResolvedValue({
+      ok: true,
+      data: [{ id: 1, timestamp: '2026-11-01T10:00:00Z', session_id: 's', event_type: 'older', payload: {} } as LedgerEvent],
+    });
+    let tree: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tree = TestRenderer.create(
+        <FlightRecorder
+          campaign={campaignWith([])}
+          sessionId="s"
+          events={[{ id: 2, timestamp: '2026-11-01T10:01:00Z', session_id: 's', event_type: 'newer', payload: {} } as LedgerEvent]}
+        />,
+      );
+    });
+    const button = tree!.root.findAllByType('button').find((item) => item.props.children === 'Load older events');
+    await act(async () => { await button!.props.onClick(); });
+    expect(spy).toHaveBeenCalledWith('s', 2);
+    expect(JSON.stringify(tree!.toJSON())).toContain('older');
+    spy.mockRestore();
   });
 
   it('labels the story card by milestone position, not by raw iteration number', () => {

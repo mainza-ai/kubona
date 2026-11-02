@@ -112,7 +112,7 @@ describe('workbench model', () => {
     ]);
     const job = objects.find((object) => object.kind === 'job');
     expect(job?.id).toBe('job-job-123456789');
-    expect(job?.facts.find((fact) => fact.label === 'Status')?.value).toBe('2');
+    expect(job?.facts.find((fact) => fact.label === 'Status')?.value).toBe('RUNNING');
   });
 
   it('projects open obligations as approval objects', () => {

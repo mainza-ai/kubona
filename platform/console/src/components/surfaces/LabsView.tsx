@@ -141,7 +141,7 @@ export function LabsView() {
         return (
           <div
             key={lab.id}
-            className="rounded-2xl bg-black/50 border border-white/[0.08] p-4 backdrop-blur-2xl"
+            className="rounded-2xl bg-black/50 border border-white/[0.08] p-4"
           >
             <button
               className="w-full flex items-center justify-between text-left"

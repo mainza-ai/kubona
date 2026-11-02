@@ -32,7 +32,7 @@ export function EpistemicManifoldSurfaceWidget({
   ];
 
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-black/60 p-5 backdrop-blur-xl text-white space-y-4">
+    <div className="rounded-2xl border border-white/[0.08] bg-black/60 p-5 text-white space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
         <div className="flex items-center space-x-3">

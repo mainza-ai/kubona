@@ -422,6 +422,7 @@ export const CopilotDrawer = React.forwardRef<CopilotHandle, CopilotDrawerProps>
     // anything created after the prompt that isn't the prompt counts.
     const runStartEpoch = new Date(tempUserMsg.created_at).getTime() - 1000;
     const turnPoll = setInterval(async () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       if (!mountedRef.current) {
         clearInterval(turnPoll);
         return;

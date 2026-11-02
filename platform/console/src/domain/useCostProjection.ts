@@ -1,6 +1,7 @@
 'use client';
 
 import { fetchCostSummary, type CostSummary } from '@/lib/api';
+import { ApiFailureError } from '@/lib/api-errors';
 import { useSharedResource } from './shared-resource';
 
 export function useCostProjection() {
@@ -8,7 +9,7 @@ export function useCostProjection() {
     'cost',
     async () => {
       const out = await fetchCostSummary();
-      if (!out.ok) throw new Error(out.error);
+      if (!out.ok) throw new ApiFailureError(out.failure);
       return out.result;
     },
     { intervalMs: 60_000 },

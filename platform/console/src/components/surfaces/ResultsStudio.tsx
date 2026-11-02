@@ -18,7 +18,9 @@ import {
   
 } from 'lucide-react';
 import { CampaignState, SystematicNotebook, Job } from '@/types';
-import { fetchJobsResult, fetchNotebooks, jobStatusLabel, sendChatMessage } from '@/lib/api';
+import { fetchNotebooks, sendChatMessage } from '@/lib/api';
+import { jobStatusLabel } from '@/lib/job-status';
+import { useJobsProjection } from '@/domain/useJobsProjection';
 import { LiteraturePanel } from './LiteraturePanel';
 import { MeasuredOutputs } from '../MeasuredOutputs';
 import { Chart } from '@/components/data/LazyChart';
@@ -78,7 +80,6 @@ export function ResultsStudio({ campaign, sessionId }: ResultsStudioProps) {
   const [annotations, setAnnotations] = useState<FrameAnnotation[]>([]);
   const [remoteNotebook, setRemoteNotebook] = useState<SystematicNotebook | null>(null);
   const [notebookError, setNotebookError] = useState<string | null>(null);
-  const [measuredCounts, setMeasuredCounts] = useState<{ sessionId: string; jobId: string; backend: string; counts: Record<string, number> } | null>(null);
 
   const target = campaign?.target_system || 'H2';
   // Verified-data gating: when the campaign carries no notebook telemetry,
@@ -100,29 +101,25 @@ export function ResultsStudio({ campaign, sessionId }: ResultsStudioProps) {
     return () => { live = false; };
   }, [sessionId, campaign?.notebook]);
 
-  useEffect(() => {
-    if (!sessionId) return;
-    let live = true;
-    fetchJobsResult(sessionId).then((out) => {
-      if (!live || !out.ok) return;
-      const completed = out.data
-        .filter((job) => jobStatusLabel(job.status) === 'COMPLETED')
-        .sort((a, b) => String(b.completed_at ?? b.created_at).localeCompare(String(a.completed_at ?? a.created_at)));
-      for (const job of completed) {
-        const counts = readCounts(job);
-        if (!counts) continue;
-        const result = asRecord(job.result_json);
-        setMeasuredCounts({
-          sessionId,
-          jobId: job.id,
-          backend: typeof result?.resolved_backend === 'string' ? result.resolved_backend : 'unrecorded backend',
-          counts,
-        });
-        return;
-      }
-    });
-    return () => { live = false; };
-  }, [sessionId]);
+  const { jobs: sessionJobs } = useJobsProjection(sessionId ?? null);
+  const measuredCounts = (() => {
+    if (!sessionId) return null;
+    const completed = sessionJobs
+      .filter((job) => jobStatusLabel(job.status) === 'COMPLETED')
+      .sort((a, b) => String(b.completed_at ?? b.created_at).localeCompare(String(a.completed_at ?? a.created_at)));
+    for (const job of completed) {
+      const counts = readCounts(job);
+      if (!counts) continue;
+      const result = asRecord(job.result_json);
+      return {
+        sessionId,
+        jobId: job.id,
+        backend: typeof result?.resolved_backend === 'string' ? result.resolved_backend : 'unrecorded backend',
+        counts,
+      };
+    }
+    return null;
+  })();
 
   const notebook = campaign?.notebook ?? remoteNotebook ?? undefined;
   const groundEnergy: number | undefined = notebook?.quantum_energy ?? campaign?.classical_anchor?.vqe_expectation_energy;
@@ -373,7 +370,7 @@ ${bibtex}
     : undefined;
 
   return (
-    <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0F19] to-[#07090E] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-6 space-y-6">
+    <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-6 space-y-6">
       {!hasVerifiedData && (
         <div className="p-3 rounded-2xl bg-amber-950/60 border border-amber-500/50 text-amber-200 text-xs font-medium text-center">
           UNVERIFIED DRAFT — this session carries no ledger-backed execution telemetry. All figures below are placeholders, not measurements.
@@ -387,7 +384,7 @@ ${bibtex}
       {/* Top Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-4">
         <div className="flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-2xl bg-white/[0.05] border border-white/10 backdrop-blur-xl flex items-center justify-center shadow-inner">
+          <div className="w-10 h-10 rounded-2xl bg-white/[0.05] border border-white/10 flex items-center justify-center shadow-inner">
             <BookOpen className="w-5 h-5 text-indigo-400" />
           </div>
           <div>
@@ -445,7 +442,7 @@ ${bibtex}
 
           <button
             onClick={handleExport}
-            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white text-xs font-semibold flex items-center space-x-1.5 transition shadow-md active:scale-95"
+            className="px-3.5 py-1.5 rounded-xl bg-[var(--color-accent)] hover:bg-[var(--color-lit)] text-[var(--color-on-accent)] text-xs font-semibold flex items-center space-x-1.5 transition shadow-md active:scale-95"
           >
             <Download className="w-3.5 h-3.5" />
             <span>{exported ? 'Exported' : 'Export'}</span>
@@ -456,7 +453,7 @@ ${bibtex}
       {/* Main Two-Column Layout: Manuscript on Left, Frame-Anchored Review on Right */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1">
         {/* Left 2 Columns: The Living Document / Code Viewer */}
-        <div className="lg:col-span-2 bg-black/40 border border-white/10 rounded-2xl p-6 backdrop-blur-xl overflow-y-auto max-h-[580px] space-y-6">
+        <div className="lg:col-span-2 bg-black/40 border border-white/10 rounded-2xl p-6 overflow-y-auto max-h-[580px] space-y-6">
           {activeTab === 'manuscript' && (
             <div className="space-y-6">
               {/* Measured job outputs: what ran, bound to job ids */}
@@ -632,7 +629,7 @@ ${bibtex}
         </div>
 
         {/* Right 1 Column: Frame-Anchored Review (The Buzz Pattern) */}
-        <div className="bg-black/40 border border-white/10 rounded-2xl p-5 backdrop-blur-xl flex flex-col justify-between max-h-[580px]">
+        <div className="bg-black/40 border border-white/10 rounded-2xl p-5 flex flex-col justify-between max-h-[580px]">
           <div className="space-y-4 overflow-y-auto pr-1">
             <div className="flex items-center justify-between border-b border-white/[0.08] pb-3">
               <div className="flex items-center gap-2">
@@ -702,7 +699,7 @@ ${bibtex}
             <button
               type="submit"
               disabled={!newComment.trim() || submittingAnnotation}
-              className="w-full py-1.5 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 disabled:opacity-50 text-xs font-semibold text-white flex items-center justify-center gap-1.5 transition"
+              className="w-full py-1.5 rounded-xl bg-[var(--color-accent)] hover:bg-[var(--color-lit)] disabled:opacity-50 text-xs font-semibold text-[var(--color-on-accent)] flex items-center justify-center gap-1.5 transition"
             >
               <Send className="w-3.5 h-3.5" />
               <span>{submittingAnnotation ? 'Prompting Swarm...' : 'Prompt Swarm to Re-verify'}</span>

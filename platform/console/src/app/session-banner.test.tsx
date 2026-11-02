@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import React from 'react';
 import TestRenderer, { act } from 'react-test-renderer';
 import { API_PROBLEM_EVENT, UNAUTH_EVENT } from '@/lib/api';
-import { ApiProblemBanner, SessionExpiredBanner, describeCreateFailure } from '@/components/shell/Banners';
+import { ApiProblemBanner, BannerStack, SessionExpiredBanner, describeCreateFailure } from '@/components/shell/Banners';
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -94,6 +94,24 @@ describe('ApiProblemBanner', () => {
       tree!.root.findByProps({ 'aria-label': 'Dismiss API refusal' }).props.onClick();
     });
     expect(tree!.toJSON()).toBeNull();
+  });
+});
+
+describe('BannerStack', () => {
+  it('shows one banner and lets auth expiry outrank an API refusal', () => {
+    const target = stubWindow();
+    let tree: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tree = TestRenderer.create(<BannerStack onOpenLabs={vi.fn()} />);
+    });
+    act(() => {
+      target.dispatchEvent(new CustomEvent(API_PROBLEM_EVENT, {
+        detail: { path: '/api/jobs', status: 500, message: 'failed', at: Date.now() },
+      }));
+      target.dispatchEvent(new CustomEvent(UNAUTH_EVENT));
+    });
+    expect(tree!.root.findAllByProps({ 'data-testid': 'auth-expired-banner' })).toHaveLength(1);
+    expect(tree!.root.findAllByProps({ 'data-testid': 'api-problem-banner' })).toHaveLength(0);
   });
 });
 

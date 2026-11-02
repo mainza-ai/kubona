@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { coalesceTelemetryFrames, mergeSessionEvents, parseTelemetryPayload } from './useSessionStream';
+import { coalesceTelemetryFrames, mergeSessionEvents, parseTelemetryPayload, streamRetryDelay, takeSseFrames } from './useSessionStream';
 import type { LedgerEvent } from '@/types';
 
 const event = (id: number, type = 'tick') => ({ id, event_type: type }) as LedgerEvent;
@@ -43,5 +43,20 @@ describe('coalesceTelemetryFrames', () => {
     ]);
     expect(out.map((event) => event.id)).toEqual([2, 3, 4]);
     expect((out[0] as unknown as { payload: { value: string } }).payload.value).toBe('running');
+  });
+});
+
+describe('fetch SSE parser and reconnect backoff', () => {
+  it('parses framed telemetry and keeps a partial tail', () => {
+    const parsed = takeSseFrames('id: 7\nevent: telemetry\ndata: {"revision":7}\n\n: heartbeat\n\nevent: tele');
+    expect(parsed.frames).toEqual([{ event: 'telemetry', data: '{"revision":7}', id: '7' }]);
+    expect(parsed.rest).toContain('event: tele');
+  });
+
+  it('backs off with a bounded jittered delay', () => {
+    expect(streamRetryDelay(0, () => 0.5)).toBe(1000);
+    expect(streamRetryDelay(2, () => 0.5)).toBe(2560);
+    expect(streamRetryDelay(20, () => 0.5)).toBe(30000);
+    expect(streamRetryDelay(0, () => 0)).toBe(750);
   });
 });

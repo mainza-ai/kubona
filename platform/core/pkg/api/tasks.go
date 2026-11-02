@@ -32,6 +32,7 @@ func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
 			Title        string `json:"title"`
 			SourceDomain string `json:"source_domain"`
 			SourceID     string `json:"source_id"`
+			RequestID    string `json:"request_id"`
 		}
 		if err := decodeStrict(r, &req); err != nil {
 			WriteAPIError(w, "bad_request", fmt.Sprintf("invalid request body: %v", err), nil)
@@ -46,19 +47,30 @@ func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
 		if _, ok := s.authorizeKnownSession(w, r, req.SessionID); !ok {
 			return
 		}
+		ticket, refusal := s.idemBegin(req.SessionID, req.RequestID, map[string]any{
+			"title": req.Title, "source_domain": req.SourceDomain, "source_id": req.SourceID,
+		}, idemRailJob)
+		if refusal != nil {
+			refusal.write(w)
+			return
+		}
+		if ticket.replay {
+			s.idemReplay(w, ticket)
+			return
+		}
 		task, err := s.ledger.CreateTask(req.SessionID, req.Title, strings.TrimSpace(req.SourceDomain), strings.TrimSpace(req.SourceID))
 		if err != nil {
-			WriteAPIError(w, "internal", "task create failed", nil)
+			s.idemFinishError(w, ticket, http.StatusInternalServerError, "task create failed")
 			return
 		}
 		if err := s.ledger.AppendEvent(req.SessionID, "task_created", map[string]any{
 			"task_id": task.ID, "title": task.Title,
 			"source_domain": task.SourceDomain, "source_id": task.SourceID,
 		}); err != nil {
-			WriteAPIError(w, "internal", "task recorded but ledger append failed", nil)
+			s.idemFinishError(w, ticket, http.StatusInternalServerError, "task recorded but ledger append failed")
 			return
 		}
-		writeJSON(w, http.StatusOK, task)
+		s.idemFinishJSON(w, ticket, http.StatusOK, task)
 	default:
 		WriteAPIError(w, "method_not_allowed", "GET or POST required for tasks", nil)
 	}
@@ -77,6 +89,7 @@ func (s *Server) handleTaskByID(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		SessionID string `json:"session_id"`
 		Status    string `json:"status"`
+		RequestID string `json:"request_id"`
 	}
 	if err := decodeStrict(r, &req); err != nil {
 		WriteAPIError(w, "bad_request", fmt.Sprintf("invalid request body: %v", err), nil)
@@ -89,18 +102,29 @@ func (s *Server) handleTaskByID(w http.ResponseWriter, r *http.Request) {
 	if _, ok := s.authorizeKnownSession(w, r, req.SessionID); !ok {
 		return
 	}
+	ticket, refusal := s.idemBegin(req.SessionID, req.RequestID, map[string]any{
+		"task_id": id, "status": req.Status,
+	}, idemRailJob)
+	if refusal != nil {
+		refusal.write(w)
+		return
+	}
+	if ticket.replay {
+		s.idemReplay(w, ticket)
+		return
+	}
 	task, err := s.ledger.UpdateTaskStatus(id, req.SessionID, req.Status)
 	if err == sql.ErrNoRows {
-		WriteAPIError(w, "not_found", "task not found in this session", nil)
+		s.idemFinishError(w, ticket, http.StatusNotFound, "task not found in this session")
 		return
 	}
 	if err != nil {
-		WriteAPIError(w, "bad_request", err.Error(), nil)
+		s.idemFinishError(w, ticket, http.StatusBadRequest, err.Error())
 		return
 	}
 	if err := s.ledger.AppendEvent(req.SessionID, "task_status_changed", map[string]any{"task_id": task.ID, "status": task.Status}); err != nil {
-		WriteAPIError(w, "internal", "task updated but ledger append failed", nil)
+		s.idemFinishError(w, ticket, http.StatusInternalServerError, "task updated but ledger append failed")
 		return
 	}
-	writeJSON(w, http.StatusOK, task)
+	s.idemFinishJSON(w, ticket, http.StatusOK, task)
 }

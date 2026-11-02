@@ -69,6 +69,33 @@ describe('CommandPalette', () => {
     expect(text).toContain('Sovereign Settings');
   });
 
+  it('indexes workbench objects after two query characters', async () => {
+    const onOpenObject = vi.fn();
+    let tree: TestRenderer.ReactTestRenderer;
+    act(() => {
+      tree = TestRenderer.create(
+        <CommandPalette
+          isOpen={true}
+          onClose={vi.fn()}
+          onSelectSurface={vi.fn()}
+          onNewCampaign={vi.fn()}
+          onEmergencyAbort={vi.fn()}
+          onOpenAbout={vi.fn()}
+          objects={[{ id: 'measurement', label: 'Measurement', title: 'Classical anchor computed', kind: 'measurement' }]}
+          onOpenObject={onOpenObject}
+        />
+      );
+    });
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
+    const input = tree!.root.findByType('input');
+    await act(async () => { input.props.onChange({ target: { value: 'anchor' } }); });
+    expect(textOf(tree!.toJSON())).toContain('Measurement: Classical anchor computed');
+    const item = tree!.root.findAllByType('button').find((button) => textOf(button).includes('Classical anchor computed'));
+    act(() => { item!.props.onClick(); });
+    expect(onOpenObject).toHaveBeenCalledWith('measurement');
+    act(() => { tree!.unmount(); });
+  });
+
   it('filters results by query and selects item on click', async () => {
     const onSelect = vi.fn();
     const onClose = vi.fn();
@@ -87,6 +114,7 @@ describe('CommandPalette', () => {
       );
     });
 
+    await act(async () => { await new Promise((resolve) => setTimeout(resolve, 0)); });
     const input = tree!.root.findByType('input');
     await act(async () => {
       input.props.onChange({ target: { value: 'tribunal' } });

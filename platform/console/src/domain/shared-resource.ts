@@ -55,7 +55,7 @@ export function useSharedResource<T>(key: string, load: () => Promise<T>, option
 
   const getSnapshot = useCallback((): ResourceState<T> => entry.store.getSnapshot(), [entry]);
   const state = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-  return { ...state, refresh: entry.store.refresh };
+  return { ...state, refresh: entry.store.refresh, setPollMs: entry.store.setPollMs };
 }
 
 /** Test-only: shared module state must not leak across isolated suites. */

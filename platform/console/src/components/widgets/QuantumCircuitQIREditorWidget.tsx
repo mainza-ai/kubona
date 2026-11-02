@@ -57,7 +57,7 @@ entry:
   };
 
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-black/60 p-5 backdrop-blur-xl text-white space-y-4">
+    <div className="rounded-2xl border border-white/[0.08] bg-black/60 p-5 text-white space-y-4">
       {!hasReceipt && (
         <div className="p-2.5 rounded-xl bg-amber-950/50 border border-amber-500/40 text-amber-200 text-[12px] font-code text-center">
           synthetic demo — not session data. No live synthesis receipt; schematic body is illustrative.

@@ -362,7 +362,8 @@ export type JobsList = {
   "jobs": {
   "id": string;
   "session_id": string;
-  "status": unknown;
+  "status": string;
+  "status_code"?: number;
   "job_type": string;
   "params_json": unknown;
   "result_json"?: unknown;
@@ -377,7 +378,8 @@ export type Job = {
   "job": {
   "id": string;
   "session_id": string;
-  "status": unknown;
+  "status": string;
+  "status_code"?: number;
   "job_type": string;
   "params_json": unknown;
   "result_json"?: unknown;
@@ -665,7 +667,7 @@ export type ApiOperationResponse = {
   fetchAutoresearchHarnesses: AutoresearchHarnesses;
   fetchAutoresearchLoops: AutoresearchLoops;
   fetchCalibration: VaultCalibration;
-  fetchCampaignState: Campaign;
+  fetchCampaignResult: Campaign;
   fetchCanvasLayout: CanvasLayout;
   fetchCapabilities: Capabilities;
   fetchCodesignPacks: CodesignPacks;
@@ -792,7 +794,7 @@ export const API_OPERATIONS = {
   fetchAutoresearchHarnesses: { method: "get", path: "/api/autoresearch/harnesses", response: "autoresearch.harnesses" },
   fetchAutoresearchLoops: { method: "get", path: "/api/autoresearch/loops", response: "autoresearch.loops" },
   fetchCalibration: { method: "get", path: "/api/vault/predictions/calibration", response: "vault.calibration" },
-  fetchCampaignState: { method: "get", path: "/api/sessions/${encodeURIComponent}(sessionId)/campaign", response: "campaign" },
+  fetchCampaignResult: { method: "get", path: "/api/sessions/${encodeURIComponent}(sessionId)/campaign", response: "campaign" },
   fetchCanvasLayout: { method: "get", path: "/api/canvas/layout", response: "canvas.layout" },
   fetchCapabilities: { method: "get", path: "/api/capabilities", response: "capabilities" },
   fetchCodesignPacks: { method: "get", path: "/api/codesign/packs", response: "codesign.packs" },

@@ -66,7 +66,7 @@ export function ApprovalPacketCard({
       : null;
 
   return (
-    <div className="w-full bg-black/60 border border-amber-500/30 rounded-3xl p-6 backdrop-blur-2xl shadow-xl space-y-4">
+    <div className="w-full bg-black/60 border border-amber-500/30 rounded-3xl p-6 shadow-xl space-y-4">
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-white flex items-center space-x-2">
           <ShieldCheck className="w-4 h-4 text-amber-400" />

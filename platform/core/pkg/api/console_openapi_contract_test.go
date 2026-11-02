@@ -20,6 +20,7 @@ import (
 // generated console OpenAPI response schema. Route drift is tested separately.
 func TestConsoleOpenAPIResponseContracts(t *testing.T) {
 	t.Setenv("KUBONA_ALLOW_EPHEMERAL_SIGNER", "1")
+	t.Setenv("KUBONA_API_TOKEN", "contract-token")
 	dir := t.TempDir()
 	l, err := ledger.OpenLedger(dir + "/contract.db")
 	if err != nil {
@@ -50,9 +51,27 @@ func TestConsoleOpenAPIResponseContracts(t *testing.T) {
 		{http.MethodGet, "/api/radar", "/api/radar", http.StatusOK},
 		{http.MethodGet, "/api/workbench/layout?session_id=" + sess.ID, "/api/workbench/layout", http.StatusOK},
 		{http.MethodGet, "/api/tasks?session_id=" + sess.ID, "/api/tasks", http.StatusOK},
+		{http.MethodGet, "/api/loops?session_id=" + sess.ID, "/api/loops", http.StatusOK},
+		{http.MethodGet, "/api/obligations/open", "/api/obligations/open", http.StatusOK},
+		{http.MethodGet, "/api/cost/summary", "/api/cost/summary", http.StatusOK},
+		{http.MethodGet, "/api/capabilities", "/api/capabilities", http.StatusOK},
+		{http.MethodGet, "/api/quantum/backends", "/api/quantum/backends", http.StatusOK},
+		{http.MethodGet, "/api/quantum/settings", "/api/quantum/settings", http.StatusOK},
+		{http.MethodGet, "/api/llm/models", "/api/llm/models", http.StatusOK},
+		{http.MethodGet, "/api/llm/settings", "/api/llm/settings", http.StatusOK},
+		{http.MethodGet, "/api/auth/whoami", "/api/auth/whoami", http.StatusOK},
+		{http.MethodGet, "/api/tenants", "/api/tenants", http.StatusOK},
+		{http.MethodGet, "/api/agents", "/api/agents", http.StatusOK},
+		{http.MethodGet, "/api/agents/custom", "/api/agents/custom", http.StatusOK},
+		{http.MethodGet, "/api/autoresearch/harnesses", "/api/autoresearch/harnesses", http.StatusOK},
+		{http.MethodGet, "/api/autoresearch/loops?session_id=" + sess.ID, "/api/autoresearch/loops", http.StatusOK},
+		{http.MethodGet, "/api/sessions/context?session_id=" + sess.ID, "/api/sessions/context", http.StatusOK},
+		{http.MethodGet, "/api/epistemics?session_id=" + sess.ID, "/api/epistemics", http.StatusOK},
+		{http.MethodGet, "/api/results/notebooks?session_id=" + sess.ID, "/api/results/notebooks", http.StatusOK},
 	}
 	for _, tc := range cases {
 		req := httptest.NewRequest(tc.method, tc.path, nil)
+		req.Header.Set("Authorization", "Bearer contract-token")
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, req)
 		if w.Code != tc.status {

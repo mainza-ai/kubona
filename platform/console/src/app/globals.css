@@ -24,9 +24,9 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-  --font-sovereign: var(--font-jakarta), var(--font-geist-sans), system-ui, sans-serif;
-  --font-code: var(--font-jetbrains), var(--font-geist-mono), monospace;
+  --font-mono: var(--font-jetbrains);
+  --font-sovereign: var(--font-geist-sans), system-ui, sans-serif;
+  --font-code: var(--font-jetbrains), monospace;
   --color-void: #07080B;
   --color-abyss: #0A0C10;
   --color-panel: #0E1015;
@@ -241,7 +241,7 @@ body {
 }
 
 .k-chart-headline strong {
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-family: var(--font-jetbrains), ui-monospace, monospace;
   font-size: var(--text-title);
   font-variant-numeric: tabular-nums;
 }
@@ -265,7 +265,7 @@ body {
 
 .k-chart-tick {
   fill: var(--color-muted);
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-family: var(--font-jetbrains), ui-monospace, monospace;
   font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
@@ -277,7 +277,7 @@ body {
 
 .k-chart-donut-total {
   fill: var(--color-text);
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-family: var(--font-jetbrains), ui-monospace, monospace;
   font-size: 22px;
   font-weight: 650;
   font-variant-numeric: tabular-nums;
@@ -346,7 +346,7 @@ body {
 }
 
 .k-chart-values td {
-  font-family: var(--font-geist-mono), ui-monospace, monospace;
+  font-family: var(--font-jetbrains), ui-monospace, monospace;
   font-variant-numeric: tabular-nums;
 }
 
@@ -419,7 +419,7 @@ body {
   font-size: var(--text-label);
 }
 .k-workbench-bar button:hover { background: var(--color-fill-hover); color: var(--color-text); }
-.k-workbench-zoom { min-inline-size: 42px; text-align: center; color: var(--color-muted); font-family: var(--font-geist-mono), monospace; font-size: var(--text-label); font-variant-numeric: tabular-nums; }
+.k-workbench-zoom { min-inline-size: 42px; text-align: center; color: var(--color-muted); font-family: var(--font-jetbrains), monospace; font-size: var(--text-label); font-variant-numeric: tabular-nums; }
 .k-workbench-state { max-inline-size: 180px; padding-inline: 6px; overflow: hidden; color: var(--color-faint); font-size: var(--text-caption); text-overflow: ellipsis; white-space: nowrap; }
 .k-workbench-world { position: absolute; inset-block-start: 0; inset-inline-start: 0; transform-origin: 0 0; will-change: transform; }
 .k-workbench-links { position: absolute; inset: 0; overflow: visible; pointer-events: none; }
@@ -445,13 +445,13 @@ body {
 .k-workbench-card:hover { border-color: var(--color-border-strong); }
 .k-workbench-card[data-selected="true"] { border-color: var(--color-info); box-shadow: 0 0 0 1px var(--color-info); }
 .k-workbench-card:focus-visible { outline: 2px solid var(--color-info); outline-offset: 2px; }
-.k-workbench-kind { color: var(--color-muted); font-family: var(--font-geist-mono), monospace; font-size: var(--text-caption); letter-spacing: 0.04em; text-transform: uppercase; }
+.k-workbench-kind { color: var(--color-muted); font-family: var(--font-jetbrains), monospace; font-size: var(--text-caption); letter-spacing: 0.04em; text-transform: uppercase; }
 .k-workbench-card h3 { margin: 2px 0 0; font-size: var(--text-title); line-height: 1.2; }
 .k-workbench-card header p { margin: 5px 0 0; color: var(--color-muted); font-size: var(--text-label); line-height: 1.45; }
 .k-workbench-card dl { display: grid; gap: 5px; margin: auto 0 0; }
 .k-workbench-card dl div { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; }
 .k-workbench-card dt { color: var(--color-muted); font-size: var(--text-caption); }
-.k-workbench-card dd { margin: 0; overflow: hidden; font-family: var(--font-geist-mono), monospace; font-size: var(--text-label); text-align: end; text-overflow: ellipsis; white-space: nowrap; }
+.k-workbench-card dd { margin: 0; overflow: hidden; font-family: var(--font-jetbrains), monospace; font-size: var(--text-label); text-align: end; text-overflow: ellipsis; white-space: nowrap; }
 .k-workbench-chart { flex: 1; min-block-size: 0; overflow: auto; }
 .k-workbench-chart .k-chart { padding: 8px; border: 0; background: transparent; }
 .k-workbench-drag { cursor: grab; touch-action: none; }
@@ -468,6 +468,7 @@ body {
   cursor: nwse-resize;
   touch-action: none;
 }
+.k-workbench-actions { position: absolute; inset-inline-end: 8px; inset-block-end: 8px; display: flex; gap: 4px; }
 .k-workbench-open {
   align-self: flex-start;
   margin-block-start: auto;
@@ -641,7 +642,7 @@ body {
 .k-progress { display: grid; gap: 4px; }
 .k-progress-label { color: var(--color-muted); font-size: var(--text-caption); }
 .k-progress progress { inline-size: 100%; block-size: 8px; accent-color: var(--color-info); }
-.k-key-hint { display: inline-flex; align-items: center; min-block-size: 18px; padding: 0 5px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-inset); background: var(--color-fill); color: var(--color-label-secondary); font-family: var(--font-geist-mono), monospace; font-size: var(--text-caption); }
+.k-key-hint { display: inline-flex; align-items: center; min-block-size: 18px; padding: 0 5px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-inset); background: var(--color-fill); color: var(--color-label-secondary); font-family: var(--font-jetbrains), monospace; font-size: var(--text-caption); }
 .k-separator { block-size: 1px; inline-size: 100%; background: var(--color-border); }
 .k-separator-vertical { inline-size: 1px; block-size: 100%; }
 .k-surface { border: 1px solid var(--color-border); border-radius: var(--radius-card); background: var(--color-surface); }
@@ -665,6 +666,22 @@ body {
 .k-tooltip-content { position: absolute; z-index: 40; inset-block-end: calc(100% + 6px); inset-inline-start: 50%; transform: translateX(-50%); inline-size: max-content; max-inline-size: 240px; padding: 5px 7px; border: 1px solid var(--color-border-strong); border-radius: var(--radius-inset); background: var(--color-float); color: var(--color-text); font-size: var(--text-caption); opacity: 0; pointer-events: none; }
 .k-tooltip:hover .k-tooltip-content,
 .k-tooltip:focus-within .k-tooltip-content { opacity: 1; }
+.k-campaign-header { display: flex; align-items: center; gap: 12px; min-height: 42px; padding: 0 16px; border-block-end: 1px solid var(--color-border); background: var(--color-chrome); color: var(--color-label-secondary); font-size: var(--text-label); }
+.k-campaign-name { display: inline-flex; align-items: center; gap: 6px; min-inline-size: 0; padding: 4px 6px; border: 0; border-radius: var(--radius-inset); background: transparent; color: var(--color-text); font: inherit; }
+.k-campaign-name:hover { background: var(--color-fill); }
+.k-campaign-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.k-campaign-meta { color: var(--color-muted); white-space: nowrap; }
+.k-campaign-spend { margin-inline-start: auto; color: var(--color-text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.k-campaign-account { padding: 4px 8px; border: 1px solid var(--color-border); border-radius: var(--radius-control-compact); background: var(--color-fill); color: var(--color-label-secondary); font: inherit; }
+.k-campaign-account:hover { background: var(--color-fill-hover); color: var(--color-text); }
+.k-settings-nav { display: flex; flex-wrap: wrap; gap: 6px; padding: 6px; border: 1px solid var(--color-border); border-radius: var(--radius-control); background: var(--color-chrome); }
+.k-settings-nav button { min-height: 30px; padding: 0 10px; border: 1px solid transparent; border-radius: var(--radius-control-compact); background: transparent; color: var(--color-muted); font: inherit; font-size: var(--text-label); }
+.k-settings-nav button:hover { background: var(--color-fill); color: var(--color-text); }
+.k-settings-nav button.is-active { background: var(--color-raised); border-color: var(--color-border); color: var(--color-text); }
+.k-settings-nav button:focus-visible { outline: 2px solid var(--color-info); outline-offset: 1px; }
+
+@media (max-width: 640px) { .k-campaign-header { gap: 8px; padding-inline: 10px; } .k-campaign-meta:nth-of-type(2) { display: none; } }
+
 @media (prefers-reduced-motion: reduce) {
   .k-toggle-track::after { transition: none; }
 }

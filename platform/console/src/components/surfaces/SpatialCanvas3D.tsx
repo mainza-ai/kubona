@@ -442,8 +442,13 @@ export function SpatialCanvas3D({
   // canvas is unreadable; the backend fail-closes on missing imagery.
   const captureSnapshotDataURL = (): string | null => {
     const canvas = canvasRef.current;
-    if (!canvas || canvas.width === 0 || canvas.height === 0) return null;
+    const renderer = rendererRef.current;
+    const scene = sceneRef.current;
+    const camera = cameraRef.current;
+    if (!canvas || !renderer || !scene || !camera || canvas.width === 0 || canvas.height === 0) return null;
     try {
+      // Render immediately before reading: no persistent drawing buffer needed.
+      renderer.render(scene, camera);
       const out = document.createElement('canvas');
       out.width = 1280;
       out.height = 720;
@@ -710,9 +715,6 @@ export function SpatialCanvas3D({
         antialias: true,
         alpha: true,
         powerPreference: 'high-performance',
-        // Q-37: readable pixels for the snapshot path. Without this the
-        // drawing buffer may be cleared before toDataURL runs.
-        preserveDrawingBuffer: true,
       });
     } catch (e) {
       // Wave-3 fail-closed: no GL → no live-looking HUD. The panel below
@@ -1323,8 +1325,8 @@ export function SpatialCanvas3D({
 
       {/* Diegetic Top HUD: Target System & Analytical Ground Truth */}
       <div className="absolute top-4 left-4 right-4 flex items-center justify-between pointer-events-none">
-        <div className="flex items-center gap-3 pointer-events-auto bg-[#0E1117]/85 backdrop-blur-xl border border-white/10 rounded-full px-4 py-2 shadow-2xl">
-          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse" />
+        <div className="flex items-center gap-3 pointer-events-auto bg-[#0E1117]/85 border border-white/10 rounded-full px-4 py-2 shadow-2xl">
+          <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
           <span className="font-code text-xs text-white font-medium tracking-wide">
             {targetSystem} Potential Energy Surface
           </span>
@@ -1361,7 +1363,7 @@ export function SpatialCanvas3D({
                 ? `Sealed expectation μ=${sealed.expected_mean} ± ${sealed.expected_std} Ha (${sealed.prediction_hash.slice(0, 8)}…); amber/rose = divergence gap`
                 : 'No sealed prediction yet — ghost is an illustrative placeholder; seal one in the Vault panel'
             }
-            className={`px-3 py-1.5 rounded-full border text-[12px] font-code transition-all flex items-center gap-1.5 backdrop-blur-xl shadow-lg ${
+            className={`px-3 py-1.5 rounded-full border text-[12px] font-code transition-all flex items-center gap-1.5 shadow-lg ${
               showGhostContour
                 ? 'bg-cyan-500/15 border-cyan-400/40 text-cyan-300'
                 : 'bg-white/5 border-white/10 text-slate-400 hover:text-white'
@@ -1375,18 +1377,22 @@ export function SpatialCanvas3D({
           <button
             onClick={() => setIsFullscreen((prev) => !prev)}
             title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
-            className="w-8 h-8 rounded-full bg-[#0E1117]/80 backdrop-blur-xl border border-white/10 text-slate-300 hover:text-white flex items-center justify-center transition-all shadow-lg"
+            className="w-8 h-8 rounded-full bg-[#0E1117]/80 border border-white/10 text-slate-300 hover:text-white flex items-center justify-center transition-all shadow-lg"
           >
             {isFullscreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
           </button>
         </div>
       </div>
 
-      {/* Diegetic Bottom HUD: Coordinates & Generative Lens Trigger */}
-      <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between pointer-events-none">
+      {/* One collapsed control surface keeps the 3D plot readable at rest. */}
+      <details className="absolute bottom-4 left-4 right-4 z-20">
+        <summary className="pointer-events-auto w-fit cursor-default rounded-full border border-white/10 bg-[#0E1117] px-3 py-1.5 text-[12px] font-code text-slate-300">
+          Observatory controls · probe, vault, Atlas
+        </summary>
+        <div className="mt-2 flex items-end justify-between pointer-events-none">
         <div className="pointer-events-auto flex flex-col gap-2 max-w-sm">
         {/* Raycasted Coordinates Readout */}
-        <div className="bg-[#0E1117]/90 backdrop-blur-xl border border-white/10 rounded-xl p-3 shadow-2xl">
+        <div className="bg-[#0E1117]/90 border border-white/10 rounded-xl p-3 shadow-2xl">
           <div className="text-[12px] uppercase font-code tracking-wider text-slate-400 mb-1 flex items-center gap-1.5">
             <Sparkles className="w-3 h-3 text-cyan-400" />
             <span>Spatial Inspection Probe</span>
@@ -1434,7 +1440,7 @@ export function SpatialCanvas3D({
         {/* Vault Pre-registration (P3): seal expectations before compute,
             evaluate pinned measurements against them. Ghost binds to the
             sealed μ; the badge renders the ledger-scored surprise. */}
-        <div className="bg-[#0E1117]/90 backdrop-blur-xl border border-white/10 rounded-xl p-3 shadow-2xl">
+        <div className="bg-[#0E1117]/90 border border-white/10 rounded-xl p-3 shadow-2xl">
           <div className="text-[12px] uppercase font-code tracking-wider text-slate-400 mb-1 flex items-center gap-1.5">
             <ShieldCheck className="w-3 h-3 text-emerald-400" />
             <span>Vault Pre-registration</span>
@@ -1624,13 +1630,13 @@ export function SpatialCanvas3D({
         {/* Generative Lens (Atlas Marble 2) Action Panel */}
         <div className="pointer-events-auto flex flex-col items-end gap-2">
           {lensError && (
-            <div className="bg-rose-950/80 border border-rose-500/40 text-rose-200 text-xs px-3 py-1.5 rounded-lg backdrop-blur-xl flex items-center gap-2 max-w-xs shadow-xl">
+            <div className="bg-rose-950/80 border border-rose-500/40 text-rose-200 text-xs px-3 py-1.5 rounded-lg flex items-center gap-2 max-w-xs shadow-xl">
               <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
               <span>{lensError}</span>
             </div>
           )}
 
-          <div className="bg-[#0E1117]/90 backdrop-blur-xl border border-white/10 rounded-xl p-3 shadow-2xl flex flex-col gap-2">
+          <div className="bg-[#0E1117]/90 border border-white/10 rounded-xl p-3 shadow-2xl flex flex-col gap-2">
           <div className="flex items-center gap-3">
             <div className="text-right">
               <div className="text-xs font-medium text-white flex items-center gap-1.5 justify-end">
@@ -1727,26 +1733,27 @@ export function SpatialCanvas3D({
           )}
           </div>
         </div>
-      </div>
+        </div>
+      </details>
 
       {/* Atlas Synthetic Lens Non-Evidential Watermark & Preview */}
       {lensImageUrl && (
         <div className="absolute top-16 right-4 z-20 flex flex-col items-end gap-2">
-          <div className="bg-black/80 border border-white/20 text-[12px] font-code text-slate-300 px-2.5 py-1 rounded backdrop-blur-md tracking-wider">
+          <div className="bg-black/80 border border-white/20 text-[12px] font-code text-slate-300 px-2.5 py-1 rounded tracking-wider">
             [{lensWatermark}]
           </div>
           {lensPromptUsed && (
-            <div className="bg-black/80 border border-white/20 text-[12px] font-code text-slate-400 px-2.5 py-1 rounded backdrop-blur-md max-w-56 truncate" title={lensPromptUsed}>
+            <div className="bg-black/80 border border-white/20 text-[12px] font-code text-slate-400 px-2.5 py-1 rounded max-w-56 truncate" title={lensPromptUsed}>
               promptUsed: {lensPromptUsed.slice(0, 80)}
             </div>
           )}
           {lensCostUsd != null && (
-            <div className="bg-black/80 border border-white/20 text-[12px] font-code text-slate-300 px-2.5 py-1 rounded backdrop-blur-md tracking-wider">
+            <div className="bg-black/80 border border-white/20 text-[12px] font-code text-slate-300 px-2.5 py-1 rounded tracking-wider">
               Reserved ${lensCostUsd.toFixed(2)} against session cap
             </div>
           )}
           {lensImageUrl.startsWith('http') && (
-            <div className="w-56 h-32 rounded-lg overflow-hidden border border-cyan-500/30 shadow-2xl relative group bg-black/60 backdrop-blur-sm">
+            <div className="w-56 h-32 rounded-lg overflow-hidden border border-cyan-500/30 shadow-2xl relative group bg-black/60">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={lensImageProxyUrl(lensImageUrl) ?? lensImageUrl}

@@ -283,6 +283,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
     let attempts = 0;
     const maxAttempts = 40;
     const interval = setInterval(async () => {
+      if (typeof document !== 'undefined' && document.hidden) return;
       try {
         attempts += 1;
         if (attempts > maxAttempts) {
@@ -556,7 +557,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
   }, [campaign?.classical_anchor?.anchor_computed, campaign?.classical_anchor?.fci_exact_energy, circuitData.numQubits]);
 
   return (
-    <div className="relative min-h-[560px] sm:min-h-[680px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0F19] to-[#07090E] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-4 sm:p-8 select-none">
+    <div className="relative min-h-[560px] sm:min-h-[680px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-4 sm:p-8 select-none">
       {/* Ambient Radial Discovery Lighting */}
       <div 
         className="absolute inset-0 pointer-events-none opacity-40 transition-opacity duration-1000"
@@ -568,7 +569,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
       {/* Top Floating Instrument Bar: Goal & Truth Indicator */}
       <div className="relative z-10 flex flex-wrap items-center justify-between gap-4">
         <div className="flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-2xl bg-white/[0.05] border border-white/10 backdrop-blur-xl flex items-center justify-center shadow-inner">
+          <div className="w-10 h-10 rounded-2xl bg-white/[0.05] border border-white/10 flex items-center justify-center shadow-inner">
             <Atom className="w-5 h-5 text-cyan-400 animate-float-gentle" />
           </div>
           <div>
@@ -591,7 +592,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
 
         <div className="flex flex-wrap items-center justify-end gap-2 sm:gap-3">
           {/* Mode Switcher: 2D Workbench vs 3D Observatory */}
-          <div role="group" aria-label="Canvas mode" className="flex items-center p-1 rounded-2xl bg-black/60 border border-white/10 backdrop-blur-xl shadow-inner">
+          <div role="group" aria-label="Canvas mode" className="flex items-center p-1 rounded-2xl bg-black/60 border border-white/10 shadow-inner">
             <button
               onClick={() => setCanvasMode('workbench')}
               aria-pressed={canvasMode === 'workbench'}
@@ -636,7 +637,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
           {layoutStatus && <span className="text-[12px] font-code text-slate-400">{layoutStatus}</span>}
 
           {/* Calm Truth Status Indicator */}
-          <div className="flex max-w-full flex-wrap items-center gap-x-2.5 gap-y-1 px-3 py-1.5 rounded-2xl bg-black/40 border border-white/10 backdrop-blur-xl">
+          <div className="flex max-w-full flex-wrap items-center gap-x-2.5 gap-y-1 px-3 py-1.5 rounded-2xl bg-black/40 border border-white/10">
             <div className={`w-2 h-2 rounded-full ${energyCalculated.anchored ? 'bg-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.8)]' : 'bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.8)]'}`} />
             <span className="text-xs font-medium text-slate-200">
               {energyCalculated.anchored
@@ -718,7 +719,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
             </div>
 
             {/* Bond Length Badge (Floating on bond center) */}
-            <div className="absolute -top-4 px-3 py-1 rounded-full bg-black/70 border border-white/15 backdrop-blur-md text-[12px] font-mono font-bold text-cyan-200 shadow-md">
+            <div className="absolute -top-4 px-3 py-1 rounded-full bg-black/70 border border-white/15 text-[12px] font-mono font-bold text-cyan-200 shadow-md">
               R = {typeof bondDistance === 'number' && Number.isFinite(bondDistance) ? bondDistance.toFixed(4) : 'UNVERIFIED'} Å
             </div>
           </div>
@@ -751,7 +752,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
           </div>
 
           {/* Molecular Pharmacology & ADMET Profile (RDKit Bridge Anchored) */}
-          <div className="w-full max-w-md mt-5 p-4 rounded-2xl bg-black/40 border border-white/[0.08] backdrop-blur-xl space-y-3">
+          <div className="w-full max-w-md mt-5 p-4 rounded-2xl bg-black/40 border border-white/[0.08] space-y-3">
             <div className="flex items-center justify-between text-xs">
               <span className="font-semibold text-slate-300 uppercase tracking-wider font-mono text-[12px] flex items-center space-x-2">
                 <Atom className="w-4 h-4 text-emerald-400" />
@@ -806,7 +807,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
       {/* Depth 2: Dynamic Variational Quantum Circuit Flow */}
       {canvasMode === 'workbench' && disclosureDepth === 2 && (
         <div className="relative z-10 flex-1 flex flex-col items-center justify-center my-6">
-          <div className="w-full max-w-3xl bg-black/50 border border-white/10 rounded-2xl p-6 backdrop-blur-xl space-y-6">
+          <div className="w-full max-w-3xl bg-black/50 border border-white/10 rounded-2xl p-6 space-y-6">
             <div className="flex flex-wrap items-center justify-between border-b border-white/[0.08] pb-3 gap-3">
               <div>
                 <div className="flex items-center space-x-2">
@@ -942,7 +943,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
       {/* Depth 3: Exact Molecular Integrals & Hamiltonian */}
       {canvasMode === 'workbench' && disclosureDepth === 3 && (
         <div className="relative z-10 flex-1 flex flex-col items-center justify-center my-6">
-          <div className="w-full max-w-2xl bg-black/60 border border-white/10 rounded-2xl p-6 backdrop-blur-xl space-y-4">
+          <div className="w-full max-w-2xl bg-black/60 border border-white/10 rounded-2xl p-6 space-y-4">
             <h3 className="text-sm font-semibold text-white">Full Configuration Interaction (FCI) Benchmark</h3>
             
             <div className="grid grid-cols-2 gap-4">
@@ -990,7 +991,7 @@ export function SpatialCanvas({ campaign }: SpatialCanvasProps) {
           </div>
 
           {/* 3-Depth Progressive Disclosure Segmented Switch */}
-          <div role="group" aria-label="Canvas mode" className="flex items-center p-1 rounded-2xl bg-black/60 border border-white/10 backdrop-blur-xl shadow-inner">
+          <div role="group" aria-label="Canvas mode" className="flex items-center p-1 rounded-2xl bg-black/60 border border-white/10 shadow-inner">
             <button
               onClick={() => setDisclosureDepth(1)}
               className={`px-3.5 py-1.5 rounded-xl text-xs font-medium transition-all ${

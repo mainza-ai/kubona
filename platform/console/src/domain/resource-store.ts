@@ -1,6 +1,7 @@
 'use client';
 
 import { useSyncExternalStore } from 'react';
+import { apiFailureFrom, type ApiFailure } from '@/lib/api-errors';
 
 export class ResourceRefusal<T> extends Error {
   constructor(
@@ -18,6 +19,7 @@ export type ResourceState<T> = {
   status: ResourceStatus;
   data: T | null;
   error: string | null;
+  failure: ApiFailure | null;
   revision: number;
   updatedAt: number;
   /** Current wait before the next poll; grows on failure. */
@@ -29,6 +31,7 @@ export type PollingStore<T> = {
   subscribe: (listener: () => void) => () => void;
   refresh: () => void;
   setLoader: (load: () => Promise<T>) => void;
+  setPollMs: (ms: number) => void;
   reset: () => void;
   dispose: () => void;
 };
@@ -62,12 +65,14 @@ export function createPollingStore<T>(
     status: 'idle',
     data: null,
     error: null,
+    failure: null,
     revision: 0,
     updatedAt: 0,
     intervalMs,
   };
   const listeners = new Set<() => void>();
   let loader = load;
+  let baseIntervalMs = intervalMs;
   let timer: ReturnType<typeof setTimeout> | null = null;
   let inFlight = false;
   let active = false;
@@ -90,7 +95,7 @@ export function createPollingStore<T>(
   const tick = async () => {
     if (!active) return;
     if (hidden()) {
-      schedule(hiddenIntervalMs);
+      if (baseIntervalMs > 0) schedule(hiddenIntervalMs);
       return;
     }
     if (inFlight) return;
@@ -104,16 +109,17 @@ export function createPollingStore<T>(
         status: 'ready',
         data,
         error: null,
+        failure: null,
         revision: state.revision + 1,
         updatedAt: Date.now(),
-        intervalMs,
+        intervalMs: baseIntervalMs,
       });
-      if (shouldContinue?.(data) === false) clearTimer();
-      else schedule(intervalMs);
+      if (shouldContinue?.(data) === false || baseIntervalMs <= 0) clearTimer();
+      else schedule(baseIntervalMs);
     } catch (err) {
       if (!active || gen !== generation) return;
       if (err instanceof StopPolling) {
-        publish({ status: state.data === null ? 'refused' : 'stale', error: err.message });
+        publish({ status: state.data === null ? 'refused' : 'stale', error: err.message, failure: null });
         clearTimer();
         return;
       }
@@ -124,9 +130,11 @@ export function createPollingStore<T>(
         status: data === null ? 'refused' : 'stale',
         data,
         error: err instanceof Error ? err.message : String(err),
+        failure: apiFailureFrom(err),
         intervalMs: next,
       });
-      schedule(next);
+      if (baseIntervalMs > 0) schedule(next);
+      else clearTimer();
     } finally {
       if (gen === generation) inFlight = false;
     }
@@ -169,14 +177,21 @@ export function createPollingStore<T>(
       };
     },
     setLoader: (next) => { loader = next; },
+    setPollMs: (ms) => {
+      baseIntervalMs = Math.max(0, ms);
+      if (!active) return;
+      clearTimer();
+      if (baseIntervalMs > 0) schedule(baseIntervalMs);
+    },
     reset: () => {
       state = {
         status: 'idle',
         data: null,
         error: null,
+        failure: null,
         revision: 0,
         updatedAt: 0,
-        intervalMs,
+        intervalMs: baseIntervalMs,
       };
     },
     refresh: () => {

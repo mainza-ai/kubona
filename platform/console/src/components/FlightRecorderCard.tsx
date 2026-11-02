@@ -64,7 +64,7 @@ function FlightRecorderCardInner({ sessionId }: { sessionId: string }) {
   const loading = status === 'loading';
 
   return (
-    <div className="rounded-lg border border-slate-700 bg-slate-900/95 p-4 text-slate-100 shadow-xl backdrop-blur">
+    <div className="rounded-lg border border-slate-700 bg-slate-900/95 p-4 text-slate-100 shadow-xl">
       <div className="flex items-center justify-between border-b border-slate-800 pb-3">
         <div className="flex items-center space-x-2">
           <span className="flex h-2.5 w-2.5 rounded-full bg-cyan-400" />

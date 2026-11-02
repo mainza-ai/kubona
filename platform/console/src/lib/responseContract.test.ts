@@ -72,9 +72,9 @@ describe('response contracts', () => {
     expect(validateResponse('messages.list', { messages: [] })).toEqual([]);
     expect(validateResponse('workbench.layout', { session_id: 's1', revision: 2, document: { version: 2 } })).toEqual([]);
     expect(validateResponse('jobs.list', { jobs: [] })).toEqual([]);
-    expect(validateResponse('jobs.list', { jobs: [{ id: 'j1', session_id: 's1', status: 2, job_type: 'vqe', params_json: {}, created_at: '2026-11-01T00:00:00Z' }] })).toEqual([]);
+    expect(validateResponse('jobs.list', { jobs: [{ id: 'j1', session_id: 's1', status: 'running', status_code: 2, job_type: 'vqe', params_json: {}, created_at: '2026-11-01T00:00:00Z' }] })).toEqual([]);
     expect(validateResponse('job', { job: { id: 'j1', session_id: 's1', status: 'QUEUED', job_type: 'vqe', params_json: '{}', created_at: '2026-11-01T00:00:00Z' } })).toEqual([]);
-    expect(validateResponse('job', { job: { id: 'j1', session_id: 's1', status: 3, job_type: 'vqe', params_json: {}, created_at: '2026-11-01T00:00:00Z' } })).toEqual([]);
+    expect(validateResponse('job', { job: { id: 'j1', session_id: 's1', status: 3, job_type: 'vqe', params_json: {}, created_at: '2026-11-01T00:00:00Z' } })).not.toEqual([]);
     expect(validateResponse('auth.whoami', { authenticated: true, tenant_id: 'lab' })).toEqual([]);
     expect(
       validateResponse('cost.summary', {

@@ -294,7 +294,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
   };
 
   return (
-    <div className="relative rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0E17] to-[#06080D] border border-white/[0.08] shadow-2xl p-7 space-y-6">
+    <div className="relative rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl p-7 space-y-6">
       {meshError && (
         <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-200 text-xs">
           Mesh error — {meshError} Nothing was changed.
@@ -316,13 +316,13 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
       {/* Serene Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-5">
         <div className="flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 backdrop-blur-xl flex items-center justify-center shadow-inner">
+          <div className="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center shadow-inner">
             <Network className="w-5 h-5 text-indigo-400" />
           </div>
           <div>
             <h2 className="text-base font-semibold text-white tracking-tight flex items-center space-x-2">
               <span>Sovereign Cognitive Mesh &amp; Mission Control</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
               Multimodal model routing, local zero-config discovery, and declarative agent orchestration
@@ -375,7 +375,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
       </div>
 
       {/* LLM spend (server-sealed aggregates, heuristic estimates) */}
-      <div className="p-4 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl">
+      <div className="p-4 rounded-2xl bg-black/40 border border-white/[0.06]">
         <div className="text-[12px] font-semibold text-slate-300 uppercase tracking-wider font-mono flex items-center space-x-2">
           <span>LLM spend — server-sealed</span>
           {costSummary?.local_bypass && (
@@ -406,7 +406,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
       </div>
 
       {/* Host Port Radar Discovery */}
-      <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl space-y-3">
+      <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] space-y-3">
         <div className="flex items-center justify-between text-xs">
           <span className="font-semibold text-slate-300 uppercase tracking-wider font-mono text-[12px] flex items-center space-x-2">
             <Terminal className="w-4 h-4 text-cyan-400" />
@@ -444,7 +444,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
                     : 'bg-white/[0.04] text-slate-300 border-white/10'
                 }`}
               >
-                <span className={`w-1.5 h-1.5 rounded-full ${ep.listening ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}`} />
+                <span className={`w-1.5 h-1.5 rounded-full ${ep.listening ? 'bg-emerald-400' : 'bg-slate-400'}`} />
                 <span>{ep.listening ? 'ONLINE' : 'IDLE'}</span>
               </span>
             </div>
@@ -453,7 +453,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
       </div>
 
       {/* Multimodal Mission Control Route Simulator */}
-      <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl space-y-3">
+      <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] space-y-3">
         <div className="flex items-center justify-between text-xs">
           <span className="font-semibold text-slate-300 uppercase tracking-wider font-mono text-[12px] flex items-center space-x-2">
             <Zap className="w-4 h-4 text-amber-400" />
@@ -527,7 +527,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
       </div>
 
       {systemAgents.length > 0 && (
-        <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl space-y-2">
+        <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] space-y-2">
           <div className="text-[12px] font-semibold text-slate-300 uppercase tracking-wider font-mono">
             Tribunal system roles ({systemAgents.length})
           </div>
@@ -543,7 +543,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
       )}
 
       {/* Agents Matrix: Standard System + User-Defined */}
-      <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl space-y-4">
+      <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] space-y-4">
         <div className="flex items-center justify-between text-xs">
           <div className="flex items-center space-x-2">
             <Users className="w-4 h-4 text-indigo-400" />
@@ -614,7 +614,7 @@ export function CognitiveMesh({ campaign }: CognitiveMeshProps) {
 
       {/* Modal: Create User-Defined Agent */}
       {isCreatingAgent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-fade-in">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 animate-fade-in">
           <div
             ref={createAgentPanelRef}
             role="dialog"

@@ -47,16 +47,16 @@ function campaign() {
   };
 }
 
-function loops() {
-  return Array.from({ length: LOOPS }, (_, index) => ({
+function loops(count = LOOPS) {
+  return Array.from({ length: count }, (_, index) => ({
     id: `loop-${index.toString().padStart(3, '0')}`, session_id: 'perf-session',
     status: index % 7 === 0 ? 'paused' : 'running', step_count: index, max_steps: 50,
     diverged: index % 31 === 0, created_at: '2026-11-01T00:00:00Z', updated_at: '2026-11-01T00:00:00Z',
   }));
 }
 
-function jobs() {
-  return Array.from({ length: JOBS }, (_, index) => ({
+function jobs(count = JOBS) {
+  return Array.from({ length: count }, (_, index) => ({
     id: `job-${index.toString().padStart(3, '0')}`, session_id: 'perf-session',
     status: 'COMPLETED', job_type: `perf-job-${index}`, params_json: '{}',
     result_json: '{}', created_at: '2026-11-01T00:00:00Z', completed_at: '2026-11-01T00:01:00Z',
@@ -64,8 +64,8 @@ function jobs() {
   }));
 }
 
-function obligations() {
-  return Array.from({ length: OBLIGATIONS }, (_, index) => ({
+function obligations(count = OBLIGATIONS) {
+  return Array.from({ length: count }, (_, index) => ({
     id: `obligation-${index.toString().padStart(3, '0')}`, subject_kind: 'job',
     subject_id: `job-${index.toString().padStart(3, '0')}`, owner: 'operator',
     disposition: 'open', required_cases: [], required_authorities: [],
@@ -73,7 +73,7 @@ function obligations() {
   }));
 }
 
-export async function mockApi(page: Page) {
+export async function mockApi(page: Page, counts: { loops?: number; jobs?: number; obligations?: number } = {}) {
   await page.route('**/api/**', async (route: Route) => {
     const url = new URL(route.request().url());
     const path = url.pathname;
@@ -81,9 +81,9 @@ export async function mockApi(page: Page) {
     if (path === '/api/config') return json({ apiUrl: BASE, workbench: true });
     if (path === '/api/sessions') return json({ sessions: [session()] });
     if (path === '/api/sessions/perf-session') return json(session());
-    if (path === '/api/loops') return json({ loops: loops() });
-    if (path === '/api/jobs') return json({ jobs: jobs() });
-    if (path === '/api/obligations/open') return json({ obligations: obligations() });
+    if (path === '/api/loops') return json({ loops: loops(counts.loops) });
+    if (path === '/api/jobs') return json({ jobs: jobs(counts.jobs) });
+    if (path === '/api/obligations/open') return json({ obligations: obligations(counts.obligations) });
     if (path === '/api/events') return json({ events: [] });
     if (path === '/api/events/stream') return route.fulfill({ status: 204, body: '' });
     if (path === '/api/sessions/perf-session/campaign') return json(campaign());
@@ -94,6 +94,11 @@ export async function mockApi(page: Page) {
     if (path === '/api/canvas/layout') return json({});
     if (path === '/api/health' || path === '/api/ready') return json({ ok: true, status: 'ready', ready: true });
     if (path === '/api/cost/summary') return json({ cap_usd: 100, spent_usd: 0, remaining_usd: 100, unmetered_count: 0, by_provider: {}, active_provider: 'local', local_bypass: true, heuristic: false, currency: 'USD', track_only: false });
+    if (path === '/api/llm/settings') return json({ active_provider: 'local', active_model: '', providers: {}, role_assignments: {}, air_gapped: false, disable_dsml_fallback: false, temperature: 0, max_tokens: 0 });
+    if (path === '/api/llm/models') return json({ models: [] });
+    if (path === '/api/quantum/backends') return json({ backends: [] });
+    if (path === '/api/quantum/settings') return json({ default_backend: 'local-simulator', harness_backends: {} });
+
     return json({});
   });
 }

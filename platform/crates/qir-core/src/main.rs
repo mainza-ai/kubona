@@ -2,6 +2,7 @@
 //!
 //! Usage: qir-core [--json] [--llvm] [file.qasm]   (reads stdin when no file given)
 
+use std::collections::BTreeMap;
 use std::io::{self, Read};
 
 fn main() {
@@ -53,16 +54,53 @@ fn main() {
     };
 
     if json_mode {
-        if let Err(e) = qir_core::emit_llvm_ir(&native) {
-            eprintln!("lowering error: {e}");
-            std::process::exit(1);
+        let ir = match qir_core::emit_llvm_ir(&native) {
+            Ok(ir) => ir,
+            Err(e) => { eprintln!("lowering error: {e}"); std::process::exit(1); }
+        };
+        let mut counts = BTreeMap::<String, usize>::new();
+        for gate in &native.gates {
+            let name = if gate.name == "cnot" { "cx" } else { gate.name.as_str() };
+            *counts.entry(name.to_string()).or_insert(0) += 1;
         }
-        let summary = qir_core::analyze_circuit(&native);
-        println!("{}", summary.to_json());
+        let count_json = counts
+            .iter()
+            .map(|(name, count)| format!("\"{}\":{}", json_escape(name), count))
+            .collect::<Vec<_>>()
+            .join(",");
+        let set_json = counts
+            .keys()
+            .map(|name| format!("\"{}\"", json_escape(name)))
+            .collect::<Vec<_>>()
+            .join(",");
+        println!(
+            "{{\"ok\":true,\"num_qubits\":{},\"native_gate_count\":{{{}}},\"native_gate_set\":[{}],\"qir\":\"{}\"}}",
+            native.num_qubits,
+            count_json,
+            set_json,
+            json_escape(&ir),
+        );
     } else {
         match qir_core::emit_llvm_ir(&native) {
             Ok(ir) => print!("{ir}"),
             Err(e) => { eprintln!("lowering error: {e}"); std::process::exit(1); }
         }
     }
+}
+
+
+fn json_escape(value: &str) -> String {
+    let mut out = String::with_capacity(value.len() + 16);
+    for ch in value.chars() {
+        match ch {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            '\n' => out.push_str("\\n"),
+            '\r' => out.push_str("\\r"),
+            '\t' => out.push_str("\\t"),
+            c if (c as u32) < 0x20 => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out
 }

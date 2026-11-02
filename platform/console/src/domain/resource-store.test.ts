@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { StopPolling, createPollingStore } from './resource-store';
+import { ApiFailureError } from '@/lib/api-errors';
 
 describe('createPollingStore', () => {
   afterEach(() => {
@@ -45,6 +46,19 @@ describe('createPollingStore', () => {
     expect(second.getSnapshot().status).toBe('refused');
     off();
     unsubscribe();
+  });
+
+  it('keeps a structured failure so auth and transport are distinguishable', async () => {
+    vi.useFakeTimers();
+    const load = vi.fn(async () => {
+      throw new ApiFailureError({ path: '/api/loops', status: 401, kind: 'auth', message: 'login required', at: 1 });
+    });
+    const store = createPollingStore(load, { intervalMs: 1000 });
+    const off = store.subscribe(() => {});
+    await vi.advanceTimersByTimeAsync(0);
+    expect(store.getSnapshot().status).toBe('refused');
+    expect(store.getSnapshot().failure?.kind).toBe('auth');
+    off();
   });
 
   it('keeps the previous snapshot stale and backs off on failure', async () => {

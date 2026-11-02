@@ -679,13 +679,14 @@ func TestSupervisorAbortSettlesJobsFailed(t *testing.T) {
 	srv.Handler().ServeHTTP(listW, listReq)
 	var listResp struct {
 		Jobs []struct {
-			Status int32 `json:"status"`
+			Status     string `json:"status"`
+			StatusCode int32  `json:"status_code"`
 		} `json:"jobs"`
 	}
 	if err := json.NewDecoder(listW.Body).Decode(&listResp); err != nil {
 		t.Fatalf("decode failed: %v", err)
 	}
-	if len(listResp.Jobs) != 1 || listResp.Jobs[0].Status != int32(pb.JobStatus_JOB_STATUS_FAILED) {
+	if len(listResp.Jobs) != 1 || listResp.Jobs[0].Status != "failed" || listResp.Jobs[0].StatusCode != int32(pb.JobStatus_JOB_STATUS_FAILED) {
 		t.Fatalf("aborted job must read back failed: %+v", listResp)
 	}
 }

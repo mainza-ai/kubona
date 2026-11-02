@@ -300,17 +300,17 @@ export function LLMSettings() {
   }
 
   return (
-    <div className="relative rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0E17] to-[#06080D] border border-white/[0.08] shadow-2xl p-7 space-y-6 select-none">
+    <div className="relative rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl p-7 space-y-6 select-none">
       {/* Serene Header & Save Button */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-5">
         <div className="flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 backdrop-blur-xl flex items-center justify-center shadow-inner">
+          <div className="w-10 h-10 rounded-2xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center shadow-inner">
             <Sliders className="w-5 h-5 text-cyan-400" />
           </div>
           <div>
             <h2 className="text-base font-semibold text-white tracking-tight flex items-center space-x-2">
               <span>Sovereign Intelligence Configuration</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="w-2 h-2 rounded-full bg-emerald-400" />
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
               Local Apple Silicon Neural Engine (oMLX, Ollama), cloud models, and air-gap controls
@@ -387,7 +387,7 @@ export function LLMSettings() {
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-4 py-1.5 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white text-xs font-semibold rounded-xl flex items-center space-x-2 shadow-md active:scale-95 disabled:opacity-50 transition-all"
+            className="px-4 py-1.5 bg-[var(--color-accent)] hover:bg-[var(--color-lit)] text-[var(--color-on-accent)] text-xs font-semibold rounded-xl flex items-center space-x-2 shadow-md active:scale-95 disabled:opacity-50 transition-all"
           >
             {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Database className="w-3.5 h-3.5" />}
             <span>Save Settings</span>
@@ -423,10 +423,10 @@ export function LLMSettings() {
           </div>
 
           {Object.entries(settings.providers).map(([pt, pc]) => (
-            <div key={pt} className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl space-y-3.5">
+            <div key={pt} className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] space-y-3.5">
               <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
                 <div className="flex items-center space-x-2">
-                  <span className={`w-2 h-2 rounded-full ${pc.enabled ? 'bg-emerald-400 animate-pulse' : 'bg-slate-600'}`} />
+                  <span className={`w-2 h-2 rounded-full ${pc.enabled ? 'bg-emerald-400' : 'bg-slate-600'}`} />
                   <span className="font-semibold text-xs text-white">{pc.name}</span>
                   {pc.is_local && (
                     <span className="text-[12px] font-mono text-emerald-300 bg-emerald-950/60 px-1.5 py-0.5 rounded-full border border-emerald-800">LOCAL</span>
@@ -495,7 +495,7 @@ export function LLMSettings() {
             </div>
           ))}
 
-          <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl space-y-3.5">
+          <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] space-y-3.5">
             <div className="text-xs font-semibold text-white">Generation defaults</div>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -614,7 +614,7 @@ export function LLMSettings() {
           )}
 
           {/* Role Routing Matrix (editable) */}
-          <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl space-y-3">
+          <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] space-y-3">
             <h4 className="text-xs font-bold text-slate-200 uppercase tracking-wide font-mono">
               Agent → Provider : Model
             </h4>
@@ -665,7 +665,7 @@ export function LLMSettings() {
       </div>
 
       {/* Live Inference & Latency Benchmark */}
-      <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] backdrop-blur-xl space-y-4">
+      <div className="p-5 rounded-2xl bg-black/40 border border-white/[0.06] space-y-4">
         <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
           <div className="flex items-center space-x-2">
             <Zap className="w-4 h-4 text-cyan-400" />
@@ -693,7 +693,7 @@ export function LLMSettings() {
             <button
               onClick={handleRunTest}
               disabled={testing || !testPrompt.trim()}
-              className="px-4 py-2 bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white text-xs font-semibold rounded-xl flex items-center space-x-2 disabled:opacity-50 shadow-md active:scale-95 transition-all"
+              className="px-4 py-2 bg-[var(--color-accent)] hover:bg-[var(--color-lit)] text-[var(--color-on-accent)] text-xs font-semibold rounded-xl flex items-center space-x-2 disabled:opacity-50 shadow-md active:scale-95 transition-all"
             >
               {testing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
               <span>{testing ? 'Benchmarking...' : 'Test Model'}</span>

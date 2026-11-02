@@ -14,6 +14,7 @@ silently masqueraded as "binary absent" and nobody ever noticed.
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 from pathlib import Path
@@ -77,7 +78,7 @@ def rust_available() -> bool:
 
 
 def lower_with_rust(qasm: str, bin_path: Path | None = None) -> dict[str, Any] | None:
-    """Run the Rust core; returns the QIR text + parsed metadata.
+    """Run the Rust core; returns the QIR text + structured metadata.
 
     Returns None ONLY when no binary is present. A present-but-failing binary
     raises RuntimeError with stderr (fail-closed: a broken compiler is never
@@ -90,7 +91,7 @@ def lower_with_rust(qasm: str, bin_path: Path | None = None) -> dict[str, Any] |
     if not qasm or not qasm.strip():
         raise ValueError("lower_with_rust refused: empty QASM input")
     try:
-        proc = subprocess.run([str(binary)], input=qasm.encode(), capture_output=True,
+        proc = subprocess.run([str(binary), "--json"], input=qasm.encode(), capture_output=True,
                               timeout=15, check=False)
     except subprocess.TimeoutExpired as e:
         raise RuntimeError(
@@ -104,10 +105,40 @@ def lower_with_rust(qasm: str, bin_path: Path | None = None) -> dict[str, Any] |
         raise RuntimeError(
             f"qir-core exited {proc.returncode}: {stderr or '(empty stderr)'}"
         )
-    qir_text = proc.stdout.decode()
-    if not qir_text.strip():
+    raw = proc.stdout.decode()
+    if not raw.strip():
         raise RuntimeError("qir-core returned empty QIR output: refusing")
-    # derive circuit metadata from the emitted text (consistent with Python reference)
+    try:
+        payload = json.loads(raw)
+    except json.JSONDecodeError:
+        payload = None
+    if isinstance(payload, dict):
+        if payload.get("ok") is not True:
+            raise RuntimeError(f"qir-core returned a failed receipt: {payload}")
+        qir_text = payload.get("qir")
+        if not isinstance(qir_text, str) or not qir_text.strip():
+            raise RuntimeError("qir-core JSON receipt carried no QIR text: refusing")
+        counts = payload.get("native_gate_count")
+        native_gate_count = {
+            str(k): int(v) for k, v in counts.items()
+            if isinstance(v, int) and v >= 0
+        } if isinstance(counts, dict) else {}
+        gate_set = payload.get("native_gate_set")
+        native_gate_set = [str(g) for g in gate_set] if isinstance(gate_set, list) else list(native_gate_count.keys())
+        return {
+            "ok": True,
+            "tier": "rust-qir-core",
+            "circuit_name": "rust-lowered",
+            "num_qubits": int(payload.get("num_qubits") or 0),
+            "native_gate_set": native_gate_set or ["rx", "ry", "rz", "cx", "x", "h"],
+            "passes": ["parse_qasm", "transpile_to_native", "emit_qir (Rust qir-core)"],
+            "qir_text": qir_text,
+            "native_gate_count": native_gate_count,
+            "engine": "rust-qir-core",
+        }
+    # Legacy binary without --json: keep the old text fallback for operator-
+    # supplied builds. The shipped Rust core returns structured metadata.
+    qir_text = raw
     num_qubits = 0
     native_gate_count: dict[str, int] = {}
     for line in qir_text.splitlines():

@@ -282,11 +282,11 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
   const sessionTenantLabel = (session?.tenant_id ?? '').trim() || 'unbound';
 
   return (
-    <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0F19] to-[#07090E] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-8 select-none">
+    <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-8 select-none">
       {/* Top Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-5">
         <div className="flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-2xl bg-white/[0.05] border border-white/10 backdrop-blur-xl flex items-center justify-center shadow-inner">
+          <div className="w-10 h-10 rounded-2xl bg-white/[0.05] border border-white/10 flex items-center justify-center shadow-inner">
             <KeyRound className="w-5 h-5 text-amber-400" />
           </div>
           <div>
@@ -310,7 +310,7 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
                 ? `Live: ${sentinelReason}`
                 : 'Predicates unreachable — status unknown, no assurance claimed'
           }
-          className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-full backdrop-blur-xl ${
+          className={`flex items-center space-x-2 px-3.5 py-1.5 rounded-full ${
             sentinelActive
               ? 'bg-black/40 border border-white/10'
               : sentinelPredicatesLive
@@ -358,7 +358,7 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
         )}
 
         {/* Meta Muse-Inspired Proactive Approval Card */}
-        <div className="w-full bg-black/60 border border-white/10 rounded-3xl p-6 backdrop-blur-2xl shadow-xl space-y-4">
+        <div className="w-full bg-black/60 border border-white/10 rounded-3xl p-6 shadow-xl space-y-4">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-white flex items-center space-x-2">
               <Sparkles className="w-4 h-4 text-cyan-400" />
@@ -412,7 +412,7 @@ export function AutonomyCockpit({ campaign, session }: AutonomyCockpitProps) {
         </div>
 
         {/* Budget Planning View (local sketch — enforcement lives in the session cap) */}
-        <div className="w-full bg-black/50 border border-white/10 rounded-3xl p-6 backdrop-blur-xl space-y-4">
+        <div className="w-full bg-black/50 border border-white/10 rounded-3xl p-6 space-y-4">
           <div className="flex justify-between items-center text-xs">
             <span className="font-semibold text-white">Planning Ceiling <span className="text-slate-500 font-normal">(local view)</span></span>
             <span className="font-mono text-emerald-400 font-bold">${fmtFixed(budgetUSD, 2)} Maximum</span>

@@ -304,7 +304,7 @@ export function EpistemicTribunalRoom({
   return (
     <div className="space-y-6">
       {/* Header & Chamber Overview */}
-      <div className="bg-neutral-900/80 border border-neutral-800 rounded-xl p-5 backdrop-blur-md flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="bg-neutral-900/80 border border-neutral-800 rounded-xl p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2 mb-1">
             <span className="p-1.5 rounded-lg bg-indigo-950/60 text-indigo-400 border border-indigo-500/30">
@@ -502,7 +502,7 @@ export function EpistemicTribunalRoom({
           aria-valuemax={100}
         >
           <div
-            className="bg-gradient-to-r from-emerald-500 to-cyan-400 h-full rounded-full transition-all duration-500"
+            className="bg-[var(--color-success)] h-full rounded-full transition-all duration-500"
             style={{ width: `${quorumPercent != null ? Math.min(quorumPercent, 100) : 0}%` }}
           />
         </div>

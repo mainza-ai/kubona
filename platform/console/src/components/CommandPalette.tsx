@@ -25,6 +25,7 @@ import {
   GitBranch,
   Keyboard,
   LayoutDashboard,
+  Box,
 } from 'lucide-react';
 import { SHORTCUTS } from '@/lib/shortcuts';
 import { useFocusTrap } from '@/lib/useFocusTrap';
@@ -38,6 +39,8 @@ interface CommandPaletteProps {
   onOpenAbout: () => void;
   onToggleCopilot?: () => void;
   onOpenShortcuts?: () => void;
+  objects?: Array<{ id: string; label: string; title: string; kind: string }>;
+  onOpenObject?: (id: string) => void;
 }
 
 export function CommandPalette({
@@ -49,6 +52,8 @@ export function CommandPalette({
   onOpenAbout,
   onToggleCopilot,
   onOpenShortcuts,
+  objects = [],
+  onOpenObject,
 }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -222,6 +227,19 @@ export function CommandPalette({
             action: onOpenShortcuts,
           },
         ]
+      : []),
+    ...(onOpenObject && query.trim().length >= 2
+      ? objects
+          .filter((object) => `${object.label}: ${object.title}`.toLowerCase().includes(query.trim().toLowerCase()))
+          .slice(0, 20)
+          .map((object) => ({
+          id: `object-${object.id}`,
+          title: `${object.label}: ${object.title}`,
+          category: 'Workbench objects',
+          shortcut: undefined,
+          icon: Box,
+            action: () => onOpenObject(object.id),
+          }))
       : []),
     {
       id: 'new-campaign',

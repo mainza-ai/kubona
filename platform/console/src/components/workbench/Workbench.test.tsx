@@ -90,6 +90,21 @@ describe('Workbench', () => {
     expect(tree!.root.findByProps({ className: 'k-workbench-empty' })).toBeTruthy();
   });
 
+  it('shows a campaign read refusal instead of an empty campaign', async () => {
+    const onRetry = vi.fn();
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(<Workbench campaign={null} error="campaign read refused" onRetry={onRetry} />);
+    });
+    const text = JSON.stringify(tree!.toJSON());
+    expect(text).toContain('Campaign unavailable');
+    expect(text).toContain('campaign read refused');
+    act(() => {
+      tree!.root.findByProps({ 'data-testid': 'retry-campaign' }).props.onClick();
+    });
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
   it('projects the campaign into typed cards and a figure', async () => {
     let tree: TestRenderer.ReactTestRenderer;
     await act(async () => {
@@ -104,6 +119,54 @@ describe('Workbench', () => {
       expect.arrayContaining(['campaign', 'hypothesis', 'circuit', 'measurement', 'chart', 'table', 'note', 'molecule', 'task']),
     );
     expect(tree!.root.findAllByProps({ 'data-testid': 'k-chart' }).length).toBe(1);
+  });
+
+  it('completes a task inline and shows recorded session spend', async () => {
+    const onTaskStatus = vi.fn();
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(
+        <Workbench
+          campaign={campaign}
+          sessionId="s1"
+          sessionSpendUsd={4.18}
+          onTaskStatus={onTaskStatus}
+          tasks={[{
+            id: 't1', session_id: 's1', title: 'Review anchor', status: 'open',
+            source_domain: 'measurement', source_id: 'm1', created_at: '', updated_at: '',
+          }]}
+        />,
+      );
+    });
+    expect(JSON.stringify(tree!.toJSON())).toContain('4.18');
+    const task = tree!.root.findAllByProps({ 'data-kind': 'task' })[0];
+    await act(async () => { task.props.onClick({ metaKey: false, ctrlKey: false, shiftKey: false }); });
+    const done = tree!.root.findAllByType('button').find((button) => button.props.children === 'Mark done');
+    act(() => { done!.props.onClick({ stopPropagation: () => {} }); });
+    expect(onTaskStatus).toHaveBeenCalledWith('t1', 'done');
+  });
+
+  it('closes a close-ready approval from the card', async () => {
+    const onCloseObligation = vi.fn();
+    let tree: TestRenderer.ReactTestRenderer;
+    await act(async () => {
+      tree = TestRenderer.create(
+        <Workbench
+          campaign={campaign}
+          sessionId="s1"
+          onCloseObligation={onCloseObligation}
+          obligations={[{
+            id: 'ob-1234567890', subject_kind: 'job', subject_id: 'job-1', owner: 'operator',
+            disposition: 'open', required_cases: [], required_authorities: [], close_ready: true, close_reasons: [],
+          }]}
+        />,
+      );
+    });
+    const approval = tree!.root.findAllByProps({ 'data-kind': 'approval' })[0];
+    act(() => { approval.props.onClick({ metaKey: false, ctrlKey: false, shiftKey: false }); });
+    const close = tree!.root.findByProps({ 'data-testid': 'close-approval' });
+    act(() => { close!.props.onClick({ stopPropagation: () => {} }); });
+    expect(onCloseObligation).toHaveBeenCalledWith('ob-1234567890');
   });
 
   it('offers a list equivalent of the canvas', async () => {

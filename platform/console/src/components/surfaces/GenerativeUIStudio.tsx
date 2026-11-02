@@ -42,7 +42,7 @@ export function GenerativeUIStudio({ campaign, tenantId }: { campaign?: Campaign
   return (
     <div className="space-y-6">
       {/* Surface Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-3xl bg-gradient-to-r from-purple-950/40 via-black to-blue-950/40 border border-white/[0.08] backdrop-blur-2xl">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-6 rounded-3xl bg-[var(--color-page)] border border-white/[0.08]">
         <div className="space-y-1">
           <div className="flex items-center space-x-2">
             <span className="px-2.5 py-0.5 rounded-full text-[12px] font-mono tracking-wider uppercase bg-purple-500/20 text-purple-300 border border-purple-500/30">

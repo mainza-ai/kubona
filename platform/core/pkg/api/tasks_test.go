@@ -77,3 +77,43 @@ func TestTaskCreateListAndClose(t *testing.T) {
 		t.Fatalf("list after close: %+v", got)
 	}
 }
+
+func TestTaskCreateIsIdempotentWithRequestID(t *testing.T) {
+	t.Setenv("KUBONA_ALLOW_EPHEMERAL_SIGNER", "1")
+	l, err := ledger.OpenLedger(t.TempDir() + "/tasks_idem.db")
+	if err != nil {
+		t.Fatalf("ledger: %v", err)
+	}
+	defer l.Close()
+	sm := session.NewManager(l)
+	sup := supervisor.NewSupervisor(l)
+	srv := NewServer(l, sm, jobs.NewRunner(l, nil, 1), sup, watchdog.NewTaskWatchdog(l, sup))
+	sess, err := sm.CreateSession("tasks idem", 10, "")
+	if err != nil {
+		t.Fatalf("session: %v", err)
+	}
+	h := srv.Handler()
+	body := func(title string) []byte {
+		raw, _ := json.Marshal(map[string]any{
+			"session_id": sess.ID, "title": title, "source_domain": "measurement", "source_id": "m1", "request_id": "task-create-1",
+		})
+		return raw
+	}
+	post := func(title string) *httptest.ResponseRecorder {
+		w := httptest.NewRecorder()
+		h.ServeHTTP(w, httptest.NewRequest(http.MethodPost, "/api/tasks", bytes.NewReader(body(title))))
+		return w
+	}
+	first := post("Inspect the anchor")
+	if first.Code != http.StatusOK {
+		t.Fatalf("first create: %d %s", first.Code, first.Body.String())
+	}
+	replay := post("Inspect the anchor")
+	if replay.Code != http.StatusOK || replay.Header().Get("X-Idempotent-Replay") != "true" {
+		t.Fatalf("replay must return the stored receipt: %d %q", replay.Code, replay.Header().Get("X-Idempotent-Replay"))
+	}
+	conflict := post("Different title")
+	if conflict.Code != http.StatusConflict {
+		t.Fatalf("same request id with different content must 409, got %d %s", conflict.Code, conflict.Body.String())
+	}
+}

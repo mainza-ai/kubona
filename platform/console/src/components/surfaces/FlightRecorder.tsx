@@ -7,6 +7,7 @@ import {
 import { Loop, LedgerEvent, CampaignState } from '@/types';
 import { LoopControlList } from '@/components/common/LoopControlList';
 import { Chart } from '@/components/data/LazyChart';
+import { fetchEventsResult } from '@/lib/api';
 import type { ChartSpec } from '@/components/data/chart';
 import { SessionPortability } from '@/components/common/SessionPortability';
 import { LedgerVerifyPanel } from '@/components/common/LedgerVerifyPanel';
@@ -14,6 +15,7 @@ import { LedgerVerifyPanel } from '@/components/common/LedgerVerifyPanel';
 interface FlightRecorderProps {
   loops?: Loop[];
   events?: LedgerEvent[];
+  sessionId?: string | null;
   campaign?: CampaignState | null;
   onLoopsChanged?: () => void;
   onSessionImported?: (sessionId: string, replayed: boolean) => void;
@@ -29,7 +31,24 @@ interface StoryMilestone {
   codeDiff?: string;
 }
 
-export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChanged, onSessionImported }: FlightRecorderProps) {
+export function FlightRecorder({ loops = [], events = [], sessionId, campaign, onLoopsChanged, onSessionImported }: FlightRecorderProps) {
+  const [olderEvents, setOlderEvents] = useState<LedgerEvent[]>([]);
+  const [historyBusy, setHistoryBusy] = useState(false);
+  const history = (() => {
+    const byId = new Map<number, LedgerEvent>();
+    for (const event of [...events, ...olderEvents]) byId.set(event.id, event);
+    return Array.from(byId.values()).sort((a, b) => a.id - b.id);
+  })();
+  const loadOlderEvents = async () => {
+    if (!sessionId || history.length === 0 || historyBusy) return;
+    setHistoryBusy(true);
+    try {
+      const result = await fetchEventsResult(sessionId, Math.min(...history.map((event) => event.id)));
+      if (result.ok) setOlderEvents((previous) => [...previous, ...result.data]);
+    } finally {
+      setHistoryBusy(false);
+    }
+  };
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentStepIndex, setCurrentStepIndex] = useState(3);
   const [showCodeDiff, setShowCodeDiff] = useState(false);
@@ -259,7 +278,7 @@ export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChang
   };
 
   return (
-    <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-gradient-to-b from-[#090C13] via-[#0B0F19] to-[#07090E] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-8 select-none">
+    <div className="relative min-h-[640px] rounded-3xl overflow-hidden bg-[var(--color-page)] border border-white/[0.08] shadow-2xl flex flex-col justify-between p-8 select-none">
       {/* Wave-2 a11y: polite live region announces the playback position.
           Text derives from safeIndex, so it only changes on step change. */}
       <div aria-live="polite" role="status" className="sr-only">
@@ -268,7 +287,7 @@ export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChang
       {/* Top Header */}
       <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/[0.08] pb-5">
         <div className="flex items-center space-x-3.5">
-          <div className="w-10 h-10 rounded-2xl bg-white/[0.05] border border-white/10 backdrop-blur-xl flex items-center justify-center shadow-inner">
+          <div className="w-10 h-10 rounded-2xl bg-white/[0.05] border border-white/10 flex items-center justify-center shadow-inner">
             <Sparkles className="w-5 h-5 text-cyan-400" />
           </div>
           <div>
@@ -304,6 +323,24 @@ export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChang
         </div>
       )}
 
+      {history.length > 0 && (
+        <details className="mt-5 rounded-2xl border border-white/[0.08] bg-black/20 p-4" data-testid="ledger-history">
+          <summary className="cursor-pointer text-xs font-semibold text-white">Ledger history · {history.length} loaded</summary>
+          <ol className="mt-3 max-h-64 space-y-1 overflow-y-auto font-mono text-[12px] text-[var(--color-label-secondary)]">
+            {history.slice(-20).reverse().map((event) => (
+              <li key={event.id} className="flex gap-2 border-b border-white/[0.04] py-1">
+                <span className="w-12 shrink-0 text-[var(--color-muted)]">#{event.id}</span>
+                <span className="min-w-0 flex-1 truncate">{event.event_type}</span>
+                <span className="shrink-0 text-[var(--color-muted)]">{String(event.timestamp).slice(11, 19)}</span>
+              </li>
+            ))}
+          </ol>
+          <button type="button" onClick={() => { void loadOlderEvents(); }} disabled={!sessionId || historyBusy} className="mt-3 rounded-lg border border-white/10 px-3 py-1.5 text-[12px] text-[var(--color-text)] disabled:opacity-40">
+            {historyBusy ? 'Loading older…' : 'Load older events'}
+          </button>
+        </details>
+      )}
+
       {/* U1-c: live loop override — pause/resume/kill in-flight loops.
           Renders nothing when the roster is empty. */}
       {onLoopsChanged && (
@@ -323,7 +360,7 @@ export function FlightRecorder({ loops = [], events = [], campaign, onLoopsChang
 
       {/* Center Narrative Story Card */}
       <div className="flex-1 flex flex-col items-center justify-center my-8 max-w-xl mx-auto w-full">
-        <div className="w-full bg-black/60 border border-white/10 rounded-3xl p-7 backdrop-blur-2xl shadow-2xl space-y-5">
+        <div className="w-full bg-black/60 border border-white/10 rounded-3xl p-7 shadow-2xl space-y-5">
           <div className="flex items-center justify-between">
             <span className="text-[12px] font-mono font-bold px-3 py-1 rounded-full bg-white/[0.08] text-slate-200 border border-white/15">
               Milestone {safeIndex + 1} of {milestones.length} · Iteration {activeMilestone.step}

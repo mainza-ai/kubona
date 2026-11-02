@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { API_BASE, versionedApiPath } from './api';
+import { API_BASE, apiFetch, authHeaders, hasOperatorBearer, versionedApiPath } from './api';
+import { useAuthPhase } from '@/domain/auth-state';
+import { setSessionStreamLive } from '@/domain/stream-state';
+import { domainsForEventTypes, publishInvalidation } from '@/domain/invalidation';
 import type { LedgerEvent } from '@/types';
 
 export type StreamStatus = 'idle' | 'connecting' | 'live' | 'closed';
@@ -55,11 +58,6 @@ export function mergeSessionEvents(
     .slice(-cap);
 }
 
-export function hasSessionCookie(): boolean {
-  if (typeof document === 'undefined') return false;
-  return document.cookie.split(';').some((part) => part.trim().startsWith('kubona_session='));
-}
-
 /**
  * One session telemetry stream. The caller owns the projection; this hook
  * owns reconnection and exposes whether the stream is authoritative so the
@@ -67,6 +65,42 @@ export function hasSessionCookie(): boolean {
  */
 export function shouldRequestSnapshot(previous: number, next: number): boolean {
   return previous > 0 && next > previous + 1;
+}
+
+export function streamRetryDelay(attempt: number, random = Math.random): number {
+  const base = Math.min(30_000, 1_000 * 1.6 ** Math.max(0, attempt));
+  return Math.round(base * (0.75 + random() * 0.5));
+}
+
+export type ParsedSseFrame = { event: string; data: string; id?: string };
+
+function parseSseFrame(raw: string): ParsedSseFrame {
+  let event = 'message';
+  let id: string | undefined;
+  const data: string[] = [];
+  for (const line of raw.split('\n')) {
+    if (!line || line.startsWith(':')) continue;
+    if (line.startsWith('event:')) event = line.slice(6).trim();
+    else if (line.startsWith('data:')) data.push(line.slice(5).trimStart());
+    else if (line.startsWith('id:')) id = line.slice(3).trim();
+  }
+  return { event, data: data.join('\n'), id };
+}
+
+export function takeSseFrames(buffer: string): { frames: ParsedSseFrame[]; rest: string } {
+  const text = buffer.replace(/\r\n/g, '\n');
+  const frames: ParsedSseFrame[] = [];
+  let rest = text;
+  let split = rest.indexOf('\n\n');
+  while (split >= 0) {
+    const raw = rest.slice(0, split);
+    rest = rest.slice(split + 2);
+    if (!raw.trim()) continue;
+    const parsed = parseSseFrame(raw);
+    if (parsed.data || parsed.event !== 'message') frames.push(parsed);
+    split = rest.indexOf('\n\n');
+  }
+  return { frames, rest };
 }
 
 export function useSessionStream(
@@ -86,35 +120,35 @@ export function useSessionStream(
     gapHandler.current = onGap;
   }, [onEvents, onGap]);
 
+  const authPhase = useAuthPhase();
   useEffect(() => {
-    if (!sessionId || typeof window === 'undefined' || typeof EventSource === 'undefined') {
-      return;
-    }
-    if (!hasSessionCookie()) {
-      return;
-    }
+    if (!sessionId || typeof window === 'undefined') return;
+    if (!hasOperatorBearer() && authPhase !== 'authenticated') return;
     revision.current = 0;
-    const source = new EventSource(
-      `${API_BASE}${versionedApiPath(`/api/events/stream?session_id=${encodeURIComponent(sessionId)}`)}`,
-      { withCredentials: true },
-    );
-    let errors = 0;
+    let stopped = false;
+    let attempt = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let controller: AbortController | null = null;
     let pending: TelemetryFrame[] = [];
-    let frame = 0;
+    let frameHandle = 0;
     const flush = () => {
-      frame = 0;
+      frameHandle = 0;
       const frames = pending;
       pending = [];
       const batch = coalesceTelemetryFrames(frames);
-      if (batch.length > 0) handler.current(batch);
+      if (batch.length > 0) {
+        handler.current(batch);
+        publishInvalidation(domainsForEventTypes(batch.map((event) => String(event.event_type ?? ''))));
+      }
     };
     const enqueue = (incoming: TelemetryFrame) => {
       pending.push(incoming);
-      if (frame === 0) frame = requestAnimationFrame(flush);
+      if (frameHandle === 0) frameHandle = requestAnimationFrame(flush);
     };
-    const onTelemetry = (event: MessageEvent) => {
+    const handleFrame = (frame: ParsedSseFrame) => {
+      if (frame.event !== 'telemetry' || !frame.data) return;
       try {
-        const payload = JSON.parse(String(event.data)) as {
+        const payload = JSON.parse(frame.data) as {
           events?: unknown;
           event?: unknown;
           domain?: string;
@@ -123,7 +157,6 @@ export function useSessionStream(
         };
         const incoming = parseTelemetryPayload(payload);
         if (incoming.length === 0) return;
-        errors = 0;
         if (typeof payload.revision === 'number' && Number.isFinite(payload.revision)) {
           const next = payload.revision;
           if (next <= revision.current) return;
@@ -137,23 +170,54 @@ export function useSessionStream(
         // Malformed frame: the next replay/poll reconciles it.
       }
     };
-    source.addEventListener('telemetry', onTelemetry as EventListener);
-    source.addEventListener('open', () => setState({ sessionId, status: 'live' }));
-    source.onerror = () => {
-      errors += 1;
+    const scheduleReconnect = () => {
+      if (stopped) return;
+      const delay = streamRetryDelay(attempt++);
+      setSessionStreamLive(false);
       setState({ sessionId, status: 'connecting' });
-      if (errors >= 3) {
-        source.close();
-        setState({ sessionId, status: 'closed' });
-      }
+      retryTimer = setTimeout(() => { void connect(); }, delay);
     };
+    const connect = async (): Promise<void> => {
+      if (stopped) return;
+      controller = new AbortController();
+      const cursor = revision.current > 0 ? `&last_event_id=${revision.current}` : '';
+      try {
+        const res = await apiFetch(
+          `${API_BASE}${versionedApiPath(`/api/events/stream?session_id=${encodeURIComponent(sessionId)}${cursor}`)}`,
+          { signal: controller.signal, headers: authHeaders(), cache: 'no-store' },
+        );
+        if (!res.ok) throw new Error(`stream refused (HTTP ${res.status})`);
+        if (!res.body) throw new Error('stream body unavailable');
+        attempt = 0;
+        setSessionStreamLive(true);
+        setState({ sessionId, status: 'live' });
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        while (!stopped) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const parsed = takeSseFrames(buffer);
+          buffer = parsed.rest;
+          for (const frame of parsed.frames) handleFrame(frame);
+        }
+      } catch {
+        // Abort on unmount is expected; everything else retries below.
+      }
+      if (stopped) return;
+      scheduleReconnect();
+    };
+    void connect();
     return () => {
-      source.removeEventListener('telemetry', onTelemetry as EventListener);
-      source.close();
-      if (frame !== 0) cancelAnimationFrame(frame);
+      stopped = true;
+      setSessionStreamLive(false);
+      controller?.abort();
+      if (retryTimer) clearTimeout(retryTimer);
+      if (frameHandle !== 0) cancelAnimationFrame(frameHandle);
       pending = [];
     };
-  }, [sessionId]);
+  }, [sessionId, authPhase]);
 
   return state.sessionId === sessionId && state.status === 'live';
 }

@@ -404,7 +404,7 @@
       "contract": "vault.calibration"
     },
     {
-      "function": "fetchCampaignState",
+      "function": "fetchCampaignResult",
       "path": "/api/sessions/$:encodeURIComponent(sessionId)/campaign",
       "method": "GET",
       "contract": "campaign"
@@ -986,6 +986,10 @@
       "reason": "client-constructed health status"
     },
     {
+      "function": "fetchCampaignState",
+      "reason": "delegates to fetchCampaignResult"
+    },
+    {
       "function": "fetchJobs",
       "reason": "delegates to fetchJobsResult"
     },
@@ -998,12 +1002,8 @@
       "reason": "delegates to fetchSessionsResult"
     },
     {
-      "function": "isTerminalJobStatus",
-      "reason": "status label helper"
-    },
-    {
-      "function": "jobStatusLabel",
-      "reason": "status label helper"
+      "function": "hasOperatorBearer",
+      "reason": "transport auth helper"
     },
     {
       "function": "lensImageProxyUrl",

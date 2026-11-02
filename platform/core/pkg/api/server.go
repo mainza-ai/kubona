@@ -574,6 +574,7 @@ func (s *Server) registerRoutes() {
 	s.route("/api/obligations/", s.requireBearer(s.handleObligationClose))
 	s.route("/api/tasks", s.handleTasks)
 	s.route("/api/tasks/", s.handleTaskByID)
+	s.route("/api/operations/", s.handleOperationStatus)
 	s.route("/api/chat/launch", s.handleChatLaunch)
 	s.route("/api/jobs", s.handleJobs)
 	s.route("/api/jobs/", s.handleJobByID)
@@ -2947,7 +2948,7 @@ func (s *Server) handleChatLaunch(w http.ResponseWriter, r *http.Request) {
 	s.sessionMgr.AddMessage(req.SessionID, "system", fmt.Sprintf("🚀 Dispatched Job %s to backend '%s'. Loop %s armed under Ring 0 watchdog.", job.ID, req.Backend, loop.ID), nil)
 
 	s.idemFinishJSON(w, idem, http.StatusCreated, map[string]any{
-		"job":  job,
+		"job":  jobViewFrom(job),
 		"loop": loop,
 	})
 }
@@ -3126,7 +3127,7 @@ func (s *Server) handleJobs(w http.ResponseWriter, r *http.Request) {
 		if jobsList == nil {
 			jobsList = []*jobs.Job{}
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"jobs": jobsList})
+		writeJSON(w, http.StatusOK, map[string]any{"jobs": jobViews(jobsList)})
 	case http.MethodPost:
 		// S2: disk guard freezes admission before any parse/spend.
 		if s.refuseIfDiskBlocked(w) {
@@ -3260,7 +3261,7 @@ func (s *Server) handleJobByID(w http.ResponseWriter, r *http.Request) {
 		job, _ := s.jobRunner.GetJob(jobID)
 		writeJSON(w, http.StatusOK, map[string]any{
 			"job_id": jobID, "cancelled": transitioned,
-			"already_terminal": !transitioned, "job": job,
+			"already_terminal": !transitioned, "job": jobViewFrom(job),
 		})
 		return
 	}
@@ -3299,7 +3300,7 @@ func (s *Server) handleJobByID(w http.ResponseWriter, r *http.Request) {
 	if !s.authorizeSessionRead(w, r, scopeSess) {
 		return
 	}
-	writeJSON(w, http.StatusOK, map[string]any{"job": job})
+	writeJSON(w, http.StatusOK, map[string]any{"job": jobViewFrom(job)})
 }
 
 func (s *Server) handleLoops(w http.ResponseWriter, r *http.Request) {
@@ -3465,10 +3466,25 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 		limit = 200
 	}
 
-	events, err := s.ledger.GetRecentEvents(sessionID, limit)
+	beforeID := int64(0)
+	if raw := r.URL.Query().Get("before_id"); raw != "" {
+		if n, perr := strconv.ParseInt(raw, 10, 64); perr == nil && n > 0 {
+			beforeID = n
+		}
+	}
+	var events []ledger.EventRecord
+	var err error
+	if beforeID > 0 {
+		events, err = s.ledger.GetEventsBefore(sessionID, beforeID, limit)
+	} else {
+		events, err = s.ledger.GetRecentEvents(sessionID, limit)
+	}
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+	if events == nil {
+		events = []ledger.EventRecord{}
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"events": events})
 }
@@ -3778,8 +3794,9 @@ func (s *Server) handleWorkbenchLayout(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, `{"session_id":%q,"revision":%d,"document":%s}`, sessionID, revision, document)
 	case http.MethodPost, http.MethodPut:
 		var body struct {
-			Revision int64           `json:"revision"`
-			Document json.RawMessage `json:"document"`
+			Revision  int64           `json:"revision"`
+			Document  json.RawMessage `json:"document"`
+			RequestID string          `json:"request_id"`
 		}
 		dec := json.NewDecoder(http.MaxBytesReader(w, r.Body, 2<<20))
 		if err := dec.Decode(&body); err != nil {
@@ -3794,14 +3811,26 @@ func (s *Server) handleWorkbenchLayout(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		ticket, refusal := s.idemBegin(sessionID, body.RequestID, map[string]any{
+			"revision": body.Revision,
+			"document": body.Document,
+		}, idemRailSlow)
+		if refusal != nil {
+			refusal.write(w)
+			return
+		}
+		if ticket.replay {
+			s.idemReplay(w, ticket)
+			return
+		}
 		var current int64
 		err := s.ledger.DB().QueryRow(`SELECT revision FROM workbench_layouts WHERE session_id = ?`, sessionID).Scan(&current)
 		if err != nil && !errors.Is(err, sql.ErrNoRows) {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			s.idemFinishError(w, ticket, http.StatusInternalServerError, err.Error())
 			return
 		}
 		if body.Revision != current {
-			writeJSON(w, http.StatusConflict, map[string]any{
+			s.idemFinishJSON(w, ticket, http.StatusConflict, map[string]any{
 				"error": "revision_conflict", "current_revision": current,
 				"message": "layout changed since this client loaded it; reload before saving",
 			})
@@ -3816,18 +3845,19 @@ func (s *Server) handleWorkbenchLayout(w http.ResponseWriter, r *http.Request) {
 			sessionID, string(body.Document), current,
 		)
 		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			s.idemFinishError(w, ticket, http.StatusInternalServerError, err.Error())
 			return
 		}
 		changed, _ := res.RowsAffected()
 		if changed == 0 {
-			writeJSON(w, http.StatusConflict, map[string]any{
+			s.idemFinishJSON(w, ticket, http.StatusConflict, map[string]any{
 				"error": "revision_conflict", "current_revision": current,
 			})
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{
+		s.idemFinishJSON(w, ticket, http.StatusOK, map[string]any{
 			"status": "saved", "session_id": sessionID, "revision": current + 1,
+			"request_id": body.RequestID,
 		})
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
