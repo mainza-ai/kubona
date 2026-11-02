@@ -30,7 +30,7 @@ describe('WorkflowPanel', () => {
     });
     const gate = tree!.root.findByType(ConfirmDialog);
     await act(async () => {
-      gate.findByType('input').props.onChange({ target: { value: 'campaign-audit' } });
+      gate.findByType('input').props.onChange({ target: { value: 'provider-audit' } });
     });
     await act(async () => { await tree!.root.findByType(ConfirmDialog).props.onConfirm(); });
     await vi.waitFor(() => expect(api.runWorkflow).toHaveBeenCalled());

@@ -158,7 +158,7 @@ func TestQIRCompileEndpoint(t *testing.T) {
 	srv, cleanup := setupTestRoutesServer(t)
 	defer cleanup()
 
-	body := []byte(`{"qasm":"OPENQASM 2.0;\ninclude \"qelib1.inc\";\nqreg q[2];\nh q[0];\ncx q[0], q[1];\n"}`)
+	body := []byte(`{"qasm":"OPENQASM 2.0; include \"qelib1.inc\"; qreg q[2]; creg c[2]; h q[0]; cx q[0], q[1]; measure q -> c;"}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/qir/compile", bytes.NewReader(body))
 	w := httptest.NewRecorder()
 	srv.Handler().ServeHTTP(w, req)
@@ -175,18 +175,18 @@ func TestQIRCompileEndpoint(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&summary); err != nil {
 		t.Fatalf("failed to decode summary: %v", err)
 	}
-	if summary.NumQubits < 2 || !strings.HasPrefix(summary.QIRProfile, "CustomProfile") {
+	if summary.NumQubits != 2 || summary.GateCount != 4 || !strings.HasPrefix(summary.QIRProfile, "CustomProfile") {
 		t.Fatalf("unexpected summary: %+v", summary)
 	}
 
 	// R8: empty and whitespace-only QASM refuse with 400 — compiling
 	// nothing must never come back looking like a result.
-	for _, empty := range []string{`{"qasm":""}`, `{"qasm":"  \n\t "}`, `{}`} {
-		req := httptest.NewRequest(http.MethodPost, "/api/qir/compile", bytes.NewReader([]byte(empty)))
+	for _, invalid := range []string{`{"qasm":""}`, `{"qasm":"  \n\t "}`, `{}`, `{"qasm":"qreg q[1]; foo q[0];"}`} {
+		req := httptest.NewRequest(http.MethodPost, "/api/qir/compile", bytes.NewReader([]byte(invalid)))
 		w := httptest.NewRecorder()
 		srv.Handler().ServeHTTP(w, req)
 		if w.Code != http.StatusBadRequest {
-			t.Errorf("empty QASM %q must 400, got %d", empty, w.Code)
+			t.Errorf("invalid QASM %q must 400, got %d", invalid, w.Code)
 		}
 	}
 }

@@ -8,10 +8,10 @@ import { useWriteSettlement } from '@/domain/use-write-settlement';
 import { writeSettlementLabel } from '@/domain/write-settlement';
 
 const SAMPLE = `{
-  "name": "campaign-audit",
+  "name": "provider-audit",
   "budget_ceiling_usd": 0,
   "steps": [
-    { "id": "s1", "tool": "get_campaign", "args": {} }
+    { "id": "s1", "tool": "execution/list_provider_registry", "args": {} }
   ]
 }`;
 

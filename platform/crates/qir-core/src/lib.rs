@@ -27,57 +27,141 @@ pub struct Circuit {
 /// Parse a QASM 2/3 subset: `qreg q[n];` plus gate lines
 /// `name[(p, ...)] q[a], q[b];` (lines and `//` comments).
 pub fn parse(source: &str) -> Result<Circuit, String> {
-    let mut num_qubits = 0usize;
-    let mut gates = Vec::new();
+    let mut cleaned = String::with_capacity(source.len());
     for raw in source.lines() {
         let line = match raw.find("//") {
             Some(i) => &raw[..i],
             None => raw,
         }
         .trim();
-        if line.is_empty() || line.starts_with("OPENQASM") {
-            continue;
+        if !line.is_empty() {
+            cleaned.push_str(line);
+            cleaned.push('\n');
         }
-        // W1.5: structural directives are not gates. The old parser lowered
-        // `creg`/`barrier` into calls to undeclared @__quantum__qis__creg__body
-        // et al. — invalid IR from valid QASM.
-        let lname = line.split_whitespace().next().unwrap_or("");
-        if matches!(lname, "include" | "creg" | "barrier" | "opaque" | "if") || lname.starts_with("bit") {
-            if lname == "opaque" || lname == "if" {
-                return Err(format!("unsupported statement '{lname}': refusing"));
+    }
+    let mut statements = Vec::new();
+    let mut start = 0usize;
+    for (idx, ch) in cleaned.char_indices() {
+        if ch == ';' {
+            let statement = cleaned[start..idx].trim();
+            if !statement.is_empty() {
+                statements.push(statement.to_string());
             }
+            start = idx + 1;
+        }
+    }
+    let tail = cleaned[start..].trim();
+    if !tail.is_empty() {
+        return Err(format!("missing ';' in {tail}"));
+    }
+
+    let mut num_qubits = 0usize;
+    let mut qregs: Vec<(String, usize, usize)> = Vec::new();
+    let mut cregs: Vec<(String, usize, usize)> = Vec::new();
+    let mut num_clbits = 0usize;
+    let mut gates = Vec::new();
+
+    let parse_reg = |rest: &str, what: &str| -> Result<(String, usize), String> {
+        let open = rest.find('[').ok_or_else(|| format!("{what} missing ["))?;
+        let end = rest.find(']').ok_or_else(|| format!("malformed {what}"))?;
+        if open >= end {
+            return Err(format!("malformed {what}"));
+        }
+        let name = rest[..open].trim();
+        if name.is_empty() {
+            return Err(format!("{what} name is empty"));
+        }
+        let size: usize = rest[open + 1..end]
+            .trim()
+            .parse()
+            .map_err(|_| format!("bad {what} size"))?;
+        if size == 0 {
+            return Err(format!("{what} size must be positive"));
+        }
+        Ok((name.to_string(), size))
+    };
+
+    for statement in statements {
+        let lname = statement.split_whitespace().next().unwrap_or("");
+        if lname == "OPENQASM" || lname == "include" || lname == "barrier" {
             continue;
         }
-        if let Some(rest) = line.strip_prefix("qreg") {
-            let end = rest.find(']').ok_or("malformed qreg")?;
-            let n: usize = rest[rest.find('[').ok_or("qreg missing [")? + 1..end]
-                .trim()
-                .parse()
-                .map_err(|_| "bad qreg size")?;
-            // W1.5: max width across registers (the old overwrite took the
-            // last qreg, shrinking multi-register programs).
-            num_qubits = num_qubits.max(n);
+        if lname == "opaque" || lname == "if" {
+            return Err(format!("unsupported statement '{lname}': refusing"));
+        }
+        if lname == "qreg" {
+            let rest = statement.strip_prefix("qreg").unwrap_or("").trim();
+            let (name, size) = parse_reg(rest, "qreg")?;
+            if qregs.iter().any(|(existing, _, _)| existing == &name) {
+                return Err(format!("duplicate qreg '{name}'"));
+            }
+            qregs.push((name, num_qubits, size));
+            num_qubits += size;
             continue;
         }
-        if let Some(rest) = line.strip_prefix("qubit") {
-            let rest = rest.trim();
-            let n: usize = if rest.starts_with('[') {
+        if lname == "qubit" || lname.starts_with("qubit[") {
+            let rest = statement.strip_prefix("qubit").unwrap_or("").trim();
+            let (name, size) = if rest.starts_with('[') {
                 let end = rest.find(']').ok_or("malformed qubit declaration")?;
-                rest[1..end].trim().parse().map_err(|_| "bad qubit register size")?
+                let size: usize = rest[1..end]
+                    .trim()
+                    .parse()
+                    .map_err(|_| "bad qubit register size")?;
+                (rest[end + 1..].trim().to_string(), size)
             } else {
-                1
+                (rest.to_string(), 1)
             };
-            num_qubits = num_qubits.max(n);
+            if name.is_empty() {
+                return Err("qubit register name is empty".into());
+            }
+            if qregs.iter().any(|(existing, _, _)| existing == &name) {
+                return Err(format!("duplicate qreg '{name}'"));
+            }
+            qregs.push((name, num_qubits, size));
+            num_qubits += size;
             continue;
         }
-        // gate line: name[(params)] q[a], q[b];
-        let body = line.strip_suffix(';').ok_or_else(|| format!("missing ';' in {line}"))?;
+        if lname == "creg" {
+            let rest = statement.strip_prefix("creg").unwrap_or("").trim();
+            let (name, size) = parse_reg(rest, "creg")?;
+            if cregs.iter().any(|(existing, _, _)| existing == &name) {
+                return Err(format!("duplicate creg '{name}'"));
+            }
+            cregs.push((name, num_clbits, size));
+            num_clbits += size;
+            continue;
+        }
+        if lname == "bit" || lname.starts_with("bit[") {
+            let rest = statement.strip_prefix("bit").unwrap_or("").trim();
+            let (name, size) = if rest.starts_with('[') {
+                let end = rest.find(']').ok_or("malformed bit declaration")?;
+                let size: usize = rest[1..end]
+                    .trim()
+                    .parse()
+                    .map_err(|_| "bad bit register size")?;
+                (rest[end + 1..].trim().to_string(), size)
+            } else {
+                (rest.to_string(), 1)
+            };
+            if name.is_empty() {
+                return Err("bit register name is empty".into());
+            }
+            if cregs.iter().any(|(existing, _, _)| existing == &name) {
+                return Err(format!("duplicate creg '{name}'"));
+            }
+            cregs.push((name, num_clbits, size));
+            num_clbits += size;
+            continue;
+        }
+
+        // gate line: name[(params)] q[a], q[b]
+        let body = statement;
         let open = body.find('(');
         let (name, param_part, q_part) = if let Some(o) = open {
             let close = body.find(')').ok_or("missing ')'")?;
             (&body[..o], Some(&body[o + 1..close]), &body[close + 1..])
         } else {
-            let sp = body.find(' ').ok_or_else(|| format!("bad gate line {line}"))?;
+            let sp = body.find(' ').ok_or_else(|| format!("bad gate line {body}"))?;
             (&body[..sp], None, &body[sp..])
         };
         let name = name.trim().to_string();
@@ -94,32 +178,76 @@ pub fn parse(source: &str) -> Result<Circuit, String> {
                 .collect::<Result<Vec<_>, String>>()?,
             _ => Vec::new(),
         };
-        let mut qubits = Vec::new();
-        for q in q_part.split(',') {
-            let q = q.trim();
-            if let Some(o) = q.find('[') {
-                let end = q.find(']').ok_or("bad qubit ref")?;
+
+        let parse_ref = |raw: &str, regs: &[(String, usize, usize)], what: &str| -> Result<(usize, usize, bool), String> {
+            let raw = raw.trim();
+            if let Some(o) = raw.find('[') {
+                let end = raw.find(']').ok_or_else(|| format!("bad {what} ref"))?;
                 if o >= end {
-                    return Err("bad qubit ref".into());
+                    return Err(format!("bad {what} ref"));
                 }
-                qubits.push(q[o + 1..end].trim().parse::<usize>().map_err(|_| "bad qubit")?);
+                let reg = raw[..o].trim();
+                let idx: usize = raw[o + 1..end]
+                    .trim()
+                    .parse()
+                    .map_err(|_| format!("bad {what} index"))?;
+                let (_, offset, width) = regs
+                    .iter()
+                    .find(|(name, _, _)| name == reg)
+                    .ok_or_else(|| format!("{what} register '{reg}' not declared"))?;
+                if idx >= *width {
+                    return Err(format!("{what} index {idx} out of range for {reg}[{width}]"));
+                }
+                Ok((offset + idx, *width, false))
+            } else {
+                let (_, offset, width) = regs
+                    .iter()
+                    .find(|(name, _, _)| name == raw)
+                    .ok_or_else(|| format!("{what} register '{raw}' not declared"))?;
+                Ok((*offset, *width, true))
             }
-        }
-        // W1.5: measure threads its classical bit (q[i] -> c[j]) instead of
-        // dropping it. Malformed measure refuses here, not in codegen.
-        let mut cbit = None;
+        };
+
         if name == "measure" || name == "mz" || name == "m" {
             let arrow = q_part.find("->").ok_or("measure needs q[i] -> c[j]")?;
-            let cpart = q_part[arrow + 2..].trim();
-            let (co, ce) = (cpart.find('[').ok_or("bad classical bit")?, cpart.find(']').ok_or("bad classical bit")?);
-            cbit = Some(cpart[co + 1..ce].trim().parse::<usize>().map_err(|_| "bad classical bit")?);
-            if qubits.len() != 1 {
-                return Err("measure takes exactly 1 qubit".into());
+            let lhs = q_part[..arrow].trim();
+            let rhs = q_part[arrow + 2..].trim();
+            let (qoff, qwidth, q_whole) = parse_ref(lhs, &qregs, "qubit")?;
+            let (coff, cwidth, c_whole) = parse_ref(rhs, &cregs, "classical")?;
+            if q_whole != c_whole {
+                return Err("measure must address two whole registers or two indexed bits".into());
             }
+            if q_whole {
+                if qwidth != cwidth {
+                    return Err(format!("measure register widths differ: {qwidth} qubits, {cwidth} bits"));
+                }
+                for i in 0..qwidth {
+                    gates.push(Gate {
+                        name: name.clone(),
+                        qubits: vec![qoff + i],
+                        params: params.clone(),
+                        cbit: Some(coff + i),
+                    });
+                }
+            } else {
+                gates.push(Gate {
+                    name,
+                    qubits: vec![qoff],
+                    params,
+                    cbit: Some(coff),
+                });
+            }
+            continue;
         }
-        // Fail-closed boundary: transpile indexes qubits[0] and params[0..2],
-        // so a gate that parses but addresses nothing (or under-supplies a
-        // u-gate) would panic downstream. Refuse here instead.
+
+        let mut qubits = Vec::new();
+        for q in q_part.split(',') {
+            let (index, _, whole) = parse_ref(q, &qregs, "qubit")?;
+            if whole {
+                return Err(format!("gate '{name}' requires indexed qubit operands"));
+            }
+            qubits.push(index);
+        }
         if qubits.is_empty() {
             return Err(format!("gate '{name}' addresses no qubits"));
         }
@@ -132,7 +260,7 @@ pub fn parse(source: &str) -> Result<Circuit, String> {
             }
         }
         let want_qubits = match name.as_str() {
-            "h" | "x" | "y" | "z" | "s" | "t" | "rx" | "ry" | "rz" | "u1" | "u2" | "u3" | "id" | "reset" | "measure" | "mz" | "m" => Some(1),
+            "h" | "x" | "y" | "z" | "s" | "t" | "rx" | "ry" | "rz" | "u1" | "u2" | "u3" | "id" | "reset" => Some(1),
             "cx" | "cz" | "swap" | "cnot" => Some(2),
             "ccx" | "toffoli" => Some(3),
             _ => None,
@@ -154,14 +282,19 @@ pub fn parse(source: &str) -> Result<Circuit, String> {
                 return Err(format!("gate '{name}' needs {expected} params, got {}", params.len()));
             }
         }
-        gates.push(Gate { name, qubits, params, cbit });
+        gates.push(Gate { name, qubits, params, cbit: None });
     }
-    // W1.5: max register width (the old overwrite took the LAST qreg), and
-    // qubit bounds — %q5 with qreg q[2] used to emit undeclared SSA names.
     let max_idx = gates.iter().flat_map(|g| g.qubits.iter().copied()).max();
     if let Some(m) = max_idx {
         if m >= num_qubits {
             return Err(format!("qubit q[{m}] out of range for {num_qubits} declared qubits"));
+        }
+    }
+    for gate in &gates {
+        if let Some(cbit) = gate.cbit {
+            if cbit >= num_clbits {
+                return Err(format!("classical bit c[{cbit}] out of range for {num_clbits} declared bits"));
+            }
         }
     }
     Ok(Circuit { name: "qasm".into(), num_qubits, gates })
@@ -435,9 +568,36 @@ mod w15_tests {
     }
 
     #[test]
-    fn multi_register_width_is_max() {
+    fn one_line_qasm_and_whole_register_measure() {
+        let c = parse(
+            "OPENQASM 2.0; include \"qelib1.inc\"; qreg q[2]; creg c[2]; h q[0]; cx q[0],q[1]; measure q -> c;",
+        )
+        .unwrap();
+        assert_eq!(c.num_qubits, 2);
+        assert_eq!(c.gates.len(), 4);
+        let measures: Vec<_> = c.gates.iter().filter(|g| g.name == "measure").collect();
+        assert_eq!(measures.len(), 2);
+        assert_eq!(measures[0].cbit, Some(0));
+        assert_eq!(measures[1].cbit, Some(1));
+    }
+
+    #[test]
+    fn real_multi_register_offsets() {
+        let c = parse("qreg a[2]; qreg b[3]; h a[1]; h b[0];").unwrap();
+        assert_eq!(c.num_qubits, 5);
+        assert_eq!(c.gates[0].qubits, vec![1]);
+        assert_eq!(c.gates[1].qubits, vec![2]);
+    }
+
+    #[test]
+    fn whole_register_measure_width_mismatch_refuses() {
+        assert!(parse("qreg q[2]; creg c[3]; measure q -> c;").is_err());
+    }
+
+    #[test]
+    fn multi_register_width_is_total() {
         let c = parse("qreg a[2];\nqreg b[3];\nh a[0];").unwrap();
-        assert_eq!(c.num_qubits, 3);
+        assert_eq!(c.num_qubits, 5);
     }
 
     #[test]
