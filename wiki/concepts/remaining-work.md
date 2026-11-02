@@ -149,8 +149,8 @@ Still open:
 - Budgets and evidence: `e2e/runtime-budget.spec.ts` now measures **425 KB
   static / 435 KB all-resource / 473 DOM** on the normal mocked boot, plus
   **186 visible Settings DOM**; the dense 361-object boot is **425 KB static /
-  473 DOM**. LCP/INP/heap/request-count gates remain open. The first nightly 100/300-object
-  FPS run is green (run 41418158035, job 125186967816).
+  473 DOM**. LCP/INP/heap/request-count gates remain open. The full nightly is green at `d1a48ed` (run `41418158035`: canary, 100/300 FPS,
+  slice60 composition + determinism).
 - Transport hardening: the typed auth phase store now bootstraps through
   `whoami`; anonymous 401s no longer raise an outage toast or expired banner;
   the session stream is fetch-based, bearer-capable, bounded-backoff reconnecting,
