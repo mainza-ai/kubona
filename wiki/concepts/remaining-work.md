@@ -147,9 +147,9 @@ Still open:
   from the shell. Remaining: migrate all forms to Field/Select/Toggle and retire
   the raw-palette debt rather than hold it.
 - Budgets and evidence: `e2e/runtime-budget.spec.ts` now measures **425 KB
-  static / 435 KB all-resource / 455 DOM** on the normal mocked boot, plus
+  static / 435 KB all-resource / 473 DOM** on the normal mocked boot, plus
   **186 visible Settings DOM**; the dense 361-object boot is **425 KB static /
-  455 DOM**. LCP/INP/heap/request-count gates remain open. A nightly 100/300-object FPS job
+  473 DOM**. LCP/INP/heap/request-count gates remain open. A nightly 100/300-object FPS job
   now exists; its first scheduled run is pending.
 - Transport hardening: the typed auth phase store now bootstraps through
   `whoami`; anonymous 401s no longer raise an outage toast or expired banner;
@@ -163,21 +163,26 @@ Still open:
   fallbacks.
 - Contract truth: job status is now a canonical lowercase string with a
   `status_code` compatibility field; empty lists are canonical; contract tests
-  cover 53 handler paths and v1 parity for 12 modeled reads; the console sends
-  `Kubona-API-Version: 1` when opted in. The remaining 71 modeled operations are
-  not yet handler-tested; the OpenAPI document is still generated from the
+  cover 69 unique handler operations and v1 parity for 12 modeled reads; the
+  console sends `Kubona-API-Version: 1` when opted in. The remaining 54 unique
+  operations are not yet handler-tested (mostly provider/bridge routes); the OpenAPI document is still generated from the
   client response schemas, not the Go route policy. `/api/v1` remains opt-in.
 - Legacy retirement: `WidgetStage` and the legacy molecule canvas stay until
   object cards reach five-widget parity and the old aliases have one release of
   support. Recorder and Manifold still behave as separate full-page products
-  rather than Workbench views. The shell has no old-shell rollback flag.
+  rather than Workbench views. `KUBONA_CONSOLE_WORKBENCH=0` is the tested
+  rollback: the arena removes the Workbench tab and keeps the legacy orbital
+  surface plus the molecule object view reachable.
 - Workbench content: approval cards now expose review and close-ready close,
   tasks complete inline, job status is canonical, campaign cards show recorded
   spend, links render only for the selection, and the 3D control stack collapses
-  behind one disclosure. Remaining: evidence source/quote cards, measurement
-  uncertainty, new-result highlight, camera-follow, agent-presence fade. The molecule now opens as a named object-view dialog;
-  the 3D hidden/offscreen pause has a pure policy test but still lacks a browser
-  instrumentation gate.
+  behind one disclosure. Evidence cards now carry typed source links or plain
+  references, explicit basis text, and no invented quote/confidence; measurement
+  cards distinguish the VQE-FCI discrepancy from uncertainty and state the
+  chemical-accuracy limit. Remaining: new-result highlight, camera-follow, and
+  agent-presence fade. The molecule opens as a named object-view dialog; the
+  3D loop publishes a frame counter and suspended reason, and a browser E2E gate
+  proves hidden/offscreen frames stop.
 - Rust: the Rust core now returns a structured JSON receipt (QIR text, qubit and
   native-gate counts); Python no longer re-parses QIR on the shipped path. A
   full-process benchmark (`scripts/qir-bench-full.py`) records p50/p95/p99,

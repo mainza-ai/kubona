@@ -4751,3 +4751,22 @@ skipped is the exact failure this incident is about:
   invalidation E2E, and structured Rust QIR receipts with a full-path benchmark.
 - Extended handler contract coverage to 43 reads + 6 writes and aligned the
   fidelity/calibration response schemas with the real Go handlers.
+
+## [2026-11-02] impl | Remaining workbench evidence, 3D evidence, rollback
+
+- Added basis and typed source references to workbench evidence and measurement
+  cards; uncertainty is explicitly `not recorded` and the VQE-FCI discrepancy is
+  not presented as uncertainty.
+- Extended the inspector and list equivalent with the same basis/source text.
+- Added browser-observable 3D render telemetry (`data-render-frames`,
+  `data-render-state`) and an E2E gate proving frames stop while hidden or
+  offscreen; removed the production FPS badge.
+- Added a tested `KUBONA_CONSOLE_WORKBENCH=0` rollback to the legacy orbital
+  surface.
+- Expanded handler contract coverage to 69 unique operations by adding local
+  read/write fixtures (jobs, settings, QIR, mesh, abort, memory, agents, tenants,
+  leases, predictions, exports).
+- Verification: 110 console test files / 557 tests; new 3D and rollback E2E
+  green; Go contract tests green; wiki lint clean. Remaining: 54 unique
+  handler-contract operations, first nightly FPS run, manual AT (waived), W7
+  release-gated retirement.

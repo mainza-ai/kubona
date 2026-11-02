@@ -87,6 +87,8 @@ func TestConsoleOpenAPIResponseContracts(t *testing.T) {
 		{http.MethodGet, "/api/hf/downloads", "/api/hf/downloads", http.StatusOK},
 		{http.MethodGet, "/api/ledger/verify?session_id=" + sess.ID, "/api/ledger/verify", http.StatusOK},
 		{http.MethodGet, "/api/memory/recall?session_id=" + sess.ID + "&q=test&bank=experiences&limit=1", "/api/memory/recall", http.StatusOK},
+		{http.MethodGet, "/api/observatory/lens/history?session_id=" + sess.ID, "/api/observatory/lens/history", http.StatusOK},
+		{http.MethodGet, "/api/chemistry/admet?smiles=CCO", "/api/chemistry/admet", http.StatusOK},
 	}
 	for _, tc := range cases {
 		req := httptest.NewRequest(tc.method, tc.path, nil)
@@ -256,7 +258,51 @@ func TestConsoleOpenAPIWriteContracts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("message: %v", err)
 	}
+	disposable, err := sm.CreateSession("contract disposable", 10, "")
+	if err != nil {
+		t.Fatalf("disposable session: %v", err)
+	}
+	if _, err := l.DB().Exec(`INSERT INTO jobs (id, session_id, status, job_type, params_json, created_at) VALUES ('contract-job', ?, 'JOB_STATUS_COMPLETED', 'vqe', '{}', CURRENT_TIMESTAMP)`, sess.ID); err != nil {
+		t.Fatalf("job fixture: %v", err)
+	}
 	handler := srv.Handler()
+	settingsReq := httptest.NewRequest(http.MethodGet, "/api/llm/settings", nil)
+	settingsReq.Header.Set("Authorization", "Bearer contract-token")
+	settingsW := httptest.NewRecorder()
+	handler.ServeHTTP(settingsW, settingsReq)
+	if settingsW.Code != http.StatusOK {
+		t.Fatalf("llm settings fixture: %d %s", settingsW.Code, strings.TrimSpace(settingsW.Body.String()))
+	}
+	llmSettingsBody := strings.TrimSpace(settingsW.Body.String())
+	leaseReq := httptest.NewRequest(http.MethodPost, "/api/vault/leases", strings.NewReader(`{"scope":"provider:contract","ttl_seconds":60,"session_id":"`+sess.ID+`"}`))
+	leaseReq.Header.Set("Authorization", "Bearer contract-token")
+	leaseReq.Header.Set("Content-Type", "application/json")
+	leaseW := httptest.NewRecorder()
+	handler.ServeHTTP(leaseW, leaseReq)
+	if leaseW.Code != http.StatusOK {
+		t.Fatalf("lease fixture: %d %s", leaseW.Code, strings.TrimSpace(leaseW.Body.String()))
+	}
+	var lease struct {
+		LeaseID string `json:"lease_id"`
+	}
+	if err := json.Unmarshal(leaseW.Body.Bytes(), &lease); err != nil || lease.LeaseID == "" {
+		t.Fatalf("lease fixture decode: %v %s", err, leaseW.Body.String())
+	}
+	sealBody := `{"session_id":"` + sess.ID + `","target_system":"H2","method":"FCI","quantity":"energy","expected_mean":-1.13,"expected_std":0.01,"budget_cap_usd":0,"author":"contract","p_correlated":0.8}`
+	sealReq := httptest.NewRequest(http.MethodPost, "/api/vault/predictions/seal", strings.NewReader(sealBody))
+	sealReq.Header.Set("Authorization", "Bearer contract-token")
+	sealReq.Header.Set("Content-Type", "application/json")
+	sealW := httptest.NewRecorder()
+	handler.ServeHTTP(sealW, sealReq)
+	if sealW.Code != http.StatusOK {
+		t.Fatalf("prediction seal fixture: %d %s", sealW.Code, strings.TrimSpace(sealW.Body.String()))
+	}
+	var seal struct {
+		PredictionHash string `json:"prediction_hash"`
+	}
+	if err := json.Unmarshal(sealW.Body.Bytes(), &seal); err != nil || seal.PredictionHash == "" {
+		t.Fatalf("prediction seal fixture decode: %v %s", err, sealW.Body.String())
+	}
 	doc := loadConsoleOpenAPI(t)
 	cases := []struct {
 		method   string
@@ -275,6 +321,25 @@ func TestConsoleOpenAPIWriteContracts(t *testing.T) {
 		{http.MethodPost, "/api/vault/leases", "/api/vault/leases", http.StatusOK, `{"scope":"provider:contract","ttl_seconds":60,"session_id":"` + sess.ID + `"}`},
 		{http.MethodPost, "/api/ledger/export", "/api/ledger/export", http.StatusOK, `{"session_id":"` + sess.ID + `","format":"json"}`},
 		{http.MethodPost, "/api/chat/feedback", "/api/chat/feedback", http.StatusOK, `{"session_id":"` + sess.ID + `","message_id":"` + msg.ID + `","vote":"up"}`},
+		{http.MethodDelete, "/api/sessions/" + sess.ID + "/messages", "/api/sessions/{id}/messages", http.StatusOK, ``},
+		{http.MethodPost, "/api/auth/logout", "/api/auth/logout", http.StatusOK, `{}`},
+		{http.MethodPost, "/api/sessions/export", "/api/sessions/export", http.StatusOK, `{"session_id":"` + sess.ID + `"}`},
+		{http.MethodDelete, "/api/sessions/" + disposable.ID, "/api/sessions/{id}", http.StatusOK, ``},
+		{http.MethodPost, "/api/qir/compile", "/api/qir/compile", http.StatusOK, `{"qasm":"OPENQASM 2.0; include \"qelib1.inc\"; qreg q[1]; h q[0];"}`},
+		{http.MethodPost, "/api/mesh/route", "/api/mesh/route", http.StatusOK, `{"prompt":"contract","items":[]}`},
+		{http.MethodPost, "/api/supervisor/abort", "/api/supervisor/abort", http.StatusOK, `{"session_id":"` + sess.ID + `","reason":"contract abort"}`},
+		{http.MethodPut, "/api/quantum/settings", "/api/quantum/settings", http.StatusOK, `{"default_backend":"local-simulator","harness_backends":{}}`},
+		{http.MethodPost, "/api/memory/retain", "/api/memory/retain", http.StatusCreated, `{"session_id":"` + sess.ID + `","content":"contract memory","bank":"experiences","importance":0.5}`},
+		{http.MethodPost, "/api/agents/custom", "/api/agents/custom", http.StatusOK, `{"id":"contract-agent","name":"Contract agent","role":"reviewer","description":"contract fixture","system_prompt":"review","capabilities":[],"modalities":[],"mcp_tools":[],"memory_scopes":[]}`},
+		{http.MethodDelete, "/api/agents/custom/contract-agent", "/api/agents/custom/{id}", http.StatusOK, ``},
+		{http.MethodPost, "/api/tenants", "/api/tenants", http.StatusCreated, `{"id":"contract-lab","display_name":"Contract Lab"}`},
+		{http.MethodPost, "/api/mandates/verify", "/api/mandates/verify", http.StatusOK, `{}`},
+		{http.MethodPost, "/api/vault/leases/revoke", "/api/vault/leases/revoke", http.StatusOK, `{"lease_id":"` + lease.LeaseID + `"}`},
+		{http.MethodPost, "/api/vault/predictions/seal", "/api/vault/predictions/seal", http.StatusOK, sealBody},
+		{http.MethodPost, "/api/vault/predictions/evaluate", "/api/vault/predictions/evaluate", http.StatusOK, `{"session_id":"` + sess.ID + `","prediction_hash":"` + seal.PredictionHash + `","measured_value":-1.12}`},
+		{http.MethodPost, "/api/vault/predictions/assert", "/api/vault/predictions/assert", http.StatusOK, `{"session_id":"` + sess.ID + `","prediction_hash":"` + seal.PredictionHash + `","rho":0.8,"evidence_refs":["ledger:1"]}`},
+		{http.MethodGet, "/api/jobs/contract-job?session_id=" + sess.ID, "/api/jobs/{id}", http.StatusOK, ``},
+		{http.MethodPost, "/api/llm/settings", "/api/llm/settings", http.StatusOK, llmSettingsBody},
 	}
 	for _, tc := range cases {
 		req := httptest.NewRequest(tc.method, tc.path, strings.NewReader(tc.body))

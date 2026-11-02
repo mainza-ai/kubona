@@ -20,3 +20,13 @@ test('old surface and tab deep links resolve to a populated shell', async ({ pag
     await expect(page.getByText('404', { exact: true })).toHaveCount(0);
   }
 });
+
+
+test('workbench kill switch keeps the legacy orbital surface reachable', async ({ page }) => {
+  await mockApi(page, { workbench: false });
+  await page.goto('/');
+  await expect(page.getByRole('tab', { name: 'Orbital Space' })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Workbench' })).toHaveCount(0);
+  await expect(page.getByTestId('workbench')).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Open molecule object view' })).toBeVisible();
+});
