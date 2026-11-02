@@ -178,6 +178,38 @@ export function FleetRadar({ campaign }: FleetRadarProps) {
         </div>
       )}
 
+      {backends.length > 0 && (
+        <div className="overflow-x-auto rounded-2xl border border-white/[0.06] bg-black/30 p-4">
+          <table className="w-full text-left text-[12px]">
+            <caption className="mb-2 text-left text-xs font-semibold text-slate-300">Fleet capability matrix — exact served values, provenance per row</caption>
+            <thead className="font-mono uppercase tracking-wider text-slate-500">
+              <tr>
+                <th scope="col" className="py-1 pr-3">Backend</th>
+                <th scope="col" className="py-1 pr-3">Qubits</th>
+                <th scope="col" className="py-1 pr-3">Queue</th>
+                <th scope="col" className="py-1 pr-3">Cost/shot</th>
+                <th scope="col" className="py-1 pr-3">Jurisdiction</th>
+                <th scope="col" className="py-1 pr-3">Credential</th>
+                <th scope="col" className="py-1">Telemetry</th>
+              </tr>
+            </thead>
+            <tbody className="font-mono text-slate-300">
+              {filteredBackends.map((backend) => (
+                <tr key={backend.name} className="border-t border-white/[0.06]">
+                  <th scope="row" className="py-1.5 pr-3 font-sans font-medium text-slate-200">{backend.name}</th>
+                  <td className="py-1.5 pr-3">{typeof backend.qubits === 'number' ? backend.qubits : '—'}</td>
+                  <td className="py-1.5 pr-3">{typeof backend.queue_depth === 'number' ? backend.queue_depth : '—'}</td>
+                  <td className="py-1.5 pr-3">{typeof backend.cost_per_shot === 'number' ? `$${backend.cost_per_shot.toFixed(6)}` : '—'}</td>
+                  <td className="py-1.5 pr-3">{backend.jurisdiction || '—'}</td>
+                  <td className="py-1.5 pr-3">{backend.credential_state || '—'}</td>
+                  <td className="py-1.5">{backend.telemetry || '—'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       {/* Real-Time Host Daemon Telemetry (Ports 8080 & 50051) */}
       <div className="space-y-3">
         <div className="flex items-center justify-between text-xs font-semibold text-slate-300 font-mono uppercase tracking-wider">
