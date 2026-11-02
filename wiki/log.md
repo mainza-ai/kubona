@@ -4813,5 +4813,17 @@ skipped is the exact failure this incident is about:
   live cancel verified.
 - Coverage is now 108/123 unique operations; the 15 remaining are observatory
   Atlas, autoresearch/loop, codesign rerun, metastrategy, and tribunal resume.
+
+## [2026-11-02] verification | All modeled operations now handler-tested
+
+- Closed the final 15 contracts: observatory Atlas asset/status/dispatch/resolve,
+  autoresearch start/pause/resume/step/stop, supervisor loop action, codesign
+  rerun, metasearch approve/apply/reject, and tribunal resume.
+- The contract gate now covers all 123 unique modeled REST operations (124
+  modeled functions, one duplicate binding), validated against the generated
+  OpenAPI schemas.
+- Full Go suite, 23 Rust tests, and 57 targeted Python/bridge tests pass; no
+  product behavior was replaced by a mock. Provider RPC/LLM/Atlas doubles are
+  test-only; live E2E remains on the real stack.
   CI `41486920480`, Console E2E `41486920592`, and nightly `41488972234` are
   green at `24912cb`.
