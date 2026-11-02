@@ -158,15 +158,19 @@ func (c *Compiler) Analyze(qasm string) (*CircuitSummary, error) {
 		cancel()
 		if runErr == nil && out.Len() > 0 {
 			var raw struct {
-				InstructionCount int `json:"instruction_count"`
-				QubitAllocations int `json:"qubit_allocations"`
-				GateDepth        int `json:"gate_depth"`
-				SingleQubitGates int `json:"single_qubit_gates"`
-				TwoQubitGates    int `json:"two_qubit_gates"`
-				TotalGates       int `json:"total_gates"`
+				InstructionCount int    `json:"instruction_count"`
+				QubitAllocations int    `json:"qubit_allocations"`
+				GateDepth        int    `json:"gate_depth"`
+				SingleQubitGates int    `json:"single_qubit_gates"`
+				TwoQubitGates    int    `json:"two_qubit_gates"`
+				TotalGates       int    `json:"total_gates"`
+				QIR              string `json:"qir"`
 			}
 			if err := json.Unmarshal(out.Bytes(), &raw); err == nil && (raw.QubitAllocations > 0 || raw.TotalGates > 0) {
-				llvm, _ := c.LowerToLLVM(qasm)
+				llvm := raw.QIR
+				if strings.TrimSpace(llvm) == "" {
+					llvm, _ = c.LowerToLLVM(qasm)
+				}
 				return &CircuitSummary{
 					NumQubits: raw.QubitAllocations,
 					Depth:     raw.GateDepth,
@@ -279,11 +283,28 @@ func parseAngle(raw string) (float64, error) {
 // parseProgram structurally parses QASM once for the Go fallback: register
 // map (multi-qreg via offsets), validated indices, per-gate classification.
 func parseProgram(qasm string) (*parsedProgram, error) {
+	statements, err := qasmStatements(qasm)
+	if err != nil {
+		return nil, err
+	}
 	regWidth := map[string]int{}
 	regOffset := map[string]int{}
+	cregWidth := map[string]int{}
+	cregOffset := map[string]int{}
+	classicalBits := 0
 	total := 0
-	for _, line := range strings.Split(qasm, "\n") {
-		line = stripQASMComment(line)
+	for _, line := range statements {
+		if name, n, ok, err := parseClassicalRegister(line); err != nil {
+			return nil, err
+		} else if ok {
+			if _, dup := cregWidth[name]; dup {
+				return nil, fmt.Errorf("duplicate classical register %q", name)
+			}
+			cregWidth[name] = n
+			cregOffset[name] = classicalBits
+			classicalBits += n
+			continue
+		}
 		if matches := qregRe.FindStringSubmatch(line); len(matches) > 2 {
 			n, _ := strconv.Atoi(matches[2])
 			if n <= 0 {
@@ -316,6 +337,17 @@ func parseProgram(qasm string) (*parsedProgram, error) {
 		return nil, fmt.Errorf("no qubit register declared: refusing to invent qubits")
 	}
 	pp := &parsedProgram{numQubits: total}
+	cref := func(tok string) (name string, idx int, whole bool, err error) {
+		tok = strings.TrimSpace(tok)
+		if m := qubitRe.FindStringSubmatch(tok); m != nil {
+			idx, _ = strconv.Atoi(m[2])
+			return m[1], idx, false, nil
+		}
+		if tok == "" {
+			return "", 0, false, fmt.Errorf("empty classical operand")
+		}
+		return tok, 0, true, nil
+	}
 	qidx := func(tok string) (int, error) {
 		m := qubitRe.FindStringSubmatch(strings.TrimSpace(tok))
 		if m == nil {
@@ -331,14 +363,13 @@ func parseProgram(qasm string) (*parsedProgram, error) {
 		}
 		return regOffset[m[1]] + i, nil
 	}
-	for _, rawLine := range strings.Split(qasm, "\n") {
-		line := stripQASMComment(rawLine)
+	for _, line := range statements {
 		if line == "" || isQASMDirective(line) {
 			continue
 		}
 		m := gateRe.FindStringSubmatch(line)
 		if m == nil {
-			return nil, fmt.Errorf("unparseable statement %q: refusing", rawLine)
+			return nil, fmt.Errorf("unparseable statement %q: refusing", line)
 		}
 		name := strings.ToLower(m[1])
 		var operands []string
@@ -435,25 +466,53 @@ func parseProgram(qasm string) (*parsedProgram, error) {
 			}
 			pp.ops = append(pp.ops, parsedOp{name: "reset", qubits: []int{i}})
 		case "measure":
-			// measure q[i] -> c[j]: both sides validated (classical bit
-			// threading is real here — the dropped-bit class is refused).
+			// measure q[i] -> c[j], or the whole-register form
+			// measure q -> c expanded one qubit/bit at a time. Both sides
+			// are validated; classical-bit threading is real here.
 			if len(operands) != 1 {
-				return nil, fmt.Errorf("measure takes q[i] -> c[j], got %q", rawLine)
+				return nil, fmt.Errorf("measure takes q[i] -> c[j], got %q", line)
 			}
 			parts := strings.Split(operands[0], "->")
 			if len(parts) != 2 {
-				return nil, fmt.Errorf("measure takes q[i] -> c[j], got %q", rawLine)
+				return nil, fmt.Errorf("measure takes q[i] -> c[j], got %q", line)
 			}
-			qi, err := qidx(strings.TrimSpace(parts[0]))
-			if err != nil {
-				return nil, err
+			qname, qidxValue, qWhole, qerr := cref(parts[0])
+			if qerr != nil {
+				return nil, qerr
 			}
-			cm := qubitRe.FindStringSubmatch(strings.TrimSpace(parts[1]))
-			if cm == nil {
-				return nil, fmt.Errorf("bad classical operand in %q", rawLine)
+			cname, cidxValue, cWhole, cerr := cref(parts[1])
+			if cerr != nil {
+				return nil, cerr
 			}
-			ci, _ := strconv.Atoi(cm[2])
-			pp.ops = append(pp.ops, parsedOp{name: "measure", qubits: []int{qi}, cbit: ci})
+			if qWhole != cWhole {
+				return nil, fmt.Errorf("measure must address two whole registers or two indexed bits in %q", line)
+			}
+			if qWhole {
+				qw, qok := regWidth[qname]
+				cw, cok := cregWidth[cname]
+				if !qok {
+					return nil, fmt.Errorf("qubit register %q not declared", qname)
+				}
+				if !cok {
+					return nil, fmt.Errorf("classical register %q not declared", cname)
+				}
+				if qw != cw {
+					return nil, fmt.Errorf("measure register widths differ: %s[%d] and %s[%d]", qname, qw, cname, cw)
+				}
+				for i := 0; i < qw; i++ {
+					pp.ops = append(pp.ops, parsedOp{name: "measure", qubits: []int{regOffset[qname] + i}, cbit: cregOffset[cname] + i})
+				}
+				pp.gateCount += qw
+				continue
+			} else {
+				if qidxValue < 0 || qidxValue >= regWidth[qname] {
+					return nil, fmt.Errorf("qubit index %d out of range for %s[%d]", qidxValue, qname, regWidth[qname])
+				}
+				if cidxValue < 0 || cidxValue >= cregWidth[cname] {
+					return nil, fmt.Errorf("classical index %d out of range for %s[%d]", cidxValue, cname, cregWidth[cname])
+				}
+				pp.ops = append(pp.ops, parsedOp{name: "measure", qubits: []int{regOffset[qname] + qidxValue}, cbit: cregOffset[cname] + cidxValue})
+			}
 		default:
 			return nil, fmt.Errorf("gate %q is outside the Go fallback set (h,x,y,z,s,sdg,t,tdg,id,rx,ry,rz,cx,cz,swap,reset,measure): use the rust core for full QASM", name)
 		}
@@ -463,6 +522,72 @@ func parseProgram(qasm string) (*parsedProgram, error) {
 		}
 	}
 	return pp, nil
+}
+
+var cregRe = regexp.MustCompile(`creg\s+(\w+)\[(\d+)\]`)
+
+// parseClassicalRegister recognizes QASM2 `creg c[n]` and QASM3 `bit[n] c`.
+func parseClassicalRegister(line string) (string, int, bool, error) {
+	line = strings.TrimSpace(line)
+	if m := cregRe.FindStringSubmatch(line); m != nil {
+		n, _ := strconv.Atoi(m[2])
+		if n <= 0 {
+			return "", 0, false, fmt.Errorf("invalid classical register width in %q", line)
+		}
+		return m[1], n, true, nil
+	}
+	lower := strings.ToLower(line)
+	if !strings.HasPrefix(lower, "bit") {
+		return "", 0, false, nil
+	}
+	rest := strings.TrimSpace(line[3:])
+	if !strings.HasPrefix(rest, "[") {
+		return "", 0, false, nil
+	}
+	end := strings.Index(rest, "]")
+	if end < 0 {
+		return "", 0, false, fmt.Errorf("malformed bit declaration %q", line)
+	}
+	n, err := strconv.Atoi(strings.TrimSpace(rest[1:end]))
+	if err != nil || n <= 0 {
+		return "", 0, false, fmt.Errorf("invalid bit register width in %q", line)
+	}
+	name := strings.TrimSpace(rest[end+1:])
+	if name == "" {
+		return "", 0, false, fmt.Errorf("bit register name is empty in %q", line)
+	}
+	return name, n, true, nil
+}
+
+// qasmStatements strips line comments and splits the program into
+// semicolon-terminated statements. Newlines are not statement boundaries in
+// QASM: a valid one-line program must parse the same as its expanded form.
+func qasmStatements(qasm string) ([]string, error) {
+	var b strings.Builder
+	for _, line := range strings.Split(qasm, "\n") {
+		line = stripQASMComment(line)
+		if line == "" {
+			continue
+		}
+		b.WriteString(line)
+		b.WriteByte('\n')
+	}
+	joined := b.String()
+	var out []string
+	start := 0
+	for i, r := range joined {
+		if r != ';' {
+			continue
+		}
+		if statement := strings.TrimSpace(joined[start:i]); statement != "" {
+			out = append(out, statement)
+		}
+		start = i + 1
+	}
+	if tail := strings.TrimSpace(joined[start:]); tail != "" {
+		return nil, fmt.Errorf("missing ';' in %q", tail)
+	}
+	return out, nil
 }
 
 func isQASMDirective(line string) bool {

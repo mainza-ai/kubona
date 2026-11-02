@@ -201,3 +201,45 @@ func TestQIRFallbackRefusals(t *testing.T) {
 		}
 	}
 }
+
+func TestQIRFallbackOneLineAndWholeRegisterMeasure(t *testing.T) {
+	c := &Compiler{QIRCoreBinaryPath: "/nonexistent/qir-core-test-binary"}
+	qasm := `OPENQASM 2.0; include "qelib1.inc"; qreg q[2]; creg c[2]; h q[0]; cx q[0],q[1]; measure q -> c;`
+	summary, err := c.Analyze(qasm)
+	if err != nil {
+		t.Fatalf("one-line analyze: %v", err)
+	}
+	if summary.NumQubits != 2 || summary.GateCount != 4 {
+		t.Fatalf("one-line summary = %+v, want 2 qubits / 4 gates", summary)
+	}
+	llvm, err := c.LowerToLLVM(qasm)
+	if err != nil {
+		t.Fatalf("one-line lower: %v", err)
+	}
+	if strings.Count(llvm, "__quantum__qis__mz__body") < 2 {
+		t.Errorf("whole-register measure must expand to two mz calls, got:\n%s", llvm)
+	}
+}
+
+func TestQIRFallbackMultiRegisterOffsets(t *testing.T) {
+	c := &Compiler{QIRCoreBinaryPath: "/nonexistent/qir-core-test-binary"}
+	qasm := `qreg a[2];
+qreg b[3];
+h a[1];
+h b[0];
+`
+	summary, err := c.Analyze(qasm)
+	if err != nil {
+		t.Fatalf("multi-register analyze: %v", err)
+	}
+	if summary.NumQubits != 5 || summary.GateCount != 2 {
+		t.Fatalf("multi-register summary = %+v, want 5 qubits / 2 gates", summary)
+	}
+	llvm, err := c.LowerToLLVM(qasm)
+	if err != nil {
+		t.Fatalf("multi-register lower: %v", err)
+	}
+	if !strings.Contains(llvm, "i64 2 to %Qubit*") {
+		t.Errorf("b[0] must lower to global qubit 2, got:\n%s", llvm)
+	}
+}

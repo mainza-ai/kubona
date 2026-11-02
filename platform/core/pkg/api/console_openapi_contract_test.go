@@ -324,7 +324,7 @@ func TestConsoleOpenAPIWriteContracts(t *testing.T) {
 		{http.MethodPost, "/api/auth/logout", "/api/auth/logout", http.StatusOK, `{}`},
 		{http.MethodPost, "/api/sessions/export", "/api/sessions/export", http.StatusOK, `{"session_id":"` + sess.ID + `"}`},
 		{http.MethodDelete, "/api/sessions/" + disposable.ID, "/api/sessions/{id}", http.StatusOK, ``},
-		{http.MethodPost, "/api/qir/compile", "/api/qir/compile", http.StatusOK, `{"qasm":"OPENQASM 2.0; include \"qelib1.inc\"; qreg q[1]; h q[0];"}`},
+		{http.MethodPost, "/api/qir/compile", "/api/qir/compile", http.StatusOK, `{"qasm":"OPENQASM 2.0; include \"qelib1.inc\"; qreg q[1]; creg c[1]; h q[0]; measure q -> c;"}`},
 		{http.MethodPost, "/api/mesh/route", "/api/mesh/route", http.StatusOK, `{"prompt":"contract","items":[]}`},
 		{http.MethodPost, "/api/supervisor/abort", "/api/supervisor/abort", http.StatusOK, `{"session_id":"` + sess.ID + `","reason":"contract abort"}`},
 		{http.MethodPut, "/api/quantum/settings", "/api/quantum/settings", http.StatusOK, `{"default_backend":"local-simulator","harness_backends":{}}`},

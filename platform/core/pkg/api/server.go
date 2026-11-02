@@ -5552,7 +5552,7 @@ func (s *Server) handleQIRCompile(w http.ResponseWriter, r *http.Request) {
 	// is total today, so this never fires — but a future fallible Analyze
 	// must refuse here, not summarize. Do not delete as "dead code".
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		WriteAPIError(w, "bad_request", err.Error(), nil)
 		return
 	}
 

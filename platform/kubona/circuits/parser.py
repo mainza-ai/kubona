@@ -41,6 +41,34 @@ def _derive_name(source: str, explicit: str | None, qreg_names: list[str]) -> st
     return f"qasm-{digest}"
 
 
+def _statements(source: str) -> list[str]:
+    """Split QASM into semicolon-terminated statements.
+
+    Newlines are not statement boundaries in QASM. The old line splitter
+    treated a valid one-line program as one unsupported statement and
+    silently missed its qreg; every statement now carries its semicolon so
+    the existing per-statement regexes keep their shape.
+    """
+    joined = "\n".join(
+        ln.split("//")[0].strip()
+        for ln in source.splitlines()
+        if ln.split("//")[0].strip()
+    )
+    out: list[str] = []
+    start = 0
+    for i, ch in enumerate(joined):
+        if ch != ";":
+            continue
+        statement = joined[start:i].strip()
+        if statement:
+            out.append(statement + ";")
+        start = i + 1
+    tail = joined[start:].strip()
+    if tail:
+        raise ValueError(f"missing ';' in {tail!r}")
+    return out
+
+
 def parse_qasm2(source: str, name: str | None = None,
                 refuse_measure: bool = False) -> Circuit:
     """Parse an OpenQASM 2.0 subset string into a :class:`Circuit`.
@@ -53,7 +81,7 @@ def parse_qasm2(source: str, name: str | None = None,
             being recorded in ``skipped_directives`` (compiler passes use
             this: they prove unitary equality, which measurement breaks).
     """
-    lines = [ln.split("//")[0].strip() for ln in source.splitlines() if ln.strip()]
+    lines = _statements(source)
     num_qubits = 0
     num_classical = 0
     gates: list[Gate] = []

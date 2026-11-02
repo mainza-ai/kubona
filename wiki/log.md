@@ -4770,3 +4770,27 @@ skipped is the exact failure this incident is about:
   green; Go contract tests green; wiki lint clean. The full nightly is green at `d1a48ed`
   (run `41418158035`: canary, 100/300 FPS, slice60 composition + determinism). Remaining: 55 unique
   handler-contract operations, manual AT (waived), W7 release-gated retirement.
+
+## [2026-11-02] verification | Live local production stack and QIR closure
+
+- Started the real stack: Python bridge over the production UDS transport,
+  `kubonad` in `KUBONA_ENV=production`, and the production console build against
+  `http://localhost:8080`. No E2E mocks were used for these checks.
+- Verified live: local Strata chat, PySCF anchor computation, local-simulator
+  circuit execution, ledger verification, session export/import replay, tasks,
+  memory, vault seal/evaluate/assert, workflow plan/run, ADMET, HF search,
+  literature search, and backup + applied restore.
+- Fixed QIR closure: Rust and Go now split QASM on semicolons (one-line
+  programs), support whole-register `measure q -> c`, use summed multi-register
+  offsets, and refuse width/bit mismatches. Rust JSON now carries the analysis
+  fields the Go API consumes, so the live endpoint reports
+  `rust-qir-core` / `BaseProfile` instead of silently falling back to an empty
+  estimate. Invalid QASM returns 400, not 500.
+- Fixed the workflow sample to a real registry tool
+  (`execution/list_provider_registry`) and exercised plan/run against the live
+  bridge.
+- Made the operator E2E repeatable by creating a fresh lab and registering its
+  browser key, then logging in; it now passes twice on the same database and on
+  a fresh database.
+- Verification: 13 real-stack browser tests, 11 mocked regression E2E tests,
+  557 console tests, full Go suite, 23 Rust tests, and 44 related Python tests.

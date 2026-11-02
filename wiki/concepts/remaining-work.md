@@ -183,11 +183,15 @@ Still open:
   agent-presence fade. The molecule opens as a named object-view dialog; the
   3D loop publishes a frame counter and suspended reason, and a browser E2E gate
   proves hidden/offscreen frames stop.
-- Rust: the Rust core now returns a structured JSON receipt (QIR text, qubit and
-  native-gate counts); Python no longer re-parses QIR on the shipped path. A
-  full-process benchmark (`scripts/qir-bench-full.py`) records p50/p95/p99,
-  receipt bytes, and child RSS and runs in CI as a signal. A warm worker remains
-  deferred until the wrapper measurement justifies it.
+- Rust: the Rust core returns a structured JSON receipt (QIR text, qubit,
+  depth, gate counts); the Go API consumes those fields directly and Python no
+  longer re-parses QIR on the shipped path. Both frontends split QASM by
+  statement (one-line programs), expand whole-register `measure q -> c`, and
+  use summed multi-register offsets. The live endpoint reports
+  `rust-qir-core` / `BaseProfile`; invalid QASM is a 400. A full-process
+  benchmark (`scripts/qir-bench-full.py`) records p50/p95/p99, receipt bytes,
+  and child RSS and runs in CI as a signal. A warm worker remains deferred until
+  the wrapper measurement justifies it.
 - Per-send model override has no backend contract; the composer links to Model
   Hub instead of faking one.
 - The 14 remaining client-only names are intentional transport/browser/auth

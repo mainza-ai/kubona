@@ -33,3 +33,26 @@ def test_lower_uses_rust_core_when_available():
     else:
         assert out.get("engine") == "python-reference"
         assert "__quantum__qis__h__body" in out["qir_text"]
+
+def test_one_line_qasm_and_whole_register_measure():
+    from kubona.qir.pipeline import lower
+
+    qasm = ('OPENQASM 2.0; include "qelib1.inc"; qreg q[2]; creg c[2]; '
+            'h q[0]; cx q[0],q[1]; measure q -> c;')
+    circuit = parse_qasm2(qasm)
+    assert circuit.num_qubits == 2
+    assert circuit.num_classical == 2
+    assert len(circuit.gates) == 2
+    from kubona.qir.native import rust_available
+
+    result = lower(qasm)
+    assert result["num_qubits"] == 2
+    if rust_available():
+        assert result["engine"] == "rust-qir-core"
+        assert result["native_gate_count"]["measure"] == 2
+
+
+def test_multi_register_width_uses_offsets():
+    circuit = parse_qasm2("qreg a[2]; qreg b[3]; h a[1]; h b[0];")
+    assert circuit.num_qubits == 5
+    assert circuit.gates[1].qubits == (2,)

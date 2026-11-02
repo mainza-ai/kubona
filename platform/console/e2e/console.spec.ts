@@ -23,26 +23,33 @@ async function ensureOperatorLoggedIn(page: Page) {
   await page.goto('/');
   await expectReady(page);
   await openLabs(page);
-  await expect(page.locator('button').filter({ hasText: 'Default lab' }).first()).toBeVisible();
 
-  // First run: the default lab has no admin key. Bootstrap it with the
-  // operator token (held only in component state), then log in with the
-  // browser-held Ed25519 key. On a later context the admin is already set,
-  // so only the login button remains.
-  const labButton = page.locator('button').filter({ hasText: 'Default lab' }).first();
-  if (await labButton.count()) {
-    await labButton.click();
-  }
-  if (await page.getByText('No admin registered', { exact: false }).isVisible().catch(() => false)) {
-    await page.getByLabel('Operator token').last().fill(token!);
-    await page.getByRole('button', { name: /Create browser key|Register this browser key/ }).click();
-    await expect(page.getByText('No admin registered', { exact: false })).toHaveCount(0);
-  }
+  // Create a fresh lab and register this browser key as its first admin.
+  // This is the supported first-admin path and keeps the write test
+  // repeatable when a prior browser key already owns another lab.
+  const labId = `e2e-${Date.now().toString(36)}`;
+  await page.getByLabel('New lab ID').fill(labId);
+  await page.getByLabel('New lab display name').fill('E2E operator lab');
+  await page.getByLabel('New lab operator token').fill(token!);
+  const labCreated = page.waitForResponse((response) => (
+    response.url().endsWith('/api/tenants')
+    && response.request().method() === 'POST'
+    && response.status() === 201
+  ));
+  const adminRegistered = page.waitForResponse((response) => (
+    response.url().includes('/api/tenants/admin-key')
+    && response.request().method() === 'POST'
+    && response.status() === 200
+  ));
+  await page.getByRole('button', { name: 'Create lab + register admin' }).click();
+  await labCreated;
+  await adminRegistered;
 
-  const login = page.getByRole('button', { name: /Log in with browser key|Session expired — log in again/ });
-  if (await login.isVisible().catch(() => false)) {
-    await login.click();
-  }
+  // A multi-lab store deliberately does not list labs anonymously; the
+  // manual lab-id path is the supported login affordance.
+  await page.getByRole('textbox', { name: 'Lab ID', exact: true }).fill(labId);
+  await page.getByRole('button', { name: /Log in with browser key|Session expired — log in again/ }).click();
+
   await expect(page.getByText(/Operator session/)).toBeVisible();
   await expect(page.getByText(/anonymous \(bearer only\)/)).toHaveCount(0);
 }
@@ -158,6 +165,14 @@ test.describe('Kubona console against the real local stack', () => {
     await expect(page.getByText('TQ scoring', { exact: false })).toBeVisible();
     await page.getByRole('button', { name: 'Score', exact: true }).click();
     await expect(page.getByText('TQ = 50', { exact: true })).toBeVisible();
+
+    // The shipped workflow sample must be valid against the live tool
+    // registry: plan only, no execution.
+    await page.getByTestId('dock-mesh').click();
+    await page.getByRole('button', { name: 'Guardrails' }).click();
+    await expect(page.getByText('Workflow planner / runner')).toBeVisible();
+    await page.getByRole('button', { name: 'Plan (dry run)' }).click();
+    await expect(page.getByText(/dry_run true · steps 1/)).toBeVisible();
   });
 
   test('mobile shell keeps the inspector closed until opened as an overlay', async ({ page }) => {

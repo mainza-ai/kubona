@@ -58,6 +58,7 @@ fn main() {
             Ok(ir) => ir,
             Err(e) => { eprintln!("lowering error: {e}"); std::process::exit(1); }
         };
+        let analysis = qir_core::analyze_circuit(&native);
         let mut counts = BTreeMap::<String, usize>::new();
         for gate in &native.gates {
             let name = if gate.name == "cnot" { "cx" } else { gate.name.as_str() };
@@ -74,8 +75,15 @@ fn main() {
             .collect::<Vec<_>>()
             .join(",");
         println!(
-            "{{\"ok\":true,\"num_qubits\":{},\"native_gate_count\":{{{}}},\"native_gate_set\":[{}],\"qir\":\"{}\"}}",
+            "{{\"ok\":true,\"num_qubits\":{},\"instruction_count\":{},\"qubit_allocations\":{},\"gate_depth\":{},\"single_qubit_gates\":{},\"two_qubit_gates\":{},\"multi_qubit_gates\":{},\"total_gates\":{},\"native_gate_count\":{{{}}},\"native_gate_set\":[{}],\"qir\":\"{}\"}}",
             native.num_qubits,
+            analysis.instruction_count,
+            analysis.qubit_allocations,
+            analysis.gate_depth,
+            analysis.single_qubit_gates,
+            analysis.two_qubit_gates,
+            analysis.multi_qubit_gates,
+            analysis.total_gates,
             count_json,
             set_json,
             json_escape(&ir),
