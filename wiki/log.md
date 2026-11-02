@@ -4699,3 +4699,9 @@ skipped is the exact failure this incident is about:
 - Add a Go cross-language contract test against generated OpenAPI schemas.
 - Preserve unknown layout refs as unavailable cards; align 3D/workbench zoom
   with the server; remove per-pointer React camera updates.
+
+## [2026-11-01] perf | Lazy surface chunks
+
+- Move non-default surfaces behind next/dynamic with an explicit loading
+  surface. Mocked 361-object boot transfer fell 654 KB → 585 KB; the 480 KB and
+  Arena DOM ≤500 targets remain open. E2E a11y waits for lazy chunks.

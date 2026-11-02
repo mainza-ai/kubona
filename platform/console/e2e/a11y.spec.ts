@@ -18,12 +18,15 @@ test('WCAG 2 A/AA automated audit on core surfaces', async ({ page }) => {
 
   await page.getByTestId('dock-mesh').click();
   await page.getByRole('button', { name: 'Laboratories' }).click();
+  await expect(page.getByText('Operator session')).toBeVisible();
   await audit(page, 'labs');
 
   await page.getByRole('button', { name: 'Sovereign Settings' }).click();
+  await expect(page.getByText('Sovereign Intelligence Configuration')).toBeVisible();
   await audit(page, 'settings');
 
   await page.getByTestId('dock-proofs').click();
   await page.getByRole('button', { name: 'Circuit Codesign' }).click();
+  await expect(page.getByText('Verified RS decoder', { exact: false })).toBeVisible();
   await audit(page, 'codesign');
 });
