@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import dynamic from 'next/dynamic';
+import { SurfaceLoading } from '@/components/shell/SurfaceLoading';
 import { Sparkles, Plus, Zap, Info, HelpCircle, Trash2, Clock, Box, X } from 'lucide-react';
 import { Session, LedgerEvent, RunPhase, ProbeId } from '@/types';
 import { fetchSessionsResult, fetchSession, createSession, deleteSession, createTask, updateTaskStatus, fetchLoopsResult, fetchEventsResult, fetchCampaignState, API_BASE, CONSOLE_WORKBENCH_ENABLED, authHeaders, configureApiBase, apiFetch, UNAUTH_EVENT, API_PROBLEM_EVENT, type ApiProblem } from '@/lib/api';
@@ -31,27 +33,29 @@ import { ProofDagView } from '@/components/sovereign/ProofDagView';
 import { ActionGate } from '@/components/sovereign/ActionGate';
 import { AttentionProvider } from '@/lib/attention-context';
 import { isMeteredBackend } from '@/lib/approvalPacket';
-import { WidgetStage, CanvasWidgetSpec, CanvasWidgetKind } from '@/components/sovereign/WidgetStage';
-import { FlightRecorder } from '@/components/surfaces/FlightRecorder';
+import type { CanvasWidgetSpec, CanvasWidgetKind } from '@/components/sovereign/WidgetStage';
 import { FlightRecorderCard } from '@/components/FlightRecorderCard';
-import { EpistemicManifold } from '@/components/surfaces/EpistemicManifold';
-import { FleetRadar } from '@/components/surfaces/FleetRadar';
-import { ResultsStudio } from '@/components/surfaces/ResultsStudio';
-import { EpistemicTribunalRoom } from '@/components/surfaces/EpistemicTribunalRoom';
-import { CognitiveMesh } from '@/components/surfaces/CognitiveMesh';
-import { HuggingFaceModelHub } from '@/components/surfaces/HuggingFaceModelHub';
-import { LabsView } from '@/components/surfaces/LabsView';
-import { LLMSettings } from '@/components/surfaces/LLMSettings';
-import { QuantumSettings } from '@/components/surfaces/QuantumSettings';
-import { QuantumDispatch } from '@/components/surfaces/QuantumDispatch';
-import { AutonomyCockpit } from '@/components/surfaces/AutonomyCockpit';
-import { SpatialCanvas } from '@/components/surfaces/SpatialCanvas';
 import { Workbench } from '@/components/workbench/Workbench';
 import { StatusStrip } from '@/components/shell/StatusStrip';
-import { GenerativeUIStudio } from '@/components/surfaces/GenerativeUIStudio';
-import { CodesignCockpit } from '@/components/surfaces/CodesignCockpit';
-import { VaultLeasePanel } from '@/components/common/VaultLeasePanel';
-import { SystemReadinessPanel } from '@/components/common/SystemReadinessPanel';
+
+const FlightRecorder = dynamic(() => import('@/components/surfaces/FlightRecorder').then((mod) => ({ default: mod.FlightRecorder })), { ssr: false, loading: () => <SurfaceLoading label="flight recorder" /> });
+const EpistemicManifold = dynamic(() => import('@/components/surfaces/EpistemicManifold').then((mod) => ({ default: mod.EpistemicManifold })), { ssr: false, loading: () => <SurfaceLoading label="evidence" /> });
+const FleetRadar = dynamic(() => import('@/components/surfaces/FleetRadar').then((mod) => ({ default: mod.FleetRadar })), { ssr: false, loading: () => <SurfaceLoading label="fleet" /> });
+const ResultsStudio = dynamic(() => import('@/components/surfaces/ResultsStudio').then((mod) => ({ default: mod.ResultsStudio })), { ssr: false, loading: () => <SurfaceLoading label="results" /> });
+const EpistemicTribunalRoom = dynamic(() => import('@/components/surfaces/EpistemicTribunalRoom').then((mod) => ({ default: mod.EpistemicTribunalRoom })), { ssr: false, loading: () => <SurfaceLoading label="tribunal" /> });
+const CognitiveMesh = dynamic(() => import('@/components/surfaces/CognitiveMesh').then((mod) => ({ default: mod.CognitiveMesh })), { ssr: false, loading: () => <SurfaceLoading label="mesh" /> });
+const HuggingFaceModelHub = dynamic(() => import('@/components/surfaces/HuggingFaceModelHub').then((mod) => ({ default: mod.HuggingFaceModelHub })), { ssr: false, loading: () => <SurfaceLoading label="model hub" /> });
+const LabsView = dynamic(() => import('@/components/surfaces/LabsView').then((mod) => ({ default: mod.LabsView })), { ssr: false, loading: () => <SurfaceLoading label="laboratories" /> });
+const LLMSettings = dynamic(() => import('@/components/surfaces/LLMSettings').then((mod) => ({ default: mod.LLMSettings })), { ssr: false, loading: () => <SurfaceLoading label="LLM settings" /> });
+const QuantumSettings = dynamic(() => import('@/components/surfaces/QuantumSettings').then((mod) => ({ default: mod.QuantumSettings })), { ssr: false, loading: () => <SurfaceLoading label="quantum settings" /> });
+const QuantumDispatch = dynamic(() => import('@/components/surfaces/QuantumDispatch').then((mod) => ({ default: mod.QuantumDispatch })), { ssr: false, loading: () => <SurfaceLoading label="quantum dispatch" /> });
+const AutonomyCockpit = dynamic(() => import('@/components/surfaces/AutonomyCockpit').then((mod) => ({ default: mod.AutonomyCockpit })), { ssr: false, loading: () => <SurfaceLoading label="guardrails" /> });
+const SpatialCanvas = dynamic(() => import('@/components/surfaces/SpatialCanvas').then((mod) => ({ default: mod.SpatialCanvas })), { ssr: false, loading: () => <SurfaceLoading label="molecule workbench" /> });
+const GenerativeUIStudio = dynamic(() => import('@/components/surfaces/GenerativeUIStudio').then((mod) => ({ default: mod.GenerativeUIStudio })), { ssr: false, loading: () => <SurfaceLoading label="gallery" /> });
+const CodesignCockpit = dynamic(() => import('@/components/surfaces/CodesignCockpit').then((mod) => ({ default: mod.CodesignCockpit })), { ssr: false, loading: () => <SurfaceLoading label="codesign" /> });
+const VaultLeasePanel = dynamic(() => import('@/components/common/VaultLeasePanel').then((mod) => ({ default: mod.VaultLeasePanel })), { ssr: false, loading: () => <SurfaceLoading label="vault leases" /> });
+const SystemReadinessPanel = dynamic(() => import('@/components/common/SystemReadinessPanel').then((mod) => ({ default: mod.SystemReadinessPanel })), { ssr: false, loading: () => <SurfaceLoading label="readiness" /> });
+const WidgetStage = dynamic(() => import('@/components/sovereign/WidgetStage').then((mod) => ({ default: mod.WidgetStage })), { ssr: false, loading: () => <SurfaceLoading label="widget" /> });
 
 function formatElapsed(createdAt: string): string {
   const ms = Date.now() - new Date(createdAt).getTime();

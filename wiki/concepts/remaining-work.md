@@ -138,7 +138,9 @@ Still open:
 - Design-system migration: only Button/Badge/EmptyState exist as shared
   primitives; raw palette utilities remain and no stylelint rule enforces the
   token boundary. Shell extraction, glass/DOM budgets, and the remaining chart
-  migrations are still open.
+  migrations are still open. Lazy surface chunks cut mocked initial transfer
+  from 654 KB to 585 KB, still above the 480 KB target; Arena DOM measured 843
+  visible / 923 total against the ≤500 target.
 - Transport hardening: typed auth enum, domain+id event coalescing, chat
   request ids, and exercising `/api/v1` from the console remain open.
 - Legacy retirement: the molecule canvas and `WidgetStage` stay until object
