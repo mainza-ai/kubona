@@ -2055,7 +2055,7 @@ export async function issueVaultLease(scope: string, ttlSeconds: number, session
     const data = await requestOperation('issueVaultLease', {
       body: { scope, ttl_seconds: ttlSeconds, ...(sessionId ? { session_id: sessionId } : {}) },
     });
-    return { ok: true, lease: data.lease as unknown as VaultLease };
+    return { ok: true, lease: data as unknown as VaultLease };
   } catch (err) {
     return { ok: false, error: String(err instanceof Error ? err.message : err).slice(0, 280) };
   }

@@ -121,3 +121,42 @@ jobs:
         env:
           PYTHONUNBUFFERED: "1"
         run: KUBONA_STATE_DIR="$(mktemp -d)" timeout 9000 python -m pytest -q -rs "tests/test_codesign_slice60.py::test_rs_pins_determinism_layout" --durations=20
+
+  console-perf:
+    name: Console 100/300-object FPS (nightly)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: platform/console
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: 11.18.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: platform/console/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: NEXT_PUBLIC_KUBONA_CONSOLE_TOKEN= pnpm build
+      - name: Start console
+        run: |
+          pnpm start > /tmp/console-perf.log 2>&1 &
+          echo $! > /tmp/console-perf.pid
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3000/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/console-perf.log
+          exit 1
+      - name: Run 100/300-object FPS gate
+        env:
+          KUBONA_PERF: "1"
+          KUBONA_CONSOLE_URL: http://127.0.0.1:3000
+        run: pnpm exec playwright test e2e/workbench-perf.spec.ts --reporter=list
+      - name: Stop console
+        if: always()
+        run: kill "$(cat /tmp/console-perf.pid)" 2>/dev/null || true
